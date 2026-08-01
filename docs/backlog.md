@@ -78,26 +78,81 @@ After cycling the resource type, the code clamps `focusedField` down to
 Dead defensive code. Harmless, but it implies a state transition that cannot
 happen and is misleading to read.
 
+### D6 — `wordWrap` measures bytes, not runes
+
+`internal/ui/help/help.go:123`
+
+Word widths come from `len(word)`, which counts bytes. Accented text therefore
+wraps earlier than its rendered width requires: two 5-rune words occupy 11
+columns but 21 bytes, so a width of 12 splits them apart.
+
+Low impact today — Rule 129 keeps help content in English US — but it is the same
+byte-vs-rune class as [D1](#d1--reportmodalview-emits-invalid-utf-8). Unlike
+[D3](#d3--wrapinputlines-loops-forever-when-wrapwidth--0), `wordWrap` does guard
+a non-positive width, and that guard is covered by a test so it does not get
+"tidied" away.
+
+Pinned by `TestWordWrapMeasuresBytesNotRunes`.
+
+**Fix:** measure with `utf8.RuneCountInString`, or `runewidth.StringWidth` if
+double-width glyphs ever appear.
+
+### D7 — `extractTarGz` keeps parent references in archive paths
+
+`internal/oci/oci.go:262`
+
+Extraction strips leading `./` and `/` but does not reject `..`, so an archive
+member named `../../etc/passwd` survives as a map key containing parent
+references.
+
+**Not exploitable today.** The sole consumer, `applyTemplate` in
+`internal/ui/gitlab/explorer/model.go:1053`, turns the map into GitLab commit
+actions rather than writing to disk, and the server validates the paths.
+
+Recorded because the hazard is latent: any future caller that writes these keys
+under a target directory inherits a Zip Slip. Pinned by
+`TestExtractTarGzPreservesParentTraversalInKeys`.
+
+**Fix:** reject entries whose cleaned path escapes the root, before returning
+them.
+
 ---
 
 ## 2. Technical debt
 
 ### Test coverage
 
-Currently **12.7 %** overall; the agreed target is 80 %, which needs roughly
-**+8 200 covered statements** (an 8× increase over today's ~1 500).
+Currently **13.6 %** overall; the agreed target is 80 %, which needs roughly
+**+7 700 covered statements** over today's ~1 570.
 
-Phased plan, with the harness and the first package already delivered:
+Phased plan, with the harness and most of phase 1 delivered:
 
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | `internal/ui/testutil` Bubble Tea harness | **done** (100 %) |
-| 1 | Leaf components and pure helpers | `ui/components` **done** (79.8 %); `ui/help`, `ui/shortcut`, `ui/theme` complement, `internal/oci`, `credentials`, `gitlab` remaining (~450 stmts) |
+| 1 | Leaf components and pure helpers | **mostly done** — see the table below; `credentials`, `gitlab` and the `ui/theme` complement remain (~255 stmts) |
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | pending (~1 240 stmts) |
 | 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | pending (~2 470 stmts) |
 | 4 | `ui/oci_resources` | pending (~1 995 stmts) |
 | 5 | Router and I/O seams (`app`, `scan`, `docker`) | pending (~1 360 stmts) |
 | 6 | Remainder to reach 80 % | pending (~400 stmts) |
+
+Phase 1 progress:
+
+| Package | Before | Now |
+|---|---|---|
+| `internal/ui/testutil` | — | **100 %** (new) |
+| `internal/ui/shortcut` | 0 % | **100 %** |
+| `internal/ui/help` | 0 % | **96.7 %** |
+| `internal/ui/components` | 0 % | **79.8 %** |
+| `internal/oci` | 0 % | **33.6 %** |
+| `internal/credentials` | 29.5 % | unchanged |
+| `internal/gitlab` | 7.5 % | unchanged |
+
+`internal/oci` stops at 33.6 % because the remaining statements are registry HTTP
+paths (`DownloadTemplate`, `listCatalog`, `ListTemplates`) that need a fuller
+`httptest` fixture — a manifest plus a gzipped layer — rather than the
+single-response stubs used so far.
 
 Phase 5 requires a refactor before it can start: `internal/docker/client.go`
 shells out to the Docker CLI directly, so it needs an injectable execution seam

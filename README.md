@@ -30,7 +30,7 @@ A terminal-based DevSecOps workstation built with Go and [Bubble Tea](https://gi
 
 ```bash
 # Clone the repository
-git clone https://gitlab.com/anthnell/devsecops/devdesk.git
+git clone https://github.com/anthnel/devdesk.git
 cd devdesk
 
 # Build
@@ -118,9 +118,31 @@ GitLab tokens are stored securely via the system's git credential helper (not in
 ### Setup
 
 ```bash
-git clone https://gitlab.com/anthnell/devsecops/devdesk.git
+git clone https://github.com/anthnel/devdesk.git
 cd devdesk
 go mod download
+```
+
+The repository is mirrored to [Entire](https://entire.io) in `aws-eu-central-1`.
+Cloning from the mirror gives faster regional access and is the preferred remote
+for coding agents:
+
+```bash
+git clone entire://aws-eu-central-1.entire.io/gh/anthnel/devdesk
+```
+
+### Contributing — pull requests only
+
+`main` cannot be pushed to directly: the Entire mirror rejects it with
+`remote rejected: main -> main (protected branch)`. Every other branch pushes
+through the mirror and is forwarded to GitHub.
+
+```bash
+git switch -c my-feature
+git push origin my-feature
+gh pr create --base main --head my-feature
+gh pr merge <n> --squash --delete-branch
+git fetch origin && git merge --ff-only origin/main
 ```
 
 ### Commands

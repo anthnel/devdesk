@@ -53,6 +53,42 @@ mise run install      # Install to $GOPATH/bin
 
 `test-race` needs cgo and therefore a C compiler (`gcc`/`clang`) on `PATH`.
 
+## Git workflow — pull requests only
+
+**Never push directly to `main`.** The Entire mirror rejects it:
+
+```
+! [remote rejected] main -> main (protected branch)
+```
+
+This is enforced by the mirror, not by GitHub (`gh api repos/anthnel/devdesk/branches/main`
+reports `"protected": false`). Every other branch, including
+`entire/checkpoints/v1`, pushes through the mirror and is forwarded to GitHub.
+
+```bash
+git switch -c <branch>                          # work
+git push origin <branch>                        # via the mirror — forwarded to GitHub
+gh pr create --base main --head <branch>
+gh pr merge <n> --squash --delete-branch
+git fetch origin && git merge --ff-only origin/main
+```
+
+### Remotes
+
+| Remote | URL | Use |
+|--------|-----|-----|
+| `origin` | `entire://aws-eu-central-1.entire.io/gh/anthnel/devdesk` | Entire mirror — clone, fetch, push branches |
+| `github` | `https://github.com/anthnel/devdesk.git` | source of truth; fallback for direct pushes |
+
+The repository is hosted on GitHub and mirrored to EntireDB in `aws-eu-central-1`
+(a second placement exists in `aws-us-east-2`). Prefer `origin` for day-to-day
+work: it is the regional path and is what keeps agent reads fast.
+
+Semantic search (`entire search`, and the `entire:*` skills that depend on it) is
+**not available in the EU region** — the server answers `semantic search is not
+yet available in the region(s) hosting this search`. Nothing in the repo config
+fixes this.
+
 ## Architecture
 
 ### Bubble Tea Application Structure
