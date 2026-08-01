@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "00ca5d803bb8",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "internal/ui/components/confirm_modal_test.go",
+    "internal/ui/components/creation_form_test.go",
+    "internal/ui/components/delete_confirm_modal_test.go",
+    "internal/ui/components/filter_bar_test.go",
+    "internal/ui/components/report_modal_test.go",
+    "internal/ui/components/wrapped_input_test.go",
+    "internal/ui/testutil/testutil.go",
+    "internal/ui/testutil/testutil_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/00/ca5d803bb8/0/metadata.json",
+      "transcript": "/00/ca5d803bb8/0/full.jsonl",
+      "compact_transcript": "/00/ca5d803bb8/0/transcript.jsonl",
+      "content_hash": "/00/ca5d803bb8/0/content_hash.txt",
+      "prompt": "/00/ca5d803bb8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2139,
+    "cache_creation_tokens": 731519,
+    "cache_read_tokens": 33754756,
+    "output_tokens": 170100,
+    "api_call_count": 186
+  }
+}
