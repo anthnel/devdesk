@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "fe3575aa8275",
+  "strategy": "manual-commit",
+  "branch": "docs/module-rename-backlog",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/fe/3575aa8275/0/metadata.json",
+      "transcript": "/fe/3575aa8275/0/full.jsonl",
+      "compact_transcript": "/fe/3575aa8275/0/transcript.jsonl",
+      "content_hash": "/fe/3575aa8275/0/content_hash.txt",
+      "prompt": "/fe/3575aa8275/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3265,
+    "cache_creation_tokens": 900101,
+    "cache_read_tokens": 91113028,
+    "output_tokens": 291657,
+    "api_call_count": 332
+  }
+}
