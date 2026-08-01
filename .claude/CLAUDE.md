@@ -1,0 +1,250 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+> [!IMPORTANT]
+> **AI Collaboration Rule**: 
+> - Support for **Implementation** and **Bug fixes** only.
+> - **Planning** and **Brainstorming** are handled by Gemini (Antigravity).
+> - Always refer to [project-context.md](file:///home/anthoni/projects/gitlab/devsecops/devdesk/project-context.md) for global project rules.
+
+## Project Overview
+
+DevDesk is a terminal-based TUI (Text User Interface) application built with Go and Bubble Tea framework. It provides DevSecOps functionality including:
+- System status monitoring (HTTP/HTTPS, ICMP, DNS, SSL checks)
+- GitLab integration (authentication, project explorer, clone/pull)
+- Security scanning (Trivy CVE/misconfig/SBOM + Gitleaks secrets)
+- Docker container management with real-time metrics
+- OCI resource management (image scanning, container launching, network inspection)
+- Network diagnostics (ICMP, DNS, TCP traceroute, Netcat, HTTP, SSL) + real-time port monitoring
+- Multi-context configuration management via YAML
+- Local workspaces management with git metadata
+
+## Build and Development Commands
+
+```bash
+# Development (fastest)
+make dev              # Run directly with go run
+go run .
+
+# Build
+make build            # Build binary to bin/dk
+make run              # Build and run
+
+# Testing
+make test             # Run all tests
+go test -v ./...      # Run all tests with verbose output
+go test ./internal/command  # Run tests for specific package
+go test -race ./...       # Detect race conditions (critical for Bubble Tea Cmds)
+
+# Code Quality
+make fmt              # Format code
+make vet              # Run go vet
+make tidy             # Tidy dependencies
+golangci-lint run     # MANDATORY before commits - run linter
+
+# Installation
+make install          # Install to $GOPATH/bin
+```
+
+## Architecture
+
+### Bubble Tea Application Structure
+
+This is a **multi-view TUI application** using the Elm Architecture (TEA) pattern via Bubble Tea. Understanding the routing and view lifecycle is critical:
+
+**Main Components:**
+- `main.go` - Entry point, initializes config and Bubble Tea program
+- `internal/app/app.go` - **Router/orchestrator** that manages view switching and command mode
+- `internal/app/messages.go` - Cross-view messages (GitLab, scan results, pull, etc.)
+- `internal/shared/state.go` - SharedState for cross-view data (GitLab client, user, stats)
+- `internal/ui/*/` - Individual views
+
+**Key Architecture Pattern:**
+```
+App (Router)
+├── Manages: currentView, commandMode, viewport, sharedState
+├── Routes messages to active view
+├── Handles view switching via command parser
+├── Manages multi-context configuration
+└── Views (lazy-loaded):
+    ├── dashboard       - Overview (stats, tools, service status)
+    ├── status          - System monitoring (CRUD monitors)
+    ├── gitlab-auth     - GitLab authentication form
+    ├── gitlab-explorer - GitLab project/group browser + clone
+    ├── workspaces      - Local workspace management + git metadata
+    ├── security        - Trivy + Gitleaks scanner with multi-tab results
+    ├── containers      - Docker container list + live metrics
+    ├── oci-resources   - OCI resource list, scan, launch containers, network inspection
+    └── netdiag         - Network diagnostics (Docker-based tools) + real-time port monitor
+```
+
+### View Switching & Command Mode
+
+Press `:` to enter command mode, then type:
+- `dashboard` or `d` - Switch to dashboard view
+- `status` or `s` - Switch to status view
+- `gitlab-auth` or `gla` - Switch to GitLab auth view
+- `gitlab-explorer` or `gle` - Switch to GitLab explorer view
+- `workspaces` or `w` - Switch to workspaces view
+- `security` or `sec` - Switch to security scanner view
+- `containers` or `c` - Switch to containers view
+- `oci-resources` or `oci` - Switch to OCI resources view
+- `netdiag` or `net` - Switch to network diagnostics view
+- `context <name>` or `ctx <name>` - Switch configuration context
+- `context list` - Show available contexts
+- `theme <name>` - Switch UI theme
+- `quit` - Exit application
+
+Command parsing and tab-completion live in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandTheme`, `CommandQuit`, `CommandUnknown`.
+
+**Important:** The `FormView` interface (`InEditMode()`) prevents command mode activation when forms are active. Views with active forms must implement this interface.
+
+### Multi-Context Configuration
+
+The app supports multiple configuration contexts (e.g., work, personal, client-A):
+- Contexts are stored in `~/.devdesk/contexts/<name>/config.yaml`
+- Current context is tracked in `~/.devdesk/current-context`
+- Each context has isolated GitLab credentials via Git Credential Manager
+- Context switching reinitializes all views with new config
+
+### Configuration System
+
+Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/config/config.go`:
+- `App` - Global settings (theme, default view, workspaces dir)
+- `Status` - Monitoring settings (refresh interval, components)
+- `GitLab` - GitLab URL, token, clone settings
+- `Registry` - OCI registry configuration
+- `Scan` - Security scanning (Trivy, Gitleaks)
+
+Config is injected into views at creation. Use `config.Save()` to persist changes.
+
+### Shared State
+
+`internal/shared/state.go` holds cross-view data injected at view creation:
+- `GitLabClient`, `IsAuthenticated`, `CurrentUser` — GitLab session
+- `CachedGroups`, `CachedProjects` — GitLab data cache
+- `GitLabStats`, `DockerStats`, `OCIStats` — Dashboard counters
+- `ServiceStatus`, `ServiceComponents` — Status monitoring results
+- `WorkspaceCount`, `Tools []ToolInfo` — Tool availability (Trivy, Gitleaks, Docker)
+
+### Cross-View Communication
+
+Key messages in `internal/app/messages.go`:
+- `SwitchViewMsg` — navigate to another view
+- `SelectionRequestMsg` / `SelectionResultMsg` — selection mode (e.g., workspaces opened from security view to pick a repo)
+- `ImageScanResultLoadedMsg` / `WorkspaceScanResultLoadedMsg` — cached results ready
+
+### Security Scanning
+
+`internal/scan/` orchestrates Trivy + Gitleaks:
+- `scanner.go` — runs both tools concurrently, streams progress via `ProgressUpdate` channel
+- `trivy.go` — CVE, SBOM, misconfiguration detection
+- `gitleaks.go` — secrets detection with custom config support
+
+**Security view** (`internal/ui/security/model.go`) has four states: `StateInput` → `StateScanning` → `StateResults` → `StateDetails` (with remediation info).
+
+### Scan Cache
+
+Two independent disk+memory caches in `internal/cache/`:
+- `ImageScanCache` — keyed by `"repo:tag"`, metadata at `~/.devdesk/cache/image-scans.json`, full results in `image-results/<sha256>.json`
+- `WorkspaceScanCache` — keyed by absolute repo path, metadata at `~/.devdesk/cache/workspace-scans.json`, full results in `workspace-results/<sha256>.json`
+
+Cache invalidation: `ctrl+s` (single) overwrites; `ctrl+a` (all) purges cache then rescans.
+
+### Docker / OCI Integration
+
+- `internal/docker/client.go` — wraps Docker CLI (exec-based): list, metrics, stop, restart, pause, remove, prune
+- `internal/docker/netdiag.go` — ephemeral container runners with `--network host`: `RunPing`, `RunDNS`, `RunTraceroute`, `RunTCPTraceroute`, `RunNetcat`, `RunCurl`, `RunSSLCert` → returns `DiagResult{Success, Output}`
+- `internal/docker/network.go` — `RunSS(image, numeric)` for real-time port table (mounts host DNS files, uses `--privileged --net=host --pid=host`), `KillProcess(image, pid)`, `PortInfo` struct, `parseSSOutput()` multi-format parser
+- `internal/oci/oci.go` — OCI registry HTTP client: list tags/templates, download + extract tar.gz
+
+### Network Diagnostics View
+
+`internal/ui/netdiag/` — two-tab interface:
+- **Diagnostics tab** (`model.go`): Interactive form with target/port inputs and checkboxes to select tests (ICMP, DNS, Traceroute, TCP Traceroute, Netcat, HTTP/HTTPS, SSL). Runs selected tests in parallel via Docker ephemeral containers. Results table uses Nerd Font icons.
+- **Ports tab** (`ports_model.go`): Live `ss` monitoring with real-time filtering by protocol (TCP/UDP), state (LISTEN/ESTAB), and text search. `ctrl+k` kills a process (requires privileged container). Active filter shown in status line.
+
+Both tabs use Docker with host network/PID namespaces. DNS hostname resolution uses mounted host DNS files (`/etc/resolv.conf`, `/etc/hosts`, `/etc/nsswitch.conf`).
+
+### Status Monitoring System
+
+**Factory Pattern for Checkers:**
+- `internal/status/checker.go` - Main orchestrator
+- `internal/status/http_checker.go` - HTTP/HTTPS checks
+- `internal/status/icmp_checker.go` - ICMP ping checks
+- `internal/status/dns_checker.go` - DNS resolution checks
+
+Each checker implements `CheckerInterface`. The main `Checker.CheckOne()` uses a factory pattern to instantiate the right checker based on `component.Type`.
+
+**Parallel Execution:**
+- `CheckAll()` runs all component checks concurrently using goroutines and sync.WaitGroup
+- Results are collected and returned as `[]ComponentStatus`
+
+### Credentials Management
+
+Three storage implementations via `Storage` interface:
+- `FileStorage` - Persists to JSON file with 0600 permissions
+- `MemoryStorage` - Session-only storage
+- `GitCredentialStorage` - Uses git credential helper for secure storage (preferred, context-aware)
+
+### Bubble Tea Message Flow
+
+Custom messages defined in view models (e.g., `internal/ui/status/model.go`):
+```go
+type TickMsg time.Time           // Countdown timer
+type CheckStartedMsg struct{}    // Check initiated
+type CheckCompleteMsg struct{}   // Check results ready
+```
+
+Commands return these messages to trigger async operations. The Bubble Tea `Update()` method handles them.
+
+### Component CRUD Operations
+
+Status view supports adding/editing/deleting monitors:
+- `internal/ui/status/components/component_form.go` - Form component
+- `internal/ui/status/components/confirm_modal.go` - Confirmation dialog
+- Changes persist to `~/.devdesk/config.yaml` via `config.Save()`
+
+State flags in Model: `creating`, `editing`, `confirming`, `selectedIdx`
+
+## Testing
+
+Test files follow Go conventions (`*_test.go`):
+- `internal/command/parser_test.go` - Command parser tests
+- `internal/app/app_test.go` - App router tests
+
+Use table-driven tests where appropriate.
+
+## Dependencies
+
+Key libraries (see `go.mod`):
+- `github.com/charmbracelet/bubbletea` - TUI framework
+- `github.com/charmbracelet/bubbles` - Pre-built TUI components (table, textinput, spinner)
+- `github.com/charmbracelet/lipgloss` - Styling
+- `gitlab.com/gitlab-org/api/client-go` - GitLab API client
+- `github.com/prometheus-community/pro-bing` - ICMP ping functionality (maintained fork of go-ping/ping)
+- `gopkg.in/yaml.v3` - YAML configuration
+
+## Code Conventions
+
+- Comments: French or English both accepted
+- UI text and logs: **English US only** (Rule 129)
+- Bubbletea models define their own message types
+- Use `theme` package for consistent styling (`internal/ui/theme/`)
+- Config changes must call `config.Save()` to persist
+- All colors defined in `theme/colors.go`, all styles in `theme/styles.go`
+- Message naming: `[ComponentName][Action]Msg` (e.g., `ComponentFormSubmitMsg`)
+
+## Critical Bubble Tea Rules
+
+**NEVER modify model state inside a Cmd** (Rule 110) - Race condition:
+- `Update()` is the ONLY place to modify model state
+- `View()` is read-only
+- `Cmd` functions do I/O and return messages
+
+**NEVER use `style.Render()` inside `table.Row{}`** (Rule 122) - ANSI sequences corrupt all subsequent rows:
+- Use plain text: `theme.IconError + " error"` not `theme.StatusErrorStyle.Render(...)`
+- Apply row styling via `table.SetStyles(theme.TableStylesForState("error"))`
+
+**Update() case extraction**: If a case block exceeds 5 lines, extract to `handle[MessageType]()` method returning `(tea.Model, tea.Cmd)`

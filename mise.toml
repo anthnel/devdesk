@@ -1,0 +1,59 @@
+[tools]
+go = "1.25"
+
+[tasks.build]
+description = "Build the binary to bin/dk"
+run = "go build -o bin/dk ."
+
+[tasks.run]
+description = "Build and run the application"
+depends = ["build"]
+run = "./bin/dk"
+
+[tasks.dev]
+description = "Run directly with go run (faster for development)"
+run = "go run ."
+
+[tasks.test]
+description = "Run all tests"
+run = "go test -v ./..."
+
+[tasks.test-race]
+description = "Run tests with race detector (requires a C toolchain: gcc/clang)"
+env = { CGO_ENABLED = "1" }
+run = "go test -race ./..."
+
+[tasks.fmt]
+description = "Format code"
+run = "go fmt ./..."
+
+[tasks.vet]
+description = "Run go vet"
+run = "go vet ./..."
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run"
+
+[tasks.tidy]
+description = "Tidy dependencies"
+run = "go mod tidy"
+
+[tasks.deps]
+description = "Download dependencies"
+run = "go mod download"
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = """
+rm -rf bin
+go clean
+"""
+
+[tasks.install]
+description = "Install binary to $GOPATH/bin"
+run = "go install ."
+
+[tasks.check]
+description = "Run fmt, vet, lint and tests (pre-commit checklist)"
+depends = ["fmt", "vet", "lint", "test"]
