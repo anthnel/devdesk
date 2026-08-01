@@ -34,17 +34,17 @@ git clone https://gitlab.com/anthnell/devsecops/devdesk.git
 cd devdesk
 
 # Build
-make build          # → bin/dk
+mise run build      # → bin/dk
 
 # Or install directly to $GOPATH/bin
-make install        # → dk
+mise run install    # → dk
 ```
 
 ## Usage
 
 ```bash
 # Run (development)
-make dev
+mise run dev
 
 # Run (built binary)
 ./bin/dk
@@ -125,16 +125,26 @@ go mod download
 
 ### Commands
 
+Tasks are defined in `mise.toml`. Run `mise tasks` to list them with descriptions.
+
 ```bash
-make dev            # Run with go run (fastest iteration loop)
-make build          # Build binary to bin/dk
-make test           # Run all tests
-make fmt            # Format code (go fmt)
-make vet            # Static analysis (go vet)
-make tidy           # Tidy go.mod / go.sum
-golangci-lint run   # Full linter (mandatory before committing)
-go test -race ./... # Race condition detection
+mise run dev        # Run with go run (fastest iteration loop)
+mise run build      # Build binary to bin/dk
+mise run test       # Run all tests
+mise run cover      # Test coverage per package
+mise run fmt        # Format code (go fmt)
+mise run vet        # Static analysis (go vet)
+mise run lint       # Full linter (golangci-lint, mandatory before committing)
+mise run tidy       # Tidy go.mod / go.sum
+mise run check      # fmt + vet + lint + test (pre-commit checklist)
+mise run test-race  # Race condition detection (needs a C toolchain, see below)
 ```
+
+`test-race` requires cgo, so a C compiler (`gcc` or `clang`) must be on `PATH`.
+Without one, `go test -race` fails with `cgo: C compiler "gcc" not found`.
+
+On Windows, tasks that use POSIX syntax declare `shell = "bash -c"` and therefore
+need Git Bash, which ships with Git for Windows.
 
 ### Architecture
 
@@ -206,7 +216,7 @@ Test files follow Go conventions (`*_test.go`). Use table-driven tests.
 devdesk/
 ├── main.go
 ├── go.mod
-├── Makefile
+├── mise.toml
 ├── internal/
 │   ├── app/          # Router, header, cross-view messages
 │   ├── cache/        # Scan result caching (images + workspaces)

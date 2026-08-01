@@ -22,30 +22,36 @@ DevDesk is a terminal-based TUI (Text User Interface) application built with Go 
 
 ## Build and Development Commands
 
+Tasks live in `mise.toml` — there is no Makefile. `mise tasks` lists them all.
+
 ```bash
 # Development (fastest)
-make dev              # Run directly with go run
+mise run dev          # Run directly with go run
 go run .
 
 # Build
-make build            # Build binary to bin/dk
-make run              # Build and run
+mise run build        # Build binary to bin/dk
+mise run run          # Build and run
 
 # Testing
-make test             # Run all tests
+mise run test         # Run all tests
+mise run cover        # Coverage per package
 go test -v ./...      # Run all tests with verbose output
 go test ./internal/command  # Run tests for specific package
-go test -race ./...       # Detect race conditions (critical for Bubble Tea Cmds)
+mise run test-race    # Detect race conditions (critical for Bubble Tea Cmds)
 
 # Code Quality
-make fmt              # Format code
-make vet              # Run go vet
-make tidy             # Tidy dependencies
-golangci-lint run     # MANDATORY before commits - run linter
+mise run fmt          # Format code
+mise run vet          # Run go vet
+mise run lint         # MANDATORY before commits - golangci-lint
+mise run tidy         # Tidy dependencies
+mise run check        # fmt + vet + lint + test in one go
 
 # Installation
-make install          # Install to $GOPATH/bin
+mise run install      # Install to $GOPATH/bin
 ```
+
+`test-race` needs cgo and therefore a C compiler (`gcc`/`clang`) on `PATH`.
 
 ## Architecture
 

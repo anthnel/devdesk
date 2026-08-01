@@ -1,3 +1,8 @@
+# Most tasks are a single `go ...` invocation and run unchanged under both the
+# POSIX shell and the "cmd /c" that mise defaults to on Windows. Tasks relying on
+# POSIX syntax declare `shell = "bash -c"` explicitly — the global
+# `windows_default_inline_shell_args` setting is refused from a project config.
+
 [tools]
 go = "1.25"
 
@@ -8,6 +13,7 @@ run = "go build -o bin/dk ."
 [tasks.run]
 description = "Build and run the application"
 depends = ["build"]
+shell = "bash -c"
 run = "./bin/dk"
 
 [tasks.dev]
@@ -22,6 +28,10 @@ run = "go test -v ./..."
 description = "Run tests with race detector (requires a C toolchain: gcc/clang)"
 env = { CGO_ENABLED = "1" }
 run = "go test -race ./..."
+
+[tasks.cover]
+description = "Run tests and report coverage per package"
+run = "go test -cover ./..."
 
 [tasks.fmt]
 description = "Format code"
@@ -45,6 +55,7 @@ run = "go mod download"
 
 [tasks.clean]
 description = "Clean build artifacts"
+shell = "bash -c"
 run = """
 rm -rf bin
 go clean
