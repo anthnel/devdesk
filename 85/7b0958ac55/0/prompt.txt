@@ -1,0 +1,41 @@
+analyse ce repo
+
+---
+
+vas-y corrige les problèmes
+
+---
+
+/plan perform the migration from Makefile to mise
+
+---
+
+go
+
+---
+
+commit et push
+
+---
+
+passons à la suite
+
+---
+
+commit et push
+
+---
+
+/skill-create entire, je voudrais une skill entire user globale pour gérer les commandes entire, analyse les commandes disponibles depuis le cli entire
+
+---
+
+commit et push
+
+---
+
+commit dans devdesk la skill
+
+---
+
+non laisse la skill globale ou elle et garde seulement la skill générée par --agent-help-skill dans le repo devdesk
