@@ -3,3 +3,11 @@ analyse ce repo
 ---
 
 vas-y corrige les problèmes
+
+---
+
+/plan perform the migration from Makefile to mise
+
+---
+
+go
