@@ -415,11 +415,22 @@ func parseIPAddr(raw string) []InterfaceInfo {
 					name = name[:idx]
 				}
 				current = &InterfaceInfo{Name: name, State: parseIfaceState(fields[2])}
-				// Extract MTU from the header line if present (e.g., "mtu 1500")
+				// Extract MTU and operational state from the header line
+				// (e.g., "mtu 1500 qdisc noqueue state DOWN").
 				for i := 3; i+1 < len(fields); i++ {
-					if fields[i] == "mtu" {
+					switch fields[i] {
+					case "mtu":
 						if v, err := strconv.Atoi(fields[i+1]); err == nil {
 							current.MTU = v
+						}
+					case "state":
+						// The flags only carry the admin state, so an unplugged NIC
+						// still advertises UP. The operational state is authoritative
+						// when the driver reports one. Loopback keeps its own label.
+						if current.State != "LOOP" {
+							if s, ok := operState(fields[i+1]); ok {
+								current.State = s
+							}
 						}
 					}
 				}
@@ -437,6 +448,21 @@ func parseIPAddr(raw string) []InterfaceInfo {
 		result = append(result, *current)
 	}
 	return result
+}
+
+// operState maps the operational state token of `ip addr show` onto the label
+// shown in the topology table. The boolean is false for UNKNOWN, which drivers
+// report when they cannot determine a carrier state (tun/tap devices always do);
+// callers should then fall back to the interface flags.
+func operState(token string) (string, bool) {
+	switch strings.ToUpper(token) {
+	case "UP":
+		return "UP", true
+	case "UNKNOWN":
+		return "", false
+	default:
+		return "DOWN", true
+	}
 }
 
 // parseIfaceState extracts the interface state from its flags string (e.g., "<LOOPBACK,UP,LOWER_UP>").
