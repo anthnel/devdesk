@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.8.42",
+  "checkpoint_id": "acd3f531b917",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "internal/docker/client_parse_test.go",
+    "internal/registrymgr/nexus_test.go",
+    "internal/ui/netdiag/topology_model.go",
+    "internal/ui/netdiag/topology_parsers_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ac/d3f531b917/0/metadata.json",
+      "transcript": "/ac/d3f531b917/0/full.jsonl",
+      "compact_transcript": "/ac/d3f531b917/0/transcript.jsonl",
+      "content_hash": "/ac/d3f531b917/0/content_hash.txt",
+      "prompt": "/ac/d3f531b917/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2012,
+    "cache_creation_tokens": 349931,
+    "cache_read_tokens": 19029793,
+    "output_tokens": 83795,
+    "api_call_count": 117
+  }
+}
