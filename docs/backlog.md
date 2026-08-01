@@ -177,6 +177,33 @@ This interacts with the coverage work: writing several thousand statements of
 tests against these files before splitting them freezes their current structure.
 Decide the order deliberately.
 
+### Go module path still points at GitLab
+
+`go.mod` declares `gitlab.com/anthnell/devsecops/devdesk`, but the repository now
+lives at `github.com/anthnel/devdesk`, mirrored to EntireDB. Every import in the
+tree carries the stale prefix.
+
+Nothing breaks — a module path is an identifier, not a URL that Go resolves for a
+private repo cloned by hand — but it misdirects anyone reading an import, and
+`go get` on the declared path would fail.
+
+Scope of the rename:
+
+| Target | Count |
+|---|---|
+| `.go` files containing the path | 71 |
+| Occurrences in `.go` files | 179 |
+| Other files | `go.mod`, `docs/CODEMAPS/dependencies.md` |
+
+Mechanically it is one `go mod edit -module github.com/anthnel/devdesk` plus a
+tree-wide replace of the import prefix, then `go mod tidy` and a full build. The
+cost is not the edit but the diff: 71 files touched for zero behaviour change,
+which will collide with any in-flight branch and bury unrelated work in review.
+
+**Do it on its own branch, with nothing else in flight** — ideally before the
+coverage phases add several thousand more lines that would have to be rebased
+across it.
+
 ### Race detector cannot run locally
 
 `mise run test-race` needs cgo and therefore a C compiler on `PATH`. Without one
