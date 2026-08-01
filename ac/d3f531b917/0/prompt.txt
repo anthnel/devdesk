@@ -19,3 +19,7 @@ commit et push
 ---
 
 passons à la suite
+
+---
+
+commit et push
