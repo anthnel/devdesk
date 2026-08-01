@@ -1,0 +1,128 @@
+analyse ce repo
+
+---
+
+vas-y corrige les problèmes
+
+---
+
+/plan perform the migration from Makefile to mise
+
+---
+
+go
+
+---
+
+commit et push
+
+---
+
+passons à la suite
+
+---
+
+commit et push
+
+---
+
+/skill-create entire, je voudrais une skill entire user globale pour gérer les commandes entire, analyse les commandes disponibles depuis le cli entire
+
+---
+
+commit et push
+
+---
+
+commit dans devdesk la skill
+
+---
+
+non laisse la skill globale ou elle et garde seulement la skill générée par --agent-help-skill dans le repo devdesk
+
+---
+
+/plan génère des tests pour atteindre un niveau de couverture de 80%, recherche en priorité les endroits à plus fort impact
+
+---
+
+go
+
+---
+
+oui
+
+---
+
+crée un fichier docs/backlog.md , ajoute les points du @todo.md encore à faire plus les nouveaux défauts trouvés. Supprime @todo.md quand c'est fait
+
+---
+
+regarde avec entire s'il faut faire quelque chose de plus pour que les checkpoints soient poussés
+
+---
+
+j'ai fait le push
+
+---
+
+[Image #1]
+
+---
+
+je me suis trompé de capture : [Image #2]
+
+---
+
+regarde dans la doc entire si le repo github est obligatoire
+
+---
+
+essaie le 2
+
+---
+
+regarde si le client pour windows n'est pas trop ancien
+
+---
+
+fais la mise à jour
+
+---
+
+vas-y
+
+---
+
+commit
+
+---
+
+s'il n'y a pas de repo github lié est-ce qu'il est possible de voir le code dans l'interface web entire
+
+---
+
+❯ entire repo clone /gh/devex/devdesk
+no mirror found for /gh/devex/devdesk; run 'entire repo mirror create github.com/devex/devdesk' to onboard it
+
+---
+
+je pense que le mieux est de basculer sur un mirroir en europe et donc d'avoir un repo gh, il faut donc que je déplace devdesk sous une org anthnel
+
+---
+
+privé, mais j'avais déjà exécuté la commande :  gh repo create anthnel/devdesk --public
+✓ Created repository anthnel/devdesk on github.com
+  https://github.com/anthnel/devdesk
+
+---
+
+laisse en europe pour l'instant
+
+---
+
+supprime https://entire.io/gh/devex/devdesk
+
+---
+
+teste le push et continue pas phase 1
