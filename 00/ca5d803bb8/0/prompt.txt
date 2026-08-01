@@ -47,3 +47,7 @@ non laisse la skill globale ou elle et garde seulement la skill générée par -
 ---
 
 go
+
+---
+
+oui
