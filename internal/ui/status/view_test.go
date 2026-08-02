@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/status"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -294,8 +296,14 @@ func TestUpdateTableFormatsMonitorCells(t *testing.T) {
 }
 
 // Rule 122: cells are plain text, so a truncated ANSI sequence cannot bleed
-// into the rows below.
+// into the rows below. The colour profile has to be forced — lipgloss detects
+// no TTY under `go test`, falls back to the Ascii profile and strips every
+// sequence, which would make this pass whatever the code does.
 func TestTableCellsCarryNoANSISequences(t *testing.T) {
+	previous := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+
 	m := loadedModel(t)
 
 	for label, rows := range map[string][][]string{
@@ -304,7 +312,7 @@ func TestTableCellsCarryNoANSISequences(t *testing.T) {
 	} {
 		for _, row := range rows {
 			for i, cell := range row {
-				if strings.Contains(cell, "\x1b[") {
+				if strings.Contains(cell, "\x1b") {
 					t.Errorf("%s table cell %d = %q contains an escape sequence", label, i, cell)
 				}
 			}
