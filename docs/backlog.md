@@ -553,6 +553,27 @@ implements it — `internal/ui/netdiag/update.go:18` — and only for the topolo
 tab in its ready state, where nothing is being edited anyway. It papers over a
 routing quirk; it does not give the user a way in while typing.
 
+#### Worked example: the security view
+
+`internal/ui/security/model.go:296` returns `InEditMode() == true` for focused
+fields 1, 7 and 10 — target path, Trivy server, Gitleaks config. Field 7 is the
+case that makes the point: its own placeholder is `https://trivy-server:4954`,
+so the field has to accept **two** colons to hold a valid value. Forwarding `:`
+to the input there is not a bug to fix; it is the only correct behaviour.
+
+Which is exactly why `:` is the wrong key for command mode. The user's only
+route out today is to move focus to a field that happens not to take text — a
+checkbox — and press `:` there. Command-mode reachability ends up depending on
+which control is focused, and nothing tells the user that.
+
+`InEditMode()` is broader still: it is also true for `StateScanning`,
+`StateResults` and `StateDetails`, and `m.confirmModal != nil`. In those states
+there is no field to move focus to, so `:` is forwarded to the view, which has
+no `case` for it and drops it silently — no view in the application handles `:`
+itself. Reaching command mode from a results table means pressing `esc` to
+leave the results first. That is the same defect as the text field, without
+even a workaround.
+
 #### `ctrl+:` specifically cannot be made to work
 
 Worth settling before any code is written. A terminal encodes Ctrl by clearing
