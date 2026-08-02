@@ -113,7 +113,7 @@ func (m Model) renderEmpty() string {
 	if m.checking {
 		content = theme.SpinnerMessage(m.spinner.View(), "Checking components...")
 	} else {
-		content = theme.DimStyle.Render("No components configured. Press [n] to add a monitor.")
+		content = theme.DimStyle.Render("No components configured. Press [ctrl+n] to add a monitor.")
 	}
 	return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(content)
 }
@@ -306,7 +306,7 @@ func (m Model) GetHelpContent() help.Content {
 		Title:       "Status Monitor",
 		Description: "This view monitors the status of your services in real time. Checks are performed automatically at regular intervals. Two tabs display service monitors (HTTP, ICMP, DNS) and SSL certificates respectively.",
 		KeyBindings: []help.KeyBinding{
-			{Key: "n", Description: "Add a new monitor"},
+			{Key: "ctrl+n", Description: "Add a new monitor"},
 			{Key: "e", Description: "Edit the selected monitor"},
 			{Key: "ctrl+d", Description: "Delete the selected monitor (with confirmation)"},
 			{Key: "ctrl+r", Description: "Force an immediate refresh"},
@@ -318,6 +318,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "g/Home", Description: "Go to top of list"},
 			{Key: "G/End", Description: "Go to bottom of list"},
 			{Key: ".", Description: "Cycle sort column and direction (Name, Target, Type, Response). Each column cycles ascending then descending before moving to the next. The active sort is shown with ▲ or ▼ in the column header."},
+			{Key: "/", Description: "Filter the active table by name, target or type"},
 			{Key: ":", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},

@@ -30,7 +30,40 @@ Note that the surrounding code moved when D2 was fixed: `tab` / `shift+tab` now
 cycle through `cycleFocus()`, which skips the locked checkbox. Switching to
 `↑ / ↓` remains a one-line change to the key names.
 
+### D8 — Write-only CRUD flags and an unreachable handler in the status view
+
+`internal/ui/status/model.go:64-67` and `internal/ui/status/update.go:57-60`
+
+`Model.creating`, `Model.editing` and `Model.confirming` are assigned in five
+places and read in none: the view keys off `componentForm != nil` and
+`confirmModal != nil` instead. `HasActiveForm`, the one method that read them, is
+commented out at `model.go:139`.
+
+`ComponentFormCancelledMsg` is never sent either. `ComponentForm.handleKeyMsg`
+answers `esc` by returning a nil form, and the caller stores that — so the
+`case components.ComponentFormCancelledMsg` branch in `Update()` cannot run. Its
+body is the only thing that would reset `creating` / `editing`, which is why they
+would stay true after a cancellation if anything did read them.
+
+Harmless today, but it is state that lies: a reader reasonably assumes those
+flags mean something. Found while writing the phase 2 tests; the tests
+deliberately assert on `componentForm` / `confirmModal` rather than on the flags,
+so removing them breaks nothing.
+
+**Fix:** delete the three fields, the unreachable case and the message type — or
+give `esc` a message and make the flags load-bearing. Deleting is the smaller
+change and matches how the view already works.
+
 ### 1.1 Fixed
+
+**The status view's help advertised keys that do nothing.** Found while writing
+the phase 2 tests, not previously recorded.
+
+`GetHelpContent` documented `n` for "Add a new monitor" while the binding has
+been `ctrl+n` since Rule 111 standardised it, and the `/` filter was missing
+altogether. The empty-state message told the user to "Press [n]" too. A test now
+asserts that every key `GetShortcuts()` advertises appears in the help, so the
+two cannot drift apart again silently.
 
 **D7** (`extractTarGz` kept parent references in archive paths), **D2** (the
 "permanent delete" checkbox was documented as locked but was not) and **D5** (an
@@ -131,7 +164,7 @@ common value like `store --file=/path` became the single unfindable command
 
 ### Test coverage
 
-Currently **18.2 %** overall; the agreed target is 80 %, which needs roughly
+Currently **22.7 %** overall; the agreed target is 80 %, which needs roughly
 **+7 250 covered statements** over today's ~2 100.
 
 Phased plan, with the harness and most of phase 1 delivered:
@@ -140,7 +173,7 @@ Phased plan, with the harness and most of phase 1 delivered:
 |---|---|---|
 | 0 | `internal/ui/testutil` Bubble Tea harness | **done** (100 %) |
 | 1 | Leaf components and pure helpers | **done** except the `ui/theme` complement (~55 stmts) |
-| 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | pending (~1 240 stmts) |
+| 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **in progress** — `status` done, three packages left |
 | 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | pending (~2 470 stmts) |
 | 4 | `ui/oci_resources` | pending (~1 995 stmts) |
 | 5 | Router and I/O seams (`app`, `scan`, `docker`) | pending (~1 360 stmts) |
@@ -173,6 +206,22 @@ drive argument building and output parsing against canned output. `scan` and
 built from a base URL, so an `httptest` server standing in for the API covers
 the whole package. `Clone` is exercised against a throwaway local repository
 rather than mocked, and skips when no `git` binary is on `PATH`.
+
+Phase 2 progress:
+
+| Package | Before | Now |
+|---|---|---|
+| `internal/ui/status` | 0 % | **93.9 %** |
+| `internal/ui/status/components` | 0 % | **93.2 %** |
+
+The view layer needed no seam either, for the reason `internal/ui/testutil`
+documents: constructors are pure and `Update()` is a pure function, so feeding
+synthetic messages fully determines the resulting state. No test in the `status`
+package executes a command Update returns — `checkComponents` shells out to the
+network and `tickCmd` sleeps for a second — so the assertions are on model state
+instead. The two places that must touch disk (`config.Load` after a save,
+`config.Save`) redirect `HOME` and `USERPROFILE` at a temporary directory, the
+same trick `internal/credentials` uses.
 
 `internal/credentials` needed no seam either. `git credential` is steerable
 through the environment, so the tests redirect `HOME`, `GIT_CONFIG_GLOBAL` and
@@ -219,9 +268,10 @@ every push and pull request, on `ubuntu-latest`, which has a toolchain. The firs
 run reported no data race across all 17 packages.
 
 That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 18.2 %. Rule 110 violations in untested
+tests actually execute, and coverage is 22.7 %. Rule 110 violations in untested
 paths — most of the view layer — remain invisible. The two efforts compound, so
 this is an argument for the coverage phases rather than a substitute for them.
+Phase 2 puts the first full view state machine under the detector.
 
 Installing a local toolchain is still worth doing for anyone touching `Cmd`s, to
 avoid learning about a race from CI after the fact.
