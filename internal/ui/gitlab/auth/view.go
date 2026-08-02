@@ -27,7 +27,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "space", Description: "Select option"},
 		{Key: "ctrl+s", Description: "Toggle save to helper"},
 		{Key: "ctrl+f", Description: "Toggle save to config"},
-		{Key: ":", Description: "Command mode"},
+		{Key: "alt+:", Description: "Command mode"},
 		{Key: "?", Description: "Help"},
 	}
 }
@@ -68,7 +68,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "space", Description: "Select save option"},
 			{Key: "ctrl+s", Description: "Toggle save to Git Credential Manager"},
 			{Key: "ctrl+f", Description: "Toggle save to config file"},
-			{Key: ":", Description: "Open command mode"},
+			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

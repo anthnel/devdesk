@@ -31,18 +31,15 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 
+// altCommandModeKey enters command mode from anywhere, including from a focused
+// text input. Alt is used rather than Ctrl because a terminal encodes Ctrl only
+// for ASCII 0x40-0x5F; ":" is 0x3A, so "ctrl+:" never reaches the application.
+const altCommandModeKey = "alt+:"
+
 // FormView interface for views that can have active forms
 // Views implementing this interface can prevent command mode activation
 type FormView interface {
 	InEditMode() bool
-}
-
-// CommandModeView is an optional interface for views that want to allow
-// entering command mode even while InEditMode() returns true.
-// When implemented and AllowCommandMode() returns true, pressing ":" will
-// enter command mode instead of being forwarded to the active text input.
-type CommandModeView interface {
-	AllowCommandMode() bool
 }
 
 // FilterBarView is implemented by views that have a visible filter bar.
@@ -463,6 +460,11 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	case "?":
 		return a.maybeOpenHelp(msg)
+	case altCommandModeKey:
+		// The authoritative way in: handled here, before any InEditMode() check,
+		// so no text input can claim it. A bare ":" cannot play that role — it is
+		// an ordinary character in a field holding https://trivy-server:4954.
+		return a, a.enterCommandMode()
 	case ":":
 		cmd := a.maybeEnterInCommandMode(msg)
 		return a, cmd
@@ -980,6 +982,19 @@ func (a *App) reinitializeViews(_ *config.Config) tea.Cmd {
 	return initCmd
 }
 
+// enterCommandMode opens the command line unconditionally and asks for a
+// re-layout, since the command line replaces the inactive prompt.
+func (a *App) enterCommandMode() tea.Cmd {
+	a.commandMode = true
+	a.commandInput.Reset()
+	return func() tea.Msg {
+		return tea.WindowSizeMsg{Width: a.width, Height: a.height}
+	}
+}
+
+// maybeEnterInCommandMode answers a bare ":", which only opens the command line
+// when nothing is being edited — inside a text input ":" is an ordinary
+// character. Use altCommandModeKey to get in from anywhere.
 func (a *App) maybeEnterInCommandMode(msg tea.Msg) tea.Cmd {
 	// Si la vue est en mode édition, ne pas entrer en mode commande et passer le message à la vue
 
@@ -989,20 +1004,8 @@ func (a *App) maybeEnterInCommandMode(msg tea.Msg) tea.Cmd {
 			isInEditMode = formView.InEditMode()
 		}
 
-		// If in edit mode, check if the view explicitly allows command mode entry
-		if isInEditMode {
-			if cmView, ok := view.(CommandModeView); ok && cmView.AllowCommandMode() {
-				isInEditMode = false
-			}
-		}
-
 		if !isInEditMode {
-			// No active form - enter command mode
-			a.commandMode = true
-			a.commandInput.Reset()
-			return func() tea.Msg {
-				return tea.WindowSizeMsg{Width: a.width, Height: a.height}
-			}
+			return a.enterCommandMode()
 		}
 
 		// Active form detected - pass key to view

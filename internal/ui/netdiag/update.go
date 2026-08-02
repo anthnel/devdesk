@@ -13,12 +13,6 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(textinput.Blink, m.portsModel.initPorts(), m.topologyModel.initTopology())
 }
 
-// AllowCommandMode implements app.CommandModeView — signals that pressing ":"
-// should enter command mode when the topology tab is active and data is loaded.
-func (m *Model) AllowCommandMode() bool {
-	return m.activeTab == tabTopology && m.topologyModel.state == topoStateReady
-}
-
 // InEditMode implements FormView — true when a text input is active, tests are running,
 // or the detail view is open (so esc is forwarded to the view instead of consumed by the app).
 func (m *Model) InEditMode() bool {

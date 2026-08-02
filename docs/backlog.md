@@ -386,7 +386,7 @@ avoid learning about a race from CI after the fact.
 
 ## 3. Planned features
 
-Carried over from `todo.md`.
+Carried over from `todo.md`, except §3.7.
 
 ### 3.1 Network diagnostics
 
@@ -533,6 +533,73 @@ a recommendation, not a decision.
 
 Steps 1–4 are worth doing on their own: they are a refactor of working code with
 tests already in place, and they are what makes step 5 tractable.
+
+### 3.7 Command mode from inside a text field — **done**
+
+`alt+:` now opens the command line from anywhere, including a focused text
+input. A bare `:` keeps its old, conditional behaviour, so muscle memory
+survives.
+
+The problem: `handleKeyMsg` routed `:` through `maybeEnterInCommandMode`, which
+asked the view whether it was in edit mode (`FormView.InEditMode()`) and, if it
+was, forwarded the keystroke to the active input. Command mode was therefore
+unreachable from any form, filter box or search field — most of the application.
+
+The security view is the case that settles it. `InEditMode()` is true there for
+the target path, Trivy server and Gitleaks config fields, and the Trivy server
+placeholder is `https://trivy-server:4954` — the field has to accept **two**
+colons to hold a valid value. Forwarding `:` to the input is not a bug; it is
+the only correct behaviour, which is precisely why `:` cannot be the
+authoritative key. The only way in was to move focus to a control that takes no
+text and press `:` there, so reachability depended on which widget was focused
+and nothing said so.
+
+It was worse in `StateScanning`, `StateResults`, `StateDetails` and while a
+confirm modal is open: `InEditMode()` is true and there is no field to move
+focus to. `:` was forwarded to the view, which has no `case` for it — no view in
+the application handles `:` itself — and dropped silently.
+
+#### Why `alt+`, not `ctrl+`
+
+`ctrl+:` cannot be made to work, and this is the note that should stop anyone
+reintroducing it. A terminal encodes Ctrl by clearing bits, which only covers
+ASCII `@` through `_` (0x40–0x5F). `:` is 0x3A: Ctrl+: sends a plain `:` or
+nothing. Reporting it as a distinct key needs the Kitty keyboard protocol or
+xterm's `modifyOtherKeys`, and bubbletea v1.3.10 implements neither. A
+`case "ctrl+:"` would be dead code.
+
+Alt has no such limit — a terminal sends ESC then the key, and bubbletea reports
+that as the key carrying `Alt`. The alternative considered was a free
+`ctrl+<letter>` (`b g l p t u v x z` are unused; `ctrl+i m j h [` are Tab, Enter,
+LF, Backspace and Esc and must be left alone), which is marginally more portable
+but loses the `:` in the gesture.
+
+#### What shipped
+
+- `altCommandModeKey` is handled in `handleKeyMsg` **before** the `InEditMode()`
+  fork, so no view can claim it. The router sees every `tea.KeyMsg` first, which
+  is what makes the binding unconditional.
+- `enterCommandMode()` extracted; `maybeEnterInCommandMode` now only answers the
+  bare `:`.
+- `testutil.Key` understands an `alt+` prefix, building the key with the `Alt`
+  modifier rather than the five literal runes `alt+:`. Both round-trip through
+  `String()`, but only one is the message the application actually receives.
+- Every `GetShortcuts()` and `GetHelpContent()` advertising `:` now advertises
+  `alt+:` (Rules 114, 130, 137). The dashboard's Navigation help section carries
+  the nuance in prose, so the other eight sites stay one line each.
+- The header still renders `:` as the inactive prompt: it is the command line's
+  visual marker, not a key legend, and `:` remains valid whenever no field has
+  focus.
+
+Two things the ripple list got wrong, corrected here: `app_test.go:30` is a
+layout fixture for `buildShortcutLines`, not an assertion about the binding, so
+it was left alone. And `CommandModeView` / `AllowCommandMode` was not merely
+made redundant by this change — **it was already dead code**. The router only
+consulted it when `InEditMode()` was true, and netdiag's implementation returns
+true only on the topology tab, where `InEditMode()` is unconditionally false. It
+could never fire. Deleted, along with its one implementation;
+`TestCommandModeOnTheTopologyTab` became
+`TestTheTopologyTabNeverBlocksCommandMode` and records why.
 
 ---
 

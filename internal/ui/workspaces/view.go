@@ -470,7 +470,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcut.Shortcut{Key: "ctrl+d", Description: "Delete"},
 		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
 		shortcut.Shortcut{Key: "/", Description: "Search"},
-		shortcut.Shortcut{Key: ":", Description: "Command"},
+		shortcut.Shortcut{Key: "alt+:", Description: "Command"},
 		shortcut.Shortcut{Key: "?", Description: "Help"},
 	)
 
@@ -518,7 +518,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+a", Description: "Scan all git repos in the current view, purging cached results first"},
 			{Key: "ctrl+r", Description: "Refresh the list"},
 			{Key: "/", Description: "Filter the list by name or git remote"},
-			{Key: ":", Description: "Open command mode"},
+			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

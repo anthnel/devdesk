@@ -14,6 +14,8 @@
 package testutil
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -51,9 +53,17 @@ var namedKeys = map[string]tea.KeyType{
 // Key builds the tea.KeyMsg whose String() equals name.
 //
 // Names listed in namedKeys map to their dedicated key type ("enter", "esc",
-// "ctrl+s", " "). Anything else is treated as literal runes, so Key("y") and
-// Key("gg") produce the rune messages a view matching on those strings expects.
+// "ctrl+s", " "). An "alt+" prefix sets the Alt modifier on whatever follows,
+// which is how bubbletea reports the ESC-prefixed sequence a terminal sends for
+// Alt — Key("alt+:") is a colon carrying Alt, not the five runes "alt+:".
+// Anything else is treated as literal runes, so Key("y") and Key("gg") produce
+// the rune messages a view matching on those strings expects.
 func Key(name string) tea.KeyMsg {
+	if rest, isAlt := strings.CutPrefix(name, "alt+"); isAlt && rest != "" {
+		msg := Key(rest)
+		msg.Alt = true
+		return msg
+	}
 	if kt, ok := namedKeys[name]; ok {
 		return tea.KeyMsg{Type: kt}
 	}

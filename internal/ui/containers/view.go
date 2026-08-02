@@ -178,7 +178,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "↓/j", Description: "Move selection down"},
 			{Key: "g/Home", Description: "Go to top of list"},
 			{Key: "G/End", Description: "Go to bottom of list"},
-			{Key: ":", Description: "Open command mode"},
+			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

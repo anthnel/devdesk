@@ -310,7 +310,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 	if m.shared.GitLabClient == nil {
 		return []shortcut.Shortcut{
-			{Key: ":", Description: "Command mode"},
+			{Key: "alt+:", Description: "Command mode"},
 		}
 	}
 
@@ -332,7 +332,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcut.Shortcut{Key: ".", Description: "Sort"},
 		shortcut.Shortcut{Key: "/", Description: "Search"},
 		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
-		shortcut.Shortcut{Key: ":", Description: "Command"},
+		shortcut.Shortcut{Key: "alt+:", Description: "Command"},
 		shortcut.Shortcut{Key: "?", Description: "Help"},
 	)
 }
@@ -376,7 +376,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "Ctrl+D", Description: "Delete the selected group or project"},
 			{Key: ".", Description: "Cycle sort column (Type → Name → Visibility → Created → Activity)"},
 			{Key: "Ctrl+R", Description: "Refresh the explorer"},
-			{Key: ":", Description: "Open command mode"},
+			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{
