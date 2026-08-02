@@ -54,16 +54,35 @@ so removing them breaks nothing.
 give `esc` a message and make the flags load-bearing. Deleting is the smaller
 change and matches how the view already works.
 
+### D9 — The containers list opens sorted Z→A
+
+`internal/ui/containers/model.go:140-147`
+
+`New()` sets neither `sortColumn` nor `sortAsc`, so both take their zero value:
+name, *descending*. The status view, which has the same cycle-sort mechanism,
+sets `sortAsc: true` explicitly. The header does show `Name ▼`, so the view is
+at least honest about it — but nobody chose it, and it disagrees with the other
+list view in the application.
+
+**Fix:** set `sortAsc: true` in `New()`, one line. Left for a deliberate call
+because it changes what the user sees on open.
+`TestDefaultSortIsNameDescending` pins the current behaviour and says so.
+
 ### 1.1 Fixed
 
-**The status view's help advertised keys that do nothing.** Found while writing
-the phase 2 tests, not previously recorded.
+**Two views' help advertised keys that do nothing.** Found while writing the
+phase 2 tests, not previously recorded.
 
-`GetHelpContent` documented `n` for "Add a new monitor" while the binding has
-been `ctrl+n` since Rule 111 standardised it, and the `/` filter was missing
-altogether. The empty-state message told the user to "Press [n]" too. A test now
-asserts that every key `GetShortcuts()` advertises appears in the help, so the
-two cannot drift apart again silently.
+The status view's `GetHelpContent` documented `n` for "Add a new monitor" while
+the binding has been `ctrl+n` since Rule 111 standardised it, and the `/` filter
+was missing altogether; the empty-state message told the user to "Press [n]" too.
+The containers view advertised `S` (shell in a new window) in `GetShortcuts()`
+without documenting it at all.
+
+Both are fixed, and each package now asserts that every key `GetShortcuts()`
+advertises appears in `GetHelpContent()` — the check that would have caught the
+drift when it was introduced. Worth adding to the remaining views as their
+phases land.
 
 **D7** (`extractTarGz` kept parent references in archive paths), **D2** (the
 "permanent delete" checkbox was documented as locked but was not) and **D5** (an
@@ -164,7 +183,7 @@ common value like `store --file=/path` became the single unfindable command
 
 ### Test coverage
 
-Currently **22.7 %** overall; the agreed target is 80 %, which needs roughly
+Currently **30.8 %** overall; the agreed target is 80 %, which needs roughly
 **+7 250 covered statements** over today's ~2 100.
 
 Phased plan, with the harness and most of phase 1 delivered:
@@ -173,7 +192,7 @@ Phased plan, with the harness and most of phase 1 delivered:
 |---|---|---|
 | 0 | `internal/ui/testutil` Bubble Tea harness | **done** (100 %) |
 | 1 | Leaf components and pure helpers | **done** except the `ui/theme` complement (~55 stmts) |
-| 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **in progress** — `status` done, three packages left |
+| 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **done** |
 | 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | pending (~2 470 stmts) |
 | 4 | `ui/oci_resources` | pending (~1 995 stmts) |
 | 5 | Router and I/O seams (`app`, `scan`, `docker`) | pending (~1 360 stmts) |
@@ -207,21 +226,48 @@ built from a base URL, so an `httptest` server standing in for the API covers
 the whole package. `Clone` is exercised against a throwaway local repository
 rather than mocked, and skips when no `git` binary is on `PATH`.
 
-Phase 2 progress:
+Phase 2, complete:
 
 | Package | Before | Now |
 |---|---|---|
 | `internal/ui/status` | 0 % | **93.9 %** |
 | `internal/ui/status/components` | 0 % | **93.2 %** |
+| `internal/ui/containers` | 0 % | **87.2 %** |
+| `internal/ui/dashboard` | 0 % | **81.5 %** |
+| `internal/ui/gitlab/auth` | 0 % | **94.5 %** |
 
 The view layer needed no seam either, for the reason `internal/ui/testutil`
 documents: constructors are pure and `Update()` is a pure function, so feeding
-synthetic messages fully determines the resulting state. No test in the `status`
-package executes a command Update returns — `checkComponents` shells out to the
-network and `tickCmd` sleeps for a second — so the assertions are on model state
-instead. The two places that must touch disk (`config.Load` after a save,
-`config.Save`) redirect `HOME` and `USERPROFILE` at a temporary directory, the
-same trick `internal/credentials` uses.
+synthetic messages fully determines the resulting state. No test executes a
+command Update returns — they shell out to Docker, hit the GitLab API, sleep for
+a second or open a browser — so the assertions are on model state instead. The
+few places that must touch disk (`config.Load` after a save, `config.Save`)
+redirect `HOME` and `USERPROFILE` at a temporary directory, the same trick
+`internal/credentials` uses.
+
+Three constraints the phase surfaced, worth knowing before phases 3–5:
+
+- **Colour has to be forced to test styling.** Under `go test` lipgloss detects
+  no TTY, falls back to the Ascii profile and strips every escape sequence — so
+  any assertion about colour passes whatever the code does. `containers` calls
+  `lipgloss.SetColorProfile(termenv.TrueColor)` for the tests that need it and
+  restores it afterwards; that is what makes the Rule 122 check (no escape
+  sequences in `table.Row` cells) real rather than vacuous. Verified by styling
+  a cell on purpose and watching the test fail. `termenv` moved to a direct
+  dependency for this.
+- **`bubbles/table` keeps its styles unexported**, so `refreshSelectionStyle` is
+  asserted by looking for the error-selection escape sequence in the rendered
+  table rather than by reading `Styles()`.
+- **`sort.Slice` is not stable**, so fixtures must give every sortable column a
+  total order or the expected sequences are ambiguous.
+
+Two handlers are deliberately left uncovered in `containers`: `s` and `S` call
+`detectShell`, which runs `docker exec` synchronously *inside* `Update`. The
+tests drive those keys only in states that return before reaching it. The same
+shape appears in `status.reloadConfigAndCheck`, which calls `config.Load()` from
+`Update`. Neither is a Rule 110 violation — nothing mutates the model from a
+`Cmd` — but I/O in `Update` blocks the event loop and is untestable without a
+seam. Worth a look when phase 5 gets to the router.
 
 `internal/credentials` needed no seam either. `git credential` is steerable
 through the environment, so the tests redirect `HOME`, `GIT_CONFIG_GLOBAL` and
@@ -268,7 +314,7 @@ every push and pull request, on `ubuntu-latest`, which has a toolchain. The firs
 run reported no data race across all 17 packages.
 
 That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 22.7 %. Rule 110 violations in untested
+tests actually execute, and coverage is 30.8 %. Rule 110 violations in untested
 paths — most of the view layer — remain invisible. The two efforts compound, so
 this is an argument for the coverage phases rather than a substitute for them.
 Phase 2 puts the first full view state machine under the detector.
