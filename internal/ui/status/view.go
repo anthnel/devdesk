@@ -42,7 +42,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "tab", Description: "Switch tab"},
 		{Key: ".", Description: "Sort"},
 		{Key: "/", Description: "Search"},
-		{Key: ":", Description: "Command mode"},
+		{Key: "alt+:", Description: "Command mode"},
 		{Key: "?", Description: "Help"},
 	}
 }
@@ -319,7 +319,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "G/End", Description: "Go to bottom of list"},
 			{Key: ".", Description: "Cycle sort column and direction (Name, Target, Type, Response). Each column cycles ascending then descending before moving to the next. The active sort is shown with ▲ or ▼ in the column header."},
 			{Key: "/", Description: "Filter the active table by name, target or type"},
-			{Key: ":", Description: "Open command mode"},
+			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

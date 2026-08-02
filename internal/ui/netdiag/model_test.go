@@ -488,23 +488,19 @@ func TestInEditModeCoversTheStatesThatNeedKeys(t *testing.T) {
 	}
 }
 
-// The topology tab has no inputs, so command mode stays available there — but
-// only once its data has arrived.
-func TestCommandModeOnTheTopologyTab(t *testing.T) {
-	m := newTestModel(t)
-	if m.AllowCommandMode() {
-		t.Error("AllowCommandMode() is true on the diagnostics tab")
-	}
+// The topology tab takes no text, so a bare ":" reaches the router there
+// whatever the topology is doing. The view used to carry an AllowCommandMode()
+// that claimed to unlock ":" once the data had arrived; it could never fire,
+// because InEditMode() is already false on this tab and the router only
+// consulted it when InEditMode() was true. It is gone.
+func TestTheTopologyTabNeverBlocksCommandMode(t *testing.T) {
+	m := feed(t, newTestModel(t), testutil.Key("tab"), testutil.Key("tab")) // to topology
 
-	m = feed(t, m, testutil.Key("tab"), testutil.Key("tab")) // to topology
-	if m.AllowCommandMode() {
-		t.Error("AllowCommandMode() is true while the topology data is still loading")
+	if m.InEditMode() {
+		t.Error("InEditMode() is true while the topology data is still loading")
 	}
 
 	m.topologyModel.state = topoStateReady
-	if !m.AllowCommandMode() {
-		t.Error("AllowCommandMode() is false on a loaded topology tab")
-	}
 	if m.InEditMode() {
 		t.Error("InEditMode() is true on the topology tab, which takes no text")
 	}

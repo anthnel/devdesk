@@ -534,82 +534,72 @@ a recommendation, not a decision.
 Steps 1–4 are worth doing on their own: they are a refactor of working code with
 tests already in place, and they are what makes step 5 tractable.
 
-### 3.7 A command-mode key that works from inside a text field
+### 3.7 Command mode from inside a text field — **done**
 
-Requested: enter command mode with a modifier chord rather than a bare `:`,
-because the application is full of text inputs and inside one a `:` does nothing
-but insert a colon.
+`alt+:` now opens the command line from anywhere, including a focused text
+input. A bare `:` keeps its old, conditional behaviour, so muscle memory
+survives.
 
-The complaint is accurate and the current design concedes it. `internal/app/app.go:466`
-routes `:` through `maybeEnterInCommandMode`, which asks the view whether it is
-in edit mode (`FormView.InEditMode()`) and, if it is, forwards the keystroke to
-the active input instead. So command mode is unreachable from any form, filter
-box or search field — which is most of the application.
+The problem: `handleKeyMsg` routed `:` through `maybeEnterInCommandMode`, which
+asked the view whether it was in edit mode (`FormView.InEditMode()`) and, if it
+was, forwarded the keystroke to the active input. Command mode was therefore
+unreachable from any form, filter box or search field — most of the application.
 
-An escape hatch already exists and shows the shape of the problem: the
-`CommandModeView` interface (`app.go:44`) lets a view declare that `:` should
-enter command mode even while `InEditMode()` is true. Exactly one view
-implements it — `internal/ui/netdiag/update.go:18` — and only for the topology
-tab in its ready state, where nothing is being edited anyway. It papers over a
-routing quirk; it does not give the user a way in while typing.
+The security view is the case that settles it. `InEditMode()` is true there for
+the target path, Trivy server and Gitleaks config fields, and the Trivy server
+placeholder is `https://trivy-server:4954` — the field has to accept **two**
+colons to hold a valid value. Forwarding `:` to the input is not a bug; it is
+the only correct behaviour, which is precisely why `:` cannot be the
+authoritative key. The only way in was to move focus to a control that takes no
+text and press `:` there, so reachability depended on which widget was focused
+and nothing said so.
 
-#### Worked example: the security view
+It was worse in `StateScanning`, `StateResults`, `StateDetails` and while a
+confirm modal is open: `InEditMode()` is true and there is no field to move
+focus to. `:` was forwarded to the view, which has no `case` for it — no view in
+the application handles `:` itself — and dropped silently.
 
-`internal/ui/security/model.go:296` returns `InEditMode() == true` for focused
-fields 1, 7 and 10 — target path, Trivy server, Gitleaks config. Field 7 is the
-case that makes the point: its own placeholder is `https://trivy-server:4954`,
-so the field has to accept **two** colons to hold a valid value. Forwarding `:`
-to the input there is not a bug to fix; it is the only correct behaviour.
+#### Why `alt+`, not `ctrl+`
 
-Which is exactly why `:` is the wrong key for command mode. The user's only
-route out today is to move focus to a field that happens not to take text — a
-checkbox — and press `:` there. Command-mode reachability ends up depending on
-which control is focused, and nothing tells the user that.
+`ctrl+:` cannot be made to work, and this is the note that should stop anyone
+reintroducing it. A terminal encodes Ctrl by clearing bits, which only covers
+ASCII `@` through `_` (0x40–0x5F). `:` is 0x3A: Ctrl+: sends a plain `:` or
+nothing. Reporting it as a distinct key needs the Kitty keyboard protocol or
+xterm's `modifyOtherKeys`, and bubbletea v1.3.10 implements neither. A
+`case "ctrl+:"` would be dead code.
 
-`InEditMode()` is broader still: it is also true for `StateScanning`,
-`StateResults` and `StateDetails`, and `m.confirmModal != nil`. In those states
-there is no field to move focus to, so `:` is forwarded to the view, which has
-no `case` for it and drops it silently — no view in the application handles `:`
-itself. Reaching command mode from a results table means pressing `esc` to
-leave the results first. That is the same defect as the text field, without
-even a workaround.
+Alt has no such limit — a terminal sends ESC then the key, and bubbletea reports
+that as the key carrying `Alt`. The alternative considered was a free
+`ctrl+<letter>` (`b g l p t u v x z` are unused; `ctrl+i m j h [` are Tab, Enter,
+LF, Backspace and Esc and must be left alone), which is marginally more portable
+but loses the `:` in the gesture.
 
-#### `ctrl+:` specifically cannot be made to work
+#### What shipped
 
-Worth settling before any code is written. A terminal encodes Ctrl by clearing
-bits, which only covers ASCII `@` through `_` (0x40–0x5F) plus a handful of
-aliases. `:` is 0x3A and has no control encoding: pressing Ctrl+: sends either a
-plain `:` or nothing at all. Reporting it as a distinct key needs the Kitty
-keyboard protocol or xterm's `modifyOtherKeys`, and bubbletea v1.3.10 implements
-neither — the module has no reference to either. A `case "ctrl+:"` would be dead
-code.
+- `altCommandModeKey` is handled in `handleKeyMsg` **before** the `InEditMode()`
+  fork, so no view can claim it. The router sees every `tea.KeyMsg` first, which
+  is what makes the binding unconditional.
+- `enterCommandMode()` extracted; `maybeEnterInCommandMode` now only answers the
+  bare `:`.
+- `testutil.Key` understands an `alt+` prefix, building the key with the `Alt`
+  modifier rather than the five literal runes `alt+:`. Both round-trip through
+  `String()`, but only one is the message the application actually receives.
+- Every `GetShortcuts()` and `GetHelpContent()` advertising `:` now advertises
+  `alt+:` (Rules 114, 130, 137). The dashboard's Navigation help section carries
+  the nuance in prose, so the other eight sites stay one line each.
+- The header still renders `:` as the inactive prompt: it is the command line's
+  visual marker, not a key legend, and `:` remains valid whenever no field has
+  focus.
 
-#### What does work
-
-| Option | Portability | Notes |
-|---|---|---|
-| `alt+:` | Good | bubbletea v1 reports `alt+<rune>` from the ESC-prefix convention; works wherever "Alt sends Escape" is on, which is the default nearly everywhere. Closest to the request. |
-| A free `ctrl+<letter>` | Total | The bindings in use are `ctrl+a c d e f k n o r s w y`; `ctrl+i m j h [` are aliases of Tab, Enter, LF, Backspace and Esc and must be left alone. That leaves `b g l p t u v x z` — `ctrl+p` and `ctrl+g` read best. |
-| `esc` then `:` | Total | Vim-like, but `esc` already means cancel / go back everywhere (Rule 111), so it would need a mode timer. Not recommended. |
-
-**Recommendation: keep `:` and add one chord that always wins**, rather than
-replacing `:`. Muscle memory survives, and the new binding needs no
-`InEditMode()` check at all — `handleKeyMsg` sees every `tea.KeyMsg` before any
-view does, so a `case` there takes priority unconditionally. That is the whole
-implementation: three lines next to the existing `case ":"`.
-
-#### Ripple
-
-- `internal/app/app_header.go:56` renders `:` as the inactive command prompt —
-  it should show whichever key is authoritative.
-- `internal/app/app_test.go:30` asserts the `:` shortcut.
-- Rules 114, 130 and 137: every view's `GetShortcuts()` / `GetHelpContent()` that
-  mentions `:`. Three views were already caught drifting on this kind of change
-  (§1.1), so the check that each advertised key appears in the help — now present
-  in `status`, `containers` and `workspaces` — is the thing to lean on.
-- `CommandModeView` / `AllowCommandMode` become deletable if the new chord always
-  wins, since the sole reason they exist disappears. One implementation to
-  remove.
+Two things the ripple list got wrong, corrected here: `app_test.go:30` is a
+layout fixture for `buildShortcutLines`, not an assertion about the binding, so
+it was left alone. And `CommandModeView` / `AllowCommandMode` was not merely
+made redundant by this change — **it was already dead code**. The router only
+consulted it when `InEditMode()` was true, and netdiag's implementation returns
+true only on the topology tab, where `InEditMode()` is unconditionally false. It
+could never fire. Deleted, along with its one implementation;
+`TestCommandModeOnTheTopologyTab` became
+`TestTheTopologyTabNeverBlocksCommandMode` and records why.
 
 ---
 

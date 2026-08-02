@@ -1713,7 +1713,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "b", Description: "Browse"})
 		}
 		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: ":", Description: "Command"},
+			shortcut.Shortcut{Key: "alt+:", Description: "Command"},
 			shortcut.Shortcut{Key: "?", Description: "Help"},
 		)
 		return shortcuts
@@ -1734,7 +1734,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 		shortcuts = append(shortcuts,
 			shortcut.Shortcut{Key: "ctrl+r", Description: "New scan"},
-			shortcut.Shortcut{Key: ":", Description: "Command"},
+			shortcut.Shortcut{Key: "alt+:", Description: "Command"},
 			shortcut.Shortcut{Key: "?", Description: "Help"},
 		)
 		return shortcuts
@@ -1748,7 +1748,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				shortcuts = append(shortcuts, shortcut.Shortcut{Key: "o", Description: "Open ref"})
 			}
 		}
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: ":", Description: "Command"})
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "alt+:", Description: "Command"})
 		return shortcuts
 	}
 	return nil
@@ -1944,7 +1944,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: ".", Description: "Cycle severity filter (in CVE/Licenses/Misconfig results)"},
 			{Key: "ctrl+r", Description: "New scan (from results)"},
 			{Key: "esc", Description: "Back / cancel"},
-			{Key: ":", Description: "Open command mode"},
+			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

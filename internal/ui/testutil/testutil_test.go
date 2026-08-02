@@ -37,6 +37,53 @@ func TestKeyAliases(t *testing.T) {
 	}
 }
 
+// "alt+" is a modifier, not five more runes: a terminal sends ESC then the key,
+// and bubbletea reports that as the key carrying Alt. Building it as literal
+// runes would round-trip through String() just fine and still not be the message
+// the application receives.
+func TestKeyAltPrefixSetsTheModifier(t *testing.T) {
+	tests := []struct {
+		name string
+		want tea.KeyType
+	}{
+		{"alt+:", tea.KeyRunes},
+		{"alt+x", tea.KeyRunes},
+		{"alt+enter", tea.KeyEnter},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := Key(tt.name)
+
+			if !msg.Alt {
+				t.Errorf("Key(%q).Alt is false", tt.name)
+			}
+			if msg.Type != tt.want {
+				t.Errorf("Key(%q).Type = %v, want %v", tt.name, msg.Type, tt.want)
+			}
+			if got := msg.String(); got != tt.name {
+				t.Errorf("Key(%q).String() = %q", tt.name, got)
+			}
+			if msg.Type == tea.KeyRunes && len(msg.Runes) != 1 {
+				t.Errorf("Key(%q).Runes = %q, want the single key that carries Alt", tt.name, string(msg.Runes))
+			}
+		})
+	}
+}
+
+// A bare "alt+" has no key to modify, so it stays literal rather than producing
+// an Alt-modified nothing.
+func TestKeyBareAltPrefixIsLiteral(t *testing.T) {
+	msg := Key("alt+")
+
+	if msg.Alt {
+		t.Error(`Key("alt+").Alt is true; there is no key to modify`)
+	}
+	if got := msg.String(); got != "alt+" {
+		t.Errorf(`Key("alt+").String() = %q`, got)
+	}
+}
+
 func TestKeyRunes(t *testing.T) {
 	tests := []string{"y", "n", "Y", "N", "q", "j", "k", "gg", "/"}
 	for _, s := range tests {
