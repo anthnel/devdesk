@@ -1,0 +1,40 @@
+# Every step runs a mise task rather than a raw go command, so CI and a local
+# `mise run check` cannot drift apart. Tool versions come from mise.toml.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: mise run fmt-check
+      - run: mise run vet
+      - run: mise run lint
+      - run: mise run build
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: mise run test
+      # The race detector needs cgo and therefore a C toolchain, which the
+      # Windows development machines do not have. CI is the only place this
+      # check ever runs, and Bubble Tea Cmds make it the one most likely to
+      # catch a Rule 110 violation.
+      - run: mise run test-race

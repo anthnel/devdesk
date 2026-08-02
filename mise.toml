@@ -5,6 +5,9 @@
 
 [tools]
 go = "1.25"
+# Pinned so CI and every machine lint against the same rules. Without a pin, two
+# golangci-lint versions disagree on what Rule 305 considers a clean run.
+golangci-lint = "2.12.2"
 
 [tasks.build]
 description = "Build the binary to bin/dk"
@@ -36,6 +39,18 @@ run = "go test -cover ./..."
 [tasks.fmt]
 description = "Format code"
 run = "go fmt ./..."
+
+[tasks.fmt-check]
+description = "Fail when a file is not gofmt-clean (fmt rewrites, this one reports)"
+shell = "bash -c"
+run = """
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+  echo "not gofmt-clean:"
+  echo "$unformatted"
+  exit 1
+fi
+"""
 
 [tasks.vet]
 description = "Run go vet"
