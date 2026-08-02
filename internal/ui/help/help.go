@@ -120,7 +120,8 @@ func wordWrap(text string, width int) string {
 
 		lineLen := 0
 		for i, word := range words {
-			wordLen := len(word)
+			// Columns, not bytes: len() wraps accented text a rune early.
+			wordLen := theme.StringWidth(word)
 			if i > 0 && lineLen+1+wordLen > width {
 				result.WriteString("\n")
 				lineLen = 0

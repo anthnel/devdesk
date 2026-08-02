@@ -911,7 +911,7 @@ func (m *Model) updateFindingsTable() {
 		rows = append(rows, table.Row{
 			string(f.Severity),
 			f.ID,
-			truncate(f.Title, titleWidth-3),
+			theme.TruncateWidth(f.Title, titleWidth-3),
 			m.getSourceDisplay(f),
 		})
 	}
@@ -1696,14 +1696,6 @@ func (m Model) getSeverityStyle(sev scan.SeverityLevel) lipgloss.Style {
 	default:
 		return theme.DimStyle
 	}
-}
-
-// truncate shortens a string
-func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max-3] + "..."
 }
 
 // HeaderView interface implementation

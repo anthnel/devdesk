@@ -70,6 +70,25 @@ func TestWrapInputLines(t *testing.T) {
 	}
 }
 
+// A non-positive wrap width used to hang: the break point collapsed onto start,
+// an empty line was appended and start never advanced, so the slice grew until
+// the process died. No caller does this (Rule 133 fixes the width at 60/80/100),
+// but the loop must terminate regardless.
+func TestWrapInputLinesRefusesNonPositiveWidth(t *testing.T) {
+	const text = "hello world"
+
+	for _, wrapWidth := range []int{0, -1, -80} {
+		got := wrapInputLines(text, wrapWidth)
+
+		if len(got) != 1 {
+			t.Fatalf("wrapInputLines(%q, %d) returned %d lines, want 1", text, wrapWidth, len(got))
+		}
+		if got[0].text != text || got[0].startIndex != 0 {
+			t.Errorf("wrapInputLines(%q, %d) = %+v, want the text unwrapped at index 0", text, wrapWidth, got[0])
+		}
+	}
+}
+
 // startIndex must address the original rune slice, since View() maps the cursor
 // position onto a visual line with cursorPos - startIndex.
 func TestWrapInputLinesStartIndexAddressesOriginalRunes(t *testing.T) {
