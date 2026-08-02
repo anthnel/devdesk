@@ -1,0 +1,1 @@
+ajoute une nouvelle entrée au backlog, je veux utiliser "ctrl+:" au lieu de uniquement ":" pour entrer en mode commande, la raison est qu'il y a pas mal de champ de type input dans les vues, quand on est dans ces champs un : ne fait rien à part entrer un caractère ":"
