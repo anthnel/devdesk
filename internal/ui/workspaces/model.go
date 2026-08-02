@@ -946,6 +946,14 @@ func (m *Model) updateTableData() {
 		})
 	}
 	m.table.SetRows(rows)
+
+	// bubbles does not clamp the cursor when the row count shrinks, so drilling
+	// into a smaller directory — or narrowing the filter — would leave it past
+	// the end. Nothing is highlighted then, and every action that resolves the
+	// selection (enter, ctrl+d, r, ctrl+s) silently does nothing.
+	if m.table.Cursor() >= len(rows) {
+		m.table.SetCursor(max(len(rows)-1, 0))
+	}
 }
 
 // loadEntries loads the contents of the current directory with enriched metadata
