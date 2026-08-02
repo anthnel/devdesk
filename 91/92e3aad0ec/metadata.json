@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "9192e3aad0ec",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase2-rest",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/91/92e3aad0ec/0/metadata.json",
+      "transcript": "/91/92e3aad0ec/0/full.jsonl",
+      "compact_transcript": "/91/92e3aad0ec/0/transcript.jsonl",
+      "content_hash": "/91/92e3aad0ec/0/content_hash.txt",
+      "prompt": "/91/92e3aad0ec/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 366,
+    "cache_creation_tokens": 387129,
+    "cache_read_tokens": 43922743,
+    "output_tokens": 152240,
+    "api_call_count": 193
+  }
+}
