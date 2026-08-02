@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v4
       - run: mise run fmt-check
       - run: mise run vet
       - run: mise run lint
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v4
       - run: mise run test
       # The race detector needs cgo and therefore a C toolchain, which the
       # Windows development machines do not have. CI is the only place this
