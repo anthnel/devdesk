@@ -877,15 +877,15 @@ func (m *Model) resizeDetailsViewport() {
 	m.detailsViewport.Style = lipgloss.NewStyle().Background(theme.ColorBackground)
 }
 
-// firstOutputLine returns the first non-empty line truncated to maxLen
+// firstOutputLine returns the first non-empty line truncated to maxLen terminal
+// columns. The result goes into a table cell, so it must be valid UTF-8 (Rule
+// 122 / theme helpers per Rule 117) — slicing bytes here would cut a multibyte
+// rune in half and bleed into the rows below.
 func firstOutputLine(output string, maxLen int) string {
 	for line := range strings.SplitSeq(output, "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" {
-			if len(line) > maxLen {
-				return line[:maxLen-3] + "..."
-			}
-			return line
+			return theme.TruncateWidth(line, maxLen)
 		}
 	}
 	return ""
