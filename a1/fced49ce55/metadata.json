@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "a1fced49ce55",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase3-netdiag",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a1/fced49ce55/0/metadata.json",
+      "transcript": "/a1/fced49ce55/0/full.jsonl",
+      "compact_transcript": "/a1/fced49ce55/0/transcript.jsonl",
+      "content_hash": "/a1/fced49ce55/0/content_hash.txt",
+      "prompt": "/a1/fced49ce55/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 507,
+    "cache_creation_tokens": 885966,
+    "cache_read_tokens": 78323628,
+    "output_tokens": 204324,
+    "api_call_count": 268
+  }
+}
