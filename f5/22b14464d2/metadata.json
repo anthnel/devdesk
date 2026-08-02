@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "f522b14464d2",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase2-rest",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/containers/containers_test.go",
+    "internal/ui/containers/update_test.go",
+    "internal/ui/containers/view.go",
+    "internal/ui/containers/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f5/22b14464d2/0/metadata.json",
+      "transcript": "/f5/22b14464d2/0/full.jsonl",
+      "compact_transcript": "/f5/22b14464d2/0/transcript.jsonl",
+      "content_hash": "/f5/22b14464d2/0/content_hash.txt",
+      "prompt": "/f5/22b14464d2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 132,
+    "cache_creation_tokens": 156277,
+    "cache_read_tokens": 22712971,
+    "output_tokens": 73641,
+    "api_call_count": 70
+  }
+}
