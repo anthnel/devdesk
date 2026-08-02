@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -150,25 +151,48 @@ func TestExtractTarGzRejectsTruncatedArchive(t *testing.T) {
 	}
 }
 
-// extractTarGz only strips "./" and "/" prefixes; it does not reject parent
-// references, so a hostile archive yields keys containing "..".
-//
-// Not exploitable today: the sole consumer (applyTemplate in
-// internal/ui/gitlab/explorer) turns the map into GitLab commit actions rather
-// than writing to disk, and the server validates the paths. The hazard is latent
-// — any future caller that writes these keys under a target directory inherits a
-// Zip Slip unless it sanitises them first.
-func TestExtractTarGzPreservesParentTraversalInKeys(t *testing.T) {
-	archive := buildTarGz(t, []tarEntry{{name: "../../etc/passwd", body: "root:x:0:0\n"}})
+// A key containing parent references would hand a Zip Slip to any caller that
+// writes the extracted map under a target directory, so escaping entries are
+// rejected outright rather than silently rewritten.
+func TestExtractTarGzRejectsParentTraversal(t *testing.T) {
+	tests := []struct {
+		name  string
+		entry string
+	}{
+		{"leading parent references", "../../etc/passwd"},
+		{"parent reference after a segment", "templates/../../etc/passwd"},
+		{"absolute path with parent references", "/../../etc/passwd"},
+		{"backslash separators", `..\..\etc\passwd`},
+		{"bare parent reference", ".."},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			archive := buildTarGz(t, []tarEntry{{name: tc.entry, body: "root:x:0:0\n"}})
+
+			files, err := extractTarGz(archive)
+			if err == nil {
+				t.Fatalf("extractTarGz() accepted %q, returning keys %v", tc.entry, keysOf(files))
+			}
+			if !strings.Contains(err.Error(), fmt.Sprintf("%q", tc.entry)) {
+				t.Errorf("error %q does not name the offending entry %q", err, tc.entry)
+			}
+		})
+	}
+}
+
+// Traversal that resolves back inside the root is legitimate and must survive,
+// normalised.
+func TestExtractTarGzNormalisesContainedTraversal(t *testing.T) {
+	archive := buildTarGz(t, []tarEntry{{name: "templates/../README.md", body: "hello"}})
 
 	files, err := extractTarGz(archive)
 	if err != nil {
 		t.Fatalf("extractTarGz() returned an error: %v", err)
 	}
-	if _, ok := files["../../etc/passwd"]; !ok {
-		t.Skip("traversal is now rejected or sanitised; drop this test and the accompanying caveat")
+	if got, ok := files["README.md"]; !ok || got != "hello" {
+		t.Errorf("want files[\"README.md\"] == \"hello\"; got %q (present=%v), keys %v", got, ok, keysOf(files))
 	}
-	t.Log("extractTarGz returned a key containing '..' — callers must sanitise before writing to disk")
 }
 
 func TestNewClientTrimsTrailingSlash(t *testing.T) {

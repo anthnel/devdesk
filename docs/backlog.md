@@ -11,23 +11,9 @@ rather than carried over.
 
 ## 1. Known defects
 
-D1, D3 and D6 — the byte-vs-rune lot — were fixed together; see
-[§1.1](#11-fixed). The remainder is unfixed and reachable from the current code.
-
-### D2 — The "permanent delete" checkbox is documented as locked but is not
-
-`internal/ui/components/delete_confirm_modal.go:35` and `:99-105`
-
-`NewDeleteConfirmModalPermanent` pre-checks *Immediate deletion* and its doc
-comment states the box is non-modifiable ("pré-cochée et non modifiable"). Nothing
-enforces that: `space` and `enter` on the checkbox still toggle it.
-
-A project already marked for deletion can therefore be sent through a
-grace-period delete that the caller does not expect. Pinned by
-`TestDeleteConfirmModalPermanentCheckboxIsStillToggleable`.
-
-**Fix:** carry a `locked` flag on the modal and make the toggle a no-op when set,
-or drop the claim from the doc comment.
+D1, D3 and D6 (the byte-vs-rune lot), then D2, D5 and D7, were fixed; see
+[§1.1](#11-fixed). **D4 is the only one left**, and it is waiting on a decision
+rather than on work.
 
 ### D4 — `DeleteConfirmModal` uses `Tab` for field navigation
 
@@ -40,37 +26,42 @@ Cosmetic in isolation, but it is the kind of inconsistency Rule 135 exists to
 prevent. Changing it alters muscle memory, so it needs a deliberate call rather
 than a drive-by fix.
 
-### D5 — Unreachable focus clamp in `CreationForm`
-
-`internal/ui/components/creation_form.go:221-223`
-
-After cycling the resource type, the code clamps `focusedField` down to
-`maxField()`. The surrounding branch only runs when `focusedField == 0`, and
-`maxField()` is never below 4, so the clamp can never fire.
-
-Dead defensive code. Harmless, but it implies a state transition that cannot
-happen and is misleading to read.
-
-### D7 — `extractTarGz` keeps parent references in archive paths
-
-`internal/oci/oci.go:262`
-
-Extraction strips leading `./` and `/` but does not reject `..`, so an archive
-member named `../../etc/passwd` survives as a map key containing parent
-references.
-
-**Not exploitable today.** The sole consumer, `applyTemplate` in
-`internal/ui/gitlab/explorer/model.go:1053`, turns the map into GitLab commit
-actions rather than writing to disk, and the server validates the paths.
-
-Recorded because the hazard is latent: any future caller that writes these keys
-under a target directory inherits a Zip Slip. Pinned by
-`TestExtractTarGzPreservesParentTraversalInKeys`.
-
-**Fix:** reject entries whose cleaned path escapes the root, before returning
-them.
+Note that the surrounding code moved when D2 was fixed: `tab` / `shift+tab` now
+cycle through `cycleFocus()`, which skips the locked checkbox. Switching to
+`↑ / ↓` remains a one-line change to the key names.
 
 ### 1.1 Fixed
+
+**D7** (`extractTarGz` kept parent references in archive paths), **D2** (the
+"permanent delete" checkbox was documented as locked but was not) and **D5** (an
+unreachable focus clamp in `CreationForm`) were fixed together — three small,
+independent defects with no shared code.
+
+`extractTarGz` now routes every member name through `sanitizeArchivePath`, which
+normalises the separators and rejects anything resolving outside the root.
+Cleaning happens *after* the leading separator is stripped, not before:
+`path.Clean("/../x")` returns `"/x"`, which would have absorbed the traversal
+silently instead of exposing it. Traversal that resolves back inside the root
+(`templates/../README.md`) is kept, normalised. Backslashes are folded to `/`
+first, so `..\..\etc\passwd` cannot pass as an ordinary filename on a tar reader
+that treats it as one.
+
+The delete modal carries a `locked` flag, set only by
+`NewDeleteConfirmModalPermanent`. Rather than merely making the toggle a no-op,
+navigation skips the checkbox entirely (`minFocus()` / `cycleFocus()`) and the
+line renders dimmed: a focusable control that ignores every key is more
+confusing than one that is plainly not there.
+
+The `CreationForm` clamp was deleted and replaced by a comment recording why it
+cannot fire, so it is not reintroduced defensively. A test pins the invariant it
+was guarding.
+
+Both self-annulling tests became real assertions:
+`TestDeleteConfirmModalPermanentCheckboxIsStillToggleable` →
+`TestDeleteConfirmModalPermanentCheckboxIsLocked` (plus navigation and
+confirmation cases), and `TestExtractTarGzPreservesParentTraversalInKeys` →
+`TestExtractTarGzRejectsParentTraversal` (table-driven over five escape shapes)
+alongside `TestExtractTarGzNormalisesContainedTraversal`.
 
 **D1** (`ReportModal.View()` emitted invalid UTF-8), **D3** (`wrapInputLines`
 looped forever when `wrapWidth <= 0`) and **D6** (`wordWrap` measured bytes) were
@@ -162,13 +153,13 @@ Phase 1 progress:
 | `internal/ui/testutil` | — | **100 %** (new) |
 | `internal/ui/shortcut` | 0 % | **100 %** |
 | `internal/ui/help` | 0 % | **96.7 %** |
-| `internal/ui/components` | 0 % | **79.8 %** |
-| `internal/oci` | 0 % | **33.6 %** |
+| `internal/ui/components` | 0 % | **80.2 %** |
+| `internal/oci` | 0 % | **37.3 %** |
 | `internal/docker` | 7.3 % | **65.4 %** (phase 5, pulled forward — see below) |
 | `internal/gitlab` | 7.5 % | **100 %** |
 | `internal/credentials` | 29.5 % | **98.2 %** |
 
-`internal/oci` stops at 33.6 % because the remaining statements are registry HTTP
+`internal/oci` stops at 37.3 % because the remaining statements are registry HTTP
 paths (`DownloadTemplate`, `listCatalog`, `ListTemplates`) that need a fuller
 `httptest` fixture — a manifest plus a gzipped layer — rather than the
 single-response stubs used so far.
@@ -317,7 +308,9 @@ promise.
 - **Deletion.** `DeleteGroup` / `DeleteProject` implement GitLab's two-step
   permanent delete (schedule, then purge under the renamed
   `-deletion_scheduled-<id>` path). GitHub deletes immediately and has no
-  equivalent, so the "permanent" checkbox is meaningless there — see also D2.
+  equivalent, so the "permanent" checkbox is meaningless there. The `locked`
+  flag added in §1.1 is the hook for that: a GitHub backend would set it and
+  leave the box out of reach, as the already-scheduled GitLab case does.
 - **Dashboard counters.** `FetchDashboardStats` reads `X-Total` from five list
   endpoints. GitHub has no equivalent header for these; the counts come from the
   search API (`search/issues?q=is:open+is:pr+assignee:@me`), with different rate

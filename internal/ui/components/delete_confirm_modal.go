@@ -16,6 +16,7 @@ type DeleteConfirmModal struct {
 	message           string
 	focused           int  // 0 = checkbox, 1 = Yes, 2 = No
 	permanentlyRemove bool // Si true, suppression immédiate sans période de grâce
+	locked            bool // Si true, la checkbox n'est ni modifiable ni focusable
 	width             int
 	height            int
 }
@@ -38,7 +39,18 @@ func NewDeleteConfirmModalPermanent(title, message string) *DeleteConfirmModal {
 		message:           message,
 		focused:           2, // Default sur "No"
 		permanentlyRemove: true,
+		locked:            true,
 	}
+}
+
+// minFocus retourne le premier élément atteignable au clavier. La checkbox est
+// exclue quand elle est verrouillée : un contrôle focusable qui ignore toute
+// touche est plus déroutant qu'un contrôle absent.
+func (m *DeleteConfirmModal) minFocus() int {
+	if m.locked {
+		return 1
+	}
+	return 0
 }
 
 // DeleteConfirmModalYesMsg est envoyé quand l'utilisateur confirme la suppression
@@ -60,7 +72,7 @@ func (m *DeleteConfirmModal) Update(msg tea.Msg) (*DeleteConfirmModal, tea.Cmd) 
 		switch msg.String() {
 		case "up", "k":
 			// Navigate up
-			if m.focused > 0 {
+			if m.focused > m.minFocus() {
 				m.focused--
 			}
 			return m, nil
@@ -88,18 +100,18 @@ func (m *DeleteConfirmModal) Update(msg tea.Msg) (*DeleteConfirmModal, tea.Cmd) 
 
 		case "tab":
 			// Cycle through: checkbox -> Yes -> No -> checkbox
-			m.focused = (m.focused + 1) % 3
+			m.focused = m.cycleFocus(1)
 			return m, nil
 
 		case "shift+tab":
 			// Cycle backwards
-			m.focused = (m.focused + 2) % 3
+			m.focused = m.cycleFocus(-1)
 			return m, nil
 
 		case " ":
 			// Toggle checkbox si focus dessus, sinon confirmer la sélection
 			if m.focused == 0 {
-				m.permanentlyRemove = !m.permanentlyRemove
+				m.toggleCheckbox()
 				return m, nil
 			}
 			return m.handleConfirm()
@@ -124,12 +136,28 @@ func (m *DeleteConfirmModal) Update(msg tea.Msg) (*DeleteConfirmModal, tea.Cmd) 
 	return m, nil
 }
 
+// cycleFocus fait tourner le focus dans le sens donné, en sautant les éléments
+// exclus par minFocus().
+func (m *DeleteConfirmModal) cycleFocus(step int) int {
+	min := m.minFocus()
+	span := 3 - min
+	return min + ((m.focused-min+step)%span+span)%span
+}
+
+// toggleCheckbox inverse la case "immediate deletion", sauf si elle est verrouillée.
+func (m *DeleteConfirmModal) toggleCheckbox() {
+	if m.locked {
+		return
+	}
+	m.permanentlyRemove = !m.permanentlyRemove
+}
+
 // handleConfirm gère la confirmation selon l'élément sélectionné
 func (m *DeleteConfirmModal) handleConfirm() (*DeleteConfirmModal, tea.Cmd) {
 	switch m.focused {
 	case 0:
 		// Toggle checkbox
-		m.permanentlyRemove = !m.permanentlyRemove
+		m.toggleCheckbox()
 		return m, nil
 	case 1:
 		// Yes
@@ -159,7 +187,11 @@ func (m *DeleteConfirmModal) View() string {
 
 	// Checkbox pour suppression immédiate
 	checkboxStyle := lipgloss.NewStyle().Background(theme.ColorBackground)
-	if m.focused == 0 {
+	switch {
+	case m.locked:
+		// Verrouillée : atténuée, pour signaler qu'elle n'est pas actionnable.
+		checkboxStyle = checkboxStyle.Foreground(theme.ColorDim)
+	case m.focused == 0:
 		checkboxStyle = checkboxStyle.Bold(true).Foreground(theme.ColorHighlight)
 	}
 

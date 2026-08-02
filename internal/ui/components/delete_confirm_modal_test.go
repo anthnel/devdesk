@@ -196,17 +196,67 @@ func TestDeleteConfirmModalLetterShortcuts(t *testing.T) {
 	}
 }
 
-// Documents current behaviour: the "permanent" variant's checkbox is described
-// as non-modifiable, but nothing enforces that — space still unchecks it. See
-// the note accompanying this change.
-func TestDeleteConfirmModalPermanentCheckboxIsStillToggleable(t *testing.T) {
+// The permanent variant is used when the project is already scheduled for
+// deletion, so a grace-period delete is not on offer: no key may uncheck the box.
+func TestDeleteConfirmModalPermanentCheckboxIsLocked(t *testing.T) {
+	for _, key := range []string{" ", "enter"} {
+		t.Run(key+" leaves it checked", func(t *testing.T) {
+			m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion")
+			m.focused = deleteFocusCheckbox
+
+			m, _ = m.Update(testutil.Key(key))
+
+			if !m.permanentlyRemove {
+				t.Errorf("%q unchecked the locked checkbox", key)
+			}
+		})
+	}
+}
+
+// A focusable control that ignores every key is more confusing than an absent
+// one, so navigation skips the locked checkbox entirely.
+func TestDeleteConfirmModalPermanentSkipsCheckboxWhenNavigating(t *testing.T) {
+	t.Run("up clamps at Yes", func(t *testing.T) {
+		m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion")
+
+		for i := 0; i < 5; i++ {
+			m, _ = m.Update(testutil.Key("up"))
+		}
+		if m.focused != deleteFocusYes {
+			t.Errorf("focus = %d after repeated up, want %d (Yes)", m.focused, deleteFocusYes)
+		}
+	})
+
+	t.Run("tab cycles between the buttons only", func(t *testing.T) {
+		m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion") // starts on No
+
+		m, _ = m.Update(testutil.Key("tab"))
+		if m.focused != deleteFocusYes {
+			t.Errorf("focus = %d after tab from No, want %d (Yes)", m.focused, deleteFocusYes)
+		}
+		m, _ = m.Update(testutil.Key("tab"))
+		if m.focused != deleteFocusNo {
+			t.Errorf("focus = %d after a second tab, want %d (No)", m.focused, deleteFocusNo)
+		}
+		m, _ = m.Update(testutil.Key("shift+tab"))
+		if m.focused != deleteFocusYes {
+			t.Errorf("focus = %d after shift+tab, want %d (Yes)", m.focused, deleteFocusYes)
+		}
+	})
+}
+
+// Confirming the permanent variant must carry the checked state through.
+func TestDeleteConfirmModalPermanentConfirmsAsImmediate(t *testing.T) {
 	m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion")
-	m.focused = deleteFocusCheckbox
+	m.focused = deleteFocusYes
 
-	m, _ = m.Update(testutil.Key(" "))
-
-	if m.permanentlyRemove {
-		t.Skip("the permanent checkbox is now locked; update this test and drop the caveat")
+	_, cmd := m.Update(testutil.Key("enter"))
+	msg, ok := testutil.MsgOf[DeleteConfirmModalYesMsg](cmd)
+	if !ok {
+		t.Fatalf("enter on Yes did not emit DeleteConfirmModalYesMsg, got %T", testutil.Msg(cmd))
+	}
+	if !msg.PermanentlyRemove {
+		t.Error("the permanent variant confirmed with PermanentlyRemove = false")
 	}
 }
 
