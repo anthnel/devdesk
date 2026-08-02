@@ -130,6 +130,13 @@ in `internal/ui/security/model.go` sliced bytes exactly like D1 and rendered
 Trivy finding titles. It is now `theme.TruncateWidth` and the local helper is
 gone.
 
+A **fifth site** turned up later, during the phase 3 tests: `firstOutputLine` in
+`internal/ui/netdiag` sliced `line[:maxLen-3]` to fill the Output column of the
+results table, so any diagnostic whose first line contained a multibyte rune
+could be cut in half and bleed across the rows below (Rule 122). Now
+`theme.TruncateWidth`, pinned by `TestFirstOutputLineKeepsMultibyteRunesIntact`.
+Worth grepping for `[:` on strings when the remaining phases land.
+
 The two pinned tests that `t.Skip()`d became real assertions
 (`TestReportModalViewKeepsMultibyteRunesIntact`,
 `TestWordWrapMeasuresColumnsNotBytes`).
@@ -183,7 +190,7 @@ common value like `store --file=/path` became the single unfindable command
 
 ### Test coverage
 
-Currently **30.8 %** overall; the agreed target is 80 %, which needs roughly
+Currently **37.7 %** overall; the agreed target is 80 %, which needs roughly
 **+7 250 covered statements** over today's ~2 100.
 
 Phased plan, with the harness and most of phase 1 delivered:
@@ -193,7 +200,7 @@ Phased plan, with the harness and most of phase 1 delivered:
 | 0 | `internal/ui/testutil` Bubble Tea harness | **done** (100 %) |
 | 1 | Leaf components and pure helpers | **done** except the `ui/theme` complement (~55 stmts) |
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **done** |
-| 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | pending (~2 470 stmts) |
+| 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **in progress** — `netdiag` done, three left |
 | 4 | `ui/oci_resources` | pending (~1 995 stmts) |
 | 5 | Router and I/O seams (`app`, `scan`, `docker`) | pending (~1 360 stmts) |
 | 6 | Remainder to reach 80 % | pending (~400 stmts) |
@@ -261,6 +268,15 @@ Three constraints the phase surfaced, worth knowing before phases 3–5:
 - **`sort.Slice` is not stable**, so fixtures must give every sortable column a
   total order or the expected sequences are ambiguous.
 
+Phase 3, in progress:
+
+| Package | Before | Now |
+|---|---|---|
+| `internal/ui/netdiag` | 15.9 % | **86.1 %** |
+
+The rest of phase 3 is `workspaces`, `gitlab/explorer` and `security`, in
+ascending order of size.
+
 Two handlers are deliberately left uncovered in `containers`: `s` and `S` call
 `detectShell`, which runs `docker exec` synchronously *inside* `Update`. The
 tests drive those keys only in states that return before reaching it. The same
@@ -279,17 +295,22 @@ installing a credential helper that sleeps.
 
 ### Files over the 800-line ceiling
 
-The project's own coding rules cap files at 800 lines. Seven exceed it:
+The project's own coding rules cap files at 800 lines. Six exceed it — the
+figures recorded earlier were stale, and several files had grown:
 
 | File | Lines |
 |---|---|
-| `internal/ui/security/model.go` | 1785 |
+| `internal/ui/security/model.go` | 1977 |
 | `internal/ui/oci_resources/update.go` | 1556 |
+| `internal/ui/gitlab/explorer/model.go` | 1402 |
 | `internal/app/app.go` | 1333 |
-| `internal/ui/gitlab/explorer/model.go` | 1214 |
-| `internal/ui/workspaces/model.go` | 1133 |
-| `internal/ui/netdiag/model.go` | 995 |
+| `internal/ui/workspaces/model.go` | 1299 |
 | `internal/ui/oci_resources/registry_browser.go` | 822 |
+
+`internal/ui/netdiag/model.go` (1114 lines) was split into `validation.go`,
+`update.go`, `run.go`, `view.go` and `header.go`; the largest is now 314 lines
+and `model.go` itself is 172. `topology_model.go` stays at 752 — under the
+ceiling, and its parsers and renderer belong together.
 
 `internal/docker/client.go` (1176 lines — the 1069 recorded earlier was stale)
 was split into `exec.go`, `containers.go`, `images.go`, `networks.go`,
@@ -303,6 +324,16 @@ tests against these files before splitting them freezes their current structure.
 Decide the order deliberately. Splitting `docker` first was the cheap case — its
 7.3 % coverage meant almost no tests were pinned to the old shape.
 
+**The order settled on for phase 3 is: surface tests, then split, then complete
+coverage** — per package, so each split has a net under it without the tests
+being written against a layout that is about to change. It worked on `netdiag`:
+the surface pass reached 58.8 % driving `Update()` and `View()` only, the split
+moved five blocks of code with the coverage figure unchanged to the statement,
+and the completion pass took it to 86.1 %. The discipline that makes it work is
+asserting on behaviour rather than on internals — no test named a file, and the
+only ones that reach into the model do so for state the view has no other way to
+expose.
+
 ### Race detector cannot run locally
 
 `mise run test-race` needs cgo and therefore a C compiler on `PATH`. Without one
@@ -314,7 +345,7 @@ every push and pull request, on `ubuntu-latest`, which has a toolchain. The firs
 run reported no data race across all 17 packages.
 
 That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 30.8 %. Rule 110 violations in untested
+tests actually execute, and coverage is 37.7 %. Rule 110 violations in untested
 paths — most of the view layer — remain invisible. The two efforts compound, so
 this is an argument for the coverage phases rather than a substitute for them.
 Phase 2 puts the first full view state machine under the detector.
