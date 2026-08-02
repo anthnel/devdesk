@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "5e5ee9f8da80",
+  "strategy": "manual-commit",
+  "branch": "test/gitlab-coverage",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/5e/5ee9f8da80/0/metadata.json",
+      "transcript": "/5e/5ee9f8da80/0/full.jsonl",
+      "compact_transcript": "/5e/5ee9f8da80/0/transcript.jsonl",
+      "content_hash": "/5e/5ee9f8da80/0/content_hash.txt",
+      "prompt": "/5e/5ee9f8da80/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 81,
+    "cache_creation_tokens": 130926,
+    "cache_read_tokens": 6776299,
+    "output_tokens": 31049,
+    "api_call_count": 44
+  }
+}

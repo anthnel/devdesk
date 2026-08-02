@@ -1,0 +1,9 @@
+tout fonctionne tu peux merger
+
+---
+
+/plan je vais migrer d'autres projet de gitlab vers entire, il faudrait créer une skill qui permet de le faire en tirant profit de tout ce qu'on a apprit
+
+---
+
+on continue la phase 1 sur gitlab
