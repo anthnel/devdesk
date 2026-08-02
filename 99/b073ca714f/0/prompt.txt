@@ -1,0 +1,9 @@
+merge
+
+---
+
+explique moi le probleme de GitCredentialStorage
+
+---
+
+oui pars là dessus et explique moi ce qu'est un seam
