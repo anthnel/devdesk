@@ -1,0 +1,1 @@
+prend l'exemple de la vue sec, si je suis dans trivy serveur un ":" entre un ":" dans le champ texte et c'est normal je dois pouvoir entrer "https://" mais pour entrer en mode commande je dois sortir de ce champ et aller dans un champ qui n'accepte pas de ":"
