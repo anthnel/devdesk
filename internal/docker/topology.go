@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"os/exec"
 	"strings"
 )
 
@@ -34,7 +33,7 @@ func RunIPNeigh(image string) DiagResult {
 // of the tools are found in the image.
 // Requires --privileged to access netfilter tables.
 func RunFirewallRules(image string) DiagResult {
-	if _, err := exec.LookPath("docker"); err != nil {
+	if runner.LookPath() != nil {
 		return DiagResult{false, "docker not found"}
 	}
 	shellCmd := `if command -v iptables-legacy >/dev/null 2>&1; then ` +
@@ -48,8 +47,7 @@ func RunFirewallRules(image string) DiagResult {
 		"run", "--rm", "--network", "host", "--privileged",
 		image, "/bin/sh", "-c", shellCmd,
 	}
-	cmd := exec.Command("docker", args...)
-	output, err := cmd.CombinedOutput()
+	output, err := dockerCombined(args...)
 	out := strings.ReplaceAll(string(output), "\r\n", "\n")
 	out = strings.ReplaceAll(out, "\r", "\n")
 	out = strings.TrimSpace(out)

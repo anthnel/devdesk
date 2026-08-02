@@ -3,7 +3,6 @@ package docker
 import (
 	"fmt"
 	"log"
-	"os/exec"
 	"strings"
 	"unicode"
 )
@@ -23,8 +22,8 @@ type PortInfo struct {
 // RunSS runs ss inside an ephemeral Docker container with --net=host --pid=host --user=root.
 // numeric=true adds -n (show raw IPs/ports); numeric=false lets ss resolve to DNS names.
 func RunSS(image string, numeric bool) ([]PortInfo, error) {
-	if _, err := exec.LookPath("docker"); err != nil {
-		return nil, fmt.Errorf("docker not found")
+	if err := runner.LookPath(); err != nil {
+		return nil, fmt.Errorf("docker not found: %w", err)
 	}
 	ssFlags := "-tupa"
 	if numeric {
@@ -40,8 +39,7 @@ func RunSS(image string, numeric bool) ([]PortInfo, error) {
 		"-v", "/etc/nsswitch.conf:/etc/nsswitch.conf:ro",
 		image, "ss", ssFlags,
 	}
-	cmd := exec.Command("docker", args...)
-	output, err := cmd.CombinedOutput()
+	output, err := dockerCombined(args...)
 	raw := string(output)
 	if err != nil {
 		return nil, fmt.Errorf("ss command failed: %w\n%s", err, raw)
@@ -60,12 +58,11 @@ func RunSS(image string, numeric bool) ([]PortInfo, error) {
 
 // KillProcess sends SIGKILL to a process on the host via a privileged container.
 func KillProcess(image, pid string) error {
-	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker not found")
+	if err := runner.LookPath(); err != nil {
+		return fmt.Errorf("docker not found: %w", err)
 	}
 	args := []string{"run", "--rm", "--pid=host", "--privileged", image, "kill", "-9", pid}
-	cmd := exec.Command("docker", args...)
-	output, err := cmd.CombinedOutput()
+	output, err := dockerCombined(args...)
 	if err != nil {
 		return fmt.Errorf("kill -9 %s failed: %w\n%s", pid, err, string(output))
 	}
