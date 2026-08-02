@@ -96,21 +96,59 @@ One call site was deliberately left alone: `truncateResultLine` in
 so it is correct — merely imprecise on double-width glyphs. Folding it into the
 theme helpers is a cleanup, not a defect fix.
 
+**Context isolation in `GitCredentialStorage` never worked.** Found while
+planning the coverage work, not previously recorded.
+
+The three methods carried the DevDesk context in the `path` field of the git
+credential protocol (`path=devdesk/context/<name>`). Git discards that field
+unless `credential.useHttpPath` is set, which is off by default, so every
+credential was keyed on `protocol://host` alone. Two contexts pointing at the
+same GitLab host silently overwrote each other, and the last one to authenticate
+won for all of them. Verified against a real `git credential` store before and
+after the fix; it affects every helper (GCM, wincred, osxkeychain), since git
+strips the path before the helper is ever called.
+
+**Fix:** pass `-c credential.useHttpPath=true` on each invocation. Scoping it to
+the call leaves the user's git configuration alone — setting it globally would
+change credential resolution for every repository on the machine. Pinned by
+`TestGitCredentialIsolatesContexts`.
+
+Existing users must re-authenticate: credentials saved under the old
+path-stripped key no longer match. Those credentials were ambiguous across
+contexts anyway.
+
+Two smaller defects went with it:
+
+- `Delete` had no timeout, while `Save` and `Load` bounded themselves to 2 s
+  precisely so an unconfigured helper could not freeze the TUI. Logout could
+  hang indefinitely.
+- The timeout killed only the direct `git` child, though its comment claimed
+  otherwise. The helper git spawns survives and holds the output pipes open, so
+  `Run` kept blocking. All three calls now share one `runCredential` helper built
+  on `exec.CommandContext` plus `WaitDelay`, which bounds the wait on those pipes.
+
+`internal/credentials/helper.go` (`HelperStorage`, 137 lines) was deleted rather
+than fixed: nothing outside its own tests constructed it. It was also broken —
+`detectHelper()` returns whatever `git config credential.helper` holds, so a
+common value like `store --file=/path` became the single unfindable command
+`credential-store --file=/path` — and it hardcoded `protocol=https`, unlike
+`GitCredentialStorage`, which reads the scheme from the URL.
+
 ---
 
 ## 2. Technical debt
 
 ### Test coverage
 
-Currently **17.6 %** overall; the agreed target is 80 %, which needs roughly
-**+7 300 covered statements** over today's ~2 030.
+Currently **18.2 %** overall; the agreed target is 80 %, which needs roughly
+**+7 250 covered statements** over today's ~2 100.
 
 Phased plan, with the harness and most of phase 1 delivered:
 
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | `internal/ui/testutil` Bubble Tea harness | **done** (100 %) |
-| 1 | Leaf components and pure helpers | **mostly done** — see the table below; `credentials` and the `ui/theme` complement remain (~155 stmts) |
+| 1 | Leaf components and pure helpers | **done** except the `ui/theme` complement (~55 stmts) |
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | pending (~1 240 stmts) |
 | 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | pending (~2 470 stmts) |
 | 4 | `ui/oci_resources` | pending (~1 995 stmts) |
@@ -128,7 +166,7 @@ Phase 1 progress:
 | `internal/oci` | 0 % | **33.6 %** |
 | `internal/docker` | 7.3 % | **65.4 %** (phase 5, pulled forward — see below) |
 | `internal/gitlab` | 7.5 % | **100 %** |
-| `internal/credentials` | 29.5 % | unchanged |
+| `internal/credentials` | 29.5 % | **98.2 %** |
 
 `internal/oci` stops at 33.6 % because the remaining statements are registry HTTP
 paths (`DownloadTemplate`, `listCatalog`, `ListTemplates`) that need a fuller
@@ -144,6 +182,14 @@ drive argument building and output parsing against canned output. `scan` and
 built from a base URL, so an `httptest` server standing in for the API covers
 the whole package. `Clone` is exercised against a throwaway local repository
 rather than mocked, and skips when no `git` binary is on `PATH`.
+
+`internal/credentials` needed no seam either. `git credential` is steerable
+through the environment, so the tests redirect `HOME`, `GIT_CONFIG_GLOBAL` and
+`GIT_CONFIG_NOSYSTEM` at a temporary directory and run the real binary against a
+throwaway `store` helper — nothing reaches the developer's keychain. Running the
+real git is what surfaced the context-isolation defect recorded in §1.1; a stub
+would have frozen the broken behaviour instead. The 2 s timeout is covered by
+installing a credential helper that sleeps.
 
 ### Files over the 800-line ceiling
 
