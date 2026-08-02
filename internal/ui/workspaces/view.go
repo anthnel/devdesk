@@ -139,7 +139,7 @@ func (m Model) View() string {
 
 	if len(m.entries) == 0 {
 		if m.currentPath == "" {
-			return contentStyle.Render(theme.HelpStyle.Render("\nNo workspaces found\n\nPress [n] to create a new workspace."))
+			return contentStyle.Render(theme.HelpStyle.Render("\nNo workspaces found\n\nPress [ctrl+n] to create a new workspace."))
 		}
 		return contentStyle.Render(theme.HelpStyle.Render("\nEmpty directory\n"))
 	}
@@ -505,8 +505,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "g/Home", Description: "Go to top of list"},
 			{Key: "G/End", Description: "Go to bottom of list"},
 			{Key: "Esc", Description: "Go to parent directory"},
-			{Key: "Enter", Description: "View scan details for selected git repo (requires cached scan result)"},
-			{Key: "n", Description: "Create a new directory (at current level)"},
+			{Key: "enter", Description: "View scan details for selected git repo (requires cached scan result)"},
+			{Key: "ctrl+n", Description: "Create a new directory (at current level)"},
 			{Key: "r", Description: "Rename the selected entry"},
 			{Key: "ctrl+d", Description: "Delete the selected entry (with confirmation)"},
 			{Key: "t", Description: "Open an in-place terminal at the selected directory (suspends TUI)"},
@@ -517,6 +517,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "A", Description: "Scan all unscanned git repos visible in the current view"},
 			{Key: "ctrl+a", Description: "Scan all git repos in the current view, purging cached results first"},
 			{Key: "ctrl+r", Description: "Refresh the list"},
+			{Key: "/", Description: "Filter the list by name or git remote"},
 			{Key: ":", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
