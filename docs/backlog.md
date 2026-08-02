@@ -221,8 +221,19 @@ Decide the order deliberately. Splitting `docker` first was the cheap case — i
 
 `mise run test-race` needs cgo and therefore a C compiler on `PATH`. Without one
 it fails with `cgo: C compiler "gcc" not found`. Bubble Tea `Cmd`s run
-concurrently, so this is the check most likely to catch a Rule 110 violation —
-it should run in CI even if local machines lack a toolchain.
+concurrently, so this is the check most likely to catch a Rule 110 violation.
+
+**Now covered by CI.** `.github/workflows/ci.yml` runs `mise run test-race` on
+every push and pull request, on `ubuntu-latest`, which has a toolchain. The first
+run reported no data race across all 17 packages.
+
+That is a baseline, not a clean bill of health: the detector only sees code the
+tests actually execute, and coverage is 18.2 %. Rule 110 violations in untested
+paths — most of the view layer — remain invisible. The two efforts compound, so
+this is an argument for the coverage phases rather than a substitute for them.
+
+Installing a local toolchain is still worth doing for anyone touching `Cmd`s, to
+avoid learning about a race from CI after the fact.
 
 ---
 
