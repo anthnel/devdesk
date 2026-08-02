@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "1ab870b13aa8",
+  "strategy": "manual-commit",
+  "branch": "docs/command-mode-key",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/command_mode_test.go",
+    "internal/ui/dashboard/view.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/testutil/testutil.go",
+    "internal/ui/testutil/testutil_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1a/b870b13aa8/0/metadata.json",
+      "transcript": "/1a/b870b13aa8/0/full.jsonl",
+      "compact_transcript": "/1a/b870b13aa8/0/transcript.jsonl",
+      "content_hash": "/1a/b870b13aa8/0/content_hash.txt",
+      "prompt": "/1a/b870b13aa8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 66,
+    "cache_creation_tokens": 41611,
+    "cache_read_tokens": 5336302,
+    "output_tokens": 22703,
+    "api_call_count": 35
+  }
+}
