@@ -79,10 +79,24 @@ was missing altogether; the empty-state message told the user to "Press [n]" too
 The containers view advertised `S` (shell in a new window) in `GetShortcuts()`
 without documenting it at all.
 
-Both are fixed, and each package now asserts that every key `GetShortcuts()`
-advertises appears in `GetHelpContent()` — the check that would have caught the
-drift when it was introduced. Worth adding to the remaining views as their
-phases land.
+The workspaces view had it too, found in phase 3: `n` and `Enter` documented
+where the bindings are `ctrl+n` and `enter`, `/` undocumented, and the same
+stale "Press [n]" in its empty state.
+
+All three are fixed, and each package now asserts that every key
+`GetShortcuts()` advertises appears in `GetHelpContent()` — the check that would
+have caught the drift when it was introduced. Three views in a row carried it,
+so assume `explorer` and `security` do as well.
+
+**A stranded cursor in the workspaces table.** `bubbles/table.SetRows` does not
+clamp the cursor when the row count shrinks. Drilling into a directory with
+fewer entries — or narrowing the filter — left the cursor past the end: nothing
+highlighted, and `enter`, `ctrl+d`, `r` and `ctrl+s` all silently did nothing
+until the user pressed an arrow key. `updateTableData` now clamps.
+
+The containers view avoids this by calling `GotoTop()` after every filter
+change; workspaces had no equivalent. Worth checking in `explorer`, which has
+the same drill-down shape.
 
 **D7** (`extractTarGz` kept parent references in archive paths), **D2** (the
 "permanent delete" checkbox was documented as locked but was not) and **D5** (an
@@ -190,7 +204,7 @@ common value like `store --file=/path` became the single unfindable command
 
 ### Test coverage
 
-Currently **37.7 %** overall; the agreed target is 80 %, which needs roughly
+Currently **43.6 %** overall; the agreed target is 80 %, which needs roughly
 **+7 250 covered statements** over today's ~2 100.
 
 Phased plan, with the harness and most of phase 1 delivered:
@@ -200,7 +214,7 @@ Phased plan, with the harness and most of phase 1 delivered:
 | 0 | `internal/ui/testutil` Bubble Tea harness | **done** (100 %) |
 | 1 | Leaf components and pure helpers | **done** except the `ui/theme` complement (~55 stmts) |
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **done** |
-| 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **in progress** — `netdiag` done, three left |
+| 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **in progress** — `netdiag` and `workspaces` done, two left |
 | 4 | `ui/oci_resources` | pending (~1 995 stmts) |
 | 5 | Router and I/O seams (`app`, `scan`, `docker`) | pending (~1 360 stmts) |
 | 6 | Remainder to reach 80 % | pending (~400 stmts) |
@@ -273,9 +287,20 @@ Phase 3, in progress:
 | Package | Before | Now |
 |---|---|---|
 | `internal/ui/netdiag` | 15.9 % | **86.1 %** |
+| `internal/ui/workspaces` | 0 % | **81.3 %** |
 
-The rest of phase 3 is `workspaces`, `gitlab/explorer` and `security`, in
-ascending order of size.
+The three-step order held on both: surface pass 58.8 % / 60.3 %, split with the
+figure unchanged to the statement, completion pass to 86.1 % / 81.3 %.
+
+`workspaces` added one technique worth reusing: its filesystem commands
+(`createWorkspace`, `deleteEntry`, `renameEntry`, `loadEntries`, `enrichEntry`)
+are **executed** rather than asserted on identity, against `t.TempDir()` and a
+throwaway git repository. That is what proves the branch, remote and dirty-tree
+counters are read correctly; a stub would only prove the stub works. It skips
+when `git` is not on `PATH`, like `internal/gitlab` does. Only the Docker- and
+desktop-backed commands are left alone.
+
+The rest of phase 3 is `gitlab/explorer` (1402 lines) and `security` (1977).
 
 Two handlers are deliberately left uncovered in `containers`: `s` and `S` call
 `detectShell`, which runs `docker exec` synchronously *inside* `Update`. The
@@ -295,8 +320,7 @@ installing a credential helper that sleeps.
 
 ### Files over the 800-line ceiling
 
-The project's own coding rules cap files at 800 lines. Six exceed it — the
-figures recorded earlier were stale, and several files had grown:
+The project's own coding rules cap files at 800 lines. Five still exceed it:
 
 | File | Lines |
 |---|---|
@@ -304,13 +328,18 @@ figures recorded earlier were stale, and several files had grown:
 | `internal/ui/oci_resources/update.go` | 1556 |
 | `internal/ui/gitlab/explorer/model.go` | 1402 |
 | `internal/app/app.go` | 1333 |
-| `internal/ui/workspaces/model.go` | 1299 |
 | `internal/ui/oci_resources/registry_browser.go` | 822 |
 
 `internal/ui/netdiag/model.go` (1114 lines) was split into `validation.go`,
 `update.go`, `run.go`, `view.go` and `header.go`; the largest is now 314 lines
 and `model.go` itself is 172. `topology_model.go` stays at 752 — under the
 ceiling, and its parsers and renderer belong together.
+
+`internal/ui/workspaces/model.go` (1299 lines) was split into `messages.go`,
+`table.go`, `entry.go`, `actions.go` and `update.go`; the largest is 450 and
+`model.go` itself is 129. `entry.go` is the one worth noticing: the pure and
+filesystem-only helpers now sit together instead of at the bottom of a
+1300-line model, which is what made them straightforward to cover.
 
 `internal/docker/client.go` (1176 lines — the 1069 recorded earlier was stale)
 was split into `exec.go`, `containers.go`, `images.go`, `networks.go`,
@@ -345,7 +374,7 @@ every push and pull request, on `ubuntu-latest`, which has a toolchain. The firs
 run reported no data race across all 17 packages.
 
 That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 37.7 %. Rule 110 violations in untested
+tests actually execute, and coverage is 43.6 %. Rule 110 violations in untested
 paths — most of the view layer — remain invisible. The two efforts compound, so
 this is an argument for the coverage phases rather than a substitute for them.
 Phase 2 puts the first full view state machine under the detector.
