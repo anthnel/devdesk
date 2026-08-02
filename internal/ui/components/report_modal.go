@@ -10,6 +10,11 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
+// maxItemWidth is the column budget for one list entry. The modal renders at
+// width 65 with a horizontal padding of 2 and a "  • " bullet prefix, leaving 57
+// columns; 55 keeps a two-column margin.
+const maxItemWidth = 55
+
 // PullReport contains the results of a recursive pull operation
 type PullReport struct {
 	Cloned  []string
@@ -132,11 +137,8 @@ func (m *ReportModal) View() string {
 		}
 
 		for i := m.scrollOffset; i < endIdx; i++ {
-			item := currentList[i]
-			// Truncate long paths
-			if len(item) > 55 {
-				item = "..." + item[len(item)-52:]
-			}
+			// Long paths keep their tail: the trailing segments identify the repo.
+			item := theme.TruncateTailWidth(currentList[i], maxItemWidth)
 			b.WriteString("  • " + item + "\n")
 		}
 

@@ -3,6 +3,7 @@ package help
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestWordWrap(t *testing.T) {
@@ -78,16 +79,31 @@ func TestWordWrapEmpty(t *testing.T) {
 // wordWrap measures words with len(), which counts bytes. Accented text
 // therefore wraps earlier than its rendered width requires: two 5-rune words
 // occupy 11 columns but 21 bytes, so a width of 12 wraps them apart.
-func TestWordWrapMeasuresBytesNotRunes(t *testing.T) {
+func TestWordWrapMeasuresColumnsNotBytes(t *testing.T) {
 	const width = 12
-	text := "ééééé ééééé" // 11 runes, 21 bytes
+	text := "ééééé ééééé" // 11 columns, 21 bytes
 
 	lines := strings.Split(strings.TrimRight(wordWrap(text, width), "\n"), "\n")
 
-	if len(lines) == 1 {
-		t.Skip("wordWrap is now rune-aware; drop this test and the accompanying caveat")
+	if len(lines) != 1 {
+		t.Errorf("wrapped into %d lines at width %d although the text renders in 11 columns", len(lines), width)
 	}
-	t.Logf("wrapped into %d lines at width %d although the text renders in 11 columns", len(lines), width)
+}
+
+func TestWordWrapBreaksWhenColumnsActuallyExceedWidth(t *testing.T) {
+	const width = 8
+	text := "ééééé ééééé" // two 5-column words: 11 columns total
+
+	lines := strings.Split(strings.TrimRight(wordWrap(text, width), "\n"), "\n")
+
+	if len(lines) != 2 {
+		t.Fatalf("wrapped into %d lines at width %d, want 2", len(lines), width)
+	}
+	for i, line := range lines {
+		if got := utf8.RuneCountInString(line); got != 5 {
+			t.Errorf("line %d is %d runes (%q), want 5", i, got, line)
+		}
+	}
 }
 
 func TestRenderIncludesTitleAndDescription(t *testing.T) {

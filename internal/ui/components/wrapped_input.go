@@ -136,6 +136,13 @@ func wrapInputLines(text string, wrapWidth int) []wrappedLine {
 	if text == "" {
 		return nil
 	}
+	// A non-positive width makes the loop below unable to advance: the break
+	// point collapses onto start and the line slice grows without bound. No
+	// caller does this today (Rule 133 fixes the width at 60/80/100), so refuse
+	// to wrap rather than inventing a fallback width.
+	if wrapWidth < 1 {
+		return []wrappedLine{{text, 0}}
+	}
 	runes := []rune(text)
 	var lines []wrappedLine
 	start := 0

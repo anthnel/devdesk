@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 func sampleReport() PullReport {
@@ -183,19 +184,39 @@ func TestReportModalViewShowsScrollIndicator(t *testing.T) {
 //
 // The fixture is chosen so the cut is guaranteed to land mid-rune: 30 three-byte
 // runes give a 90-byte string, and 90-52 = 38, which is not a multiple of 3.
-func TestReportModalViewTruncationSplitsMultibyteRunes(t *testing.T) {
+func TestReportModalViewKeepsMultibyteRunesIntact(t *testing.T) {
+	// 30 × "€" is 90 bytes but only 30 columns, and the old byte-slice
+	// truncation cut at byte 38 — inside a codepoint.
 	item := strings.Repeat("€", 30)
-	if len(item) != 90 || (len(item)-52)%3 == 0 {
-		t.Fatalf("fixture no longer straddles a rune boundary: len=%d offset=%d", len(item), len(item)-52)
-	}
 	m := NewReportModal("Pull report", PullReport{Cloned: []string{item}})
 
 	view := m.View()
 
-	if utf8.ValidString(view) {
-		t.Skip("truncation is now rune-aware; drop this test and the accompanying caveat")
+	if !utf8.ValidString(view) {
+		t.Error("View() emitted invalid UTF-8: truncation cut a multibyte rune")
 	}
-	t.Log("View() emitted invalid UTF-8: byte-slice truncation cut a multibyte rune")
+	// 30 columns is under the 55-column budget, so the entry renders whole.
+	if !strings.Contains(view, item) {
+		t.Error("View() truncated an entry that fits within the column budget")
+	}
+}
+
+func TestReportModalViewTruncatesOverlongEntryOnRuneBoundary(t *testing.T) {
+	item := strings.Repeat("é", 80) // 80 columns, 160 bytes
+
+	m := NewReportModal("Pull report", PullReport{Cloned: []string{item}})
+	view := m.View()
+
+	if !utf8.ValidString(view) {
+		t.Fatal("View() emitted invalid UTF-8 while truncating")
+	}
+	if strings.Contains(view, item) {
+		t.Error("View() rendered an 80-column entry without truncating it")
+	}
+	// The tail is what identifies a path, so it must survive.
+	if !strings.Contains(view, theme.Ellipsis+strings.Repeat("é", 52)) {
+		t.Error("View() did not keep the tail of the truncated entry")
+	}
 }
 
 func TestReportModalStoresWindowSize(t *testing.T) {

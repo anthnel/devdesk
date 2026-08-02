@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-01
+**Last Updated:** 2026-08-02
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11,22 +11,8 @@ rather than carried over.
 
 ## 1. Known defects
 
-None of these are fixed. Each is reachable from the current code unless noted.
-
-### D1 — `ReportModal.View()` emits invalid UTF-8
-
-`internal/ui/components/report_modal.go:136-139`
-
-Long entries are truncated with `item[len(item)-52:]`, which slices **bytes**, not
-runes. When the resulting offset falls inside a multi-byte codepoint the rendered
-output is no longer valid UTF-8 and the terminal shows replacement characters.
-
-Reachable with any non-ASCII repository path. Pinned by
-`TestReportModalViewTruncationSplitsMultibyteRunes`, which `t.Skip()`s with
-instructions once the truncation becomes rune-aware.
-
-**Fix:** truncate on `[]rune`, and measure width with `runewidth` rather than
-`len()`.
+D1, D3 and D6 — the byte-vs-rune lot — were fixed together; see
+[§1.1](#11-fixed). The remainder is unfixed and reachable from the current code.
 
 ### D2 — The "permanent delete" checkbox is documented as locked but is not
 
@@ -42,19 +28,6 @@ grace-period delete that the caller does not expect. Pinned by
 
 **Fix:** carry a `locked` flag on the modal and make the toggle a no-op when set,
 or drop the claim from the doc comment.
-
-### D3 — `wrapInputLines` loops forever when `wrapWidth <= 0`
-
-`internal/ui/components/wrapped_input.go:135`
-
-With a non-positive wrap width the loop makes no progress: `breakAt` collapses to
-`start`, an empty line is appended, and `start` never advances — the line slice
-grows until the process runs out of memory.
-
-**Not reachable today.** Every caller passes 60, 80 or 100 per Rule 133. Latent
-only, which is why no test covers it (the test would hang).
-
-**Fix:** guard the entry point — return a single line when `wrapWidth < 1`.
 
 ### D4 — `DeleteConfirmModal` uses `Tab` for field navigation
 
@@ -78,25 +51,6 @@ After cycling the resource type, the code clamps `focusedField` down to
 Dead defensive code. Harmless, but it implies a state transition that cannot
 happen and is misleading to read.
 
-### D6 — `wordWrap` measures bytes, not runes
-
-`internal/ui/help/help.go:123`
-
-Word widths come from `len(word)`, which counts bytes. Accented text therefore
-wraps earlier than its rendered width requires: two 5-rune words occupy 11
-columns but 21 bytes, so a width of 12 splits them apart.
-
-Low impact today — Rule 129 keeps help content in English US — but it is the same
-byte-vs-rune class as [D1](#d1--reportmodalview-emits-invalid-utf-8). Unlike
-[D3](#d3--wrapinputlines-loops-forever-when-wrapwidth--0), `wordWrap` does guard
-a non-positive width, and that guard is covered by a test so it does not get
-"tidied" away.
-
-Pinned by `TestWordWrapMeasuresBytesNotRunes`.
-
-**Fix:** measure with `utf8.RuneCountInString`, or `runewidth.StringWidth` if
-double-width glyphs ever appear.
-
 ### D7 — `extractTarGz` keeps parent references in archive paths
 
 `internal/oci/oci.go:262`
@@ -115,6 +69,32 @@ under a target directory inherits a Zip Slip. Pinned by
 
 **Fix:** reject entries whose cleaned path escapes the root, before returning
 them.
+
+### 1.1 Fixed
+
+**D1** (`ReportModal.View()` emitted invalid UTF-8), **D3** (`wrapInputLines`
+looped forever when `wrapWidth <= 0`) and **D6** (`wordWrap` measured bytes) were
+fixed together, since D1 and D6 were the same byte-vs-rune defect.
+
+Rather than patch each call site, the truncation logic moved into
+`internal/ui/theme/text.go` per Rule 117: `StringWidth`, `TruncateWidth` (keeps
+the head) and `TruncateTailWidth` (keeps the tail, for paths). All three measure
+terminal columns, so double-width glyphs are handled too, not just multibyte
+ones.
+
+A **fourth site carried the same defect** and was not recorded here: `truncate`
+in `internal/ui/security/model.go` sliced bytes exactly like D1 and rendered
+Trivy finding titles. It is now `theme.TruncateWidth` and the local helper is
+gone.
+
+The two pinned tests that `t.Skip()`d became real assertions
+(`TestReportModalViewKeepsMultibyteRunesIntact`,
+`TestWordWrapMeasuresColumnsNotBytes`).
+
+One call site was deliberately left alone: `truncateResultLine` in
+`internal/ui/oci_resources/connectivity_form.go` counts runes rather than bytes,
+so it is correct — merely imprecise on double-width glyphs. Folding it into the
+theme helpers is a cleanup, not a defect fix.
 
 ---
 
