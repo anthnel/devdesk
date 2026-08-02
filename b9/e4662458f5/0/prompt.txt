@@ -1,0 +1,1 @@
+ajoute dans le backlog un nouveau point : je souhaite le support de gitlab ET github, un seul backend actif par contexte. Il faudra aussi si c'est préférable d'utiliser gh glab au lieu du code go.
