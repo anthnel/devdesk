@@ -102,15 +102,15 @@ theme helpers is a cleanup, not a defect fix.
 
 ### Test coverage
 
-Currently **13.6 %** overall; the agreed target is 80 %, which needs roughly
-**+7 700 covered statements** over today's ~1 570.
+Currently **17.6 %** overall; the agreed target is 80 %, which needs roughly
+**+7 300 covered statements** over today's ~2 030.
 
 Phased plan, with the harness and most of phase 1 delivered:
 
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | `internal/ui/testutil` Bubble Tea harness | **done** (100 %) |
-| 1 | Leaf components and pure helpers | **mostly done** — see the table below; `credentials`, `gitlab` and the `ui/theme` complement remain (~255 stmts) |
+| 1 | Leaf components and pure helpers | **mostly done** — see the table below; `credentials` and the `ui/theme` complement remain (~155 stmts) |
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | pending (~1 240 stmts) |
 | 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | pending (~2 470 stmts) |
 | 4 | `ui/oci_resources` | pending (~1 995 stmts) |
@@ -127,8 +127,8 @@ Phase 1 progress:
 | `internal/ui/components` | 0 % | **79.8 %** |
 | `internal/oci` | 0 % | **33.6 %** |
 | `internal/docker` | 7.3 % | **65.4 %** (phase 5, pulled forward — see below) |
+| `internal/gitlab` | 7.5 % | **100 %** |
 | `internal/credentials` | 29.5 % | unchanged |
-| `internal/gitlab` | 7.5 % | unchanged |
 
 `internal/oci` stops at 33.6 % because the remaining statements are registry HTTP
 paths (`DownloadTemplate`, `listCatalog`, `ListTemplates`) that need a fuller
@@ -139,6 +139,11 @@ Phase 5's blocker is cleared for `docker`: the package now routes every CLI
 invocation through the `dockerRunner` seam in `internal/docker/exec.go`, so tests
 drive argument building and output parsing against canned output. `scan` and
 `app` remain.
+
+`internal/gitlab` needed no seam: every function takes a `*gitlabclient.Client`
+built from a base URL, so an `httptest` server standing in for the API covers
+the whole package. `Clone` is exercised against a throwaway local repository
+rather than mocked, and skips when no `git` binary is on `PATH`.
 
 ### Files over the 800-line ceiling
 
