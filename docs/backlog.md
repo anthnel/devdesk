@@ -268,6 +268,112 @@ Carried over from `todo.md`.
   for every container in the selected project.
 - **Visual alerts** — user-defined thresholds (e.g. memory saturation).
 
+### 3.6 GitHub support alongside GitLab, one active forge per context
+
+Support GitHub as well as GitLab, with **exactly one backend active per
+configuration context**. A context targets one forge; switching forge means
+switching context.
+
+Not started. The notes below are what the current code imposes on the design,
+not a chosen design.
+
+#### What is coupled to GitLab today
+
+| Surface | Size |
+|---|---|
+| `internal/gitlab` + `internal/ui/gitlab/{auth,explorer}` | ~3 900 lines |
+| Direct uses of `*gitlabclient.Client` outside `internal/gitlab` | 66, across 8 files |
+
+The concrete SDK type leaks into `internal/shared/state.go:57`
+(`GitLabClient *gitlabclient.Client`), so every consumer is bound to go-gitlab
+rather than to a DevDesk abstraction. That field is the load-bearing change: an
+interface there is what makes a second forge possible at all.
+
+Also GitLab-shaped: `GitLabConfig` in `internal/config/config.go:41` (URL, token,
+clone method, pull settings), the `gitlab-auth` / `gitlab-explorer` view names
+and their `gla` / `gle` aliases in `internal/command/parser.go`, and
+`shared.GitLabStats`.
+
+#### Model mismatches to settle before coding
+
+These are not implementation details; they decide what the abstraction can even
+promise.
+
+- **Nesting.** The explorer is a tree of groups → subgroups → projects. GitHub
+  has no nested groups: an organisation holds repositories, flat. Either the
+  tree degrades to two levels for GitHub, or the abstraction exposes a depth the
+  backend declares.
+- **Deletion.** `DeleteGroup` / `DeleteProject` implement GitLab's two-step
+  permanent delete (schedule, then purge under the renamed
+  `-deletion_scheduled-<id>` path). GitHub deletes immediately and has no
+  equivalent, so the "permanent" checkbox is meaningless there — see also D2.
+- **Dashboard counters.** `FetchDashboardStats` reads `X-Total` from five list
+  endpoints. GitHub has no equivalent header for these; the counts come from the
+  search API (`search/issues?q=is:open+is:pr+assignee:@me`), with different rate
+  limits and semantics.
+- **Vocabulary.** Group/project/merge request vs organisation/repository/pull
+  request. The UI must pick per-backend labels or a neutral vocabulary; Rule 129
+  applies either way.
+
+#### Open decision: Go SDKs or the `gh` / `glab` CLIs
+
+Worth deciding before any code is written, because it determines whether the
+package needs a seam.
+
+Arguments for the CLIs:
+
+- Authentication is already solved, including OAuth device flow, self-hosted
+  hosts and token storage. DevDesk's own credential handling could shrink — and
+  it has already proven fragile (see §1.1).
+- `gh api` and `glab api` are raw REST/GraphQL passthroughs, so no SDK is needed
+  for coverage of endpoints the abstraction does not model.
+- No SDK version churn to track for two forges.
+
+Arguments against:
+
+- **Per-context isolation conflicts with how these tools store auth.** Both keep
+  global per-host state (`~/.config/gh/hosts.yml`). DevDesk contexts want
+  *different tokens for the same host*. Driving `gh auth switch` from the TUI
+  would mutate the user's global CLI state — the exact mistake avoided in §1.1 by
+  scoping `credential.useHttpPath` to the invocation. The clean route is
+  `GH_TOKEN` / `GITLAB_TOKEN` per invocation, but then DevDesk still owns the
+  tokens and the main benefit is gone.
+- **Two more hard dependencies.** Today DevDesk needs `git`, and `docker` only
+  for the features that use it. Requiring `gh` and `glab` for the core forge
+  feature is a real setup-friction regression.
+- **Cost per call.** A process spawn per request, against a reused HTTP
+  connection today. The dashboard alone issues five calls, and the explorer
+  paginates.
+- **Testability regresses.** `internal/gitlab` reaches 100 % with no seam,
+  because the SDK takes a base URL that an `httptest` server can stand in for.
+  Shelling out would put it back in the position `internal/docker` was in, needing
+  a manufactured seam — and stubbed CLI output encodes assumptions about the tool
+  rather than testing against it.
+
+**Current recommendation:** keep Go SDKs (go-gitlab, go-github) for the API
+surface, and use the CLIs only as an *optional* token source — when a context has
+no token, offer to read one from `gh auth token --hostname <host>` or
+`glab auth status`. That takes the convenience without the coupling. Recorded as
+a recommendation, not a decision.
+
+#### Sketch of the work
+
+1. Define a `forge` abstraction from what the code actually consumes: current
+   user, namespace tree, create/delete namespace and repository, initial commit,
+   dashboard counters, clone URL.
+2. Replace `shared.State.GitLabClient` with that interface. This is the change
+   the other 65 call sites follow from.
+3. Generalise `GitLabConfig` into a per-context forge config carrying a
+   `type: gitlab | github` discriminator, and migrate existing config files.
+4. Implement the GitLab backend by moving the existing code behind the
+   interface — behaviour-preserving, and covered by the tests added in #7.
+5. Implement the GitHub backend.
+6. Rename the views and commands, keeping `gla` / `gle` as aliases so muscle
+   memory survives.
+
+Steps 1–4 are worth doing on their own: they are a refactor of working code with
+tests already in place, and they are what makes step 5 tractable.
+
 ---
 
 ## 4. Existing plans
