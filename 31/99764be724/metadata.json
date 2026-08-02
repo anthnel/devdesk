@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "3199764be724",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase2-rest",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/gitlab/auth/auth_test.go",
+    "internal/ui/gitlab/auth/view_test.go",
+    "internal/ui/status/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/31/99764be724/0/metadata.json",
+      "transcript": "/31/99764be724/0/full.jsonl",
+      "compact_transcript": "/31/99764be724/0/transcript.jsonl",
+      "content_hash": "/31/99764be724/0/content_hash.txt",
+      "prompt": "/31/99764be724/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 364,
+    "cache_creation_tokens": 386374,
+    "cache_read_tokens": 43517577,
+    "output_tokens": 151837,
+    "api_call_count": 192
+  }
+}
