@@ -2,7 +2,6 @@ package docker
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
@@ -14,12 +13,11 @@ type DiagResult struct {
 
 // runDiagHost runs a command in an ephemeral container with --network host
 func runDiagHost(image string, args []string) DiagResult {
-	if _, err := exec.LookPath("docker"); err != nil {
+	if runner.LookPath() != nil {
 		return DiagResult{false, "docker not found"}
 	}
 	cmdArgs := append([]string{"run", "--rm", "--network", "host", image}, args...)
-	cmd := exec.Command("docker", cmdArgs...)
-	output, err := cmd.CombinedOutput()
+	output, err := dockerCombined(cmdArgs...)
 	out := strings.ReplaceAll(string(output), "\r\n", "\n")
 	out = strings.ReplaceAll(out, "\r", "\n")
 	out = strings.TrimSpace(out)
@@ -60,12 +58,11 @@ func RunTraceroute(image, target string) DiagResult {
 // The exit code is ignored: tcptraceroute returns non-zero when the destination is not reached within
 // the hop limit, but the partial trace is still useful output.
 func RunTCPTraceroute(image, target, port string) DiagResult {
-	if _, err := exec.LookPath("docker"); err != nil {
+	if runner.LookPath() != nil {
 		return DiagResult{false, "docker not found"}
 	}
 	args := []string{"run", "--rm", "--network", "host", image, "tcptraceroute", "-m", "30", "-w", "1", target, port}
-	cmd := exec.Command("docker", args...)
-	output, _ := cmd.CombinedOutput()
+	output, _ := dockerCombined(args...)
 	out := strings.ReplaceAll(string(output), "\r\n", "\n")
 	out = strings.ReplaceAll(out, "\r", "\n")
 	out = strings.TrimSpace(out)

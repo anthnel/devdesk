@@ -126,6 +126,7 @@ Phase 1 progress:
 | `internal/ui/help` | 0 % | **96.7 %** |
 | `internal/ui/components` | 0 % | **79.8 %** |
 | `internal/oci` | 0 % | **33.6 %** |
+| `internal/docker` | 7.3 % | **65.4 %** (phase 5, pulled forward — see below) |
 | `internal/credentials` | 29.5 % | unchanged |
 | `internal/gitlab` | 7.5 % | unchanged |
 
@@ -134,13 +135,14 @@ paths (`DownloadTemplate`, `listCatalog`, `ListTemplates`) that need a fuller
 `httptest` fixture — a manifest plus a gzipped layer — rather than the
 single-response stubs used so far.
 
-Phase 5 requires a refactor before it can start: `internal/docker/client.go`
-shells out to the Docker CLI directly, so it needs an injectable execution seam
-to be testable.
+Phase 5's blocker is cleared for `docker`: the package now routes every CLI
+invocation through the `dockerRunner` seam in `internal/docker/exec.go`, so tests
+drive argument building and output parsing against canned output. `scan` and
+`app` remain.
 
 ### Files over the 800-line ceiling
 
-The project's own coding rules cap files at 800 lines. Eight exceed it:
+The project's own coding rules cap files at 800 lines. Seven exceed it:
 
 | File | Lines |
 |---|---|
@@ -149,13 +151,20 @@ The project's own coding rules cap files at 800 lines. Eight exceed it:
 | `internal/app/app.go` | 1333 |
 | `internal/ui/gitlab/explorer/model.go` | 1214 |
 | `internal/ui/workspaces/model.go` | 1133 |
-| `internal/docker/client.go` | 1069 |
 | `internal/ui/netdiag/model.go` | 995 |
 | `internal/ui/oci_resources/registry_browser.go` | 822 |
 
+`internal/docker/client.go` (1176 lines — the 1069 recorded earlier was stale)
+was split into `exec.go`, `containers.go`, `images.go`, `networks.go`,
+`volumes.go`, `registry.go`, `launch.go`, `system.go` and `parse.go`; the largest
+is now 269 lines. The former `network.go` became `ports.go`, since it reports the
+host's listening sockets via `ss` rather than Docker networks — the name was
+free for the `docker network` family.
+
 This interacts with the coverage work: writing several thousand statements of
 tests against these files before splitting them freezes their current structure.
-Decide the order deliberately.
+Decide the order deliberately. Splitting `docker` first was the cheap case — its
+7.3 % coverage meant almost no tests were pinned to the old shape.
 
 ### Race detector cannot run locally
 
