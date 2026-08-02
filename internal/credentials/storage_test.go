@@ -1,6 +1,7 @@
 package credentials
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -246,78 +247,194 @@ func TestFileStorageUpdateExisting(t *testing.T) {
 	}
 }
 
-func TestExtractHost(t *testing.T) {
+// stubStorage is a Storage whose every operation can be made to fail, so the
+// ChainStorage tests can drive fallback behaviour.
+type stubStorage struct {
+	token     string
+	saveErr   error
+	loadErr   error
+	deleteErr error
+	saved     bool
+	deleted   bool
+}
+
+func (s *stubStorage) Save(_, token string) error {
+	if s.saveErr != nil {
+		return s.saveErr
+	}
+	s.token = token
+	s.saved = true
+	return nil
+}
+
+func (s *stubStorage) Load(_ string) (string, error) {
+	if s.loadErr != nil {
+		return "", s.loadErr
+	}
+	return s.token, nil
+}
+
+func (s *stubStorage) Delete(_ string) error {
+	s.deleted = true
+	return s.deleteErr
+}
+
+func TestChainStorageSaveWritesToEveryBackend(t *testing.T) {
+	a, b := &stubStorage{}, &stubStorage{}
+	chain := NewChainStorage(a, b)
+
+	if err := chain.Save("https://gitlab.example.com", "tok"); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	if !a.saved || !b.saved {
+		t.Errorf("saved to a=%v b=%v, want both", a.saved, b.saved)
+	}
+}
+
+func TestChainStorageSaveSucceedsWhenOneBackendWorks(t *testing.T) {
+	// The fallback exists because the system keychain can refuse the write;
+	// losing it must not lose the token.
+	broken := &stubStorage{saveErr: errors.New("keychain unavailable")}
+	working := &stubStorage{}
+	chain := NewChainStorage(broken, working)
+
+	if err := chain.Save("https://gitlab.example.com", "tok"); err != nil {
+		t.Fatalf("Save() error = %v, want success via the working backend", err)
+	}
+	if working.token != "tok" {
+		t.Errorf("working backend holds %q, want tok", working.token)
+	}
+}
+
+func TestChainStorageSaveFailsWhenEveryBackendFails(t *testing.T) {
+	chain := NewChainStorage(
+		&stubStorage{saveErr: errors.New("first failed")},
+		&stubStorage{saveErr: errors.New("second failed")},
+	)
+
+	if err := chain.Save("https://gitlab.example.com", "tok"); err == nil {
+		t.Error("Save() with every backend failing returned no error")
+	}
+}
+
+func TestChainStorageLoadReturnsFirstHit(t *testing.T) {
+	first := &stubStorage{token: "from-first"}
+	second := &stubStorage{token: "from-second"}
+	chain := NewChainStorage(first, second)
+
+	got, err := chain.Load("https://gitlab.example.com")
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got != "from-first" {
+		t.Errorf("Load() = %q, want from-first — order decides", got)
+	}
+}
+
+func TestChainStorageLoadSkipsEmptyAndFailingBackends(t *testing.T) {
 	tests := []struct {
-		name     string
-		url      string
-		expected string
+		name  string
+		first *stubStorage
 	}{
-		{
-			name:     "HTTPS URL",
-			url:      "https://gitlab.example.com",
-			expected: "gitlab.example.com",
-		},
-		{
-			name:     "HTTP URL",
-			url:      "http://gitlab.example.com",
-			expected: "gitlab.example.com",
-		},
-		{
-			name:     "URL with path",
-			url:      "https://gitlab.example.com/api/v4",
-			expected: "gitlab.example.com",
-		},
-		{
-			name:     "URL with port",
-			url:      "https://gitlab.example.com:8080",
-			expected: "gitlab.example.com:8080",
-		},
-		{
-			name:     "Bare hostname",
-			url:      "gitlab.example.com",
-			expected: "gitlab.example.com",
-		},
+		{"backend returns an error", &stubStorage{loadErr: errors.New("no entry")}},
+		{"backend returns an empty token", &stubStorage{token: ""}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractHost(tt.url)
-			if result != tt.expected {
-				t.Errorf("extractHost(%s) = %s, expected %s", tt.url, result, tt.expected)
+			chain := NewChainStorage(tt.first, &stubStorage{token: "fallback"})
+
+			got, err := chain.Load("https://gitlab.example.com")
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if got != "fallback" {
+				t.Errorf("Load() = %q, want fallback", got)
 			}
 		})
 	}
 }
 
-func TestDetectHelper(t *testing.T) {
-	// Test that detectHelper returns a non-empty string
-	helper := detectHelper()
-	if helper == "" {
-		t.Error("detectHelper() returned empty string")
-	}
+func TestChainStorageLoadFailsWhenNoBackendHasIt(t *testing.T) {
+	chain := NewChainStorage(&stubStorage{loadErr: errors.New("nope")})
 
-	// Should return a valid helper name
-	// Common helpers: store, osxkeychain, wincred, libsecret
-	// We accept any non-empty string since it depends on system config
-	t.Logf("Detected helper: %s", helper)
+	if _, err := chain.Load("https://gitlab.example.com"); err == nil {
+		t.Error("Load() with no backend holding the token returned no error")
+	}
 }
 
-func TestNewHelperStorage(t *testing.T) {
-	// Test with explicit helper
-	storage := NewHelperStorage("store")
-	if storage == nil {
-		t.Fatal("NewHelperStorage() returned nil")
+func TestChainStorageDeleteReachesEveryBackend(t *testing.T) {
+	// A backend that fails to delete must not stop the others: a token left
+	// behind in one store would silently resurrect on the next load.
+	failing := &stubStorage{deleteErr: errors.New("locked")}
+	working := &stubStorage{}
+	chain := NewChainStorage(failing, working)
+
+	if err := chain.Delete("https://gitlab.example.com"); err != nil {
+		t.Errorf("Delete() error = %v, want best-effort success", err)
 	}
-	if storage.helper != "store" {
-		t.Errorf("Expected helper 'store', got '%s'", storage.helper)
+	if !failing.deleted || !working.deleted {
+		t.Errorf("deleted from failing=%v working=%v, want both attempted", failing.deleted, working.deleted)
+	}
+}
+
+func TestNewFileStorageForContextNamesFilePerContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		context  string
+		wantFile string
+	}{
+		{"empty context falls back to default", "", "credentials-default.json"},
+		{"named context", "prod", "credentials-prod.json"},
 	}
 
-	// Test with auto-detect
-	storage = NewHelperStorage("")
-	if storage == nil {
-		t.Fatal("NewHelperStorage(\"\") returned nil")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filepath.Base(NewFileStorageForContext(tt.context).filePath)
+			if got != tt.wantFile {
+				t.Errorf("file = %q, want %q", got, tt.wantFile)
+			}
+		})
 	}
-	if storage.helper == "" {
-		t.Error("NewHelperStorage(\"\") did not auto-detect helper")
+}
+
+func TestFileStorageReportsCorruptFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "creds.json")
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatalf("writing corrupt file: %v", err)
+	}
+	s := NewFileStorage(path)
+
+	if _, err := s.Load("https://gitlab.example.com"); err == nil {
+		t.Error("Load() from a corrupt file returned no error")
+	}
+	// Save must refuse too rather than silently discarding whatever the file held.
+	if err := s.Save("https://gitlab.example.com", "tok"); err == nil {
+		t.Error("Save() over a corrupt file returned no error")
+	}
+	if err := s.Delete("https://gitlab.example.com"); err == nil {
+		t.Error("Delete() on a corrupt file returned no error")
+	}
+}
+
+func TestFileStorageDeleteOnMissingFile(t *testing.T) {
+	s := NewFileStorage(filepath.Join(t.TempDir(), "absent.json"))
+
+	if err := s.Delete("https://gitlab.example.com"); err == nil {
+		t.Error("Delete() on a missing file returned no error")
+	}
+}
+
+func TestFileStorageSaveFailsWhenParentIsAFile(t *testing.T) {
+	dir := t.TempDir()
+	blocker := filepath.Join(dir, "blocker")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatalf("writing blocker: %v", err)
+	}
+	// The parent directory cannot be created because a file already occupies it.
+	s := NewFileStorage(filepath.Join(blocker, "creds.json"))
+
+	if err := s.Save("https://gitlab.example.com", "tok"); err == nil {
+		t.Error("Save() under an unusable parent returned no error")
 	}
 }

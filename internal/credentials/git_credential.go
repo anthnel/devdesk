@@ -2,11 +2,27 @@ package credentials
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/url"
 	"os/exec"
 	"strings"
 	"time"
+)
+
+const (
+	// credentialUsername is the username DevDesk stores tokens under. GitLab
+	// personal access tokens are used as the password of a fixed user.
+	credentialUsername = "oauth2"
+
+	// credentialTimeout bounds a `git credential` call. The configured helper
+	// may wait for user input, and an unbounded call would freeze the TUI.
+	credentialTimeout = 2 * time.Second
+
+	// credentialWaitDelay bounds how long Wait blocks on the output pipes once
+	// the process has been killed. Killing git does not kill the helper git
+	// spawned, and that surviving grandchild holds the pipes open.
+	credentialWaitDelay = 500 * time.Millisecond
 )
 
 // GitCredentialStorage stocke les credentials via git credential manager
@@ -25,141 +41,97 @@ func NewGitCredentialStorageWithContext(context string) *GitCredentialStorage {
 	}
 }
 
-// Save sauvegarde un token via git credential
-// Utilise le champ path pour différencier par contexte
-func (g *GitCredentialStorage) Save(urlStr, token string) error {
-	// Parser l'URL pour extraire host
-	u, err := url.Parse(urlStr)
-	if err != nil {
-		return fmt.Errorf("invalid URL: %w", err)
-	}
-
-	// Préparer l'input pour git credential avec le contexte dans le path
-	// Format: protocol=https\nhost=gitlab.com\npath=devdesk/context/default\n...
-	input := fmt.Sprintf("protocol=%s\nhost=%s\npath=devdesk/context/%s\nusername=oauth2\npassword=%s\n",
-		u.Scheme, u.Host, g.context, token)
-
-	// Appeler git credential approve avec timeout pour éviter de bloquer l'UI
-	// Si Git Credential Manager n'est pas configuré, le timeout évite que l'application se fige
-	cmd := exec.Command("git", "credential", "approve")
-	cmd.Stdin = strings.NewReader(input)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	// IMPORTANT: Désactiver l'interaction avec le terminal
-	// Sans cela, git credential peut afficher des prompts interactifs
-	cmd.Env = append(cmd.Environ(),
-		"GIT_TERMINAL_PROMPT=0", // Désactive les prompts interactifs
-		"GCM_INTERACTIVE=never", // Git Credential Manager en mode non-interactif
-	)
-
-	// Utiliser un canal pour détecter la fin de la commande
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Run()
-	}()
-
-	// Attendre maximum 2 secondes
-	select {
-	case err := <-done:
-		if err != nil {
-			return fmt.Errorf("git credential approve failed: %v: %s", err, stderr.String())
-		}
-	case <-time.After(2 * time.Second):
-		// Timeout - tuer le processus et tous ses enfants
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		return fmt.Errorf("git credential approve timed out (not configured or waiting for input)")
-	}
-
-	return nil
-}
-
-// Load charge un token depuis git credential
-// Utilise le champ path pour charger les credentials du bon contexte
-func (g *GitCredentialStorage) Load(urlStr string) (string, error) {
-	// Parser l'URL pour extraire host
+// describe builds the credential description git reads on stdin. The DevDesk
+// context is carried in the path field, which is what keeps two contexts
+// pointing at the same host from overwriting each other — see runCredential for
+// why that field needs help to survive.
+func (g *GitCredentialStorage) describe(urlStr string) (string, error) {
 	u, err := url.Parse(urlStr)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %w", err)
 	}
+	return fmt.Sprintf("protocol=%s\nhost=%s\npath=devdesk/context/%s\nusername=%s\n",
+		u.Scheme, u.Host, g.context, credentialUsername), nil
+}
 
-	// Préparer l'input pour git credential avec le contexte dans le path
-	input := fmt.Sprintf("protocol=%s\nhost=%s\npath=devdesk/context/%s\n",
-		u.Scheme, u.Host, g.context)
+// Save sauvegarde un token via git credential
+func (g *GitCredentialStorage) Save(urlStr, token string) error {
+	desc, err := g.describe(urlStr)
+	if err != nil {
+		return err
+	}
+	_, err = runCredential("approve", desc+"password="+token+"\n")
+	return err
+}
 
-	// Appeler git credential fill avec timeout pour éviter de bloquer l'UI
-	// Si Git Credential Manager n'est pas configuré ou demande une interaction,
-	// le timeout évite que l'application se fige
-	cmd := exec.Command("git", "credential", "fill")
-	cmd.Stdin = strings.NewReader(input)
+// Load charge un token depuis git credential
+func (g *GitCredentialStorage) Load(urlStr string) (string, error) {
+	desc, err := g.describe(urlStr)
+	if err != nil {
+		return "", err
+	}
+	output, err := runCredential("fill", desc)
+	if err != nil {
+		return "", err
+	}
+	if token, ok := parsePassword(output); ok {
+		return token, nil
+	}
+	return "", fmt.Errorf("no credentials found for %s (context: %s)", urlStr, g.context)
+}
+
+// Delete supprime un token de git credential
+func (g *GitCredentialStorage) Delete(urlStr string) error {
+	desc, err := g.describe(urlStr)
+	if err != nil {
+		return err
+	}
+	_, err = runCredential("reject", desc)
+	return err
+}
+
+// parsePassword extracts the password field from a `git credential fill` reply.
+func parsePassword(output string) (string, bool) {
+	for line := range strings.SplitSeq(output, "\n") {
+		if after, ok := strings.CutPrefix(line, "password="); ok {
+			return strings.TrimRight(after, "\r"), true
+		}
+	}
+	return "", false
+}
+
+// runCredential feeds description to `git credential <op>` and returns its stdout.
+//
+// credential.useHttpPath is forced on for this invocation only. Git discards the
+// path field by default, which would key every credential on protocol://host
+// alone and silently collapse all DevDesk contexts onto a single token — the
+// last context to authenticate would win for all of them. Setting the option in
+// the user's config instead would change how git resolves credentials for every
+// repository on the machine, so it is passed per call.
+//
+// Interactive prompts are disabled: a helper waiting on a terminal DevDesk does
+// not own would hang, and the timeout would be the only thing left to catch it.
+func runCredential(op, description string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), credentialTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "-c", "credential.useHttpPath=true", "credential", op)
+	cmd.Stdin = strings.NewReader(description)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-
-	// IMPORTANT: Désactiver l'interaction avec le terminal
-	// Sans cela, git credential peut afficher des prompts interactifs
+	cmd.WaitDelay = credentialWaitDelay
 	cmd.Env = append(cmd.Environ(),
 		"GIT_TERMINAL_PROMPT=0", // Désactive les prompts interactifs
 		"GCM_INTERACTIVE=never", // Git Credential Manager en mode non-interactif
 	)
 
-	// Utiliser un canal pour détecter la fin de la commande
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Run()
-	}()
-
-	// Attendre maximum 2 secondes
-	select {
-	case err := <-done:
-		if err != nil {
-			return "", fmt.Errorf("git credential fill failed: %v: %s", err, stderr.String())
-		}
-	case <-time.After(2 * time.Second):
-		// Timeout - tuer le processus et tous ses enfants
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		return "", fmt.Errorf("git credential fill timed out (not configured or waiting for input)")
+	err := cmd.Run()
+	if ctx.Err() != nil {
+		return "", fmt.Errorf("git credential %s timed out (not configured or waiting for input)", op)
 	}
-
-	// Parser la sortie pour extraire le password
-	output := stdout.String()
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "password=") {
-			return strings.TrimPrefix(line, "password="), nil
-		}
-	}
-
-	return "", fmt.Errorf("no credentials found for %s (context: %s)", urlStr, g.context)
-}
-
-// Delete supprime un token de git credential
-// Utilise le champ path pour supprimer les credentials du bon contexte
-func (g *GitCredentialStorage) Delete(urlStr string) error {
-	// Parser l'URL pour extraire host
-	u, err := url.Parse(urlStr)
 	if err != nil {
-		return fmt.Errorf("invalid URL: %w", err)
+		return "", fmt.Errorf("git credential %s failed: %v: %s", op, err, strings.TrimSpace(stderr.String()))
 	}
-
-	// Préparer l'input pour git credential avec le contexte dans le path
-	input := fmt.Sprintf("protocol=%s\nhost=%s\npath=devdesk/context/%s\nusername=oauth2\n",
-		u.Scheme, u.Host, g.context)
-
-	// Appeler git credential reject
-	cmd := exec.Command("git", "credential", "reject")
-	cmd.Stdin = strings.NewReader(input)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git credential reject failed: %v: %s", err, stderr.String())
-	}
-
-	return nil
+	return stdout.String(), nil
 }
