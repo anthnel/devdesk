@@ -1,0 +1,65 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "703652efe163",
+  "session_id": "27e093b6-a6bb-4571-b3dc-4937915c5909",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-02T08:51:37.4154655Z",
+  "branch": "ci/github-actions",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".github/workflows/ci.yml"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "941b9788d70c",
+  "checkpoint_transcript_start": 1159,
+  "transcript_lines_at_start": 1159,
+  "compact_transcript_start": 257,
+  "token_usage": {
+    "input_tokens": 11,
+    "cache_creation_tokens": 2417,
+    "cache_read_tokens": 1550646,
+    "output_tokens": 1610,
+    "api_call_count": 6
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-08-02T07:39:42.3551115Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "3bab667b3b93",
+      "timestamp": "2026-08-02T07:39:42.3551115Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 9
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-02T08:51:37.3278678Z",
+    "agent_lines": 4,
+    "agent_removed": 4,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 4,
+    "total_lines_changed": 8,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
