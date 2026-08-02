@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "81199a363eb0",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase3-workspaces",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/workspaces/actions.go",
+    "internal/ui/workspaces/entry.go",
+    "internal/ui/workspaces/messages.go",
+    "internal/ui/workspaces/model.go",
+    "internal/ui/workspaces/table.go",
+    "internal/ui/workspaces/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/81/199a363eb0/0/metadata.json",
+      "transcript": "/81/199a363eb0/0/full.jsonl",
+      "compact_transcript": "/81/199a363eb0/0/transcript.jsonl",
+      "content_hash": "/81/199a363eb0/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 3172,
+    "cache_read_tokens": 1138283,
+    "output_tokens": 762,
+    "api_call_count": 2
+  }
+}
