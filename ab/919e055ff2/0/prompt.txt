@@ -1,0 +1,5 @@
+c'est quoi la suite dans le backlog
+
+---
+
+corrige le lot de défaut UTF-8, ensuite découpe
