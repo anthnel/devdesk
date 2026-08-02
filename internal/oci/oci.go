@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strings"
 )
 
@@ -258,12 +259,35 @@ func extractTarGz(r io.Reader) (map[string]string, error) {
 			return nil, err
 		}
 
-		// Clean path (remove leading ./ or /)
-		path := strings.TrimPrefix(header.Name, "./")
-		path = strings.TrimPrefix(path, "/")
+		path, err := sanitizeArchivePath(header.Name)
+		if err != nil {
+			return nil, err
+		}
 
 		files[path] = string(content)
 	}
 
 	return files, nil
+}
+
+// sanitizeArchivePath normalises a tar member name into a path relative to the
+// archive root, and rejects anything that escapes it. Returning the parent
+// references verbatim would hand a Zip Slip to any caller that writes these
+// keys under a target directory.
+func sanitizeArchivePath(name string) (string, error) {
+	// Tar always uses forward slashes; normalise Windows-style separators so a
+	// member named `..\..\etc\passwd` is not waved through as a plain filename.
+	clean := strings.ReplaceAll(name, `\`, "/")
+	// Drop the leading separator *before* cleaning: path.Clean("/../x") returns
+	// "/x", which would silently absorb the traversal instead of exposing it.
+	clean = path.Clean(strings.TrimLeft(clean, "/"))
+
+	if clean == "" || clean == "." {
+		return "", fmt.Errorf("archive contains an entry with an empty path: %q", name)
+	}
+	if clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", fmt.Errorf("archive entry escapes the root: %q", name)
+	}
+
+	return clean, nil
 }

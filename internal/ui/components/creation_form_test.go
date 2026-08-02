@@ -170,6 +170,22 @@ func TestCreationFormCyclesResourceType(t *testing.T) {
 	}
 }
 
+// Cycling the type changes which fields exist, but the focus sits on the Type
+// field itself and maxField() never drops below it, so focus cannot be stranded.
+func TestCreationFormCyclingResourceTypeKeepsFocusOnType(t *testing.T) {
+	f := newProjectForm("go") // maxField() == 5, template field present
+
+	for _, key := range []string{"right", "left", "left"} {
+		f, _ = f.Update(testutil.Key(key))
+		if f.focusedField != fieldType {
+			t.Fatalf("focusedField = %d after %q, want %d (Type)", f.focusedField, key, fieldType)
+		}
+		if f.focusedField > f.maxField() {
+			t.Fatalf("focusedField = %d exceeds maxField() = %d after %q", f.focusedField, f.maxField(), key)
+		}
+	}
+}
+
 func TestCreationFormCyclesVisibility(t *testing.T) {
 	f := newGroupForm()
 	f.focusedField = fieldVisibility
