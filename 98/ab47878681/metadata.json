@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "98ab47878681",
+  "strategy": "manual-commit",
+  "branch": "fix/backlog-defects-d2-d5-d7",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/oci/oci.go",
+    "internal/oci/oci_test.go",
+    "internal/ui/components/creation_form.go",
+    "internal/ui/components/creation_form_test.go",
+    "internal/ui/components/delete_confirm_modal.go",
+    "internal/ui/components/delete_confirm_modal_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/98/ab47878681/0/metadata.json",
+      "transcript": "/98/ab47878681/0/full.jsonl",
+      "compact_transcript": "/98/ab47878681/0/transcript.jsonl",
+      "content_hash": "/98/ab47878681/0/content_hash.txt",
+      "prompt": "/98/ab47878681/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 90,
+    "cache_creation_tokens": 119601,
+    "cache_read_tokens": 5480123,
+    "output_tokens": 20005,
+    "api_call_count": 47
+  }
+}
