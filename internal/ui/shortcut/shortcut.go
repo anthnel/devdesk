@@ -4,8 +4,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/charmbracelet/lipgloss"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
 )
 
 // HeaderInfo represents a key-value pair displayed in the header

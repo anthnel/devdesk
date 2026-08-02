@@ -15,11 +15,11 @@ import (
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/cache"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/docker"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/registrymgr"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/registrymgr"
+	"github.com/anthnel/devdesk/internal/scan"
 )
 
 const refreshInterval = 10 * time.Second

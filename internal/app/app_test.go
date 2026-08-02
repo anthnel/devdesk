@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
 
 func TestBuildShortcutLines(t *testing.T) {

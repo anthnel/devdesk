@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // CheckerInterface définit l'interface pour tous les types de checkers

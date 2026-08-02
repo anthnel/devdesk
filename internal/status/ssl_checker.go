@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // SSLChecker vérifie les certificats SSL/TLS

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/charmbracelet/lipgloss"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/help"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/shortcut"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
 )
 
 // Column width ratios for the table

@@ -3,7 +3,7 @@ package gitlab
 import (
 	"testing"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/credentials"
 )
 
 func TestNewAuth(t *testing.T) {

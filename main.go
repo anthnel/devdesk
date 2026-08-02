@@ -5,10 +5,10 @@ import (
 	"log"
 	"os"
 
+	"github.com/anthnel/devdesk/internal/app"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 	tea "github.com/charmbracelet/bubbletea"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/app"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
 )
 
 func getCurrentContextName() string {

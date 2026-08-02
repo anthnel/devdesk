@@ -1,4 +1,4 @@
-module gitlab.com/anthnell/devsecops/devdesk
+module github.com/anthnel/devdesk
 
 go 1.25.5
 

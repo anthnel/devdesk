@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // wrapInputLines is the whole reason WrappedInput exists (Rule 133 bans

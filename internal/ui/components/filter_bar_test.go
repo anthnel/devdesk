@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // Rule 136: the bar is completely hidden until a filter is actually active.

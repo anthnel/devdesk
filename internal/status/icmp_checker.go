@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/prometheus-community/pro-bing"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
 )
 
 // ICMPChecker vérifie la connectivité via ICMP (ping)

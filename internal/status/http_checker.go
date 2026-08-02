@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // HTTPChecker vérifie les endpoints HTTP/HTTPS

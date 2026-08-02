@@ -6,7 +6,7 @@
 
 ## Go Module Structure
 
-**Module:** `gitlab.com/anthnell/devsecops/devdesk`
+**Module:** `github.com/anthnel/devdesk`
 **Latest Commit:** Uses Go 1.25.5
 
 ## Direct Dependencies (go.mod)

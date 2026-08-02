@@ -3,7 +3,7 @@ package ociresources
 import (
 	"strings"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // shellQuote wraps value in single quotes if it contains characters that would

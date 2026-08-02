@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 func sampleReport() PullReport {

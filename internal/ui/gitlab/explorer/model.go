@@ -16,12 +16,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/gitlab"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/oci"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/shared"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/components"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/gitlab"
+	"github.com/anthnel/devdesk/internal/oci"
+	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // sortField defines which column to sort by

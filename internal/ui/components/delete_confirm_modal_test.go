@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // Focus indices in this modal: 0 = checkbox, 1 = Yes, 2 = No.
