@@ -16,16 +16,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/cache"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/command"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/scan"
-	sharedcomponents "gitlab.com/anthnell/devsecops/devdesk/internal/ui/components"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/help"
-	ociresources "gitlab.com/anthnell/devsecops/devdesk/internal/ui/oci_resources"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/shortcut"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/workspaces"
+	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/scan"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/help"
+	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 
 // ViewState represents the current state of the security view

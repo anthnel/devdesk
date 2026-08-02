@@ -6,10 +6,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/status"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/help"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/shortcut"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // sectionsToLines splits rendered sections into individual lines with background separators

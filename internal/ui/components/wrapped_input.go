@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // WrappedInput is a multi-line text field that word-wraps content at a configurable column.

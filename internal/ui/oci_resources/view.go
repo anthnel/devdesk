@@ -6,9 +6,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/help"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/shortcut"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).

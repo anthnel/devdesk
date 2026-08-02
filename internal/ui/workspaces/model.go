@@ -14,11 +14,11 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/cache"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/scan"
-	sharedcomponents "gitlab.com/anthnell/devsecops/devdesk/internal/ui/components"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/scan"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ViewMode represents the current mode of the view

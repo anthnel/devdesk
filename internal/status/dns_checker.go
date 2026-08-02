@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // DNSChecker vérifie la résolution DNS

@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // Field indices used by CreationForm.

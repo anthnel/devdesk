@@ -9,9 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
-	dockerpkg "gitlab.com/anthnell/devsecops/devdesk/internal/docker"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/components"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	dockerpkg "github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // portsTickMsg triggers a data refresh cycle.

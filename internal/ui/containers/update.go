@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anthnel/devdesk/internal/docker"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	uiterminal "github.com/anthnel/devdesk/internal/ui/terminal"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/docker"
-	sharedcomponents "gitlab.com/anthnell/devsecops/devdesk/internal/ui/components"
-	uiterminal "gitlab.com/anthnell/devsecops/devdesk/internal/ui/terminal"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
 )
 
 // Init initializes the containers view

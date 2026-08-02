@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/charmbracelet/lipgloss"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/shortcut"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
 )
 
 // HeaderView est l'interface que chaque vue doit implémenter pour fournir les données du header

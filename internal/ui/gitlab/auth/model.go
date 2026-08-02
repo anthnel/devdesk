@@ -8,9 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/credentials"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // SaveOption représente les options de sauvegarde du token

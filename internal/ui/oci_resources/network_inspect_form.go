@@ -6,8 +6,8 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/docker"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // viewportOverhead is the number of lines consumed by the top padding and table borders in the viewport.

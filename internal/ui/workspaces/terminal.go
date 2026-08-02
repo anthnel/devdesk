@@ -1,7 +1,7 @@
 package workspaces
 
 import (
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/terminal"
+	"github.com/anthnel/devdesk/internal/ui/terminal"
 )
 
 // detectTerminalCmd delegates to the shared terminal package.

@@ -6,8 +6,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 const registryFormMaxField = 6 // 0=URL, 1=Username, 2=Password, 3=Alias, 4=AuthEnabled, 5=NexusURL, 6=Submit

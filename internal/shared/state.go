@@ -1,7 +1,7 @@
 package shared
 
 import (
-	"gitlab.com/anthnell/devsecops/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/status"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 )
 

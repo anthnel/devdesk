@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // MonitorResult contains the results of a background monitoring check

@@ -9,8 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/cache"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/scan"
 )
 
 // clearFooterInfoCmd returns a command that clears the footer info message after a delay.

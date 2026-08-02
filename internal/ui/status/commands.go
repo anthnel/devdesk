@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/status"
 )
 
 // tickCmd retourne une commande qui tick toutes les secondes

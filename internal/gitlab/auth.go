@@ -5,7 +5,7 @@ import (
 
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/credentials"
 )
 
 // Auth gère l'authentification GitLab

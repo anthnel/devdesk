@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
-	gitlabpkg "gitlab.com/anthnell/devsecops/devdesk/internal/gitlab"
+	gitlabpkg "github.com/anthnel/devdesk/internal/gitlab"
 )
 
 // GitLabAuthSuccessMsg est le message d'authentification réussie (venant de app.go)

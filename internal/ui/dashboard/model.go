@@ -11,12 +11,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/docker"
-	gitlabpkg "gitlab.com/anthnell/devsecops/devdesk/internal/gitlab"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/scan"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/shared"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
+	gitlabpkg "github.com/anthnel/devdesk/internal/gitlab"
+	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/status"
 )
 
 // Messages

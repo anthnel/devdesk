@@ -3,8 +3,8 @@ package app
 import (
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/command"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/scan"
 )
 
 // Messages inter-vues

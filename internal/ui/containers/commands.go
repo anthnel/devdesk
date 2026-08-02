@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/docker"
 )
 
 const refreshInterval = 2 * time.Second

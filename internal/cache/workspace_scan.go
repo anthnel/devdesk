@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/scan"
 )
 
 // WorkspaceScanEntry holds cached CVE counts for a scanned workspace git repo

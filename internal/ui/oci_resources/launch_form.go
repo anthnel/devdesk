@@ -7,9 +7,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/cache"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/docker"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // LaunchFormSubmitMsg is sent when the launch form is submitted

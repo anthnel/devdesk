@@ -17,11 +17,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/config"
-	dockerpkg "gitlab.com/anthnell/devsecops/devdesk/internal/docker"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/help"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/shortcut"
-	"gitlab.com/anthnell/devsecops/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/config"
+	dockerpkg "github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ViewState represents the current state of the netdiag view

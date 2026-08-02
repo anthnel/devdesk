@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/anthnell/devsecops/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/scan"
 )
 
 // newTestImageCache creates an ImageScanCache backed by a temp dir.
