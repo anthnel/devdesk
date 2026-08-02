@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "e73e9bbd1875",
+  "strategy": "manual-commit",
+  "branch": "refactor/docker-client-split",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/docker/containers.go",
+    "internal/docker/containers_test.go",
+    "internal/docker/exec.go",
+    "internal/docker/exec_test.go",
+    "internal/docker/images.go",
+    "internal/docker/images_test.go",
+    "internal/docker/launch.go",
+    "internal/docker/launch_test.go",
+    "internal/docker/netdiag.go",
+    "internal/docker/networks.go",
+    "internal/docker/networks_test.go",
+    "internal/docker/parse.go",
+    "internal/docker/ports.go",
+    "internal/docker/registry.go",
+    "internal/docker/registry_test.go",
+    "internal/docker/system.go",
+    "internal/docker/system_test.go",
+    "internal/docker/topology.go",
+    "internal/docker/volumes.go",
+    "internal/docker/volumes_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e7/3e9bbd1875/0/metadata.json",
+      "transcript": "/e7/3e9bbd1875/0/full.jsonl",
+      "compact_transcript": "/e7/3e9bbd1875/0/transcript.jsonl",
+      "content_hash": "/e7/3e9bbd1875/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 105,
+    "cache_creation_tokens": 109021,
+    "cache_read_tokens": 10628248,
+    "output_tokens": 52577,
+    "api_call_count": 55
+  }
+}
