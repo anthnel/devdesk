@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "351fd655534a",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase3-explorer",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "internal/ui/gitlab/explorer/explorer_test.go",
+    "internal/ui/gitlab/explorer/model.go",
+    "internal/ui/gitlab/explorer/model_test.go",
+    "internal/ui/gitlab/explorer/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/35/1fd655534a/0/metadata.json",
+      "transcript": "/35/1fd655534a/0/full.jsonl",
+      "compact_transcript": "/35/1fd655534a/0/transcript.jsonl",
+      "content_hash": "/35/1fd655534a/0/content_hash.txt",
+      "prompt": "/35/1fd655534a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 90,
+    "cache_creation_tokens": 397903,
+    "cache_read_tokens": 10215639,
+    "output_tokens": 35168,
+    "api_call_count": 47
+  }
+}
