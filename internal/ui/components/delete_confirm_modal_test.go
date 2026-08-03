@@ -36,21 +36,41 @@ func TestNewDeleteConfirmModalPermanentPreChecksImmediateDeletion(t *testing.T) 
 	}
 }
 
-func TestDeleteConfirmModalVerticalNavigationClamps(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?")
+// Rule 135: ↑/↓ are the only field navigation, and they cycle so every control
+// stays reachable in one direction.
+func TestDeleteConfirmModalVerticalNavigationCycles(t *testing.T) {
+	m := NewDeleteConfirmModal("Delete", "Sure?") // starts on No
 
-	for i := 0; i < 5; i++ {
-		m, _ = m.Update(testutil.Key("up"))
-	}
+	m, _ = m.Update(testutil.Key("down"))
 	if m.focused != deleteFocusCheckbox {
-		t.Errorf("focus = %d after repeated up, want %d (clamped at the checkbox)", m.focused, deleteFocusCheckbox)
+		t.Errorf("focus = %d after down from No, want %d (wraps to the checkbox)", m.focused, deleteFocusCheckbox)
 	}
 
-	for i := 0; i < 5; i++ {
+	m, _ = m.Update(testutil.Key("up"))
+	if m.focused != deleteFocusNo {
+		t.Errorf("focus = %d after up from the checkbox, want %d (wraps back to No)", m.focused, deleteFocusNo)
+	}
+
+	// A full cycle in either direction returns where it started.
+	for range 3 {
 		m, _ = m.Update(testutil.Key("down"))
 	}
 	if m.focused != deleteFocusNo {
-		t.Errorf("focus = %d after repeated down, want %d (clamped at No)", m.focused, deleteFocusNo)
+		t.Errorf("focus = %d after a full cycle", m.focused)
+	}
+}
+
+// Rule 135 reserves tab for switching tabs. The modal has none, so it does
+// nothing here — it used to cycle the focus, which is what ↑/↓ now do.
+func TestDeleteConfirmModalIgnoresTab(t *testing.T) {
+	m := NewDeleteConfirmModal("Delete", "Sure?")
+	before := m.focused
+
+	for _, key := range []string{"tab", "shift+tab"} {
+		m, _ = m.Update(testutil.Key(key))
+		if m.focused != before {
+			t.Errorf("%q moved the focus to %d", key, m.focused)
+		}
 	}
 }
 
@@ -84,19 +104,6 @@ func TestDeleteConfirmModalHorizontalMovesBetweenButtonsOnly(t *testing.T) {
 	m, _ = m.Update(testutil.Key("left"))
 	if m.focused != deleteFocusCheckbox {
 		t.Errorf("focus = %d after left from the checkbox, want it unchanged", m.focused)
-	}
-}
-
-func TestDeleteConfirmModalTabCycles(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?") // starts on No (2)
-
-	m, _ = m.Update(testutil.Key("tab"))
-	if m.focused != deleteFocusCheckbox {
-		t.Errorf("focus = %d after tab from No, want %d (wraps to the checkbox)", m.focused, deleteFocusCheckbox)
-	}
-	m, _ = m.Update(testutil.Key("shift+tab"))
-	if m.focused != deleteFocusNo {
-		t.Errorf("focus = %d after shift+tab, want %d", m.focused, deleteFocusNo)
 	}
 }
 
@@ -216,33 +223,22 @@ func TestDeleteConfirmModalPermanentCheckboxIsLocked(t *testing.T) {
 // A focusable control that ignores every key is more confusing than an absent
 // one, so navigation skips the locked checkbox entirely.
 func TestDeleteConfirmModalPermanentSkipsCheckboxWhenNavigating(t *testing.T) {
-	t.Run("up clamps at Yes", func(t *testing.T) {
-		m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion")
+	m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion") // starts on No
 
-		for i := 0; i < 5; i++ {
-			m, _ = m.Update(testutil.Key("up"))
+	// Cycling never lands on the checkbox: it toggles between the two buttons.
+	for i, want := range []int{deleteFocusYes, deleteFocusNo, deleteFocusYes, deleteFocusNo} {
+		m, _ = m.Update(testutil.Key("down"))
+		if m.focused != want {
+			t.Fatalf("down #%d landed on %d, want %d", i+1, m.focused, want)
 		}
-		if m.focused != deleteFocusYes {
-			t.Errorf("focus = %d after repeated up, want %d (Yes)", m.focused, deleteFocusYes)
-		}
-	})
+	}
 
-	t.Run("tab cycles between the buttons only", func(t *testing.T) {
-		m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion") // starts on No
-
-		m, _ = m.Update(testutil.Key("tab"))
-		if m.focused != deleteFocusYes {
-			t.Errorf("focus = %d after tab from No, want %d (Yes)", m.focused, deleteFocusYes)
+	for i, want := range []int{deleteFocusYes, deleteFocusNo, deleteFocusYes} {
+		m, _ = m.Update(testutil.Key("up"))
+		if m.focused != want {
+			t.Fatalf("up #%d landed on %d, want %d", i+1, m.focused, want)
 		}
-		m, _ = m.Update(testutil.Key("tab"))
-		if m.focused != deleteFocusNo {
-			t.Errorf("focus = %d after a second tab, want %d (No)", m.focused, deleteFocusNo)
-		}
-		m, _ = m.Update(testutil.Key("shift+tab"))
-		if m.focused != deleteFocusYes {
-			t.Errorf("focus = %d after shift+tab, want %d (Yes)", m.focused, deleteFocusYes)
-		}
-	})
+	}
 }
 
 // Confirming the permanent variant must carry the checked state through.

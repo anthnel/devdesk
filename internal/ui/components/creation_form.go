@@ -442,10 +442,12 @@ func (f *CreationForm) renderTemplateList() string {
 		labelStr = theme.Bg("  Template " + theme.IconSelect + " " + theme.IconChevronRight + " ")
 	}
 
-	// Show selected template name next to label when not focused
+	// Show selected template name next to label when not focused. The warning
+	// still goes out: it explains why the list is empty, and a user who never
+	// lands on this field would otherwise never learn the registry failed.
 	if !focused {
 		selected := f.templates[f.templateIdx]
-		return labelStr + theme.PrimaryColorStyle.Render(selected)
+		return labelStr + theme.PrimaryColorStyle.Render(selected) + f.renderTemplateWarning()
 	}
 
 	// Focused: render vertical dropdown list
@@ -489,11 +491,22 @@ func (f *CreationForm) renderTemplateList() string {
 		b.WriteString(theme.DimStyle.Render(fmt.Sprintf("    ↓ %d more", remaining)))
 	}
 
-	// Warning if template loading failed
-	if f.templateWarning != "" {
-		b.WriteString("\n")
-		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError).Render("    " + theme.IconWarning + " " + f.templateWarning))
-	}
+	b.WriteString(f.renderTemplateWarning())
 
 	return b.String()
+}
+
+// renderTemplateWarning renders the registry failure on its own line, or an
+// empty string when the templates loaded. It is appended in both the focused
+// and unfocused branches of renderTemplateList: the warning explains why the
+// list is empty, so hiding it until the field takes focus tells the user
+// nothing at the moment they need it.
+func (f *CreationForm) renderTemplateWarning() string {
+	if f.templateWarning == "" {
+		return ""
+	}
+	return "\n" + lipgloss.NewStyle().
+		Background(theme.ColorBackground).
+		Foreground(theme.ColorError).
+		Render("    "+theme.IconWarning+" "+f.templateWarning)
 }

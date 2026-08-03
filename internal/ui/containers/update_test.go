@@ -274,38 +274,42 @@ func TestFilterMatchesNameImageAndState(t *testing.T) {
 	}
 }
 
-// Unlike the status view, which sets sortAsc explicitly, this one leaves it at
-// the zero value — so the list opens sorted Z→A. Recorded as D9; pinned here so
-// changing it is a deliberate act rather than an accident.
-func TestDefaultSortIsNameDescending(t *testing.T) {
+// The list used to open Z→A because New() left sortAsc at its zero value while
+// the status view set it explicitly (D9). Both now agree, and the constructor
+// says so rather than relying on a default.
+func TestDefaultSortIsNameAscending(t *testing.T) {
 	m := rawModel(t)
 
-	if m.sortColumn != sortByName {
-		t.Errorf("default sort column = %d, want name", m.sortColumn)
+	if m.sortColumn != sortByName || !m.sortAsc {
+		t.Errorf("default sort = (%d, asc=%v), want name ascending", m.sortColumn, m.sortAsc)
 	}
-	if m.sortAsc {
-		t.Error("default sort is ascending; this test is stale and D9 can be dropped")
-	}
-	if got := rowNames(m.containerTable.Rows()); got[0] != "zombie" {
-		t.Errorf("first row = %q, want zombie under a descending default (full order %v)", got[0], got)
+	if got := rowNames(m.containerTable.Rows()); got[0] != "api" {
+		t.Errorf("first row = %q, want api under an ascending default (full order %v)", got[0], got)
 	}
 }
 
 func TestCycleSortWalksDirectionThenColumn(t *testing.T) {
-	m := rawModel(t) // starts at (name, descending)
+	m := rawModel(t) // starts at (name, ascending)
 
-	// Nine sortable columns, each visited ascending then descending.
-	for i := 0; i < len(sortableColumns)*2; i++ {
-		m = feed(t, m, testutil.Key("."))
-	}
+	// One press from ascending reverses the same column.
+	m = feed(t, m, testutil.Key("."))
 	if m.sortColumn != sortByName || m.sortAsc {
-		t.Errorf("sort = (%d, asc=%v) after a full cycle, want it back at the starting (name, desc)", m.sortColumn, m.sortAsc)
+		t.Errorf("sort = (%d, asc=%v) after one press, want (name, desc)", m.sortColumn, m.sortAsc)
 	}
 
-	// One press from descending flips direction and advances the column.
+	// The next press flips direction back and advances the column.
 	m = feed(t, m, testutil.Key("."))
 	if m.sortColumn != sortByImage || !m.sortAsc {
-		t.Errorf("sort = (%d, asc=%v) after one press, want (image, asc)", m.sortColumn, m.sortAsc)
+		t.Errorf("sort = (%d, asc=%v) after two presses, want (image, asc)", m.sortColumn, m.sortAsc)
+	}
+
+	// Each sortable column is visited ascending then descending, so a full
+	// cycle returns to the start.
+	for range len(sortableColumns)*2 - 2 {
+		m = feed(t, m, testutil.Key("."))
+	}
+	if m.sortColumn != sortByName || !m.sortAsc {
+		t.Errorf("sort = (%d, asc=%v) after a full cycle, want the starting (name, asc)", m.sortColumn, m.sortAsc)
 	}
 }
 

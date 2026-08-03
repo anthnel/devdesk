@@ -61,9 +61,6 @@ type Model struct {
 	sortAsc    bool
 
 	// CRUD modes
-	creating    bool
-	editing     bool
-	confirming  bool
 	selectedIdx int // Index du composant sélectionné pour edit/delete
 
 	// filterBar provides text search for the active table (Rule 136)
@@ -126,19 +123,10 @@ func New(cfg *config.Config) Model {
 		activeTab:       TabMonitors,
 		sortColumn:      sortByName,
 		sortAsc:         true,
-		creating:        false,
-		editing:         false,
-		confirming:      false,
 		error:           "",
 		filterBar:       sharedcomponents.NewFilterBar(),
 	}
 }
-
-// HasActiveForm returns true if a form or modal is currently active
-// This prevents the App router from capturing the ":" key for command mode
-// func (m Model) HasActiveForm() bool {
-// 	return m.componentForm != nil || m.confirmModal != nil
-// }
 
 // Messages Bubble Tea
 

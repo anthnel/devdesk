@@ -74,19 +74,21 @@ func newTestModel(t *testing.T) Model {
 }
 
 // rawModel returns a model that has absorbed a container list and kept the
-// view's own default sort — which is name *descending*; see
-// TestDefaultSortIsNameDescending and D9 in docs/backlog.md.
+// view's own default sort — name ascending, so the row order is api, cache,
+// web, zombie. See TestDefaultSortIsNameAscending.
 func rawModel(t *testing.T) Model {
 	t.Helper()
 	return feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
 }
 
-// loadedModel returns a loaded model sorted by name ascending, so the row order
-// is api, cache, web, zombie. Selection and action tests use it: they are about
-// resolving the cursor, not about the direction the view happens to start in.
+// loadedModel is what selection and action tests use. It was a distinct helper
+// while the default sort was descending (D9); the two now coincide, and it is
+// kept so those tests keep saying "the order I rely on is ascending" rather
+// than depending on whatever the constructor happens to choose.
 func loadedModel(t *testing.T) Model {
 	t.Helper()
 	m := rawModel(t)
+	m.sortColumn = sortByName
 	m.sortAsc = true
 	m.updateTable()
 	return m

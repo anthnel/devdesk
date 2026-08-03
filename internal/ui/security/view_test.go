@@ -275,31 +275,33 @@ func TestSeverityBarShowsEveryLevelPresent(t *testing.T) {
 	}
 }
 
-// getSeverityStyle collapses CRITICAL and HIGH onto the same style: CRITICAL
-// builds ColorError + Bold by hand, which is exactly what theme.StatusErrorStyle
-// already is, and HIGH returns that. The two are byte-identical in the details
-// view while the findings table distinguishes them through
-// theme.TableStylesForSeverity.
-//
-// This pins the current behaviour rather than the intended one — see D11 in the
-// backlog. The assertion is deliberately inverted so it fails when someone wires
-// the ColorSeverity* palette in, which is the fix.
-func TestSeverityStylesCollapseCriticalIntoHigh(t *testing.T) {
+// Each severity gets its own colour, or the details view says nothing the
+// finding's own text does not. CRITICAL and HIGH used to collapse onto the same
+// style, because CRITICAL was composed by hand as ColorError + Bold — which is
+// exactly the theme.StatusErrorStyle that HIGH returned (D11).
+func TestEverySeverityRendersDistinctly(t *testing.T) {
 	withTrueColor(t)
 	m := newTestModel(t)
 
-	critical := m.getSeverityStyle(scan.SeverityCritical).Render("x")
-	high := m.getSeverityStyle(scan.SeverityHigh).Render("x")
-
-	if critical != high {
-		t.Error("CRITICAL and HIGH now render differently — fix D11 in the backlog and this test")
+	seen := map[string]scan.SeverityLevel{}
+	for _, sev := range []scan.SeverityLevel{
+		scan.SeverityCritical, scan.SeverityHigh, scan.SeverityMedium, scan.SeverityLow,
+	} {
+		rendered := m.getSeverityStyle(sev).Render("x")
+		if other, clash := seen[rendered]; clash {
+			t.Errorf("%v and %v render identically", sev, other)
+		}
+		seen[rendered] = sev
 	}
+}
 
-	// The rest are distinct, so only the top two are affected.
-	medium := m.getSeverityStyle(scan.SeverityMedium).Render("x")
-	low := m.getSeverityStyle(scan.SeverityLow).Render("x")
-	if medium == high || low == medium || low == high {
-		t.Errorf("severity styles clash below HIGH: high=%q medium=%q low=%q", high, medium, low)
+// An unknown severity still renders rather than falling through to the
+// terminal's own colours.
+func TestUnknownSeverityStillRenders(t *testing.T) {
+	withTrueColor(t)
+
+	if got := newTestModel(t).getSeverityStyle("NONSENSE").Render("x"); !strings.Contains(got, "\x1b") {
+		t.Errorf("an unknown severity rendered unstyled: %q", got)
 	}
 }
 

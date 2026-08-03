@@ -107,9 +107,6 @@ type ComponentFormSubmitMsg struct {
 	Original  *config.ComponentConfig // Non nil si édition
 }
 
-// ComponentFormCancelledMsg est envoyé quand le formulaire est annulé
-type ComponentFormCancelledMsg struct{}
-
 // Update met à jour le formulaire
 func (f *ComponentForm) Update(msg tea.Msg) (*ComponentForm, tea.Cmd) {
 	switch msg := msg.(type) {

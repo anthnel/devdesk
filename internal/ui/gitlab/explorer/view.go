@@ -295,8 +295,9 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			{Key: "esc", Description: "Cancel"},
 		}
 	case ModeConfirmingDelete:
+		// ↑↓ is Rule 138 territory — obvious, so not advertised. It replaced
+		// tab here when D4 was fixed.
 		return []shortcut.Shortcut{
-			{Key: "tab", Description: "Navigate"},
 			{Key: "space", Description: "Toggle"},
 			{Key: "y/n", Description: "Confirm"},
 			{Key: "esc", Description: "Cancel"},

@@ -144,5 +144,9 @@ func New(cfg *config.Config) Model {
 		containerTable: t,
 		loading:        true,
 		logsViewport:   vp,
+		// Explicit rather than left at the zero value, which would open the
+		// list Z→A and disagree with the status view (D9).
+		sortColumn: sortByName,
+		sortAsc:    true,
 	}
 }

@@ -54,18 +54,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case components.ComponentFormSubmitMsg:
 		return m.handleComponentFormSubmit(msg)
 
-	case components.ComponentFormCancelledMsg:
-		m.componentForm = nil
-		m.creating = false
-		m.editing = false
-
 	case sharedcomponents.ConfirmModalYesMsg:
 		return m.handleConfirmDelete()
 
 	case sharedcomponents.ConfirmModalNoMsg:
 		// Annulation de suppression
 		m.confirmModal = nil
-		m.confirming = false
 
 	case ComponentSavedMsg:
 		return m.handleComponentSaved(msg)
@@ -402,7 +396,6 @@ func (m Model) handleTableNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleComponentFormSubmit(msg components.ComponentFormSubmitMsg) (tea.Model, tea.Cmd) {
 	m.componentForm = nil
 	if msg.Original != nil {
-		m.editing = false
 		for i, c := range m.config.Status.Components {
 			if c.Name == msg.Original.Name && c.Type == msg.Original.Type && c.Target == msg.Original.Target {
 				m.config.Status.Components[i] = msg.Component
@@ -410,7 +403,6 @@ func (m Model) handleComponentFormSubmit(msg components.ComponentFormSubmitMsg) 
 			}
 		}
 	} else {
-		m.creating = false
 		m.config.Status.Components = append(m.config.Status.Components, msg.Component)
 	}
 	return m, saveComponent(m.config)
@@ -419,7 +411,6 @@ func (m Model) handleComponentFormSubmit(msg components.ComponentFormSubmitMsg) 
 // handleConfirmDelete processes confirmed deletion of a component
 func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 	m.confirmModal = nil
-	m.confirming = false
 	if m.selectedIdx >= 0 && m.selectedIdx < len(m.config.Status.Components) {
 		m.config.Status.Components = append(
 			m.config.Status.Components[:m.selectedIdx],
@@ -435,7 +426,6 @@ func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+n":
 		// Nouveau composant
-		m.creating = true
 		m.componentForm = components.NewComponentForm(nil)
 
 	case "e":
@@ -443,7 +433,6 @@ func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.components) > 0 {
 			idx := m.getSelectedComponentIndex()
 			if idx >= 0 && idx < len(m.config.Status.Components) {
-				m.editing = true
 				m.selectedIdx = idx
 				m.componentForm = components.NewComponentForm(&m.config.Status.Components[idx])
 			}
@@ -454,7 +443,6 @@ func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.components) > 0 {
 			idx := m.getSelectedComponentIndex()
 			if idx >= 0 && idx < len(m.config.Status.Components) {
-				m.confirming = true
 				m.selectedIdx = idx
 				compName := m.config.Status.Components[idx].Name
 				m.confirmModal = sharedcomponents.NewConfirmModal(

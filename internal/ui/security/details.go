@@ -151,18 +151,10 @@ func (m Model) renderDetailsView() string {
 	return m.detailsViewport.View()
 }
 
-// getSeverityStyle returns style for severity level
+// getSeverityStyle returns style for severity level (Rule 102: the palette
+// lives in the theme, not here).
 func (m Model) getSeverityStyle(sev scan.SeverityLevel) lipgloss.Style {
-	switch sev {
-	case scan.SeverityCritical:
-		return lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError).Bold(true)
-	case scan.SeverityHigh:
-		return theme.StatusErrorStyle
-	case scan.SeverityMedium:
-		return theme.StatusWarningStyle
-	default:
-		return theme.DimStyle
-	}
+	return theme.SeverityTextStyle(string(sev))
 }
 
 // HeaderView interface implementation
