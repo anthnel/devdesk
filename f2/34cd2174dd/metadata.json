@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "f234cd2174dd",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase3-security",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/security/details.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/form.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/messages.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/scan.go",
+    "internal/ui/security/update.go",
+    "internal/ui/security/view.go",
+    "internal/ui/security/warnings.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f2/34cd2174dd/0/metadata.json",
+      "transcript": "/f2/34cd2174dd/0/full.jsonl",
+      "compact_transcript": "/f2/34cd2174dd/0/transcript.jsonl",
+      "content_hash": "/f2/34cd2174dd/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 11077,
+    "cache_read_tokens": 2969790,
+    "output_tokens": 4590,
+    "api_call_count": 7
+  }
+}

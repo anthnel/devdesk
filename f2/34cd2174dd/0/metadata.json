@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "f234cd2174dd",
+  "session_id": "d3077689-2fcd-4fb3-af68-04545a1ab64a",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-03T10:43:07.3584735Z",
+  "branch": "test/coverage-phase3-security",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/security/details.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/form.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/messages.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/scan.go",
+    "internal/ui/security/update.go",
+    "internal/ui/security/view.go",
+    "internal/ui/security/warnings.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "7670c07e6756",
+  "checkpoint_transcript_start": 2251,
+  "transcript_lines_at_start": 2251,
+  "compact_transcript_start": 564,
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 11077,
+    "cache_read_tokens": 2969790,
+    "output_tokens": 4590,
+    "api_call_count": 7
+  },
+  "session_metrics": {
+    "turn_count": 13
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-03T10:43:07.1583611Z",
+    "agent_lines": 1841,
+    "agent_removed": 1748,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1841,
+    "total_lines_changed": 3589,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
