@@ -154,6 +154,16 @@ type BackToOriginMsg struct {
 	Origin command.ViewType
 }
 
+// clearStatusMsg clears the footer status message (Rule 128).
+type clearStatusMsg struct{}
+
+// clearStatusCmd expires the footer status message after 3 seconds (Rule 128).
+func clearStatusCmd() tea.Cmd {
+	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
+		return clearStatusMsg{}
+	})
+}
+
 // New creates a new security scanner view
 func New(cfg *config.Config) Model {
 	s := spinner.New()
@@ -369,6 +379,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.statusMessage = fmt.Sprintf("Added %s to .gitleaksignore", msg.Finding.File)
 		}
+		return m, clearStatusCmd()
+
+	case clearStatusMsg:
+		m.statusMessage = ""
 		return m, nil
 
 	case SelectionResultMsg:
@@ -1186,7 +1200,7 @@ func (m Model) handleDetailsOpenReference() (tea.Model, tea.Cmd) {
 	f := m.filteredFindings[m.selectedIdx]
 	if len(f.References) == 0 {
 		m.statusMessage = "No references available"
-		return m, nil
+		return m, clearStatusCmd()
 	}
 	url := f.References[0]
 	return m, func() tea.Msg {
