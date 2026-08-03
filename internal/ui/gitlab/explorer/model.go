@@ -307,8 +307,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Normal mode — use sorted items to match what the table displays
-	items := m.sortedItems(m.currentItems())
+	// Normal mode — resolve actions against exactly what the table displays
+	items := m.visibleItems()
 
 	switch msg.String() {
 	case "/":
@@ -382,19 +382,32 @@ func (m *Model) resize(width, height int) {
 	}
 }
 
-// updateTableRows rebuilds table rows from current items (sorted), applying active filters
-func (m *Model) updateTableRows() {
-	query := strings.ToLower(m.filterBar.SearchQuery())
+// visibleItems returns the nodes the table is showing: the current level, sorted
+// and filtered. Every action resolves the cursor through this, so the row the
+// user is looking at is the row that gets acted on.
+func (m *Model) visibleItems() []*TreeNode {
 	items := m.sortedItems(m.currentItems())
+	query := strings.ToLower(m.filterBar.SearchQuery())
+	if query == "" {
+		return items
+	}
+
+	visible := make([]*TreeNode, 0, len(items))
+	for _, node := range items {
+		nameMatch := strings.Contains(strings.ToLower(node.Name), query)
+		pathMatch := strings.Contains(strings.ToLower(node.FullPath), query)
+		if nameMatch || pathMatch {
+			visible = append(visible, node)
+		}
+	}
+	return visible
+}
+
+// updateTableRows rebuilds table rows from the visible items
+func (m *Model) updateTableRows() {
+	items := m.visibleItems()
 	rows := make([]table.Row, 0, len(items))
 	for _, node := range items {
-		if query != "" {
-			nameMatch := strings.Contains(strings.ToLower(node.Name), query)
-			pathMatch := strings.Contains(strings.ToLower(node.FullPath), query)
-			if !nameMatch && !pathMatch {
-				continue
-			}
-		}
 		rows = append(rows, table.Row{
 			nodeTypeLabel(node),
 			node.Name,
@@ -407,6 +420,14 @@ func (m *Model) updateTableRows() {
 		})
 	}
 	m.table.SetRows(rows)
+
+	// bubbles does not clamp the cursor when the row count shrinks, so narrowing
+	// the filter would leave it past the end. Nothing is highlighted then, and
+	// every action that resolves the selection silently does nothing.
+	if m.table.Cursor() >= len(rows) {
+		m.table.SetCursor(max(len(rows)-1, 0))
+	}
+
 	m.updateSortIndicators()
 }
 
@@ -1215,7 +1236,7 @@ func (m Model) handleDeleteComplete(msg DeleteCompleteMsg) (tea.Model, tea.Cmd) 
 	if msg.Error != nil {
 		log.Printf("ERROR [explorer] delete: %v", msg.Error)
 		m.footerError = "Delete failed — check logs"
-		return m, nil
+		return m, clearFooterErrorCmd()
 	}
 	m.footerError = ""
 

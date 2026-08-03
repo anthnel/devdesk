@@ -322,7 +322,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	}
 
 	// ctrl+w: only show when a node is selected (all nodes have a WebURL from GitLab API)
-	items := m.sortedItems(m.currentItems())
+	items := m.visibleItems()
 	cursor := m.table.Cursor()
 	if cursor >= 0 && cursor < len(items) && items[cursor].WebURL != "" {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+w", Description: "Browser"})
