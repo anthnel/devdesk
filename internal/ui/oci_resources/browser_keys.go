@@ -1,0 +1,217 @@
+package ociresources
+
+import (
+	"strings"
+
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/docker"
+)
+
+// InEditMode returns true when a text input is active (blocks command mode).
+func (b *RegistryBrowser) InEditMode() bool {
+	if b.state == browserStateResolving {
+		return false
+	}
+	if b.state == browserStateInput && b.focusedField == brFieldRepo {
+		return true
+	}
+	return b.state == browserStateTags && b.filterActive
+}
+
+// IsSearching returns true while registry tag queries are still in flight.
+func (b *RegistryBrowser) IsSearching() bool {
+	return b.pendingSearches > 0
+}
+
+// Update handles all messages for the browser.
+func (b *RegistryBrowser) Update(msg tea.Msg) (*RegistryBrowser, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		return b.handleKeyMsg(msg)
+	case spinner.TickMsg:
+		if b.state == browserStateStatus || b.state == browserStateResolving || len(b.scanningTags) > 0 || b.pendingSearches > 0 {
+			var cmd tea.Cmd
+			b.spinner, cmd = b.spinner.Update(msg)
+			if b.state == browserStateTags && len(b.scanningTags) > 0 {
+				b.tagScanSpinnerIdx++
+				b.rebuildTagTable()
+			}
+			return b, cmd
+		}
+		return b, nil
+	}
+	return b.delegateUpdate(msg)
+}
+
+func (b *RegistryBrowser) delegateUpdate(msg tea.Msg) (*RegistryBrowser, tea.Cmd) {
+	if b.state == browserStateInput && b.focusedField == brFieldRepo {
+		var cmd tea.Cmd
+		b.repoInput, cmd = b.repoInput.Update(msg)
+		return b, cmd
+	}
+	if b.state == browserStateTags {
+		if b.filterActive {
+			var cmd tea.Cmd
+			b.filterInput, cmd = b.filterInput.Update(msg)
+			b.rebuildTagTable()
+			return b, cmd
+		}
+		var cmd tea.Cmd
+		b.tagTable, cmd = b.tagTable.Update(msg)
+		return b, cmd
+	}
+	return b, nil
+}
+
+func (b *RegistryBrowser) handleKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, tea.Cmd) {
+	switch b.state {
+	case browserStateResolving:
+		return b, nil
+	case browserStateInput:
+		return b.handleInputKeyMsg(msg)
+	case browserStateTags:
+		return b.handleTagsKeyMsg(msg)
+	case browserStateStatus:
+		return b, nil
+	}
+	return b, nil
+}
+
+func (b *RegistryBrowser) handleInputKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		return b, func() tea.Msg { return RegistryBrowserCloseMsg{} }
+	case "down":
+		b.focusedField = min(b.focusedField+1, b.brFieldSubmit())
+		b.updateFocus()
+		return b, nil
+	case "up":
+		b.focusedField = max(b.focusedField-1, brFieldRepo)
+		b.updateFocus()
+		return b, nil
+	case " ":
+		if b.focusedField >= 1 && b.focusedField <= len(b.entries) {
+			url := b.entries[b.focusedField-1].URL
+			b.selectedRegs[url] = !b.selectedRegs[url]
+			return b, nil
+		}
+	case "enter":
+		if b.focusedField == brFieldRepo || b.focusedField == b.brFieldSubmit() {
+			return b.submitSearch()
+		}
+		b.focusedField = min(b.focusedField+1, b.brFieldSubmit())
+		b.updateFocus()
+		return b, nil
+	}
+	return b.delegateUpdate(msg)
+}
+
+func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
+	repo := strings.TrimSpace(b.repoInput.Value())
+	if repo == "" {
+		return b, nil
+	}
+
+	b.tags = nil
+	b.registryFilter = ""
+	b.pendingSearches = 0
+	b.filterInput.SetValue("")
+	b.filterActive = false
+	b.tagSortCol = tagSortByName
+	b.tagSortDesc = false
+
+	var cmds []tea.Cmd
+	for _, entry := range b.entries {
+		if !b.selectedRegs[entry.URL] {
+			continue
+		}
+		// Credentials come from the parent registry (or the entry itself for normal registries).
+		credURL := entry.URL
+		if entry.parentURL != "" {
+			credURL = entry.parentURL
+		}
+		var username string
+		for _, reg := range b.registries {
+			if reg.URL == credURL {
+				username = reg.Username
+				break
+			}
+		}
+		storedUser, storedPass, _ := docker.GetStoredCreds(credURL)
+		if username == "" {
+			username = storedUser
+		}
+		alias := entry.Alias
+		if entry.ParentAlias != "" {
+			alias = entry.ParentAlias + "/" + entry.Alias
+		}
+		normalizedRepo := normalizeRepoForRegistry(entry.URL, repo)
+		apiURL := registryAPIURL(entry.URL)
+		b.pendingSearches++
+		cmds = append(cmds, searchRegistryTagsCmd(entry.URL, alias, apiURL, normalizedRepo, username, storedPass))
+	}
+
+	if len(cmds) == 0 {
+		return b, nil
+	}
+
+	b.state = browserStateTags
+	b.tagTable.Focus()
+	b.rebuildTagTable()
+	cmds = append(cmds, b.spinner.Tick)
+	return b, tea.Batch(cmds...)
+}
+
+func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, tea.Cmd) {
+	if b.filterActive {
+		switch msg.String() {
+		case "esc", "enter":
+			b.filterActive = false
+			b.filterInput.Blur()
+			b.rebuildTagTable()
+			b.resizeTagTable()
+			return b, nil
+		}
+		return b.delegateUpdate(msg)
+	}
+
+	switch msg.String() {
+	case "esc":
+		b.state = browserStateInput
+		b.tagTable.Blur()
+		b.updateFocus()
+		return b, nil
+	case "/":
+		b.filterActive = true
+		b.filterInput.Focus()
+		b.resizeTagTable()
+		return b, nil
+	case ".":
+		b.cycleSortTags()
+		return b, nil
+	case "r":
+		b.cycleRegistryFilter()
+		return b, nil
+	case "up", "k":
+		b.tagTable.MoveUp(1)
+		return b, nil
+	case "down", "j":
+		b.tagTable.MoveDown(1)
+		return b, nil
+	case "g", "home":
+		b.tagTable.GotoTop()
+		return b, nil
+	case "G", "end":
+		b.tagTable.GotoBottom()
+		return b, nil
+	case "enter":
+		return b.openTagScanDetails()
+	case "p":
+		return b.pullSelectedTag()
+	case "ctrl+s":
+		return b.requestDirectScan()
+	}
+	return b, nil
+}
