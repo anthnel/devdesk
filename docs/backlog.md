@@ -22,6 +22,16 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**The command line took focus from the render path.** Found in phase 5.
+`renderHeader` called `a.commandInput.Focus()` whenever `commandMode` was set —
+a mutation inside `View()`, which Rule 110 makes read-only. A
+`bubbles/textinput` drops every key it receives while blurred, so the command
+line only accepted typing because a render happened to have run first. Focus is
+now taken in `enterCommandMode` and released alongside the existing `Blur()`
+calls on the way out. In production the ordering held, so nothing was visibly
+broken; the coupling surfaced the moment a test drove the router without
+rendering, and the same latent bug would bite anyone reordering the loop.
+
 **Two views' help advertised keys that do nothing.** Found while writing the
 phase 2 tests, not previously recorded.
 
@@ -280,10 +290,13 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
-All three sit in `internal/ui/oci_resources` and are cheap on their own, but
+D12–D14 sit in `internal/ui/oci_resources` and are cheap on their own, but
 §3.8 rewrites the code path each of them lives in. Fix them **as part of** that
 work rather than ahead of it, and write each one's test inverted first, per the
 pattern above.
+
+D15–D19 were found by the phase 5 router pass and are unrelated to §3.8. Each
+has an inverted test asserting the current behaviour, named in its entry.
 
 **D12 — `AuthEnabled` has no effect on browse or discovery.** The flag is
 honoured in exactly three places: the `docker login` fired on form submit, the
@@ -323,14 +336,70 @@ in the same view shows a short alias. The fix follows from §3.8 rather than
 preceding it: once members are persisted they are resolvable, and the filter
 gains a group level at the same time.
 
+**D15 — `esc` never reaches a view that is not editing.** `handleKeyMsg`
+(`keys.go`) answers `esc` itself through `maybeQuitCommandMode`, which forwards
+the key only when the view reports `InEditMode()`. Every other time the router
+consumes it and returns a resize. The explorer's `esc` → `handleDrillUp`
+(`update.go:157`) is therefore dead code: only `←` and `h` drill up, though
+Rule 111 lists `esc` as the third way. The explorer's own unit tests pass
+because they drive the model directly, bypassing the router — this is precisely
+the class of defect router tests exist to catch.
+
+The security view already works around it: `InEditMode()` there is documented as
+*"returns true when the view needs to handle ESC key"*, which overloads a
+predicate about focused fields into a predicate about key ownership. The fix is
+to give `esc` the same shape as every other key — forward it to the view first
+and let the router act only if the view did not — but that changes behaviour in
+every view at once, so it wants its own commit and a pass over each view's esc
+handling. Inverted test:
+`TestEscIsSwallowedForAViewThatIsNotEditing` (`router_test.go`).
+
+**D16 — `:netdiag` is documented but not accepted.** `CLAUDE.md` lists
+"`netdiag` or `net`", the view is named `netdiag` throughout, and the directory
+is `internal/ui/netdiag` — but `viewMap` in `parser.go` has only `"net"`.
+`:netdiag` parses to `CommandUnknown`, which leaves the command line open with
+no diagnostic. One map entry. Covered by the comment on the `net` row in
+`TestEveryNamedViewCanBeReached` (`command_line_test.go`).
+
+**D17 — the completion catalogue is a subset of the parser.**
+`buildCommands()` (`completion.go`) lists eight full commands; the parser
+accepts fourteen views plus aliases. `gitlab-explorer`, `workspaces`,
+`security` and `net` all work when typed in full but cannot be tab-completed,
+and nothing keeps the two lists in step. The parser's `viewMap` is the natural
+single source — the catalogue should be derived from it rather than restated.
+Worth doing with D16, which is the same drift.
+
+**D18 — the header overflows a narrow window.** `buildShortcutLines`
+(`app_header.go:202`) intends to clip the shortcut block to its column —
+`// Truncate if wider than col2Width` — but calls `theme.PadWithBg`, which
+returns the content untouched when it is already at or past the target. Below
+roughly 100 columns the header therefore renders wider than the window and
+wraps: at width 80 with twelve shortcuts every header row comes out 95 wide.
+The fix is `lipgloss.NewStyle().MaxWidth(col2Width)`, which truncates without
+cutting an escape sequence in half — the hazard Rule 122 is about. Inverted
+test: `TestANarrowHeaderOverflowsTheWindow` (`header_test.go`).
+
+**D19 — the Trivy command shown is not the one run.** `GetTrivyCommand` exists
+to display what will be executed, and rebuilds the argument list by hand from
+the same inputs as `RunTrivy`. The two have drifted: `RunTrivy` takes
+`ignoreEOL` and appends `--ignore-status end_of_life`; `GetTrivyCommand` does
+not take the parameter at all. A user copying the logged command gets different
+results from the scan they just watched. `RunTrivyMisconfig` and `GenerateSBOM`
+have no display counterpart at all, so their commands are never shown.
+
+The fix is not to add the missing flag but to remove the duplication: extract
+one pure `trivyArgs(...)` builder returning the binary name and its arguments,
+and have `RunTrivy` turn it into an `exec.Cmd` while `GetTrivyCommand` joins it
+into a string. Same for gitleaks. This is planned as the split step of phase 5
+for `internal/scan`, since it is also what makes the argument surface testable.
+
 ---
 
 ## 2. Technical debt
 
 ### Test coverage
 
-Currently **65.2 %** overall; the agreed target is 80 %, which needs roughly
-**+2 900 covered statements** over today's ~7 500.
+Currently **70.5 %** overall; the agreed target is 80 %.
 
 Phased plan, with the harness and most of phase 1 delivered:
 
@@ -341,8 +410,8 @@ Phased plan, with the harness and most of phase 1 delivered:
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **done** |
 | 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **done** |
 | 4 | `ui/oci_resources` | **done** — 43.4 %, the rest deferred to phase 6 |
-| 5 | Router and I/O seams (`app`, `scan`, `docker`) | pending (~1 360 stmts) |
-| 6 | Remainder to reach 80 % | pending (~400 stmts) |
+| 5 | Router and I/O seams (`app`, `scan`, `docker`) | `app` **done** (90.5 %); `scan` and `docker` pending |
+| 6 | Remainder to reach 80 % | pending |
 
 Phase 1 progress:
 
@@ -499,8 +568,20 @@ installing a credential helper that sleeps.
 
 ### Files over the 800-line ceiling
 
-The project's own coding rules cap files at 800 lines. **One still exceeds it**:
-`internal/app/app.go`, at 1333 lines, which phase 5 covers.
+The project's own coding rules cap files at 800 lines. **None now exceeds it.**
+
+`internal/app/app.go` (1552 lines — the 1333 recorded earlier was stale) was the
+last one. It was split into `keys.go`, `command_line.go`, `context.go`,
+`theme.go`, `gitlab.go`, `scan_details.go`, `selection.go`, `help_overlay.go`
+and `view.go`; the largest is 242 and `app.go` itself is 337. Unlike the earlier
+splits this one was not purely mechanical, and the coverage figure moved with it
+(72.4 % → 74.7 %): the two `maybe*` handlers, the two cached-result paths, the
+two delegated-scan handlers and the two picker overlays were each one function
+duplicated twice, and folding them together removed statements rather than
+covering them. `New()` also gained a `newWithSize(cfg, w, h)` seam so the
+constructor can be exercised — `New` itself reads the terminal size from
+`os.Stdout` and panics when there is none, which is always the case under
+`go test`.
 
 `internal/ui/oci_resources/update.go` (1707 lines — the 1556 recorded earlier
 was stale) was split into `keys.go`, `images.go`, `resources.go`,
@@ -557,6 +638,19 @@ Use it for phases 4 and 5. The discipline that makes it work is
 asserting on behaviour rather than on internals — no test named a file, and the
 only ones that reach into the model do so for state the view has no other way to
 expose.
+
+It held for `internal/app` too (9.3 % → 72.4 % → split → 90.5 %), with one
+qualification worth recording: the coverage figure moved across that split, from
+72.4 % to 74.7 %. That is not drift in the tests — it is the only split so far
+that also deduplicated, and removing a duplicated branch removes uncovered
+statements. When a split is purely mechanical the figure should still be
+identical to the statement; when it is not, say which it was.
+
+The router is where this pass paid for itself. Four of the five defects it found
+(D15–D18) are invisible from any single view: `esc` swallowed before it is
+forwarded, a documented command the parser rejects, a completion catalogue that
+has drifted from the parser, a header that overflows its window. A view's own
+tests drive its `Update` directly and so never see the router at all.
 
 ### Race detector cannot run locally
 
