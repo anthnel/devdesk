@@ -39,11 +39,23 @@ stale "Press [n]" in its empty state.
 except `/`. The check caught it on its first run.
 
 `security` broke the streak — its help documents every key its header
-advertises, across all four states. So the drift was not universal after all;
-three of the five views that carried it were the ones where a binding had been
-renamed by Rule 111 and the help was not updated with it.
+advertises, across all four states.
 
-All four are fixed, and every view in `internal/ui` now asserts that each key
+`oci_resources` then produced the worst instance, in phase 4. The Networks and
+Volumes tabs documented `n` for a binding that has been `ctrl+n` since Rule 111
+renamed it — the same drift `status` and `workspaces` carried — but the **whole
+Registries tab was undocumented**: `ctrl+n`, `e`, `l` and `L` appeared nowhere,
+so four actions on a tab were reachable only by guessing.
+
+That view needed one adjustment to the check: its help qualifies most keys with
+the tab they belong to (`enter (Images)`, `ctrl+n (Networks)`), so the
+parenthetical comes off before matching. That convention is worth keeping — with
+four tabs sharing a keymap, an unqualified `enter` would be ambiguous.
+
+So the pattern across five views: the drift is a Rule 111 rename the help did
+not follow, plus whole surfaces added later and never documented at all.
+
+All five are fixed, and every view in `internal/ui` now asserts that each key
 `GetShortcuts()` advertises appears in `GetHelpContent()` — the check that would
 have caught the drift when it was introduced.
 
@@ -73,6 +85,23 @@ The containers view avoids this by calling `GotoTop()` after every filter
 change; workspaces had no equivalent. **`explorer` had it too**, and only on the
 filter path — its drill-down was already safe because it calls `GotoTop()`.
 Fixed the same way.
+
+**Two tabs reported nothing when Docker was down.** Found in phase 4.
+`handleImagesList` has always set a footer message on failure;
+`handleNetworksList` and `handleVolumesList` only logged, so with the daemon
+stopped those two tabs showed an empty table — indistinguishable from "you have
+no networks". Both now match their sibling.
+
+**The Registries tab opened empty.** `switchTab` focused the table and fired the
+`docker login` status check, but never called `updateRegistryTable()` — so the
+tab stayed blank until an asynchronous Docker call answered, even though the
+registries come from the config file and were available immediately.
+
+**A search counter with no floor.** `RegistryBrowser.AddRegistryTags`
+decremented `pendingSearches` unconditionally. A duplicate or late response drove
+it negative, and the *next* search then started from that base: `IsSearching()`
+stayed false while requests were genuinely in flight, so the spinner never
+showed. Floored at zero.
 
 **Footer messages with no timer.** `explorer.handleDeleteComplete` set
 `footerError` and returned `nil`, so a failed delete left "Delete failed — check
@@ -300,8 +329,8 @@ gains a group level at the same time.
 
 ### Test coverage
 
-Currently **55.3 %** overall; the agreed target is 80 %, which needs roughly
-**+6 000 covered statements** over today's ~3 400.
+Currently **65.2 %** overall; the agreed target is 80 %, which needs roughly
+**+2 900 covered statements** over today's ~7 500.
 
 Phased plan, with the harness and most of phase 1 delivered:
 
@@ -311,7 +340,7 @@ Phased plan, with the harness and most of phase 1 delivered:
 | 1 | Leaf components and pure helpers | **done** except the `ui/theme` complement (~55 stmts) |
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **done** |
 | 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **done** |
-| 4 | `ui/oci_resources` | pending (~1 995 stmts) |
+| 4 | `ui/oci_resources` | **done** — 43.4 %, the rest deferred to phase 6 |
 | 5 | Router and I/O seams (`app`, `scan`, `docker`) | pending (~1 360 stmts) |
 | 6 | Remainder to reach 80 % | pending (~400 stmts) |
 
@@ -421,6 +450,24 @@ from `pullProject` to make the SSH and HTTPS URL shapes assertable — `gitlab.C
 reports only an exit status, so the URL it was handed is not observable through
 the error.
 
+Phase 4, `internal/ui/oci_resources`, complete: 0 % → **43.4 %**, with the
+surface pass at 25.1 % and the split leaving it unchanged to the statement.
+
+It is the one package that stops short of the 80 % target, and deliberately.
+What remains is `commands.go` (every `docker` invocation), `connectivity_form.go`
+and the launch-form renderers — roughly 1 200 statements that want the seam
+phase 5 builds rather than more view tests. Doing them now would mean either
+stubbing Docker by hand or writing renderer tests that pin pixel layout;
+neither earns its keep.
+
+The three-step order held here too, on the largest package of the lot: 6 039
+lines across eleven files, of which `update.go` (1 707) and
+`registry_browser.go` (918) were the last two over the ceiling. The surface pass
+was 25.1 %, well below the 52–60 % the phase 3 packages reached, and that turned
+out not to matter: what a split needs is a net under *the code being moved*, and
+`update.go` was at 60/86 functions when it was cut. Judge the surface pass by
+the target file, not by the package total.
+
 `security` added the last variant of the same idea: its cache commands write to
 `~/.devdesk`, so `TestMain` redirects `HOME` and `USERPROFILE` at a temporary
 directory for the whole package and the purge and save commands are **executed**.
@@ -452,14 +499,16 @@ installing a credential helper that sleeps.
 
 ### Files over the 800-line ceiling
 
-The project's own coding rules cap files at 800 lines. Three still exceed it,
-all outside the views phase 3 covered:
+The project's own coding rules cap files at 800 lines. **One still exceeds it**:
+`internal/app/app.go`, at 1333 lines, which phase 5 covers.
 
-| File | Lines |
-|---|---|
-| `internal/ui/oci_resources/update.go` | 1556 |
-| `internal/app/app.go` | 1333 |
-| `internal/ui/oci_resources/registry_browser.go` | 822 |
+`internal/ui/oci_resources/update.go` (1707 lines — the 1556 recorded earlier
+was stale) was split into `keys.go`, `images.go`, `resources.go`,
+`registries.go`, `results.go`, `launch.go`, `table.go`, `layout.go` and
+`browser_bridge.go`; `update.go` itself is 364. `registry_browser.go` (918) was
+split into `browser_keys.go`, `browser_tags.go`, `browser_state.go` and
+`browser_view.go`; it is 243. The largest file in the package is now
+`commands.go` at 598, which was already under the ceiling.
 
 `internal/ui/security/model.go` (1991 lines, the largest file in the project)
 was split into `update.go`, `form.go`, `scan.go`, `findings.go`, `details.go`,
@@ -520,7 +569,7 @@ every push and pull request, on `ubuntu-latest`, which has a toolchain. The firs
 run reported no data race across all 17 packages.
 
 That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 55.3 %. Rule 110 violations in untested
+tests actually execute, and coverage is 65.2 %. Rule 110 violations in untested
 paths — most of the view layer — remain invisible. The two efforts compound, so
 this is an argument for the coverage phases rather than a substitute for them.
 Phase 2 puts the first full view state machine under the detector.
