@@ -11,6 +11,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -56,7 +57,6 @@ var errNotOnDisk = errors.New("open result: no such file or directory")
 func testConfig() *config.Config {
 	cfg := config.Default()
 	cfg.GitLab.URL = ""
-	cfg.GitLab.Token = ""
 	return cfg
 }
 
@@ -159,12 +159,16 @@ func router(t *testing.T, view tea.Model) *App {
 func routerAt(t *testing.T, view tea.Model, width, height int) *App {
 	t.Helper()
 	a := &App{
-		config:           testConfig(),
-		currentContext:   "default",
-		viewport:         newViewport(width, height),
-		currentView:      command.ViewDashboard,
-		views:            map[command.ViewType]tea.Model{command.ViewDashboard: view},
-		sharedState:      &shared.State{},
+		config:         testConfig(),
+		currentContext: "default",
+		viewport:       newViewport(width, height),
+		currentView:    command.ViewDashboard,
+		views:          map[command.ViewType]tea.Model{command.ViewDashboard: view},
+		// A session-only store, as newWithSize builds: it keeps the tests off
+		// the developer's real keychain and makes seeding a token one Save call.
+		sharedState: &shared.State{
+			Secrets: credentials.SessionOnly("under test"),
+		},
 		commandInput:     newCommandInput(),
 		completionEngine: command.NewCompletionEngine(),
 		width:            width,

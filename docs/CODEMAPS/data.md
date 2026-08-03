@@ -16,6 +16,7 @@ app:
   workspaces_dir: "~/code"         # For workspace discovery
   ide_command: "code"              # VS Code, IntelliJ, etc.
   terminal_command: ""             # Auto-detect kitty/tmux/etc
+  secret_backend: "auto"           # auto|keyring|git-credential
 
 status:
   refresh_interval: 30             # seconds
@@ -29,7 +30,9 @@ status:
 
 gitlab:
   url: "https://gitlab.example.com"
-  token: "${GITLAB_TOKEN}"         # Via env var or credential helper
+  # No token here. It lives in the host secret manager — see the credentials
+  # section below. A `token:` left by an older DevDesk is moved into the store
+  # and removed from this file on load.
   default_parent_group: "my-org"
   default_visibility: "private"    # private|internal|public
   clone_method: "https"            # https|ssh
@@ -372,14 +375,27 @@ type Issue struct {
 
 ## Credentials Storage
 
-**GitCredentialStorage** (preferred):
-- Uses system credential helper (`git-credential-osxkeychain`, `git-credential-manager`, etc.)
-- Scoped per context (URL encoded)
-- Secure: no plaintext storage
+No secret is written to a file DevDesk owns. `credentials.Select(context,
+app.secret_backend)` resolves **one** destination per context and returns a
+`Selection{Storage, Backend, Detail}`; the router keeps it in
+`shared.State.Secrets` for the lifetime of that context.
 
-**FileStorage** (fallback):
-- `~/.devdesk/credentials.json` (mode 0600)
-- Simple encrypted wrapper (optional)
+**KeyringStorage** (default):
+- The host's own secret manager, via `zalando/go-keyring` — no cgo
+- Windows Credential Manager / macOS Keychain / Secret Service (Linux, BSD)
+- Service `devdesk`, account `<context>/<url>`, so contexts stay isolated
+- Visible and revocable in the host's own UI
 
-**MemoryStorage** (session-only):
-- Lost on app exit
+**GitCredentialStorage** (alternative, when no host store answers):
+- Uses git's configured credential helper, scoped per context via the path field
+- Refused when the helper is `store`: that one writes `~/.git-credentials` in
+  plaintext, which is the failure being removed
+
+**MemoryStorage** (last resort):
+- Lost on app exit, and the auth view says so in a warning
+- Deliberately worse than a file: a fallback that silently persists is how the
+  old "secure" option came to write plaintext
+
+Migration: `credentials.MigrateLegacySecrets` runs on load and on every context
+switch. A `gitlab.token` or `registry.password` left in a context file by an
+older build is moved into the store and deleted from the YAML.

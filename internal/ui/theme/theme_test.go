@@ -111,7 +111,7 @@ func TestBgWrap_MultiLine(t *testing.T) {
 	}
 }
 
-// ── RenderCheckbox / RenderCheckboxDisabled / RenderRadioButton ──────────────
+// ── RenderCheckbox / RenderCheckboxDisabled ─────────────────────────────────
 
 func TestRenderCheckbox_Checked(t *testing.T) {
 	result := RenderCheckbox(true, "Option A", true)
@@ -131,20 +131,6 @@ func TestRenderCheckboxDisabled(t *testing.T) {
 	result := RenderCheckboxDisabled("Disabled option")
 	if result == "" {
 		t.Error("RenderCheckboxDisabled() returned empty string")
-	}
-}
-
-func TestRenderRadioButton_Selected(t *testing.T) {
-	result := RenderRadioButton(true, "Choice 1", true)
-	if result == "" {
-		t.Error("RenderRadioButton() returned empty string")
-	}
-}
-
-func TestRenderRadioButton_Unselected(t *testing.T) {
-	result := RenderRadioButton(false, "Choice 2", false)
-	if result == "" {
-		t.Error("RenderRadioButton(unselected) returned empty string")
 	}
 }
 

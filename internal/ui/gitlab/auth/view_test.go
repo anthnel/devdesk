@@ -5,8 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ── Edit mode ────────────────────────────────────────────────────────────────
@@ -23,11 +25,9 @@ func TestInEditModeOnlyOnTheTextFields(t *testing.T) {
 		}
 	}
 
-	for _, field := range []int{fieldSaveToHelper, fieldSaveToConfig, fieldLoginButton} {
-		m.currentField = field
-		if m.InEditMode() {
-			t.Errorf("InEditMode() is true on field %d, which holds no text input", field)
-		}
+	m.currentField = fieldSubmit
+	if m.InEditMode() {
+		t.Error("InEditMode() is true on the Login button, which holds no text input")
 	}
 }
 
@@ -54,10 +54,57 @@ func TestViewRendersTheLoginForm(t *testing.T) {
 
 	out := m.View()
 
-	for _, want := range []string{"GitLab URL", "Personal Access Token", "Save options", "Git Credential Manager", "config file", "Login"} {
+	for _, want := range []string{"GitLab URL", "Personal Access Token", "Login"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("View() is missing %q", want)
 		}
+	}
+
+	// The store the token goes to is named on the form. There is no choice to
+	// present any more, but the user still has to be able to read where their
+	// secret ends up (§3.9).
+	if !strings.Contains(out, "Test Keyring") {
+		t.Errorf("View() does not name the secret store:\n%s", out)
+	}
+	for _, gone := range []string{"Save options", "(•)", "( )"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("View() still renders %q — the save-option radios were removed", gone)
+		}
+	}
+}
+
+// A session-only fallback has to be visible without reading the source: a
+// fallback that silently fails to persist is how the old "secure" option came
+// to write plaintext.
+func TestViewWarnsWhenNothingIsPersisted(t *testing.T) {
+	m := New(testConfig(), credentials.SessionOnly("no store under test"), nil)
+	m = feed(t, m, testutil.Resize(100, 30))
+
+	out := m.View()
+	if !strings.Contains(out, "Nothing is saved") {
+		t.Errorf("View() does not warn that the token will not be kept:\n%s", out)
+	}
+	if !strings.Contains(out, theme.IconWarning) {
+		t.Error("the session-only notice is not marked as a warning")
+	}
+}
+
+// What the migration off plaintext configuration did is reported once, on the
+// view that owns the token.
+func TestViewReportsTheMigrationNotices(t *testing.T) {
+	m := New(testConfig(), persisted(newFakeStorage()), []string{"The GitLab token moved out of the configuration file."})
+	m = feed(t, m, testutil.Resize(100, 30))
+
+	if !strings.Contains(m.View(), "moved out of the configuration file") {
+		t.Error("View() does not report what the migration did")
+	}
+}
+
+func TestViewIsSilentWithoutMigrationNotices(t *testing.T) {
+	m := newTestModel(t, testConfig(), newFakeStorage())
+
+	if strings.Contains(m.View(), theme.IconLock) {
+		t.Error("View() rendered a migration notice block with nothing to report")
 	}
 }
 
@@ -66,7 +113,7 @@ func TestViewNeverRendersTheTokenInClear(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 	m.tokenInput.SetValue("glpat-supersecret")
 
-	for field := fieldURL; field <= fieldLoginButton; field++ {
+	for field := fieldURL; field <= fieldSubmit; field++ {
 		m.currentField = field
 		if strings.Contains(m.View(), "supersecret") {
 			t.Fatalf("View() rendered the token in clear with field %d focused", field)
@@ -149,9 +196,9 @@ func TestViewRendersTheError(t *testing.T) {
 func TestViewRendersTheSaveWarning(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	m = feed(t, m, AuthResultMsg{User: testUser(), SaveWarning: "credential helper unavailable"})
+	m = feed(t, m, AuthResultMsg{User: testUser(), SaveWarning: "the secret store refused the write"})
 
-	if !strings.Contains(m.View(), "credential helper unavailable") {
+	if !strings.Contains(m.View(), "the secret store refused the write") {
 		t.Error("View() does not surface the save warning")
 	}
 }
@@ -160,27 +207,11 @@ func TestViewRendersTheSaveWarning(t *testing.T) {
 // than its padding.
 func TestViewSurvivesANarrowTerminal(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
-	m = feed(t, m, AuthResultMsg{User: testUser(), SaveWarning: "credential helper unavailable"})
+	m = feed(t, m, AuthResultMsg{User: testUser(), SaveWarning: "the secret store refused the write"})
 	m = feed(t, m, testutil.Resize(10, 10))
 
 	if out := m.View(); out == "" {
 		t.Error("View() returned nothing on a narrow terminal")
-	}
-}
-
-// The selected radio button has to be visibly distinct from the focused one:
-// focus moves with the cursor, selection is the actual choice.
-func TestRadioButtonsDistinguishFocusFromSelection(t *testing.T) {
-	m := newTestModel(t, testConfig(), newFakeStorage())
-	m.currentField = fieldSaveToConfig // focus on the second, selection still the first
-
-	focusedOther := m.View()
-
-	m.saveOption = SaveToConfig
-	bothOnSecond := m.View()
-
-	if focusedOther == bothOnSecond {
-		t.Error("selecting the focused radio button changed nothing in the render")
 	}
 }
 

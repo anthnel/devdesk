@@ -21,7 +21,7 @@
 |--------|--------------------------|
 | **Multi-ligne** : libellé ↵ contenu | `\n\n` (ligne vide) |
 | **Mono-ligne** : libellé + contenu sur la même ligne | `\n` |
-| **Checkboxes / radio buttons** | `\n` entre eux, `\n\n` après le groupe |
+| **Checkboxes** | `\n` entre elles, `\n\n` après le groupe |
 
 Les fonctions `renderField()` ne doivent **PAS** inclure le séparateur final.
 
@@ -73,13 +73,19 @@ theme.KeyStyle.Render("▸ Server: ") + input.View()
 
 **Cursor TextInput** : configurer via `theme.StyleTextInput(&myInput)` (met `Prompt = ""`).
 
-**Checkboxes/RadioButtons** : via `theme.RenderCheckbox()` / `theme.RenderRadioButton()`.
+**Checkboxes** : via `theme.RenderCheckbox()`.
+
+**Il n'y a pas de radio buttons.** Pour un ensemble fermé de valeurs, le contrôle
+est le champ à cycle `←→` (Rule 132) — quel que soit le nombre de valeurs, y
+compris deux. `theme.RenderRadioButton()` a été supprimé avec ses deux derniers
+appelants (§3.9 du backlog) ; le recréer localement est interdit.
 
 Interdit :
 - ❌ `▸` comme indicateur de focus (utiliser `theme.IconCircleSmall`)
 - ❌ `:` comme séparateur label/valeur (utiliser `theme.IconChevronRight`)
 - ❌ `ColorPrimary` pour les éléments focusés (utiliser `ColorHighlight`)
-- ❌ Recréer `RenderCheckbox`/`RenderRadioButton` localement
+- ❌ Recréer `RenderCheckbox` localement
+- ❌ Réintroduire des radio buttons, sous quelque forme que ce soit
 
 ### Rule 131 : Padding haut des formulaires dans le viewport
 
@@ -108,6 +114,11 @@ Ne s'applique pas aux modales (positionnées par `lipgloss.Place`).
 ### Rule 132 : Champs à liste fermée (cycle de valeurs)
 
 **Tout champ dont la valeur appartient à un ensemble fini doit utiliser le pattern cycle ←→.**
+
+C'est le **seul** contrôle admis pour un ensemble fermé. Les radio buttons ne
+sont pas une alternative pour deux ou trois valeurs : ils n'existent plus dans
+l'application (Rule 120). Les checkboxes restent pour les booléens indépendants,
+ce qui est autre chose qu'un choix exclusif.
 
 #### Visuel
 
@@ -161,6 +172,7 @@ Interdit :
 - ❌ Utiliser `Enter` pour cycler les valeurs
 - ❌ Ouvrir une liste déroulante pour 2–4 valeurs (réserver aux longues listes, cf. `renderTemplateList`)
 - ❌ Hardcoder la couleur de la valeur (utiliser `ColorText`)
+- ❌ Utiliser des radio buttons pour un ensemble fermé (Rule 120)
 
 ### Rule 121 : Iconographie circulaire pour les statuts
 

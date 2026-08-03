@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
@@ -109,14 +110,39 @@ func New(cfg *config.Config) *App {
 	if err != nil {
 		panic(err)
 	}
-	return newWithSize(cfg, width, height)
+	app := newWithSize(cfg, width, height)
+	app.useSecrets(credentials.Select(app.currentContext, cfg.App.SecretBackend))
+	return app
+}
+
+// useSecrets points the router at a resolved secret store and sweeps whatever
+// plaintext an earlier version left in this context's configuration file.
+//
+// It is separate from newWithSize because resolving a backend is I/O — a probe
+// of the host store and a read of git's configuration — and a constructor that
+// reaches for the machine's keyring is one tests cannot run twice the same way.
+func (a *App) useSecrets(sel credentials.Selection) {
+	a.sharedState.Secrets = sel
+	a.sharedState.SecretNotices = credentials.MigrateLegacySecrets(sel.Storage, a.currentContext)
+	log.Printf("Secret backend for context %q: %s", a.currentContext, sel.Backend)
+
+	// The auth view holds the storage it was built with, so rebuild it if it
+	// already exists. Every other view reaches secrets through the router.
+	if _, ok := a.views[command.ViewGitlabAuth]; ok {
+		a.views[command.ViewGitlabAuth] = a.newAuthView()
+	}
 }
 
 // newWithSize builds the router at a given size. New() reads that size from the
 // terminal; splitting it out keeps the constructor itself free of I/O.
 func newWithSize(cfg *config.Config, width, height int) *App {
 	currentContext, _ := config.GetCurrentContext()
-	sharedState := &shared.State{}
+
+	// Un store est toujours présent : les vues n'ont jamais à tester le nil.
+	// New() remplace celui-ci par le backend réel via useSecrets.
+	sharedState := &shared.State{
+		Secrets: credentials.SessionOnly("no secret store has been resolved yet"),
+	}
 
 	app := &App{
 		config:           cfg,

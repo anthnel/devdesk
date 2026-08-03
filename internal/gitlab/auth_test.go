@@ -173,7 +173,7 @@ func TestAuthenticateReturnsUserAndSavesToken(t *testing.T) {
 	storage := credentials.NewMemoryStorage()
 	auth := NewAuth(storage)
 
-	result, err := auth.Authenticate(f.server.URL, "test-token", true)
+	result, err := auth.Authenticate(f.server.URL, "test-token")
 
 	if err != nil {
 		t.Fatalf("Authenticate() error = %v", err)
@@ -197,17 +197,23 @@ func TestAuthenticateReturnsUserAndSavesToken(t *testing.T) {
 	}
 }
 
-func TestAuthenticateSkipsSaveWhenNotRequested(t *testing.T) {
+// AuthenticateOnly is the auto-login path: the token it is handed came out of
+// the store, so writing it back would be a round trip for nothing.
+func TestAuthenticateOnlyStoresNothing(t *testing.T) {
 	f := newFakeGitLab(t, jsonHandler(http.StatusOK, `{"id":7,"username":"alice"}`))
 	storage := credentials.NewMemoryStorage()
 	auth := NewAuth(storage)
 
-	if _, err := auth.Authenticate(f.server.URL, "test-token", false); err != nil {
-		t.Fatalf("Authenticate() error = %v", err)
+	result, err := auth.AuthenticateOnly(f.server.URL, "test-token")
+	if err != nil {
+		t.Fatalf("AuthenticateOnly() error = %v", err)
+	}
+	if result.User == nil || result.User.Username != "alice" {
+		t.Errorf("result.User = %+v, want alice", result.User)
 	}
 
 	if _, err := storage.Load(f.server.URL); err == nil {
-		t.Error("token was saved even though saveCredentials was false")
+		t.Error("AuthenticateOnly() wrote to the store")
 	}
 }
 
@@ -215,7 +221,7 @@ func TestAuthenticateWarnsButSucceedsWhenSaveFails(t *testing.T) {
 	f := newFakeGitLab(t, jsonHandler(http.StatusOK, `{"id":7,"username":"alice"}`))
 	auth := NewAuth(&failingStorage{})
 
-	result, err := auth.Authenticate(f.server.URL, "test-token", true)
+	result, err := auth.Authenticate(f.server.URL, "test-token")
 
 	// A credential store that refuses the write must not cost the user their session.
 	if err != nil {
@@ -233,7 +239,7 @@ func TestAuthenticateWithoutStorageDoesNotWarn(t *testing.T) {
 	f := newFakeGitLab(t, jsonHandler(http.StatusOK, `{"id":7,"username":"alice"}`))
 	auth := NewAuth(nil)
 
-	result, err := auth.Authenticate(f.server.URL, "test-token", true)
+	result, err := auth.Authenticate(f.server.URL, "test-token")
 
 	if err != nil {
 		t.Fatalf("Authenticate() error = %v", err)
@@ -248,7 +254,7 @@ func TestAuthenticateRejectsBadToken(t *testing.T) {
 	storage := credentials.NewMemoryStorage()
 	auth := NewAuth(storage)
 
-	result, err := auth.Authenticate(f.server.URL, "wrong-token", true)
+	result, err := auth.Authenticate(f.server.URL, "wrong-token")
 
 	if err == nil {
 		t.Fatal("Authenticate() with a rejected token returned no error")
@@ -264,7 +270,7 @@ func TestAuthenticateRejectsBadToken(t *testing.T) {
 func TestAuthenticateRejectsMalformedURL(t *testing.T) {
 	auth := NewAuth(credentials.NewMemoryStorage())
 
-	if _, err := auth.Authenticate("://not-a-url", "test-token", true); err == nil {
+	if _, err := auth.Authenticate("://not-a-url", "test-token"); err == nil {
 		t.Error("Authenticate() with a malformed URL returned no error")
 	}
 }

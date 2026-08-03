@@ -11,22 +11,19 @@ import (
 )
 
 func (m Model) InEditMode() bool {
-	// En mode édition seulement si un textinput a le focus (champs 0 ou 1)
+	// En mode édition seulement si un textinput a le focus
 	// et que l'utilisateur n'est pas en train d'authentifier
 	// Si authentifié, on n'est plus en mode édition
 	if m.authenticated || m.authenticating {
 		return false
 	}
 	// En mode édition si on est sur un des champs de texte
-	return m.currentField == 0 || m.currentField == 1
+	return m.currentField == fieldURL || m.currentField == fieldToken
 }
 
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	return []shortcut.Shortcut{
 		{Key: "enter", Description: "Submit / Advance field"},
-		{Key: "space", Description: "Select option"},
-		{Key: "ctrl+s", Description: "Toggle save to helper"},
-		{Key: "ctrl+f", Description: "Toggle save to config"},
 		{Key: "alt+:", Description: "Command mode"},
 		{Key: "?", Description: "Help"},
 	}
@@ -65,16 +62,15 @@ func (m Model) GetHelpContent() help.Content {
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑ / ↓", Description: "Navigate between form fields"},
 			{Key: "enter", Description: "Submit form / advance to next field"},
-			{Key: "space", Description: "Select save option"},
-			{Key: "ctrl+s", Description: "Toggle save to Git Credential Manager"},
-			{Key: "ctrl+f", Description: "Toggle save to config file"},
 			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{
 			{
-				Title: "Save Options",
-				Body:  "Git Credential Manager (recommended): stores the token securely via Git's credential helper. The token does not appear in configuration files.\n\nConfig file: saves the token in ~/.devdesk/contexts/<context>/config.yaml. Less secure but works without a credential helper.",
+				Title: "Where the token is stored",
+				Body: "The token goes to the host's own secret manager — the Windows Credential Manager, the macOS Keychain, or a Secret Service implementation on Linux. It is never written to a configuration file.\n\n" +
+					"When no such store answers, DevDesk falls back to git's credential helper, provided git is configured with one that does not itself write plaintext. Failing that, the token is kept for this session only and you will be asked for it again next launch — the view says so when that happens.\n\n" +
+					"Set app.secret_backend in the context configuration to \"keyring\" or \"git-credential\" to pin one of them instead of letting DevDesk choose.",
 			},
 			{
 				Title: "Personal Access Token",
@@ -96,6 +92,11 @@ func (m *Model) View() string {
 	// Warning (non-bloquant, ex: échec sauvegarde credentials)
 	if m.warning != "" {
 		sections = append(sections, m.renderWarning())
+	}
+
+	// Ce que la migration hors du fichier de config a fait, le cas échéant
+	if len(m.notices) > 0 {
+		sections = append(sections, m.renderNotices())
 	}
 
 	// Form
@@ -126,7 +127,7 @@ func (m *Model) renderForm() string {
 	// Sinon, afficher le formulaire de login
 	// URL
 	labelStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Bold(true)
-	if m.currentField == 0 {
+	if m.currentField == fieldURL {
 		labelStyle = labelStyle.Foreground(theme.ColorPrimary)
 	}
 	b.WriteString(labelStyle.Render("GitLab URL") + "\n")
@@ -134,22 +135,44 @@ func (m *Model) renderForm() string {
 
 	// Token
 	labelStyle = lipgloss.NewStyle().Background(theme.ColorBackground).Bold(true)
-	if m.currentField == 1 {
+	if m.currentField == fieldToken {
 		labelStyle = labelStyle.Foreground(theme.ColorPrimary)
 	}
 	b.WriteString(labelStyle.Render("Personal Access Token") + "\n")
 	b.WriteString(m.tokenInput.View() + "\n\n")
 
-	// Options
-	b.WriteString(theme.DimStyle.Render("Save options:") + "\n")
-
-	b.WriteString(theme.RenderRadioButton(m.saveOption == SaveToHelper, "Save to Git Credential Manager (secure)", m.currentField == 2) + "\n")
-	b.WriteString(theme.RenderRadioButton(m.saveOption == SaveToConfig, "Save token to config file (less secure)", m.currentField == 3) + "\n\n")
+	// Destination du token. Ce n'est pas un choix — c'est le seul chemin — mais
+	// l'utilisateur doit pouvoir lire où part son secret, et surtout constater
+	// quand rien n'est enregistré (§3.9).
+	b.WriteString(m.renderSecretDestination() + "\n\n")
 
 	// Button
-	b.WriteString(theme.RenderButton("Login", m.currentField == 4, "primary"))
+	b.WriteString(theme.RenderButton("Login", m.currentField == fieldSubmit, "primary"))
 
 	return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1, 2).Render(b.String())
+}
+
+// renderSecretDestination names the store the token goes to, or warns that
+// there is none. The warning is deliberately the louder of the two.
+func (m *Model) renderSecretDestination() string {
+	if m.secrets.Persists() {
+		return theme.DimStyle.Render(m.secrets.Detail)
+	}
+	return lipgloss.NewStyle().
+		Background(theme.ColorBackground).
+		Foreground(theme.ColorWarn).
+		Render(theme.IconWarning + " " + m.secrets.Detail)
+}
+
+// renderNotices reports what the migration off plaintext configuration did.
+// Empty in every normal run — it only has something to say the first time a
+// user launches a build that no longer keeps secrets in config.yaml.
+func (m *Model) renderNotices() string {
+	style := lipgloss.NewStyle().
+		Background(theme.ColorBackground).
+		Foreground(theme.ColorHighlight).
+		Padding(1, 2)
+	return style.Render(theme.IconLock + " " + strings.Join(m.notices, "\n  "))
 }
 
 func (m *Model) renderLoggedInView() string {
@@ -171,7 +194,7 @@ func (m *Model) renderLoggedInView() string {
 	b.WriteString("\n")
 
 	// Bouton Logout
-	b.WriteString(theme.RenderButton("Logout", m.currentField == 0, "danger"))
+	b.WriteString(theme.RenderButton("Logout", m.currentField == fieldURL, "danger"))
 
 	return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1, 2).Render(b.String())
 }

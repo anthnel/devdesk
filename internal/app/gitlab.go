@@ -7,7 +7,6 @@ import (
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/gitlab"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 )
@@ -22,8 +21,7 @@ type GitLabAutoLoginMsg struct {
 // tryAutoLogin tente de se connecter automatiquement à GitLab avec les credentials sauvegardés
 func (a *App) tryAutoLogin() tea.Cmd {
 	url := a.config.GitLab.URL
-	currentContext := a.currentContext
-	fallbackToken := a.config.GitLab.Token
+	storage := a.sharedState.Secrets.Storage
 
 	// Si pas d'URL configurée, pas d'auto-login
 	if url == "" {
@@ -31,23 +29,16 @@ func (a *App) tryAutoLogin() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		storage := credentials.NewChainStorage(
-			credentials.NewFileStorageForContext(currentContext),
-			credentials.NewGitCredentialStorageWithContext(currentContext),
-		)
 		gitlabAuth := gitlab.NewAuth(storage)
 
-		// Essayer de charger le token depuis le storage, sinon la config
+		// Le token vient du store et de nulle part ailleurs : il n'est plus
+		// écrit en clair dans la configuration (§3.9).
 		token, err := gitlabAuth.LoadCredentials(url)
 		if err != nil || token == "" {
-			token = fallbackToken
-			if token == "" {
-				return GitLabAutoLoginMsg{}
-			}
+			return GitLabAutoLoginMsg{}
 		}
 
-		// false = ne pas re-sauvegarder
-		result, err := gitlabAuth.Authenticate(url, token, false)
+		result, err := gitlabAuth.AuthenticateOnly(url, token)
 		if err != nil {
 			log.Printf("Auto-login failed: %v", err)
 			return GitLabAutoLoginMsg{Error: err}
@@ -85,8 +76,7 @@ func (a *App) handleAuthResult(msg auth.AuthResultMsg) (tea.Model, tea.Cmd) {
 		if err := config.Save(msg.ConfigToSave); err != nil {
 			log.Printf("ERROR: Failed to save config after authentication: %v", err)
 		} else {
-			log.Printf("Config saved successfully (URL: %s, TokenSaved: %v)",
-				msg.ConfigToSave.GitLab.URL, msg.SaveToConfig)
+			log.Printf("Config saved successfully (URL: %s)", msg.ConfigToSave.GitLab.URL)
 		}
 	}
 

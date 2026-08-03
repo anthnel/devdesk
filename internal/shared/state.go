@@ -1,8 +1,10 @@
 package shared
 
 import (
-	"github.com/anthnel/devdesk/internal/status"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
+
+	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/status"
 )
 
 // GitLabStats contains aggregated GitLab statistics for the dashboard
@@ -53,6 +55,12 @@ const (
 
 // State contient l'état partagé entre toutes les vues
 type State struct {
+	// Secrets is where this context's secrets live, resolved once by the
+	// router. Views read from it; only the auth view writes. SecretNotices is
+	// what the migration off plaintext configuration had to say, if anything.
+	Secrets       credentials.Selection
+	SecretNotices []string
+
 	// GitLab
 	GitLabClient    *gitlabclient.Client
 	IsAuthenticated bool

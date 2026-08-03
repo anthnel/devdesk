@@ -35,12 +35,20 @@ type AppConfig struct {
 	WorkspacesDir   string `yaml:"workspaces_dir"`
 	IDECommand      string `yaml:"ide_command"`
 	TerminalCommand string `yaml:"terminal_command"` // e.g. "kitty --directory" — empty = auto-detect
+
+	// SecretBackend pins where secrets are stored: "auto" (default), "keyring"
+	// for the host secret manager only, or "git-credential" for git's helper.
+	// See credentials.Select for what each one resolves to.
+	SecretBackend string `yaml:"secret_backend"`
 }
 
 // GitLabConfig contient la configuration GitLab
+//
+// Le token n'est pas ici : il vit dans le gestionnaire de secrets de l'hôte
+// (§3.9). Un `token:` laissé par une version antérieure est déplacé dans le
+// store puis retiré du fichier — voir secrets.go.
 type GitLabConfig struct {
 	URL                string           `yaml:"url"`
-	Token              string           `yaml:"token"`
 	DefaultParentGroup string           `yaml:"default_parent_group"`
 	DefaultVisibility  string           `yaml:"default_visibility"`
 	CloneMethod        string           `yaml:"clone_method"`
@@ -70,10 +78,11 @@ type RegistryItem struct {
 }
 
 // RegistryConfig contient la configuration du registre OCI
+//
+// Comme pour GitLabConfig, le mot de passe n'est pas ici (§3.9).
 type RegistryConfig struct {
 	URL                 string         `yaml:"url,omitempty"`
 	Username            string         `yaml:"username,omitempty"`
-	Password            string         `yaml:"password,omitempty"`
 	TemplatesRepository string         `yaml:"templates_repository"`
 	CacheDir            string         `yaml:"cache_dir"`
 	Registries          []RegistryItem `yaml:"registries,omitempty"`
@@ -561,7 +570,6 @@ func CreateContext(contextName string) error {
 	// Vider monitors et GitLab pour nouveau contexte
 	cfg.Status.Components = []ComponentConfig{}
 	cfg.GitLab.URL = ""
-	cfg.GitLab.Token = ""
 
 	// Sauvegarder
 	return SaveContext(cfg, contextName)

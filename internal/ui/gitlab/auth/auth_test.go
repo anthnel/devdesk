@@ -13,13 +13,13 @@ import (
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // The only Cmds here — authenticate() and logout() — reach the GitLab API and
-// the git credential helper, so no test executes one. loadSavedCredentials()
-// is the exception: it only reads the config and the injected storage, so it is
-// run directly.
+// the secret store, so no test executes one. loadSavedCredentials() is the
+// exception: it only reads the injected storage, so it is run directly.
 
 // This view logs its whole flow at INFO level.
 func TestMain(m *testing.M) {
@@ -29,17 +29,11 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// Field indices in the login form.
-const (
-	fieldURL          = 0
-	fieldToken        = 1
-	fieldSaveToHelper = 2
-	fieldSaveToConfig = 3
-	fieldLoginButton  = 4
-	fieldLogoutButton = 0 // the logged-in view has a single button
-)
+// The logged-in view has a single button, on the field the login form uses for
+// the URL.
+const fieldLogoutButton = fieldURL
 
-// fakeStorage records what the view asks of the credential store.
+// fakeStorage records what the view asks of the secret store.
 type fakeStorage struct {
 	token     string
 	loadErr   error
@@ -67,16 +61,25 @@ func (f *fakeStorage) Delete(url string) error {
 	return nil
 }
 
+// persisted wraps a storage in a Selection that claims to survive the session,
+// which is what every test but the memory-fallback ones assumes.
+func persisted(storage credentials.Storage) credentials.Selection {
+	return credentials.Selection{
+		Storage: storage,
+		Backend: credentials.BackendKeyring,
+		Detail:  "Secrets are stored in the Test Keyring.",
+	}
+}
+
 func testConfig() *config.Config {
 	cfg := config.Default()
 	cfg.GitLab.URL = ""
-	cfg.GitLab.Token = ""
 	return cfg
 }
 
 func newTestModel(t *testing.T, cfg *config.Config, storage *fakeStorage) *Model {
 	t.Helper()
-	m := New(cfg, storage)
+	m := New(cfg, persisted(storage), nil)
 	return feed(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
 }
 
@@ -118,12 +121,9 @@ func TestNewPrefillsTheURLFromConfig(t *testing.T) {
 	}
 }
 
-func TestNewDefaultsToTheSecureSaveOption(t *testing.T) {
+func TestNewStartsOnTheURLField(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	if m.saveOption != SaveToHelper {
-		t.Error("the default save option is the config file; the credential helper is the safe default")
-	}
 	if m.currentField != fieldURL {
 		t.Errorf("currentField = %d on a new form, want the URL field", m.currentField)
 	}
@@ -144,51 +144,31 @@ func TestTokenInputIsMasked(t *testing.T) {
 }
 
 func TestInitLoadsSavedCredentials(t *testing.T) {
-	if cmd := New(testConfig(), newFakeStorage()).Init(); cmd == nil {
+	if cmd := New(testConfig(), persisted(newFakeStorage()), nil).Init(); cmd == nil {
 		t.Fatal("Init() returned no command, so saved credentials are never loaded")
 	}
 }
 
 // ── Credential loading ───────────────────────────────────────────────────────
 
-// The config wins over the credential helper: a token written there is an
-// explicit choice by the user.
-func TestLoadSavedCredentialsPrefersTheConfig(t *testing.T) {
-	cfg := testConfig()
-	cfg.GitLab.URL = "https://gitlab.example.com"
-	cfg.GitLab.Token = "glpat-from-config"
-	storage := newFakeStorage()
-	storage.token = "glpat-from-storage"
-
-	msg := New(cfg, storage).loadSavedCredentials()().(CredentialsLoadedMsg)
-
-	if msg.Source != "config" {
-		t.Errorf("Source = %q, want \"config\"", msg.Source)
-	}
-	if msg.Token != "glpat-from-config" {
-		t.Errorf("Token = %q, want the config's", msg.Token)
-	}
-	if len(storage.loadCalls) != 0 {
-		t.Error("the credential helper was queried even though the config had a token")
-	}
-}
-
-func TestLoadSavedCredentialsFallsBackToStorage(t *testing.T) {
+// There is one source. The configuration file no longer carries a token, and a
+// build that left one there had it migrated into the store at startup (§3.9).
+func TestLoadSavedCredentialsReadsTheStore(t *testing.T) {
 	cfg := testConfig()
 	cfg.GitLab.URL = "https://gitlab.example.com"
 	storage := newFakeStorage()
-	storage.token = "glpat-from-storage"
+	storage.token = "glpat-from-store"
 
-	msg := New(cfg, storage).loadSavedCredentials()().(CredentialsLoadedMsg)
+	msg := New(cfg, persisted(storage), nil).loadSavedCredentials()().(CredentialsLoadedMsg)
 
-	if msg.Source != "storage" {
-		t.Errorf("Source = %q, want \"storage\"", msg.Source)
-	}
-	if msg.Token != "glpat-from-storage" {
+	if msg.Token != "glpat-from-store" {
 		t.Errorf("Token = %q, want the stored one", msg.Token)
 	}
+	if msg.URL != "https://gitlab.example.com" {
+		t.Errorf("URL = %q, want the configured one", msg.URL)
+	}
 	if len(storage.loadCalls) != 1 || storage.loadCalls[0] != "https://gitlab.example.com" {
-		t.Errorf("the helper was queried with %v, want the configured URL once", storage.loadCalls)
+		t.Errorf("the store was queried with %v, want the configured URL once", storage.loadCalls)
 	}
 }
 
@@ -196,12 +176,12 @@ func TestLoadSavedCredentialsReportsNothingFound(t *testing.T) {
 	tests := []struct {
 		name    string
 		url     string
-		storage *fakeStorage
+		storage credentials.Storage
 	}{
 		{"no URL configured", "", newFakeStorage()},
-		{"helper has no token", "https://gitlab.example.com", newFakeStorage()},
-		{"helper errors", "https://gitlab.example.com", &fakeStorage{loadErr: errors.New("helper unavailable"), saved: map[string]string{}}},
-		{"no storage at all", "https://gitlab.example.com", nil},
+		{"the store holds no token", "https://gitlab.example.com", newFakeStorage()},
+		{"the store errors", "https://gitlab.example.com", &fakeStorage{loadErr: errors.New("store unavailable"), saved: map[string]string{}}},
+		{"no store at all", "https://gitlab.example.com", nil},
 	}
 
 	for _, tc := range tests {
@@ -209,16 +189,11 @@ func TestLoadSavedCredentialsReportsNothingFound(t *testing.T) {
 			cfg := testConfig()
 			cfg.GitLab.URL = tc.url
 
-			var m *Model
-			if tc.storage == nil {
-				m = New(cfg, nil)
-			} else {
-				m = New(cfg, tc.storage)
-			}
+			m := New(cfg, credentials.Selection{Storage: tc.storage}, nil)
 
 			msg := m.loadSavedCredentials()().(CredentialsLoadedMsg)
 
-			if msg.Token != "" || msg.Source != "" {
+			if msg.Token != "" || msg.URL != "" {
 				t.Errorf("got %+v, want an empty result", msg)
 			}
 		})
@@ -230,7 +205,7 @@ func TestLoadSavedCredentialsReportsNothingFound(t *testing.T) {
 func TestCredentialsLoadedStartsAnAutoLogin(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	m, cmd := step(t, m, CredentialsLoadedMsg{URL: "https://gitlab.example.com", Token: "glpat-x", Source: "storage"})
+	m, cmd := step(t, m, CredentialsLoadedMsg{URL: "https://gitlab.example.com", Token: "glpat-x"})
 
 	if !m.authenticating {
 		t.Error("authenticating = false after credentials were loaded")
@@ -272,14 +247,14 @@ func TestIncompleteCredentialsDoNotAutoLogin(t *testing.T) {
 func TestVerticalNavigationClampsAtBothEnds(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		m = feed(t, m, testutil.Key("down"))
 	}
-	if m.currentField != fieldLoginButton {
-		t.Errorf("currentField = %d after repeated down, want %d (Login)", m.currentField, fieldLoginButton)
+	if m.currentField != fieldSubmit {
+		t.Errorf("currentField = %d after repeated down, want %d (Login)", m.currentField, fieldSubmit)
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		m = feed(t, m, testutil.Key("up"))
 	}
 	if m.currentField != fieldURL {
@@ -295,10 +270,10 @@ func TestFocusFollowsTheCurrentField(t *testing.T) {
 		t.Error("focus did not move from the URL to the token input")
 	}
 
-	// The radio buttons and the submit button hold no text input.
+	// The submit button holds no text input.
 	m = feed(t, m, testutil.Key("down"))
 	if m.urlInput.Focused() || m.tokenInput.Focused() {
-		t.Error("an input kept focus on the save-option radio buttons")
+		t.Error("an input kept focus on the Login button")
 	}
 }
 
@@ -320,50 +295,18 @@ func TestTypingReachesTheFocusedInput(t *testing.T) {
 	}
 }
 
-// ── Save options ─────────────────────────────────────────────────────────────
-
-func TestSaveOptionShortcuts(t *testing.T) {
+// Space used to be intercepted for the save-option radio buttons, which meant a
+// space could not be typed into either text field. With the radios gone it is
+// an ordinary character again.
+func TestSpaceIsAnOrdinaryCharacter(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	m = feed(t, m, testutil.Key("ctrl+f"))
-	if m.saveOption != SaveToConfig {
-		t.Error("ctrl+f did not select the config file")
-	}
+	// Type rather than Key: a terminal delivers a space as a rune, which is what
+	// the removed `case " "` used to intercept.
+	m = feed(t, m, testutil.Type(" ")...)
 
-	m = feed(t, m, testutil.Key("ctrl+s"))
-	if m.saveOption != SaveToHelper {
-		t.Error("ctrl+s did not select the credential helper")
-	}
-}
-
-// Rule 135: space selects, on the radio button that has focus.
-func TestSpaceSelectsTheFocusedSaveOption(t *testing.T) {
-	m := newTestModel(t, testConfig(), newFakeStorage())
-	m.currentField = fieldSaveToConfig
-
-	m = feed(t, m, testutil.Key(" "))
-	if m.saveOption != SaveToConfig {
-		t.Error("space on the config radio did not select it")
-	}
-
-	m.currentField = fieldSaveToHelper
-	m = feed(t, m, testutil.Key(" "))
-	if m.saveOption != SaveToHelper {
-		t.Error("space on the helper radio did not select it")
-	}
-}
-
-func TestSpaceIsInertOnTheOtherFields(t *testing.T) {
-	for _, field := range []int{fieldURL, fieldToken, fieldLoginButton} {
-		m := newTestModel(t, testConfig(), newFakeStorage())
-		m.currentField = field
-		m.saveOption = SaveToConfig
-
-		m = feed(t, m, testutil.Key(" "))
-
-		if m.saveOption != SaveToConfig {
-			t.Errorf("space on field %d changed the save option", field)
-		}
+	if got := m.urlInput.Value(); got != " " {
+		t.Errorf("URL input = %q after a space, want it typed through", got)
 	}
 }
 
@@ -381,22 +324,8 @@ func TestEnterAdvancesThroughTheTextFields(t *testing.T) {
 	}
 
 	m, _ = step(t, m, testutil.Key("enter"))
-	if m.currentField != fieldSaveToHelper {
-		t.Errorf("currentField = %d after enter on the token, want the first radio", m.currentField)
-	}
-}
-
-func TestEnterSelectsOnTheRadioButtons(t *testing.T) {
-	m := newTestModel(t, testConfig(), newFakeStorage())
-	m.currentField = fieldSaveToConfig
-
-	m, cmd := step(t, m, testutil.Key("enter"))
-
-	if m.saveOption != SaveToConfig {
-		t.Error("enter on the config radio did not select it")
-	}
-	if cmd != nil {
-		t.Error("enter on a radio button submitted the form")
+	if m.currentField != fieldSubmit {
+		t.Errorf("currentField = %d after enter on the token, want the Login button", m.currentField)
 	}
 }
 
@@ -418,7 +347,7 @@ func TestEnterOnTheButtonRequiresBothFields(t *testing.T) {
 			m := newTestModel(t, testConfig(), newFakeStorage())
 			m.urlInput.SetValue(tc.url)
 			m.tokenInput.SetValue(tc.token)
-			m.currentField = fieldLoginButton
+			m.currentField = fieldSubmit
 
 			m, cmd := step(t, m, testutil.Key("enter"))
 
@@ -494,17 +423,17 @@ func TestSuccessfulAuthResultRecordsTheUser(t *testing.T) {
 	}
 }
 
-// A failed credential save is not a failed login: the session is live, the
-// warning is informational.
+// A failed secret save is not a failed login: the session is live, the warning
+// is informational.
 func TestSaveWarningIsCarriedWithoutFailingTheLogin(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	m = feed(t, m, AuthResultMsg{User: testUser(), SaveWarning: "could not reach the credential helper"})
+	m = feed(t, m, AuthResultMsg{User: testUser(), SaveWarning: "could not reach the secret store"})
 
 	if !m.authenticated {
 		t.Error("a save warning was treated as a failed login")
 	}
-	if m.warning != "could not reach the credential helper" {
+	if m.warning != "could not reach the secret store" {
 		t.Errorf("warning = %q, want the save warning", m.warning)
 	}
 }
@@ -528,6 +457,24 @@ func TestFailedAuthResultSurfacesTheError(t *testing.T) {
 	}
 	if m.authenticating {
 		t.Error("authenticating = true after the result arrived, so the spinner never stops")
+	}
+}
+
+// The token goes to the store and the URL goes to the config. Nothing about the
+// token may end up in the file (§3.9).
+func TestTheConfigCarriedBackHoldsNoSecret(t *testing.T) {
+	m := newTestModel(t, testConfig(), newFakeStorage())
+	m.urlInput.SetValue("https://gitlab.example.com")
+	m.tokenInput.SetValue("glpat-secret")
+
+	if cmd := m.authenticate(); cmd == nil {
+		t.Fatal("authenticate() returned no command")
+	}
+
+	// The Cmd itself reaches the network, so assert on the config it was
+	// handed: it is the same pointer, and only the URL may be set on it.
+	if m.config.GitLab.URL != "" {
+		t.Error("authenticate() wrote to the config outside Update() (Rule 110)")
 	}
 }
 
@@ -573,9 +520,7 @@ func TestEnterLogsOutWhenAuthenticated(t *testing.T) {
 }
 
 func TestLogoutCompleteClearsTheSession(t *testing.T) {
-	cfg := testConfig()
-	cfg.GitLab.Token = "glpat-persisted"
-	m := newTestModel(t, cfg, newFakeStorage())
+	m := newTestModel(t, testConfig(), newFakeStorage())
 	m = feed(t, m, AuthResultMsg{User: testUser(), SaveWarning: "stale"})
 	m.tokenInput.SetValue("glpat-persisted")
 
@@ -587,9 +532,6 @@ func TestLogoutCompleteClearsTheSession(t *testing.T) {
 	if m.tokenInput.Value() != "" {
 		t.Error("the token stayed in the input after logging out")
 	}
-	if cfg.GitLab.Token != "" {
-		t.Error("the token stayed in the config after logging out")
-	}
 	if m.warning != "" || m.error != "" {
 		t.Error("a stale warning or error survived the logout")
 	}
@@ -598,6 +540,24 @@ func TestLogoutCompleteClearsTheSession(t *testing.T) {
 	}
 	if !m.urlInput.Focused() {
 		t.Error("the URL input is not focused after logging out")
+	}
+}
+
+// Logout has to reach the store. Anything left there would be picked up by the
+// next auto-login and silently sign the user back in.
+func TestLogoutDeletesFromTheStore(t *testing.T) {
+	storage := newFakeStorage()
+	m := newTestModel(t, testConfig(), storage)
+	m.urlInput.SetValue("https://gitlab.example.com")
+
+	cmd := m.logout()
+	if cmd == nil {
+		t.Fatal("logout() returned no command")
+	}
+	cmd()
+
+	if len(storage.deleted) != 1 || storage.deleted[0] != "https://gitlab.example.com" {
+		t.Errorf("deleted = %v, want the configured URL once", storage.deleted)
 	}
 }
 

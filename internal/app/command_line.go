@@ -6,7 +6,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/ui/containers"
 	"github.com/anthnel/devdesk/internal/ui/dashboard"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
@@ -164,13 +163,9 @@ func (a *App) createView(view command.ViewType) {
 // It is rebuilt on every switch rather than cached, so the form reflects the
 // session that is current now.
 func (a *App) newAuthView() tea.Model {
-	storage := credentials.NewChainStorage(
-		credentials.NewFileStorageForContext(a.currentContext),
-		credentials.NewGitCredentialStorageWithContext(a.currentContext),
-	)
 	log.Printf("Creating GitLab auth view with context: %s", a.currentContext)
 
-	authView := auth.New(a.config, storage)
+	authView := auth.New(a.config, a.sharedState.Secrets, a.sharedState.SecretNotices)
 	if a.sharedState.GitLabClient != nil && a.sharedState.CurrentUser != nil {
 		authView.SetAuth(a.sharedState.GitLabClient, a.sharedState.CurrentUser)
 	}
