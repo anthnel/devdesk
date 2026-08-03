@@ -30,6 +30,52 @@ func TestNewCompletionEngine(t *testing.T) {
 	}
 }
 
+// The catalogue and the parser used to be two hand-kept lists, and had drifted:
+// `gitlab-explorer`, `workspaces`, `security` and `net` all worked when typed in
+// full but could not be completed (§1.3 D17). They are one list now, and these
+// two tests are what keeps them one.
+
+func TestEverythingThatParsesCanBeCompleted(t *testing.T) {
+	engine := NewCompletionEngine()
+
+	for _, name := range everyCommandName() {
+		suggested := false
+		for _, s := range engine.GetSuggestions(name) {
+			if s.Text == name {
+				suggested = true
+				break
+			}
+		}
+		if !suggested {
+			t.Errorf("%q is accepted by the parser but never suggested", name)
+		}
+	}
+}
+
+func TestEverythingSuggestedCanBeRun(t *testing.T) {
+	for _, s := range NewCompletionEngine().commands {
+		if ParseCommand(s.Text).Type == CommandUnknown {
+			t.Errorf("%q is suggested but the parser rejects it", s.Text)
+		}
+	}
+}
+
+// everyCommandName is every spelling the parser accepts, views and actions
+// alike.
+func everyCommandName() []string {
+	names := make([]string, 0, len(viewNames)+len(actionNames)+len(actionAliases))
+	for name := range viewNames {
+		names = append(names, name)
+	}
+	for name := range actionNames {
+		names = append(names, name)
+	}
+	for name := range actionAliases {
+		names = append(names, name)
+	}
+	return names
+}
+
 func TestGetSuggestions_EmptyInput(t *testing.T) {
 	engine := NewCompletionEngine()
 	suggestions := engine.GetSuggestions("")

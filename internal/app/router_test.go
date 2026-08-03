@@ -138,33 +138,36 @@ func TestHelpOpensOnlyWhenTheViewOffersIt(t *testing.T) {
 	})
 }
 
-// D15, recorded not fixed: the router answers esc itself whenever the view is
-// not editing, so a view that uses esc for anything else never sees it. The
-// explorer's esc-to-drill-up (update.go, "esc" -> handleDrillUp) is dead code
-// through this path; only ← and h reach it.
-//
-// This test asserts the current behaviour and must fail when D15 is fixed.
-func TestEscIsSwallowedForAViewThatIsNotEditing(t *testing.T) {
-	view := &fakeView{}
-	a := router(t, view)
+// Esc belongs to the view, editing or not. The router used to answer it itself
+// whenever the view was not editing, which made every esc-to-go-back handler
+// dead code — the explorer's drill-up among them (D15).
+func TestEscAlwaysReachesTheView(t *testing.T) {
+	for _, editing := range []bool{false, true} {
+		view := &fakeView{editing: editing}
+		a := router(t, view)
 
-	a.handleKeyMsg(testutil.Key("esc"))
+		a.handleKeyMsg(testutil.Key("esc"))
 
-	if view.sawKey("esc") {
-		t.Error("esc reached the view — D15 is fixed, delete this test and its backlog entry")
+		if !view.sawKey("esc") {
+			t.Errorf("with editing=%v the view received %v, want esc", editing, view.keysSeen())
+		}
 	}
 }
 
-// Esc does reach a view that claims to be editing, which is the workaround the
-// security view relies on to answer esc at all.
-func TestEscReachesAViewThatIsEditing(t *testing.T) {
-	view := &fakeView{editing: true}
+// Handing esc to the view must not cost the command line its own: an open
+// command line answers esc first, and the view never sees that one.
+func TestAnOpenCommandLineAnswersEscItself(t *testing.T) {
+	view := &fakeView{}
 	a := router(t, view)
+	a.enterCommandMode()
 
 	a.handleKeyMsg(testutil.Key("esc"))
 
-	if !view.sawKey("esc") {
-		t.Errorf("the view received %v, want esc", view.keysSeen())
+	if a.commandMode {
+		t.Error("esc left the command line open")
+	}
+	if view.sawKey("esc") {
+		t.Errorf("the view also received esc: %v", view.keysSeen())
 	}
 }
 

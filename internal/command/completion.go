@@ -26,14 +26,23 @@ func NewCompletionEngine() *CompletionEngine {
 	return engine
 }
 
-// buildCommands initialise la liste des commandes depuis le parser
+// buildCommands dérive la liste des suggestions du parser, qui est la seule
+// source : tout ce qui se tape se complète, et rien d'autre.
 func (ce *CompletionEngine) buildCommands() {
-	var suggestions []Suggestion
-
-	// Récupérer les alias
+	fullNames := FullNames()
 	aliases := GetAliases()
+	suggestions := make([]Suggestion, 0, len(fullNames)+len(aliases))
 
-	// Ajouter les alias avec leur nom complet
+	for _, cmd := range fullNames {
+		suggestions = append(suggestions, Suggestion{
+			Text:     cmd,
+			Display:  cmd,
+			IsAlias:  false,
+			FullName: "",
+			Priority: 3, // Commandes complètes ont priorité basse
+		})
+	}
+
 	for alias, fullName := range aliases {
 		suggestions = append(suggestions, Suggestion{
 			Text:     alias,
@@ -43,46 +52,6 @@ func (ce *CompletionEngine) buildCommands() {
 			Priority: 2, // Alias ont priorité moyenne
 		})
 	}
-
-	// Ajouter les commandes complètes
-	commands := map[string]string{
-		"dashboard":     "dashboard",
-		"status":        "status",
-		"gitlab-auth":   "gitlab-auth",
-		"containers":    "containers",
-		"oci-resources": "oci-resources",
-		"context":       "context",
-		"theme":         "theme",
-		"quit":          "quit",
-	}
-
-	for cmd, display := range commands {
-		suggestions = append(suggestions, Suggestion{
-			Text:     cmd,
-			Display:  display,
-			IsAlias:  false,
-			FullName: "",
-			Priority: 3, // Commandes complètes ont priorité basse
-		})
-	}
-
-	// Ajouter alias pour context
-	suggestions = append(suggestions, Suggestion{
-		Text:     "ctx",
-		Display:  "ctx (context)",
-		IsAlias:  true,
-		FullName: "context",
-		Priority: 2,
-	})
-
-	// Ajouter alias pour quit
-	suggestions = append(suggestions, Suggestion{
-		Text:     "q",
-		Display:  "q (quit)",
-		IsAlias:  true,
-		FullName: "quit",
-		Priority: 2,
-	})
 
 	ce.commands = suggestions
 }

@@ -226,18 +226,14 @@ func (m Model) checkDependencies() tea.Cmd {
 	}
 }
 
-// InEditMode returns true when the view needs to handle ESC key
+// InEditMode reports whether a field or a modal has the keyboard, which is what
+// stops the router claiming ":", "q" and "?" for itself.
+//
+// The scanning, results and details states used to be listed here too, for one
+// reason: it was the only way to be handed esc. The router forwards esc
+// unconditionally now (§1.3 D15), so those states are ordinary again — and get
+// the command line, the help overlay and quit back with them.
 func (m Model) InEditMode() bool {
-	// Return true when:
-	// - typing in text input (StateInput with focused field 1, 7, or 10)
-	// - scan is in progress (ESC should cancel the scan)
-	// - in detail view (ESC should go back to results)
-	// - in file browser (ESC should cancel)
-	// - showing confirm modal (ESC should close it)
 	isTextInput := m.state == StateInput && (m.focusedField == 1 || m.focusedField == 7 || m.focusedField == 10)
-	return isTextInput ||
-		m.state == StateScanning ||
-		m.state == StateResults ||
-		m.state == StateDetails ||
-		m.confirmModal != nil
+	return isTextInput || m.confirmModal != nil
 }

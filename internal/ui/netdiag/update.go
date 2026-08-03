@@ -22,10 +22,10 @@ func (m *Model) InEditMode() bool {
 	case tabTopology:
 		return false
 	}
-	switch m.state {
-	case StateRunning, StateDetails:
-		return true
-	case StateInput:
+	// StateRunning and StateDetails were listed here only to be handed esc, which
+	// the router now forwards on its own (§1.3 D15). A running test and a details
+	// pane hold no field, so they claim no key.
+	if m.state == StateInput {
 		return m.focusedField == fieldTarget || m.focusedField == fieldPort || m.focusedField == fieldDNSServer
 	}
 	return false

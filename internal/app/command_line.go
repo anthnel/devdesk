@@ -155,7 +155,7 @@ func (a *App) createView(view command.ViewType) {
 		a.views[view] = containers.New(a.config)
 	case command.ViewOCIResources:
 		a.views[view] = ociresources.New(a.config)
-	case command.ViewNet:
+	case command.ViewNetdiag:
 		a.views[view] = netdiag.New(a.config)
 	}
 }

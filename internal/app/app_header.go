@@ -197,9 +197,12 @@ func buildShortcutLines(shortcuts shortcut.Shortcuts, col2Width int) []string {
 				line += theme.EmptyLineBg(colWidths[ci])
 			}
 		}
-		// Truncate if wider than col2Width
-		if lipgloss.Width(line) > col2Width && col2Width > 0 {
-			line = theme.PadWithBg(line, col2Width)
+		// Clip to the column. PadWithBg cannot do this — it pads a short line and
+		// returns a long one untouched — and a plain slice would cut an escape
+		// sequence in half, which is the hazard Rule 122 is about. MaxWidth
+		// truncates on rune boundaries and leaves the sequences intact.
+		if col2Width > 0 {
+			line = lipgloss.NewStyle().MaxWidth(col2Width).Render(line)
 		}
 		result[row] = line
 	}
