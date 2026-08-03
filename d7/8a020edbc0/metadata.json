@@ -3,9 +3,12 @@
   "checkpoint_id": "d78a020edbc0",
   "strategy": "manual-commit",
   "branch": "test/coverage-phase4-oci",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
-    "docs/backlog.md"
+    "docs/backlog.md",
+    "internal/ui/oci_resources/forms_test.go",
+    "internal/ui/oci_resources/view.go",
+    "internal/ui/oci_resources/view_test.go"
   ],
   "sessions": [
     {
@@ -14,13 +17,20 @@
       "compact_transcript": "/d7/8a020edbc0/0/transcript.jsonl",
       "content_hash": "/d7/8a020edbc0/0/content_hash.txt",
       "prompt": "/d7/8a020edbc0/0/prompt.txt"
+    },
+    {
+      "metadata": "/d7/8a020edbc0/1/metadata.json",
+      "transcript": "/d7/8a020edbc0/1/full.jsonl",
+      "compact_transcript": "/d7/8a020edbc0/1/transcript.jsonl",
+      "content_hash": "/d7/8a020edbc0/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 26,
-    "cache_creation_tokens": 104736,
-    "cache_read_tokens": 2671840,
-    "output_tokens": 15730,
-    "api_call_count": 14
+    "input_tokens": 74,
+    "cache_creation_tokens": 140010,
+    "cache_read_tokens": 18530051,
+    "output_tokens": 34186,
+    "api_call_count": 39
   }
 }
