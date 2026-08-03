@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "7ac4569e9cdd",
+  "strategy": "manual-commit",
+  "branch": "fix/d15-d18",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/app/app_header.go",
+    "internal/app/command_line.go",
+    "internal/app/command_line_test.go",
+    "internal/app/header_test.go",
+    "internal/app/keys.go",
+    "internal/app/router_test.go",
+    "internal/command/completion.go",
+    "internal/command/completion_test.go",
+    "internal/command/parser.go",
+    "internal/command/parser_test.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/model_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7a/c4569e9cdd/0/metadata.json",
+      "transcript": "/7a/c4569e9cdd/0/full.jsonl",
+      "compact_transcript": "/7a/c4569e9cdd/0/transcript.jsonl",
+      "content_hash": "/7a/c4569e9cdd/0/content_hash.txt",
+      "prompt": "/7a/c4569e9cdd/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1566,
+    "cache_creation_tokens": 403347,
+    "cache_read_tokens": 32762816,
+    "output_tokens": 117627,
+    "api_call_count": 178
+  }
+}

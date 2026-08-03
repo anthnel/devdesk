@@ -1,0 +1,9 @@
+vérifie les branches git, il y en a beaucoup, il faut faire du nettoyage
+
+---
+
+entire garde les contextes de sessions dans une branche à part, n'y touche pas
+
+---
+
+corrige les défauts
