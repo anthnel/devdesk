@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "848d6dc76c7c",
+  "strategy": "manual-commit",
+  "branch": "test/phase5-app",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/app_header.go",
+    "internal/app/command_line.go",
+    "internal/app/command_line_test.go",
+    "internal/app/command_mode_test.go",
+    "internal/app/context.go",
+    "internal/app/gitlab.go",
+    "internal/app/harness_test.go",
+    "internal/app/header_test.go",
+    "internal/app/help_overlay.go",
+    "internal/app/keys.go",
+    "internal/app/lifecycle_test.go",
+    "internal/app/overlay_test.go",
+    "internal/app/router_test.go",
+    "internal/app/scan_details.go",
+    "internal/app/selection.go",
+    "internal/app/theme.go",
+    "internal/app/view.go",
+    "internal/app/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/84/8d6dc76c7c/0/metadata.json",
+      "transcript": "/84/8d6dc76c7c/0/full.jsonl",
+      "compact_transcript": "/84/8d6dc76c7c/0/transcript.jsonl",
+      "content_hash": "/84/8d6dc76c7c/0/content_hash.txt",
+      "prompt": "/84/8d6dc76c7c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 191,
+    "cache_creation_tokens": 286025,
+    "cache_read_tokens": 21808120,
+    "output_tokens": 98461,
+    "api_call_count": 102
+  }
+}
