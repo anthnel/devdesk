@@ -1,8 +1,10 @@
 package explorer
 
 import (
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,23 +20,33 @@ import (
 // covers argument building and response mapping the way internal/gitlab does.
 // A stub would only prove the stub works.
 
-// fakeGitLab answers by path prefix. Anything unrouted 404s, so a request the
-// test did not expect shows up as an error rather than as a silent empty list.
+// fakeGitLab answers by path prefix, longest first. Anything unrouted 404s, so
+// a request the test did not expect shows up as an error rather than as a
+// silent empty list.
+//
+// Longest-first matters: "/api/v4/groups/1/members/all/1" prefix-matches both
+// "/api/v4/groups" (the list) and "/api/v4/groups/1/members" (the lookup).
+// Ranging over the map directly picked whichever came out first, so the member
+// lookup decoded a group array roughly half the time and the access level came
+// back 0. It passed locally and failed in CI.
 type fakeGitLab struct {
-	server *httptest.Server
-	routes map[string]string
-	paths  []string
+	server   *httptest.Server
+	prefixes []string
+	routes   map[string]string
+	paths    []string
 }
 
 func newFakeGitLab(t *testing.T, routes map[string]string) *fakeGitLab {
 	t.Helper()
-	f := &fakeGitLab{routes: routes}
+	f := &fakeGitLab{routes: routes, prefixes: slices.Sorted(maps.Keys(routes))}
+	slices.SortFunc(f.prefixes, func(a, b string) int { return len(b) - len(a) })
+
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.paths = append(f.paths, r.URL.Path)
-		for prefix, body := range f.routes {
+		for _, prefix := range f.prefixes {
 			if strings.HasPrefix(r.URL.Path, prefix) {
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(body))
+				_, _ = w.Write([]byte(f.routes[prefix]))
 				return
 			}
 		}
@@ -73,8 +85,9 @@ const (
 
 func TestLoadRootGroupsMapsTheResponse(t *testing.T) {
 	f := newFakeGitLab(t, map[string]string{
-		"/api/v4/groups/": memberJSON, // inherited member lookup
-		"/api/v4/groups":  twoGroupsJSON,
+		"/api/v4/groups/1/members": memberJSON, // inherited member lookup
+		"/api/v4/groups/2/members": memberJSON,
+		"/api/v4/groups":           twoGroupsJSON,
 	})
 	m := serverModel(t, f)
 
