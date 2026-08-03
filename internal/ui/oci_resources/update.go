@@ -360,6 +360,11 @@ func (m Model) switchTab(idx int) (tea.Model, tea.Cmd) {
 		m.volumeTable.Focus()
 	case tabRegistries:
 		m.registryTable.Focus()
+		// The registries come from config, so the table can be filled now
+		// rather than waiting on the login check — otherwise the tab opens
+		// empty and only fills once docker answers.
+		m.errorMsg = ""
+		m.updateRegistryTable()
 		return m, m.registryLoginStatusCmd()
 	}
 	m.errorMsg = ""
@@ -954,8 +959,10 @@ func (m Model) handleNetworksList(msg NetworksListMsg) (tea.Model, tea.Cmd) {
 	m.loadingNets = false
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] network list: %v", msg.Err)
-		return m, nil
+		m.errorMsg = "Failed to load networks — check logs"
+		return m, clearInfoMsgCmd()
 	}
+	m.errorMsg = ""
 	m.networks = msg.Networks
 	m.updateNetworkTable()
 	return m, nil
@@ -988,8 +995,10 @@ func (m Model) handleVolumesList(msg VolumesListMsg) (tea.Model, tea.Cmd) {
 	m.loadingVols = false
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] volume list: %v", msg.Err)
-		return m, nil
+		m.errorMsg = "Failed to load volumes — check logs"
+		return m, clearInfoMsgCmd()
 	}
+	m.errorMsg = ""
 	m.volumes = msg.Volumes
 	m.updateVolumeTable()
 	return m, nil

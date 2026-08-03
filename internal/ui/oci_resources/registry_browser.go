@@ -570,7 +570,13 @@ func (b *RegistryBrowser) openTagScanDetails() (*RegistryBrowser, tea.Cmd) {
 // AddRegistryTags incorporates results from one registry into the combined tag list.
 // Always decrements pendingSearches, even on error (tags will be nil).
 func (b *RegistryBrowser) AddRegistryTags(registryURL, alias, repo string, tags []string) {
-	b.pendingSearches--
+	// Floored: a duplicate or late response would otherwise drive the counter
+	// negative, and the next search would start from that base — IsSearching()
+	// would stay false while requests were genuinely in flight, so the spinner
+	// never showed.
+	if b.pendingSearches > 0 {
+		b.pendingSearches--
+	}
 	for _, tag := range tags {
 		b.tags = append(b.tags, MultiRegistryTag{
 			RegistryURL: registryURL,
