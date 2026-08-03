@@ -265,12 +265,17 @@ type Scanner struct {
 	deps    DependencyStatus
 }
 
-// NewScanner creates a new scanner with the given options
+// NewScanner creates a new scanner with the given options, detecting which
+// tools are available on this machine.
 func NewScanner(opts ScanOptions) *Scanner {
-	return &Scanner{
-		options: opts,
-		deps:    CheckDependenciesWithImages(opts.TrivyImage, opts.GitleaksImage),
-	}
+	return newScannerWithDeps(opts, CheckDependenciesWithImages(opts.TrivyImage, opts.GitleaksImage))
+}
+
+// newScannerWithDeps builds a scanner against a known set of tools. Detection
+// probes the machine it runs on, so tests state the availability they mean
+// instead of inheriting the developer's installation.
+func newScannerWithDeps(opts ScanOptions, deps DependencyStatus) *Scanner {
+	return &Scanner{options: opts, deps: deps}
 }
 
 // Scan performs a security scan on the target, running all enabled stages in parallel.
@@ -301,7 +306,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "vuln", Label: "Vulnerabilities", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, false, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed)
+			cmd := GetTrivyCommand(target, targetType, false, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
 			log.Printf("Running: %s", cmd)
 			findings, err := RunTrivy(egCtx, target, targetType, false, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL, progressFn)
 			mu.Lock()
@@ -324,7 +329,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "license", Label: "Licenses", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, true, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed)
+			cmd := GetTrivyCommand(target, targetType, true, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
 			log.Printf("Running: %s", cmd)
 			findings, err := RunTrivy(egCtx, target, targetType, true, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL, progressFn)
 			mu.Lock()
