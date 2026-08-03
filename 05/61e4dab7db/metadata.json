@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "0561e4dab7db",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase4-oci",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/oci_resources/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/05/61e4dab7db/0/metadata.json",
+      "transcript": "/05/61e4dab7db/0/full.jsonl",
+      "compact_transcript": "/05/61e4dab7db/0/transcript.jsonl",
+      "content_hash": "/05/61e4dab7db/0/content_hash.txt",
+      "prompt": "/05/61e4dab7db/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 564,
+    "cache_creation_tokens": 144341,
+    "cache_read_tokens": 1812183,
+    "output_tokens": 17910,
+    "api_call_count": 16
+  }
+}

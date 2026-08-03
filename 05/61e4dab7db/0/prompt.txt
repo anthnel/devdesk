@@ -1,0 +1,4 @@
+ne code rien mais je voudrais brainstormer sur la gestion des registres docker, analyse ce qui est implémenté aujourd'hui. Il y a plusieurs cas de figure à supporter :
+- un registre distant avec ou sans authentification
+- un groupe qui contient plusieurs registres distant, l'accès au groupe peut être soit anonyme ou pas. 
+je me demande comment bien gérer ces deux cas, il faudrait pouvoir dire qu'un registre fait partie d'un groupe dans la vue registry et pouvoir gérer la relation parent/enfant. Mais aussi lors du browse par registre/groupe il faudrait pouvoir gérer l'éventuelle authentification et filtrer par groupe/registre
