@@ -3,9 +3,13 @@
   "checkpoint_id": "0561e4dab7db",
   "strategy": "manual-commit",
   "branch": "test/coverage-phase4-oci",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
-    "internal/ui/oci_resources/update.go"
+    "internal/ui/oci_resources/ociresources_test.go",
+    "internal/ui/oci_resources/registry_browser.go",
+    "internal/ui/oci_resources/registry_browser_test.go",
+    "internal/ui/oci_resources/update.go",
+    "internal/ui/oci_resources/update_test.go"
   ],
   "sessions": [
     {
@@ -14,13 +18,20 @@
       "compact_transcript": "/05/61e4dab7db/0/transcript.jsonl",
       "content_hash": "/05/61e4dab7db/0/content_hash.txt",
       "prompt": "/05/61e4dab7db/0/prompt.txt"
+    },
+    {
+      "metadata": "/05/61e4dab7db/1/metadata.json",
+      "transcript": "/05/61e4dab7db/1/full.jsonl",
+      "compact_transcript": "/05/61e4dab7db/1/transcript.jsonl",
+      "content_hash": "/05/61e4dab7db/1/content_hash.txt",
+      "prompt": "/05/61e4dab7db/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 564,
-    "cache_creation_tokens": 144341,
-    "cache_read_tokens": 1812183,
-    "output_tokens": 17910,
-    "api_call_count": 16
+    "input_tokens": 631,
+    "cache_creation_tokens": 197380,
+    "cache_read_tokens": 21605221,
+    "output_tokens": 46746,
+    "api_call_count": 51
   }
 }
