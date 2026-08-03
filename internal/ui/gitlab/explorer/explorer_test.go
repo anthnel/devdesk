@@ -9,20 +9,28 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/gitlab"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/ui/components"
 )
 
-// Every command this view returns talks to the GitLab API, the OCI registry, the
-// filesystem or the desktop browser. No test executes one: groups, children,
-// templates and completion results are fed in as messages, and the assertions
-// are on model state.
+// The state machine is driven by messages: groups, children, templates and
+// completion results are fed in, and the assertions are on model state. Nothing
+// here executes a command that reaches the desktop browser.
 //
-// These tests drive Update() and View() only — model.go is 1402 lines and due to
-// be split, and assertions on its internals would pin the current layout.
+// The commands that talk to GitLab, the OCI registry and git are executed, in
+// api_test.go and pull_test.go, against an httptest server and a throwaway git
+// repository — the same trick internal/gitlab uses. A stub would only prove the
+// stub works.
+//
+// These files were written in the order the backlog settled on: the model tests
+// first, driving Update() and View() only, so the split of the 1402-line
+// model.go that followed moved code with the coverage figure unchanged.
 
 func TestMain(m *testing.M) {
 	log.SetOutput(io.Discard)
@@ -157,4 +165,23 @@ func newGroup(id int64, fullPath string) *gitlabclient.Group {
 
 func newProject(id int64, pathWithNamespace string) *gitlabclient.Project {
 	return &gitlabclient.Project{ID: id, PathWithNamespace: pathWithNamespace}
+}
+
+func newUser(username string) *gitlabclient.User {
+	return &gitlabclient.User{ID: 1, Username: username}
+}
+
+// withTrueColor forces a colour profile for the run. Under go test lipgloss
+// detects no TTY, falls back to Ascii and strips every escape sequence, which
+// would make any assertion about styling pass whatever the code does.
+func withTrueColor(t *testing.T) {
+	t.Helper()
+	previous := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+}
+
+// creationSubmit builds the form result the create commands read.
+func creationSubmit(name string) components.CreationFormSubmitMsg {
+	return components.CreationFormSubmitMsg{Name: name, Description: "", Visibility: "private"}
 }

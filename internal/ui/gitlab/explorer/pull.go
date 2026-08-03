@@ -105,23 +105,23 @@ func (m Model) pullProject(node *TreeNode, basePath, cloneMethod, gitlabURL stri
 		return
 	}
 
-	// Build clone URL
-	var cloneURL string
-	cleanURL := strings.TrimSuffix(gitlabURL, "/")
-	if cloneMethod == "ssh" {
-		// Extract host from URL
-		host := strings.TrimPrefix(cleanURL, "https://")
-		host = strings.TrimPrefix(host, "http://")
-		cloneURL = fmt.Sprintf("git@%s:%s.git", host, node.FullPath)
-	} else {
-		cloneURL = fmt.Sprintf("%s/%s.git", cleanURL, node.FullPath)
-	}
-
-	// Clone
-	if err := gitlab.Clone(cloneURL, projectPath); err != nil {
+	if err := gitlab.Clone(cloneURL(gitlabURL, cloneMethod, node.FullPath), projectPath); err != nil {
 		report.Errors = append(report.Errors, fmt.Sprintf("clone %s: %v", node.FullPath, err))
 		return
 	}
 
 	report.Cloned = append(report.Cloned, node.FullPath)
+}
+
+// cloneURL builds the git URL for a project from the configured GitLab URL and
+// the clone method. SSH form takes the host alone, so the scheme is stripped.
+func cloneURL(gitlabURL, cloneMethod, fullPath string) string {
+	cleanURL := strings.TrimSuffix(gitlabURL, "/")
+	if cloneMethod != "ssh" {
+		return fmt.Sprintf("%s/%s.git", cleanURL, fullPath)
+	}
+
+	host := strings.TrimPrefix(cleanURL, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	return fmt.Sprintf("git@%s:%s.git", host, fullPath)
 }

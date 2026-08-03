@@ -375,6 +375,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "Ctrl+N", Description: "Create a new group or project under the current context. Use ←→ to select the type."},
 			{Key: "Ctrl+D", Description: "Delete the selected group or project"},
 			{Key: ".", Description: "Cycle sort column (Type → Name → Visibility → Created → Activity)"},
+			{Key: "/", Description: "Filter the current level by name or path"},
 			{Key: "Ctrl+R", Description: "Refresh the explorer"},
 			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
