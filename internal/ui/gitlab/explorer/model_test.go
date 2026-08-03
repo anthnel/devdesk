@@ -455,12 +455,9 @@ func TestTemplatesLoadedOpensTheForm(t *testing.T) {
 	}
 }
 
-// A registry that is unreachable must not block creation: the form opens anyway.
-//
-// Reaching the warning takes four keystrokes, which is the finding recorded in
-// the backlog: renderTemplateList returns early when the field is not focused,
-// so a user who never lands on Template is never told the registry failed and
-// simply sees an empty list.
+// A registry that is unreachable must not block creation: the form opens
+// anyway, and says why the template list is empty as soon as the list is on
+// screen — not only once the field takes focus, which is what D10 fixed.
 func TestTemplateFailureStillOpensTheForm(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("ctrl+n"))
 
@@ -474,8 +471,8 @@ func TestTemplateFailureStillOpensTheForm(t *testing.T) {
 	}
 
 	m = feed(t, m, testutil.Key("right")) // Group -> Project
-	if view := m.creationForm.View(); strings.Contains(view, "Registry error") {
-		t.Error("the warning is visible without focusing Template; update this test and the backlog entry")
+	if view := m.creationForm.View(); !strings.Contains(view, "Registry error") {
+		t.Errorf("the unfocused Template field does not mention the registry failure:\n%s", view)
 	}
 
 	m = feed(t, m, testutil.Keys("down", "down", "down", "down")...) // onto Template
