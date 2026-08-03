@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-02
+**Last Updated:** 2026-08-03
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -12,8 +12,12 @@ rather than carried over.
 ## 1. Known defects
 
 D1, D3 and D6 (the byte-vs-rune lot), then D2, D5 and D7, were fixed; see
-[§1.1](#11-fixed). **D4 is the only one left**, and it is waiting on a decision
-rather than on work.
+[§1.1](#11-fixed), which also records the four defects the phase 2 and 3
+coverage work turned up and fixed in place.
+
+**D4, D8, D9 and D10 are open, and all four are waiting on a decision rather
+than on work** — each is a one- to three-line change whose only cost is that it
+alters something the user already sees.
 
 ### D4 — `DeleteConfirmModal` uses `Tab` for field navigation
 
@@ -68,6 +72,29 @@ list view in the application.
 because it changes what the user sees on open.
 `TestDefaultSortIsNameDescending` pins the current behaviour and says so.
 
+### D10 — A registry failure is invisible until the user focuses the Template field
+
+`internal/ui/components/creation_form.go:445-449` and `:493-496`
+
+When the OCI registry cannot be reached, the explorer opens the creation form
+anyway and calls `SetTemplateWarning("Registry error: …")` — the right call.
+But `renderTemplateList` returns early when the field is not focused, so the
+warning sits below that return and never renders. The user sees a Template
+field offering nothing but "none", with no indication that the list failed to
+load rather than being genuinely empty.
+
+Reaching it takes four keystrokes: switch the type to Project, then move focus
+down to Template. Nothing suggests doing so.
+
+Found in phase 3 while covering the explorer.
+`TestTemplateFailureStillOpensTheForm` pins both halves — that the warning is
+*not* visible on the unfocused field, and that it appears once focused — so the
+test fails in both directions when this is fixed, and says so.
+
+**Fix:** render the warning outside the focused/unfocused branch, or surface it
+on the form as a whole rather than on the field. Left for a deliberate call
+because it changes a shared component used by more than the explorer.
+
 ### 1.1 Fixed
 
 **Two views' help advertised keys that do nothing.** Found while writing the
@@ -83,10 +110,28 @@ The workspaces view had it too, found in phase 3: `n` and `Enter` documented
 where the bindings are `ctrl+n` and `enter`, `/` undocumented, and the same
 stale "Press [n]" in its empty state.
 
-All three are fixed, and each package now asserts that every key
+`explorer` made it four in a row, though only just: every key was documented
+except `/`. The check caught it on its first run.
+
+All four are fixed, and each package now asserts that every key
 `GetShortcuts()` advertises appears in `GetHelpContent()` — the check that would
-have caught the drift when it was introduced. Three views in a row carried it,
-so assume `explorer` and `security` do as well.
+have caught the drift when it was introduced. Assume `security` has it too.
+
+**The explorer acted on a different row than the one highlighted.** Found in
+phase 3, and the most serious defect the coverage work has turned up.
+
+`handleKeyMsg` resolved the cursor against `sortedItems(currentItems())` — the
+unfiltered list — while the table was built from the filtered one. With a filter
+active the two indices disagree, so `ctrl+d`, `p`, `→` and `ctrl+w` all acted on
+whatever happened to sit at that index in the *unfiltered* list. Filtering to a
+single project and pressing `ctrl+d` scheduled a different group for deletion.
+`GetShortcuts` had it too, so even the advertised `ctrl+w` keyed off the wrong
+node.
+
+Both now go through `visibleItems()`, the single list `updateTableRows` builds
+from. Pinned by `TestActionsResolveTheRowTheUserCanSee`, which filters to a row
+that sits at a different index in each list — the fixtures were chosen so the
+two cannot coincide.
 
 **A stranded cursor in the workspaces table.** `bubbles/table.SetRows` does not
 clamp the cursor when the row count shrinks. Drilling into a directory with
@@ -95,8 +140,15 @@ highlighted, and `enter`, `ctrl+d`, `r` and `ctrl+s` all silently did nothing
 until the user pressed an arrow key. `updateTableData` now clamps.
 
 The containers view avoids this by calling `GotoTop()` after every filter
-change; workspaces had no equivalent. Worth checking in `explorer`, which has
-the same drill-down shape.
+change; workspaces had no equivalent. **`explorer` had it too**, and only on the
+filter path — its drill-down was already safe because it calls `GotoTop()`.
+Fixed the same way.
+
+**A footer message with no timer.** `explorer.handleDeleteComplete` set
+`footerError` and returned `nil`, so a failed delete left "Delete failed — check
+logs" on screen until something else overwrote it. Rule 128 caps footer messages
+at three seconds, and the same file's `BrowserOpenedMsg` handler already did it
+correctly. Now returns `clearFooterErrorCmd()`.
 
 **D7** (`extractTarGz` kept parent references in archive paths), **D2** (the
 "permanent delete" checkbox was documented as locked but was not) and **D5** (an
@@ -204,8 +256,8 @@ common value like `store --file=/path` became the single unfindable command
 
 ### Test coverage
 
-Currently **43.6 %** overall; the agreed target is 80 %, which needs roughly
-**+7 250 covered statements** over today's ~2 100.
+Currently **49.3 %** overall; the agreed target is 80 %, which needs roughly
+**+6 500 covered statements** over today's ~2 850.
 
 Phased plan, with the harness and most of phase 1 delivered:
 
@@ -214,7 +266,7 @@ Phased plan, with the harness and most of phase 1 delivered:
 | 0 | `internal/ui/testutil` Bubble Tea harness | **done** (100 %) |
 | 1 | Leaf components and pure helpers | **done** except the `ui/theme` complement (~55 stmts) |
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **done** |
-| 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **in progress** — `netdiag` and `workspaces` done, two left |
+| 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **in progress** — `netdiag`, `workspaces` and `explorer` done, `security` left |
 | 4 | `ui/oci_resources` | pending (~1 995 stmts) |
 | 5 | Router and I/O seams (`app`, `scan`, `docker`) | pending (~1 360 stmts) |
 | 6 | Remainder to reach 80 % | pending (~400 stmts) |
@@ -288,9 +340,11 @@ Phase 3, in progress:
 |---|---|---|
 | `internal/ui/netdiag` | 15.9 % | **86.1 %** |
 | `internal/ui/workspaces` | 0 % | **81.3 %** |
+| `internal/ui/gitlab/explorer` | 0 % | **91.5 %** |
 
-The three-step order held on both: surface pass 58.8 % / 60.3 %, split with the
-figure unchanged to the statement, completion pass to 86.1 % / 81.3 %.
+The three-step order held on all three: surface pass 58.8 % / 60.3 % / 58.1 %,
+split with the figure unchanged to the statement, completion pass to 86.1 % /
+81.3 % / 91.5 %.
 
 `workspaces` added one technique worth reusing: its filesystem commands
 (`createWorkspace`, `deleteEntry`, `renameEntry`, `loadEntries`, `enrichEntry`)
@@ -300,7 +354,29 @@ counters are read correctly; a stub would only prove the stub works. It skips
 when `git` is not on `PATH`, like `internal/gitlab` does. Only the Docker- and
 desktop-backed commands are left alone.
 
-The rest of phase 3 is `gitlab/explorer` (1402 lines) and `security` (1977).
+`explorer` extended that to the API layer, which is why it reaches 91.5 % —
+higher than either of the others despite having the largest untestable-looking
+surface. The rule that emerged: **execute the command whenever the dependency
+can be stood up locally**, and only fall back to asserting on model state when
+it cannot.
+
+| Dependency | Treatment |
+|---|---|
+| GitLab API | executed against `httptest` — the SDK takes a base URL |
+| OCI registry | executed against `httptest` |
+| git | executed against a seeded repository, skipped without `git` on `PATH` |
+| Desktop browser | not executed; the guard branches are driven, the launch is not |
+
+The pull tests are the clearest case: the "GitLab host" is a local directory
+holding seeded repositories, so `recursivePull` really clones and really writes
+the directory tree. That is what proves the tree mirrors the group hierarchy,
+that an existing checkout is skipped rather than clobbered, and that a group
+whose children were never browsed is fetched mid-pull. `cloneURL` was extracted
+from `pullProject` to make the SSH and HTTPS URL shapes assertable — `gitlab.Clone`
+reports only an exit status, so the URL it was handed is not observable through
+the error.
+
+The rest of phase 3 is `security` (1977 lines).
 
 Two handlers are deliberately left uncovered in `containers`: `s` and `S` call
 `detectShell`, which runs `docker exec` synchronously *inside* `Update`. The
@@ -320,13 +396,12 @@ installing a credential helper that sleeps.
 
 ### Files over the 800-line ceiling
 
-The project's own coding rules cap files at 800 lines. Five still exceed it:
+The project's own coding rules cap files at 800 lines. Four still exceed it:
 
 | File | Lines |
 |---|---|
 | `internal/ui/security/model.go` | 1977 |
 | `internal/ui/oci_resources/update.go` | 1556 |
-| `internal/ui/gitlab/explorer/model.go` | 1402 |
 | `internal/app/app.go` | 1333 |
 | `internal/ui/oci_resources/registry_browser.go` | 822 |
 
@@ -340,6 +415,13 @@ ceiling, and its parsers and renderer belong together.
 `model.go` itself is 129. `entry.go` is the one worth noticing: the pure and
 filesystem-only helpers now sit together instead of at the bottom of a
 1300-line model, which is what made them straightforward to cover.
+
+`internal/ui/gitlab/explorer/model.go` (1402 lines) was split into `update.go`,
+`table.go`, `navigation.go`, `pull.go`, `create.go`, `delete.go`, `api.go` and
+`messages.go`; the largest is 227 and `model.go` itself is 206. `api.go` is the
+one worth noticing: gathering every GitLab call into one file is what made the
+`httptest` pass straightforward — the routes to fake are visible in one place
+rather than scattered through a 1400-line model.
 
 `internal/docker/client.go` (1176 lines — the 1069 recorded earlier was stale)
 was split into `exec.go`, `containers.go`, `images.go`, `networks.go`,
@@ -355,10 +437,10 @@ Decide the order deliberately. Splitting `docker` first was the cheap case — i
 
 **The order settled on for phase 3 is: surface tests, then split, then complete
 coverage** — per package, so each split has a net under it without the tests
-being written against a layout that is about to change. It worked on `netdiag`:
-the surface pass reached 58.8 % driving `Update()` and `View()` only, the split
-moved five blocks of code with the coverage figure unchanged to the statement,
-and the completion pass took it to 86.1 %. The discipline that makes it work is
+being written against a layout that is about to change. Three packages in, the
+figure has been unchanged to the statement across every split (58.8 %, 60.3 %,
+58.1 %), so this is now the default rather than an experiment. The discipline
+that makes it work is
 asserting on behaviour rather than on internals — no test named a file, and the
 only ones that reach into the model do so for state the view has no other way to
 expose.
@@ -374,7 +456,7 @@ every push and pull request, on `ubuntu-latest`, which has a toolchain. The firs
 run reported no data race across all 17 packages.
 
 That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 43.6 %. Rule 110 violations in untested
+tests actually execute, and coverage is 49.3 %. Rule 110 violations in untested
 paths — most of the view layer — remain invisible. The two efforts compound, so
 this is an argument for the coverage phases rather than a substitute for them.
 Phase 2 puts the first full view state machine under the detector.
