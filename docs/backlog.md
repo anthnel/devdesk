@@ -11,8 +11,9 @@ rather than carried over.
 
 ## 1. Known defects
 
-**None open.** D1–D11 are all fixed; §1.1 records what each was and why the
-chosen fix was the right one.
+**Three open**, all in the registry browser and all found while reviewing the
+design for §3.8 rather than by a test; see [§1.3](#13-open). D1–D11 are fixed;
+§1.1 records what each was and why the chosen fix was the right one.
 
 The five that stayed open longest — D4, D8, D9, D10 and D11 — were parked not
 because they were hard but because each altered something the user already saw,
@@ -247,6 +248,51 @@ The pattern worth keeping: when a defect is recorded rather than fixed, write
 the test **inverted** — asserting the current behaviour and saying so. D9, D10
 and D11 each had one, and each failed the moment the fix landed, which is how
 the stale test and the stale backlog entry got found together.
+
+### 1.3 Open
+
+All three sit in `internal/ui/oci_resources` and are cheap on their own, but
+§3.8 rewrites the code path each of them lives in. Fix them **as part of** that
+work rather than ahead of it, and write each one's test inverted first, per the
+pattern above.
+
+**D12 — `AuthEnabled` has no effect on browse or discovery.** The flag is
+honoured in exactly three places: the `docker login` fired on form submit, the
+`Logged` column, and the URL list `registryLoginStatusCmd` checks. Neither code
+path that actually talks to a registry consults it. `submitSearch`
+(`registry_browser.go:393`) calls `docker.GetStoredCreds(credURL)`
+unconditionally and hands the result to `searchRegistryTagsCmd`;
+`detectRegistryGroupCmd` (`commands.go:563`) does the same before calling into
+`registrymgr`. A registry the user has marked as needing no authentication will
+still have the host's stored credentials sent to it whenever any other registry
+on that host has been logged into — which, given that Docker keys credentials by
+host, is the normal case for a Nexus instance. This is the defect the
+`anonymous` mode in §3.8 exists to make expressible; today there is no way to
+say "do not send credentials here" at all.
+
+**D13 — the browser cannot be dismissed while it is resolving.**
+`handleKeyMsg` returns `nil` for every key in `browserStateResolving`
+(`registry_browser.go:321`), `esc` included, and that state is entered
+unconditionally on open whenever any registry is configured. The detections run
+concurrently with an 8 s timeout each, so the wedge is bounded at roughly eight
+seconds — but it is eight seconds during which the application ignores the user,
+on a screen they may have opened by mistake. §3.8 removes the state rather than
+the symptom: with members read from config and cache, there is nothing to
+resolve and the form renders immediately.
+
+A smaller thing in the same handler, not worth its own entry:
+`HandleGroupDetected` matches the incoming result against `reg.URL`, so two
+registries configured with the same URL collide and the second result overwrites
+the first. The slug introduced in §3.8 is the natural key to match on instead.
+
+**D14 — the registry filter shows a raw URL for group members.**
+`registryFilterLabel()` (`registry_browser.go:523`) resolves the active filter by
+searching `b.registries`, which holds only the configured top-level entries.
+Discovered members are not in that list, so filtering to one falls through to
+returning `b.registryFilter` — the full synthesised URL — where every other row
+in the same view shows a short alias. The fix follows from §3.8 rather than
+preceding it: once members are persisted they are resolvable, and the filter
+gains a group level at the same time.
 
 ---
 
@@ -532,8 +578,9 @@ Support GitHub as well as GitLab, with **exactly one backend active per
 configuration context**. A context targets one forge; switching forge means
 switching context.
 
-Not started. The notes below are what the current code imposes on the design,
-not a chosen design.
+Not started. The presentation layer — vocabulary, command names and how the
+forge gets chosen — is settled and recorded below; the abstraction underneath it
+is not.
 
 #### What is coupled to GitLab today
 
@@ -552,15 +599,43 @@ clone method, pull settings), the `gitlab-auth` / `gitlab-explorer` view names
 and their `gla` / `gle` aliases in `internal/command/parser.go`, and
 `shared.GitLabStats`.
 
+Two findings from the design review that the count above does not capture:
+
+**The client doubles as the authentication flag.** `explorer/view.go:153`,
+`:174` and `GetShortcuts()` all branch on `m.shared.GitLabClient != nil` to
+decide whether the user is logged in, even though `shared.IsAuthenticated`
+exists and says exactly that. Those sites are inside the 66, but they need a
+semantic change rather than a type substitution.
+
+**The command surface is already duplicated four times, and already drifting.**
+
+| Location | Role |
+|---|---|
+| `parser.go:78` `viewMap` | `ParseCommand()` — the authoritative one |
+| `parser.go:120` `commands` | `Parse()`, legacy, duplicates the above |
+| `parser.go:155` `GetAliases()` | feeds completion |
+| `completion.go:47` `buildCommands` | a fourth hardcoded list, **stale today** |
+
+`buildCommands` offers `gitlab-auth` but not `gitlab-explorer`, and omits
+`workspaces`, `security` and `net` entirely — so those commands work but are
+never suggested. Adding a forge dimension to four unsynchronised tables
+guarantees the drift gets worse. **Collapsing them to one source table is a
+prerequisite**, and it is worth doing on its own: it fixes the stale completion
+list today, independently of GitHub.
+
 #### Model mismatches to settle before coding
 
 These are not implementation details; they decide what the abstraction can even
 promise.
 
-- **Nesting.** The explorer is a tree of groups → subgroups → projects. GitHub
-  has no nested groups: an organisation holds repositories, flat. Either the
-  tree degrades to two levels for GitHub, or the abstraction exposes a depth the
-  backend declares.
+- **Nesting — settled.** The explorer is a tree of groups → subgroups →
+  projects. GitHub has no nested groups, but it does have **organisations**, and
+  a user can belong to several. Flattening everything to one level was
+  considered and rejected: someone in five orgs would get a wall of repositories
+  with no way to tell them apart by owner. The abstraction therefore **declares
+  its depth** — `MaxDepth: 1` for GitHub (orgs at level 1, repositories at level
+  2), unbounded for GitLab. This costs nothing in the UI: the drill-down already
+  handles two levels, and a user with no organisation simply sees a flat list.
 - **Deletion.** `DeleteGroup` / `DeleteProject` implement GitLab's two-step
   permanent delete (schedule, then purge under the renamed
   `-deletion_scheduled-<id>` path). GitHub deletes immediately and has no
@@ -574,6 +649,109 @@ promise.
 - **Vocabulary.** Group/project/merge request vs organisation/repository/pull
   request. The UI must pick per-backend labels or a neutral vocabulary; Rule 129
   applies either way.
+
+#### Settled: vocabulary, commands and forge selection
+
+The organising distinction, which the mismatches above blur: the two forges
+differ in **words** and in **shapes**, and only the first is a presentation
+problem.
+
+| Difference | Kind | Handled by |
+|---|---|---|
+| "Group" vs "Organization" | word | vocabulary table |
+| "Merge Request" vs "Pull Request" | word | vocabulary table |
+| Token label, placeholder, help URL | word | vocabulary table |
+| Icon and display name | word | vocabulary table |
+| Nested namespaces | **shape** | declared depth (above) |
+| Visibility set — 3 values vs 2 | **shape** | forge-supplied option list |
+| Role model — int levels vs strings | **shape** | backend returns a humanised role |
+| Two-step permanent delete | **shape** | the `locked` flag, §1.1 |
+| Dashboard counters | **shape** | different endpoints, above |
+
+Words are cheap and settle in one pass. Shapes are the actual work, and neither
+neutral nor per-forge wording helps with them. Keeping the two apart is what
+stops the vocabulary layer from quietly growing conditionals.
+
+**Vocabulary is per-forge, not neutral.** A GitLab user says *group*, a GitHub
+user says *repository*; "namespace" is a third language nobody speaks, and it
+makes the application read as an abstraction layer rather than a tool. The
+wording lives in a single `Vocabulary` value per forge — name, icon, namespace
+singular/plural, repository, change-request, token label and placeholder, help
+URL, visibility set, role names — resolved once from the active context and
+carried on `shared.State`, which every view already receives.
+
+The rule that keeps it maintainable: **no view interpolates a forge name into a
+string literal.** That is enforceable the way this project already pins
+invariants — a test grepping `internal/ui` for `"GitLab"` / `"GitHub"`, on the
+model of the existing check that every key in `GetShortcuts()` appears in
+`GetHelpContent()`.
+
+Sites to move, none of them subtle:
+
+| Location | Literal |
+|---|---|
+| `explorer/view.go:342` | `IconGitlab + " GitLab Explorer"` |
+| `explorer/view.go:258` | `"GitLab not authenticated … with :gitlab-auth (or :gla)"` — name **and** command |
+| `explorer/view.go:267` | `"No groups found … any GitLab groups."` |
+| `explorer/view.go:81` | `"Loading GitLab groups..."` |
+| `explorer/view.go:210` | `nodeTypeLabel()` → `"Group"` / `"Project"` |
+| `components/creation_form.go:26` | `resourceTypes = []string{"Group", "Project"}` |
+| `auth/view.go:46` | `IconUser + " Gitlab Authentication"` — wrong icon *and* wrong casing next to the explorer's |
+| `auth/view.go:132,140` | `"GitLab URL"`, `"Personal Access Token"` |
+| `auth/view.go:81` | help text asserting the token starts with `glpat-` |
+| `dashboard/view.go:80,85` | `IconGitlab + " GitLab"`, `"Authenticate with :gitlab-auth"` |
+| `dashboard/view.go:104` | `"Merge Requests:"` |
+
+Two of these are shapes wearing a word's clothes. `AccessLevelName()`
+(`tree.go:52`) maps GitLab's numeric levels to Owner/Maintainer/…; GitHub uses
+`admin`/`maintain`/`push`/`triage`/`pull`, which do not align one-to-one — so the
+**backend returns an already-humanised role string** rather than an integer the
+UI translates. And `internal` visibility does not exist on GitHub.com, so
+`CreationForm`'s three hardcoded values have to come from the forge. Nothing to
+undo for the token prefix: `glpat-` appears only in help text, never validated.
+
+**Routing identity is forge-neutral; only aliases and titles vary.** `ViewType`
+is a map key in `a.views` and a `switch` case in `app.go:1480,1496`, so it stays
+stable — otherwise every new forge touches the router. Canonical names become
+neutral (`explorer` is already an alias and becomes the name; `auth` for the
+other), and `gitlab-auth` / `gla` **and** `github-auth` / `gha` all parse, to the
+same view.
+
+Deliberately permissive: there is only one authentication view, so `gla` typed
+in a GitHub context should go there rather than fail. Punishing muscle memory
+buys nothing. **The filtering happens in completion, not in parsing** — `gla`
+always works, but is never *suggested* while the active forge is GitHub. That
+split is what makes it feel fluid without breaking anything existing.
+
+Messages that quote a command (`explorer/view.go:258`,
+`dashboard/view.go:85`) must quote the active forge's spelling; once the
+vocabulary is centralised that is one more field on the same struct.
+
+**Forge selection: detect, and let the user take it back.** URL sniffing alone is
+unreliable — `github.com` and `gitlab.com` are trivial, but self-hosted is the
+case that matters and `git.acme.com` could be either. Probing (`/api/v4/version`
+vs `/api/v3/`) costs a round-trip and fails on instances that require auth on
+those endpoints. A mandatory picker alone is friction on the two most common
+cases, where the URL is unambiguous. So:
+
+- The forge is **field 0** of the auth form, above the URL. It governs the URL
+  placeholder, the token placeholder and label, and the scope help — putting it
+  first is what lets everything below it reconfigure live.
+- It is a **cycle field** (`←` / `→`, Rule 132), pre-filled by host detection.
+- Detection re-runs as the URL is typed, **but only while the user has not
+  touched the forge field** — a dirty flag. Without it, detection overwrites an
+  explicit choice, which is the difference between helpful and possessive.
+- The token prefix (`glpat-` vs `ghp_` / `github_pat_`) is a second signal used
+  to **warn**, never to switch: by then the user has already chosen above.
+- **Once authentication succeeds the forge is frozen for that context**, per the
+  one-forge-per-context decision. Changing it requires an explicit logout, or a
+  new context. Before a successful login it stays freely editable.
+
+Noted, not blocking: this makes the auth form mix a cycle field with the radio
+buttons it already uses for the save options (`auth/view.go:146`) — themselves a
+closed two-value set, so the form was already at odds with Rule 132. Both
+patterns are defensible; internal consistency is what matters, and regularising
+the save options is the obvious moment.
 
 #### Open decision: Go SDKs or the `gh` / `glab` CLIs
 
@@ -618,21 +796,31 @@ a recommendation, not a decision.
 
 #### Sketch of the work
 
+0. Collapse the four command tables into one source, and let `Parse`,
+   `GetAliases` and `buildCommands` derive from it. Independent of everything
+   else, and it fixes the stale completion list today.
 1. Define a `forge` abstraction from what the code actually consumes: current
    user, namespace tree, create/delete namespace and repository, initial commit,
-   dashboard counters, clone URL.
-2. Replace `shared.State.GitLabClient` with that interface. This is the change
-   the other 65 call sites follow from.
+   dashboard counters, clone URL. It also declares its **shape** — depth,
+   visibility set, humanised roles — not just its data.
+2. Replace `shared.State.GitLabClient` with that interface, and switch the
+   authenticated-or-not branches to `IsAuthenticated` while passing through.
+   This is the change the other 65 call sites follow from.
 3. Generalise `GitLabConfig` into a per-context forge config carrying a
    `type: gitlab | github` discriminator, and migrate existing config files.
-4. Implement the GitLab backend by moving the existing code behind the
-   interface — behaviour-preserving, and covered by the tests added in #7.
-5. Implement the GitHub backend.
-6. Rename the views and commands, keeping `gla` / `gle` as aliases so muscle
-   memory survives.
+4. Extract the `Vocabulary` table and move every literal in the table above onto
+   it, with the grep test that keeps them from coming back. Doable against
+   GitLab alone, before any GitHub code exists — which is what makes it a
+   refactor rather than a rewrite.
+5. Implement the GitLab backend by moving the existing code behind the
+   interface — behaviour-preserving, and covered by the tests §2 phase 5 adds.
+6. Implement the GitHub backend.
+7. Rename the views and commands, keeping `gla` / `gle` as aliases so muscle
+   memory survives, and make completion forge-aware.
 
-Steps 1–4 are worth doing on their own: they are a refactor of working code with
-tests already in place, and they are what makes step 5 tractable.
+Steps 0 and 4 stand alone and improve the code with no GitHub in sight. Steps
+1–5 are a refactor of working code with tests already in place, and they are
+what makes step 6 tractable.
 
 ### 3.7 Command mode from inside a text field — **done**
 
@@ -700,6 +888,180 @@ true only on the topology tab, where `InEditMode()` is unconditionally false. It
 could never fire. Deleted, along with its one implementation;
 `TestCommandModeOnTheTopologyTab` became
 `TestTheTopologyTabNeverBlocksCommandMode` and records why.
+
+### 3.8 Docker registry groups
+
+Two shapes have to be supported: a remote registry with or without
+authentication, and a **group** fronting several remote registries, itself
+reachable anonymously or not. The second is the one the current model cannot
+express.
+
+Not started. The decisions below are settled; one is not, and is marked as such.
+
+#### What the current code does
+
+| Concern | Today | Where |
+|---|---|---|
+| Parent/child relation | in memory only, for the lifetime of one browser session | `registry_browser.go:33` (`browserRegistryEntry`) |
+| Group discovery | Nexus REST, re-run on **every** browser open, 8 s timeout each, behind a blocking spinner | `registry_browser.go:158`, `registrymgr/nexus.go` |
+| Member URLs | synthesised as `host + /repository/<memberName>`, alias stripped of `-proxy`/`-hosted`/`-local` | `nexus.go:111`, `nexus.go:200` |
+| Credential inheritance | member searches use the **parent's** URL as the `~/.docker/config.json` lookup key | `registry_browser.go:381` |
+| Registries tab | flat table, no indication a group was ever found | `update.go:1449` |
+| Result filter (`r`) | cycles member URLs; no group level | `registry_browser.go:485` |
+
+`RegistryConfig.Registries` is a flat `[]RegistryItem` and carries no parent
+field. Nothing about a group survives closing the browser: it is rediscovered,
+over the network, next time.
+
+The credential inheritance is the one piece that already behaves correctly, and
+the reason it does is the same reason the open decision below is hard.
+
+#### Settled
+
+| Ref | Decision |
+|---|---|
+| A | **One list, one discriminator, one parent pointer** — `kind: registry \| group` plus `parent` on `RegistryItem`. Two parallel lists and a recursive `Children` tree were both rejected. |
+| 1 | The parent is referenced by **slug**, not by URL. |
+| 3 | Discovered members live in a **disk cache**, not in `config.yaml`. |
+| 4 | The Registries tab gets **drill-down** navigation (`←` / `→`), not an indented tree and not a `Group` column. |
+| 5 | **No purely logical groups.** A group always corresponds to a real repository-manager group. |
+| F | `provider` is a **declared field**, not sniffed from the URL. |
+
+**A — one list.** A Nexus group *is* a pullable registry as well as a container,
+so splitting `registries` and `registry_groups` would have duplicated the form,
+the table and the credential handling to model a distinction the server does not
+make. A single list with a discriminator keeps one table, one form (fields shown
+per `kind`), and leaves sorting and filtering intact.
+
+**1 — slug over URL.** The URL is today's de facto identifier and is threaded
+through `registryLoginStatus`, the scan cache keys and the message types, which
+is exactly why it is the wrong thing to hang a parent link on: editing a group's
+URL would silently orphan its members. The slug replaces the URL **only as the
+parent link and the cache key** — everything Docker-facing stays keyed on the
+URL, because that is what Docker itself is keyed on. Existing configs migrate by
+deriving a slug from the alias, falling back to the URL host; uniqueness has to
+be enforced at load, and the form needs to reject a collision rather than accept
+a config that will not round-trip.
+
+**3 — cache, not config.** Discovered members are derived data with a server as
+their source of truth, and `config.yaml` is what the user declares. Putting them
+in the cache mirrors `ImageScanCache` and `WorkspaceScanCache` (Rule 126) rather
+than inventing a fourth persistence shape:
+`~/.devdesk/cache/registry-groups.json`, keyed by group slug, refreshed
+explicitly with `ctrl+r` on a group row. The browser then reads config plus
+cache and opens instantly and offline, which is what removes D13's blocking
+state rather than papering over it. A `Members` column showing the count and
+`theme.TimeAgo(discovered_at)` (Rule 127) is what keeps staleness visible —
+without it, a silently stale cache is worse than the current re-detection.
+
+**4 — drill-down.** Level 1 lists groups and standalone registries; `→` enters a
+group and lists its members; `←` goes back, with a breadcrumb below the table
+(Rules 111, 123). The indented-tree alternative reads faster at five registries
+but breaks the moment the table is sorted or the FilterBar (Rule 136) narrows
+it, and drill-down is already the pattern `gitlab-explorer` uses. Proposed
+columns: `Alias | URL | Kind | Auth | Login | Members`.
+
+**5 — no logical groups.** Grouping unrelated registries under a user-invented
+name was considered and dropped: it has no server to discover from, no shared
+credential to inherit, and no group URL to pull through, so it would be a
+display-only concept carrying the weight of a real one. If the need for
+arbitrary grouping appears later it is a saved-selection feature in the browser,
+not a change to the registry model.
+
+**F — declared provider.** `NexusDetector.CanHandle` currently returns true
+whenever `ManagementURL` is non-empty (`nexus.go:31`), which makes that field do
+double duty as an implicit "this is Nexus" flag and makes the detector list
+effectively single-vendor. A `provider` field on the group — `nexus`, `harbor`,
+`artifactory`, `gitlab`, `generic` — turns `CanHandle` into a match on a
+declared value, with the generic detector last. It is a cycle field in the form
+(Rule 132) and it is what makes a second implementation possible without
+guessing.
+
+#### Open: how far credential inheritance goes
+
+The concrete case: a Nexus group **with** authentication fronting eight Nexus
+proxies. Browsing the proxy that points at `dhi.io` has to query the *proxy's*
+URL while authenticating with the *group's* credentials.
+
+That much the code already does — `submitSearch` sets
+`credURL = parentURL ?: entry.URL` — and the reason it works is worth stating
+explicitly, because it constrains everything else:
+
+> **`docker login` takes a registry host, not a path.** `~/.docker/config.json`
+> is keyed on `host[:port]`, so the group and all eight proxies share one single
+> credential entry, because they share `nexus.example.com`.
+
+Three consequences:
+
+- `inherit` is not a convenience for path-based groups, it is the **only** thing
+  the credential store can represent. Every member of such a group authenticates
+  identically whether the model says so or not.
+- A per-member `credentials` override is **not storable today**. It would need
+  DevDesk to own a credential store keyed by slug, which puts passwords back in
+  DevDesk's custody — something `RegistryItem` avoids by construction (it has no
+  password field; §1.1 records how badly the last credential-storage bug went).
+- What a member *can* usefully override is **`anonymous`**: do not send the
+  group's credentials to this one. That is representable, costs nothing, and is
+  the safety valve — and it is the same mechanism D12 needs.
+
+Proposed, pending the discussion: replace `AuthEnabled bool` with an `AuthMode`
+cycle field where a group is `anonymous | credentials` and a member is
+`inherit | anonymous`. The four cases in scope then map cleanly:
+
+| Case | Group | Member |
+|---|---|---|
+| Remote registry, no auth | — | `kind: registry`, `anonymous` |
+| Remote registry, auth | — | `kind: registry`, `credentials` |
+| Group with auth, 8 proxies (the case above) | `credentials` | `inherit` |
+| Anonymous group | `anonymous` | `inherit` |
+
+What still needs deciding is whether a member-level `credentials` is worth
+supporting at all. It only becomes meaningful for a group whose members are on
+different hosts, which decision 5 has just ruled out of the model — so the
+current reading is that it should not exist, and that a genuine need for it is a
+separate decision about who stores the password.
+
+**Adjacent question to settle before the model is frozen: browse and pull may
+not share a URL.** Path-based Nexus access answers the registry API at
+`/repository/<name>/v2/...`, which is what `registryAPIURL` builds and what the
+tag search relies on. Whether `docker pull` accepts the same path-form reference
+depends on the deployment — a dedicated HTTP connector port per repository is
+the older Nexus arrangement, path routing needs a reverse proxy in front. If
+they differ, a member needs a third URL alongside `url` and `management_url`,
+and `multiImageName` (`registry_browser.go:685`) is building an unpullable
+reference today. **This should be checked against the actual Nexus instance**
+rather than reasoned about; it is one `docker pull` away from being answered.
+
+#### Sequencing
+
+This lands in `internal/ui/oci_resources`, which is **phase 4** of the coverage
+plan (§2, ~1 995 statements, pending) and holds two of the three files still
+over the 800-line ceiling — including `registry_browser.go` at 822, which this
+feature grows.
+
+Do it in the phase-3 order that held on all four large views: **surface tests,
+then split, then complete coverage**, and only then the feature. Writing the
+group model into an 822-line file with no tests under it repeats the mistake
+that order exists to prevent.
+
+#### Sketch of the work
+
+1. Add `slug`, `kind`, `parent` and `provider` to `RegistryItem`; migrate
+   existing configs and enforce slug uniqueness at load.
+2. Replace `AuthEnabled` with `AuthMode`, and make **both** registry-facing
+   paths honour it — this is D12, and it is the step that gives `anonymous`
+   meaning.
+3. Add `internal/cache/registrygroups.go` alongside the two existing caches;
+   move discovery behind it and give the Registries tab an explicit refresh.
+4. Turn `CanHandle` into a match on the declared `provider`, with a generic
+   detector last.
+5. Drill-down in the Registries tab, with the `Members` column and breadcrumb.
+6. Rework the browser to read config plus cache: no resolving state (D13),
+   group-level checkboxes with a tri-state, a group level in the result filter
+   and resolvable member labels (D14), and a remembered selection per context.
+
+Steps 1–4 are worth doing on their own — they are what make the group model
+expressible — and step 6 is the one that needs step 3 finished first.
 
 ---
 
