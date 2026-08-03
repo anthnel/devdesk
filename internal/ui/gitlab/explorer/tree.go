@@ -1,6 +1,9 @@
 package explorer
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // NodeType représente le type de nœud dans l'arbre
 type NodeType string
@@ -60,4 +63,10 @@ func (n *TreeNode) AccessLevelName() string {
 	default:
 		return ""
 	}
+}
+
+// nodeSlug returns the last path segment of a GitLab FullPath (the URL slug)
+func nodeSlug(fullPath string) string {
+	parts := strings.Split(fullPath, "/")
+	return parts[len(parts)-1]
 }
