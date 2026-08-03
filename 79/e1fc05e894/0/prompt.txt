@@ -1,0 +1,1 @@
+dans le backlog, traite l'intégration avec le gestionnaire de secret de l'hote, ça doit être compatible windows, linux, macos

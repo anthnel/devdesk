@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "79e1fc05e894",
+  "strategy": "manual-commit",
+  "branch": "feat/host-secret-manager",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/CODEMAPS/backend.md",
+    "docs/CODEMAPS/data.md",
+    "docs/backlog.md",
+    "go.mod",
+    "go.sum",
+    "internal/app/app.go",
+    "internal/app/command_line.go",
+    "internal/app/context.go",
+    "internal/app/gitlab.go",
+    "internal/app/harness_test.go",
+    "internal/app/lifecycle_test.go",
+    "internal/config/config.go",
+    "internal/config/secrets.go",
+    "internal/config/secrets_test.go",
+    "internal/credentials/keyring.go",
+    "internal/credentials/keyring_test.go",
+    "internal/credentials/migrate.go",
+    "internal/credentials/migrate_test.go",
+    "internal/credentials/select.go",
+    "internal/credentials/select_test.go",
+    "internal/credentials/storage.go",
+    "internal/credentials/storage_test.go",
+    "internal/gitlab/auth.go",
+    "internal/gitlab/auth_test.go",
+    "internal/shared/state.go",
+    "internal/ui/gitlab/auth/auth_test.go",
+    "internal/ui/gitlab/auth/model.go",
+    "internal/ui/gitlab/auth/update.go",
+    "internal/ui/gitlab/auth/view.go",
+    "internal/ui/gitlab/auth/view_test.go",
+    "internal/ui/gitlab/explorer/create.go",
+    "internal/ui/theme/styles.go",
+    "internal/ui/theme/theme_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/79/e1fc05e894/0/metadata.json",
+      "transcript": "/79/e1fc05e894/0/full.jsonl",
+      "compact_transcript": "/79/e1fc05e894/0/transcript.jsonl",
+      "content_hash": "/79/e1fc05e894/0/content_hash.txt",
+      "prompt": "/79/e1fc05e894/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1244,
+    "cache_creation_tokens": 323147,
+    "cache_read_tokens": 35158977,
+    "output_tokens": 108805,
+    "api_call_count": 147
+  }
+}
