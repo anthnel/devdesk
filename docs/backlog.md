@@ -1244,6 +1244,160 @@ Steps 2 and 5 are small and fix live defects; they need none of the rest.
 
 ---
 
+### 3.10 An inference-backed explainer for network diagnostics
+
+Netdiag runs the tests but leaves the interpretation to the user. The first —
+and for now only — AI feature is an **explainer over diagnostic results that
+DevDesk already holds**. It sends a few kilobytes of structured facts, needs no
+new privilege, and touches no packet payload.
+
+#### Settled
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Scope of v1 | **Explainer only.** No capture. tcpdump is a later input to the same explainer, not part of this. |
+| 2 | Local server lifecycle | **DevDesk consumes an endpoint.** It never starts, stops or supervises an inference server. |
+| 3 | Protocol | **One OpenAI-compatible client** (`POST /v1/chat/completions`). Covers ollama, llama.cpp, vLLM, LM Studio and hosted providers. No second native client. |
+| 4 | Redaction | **Nothing sensitive reaches a model, local or remote.** Not a per-provider policy — one rule, no exception for `localhost`. |
+| 5 | Snaplen | Headers-only is the default **when capture arrives**. Out of scope for v1 by decision 1. |
+| 6 | Provider scope | **One per context.** |
+
+Decisions 2 and 6 cost nothing. Consuming an endpoint means the provider is a
+URL, a model name and a token — a `AIConfig` block in the context's
+`config.yaml`, which is per-context by construction. The token goes to the store
+from §3.9 like any other; it must never land in the YAML. The GPU question that
+motivated hosting (Docker on macOS runs a Linux VM with no Metal access, so
+unified memory is unreachable from a container) disappears with it: the user
+runs `ollama serve` natively, or a container, or nothing, and DevDesk does not
+care.
+
+#### The hard part is decision 4, and Presidio only half-answers it
+
+Reference: [Docker agent PII protection with
+Presidio](https://k33g.org/p/20260716-docker-agent-pii-protection-presidio) —
+an analyzer/anonymizer pair behind HTTP, hooked on `before_llm_call`, replacing
+detected spans with typed tokens.
+
+Two things transfer and one does not.
+
+**What does not transfer: the entity set.** Presidio detects *PII* — names,
+emails, phone numbers, credit cards, IBANs, national IDs, IP addresses. What
+DevDesk holds is mostly not PII: internal hostnames, private ranges, resolver
+addresses, listening sockets and process names, registry and forge URLs,
+Gitleaks matches. `IP_ADDRESS` is the only real overlap. A DevDesk payload could
+pass Presidio clean while still describing the whole internal network. Presidio
+is therefore a **second net, not the mechanism**.
+
+**What transfers: fail-closed, and the deterministic layers.** The post notes
+its own default is fail-open and that production needs `PII_FAIL_CLOSED=1`.
+Given §3.9, fail-closed is the only acceptable mode here: if the redactor is
+unreachable, nothing is sent, and the user is told why. And the post's two
+non-NER layers — a deny-list and structural rules by column — are the parts
+that actually caught things reliably. That is the direction to build in.
+
+#### Allow-list construction beats scrubbing
+
+The post scrubs because it hooks arbitrary agent traffic and cannot know what is
+in it. DevDesk is not in that position: it **assembles the payload itself** from
+`m.results`, which is already typed and structured. So the payload should be
+built field by field from an explicit allow-list, not produced as a blob and
+then cleaned.
+
+The difference matters: **a field never included cannot fail to be redacted.**
+Scrubbing is a filter that can miss; construction is a whitelist that cannot.
+Presidio then runs over the assembled payload as a check on the construction,
+and any hit is a bug in the allow-list, not a routine save.
+
+#### The tension: the sensitive data *is* the diagnostic data
+
+Redacting addresses out of a network diagnostic destroys the diagnostic. A model
+told `[IP_REDACTED]` resolves to `[IP_REDACTED]` can conclude nothing, and the
+answer that comes back is unreadable.
+
+The resolution is **consistent pseudonymisation that preserves the analytically
+relevant class**, not blanket redaction:
+
+| Real | Sent | Preserved |
+|---|---|---|
+| `api.corp.internal` | `host-1` | identity across the payload |
+| `10.2.3.4` | `private-a` | RFC1918, and same-subnet relations |
+| `203.0.113.9` | `public-b` | routable, distinct from private |
+| `10.2.3.7` | `private-c` | same /24 as `private-a` |
+
+The hypotheses the model is asked to rank depend on structure — private vs
+public, same subnet or not, resolves or not, port open or filtered, which TLS
+stage failed — never on the literal octets. So this loses nothing. "host-1
+resolves to private-a but hop 5 is public-c, so the route leaves your network"
+is exactly as useful as the version with real addresses.
+
+The mapping stays in memory, and the response is **restored locally before
+display**, so the user reads real names. The blog post does not do this
+round-trip — its tokens are one-way — but DevDesk needs it, because unlike a
+CSV of customers its payload is *entirely* made of identifiers.
+
+#### Confirmation before send
+
+The assembled, pseudonymised payload is rendered in the viewport before it
+leaves, for every provider. Decision 4 says local and remote are treated alike,
+so there is no "trusted endpoint" shortcut. This costs one keypress and is what
+makes the feature auditable without reading the source.
+
+#### Bubble Tea shape
+
+Streaming is the only delicate part. Rule 110 forbids mutating the model inside
+a `Cmd`, so the pattern is a channel plus a `Cmd` that reads one chunk and
+returns a `streamChunkMsg{gen, text}` which re-arms itself — the same shape as
+the spinner, reusing the generation counter already in `run.go:33` to discard a
+superseded stream.
+
+Cancellation is mandatory, not optional: a local model on CPU can take minutes.
+A `context.CancelFunc` lives in the model and `esc` cancels. **D13 is the
+warning** — a state the user cannot leave while something resolves is a defect
+this repository already has once.
+
+No new view and no command. The explanation is a results tab under the table
+(Rule 123), triggered by a key on the results screen. A dedicated view turns
+this into a chat product, which is not what is being asked for. With no provider
+configured the shortcut is absent rather than erroring (Rule 130), and all
+strings are English US (Rule 129).
+
+#### Sketch of the work
+
+1. `internal/ai`: config block, an OpenAI-compatible client behind a small
+   interface so tests inject a fake — the `runner` indirection in
+   `internal/docker` is the precedent — and the token read from the §3.9 store.
+2. The payload builder: allow-listed fields out of `m.results`, plus the
+   pseudonymiser and its inverse. Table-driven tests, like the existing
+   `dns_formatter` and `traceroute_formatter` parsers. **This is the feature; do
+   it first and it is testable with no endpoint at all.**
+3. The prompt: observed facts only, and an instruction to name which test each
+   claim rests on. The raw results stay on screen next to the explanation —
+   the narrative never replaces the data.
+4. Streaming, cancellation, and the results tab.
+5. The confirmation pane.
+6. Optional and last: Presidio as a fail-closed second net over the assembled
+   payload, behind a config flag. Two containers and a spaCy model is heavy
+   for a few kilobytes of already-structured text, and step 2 is what actually
+   provides the guarantee.
+
+Later, and explicitly not now: capture as an additional input (bounded by `-c`
+and `-G`, `-s 96` by default so payloads cannot be captured at all), and the
+deterministic flow summariser that would have to precede it — a pcap does not
+fit in a context window, and once the summariser exists it answers most of the
+question without a model. `nicolaka/netshoot` (`config.go:218`) already ships
+`tcpdump` and `tshark`, and the privileged host-namespace runner exists
+(`ports.go:36`, `topology.go:47`), so the missing piece is the analysis, not the
+plumbing.
+
+Adjacent candidates, ranked, none settled: Trivy remediation (§3.2 — low
+sensitivity, but any suggested base-image bump must be verified by a re-scan,
+never trusted); Gitleaks triage (highest value since false positives dominate,
+highest risk since the payload *is* the secret — possibly viable by sending rule
+name, path and entropy with the match withheld); container log explanation
+(logs carry env vars and DSNs routinely).
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is referenced directly from the old
