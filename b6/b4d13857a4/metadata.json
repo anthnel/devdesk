@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "b6b4d13857a4",
+  "strategy": "manual-commit",
+  "branch": "test/cover-scan-phase-5",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/scan/command_test.go",
+    "internal/scan/dependencies_test.go",
+    "internal/scan/execute_test.go",
+    "internal/scan/gitleaks.go",
+    "internal/scan/run.go",
+    "internal/scan/run_test.go",
+    "internal/scan/scan_test.go",
+    "internal/scan/scanner.go",
+    "internal/scan/trivy.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b6/b4d13857a4/0/metadata.json",
+      "transcript": "/b6/b4d13857a4/0/full.jsonl",
+      "compact_transcript": "/b6/b4d13857a4/0/transcript.jsonl",
+      "content_hash": "/b6/b4d13857a4/0/content_hash.txt",
+      "prompt": "/b6/b4d13857a4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 786,
+    "cache_creation_tokens": 223071,
+    "cache_read_tokens": 16920004,
+    "output_tokens": 71918,
+    "api_call_count": 88
+  }
+}
