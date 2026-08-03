@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "b89e529e6ef0",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase4-oci",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/browser_keys.go",
+    "internal/ui/oci_resources/browser_state.go",
+    "internal/ui/oci_resources/browser_tags.go",
+    "internal/ui/oci_resources/browser_view.go",
+    "internal/ui/oci_resources/images.go",
+    "internal/ui/oci_resources/keys.go",
+    "internal/ui/oci_resources/launch.go",
+    "internal/ui/oci_resources/layout.go",
+    "internal/ui/oci_resources/registries.go",
+    "internal/ui/oci_resources/registry_browser.go",
+    "internal/ui/oci_resources/resources.go",
+    "internal/ui/oci_resources/results.go",
+    "internal/ui/oci_resources/table.go",
+    "internal/ui/oci_resources/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b8/9e529e6ef0/0/metadata.json",
+      "transcript": "/b8/9e529e6ef0/0/full.jsonl",
+      "compact_transcript": "/b8/9e529e6ef0/0/transcript.jsonl",
+      "content_hash": "/b8/9e529e6ef0/0/content_hash.txt",
+      "prompt": "/b8/9e529e6ef0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 45,
+    "cache_creation_tokens": 64022,
+    "cache_read_tokens": 4713974,
+    "output_tokens": 31242,
+    "api_call_count": 24
+  }
+}

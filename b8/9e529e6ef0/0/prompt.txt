@@ -1,0 +1,5 @@
+ne code toujours rien mais je voudrais brainstormer sur un autre sujet : comment gérer les multiples forges (gitlab/github). Est-ce qu'il faut avoir des libellés génériques ou en fonction du choix qui est fait pour le contexte on affiche des libellés en fonction de la forge choisie, idem pour les commande gla (gitlab auth) n'a pas de sens pour github. Analyse les impacts dans le code. Comme workflow pour choisir la forge, je pense qu'il pourrait y avoir un radio button (ou équivalent) pour choisir la forge lors de l'authentification, ou alors la forge est déduite de l'url. Je voudrais une expérience fluide pour l'utilisateur. Pour la vue explorer, github n'a pas de notion de groupe, ce n'est pas problématique, ça signifie simplement que tous les projets seront sous le premier niveau
+
+---
+
+oui mais ça dans le backlog et pour le type de forge on par sur un cycle, je suis aussi d'accord avec toi sur la proposition concernant les org github
