@@ -244,6 +244,29 @@ func TableStylesForState(state string) table.Styles {
 	return s
 }
 
+// SeverityTextStyle returns the text style for a CVE severity, drawn from the
+// same palette TableStylesForSeverity uses for the selected row. Callers pass
+// the severity uppercased, as the scanners report it.
+//
+// Composing this by hand is what let the security details view render CRITICAL
+// and HIGH identically (D10 in the backlog): ColorError + Bold happens to equal
+// StatusErrorStyle, so the two collapsed.
+func SeverityTextStyle(severity string) lipgloss.Style {
+	base := lipgloss.NewStyle().Background(ColorBackground)
+	switch strings.ToUpper(severity) {
+	case "CRITICAL":
+		return base.Foreground(ColorSeverityCritical).Bold(true)
+	case "HIGH":
+		return base.Foreground(ColorSeverityHigh).Bold(true)
+	case "MEDIUM":
+		return base.Foreground(ColorSeverityMedium)
+	case "LOW":
+		return base.Foreground(ColorSeverityLow)
+	default:
+		return base.Foreground(ColorSeverityInfo)
+	}
+}
+
 // TableStylesForSeverity returns table styles with selection color based on CVE severity.
 func TableStylesForSeverity(severity string) table.Styles {
 	s := DefaultTableStyles()
