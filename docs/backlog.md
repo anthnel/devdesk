@@ -15,9 +15,9 @@ D1, D3 and D6 (the byte-vs-rune lot), then D2, D5 and D7, were fixed; see
 [§1.1](#11-fixed), which also records the four defects the phase 2 and 3
 coverage work turned up and fixed in place.
 
-**D4, D8, D9 and D10 are open, and all four are waiting on a decision rather
-than on work** — each is a one- to three-line change whose only cost is that it
-alters something the user already sees.
+**D4, D8, D9, D10 and D11 are open, and all five are waiting on a decision
+rather than on work** — each is a one- to three-line change whose only cost is
+that it alters something the user already sees.
 
 ### D4 — `DeleteConfirmModal` uses `Tab` for field navigation
 
@@ -95,6 +95,29 @@ test fails in both directions when this is fixed, and says so.
 on the form as a whole rather than on the field. Left for a deliberate call
 because it changes a shared component used by more than the explorer.
 
+### D11 — CRITICAL and HIGH look identical in the findings details
+
+`internal/ui/security/details.go:155-166`
+
+`getSeverityStyle` builds the CRITICAL style by hand as
+`ColorError` + `Bold(true)`, which is exactly what `theme.StatusErrorStyle`
+already is — and HIGH returns that. The two are byte-identical, so the severity
+of a finding is unreadable from its detail view.
+
+The theme already defines `ColorSeverityCritical`, `ColorSeverityHigh`,
+`ColorSeverityMedium` and `ColorSeverityLow`, and the findings *table* uses them
+through `theme.TableStylesForSeverity`. Only the details view diverges, which
+also makes it a Rule 102 violation: the style is composed locally instead of
+coming from the theme.
+
+Found in phase 3 while covering the security view.
+`TestSeverityStylesCollapseCriticalIntoHigh` pins the current behaviour and is
+deliberately inverted, so it fails when the palette is wired in — which is the
+fix.
+
+**Fix:** return the `ColorSeverity*` styles. Left for a deliberate call because
+it changes colours the user already reads.
+
 ### 1.1 Fixed
 
 **Two views' help advertised keys that do nothing.** Found while writing the
@@ -113,9 +136,14 @@ stale "Press [n]" in its empty state.
 `explorer` made it four in a row, though only just: every key was documented
 except `/`. The check caught it on its first run.
 
-All four are fixed, and each package now asserts that every key
+`security` broke the streak — its help documents every key its header
+advertises, across all four states. So the drift was not universal after all;
+three of the five views that carried it were the ones where a binding had been
+renamed by Rule 111 and the help was not updated with it.
+
+All four are fixed, and every view in `internal/ui` now asserts that each key
 `GetShortcuts()` advertises appears in `GetHelpContent()` — the check that would
-have caught the drift when it was introduced. Assume `security` has it too.
+have caught the drift when it was introduced.
 
 **The explorer acted on a different row than the one highlighted.** Found in
 phase 3, and the most serious defect the coverage work has turned up.
@@ -144,11 +172,18 @@ change; workspaces had no equivalent. **`explorer` had it too**, and only on the
 filter path — its drill-down was already safe because it calls `GotoTop()`.
 Fixed the same way.
 
-**A footer message with no timer.** `explorer.handleDeleteComplete` set
+**Footer messages with no timer.** `explorer.handleDeleteComplete` set
 `footerError` and returned `nil`, so a failed delete left "Delete failed — check
 logs" on screen until something else overwrote it. Rule 128 caps footer messages
 at three seconds, and the same file's `BrowserOpenedMsg` handler already did it
 correctly. Now returns `clearFooterErrorCmd()`.
+
+The security view had it worse: **Rule 128 was not honoured anywhere in it.**
+`statusMessage` was set in three places — "Added x to .gitleaksignore", "Failed
+to ignore secret", "No references available" — and there was no clear timer in
+the package at all, so whichever happened last stayed on screen until a tab
+switch happened to reset it. `clearStatusCmd` / `clearStatusMsg` added and all
+three wired, pinned by `TestFooterMessagesExpire`.
 
 **D7** (`extractTarGz` kept parent references in archive paths), **D2** (the
 "permanent delete" checkbox was documented as locked but was not) and **D5** (an
@@ -196,7 +231,19 @@ in `internal/ui/security/model.go` sliced bytes exactly like D1 and rendered
 Trivy finding titles. It is now `theme.TruncateWidth` and the local helper is
 gone.
 
-A **fifth site** turned up later, during the phase 3 tests: `firstOutputLine` in
+A **sixth site** closed the family out, in the last package of phase 3:
+`parseVersion` in `internal/ui/security` truncated its fallback with
+`result[:15]`. Version strings are ASCII in practice, so this was the
+lowest-risk of the six — but it is the same pattern, and it is now
+`theme.TruncateWidth`. Grepping for `[:` on strings across `internal/ui` now
+returns nothing but slice indexing.
+
+The same function had a second defect: it scanned for the version number by
+taking the first whitespace-separated token starting with `v`, so
+`gitleaks version 8.18.2` reported its version as **"version"**. A leading `v`
+now only counts when a digit follows it.
+
+A **fifth site** turned up during the phase 3 tests: `firstOutputLine` in
 `internal/ui/netdiag` sliced `line[:maxLen-3]` to fill the Output column of the
 results table, so any diagnostic whose first line contained a multibyte rune
 could be cut in half and bleed across the rows below (Rule 122). Now
@@ -256,8 +303,8 @@ common value like `store --file=/path` became the single unfindable command
 
 ### Test coverage
 
-Currently **49.3 %** overall; the agreed target is 80 %, which needs roughly
-**+6 500 covered statements** over today's ~2 850.
+Currently **55.3 %** overall; the agreed target is 80 %, which needs roughly
+**+6 000 covered statements** over today's ~3 400.
 
 Phased plan, with the harness and most of phase 1 delivered:
 
@@ -266,7 +313,7 @@ Phased plan, with the harness and most of phase 1 delivered:
 | 0 | `internal/ui/testutil` Bubble Tea harness | **done** (100 %) |
 | 1 | Leaf components and pure helpers | **done** except the `ui/theme` complement (~55 stmts) |
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **done** |
-| 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **in progress** — `netdiag`, `workspaces` and `explorer` done, `security` left |
+| 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **done** |
 | 4 | `ui/oci_resources` | pending (~1 995 stmts) |
 | 5 | Router and I/O seams (`app`, `scan`, `docker`) | pending (~1 360 stmts) |
 | 6 | Remainder to reach 80 % | pending (~400 stmts) |
@@ -341,10 +388,11 @@ Phase 3, in progress:
 | `internal/ui/netdiag` | 15.9 % | **86.1 %** |
 | `internal/ui/workspaces` | 0 % | **81.3 %** |
 | `internal/ui/gitlab/explorer` | 0 % | **91.5 %** |
+| `internal/ui/security` | 0 % | **83.7 %** |
 
-The three-step order held on all three: surface pass 58.8 % / 60.3 % / 58.1 %,
-split with the figure unchanged to the statement, completion pass to 86.1 % /
-81.3 % / 91.5 %.
+**Phase 3 is complete.** The three-step order held on all four: surface pass
+58.8 % / 60.3 % / 58.1 % / 52.9 %, split with the figure unchanged to the
+statement every time, completion pass to 86.1 % / 81.3 % / 91.5 % / 83.7 %.
 
 `workspaces` added one technique worth reusing: its filesystem commands
 (`createWorkspace`, `deleteEntry`, `renameEntry`, `loadEntries`, `enrichEntry`)
@@ -376,7 +424,18 @@ from `pullProject` to make the SSH and HTTPS URL shapes assertable — `gitlab.C
 reports only an exit status, so the URL it was handed is not observable through
 the error.
 
-The rest of phase 3 is `security` (1977 lines).
+`security` added the last variant of the same idea: its cache commands write to
+`~/.devdesk`, so `TestMain` redirects `HOME` and `USERPROFILE` at a temporary
+directory for the whole package and the purge and save commands are **executed**.
+That redirect is not optional there — every checkbox toggle calls `config.Save`,
+so without it the tests would rewrite the developer's own configuration.
+
+Its most worthwhile tests are not about the state machine at all: they are about
+`extractMeaningfulLines`, which reduces a wall of Trivy and Gitleaks stderr to
+the one line that explains a failure. What it *discards* — INFO lines, progress
+bars, the doubled `Fatal error / run error:` wrapping — is the whole feature,
+and the fallback that shows the raw text rather than an empty panel is what
+stops a novel log format leaving the user with nothing.
 
 Two handlers are deliberately left uncovered in `containers`: `s` and `S` call
 `detectShell`, which runs `docker exec` synchronously *inside* `Update`. The
@@ -396,14 +455,22 @@ installing a credential helper that sleeps.
 
 ### Files over the 800-line ceiling
 
-The project's own coding rules cap files at 800 lines. Four still exceed it:
+The project's own coding rules cap files at 800 lines. Three still exceed it,
+all outside the views phase 3 covered:
 
 | File | Lines |
 |---|---|
-| `internal/ui/security/model.go` | 1977 |
 | `internal/ui/oci_resources/update.go` | 1556 |
 | `internal/app/app.go` | 1333 |
 | `internal/ui/oci_resources/registry_browser.go` | 822 |
+
+`internal/ui/security/model.go` (1991 lines, the largest file in the project)
+was split into `update.go`, `form.go`, `scan.go`, `findings.go`, `details.go`,
+`view.go`, `warnings.go`, `header.go` and `messages.go`; the largest is 299 and
+`model.go` itself is 245. `warnings.go` is the one worth noticing: the
+scan-error parser is pure string handling with no dependency on the model at
+all, and pulling it out of a 2000-line file is what made it obvious it deserved
+tests of its own.
 
 `internal/ui/netdiag/model.go` (1114 lines) was split into `validation.go`,
 `update.go`, `run.go`, `view.go` and `header.go`; the largest is now 314 lines
@@ -437,10 +504,10 @@ Decide the order deliberately. Splitting `docker` first was the cheap case — i
 
 **The order settled on for phase 3 is: surface tests, then split, then complete
 coverage** — per package, so each split has a net under it without the tests
-being written against a layout that is about to change. Three packages in, the
-figure has been unchanged to the statement across every split (58.8 %, 60.3 %,
-58.1 %), so this is now the default rather than an experiment. The discipline
-that makes it work is
+being written against a layout that is about to change. It held across all four
+packages, with the coverage figure unchanged to the statement every time
+(58.8 %, 60.3 %, 58.1 %, 52.9 %), including on the 1991-line `security/model.go`.
+Use it for phases 4 and 5. The discipline that makes it work is
 asserting on behaviour rather than on internals — no test named a file, and the
 only ones that reach into the model do so for state the view has no other way to
 expose.
@@ -456,7 +523,7 @@ every push and pull request, on `ubuntu-latest`, which has a toolchain. The firs
 run reported no data race across all 17 packages.
 
 That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 49.3 %. Rule 110 violations in untested
+tests actually execute, and coverage is 55.3 %. Rule 110 violations in untested
 paths — most of the view layer — remain invisible. The two efforts compound, so
 this is an argument for the coverage phases rather than a substitute for them.
 Phase 2 puts the first full view state machine under the detector.
