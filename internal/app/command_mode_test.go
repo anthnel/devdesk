@@ -3,10 +3,8 @@ package app
 import (
 	"testing"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -31,25 +29,12 @@ func (v *editingView) View() string       { return "" }
 func (v *editingView) InEditMode() bool   { return v.editing }
 func (v *editingView) keysSeen() []string { return v.received }
 
-// routerWith builds the smallest App that can route a key: a current view and a
-// command input. The real constructor builds every view in the application,
-// several of which shell out to Docker.
-func routerWith(view tea.Model) *App {
-	return &App{
-		currentView:  command.ViewDashboard,
-		views:        map[command.ViewType]tea.Model{command.ViewDashboard: view},
-		commandInput: textinput.New(),
-		width:        120,
-		height:       40,
-	}
-}
-
 // The point of the binding: a focused text input cannot claim it. Typing a URL
 // like https://trivy-server:4954 needs ":" to stay an ordinary character, so
 // alt+: is the only key that can be authoritative.
 func TestAltColonEntersCommandModeFromInsideATextField(t *testing.T) {
 	view := &editingView{editing: true}
-	a := routerWith(view)
+	a := router(t, view)
 
 	a.handleKeyMsg(testutil.Key(altCommandModeKey))
 
@@ -62,7 +47,7 @@ func TestAltColonEntersCommandModeFromInsideATextField(t *testing.T) {
 }
 
 func TestAltColonEntersCommandModeWithNothingFocused(t *testing.T) {
-	a := routerWith(&editingView{editing: false})
+	a := router(t, &editingView{editing: false})
 
 	a.handleKeyMsg(testutil.Key(altCommandModeKey))
 
@@ -75,7 +60,7 @@ func TestAltColonEntersCommandModeWithNothingFocused(t *testing.T) {
 func TestBareColonStillDependsOnTheView(t *testing.T) {
 	t.Run("nothing focused, it opens the command line", func(t *testing.T) {
 		view := &editingView{editing: false}
-		a := routerWith(view)
+		a := router(t, view)
 
 		a.handleKeyMsg(testutil.Key(":"))
 
@@ -89,7 +74,7 @@ func TestBareColonStillDependsOnTheView(t *testing.T) {
 
 	t.Run("editing, it reaches the field", func(t *testing.T) {
 		view := &editingView{editing: true}
-		a := routerWith(view)
+		a := router(t, view)
 
 		a.handleKeyMsg(testutil.Key(":"))
 
@@ -105,7 +90,7 @@ func TestBareColonStillDependsOnTheView(t *testing.T) {
 // Entering command mode asks for a re-layout: the command line replaces the
 // inactive prompt, and a stale height leaves the viewport one row off.
 func TestEnteringCommandModeRequestsAResize(t *testing.T) {
-	a := routerWith(&editingView{editing: true})
+	a := router(t, &editingView{editing: true})
 
 	_, cmd := a.handleKeyMsg(testutil.Key(altCommandModeKey))
 
@@ -121,7 +106,7 @@ func TestEnteringCommandModeRequestsAResize(t *testing.T) {
 // The command line always opens empty; a leftover query from the previous
 // invocation would be executed by the next enter.
 func TestEnteringCommandModeClearsTheInput(t *testing.T) {
-	a := routerWith(&editingView{editing: false})
+	a := router(t, &editingView{editing: false})
 	a.commandInput.SetValue("security")
 
 	a.handleKeyMsg(testutil.Key(altCommandModeKey))

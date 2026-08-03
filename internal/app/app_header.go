@@ -50,7 +50,6 @@ func (a *App) renderHeader() string {
 			pad := theme.Bg(" ")
 			var cmdLine string
 			if a.commandMode {
-				a.commandInput.Focus()
 				cmdLine = pad + theme.CommandLineStyle.Width(a.width-2).Render(a.renderCommandLineWithCompletion()) + pad
 			} else {
 				cmdLine = pad + theme.CommandLineInactiveStyle.Width(a.width-2).Render(":") + pad
