@@ -11,10 +11,9 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Seven open**: three in the registry browser, found while reviewing the design
-for §3.8 rather than by a test, and four in the router, found by the phase 5
-pass. See [§1.3](#13-open). D1–D11 and D19 are fixed; §1.1 records what each was
-and why the chosen fix was the right one.
+**Three open**, all in the registry browser and all found while reviewing the
+design for §3.8 rather than by a test. See [§1.3](#13-open). D1–D11 and D15–D19
+are fixed; §1.1 records what each was and why the chosen fix was the right one.
 
 The five that stayed open longest — D4, D8, D9, D10 and D11 — were parked not
 because they were hard but because each altered something the user already saw,
@@ -266,6 +265,66 @@ common value like `store --file=/path` became the single unfindable command
 `credential-store --file=/path` — and it hardcoded `protocol=https`, unlike
 `GitCredentialStorage`, which reads the scheme from the URL.
 
+**D15 — `esc` never reached a view that was not editing.** The router answered
+`esc` itself through `maybeQuitCommandMode`, forwarding it only when the view
+reported `InEditMode()`. Every esc-to-go-back handler behind that gate was dead
+code: the explorer's `esc` → `handleDrillUp` could not fire, though Rule 111
+lists `esc` as the third way up.
+
+**Fix:** the router no longer names `esc` at all — it falls through to the
+default branch and is forwarded like any other key. What made this smaller than
+it looked is that the router had nothing left to do with `esc` by the time the
+branch ran: `handleCommandMode` answers first whenever the command line is open,
+so `maybeQuitCommandMode` was resetting an already-closed line and asking for a
+redundant resize. It is deleted.
+
+The interesting half is what the gate had done to the views. Two of them
+declared themselves *editing* in states holding no field at all, for one reason
+— it was the only way to be handed `esc`. The security view said so outright:
+`InEditMode()` was documented as *"returns true when the view needs to handle
+ESC key"*, and claimed `StateScanning`, `StateResults` and `StateDetails`;
+netdiag claimed `StateRunning` and `StateDetails`. That claim costs more than it
+buys, because `InEditMode()` also governs `:`, `q` and `?` — so the security
+results screen, the one place a user most wants to jump elsewhere, was the one
+place `:` did nothing. Both predicates are now about focus and nothing else, and
+those states get the command line, the help overlay and quit back.
+
+Left alone deliberately: the containers view claims `stateLogs`, where `q`
+really is the view's own key for leaving the log pane. That is key ownership,
+not a workaround for `esc`.
+
+**D16 — `:netdiag` was documented but not accepted.** One missing map entry.
+**D17 — the completion catalogue was a subset of the parser.** Eight commands
+listed against fourteen views plus aliases, kept by hand in two places.
+
+**Fix, for both:** one map. `viewNames` in `parser.go` maps every accepted
+spelling to its view, the key equal to the `ViewType` being the full name and
+every other key an alias; `GetAliases()` and the new `FullNames()` derive from
+it, and the completion engine derives from those. Two tests hold the two ends
+together — everything the parser accepts is suggested, everything suggested
+parses — so the lists cannot drift apart again. `ParseCommand` lost its chain of
+`if mainCmd ==` comparisons to the same treatment, `actionNames` and
+`actionAliases`, and `Parse` is now a lookup in `viewNames` rather than a third
+copy of it.
+
+Two aliases documented in `CLAUDE.md` but accepted nowhere came out of this —
+`gle` for the explorer and `w` for workspaces — the same defect as D16, found by
+the test rather than by reading. `ViewNet` was renamed `ViewNetdiag` and its
+value changed from `net` to `netdiag`, so the full name matches the view, the
+package and the documentation; `net` remains an alias.
+
+**D18 — the header overflowed a narrow window.** `buildShortcutLines` meant to
+clip the shortcut block to its column — the comment said *"Truncate if wider
+than col2Width"* — but called `theme.PadWithBg`, which returns content untouched
+once it is already at or past the target. Below roughly 100 columns the header
+rendered wider than the window and wrapped, costing the viewport a row.
+
+**Fix:** `lipgloss.NewStyle().MaxWidth(col2Width)`, which truncates on rune
+boundaries without cutting an escape sequence in half — the corruption Rule 122
+is about. Width 80 is now part of `TestEveryHeaderRowFillsTheWidth`, and a
+second test checks no row ends inside an escape sequence, which is the failure a
+naive slice would have produced.
+
 ### 1.2 The five parked defects
 
 D4, D8, D9, D10 and D11 were each recorded rather than fixed on discovery,
@@ -323,10 +382,10 @@ D12–D14 sit in `internal/ui/oci_resources` and are cheap on their own, but
 work rather than ahead of it, and write each one's test inverted first, per the
 pattern above.
 
-D15–D18 were found by the phase 5 router pass and are unrelated to §3.8. Each
-has an inverted test asserting the current behaviour, named in its entry.
-D19 was fixed as part of the same phase; it is recorded at the end of this
-section for continuity.
+D15–D19 were found by the phase 5 pass, were unrelated to §3.8, and are fixed —
+see §1.1. Each had been recorded with an inverted test asserting the broken
+behaviour; those tests are what failed when the fix landed, and each has been
+turned around to assert the fixed behaviour instead.
 
 **D12 — `AuthEnabled` has no effect on browse or discovery.** The flag is
 honoured in exactly three places: the `docker login` fired on form submit, the
@@ -365,54 +424,6 @@ returning `b.registryFilter` — the full synthesised URL — where every other 
 in the same view shows a short alias. The fix follows from §3.8 rather than
 preceding it: once members are persisted they are resolvable, and the filter
 gains a group level at the same time.
-
-**D15 — `esc` never reaches a view that is not editing.** `handleKeyMsg`
-(`keys.go`) answers `esc` itself through `maybeQuitCommandMode`, which forwards
-the key only when the view reports `InEditMode()`. Every other time the router
-consumes it and returns a resize. The explorer's `esc` → `handleDrillUp`
-(`update.go:157`) is therefore dead code: only `←` and `h` drill up, though
-Rule 111 lists `esc` as the third way. The explorer's own unit tests pass
-because they drive the model directly, bypassing the router — this is precisely
-the class of defect router tests exist to catch.
-
-The security view already works around it: `InEditMode()` there is documented as
-*"returns true when the view needs to handle ESC key"*, which overloads a
-predicate about focused fields into a predicate about key ownership. The fix is
-to give `esc` the same shape as every other key — forward it to the view first
-and let the router act only if the view did not — but that changes behaviour in
-every view at once, so it wants its own commit and a pass over each view's esc
-handling. Inverted test:
-`TestEscIsSwallowedForAViewThatIsNotEditing` (`router_test.go`).
-
-**D16 — `:netdiag` is documented but not accepted.** `CLAUDE.md` lists
-"`netdiag` or `net`", the view is named `netdiag` throughout, and the directory
-is `internal/ui/netdiag` — but `viewMap` in `parser.go` has only `"net"`.
-`:netdiag` parses to `CommandUnknown`, which leaves the command line open with
-no diagnostic. One map entry. Covered by the comment on the `net` row in
-`TestEveryNamedViewCanBeReached` (`command_line_test.go`).
-
-**D17 — the completion catalogue is a subset of the parser.**
-`buildCommands()` (`completion.go`) lists eight full commands; the parser
-accepts fourteen views plus aliases. `gitlab-explorer`, `workspaces`,
-`security` and `net` all work when typed in full but cannot be tab-completed,
-and nothing keeps the two lists in step. The parser's `viewMap` is the natural
-single source — the catalogue should be derived from it rather than restated.
-Worth doing with D16, which is the same drift.
-
-**D19 is fixed** — see §1.1. The two builders became one (`trivyArgs`,
-`trivyMisconfigArgs`, `sbomArgs`, `gitleaksArgs`), so the shown command is the
-executed one by construction rather than by maintenance, and the misconfig and
-SBOM scans gained the display counterparts they never had.
-
-**D18 — the header overflows a narrow window.** `buildShortcutLines`
-(`app_header.go:202`) intends to clip the shortcut block to its column —
-`// Truncate if wider than col2Width` — but calls `theme.PadWithBg`, which
-returns the content untouched when it is already at or past the target. Below
-roughly 100 columns the header therefore renders wider than the window and
-wraps: at width 80 with twelve shortcuts every header row comes out 95 wide.
-The fix is `lipgloss.NewStyle().MaxWidth(col2Width)`, which truncates without
-cutting an escape sequence in half — the hazard Rule 122 is about. Inverted
-test: `TestANarrowHeaderOverflowsTheWindow` (`header_test.go`).
 
 ---
 
@@ -709,7 +720,9 @@ The router is where this pass paid for itself. Four of the five defects it found
 (D15–D18) are invisible from any single view: `esc` swallowed before it is
 forwarded, a documented command the parser rejects, a completion catalogue that
 has drifted from the parser, a header that overflows its window. A view's own
-tests drive its `Update` directly and so never see the router at all.
+tests drive its `Update` directly and so never see the router at all. All five
+are now fixed (§1.1); the `esc` one turned out to be holding two views' notion of
+"editing" hostage, which no view could have reported on its own either.
 
 ### Race detector cannot run locally
 

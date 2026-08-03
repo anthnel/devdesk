@@ -840,9 +840,9 @@ func TestBrowsingForATarget(t *testing.T) {
 
 // ── Edit mode ────────────────────────────────────────────────────────────────
 
-// InEditMode tells the router to leave esc alone. Every state that answers esc
-// itself has to claim it.
-func TestInEditModeCoversEveryStateThatAnswersEsc(t *testing.T) {
+// InEditMode tells the router which keys are not its own. It is a question
+// about focus — a field or a modal has the keyboard — and nothing else.
+func TestInEditModeIsTrueOnlyWhereAFieldHasTheKeyboard(t *testing.T) {
 	form := newTestModel(t)
 	if form.InEditMode() {
 		t.Error("InEditMode() is true on the form with a checkbox focused")
@@ -856,11 +856,14 @@ func TestInEditModeCoversEveryStateThatAnswersEsc(t *testing.T) {
 		}
 	}
 
+	// These three used to claim the keyboard for one reason: it was the only way
+	// to be handed esc. The router forwards esc on its own now (D15), so they
+	// hold no field and claim nothing — which gives them ':', '?' and 'q' back.
 	for _, state := range []ViewState{StateScanning, StateResults, StateDetails} {
 		m := newTestModel(t)
 		m.state = state
-		if !m.InEditMode() {
-			t.Errorf("InEditMode() is false in state %v", state)
+		if m.InEditMode() {
+			t.Errorf("InEditMode() is true in state %v, where no field has the keyboard", state)
 		}
 	}
 

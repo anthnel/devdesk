@@ -75,8 +75,12 @@ func TestParse_Netdiag(t *testing.T) {
 		input    string
 		expected ViewType
 	}{
-		{"net alias", "net", ViewNet},
-		{"net with colon prefix", ":net", ViewNet},
+		// The view is called netdiag everywhere — the directory, the docs, the
+		// command list — but only "net" parsed, and ":netdiag" fell through to
+		// CommandUnknown with no diagnostic (§1.3 D16).
+		{"full name", "netdiag", ViewNetdiag},
+		{"net alias", "net", ViewNetdiag},
+		{"net with colon prefix", ":net", ViewNetdiag},
 	}
 
 	for _, tt := range tests {
@@ -100,7 +104,7 @@ func TestParseCommand_Netdiag(t *testing.T) {
 		expectedType CommandType
 		expectedView ViewType
 	}{
-		{"net command", "net", CommandView, ViewNet},
+		{"net command", "net", CommandView, ViewNetdiag},
 	}
 
 	for _, tt := range tests {

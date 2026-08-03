@@ -462,10 +462,11 @@ func TestDetailsToggleAndScroll(t *testing.T) {
 
 // ── Edit mode ────────────────────────────────────────────────────────────────
 
-// InEditMode keeps the app router from stealing keys the view needs — a target
-// can contain ':', esc must reach the run to cancel it, and esc must close the
-// details rather than the view.
-func TestInEditModeCoversTheStatesThatNeedKeys(t *testing.T) {
+// InEditMode keeps the app router from stealing the character keys a focused
+// field needs — a target can contain ':'. It says nothing about esc, which the
+// router forwards whatever the view answers (D15), so a state that holds no
+// field claims no key even when it uses esc.
+func TestInEditModeIsTrueOnlyWhereAFieldHasTheKeyboard(t *testing.T) {
 	m := newTestModel(t)
 
 	m.focusedField = fieldTarget
@@ -477,14 +478,28 @@ func TestInEditModeCoversTheStatesThatNeedKeys(t *testing.T) {
 		t.Error("InEditMode() is true on a checkbox, which needs no character keys")
 	}
 
-	if !runningModel(t, "example.com", "Ping").InEditMode() {
-		t.Error("InEditMode() is false while running, so esc would not reach the cancel")
+	if runningModel(t, "example.com", "Ping").InEditMode() {
+		t.Error("InEditMode() is true while running, which costs the run ':' and '?'")
 	}
-	if !feed(t, resultsModel(t), testutil.Key("enter")).InEditMode() {
-		t.Error("InEditMode() is false in the details, so esc would close the view instead")
+	if feed(t, resultsModel(t), testutil.Key("enter")).InEditMode() {
+		t.Error("InEditMode() is true in the details, which takes no text")
 	}
 	if resultsModel(t).InEditMode() {
 		t.Error("InEditMode() is true on the results table, which takes no text")
+	}
+}
+
+// Esc still closes the details and cancels a run — it arrives from the router
+// now rather than through InEditMode, and that has to keep working.
+func TestEscStillLeavesTheDetailsAndCancelsARun(t *testing.T) {
+	details := feed(t, resultsModel(t), testutil.Key("enter"))
+	if got := feed(t, details, testutil.Key("esc")).state; got != StateResults {
+		t.Errorf("esc left the details in state %v, want the results", got)
+	}
+
+	running := runningModel(t, "example.com", "Ping")
+	if got := feed(t, running, testutil.Key("esc")).state; got != StateResults {
+		t.Errorf("esc left the run in state %v, want the results", got)
 	}
 }
 

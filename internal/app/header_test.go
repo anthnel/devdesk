@@ -69,10 +69,12 @@ func TestShortcutsOverflowIntoASecondColumn(t *testing.T) {
 
 // ── Width ────────────────────────────────────────────────────────────────────
 
-// Every row is exactly the window width. A short row would show the terminal's
-// own background through the header (Rule 115).
+// Every row is exactly the window width — no shorter, which would show the
+// terminal's own background through the header (Rule 115), and no longer, which
+// would wrap and cost the viewport a row. 80 is the case that used to overflow:
+// the shortcut block is clipped to its column, not merely padded (D18).
 func TestEveryHeaderRowFillsTheWidth(t *testing.T) {
-	for _, width := range []int{120, 180, 240} {
+	for _, width := range []int{80, 120, 180, 240} {
 		rendered := renderHeaderContent(
 			[]shortcut.HeaderInfo{{Key: "Context", Value: "default"}},
 			manyShortcuts(12),
@@ -86,24 +88,35 @@ func TestEveryHeaderRowFillsTheWidth(t *testing.T) {
 	}
 }
 
-// D18, recorded not fixed: buildShortcutLines means to clip the shortcut block
-// to its column — "Truncate if wider than col2Width" — but calls PadWithBg,
-// which returns the content untouched when it is already too wide. Below about
-// 100 columns the header therefore runs past the window and wraps.
-//
-// This test asserts the current behaviour and must fail when D18 is fixed.
-func TestANarrowHeaderOverflowsTheWindow(t *testing.T) {
-	const width = 80
+// Clipping must not cut an escape sequence in half: the truncated row would
+// leak its colour onto everything rendered after it, which is the corruption
+// Rule 122 is about.
+func TestClippingTheShortcutBlockLeavesTheStylingIntact(t *testing.T) {
+	withTrueColor(t)
+
 	rendered := renderHeaderContent(
 		[]shortcut.HeaderInfo{{Key: "Context", Value: "default"}},
 		manyShortcuts(12),
-		width,
+		80,
 	)
 
-	if lipgloss.Width(strings.Split(rendered, "\n")[0]) <= width {
-		t.Error("the header fits the window — D18 is fixed, fold this width back into " +
-			"TestEveryHeaderRowFillsTheWidth and delete its backlog entry")
+	for i, line := range strings.Split(rendered, "\n") {
+		if truncated(line) {
+			t.Errorf("row %d ends inside an escape sequence: %q", i, line)
+		}
 	}
+}
+
+// truncated reports whether the line holds an escape sequence that was never
+// terminated — the shape a naive slice leaves behind.
+func truncated(line string) bool {
+	for _, after := range strings.Split(line, "\x1b[")[1:] {
+		end := strings.IndexByte(after, 'm')
+		if end < 0 || strings.Contains(after[:end], "\x1b") {
+			return true
+		}
+	}
+	return false
 }
 
 // A window too narrow for the logo alone must not produce a negative column

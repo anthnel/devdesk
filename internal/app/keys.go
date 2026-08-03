@@ -42,13 +42,15 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case ":":
 		cmd := a.maybeEnterInCommandMode(msg)
 		return a, cmd
-	case "esc":
-		cmd := a.maybeQuitCommandMode(msg)
-		// Rule 124: re-resize if a form was closed and footer height changed
-		if newFooterHeight := a.getFooterHeight(); newFooterHeight != a.lastFooterHeight {
-			a.resize(a.width, a.height)
-		}
-		return a, cmd
+	// esc is deliberately absent: it belongs to the view. The router used to
+	// answer it whenever the view was not editing, which made esc-to-go-back dead
+	// code everywhere and forced views that wanted it to claim they were editing
+	// — a predicate about focused fields, overloaded into one about key
+	// ownership (§1.3 D15).
+	//
+	// Nothing is lost by handing it over: command mode is already closed by the
+	// time this switch runs (handleCommandMode answers first), so the router had
+	// nothing left to close.
 	default:
 		return a, a.forwardToActiveView(msg)
 	}
@@ -104,19 +106,6 @@ func (a *App) maybeEnterInCommandMode(msg tea.Msg) tea.Cmd {
 	}
 	if !a.inEditMode() {
 		return a.enterCommandMode()
-	}
-	return a.forwardToActiveView(msg)
-}
-
-func (a *App) maybeQuitCommandMode(msg tea.Msg) tea.Cmd {
-	if _, ok := a.views[a.currentView]; !ok {
-		return nil
-	}
-	if !a.inEditMode() {
-		a.commandMode = false
-		a.commandInput.Reset()
-		a.commandInput.Blur()
-		return a.requestResize()
 	}
 	return a.forwardToActiveView(msg)
 }

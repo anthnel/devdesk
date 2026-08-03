@@ -75,9 +75,7 @@ func TestEveryNamedViewCanBeReached(t *testing.T) {
 		{"security", command.ViewSecurity},
 		{"containers", command.ViewContainers},
 		{"oci-resources", command.ViewOCIResources},
-		// "net", not "netdiag": the parser only accepts the short form even
-		// though CLAUDE.md documents both — §1.3 D16 in the backlog.
-		{"net", command.ViewNet},
+		{"netdiag", command.ViewNetdiag},
 	}
 
 	for _, tt := range views {
