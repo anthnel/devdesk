@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "2f48a30e1f0a",
+  "strategy": "manual-commit",
+  "branch": "test/coverage-phase4-oci",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2f/48a30e1f0a/0/metadata.json",
+      "transcript": "/2f/48a30e1f0a/0/full.jsonl",
+      "compact_transcript": "/2f/48a30e1f0a/0/transcript.jsonl",
+      "content_hash": "/2f/48a30e1f0a/0/content_hash.txt",
+      "prompt": "/2f/48a30e1f0a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 10404,
+    "cache_read_tokens": 348128,
+    "output_tokens": 4971,
+    "api_call_count": 3
+  }
+}

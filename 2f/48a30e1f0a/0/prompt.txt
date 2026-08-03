@@ -1,0 +1,6 @@
+1. explicateur de diagnostics seul
+2. consomme un endpoint
+3. OpenAPI
+4. On doit s'assurer en amont que rien de sensible n'est envoyé aux llm, qu'ils soit locaux ou pas (ressources utiles : https://k33g.org/p/20260716-docker-agent-pii-protection-presidio)
+5. snaplen par défaut
+6. un par contexte
