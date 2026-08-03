@@ -1,0 +1,189 @@
+package scan
+
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+)
+
+// Building a Trivy invocation is pure: the same inputs produce the command that
+// is run and the command that is shown. Keeping the two derived from one
+// builder is what stops them drifting apart (§1.3 D19).
+
+// containerScanPath is where a scanned directory is mounted inside the tool's
+// container, so the argument passed to the tool is never the host path.
+const containerScanPath = "/scan"
+
+// containerOutputPath is where a writable output directory is mounted.
+const containerOutputPath = "/output"
+
+// dockerSocketMount lets a containerised Trivy inspect images held by the host
+// daemon. It is a broad grant, so it is only made when there is no Trivy server
+// to do the work instead.
+const dockerSocketMount = "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+// trivyArgs builds a vulnerability or license scan.
+func trivyArgs(target string, targetType TargetType, licenseMode bool, source ToolSource,
+	image, server string, ignoreUnfixed, ignoreEOL bool) (toolCmd, error) {
+	var args []string
+
+	switch targetType {
+	case TargetDirectory:
+		args = []string{"fs", "--format", "json"}
+		if licenseMode {
+			args = append(args, "--scanners", "license")
+		} else {
+			args = append(args, "--scanners", "vuln")
+		}
+	case TargetImage:
+		args = []string{"image", "--format", "json"}
+	default:
+		return toolCmd{}, fmt.Errorf("unsupported target type: %s", targetType)
+	}
+
+	if server != "" {
+		args = append(args, "--server", server)
+	}
+	if ignoreUnfixed {
+		args = append(args, "--ignore-unfixed")
+	}
+	if ignoreEOL {
+		args = append(args, "--ignore-status", "end_of_life")
+	}
+
+	return wrapTrivy(args, target, targetType, source, image, server), nil
+}
+
+// trivyMisconfigArgs builds a misconfiguration scan. It reads configuration
+// files rather than a package manifest, so it applies to both target types.
+func trivyMisconfigArgs(target string, targetType TargetType, source ToolSource,
+	image, server string, ignoreEOL bool) (toolCmd, error) {
+	var args []string
+
+	switch targetType {
+	case TargetDirectory:
+		args = []string{"fs", "--format", "json", "--scanners", "misconfig"}
+	case TargetImage:
+		args = []string{"image", "--format", "json", "--scanners", "misconfig"}
+	default:
+		return toolCmd{}, fmt.Errorf("unsupported target type: %s", targetType)
+	}
+
+	if server != "" {
+		args = append(args, "--server", server)
+	}
+	if ignoreEOL {
+		args = append(args, "--ignore-status", "end_of_life")
+	}
+
+	return wrapTrivy(args, target, targetType, source, image, server), nil
+}
+
+// sbomArgs builds a CycloneDX SBOM generation and returns the host path the
+// file will end up at, which is not the path Trivy is given in Docker mode.
+func sbomArgs(target string, targetType TargetType, source ToolSource,
+	image, server, outputDir string) (toolCmd, string, error) {
+	name := sbomFileName(target, targetType)
+
+	var hostPath string
+	switch {
+	case outputDir != "":
+		hostPath = filepath.Join(outputDir, name)
+	case targetType == TargetDirectory:
+		hostPath = filepath.Join(target, name)
+	case targetType == TargetImage:
+		hostPath = name
+	default:
+		return toolCmd{}, "", fmt.Errorf("unsupported target type: %s", targetType)
+	}
+
+	if source != ToolSourceDocker {
+		args := []string{sbomSubcommand(targetType), "--format", "cyclonedx", "--output", hostPath}
+		if server != "" {
+			args = append(args, "--server", server)
+		}
+		return toolCmd{Name: "trivy", Args: append(args, target)}, hostPath, nil
+	}
+
+	// In Docker mode the output directory has to be writable, so the read-only
+	// mount used elsewhere does not apply to it.
+	var mounts []string
+	var containerOut string
+	switch {
+	case targetType == TargetDirectory && outputDir != "":
+		mounts = []string{"-v", target + ":" + containerScanPath + ":ro", "-v", outputDir + ":" + containerOutputPath}
+		containerOut = containerOutputPath + "/" + name
+	case targetType == TargetDirectory:
+		mounts = []string{"-v", target + ":" + containerScanPath}
+		containerOut = containerScanPath + "/" + name
+	default:
+		if server == "" {
+			mounts = append(mounts, "-v", dockerSocketMount)
+		}
+		mountDir := outputDir
+		if mountDir == "" {
+			mountDir = "."
+		}
+		mounts = append(mounts, "-v", mountDir+":"+containerOutputPath)
+		containerOut = containerOutputPath + "/" + name
+	}
+
+	args := []string{sbomSubcommand(targetType), "--format", "cyclonedx", "--output", containerOut}
+	if server != "" {
+		args = append(args, "--server", server)
+	}
+	if targetType == TargetDirectory {
+		args = append(args, containerScanPath)
+	} else {
+		args = append(args, target)
+	}
+
+	dockerArgs := append([]string{"run", "--rm"}, mounts...)
+	dockerArgs = append(dockerArgs, trivyImage(image))
+	return toolCmd{Name: "docker", Args: append(dockerArgs, args...)}, hostPath, nil
+}
+
+func sbomSubcommand(targetType TargetType) string {
+	if targetType == TargetImage {
+		return "image"
+	}
+	return "fs"
+}
+
+// sbomFileName keeps an image's SBOM identifiable while staying a legal
+// filename — a tag reference carries "/" and ":".
+func sbomFileName(target string, targetType TargetType) string {
+	if targetType == TargetImage {
+		return fmt.Sprintf("sbom-%s.json", strings.NewReplacer("/", "_", ":", "_").Replace(target))
+	}
+	return "sbom-report.json"
+}
+
+// wrapTrivy turns tool arguments into the invocation to run: either trivy
+// directly, or docker run with the target mounted and the tool arguments
+// appended after the image.
+func wrapTrivy(args []string, target string, targetType TargetType, source ToolSource, image, server string) toolCmd {
+	if source != ToolSourceDocker {
+		return toolCmd{Name: "trivy", Args: append(args, target)}
+	}
+
+	dockerArgs := []string{"run", "--rm"}
+	if targetType == TargetDirectory {
+		dockerArgs = append(dockerArgs, "-v", target+":"+containerScanPath+":ro")
+		args = append(args, containerScanPath)
+	} else {
+		if server == "" {
+			dockerArgs = append(dockerArgs, "-v", dockerSocketMount)
+		}
+		args = append(args, target)
+	}
+	dockerArgs = append(dockerArgs, trivyImage(image))
+	return toolCmd{Name: "docker", Args: append(dockerArgs, args...)}
+}
+
+func trivyImage(image string) string {
+	if image == "" {
+		return DefaultTrivyImage
+	}
+	return image
+}

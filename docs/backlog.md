@@ -11,9 +11,10 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Three open**, all in the registry browser and all found while reviewing the
-design for §3.8 rather than by a test; see [§1.3](#13-open). D1–D11 are fixed;
-§1.1 records what each was and why the chosen fix was the right one.
+**Seven open**: three in the registry browser, found while reviewing the design
+for §3.8 rather than by a test, and four in the router, found by the phase 5
+pass. See [§1.3](#13-open). D1–D11 and D19 are fixed; §1.1 records what each was
+and why the chosen fix was the right one.
 
 The five that stayed open longest — D4, D8, D9, D10 and D11 — were parked not
 because they were hard but because each altered something the user already saw,
@@ -200,6 +201,33 @@ One call site was deliberately left alone: `truncateResultLine` in
 so it is correct — merely imprecise on double-width glyphs. Folding it into the
 theme helpers is a cleanup, not a defect fix.
 
+**Every scan came back empty.** Introduced by the `internal/scan` split itself
+and caught within the hour by the coverage pass that followed it — the clearest
+argument yet for the surface → split → cover order.
+
+Extracting the subprocess seam collapsed two statements into one return:
+
+```go
+return stdout.Bytes(), waitErr(tc.Name, cmd.Wait(), stderr.String())
+```
+
+Operands are evaluated before the call, so `stdout.Bytes()` snapshots the buffer
+**before** `cmd.Wait()` runs — and `os/exec` fills that buffer from goroutines
+only Wait is guaranteed to have finished. `Bytes()` returns a slice header with
+the length at that moment, so later writes are invisible: the report was always
+empty, every scan reported no findings, and the exit code alone survived. The
+code it replaced got this right by accident of being written as separate
+statements.
+
+The read now lives in `finish`, after Wait, with the reasoning recorded next to
+it so it is not re-collapsed. Pinned by `TestTheReportOnStdoutIsWhatComesBack`,
+which is the test that failed first when the seam was finally exercised.
+
+Worth stating plainly: this is the one defect in this list that the tests
+*introduced* rather than merely found, and it never reached a commit. A
+mechanical-looking refactor changed evaluation order, which is exactly what a
+package with no tests under it cannot tell you.
+
 **Context isolation in `GitCredentialStorage` never worked.** Found while
 planning the coverage work, not previously recorded.
 
@@ -295,8 +323,10 @@ D12–D14 sit in `internal/ui/oci_resources` and are cheap on their own, but
 work rather than ahead of it, and write each one's test inverted first, per the
 pattern above.
 
-D15–D19 were found by the phase 5 router pass and are unrelated to §3.8. Each
+D15–D18 were found by the phase 5 router pass and are unrelated to §3.8. Each
 has an inverted test asserting the current behaviour, named in its entry.
+D19 was fixed as part of the same phase; it is recorded at the end of this
+section for continuity.
 
 **D12 — `AuthEnabled` has no effect on browse or discovery.** The flag is
 honoured in exactly three places: the `docker login` fired on form submit, the
@@ -369,6 +399,11 @@ and nothing keeps the two lists in step. The parser's `viewMap` is the natural
 single source — the catalogue should be derived from it rather than restated.
 Worth doing with D16, which is the same drift.
 
+**D19 is fixed** — see §1.1. The two builders became one (`trivyArgs`,
+`trivyMisconfigArgs`, `sbomArgs`, `gitleaksArgs`), so the shown command is the
+executed one by construction rather than by maintenance, and the misconfig and
+SBOM scans gained the display counterparts they never had.
+
 **D18 — the header overflows a narrow window.** `buildShortcutLines`
 (`app_header.go:202`) intends to clip the shortcut block to its column —
 `// Truncate if wider than col2Width` — but calls `theme.PadWithBg`, which
@@ -379,27 +414,13 @@ The fix is `lipgloss.NewStyle().MaxWidth(col2Width)`, which truncates without
 cutting an escape sequence in half — the hazard Rule 122 is about. Inverted
 test: `TestANarrowHeaderOverflowsTheWindow` (`header_test.go`).
 
-**D19 — the Trivy command shown is not the one run.** `GetTrivyCommand` exists
-to display what will be executed, and rebuilds the argument list by hand from
-the same inputs as `RunTrivy`. The two have drifted: `RunTrivy` takes
-`ignoreEOL` and appends `--ignore-status end_of_life`; `GetTrivyCommand` does
-not take the parameter at all. A user copying the logged command gets different
-results from the scan they just watched. `RunTrivyMisconfig` and `GenerateSBOM`
-have no display counterpart at all, so their commands are never shown.
-
-The fix is not to add the missing flag but to remove the duplication: extract
-one pure `trivyArgs(...)` builder returning the binary name and its arguments,
-and have `RunTrivy` turn it into an `exec.Cmd` while `GetTrivyCommand` joins it
-into a string. Same for gitleaks. This is planned as the split step of phase 5
-for `internal/scan`, since it is also what makes the argument surface testable.
-
 ---
 
 ## 2. Technical debt
 
 ### Test coverage
 
-Currently **70.5 %** overall; the agreed target is 80 %.
+Currently **73.6 %** overall; the agreed target is 80 %.
 
 Phased plan, with the harness and most of phase 1 delivered:
 
@@ -410,8 +431,19 @@ Phased plan, with the harness and most of phase 1 delivered:
 | 2 | Mid-size view state machines (`status`, `containers`, `dashboard`, `gitlab/auth`) | **done** |
 | 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **done** |
 | 4 | `ui/oci_resources` | **done** — 43.4 %, the rest deferred to phase 6 |
-| 5 | Router and I/O seams (`app`, `scan`, `docker`) | `app` **done** (90.5 %); `scan` and `docker` pending |
+| 5 | Router and I/O seams (`app`, `scan`, `docker`) | **done** — `app` 90.5 %, `scan` 99.2 %, `docker` 65.4 % |
 | 6 | Remainder to reach 80 % | pending |
+
+**Phase 5 is complete.** The three packages needed three different seams, which
+is the finding worth carrying into phase 6: `app` needed only a constructor that
+does not read the terminal, `docker` needed `dockerRunner`, and `scan` needed
+`commandRunner` plus pure argument builders. None of them needed a mocking
+library.
+
+Phase 6 starts from `internal/registrymgr` (18.5 %), `internal/oci` (37.3 %),
+`internal/ui/oci_resources` (43.4 %, deferred there deliberately),
+`internal/status` (64.8 %) and `internal/docker` (65.4 %). The last two are the
+ones that now have a seam under them and no excuse.
 
 Phase 1 progress:
 
@@ -433,8 +465,35 @@ single-response stubs used so far.
 
 Phase 5's blocker is cleared for `docker`: the package now routes every CLI
 invocation through the `dockerRunner` seam in `internal/docker/exec.go`, so tests
-drive argument building and output parsing against canned output. `scan` and
-`app` remain.
+drive argument building and output parsing against canned output.
+
+`internal/scan` (0 % → **99.2 %**) closed the phase, and it is the package where
+the three-step order earned its keep most visibly. The split extracted
+`commandRunner` and the pure argument builders — which is what closed D19 — and
+the completion pass immediately failed on a defect the split had just
+introduced: the report was read before `cmd.Wait()`, so every scan came back
+empty (§1.1). The seam existed for a full commit before anything used it, and
+that gap is exactly where the defect lived.
+
+Two techniques from it are reusable:
+
+- **The test binary stands in for the tool.** `TestMain` notices a set of
+  environment variables and, instead of running the suite, behaves as a scanner
+  does — a report on stdout, progress on stderr, a chosen exit code. That is what
+  covers the *production* runner (`cliRunner`) rather than only the code above
+  the seam, with no trivy or gitleaks installed and no compiler at test time.
+- **Detection is steered through `PATH`.** `CheckDependenciesWithImages` probes
+  the machine, which is precisely what a test must not do. Copying the test
+  binary into `t.TempDir()` as `trivy`, `gitleaks` or `docker` and pointing
+  `PATH` at it makes every branch reachable and deterministic — binary preferred
+  over image, image absent, daemon unreachable, version unreadable. A per-argument
+  refusal knob is what separates `docker images` from `docker run` when both are
+  the same fake.
+
+Five statements are left uncovered and stay that way: two error paths in
+`AddToGitleaksIgnore` that need an injected filesystem, and a `StderrPipe`
+fallback that `Run` cannot reach. Covering them costs more structure than the
+branches are worth.
 
 `internal/gitlab` needed no seam: every function takes a `*gitlabclient.Client`
 built from a base URL, so an `httptest` server standing in for the API covers
@@ -663,10 +722,15 @@ every push and pull request, on `ubuntu-latest`, which has a toolchain. The firs
 run reported no data race across all 17 packages.
 
 That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 65.2 %. Rule 110 violations in untested
-paths — most of the view layer — remain invisible. The two efforts compound, so
-this is an argument for the coverage phases rather than a substitute for them.
-Phase 2 puts the first full view state machine under the detector.
+tests actually execute, and coverage is 73.6 %. Rule 110 violations in untested
+paths remain invisible. The two efforts compound, so this is an argument for the
+coverage phases rather than a substitute for them.
+
+`internal/scan` is the package the detector has most to say about, since
+`Scanner.Scan` is the only place in the application that fans out to concurrent
+goroutines writing one shared result. Its tests now drive all five stages at
+once, so that fan-out is under the detector for the first time — but only on CI,
+which is where the confirmation has to be read.
 
 Installing a local toolchain is still worth doing for anyone touching `Cmd`s, to
 avoid learning about a race from CI after the fact.

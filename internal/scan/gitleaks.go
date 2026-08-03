@@ -1,13 +1,11 @@
 package scan
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 )
 
@@ -30,94 +28,70 @@ type GitleaksFinding struct {
 	Message     string `json:"Message,omitempty"`
 }
 
-// RunGitleaks executes Gitleaks and returns findings.
-// progressFn is an optional callback called with each stderr line.
-func RunGitleaks(ctx context.Context, target string, source ToolSource, image string, history bool, configPath string, progressFn func(string)) ([]Finding, error) {
-	if image == "" {
-		image = DefaultGitleaksImage
-	}
+// gitleaksSecretsFound is the exit code Gitleaks uses to say it found
+// something. It is a result, not a failure.
+const gitleaksSecretsFound = 1
 
-	var cmd *exec.Cmd
-
-	if source == ToolSourceDocker {
-		// Use Docker to run Gitleaks
-		// Note: Use /dev/fd/1 instead of /dev/stdout for proper output in Docker
-		dockerArgs := []string{
-			"run", "--rm",
-			"-v", target + ":/scan:ro",
-			image,
-			"detect",
-			"--source", "/scan",
-			"--gitleaks-ignore-path", "/scan",
-			"--report-format", "json",
-			"--report-path", "/dev/fd/1",
-		}
-		if !history {
-			dockerArgs = append(dockerArgs, "--no-git")
-		}
-		if configPath != "" {
-			dockerArgs = append(dockerArgs, "--config", configPath)
-		}
-		cmd = exec.CommandContext(ctx, "docker", dockerArgs...)
-	} else {
-		// Use binary directly
-		args := []string{
-			"detect",
-			"--source", target,
-			"--gitleaks-ignore-path", target,
-			"--report-format", "json",
-			"--report-path", "/dev/stdout",
-		}
+// gitleaksArgs builds the invocation. Gitleaks writes its report to a path
+// rather than to stdout, so the report path is redirected at the process's own
+// stdout — which is a different pseudo-file inside a container.
+func gitleaksArgs(target string, source ToolSource, image string, history bool, configPath string) toolCmd {
+	appendOptions := func(args []string) []string {
+		// History is the expensive mode, so it is opted into by dropping
+		// --no-git rather than by adding a flag.
 		if !history {
 			args = append(args, "--no-git")
 		}
 		if configPath != "" {
 			args = append(args, "--config", configPath)
 		}
-		cmd = exec.CommandContext(ctx, "gitleaks", args...)
+		return args
 	}
 
-	var stdoutBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
+	if source == ToolSourceDocker {
+		if image == "" {
+			image = DefaultGitleaksImage
+		}
+		args := []string{
+			"run", "--rm",
+			"-v", target + ":" + containerScanPath + ":ro",
+			image,
+			"detect",
+			"--source", containerScanPath,
+			"--gitleaks-ignore-path", containerScanPath,
+			"--report-format", "json",
+			"--report-path", "/dev/fd/1",
+		}
+		return toolCmd{Name: "docker", Args: appendOptions(args)}
+	}
 
-	if progressFn != nil {
-		stderrPipe, err := cmd.StderrPipe()
-		if err == nil {
-			go func() {
-				sc := bufio.NewScanner(stderrPipe)
-				for sc.Scan() {
-					if line := strings.TrimSpace(sc.Text()); line != "" {
-						progressFn(line)
-					}
-				}
-			}()
+	args := []string{
+		"detect",
+		"--source", target,
+		"--gitleaks-ignore-path", target,
+		"--report-format", "json",
+		"--report-path", "/dev/stdout",
+	}
+	return toolCmd{Name: "gitleaks", Args: appendOptions(args)}
+}
+
+// RunGitleaks executes Gitleaks and returns findings.
+// progressFn is an optional callback called with each stderr line.
+func RunGitleaks(ctx context.Context, target string, source ToolSource, image string, history bool, configPath string, progressFn func(string)) ([]Finding, error) {
+	stdout, err := runner.Run(ctx, gitleaksArgs(target, source, image, history, configPath), progressFn)
+	if err != nil && len(stdout) == 0 {
+		// Exit 1 with no report means it ran and found nothing; any other
+		// non-zero exit, or a process that never ran, is a genuine failure.
+		var exit *exitError
+		if !errors.As(err, &exit) || exit.Code != gitleaksSecretsFound {
+			return nil, fmt.Errorf("gitleaks failed: %w", err)
 		}
 	}
 
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("gitleaks failed to start: %w", err)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		if stdoutBuf.Len() == 0 {
-			// No output means actual error or no secrets found
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				// Exit code 1 = secrets found (normal), other = error
-				if exitErr.ExitCode() != 1 {
-					return nil, fmt.Errorf("gitleaks failed: %s", string(exitErr.Stderr))
-				}
-			} else {
-				return nil, fmt.Errorf("gitleaks failed: %w", err)
-			}
-		}
-	}
-
-	// Empty output means no secrets found
-	if stdoutBuf.Len() == 0 {
+	if len(stdout) == 0 {
 		return []Finding{}, nil
 	}
-
-	return parseGitleaksOutput(stdoutBuf.Bytes())
+	return parseGitleaksOutput(stdout)
 }
 
 // parseGitleaksOutput parses Gitleaks JSON output into findings
@@ -146,48 +120,11 @@ func parseGitleaksOutput(data []byte) ([]Finding, error) {
 	return findings, nil
 }
 
-// GetGitleaksCommand returns the command that would be executed (for display/logging purposes)
+// GetGitleaksCommand returns the command that would be executed, for display
+// and logging. It is built by the same builder as the executed command, so the
+// two cannot drift apart.
 func GetGitleaksCommand(target string, source ToolSource, image string, history bool, configPath string) string {
-	// Use default image if not specified
-	if image == "" {
-		image = DefaultGitleaksImage
-	}
-
-	if source == ToolSourceDocker {
-		args := []string{
-			"docker", "run", "--rm",
-			"-v", target + ":/scan:ro",
-			image,
-			"detect",
-			"--source", "/scan",
-			"--gitleaks-ignore-path", "/scan",
-			"--report-format", "json",
-			"--report-path", "/dev/fd/1",
-		}
-		if !history {
-			args = append(args, "--no-git")
-		}
-		if configPath != "" {
-			args = append(args, "--config", configPath)
-		}
-		return strings.Join(args, " ")
-	}
-
-	args := []string{
-		"gitleaks",
-		"detect",
-		"--source", target,
-		"--gitleaks-ignore-path", target,
-		"--report-format", "json",
-		"--report-path", "/dev/stdout",
-	}
-	if !history {
-		args = append(args, "--no-git")
-	}
-	if configPath != "" {
-		args = append(args, "--config", configPath)
-	}
-	return strings.Join(args, " ")
+	return gitleaksArgs(target, source, image, history, configPath).String()
 }
 
 // AddToGitleaksIgnore adds a finding to the .gitleaksignore file in the target directory

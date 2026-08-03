@@ -1,0 +1,449 @@
+package scan
+
+import (
+	"context"
+	"errors"
+	"sort"
+	"strings"
+	"sync"
+	"testing"
+)
+
+// Scan runs its stages concurrently against one runner, so a test says what
+// each stage answers rather than what the next call answers.
+
+type stageReply struct {
+	stdout string
+	err    error
+}
+
+// stageOf names the stage an invocation belongs to, from the invocation alone —
+// which is the only thing the runner sees.
+func stageOf(tc toolCmd) string {
+	s := tc.String()
+	switch {
+	case strings.Contains(s, "cyclonedx"):
+		return "sbom"
+	case strings.Contains(s, "--scanners license"):
+		return "license"
+	case strings.Contains(s, "--scanners misconfig"):
+		return "misconfig"
+	case strings.HasPrefix(s, "gitleaks"):
+		return "secret"
+	default:
+		return "vuln"
+	}
+}
+
+func byStage(t *testing.T, replies map[string]stageReply) *scriptedRunner {
+	t.Helper()
+	r := &scriptedRunner{}
+	r.reply = func(tc toolCmd) ([]byte, error) {
+		stage := stageOf(tc)
+		reply, scripted := replies[stage]
+		if !scripted {
+			t.Errorf("the %s stage ran although nothing was scripted for it: %s", stage, tc)
+		}
+		return []byte(reply.stdout), reply.err
+	}
+	useRunner(t, r)
+	return r
+}
+
+// stagesRun reports which stages the runner was actually asked to execute.
+func stagesRun(r *scriptedRunner) []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	seen := make([]string, 0, len(r.calls))
+	for _, c := range r.calls {
+		seen = append(seen, stageOf(c))
+	}
+	sort.Strings(seen)
+	return seen
+}
+
+func everyTool() DependencyStatus {
+	return DependencyStatus{
+		TrivyAvailable:    true,
+		TrivySource:       ToolSourceBinary,
+		TrivyImage:        DefaultTrivyImage,
+		GitleaksAvailable: true,
+		GitleaksSource:    ToolSourceBinary,
+		GitleaksImage:     DefaultGitleaksImage,
+		DockerAvailable:   true,
+	}
+}
+
+func everyStage() ScanOptions {
+	return ScanOptions{
+		EnableVuln:      true,
+		EnableSecret:    true,
+		EnableLicense:   true,
+		EnableMisconfig: true,
+		GenerateSBOM:    true,
+	}
+}
+
+// recorder collects progress from the scan goroutines.
+type recorder struct {
+	mu      sync.Mutex
+	updates []ProgressUpdate
+}
+
+func (rec *recorder) fn() func(ProgressUpdate) {
+	return func(u ProgressUpdate) {
+		rec.mu.Lock()
+		defer rec.mu.Unlock()
+		rec.updates = append(rec.updates, u)
+	}
+}
+
+// statusOf returns the transitions reported for one stage, in order. A running
+// update carrying a detail is the tool talking, not a transition, so it is left
+// out — otherwise every line of a database download would read as a state
+// change.
+func (rec *recorder) statusOf(stage string) []StageStatus {
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	var out []StageStatus
+	for _, u := range rec.updates {
+		if u.Stage != stage || (u.Status == StageRunning && u.Detail != "") {
+			continue
+		}
+		out = append(out, u.Status)
+	}
+	return out
+}
+
+func licenseReport(t *testing.T) string {
+	t.Helper()
+	return trivyReport(t, TrivyResult{Licenses: []TrivyLicense{
+		{Name: "GPL-3.0", Category: "restricted", PkgName: "somelib", Severity: "MEDIUM", FilePath: "go.mod"},
+	}})
+}
+
+func misconfigReport(t *testing.T) string {
+	t.Helper()
+	return trivyReport(t, TrivyResult{Target: "Dockerfile", Misconfigurations: []TrivyMisconfiguration{
+		{AVDID: "AVD-DS-0002", Title: "root user", Severity: "HIGH"},
+	}})
+}
+
+// ── What a full scan produces ────────────────────────────────────────────────
+
+func TestEveryEnabledStageContributesItsFindings(t *testing.T) {
+	byStage(t, map[string]stageReply{
+		"vuln":      {stdout: vulnReport(t, "CVE-2024-1", "CRITICAL"), err: &exitError{Code: 1}},
+		"license":   {stdout: licenseReport(t)},
+		"misconfig": {stdout: misconfigReport(t)},
+		"secret":    {stdout: gitleaksReport(t, "aws-access-token"), err: &exitError{Code: gitleaksSecretsFound}},
+		"sbom":      {},
+	})
+
+	result, err := newScannerWithDeps(everyStage(), everyTool()).
+		Scan(context.Background(), "/repos", TargetDirectory)
+
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Errors) != 0 {
+		t.Fatalf("a scan where every stage succeeded recorded errors: %v", result.Errors)
+	}
+
+	// Each kind lands in its own counter, which is what the four result tabs
+	// are built from.
+	if result.Counts.Critical != 1 {
+		t.Errorf("Counts.Critical = %d, want 1", result.Counts.Critical)
+	}
+	if result.SecretCount != 1 {
+		t.Errorf("SecretCount = %d, want 1", result.SecretCount)
+	}
+	if result.LicenseCount != 1 {
+		t.Errorf("LicenseCount = %d, want 1", result.LicenseCount)
+	}
+	if result.MisconfigCount != 1 {
+		t.Errorf("MisconfigCount = %d, want 1", result.MisconfigCount)
+	}
+	if result.SBOMPath == "" {
+		t.Error("the SBOM was generated but its path was not reported")
+	}
+	if result.Target != "/repos" || result.TargetType != TargetDirectory {
+		t.Errorf("the result does not describe what was scanned: %+v", result.Target)
+	}
+	if result.EndTime.Before(result.StartTime) {
+		t.Error("the scan ended before it started")
+	}
+}
+
+// ── What decides a stage runs at all ─────────────────────────────────────────
+
+// A stage the user did not ask for costs nothing, and one whose tool is missing
+// is skipped rather than reported as a failure — the dashboard already says the
+// tool is absent.
+func TestAStageWithoutItsToolIsSkippedSilently(t *testing.T) {
+	deps := everyTool()
+	deps.GitleaksAvailable = false
+
+	r := byStage(t, map[string]stageReply{"vuln": {stdout: `{"Results":[]}`}})
+
+	result, err := newScannerWithDeps(
+		ScanOptions{EnableVuln: true, EnableSecret: true}, deps).
+		Scan(context.Background(), "/repos", TargetDirectory)
+
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if got := stagesRun(r); strings.Join(got, ",") != "vuln" {
+		t.Errorf("stages run = %v, want the secret stage skipped", got)
+	}
+	if len(result.Errors) != 0 {
+		t.Errorf("a missing tool was reported as a scan failure: %v", result.Errors)
+	}
+}
+
+// Licences come from a package manifest and secrets from a working tree, so
+// neither has anything to read in an image.
+func TestLicenceAndSecretScanningDoNotApplyToAnImage(t *testing.T) {
+	r := byStage(t, map[string]stageReply{
+		"vuln":      {stdout: `{"Results":[]}`},
+		"misconfig": {stdout: `{"Results":[]}`},
+		"sbom":      {},
+	})
+
+	if _, err := newScannerWithDeps(everyStage(), everyTool()).
+		Scan(context.Background(), "api:v1", TargetImage); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	got := strings.Join(stagesRun(r), ",")
+	if got != "misconfig,sbom,vuln" {
+		t.Errorf("stages run = %s, want licence and secret left out", got)
+	}
+}
+
+func TestAScanWithNothingEnabledRunsNothing(t *testing.T) {
+	r := byStage(t, map[string]stageReply{})
+
+	result, err := newScannerWithDeps(ScanOptions{}, everyTool()).
+		Scan(context.Background(), "/repos", TargetDirectory)
+
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if r.count() != 0 {
+		t.Errorf("%d process(es) ran for a scan with no stage enabled", r.count())
+	}
+	if result.TotalFindings() != 0 {
+		t.Errorf("TotalFindings = %d, want 0", result.TotalFindings())
+	}
+}
+
+// ── When a stage fails ───────────────────────────────────────────────────────
+
+// The stages are independent, so one failing must not cost the user the results
+// of the others — that is the whole reason they run in parallel rather than in
+// sequence with an early return.
+func TestOneStageFailingLeavesTheOthersIntact(t *testing.T) {
+	byStage(t, map[string]stageReply{
+		"vuln":   {stdout: vulnReport(t, "CVE-2024-9", "HIGH")},
+		"secret": {err: errors.New("gitleaks failed to start")},
+	})
+
+	result, err := newScannerWithDeps(
+		ScanOptions{EnableVuln: true, EnableSecret: true}, everyTool()).
+		Scan(context.Background(), "/repos", TargetDirectory)
+
+	if err != nil {
+		t.Fatalf("Scan returned an error although a stage failure is a result: %v", err)
+	}
+	if result.Counts.High != 1 {
+		t.Errorf("Counts.High = %d, want the vulnerability that was found anyway", result.Counts.High)
+	}
+	if len(result.Errors) != 1 || !strings.Contains(result.Errors[0], "gitleaks") {
+		t.Errorf("Errors = %v, want one naming gitleaks", result.Errors)
+	}
+}
+
+func TestEveryStageReportsItsOwnFailure(t *testing.T) {
+	failing := &exitError{Code: 2, Stderr: "FATAL"}
+	byStage(t, map[string]stageReply{
+		"vuln":      {err: failing},
+		"license":   {err: failing},
+		"misconfig": {err: failing},
+		"secret":    {err: failing},
+		"sbom":      {err: failing},
+	})
+
+	result, err := newScannerWithDeps(everyStage(), everyTool()).
+		Scan(context.Background(), "/repos", TargetDirectory)
+
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Errors) != 5 {
+		t.Fatalf("Errors = %v, want one per stage", result.Errors)
+	}
+	// Each entry has to say which stage it came from, or the footer message is
+	// unactionable.
+	joined := strings.Join(result.Errors, "\n")
+	for _, want := range []string{"trivy vuln", "trivy license", "trivy misconfig", "gitleaks", "sbom"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("no error naming %q:\n%s", want, joined)
+		}
+	}
+	if result.SBOMPath != "" {
+		t.Errorf("SBOMPath = %q, want empty when generation failed", result.SBOMPath)
+	}
+}
+
+// ── Progress ─────────────────────────────────────────────────────────────────
+
+func TestAStageIsAnnouncedBeforeItRunsAndAgainWhenItIsOver(t *testing.T) {
+	r := byStage(t, map[string]stageReply{"vuln": {stdout: `{"Results":[]}`}})
+	r.progress = []string{"downloading db"}
+
+	rec := &recorder{}
+	opts := ScanOptions{EnableVuln: true, OnProgress: rec.fn()}
+
+	if _, err := newScannerWithDeps(opts, everyTool()).
+		Scan(context.Background(), "/repos", TargetDirectory); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	got := rec.statusOf("vuln")
+	if len(got) != 2 || got[0] != StageRunning || got[1] != StageDone {
+		t.Errorf("vuln statuses = %v, want running then done", got)
+	}
+
+	// The tool's own output is forwarded as detail on the running stage, which
+	// is what fills the line under the spinner.
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	var sawDetail bool
+	for _, u := range rec.updates {
+		if u.Stage == "vuln" && u.Detail == "downloading db" && u.Status == StageRunning {
+			sawDetail = true
+		}
+	}
+	if !sawDetail {
+		t.Errorf("the tool's progress was not forwarded: %+v", rec.updates)
+	}
+}
+
+// Every stage forwards the tool's own output under its own label. They run at
+// the same time against the same tools, so a line arriving unlabelled — or
+// labelled with another stage — would land under the wrong spinner.
+func TestEachStageLabelsItsOwnProgress(t *testing.T) {
+	r := byStage(t, map[string]stageReply{
+		"vuln":      {stdout: `{"Results":[]}`},
+		"license":   {stdout: `{"Results":[]}`},
+		"misconfig": {stdout: `{"Results":[]}`},
+		"secret":    {stdout: "[]"},
+		"sbom":      {},
+	})
+	r.progress = []string{"downloading db"}
+
+	rec := &recorder{}
+	opts := everyStage()
+	opts.OnProgress = rec.fn()
+
+	if _, err := newScannerWithDeps(opts, everyTool()).
+		Scan(context.Background(), "/repos", TargetDirectory); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	labelled := map[string]string{}
+	for _, u := range rec.updates {
+		if u.Detail == "downloading db" {
+			labelled[u.Stage] = u.Label
+		}
+	}
+
+	// The SBOM stage passes no callback: it writes a file rather than a report,
+	// so there is nothing to narrate.
+	for _, stage := range []string{"vuln", "license", "misconfig", "secret"} {
+		if labelled[stage] == "" {
+			t.Errorf("the %s stage did not forward the tool's progress under a label", stage)
+		}
+	}
+	if _, narrated := labelled["sbom"]; narrated {
+		t.Error("the SBOM stage narrated progress it does not collect")
+	}
+}
+
+func TestAFailedStageIsAnnouncedAsFailed(t *testing.T) {
+	byStage(t, map[string]stageReply{"vuln": {err: &exitError{Code: 2, Stderr: "FATAL bad flag"}}})
+
+	rec := &recorder{}
+	opts := ScanOptions{EnableVuln: true, OnProgress: rec.fn()}
+
+	if _, err := newScannerWithDeps(opts, everyTool()).
+		Scan(context.Background(), "/repos", TargetDirectory); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	got := rec.statusOf("vuln")
+	if len(got) == 0 || got[len(got)-1] != StageError {
+		t.Errorf("vuln statuses = %v, want it to end in error", got)
+	}
+}
+
+// OnProgress is optional; a caller that does not want progress must not have to
+// supply an empty function to avoid a panic.
+func TestAScanWithoutAProgressCallbackIsFine(t *testing.T) {
+	byStage(t, map[string]stageReply{"vuln": {stdout: `{"Results":[]}`}})
+
+	if _, err := newScannerWithDeps(ScanOptions{EnableVuln: true}, everyTool()).
+		Scan(context.Background(), "/repos", TargetDirectory); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+}
+
+// ── Options that reach the tools ─────────────────────────────────────────────
+
+// The options the user set in the form have to arrive at the invocation; there
+// is no other way to tell they were honoured.
+func TestScanOptionsReachTheInvocation(t *testing.T) {
+	r := byStage(t, map[string]stageReply{
+		"vuln":   {stdout: `{"Results":[]}`},
+		"secret": {stdout: "[]"},
+	})
+
+	opts := ScanOptions{
+		EnableVuln:      true,
+		EnableSecret:    true,
+		TrivyServer:     "https://trivy:4954",
+		IgnoreUnfixed:   true,
+		IgnoreEOL:       true,
+		GitleaksHistory: true,
+		GitleaksConfig:  "/etc/gitleaks.toml",
+	}
+
+	if _, err := newScannerWithDeps(opts, everyTool()).
+		Scan(context.Background(), "/repos", TargetDirectory); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	var trivy, gitleaks string
+	for _, c := range r.commands() {
+		if strings.HasPrefix(c, "gitleaks") {
+			gitleaks = c
+		} else {
+			trivy = c
+		}
+	}
+
+	for _, want := range []string{"--server https://trivy:4954", "--ignore-unfixed", "--ignore-status end_of_life"} {
+		if !strings.Contains(trivy, want) {
+			t.Errorf("the trivy invocation is missing %q:\n%s", want, trivy)
+		}
+	}
+	if !strings.Contains(gitleaks, "--config /etc/gitleaks.toml") {
+		t.Errorf("the gitleaks config was not passed:\n%s", gitleaks)
+	}
+	if strings.Contains(gitleaks, "--no-git") {
+		t.Errorf("history was asked for but git was still skipped:\n%s", gitleaks)
+	}
+}
