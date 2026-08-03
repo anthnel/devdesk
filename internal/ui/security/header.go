@@ -162,6 +162,23 @@ func renderSeverityBar(c scan.SeverityCounts) string {
 }
 
 // parseVersion extracts version number from tool output
+// versionDisplayWidth caps the fallback version string, which shares a narrow
+// header column with the tool name.
+const versionDisplayWidth = 18
+
+// looksLikeVersion reports whether a whitespace-separated token is a version
+// number. A leading "v" only counts when a digit follows it, or the word
+// "version" in "gitleaks version 8.18.2" would be taken for the version itself.
+func looksLikeVersion(part string) bool {
+	if part == "" {
+		return false
+	}
+	if part[0] >= '0' && part[0] <= '9' {
+		return true
+	}
+	return part[0] == 'v' && len(part) > 1 && part[1] >= '0' && part[1] <= '9'
+}
+
 func (m Model) parseVersion(versionOutput string) string {
 	if versionOutput == "" {
 		return ""
@@ -191,7 +208,7 @@ func (m Model) parseVersion(versionOutput string) string {
 	firstLine := strings.TrimSpace(lines[0])
 	// Try to extract version pattern (e.g., "v0.50.1" or "0.50.1")
 	for _, part := range strings.Fields(firstLine) {
-		if strings.HasPrefix(part, "v") || (len(part) > 0 && part[0] >= '0' && part[0] <= '9') {
+		if looksLikeVersion(part) {
 			if isDocker {
 				return part + " (docker)"
 			}
@@ -200,10 +217,7 @@ func (m Model) parseVersion(versionOutput string) string {
 	}
 
 	// Return first line if no version pattern found (truncated)
-	result := firstLine
-	if len(result) > 15 {
-		result = result[:15] + "..."
-	}
+	result := theme.TruncateWidth(firstLine, versionDisplayWidth)
 	if isDocker {
 		return result + " (docker)"
 	}
