@@ -21,6 +21,12 @@ type ContextSwitchCompleteMsg struct {
 	Created      bool // true si le contexte a été créé automatiquement
 	GitLabClient *gitlabclient.Client
 	GitLabUser   *gitlabclient.User
+
+	// Secrets is the store resolved for the new context, and Notices what the
+	// migration off plaintext had to say. Both are carried in the message
+	// rather than assigned by the Cmd that built them (Rule 110).
+	Secrets credentials.Selection
+	Notices []string
 }
 
 // ContextSwitchErrorMsg signale une erreur lors du switch
@@ -44,15 +50,23 @@ func (a *App) switchContext(contextName string) tea.Cmd {
 			return ContextSwitchErrorMsg{Error: err}
 		}
 
-		glClient, glUser := autoLoginForContext(contextName, cfg)
+		// Each context gets its own store: the backend preference is per
+		// context because the configuration file is, and the secrets are keyed
+		// by context so two of them pointing at the same host stay separate.
+		secrets := credentials.Select(contextName, cfg.App.SecretBackend)
+		notices := credentials.MigrateLegacySecrets(secrets.Storage, contextName)
 
-		log.Printf("Context switch successful: %s (created: %v)", contextName, created)
+		glClient, glUser := autoLoginForContext(contextName, cfg, secrets.Storage)
+
+		log.Printf("Context switch successful: %s (created: %v, secrets: %s)", contextName, created, secrets.Backend)
 		return ContextSwitchCompleteMsg{
 			ContextName:  contextName,
 			Config:       cfg,
 			Created:      created,
 			GitLabClient: glClient,
 			GitLabUser:   glUser,
+			Secrets:      secrets,
+			Notices:      notices,
 		}
 	}
 }
@@ -98,26 +112,19 @@ func loadOrCreateContext(contextName string) (*config.Config, bool, error) {
 
 // autoLoginForContext tries the new context's own credentials. A failure is not
 // an error: the user is sent to the auth view instead.
-func autoLoginForContext(contextName string, cfg *config.Config) (*gitlabclient.Client, *gitlabclient.User) {
+func autoLoginForContext(contextName string, cfg *config.Config, storage credentials.Storage) (*gitlabclient.Client, *gitlabclient.User) {
 	if cfg.GitLab.URL == "" {
 		return nil, nil
 	}
 
-	storage := credentials.NewChainStorage(
-		credentials.NewFileStorageForContext(contextName),
-		credentials.NewGitCredentialStorageWithContext(contextName),
-	)
 	gitlabAuth := gitlab.NewAuth(storage)
 
 	token, err := gitlabAuth.LoadCredentials(cfg.GitLab.URL)
 	if err != nil || token == "" {
-		token = cfg.GitLab.Token
-	}
-	if token == "" {
 		return nil, nil
 	}
 
-	result, err := gitlabAuth.Authenticate(cfg.GitLab.URL, token, false)
+	result, err := gitlabAuth.AuthenticateOnly(cfg.GitLab.URL, token)
 	if err != nil {
 		log.Printf("Auto-login failed for context '%s': %v", contextName, err)
 		return nil, nil
@@ -150,6 +157,8 @@ func (a *App) listContexts() tea.Cmd {
 func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Model, tea.Cmd) {
 	a.config = msg.Config
 	a.currentContext = msg.ContextName
+	a.sharedState.Secrets = msg.Secrets
+	a.sharedState.SecretNotices = msg.Notices
 
 	// Reset GitLab auth state — the new context has its own credentials
 	a.sharedState.GitLabClient = nil

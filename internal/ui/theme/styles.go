@@ -373,18 +373,11 @@ func RenderCheckboxDisabled(label string) string {
 	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorDim).Render("  " + text)
 }
 
-// RenderRadioButton retourne le rendu d'un radio button
-func RenderRadioButton(selected bool, label string, focused bool) string {
-	radio := "( )"
-	if selected {
-		radio = "(•)"
-	}
-	text := radio + " " + label
-	if focused {
-		return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorHighlight).Bold(true).Render(IconCircleSmall + " " + text)
-	}
-	return lipgloss.NewStyle().Background(ColorBackground).Render("  " + text)
-}
+// Il n'y a plus de RenderRadioButton. Ses deux seuls appelants étaient le choix
+// de destination du token dans la vue d'authentification, et ce choix a disparu
+// avec le passage au gestionnaire de secrets de l'hôte (§3.9). Pour un ensemble
+// fermé de valeurs, le contrôle est le champ à cycle ←→ (Rule 132) ;
+// RenderCheckbox reste pour les booléens indépendants.
 
 // Tab styles — exported so views can use them directly (Rule 123)
 var (

@@ -34,13 +34,33 @@ func (m Model) handleCreateResource(flatNodes []*TreeNode) (tea.Model, tea.Cmd) 
 	return m, m.loadTemplates()
 }
 
+// registryPassword reads the template registry's password from the secret
+// store, keyed by the registry URL.
+//
+// It used to be config.Registry.Password — plaintext YAML, read on every
+// template listing. The field is gone; a value left there by an older version
+// was moved into the store at startup (§3.9).
+//
+// An empty result is not an error: an anonymous registry is the common case,
+// and oci.NewClient treats empty credentials as "do not authenticate".
+func (m Model) registryPassword() string {
+	if m.shared == nil || m.shared.Secrets.Storage == nil || m.config.Registry.URL == "" {
+		return ""
+	}
+	password, err := m.shared.Secrets.Storage.Load(m.config.Registry.URL)
+	if err != nil {
+		return ""
+	}
+	return password
+}
+
 // loadTemplates loads available templates from the OCI registry catalog.
 // Degrades gracefully: returns empty list if registry is not configured or on error.
 func (m Model) loadTemplates() tea.Cmd {
 	registryURL := m.config.Registry.URL
 	basePath := m.config.Registry.TemplatesRepository
 	username := m.config.Registry.Username
-	password := m.config.Registry.Password
+	password := m.registryPassword()
 
 	return func() tea.Msg {
 		// If registry not configured, return empty (graceful degradation)
@@ -129,7 +149,7 @@ func (m Model) createProject(msg components.CreationFormSubmitMsg) tea.Cmd {
 	namespaceID := msg.ParentID
 	registryURL := m.config.Registry.URL
 	username := m.config.Registry.Username
-	password := m.config.Registry.Password
+	password := m.registryPassword()
 
 	// Resolve template entry from display name
 	var templateRepo, templateTag string

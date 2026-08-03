@@ -175,6 +175,66 @@ func TestSwitchingWithCredentialsKeepsTheView(t *testing.T) {
 	}
 }
 
+// Each context has its own secrets, so a switch has to bring its own store.
+// Keeping the previous one would hand the new context the old context's token.
+func TestSwitchingContextAdoptsTheNewStore(t *testing.T) {
+	a := router(t, &fakeView{})
+	before := a.sharedState.Secrets.Storage
+
+	arrived := credentials.SessionOnly("the work context's store")
+	a.Update(ContextSwitchCompleteMsg{
+		ContextName: "work",
+		Config:      testConfig(),
+		Secrets:     arrived,
+		Notices:     []string{"The GitLab token moved out of the configuration file."},
+	})
+
+	if a.sharedState.Secrets.Storage == before {
+		t.Error("the previous context's secret store survived the switch")
+	}
+	if a.sharedState.Secrets.Storage != arrived.Storage {
+		t.Error("the store carried by the switch was not adopted")
+	}
+	if len(a.sharedState.SecretNotices) != 1 {
+		t.Errorf("notices = %v, want the one carried by the switch", a.sharedState.SecretNotices)
+	}
+}
+
+// The Cmd that performs a switch resolves the new context's store itself and
+// carries it back in the message. Assigning it from inside the Cmd would be a
+// write to the model off the Update goroutine (Rule 110).
+func TestTheSwitchCommandCarriesAStore(t *testing.T) {
+	a := router(t, &fakeView{})
+
+	done, ok := testutil.MsgOf[ContextSwitchCompleteMsg](a.switchContext("secretsctx"))
+	if !ok {
+		t.Fatalf("the switch produced %T, want a completed switch", testutil.Msg(a.switchContext("secretsctx")))
+	}
+	if done.Secrets.Storage == nil {
+		t.Error("the switch carried no secret store, so the new context would have nowhere to keep a token")
+	}
+	if done.Secrets.Detail == "" {
+		t.Error("the switch carried no description of where secrets go")
+	}
+}
+
+// useSecrets is the startup path New() takes. It has to rebuild the auth view,
+// which holds the store it was constructed with.
+func TestUseSecretsRebuildsTheAuthView(t *testing.T) {
+	a := router(t, &fakeView{})
+	a.createView(command.ViewGitlabAuth)
+	before := a.views[command.ViewGitlabAuth]
+
+	a.useSecrets(credentials.SessionOnly("under test"))
+
+	if a.views[command.ViewGitlabAuth] == before {
+		t.Error("the auth view kept the store it was built with")
+	}
+	if a.sharedState.Secrets.Backend != credentials.BackendMemory {
+		t.Errorf("Backend = %q, want the one just installed", a.sharedState.Secrets.Backend)
+	}
+}
+
 // A switch that fails leaves the router alone — the context it is on still
 // works.
 func TestAFailedSwitchChangesNothing(t *testing.T) {
@@ -222,12 +282,11 @@ func TestAutoLoginIsSkippedWithoutAURL(t *testing.T) {
 // usable straight from a cold start.
 func TestAutoLoginUsesTheSavedToken(t *testing.T) {
 	srv := fakeGitLab(t, "anthnel")
-	if err := credentials.NewFileStorageForContext("default").Save(srv.URL, "saved-token"); err != nil {
-		t.Fatalf("seeding the credential store: %v", err)
-	}
-
 	a := router(t, &fakeView{})
 	a.config.GitLab.URL = srv.URL
+	if err := a.sharedState.Secrets.Storage.Save(srv.URL, "saved-token"); err != nil {
+		t.Fatalf("seeding the secret store: %v", err)
+	}
 
 	result, ok := testutil.MsgOf[GitLabAutoLoginMsg](a.tryAutoLogin())
 	if !ok {
@@ -248,12 +307,12 @@ func TestAutoLoginReportsARejectedToken(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	t.Cleanup(srv.Close)
-	if err := credentials.NewFileStorageForContext("default").Save(srv.URL, "revoked"); err != nil {
-		t.Fatalf("seeding the credential store: %v", err)
-	}
 
 	a := router(t, &fakeView{})
 	a.config.GitLab.URL = srv.URL
+	if err := a.sharedState.Secrets.Storage.Save(srv.URL, "revoked"); err != nil {
+		t.Fatalf("seeding the secret store: %v", err)
+	}
 
 	result, ok := testutil.MsgOf[GitLabAutoLoginMsg](a.tryAutoLogin())
 	if !ok {
@@ -306,7 +365,6 @@ func TestAManualAuthenticationPersistsTheConfig(t *testing.T) {
 		Client:       &gitlabclient.Client{},
 		User:         &gitlabclient.User{Username: "anthnel"},
 		ConfigToSave: saved,
-		SaveToConfig: true,
 	})
 
 	if !a.sharedState.IsAuthenticated {

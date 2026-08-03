@@ -13,10 +13,16 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// SaveOption représente les options de sauvegarde du token
+// Champs du formulaire, dans l'ordre de navigation.
+//
+// Il n'y a plus de champ de choix entre deux destinations : le token va dans le
+// gestionnaire de secrets de l'hôte, et nulle part ailleurs (§3.9).
 const (
-	SaveToHelper = iota // Sauvegarder dans Git Credential Manager (sécurisé)
-	SaveToConfig        // Sauvegarder dans le fichier de config (moins sécurisé)
+	fieldURL = iota
+	fieldToken
+	fieldSubmit
+
+	lastField = fieldSubmit
 )
 
 // Model représente la vue d'authentification GitLab
@@ -24,10 +30,15 @@ type Model struct {
 	config     *config.Config
 	urlInput   textinput.Model
 	tokenInput textinput.Model
-	storage    credentials.Storage
+
+	// secrets is where the token goes, and what to tell the user about it.
+	secrets credentials.Selection
+
+	// notices report what the migration off plaintext configuration did, if
+	// anything. Shown once, on the view that owns the token.
+	notices []string
 
 	currentField int
-	saveOption   int // SaveToHelper ou SaveToConfig
 
 	authenticated bool               // True si l'utilisateur est authentifié
 	user          *gitlabclient.User // Utilisateur actuellement authentifié
@@ -43,7 +54,7 @@ type Model struct {
 }
 
 // New crée une nouvelle vue d'authentification
-func New(cfg *config.Config, storage credentials.Storage) *Model {
+func New(cfg *config.Config, secrets credentials.Selection, notices []string) *Model {
 	// Créer les inputs
 	urlInput := textinput.New()
 	urlInput.Placeholder = "https://gitlab.com"
@@ -76,9 +87,9 @@ func New(cfg *config.Config, storage credentials.Storage) *Model {
 		config:         cfg,
 		urlInput:       urlInput,
 		tokenInput:     tokenInput,
-		storage:        storage,
-		currentField:   0,
-		saveOption:     SaveToHelper, // Par défaut, sauvegarder dans le helper
+		secrets:        secrets,
+		notices:        notices,
+		currentField:   fieldURL,
 		authenticating: false,
 		spinner:        sp,
 		error:          "",
@@ -95,58 +106,40 @@ func (m *Model) Init() tea.Cmd {
 	)
 }
 
-// loadSavedCredentials tente de charger les credentials depuis config ou storage
+// loadSavedCredentials récupère le token depuis le store de secrets.
+//
+// Il n'y a qu'une source : la configuration ne contient plus de token, et une
+// version antérieure qui en aurait laissé un s'est fait migrer au démarrage
+// (credentials.MigrateLegacySecrets).
 func (m *Model) loadSavedCredentials() tea.Cmd {
+	url := m.config.GitLab.URL
+	storage := m.secrets.Storage
+
 	return func() tea.Msg {
-		log.Printf("AUTH: loadSavedCredentials() called")
-
-		// 1. Essayer depuis la config
-		if m.config.GitLab.URL != "" && m.config.GitLab.Token != "" {
-			log.Printf("AUTH: Credentials loaded from config (URL: %s)", m.config.GitLab.URL)
-			return CredentialsLoadedMsg{
-				URL:    m.config.GitLab.URL,
-				Token:  m.config.GitLab.Token,
-				Source: "config",
-			}
+		if storage == nil || url == "" {
+			log.Printf("AUTH: No saved credentials to load (url set: %v)", url != "")
+			return CredentialsLoadedMsg{}
 		}
 
-		// 2. Sinon essayer depuis le storage (credential helper)
-		if m.storage != nil && m.config.GitLab.URL != "" {
-			log.Printf("AUTH: Trying to load token from storage for URL: %s", m.config.GitLab.URL)
-			token, err := m.storage.Load(m.config.GitLab.URL)
-			if err == nil && token != "" {
-				log.Printf("AUTH: Token loaded from storage successfully")
-				return CredentialsLoadedMsg{
-					URL:    m.config.GitLab.URL,
-					Token:  token,
-					Source: "storage",
-				}
-			}
-			if err != nil {
-				log.Printf("AUTH: Failed to load from storage: %v", err)
-			} else {
-				log.Printf("AUTH: No token found in storage")
-			}
-		} else {
-			if m.storage == nil {
-				log.Printf("AUTH: Storage is nil")
-			}
-			if m.config.GitLab.URL == "" {
-				log.Printf("AUTH: No URL in config")
-			}
+		token, err := storage.Load(url)
+		if err != nil {
+			log.Printf("AUTH: No token in %s for %s: %v", m.secrets.Backend, url, err)
+			return CredentialsLoadedMsg{}
+		}
+		if token == "" {
+			log.Printf("AUTH: Empty token in %s for %s", m.secrets.Backend, url)
+			return CredentialsLoadedMsg{}
 		}
 
-		// Rien trouvé
-		log.Printf("AUTH: No saved credentials found")
-		return CredentialsLoadedMsg{}
+		log.Printf("AUTH: Token loaded from %s", m.secrets.Backend)
+		return CredentialsLoadedMsg{URL: url, Token: token}
 	}
 }
 
 // CredentialsLoadedMsg contient les credentials chargés
 type CredentialsLoadedMsg struct {
-	URL    string
-	Token  string
-	Source string // "config" ou "storage" ou vide
+	URL   string
+	Token string
 }
 
 // SetAuth configure l'authentification depuis l'extérieur (auto-login global)
@@ -165,11 +158,13 @@ type AuthStartMsg struct{}
 
 // AuthResultMsg contient le résultat de l'authentification
 type AuthResultMsg struct {
-	Client       *gitlabclient.Client
-	User         *gitlabclient.User
-	Error        error
-	SaveWarning  string // Warning si la sauvegarde des credentials a échoué
-	SaveToConfig bool
+	Client      *gitlabclient.Client
+	User        *gitlabclient.User
+	Error       error
+	SaveWarning string // Warning si la sauvegarde du secret a échoué
+
+	// ConfigToSave carries the URL — and only the URL. The token goes to the
+	// secret store; nothing about it is written to the configuration file.
 	ConfigToSave *config.Config
 }
 

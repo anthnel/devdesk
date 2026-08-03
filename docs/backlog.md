@@ -467,7 +467,7 @@ Phase 1 progress:
 | `internal/oci` | 0 % | **37.3 %** |
 | `internal/docker` | 7.3 % | **65.4 %** (phase 5, pulled forward — see below) |
 | `internal/gitlab` | 7.5 % | **100 %** |
-| `internal/credentials` | 29.5 % | **98.2 %** |
+| `internal/credentials` | 29.5 % | **95.9 %** (98.2 % before §3.9 doubled the package) |
 
 `internal/oci` stops at 37.3 % because the remaining statements are registry HTTP
 paths (`DownloadTemplate`, `listCatalog`, `ListTemplates`) that need a fuller
@@ -635,6 +635,13 @@ throwaway `store` helper — nothing reaches the developer's keychain. Running t
 real git is what surfaced the context-isolation defect recorded in §1.1; a stub
 would have frozen the broken behaviour instead. The 2 s timeout is covered by
 installing a credential helper that sleeps.
+
+The host secret store added by §3.9 has a seam already, supplied by the library:
+`keyring.MockInit()` swaps `zalando/go-keyring`'s provider for an in-memory one
+and `MockInitWithError` for one that fails, which is how "no D-Bus session on a
+headless box" is tested on a developer machine that has a working keychain. It
+is a package-level global, so no test in `internal/credentials` may run in
+parallel — the cost of the seam being free.
 
 ### Files over the 800-line ceiling
 
@@ -1216,10 +1223,17 @@ Three consequences:
 - `inherit` is not a convenience for path-based groups, it is the **only** thing
   the credential store can represent. Every member of such a group authenticates
   identically whether the model says so or not.
-- A per-member `credentials` override is **not storable today**. It would need
-  DevDesk to own a credential store keyed by slug, which puts passwords back in
-  DevDesk's custody — something `RegistryItem` avoids by construction (it has no
-  password field; §1.1 records how badly the last credential-storage bug went).
+- A per-member `credentials` override is **not storable today**. It would need a
+  secret keyed by slug rather than by registry URL, which `docker login` cannot
+  represent.
+
+  §3.9 changes what this costs, without changing the conclusion. DevDesk now has
+  a store — the host's, keyed by whatever string it likes — so a slug-keyed
+  password is no longer unstorable in principle, and it would not put plaintext
+  anywhere. What it would still do is take DevDesk out of `docker login`'s model
+  and into maintaining its own registry auth, for a case (§3.8) that has not been
+  shown to exist. `RegistryItem` still has no password field by construction, and
+  that is still the right default.
 - What a member *can* usefully override is **`anonymous`**: do not send the
   group's credentials to this one. That is representable, costs nothing, and is
   the safety valve — and it is the same mechanism D12 needs.
@@ -1283,16 +1297,16 @@ that order exists to prevent.
 Steps 1–4 are worth doing on their own — they are what make the group model
 expressible — and step 6 is the one that needs step 3 finished first.
 
-### 3.9 Every secret goes to a host secret manager, and radio buttons go away
+### 3.9 Every secret goes to a host secret manager, and radio buttons go away — **done**
 
-**Requirement:** no secret DevDesk holds is written to disk in plaintext. Today
-three of the five storage paths are exactly that, and the option the UI labels
-"secure" is one of them.
+No secret DevDesk holds is written to a file DevDesk owns. Tokens and registry
+passwords go to the Windows Credential Manager, the macOS Keychain or a Secret
+Service implementation on Linux, through one storage and one only.
 
-The radio-button removal rides along because it is the same code: once there is
-one storage path, the choice the radios present stops existing.
+#### What was wrong
 
-#### Where secrets go today
+Three of the five storage paths were plaintext on disk, and the option the UI
+labelled "secure" was one of them.
 
 | Secret | Destination | Protection |
 |---|---|---|
@@ -1302,116 +1316,141 @@ one storage path, the choice the radios present stops existing.
 | Registry password | `~/.docker/config.json` via `docker login` | whatever Docker's `credsStore` does |
 | Registry password | `registry.password` in `config.yaml` | **plaintext YAML**, read at `explorer/create.go:43,132` |
 
-`RegistryItem` is the one part that already gets this right: it has no password
-field by construction, and the multi-registry code relies on `docker login`
-instead. The legacy `RegistryConfig.Password` is the outlier, and it is still
-read.
+`ChainStorage.Save` wrote to **every** storage in the chain, and all three
+construction sites built it as `NewChainStorage(FileStorage,
+GitCredentialStorage)`. Choosing **"Save to Git Credential Manager (secure)"**
+therefore stored the token in the credential manager *and* in
+`~/.devdesk/credentials-<context>.json` in plaintext. Reads made it worse:
+`FileStorage` was first and `ChainStorage.Load` returned the first hit, so the
+plaintext file was authoritative and the credential manager was never consulted
+while it existed. The secure backend was decorative in both directions.
 
-#### The option labelled "secure" is not
+The other option was no better in a different way: **"Save token to config file
+(less secure)"** set `saveToHelper = false`, so nothing reached the chain and
+the token landed only in `config.yaml`. Both options put the token in plaintext;
+the "secure" one did it twice.
 
-`ChainStorage.Save` writes to **every** storage in the chain
-(`credentials/storage.go:37`), and all three construction sites build it as
-`NewChainStorage(FileStorage, GitCredentialStorage)` (`app.go:245`, `:383`,
-`:1483`). So choosing **"Save to Git Credential Manager (secure)"** stores the
-token in the credential manager *and* in
-`~/.devdesk/credentials-<context>.json` in plaintext. The label is not merely
-optimistic, it is wrong about the option it describes.
+And logout did not clean up: `handleLogoutComplete` cleared
+`m.config.GitLab.Token` in memory with no `config.Save` behind it, so the token
+survived in `contexts/<ctx>/config.yaml`.
 
-Reads make it worse. `FileStorage` is **first** in the chain and
-`ChainStorage.Load` returns the first hit, so the plaintext file is
-authoritative and the credential manager is never consulted while that file
-exists. The secure backend is decorative in both directions.
+#### The distinction that decided the design
 
-The other option is no better, in a different way: **"Save token to config file
-(less secure)"** sets `saveToHelper = false` (`auth/update.go:213`), so nothing
-reaches the chain at all and the token lands only in `config.yaml`. Both
-options put the token in plaintext on disk; the "secure" one does it twice.
+Delegating to `git credential` delegates to **whatever helper git happens to be
+configured with**. If that is `store`, the token lands in `~/.git-credentials`
+in plaintext — the same failure, relocated. Only `manager` (GCM),
+`osxkeychain`, `libsecret` and `wincred` reach a real OS store. "Goes through
+git credential" is not the same claim as "encrypted at rest", and the
+requirement was the second one.
 
-**And logout does not clean up.** `handleLogoutComplete` (`auth/update.go:191`)
-clears `m.config.GitLab.Token` in memory with no `config.Save` behind it, so the
-token survives in `contexts/<ctx>/config.yaml`. `ChainStorage.Delete` does clear
-both storages, so the credentials file copy goes — the config copy does not.
+So the host store is the primary path and git credential is kept as an explicit
+alternative, for users who want their tokens where GCM already puts everything
+else. Only the first can promise what the requirement asks; the second is the
+pragmatic option and stays reachable without becoming the default.
 
-#### What "host secret manager" can honestly promise
+#### What shipped
 
-The distinction that decides the design: delegating to `git credential`
-delegates to **whatever helper git happens to be configured with**. If that is
-`store`, the token lands in `~/.git-credentials` in plaintext — the same
-failure, relocated. `cache` keeps it in memory only. Only `manager` (GCM),
-`osxkeychain` and `libsecret` reach a real OS store. So "goes through git
-credential" is not the same claim as "encrypted at rest", and the requirement
-above is the second one.
+**`KeyringStorage` over `zalando/go-keyring`** (`credentials/keyring.go`), one
+implementation covering all three platforms with no cgo: wincred on Windows, the
+`security` binary on macOS, D-Bus Secret Service elsewhere. Entries are filed
+under service `devdesk`, account `<context>/<url>`, so two contexts pointing at
+the same host keep separate secrets — the property `GitCredentialStorage` needed
+`credential.useHttpPath` to get (§1.1).
 
-| Route | Gets | Costs |
-|---|---|---|
-| **A — keep `git credential`, inspect the helper** | no new dependency; reuses machinery just hardened for context isolation (§1.1) | must read `git config credential.helper` and refuse or warn on `store` and on empty; still trusts the user's git config |
-| **B — talk to the OS store directly** (`zalando/go-keyring`: wincred / Keychain / Secret Service, no cgo; or `99designs/keyring` for more backends) | guarantees the store; independent of git configuration | a dependency, and new failure modes — no D-Bus in a headless Linux session being the usual one |
+`KeyringAvailable()` probes with a **read** of an account that is never written.
+A miss proves the backend answered and simply holds nothing; anything else is
+the backend being absent. It runs on every launch, including on machines where
+the store turns out to be unusable, so it must not be able to leave anything
+behind.
 
-**Recommendation: B as the primary path, A kept as an explicit alternative** for
-users who want their tokens where GCM already puts everything else. Only B can
-promise what the requirement asks; A is the pragmatic option and should stay
-reachable, not become the default.
+**`Select(context, preference)`** (`credentials/select.go`) returns a
+`Selection{Storage, Backend, Detail}` and picks exactly one destination — host
+store, else git credential, else memory. Writing to several at once is what
+produced the defect above, so the chain is gone rather than reordered.
+`app.secret_backend` pins the head of that list (`auto`, `keyring`,
+`git-credential`). A pinned backend that turns out to be unreachable falls
+through to memory rather than silently to the other one: someone who asked for
+the keyring should not be handed a git helper without being told.
 
-#### The fallback has to be worse, on purpose
+`gitHelperUsable()` refuses `store` by name and refuses an unset helper, and
+accepts everything else. There is no list of good helpers to check against —
+enumerating them would only mean rejecting the next one someone installs.
 
-When no store is reachable, the current answer is a plaintext file. The new
-answer is `MemoryStorage` — session-only, re-authenticate on each launch — with
-a visible indication that the token is not being persisted.
+**The fallback is worse on purpose.** With no store reachable the answer is
+`MemoryStorage` — session-only, re-authenticate each launch — and the auth view
+says so in `ColorWarn`. That is deliberately worse UX than a file, and that is
+the point: a fallback that is silently insecure is how the "secure" option came
+to exist.
 
-That is deliberately worse UX than a file, and that is the point: a fallback
-that is silently insecure is how the current "secure" option came to exist. The
-user should be able to tell, without reading the source, that nothing was saved.
+**`FileStorage` and `ChainStorage` are deleted.** `MemoryStorage` gained a mutex:
+it is now one instance shared by the Cmd goroutines of every view, which the
+per-call construction it used to get had hidden.
 
-#### Config schema
+**`GitLabConfig.Token` and `RegistryConfig.Password` are out of the schema.**
+Parsing and ignoring them would have left the secret on disk forever for every
+existing user, so `MigrateLegacySecrets` runs on load and on every context
+switch: it reads the two fields straight from the YAML —
+`config.ReadLegacySecrets` — moves them into the store, and deletes them from
+the file. The rewrite edits the parsed YAML tree rather than round-tripping
+through `Config`, which would rewrite every key including the defaults
+`applyDefaults` filled in. A secret the store refused to take stays in the file;
+losing it would be worse than leaving it. A secret with no URL has no key to be
+filed under and no host it could be used against, so it is dropped — and the
+auth view reports every one of these outcomes in words.
 
-`GitLabConfig.Token` and `RegistryConfig.Password` come out of the schema
-entirely. Parsing them and ignoring them is not enough — that leaves the secret
-on disk forever for every existing user. Migration runs on load: if either
-field holds a value, move it into the store, rewrite the file without it, and
-say so. Note `config.CreateContext` (`config.go:564`) already blanks
-`GitLab.Token` for new contexts, so only existing ones need the sweep.
+`Auth.Authenticate(url, token)` lost its `saveCredentials` parameter and always
+stores; `AuthenticateOnly` is the auto-login path, whose token already came out
+of the store. Logout deletes from the store, and there is no longer a config
+copy to forget about — which is what closes the last defect above.
 
-#### Radio buttons, all of them
+`registry.password` had no UI to set it and one reader, `explorer/create.go`.
+That reader now asks the store, keyed by the registry URL, and treats a miss as
+"anonymous registry" — which is the common case.
 
-`auth/view.go:146-147` are the **only** two `RenderRadioButton` call sites in the
-application. With a single storage path there is no choice left to present, so
-they go, and with them:
+**The radios are gone**, with `SaveToHelper` / `SaveToConfig`, the `saveOption`
+field, `theme.RenderRadioButton` (its only two call sites), and the `ctrl+s` /
+`ctrl+f` shortcuts and their help section. The form went from five fields to
+three, now named `fieldURL` / `fieldToken` / `fieldSubmit` instead of the
+integers 0–4. Removing the `case " "` had a side effect worth recording: space
+could not previously be typed into the URL or token field, because the radio
+handler swallowed it before the input saw it.
 
-- the `SaveToHelper` / `SaveToConfig` constants and the `saveOption` field
-  (`auth/model.go:17-20`, `:30`);
-- `theme.RenderRadioButton` (`styles.go:377`), which becomes dead code;
-- the `ctrl+s` "Toggle save to helper" and `ctrl+f` "Toggle save to config"
-  entries in `GetShortcuts()` (`auth/view.go:28-29`) and the "Save Options"
-  section of `GetHelpContent()`;
-- form fields 2 and 3, which renumbers the form — `nextField` / `prevField`
-  clamp at 4 and `updateFocus` switches on 0/1 (`auth/update.go:199-232`).
+Rules 120 and 132 in `.claude/rules/tui-forms.md` now say cycle fields are the
+only control for a closed set, whatever its size, and that checkboxes remain for
+independent booleans.
 
-`RenderCheckbox` stays: checkboxes model independent booleans, which is a
-different thing from a closed set of mutually exclusive values.
+#### What a user has to do
 
-**Two rule files ripple, in the same commit.** Rule 120 in
-`.claude/rules/tui-forms.md` names `theme.RenderRadioButton()` as the sanctioned
-way to render radio buttons, and Rule 132 implies they are acceptable for closed
-lists. Both should say that **cycle fields are the only control for a closed
-set**, and that checkboxes remain for independent booleans.
+Nothing, on any platform. The migration is automatic and the auth view reports
+what it did. Two consequences are worth knowing:
 
-#### Sketch of the work
+- On a headless Linux box with no D-Bus session and no git helper, DevDesk now
+  asks for the token on each launch instead of reading it from a plaintext file.
+  That is the intended trade, and it is stated on screen rather than inferred.
+- The entry is visible in the host's own UI (`Credential Manager`, `Keychain
+  Access`, `seahorse`) under `devdesk`, which is where a user should be able to
+  revoke it.
 
-1. Add `KeyringStorage` over the OS store, and a probe that reports whether one
-   is reachable. Route A becomes a second implementation of the same interface.
-2. Delete `FileStorage` and `NewFileStorageForContext`. This is the change that
-   makes the "secure" label true, and nothing else in the chain matters until it
-   is gone.
-3. Replace `ChainStorage` with explicit selection — store, else git credential
-   if configured with a real helper, else memory with a warning. Writing to
-   every backend at once is what produced the current defect; keep one
-   destination.
-4. Remove `GitLabConfig.Token` and `RegistryConfig.Password`, with the migration
-   sweep on load.
-5. Persist the logout: clear the store *and* save the config.
-6. Delete the radios and everything listed above, and update Rules 120 and 132.
+#### One rough edge, left rough on purpose
 
-Steps 2 and 5 are small and fix live defects; they need none of the rest.
+On Linux, `go-keyring` calls `Unlock` on the login collection before every read,
+including the availability probe. On a desktop whose keyring unlocks with the
+session password — the default on GNOME and KDE — that returns immediately. On
+one configured with a separately-locked keyring, it raises the agent's unlock
+prompt at startup, before the TUI has drawn its first frame, and blocks until it
+is answered.
+
+Wrapping the probe in a timeout would make this worse, not better: it would
+leave a prompt on screen that nobody is waiting on, and answer "no store
+available" for a machine that has a perfectly good one — sending the user to the
+memory fallback because their keyring was locked. Every other client of the
+Secret Service behaves the same way, including git's own `libsecret` helper. The
+prompt is the user's keyring policy working; suppressing it is not DevDesk's
+call to make.
+
+Windows and macOS have no equivalent: `CredRead` is silent for the current user,
+and `security find-generic-password` only prompts for items the calling binary
+is not on the ACL of — which, for items DevDesk itself wrote, it is.
 
 ---
 

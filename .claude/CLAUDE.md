@@ -153,17 +153,23 @@ The app supports multiple configuration contexts (e.g., work, personal, client-A
 ### Configuration System
 
 Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/config/config.go`:
-- `App` - Global settings (theme, default view, workspaces dir)
+- `App` - Global settings (theme, default view, workspaces dir, `secret_backend`)
 - `Status` - Monitoring settings (refresh interval, components)
-- `GitLab` - GitLab URL, token, clone settings
+- `GitLab` - GitLab URL and clone settings
 - `Registry` - OCI registry configuration
 - `Scan` - Security scanning (Trivy, Gitleaks)
+
+**No secret goes in this file.** `GitLabConfig` has no `Token` and
+`RegistryConfig` has no `Password`; both live in the host secret store (see
+Credentials Management). Do not add a secret-bearing field back — the schema is
+what makes the guarantee checkable.
 
 Config is injected into views at creation. Use `config.Save()` to persist changes.
 
 ### Shared State
 
 `internal/shared/state.go` holds cross-view data injected at view creation:
+- `Secrets`, `SecretNotices` — the context's secret store and what the migration off plaintext reported
 - `GitLabClient`, `IsAuthenticated`, `CurrentUser` — GitLab session
 - `CachedGroups`, `CachedProjects` — GitLab data cache
 - `GitLabStats`, `DockerStats`, `OCIStats` — Dashboard counters
@@ -225,10 +231,32 @@ Each checker implements `CheckerInterface`. The main `Checker.CheckOne()` uses a
 
 ### Credentials Management
 
-Three storage implementations via `Storage` interface:
-- `FileStorage` - Persists to JSON file with 0600 permissions
-- `MemoryStorage` - Session-only storage
-- `GitCredentialStorage` - Uses git credential helper for secure storage (preferred, context-aware)
+No secret DevDesk holds is written to a file DevDesk owns. `internal/credentials`
+implements the `Storage` interface three ways and `Select()` picks exactly one —
+writing to several at once is what let the old "secure" option store a token in
+the credential manager *and* in plaintext:
+
+| Storage | Backend | Notes |
+|---------|---------|-------|
+| `KeyringStorage` | Windows Credential Manager / macOS Keychain / Secret Service | via `zalando/go-keyring`, no cgo. The default. |
+| `GitCredentialStorage` | git's configured credential helper | Only when the helper is not `store`, which writes plaintext. Context-aware. |
+| `MemoryStorage` | this process | Last resort, and deliberately worse: the auth view says nothing was saved. |
+
+`Select(context, preference)` returns a `Selection{Storage, Backend, Detail}`.
+The order is keyring → git credential → memory; `app.secret_backend` in the
+context config pins the head of it (`auto`, `keyring`, `git-credential`). A
+pinned backend that is unreachable falls through to memory rather than silently
+to the other one.
+
+The router resolves one `Selection` per context and keeps it in
+`shared.State.Secrets`. It must be reused for the lifetime of the context — a
+second `Select()` call yields a fresh `MemoryStorage` that cannot see what the
+first one holds.
+
+`MigrateLegacySecrets` runs at startup and on every context switch: a
+`gitlab.token` or `registry.password` left in a context file by an older build
+is moved into the store and deleted from the YAML, with the result reported in
+the auth view.
 
 ### Bubble Tea Message Flow
 
@@ -266,6 +294,7 @@ Key libraries (see `go.mod`):
 - `github.com/charmbracelet/lipgloss` - Styling
 - `gitlab.com/gitlab-org/api/client-go` - GitLab API client
 - `github.com/prometheus-community/pro-bing` - ICMP ping functionality (maintained fork of go-ping/ping)
+- `github.com/zalando/go-keyring` - host secret manager (wincred / Keychain / Secret Service), no cgo
 - `gopkg.in/yaml.v3` - YAML configuration
 
 ## Code Conventions

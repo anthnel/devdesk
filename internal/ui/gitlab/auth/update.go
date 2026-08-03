@@ -72,17 +72,6 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m.handleEnterKey()
 
-	case " ":
-		return m.handleSpaceKey()
-
-	case "ctrl+s":
-		m.saveOption = SaveToHelper
-		return m, nil
-
-	case "ctrl+f":
-		m.saveOption = SaveToConfig
-		return m, nil
-
 	default:
 		return m.handleInputUpdate(msg)
 	}
@@ -93,42 +82,21 @@ func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 	if m.authenticated {
 		return m, m.logout()
 	}
-	if m.currentField < 2 {
+	if m.currentField < fieldSubmit {
 		m.nextField()
-		return m, nil
-	}
-	if m.currentField == 2 {
-		m.saveOption = SaveToHelper
-		return m, nil
-	}
-	if m.currentField == 3 {
-		m.saveOption = SaveToConfig
 		return m, nil
 	}
 	m.authenticating = true
 	return m, tea.Batch(m.spinner.Tick, m.authenticate())
 }
 
-// handleSpaceKey traite la touche espace pour les radio buttons
-func (m *Model) handleSpaceKey() (tea.Model, tea.Cmd) {
-	if m.currentField == 2 {
-		m.saveOption = SaveToHelper
-		return m, nil
-	}
-	if m.currentField == 3 {
-		m.saveOption = SaveToConfig
-		return m, nil
-	}
-	return m, nil
-}
-
 // handleInputUpdate transmet les messages aux inputs actifs
 func (m *Model) handleInputUpdate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.currentField {
-	case 0:
+	case fieldURL:
 		m.urlInput, cmd = m.urlInput.Update(msg)
-	case 1:
+	case fieldToken:
 		m.tokenInput, cmd = m.tokenInput.Update(msg)
 	}
 	return m, cmd
@@ -152,14 +120,13 @@ func (m *Model) handleAuthResult(msg AuthResultMsg) (tea.Model, tea.Cmd) {
 	m.user = msg.User
 	m.success = "✓ Authenticated as " + msg.User.Username
 	m.warning = msg.SaveWarning
-	m.currentField = 0
+	m.currentField = fieldURL
 	return m, nil
 }
 
 // handleCredentialsLoaded traite les credentials chargés depuis le storage
 func (m *Model) handleCredentialsLoaded(msg CredentialsLoadedMsg) (tea.Model, tea.Cmd) {
-	log.Printf("AUTH: CredentialsLoadedMsg received (URL: %s, Token: %v, Source: %s)",
-		msg.URL, msg.Token != "", msg.Source)
+	log.Printf("AUTH: CredentialsLoadedMsg received (URL: %s, Token: %v)", msg.URL, msg.Token != "")
 	if msg.URL != "" && msg.Token != "" {
 		m.urlInput.SetValue(msg.URL)
 		m.tokenInput.SetValue(msg.Token)
@@ -178,7 +145,7 @@ func (m *Model) handleGitLabAuthSuccess(msg GitLabAuthSuccessMsg) (tea.Model, te
 	m.user = msg.User
 	m.error = ""
 	m.success = "✓ Already authenticated as " + msg.User.Username
-	m.currentField = 0
+	m.currentField = fieldURL
 	return m, nil
 }
 
@@ -186,9 +153,8 @@ func (m *Model) handleGitLabAuthSuccess(msg GitLabAuthSuccessMsg) (tea.Model, te
 func (m *Model) handleLogoutComplete() (tea.Model, tea.Cmd) {
 	m.authenticated = false
 	m.user = nil
-	m.currentField = 0
+	m.currentField = fieldURL
 	m.tokenInput.SetValue("")
-	m.config.GitLab.Token = ""
 	m.error = ""
 	m.warning = ""
 	m.success = "✓ Logged out successfully"
@@ -199,8 +165,8 @@ func (m *Model) handleLogoutComplete() (tea.Model, tea.Cmd) {
 // nextField passe au champ suivant
 func (m *Model) nextField() {
 	m.currentField++
-	if m.currentField > 4 {
-		m.currentField = 4
+	if m.currentField > lastField {
+		m.currentField = lastField
 	}
 
 	m.updateFocus()
@@ -209,8 +175,8 @@ func (m *Model) nextField() {
 // prevField passe au champ précédent
 func (m *Model) prevField() {
 	m.currentField--
-	if m.currentField < 0 {
-		m.currentField = 0
+	if m.currentField < fieldURL {
+		m.currentField = fieldURL
 	}
 
 	m.updateFocus()
@@ -219,14 +185,14 @@ func (m *Model) prevField() {
 // updateFocus met à jour le focus des champs
 func (m *Model) updateFocus() {
 	switch m.currentField {
-	case 0:
+	case fieldURL:
 		m.urlInput.Focus()
 		m.tokenInput.Blur()
-	case 1:
+	case fieldToken:
 		m.urlInput.Blur()
 		m.tokenInput.Focus()
 	default:
-		// Champs 2, 3, 4 (checkboxes et button) - pas de textinput
+		// fieldSubmit — un bouton, pas de textinput
 		m.urlInput.Blur()
 		m.tokenInput.Blur()
 	}
@@ -243,17 +209,16 @@ func (m *Model) authenticate() tea.Cmd {
 	}
 
 	// Copier les données nécessaires AVANT la goroutine (Rule 110)
-	saveToHelper := m.saveOption == SaveToHelper
-	saveToConfig := m.saveOption == SaveToConfig
+	storage := m.secrets.Storage
 	config := m.config
 
 	// Commande asynchrone
 	return func() tea.Msg {
 		// Créer l'auth
-		auth := gitlabpkg.NewAuth(m.storage)
+		auth := gitlabpkg.NewAuth(storage)
 
-		// Authentifier avec saveToHelper
-		result, err := auth.Authenticate(url, token, saveToHelper)
+		// Il n'y a plus de choix : le token part vers le store, toujours.
+		result, err := auth.Authenticate(url, token)
 		if err != nil {
 			return AuthResultMsg{
 				Client: nil,
@@ -263,10 +228,8 @@ func (m *Model) authenticate() tea.Cmd {
 		}
 
 		// Préparer la config à sauvegarder (copie, pas modification du modèle!)
+		// Seule l'URL y va — le token est déjà dans le store.
 		config.GitLab.URL = url
-		if saveToConfig {
-			config.GitLab.Token = token
-		}
 
 		// Retourner le message avec les données
 		return AuthResultMsg{
@@ -274,7 +237,6 @@ func (m *Model) authenticate() tea.Cmd {
 			User:         result.User,
 			Error:        nil,
 			SaveWarning:  result.SaveWarning,
-			SaveToConfig: saveToConfig,
 			ConfigToSave: config,
 		}
 	}
@@ -283,7 +245,7 @@ func (m *Model) authenticate() tea.Cmd {
 // logout déconnecte l'utilisateur
 func (m *Model) logout() tea.Cmd {
 	url := m.urlInput.Value()
-	storage := m.storage
+	storage := m.secrets.Storage
 
 	// Commande asynchrone
 	return func() tea.Msg {

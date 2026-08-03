@@ -198,9 +198,12 @@ type Storage interface {
 ```
 
 **Implementations:**
-- `FileStorage` — JSON file, mode 0600
-- `MemoryStorage` — Session-only
-- `GitCredentialStorage` — Git credential helper (context-aware, preferred)
+- `KeyringStorage` — host secret manager (Credential Manager / Keychain / Secret Service), context-aware, the default
+- `GitCredentialStorage` — git credential helper (context-aware); refused when the helper is `store`
+- `MemoryStorage` — session-only, the last resort, surfaced to the user as a warning
+
+`Select(context, preference)` picks exactly one of them. No secret is written to
+a file DevDesk owns.
 
 ## Status Monitoring (`internal/status/`)
 
