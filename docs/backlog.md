@@ -11,112 +11,13 @@ rather than carried over.
 
 ## 1. Known defects
 
-D1, D3 and D6 (the byte-vs-rune lot), then D2, D5 and D7, were fixed; see
-[§1.1](#11-fixed), which also records the four defects the phase 2 and 3
-coverage work turned up and fixed in place.
+**None open.** D1–D11 are all fixed; §1.1 records what each was and why the
+chosen fix was the right one.
 
-**D4, D8, D9, D10 and D11 are open, and all five are waiting on a decision
-rather than on work** — each is a one- to three-line change whose only cost is
-that it alters something the user already sees.
-
-### D4 — `DeleteConfirmModal` uses `Tab` for field navigation
-
-`internal/ui/components/delete_confirm_modal.go:89-97`
-
-`tab` / `shift+tab` cycle checkbox → Yes → No. Rule 135 reserves those keys for
-tab switching and assigns field navigation to `↑ / ↓` exclusively.
-
-Cosmetic in isolation, but it is the kind of inconsistency Rule 135 exists to
-prevent. Changing it alters muscle memory, so it needs a deliberate call rather
-than a drive-by fix.
-
-Note that the surrounding code moved when D2 was fixed: `tab` / `shift+tab` now
-cycle through `cycleFocus()`, which skips the locked checkbox. Switching to
-`↑ / ↓` remains a one-line change to the key names.
-
-### D8 — Write-only CRUD flags and an unreachable handler in the status view
-
-`internal/ui/status/model.go:64-67` and `internal/ui/status/update.go:57-60`
-
-`Model.creating`, `Model.editing` and `Model.confirming` are assigned in five
-places and read in none: the view keys off `componentForm != nil` and
-`confirmModal != nil` instead. `HasActiveForm`, the one method that read them, is
-commented out at `model.go:139`.
-
-`ComponentFormCancelledMsg` is never sent either. `ComponentForm.handleKeyMsg`
-answers `esc` by returning a nil form, and the caller stores that — so the
-`case components.ComponentFormCancelledMsg` branch in `Update()` cannot run. Its
-body is the only thing that would reset `creating` / `editing`, which is why they
-would stay true after a cancellation if anything did read them.
-
-Harmless today, but it is state that lies: a reader reasonably assumes those
-flags mean something. Found while writing the phase 2 tests; the tests
-deliberately assert on `componentForm` / `confirmModal` rather than on the flags,
-so removing them breaks nothing.
-
-**Fix:** delete the three fields, the unreachable case and the message type — or
-give `esc` a message and make the flags load-bearing. Deleting is the smaller
-change and matches how the view already works.
-
-### D9 — The containers list opens sorted Z→A
-
-`internal/ui/containers/model.go:140-147`
-
-`New()` sets neither `sortColumn` nor `sortAsc`, so both take their zero value:
-name, *descending*. The status view, which has the same cycle-sort mechanism,
-sets `sortAsc: true` explicitly. The header does show `Name ▼`, so the view is
-at least honest about it — but nobody chose it, and it disagrees with the other
-list view in the application.
-
-**Fix:** set `sortAsc: true` in `New()`, one line. Left for a deliberate call
-because it changes what the user sees on open.
-`TestDefaultSortIsNameDescending` pins the current behaviour and says so.
-
-### D10 — A registry failure is invisible until the user focuses the Template field
-
-`internal/ui/components/creation_form.go:445-449` and `:493-496`
-
-When the OCI registry cannot be reached, the explorer opens the creation form
-anyway and calls `SetTemplateWarning("Registry error: …")` — the right call.
-But `renderTemplateList` returns early when the field is not focused, so the
-warning sits below that return and never renders. The user sees a Template
-field offering nothing but "none", with no indication that the list failed to
-load rather than being genuinely empty.
-
-Reaching it takes four keystrokes: switch the type to Project, then move focus
-down to Template. Nothing suggests doing so.
-
-Found in phase 3 while covering the explorer.
-`TestTemplateFailureStillOpensTheForm` pins both halves — that the warning is
-*not* visible on the unfocused field, and that it appears once focused — so the
-test fails in both directions when this is fixed, and says so.
-
-**Fix:** render the warning outside the focused/unfocused branch, or surface it
-on the form as a whole rather than on the field. Left for a deliberate call
-because it changes a shared component used by more than the explorer.
-
-### D11 — CRITICAL and HIGH look identical in the findings details
-
-`internal/ui/security/details.go:155-166`
-
-`getSeverityStyle` builds the CRITICAL style by hand as
-`ColorError` + `Bold(true)`, which is exactly what `theme.StatusErrorStyle`
-already is — and HIGH returns that. The two are byte-identical, so the severity
-of a finding is unreadable from its detail view.
-
-The theme already defines `ColorSeverityCritical`, `ColorSeverityHigh`,
-`ColorSeverityMedium` and `ColorSeverityLow`, and the findings *table* uses them
-through `theme.TableStylesForSeverity`. Only the details view diverges, which
-also makes it a Rule 102 violation: the style is composed locally instead of
-coming from the theme.
-
-Found in phase 3 while covering the security view.
-`TestSeverityStylesCollapseCriticalIntoHigh` pins the current behaviour and is
-deliberately inverted, so it fails when the palette is wired in — which is the
-fix.
-
-**Fix:** return the `ColorSeverity*` styles. Left for a deliberate call because
-it changes colours the user already reads.
+The five that stayed open longest — D4, D8, D9, D10 and D11 — were parked not
+because they were hard but because each altered something the user already saw,
+so they needed a deliberate call rather than a drive-by fix. All five were then
+decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
 
@@ -296,6 +197,56 @@ than fixed: nothing outside its own tests constructed it. It was also broken —
 common value like `store --file=/path` became the single unfindable command
 `credential-store --file=/path` — and it hardcoded `protocol=https`, unlike
 `GitCredentialStorage`, which reads the scheme from the URL.
+
+### 1.2 The five parked defects
+
+D4, D8, D9, D10 and D11 were each recorded rather than fixed on discovery,
+because each changed something the user already saw. They were decided together
+and fixed in one pass. Three of the five had a test written to fail *on the
+fix*, and all three did.
+
+**D4 — `tab` navigated the delete confirmation.** Rule 135 reserves `tab` for
+switching tabs and assigns field navigation to `↑ / ↓` exclusively; the modal
+had it exactly inverted, cycling on `tab` and clamping on `↑ / ↓`. `↑ / ↓` now
+cycle, which is what keeps every control reachable in one direction, and the
+`tab` cases are gone. The explorer no longer advertises "tab Navigate" while the
+modal is open, and `↑↓` is not advertised in its place — Rule 138 calls it
+obvious. The permanent variant still skips its locked checkbox, so cycling there
+toggles between the two buttons.
+
+**D8 — write-only CRUD flags.** `creating`, `editing` and `confirming` were
+assigned in five places and read in none, and `ComponentFormCancelledMsg` — the
+only thing that would have reset two of them — could never be sent. Deleted, all
+of it. Nothing else changed: the phase 2 tests had deliberately asserted on
+`componentForm` / `confirmModal` rather than on the flags, which is what made
+this safe a phase later.
+
+**D9 — the containers list opened Z→A.** `New()` set neither `sortColumn` nor
+`sortAsc`, so both took their zero value. Both are now set explicitly, so the
+default is stated rather than inherited. `TestDefaultSortIsNameDescending`
+became `TestDefaultSortIsNameAscending`, and the cycle test walks forward from
+ascending. The `loadedModel` helper still sets the sort itself even though it
+now matches the constructor: those tests should say which order they rely on.
+
+**D10 — a registry failure was invisible.** `renderTemplateList` returned early
+when the field was unfocused and the warning sat below that return, so a form
+opened after the OCI registry failed offered a Template field reading "none"
+with nothing to distinguish "the registry is down" from "there are no
+templates". The warning moved into `renderTemplateWarning` and is appended in
+both branches — it explains why the list is empty, so it belongs wherever the
+list is.
+
+**D11 — CRITICAL and HIGH rendered identically.** `getSeverityStyle` composed
+CRITICAL by hand as `ColorError` + `Bold`, which is byte-for-byte the
+`theme.StatusErrorStyle` it returned for HIGH. The palette moved to
+`theme.SeverityTextStyle`, next to the `TableStylesForSeverity` it draws from,
+and the view delegates (Rule 102). An unrecognised severity now falls back to
+the info colour rather than to `DimStyle`, so it is still legible.
+
+The pattern worth keeping: when a defect is recorded rather than fixed, write
+the test **inverted** — asserting the current behaviour and saying so. D9, D10
+and D11 each had one, and each failed the moment the fix landed, which is how
+the stale test and the stale backlog entry got found together.
 
 ---
 

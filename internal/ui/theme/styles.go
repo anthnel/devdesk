@@ -249,7 +249,7 @@ func TableStylesForState(state string) table.Styles {
 // the severity uppercased, as the scanners report it.
 //
 // Composing this by hand is what let the security details view render CRITICAL
-// and HIGH identically (D10 in the backlog): ColorError + Bold happens to equal
+// and HIGH identically (D11 in the backlog): ColorError + Bold happens to equal
 // StatusErrorStyle, so the two collapsed.
 func SeverityTextStyle(severity string) lipgloss.Style {
 	base := lipgloss.NewStyle().Background(ColorBackground)
