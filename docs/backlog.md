@@ -260,7 +260,7 @@ pattern above.
 honoured in exactly three places: the `docker login` fired on form submit, the
 `Logged` column, and the URL list `registryLoginStatusCmd` checks. Neither code
 path that actually talks to a registry consults it. `submitSearch`
-(`registry_browser.go:393`) calls `docker.GetStoredCreds(credURL)`
+(`browser_keys.go:142`) calls `docker.GetStoredCreds(credURL)`
 unconditionally and hands the result to `searchRegistryTagsCmd`;
 `detectRegistryGroupCmd` (`commands.go:563`) does the same before calling into
 `registrymgr`. A registry the user has marked as needing no authentication will
@@ -272,7 +272,7 @@ say "do not send credentials here" at all.
 
 **D13 — the browser cannot be dismissed while it is resolving.**
 `handleKeyMsg` returns `nil` for every key in `browserStateResolving`
-(`registry_browser.go:321`), `esc` included, and that state is entered
+(`browser_keys.go:70`), `esc` included, and that state is entered
 unconditionally on open whenever any registry is configured. The detections run
 concurrently with an 8 s timeout each, so the wedge is bounded at roughly eight
 seconds — but it is eight seconds during which the application ignores the user,
@@ -286,7 +286,7 @@ registries configured with the same URL collide and the second result overwrites
 the first. The slug introduced in §3.8 is the natural key to match on instead.
 
 **D14 — the registry filter shows a raw URL for group members.**
-`registryFilterLabel()` (`registry_browser.go:523`) resolves the active filter by
+`registryFilterLabel()` (`browser_tags.go:63`) resolves the active filter by
 searching `b.registries`, which holds only the configured top-level entries.
 Discovered members are not in that list, so filtering to one falls through to
 returning `b.registryFilter` — the full synthesised URL — where every other row
@@ -747,11 +747,11 @@ cases, where the URL is unambiguous. So:
   one-forge-per-context decision. Changing it requires an explicit logout, or a
   new context. Before a successful login it stays freely editable.
 
-Noted, not blocking: this makes the auth form mix a cycle field with the radio
-buttons it already uses for the save options (`auth/view.go:146`) — themselves a
-closed two-value set, so the form was already at odds with Rule 132. Both
-patterns are defensible; internal consistency is what matters, and regularising
-the save options is the obvious moment.
+This makes the auth form mix a cycle field with the radio buttons it uses for
+the save options (`auth/view.go:146`) — themselves a closed two-value set, so
+the form was already at odds with Rule 132. **Settled in §3.9**: those radios are
+deleted outright, along with the choice they present, so the form is left with a
+cycle field and nothing else.
 
 #### Open decision: Go SDKs or the `gh` / `glab` CLIs
 
@@ -902,12 +902,12 @@ Not started. The decisions below are settled; one is not, and is marked as such.
 
 | Concern | Today | Where |
 |---|---|---|
-| Parent/child relation | in memory only, for the lifetime of one browser session | `registry_browser.go:33` (`browserRegistryEntry`) |
-| Group discovery | Nexus REST, re-run on **every** browser open, 8 s timeout each, behind a blocking spinner | `registry_browser.go:158`, `registrymgr/nexus.go` |
+| Parent/child relation | in memory only, for the lifetime of one browser session | `registry_browser.go:26` (`browserRegistryEntry`) |
+| Group discovery | Nexus REST, re-run on **every** browser open, 8 s timeout each, behind a blocking spinner | `registry_browser.go:153`, `registrymgr/nexus.go` |
 | Member URLs | synthesised as `host + /repository/<memberName>`, alias stripped of `-proxy`/`-hosted`/`-local` | `nexus.go:111`, `nexus.go:200` |
-| Credential inheritance | member searches use the **parent's** URL as the `~/.docker/config.json` lookup key | `registry_browser.go:381` |
-| Registries tab | flat table, no indication a group was ever found | `update.go:1449` |
-| Result filter (`r`) | cycles member URLs; no group level | `registry_browser.go:485` |
+| Credential inheritance | member searches use the **parent's** URL as the `~/.docker/config.json` lookup key | `browser_keys.go:130` |
+| Registries tab | flat table, no indication a group was ever found | `table.go:182` |
+| Result filter (`r`) | cycles member URLs; no group level | `browser_tags.go:25` |
 
 `RegistryConfig.Registries` is a flat `[]RegistryItem` and carries no parent
 field. Nothing about a group survives closing the browser: it is rediscovered,
@@ -1028,7 +1028,7 @@ tag search relies on. Whether `docker pull` accepts the same path-form reference
 depends on the deployment — a dedicated HTTP connector port per repository is
 the older Nexus arrangement, path routing needs a reverse proxy in front. If
 they differ, a member needs a third URL alongside `url` and `management_url`,
-and `multiImageName` (`registry_browser.go:685`) is building an unpullable
+and `multiImageName` (`browser_tags.go:125`) is building an unpullable
 reference today. **This should be checked against the actual Nexus instance**
 rather than reasoned about; it is one `docker pull` away from being answered.
 
@@ -1062,6 +1062,136 @@ that order exists to prevent.
 
 Steps 1–4 are worth doing on their own — they are what make the group model
 expressible — and step 6 is the one that needs step 3 finished first.
+
+### 3.9 Every secret goes to a host secret manager, and radio buttons go away
+
+**Requirement:** no secret DevDesk holds is written to disk in plaintext. Today
+three of the five storage paths are exactly that, and the option the UI labels
+"secure" is one of them.
+
+The radio-button removal rides along because it is the same code: once there is
+one storage path, the choice the radios present stops existing.
+
+#### Where secrets go today
+
+| Secret | Destination | Protection |
+|---|---|---|
+| Forge token | `~/.devdesk/credentials-<ctx>.json` | **plaintext JSON**, 0600 |
+| Forge token | `gitlab.token` in `contexts/<ctx>/config.yaml` | **plaintext YAML** |
+| Forge token | git credential helper | whatever the helper does |
+| Registry password | `~/.docker/config.json` via `docker login` | whatever Docker's `credsStore` does |
+| Registry password | `registry.password` in `config.yaml` | **plaintext YAML**, read at `explorer/create.go:43,132` |
+
+`RegistryItem` is the one part that already gets this right: it has no password
+field by construction, and the multi-registry code relies on `docker login`
+instead. The legacy `RegistryConfig.Password` is the outlier, and it is still
+read.
+
+#### The option labelled "secure" is not
+
+`ChainStorage.Save` writes to **every** storage in the chain
+(`credentials/storage.go:37`), and all three construction sites build it as
+`NewChainStorage(FileStorage, GitCredentialStorage)` (`app.go:245`, `:383`,
+`:1483`). So choosing **"Save to Git Credential Manager (secure)"** stores the
+token in the credential manager *and* in
+`~/.devdesk/credentials-<context>.json` in plaintext. The label is not merely
+optimistic, it is wrong about the option it describes.
+
+Reads make it worse. `FileStorage` is **first** in the chain and
+`ChainStorage.Load` returns the first hit, so the plaintext file is
+authoritative and the credential manager is never consulted while that file
+exists. The secure backend is decorative in both directions.
+
+The other option is no better, in a different way: **"Save token to config file
+(less secure)"** sets `saveToHelper = false` (`auth/update.go:213`), so nothing
+reaches the chain at all and the token lands only in `config.yaml`. Both
+options put the token in plaintext on disk; the "secure" one does it twice.
+
+**And logout does not clean up.** `handleLogoutComplete` (`auth/update.go:191`)
+clears `m.config.GitLab.Token` in memory with no `config.Save` behind it, so the
+token survives in `contexts/<ctx>/config.yaml`. `ChainStorage.Delete` does clear
+both storages, so the credentials file copy goes — the config copy does not.
+
+#### What "host secret manager" can honestly promise
+
+The distinction that decides the design: delegating to `git credential`
+delegates to **whatever helper git happens to be configured with**. If that is
+`store`, the token lands in `~/.git-credentials` in plaintext — the same
+failure, relocated. `cache` keeps it in memory only. Only `manager` (GCM),
+`osxkeychain` and `libsecret` reach a real OS store. So "goes through git
+credential" is not the same claim as "encrypted at rest", and the requirement
+above is the second one.
+
+| Route | Gets | Costs |
+|---|---|---|
+| **A — keep `git credential`, inspect the helper** | no new dependency; reuses machinery just hardened for context isolation (§1.1) | must read `git config credential.helper` and refuse or warn on `store` and on empty; still trusts the user's git config |
+| **B — talk to the OS store directly** (`zalando/go-keyring`: wincred / Keychain / Secret Service, no cgo; or `99designs/keyring` for more backends) | guarantees the store; independent of git configuration | a dependency, and new failure modes — no D-Bus in a headless Linux session being the usual one |
+
+**Recommendation: B as the primary path, A kept as an explicit alternative** for
+users who want their tokens where GCM already puts everything else. Only B can
+promise what the requirement asks; A is the pragmatic option and should stay
+reachable, not become the default.
+
+#### The fallback has to be worse, on purpose
+
+When no store is reachable, the current answer is a plaintext file. The new
+answer is `MemoryStorage` — session-only, re-authenticate on each launch — with
+a visible indication that the token is not being persisted.
+
+That is deliberately worse UX than a file, and that is the point: a fallback
+that is silently insecure is how the current "secure" option came to exist. The
+user should be able to tell, without reading the source, that nothing was saved.
+
+#### Config schema
+
+`GitLabConfig.Token` and `RegistryConfig.Password` come out of the schema
+entirely. Parsing them and ignoring them is not enough — that leaves the secret
+on disk forever for every existing user. Migration runs on load: if either
+field holds a value, move it into the store, rewrite the file without it, and
+say so. Note `config.CreateContext` (`config.go:564`) already blanks
+`GitLab.Token` for new contexts, so only existing ones need the sweep.
+
+#### Radio buttons, all of them
+
+`auth/view.go:146-147` are the **only** two `RenderRadioButton` call sites in the
+application. With a single storage path there is no choice left to present, so
+they go, and with them:
+
+- the `SaveToHelper` / `SaveToConfig` constants and the `saveOption` field
+  (`auth/model.go:17-20`, `:30`);
+- `theme.RenderRadioButton` (`styles.go:377`), which becomes dead code;
+- the `ctrl+s` "Toggle save to helper" and `ctrl+f` "Toggle save to config"
+  entries in `GetShortcuts()` (`auth/view.go:28-29`) and the "Save Options"
+  section of `GetHelpContent()`;
+- form fields 2 and 3, which renumbers the form — `nextField` / `prevField`
+  clamp at 4 and `updateFocus` switches on 0/1 (`auth/update.go:199-232`).
+
+`RenderCheckbox` stays: checkboxes model independent booleans, which is a
+different thing from a closed set of mutually exclusive values.
+
+**Two rule files ripple, in the same commit.** Rule 120 in
+`.claude/rules/tui-forms.md` names `theme.RenderRadioButton()` as the sanctioned
+way to render radio buttons, and Rule 132 implies they are acceptable for closed
+lists. Both should say that **cycle fields are the only control for a closed
+set**, and that checkboxes remain for independent booleans.
+
+#### Sketch of the work
+
+1. Add `KeyringStorage` over the OS store, and a probe that reports whether one
+   is reachable. Route A becomes a second implementation of the same interface.
+2. Delete `FileStorage` and `NewFileStorageForContext`. This is the change that
+   makes the "secure" label true, and nothing else in the chain matters until it
+   is gone.
+3. Replace `ChainStorage` with explicit selection — store, else git credential
+   if configured with a real helper, else memory with a warning. Writing to
+   every backend at once is what produced the current defect; keep one
+   destination.
+4. Remove `GitLabConfig.Token` and `RegistryConfig.Password`, with the migration
+   sweep on load.
+5. Persist the logout: clear the store *and* save the config.
+6. Delete the radios and everything listed above, and update Rules 120 and 132.
+
+Steps 2 and 5 are small and fix live defects; they need none of the rest.
 
 ---
 
