@@ -204,6 +204,52 @@ func TestAManagementURLFromAnOlderConfigBecomesANexusGroup(t *testing.T) {
 	}
 }
 
+// The other half of what NexusDetector.CanHandle used to accept. Once the
+// detector matches on the declared provider, an entry that never gets one stops
+// being probed — so the sniff has to be migrated into a declaration, or a group
+// that was being discovered silently stops being.
+func TestARepositoryPathFromAnOlderConfigBecomesANexusGroup(t *testing.T) {
+	items := []RegistryItem{
+		{URL: "https://nexus.example.com/repository/docker-group", Slug: "grp"},
+		{URL: "https://registry.example.com", Slug: "plain"},
+	}
+
+	if err := normalizeRegistries(items); err != nil {
+		t.Fatalf("normalizeRegistries: %v", err)
+	}
+
+	if items[0].Provider != ProviderNexus {
+		t.Errorf("Provider = %q for a /repository/ URL, want %q — that is what used to be probed",
+			items[0].Provider, ProviderNexus)
+	}
+	if items[0].Kind != KindGroup {
+		t.Errorf("Kind = %q, want %q so the provider is visible and editable", items[0].Kind, KindGroup)
+	}
+	if items[1].Provider != "" || items[1].Kind != KindRegistry {
+		t.Errorf("a plain registry migrated to kind %q provider %q, want it left alone",
+			items[1].Kind, items[1].Provider)
+	}
+}
+
+// A kind the file states is not second-guessed: the migration is for entries
+// that predate the field, not a rule applied on every load.
+func TestADeclaredKindSurvivesARepositoryPath(t *testing.T) {
+	items := []RegistryItem{
+		{URL: "https://nexus.example.com/repository/docker-hosted", Slug: "hosted", Kind: KindRegistry},
+	}
+
+	if err := normalizeRegistries(items); err != nil {
+		t.Fatalf("normalizeRegistries: %v", err)
+	}
+
+	if items[0].Kind != KindRegistry {
+		t.Errorf("Kind = %q, want the declared one", items[0].Kind)
+	}
+	if items[0].Provider != "" {
+		t.Errorf("Provider = %q on an entry declared a plain registry, want none", items[0].Provider)
+	}
+}
+
 // A group declared as one, with no provider stated, is served by nothing in
 // particular until the user says otherwise.
 func TestADeclaredGroupDefaultsToTheGenericProvider(t *testing.T) {

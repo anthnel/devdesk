@@ -571,6 +571,7 @@ func detectRegistryGroupCmd(reg config.RegistryItem, password string) tea.Cmd {
 		}
 
 		info := registrymgr.RegistryInfo{
+			Provider:      reg.Provider,
 			URL:           reg.URL,
 			ManagementURL: reg.ManagementURL,
 			Username:      username,

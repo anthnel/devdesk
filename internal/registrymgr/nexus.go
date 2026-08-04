@@ -18,21 +18,17 @@ func init() {
 
 // NexusDetector handles Sonatype Nexus Repository Manager group repositories.
 // Two URL formats are supported:
-//  1. Path-based:   https://nexus.example.com/repository/docker-group  (auto-detected)
-//  2. Subdomain:    nexus-docker-group.example.com  (requires info.NexusURL to be set)
+//  1. Path-based:   https://nexus.example.com/repository/docker-group
+//  2. Subdomain:    nexus-docker-group.example.com  (requires info.ManagementURL)
+//
+// Which one applies is read from the URL. Whether this detector runs at all is
+// not: that is the declared provider's decision (§3.8, decision F).
 type NexusDetector struct{}
 
 var nexusHTTPClient = &http.Client{Timeout: 8 * time.Second}
 
-// CanHandle returns true when:
-//   - the registry URL contains the Nexus "/repository/" path segment, OR
-//   - info.ManagementURL is explicitly set (subdomain connector case)
-func (n *NexusDetector) CanHandle(info RegistryInfo) bool {
-	if info.ManagementURL != "" {
-		return true
-	}
-	return strings.Contains(info.URL, "/repository/")
-}
+// Provider returns the provider this detector serves.
+func (n *NexusDetector) Provider() string { return ProviderNexus }
 
 // DetectGroup calls the Nexus REST API to determine whether the registry points
 // to a group repository and, if so, returns its member repositories.
