@@ -1052,9 +1052,50 @@ Step 1 is worth landing on its own: the width solver and its test pin the
 invariant before any view depends on it, which is the ordering the phase-3
 coverage work already showed pays off (surface tests, then move, then complete).
 
-Not started. Nothing here is settled; the API sketch is a proposal, and the open
-question is whether `RowState` is enough to cover `TableStylesForSeverity` in
-`security` without the component learning about severity.
+#### Step 1 as built — `internal/ui/datatable`
+
+**The open question is settled, and the sketch was wrong about it.**
+`RowState func(T) string` assumed per-row styling. There is no such thing:
+`TableStylesForState` and `TableStylesForSeverity` both only alter `Selected`,
+and both are re-applied from the *cursor's* item — `containers` and `security`
+have the same `refreshSelectionStyle`, each replaying filter-then-sort by hand to
+find out what is under it. So the field is
+
+```go
+SelectedStyles func(T) table.Styles
+```
+
+The view returns the styles for the selected item; the component never learns
+what a severity or a container state is, which is what the question was really
+asking. It also names what it is — bubbles/table has no per-row styling, and
+that absence is *why* Rule 122 exists.
+
+What the component holds that the views did not:
+
+- **One filtered, sorted slice**, kept. `Selected()` reads it instead of
+  recomputing, so the cursor cannot point at one ordering while the screen shows
+  another. That was the defect class worth removing, not the line count.
+- **One width solver** (`widths.go`). It distributes the *shortfall* across the
+  columns instead of letting each defend its own floor, so the Rule 116 sum holds
+  at every width. `TestTheWidthsAlwaysSumToWhatIsAvailable` sweeps six layouts
+  across widths 0–200; the workspaces shape that overflows by 34 columns at width
+  120 has its own test.
+- **Cursor clamping in one place.** `SetItems` clamps both ends and otherwise
+  leaves the cursor alone, which is what `netdiag`'s lazy-rebuild workaround
+  exists to achieve. `GotoTop` stays explicit for `security`'s tab change.
+
+Two defects were found by the tests while writing it, both mine, both in code the
+views would have inherited: the cursor did not come back from `-1` when rows
+returned after an empty filter, and `CycleSort` got stuck flipping the direction
+of a column with no comparator. The second is fixed by settling the invariant in
+`New` — `sortColumn` is `-1` or sortable, never anything else — which let the
+matching guards in `sorted` and `nextSortable` be deleted rather than covered,
+per the D5 precedent.
+
+`Cell func(T) string` is what makes Rule 122 structural: a styled value has
+nowhere to go. 98.9 % covered; the package total went 81.6 % → 81.9 %.
+
+**No view is migrated yet.** Steps 2–6 stand as written.
 
 ### Race detector cannot run locally
 
