@@ -3,9 +3,19 @@
   "checkpoint_id": "d6875a997686",
   "strategy": "manual-commit",
   "branch": "test/phase-6-coverage",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
-    "docs/backlog.md"
+    "docs/backlog.md",
+    "internal/ui/oci_resources/browser_search_test.go",
+    "internal/ui/oci_resources/commands_test.go",
+    "internal/ui/oci_resources/connectivity_form_test.go",
+    "internal/ui/oci_resources/faketool_test.go",
+    "internal/ui/oci_resources/launch_test.go",
+    "internal/ui/oci_resources/ociresources_test.go",
+    "internal/ui/oci_resources/registry_http_test.go",
+    "internal/ui/oci_resources/scan_commands_test.go",
+    "internal/ui/testutil/testutil.go",
+    "internal/ui/testutil/testutil_test.go"
   ],
   "sessions": [
     {
@@ -14,13 +24,20 @@
       "compact_transcript": "/d6/875a997686/0/transcript.jsonl",
       "content_hash": "/d6/875a997686/0/content_hash.txt",
       "prompt": "/d6/875a997686/0/prompt.txt"
+    },
+    {
+      "metadata": "/d6/875a997686/1/metadata.json",
+      "transcript": "/d6/875a997686/1/full.jsonl",
+      "compact_transcript": "/d6/875a997686/1/transcript.jsonl",
+      "content_hash": "/d6/875a997686/1/content_hash.txt",
+      "prompt": "/d6/875a997686/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 2837,
-    "cache_creation_tokens": 737117,
-    "cache_read_tokens": 71496869,
-    "output_tokens": 232677,
-    "api_call_count": 339
+    "input_tokens": 3095,
+    "cache_creation_tokens": 1061743,
+    "cache_read_tokens": 105005268,
+    "output_tokens": 341553,
+    "api_call_count": 474
   }
 }
