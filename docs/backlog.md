@@ -475,10 +475,13 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
-D12–D14 sit in `internal/ui/oci_resources` and are cheap on their own, but
+D13 and D14 sit in `internal/ui/oci_resources` and are cheap on their own, but
 §3.8 rewrites the code path each of them lives in. Fix them **as part of** that
 work rather than ahead of it, and write each one's test inverted first, per the
-pattern above. D14's inverted test now exists.
+pattern above. D14's inverted test now exists. Both belong to step 6.
+
+**D12 is fixed** — §3.8 step 2 replaced `AuthEnabled` with `AuthMode` and made
+both registry-facing paths read it. See §3.8, "Step 2 as built".
 
 **D21** also sits in that package but is **independent of §3.8** and should not
 wait for it. It is three lines of dead code with its invariant already pinned,
@@ -491,7 +494,8 @@ see §1.1. Each had been recorded with an inverted test asserting the broken
 behaviour; those tests are what failed when the fix landed, and each has been
 turned around to assert the fixed behaviour instead.
 
-**D12 — `AuthEnabled` has no effect on browse or discovery.** The flag is
+**D12 — `AuthEnabled` has no effect on browse or discovery. Fixed** (§3.8 step
+2); the description below is what it was. The flag is
 honoured in exactly three places: the `docker login` fired on form submit, the
 `Logged` column, and the URL list `registryLoginStatusCmd` checks. Neither code
 path that actually talks to a registry consults it. `submitSearch`
@@ -1459,9 +1463,9 @@ rather than deleting them.
 
 1. ~~Add `slug`, `kind`, `parent` and `provider` to `RegistryItem`; migrate
    existing configs and enforce slug uniqueness at load.~~ — **done**, see below.
-2. Replace `AuthEnabled` with `AuthMode`, and make **both** registry-facing
+2. ~~Replace `AuthEnabled` with `AuthMode`, and make **both** registry-facing
    paths honour it — this is D12, and it is the step that gives `anonymous`
-   meaning.
+   meaning.~~ — **done**, see below.
 3. Add `internal/cache/registrygroups.go` alongside the two existing caches;
    move discovery behind it and give the Registries tab an explicit refresh.
 4. Turn `CanHandle` into a match on the declared `provider`, with a generic
@@ -1507,6 +1511,40 @@ leaving a management URL pointed at a repository manager the entry says it does
 not have.
 
 The Registries tab is untouched — its columns are step 5's to redesign.
+
+#### Step 2 as built — and D12 closed
+
+`AuthEnabled bool` became `AuthMode string`: `credentials` or `anonymous`, plus
+`inherit` for a member. `auth_enabled` is read once at load, migrated and
+cleared, so it leaves the file on the next save.
+
+**The open question is settled: a member-level `credentials` does not exist.**
+The backlog's own reading was that it should not, and normalization now enforces
+it — a member declaring one is refused at load, naming the two modes it may take
+instead. `inherit` on an entry with no group is refused for the mirror reason.
+Nothing is lost: `docker login` is keyed on host, a member shares its group's
+host, and therefore shares its single credential entry. A per-member password
+has nowhere to go, and §3.9 changed what that would cost without changing the
+conclusion.
+
+**D12 is closed, on both paths.** `detectRegistryGroupCmd` and the browser's
+`credsFor` now read the mode before looking anything up, and send nothing —
+not even a configured username — when it says anonymous. Each has a test
+asserting the refusal *and* a sibling asserting credentials still flow when the
+mode allows it, so neither can pass by breaking authentication outright. Both
+were checked by removing the gate and confirming the failure.
+
+One correction to the note above: `TestManagementCredentialsAreLookedUpByHostAlone`
+was listed as an inverted test to turn around, but it was not asserting broken
+behaviour. Stripping the repository path before a management-host lookup was
+right and stays. What was missing was the gate in *front* of that lookup, so the
+test was made explicit about its mode rather than reversed, and
+`TestAnAnonymousRegistryIsProbedWithoutCredentials` was added beside it. The one
+genuinely inverted test, `TestAGroupMembersFilterLabelIsStillARawURL` (D14),
+still waits for step 6.
+
+The Registries tab's `Auth` column now shows the mode itself rather than
+yes/no, which is what made it wide enough to be worth reading.
 
 ### 3.9 Every secret goes to a host secret manager, and radio buttons go away — **done**
 

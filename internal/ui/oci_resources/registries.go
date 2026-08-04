@@ -47,8 +47,8 @@ func (m Model) loginSelectedRegistry() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	reg := m.registries[idx]
-	if !reg.AuthEnabled {
-		m.errorMsg = "Auth not enabled for this registry"
+	if !config.UsesCredentials(reg.AuthMode) {
+		m.errorMsg = "This registry is marked anonymous"
 		return m, clearInfoMsgCmd()
 	}
 	m.registryForm = NewRegistryEditForm(idx, reg, m.registries, m.width-2)
@@ -82,7 +82,7 @@ func (m Model) handleRegistryFormSubmit(msg RegistryFormSubmitMsg) (tea.Model, t
 		return m, clearInfoMsgCmd()
 	}
 	m.errorMsg = ""
-	if msg.Password != "" && msg.Item.AuthEnabled {
+	if msg.Password != "" && config.UsesCredentials(msg.Item.AuthMode) {
 		return m, registryLoginCmd(msg.Item.URL, msg.Item.Username, msg.Password)
 	}
 	return m, nil
@@ -93,7 +93,7 @@ func (m Model) handleRegistryFormSubmit(msg RegistryFormSubmitMsg) (tea.Model, t
 func (m Model) registryLoginStatusCmd() tea.Cmd {
 	urls := make([]string, 0, len(m.registries))
 	for _, reg := range m.registries {
-		if reg.AuthEnabled {
+		if config.UsesCredentials(reg.AuthMode) {
 			urls = append(urls, reg.URL)
 		}
 	}

@@ -370,7 +370,7 @@ func New(cfg *config.Config) Model {
 		{Title: "URL", Width: 30},
 		{Title: "Username", Width: 16},
 		{Title: "Alias", Width: 10},
-		{Title: "Auth", Width: 6},
+		{Title: "Auth", Width: 12}, // holds "credentials"
 		{Title: "Logged", Width: 8},
 	}
 	rt := table.New(

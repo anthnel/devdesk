@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -247,5 +248,111 @@ func TestTheBrowserSwallowsTheViewShortcuts(t *testing.T) {
 func TestInEditModeCoversTheBrowser(t *testing.T) {
 	if !browsingModel(t).InEditMode() {
 		t.Error("InEditMode() is false with the registry browser open")
+	}
+}
+
+// ── Credentials on the browse path (D12) ─────────────────────────────────────
+
+// The other half of D12. `docker login` is keyed on host, so the credentials
+// stored for one repository on a Nexus instance were sent to every repository
+// the browser searched on that host — the flag saying a registry needed no
+// authentication was read nowhere on this path.
+func TestAnAnonymousRegistryIsSearchedWithoutCredentials(t *testing.T) {
+	writeDockerConfig(t, map[string]any{
+		"auths": map[string]any{
+			"registry.example.com": map[string]string{"auth": encodeAuth("nexus-admin", "s3cret")},
+		},
+	})
+
+	b := &RegistryBrowser{registries: []config.RegistryItem{
+		{URL: "registry.example.com", Username: "anthnel", AuthMode: config.AuthAnonymous},
+	}}
+
+	user, pass := b.credsFor(browserRegistryEntry{
+		URL:      "registry.example.com",
+		authMode: config.AuthAnonymous,
+	})
+
+	if user != "" || pass != "" {
+		t.Errorf("the search would go out as %q/%q, want nothing sent to an anonymous registry", user, pass)
+	}
+}
+
+// And the contrast, so the test above cannot pass by breaking credentials
+// outright: a registry that asks for them still gets both, the configured
+// username winning over the stored one.
+func TestARegistryThatUsesCredentialsStillGetsThem(t *testing.T) {
+	writeDockerConfig(t, map[string]any{
+		"auths": map[string]any{
+			"registry.example.com": map[string]string{"auth": encodeAuth("stored-user", "s3cret")},
+		},
+	})
+
+	b := &RegistryBrowser{registries: []config.RegistryItem{
+		{URL: "registry.example.com", Username: "anthnel", AuthMode: config.AuthCredentials},
+	}}
+
+	user, pass := b.credsFor(browserRegistryEntry{
+		URL:      "registry.example.com",
+		authMode: config.AuthCredentials,
+	})
+
+	if user != "anthnel" {
+		t.Errorf("username = %q, want the configured one", user)
+	}
+	if pass != "s3cret" {
+		t.Errorf("password = %q, want the stored one", pass)
+	}
+}
+
+// A member is searched at its own URL but authenticated with its group's
+// credentials, because the two share a host and therefore a credential entry.
+// That inheritance carries the refusal as well as the password.
+func TestAGroupMemberFollowsItsGroupOnCredentials(t *testing.T) {
+	writeDockerConfig(t, map[string]any{
+		"auths": map[string]any{
+			"registry.example.com": map[string]string{"auth": encodeAuth("stored-user", "s3cret")},
+		},
+	})
+
+	b := &RegistryBrowser{registries: []config.RegistryItem{
+		{URL: "registry.example.com", Username: "group-user", AuthMode: config.AuthCredentials},
+	}}
+	member := browserRegistryEntry{
+		URL:         "registry.example.com/repository/dhi-proxy",
+		ParentAlias: "prod",
+		parentURL:   "registry.example.com",
+	}
+
+	member.authMode = config.AuthCredentials
+	if user, pass := b.credsFor(member); user != "group-user" || pass != "s3cret" {
+		t.Errorf("a member of a group using credentials got %q/%q, want the group's", user, pass)
+	}
+
+	member.authMode = config.AuthAnonymous
+	if user, pass := b.credsFor(member); user != "" || pass != "" {
+		t.Errorf("a member of an anonymous group got %q/%q, want nothing", user, pass)
+	}
+}
+
+// The mode a member ends up with is settled once, when the group resolves —
+// there is no second place that could disagree with it.
+func TestResolvedMembersCarryTheirGroupsMode(t *testing.T) {
+	b, _ := newRegistryBrowser([]config.RegistryItem{
+		{URL: "registry.example.com", Alias: "prod", AuthMode: config.AuthAnonymous},
+	}, 120, 30)
+
+	b, _ = b.HandleGroupDetected(RegistryGroupDetectedMsg{
+		RegistryURL: "registry.example.com",
+		Members: []registrymgr.GroupMember{
+			{Alias: "hosted", URL: "registry.example.com/repository/docker-hosted"},
+		},
+	})
+
+	if len(b.entries) != 1 {
+		t.Fatalf("got %d entries, want the one member", len(b.entries))
+	}
+	if b.entries[0].authMode != config.AuthAnonymous {
+		t.Errorf("the member resolved as %q, want its anonymous group's mode", b.entries[0].authMode)
 	}
 }

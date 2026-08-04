@@ -28,6 +28,9 @@ type browserRegistryEntry struct {
 	Alias       string
 	ParentAlias string // non-empty = member of a group
 	parentURL   string // URL of the parent RegistryItem (for credential lookup)
+	// authMode is already resolved: a member carries what its group settled on,
+	// since `inherit` is the only thing the shared credential entry can mean.
+	authMode string
 }
 
 const brFieldRepo = 0
@@ -175,6 +178,9 @@ func (b *RegistryBrowser) HandleGroupDetected(msg RegistryGroupDetectedMsg) (*Re
 		if alias == "" {
 			alias = reg.URL
 		}
+		// Members share their group's host and therefore its single credential
+		// entry, so they share the decision the group made about using it.
+		mode := config.ResolveAuthMode(reg, nil)
 		if len(msg.Members) > 0 {
 			group := make([]browserRegistryEntry, len(msg.Members))
 			for j, m := range msg.Members {
@@ -183,11 +189,12 @@ func (b *RegistryBrowser) HandleGroupDetected(msg RegistryGroupDetectedMsg) (*Re
 					Alias:       m.Alias,
 					ParentAlias: alias,
 					parentURL:   reg.URL,
+					authMode:    mode,
 				}
 			}
 			b.entryGroups[i] = group
 		} else {
-			b.entryGroups[i] = []browserRegistryEntry{{URL: reg.URL, Alias: alias}}
+			b.entryGroups[i] = []browserRegistryEntry{{URL: reg.URL, Alias: alias, authMode: mode}}
 		}
 		break
 	}

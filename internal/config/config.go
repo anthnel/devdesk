@@ -82,11 +82,20 @@ type RegistryItem struct {
 	Parent string `yaml:"parent,omitempty"`
 	// Provider is the repository manager serving a group — nexus, harbor,
 	// artifactory, gitlab or generic. Declared rather than sniffed from the URL.
-	Provider    string `yaml:"provider,omitempty"`
-	URL         string `yaml:"url"`
-	Username    string `yaml:"username"`
-	Alias       string `yaml:"alias"`
-	AuthEnabled bool   `yaml:"auth_enabled"`
+	Provider string `yaml:"provider,omitempty"`
+	URL      string `yaml:"url"`
+	Username string `yaml:"username"`
+	Alias    string `yaml:"alias"`
+	// AuthMode says whether DevDesk may send stored credentials to this entry:
+	// "credentials" or "anonymous", plus "inherit" for a member that takes its
+	// group's. It is the only per-member override the credential store can
+	// represent — see registries.go.
+	AuthMode string `yaml:"auth_mode"`
+	// AuthEnabled is what auth_mode replaced. It is read once at load, migrated
+	// into AuthMode and cleared, so it disappears from the file on the next save.
+	//
+	// Deprecated: use AuthMode.
+	AuthEnabled bool `yaml:"auth_enabled,omitempty"`
 	// ManagementURL is optional. Set it when the Docker registry URL differs from the
 	// URL used by the repository manager's API (e.g. Nexus connector subdomains,
 	// Artifactory virtual repos). The group member discovery uses this URL instead of
@@ -224,9 +233,9 @@ func applyDefaults(cfg *Config) error {
 	// Migrate old single-registry config to the new Registries list
 	if cfg.Registry.URL != "" && len(cfg.Registry.Registries) == 0 {
 		cfg.Registry.Registries = []RegistryItem{{
-			URL:         cfg.Registry.URL,
-			Username:    cfg.Registry.Username,
-			AuthEnabled: cfg.Registry.URL != "",
+			URL:      cfg.Registry.URL,
+			Username: cfg.Registry.Username,
+			AuthMode: AuthCredentials,
 		}}
 	}
 	if cfg.Scan.CacheDir == "" {
