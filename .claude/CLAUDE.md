@@ -156,7 +156,7 @@ Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/con
 - `App` - Global settings (theme, default view, workspaces dir, `secret_backend`)
 - `Status` - Monitoring settings (refresh interval, components)
 - `GitLab` - GitLab URL and clone settings
-- `Registry` - OCI registry configuration
+- `Registry` - OCI registry configuration (see Registry model below)
 - `Scan` - Security scanning (Trivy, Gitleaks)
 
 **No secret goes in this file.** `GitLabConfig` has no `Token` and
@@ -165,6 +165,34 @@ Credentials Management). Do not add a secret-bearing field back — the schema i
 what makes the guarantee checkable.
 
 Config is injected into views at creation. Use `config.Save()` to persist changes.
+
+### Registry model
+
+`RegistryConfig.Registries` is one flat list holding both plain registries and
+repository-manager groups, told apart by `kind` (§3.8). A group fronts several
+registries and is pullable itself, which is why they share a list.
+
+| Field | Meaning |
+|---|---|
+| `slug` | DevDesk's own identifier: what `parent` points at and what the group cache is keyed on. Everything Docker-facing stays keyed on `url`, because Docker is. |
+| `kind` | `registry` or `group` |
+| `parent` | slug of the owning group — carried by discovered members, not normally by config entries |
+| `provider` | `generic`, `nexus`, `harbor`, `artifactory`, `gitlab`; declared, never sniffed from the URL |
+
+`internal/config/registries.go` normalizes the list at load and is the only
+place that decides a slug. Two rules hold it together:
+
+- A slug **DevDesk derives** (from the alias, else the URL host) is made unique
+  by stepping aside — `prod`, `prod-2`. A slug **the file declares** is never
+  rewritten, because it is a link target; a duplicate, or a `parent` naming no
+  configured group, makes `LoadContext` fail rather than load a config the
+  application cannot honour.
+- An entry from before `kind` existed that carries a `management_url` migrates
+  to `kind: group`, `provider: nexus` — that field *was* the group marker.
+
+`RegistryForm` is what keeps the file loadable: it refuses a duplicate or
+badly-formed slug instead of correcting it, and drops the group-only fields when
+the kind is not a group.
 
 ### Shared State
 
