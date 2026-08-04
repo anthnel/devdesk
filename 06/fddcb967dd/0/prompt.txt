@@ -1,0 +1,5 @@
+analyse comment sont gérés les tables dans le code, est-ce qu'elles sont dupliquées dans chaque vue ? je pense que ça serait intéressant de créer du code générique pour gérer les tables, chaque vue ne ferait qu'instancier une table en passant la config. Le genre de config : nom des colonne, triable, filtrable, largeur_min, largeur_max, etc. La mécanique pour les filtres, sort serait codée une seule fois
+
+---
+
+ajoute le point au backlog avec toutes les informations nécessaires
