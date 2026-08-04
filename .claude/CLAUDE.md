@@ -349,6 +349,40 @@ Status view supports adding/editing/deleting monitors:
 
 State flags in Model: `creating`, `editing`, `confirming`, `selectedIdx`
 
+## Tables — `internal/ui/datatable`
+
+The shared mechanism behind the application's tables: column widths, sorting,
+sort arrows, filter matching, cursor clamping and cursor-to-object resolution.
+`theme.DefaultTableStyles()` and friends still own the *look*.
+
+```go
+datatable.New(datatable.Config[T]{
+    Columns: []datatable.Column[T]{{
+        Title: "Name", MinWidth: 20, Flex: 1,
+        Cell:   func(x T) string { … },  // plain text — Rule 122 by construction
+        Less:   func(a, b T) bool { … }, // nil = not sortable
+        Search: func(x T) string { … },  // nil = not searchable
+    }},
+    SortColumn:     0,
+    SelectedStyles: func(x T) table.Styles { … }, // e.g. TableStylesForSeverity
+})
+```
+
+Three things it guarantees that hand-wired tables did not:
+
+- **`Selected()` cannot disagree with the screen.** The filtered, sorted slice is
+  built once and kept; nothing replays the pipeline to resolve a cursor.
+- **Rule 116 holds at every width.** The solver distributes the shortfall across
+  columns rather than clamping each one after the remainder is computed, which is
+  how several views overflowed on narrow terminals.
+- **The cursor is clamped in one place** — `SetItems`, both ends — and otherwise
+  left where it was, so a periodic refresh keeps the scroll position. `GotoTop()`
+  is explicit for views that do want a reset.
+
+`SelectedStyles` returns styles rather than a state keyword so the component
+never learns what a severity is. Migration of the fifteen existing tables is
+step-by-step; see the backlog.
+
 ## Testing
 
 Test files follow Go conventions (`*_test.go`):
