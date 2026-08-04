@@ -278,6 +278,31 @@ func newScannerWithDeps(opts ScanOptions, deps DependencyStatus) *Scanner {
 	return &Scanner{options: opts, deps: deps}
 }
 
+// missingToolErrors reports the stages the caller asked for that cannot run
+// because their tool is neither installed nor available as an image.
+//
+// A stage that does not apply to the target type is not missing anything:
+// gitleaks scans a working tree, so a secret scan of an image is skipped for a
+// reason that has nothing to do with what the machine has installed. Only the
+// stages that would otherwise have run are reported.
+func (s *Scanner) missingToolErrors(targetType TargetType) []string {
+	wantsTrivy := s.options.EnableVuln || s.options.EnableMisconfig || s.options.GenerateSBOM ||
+		(s.options.EnableLicense && targetType == TargetDirectory)
+	wantsGitleaks := s.options.EnableSecret && targetType == TargetDirectory
+
+	var errs []string
+	if wantsTrivy && !s.deps.TrivyAvailable {
+		errs = append(errs, fmt.Sprintf(
+			"trivy: not available — nothing was scanned. Install trivy or pull %s", trivyImage(s.deps.TrivyImage)))
+	}
+	if wantsGitleaks && !s.deps.GitleaksAvailable {
+		errs = append(errs, fmt.Sprintf(
+			"gitleaks: not available — no secret scan was run. Install gitleaks or pull %s",
+			gitleaksImage(s.deps.GitleaksImage)))
+	}
+	return errs
+}
+
 // Scan performs a security scan on the target, running all enabled stages in parallel.
 func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType) (*Result, error) {
 	result := &Result{
@@ -293,6 +318,12 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			s.options.OnProgress(update)
 		}
 	}
+
+	// A stage whose tool is missing is not started at all, so it leaves neither a
+	// finding nor an error behind — and a result with neither is indistinguishable
+	// from a clean scan. Recording the reason up front is what stops "nothing
+	// looked at this image" being reported as "this image is fine" (§1.3 D20).
+	result.Errors = append(result.Errors, s.missingToolErrors(targetType)...)
 
 	// mu guards writes to result (Findings, Errors, SBOMPath) from concurrent goroutines
 	var mu sync.Mutex

@@ -113,47 +113,42 @@ func TestAnUntaggedImageIsScannedByIDAndCachedByName(t *testing.T) {
 	}
 }
 
-// D20, asserted inverted: this pins the defect, not the behaviour that is
-// wanted. With no trivy installed, Scan() skips the stage entirely rather than
-// failing it, so the result carries no errors and no findings — and
-// scanOneImageCmd only reports a failure when there are errors *and* no
-// findings. The image is therefore recorded as clean, cached with a fresh
-// timestamp, and Rule 126 keeps it that way until an explicit rescan.
+// D20, fixed. A stage whose tool is missing is skipped rather than failed, so
+// the result used to carry no errors and no findings — and scanOneImageCmd
+// reports a failure only when there are errors *and* no findings. The image was
+// recorded as clean, cached with a fresh timestamp, and Rule 126 kept it that
+// way until an explicit rescan.
 //
-// This view has no dependency check at all, unlike the security view
-// (view.go:147, `canStart := m.deps.TrivyAvailable || m.deps.GitleaksAvailable`),
-// so nothing upstream catches it either.
-//
-// When D20 is fixed, this test is what fails: turn it into
-// TestAScanWithNoScannerInstalledIsReportedAsAFailure.
-func TestAScanWithNoScannerInstalledIsWronglyReportedAsClean(t *testing.T) {
+// Scan() now records the missing tool as an error, which is what turns this
+// into the failure it always was. Nothing in this package changed: the view has
+// no dependency check of its own, and with the error present it no longer needs
+// one to avoid lying.
+func TestAScanWithNoScannerInstalledIsReportedAsAFailure(t *testing.T) {
 	noDocker(t) // an empty PATH: no trivy, no gitleaks, no docker either
 
 	msgs := testutil.Msgs(scanOneImageCmd(
 		imageScanJob{Name: "no-scanner:v1", Target: "no-scanner:v1"}, vulnScan(), make(chan struct{}, 1)))
 
 	done := msgs[len(msgs)-1].(ImageScanFinishedMsg)
-	t.Cleanup(func() {
-		if c, err := cache.NewImageScanCache(); err == nil {
-			_ = c.Delete("no-scanner:v1")
-		}
-	})
 
-	if done.Err != nil {
-		t.Fatalf("Err = %v — D20 appears fixed; see the comment above", done.Err)
+	if done.Err == nil {
+		t.Fatal("a scan that ran no scanner was reported as a clean image")
 	}
-	if done.Entry.Critical != 0 || done.Entry.High != 0 {
-		t.Errorf("Entry = %+v, want the empty counts the defect produces", done.Entry)
+	if !strings.Contains(done.Err.Error(), "trivy") {
+		t.Errorf("Err = %v, want it to name the tool that is missing", done.Err)
+	}
+	if done.ImageName != "no-scanner:v1" {
+		t.Errorf("ImageName = %q, want it named even on failure", done.ImageName)
 	}
 
-	// The damaging half: the empty result reaches the disk, so the row keeps
-	// claiming the image is clean after a restart.
+	// The half that did the damage: an empty result must not reach the disk, or
+	// the row keeps claiming the image is clean after a restart.
 	cached, err := cache.NewImageScanCache()
 	if err != nil {
 		t.Fatalf("reopening the scan cache: %v", err)
 	}
-	if entry := cached.Get("no-scanner:v1"); entry == nil {
-		t.Error("nothing was cached — D20 appears fixed; see the comment above")
+	if entry := cached.Get("no-scanner:v1"); entry != nil {
+		t.Errorf("the cache holds %+v for an image nothing scanned", entry)
 	}
 }
 

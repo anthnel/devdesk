@@ -359,3 +359,81 @@ func TestGitleaksDockerModeMountsTheTargetReadOnly(t *testing.T) {
 		t.Errorf("no image named; the default should be filled in:\n%s", cmd)
 	}
 }
+
+// ── The Trivy server address ─────────────────────────────────────────────────
+
+// Trivy parses this as a URL and fails the whole scan when it cannot, with a
+// message naming neither DevDesk nor the setting the value came from:
+//
+//	FATAL flag error: unable to convert flags to options:
+//	invalid server address format: parse ":": missing protocol scheme
+//
+// A bare ":" is one keystroke away, because a ":" typed while the field has
+// focus is a character rather than the command line (§3.7), and the field is
+// persisted on every option toggle — so it breaks every later scan from every
+// view until it is found in the config file.
+func TestAnUnusableTrivyServerIsRefusedBeforeTrivySeesIt(t *testing.T) {
+	cases := []string{
+		":",
+		"trivy-server",     // no scheme
+		"https://",         // no host
+		"http://:",         // neither
+		"not a url at all", // spaces
+	}
+	for _, addr := range cases {
+		_, err := trivyArgs("/r", TargetDirectory, false, ToolSourceBinary, "", addr, false, false)
+		if err == nil {
+			t.Errorf("trivyArgs accepted %q as a server address", addr)
+			continue
+		}
+		if !strings.Contains(err.Error(), "scan.trivy_server") {
+			t.Errorf("err = %v, want it to name the setting to fix", err)
+		}
+	}
+}
+
+// Surrounding space is not an address. It has to mean "unset" rather than
+// become something Trivy refuses.
+func TestAnAllSpaceTrivyServerMeansClientServerModeIsOff(t *testing.T) {
+	tc, err := trivyArgs("/r", TargetDirectory, false, ToolSourceBinary, "", "   ", false, false)
+	if err != nil {
+		t.Fatalf("an all-space address was treated as a failure: %v", err)
+	}
+	if strings.Contains(tc.String(), "--server") {
+		t.Errorf("the flag was passed anyway:\n%s", tc)
+	}
+}
+
+func TestAUsableTrivyServerIsTrimmedAndPassed(t *testing.T) {
+	tc, err := trivyArgs("/r", TargetDirectory, false, ToolSourceBinary, "", "  https://trivy:4954  ", false, false)
+	if err != nil {
+		t.Fatalf("trivyArgs: %v", err)
+	}
+	if !strings.Contains(tc.String(), "--server https://trivy:4954") {
+		t.Errorf("the address was not trimmed before being passed:\n%s", tc)
+	}
+}
+
+// Every builder that takes the address has to refuse it the same way, or the
+// scan fails on whichever stage was not checked.
+func TestEveryTrivyBuilderRefusesAnUnusableServer(t *testing.T) {
+	if _, err := trivyMisconfigArgs("/r", TargetDirectory, ToolSourceBinary, "", ":", false); err == nil {
+		t.Error("the misconfiguration builder accepted an unusable server address")
+	}
+	if _, _, err := sbomArgs("/r", TargetDirectory, ToolSourceBinary, "", ":", ""); err == nil {
+		t.Error("the SBOM builder accepted an unusable server address")
+	}
+}
+
+// The form uses this to refuse the value while the user is still looking at the
+// field, so it has to agree with what the builders do.
+func TestValidateTrivyServerAgreesWithTheBuilders(t *testing.T) {
+	if err := ValidateTrivyServer(":"); err == nil {
+		t.Error("ValidateTrivyServer accepted an address the builders refuse")
+	}
+	for _, ok := range []string{"", "   ", "https://trivy:4954", "http://127.0.0.1:4954"} {
+		if err := ValidateTrivyServer(ok); err != nil {
+			t.Errorf("ValidateTrivyServer(%q) = %v, want it accepted", ok, err)
+		}
+	}
+}

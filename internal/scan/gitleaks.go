@@ -49,9 +49,7 @@ func gitleaksArgs(target string, source ToolSource, image string, history bool, 
 	}
 
 	if source == ToolSourceDocker {
-		if image == "" {
-			image = DefaultGitleaksImage
-		}
+		image = gitleaksImage(image)
 		args := []string{
 			"run", "--rm",
 			"-v", target + ":" + containerScanPath + ":ro",
