@@ -101,8 +101,8 @@ func TestTableCellsCarryNoEscapeSequences(t *testing.T) {
 	m := loadedModel(t)
 	for name, rows := range map[string][]table.Row{
 		"images":     m.imageTable.Rows(),
-		"networks":   m.networkTable.Rows(),
-		"volumes":    m.volumeTable.Rows(),
+		"networks":   m.networkTable.Table().Rows(),
+		"volumes":    m.volumeTable.Table().Rows(),
 		"registries": m.registryTable.Rows(),
 	} {
 		for _, row := range rows {

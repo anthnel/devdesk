@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
@@ -49,10 +50,10 @@ func TestListsFillTheirTables(t *testing.T) {
 	if got := cells(m.imageTable.Rows(), 1); len(got) != 4 {
 		t.Errorf("the image table holds %v", got)
 	}
-	if got := cells(m.networkTable.Rows(), 1); !equal(got, []string{"bridge", "devdesk", "overlay-prod"}) {
+	if got := cells(m.networkTable.Table().Rows(), 1); !equal(got, []string{"bridge", "devdesk", "overlay-prod"}) {
 		t.Errorf("the network table holds %v", got)
 	}
-	if got := cells(m.volumeTable.Rows(), 0); !equal(got, []string{"pgdata", "redis"}) {
+	if got := cells(m.volumeTable.Table().Rows(), 0); !equal(got, []string{"pgdata", "redis"}) {
 		t.Errorf("the volume table holds %v", got)
 	}
 }
@@ -127,7 +128,7 @@ func TestOnlyTheActiveTablesIsFocused(t *testing.T) {
 	if m.imageTable.Focused() {
 		t.Error("the image table kept focus after switching away")
 	}
-	if !m.networkTable.Focused() {
+	if !m.networkTable.Table().Focused() {
 		t.Error("the network table did not take focus")
 	}
 }
@@ -638,5 +639,83 @@ func TestInEditModeCoversEveryOverlay(t *testing.T) {
 	selecting := feed(t, NewForSelection(testConfig(), "Pick"), tea.WindowSizeMsg{Width: 180, Height: 30})
 	if !selecting.InEditMode() {
 		t.Error("InEditMode() is false in selection mode")
+	}
+}
+
+// ── The datatable migration (§2 step 2) ──────────────────────────────────────
+
+// Rule 116: the column widths sum to exactly the space available, so the
+// selected row reaches the right viewport border. The volumes table used to
+// clamp its last column at 20 *after* the remainder was computed, which
+// overflowed on any terminal narrow enough — the component's solver is what
+// removes the whole class.
+func TestTheResourceTablesHoldTheWidthInvariant(t *testing.T) {
+	for _, width := range []int{60, 80, 100, 120, 180, 240} {
+		m := feed(t, newTestModel(t), tea.WindowSizeMsg{Width: width, Height: 30})
+
+		for name, cols := range map[string][]table.Column{
+			"networks": m.networkTable.Table().Columns(),
+			"volumes":  m.volumeTable.Table().Columns(),
+		} {
+			total := 0
+			for _, c := range cols {
+				total += c.Width
+			}
+			// viewport borders (2) + bubbles/table's per-cell padding (2 each)
+			want := width - 2 - len(cols)*2
+			if total != want {
+				t.Errorf("%s at width %d: the columns sum to %d, want %d", name, width, total, want)
+			}
+		}
+	}
+}
+
+// The cursor is resolved against the slice the rows were built from, so the
+// action cannot land on a different object than the one highlighted.
+func TestTheSelectedResourceIsTheHighlightedRow(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("tab")) // Networks
+
+	m = feed(t, m, testutil.Key("down"))
+
+	net := m.getSelectedNetwork()
+	if net == nil {
+		t.Fatal("nothing selected on a filled table")
+	}
+	if got := m.networkTable.Table().Rows()[m.networkTable.Cursor()][1]; got != net.Name {
+		t.Errorf("the highlighted row shows %q while the action would take %q", got, net.Name)
+	}
+}
+
+// bubbles/table leaves the cursor where it was when rows are replaced, so a
+// refresh that returns fewer networks used to strand it past the end.
+func TestARefreshWithFewerResourcesClampsTheCursor(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("tab"))
+	m = feed(t, m, testutil.Key("G")) // last row
+
+	m = feed(t, m, NetworksListMsg{Networks: networkFixtures()[:1]})
+
+	net := m.getSelectedNetwork()
+	if net == nil {
+		t.Fatal("the cursor was left pointing past the end of the list")
+	}
+	if net.Name != "bridge" {
+		t.Errorf("selected %q, want the one network that is left", net.Name)
+	}
+}
+
+// Neither tab searches today, so `/` must stay inert rather than opening a bar
+// this view's footer does not render for them.
+func TestSlashDoesNothingOnTheResourceTabs(t *testing.T) {
+	for _, tab := range []int{1, 2} { // Networks, Volumes
+		m := loadedModel(t)
+		for range tab {
+			m = feed(t, m, testutil.Key("tab"))
+		}
+
+		m = feed(t, m, testutil.Key("/"))
+
+		if m.InEditMode() {
+			t.Errorf("tab %d: '/' opened a search on a table with nothing to search", tab)
+		}
 	}
 }

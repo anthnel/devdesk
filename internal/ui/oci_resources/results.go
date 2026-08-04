@@ -112,8 +112,8 @@ func (m Model) handleNetworksList(msg NetworksListMsg) (tea.Model, tea.Cmd) {
 		return m, clearInfoMsgCmd()
 	}
 	m.errorMsg = ""
-	m.networks = msg.Networks
-	m.updateNetworkTable()
+	m.networkTable.SetItems(msg.Networks)
+
 	return m, nil
 }
 
@@ -148,8 +148,8 @@ func (m Model) handleVolumesList(msg VolumesListMsg) (tea.Model, tea.Cmd) {
 		return m, clearInfoMsgCmd()
 	}
 	m.errorMsg = ""
-	m.volumes = msg.Volumes
-	m.updateVolumeTable()
+	m.volumeTable.SetItems(msg.Volumes)
+
 	return m, nil
 }
 

@@ -173,11 +173,11 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 	switch m.activeTab {
 	case tabNetworks:
 		return []shortcut.HeaderInfo{
-			{Key: "Networks", Value: fmt.Sprintf("%d", len(m.networks)), Style: theme.HeaderValueStyle},
+			{Key: "Networks", Value: fmt.Sprintf("%d", len(m.networkTable.Items())), Style: theme.HeaderValueStyle},
 		}
 	case tabVolumes:
 		return []shortcut.HeaderInfo{
-			{Key: "Volumes", Value: fmt.Sprintf("%d", len(m.volumes)), Style: theme.HeaderValueStyle},
+			{Key: "Volumes", Value: fmt.Sprintf("%d", len(m.volumeTable.Items())), Style: theme.HeaderValueStyle},
 		}
 	case tabRegistries:
 		return []shortcut.HeaderInfo{
@@ -464,12 +464,12 @@ func (m Model) renderImagesView() string {
 
 // renderNetworksView renders the networks table
 func (m Model) renderNetworksView() string {
-	if m.loadingNets && len(m.networks) == 0 {
+	if m.loadingNets && len(m.networkTable.Items()) == 0 {
 		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
 			theme.SpinnerMessage(m.spinner.View(), "Loading networks..."),
 		)
 	}
-	if len(m.networks) == 0 {
+	if len(m.networkTable.Items()) == 0 {
 		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
 			theme.DimStyle.Render("No networks found"),
 		)
@@ -479,12 +479,12 @@ func (m Model) renderNetworksView() string {
 
 // renderVolumesView renders the volumes table
 func (m Model) renderVolumesView() string {
-	if m.loadingVols && len(m.volumes) == 0 {
+	if m.loadingVols && len(m.volumeTable.Items()) == 0 {
 		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
 			theme.SpinnerMessage(m.spinner.View(), "Loading volumes..."),
 		)
 	}
-	if len(m.volumes) == 0 {
+	if len(m.volumeTable.Items()) == 0 {
 		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
 			theme.DimStyle.Render("No volumes found"),
 		)

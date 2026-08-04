@@ -38,14 +38,15 @@ func (m *Model) resize(width, height int) {
 	}
 
 	m.imageTable.SetHeight(m.tableHeight())
-	m.networkTable.SetHeight(m.tableHeight())
-	m.volumeTable.SetHeight(m.tableHeight())
 	m.registryTable.SetHeight(m.tableHeight())
 
 	m.resizeImageTable(width)
-	m.resizeNetworkTable(width)
-	m.resizeVolumeTable(width)
 	m.resizeRegistryTable(width)
+
+	// Widths and height in one call, and the Rule 116 arithmetic is the
+	// component's rather than written out here twice more.
+	m.networkTable.Resize(width, m.tableHeight())
+	m.volumeTable.Resize(width, m.tableHeight())
 }
 
 func (m *Model) resizeImageTable(width int) {
@@ -77,38 +78,10 @@ func (m *Model) resizeImageTable(width int) {
 	}
 }
 
-func (m *Model) resizeNetworkTable(width int) {
-	contentWidth := width - 2
-	columns := m.networkTable.Columns()
-	numCols := len(columns)
-	if numCols >= 4 {
-		available := contentWidth - numCols*2
-		fixedID := 14
-		fixedDriver := 12
-		fixedScope := 10
-		flexName := max(available-fixedID-fixedDriver-fixedScope, 20)
-		columns[0].Width = fixedID
-		columns[1].Width = flexName
-		columns[2].Width = fixedDriver
-		columns[3].Width = available - fixedID - flexName - fixedDriver
-		m.networkTable.SetColumns(columns)
-	}
-}
-
-func (m *Model) resizeVolumeTable(width int) {
-	contentWidth := width - 2
-	columns := m.volumeTable.Columns()
-	numCols := len(columns)
-	if numCols >= 3 {
-		available := contentWidth - numCols*2
-		fixedDriver := 12
-		fixedName := 30
-		columns[0].Width = fixedName
-		columns[1].Width = fixedDriver
-		columns[2].Width = max(available-fixedName-fixedDriver, 20)
-		m.volumeTable.SetColumns(columns)
-	}
-}
+// The networks and volumes width arithmetic used to live here. It is the
+// component's now — and the volumes one was a copy that clamped its last column
+// at 20 after the remainder was computed, so it overflowed on a narrow terminal
+// exactly as the backlog describes.
 
 func (m *Model) resizeRegistryTable(width int) {
 	contentWidth := width - 2

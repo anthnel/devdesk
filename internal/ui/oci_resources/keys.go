@@ -118,16 +118,16 @@ func (m Model) handleNetworksKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loadingNets = true
 		return m, tea.Batch(m.spinner.Tick, fetchNetworks())
 	case "up", "k":
-		m.networkTable.MoveUp(1)
+		m.networkTable.Update(msg)
 		return m, nil
 	case "down", "j":
-		m.networkTable.MoveDown(1)
+		m.networkTable.Update(msg)
 		return m, nil
 	case "g", "home":
-		m.networkTable.GotoTop()
+		m.networkTable.Update(msg)
 		return m, nil
 	case "G", "end":
-		m.networkTable.GotoBottom()
+		m.networkTable.Update(msg)
 		return m, nil
 	}
 	return m, nil
@@ -149,16 +149,16 @@ func (m Model) handleVolumesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loadingVols = true
 		return m, tea.Batch(m.spinner.Tick, fetchVolumes())
 	case "up", "k":
-		m.volumeTable.MoveUp(1)
+		m.volumeTable.Update(msg)
 		return m, nil
 	case "down", "j":
-		m.volumeTable.MoveDown(1)
+		m.volumeTable.Update(msg)
 		return m, nil
 	case "g", "home":
-		m.volumeTable.GotoTop()
+		m.volumeTable.Update(msg)
 		return m, nil
 	case "G", "end":
-		m.volumeTable.GotoBottom()
+		m.volumeTable.Update(msg)
 		return m, nil
 	}
 	return m, nil

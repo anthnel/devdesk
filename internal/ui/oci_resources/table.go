@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -153,30 +154,33 @@ func (m *Model) updateImageTable() {
 	m.imageTable.SetHeight(m.tableHeight())
 }
 
-// updateNetworkTable rebuilds the network table rows
-func (m *Model) updateNetworkTable() {
-	rows := make([]table.Row, 0, len(m.networks))
-	for _, net := range m.networks {
-		shortID := net.ID
-		if len(shortID) > 12 {
-			shortID = shortID[:12]
-		}
-		rows = append(rows, table.Row{shortID, net.Name, net.Driver, net.Scope})
+// networkColumns describes the Networks tab. Neither this table nor the volumes
+// one sorts or filters today, so no Less and no Search: `/` and `.` stay inert
+// rather than being wired to a bar this view's footer does not render.
+func networkColumns() []datatable.Column[docker.Network] {
+	return []datatable.Column[docker.Network]{
+		{Title: "ID", MinWidth: 14, Cell: func(n docker.Network) string { return shortID(n.ID) }},
+		{Title: "Name", MinWidth: 20, Flex: 1, Cell: func(n docker.Network) string { return n.Name }},
+		{Title: "Driver", MinWidth: 12, Cell: func(n docker.Network) string { return n.Driver }},
+		{Title: "Scope", MinWidth: 10, Cell: func(n docker.Network) string { return n.Scope }},
 	}
-	m.networkTable.SetRows(rows)
-	m.networkTable.SetStyles(theme.DefaultTableStyles())
-	m.networkTable.SetHeight(m.tableHeight())
 }
 
-// updateVolumeTable rebuilds the volume table rows
-func (m *Model) updateVolumeTable() {
-	rows := make([]table.Row, 0, len(m.volumes))
-	for _, vol := range m.volumes {
-		rows = append(rows, table.Row{vol.Name, vol.Driver, vol.Mountpoint})
+// volumeColumns describes the Volumes tab.
+func volumeColumns() []datatable.Column[docker.Volume] {
+	return []datatable.Column[docker.Volume]{
+		{Title: "Name", MinWidth: 30, Cell: func(v docker.Volume) string { return v.Name }},
+		{Title: "Driver", MinWidth: 12, Cell: func(v docker.Volume) string { return v.Driver }},
+		{Title: "Mountpoint", MinWidth: 20, Flex: 1, Cell: func(v docker.Volume) string { return v.Mountpoint }},
 	}
-	m.volumeTable.SetRows(rows)
-	m.volumeTable.SetStyles(theme.DefaultTableStyles())
-	m.volumeTable.SetHeight(m.tableHeight())
+}
+
+// shortID truncates a Docker ID to the twelve characters the CLI shows.
+func shortID(id string) string {
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
 }
 
 // updateRegistryTable rebuilds the registry table rows

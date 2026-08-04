@@ -247,11 +247,11 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		case tabNetworks:
 			var cmd tea.Cmd
-			m.networkTable, cmd = m.networkTable.Update(msg)
+			cmd = m.networkTable.Update(msg)
 			return m, cmd
 		case tabVolumes:
 			var cmd tea.Cmd
-			m.volumeTable, cmd = m.volumeTable.Update(msg)
+			cmd = m.volumeTable.Update(msg)
 			return m, cmd
 		case tabRegistries:
 			var cmd tea.Cmd
