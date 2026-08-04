@@ -242,6 +242,21 @@ Key messages in `internal/app/messages.go`:
 
 **Security view** (`internal/ui/security/model.go`) has four states: `StateInput` → `StateScanning` → `StateResults` → `StateDetails` (with remediation info).
 
+### Registry group cache
+
+`internal/cache/registry_groups.go` — `RegistryGroupCache`, keyed by **group
+slug**, metadata at `~/.devdesk/cache/registry-groups.json`. It holds the members
+one discovery found and when: discovered members are derived data with a server
+as their source of truth, and `config.yaml` is what the user declares.
+
+- Discovery runs **only for `kind: group`**, and only when asked: `ctrl+r` on a
+  group row in the Registries tab. `detectRegistryGroupCmd` writes through.
+- An empty result **is** stored — "asked, and it is not a group" is an answer.
+  A *failed* one is not: an unreachable manager must not erase what was last
+  known, which is why `registrymgr` distinguishes the two (D23).
+- The `Members` column shows `count · TimeAgo(discovered_at)`, or `never`. It is
+  not decoration: a cache with no visible age looks current whatever it holds.
+
 ### Scan Cache
 
 Two independent disk+memory caches in `internal/cache/`:

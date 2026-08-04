@@ -483,6 +483,14 @@ pattern above. D14's inverted test now exists. Both belong to step 6.
 **D12 is fixed** — §3.8 step 2 replaced `AuthEnabled` with `AuthMode` and made
 both registry-facing paths read it. See §3.8, "Step 2 as built".
 
+**D23 — an unreachable repository manager read as "not a group". Fixed** in
+§3.8 step 3, which is also what found it. `NexusDetector.fetchRepoMeta` returned
+one bare `ok=false` for both "the manager answered no" and "the manager could
+not be asked", and `DetectGroup` collapsed both into `nil, nil`. Harmless while
+the answer was discarded on every browser open; not harmless once step 3 cached
+it, since one unreachable minute would have erased what was last known. The
+error now propagates and a failed discovery is not written through.
+
 **D21** also sits in that package but is **independent of §3.8** and should not
 wait for it. It is three lines of dead code with its invariant already pinned,
 so it belongs in whatever next touches `connectivity_form.go`.
@@ -902,6 +910,152 @@ has drifted from the parser, a header that overflows its window. A view's own
 tests drive its `Update` directly and so never see the router at all. All five
 are now fixed (§1.1); the `esc` one turned out to be holding two views' notion of
 "editing" hostage, which no view could have reported on its own either.
+
+### Table plumbing is written out again in every view
+
+**15 `table.Model` instances across 8 packages, each wired by hand.** What is
+shared today is the *look* — `theme.DefaultTableStyles()`,
+`TableStylesForState/Severity()`, `components.FilterBar`, `theme.TimeAgo` — and
+none of the mechanism. Column widths, sorting, sort arrows, filter matching,
+cursor clamping and cursor-to-object resolution are re-implemented per view.
+
+| Package | Tables |
+|---|---|
+| `oci_resources` | `imageTable`, `networkTable`, `volumeTable`, `registryTable`, `tagTable` (browser), `table` (network inspect) |
+| `status` | `monitorTable`, `sslTable` |
+| `netdiag` | `resultsTable`, ports `table` |
+| `containers`, `explorer`, `security`, `workspaces` | one each |
+
+#### What is duplicated
+
+| Concern | Copies | Where |
+|---|---|---|
+| Column-width arithmetic (Rule 116) | 12, ~290 lines | `oci_resources/layout.go:51-131` (×4), `status/update.go:186-217` (×2), `containers/update.go:872-886`, `workspaces/view.go:54-96`, `security/findings.go:128-144`, `netdiag/ports_model.go:314-330`, `explorer/model.go:180-205`, `registry_browser.go:229-260`, `network_inspect_form.go:93-112` |
+| Sort comparator scaffold | 3 | `explorer/table.go:81-113`, `containers/update.go:631-667`, `oci_resources/table.go:33-67` |
+| Sort arrows in headers | 3, verbatim | `explorer/table.go:130-166`, `containers/update.go:800-832`, `oci_resources/table.go:130-148` |
+| Text-filter matching | 5 | `workspaces/table.go:31-42`, `explorer/table.go:15-31`, `oci_resources/table.go:17-30`, `netdiag/ports_model.go:274-302`, `containers` `filteredContainers` |
+| Cursor clamp on row shrink | 2 of 8 | present: `workspaces/table.go:69`, `explorer/table.go:54` — absent elsewhere |
+| `getSelectedX()` | 9 | `containers/update.go:236`, `oci_resources/images.go:33`, `registries.go:14`, `resources.go:47,56`, `browser_state.go:97,106`, `status/update.go:230` |
+
+The three sort comparators are the same eight lines around a different `switch`;
+so are the three arrow blocks, down to the `sortColIndex` / `baseTitles` maps and
+`arrow := " ▲"`. The five filter loops all lowercase the query and run
+`strings.Contains` over N fields.
+
+#### The width clamps break the invariant they exist to protect
+
+Rule 116 requires `sum(col_widths) == available` so the selected row reaches the
+right viewport border. Every site enforces it the same way — last column absorbs
+the remainder — and then several add a per-column `max(…, floor)` *after* the
+remainder is computed, which silently pushes the sum over `available`.
+
+`workspaces/view.go` is the clearest case. With `numColumns = 11`,
+`available = width - 24`, and 105 columns of fixed width, `Remote` clamps at 10
+and `Modified` clamps at 15 (`view.go:64,83-85`). **Below a 154-column terminal
+the widths sum to 130 against an `available` that is smaller** — 96 at width 120,
+an overflow of 34. Same class at `security/findings.go:143` (below 72 columns),
+`registry_browser.go:240` (`flexTag` floors at 8, so the last column can go
+negative), `oci_resources/layout.go:66,89,108,123` and
+`netdiag/ports_model.go:325`.
+
+One solver that distributes the *shortfall* across flexible columns instead of
+clamping each one independently removes the whole class. It is also the only way
+to test the invariant once rather than eleven times.
+
+#### The cursor is coupled to the pipeline by hand
+
+Each `getSelectedX()` replays filter-then-sort to map a cursor back to a domain
+object:
+
+```go
+sorted := m.sortedImages(m.filteredImages())
+return &sorted[m.imageTable.Cursor()]
+```
+
+Nothing ties that ordering to the one `updateImageTable` used to build the rows.
+If they drift, the action lands on the wrong object with no error. This is the
+duplication worth removing on correctness grounds rather than volume.
+
+The missing clamp is the same coupling seen from the other side: `oci_resources`
+compensates with `GotoTop()` on every filter toggle
+(`keys.go:56,127,158,192,224`), which throws away the scroll position;
+`containers` and `status` do neither.
+
+#### Proposed shape — `internal/ui/datatable`
+
+`bubbles/table` takes `[]table.Row` (plain `[]string`), so a purely declarative
+config cannot resolve a cursor back to a domain object — the column has to know
+how to extract from `T`. Go 1.25, so generics are available:
+
+```go
+type Column[T any] struct {
+    Title    string
+    MinWidth int                 // floor
+    Flex     int                 // 0 = fixed at MinWidth; >0 = share of the leftover
+    Cell     func(T) string      // plain text — Rule 122 by construction
+    Less     func(a, b T) bool   // nil = not sortable
+    Search   func(T) string      // nil = not searchable
+}
+
+type Config[T any] struct {
+    Columns     []Column[T]
+    Tokens      []components.FilterToken
+    TokenMatch  func(item T, active map[string]bool) bool
+    DefaultSort int
+    RowState    func(T) string   // -> theme.TableStylesForState / ForSeverity
+}
+
+func New[T any](cfg Config[T]) Model[T]
+
+func (m *Model[T]) SetItems(items []T)         // filter + sort + rows + clamp, one path
+func (m *Model[T]) Selected() (T, bool)        // replaces the nine getSelectedX
+func (m *Model[T]) Resize(width, height int)   // Rule 116, once
+func (m *Model[T]) Update(tea.Msg) (Model[T], tea.Cmd) // ↑↓/jk, pgup/pgdn, g/G, `.`, `/`
+func (m *Model[T]) FilterBar() *components.FilterBar   // for RenderFooter / GetFooterHeight
+func (m *Model[T]) InEditMode() bool
+```
+
+The point is not the line count — roughly 500 lines out of the views against
+~280 in the component, so the net saving is modest. The point is that Rules 116,
+122 and 136 stop being conventions checked in review. A `Cell func(T) string`
+gives styled text nowhere to go; a single solver makes the width invariant
+testable; `SetItems` is the only place a cursor can be left dangling.
+
+What stays in the views: column definitions and their extractors, domain actions
+(`ctrl+d`, `ctrl+s`, `enter`), tabs, forms, and the explorer's drill-down —
+sorting and filtering already apply to the current level only.
+
+#### Three that will not fit the config cleanly
+
+- **`status`** — two tables sharing one viewport with alternating focus
+  (`DefaultTableStyles` / `BlurredTableStyles` per tab, `update.go:364-371`).
+  Two `datatable.Model` plus a focus helper, not a multi-table abstraction.
+- **`security/findings`** — filters by tab *and* severity before the text query,
+  and resets the cursor to the top on tab change (`findings.go:53`), which is the
+  opposite of what `SetItems` should do by default. Needs an explicit reset call.
+- **`netdiag` ports** — the lazy rebuild (`tableReady` / `lastTableWidth`,
+  `ports_model.go:346-378`) exists to keep scroll position across a 2 s tick.
+  That is exactly what `SetItems` must guarantee, so the code goes away — but it
+  is the migration step that has to prove it.
+
+#### Suggested order
+
+One view per PR, risk ascending:
+
+1. `datatable` plus tests (width invariant, clamp, sort, filter) — no view migrated
+2. `oci_resources` networks + volumes — simplest, no sort
+3. `netdiag` ports — proves scroll preservation on live data
+4. `containers`, then `oci_resources` images — prove sort, arrows, `RowState`
+5. `workspaces`, `explorer` — prove clamp and drill-down
+6. `security`, `status` — the two special cases
+
+Step 1 is worth landing on its own: the width solver and its test pin the
+invariant before any view depends on it, which is the ordering the phase-3
+coverage work already showed pays off (surface tests, then move, then complete).
+
+Not started. Nothing here is settled; the API sketch is a proposal, and the open
+question is whether `RowState` is enough to cover `TableStylesForSeverity` in
+`security` without the component learning about severity.
 
 ### Race detector cannot run locally
 
@@ -1468,8 +1622,9 @@ rather than deleting them.
 2. ~~Replace `AuthEnabled` with `AuthMode`, and make **both** registry-facing
    paths honour it — this is D12, and it is the step that gives `anonymous`
    meaning.~~ — **done**, see below.
-3. Add `internal/cache/registrygroups.go` alongside the two existing caches;
-   move discovery behind it and give the Registries tab an explicit refresh.
+3. ~~Add `internal/cache/registrygroups.go` alongside the two existing caches;
+   move discovery behind it and give the Registries tab an explicit refresh.~~
+   — **done**, see below.
 4. ~~Turn `CanHandle` into a match on the declared `provider`, with a generic
    detector last.~~ — **done**, see below.
 5. Drill-down in the Registries tab, with the `Members` column and breadcrumb.
@@ -1581,6 +1736,46 @@ for.
 
 `registrymgr` went from 18.5 % to 30.6 %; the rest of it is the Nexus REST
 client, covered from `oci_resources` against `httptest`.
+
+#### Step 3 as built
+
+`internal/cache/registry_groups.go` (snake_case, like its two neighbours) holds
+`RegistryGroupCache`: slug → `{members, discovered_at}`, at
+`~/.devdesk/cache/registry-groups.json`. The member type is the cache's own
+rather than `registrymgr`'s — this is a file format, and it should not move
+because a domain type did.
+
+`detectRegistryGroupCmd` writes through to it, so both callers keep it warm.
+An empty result is stored: "asked, and it is not a group" is an answer, and not
+storing it is what makes a non-group get probed forever.
+
+**The `Members` column moved here from step 5.** Decision 3 says a cache with no
+visible age is worse than the re-detection it replaces, because it looks current
+whatever it holds — so the column showing `2 · 3 hr ago`, `never`, or the
+spinner is part of what makes the cache safe, not part of the table redesign.
+Step 5 still owns drill-down, the breadcrumb and the column *order*.
+
+`ctrl+r` on a group row re-runs discovery (Rule 130: the shortcut is only
+offered on a row that has members to discover). A second one while the first is
+in flight is refused rather than queued.
+
+Discovery is now fired **only for `kind: group`**. A plain registry becomes its
+own browser entry immediately, and a user with no groups configured never enters
+the resolving state at all — a real bite out of D13 before step 6 removes the
+state. `HandleGroupDetected` ignores a result for anything that was not waited
+for, which otherwise finalized the entry list a second time and dropped whatever
+the user had unchecked.
+
+**D23, found by writing the cache and fixed here.** `NexusDetector.fetchRepoMeta`
+returned a bare `ok=false` for *both* "the manager said no" and "the manager
+could not be asked", and `DetectGroup` turned both into `nil, nil`. That was
+harmless while the answer was thrown away on every open. It stopped being
+harmless the moment it was cached: one unreachable minute would have erased what
+was last known. `fetchRepoMeta` now returns an error, `DetectGroup` propagates
+it, and the write-through skips a failed discovery. The browser already handled
+`Err` correctly — it offers the registry as itself — so nothing else changed.
+The test pins both halves, since a fix that made *every* answer an error would
+pass one of them alone.
 
 ### 3.9 Every secret goes to a host secret manager, and radio buttons go away — **done**
 

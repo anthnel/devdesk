@@ -70,6 +70,12 @@ type Model struct {
 	registryForm        *RegistryForm
 	registryBrowser     *RegistryBrowser
 	registryLoginStatus map[string]bool // URL → logged in
+	// groupCache is what the Members column reads: slug → last discovery. It is
+	// loaded from disk once and updated as discoveries come back.
+	groupCache map[string]cache.RegistryGroupEntry
+	// refreshingGroups holds the slugs a discovery is running for, so ctrl+r on
+	// a row already refreshing does not fire a second one.
+	refreshingGroups map[string]bool
 	// launch options pending save — set on submit, cleared after successful or failed launch
 	lastLaunchImage string
 	lastLaunchOpts  *cache.LaunchOptionsEntry
@@ -265,10 +271,22 @@ type RegistryTagDirectScanMsg struct {
 
 // RegistryGroupDetectedMsg carries the result of a group detection for one registry.
 // Members is nil when the registry is not a group or detection failed.
+//
+// Slug is what the cache and the table are keyed on; RegistryURL is what the
+// browser still matches on. Two registries configured with the same URL collide
+// there — the slug is the natural key, and step 6 is where the browser moves to
+// it (D13's second half).
 type RegistryGroupDetectedMsg struct {
 	RegistryURL string
+	Slug        string
 	Members     []registrymgr.GroupMember
 	Err         error
+}
+
+// RegistryGroupCacheLoadedMsg carries every cached group discovery, keyed by
+// group slug.
+type RegistryGroupCacheLoadedMsg struct {
+	Entries map[string]cache.RegistryGroupEntry
 }
 
 // Messages — Registries
@@ -372,6 +390,7 @@ func New(cfg *config.Config) Model {
 		{Title: "Alias", Width: 10},
 		{Title: "Auth", Width: 12}, // holds "credentials"
 		{Title: "Logged", Width: 8},
+		{Title: "Members", Width: 16},
 	}
 	rt := table.New(
 		table.WithColumns(regColumns),
@@ -394,6 +413,8 @@ func New(cfg *config.Config) Model {
 		registryTable:       rt,
 		registries:          cfg.Registry.Registries,
 		registryLoginStatus: make(map[string]bool),
+		groupCache:          make(map[string]cache.RegistryGroupEntry),
+		refreshingGroups:    make(map[string]bool),
 		loading:             true,
 		loadingNets:         true,
 		loadingVols:         true,

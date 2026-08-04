@@ -578,7 +578,50 @@ func detectRegistryGroupCmd(reg config.RegistryItem, password string) tea.Cmd {
 			Password:      password,
 		}
 		members, err := registrymgr.DetectGroup(ctx, info)
-		return RegistryGroupDetectedMsg{RegistryURL: reg.URL, Members: members, Err: err}
+		if err == nil {
+			cacheGroupMembers(reg.Slug, members)
+		}
+		return RegistryGroupDetectedMsg{RegistryURL: reg.URL, Slug: reg.Slug, Members: members, Err: err}
+	}
+}
+
+// cacheGroupMembers records what a discovery found, so the next open reads it
+// from disk instead of the network (§3.8, decision 3).
+//
+// A discovery that found nothing is stored too: "asked, and it is not a group"
+// is an answer, and not storing it is what makes a non-group get probed forever.
+// An error is not stored — an unreachable manager must not overwrite what was
+// last known.
+func cacheGroupMembers(slug string, members []registrymgr.GroupMember) {
+	if slug == "" {
+		return
+	}
+	c, err := cache.NewRegistryGroupCache()
+	if err != nil {
+		log.Printf("ERROR [oci_resources] open the registry group cache: %v", err)
+		return
+	}
+	entry := cache.RegistryGroupEntry{
+		Members:      make([]cache.RegistryGroupMember, 0, len(members)),
+		DiscoveredAt: time.Now(),
+	}
+	for _, m := range members {
+		entry.Members = append(entry.Members, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL})
+	}
+	if err := c.Set(slug, entry); err != nil {
+		log.Printf("ERROR [oci_resources] save group members for %q: %v", slug, err)
+	}
+}
+
+// loadRegistryGroupCache reads every cached discovery from disk.
+func loadRegistryGroupCache() tea.Cmd {
+	return func() tea.Msg {
+		c, err := cache.NewRegistryGroupCache()
+		if err != nil {
+			log.Printf("ERROR [oci_resources] open the registry group cache: %v", err)
+			return RegistryGroupCacheLoadedMsg{}
+		}
+		return RegistryGroupCacheLoadedMsg{Entries: c.GetAll()}
 	}
 }
 

@@ -32,7 +32,11 @@ func (n *NexusDetector) Provider() string { return ProviderNexus }
 
 // DetectGroup calls the Nexus REST API to determine whether the registry points
 // to a group repository and, if so, returns its member repositories.
-// Returns nil, nil when the repository exists but is not a group.
+//
+// Returns nil, nil when the manager answered and the repository is not a group,
+// and an error when it could not be asked. Those two are not the same thing:
+// the caller caches the first and must not cache the second, or one unreachable
+// minute erases what was last known (D23).
 func (n *NexusDetector) DetectGroup(ctx context.Context, info RegistryInfo) ([]GroupMember, error) {
 	// Resolve which URL to use for the Nexus API call.
 	apiBase := info.ManagementURL
@@ -42,6 +46,8 @@ func (n *NexusDetector) DetectGroup(ctx context.Context, info RegistryInfo) ([]G
 
 	host, repoName, err := parseNexusURL(apiBase)
 	if err != nil {
+		// Not an error: a URL that is not a Nexus repository path is a settled
+		// answer, not a failure to reach one.
 		log.Printf("INFO [registrymgr/nexus] cannot parse Nexus URL %q: %v", apiBase, err)
 		return nil, nil
 	}
@@ -51,8 +57,11 @@ func (n *NexusDetector) DetectGroup(ctx context.Context, info RegistryInfo) ([]G
 
 	// Step 1: generic endpoint — confirms this repo is a group, gets its format,
 	// and may already include memberNames in the attributes field (no admin privilege needed).
-	repoType, repoFormat, members, ok := n.fetchRepoMeta(ctx, host, repoName, info)
-	if !ok || repoType != "group" {
+	repoType, repoFormat, members, err := n.fetchRepoMeta(ctx, host, repoName, info)
+	if err != nil {
+		return nil, err
+	}
+	if repoType != "group" {
 		return nil, nil
 	}
 
@@ -69,14 +78,15 @@ func (n *NexusDetector) DetectGroup(ctx context.Context, info RegistryInfo) ([]G
 }
 
 // fetchRepoMeta calls the generic /v1/repositories/{name} endpoint.
-// Returns type, format, any memberNames found in attributes, and whether the call succeeded.
+// Returns type, format and any memberNames found in attributes, or an error when
+// the manager could not be asked.
 // Some Nexus deployments include memberNames in attributes.group without requiring admin privilege.
-func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string, info RegistryInfo) (repoType, format string, members []GroupMember, ok bool) {
+func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string, info RegistryInfo) (repoType, format string, members []GroupMember, err error) {
 	endpoint := fmt.Sprintf("%s/service/rest/v1/repositories/%s", host, repoName)
 	body, err := n.nexusGET(ctx, endpoint, info)
 	if err != nil {
 		log.Printf("INFO [registrymgr/nexus] meta unreachable %q: %v", endpoint, err)
-		return "", "", nil, false
+		return "", "", nil, fmt.Errorf("reading %s: %w", endpoint, err)
 	}
 	var result struct {
 		Type   string `json:"type"`
@@ -92,7 +102,7 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
 		log.Printf("INFO [registrymgr/nexus] meta parse error for %q: %v", repoName, err)
-		return "", "", nil, false
+		return "", "", nil, fmt.Errorf("parsing the reply from %s: %w", endpoint, err)
 	}
 	log.Printf("INFO [registrymgr/nexus] meta %q: type=%s format=%s", repoName, result.Type, result.Format)
 
@@ -107,7 +117,7 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 			URL:   fmt.Sprintf("%s/repository/%s", host, name),
 		})
 	}
-	return result.Type, result.Format, members, true
+	return result.Type, result.Format, members, nil
 }
 
 // fetchGroupMembers calls the format-specific group endpoint which reliably

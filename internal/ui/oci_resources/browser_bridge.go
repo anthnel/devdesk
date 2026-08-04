@@ -2,8 +2,12 @@ package ociresources
 
 import (
 	"log"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/registrymgr"
 )
 
 // openMultiRegistryBrowser opens the multi-registry browser (triggered by 'b' on Images tab).
@@ -89,15 +93,53 @@ func (m *Model) unscannedCount() int {
 	return count
 }
 
-// handleRegistryGroupDetected forwards a group detection result to the active browser.
+// handleRegistryGroupDetected records a discovery and forwards it to the browser
+// when one is open. A refresh fired from the Registries tab has no browser to
+// forward to, and the Members column is what it updates.
 func (m Model) handleRegistryGroupDetected(msg RegistryGroupDetectedMsg) (tea.Model, tea.Cmd) {
-	if m.registryBrowser == nil {
-		return m, nil
-	}
+	delete(m.refreshingGroups, msg.Slug)
+
 	if msg.Err != nil {
 		log.Printf("INFO [oci_resources] group detection failed for %s: %v", msg.RegistryURL, msg.Err)
+		// The cache keeps what was last known rather than being emptied by an
+		// unreachable manager, so the column keeps showing it — stale, and
+		// visibly so.
+		m.errorMsg = "Group refresh failed — check logs"
+		m.updateRegistryTable()
+		if m.registryBrowser == nil {
+			return m, clearInfoMsgCmd()
+		}
+	} else if msg.Slug != "" {
+		m.groupCache[msg.Slug] = cache.RegistryGroupEntry{
+			Members:      toCachedMembers(msg.Members),
+			DiscoveredAt: time.Now(),
+		}
+		m.updateRegistryTable()
+	}
+
+	if m.registryBrowser == nil {
+		return m, nil
 	}
 	var cmd tea.Cmd
 	m.registryBrowser, cmd = m.registryBrowser.HandleGroupDetected(msg)
 	return m, cmd
+}
+
+// toCachedMembers converts what the detector returned into what the cache and
+// the table hold.
+func toCachedMembers(members []registrymgr.GroupMember) []cache.RegistryGroupMember {
+	out := make([]cache.RegistryGroupMember, 0, len(members))
+	for _, m := range members {
+		out = append(out, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL})
+	}
+	return out
+}
+
+// handleRegistryGroupCacheLoaded takes the discoveries read from disk.
+func (m Model) handleRegistryGroupCacheLoaded(msg RegistryGroupCacheLoadedMsg) (tea.Model, tea.Cmd) {
+	if msg.Entries != nil {
+		m.groupCache = msg.Entries
+	}
+	m.updateRegistryTable()
+	return m, nil
 }

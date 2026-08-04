@@ -179,9 +179,7 @@ func (m Model) handleRegistriesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+d":
 		return m.deleteSelectedRegistry()
 	case "ctrl+r":
-		m.registries = m.config.Registry.Registries
-		m.updateRegistryTable()
-		return m, m.registryLoginStatusCmd()
+		return m.refreshRegistries()
 	case "up", "k":
 		m.registryTable.MoveUp(1)
 		return m, nil

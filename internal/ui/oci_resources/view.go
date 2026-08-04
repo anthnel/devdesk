@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -334,6 +335,11 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			shortcut.Shortcut{Key: "L", Description: "Logout"},
 			shortcut.Shortcut{Key: "ctrl+d", Description: "Remove"},
 		)
+		if reg := m.getSelectedRegistry(); reg != nil && reg.Kind == config.KindGroup {
+			// Rule 130: only offered on a row that has members to discover.
+			base = append(base, shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh group members"})
+			return append(base, shortcut.Shortcut{Key: "?", Description: "Help"})
+		}
 	}
 
 	base = append(base,
@@ -481,7 +487,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+s (Browser)", Description: "Scan the selected image tag directly via Trivy (no pull required)"},
 			{Key: "enter (Browser tags)", Description: "View CVE details for the selected tag (only when scan results are cached)"},
 			{Key: "esc (Browser)", Description: "Go back to the previous screen in the registry browser"},
-			{Key: "ctrl+r", Description: "Refresh the current tab's data"},
+			{Key: "ctrl+r", Description: "Refresh the current tab's data — on a group row, re-run member discovery"},
 			{Key: "/", Description: "Filter images by repository or tag (Images tab only)"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
