@@ -16,10 +16,27 @@ func (m Model) openMultiRegistryBrowser() (tea.Model, tea.Cmd) {
 		m.errorMsg = "No registries configured — add one in the Registries tab"
 		return m, clearInfoMsgCmd()
 	}
-	browser, cmd := newRegistryBrowser(m.registries, m.width-2, m.height)
-	m.registryBrowser = browser
+	// Config plus cache, read here and now: no network, no waiting, no state
+	// that ignores esc (D13).
+	m.registryBrowser = newRegistryBrowser(m.registries, m.groupCache, m.browserDeselected, m.width-2, m.height)
 	m.registryBrowser.SetScanCache(m.scanCache)
-	return m, cmd
+	return m, nil
+}
+
+// closeMultiRegistryBrowser drops the browser, remembering what the user
+// unchecked so the next visit opens on the same selection.
+func (m Model) closeMultiRegistryBrowser() (tea.Model, tea.Cmd) {
+	if m.registryBrowser == nil {
+		return m, nil
+	}
+	deselected := m.registryBrowser.Deselected()
+	m.registryBrowser = nil
+
+	m.browserDeselected = make(map[string]bool, len(deselected))
+	for _, url := range deselected {
+		m.browserDeselected[url] = true
+	}
+	return m, saveBrowserSelectionCmd(deselected)
 }
 
 // handleMultiRegistryTagsLoaded incorporates tag results from one registry into the browser.
@@ -93,9 +110,9 @@ func (m *Model) unscannedCount() int {
 	return count
 }
 
-// handleRegistryGroupDetected records a discovery and forwards it to the browser
-// when one is open. A refresh fired from the Registries tab has no browser to
-// forward to, and the Members column is what it updates.
+// handleRegistryGroupDetected records a discovery. Nothing forwards it to the
+// browser any more: the browser reads the cache when it opens, so a refresh is
+// something the Registries tab does and the Members column reports.
 func (m Model) handleRegistryGroupDetected(msg RegistryGroupDetectedMsg) (tea.Model, tea.Cmd) {
 	delete(m.refreshingGroups, msg.Slug)
 
@@ -106,23 +123,16 @@ func (m Model) handleRegistryGroupDetected(msg RegistryGroupDetectedMsg) (tea.Mo
 		// visibly so.
 		m.errorMsg = "Group refresh failed — check logs"
 		m.updateRegistryTable()
-		if m.registryBrowser == nil {
-			return m, clearInfoMsgCmd()
-		}
-	} else if msg.Slug != "" {
+		return m, clearInfoMsgCmd()
+	}
+	if msg.Slug != "" {
 		m.groupCache[msg.Slug] = cache.RegistryGroupEntry{
 			Members:      toCachedMembers(msg.Members),
 			DiscoveredAt: time.Now(),
 		}
 		m.updateRegistryTable()
 	}
-
-	if m.registryBrowser == nil {
-		return m, nil
-	}
-	var cmd tea.Cmd
-	m.registryBrowser, cmd = m.registryBrowser.HandleGroupDetected(msg)
-	return m, cmd
+	return m, nil
 }
 
 // toCachedMembers converts what the detector returned into what the cache and

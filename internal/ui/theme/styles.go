@@ -366,6 +366,36 @@ func RenderCheckbox(checked bool, label string, focused bool) string {
 	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorText).Render("  " + text)
 }
 
+// CheckState is the state of a checkbox that stands for a set: every member
+// selected, none, or some.
+type CheckState int
+
+const (
+	CheckNone CheckState = iota
+	CheckAll
+	CheckSome
+)
+
+// RenderCheckboxTri renders a checkbox covering a set of items. `Some` is a
+// distinct mark rather than an empty box: a group whose members are half
+// selected is not the same statement as one with none, and rendering them alike
+// is how a user unchecks something they did not mean to.
+func RenderCheckboxTri(state CheckState, label string, focused bool) string {
+	box := IconCheckbox
+	switch state {
+	case CheckAll:
+		box = IconChecked
+	case CheckSome:
+		box = IconCheckboxIndeterminate
+	case CheckNone:
+	}
+	text := box + " " + label
+	if focused {
+		return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorHighlight).Bold(true).Render(IconCircleSmall + " " + text)
+	}
+	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorText).Render("  " + text)
+}
+
 // RenderCheckboxDisabled renders a locked (non-interactive) checkbox in a dimmed style.
 // Use this for options that are unavailable due to the current configuration (e.g. incompatible with Trivy server mode).
 func RenderCheckboxDisabled(label string) string {

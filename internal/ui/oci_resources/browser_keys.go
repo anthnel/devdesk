@@ -12,9 +12,6 @@ import (
 
 // InEditMode returns true when a text input is active (blocks command mode).
 func (b *RegistryBrowser) InEditMode() bool {
-	if b.state == browserStateResolving {
-		return false
-	}
 	if b.state == browserStateInput && b.focusedField == brFieldRepo {
 		return true
 	}
@@ -32,7 +29,7 @@ func (b *RegistryBrowser) Update(msg tea.Msg) (*RegistryBrowser, tea.Cmd) {
 	case tea.KeyMsg:
 		return b.handleKeyMsg(msg)
 	case spinner.TickMsg:
-		if b.state == browserStateStatus || b.state == browserStateResolving || len(b.scanningTags) > 0 || b.pendingSearches > 0 {
+		if b.state == browserStateStatus || len(b.scanningTags) > 0 || b.pendingSearches > 0 {
 			var cmd tea.Cmd
 			b.spinner, cmd = b.spinner.Update(msg)
 			if b.state == browserStateTags && len(b.scanningTags) > 0 {
@@ -68,8 +65,6 @@ func (b *RegistryBrowser) delegateUpdate(msg tea.Msg) (*RegistryBrowser, tea.Cmd
 
 func (b *RegistryBrowser) handleKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, tea.Cmd) {
 	switch b.state {
-	case browserStateResolving:
-		return b, nil
 	case browserStateInput:
 		return b.handleInputKeyMsg(msg)
 	case browserStateTags:
@@ -93,8 +88,13 @@ func (b *RegistryBrowser) handleInputKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, t
 		b.updateFocus()
 		return b, nil
 	case " ":
-		if b.focusedField >= 1 && b.focusedField <= len(b.entries) {
-			url := b.entries[b.focusedField-1].URL
+		if b.focusedField >= 1 && b.focusedField <= len(b.rows) {
+			row := b.rows[b.focusedField-1]
+			if row.groupSlug != "" {
+				b.toggleGroup(row.groupSlug)
+				return b, nil
+			}
+			url := b.entries[row.entry].URL
 			b.selectedRegs[url] = !b.selectedRegs[url]
 			return b, nil
 		}
@@ -144,7 +144,7 @@ func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 	}
 
 	b.tags = nil
-	b.registryFilter = ""
+	b.registryFilter = resultFilter{}
 	b.pendingSearches = 0
 	b.filterInput.SetValue("")
 	b.filterActive = false

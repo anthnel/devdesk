@@ -76,6 +76,12 @@ type Model struct {
 	// refreshingGroups holds the slugs a discovery is running for, so ctrl+r on
 	// a row already refreshing does not fire a second one.
 	refreshingGroups map[string]bool
+	// browserDeselected is what the user unchecked in the registry browser, kept
+	// so the next open starts where the last one left off.
+	browserDeselected map[string]bool
+	// registryGroupSlug is the group the Registries tab has drilled into, empty
+	// at the top level.
+	registryGroupSlug string
 	// launch options pending save — set on submit, cleared after successful or failed launch
 	lastLaunchImage string
 	lastLaunchOpts  *cache.LaunchOptionsEntry
@@ -289,6 +295,12 @@ type RegistryGroupCacheLoadedMsg struct {
 	Entries map[string]cache.RegistryGroupEntry
 }
 
+// BrowserSelectionLoadedMsg carries the registries this context had left
+// unchecked in the browser.
+type BrowserSelectionLoadedMsg struct {
+	Deselected map[string]bool
+}
+
 // Messages — Registries
 
 // RegistryLoginCompleteMsg signals result of a docker login operation
@@ -385,9 +397,9 @@ func New(cfg *config.Config) Model {
 	vt.SetStyles(theme.DefaultTableStyles())
 
 	regColumns := []table.Column{
+		{Title: "Alias", Width: 16},
 		{Title: "URL", Width: 30},
-		{Title: "Username", Width: 16},
-		{Title: "Alias", Width: 10},
+		{Title: "Kind", Width: 10},
 		{Title: "Auth", Width: 12}, // holds "credentials"
 		{Title: "Logged", Width: 8},
 		{Title: "Members", Width: 16},
@@ -415,6 +427,7 @@ func New(cfg *config.Config) Model {
 		registryLoginStatus: make(map[string]bool),
 		groupCache:          make(map[string]cache.RegistryGroupEntry),
 		refreshingGroups:    make(map[string]bool),
+		browserDeselected:   make(map[string]bool),
 		loading:             true,
 		loadingNets:         true,
 		loadingVols:         true,

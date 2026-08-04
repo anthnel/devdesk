@@ -199,20 +199,63 @@ func (m *Model) membersCell(reg config.RegistryItem) string {
 	return fmt.Sprintf("%d · %s", len(entry.Members), timeAgo(entry.DiscoveredAt))
 }
 
+// loggedCell reports the docker login status for a registry URL.
+func (m *Model) loggedCell(mode, url string) string {
+	if !config.UsesCredentials(mode) {
+		return "-"
+	}
+	if m.registryLoginStatus[url] {
+		return theme.IconOK
+	}
+	return theme.IconError
+}
+
+// drilledGroup returns the group the tab has entered, or nil at the top level.
+func (m *Model) drilledGroup() *config.RegistryItem {
+	if m.registryGroupSlug == "" {
+		return nil
+	}
+	for i := range m.registries {
+		if m.registries[i].Slug == m.registryGroupSlug {
+			return &m.registries[i]
+		}
+	}
+	return nil
+}
+
 func (m *Model) updateRegistryTable() {
+	if group := m.drilledGroup(); group != nil {
+		m.updateGroupMemberTable(*group)
+		return
+	}
 	rows := make([]table.Row, 0, len(m.registries))
 	for _, reg := range m.registries {
-		auth := reg.AuthMode
-		logged := "-"
-		if config.UsesCredentials(reg.AuthMode) {
-			if m.registryLoginStatus[reg.URL] {
-				logged = theme.IconOK
-			} else {
-				logged = theme.IconError
-			}
-		}
-		rows = append(rows, table.Row{reg.URL, reg.Username, reg.Alias, auth, logged, m.membersCell(reg)})
+		rows = append(rows, table.Row{
+			reg.Alias, reg.URL, reg.Kind, reg.AuthMode,
+			m.loggedCell(reg.AuthMode, reg.URL), m.membersCell(reg),
+		})
 	}
+	m.setRegistryRows(rows)
+}
+
+// updateGroupMemberTable fills the table with one group's discovered members.
+//
+// A member is not a config entry: it has no alias of its own to edit, its
+// credentials are the group's, and it is what the cache holds — so the columns
+// say `inherit` and carry no member count.
+func (m *Model) updateGroupMemberTable(group config.RegistryItem) {
+	entry := m.groupCache[group.Slug]
+	rows := make([]table.Row, 0, len(entry.Members))
+	for _, member := range entry.Members {
+		rows = append(rows, table.Row{
+			member.Alias, member.URL, "member", config.AuthInherit,
+			m.loggedCell(group.AuthMode, group.URL), "",
+		})
+	}
+	m.setRegistryRows(rows)
+}
+
+func (m *Model) setRegistryRows(rows []table.Row) {
 	m.registryTable.SetRows(rows)
 	m.registryTable.SetStyles(theme.DefaultTableStyles())
 	m.registryTable.SetHeight(m.tableHeight())

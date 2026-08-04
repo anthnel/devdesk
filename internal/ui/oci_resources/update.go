@@ -29,6 +29,7 @@ func (m Model) Init() tea.Cmd {
 		fetchImages(),
 		loadScanCache(),
 		loadRegistryGroupCache(),
+		loadBrowserSelectionCmd(),
 		fetchNetworks(),
 		fetchVolumes(),
 	)
@@ -184,14 +185,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleRegistryPullComplete(msg)
 
 	case RegistryBrowserCloseMsg:
-		m.registryBrowser = nil
-		return m, nil
+		return m.closeMultiRegistryBrowser()
 
 	case RegistryGroupDetectedMsg:
 		return m.handleRegistryGroupDetected(msg)
 
 	case RegistryGroupCacheLoadedMsg:
 		return m.handleRegistryGroupCacheLoaded(msg)
+
+	case BrowserSelectionLoadedMsg:
+		if msg.Deselected != nil {
+			m.browserDeselected = msg.Deselected
+		}
+		return m, nil
 
 	case RegistryTagDirectScanMsg:
 		return m.handleRegistryTagDirectScan(msg)

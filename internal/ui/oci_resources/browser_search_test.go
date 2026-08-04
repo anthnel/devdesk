@@ -8,8 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
-	"github.com/anthnel/devdesk/internal/registrymgr"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // The search form and the results table, driven through the model — the router
@@ -21,17 +22,8 @@ import (
 // two members, so the entry list mixes members and a plain registry.
 func groupedModel(t *testing.T) Model {
 	t.Helper()
-	m := feed(t, loadedModel(t), testutil.Key("b"))
-	return feed(t, m,
-		RegistryGroupDetectedMsg{
-			RegistryURL: "registry.example.com",
-			Members: []registrymgr.GroupMember{
-				{Alias: "hosted", URL: "registry.example.com/repository/docker-hosted"},
-				{Alias: "dhi", URL: "registry.example.com/repository/dhi-proxy"},
-			},
-		},
-		RegistryGroupDetectedMsg{RegistryURL: "docker.io"},
-	)
+	m := feed(t, loadedModel(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
+	return feed(t, m, testutil.Key("b"))
 }
 
 func typeInto(t *testing.T, m Model, s string) Model {
@@ -220,7 +212,7 @@ func TestASecondSearchStartsFromAClearTable(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
 	b.filterInput.SetValue("v1")
-	b.registryFilter = "docker.io"
+	b.registryFilter = resultFilter{url: "docker.io"}
 	b.tagSortCol = tagSortByUpdated
 	b.tagSortDesc = true
 
@@ -231,7 +223,7 @@ func TestASecondSearchStartsFromAClearTable(t *testing.T) {
 	if len(b.tags) != 0 {
 		t.Errorf("tags = %v, want the previous results dropped", b.tags)
 	}
-	if b.filterInput.Value() != "" || b.registryFilter != "" {
+	if b.filterInput.Value() != "" || !b.registryFilter.isEmpty() {
 		t.Errorf("filters survived: %q / %q", b.filterInput.Value(), b.registryFilter)
 	}
 	if b.tagSortCol != tagSortByName || b.tagSortDesc {
@@ -478,7 +470,7 @@ func TestTheRegistryFilterCyclesThroughEachRegistryAndBack(t *testing.T) {
 	b := m.registryBrowser
 
 	m = feed(t, m, testutil.Key("r"))
-	if b.registryFilter != "registry.example.com" {
+	if b.registryFilter != (resultFilter{url: "registry.example.com"}) {
 		t.Fatalf("registryFilter = %q, want the first registry", b.registryFilter)
 	}
 	if got := len(b.filteredSortedMultiTags()); got != 2 {
@@ -486,12 +478,12 @@ func TestTheRegistryFilterCyclesThroughEachRegistryAndBack(t *testing.T) {
 	}
 
 	m = feed(t, m, testutil.Key("r"))
-	if b.registryFilter != "docker.io" {
+	if b.registryFilter != (resultFilter{url: "docker.io"}) {
 		t.Fatalf("registryFilter = %q, want the second registry", b.registryFilter)
 	}
 
 	m = feed(t, m, testutil.Key("r"))
-	if b.registryFilter != "" {
+	if !b.registryFilter.isEmpty() {
 		t.Errorf("registryFilter = %q, want it back to all", b.registryFilter)
 	}
 }
@@ -505,40 +497,44 @@ func TestTheRegistryFilterIsInertWithASingleRegistry(t *testing.T) {
 
 	m = feed(t, m, testutil.Key("r"))
 
-	if m.registryBrowser.registryFilter != "" {
+	if !m.registryBrowser.registryFilter.isEmpty() {
 		t.Errorf("registryFilter = %q, want no filter with one registry", m.registryBrowser.registryFilter)
 	}
 }
 
-// D14, asserted inverted: the label is resolved against the configured
-// registries only, so a group member — which is discovered, not configured —
-// falls through to the raw synthesised URL while every other row shows a short
-// alias. §3.8 fixes this by persisting members; when it does, this test is what
-// fails.
-func TestAGroupMembersFilterLabelIsStillARawURL(t *testing.T) {
-	m := groupedModel(t)
-	b := m.registryBrowser
-	memberURL := "registry.example.com/repository/dhi-proxy"
-	b.registryFilter = memberURL
+// D14, fixed — this test was written inverted and is turned around here.
+//
+// The label used to be resolved against the configured registries only. A group
+// member is discovered, not configured, so filtering to one fell through to the
+// raw synthesised URL: the single row in the view showing a URL where every
+// other showed a short alias. Members are entries now, so they resolve like
+// anything else, qualified by the group they came from.
+func TestAGroupMembersFilterLabelResolves(t *testing.T) {
+	b := groupedModel(t).registryBrowser
+	b.registryFilter = resultFilter{url: "registry.example.com/repository/dhi-proxy"}
 
-	if got := b.registryFilterLabel(); got != memberURL {
-		t.Errorf("registryFilterLabel() = %q — D14 appears fixed; see the comment above", got)
+	if got := b.registryFilterLabel(); got != "prod/dhi" {
+		t.Errorf("registryFilterLabel() = %q, want the member qualified by its group", got)
 	}
 
-	// A configured registry resolves properly, which is the contrast.
-	b.registryFilter = "registry.example.com"
+	// And the group level itself, which is what one keystroke narrows to.
+	b.registryFilter = resultFilter{groupSlug: "prod"}
 	if got := b.registryFilterLabel(); got != "prod" {
-		t.Errorf("registryFilterLabel() = %q, want the configured alias", got)
+		t.Errorf("registryFilterLabel() = %q, want the group's alias", got)
 	}
 }
 
 // A registry configured without an alias has nothing to shorten to, so the URL
 // is the label.
 func TestARegistryWithNoAliasIsLabelledByItsURL(t *testing.T) {
-	m := browsingModel(t)
+	cfg := testConfig()
+	cfg.Registry.Registries[0].Alias = ""
+	cfg.Registry.Registries[0].Kind = config.KindRegistry
+	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 180, Height: 30}, ImagesListMsg{Images: imageFixtures()})
+	m = feed(t, m, testutil.Key("b"))
+
 	b := m.registryBrowser
-	b.registries[0].Alias = ""
-	b.registryFilter = "registry.example.com"
+	b.registryFilter = resultFilter{url: "registry.example.com"}
 
 	if got := b.registryFilterLabel(); got != "registry.example.com" {
 		t.Errorf("registryFilterLabel() = %q, want the URL", got)
@@ -809,10 +805,10 @@ func TestTheFilterBarShowsTheQuery(t *testing.T) {
 func TestTheFormGroupsMembersUnderTheirParent(t *testing.T) {
 	view := groupedModel(t).registryBrowser.View()
 
-	if !strings.Contains(view, "prod:") {
+	if !strings.Contains(view, "prod") {
 		t.Error("the group is not named above its members")
 	}
-	for _, member := range []string{"hosted", "dhi"} {
+	for _, member := range []string{"docker-hosted", "dhi"} {
 		if !strings.Contains(view, member) {
 			t.Errorf("member %q is not listed", member)
 		}
@@ -844,4 +840,126 @@ func rowFor(t *testing.T, b *RegistryBrowser, imageName string) []string {
 	}
 	t.Fatalf("no row for %q", imageName)
 	return nil
+}
+
+// ── Group checkboxes (§3.8 step 6) ───────────────────────────────────────────
+
+// A group is a row of its own, and its checkbox covers its members: eight
+// proxies must not be eight keystrokes.
+func TestTheGroupCheckboxCoversItsMembers(t *testing.T) {
+	m := groupedModel(t)
+	b := m.registryBrowser
+
+	if got := b.groupState("prod"); got != theme.CheckAll {
+		t.Fatalf("groupState = %v on open, want everything checked", got)
+	}
+
+	// The group header is the first picker row, so one down from the repo field.
+	m = feed(t, m, testutil.Key("down"), testutil.Key(" "))
+
+	if got := b.groupState("prod"); got != theme.CheckNone {
+		t.Errorf("groupState = %v after toggling the group, want none", got)
+	}
+	for _, e := range b.entries {
+		if e.ParentSlug == "prod" && b.selectedRegs[e.URL] {
+			t.Errorf("member %q stayed checked", e.Alias)
+		}
+	}
+
+	feed(t, m, testutil.Key(" "))
+	if got := b.groupState("prod"); got != theme.CheckAll {
+		t.Errorf("groupState = %v after toggling back, want everything", got)
+	}
+}
+
+// Half a group selected is not the same statement as none, and rendering them
+// alike is how a user unchecks something they did not mean to.
+func TestAHalfSelectedGroupSaysSo(t *testing.T) {
+	b := groupedModel(t).registryBrowser
+
+	for _, e := range b.entries {
+		if e.ParentSlug == "prod" {
+			b.selectedRegs[e.URL] = false
+			break
+		}
+	}
+
+	if got := b.groupState("prod"); got != theme.CheckSome {
+		t.Errorf("groupState = %v with one member unchecked, want the third state", got)
+	}
+	if got := theme.RenderCheckboxTri(theme.CheckSome, "prod", false); strings.Contains(got, theme.IconCheckbox) {
+		t.Error("a partial group renders as an empty box, which reads as none")
+	}
+}
+
+// A partial selection resolves upwards: the user is more likely completing it
+// than discarding it.
+func TestTogglingAPartialGroupCompletesIt(t *testing.T) {
+	b := groupedModel(t).registryBrowser
+	b.selectedRegs[b.entries[0].URL] = false
+
+	b.toggleGroup("prod")
+
+	if got := b.groupState("prod"); got != theme.CheckAll {
+		t.Errorf("groupState = %v, want the selection completed rather than cleared", got)
+	}
+}
+
+// A registry that belongs to no group has no header of its own to walk past.
+func TestAStandaloneRegistryIsItsOwnRow(t *testing.T) {
+	b := groupedModel(t).registryBrowser
+
+	var headers int
+	for _, row := range b.rows {
+		if row.groupSlug != "" {
+			headers++
+		}
+	}
+	if headers != 1 {
+		t.Errorf("%d group headers, want only the one group", headers)
+	}
+	if len(b.rows) != len(b.entries)+1 {
+		t.Errorf("rows = %d for %d entries, want one extra for the header", len(b.rows), len(b.entries))
+	}
+}
+
+// ── The result filter's group level (§3.8 step 6) ────────────────────────────
+
+// `r` gains a group stop: narrowing to everything from one Nexus is one
+// keystroke rather than one per proxy.
+func TestTheResultFilterHasAGroupLevel(t *testing.T) {
+	m := groupedModel(t)
+	m = typeInto(t, m, "api")
+	m = feed(t, m, testutil.Key("enter"))
+	m = feed(t, m,
+		MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com/repository/docker-hosted", Alias: "prod/docker-hosted", Repo: "api", Tags: []string{"v1"}},
+		MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com/repository/dhi-proxy", Alias: "prod/dhi", Repo: "api", Tags: []string{"v2"}},
+		MultiRegistryTagsLoadedMsg{RegistryURL: "docker.io", Alias: "hub", Repo: "api", Tags: []string{"latest"}},
+	)
+	b := m.registryBrowser
+
+	m = feed(t, m, testutil.Key("r"))
+	if b.registryFilter.groupSlug != "prod" {
+		t.Fatalf("the first stop is %+v, want the group", b.registryFilter)
+	}
+	if got := len(b.filteredSortedMultiTags()); got != 2 {
+		t.Errorf("%d rows under the group filter, want both its members'", got)
+	}
+
+	// Then the individual registries, then back to everything.
+	seen := map[string]bool{}
+	for range len(b.entries) {
+		m = feed(t, m, testutil.Key("r"))
+		seen[b.registryFilter.url] = true
+	}
+	for _, e := range b.entries {
+		if !seen[e.URL] {
+			t.Errorf("the cycle never stopped on %s", e.URL)
+		}
+	}
+
+	m = feed(t, m, testutil.Key("r"))
+	if !b.registryFilter.isEmpty() {
+		t.Errorf("registryFilter = %+v, want it back to everything", b.registryFilter)
+	}
 }

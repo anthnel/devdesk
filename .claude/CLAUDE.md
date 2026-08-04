@@ -256,6 +256,12 @@ as their source of truth, and `config.yaml` is what the user declares.
   known, which is why `registrymgr` distinguishes the two (D23).
 - The `Members` column shows `count · TimeAgo(discovered_at)`, or `never`. It is
   not decoration: a cache with no visible age looks current whatever it holds.
+- The **registry browser reads this cache**, never the network: it opens on the
+  first frame and works offline. `→` on a group row in the Registries tab drills
+  into its members, `←`/`esc` go back.
+- `internal/cache/browser_selection.go` remembers what the browser had
+  **un**checked, per context. Storing the exceptions is what makes a
+  newly-discovered member arrive checked rather than silently excluded.
 
 ### Scan Cache
 

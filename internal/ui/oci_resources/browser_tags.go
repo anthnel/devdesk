@@ -22,54 +22,104 @@ func (b *RegistryBrowser) cycleSortTags() {
 	b.rebuildTagTable()
 }
 
-func (b *RegistryBrowser) cycleRegistryFilter() {
-	seen := make(map[string]bool)
-	var urls []string
+// filterStops returns the values `r` cycles through: every group that produced
+// results, then every individual registry, then off. The group level is what
+// makes "everything from this Nexus" one keystroke rather than eight.
+func (b *RegistryBrowser) filterStops() []resultFilter {
+	seenGroup, seenURL := map[string]bool{}, map[string]bool{}
+	var groups, singles []resultFilter
 	for _, t := range b.tags {
-		if !seen[t.RegistryURL] {
-			seen[t.RegistryURL] = true
-			urls = append(urls, t.RegistryURL)
+		entry := b.entryFor(t.RegistryURL)
+		if entry != nil && entry.ParentSlug != "" && !seenGroup[entry.ParentSlug] {
+			seenGroup[entry.ParentSlug] = true
+			groups = append(groups, resultFilter{groupSlug: entry.ParentSlug})
+		}
+		if !seenURL[t.RegistryURL] {
+			seenURL[t.RegistryURL] = true
+			singles = append(singles, resultFilter{url: t.RegistryURL})
 		}
 	}
-	if len(urls) <= 1 {
-		b.registryFilter = ""
+	// A single source has nothing to filter down to.
+	if len(singles) <= 1 {
+		return nil
+	}
+	// A group with every result under it says the same thing as "off".
+	if len(groups) == 1 && len(groups) == len(seenGroup) && len(singles) == countMembers(b.entries, groups[0].groupSlug) {
+		groups = nil
+	}
+	return append(groups, singles...)
+}
+
+// countMembers returns how many entries belong to a group.
+func countMembers(entries []browserRegistryEntry, slug string) int {
+	n := 0
+	for _, e := range entries {
+		if e.ParentSlug == slug {
+			n++
+		}
+	}
+	return n
+}
+
+func (b *RegistryBrowser) cycleRegistryFilter() {
+	stops := b.filterStops()
+	if len(stops) == 0 {
+		b.registryFilter = resultFilter{}
 		b.rebuildTagTable()
 		return
 	}
-	if b.registryFilter == "" {
-		b.registryFilter = urls[0]
-	} else {
-		found := false
-		for i, u := range urls {
-			if u == b.registryFilter {
-				next := (i + 1) % (len(urls) + 1)
-				if next == len(urls) {
-					b.registryFilter = ""
-				} else {
-					b.registryFilter = urls[next]
-				}
-				found = true
-				break
+	if b.registryFilter.isEmpty() {
+		b.registryFilter = stops[0]
+		b.rebuildTagTable()
+		return
+	}
+	for i, s := range stops {
+		if s == b.registryFilter {
+			if i+1 < len(stops) {
+				b.registryFilter = stops[i+1]
+			} else {
+				b.registryFilter = resultFilter{} // back to everything
 			}
-		}
-		if !found {
-			b.registryFilter = ""
+			b.rebuildTagTable()
+			return
 		}
 	}
+	b.registryFilter = resultFilter{}
 	b.rebuildTagTable()
 }
 
-// registryFilterLabel returns a short display label for the active registry filter.
-func (b *RegistryBrowser) registryFilterLabel() string {
-	for _, reg := range b.registries {
-		if reg.URL == b.registryFilter {
-			if reg.Alias != "" {
-				return reg.Alias
-			}
-			return reg.URL
+// entryFor returns the browser entry a result came from, or nil.
+func (b *RegistryBrowser) entryFor(url string) *browserRegistryEntry {
+	for i := range b.entries {
+		if b.entries[i].URL == url {
+			return &b.entries[i]
 		}
 	}
-	return b.registryFilter
+	return nil
+}
+
+// registryFilterLabel returns a short display label for the active filter.
+//
+// D14: it used to search only the configured top-level entries, so filtering to
+// a discovered member fell through to the synthesised URL — the one row in the
+// view showing a URL where every other showed an alias. Members are entries now,
+// so they resolve like anything else.
+func (b *RegistryBrowser) registryFilterLabel() string {
+	if b.registryFilter.groupSlug != "" {
+		for _, reg := range b.registries {
+			if reg.Slug == b.registryFilter.groupSlug {
+				return browserAlias(reg)
+			}
+		}
+		return b.registryFilter.groupSlug
+	}
+	if entry := b.entryFor(b.registryFilter.url); entry != nil && entry.Alias != "" {
+		if entry.ParentAlias != "" {
+			return entry.ParentAlias + "/" + entry.Alias
+		}
+		return entry.Alias
+	}
+	return b.registryFilter.url
 }
 
 func (b *RegistryBrowser) pullSelectedTag() (*RegistryBrowser, tea.Cmd) {
@@ -144,7 +194,7 @@ func (b *RegistryBrowser) filteredSortedMultiTags() []MultiRegistryTag {
 	query := strings.ToLower(b.filterInput.Value())
 	var result []MultiRegistryTag
 	for _, t := range b.tags {
-		if b.registryFilter != "" && t.RegistryURL != b.registryFilter {
+		if !b.registryFilter.matches(t.RegistryURL, b.entryFor(t.RegistryURL)) {
 			continue
 		}
 		if query != "" && !strings.Contains(strings.ToLower(t.Tag), query) &&

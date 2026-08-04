@@ -168,6 +168,10 @@ func (m Model) handleVolumesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleRegistriesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+n":
+		// A member is discovered, not declared, so there is nothing to add here.
+		if m.registryGroupSlug != "" {
+			return m, nil
+		}
 		m.registryForm = NewRegistryForm(m.registries, m.width-2)
 		return m, nil
 	case "e":
@@ -180,6 +184,12 @@ func (m Model) handleRegistriesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.deleteSelectedRegistry()
 	case "ctrl+r":
 		return m.refreshRegistries()
+	// Rule 111 offers `l`/`h` as aliases for →/←, but `l` is login on this tab
+	// and a key has one role (Rule 135). The arrows are the drill-down.
+	case "right":
+		return m.enterSelectedGroup()
+	case "left", "esc":
+		return m.leaveGroup()
 	case "up", "k":
 		m.registryTable.MoveUp(1)
 		return m, nil

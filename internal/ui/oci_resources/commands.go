@@ -613,6 +613,41 @@ func cacheGroupMembers(slug string, members []registrymgr.GroupMember) {
 	}
 }
 
+// loadBrowserSelectionCmd reads the registries this context had unchecked.
+func loadBrowserSelectionCmd() tea.Cmd {
+	return func() tea.Msg {
+		c, err := cache.NewBrowserSelectionCache()
+		if err != nil {
+			log.Printf("ERROR [oci_resources] open the browser selection cache: %v", err)
+			return BrowserSelectionLoadedMsg{}
+		}
+		ctx, err := config.GetCurrentContext()
+		if err != nil {
+			ctx = "default"
+		}
+		return BrowserSelectionLoadedMsg{Deselected: c.Deselected(ctx)}
+	}
+}
+
+// saveBrowserSelectionCmd records what the user unchecked, for this context.
+func saveBrowserSelectionCmd(deselected []string) tea.Cmd {
+	return func() tea.Msg {
+		c, err := cache.NewBrowserSelectionCache()
+		if err != nil {
+			log.Printf("ERROR [oci_resources] open the browser selection cache: %v", err)
+			return nil
+		}
+		ctx, err := config.GetCurrentContext()
+		if err != nil {
+			ctx = "default"
+		}
+		if err := c.SetDeselected(ctx, deselected); err != nil {
+			log.Printf("ERROR [oci_resources] save the browser selection: %v", err)
+		}
+		return nil
+	}
+}
+
 // loadRegistryGroupCache reads every cached discovery from disk.
 func loadRegistryGroupCache() tea.Cmd {
 	return func() tea.Msg {

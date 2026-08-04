@@ -475,13 +475,12 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
-D13 and D14 sit in `internal/ui/oci_resources` and are cheap on their own, but
-§3.8 rewrites the code path each of them lives in. Fix them **as part of** that
-work rather than ahead of it, and write each one's test inverted first, per the
-pattern above. D14's inverted test now exists. Both belong to step 6.
+**D12, D13 and D14 are all fixed** by §3.8 — steps 2 and 6 respectively. See
+"Step 2 as built" and "Steps 5 and 6 as built". D14's inverted test failed the
+moment step 6 landed, which is what the pattern is for, and has been turned
+around.
 
-**D12 is fixed** — §3.8 step 2 replaced `AuthEnabled` with `AuthMode` and made
-both registry-facing paths read it. See §3.8, "Step 2 as built".
+**D21** is the only defect left open.
 
 **D23 — an unreachable repository manager read as "not a group". Fixed** in
 §3.8 step 3, which is also what found it. `NexusDetector.fetchRepoMeta` returned
@@ -1627,13 +1626,16 @@ rather than deleting them.
    — **done**, see below.
 4. ~~Turn `CanHandle` into a match on the declared `provider`, with a generic
    detector last.~~ — **done**, see below.
-5. Drill-down in the Registries tab, with the `Members` column and breadcrumb.
-6. Rework the browser to read config plus cache: no resolving state (D13),
+5. ~~Drill-down in the Registries tab, with the `Members` column and
+   breadcrumb.~~ — **done** (the column landed in step 3).
+6. ~~Rework the browser to read config plus cache: no resolving state (D13),
    group-level checkboxes with a tri-state, a group level in the result filter
-   and resolvable member labels (D14), and a remembered selection per context.
+   and resolvable member labels (D14), and a remembered selection per
+   context.~~ — **done**.
 
-Steps 1–4 are worth doing on their own — they are what make the group model
-expressible — and step 6 is the one that needs step 3 finished first.
+**§3.8 is complete.** Steps 1–4 made the group model expressible, step 3 gave it
+persistence, and steps 5–6 gave it a user interface. D12, D13 and D14 are closed;
+D23 was found and fixed along the way.
 
 #### Step 1 as built
 
@@ -1776,6 +1778,49 @@ it, and the write-through skips a failed discovery. The browser already handled
 `Err` correctly — it offers the registry as itself — so nothing else changed.
 The test pins both halves, since a fix that made *every* answer an error would
 pass one of them alone.
+
+#### Steps 5 and 6 as built — and D13, D14 closed
+
+**D13.** `browserStateResolving` is gone, along with `entryGroups`,
+`pendingDetections`, `HandleGroupDetected` and `finalizeEntries`. The browser
+builds its entries from config plus the group cache in its constructor and
+returns no command at all — `TestOpeningTheBrowserIssuesNoCommand` is what says
+so. It opens on the first frame, answers `esc`, and works offline.
+
+The smaller thing recorded under D13 went with it: nothing matches on `reg.URL`
+any more, so two registries configured with the same URL no longer collide. The
+slug is the key, as the design said it should be.
+
+**D14** is closed and its inverted test turned around. `registryFilterLabel`
+resolves through the browser's entries, which now include members, so a member
+reads `prod/dhi` instead of the synthesised URL. The filter gained the group
+level at the same time: `r` stops on the group first, then on each registry,
+then off. `resultFilter` replaced the bare URL string, so "this group" and "this
+registry" are different values rather than one field meaning two things.
+
+**Group checkboxes.** The picker is a list of rows rather than a flat list of
+entries: a group is a row of its own whose checkbox covers its members, with a
+third state for a partial selection. `theme.RenderCheckboxTri` is new for it —
+half a group selected is not the same statement as none, and rendering them
+alike is how a user unchecks something they did not mean to. Toggling a partial
+group **completes** it rather than clearing it.
+
+**Remembered selection.** `internal/cache/browser_selection.go` stores what was
+**un**checked, per context. Storing the exceptions rather than the selection is
+what makes a member discovered since the last visit arrive checked, instead of
+silently sitting out of every search because it did not exist when the selection
+was saved.
+
+**Drill-down.** Columns are now `Alias | URL | Kind | Auth | Login | Members`.
+`→` enters a group and lists its cached members, `←` and `esc` go back, and a
+breadcrumb sits between the table and the tab bar (Rules 111, 123). Inside a
+group the rows are cached members rather than config entries, so edit, login,
+remove and new are neither offered (Rule 130) nor accepted — `getSelectedRegistry`
+and `getSelectedRegistryIndex` both return nothing there.
+
+One deviation from Rule 111, recorded: it offers `h`/`l` as aliases for `←`/`→`,
+but `l` is already login on this tab and a key has one role (Rule 135). The
+arrows are the drill-down; `h`/`l` are not bound.
 
 ### 3.9 Every secret goes to a host secret manager, and radio buttons go away — **done**
 

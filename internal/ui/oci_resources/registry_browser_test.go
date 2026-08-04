@@ -12,7 +12,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -23,18 +22,14 @@ import (
 // It is opened through the model rather than constructed directly, because the
 // model is what wires the scan cache in and what the router talks to.
 
-// browsingModel returns a model with the registry browser open and its group
-// detections resolved, which is the state the search form is reachable from.
+// browsingModel returns a model with the registry browser open. The group cache
+// is empty here, so the group is offered as itself and there are two entries;
+// groupedModel is the variant with members.
 func browsingModel(t *testing.T) Model {
 	t.Helper()
 	m := feed(t, loadedModel(t), testutil.Key("b"))
 	if m.registryBrowser == nil {
 		t.Fatal("'b' did not open the registry browser")
-	}
-
-	// Two registries are configured, so two detections are outstanding.
-	for _, url := range []string{"registry.example.com", "docker.io"} {
-		m = feed(t, m, RegistryGroupDetectedMsg{RegistryURL: url})
 	}
 	return m
 }
@@ -73,86 +68,58 @@ func TestBrowserNeedsARegistry(t *testing.T) {
 	}
 }
 
-// A registry may be a group fronting several members; the browser resolves that
-// before showing the list, so the user picks real registries rather than one
-// alias hiding four.
-func TestBrowserResolvesGroupsBeforeShowingTheForm(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("b"))
-
-	if m.registryBrowser.state != browserStateResolving {
-		t.Errorf("the browser opened in state %d, want it resolving", m.registryBrowser.state)
-	}
-
-	m = feed(t, m, RegistryGroupDetectedMsg{
-		RegistryURL: "registry.example.com",
-		Slug:        "prod",
-		Members: []registrymgr.GroupMember{
-			{Alias: "docker-hosted", URL: "registry.example.com/hosted"},
-			{Alias: "docker-proxy", URL: "registry.example.com/proxy"},
-		},
-	})
+// D13, fixed. The browser used to open into a resolving state and ignore every
+// key — esc included — for as long as its detections took: up to eight seconds
+// per configured registry, on a screen the user may have opened by mistake.
+//
+// Members come from config plus the cache now, so the form is there on the first
+// frame and esc works on it, offline included.
+func TestTheBrowserOpensStraightOntoItsForm(t *testing.T) {
+	m := groupedModel(t)
 
 	if m.registryBrowser.state != browserStateInput {
-		t.Errorf("the browser is in state %d once every detection landed", m.registryBrowser.state)
+		t.Fatalf("the browser opened in state %d, want the form", m.registryBrowser.state)
 	}
-	// The group expanded into its two members, plus the plain registry.
+	// The group expanded into its two cached members, plus the plain registry.
 	if got := len(m.registryBrowser.entries); got != 3 {
 		t.Errorf("entries = %d, want the group's two members plus docker.io", got)
 	}
+
+	// esc is answered rather than swallowed, which is the half of D13 that
+	// mattered: the browser used to ignore every key while it resolved.
+	_, cmd := step(t, m, testutil.Key("esc"))
+	if _, ok := testutil.MsgOf[RegistryBrowserCloseMsg](cmd); !ok {
+		t.Fatalf("esc produced %T on a browser that had only just opened", testutil.Msg(cmd))
+	}
+	if m = feed(t, m, RegistryBrowserCloseMsg{}); m.registryBrowser != nil {
+		t.Error("the close message left the browser open")
+	}
 }
 
-// Only a group is waited for. A plain registry has nothing to discover, and
-// before the provider was declared every one of them cost a round trip that
-// could only come back saying so — which is the wait D13 is about.
-func TestOnlyGroupsAreWaitedFor(t *testing.T) {
-	cfg := testConfig()
-	for i := range cfg.Registry.Registries {
-		cfg.Registry.Registries[i].Kind = config.KindRegistry
-	}
-	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 180, Height: 30}, ImagesListMsg{Images: imageFixtures()})
+// Opening it must not touch the network at all — that is what makes it work
+// offline, and what the cache is for.
+func TestOpeningTheBrowserIssuesNoCommand(t *testing.T) {
+	m := feed(t, loadedModel(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
 
-	m = feed(t, m, testutil.Key("b"))
+	_, cmd := step(t, m, testutil.Key("b"))
 
-	if m.registryBrowser.state != browserStateInput {
-		t.Errorf("the browser opened in state %d with no group configured, want the form straight away",
-			m.registryBrowser.state)
+	if cmd != nil {
+		t.Errorf("opening the browser produced %T, want nothing to run", testutil.Msg(cmd))
 	}
+}
+
+// A group nobody has discovered yet is still a pullable registry. Hiding it
+// would be worse than listing it without the members it may have.
+func TestAGroupWithNothingCachedIsOfferedAsItself(t *testing.T) {
+	m := browsingModel(t) // the group cache is empty here
+
 	if got := len(m.registryBrowser.entries); got != 2 {
-		t.Errorf("entries = %d, want both registries offered as themselves", got)
+		t.Fatalf("entries = %d, want both registries offered as themselves", got)
 	}
-}
-
-// A result for something that was never waited for must not be counted, or it
-// finalizes the list a second time and drops what the user had unchecked.
-func TestAStrayDetectionIsIgnored(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("b"))
-	before := m.registryBrowser.pendingDetections
-
-	m = feed(t, m, RegistryGroupDetectedMsg{RegistryURL: "docker.io", Slug: "hub"})
-
-	if got := m.registryBrowser.pendingDetections; got != before {
-		t.Errorf("pendingDetections = %d after a result for a plain registry, want %d", got, before)
-	}
-	if m.registryBrowser.state != browserStateResolving {
-		t.Errorf("the browser left the resolving state on a result it never asked for")
-	}
-}
-
-// A detection that fails must not strand the browser on its spinner: the
-// registry is offered as itself.
-func TestBrowserSurvivesAFailedDetection(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("b"))
-
-	m = feed(t, m,
-		RegistryGroupDetectedMsg{RegistryURL: "registry.example.com", Err: errors.New("404 not found")},
-		RegistryGroupDetectedMsg{RegistryURL: "docker.io"},
-	)
-
-	if m.registryBrowser.state != browserStateInput {
-		t.Errorf("a failed detection left the browser in state %d", m.registryBrowser.state)
-	}
-	if len(m.registryBrowser.entries) != 2 {
-		t.Errorf("entries = %d, want both registries offered as themselves", len(m.registryBrowser.entries))
+	for _, e := range m.registryBrowser.entries {
+		if e.ParentSlug != "" {
+			t.Errorf("entry %q claims a parent with nothing discovered", e.Alias)
+		}
 	}
 }
 
@@ -374,23 +341,26 @@ func TestAGroupMemberFollowsItsGroupOnCredentials(t *testing.T) {
 
 // The mode a member ends up with is settled once, when the group resolves —
 // there is no second place that could disagree with it.
-func TestResolvedMembersCarryTheirGroupsMode(t *testing.T) {
-	b, _ := newRegistryBrowser([]config.RegistryItem{
-		{URL: "registry.example.com", Alias: "prod", AuthMode: config.AuthAnonymous},
-	}, 120, 30)
-
-	b, _ = b.HandleGroupDetected(RegistryGroupDetectedMsg{
-		RegistryURL: "registry.example.com",
-		Members: []registrymgr.GroupMember{
+func TestCachedMembersCarryTheirGroupsMode(t *testing.T) {
+	b := newRegistryBrowser(
+		[]config.RegistryItem{{
+			URL: "registry.example.com", Alias: "prod", Slug: "prod",
+			Kind: config.KindGroup, AuthMode: config.AuthAnonymous,
+		}},
+		map[string]cache.RegistryGroupEntry{"prod": {Members: []cache.RegistryGroupMember{
 			{Alias: "hosted", URL: "registry.example.com/repository/docker-hosted"},
-		},
-	})
+		}}},
+		nil, 120, 30,
+	)
 
 	if len(b.entries) != 1 {
 		t.Fatalf("got %d entries, want the one member", len(b.entries))
 	}
 	if b.entries[0].authMode != config.AuthAnonymous {
 		t.Errorf("the member resolved as %q, want its anonymous group's mode", b.entries[0].authMode)
+	}
+	if b.entries[0].ParentSlug != "prod" {
+		t.Errorf("ParentSlug = %q, want the group it came from", b.entries[0].ParentSlug)
 	}
 }
 
@@ -625,4 +595,149 @@ func hasShortcut(m Model, description string) bool {
 		}
 	}
 	return false
+}
+
+// ── Remembered selection (§3.8 step 6) ───────────────────────────────────────
+
+// Reopening the browser must not undo what the user just narrowed it to.
+func TestTheSelectionSurvivesClosingTheBrowser(t *testing.T) {
+	m := groupedModel(t)
+	dropped := m.registryBrowser.entries[0].URL
+	m.registryBrowser.selectedRegs[dropped] = false
+
+	m = feed(t, m, RegistryBrowserCloseMsg{})
+	if !m.browserDeselected[dropped] {
+		t.Fatalf("closing the browser forgot the unchecked %q", dropped)
+	}
+
+	m = feed(t, m, testutil.Key("b"))
+	if m.registryBrowser.selectedRegs[dropped] {
+		t.Errorf("%q came back checked", dropped)
+	}
+	for _, e := range m.registryBrowser.entries {
+		if e.URL != dropped && !m.registryBrowser.selectedRegs[e.URL] {
+			t.Errorf("%q was unchecked too, want only the one", e.URL)
+		}
+	}
+}
+
+// What is remembered is the exclusions, so a member discovered since the last
+// visit arrives checked like every other new entry rather than silently sitting
+// out of every search.
+func TestAMemberDiscoveredSinceTheLastVisitArrivesChecked(t *testing.T) {
+	m := groupedModel(t)
+	m.registryBrowser.selectedRegs[m.registryBrowser.entries[0].URL] = false
+	m = feed(t, m, RegistryBrowserCloseMsg{})
+
+	// A third member turns up in the cache.
+	entries := groupCacheFixture()
+	entries["prod"] = cache.RegistryGroupEntry{
+		Members: append(entries["prod"].Members,
+			cache.RegistryGroupMember{Alias: "new", URL: "registry.example.com/repository/new-proxy"}),
+	}
+	m = feed(t, m, RegistryGroupCacheLoadedMsg{Entries: entries}, testutil.Key("b"))
+
+	if !m.registryBrowser.selectedRegs["registry.example.com/repository/new-proxy"] {
+		t.Error("a member discovered since the last visit opened unchecked")
+	}
+}
+
+// ── Drill-down in the Registries tab (§3.8 step 5) ───────────────────────────
+
+func TestEnteringAGroupListsItsMembers(t *testing.T) {
+	m := feed(t, registriesTab(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
+
+	m = feed(t, m, testutil.Key("right"))
+
+	if m.registryGroupSlug != "prod" {
+		t.Fatalf("registryGroupSlug = %q, want the group entered", m.registryGroupSlug)
+	}
+	if got := cells(m.registryTable.Rows(), 0); !equal(got, []string{"docker-hosted", "dhi"}) {
+		t.Errorf("the table holds %v, want the group's members", got)
+	}
+	// A member is not a config entry: its credentials are the group's.
+	if got := m.registryTable.Rows()[0][3]; got != config.AuthInherit {
+		t.Errorf("a member's Auth reads %q, want %q", got, config.AuthInherit)
+	}
+	if crumb := m.renderRegistryBreadcrumb(120); !strings.Contains(crumb, "prod") {
+		t.Errorf("the breadcrumb does not name the group:\n%s", crumb)
+	}
+
+	m = feed(t, m, testutil.Key("left"))
+	if m.registryGroupSlug != "" {
+		t.Errorf("left did not go back up, still in %q", m.registryGroupSlug)
+	}
+	if m.renderRegistryBreadcrumb(120) != "" {
+		t.Error("the breadcrumb survived going back to the top level")
+	}
+}
+
+// A group nobody has discovered has no level to enter, and saying so beats an
+// empty table with no explanation.
+func TestEnteringAGroupWithNoMembersSaysWhy(t *testing.T) {
+	m := registriesTab(t) // the group cache is empty here
+
+	m = feed(t, m, testutil.Key("right"))
+
+	if m.registryGroupSlug != "" {
+		t.Error("the tab drilled into a group with nothing discovered")
+	}
+	if !strings.Contains(m.infoMsg, "ctrl+r") {
+		t.Errorf("infoMsg = %q, want it to name the key that would help", m.infoMsg)
+	}
+}
+
+// Inside a group the rows are cached members, not config entries — nothing on
+// them is editable, and offering the actions would be a lie (Rule 130).
+func TestInsideAGroupTheEntryActionsAreGone(t *testing.T) {
+	m := feed(t, registriesTab(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
+	m = feed(t, m, testutil.Key("right"))
+
+	for _, gone := range []string{"Edit registry", "Login", "Remove", "New registry"} {
+		if hasShortcut(m, gone) {
+			t.Errorf("%q is still offered on a discovered member", gone)
+		}
+	}
+	if !hasShortcut(m, "Back to registries") {
+		t.Error("no way back is advertised")
+	}
+
+	// And the actions themselves do nothing rather than acting on the wrong row.
+	m = feed(t, m, testutil.Key("e"), testutil.Key("ctrl+d"), testutil.Key("ctrl+n"))
+	if m.registryForm != nil || m.confirmModal != nil {
+		t.Error("an entry action fired on a discovered member")
+	}
+}
+
+// esc is the other way back (Rule 111), and must not close anything at the top.
+func TestEscLeavesAGroupAndDoesNothingAtTheTop(t *testing.T) {
+	m := feed(t, registriesTab(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
+	m = feed(t, m, testutil.Key("right"))
+
+	m = feed(t, m, testutil.Key("esc"))
+	if m.registryGroupSlug != "" {
+		t.Error("esc did not leave the group")
+	}
+
+	m = feed(t, m, testutil.Key("esc"))
+	if m.activeTab != tabRegistries {
+		t.Error("esc at the top level moved away from the tab")
+	}
+}
+
+// The selection reaches disk, so it survives the process and not just the view.
+func TestTheSelectionIsWrittenToDisk(t *testing.T) {
+	run(t, saveBrowserSelectionCmd([]string{"docker.io"}))
+	t.Cleanup(func() {
+		if c, err := cache.NewBrowserSelectionCache(); err == nil {
+			ctx, _ := config.GetCurrentContext()
+			_ = c.SetDeselected(ctx, nil)
+		}
+	})
+
+	msg := run(t, loadBrowserSelectionCmd()).(BrowserSelectionLoadedMsg)
+
+	if !msg.Deselected["docker.io"] {
+		t.Errorf("Deselected = %v after a save, want the entry that was unchecked", msg.Deselected)
+	}
 }
