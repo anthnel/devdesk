@@ -318,3 +318,62 @@ func TestSelectionStyleFollowsTheSeverity(t *testing.T) {
 		t.Error("the selection style is the same on a critical and a medium finding")
 	}
 }
+
+// Every section header is followed by a blank line. Three of the four were, and
+// "Scan Options" ran straight into its first checkbox.
+//
+// This is asserted per column rather than on the rendered form, because the
+// columns are zipped together line by line: the line below "Scan Options" on
+// screen belongs to the *right* column, which is why the missing separator
+// survived so long — and why a test over the rendered output would pass while
+// looking like it checked something.
+func TestEverySectionHeaderIsFollowedByABlankLine(t *testing.T) {
+	m := newTestModel(t)
+
+	columns := map[string][]string{
+		"left":  m.formLeftColumn(),
+		"right": m.formRightColumn(),
+	}
+	headers := map[string]string{
+		"Target": "left", "Scan Options": "left",
+		"Trivy Options": "right", "Gitleaks Options": "right",
+	}
+
+	for header, side := range headers {
+		lines := columns[side]
+		row := -1
+		for i, line := range lines {
+			if strings.Contains(line, header) {
+				row = i
+				break
+			}
+		}
+		if row < 0 {
+			t.Errorf("no %q section in the %s column", header, side)
+			continue
+		}
+		if row+1 >= len(lines) {
+			t.Errorf("%q is the last line of the %s column", header, side)
+			continue
+		}
+		if strings.TrimSpace(lines[row+1]) != "" {
+			t.Errorf("%q is followed by %q, want a blank line", header, strings.TrimSpace(lines[row+1]))
+		}
+	}
+}
+
+// The zip is what puts the two columns side by side, so a column that is
+// shorter than the other must not truncate it.
+func TestBothColumnsAreRenderedInFull(t *testing.T) {
+	m := newTestModel(t)
+	view := m.View()
+
+	for _, line := range append(m.formLeftColumn(), m.formRightColumn()...) {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if !strings.Contains(view, strings.TrimSpace(line)) {
+			t.Errorf("the form does not render %q", strings.TrimSpace(line))
+		}
+	}
+}
