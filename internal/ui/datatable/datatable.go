@@ -398,16 +398,30 @@ func (m *Model[T]) activeTokens() map[string]bool {
 	return active
 }
 
+// matchesQuery tests the query against each searchable column and then against
+// the row as a whole.
+//
+// The row-level pass is what keeps a query spanning two fields — "tcp 22" over a
+// ports list — working: netdiag matched against a joined haystack while the
+// other four filter loops matched per field, and per field alone would have
+// quietly dropped those matches on migration. Matching both ways is a superset
+// of either, so no view loses anything and they all gain the same thing.
 func (m *Model[T]) matchesQuery(item T, query string) bool {
+	var joined strings.Builder
 	for _, c := range m.cfg.Columns {
 		if c.Search == nil {
 			continue
 		}
-		if strings.Contains(strings.ToLower(c.Search(item)), query) {
+		value := c.Search(item)
+		if strings.Contains(strings.ToLower(value), query) {
 			return true
 		}
+		if joined.Len() > 0 {
+			joined.WriteByte(' ')
+		}
+		joined.WriteString(value)
 	}
-	return false
+	return strings.Contains(strings.ToLower(joined.String()), query)
 }
 
 // sorted orders the visible slice. SliceStable, because sort.Slice is not and

@@ -685,3 +685,34 @@ func TestASortColumnWithNoComparatorSortsNothing(t *testing.T) {
 		t.Errorf("visible = %v, want them sorted once the cycle reached a sortable column", got)
 	}
 }
+
+// A query spanning two columns matches the row. netdiag searched a joined
+// haystack while the other filter loops went per field; matching both ways is a
+// superset of either, so migrating a view cannot silently drop matches.
+func TestAQuerySpanningTwoColumnsMatchesTheRow(t *testing.T) {
+	m := loaded(t)
+	m.Update(testutil.Key("/"))
+
+	for _, msg := range testutil.Type("api run") { // Name then State
+		m.Update(msg)
+	}
+
+	if got := names(m.Visible()); !equal(got, []string{"api"}) {
+		t.Errorf("visible = %v, want the row whose two columns together match", got)
+	}
+}
+
+// The joined pass must not invent matches out of the gap between columns: a
+// query that spans them in the wrong order still matches nothing.
+func TestTheJoinedPassRespectsColumnOrder(t *testing.T) {
+	m := loaded(t)
+	m.Update(testutil.Key("/"))
+
+	for _, msg := range testutil.Type("running api") { // State then Name — reversed
+		m.Update(msg)
+	}
+
+	if got := len(m.Visible()); got != 0 {
+		t.Errorf("%d rows matched a query in the wrong column order", got)
+	}
+}

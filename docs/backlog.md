@@ -1118,7 +1118,38 @@ Two things the migration turned up:
 and was confirmed to bite by removing the `Resize` call: `networks at width 60:
 the columns sum to 56, want 50`.
 
-Steps 3–6 stand as written.
+#### Step 3 as built — `netdiag` ports
+
+The step that had to prove `SetItems` preserves scroll on live data, because the
+`tableReady` / `lastTableWidth` / `lastTableHeight` trio existed for nothing
+else: the table refreshes every two seconds and rebuilding it threw away where
+the user was looking. **All three fields are gone**, along with `applyFilters`,
+`tableColumns`, `buildRows`, `rebuildTable` and the `filtered` slice —
+`ports_model.go` lost 290 lines and gained the config.
+
+`TestScrollSurvivesTheTwoSecondRefresh` is the one that matters, and it was
+confirmed to bite by adding a `GotoTop` after `SetItems`: `cursor = 0 after a
+refresh, want it left at 2`.
+
+Two things this view forced into the component:
+
+- **A row-level search pass.** netdiag matched a query against all six fields
+  joined; the other four filter loops matched per field. Per field alone would
+  have quietly dropped `"tcp 22"`-shaped matches on migration, so
+  `matchesQuery` now tries each column *and* the joined row. That is a superset
+  of either behaviour, so no view loses matches and the other five gain the same
+  thing when they migrate.
+- **`TokenMatch` got its first real client.** The proto and state groups are OR
+  within a group and AND between them, and `numeric` / `paused` are tokens that
+  report a mode rather than filtering. `matchesActive` makes the distinction
+  that matters: a group with nothing on does not filter at all, which is not the
+  same as matching nothing.
+
+`internal/ui/netdiag` is at 85.6 %; the project total moved 81.9 % → 81.8 %,
+the difference being the component's statements now counted against a view that
+no longer has its own.
+
+Steps 4–6 stand as written.
 
 ### Race detector cannot run locally
 

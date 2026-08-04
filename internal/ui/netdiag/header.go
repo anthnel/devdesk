@@ -46,7 +46,7 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 	}
 
 	if m.activeTab == tabPorts {
-		if m.portsModel.filterBar.InEditMode() {
+		if m.portsModel.table.FilterBar().InEditMode() {
 			return shortcut.Shortcuts{
 				{Key: "enter/esc", Description: "Confirm / Cancel search"},
 			}
@@ -112,7 +112,7 @@ func (m *Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 // GetFooterHeight implements FooterView — tab bar + empty + info + ports filter bar when visible (Rule 124)
 func (m *Model) GetFooterHeight() int {
 	if m.activeTab == tabPorts {
-		return 3 + m.portsModel.filterBar.ExtraHeight()
+		return 3 + m.portsModel.table.FilterBar().ExtraHeight()
 	}
 	return 3
 }
@@ -122,8 +122,8 @@ func (m *Model) RenderFooter(width int) string {
 	var parts []string
 
 	// Ports filter bar renders above the tab bar when visible
-	if m.activeTab == tabPorts && m.portsModel.filterBar.IsVisible() {
-		parts = append(parts, m.portsModel.filterBar.View())
+	if m.activeTab == tabPorts && m.portsModel.table.FilterBar().IsVisible() {
+		parts = append(parts, m.portsModel.table.FilterBar().View())
 	}
 
 	tabs := theme.RenderTabs([]theme.TabItem{

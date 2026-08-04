@@ -35,7 +35,7 @@ func portsModel(t *testing.T) *Model {
 
 func portRows(m *Model) []string {
 	var out []string
-	for _, row := range m.portsModel.table.Rows() {
+	for _, row := range m.portsModel.table.Table().Rows() {
 		out = append(out, row[5]) // Process column
 	}
 	return out
@@ -46,7 +46,7 @@ func portRows(m *Model) []string {
 func TestPortsDataPopulatesTheTable(t *testing.T) {
 	m := portsModel(t)
 
-	if got := len(m.portsModel.filtered); got != 4 {
+	if got := len(m.portsModel.table.Visible()); got != 4 {
 		t.Errorf("%d entries after loading, want the four fixtures", got)
 	}
 	if got := portRows(m); len(got) != 4 {
@@ -110,7 +110,7 @@ func TestTickRefetchesUnlessPaused(t *testing.T) {
 func TestPauseIsAdvertisedAsAToken(t *testing.T) {
 	m := feed(t, portsModel(t), testutil.Key(" "))
 
-	if !m.portsModel.filterBar.IsTokenActive(filterTokenPaused) {
+	if !m.portsModel.table.FilterBar().IsTokenActive(filterTokenPaused) {
 		t.Error("pausing did not light the paused token")
 	}
 	if m.portsModel.footerInfo == "" {
@@ -118,7 +118,7 @@ func TestPauseIsAdvertisedAsAToken(t *testing.T) {
 	}
 
 	m = feed(t, m, testutil.Key(" "))
-	if m.portsModel.filterBar.IsTokenActive(filterTokenPaused) {
+	if m.portsModel.table.FilterBar().IsTokenActive(filterTokenPaused) {
 		t.Error("resuming left the paused token lit")
 	}
 	if m.portsModel.footerInfo != "" {
@@ -224,7 +224,7 @@ func TestResetClearsEveryFilter(t *testing.T) {
 	// enter confirms the query and gives the keyboard back to the view; without
 	// it, z would just be another character in the search box.
 	m = feed(t, m, testutil.Key("enter"))
-	if m.portsModel.filterBar.InEditMode() {
+	if m.portsModel.table.FilterBar().InEditMode() {
 		t.Fatal("enter did not confirm the search")
 	}
 
@@ -236,11 +236,11 @@ func TestResetClearsEveryFilter(t *testing.T) {
 	if m.portsModel.paused {
 		t.Error("reset left the poll paused")
 	}
-	if m.portsModel.filterBar.SearchQuery() != "" {
-		t.Errorf("reset left the search query %q", m.portsModel.filterBar.SearchQuery())
+	if m.portsModel.table.FilterBar().SearchQuery() != "" {
+		t.Errorf("reset left the search query %q", m.portsModel.table.FilterBar().SearchQuery())
 	}
 	for _, token := range []string{filterTokenTCP, filterTokenUDP, filterTokenListen, filterTokenEstab, filterTokenPaused} {
-		if m.portsModel.filterBar.IsTokenActive(token) {
+		if m.portsModel.table.FilterBar().IsTokenActive(token) {
 			t.Errorf("reset left the %q token active", token)
 		}
 	}
@@ -257,7 +257,7 @@ func TestNumericToggleRefetches(t *testing.T) {
 	if m.portsModel.numericAddrs == before {
 		t.Error("n did not toggle numeric addresses")
 	}
-	if m.portsModel.filterBar.IsTokenActive(filterTokenNumeric) == before {
+	if m.portsModel.table.FilterBar().IsTokenActive(filterTokenNumeric) == before {
 		t.Error("the numeric token did not follow the setting")
 	}
 	if cmd == nil {
@@ -269,7 +269,7 @@ func TestNumericToggleRefetches(t *testing.T) {
 
 func TestKillRequiresAPID(t *testing.T) {
 	m := portsModel(t)
-	m.portsModel.table.SetCursor(3) // the kernel socket, which has no PID
+	m.portsModel.table.Table().SetCursor(3) // the kernel socket, which has no PID
 
 	m, cmd := step(t, m, testutil.Key("ctrl+k"))
 
@@ -283,7 +283,7 @@ func TestKillRequiresAPID(t *testing.T) {
 
 func TestKillIssuesACommandForAnEntryWithAPID(t *testing.T) {
 	m := portsModel(t)
-	m.portsModel.table.SetCursor(0) // sshd, pid 812
+	m.portsModel.table.Table().SetCursor(0) // sshd, pid 812
 
 	_, cmd := step(t, m, testutil.Key("ctrl+k"))
 
@@ -426,7 +426,7 @@ func TestPortsInEditModePropagatesToTheParent(t *testing.T) {
 func TestPortsCellsCarryNoANSISequences(t *testing.T) {
 	m := portsModel(t)
 
-	for _, row := range m.portsModel.table.Rows() {
+	for _, row := range m.portsModel.table.Table().Rows() {
 		for i, cell := range row {
 			if strings.Contains(cell, "\x1b") {
 				t.Errorf("cell %d = %q contains an escape sequence", i, cell)
@@ -439,10 +439,102 @@ func TestPortsResizeFillsTheViewportWidth(t *testing.T) {
 	m := feed(t, portsModel(t), tea.WindowSizeMsg{Width: 160, Height: 40})
 
 	total := 0
-	for _, col := range m.portsModel.table.Columns() {
+	for _, col := range m.portsModel.table.Table().Columns() {
 		total += col.Width
 	}
 	if want := 160 - 2 - 6*2; total != want {
 		t.Errorf("columns total %d, want %d so the selected row reaches the border", total, want)
+	}
+}
+
+// ── The datatable migration (§2 step 3) ──────────────────────────────────────
+
+// The reason the tableReady / lastTableWidth / lastTableHeight trio existed: the
+// table refreshes every two seconds, and rebuilding it from scratch each time
+// threw away where the user was looking. SetItems is what replaced it, so this
+// is the invariant that has to hold without the workaround.
+func TestScrollSurvivesTheTwoSecondRefresh(t *testing.T) {
+	m := feed(t, portsModel(t), tea.WindowSizeMsg{Width: 160, Height: 40})
+	m = feed(t, m, testutil.Key("down"), testutil.Key("down"))
+
+	before := m.portsModel.table.Cursor()
+	if before != 2 {
+		t.Fatalf("cursor = %d after two downs, want 2", before)
+	}
+	selected, _ := m.portsModel.table.Selected()
+
+	// A refresh returning the same entries, as a quiet system would.
+	m = feed(t, m, portsDataMsg{ports: portFixtures()})
+
+	if got := m.portsModel.table.Cursor(); got != before {
+		t.Errorf("cursor = %d after a refresh, want it left at %d", got, before)
+	}
+	after, ok := m.portsModel.table.Selected()
+	if !ok || after.Process != selected.Process {
+		t.Errorf("the selection moved from %q to %+v across a refresh", selected.Process, after)
+	}
+}
+
+// The other half: a refresh that returns fewer entries — a process exited —
+// must not leave the cursor pointing past the end.
+func TestARefreshWithFewerPortsClampsTheCursor(t *testing.T) {
+	m := feed(t, portsModel(t), tea.WindowSizeMsg{Width: 160, Height: 40})
+	m = feed(t, m, testutil.Key("G")) // last row
+
+	m = feed(t, m, portsDataMsg{ports: portFixtures()[:2]})
+
+	entry, ok := m.portsModel.table.Selected()
+	if !ok {
+		t.Fatal("the cursor was left past the end of a shorter list")
+	}
+	if entry.Process != "nginx" {
+		t.Errorf("selected %q, want the last entry that is left", entry.Process)
+	}
+}
+
+// Rule 116 at a width the old arithmetic got wrong: it clamped the content
+// width at 30 and floored the last column at 10, so the columns summed to more
+// than the space they had.
+func TestPortsColumnsHoldTheWidthInvariantWhenNarrow(t *testing.T) {
+	for _, width := range []int{40, 60, 80, 120, 200} {
+		m := feed(t, portsModel(t), tea.WindowSizeMsg{Width: width, Height: 40})
+
+		total := 0
+		cols := m.portsModel.table.Table().Columns()
+		for _, col := range cols {
+			total += col.Width
+		}
+		if want := width - 2 - len(cols)*2; total != want {
+			t.Errorf("at width %d the columns sum to %d, want %d", width, total, want)
+		}
+	}
+}
+
+// ctrl+k acts on the highlighted row. The kill used to index a separately-held
+// filtered slice, which is the coupling that can silently kill the wrong PID.
+func TestKillActsOnTheHighlightedRow(t *testing.T) {
+	m := feed(t, portsModel(t), tea.WindowSizeMsg{Width: 160, Height: 40})
+	m = feed(t, m, testutil.Key("t")) // tcp only, which reorders what is visible
+	m = feed(t, m, testutil.Key("down"))
+
+	entry, ok := m.portsModel.table.Selected()
+	if !ok {
+		t.Fatal("nothing selected")
+	}
+	if got := portRows(m)[m.portsModel.table.Cursor()]; got != entry.Process {
+		t.Errorf("the highlighted row shows %q while ctrl+k would act on %q", got, entry.Process)
+	}
+}
+
+// A query spanning two columns matched the joined haystack before the
+// migration, and has to keep matching.
+func TestAQuerySpanningColumnsStillMatches(t *testing.T) {
+	m := feed(t, portsModel(t), tea.WindowSizeMsg{Width: 160, Height: 40})
+	m = feed(t, m, testutil.Key("/"))
+
+	m = feed(t, m, testutil.Type("tcp listen")...)
+
+	if got := len(m.portsModel.table.Visible()); got != 1 {
+		t.Errorf("%d entries match \"tcp listen\", want the one — the joined search is gone", got)
 	}
 }
