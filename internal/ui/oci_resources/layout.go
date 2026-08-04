@@ -15,7 +15,6 @@ func (m *Model) tableHeight() int {
 func (m *Model) resize(width, height int) {
 	m.width = width
 	m.height = height
-	m.filterBar.Resize(width)
 
 	if m.launchForm != nil {
 		m.launchForm.SetWidth(width - 2)
@@ -37,51 +36,20 @@ func (m *Model) resize(width, height int) {
 		m.registryBrowser.SetSize(width-2, height)
 	}
 
-	m.imageTable.SetHeight(m.tableHeight())
 	m.registryTable.SetHeight(m.tableHeight())
-
-	m.resizeImageTable(width)
 	m.resizeRegistryTable(width)
 
 	// Widths and height in one call, and the Rule 116 arithmetic is the
-	// component's rather than written out here twice more.
+	// component's rather than written out here three more times.
+	m.imageTable.Resize(width, m.tableHeight())
 	m.networkTable.Resize(width, m.tableHeight())
 	m.volumeTable.Resize(width, m.tableHeight())
 }
 
-func (m *Model) resizeImageTable(width int) {
-	contentWidth := width - 2
-	columns := m.imageTable.Columns()
-	numCols := len(columns)
-	if numCols >= 9 {
-		available := contentWidth - numCols*2
-		fixedID := 14
-		fixedDisk := 12
-		fixedContent := 14
-		fixedC := 4
-		fixedH := 4
-		fixedM := 4
-		fixedL := 4
-		fixedScanned := 14
-		fixedTotal := fixedID + fixedDisk + fixedContent + fixedC + fixedH + fixedM + fixedL + fixedScanned
-		flexName := max(available-fixedTotal, 20)
-		columns[0].Width = fixedID
-		columns[1].Width = flexName
-		columns[2].Width = fixedDisk
-		columns[3].Width = fixedContent
-		columns[4].Width = fixedC
-		columns[5].Width = fixedH
-		columns[6].Width = fixedM
-		columns[7].Width = fixedL
-		columns[8].Width = available - fixedID - flexName - fixedDisk - fixedContent - fixedC - fixedH - fixedM - fixedL
-		m.imageTable.SetColumns(columns)
-	}
-}
-
-// The networks and volumes width arithmetic used to live here. It is the
-// component's now — and the volumes one was a copy that clamped its last column
-// at 20 after the remainder was computed, so it overflowed on a narrow terminal
-// exactly as the backlog describes.
+// The images, networks and volumes width arithmetic used to live here. The
+// images copy clamped Name at 20 and then handed the entire shortfall to
+// Scanned, which went negative below 96 columns; the volumes copy did the same
+// to its last column. Both are the solver's job now.
 
 func (m *Model) resizeRegistryTable(width int) {
 	contentWidth := width - 2

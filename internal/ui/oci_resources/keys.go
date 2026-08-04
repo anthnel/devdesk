@@ -9,8 +9,6 @@ import (
 // handleImagesKeyMsg handles keys on the Images tab
 func (m Model) handleImagesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "/":
-		return m, m.filterBar.ActivateSearch()
 	case "b":
 		return m.openMultiRegistryBrowser()
 	case "enter":
@@ -41,23 +39,12 @@ func (m Model) handleImagesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.scanAllUnscanned()
 	case "ctrl+a":
 		return m.requestScanAll()
-	case ".":
-		return m.cycleSort()
 	case "ctrl+r":
 		m.loading = true
 		return m, tea.Batch(m.spinner.Tick, fetchImages(), loadScanCache())
-	case "up", "k":
-		m.imageTable.MoveUp(1)
-		return m, nil
-	case "down", "j":
-		m.imageTable.MoveDown(1)
-		return m, nil
-	case "g", "home":
-		m.imageTable.GotoTop()
-		return m, nil
-	case "G", "end":
-		m.imageTable.GotoBottom()
-		return m, nil
+	// Navigation, `/` and `.` are the table's, not the view's.
+	case "up", "k", "down", "j", "pgup", "pgdown", "g", "home", "G", "end", "/", ".":
+		return m, m.imageTable.Update(msg)
 	}
 	return m, nil
 }
@@ -218,22 +205,8 @@ func (m Model) handleSelectionKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		name := img.Name()
 		return m, func() tea.Msg { return ImageSelectedMsg{ImageName: name} }
-	case "/":
-		return m, m.filterBar.ActivateSearch()
-	case ".":
-		return m.cycleSort()
-	case "up", "k":
-		m.imageTable.MoveUp(1)
-		return m, nil
-	case "down", "j":
-		m.imageTable.MoveDown(1)
-		return m, nil
-	case "g", "home":
-		m.imageTable.GotoTop()
-		return m, nil
-	case "G", "end":
-		m.imageTable.GotoBottom()
-		return m, nil
+	case "up", "k", "down", "j", "pgup", "pgdown", "g", "home", "G", "end", "/", ".":
+		return m, m.imageTable.Update(msg)
 	}
 	return m, nil
 }

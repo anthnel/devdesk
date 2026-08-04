@@ -29,14 +29,16 @@ func (m Model) isSelectedImageScanning() bool {
 	return m.scanningImages[img.Name()]
 }
 
-// getSelectedImage returns the selected image or nil
+// getSelectedImage returns the selected image or nil.
+//
+// The cursor is resolved against the very slice the rows were built from, so it
+// cannot point at one ordering while the screen shows another.
 func (m Model) getSelectedImage() *docker.Image {
-	sorted := m.sortedImages(m.filteredImages())
-	cursor := m.imageTable.Cursor()
-	if cursor < 0 || cursor >= len(sorted) {
+	row, ok := m.imageTable.Selected()
+	if !ok {
 		return nil
 	}
-	return &sorted[cursor]
+	return &row.Image
 }
 
 // deleteSelectedImage shows confirm modal for deletion
@@ -112,37 +114,6 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 	}
 	m.scanning = true
 	return m, batchScanCmd(jobs, m.defaultScanOpts())
-}
-
-// sortableColumns lists columns in cycle order for the '.' key
-var sortableColumns = []sortField{
-	sortByName,
-	sortByDiskUsage,
-	sortByContentSize,
-	sortByCritical,
-	sortByHigh,
-	sortByMedium,
-	sortByLow,
-	sortByScanned,
-}
-
-// cycleSort cycles through sort options
-func (m Model) cycleSort() (tea.Model, tea.Cmd) {
-	if m.sortAsc {
-		m.sortAsc = false
-	} else {
-		m.sortAsc = true
-		nextIdx := 0
-		for i, col := range sortableColumns {
-			if col == m.sortColumn {
-				nextIdx = (i + 1) % len(sortableColumns)
-				break
-			}
-		}
-		m.sortColumn = sortableColumns[nextIdx]
-	}
-	m.updateImageTable()
-	return m, nil
 }
 
 // requestScanAll launches a batch scan for all images with the configured options.

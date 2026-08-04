@@ -239,11 +239,11 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.networkInspectForm, cmd = m.networkInspectForm.Update(msg)
 		return m, cmd
 	}
-	if m.confirmModal == nil && !m.filterBar.InEditMode() {
+	if m.confirmModal == nil && !m.imageTable.InEditMode() {
 		switch m.activeTab {
 		case tabImages:
 			var cmd tea.Cmd
-			m.imageTable, cmd = m.imageTable.Update(msg)
+			cmd = m.imageTable.Update(msg)
 			return m, cmd
 		case tabNetworks:
 			var cmd tea.Cmd
@@ -303,19 +303,11 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	// Priority 4: filter input active (images tab only)
-	if m.filterBar.InEditMode() {
-		return m.handleFilterKeyMsg(msg)
+	if m.imageTable.InEditMode() {
+		return m, m.imageTable.Update(msg)
 	}
 	// Priority 5: normal mode
 	return m.handleNormalKeyMsg(msg)
-}
-
-// handleFilterKeyMsg handles keys when filter input is active
-func (m Model) handleFilterKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	m.filterBar, cmd = m.filterBar.Update(msg)
-	m.updateImageTable()
-	return m, cmd
 }
 
 // handleNormalKeyMsg handles keys in normal mode

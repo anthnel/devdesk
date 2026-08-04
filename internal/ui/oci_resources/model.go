@@ -26,20 +26,6 @@ const (
 	tabRegistries        // Registries tab
 )
 
-// sortField defines which column to sort by
-type sortField int
-
-const (
-	sortByName sortField = iota
-	sortByDiskUsage
-	sortByContentSize
-	sortByCritical
-	sortByHigh
-	sortByMedium
-	sortByLow
-	sortByScanned
-)
-
 // Model represents the OCI resources view state
 type Model struct {
 	config    *config.Config
@@ -51,8 +37,7 @@ type Model struct {
 	failedScans     map[string]bool
 	spinnerFrameIdx int
 	lastScanOptions scan.ScanOptions
-	filterBar       sharedcomponents.FilterBar
-	imageTable      table.Model
+	imageTable      datatable.Model[imageRow]
 	spinner         spinner.Model
 	loading         bool
 	scanning        bool
@@ -96,8 +81,6 @@ type Model struct {
 	infoMsg          string
 	confirmModal     *sharedcomponents.ConfirmModal
 	pendingAction    string
-	sortColumn       sortField
-	sortAsc          bool
 	width, height    int
 	selectionMode    bool
 	selectionMessage string
@@ -354,23 +337,10 @@ func New(cfg *config.Config) Model {
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
 
-	imageColumns := []table.Column{
-		{Title: "ID", Width: 14},
-		{Title: "Name", Width: 30},
-		{Title: "Disk Usage", Width: 12},
-		{Title: "Content Size", Width: 14},
-		{Title: "C", Width: 4},
-		{Title: "H", Width: 4},
-		{Title: "M", Width: 4},
-		{Title: "L", Width: 4},
-		{Title: "Scanned", Width: 14},
-	}
-	it := table.New(
-		table.WithColumns(imageColumns),
-		table.WithFocused(true),
-		table.WithHeight(10),
-	)
-	it.SetStyles(theme.DefaultTableStyles())
+	it := datatable.New(datatable.Config[imageRow]{
+		Columns:    imageColumns(),
+		SortColumn: imageColumnName,
+	})
 
 	nt := datatable.New(datatable.Config[docker.Network]{Columns: networkColumns(), SortColumn: -1})
 	nt.Blur()
@@ -400,7 +370,6 @@ func New(cfg *config.Config) Model {
 		scanningImages:      make(map[string]bool),
 		failedScans:         make(map[string]bool),
 		spinner:             s,
-		filterBar:           sharedcomponents.NewFilterBar(),
 		imageTable:          it,
 		networkTable:        nt,
 		volumeTable:         vt,
@@ -413,8 +382,6 @@ func New(cfg *config.Config) Model {
 		loading:             true,
 		loadingNets:         true,
 		loadingVols:         true,
-		sortColumn:          sortByName,
-		sortAsc:             true,
 	}
 }
 

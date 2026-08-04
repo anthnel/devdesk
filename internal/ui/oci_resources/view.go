@@ -17,7 +17,7 @@ func (m Model) FilterBarVisible() bool {
 	if m.registryBrowser != nil {
 		return m.registryBrowser.FilterIsVisible()
 	}
-	return m.activeTab == tabImages && m.filterBar.IsVisible() &&
+	return m.activeTab == tabImages && m.imageTable.FilterBar().IsVisible() &&
 		m.launchForm == nil && m.resourceForm == nil && m.registryForm == nil &&
 		m.connectivityForm == nil && m.networkInspectForm == nil && !m.selectionMode
 }
@@ -26,7 +26,7 @@ func (m Model) FilterBarVisible() bool {
 func (m Model) InEditMode() bool {
 	return m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
 		m.networkInspectForm != nil || m.connectivityForm != nil ||
-		m.confirmModal != nil || (m.activeTab == tabImages && m.filterBar.InEditMode()) || m.selectionMode ||
+		m.confirmModal != nil || (m.activeTab == tabImages && m.imageTable.InEditMode()) || m.selectionMode ||
 		m.registryBrowser != nil
 }
 
@@ -41,7 +41,7 @@ func (m Model) GetFooterHeight() int {
 	}
 	filterExtra := 0
 	if m.activeTab == tabImages {
-		filterExtra = m.filterBar.ExtraHeight()
+		filterExtra = m.imageTable.FilterBar().ExtraHeight()
 	}
 	if !m.selectionMode && m.launchForm == nil && m.resourceForm == nil && m.registryForm == nil &&
 		m.connectivityForm == nil && m.networkInspectForm == nil {
@@ -83,8 +83,8 @@ func (m Model) RenderFooter(width int) string {
 		return theme.EmptyLineBg(width) + "\n" + infoLine
 	}
 	var parts []string
-	if m.activeTab == tabImages && m.filterBar.IsVisible() {
-		parts = append(parts, m.filterBar.View())
+	if bar := m.imageTable.FilterBar(); m.activeTab == tabImages && bar.IsVisible() {
+		parts = append(parts, bar.View())
 	}
 	if crumb := m.renderRegistryBreadcrumb(width); crumb != "" {
 		parts = append(parts, crumb)
@@ -184,11 +184,11 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 			{Key: "Registries", Value: fmt.Sprintf("%d", len(m.registries)), Style: theme.HeaderValueStyle},
 		}
 	default:
-		filtered := m.filteredImages()
-		total := len(filtered)
+		visible := m.imageTable.Visible()
+		total := len(visible)
 		var totalDisk int64
-		for _, img := range filtered {
-			totalDisk += img.UniqueSize
+		for _, row := range visible {
+			totalDisk += row.Image.UniqueSize
 		}
 		infos := []shortcut.HeaderInfo{
 			{Key: "Images", Value: fmt.Sprintf("%d", total), Style: theme.HeaderValueStyle},
@@ -452,7 +452,7 @@ func (m Model) renderImagesView() string {
 
 	if m.loading && len(m.images) == 0 {
 		sections = append(sections, theme.SpinnerMessage(m.spinner.View(), "Loading images..."))
-	} else if len(m.filteredImages()) == 0 && !m.filterBar.IsVisible() {
+	} else if len(m.imageTable.Visible()) == 0 && !m.imageTable.FilterBar().IsVisible() {
 		sections = append(sections, theme.DimStyle.Render("No images found"))
 	} else {
 		// Always render the table when a filter is active so the filter bar stays at the bottom

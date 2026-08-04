@@ -380,8 +380,20 @@ Three things it guarantees that hand-wired tables did not:
   is explicit for views that do want a reset.
 
 `SelectedStyles` returns styles rather than a state keyword so the component
-never learns what a severity is. Migration of the fifteen existing tables is
-step-by-step; see the backlog.
+never learns what a severity is. `containers` is its one client: it is the only
+table whose selection colour depends on the row (exited or dead reads as an
+error).
+
+When a row shows something that is not on the domain object — the images tab
+shows the scan cache, whether a scan is running, and the alias-substituted name
+— the view defines a **row type** carrying that decoration (`imageRow`) rather
+than closing over the model. The columns are built once, in `New`, so they
+cannot reach it; and carrying it means a column sorts by the same value it
+prints.
+
+Migration of the fifteen existing tables is step-by-step: `oci_resources`
+networks, volumes and images, `netdiag` ports and `containers` are done. See the
+backlog.
 
 ## Testing
 
