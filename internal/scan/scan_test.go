@@ -177,10 +177,12 @@ func TestEveryEnabledStageContributesItsFindings(t *testing.T) {
 
 // ── What decides a stage runs at all ─────────────────────────────────────────
 
-// A stage the user did not ask for costs nothing, and one whose tool is missing
-// is skipped rather than reported as a failure — the dashboard already says the
-// tool is absent.
-func TestAStageWithoutItsToolIsSkippedSilently(t *testing.T) {
+// A stage whose tool is missing is still not run — but it is reported, which is
+// the change D20 made. It used to be skipped silently on the grounds that the
+// dashboard already says the tool is absent; that reasoning does not survive
+// contact with the result panel, where "no secrets found" and "nothing looked
+// for secrets" are the same screen.
+func TestAStageWithoutItsToolIsReportedRatherThanSkippedSilently(t *testing.T) {
 	deps := everyTool()
 	deps.GitleaksAvailable = false
 
@@ -196,8 +198,81 @@ func TestAStageWithoutItsToolIsSkippedSilently(t *testing.T) {
 	if got := stagesRun(r); strings.Join(got, ",") != "vuln" {
 		t.Errorf("stages run = %v, want the secret stage skipped", got)
 	}
+	if len(result.Errors) != 1 || !strings.Contains(result.Errors[0], "gitleaks") {
+		t.Fatalf("Errors = %v, want one naming the tool that is missing", result.Errors)
+	}
+	// The message has to be actionable: the user needs to know what to install.
+	if !strings.Contains(result.Errors[0], DefaultGitleaksImage) {
+		t.Errorf("Errors[0] = %q, want it to name the image that would do instead", result.Errors[0])
+	}
+}
+
+// D20. With no scanner at all, every stage is skipped, so the result carried
+// no findings and no errors — indistinguishable from a clean scan, and the OCI
+// images view cached it as one.
+func TestAScanThatCouldRunNoScannerIsNotACleanScan(t *testing.T) {
+	deps := everyTool()
+	deps.TrivyAvailable = false
+
+	r := byStage(t, map[string]stageReply{})
+
+	result, err := newScannerWithDeps(
+		ScanOptions{EnableVuln: true}, deps).
+		Scan(context.Background(), "api:v1", TargetImage)
+
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if r.count() != 0 {
+		t.Errorf("%d process(es) ran with no scanner installed", r.count())
+	}
+	if result.TotalFindings() != 0 {
+		t.Errorf("TotalFindings = %d, want none", result.TotalFindings())
+	}
+	if len(result.Errors) != 1 || !strings.Contains(result.Errors[0], "trivy") {
+		t.Fatalf("Errors = %v, want one naming trivy", result.Errors)
+	}
+	// This pairing is what callers dispatch on: scanOneImageCmd reports a
+	// failure when there are errors and no findings, which is exactly this.
+	if result.TotalFindings() != 0 && len(result.Errors) > 0 {
+		t.Error("the result is ambiguous between a failure and a partial scan")
+	}
+}
+
+// A stage that does not apply to the target type is not missing anything.
+// Gitleaks scans a working tree, so a secret scan of an image is skipped for a
+// reason that has nothing to do with what is installed — reporting it would
+// train the user to ignore the warnings panel.
+func TestAStageThatDoesNotApplyToTheTargetIsNotAMissingTool(t *testing.T) {
+	deps := everyTool()
+	deps.GitleaksAvailable = false
+
+	byStage(t, map[string]stageReply{"vuln": {stdout: `{"Results":[]}`}})
+
+	result, err := newScannerWithDeps(
+		ScanOptions{EnableVuln: true, EnableSecret: true}, deps).
+		Scan(context.Background(), "api:v1", TargetImage)
+
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
 	if len(result.Errors) != 0 {
-		t.Errorf("a missing tool was reported as a scan failure: %v", result.Errors)
+		t.Errorf("Errors = %v, want none — a secret scan of an image was never going to run", result.Errors)
+	}
+}
+
+// Nothing enabled is not a missing tool either: the user asked for no scan.
+func TestNothingEnabledReportsNoMissingTool(t *testing.T) {
+	byStage(t, map[string]stageReply{})
+
+	result, err := newScannerWithDeps(ScanOptions{}, DependencyStatus{}).
+		Scan(context.Background(), "/repos", TargetDirectory)
+
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Errors) != 0 {
+		t.Errorf("Errors = %v, want none when no stage was asked for", result.Errors)
 	}
 }
 

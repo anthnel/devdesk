@@ -198,3 +198,97 @@ func TestScanDetailTruncationHandlesMultibyte(t *testing.T) {
 		t.Errorf("truncateScanDetail() cut a rune in half: %q", got)
 	}
 }
+
+// ── The Trivy server address ─────────────────────────────────────────────────
+
+// This is how a ":" gets into the field, and it is worth pinning because the
+// alternative is not a defect: §3.7 records that the Trivy server placeholder
+// is "https://trivy-server:4954", so the field has to accept two colons to hold
+// a valid value. Forwarding ":" to the input is correct — which is exactly why
+// `alt+:` exists and why the value has to be validated rather than trusted.
+func TestAColonTypedIntoTheTrivyServerFieldIsACharacter(t *testing.T) {
+	m := newTestModel(t)
+	m.trivyServerInput.SetValue("")
+	m.focusedField = 7 // the Trivy server field
+	m.focusTextField(7)
+
+	next := feed(t, m, testutil.Key(":"))
+
+	if next.trivyServerInput.Value() != ":" {
+		t.Fatalf("the field holds %q, want the colon typed into it",
+			next.trivyServerInput.Value())
+	}
+}
+
+// ...and once it is there, the scan has to refuse rather than hand it to Trivy,
+// which fails the whole run with a message naming neither DevDesk nor the
+// setting the value came from.
+func TestAScanIsRefusedWhileTheTrivyServerCannotBeUsed(t *testing.T) {
+	m := newTestModel(t)
+	m.targetPath = "/repos/devdesk"
+	m.trivyServerInput.SetValue(":")
+
+	next, cmd := m.startScan()
+	after := next.(Model)
+
+	if after.err == nil {
+		t.Fatal("a scan was started with an address Trivy cannot parse")
+	}
+	if !strings.Contains(after.err.Error(), "scan.trivy_server") {
+		t.Errorf("err = %v, want it to name the setting to fix", after.err)
+	}
+	if after.state == StateScanning {
+		t.Error("the view moved to its scanning state anyway")
+	}
+	if cmd != nil {
+		t.Error("a scan command was issued for an unusable server address")
+	}
+}
+
+func TestAUsableTrivyServerDoesNotBlockAScan(t *testing.T) {
+	m := newTestModel(t)
+	m.targetPath = "/repos/devdesk"
+	m.trivyServerInput.SetValue("https://trivy:4954")
+
+	next, _ := m.startScan()
+
+	if err := next.(Model).err; err != nil {
+		t.Errorf("a valid address was refused: %v", err)
+	}
+}
+
+// An empty field is client-server mode being off, not a broken address.
+func TestAnEmptyTrivyServerDoesNotBlockAScan(t *testing.T) {
+	m := newTestModel(t)
+	m.targetPath = "/repos/devdesk"
+	m.trivyServerInput.SetValue("")
+
+	next, _ := m.startScan()
+
+	if err := next.(Model).err; err != nil {
+		t.Errorf("an empty address was refused: %v", err)
+	}
+}
+
+// The field is persisted on every option toggle, so an all-space value would
+// otherwise be saved and become a failure on some later scan from another view.
+func TestTheSavedOptionsAreTrimmed(t *testing.T) {
+	m := newTestModel(t)
+	m.trivyServerInput.SetValue("  https://trivy:4954  ")
+	m.gitleaksConfigInput.SetValue("  /repos/.gitleaks.toml  ")
+
+	m.saveOptionsToConfig()
+
+	if got := m.config.Scan.TrivyServer; got != "https://trivy:4954" {
+		t.Errorf("trivy_server = %q, want it trimmed", got)
+	}
+	if got := m.config.Scan.GitleaksConfig; got != "/repos/.gitleaks.toml" {
+		t.Errorf("gitleaks_config = %q, want it trimmed", got)
+	}
+
+	m.trivyServerInput.SetValue("   ")
+	m.saveOptionsToConfig()
+	if got := m.config.Scan.TrivyServer; got != "" {
+		t.Errorf("trivy_server = %q, want an all-space value to persist as unset", got)
+	}
+}

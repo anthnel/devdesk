@@ -83,8 +83,11 @@ func (m Model) saveOptionsToConfig() {
 	m.config.Scan.IgnoreUnfixed = m.ignoreUnfixed
 	m.config.Scan.IgnoreEOL = m.ignoreEOL
 	m.config.Scan.GitleaksHistory = m.gitleaksHistory
-	m.config.Scan.TrivyServer = m.trivyServerInput.Value()
-	m.config.Scan.GitleaksConfig = m.gitleaksConfigInput.Value()
+	// Trimmed: surrounding space is not part of an address or a path, and an
+	// all-space value must persist as "unset" rather than as something Trivy
+	// will later refuse.
+	m.config.Scan.TrivyServer = strings.TrimSpace(m.trivyServerInput.Value())
+	m.config.Scan.GitleaksConfig = strings.TrimSpace(m.gitleaksConfigInput.Value())
 	_ = config.Save(m.config)
 }
 

@@ -2,6 +2,7 @@ package scan
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 )
@@ -22,9 +23,55 @@ const containerOutputPath = "/output"
 // to do the work instead.
 const dockerSocketMount = "/var/run/docker.sock:/var/run/docker.sock:ro"
 
+// serverAddr normalises the configured Trivy server address, refusing one Trivy
+// cannot use.
+//
+// Trivy parses this as a URL and fails the entire scan when it cannot. A single
+// stray ":" in the field — which is easy to get, since a bare ":" typed while
+// the field has focus is a character rather than the command line (§3.7) —
+// produces
+//
+//	FATAL flag error: unable to convert flags to options:
+//	invalid server address format: parse ":": missing protocol scheme
+//
+// a message naming neither DevDesk nor the setting it came from. Worse, the
+// field is persisted on every option toggle, so one keystroke breaks every
+// later scan from every view until it is found in the config file.
+//
+// Surrounding space is not an address, so it trims to nothing and client-server
+// mode is simply off. Anything else that is not an absolute URL is refused
+// here, where the message can say where to fix it.
+// ValidateTrivyServer reports whether a Trivy server address can be used, so a
+// form can refuse it while the user is still looking at the field rather than
+// letting the failure surface as a scan warning minutes later.
+func ValidateTrivyServer(server string) error {
+	_, err := serverAddr(server)
+	return err
+}
+
+func serverAddr(server string) (string, error) {
+	trimmed := strings.TrimSpace(server)
+	if trimmed == "" {
+		return "", nil
+	}
+	// Hostname() rather than Host: "http://:" parses with a Host of ":" and no
+	// hostname at all, which is not somewhere a request can be sent.
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+		return "", fmt.Errorf(
+			"trivy server address %q is not a URL (want http://host:port) — fix or clear scan.trivy_server", trimmed)
+	}
+	return trimmed, nil
+}
+
 // trivyArgs builds a vulnerability or license scan.
 func trivyArgs(target string, targetType TargetType, licenseMode bool, source ToolSource,
 	image, server string, ignoreUnfixed, ignoreEOL bool) (toolCmd, error) {
+	server, err := serverAddr(server)
+	if err != nil {
+		return toolCmd{}, err
+	}
+
 	var args []string
 
 	switch targetType {
@@ -58,6 +105,11 @@ func trivyArgs(target string, targetType TargetType, licenseMode bool, source To
 // files rather than a package manifest, so it applies to both target types.
 func trivyMisconfigArgs(target string, targetType TargetType, source ToolSource,
 	image, server string, ignoreEOL bool) (toolCmd, error) {
+	server, err := serverAddr(server)
+	if err != nil {
+		return toolCmd{}, err
+	}
+
 	var args []string
 
 	switch targetType {
@@ -83,6 +135,11 @@ func trivyMisconfigArgs(target string, targetType TargetType, source ToolSource,
 // file will end up at, which is not the path Trivy is given in Docker mode.
 func sbomArgs(target string, targetType TargetType, source ToolSource,
 	image, server, outputDir string) (toolCmd, string, error) {
+	server, err := serverAddr(server)
+	if err != nil {
+		return toolCmd{}, "", err
+	}
+
 	name := sbomFileName(target, targetType)
 
 	var hostPath string
@@ -184,6 +241,13 @@ func wrapTrivy(args []string, target string, targetType TargetType, source ToolS
 func trivyImage(image string) string {
 	if image == "" {
 		return DefaultTrivyImage
+	}
+	return image
+}
+
+func gitleaksImage(image string) string {
+	if image == "" {
+		return DefaultGitleaksImage
 	}
 	return image
 }

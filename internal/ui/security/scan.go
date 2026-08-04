@@ -20,6 +20,13 @@ func (m Model) startScan() (tea.Model, tea.Cmd) {
 		m.err = fmt.Errorf("target path is required")
 		return m, nil
 	}
+	// Trivy fails the whole scan on an address it cannot parse, and the field is
+	// one stray ":" away from holding one. Refusing here says so while the user
+	// is still looking at the field.
+	if err := scan.ValidateTrivyServer(m.trivyServerInput.Value()); err != nil {
+		m.err = err
+		return m, nil
+	}
 
 	opts := scan.ScanOptions{
 		EnableVuln:      m.enableVuln,

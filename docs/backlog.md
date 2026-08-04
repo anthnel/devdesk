@@ -11,10 +11,10 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Five open.** Three are in the registry browser and were found while reviewing
-the design for §3.8 rather than by a test; two more came out of the phase 6
-coverage pass. See [§1.3](#13-open). D1–D11 and D15–D19 are fixed; §1.1 records
-what each was and why the chosen fix was the right one.
+**Four open.** Three are in the registry browser and were found while reviewing
+the design for §3.8 rather than by a test; the fourth is dead code found by the
+phase 6 coverage pass. See [§1.3](#13-open). D1–D11, D15–D20 and D22 are fixed;
+§1.1 records what each was and why the chosen fix was the right one.
 
 The five that stayed open longest — D4, D8, D9, D10 and D11 — were parked not
 because they were hard but because each altered something the user already saw,
@@ -326,6 +326,103 @@ is about. Width 80 is now part of `TestEveryHeaderRowFillsTheWidth`, and a
 second test checks no row ends inside an escape sequence, which is the failure a
 naive slice would have produced.
 
+**D20 — an image scanned with no scanner installed was reported as clean.**
+Found by the phase 6 coverage pass, and the most serious defect this repository
+has recorded: a security feature that says an image is fine when nothing looked
+at it.
+
+`Scanner.Scan` **skips** a stage whose tool is unavailable rather than failing
+it (`if s.options.EnableVuln && s.deps.TrivyAvailable`), so with no trivy the
+result carried **no errors and no findings**. `scanOneImageCmd` reports a
+failure only when there are errors *and* no findings, so the image came back
+with zero counts, those counts were written to the scan cache with a fresh
+timestamp, and Rule 126 kept them until an explicit rescan. Enter then opened an
+empty report.
+
+Nothing upstream caught it: `internal/ui/oci_resources` performs no dependency
+check at all, unlike the security view, which gates its scan on
+`canStart := m.deps.TrivyAvailable || m.deps.GitleaksAvailable`
+(`security/view.go:147`). Every entry point was affected — `ctrl+s`, `A`,
+`ctrl+a` and the delegated `LaunchBatchScanMsg` all reach the same
+`batchScanCmd`.
+
+**Fix:** `Scan` now records a missing tool as an error, in
+`missingToolErrors`, before any stage starts. That is one change in the package
+where the knowledge lives and it closes the defect for every caller — the OCI
+images view needed no change at all, because `scanOneImageCmd`'s existing
+"errors and no findings" condition then reports the failure by itself. Adding a
+dependency check to the view was considered and dropped: with no scanner the
+scan returns instantly, so a pre-flight guard buys nothing a clear error does
+not.
+
+The precision that makes it usable is in **what is not reported**. A stage
+skipped because it does not apply to the target type is not missing anything —
+gitleaks scans a working tree, so a secret scan of an image was never going to
+run — and reporting those would train the user to ignore the warnings panel.
+Only stages that would otherwise have run are named, and each message says what
+to install (`install trivy or pull aquasec/trivy`).
+
+This reversed a decision the tests had recorded.
+`TestAStageWithoutItsToolIsSkippedSilently` asserted that a missing tool was
+*not* an error, on the grounds that "the dashboard already says the tool is
+absent". That reasoning does not survive contact with the result panel, where
+"no secrets found" and "nothing looked for secrets" are the same screen. It is
+now `TestAStageWithoutItsToolIsReportedRatherThanSkippedSilently`, and the
+partial case is reported for the same reason as the total one.
+
+Pinned by `TestAScanThatCouldRunNoScannerIsNotACleanScan` and, in the view,
+`TestAScanWithNoScannerInstalledIsReportedAsAFailure` — the inverted test from
+phase 6, turned around, now also asserting that **nothing reaches the cache**.
+
+**D22 — one stray `:` broke every scan, from every view, permanently.** Reported
+from a real run, as a Trivy failure nobody could trace back to DevDesk:
+
+```
+trivy vuln
+exit status 1: FATAL Fatal error flag error: unable to convert flags to
+options: invalid server address format: parse ":": missing protocol scheme
+```
+
+The Trivy server field held `":"`. Nothing validated it: the value went straight
+from `m.trivyServerInput.Value()` into `--server` and into `config.yaml`.
+
+Three things compounded, and the middle one is the reason this was worth
+recording rather than just fixing:
+
+- **A `:` typed into that field is a character, not the command line.** That is
+  correct and deliberate — §3.7 records that the field's placeholder is
+  `https://trivy-server:4954`, so it *has* to accept two colons to hold a valid
+  value, which is precisely why `alt+:` exists. Pinned by
+  `TestAColonTypedIntoTheTrivyServerFieldIsACharacter`, so nobody "fixes" the
+  wrong end of this.
+- **The field is persisted on every option toggle** (`saveOptionsToConfig` calls
+  `config.Save`), so one keystroke reached the config file.
+- **Every view reads it from there** — `oci_resources/images.go:87` and
+  `workspaces/actions.go:158` both take `config.Scan.TrivyServer` — so a field
+  the user only ever saw in the security view broke image scans and workspace
+  scans too, until the value was found by reading the YAML.
+
+**Fix**, in the three places that each own part of it:
+
+- `serverAddr` in `internal/scan/trivy_args.go` trims the value, treats
+  all-space as *unset*, and refuses anything that is not an absolute URL —
+  checking `Hostname()` rather than `Host`, because `http://:` parses with a
+  host of `":"` and no hostname. All three builders (`trivyArgs`,
+  `trivyMisconfigArgs`, `sbomArgs`) go through it, so no stage can be the one
+  that was not checked.
+- The message names the setting rather than the parser:
+  `trivy server address ":" is not a URL (want http://host:port) — fix or clear
+  scan.trivy_server`. That is what makes it actionable from the OCI images view,
+  where there is no field to look at.
+- The security form refuses to start a scan while the address is unusable
+  (`scan.ValidateTrivyServer`, sharing the builders' rule so the two cannot
+  disagree), and trims both the server and the Gitleaks config path before
+  persisting them.
+
+Deliberately not done: silently dropping an unusable address, or rewriting the
+config on load. The user asked for client-server mode; running locally instead
+without saying so is the same class of quiet substitution as D20.
+
 ### 1.2 The five parked defects
 
 D4, D8, D9, D10 and D11 were each recorded rather than fixed on discovery,
@@ -383,9 +480,11 @@ D12–D14 sit in `internal/ui/oci_resources` and are cheap on their own, but
 work rather than ahead of it, and write each one's test inverted first, per the
 pattern above. D14's inverted test now exists.
 
-D20 and D21 also sit in that package but are **independent of §3.8** and should
-not wait for it. D20 is the one to do first: it is the only open defect that
-misreports a security result.
+**D21** also sits in that package but is **independent of §3.8** and should not
+wait for it. It is three lines of dead code with its invariant already pinned,
+so it belongs in whatever next touches `connectivity_form.go`.
+
+D20 and D22 are fixed — see §1.1.
 
 D15–D19 were found by the phase 5 pass, were unrelated to §3.8, and are fixed —
 see §1.1. Each had been recorded with an inverted test asserting the broken
@@ -433,43 +532,6 @@ gains a group level at the same time.
 Pinned inverted by `TestAGroupMembersFilterLabelIsStillARawURL`, which asserts
 the raw URL today and asserts the configured registry's alias alongside it as
 the contrast.
-
-**D20 — an image scanned with no scanner installed is reported as clean.** Found
-by the phase 6 pass, and the most serious of the three defects it turned up: a
-security feature that says an image is fine when nothing looked at it.
-
-`Scanner.Scan` skips a stage whose tool is unavailable rather than failing it
-(`scanner.go:303`, `if s.options.EnableVuln && s.deps.TrivyAvailable`), so with
-no trivy the result carries **no errors and no findings**. `scanOneImageCmd`
-reports a failure only when there are errors *and* no findings
-(`commands.go:111`), so the image comes back with zero counts, those counts are
-written to the scan cache with a fresh timestamp, and Rule 126 keeps them until
-an explicit rescan. Enter then opens an empty report.
-
-Nothing upstream catches it: **`internal/ui/oci_resources` performs no
-dependency check at all**, unlike the security view, which gates its scan on
-`canStart := m.deps.TrivyAvailable || m.deps.GitleaksAvailable`
-(`security/view.go:147`). Every entry point is affected — `ctrl+s`, `A`,
-`ctrl+a` and the delegated `LaunchBatchScanMsg` all reach the same
-`batchScanCmd`.
-
-Two candidate fixes, and the choice is what makes this worth recording rather
-than fixing on the spot:
-
-- **In `internal/scan`** — report "no scanner available" when every enabled
-  stage was skipped for want of a tool. It fixes every caller at once and is
-  where the knowledge lives, but it changes shared semantics; the security view
-  guards upstream, so it would not regress there.
-- **In the view** — resolve dependencies as the security view does and refuse
-  the scan with a footer message (Rule 128). Narrower, and it tells the user
-  *before* they wait rather than after.
-
-The second is the better user-facing answer and the first is the better
-guarantee; doing both is defensible.
-
-Pinned inverted by `TestAScanWithNoScannerInstalledIsWronglyReportedAsClean`,
-which asserts the empty counts *and* that they reach the disk. That test is what
-fails when D20 is fixed.
 
 **D21 — an unreachable focus clamp in `ConnectivityTestForm`.** Dead code, not a
 user-visible defect, and the same shape as D5 in `CreationForm`.
