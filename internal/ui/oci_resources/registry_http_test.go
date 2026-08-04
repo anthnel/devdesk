@@ -361,7 +361,7 @@ func TestAGroupsMembersAreDetected(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	reg := config.RegistryItem{URL: srv.URL + "/repository/docker-group", Alias: "grp"}
+	reg := config.RegistryItem{URL: srv.URL + "/repository/docker-group", Alias: "grp", Provider: config.ProviderNexus}
 	msg := run(t, detectRegistryGroupCmd(reg, "")).(RegistryGroupDetectedMsg)
 
 	if msg.Err != nil {
@@ -388,7 +388,7 @@ func TestARegistryThatIsNotAGroupYieldsNoMembers(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	reg := config.RegistryItem{URL: srv.URL + "/repository/docker-hosted"}
+	reg := config.RegistryItem{URL: srv.URL + "/repository/docker-hosted", Provider: config.ProviderNexus}
 	msg := run(t, detectRegistryGroupCmd(reg, "")).(RegistryGroupDetectedMsg)
 
 	if msg.Err != nil || msg.Members != nil {
@@ -423,6 +423,7 @@ func TestManagementCredentialsAreLookedUpByHostAlone(t *testing.T) {
 		URL:           "registry.example.com/repository/docker-group",
 		ManagementURL: srv.URL + "/repository/docker-group",
 		AuthMode:      config.AuthCredentials,
+		Provider:      config.ProviderNexus,
 	}
 	msg := run(t, detectRegistryGroupCmd(reg, "")).(RegistryGroupDetectedMsg)
 
@@ -468,6 +469,7 @@ func TestAnAnonymousRegistryIsProbedWithoutCredentials(t *testing.T) {
 		URL:           srv.URL + "/repository/docker-group",
 		ManagementURL: srv.URL + "/repository/docker-group",
 		AuthMode:      config.AuthAnonymous,
+		Provider:      config.ProviderNexus,
 	}
 	msg := run(t, detectRegistryGroupCmd(reg, "")).(RegistryGroupDetectedMsg)
 
@@ -496,6 +498,7 @@ func TestAnAnonymousRegistrySendsNoUsernameEither(t *testing.T) {
 		URL:      srv.URL + "/repository/docker-group",
 		Username: "configured",
 		AuthMode: config.AuthAnonymous,
+		Provider: config.ProviderNexus,
 	}
 	run(t, detectRegistryGroupCmd(reg, ""))
 
@@ -521,7 +524,7 @@ func TestAnExplicitPasswordIsNotOverriddenByStoredCredentials(t *testing.T) {
 		},
 	})
 
-	reg := config.RegistryItem{URL: srv.URL + "/repository/docker-group", Username: "typed"}
+	reg := config.RegistryItem{URL: srv.URL + "/repository/docker-group", Username: "typed", Provider: config.ProviderNexus}
 	run(t, detectRegistryGroupCmd(reg, "typed-pass"))
 
 	if gotPass != "typed-pass" {

@@ -199,8 +199,18 @@ place that decides a slug. Two rules hold it together:
   rewritten, because it is a link target; a duplicate, or a `parent` naming no
   configured group, makes `LoadContext` fail rather than load a config the
   application cannot honour.
-- An entry from before `kind` existed that carries a `management_url` migrates
-  to `kind: group`, `provider: nexus` — that field *was* the group marker.
+- An entry from before `kind` existed that carries a `management_url`, **or**
+  whose URL contains `/repository/`, migrates to `kind: group`,
+  `provider: nexus` — those were the two things `NexusDetector.CanHandle` used
+  to accept. A kind the file states is never second-guessed.
+
+`provider` is what picks the detector in `internal/registrymgr`: `DetectGroup`
+matches `Detector.Provider()` against the declared value and falls back to
+`GenericDetector`, which discovers nothing. A registry is probed because it was
+declared as something, never because its URL looked like it — so registration
+order decides nothing, and a plain registry costs no HTTP call. The provider
+names are stated in both packages on purpose; `TestTheProviderVocabularyMatchesTheConfig`
+keeps them in step.
 
 `RegistryForm` is what keeps the file loadable: it refuses a duplicate or
 badly-formed slug instead of correcting it, and drops the group-only fields when

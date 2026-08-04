@@ -202,10 +202,7 @@ func checkAuthModes(items []RegistryItem) error {
 
 // applyRegistryKind fills in kind and provider for an entry that predates them.
 func applyRegistryKind(item *RegistryItem) {
-	// A management URL used to be the only way to mark a group: NexusDetector
-	// keyed on exactly that, so an entry carrying one was a Nexus group in all
-	// but name, and migrating it to anything else would change its behaviour.
-	legacyGroup := item.Kind == "" && strings.TrimSpace(item.ManagementURL) != ""
+	legacyGroup := item.Kind == "" && looksLikeLegacyNexus(*item)
 
 	if item.Kind == "" {
 		item.Kind = KindRegistry
@@ -219,6 +216,19 @@ func applyRegistryKind(item *RegistryItem) {
 			item.Provider = ProviderNexus
 		}
 	}
+}
+
+// looksLikeLegacyNexus reports whether an entry written before `kind` existed
+// would have been probed as a Nexus group.
+//
+// NexusDetector.CanHandle used to return true for either of these, so both are
+// migrated into the declaration that now says so. The path test over-declares:
+// a Nexus *hosted* repository also lives under /repository/ and is not a group.
+// That is deliberate — detection answers "not a group" for it exactly as it does
+// today, and `kind: group` is visible in the table and one keystroke from being
+// corrected, whereas quietly dropping a real group's discovery would not be.
+func looksLikeLegacyNexus(item RegistryItem) bool {
+	return strings.TrimSpace(item.ManagementURL) != "" || strings.Contains(item.URL, "/repository/")
 }
 
 // declaredSlugs collects the slugs the file states, rejecting a duplicate.

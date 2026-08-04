@@ -612,13 +612,15 @@ What is deliberately left uncovered in `oci_resources`, at 73.0 %: the
 launch-form renderers and the remaining `keys.go` / `view.go` branches. Those
 are layout, and pinning them means pinning pixels.
 
-The packages still below target are `internal/registrymgr` (18.5 %),
-`internal/oci` (37.3 %), `internal/status` (64.8 %), `internal/docker` (65.4 %)
-and `internal/cache` (71.3 %) — 470 uncovered statements between them, none of
-which the 80 % figure needs. Two are worth doing on their own merits rather than
-for the number: `registrymgr`, because §3.8 step 4 rewrites `CanHandle`, and
-`oci`, whose gap is the registry HTTP paths that need a manifest-plus-gzipped-
-layer fixture rather than the single-response stubs used so far.
+The packages still below target are `internal/registrymgr` (18.5 % at the time,
+**30.6 %** since §3.8 step 4 covered the dispatch), `internal/oci` (37.3 %),
+`internal/status` (64.8 %), `internal/docker` (65.4 %) and `internal/cache`
+(71.3 %) — none of which the 80 % figure needs. `oci` is the one still worth
+doing on its own merits: its gap is the registry HTTP paths that need a
+manifest-plus-gzipped-layer fixture rather than the single-response stubs used
+so far. What remains uncovered in `registrymgr` is the Nexus REST client, which
+*is* exercised — from `oci_resources`, against `httptest`, where the command
+that calls it lives; per-package coverage just does not count it.
 
 Phase 1 progress:
 
@@ -1468,8 +1470,8 @@ rather than deleting them.
    meaning.~~ — **done**, see below.
 3. Add `internal/cache/registrygroups.go` alongside the two existing caches;
    move discovery behind it and give the Registries tab an explicit refresh.
-4. Turn `CanHandle` into a match on the declared `provider`, with a generic
-   detector last.
+4. ~~Turn `CanHandle` into a match on the declared `provider`, with a generic
+   detector last.~~ — **done**, see below.
 5. Drill-down in the Registries tab, with the `Members` column and breadcrumb.
 6. Rework the browser to read config plus cache: no resolving state (D13),
    group-level checkboxes with a tri-state, a group level in the result filter
@@ -1545,6 +1547,40 @@ still waits for step 6.
 
 The Registries tab's `Auth` column now shows the mode itself rather than
 yes/no, which is what made it wide enough to be worth reading.
+
+#### Step 4 as built
+
+`CanHandle(info) bool` is gone. `Detector` now states `Provider() string`, and
+`registrymgr.DetectGroup` dispatches on `info.Provider`, falling back to a new
+`GenericDetector` — which discovers nothing, because there is no manager to ask.
+Registration order stopped deciding anything, and there is a test that swaps the
+order to prove it.
+
+Two consequences worth stating:
+
+- **A Nexus-shaped URL is no longer probed as Nexus.** That was the point, but
+  it would have silently stopped discovering groups that are being discovered
+  today. So the step-1 migration was extended: an entry written before `kind`
+  existed whose URL contains `/repository/` now migrates to `kind: group`,
+  `provider: nexus`, exactly as one with a `management_url` already did. It
+  over-declares — a Nexus *hosted* repository lives under `/repository/` too and
+  is not a group — and that is the deliberate half: detection answers "not a
+  group" for it exactly as it does today, `kind: group` is visible in the table
+  and one keystroke from being corrected, whereas dropping a real group's
+  discovery would not be. A kind the file *states* is never second-guessed.
+- **Every registry no longer costs an HTTP probe.** A plain registry now reaches
+  the generic detector and returns immediately, which takes a bite out of D13
+  ahead of step 3 removing the resolving state entirely.
+
+The provider names are stated in **both** `internal/config` and
+`internal/registrymgr`, deliberately: config owns what a file may say, this
+package owns what can be detected, and neither should import the other to say
+so. `TestTheProviderVocabularyMatchesTheConfig` is what stops them drifting —
+including a check that config offers no provider a detector cannot be selected
+for.
+
+`registrymgr` went from 18.5 % to 30.6 %; the rest of it is the Nexus REST
+client, covered from `oci_resources` against `httptest`.
 
 ### 3.9 Every secret goes to a host secret manager, and radio buttons go away — **done**
 
