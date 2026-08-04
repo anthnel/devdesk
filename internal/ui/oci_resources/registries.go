@@ -34,7 +34,7 @@ func (m Model) editSelectedRegistry() (tea.Model, tea.Cmd) {
 	if idx < 0 {
 		return m, nil
 	}
-	m.registryForm = NewRegistryEditForm(idx, m.registries[idx], m.width-2)
+	m.registryForm = NewRegistryEditForm(idx, m.registries[idx], m.registries, m.width-2)
 	return m, nil
 }
 
@@ -51,7 +51,7 @@ func (m Model) loginSelectedRegistry() (tea.Model, tea.Cmd) {
 		m.errorMsg = "Auth not enabled for this registry"
 		return m, clearInfoMsgCmd()
 	}
-	m.registryForm = NewRegistryEditForm(idx, reg, m.width-2)
+	m.registryForm = NewRegistryEditForm(idx, reg, m.registries, m.width-2)
 	return m, nil
 }
 

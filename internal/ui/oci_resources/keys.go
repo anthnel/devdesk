@@ -168,7 +168,7 @@ func (m Model) handleVolumesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleRegistriesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+n":
-		m.registryForm = NewRegistryForm(m.width - 2)
+		m.registryForm = NewRegistryForm(m.registries, m.width-2)
 		return m, nil
 	case "e":
 		return m.editSelectedRegistry()

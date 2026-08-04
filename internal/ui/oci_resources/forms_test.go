@@ -93,13 +93,13 @@ func TestResourceFormDefaultsItsDriver(t *testing.T) {
 // A new registry submits with index -1; editing carries the index back so the
 // model replaces rather than appends.
 func TestRegistryFormDistinguishesNewFromEdit(t *testing.T) {
-	fresh := NewRegistryForm(120)
+	fresh := NewRegistryForm(nil, 120)
 	if fresh.index != -1 {
 		t.Errorf("a new registry form has index %d, want -1", fresh.index)
 	}
 
 	existing := config.RegistryItem{URL: "registry.example.com", Username: "anthnel", Alias: "prod", AuthEnabled: true}
-	edit := NewRegistryEditForm(3, existing, 120)
+	edit := NewRegistryEditForm(3, existing, []config.RegistryItem{existing}, 120)
 	if edit.index != 3 {
 		t.Errorf("an edit form has index %d, want the row it came from", edit.index)
 	}
@@ -111,7 +111,7 @@ func TestRegistryFormDistinguishesNewFromEdit(t *testing.T) {
 // The password never reaches the config file — it travels alongside for the
 // docker login and is dropped after.
 func TestRegistryFormKeepsThePasswordOutOfTheItem(t *testing.T) {
-	f := NewRegistryEditForm(0, config.RegistryItem{URL: "registry.example.com", AuthEnabled: true}, 120)
+	f := NewRegistryEditForm(0, config.RegistryItem{URL: "registry.example.com", AuthEnabled: true}, nil, 120)
 
 	msg := RegistryFormSubmitMsg{
 		Index:    0,
@@ -128,10 +128,252 @@ func TestRegistryFormKeepsThePasswordOutOfTheItem(t *testing.T) {
 }
 
 func TestRegistryFormCancels(t *testing.T) {
-	_, cmd := NewRegistryForm(120).Update(testutil.Key("esc"))
+	_, cmd := NewRegistryForm(nil, 120).Update(testutil.Key("esc"))
 
 	if _, ok := testutil.MsgOf[RegistryFormCancelMsg](cmd); !ok {
 		t.Errorf("esc produced %T, want a cancel", testutil.Msg(cmd))
+	}
+}
+
+// ── Registry: slug, kind and provider (§3.8 step 1) ──────────────────────────
+
+// typeInto focuses a field and types into it.
+func typeIntoField(f *RegistryForm, field int, text string) *RegistryForm {
+	f.focusedField = field
+	f.updateFocus()
+	for _, msg := range testutil.Type(text) {
+		f, _ = f.Update(msg)
+	}
+	return f
+}
+
+// saveRegistryForm presses Save and returns the item, or the form's error when
+// the form refused to submit.
+func saveRegistryForm(t *testing.T, f *RegistryForm) (config.RegistryItem, string) {
+	t.Helper()
+	f.focusedField = regFieldSubmit
+	f, cmd := f.Update(testutil.Key("enter"))
+	msg, ok := testutil.MsgOf[RegistryFormSubmitMsg](cmd)
+	if !ok {
+		if f.err == "" {
+			t.Fatalf("the form neither submitted nor reported why: %T", testutil.Msg(cmd))
+		}
+		return config.RegistryItem{}, f.err
+	}
+	return msg.Item, ""
+}
+
+// The slug is what a group's members point at, so no entry may leave the form
+// without one — and nobody should have to type it.
+func TestARegistrySavedWithoutASlugGetsTheDerivedOne(t *testing.T) {
+	f := NewRegistryForm(nil, 120)
+	f = typeIntoField(f, regFieldURL, "https://nexus.example.com")
+
+	item, formErr := saveRegistryForm(t, f)
+
+	if formErr != "" {
+		t.Fatalf("the form refused a registry with no slug typed: %s", formErr)
+	}
+	if item.Slug != "nexus-example-com" {
+		t.Errorf("Slug = %q, want it derived from the host", item.Slug)
+	}
+	if item.Kind != config.KindRegistry {
+		t.Errorf("Kind = %q, want %q by default", item.Kind, config.KindRegistry)
+	}
+}
+
+// A typed slug is refused rather than corrected: it is a link target, and
+// silently changing it is how a group loses its members.
+func TestASlugThatIsNotOneIsRefusedRatherThanRewritten(t *testing.T) {
+	f := NewRegistryForm(nil, 120)
+	f = typeIntoField(f, regFieldURL, "https://nexus.example.com")
+	f = typeIntoField(f, regFieldSlug, "Prod Registry")
+
+	item, formErr := saveRegistryForm(t, f)
+
+	if formErr == "" {
+		t.Fatalf("%q was accepted as a slug, and would have been rewritten at the next load", item.Slug)
+	}
+	if !strings.Contains(formErr, "Prod Registry") {
+		t.Errorf("err = %q, want it to quote what was typed", formErr)
+	}
+}
+
+// The load refuses a duplicate slug, so accepting one here would write a config
+// the application then cannot open.
+func TestASlugAlreadyInUseIsRefused(t *testing.T) {
+	existing := []config.RegistryItem{{URL: "https://a.example.com", Slug: "prod"}}
+	f := NewRegistryForm(existing, 120)
+	f = typeIntoField(f, regFieldURL, "https://b.example.com")
+	f = typeIntoField(f, regFieldSlug, "prod")
+
+	_, formErr := saveRegistryForm(t, f)
+
+	if formErr == "" {
+		t.Fatal("a slug already in use was accepted")
+	}
+	if !strings.Contains(formErr, "prod") {
+		t.Errorf("err = %q, want it to name the slug", formErr)
+	}
+}
+
+// Two registries aliased the same are ordinary. A slug DevDesk derives is its
+// own doing, so it steps aside instead of reporting a clash the user did not make.
+func TestADerivedSlugStepsAsideForOneAlreadyInUse(t *testing.T) {
+	existing := []config.RegistryItem{{URL: "https://a.example.com", Alias: "prod", Slug: "prod"}}
+	f := NewRegistryForm(existing, 120)
+	f = typeIntoField(f, regFieldURL, "https://b.example.com")
+	f = typeIntoField(f, regFieldAlias, "prod")
+
+	item, formErr := saveRegistryForm(t, f)
+
+	if formErr != "" {
+		t.Fatalf("a second registry aliased 'prod' was refused: %s", formErr)
+	}
+	if item.Slug != "prod-2" {
+		t.Errorf("Slug = %q, want it to step aside from the one in use", item.Slug)
+	}
+}
+
+// Editing an entry must not collide with itself, or no entry could ever be saved
+// twice.
+func TestEditingAnEntryKeepsItsOwnSlug(t *testing.T) {
+	existing := []config.RegistryItem{
+		{URL: "https://a.example.com", Slug: "prod"},
+		{URL: "https://b.example.com", Slug: "dev"},
+	}
+	f := NewRegistryEditForm(0, existing[0], existing, 120)
+
+	item, formErr := saveRegistryForm(t, f)
+
+	if formErr != "" {
+		t.Fatalf("re-saving an unchanged entry was refused: %s", formErr)
+	}
+	if item.Slug != "prod" {
+		t.Errorf("Slug = %q, want the entry to keep its own", item.Slug)
+	}
+}
+
+// The management URL and the provider describe where a group's members come
+// from. On a plain registry there are none, so the fields are not there to walk
+// through either.
+func TestGroupOnlyFieldsAreSkippedForAPlainRegistry(t *testing.T) {
+	f := NewRegistryForm(nil, 120)
+	f.focusedField = regFieldAuth
+
+	f, _ = f.Update(testutil.Key("down"))
+
+	if f.focusedField != regFieldSubmit {
+		t.Errorf("down from Auth reached field %d, want Save (%d) — the group fields are not there",
+			f.focusedField, regFieldSubmit)
+	}
+	if view := f.View(); strings.Contains(view, "Management URL") || strings.Contains(view, "Provider") {
+		t.Errorf("a plain registry renders the group-only fields:\n%s", view)
+	}
+
+	// Backwards too, or Save would be a one-way door onto a field that is gone.
+	f.focusedField = regFieldSubmit
+	f, _ = f.Update(testutil.Key("up"))
+	if f.focusedField != regFieldAuth {
+		t.Errorf("up from Save reached field %d, want Auth (%d)", f.focusedField, regFieldAuth)
+	}
+}
+
+// On a group they are there, and both directions have to walk through them.
+func TestAGroupWalksThroughItsOwnFields(t *testing.T) {
+	f := NewRegistryForm(nil, 120)
+	f.focusedField = regFieldKind
+	f, _ = f.Update(testutil.Key("right")) // registry -> group
+
+	f.focusedField = regFieldAuth
+	f, _ = f.Update(testutil.Key("down"))
+	if f.focusedField != regFieldMgmtURL {
+		t.Errorf("down from Auth reached field %d, want the management URL (%d)", f.focusedField, regFieldMgmtURL)
+	}
+
+	f.focusedField = regFieldSubmit
+	f, _ = f.Update(testutil.Key("up"))
+	if f.focusedField != regFieldProvider {
+		t.Errorf("up from Save reached field %d, want the provider (%d)", f.focusedField, regFieldProvider)
+	}
+}
+
+// Cycling the kind is what makes those fields appear, and the provider is what
+// decides which detector will handle the group.
+func TestAGroupCarriesItsProviderAndManagementURL(t *testing.T) {
+	f := NewRegistryForm(nil, 120)
+	f = typeIntoField(f, regFieldURL, "https://nexus.example.com/repository/docker-group")
+
+	f.focusedField = regFieldKind
+	f, _ = f.Update(testutil.Key("right"))
+	if !f.isGroup() {
+		t.Fatalf("right on Kind gave %q, want a group", config.Kinds()[f.kindIdx])
+	}
+
+	f = typeIntoField(f, regFieldMgmtURL, "https://nexus.example.com/service/rest")
+	f.focusedField = regFieldProvider
+	f, _ = f.Update(testutil.Key("right")) // generic -> nexus
+
+	item, formErr := saveRegistryForm(t, f)
+
+	if formErr != "" {
+		t.Fatalf("the group was refused: %s", formErr)
+	}
+	if item.Kind != config.KindGroup {
+		t.Errorf("Kind = %q, want %q", item.Kind, config.KindGroup)
+	}
+	if item.Provider != config.ProviderNexus {
+		t.Errorf("Provider = %q, want %q", item.Provider, config.ProviderNexus)
+	}
+	if item.ManagementURL != "https://nexus.example.com/service/rest" {
+		t.Errorf("ManagementURL = %q, want what was typed", item.ManagementURL)
+	}
+}
+
+// A management URL left behind by a group the user cycled away from would keep
+// pointing the discovery at a repository manager for an entry that declares it
+// has none.
+func TestCyclingBackToARegistryDropsTheGroupOnlyValues(t *testing.T) {
+	f := NewRegistryForm(nil, 120)
+	f = typeIntoField(f, regFieldURL, "https://nexus.example.com")
+
+	f.focusedField = regFieldKind
+	f, _ = f.Update(testutil.Key("right")) // registry -> group
+	f = typeIntoField(f, regFieldMgmtURL, "https://nexus.example.com/service/rest")
+	f.focusedField = regFieldKind
+	f, _ = f.Update(testutil.Key("left")) // group -> registry
+
+	item, formErr := saveRegistryForm(t, f)
+
+	if formErr != "" {
+		t.Fatalf("the registry was refused: %s", formErr)
+	}
+	if item.ManagementURL != "" {
+		t.Errorf("ManagementURL = %q on a plain registry, want it dropped", item.ManagementURL)
+	}
+	if item.Provider != "" {
+		t.Errorf("Provider = %q on a plain registry, want it empty", item.Provider)
+	}
+}
+
+// An edit form opens on the entry's own kind, or a group would silently become a
+// registry the first time it is saved.
+func TestAnEditFormOpensOnTheEntrysKindAndProvider(t *testing.T) {
+	item := config.RegistryItem{
+		URL:      "https://nexus.example.com",
+		Slug:     "nexus",
+		Kind:     config.KindGroup,
+		Provider: config.ProviderNexus,
+	}
+	f := NewRegistryEditForm(0, item, []config.RegistryItem{item}, 120)
+
+	saved, formErr := saveRegistryForm(t, f)
+
+	if formErr != "" {
+		t.Fatalf("re-saving a group was refused: %s", formErr)
+	}
+	if saved.Kind != config.KindGroup || saved.Provider != config.ProviderNexus {
+		t.Errorf("saved = %+v, want the group and provider it opened on", saved)
 	}
 }
 

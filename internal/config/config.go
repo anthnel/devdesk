@@ -66,6 +66,23 @@ type GitLabPullConfig struct {
 // RegistryItem represents a single Docker/OCI registry with optional alias support.
 // The password is NOT stored here; it is persisted via `docker login` / system credential helper.
 type RegistryItem struct {
+	// Slug identifies the entry inside DevDesk: it is what a member points at
+	// and what the group cache is keyed on. Everything Docker-facing stays keyed
+	// on the URL, because that is what Docker itself is keyed on — which is
+	// exactly why the URL is the wrong thing to hang a parent link on, editing
+	// one would silently orphan the group's members (§3.8, decision 1).
+	// Filled in at load for a config that predates it; see registries.go.
+	Slug string `yaml:"slug"`
+	// Kind is "registry" or "group". A group fronts several registries and is
+	// pullable itself, so both kinds share this one list (§3.8, decision A).
+	Kind string `yaml:"kind,omitempty"`
+	// Parent is the slug of the group this entry belongs to. Config entries are
+	// what the user declares and normally carry none; it is discovered members,
+	// which live in the group cache, that point back at their group.
+	Parent string `yaml:"parent,omitempty"`
+	// Provider is the repository manager serving a group — nexus, harbor,
+	// artifactory, gitlab or generic. Declared rather than sniffed from the URL.
+	Provider    string `yaml:"provider,omitempty"`
 	URL         string `yaml:"url"`
 	Username    string `yaml:"username"`
 	Alias       string `yaml:"alias"`
@@ -159,8 +176,10 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// applyDefaults applique les valeurs par défaut à une configuration
-func applyDefaults(cfg *Config) {
+// applyDefaults applique les valeurs par défaut à une configuration.
+// Retourne une erreur quand le fichier ne peut pas être normalisé — aujourd'hui
+// uniquement pour les registres (slug dupliqué, groupe parent absent).
+func applyDefaults(cfg *Config) error {
 	homeDir, _ := os.UserHomeDir()
 
 	if cfg.App.Theme == "" {
@@ -234,6 +253,10 @@ func applyDefaults(cfg *Config) {
 		cfg.Scan.EnableVuln = true
 		cfg.Scan.EnableSecret = true
 	}
+
+	// Last, so that the registry migrated from the legacy single-registry keys
+	// above gets a slug like every other one.
+	return normalizeRegistries(cfg.Registry.Registries)
 }
 
 // Default retourne la configuration par défaut
@@ -429,7 +452,9 @@ func LoadContext(contextName string) (*Config, error) {
 	}
 
 	// Appliquer les valeurs par défaut
-	applyDefaults(&cfg)
+	if err := applyDefaults(&cfg); err != nil {
+		return nil, fmt.Errorf("invalid context '%s': %w", contextName, err)
+	}
 
 	// Étendre les chemins (tildes)
 	if home, err := os.UserHomeDir(); err == nil {

@@ -1457,8 +1457,8 @@ rather than deleting them.
 
 #### Sketch of the work
 
-1. Add `slug`, `kind`, `parent` and `provider` to `RegistryItem`; migrate
-   existing configs and enforce slug uniqueness at load.
+1. ~~Add `slug`, `kind`, `parent` and `provider` to `RegistryItem`; migrate
+   existing configs and enforce slug uniqueness at load.~~ — **done**, see below.
 2. Replace `AuthEnabled` with `AuthMode`, and make **both** registry-facing
    paths honour it — this is D12, and it is the step that gives `anonymous`
    meaning.
@@ -1473,6 +1473,40 @@ rather than deleting them.
 
 Steps 1–4 are worth doing on their own — they are what make the group model
 expressible — and step 6 is the one that needs step 3 finished first.
+
+#### Step 1 as built
+
+`RegistryItem` carries `slug`, `kind`, `parent` and `provider`;
+`internal/config/registries.go` holds the alphabet, the derivation and the
+normalization, and `applyDefaults` now returns an error so `LoadContext` can
+refuse a file it cannot honour.
+
+Three decisions were made while building it, none of them contradicting the ones
+above:
+
+- **Derived slugs are de-duplicated; declared ones are not.** Two registries
+  aliased `prod` is ordinary, and the slug DevDesk derives for the second is
+  DevDesk's own doing, so it steps aside to `prod-2`. A slug the *file* declares
+  is a link target: renaming it to resolve a clash would move one group's members
+  under another, so a duplicate is an error at load and the form refuses to write
+  one. The form rejects a badly-formed slug rather than correcting it, for the
+  same reason.
+- **A dangling `parent` is an error too.** It can only come from a hand-edit, and
+  keeping it would leave an entry nothing can reach. This is what gives `parent`
+  a meaning before step 3 puts discovered members in the cache.
+- **A pre-`kind` entry with a `management_url` migrates to `kind: group`,
+  `provider: nexus`.** That field *was* the group marker — `NexusDetector.CanHandle`
+  keyed on exactly it — so anything else would change what those entries do when
+  step 4 turns `CanHandle` into a match on `provider`.
+
+The form gained Kind and Provider as cycle fields (Rule 132) and a Slug field
+whose placeholder says it is optional. Management URL and Provider are group-only:
+they are skipped in both navigation directions and not rendered at all for a
+plain registry, and cycling back to `registry` drops both values rather than
+leaving a management URL pointed at a repository manager the entry says it does
+not have.
+
+The Registries tab is untouched — its columns are step 5's to redesign.
 
 ### 3.9 Every secret goes to a host secret manager, and radio buttons go away — **done**
 
