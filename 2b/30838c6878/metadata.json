@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "2b30838c6878",
+  "strategy": "manual-commit",
+  "branch": "fix/scan-options-spacing",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "internal/ui/security/view.go",
+    "internal/ui/security/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2b/30838c6878/0/metadata.json",
+      "transcript": "/2b/30838c6878/0/full.jsonl",
+      "compact_transcript": "/2b/30838c6878/0/transcript.jsonl",
+      "content_hash": "/2b/30838c6878/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 35755,
+    "cache_read_tokens": 8544827,
+    "output_tokens": 12355,
+    "api_call_count": 20
+  }
+}
