@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -56,12 +57,12 @@ type Model struct {
 	loading         bool
 	scanning        bool
 	// Networks tab
-	networks     []docker.Network
-	networkTable table.Model
+
+	networkTable datatable.Model[docker.Network]
 	loadingNets  bool
 	// Volumes tab
-	volumes     []docker.Volume
-	volumeTable table.Model
+
+	volumeTable datatable.Model[docker.Volume]
 	loadingVols bool
 	// Registries tab
 	registries          []config.RegistryItem
@@ -371,30 +372,11 @@ func New(cfg *config.Config) Model {
 	)
 	it.SetStyles(theme.DefaultTableStyles())
 
-	netColumns := []table.Column{
-		{Title: "ID", Width: 14},
-		{Title: "Name", Width: 24},
-		{Title: "Driver", Width: 12},
-		{Title: "Scope", Width: 10},
-	}
-	nt := table.New(
-		table.WithColumns(netColumns),
-		table.WithFocused(false),
-		table.WithHeight(10),
-	)
-	nt.SetStyles(theme.DefaultTableStyles())
+	nt := datatable.New(datatable.Config[docker.Network]{Columns: networkColumns(), SortColumn: -1})
+	nt.Blur()
 
-	volColumns := []table.Column{
-		{Title: "Name", Width: 30},
-		{Title: "Driver", Width: 12},
-		{Title: "Mountpoint", Width: 40},
-	}
-	vt := table.New(
-		table.WithColumns(volColumns),
-		table.WithFocused(false),
-		table.WithHeight(10),
-	)
-	vt.SetStyles(theme.DefaultTableStyles())
+	vt := datatable.New(datatable.Config[docker.Volume]{Columns: volumeColumns(), SortColumn: -1})
+	vt.Blur()
 
 	regColumns := []table.Column{
 		{Title: "Alias", Width: 16},

@@ -43,22 +43,26 @@ func (m Model) openNetworkInspect() (tea.Model, tea.Cmd) {
 	return m, inspectNetworkCmd(net.ID, net.Name)
 }
 
-// getSelectedNetwork returns the selected network or nil
+// getSelectedNetwork returns the selected network or nil.
+//
+// The cursor is resolved by the table against the very slice it built its rows
+// from, so this can no longer disagree with what is on screen — which is what
+// the nine hand-written versions of this could.
 func (m Model) getSelectedNetwork() *docker.Network {
-	cursor := m.networkTable.Cursor()
-	if cursor < 0 || cursor >= len(m.networks) {
+	net, ok := m.networkTable.Selected()
+	if !ok {
 		return nil
 	}
-	return &m.networks[cursor]
+	return &net
 }
 
 // getSelectedVolume returns the selected volume or nil
 func (m Model) getSelectedVolume() *docker.Volume {
-	cursor := m.volumeTable.Cursor()
-	if cursor < 0 || cursor >= len(m.volumes) {
+	vol, ok := m.volumeTable.Selected()
+	if !ok {
 		return nil
 	}
-	return &m.volumes[cursor]
+	return &vol
 }
 
 // deleteSelectedNetwork shows confirm modal for network deletion

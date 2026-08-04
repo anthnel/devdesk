@@ -13,7 +13,7 @@ func (m Model) handleImageExposedPorts(msg ImageExposedPortsMsg) (tea.Model, tea
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] exposed ports %s: %v", msg.ImageName, msg.Err)
 	}
-	m.launchForm = NewLaunchForm(msg.ImageName, msg.Ports, m.networks, m.width-2)
+	m.launchForm = NewLaunchForm(msg.ImageName, msg.Ports, m.networkTable.Items(), m.width-2)
 	return m, loadLaunchOptionsCmd(msg.ImageName)
 }
 

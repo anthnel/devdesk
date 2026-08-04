@@ -157,6 +157,20 @@ func (m *Model[T]) FilterBar() *components.FilterBar { return &m.bar }
 // InEditMode reports whether the search field has the keyboard.
 func (m *Model[T]) InEditMode() bool { return m.bar.InEditMode() }
 
+// Searchable reports whether anything can be filtered: a searchable column or a
+// toggle token. Views use it to decide whether to advertise `/` (Rule 130).
+func (m *Model[T]) Searchable() bool {
+	if len(m.cfg.Tokens) > 0 {
+		return true
+	}
+	for _, c := range m.cfg.Columns {
+		if c.Search != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // Table exposes the underlying table for rendering.
 func (m *Model[T]) Table() *table.Model { return &m.table }
 
@@ -275,6 +289,12 @@ func (m *Model[T]) Update(msg tea.Msg) tea.Cmd {
 	}
 	switch key.String() {
 	case "/":
+		// A table with nothing to search does not claim the key: activating a
+		// search that can only ever match nothing would empty the list, and the
+		// bar the user needs to see why is not in that view's footer.
+		if !m.Searchable() {
+			return nil
+		}
 		return m.bar.ActivateSearch()
 	case ".":
 		m.CycleSort()

@@ -1095,7 +1095,30 @@ per the D5 precedent.
 `Cell func(T) string` is what makes Rule 122 structural: a styled value has
 nowhere to go. 98.9 % covered; the package total went 81.6 % → 81.9 %.
 
-**No view is migrated yet.** Steps 2–6 stand as written.
+#### Step 2 as built — `oci_resources` networks and volumes
+
+Both tables are `datatable.Model[T]` now. What left the view: two
+`resize*Table` functions, two `update*Table` functions, two `getSelectedX`
+bodies, and the `networks` / `volumes` slices — the tables hold their own items,
+so there was no second copy left to drift.
+
+Two things the migration turned up:
+
+- **`/` had to stop being unconditional.** Neither tab searches, and neither
+  renders the filter bar in its footer, so a component that claimed `/` would
+  have opened a search whose result — everything filtered out — the user could
+  not see the reason for. `Update` now ignores `/` unless something is
+  searchable, and `Searchable()` is exported so a view can decide whether to
+  advertise it (Rule 130).
+- **The volumes table was one of the overflowing copies.** It clamped its last
+  column at 20 after the remainder was computed, which is the exact shape the
+  backlog describes. It is the solver's job now.
+
+`TestTheResourceTablesHoldTheWidthInvariant` checks the sum across six widths,
+and was confirmed to bite by removing the `Resize` call: `networks at width 60:
+the columns sum to 56, want 50`.
+
+Steps 3–6 stand as written.
 
 ### Race detector cannot run locally
 
