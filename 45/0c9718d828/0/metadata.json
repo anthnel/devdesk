@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "450c9718d828",
+  "session_id": "be5e53af-06dd-41fc-9d5e-07f395f11181",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-04T08:19:04.9373604Z",
+  "branch": "registry-groups-model",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/config/registries.go",
+    "internal/config/config.go",
+    "internal/config/registries_test.go",
+    "internal/ui/oci_resources/registry_form.go",
+    "internal/ui/oci_resources/keys.go",
+    "internal/ui/oci_resources/registries.go",
+    "internal/ui/oci_resources/forms_test.go",
+    "docs/backlog.md",
+    ".claude/CLAUDE.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "018f10fa0012",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 533,
+    "cache_creation_tokens": 612385,
+    "cache_read_tokens": 78755146,
+    "output_tokens": 211827,
+    "api_call_count": 281
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-04T08:19:04.8163674Z",
+    "agent_lines": 1101,
+    "agent_removed": 72,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1101,
+    "total_lines_changed": 1173,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 225,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 225
+      }
+    }
+  ]
+}

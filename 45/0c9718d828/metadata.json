@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "450c9718d828",
+  "strategy": "manual-commit",
+  "branch": "registry-groups-model",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/CLAUDE.md",
+    "docs/backlog.md",
+    "internal/config/config.go",
+    "internal/config/registries.go",
+    "internal/config/registries_test.go",
+    "internal/ui/oci_resources/forms_test.go",
+    "internal/ui/oci_resources/keys.go",
+    "internal/ui/oci_resources/registries.go",
+    "internal/ui/oci_resources/registry_form.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/45/0c9718d828/0/metadata.json",
+      "transcript": "/45/0c9718d828/0/full.jsonl",
+      "compact_transcript": "/45/0c9718d828/0/transcript.jsonl",
+      "content_hash": "/45/0c9718d828/0/content_hash.txt",
+      "prompt": "/45/0c9718d828/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 533,
+    "cache_creation_tokens": 612385,
+    "cache_read_tokens": 78755146,
+    "output_tokens": 211827,
+    "api_call_count": 281
+  }
+}
