@@ -153,6 +153,10 @@ func TestResize(t *testing.T) {
 type msgAlpha struct{ n int }
 type msgBeta struct{}
 
+// msgSlice is a message that is a slice but not a sequence, which is what keeps
+// the sequence unpacking from being a blanket "any slice" rule.
+type msgSlice []int
+
 func TestMsgsNilCommand(t *testing.T) {
 	if got := Msgs(nil); got != nil {
 		t.Errorf("Msgs(nil) = %v, want nil", got)
@@ -198,6 +202,43 @@ func TestMsgsFlattensNestedBatches(t *testing.T) {
 		if _, isBatch := m.(tea.BatchMsg); isBatch {
 			t.Fatal("Msgs() leaked a tea.BatchMsg instead of flattening it")
 		}
+	}
+}
+
+// tea.Sequence is what a view uses when the order matters — "scan starting"
+// has to reach Update before the scan itself. Its message type is unexported,
+// so without the reflection in sequenced() a sequenced command would report as
+// one opaque message and the commands inside it would never run.
+func TestMsgsFlattensSequencesInOrder(t *testing.T) {
+	cmd := tea.Sequence(
+		func() tea.Msg { return msgAlpha{n: 1} },
+		tea.Batch(
+			func() tea.Msg { return msgAlpha{n: 2} },
+			func() tea.Msg { return msgBeta{} },
+		),
+	)
+
+	msgs := Msgs(cmd)
+	if len(msgs) != 3 {
+		t.Fatalf("Msgs() returned %d messages, want 3", len(msgs))
+	}
+	first, ok := msgs[0].(msgAlpha)
+	if !ok || first.n != 1 {
+		t.Errorf("Msgs()[0] = %#v, want the first command of the sequence", msgs[0])
+	}
+}
+
+// The unpacking is by shape rather than by type name, so it has to leave alone
+// a message that merely happens to be a slice.
+func TestMsgsLeavesAnOrdinarySliceMessageAlone(t *testing.T) {
+	cmd := func() tea.Msg { return msgSlice{1, 2, 3} }
+
+	msgs := Msgs(cmd)
+	if len(msgs) != 1 {
+		t.Fatalf("Msgs() returned %d messages, want the slice kept whole", len(msgs))
+	}
+	if _, ok := msgs[0].(msgSlice); !ok {
+		t.Errorf("Msgs()[0] = %T, want msgSlice", msgs[0])
 	}
 }
 

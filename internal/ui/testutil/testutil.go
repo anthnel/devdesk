@@ -14,6 +14,7 @@
 package testutil
 
 import (
+	"reflect"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -96,7 +97,8 @@ func Resize(width, height int) tea.Msg {
 }
 
 // Msgs executes cmd and returns every message it produced, flattening the
-// tea.Batch tree. A nil command, or one returning nil, yields no messages.
+// tea.Batch and tea.Sequence trees. A nil command, or one returning nil, yields
+// no messages.
 //
 // The command runs synchronously on the calling goroutine. Do not pass a command
 // that sleeps or performs I/O — tea.Tick blocks for its whole duration, and the
@@ -117,7 +119,38 @@ func Msgs(cmd tea.Cmd) []tea.Msg {
 		}
 		return out
 	}
+	if seq, ok := sequenced(msg); ok {
+		var out []tea.Msg
+		for _, c := range seq {
+			out = append(out, Msgs(c)...)
+		}
+		return out
+	}
 	return []tea.Msg{msg}
+}
+
+// sequenced reports whether msg is what tea.Sequence returns, and unpacks the
+// commands it holds.
+//
+// tea.Batch answers with the exported tea.BatchMsg, but the equivalent for
+// tea.Sequence is unexported — the runtime is its only intended reader, and it
+// runs the commands one after another rather than concurrently. Its underlying
+// type is []tea.Cmd, so reflection recovers them without depending on the name.
+// Order is preserved, which is the whole point of a sequence: a view that emits
+// "scan starting" before the scan itself relies on the first message arriving
+// first.
+func sequenced(msg tea.Msg) ([]tea.Cmd, bool) {
+	value := reflect.ValueOf(msg)
+	if value.Kind() != reflect.Slice || value.Type().Elem() != reflect.TypeFor[tea.Cmd]() {
+		return nil, false
+	}
+	// The element type was just checked, so every assertion below holds; a nil
+	// entry comes back as a nil tea.Cmd, which Msgs already ignores.
+	cmds := make([]tea.Cmd, 0, value.Len())
+	for i := range value.Len() {
+		cmds = append(cmds, value.Index(i).Interface().(tea.Cmd))
+	}
+	return cmds, true
 }
 
 // Msg executes cmd and returns the single message it produced, or nil.
