@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "97b9e0426d8c",
+  "strategy": "manual-commit",
+  "branch": "fix/scan-reports-missing-tools",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/scan/command_test.go",
+    "internal/scan/gitleaks.go",
+    "internal/scan/scan_test.go",
+    "internal/scan/scanner.go",
+    "internal/scan/trivy_args.go",
+    "internal/ui/oci_resources/scan_commands_test.go",
+    "internal/ui/security/form.go",
+    "internal/ui/security/scan.go",
+    "internal/ui/security/scan_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/97/b9e0426d8c/0/metadata.json",
+      "transcript": "/97/b9e0426d8c/0/full.jsonl",
+      "compact_transcript": "/97/b9e0426d8c/0/transcript.jsonl",
+      "content_hash": "/97/b9e0426d8c/0/content_hash.txt",
+      "prompt": "/97/b9e0426d8c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 106,
+    "cache_creation_tokens": 64310,
+    "cache_read_tokens": 21572580,
+    "output_tokens": 37634,
+    "api_call_count": 56
+  }
+}
