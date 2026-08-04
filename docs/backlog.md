@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-03
+**Last Updated:** 2026-08-04
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11,9 +11,10 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Three open**, all in the registry browser and all found while reviewing the
-design for §3.8 rather than by a test. See [§1.3](#13-open). D1–D11 and D15–D19
-are fixed; §1.1 records what each was and why the chosen fix was the right one.
+**Five open.** Three are in the registry browser and were found while reviewing
+the design for §3.8 rather than by a test; two more came out of the phase 6
+coverage pass. See [§1.3](#13-open). D1–D11 and D15–D19 are fixed; §1.1 records
+what each was and why the chosen fix was the right one.
 
 The five that stayed open longest — D4, D8, D9, D10 and D11 — were parked not
 because they were hard but because each altered something the user already saw,
@@ -380,7 +381,11 @@ the stale test and the stale backlog entry got found together.
 D12–D14 sit in `internal/ui/oci_resources` and are cheap on their own, but
 §3.8 rewrites the code path each of them lives in. Fix them **as part of** that
 work rather than ahead of it, and write each one's test inverted first, per the
-pattern above.
+pattern above. D14's inverted test now exists.
+
+D20 and D21 also sit in that package but are **independent of §3.8** and should
+not wait for it. D20 is the one to do first: it is the only open defect that
+misreports a security result.
 
 D15–D19 were found by the phase 5 pass, were unrelated to §3.8, and are fixed —
 see §1.1. Each had been recorded with an inverted test asserting the broken
@@ -425,15 +430,68 @@ in the same view shows a short alias. The fix follows from §3.8 rather than
 preceding it: once members are persisted they are resolvable, and the filter
 gains a group level at the same time.
 
+Pinned inverted by `TestAGroupMembersFilterLabelIsStillARawURL`, which asserts
+the raw URL today and asserts the configured registry's alias alongside it as
+the contrast.
+
+**D20 — an image scanned with no scanner installed is reported as clean.** Found
+by the phase 6 pass, and the most serious of the three defects it turned up: a
+security feature that says an image is fine when nothing looked at it.
+
+`Scanner.Scan` skips a stage whose tool is unavailable rather than failing it
+(`scanner.go:303`, `if s.options.EnableVuln && s.deps.TrivyAvailable`), so with
+no trivy the result carries **no errors and no findings**. `scanOneImageCmd`
+reports a failure only when there are errors *and* no findings
+(`commands.go:111`), so the image comes back with zero counts, those counts are
+written to the scan cache with a fresh timestamp, and Rule 126 keeps them until
+an explicit rescan. Enter then opens an empty report.
+
+Nothing upstream catches it: **`internal/ui/oci_resources` performs no
+dependency check at all**, unlike the security view, which gates its scan on
+`canStart := m.deps.TrivyAvailable || m.deps.GitleaksAvailable`
+(`security/view.go:147`). Every entry point is affected — `ctrl+s`, `A`,
+`ctrl+a` and the delegated `LaunchBatchScanMsg` all reach the same
+`batchScanCmd`.
+
+Two candidate fixes, and the choice is what makes this worth recording rather
+than fixing on the spot:
+
+- **In `internal/scan`** — report "no scanner available" when every enabled
+  stage was skipped for want of a tool. It fixes every caller at once and is
+  where the knowledge lives, but it changes shared semantics; the security view
+  guards upstream, so it would not regress there.
+- **In the view** — resolve dependencies as the security view does and refuse
+  the scan with a footer message (Rule 128). Narrower, and it tells the user
+  *before* they wait rather than after.
+
+The second is the better user-facing answer and the first is the better
+guarantee; doing both is defensible.
+
+Pinned inverted by `TestAScanWithNoScannerInstalledIsWronglyReportedAsClean`,
+which asserts the empty counts *and* that they reach the disk. That test is what
+fails when D20 is fixed.
+
+**D21 — an unreachable focus clamp in `ConnectivityTestForm`.** Dead code, not a
+user-visible defect, and the same shape as D5 in `CreationForm`.
+
+The `left` and `right` handlers (`connectivity_form.go:242`, `:253`) clamp the
+focus after cycling the test type, guarding against the field count shrinking
+from four to three when the port field disappears. It cannot fire: both branches
+are inside `if f.focusedField == cFieldType`, so `focusedField` is 1, and
+`numFields()` is never below 3.
+
+Fix it the way D5 was: delete both clamps and record why they cannot fire, so
+they are not reintroduced defensively. The invariant they were guarding is
+already pinned by `TestCyclingTheTypeNeverStrandsTheFocus`, which passes before
+and after.
+
 ---
 
 ## 2. Technical debt
 
 ### Test coverage
 
-Currently **73.6 %** overall; the agreed target is 80 %.
-
-Phased plan, with the harness and most of phase 1 delivered:
+**80.7 % overall — the agreed 80 % target is met.**
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -443,18 +501,58 @@ Phased plan, with the harness and most of phase 1 delivered:
 | 3 | Large views (`workspaces`, `explorer`, `security`, `netdiag`) | **done** |
 | 4 | `ui/oci_resources` | **done** — 43.4 %, the rest deferred to phase 6 |
 | 5 | Router and I/O seams (`app`, `scan`, `docker`) | **done** — `app` 90.5 %, `scan` 99.2 %, `docker` 65.4 % |
-| 6 | Remainder to reach 80 % | pending |
+| 6 | Remainder to reach 80 % | **done** — 73.8 % → 80.7 % |
 
-**Phase 5 is complete.** The three packages needed three different seams, which
-is the finding worth carrying into phase 6: `app` needed only a constructor that
-does not read the terminal, `docker` needed `dockerRunner`, and `scan` needed
-`commandRunner` plus pure argument builders. None of them needed a mocking
-library.
+**Phase 5 was complete when phase 6 began.** The three packages needed three
+different seams: `app` needed only a constructor that does not read the
+terminal, `docker` needed `dockerRunner`, and `scan` needed `commandRunner` plus
+pure argument builders. None of them needed a mocking library.
 
-Phase 6 starts from `internal/registrymgr` (18.5 %), `internal/oci` (37.3 %),
-`internal/ui/oci_resources` (43.4 %, deferred there deliberately),
-`internal/status` (64.8 %) and `internal/docker` (65.4 %). The last two are the
-ones that now have a seam under them and no excuse.
+**Phase 6 was one package.** `internal/ui/oci_resources` held 1 509 of the
+2 900 uncovered statements in the project, so it was the only one that had to
+move: 43.4 % → **73.0 %**, which carried the total from 73.8 % to 80.7 % on its
+own. It was left at 43.4 % in phase 4 on the grounds that the rest "wants the
+seam phase 5 builds"; that turned out to be half right. What `commands.go`
+needed was not the `dockerRunner` seam — which is unexported and therefore
+unreachable from this package — but the *other* technique phase 5 produced.
+
+**A fake tool on PATH reaches further than a seam does.** `internal/scan`
+installed copies of the test binary as `trivy` and `docker` to steer detection;
+the same trick covers `commands.go` end to end, including the error handling in
+`internal/docker` underneath it, with no export added anywhere. One extension
+was needed: a single fake answers many different commands here — `docker image
+ls` and `docker network inspect` reach the same file — so the reply is selected
+by **the longest matching invocation prefix** (`faketool_test.go`) rather than
+being fixed for the process. A second env var makes each fake append its
+invocation to a file, which is what lets a test assert *what docker was asked*;
+that is how the "untagged images are scanned by ID, cached by name" rule is
+pinned.
+
+The registry half needed no seam at all: every entry point takes the base URL as
+an argument, so `httptest` covers the tag search, the bearer-token exchange and
+Nexus group detection. `fetchDockerHubTagsMeta` is the one exception — it builds
+a `hub.docker.com` URL itself — and swapping `ociHTTPClient` for one whose
+transport rewrites the host covers it without changing production code.
+
+`tea.Sequence` had to be taught to `testutil.Msgs`. `tea.Batch` answers with the
+exported `tea.BatchMsg`, but the sequence equivalent is unexported, so a
+sequenced command reported as one opaque message and the commands inside it
+never ran — which is why `scanOneImageCmd` sat at 4.3 % with tests around it.
+Its underlying type is `[]tea.Cmd`, so reflection recovers them without
+depending on the name (`testutil.sequenced`). That is what made the scan
+commands testable, and D20 is what fell out of testing them.
+
+What is deliberately left uncovered in `oci_resources`, at 73.0 %: the
+launch-form renderers and the remaining `keys.go` / `view.go` branches. Those
+are layout, and pinning them means pinning pixels.
+
+The packages still below target are `internal/registrymgr` (18.5 %),
+`internal/oci` (37.3 %), `internal/status` (64.8 %), `internal/docker` (65.4 %)
+and `internal/cache` (71.3 %) — 470 uncovered statements between them, none of
+which the 80 % figure needs. Two are worth doing on their own merits rather than
+for the number: `registrymgr`, because §3.8 step 4 rewrites `CanHandle`, and
+`oci`, whose gap is the registry HTTP paths that need a manifest-plus-gzipped-
+layer fixture rather than the single-response stubs used so far.
 
 Phase 1 progress:
 
@@ -591,13 +689,19 @@ the error.
 
 Phase 4, `internal/ui/oci_resources`, complete: 0 % → **43.4 %**, with the
 surface pass at 25.1 % and the split leaving it unchanged to the statement.
+Phase 6 took it the rest of the way, to **73.0 %**.
 
-It is the one package that stops short of the 80 % target, and deliberately.
-What remains is `commands.go` (every `docker` invocation), `connectivity_form.go`
-and the launch-form renderers — roughly 1 200 statements that want the seam
-phase 5 builds rather than more view tests. Doing them now would mean either
-stubbing Docker by hand or writing renderer tests that pin pixel layout;
-neither earns its keep.
+It was the one package that stopped short of the 80 % target, and deliberately.
+What remained was `commands.go` (every `docker` invocation),
+`connectivity_form.go` and the launch-form renderers — roughly 1 200 statements
+judged at the time to want the seam phase 5 builds rather than more view tests.
+
+Worth correcting, because the reasoning was half wrong and the correction is
+reusable: `connectivity_form.go` (196 statements, 0 %) needed **nothing at
+all**. It is a self-contained form whose only I/O is one command it returns and
+never runs, so it was testable the whole time and was skipped by association
+with the files around it. Judge a file by its own dependencies, not by the
+package it sits in.
 
 The three-step order held here too, on the largest package of the lot: 6 039
 lines across eleven files, of which `update.go` (1 707) and
@@ -742,7 +846,7 @@ every push and pull request, on `ubuntu-latest`, which has a toolchain. The firs
 run reported no data race across all 17 packages.
 
 That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 73.6 %. Rule 110 violations in untested
+tests actually execute, and coverage is 80.7 %. Rule 110 violations in untested
 paths remain invisible. The two efforts compound, so this is an argument for the
 coverage phases rather than a substitute for them.
 
@@ -1266,17 +1370,28 @@ and `multiImageName` (`browser_tags.go:125`) is building an unpullable
 reference today. **This should be checked against the actual Nexus instance**
 rather than reasoned about; it is one `docker pull` away from being answered.
 
-#### Sequencing
+#### Sequencing — **prerequisite met**
 
-This lands in `internal/ui/oci_resources`, which is **phase 4** of the coverage
-plan (§2, ~1 995 statements, pending) and holds two of the three files still
-over the 800-line ceiling — including `registry_browser.go` at 822, which this
-feature grows.
+This lands in `internal/ui/oci_resources`, and the rule was: surface tests, then
+split, then complete coverage, and only then the feature. All three are done.
+Phase 4 split the package (no file is over the 800-line ceiling; the former
+822-line `registry_browser.go` is 243) and phase 6 finished the coverage, so
+**§3.8 is unblocked and can start on the feature directly.**
 
-Do it in the phase-3 order that held on all four large views: **surface tests,
-then split, then complete coverage**, and only then the feature. Writing the
-group model into an 822-line file with no tests under it repeats the mistake
-that order exists to prevent.
+What is under it now, in the files this feature rewrites:
+
+| File | Coverage | Pinned by |
+|---|---|---|
+| `browser_keys.go` | 78.1 % | the search form and the tags keymap |
+| `browser_tags.go` | ~97 % | sort, both filters, tag actions |
+| `browser_view.go` | ~99 % | the grouped form, the results table, the filter bar |
+| `commands.go` | 88.0 % | group detection against `httptest`, incl. the management-URL credential lookup |
+
+Two of those tests are the inverted kind and are meant to fail when this feature
+lands: `TestAGroupMembersFilterLabelIsStillARawURL` (D14) and, in
+`registry_http_test.go`, `TestManagementCredentialsAreLookedUpByHostAlone`,
+which pins today's credential behaviour that step 2 changes. Turn both around
+rather than deleting them.
 
 #### Sketch of the work
 

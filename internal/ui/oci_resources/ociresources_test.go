@@ -16,18 +16,25 @@ import (
 )
 
 // Every command this view returns shells out to Docker, talks to a registry over
-// HTTP or writes the scan cache. No test executes one: image, network, volume
-// and registry lists, scan results and login statuses are fed in as messages,
-// and the assertions are on model state.
+// HTTP or writes the scan cache. The tests that drive Update() and View() feed
+// image, network, volume and registry lists, scan results and login statuses in
+// as messages and assert on model state.
 //
-// These tests drive Update() and View() only — update.go is 1698 lines and
-// registry_browser.go 912, both due to be split, so assertions on their
-// internals would pin the current layout.
+// commands_test.go executes the commands themselves instead, against a fake
+// docker on a PATH of the test's own making (see installFakeTools) and against
+// httptest servers standing in for registries.
 //
 // HOME is redirected for the whole package: the launch form and the registry
 // list persist through config.Save, and the scan cache writes to ~/.devdesk.
 
 func TestMain(m *testing.M) {
+	// The fake docker is a copy of this binary, so helper mode has to be
+	// answered before anything else — including the temporary HOME, which a
+	// subprocess must neither create nor delete.
+	if os.Getenv(helperMode) == "1" {
+		os.Exit(runAsHelper())
+	}
+
 	log.SetOutput(io.Discard)
 
 	home, err := os.MkdirTemp("", "devdesk-oci-test")
@@ -40,6 +47,7 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
+	removeFakeTools()
 	_ = os.RemoveAll(home)
 	log.SetOutput(os.Stderr)
 	os.Exit(code)
