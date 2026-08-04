@@ -48,9 +48,13 @@ type RegistryForm struct {
 	passwordInput textinput.Model
 	aliasInput    textinput.Model
 	nexusURLInput textinput.Model
-	authEnabled   bool
+	authModeIdx   int
 	kindIdx       int
 	providerIdx   int
+	// parent is carried through untouched: membership is decided by discovery,
+	// not by this form, but what an entry may say about credentials depends on
+	// it — and dropping it would orphan the entry from its group.
+	parent string
 	// existing is every configured entry, so that a slug already in use can be
 	// refused here rather than at the next load (§3.8, decision 1).
 	existing     []config.RegistryItem
@@ -60,7 +64,7 @@ type RegistryForm struct {
 
 // NewRegistryForm creates a form for adding a new registry
 func NewRegistryForm(existing []config.RegistryItem, width int) *RegistryForm {
-	return newRegistryForm(-1, config.RegistryItem{AuthEnabled: true}, existing, width)
+	return newRegistryForm(-1, config.RegistryItem{AuthMode: config.AuthCredentials}, existing, width)
 }
 
 // NewRegistryEditForm creates a form for editing an existing registry
@@ -116,9 +120,10 @@ func newRegistryForm(index int, item config.RegistryItem, existing []config.Regi
 		passwordInput: passwordInput,
 		aliasInput:    aliasInput,
 		nexusURLInput: nexusURLInput,
-		authEnabled:   item.AuthEnabled,
+		authModeIdx:   indexOf(config.AuthModes(item.Parent != ""), item.AuthMode),
 		kindIdx:       indexOf(config.Kinds(), item.Kind),
 		providerIdx:   indexOf(config.Providers(), item.Provider),
+		parent:        item.Parent,
 		existing:      existing,
 		focusedField:  regFieldURL,
 	}
@@ -239,9 +244,14 @@ func (f *RegistryForm) cycle(step int) (*RegistryForm, tea.Cmd) {
 	case regFieldProvider:
 		f.providerIdx = wrap(f.providerIdx+step, len(config.Providers()))
 	case regFieldAuth:
-		f.authEnabled = !f.authEnabled
+		f.authModeIdx = wrap(f.authModeIdx+step, len(f.authModes()))
 	}
 	return f, nil
+}
+
+// authModes returns the modes this entry may take.
+func (f *RegistryForm) authModes() []string {
+	return config.AuthModes(f.parent != "")
 }
 
 // wrap returns i modulo n, for negative i as well.
@@ -299,11 +309,12 @@ func (f *RegistryForm) submit() (*RegistryForm, tea.Cmd) {
 	}
 
 	item := config.RegistryItem{
-		Kind:        config.Kinds()[f.kindIdx],
-		URL:         url,
-		Username:    strings.TrimSpace(f.usernameInput.Value()),
-		Alias:       strings.TrimSpace(f.aliasInput.Value()),
-		AuthEnabled: f.authEnabled,
+		Kind:     config.Kinds()[f.kindIdx],
+		Parent:   f.parent,
+		URL:      url,
+		Username: strings.TrimSpace(f.usernameInput.Value()),
+		Alias:    strings.TrimSpace(f.aliasInput.Value()),
+		AuthMode: f.authModes()[f.authModeIdx],
 	}
 	if f.isGroup() {
 		item.Provider = config.Providers()[f.providerIdx]
@@ -384,7 +395,7 @@ func (f *RegistryForm) View() string {
 	b.WriteString("\n\n")
 	b.WriteString(f.renderField("Password", f.passwordInput.View(), regFieldPassword))
 	b.WriteString("\n\n")
-	b.WriteString(f.renderCycleField("Auth Enabled", yesNo(f.authEnabled), regFieldAuth))
+	b.WriteString(f.renderCycleField("Auth", f.authModes()[f.authModeIdx], regFieldAuth))
 	b.WriteString("\n\n")
 	if f.isGroup() {
 		b.WriteString(f.renderField("Management URL", f.nexusURLInput.View(), regFieldMgmtURL))
@@ -396,13 +407,6 @@ func (f *RegistryForm) View() string {
 	b.WriteString(theme.RenderButton("Save", f.focusedField == regFieldSubmit, "primary"))
 
 	return b.String()
-}
-
-func yesNo(b bool) string {
-	if b {
-		return "yes"
-	}
-	return "no"
 }
 
 func (f *RegistryForm) renderField(label, value string, fieldIdx int) string {

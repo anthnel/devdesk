@@ -235,6 +235,128 @@ func TestADeclaredProviderIsKept(t *testing.T) {
 	}
 }
 
+// ── Auth mode ────────────────────────────────────────────────────────────────
+
+// auth_enabled said whether to log in, not whether to send what was stored.
+// The mode says both, so the boolean has to carry over rather than be dropped.
+func TestAuthEnabledMigratesToAMode(t *testing.T) {
+	items := []RegistryItem{
+		{URL: "https://a.example.com", AuthEnabled: true},                          //nolint:staticcheck // that is what is being migrated
+		{URL: "https://b.example.com", AuthEnabled: false},                         //nolint:staticcheck // same
+		{URL: "https://c.example.com", AuthMode: AuthAnonymous, AuthEnabled: true}, //nolint:staticcheck // same
+	}
+
+	if err := normalizeRegistries(items); err != nil {
+		t.Fatalf("normalizeRegistries: %v", err)
+	}
+
+	want := []string{AuthCredentials, AuthAnonymous, AuthAnonymous}
+	for i, w := range want {
+		if items[i].AuthMode != w {
+			t.Errorf("items[%d].AuthMode = %q, want %q", i, items[i].AuthMode, w)
+		}
+		if items[i].AuthEnabled { //nolint:staticcheck // the point is that it is cleared
+			t.Errorf("items[%d] kept auth_enabled, so the next save writes it back", i)
+		}
+	}
+}
+
+// docker login is keyed on the host a member shares with its group, so a member
+// cannot hold a password of its own — there is nowhere to put it.
+func TestAMemberCannotDeclareItsOwnCredentials(t *testing.T) {
+	items := []RegistryItem{
+		{URL: "https://nexus.example.com/repository/g", Slug: "grp", Kind: KindGroup, AuthMode: AuthCredentials},
+		{URL: "https://nexus.example.com/repository/m", Slug: "member", Parent: "grp", AuthMode: AuthCredentials},
+	}
+
+	err := normalizeRegistries(items)
+	if err == nil {
+		t.Fatal("a member declaring its own credentials was accepted")
+	}
+	if !strings.Contains(err.Error(), "member") {
+		t.Errorf("err = %v, want it to name the entry", err)
+	}
+}
+
+// The other direction: inherit means "take the group's", and with no group there
+// is nothing to take.
+func TestInheritWithoutAGroupIsRefused(t *testing.T) {
+	items := []RegistryItem{{URL: "https://a.example.com", Slug: "lone", AuthMode: AuthInherit}}
+
+	err := normalizeRegistries(items)
+	if err == nil {
+		t.Fatal("an entry inheriting from nothing was accepted")
+	}
+	if !strings.Contains(err.Error(), AuthInherit) {
+		t.Errorf("err = %v, want it to name the mode", err)
+	}
+}
+
+func TestAnUnknownAuthModeIsRefused(t *testing.T) {
+	items := []RegistryItem{{URL: "https://a.example.com", Slug: "typo", AuthMode: "credentails"}}
+
+	err := normalizeRegistries(items)
+	if err == nil {
+		t.Fatal("an unknown auth mode was accepted")
+	}
+	if !strings.Contains(err.Error(), "credentails") {
+		t.Errorf("err = %v, want it to quote the value", err)
+	}
+}
+
+// Resolution is where inherit stops being a word and becomes a decision.
+func TestResolveAuthMode(t *testing.T) {
+	group := RegistryItem{Slug: "grp", AuthMode: AuthCredentials}
+	anonGroup := RegistryItem{Slug: "grp", AuthMode: AuthAnonymous}
+
+	tests := []struct {
+		name   string
+		item   RegistryItem
+		parent *RegistryItem
+		want   string
+	}{
+		{"a member takes its group's", RegistryItem{AuthMode: AuthInherit}, &group, AuthCredentials},
+		{"including a refusal", RegistryItem{AuthMode: AuthInherit}, &anonGroup, AuthAnonymous},
+		{"a member may still refuse alone", RegistryItem{AuthMode: AuthAnonymous}, &group, AuthAnonymous},
+		{"inheriting from nothing sends nothing", RegistryItem{AuthMode: AuthInherit}, nil, AuthAnonymous},
+		{"saying nothing keeps the old behaviour", RegistryItem{}, nil, AuthCredentials},
+	}
+	for _, tt := range tests {
+		if got := ResolveAuthMode(tt.item, tt.parent); got != tt.want {
+			t.Errorf("%s: ResolveAuthMode = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// UsesCredentials is what every caller branches on, and an unresolved inherit
+// reaching it must fail closed.
+func TestUsesCredentials(t *testing.T) {
+	for mode, want := range map[string]bool{
+		AuthCredentials: true,
+		"":              true, // an entry that says nothing, as before the mode existed
+		AuthAnonymous:   false,
+		AuthInherit:     false, // unresolved: the safe reading
+	} {
+		if got := UsesCredentials(mode); got != want {
+			t.Errorf("UsesCredentials(%q) = %v, want %v", mode, got, want)
+		}
+	}
+}
+
+func TestTheAuthCycleListsStartOnTheOldBehaviour(t *testing.T) {
+	if got := AuthModes(false)[0]; got != AuthCredentials {
+		t.Errorf("AuthModes(false)[0] = %q, want %q", got, AuthCredentials)
+	}
+	if got := AuthModes(true)[0]; got != AuthInherit {
+		t.Errorf("AuthModes(true)[0] = %q, want %q", got, AuthInherit)
+	}
+	for _, mode := range AuthModes(true) {
+		if mode == AuthCredentials {
+			t.Error("a member is offered credentials of its own, which it cannot store")
+		}
+	}
+}
+
 // ── Through the loader ───────────────────────────────────────────────────────
 
 // writeContext points HOME at a temp dir and writes a config file into it, so
@@ -301,6 +423,50 @@ registry:
 	}
 	if regs[0].Slug != "legacy-example-com" {
 		t.Errorf("Slug = %q, want it derived from the host", regs[0].Slug)
+	}
+}
+
+// The boolean has to survive a round trip through the file, and then leave it:
+// a config carrying both would have two answers to the same question.
+func TestLoadMigratesAuthEnabledAndSaveDropsIt(t *testing.T) {
+	writeContext(t, `
+registry:
+  registries:
+    - url: https://a.example.com
+      slug: a
+      auth_enabled: true
+    - url: https://b.example.com
+      slug: b
+      auth_enabled: false
+`)
+
+	cfg, err := LoadContext("default")
+	if err != nil {
+		t.Fatalf("LoadContext: %v", err)
+	}
+	if got := cfg.Registry.Registries[0].AuthMode; got != AuthCredentials {
+		t.Errorf("auth_enabled: true loaded as %q, want %q", got, AuthCredentials)
+	}
+	if got := cfg.Registry.Registries[1].AuthMode; got != AuthAnonymous {
+		t.Errorf("auth_enabled: false loaded as %q, want %q", got, AuthAnonymous)
+	}
+
+	if err := SaveContext(cfg, "default"); err != nil {
+		t.Fatalf("SaveContext: %v", err)
+	}
+	path, err := GetContextPath("default")
+	if err != nil {
+		t.Fatalf("GetContextPath: %v", err)
+	}
+	body, err := os.ReadFile(path) //nolint:gosec // a path this test just wrote
+	if err != nil {
+		t.Fatalf("reading the saved config: %v", err)
+	}
+	if strings.Contains(string(body), "auth_enabled") {
+		t.Errorf("the saved config still carries auth_enabled:\n%s", body)
+	}
+	if !strings.Contains(string(body), "auth_mode: "+AuthCredentials) {
+		t.Errorf("the saved config does not carry the migrated mode:\n%s", body)
 	}
 }
 

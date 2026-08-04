@@ -178,6 +178,18 @@ registries and is pullable itself, which is why they share a list.
 | `kind` | `registry` or `group` |
 | `parent` | slug of the owning group — carried by discovered members, not normally by config entries |
 | `provider` | `generic`, `nexus`, `harbor`, `artifactory`, `gitlab`; declared, never sniffed from the URL |
+| `auth_mode` | `credentials`, `anonymous`, or `inherit` for a member. Replaces `auth_enabled`, which is migrated at load and then dropped. |
+
+**`auth_mode` is read before any credential lookup**, on both paths that talk to
+a registry: `detectRegistryGroupCmd` and the browser's `credsFor`. `anonymous`
+sends nothing, not even a configured username. This is what `auth_enabled` never
+did (D12): `docker login` is keyed on host, so one login against a Nexus
+instance used to authenticate every repository it serves.
+
+That same host-keying is why a **member cannot declare `credentials` of its
+own** — it shares its group's single credential entry, so a password of its own
+has nowhere to go — and why `inherit` on an entry with no group is refused.
+Both are load-time errors.
 
 `internal/config/registries.go` normalizes the list at load and is the only
 place that decides a slug. Two rules hold it together:

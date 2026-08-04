@@ -25,8 +25,57 @@ const (
 	ProviderGitLab      = "gitlab"
 )
 
+// Whether DevDesk may send stored credentials to an entry.
+//
+// `docker login` takes a registry host, not a path: ~/.docker/config.json is
+// keyed on host[:port], so a path-based group and all of its members share one
+// single credential entry. That is why `inherit` is not a convenience — it is
+// the only thing the credential store can represent for a member — and why the
+// one useful per-member override is refusing to send them at all (§3.8).
+const (
+	AuthCredentials = "credentials"
+	AuthAnonymous   = "anonymous"
+	AuthInherit     = "inherit"
+)
+
 // fallbackSlug names an entry whose alias and URL both reduce to nothing.
 const fallbackSlug = "registry"
+
+// AuthModes returns the modes an entry may take, in the order a form cycles
+// them. The first is the default, and it is what the entry did before the mode
+// existed: use whatever `docker login` stored.
+func AuthModes(isMember bool) []string {
+	if isMember {
+		return []string{AuthInherit, AuthAnonymous}
+	}
+	return []string{AuthCredentials, AuthAnonymous}
+}
+
+// ResolveAuthMode returns the mode in force for item. A member that inherits
+// takes its group's; an entry that says nothing keeps the behaviour it had
+// before the mode existed.
+func ResolveAuthMode(item RegistryItem, parent *RegistryItem) string {
+	mode := item.AuthMode
+	if mode == AuthInherit {
+		// Nothing to inherit from: refusing to send credentials is the only
+		// answer that cannot leak them.
+		if parent == nil {
+			return AuthAnonymous
+		}
+		mode = parent.AuthMode
+	}
+	if mode == "" {
+		return AuthCredentials
+	}
+	return mode
+}
+
+// UsesCredentials reports whether mode permits sending stored credentials.
+// An unresolved `inherit` counts as anonymous — resolve it with ResolveAuthMode
+// before asking.
+func UsesCredentials(mode string) bool {
+	return mode != AuthAnonymous && mode != AuthInherit
+}
 
 // Providers returns the declared providers in the order a form cycles them,
 // generic first because it is the default for a group that says nothing.
@@ -96,6 +145,7 @@ func registryHost(raw string) string {
 func normalizeRegistries(items []RegistryItem) error {
 	for i := range items {
 		applyRegistryKind(&items[i])
+		applyAuthMode(&items[i])
 	}
 	taken, err := declaredSlugs(items)
 	if err != nil {
@@ -108,7 +158,46 @@ func normalizeRegistries(items []RegistryItem) error {
 		items[i].Slug = uniqueSlug(ProposeSlug(items[i]), taken)
 		taken[items[i].Slug] = true
 	}
-	return checkParents(items, taken)
+	if err := checkParents(items, taken); err != nil {
+		return err
+	}
+	return checkAuthModes(items)
+}
+
+// applyAuthMode migrates the boolean auth_mode replaced, and clears it so the
+// next save writes the file without it.
+func applyAuthMode(item *RegistryItem) {
+	if item.AuthMode == "" {
+		item.AuthMode = AuthAnonymous
+		if item.AuthEnabled { //nolint:staticcheck // reading the deprecated field is the migration
+			item.AuthMode = AuthCredentials
+		}
+	}
+	item.AuthEnabled = false //nolint:staticcheck // same
+}
+
+// checkAuthModes refuses a mode the entry cannot act on.
+func checkAuthModes(items []RegistryItem) error {
+	for _, item := range items {
+		switch item.AuthMode {
+		case AuthAnonymous:
+		case AuthCredentials:
+			// A member shares its group's host, so it shares its group's single
+			// credential entry; a password of its own is not something
+			// `docker login` can store (§3.8).
+			if item.Parent != "" {
+				return fmt.Errorf("registry %q is a member of %q and cannot hold credentials of its own: use %q or %q",
+					item.Slug, item.Parent, AuthInherit, AuthAnonymous)
+			}
+		case AuthInherit:
+			if item.Parent == "" {
+				return fmt.Errorf("registry %q declares %q but belongs to no group", item.Slug, AuthInherit)
+			}
+		default:
+			return fmt.Errorf("registry %q declares the unknown auth mode %q", item.Slug, item.AuthMode)
+		}
+	}
+	return nil
 }
 
 // applyRegistryKind fills in kind and provider for an entry that predates them.

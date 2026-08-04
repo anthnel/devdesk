@@ -422,6 +422,7 @@ func TestManagementCredentialsAreLookedUpByHostAlone(t *testing.T) {
 	reg := config.RegistryItem{
 		URL:           "registry.example.com/repository/docker-group",
 		ManagementURL: srv.URL + "/repository/docker-group",
+		AuthMode:      config.AuthCredentials,
 	}
 	msg := run(t, detectRegistryGroupCmd(reg, "")).(RegistryGroupDetectedMsg)
 
@@ -433,6 +434,73 @@ func TestManagementCredentialsAreLookedUpByHostAlone(t *testing.T) {
 	}
 	if len(msg.Members) != 1 {
 		t.Errorf("Members = %+v, want the one member", msg.Members)
+	}
+}
+
+// D12, fixed. Docker keys credentials by host, so one `docker login` against a
+// Nexus instance made every repository it serves authenticate as that user —
+// including the ones the user had marked as needing no authentication, because
+// nothing on this path ever read the flag. The mode is now read before the
+// lookup, and the probe goes out with nothing.
+//
+// Its sibling above proves the lookup still happens when the mode allows it, so
+// this one cannot pass by breaking credentials outright.
+func TestAnAnonymousRegistryIsProbedWithoutCredentials(t *testing.T) {
+	var authenticated bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _, authenticated = r.BasicAuth()
+		_, _ = w.Write([]byte(`{"type":"group","format":"docker",
+			"attributes":{"group":{"memberNames":["dhi-proxy"]}}}`))
+	}))
+	defer srv.Close()
+
+	host, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatalf("parsing the test server URL: %v", err)
+	}
+	writeDockerConfig(t, map[string]any{
+		"auths": map[string]any{
+			host.Scheme + "://" + host.Host: map[string]string{"auth": encodeAuth("nexus-admin", "s3cret")},
+		},
+	})
+
+	reg := config.RegistryItem{
+		URL:           srv.URL + "/repository/docker-group",
+		ManagementURL: srv.URL + "/repository/docker-group",
+		AuthMode:      config.AuthAnonymous,
+	}
+	msg := run(t, detectRegistryGroupCmd(reg, "")).(RegistryGroupDetectedMsg)
+
+	if authenticated {
+		t.Error("the probe sent the credentials stored for the host to a registry marked anonymous")
+	}
+	if msg.Err != nil {
+		t.Fatalf("Err = %v — anonymous is not an error", msg.Err)
+	}
+	if len(msg.Members) != 1 {
+		t.Errorf("Members = %+v, want the detection to have run anyway", msg.Members)
+	}
+}
+
+// A username configured on an anonymous entry is not a way back in: the mode is
+// the decision, and half a credential is still a credential.
+func TestAnAnonymousRegistrySendsNoUsernameEither(t *testing.T) {
+	var gotUser string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUser, _, _ = r.BasicAuth()
+		_, _ = w.Write([]byte(`{"type":"group","format":"docker"}`))
+	}))
+	defer srv.Close()
+
+	reg := config.RegistryItem{
+		URL:      srv.URL + "/repository/docker-group",
+		Username: "configured",
+		AuthMode: config.AuthAnonymous,
+	}
+	run(t, detectRegistryGroupCmd(reg, ""))
+
+	if gotUser != "" {
+		t.Errorf("the probe authenticated as %q, want nothing sent", gotUser)
 	}
 }
 

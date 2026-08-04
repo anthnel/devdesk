@@ -56,8 +56,8 @@ func TestMain(m *testing.M) {
 func testConfig() *config.Config {
 	cfg := config.Default()
 	cfg.Registry.Registries = []config.RegistryItem{
-		{URL: "registry.example.com", Username: "anthnel", Alias: "prod", AuthEnabled: true},
-		{URL: "docker.io", Alias: "hub"},
+		{URL: "registry.example.com", Username: "anthnel", Alias: "prod", Slug: "prod", AuthMode: config.AuthCredentials},
+		{URL: "docker.io", Alias: "hub", Slug: "hub", AuthMode: config.AuthAnonymous},
 	}
 	return cfg
 }

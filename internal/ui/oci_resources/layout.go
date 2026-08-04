@@ -118,7 +118,7 @@ func (m *Model) resizeRegistryTable(width int) {
 		available := contentWidth - numCols*2
 		fixedUsername := 16
 		fixedAlias := 10
-		fixedAuth := 6
+		fixedAuth := 12 // holds "credentials"
 		fixedLogged := 8
 		flexURL := max(available-fixedUsername-fixedAlias-fixedAuth-fixedLogged, 20)
 		columns[0].Width = flexURL

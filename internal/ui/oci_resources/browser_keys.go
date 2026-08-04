@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 )
 
@@ -108,6 +109,34 @@ func (b *RegistryBrowser) handleInputKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, t
 	return b.delegateUpdate(msg)
 }
 
+// credsFor returns the credentials to search entry with, and nothing at all
+// when the registry — or the group it belongs to — is marked anonymous (D12).
+// Docker keys credentials by host, so a Nexus instance with one repository
+// logged into would otherwise send that login to every repository it serves.
+func (b *RegistryBrowser) credsFor(entry browserRegistryEntry) (string, string) {
+	if !config.UsesCredentials(entry.authMode) {
+		return "", ""
+	}
+	// Credentials come from the parent registry, or the entry itself for a
+	// registry that is not a group member.
+	credURL := entry.URL
+	if entry.parentURL != "" {
+		credURL = entry.parentURL
+	}
+	var username string
+	for _, reg := range b.registries {
+		if reg.URL == credURL {
+			username = reg.Username
+			break
+		}
+	}
+	storedUser, storedPass, _ := docker.GetStoredCreds(credURL)
+	if username == "" {
+		username = storedUser
+	}
+	return username, storedPass
+}
+
 func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 	repo := strings.TrimSpace(b.repoInput.Value())
 	if repo == "" {
@@ -127,22 +156,7 @@ func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 		if !b.selectedRegs[entry.URL] {
 			continue
 		}
-		// Credentials come from the parent registry (or the entry itself for normal registries).
-		credURL := entry.URL
-		if entry.parentURL != "" {
-			credURL = entry.parentURL
-		}
-		var username string
-		for _, reg := range b.registries {
-			if reg.URL == credURL {
-				username = reg.Username
-				break
-			}
-		}
-		storedUser, storedPass, _ := docker.GetStoredCreds(credURL)
-		if username == "" {
-			username = storedUser
-		}
+		username, storedPass := b.credsFor(entry)
 		alias := entry.Alias
 		if entry.ParentAlias != "" {
 			alias = entry.ParentAlias + "/" + entry.Alias

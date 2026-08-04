@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -182,12 +183,9 @@ func (m *Model) updateVolumeTable() {
 func (m *Model) updateRegistryTable() {
 	rows := make([]table.Row, 0, len(m.registries))
 	for _, reg := range m.registries {
-		auth := "no"
-		if reg.AuthEnabled {
-			auth = "yes"
-		}
+		auth := reg.AuthMode
 		logged := "-"
-		if reg.AuthEnabled {
+		if config.UsesCredentials(reg.AuthMode) {
 			if m.registryLoginStatus[reg.URL] {
 				logged = theme.IconOK
 			} else {

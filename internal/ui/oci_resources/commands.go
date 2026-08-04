@@ -559,31 +559,15 @@ func detectRegistryGroupCmd(reg config.RegistryItem, password string) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
 
-		// Look up stored credentials for the Docker registry URL first.
-		storedUser, storedPass, _ := docker.GetStoredCreds(reg.URL)
 		username := reg.Username
-		if username == "" {
-			username = storedUser
-		}
-		if password == "" {
-			password = storedPass
-		}
-
-		// When a ManagementURL is set, its host may differ from the Docker registry
-		// host. Docker stores credentials by hostname only, so extract just the
-		// scheme+host (strip the repository path) before looking up credentials.
-		if reg.ManagementURL != "" && password == "" {
-			mgmtLookup := reg.ManagementURL
-			if u, err := url.Parse(reg.ManagementURL); err == nil && u.Host != "" {
-				mgmtLookup = u.Scheme + "://" + u.Host
-			}
-			mgmtUser, mgmtPass, ok := docker.GetStoredCreds(mgmtLookup)
-			if ok {
-				if username == "" {
-					username = mgmtUser
-				}
-				password = mgmtPass
-			}
+		// D12: a registry the user marked anonymous is probed anonymously.
+		// Docker keys credentials by host, so without this gate the credentials
+		// stored for any registry on that host went out to all of them — which,
+		// for a Nexus instance, is every repository it serves.
+		if config.UsesCredentials(config.ResolveAuthMode(reg, nil)) {
+			username, password = discoveryCreds(reg, username, password)
+		} else {
+			username, password = "", ""
 		}
 
 		info := registrymgr.RegistryInfo{
@@ -595,4 +579,37 @@ func detectRegistryGroupCmd(reg config.RegistryItem, password string) tea.Cmd {
 		members, err := registrymgr.DetectGroup(ctx, info)
 		return RegistryGroupDetectedMsg{RegistryURL: reg.URL, Members: members, Err: err}
 	}
+}
+
+// discoveryCreds completes the credentials the group probe authenticates with.
+// A username or password already stated outranks anything stored: it is the more
+// recent statement of intent, and it is how a wrong stored credential is worked
+// around.
+func discoveryCreds(reg config.RegistryItem, username, password string) (string, string) {
+	storedUser, storedPass, _ := docker.GetStoredCreds(reg.URL)
+	if username == "" {
+		username = storedUser
+	}
+	if password == "" {
+		password = storedPass
+	}
+	if reg.ManagementURL == "" || password != "" {
+		return username, password
+	}
+
+	// The management host may differ from the Docker registry host. Docker
+	// stores credentials by hostname only, so the repository path has to be
+	// stripped before looking one up.
+	mgmtLookup := reg.ManagementURL
+	if u, err := url.Parse(reg.ManagementURL); err == nil && u.Host != "" {
+		mgmtLookup = u.Scheme + "://" + u.Host
+	}
+	mgmtUser, mgmtPass, ok := docker.GetStoredCreds(mgmtLookup)
+	if !ok {
+		return username, password
+	}
+	if username == "" {
+		username = mgmtUser
+	}
+	return username, mgmtPass
 }
