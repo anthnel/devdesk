@@ -1,0 +1,33 @@
+oui
+
+---
+
+démarre le 3.8
+
+---
+
+continue
+
+---
+
+merge et fait l'étape 4
+
+---
+
+merge
+
+---
+
+continue
+
+---
+
+merge et puis fait 5 et 6 en même temps
+
+---
+
+merge
+
+---
+
+je n'ai pas accès à nexus pour l'instant, on testera une autre fois. Dans le backlog, il doit aussi y avoir le support multiforge et le refactorir des table
