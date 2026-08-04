@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "95b786768466",
+  "strategy": "manual-commit",
+  "branch": "datatable-resources",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/95/b786768466/0/metadata.json",
+      "transcript": "/95/b786768466/0/full.jsonl",
+      "compact_transcript": "/95/b786768466/0/transcript.jsonl",
+      "content_hash": "/95/b786768466/0/content_hash.txt",
+      "prompt": "/95/b786768466/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1167,
+    "cache_creation_tokens": 1289580,
+    "cache_read_tokens": 206818463,
+    "output_tokens": 438179,
+    "api_call_count": 617
+  }
+}
