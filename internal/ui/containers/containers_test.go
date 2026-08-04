@@ -14,6 +14,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -82,15 +83,16 @@ func rawModel(t *testing.T) Model {
 }
 
 // loadedModel is what selection and action tests use. It was a distinct helper
-// while the default sort was descending (D9); the two now coincide, and it is
-// kept so those tests keep saying "the order I rely on is ascending" rather
-// than depending on whatever the constructor happens to choose.
+// while the default sort was descending (D9); the two now coincide. It stays as
+// the one place that says "the order these tests rely on is name ascending" —
+// and now checks it rather than setting it, because the sort belongs to the
+// constructor and a test that forces it would pass whatever New chooses.
 func loadedModel(t *testing.T) Model {
 	t.Helper()
 	m := rawModel(t)
-	m.sortColumn = sortByName
-	m.sortAsc = true
-	m.updateTable()
+	if column, desc := m.containerTable.SortState(); column != columnName || desc {
+		t.Fatalf("sort = (column %d, desc=%v), want name ascending", column, desc)
+	}
 	return m
 }
 
@@ -148,6 +150,30 @@ func rowNames(rows []table.Row) []string {
 	names := make([]string, 0, len(rows))
 	for _, row := range rows {
 		names = append(names, row[0])
+	}
+	return names
+}
+
+// tableRows returns the rows as rendered, which is what the Rule 122 and
+// cell-formatting assertions are about. Everything else reads Visible().
+func tableRows(m Model) []table.Row { return m.containerTable.Table().Rows() }
+
+// orderUnder returns the fixture names in the order the table shows them when
+// sorted by one column. It drives datatable rather than calling the comparator,
+// so "descending" means what a second press of `.` produces.
+func orderUnder(column int, desc bool) []string {
+	dt := datatable.New(datatable.Config[docker.Container]{
+		Columns:    containerColumns(),
+		SortColumn: column,
+	})
+	if desc {
+		dt.CycleSort() // ascending → descending, same column
+	}
+	dt.SetItems(containerFixtures())
+
+	names := make([]string, 0, len(dt.Visible()))
+	for _, c := range dt.Visible() {
+		names = append(names, c.Name)
 	}
 	return names
 }

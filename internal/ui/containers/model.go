@@ -1,6 +1,8 @@
 package containers
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -10,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -21,35 +24,16 @@ const (
 	stateLogs
 )
 
-// sortField defines which column to sort by
-type sortField int
-
-const (
-	sortByName sortField = iota
-	sortByImage
-	sortByCPU
-	sortByMem
-	sortByNetRX
-	sortByNetTX
-	sortByBlockRX
-	sortByBlockTX
-	sortByCreated
-)
-
 // Model represents the containers view state
 type Model struct {
 	config         *config.Config
-	containers     []docker.Container
 	showAll        bool
-	filterBar      sharedcomponents.FilterBar
-	containerTable table.Model
+	containerTable datatable.Model[docker.Container]
 	spinner        spinner.Model
 	loading        bool
 	errorMsg       string
 	confirmModal   *sharedcomponents.ConfirmModal
 	pendingAction  string
-	sortColumn     sortField
-	sortAsc        bool
 	width, height  int
 
 	// Logs view state
@@ -109,44 +93,133 @@ type ContainerLogsLoadedMsg struct {
 	Err     error
 }
 
+// columnName indexes containerColumns. Only the ones something else refers to
+// are named; the sort cycle walks them by position.
+const (
+	columnName = iota
+	columnImage
+	columnPorts = 9
+)
+
+// containerColumns describes the containers table.
+//
+// The state is not a column of its own — it is the icon prefixed to the image —
+// but the filter has always matched it, so the Image column searches both.
+func containerColumns() []datatable.Column[docker.Container] {
+	// Metrics only mean anything while the container runs: docker reports the
+	// last values it saw for the rest, which is why they read "-" rather than a
+	// number that stopped being true when the container did.
+	running := func(c docker.Container) bool { return c.State == "running" }
+	transfer := func(io func(docker.Container) string, bytes func(docker.Container) int64) func(docker.Container) string {
+		return func(c docker.Container) string {
+			if !running(c) || io(c) == "" {
+				return "-"
+			}
+			return formatNetBytes(bytes(c))
+		}
+	}
+	netIO := func(c docker.Container) string { return c.NetIO }
+	blockIO := func(c docker.Container) string { return c.BlockIO }
+	byInt64 := func(get func(docker.Container) int64) func(a, b docker.Container) bool {
+		return func(a, b docker.Container) bool { return get(a) < get(b) }
+	}
+
+	return []datatable.Column[docker.Container]{
+		{
+			Title: "Name", MinWidth: 14, Flex: 2,
+			Cell:   func(c docker.Container) string { return c.Name },
+			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Name) < strings.ToLower(b.Name) },
+			Search: func(c docker.Container) string { return c.Name },
+		},
+		{
+			Title: "Image", MinWidth: 20, Flex: 3,
+			Cell:   func(c docker.Container) string { return stateIcon(c.State) + " " + c.Image },
+			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Image) < strings.ToLower(b.Image) },
+			Search: func(c docker.Container) string { return c.Image + " " + c.State },
+		},
+		{
+			Title: "CPU", MinWidth: 8,
+			Cell: func(c docker.Container) string {
+				if !running(c) {
+					return "-"
+				}
+				return fmt.Sprintf("%.1f%%", c.CPUPercent)
+			},
+			Less: func(a, b docker.Container) bool { return a.CPUPercent < b.CPUPercent },
+		},
+		{
+			Title: "Mem", MinWidth: 12,
+			Cell: func(c docker.Container) string {
+				if !running(c) {
+					return "-"
+				}
+				return formatMemUsage(c.MemUsage)
+			},
+			Less: func(a, b docker.Container) bool { return a.MemPercent < b.MemPercent },
+		},
+		{
+			Title: "Net RX", MinWidth: 9,
+			Cell: transfer(netIO, func(c docker.Container) int64 { return c.NetRX }),
+			Less: byInt64(func(c docker.Container) int64 { return c.NetRX }),
+		},
+		{
+			Title: "Net TX", MinWidth: 9,
+			Cell: transfer(netIO, func(c docker.Container) int64 { return c.NetTX }),
+			Less: byInt64(func(c docker.Container) int64 { return c.NetTX }),
+		},
+		{
+			Title: "Block RX", MinWidth: 10,
+			Cell: transfer(blockIO, func(c docker.Container) int64 { return c.BlockRX }),
+			Less: byInt64(func(c docker.Container) int64 { return c.BlockRX }),
+		},
+		{
+			Title: "Block TX", MinWidth: 10,
+			Cell: transfer(blockIO, func(c docker.Container) int64 { return c.BlockTX }),
+			Less: byInt64(func(c docker.Container) int64 { return c.BlockTX }),
+		},
+		{
+			Title: "Created", MinWidth: 12,
+			Cell: func(c docker.Container) string { return relativeTime(c.CreatedAt) },
+			// CreatedAt is compared as the string docker printed, so a value
+			// that will not parse sorts after every timestamp rather than
+			// silently becoming the zero time and leading the list.
+			Less: func(a, b docker.Container) bool { return a.CreatedAt < b.CreatedAt },
+		},
+		{
+			Title: "Ports", MinWidth: 16, Flex: 2,
+			Cell: func(c docker.Container) string { return c.Ports },
+		},
+	}
+}
+
+// containerSelectedStyles paints the selected row as an error when the
+// container is not coming back on its own. It is the whole of what
+// refreshSelectionStyle used to do, minus its replay of filter-then-sort to
+// find out what the cursor was on.
+func containerSelectedStyles(c docker.Container) table.Styles {
+	if c.State == "exited" || c.State == "dead" {
+		return theme.TableStylesForState("error")
+	}
+	return theme.TableStylesForState("normal")
+}
+
 // New creates a new containers view
 func New(cfg *config.Config) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
 
-	columns := []table.Column{
-		{Title: "Name", Width: 20},
-		{Title: "Image", Width: 25},
-		{Title: "CPU", Width: 14},
-		{Title: "Mem", Width: 14},
-		{Title: "Net RX", Width: 10},
-		{Title: "Net TX", Width: 10},
-		{Title: "Block RX", Width: 10},
-		{Title: "Block TX", Width: 10},
-		{Title: "Created", Width: 16},
-		{Title: "Ports", Width: 20},
-	}
-
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithFocused(true),
-		table.WithHeight(10),
-	)
-	t.SetStyles(theme.DefaultTableStyles())
-
-	vp := viewport.New(0, 0)
-
 	return Model{
-		config:         cfg,
-		spinner:        s,
-		filterBar:      sharedcomponents.NewFilterBar(),
-		containerTable: t,
-		loading:        true,
-		logsViewport:   vp,
-		// Explicit rather than left at the zero value, which would open the
-		// list Z→A and disagree with the status view (D9).
-		sortColumn: sortByName,
-		sortAsc:    true,
+		config:  cfg,
+		spinner: s,
+		containerTable: datatable.New(datatable.Config[docker.Container]{
+			Columns: containerColumns(),
+			// Explicit rather than left at the zero value, which would open the
+			// list Z→A and disagree with the status view (D9).
+			SortColumn:     columnName,
+			SelectedStyles: containerSelectedStyles,
+		}),
+		loading:      true,
+		logsViewport: viewport.New(0, 0),
 	}
 }

@@ -48,7 +48,7 @@ func TestContainersListPopulatesTheTable(t *testing.T) {
 	if m.errorMsg != "" {
 		t.Errorf("errorMsg = %q after a successful list", m.errorMsg)
 	}
-	if got := rowNames(m.containerTable.Rows()); len(got) != 4 {
+	if got := rowNames(tableRows(m)); len(got) != 4 {
 		t.Errorf("table holds %v, want the four fixtures", got)
 	}
 }
@@ -64,7 +64,7 @@ func TestContainersListErrorSurfacesAndKeepsRows(t *testing.T) {
 	if strings.Contains(m.errorMsg, "daemon") {
 		t.Errorf("errorMsg = %q leaks the raw error into the UI; Rule 128 wants a short message plus a log", m.errorMsg)
 	}
-	if len(m.containerTable.Rows()) != 4 {
+	if len(tableRows(m)) != 4 {
 		t.Error("a failed list wiped the table instead of keeping the last known state")
 	}
 	if m.loading {
@@ -86,7 +86,7 @@ func TestMetricsMergeIntoTheMatchingContainer(t *testing.T) {
 	}})
 
 	var web docker.Container
-	for _, c := range m.containers {
+	for _, c := range m.containerTable.Items() {
 		if c.Name == "web" {
 			web = c
 		}
@@ -99,7 +99,7 @@ func TestMetricsMergeIntoTheMatchingContainer(t *testing.T) {
 	}
 
 	// Containers absent from the metrics map keep whatever they had.
-	for _, c := range m.containers {
+	for _, c := range m.containerTable.Items() {
 		if c.Name == "api" && c.CPUPercent != 99 {
 			t.Errorf("api CPU = %v, want it untouched by a merge that did not mention it", c.CPUPercent)
 		}
@@ -108,14 +108,14 @@ func TestMetricsMergeIntoTheMatchingContainer(t *testing.T) {
 
 func TestMetricsFailureIsIgnored(t *testing.T) {
 	m := loadedModel(t)
-	before := m.containers[0].CPUPercent
+	before := m.containerTable.Items()[0].CPUPercent
 
 	m = feed(t, m,
 		ContainerMetricsMsg{Err: errors.New("stats failed")},
 		ContainerMetricsMsg{Metrics: nil},
 	)
 
-	if m.containers[0].CPUPercent != before {
+	if m.containerTable.Items()[0].CPUPercent != before {
 		t.Error("a failed metrics fetch overwrote the previous values")
 	}
 	if m.errorMsg != "" {
@@ -131,7 +131,7 @@ func TestOnlyRunningContainersShowMetrics(t *testing.T) {
 	m := loadedModel(t)
 
 	byName := map[string]table.Row{}
-	for _, row := range m.containerTable.Rows() {
+	for _, row := range tableRows(m) {
 		byName[row[0]] = row
 	}
 
@@ -234,7 +234,7 @@ func TestTableCellsCarryNoANSISequences(t *testing.T) {
 	withTrueColor(t)
 	m := loadedModel(t)
 
-	for _, row := range m.containerTable.Rows() {
+	for _, row := range tableRows(m) {
 		for i, cell := range row {
 			if strings.Contains(cell, "\x1b") {
 				t.Errorf("cell %d = %q contains an escape sequence", i, cell)
@@ -261,7 +261,7 @@ func TestFilterMatchesNameImageAndState(t *testing.T) {
 			m := feed(t, loadedModel(t), testutil.Key("/"))
 			m = feed(t, m, testutil.Type(tc.query)...)
 
-			got := rowNames(m.containerTable.Rows())
+			got := rowNames(tableRows(m))
 			if len(got) != len(tc.want) {
 				t.Fatalf("rows = %v, want %v", got, tc.want)
 			}
@@ -280,10 +280,10 @@ func TestFilterMatchesNameImageAndState(t *testing.T) {
 func TestDefaultSortIsNameAscending(t *testing.T) {
 	m := rawModel(t)
 
-	if m.sortColumn != sortByName || !m.sortAsc {
-		t.Errorf("default sort = (%d, asc=%v), want name ascending", m.sortColumn, m.sortAsc)
+	if column, desc := m.containerTable.SortState(); column != columnName || desc {
+		t.Errorf("default sort = (column %d, desc=%v), want name ascending", column, desc)
 	}
-	if got := rowNames(m.containerTable.Rows()); got[0] != "api" {
+	if got := rowNames(tableRows(m)); got[0] != "api" {
 		t.Errorf("first row = %q, want api under an ascending default (full order %v)", got[0], got)
 	}
 }
@@ -293,59 +293,52 @@ func TestCycleSortWalksDirectionThenColumn(t *testing.T) {
 
 	// One press from ascending reverses the same column.
 	m = feed(t, m, testutil.Key("."))
-	if m.sortColumn != sortByName || m.sortAsc {
-		t.Errorf("sort = (%d, asc=%v) after one press, want (name, desc)", m.sortColumn, m.sortAsc)
+	if column, desc := m.containerTable.SortState(); column != columnName || !desc {
+		t.Errorf("sort = (column %d, desc=%v) after one press, want (name, desc)", column, desc)
 	}
 
 	// The next press flips direction back and advances the column.
 	m = feed(t, m, testutil.Key("."))
-	if m.sortColumn != sortByImage || !m.sortAsc {
-		t.Errorf("sort = (%d, asc=%v) after two presses, want (image, asc)", m.sortColumn, m.sortAsc)
+	if column, desc := m.containerTable.SortState(); column != columnImage || desc {
+		t.Errorf("sort = (column %d, desc=%v) after two presses, want (image, asc)", column, desc)
 	}
 
 	// Each sortable column is visited ascending then descending, so a full
-	// cycle returns to the start.
-	for range len(sortableColumns)*2 - 2 {
+	// cycle returns to the start. Every column but Ports sorts.
+	sortable := len(containerColumns()) - 1
+	for range sortable*2 - 2 {
 		m = feed(t, m, testutil.Key("."))
 	}
-	if m.sortColumn != sortByName || !m.sortAsc {
-		t.Errorf("sort = (%d, asc=%v) after a full cycle, want the starting (name, asc)", m.sortColumn, m.sortAsc)
+	if column, desc := m.containerTable.SortState(); column != columnName || desc {
+		t.Errorf("sort = (column %d, desc=%v) after a full cycle, want the starting (name, asc)", column, desc)
 	}
 }
 
-func TestSortedContainersOrdersByTheActiveColumn(t *testing.T) {
+func TestEachColumnOrdersByItsOwnValue(t *testing.T) {
 	tests := []struct {
 		name   string
-		column sortField
-		asc    bool
+		column int
+		desc   bool
 		want   []string
 	}{
-		{"name ascending", sortByName, true, []string{"api", "cache", "web", "zombie"}},
-		{"name descending", sortByName, false, []string{"zombie", "web", "cache", "api"}},
-		{"image ascending", sortByImage, true, []string{"zombie", "api", "web", "cache"}},
-		{"cpu descending", sortByCPU, false, []string{"api", "web", "cache", "zombie"}},
-		{"mem descending", sortByMem, false, []string{"web", "cache", "zombie", "api"}},
-		{"net rx descending", sortByNetRX, false, []string{"web", "cache", "zombie", "api"}},
-		{"net tx descending", sortByNetTX, false, []string{"web", "cache", "zombie", "api"}},
-		{"block rx descending", sortByBlockRX, false, []string{"web", "cache", "zombie", "api"}},
-		{"block tx descending", sortByBlockTX, false, []string{"web", "cache", "zombie", "api"}},
+		{"name ascending", columnName, false, []string{"api", "cache", "web", "zombie"}},
+		{"name descending", columnName, true, []string{"zombie", "web", "cache", "api"}},
+		{"image ascending", columnImage, false, []string{"zombie", "api", "web", "cache"}},
+		{"cpu descending", 2, true, []string{"api", "web", "cache", "zombie"}},
+		{"mem descending", 3, true, []string{"web", "cache", "zombie", "api"}},
+		{"net rx descending", 4, true, []string{"web", "cache", "zombie", "api"}},
+		{"net tx descending", 5, true, []string{"web", "cache", "zombie", "api"}},
+		{"block rx descending", 6, true, []string{"web", "cache", "zombie", "api"}},
+		{"block tx descending", 7, true, []string{"web", "cache", "zombie", "api"}},
 		// CreatedAt is compared as a string, so an unparseable value sorts
 		// after every ISO timestamp rather than being treated as unknown.
-		{"created ascending", sortByCreated, true, []string{"cache", "api", "web", "zombie"}},
+		{"created ascending", 8, false, []string{"cache", "api", "web", "zombie"}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			m := New(config.Default())
-			m.sortColumn = tc.column
-			m.sortAsc = tc.asc
+			got := orderUnder(tc.column, tc.desc)
 
-			sorted := m.sortedContainers(containerFixtures())
-
-			got := make([]string, 0, len(sorted))
-			for _, c := range sorted {
-				got = append(got, c.Name)
-			}
 			for i, want := range tc.want {
 				if got[i] != want {
 					t.Errorf("position %d = %q, want %q (full order %v)", i, got[i], want, got)
@@ -355,39 +348,45 @@ func TestSortedContainersOrdersByTheActiveColumn(t *testing.T) {
 	}
 }
 
-func TestSortedContainersDoesNotMutateItsInput(t *testing.T) {
+// Sorting reorders what is shown, never the list the view was handed — the
+// caller's slice and Items() both stay in arrival order.
+func TestSortingLeavesTheSourceListAlone(t *testing.T) {
 	input := containerFixtures()
-	m := New(config.Default())
-	m.sortColumn = sortByName
 
-	m.sortedContainers(input)
+	m := feed(t, newTestModel(t), ContainersListMsg{Containers: input})
 
 	if input[0].Name != "web" {
-		t.Errorf("sortedContainers reordered its input: first entry is now %q", input[0].Name)
+		t.Errorf("the sort reordered the caller's slice: first entry is now %q", input[0].Name)
+	}
+	if got := m.containerTable.Items()[0].Name; got != "web" {
+		t.Errorf("Items()[0] = %q, want the list in the order it arrived", got)
+	}
+	if got := m.containerTable.Visible()[0].Name; got != "api" {
+		t.Errorf("Visible()[0] = %q, want the sorted order", got)
 	}
 }
 
 func TestSortIndicatorFollowsTheActiveColumn(t *testing.T) {
 	m := loadedModel(t) // name ascending
 
-	if got := m.containerTable.Columns()[0].Title; got != "Name ▲" {
+	if got := m.containerTable.Table().Columns()[0].Title; got != "Name ▲" {
 		t.Errorf("Name header = %q, want the ascending arrow", got)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := m.containerTable.Columns()[0].Title; got != "Name ▼" {
+	if got := m.containerTable.Table().Columns()[0].Title; got != "Name ▼" {
 		t.Errorf("Name header = %q after reversing, want the descending arrow", got)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := m.containerTable.Columns()[1].Title; got != "Image ▲" {
+	if got := m.containerTable.Table().Columns()[1].Title; got != "Image ▲" {
 		t.Errorf("Image header = %q, want the ascending arrow", got)
 	}
-	if got := m.containerTable.Columns()[0].Title; got != "Name" {
+	if got := m.containerTable.Table().Columns()[0].Title; got != "Name" {
 		t.Errorf("Name header = %q once Image took over, want it bare", got)
 	}
 	// Ports is not sortable and must never gain an arrow.
-	if got := m.containerTable.Columns()[9].Title; got != "Ports" {
+	if got := m.containerTable.Table().Columns()[9].Title; got != "Ports" {
 		t.Errorf("Ports header = %q, want it bare", got)
 	}
 }
@@ -408,9 +407,10 @@ func TestSelectionResolvesThroughSortAndFilter(t *testing.T) {
 		t.Fatalf("selection after two downs = %v, want web", got)
 	}
 
+	// No SetCursor here: the cursor sat on row 2 and the filter leaves one row.
+	// Clamping it is the table's job now, and it is what the view never did.
 	m = feed(t, m, testutil.Key("/"))
 	m = feed(t, m, testutil.Type("redis")...)
-	m.containerTable.SetCursor(0)
 	if got := m.getSelectedContainer(); got == nil || got.Name != "cache" {
 		t.Fatalf("selection under a filter = %v, want cache", got)
 	}
@@ -1001,10 +1001,11 @@ func TestExternalPagerRejectsAMalformedContainerID(t *testing.T) {
 }
 
 func TestInspectRejectsAMalformedContainerID(t *testing.T) {
-	m := loadedModel(t)
-	for i := range m.containers {
-		m.containers[i].ID = "not-a-hex-id"
+	broken := containerFixtures()
+	for i := range broken {
+		broken[i].ID = "not-a-hex-id"
 	}
+	m := feed(t, newTestModel(t), ContainersListMsg{Containers: broken})
 
 	m, cmd := step(t, m, testutil.Key("i"))
 
@@ -1056,17 +1057,22 @@ func TestShellWindowSuccessSaysNothing(t *testing.T) {
 
 // ── Layout ───────────────────────────────────────────────────────────────────
 
+// Rule 116 at every width, not just the roomy one. Ten columns asking for 120
+// characters do not fit a 100-wide terminal, and the old percentages rounded
+// down ten times over — the shortfall is shared out now, and the sum has to
+// land on the nose either way.
 func TestResizeFillsTheViewportWidth(t *testing.T) {
-	m := feed(t, newTestModel(t), tea.WindowSizeMsg{Width: 200, Height: 40})
+	for _, width := range []int{60, 100, 140, 200} {
+		m := feed(t, newTestModel(t), tea.WindowSizeMsg{Width: width, Height: 40})
 
-	total := 0
-	for _, col := range m.containerTable.Columns() {
-		total += col.Width
-	}
-	// Rule 116: terminal minus viewport borders minus two columns of padding
-	// per cell.
-	if want := 200 - 2 - 10*2; total != want {
-		t.Errorf("columns total %d, want %d so the selected row reaches the border", total, want)
+		total := 0
+		for _, col := range m.containerTable.Table().Columns() {
+			total += col.Width
+		}
+		// terminal minus viewport borders minus two columns of padding per cell
+		if want := width - 2 - 10*2; total != want {
+			t.Errorf("at width %d the columns total %d, want %d so the selected row reaches the border", width, total, want)
+		}
 	}
 }
 
