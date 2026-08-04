@@ -33,7 +33,7 @@ func (m *Model) InEditMode() bool {
 
 // FilterBarVisible returns true when the ports filter bar is visible (implements app.FilterBarView).
 func (m *Model) FilterBarVisible() bool {
-	return m.activeTab == tabPorts && m.portsModel.filterBar.IsVisible()
+	return m.activeTab == tabPorts && m.portsModel.table.FilterBar().IsVisible()
 }
 
 // Update implements tea.Model

@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	dockerpkg "github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -74,18 +74,13 @@ type PortsModel struct {
 	width  int
 	height int
 
-	ports    []dockerpkg.PortInfo
-	filtered []dockerpkg.PortInfo
-	table    table.Model
+	// The table holds the entries, filters them and keeps the cursor. The
+	// tableReady / lastTableWidth / lastTableHeight trio that used to live here
+	// existed only to avoid recreating the table on every two-second tick and
+	// losing the scroll position; SetItems guarantees that instead.
+	table datatable.Model[dockerpkg.PortInfo]
 
-	// table lifecycle: avoid full recreation on data ticks to preserve scroll position
-	tableReady      bool
-	lastTableWidth  int
-	lastTableHeight int
-
-	// filters and search via shared FilterBar
-	filterBar components.FilterBar
-	paused    bool
+	paused bool
 
 	// address display
 	numericAddrs bool // true = raw IPs/ports (-n flag), false = DNS names
@@ -94,21 +89,72 @@ type PortsModel struct {
 	footerInfo  string
 }
 
+// portsColumns describes the ports table. Every column is searchable: the query
+// used to run against all six joined, and it still does.
+func portsColumns() []datatable.Column[dockerpkg.PortInfo] {
+	text := func(get func(dockerpkg.PortInfo) string) datatable.Column[dockerpkg.PortInfo] {
+		return datatable.Column[dockerpkg.PortInfo]{Cell: get, Search: get}
+	}
+	proto := text(func(p dockerpkg.PortInfo) string { return p.Protocol })
+	state := text(func(p dockerpkg.PortInfo) string { return p.State })
+	local := text(func(p dockerpkg.PortInfo) string { return p.LocalAddr })
+	peer := text(func(p dockerpkg.PortInfo) string { return p.PeerAddr })
+	pid := text(func(p dockerpkg.PortInfo) string { return p.PID })
+	process := text(func(p dockerpkg.PortInfo) string { return p.Process })
+
+	proto.Title, proto.MinWidth = "Proto", 6
+	state.Title, state.MinWidth = "State", 10
+	local.Title, local.MinWidth = "Local Address", 26
+	peer.Title, peer.MinWidth = "Peer Address", 26
+	pid.Title, pid.MinWidth = "PID", 7
+	process.Title, process.MinWidth, process.Flex = "Process", 10, 1
+
+	return []datatable.Column[dockerpkg.PortInfo]{proto, state, local, peer, pid, process}
+}
+
+// matchPortTokens applies the toggle filters: OR within a group, AND between
+// them. `numeric` and `paused` are shown in the bar but filter nothing — they
+// report a mode, which is why they are not consulted here.
+func matchPortTokens(p dockerpkg.PortInfo, active map[string]bool) bool {
+	return matchesActive(p.Protocol, active, filterTokenTCP, filterTokenUDP) &&
+		matchesActive(p.State, active, filterTokenListen, filterTokenEstab)
+}
+
+// matchesActive reports whether value equals one of the labels the user turned
+// on. A group with nothing on does not filter: that is "no opinion", not
+// "match nothing", and getting the two confused would empty the table on open.
+func matchesActive(value string, active map[string]bool, labels ...string) bool {
+	anyOn := false
+	for _, label := range labels {
+		if !active[label] {
+			continue
+		}
+		anyOn = true
+		if strings.EqualFold(value, label) {
+			return true
+		}
+	}
+	return !anyOn
+}
+
 // newPortsModel creates a new PortsModel.
 func newPortsModel(image string) *PortsModel {
-	fb := components.NewFilterBarWithTokens([]components.FilterToken{
-		{Label: filterTokenTCP},
-		{Label: filterTokenUDP},
-		{Label: filterTokenListen},
-		{Label: filterTokenEstab},
-		{Label: filterTokenNumeric},
-		{Label: filterTokenPaused},
-	})
-
 	return &PortsModel{
 		image:        image,
 		numericAddrs: true,
-		filterBar:    fb,
+		table: datatable.New(datatable.Config[dockerpkg.PortInfo]{
+			Columns:    portsColumns(),
+			SortColumn: -1, // the order ss reports is the order shown
+			Tokens: []components.FilterToken{
+				{Label: filterTokenTCP},
+				{Label: filterTokenUDP},
+				{Label: filterTokenListen},
+				{Label: filterTokenEstab},
+				{Label: filterTokenNumeric},
+				{Label: filterTokenPaused},
+			},
+			TokenMatch: matchPortTokens,
+		}),
 	}
 }
 
@@ -119,14 +165,19 @@ func (pm *PortsModel) initPorts() tea.Cmd {
 
 // InEditMode returns true when the search input is active.
 func (pm *PortsModel) InEditMode() bool {
-	return pm.filterBar.InEditMode()
+	return pm.table.InEditMode()
 }
 
-// resize updates terminal dimensions and rebuilds the table.
+// resize updates terminal dimensions and lays the table out (Rule 116).
 func (pm *PortsModel) resize(width, height int) {
 	pm.width = width
 	pm.height = height
-	pm.rebuildTable()
+	if width == 0 {
+		return
+	}
+	// pm.height IS the viewport content height sent by the app (Rule 124); the
+	// filter bar is rendered in the footer, outside the viewport.
+	pm.table.Resize(width, max(height, 3))
 }
 
 func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
@@ -160,9 +211,9 @@ func (pm *PortsModel) handleData(msg portsDataMsg) (*PortsModel, tea.Cmd) {
 		pm.footerError = "Failed to fetch ports — check logs"
 		return pm, portsClearFooterCmd()
 	}
-	pm.ports = msg.ports
-	pm.applyFilters()
-	pm.rebuildTable()
+	// The cursor and the scroll survive this, which is what the whole
+	// tableReady dance existed to achieve on a two-second tick.
+	pm.table.SetItems(msg.ports)
 	return pm, nil
 }
 
@@ -177,80 +228,54 @@ func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea
 }
 
 func (pm *PortsModel) handleKey(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
-	if pm.filterBar.InEditMode() {
-		return pm.handleKeySearch(msg)
+	if pm.table.InEditMode() {
+		cmd := pm.table.Update(msg)
+		pm.table.GotoTop() // a narrowing query starts from the first match
+		return pm, cmd
 	}
 	return pm.handleKeyNormal(msg)
 }
 
-func (pm *PortsModel) handleKeySearch(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
-	var cmd tea.Cmd
-	pm.filterBar, cmd = pm.filterBar.Update(msg)
-	pm.applyFilters()
-	pm.rebuildTable()
+// toggleToken flips a filter and returns to the top, since the list under the
+// cursor is not the list the user was looking at any more.
+func (pm *PortsModel) toggleToken(label string) {
+	pm.table.SetTokenActive(label, !pm.table.IsTokenActive(label))
 	pm.table.GotoTop()
-	return pm, cmd
 }
 
 func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
 	switch msg.String() {
-	case "up", "k":
-		pm.table.MoveUp(1)
-	case "down", "j":
-		pm.table.MoveDown(1)
-	case "pgup":
-		pm.table.MoveUp(max(pm.height/2, 1))
-	case "pgdown":
-		pm.table.MoveDown(max(pm.height/2, 1))
-	case "g":
-		pm.table.GotoTop()
-	case "G":
-		pm.table.GotoBottom()
+	case "up", "k", "down", "j", "pgup", "pgdown", "g", "G", "/":
+		return pm, pm.table.Update(msg)
 	case " ":
 		pm.paused = !pm.paused
-		pm.filterBar.SetTokenActive(filterTokenPaused, pm.paused)
+		pm.table.SetTokenActive(filterTokenPaused, pm.paused)
 		if pm.paused {
 			pm.footerInfo = "Paused — press space to resume"
 		} else {
 			pm.footerInfo = ""
 		}
-		pm.rebuildTable()
-	case "/":
-		return pm, pm.filterBar.ActivateSearch()
 	case "t":
-		pm.filterBar.SetTokenActive(filterTokenTCP, !pm.filterBar.IsTokenActive(filterTokenTCP))
-		pm.applyFilters()
-		pm.rebuildTable()
-		pm.table.GotoTop()
+		pm.toggleToken(filterTokenTCP)
 	case "u":
-		pm.filterBar.SetTokenActive(filterTokenUDP, !pm.filterBar.IsTokenActive(filterTokenUDP))
-		pm.applyFilters()
-		pm.rebuildTable()
-		pm.table.GotoTop()
+		pm.toggleToken(filterTokenUDP)
 	case "l":
-		pm.filterBar.SetTokenActive(filterTokenListen, !pm.filterBar.IsTokenActive(filterTokenListen))
-		pm.applyFilters()
-		pm.rebuildTable()
-		pm.table.GotoTop()
+		pm.toggleToken(filterTokenListen)
 	case "e":
-		pm.filterBar.SetTokenActive(filterTokenEstab, !pm.filterBar.IsTokenActive(filterTokenEstab))
-		pm.applyFilters()
-		pm.rebuildTable()
-		pm.table.GotoTop()
+		pm.toggleToken(filterTokenEstab)
 	case "n":
 		pm.numericAddrs = !pm.numericAddrs
-		pm.filterBar.SetTokenActive(filterTokenNumeric, pm.numericAddrs)
+		pm.table.SetTokenActive(filterTokenNumeric, pm.numericAddrs)
 		return pm, fetchPortsCmd(pm.image, pm.numericAddrs)
 	case "z":
-		pm.filterBar.SetTokenActive(filterTokenTCP, false)
-		pm.filterBar.SetTokenActive(filterTokenUDP, false)
-		pm.filterBar.SetTokenActive(filterTokenListen, false)
-		pm.filterBar.SetTokenActive(filterTokenEstab, false)
-		pm.filterBar.SetTokenActive(filterTokenPaused, false)
-		pm.filterBar.ClearSearch()
+		for _, label := range []string{
+			filterTokenTCP, filterTokenUDP, filterTokenListen, filterTokenEstab, filterTokenPaused,
+		} {
+			pm.table.SetTokenActive(label, false)
+		}
+		pm.table.FilterBar().ClearSearch()
+		pm.table.SetItems(pm.table.Items()) // re-apply with the query gone
 		pm.paused = false
-		pm.applyFilters()
-		pm.rebuildTable()
 		pm.table.GotoTop()
 	case "ctrl+k":
 		return pm.killSelected()
@@ -259,11 +284,10 @@ func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
 }
 
 func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
-	idx := pm.table.Cursor()
-	if idx < 0 || idx >= len(pm.filtered) {
+	entry, ok := pm.table.Selected()
+	if !ok {
 		return pm, nil
 	}
-	entry := pm.filtered[idx]
 	if entry.PID == "" {
 		pm.footerInfo = "No PID available for this entry"
 		return pm, portsClearFooterCmd()
@@ -271,119 +295,17 @@ func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
 	return pm, killProcessCmd(pm.image, entry.PID)
 }
 
-func (pm *PortsModel) applyFilters() {
-	pm.filtered = nil
-	query := strings.ToLower(pm.filterBar.SearchQuery())
-	filterTCP := pm.filterBar.IsTokenActive(filterTokenTCP)
-	filterUDP := pm.filterBar.IsTokenActive(filterTokenUDP)
-	filterListen := pm.filterBar.IsTokenActive(filterTokenListen)
-	filterEstab := pm.filterBar.IsTokenActive(filterTokenEstab)
-
-	for _, p := range pm.ports {
-		// Proto filter (OR logic): skip if no active proto matches.
-		if (filterTCP || filterUDP) &&
-			(!filterTCP || !strings.EqualFold(p.Protocol, filterTokenTCP)) &&
-			(!filterUDP || !strings.EqualFold(p.Protocol, filterTokenUDP)) {
-			continue
-		}
-		// State filter (OR logic): skip if no active state matches.
-		if (filterListen || filterEstab) &&
-			(!filterListen || !strings.EqualFold(p.State, filterTokenListen)) &&
-			(!filterEstab || !strings.EqualFold(p.State, filterTokenEstab)) {
-			continue
-		}
-		if query != "" {
-			haystack := strings.ToLower(p.Protocol + " " + p.State + " " + p.LocalAddr + " " + p.PeerAddr + " " + p.Process + " " + p.PID)
-			if !strings.Contains(haystack, query) {
-				continue
-			}
-		}
-		pm.filtered = append(pm.filtered, p)
-	}
-}
-
-// tableColumns computes the column definitions based on current width.
-func (pm *PortsModel) tableColumns() []table.Column {
-	w := max(pm.width-2, 30)
-	available := w - 6*2 // 6 columns × 2-char cell padding
-	col1W := 6
-	col2W := 10
-	col3W := 26
-	col4W := 26
-	col5W := 7
-	col6W := max(available-col1W-col2W-col3W-col4W-col5W, 10)
-	return []table.Column{
-		{Title: "Proto", Width: col1W},
-		{Title: "State", Width: col2W},
-		{Title: "Local Address", Width: col3W},
-		{Title: "Peer Address", Width: col4W},
-		{Title: "PID", Width: col5W},
-		{Title: "Process", Width: col6W},
-	}
-}
-
-// buildRows converts filtered entries to table rows.
-func (pm *PortsModel) buildRows() []table.Row {
-	var rows []table.Row
-	for _, p := range pm.filtered {
-		rows = append(rows, table.Row{p.Protocol, p.State, p.LocalAddr, p.PeerAddr, p.PID, p.Process})
-	}
-	return rows
-}
-
-func (pm *PortsModel) rebuildTable() {
-	if pm.width == 0 {
-		return
-	}
-
-	pm.filterBar.Resize(max(pm.width, 30))
-
-	// pm.height IS the viewport content height sent by the app (Rule 124).
-	// Filter bar is rendered in the footer (outside the viewport).
-	tableHeight := pm.height
-	if tableHeight < 3 {
-		tableHeight = 3
-	}
-
-	rows := pm.buildRows()
-
-	if !pm.tableReady {
-		// First render: create the table from scratch.
-		t := table.New(
-			table.WithColumns(pm.tableColumns()),
-			table.WithRows(rows),
-			table.WithFocused(true),
-			table.WithHeight(tableHeight),
-		)
-		t.SetStyles(theme.DefaultTableStyles())
-		pm.table = t
-		pm.tableReady = true
-		pm.lastTableWidth = pm.width
-		pm.lastTableHeight = tableHeight
-		return
-	}
-
-	// Structural change (terminal resize or filter bar toggled): update columns + height.
-	if pm.width != pm.lastTableWidth || tableHeight != pm.lastTableHeight {
-		pm.table.SetColumns(pm.tableColumns())
-		pm.table.SetHeight(tableHeight)
-		pm.lastTableWidth = pm.width
-		pm.lastTableHeight = tableHeight
-	}
-
-	// Data update: SetRows preserves cursor index and viewport scroll position.
-	pm.table.SetRows(rows)
-}
-
 func (pm *PortsModel) view() string {
 	w := max(pm.width-2, 30)
 	var lines []string
 
-	// Table or empty state. When a filter is active, always render the table.
-	if len(pm.filtered) == 0 && !pm.filterBar.IsVisible() {
+	// Table or empty state. When a filter is active, always render the table —
+	// an empty result with no explanation reads as "no ports" rather than as
+	// "your filter matched none".
+	if len(pm.table.Visible()) == 0 && !pm.table.FilterBar().IsVisible() {
 		lines = append(lines, theme.EmptyLineBg(w))
 		msg := "No active ports found"
-		if pm.ports == nil {
+		if pm.table.Items() == nil {
 			msg = "Loading ports..."
 		}
 		lines = append(lines, theme.PadWithBg(theme.Bg("  ")+theme.DimStyle.Render(msg), w))
