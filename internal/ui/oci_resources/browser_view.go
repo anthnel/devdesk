@@ -70,8 +70,6 @@ func (b *RegistryBrowser) rebuildTagTable() {
 // View renders the browser for the current state.
 func (b *RegistryBrowser) View() string {
 	switch b.state {
-	case browserStateResolving:
-		return b.viewResolving()
 	case browserStateTags:
 		return b.viewTags()
 	case browserStateStatus:
@@ -81,11 +79,6 @@ func (b *RegistryBrowser) View() string {
 	}
 }
 
-func (b *RegistryBrowser) viewResolving() string {
-	return theme.EmptyLineBg(b.width) + "\n" +
-		theme.SpinnerMessage(b.spinner.View(), "Checking registries...")
-}
-
 func (b *RegistryBrowser) viewInput() string {
 	var sb strings.Builder
 
@@ -93,28 +86,18 @@ func (b *RegistryBrowser) viewInput() string {
 	sb.WriteString(b.renderInputField("Repository", b.repoInput.View(), brFieldRepo))
 	sb.WriteString("\n\n")
 
-	if len(b.entries) > 0 {
+	if len(b.rows) > 0 {
 		sb.WriteString(theme.Bg("  ") + theme.DimStyle.Render("Registries:") + "\n")
-		var currentGroup string
-		for i, entry := range b.entries {
-			if entry.ParentAlias != "" && entry.ParentAlias != currentGroup {
-				if currentGroup != "" {
-					sb.WriteString("\n")
-				}
-				currentGroup = entry.ParentAlias
-				sb.WriteString(theme.Bg("  ") + theme.DimStyle.Render(currentGroup+":") + "\n")
-			} else if entry.ParentAlias == "" && currentGroup != "" {
-				currentGroup = ""
-				sb.WriteString("\n")
-			}
-			label := entry.Alias
-			if entry.ParentAlias != "" {
-				label = "  " + entry.Alias // visual indent for group members
-			}
-			checked := b.selectedRegs[entry.URL]
+		for i, row := range b.rows {
 			focused := b.focusedField == b.brFieldReg(i)
-			sb.WriteString(theme.RenderCheckbox(checked, label, focused))
-			if i < len(b.entries)-1 {
+			if row.groupSlug != "" {
+				// One checkbox for the whole group, with a third state for a
+				// partial selection — eight proxies are not eight keystrokes.
+				sb.WriteString(theme.RenderCheckboxTri(b.groupState(row.groupSlug), row.label, focused))
+			} else {
+				sb.WriteString(theme.RenderCheckbox(b.selectedRegs[b.entries[row.entry].URL], row.label, focused))
+			}
+			if i < len(b.rows)-1 {
 				sb.WriteString("\n")
 			}
 		}
@@ -151,7 +134,7 @@ func (b *RegistryBrowser) viewTags() string {
 
 // FilterIsVisible returns true when the tag filter bar should be shown in the footer.
 func (b *RegistryBrowser) FilterIsVisible() bool {
-	return b.state == browserStateTags && (b.filterActive || b.filterInput.Value() != "" || b.registryFilter != "")
+	return b.state == browserStateTags && (b.filterActive || b.filterInput.Value() != "" || !b.registryFilter.isEmpty())
 }
 
 // FilterBarView renders the filter bar (2 lines) for display in the footer.
@@ -167,7 +150,7 @@ func (b *RegistryBrowser) FilterBarView(width int) string {
 		left = theme.DimStyle.Render("/ filter…")
 	}
 
-	if b.registryFilter != "" {
+	if !b.registryFilter.isEmpty() {
 		left += theme.Bg("  ") + theme.KeyStyle.Render("["+b.registryFilterLabel()+"]")
 	}
 

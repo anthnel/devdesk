@@ -107,6 +107,20 @@ func scanCacheFixture() map[string]cache.ImageScanEntry {
 	}
 }
 
+// groupCacheFixture is one discovery for the configured group, which is what
+// the browser and the Members column read instead of the network.
+func groupCacheFixture() map[string]cache.RegistryGroupEntry {
+	return map[string]cache.RegistryGroupEntry{
+		"prod": {
+			Members: []cache.RegistryGroupMember{
+				{Alias: "docker-hosted", URL: "registry.example.com/repository/docker-hosted"},
+				{Alias: "dhi", URL: "registry.example.com/repository/dhi-proxy"},
+			},
+			DiscoveredAt: at(3),
+		},
+	}
+}
+
 // newTestModel returns a laid-out model with no data yet.
 func newTestModel(t *testing.T) Model {
 	t.Helper()

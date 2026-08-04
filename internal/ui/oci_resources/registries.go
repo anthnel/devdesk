@@ -10,8 +10,13 @@ import (
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
 
-// getSelectedRegistry returns a pointer to the selected registry item or nil
+// getSelectedRegistry returns a pointer to the selected registry item, or nil —
+// including inside a group, where the rows are cached members rather than
+// config entries and nothing on them is editable.
 func (m Model) getSelectedRegistry() *config.RegistryItem {
+	if m.registryGroupSlug != "" {
+		return nil
+	}
 	cursor := m.registryTable.Cursor()
 	if cursor < 0 || cursor >= len(m.registries) {
 		return nil
@@ -19,8 +24,40 @@ func (m Model) getSelectedRegistry() *config.RegistryItem {
 	return &m.registries[cursor]
 }
 
-// getSelectedRegistryIndex returns the index of the selected registry or -1
+// enterSelectedGroup drills into the selected group (Rule 111: → goes down a
+// level). A group with nothing discovered has no level to enter.
+func (m Model) enterSelectedGroup() (tea.Model, tea.Cmd) {
+	reg := m.getSelectedRegistry()
+	if reg == nil || reg.Kind != config.KindGroup {
+		return m, nil
+	}
+	if len(m.groupCache[reg.Slug].Members) == 0 {
+		m.infoMsg = "No members discovered yet — press ctrl+r to look"
+		return m, clearInfoMsgCmd()
+	}
+	m.registryGroupSlug = reg.Slug
+	m.updateRegistryTable()
+	m.registryTable.GotoTop()
+	return m, nil
+}
+
+// leaveGroup goes back up to the registry list (Rule 111: ← and esc).
+func (m Model) leaveGroup() (tea.Model, tea.Cmd) {
+	if m.registryGroupSlug == "" {
+		return m, nil
+	}
+	m.registryGroupSlug = ""
+	m.updateRegistryTable()
+	m.registryTable.GotoTop()
+	return m, nil
+}
+
+// getSelectedRegistryIndex returns the index of the selected registry, or -1 —
+// including inside a group, where the rows are cached members.
 func (m Model) getSelectedRegistryIndex() int {
+	if m.registryGroupSlug != "" {
+		return -1
+	}
 	cursor := m.registryTable.Cursor()
 	if cursor < 0 || cursor >= len(m.registries) {
 		return -1

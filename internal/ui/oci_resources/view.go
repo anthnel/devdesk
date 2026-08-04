@@ -45,7 +45,11 @@ func (m Model) GetFooterHeight() int {
 	}
 	if !m.selectionMode && m.launchForm == nil && m.resourceForm == nil && m.registryForm == nil &&
 		m.connectivityForm == nil && m.networkInspectForm == nil {
-		return 3 + filterExtra // tab bar + empty line + info line + filter bar (when visible)
+		crumbExtra := 0
+		if m.registryGroupSlug != "" {
+			crumbExtra = 1 // the drill-down breadcrumb
+		}
+		return 3 + filterExtra + crumbExtra // tab bar + empty line + info line + filter/breadcrumb
 	}
 	return 2 // empty line + info line (no filter bar in form/selection mode)
 }
@@ -82,6 +86,9 @@ func (m Model) RenderFooter(width int) string {
 	if m.activeTab == tabImages && m.filterBar.IsVisible() {
 		parts = append(parts, m.filterBar.View())
 	}
+	if crumb := m.renderRegistryBreadcrumb(width); crumb != "" {
+		parts = append(parts, crumb)
+	}
 	tabBar := m.renderTabBar(width)
 	infoLine := theme.EmptyLineBg(width)
 	if m.errorMsg != "" {
@@ -96,6 +103,22 @@ func (m Model) RenderFooter(width int) string {
 	}
 	parts = append(parts, tabBar, theme.EmptyLineBg(width), infoLine)
 	return strings.Join(parts, "\n")
+}
+
+// renderRegistryBreadcrumb renders the drill-down trail below the table when
+// the Registries tab has entered a group (Rules 111, 123). Breadcrumb mode: it
+// is not navigable, the level you are on is highlighted and the one above is
+// dimmed. Empty at the top level, where there is no trail to show.
+func (m Model) renderRegistryBreadcrumb(width int) string {
+	group := m.drilledGroup()
+	if group == nil {
+		return ""
+	}
+	tabs := []theme.TabItem{
+		{Label: "Registries"},
+		{Label: browserAlias(*group)},
+	}
+	return theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, 1), width)
 }
 
 // renderTabBar renders the tab bar below the viewport (Rule 123)
@@ -117,7 +140,7 @@ func (m Model) GetTitle() string {
 		if m.registryBrowser.state == browserStateTags && m.registryBrowser.repoInput.Value() != "" {
 			title += " " + theme.IconChevronRight + " " + m.registryBrowser.repoInput.Value()
 		}
-		if m.registryBrowser.registryFilter != "" {
+		if !m.registryBrowser.registryFilter.isEmpty() {
 			title += " [" + m.registryBrowser.registryFilterLabel() + "]"
 		}
 		return title
@@ -328,6 +351,14 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			shortcut.Shortcut{Key: "p", Description: "Prune"},
 		)
 	case tabRegistries:
+		// Inside a group the rows are cached members, not config entries: there
+		// is nothing to edit, log into or remove (Rule 130).
+		if m.registryGroupSlug != "" {
+			return append(base,
+				shortcut.Shortcut{Key: "←", Description: "Back to registries"},
+				shortcut.Shortcut{Key: "?", Description: "Help"},
+			)
+		}
 		base = append(base,
 			shortcut.Shortcut{Key: "ctrl+n", Description: "New registry"},
 			shortcut.Shortcut{Key: "e", Description: "Edit registry"},
@@ -336,8 +367,11 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			shortcut.Shortcut{Key: "ctrl+d", Description: "Remove"},
 		)
 		if reg := m.getSelectedRegistry(); reg != nil && reg.Kind == config.KindGroup {
-			// Rule 130: only offered on a row that has members to discover.
-			base = append(base, shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh group members"})
+			// Rule 130: only offered on a row that has members.
+			base = append(base,
+				shortcut.Shortcut{Key: "→", Description: "Show members"},
+				shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh group members"},
+			)
 			return append(base, shortcut.Shortcut{Key: "?", Description: "Help"})
 		}
 	}
@@ -488,6 +522,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "enter (Browser tags)", Description: "View CVE details for the selected tag (only when scan results are cached)"},
 			{Key: "esc (Browser)", Description: "Go back to the previous screen in the registry browser"},
 			{Key: "ctrl+r", Description: "Refresh the current tab's data — on a group row, re-run member discovery"},
+			{Key: "→ (Registries)", Description: "Show a group's discovered members"},
+			{Key: "← (Registries)", Description: "Go back to the registry list"},
 			{Key: "/", Description: "Filter images by repository or tag (Images tab only)"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
