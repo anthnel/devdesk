@@ -2,12 +2,15 @@ package ociresources
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -82,22 +85,56 @@ func TestBrowserResolvesGroupsBeforeShowingTheForm(t *testing.T) {
 
 	m = feed(t, m, RegistryGroupDetectedMsg{
 		RegistryURL: "registry.example.com",
+		Slug:        "prod",
 		Members: []registrymgr.GroupMember{
 			{Alias: "docker-hosted", URL: "registry.example.com/hosted"},
 			{Alias: "docker-proxy", URL: "registry.example.com/proxy"},
 		},
 	})
-	if m.registryBrowser.state != browserStateResolving {
-		t.Error("the browser stopped resolving with one detection outstanding")
-	}
 
-	m = feed(t, m, RegistryGroupDetectedMsg{RegistryURL: "docker.io"})
 	if m.registryBrowser.state != browserStateInput {
 		t.Errorf("the browser is in state %d once every detection landed", m.registryBrowser.state)
 	}
 	// The group expanded into its two members, plus the plain registry.
 	if got := len(m.registryBrowser.entries); got != 3 {
 		t.Errorf("entries = %d, want the group's two members plus docker.io", got)
+	}
+}
+
+// Only a group is waited for. A plain registry has nothing to discover, and
+// before the provider was declared every one of them cost a round trip that
+// could only come back saying so — which is the wait D13 is about.
+func TestOnlyGroupsAreWaitedFor(t *testing.T) {
+	cfg := testConfig()
+	for i := range cfg.Registry.Registries {
+		cfg.Registry.Registries[i].Kind = config.KindRegistry
+	}
+	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 180, Height: 30}, ImagesListMsg{Images: imageFixtures()})
+
+	m = feed(t, m, testutil.Key("b"))
+
+	if m.registryBrowser.state != browserStateInput {
+		t.Errorf("the browser opened in state %d with no group configured, want the form straight away",
+			m.registryBrowser.state)
+	}
+	if got := len(m.registryBrowser.entries); got != 2 {
+		t.Errorf("entries = %d, want both registries offered as themselves", got)
+	}
+}
+
+// A result for something that was never waited for must not be counted, or it
+// finalizes the list a second time and drops what the user had unchecked.
+func TestAStrayDetectionIsIgnored(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("b"))
+	before := m.registryBrowser.pendingDetections
+
+	m = feed(t, m, RegistryGroupDetectedMsg{RegistryURL: "docker.io", Slug: "hub"})
+
+	if got := m.registryBrowser.pendingDetections; got != before {
+		t.Errorf("pendingDetections = %d after a result for a plain registry, want %d", got, before)
+	}
+	if m.registryBrowser.state != browserStateResolving {
+		t.Errorf("the browser left the resolving state on a result it never asked for")
 	}
 }
 
@@ -355,4 +392,237 @@ func TestResolvedMembersCarryTheirGroupsMode(t *testing.T) {
 	if b.entries[0].authMode != config.AuthAnonymous {
 		t.Errorf("the member resolved as %q, want its anonymous group's mode", b.entries[0].authMode)
 	}
+}
+
+// ── The group cache (§3.8 step 3) ────────────────────────────────────────────
+
+// registriesTab returns a model on the Registries tab with the group row
+// selected, which is where the explicit refresh lives.
+func registriesTab(t *testing.T) Model {
+	t.Helper()
+	// The table is built when the group cache lands, which Init guarantees.
+	m := feed(t, loadedModel(t), RegistryGroupCacheLoadedMsg{})
+	for m.activeTab != tabRegistries {
+		m = feed(t, m, testutil.Key("tab"))
+	}
+	return m
+}
+
+// Discovery is a network round trip against a repository manager. Writing the
+// result through means the next open reads it from disk instead.
+func TestADiscoveryIsWrittenToTheCache(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"type":"group","format":"docker",
+			"attributes":{"group":{"memberNames":["docker-hosted","dhi-proxy"]}}}`))
+	}))
+	defer srv.Close()
+
+	reg := config.RegistryItem{
+		Slug:     "cached-group",
+		Kind:     config.KindGroup,
+		Provider: config.ProviderNexus,
+		URL:      srv.URL + "/repository/docker-group",
+		AuthMode: config.AuthAnonymous,
+	}
+	t.Cleanup(func() {
+		if c, err := cache.NewRegistryGroupCache(); err == nil {
+			_ = c.Delete("cached-group")
+		}
+	})
+
+	msg := run(t, detectRegistryGroupCmd(reg, "")).(RegistryGroupDetectedMsg)
+	if msg.Err != nil {
+		t.Fatalf("Err = %v", msg.Err)
+	}
+	if msg.Slug != "cached-group" {
+		t.Errorf("Slug = %q, want the key the cache and the table use", msg.Slug)
+	}
+
+	c, err := cache.NewRegistryGroupCache()
+	if err != nil {
+		t.Fatalf("reopening the group cache: %v", err)
+	}
+	entry := c.Get("cached-group")
+	if entry == nil {
+		t.Fatal("the discovery was not written to the cache")
+	}
+	if len(entry.Members) != 2 {
+		t.Errorf("Members = %+v, want both", entry.Members)
+	}
+	if entry.DiscoveredAt.IsZero() {
+		t.Error("the entry carries no time, so the column cannot show its age")
+	}
+}
+
+// An unreachable manager must not empty what was last known: a stale answer is
+// worth more than none, and the column says how stale it is.
+func TestAFailedDiscoveryLeavesTheCacheAlone(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c, err := cache.NewRegistryGroupCache()
+	if err != nil {
+		t.Fatalf("opening the group cache: %v", err)
+	}
+	known := cache.RegistryGroupEntry{
+		Members:      []cache.RegistryGroupMember{{Alias: "hosted", URL: "https://n/repository/hosted"}},
+		DiscoveredAt: time.Now().Add(-24 * time.Hour),
+	}
+	if err := c.Set("kept-group", known); err != nil {
+		t.Fatalf("seeding the cache: %v", err)
+	}
+	t.Cleanup(func() { _ = c.Delete("kept-group") })
+
+	run(t, detectRegistryGroupCmd(config.RegistryItem{
+		Slug:     "kept-group",
+		Kind:     config.KindGroup,
+		Provider: config.ProviderNexus,
+		URL:      srv.URL + "/repository/docker-group",
+		AuthMode: config.AuthAnonymous,
+	}, ""))
+
+	reopened, err := cache.NewRegistryGroupCache()
+	if err != nil {
+		t.Fatalf("reopening the group cache: %v", err)
+	}
+	entry := reopened.Get("kept-group")
+	if entry == nil || len(entry.Members) != 1 {
+		t.Errorf("the cache holds %+v after a failed refresh, want what was last known", entry)
+	}
+}
+
+// The Members column is what keeps a stale cache visible. Without it the cache
+// looks current whatever it holds, which is worse than the re-detection it
+// replaced.
+func TestTheMembersColumnShowsTheCountAndTheAge(t *testing.T) {
+	m := loadedModel(t)
+	m = feed(t, m, RegistryGroupCacheLoadedMsg{Entries: map[string]cache.RegistryGroupEntry{
+		"prod": {
+			Members:      []cache.RegistryGroupMember{{Alias: "hosted"}, {Alias: "dhi"}},
+			DiscoveredAt: time.Now().Add(-3 * time.Hour),
+		},
+	}})
+
+	rows := m.registryTable.Rows()
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want the two configured registries", len(rows))
+	}
+	const members = 5
+	if !strings.HasPrefix(rows[0][members], "2 ") {
+		t.Errorf("the group's Members cell is %q, want it to start with the count", rows[0][members])
+	}
+	if !strings.Contains(rows[0][members], "3 hr ago") {
+		t.Errorf("the group's Members cell is %q, want the age of the discovery (Rule 127)", rows[0][members])
+	}
+	if rows[1][members] != "" {
+		t.Errorf("a plain registry shows %q in Members, want nothing — it has none", rows[1][members])
+	}
+}
+
+// A group nobody has asked about yet must not read as a group with no members.
+func TestAGroupNeverDiscoveredSaysSo(t *testing.T) {
+	m := registriesTab(t)
+
+	const members = 5
+	if got := m.registryTable.Rows()[0][members]; got != "never" {
+		t.Errorf("Members = %q for a group with no cached discovery, want %q", got, "never")
+	}
+}
+
+// ctrl+r on a group row is the explicit refresh: discovery costs a round trip,
+// so it happens when asked rather than on every browser open.
+func TestCtrlRRefreshesTheSelectedGroup(t *testing.T) {
+	m := registriesTab(t)
+
+	m = feed(t, m, testutil.Key("ctrl+r"))
+
+	if !m.refreshingGroups["prod"] {
+		t.Error("ctrl+r on a group row started no refresh")
+	}
+	const members = 5
+	if got := m.registryTable.Rows()[0][members]; !strings.Contains(got, "refreshing") {
+		t.Errorf("Members = %q while refreshing, want it to say so", got)
+	}
+}
+
+// A plain registry has nothing to discover, so ctrl+r must not pretend to.
+func TestCtrlROnAPlainRegistryStartsNoDiscovery(t *testing.T) {
+	m := registriesTab(t)
+	m.registryTable.MoveDown(1) // docker.io
+
+	m = feed(t, m, testutil.Key("ctrl+r"))
+
+	if len(m.refreshingGroups) != 0 {
+		t.Errorf("refreshingGroups = %v after ctrl+r on a plain registry", m.refreshingGroups)
+	}
+}
+
+// A second ctrl+r while one is in flight must not fire a second probe.
+func TestASecondRefreshIsNotStartedWhileOneIsRunning(t *testing.T) {
+	m := registriesTab(t)
+	m = feed(t, m, testutil.Key("ctrl+r"))
+
+	before := m.refreshSelectedGroupCmd()
+
+	if before != nil {
+		t.Error("a second refresh was started for a group already refreshing")
+	}
+}
+
+// The result clears the in-flight marker whether it succeeded or not, or the
+// row would say "refreshing" forever.
+func TestAFinishedRefreshClearsItsMarker(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		msg  RegistryGroupDetectedMsg
+	}{
+		{"a discovery that worked", RegistryGroupDetectedMsg{RegistryURL: "registry.example.com", Slug: "prod"}},
+		{"one that failed", RegistryGroupDetectedMsg{
+			RegistryURL: "registry.example.com", Slug: "prod", Err: errors.New("unreachable")}},
+	} {
+		m := feed(t, registriesTab(t), testutil.Key("ctrl+r"))
+
+		m = feed(t, m, tc.msg)
+
+		if m.refreshingGroups["prod"] {
+			t.Errorf("%s left the row marked as refreshing", tc.name)
+		}
+	}
+}
+
+// A refresh that failed says so, rather than leaving the row looking refreshed.
+func TestAFailedRefreshIsReported(t *testing.T) {
+	m := feed(t, registriesTab(t), testutil.Key("ctrl+r"))
+
+	m = feed(t, m, RegistryGroupDetectedMsg{
+		RegistryURL: "registry.example.com", Slug: "prod", Err: errors.New("unreachable")})
+
+	if m.errorMsg == "" {
+		t.Error("a failed refresh reported nothing")
+	}
+}
+
+// Rule 130: the refresh is only offered where it does something.
+func TestTheGroupRefreshShortcutFollowsTheSelectedRow(t *testing.T) {
+	m := registriesTab(t)
+
+	if !hasShortcut(m, "Refresh group members") {
+		t.Error("no group-refresh shortcut is offered on a group row")
+	}
+
+	m.registryTable.MoveDown(1) // docker.io, a plain registry
+	if hasShortcut(m, "Refresh group members") {
+		t.Error("the group-refresh shortcut is offered on a registry with no members")
+	}
+}
+
+func hasShortcut(m Model, description string) bool {
+	for _, s := range m.GetShortcuts() {
+		if s.Description == description {
+			return true
+		}
+	}
+	return false
 }

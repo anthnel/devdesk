@@ -396,6 +396,41 @@ func TestARegistryThatIsNotAGroupYieldsNoMembers(t *testing.T) {
 	}
 }
 
+// D23, fixed. A manager that cannot be asked used to be reported exactly like
+// one that answered "not a group" — `fetchRepoMeta` returned a bare ok=false and
+// `DetectGroup` turned both into nil, nil. Harmless while the answer was thrown
+// away on every open; not harmless once it is cached, since one unreachable
+// minute would erase what was last known.
+//
+// Its sibling above pins the other half: a real "not a group" is still not an
+// error, so this cannot pass by making every answer one.
+func TestAManagerThatCannotBeAskedIsAnError(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{"the manager refuses", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}},
+		{"the reply is not JSON", func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("<html>login</html>"))
+		}},
+	} {
+		srv := httptest.NewServer(tc.handler)
+
+		reg := config.RegistryItem{URL: srv.URL + "/repository/docker-group", Provider: config.ProviderNexus}
+		msg := run(t, detectRegistryGroupCmd(reg, "")).(RegistryGroupDetectedMsg)
+		srv.Close()
+
+		if msg.Err == nil {
+			t.Errorf("%s: reported as a settled 'not a group', which a cache would then store", tc.name)
+		}
+		if msg.Members != nil {
+			t.Errorf("%s: Members = %+v, want none", tc.name, msg.Members)
+		}
+	}
+}
+
 // Docker stores credentials by hostname, and a repository manager's API may
 // live on a different host than the registry. The lookup for the management URL
 // therefore has to be made against its host alone, with the repository path

@@ -114,18 +114,22 @@ func (m *Model) resizeRegistryTable(width int) {
 	contentWidth := width - 2
 	columns := m.registryTable.Columns()
 	numCols := len(columns)
-	if numCols >= 5 {
+	if numCols >= 6 {
 		available := contentWidth - numCols*2
 		fixedUsername := 16
 		fixedAlias := 10
 		fixedAuth := 12 // holds "credentials"
 		fixedLogged := 8
-		flexURL := max(available-fixedUsername-fixedAlias-fixedAuth-fixedLogged, 20)
+		fixedMembers := 16 // holds "12 · 30 days ago"
+		fixedSum := fixedUsername + fixedAlias + fixedAuth + fixedLogged + fixedMembers
+		flexURL := max(available-fixedSum, 20)
 		columns[0].Width = flexURL
 		columns[1].Width = fixedUsername
 		columns[2].Width = fixedAlias
 		columns[3].Width = fixedAuth
-		columns[4].Width = available - flexURL - fixedUsername - fixedAlias - fixedAuth
+		columns[4].Width = fixedLogged
+		// Last column absorbs the rounding so the selected row reaches the border.
+		columns[5].Width = available - flexURL - fixedUsername - fixedAlias - fixedAuth - fixedLogged
 		m.registryTable.SetColumns(columns)
 	}
 }

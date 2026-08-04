@@ -126,37 +126,59 @@ func newRegistryBrowser(registries []config.RegistryItem, width, height int) (*R
 	sp.Style = theme.SpinnerStyle()
 
 	b := &RegistryBrowser{
-		registries:        registries,
-		entryGroups:       make([][]browserRegistryEntry, len(registries)),
-		pendingDetections: len(registries),
-		width:             width,
-		height:            height,
-		repoInput:         repoInput,
-		selectedRegs:      make(map[string]bool),
-		focusedField:      brFieldRepo,
-		filterInput:       fi,
-		tagSortCol:        tagSortByName,
-		tagSortDesc:       false,
-		tagTable:          tt,
-		spinner:           sp,
-		scanCache:         make(map[string]cache.ImageScanEntry),
-		scanningTags:      make(map[string]bool),
-		state:             browserStateResolving,
+		registries:   registries,
+		entryGroups:  make([][]browserRegistryEntry, len(registries)),
+		width:        width,
+		height:       height,
+		repoInput:    repoInput,
+		selectedRegs: make(map[string]bool),
+		focusedField: brFieldRepo,
+		filterInput:  fi,
+		tagSortCol:   tagSortByName,
+		tagSortDesc:  false,
+		tagTable:     tt,
+		spinner:      sp,
+		scanCache:    make(map[string]cache.ImageScanEntry),
+		scanningTags: make(map[string]bool),
+		state:        browserStateResolving,
 	}
 	b.resizeInputs()
 	b.resizeTagTable()
 
-	if len(registries) == 0 {
-		b.state = browserStateInput
+	// Only a group has members to discover. A plain registry becomes its own
+	// entry straight away rather than costing a round trip that can only come
+	// back saying it is not a group — which, before the provider was declared
+	// (step 4), was every registry configured.
+	cmds := make([]tea.Cmd, 0, len(registries)+1)
+	for i, reg := range registries {
+		if reg.Kind != config.KindGroup {
+			b.entryGroups[i] = []browserRegistryEntry{{
+				URL:      reg.URL,
+				Alias:    browserAlias(reg),
+				authMode: config.ResolveAuthMode(reg, nil),
+			}}
+			continue
+		}
+		b.pendingDetections++
+		cmds = append(cmds, detectRegistryGroupCmd(reg, ""))
+	}
+
+	// Nothing to wait for: no groups configured, or none at all.
+	if b.pendingDetections == 0 {
+		b.finalizeEntries()
 		return b, nil
 	}
 
-	cmds := make([]tea.Cmd, 0, len(registries)+1)
-	for _, reg := range registries {
-		cmds = append(cmds, detectRegistryGroupCmd(reg, ""))
-	}
 	cmds = append(cmds, sp.Tick)
 	return b, tea.Batch(cmds...)
+}
+
+// browserAlias returns what a registry is labelled with in the browser.
+func browserAlias(reg config.RegistryItem) string {
+	if reg.Alias != "" {
+		return reg.Alias
+	}
+	return reg.URL
 }
 
 // SetSize updates dimensions and resizes internal components.
@@ -170,14 +192,16 @@ func (b *RegistryBrowser) SetSize(width, height int) {
 // HandleGroupDetected incorporates one detection result into the ordered entry list.
 // When all detections have completed it finalizes entries and switches to input state.
 func (b *RegistryBrowser) HandleGroupDetected(msg RegistryGroupDetectedMsg) (*RegistryBrowser, tea.Cmd) {
+	matched := false
 	for i, reg := range b.registries {
-		if reg.URL != msg.RegistryURL {
+		// Only groups were waited for, so only a group's result is counted —
+		// a stray one would otherwise finalize the list a second time and drop
+		// whatever the user had unchecked.
+		if reg.URL != msg.RegistryURL || reg.Kind != config.KindGroup {
 			continue
 		}
-		alias := reg.Alias
-		if alias == "" {
-			alias = reg.URL
-		}
+		matched = true
+		alias := browserAlias(reg)
 		// Members share their group's host and therefore its single credential
 		// entry, so they share the decision the group made about using it.
 		mode := config.ResolveAuthMode(reg, nil)
@@ -197,6 +221,9 @@ func (b *RegistryBrowser) HandleGroupDetected(msg RegistryGroupDetectedMsg) (*Re
 			b.entryGroups[i] = []browserRegistryEntry{{URL: reg.URL, Alias: alias, authMode: mode}}
 		}
 		break
+	}
+	if !matched {
+		return b, nil
 	}
 	b.pendingDetections--
 	if b.pendingDetections <= 0 {

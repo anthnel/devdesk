@@ -56,7 +56,12 @@ func TestMain(m *testing.M) {
 func testConfig() *config.Config {
 	cfg := config.Default()
 	cfg.Registry.Registries = []config.RegistryItem{
-		{URL: "registry.example.com", Username: "anthnel", Alias: "prod", Slug: "prod", AuthMode: config.AuthCredentials},
+		{
+			URL: "registry.example.com", Username: "anthnel", Alias: "prod", Slug: "prod",
+			AuthMode: config.AuthCredentials,
+			// Declared a group, so it is the one entry the browser waits on.
+			Kind: config.KindGroup, Provider: config.ProviderNexus,
+		},
 		{URL: "docker.io", Alias: "hub", Slug: "hub", AuthMode: config.AuthAnonymous},
 	}
 	return cfg

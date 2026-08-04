@@ -55,6 +55,36 @@ func (m Model) loginSelectedRegistry() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// refreshRegistries reloads the registry list and login status, and re-runs
+// discovery for the selected group.
+//
+// Discovery is explicit rather than automatic (§3.8, decision 3): it costs a
+// network round trip against a repository manager, and running it on every
+// browser open is what made the browser wait. The Members column is what says
+// how old the answer it replaces was.
+func (m Model) refreshRegistries() (tea.Model, tea.Cmd) {
+	m.registries = m.config.Registry.Registries
+
+	cmds := []tea.Cmd{m.registryLoginStatusCmd()}
+	if cmd := m.refreshSelectedGroupCmd(); cmd != nil {
+		cmds = append(cmds, cmd, m.spinner.Tick)
+	}
+	m.updateRegistryTable()
+	return m, tea.Batch(cmds...)
+}
+
+// refreshSelectedGroupCmd starts a discovery for the selected row when it is a
+// group that is not already being refreshed. Returns nil otherwise, which is
+// the ordinary case: a plain registry has no members to discover.
+func (m *Model) refreshSelectedGroupCmd() tea.Cmd {
+	reg := m.getSelectedRegistry()
+	if reg == nil || reg.Kind != config.KindGroup || m.refreshingGroups[reg.Slug] {
+		return nil
+	}
+	m.refreshingGroups[reg.Slug] = true
+	return detectRegistryGroupCmd(*reg, "")
+}
+
 // deleteSelectedRegistry shows a confirm modal for registry removal
 func (m Model) deleteSelectedRegistry() (tea.Model, tea.Cmd) {
 	reg := m.getSelectedRegistry()

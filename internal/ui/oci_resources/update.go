@@ -28,6 +28,7 @@ func (m Model) Init() tea.Cmd {
 		tickCmd(),
 		fetchImages(),
 		loadScanCache(),
+		loadRegistryGroupCache(),
 		fetchNetworks(),
 		fetchVolumes(),
 	)
@@ -188,6 +189,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case RegistryGroupDetectedMsg:
 		return m.handleRegistryGroupDetected(msg)
+
+	case RegistryGroupCacheLoadedMsg:
+		return m.handleRegistryGroupCacheLoaded(msg)
 
 	case RegistryTagDirectScanMsg:
 		return m.handleRegistryTagDirectScan(msg)

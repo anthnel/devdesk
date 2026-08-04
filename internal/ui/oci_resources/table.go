@@ -180,6 +180,25 @@ func (m *Model) updateVolumeTable() {
 }
 
 // updateRegistryTable rebuilds the registry table rows
+// membersCell reports what the last discovery for a group found, and when.
+//
+// The "when" is not decoration: a cache with no visible age is worse than the
+// re-detection it replaced, because it looks current whatever it holds
+// (§3.8, decision 3). Plain text only — Rule 122.
+func (m *Model) membersCell(reg config.RegistryItem) string {
+	if reg.Kind != config.KindGroup {
+		return ""
+	}
+	if m.refreshingGroups[reg.Slug] {
+		return m.spinner.View() + "refreshing"
+	}
+	entry, ok := m.groupCache[reg.Slug]
+	if !ok {
+		return "never" // declared a group, never asked
+	}
+	return fmt.Sprintf("%d · %s", len(entry.Members), timeAgo(entry.DiscoveredAt))
+}
+
 func (m *Model) updateRegistryTable() {
 	rows := make([]table.Row, 0, len(m.registries))
 	for _, reg := range m.registries {
@@ -192,7 +211,7 @@ func (m *Model) updateRegistryTable() {
 				logged = theme.IconError
 			}
 		}
-		rows = append(rows, table.Row{reg.URL, reg.Username, reg.Alias, auth, logged})
+		rows = append(rows, table.Row{reg.URL, reg.Username, reg.Alias, auth, logged, m.membersCell(reg)})
 	}
 	m.registryTable.SetRows(rows)
 	m.registryTable.SetStyles(theme.DefaultTableStyles())
