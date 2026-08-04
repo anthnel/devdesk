@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "5a30d1e9b0d4",
+  "session_id": "be5e53af-06dd-41fc-9d5e-07f395f11181",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-04T19:38:17.9170297Z",
+  "branch": "refactor/datatable-step4",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "e7da6eb84bd8",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 5707,
+    "cache_creation_tokens": 2348740,
+    "cache_read_tokens": 244872844,
+    "output_tokens": 527001,
+    "api_call_count": 739
+  },
+  "session_metrics": {
+    "turn_count": 12
+  }
+}
