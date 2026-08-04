@@ -37,6 +37,51 @@ func (m Model) View() string {
 	return ""
 }
 
+// The two columns are built as independent lists of lines and only zipped
+// together at the end, so the spacing of one is invisible in the other's
+// rendering — "Scan Options" ran straight into its first checkbox for as long
+// as it did because the line below it on screen belongs to the right column.
+// Each column is therefore built where it can be read, and checked, on its own.
+
+// formLeftColumn builds the target and scan-option lines.
+func (m Model) formLeftColumn() []string {
+	return []string{
+		theme.SubTitleStyle.Render(theme.IconTarget + " Target"),
+		"",
+		m.renderTargetTypeField(),
+		m.renderTargetPathField(),
+		"",
+		theme.SubTitleStyle.Render(theme.IconConfig + " Scan Options"),
+		"",
+		m.renderCheckbox(m.enableVuln, "Vulnerability Scan (Trivy)", 2),
+		m.renderCheckbox(m.enableSecret, "Secret Scan (Gitleaks)", 3),
+		m.renderCheckbox(m.enableMisconfig, "Misconfig Scan (Trivy)", 4),
+		m.renderCheckbox(m.enableLicense, "License Scan (Trivy)", 5),
+		m.renderCheckbox(m.generateSBOM, "Generate SBOM (CycloneDX)", 6),
+	}
+}
+
+// formRightColumn builds the per-tool option lines.
+func (m Model) formRightColumn() []string {
+	right := []string{
+		theme.SubTitleStyle.Render(theme.IconConfig + " Trivy Options"),
+		"",
+		m.renderAdvancedTextInput(theme.IconServer+" Server ", m.trivyServerInput, 7),
+	}
+	if m.isServerMode() {
+		right = append(right, theme.DimStyle.Render("  Server mode: misconfig, license, SBOM unavailable"))
+	}
+	return append(right,
+		m.renderCheckbox(m.ignoreUnfixed, "Ignore Unfixed", 8),
+		m.renderCheckbox(m.ignoreEOL, "Ignore EOL", 9),
+		"",
+		theme.SubTitleStyle.Render(theme.IconConfig+" Gitleaks Options"),
+		"",
+		m.renderAdvancedTextInput(theme.IconToml+" Config ", m.gitleaksConfigInput, 10),
+		m.renderCheckbox(m.gitleaksHistory, "Scan Git History", 11),
+	)
+}
+
 // renderInputView renders the form in a 2-column layout with padding
 func (m Model) renderInputView() string {
 	var b strings.Builder
@@ -46,40 +91,13 @@ func (m Model) renderInputView() string {
 		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError).Render("Error: "+m.err.Error()) + "\n\n")
 	}
 
-	// Build left column lines
-	var left []string
-	left = append(left, theme.SubTitleStyle.Render(theme.IconTarget+" Target"))
-	left = append(left, "")
-	left = append(left, m.renderTargetTypeField())
-	left = append(left, m.renderTargetPathField())
-	left = append(left, "")
-	left = append(left, theme.SubTitleStyle.Render(theme.IconConfig+" Scan Options"))
-	left = append(left, m.renderCheckbox(m.enableVuln, "Vulnerability Scan (Trivy)", 2))
-	left = append(left, m.renderCheckbox(m.enableSecret, "Secret Scan (Gitleaks)", 3))
-	left = append(left, m.renderCheckbox(m.enableMisconfig, "Misconfig Scan (Trivy)", 4))
-	left = append(left, m.renderCheckbox(m.enableLicense, "License Scan (Trivy)", 5))
-	left = append(left, m.renderCheckbox(m.generateSBOM, "Generate SBOM (CycloneDX)", 6))
-
-	// Build right column lines (advanced options)
-	var right []string
-	right = append(right, theme.SubTitleStyle.Render(theme.IconConfig+" Trivy Options"))
-	right = append(right, "")
-	right = append(right, m.renderAdvancedTextInput(theme.IconServer+" Server ", m.trivyServerInput, 7))
-	if m.isServerMode() {
-		right = append(right, theme.DimStyle.Render("  Server mode: misconfig, license, SBOM unavailable"))
-	}
-	right = append(right, m.renderCheckbox(m.ignoreUnfixed, "Ignore Unfixed", 8))
-	right = append(right, m.renderCheckbox(m.ignoreEOL, "Ignore EOL", 9))
-	right = append(right, "")
-	right = append(right, theme.SubTitleStyle.Render(theme.IconConfig+" Gitleaks Options"))
-	right = append(right, "")
-	right = append(right, m.renderAdvancedTextInput(theme.IconToml+" Config ", m.gitleaksConfigInput, 10))
-	right = append(right, m.renderCheckbox(m.gitleaksHistory, "Scan Git History", 11))
+	left := m.formLeftColumn()
+	right := m.formRightColumn()
 
 	// Combine left and right columns line-by-line
 	leftWidth := max(m.width/2-2, 40) // -2 for outer padding
 	totalLines := max(len(left), len(right))
-	for i := 0; i < totalLines; i++ {
+	for i := range totalLines {
 		l := ""
 		if i < len(left) {
 			l = left[i]
