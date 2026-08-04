@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "ed2aff523096",
+  "strategy": "manual-commit",
+  "branch": "registry-auth-mode",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/oci_resources/ociresources_test.go",
+    "internal/ui/oci_resources/registry_http_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ed/2aff523096/0/metadata.json",
+      "transcript": "/ed/2aff523096/0/full.jsonl",
+      "compact_transcript": "/ed/2aff523096/0/transcript.jsonl",
+      "content_hash": "/ed/2aff523096/0/content_hash.txt",
+      "prompt": "/ed/2aff523096/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 668,
+    "cache_creation_tokens": 676535,
+    "cache_read_tokens": 95408292,
+    "output_tokens": 250779,
+    "api_call_count": 352
+  }
+}
