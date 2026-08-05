@@ -490,3 +490,74 @@ func firstCells(s string) string {
 	}
 	return string(r)
 }
+
+// Changing the GitLab URL invalidates a session established against the old
+// host. The view says so and flags it for the router; it does not forbid the
+// change, which is the same call as for the secret backend.
+func TestChangingTheGitLabURLFlagsTheSession(t *testing.T) {
+	m := focusOn(t, newModel(t), "URL")
+	m.config.GitLab.URL = "https://old.example.com"
+	m.input.SetValue("https://new.example.com")
+
+	updated, cmd := m.Update(testutil.Key("down"))
+	m = updated.(Model)
+
+	if m.config.GitLab.URL != "https://new.example.com" {
+		t.Fatalf("URL = %q, want the typed value committed", m.config.GitLab.URL)
+	}
+	if !strings.Contains(m.footerInfo, ":gla") {
+		t.Errorf("footerInfo = %q, want it to say where to sign in again", m.footerInfo)
+	}
+
+	var saw *ConfigSavedMsg
+	for _, msg := range testutil.Msgs(cmd) {
+		if s, ok := msg.(ConfigSavedMsg); ok {
+			saw = &s
+		}
+	}
+	if saw == nil {
+		t.Fatal("no ConfigSavedMsg was emitted")
+	}
+	if !saw.GitLabURLChanged {
+		t.Error("GitLabURLChanged is false, so the router would keep a session pointed at the old host")
+	}
+}
+
+// Retyping the same URL is not a change, and must not close a working session.
+func TestRetypingTheSameGitLabURLChangesNothing(t *testing.T) {
+	m := focusOn(t, newModel(t), "URL")
+	m.config.GitLab.URL = "https://same.example.com"
+	m.input.SetValue("https://same.example.com")
+
+	updated, cmd := m.Update(testutil.Key("down"))
+	m = updated.(Model)
+
+	if m.footerInfo != "" {
+		t.Errorf("footerInfo = %q for an unchanged URL", m.footerInfo)
+	}
+	for _, msg := range testutil.Msgs(cmd) {
+		if s, ok := msg.(ConfigSavedMsg); ok && s.GitLabURLChanged {
+			t.Error("an unchanged URL was reported as changed")
+		}
+	}
+}
+
+// Only one view may write a setting. Both used to write gitlab.url, so neither
+// was authoritative and editing it in one left the other stale.
+func TestOnlyTheConfigurationViewOwnsTheGitLabURL(t *testing.T) {
+	if !strings.Contains(sourceOf(t, "../gitlab/auth/update.go"), "m.config.GitLab.URL") {
+		t.Skip("the auth view no longer reads the URL at all")
+	}
+	if strings.Contains(sourceOf(t, "../gitlab/auth/update.go"), "config.GitLab.URL = ") {
+		t.Error("the auth view assigns gitlab.url; the configuration view owns it")
+	}
+}
+
+func sourceOf(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	return string(data)
+}

@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 
 // The logged-in view has a single button, on the field the login form uses for
 // the URL.
-const fieldLogoutButton = fieldURL
+const fieldLogoutButton = fieldToken
 
 // fakeStorage records what the view asks of the secret store.
 type fakeStorage struct {
@@ -107,28 +107,47 @@ func testUser() *gitlabclient.User {
 
 // ── Construction ─────────────────────────────────────────────────────────────
 
-func TestNewPrefillsTheURLFromConfig(t *testing.T) {
+// The URL is read from the configuration, never edited here: this view owns the
+// token and the act of logging in, and the configuration view owns the setting.
+// Both used to write gitlab.url, so neither was authoritative.
+func TestTheURLIsReadFromTheConfiguration(t *testing.T) {
 	cfg := testConfig()
 	cfg.GitLab.URL = "https://gitlab.example.com"
 
 	m := newTestModel(t, cfg, newFakeStorage())
 
-	if got := m.urlInput.Value(); got != "https://gitlab.example.com" {
-		t.Errorf("URL input = %q, want it prefilled from the config", got)
+	if !strings.Contains(m.View(), "https://gitlab.example.com") {
+		t.Error("the configured URL is not shown")
 	}
 	if m.tokenInput.Value() != "" {
 		t.Error("the token input was prefilled; it must be typed or loaded, never guessed")
 	}
 }
 
-func TestNewStartsOnTheURLField(t *testing.T) {
+// Without a URL there is nothing to log into, and saying "token is required"
+// would name the wrong problem.
+func TestNoConfiguredURLIsReportedAsSuch(t *testing.T) {
+	cfg := testConfig()
+	cfg.GitLab.URL = ""
+	m := newTestModel(t, cfg, newFakeStorage())
+	m.tokenInput.SetValue("glpat-x")
+
+	if cmd := m.authenticate(); cmd != nil {
+		t.Error("authenticate() ran with no URL configured")
+	}
+	if !strings.Contains(m.error, ":config") {
+		t.Errorf("error = %q, want it to say where the URL is set", m.error)
+	}
+}
+
+func TestNewStartsOnTheTokenField(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	if m.currentField != fieldURL {
-		t.Errorf("currentField = %d on a new form, want the URL field", m.currentField)
+	if m.currentField != fieldToken {
+		t.Errorf("currentField = %d on a new form, want the token field", m.currentField)
 	}
-	if !m.urlInput.Focused() {
-		t.Error("the URL input is not focused on a new form")
+	if !m.tokenInput.Focused() {
+		t.Error("the token input is not focused on a new form")
 	}
 }
 
@@ -213,8 +232,8 @@ func TestCredentialsLoadedStartsAnAutoLogin(t *testing.T) {
 	if cmd == nil {
 		t.Error("no command issued, so the auto-login never runs")
 	}
-	if m.urlInput.Value() != "https://gitlab.example.com" || m.tokenInput.Value() != "glpat-x" {
-		t.Error("the loaded credentials were not written into the form")
+	if m.tokenInput.Value() != "glpat-x" {
+		t.Error("the loaded token was not written into the form")
 	}
 }
 
@@ -257,41 +276,37 @@ func TestVerticalNavigationClampsAtBothEnds(t *testing.T) {
 	for range 10 {
 		m = feed(t, m, testutil.Key("up"))
 	}
-	if m.currentField != fieldURL {
-		t.Errorf("currentField = %d after repeated up, want %d (URL)", m.currentField, fieldURL)
+	if m.currentField != fieldToken {
+		t.Errorf("currentField = %d after repeated up, want %d (URL)", m.currentField, fieldToken)
 	}
 }
 
 func TestFocusFollowsTheCurrentField(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	m = feed(t, m, testutil.Key("down"))
-	if !m.tokenInput.Focused() || m.urlInput.Focused() {
-		t.Error("focus did not move from the URL to the token input")
+	if !m.tokenInput.Focused() {
+		t.Error("the token input does not hold focus on the first field")
 	}
 
 	// The submit button holds no text input.
 	m = feed(t, m, testutil.Key("down"))
-	if m.urlInput.Focused() || m.tokenInput.Focused() {
+	if m.tokenInput.Focused() {
 		t.Error("an input kept focus on the Login button")
 	}
 }
 
 func TestTypingReachesTheFocusedInput(t *testing.T) {
-	m := newTestModel(t, testConfig(), newFakeStorage())
+	cfg := testConfig()
+	cfg.GitLab.URL = "https://git.example.com"
+	m := newTestModel(t, cfg, newFakeStorage())
 
-	m = feed(t, m, testutil.Type("https://git.example.com")...)
-	if got := m.urlInput.Value(); got != "https://git.example.com" {
-		t.Errorf("URL input = %q after typing, want the typed value", got)
-	}
-
-	m = feed(t, m, testutil.Key("down"))
 	m = feed(t, m, testutil.Type("glpat-abc")...)
+
 	if got := m.tokenInput.Value(); got != "glpat-abc" {
 		t.Errorf("token input = %q after typing, want the typed value", got)
 	}
-	if m.urlInput.Value() != "https://git.example.com" {
-		t.Error("typing into the token field also changed the URL")
+	if m.config.GitLab.URL != "https://git.example.com" {
+		t.Error("typing into the token field changed the configured URL")
 	}
 }
 
@@ -305,8 +320,8 @@ func TestSpaceIsAnOrdinaryCharacter(t *testing.T) {
 	// the removed `case " "` used to intercept.
 	m = feed(t, m, testutil.Type(" ")...)
 
-	if got := m.urlInput.Value(); got != " " {
-		t.Errorf("URL input = %q after a space, want it typed through", got)
+	if got := m.tokenInput.Value(); got != " " {
+		t.Errorf("token input = %q after a space, want it typed through", got)
 	}
 }
 
@@ -316,11 +331,11 @@ func TestEnterAdvancesThroughTheTextFields(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
 	m, cmd := step(t, m, testutil.Key("enter"))
-	if m.currentField != fieldToken {
-		t.Errorf("currentField = %d after enter on the URL, want the token field", m.currentField)
+	if m.currentField != fieldSubmit {
+		t.Errorf("currentField = %d after enter on the token, want the Login button", m.currentField)
 	}
 	if cmd != nil {
-		t.Error("enter on the URL field submitted the form")
+		t.Error("enter on the token field submitted the form")
 	}
 
 	m, _ = step(t, m, testutil.Key("enter"))
@@ -345,7 +360,7 @@ func TestEnterOnTheButtonRequiresBothFields(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestModel(t, testConfig(), newFakeStorage())
-			m.urlInput.SetValue(tc.url)
+			setConfigURL(m, tc.url)
 			m.tokenInput.SetValue(tc.token)
 			m.currentField = fieldSubmit
 
@@ -460,11 +475,13 @@ func TestFailedAuthResultSurfacesTheError(t *testing.T) {
 	}
 }
 
-// The token goes to the store and the URL goes to the config. Nothing about the
-// token may end up in the file (§3.9).
-func TestTheConfigCarriedBackHoldsNoSecret(t *testing.T) {
-	m := newTestModel(t, testConfig(), newFakeStorage())
-	m.urlInput.SetValue("https://gitlab.example.com")
+// The token goes to the store; nothing about it may reach the file (§3.9). And
+// now that the configuration view owns gitlab.url, this view writes no setting
+// at all — the URL it authenticates against is the one it was handed.
+func TestAuthenticateWritesNoConfiguration(t *testing.T) {
+	cfg := testConfig()
+	cfg.GitLab.URL = "https://gitlab.example.com"
+	m := newTestModel(t, cfg, newFakeStorage())
 	m.tokenInput.SetValue("glpat-secret")
 
 	if cmd := m.authenticate(); cmd == nil {
@@ -472,8 +489,11 @@ func TestTheConfigCarriedBackHoldsNoSecret(t *testing.T) {
 	}
 
 	// The Cmd itself reaches the network, so assert on the config it was
-	// handed: it is the same pointer, and only the URL may be set on it.
-	if m.config.GitLab.URL != "" {
+	// handed: it is the same pointer, and nothing may have been set on it.
+	if m.config.GitLab.URL != "https://gitlab.example.com" {
+		t.Errorf("URL = %q; authenticate() must not rewrite the setting it read", m.config.GitLab.URL)
+	}
+	if m.config.Scan.GitleaksConfig != "" || m.config.App.Theme != cfg.App.Theme {
 		t.Error("authenticate() wrote to the config outside Update() (Rule 110)")
 	}
 }
@@ -538,8 +558,8 @@ func TestLogoutCompleteClearsTheSession(t *testing.T) {
 	if !strings.Contains(m.success, "Logged out") {
 		t.Errorf("success message = %q, want the logout confirmation", m.success)
 	}
-	if !m.urlInput.Focused() {
-		t.Error("the URL input is not focused after logging out")
+	if !m.tokenInput.Focused() {
+		t.Error("the token input is not focused after logging out")
 	}
 }
 
@@ -548,7 +568,7 @@ func TestLogoutCompleteClearsTheSession(t *testing.T) {
 func TestLogoutDeletesFromTheStore(t *testing.T) {
 	storage := newFakeStorage()
 	m := newTestModel(t, testConfig(), storage)
-	m.urlInput.SetValue("https://gitlab.example.com")
+	setConfigURL(m, "https://gitlab.example.com")
 
 	cmd := m.logout()
 	if cmd == nil {
@@ -567,7 +587,7 @@ func TestLogoutDeletesFromTheStore(t *testing.T) {
 // race the first.
 func TestKeysAreIgnoredWhileAuthenticating(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
-	m.urlInput.SetValue("https://gitlab.example.com")
+	setConfigURL(m, "https://gitlab.example.com")
 	m.tokenInput.SetValue("glpat-x")
 	m.authenticating = true
 	field := m.currentField
@@ -590,4 +610,10 @@ func TestWindowSizeIsStored(t *testing.T) {
 	if m.width != 140 || m.height != 50 {
 		t.Errorf("window size = %dx%d, want 140x50", m.width, m.height)
 	}
+}
+
+// setConfigURL is where the URL lives now: the configuration view owns it, this
+// view reads it. Tests that used to type into a URL input set it here instead.
+func setConfigURL(m *Model, url string) {
+	m.config.GitLab.URL = url
 }

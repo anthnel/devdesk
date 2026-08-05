@@ -253,6 +253,18 @@ Two settings are special-cased, matched by label:
   that wrote a token to two stores at once; copying one here would rebuild it.
   Declining restores the previous value.
 
+**`gitlab.url` belongs to this view, not to the auth view.** Both used to write
+it, so neither was authoritative and editing it in one left the other stale. The
+auth view now shows it read-only, points at `:config`, and owns only the token
+and the act of logging in — which is where the §3.9 line falls: this view's
+contract is "everything here goes to `config.yaml`", and a token never does.
+
+Changing the URL closes the client-side GitLab session (`GitLabURLChanged` on
+the message) and says so, rather than forbidding the change — the same call as
+for the secret backend. The field is recognised by **accessor identity**
+(`f.str(cfg) == &cfg.GitLab.URL`), not by label: two tabs could both hold a
+field called "URL".
+
 `ConfigSavedMsg` goes to the router, which drops every view *except this one* so
 they rebuild against the saved config — keeping the configuration view is what
 stops a save throwing away the cursor after every keystroke. `BackendChanged`

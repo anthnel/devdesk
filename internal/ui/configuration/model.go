@@ -22,9 +22,13 @@ const footerMsgDuration = 3 * time.Second
 // setting the router cannot honour by rebuilding views: it has to resolve a new
 // credentials.Selection first.
 type ConfigSavedMsg struct {
-	Config         *config.Config
-	ThemeChanged   bool
-	BackendChanged bool
+	Config       *config.Config
+	ThemeChanged bool
+	// BackendChanged and GitLabURLChanged are the two settings the router must
+	// act on rather than just rebuild views against: one needs a fresh
+	// credentials.Selection, the other invalidates a live GitLab session.
+	BackendChanged   bool
+	GitLabURLChanged bool
 }
 
 type clearFooterMsg struct{}

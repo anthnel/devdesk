@@ -128,12 +128,27 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 		return m, nil, true
 	}
 
+	// Compared by accessor, not by label: two tabs could both hold a field
+	// called "URL", and pointer identity cannot be wrong about which setting is
+	// in front of the cursor.
+	isGitLabURL := f.str != nil && f.str(m.config) == &m.config.GitLab.URL
+	before := m.config.GitLab.URL
+
 	if err := f.Apply(m.config, m.input.Value()); err != nil {
 		log.Printf("ERROR [configuration] %s: %v", f.Label, err)
 		m.footerError = err.Error()
 		return m, clearFooterCmd(), false
 	}
-	return m, m.persist(false), true
+
+	if isGitLabURL && m.config.GitLab.URL != before {
+		// Said unconditionally rather than only when a session is open: this
+		// view holds no session state, and "you will need to sign in again" is
+		// true either way. Warning beats forbidding — the same call as for the
+		// secret backend.
+		m.footerInfo = "GitLab URL changed — sign in again with :gla"
+		return m, tea.Batch(m.persist(saved{gitlabURL: true}), clearFooterCmd()), true
+	}
+	return m, m.persist(saved{}), true
 }
 
 // cycleField advances a closed-set field (Rule 132).
@@ -148,13 +163,13 @@ func (m Model) cycleField(step int) (tea.Model, tea.Cmd) {
 	// applied as it is cycled rather than on blur — otherwise the user is
 	// choosing blind.
 	if f.Label == themeLabel {
-		return m, m.persist(true)
+		return m, m.persist(saved{theme: true})
 	}
 	// The backend is confirmed on blur, so nothing is written here.
 	if f.Label == secretBackendLabel {
 		return m, nil
 	}
-	return m, m.persist(false)
+	return m, m.persist(saved{})
 }
 
 // toggleField flips a checkbox. Space is the only key that may (Rule 135).
@@ -168,11 +183,18 @@ func (m Model) toggleField() (tea.Model, tea.Cmd) {
 		return m, clearFooterCmd()
 	}
 	f.Toggle(m.config)
-	return m, m.persist(false)
+	return m, m.persist(saved{})
+}
+
+// saved says which settings this write touched that the router has to act on
+// rather than merely rebuild views against.
+type saved struct {
+	theme     bool
+	gitlabURL bool
 }
 
 // persist applies the cross-field constraints, saves, and tells the router.
-func (m Model) persist(themeChanged bool) tea.Cmd {
+func (m Model) persist(what saved) tea.Cmd {
 	m.applyServerModeConstraints()
 
 	if err := config.Save(m.config); err != nil {
@@ -184,7 +206,7 @@ func (m Model) persist(themeChanged bool) tea.Cmd {
 
 	cfg := m.config
 	return func() tea.Msg {
-		return ConfigSavedMsg{Config: cfg, ThemeChanged: themeChanged}
+		return ConfigSavedMsg{Config: cfg, ThemeChanged: what.theme, GitLabURLChanged: what.gitlabURL}
 	}
 }
 

@@ -33,6 +33,9 @@ func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, te
 	if msg.BackendChanged {
 		a.resolveSecretBackend()
 	}
+	if msg.GitLabURLChanged {
+		a.closeGitLabSession()
+	}
 
 	// Every view except this one is dropped so it is rebuilt against the saved
 	// config on next use. Keeping the configuration view is what stops a save
@@ -80,4 +83,23 @@ func (a *App) resolveSecretBackend() {
 	a.sharedState.CurrentUser = nil
 
 	log.Printf("Secret backend for context %s resolved to %s", a.currentContext, selection.Backend)
+}
+
+// closeGitLabSession drops the client-side session after the GitLab URL
+// changed. The session was established against the previous host, so keeping it
+// would mean the next call fails somewhere far from the cause.
+//
+// Nothing is revoked and no token is deleted: the user changed an address, not
+// their credentials, and a token for the old host is still theirs.
+func (a *App) closeGitLabSession() {
+	if !a.sharedState.IsAuthenticated {
+		return
+	}
+	log.Printf("GitLab URL changed; closing the session for context %s", a.currentContext)
+	a.sharedState.GitLabClient = nil
+	a.sharedState.IsAuthenticated = false
+	a.sharedState.CurrentUser = nil
+	a.sharedState.CachedGroups = nil
+	a.sharedState.CachedProjects = nil
+	a.sharedState.GitLabStats = nil
 }

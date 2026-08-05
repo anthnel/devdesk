@@ -18,7 +18,7 @@ import (
 func TestInEditModeOnlyOnTheTextFields(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	for _, field := range []int{fieldURL, fieldToken} {
+	for _, field := range []int{fieldToken, fieldToken} {
 		m.currentField = field
 		if !m.InEditMode() {
 			t.Errorf("InEditMode() is false on field %d, so ':' would not reach the input", field)
@@ -33,7 +33,7 @@ func TestInEditModeOnlyOnTheTextFields(t *testing.T) {
 
 func TestInEditModeIsFalseWhileBusyOrSignedIn(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
-	m.currentField = fieldURL
+	m.currentField = fieldToken
 
 	m.authenticating = true
 	if m.InEditMode() {
@@ -113,7 +113,7 @@ func TestViewNeverRendersTheTokenInClear(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 	m.tokenInput.SetValue("glpat-supersecret")
 
-	for field := fieldURL; field <= fieldSubmit; field++ {
+	for field := fieldToken; field <= fieldSubmit; field++ {
 		m.currentField = field
 		if strings.Contains(m.View(), "supersecret") {
 			t.Fatalf("View() rendered the token in clear with field %d focused", field)
