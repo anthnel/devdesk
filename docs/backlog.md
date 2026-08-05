@@ -482,6 +482,17 @@ around.
 
 **D21** is the only defect left open.
 
+**D24 — workspaces acted on the wrong directory under a filter. Fixed** by §2
+step 5, which is also what found it. The rows were filtered and `m.entries` was
+not, and every action resolved the cursor against `m.entries` — so under a
+filter they acted on whatever sat at that index in the *unfiltered* list.
+Filtering five entries down to `empty-dir` and pressing `ctrl+d` asked to delete
+`devdesk`. `ctrl+s`, `r`, `enter`, `ctrl+o` and `ctrl+w` were all wrong the same
+way. This is the defect class the component was built to remove, stated in its
+package doc, and it was live in the one view where the consequence is a deleted
+directory. `TestAFilteredSelectionActsOnTheRowTheUserSees` was written before
+the fix and failed on the old code.
+
 **D23 — an unreachable repository manager read as "not a group". Fixed** in
 §3.8 step 3, which is also what found it. `NexusDetector.fetchRepoMeta` returned
 one bare `ok=false` for both "the manager answered no" and "the manager could
@@ -1195,6 +1206,67 @@ moment the column says one name and the query wants the other
 `containers` 84.9 %, `oci_resources` 76.1 %. Five of fifteen tables migrated.
 
 Steps 5 and 6 stand as written.
+
+#### Step 5 as built — `workspaces`, then `explorer`
+
+The step that was meant to prove the clamp and the drill-down. It proved
+something else first: **workspaces was resolving every action against the
+unfiltered list** (D24 above). The rows were filtered, `m.entries` was not, and
+seven copies of
+
+```go
+idx := m.table.Cursor()
+if idx < 0 || idx >= len(m.entries) { return m, nil }
+entry := m.entries[idx]
+```
+
+each turned a cursor into the rows into an index into a different list. `ctrl+d`
+on a filtered list named a directory the user could not see. That is exactly
+what the package doc describes as "the duplication worth removing on correctness
+grounds rather than volume", and it was not hypothetical.
+
+`selectedIdx` went with it. The modal that read it back after the user confirmed
+was the second place the two lists could disagree, and a row index means nothing
+once the list it indexed is not the list on screen — `pendingEntry` holds the
+entry.
+
+The explorer was the well-behaved one: `visibleItems()` already sorted and
+filtered before resolving. It still had two:
+
+- `expandToPath` walked `currentItems()` and set the cursor to the index it
+  found there. Under a non-default sort that is a different ordering from the
+  rows, and *both indices are in range*, so nothing clamped the mistake away —
+  creating a resource highlighted whichever one shared the index. Confirmed to
+  bite: `cursor is on "sub", want legacy`.
+- Four handlers guarded with `cursor >= len(items)`, which lets bubbles' `-1`
+  through. `ctrl+d` on an empty group indexed `[-1]`. They read `Selected()`
+  now, which has one failure mode and returns it as a bool.
+
+Both width calculations were wrong in the way this refactor keeps finding, and
+in opposite directions. Workspaces clamped Modified back up to 15 *after*
+handing it the remainder, so the columns overflowed by up to 34 at width 120 —
+the shape `TestTheWorkspacesLayoutFitsANarrowTerminal` was written against in
+step 1. The explorer's seven ratios kept the sum exact and starved the columns
+instead: at 80 they gave Type 5 and Created 8, neither wide enough for its own
+header. A correct sum is not a correct layout, and only one of the two is what
+Rule 116 actually says.
+
+Three things the views forced into the component:
+
+- **`SetCursor`, clamped.** Workspaces restores a position per directory level
+  on the way back up, and the explorer does the same after a refresh.
+- **The selected row is pinned to the content width.** Workspaces did this by
+  hand (`styles.Selected.Width(m.width - 2)`) and it was the right instinct:
+  column widths count cells, and a Nerd Font icon does not always render as wide
+  as it counts, so the highlight stopped short of the border by whatever the
+  icons disagreed by. It is a no-op when they agree, so every table gets it.
+- **`rebuild` sets the cursor to `-1` on an empty list** rather than leaving the
+  old index. An empty list was the one state where the cursor could still point
+  past the end — `Selected()` reported nothing either way, but the invariant is
+  worth having whole.
+
+`workspaces` 81.7 %, `explorer` 90.1 %, `datatable` 96.2 %. Seven of fifteen
+tables migrated. Step 6 stands as written.
 
 ### Race detector cannot run locally
 

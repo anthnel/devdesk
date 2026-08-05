@@ -391,9 +391,16 @@ than closing over the model. The columns are built once, in `New`, so they
 cannot reach it; and carrying it means a column sorts by the same value it
 prints.
 
+`SetCursor` is clamped and exists for the views that remember a position across
+a reload — workspaces and the explorer each restore one per drill-down level.
+The selected row is pinned to the content width: column widths count cells, and
+a Nerd Font icon does not always render as wide as it counts, so the highlight
+would otherwise stop short of the right border.
+
 Migration of the fifteen existing tables is step-by-step: `oci_resources`
-networks, volumes and images, `netdiag` ports and `containers` are done. See the
-backlog.
+networks, volumes and images, `netdiag` ports, `containers`, `workspaces` and
+the GitLab `explorer` are done — `security` and `status` are what is left. See
+the backlog.
 
 ## Testing
 
