@@ -72,25 +72,7 @@ func (m Model) scanSelectedImage() (tea.Model, tea.Cmd) {
 		return m, clearInfoMsgCmd()
 	}
 	m.scanning = true
-	return m, batchScanCmd([]imageScanJob{{Name: name, Target: img.ScanTarget()}}, m.defaultScanOpts())
-}
-
-// defaultScanOpts returns default scan options from configuration
-func (m Model) defaultScanOpts() scan.ScanOptions {
-	return scan.ScanOptions{
-		EnableVuln:      m.config.Scan.EnableVuln,
-		EnableSecret:    m.config.Scan.EnableSecret,
-		EnableMisconfig: m.config.Scan.EnableMisconfig,
-		EnableLicense:   m.config.Scan.EnableLicense,
-		GenerateSBOM:    m.config.Scan.GenerateSBOM,
-		SBOMOutputDir:   m.config.Scan.SBOMOutputDir,
-		TrivyImage:      m.config.Scan.TrivyImage,
-		GitleaksImage:   m.config.Scan.GitleaksImage,
-		TrivyServer:     m.config.Scan.TrivyServer,
-		IgnoreUnfixed:   m.config.Scan.IgnoreUnfixed,
-		GitleaksHistory: m.config.Scan.GitleaksHistory,
-		GitleaksConfig:  m.config.Scan.GitleaksConfig,
-	}
+	return m, batchScanCmd([]imageScanJob{{Name: name, Target: img.ScanTarget()}}, scan.OptionsFromConfig(m.config.Scan))
 }
 
 // scanAllUnscanned triggers batch scanning of all unscanned images using config defaults
@@ -113,7 +95,7 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 		return m, clearInfoMsgCmd()
 	}
 	m.scanning = true
-	return m, batchScanCmd(jobs, m.defaultScanOpts())
+	return m, batchScanCmd(jobs, scan.OptionsFromConfig(m.config.Scan))
 }
 
 // requestScanAll launches a batch scan for all images with the configured options.
@@ -137,7 +119,7 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.scanning = true
-	return m, tea.Batch(deleteScanCacheCmd(cacheKeys), batchScanCmd(jobs, m.defaultScanOpts()))
+	return m, tea.Batch(deleteScanCacheCmd(cacheKeys), batchScanCmd(jobs, scan.OptionsFromConfig(m.config.Scan)))
 }
 
 // handleLaunchBatchScan starts a batch scan of all images with the configured options.

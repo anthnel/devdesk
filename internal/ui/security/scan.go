@@ -28,24 +28,13 @@ func (m Model) startScan() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	opts := scan.ScanOptions{
-		EnableVuln:      m.enableVuln,
-		EnableSecret:    m.enableSecret,
-		EnableMisconfig: m.enableMisconfig,
-		EnableLicense:   m.enableLicense,
-		GenerateSBOM:    m.generateSBOM,
-		SBOMOutputDir:   m.config.Scan.SBOMOutputDir,
-		TrivyImage:      m.config.Scan.TrivyImage,
-		GitleaksImage:   m.config.Scan.GitleaksImage,
-		TrivyServer:     m.trivyServerInput.Value(),
-		IgnoreUnfixed:   m.ignoreUnfixed,
-		IgnoreEOL:       m.ignoreEOL,
-		GitleaksHistory: m.gitleaksHistory,
-		GitleaksConfig:  m.gitleaksConfigInput.Value(),
-	}
-
-	// Persist all options to config (may already be up to date if user toggled before scanning)
+	// Persist first, then read back through the one builder. The form used to
+	// assemble the options itself, which is how it ended up being the only one
+	// of three call sites that set IgnoreEOL (D26). Saving first keeps the
+	// behaviour identical — every toggle already writes to the config — while
+	// leaving a single definition of what a configured scan is.
 	m.saveOptionsToConfig()
+	opts := scan.OptionsFromConfig(m.config.Scan)
 
 	// When opened from OCI images view, delegate scan execution back to that view
 	if m.isImageScan && m.returnToOCIImages {
