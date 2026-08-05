@@ -12,7 +12,7 @@ import (
 // ── Trivy ────────────────────────────────────────────────────────────────────
 
 func TestTrivyScansADirectoryAsAFilesystem(t *testing.T) {
-	cmd := GetTrivyCommand("/repos/devdesk", TargetDirectory, false, ToolSourceBinary, "", "", false, false)
+	cmd := GetTrivyCommand("/repos/devdesk", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "", false, false)
 
 	for _, want := range []string{"trivy", "fs", "--format json", "--scanners vuln", "/repos/devdesk"} {
 		if !strings.Contains(cmd, want) {
@@ -24,7 +24,7 @@ func TestTrivyScansADirectoryAsAFilesystem(t *testing.T) {
 // License mode is the same fs scan with a different scanner; asking for both at
 // once would double the run time for one of them.
 func TestLicenseModeSwapsTheScanner(t *testing.T) {
-	cmd := GetTrivyCommand("/repos/devdesk", TargetDirectory, true, ToolSourceBinary, "", "", false, false)
+	cmd := GetTrivyCommand("/repos/devdesk", TargetDirectory, true, ToolSpec{Source: ToolSourceBinary}, "", false, false)
 
 	if !strings.Contains(cmd, "--scanners license") {
 		t.Errorf("license mode did not select the license scanner:\n%s", cmd)
@@ -35,7 +35,7 @@ func TestLicenseModeSwapsTheScanner(t *testing.T) {
 }
 
 func TestTrivyScansAnImageByName(t *testing.T) {
-	cmd := GetTrivyCommand("api:v1", TargetImage, false, ToolSourceBinary, "", "", false, false)
+	cmd := GetTrivyCommand("api:v1", TargetImage, false, ToolSpec{Source: ToolSourceBinary}, "", false, false)
 
 	if !strings.Contains(cmd, "image") || !strings.Contains(cmd, "api:v1") {
 		t.Errorf("the image command is wrong:\n%s", cmd)
@@ -49,7 +49,7 @@ func TestTrivyScansAnImageByName(t *testing.T) {
 // In Docker mode the target is mounted read-only and the container sees it at a
 // fixed path, so the argument passed to trivy is /scan, not the host path.
 func TestDockerModeMountsTheDirectoryReadOnly(t *testing.T) {
-	cmd := GetTrivyCommand("/repos/devdesk", TargetDirectory, false, ToolSourceDocker, "", "", false, false)
+	cmd := GetTrivyCommand("/repos/devdesk", TargetDirectory, false, ToolSpec{Source: ToolSourceDocker}, "", false, false)
 
 	if !strings.Contains(cmd, "-v /repos/devdesk:/scan:ro") {
 		t.Errorf("the target is not mounted read-only:\n%s", cmd)
@@ -66,19 +66,19 @@ func TestDockerModeMountsTheDirectoryReadOnly(t *testing.T) {
 // Trivy server is doing the work, in which case handing the socket over would
 // be a needless grant.
 func TestTheDockerSocketIsMountedOnlyWhenItIsNeeded(t *testing.T) {
-	local := GetTrivyCommand("api:v1", TargetImage, false, ToolSourceDocker, "", "", false, false)
+	local := GetTrivyCommand("api:v1", TargetImage, false, ToolSpec{Source: ToolSourceDocker}, "", false, false)
 	if !strings.Contains(local, "/var/run/docker.sock") {
 		t.Errorf("an image scan without a server has no socket to inspect the image with:\n%s", local)
 	}
 
-	served := GetTrivyCommand("api:v1", TargetImage, false, ToolSourceDocker, "", "https://trivy:4954", false, false)
+	served := GetTrivyCommand("api:v1", TargetImage, false, ToolSpec{Source: ToolSourceDocker}, "https://trivy:4954", false, false)
 	if strings.Contains(served, "/var/run/docker.sock") {
 		t.Errorf("the socket was mounted although a server does the work:\n%s", served)
 	}
 }
 
 func TestAConfiguredImageOverridesTheDefault(t *testing.T) {
-	cmd := GetTrivyCommand("/repos", TargetDirectory, false, ToolSourceDocker, "mirror.local/trivy:0.50", "", false, false)
+	cmd := GetTrivyCommand("/repos", TargetDirectory, false, ToolSpec{Source: ToolSourceDocker, Image: "mirror.local/trivy:0.50"}, "", false, false)
 
 	if !strings.Contains(cmd, "mirror.local/trivy:0.50") {
 		t.Errorf("the configured image was not used:\n%s", cmd)
@@ -95,12 +95,12 @@ func TestOptionalTrivyFlagsAppearOnlyWhenAsked(t *testing.T) {
 		flag string
 		want bool
 	}{
-		{"server off", GetTrivyCommand("/r", TargetDirectory, false, ToolSourceBinary, "", "", false, false), "--server", false},
-		{"server on", GetTrivyCommand("/r", TargetDirectory, false, ToolSourceBinary, "", "https://trivy:4954", false, false), "--server https://trivy:4954", true},
-		{"ignore-unfixed off", GetTrivyCommand("/r", TargetDirectory, false, ToolSourceBinary, "", "", false, false), "--ignore-unfixed", false},
-		{"ignore-unfixed on", GetTrivyCommand("/r", TargetDirectory, false, ToolSourceBinary, "", "", true, false), "--ignore-unfixed", true},
-		{"ignore-eol off", GetTrivyCommand("/r", TargetDirectory, false, ToolSourceBinary, "", "", false, false), "--ignore-status", false},
-		{"ignore-eol on", GetTrivyCommand("/r", TargetDirectory, false, ToolSourceBinary, "", "", false, true), "--ignore-status end_of_life", true},
+		{"server off", GetTrivyCommand("/r", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "", false, false), "--server", false},
+		{"server on", GetTrivyCommand("/r", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "https://trivy:4954", false, false), "--server https://trivy:4954", true},
+		{"ignore-unfixed off", GetTrivyCommand("/r", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "", false, false), "--ignore-unfixed", false},
+		{"ignore-unfixed on", GetTrivyCommand("/r", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "", true, false), "--ignore-unfixed", true},
+		{"ignore-eol off", GetTrivyCommand("/r", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "", false, false), "--ignore-status", false},
+		{"ignore-eol on", GetTrivyCommand("/r", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "", false, true), "--ignore-status end_of_life", true},
 	}
 
 	for _, tt := range tests {
@@ -115,13 +115,13 @@ func TestOptionalTrivyFlagsAppearOnlyWhenAsked(t *testing.T) {
 // An unsupported target type has no command; the caller logs the empty string
 // rather than a half-built one.
 func TestAnUnsupportedTargetTypeHasNoCommand(t *testing.T) {
-	if got := GetTrivyCommand("x", TargetType("registry"), false, ToolSourceBinary, "", "", false, false); got != "" {
+	if got := GetTrivyCommand("x", TargetType("registry"), false, ToolSpec{Source: ToolSourceBinary}, "", false, false); got != "" {
 		t.Errorf("GetTrivyCommand for an unknown target type = %q, want empty", got)
 	}
-	if got := GetTrivyMisconfigCommand("x", TargetType("registry"), ToolSourceBinary, "", "", false); got != "" {
+	if got := GetTrivyMisconfigCommand("x", TargetType("registry"), ToolSpec{Source: ToolSourceBinary}, "", false); got != "" {
 		t.Errorf("GetTrivyMisconfigCommand for an unknown target type = %q, want empty", got)
 	}
-	if got := GetSBOMCommand("x", TargetType("registry"), ToolSourceBinary, "", "", ""); got != "" {
+	if got := GetSBOMCommand("x", TargetType("registry"), ToolSpec{Source: ToolSourceBinary}, "", ""); got != "" {
 		t.Errorf("GetSBOMCommand for an unknown target type = %q, want empty", got)
 	}
 }
@@ -129,12 +129,12 @@ func TestAnUnsupportedTargetTypeHasNoCommand(t *testing.T) {
 // D19 was the two builders drifting apart. They are now one, so the shown
 // command is the executed one by construction — this pins that.
 func TestTheShownCommandIsTheExecutedOne(t *testing.T) {
-	tc, err := trivyArgs("/repos", TargetDirectory, false, ToolSourceBinary, "", "https://trivy:4954", true, true)
+	tc, err := trivyArgs("/repos", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "https://trivy:4954", true, true)
 	if err != nil {
 		t.Fatalf("building failed: %v", err)
 	}
 
-	shown := GetTrivyCommand("/repos", TargetDirectory, false, ToolSourceBinary, "", "https://trivy:4954", true, true)
+	shown := GetTrivyCommand("/repos", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "https://trivy:4954", true, true)
 	if shown != tc.String() {
 		t.Errorf("shown:\n%s\nexecuted:\n%s", shown, tc.String())
 	}
@@ -145,8 +145,8 @@ func TestTheShownCommandIsTheExecutedOne(t *testing.T) {
 // Misconfiguration scanning reads configuration files, so unlike the license
 // scanner it applies to images as well as directories.
 func TestMisconfigScanningAppliesToBothTargetTypes(t *testing.T) {
-	dir := GetTrivyMisconfigCommand("/repos", TargetDirectory, ToolSourceBinary, "", "", false)
-	img := GetTrivyMisconfigCommand("api:v1", TargetImage, ToolSourceBinary, "", "", false)
+	dir := GetTrivyMisconfigCommand("/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "", false)
+	img := GetTrivyMisconfigCommand("api:v1", TargetImage, ToolSpec{Source: ToolSourceBinary}, "", false)
 
 	for name, cmd := range map[string]string{"directory": dir, "image": img} {
 		if !strings.Contains(cmd, "--scanners misconfig") {
@@ -161,12 +161,12 @@ func TestMisconfigScanningAppliesToBothTargetTypes(t *testing.T) {
 // The misconfig scan carries the same optional flags as the vulnerability one,
 // and it used to be the scan with no display counterpart at all (D19).
 func TestOptionalMisconfigFlagsAppearOnlyWhenAsked(t *testing.T) {
-	bare := GetTrivyMisconfigCommand("/repos", TargetDirectory, ToolSourceBinary, "", "", false)
+	bare := GetTrivyMisconfigCommand("/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "", false)
 	if strings.Contains(bare, "--server") || strings.Contains(bare, "--ignore-status") {
 		t.Errorf("flags appeared that were not asked for:\n%s", bare)
 	}
 
-	full := GetTrivyMisconfigCommand("/repos", TargetDirectory, ToolSourceBinary, "", "https://trivy:4954", true)
+	full := GetTrivyMisconfigCommand("/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "https://trivy:4954", true)
 	for _, want := range []string{"--server https://trivy:4954", "--ignore-status end_of_life"} {
 		if !strings.Contains(full, want) {
 			t.Errorf("the command is missing %q:\n%s", want, full)
@@ -177,7 +177,7 @@ func TestOptionalMisconfigFlagsAppearOnlyWhenAsked(t *testing.T) {
 // SBOM generation had no display counterpart either, so its command was never
 // shown at all.
 func TestTheSBOMCommandIsShownLikeTheOthers(t *testing.T) {
-	cmd := GetSBOMCommand("/repos", TargetDirectory, ToolSourceBinary, "", "", "/out")
+	cmd := GetSBOMCommand("/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "", "/out")
 
 	for _, want := range []string{"trivy", "fs", "--format cyclonedx", "--output"} {
 		if !strings.Contains(cmd, want) {
@@ -185,7 +185,7 @@ func TestTheSBOMCommandIsShownLikeTheOthers(t *testing.T) {
 		}
 	}
 
-	served := GetSBOMCommand("api:v1", TargetImage, ToolSourceDocker, "", "https://trivy:4954", "/out")
+	served := GetSBOMCommand("api:v1", TargetImage, ToolSpec{Source: ToolSourceDocker}, "https://trivy:4954", "/out")
 	if !strings.Contains(served, "--server https://trivy:4954") {
 		t.Errorf("the server was not passed:\n%s", served)
 	}
@@ -196,7 +196,7 @@ func TestTheSBOMCommandIsShownLikeTheOthers(t *testing.T) {
 
 	// The server reaches the binary form too — it is the same flag, and the
 	// two forms are built by the same builder.
-	binary := GetSBOMCommand("/repos", TargetDirectory, ToolSourceBinary, "", "https://trivy:4954", "")
+	binary := GetSBOMCommand("/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "https://trivy:4954", "")
 	if !strings.Contains(binary, "--server https://trivy:4954") {
 		t.Errorf("the server was not passed to the binary form:\n%s", binary)
 	}
@@ -206,7 +206,7 @@ func TestTheSBOMCommandIsShownLikeTheOthers(t *testing.T) {
 // SBOM lands in the working directory — which has to be mounted for the
 // container to reach it.
 func TestAnImageSBOMWithNoOutputDirectoryUsesTheWorkingDirectory(t *testing.T) {
-	tc, hostPath, err := sbomArgs("api:v1", TargetImage, ToolSourceDocker, "", "", "")
+	tc, hostPath, err := sbomArgs("api:v1", TargetImage, ToolSpec{Source: ToolSourceDocker}, "", "")
 	if err != nil {
 		t.Fatalf("building failed: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestTheSBOMPathIsTheHostPathNotTheContainerPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tc, hostPath, err := sbomArgs(tt.target, tt.targetType, ToolSourceDocker, "", "", tt.outputDir)
+			tc, hostPath, err := sbomArgs(tt.target, tt.targetType, ToolSpec{Source: ToolSourceDocker}, "", tt.outputDir)
 			if err != nil {
 				t.Fatalf("building failed: %v", err)
 			}
@@ -277,7 +277,7 @@ func TestTheSBOMPathIsTheHostPathNotTheContainerPath(t *testing.T) {
 // A directory SBOM has to be written back into a mount that is not read-only,
 // unlike every other directory scan.
 func TestTheSBOMOutputMountIsWritable(t *testing.T) {
-	tc, _, err := sbomArgs("/repos/devdesk", TargetDirectory, ToolSourceDocker, "", "", "")
+	tc, _, err := sbomArgs("/repos/devdesk", TargetDirectory, ToolSpec{Source: ToolSourceDocker}, "", "")
 	if err != nil {
 		t.Fatalf("building failed: %v", err)
 	}
@@ -295,12 +295,12 @@ func TestTheSBOMOutputMountIsWritable(t *testing.T) {
 // Gitleaks writes its report to a path, so the command redirects it to stdout —
 // which is a different pseudo-file inside a container than outside.
 func TestGitleaksReportsToStdout(t *testing.T) {
-	binary := GetGitleaksCommand("/repos/devdesk", ToolSourceBinary, "", false, "")
+	binary := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceBinary}, false, "")
 	if !strings.Contains(binary, "--report-path /dev/stdout") {
 		t.Errorf("the binary command does not capture the report:\n%s", binary)
 	}
 
-	docker := GetGitleaksCommand("/repos/devdesk", ToolSourceDocker, "", false, "")
+	docker := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceDocker}, false, "")
 	if !strings.Contains(docker, "--report-path /dev/fd/1") {
 		t.Errorf("the docker command does not capture the report:\n%s", docker)
 	}
@@ -309,12 +309,12 @@ func TestGitleaksReportsToStdout(t *testing.T) {
 // The repository's own .gitleaksignore has to be honoured, or every finding the
 // user has already dismissed comes back on the next scan.
 func TestTheIgnoreFileIsAlwaysPassed(t *testing.T) {
-	binary := GetGitleaksCommand("/repos/devdesk", ToolSourceBinary, "", false, "")
+	binary := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceBinary}, false, "")
 	if !strings.Contains(binary, "--gitleaks-ignore-path /repos/devdesk") {
 		t.Errorf("the ignore path was not passed:\n%s", binary)
 	}
 
-	docker := GetGitleaksCommand("/repos/devdesk", ToolSourceDocker, "", false, "")
+	docker := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceDocker}, false, "")
 	if !strings.Contains(docker, "--gitleaks-ignore-path /scan") {
 		t.Errorf("the ignore path was not pointed at the mount:\n%s", docker)
 	}
@@ -323,31 +323,31 @@ func TestTheIgnoreFileIsAlwaysPassed(t *testing.T) {
 // History scanning is the expensive mode, so --no-git is the default and the
 // flag is dropped when the user asks for history.
 func TestHistoryIsOptedIntoByDroppingNoGit(t *testing.T) {
-	shallow := GetGitleaksCommand("/repos", ToolSourceBinary, "", false, "")
+	shallow := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceBinary}, false, "")
 	if !strings.Contains(shallow, "--no-git") {
 		t.Errorf("the default scan did not skip git history:\n%s", shallow)
 	}
 
-	full := GetGitleaksCommand("/repos", ToolSourceBinary, "", true, "")
+	full := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceBinary}, true, "")
 	if strings.Contains(full, "--no-git") {
 		t.Errorf("history was asked for but git was still skipped:\n%s", full)
 	}
 }
 
 func TestACustomGitleaksConfigIsPassedThrough(t *testing.T) {
-	without := GetGitleaksCommand("/repos", ToolSourceBinary, "", false, "")
+	without := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceBinary}, false, "")
 	if strings.Contains(without, "--config") {
 		t.Errorf("a config flag appeared with none configured:\n%s", without)
 	}
 
-	with := GetGitleaksCommand("/repos", ToolSourceBinary, "", false, "/etc/gitleaks.toml")
+	with := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceBinary}, false, "/etc/gitleaks.toml")
 	if !strings.Contains(with, "--config /etc/gitleaks.toml") {
 		t.Errorf("the configured rules file was not passed:\n%s", with)
 	}
 }
 
 func TestGitleaksDockerModeMountsTheTargetReadOnly(t *testing.T) {
-	cmd := GetGitleaksCommand("/repos/devdesk", ToolSourceDocker, "", false, "")
+	cmd := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceDocker}, false, "")
 
 	if !strings.Contains(cmd, "-v /repos/devdesk:/scan:ro") {
 		t.Errorf("the target is not mounted read-only:\n%s", cmd)
@@ -381,7 +381,7 @@ func TestAnUnusableTrivyServerIsRefusedBeforeTrivySeesIt(t *testing.T) {
 		"not a url at all", // spaces
 	}
 	for _, addr := range cases {
-		_, err := trivyArgs("/r", TargetDirectory, false, ToolSourceBinary, "", addr, false, false)
+		_, err := trivyArgs("/r", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, addr, false, false)
 		if err == nil {
 			t.Errorf("trivyArgs accepted %q as a server address", addr)
 			continue
@@ -395,7 +395,7 @@ func TestAnUnusableTrivyServerIsRefusedBeforeTrivySeesIt(t *testing.T) {
 // Surrounding space is not an address. It has to mean "unset" rather than
 // become something Trivy refuses.
 func TestAnAllSpaceTrivyServerMeansClientServerModeIsOff(t *testing.T) {
-	tc, err := trivyArgs("/r", TargetDirectory, false, ToolSourceBinary, "", "   ", false, false)
+	tc, err := trivyArgs("/r", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "   ", false, false)
 	if err != nil {
 		t.Fatalf("an all-space address was treated as a failure: %v", err)
 	}
@@ -405,7 +405,7 @@ func TestAnAllSpaceTrivyServerMeansClientServerModeIsOff(t *testing.T) {
 }
 
 func TestAUsableTrivyServerIsTrimmedAndPassed(t *testing.T) {
-	tc, err := trivyArgs("/r", TargetDirectory, false, ToolSourceBinary, "", "  https://trivy:4954  ", false, false)
+	tc, err := trivyArgs("/r", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "  https://trivy:4954  ", false, false)
 	if err != nil {
 		t.Fatalf("trivyArgs: %v", err)
 	}
@@ -417,10 +417,10 @@ func TestAUsableTrivyServerIsTrimmedAndPassed(t *testing.T) {
 // Every builder that takes the address has to refuse it the same way, or the
 // scan fails on whichever stage was not checked.
 func TestEveryTrivyBuilderRefusesAnUnusableServer(t *testing.T) {
-	if _, err := trivyMisconfigArgs("/r", TargetDirectory, ToolSourceBinary, "", ":", false); err == nil {
+	if _, err := trivyMisconfigArgs("/r", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, ":", false); err == nil {
 		t.Error("the misconfiguration builder accepted an unusable server address")
 	}
-	if _, _, err := sbomArgs("/r", TargetDirectory, ToolSourceBinary, "", ":", ""); err == nil {
+	if _, _, err := sbomArgs("/r", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, ":", ""); err == nil {
 		t.Error("the SBOM builder accepted an unusable server address")
 	}
 }

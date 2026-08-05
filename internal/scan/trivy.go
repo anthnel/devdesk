@@ -79,8 +79,8 @@ type TrivyMisconfiguration struct {
 
 // RunTrivy executes Trivy and returns findings.
 // progressFn is an optional callback called with each stderr line (DB download progress etc.).
-func RunTrivy(ctx context.Context, target string, targetType TargetType, licenseMode bool, source ToolSource, image string, server string, ignoreUnfixed bool, ignoreEOL bool, progressFn func(string)) ([]Finding, error) {
-	tc, err := trivyArgs(target, targetType, licenseMode, source, image, server, ignoreUnfixed, ignoreEOL)
+func RunTrivy(ctx context.Context, target string, targetType TargetType, licenseMode bool, tool ToolSpec, server string, ignoreUnfixed bool, ignoreEOL bool, progressFn func(string)) ([]Finding, error) {
+	tc, err := trivyArgs(target, targetType, licenseMode, tool, server, ignoreUnfixed, ignoreEOL)
 	if err != nil {
 		return nil, err
 	}
@@ -210,8 +210,8 @@ func maskSecret(s string) string {
 // GetTrivyCommand returns the command that would be executed, for display and
 // logging. It is built by the same builder as the executed command, so the two
 // cannot drift apart.
-func GetTrivyCommand(target string, targetType TargetType, licenseMode bool, source ToolSource, image string, server string, ignoreUnfixed bool, ignoreEOL bool) string {
-	tc, err := trivyArgs(target, targetType, licenseMode, source, image, server, ignoreUnfixed, ignoreEOL)
+func GetTrivyCommand(target string, targetType TargetType, licenseMode bool, tool ToolSpec, server string, ignoreUnfixed bool, ignoreEOL bool) string {
+	tc, err := trivyArgs(target, targetType, licenseMode, tool, server, ignoreUnfixed, ignoreEOL)
 	if err != nil {
 		return ""
 	}
@@ -219,8 +219,8 @@ func GetTrivyCommand(target string, targetType TargetType, licenseMode bool, sou
 }
 
 // GetTrivyMisconfigCommand returns the misconfiguration scan command for display.
-func GetTrivyMisconfigCommand(target string, targetType TargetType, source ToolSource, image string, server string, ignoreEOL bool) string {
-	tc, err := trivyMisconfigArgs(target, targetType, source, image, server, ignoreEOL)
+func GetTrivyMisconfigCommand(target string, targetType TargetType, tool ToolSpec, server string, ignoreEOL bool) string {
+	tc, err := trivyMisconfigArgs(target, targetType, tool, server, ignoreEOL)
 	if err != nil {
 		return ""
 	}
@@ -228,8 +228,8 @@ func GetTrivyMisconfigCommand(target string, targetType TargetType, source ToolS
 }
 
 // GetSBOMCommand returns the SBOM generation command for display.
-func GetSBOMCommand(target string, targetType TargetType, source ToolSource, image string, server string, outputDir string) string {
-	tc, _, err := sbomArgs(target, targetType, source, image, server, outputDir)
+func GetSBOMCommand(target string, targetType TargetType, tool ToolSpec, server string, outputDir string) string {
+	tc, _, err := sbomArgs(target, targetType, tool, server, outputDir)
 	if err != nil {
 		return ""
 	}
@@ -238,8 +238,8 @@ func GetSBOMCommand(target string, targetType TargetType, source ToolSource, ima
 
 // RunTrivyMisconfig executes Trivy with --scanners misconfig and returns findings.
 // progressFn is an optional callback called with each stderr line.
-func RunTrivyMisconfig(ctx context.Context, target string, targetType TargetType, source ToolSource, image string, server string, ignoreEOL bool, progressFn func(string)) ([]Finding, error) {
-	tc, err := trivyMisconfigArgs(target, targetType, source, image, server, ignoreEOL)
+func RunTrivyMisconfig(ctx context.Context, target string, targetType TargetType, tool ToolSpec, server string, ignoreEOL bool, progressFn func(string)) ([]Finding, error) {
+	tc, err := trivyMisconfigArgs(target, targetType, tool, server, ignoreEOL)
 	if err != nil {
 		return nil, err
 	}
@@ -249,8 +249,8 @@ func RunTrivyMisconfig(ctx context.Context, target string, targetType TargetType
 // GenerateSBOM generates a CycloneDX SBOM using Trivy and returns the path of
 // the file it wrote. If outputDir is non-empty, the SBOM is written there
 // instead of next to the target.
-func GenerateSBOM(ctx context.Context, target string, targetType TargetType, source ToolSource, image string, server string, outputDir string) (string, error) {
-	tc, outputPath, err := sbomArgs(target, targetType, source, image, server, outputDir)
+func GenerateSBOM(ctx context.Context, target string, targetType TargetType, tool ToolSpec, server string, outputDir string) (string, error) {
+	tc, outputPath, err := sbomArgs(target, targetType, tool, server, outputDir)
 	if err != nil {
 		return "", err
 	}

@@ -235,6 +235,27 @@ Key messages in `internal/app/messages.go`:
 
 ### Security Scanning
 
+**Where a scanner runs from is configured, not guessed.** `scan.trivy_source`
+and `scan.gitleaks_source` take `auto | binary | image`:
+
+| Value | Resolution |
+|---|---|
+| `auto` (default) | the binary when there is one, the Docker image otherwise |
+| `binary` | `trivy_path` when set, else the name on `PATH` — **fails rather than falling back to Docker** |
+| `image` | `trivy_image`, even when a binary is installed |
+
+`scan.CheckDependencies(cfg.Scan)` resolves both tools and fills
+`DependencyStatus`; `deps.TrivySpec()` / `GitleaksSpec()` hand a `ToolSpec`
+(source + binary + image) to the command builders. `ToolSpec` replaced the
+`(source ToolSource, image string)` pair those builders used to take — the pair
+had nowhere to carry a configured path, which is why `trivy_path` sat unread
+for so long (D27). Do not add a positional `binary` parameter back; put it on
+the spec.
+
+The loud failure on `binary` is deliberate: falling back to Docker is what made
+the unread path invisible, because scans kept working with something other than
+what was asked for.
+
 `internal/scan/` orchestrates Trivy + Gitleaks:
 - `scanner.go` — runs both tools concurrently, streams progress via `ProgressUpdate` channel
 - `trivy.go` — CVE, SBOM, misconfiguration detection

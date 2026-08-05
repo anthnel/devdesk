@@ -23,6 +23,39 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D27 — the custom tool paths were read by nothing, and the source could not be
+chosen. Fixed** by `internal/scan/tool_source.go`, found while planning the
+configuration view.
+
+`scan.trivy_path` and `scan.gitleaks_path` were declared in the schema,
+defaulted in `Default()`, and tilde-expanded in `ExpandPaths` — and no reader
+was ever written. `CheckDependenciesWithImages` called `exec.LookPath("trivy")`
+and the command builders hard-coded `toolCmd{Name: "trivy"}` /
+`{Name: "gitleaks"}`. Setting a path did nothing, silently. Somebody thought the
+field mattered, since it is expanded on load.
+
+The signature is why: the function took the two image names and nothing else, so
+there was nowhere to pass a path. The same shape ran through every builder as
+the pair `source ToolSource, image string`.
+
+The other half is that resolution tried the binary first and only reached for
+Docker in the `else`, so a binary on `PATH` always won: asking for the pinned
+image while Trivy happened to be installed was not expressible.
+
+- `ToolSpec{Source, Binary, Image}` replaces the `(source, image)` pair
+  everywhere. It is a net *reduction* in argument count — `GetTrivyCommand` had
+  eight positional parameters, which is why nobody threaded a ninth through.
+- `scan.trivy_source` / `scan.gitleaks_source` take `auto | binary | image`, and
+  default to `auto`, which is the historical resolution exactly — an existing
+  config cannot change meaning on upgrade.
+- **`binary` does not fall back to Docker.** That silent fallback is what kept
+  D27 invisible: a path that was never read still produced working scans, run by
+  something other than what was asked for.
+
+All three invariants confirmed to bite: ignoring the configured path,
+reinstating the Docker fallback, and hard-coding the tool name in the builder
+each fail their own test.
+
 **The command line took focus from the render path.** Found in phase 5.
 `renderHeader` called `a.commandInput.Focus()` whenever `commandMode` was set —
 a mutation inside `View()`, which Rule 110 makes read-only. A

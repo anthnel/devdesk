@@ -65,8 +65,8 @@ func serverAddr(server string) (string, error) {
 }
 
 // trivyArgs builds a vulnerability or license scan.
-func trivyArgs(target string, targetType TargetType, licenseMode bool, source ToolSource,
-	image, server string, ignoreUnfixed, ignoreEOL bool) (toolCmd, error) {
+func trivyArgs(target string, targetType TargetType, licenseMode bool, tool ToolSpec,
+	server string, ignoreUnfixed, ignoreEOL bool) (toolCmd, error) {
 	server, err := serverAddr(server)
 	if err != nil {
 		return toolCmd{}, err
@@ -98,13 +98,13 @@ func trivyArgs(target string, targetType TargetType, licenseMode bool, source To
 		args = append(args, "--ignore-status", "end_of_life")
 	}
 
-	return wrapTrivy(args, target, targetType, source, image, server), nil
+	return wrapTrivy(args, target, targetType, tool, server), nil
 }
 
 // trivyMisconfigArgs builds a misconfiguration scan. It reads configuration
 // files rather than a package manifest, so it applies to both target types.
-func trivyMisconfigArgs(target string, targetType TargetType, source ToolSource,
-	image, server string, ignoreEOL bool) (toolCmd, error) {
+func trivyMisconfigArgs(target string, targetType TargetType, tool ToolSpec,
+	server string, ignoreEOL bool) (toolCmd, error) {
 	server, err := serverAddr(server)
 	if err != nil {
 		return toolCmd{}, err
@@ -128,13 +128,13 @@ func trivyMisconfigArgs(target string, targetType TargetType, source ToolSource,
 		args = append(args, "--ignore-status", "end_of_life")
 	}
 
-	return wrapTrivy(args, target, targetType, source, image, server), nil
+	return wrapTrivy(args, target, targetType, tool, server), nil
 }
 
 // sbomArgs builds a CycloneDX SBOM generation and returns the host path the
 // file will end up at, which is not the path Trivy is given in Docker mode.
-func sbomArgs(target string, targetType TargetType, source ToolSource,
-	image, server, outputDir string) (toolCmd, string, error) {
+func sbomArgs(target string, targetType TargetType, tool ToolSpec,
+	server, outputDir string) (toolCmd, string, error) {
 	server, err := serverAddr(server)
 	if err != nil {
 		return toolCmd{}, "", err
@@ -154,12 +154,12 @@ func sbomArgs(target string, targetType TargetType, source ToolSource,
 		return toolCmd{}, "", fmt.Errorf("unsupported target type: %s", targetType)
 	}
 
-	if source != ToolSourceDocker {
+	if tool.Source != ToolSourceDocker {
 		args := []string{sbomSubcommand(targetType), "--format", "cyclonedx", "--output", hostPath}
 		if server != "" {
 			args = append(args, "--server", server)
 		}
-		return toolCmd{Name: "trivy", Args: append(args, target)}, hostPath, nil
+		return toolCmd{Name: trivyBinary(tool), Args: append(args, target)}, hostPath, nil
 	}
 
 	// In Docker mode the output directory has to be writable, so the read-only
@@ -196,7 +196,7 @@ func sbomArgs(target string, targetType TargetType, source ToolSource,
 	}
 
 	dockerArgs := append([]string{"run", "--rm"}, mounts...)
-	dockerArgs = append(dockerArgs, trivyImage(image))
+	dockerArgs = append(dockerArgs, trivyImage(tool.Image))
 	return toolCmd{Name: "docker", Args: append(dockerArgs, args...)}, hostPath, nil
 }
 
@@ -219,9 +219,9 @@ func sbomFileName(target string, targetType TargetType) string {
 // wrapTrivy turns tool arguments into the invocation to run: either trivy
 // directly, or docker run with the target mounted and the tool arguments
 // appended after the image.
-func wrapTrivy(args []string, target string, targetType TargetType, source ToolSource, image, server string) toolCmd {
-	if source != ToolSourceDocker {
-		return toolCmd{Name: "trivy", Args: append(args, target)}
+func wrapTrivy(args []string, target string, targetType TargetType, tool ToolSpec, server string) toolCmd {
+	if tool.Source != ToolSourceDocker {
+		return toolCmd{Name: trivyBinary(tool), Args: append(args, target)}
 	}
 
 	dockerArgs := []string{"run", "--rm"}
@@ -234,8 +234,25 @@ func wrapTrivy(args []string, target string, targetType TargetType, source ToolS
 		}
 		args = append(args, target)
 	}
-	dockerArgs = append(dockerArgs, trivyImage(image))
+	dockerArgs = append(dockerArgs, trivyImage(tool.Image))
 	return toolCmd{Name: "docker", Args: append(dockerArgs, args...)}
+}
+
+// trivyBinary is what to exec for a binary-source scan: the resolved path when
+// detection found one, else the plain name. The fallback keeps the pure arg
+// builders usable from tests that never ran detection.
+func trivyBinary(tool ToolSpec) string {
+	if tool.Binary != "" {
+		return tool.Binary
+	}
+	return "trivy"
+}
+
+func gitleaksBinary(tool ToolSpec) string {
+	if tool.Binary != "" {
+		return tool.Binary
+	}
+	return "gitleaks"
 }
 
 func trivyImage(image string) string {

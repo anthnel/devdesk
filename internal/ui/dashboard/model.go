@@ -317,8 +317,10 @@ func (m Model) detectTools() tea.Cmd {
 		// Docker
 		tools = append(tools, detectBinaryTool("Docker", "docker", "version", "--format", "{{.Client.Version}}"))
 
-		// Security tools via scan.CheckDependencies
-		deps := scan.CheckDependenciesWithImages(cfg.Scan.TrivyImage, cfg.Scan.GitleaksImage)
+		// Security tools via scan.CheckDependencies. The whole ScanConfig goes
+		// through: the configured tool paths and the per-tool source preference
+		// decide availability as much as the images do (D27).
+		deps := scan.CheckDependencies(cfg.Scan)
 		tools = append(tools, shared.ToolInfo{
 			Name:      "Trivy",
 			Available: deps.TrivyAvailable,
