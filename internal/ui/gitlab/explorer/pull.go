@@ -14,13 +14,12 @@ import (
 )
 
 // handlePullStart handles p key - start pull operation
-func (m Model) handlePullStart(flatNodes []*TreeNode) (tea.Model, tea.Cmd) {
-	cursor := m.table.Cursor()
-	if cursor >= len(flatNodes) {
+func (m Model) handlePullStart() (tea.Model, tea.Cmd) {
+	node, ok := m.table.Selected()
+	if !ok {
 		return m, nil
 	}
 
-	node := flatNodes[cursor]
 	m.pullTargetNode = node
 	return m, func() tea.Msg { return PullSelectionRequestMsg{} }
 }

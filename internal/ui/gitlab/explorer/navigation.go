@@ -7,13 +7,9 @@ import (
 )
 
 // handleDrillDown handles enter key - navigate into a group
-func (m Model) handleDrillDown(items []*TreeNode) (tea.Model, tea.Cmd) {
-	cursor := m.table.Cursor()
-	if cursor >= len(items) {
-		return m, nil
-	}
-	node := items[cursor]
-	if node.Type != NodeTypeGroup {
+func (m Model) handleDrillDown() (tea.Model, tea.Cmd) {
+	node, ok := m.table.Selected()
+	if !ok || node.Type != NodeTypeGroup {
 		return m, nil
 	}
 
@@ -57,6 +53,15 @@ func (m Model) handleDrillUp() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateTableRows refills the table with the current drill-down level.
+//
+// The sort, the filter, the sort arrows and the cursor clamp were all written
+// out in table.go; they are the component's now. What is left is the one thing
+// this view knows and it does not: which level the table is showing.
+func (m *Model) updateTableRows() {
+	m.table.SetItems(m.currentItems())
+}
+
 // currentItems returns the children of the current drill-down group (or root nodes)
 func (m Model) currentItems() []*TreeNode {
 	if m.currentGroupNode == nil {
@@ -76,7 +81,7 @@ func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	m.navigationStack = nil
 	m.cursorStack = nil
 	m.activeTabIndex = 0
-	m.table.SetRows(nil)
+	m.table.SetItems(nil)
 	return m, tea.Batch(m.spinner.Tick, m.loadRootGroups())
 }
 
@@ -111,9 +116,10 @@ func (m Model) handleLoadError(msg LoadErrorMsg) (tea.Model, tea.Cmd) {
 
 // expandToPath navigates to and selects a node at the given path after refresh
 func (m Model) expandToPath(targetPath string) (tea.Model, tea.Cmd) {
-	// Check if the target is visible in current items
-	items := m.currentItems()
-	for i, node := range items {
+	// Check if the target is on screen. The rows, not currentItems(): under a
+	// filter or a non-default sort those are two different orderings, and the
+	// cursor indexes the one being shown.
+	for i, node := range m.table.Visible() {
 		if node.FullPath == targetPath {
 			m.table.SetCursor(i)
 			m.pendingSelectPath = ""
@@ -122,7 +128,7 @@ func (m Model) expandToPath(targetPath string) (tea.Model, tea.Cmd) {
 	}
 
 	// Find an ancestor that needs to be drilled into
-	for _, node := range items {
+	for _, node := range m.currentItems() {
 		if node.Type == NodeTypeGroup && strings.HasPrefix(targetPath, node.FullPath+"/") {
 			// Drill into this group
 			m.navigationStack = append(m.navigationStack, m.currentGroupNode)

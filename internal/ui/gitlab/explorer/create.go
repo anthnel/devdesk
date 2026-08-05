@@ -15,7 +15,7 @@ import (
 
 // handleCreateResource handles 'ctrl+n' key - start unified group/project creation.
 // Stashes parent info and loads templates from OCI registry before showing form.
-func (m Model) handleCreateResource(flatNodes []*TreeNode) (tea.Model, tea.Cmd) {
+func (m Model) handleCreateResource() (tea.Model, tea.Cmd) {
 	// Use the currently browsed group as parent, not the selected item.
 	// currentGroupNode is nil at root level.
 	parentName := ""
