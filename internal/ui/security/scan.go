@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
@@ -106,12 +107,12 @@ func purgeScanCacheCmd(target string, targetType scan.TargetType) tea.Cmd {
 	return func() tea.Msg {
 		switch targetType {
 		case scan.TargetDirectory:
-			if c, err := cache.NewWorkspaceScanCache(); err == nil {
+			if c, err := cache.NewWorkspaceScanCache(config.CurrentContextName()); err == nil {
 				_ = c.Delete(target)
 			}
 			_ = cache.DeleteWorkspaceScanResult(target)
 		case scan.TargetImage:
-			if c, err := cache.NewImageScanCache(); err == nil {
+			if c, err := cache.NewImageScanCache(config.CurrentContextName()); err == nil {
 				_ = c.Delete(target)
 			}
 		}
@@ -215,7 +216,7 @@ func hasScanSource(result *scan.Result, source string) bool {
 
 // saveImageScanToCache persists CVE severity counts to the image scan cache
 func saveImageScanToCache(imageName string, result *scan.Result) {
-	c, err := cache.NewImageScanCache()
+	c, err := cache.NewImageScanCache(config.CurrentContextName())
 	if err != nil {
 		return
 	}

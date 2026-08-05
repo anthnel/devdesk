@@ -272,6 +272,24 @@ Two independent disk+memory caches in `internal/cache/`:
 - `ImageScanCache` — keyed by `"repo:tag"`, metadata at `~/.devdesk/cache/image-scans.json`, full results in `image-results/<sha256>.json`
 - `WorkspaceScanCache` — keyed by absolute repo path, metadata at `~/.devdesk/cache/workspace-scans.json`, full results in `workspace-results/<sha256>.json`
 
+**Both are scoped to a configuration context**, because the configuration is:
+`workspaces_dir` and the registry list are per context, so two contexts
+legitimately hold different roots and different images. A cache is bound to one
+context at construction — `NewImageScanCache(config.CurrentContextName())` —
+and `Get`, `Set`, `GetAll` and `Delete` only ever see that context's entries.
+
+`internal/cache/scan_file.go` owns the on-disk shape both share
+(`{version, contexts: {name: {key: entry}}}`) and the upgrade from the flat
+`{key: entry}` file that predates contexts. The legacy file is recognised by
+`Contexts == nil` after a successful unmarshal, and the upgrade is **written
+back on the first open** rather than deferred to the next `Set`: deferring
+would let every context that opened the file claim the legacy entries in turn,
+so ownership would depend on which context happened to write first.
+
+The result blobs under `image-results/` and `workspace-results/` are unchanged
+— they are content-addressed by SHA256 of the target, and only the metadata
+index is keyed by context.
+
 Cache invalidation: `ctrl+s` (single) overwrites; `ctrl+a` (all) purges cache then rescans.
 
 ### Docker / OCI Integration
