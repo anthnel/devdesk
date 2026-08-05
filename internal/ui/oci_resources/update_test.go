@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -22,8 +23,8 @@ func TestNewOpensOnImagesSortedByName(t *testing.T) {
 	if m.activeTab != tabImages {
 		t.Errorf("activeTab = %d on a new model, want the images tab", m.activeTab)
 	}
-	if m.sortColumn != sortByName || !m.sortAsc {
-		t.Errorf("sort = (%d, asc=%v), want name ascending", m.sortColumn, m.sortAsc)
+	if column, desc := m.imageTable.SortState(); column != imageColumnName || desc {
+		t.Errorf("sort = (column %d, desc=%v), want name ascending", column, desc)
 	}
 	if !m.loading || !m.loadingNets || !m.loadingVols {
 		t.Error("a new model is not marked loading on every tab")
@@ -47,7 +48,7 @@ func TestListsFillTheirTables(t *testing.T) {
 	if m.loading || m.loadingNets || m.loadingVols {
 		t.Error("still loading after every list arrived")
 	}
-	if got := cells(m.imageTable.Rows(), 1); len(got) != 4 {
+	if got := cells(m.imageTable.Table().Rows(), 1); len(got) != 4 {
 		t.Errorf("the image table holds %v", got)
 	}
 	if got := cells(m.networkTable.Table().Rows(), 1); !equal(got, []string{"bridge", "devdesk", "overlay-prod"}) {
@@ -90,7 +91,7 @@ func TestListFailuresStopTheSpinner(t *testing.T) {
 func TestUntaggedImagesDropTheTagSuffix(t *testing.T) {
 	m := loadedModel(t)
 
-	names := cells(m.imageTable.Rows(), 1)
+	names := cells(m.imageTable.Table().Rows(), 1)
 	for _, name := range names {
 		if strings.Contains(name, "<none>") {
 			t.Errorf("the table shows a raw <none> tag: %v", names)
@@ -120,12 +121,12 @@ func TestTabCyclesForwardAndBack(t *testing.T) {
 // cursors at once.
 func TestOnlyTheActiveTablesIsFocused(t *testing.T) {
 	m := loadedModel(t)
-	if !m.imageTable.Focused() {
+	if !m.imageTable.Table().Focused() {
 		t.Error("the image table is not focused on the images tab")
 	}
 
 	m = feed(t, m, testutil.Key("tab"))
-	if m.imageTable.Focused() {
+	if m.imageTable.Table().Focused() {
 		t.Error("the image table kept focus after switching away")
 	}
 	if !m.networkTable.Table().Focused() {
@@ -139,25 +140,25 @@ func TestSortCyclesDirectionThenColumn(t *testing.T) {
 	m := loadedModel(t)
 
 	m = feed(t, m, testutil.Key("."))
-	if m.sortColumn != sortByName || m.sortAsc {
-		t.Errorf("after one '.', sort = (%d, asc=%v), want the same column reversed", m.sortColumn, m.sortAsc)
+	if column, desc := m.imageTable.SortState(); column != imageColumnName || !desc {
+		t.Errorf("after one '.', sort = (column %d, desc=%v), want the same column reversed", column, desc)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if m.sortColumn != sortByDiskUsage || !m.sortAsc {
-		t.Errorf("after two '.', sort = (%d, asc=%v), want the next column ascending", m.sortColumn, m.sortAsc)
+	if column, desc := m.imageTable.SortState(); column != imageColumnName+1 || desc {
+		t.Errorf("after two '.', sort = (column %d, desc=%v), want Disk Usage ascending", column, desc)
 	}
 }
 
 func TestSortReordersTheImages(t *testing.T) {
 	m := loadedModel(t)
 
-	if got := cells(m.imageTable.Rows(), 1); !equal(got, []string{"api:v1", "cache:v2", "orphan", "web:v3"}) {
+	if got := cells(m.imageTable.Table().Rows(), 1); !equal(got, []string{"api:v1", "cache:v2", "orphan", "web:v3"}) {
 		t.Errorf("names ascending = %v", got)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := cells(m.imageTable.Rows(), 1); !equal(got, []string{"web:v3", "orphan", "cache:v2", "api:v1"}) {
+	if got := cells(m.imageTable.Table().Rows(), 1); !equal(got, []string{"web:v3", "orphan", "cache:v2", "api:v1"}) {
 		t.Errorf("names descending = %v", got)
 	}
 }
@@ -166,8 +167,29 @@ func TestFilterNarrowsTheImages(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("/"))
 	m = feed(t, m, testutil.Type("ca")...)
 
-	if got := cells(m.imageTable.Rows(), 1); !equal(got, []string{"cache:v2"}) {
+	if got := cells(m.imageTable.Table().Rows(), 1); !equal(got, []string{"cache:v2"}) {
 		t.Errorf("rows while filtering on \"ca\" = %v", got)
+	}
+}
+
+// The Name column shows the alias substituted in, so the filter has to match
+// it: searching for what is on screen is the first thing anyone tries. The raw
+// repository stays searchable, which is all the filter matched before.
+func TestTheFilterMatchesBothTheAliasAndTheRawName(t *testing.T) {
+	m := feed(t, newTestModel(t), ImagesListMsg{Images: []docker.Image{
+		{ID: "eee5555", Repository: "registry.example.com/team/svc", Tag: "v9"},
+	}})
+
+	shown := cells(m.imageTable.Table().Rows(), 1)
+	if !equal(shown, []string{"prod/team/svc:v9"}) {
+		t.Fatalf("the Name column = %v, want the configured alias substituted in", shown)
+	}
+
+	for _, query := range []string{"prod", "registry.example.com", "svc", "v9"} {
+		filtered := feed(t, feed(t, m, testutil.Key("/")), testutil.Type(query)...)
+		if got := cells(filtered.imageTable.Table().Rows(), 1); len(got) != 1 {
+			t.Errorf("filtering on %q left %v, want the one image", query, got)
+		}
 	}
 }
 
@@ -181,8 +203,8 @@ func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 	if m.confirmModal != nil {
 		t.Error("'p' opened the prune confirmation while the search box had focus")
 	}
-	if !strings.Contains(m.filterBar.SearchQuery(), "p") {
-		t.Errorf("'p' did not reach the search box; query = %q", m.filterBar.SearchQuery())
+	if !strings.Contains(m.imageTable.FilterBar().SearchQuery(), "p") {
+		t.Errorf("'p' did not reach the search box; query = %q", m.imageTable.FilterBar().SearchQuery())
 	}
 }
 

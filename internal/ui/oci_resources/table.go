@@ -2,69 +2,131 @@ package ociresources
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 
+	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// filteredImages returns images matching the current filter
-func (m *Model) filteredImages() []docker.Image {
-	query := strings.ToLower(m.filterBar.SearchQuery())
-	if query == "" {
-		return m.images
-	}
-	var result []docker.Image
-	for _, img := range m.images {
-		if strings.Contains(strings.ToLower(img.Repository), query) ||
-			strings.Contains(strings.ToLower(img.Tag), query) {
-			result = append(result, img)
-		}
-	}
-	return result
+// imageRow is one line of the Images tab: the image, plus everything the row
+// says about it that does not live on the image — the cached scan counts,
+// whether a scan is running or the last one failed, and the alias-substituted
+// name.
+//
+// The columns are built once, in New, so their Cell functions cannot reach back
+// into the model for any of that. Carrying it on the row instead is what keeps
+// the sort honest: the C column orders by the same number it prints, where the
+// old comparator looked the entry up a second time.
+type imageRow struct {
+	Image        docker.Image
+	DisplayName  string
+	RawName      string
+	Entry        cache.ImageScanEntry
+	Scanned      bool
+	Scanning     bool
+	Failed       bool
+	SpinnerFrame string
 }
 
-// sortedImages returns images sorted by the current sort column
-func (m *Model) sortedImages(images []docker.Image) []docker.Image {
-	sorted := make([]docker.Image, len(images))
-	copy(sorted, images)
-	sort.Slice(sorted, func(i, j int) bool {
-		a, b := sorted[i], sorted[j]
-		nameA := a.Name()
-		nameB := b.Name()
-		cacheA := m.scanCache[nameA]
-		cacheB := m.scanCache[nameB]
-		var less bool
-		switch m.sortColumn {
-		case sortByDiskUsage:
-			less = a.UniqueSize < b.UniqueSize
-		case sortByContentSize:
-			less = a.Size < b.Size
-		case sortByCritical:
-			less = cacheA.Critical < cacheB.Critical
-		case sortByHigh:
-			less = cacheA.High < cacheB.High
-		case sortByMedium:
-			less = cacheA.Medium < cacheB.Medium
-		case sortByLow:
-			less = cacheA.Low < cacheB.Low
-		case sortByScanned:
-			less = cacheA.ScannedAt.Before(cacheB.ScannedAt)
-		default:
-			less = strings.ToLower(nameA) < strings.ToLower(nameB)
+// imageColumnName is the column the Images tab opens sorted by.
+const imageColumnName = 1
+
+// cveColumn builds one of the four severity count columns.
+func cveColumn(title string, get func(cache.ImageScanEntry) int) datatable.Column[imageRow] {
+	return datatable.Column[imageRow]{
+		Title: title, MinWidth: 4,
+		Cell: func(r imageRow) string { return formatCVECount(get(r.Entry), r.Scanned) },
+		Less: func(a, b imageRow) bool { return get(a.Entry) < get(b.Entry) },
+	}
+}
+
+// scannedCell reports the scan state: the spinner while one runs, an error icon
+// when the last attempt failed, otherwise how long ago it succeeded.
+func scannedCell(r imageRow) string {
+	switch {
+	case r.Scanning:
+		return r.SpinnerFrame + "scanning"
+	case r.Failed:
+		return theme.IconError + " error"
+	case r.Scanned:
+		return timeAgo(r.Entry.ScannedAt)
+	}
+	return "-"
+}
+
+// imageColumns describes the Images tab. ID is the only column that neither
+// sorts nor searches — twelve hex characters are not something anyone orders or
+// looks for.
+func imageColumns() []datatable.Column[imageRow] {
+	return []datatable.Column[imageRow]{
+		{
+			Title: "ID", MinWidth: 14,
+			Cell: func(r imageRow) string { return shortID(r.Image.ID) },
+		},
+		{
+			Title: "Name", MinWidth: 20, Flex: 1,
+			Cell: func(r imageRow) string { return r.DisplayName },
+			Less: func(a, b imageRow) bool { return strings.ToLower(a.RawName) < strings.ToLower(b.RawName) },
+			// Both names. The filter has always matched the repository and tag
+			// docker reports; the alias the row actually shows was not
+			// searchable, which is a small thing that reads as a bug when the
+			// column says one name and the query wants the other.
+			Search: func(r imageRow) string { return r.DisplayName + " " + r.RawName },
+		},
+		{
+			Title: "Disk Usage", MinWidth: 12,
+			Cell: func(r imageRow) string { return formatBytes(r.Image.UniqueSize) },
+			Less: func(a, b imageRow) bool { return a.Image.UniqueSize < b.Image.UniqueSize },
+		},
+		{
+			Title: "Content Size", MinWidth: 14,
+			Cell: func(r imageRow) string { return formatBytes(r.Image.Size) },
+			Less: func(a, b imageRow) bool { return a.Image.Size < b.Image.Size },
+		},
+		cveColumn("C", func(e cache.ImageScanEntry) int { return e.Critical }),
+		cveColumn("H", func(e cache.ImageScanEntry) int { return e.High }),
+		cveColumn("M", func(e cache.ImageScanEntry) int { return e.Medium }),
+		cveColumn("L", func(e cache.ImageScanEntry) int { return e.Low }),
+		{
+			Title: "Scanned", MinWidth: 14,
+			Cell: scannedCell,
+			Less: func(a, b imageRow) bool { return a.Entry.ScannedAt.Before(b.Entry.ScannedAt) },
+		},
+	}
+}
+
+// imageRows decorates the image list with the scan state the table shows.
+func (m *Model) imageRows() []imageRow {
+	aliases := make([]docker.RegistryAlias, 0, len(m.registries))
+	for _, reg := range m.registries {
+		if reg.Alias != "" {
+			aliases = append(aliases, docker.RegistryAlias{URL: reg.URL, Alias: reg.Alias})
 		}
-		if m.sortAsc {
-			return less
-		}
-		return !less
-	})
-	return sorted
+	}
+	frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
+
+	rows := make([]imageRow, 0, len(m.images))
+	for _, img := range m.images {
+		raw := img.Name()
+		entry, scanned := m.scanCache[raw]
+		rows = append(rows, imageRow{
+			Image:        img,
+			DisplayName:  docker.ApplyAliases(raw, aliases),
+			RawName:      raw,
+			Entry:        entry,
+			Scanned:      scanned,
+			Scanning:     m.scanningImages[raw],
+			Failed:       m.failedScans[raw],
+			SpinnerFrame: frame,
+		})
+	}
+	return rows
 }
 
 // formatBytes formats bytes into human-readable string
@@ -89,68 +151,13 @@ func formatCVECount(count int, scanned bool) string {
 	return fmt.Sprintf("%d", count)
 }
 
-// updateImageTable rebuilds the image table rows
+// updateImageTable rebuilds the image table rows.
+//
+// Every caller reaches here after changing something the row shows — a scan
+// started, finished, or the list came back — so the decoration is recomputed
+// wholesale rather than patched in place.
 func (m *Model) updateImageTable() {
-	// Build alias list for display name substitution
-	aliases := make([]docker.RegistryAlias, 0, len(m.registries))
-	for _, reg := range m.registries {
-		if reg.Alias != "" {
-			aliases = append(aliases, docker.RegistryAlias{URL: reg.URL, Alias: reg.Alias})
-		}
-	}
-
-	sorted := m.sortedImages(m.filteredImages())
-	rows := make([]table.Row, 0, len(sorted))
-	for _, img := range sorted {
-		rawName := img.Name()
-		displayName := docker.ApplyAliases(rawName, aliases)
-		diskUsage := formatBytes(img.UniqueSize)
-		contentSize := formatBytes(img.Size)
-		shortID := img.ID
-		if len(shortID) > 12 {
-			shortID = shortID[:12]
-		}
-		entry, scanned := m.scanCache[rawName]
-		scanning := m.scanningImages[rawName]
-		crit := formatCVECount(entry.Critical, scanned)
-		high := formatCVECount(entry.High, scanned)
-		med := formatCVECount(entry.Medium, scanned)
-		low := formatCVECount(entry.Low, scanned)
-		scannedAt := "-"
-		switch {
-		case scanning:
-			frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
-			scannedAt = frame + "scanning"
-		case m.failedScans[rawName]:
-			scannedAt = theme.IconError + " error"
-		case scanned:
-			scannedAt = timeAgo(entry.ScannedAt)
-		}
-		rows = append(rows, table.Row{shortID, displayName, diskUsage, contentSize, crit, high, med, low, scannedAt})
-	}
-
-	// Update sort indicators in column headers
-	cols := m.imageTable.Columns()
-	if len(cols) >= 9 {
-		sortColIndex := map[sortField]int{
-			sortByName: 1, sortByDiskUsage: 2, sortByContentSize: 3,
-			sortByCritical: 4, sortByHigh: 5, sortByMedium: 6, sortByLow: 7, sortByScanned: 8,
-		}
-		baseTitles := map[int]string{1: "Name", 2: "Disk Usage", 3: "Content Size", 4: "C", 5: "H", 6: "M", 7: "L", 8: "Scanned"}
-		for idx, title := range baseTitles {
-			cols[idx].Title = title
-		}
-		if idx, ok := sortColIndex[m.sortColumn]; ok {
-			arrow := " ▲"
-			if !m.sortAsc {
-				arrow = " ▼"
-			}
-			cols[idx].Title = baseTitles[idx] + arrow
-		}
-		m.imageTable.SetColumns(cols)
-	}
-	m.imageTable.SetRows(rows)
-	m.imageTable.SetStyles(theme.DefaultTableStyles())
+	m.imageTable.SetItems(m.imageRows())
 	m.imageTable.SetHeight(m.tableHeight())
 }
 

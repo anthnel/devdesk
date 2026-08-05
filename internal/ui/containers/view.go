@@ -13,24 +13,25 @@ import (
 
 // InEditMode returns true when a modal, filter, or logs viewport is active
 func (m Model) InEditMode() bool {
-	return m.confirmModal != nil || m.filterBar.InEditMode() || m.state == stateLogs
+	return m.confirmModal != nil || m.containerTable.InEditMode() || m.state == stateLogs
 }
 
 // FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
 func (m Model) FilterBarVisible() bool {
-	return m.filterBar.IsVisible()
+	return m.containerTable.FilterBar().IsVisible()
 }
 
 // GetFooterHeight returns the footer height for this view (Rule 124).
 func (m Model) GetFooterHeight() int {
-	return 2 + m.filterBar.ExtraHeight() // filter bar (when visible) + empty line + info line
+	// filter bar (when visible) + empty line + info line
+	return 2 + m.containerTable.FilterBar().ExtraHeight()
 }
 
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
 	var parts []string
-	if m.filterBar.IsVisible() {
-		parts = append(parts, m.filterBar.View())
+	if bar := m.containerTable.FilterBar(); bar.IsVisible() {
+		parts = append(parts, bar.View())
 	}
 	infoLine := theme.EmptyLineBg(width)
 	if m.errorMsg != "" {
@@ -59,7 +60,7 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 	if m.showAll {
 		label = "All"
 	}
-	total := len(m.filteredContainers())
+	total := len(m.containerTable.Visible())
 	return []shortcut.HeaderInfo{
 		{Key: "Containers", Value: fmt.Sprintf("%d (%s)", total, label), Style: theme.HeaderValueStyle},
 	}
@@ -143,9 +144,9 @@ func (m Model) renderNormalView() string {
 	var sections []string
 
 	// Loading or table
-	if m.loading && len(m.containers) == 0 {
+	if m.loading && len(m.containerTable.Items()) == 0 {
 		sections = append(sections, theme.SpinnerMessage(m.spinner.View(), "Loading containers..."))
-	} else if len(m.filteredContainers()) == 0 && !m.filterBar.IsVisible() {
+	} else if len(m.containerTable.Visible()) == 0 && !m.containerTable.FilterBar().IsVisible() {
 		sections = append(sections, theme.DimStyle.Render("No containers found"))
 	} else {
 		// Always render the table when a filter is active so the filter bar stays at the bottom

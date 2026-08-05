@@ -1151,6 +1151,51 @@ no longer has its own.
 
 Steps 4–6 stand as written.
 
+#### Step 4 as built — `containers`, then `oci_resources` images
+
+The step that had to exercise `SelectedStyles`, the field whose design was
+settled in step 1 and which nothing in production used. It holds: containers is
+the only one of the fifteen tables that varies its selection colour by row, and
+`refreshSelectionStyle` — which replayed filter-then-sort on *every cursor move*
+to find out what the cursor was on — is now four lines taking a
+`docker.Container` and returning `table.Styles`.
+
+What left the two views: two `sortField` enums, two `sortableColumns` slices,
+two `cycleSort` functions, two sort-arrow blocks (each two maps and a loop
+rewriting ten headers), two `sorted*` comparators totalling seventeen cases,
+two `filtered*` loops, both `getSelectedX`, and four width calculations.
+
+Three things the migration turned up:
+
+- **The images width copy could go negative.** It clamped Name at 20 and handed
+  the entire shortfall to Scanned, which is `available - 76` below that clamp —
+  negative under 96 columns. The Rule 116 *sum* was still right, which is why it
+  was never caught: the total lands on the nose while one column is -6 wide.
+  `TestColumnsFitTheWidth` sweeps from 60 now and checks each column is
+  non-negative, not just the total.
+- **The state is not a column** in containers — it is the icon prefixed to the
+  image — but the filter has always matched it. The Image column searches image
+  and state both, which is the same shape of decision as step 3's joined row:
+  the migration is where a behaviour with no column of its own gets noticed.
+- **A row type rather than a captured pointer.** The images table shows the scan
+  cache, whether a scan is running, and the alias-substituted name — none of
+  which lives on `docker.Image`, and none of which the columns can reach,
+  because they are built once in `New`. `imageRow` carries the decoration, so
+  the `C` column sorts by the same number it prints where the old comparator
+  looked the entry up a second time. `Selected()` returns the row and the view
+  takes `.Image` off it.
+
+Behaviour gained, in both: the cursor is clamped when a filter shortens the list
+— `TestSelectionResolvesThroughSortAndFilter` no longer needs its `SetCursor`
+call — and `pgup`/`pgdown` work (Rule 111). In images, the alias the Name column
+actually shows became searchable; it was not before, which reads as a bug the
+moment the column says one name and the query wants the other
+(`TestTheFilterMatchesBothTheAliasAndTheRawName`, confirmed to bite).
+
+`containers` 84.9 %, `oci_resources` 76.1 %. Five of fifteen tables migrated.
+
+Steps 5 and 6 stand as written.
+
 ### Race detector cannot run locally
 
 `mise run test-race` needs cgo and therefore a C compiler on `PATH`. Without one

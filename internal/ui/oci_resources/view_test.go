@@ -72,7 +72,7 @@ func TestTabsShowASpinnerBeforeLoading(t *testing.T) {
 func TestScanCountsDistinguishCleanFromUnscanned(t *testing.T) {
 	m := loadedModel(t)
 
-	rows := m.imageTable.Rows()
+	rows := m.imageTable.Table().Rows()
 	byName := map[string][]string{}
 	for _, row := range rows {
 		byName[row[1]] = row
@@ -100,7 +100,7 @@ func TestTableCellsCarryNoEscapeSequences(t *testing.T) {
 
 	m := loadedModel(t)
 	for name, rows := range map[string][]table.Row{
-		"images":     m.imageTable.Rows(),
+		"images":     m.imageTable.Table().Rows(),
 		"networks":   m.networkTable.Table().Rows(),
 		"volumes":    m.volumeTable.Table().Rows(),
 		"registries": m.registryTable.Rows(),
@@ -199,17 +199,26 @@ func TestFooterShowsTheMessages(t *testing.T) {
 
 // Rule 116: the columns share the width left after the viewport borders and the
 // per-cell padding, so the selected row reaches the right border.
+//
+// The narrow widths are the point. Nine columns asking for 100 characters do
+// not fit an 80-wide terminal, and the copy this replaced clamped Name at 20
+// and handed the whole shortfall to Scanned, which went negative below 96.
 func TestColumnsFitTheWidth(t *testing.T) {
-	for _, width := range []int{100, 140, 200} {
+	for _, width := range []int{60, 80, 100, 140, 200} {
 		m := feed(t, loadedModel(t), testutil.Resize(width, 30))
 
 		total := 0
-		for _, col := range m.imageTable.Columns() {
+		for _, col := range m.imageTable.Table().Columns() {
 			total += col.Width
 		}
-		want := width - 2 - len(m.imageTable.Columns())*2
+		want := width - 2 - len(m.imageTable.Table().Columns())*2
 		if total != want {
 			t.Errorf("at width %d the image columns total %d, want %d", width, total, want)
+		}
+		for _, col := range m.imageTable.Table().Columns() {
+			if col.Width < 0 {
+				t.Errorf("at width %d, column %q is %d wide", width, col.Title, col.Width)
+			}
 		}
 	}
 }
@@ -217,8 +226,8 @@ func TestColumnsFitTheWidth(t *testing.T) {
 func TestLayoutSurvivesATinyTerminal(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Resize(20, 1))
 
-	if m.imageTable.Height() < 0 {
-		t.Errorf("table height = %d", m.imageTable.Height())
+	if m.imageTable.Table().Height() < 0 {
+		t.Errorf("table height = %d", m.imageTable.Table().Height())
 	}
 	if m.View() == "" {
 		t.Error("the view is blank at 20x1")
