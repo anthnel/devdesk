@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/containers"
 	"github.com/anthnel/devdesk/internal/ui/dashboard"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
@@ -156,6 +157,8 @@ func (a *App) createView(view command.ViewType) {
 		a.views[view] = ociresources.New(a.config)
 	case command.ViewNetdiag:
 		a.views[view] = netdiag.New(a.config)
+	case command.ViewConfiguration:
+		a.views[view] = configuration.New(a.config)
 	}
 }
 

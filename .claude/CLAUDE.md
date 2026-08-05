@@ -73,8 +73,23 @@ git switch -c <branch>                          # work
 git push origin <branch>                        # via the mirror — forwarded to GitHub
 gh pr create --base main --head <branch>
 gh pr merge <n> --squash --delete-branch
-git fetch origin && git merge --ff-only origin/main
+git fetch github main && git merge --ff-only github/main   # see below
 ```
+
+**After a merge, fast-forward from `github`, not from `origin`.** The mirror
+lags GitHub by a minute or two, so `git fetch origin` right after
+`gh pr merge` returns the *previous* `main` — with no error, which is the part
+that misleads. `gh pr view <n> --json state` says `MERGED` while
+`git rev-parse origin/main` still points at the commit before it.
+
+Pushing branches still goes through `origin`: the mirror forwards them, and it
+is the regional path. It is only the read-back immediately after a merge that
+has to come from the source of truth.
+
+**Merging several branches cut from the same commit conflicts in
+`docs/backlog.md`.** Every fix inserts its entry at the top of §1.1, so the
+second and third merges land on the same anchor. The resolution is always to
+keep both sides — they are independent entries, not competing edits.
 
 ### Remotes
 
@@ -121,7 +136,8 @@ App (Router)
     ├── security        - Trivy + Gitleaks scanner with multi-tab results
     ├── containers      - Docker container list + live metrics
     ├── oci-resources   - OCI resource list, scan, launch containers, network inspection
-    └── netdiag         - Network diagnostics (Docker-based tools) + real-time port monitor
+    ├── netdiag         - Network diagnostics (Docker-based tools) + real-time port monitor
+    └── configuration   - Every scalar setting in the current context
 ```
 
 ### View Switching & Command Mode
@@ -136,6 +152,7 @@ Press `:` to enter command mode, then type:
 - `containers` or `c` - Switch to containers view
 - `oci-resources` or `oci` - Switch to OCI resources view
 - `netdiag` or `net` - Switch to network diagnostics view
+- `configuration`, `config` or `cfg` - Switch to the configuration view
 - `context <name>` or `ctx <name>` - Switch configuration context
 - `context list` - Show available contexts
 - `theme <name>` - Switch UI theme
@@ -168,6 +185,49 @@ Credentials Management). Do not add a secret-bearing field back — the schema i
 what makes the guarantee checkable.
 
 Config is injected into views at creation. Use `config.Save()` to persist changes.
+
+### Configuration view — `internal/ui/configuration`
+
+Edits every **scalar** setting a context carries, in five tabs (`app`, `gitlab`,
+`scan`, `docker`, `status`). Lists stay where they are consulted: monitors keep
+their CRUD in `status`, registries keep `RegistryForm` in `oci-resources`.
+Duplicating them here would be the opposite of the point.
+
+Tabs are not decoration. Rule 135 reserves `Tab` for tabs and `↑↓` for fields,
+so a tabbed form is the only layout where both keys have exactly one job.
+
+Settings are declared as a table of `field` values in `fields.go`, each holding
+**one pointer accessor** into the config (`func(*config.Config) *string`) rather
+than a get/set pair. Twenty-nine settings with two closures each is where the
+copy-paste defects of §2 came from; one reference means the read and the write
+cannot disagree about which setting they mean.
+`TestEveryFieldCarriesTheAccessorItsKindNeeds` and
+`TestNoTwoFieldsAddressTheSameSetting` are what keep the table honest.
+
+| Kind | Control | Persists |
+|---|---|---|
+| closed set | cycle `←→` (Rule 132) | immediately |
+| boolean | checkbox, `Space` only | immediately |
+| text / integer | `textinput` | on blur, **after validation** |
+
+**A refused value keeps the cursor on its field.** An unparseable integer or a
+malformed Trivy address is reported (Rule 128) and *not* written — coercing to
+zero is how `trivy_server: ":"` reached a config file in the first place.
+
+Two settings are special-cased, matched by label:
+
+- **Theme** applies as it is cycled, not on blur — otherwise the user chooses
+  blind.
+- **Secret backend** is confirmed when focus *leaves* the field, not on every
+  `←→`, and **nothing is migrated between backends**. §3.9 removed the option
+  that wrote a token to two stores at once; copying one here would rebuild it.
+  Declining restores the previous value.
+
+`ConfigSavedMsg` goes to the router, which drops every view *except this one* so
+they rebuild against the saved config — keeping the configuration view is what
+stops a save throwing away the cursor after every keystroke. `BackendChanged`
+is separate because it is the one change no view can rebuild itself into: the
+router has to resolve a fresh `credentials.Selection`.
 
 ### Registry model
 

@@ -18,6 +18,7 @@ const (
 	ViewContainers     ViewType = "containers"
 	ViewOCIResources   ViewType = "oci-resources"
 	ViewNetdiag        ViewType = "netdiag"
+	ViewConfiguration  ViewType = "configuration"
 )
 
 // CommandType représente le type de commande
@@ -69,6 +70,9 @@ var viewNames = map[string]ViewType{
 	"oci":             ViewOCIResources,
 	"netdiag":         ViewNetdiag,
 	"net":             ViewNetdiag,
+	"configuration":   ViewConfiguration,
+	"config":          ViewConfiguration,
+	"cfg":             ViewConfiguration,
 }
 
 // actionNames are the commands that do not name a view. They take arguments

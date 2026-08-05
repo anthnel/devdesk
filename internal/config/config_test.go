@@ -17,8 +17,8 @@ func TestDefault(t *testing.T) {
 	}
 
 	// Test App defaults
-	if cfg.App.Theme != "dark" {
-		t.Errorf("Expected theme 'dark', got '%s'", cfg.App.Theme)
+	if cfg.App.Theme != "default" {
+		t.Errorf("Expected theme 'default', got '%s'", cfg.App.Theme)
 	}
 	if cfg.App.DefaultView != "dashboard" {
 		t.Errorf("Expected default view 'dashboard', got '%s'", cfg.App.DefaultView)
@@ -180,8 +180,8 @@ func TestLoadNonExistent(t *testing.T) {
 	}
 
 	// Should have default values
-	if cfg.App.Theme != "dark" {
-		t.Errorf("Expected default theme 'dark', got '%s'", cfg.App.Theme)
+	if cfg.App.Theme != "default" {
+		t.Errorf("Expected default theme 'default', got '%s'", cfg.App.Theme)
 	}
 }
 
@@ -232,8 +232,8 @@ func TestLoadAppliesDefaults(t *testing.T) {
 		t.Fatalf("Load() error: %v", err)
 	}
 
-	if loadedCfg.App.Theme != "dark" {
-		t.Errorf("Expected default theme 'dark', got '%s'", loadedCfg.App.Theme)
+	if loadedCfg.App.Theme != "default" {
+		t.Errorf("Expected default theme 'default', got '%s'", loadedCfg.App.Theme)
 	}
 	if loadedCfg.Status.RefreshInterval != 10 {
 		t.Errorf("Expected default refresh interval 10, got %d", loadedCfg.Status.RefreshInterval)
@@ -250,5 +250,34 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	}
 	if !loadedCfg.Scan.EnableSecret {
 		t.Error("Expected EnableSecret=true for legacy config with no scan options set")
+	}
+}
+
+// "dark" was a third name for the built-in theme: LoadTheme accepted "", "dark"
+// and "default" alike, but ListThemes only ever offered "default". A config
+// saying "dark" therefore named a theme no picker could show — invisible until
+// the configuration view bound a cycle field straight to the setting.
+func TestTheLegacyDarkThemeNameIsNormalised(t *testing.T) {
+	cfg := &Config{App: AppConfig{Theme: "dark"}}
+
+	if err := applyDefaults(cfg); err != nil {
+		t.Fatalf("applyDefaults: %v", err)
+	}
+
+	if cfg.App.Theme != "default" {
+		t.Errorf("Theme = %q, want it normalised to \"default\"", cfg.App.Theme)
+	}
+}
+
+// A theme the user actually installed is left alone.
+func TestANamedThemeSurvivesNormalisation(t *testing.T) {
+	cfg := &Config{App: AppConfig{Theme: "mocha"}}
+
+	if err := applyDefaults(cfg); err != nil {
+		t.Fatalf("applyDefaults: %v", err)
+	}
+
+	if cfg.App.Theme != "mocha" {
+		t.Errorf("Theme = %q, want it untouched", cfg.App.Theme)
 	}
 }

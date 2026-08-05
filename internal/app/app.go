@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
@@ -261,6 +262,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleKeyMsg(msg)
 
 	// ── Contexts and themes ──────────────────────────────────────────────
+	case configuration.ConfigSavedMsg:
+		return a.handleConfigSaved(msg)
+
 	case ContextSwitchCompleteMsg:
 		return a.handleContextSwitchComplete(msg)
 

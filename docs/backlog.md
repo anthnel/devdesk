@@ -23,6 +23,24 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**"dark" named a theme no picker could show. Fixed** in `applyDefaults`, found
+by the configuration view's own field test.
+
+`LoadTheme` accepted `""`, `"dark"` and `"default"` as the built-in theme, but
+`ListThemes` only ever offered `"default"` — so the default config named a
+theme absent from every list. `:theme` escaped it by reading
+`theme.CurrentThemeName` rather than `cfg.App.Theme`; the configuration view
+binds a cycle field straight to the setting, and a cycle whose current value is
+outside its options jumps somewhere arbitrary on the first press.
+
+`applyDefaults` now normalises `"dark"` to `"default"` at load, so the third
+name disappears from files as they are rewritten. `LoadTheme` still accepts it,
+which costs nothing and covers a file not yet touched.
+
+Found by `TestEveryCycleFieldDefaultsToOneOfItsOptions`, which asserts a
+property of the whole field table rather than of any one field.
+
+
 **D27 — the custom tool paths were read by nothing, and the source could not be
 chosen. Fixed** by `internal/scan/tool_source.go`, found while planning the
 configuration view.

@@ -209,8 +209,12 @@ func Load() (*Config, error) {
 func applyDefaults(cfg *Config) error {
 	homeDir, _ := os.UserHomeDir()
 
-	if cfg.App.Theme == "" {
-		cfg.App.Theme = "dark"
+	// "dark" was a third name for the built-in theme: LoadTheme accepts "",
+	// "dark" and "default" alike, but ListThemes only ever offers "default", so
+	// a config saying "dark" named a theme no picker could show. Normalised at
+	// load; LoadTheme still accepts the old name for a file not yet rewritten.
+	if cfg.App.Theme == "" || cfg.App.Theme == "dark" {
+		cfg.App.Theme = "default"
 	}
 	if cfg.App.LogFile == "" {
 		cfg.App.LogFile = filepath.Join(homeDir, ".devdesk", "devdesk.log")
@@ -299,7 +303,7 @@ func Default() *Config {
 	homeDir, _ := os.UserHomeDir()
 	return &Config{
 		App: AppConfig{
-			Theme:         "dark",
+			Theme:         "default",
 			LogFile:       filepath.Join(homeDir, ".devdesk", "devdesk.log"),
 			DefaultView:   "dashboard",
 			WorkspacesDir: filepath.Join(homeDir, "workspaces"),
