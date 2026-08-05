@@ -1,0 +1,73 @@
+oui
+
+---
+
+démarre le 3.8
+
+---
+
+continue
+
+---
+
+merge et fait l'étape 4
+
+---
+
+merge
+
+---
+
+continue
+
+---
+
+merge et puis fait 5 et 6 en même temps
+
+---
+
+merge
+
+---
+
+je n'ai pas accès à nexus pour l'instant, on testera une autre fois. Dans le backlog, il doit aussi y avoir le support multiforge et le refactorir des table
+
+---
+
+enchaine sur l'étape 2
+
+---
+
+est-ce qu'il faut merger avant de continuer ou on peut enchainer sur la trois et merger tout à la fin
+
+---
+
+go
+
+---
+
+merge
+
+---
+
+continue le refactor, point 4 : Où en est le refactor des tables
+
+┌─────┬─────────────────────────────┬────────────────────────────────────────────────────────┐
+│     │            Étape            │                         Livré                          │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ✅  │ 1 — composant + solveur     │ invariant Rule 116 testé sur 0–200, clamp, tri, filtre │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ✅  │ 2 — networks + volumes      │ le câblage, 2 copies de largeur retirées               │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ✅  │ 3 — netdiag ports           │ scroll préservé, contournement tableReady supprimé     │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ⬜  │ 4 — containers, puis images │ tri, flèches, premier client de SelectedStyles         │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ⬜  │ 5 — workspaces, explorer    │ clamp et drill-down                                    │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ⬜  │ 6 — security, status        │ les deux cas particuliers                              │
+└─────┴─────────────────────────────┴────────────────────────────────────────────────────────┘
+
+---
+
+merge et continue
