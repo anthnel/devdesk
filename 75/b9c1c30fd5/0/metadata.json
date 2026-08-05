@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "75b9c1c30fd5",
+  "session_id": "be5e53af-06dd-41fc-9d5e-07f395f11181",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-05T11:20:06.8937139Z",
+  "branch": "fix/tool-source-and-paths",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "internal/scan/scanner.go",
+    "internal/scan/trivy_args.go",
+    "internal/scan/gitleaks.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "c176bfd3e722",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 6213,
+    "cache_creation_tokens": 3695905,
+    "cache_read_tokens": 323865968,
+    "output_tokens": 735515,
+    "api_call_count": 1007
+  },
+  "session_metrics": {
+    "turn_count": 21
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-05T11:20:06.5514105Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 458,
+    "human_modified": 76,
+    "human_removed": 0,
+    "total_committed": 458,
+    "total_lines_changed": 617,
+    "agent_percentage": 0,
+    "metric_version": 2
+  }
+}
