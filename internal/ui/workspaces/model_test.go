@@ -60,7 +60,7 @@ func TestInitLoadsEntriesAndTheScanCache(t *testing.T) {
 func TestEntriesLoadedPopulatesTheTable(t *testing.T) {
 	m := loadedModel(t)
 
-	if got := rowNames(m.table.Rows()); len(got) != 5 {
+	if got := rowNames(m.table.Table().Rows()); len(got) != 5 {
 		t.Errorf("the table holds %v, want the five fixtures", got)
 	}
 	if m.error != "" {
@@ -188,9 +188,9 @@ func TestNestedNavigationTracksTheStack(t *testing.T) {
 }
 
 // bubbles does not clamp the cursor when the row count shrinks. Without the
-// clamp in updateTableData, drilling into a smaller directory leaves the cursor
-// past the end: nothing is highlighted and every action that resolves the
-// selection silently does nothing.
+// clamp datatable does on SetItems, drilling into a smaller directory leaves
+// the cursor past the end: nothing is highlighted and every action that
+// resolves the selection silently does nothing.
 func TestCursorIsClampedWhenTheListShrinks(t *testing.T) {
 	m := loadedModel(t)
 	m.table.SetCursor(4) // last of five
@@ -374,8 +374,8 @@ func TestRenameFlowUsesTheSelectedEntry(t *testing.T) {
 	if m.mode != ModeRenaming || m.input == nil {
 		t.Fatal("r did not open the rename input")
 	}
-	if m.selectedIdx != 1 {
-		t.Errorf("selectedIdx = %d, want the row under the cursor", m.selectedIdx)
+	if m.pendingEntry == nil || m.pendingEntry.Name != "clean-repo" {
+		t.Errorf("pendingEntry = %v, want the row under the cursor", m.pendingEntry)
 	}
 
 	m, cmd := step(t, m, RenameInputSubmitMsg{Name: "renamed"})
@@ -387,11 +387,12 @@ func TestRenameFlowUsesTheSelectedEntry(t *testing.T) {
 	}
 }
 
-// A rename whose target row has since disappeared must do nothing rather than
-// rename whatever now sits at that index.
-func TestRenameWithAStaleIndexIsInert(t *testing.T) {
+// A rename submitted with nothing pending must do nothing rather than rename
+// whatever happens to be under the cursor by then. The form used to carry a row
+// index, which named a different entry the moment the list changed under it.
+func TestRenameWithNothingPendingIsInert(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("r"))
-	m.selectedIdx = 99
+	m.pendingEntry = nil
 
 	_, cmd := step(t, m, RenameInputSubmitMsg{Name: "renamed"})
 
@@ -809,7 +810,7 @@ func TestSearchFiltersByNameAndRemote(t *testing.T) {
 			m := feed(t, loadedModel(t), testutil.Key("/"))
 			m = feed(t, m, testutil.Type(tc.query)...)
 
-			got := rowNames(m.table.Rows())
+			got := rowNames(m.table.Table().Rows())
 			if len(got) != len(tc.want) {
 				t.Fatalf("rows = %v, want %v", got, tc.want)
 			}
@@ -1029,17 +1030,74 @@ func TestDetectSubRepoPathsOnAMissingDirectory(t *testing.T) {
 
 // ── Layout ───────────────────────────────────────────────────────────────────
 
+// Rule 116, and the narrow widths are the point. Eleven columns ask for 130
+// characters; calculateColumns handed Modified the remainder and then clamped
+// it back up to 15, so the columns overflowed the viewport by up to 34 and the
+// selected row wrapped. The solver shares the shortfall out instead.
+func TestColumnsFitEveryWidth(t *testing.T) {
+	for _, width := range []int{80, 120, 160, 220} {
+		m := feed(t, loadedModel(t), tea.WindowSizeMsg{Width: width, Height: 30})
+
+		total := 0
+		for _, col := range m.table.Table().Columns() {
+			total += col.Width
+			if col.Width < 0 {
+				t.Errorf("at width %d, column %q is %d wide", width, col.Title, col.Width)
+			}
+		}
+		if want := width - 2 - numColumns*2; total != want {
+			t.Errorf("at width %d the columns total %d, want %d", width, total, want)
+		}
+	}
+}
+
 func TestResizeKeepsTheTableUsable(t *testing.T) {
 	m := feed(t, loadedModel(t), tea.WindowSizeMsg{Width: 200, Height: 50})
-	if m.table.Height() < 1 {
-		t.Errorf("table height = %d, want it usable", m.table.Height())
+	if m.table.Table().Height() < 1 {
+		t.Errorf("table height = %d, want it usable", m.table.Table().Height())
 	}
 
 	m = feed(t, m, tea.WindowSizeMsg{Width: 20, Height: 1})
-	if m.table.Height() < 0 {
-		t.Errorf("table height = %d on a tiny terminal, want it non-negative", m.table.Height())
+	if m.table.Table().Height() < 0 {
+		t.Errorf("table height = %d on a tiny terminal, want it non-negative", m.table.Table().Height())
 	}
 	if m.View() == "" {
 		t.Error("View() returned nothing on a tiny terminal")
 	}
+}
+
+// ── D24: the cursor and the rows disagree under a filter ─────────────────────
+
+// D24. The rows were filtered and m.entries was not, and every action resolved
+// the cursor against m.entries — so under a filter they acted on whatever sat
+// at that index in the *unfiltered* list. ctrl+d deletes a directory, which
+// makes this the wrong-object defect at its worst.
+func TestAFilteredSelectionActsOnTheRowTheUserSees(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("/"))
+	m = feed(t, m, testutil.Type("empty")...)
+	m = feed(t, m, testutil.Key("enter")) // confirm the filter, hand the keys back
+
+	if got := rowNames(m.table.Table().Rows()); !equalNames(got, []string{"empty-dir"}) {
+		t.Fatalf("rows under the filter = %v, want just empty-dir", got)
+	}
+
+	m, _ = step(t, m, testutil.Key("ctrl+d"))
+	if m.mode != ModeConfirmingDelete {
+		t.Fatalf("mode = %d after ctrl+d, want the delete confirmation", m.mode)
+	}
+	if !strings.Contains(m.View(), "empty-dir") {
+		t.Errorf("the confirmation does not name empty-dir — it resolved the cursor against the unfiltered list")
+	}
+}
+
+func equalNames(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

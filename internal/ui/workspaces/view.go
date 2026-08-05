@@ -5,8 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/cache"
@@ -15,86 +13,11 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// Column fixed widths for the workspace table.
-// colGitFixed: icon(1) + " "(1) + branch(~20) + up to 3 indicators × (icon+count+space)(4) = 28
-const (
-	colNameFixed      = 36
-	colGitFixed       = 28
-	colTypeFixed      = 4
-	colSensitiveFixed = 7
-	colCFixed         = 4
-	colHFixed         = 4
-	colMFixed         = 4
-	colLFixed         = 4
-	colScannedFixed   = 14
-	colModFixed       = 15
-)
-
-// numColumns is the number of columns in the workspace table
-const numColumns = 11
-
-// defaultColumns returns the initial column definitions
-func defaultColumns() []table.Column {
-	return []table.Column{
-		{Title: "Name", Width: colNameFixed},
-		{Title: "Remote", Width: 20},
-		{Title: "Git Status", Width: colGitFixed},
-		{Title: "Type", Width: colTypeFixed},
-		{Title: "Secrets", Width: colSensitiveFixed},
-		{Title: "C", Width: colCFixed},
-		{Title: "H", Width: colHFixed},
-		{Title: "M", Width: colMFixed},
-		{Title: "L", Width: colLFixed},
-		{Title: "Scanned", Width: colScannedFixed},
-		{Title: "Modified", Width: colModFixed},
-	}
-}
-
-// calculateColumns returns table columns with dynamic widths based on terminal width
-func (m *Model) calculateColumns() []table.Column {
-	// Rule 116: contentWidth = width - 2, available = contentWidth - numColumns*2
-	contentWidth := m.width - 2
-	available := contentWidth - numColumns*2
-
-	// Reserve all fixed column widths; Remote absorbs the remaining flex.
-	// The LAST column (Modified) absorbs any leftover so that
-	// sum(col_widths) == available exactly, ensuring the selected row background
-	// extends to the right viewport border.
-	fixedExceptRemoteAndMod := colNameFixed + colGitFixed + colTypeFixed + colSensitiveFixed + colCFixed + colHFixed + colMFixed + colLFixed + colScannedFixed
-	remoteWidth := max(available-fixedExceptRemoteAndMod-colModFixed, 10)
-
-	cols := m.table.Columns()
-	if len(cols) < numColumns {
-		cols = defaultColumns()
-	}
-
-	cols[0].Width = colNameFixed
-	cols[1].Width = remoteWidth
-	cols[2].Width = colGitFixed
-	cols[3].Width = colTypeFixed
-	cols[4].Width = colSensitiveFixed
-	cols[5].Width = colCFixed
-	cols[6].Width = colHFixed
-	cols[7].Width = colMFixed
-	cols[8].Width = colLFixed
-	cols[9].Width = colScannedFixed
-	// Last column absorbs any rounding/leftover so sum == available exactly
-	cols[10].Width = available - colNameFixed - remoteWidth - colGitFixed - colTypeFixed - colSensitiveFixed - colCFixed - colHFixed - colMFixed - colLFixed - colScannedFixed
-	if cols[10].Width < colModFixed {
-		cols[10].Width = colModFixed
-	}
-
-	cols[1].Title = "Remote"
-	cols[3].Title = "Type"
-	cols[4].Title = "Secrets"
-	cols[5].Title = "C"
-	cols[6].Title = "H"
-	cols[7].Title = "M"
-	cols[8].Title = "L"
-	cols[10].Title = "Modified"
-
-	return cols
-}
+// The column widths, defaultColumns and calculateColumns used to live here.
+// calculateColumns clamped Modified at 15 *after* handing it the remainder, so
+// the columns overflowed the viewport by up to 34 at narrow widths — the shape
+// datatable's TestTheWorkspacesLayoutFitsANarrowTerminal was written against.
+// The widths are in columns.go now and the arithmetic is the solver's.
 
 // View rend la vue
 func (m Model) View() string {
@@ -137,7 +60,7 @@ func (m Model) View() string {
 		return contentStyle.Render(errorStyle.Render(theme.IconError + " Error: " + m.error))
 	}
 
-	if len(m.entries) == 0 {
+	if len(m.table.Items()) == 0 {
 		if m.currentPath == "" {
 			return contentStyle.Render(theme.HelpStyle.Render("\nNo workspaces found\n\nPress [ctrl+n] to create a new workspace."))
 		}
@@ -158,8 +81,9 @@ func (m Model) GetFooterHeight() int {
 	case ModeSelecting:
 		return 3 // tab bar + empty line + info line (mirrors RenderFooter in ModeSelecting)
 	case ModeNormal:
-		if len(m.entries) > 0 && m.error == "" {
-			return 3 + m.filterBar.ExtraHeight() // filter bar (when visible) + breadcrumb tab bar + empty line + info line
+		if len(m.table.Items()) > 0 && m.error == "" {
+			// filter bar (when visible) + breadcrumb tab bar + empty line + info line
+			return 3 + m.table.FilterBar().ExtraHeight()
 		}
 	}
 	return 2 // empty line + info line
@@ -179,10 +103,10 @@ func (m Model) RenderFooter(width int) string {
 		}
 		return m.renderTabBar() + "\n" + theme.EmptyLineBg(width) + "\n" + infoLine
 	}
-	if m.mode == ModeNormal && len(m.entries) > 0 && m.error == "" {
+	if m.mode == ModeNormal && len(m.table.Items()) > 0 && m.error == "" {
 		var parts []string
-		if m.filterBar.IsVisible() {
-			parts = append(parts, m.filterBar.View())
+		if bar := m.table.FilterBar(); bar.IsVisible() {
+			parts = append(parts, bar.View())
 		}
 		infoLine := theme.EmptyLineBg(width)
 		if m.footerError != "" {
@@ -286,13 +210,12 @@ func formatProjectType(entry Entry) string {
 // formatScanColumns returns the SENSITIVE, C, H, M, L, SCANNED column values for an entry.
 // For git repos: looks up the scan cache directly.
 // For directories: aggregates sub-repo scan entries.
-func (m *Model) formatScanColumns(entry Entry) (sensitive, c, h, med, l, scanned string) {
+func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive, c, h, med, l, scanned string) {
 	dash := "-"
 	empty := ""
 
 	if entry.IsGitRepo {
 		if m.scanningPaths[entry.Path] {
-			frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
 			return empty, dash, dash, dash, dash, frame + " scanning"
 		}
 		scanEntry, ok := m.scanCache[entry.Path]
@@ -336,7 +259,6 @@ func (m *Model) formatScanColumns(entry Entry) (sensitive, c, h, med, l, scanned
 		return dash, empty, empty, empty, empty, dash
 	}
 	if len(scannedEntries) == 0 && scanningCount > 0 {
-		frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
 		return empty, dash, dash, dash, dash, frame + " scanning"
 	}
 
@@ -416,11 +338,8 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 	// Normal mode — determine selected entry state for dynamic shortcuts (Rule 130)
 	var selectedEntry *Entry
-	if len(m.entries) > 0 {
-		idx := m.table.Cursor()
-		if idx >= 0 && idx < len(m.entries) {
-			selectedEntry = &m.entries[idx]
-		}
+	if entry, ok := m.selectedEntry(); ok {
+		selectedEntry = &entry
 	}
 
 	isGitRepo := selectedEntry != nil && selectedEntry.IsGitRepo

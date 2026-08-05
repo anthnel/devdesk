@@ -5,70 +5,48 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// updateTableSize adjusts table dimensions
+// updateTableSize adjusts table dimensions.
+//
+// Rule 124: the footer (tab bar + filter bar) is outside the viewport, so only
+// the table's own header row is subtracted. The Rule 116 arithmetic, the
+// selected row's width and the cursor clamp are the component's now.
 func (m *Model) updateTableSize() {
-	m.filterBar.Resize(m.width)
-	// Rule 124: footer (tab bar + filter bar) is outside the viewport; subtract table header only
-	tableDataHeight := max(m.height-1, 1)
-	m.table.SetHeight(tableDataHeight)
-	m.table.SetColumns(m.calculateColumns())
-	// Force the Selected row style to width contentWidth so the selected background
-	// extends to the right viewport border, even when row content visually differs
-	// from the calculated width (e.g. Nerd Font icon width discrepancies).
-	styles := theme.DefaultTableStyles()
-	styles.Selected = styles.Selected.Width(m.width - 2)
-	m.table.SetStyles(styles)
+	m.table.Resize(m.width, max(m.height-1, 1))
 }
 
-// updateTableData refreshes table rows from entries, applying active filters
-func (m *Model) updateTableData() {
-	query := strings.ToLower(m.filterBar.SearchQuery())
+// setEntries replaces the listing and rebuilds the decoration over it.
+func (m *Model) setEntries(entries []Entry) {
+	m.table.SetItems(m.rowsFor(entries))
+}
 
-	rows := make([]table.Row, 0, len(m.entries))
-	for _, entry := range m.entries {
-		// Apply text search filter
-		if query != "" {
-			nameMatch := strings.Contains(strings.ToLower(entry.Name), query)
-			remoteMatch := strings.Contains(strings.ToLower(entry.GitRemote), query)
-			if !nameMatch && !remoteMatch {
-				continue
-			}
-		}
+// refreshRows redecorates the entries the table already holds. Callers reach it
+// after a scan starts, finishes or arrives from the cache: the listing has not
+// changed, only what the six scan columns say about it.
+func (m *Model) refreshRows() {
+	m.setEntries(m.entries())
+}
 
-		typeIcon := formatProjectType(entry)
-		// if typeWidth > 0 && typeIcon != "" {
-		// 	typeIcon = theme.CenterInColumn(typeIcon, typeWidth)
-		// }
-		sensitive, c, h, med, l, scanned := m.formatScanColumns(entry)
-		rows = append(rows, table.Row{
-			entry.Name,
-			entry.GitRemote,
-			formatGitStatus(entry),
-			typeIcon,
-			sensitive,
-			c,
-			h,
-			med,
-			l,
-			scanned,
-			timeAgo(entry.ModTime),
-		})
+// entries returns the current directory listing, filter or no filter.
+func (m Model) entries() []Entry {
+	out := make([]Entry, 0, len(m.table.Items()))
+	for _, row := range m.table.Items() {
+		out = append(out, row.Entry)
 	}
-	m.table.SetRows(rows)
+	return out
+}
 
-	// bubbles does not clamp the cursor when the row count shrinks, so drilling
-	// into a smaller directory — or narrowing the filter — would leave it past
-	// the end. Nothing is highlighted then, and every action that resolves the
-	// selection (enter, ctrl+d, r, ctrl+s) silently does nothing.
-	if m.table.Cursor() >= len(rows) {
-		m.table.SetCursor(max(len(rows)-1, 0))
-	}
+// selectedEntry returns the entry under the cursor.
+//
+// Every action used to index the *unfiltered* list with a cursor into the
+// filtered rows, so under a filter they acted on a different directory from the
+// one highlighted, and ctrl+d asked to delete it (D24). The table resolves the
+// cursor against the slice its rows were built from, so the two cannot part.
+func (m Model) selectedEntry() (Entry, bool) {
+	row, ok := m.table.Selected()
+	return row.Entry, ok
 }
 
 // loadEntries loads the contents of the current directory with enriched metadata
