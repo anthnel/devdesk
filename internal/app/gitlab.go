@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/gitlab"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
@@ -90,4 +91,42 @@ func (a *App) setAuthenticated(client *gitlabclient.Client, user *gitlabclient.U
 	a.sharedState.GitLabClient = client
 	a.sharedState.CurrentUser = user
 	a.sharedState.IsAuthenticated = true
+}
+
+// clearAuthenticated is setAuthenticated's mirror, and the cached data goes with
+// the session: groups, projects and the dashboard counters were all read
+// through the client that just stopped being valid.
+func (a *App) clearAuthenticated() {
+	a.sharedState.GitLabClient = nil
+	a.sharedState.CurrentUser = nil
+	a.sharedState.IsAuthenticated = false
+	a.sharedState.CachedGroups = nil
+	a.sharedState.CachedProjects = nil
+	a.sharedState.GitLabStats = nil
+}
+
+// handleLogoutComplete clears the session the way logging in sets it.
+//
+// It had no router handler at all: LogoutCompleteMsg was consumed by the auth
+// view, which reset its own three fields and nothing else. So sharedState kept
+// the client, the user and the caches — the explorer went on browsing projects
+// and the header went on naming a signed-out user, because both read state
+// nobody had cleared. Logging in updated the shared state and logging out did
+// not, which is the asymmetry that made it possible.
+//
+// Every view but the auth view is dropped: clearing sharedState does not empty
+// a table the explorer already loaded. The auth view is kept because it is on
+// screen and has just written "Logged out successfully".
+func (a *App) handleLogoutComplete(msg auth.LogoutCompleteMsg) (tea.Model, tea.Cmd) {
+	log.Printf("GitLab logout for context %s", a.currentContext)
+	a.clearAuthenticated()
+
+	authView := a.views[command.ViewGitlabAuth]
+	a.views = make(map[command.ViewType]tea.Model)
+	if authView != nil {
+		a.views[command.ViewGitlabAuth] = authView
+	}
+	a.createView(a.currentView)
+
+	return a, tea.Batch(a.forwardToActiveView(msg), a.requestResize())
 }

@@ -323,6 +323,18 @@ the kind is not a group.
 
 ### Shared State
 
+**A session is set and cleared by the router, both ways.** `setAuthenticated`
+and `clearAuthenticated` in `internal/app/gitlab.go` are mirrors, and every
+GitLab-backed view reads `sharedState` rather than holding its own answer. A
+view resetting only its own fields is what D28 was: logging out left
+`GitLabClient` and `CurrentUser` in place, so the explorer kept browsing and the
+header kept naming a signed-out user.
+
+Clearing `sharedState` does not empty a table a view already loaded, so a
+session ending also drops the views — all but the one on screen that reported
+it.
+
+
 `internal/shared/state.go` holds cross-view data injected at view creation:
 - `Secrets`, `SecretNotices` — the context's secret store and what the migration off plaintext reported
 - `GitLabClient`, `IsAuthenticated`, `CurrentUser` — GitLab session

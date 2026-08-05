@@ -23,6 +23,32 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D28 — logging out of GitLab left the session behind. Fixed** by giving
+`auth.LogoutCompleteMsg` a router handler. Reported from use, not found by
+reading.
+
+Logging in went through the router: `handleAuthResult` calls `setAuthenticated`,
+which fills `sharedState` with the client, the user and — as they load — the
+group and project caches. Logging out did not. `LogoutCompleteMsg` was consumed
+by the auth view, which reset its own `authenticated`, `user` and token input,
+and nothing else.
+
+So after a logout the explorer went on browsing projects and the header went on
+naming a signed-out user, because both read `sharedState.CurrentUser` and
+`sharedState.GitLabClient`, which nobody had cleared. The asymmetry is the
+defect: one direction of a two-way transition had an owner and the other did
+not.
+
+`clearAuthenticated()` is now `setAuthenticated()`'s mirror and drops the caches
+with the session — they were read through the client that just stopped being
+valid. Every view but the auth view is dropped too: clearing `sharedState` does
+not empty a table the explorer already loaded. The auth view is kept because it
+is on screen and has just written "Logged out successfully".
+
+Five tests in `internal/app/logout_test.go`, all confirmed to fail with the
+handler removed.
+
+
 **"dark" named a theme no picker could show. Fixed** in `applyDefaults`, found
 by the configuration view's own field test.
 

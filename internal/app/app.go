@@ -289,6 +289,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case auth.AuthResultMsg:
 		return a.handleAuthResult(msg)
 
+	case auth.LogoutCompleteMsg:
+		return a.handleLogoutComplete(msg)
+
 	case GitLabAutoLoginMsg:
 		return a.handleAutoLoginResult(msg)
 
