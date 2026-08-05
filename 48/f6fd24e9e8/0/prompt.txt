@@ -1,0 +1,109 @@
+oui
+
+---
+
+démarre le 3.8
+
+---
+
+continue
+
+---
+
+merge et fait l'étape 4
+
+---
+
+merge
+
+---
+
+continue
+
+---
+
+merge et puis fait 5 et 6 en même temps
+
+---
+
+merge
+
+---
+
+je n'ai pas accès à nexus pour l'instant, on testera une autre fois. Dans le backlog, il doit aussi y avoir le support multiforge et le refactorir des table
+
+---
+
+enchaine sur l'étape 2
+
+---
+
+est-ce qu'il faut merger avant de continuer ou on peut enchainer sur la trois et merger tout à la fin
+
+---
+
+go
+
+---
+
+merge
+
+---
+
+continue le refactor, point 4 : Où en est le refactor des tables
+
+┌─────┬─────────────────────────────┬────────────────────────────────────────────────────────┐
+│     │            Étape            │                         Livré                          │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ✅  │ 1 — composant + solveur     │ invariant Rule 116 testé sur 0–200, clamp, tri, filtre │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ✅  │ 2 — networks + volumes      │ le câblage, 2 copies de largeur retirées               │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ✅  │ 3 — netdiag ports           │ scroll préservé, contournement tableReady supprimé     │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ⬜  │ 4 — containers, puis images │ tri, flèches, premier client de SelectedStyles         │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ⬜  │ 5 — workspaces, explorer    │ clamp et drill-down                                    │
+├─────┼─────────────────────────────┼────────────────────────────────────────────────────────┤
+│ ⬜  │ 6 — security, status        │ les deux cas particuliers                              │
+└─────┴─────────────────────────────┴────────────────────────────────────────────────────────┘
+
+---
+
+merge et continue
+
+---
+
+merge et continue
+
+---
+
+merge
+
+---
+
+je souhaite brainstormer sur un nouveau point. Je pense introduire une nouvelle vue "configuration" qui permettrait d'éditer les différents paramètres de configuration de l'application : theme, type de forge, path vers les workspaces, toutes les security options, etc. Cela signifie qu'il n'y aurait plus de vue sec, les scan sont déclenchés à partir soit de la liste des images soit d'un répertoires et les scans utilisent la configuration de la config. Ton avis ? je pense que ce serait une meilleure expérience utilisateur
+
+---
+
+corrige le fait que le plan revient à antigravity maintenant c'est toi qui fait les plans aussi
+
+---
+
+je veux préciser que la config est valable pour un contexte. Il pourra donc y avoir autant de configuration que de contexte différents. Quand je lance un scan depuis un répertoire ou une image, je dois pouvoir accéder aux résultat depuis cette même ligne quand le scan est terminé. quelle décision faut-il prendre pour secret_backend
+
+---
+
+on a déjà l'info dans le dashboard, la vue option doit aussi permettre de préciser soit l'image soit le binaire
+
+---
+
+démarre l'implémentation
+
+---
+
+continue  0b et 0c
+
+---
+
+merge les PR
