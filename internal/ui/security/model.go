@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -64,11 +64,13 @@ type Model struct {
 	scanGen       int                      // incremented on each startScan; used to discard stale ScanCompleteMsg
 
 	// Results state
-	findingsTable    table.Model
-	selectedIdx      int
-	activeTab        int            // 0=CVE, 1=Secrets, 2=Licenses, 3=Misconfig
-	severityFilter   string         // "all", "critical", "high", "medium", "low"
-	filteredFindings []scan.Finding // Current filtered findings for display
+	findingsTable datatable.Model[scan.Finding]
+	// selectedFinding is what the details view is showing. It holds the finding
+	// rather than its row index, so a list that changes underneath cannot make
+	// the details describe a different one.
+	selectedFinding *scan.Finding
+	activeTab       int    // 0=CVE, 1=Secrets, 2=Licenses, 3=Misconfig
+	severityFilter  string // "all", "critical", "high", "medium", "low"
 
 	// Pre-populated target (from workspace view)
 	prefilledTarget string
@@ -107,19 +109,11 @@ func New(cfg *config.Config) Model {
 	ti.Width = 50
 	theme.StyleTextInput(&ti)
 
-	// Create findings table
-	columns := []table.Column{
-		{Title: "Severity", Width: 10},
-		{Title: "ID", Width: 20},
-		{Title: "Title", Width: 40},
-		{Title: "Source", Width: 10},
-	}
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithFocused(true),
-		table.WithHeight(10),
-	)
-	t.SetStyles(theme.DefaultTableStyles())
+	t := datatable.New(datatable.Config[scan.Finding]{
+		Columns:        findingColumns(),
+		SortColumn:     -1, // the order the scanner reported
+		SelectedStyles: findingSelectedStyles,
+	})
 
 	// Advanced options textinputs
 	trivyServer := textinput.New()
@@ -204,7 +198,10 @@ func NewWithPreloadedResult(cfg *config.Config, result *scan.Result) Model {
 	m.targetPath = result.Target
 	m.activeTab = TabCVE
 	m.severityFilter = "all"
-	// updateFindingsTable will be called when WindowSizeMsg is received
+	// Filled here rather than waiting for the first WindowSizeMsg: the rows do
+	// not depend on the width any more, so nothing was gained by deferring and
+	// the table was empty until the terminal happened to report its size.
+	m.updateFindingsTable()
 	return m
 }
 

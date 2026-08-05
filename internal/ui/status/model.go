@@ -4,11 +4,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/status"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/status/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -17,16 +17,6 @@ import (
 const (
 	TabMonitors     = 0
 	TabCertificates = 1
-)
-
-// sortField defines which column to sort by
-type sortField int
-
-const (
-	sortByName sortField = iota
-	sortByTarget
-	sortByType
-	sortByResponse
 )
 
 // Model représente l'état de la vue status
@@ -46,19 +36,17 @@ type Model struct {
 	firstCheck bool
 	error      string
 
-	// Tables
-	monitorTable table.Model
-	sslTable     table.Model
+	// Tables. Two datatables plus a focus helper, not a multi-table
+	// abstraction: they share a viewport and alternate focus, and that is all
+	// they share.
+	monitorTable datatable.Model[status.ComponentStatus]
+	sslTable     datatable.Model[status.ComponentStatus]
 	activeTab    int // TabMonitors or TabCertificates
 
 	// Composants Bubbles
 	spinner       spinner.Model
 	componentForm *components.ComponentForm
 	confirmModal  *sharedcomponents.ConfirmModal
-
-	// Sorting
-	sortColumn sortField
-	sortAsc    bool
 
 	// CRUD modes
 	selectedIdx int // Index du composant sélectionné pour edit/delete
@@ -78,38 +66,16 @@ func New(cfg *config.Config) Model {
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
 
-	// Monitor table columns (existing monitors)
-	monitorColumns := []table.Column{
-		{Title: "Name", Width: 20},
-		{Title: "Target", Width: 36},
-		{Title: "Status", Width: 10},
-		{Title: "Type", Width: 8},
-		{Title: "Response", Width: 12},
-	}
+	monitorTable := datatable.New(datatable.Config[status.ComponentStatus]{
+		Columns:    monitorColumns(),
+		SortColumn: columnName,
+	})
 
-	// SSL table columns
-	sslColumns := []table.Column{
-		{Title: "Name", Width: 20},
-		{Title: "Host", Width: 30},
-		{Title: "Status", Width: 12},
-		{Title: "Days Left", Width: 12},
-		{Title: "Expires", Width: 20},
-		{Title: "Issuer", Width: 30},
-	}
-
-	monitorTable := table.New(
-		table.WithColumns(monitorColumns),
-		table.WithFocused(true),
-		table.WithHeight(10),
-	)
-	monitorTable.SetStyles(theme.DefaultTableStyles())
-
-	sslTable := table.New(
-		table.WithColumns(sslColumns),
-		table.WithFocused(false),
-		table.WithHeight(10),
-	)
-	sslTable.SetStyles(theme.BlurredTableStyles())
+	sslTable := datatable.New(datatable.Config[status.ComponentStatus]{
+		Columns:    sslColumns(),
+		SortColumn: -1, // config order, which is the order the user wrote
+	})
+	sslTable.Blur()
 
 	return Model{
 		config:          cfg,
@@ -121,8 +87,6 @@ func New(cfg *config.Config) Model {
 		monitorTable:    monitorTable,
 		sslTable:        sslTable,
 		activeTab:       TabMonitors,
-		sortColumn:      sortByName,
-		sortAsc:         true,
 		error:           "",
 		filterBar:       sharedcomponents.NewFilterBar(),
 	}

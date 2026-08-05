@@ -8,8 +8,34 @@ import (
 
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
+
+// numColumns is the number of columns in the findings table
+const numColumns = 4
+
+// findingColumns describes the findings table.
+//
+// Nothing sorts and nothing searches: the severity order is the one the scanner
+// reported and `.` is the severity *filter* on this view, not Rule 111's sort.
+// The Title is not pre-truncated either — bubbles cuts every cell to its column
+// width with the same ellipsis, and doing it by hand at width-3 first only cost
+// three characters of title.
+func findingColumns() []datatable.Column[scan.Finding] {
+	return []datatable.Column[scan.Finding]{
+		{Title: "Severity", MinWidth: 10, Cell: func(f scan.Finding) string { return string(f.Severity) }},
+		{Title: "ID", MinWidth: 18, Cell: func(f scan.Finding) string { return f.ID }},
+		{Title: "Title", MinWidth: 20, Flex: 1, Cell: func(f scan.Finding) string { return f.Title }},
+		{Title: "Source", MinWidth: 14, Cell: sourceDisplay},
+	}
+}
+
+// findingSelectedStyles colours the selected row by the severity under the
+// cursor. It is what refreshSelectionStyle did, minus its own bounds check.
+func findingSelectedStyles(f scan.Finding) table.Styles {
+	return theme.TableStylesForSeverity(string(f.Severity))
+}
 
 // Tab constants for results view
 const (
@@ -19,39 +45,25 @@ const (
 	TabMisconfig = 3
 )
 
-// updateFindingsTable populates the findings table based on active tab and filters
+// updateFindingsTable populates the findings table based on active tab and filters.
+//
+// The tab and the severity are this view's own filters, not the component's:
+// they select which findings exist at all, where a FilterBar query narrows a
+// list that is already settled. So the view filters and hands the result over.
 func (m *Model) updateFindingsTable() {
 	if m.result == nil {
 		return
 	}
 
-	// Filter findings by tab type
-	m.filteredFindings = m.filterFindingsByTab()
-
-	// Apply severity filter (for CVE, License, and Misconfig tabs)
+	findings := m.filterFindingsByTab()
 	if (m.activeTab == TabCVE || m.activeTab == TabLicense || m.activeTab == TabMisconfig) && m.severityFilter != "all" {
-		m.filteredFindings = m.filterFindingsBySeverity(m.filteredFindings)
+		findings = m.filterFindingsBySeverity(findings)
 	}
 
-	// Calculate dynamic column widths based on available width
-	columns := m.calculateColumns()
-	m.findingsTable.SetColumns(columns)
-
-	// Build rows from filtered findings
-	rows := make([]table.Row, 0, len(m.filteredFindings))
-	titleWidth := m.getTitleColumnWidth()
-	for _, f := range m.filteredFindings {
-		rows = append(rows, table.Row{
-			string(f.Severity),
-			f.ID,
-			theme.TruncateWidth(f.Title, titleWidth-3),
-			m.getSourceDisplay(f),
-		})
-	}
-	m.findingsTable.SetRows(rows)
-	// Reset cursor to first row when data changes
+	m.findingsTable.SetItems(findings)
+	// A change of tab or severity is a change of scope, not a shorter list, so
+	// the cursor goes back to the top. SetItems deliberately leaves it alone.
 	m.findingsTable.GotoTop()
-	m.refreshSelectionStyle()
 }
 
 // filterFindingsByTab returns findings filtered by the active tab
@@ -116,35 +128,8 @@ func (m *Model) filterFindingsBySeverity(findings []scan.Finding) []scan.Finding
 	return filtered
 }
 
-// calculateColumns returns table columns with dynamic widths
-func (m *Model) calculateColumns() []table.Column {
-	// Minimum widths
-	severityWidth := 10
-	idWidth := 18
-	sourceWidth := 14
-
-	// Calculate title width using remaining space
-	titleWidth := m.getTitleColumnWidth()
-
-	return []table.Column{
-		{Title: "Severity", Width: severityWidth},
-		{Title: "ID", Width: idWidth},
-		{Title: "Title", Width: titleWidth},
-		{Title: "Source", Width: sourceWidth},
-	}
-}
-
-// getTitleColumnWidth calculates the title column width based on terminal width
-func (m *Model) getTitleColumnWidth() int {
-	// Fixed widths: severity(10) + id(18) + source(14)
-	// Overhead: viewport borders(2) + cell padding(4 columns × 2 = 8) = 10
-	fixedWidth := 10 + 18 + 14 + 10
-	titleWidth := max(m.width-fixedWidth, 20)
-	return titleWidth
-}
-
-// getSourceDisplay returns a display string for the source column
-func (m *Model) getSourceDisplay(f scan.Finding) string {
+// sourceDisplay returns a display string for the source column
+func sourceDisplay(f scan.Finding) string {
 	switch f.Source {
 	case "trivy-license":
 		return "license"
@@ -192,18 +177,15 @@ func (m *Model) switchTab(tab int) {
 
 // handleIgnoreSecret prompts confirmation to ignore a secret finding
 func (m *Model) handleIgnoreSecret() {
-	if m.activeTab != TabSecrets || len(m.filteredFindings) == 0 {
+	finding, ok := m.findingsTable.Selected()
+	if m.activeTab != TabSecrets || !ok {
 		return
 	}
-	idx := m.findingsTable.Cursor()
-	if idx < len(m.filteredFindings) {
-		finding := m.filteredFindings[idx]
-		m.findingToIgnore = &finding
-		m.confirmModal = sharedcomponents.NewConfirmModal(
-			"Ignore Secret",
-			fmt.Sprintf("Add this secret to .gitleaksignore?\n\nFile: %s\nRule: %s", finding.File, finding.ID),
-		)
-	}
+	m.findingToIgnore = &finding
+	m.confirmModal = sharedcomponents.NewConfirmModal(
+		"Ignore Secret",
+		fmt.Sprintf("Add this secret to .gitleaksignore?\n\nFile: %s\nRule: %s", finding.File, finding.ID),
+	)
 }
 
 // handleResultsState processes input in results state
@@ -217,8 +199,11 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, func() tea.Msg { return BackToOriginMsg{Origin: m.OriginView} }
 	case "enter":
-		if len(m.filteredFindings) > 0 {
-			m.selectedIdx = m.findingsTable.Cursor()
+		if finding, ok := m.findingsTable.Selected(); ok {
+			// The details view is about a finding, not about a row index — an
+			// index would name a different one the moment the list changed
+			// under it, which is how workspaces got D24.
+			m.selectedFinding = &finding
 			m.state = StateDetails
 			m.detailsViewport.Width = m.width
 			m.detailsViewport.Height = m.height
@@ -258,19 +243,8 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "i":
 		m.handleIgnoreSecret()
 		return m, nil
-	case "up", "down", "k", "j":
-		var cmd tea.Cmd
-		m.findingsTable, cmd = m.findingsTable.Update(msg)
-		m.refreshSelectionStyle()
-		return m, cmd
-	case "g", "home":
-		m.findingsTable.GotoTop()
-		m.refreshSelectionStyle()
-		return m, nil
-	case "G", "end":
-		m.findingsTable.GotoBottom()
-		m.refreshSelectionStyle()
-		return m, nil
+	case "up", "down", "k", "j", "pgup", "pgdown", "g", "home", "G", "end":
+		return m, m.findingsTable.Update(msg)
 	}
 	return m, nil
 }
@@ -285,15 +259,4 @@ func (m *Model) cycleSeverityFilter() {
 		}
 	}
 	m.severityFilter = "all"
-}
-
-// refreshSelectionStyle updates the table selection color to match the currently selected row's severity
-func (m *Model) refreshSelectionStyle() {
-	if len(m.filteredFindings) == 0 {
-		return
-	}
-	cursor := m.findingsTable.Cursor()
-	if cursor >= 0 && cursor < len(m.filteredFindings) {
-		m.findingsTable.SetStyles(theme.TableStylesForSeverity(string(m.filteredFindings[cursor].Severity)))
-	}
 }

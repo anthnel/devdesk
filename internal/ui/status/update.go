@@ -3,19 +3,16 @@ package status
 import (
 	"fmt"
 	"log"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/status"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/status/components"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // Init démarre l'application
@@ -70,12 +67,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Mettre à jour la table active si pas en mode formulaire/confirmation
 	if m.componentForm == nil && m.confirmModal == nil {
-		if m.activeTab == TabMonitors {
-			m.monitorTable, cmd = m.monitorTable.Update(msg)
-		} else {
-			m.sslTable, cmd = m.sslTable.Update(msg)
-		}
-		cmds = append(cmds, cmd)
+		cmds = append(cmds, m.getCurrentTable().Update(msg))
 	}
 
 	return m, tea.Batch(cmds...)
@@ -183,92 +175,40 @@ func (m *Model) resize(width, height int) {
 		tableDataHeight = 1
 	}
 
-	m.monitorTable.SetHeight(tableDataHeight)
-	m.sslTable.SetHeight(tableDataHeight)
-
-	// Largeur du contenu viewport (terminal - 2 pour les bordures du viewport)
-	contentWidth := m.width - 2
-
-	// Monitor table columns (5 columns, cell padding = 5×2 = 10)
-	monColumns := m.monitorTable.Columns()
-	if len(monColumns) >= 5 {
-		available := contentWidth - 5*2
-		monColumns[0].Width = int(float64(available) * 0.15) // Name
-		monColumns[1].Width = int(float64(available) * 0.30) // Target
-		monColumns[2].Width = int(float64(available) * 0.17) // Status
-		monColumns[3].Width = int(float64(available) * 0.18) // Type
-		// Dernière colonne récupère le reste pour remplir toute la largeur
-		monColumns[4].Width = available - monColumns[0].Width - monColumns[1].Width - monColumns[2].Width - monColumns[3].Width
-		m.monitorTable.SetColumns(monColumns)
-	}
-
-	// SSL table columns (6 columns, cell padding = 6×2 = 12)
-	sslColumns := m.sslTable.Columns()
-	if len(sslColumns) >= 6 {
-		available := contentWidth - 6*2
-		sslColumns[0].Width = int(float64(available) * 0.15) // Name
-		sslColumns[1].Width = int(float64(available) * 0.25) // Host
-		sslColumns[2].Width = int(float64(available) * 0.15) // Status
-		sslColumns[3].Width = int(float64(available) * 0.10) // Days Left
-		sslColumns[4].Width = int(float64(available) * 0.18) // Expires
-		// Dernière colonne récupère le reste
-		sslColumns[5].Width = available - sslColumns[0].Width - sslColumns[1].Width - sslColumns[2].Width - sslColumns[3].Width - sslColumns[4].Width
-		m.sslTable.SetColumns(sslColumns)
-	}
+	// Both tables are laid out, not just the visible one: switching tabs must
+	// not have to wait for a resize to get its widths right. Eleven ratios and
+	// two remainders used to live here.
+	m.monitorTable.Resize(width, tableDataHeight)
+	m.sslTable.Resize(width, tableDataHeight)
 }
 
 // getCurrentTable returns the currently active table
-func (m *Model) getCurrentTable() *table.Model {
+func (m *Model) getCurrentTable() *datatable.Model[status.ComponentStatus] {
 	if m.activeTab == TabCertificates {
 		return &m.sslTable
 	}
 	return &m.monitorTable
 }
 
-// getSelectedComponentIndex returns the actual index in m.config.Status.Components array
-// accounting for sorting and filtering between monitor and SSL tables
+// getSelectedComponentIndex returns the index in m.config.Status.Components of
+// the row under the cursor.
+//
+// It used to replay the sort by hand and walk the SSL list by counting, neither
+// of which applied the text filter the rows had already been through — so under
+// a filter `e` and `ctrl+d` acted on a monitor the user was not looking at
+// (D25). The table resolves the cursor against the slice its rows were built
+// from; all that is left here is matching a status back to its config entry,
+// which is a different question and the only one this view has to answer.
 func (m *Model) getSelectedComponentIndex() int {
-	cursor := m.getCurrentTable().Cursor()
-
-	if m.activeTab == TabMonitors {
-		// Get monitors in sorted order, find the one at cursor position
-		var monitors []status.ComponentStatus
-		for _, comp := range m.components {
-			if comp.Type != "ssl" {
-				monitors = append(monitors, comp)
-			}
-		}
-		sorted := m.sortedMonitors(monitors)
-		if cursor < 0 || cursor >= len(sorted) {
-			return -1
-		}
-		selected := sorted[cursor]
-		// Find matching config component by name+type+target
-		for i, c := range m.config.Status.Components {
-			if c.Name == selected.Name && string(c.Type) == string(selected.Type) && c.Target == selected.Target {
-				return i
-			}
-		}
-	} else {
-		// SSL table - no sorting applied, count through SSL monitors
-		sslCount := 0
-		for i, comp := range m.components {
-			if comp.Type != "ssl" {
-				continue
-			}
-			if sslCount == cursor {
-				// Find matching config component
-				for j, c := range m.config.Status.Components {
-					if c.Name == comp.Name && string(c.Type) == string(comp.Type) && c.Target == comp.Target {
-						return j
-					}
-				}
-				return i
-			}
-			sslCount++
+	selected, ok := m.getCurrentTable().Selected()
+	if !ok {
+		return -1
+	}
+	for i, c := range m.config.Status.Components {
+		if c.Name == selected.Name && string(c.Type) == string(selected.Type) && c.Target == selected.Target {
+			return i
 		}
 	}
-
 	return -1
 }
 
@@ -278,6 +218,7 @@ func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.filterBar, cmd = m.filterBar.Update(msg)
 		m.updateTable()
+		m.getCurrentTable().GotoTop() // a narrowing query starts from the first match
 		return m, cmd
 	}
 
@@ -359,30 +300,14 @@ func (m Model) handleRefreshControls(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // switchTab switches focus to the given tab
 func (m *Model) switchTab(tab int) {
 	m.activeTab = tab
-	if tab == TabMonitors {
-		m.monitorTable.Focus()
-		m.monitorTable.SetStyles(theme.DefaultTableStyles())
-		m.sslTable.Blur()
-		m.sslTable.SetStyles(theme.BlurredTableStyles())
-	} else {
-		m.sslTable.Focus()
-		m.sslTable.SetStyles(theme.DefaultTableStyles())
-		m.monitorTable.Blur()
-		m.monitorTable.SetStyles(theme.BlurredTableStyles())
-	}
+	m.applyTabFocus()
 }
 
 // handleTableNavigation handles up, down, and tab navigation
 func (m Model) handleTableNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "up", "k":
-		m.getCurrentTable().MoveUp(1)
-	case "down", "j":
-		m.getCurrentTable().MoveDown(1)
-	case "g", "home":
-		m.getCurrentTable().GotoTop()
-	case "G", "end":
-		m.getCurrentTable().GotoBottom()
+	case "up", "k", "down", "j", "pgup", "pgdown", "g", "home", "G", "end":
+		return m, m.getCurrentTable().Update(msg)
 	case "tab":
 		m.switchTab((m.activeTab + 1) % 2)
 	case "shift+tab":
@@ -456,58 +381,9 @@ func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// sortableColumns lists columns in cycle order for the '.' key
-var sortableColumns = []sortField{
-	sortByName,
-	sortByTarget,
-	sortByType,
-	sortByResponse,
-}
-
-// cycleSort cycles through sort options: each column asc then desc, then next column
+// cycleSort advances the sort on the active table (Rule 111's `.`). The
+// certificates tab declares no comparators, so it is inert there.
 func (m Model) cycleSort() (tea.Model, tea.Cmd) {
-	if m.sortAsc {
-		m.sortAsc = false
-	} else {
-		m.sortAsc = true
-		nextIdx := 0
-		for i, col := range sortableColumns {
-			if col == m.sortColumn {
-				nextIdx = (i + 1) % len(sortableColumns)
-				break
-			}
-		}
-		m.sortColumn = sortableColumns[nextIdx]
-	}
-	m.updateTable()
+	m.getCurrentTable().CycleSort()
 	return m, nil
-}
-
-// sortedMonitors returns monitor components sorted by the current sort column
-func (m *Model) sortedMonitors(components []status.ComponentStatus) []status.ComponentStatus {
-	sorted := make([]status.ComponentStatus, len(components))
-	copy(sorted, components)
-
-	sort.Slice(sorted, func(i, j int) bool {
-		a, b := sorted[i], sorted[j]
-
-		var less bool
-		switch m.sortColumn {
-		case sortByTarget:
-			less = strings.ToLower(a.Target) < strings.ToLower(b.Target)
-		case sortByType:
-			less = strings.ToLower(string(a.Type)) < strings.ToLower(string(b.Type))
-		case sortByResponse:
-			less = a.ResponseTime < b.ResponseTime
-		default: // sortByName
-			less = strings.ToLower(a.Name) < strings.ToLower(b.Name)
-		}
-
-		if m.sortAsc {
-			return less
-		}
-		return !less
-	})
-
-	return sorted
 }

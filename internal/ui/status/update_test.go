@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/status"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/status/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -39,8 +41,8 @@ func TestNewReadsRefreshSettingsFromConfig(t *testing.T) {
 	if m.activeTab != TabMonitors {
 		t.Errorf("activeTab = %d on a new model, want %d (Monitors)", m.activeTab, TabMonitors)
 	}
-	if m.sortColumn != sortByName || !m.sortAsc {
-		t.Errorf("sort = (%d, asc=%v) on a new model, want (name, asc=true)", m.sortColumn, m.sortAsc)
+	if column, desc := m.monitorTable.SortState(); column != columnName || desc {
+		t.Errorf("sort = (column %d, desc=%v) on a new model, want name ascending", column, desc)
 	}
 }
 
@@ -271,7 +273,7 @@ func TestTabSwitchesBetweenMonitorsAndCertificates(t *testing.T) {
 	if m.activeTab != TabCertificates {
 		t.Errorf("activeTab = %d after tab, want %d (Certificates)", m.activeTab, TabCertificates)
 	}
-	if !m.sslTable.Focused() || m.monitorTable.Focused() {
+	if !m.sslTable.Table().Focused() || m.monitorTable.Table().Focused() {
 		t.Error("focus did not follow the active tab")
 	}
 
@@ -279,7 +281,7 @@ func TestTabSwitchesBetweenMonitorsAndCertificates(t *testing.T) {
 	if m.activeTab != TabMonitors {
 		t.Errorf("activeTab = %d after a second tab, want %d (Monitors)", m.activeTab, TabMonitors)
 	}
-	if !m.monitorTable.Focused() || m.sslTable.Focused() {
+	if !m.monitorTable.Table().Focused() || m.sslTable.Table().Focused() {
 		t.Error("focus did not return to the monitor table")
 	}
 }
@@ -305,7 +307,7 @@ func TestGotoTopAndBottom(t *testing.T) {
 	m := loadedModel(t)
 
 	m = feed(t, m, testutil.Key("G"))
-	last := len(m.monitorTable.Rows()) - 1
+	last := len(m.monitorTable.Table().Rows()) - 1
 	if m.monitorTable.Cursor() != last {
 		t.Errorf("cursor = %d after G, want %d (last row)", m.monitorTable.Cursor(), last)
 	}
@@ -336,29 +338,41 @@ func TestVimNavigationMatchesArrows(t *testing.T) {
 func TestCycleSortWalksDirectionThenColumn(t *testing.T) {
 	m := loadedModel(t)
 
+	// Name(0), Target(1), Type(3) and Response(4) sort; Status(2) does not.
 	steps := []struct {
-		wantColumn sortField
-		wantAsc    bool
+		wantColumn int
+		wantDesc   bool
 	}{
-		{sortByName, false},
-		{sortByTarget, true},
-		{sortByTarget, false},
-		{sortByType, true},
-		{sortByType, false},
-		{sortByResponse, true},
-		{sortByResponse, false},
-		{sortByName, true}, // wraps
+		{0, true},
+		{1, false},
+		{1, true},
+		{3, false},
+		{3, true},
+		{4, false},
+		{4, true},
+		{0, false}, // wraps
 	}
 
 	for i, want := range steps {
 		m = feed(t, m, testutil.Key("."))
-		if m.sortColumn != want.wantColumn || m.sortAsc != want.wantAsc {
-			t.Fatalf("step %d: sort = (%d, asc=%v), want (%d, asc=%v)", i+1, m.sortColumn, m.sortAsc, want.wantColumn, want.wantAsc)
+		column, desc := m.monitorTable.SortState()
+		if column != want.wantColumn || desc != want.wantDesc {
+			t.Fatalf("step %d: sort = (column %d, desc=%v), want (column %d, desc=%v)", i+1, column, desc, want.wantColumn, want.wantDesc)
 		}
 	}
 }
 
-func TestSortedMonitorsOrdersByTheActiveColumn(t *testing.T) {
+// The certificates tab declares no comparators, so `.` is inert there rather
+// than silently reordering an expiry list nobody asked to reorder.
+func TestTheCertificatesTabDoesNotSort(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("tab"), testutil.Key("."))
+
+	if column, desc := m.sslTable.SortState(); column != -1 || desc {
+		t.Errorf("ssl sort = (column %d, desc=%v) after '.', want it untouched", column, desc)
+	}
+}
+
+func TestEachColumnOrdersByItsOwnValue(t *testing.T) {
 	monitors := []status.ComponentStatus{
 		{Name: "web", Target: "z.example.com", Type: status.TypeHTTPS, ResponseTime: 300 * time.Millisecond},
 		{Name: "api", Target: "a.example.com", Type: status.TypeHTTP, ResponseTime: 100 * time.Millisecond},
@@ -367,47 +381,57 @@ func TestSortedMonitorsOrdersByTheActiveColumn(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		column sortField
-		asc    bool
+		column int
+		desc   bool
 		want   []string
 	}{
-		{"name ascending", sortByName, true, []string{"api", "dns", "web"}},
-		{"name descending", sortByName, false, []string{"web", "dns", "api"}},
-		{"target ascending", sortByTarget, true, []string{"api", "dns", "web"}},
-		{"type ascending", sortByType, true, []string{"dns", "api", "web"}},
-		{"response ascending", sortByResponse, true, []string{"api", "dns", "web"}},
-		{"response descending", sortByResponse, false, []string{"web", "dns", "api"}},
+		{"name ascending", 0, false, []string{"api", "dns", "web"}},
+		{"name descending", 0, true, []string{"web", "dns", "api"}},
+		{"target ascending", 1, false, []string{"api", "dns", "web"}},
+		{"type ascending", 3, false, []string{"dns", "api", "web"}},
+		{"response ascending", 4, false, []string{"api", "dns", "web"}},
+		{"response descending", 4, true, []string{"web", "dns", "api"}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			m := New(testConfig())
-			m.sortColumn = tc.column
-			m.sortAsc = tc.asc
+			dt := datatable.New(datatable.Config[status.ComponentStatus]{
+				Columns:    monitorColumns(),
+				SortColumn: tc.column,
+			})
+			if tc.desc {
+				dt.CycleSort() // ascending → descending, same column
+			}
+			dt.SetItems(monitors)
 
-			sorted := m.sortedMonitors(monitors)
-
+			got := namesOf(dt.Visible())
 			for i, want := range tc.want {
-				if sorted[i].Name != want {
-					t.Errorf("position %d = %q, want %q (full order %v)", i, sorted[i].Name, want, namesOf(sorted))
+				if got[i] != want {
+					t.Errorf("position %d = %q, want %q (full order %v)", i, got[i], want, got)
 				}
 			}
 		})
 	}
 }
 
-// Sorting must not reorder the caller's slice: m.components is the source of
-// truth for index lookups elsewhere.
-func TestSortedMonitorsDoesNotMutateItsInput(t *testing.T) {
+// Sorting reorders what is shown, never the list handed in: m.components is the
+// source of truth for the config lookup.
+func TestSortingLeavesTheSourceListAlone(t *testing.T) {
 	monitors := []status.ComponentStatus{
 		{Name: "web"}, {Name: "api"}, {Name: "dns"},
 	}
-	m := New(testConfig())
+	dt := datatable.New(datatable.Config[status.ComponentStatus]{
+		Columns:    monitorColumns(),
+		SortColumn: columnName,
+	})
 
-	m.sortedMonitors(monitors)
+	dt.SetItems(monitors)
 
 	if monitors[0].Name != "web" || monitors[1].Name != "api" || monitors[2].Name != "dns" {
-		t.Errorf("sortedMonitors reordered its input: %v", namesOf(monitors))
+		t.Errorf("the sort reordered the caller's slice: %v", namesOf(monitors))
+	}
+	if got := namesOf(dt.Visible()); got[0] != "api" {
+		t.Errorf("Visible() = %v, want it sorted", got)
 	}
 }
 
@@ -490,8 +514,7 @@ func TestSelectedIndexResolvesThroughTheSortOrder(t *testing.T) {
 		t.Errorf("getSelectedComponentIndex() = %d for the third sorted row, want 0 (web)", got)
 	}
 
-	m.sortAsc = false
-	m = feed(t, m, TickMsg(time.Now())) // re-renders the table in the new order
+	m = feed(t, m, testutil.Key(".")) // name descending: web is first
 	m.monitorTable.SetCursor(0)
 	if got := m.getSelectedComponentIndex(); got != 0 {
 		t.Errorf("getSelectedComponentIndex() = %d for the first descending row, want 0 (web)", got)
@@ -513,10 +536,12 @@ func TestSelectedIndexOnTheCertificateTab(t *testing.T) {
 func TestSelectedIndexOutOfRangeReturnsMinusOne(t *testing.T) {
 	m := loadedModel(t)
 	m.monitorTable.SetCursor(2)
-	m.components = checkResults()[:1] // results shrank; the rows have not caught up
+	// The rows shrink to one and the cursor is clamped onto it, so the lookup
+	// answers for the row on screen rather than for an index nothing holds.
+	m = feed(t, m, CheckCompleteMsg{Components: checkResults()[:1], Timestamp: time.Now()})
 
-	if got := m.getSelectedComponentIndex(); got != -1 {
-		t.Errorf("getSelectedComponentIndex() = %d for a cursor past the results, want -1", got)
+	if got := m.getSelectedComponentIndex(); got != 0 {
+		t.Errorf("getSelectedComponentIndex() = %d after the results shrank, want 0 (the only row left)", got)
 	}
 }
 
@@ -775,10 +800,10 @@ func TestSearchFiltersBothTables(t *testing.T) {
 	m = feed(t, m, testutil.Key("/"))
 	m = feed(t, m, testutil.Type("api")...)
 
-	if got := rowNames(m.monitorTable.Rows()); len(got) != 1 || got[0] != "api" {
+	if got := rowNames(m.monitorTable.Table().Rows()); len(got) != 1 || got[0] != "api" {
 		t.Errorf("monitor rows = %v, want only api", got)
 	}
-	if got := rowNames(m.sslTable.Rows()); len(got) != 0 {
+	if got := rowNames(m.sslTable.Table().Rows()); len(got) != 0 {
 		t.Errorf("ssl rows = %v, want none to match \"api\"", got)
 	}
 }
@@ -799,7 +824,7 @@ func TestSearchMatchesTargetAndType(t *testing.T) {
 			m = feed(t, m, testutil.Key("/"))
 			m = feed(t, m, testutil.Type(tc.query)...)
 
-			got := rowNames(m.monitorTable.Rows())
+			got := rowNames(m.monitorTable.Table().Rows())
 			if len(got) != len(tc.want) {
 				t.Fatalf("rows = %v, want %v", got, tc.want)
 			}
@@ -883,8 +908,8 @@ func TestResizeFillsTheViewportWidth(t *testing.T) {
 
 	// Rule 116: content width is the terminal minus the viewport borders, and
 	// each cell adds two columns of padding.
-	assertColumnsFill(t, "monitor", m.monitorTable.Columns(), 120-2-5*2)
-	assertColumnsFill(t, "ssl", m.sslTable.Columns(), 120-2-6*2)
+	assertColumnsFill(t, "monitor", m.monitorTable.Table().Columns(), 120-2-5*2)
+	assertColumnsFill(t, "ssl", m.sslTable.Table().Columns(), 120-2-6*2)
 }
 
 func assertColumnsFill(t *testing.T, label string, columns []table.Column, available int) {
@@ -906,10 +931,34 @@ func TestResizeNeverHandsTheTableANegativeHeight(t *testing.T) {
 
 	m = feed(t, m, tea.WindowSizeMsg{Width: 80, Height: 0})
 
-	if m.monitorTable.Height() < 0 {
-		t.Errorf("monitor table height = %d on a zero-height terminal, want it non-negative", m.monitorTable.Height())
+	if m.monitorTable.Table().Height() < 0 {
+		t.Errorf("monitor table height = %d on a zero-height terminal, want it non-negative", m.monitorTable.Table().Height())
 	}
-	if m.sslTable.Height() < 0 {
-		t.Errorf("ssl table height = %d on a zero-height terminal, want it non-negative", m.sslTable.Height())
+	if m.sslTable.Table().Height() < 0 {
+		t.Errorf("ssl table height = %d on a zero-height terminal, want it non-negative", m.sslTable.Table().Height())
+	}
+}
+
+// ── D25: the cursor and the rows disagree under a filter ─────────────────────
+
+// The monitor rows are sorted and filtered; getSelectedComponentIndex sorts and
+// does not filter. Under a filter the cursor into the rows becomes an index
+// into a longer list, so `e` edits and `ctrl+d` deletes a monitor the user is
+// not looking at. Same family as D24 in workspaces.
+func TestAFilteredSelectionEditsTheRowTheUserSees(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("/"))
+	m = feed(t, m, testutil.Type("dns")...)
+	m = feed(t, m, testutil.Key("enter")) // confirm the filter, hand the keys back
+
+	if got := rowNames(m.monitorTable.Table().Rows()); len(got) != 1 || got[0] != "dns-primary" {
+		t.Fatalf("rows under the filter = %v, want just dns-primary", got)
+	}
+
+	m = feed(t, m, testutil.Key("ctrl+d"))
+	if m.confirmModal == nil {
+		t.Fatal("ctrl+d did not open the delete confirmation")
+	}
+	if !strings.Contains(m.confirmModal.View(), "dns-primary") {
+		t.Error("the confirmation does not name dns-primary — the cursor was resolved against the unfiltered list")
 	}
 }

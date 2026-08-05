@@ -397,10 +397,19 @@ The selected row is pinned to the content width: column widths count cells, and
 a Nerd Font icon does not always render as wide as it counts, so the highlight
 would otherwise stop short of the right border.
 
-Migration of the fifteen existing tables is step-by-step: `oci_resources`
-networks, volumes and images, `netdiag` ports, `containers`, `workspaces` and
-the GitLab `explorer` are done — `security` and `status` are what is left. See
-the backlog.
+**All fifteen tables are migrated.** A new table uses `datatable`; there is no
+second way to build one.
+
+Two views keep a filter of their own, and deliberately. `security` selects
+findings by tab and by severity, and `status` drives both its tables from one
+search box so the header counts agree — in both cases the view filters and calls
+`SetItems`, because a `FilterBar` query narrows a list that is already settled
+and these decide which rows exist at all. `security` also calls `GotoTop`
+explicitly on a tab change, which is the reset `SetItems` does not make.
+
+`status` is the two-table case: two `datatable.Model` plus a focus helper.
+`Focus` and `Blur` carry the styles with them (Rule 118), so a tab switch does
+not touch `SetStyles`.
 
 ## Testing
 

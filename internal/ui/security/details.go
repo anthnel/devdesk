@@ -40,10 +40,10 @@ func (m Model) handleDetailsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleDetailsOpenReference opens the first reference URL in the default browser.
 func (m Model) handleDetailsOpenReference() (tea.Model, tea.Cmd) {
-	if m.selectedIdx >= len(m.filteredFindings) {
+	if m.selectedFinding == nil {
 		return m, nil
 	}
-	f := m.filteredFindings[m.selectedIdx]
+	f := *m.selectedFinding
 	if len(f.References) == 0 {
 		m.statusMessage = "No references available"
 		return m, clearStatusCmd()
@@ -68,11 +68,11 @@ func (m Model) handleDetailsOpenReference() (tea.Model, tea.Cmd) {
 
 // buildDetailsContent builds the full scrollable content for the details view.
 func (m Model) buildDetailsContent() string {
-	if len(m.filteredFindings) == 0 || m.selectedIdx >= len(m.filteredFindings) {
+	if m.selectedFinding == nil {
 		return theme.Bg("No finding selected")
 	}
 
-	f := m.filteredFindings[m.selectedIdx]
+	f := *m.selectedFinding
 	var b strings.Builder
 
 	// Available width inside padding (1 left + 1 right)

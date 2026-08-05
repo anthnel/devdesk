@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
@@ -259,7 +260,7 @@ func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 func TestUpdateTableSplitsMonitorsFromCertificates(t *testing.T) {
 	m := loadedModel(t)
 
-	monitors := rowNames(m.monitorTable.Rows())
+	monitors := rowNames(m.monitorTable.Table().Rows())
 	if len(monitors) != 3 {
 		t.Errorf("monitor table holds %v, want the three non-SSL entries", monitors)
 	}
@@ -269,7 +270,7 @@ func TestUpdateTableSplitsMonitorsFromCertificates(t *testing.T) {
 		}
 	}
 
-	if certificates := rowNames(m.sslTable.Rows()); len(certificates) != 1 || certificates[0] != "cert" {
+	if certificates := rowNames(m.sslTable.Table().Rows()); len(certificates) != 1 || certificates[0] != "cert" {
 		t.Errorf("ssl table holds %v, want only cert", certificates)
 	}
 }
@@ -277,7 +278,7 @@ func TestUpdateTableSplitsMonitorsFromCertificates(t *testing.T) {
 func TestUpdateTableFormatsMonitorCells(t *testing.T) {
 	m := loadedModel(t)
 
-	rows := m.monitorTable.Rows()
+	rows := m.monitorTable.Table().Rows()
 	byName := map[string][]string{}
 	for _, row := range rows {
 		byName[row[0]] = row
@@ -307,8 +308,8 @@ func TestTableCellsCarryNoANSISequences(t *testing.T) {
 	m := loadedModel(t)
 
 	for label, rows := range map[string][][]string{
-		"monitor": toStrings(m.monitorTable.Rows()),
-		"ssl":     toStrings(m.sslTable.Rows()),
+		"monitor": toStrings(m.monitorTable.Table().Rows()),
+		"ssl":     toStrings(m.sslTable.Table().Rows()),
 	} {
 		for _, row := range rows {
 			for i, cell := range row {
@@ -323,7 +324,7 @@ func TestTableCellsCarryNoANSISequences(t *testing.T) {
 func TestUpdateTableFormatsCertificateCells(t *testing.T) {
 	m := loadedModel(t)
 
-	row := m.sslTable.Rows()[0]
+	row := m.sslTable.Table().Rows()[0]
 	if row[3] != "42" {
 		t.Errorf("days-left cell = %q, want \"42\"", row[3])
 	}
@@ -345,7 +346,7 @@ func TestCertificateCellsFallBackWhenDetailsAreMissing(t *testing.T) {
 		Timestamp: time.Now(),
 	})
 
-	row := m.sslTable.Rows()[0]
+	row := m.sslTable.Table().Rows()[0]
 	for i, cell := range map[int]string{3: "-", 4: "-", 5: "-"} {
 		if row[i] != cell {
 			t.Errorf("cell %d = %q, want %q for a certificate with no details", i, row[i], cell)
@@ -362,7 +363,7 @@ func TestUnknownComponentTypeRendersAsUnknown(t *testing.T) {
 		Timestamp: time.Now(),
 	})
 
-	if got := m.monitorTable.Rows()[0][3]; got != "unknown" {
+	if got := m.monitorTable.Table().Rows()[0][3]; got != "unknown" {
 		t.Errorf("type cell = %q for a component with no type, want \"unknown\"", got)
 	}
 }
@@ -379,10 +380,10 @@ func TestUnknownStatusFallsBackToItsName(t *testing.T) {
 		Timestamp: time.Now(),
 	})
 
-	if got := m.monitorTable.Rows()[0][2]; got != "PENDING" {
+	if got := m.monitorTable.Table().Rows()[0][2]; got != "PENDING" {
 		t.Errorf("status cell = %q, want the raw status name", got)
 	}
-	if got := m.sslTable.Rows()[0][2]; got != "PENDING" {
+	if got := m.sslTable.Table().Rows()[0][2]; got != "PENDING" {
 		t.Errorf("ssl status cell = %q, want the raw status name", got)
 	}
 }
@@ -408,24 +409,24 @@ func TestFormatSSLStatusCoversEveryState(t *testing.T) {
 func TestSortIndicatorFollowsTheActiveColumn(t *testing.T) {
 	m := loadedModel(t)
 
-	if got := m.monitorTable.Columns()[0].Title; got != "Name ▲" {
+	if got := m.monitorTable.Table().Columns()[0].Title; got != "Name ▲" {
 		t.Errorf("Name header = %q, want the ascending arrow", got)
 	}
 
 	m = feed(t, m, testutil.Key(".")) // name descending
-	if got := m.monitorTable.Columns()[0].Title; got != "Name ▼" {
+	if got := m.monitorTable.Table().Columns()[0].Title; got != "Name ▼" {
 		t.Errorf("Name header = %q after reversing, want the descending arrow", got)
 	}
 
 	m = feed(t, m, testutil.Key(".")) // target ascending
-	if got := m.monitorTable.Columns()[0].Title; got != "Name" {
+	if got := m.monitorTable.Table().Columns()[0].Title; got != "Name" {
 		t.Errorf("Name header = %q once Target became the sort column, want it bare", got)
 	}
-	if got := m.monitorTable.Columns()[1].Title; got != "Target ▲" {
+	if got := m.monitorTable.Table().Columns()[1].Title; got != "Target ▲" {
 		t.Errorf("Target header = %q, want the ascending arrow", got)
 	}
 	// Status is not sortable and must never gain an arrow.
-	if got := m.monitorTable.Columns()[2].Title; got != "Status" {
+	if got := m.monitorTable.Table().Columns()[2].Title; got != "Status" {
 		t.Errorf("Status header = %q, want it bare", got)
 	}
 }
@@ -476,6 +477,38 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 		}
 		if !documented[s.Key] {
 			t.Errorf("shortcut %q is advertised in the header but absent from the help", s.Key)
+		}
+	}
+}
+
+// ── Layout ───────────────────────────────────────────────────────────────────
+
+// Rule 116, on both tables and not only the visible one: switching tabs must
+// not have to wait for a resize to get its widths right. The eleven ratios this
+// replaced rounded down independently and handed the drift to the last column.
+func TestBothTablesFitTheWidth(t *testing.T) {
+	for _, width := range []int{60, 90, 120, 200} {
+		m := feed(t, loadedModel(t), tea.WindowSizeMsg{Width: width, Height: 30})
+
+		tables := []struct {
+			name    string
+			columns []table.Column
+			count   int
+		}{
+			{"monitors", m.monitorTable.Table().Columns(), numMonitorColumns},
+			{"certificates", m.sslTable.Table().Columns(), numSSLColumns},
+		}
+		for _, tc := range tables {
+			total := 0
+			for _, col := range tc.columns {
+				total += col.Width
+				if col.Width < 0 {
+					t.Errorf("%s at width %d: column %q is %d wide", tc.name, width, col.Title, col.Width)
+				}
+			}
+			if want := width - 2 - tc.count*2; total != want {
+				t.Errorf("%s at width %d: the columns total %d, want %d", tc.name, width, total, want)
+			}
 		}
 	}
 }
