@@ -107,7 +107,7 @@ func TestFindingsSurviveTheExitCodeThatAnnouncesThem(t *testing.T) {
 	answering(t, vulnReport(t, "CVE-2024-1", "HIGH"), &exitError{Code: 1, Stderr: "1 vulnerability"})
 
 	findings, err := RunTrivy(context.Background(), "/repos", TargetDirectory, false,
-		ToolSourceBinary, "", "", false, false, nil)
+		ToolSpec{Source: ToolSourceBinary}, "", false, false, nil)
 
 	if err != nil {
 		t.Fatalf("a scan that found something was reported as failing: %v", err)
@@ -123,7 +123,7 @@ func TestAnExitWithNoReportIsAFailure(t *testing.T) {
 	answering(t, "", &exitError{Code: 2, Stderr: "FATAL invalid flag"})
 
 	_, err := RunTrivy(context.Background(), "/repos", TargetDirectory, false,
-		ToolSourceBinary, "", "", false, false, nil)
+		ToolSpec{Source: ToolSourceBinary}, "", false, false, nil)
 
 	if err == nil {
 		t.Fatal("a scan that produced nothing was reported as succeeding")
@@ -139,7 +139,7 @@ func TestAToolThatNeverRanIsAFailureWhateverIsOnStdout(t *testing.T) {
 	answering(t, vulnReport(t, "CVE-2024-1", "HIGH"), errors.New("trivy failed to start"))
 
 	if _, err := RunTrivy(context.Background(), "/repos", TargetDirectory, false,
-		ToolSourceBinary, "", "", false, false, nil); err == nil {
+		ToolSpec{Source: ToolSourceBinary}, "", false, false, nil); err == nil {
 		t.Fatal("a tool that never started was reported as succeeding")
 	}
 }
@@ -148,7 +148,7 @@ func TestACleanScanWithNoFindingsIsNotAnError(t *testing.T) {
 	answering(t, `{"Results":[]}`, nil)
 
 	findings, err := RunTrivy(context.Background(), "/repos", TargetDirectory, false,
-		ToolSourceBinary, "", "", false, false, nil)
+		ToolSpec{Source: ToolSourceBinary}, "", false, false, nil)
 
 	if err != nil {
 		t.Fatalf("RunTrivy: %v", err)
@@ -164,15 +164,15 @@ func TestAnUnsupportedTargetTypeSpawnsNothing(t *testing.T) {
 	r := answering(t, "", nil)
 
 	if _, err := RunTrivy(context.Background(), "x", TargetType("registry"), false,
-		ToolSourceBinary, "", "", false, false, nil); err == nil {
+		ToolSpec{Source: ToolSourceBinary}, "", false, false, nil); err == nil {
 		t.Error("an unsupported target type was accepted")
 	}
 	if _, err := RunTrivyMisconfig(context.Background(), "x", TargetType("registry"),
-		ToolSourceBinary, "", "", false, nil); err == nil {
+		ToolSpec{Source: ToolSourceBinary}, "", false, nil); err == nil {
 		t.Error("an unsupported target type was accepted for misconfig")
 	}
 	if _, err := GenerateSBOM(context.Background(), "x", TargetType("registry"),
-		ToolSourceBinary, "", "", ""); err == nil {
+		ToolSpec{Source: ToolSourceBinary}, "", ""); err == nil {
 		t.Error("an unsupported target type was accepted for the SBOM")
 	}
 
@@ -187,7 +187,7 @@ func TestProgressFromTheToolReachesTheCaller(t *testing.T) {
 
 	var seen []string
 	if _, err := RunTrivy(context.Background(), "/repos", TargetDirectory, false,
-		ToolSourceBinary, "", "", false, false, func(line string) {
+		ToolSpec{Source: ToolSourceBinary}, "", false, false, func(line string) {
 			seen = append(seen, line)
 		}); err != nil {
 		t.Fatalf("RunTrivy: %v", err)
@@ -204,11 +204,11 @@ func TestTheScanRunsTheCommandTheUserWasShown(t *testing.T) {
 	r := answering(t, `{"Results":[]}`, nil)
 
 	if _, err := RunTrivy(context.Background(), "/repos", TargetDirectory, false,
-		ToolSourceBinary, "", "https://trivy:4954", true, true, nil); err != nil {
+		ToolSpec{Source: ToolSourceBinary}, "https://trivy:4954", true, true, nil); err != nil {
 		t.Fatalf("RunTrivy: %v", err)
 	}
 
-	shown := GetTrivyCommand("/repos", TargetDirectory, false, ToolSourceBinary, "", "https://trivy:4954", true, true)
+	shown := GetTrivyCommand("/repos", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "https://trivy:4954", true, true)
 	if got := r.commands(); len(got) != 1 || got[0] != shown {
 		t.Errorf("ran %v, shown %q", got, shown)
 	}
@@ -223,7 +223,7 @@ func TestTheMisconfigScanAsksForTheMisconfigScanner(t *testing.T) {
 	}), nil)
 
 	findings, err := RunTrivyMisconfig(context.Background(), "/repos", TargetDirectory,
-		ToolSourceBinary, "", "", false, nil)
+		ToolSpec{Source: ToolSourceBinary}, "", false, nil)
 
 	if err != nil {
 		t.Fatalf("RunTrivyMisconfig: %v", err)
@@ -243,7 +243,7 @@ func TestTheMisconfigScanAsksForTheMisconfigScanner(t *testing.T) {
 func TestAFailedSBOMYieldsNoPath(t *testing.T) {
 	answering(t, "", &exitError{Code: 1, Stderr: "permission denied"})
 
-	path, err := GenerateSBOM(context.Background(), "/repos", TargetDirectory, ToolSourceBinary, "", "", "")
+	path, err := GenerateSBOM(context.Background(), "/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "", "")
 
 	if err == nil {
 		t.Fatal("a failed generation returned success")
@@ -256,7 +256,7 @@ func TestAFailedSBOMYieldsNoPath(t *testing.T) {
 func TestTheSBOMPathComesBackOnSuccess(t *testing.T) {
 	r := answering(t, "", nil)
 
-	path, err := GenerateSBOM(context.Background(), "/repos", TargetDirectory, ToolSourceBinary, "", "", "/out")
+	path, err := GenerateSBOM(context.Background(), "/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "", "/out")
 
 	if err != nil {
 		t.Fatalf("GenerateSBOM: %v", err)
@@ -274,7 +274,7 @@ func TestTheSBOMPathComesBackOnSuccess(t *testing.T) {
 func TestSecretsAreReturnedMasked(t *testing.T) {
 	answering(t, gitleaksReport(t, "aws-access-token"), &exitError{Code: gitleaksSecretsFound})
 
-	findings, err := RunGitleaks(context.Background(), "/repos", ToolSourceBinary, "", false, "", nil)
+	findings, err := RunGitleaks(context.Background(), "/repos", ToolSpec{Source: ToolSourceBinary}, false, "", nil)
 
 	if err != nil {
 		t.Fatalf("a scan that found a secret was reported as failing: %v", err)
@@ -292,7 +292,7 @@ func TestSecretsAreReturnedMasked(t *testing.T) {
 func TestACleanRepositoryIsNotAFailure(t *testing.T) {
 	answering(t, "", &exitError{Code: gitleaksSecretsFound})
 
-	findings, err := RunGitleaks(context.Background(), "/repos", ToolSourceBinary, "", false, "", nil)
+	findings, err := RunGitleaks(context.Background(), "/repos", ToolSpec{Source: ToolSourceBinary}, false, "", nil)
 
 	if err != nil {
 		t.Fatalf("a clean scan was reported as failing: %v", err)
@@ -315,7 +315,7 @@ func TestAnyOtherGitleaksExitIsAFailure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			answering(t, "", tt.err)
 
-			if _, err := RunGitleaks(context.Background(), "/repos", ToolSourceBinary, "", false, "", nil); err == nil {
+			if _, err := RunGitleaks(context.Background(), "/repos", ToolSpec{Source: ToolSourceBinary}, false, "", nil); err == nil {
 				t.Error("the failure was reported as a clean scan")
 			}
 		})

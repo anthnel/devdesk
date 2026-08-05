@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // Detection probes the machine it runs on, which is exactly what a test must
@@ -50,7 +52,7 @@ func installTools(t *testing.T, output string, names ...string) {
 func TestAToolOnThePathIsUsedDirectly(t *testing.T) {
 	installTools(t, "Version: 0.50.1", "trivy", "gitleaks")
 
-	deps := CheckDependenciesWithImages("", "")
+	deps := CheckDependencies(config.ScanConfig{})
 
 	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceBinary {
 		t.Errorf("trivy: available=%v source=%q, want an installed binary", deps.TrivyAvailable, deps.TrivySource)
@@ -72,7 +74,7 @@ func TestAToolOnThePathIsUsedDirectly(t *testing.T) {
 func TestWithNoBinaryTheDockerImageIsTheFallback(t *testing.T) {
 	installTools(t, "sha256:2b1cbf1a4f0e", "docker")
 
-	deps := CheckDependenciesWithImages("", "")
+	deps := CheckDependencies(config.ScanConfig{})
 
 	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceDocker {
 		t.Errorf("trivy: available=%v source=%q, want the image", deps.TrivyAvailable, deps.TrivySource)
@@ -93,7 +95,7 @@ func TestWithNoBinaryTheDockerImageIsTheFallback(t *testing.T) {
 func TestAnImageThatWasNeverPulledIsNotAvailable(t *testing.T) {
 	installTools(t, "", "docker")
 
-	deps := CheckDependenciesWithImages("", "")
+	deps := CheckDependencies(config.ScanConfig{})
 
 	if !deps.DockerAvailable {
 		t.Error("docker is on the PATH but was not reported as available")
@@ -114,7 +116,7 @@ func TestADaemonThatCannotBeReachedLeavesTheToolsUnavailable(t *testing.T) {
 	installTools(t, "sha256:2b1cbf1a4f0e", "docker")
 	t.Setenv(helperFailOn, "images")
 
-	deps := CheckDependenciesWithImages("", "")
+	deps := CheckDependencies(config.ScanConfig{})
 
 	if !deps.DockerAvailable {
 		t.Error("the docker binary is installed and should be reported as such")
@@ -130,7 +132,7 @@ func TestAnImageThatWillNotReportItsVersionIsStillUsable(t *testing.T) {
 	installTools(t, "sha256:2b1cbf1a4f0e", "docker")
 	t.Setenv(helperFailOn, "run")
 
-	deps := CheckDependenciesWithImages("", "")
+	deps := CheckDependencies(config.ScanConfig{})
 
 	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceDocker {
 		t.Errorf("trivy: available=%v source=%q, want the image", deps.TrivyAvailable, deps.TrivySource)
@@ -144,7 +146,7 @@ func TestAnImageThatWillNotReportItsVersionIsStillUsable(t *testing.T) {
 func TestWithNothingInstalledNothingIsAvailable(t *testing.T) {
 	installTools(t, "")
 
-	deps := CheckDependenciesWithImages("", "")
+	deps := CheckDependencies(config.ScanConfig{})
 
 	if deps.TrivyAvailable || deps.GitleaksAvailable || deps.DockerAvailable {
 		t.Errorf("something was reported available on an empty PATH: %+v", deps)
@@ -159,7 +161,10 @@ func TestWithNothingInstalledNothingIsAvailable(t *testing.T) {
 func TestConfiguredImagesReplaceTheDefaults(t *testing.T) {
 	installTools(t, "")
 
-	deps := CheckDependenciesWithImages("mirror.local/trivy:0.50", "mirror.local/gitleaks:8.18")
+	deps := CheckDependencies(config.ScanConfig{
+		TrivyImage:    "mirror.local/trivy:0.50",
+		GitleaksImage: "mirror.local/gitleaks:8.18",
+	})
 
 	if deps.TrivyImage != "mirror.local/trivy:0.50" || deps.GitleaksImage != "mirror.local/gitleaks:8.18" {
 		t.Errorf("images = %q / %q, want the configured ones", deps.TrivyImage, deps.GitleaksImage)

@@ -215,11 +215,11 @@ func (m Model) Init() tea.Cmd {
 
 // checkDependencies verifies tool availability
 func (m Model) checkDependencies() tea.Cmd {
-	trivyImage := m.config.Scan.TrivyImage
-	gitleaksImage := m.config.Scan.GitleaksImage
+	// Copied out of the model before the Cmd runs: a Cmd must not read state
+	// Update() may be writing (Rule 110).
+	scanCfg := m.config.Scan
 	return func() tea.Msg {
-		deps := scan.CheckDependenciesWithImages(trivyImage, gitleaksImage)
-		return DepsCheckedMsg{Deps: deps}
+		return DepsCheckedMsg{Deps: scan.CheckDependencies(scanCfg)}
 	}
 }
 

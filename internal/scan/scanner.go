@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+
+	"github.com/anthnel/devdesk/internal/config"
 	"sync"
 	"time"
 
@@ -57,7 +59,11 @@ type ScanOptions struct {
 	EnableMisconfig bool   // Misconfiguration scanning (Trivy)
 	GenerateSBOM    bool   // SBOM generation (Trivy, CycloneDX format)
 	SBOMOutputDir   string // Output directory for SBOM files (optional)
+	TrivySource     string // Where Trivy runs from: auto | binary | image
+	TrivyPath       string // Custom Trivy executable (optional)
 	TrivyImage      string // Custom Docker image for Trivy (optional)
+	GitleaksSource  string // Where Gitleaks runs from: auto | binary | image
+	GitleaksPath    string // Custom Gitleaks executable (optional)
 	GitleaksImage   string // Custom Docker image for Gitleaks (optional)
 	TrivyServer     string // Trivy server URL for client-server mode (optional)
 	IgnoreUnfixed   bool   // Trivy: only show vulnerabilities with fixes
@@ -167,10 +173,12 @@ type DependencyStatus struct {
 	TrivyAvailable    bool
 	TrivySource       ToolSource
 	TrivyVersion      string
+	TrivyBinary       string // Executable to run when TrivySource is binary
 	TrivyImage        string // Docker image used for Trivy
 	GitleaksAvailable bool
 	GitleaksSource    ToolSource
 	GitleaksVersion   string
+	GitleaksBinary    string // Executable to run when GitleaksSource is binary
 	GitleaksImage     string // Docker image used for Gitleaks
 	DockerAvailable   bool
 }
@@ -181,12 +189,20 @@ const (
 	DefaultGitleaksImage = "zricethezav/gitleaks"
 )
 
-// CheckDependenciesWithImages verifies tools with custom Docker images
-func CheckDependenciesWithImages(trivyImage, gitleaksImage string) DependencyStatus {
-	// Use defaults if not specified
+// CheckDependencies works out where each scanner runs from, for one context's
+// scan configuration.
+//
+// It replaces CheckDependenciesWithImages, which took only the two image names.
+// That signature is why `trivy_path` and `gitleaks_path` were never read: there
+// was nowhere to pass them (D27). Taking the whole ScanConfig also lets the
+// per-tool source preference be honoured, which binary-first resolution made
+// impossible to express.
+func CheckDependencies(c config.ScanConfig) DependencyStatus {
+	trivyImage := c.TrivyImage
 	if trivyImage == "" {
 		trivyImage = DefaultTrivyImage
 	}
+	gitleaksImage := c.GitleaksImage
 	if gitleaksImage == "" {
 		gitleaksImage = DefaultGitleaksImage
 	}
@@ -198,52 +214,21 @@ func CheckDependenciesWithImages(trivyImage, gitleaksImage string) DependencySta
 		GitleaksImage:  gitleaksImage,
 	}
 
-	// Check if Docker is available
 	if path, err := exec.LookPath("docker"); err == nil && path != "" {
 		status.DockerAvailable = true
 	}
 
-	// Check Trivy binary first
-	if path, err := exec.LookPath("trivy"); err == nil && path != "" {
-		status.TrivyAvailable = true
-		status.TrivySource = ToolSourceBinary
-		if out, err := exec.Command("trivy", "--version").Output(); err == nil {
-			status.TrivyVersion = string(out)
-		}
-	} else if status.DockerAvailable {
-		// Check for Trivy Docker image
-		if checkDockerImage(trivyImage) {
-			status.TrivyAvailable = true
-			status.TrivySource = ToolSourceDocker
-			// Get version from Docker image
-			if out, err := exec.Command("docker", "run", "--rm", trivyImage, "--version").Output(); err == nil {
-				status.TrivyVersion = "docker:" + string(out)
-			} else {
-				status.TrivyVersion = "docker"
-			}
-		}
-	}
+	trivy := resolveTool(c.TrivySource, c.TrivyPath, "trivy", trivyImage, status.DockerAvailable, "--version")
+	status.TrivyAvailable = trivy.Available
+	status.TrivySource = trivy.Source
+	status.TrivyBinary = trivy.Binary
+	status.TrivyVersion = trivy.Version
 
-	// Check Gitleaks binary first
-	if path, err := exec.LookPath("gitleaks"); err == nil && path != "" {
-		status.GitleaksAvailable = true
-		status.GitleaksSource = ToolSourceBinary
-		if out, err := exec.Command("gitleaks", "version").Output(); err == nil {
-			status.GitleaksVersion = string(out)
-		}
-	} else if status.DockerAvailable {
-		// Check for Gitleaks Docker image
-		if checkDockerImage(gitleaksImage) {
-			status.GitleaksAvailable = true
-			status.GitleaksSource = ToolSourceDocker
-			// Get version from Docker image
-			if out, err := exec.Command("docker", "run", "--rm", gitleaksImage, "version").Output(); err == nil {
-				status.GitleaksVersion = "docker:" + string(out)
-			} else {
-				status.GitleaksVersion = "docker"
-			}
-		}
-	}
+	gitleaks := resolveTool(c.GitleaksSource, c.GitleaksPath, "gitleaks", gitleaksImage, status.DockerAvailable, "version")
+	status.GitleaksAvailable = gitleaks.Available
+	status.GitleaksSource = gitleaks.Source
+	status.GitleaksBinary = gitleaks.Binary
+	status.GitleaksVersion = gitleaks.Version
 
 	return status
 }
@@ -268,7 +253,16 @@ type Scanner struct {
 // NewScanner creates a new scanner with the given options, detecting which
 // tools are available on this machine.
 func NewScanner(opts ScanOptions) *Scanner {
-	return newScannerWithDeps(opts, CheckDependenciesWithImages(opts.TrivyImage, opts.GitleaksImage))
+	// Spelled out rather than passed as a config: ScanOptions is what a scan was
+	// asked to do, and these six fields are the part of it detection needs.
+	return newScannerWithDeps(opts, CheckDependencies(config.ScanConfig{
+		TrivySource:    opts.TrivySource,
+		TrivyPath:      opts.TrivyPath,
+		TrivyImage:     opts.TrivyImage,
+		GitleaksSource: opts.GitleaksSource,
+		GitleaksPath:   opts.GitleaksPath,
+		GitleaksImage:  opts.GitleaksImage,
+	}))
 }
 
 // newScannerWithDeps builds a scanner against a known set of tools. Detection
@@ -337,9 +331,9 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "vuln", Label: "Vulnerabilities", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, false, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
+			cmd := GetTrivyCommand(target, targetType, false, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunTrivy(egCtx, target, targetType, false, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL, progressFn)
+			findings, err := RunTrivy(egCtx, target, targetType, false, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -360,9 +354,9 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "license", Label: "Licenses", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, true, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
+			cmd := GetTrivyCommand(target, targetType, true, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunTrivy(egCtx, target, targetType, true, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL, progressFn)
+			findings, err := RunTrivy(egCtx, target, targetType, true, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -383,7 +377,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "misconfig", Label: "Misconfigurations", Status: StageRunning, Detail: detail})
 			}
-			findings, err := RunTrivyMisconfig(egCtx, target, targetType, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.IgnoreEOL, progressFn)
+			findings, err := RunTrivyMisconfig(egCtx, target, targetType, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -404,9 +398,9 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "secret", Label: "Secrets", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetGitleaksCommand(target, s.deps.GitleaksSource, s.deps.GitleaksImage, s.options.GitleaksHistory, s.options.GitleaksConfig)
+			cmd := GetGitleaksCommand(target, s.deps.GitleaksSpec(), s.options.GitleaksHistory, s.options.GitleaksConfig)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunGitleaks(egCtx, target, s.deps.GitleaksSource, s.deps.GitleaksImage, s.options.GitleaksHistory, s.options.GitleaksConfig, progressFn)
+			findings, err := RunGitleaks(egCtx, target, s.deps.GitleaksSpec(), s.options.GitleaksHistory, s.options.GitleaksConfig, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -424,7 +418,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	if s.options.GenerateSBOM && s.deps.TrivyAvailable {
 		eg.Go(func() error {
 			notify(ProgressUpdate{Stage: "sbom", Label: "SBOM", Status: StageRunning})
-			sbomPath, err := GenerateSBOM(egCtx, target, targetType, s.deps.TrivySource, s.deps.TrivyImage, s.options.TrivyServer, s.options.SBOMOutputDir)
+			sbomPath, err := GenerateSBOM(egCtx, target, targetType, s.deps.TrivySpec(), s.options.TrivyServer, s.options.SBOMOutputDir)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {

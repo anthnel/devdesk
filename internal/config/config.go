@@ -114,11 +114,29 @@ type RegistryConfig struct {
 	Registries          []RegistryItem `yaml:"registries,omitempty"`
 }
 
+// Tool source preferences. They say where a scanner is run from, which used to
+// be decided for the user: detection resolved the binary first and only reached
+// for Docker in the else, so a binary on PATH always won (D27).
+const (
+	// ToolSourceAuto keeps the historical resolution: the binary when there is
+	// one, the Docker image otherwise. The default, so existing configs do not
+	// change meaning.
+	ToolSourceAuto = "auto"
+	// ToolSourceBinary runs the configured path, else the name on PATH — and
+	// fails when neither exists rather than falling back to Docker. The silent
+	// fallback is what kept D27 invisible.
+	ToolSourceBinary = "binary"
+	// ToolSourceImage runs the Docker image even when a binary is installed.
+	ToolSourceImage = "image"
+)
+
 // ScanConfig contient la configuration pour les scans de sécurité
 type ScanConfig struct {
+	TrivySource        string `yaml:"trivy_source"`         // auto | binary | image
 	TrivyPath          string `yaml:"trivy_path"`           // Chemin custom vers trivy (optionnel)
 	TrivyImage         string `yaml:"trivy_image"`          // Image Docker trivy (défaut: aquasec/trivy)
 	TrivyServer        string `yaml:"trivy_server"`         // URL du serveur Trivy (optionnel, mode client-serveur)
+	GitleaksSource     string `yaml:"gitleaks_source"`      // auto | binary | image
 	GitleaksPath       string `yaml:"gitleaks_path"`        // Chemin custom vers gitleaks (optionnel)
 	GitleaksImage      string `yaml:"gitleaks_image"`       // Image Docker gitleaks (défaut: zricethezav/gitleaks)
 	CacheDir           string `yaml:"cache_dir"`            // Cache des rapports
@@ -250,6 +268,14 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Scan.MaxConcurrentScans == 0 {
 		cfg.Scan.MaxConcurrentScans = 3
 	}
+	// Auto is the historical resolution, so a config that predates the setting
+	// keeps behaving exactly as it did.
+	if cfg.Scan.TrivySource == "" {
+		cfg.Scan.TrivySource = ToolSourceAuto
+	}
+	if cfg.Scan.GitleaksSource == "" {
+		cfg.Scan.GitleaksSource = ToolSourceAuto
+	}
 
 	if cfg.Docker.NetworkToolImage == "" {
 		cfg.Docker.NetworkToolImage = "nicolaka/netshoot"
@@ -299,7 +325,9 @@ func Default() *Config {
 			CacheDir: filepath.Join(homeDir, ".devdesk", "cache", "templates"),
 		},
 		Scan: ScanConfig{
+			TrivySource:        ToolSourceAuto,
 			TrivyPath:          "", // Auto-detect in PATH
+			GitleaksSource:     ToolSourceAuto,
 			GitleaksPath:       "", // Auto-detect in PATH
 			CacheDir:           filepath.Join(homeDir, ".devdesk", "cache", "scans"),
 			MaxCachedReports:   50,

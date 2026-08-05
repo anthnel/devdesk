@@ -35,7 +35,7 @@ const gitleaksSecretsFound = 1
 // gitleaksArgs builds the invocation. Gitleaks writes its report to a path
 // rather than to stdout, so the report path is redirected at the process's own
 // stdout — which is a different pseudo-file inside a container.
-func gitleaksArgs(target string, source ToolSource, image string, history bool, configPath string) toolCmd {
+func gitleaksArgs(target string, tool ToolSpec, history bool, configPath string) toolCmd {
 	appendOptions := func(args []string) []string {
 		// History is the expensive mode, so it is opted into by dropping
 		// --no-git rather than by adding a flag.
@@ -48,8 +48,8 @@ func gitleaksArgs(target string, source ToolSource, image string, history bool, 
 		return args
 	}
 
-	if source == ToolSourceDocker {
-		image = gitleaksImage(image)
+	if tool.Source == ToolSourceDocker {
+		image := gitleaksImage(tool.Image)
 		args := []string{
 			"run", "--rm",
 			"-v", target + ":" + containerScanPath + ":ro",
@@ -70,13 +70,13 @@ func gitleaksArgs(target string, source ToolSource, image string, history bool, 
 		"--report-format", "json",
 		"--report-path", "/dev/stdout",
 	}
-	return toolCmd{Name: "gitleaks", Args: appendOptions(args)}
+	return toolCmd{Name: gitleaksBinary(tool), Args: appendOptions(args)}
 }
 
 // RunGitleaks executes Gitleaks and returns findings.
 // progressFn is an optional callback called with each stderr line.
-func RunGitleaks(ctx context.Context, target string, source ToolSource, image string, history bool, configPath string, progressFn func(string)) ([]Finding, error) {
-	stdout, err := runner.Run(ctx, gitleaksArgs(target, source, image, history, configPath), progressFn)
+func RunGitleaks(ctx context.Context, target string, tool ToolSpec, history bool, configPath string, progressFn func(string)) ([]Finding, error) {
+	stdout, err := runner.Run(ctx, gitleaksArgs(target, tool, history, configPath), progressFn)
 	if err != nil && len(stdout) == 0 {
 		// Exit 1 with no report means it ran and found nothing; any other
 		// non-zero exit, or a process that never ran, is a genuine failure.
@@ -121,8 +121,8 @@ func parseGitleaksOutput(data []byte) ([]Finding, error) {
 // GetGitleaksCommand returns the command that would be executed, for display
 // and logging. It is built by the same builder as the executed command, so the
 // two cannot drift apart.
-func GetGitleaksCommand(target string, source ToolSource, image string, history bool, configPath string) string {
-	return gitleaksArgs(target, source, image, history, configPath).String()
+func GetGitleaksCommand(target string, tool ToolSpec, history bool, configPath string) string {
+	return gitleaksArgs(target, tool, history, configPath).String()
 }
 
 // AddToGitleaksIgnore adds a finding to the .gitleaksignore file in the target directory
