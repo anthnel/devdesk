@@ -230,38 +230,33 @@ func TestResumingAfterTheIntervalChecksImmediately(t *testing.T) {
 	}
 }
 
-func TestIntervalAdjustmentClamps(t *testing.T) {
-	t.Run("plus adds five seconds and stops at five minutes", func(t *testing.T) {
-		m := newTestModel(t)
-		m.refreshInterval = 30 * time.Second
+// The refresh interval is configuration, and the configuration view owns it.
+//
+// This view used to adjust it with +/- -- in memory only. The running value and
+// status.refresh_interval could therefore disagree, and the adjustment was lost
+// on restart. Same shape as gitlab.url in two views: one setting, two holders,
+// one of which does not persist.
+func TestTheRefreshIntervalIsNotEditableHere(t *testing.T) {
+	m := newTestModel(t)
+	m.refreshInterval = 30 * time.Second
 
-		m = feed(t, m, testutil.Key("+"))
-		if m.refreshInterval != 35*time.Second {
-			t.Errorf("refreshInterval = %v after +, want 35s", m.refreshInterval)
-		}
+	m = feed(t, m, testutil.Key("+"), testutil.Key("-"))
 
-		m.refreshInterval = 299 * time.Second
-		m = feed(t, m, testutil.Key("+"), testutil.Key("+"))
-		if m.refreshInterval != 300*time.Second {
-			t.Errorf("refreshInterval = %v, want it clamped at 300s", m.refreshInterval)
-		}
-	})
+	if m.refreshInterval != 30*time.Second {
+		t.Errorf("refreshInterval = %v after +/-, want it untouched; it is set in :config", m.refreshInterval)
+	}
+}
 
-	t.Run("minus subtracts five seconds and stops at five", func(t *testing.T) {
-		m := newTestModel(t)
-		m.refreshInterval = 30 * time.Second
+// It comes from the configuration and nowhere else.
+func TestTheRefreshIntervalComesFromTheConfiguration(t *testing.T) {
+	cfg := testConfig()
+	cfg.Status.RefreshInterval = 42
 
-		m = feed(t, m, testutil.Key("-"))
-		if m.refreshInterval != 25*time.Second {
-			t.Errorf("refreshInterval = %v after -, want 25s", m.refreshInterval)
-		}
+	m := New(cfg)
 
-		m.refreshInterval = 6 * time.Second
-		m = feed(t, m, testutil.Key("-"), testutil.Key("-"))
-		if m.refreshInterval != 5*time.Second {
-			t.Errorf("refreshInterval = %v, want it clamped at 5s", m.refreshInterval)
-		}
-	})
+	if m.refreshInterval != 42*time.Second {
+		t.Errorf("refreshInterval = %v, want the configured 42s", m.refreshInterval)
+	}
 }
 
 // ── Navigation ───────────────────────────────────────────────────────────────

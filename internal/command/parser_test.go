@@ -34,10 +34,7 @@ func TestParseCommand_Theme(t *testing.T) {
 		input        string
 		expectedType CommandType
 		expectedArgs []string
-	}{
-		{"theme no args", "theme", CommandTheme, nil},
-		{"theme with args ignored", "theme something", CommandTheme, []string{"something"}},
-	}
+	}{}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

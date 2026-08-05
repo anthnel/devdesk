@@ -242,7 +242,7 @@ func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.filterBar.ActivateSearch()
 	case "q", "ctrl+c":
 		return m, tea.Quit
-	case "ctrl+r", " ", "+", "-":
+	case "ctrl+r", " ":
 		return m.handleRefreshControls(msg)
 	case "up", "down", "k", "j", "tab", "shift+tab", "g", "G", "home", "end":
 		return m.handleTableNavigation(msg)
@@ -279,19 +279,6 @@ func (m Model) handleRefreshControls(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			)
 		}
 
-	case "+":
-		// Augmenter l'intervalle
-		m.refreshInterval += 5 * time.Second
-		if m.refreshInterval > 300*time.Second {
-			m.refreshInterval = 300 * time.Second
-		}
-
-	case "-":
-		// Diminuer l'intervalle
-		m.refreshInterval -= 5 * time.Second
-		if m.refreshInterval < 5*time.Second {
-			m.refreshInterval = 5 * time.Second
-		}
 	}
 
 	return m, nil

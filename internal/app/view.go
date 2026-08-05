@@ -34,8 +34,6 @@ func (a *App) activeOverlay() string {
 		return a.renderHelpOverlay()
 	case a.showContextList:
 		return a.renderContextListOverlay()
-	case a.showThemeList:
-		return a.renderThemeListOverlay()
 	}
 	return ""
 }

@@ -180,18 +180,17 @@ func TestBareContextCommandListsThem(t *testing.T) {
 	}
 }
 
-func TestThemeCommandListsThem(t *testing.T) {
+// `:theme` is gone: the theme is a setting, and the configuration view owns it.
+// The command opened a picker that wrote app.theme behind the settings form's
+// back, which is one setting with two writers again.
+func TestThemeIsNoLongerACommand(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	typeCommand(t, a, "theme")
 
-	cmd := feedKey(t, a, testutil.Key("enter"))
+	feedKey(t, a, testutil.Key("enter"))
 
-	list, ok := testutil.MsgOf[ThemeListMsg](cmd)
-	if !ok {
-		t.Fatalf(":theme produced %T, want the theme list", testutil.Msg(cmd))
-	}
-	if len(list.Themes) == 0 {
-		t.Error("the theme list is empty; the built-in default is always available")
+	if !a.commandMode {
+		t.Error("an unknown command closed the command line instead of leaving it open to correct")
 	}
 }
 

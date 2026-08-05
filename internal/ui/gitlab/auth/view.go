@@ -18,7 +18,7 @@ func (m Model) InEditMode() bool {
 		return false
 	}
 	// En mode édition si on est sur un des champs de texte
-	return m.currentField == fieldURL || m.currentField == fieldToken
+	return m.currentField == fieldToken
 }
 
 func (m Model) GetShortcuts() shortcut.Shortcuts {
@@ -124,17 +124,12 @@ func (m *Model) renderForm() string {
 		return m.renderLoggedInView()
 	}
 
-	// Sinon, afficher le formulaire de login
-	// URL
-	labelStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Bold(true)
-	if m.currentField == fieldURL {
-		labelStyle = labelStyle.Foreground(theme.ColorPrimary)
-	}
-	b.WriteString(labelStyle.Render("GitLab URL") + "\n")
-	b.WriteString(m.urlInput.View() + "\n\n")
+	// The URL is shown, not edited: it is configuration, and the configuration
+	// view owns it. Both views used to write it, so neither was authoritative.
+	b.WriteString(m.renderConfiguredURL() + "\n\n")
 
 	// Token
-	labelStyle = lipgloss.NewStyle().Background(theme.ColorBackground).Bold(true)
+	labelStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Bold(true)
 	if m.currentField == fieldToken {
 		labelStyle = labelStyle.Foreground(theme.ColorPrimary)
 	}
@@ -194,7 +189,7 @@ func (m *Model) renderLoggedInView() string {
 	b.WriteString("\n")
 
 	// Bouton Logout
-	b.WriteString(theme.RenderButton("Logout", m.currentField == fieldURL, "danger"))
+	b.WriteString(theme.RenderButton("Logout", m.currentField == fieldToken, "danger"))
 
 	return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1, 2).Render(b.String())
 }
@@ -222,4 +217,22 @@ func (m *Model) renderError() string {
 		Foreground(theme.ColorError).
 		Padding(1, 2)
 	return style.Render("✗ " + m.error)
+}
+
+// renderConfiguredURL shows the server this view will authenticate against, and
+// says where to change it. Empty is the case worth naming: without a URL there
+// is nothing to log into, and the user would otherwise be told the token is
+// missing for a problem that is not the token.
+func (m Model) renderConfiguredURL() string {
+	label := lipgloss.NewStyle().Background(theme.ColorBackground).Bold(true).Render("GitLab URL")
+
+	if m.config == nil || m.config.GitLab.URL == "" {
+		return label + "\n" + theme.StatusErrorStyle.Render(
+			theme.IconWarning+" not configured — set it in :config, gitlab tab")
+	}
+	value := lipgloss.NewStyle().
+		Background(theme.ColorBackground).
+		Foreground(theme.ColorPrimary).
+		Render(m.config.GitLab.URL)
+	return label + "\n" + value + theme.DimStyle.Render("   change it in :config")
 }

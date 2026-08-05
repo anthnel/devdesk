@@ -93,10 +93,7 @@ func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 // handleInputUpdate transmet les messages aux inputs actifs
 func (m *Model) handleInputUpdate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	switch m.currentField {
-	case fieldURL:
-		m.urlInput, cmd = m.urlInput.Update(msg)
-	case fieldToken:
+	if m.currentField == fieldToken {
 		m.tokenInput, cmd = m.tokenInput.Update(msg)
 	}
 	return m, cmd
@@ -120,7 +117,7 @@ func (m *Model) handleAuthResult(msg AuthResultMsg) (tea.Model, tea.Cmd) {
 	m.user = msg.User
 	m.success = "✓ Authenticated as " + msg.User.Username
 	m.warning = msg.SaveWarning
-	m.currentField = fieldURL
+	m.currentField = fieldToken
 	return m, nil
 }
 
@@ -128,7 +125,6 @@ func (m *Model) handleAuthResult(msg AuthResultMsg) (tea.Model, tea.Cmd) {
 func (m *Model) handleCredentialsLoaded(msg CredentialsLoadedMsg) (tea.Model, tea.Cmd) {
 	log.Printf("AUTH: CredentialsLoadedMsg received (URL: %s, Token: %v)", msg.URL, msg.Token != "")
 	if msg.URL != "" && msg.Token != "" {
-		m.urlInput.SetValue(msg.URL)
 		m.tokenInput.SetValue(msg.Token)
 		log.Printf("AUTH: Starting auto-login")
 		m.authenticating = true
@@ -145,7 +141,7 @@ func (m *Model) handleGitLabAuthSuccess(msg GitLabAuthSuccessMsg) (tea.Model, te
 	m.user = msg.User
 	m.error = ""
 	m.success = "✓ Already authenticated as " + msg.User.Username
-	m.currentField = fieldURL
+	m.currentField = fieldToken
 	return m, nil
 }
 
@@ -153,12 +149,12 @@ func (m *Model) handleGitLabAuthSuccess(msg GitLabAuthSuccessMsg) (tea.Model, te
 func (m *Model) handleLogoutComplete() (tea.Model, tea.Cmd) {
 	m.authenticated = false
 	m.user = nil
-	m.currentField = fieldURL
+	m.currentField = fieldToken
 	m.tokenInput.SetValue("")
 	m.error = ""
 	m.warning = ""
 	m.success = "✓ Logged out successfully"
-	m.urlInput.Focus()
+	m.tokenInput.Focus()
 	return m, nil
 }
 
@@ -175,8 +171,8 @@ func (m *Model) nextField() {
 // prevField passe au champ précédent
 func (m *Model) prevField() {
 	m.currentField--
-	if m.currentField < fieldURL {
-		m.currentField = fieldURL
+	if m.currentField < fieldToken {
+		m.currentField = fieldToken
 	}
 
 	m.updateFocus()
@@ -184,27 +180,24 @@ func (m *Model) prevField() {
 
 // updateFocus met à jour le focus des champs
 func (m *Model) updateFocus() {
-	switch m.currentField {
-	case fieldURL:
-		m.urlInput.Focus()
-		m.tokenInput.Blur()
-	case fieldToken:
-		m.urlInput.Blur()
+	if m.currentField == fieldToken {
 		m.tokenInput.Focus()
-	default:
-		// fieldSubmit — un bouton, pas de textinput
-		m.urlInput.Blur()
-		m.tokenInput.Blur()
+		return
 	}
+	m.tokenInput.Blur() // fieldSubmit is a button, not an input
 }
 
 // authenticate lance l'authentification
 func (m *Model) authenticate() tea.Cmd {
-	url := m.urlInput.Value()
+	url := m.config.GitLab.URL
 	token := m.tokenInput.Value()
 
-	if url == "" || token == "" {
-		m.error = "URL and token are required"
+	if url == "" {
+		m.error = "No GitLab URL configured — set it in :config, gitlab tab"
+		return nil
+	}
+	if token == "" {
+		m.error = "Token is required"
 		return nil
 	}
 
@@ -227,11 +220,9 @@ func (m *Model) authenticate() tea.Cmd {
 			}
 		}
 
-		// Préparer la config à sauvegarder (copie, pas modification du modèle!)
-		// Seule l'URL y va — le token est déjà dans le store.
-		config.GitLab.URL = url
-
-		// Retourner le message avec les données
+		// Nothing to save: the URL came from the configuration and the token is
+		// already in the store. ConfigToSave is kept so the router's handler is
+		// unchanged, but it carries no edit of this view's making.
 		return AuthResultMsg{
 			Client:       result.Client,
 			User:         result.User,
@@ -244,7 +235,7 @@ func (m *Model) authenticate() tea.Cmd {
 
 // logout déconnecte l'utilisateur
 func (m *Model) logout() tea.Cmd {
-	url := m.urlInput.Value()
+	url := m.config.GitLab.URL
 	storage := m.secrets.Storage
 
 	// Commande asynchrone

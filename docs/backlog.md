@@ -23,6 +23,68 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**Two settings had a second, non-persisting writer. Both removed** once the
+configuration view gave them a home.
+
+`status` adjusted `refresh_interval` with `+` and `-`, **in memory only**. The
+running interval and `status.refresh_interval` could therefore disagree, the
+header reported the running one, and the adjustment was lost on restart. Same
+shape as `gitlab.url` in two views: one setting, two holders, one of which does
+not persist.
+
+`:theme` opened a picker that loaded a theme *and* wrote `app.theme` to disk —
+a second writer for a setting the configuration view now owns, and one that
+bypassed its form. The command, its overlay, `internal/app/theme.go`,
+`CommandTheme` and `ThemeListMsg`/`ThemeAppliedMsg`/`ThemeErrorMsg` are gone;
+`applyThemeNow` swaps the palette without saving, because the view already did.
+
+Together they removed 264 lines against 44 added.
+
+
+**D28 — logging out of GitLab left the session behind. Fixed** by giving
+`auth.LogoutCompleteMsg` a router handler. Reported from use, not found by
+reading.
+
+Logging in went through the router: `handleAuthResult` calls `setAuthenticated`,
+which fills `sharedState` with the client, the user and — as they load — the
+group and project caches. Logging out did not. `LogoutCompleteMsg` was consumed
+by the auth view, which reset its own `authenticated`, `user` and token input,
+and nothing else.
+
+So after a logout the explorer went on browsing projects and the header went on
+naming a signed-out user, because both read `sharedState.CurrentUser` and
+`sharedState.GitLabClient`, which nobody had cleared. The asymmetry is the
+defect: one direction of a two-way transition had an owner and the other did
+not.
+
+`clearAuthenticated()` is now `setAuthenticated()`'s mirror and drops the caches
+with the session — they were read through the client that just stopped being
+valid. Every view but the auth view is dropped too: clearing `sharedState` does
+not empty a table the explorer already loaded. The auth view is kept because it
+is on screen and has just written "Logged out successfully".
+
+Five tests in `internal/app/logout_test.go`, all confirmed to fail with the
+handler removed.
+
+
+**"dark" named a theme no picker could show. Fixed** in `applyDefaults`, found
+by the configuration view's own field test.
+
+`LoadTheme` accepted `""`, `"dark"` and `"default"` as the built-in theme, but
+`ListThemes` only ever offered `"default"` — so the default config named a
+theme absent from every list. `:theme` escaped it by reading
+`theme.CurrentThemeName` rather than `cfg.App.Theme`; the configuration view
+binds a cycle field straight to the setting, and a cycle whose current value is
+outside its options jumps somewhere arbitrary on the first press.
+
+`applyDefaults` now normalises `"dark"` to `"default"` at load, so the third
+name disappears from files as they are rewritten. `LoadTheme` still accepts it,
+which costs nothing and covers a file not yet touched.
+
+Found by `TestEveryCycleFieldDefaultsToOneOfItsOptions`, which asserts a
+property of the whole field table rather than of any one field.
+
+
 **D27 — the custom tool paths were read by nothing, and the source could not be
 chosen. Fixed** by `internal/scan/tool_source.go`, found while planning the
 configuration view.

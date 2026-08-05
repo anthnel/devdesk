@@ -18,9 +18,6 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if a.showContextList {
 		return a.handleContextListKeyMsg(msg)
 	}
-	if a.showThemeList {
-		return a.handleThemeListKeyMsg(msg)
-	}
 
 	if a.commandMode {
 		return a.handleCommandMode(msg)

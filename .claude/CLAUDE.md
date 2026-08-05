@@ -73,8 +73,23 @@ git switch -c <branch>                          # work
 git push origin <branch>                        # via the mirror — forwarded to GitHub
 gh pr create --base main --head <branch>
 gh pr merge <n> --squash --delete-branch
-git fetch origin && git merge --ff-only origin/main
+git fetch github main && git merge --ff-only github/main   # see below
 ```
+
+**After a merge, fast-forward from `github`, not from `origin`.** The mirror
+lags GitHub by a minute or two, so `git fetch origin` right after
+`gh pr merge` returns the *previous* `main` — with no error, which is the part
+that misleads. `gh pr view <n> --json state` says `MERGED` while
+`git rev-parse origin/main` still points at the commit before it.
+
+Pushing branches still goes through `origin`: the mirror forwards them, and it
+is the regional path. It is only the read-back immediately after a merge that
+has to come from the source of truth.
+
+**Merging several branches cut from the same commit conflicts in
+`docs/backlog.md`.** Every fix inserts its entry at the top of §1.1, so the
+second and third merges land on the same anchor. The resolution is always to
+keep both sides — they are independent entries, not competing edits.
 
 ### Remotes
 
@@ -121,7 +136,8 @@ App (Router)
     ├── security        - Trivy + Gitleaks scanner with multi-tab results
     ├── containers      - Docker container list + live metrics
     ├── oci-resources   - OCI resource list, scan, launch containers, network inspection
-    └── netdiag         - Network diagnostics (Docker-based tools) + real-time port monitor
+    ├── netdiag         - Network diagnostics (Docker-based tools) + real-time port monitor
+    └── configuration   - Every scalar setting in the current context
 ```
 
 ### View Switching & Command Mode
@@ -136,14 +152,32 @@ Press `:` to enter command mode, then type:
 - `containers` or `c` - Switch to containers view
 - `oci-resources` or `oci` - Switch to OCI resources view
 - `netdiag` or `net` - Switch to network diagnostics view
+- `configuration`, `config` or `cfg` - Switch to the configuration view
 - `context <name>` or `ctx <name>` - Switch configuration context
 - `context list` - Show available contexts
-- `theme <name>` - Switch UI theme
 - `quit` - Exit application
 
-Command parsing and tab-completion live in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandTheme`, `CommandQuit`, `CommandUnknown`.
+Command parsing and tab-completion live in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandQuit`, `CommandUnknown`.
+
+**There is no `:theme` command.** The theme is a setting, so the configuration
+view owns it — the picker wrote `app.theme` behind the settings form's back,
+which is one setting with two writers. Its overlay, `internal/app/theme.go` and
+`CommandTheme` are all gone; `applyThemeNow` in `internal/app/configuration.go`
+is what swaps the palette now.
 
 **Important:** The `FormView` interface (`InEditMode()`) prevents command mode activation when forms are active. Views with active forms must implement this interface.
+
+**`HeaderView` is all four methods or none.** The router probes for it with a
+type assertion and falls back silently, so a view supplying `GetTitle` and
+`GetShortcuts` but not `GetIcon` and `GetHeaderInfo` satisfies nothing and
+renders an empty viewport title — with nothing to say so. `command.ViewNames()`
+and `TestEveryViewSuppliesItsHeaderAndHelp` turn that into a contract every view
+is checked against.
+
+`ViewNames()` is **not** `FullNames()`: the latter also carries the action
+commands (`context`, `theme`, `quit`), which is right for completion and wrong
+for anything meaning "a view" — the configuration view's `default_view` field
+offered `quit` as a landing view until they were separated.
 
 ### Multi-Context Configuration
 
@@ -168,6 +202,79 @@ Credentials Management). Do not add a secret-bearing field back — the schema i
 what makes the guarantee checkable.
 
 Config is injected into views at creation. Use `config.Save()` to persist changes.
+
+### Configuration view — `internal/ui/configuration`
+
+Edits every **scalar** setting a context carries, in five tabs (`app`, `gitlab`,
+`scan`, `docker`, `status`). Lists stay where they are consulted: monitors keep
+their CRUD in `status`, registries keep `RegistryForm` in `oci-resources`.
+Duplicating them here would be the opposite of the point.
+
+Tabs are not decoration. Rule 135 reserves `Tab` for tabs and `↑↓` for fields,
+so a tabbed form is the only layout where both keys have exactly one job.
+
+Settings are declared as a table of `field` values in `fields.go`, each holding
+**one pointer accessor** into the config (`func(*config.Config) *string`) rather
+than a get/set pair. Twenty-nine settings with two closures each is where the
+copy-paste defects of §2 came from; one reference means the read and the write
+cannot disagree about which setting they mean.
+`TestEveryFieldCarriesTheAccessorItsKindNeeds` and
+`TestNoTwoFieldsAddressTheSameSetting` are what keep the table honest.
+
+Fields inside a tab are grouped under a heading with a Nerd Font icon
+(`SubTitleStyle`, the same treatment the security form used): `scan` separates
+**Scanners**, **Trivy**, **Gitleaks** and **Limits**. `group()` stamps the
+heading onto a contiguous run rather than each field carrying its own, so a run
+cannot be split by a typo and render its heading twice —
+`TestEachTabRendersItsGroupHeadingsOnceInOrder` pins that.
+
+`GetTitle()` carries the context (`󰙨 Configuration · default`): a configuration
+belongs to one, and editing `workspaces_dir` in the wrong context is otherwise
+silent, because the fields look identical in all of them.
+
+Chevrons and values are aligned on one column per tab, padded on the **head**
+(label plus a cycle field's select icon) rather than on the label — padding the
+label leaves a cycle field's chevron two cells right of every other. Checkboxes
+are excluded from the measurement: they have no value, so a long checkbox label
+would push every value right for nothing. `theme.RenderCheckbox` already emits
+the focus indicator, so the view must not add a second.
+
+| Kind | Control | Persists |
+|---|---|---|
+| closed set | cycle `←→` (Rule 132) | immediately |
+| boolean | checkbox, `Space` only | immediately |
+| text / integer | `textinput` | on blur, **after validation** |
+
+**A refused value keeps the cursor on its field.** An unparseable integer or a
+malformed Trivy address is reported (Rule 128) and *not* written — coercing to
+zero is how `trivy_server: ":"` reached a config file in the first place.
+
+Two settings are special-cased, matched by label:
+
+- **Theme** applies as it is cycled, not on blur — otherwise the user chooses
+  blind.
+- **Secret backend** is confirmed when focus *leaves* the field, not on every
+  `←→`, and **nothing is migrated between backends**. §3.9 removed the option
+  that wrote a token to two stores at once; copying one here would rebuild it.
+  Declining restores the previous value.
+
+**`gitlab.url` belongs to this view, not to the auth view.** Both used to write
+it, so neither was authoritative and editing it in one left the other stale. The
+auth view now shows it read-only, points at `:config`, and owns only the token
+and the act of logging in — which is where the §3.9 line falls: this view's
+contract is "everything here goes to `config.yaml`", and a token never does.
+
+Changing the URL closes the client-side GitLab session (`GitLabURLChanged` on
+the message) and says so, rather than forbidding the change — the same call as
+for the secret backend. The field is recognised by **accessor identity**
+(`f.str(cfg) == &cfg.GitLab.URL`), not by label: two tabs could both hold a
+field called "URL".
+
+`ConfigSavedMsg` goes to the router, which drops every view *except this one* so
+they rebuild against the saved config — keeping the configuration view is what
+stops a save throwing away the cursor after every keystroke. `BackendChanged`
+is separate because it is the one change no view can rebuild itself into: the
+router has to resolve a fresh `credentials.Selection`.
 
 ### Registry model
 
@@ -220,6 +327,18 @@ badly-formed slug instead of correcting it, and drops the group-only fields when
 the kind is not a group.
 
 ### Shared State
+
+**A session is set and cleared by the router, both ways.** `setAuthenticated`
+and `clearAuthenticated` in `internal/app/gitlab.go` are mirrors, and every
+GitLab-backed view reads `sharedState` rather than holding its own answer. A
+view resetting only its own fields is what D28 was: logging out left
+`GitLabClient` and `CurrentUser` in place, so the explorer kept browsing and the
+header kept naming a signed-out user.
+
+Clearing `sharedState` does not empty a table a view already loaded, so a
+session ending also drops the views — all but the one on screen that reported
+it.
+
 
 `internal/shared/state.go` holds cross-view data injected at view creation:
 - `Secrets`, `SecretNotices` — the context's secret store and what the migration off plaintext reported

@@ -18,8 +18,7 @@ import (
 // Il n'y a plus de champ de choix entre deux destinations : le token va dans le
 // gestionnaire de secrets de l'hôte, et nulle part ailleurs (§3.9).
 const (
-	fieldURL = iota
-	fieldToken
+	fieldToken = iota
 	fieldSubmit
 
 	lastField = fieldSubmit
@@ -27,8 +26,10 @@ const (
 
 // Model représente la vue d'authentification GitLab
 type Model struct {
-	config     *config.Config
-	urlInput   textinput.Model
+	config *config.Config
+	// There is no URL input. gitlab.url is configuration and the configuration
+	// view owns it; this view owns the token, which is a secret, and the act of
+	// logging in. Both used to write the URL, so neither was authoritative.
 	tokenInput textinput.Model
 
 	// secrets is where the token goes, and what to tell the user about it.
@@ -56,17 +57,6 @@ type Model struct {
 // New crée une nouvelle vue d'authentification
 func New(cfg *config.Config, secrets credentials.Selection, notices []string) *Model {
 	// Créer les inputs
-	urlInput := textinput.New()
-	urlInput.Placeholder = "https://gitlab.com"
-	urlInput.CharLimit = 200
-	urlInput.Width = 60
-	theme.StyleTextInput(&urlInput)
-
-	// Pré-remplir avec la config si disponible
-	if cfg.GitLab.URL != "" {
-		urlInput.SetValue(cfg.GitLab.URL)
-	}
-
 	tokenInput := textinput.New()
 	tokenInput.Placeholder = "glpat-xxxxxxxxxxxxxxxxxxxx"
 	tokenInput.CharLimit = 100
@@ -81,15 +71,14 @@ func New(cfg *config.Config, secrets credentials.Selection, notices []string) *M
 	sp.Style = theme.SpinnerStyle()
 
 	// Focus sur le premier champ
-	urlInput.Focus()
+	tokenInput.Focus()
 
 	return &Model{
 		config:         cfg,
-		urlInput:       urlInput,
 		tokenInput:     tokenInput,
 		secrets:        secrets,
 		notices:        notices,
-		currentField:   fieldURL,
+		currentField:   fieldToken,
 		authenticating: false,
 		spinner:        sp,
 		error:          "",

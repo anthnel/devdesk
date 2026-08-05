@@ -209,8 +209,12 @@ func Load() (*Config, error) {
 func applyDefaults(cfg *Config) error {
 	homeDir, _ := os.UserHomeDir()
 
-	if cfg.App.Theme == "" {
-		cfg.App.Theme = "dark"
+	// "dark" was a third name for the built-in theme: LoadTheme accepts "",
+	// "dark" and "default" alike, but ListThemes only ever offers "default", so
+	// a config saying "dark" named a theme no picker could show. Normalised at
+	// load; LoadTheme still accepts the old name for a file not yet rewritten.
+	if cfg.App.Theme == "" || cfg.App.Theme == "dark" {
+		cfg.App.Theme = "default"
 	}
 	if cfg.App.LogFile == "" {
 		cfg.App.LogFile = filepath.Join(homeDir, ".devdesk", "devdesk.log")
@@ -223,6 +227,12 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.App.IDECommand == "" {
 		cfg.App.IDECommand = "code"
+	}
+	// Left empty, credentials.Select already treats this as "auto"; naming it
+	// keeps the setting inside the closed set the configuration view cycles
+	// through, so the first arrow press does not jump somewhere arbitrary.
+	if cfg.App.SecretBackend == "" {
+		cfg.App.SecretBackend = "auto"
 	}
 	if cfg.Status.RefreshInterval == 0 {
 		cfg.Status.RefreshInterval = 10
@@ -299,11 +309,12 @@ func Default() *Config {
 	homeDir, _ := os.UserHomeDir()
 	return &Config{
 		App: AppConfig{
-			Theme:         "dark",
+			Theme:         "default",
 			LogFile:       filepath.Join(homeDir, ".devdesk", "devdesk.log"),
 			DefaultView:   "dashboard",
 			WorkspacesDir: filepath.Join(homeDir, "workspaces"),
 			IDECommand:    "code",
+			SecretBackend: "auto",
 		},
 		Status: StatusConfig{
 			RefreshInterval: 10,

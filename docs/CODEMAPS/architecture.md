@@ -43,7 +43,6 @@ Bubble Tea program.Run()
 :oci[-resources]  → ViewOCIResources
 :net[diag]        → ViewNet
 :ctx[context]     → Context switch (reinit views)
-:theme            → Theme switch
 :quit / :q        → Exit app
 ```
 

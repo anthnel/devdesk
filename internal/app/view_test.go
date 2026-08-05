@@ -104,9 +104,6 @@ func TestAnOpenOverlayReplacesTheView(t *testing.T) {
 		{"context list", func(a *App) {
 			a.Update(ContextListMsg{Contexts: []string{"default"}, Current: "default"})
 		}, "Select Context"},
-		{"theme list", func(a *App) {
-			a.Update(ThemeListMsg{Themes: []string{"default"}, Current: "default"})
-		}, "Select Theme"},
 	}
 
 	for _, tt := range tests {

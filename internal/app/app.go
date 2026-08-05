@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
@@ -59,12 +60,6 @@ type App struct {
 	showContextList    bool
 	contextList        []string
 	contextSelectedIdx int
-
-	// Theme list overlay
-	showThemeList    bool
-	themeList        []string
-	currentTheme     string
-	themeSelectedIdx int
 
 	// Help overlay
 	showHelp     bool
@@ -261,6 +256,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleKeyMsg(msg)
 
 	// ── Contexts and themes ──────────────────────────────────────────────
+	case configuration.ConfigSavedMsg:
+		return a.handleConfigSaved(msg)
+
 	case ContextSwitchCompleteMsg:
 		return a.handleContextSwitchComplete(msg)
 
@@ -271,19 +269,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ContextListMsg:
 		return a.handleContextList(msg)
 
-	case ThemeListMsg:
-		return a.handleThemeList(msg)
-
-	case ThemeAppliedMsg:
-		return a.handleThemeApplied(msg)
-
-	case ThemeErrorMsg:
-		log.Printf("ERROR: Theme operation failed: %v", msg.Error)
-		return a, nil
-
 	// ── GitLab authentication ────────────────────────────────────────────
 	case auth.AuthResultMsg:
 		return a.handleAuthResult(msg)
+
+	case auth.LogoutCompleteMsg:
+		return a.handleLogoutComplete(msg)
 
 	case GitLabAutoLoginMsg:
 		return a.handleAutoLoginResult(msg)

@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/containers"
 	"github.com/anthnel/devdesk/internal/ui/dashboard"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
@@ -82,13 +83,6 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 		// Pas d'args → ouvrir la modale interactive
 		return a, a.listContexts()
 
-	case command.CommandTheme:
-		// Ouvrir la modale interactive de sélection de thème
-		a.commandMode = false
-		a.commandInput.Blur()
-		a.resetCompletion()
-		return a, a.listThemes()
-
 	case command.CommandUnknown:
 		// Commande invalide - rester en mode commande
 		return a, nil
@@ -156,6 +150,8 @@ func (a *App) createView(view command.ViewType) {
 		a.views[view] = ociresources.New(a.config)
 	case command.ViewNetdiag:
 		a.views[view] = netdiag.New(a.config)
+	case command.ViewConfiguration:
+		a.views[view] = configuration.New(a.config)
 	}
 }
 
