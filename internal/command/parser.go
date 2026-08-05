@@ -2,6 +2,7 @@ package command
 
 import (
 	"maps"
+	"sort"
 	"strings"
 )
 
@@ -148,6 +149,23 @@ func GetAliases() map[string]string {
 
 // FullNames retourne le nom complet de chaque commande — une vue ou une action
 // — sans les alias. C'est ce que la complétion propose en premier.
+// ViewNames lists the canonical view names, sorted.
+//
+// FullNames() is not the same list: it also carries the action commands
+// (`context`, `theme`, `quit`), which is right for completion and wrong for
+// anything that means "a view". app.default_view is the case that showed it —
+// offering `quit` as a landing view.
+func ViewNames() []string {
+	names := make([]string, 0, len(viewNames))
+	for name, view := range viewNames {
+		if name == string(view) {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
 func FullNames() []string {
 	names := make([]string, 0, len(viewNames)+len(actionNames))
 	for name, view := range viewNames {

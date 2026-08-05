@@ -162,6 +162,18 @@ Command parsing and tab-completion live in `internal/command/`. `ParseCommand()`
 
 **Important:** The `FormView` interface (`InEditMode()`) prevents command mode activation when forms are active. Views with active forms must implement this interface.
 
+**`HeaderView` is all four methods or none.** The router probes for it with a
+type assertion and falls back silently, so a view supplying `GetTitle` and
+`GetShortcuts` but not `GetIcon` and `GetHeaderInfo` satisfies nothing and
+renders an empty viewport title — with nothing to say so. `command.ViewNames()`
+and `TestEveryViewSuppliesItsHeaderAndHelp` turn that into a contract every view
+is checked against.
+
+`ViewNames()` is **not** `FullNames()`: the latter also carries the action
+commands (`context`, `theme`, `quit`), which is right for completion and wrong
+for anything meaning "a view" — the configuration view's `default_view` field
+offered `quit` as a landing view until they were separated.
+
 ### Multi-Context Configuration
 
 The app supports multiple configuration contexts (e.g., work, personal, client-A):

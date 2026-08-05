@@ -84,7 +84,7 @@ func New(cfg *config.Config) Model {
 	m := Model{
 		config:   cfg,
 		context:  config.CurrentContextName(),
-		sections: sections(themes, command.FullNames()),
+		sections: sections(themes, command.ViewNames()),
 		input:    in,
 	}
 	m.bindInput()

@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,7 +12,7 @@ import (
 func allFields(t *testing.T) []field {
 	t.Helper()
 	var out []field
-	for _, s := range sections([]string{"default", "mocha"}, command.FullNames()) {
+	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames()) {
 		out = append(out, s.Fields...)
 	}
 	return out
@@ -233,4 +234,26 @@ func labelsOf(fields []field) []string {
 		out = append(out, f.Label)
 	}
 	return out
+}
+
+// Every value the Default view field offers has to name a view the router can
+// actually open. FullNames() also carries the action commands -- context, theme,
+// quit -- so a field built from it offered "quit" as a landing view.
+func TestTheDefaultViewFieldOffersOnlyViews(t *testing.T) {
+	f := fieldNamed(t, "Default view")
+
+	if len(f.Options) == 0 {
+		t.Fatal("the field offers nothing")
+	}
+	for _, name := range f.Options {
+		view, err := command.Parse(name)
+		if err != nil || view == "" {
+			t.Errorf("%q is offered as a default view but does not name one (%v)", name, err)
+		}
+	}
+	for _, action := range []string{"quit", "theme", "context"} {
+		if slices.Contains(f.Options, action) {
+			t.Errorf("%q is an action, not a view, and must not be offered", action)
+		}
+	}
 }

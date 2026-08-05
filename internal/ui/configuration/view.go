@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -43,6 +44,26 @@ func (m Model) View() string {
 // is otherwise a silent mistake — the fields look identical in all of them.
 func (m Model) GetTitle() string {
 	return theme.IconConfig + " Configuration · " + m.context
+}
+
+// GetIcon is unused by the header, like every other view's.
+func (m Model) GetIcon() string { return "" }
+
+// GetHeaderInfo names the section and where its settings are written. The file
+// path is the point: this view is the one place a user needs to know which file
+// their keystrokes are landing in.
+func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
+	section := ""
+	if m.activeTab >= 0 && m.activeTab < len(m.sections) {
+		section = m.sections[m.activeTab].Title
+	}
+	info := []shortcut.HeaderInfo{
+		{Key: "Section", Value: section, Style: theme.HeaderValueStyle},
+	}
+	if path, err := config.GetContextPath(m.context); err == nil {
+		info = append(info, shortcut.HeaderInfo{Key: "File", Value: path, Style: theme.HeaderValueStyle})
+	}
+	return info
 }
 
 // renderField draws one setting (Rules 120, 132).
