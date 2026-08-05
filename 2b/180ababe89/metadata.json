@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "2b180ababe89",
+  "strategy": "manual-commit",
+  "branch": "feat/per-context-scan-caches",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/oci_resources/commands_test.go",
+    "internal/ui/oci_resources/scan_commands_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2b/180ababe89/0/metadata.json",
+      "transcript": "/2b/180ababe89/0/full.jsonl",
+      "compact_transcript": "/2b/180ababe89/0/transcript.jsonl",
+      "content_hash": "/2b/180ababe89/0/content_hash.txt",
+      "prompt": "/2b/180ababe89/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6162,
+    "cache_creation_tokens": 3632837,
+    "cache_read_tokens": 315589315,
+    "output_tokens": 708162,
+    "api_call_count": 980
+  }
+}
