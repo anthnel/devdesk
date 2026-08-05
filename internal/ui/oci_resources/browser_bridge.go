@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/registrymgr"
+	"github.com/anthnel/devdesk/internal/scan"
 )
 
 // openMultiRegistryBrowser opens the multi-registry browser (triggered by 'b' on Images tab).
@@ -92,7 +93,7 @@ func (m Model) handleRegistryTagDirectScan(msg RegistryTagDirectScanMsg) (tea.Mo
 		return m, clearInfoMsgCmd()
 	}
 	job := imageScanJob{Name: msg.ImageName, Target: msg.ImageName}
-	return m, batchScanCmd([]imageScanJob{job}, m.defaultScanOpts())
+	return m, batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config.Scan))
 }
 
 // unscannedCount returns the number of images not yet scanned
