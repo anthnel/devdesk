@@ -26,15 +26,20 @@ type WorkspaceScanEntry struct {
 	ScannedAt time.Time `json:"scanned_at"`
 }
 
-// WorkspaceScanCache manages workspace scan results cache
+// WorkspaceScanCache manages workspace scan results cache.
+//
+// Bound to one configuration context, like ImageScanCache: workspaces_dir is
+// per context, so two contexts legitimately hold different roots.
 type WorkspaceScanCache struct {
-	mu      sync.RWMutex
-	path    string
-	entries map[string]WorkspaceScanEntry // keyed by absolute repo path
+	mu       sync.RWMutex
+	path     string
+	context  string
+	contexts map[string]map[string]WorkspaceScanEntry // context → repo path → entry
 }
 
-// NewWorkspaceScanCache creates or loads the cache from ~/.devdesk/cache/workspace-scans.json
-func NewWorkspaceScanCache() (*WorkspaceScanCache, error) {
+// NewWorkspaceScanCache creates or loads the cache from
+// ~/.devdesk/cache/workspace-scans.json, scoped to a configuration context.
+func NewWorkspaceScanCache(context string) (*WorkspaceScanCache, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
@@ -45,40 +50,47 @@ func NewWorkspaceScanCache() (*WorkspaceScanCache, error) {
 		return nil, err
 	}
 
-	c := &WorkspaceScanCache{
-		path:    filepath.Join(cacheDir, "workspace-scans.json"),
-		entries: make(map[string]WorkspaceScanEntry),
-	}
+	return newWorkspaceScanCacheAt(filepath.Join(cacheDir, "workspace-scans.json"), context)
+}
 
+// newWorkspaceScanCacheAt is NewWorkspaceScanCache without the home-directory
+// lookup, so tests can point at a temp file.
+func newWorkspaceScanCacheAt(path, context string) (*WorkspaceScanCache, error) {
+	c := &WorkspaceScanCache{
+		path:     path,
+		context:  context,
+		contexts: make(map[string]map[string]WorkspaceScanEntry),
+	}
 	c.load()
 	return c, nil
 }
 
 // load reads the cache file from disk
 func (c *WorkspaceScanCache) load() {
-	data, err := os.ReadFile(c.path)
+	contexts, err := readScanCacheFile[WorkspaceScanEntry](c.path, c.context)
 	if err != nil {
+		log.Printf("ERROR [cache/workspace_scan] read cache file %s: %v", c.path, err)
 		return
 	}
-	if err := json.Unmarshal(data, &c.entries); err != nil {
-		log.Printf("ERROR [cache/workspace_scan] unmarshal cache file %s: %v", c.path, err)
-	}
+	c.contexts = contexts
+}
+
+// entries returns this context's map, creating it on first write.
+// Must be called with the lock held.
+func (c *WorkspaceScanCache) entries() map[string]WorkspaceScanEntry {
+	return entriesFor(c.contexts, c.context)
 }
 
 // save writes the cache to disk (must be called with lock held)
 func (c *WorkspaceScanCache) save() error {
-	data, err := json.MarshalIndent(c.entries, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(c.path, data, 0600)
+	return writeScanCacheFile(c.path, c.contexts)
 }
 
 // Get returns the cached scan entry for a repo path, or nil if not found
 func (c *WorkspaceScanCache) Get(repoPath string) *WorkspaceScanEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if entry, ok := c.entries[repoPath]; ok {
+	if entry, ok := c.contexts[c.context][repoPath]; ok {
 		return &entry
 	}
 	return nil
@@ -88,26 +100,27 @@ func (c *WorkspaceScanCache) Get(repoPath string) *WorkspaceScanEntry {
 func (c *WorkspaceScanCache) Set(repoPath string, entry WorkspaceScanEntry) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[repoPath] = entry
+	c.entries()[repoPath] = entry
 	return c.save()
 }
 
-// GetAll returns all cached entries
+// GetAll returns all cached entries for this context
 func (c *WorkspaceScanCache) GetAll() map[string]WorkspaceScanEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	result := make(map[string]WorkspaceScanEntry, len(c.entries))
-	for k, v := range c.entries {
+	own := c.contexts[c.context]
+	result := make(map[string]WorkspaceScanEntry, len(own))
+	for k, v := range own {
 		result[k] = v
 	}
 	return result
 }
 
-// Delete removes one entry from the cache and persists to disk
+// Delete removes one entry from this context and persists to disk
 func (c *WorkspaceScanCache) Delete(repoPath string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.entries, repoPath)
+	delete(c.contexts[c.context], repoPath)
 	return c.save()
 }
 

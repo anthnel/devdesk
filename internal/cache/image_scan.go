@@ -23,15 +23,21 @@ type ImageScanEntry struct {
 	ScannedAt time.Time `json:"scanned_at"`
 }
 
-// ImageScanCache manages the image scan results cache file
+// ImageScanCache manages the image scan results cache file.
+//
+// An instance is bound to one configuration context and only ever reads and
+// writes that context's entries, so Get, Set, GetAll and Delete keep working on
+// plain image keys. The file underneath holds every context.
 type ImageScanCache struct {
-	mu      sync.RWMutex
-	path    string
-	entries map[string]ImageScanEntry // keyed by "repo:tag"
+	mu       sync.RWMutex
+	path     string
+	context  string
+	contexts map[string]map[string]ImageScanEntry // context → "repo:tag" → entry
 }
 
-// NewImageScanCache creates or loads the cache from ~/.devdesk/cache/image-scans.json
-func NewImageScanCache() (*ImageScanCache, error) {
+// NewImageScanCache creates or loads the cache from
+// ~/.devdesk/cache/image-scans.json, scoped to a configuration context.
+func NewImageScanCache(context string) (*ImageScanCache, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
@@ -42,40 +48,47 @@ func NewImageScanCache() (*ImageScanCache, error) {
 		return nil, err
 	}
 
-	c := &ImageScanCache{
-		path:    filepath.Join(cacheDir, "image-scans.json"),
-		entries: make(map[string]ImageScanEntry),
-	}
+	return newImageScanCacheAt(filepath.Join(cacheDir, "image-scans.json"), context)
+}
 
+// newImageScanCacheAt is NewImageScanCache without the home-directory lookup,
+// so tests can point at a temp file.
+func newImageScanCacheAt(path, context string) (*ImageScanCache, error) {
+	c := &ImageScanCache{
+		path:     path,
+		context:  context,
+		contexts: make(map[string]map[string]ImageScanEntry),
+	}
 	c.load()
 	return c, nil
 }
 
 // load reads the cache file from disk
 func (c *ImageScanCache) load() {
-	data, err := os.ReadFile(c.path)
+	contexts, err := readScanCacheFile[ImageScanEntry](c.path, c.context)
 	if err != nil {
+		log.Printf("ERROR [cache/image_scan] read cache file %s: %v", c.path, err)
 		return
 	}
-	if err := json.Unmarshal(data, &c.entries); err != nil {
-		log.Printf("ERROR [cache/image_scan] unmarshal cache file %s: %v", c.path, err)
-	}
+	c.contexts = contexts
+}
+
+// entries returns this context's map, creating it on first write.
+// Must be called with the lock held.
+func (c *ImageScanCache) entries() map[string]ImageScanEntry {
+	return entriesFor(c.contexts, c.context)
 }
 
 // save writes the cache to disk
 func (c *ImageScanCache) save() error {
-	data, err := json.MarshalIndent(c.entries, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(c.path, data, 0600)
+	return writeScanCacheFile(c.path, c.contexts)
 }
 
 // Get returns the cached scan entry for an image, or nil if not found
 func (c *ImageScanCache) Get(imageKey string) *ImageScanEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if entry, ok := c.entries[imageKey]; ok {
+	if entry, ok := c.contexts[c.context][imageKey]; ok {
 		return &entry
 	}
 	return nil
@@ -85,26 +98,27 @@ func (c *ImageScanCache) Get(imageKey string) *ImageScanEntry {
 func (c *ImageScanCache) Set(imageKey string, entry ImageScanEntry) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[imageKey] = entry
+	c.entries()[imageKey] = entry
 	return c.save()
 }
 
-// GetAll returns all cached entries
+// GetAll returns all cached entries for this context
 func (c *ImageScanCache) GetAll() map[string]ImageScanEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	result := make(map[string]ImageScanEntry, len(c.entries))
-	for k, v := range c.entries {
+	own := c.contexts[c.context]
+	result := make(map[string]ImageScanEntry, len(own))
+	for k, v := range own {
 		result[k] = v
 	}
 	return result
 }
 
-// Delete removes one entry from the cache and persists to disk
+// Delete removes one entry from this context and persists to disk
 func (c *ImageScanCache) Delete(imageKey string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.entries, imageKey)
+	delete(c.contexts[c.context], imageKey)
 	return c.save()
 }
 

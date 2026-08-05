@@ -9,26 +9,20 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
+// testContext is the context these caches are opened under. Scoping is covered
+// in scan_context_test.go; every test here is about one context's behaviour.
+const testContext = "default"
+
 // newTestImageCache creates an ImageScanCache backed by a temp dir.
 func newTestImageCache(t *testing.T) *ImageScanCache {
 	t.Helper()
-	tmpDir := t.TempDir()
-	c := &ImageScanCache{
-		path:    filepath.Join(tmpDir, "image-scans.json"),
-		entries: make(map[string]ImageScanEntry),
-	}
-	return c
+	return openImageCache(t, filepath.Join(t.TempDir(), "image-scans.json"), testContext)
 }
 
 // newTestWorkspaceCache creates a WorkspaceScanCache backed by a temp dir.
 func newTestWorkspaceCache(t *testing.T) *WorkspaceScanCache {
 	t.Helper()
-	tmpDir := t.TempDir()
-	c := &WorkspaceScanCache{
-		path:    filepath.Join(tmpDir, "workspace-scans.json"),
-		entries: make(map[string]WorkspaceScanEntry),
-	}
-	return c
+	return openWorkspaceCache(t, filepath.Join(t.TempDir(), "workspace-scans.json"), testContext)
 }
 
 // ── ImageScanCache ──────────────────────────────────────────────────────────
@@ -135,11 +129,7 @@ func TestImageCache_Persist(t *testing.T) {
 	}
 
 	// Create a new cache pointing at the same file
-	c2 := &ImageScanCache{
-		path:    c.path,
-		entries: make(map[string]ImageScanEntry),
-	}
-	c2.load()
+	c2 := openImageCache(t, c.path, testContext)
 
 	got := c2.Get("persist:test")
 	if got == nil || got.High != 7 {
@@ -154,10 +144,7 @@ func TestImageCache_Reload(t *testing.T) {
 	}
 
 	// Simulate external modification: write directly to the file
-	c2 := &ImageScanCache{
-		path:    c.path,
-		entries: make(map[string]ImageScanEntry),
-	}
+	c2 := openImageCache(t, c.path, testContext)
 	if err := c2.Set("after:reload", ImageScanEntry{Medium: 11}); err != nil {
 		t.Fatalf("Set() setup error: %v", err)
 	}
@@ -332,11 +319,7 @@ func TestWorkspaceCache_Persist(t *testing.T) {
 		t.Fatalf("Set() setup error: %v", err)
 	}
 
-	c2 := &WorkspaceScanCache{
-		path:    c.path,
-		entries: make(map[string]WorkspaceScanEntry),
-	}
-	c2.load()
+	c2 := openWorkspaceCache(t, c.path, testContext)
 
 	got := c2.Get("/repo/persist")
 	if got == nil || got.Low != 3 {
@@ -350,10 +333,7 @@ func TestWorkspaceCache_Reload(t *testing.T) {
 		t.Fatalf("Set() setup error: %v", err)
 	}
 
-	c2 := &WorkspaceScanCache{
-		path:    c.path,
-		entries: make(map[string]WorkspaceScanEntry),
-	}
+	c2 := openWorkspaceCache(t, c.path, testContext)
 	if err := c2.Set("/repo/new", WorkspaceScanEntry{Critical: 2}); err != nil {
 		t.Fatalf("Set() setup error: %v", err)
 	}
