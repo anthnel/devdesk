@@ -4,11 +4,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -29,9 +29,8 @@ type Model struct {
 	width  int
 	height int
 
-	entries []Entry
-	table   table.Model
-	error   string
+	table datatable.Model[workspaceRow]
+	error string
 
 	// Navigation state (drill-down like explorer)
 	currentPath     string   // Empty = root (workspaces list), otherwise = current directory path
@@ -46,7 +45,10 @@ type Model struct {
 	mode         ViewMode
 	input        *WorkspaceInput
 	confirmModal *sharedcomponents.ConfirmModal
-	selectedIdx  int
+	// pendingEntry is what the open modal or rename form is about. It holds the
+	// entry rather than its row index: the index meant nothing once the list it
+	// indexed stopped being the list on screen (D24).
+	pendingEntry *Entry
 
 	// Spinner for scanning animation
 	spinner         spinner.Model
@@ -65,9 +67,6 @@ type Model struct {
 
 	// selectionMessage is displayed in the footer when in ModeSelecting
 	selectionMessage string
-
-	// filterBar provides text search for the table (Rule 136)
-	filterBar sharedcomponents.FilterBar
 }
 
 // Entry represents a file system entry with enriched metadata
@@ -94,29 +93,21 @@ type Entry struct {
 
 // New crée une nouvelle instance du modèle workspaces
 func New(cfg *config.Config) Model {
-	columns := defaultColumns()
-
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithFocused(true),
-		table.WithHeight(10),
-	)
-	t.SetStyles(theme.DefaultTableStyles())
-
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
 
 	return Model{
-		config:        cfg,
-		entries:       []Entry{},
-		table:         t,
+		config: cfg,
+		table: datatable.New(datatable.Config[workspaceRow]{
+			Columns:    workspaceColumns(),
+			SortColumn: -1, // the order the directory listing gave
+		}),
 		mode:          ModeNormal,
 		pendingCursor: -1,
 		spinner:       s,
 		scanCache:     make(map[string]cache.WorkspaceScanEntry),
 		scanningPaths: make(map[string]bool),
-		filterBar:     sharedcomponents.NewFilterBar(),
 	}
 }
 

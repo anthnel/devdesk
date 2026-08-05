@@ -146,6 +146,17 @@ func (m *Model[T]) Selected() (T, bool) {
 // Cursor returns the selected row index.
 func (m *Model[T]) Cursor() int { return m.table.Cursor() }
 
+// SetCursor puts the cursor on a row, clamped to what exists. Views that
+// remember a position across a reload — workspaces restores one per directory
+// level on the way back up — call this; nothing else should need it.
+func (m *Model[T]) SetCursor(i int) {
+	if len(m.visible) == 0 {
+		return
+	}
+	m.table.SetCursor(min(max(i, 0), len(m.visible)-1))
+	m.applyStyles()
+}
+
 // GotoTop moves the cursor to the first row. Views that want the cursor reset
 // on a change of scope — security resets it when the tab changes — call this
 // explicitly, because SetItems deliberately does not.
@@ -209,6 +220,7 @@ func (m *Model[T]) Resize(width, height int) {
 	if height > 0 {
 		m.SetHeight(height)
 	}
+	m.applyStyles() // the selected row is pinned to this width
 }
 
 // titleFor returns a column's header, with a sort arrow on the active one.
@@ -350,6 +362,10 @@ func (m *Model[T]) rebuild() {
 	// would otherwise leave the table showing rows none of which is selected.
 	switch cursor := m.table.Cursor(); {
 	case len(rows) == 0:
+		// -1 is bubbles' own "nothing selected", and what it reports for a
+		// table that never had rows. Leaving the old index would make an empty
+		// list the one state where the cursor points past the end.
+		m.table.SetCursor(-1)
 	case cursor >= len(rows):
 		m.table.SetCursor(len(rows) - 1)
 	case cursor < 0:
@@ -366,6 +382,14 @@ func (m *Model[T]) applyStyles() {
 	styles := theme.DefaultTableStyles()
 	if item, ok := m.Selected(); ok && m.cfg.SelectedStyles != nil {
 		styles = m.cfg.SelectedStyles(item)
+	}
+	// Pin the selected row to the full content width. Column widths are counted
+	// in cells, and a Nerd Font icon does not always render as wide as it
+	// counts, so the highlight otherwise stops short of the right border by
+	// however much the row's icons disagreed. Padding to a width the row can
+	// never exceed is a no-op when they agree.
+	if m.width > 2 {
+		styles.Selected = styles.Selected.Width(m.width - 2)
 	}
 	m.table.SetStyles(styles)
 }

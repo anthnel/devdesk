@@ -19,7 +19,7 @@ import (
 func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 	opts := m.getScanOptions()
 
-	if len(m.entries) == 0 {
+	if len(m.table.Items()) == 0 {
 		// Fallback: scan the current directory path
 		targetPath := m.currentPath
 		if targetPath == "" {
@@ -36,13 +36,8 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 		return m, tea.Batch(deleteScanCacheCmd([]string{targetPath}), batchScanCmd([]string{targetPath}, opts))
 	}
 
-	idx := m.table.Cursor()
-	if idx < 0 || idx >= len(m.entries) {
-		return m, nil
-	}
-
-	entry := m.entries[idx]
-	if !entry.IsDir {
+	entry, ok := m.selectedEntry()
+	if !ok || !entry.IsDir {
 		return m, nil
 	}
 
@@ -111,7 +106,7 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 // including sub-repos nested within non-git directories.
 func (m Model) collectAllRepoPaths() []string {
 	var paths []string
-	for _, entry := range m.entries {
+	for _, entry := range m.entries() {
 		if entry.IsGitRepo {
 			paths = append(paths, entry.Path)
 		} else if len(entry.SubRepoPaths) > 0 {
@@ -127,7 +122,7 @@ func (m Model) handleWorkspaceScanComplete(msg WorkspaceScanCompleteMsg) (tea.Mo
 	if msg.Error != nil {
 		log.Printf("ERROR [workspaces] scan complete %s: %v", msg.RepoPath, msg.Error)
 		m.footerError = "Scan failed — check logs"
-		m.updateTableData()
+		m.refreshRows()
 		return m, clearFooterInfoCmd()
 	}
 	m.footerError = ""
@@ -140,7 +135,7 @@ func (m Model) handleWorkspaceScanComplete(msg WorkspaceScanCompleteMsg) (tea.Mo
 		Sensitive: msg.Sensitive,
 		ScannedAt: msg.ScannedAt,
 	}
-	m.updateTableData()
+	m.refreshRows()
 	return m, nil
 }
 
@@ -169,14 +164,8 @@ func (m Model) resolveTargetPath() string {
 	if m.currentPath != "" {
 		targetPath = m.currentPath
 	}
-	if len(m.entries) > 0 {
-		idx := m.table.Cursor()
-		if idx >= 0 && idx < len(m.entries) {
-			entry := m.entries[idx]
-			if entry.IsDir {
-				targetPath = entry.Path
-			}
-		}
+	if entry, ok := m.selectedEntry(); ok && entry.IsDir {
+		targetPath = entry.Path
 	}
 	return targetPath
 }
@@ -244,7 +233,7 @@ func (m Model) handleTerminalOpened(msg TerminalOpenedMsg) (tea.Model, tea.Cmd) 
 
 // openIDE opens the selected entry in the configured IDE
 func (m Model) openIDE() (tea.Model, tea.Cmd) {
-	if len(m.entries) == 0 {
+	if len(m.table.Items()) == 0 {
 		path := m.currentPath
 		if path == "" {
 			path = m.getExpandedWorkspacesDir()
@@ -258,12 +247,10 @@ func (m Model) openIDE() (tea.Model, tea.Cmd) {
 		}
 	}
 
-	idx := m.table.Cursor()
-	if idx < 0 || idx >= len(m.entries) {
+	entry, ok := m.selectedEntry()
+	if !ok {
 		return m, nil
 	}
-
-	entry := m.entries[idx]
 	ideCmd := m.config.App.IDECommand
 
 	return m, func() tea.Msg {
@@ -275,14 +262,10 @@ func (m Model) openIDE() (tea.Model, tea.Cmd) {
 
 // openInBrowser opens the selected git repo's remote URL in the default web browser
 func (m Model) openInBrowser() (tea.Model, tea.Cmd) {
-	if len(m.entries) == 0 {
+	entry, ok := m.selectedEntry()
+	if !ok {
 		return m, nil
 	}
-	idx := m.table.Cursor()
-	if idx < 0 || idx >= len(m.entries) {
-		return m, nil
-	}
-	entry := m.entries[idx]
 	url := entry.GitRemoteURL
 	if url == "" {
 		return m, nil
@@ -337,14 +320,10 @@ func (m Model) deleteEntry(path string) tea.Cmd {
 
 // openScanDetails opens the security details view for the selected git repo if it has cached results
 func (m Model) openScanDetails() (tea.Model, tea.Cmd) {
-	if len(m.entries) == 0 {
+	entry, ok := m.selectedEntry()
+	if !ok {
 		return m, nil
 	}
-	idx := m.table.Cursor()
-	if idx < 0 || idx >= len(m.entries) {
-		return m, nil
-	}
-	entry := m.entries[idx]
 	if !entry.IsGitRepo {
 		return m, nil
 	}

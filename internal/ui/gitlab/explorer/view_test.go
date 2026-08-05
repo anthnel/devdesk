@@ -115,7 +115,8 @@ func TestViewShowsTheCreationFormFullWidth(t *testing.T) {
 func TestTableCellsCarryNoEscapeSequences(t *testing.T) {
 	withTrueColor(t)
 
-	for _, row := range drilledModel(t).table.Rows() {
+	m := drilledModel(t)
+	for _, row := range m.table.Table().Rows() {
 		for i, cell := range row {
 			if strings.Contains(cell, "\x1b") {
 				t.Errorf("cell %d of row %v carries an escape sequence", i, row)

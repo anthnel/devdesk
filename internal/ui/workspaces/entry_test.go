@@ -347,7 +347,7 @@ func TestLoadedEntriesReachTheTable(t *testing.T) {
 	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m = feed(t, m, m.loadEntries()())
 
-	if got := rowNames(m.table.Rows()); len(got) != 1 || got[0] != "alpha" {
+	if got := rowNames(m.table.Table().Rows()); len(got) != 1 || got[0] != "alpha" {
 		t.Errorf("the table holds %v, want the one directory", got)
 	}
 }

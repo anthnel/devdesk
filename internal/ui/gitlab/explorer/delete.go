@@ -11,13 +11,12 @@ import (
 )
 
 // handleDeleteStart handles ctrl+d key - start delete operation
-func (m Model) handleDeleteStart(flatNodes []*TreeNode) (tea.Model, tea.Cmd) {
-	cursor := m.table.Cursor()
-	if cursor >= len(flatNodes) {
+func (m Model) handleDeleteStart() (tea.Model, tea.Cmd) {
+	node, ok := m.table.Selected()
+	if !ok {
 		return m, nil
 	}
 
-	node := flatNodes[cursor]
 	m.deleteTargetNode = node
 	m.mode = ModeConfirmingDelete
 

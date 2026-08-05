@@ -18,12 +18,12 @@ func (m Model) Init() tea.Cmd {
 
 // InEditMode returns true if the view is in an edit mode (input, confirm, selection, or filter search)
 func (m Model) InEditMode() bool {
-	return m.mode != ModeNormal || m.filterBar.InEditMode()
+	return m.mode != ModeNormal || m.table.InEditMode()
 }
 
 // FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
 func (m Model) FilterBarVisible() bool {
-	return m.filterBar.IsVisible() && m.mode == ModeNormal && len(m.entries) > 0 && m.error == ""
+	return m.table.FilterBar().IsVisible() && m.mode == ModeNormal && len(m.table.Items()) > 0 && m.error == ""
 }
 
 // Update gère les messages
@@ -40,9 +40,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKeyMsg(msg)
 
 	case EntriesLoadedMsg:
-		m.entries = msg.Entries
+		m.setEntries(msg.Entries)
 		m.error = ""
-		m.updateTableData()
+		m.refreshRows()
 		if m.pendingCursor >= 0 {
 			m.table.SetCursor(m.pendingCursor)
 			m.pendingCursor = -1
@@ -102,21 +102,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			m.spinnerFrameIdx = (m.spinnerFrameIdx + 1) % len(spinner.Dot.Frames)
-			m.updateTableData()
+			m.refreshRows()
 			return m, cmd
 		}
 
 	case ScanCacheLoadedMsg:
 		if msg.Cache != nil {
 			m.scanCache = msg.Cache
-			m.updateTableData()
+			m.refreshRows()
 		}
 		return m, nil
 
 	case WorkspaceScanStartingMsg:
 		m.scanningPaths[msg.RepoPath] = true
 		m.footerInfo = ""
-		m.updateTableData()
+		m.refreshRows()
 		return m, nil
 
 	case WorkspaceScanCompleteMsg:
@@ -129,7 +129,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Update table only in normal mode
 	if m.mode == ModeNormal {
-		m.table, cmd = m.table.Update(msg)
+		cmd = m.table.Update(msg)
 	}
 
 	return m, cmd
@@ -138,11 +138,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKeyMsg handles keyboard input
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - delegate to filter bar
-	if m.filterBar.InEditMode() {
-		var cmd tea.Cmd
-		m.filterBar, cmd = m.filterBar.Update(msg)
-		m.updateTableData()
-		return m, cmd
+	if m.table.InEditMode() {
+		return m, m.table.Update(msg)
 	}
 
 	// Mode input - delegate to input component
@@ -174,7 +171,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Normal mode
 	switch msg.String() {
 	case "/":
-		return m, m.filterBar.ActivateSearch()
+		return m, m.table.Update(msg)
 	case "enter":
 		return m.openScanDetails()
 	case "ctrl+r":
@@ -205,16 +202,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.navigateIn()
 	case "esc":
 		return m.navigateUp()
-	case "up", "down", "k", "j":
-		var cmd tea.Cmd
-		m.table, cmd = m.table.Update(msg)
-		return m, cmd
-	case "g", "home":
-		m.table.GotoTop()
-		return m, nil
-	case "G", "end":
-		m.table.GotoBottom()
-		return m, nil
+	case "up", "down", "k", "j", "pgup", "pgdown", "g", "home", "G", "end":
+		return m, m.table.Update(msg)
 	}
 
 	return m, nil
@@ -232,17 +221,8 @@ func (m Model) tabCount() int {
 
 // navigateIn enters the selected directory
 func (m Model) navigateIn() (tea.Model, tea.Cmd) {
-	if len(m.entries) == 0 {
-		return m, nil
-	}
-
-	idx := m.table.Cursor()
-	if idx < 0 || idx >= len(m.entries) {
-		return m, nil
-	}
-
-	entry := m.entries[idx]
-	if !entry.IsDir {
+	entry, ok := m.selectedEntry()
+	if !ok || !entry.IsDir {
 		return m, nil
 	}
 
@@ -305,16 +285,8 @@ func (m Model) handleSelectionKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.navigateUp()
 	case "right", "l":
 		return m.navigateIn()
-	case "up", "down", "k", "j":
-		var cmd tea.Cmd
-		m.table, cmd = m.table.Update(msg)
-		return m, cmd
-	case "g", "home":
-		m.table.GotoTop()
-		return m, nil
-	case "G", "end":
-		m.table.GotoBottom()
-		return m, nil
+	case "up", "down", "k", "j", "pgup", "pgdown", "g", "home", "G", "end":
+		return m, m.table.Update(msg)
 	}
 	return m, nil
 }
@@ -338,18 +310,13 @@ func (m Model) startAdd() (tea.Model, tea.Cmd) {
 
 // startDelete switches to confirm mode for deleting an entry
 func (m Model) startDelete() (tea.Model, tea.Cmd) {
-	if len(m.entries) == 0 {
+	entry, ok := m.selectedEntry()
+	if !ok {
 		return m, nil
 	}
 
-	idx := m.table.Cursor()
-	if idx < 0 || idx >= len(m.entries) {
-		return m, nil
-	}
-
-	m.selectedIdx = idx
+	m.pendingEntry = &entry
 	m.mode = ModeConfirmingDelete
-	entry := m.entries[idx]
 
 	var title string
 	if entry.IsDir {
@@ -367,16 +334,13 @@ func (m Model) startDelete() (tea.Model, tea.Cmd) {
 
 // startRename switches to rename mode for the selected entry
 func (m Model) startRename() (tea.Model, tea.Cmd) {
-	if len(m.entries) == 0 {
+	entry, ok := m.selectedEntry()
+	if !ok {
 		return m, nil
 	}
-	idx := m.table.Cursor()
-	if idx < 0 || idx >= len(m.entries) {
-		return m, nil
-	}
-	m.selectedIdx = idx
+	m.pendingEntry = &entry
 	m.mode = ModeRenaming
-	m.input = NewRenameInput(m.entries[idx].Name)
+	m.input = NewRenameInput(entry.Name)
 	return m, nil
 }
 
@@ -384,11 +348,10 @@ func (m Model) startRename() (tea.Model, tea.Cmd) {
 func (m Model) handleRenameSubmit(msg RenameInputSubmitMsg) (tea.Model, tea.Cmd) {
 	m.mode = ModeNormal
 	m.input = nil
-	if m.selectedIdx < 0 || m.selectedIdx >= len(m.entries) {
+	if m.pendingEntry == nil {
 		return m, nil
 	}
-	entry := m.entries[m.selectedIdx]
-	return m, m.renameEntry(entry.Path, msg.Name)
+	return m, m.renameEntry(m.pendingEntry.Path, msg.Name)
 }
 
 // renameEntry renames a filesystem entry
@@ -423,12 +386,10 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 	m.mode = ModeNormal
 	m.confirmModal = nil
 
-	if m.selectedIdx < 0 || m.selectedIdx >= len(m.entries) {
+	if m.pendingEntry == nil {
 		return m, nil
 	}
-
-	entry := m.entries[m.selectedIdx]
-	return m, m.deleteEntry(entry.Path)
+	return m, m.deleteEntry(m.pendingEntry.Path)
 }
 
 // handleWorkspaceCreated handles the result of workspace creation

@@ -75,7 +75,7 @@ func TestViewRendersOverlays(t *testing.T) {
 
 func TestGitStatusCounters(t *testing.T) {
 	m := loadedModel(t)
-	rows := m.table.Rows()
+	rows := m.table.Table().Rows()
 
 	// devdesk: 2 modified, 1 untracked, 3 unpushed.
 	dirty := rows[0][2]
@@ -96,7 +96,7 @@ func TestNonRepoEntriesHaveNoGitStatus(t *testing.T) {
 
 	// clients (a plain directory) and notes.md (a file).
 	for _, idx := range []int{2, 4} {
-		if got := strings.TrimSpace(m.table.Rows()[idx][2]); got != "" {
+		if got := strings.TrimSpace(m.table.Table().Rows()[idx][2]); got != "" {
 			t.Errorf("row %d rendered a git status %q for a non-repo", idx, got)
 		}
 	}
@@ -105,17 +105,17 @@ func TestNonRepoEntriesHaveNoGitStatus(t *testing.T) {
 func TestProjectTypeIsShown(t *testing.T) {
 	m := loadedModel(t)
 
-	if got := strings.TrimSpace(m.table.Rows()[0][3]); got == "" {
+	if got := strings.TrimSpace(m.table.Table().Rows()[0][3]); got == "" {
 		t.Error("the project type cell is empty for a Go repo")
 	}
-	if got := strings.TrimSpace(m.table.Rows()[4][3]); got != "" {
+	if got := strings.TrimSpace(m.table.Table().Rows()[4][3]); got != "" {
 		t.Errorf("a file rendered a project type %q", got)
 	}
 }
 
 func TestScanColumnsShowCachedSeverities(t *testing.T) {
 	m := scannedModel(t)
-	row := m.table.Rows()[0]
+	row := m.table.Table().Rows()[0]
 
 	// Critical, High, Medium, Low.
 	for i, want := range map[int]string{5: "1", 6: "2", 7: "3", 8: "4"} {
@@ -130,7 +130,7 @@ func TestScanColumnsShowCachedSeverities(t *testing.T) {
 
 func TestScanColumnsAreBlankBeforeAnyScan(t *testing.T) {
 	m := loadedModel(t)
-	row := m.table.Rows()[1] // clean-repo, never scanned
+	row := m.table.Table().Rows()[1] // clean-repo, never scanned
 
 	for i := 5; i <= 8; i++ {
 		if got := strings.TrimSpace(row[i]); strings.ContainsAny(got, "0123456789") {
@@ -143,11 +143,11 @@ func TestScanColumnsAreBlankBeforeAnyScan(t *testing.T) {
 // working rather than stalled.
 func TestScanningRepoShowsProgress(t *testing.T) {
 	m := loadedModel(t)
-	before := m.table.Rows()[0][9]
+	before := m.table.Table().Rows()[0][9]
 
 	m = feed(t, m, WorkspaceScanStartingMsg{RepoPath: "/tmp/workspaces/devdesk"})
 
-	if got := m.table.Rows()[0][9]; got == before {
+	if got := m.table.Table().Rows()[0][9]; got == before {
 		t.Errorf("the Scanned cell is unchanged (%q) while a scan is running", got)
 	}
 }
@@ -156,7 +156,7 @@ func TestScanningRepoShowsProgress(t *testing.T) {
 func TestTableCellsCarryNoANSISequences(t *testing.T) {
 	m := scannedModel(t)
 
-	for _, row := range m.table.Rows() {
+	for _, row := range m.table.Table().Rows() {
 		for i, cell := range row {
 			if strings.Contains(cell, "\x1b") {
 				t.Errorf("cell %d = %q contains an escape sequence", i, cell)
@@ -170,7 +170,7 @@ func TestModTimeIsRelative(t *testing.T) {
 		{Name: "recent", Path: "/tmp/workspaces/recent", IsDir: true, ModTime: time.Now().Add(-2 * time.Hour)},
 	}})
 
-	if got := m.table.Rows()[0][10]; !strings.Contains(got, "hr") {
+	if got := m.table.Table().Rows()[0][10]; !strings.Contains(got, "hr") {
 		t.Errorf("the modified cell = %q, want a relative label (Rule 127)", got)
 	}
 }
@@ -251,8 +251,7 @@ func TestFilterBarVisibilityFollowsTheState(t *testing.T) {
 	}
 
 	// An overlay covers the table, so its filter bar has nothing to filter.
-	overlay := feed(t, m, testutil.Key("ctrl+n"))
-	overlay.filterBar = searching.filterBar
+	overlay := feed(t, searching, testutil.Key("esc"), testutil.Key("ctrl+n"))
 	if overlay.FilterBarVisible() {
 		t.Error("the filter bar stayed visible under the create overlay")
 	}

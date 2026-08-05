@@ -11,20 +11,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Column width ratios for the table
-const (
-	colTypeRatio       = 0.08
-	colNameRatio       = 0.22
-	colSlugRatio       = 0.18
-	colVisibilityRatio = 0.12
-	colRoleRatio       = 0.10
-	colCreatedRatio    = 0.12
-	colActivityRatio   = 0.12
-)
-
-// numColumns is the number of columns in the explorer table
-const numColumns = 8
-
 // View rend la vue
 func (m Model) View() string {
 	// Priority 1: Forms (full viewport replacement - Rule 112)
@@ -158,7 +144,8 @@ func (m Model) GetFooterHeight() int {
 			if m.creationForm != nil {
 				break // fall through to empty line + info line
 			}
-			return 3 + m.filterBar.ExtraHeight() // filter bar (when visible) + breadcrumb tab bar + empty line + info line
+			// filter bar (when visible) + breadcrumb tab bar + empty line + info line
+			return 3 + m.table.FilterBar().ExtraHeight()
 		}
 	}
 	return 2 // empty line + info line
@@ -180,8 +167,8 @@ func (m Model) RenderFooter(width int) string {
 				break // fall through to empty line + info line
 			}
 			var parts []string
-			if m.filterBar.IsVisible() {
-				parts = append(parts, m.filterBar.View())
+			if bar := m.table.FilterBar(); bar.IsVisible() {
+				parts = append(parts, bar.View())
 			}
 			parts = append(parts, m.renderTabBar(), theme.EmptyLineBg(width), infoLine)
 			return strings.Join(parts, "\n")
@@ -323,9 +310,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	}
 
 	// ctrl+w: only show when a node is selected (all nodes have a WebURL from GitLab API)
-	items := m.visibleItems()
-	cursor := m.table.Cursor()
-	if cursor >= 0 && cursor < len(items) && items[cursor].WebURL != "" {
+	if node, ok := m.table.Selected(); ok && node.WebURL != "" {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+w", Description: "Browser"})
 	}
 

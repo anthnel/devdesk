@@ -26,8 +26,8 @@ func TestNewStartsEmptyAndSorted(t *testing.T) {
 	if m.mode != ModeNormal {
 		t.Errorf("mode = %v on a new model, want ModeNormal", m.mode)
 	}
-	if m.sortColumn != sortByType || !m.sortAsc {
-		t.Errorf("sort = (%v, asc=%v), want (sortByType, asc=true)", m.sortColumn, m.sortAsc)
+	if column, desc := m.table.SortState(); column != columnType || desc {
+		t.Errorf("sort = (column %d, desc=%v), want Type ascending", column, desc)
 	}
 	if m.firstLoadDone {
 		t.Error("firstLoadDone is true before any load")
@@ -54,7 +54,7 @@ func TestRootGroupsLoadedFillsTheTable(t *testing.T) {
 	if !m.firstLoadDone {
 		t.Error("firstLoadDone is false after a successful load")
 	}
-	if got := rowNames(m.table.Rows()); len(got) != 3 {
+	if got := rowNames(m.table.Table().Rows()); len(got) != 3 {
 		t.Errorf("table holds %v, want the three root groups", got)
 	}
 }
@@ -174,7 +174,7 @@ func TestChildrenLoadedShowsThemAndMarksTheParentExpanded(t *testing.T) {
 	if !alpha.Expanded || alpha.Loading {
 		t.Errorf("alpha expanded=%v loading=%v after its children arrived", alpha.Expanded, alpha.Loading)
 	}
-	if got := rowNames(m.table.Rows()); len(got) != 3 {
+	if got := rowNames(m.table.Table().Rows()); len(got) != 3 {
 		t.Errorf("table holds %v, want alpha's three children", got)
 	}
 }
@@ -210,24 +210,26 @@ func TestSortCyclesDirectionThenColumn(t *testing.T) {
 	m := loadedModel(t)
 
 	m = feed(t, m, testutil.Key("."))
-	if m.sortColumn != sortByType || m.sortAsc {
-		t.Errorf("after one '.', sort = (%v, asc=%v), want the same column descending", m.sortColumn, m.sortAsc)
+	if column, desc := m.table.SortState(); column != columnType || !desc {
+		t.Errorf("after one '.', sort = (column %d, desc=%v), want the same column descending", column, desc)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if m.sortColumn != sortByName || !m.sortAsc {
-		t.Errorf("after two '.', sort = (%v, asc=%v), want the next column ascending", m.sortColumn, m.sortAsc)
+	if column, desc := m.table.SortState(); column != columnType+1 || desc {
+		t.Errorf("after two '.', sort = (column %d, desc=%v), want Name ascending", column, desc)
 	}
 }
 
 func TestSortCycleWrapsBackToTheFirstColumn(t *testing.T) {
 	m := loadedModel(t)
-	for range len(sortableColumns) * 2 {
+	// Type, Name, Visibility, Created and Activity sort; Slug, Role and CI do not.
+	const sortable = 5
+	for range sortable * 2 {
 		m = feed(t, m, testutil.Key("."))
 	}
 
-	if m.sortColumn != sortByType || !m.sortAsc {
-		t.Errorf("sort = (%v, asc=%v) after a full cycle, want the starting state", m.sortColumn, m.sortAsc)
+	if column, desc := m.table.SortState(); column != columnType || desc {
+		t.Errorf("sort = (column %d, desc=%v) after a full cycle, want the starting state", column, desc)
 	}
 }
 
@@ -235,12 +237,12 @@ func TestSortReordersTheRows(t *testing.T) {
 	m := drilledModel(t)
 
 	byName := feed(t, m, testutil.Keys(".", ".")...) // type desc, then name asc
-	if got := rowNames(byName.table.Rows()); !equal(got, []string{"api", "legacy", "sub"}) {
+	if got := rowNames(byName.table.Table().Rows()); !equal(got, []string{"api", "legacy", "sub"}) {
 		t.Errorf("sorted by name ascending = %v", got)
 	}
 
 	byNameDesc := feed(t, byName, testutil.Key("."))
-	if got := rowNames(byNameDesc.table.Rows()); !equal(got, []string{"sub", "legacy", "api"}) {
+	if got := rowNames(byNameDesc.table.Table().Rows()); !equal(got, []string{"sub", "legacy", "api"}) {
 		t.Errorf("sorted by name descending = %v", got)
 	}
 }
@@ -249,20 +251,20 @@ func TestSortReordersTheRows(t *testing.T) {
 func TestSortIndicatorFollowsTheActiveColumn(t *testing.T) {
 	m := loadedModel(t)
 
-	if got := m.table.Columns()[0].Title; !strings.Contains(got, "▲") {
+	if got := m.table.Table().Columns()[0].Title; !strings.Contains(got, "▲") {
 		t.Errorf("Type header = %q, want an ascending arrow", got)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := m.table.Columns()[0].Title; !strings.Contains(got, "▼") {
+	if got := m.table.Table().Columns()[0].Title; !strings.Contains(got, "▼") {
 		t.Errorf("Type header = %q after reversing, want a descending arrow", got)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := m.table.Columns()[0].Title; strings.ContainsAny(got, "▲▼") {
+	if got := m.table.Table().Columns()[0].Title; strings.ContainsAny(got, "▲▼") {
 		t.Errorf("Type header = %q once the sort moved to Name, want no arrow", got)
 	}
-	if got := m.table.Columns()[1].Title; !strings.Contains(got, "▲") {
+	if got := m.table.Table().Columns()[1].Title; !strings.Contains(got, "▲") {
 		t.Errorf("Name header = %q, want the arrow to have moved here", got)
 	}
 }
@@ -274,7 +276,7 @@ func TestSortHandlesMissingDates(t *testing.T) {
 
 	m = feed(t, m, testutil.Keys(".", ".", ".", ".", ".", ".")...) // to Created ascending
 
-	if got := rowNames(m.table.Rows()); got[0] != "beta" {
+	if got := rowNames(m.table.Table().Rows()); got[0] != "beta" {
 		t.Errorf("rows sorted by creation date = %v, want the undated node first", got)
 	}
 }
@@ -287,7 +289,7 @@ func TestFilterNarrowsTheRows(t *testing.T) {
 	m = feed(t, m, testutil.Key("/"))
 	m = feed(t, m, testutil.Type("api")...)
 
-	if got := rowNames(m.table.Rows()); !equal(got, []string{"api"}) {
+	if got := rowNames(m.table.Table().Rows()); !equal(got, []string{"api"}) {
 		t.Errorf("rows while filtering on \"api\" = %v", got)
 	}
 }
@@ -300,7 +302,7 @@ func TestFilterMatchesTheFullPath(t *testing.T) {
 	m = feed(t, m, testutil.Key("/"))
 	m = feed(t, m, testutil.Type("alpha/leg")...)
 
-	if got := rowNames(m.table.Rows()); !equal(got, []string{"legacy"}) {
+	if got := rowNames(m.table.Table().Rows()); !equal(got, []string{"legacy"}) {
 		t.Errorf("rows while filtering on a path fragment = %v", got)
 	}
 }
@@ -309,7 +311,7 @@ func TestFilterIsCaseInsensitive(t *testing.T) {
 	m := feed(t, drilledModel(t), testutil.Key("/"))
 	m = feed(t, m, testutil.Type("API")...)
 
-	if got := rowNames(m.table.Rows()); !equal(got, []string{"api"}) {
+	if got := rowNames(m.table.Table().Rows()); !equal(got, []string{"api"}) {
 		t.Errorf("rows while filtering on \"API\" = %v", got)
 	}
 }
@@ -325,7 +327,7 @@ func TestActionsResolveTheRowTheUserCanSee(t *testing.T) {
 		m := feed(t, drilledModel(t), testutil.Key("/"))
 		m = feed(t, m, testutil.Type("legacy")...)
 		m = feed(t, m, testutil.Key("enter"))
-		if got := rowNames(m.table.Rows()); !equal(got, []string{"legacy"}) {
+		if got := rowNames(m.table.Table().Rows()); !equal(got, []string{"legacy"}) {
 			t.Fatalf("the filter left %v, want just legacy", got)
 		}
 		return m
@@ -376,7 +378,7 @@ func TestFilteringClampsTheCursor(t *testing.T) {
 	m = feed(t, m, testutil.Key("/"))
 	m = feed(t, m, testutil.Type("api")...)
 
-	if got, rows := m.table.Cursor(), len(m.table.Rows()); got >= rows {
+	if got, rows := m.table.Cursor(), len(m.table.Table().Rows()); got >= rows {
 		t.Fatalf("cursor = %d with %d rows left; nothing is highlighted", got, rows)
 	}
 
@@ -397,8 +399,8 @@ func TestDrillingIntoASmallerGroupClampsTheCursor(t *testing.T) {
 		Children:   []*TreeNode{{ID: 90, Name: "only", FullPath: "gamma/only", Type: NodeTypeProject}},
 	})
 
-	if got := m.table.Cursor(); got >= len(m.table.Rows()) {
-		t.Errorf("cursor = %d with %d rows", got, len(m.table.Rows()))
+	if got := m.table.Cursor(); got >= len(m.table.Table().Rows()) {
+		t.Errorf("cursor = %d with %d rows", got, len(m.table.Table().Rows()))
 	}
 }
 
@@ -412,8 +414,8 @@ func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 	if m.pullTargetNode != nil {
 		t.Error("'p' started a pull while the search box had focus")
 	}
-	if !strings.Contains(m.filterBar.SearchQuery(), "p") {
-		t.Errorf("'p' did not reach the search box; query = %q", m.filterBar.SearchQuery())
+	if !strings.Contains(m.table.FilterBar().SearchQuery(), "p") {
+		t.Errorf("'p' did not reach the search box; query = %q", m.table.FilterBar().SearchQuery())
 	}
 }
 
@@ -584,6 +586,25 @@ func TestPendingSelectionLandsOnAVisibleNode(t *testing.T) {
 	}
 }
 
+// The cursor indexes the rows, not the level's raw child list. Under a
+// non-default sort those are two different orderings — and both in range, so
+// nothing clamps the mistake away: the lookup walked the raw list and landed on
+// whichever resource happened to share the index.
+func TestPendingSelectionUsesTheRowOrderNotTheRawList(t *testing.T) {
+	m := feed(t, drilledModel(t), testutil.Keys(".", ".")...) // sort by name ascending
+
+	if got := rowNames(m.table.Table().Rows()); !equal(got, []string{"api", "legacy", "sub"}) {
+		t.Fatalf("rows = %v, want them sorted by name", got)
+	}
+
+	next, _ := m.expandToPath("alpha/legacy") // raw index 2, row 1
+	m = next.(Model)
+
+	if got := rowNames(m.table.Table().Rows())[m.table.Cursor()]; got != "legacy" {
+		t.Errorf("cursor is on %q, want legacy", got)
+	}
+}
+
 // A resource created inside a group needs the tree drilled into first.
 func TestPendingSelectionDrillsTowardsTheTarget(t *testing.T) {
 	m := newTestModel(t)
@@ -603,7 +624,7 @@ func TestPendingSelectionDrillsTowardsTheTarget(t *testing.T) {
 	if m.pendingSelectPath != "" {
 		t.Errorf("pendingSelectPath = %q once the children arrived", m.pendingSelectPath)
 	}
-	if got := rowNames(m.table.Rows())[m.table.Cursor()]; got != "api" {
+	if got := rowNames(m.table.Table().Rows())[m.table.Cursor()]; got != "api" {
 		t.Errorf("cursor is on %q, want the created project", got)
 	}
 }
@@ -628,13 +649,20 @@ func TestPendingSelectionGivesUpOnAMissingPath(t *testing.T) {
 
 // Rule 116: the selected row must reach the right border, so the columns share
 // the width left after the viewport borders and the per-cell padding.
+//
+// The ratios this replaced kept the sum exact and starved the columns anyway:
+// at 80 they gave Type 5 and CI the remainder, neither wide enough for its own
+// header. The floors are what the sweep from 60 now pins.
 func TestResizeFitsTheColumnsToTheWidth(t *testing.T) {
-	for _, width := range []int{80, 120, 200} {
+	for _, width := range []int{60, 80, 120, 200} {
 		m := feed(t, loadedModel(t), tea.WindowSizeMsg{Width: width, Height: 30})
 
 		total := 0
-		for _, col := range m.table.Columns() {
+		for _, col := range m.table.Table().Columns() {
 			total += col.Width
+			if col.Width < 0 {
+				t.Errorf("at width %d, column %q is %d wide", width, col.Title, col.Width)
+			}
 		}
 		if want := width - 2 - numColumns*2; total != want {
 			t.Errorf("at width %d the columns total %d, want %d", width, total, want)
@@ -645,8 +673,8 @@ func TestResizeFitsTheColumnsToTheWidth(t *testing.T) {
 func TestResizeSurvivesATinyTerminal(t *testing.T) {
 	m := feed(t, loadedModel(t), tea.WindowSizeMsg{Width: 20, Height: 1})
 
-	if m.table.Height() < 0 {
-		t.Errorf("table height = %d", m.table.Height())
+	if m.table.Table().Height() < 0 {
+		t.Errorf("table height = %d", m.table.Table().Height())
 	}
 }
 
@@ -723,7 +751,7 @@ func TestDeleteCompleteRemovesTheRowInPlace(t *testing.T) {
 
 	m = feed(t, m, DeleteCompleteMsg{DeletedNode: target})
 
-	if got := rowNames(m.table.Rows()); !equal(got, []string{"sub", "legacy"}) {
+	if got := rowNames(m.table.Table().Rows()); !equal(got, []string{"sub", "legacy"}) {
 		t.Errorf("rows after the delete = %v, want the deleted project gone", got)
 	}
 	if m.currentGroupNode == nil {
@@ -736,7 +764,7 @@ func TestDeleteCompleteRemovesARootGroup(t *testing.T) {
 
 	m = feed(t, m, DeleteCompleteMsg{DeletedNode: m.nodes[1]})
 
-	if got := rowNames(m.table.Rows()); !equal(got, []string{"alpha", "gamma"}) {
+	if got := rowNames(m.table.Table().Rows()); !equal(got, []string{"alpha", "gamma"}) {
 		t.Errorf("rows after deleting a root group = %v", got)
 	}
 }
@@ -860,8 +888,8 @@ func TestRefreshResetsTheNavigation(t *testing.T) {
 	if m.currentGroupNode != nil || len(m.navigationStack) != 0 || len(m.cursorStack) != 0 {
 		t.Errorf("refresh left group=%v stack=%v cursors=%v", m.currentGroupNode, m.navigationStack, m.cursorStack)
 	}
-	if !m.loading || len(m.table.Rows()) != 0 {
-		t.Errorf("refresh left loading=%v rows=%d", m.loading, len(m.table.Rows()))
+	if !m.loading || len(m.table.Table().Rows()) != 0 {
+		t.Errorf("refresh left loading=%v rows=%d", m.loading, len(m.table.Table().Rows()))
 	}
 }
 

@@ -112,11 +112,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleKeyMsg handles keyboard input
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Filter bar search mode - prioritaire
-	if m.filterBar.InEditMode() {
-		var cmd tea.Cmd
-		m.filterBar, cmd = m.filterBar.Update(msg)
-		m.updateTableRows()
-		return m, cmd
+	if m.table.InEditMode() {
+		return m, m.table.Update(msg)
 	}
 
 	// Handle mode-specific input
@@ -144,48 +141,38 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Normal mode — resolve actions against exactly what the table displays
-	items := m.visibleItems()
-
+	// Normal mode. Actions resolve the cursor through the table, which resolves
+	// it against the very slice its rows were built from.
 	switch msg.String() {
-	case "/":
-		return m, m.filterBar.ActivateSearch()
 	case "left", "h":
 		return m.handleDrillUp()
 	case "right", "l":
-		return m.handleDrillDown(items)
+		return m.handleDrillDown()
 	case "esc":
 		return m.handleDrillUp()
 	case "ctrl+r":
 		return m.handleRefresh()
 	case "p":
-		return m.handlePullStart(items)
+		return m.handlePullStart()
 	case "ctrl+n":
-		return m.handleCreateResource(items)
+		return m.handleCreateResource()
 	case "ctrl+d":
-		return m.handleDeleteStart(items)
+		return m.handleDeleteStart()
 	case "ctrl+w":
-		return m.handleOpenInBrowser(items)
-	case ".":
-		return m.cycleSort()
+		return m.handleOpenInBrowser()
 	}
 
-	// Delegate navigation keys (up/down/j/k/pgup/pgdown/home/end) to table
-	var cmd tea.Cmd
-	m.table, cmd = m.table.Update(msg)
-	return m, cmd
+	// Navigation, `/` and `.` are the table's, not the view's.
+	return m, m.table.Update(msg)
 }
 
 // handleOpenInBrowser opens the selected node's web URL in the default browser
-func (m Model) handleOpenInBrowser(items []*TreeNode) (tea.Model, tea.Cmd) {
-	cursor := m.table.Cursor()
-	if cursor >= len(items) {
+func (m Model) handleOpenInBrowser() (tea.Model, tea.Cmd) {
+	node, ok := m.table.Selected()
+	if !ok || node.WebURL == "" {
 		return m, nil
 	}
-	url := items[cursor].WebURL
-	if url == "" {
-		return m, nil
-	}
+	url := node.WebURL
 	return m, func() tea.Msg {
 		var cmd *exec.Cmd
 		switch runtime.GOOS {
