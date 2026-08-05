@@ -204,6 +204,24 @@ cannot disagree about which setting they mean.
 `TestEveryFieldCarriesTheAccessorItsKindNeeds` and
 `TestNoTwoFieldsAddressTheSameSetting` are what keep the table honest.
 
+Fields inside a tab are grouped under a heading with a Nerd Font icon
+(`SubTitleStyle`, the same treatment the security form used): `scan` separates
+**Scanners**, **Trivy**, **Gitleaks** and **Limits**. `group()` stamps the
+heading onto a contiguous run rather than each field carrying its own, so a run
+cannot be split by a typo and render its heading twice —
+`TestEachTabRendersItsGroupHeadingsOnceInOrder` pins that.
+
+`GetTitle()` carries the context (`󰙨 Configuration · default`): a configuration
+belongs to one, and editing `workspaces_dir` in the wrong context is otherwise
+silent, because the fields look identical in all of them.
+
+Chevrons and values are aligned on one column per tab, padded on the **head**
+(label plus a cycle field's select icon) rather than on the label — padding the
+label leaves a cycle field's chevron two cells right of every other. Checkboxes
+are excluded from the measurement: they have no value, so a long checkbox label
+would push every value right for nothing. `theme.RenderCheckbox` already emits
+the focus indicator, so the view must not add a second.
+
 | Kind | Control | Persists |
 |---|---|---|
 | closed set | cycle `←→` (Rule 132) | immediately |

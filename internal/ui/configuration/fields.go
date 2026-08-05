@@ -2,11 +2,13 @@ package configuration
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // fieldKind decides the control (Rule 132 for the closed sets, Rule 135 for the
@@ -31,6 +33,12 @@ type field struct {
 	Kind    fieldKind
 	Options []string // kindCycle only
 
+	// Group and GroupIcon head a run of related settings inside a tab. They are
+	// stamped on by group(), not written per field, so a run cannot be split by
+	// a typo and render its header twice.
+	Group     string
+	GroupIcon string
+
 	str  func(*config.Config) *string // text, cycle
 	num  func(*config.Config) *int    // integer
 	flag func(*config.Config) *bool   // toggle
@@ -44,6 +52,17 @@ type field struct {
 type section struct {
 	Title  string
 	Fields []field
+}
+
+// group tags a run of fields with the heading they sit under. Fields stay one
+// flat list per tab so the focus index needs no nesting; the renderer emits a
+// heading wherever the group changes.
+func group(title, icon string, fields ...field) []field {
+	for i := range fields {
+		fields[i].Group = title
+		fields[i].GroupIcon = icon
+	}
+	return fields
 }
 
 // ── constructors ────────────────────────────────────────────────────────────
@@ -153,81 +172,101 @@ func (f field) Apply(c *config.Config, raw string) error {
 // declared — themes from a directory, views from the command parser.
 func sections(themes, views []string) []section {
 	return []section{
-		{Title: "app", Fields: []field{
-			cycle("Theme", func(c *config.Config) *string { return &c.App.Theme }, themes,
-				"Applied immediately"),
-			cycle("Default view", func(c *config.Config) *string { return &c.App.DefaultView }, views,
-				"The view DevDesk opens on"),
-			cycle("Secret backend", func(c *config.Config) *string { return &c.App.SecretBackend },
-				[]string{"auto", "keyring", "git-credential"},
-				"Where tokens and registry passwords are stored"),
-			text("Workspaces dir", func(c *config.Config) *string { return &c.App.WorkspacesDir },
-				"Root the workspaces view browses"),
-			text("IDE command", func(c *config.Config) *string { return &c.App.IDECommand },
-				"Run by ctrl+o in the workspaces view"),
-			text("Terminal command", func(c *config.Config) *string { return &c.App.TerminalCommand },
-				"Empty auto-detects; e.g. kitty --directory"),
-			text("Log file", func(c *config.Config) *string { return &c.App.LogFile }, ""),
-		}},
+		{Title: "app", Fields: slices.Concat(
+			group("Appearance", theme.IconDashboard,
+				cycle("Theme", func(c *config.Config) *string { return &c.App.Theme }, themes,
+					"Applied as you cycle it"),
+				cycle("Default view", func(c *config.Config) *string { return &c.App.DefaultView }, views,
+					"The view DevDesk opens on"),
+			),
+			group("Paths", theme.IconDirectory,
+				text("Workspaces dir", func(c *config.Config) *string { return &c.App.WorkspacesDir },
+					"Root the workspaces view browses"),
+				text("Log file", func(c *config.Config) *string { return &c.App.LogFile }, ""),
+			),
+			group("External commands", theme.IconTools,
+				text("IDE command", func(c *config.Config) *string { return &c.App.IDECommand },
+					"Run by ctrl+o in the workspaces view"),
+				text("Terminal command", func(c *config.Config) *string { return &c.App.TerminalCommand },
+					"Empty auto-detects; e.g. kitty --directory"),
+			),
+			group("Secrets", theme.IconLock,
+				cycle("Secret backend", func(c *config.Config) *string { return &c.App.SecretBackend },
+					[]string{"auto", "keyring", "git-credential"},
+					"Changing it does not migrate what is already stored"),
+			),
+		)},
 
-		{Title: "gitlab", Fields: []field{
-			text("URL", func(c *config.Config) *string { return &c.GitLab.URL },
-				"e.g. https://gitlab.com"),
-			text("Default parent group", func(c *config.Config) *string { return &c.GitLab.DefaultParentGroup }, ""),
-			cycle("Default visibility", func(c *config.Config) *string { return &c.GitLab.DefaultVisibility },
-				[]string{"private", "internal", "public"}, ""),
-			cycle("Clone method", func(c *config.Config) *string { return &c.GitLab.CloneMethod },
-				[]string{"https", "ssh"}, ""),
-			text("Pull target dir", func(c *config.Config) *string { return &c.GitLab.Pull.TargetDir }, ""),
-			integer("Pull parallel jobs", func(c *config.Config) *int { return &c.GitLab.Pull.ParallelJobs }, 1, 32, ""),
-			integer("Pull max depth", func(c *config.Config) *int { return &c.GitLab.Pull.MaxDepth }, 1, 20, ""),
-			toggle("Pull archived projects", func(c *config.Config) *bool { return &c.GitLab.Pull.IncludeArchived }, ""),
-		}},
+		{Title: "gitlab", Fields: slices.Concat(
+			group("Connection", theme.IconGitlab,
+				text("URL", func(c *config.Config) *string { return &c.GitLab.URL },
+					"e.g. https://gitlab.com"),
+				text("Default parent group", func(c *config.Config) *string { return &c.GitLab.DefaultParentGroup }, ""),
+				cycle("Default visibility", func(c *config.Config) *string { return &c.GitLab.DefaultVisibility },
+					[]string{"private", "internal", "public"}, ""),
+				cycle("Clone method", func(c *config.Config) *string { return &c.GitLab.CloneMethod },
+					[]string{"https", "ssh"}, ""),
+			),
+			group("Pull", theme.IconGitBranch,
+				text("Target dir", func(c *config.Config) *string { return &c.GitLab.Pull.TargetDir }, ""),
+				integer("Parallel jobs", func(c *config.Config) *int { return &c.GitLab.Pull.ParallelJobs }, 1, 32, ""),
+				integer("Max depth", func(c *config.Config) *int { return &c.GitLab.Pull.MaxDepth }, 1, 20, ""),
+				toggle("Include archived projects", func(c *config.Config) *bool { return &c.GitLab.Pull.IncludeArchived }, ""),
+			),
+		)},
 
-		{Title: "scan", Fields: []field{
-			cycle("Trivy source", func(c *config.Config) *string { return &c.Scan.TrivySource },
-				[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage},
-				"binary fails rather than falling back to Docker"),
-			text("Trivy binary", func(c *config.Config) *string { return &c.Scan.TrivyPath },
-				"Empty resolves trivy on PATH"),
-			text("Trivy image", func(c *config.Config) *string { return &c.Scan.TrivyImage },
-				"Empty uses "+scan.DefaultTrivyImage),
-			validated("Trivy server", func(c *config.Config) *string { return &c.Scan.TrivyServer },
-				"Client-server mode; disables misconfig, license and SBOM",
-				func(v string) error { return scan.ValidateTrivyServer(v) }),
-			cycle("Gitleaks source", func(c *config.Config) *string { return &c.Scan.GitleaksSource },
-				[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage}, ""),
-			text("Gitleaks binary", func(c *config.Config) *string { return &c.Scan.GitleaksPath },
-				"Empty resolves gitleaks on PATH"),
-			text("Gitleaks image", func(c *config.Config) *string { return &c.Scan.GitleaksImage },
-				"Empty uses "+scan.DefaultGitleaksImage),
-			text("Gitleaks config", func(c *config.Config) *string { return &c.Scan.GitleaksConfig },
-				"Path to a .gitleaks.toml"),
-			text("SBOM output dir", func(c *config.Config) *string { return &c.Scan.SBOMOutputDir },
-				"Empty writes beside the target"),
-			integer("Timeout (s)", func(c *config.Config) *int { return &c.Scan.Timeout }, 10, 3600, ""),
-			integer("Max concurrent scans", func(c *config.Config) *int { return &c.Scan.MaxConcurrentScans }, 1, 16, ""),
-			integer("Max cached reports", func(c *config.Config) *int { return &c.Scan.MaxCachedReports }, 1, 1000, ""),
-			toggle("Vulnerabilities", func(c *config.Config) *bool { return &c.Scan.EnableVuln }, ""),
-			toggle("Secrets", func(c *config.Config) *bool { return &c.Scan.EnableSecret }, ""),
-			toggle("Misconfiguration", func(c *config.Config) *bool { return &c.Scan.EnableMisconfig }, ""),
-			toggle("Licenses", func(c *config.Config) *bool { return &c.Scan.EnableLicense }, ""),
-			toggle("Generate SBOM", func(c *config.Config) *bool { return &c.Scan.GenerateSBOM }, ""),
-			toggle("Ignore unfixed", func(c *config.Config) *bool { return &c.Scan.IgnoreUnfixed }, ""),
-			toggle("Ignore end-of-life", func(c *config.Config) *bool { return &c.Scan.IgnoreEOL }, ""),
-			toggle("Gitleaks git history", func(c *config.Config) *bool { return &c.Scan.GitleaksHistory }, ""),
-		}},
+		{Title: "scan", Fields: slices.Concat(
+			group("Scanners", theme.IconSecurity,
+				toggle("Vulnerabilities", func(c *config.Config) *bool { return &c.Scan.EnableVuln }, "Trivy"),
+				toggle("Secrets", func(c *config.Config) *bool { return &c.Scan.EnableSecret }, "Gitleaks"),
+				toggle("Misconfiguration", func(c *config.Config) *bool { return &c.Scan.EnableMisconfig }, "Trivy"),
+				toggle("Licenses", func(c *config.Config) *bool { return &c.Scan.EnableLicense }, "Trivy"),
+				toggle("Generate SBOM", func(c *config.Config) *bool { return &c.Scan.GenerateSBOM }, "Trivy, CycloneDX"),
+			),
+			group("Trivy", theme.IconTarget,
+				cycle("Trivy source", func(c *config.Config) *string { return &c.Scan.TrivySource },
+					[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage},
+					"binary fails rather than falling back to Docker"),
+				text("Trivy binary", func(c *config.Config) *string { return &c.Scan.TrivyPath },
+					"Empty resolves trivy on PATH"),
+				text("Trivy image", func(c *config.Config) *string { return &c.Scan.TrivyImage },
+					"Empty uses "+scan.DefaultTrivyImage),
+				validated("Trivy server", func(c *config.Config) *string { return &c.Scan.TrivyServer },
+					"Client-server mode; disables misconfig, license and SBOM",
+					func(v string) error { return scan.ValidateTrivyServer(v) }),
+				toggle("Ignore unfixed", func(c *config.Config) *bool { return &c.Scan.IgnoreUnfixed }, ""),
+				toggle("Ignore end-of-life", func(c *config.Config) *bool { return &c.Scan.IgnoreEOL }, ""),
+			),
+			group("Gitleaks", theme.IconToml,
+				cycle("Gitleaks source", func(c *config.Config) *string { return &c.Scan.GitleaksSource },
+					[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage}, ""),
+				text("Gitleaks binary", func(c *config.Config) *string { return &c.Scan.GitleaksPath },
+					"Empty resolves gitleaks on PATH"),
+				text("Gitleaks image", func(c *config.Config) *string { return &c.Scan.GitleaksImage },
+					"Empty uses "+scan.DefaultGitleaksImage),
+				text("Gitleaks config", func(c *config.Config) *string { return &c.Scan.GitleaksConfig },
+					"Path to a .gitleaks.toml"),
+				toggle("Scan git history", func(c *config.Config) *bool { return &c.Scan.GitleaksHistory }, "Slower"),
+			),
+			group("Limits", theme.IconHourglass,
+				text("SBOM output dir", func(c *config.Config) *string { return &c.Scan.SBOMOutputDir },
+					"Empty writes beside the target"),
+				integer("Timeout (s)", func(c *config.Config) *int { return &c.Scan.Timeout }, 10, 3600, ""),
+				integer("Max concurrent scans", func(c *config.Config) *int { return &c.Scan.MaxConcurrentScans }, 1, 16, ""),
+				integer("Max cached reports", func(c *config.Config) *int { return &c.Scan.MaxCachedReports }, 1, 1000, ""),
+			),
+		)},
 
-		{Title: "docker", Fields: []field{
+		{Title: "docker", Fields: group("Tools", theme.IconDocker,
 			text("Network tool image", func(c *config.Config) *string { return &c.Docker.NetworkToolImage },
 				"Must carry ping, curl and nc"),
-		}},
+		)},
 
-		{Title: "status", Fields: []field{
+		{Title: "status", Fields: group("Monitoring", theme.IconRefresh,
 			integer("Refresh interval (s)", func(c *config.Config) *int { return &c.Status.RefreshInterval }, 1, 3600, ""),
 			integer("Check timeout (s)", func(c *config.Config) *int { return &c.Status.Timeout }, 1, 300, ""),
 			toggle("Auto refresh", func(c *config.Config) *bool { return &c.Status.AutoRefresh }, ""),
-		}},
+		)},
 	}
 }
 

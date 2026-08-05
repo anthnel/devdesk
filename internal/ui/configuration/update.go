@@ -21,7 +21,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.input.Width = max(msg.Width-inputLeftGutter, 20)
+		m.resizeInput()
 		return m, nil
 
 	case saveFailedMsg:
@@ -240,6 +240,7 @@ func (m *Model) bindInput() {
 		m.input.SetValue("")
 		return
 	}
+	m.resizeInput()
 	m.input.SetValue(f.Value(m.config))
 	m.input.CursorEnd()
 	m.input.Focus()
@@ -253,5 +254,8 @@ const (
 	secretBackendLabel = "Secret backend"
 )
 
-// inputLeftGutter is the focus indicator, the label column and the separator.
-const inputLeftGutter = 28
+// resizeInput fits the input between the value column and the right border.
+func (m *Model) resizeInput() {
+	const focusIndicator, borders = 2, 4
+	m.input.Width = max(m.width-m.chevronColumn()-4-focusIndicator-borders, 20)
+}

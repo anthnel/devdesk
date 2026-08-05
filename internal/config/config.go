@@ -228,6 +228,12 @@ func applyDefaults(cfg *Config) error {
 	if cfg.App.IDECommand == "" {
 		cfg.App.IDECommand = "code"
 	}
+	// Left empty, credentials.Select already treats this as "auto"; naming it
+	// keeps the setting inside the closed set the configuration view cycles
+	// through, so the first arrow press does not jump somewhere arbitrary.
+	if cfg.App.SecretBackend == "" {
+		cfg.App.SecretBackend = "auto"
+	}
 	if cfg.Status.RefreshInterval == 0 {
 		cfg.Status.RefreshInterval = 10
 	}
@@ -308,6 +314,7 @@ func Default() *Config {
 			DefaultView:   "dashboard",
 			WorkspacesDir: filepath.Join(homeDir, "workspaces"),
 			IDECommand:    "code",
+			SecretBackend: "auto",
 		},
 		Status: StatusConfig{
 			RefreshInterval: 10,

@@ -21,45 +21,94 @@ func (m Model) View() string {
 
 	lines := []string{theme.EmptyLineBg(m.width)} // Rule 131: exactly one blank line
 
-	lines = append(lines, theme.PadWithBg(
-		theme.Bg("  ")+theme.DimStyle.Render("context ")+theme.KeyStyle.Render(m.context), m.width))
-	lines = append(lines, theme.EmptyLineBg(m.width))
-
+	group := ""
 	for i, f := range m.fields() {
+		if f.Group != group {
+			if group != "" {
+				lines = append(lines, theme.EmptyLineBg(m.width)) // breathe between groups
+			}
+			group = f.Group
+			lines = append(lines,
+				theme.PadWithBg(theme.Bg("  ")+theme.SubTitleStyle.Render(f.GroupIcon+" "+f.Group), m.width),
+				theme.EmptyLineBg(m.width))
+		}
 		lines = append(lines, theme.PadWithBg(m.renderField(f, i == m.focusedField), m.width))
 	}
 
 	return strings.Join(lines, "\n")
 }
 
+// GetTitle is the viewport's border title. It carries the context because a
+// configuration belongs to one, and editing workspaces_dir in the wrong context
+// is otherwise a silent mistake — the fields look identical in all of them.
+func (m Model) GetTitle() string {
+	return theme.IconConfig + " Configuration · " + m.context
+}
+
 // renderField draws one setting (Rules 120, 132).
+//
+// Values are aligned on one column: twenty-nine settings whose values each start
+// wherever their label happened to end reads as noise, and a cycle field's
+// select icon makes its prefix two cells wider than a text field's, so the
+// padding has to be measured on the whole prefix rather than on the label.
 func (m Model) renderField(f field, focused bool) string {
+	// A checkbox brings its own focus indicator and needs no value column.
+	if f.Kind == kindToggle {
+		if m.isDisabled(f) {
+			return theme.Bg("  ") + theme.RenderCheckboxDisabled(f.Label)
+		}
+		return theme.RenderCheckbox(f.Bool(m.config), f.Label, focused)
+	}
+
 	indicator := "  "
 	if focused {
 		indicator = theme.IconCircleSmall + " "
 	}
+	prefix := indicator + m.padHead(fieldHead(f)) + " " + theme.IconChevronRight + " "
 
-	switch f.Kind {
-	case kindToggle:
-		if m.isDisabled(f) {
-			return theme.Bg(indicator) + theme.RenderCheckboxDisabled(f.Label)
+	if focused {
+		if f.Kind == kindCycle {
+			return theme.KeyStyle.Render(prefix) + theme.Bg(f.Value(m.config))
 		}
-		return theme.Bg(indicator) + theme.RenderCheckbox(f.Bool(m.config), f.Label, focused)
-
-	case kindCycle:
-		label := f.Label + " " + theme.IconSelect + " "
-		if focused {
-			return theme.KeyStyle.Render(indicator+label+theme.IconChevronRight+" ") + theme.Bg(f.Value(m.config))
-		}
-		return theme.Bg(indicator+label+theme.IconChevronRight+" ") + theme.Bg(f.Value(m.config))
-
-	default: // text and integer
-		label := f.Label + " " + theme.IconChevronRight + " "
-		if focused {
-			return theme.KeyStyle.Render(indicator+label) + m.input.View()
-		}
-		return theme.Bg(indicator+label) + theme.Bg(f.Value(m.config))
+		return theme.KeyStyle.Render(prefix) + m.input.View()
 	}
+	return theme.Bg(prefix) + theme.Bg(f.Value(m.config))
+}
+
+// fieldHead is everything before the chevron: the label, plus the select icon a
+// closed-list field carries (Rule 132's ordering).
+func fieldHead(f field) string {
+	if f.Kind == kindCycle {
+		return f.Label + " " + theme.IconSelect
+	}
+	return f.Label
+}
+
+// padHead widens a head to the active tab's chevron column.
+//
+// Padding here rather than after the chevron aligns both: the chevrons form one
+// column and the values another. Padding the label alone would leave a cycle
+// field's chevron two cells right of every other, because its select icon sits
+// between the two.
+func (m Model) padHead(head string) string {
+	if w := m.chevronColumn() - lipgloss.Width(head); w > 0 {
+		return head + strings.Repeat(" ", w)
+	}
+	return head
+}
+
+// chevronColumn is the widest head in the active tab. Checkboxes are excluded:
+// they have no chevron and no value, so a long checkbox label pushing every
+// value right would be padding for nothing.
+func (m Model) chevronColumn() int {
+	widest := 0
+	for _, f := range m.fields() {
+		if f.Kind == kindToggle {
+			continue
+		}
+		widest = max(widest, lipgloss.Width(fieldHead(f)))
+	}
+	return widest
 }
 
 // GetFooterHeight is the tab bar, a blank line and the info line (Rule 124).

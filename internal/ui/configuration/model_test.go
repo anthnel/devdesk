@@ -7,10 +7,12 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // Every field in this view calls config.Save on change, so the tests must not
@@ -133,7 +135,7 @@ func TestLeavingATextFieldCommitsIt(t *testing.T) {
 // A refused value keeps the cursor where it is. Letting focus move would leave
 // the rejected text on screen while the config quietly held something else.
 func TestARefusedValueKeepsTheCursorOnItsField(t *testing.T) {
-	m := focusOn(t, newModel(t), "Pull parallel jobs")
+	m := focusOn(t, newModel(t), "Parallel jobs")
 	was := m.focusedField
 	m.config.GitLab.Pull.ParallelJobs = 4
 	m.input.SetValue("not-a-number")
@@ -293,14 +295,87 @@ func TestTheFormOpensWithOneBlankLine(t *testing.T) {
 	}
 }
 
-// The view says which context it edits. Editing workspaces_dir in the wrong
-// context is otherwise a silent mistake — the field looks identical in all of
-// them.
-func TestTheViewNamesTheContextItEdits(t *testing.T) {
+// The header names the context. Editing workspaces_dir in the wrong context is
+// otherwise a silent mistake — the fields look identical in all of them.
+func TestTheHeaderNamesTheContextItEdits(t *testing.T) {
 	m := newModel(t)
-	if !strings.Contains(m.View(), m.context) {
-		t.Errorf("the view does not name its context (%q)", m.context)
+	if !strings.Contains(m.GetTitle(), m.context) {
+		t.Errorf("GetTitle() = %q, want it to name the context %q", m.GetTitle(), m.context)
 	}
+}
+
+// Each tab opens on a group heading, and every group is rendered once. A group
+// interrupted by another would print its heading twice, which is what tagging a
+// contiguous run rather than each field guards against.
+func TestEachTabRendersItsGroupHeadingsOnceInOrder(t *testing.T) {
+	m := newModel(t)
+
+	for tab := range m.sections {
+		m.activeTab = tab
+		m.focusedField = 0
+		m.bindInput()
+
+		seen := map[string]bool{}
+		order := []string{}
+		for _, f := range m.fields() {
+			if f.Group == "" {
+				t.Fatalf("tab %q: %q belongs to no group", m.sections[tab].Title, f.Label)
+			}
+			if len(order) == 0 || order[len(order)-1] != f.Group {
+				if seen[f.Group] {
+					t.Errorf("tab %q: group %q resumes after another, so its heading renders twice",
+						m.sections[tab].Title, f.Group)
+				}
+				seen[f.Group] = true
+				order = append(order, f.Group)
+			}
+		}
+
+		rendered := m.View()
+		for _, g := range order {
+			if strings.Count(rendered, g) < 1 {
+				t.Errorf("tab %q: group heading %q is not rendered", m.sections[tab].Title, g)
+			}
+		}
+	}
+}
+
+// The scan tab is the one the user asked to be split by tool.
+func TestTheScanTabSeparatesTrivyFromGitleaks(t *testing.T) {
+	m := newModel(t)
+	groups := map[string][]string{}
+	for _, s := range m.sections {
+		if s.Title != "scan" {
+			continue
+		}
+		for _, f := range s.Fields {
+			groups[f.Group] = append(groups[f.Group], f.Label)
+		}
+	}
+
+	for _, want := range []string{"Trivy", "Gitleaks"} {
+		if len(groups[want]) == 0 {
+			t.Errorf("the scan tab has no %q group; it has %v", want, keysOfGroups(groups))
+		}
+	}
+	for _, label := range groups["Trivy"] {
+		if strings.Contains(strings.ToLower(label), "gitleaks") {
+			t.Errorf("%q is in the Trivy group", label)
+		}
+	}
+	for _, label := range groups["Gitleaks"] {
+		if strings.Contains(strings.ToLower(label), "trivy") {
+			t.Errorf("%q is in the Gitleaks group", label)
+		}
+	}
+}
+
+func keysOfGroups(m map[string][]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
 
 // A theme that cannot be listed still leaves the built-in one, so the cycle has
@@ -320,4 +395,98 @@ func TestAnUnreadableThemeDirectoryStillOffersTheDefault(t *testing.T) {
 			}
 		}
 	}
+}
+
+// stripANSI returns what the terminal actually shows, so a test can measure a
+// column rather than a style.
+func stripANSI(s string) string {
+	var out strings.Builder
+	inEsc := false
+	for _, r := range s {
+		switch {
+		case r == 0x1b:
+			inEsc = true
+		case inEsc && r == 'm':
+			inEsc = false
+		case !inEsc:
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
+}
+
+// chevronAt reports the cell the chevron lands on in a rendered field.
+func chevronAt(rendered string) int {
+	plain := []rune(stripANSI(rendered))
+	for i, r := range plain {
+		if string(r) == theme.IconChevronRight {
+			return lipgloss.Width(string(plain[:i]))
+		}
+	}
+	return -1
+}
+
+// Values line up on one column per tab. Twenty-nine settings whose values each
+// start wherever their label happened to end reads as noise.
+//
+// Measured on the rendered line, not on the padding helper: asserting that
+// padHead agrees with padHead is true whatever padHead pads, which is what the
+// first version of this test did.
+func TestValuesLineUpWithinATab(t *testing.T) {
+	m := newModel(t)
+
+	for tab, s := range m.sections {
+		m.activeTab = tab
+		m.focusedField = 0
+		m.bindInput()
+
+		column, from := -1, ""
+		for _, f := range s.Fields {
+			if f.Kind == kindToggle {
+				continue // no chevron, no value
+			}
+			got := chevronAt(m.renderField(f, false))
+			if got < 0 {
+				t.Errorf("tab %q: %q renders no chevron", s.Title, f.Label)
+				continue
+			}
+			if column == -1 {
+				column, from = got, f.Label
+				continue
+			}
+			if got != column {
+				t.Errorf("tab %q: %q puts its chevron at cell %d, %q at %d",
+					s.Title, f.Label, got, from, column)
+			}
+		}
+	}
+}
+
+// A checkbox brings its own focus indicator (theme.RenderCheckbox), so the view
+// must not add a second one.
+//
+// Asserted on where the row starts, not on focused-versus-blurred width: a
+// prefix added to both branches keeps those equal while shifting the whole
+// column, which is what the first version of this test missed.
+func TestACheckboxIsNotIndentedTwice(t *testing.T) {
+	m := focusOn(t, newModel(t), "Auto refresh")
+	f := m.current()
+
+	focused := stripANSI(m.renderField(f, true))
+	if !strings.HasPrefix(focused, theme.IconCircleSmall) {
+		t.Errorf("a focused checkbox renders %q; Rule 120 puts the indicator at column 0", firstCells(focused))
+	}
+
+	blurred := stripANSI(m.renderField(f, false))
+	if !strings.HasPrefix(blurred, "  "+theme.IconCheckbox) && !strings.HasPrefix(blurred, "  "+theme.IconChecked) {
+		t.Errorf("a blurred checkbox renders %q; want two spaces then the box", firstCells(blurred))
+	}
+}
+
+func firstCells(s string) string {
+	r := []rune(s)
+	if len(r) > 12 {
+		r = r[:12]
+	}
+	return string(r)
 }
