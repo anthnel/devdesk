@@ -3,9 +3,12 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > [!IMPORTANT]
-> **AI Collaboration Rule**: 
-> - Support for **Implementation** and **Bug fixes** only.
-> - **Planning** and **Brainstorming** are handled by Gemini (Antigravity).
+> **AI Collaboration Rule**:
+> - **Planning**, **Brainstorming**, **Implementation** and **Bug fixes** are all
+>   in scope. Planning is no longer delegated to Gemini (Antigravity).
+> - Implementation plans go in `.claude/plans/` (see
+>   [rules/planning.md](rules/planning.md)); design decisions that outlive a plan
+>   are recorded in `docs/backlog.md`.
 > - Always refer to [project-context.md](file:///home/anthoni/projects/gitlab/devsecops/devdesk/project-context.md) for global project rules.
 
 ## Project Overview

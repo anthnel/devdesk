@@ -55,6 +55,29 @@ image while Trivy happened to be installed was not expressible.
 All three invariants confirmed to bite: ignoring the configured path,
 reinstating the Docker fallback, and hard-coding the tool name in the builder
 each fail their own test.
+**D26 — a scan option applied from the form and silently did not from the
+lists. Fixed** by `scan.OptionsFromConfig`, found while planning the
+configuration view (`.claude/plans/configuration-view-plan.md`).
+
+`ScanOptions` was assembled by hand in three places — `security/scan.go:31`,
+`workspaces/actions.go:143` and `oci_resources/images.go:79`. The last two were
+byte-for-byte identical and read the config; the first read the form's transient
+values and was the only one of the three that set `IgnoreEOL`. So ticking
+"ignore EOL" applied when scanning from the security form and did nothing when
+scanning from the images list or the workspaces list, with `--ignore-status
+end_of_life` silently absent from the Trivy command.
+
+Same family as D24 and D25: three copies of a block, one of them drifted, and
+nothing said so. The form now persists and reads back through the one builder,
+so its behaviour is unchanged and there is a single definition of what a
+configured scan is.
+
+`TestEveryConfiguredOptionReachesTheScanner` is deliberately not a test that
+`IgnoreEOL` is carried. It walks the field names `config.ScanConfig` and
+`scan.ScanOptions` share and asserts every one of them arrives, so a tenth
+option added to both without plumbing it through fails there rather than
+shipping. Confirmed to bite by removing the line: `OptionsFromConfig did not
+carry IgnoreEOL: got false, want true`.
 
 **The command line took focus from the render path.** Found in phase 5.
 `renderHeader` called `a.commandInput.Focus()` whenever `commandMode` was set —

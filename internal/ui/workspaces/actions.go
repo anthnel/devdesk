@@ -17,7 +17,7 @@ import (
 // startSecurityScan launches a security scan on the selected entry using saved options.
 // For git repos, scans the single repo. For directories with sub-repos, scans all sub-repos in parallel.
 func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
-	opts := m.getScanOptions()
+	opts := scan.OptionsFromConfig(m.config.Scan)
 
 	if len(m.table.Items()) == 0 {
 		// Fallback: scan the current directory path
@@ -85,7 +85,7 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 	if len(unscanned) == 0 {
 		return m, nil
 	}
-	return m, batchScanCmd(unscanned, m.getScanOptions())
+	return m, batchScanCmd(unscanned, scan.OptionsFromConfig(m.config.Scan))
 }
 
 // requestScanAll triggers batch scanning of all git repos visible in the current view,
@@ -99,7 +99,7 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 	for _, path := range paths {
 		delete(m.scanCache, path)
 	}
-	return m, tea.Batch(deleteScanCacheCmd(paths), batchScanCmd(paths, m.getScanOptions()))
+	return m, tea.Batch(deleteScanCacheCmd(paths), batchScanCmd(paths, scan.OptionsFromConfig(m.config.Scan)))
 }
 
 // collectAllRepoPaths returns all git repo paths visible in the current view,
@@ -137,24 +137,6 @@ func (m Model) handleWorkspaceScanComplete(msg WorkspaceScanCompleteMsg) (tea.Mo
 	}
 	m.refreshRows()
 	return m, nil
-}
-
-// getScanOptions builds scan options from current configuration
-func (m Model) getScanOptions() scan.ScanOptions {
-	return scan.ScanOptions{
-		EnableVuln:      m.config.Scan.EnableVuln,
-		EnableSecret:    m.config.Scan.EnableSecret,
-		EnableMisconfig: m.config.Scan.EnableMisconfig,
-		EnableLicense:   m.config.Scan.EnableLicense,
-		GenerateSBOM:    m.config.Scan.GenerateSBOM,
-		SBOMOutputDir:   m.config.Scan.SBOMOutputDir,
-		TrivyImage:      m.config.Scan.TrivyImage,
-		GitleaksImage:   m.config.Scan.GitleaksImage,
-		TrivyServer:     m.config.Scan.TrivyServer,
-		IgnoreUnfixed:   m.config.Scan.IgnoreUnfixed,
-		GitleaksHistory: m.config.Scan.GitleaksHistory,
-		GitleaksConfig:  m.config.Scan.GitleaksConfig,
-	}
 }
 
 // resolveTargetPath returns the path to open for terminal/IDE actions.
