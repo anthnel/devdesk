@@ -23,6 +23,35 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**The scan caches ignored the configuration context. Fixed** by
+`internal/cache/scan_file.go`, found while planning the configuration view.
+
+`config.yaml` is per context — `LoadContext` reads `config-<name>.yaml` — but
+all six caches lived flat under `~/.devdesk/cache/`, and `browser-selection.json`
+was the only one with a context dimension. `workspaces_dir` and the registry
+list being per context, two contexts legitimately hold different roots and
+different images in one namespace.
+
+Nothing showed it, because the caches were only ever *queried*: you ask about
+the image in front of you, and the answer is right whoever wrote it. The
+inventory view planned for §2 of the configuration-view plan *lists* everything
+the cache holds, which is what would have put another context's findings on
+screen. So this is a latent inaccuracy fixed before the change that would have
+exposed it, not a defect anyone reported.
+
+`ImageScanCache` and `WorkspaceScanCache` are now bound to a context at
+construction; their method signatures are unchanged. The legacy flat file is
+recognised by `Contexts == nil` after unmarshalling into the versioned struct —
+no field matches — and is **upgraded on the first open rather than at the next
+write**. Deferring it would let each context that opened the file claim the
+legacy entries in turn, making ownership depend on write order;
+`TestAFlatImageCacheMigratesIntoTheOpeningContext` is what pins that, and it
+fails when the write-back is removed.
+
+`config.CurrentContextName()` came out of it, collapsing the
+`GetCurrentContext` / fall back to `"default"` pair that `Load` and `Save`
+already each carried a copy of.
+
 **The command line took focus from the render path.** Found in phase 5.
 `renderHeader` called `a.commandInput.Focus()` whenever `commandMode` was set —
 a mutation inside `View()`, which Rule 110 makes read-only. A

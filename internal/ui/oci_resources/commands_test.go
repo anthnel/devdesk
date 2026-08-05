@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 )
 
@@ -480,7 +481,7 @@ func TestLoginStatusIsAnsweredForEveryRegistryAsked(t *testing.T) {
 // redirects to, so what they write is what a later launch would read back.
 
 func TestTheScanCacheIsLoadedFromDisk(t *testing.T) {
-	c, err := cache.NewImageScanCache()
+	c, err := cache.NewImageScanCache(config.CurrentContextName())
 	if err != nil {
 		t.Fatalf("opening the scan cache: %v", err)
 	}
@@ -503,7 +504,7 @@ func TestTheScanCacheIsLoadedFromDisk(t *testing.T) {
 // Rule 126: ctrl+a purges before rescanning, so the delete has to reach the
 // disk — a cache cleared only in memory comes back on the next launch.
 func TestDeletingScanCacheEntriesReachesTheDisk(t *testing.T) {
-	c, err := cache.NewImageScanCache()
+	c, err := cache.NewImageScanCache(config.CurrentContextName())
 	if err != nil {
 		t.Fatalf("opening the scan cache: %v", err)
 	}
@@ -515,7 +516,7 @@ func TestDeletingScanCacheEntriesReachesTheDisk(t *testing.T) {
 
 	run(t, deleteScanCacheCmd([]string{"api:v1", "cache:v2"}))
 
-	reopened, err := cache.NewImageScanCache()
+	reopened, err := cache.NewImageScanCache(config.CurrentContextName())
 	if err != nil {
 		t.Fatalf("reopening the scan cache: %v", err)
 	}

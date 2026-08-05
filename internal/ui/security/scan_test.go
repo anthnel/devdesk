@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -40,7 +41,7 @@ func TestTargetTypeMapsTheFormValue(t *testing.T) {
 // (Rule 126).
 func TestPurgingTheCacheBeforeAScan(t *testing.T) {
 	t.Run("workspace", func(t *testing.T) {
-		c, err := cache.NewWorkspaceScanCache()
+		c, err := cache.NewWorkspaceScanCache(config.CurrentContextName())
 		if err != nil {
 			t.Fatalf("opening the cache: %v", err)
 		}
@@ -52,14 +53,14 @@ func TestPurgingTheCacheBeforeAScan(t *testing.T) {
 
 		testutil.Msg(purgeScanCacheCmd("/tmp/purge-me", scan.TargetDirectory))
 
-		fresh, _ := cache.NewWorkspaceScanCache()
+		fresh, _ := cache.NewWorkspaceScanCache(config.CurrentContextName())
 		if fresh.Get("/tmp/purge-me") != nil {
 			t.Error("the workspace cache entry survived the purge")
 		}
 	})
 
 	t.Run("image", func(t *testing.T) {
-		c, err := cache.NewImageScanCache()
+		c, err := cache.NewImageScanCache(config.CurrentContextName())
 		if err != nil {
 			t.Fatalf("opening the cache: %v", err)
 		}
@@ -69,7 +70,7 @@ func TestPurgingTheCacheBeforeAScan(t *testing.T) {
 
 		testutil.Msg(purgeScanCacheCmd("nginx:purge", scan.TargetImage))
 
-		fresh, _ := cache.NewImageScanCache()
+		fresh, _ := cache.NewImageScanCache(config.CurrentContextName())
 		if fresh.Get("nginx:purge") != nil {
 			t.Error("the image cache entry survived the purge")
 		}
@@ -84,7 +85,7 @@ func TestImageScanCountsAreCached(t *testing.T) {
 
 	saveImageScanToCache("nginx:cached", result)
 
-	c, err := cache.NewImageScanCache()
+	c, err := cache.NewImageScanCache(config.CurrentContextName())
 	if err != nil {
 		t.Fatalf("opening the cache: %v", err)
 	}

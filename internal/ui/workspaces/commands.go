@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
@@ -23,7 +24,7 @@ func clearFooterInfoCmd() tea.Cmd {
 // loadScanCacheCmd loads the workspace scan cache from disk asynchronously
 func loadScanCacheCmd() tea.Cmd {
 	return func() tea.Msg {
-		c, err := cache.NewWorkspaceScanCache()
+		c, err := cache.NewWorkspaceScanCache(config.CurrentContextName())
 		if err != nil {
 			return ScanCacheLoadedMsg{Cache: nil}
 		}
@@ -34,7 +35,7 @@ func loadScanCacheCmd() tea.Cmd {
 // deleteScanCacheCmd removes the given repo paths from the disk cache (Rule 126: scan all purges cache)
 func deleteScanCacheCmd(paths []string) tea.Cmd {
 	return func() tea.Msg {
-		c, err := cache.NewWorkspaceScanCache()
+		c, err := cache.NewWorkspaceScanCache(config.CurrentContextName())
 		if err != nil {
 			return nil
 		}
@@ -89,7 +90,7 @@ func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, sem chan struct{}) t
 				ScannedAt: result.EndTime,
 			}
 
-			wc, cErr := cache.NewWorkspaceScanCache()
+			wc, cErr := cache.NewWorkspaceScanCache(config.CurrentContextName())
 			if cErr != nil {
 				log.Printf("ERROR [workspaces] open cache: %v", cErr)
 			} else if sErr := wc.Set(repoPath, entry); sErr != nil {

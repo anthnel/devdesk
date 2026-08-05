@@ -374,6 +374,21 @@ func GetCurrentContext() (string, error) {
 	return context, nil
 }
 
+// CurrentContextName returns the current context, falling back to "default"
+// when it cannot be read.
+//
+// Everything that needs the context name to scope something — Load, Save, the
+// scan caches — wants a name and has no use for the error, since a home
+// directory that cannot be resolved leaves nothing better to do than assume the
+// default context. Three copies of that fallback existed before this.
+func CurrentContextName() string {
+	ctx, err := GetCurrentContext()
+	if err != nil {
+		return "default"
+	}
+	return ctx
+}
+
 // SetCurrentContext écrit le nom du contexte dans .current-context
 func SetCurrentContext(name string) error {
 	if err := ValidateContextName(name); err != nil {
