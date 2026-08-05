@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "279ddaf96e3a",
+  "strategy": "manual-commit",
+  "branch": "feat/per-context-scan-caches",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/27/9ddaf96e3a/0/metadata.json",
+      "transcript": "/27/9ddaf96e3a/0/full.jsonl",
+      "compact_transcript": "/27/9ddaf96e3a/0/transcript.jsonl",
+      "content_hash": "/27/9ddaf96e3a/0/content_hash.txt",
+      "prompt": "/27/9ddaf96e3a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6228,
+    "cache_creation_tokens": 3706564,
+    "cache_read_tokens": 326546280,
+    "output_tokens": 741237,
+    "api_call_count": 1015
+  }
+}
