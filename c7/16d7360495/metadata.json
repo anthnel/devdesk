@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "c716d7360495",
+  "strategy": "manual-commit",
+  "branch": "refactor/datatable-step6",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/c7/16d7360495/0/metadata.json",
+      "transcript": "/c7/16d7360495/0/full.jsonl",
+      "compact_transcript": "/c7/16d7360495/0/transcript.jsonl",
+      "content_hash": "/c7/16d7360495/0/content_hash.txt",
+      "prompt": "/c7/16d7360495/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5976,
+    "cache_creation_tokens": 3381795,
+    "cache_read_tokens": 293925373,
+    "output_tokens": 624837,
+    "api_call_count": 881
+  }
+}
