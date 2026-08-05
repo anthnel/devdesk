@@ -1,0 +1,128 @@
+package status
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/anthnel/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/theme"
+)
+
+// numMonitorColumns and numSSLColumns are what the Rule 116 sum is checked
+// against.
+const (
+	numMonitorColumns = 5
+	numSSLColumns     = 6
+)
+
+// columnName is the column the monitors table opens sorted by.
+const columnName = 0
+
+// monitorColumns describes the Monitors tab. Status carries an icon and orders
+// by nothing anyone would recognise, so it does not sort.
+func monitorColumns() []datatable.Column[status.ComponentStatus] {
+	return []datatable.Column[status.ComponentStatus]{
+		{
+			Title: "Name", MinWidth: 16, Flex: 1,
+			Cell:   func(c status.ComponentStatus) string { return c.Name },
+			Less:   func(a, b status.ComponentStatus) bool { return strings.ToLower(a.Name) < strings.ToLower(b.Name) },
+			Search: func(c status.ComponentStatus) string { return c.Name },
+		},
+		{
+			Title: "Target", MinWidth: 24, Flex: 2,
+			Cell:   func(c status.ComponentStatus) string { return c.Target },
+			Less:   func(a, b status.ComponentStatus) bool { return strings.ToLower(a.Target) < strings.ToLower(b.Target) },
+			Search: func(c status.ComponentStatus) string { return c.Target },
+		},
+		{
+			Title: "Status", MinWidth: 10,
+			Cell: monitorStatusCell,
+		},
+		{
+			Title: "Type", MinWidth: 10,
+			Cell: monitorTypeCell,
+			Less: func(a, b status.ComponentStatus) bool {
+				return strings.ToLower(string(a.Type)) < strings.ToLower(string(b.Type))
+			},
+			Search: func(c status.ComponentStatus) string { return string(c.Type) },
+		},
+		{
+			Title: "Response", MinWidth: 12,
+			Cell: func(c status.ComponentStatus) string {
+				if c.ResponseTime <= 0 {
+					return "-"
+				}
+				return fmt.Sprintf("%dms", c.ResponseTime.Milliseconds())
+			},
+			Less: func(a, b status.ComponentStatus) bool { return a.ResponseTime < b.ResponseTime },
+		},
+	}
+}
+
+// monitorStatusCell renders the status as an icon. Plain text — Rule 122.
+func monitorStatusCell(c status.ComponentStatus) string {
+	switch c.Status {
+	case "OK":
+		return theme.IconOK
+	case "DOWN":
+		return theme.IconError
+	case "ERROR":
+		return theme.IconWarning
+	default:
+		return string(c.Status)
+	}
+}
+
+// monitorTypeCell names the check kind, or says so when the config did not.
+func monitorTypeCell(c status.ComponentStatus) string {
+	if c.Type == "" {
+		return "unknown"
+	}
+	return string(c.Type)
+}
+
+// sslColumns describes the Certificates tab. Nothing sorts: the tab has never
+// offered `.`, and an expiry table read in config order is what the user wrote.
+func sslColumns() []datatable.Column[status.ComponentStatus] {
+	return []datatable.Column[status.ComponentStatus]{
+		{
+			Title: "Name", MinWidth: 16, Flex: 1,
+			Cell:   func(c status.ComponentStatus) string { return c.Name },
+			Search: func(c status.ComponentStatus) string { return c.Name },
+		},
+		{
+			Title: "Host", MinWidth: 22, Flex: 2,
+			Cell:   func(c status.ComponentStatus) string { return c.Target },
+			Search: func(c status.ComponentStatus) string { return c.Target },
+		},
+		{Title: "Status", MinWidth: 12, Cell: formatSSLStatus},
+		{
+			Title: "Days Left", MinWidth: 11,
+			Cell: func(c status.ComponentStatus) string {
+				if c.SSLDaysLeft == nil {
+					return "-"
+				}
+				return fmt.Sprintf("%d", *c.SSLDaysLeft)
+			},
+		},
+		{
+			Title: "Expires", MinWidth: 18,
+			Cell: func(c status.ComponentStatus) string {
+				if c.SSLExpires == nil {
+					return "-"
+				}
+				return c.SSLExpires.Format("2006-01-02 15:04")
+			},
+		},
+		{
+			Title: "Issuer", MinWidth: 20, Flex: 1,
+			Cell: func(c status.ComponentStatus) string {
+				if c.SSLIssuer == "" {
+					return "-"
+				}
+				return c.SSLIssuer
+			},
+		},
+	}
+}

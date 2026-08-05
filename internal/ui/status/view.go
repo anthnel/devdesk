@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/status"
@@ -120,8 +119,8 @@ func (m Model) renderEmpty() string {
 
 // renderTabs renders the tab bar for monitors/certificates
 func (m Model) renderTabs() string {
-	monitorCount := len(m.monitorTable.Rows())
-	sslCount := len(m.sslTable.Rows())
+	monitorCount := len(m.monitorTable.Visible())
+	sslCount := len(m.sslTable.Visible())
 
 	return theme.RenderTabs([]theme.TabItem{
 		{Label: fmt.Sprintf("Service Monitors (%d)", monitorCount)},
@@ -161,16 +160,20 @@ func (m Model) RenderFooter(width int) string {
 	return theme.EmptyLineBg(width) + "\n" + theme.EmptyLineBg(width)
 }
 
-// updateTable met à jour les données des deux tables
+// updateTable refills both tables from the last check.
+//
+// The text query stays here rather than moving into either table's own filter
+// bar: one bar drives two tables, so that the header counts agree with each
+// other whichever tab is showing. The component models a bar per table, which
+// is the right default and the wrong shape for this one view.
 func (m *Model) updateTable() {
-	monitorRows := []table.Row{}
-	sslRows := []table.Row{}
+	query := strings.ToLower(strings.TrimSpace(m.filterBar.SearchQuery()))
 
-	query := strings.ToLower(m.filterBar.SearchQuery())
-
-	// Séparer les composants par type
 	var monitors, ssls []status.ComponentStatus
 	for _, comp := range m.components {
+		if !matchesQuery(comp, query) {
+			continue
+		}
 		if comp.Type == "ssl" {
 			ssls = append(ssls, comp)
 		} else {
@@ -178,126 +181,9 @@ func (m *Model) updateTable() {
 		}
 	}
 
-	// Trier les monitors
-	monitors = m.sortedMonitors(monitors)
-
-	for _, comp := range monitors {
-		// Apply text filter
-		if query != "" {
-			nameMatch := strings.Contains(strings.ToLower(comp.Name), query)
-			targetMatch := strings.Contains(strings.ToLower(comp.Target), query)
-			typeMatch := strings.Contains(strings.ToLower(string(comp.Type)), query)
-			if !nameMatch && !targetMatch && !typeMatch {
-				continue
-			}
-		}
-		typeStr := string(comp.Type)
-		if typeStr == "" {
-			typeStr = "unknown"
-		}
-
-		var statusStr string
-		switch comp.Status {
-		case "OK":
-			statusStr = theme.IconOK
-		case "DOWN":
-			statusStr = theme.IconError
-		case "ERROR":
-			statusStr = theme.IconWarning
-		default:
-			statusStr = string(comp.Status)
-		}
-
-		responseStr := "-"
-		if comp.ResponseTime > 0 {
-			responseStr = fmt.Sprintf("%dms", comp.ResponseTime.Milliseconds())
-		}
-
-		monitorRows = append(monitorRows, table.Row{
-			comp.Name,
-			comp.Target,
-			statusStr,
-			typeStr,
-			responseStr,
-		})
-	}
-
-	for _, comp := range ssls {
-		// Apply text filter
-		if query != "" {
-			nameMatch := strings.Contains(strings.ToLower(comp.Name), query)
-			targetMatch := strings.Contains(strings.ToLower(comp.Target), query)
-			if !nameMatch && !targetMatch {
-				continue
-			}
-		}
-
-		statusStr := formatSSLStatus(comp)
-		daysLeftStr := "-"
-		expiresStr := "-"
-		issuerStr := "-"
-
-		if comp.SSLDaysLeft != nil {
-			daysLeftStr = fmt.Sprintf("%d", *comp.SSLDaysLeft)
-		}
-		if comp.SSLExpires != nil {
-			expiresStr = comp.SSLExpires.Format("2006-01-02 15:04")
-		}
-		if comp.SSLIssuer != "" {
-			issuerStr = comp.SSLIssuer
-		}
-
-		sslRows = append(sslRows, table.Row{
-			comp.Name,
-			comp.Target,
-			statusStr,
-			daysLeftStr,
-			expiresStr,
-			issuerStr,
-		})
-	}
-
-	m.monitorTable.SetRows(monitorRows)
-	m.sslTable.SetRows(sslRows)
-
-	// Update column headers with sort indicators
-	monCols := m.monitorTable.Columns()
-	if len(monCols) >= 5 {
-		sortColIndex := map[sortField]int{
-			sortByName:     0,
-			sortByTarget:   1,
-			sortByType:     3,
-			sortByResponse: 4,
-		}
-		baseTitles := map[int]string{
-			0: "Name", 1: "Target", 3: "Type", 4: "Response",
-		}
-		for idx, title := range baseTitles {
-			monCols[idx].Title = title
-		}
-		if idx, ok := sortColIndex[m.sortColumn]; ok {
-			arrow := " ▲"
-			if !m.sortAsc {
-				arrow = " ▼"
-			}
-			monCols[idx].Title = baseTitles[idx] + arrow
-		}
-		monCols[2].Title = "Status"
-		m.monitorTable.SetColumns(monCols)
-	}
-
-	// Appliquer les styles et le focus selon le tab actif
-	if m.activeTab == TabMonitors {
-		m.monitorTable.Focus()
-		m.monitorTable.SetStyles(theme.DefaultTableStyles())
-		m.sslTable.Blur()
-		m.sslTable.SetStyles(theme.BlurredTableStyles())
-	} else {
-		m.sslTable.Focus()
-		m.sslTable.SetStyles(theme.DefaultTableStyles())
-		m.monitorTable.Blur()
-		m.monitorTable.SetStyles(theme.BlurredTableStyles())
-	}
+	m.monitorTable.SetItems(monitors)
+	m.sslTable.SetItems(ssls)
+	m.applyTabFocus()
 }
 
 // GetHelpContent retourne le contenu d'aide de la vue Status
@@ -353,4 +239,29 @@ func formatSSLStatus(comp status.ComponentStatus) string {
 	default:
 		return string(comp.Status)
 	}
+}
+
+// matchesQuery reports whether a component survives the text filter. Name,
+// target and type, which is what the two loops this replaced matched between
+// them — the SSL one left type out, and a `type:` query narrowing one table and
+// not the other was never deliberate.
+func matchesQuery(comp status.ComponentStatus, query string) bool {
+	if query == "" {
+		return true
+	}
+	return strings.Contains(strings.ToLower(comp.Name), query) ||
+		strings.Contains(strings.ToLower(comp.Target), query) ||
+		strings.Contains(strings.ToLower(string(comp.Type)), query)
+}
+
+// applyTabFocus gives the keyboard to the active tab's table and blurs the
+// other. Focus and Blur carry the styles with them (Rule 118).
+func (m *Model) applyTabFocus() {
+	if m.activeTab == TabMonitors {
+		m.monitorTable.Focus()
+		m.sslTable.Blur()
+		return
+	}
+	m.sslTable.Focus()
+	m.monitorTable.Blur()
 }
