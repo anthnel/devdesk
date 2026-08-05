@@ -83,13 +83,6 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 		// Pas d'args → ouvrir la modale interactive
 		return a, a.listContexts()
 
-	case command.CommandTheme:
-		// Ouvrir la modale interactive de sélection de thème
-		a.commandMode = false
-		a.commandInput.Blur()
-		a.resetCompletion()
-		return a, a.listThemes()
-
 	case command.CommandUnknown:
 		// Commande invalide - rester en mode commande
 		return a, nil

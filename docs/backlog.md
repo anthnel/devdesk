@@ -23,6 +23,24 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**Two settings had a second, non-persisting writer. Both removed** once the
+configuration view gave them a home.
+
+`status` adjusted `refresh_interval` with `+` and `-`, **in memory only**. The
+running interval and `status.refresh_interval` could therefore disagree, the
+header reported the running one, and the adjustment was lost on restart. Same
+shape as `gitlab.url` in two views: one setting, two holders, one of which does
+not persist.
+
+`:theme` opened a picker that loaded a theme *and* wrote `app.theme` to disk —
+a second writer for a setting the configuration view now owns, and one that
+bypassed its form. The command, its overlay, `internal/app/theme.go`,
+`CommandTheme` and `ThemeListMsg`/`ThemeAppliedMsg`/`ThemeErrorMsg` are gone;
+`applyThemeNow` swaps the palette without saving, because the view already did.
+
+Together they removed 264 lines against 44 added.
+
+
 **D28 — logging out of GitLab left the session behind. Fixed** by giving
 `auth.LogoutCompleteMsg` a router handler. Reported from use, not found by
 reading.

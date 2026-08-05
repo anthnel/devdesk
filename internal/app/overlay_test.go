@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -39,19 +37,6 @@ func TestAnUnknownCurrentContextLeavesTheCursorInRange(t *testing.T) {
 	}
 }
 
-func TestTheThemeListOpensOnTheCurrentTheme(t *testing.T) {
-	a := router(t, &fakeView{})
-
-	a.Update(ThemeListMsg{Themes: []string{"default", "latte", "mocha"}, Current: "mocha"})
-
-	if !a.showThemeList {
-		t.Fatal("the theme list did not open")
-	}
-	if got := a.themeList[a.themeSelectedIdx]; got != "mocha" {
-		t.Errorf("the cursor is on %q, want the current theme mocha", got)
-	}
-}
-
 // ── Navigating ───────────────────────────────────────────────────────────────
 
 // The cursor clamps at both ends rather than wrapping or running off the slice
@@ -67,12 +52,6 @@ func TestOverlayCursorsClampAtBothEnds(t *testing.T) {
 			name:  "context list",
 			open:  func(a *App) { a.Update(ContextListMsg{Contexts: []string{"a", "b", "c"}, Current: "a"}) },
 			index: func(a *App) int { return a.contextSelectedIdx },
-			size:  3,
-		},
-		{
-			name:  "theme list",
-			open:  func(a *App) { a.Update(ThemeListMsg{Themes: []string{"a", "b", "c"}, Current: "a"}) },
-			index: func(a *App) int { return a.themeSelectedIdx },
 			size:  3,
 		},
 	}
@@ -135,24 +114,6 @@ func TestChoosingAContextClosesTheListAndSwitches(t *testing.T) {
 	}
 }
 
-func TestChoosingAThemeClosesTheListAndApplies(t *testing.T) {
-	a := router(t, &fakeView{})
-	a.Update(ThemeListMsg{Themes: []string{"default"}, Current: "default"})
-
-	cmd := feedKey(t, a, testutil.Key("enter"))
-
-	if a.showThemeList {
-		t.Error("the list stayed open after a choice")
-	}
-	applied, ok := testutil.MsgOf[ThemeAppliedMsg](cmd)
-	if !ok {
-		t.Fatalf("choosing produced %T, want a theme applied", testutil.Msg(cmd))
-	}
-	if applied.ThemeName != "default" {
-		t.Errorf("applied %q, want default", applied.ThemeName)
-	}
-}
-
 // Enter on an empty list must not index into it.
 func TestChoosingFromAnEmptyListDoesNothing(t *testing.T) {
 	a := router(t, &fakeView{})
@@ -166,18 +127,6 @@ func TestChoosingFromAnEmptyListDoesNothing(t *testing.T) {
 	}
 }
 
-// A theme that has been applied asks for a re-layout: the styles it changed are
-// baked into every rendered line.
-func TestApplyingAThemeRefreshesTheLayout(t *testing.T) {
-	a := router(t, &fakeView{})
-
-	_, cmd := a.Update(ThemeAppliedMsg{ThemeName: "default"})
-
-	if _, ok := testutil.MsgOf[tea.WindowSizeMsg](cmd); !ok {
-		t.Error("applying a theme did not ask for a re-layout")
-	}
-}
-
 // ── Closing ──────────────────────────────────────────────────────────────────
 
 func TestEveryOverlayClosesOnEscapeAndQ(t *testing.T) {
@@ -188,7 +137,6 @@ func TestEveryOverlayClosesOnEscapeAndQ(t *testing.T) {
 	}{
 		{"help", func(a *App) { a.showHelp = true }, func(a *App) bool { return a.showHelp }},
 		{"context list", func(a *App) { a.showContextList = true }, func(a *App) bool { return a.showContextList }},
-		{"theme list", func(a *App) { a.showThemeList = true }, func(a *App) bool { return a.showThemeList }},
 	}
 
 	for _, tt := range tests {
@@ -257,20 +205,6 @@ func TestOverlaysMarkTheEntryInUse(t *testing.T) {
 		}
 	})
 
-	t.Run("theme", func(t *testing.T) {
-		a := router(t, &fakeView{})
-		a.currentTheme = "mocha"
-		a.themeList = []string{"default", "mocha"}
-
-		rendered := a.renderThemeListOverlay()
-
-		if !strings.Contains(rendered, "mocha (current)") {
-			t.Errorf("the overlay does not mark the theme in use:\n%s", rendered)
-		}
-		if !strings.Contains(rendered, "Select Theme") {
-			t.Error("the overlay has no title")
-		}
-	})
 }
 
 func TestTheHelpOverlayShowsTheViewsContent(t *testing.T) {

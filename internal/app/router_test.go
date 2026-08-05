@@ -24,7 +24,6 @@ func TestAnOpenOverlaySwallowsEveryKey(t *testing.T) {
 	}{
 		{"help", func(a *App) { a.showHelp = true }},
 		{"context list", func(a *App) { a.showContextList = true }},
-		{"theme list", func(a *App) { a.showThemeList = true }},
 	}
 
 	for _, tt := range tests {

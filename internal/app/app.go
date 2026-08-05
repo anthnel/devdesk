@@ -61,12 +61,6 @@ type App struct {
 	contextList        []string
 	contextSelectedIdx int
 
-	// Theme list overlay
-	showThemeList    bool
-	themeList        []string
-	currentTheme     string
-	themeSelectedIdx int
-
 	// Help overlay
 	showHelp     bool
 	helpViewport viewport.Model
@@ -274,16 +268,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ContextListMsg:
 		return a.handleContextList(msg)
-
-	case ThemeListMsg:
-		return a.handleThemeList(msg)
-
-	case ThemeAppliedMsg:
-		return a.handleThemeApplied(msg)
-
-	case ThemeErrorMsg:
-		log.Printf("ERROR: Theme operation failed: %v", msg.Error)
-		return a, nil
 
 	// ── GitLab authentication ────────────────────────────────────────────
 	case auth.AuthResultMsg:

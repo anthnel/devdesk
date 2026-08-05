@@ -28,7 +28,6 @@ type CommandType string
 const (
 	CommandView    CommandType = "view"
 	CommandContext CommandType = "context"
-	CommandTheme   CommandType = "theme"
 	CommandQuit    CommandType = "quit"
 	CommandUnknown CommandType = "unknown"
 )
@@ -80,7 +79,6 @@ var viewNames = map[string]ViewType{
 // (`context work`, `theme mocha`) or none at all (`quit`).
 var actionNames = map[string]CommandType{
 	"context": CommandContext,
-	"theme":   CommandTheme,
 	"quit":    CommandQuit,
 }
 

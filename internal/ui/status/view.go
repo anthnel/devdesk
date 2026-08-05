@@ -197,7 +197,6 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+d", Description: "Delete the selected monitor (with confirmation)"},
 			{Key: "ctrl+r", Description: "Force an immediate refresh"},
 			{Key: "space", Description: "Pause / resume automatic refresh"},
-			{Key: "+/-", Description: "Increase / decrease refresh interval"},
 			{Key: "tab/shift+tab", Description: "Switch between Service Monitors and SSL Certificates tabs"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},

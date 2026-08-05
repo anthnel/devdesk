@@ -155,10 +155,15 @@ Press `:` to enter command mode, then type:
 - `configuration`, `config` or `cfg` - Switch to the configuration view
 - `context <name>` or `ctx <name>` - Switch configuration context
 - `context list` - Show available contexts
-- `theme <name>` - Switch UI theme
 - `quit` - Exit application
 
-Command parsing and tab-completion live in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandTheme`, `CommandQuit`, `CommandUnknown`.
+Command parsing and tab-completion live in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandQuit`, `CommandUnknown`.
+
+**There is no `:theme` command.** The theme is a setting, so the configuration
+view owns it — the picker wrote `app.theme` behind the settings form's back,
+which is one setting with two writers. Its overlay, `internal/app/theme.go` and
+`CommandTheme` are all gone; `applyThemeNow` in `internal/app/configuration.go`
+is what swaps the palette now.
 
 **Important:** The `FormView` interface (`InEditMode()`) prevents command mode activation when forms are active. Views with active forms must implement this interface.
 

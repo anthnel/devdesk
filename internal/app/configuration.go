@@ -50,10 +50,12 @@ func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, te
 	return a, a.requestResize()
 }
 
-// applyThemeNow switches the palette in place. Unlike the `:theme` command it
-// does not save — the configuration view already did, and writing twice would
+// applyThemeNow switches the palette in place.
+//
+// It does not save: the configuration view already did, and writing twice would
 // make the view's own config object and the file disagree about who is
-// authoritative.
+// authoritative. That double write is what the `:theme` command did — it is
+// gone, and this replaced it.
 func (a *App) applyThemeNow(name string) {
 	t, err := theme.LoadTheme(name)
 	if err != nil {

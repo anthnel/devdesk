@@ -6,7 +6,7 @@
 ## Command Parser (`internal/command/`)
 
 **Key Exports:**
-- `ParseCommand(input string) Command` — Parse `:view`, `:context`, `:theme`, `:quit`
+- `ParseCommand(input string) Command` — Parse `:view`, `:context`, `:quit`
 - `CompletionEngine` — Tab completion for commands
 - `ViewType` enum — 9 view types (dashboard, status, gitlab-*, workspaces, security, containers, oci-resources, net)
 
