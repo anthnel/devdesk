@@ -94,7 +94,7 @@ func TestNewWithPreloadedResultOpensOnTheResults(t *testing.T) {
 	if m.targetPath != result.Target || m.activeTab != TabCVE {
 		t.Errorf("target = %q, tab = %d", m.targetPath, m.activeTab)
 	}
-	if len(m.findingsTable.Rows()) == 0 {
+	if len(m.findingsTable.Table().Rows()) == 0 {
 		t.Error("the table is empty; the resize should have populated it")
 	}
 }
@@ -382,7 +382,7 @@ func TestScanCompleteShowsTheResults(t *testing.T) {
 	if m.result == nil {
 		t.Fatal("the result was not kept")
 	}
-	if got := rowIDs(m.findingsTable.Rows()); !equal(got, []string{"CVE-2026-0001", "CVE-2026-0002"}) {
+	if got := rowIDs(m.findingsTable.Table().Rows()); !equal(got, []string{"CVE-2026-0001", "CVE-2026-0002"}) {
 		t.Errorf("the CVE tab shows %v", got)
 	}
 }
@@ -474,7 +474,7 @@ func TestEachTabShowsItsOwnFindings(t *testing.T) {
 		m := scannedModel(t)
 		m.switchTab(tt.tab)
 
-		if got := rowIDs(m.findingsTable.Rows()); !equal(got, tt.want) {
+		if got := rowIDs(m.findingsTable.Table().Rows()); !equal(got, tt.want) {
 			t.Errorf("tab %d shows %v, want %v", tt.tab, got, tt.want)
 		}
 	}
@@ -536,7 +536,7 @@ func TestSeverityFilterIsCumulative(t *testing.T) {
 		if m.severityFilter != s.filter {
 			t.Fatalf("severityFilter = %q, want %q", m.severityFilter, s.filter)
 		}
-		if got := rowIDs(m.findingsTable.Rows()); !equal(got, s.want) {
+		if got := rowIDs(m.findingsTable.Table().Rows()); !equal(got, s.want) {
 			t.Errorf("filter %q shows %v, want %v", s.filter, got, s.want)
 		}
 	}
@@ -562,8 +562,8 @@ func TestEnterOpensTheDetailsOfTheHighlightedFinding(t *testing.T) {
 	if m.state != StateDetails {
 		t.Fatalf("state = %v after enter", m.state)
 	}
-	if m.selectedIdx != 1 {
-		t.Errorf("selectedIdx = %d, want the highlighted row", m.selectedIdx)
+	if m.selectedFinding == nil || m.selectedFinding.ID != "CVE-2026-0002" {
+		t.Errorf("selectedFinding = %v, want the highlighted row", m.selectedFinding)
 	}
 	if view := m.View(); !strings.Contains(view, "CVE-2026-0002") {
 		t.Errorf("the details do not show the selected finding:\n%s", view)

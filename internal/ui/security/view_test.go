@@ -150,7 +150,7 @@ func TestTableCellsCarryNoEscapeSequences(t *testing.T) {
 	m := scannedModel(t)
 	for _, tab := range []int{TabCVE, TabSecrets, TabLicense, TabMisconfig} {
 		m.switchTab(tab)
-		for _, row := range m.findingsTable.Rows() {
+		for _, row := range m.findingsTable.Table().Rows() {
 			for i, cell := range row {
 				if strings.Contains(cell, "\x1b") {
 					t.Errorf("tab %d: cell %d of row %v carries an escape sequence", tab, i, row)
@@ -224,26 +224,30 @@ func TestFooterShowsTheStatusMessage(t *testing.T) {
 
 // Rule 116: the columns share the width left after the viewport borders and the
 // per-cell padding, so the selected row reaches the right border.
+//
+// This used to loop over three widths and `continue` when the sum was wrong,
+// which asserted nothing at all.
 func TestColumnsFitTheWidth(t *testing.T) {
-	for _, width := range []int{80, 120, 200} {
+	const titleColumn = 2
+
+	for _, width := range []int{50, 80, 120, 200} {
 		m := feed(t, scannedModel(t), testutil.Resize(width, 30))
 
 		total := 0
-		for _, col := range m.findingsTable.Columns() {
+		for _, col := range m.findingsTable.Table().Columns() {
 			total += col.Width
+			if col.Width < 0 {
+				t.Errorf("at width %d, column %q is %d wide", width, col.Title, col.Width)
+			}
 		}
-		if want := width - 10 + 10; total != want { // fixed 42 + title, which absorbs the rest
-			continue // exact arithmetic is asserted below on the title column alone
+		if want := width - 2 - numColumns*2; total != want {
+			t.Errorf("at width %d the columns total %d, want %d", width, total, want)
 		}
 	}
 
-	narrow := feed(t, scannedModel(t), testutil.Resize(40, 30))
-	if got := narrow.getTitleColumnWidth(); got < 20 {
-		t.Errorf("the title column collapsed to %d on a narrow terminal", got)
-	}
-
+	narrow := feed(t, scannedModel(t), testutil.Resize(60, 30))
 	wide := feed(t, scannedModel(t), testutil.Resize(200, 30))
-	if wide.getTitleColumnWidth() <= narrow.getTitleColumnWidth() {
+	if wide.findingsTable.Table().Columns()[titleColumn].Width <= narrow.findingsTable.Table().Columns()[titleColumn].Width {
 		t.Error("the title column did not grow with the terminal")
 	}
 }
@@ -310,9 +314,11 @@ func TestUnknownSeverityStillRenders(t *testing.T) {
 func TestSelectionStyleFollowsTheSeverity(t *testing.T) {
 	withTrueColor(t)
 
-	critical := scannedModel(t).findingsTable.View()
+	first := scannedModel(t)
+	critical := first.findingsTable.View()
 
-	medium := feed(t, scannedModel(t), testutil.Key("down")).findingsTable.View()
+	second := feed(t, scannedModel(t), testutil.Key("down"))
+	medium := second.findingsTable.View()
 
 	if critical == medium {
 		t.Error("the selection style is the same on a critical and a medium finding")

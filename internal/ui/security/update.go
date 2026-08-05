@@ -40,14 +40,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// SetHeight accounts for the header row internally, so pass m.height directly
-		m.findingsTable.SetHeight(max(m.height, 5))
-		// Always recalculate columns on resize
-		m.findingsTable.SetColumns(m.calculateColumns())
-		// Rebuild rows if in results or details state (to apply new title width truncation)
-		if (m.state == StateResults || m.state == StateDetails) && m.result != nil {
-			m.updateFindingsTable()
-		}
+		// Widths and height in one call; SetHeight accounts for the header row
+		// internally, so m.height goes through as it is. Rows no longer depend
+		// on the width — bubbles truncates each cell to its own column — so
+		// there is nothing to rebuild here.
+		m.findingsTable.Resize(m.width, max(m.height, 5))
 		// Update details viewport size and refresh content
 		m.detailsViewport.Width = msg.Width
 		m.detailsViewport.Height = msg.Height

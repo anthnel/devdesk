@@ -54,8 +54,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcuts := []shortcut.Shortcut{
 			{Key: "esc/⌫", Description: "Back"},
 		}
-		if m.selectedIdx < len(m.filteredFindings) {
-			f := m.filteredFindings[m.selectedIdx]
+		if f := m.selectedFinding; f != nil {
 			if len(f.References) > 0 {
 				shortcuts = append(shortcuts, shortcut.Shortcut{Key: "o", Description: "Open ref"})
 			}
