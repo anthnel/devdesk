@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "e4886003c8e4",
+  "strategy": "manual-commit",
+  "branch": "fix/scan-options-single-builder",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "internal/ui/security/scan.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e4/886003c8e4/0/metadata.json",
+      "transcript": "/e4/886003c8e4/0/full.jsonl",
+      "compact_transcript": "/e4/886003c8e4/0/transcript.jsonl",
+      "content_hash": "/e4/886003c8e4/0/content_hash.txt",
+      "prompt": "/e4/886003c8e4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6101,
+    "cache_creation_tokens": 3581039,
+    "cache_read_tokens": 307608943,
+    "output_tokens": 680452,
+    "api_call_count": 948
+  }
+}
