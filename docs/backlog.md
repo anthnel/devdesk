@@ -482,6 +482,15 @@ around.
 
 **D21** is the only defect left open.
 
+**D25 — status acted on the wrong monitor under a filter. Fixed** by §2 step 6,
+which is also what found it. `getSelectedComponentIndex` replayed the sort by
+hand and then indexed, but never applied the text filter the rows had already
+been through; the SSL branch walked `m.components` by counting, unfiltered the
+same way. Under a filter `e` edited and `ctrl+d` deleted a monitor the user was
+not looking at. Same family as D24, and the ninth and last copy of the block.
+`TestAFilteredSelectionEditsTheRowTheUserSees` was written before the fix and
+failed on the old code.
+
 **D24 — workspaces acted on the wrong directory under a filter. Fixed** by §2
 step 5, which is also what found it. The rows were filtered and `m.entries` was
 not, and every action resolved the cursor against `m.entries` — so under a
@@ -1266,7 +1275,67 @@ Three things the views forced into the component:
   worth having whole.
 
 `workspaces` 81.7 %, `explorer` 90.1 %, `datatable` 96.2 %. Seven of fifteen
-tables migrated. Step 6 stands as written.
+tables migrated.
+
+#### Step 6 as built — `security`, then `status`
+
+The two the plan set aside as not fitting the config cleanly. Both turned out to
+fit — by keeping something the component deliberately does not model.
+
+**`security`** filters by tab and by severity before any query, and resets the
+cursor to the top when the tab changes. Both stay in the view, and that is the
+right answer rather than a concession: the tab and the severity decide which
+findings *exist*, where a `FilterBar` query narrows a list that is already
+settled. So the view filters and hands the result over, then calls `GotoTop`
+explicitly — the call `SetItems` deliberately does not make. It is the second
+client of `SelectedStyles`, colouring the selected row by the severity under the
+cursor.
+
+**`status`** is two tables sharing a viewport with alternating focus, and it is
+two `datatable.Model` plus a four-line `applyTabFocus`, exactly as the plan
+guessed. `Focus` and `Blur` carry the styles, so the four `SetStyles` calls at
+every tab switch went with them. The one text query drives *both* tables so the
+header counts agree with each other whichever tab is showing, so the query stays
+in the view too — same call as security's, for the same reason.
+
+**And status was carrying D25.** `getSelectedComponentIndex` sorted and then
+indexed without ever applying the filter the rows had been through. It is the
+ninth and last copy of the block, and the second of the nine that was actually
+wrong. Two out of nine is the answer to whether this refactor was worth doing on
+correctness grounds: the duplication was not equivalent, it had drifted, and
+nothing said so.
+
+Two smaller things:
+
+- The findings Title was truncated by hand at `width-3` before going into the
+  row. bubbles truncates every cell to its column width with the same ellipsis
+  (`table.go:429`), so this only ever cost three characters of title. Nothing
+  else depended on the width when building rows, so the resize handler stopped
+  rebuilding them — and `NewWithPreloadedResult` stopped needing a
+  `WindowSizeMsg` to fill its table.
+- `matchesQuery` settles an inconsistency nobody chose: status' monitor loop
+  matched name, target and type; the SSL loop left type out.
+
+`security` 85.5 %, `status` 93.1 %.
+
+#### §2 done — fifteen of fifteen
+
+What it removed, across the six steps: twelve width calculations (five of them
+wrong — three that overflowed, two that starved), nine `getSelectedX` (two of
+them wrong, D24 and D25), eight sort-arrow blocks, six `sortField` enums and
+their `cycleSort`, eleven filter loops, and the `tableReady` trio.
+
+What it bought is not the line count — roughly 1500 lines out of the views
+against 560 in the component and its tests. It is that Rules 116, 122 and 136
+stopped being conventions checked in review. `Cell func(T) string` gives styled
+text nowhere to go. One solver makes the width invariant testable, and every
+view now sweeps it from a width narrow enough to hurt. `SetItems` is the only
+place a cursor can be left dangling, and `Selected()` reads the slice the rows
+were built from, so the two cannot part.
+
+Both defects it found were the same shape and neither was hypothetical: filter a
+list, act on the highlighted row, watch the wrong object get deleted.
+
 
 ### Race detector cannot run locally
 
