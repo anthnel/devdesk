@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "e7eb76d1f4b0",
+  "strategy": "manual-commit",
+  "branch": "feat/security-inventory",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/CLAUDE.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/command_line.go",
+    "internal/app/router_test.go",
+    "internal/app/scan_details.go",
+    "internal/app/selection.go",
+    "internal/ui/oci_resources/update.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/inventory.go",
+    "internal/ui/security/messages.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/model_test.go",
+    "internal/ui/security/security_test.go",
+    "internal/ui/security/update.go",
+    "internal/ui/security/view.go",
+    "internal/ui/workspaces/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e7/eb76d1f4b0/0/metadata.json",
+      "transcript": "/e7/eb76d1f4b0/0/full.jsonl",
+      "compact_transcript": "/e7/eb76d1f4b0/0/transcript.jsonl",
+      "content_hash": "/e7/eb76d1f4b0/0/content_hash.txt",
+      "prompt": "/e7/eb76d1f4b0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 267,
+    "cache_creation_tokens": 160475,
+    "cache_read_tokens": 78074842,
+    "output_tokens": 73681,
+    "api_call_count": 141
+  }
+}
