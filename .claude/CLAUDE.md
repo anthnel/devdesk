@@ -412,9 +412,45 @@ source of their own (`trivy-secret`) rather than being recognised by a `Match`.
 `TestEveryFindingIsCountedExactlyOnce` and
 `TestTheTabCountsAgreeWithTheResultCounters` are what hold the two ends together.
 
-**Security view** (`internal/ui/security/model.go`) has five states:
-`StateInventory` (the landing page), `StateInput` (the form, until phase 3),
-`StateScanning`, `StateResults` and `StateDetails` (with remediation info).
+**Security view** (`internal/ui/security/model.go`) has three states:
+`StateInventory` (the landing page), `StateResults` and `StateDetails` (with
+remediation info).
+
+**The scan form is gone** (phase 3), and with it `StateScanning`: there is no
+screen that runs one scan and waits on it. The inventory rescans in the
+background with a spinner on the row, the way the images list does. What went
+with the form, because nothing else read it:
+
+| Gone | Why it existed |
+|---|---|
+| `form.go`, `renderInputView` and the seven field renderers | the form |
+| `StateInput`, `StateScanning`, `renderScanningView` | its two screens |
+| `startScan`, the progress channel, `scanGen`, `cancelScan` | running one scan in place |
+| `deps`, `checkDependencies`, `DepsCheckedMsg` | the Start button, the last reader of "is a scanner installed" |
+| `homeState` | which of the two landing states to return to |
+| `SelectionRequestMsg` / `SelectionResultMsg` / `SelectionCancelledMsg` | picking a target by borrowing another view |
+| `NewWithTarget`, `NewWithImageTarget`, `NewWithTargetReturnToWorkspaces` | prefilling its fields |
+
+`NewWithPreloadedResult` is the only constructor left besides `New`.
+
+**Only the workspaces view is ever lent now.** The form borrowed it for a
+directory and the images view for an image; the explorer borrows it for a clone
+destination, and that is all. So `ociresources.NewForSelection`,
+`ImageSelectedMsg`, `SelectionCancelledMsg`, `ResetSelectionMsg` and the OCI
+view's `selectionMode` are gone, and `app/selection.go` is no longer
+parameterised over who is borrowing.
+
+**A missing stored result rescans in the list it came from.** `enter` on a
+scanned row asks the router for the result file; when it is gone,
+`rescanInOrigin` hands `workspaces.ScanRequestMsg` or
+`ociresources.ScanRequestMsg` to that list and stays there — the target lives
+there, and so does the scan that replaces it. It used to open the form with the
+target filled in. Both message types were declared and unhandled before this;
+they have handlers now, which is what they were named for.
+
+`LaunchBatchScanMsg`, `LaunchSingleImageScanMsg` and `app.handleLaunchScan` went
+with the form: they carried the *options* the form had collected to whoever
+would run the scan, and the options come from the configuration view now.
 
 **The header carries the context and one count, and nothing else.**
 `app_header.go`'s `buildInfoLines` renders exactly `headerMinHeight` (7) lines
@@ -466,11 +502,8 @@ Three invariants, each with a test that fails without it:
   exists. Everything else is forwarded to the active view only, and a lost
   completion leaves a row spinning for the life of the view.
 
-`homeState` records where `esc` and `ctrl+r` return to from the results — the
-inventory for a view opened on `:sec`, the form for one opened with a target
-prefilled (`NewWithTarget`, `NewWithImageTarget`). A **failed** scan uses it
-too: one started from the inventory must not land on a form the user never
-opened. The field goes with the form in phase 3.
+`esc` and `ctrl+r` return to the inventory, or to the list the results were
+opened from when `OriginView` is set.
 
 ### Registry group cache
 

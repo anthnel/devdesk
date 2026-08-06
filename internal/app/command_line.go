@@ -92,17 +92,15 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 }
 
 // resetSelectionModeFor takes a view out of selection mode before switching to
-// it. Workspaces is dropped and rebuilt; the OCI view is reset in place because
-// it holds scan results worth keeping.
+// it, by dropping it so it is rebuilt normally.
+//
+// Only the workspaces view is lent now. The images view was the other one — the
+// security form borrowed it to pick a scan target — and it could not simply be
+// dropped, because it holds scan results worth keeping; it took a
+// ResetSelectionMsg instead. That whole path went with the form (phase 3).
 func (a *App) resetSelectionModeFor(view command.ViewType) {
-	switch view {
-	case command.ViewWorkspaces:
+	if view == command.ViewWorkspaces {
 		delete(a.views, view)
-	case command.ViewOCIResources:
-		if existing, ok := a.views[command.ViewOCIResources]; ok {
-			updatedView, _ := existing.Update(ociresources.ResetSelectionMsg{})
-			a.views[command.ViewOCIResources] = updatedView
-		}
 	}
 }
 

@@ -1,8 +1,7 @@
 # A configuration view, and `security` becomes an inventory
 
-Status: **phases 0, 0b, 0c, 1 and 2 shipped; phase 3 remains.** Decisions below
-are settled; open questions are marked as such and are the only things left to
-arbitrate.
+Status: **complete.** All five phases shipped. What is left is the SBOM removal
+that was deliberately deferred until after phase 3 -- `docs/backlog.md` §3.14.
 
 | Phase | State |
 |---|---|
@@ -11,7 +10,7 @@ arbitrate.
 | 0c — tool source and paths (D27) | shipped |
 | 1 — configuration view | shipped |
 | 2 — the inventory | shipped, alongside the form |
-| 3 — deleting the form | **outstanding** |
+| 3 — deleting the form | **shipped** |
 | after 3 — removing SBOM generation | **outstanding**, see `docs/backlog.md` §3.14 |
 
 ## What was decided
@@ -407,7 +406,7 @@ the inventory; `checkDependencies` and the `deps` field go with the form.
 
 ---
 
-## Phase 3 — deletion
+## Phase 3 — deletion — **shipped**
 
 Only once phases 1 and 2 are merged.
 

@@ -72,7 +72,7 @@ func (m Model) rescanSelected() (tea.Model, tea.Cmd) {
 // so a rescan has to start it again — and starting a second chain alongside a
 // live one makes the frames advance at twice the rate.
 func (m Model) spinnerTickIfIdle() tea.Cmd {
-	if m.state == StateScanning || m.inventoryScanning() {
+	if m.inventoryScanning() {
 		return nil
 	}
 	return m.spinner.Tick
@@ -128,16 +128,14 @@ func (m *Model) markScanning(names []string, purge bool) {
 	m.setInventory(updated)
 }
 
-// goHome returns to the state this view opened on.
+// goHome returns to the inventory, which is the only landing state left now
+// that the form is gone — `homeState` recorded which of the two it was.
 //
-// Coming back to the inventory reloads it, because the caches are the source of
-// truth and they move: a rescan just run here changed them, and so does a scan
-// launched from the images or workspaces list while this view sat on a result.
+// It reloads, because the caches are the source of truth and they move: a rescan
+// just run here changed them, and so does a scan launched from the images or
+// workspaces list while this view sat on a result.
 func (m Model) goHome() (tea.Model, tea.Cmd) {
-	m.state = m.homeState
-	if m.homeState != StateInventory {
-		return m, nil
-	}
+	m.state = StateInventory
 	return m, loadInventoryCmd()
 }
 

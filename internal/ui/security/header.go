@@ -16,25 +16,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	switch m.state {
 	case StateInventory:
 		return m.inventoryShortcuts()
-	case StateInput:
-		shortcuts := []shortcut.Shortcut{
-			{Key: "space", Description: "Toggle"},
-			{Key: "←→", Description: "Cycle value"},
-			{Key: "enter / ctrl+s", Description: "Scan"},
-		}
-		// Show 'b' shortcut for directory and image modes on target field
-		if m.focusedField == 1 {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "b", Description: "Browse"})
-		}
-		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "alt+:", Description: "Command"},
-			shortcut.Shortcut{Key: "?", Description: "Help"},
-		)
-		return shortcuts
-	case StateScanning:
-		return []shortcut.Shortcut{
-			// {Key: "scanning...", Description: ""},
-		}
 	case StateResults:
 		shortcuts := []shortcut.Shortcut{
 			{Key: "tab", Description: "Switch tab"},
@@ -100,10 +81,7 @@ func (m Model) GetTitle() string {
 		// contexts hold different inventories, and their rows look identical.
 		return base + " " + theme.IconChevronRight + " Inventory · " + config.CurrentContextName()
 	}
-	if m.state == StateInput {
-		return base + " " + theme.IconChevronRight + " Scan Configuration"
-	}
-	if m.targetPath != "" && (m.state == StateScanning || m.state == StateResults || m.state == StateDetails) {
+	if m.targetPath != "" {
 		annotation := lipgloss.NewStyle().
 			Foreground(theme.ColorSecondary).
 			Background(theme.ColorBackground).
@@ -176,18 +154,14 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+a", Description: "Purge every cached result and rescan every target (inventory)"},
 			{Key: "ctrl+r", Description: "Reload the inventory from the scan caches"},
 			{Key: "/", Description: "Filter the inventory by target name"},
-			{Key: ".", Description: "Cycle the sort column (inventory)"},
-			{Key: "enter / ctrl+s", Description: "Start scan (from input form) / view details (in results)"},
-			{Key: "space", Description: "Toggle a scan option (only key that toggles checkboxes)"},
-			{Key: "ctrl+s", Description: "Start scan (from input form)"},
-			{Key: "b", Description: "Browse directories (workspaces view) or Docker images (on Target field)"},
-			{Key: "i", Description: "Ignore a secret (add to .gitleaksignore, in Secrets results tab)"},
+			{Key: ".", Description: "Cycle the sort column (inventory) or the severity filter (results)"},
+			{Key: "enter", Description: "Open the details of the selected finding (results)"},
+			{Key: "i", Description: "Ignore a secret (add to .gitleaksignore, in the Secrets tab)"},
 			{Key: "o", Description: "Open first reference URL in the default browser (detail view)"},
 			{Key: "tab / shift+tab", Description: "Switch tabs in results (CVE, Secrets, Licenses, Misconfig)"},
 			{Key: "1 / 2 / 3 / 4", Description: "Jump directly to a tab"},
-			{Key: ".", Description: "Cycle severity filter (in CVE/Licenses/Misconfig results)"},
-			{Key: "ctrl+r", Description: "New scan (from results)"},
-			{Key: "esc", Description: "Back / cancel"},
+			{Key: "ctrl+r", Description: "Back to the inventory (results)"},
+			{Key: "esc", Description: "Back"},
 			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
@@ -201,16 +175,16 @@ func (m Model) GetHelpContent() help.Content {
 				Body:  "Vulnerability Scan: detects CVEs in dependencies and packages (Trivy).\nSecret Scan: runs both scanners, and the Secrets tab shows their findings together. Gitleaks reads a repository's working tree and git history; Trivy reads the target's content, which is what gives an image a secret scan at all — Gitleaks cannot scan one. The Source column says which tool found each finding.\nMisconfig Scan: detects IaC misconfigurations in Dockerfiles, Terraform, K8s manifests (Trivy).\nLicense Scan: analyzes dependency licenses (Trivy).\nSBOM Generation: generates a CycloneDX SBOM report (Trivy).",
 			},
 			{
-				Title: "Target Types",
-				Body:  "Directory: scans a local directory. Use 'b' to browse via the Workspaces view.\nImage: scans a Docker image. Use 'b' to browse via the OCI Images view, or type the name manually (e.g., nginx:latest).",
+				Title: "Targets",
+				Body:  "A target is a Docker image or a repository under the configured workspaces directory. Images are scanned from the OCI resources view (:oci) and repositories from the workspaces view (:w); both write to the caches this inventory reads, so anything scanned anywhere appears here and can be rescanned from here.",
 			},
 			{
-				Title: "Advanced Options",
-				Body:  "Trivy Server: use a remote Trivy server (client-server mode). Persisted to config.\nIgnore Unfixed: only show vulnerabilities that have available fixes.\nScan Git History: scan the full git history for secrets (slower but more thorough).\nGitleaks Config: specify a custom .gitleaks.toml configuration file.",
+				Title: "Scan Options",
+				Body:  "Every option lives in the configuration view (:cfg), scan tab: which scanners run, whether to use a Trivy server, custom binaries or images, whether to ignore unfixed or end-of-life findings, a custom .gitleaks.toml, and whether Gitleaks reads the full git history. A rescan started here reads them at the moment it runs.",
 			},
 			{
 				Title: "Results",
-				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Use '.' to cycle the severity filter. Press Enter to view finding details. For secrets, 'i' adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have. If SBOM was generated, its path is shown above the tabs.",
+				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Use '.' to cycle the severity filter. Press Enter to view finding details. For secrets, 'i' adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have.\nEsc returns to the inventory, or to the list the results were opened from.",
 			},
 			{
 				Title: "Command Logging",

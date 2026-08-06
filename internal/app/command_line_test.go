@@ -6,7 +6,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
-	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -111,7 +110,7 @@ func TestSwitchingResetsTheBrowsersThatCanBeStuckInSelectionMode(t *testing.T) {
 		}
 	})
 
-	t.Run("oci-resources is reset in place", func(t *testing.T) {
+	t.Run("oci-resources is left alone", func(t *testing.T) {
 		a := commanding(t, &fakeView{})
 		oci := &fakeView{}
 		a.views[command.ViewOCIResources] = oci
@@ -119,9 +118,9 @@ func TestSwitchingResetsTheBrowsersThatCanBeStuckInSelectionMode(t *testing.T) {
 
 		feedKey(t, a, testutil.Key("enter"))
 
-		if _, ok := receivedOf[ociresources.ResetSelectionMsg](oci); !ok {
-			t.Error("the OCI view was not taken out of selection mode")
-		}
+		// Only the workspaces view is ever lent now, so the images view has no
+		// selection mode to be taken out of -- and it holds scan results, so it
+		// must not be rebuilt either.
 		if a.views[command.ViewOCIResources] != tea.Model(oci) {
 			t.Error("the OCI view was rebuilt, losing its scan results")
 		}

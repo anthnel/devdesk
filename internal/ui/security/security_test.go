@@ -101,14 +101,6 @@ func resultFixture() *scan.Result {
 // a view rooted there returns to it from the results and from a failed scan.
 // The form's own tests are about the form, so they say so — and they go with it
 // in phase 3.
-func newTestModel(t *testing.T) Model {
-	t.Helper()
-	m := New(testConfig())
-	m.state = StateInput
-	m.homeState = StateInput
-	return feed(t, m, tea.WindowSizeMsg{Width: 160, Height: 30})
-}
-
 // inventoryModel returns a laid-out model on the inventory, holding targets.
 func inventoryModel(t *testing.T, targets ...scanTarget) Model {
 	t.Helper()
@@ -133,11 +125,15 @@ func inventoryFixtures() []scanTarget {
 }
 
 // scannedModel returns a model showing results for the fixture scan.
+//
+// Built through NewWithPreloadedResult, which is how a result reaches the screen
+// now: from the cache, either from a row of the inventory or from a row of the
+// list it was scanned in. Nothing runs a scan and then shows it in place any
+// more — that was the form's path.
 func scannedModel(t *testing.T) Model {
 	t.Helper()
-	m := newTestModel(t)
-	m.targetPath = "/tmp/repo"
-	return feed(t, m, ScanCompleteMsg{Result: resultFixture(), Gen: m.scanGen})
+	return feed(t, NewWithPreloadedResult(testConfig(), resultFixture()),
+		tea.WindowSizeMsg{Width: 160, Height: 30})
 }
 
 // detailsModel returns a model in the details view for the first CVE.

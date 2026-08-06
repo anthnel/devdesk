@@ -122,38 +122,6 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(deleteScanCacheCmd(cacheKeys), batchScanCmd(jobs, scan.OptionsFromConfig(m.config.Scan)))
 }
 
-// handleLaunchBatchScan starts a batch scan of all images with the configured options.
-func (m Model) handleLaunchBatchScan(msg LaunchBatchScanMsg) (tea.Model, tea.Cmd) {
-	if m.scanning {
-		return m, nil
-	}
-	var jobs []imageScanJob
-	for _, img := range m.images {
-		if img.Repository == "<none>" {
-			continue
-		}
-		jobs = append(jobs, imageScanJob{Name: img.Name(), Target: img.ScanTarget()})
-	}
-	if len(jobs) == 0 {
-		return m, nil
-	}
-	m.lastScanOptions = msg.Opts
-	m.scanning = true
-	return m, batchScanCmd(jobs, msg.Opts)
-}
-
-// handleLaunchSingleImageScan starts a scan for a single image with the configured options.
-// The ImageName is user-provided (from security view) so Name and Target are identical.
-func (m Model) handleLaunchSingleImageScan(msg LaunchSingleImageScanMsg) (tea.Model, tea.Cmd) {
-	if m.scanningImages[msg.ImageName] {
-		return m, nil
-	}
-	m.lastScanOptions = msg.Opts
-	m.scanning = true
-	job := imageScanJob{Name: msg.ImageName, Target: msg.ImageName}
-	return m, batchScanCmd([]imageScanJob{job}, msg.Opts)
-}
-
 // handleImageScanStarting marks an image as currently scanning and refreshes the table.
 func (m Model) handleImageScanStarting(msg ImageScanStartingMsg) (tea.Model, tea.Cmd) {
 	wasScanning := len(m.scanningImages) > 0
@@ -186,4 +154,19 @@ func (m Model) handleImageScanFinished(msg ImageScanFinishedMsg) (tea.Model, tea
 		m.registryBrowser.SetScanCache(m.scanCache)
 	}
 	return m, nil
+}
+
+// handleScanRequest rescans one image by name, whoever asked.
+//
+// The router sends this when a cached scan's stored result has gone missing:
+// the row is still in the list, and the scan that would replace it belongs
+// here, next to the cache it writes. The name is both the cache key and the
+// scan target, as it is for an image typed rather than picked.
+func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
+	if msg.ImageName == "" || m.scanningImages[msg.ImageName] {
+		return m, nil
+	}
+	m.scanning = true
+	job := imageScanJob{Name: msg.ImageName, Target: msg.ImageName}
+	return m, batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config.Scan))
 }

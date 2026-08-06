@@ -55,11 +55,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ImageScanFinishedMsg:
 		return m.handleImageScanFinished(msg)
 
-	case LaunchBatchScanMsg:
-		return m.handleLaunchBatchScan(msg)
-
-	case LaunchSingleImageScanMsg:
-		return m.handleLaunchSingleImageScan(msg)
+	case ScanRequestMsg:
+		return m.handleScanRequest(msg)
 
 	case spinner.TickMsg:
 		var cmds []tea.Cmd
@@ -145,10 +142,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sharedcomponents.ConfirmModalNoMsg:
 		m.confirmModal = nil
 		m.pendingAction = ""
-		return m, nil
-
-	case ResetSelectionMsg:
-		m.selectionMode = false
 		return m, nil
 
 	case NetworkInspectLoadedMsg:
@@ -312,10 +305,6 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleNormalKeyMsg handles keys in normal mode
 func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.selectionMode {
-		return m.handleSelectionKeyMsg(msg)
-	}
-
 	// Tab switching (Rule 111: Tab/Shift+Tab)
 	switch msg.String() {
 	case "tab":

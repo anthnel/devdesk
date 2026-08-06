@@ -3,6 +3,8 @@ package security
 import (
 	"strings"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // Trivy and Gitleaks write a wall of structured log lines to stderr. The point
@@ -166,9 +168,8 @@ func TestSplitLogLine(t *testing.T) {
 func TestWarningsReplaceTheTable(t *testing.T) {
 	result := resultFixture()
 	result.Errors = []string{"trivy vuln: trivy failed: 2026-08-01T10:00:00Z\tFATAL\trun error: image not found"}
-	m := newTestModel(t)
 
-	m = feed(t, m, ScanCompleteMsg{Result: result, Gen: m.scanGen})
+	m := feed(t, NewWithPreloadedResult(testConfig(), result), testutil.Resize(160, 30))
 
 	view := m.View()
 	if !strings.Contains(view, "Scan Warnings") {
@@ -190,8 +191,7 @@ func TestWarningsReplaceTheTable(t *testing.T) {
 func TestWarningsShrinkTheFooter(t *testing.T) {
 	result := resultFixture()
 	result.Errors = []string{"trivy: failed"}
-	m := newTestModel(t)
-	m = feed(t, m, ScanCompleteMsg{Result: result, Gen: m.scanGen})
+	m := feed(t, NewWithPreloadedResult(testConfig(), result), testutil.Resize(160, 30))
 
 	if got := m.GetFooterHeight(); got != 2 {
 		t.Errorf("GetFooterHeight() = %d with warnings, want 2", got)

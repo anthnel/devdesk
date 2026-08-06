@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
+
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -20,28 +22,6 @@ func TestSecOpensOnTheInventoryRatherThanAForm(t *testing.T) {
 
 	if m.state != StateInventory {
 		t.Errorf("state = %v on open, want the inventory", m.state)
-	}
-	if m.homeState != StateInventory {
-		t.Errorf("homeState = %v, want the inventory — esc from a result has nowhere else to go", m.homeState)
-	}
-}
-
-// The two prefilled constructors are the ones the workspaces and images lists
-// use. They name a target, so listing every target would be a step backwards.
-func TestAPrefilledConstructorOpensOnTheForm(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		build func() Model
-	}{
-		{"directory", func() Model { return NewWithTarget(testConfig(), "/tmp/repo") }},
-		{"image", func() Model { return NewWithImageTarget(testConfig(), "nginx:latest", false) }},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := tc.build()
-			if m.state != StateInput || m.homeState != StateInput {
-				t.Errorf("state = %v / home = %v, want the form for both", m.state, m.homeState)
-			}
-		})
 	}
 }
 
@@ -195,18 +175,6 @@ func TestEscFromAResultReturnsToTheInventoryAndReloadsIt(t *testing.T) {
 	}
 	if _, ok := testutil.MsgOf[InventoryLoadedMsg](cmd); !ok {
 		t.Error("esc did not reload the inventory — a rescan run from here would not show")
-	}
-}
-
-// A scan that fails must not land the user on a form they never opened.
-func TestAFailedScanReturnsToWhicheverStateLaunchedIt(t *testing.T) {
-	m := inventoryModel(t, inventoryFixtures()...)
-	m.state = StateScanning
-
-	m = feed(t, m, ScanCompleteMsg{Error: errors.New("trivy exploded"), Gen: m.scanGen})
-
-	if m.state != StateInventory {
-		t.Errorf("state = %v after a failed scan from the inventory, want the inventory", m.state)
 	}
 }
 
@@ -420,5 +388,51 @@ func TestOnlyTheInventoryReportsAVisibleFilterBar(t *testing.T) {
 	m = feed(t, m, InventoryResultLoadedMsg{Name: "nexus/api:1.4", Result: resultFixture()})
 	if m.FilterBarVisible() {
 		t.Error("the results report the inventory's filter bar")
+	}
+}
+
+// Init loads the inventory whatever the opening state, so a view opened on a
+// stored result has something to return to on esc.
+func TestInitLoadsTheInventory(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		model Model
+	}{
+		{"opened on the inventory", New(testConfig())},
+		{"opened on a result", NewWithPreloadedResult(testConfig(), resultFixture())},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, ok := testutil.MsgOf[InventoryLoadedMsg](tc.model.Init()); !ok {
+				t.Error("Init() did not load the inventory")
+			}
+		})
+	}
+}
+
+// The spinner only advances while a rescan is running: SetItems re-filters and
+// re-sorts, and there is no reason to do that sixty times a second for a table
+// with nothing running.
+func TestTheSpinnerAdvancesOnlyWhileARescanRuns(t *testing.T) {
+	settled := inventoryModel(t, inventoryFixtures()...)
+	if _, cmd := step(t, settled, spinner.TickMsg{}); cmd != nil {
+		t.Error("a settled inventory scheduled another spinner frame")
+	}
+
+	scanning, _ := step(t, settled, testutil.Key("ctrl+s"))
+	before := scanning.spinner.View()
+
+	next, cmd := step(t, scanning, spinner.TickMsg{ID: scanning.spinner.ID()})
+
+	if cmd == nil {
+		t.Error("a running rescan did not schedule the next frame")
+	}
+	if next.spinner.View() == before {
+		t.Error("the frame did not advance, so the row reads as a hung scan")
+	}
+	// The rows carry the frame, so they have to be restamped with it.
+	for _, target := range next.inventory.Items() {
+		if target.Scanning && target.SpinnerFrame != next.spinner.View() {
+			t.Errorf("the scanning row still carries %q, want the new frame", target.SpinnerFrame)
+		}
 	}
 }

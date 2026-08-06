@@ -35,16 +35,21 @@ func (a *App) handleScanDetailsRequest(msg ociresources.ScanDetailsRequestMsg) (
 	}
 }
 
-// handleWorkspaceScanResultLoaded opens the security view on the loaded result.
-// When the result file is gone the view opens on its form with the repository
-// filled in, so the user can rescan rather than face a dead end.
+// A missing result file is not a dead end, and it is not the security view's
+// problem either: the list the user pressed enter in is where the target lives
+// and where the scan that would replace it runs. So the fallback stays put and
+// asks that list to rescan, rather than opening a security view on nothing.
+//
+// It used to open the scan form with the target filled in. With the form gone
+// there is nothing to fill in — every option comes from the configuration view
+// — so what is left to carry is the target's name.
+
+// handleWorkspaceScanResultLoaded opens the security view on the loaded result,
+// or asks the workspaces list to rescan the repository.
 func (a *App) handleWorkspaceScanResultLoaded(msg WorkspaceScanResultLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil || msg.Result == nil {
-		log.Printf("Workspace scan result not on disk for %s (fallback to input): %v", msg.RepoPath, msg.Err)
-		return a, a.openSecurityView(
-			security.NewWithTargetReturnToWorkspaces(a.config, msg.RepoPath),
-			command.ViewWorkspaces,
-		)
+		log.Printf("Workspace scan result not on disk for %s (rescanning): %v", msg.RepoPath, msg.Err)
+		return a.rescanInOrigin(command.ViewWorkspaces, workspaces.ScanRequestMsg{TargetPath: msg.RepoPath})
 	}
 	return a, a.openSecurityView(
 		security.NewWithPreloadedResult(a.config, msg.Result),
@@ -52,22 +57,32 @@ func (a *App) handleWorkspaceScanResultLoaded(msg WorkspaceScanResultLoadedMsg) 
 	)
 }
 
-// handleImageScanResultLoaded opens the security view on the loaded result.
-// When the result file is gone — an image scanned before results were persisted
-// — the scan is started again rather than reported as empty.
+// handleImageScanResultLoaded opens the security view on the loaded result, or
+// asks the images list to rescan the image.
 func (a *App) handleImageScanResultLoaded(msg ImageScanResultLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil || msg.Result == nil {
-		log.Printf("Image scan result not on disk for %s (fallback to scan): %v", msg.ImageName, msg.Err)
-		cmd := a.openSecurityView(
-			security.NewWithImageTarget(a.config, msg.ImageName, false),
-			command.ViewOCIResources,
-		)
-		return a, tea.Batch(cmd, func() tea.Msg { return security.StartScanMsg{} })
+		log.Printf("Image scan result not on disk for %s (rescanning): %v", msg.ImageName, msg.Err)
+		return a.rescanInOrigin(command.ViewOCIResources, ociresources.ScanRequestMsg{ImageName: msg.ImageName})
 	}
 	return a, a.openSecurityView(
 		security.NewWithPreloadedResult(a.config, msg.Result),
 		command.ViewOCIResources,
 	)
+}
+
+// rescanInOrigin hands a scan request to the list the target belongs to, and
+// stays there. The view is created if it is not open — the request can arrive
+// from a cached row whose list was dropped on a context switch.
+func (a *App) rescanInOrigin(view command.ViewType, request tea.Msg) (tea.Model, tea.Cmd) {
+	a.createView(view)
+	held, ok := a.views[view]
+	if !ok {
+		return a, nil
+	}
+	a.currentView = view
+	updatedView, cmd := held.Update(request)
+	a.views[view] = updatedView
+	return a, tea.Batch(cmd, a.requestResize())
 }
 
 // openSecurityView installs a freshly built security view, records where esc
@@ -105,19 +120,7 @@ func (a *App) routeToOCIImagesView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
-// handleLaunchScan switches to the OCI view and hands it the scan the security
-// view delegated back.
-func (a *App) handleLaunchScan(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if _, exists := a.views[command.ViewOCIResources]; !exists {
-		a.createView(command.ViewOCIResources)
-	}
-	a.currentView = command.ViewOCIResources
-
-	view, ok := a.views[command.ViewOCIResources]
-	if !ok {
-		return a, nil
-	}
-	updatedView, cmd := view.Update(msg)
-	a.views[command.ViewOCIResources] = updatedView
-	return a, tea.Batch(cmd, a.requestResize())
-}
+// handleLaunchScan is gone with the form. It carried the options the form had
+// collected back to the view that would run the scan; the options come from the
+// configuration view now, so there is nothing to carry — rescanInOrigin names a
+// target and that is all.

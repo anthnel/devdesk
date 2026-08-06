@@ -2558,6 +2558,64 @@ highest risk since the payload *is* the secret — possibly viable by sending ru
 name, path and entropy with the match withheld); container log explanation
 (logs carry env vars and DSNs routinely).
 
+### 3.15 The scan form is deleted (phase 3) — **done**
+
+The last phase of
+[`configuration-view-plan.md`](../.claude/plans/configuration-view-plan.md).
+2 538 lines removed against 530 added, across 32 files.
+
+Both prerequisites had landed: `applyServerModeConstraints` lives in the
+configuration view's `update.go`, and `scan.ValidateTrivyServer` is wired to its
+`trivy_server` field.
+
+**`StateScanning` went with `StateInput`**, which the plan did not anticipate.
+`startScan` had two callers — the form, and the router's image fallback — and
+once both were gone the whole in-place scanning machinery had no user:
+the progress channel, `scanGen`, `cancelScan`, `waitForProgressCmd`,
+`purgeScanCacheCmd`, `ScanCompleteMsg`, `ScanProgressMsg`, `StartScanMsg`. The
+inventory rescans in the background with a spinner on the row (§3.11), so
+nothing waits on a whole screen for one target. `scan.go` emptied out except
+`hasScanSource`, which moved next to its one remaining caller.
+
+**Three fields died with the form**, as recorded in the plan: `homeState` (the
+inventory is the only landing state left, so `goHome` stopped branching), `deps`
+with `checkDependencies` and `DepsCheckedMsg` (the Start button was its last
+reader, the header having stopped showing tool versions in §3.12), and the ~15
+option mirrors.
+
+**The browser bridge went at both ends.** The form borrowed the workspaces view
+for a directory and the images view for an image; the explorer borrows the
+workspaces view for a clone destination, and that is the only borrow left. So
+`app/selection.go` stopped being parameterised over who is borrowing, and the
+images view lost `NewForSelection`, `ImageSelectedMsg`, `SelectionCancelledMsg`,
+`ResetSelectionMsg`, `selectionMode` and the six render sites that read it.
+`resetSelectionModeFor` collapsed to dropping one view.
+
+**A missing stored result now rescans in the list it came from.** `enter` on a
+scanned row asks the router for the result file; when it is gone,
+`rescanInOrigin` hands the target's name to that list and stays there, rather
+than opening a security view on nothing. `workspaces.ScanRequestMsg` and
+`ociresources.ScanRequestMsg` were **declared and unhandled** before this — dead
+types carrying exactly the right shape — and they have handlers now.
+`LaunchBatchScanMsg`, `LaunchSingleImageScanMsg` and `handleLaunchScan` went with
+the form: they carried the options it had collected, and options come from the
+configuration view.
+
+**Coverage.** The deleted tests were covering live code incidentally, and two
+regressions had to be repaired rather than accepted: the explorer's borrow
+(`handleDirectorySelected`, `leaveSelectionMode`, `returnToOrigin` all fell to
+0 %, exercised only by the security selection tests that went) and
+`openSecurityView` (the two result handlers' success path). Both have their own
+tests now, as do the two `ScanRequestMsg` handlers, `Init`, `handleSpinnerTick`
+and the details viewport's scrolling. `internal/ui/security` 86.5 % → 87.2 %,
+`internal/app` unchanged at 87.0 %, **no package lower than before**; project
+total 81.5 % → 81.4 %, the residue of deleting a well-covered package's code.
+
+`internal/ui/security/scan_test.go` was deleted whole. Its two durable
+invariants live elsewhere: `ValidateTrivyServer` refusing `":"` is
+`internal/scan/command_test.go`, and `alt+:` reaching the router rather than a
+text field is `internal/app/command_mode_test.go`.
+
 ### 3.14 Remove SBOM generation — **planned, after phase 3**
 
 Drop the feature entirely: the two settings, the scan stage, the Trivy command
@@ -2565,9 +2623,8 @@ builders, the two controls, the field on `Result`, and the documentation. No
 inert remains — no option that can be set and not read, no function with no
 caller.
 
-**Why after phase 3** (the deletion of `internal/ui/security/form.go`, per
-[`configuration-view-plan.md`](../.claude/plans/configuration-view-plan.md)) and
-not before: the form addresses its fields by index, and SBOM is index 6 of
+**Why after phase 3** (the deletion of `internal/ui/security/form.go`, §3.15,
+now shipped) and not before: the form addresses its fields by index, and SBOM is index 6 of
 thirteen. Removing it now renumbers everything above it —
 
 ```
@@ -2583,7 +2640,10 @@ after phase 3 skips that phase completely: the form's SBOM checkbox,
 `applyServerModeConstraints`, `generateSBOM` and the renumbering all disappear
 with the file that holds them.
 
-Everything below was established by survey; it is what phase 3 leaves to do.
+Everything below was established by survey before phase 3 shipped. Phase 3 has
+since removed the form, so the renumbering described above no longer applies and
+the security-view rows of the tables below are already gone -- what is left is
+the list from `internal/config` down.
 
 #### What goes
 

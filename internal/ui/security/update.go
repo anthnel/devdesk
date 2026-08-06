@@ -63,13 +63,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.handleKeyMsg(msg)
 
-	case DepsCheckedMsg:
-		m.deps = msg.Deps
-		return m, nil
-
-	case ScanCompleteMsg:
-		return m.handleScanComplete(msg)
-
 	case SecretIgnoredMsg:
 		if msg.Error != nil {
 			log.Printf("ERROR [security] ignore secret %s: %v", msg.Finding.File, msg.Error)
@@ -82,20 +75,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clearStatusMsg:
 		m.statusMessage = ""
 		return m, nil
-
-	case SelectionResultMsg:
-		m.targetPath = msg.Path
-		m.targetInput.SetValue(msg.Path)
-		return m, nil
-
-	case SelectionCancelledMsg:
-		return m, nil
-
-	case StartScanMsg:
-		return m.startScan()
-
-	case ScanProgressMsg:
-		return m.handleScanProgress(msg)
 
 	case InventoryLoadedMsg:
 		return m.handleInventoryLoaded(msg)
@@ -113,23 +92,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleSpinnerTick advances the spinner while something is actually spinning.
+// handleSpinnerTick advances the spinner while a rescan is running.
 //
-// The inventory counts as spinning too: its frame is a table cell rather than a
-// scanning screen, and a frame that never advances reads as a hung scan. Its
-// rows carry the frame, so they are restamped — but only then, since SetItems
-// re-filters and re-sorts and there is no reason to do that sixty times a second
-// for a table with nothing running.
+// The frame is a table cell rather than a scanning screen, and one that never
+// advances reads as a hung scan. The rows carry it, so they are restamped — but
+// only while something is running, since SetItems re-filters and re-sorts and
+// there is no reason to do that sixty times a second for a settled table.
 func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
-	scanningInventory := m.inventoryScanning()
-	if m.state != StateScanning && !scanningInventory {
+	if !m.inventoryScanning() {
 		return m, nil
 	}
 	var cmd tea.Cmd
 	m.spinner, cmd = m.spinner.Update(msg)
-	if scanningInventory {
-		m.setInventory(m.inventory.Items())
-	}
+	m.setInventory(m.inventory.Items())
 	return m, cmd
 }
 
@@ -138,13 +113,6 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case StateInventory:
 		return m.handleInventoryState(msg)
-	case StateInput:
-		return m.handleInputState(msg)
-	case StateScanning:
-		if msg.String() == "esc" || msg.String() == "ctrl+c" {
-			return m.cancelCurrentScan()
-		}
-		return m, nil
 	case StateResults:
 		return m.handleResultsState(msg)
 	case StateDetails:

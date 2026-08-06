@@ -192,21 +192,3 @@ func (m Model) handleRegistriesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-
-// handleSelectionKeyMsg handles keys when in selection mode
-func (m Model) handleSelectionKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		return m, func() tea.Msg { return SelectionCancelledMsg{} }
-	case "enter":
-		img := m.getSelectedImage()
-		if img == nil {
-			return m, nil
-		}
-		name := img.Name()
-		return m, func() tea.Msg { return ImageSelectedMsg{ImageName: name} }
-	case "up", "k", "down", "j", "pgup", "pgdown", "g", "home", "G", "end", "/", ".":
-		return m, m.imageTable.Update(msg)
-	}
-	return m, nil
-}

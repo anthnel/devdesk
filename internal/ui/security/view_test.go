@@ -23,62 +23,6 @@ func withTrueColor(t *testing.T) {
 
 // ── The four states ──────────────────────────────────────────────────────────
 
-func TestFormShowsEveryOption(t *testing.T) {
-	view := newTestModel(t).View()
-
-	for _, want := range []string{
-		"Target", "Scan Options",
-		"Vulnerability Scan", "Secret Scan", "Misconfig Scan", "License Scan", "Generate SBOM",
-		"Trivy Options", "Ignore Unfixed", "Ignore EOL",
-		"Gitleaks Options",
-	} {
-		if !strings.Contains(view, want) {
-			t.Errorf("the form does not offer %q:\n%s", want, view)
-		}
-	}
-}
-
-// A failed scan drops back to the form, and the reason has to be visible there
-// or the user has nothing to act on.
-func TestFormShowsTheLastFailure(t *testing.T) {
-	m := newTestModel(t)
-	m = feed(t, m, testutil.Key("enter")) // no target
-
-	if view := m.View(); !strings.Contains(view, "target path is required") {
-		t.Errorf("the form does not show the error:\n%s", view)
-	}
-}
-
-// Server mode silently disables three options, so the form says why they are
-// unavailable rather than leaving the user to guess.
-func TestFormExplainsServerMode(t *testing.T) {
-	m := newTestModel(t)
-	m.trivyServerInput.SetValue("https://trivy:4954")
-
-	view := m.View()
-
-	if !strings.Contains(view, "Server mode") {
-		t.Errorf("the form does not explain server mode:\n%s", view)
-	}
-}
-
-func TestScanningViewShowsTheStages(t *testing.T) {
-	m := newTestModel(t)
-	m.state = StateScanning
-	m = feed(t, m,
-		ScanProgressMsg{Update: scan.ProgressUpdate{Stage: "vuln", Label: "Vulnerabilities", Status: scan.StageRunning}},
-		ScanProgressMsg{Update: scan.ProgressUpdate{Stage: "secret", Label: "Secrets", Status: scan.StageDone}},
-	)
-
-	view := m.View()
-
-	for _, want := range []string{"Vulnerabilities", "Secrets"} {
-		if !strings.Contains(view, want) {
-			t.Errorf("the scanning view does not list %q:\n%s", want, view)
-		}
-	}
-}
-
 func TestResultsViewShowsTheTable(t *testing.T) {
 	view := scannedModel(t).View()
 
@@ -92,9 +36,8 @@ func TestResultsViewShowsTheTable(t *testing.T) {
 func TestResultsViewWithNoFindings(t *testing.T) {
 	result := resultFixture()
 	result.Findings = nil
-	m := newTestModel(t)
 
-	m = feed(t, m, ScanCompleteMsg{Result: result, Gen: m.scanGen})
+	m := feed(t, NewWithPreloadedResult(testConfig(), result), testutil.Resize(160, 30))
 
 	if view := m.View(); strings.Contains(view, "Scan Warnings") {
 		t.Errorf("a clean scan is presented as a failure:\n%s", view)
@@ -169,11 +112,9 @@ func TestFooterHeightMatchesWhatIsRendered(t *testing.T) {
 		name string
 		open func(*testing.T) Model
 	}{
-		{"the form", func(t *testing.T) Model { return newTestModel(t) }},
-		{"scanning", func(t *testing.T) Model {
-			m := newTestModel(t)
-			m.state = StateScanning
-			return m
+		{"the inventory", func(t *testing.T) Model { return inventoryModel(t, inventoryFixtures()...) }},
+		{"the inventory, filtering", func(t *testing.T) Model {
+			return feed(t, inventoryModel(t, inventoryFixtures()...), testutil.Key("/"))
 		}},
 		{"results", func(t *testing.T) Model { return scannedModel(t) }},
 		{"details", func(t *testing.T) Model { return detailsModel(t) }},
@@ -254,26 +195,9 @@ func TestColumnsFitTheWidth(t *testing.T) {
 
 // A long detail line from a tool must not push the stage row past the terminal
 // edge, and truncation counts columns rather than bytes.
-func TestScanDetailIsTruncated(t *testing.T) {
-	long := strings.Repeat("x", 500)
-
-	if got := truncateScanDetail(long); len(got) >= len(long) {
-		t.Errorf("truncateScanDetail() returned %d chars for a 500-char line", len(got))
-	}
-	if got := truncateScanDetail("short"); got != "short" {
-		t.Errorf("truncateScanDetail(%q) = %q", "short", got)
-	}
-}
-
-// ── Severity styling ─────────────────────────────────────────────────────────
-
-// Each severity gets its own colour, or the details view says nothing the
-// finding's own text does not. CRITICAL and HIGH used to collapse onto the same
-// style, because CRITICAL was composed by hand as ColorError + Bold — which is
-// exactly the theme.StatusErrorStyle that HIGH returned (D11).
 func TestEverySeverityRendersDistinctly(t *testing.T) {
 	withTrueColor(t)
-	m := newTestModel(t)
+	m := inventoryModel(t, inventoryFixtures()...)
 
 	seen := map[string]scan.SeverityLevel{}
 	for _, sev := range []scan.SeverityLevel{
@@ -292,7 +216,7 @@ func TestEverySeverityRendersDistinctly(t *testing.T) {
 func TestUnknownSeverityStillRenders(t *testing.T) {
 	withTrueColor(t)
 
-	if got := newTestModel(t).getSeverityStyle("NONSENSE").Render("x"); !strings.Contains(got, "\x1b") {
+	if got := inventoryModel(t, inventoryFixtures()...).getSeverityStyle("NONSENSE").Render("x"); !strings.Contains(got, "\x1b") {
 		t.Errorf("an unknown severity rendered unstyled: %q", got)
 	}
 }
@@ -321,53 +245,3 @@ func TestSelectionStyleFollowsTheSeverity(t *testing.T) {
 // screen belongs to the *right* column, which is why the missing separator
 // survived so long — and why a test over the rendered output would pass while
 // looking like it checked something.
-func TestEverySectionHeaderIsFollowedByABlankLine(t *testing.T) {
-	m := newTestModel(t)
-
-	columns := map[string][]string{
-		"left":  m.formLeftColumn(),
-		"right": m.formRightColumn(),
-	}
-	headers := map[string]string{
-		"Target": "left", "Scan Options": "left",
-		"Trivy Options": "right", "Gitleaks Options": "right",
-	}
-
-	for header, side := range headers {
-		lines := columns[side]
-		row := -1
-		for i, line := range lines {
-			if strings.Contains(line, header) {
-				row = i
-				break
-			}
-		}
-		if row < 0 {
-			t.Errorf("no %q section in the %s column", header, side)
-			continue
-		}
-		if row+1 >= len(lines) {
-			t.Errorf("%q is the last line of the %s column", header, side)
-			continue
-		}
-		if strings.TrimSpace(lines[row+1]) != "" {
-			t.Errorf("%q is followed by %q, want a blank line", header, strings.TrimSpace(lines[row+1]))
-		}
-	}
-}
-
-// The zip is what puts the two columns side by side, so a column that is
-// shorter than the other must not truncate it.
-func TestBothColumnsAreRenderedInFull(t *testing.T) {
-	m := newTestModel(t)
-	view := m.View()
-
-	for _, line := range append(m.formLeftColumn(), m.formRightColumn()...) {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		if !strings.Contains(view, strings.TrimSpace(line)) {
-			t.Errorf("the form does not render %q", strings.TrimSpace(line))
-		}
-	}
-}

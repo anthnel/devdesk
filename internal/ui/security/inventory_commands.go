@@ -211,3 +211,15 @@ func storeRescan(job inventoryScanJob, result *scan.Result) {
 		log.Printf("ERROR [security/inventory] save workspace result %s: %v", job.Name, err)
 	}
 }
+
+// hasScanSource reports whether any finding came from the given scanner. It
+// decides the "sensitive" flag on a workspace cache entry, which the workspaces
+// list shows as a column.
+func hasScanSource(result *scan.Result, source string) bool {
+	for _, f := range result.Findings {
+		if f.Source == source {
+			return true
+		}
+	}
+	return false
+}

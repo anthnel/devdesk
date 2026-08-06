@@ -20,30 +20,10 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		notWant []string
 	}{
 		{
-			name:    "the form",
-			open:    func(t *testing.T) Model { return newTestModel(t) },
-			want:    []string{"space", "←→", "enter / ctrl+s"},
-			notWant: []string{"b", "tab", "i", "."},
-		},
-		{
-			// 'b' opens a browser for the target, so it only means something
-			// while the target field has focus.
-			name: "the target field",
-			open: func(t *testing.T) Model {
-				m := newTestModel(t)
-				m.focusedField = 1
-				return m
-			},
-			want: []string{"b"},
-		},
-		{
-			name: "scanning",
-			open: func(t *testing.T) Model {
-				m := newTestModel(t)
-				m.state = StateScanning
-				return m
-			},
-			notWant: []string{"space", "enter / ctrl+s", "tab"},
+			name:    "the inventory",
+			open:    func(t *testing.T) Model { return inventoryModel(t, inventoryFixtures()...) },
+			want:    []string{"enter", "ctrl+s", "ctrl+a", "/"},
+			notWant: []string{"tab", "i", "."},
 		},
 		{
 			name:    "the CVE tab",
@@ -107,7 +87,7 @@ func TestOpenReferenceShortcutNeedsAReference(t *testing.T) {
 // Rule 137: descriptions read as imperative actions, capitalised.
 func TestShortcutDescriptionsAreImperative(t *testing.T) {
 	models := []Model{
-		newTestModel(t),
+		inventoryModel(t, inventoryFixtures()...),
 		scannedModel(t),
 		detailsModel(t),
 	}
@@ -127,12 +107,13 @@ func TestShortcutDescriptionsAreImperative(t *testing.T) {
 
 // ── Title and header info ────────────────────────────────────────────────────
 
-// Once a scan has run, the title carries what was scanned: the results table
-// says nothing about its own target.
+// The results table says nothing about its own target, so the title carries it.
+// On the inventory the title carries the context instead: the caches are scoped
+// to one, and two contexts hold rows that look identical.
 func TestTitleNamesTheTargetOnceScanned(t *testing.T) {
-	form := newTestModel(t).GetTitle()
-	if !strings.Contains(form, "Scan Configuration") {
-		t.Errorf("GetTitle() = %q on the form", form)
+	inventory := inventoryModel(t).GetTitle()
+	if !strings.Contains(inventory, "Inventory") {
+		t.Errorf("GetTitle() = %q on the inventory", inventory)
 	}
 
 	scanned := scannedModel(t).GetTitle()
@@ -156,7 +137,6 @@ func TestTheHeaderCarriesTheContextAndOneCount(t *testing.T) {
 		{"the inventory", func(t *testing.T) Model {
 			return inventoryModel(t, inventoryFixtures()...)
 		}, []string{"Context", "Targets"}},
-		{"the form", newTestModel, []string{"Context"}},
 		{"the results", scannedModel, []string{"Context", "Findings"}},
 		{"the details", detailsModel, []string{"Context", "Findings"}},
 	}
@@ -194,7 +174,7 @@ func TestTheHeaderCountMatchesWhatIsOnScreen(t *testing.T) {
 }
 
 func TestGetIconIsEmpty(t *testing.T) {
-	if got := newTestModel(t).GetIcon(); got != "" {
+	if got := inventoryModel(t, inventoryFixtures()...).GetIcon(); got != "" {
 		t.Errorf("GetIcon() = %q; the title carries the icon", got)
 	}
 }
@@ -202,7 +182,7 @@ func TestGetIconIsEmpty(t *testing.T) {
 // ── Help ─────────────────────────────────────────────────────────────────────
 
 func TestHelpContentIsPopulated(t *testing.T) {
-	content := newTestModel(t).GetHelpContent()
+	content := inventoryModel(t, inventoryFixtures()...).GetHelpContent()
 
 	if content.Title == "" || content.Description == "" {
 		t.Error("the help has no title or description")
@@ -217,7 +197,7 @@ func TestHelpContentIsPopulated(t *testing.T) {
 // views.
 func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 	documented := map[string]bool{}
-	for _, kb := range newTestModel(t).GetHelpContent().KeyBindings {
+	for _, kb := range inventoryModel(t, inventoryFixtures()...).GetHelpContent().KeyBindings {
 		documented[strings.ToLower(kb.Key)] = true
 		for _, key := range strings.Split(kb.Key, "/") {
 			if trimmed := strings.ToLower(strings.TrimSpace(key)); trimmed != "" {
@@ -227,7 +207,7 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 	}
 
 	states := []Model{
-		func() Model { m := newTestModel(t); m.focusedField = 1; return m }(),
+		inventoryModel(t, inventoryFixtures()...),
 		scannedModel(t),
 		func() Model { m := scannedModel(t); m.switchTab(TabSecrets); return m }(),
 		detailsModel(t),
@@ -253,7 +233,7 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 // each one holds.
 func TestHelpExplainsTheTabs(t *testing.T) {
 	var body string
-	for _, section := range newTestModel(t).GetHelpContent().Sections {
+	for _, section := range inventoryModel(t, inventoryFixtures()...).GetHelpContent().Sections {
 		body += section.Title + " " + section.Body + "\n"
 	}
 

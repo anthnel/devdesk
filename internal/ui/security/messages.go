@@ -9,44 +9,23 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
-// ScanCompleteMsg is sent when scanning finishes
-type ScanCompleteMsg struct {
-	Result *scan.Result
-	Error  error
-	Gen    int // must match Model.scanGen; stale results (cancelled scans) are discarded
-}
-
-// DepsCheckedMsg is sent when dependency check completes
-type DepsCheckedMsg struct {
-	Deps scan.DependencyStatus
-}
+// What went with the form (phase 3):
+//
+//   - ScanCompleteMsg, ScanProgressMsg and StartScanMsg drove the in-place
+//     scanning screen. The inventory rescans in the background instead and
+//     reports through InventoryScanFinishedMsg, so nothing waits on a whole
+//     screen for one target.
+//   - DepsCheckedMsg fed the Start button, the only thing left that read whether
+//     a scanner was installed. The dashboard already reports that from
+//     shared.State.Tools.
+//   - SelectionRequestMsg / SelectionResultMsg / SelectionCancelledMsg were the
+//     browser bridge: the form borrowed the workspaces or the images view to
+//     pick a target. A target is a row of the inventory now.
 
 // SecretIgnoredMsg is sent when a secret is added to .gitleaksignore
 type SecretIgnoredMsg struct {
 	Finding scan.Finding
 	Error   error
-}
-
-// SelectionRequestMsg is sent to the app router to request a selection from another view
-type SelectionRequestMsg struct {
-	Type    string // "directory" or "image"
-	Message string // Context message to display in the selection view footer
-}
-
-// SelectionResultMsg is sent back to security view with the selected path/image
-type SelectionResultMsg struct {
-	Path string // Selected directory path or image name
-}
-
-// SelectionCancelledMsg is sent when user cancels the selection
-type SelectionCancelledMsg struct{}
-
-// StartScanMsg triggers the scan programmatically (e.g. for viewing cached results)
-type StartScanMsg struct{}
-
-// ScanProgressMsg carries a progress update from the scan goroutine to the TUI.
-type ScanProgressMsg struct {
-	Update scan.ProgressUpdate
 }
 
 // BackToOriginMsg is sent when the user presses Esc in StateResults to return to the originating view.
