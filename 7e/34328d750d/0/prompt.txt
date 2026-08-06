@@ -1,0 +1,9 @@
+/plan enleve la possibilité de générer le sbom (config mais aussi tout ce qui s'y rapporte dans le code)
+
+---
+
+ajoute au backlog de supprimer ce champ après la phase 3, écris toutes les informations utiles
+
+---
+
+ajoute au backlog de supprimer la fonctionnalité de génération du sbom  après la phase 3, écris toutes les informations utiles
