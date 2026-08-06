@@ -36,7 +36,7 @@ func TestNewAdoptsTheConfiguredOptions(t *testing.T) {
 	if m.trivyServerInput.Value() != "https://trivy:4954" {
 		t.Errorf("the Trivy server field = %q, want the configured URL", m.trivyServerInput.Value())
 	}
-	if m.state != StateInput || m.targetType != "directory" {
+	if m.state != StateInventory || m.targetType != "directory" {
 		t.Errorf("a new model opens in state %v on target type %q", m.state, m.targetType)
 	}
 }

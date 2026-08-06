@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -14,6 +15,8 @@ import (
 
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	switch m.state {
+	case StateInventory:
+		return m.inventoryShortcuts()
 	case StateInput:
 		shortcuts := []shortcut.Shortcut{
 			{Key: "space", Description: "Toggle"},
@@ -65,8 +68,35 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	return nil
 }
 
+// inventoryShortcuts advertises only what the selected row can actually do
+// (Rule 130). An empty inventory offers none of the per-row actions, and a row
+// with no stored counts cannot be opened.
+func (m Model) inventoryShortcuts() shortcut.Shortcuts {
+	shortcuts := []shortcut.Shortcut{}
+	if target, ok := m.inventory.Selected(); ok {
+		if target.Scanned {
+			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "Open findings"})
+		}
+		shortcuts = append(shortcuts,
+			shortcut.Shortcut{Key: "ctrl+s", Description: "Rescan"},
+			shortcut.Shortcut{Key: "ctrl+a", Description: "Rescan all"},
+			shortcut.Shortcut{Key: "/", Description: "Filter"},
+		)
+	}
+	return append(shortcuts,
+		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
+		shortcut.Shortcut{Key: "alt+:", Description: "Command"},
+		shortcut.Shortcut{Key: "?", Description: "Help"},
+	)
+}
+
 func (m Model) GetTitle() string {
 	base := theme.IconSecurity + " Security Scanner"
+	if m.state == StateInventory {
+		// The context is named because the caches are scoped to one: two
+		// contexts hold different inventories, and their rows look identical.
+		return base + " " + theme.IconChevronRight + " Inventory · " + config.CurrentContextName()
+	}
 	if m.state == StateInput {
 		return base + " " + theme.IconChevronRight + " Scan Configuration"
 	}
@@ -227,12 +257,18 @@ func (m Model) parseVersion(versionOutput string) string {
 func (m Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title:       "Security Scanner",
-		Description: "This view scans directories or Docker images for vulnerabilities, exposed secrets, license issues, and IaC misconfigurations. Optionally generates SBOM in CycloneDX format. Scans use Trivy and Gitleaks via Docker or local binary.",
+		Description: "This view opens on an inventory of everything scanned in the current configuration context — images and repositories, with what each scan found and when. Opening a row shows its findings; rescanning re-runs Trivy and Gitleaks with the options set in the configuration view.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
 			{Key: "g/Home", Description: "Go to top of list"},
 			{Key: "G/End", Description: "Go to bottom of list"},
+			{Key: "enter", Description: "Open the stored findings for the selected target (inventory)"},
+			{Key: "ctrl+s", Description: "Rescan the selected target, overwriting its cached result (inventory)"},
+			{Key: "ctrl+a", Description: "Purge every cached result and rescan every target (inventory)"},
+			{Key: "ctrl+r", Description: "Reload the inventory from the scan caches"},
+			{Key: "/", Description: "Filter the inventory by target name"},
+			{Key: ".", Description: "Cycle the sort column (inventory)"},
 			{Key: "enter / ctrl+s", Description: "Start scan (from input form) / view details (in results)"},
 			{Key: "space", Description: "Toggle a scan option (only key that toggles checkboxes)"},
 			{Key: "ctrl+s", Description: "Start scan (from input form)"},
@@ -248,6 +284,10 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{
+			{
+				Title: "Inventory",
+				Body:  "The table lists every image and repository scanned in the current context, sorted by CRITICAL findings. Counts come from the scan caches; the Scanned column shows how long ago each result was produced.\nScans launched from the OCI resources and workspaces views write to the same caches and appear here.\nA rescan reads its options from the configuration view (:cfg), scan tab — there is nothing to set here.\nRescanning all (ctrl+a) purges the cached results first, so a target shows '-' until its scan returns.",
+			},
 			{
 				Title: "Scan Types",
 				Body:  "Vulnerability Scan: detects CVEs in dependencies and packages (Trivy).\nSecret Scan: detects exposed secrets and API keys in code (Gitleaks + Trivy).\nMisconfig Scan: detects IaC misconfigurations in Dockerfiles, Terraform, K8s manifests (Trivy).\nLicense Scan: analyzes dependency licenses (Trivy).\nSBOM Generation: generates a CycloneDX SBOM report (Trivy).",

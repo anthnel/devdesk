@@ -139,8 +139,7 @@ func (m Model) cancelCurrentScan() (tea.Model, tea.Cmd) {
 		m.cancelScan = nil
 	}
 	m.scanGen++ // invalidate any pending ScanCompleteMsg from the cancelled goroutine
-	m.state = StateInput
-	return m, nil
+	return m.goHome()
 }
 
 // handleScanProgress updates the per-stage progress state and schedules the next read.
@@ -164,8 +163,9 @@ func (m Model) handleScanComplete(msg ScanCompleteMsg) (tea.Model, tea.Cmd) {
 	}
 	if msg.Error != nil {
 		m.err = msg.Error
-		m.state = StateInput
-		return m, nil
+		// Back to whichever state launched it. A scan started from the inventory
+		// must not fail into a form the user never opened.
+		return m.goHome()
 	}
 
 	m.result = msg.Result

@@ -302,6 +302,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ociresources.ImageScanFinishedMsg:
 		return a.routeToOCIImagesView(msg)
 
+	case security.InventoryScanFinishedMsg:
+		// A rescan started from the inventory belongs to it wherever the user
+		// has gone. Forwarded rather than dropped: the row is marked as
+		// scanning, and a reload deliberately keeps that marker, so a lost
+		// completion leaves it spinning for the life of the view.
+		return a.routeToSecurityView(msg)
+
 	case ociresources.LaunchBatchScanMsg:
 		// The security view delegated the scan back to the OCI view.
 		return a.handleLaunchScan(msg)

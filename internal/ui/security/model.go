@@ -20,10 +20,11 @@ import (
 type ViewState int
 
 const (
-	StateInput    ViewState = iota // Form for selecting target and options
-	StateScanning                  // Scanning in progress
-	StateResults                   // Displaying results summary
-	StateDetails                   // Showing detailed findings
+	StateInput     ViewState = iota // Form for selecting target and options
+	StateScanning                   // Scanning in progress
+	StateResults                    // Displaying results summary
+	StateDetails                    // Showing detailed findings
+	StateInventory                  // What this context has scanned, read from the caches
 )
 
 // Model represents the security scanner view
@@ -36,6 +37,15 @@ type Model struct {
 	deps   scan.DependencyStatus
 	result *scan.Result
 	err    error
+
+	// homeState is where esc and ctrl+r return to from the results: the
+	// inventory for a view opened on ":sec", the form for one opened with a
+	// target already filled in. It goes away with the form in phase 3, when
+	// there is only one answer left.
+	homeState ViewState
+
+	// Inventory state
+	inventory datatable.Model[scanTarget]
 
 	// Form state
 	targetType      string
@@ -133,7 +143,9 @@ func New(cfg *config.Config) Model {
 
 	return Model{
 		config:              cfg,
-		state:               StateInput,
+		state:               StateInventory,
+		homeState:           StateInventory,
+		inventory:           newInventoryTable(),
 		targetType:          "directory",
 		enableVuln:          cfg.Scan.EnableVuln,
 		enableSecret:        cfg.Scan.EnableSecret,
@@ -153,9 +165,16 @@ func New(cfg *config.Config) Model {
 	}
 }
 
-// NewWithTarget creates a security view pre-populated with a target path
+// NewWithTarget creates a security view pre-populated with a target path.
+//
+// The form rather than the inventory: the caller already knows what is to be
+// scanned, so listing everything that has been would be a step backwards. It is
+// also the state whose fields the prefill is for. This constructor goes with the
+// form in phase 3.
 func NewWithTarget(cfg *config.Config, target string) Model {
 	m := New(cfg)
+	m.state = StateInput
+	m.homeState = StateInput
 	m.prefilledTarget = target
 	m.targetPath = target
 	m.targetInput.SetValue(target)
@@ -167,6 +186,8 @@ func NewWithTarget(cfg *config.Config, target string) Model {
 // the configured options back to OCI images view instead of running the scan in-place.
 func NewWithImageTarget(cfg *config.Config, imageName string, returnToOCI bool) Model {
 	m := New(cfg)
+	m.state = StateInput
+	m.homeState = StateInput
 	m.prefilledTarget = imageName
 	m.targetPath = imageName
 	m.targetType = "image"
@@ -210,6 +231,10 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.checkDependencies(),
 		m.spinner.Tick,
+		// Loaded whatever the opening state: a view opened on a result returns
+		// to the inventory on ctrl+r, and reading two small files is cheaper
+		// than the branch that would decide not to.
+		loadInventoryCmd(),
 	)
 }
 
@@ -232,5 +257,6 @@ func (m Model) checkDependencies() tea.Cmd {
 // the command line, the help overlay and quit back with them.
 func (m Model) InEditMode() bool {
 	isTextInput := m.state == StateInput && (m.focusedField == 1 || m.focusedField == 7 || m.focusedField == 10)
-	return isTextInput || m.confirmModal != nil
+	isFiltering := m.state == StateInventory && m.inventory.InEditMode()
+	return isTextInput || isFiltering || m.confirmModal != nil
 }

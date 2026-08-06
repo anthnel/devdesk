@@ -505,3 +505,25 @@ func TestAMissingResultFileFallsBackInsteadOfFailingSilently(t *testing.T) {
 		}
 	})
 }
+
+// Same for a rescan started from the security inventory. The row that launched
+// it is marked as scanning, and a reload deliberately keeps that marker, so a
+// completion delivered to the wrong view leaves it spinning for good.
+func TestAnInventoryRescanReachesTheSecurityViewFromAnotherView(t *testing.T) {
+	sec := &fakeView{}
+	dashboard := &fakeView{}
+	a := router(t, dashboard)
+	a.views[command.ViewSecurity] = sec
+
+	a.Update(security.InventoryScanFinishedMsg{Name: "nexus/api:1.4"})
+
+	if _, ok := receivedOf[security.InventoryScanFinishedMsg](sec); !ok {
+		t.Error("the rescan-finished message never reached the security view")
+	}
+	if a.currentView != command.ViewDashboard {
+		t.Errorf("routing a background rescan switched the view to %s", a.currentView)
+	}
+	if _, ok := receivedOf[security.InventoryScanFinishedMsg](dashboard); ok {
+		t.Error("the rescan message was also delivered to the active view")
+	}
+}

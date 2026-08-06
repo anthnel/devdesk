@@ -45,6 +45,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// on the width — bubbles truncates each cell to its own column — so
 		// there is nothing to rebuild here.
 		m.findingsTable.Resize(m.width, max(m.height, 5))
+		m.inventory.Resize(m.width, max(m.height, 5))
 		// Update details viewport size and refresh content
 		m.detailsViewport.Width = msg.Width
 		m.detailsViewport.Height = msg.Height
@@ -96,20 +97,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScanProgressMsg:
 		return m.handleScanProgress(msg)
 
+	case InventoryLoadedMsg:
+		return m.handleInventoryLoaded(msg)
+
+	case InventoryResultLoadedMsg:
+		return m.handleInventoryResultLoaded(msg)
+
+	case InventoryScanFinishedMsg:
+		return m.handleInventoryScanFinished(msg)
+
 	case spinner.TickMsg:
-		if m.state == StateScanning {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
-		}
+		return m.handleSpinnerTick(msg)
 	}
 
 	return m, nil
 }
 
+// handleSpinnerTick advances the spinner while something is actually spinning.
+//
+// The inventory counts as spinning too: its frame is a table cell rather than a
+// scanning screen, and a frame that never advances reads as a hung scan. Its
+// rows carry the frame, so they are restamped — but only then, since SetItems
+// re-filters and re-sorts and there is no reason to do that sixty times a second
+// for a table with nothing running.
+func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
+	scanningInventory := m.inventoryScanning()
+	if m.state != StateScanning && !scanningInventory {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.spinner, cmd = m.spinner.Update(msg)
+	if scanningInventory {
+		m.setInventory(m.inventory.Items())
+	}
+	return m, cmd
+}
+
 // handleKeyMsg processes keyboard input
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state {
+	case StateInventory:
+		return m.handleInventoryState(msg)
 	case StateInput:
 		return m.handleInputState(msg)
 	case StateScanning:

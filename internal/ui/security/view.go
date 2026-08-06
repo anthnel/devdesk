@@ -25,6 +25,8 @@ func (m Model) View() string {
 	}
 
 	switch m.state {
+	case StateInventory:
+		return m.renderInventoryView()
 	case StateInput:
 		return m.renderInputView()
 	case StateScanning:
@@ -279,26 +281,53 @@ func (m Model) renderResultsView() string {
 
 // GetFooterHeight returns the footer height for this view (Rule 124).
 func (m Model) GetFooterHeight() int {
-	if m.state == StateResults && m.result != nil && len(m.result.Errors) == 0 {
+	if m.showsResultTabs() {
 		return 3 // tab bar + empty line + info line
+	}
+	if m.state == StateInventory {
+		return 2 + m.inventory.FilterBar().ExtraHeight() // Rule 136
 	}
 	return 2 // empty line + info line
 }
 
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
-	if m.state == StateResults && m.result != nil && len(m.result.Errors) == 0 {
-		infoLine := theme.EmptyLineBg(width)
-		if m.statusMessage != "" {
-			infoLine = theme.PadWithBg(theme.StatusOKStyle.Render(m.statusMessage), width)
+	if m.showsResultTabs() {
+		return theme.PadWithBg(theme.Bg(" ")+m.renderTabs(), width) + "\n" +
+			theme.EmptyLineBg(width) + "\n" + m.renderInfoLine(width)
+	}
+	if m.state == StateInventory {
+		var parts []string
+		if bar := m.inventory.FilterBar(); bar.IsVisible() {
+			parts = append(parts, bar.View())
 		}
-		return theme.PadWithBg(theme.Bg(" ")+m.renderTabs(), width) + "\n" + theme.EmptyLineBg(width) + "\n" + infoLine
+		parts = append(parts, theme.EmptyLineBg(width), m.renderInfoLine(width))
+		return strings.Join(parts, "\n")
 	}
-	infoLine := theme.EmptyLineBg(width)
-	if m.state == StateDetails && m.statusMessage != "" {
-		infoLine = theme.PadWithBg(theme.StatusOKStyle.Render(m.statusMessage), width)
+	return theme.EmptyLineBg(width) + "\n" + m.renderInfoLine(width)
+}
+
+// FilterBarVisible reports whether the filter bar is on screen, which is what
+// closes the viewport's bottom border around it (implements app.FilterBarView,
+// Rule 136). Only the inventory has one — the findings table filters by tab and
+// severity, not by query.
+func (m Model) FilterBarVisible() bool {
+	return m.state == StateInventory && m.inventory.FilterBar().IsVisible()
+}
+
+// showsResultTabs reports whether the findings tab bar is on screen. Warnings
+// replace the table and hide the tabs — there are no partial results to browse.
+func (m Model) showsResultTabs() bool {
+	return m.state == StateResults && m.result != nil && len(m.result.Errors) == 0
+}
+
+// renderInfoLine is the footer's message line, always rendered even when empty
+// (Rule 124). The message expires on its own after three seconds (Rule 128).
+func (m Model) renderInfoLine(width int) string {
+	if m.statusMessage == "" || m.state == StateInput || m.state == StateScanning {
+		return theme.EmptyLineBg(width)
 	}
-	return theme.EmptyLineBg(width) + "\n" + infoLine
+	return theme.PadWithBg(theme.StatusOKStyle.Render(m.statusMessage), width)
 }
 
 // renderTabs renders the tab bar

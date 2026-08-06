@@ -192,10 +192,10 @@ func (m *Model) handleIgnoreSecret() {
 func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		// If no origin view is set (opened directly), go back to the scan form
+		// No origin view means this view was opened directly, so esc stays
+		// inside it and goes back to whichever landing state it opened on.
 		if m.OriginView == "" {
-			m.state = StateInput
-			return m, nil
+			return m.goHome()
 		}
 		return m, func() tea.Msg { return BackToOriginMsg{Origin: m.OriginView} }
 	case "enter":
@@ -212,10 +212,9 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "ctrl+r":
-		m.state = StateInput
 		m.activeTab = TabCVE
 		m.severityFilter = "all"
-		return m, nil
+		return m.goHome()
 	case "tab":
 		m.switchTab((m.activeTab + 1) % 4)
 		return m, nil

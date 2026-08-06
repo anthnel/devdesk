@@ -716,3 +716,44 @@ func TestTheJoinedPassRespectsColumnOrder(t *testing.T) {
 		t.Errorf("%d rows matched a query in the wrong column order", got)
 	}
 }
+
+// A table can open on the descending order. It exists for the count columns,
+// where ascending is the useless end — an inventory sorted by CRITICAL wants
+// the worst row first, and cycling `.` past ascending to reach it on every open
+// is not a default.
+func TestATableCanOpenDescending(t *testing.T) {
+	cfg := testConfig()
+	cfg.SortDesc = true
+	m := New(cfg)
+	m.Resize(120, 10)
+	m.SetItems(fixtures())
+
+	if col, desc := m.SortState(); col != 0 || !desc {
+		t.Fatalf("SortState = %d, %v, want name descending", col, desc)
+	}
+	if got := names(m.Visible()); !equal(got, []string{"web", "cache", "api"}) {
+		t.Errorf("visible = %v, want them reversed on open", got)
+	}
+	if title := m.Table().Columns()[0].Title; !strings.Contains(title, "▼") {
+		t.Errorf("header = %q, want the descending arrow", title)
+	}
+}
+
+// The direction has to go with the column: dropping an unusable SortColumn but
+// keeping SortDesc would put the arrow on nothing and make `.` open descending.
+func TestADirectionWithNoColumnToSortIsDropped(t *testing.T) {
+	cfg := testConfig()
+	cfg.SortColumn = 2 // the column with no comparator
+	cfg.SortDesc = true
+	m := New(cfg)
+	m.Resize(120, 10)
+	m.SetItems(fixtures())
+
+	if col, desc := m.SortState(); col != -1 || desc {
+		t.Errorf("SortState = %d, %v, want no sort in either direction", col, desc)
+	}
+	m.CycleSort()
+	if _, desc := m.SortState(); desc {
+		t.Error("the first `.` opened on descending")
+	}
+}

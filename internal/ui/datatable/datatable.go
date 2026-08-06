@@ -67,6 +67,11 @@ type Config[T any] struct {
 	TokenMatch func(item T, active map[string]bool) bool
 	// SortColumn is the column sorted by on open; -1 for no initial sort.
 	SortColumn int
+	// SortDesc opens the table on the descending order of SortColumn. It exists
+	// for the count columns, where ascending is the useless end: an inventory
+	// sorted by CRITICAL wants the worst target first, and cycling `.` past
+	// ascending to reach it on every open is not a default.
+	SortDesc bool
 	// SelectedStyles returns the table styles to use while the given item is
 	// under the cursor — that is the only thing bubbles/table can vary per
 	// selection, and it is what containers and security each re-derived by
@@ -106,13 +111,16 @@ func New[T any](cfg Config[T]) Model[T] {
 		bar = components.NewFilterBarWithTokens(cfg.Tokens)
 	}
 
-	m := Model[T]{cfg: cfg, table: t, bar: bar, sortColumn: cfg.SortColumn}
+	m := Model[T]{cfg: cfg, table: t, bar: bar, sortColumn: cfg.SortColumn, sortDesc: cfg.SortDesc}
 	// The invariant the rest of the file rests on: sortColumn is either -1 or a
 	// column that can actually be sorted by. Settling it once here is what lets
 	// CycleSort and sorted() stop re-checking — and what stops `.` getting stuck
 	// flipping the direction of a column with no comparator.
 	if m.sortColumn >= len(cfg.Columns) || (m.sortColumn >= 0 && cfg.Columns[m.sortColumn].Less == nil) {
 		m.sortColumn = -1
+		// A direction with no column to apply it to would put the header arrow
+		// on nothing and make `.` open on descending.
+		m.sortDesc = false
 	}
 	return m
 }

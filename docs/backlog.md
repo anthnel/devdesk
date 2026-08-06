@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-04
+**Last Updated:** 2026-08-06
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -2557,6 +2557,61 @@ never trusted); Gitleaks triage (highest value since false positives dominate,
 highest risk since the payload *is* the secret — possibly viable by sending rule
 name, path and entropy with the match withheld); container log explanation
 (logs carry env vars and DSNs routinely).
+
+### 3.11 `security` becomes an inventory — **phase 2 done**
+
+Phase 2 of [`configuration-view-plan.md`](../.claude/plans/configuration-view-plan.md).
+Phases 0, 0b and 0c shipped as D26, the per-context scan caches and D27; phase 1
+shipped the configuration view. This is the landing page that replaces the form,
+and phase 3 is what deletes the form.
+
+`:sec` opened on a form asking what to scan and with which options. Every one of
+those options now comes from the configuration view (§1.1, D26), and what gets
+scanned is either an image the registry knows or something under
+`workspaces_dir` — so the form was asking two questions that had already been
+answered elsewhere. It now opens on **everything this context has scanned**,
+read from the two scan caches: one `datatable` over images and repositories,
+sorted by CRITICAL descending, `theme.TimeAgo` for the age (Rule 127).
+
+`enter` opens a row's stored findings, `ctrl+s` rescans one, `ctrl+a` purges and
+rescans all (Rule 126), `ctrl+r` reloads from the caches.
+
+Four things settled while building it:
+
+- **The inventory runs its own scans.** With the options in the config there is
+  nothing left to carry to whoever would run one, which is the whole reason the
+  cross-view delegation existed. It writes to the same two caches, so a rescan
+  here and a `ctrl+s` in the images list are the same operation.
+- **`ctrl+a` purges the counts, not the rows.** The rows *are* the list of what
+  has been scanned; dropping them would empty the view for the length of the
+  scans and lose the targets entirely on a close. A purged row prints `-`, not
+  `0` — nothing found and nothing known are different answers, and zero is the
+  one that reads as clean.
+- **A reload keeps an in-flight scan's marker.** The cache says nothing about a
+  scan that has not finished writing to it, so a refresh landing mid-rescan
+  would clear the spinner and leave the row looking settled.
+- **A finished rescan is routed to the security view wherever the user is**
+  (`routeToSecurityView`), for the reason `routeToOCIImagesView` already exists:
+  the router forwards everything else to the active view only, and a lost
+  completion leaves a row spinning for the life of the view.
+
+`homeState` records where `esc` and `ctrl+r` return to from the results — the
+inventory for a view opened on `:sec`, the form for one opened with a target
+prefilled. A scan that *fails* uses it too: one started from the inventory must
+not land the user on a form they never opened. The field disappears in phase 3,
+when there is only one answer left.
+
+`datatable.Config` gained `SortDesc`. Ascending is the useless end of a count
+column, and cycling `.` past it on every open is not a default. A direction with
+no sortable column to apply it to is dropped along with the column, or the first
+`.` would open on descending with the arrow on nothing.
+
+Not touched, and deliberately: `OriginView` (it carries navigation, not options
+— and gains a third origin), the dependency banner (the dashboard already shows
+`shared.State.Tools`), and the form itself, which stays reachable through
+`NewWithTarget` and `NewWithImageTarget` until phase 3.
+
+Coverage: `internal/ui/security` 85.6 % → 85.8 %, project total 81.3 % → 81.4 %.
 
 ---
 

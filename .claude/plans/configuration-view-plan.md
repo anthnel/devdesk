@@ -1,7 +1,17 @@
 # A configuration view, and `security` becomes an inventory
 
-Status: planned, not started. Decisions below are settled; open questions are
-marked as such and are the only things left to arbitrate.
+Status: **phases 0, 0b, 0c, 1 and 2 shipped; phase 3 remains.** Decisions below
+are settled; open questions are marked as such and are the only things left to
+arbitrate.
+
+| Phase | State |
+|---|---|
+| 0 — `IgnoreEOL` (D26) | shipped |
+| 0b — per-context scan caches | shipped |
+| 0c — tool source and paths (D27) | shipped |
+| 1 — configuration view | shipped |
+| 2 — the inventory | shipped, alongside the form |
+| 3 — deleting the form | **outstanding** |
 
 ## What was decided
 
@@ -276,10 +286,25 @@ Two requirements that do not come for free:
 
 ---
 
-## Phase 2 — `security` becomes the inventory
+## Phase 2 — `security` becomes the inventory — **shipped**
 
 Still additive: the inventory is a new state alongside the form, which is not
 removed until phase 3.
+
+Shipped as described, in `inventory.go`, `inventory_table.go` and
+`inventory_commands.go`. Three things the plan did not anticipate, all recorded
+in `docs/backlog.md` §3.11:
+
+- `ctrl+a` purges the **counts**, not the rows — the rows are the list of what
+  has been scanned, so dropping them empties the view for the length of the
+  scans.
+- A reload has to keep an in-flight scan's marker, or a refresh landing
+  mid-rescan clears the spinner.
+- `InventoryScanFinishedMsg` needs routing to the security view wherever the
+  user has gone, exactly as `ociresources.ImageScanFinishedMsg` already does.
+
+`homeState` is the one field added beyond the plan; it goes with the form in
+phase 3.
 
 ### Data
 

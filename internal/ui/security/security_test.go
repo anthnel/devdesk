@@ -96,9 +96,40 @@ func resultFixture() *scan.Result {
 }
 
 // newTestModel returns a laid-out model on the empty form.
+//
+// The form is asked for rather than assumed: New() opens on the inventory, and
+// a view rooted there returns to it from the results and from a failed scan.
+// The form's own tests are about the form, so they say so — and they go with it
+// in phase 3.
 func newTestModel(t *testing.T) Model {
 	t.Helper()
-	return feed(t, New(testConfig()), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := New(testConfig())
+	m.state = StateInput
+	m.homeState = StateInput
+	return feed(t, m, tea.WindowSizeMsg{Width: 160, Height: 30})
+}
+
+// inventoryModel returns a laid-out model on the inventory, holding targets.
+func inventoryModel(t *testing.T, targets ...scanTarget) Model {
+	t.Helper()
+	m := feed(t, New(testConfig()), tea.WindowSizeMsg{Width: 160, Height: 30})
+	return feed(t, m, InventoryLoadedMsg{Targets: targets})
+}
+
+// inventoryFixtures cover both kinds and both ends of the CRITICAL order.
+func inventoryFixtures() []scanTarget {
+	return []scanTarget{
+		{
+			Kind: kindImage, Name: "nexus/api:1.4", Scanned: true,
+			Counts:    scan.SeverityCounts{Critical: 3, High: 11, Medium: 4, Low: 1},
+			ScannedAt: time.Date(2026, 8, 1, 8, 0, 0, 0, time.UTC),
+		},
+		{
+			Kind: kindRepo, Name: "/home/dev/workspaces/devdesk", Scanned: true,
+			Counts:    scan.SeverityCounts{Critical: 0, High: 2},
+			ScannedAt: time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC),
+		},
+	}
 }
 
 // scannedModel returns a model showing results for the fixture scan.

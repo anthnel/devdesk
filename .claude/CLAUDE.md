@@ -383,7 +383,48 @@ what was asked for.
 - `trivy.go` — CVE, SBOM, misconfiguration detection
 - `gitleaks.go` — secrets detection with custom config support
 
-**Security view** (`internal/ui/security/model.go`) has four states: `StateInput` → `StateScanning` → `StateResults` → `StateDetails` (with remediation info).
+**Security view** (`internal/ui/security/model.go`) has five states:
+`StateInventory` (the landing page), `StateInput` (the form, until phase 3),
+`StateScanning`, `StateResults` and `StateDetails` (with remediation info).
+
+### The security inventory
+
+`:sec` opens on **everything the current context has scanned**, read from
+`ImageScanCache` and `WorkspaceScanCache` — one `datatable` over images and
+repositories, sorted by CRITICAL descending. The form it replaced asked two
+questions already answered elsewhere: the options come from the configuration
+view, and a target is either a known image or something under `workspaces_dir`.
+
+| Key | Effect |
+|---|---|
+| `enter` | open the row's stored findings (Rule 126: reads the cache, never scans) |
+| `ctrl+s` | rescan the row, **overwriting** its entry |
+| `ctrl+a` | **purge** every entry and rescan every target |
+| `ctrl+r` | reload from the caches |
+
+**The inventory runs its own scans.** With the options in the config there is
+nothing to carry to whoever would run one — which is the only reason the
+cross-view delegation exists. It writes to the same two caches, so a rescan here
+and `ctrl+s` in the images list are the same operation.
+
+Three invariants, each with a test that fails without it:
+
+- **`ctrl+a` purges the counts, not the rows.** The rows *are* the list of what
+  has been scanned; dropping them empties the view for the length of the scans
+  and loses the targets on a close. A purged row prints `-`, not `0`.
+- **A reload keeps an in-flight scan's marker.** The cache says nothing about a
+  scan still running, so a refresh landing mid-rescan would clear the spinner
+  and leave the row looking settled.
+- **`InventoryScanFinishedMsg` is routed to the security view wherever the user
+  is** (`app.routeToSecurityView`), the same reason `routeToOCIImagesView`
+  exists. Everything else is forwarded to the active view only, and a lost
+  completion leaves a row spinning for the life of the view.
+
+`homeState` records where `esc` and `ctrl+r` return to from the results — the
+inventory for a view opened on `:sec`, the form for one opened with a target
+prefilled (`NewWithTarget`, `NewWithImageTarget`). A **failed** scan uses it
+too: one started from the inventory must not land on a form the user never
+opened. The field goes with the form in phase 3.
 
 ### Registry group cache
 
@@ -525,9 +566,15 @@ datatable.New(datatable.Config[T]{
         Search: func(x T) string { … },  // nil = not searchable
     }},
     SortColumn:     0,
+    SortDesc:       false, // true opens on the descending order
     SelectedStyles: func(x T) table.Styles { … }, // e.g. TableStylesForSeverity
 })
 ```
+
+`SortDesc` exists for count columns: ascending is their useless end, and cycling
+`.` past it on every open is not a default. A direction with no sortable column
+to apply it to is dropped with the column, or the first `.` opens descending
+with the arrow on nothing.
 
 Three things it guarantees that hand-wired tables did not:
 
