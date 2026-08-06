@@ -231,15 +231,23 @@ func (m *Model[T]) Resize(width, height int) {
 	m.applyStyles() // the selected row is pinned to this width
 }
 
+// The sort arrows, and what they cost. Named because widths.go has to reserve
+// room for them: a column's MinWidth is the view's statement about its content,
+// and it knows nothing about two cells this package appends to the header.
+const (
+	sortArrowAsc  = " ▲"
+	sortArrowDesc = " ▼"
+)
+
 // titleFor returns a column's header, with a sort arrow on the active one.
 func (m *Model[T]) titleFor(i int) string {
 	if i != m.sortColumn {
 		return m.cfg.Columns[i].Title
 	}
 	if m.sortDesc {
-		return m.cfg.Columns[i].Title + " ▼"
+		return m.cfg.Columns[i].Title + sortArrowDesc
 	}
-	return m.cfg.Columns[i].Title + " ▲"
+	return m.cfg.Columns[i].Title + sortArrowAsc
 }
 
 // CycleSort advances the sort: ascending, descending, then on to the next

@@ -2558,6 +2558,33 @@ highest risk since the payload *is* the secret — possibly viable by sending ru
 name, path and entropy with the match withheld); container log explanation
 (logs carry env vars and DSNs routinely).
 
+### 3.13 A sortable column keeps room for its sort arrow — **done**
+
+**D33 — the sort arrow was truncated on any column narrower than its own
+header plus two.** Reported from use on the inventory's `CRIT` and `HIGH`, which
+asked for 5 and rendered `CRIT ▼` into it.
+
+`Column.MinWidth` is the view's statement about the column's *content*.
+`titleFor` then appends an arrow to the header, and `solveWidths` knew nothing
+about those two cells — so the component silently widened the thing it was
+sizing. The fix belongs there rather than in the view: `askFor` reserves
+`width(Title) + sortArrowWidth` for any column carrying a `Less`, and the arrow
+strings are named constants so the renderer and the solver cannot drift.
+
+Reserved for **every** sortable column, not only the sorted one: reserving on
+demand would resize the column each time `.` moved the sort and shift every
+column beside it.
+
+Auditing the application afterwards, `CRIT` and `HIGH` are the **only** two
+columns the reserve changes — every other sortable column already had the room.
+The four count columns were then pinned to one width (`countColumnWidth`), since
+the reserve alone would leave `CRIT`/`HIGH` at 6 and `MED`/`LOW` at 5: four
+adjacent columns of the same kind, ragged.
+
+`TestTheWidthsAlwaysSumToWhatIsAvailable` gained the inventory's shape, because
+raising what a column asks for is another way to push the total past what is
+available and Rule 116 has to survive it.
+
 ### 3.12 The Secrets tab shows both scanners, and one rule decides where a finding goes — **done**
 
 Found by reviewing the security header after §3.11, and fixed with it. Four

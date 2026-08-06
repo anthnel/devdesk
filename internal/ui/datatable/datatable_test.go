@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -755,5 +756,81 @@ func TestADirectionWithNoColumnToSortIsDropped(t *testing.T) {
 	m.CycleSort()
 	if _, desc := m.SortState(); desc {
 		t.Error("the first `.` opened on descending")
+	}
+}
+
+// A sortable column has to be wide enough for its own header *plus* the arrow
+// this package appends to it. MinWidth is the view's statement about the
+// column's content, and nothing told it about those two cells — so the security
+// inventory's CRIT column asked for 5, rendered "CRIT ▼" into it, and lost
+// exactly the character that says which way it is sorted.
+func TestASortableColumnKeepsRoomForItsArrow(t *testing.T) {
+	cfg := Config[row]{
+		SortColumn: 0,
+		Columns: []Column[row]{
+			{
+				Title: "CRIT", MinWidth: 5, // narrower than "CRIT ▼"
+				Cell: func(r row) string { return "0" },
+				Less: func(a, b row) bool { return a.Size < b.Size },
+			},
+			{Title: "Name", MinWidth: 20, Flex: 1, Cell: func(r row) string { return r.Name }},
+		},
+	}
+	m := New(cfg)
+	m.Resize(120, 10)
+	m.SetItems(fixtures())
+
+	title := m.Table().Columns()[0].Title
+	if lipgloss.Width(title) > m.Table().Columns()[0].Width {
+		t.Errorf("header %q is %d wide in a column of %d — the arrow is truncated",
+			title, lipgloss.Width(title), m.Table().Columns()[0].Width)
+	}
+	if !strings.Contains(m.View(), title) {
+		t.Errorf("the rendered header does not carry %q:\n%s", title, m.View())
+	}
+}
+
+// The room is reserved whether or not the column is the sorted one, so cycling
+// `.` does not resize it and shift every column beside it.
+func TestTheArrowReserveDoesNotDependOnTheSort(t *testing.T) {
+	cfg := Config[row]{
+		SortColumn: -1,
+		Columns: []Column[row]{
+			{
+				Title: "CRIT", MinWidth: 5,
+				Cell: func(r row) string { return "0" },
+				Less: func(a, b row) bool { return a.Size < b.Size },
+			},
+			{Title: "Name", MinWidth: 20, Flex: 1, Cell: func(r row) string { return r.Name }},
+		},
+	}
+	m := New(cfg)
+	m.Resize(120, 10)
+	m.SetItems(fixtures())
+
+	unsorted := m.Table().Columns()[0].Width
+	m.CycleSort()
+	if sorted := m.Table().Columns()[0].Width; sorted != unsorted {
+		t.Errorf("the column is %d wide unsorted and %d sorted; sorting must not move the layout",
+			unsorted, sorted)
+	}
+}
+
+// A column that cannot be sorted by gets no arrow, so it gets no reserve: the
+// view's MinWidth is the whole of its ask.
+func TestAnUnsortableColumnIsNotWidenedForAnArrow(t *testing.T) {
+	cfg := Config[row]{
+		SortColumn: -1,
+		Columns: []Column[row]{
+			{Title: "LONGHEADER", MinWidth: 4, Cell: func(r row) string { return "0" }},
+			{Title: "Name", MinWidth: 20, Flex: 1, Cell: func(r row) string { return r.Name }},
+		},
+	}
+	m := New(cfg)
+	m.Resize(120, 10)
+	m.SetItems(fixtures())
+
+	if got := m.Table().Columns()[0].Width; got != 4 {
+		t.Errorf("the column is %d wide, want the 4 it asked for", got)
 	}
 }

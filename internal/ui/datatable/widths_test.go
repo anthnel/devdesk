@@ -14,6 +14,27 @@ func col(minWidth, flex int) Column[string] {
 	return Column[string]{MinWidth: minWidth, Flex: flex}
 }
 
+// sortable is a column the solver has to widen for its arrow, titled so that the
+// reserve actually bites — "CRIT" plus an arrow needs 6 where MinWidth says 5,
+// which is the security inventory's shape.
+func sortable(title string, minWidth, flex int) Column[string] {
+	return Column[string]{
+		Title: title, MinWidth: minWidth, Flex: flex,
+		Less: func(a, b string) bool { return a < b },
+	}
+}
+
+// inventoryShape reproduces the security inventory: four narrow sortable count
+// columns whose headers are wider than the width they ask for.
+func inventoryShape() []Column[string] {
+	return []Column[string]{
+		sortable("Target", 24, 1),
+		sortable("CRIT", 5, 0), sortable("HIGH", 5, 0),
+		sortable("MED", 5, 0), sortable("LOW", 5, 0),
+		sortable("Scanned", 14, 0),
+	}
+}
+
 func sum(widths []int) int {
 	total := 0
 	for _, w := range widths {
@@ -30,6 +51,9 @@ func TestTheWidthsAlwaysSumToWhatIsAvailable(t *testing.T) {
 		"all fixed":               {col(12, 0), col(8, 0), col(30, 0)},
 		"the workspaces shape":    workspacesShape(),
 		"a column asking for one": {col(1, 0), col(60, 1)},
+		// The arrow reserve raises what a column asks for, so it is another way
+		// to push the total past what is available — Rule 116 has to survive it.
+		"the inventory shape": inventoryShape(),
 	}
 
 	// Every width from unusable to generous, including the ones the hand-written
@@ -170,5 +194,30 @@ func TestANegativeMinimumIsReadAsZero(t *testing.T) {
 	}
 	if sum(widths) != 30 {
 		t.Errorf("the widths sum to %d, want 30", sum(widths))
+	}
+}
+
+// The reserve is exactly what the header needs and no more: a sortable column
+// wide enough already is not widened, and one that is not gets the two cells.
+func TestTheArrowReserveOnlyRaisesWhatIsTooNarrow(t *testing.T) {
+	tests := []struct {
+		name   string
+		column Column[string]
+		want   int
+	}{
+		{"too narrow for its arrow", sortable("CRIT", 5, 0), 6},
+		{"exactly wide enough", sortable("CRIT", 6, 0), 6},
+		{"already wider", sortable("CRIT", 20, 0), 20},
+		{"a one-letter header", sortable("C", 4, 0), 4},
+		{"not sortable at all", col(5, 0), 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := askFor(tt.column); got != tt.want {
+				t.Errorf("askFor(%q, min %d) = %d, want %d",
+					tt.column.Title, tt.column.MinWidth, got, tt.want)
+			}
+		})
 	}
 }

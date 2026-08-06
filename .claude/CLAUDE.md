@@ -622,6 +622,13 @@ datatable.New(datatable.Config[T]{
 to apply it to is dropped with the column, or the first `.` opens descending
 with the arrow on nothing.
 
+**A sortable column's `MinWidth` is not its whole ask.** `titleFor` appends a
+sort arrow the view never accounted for, so `solveWidths` reserves
+`width(Title) + 2` for any column with a `Less` — otherwise a narrow one renders
+`CRIT ▼` into five cells and loses exactly the character that says how it is
+sorted. The reserve applies whether or not the column is the sorted one, so
+cycling `.` does not resize it and shift every column beside it.
+
 Three things it guarantees that hand-wired tables did not:
 
 - **`Selected()` cannot disagree with the screen.** The filtered, sorted slice is

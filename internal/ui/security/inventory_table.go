@@ -77,12 +77,17 @@ func shortenHome(path string) string {
 	return "~" + string(filepath.Separator) + rel
 }
 
+// countColumnWidth holds the four severity columns to one width. datatable
+// already reserves room for the sort arrow, which would give CRIT and HIGH six
+// cells and MED and LOW five — four adjacent columns of the same kind, ragged.
+const countColumnWidth = 6
+
 // countColumn builds one of the four severity columns. A purged row prints "-"
 // rather than "0": nothing was found and nothing is known are different answers,
 // and zero is the one a user reads as "clean".
 func countColumn(title string, get func(scan.SeverityCounts) int) datatable.Column[scanTarget] {
 	return datatable.Column[scanTarget]{
-		Title: title, MinWidth: 5,
+		Title: title, MinWidth: countColumnWidth,
 		Cell: func(t scanTarget) string {
 			if !t.Scanned {
 				return "-"
