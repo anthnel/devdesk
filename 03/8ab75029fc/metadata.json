@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "038ab75029fc",
+  "strategy": "manual-commit",
+  "branch": "feat/security-inventory",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/scan/scan_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/03/8ab75029fc/0/metadata.json",
+      "transcript": "/03/8ab75029fc/0/full.jsonl",
+      "compact_transcript": "/03/8ab75029fc/0/transcript.jsonl",
+      "content_hash": "/03/8ab75029fc/0/content_hash.txt",
+      "prompt": "/03/8ab75029fc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6563,
+    "cache_creation_tokens": 4506737,
+    "cache_read_tokens": 408442692,
+    "output_tokens": 880044,
+    "api_call_count": 1193
+  }
+}
