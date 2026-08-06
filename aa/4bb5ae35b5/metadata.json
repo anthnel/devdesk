@@ -3,8 +3,27 @@
   "checkpoint_id": "aa4bb5ae35b5",
   "strategy": "manual-commit",
   "branch": "feat/security-inventory",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
+    "docs/CODEMAPS/architecture.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/router_test.go",
+    "internal/app/scan_details.go",
+    "internal/ui/datatable/datatable.go",
+    "internal/ui/datatable/datatable_test.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/inventory.go",
+    "internal/ui/security/inventory_cache_test.go",
+    "internal/ui/security/inventory_commands.go",
+    "internal/ui/security/inventory_table.go",
+    "internal/ui/security/inventory_test.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/model_test.go",
+    "internal/ui/security/scan.go",
+    "internal/ui/security/security_test.go",
+    "internal/ui/security/update.go",
     "internal/ui/security/view.go"
   ],
   "sessions": [
@@ -14,13 +33,20 @@
       "compact_transcript": "/aa/4bb5ae35b5/0/transcript.jsonl",
       "content_hash": "/aa/4bb5ae35b5/0/content_hash.txt",
       "prompt": "/aa/4bb5ae35b5/0/prompt.txt"
+    },
+    {
+      "metadata": "/aa/4bb5ae35b5/1/metadata.json",
+      "transcript": "/aa/4bb5ae35b5/1/full.jsonl",
+      "compact_transcript": "/aa/4bb5ae35b5/1/transcript.jsonl",
+      "content_hash": "/aa/4bb5ae35b5/1/content_hash.txt",
+      "prompt": "/aa/4bb5ae35b5/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 6563,
-    "cache_creation_tokens": 4506737,
-    "cache_read_tokens": 408442692,
-    "output_tokens": 880044,
-    "api_call_count": 1193
+    "input_tokens": 6860,
+    "cache_creation_tokens": 4765033,
+    "cache_read_tokens": 440471306,
+    "output_tokens": 956457,
+    "api_call_count": 1350
   }
 }
