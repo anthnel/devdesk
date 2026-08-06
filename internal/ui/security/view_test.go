@@ -267,18 +267,6 @@ func TestScanDetailIsTruncated(t *testing.T) {
 
 // ── Severity styling ─────────────────────────────────────────────────────────
 
-// The severity bar is the summary a user reads first, so every level it can
-// report has to appear.
-func TestSeverityBarShowsEveryLevelPresent(t *testing.T) {
-	bar := renderSeverityBar(scan.SeverityCounts{Critical: 1, High: 2, Medium: 3, Low: 4})
-
-	for _, want := range []string{"1", "2", "3", "4"} {
-		if !strings.Contains(bar, want) {
-			t.Errorf("the severity bar omits the count %q: %q", want, bar)
-		}
-	}
-}
-
 // Each severity gets its own colour, or the details view says nothing the
 // finding's own text does not. CRITICAL and HIGH used to collapse onto the same
 // style, because CRITICAL was composed by hand as ColorError + Bold — which is

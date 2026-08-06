@@ -40,9 +40,38 @@ func TestTrivyScansAnImageByName(t *testing.T) {
 	if !strings.Contains(cmd, "image") || !strings.Contains(cmd, "api:v1") {
 		t.Errorf("the image command is wrong:\n%s", cmd)
 	}
-	// An image scan has no filesystem scanner to select.
-	if strings.Contains(cmd, "--scanners") {
-		t.Errorf("an image scan selected a scanner:\n%s", cmd)
+	// Trivy's default scanners for an image are "vuln,secret". Leaving the flag
+	// off ran a secret scan whose output nothing read, and would now report each
+	// secret twice, the secret stage having been given its own invocation.
+	if !strings.Contains(cmd, "--scanners vuln") {
+		t.Errorf("an image scan did not limit itself to vulnerabilities:\n%s", cmd)
+	}
+}
+
+func TestTrivyScansForSecrets(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		targetType TargetType
+		subcommand string
+	}{
+		{"a directory", TargetDirectory, "fs"},
+		{"an image", TargetImage, "image"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := GetTrivySecretCommand("target", tc.targetType, ToolSpec{Source: ToolSourceBinary}, "")
+
+			if !strings.Contains(cmd, tc.subcommand) {
+				t.Errorf("the %s secret scan does not use %q:\n%s", tc.name, tc.subcommand, cmd)
+			}
+			if !strings.Contains(cmd, "--scanners secret") {
+				t.Errorf("the secret scanner was not selected:\n%s", cmd)
+			}
+			// end_of_life describes a package's support window and says nothing
+			// about a secret sitting in a file.
+			if strings.Contains(cmd, "--ignore-status") {
+				t.Errorf("a secret scan carried a package-status filter:\n%s", cmd)
+			}
+		})
 	}
 }
 

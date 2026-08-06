@@ -2558,6 +2558,56 @@ highest risk since the payload *is* the secret — possibly viable by sending ru
 name, path and entropy with the match withheld); container log explanation
 (logs carry env vars and DSNs routinely).
 
+### 3.12 The Secrets tab shows both scanners, and one rule decides where a finding goes — **done**
+
+Found by reviewing the security header after §3.11, and fixed with it. Four
+defects, one cause: nothing owned the question "what kind of finding is this?".
+
+**D29 — two classifiers, and three findings fell between them.**
+`Result.CountFindings` switched on `Source` alone and sent everything unmatched
+to the severity counters; `countFindingsByTab` switched on `Source` plus
+`PkgName` plus `Match`. They disagreed on a `trivy` finding with no `PkgName`,
+on an undeclared source, and on a `trivy` finding carrying a `Match` — each of
+which was **counted in the header and shown in no tab at all**. Same family as
+D24, D25 and D26: two copies of a rule, one of them drifted, nothing said so.
+`scan.Categorize` is the only rule now, and it switches on the source alone.
+
+**D30 — Trivy's secrets were parsed and dropped.** `TrivyResult.Secrets` and
+`TrivySecret` were declared and unmarshalled into; nothing ever ranged over
+them. The help claimed "Secret Scan … (Gitleaks + Trivy)" throughout. Same shape
+as D27: declared, populated, read by nothing, silent about it. They are read
+now, under a source of their own — `trivy-secret`, which is also what let the
+classification stop guessing from `Match`.
+
+**D31 — an image scan ran a secret scan and threw it away.** Trivy's default
+scanners for an image are `vuln,secret`, and `trivyArgs` passed no `--scanners`
+flag for that target type. So every image scan paid for secret detection whose
+output was discarded — and would have reported each secret twice once they were
+read. The vulnerability stage now says `--scanners vuln` explicitly.
+
+**D32 — `i` on a Trivy secret would have written a fingerprint that matches
+nothing.** `.gitleaksignore` is keyed on a Gitleaks fingerprint;
+`AddToGitleaksIgnore` falls back to building one from file, rule and line when
+the finding has none. With Trivy secrets in the same tab, `i` would have written
+that fabrication and reported "Added … to .gitleaksignore" for a line Gitleaks
+will never match and Trivy never reads. It is offered for Gitleaks findings only
+now, and refused with a reason otherwise (Rule 128, Rule 130).
+
+Gitleaks and Trivy are **not redundant** — one reads git history, the other the
+target's content — so both run when `scan.enable_secret` is set, in separate
+stages with separate progress rows and separate error messages. Only Trivy's
+half applies to an image, which is what gives an image a secret scan at all.
+
+**The security header now carries the context and one count, and nothing else.**
+`buildInfoLines` renders exactly seven lines and drops the rest in silence; the
+results state sat at exactly seven, so an eighth field would have vanished. The
+tool versions answered the dashboard's question, `Filter` read `ALL`
+permanently, and `Secrets`/`Licenses` duplicated the tab bar one line below. The
+context was the one thing missing, and it is the view where it matters most: the
+scan caches are scoped to a context, so identical rows mean different things in
+two of them. `parseVersion`, `looksLikeVersion` and `renderSeverityBar` went
+with their only caller.
+
 ### 3.11 `security` becomes an inventory — **phase 2 done**
 
 Phase 2 of [`configuration-view-plan.md`](../.claude/plans/configuration-view-plan.md).

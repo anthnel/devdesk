@@ -66,35 +66,33 @@ func (m *Model) updateFindingsTable() {
 	m.findingsTable.GotoTop()
 }
 
+// tabCategory maps a tab to the finding category it shows.
+//
+// The tabs and scan.Result's counters are now the same classification, applied
+// once in scan.Categorize: they were two rules that disagreed on three inputs,
+// each of which produced a finding counted in the header but present in no tab
+// at all — visible nowhere, which is the worst way for a finding to be wrong.
+var tabCategory = map[int]scan.Category{
+	TabCVE:       scan.CategoryVulnerability,
+	TabSecrets:   scan.CategorySecret,
+	TabLicense:   scan.CategoryLicense,
+	TabMisconfig: scan.CategoryMisconfiguration,
+}
+
 // filterFindingsByTab returns findings filtered by the active tab
 func (m *Model) filterFindingsByTab() []scan.Finding {
 	if m.result == nil {
 		return nil
 	}
 
+	want, ok := tabCategory[m.activeTab]
+	if !ok {
+		return nil
+	}
 	var filtered []scan.Finding
 	for _, f := range m.result.Findings {
-		switch m.activeTab {
-		case TabCVE:
-			// CVE: vulnerabilities from trivy (not secrets, not licenses)
-			if f.Source == "trivy" && f.PkgName != "" && f.Match == "" {
-				filtered = append(filtered, f)
-			}
-		case TabSecrets:
-			// Secrets: from gitleaks or trivy secrets
-			if f.Source == "gitleaks" || (f.Source == "trivy" && f.Match != "") {
-				filtered = append(filtered, f)
-			}
-		case TabLicense:
-			// Licenses: from trivy-license source
-			if f.Source == "trivy-license" {
-				filtered = append(filtered, f)
-			}
-		case TabMisconfig:
-			// Misconfigurations: from trivy-misconfig source
-			if f.Source == "trivy-misconfig" {
-				filtered = append(filtered, f)
-			}
+		if scan.Categorize(f) == want {
+			filtered = append(filtered, f)
 		}
 	}
 	return filtered
@@ -128,40 +126,44 @@ func (m *Model) filterFindingsBySeverity(findings []scan.Finding) []scan.Finding
 	return filtered
 }
 
-// sourceDisplay returns a display string for the source column
+// sourceDisplay returns a display string for the source column.
+//
+// Which tool found it, not which category it is — the tab already says the
+// category, and telling gitleaks from trivy-secret in the Secrets tab is the
+// point of showing both there.
 func sourceDisplay(f scan.Finding) string {
 	switch f.Source {
-	case "trivy-license":
+	case scan.SourceTrivyLicense:
 		return "license"
-	case "trivy-misconfig":
+	case scan.SourceTrivyMisconfig:
 		return "misconfig"
-	case "gitleaks":
-		return "secret"
-	case "trivy":
-		if f.Match != "" {
-			return "secret"
-		}
+	case scan.SourceGitleaks:
+		return "gitleaks"
+	case scan.SourceTrivySecret:
+		return "trivy"
+	case scan.SourceTrivy:
 		return "vuln"
 	default:
 		return f.Source
 	}
 }
 
-// countFindingsByTab returns the count of findings for each tab
+// countFindingsByTab returns the count of findings for each tab. These are the
+// numbers on the tab labels, and scan.Result's counters are the same ones.
 func (m *Model) countFindingsByTab() (cve, secrets, licenses, misconfigs int) {
 	if m.result == nil {
 		return 0, 0, 0, 0
 	}
 
 	for _, f := range m.result.Findings {
-		switch {
-		case f.Source == "trivy" && f.PkgName != "" && f.Match == "":
+		switch scan.Categorize(f) {
+		case scan.CategoryVulnerability:
 			cve++
-		case f.Source == "gitleaks" || (f.Source == "trivy" && f.Match != ""):
+		case scan.CategorySecret:
 			secrets++
-		case f.Source == "trivy-license":
+		case scan.CategoryLicense:
 			licenses++
-		case f.Source == "trivy-misconfig":
+		case scan.CategoryMisconfiguration:
 			misconfigs++
 		}
 	}
@@ -175,17 +177,27 @@ func (m *Model) switchTab(tab int) {
 	m.updateFindingsTable()
 }
 
-// handleIgnoreSecret prompts confirmation to ignore a secret finding
-func (m *Model) handleIgnoreSecret() {
+// handleIgnoreSecret prompts confirmation to ignore a secret finding.
+//
+// Gitleaks findings only. .gitleaksignore is matched on a Gitleaks fingerprint,
+// which a Trivy secret does not have — AddToGitleaksIgnore would fabricate one
+// from the file and rule, write it, and report success for a line Gitleaks will
+// never match and Trivy never reads. Refusing says so instead.
+func (m Model) handleIgnoreSecret() (tea.Model, tea.Cmd) {
 	finding, ok := m.findingsTable.Selected()
 	if m.activeTab != TabSecrets || !ok {
-		return
+		return m, nil
+	}
+	if finding.Source != scan.SourceGitleaks {
+		m.statusMessage = "Only Gitleaks findings can be added to .gitleaksignore"
+		return m, clearStatusCmd()
 	}
 	m.findingToIgnore = &finding
 	m.confirmModal = sharedcomponents.NewConfirmModal(
 		"Ignore Secret",
 		fmt.Sprintf("Add this secret to .gitleaksignore?\n\nFile: %s\nRule: %s", finding.File, finding.ID),
 	)
+	return m, nil
 }
 
 // handleResultsState processes input in results state
@@ -240,8 +252,7 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "i":
-		m.handleIgnoreSecret()
-		return m, nil
+		return m.handleIgnoreSecret()
 	case "up", "down", "k", "j", "pgup", "pgdown", "g", "home", "G", "end":
 		return m, m.findingsTable.Update(msg)
 	}

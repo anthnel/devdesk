@@ -119,37 +119,45 @@ type Result struct {
 	SBOMPath       string         `json:"sbom_path,omitempty"` // Path to generated SBOM file
 }
 
-// CountFindings aggregates findings into separate counters by source and severity.
-// CVEs (source "trivy") are counted by severity into Counts.
-// Secrets (source "gitleaks"), licenses ("trivy-license"), and misconfigs ("trivy-misconfig")
-// are counted into their respective dedicated fields.
+// CountFindings aggregates findings into separate counters by category and
+// severity. Vulnerabilities are counted by severity into Counts; secrets,
+// licenses and misconfigurations into their dedicated fields.
+//
+// The category comes from Categorize, which the results tabs also use — these
+// counters and the tab labels are the same numbers, and used to be computed by
+// two rules that disagreed (see category.go).
 func (r *Result) CountFindings() {
 	r.Counts = SeverityCounts{}
 	r.SecretCount = 0
 	r.LicenseCount = 0
 	r.MisconfigCount = 0
 	for _, f := range r.Findings {
-		switch f.Source {
-		case "gitleaks":
+		switch Categorize(f) {
+		case CategorySecret:
 			r.SecretCount++
-		case "trivy-license":
+		case CategoryLicense:
 			r.LicenseCount++
-		case "trivy-misconfig":
+		case CategoryMisconfiguration:
 			r.MisconfigCount++
-		default: // "trivy" and any unknown source → CVE counts by severity
-			switch f.Severity {
-			case SeverityCritical:
-				r.Counts.Critical++
-			case SeverityHigh:
-				r.Counts.High++
-			case SeverityMedium:
-				r.Counts.Medium++
-			case SeverityLow:
-				r.Counts.Low++
-			default:
-				r.Counts.Unknown++
-			}
+		case CategoryVulnerability:
+			r.countBySeverity(f.Severity)
 		}
+	}
+}
+
+// countBySeverity adds one vulnerability to the severity histogram.
+func (r *Result) countBySeverity(severity SeverityLevel) {
+	switch severity {
+	case SeverityCritical:
+		r.Counts.Critical++
+	case SeverityHigh:
+		r.Counts.High++
+	case SeverityMedium:
+		r.Counts.Medium++
+	case SeverityLow:
+		r.Counts.Low++
+	default:
+		r.Counts.Unknown++
 	}
 }
 
@@ -281,7 +289,7 @@ func newScannerWithDeps(opts ScanOptions, deps DependencyStatus) *Scanner {
 // stages that would otherwise have run are reported.
 func (s *Scanner) missingToolErrors(targetType TargetType) []string {
 	wantsTrivy := s.options.EnableVuln || s.options.EnableMisconfig || s.options.GenerateSBOM ||
-		(s.options.EnableLicense && targetType == TargetDirectory)
+		s.options.EnableSecret || (s.options.EnableLicense && targetType == TargetDirectory)
 	wantsGitleaks := s.options.EnableSecret && targetType == TargetDirectory
 
 	var errs []string
@@ -290,8 +298,11 @@ func (s *Scanner) missingToolErrors(targetType TargetType) []string {
 			"trivy: not available — nothing was scanned. Install trivy or pull %s", trivyImage(s.deps.TrivyImage)))
 	}
 	if wantsGitleaks && !s.deps.GitleaksAvailable {
+		// Not "no secret scan was run": Trivy runs one too now, so naming what
+		// Gitleaks alone contributes is what keeps this accurate when only one
+		// of the two is missing.
 		errs = append(errs, fmt.Sprintf(
-			"gitleaks: not available — no secret scan was run. Install gitleaks or pull %s",
+			"gitleaks: not available — git history was not scanned for secrets. Install gitleaks or pull %s",
 			gitleaksImage(s.deps.GitleaksImage)))
 	}
 	return errs
@@ -394,9 +405,9 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	// Secret scan (Gitleaks, directory only)
 	if s.options.EnableSecret && s.deps.GitleaksAvailable && targetType == TargetDirectory {
 		eg.Go(func() error {
-			notify(ProgressUpdate{Stage: "secret", Label: "Secrets", Status: StageRunning})
+			notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageRunning})
 			progressFn := func(detail string) {
-				notify(ProgressUpdate{Stage: "secret", Label: "Secrets", Status: StageRunning, Detail: detail})
+				notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageRunning, Detail: detail})
 			}
 			cmd := GetGitleaksCommand(target, s.deps.GitleaksSpec(), s.options.GitleaksHistory, s.options.GitleaksConfig)
 			log.Printf("Running: %s", cmd)
@@ -405,10 +416,36 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			defer mu.Unlock()
 			if err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("gitleaks: %v", err))
-				notify(ProgressUpdate{Stage: "secret", Label: "Secrets", Status: StageError})
+				notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageError})
 			} else {
 				result.Findings = append(result.Findings, findings...)
-				notify(ProgressUpdate{Stage: "secret", Label: "Secrets", Status: StageDone})
+				notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageDone})
+			}
+			return nil
+		})
+	}
+
+	// Secret scan (Trivy). Both target types, unlike Gitleaks: this is what
+	// gives an image scan a secret stage at all. The two are complementary
+	// rather than redundant — Gitleaks reads git history, Trivy reads image
+	// layers — so both run when the option is on and both tools are there.
+	if s.options.EnableSecret && s.deps.TrivyAvailable {
+		eg.Go(func() error {
+			notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageRunning})
+			progressFn := func(detail string) {
+				notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageRunning, Detail: detail})
+			}
+			cmd := GetTrivySecretCommand(target, targetType, s.deps.TrivySpec(), s.options.TrivyServer)
+			log.Printf("Running: %s", cmd)
+			findings, err := RunTrivySecret(egCtx, target, targetType, s.deps.TrivySpec(), s.options.TrivyServer, progressFn)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("trivy secret: %v", err))
+				notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageError})
+			} else {
+				result.Findings = append(result.Findings, findings...)
+				notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageDone})
 			}
 			return nil
 		})

@@ -147,6 +147,25 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 			})
 		}
 
+		// Process secrets found by Trivy.
+		//
+		// The report has carried these since TrivySecret was declared; nothing
+		// read them, so a secret Trivy found was parsed and dropped. Only the
+		// secret stage asks for them (--scanners secret), so there is no risk of
+		// the vulnerability stage returning the same finding twice.
+		for _, secret := range result.Secrets {
+			findings = append(findings, Finding{
+				ID:          secret.RuleID,
+				Title:       secret.Title,
+				Description: secret.Category,
+				Severity:    parseSeverity(secret.Severity),
+				Source:      SourceTrivySecret,
+				File:        result.Target,
+				Line:        secret.StartLine,
+				Match:       maskSecret(secret.Match),
+			})
+		}
+
 		// Process licenses found by Trivy
 		for _, license := range result.Licenses {
 			findings = append(findings, Finding{
@@ -216,6 +235,25 @@ func GetTrivyCommand(target string, targetType TargetType, licenseMode bool, too
 		return ""
 	}
 	return tc.String()
+}
+
+// GetTrivySecretCommand returns the secret scan command for display.
+func GetTrivySecretCommand(target string, targetType TargetType, tool ToolSpec, server string) string {
+	tc, err := trivySecretArgs(target, targetType, tool, server)
+	if err != nil {
+		return ""
+	}
+	return tc.String()
+}
+
+// RunTrivySecret executes Trivy with --scanners secret and returns findings.
+// progressFn is an optional callback called with each stderr line.
+func RunTrivySecret(ctx context.Context, target string, targetType TargetType, tool ToolSpec, server string, progressFn func(string)) ([]Finding, error) {
+	tc, err := trivySecretArgs(target, targetType, tool, server)
+	if err != nil {
+		return nil, err
+	}
+	return runTrivy(ctx, tc, progressFn)
 }
 
 // GetTrivyMisconfigCommand returns the misconfiguration scan command for display.

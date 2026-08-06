@@ -26,6 +26,9 @@ func TestTrivyOutputIsSplitByKind(t *testing.T) {
 	    ],
 	    "Misconfigurations": [
 	      {"AVDID":"AVD-DS-0002","Title":"root user","Severity":"MEDIUM","CauseMetadata":{"StartLine":7}}
+	    ],
+	    "Secrets": [
+	      {"RuleID":"aws-secret-access-key","Category":"AWS","Severity":"CRITICAL","Title":"AWS key","StartLine":3,"Match":"AKIAIOSFODNN7EXAMPLE"}
 	    ]
 	  }]
 	}`))
@@ -37,20 +40,60 @@ func TestTrivyOutputIsSplitByKind(t *testing.T) {
 	for _, f := range findings {
 		bySource[f.Source] = f
 	}
-	for _, want := range []string{"trivy", "trivy-license", "trivy-misconfig"} {
+	for _, want := range []string{SourceTrivy, SourceTrivyLicense, SourceTrivyMisconfig, SourceTrivySecret} {
 		if _, ok := bySource[want]; !ok {
 			t.Errorf("no finding with source %q in %v", want, bySource)
 		}
 	}
 
-	if got := bySource["trivy"].File; got != "go.mod" {
+	if got := bySource[SourceTrivy].File; got != "go.mod" {
 		t.Errorf("the vulnerability's file is %q, want the result target go.mod", got)
 	}
-	if got := bySource["trivy-license"].File; got != "vendor/libfoo" {
+	if got := bySource[SourceTrivyLicense].File; got != "vendor/libfoo" {
 		t.Errorf("the license's file is %q, want its own FilePath", got)
 	}
-	if got := bySource["trivy-misconfig"].Line; got != 7 {
+	if got := bySource[SourceTrivyMisconfig].Line; got != 7 {
 		t.Errorf("the misconfiguration is at line %d, want 7 from CauseMetadata", got)
+	}
+	if got := bySource[SourceTrivySecret].Line; got != 3 {
+		t.Errorf("the secret is at line %d, want 3 from StartLine", got)
+	}
+}
+
+// Trivy's report has carried Secrets since the struct was declared, and nothing
+// read them: a secret Trivy found was parsed and dropped. Same shape as D27 —
+// declared, populated, read by nothing, and silent about it.
+func TestATrivySecretIsReadAndItsValueMasked(t *testing.T) {
+	findings, err := parseTrivyOutput([]byte(`{
+	  "Results": [{
+	    "Target": "app/.env",
+	    "Secrets": [
+	      {"RuleID":"aws-secret-access-key","Category":"AWS","Severity":"CRITICAL","Title":"AWS key","StartLine":3,"Match":"AKIAIOSFODNN7EXAMPLE"}
+	    ]
+	  }]
+	}`))
+	if err != nil {
+		t.Fatalf("parsing failed: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("%d findings, want the one secret", len(findings))
+	}
+
+	secret := findings[0]
+	if secret.Source != SourceTrivySecret {
+		t.Errorf("Source = %q, want %q — the source is what puts it in the Secrets tab",
+			secret.Source, SourceTrivySecret)
+	}
+	if Categorize(secret) != CategorySecret {
+		t.Error("a Trivy secret is not categorised as a secret")
+	}
+	if secret.ID != "aws-secret-access-key" || secret.File != "app/.env" || secret.Severity != SeverityCritical {
+		t.Errorf("the secret does not describe itself: %+v", secret)
+	}
+	// The same guarantee as for Gitleaks: the result is written to disk and read
+	// back by the inventory, so the secret must not be in it.
+	if strings.Contains(secret.Match, "AKIAIOSFODNN7EXAMPLE") {
+		t.Errorf("Match = %q, want the value masked", secret.Match)
 	}
 }
 

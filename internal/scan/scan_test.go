@@ -19,6 +19,10 @@ type stageReply struct {
 
 // stageOf names the stage an invocation belongs to, from the invocation alone —
 // which is the only thing the runner sees.
+//
+// "secret" and "trivy-secret" are separate: secret scanning is the one option
+// served by both tools, Gitleaks over git history and Trivy over the target's
+// content, and only Trivy's half applies to an image.
 func stageOf(tc toolCmd) string {
 	s := tc.String()
 	switch {
@@ -28,6 +32,8 @@ func stageOf(tc toolCmd) string {
 		return "license"
 	case strings.Contains(s, "--scanners misconfig"):
 		return "misconfig"
+	case strings.Contains(s, "--scanners secret"):
+		return "trivy-secret"
 	case strings.HasPrefix(s, "gitleaks"):
 		return "secret"
 	default:
@@ -122,6 +128,14 @@ func licenseReport(t *testing.T) string {
 	}})
 }
 
+func trivySecretReport(t *testing.T, ruleID string) string {
+	t.Helper()
+	return trivyReport(t, TrivyResult{Target: "app/.env", Secrets: []TrivySecret{
+		{RuleID: ruleID, Category: "AWS", Severity: "CRITICAL", Title: "AWS Secret Access Key",
+			StartLine: 3, Match: "AKIAIOSFODNN7EXAMPLE"},
+	}})
+}
+
 func misconfigReport(t *testing.T) string {
 	t.Helper()
 	return trivyReport(t, TrivyResult{Target: "Dockerfile", Misconfigurations: []TrivyMisconfiguration{
@@ -133,11 +147,12 @@ func misconfigReport(t *testing.T) string {
 
 func TestEveryEnabledStageContributesItsFindings(t *testing.T) {
 	byStage(t, map[string]stageReply{
-		"vuln":      {stdout: vulnReport(t, "CVE-2024-1", "CRITICAL"), err: &exitError{Code: 1}},
-		"license":   {stdout: licenseReport(t)},
-		"misconfig": {stdout: misconfigReport(t)},
-		"secret":    {stdout: gitleaksReport(t, "aws-access-token"), err: &exitError{Code: gitleaksSecretsFound}},
-		"sbom":      {},
+		"vuln":         {stdout: vulnReport(t, "CVE-2024-1", "CRITICAL"), err: &exitError{Code: 1}},
+		"license":      {stdout: licenseReport(t)},
+		"misconfig":    {stdout: misconfigReport(t)},
+		"secret":       {stdout: gitleaksReport(t, "aws-access-token"), err: &exitError{Code: gitleaksSecretsFound}},
+		"trivy-secret": {stdout: trivySecretReport(t, "aws-secret-access-key")},
+		"sbom":         {},
 	})
 
 	result, err := newScannerWithDeps(everyStage(), everyTool()).
@@ -155,8 +170,11 @@ func TestEveryEnabledStageContributesItsFindings(t *testing.T) {
 	if result.Counts.Critical != 1 {
 		t.Errorf("Counts.Critical = %d, want 1", result.Counts.Critical)
 	}
-	if result.SecretCount != 1 {
-		t.Errorf("SecretCount = %d, want 1", result.SecretCount)
+	// Both secret scanners feed the one counter, and the one tab: Gitleaks reads
+	// git history, Trivy reads the target's content, and neither sees what the
+	// other does.
+	if result.SecretCount != 2 {
+		t.Errorf("SecretCount = %d, want the gitleaks and the trivy secret", result.SecretCount)
 	}
 	if result.LicenseCount != 1 {
 		t.Errorf("LicenseCount = %d, want 1", result.LicenseCount)
@@ -186,7 +204,10 @@ func TestAStageWithoutItsToolIsReportedRatherThanSkippedSilently(t *testing.T) {
 	deps := everyTool()
 	deps.GitleaksAvailable = false
 
-	r := byStage(t, map[string]stageReply{"vuln": {stdout: `{"Results":[]}`}})
+	r := byStage(t, map[string]stageReply{
+		"vuln":         {stdout: `{"Results":[]}`},
+		"trivy-secret": {stdout: `{"Results":[]}`},
+	})
 
 	result, err := newScannerWithDeps(
 		ScanOptions{EnableVuln: true, EnableSecret: true}, deps).
@@ -195,8 +216,10 @@ func TestAStageWithoutItsToolIsReportedRatherThanSkippedSilently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	if got := stagesRun(r); strings.Join(got, ",") != "vuln" {
-		t.Errorf("stages run = %v, want the secret stage skipped", got)
+	// Trivy's half of the secret scan still runs — it is Gitleaks that is
+	// missing, and saying so is the point of D20.
+	if got := stagesRun(r); strings.Join(got, ",") != "trivy-secret,vuln" {
+		t.Errorf("stages run = %v, want the gitleaks stage skipped and trivy's kept", got)
 	}
 	if len(result.Errors) != 1 || !strings.Contains(result.Errors[0], "gitleaks") {
 		t.Fatalf("Errors = %v, want one naming the tool that is missing", result.Errors)
@@ -240,14 +263,17 @@ func TestAScanThatCouldRunNoScannerIsNotACleanScan(t *testing.T) {
 }
 
 // A stage that does not apply to the target type is not missing anything.
-// Gitleaks scans a working tree, so a secret scan of an image is skipped for a
-// reason that has nothing to do with what is installed — reporting it would
-// train the user to ignore the warnings panel.
+// Gitleaks scans a working tree, so its half of the secret scan is skipped on an
+// image for a reason that has nothing to do with what is installed — reporting
+// it would train the user to ignore the warnings panel.
 func TestAStageThatDoesNotApplyToTheTargetIsNotAMissingTool(t *testing.T) {
 	deps := everyTool()
 	deps.GitleaksAvailable = false
 
-	byStage(t, map[string]stageReply{"vuln": {stdout: `{"Results":[]}`}})
+	byStage(t, map[string]stageReply{
+		"vuln":         {stdout: `{"Results":[]}`},
+		"trivy-secret": {stdout: `{"Results":[]}`},
+	})
 
 	result, err := newScannerWithDeps(
 		ScanOptions{EnableVuln: true, EnableSecret: true}, deps).
@@ -276,13 +302,15 @@ func TestNothingEnabledReportsNoMissingTool(t *testing.T) {
 	}
 }
 
-// Licences come from a package manifest and secrets from a working tree, so
-// neither has anything to read in an image.
-func TestLicenceAndSecretScanningDoNotApplyToAnImage(t *testing.T) {
+// Licences come from a package manifest and Gitleaks reads a git history, so
+// neither has anything to read in an image. Trivy's secret scan does: it reads
+// the image's layers, which is what gives an image scan a secret stage at all.
+func TestAnImageIsScannedForSecretsByTrivyOnly(t *testing.T) {
 	r := byStage(t, map[string]stageReply{
-		"vuln":      {stdout: `{"Results":[]}`},
-		"misconfig": {stdout: `{"Results":[]}`},
-		"sbom":      {},
+		"vuln":         {stdout: `{"Results":[]}`},
+		"misconfig":    {stdout: `{"Results":[]}`},
+		"trivy-secret": {stdout: `{"Results":[]}`},
+		"sbom":         {},
 	})
 
 	if _, err := newScannerWithDeps(everyStage(), everyTool()).
@@ -291,8 +319,29 @@ func TestLicenceAndSecretScanningDoNotApplyToAnImage(t *testing.T) {
 	}
 
 	got := strings.Join(stagesRun(r), ",")
-	if got != "misconfig,sbom,vuln" {
-		t.Errorf("stages run = %s, want licence and secret left out", got)
+	if got != "misconfig,sbom,trivy-secret,vuln" {
+		t.Errorf("stages run = %s, want licence and gitleaks left out and trivy's secret scan kept", got)
+	}
+}
+
+// An image's secrets were parsed and dropped: Trivy's default scanners for an
+// image are "vuln,secret", so the vulnerability stage was paying for a secret
+// scan whose output nothing read. Asking for one scanner per stage is what
+// stops the same secret being reported twice now that it is read.
+func TestTheVulnerabilityStageDoesNotAlsoScanForSecrets(t *testing.T) {
+	r := byStage(t, map[string]stageReply{"vuln": {stdout: `{"Results":[]}`}})
+
+	if _, err := newScannerWithDeps(ScanOptions{EnableVuln: true}, everyTool()).
+		Scan(context.Background(), "api:v1", TargetImage); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, c := range r.calls {
+		if !strings.Contains(c.String(), "--scanners vuln") {
+			t.Errorf("the vulnerability stage ran %q, want it limited to --scanners vuln", c)
+		}
 	}
 }
 
@@ -320,8 +369,9 @@ func TestAScanWithNothingEnabledRunsNothing(t *testing.T) {
 // sequence with an early return.
 func TestOneStageFailingLeavesTheOthersIntact(t *testing.T) {
 	byStage(t, map[string]stageReply{
-		"vuln":   {stdout: vulnReport(t, "CVE-2024-9", "HIGH")},
-		"secret": {err: errors.New("gitleaks failed to start")},
+		"vuln":         {stdout: vulnReport(t, "CVE-2024-9", "HIGH")},
+		"secret":       {err: errors.New("gitleaks failed to start")},
+		"trivy-secret": {stdout: `{"Results":[]}`},
 	})
 
 	result, err := newScannerWithDeps(
@@ -342,11 +392,12 @@ func TestOneStageFailingLeavesTheOthersIntact(t *testing.T) {
 func TestEveryStageReportsItsOwnFailure(t *testing.T) {
 	failing := &exitError{Code: 2, Stderr: "FATAL"}
 	byStage(t, map[string]stageReply{
-		"vuln":      {err: failing},
-		"license":   {err: failing},
-		"misconfig": {err: failing},
-		"secret":    {err: failing},
-		"sbom":      {err: failing},
+		"vuln":         {err: failing},
+		"license":      {err: failing},
+		"misconfig":    {err: failing},
+		"secret":       {err: failing},
+		"trivy-secret": {err: failing},
+		"sbom":         {err: failing},
 	})
 
 	result, err := newScannerWithDeps(everyStage(), everyTool()).
@@ -355,13 +406,15 @@ func TestEveryStageReportsItsOwnFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	if len(result.Errors) != 5 {
+	if len(result.Errors) != 6 {
 		t.Fatalf("Errors = %v, want one per stage", result.Errors)
 	}
 	// Each entry has to say which stage it came from, or the footer message is
-	// unactionable.
+	// unactionable. The two secret scanners are named apart for that reason:
+	// "gitleaks" and "trivy secret" fail for different causes and are fixed by
+	// different things.
 	joined := strings.Join(result.Errors, "\n")
-	for _, want := range []string{"trivy vuln", "trivy license", "trivy misconfig", "gitleaks", "sbom"} {
+	for _, want := range []string{"trivy vuln", "trivy license", "trivy misconfig", "gitleaks", "trivy secret", "sbom"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("no error naming %q:\n%s", want, joined)
 		}
@@ -410,11 +463,12 @@ func TestAStageIsAnnouncedBeforeItRunsAndAgainWhenItIsOver(t *testing.T) {
 // labelled with another stage — would land under the wrong spinner.
 func TestEachStageLabelsItsOwnProgress(t *testing.T) {
 	r := byStage(t, map[string]stageReply{
-		"vuln":      {stdout: `{"Results":[]}`},
-		"license":   {stdout: `{"Results":[]}`},
-		"misconfig": {stdout: `{"Results":[]}`},
-		"secret":    {stdout: "[]"},
-		"sbom":      {},
+		"vuln":         {stdout: `{"Results":[]}`},
+		"license":      {stdout: `{"Results":[]}`},
+		"misconfig":    {stdout: `{"Results":[]}`},
+		"secret":       {stdout: "[]"},
+		"trivy-secret": {stdout: `{"Results":[]}`},
+		"sbom":         {},
 	})
 	r.progress = []string{"downloading db"}
 
@@ -438,10 +492,15 @@ func TestEachStageLabelsItsOwnProgress(t *testing.T) {
 
 	// The SBOM stage passes no callback: it writes a file rather than a report,
 	// so there is nothing to narrate.
-	for _, stage := range []string{"vuln", "license", "misconfig", "secret"} {
+	for _, stage := range []string{"vuln", "license", "misconfig", "secret", "trivy-secret"} {
 		if labelled[stage] == "" {
 			t.Errorf("the %s stage did not forward the tool's progress under a label", stage)
 		}
+	}
+	// The two secret stages share a spinner row only if they share a stage id,
+	// and they must not: one can finish while the other is still running.
+	if labelled["secret"] == labelled["trivy-secret"] {
+		t.Errorf("both secret stages report the label %q, so they collapse onto one row", labelled["secret"])
 	}
 	if _, narrated := labelled["sbom"]; narrated {
 		t.Error("the SBOM stage narrated progress it does not collect")
@@ -482,8 +541,9 @@ func TestAScanWithoutAProgressCallbackIsFine(t *testing.T) {
 // is no other way to tell they were honoured.
 func TestScanOptionsReachTheInvocation(t *testing.T) {
 	r := byStage(t, map[string]stageReply{
-		"vuln":   {stdout: `{"Results":[]}`},
-		"secret": {stdout: "[]"},
+		"vuln":         {stdout: `{"Results":[]}`},
+		"secret":       {stdout: "[]"},
+		"trivy-secret": {stdout: `{"Results":[]}`},
 	})
 
 	opts := ScanOptions{

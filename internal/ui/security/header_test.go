@@ -1,10 +1,10 @@
 package security
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -141,63 +141,55 @@ func TestTitleNamesTheTargetOnceScanned(t *testing.T) {
 	}
 }
 
-// The header is where the user learns a tool is missing, before the scan fails
-// for a reason they cannot see.
-func TestHeaderReportsToolAvailability(t *testing.T) {
-	missing := newTestModel(t).GetHeaderInfo("work")
-	if len(missing) < 2 {
-		t.Fatalf("GetHeaderInfo() = %+v, want Trivy and Gitleaks", missing)
-	}
-	for _, info := range missing[:2] {
-		if info.Value != "not found" {
-			t.Errorf("%s = %q with no dependency check, want \"not found\"", info.Key, info.Value)
-		}
+// The header carries the context and one count, and nothing else.
+//
+// buildInfoLines renders exactly headerMinHeight lines and drops the rest in
+// silence, so an unbounded info list is not a cosmetic problem. The states are
+// checked together because the old header ignored the state entirely and showed
+// the same seven fields whatever was on screen.
+func TestTheHeaderCarriesTheContextAndOneCount(t *testing.T) {
+	tests := []struct {
+		name     string
+		open     func(t *testing.T) Model
+		wantKeys []string
+	}{
+		{"the inventory", func(t *testing.T) Model {
+			return inventoryModel(t, inventoryFixtures()...)
+		}, []string{"Context", "Targets"}},
+		{"the form", newTestModel, []string{"Context"}},
+		{"the results", scannedModel, []string{"Context", "Findings"}},
+		{"the details", detailsModel, []string{"Context", "Findings"}},
 	}
 
-	present := feed(t, newTestModel(t), DepsCheckedMsg{Deps: scan.DependencyStatus{
-		TrivyAvailable: true, TrivyVersion: "Version: 0.50.0",
-		GitleaksAvailable: true, GitleaksVersion: "v8.18.2",
-	}}).GetHeaderInfo("work")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := tt.open(t).GetHeaderInfo("work")
 
-	if !strings.Contains(present[0].Value, "0.50.0") {
-		t.Errorf("Trivy = %q, want the parsed version", present[0].Value)
-	}
-	if !strings.Contains(present[1].Value, "8.18.2") {
-		t.Errorf("Gitleaks = %q, want the parsed version", present[1].Value)
-	}
-}
-
-// Once a result exists the header carries its duration and severity summary.
-func TestHeaderCarriesTheScanSummary(t *testing.T) {
-	info := scannedModel(t).GetHeaderInfo("work")
-
-	var keys []string
-	for _, i := range info {
-		keys = append(keys, i.Key)
-	}
-	joined := strings.Join(keys, ",")
-	if !strings.Contains(joined, "Duration") {
-		t.Errorf("the header keys are %v, want the scan duration among them", keys)
+			var keys []string
+			for _, i := range info {
+				keys = append(keys, i.Key)
+			}
+			if !equal(keys, tt.wantKeys) {
+				t.Errorf("header keys = %v, want exactly %v", keys, tt.wantKeys)
+			}
+			if info[0].Value != "work" {
+				t.Errorf("Context = %q, want the context the router passed", info[0].Value)
+			}
+		})
 	}
 }
 
-// The version string each tool prints is a different shape, and the header has
-// one narrow column for it.
-func TestParseVersion(t *testing.T) {
-	m := newTestModel(t)
-
-	tests := map[string]string{
-		"Version: 0.50.0":                   "0.50.0",
-		"v8.18.2":                           "8.18.2",
-		"":                                  "",
-		"gitleaks version 8.18.2":           "8.18.2",
-		"Version: 0.50.0\nVulnerability DB": "0.50.0",
+// The counts name what the state is a list of, and are the real ones.
+func TestTheHeaderCountMatchesWhatIsOnScreen(t *testing.T) {
+	inventory := inventoryModel(t, inventoryFixtures()...).GetHeaderInfo("work")
+	if inventory[1].Value != "2" {
+		t.Errorf("Targets = %q, want the two cached targets", inventory[1].Value)
 	}
 
-	for in, want := range tests {
-		if got := m.parseVersion(in); !strings.Contains(got, want) {
-			t.Errorf("parseVersion(%q) = %q, want it to contain %q", in, got, want)
-		}
+	results := scannedModel(t).GetHeaderInfo("work")
+	want := strconv.Itoa(resultFixture().TotalFindings())
+	if results[1].Value != want {
+		t.Errorf("Findings = %q, want %q", results[1].Value, want)
 	}
 }
 

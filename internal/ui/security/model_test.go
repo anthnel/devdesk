@@ -875,3 +875,129 @@ func TestInEditModeIsTrueOnlyWhereAFieldHasTheKeyboard(t *testing.T) {
 }
 
 var _ = tea.Model(Model{})
+
+// ── The tabs and the counters are one classification ─────────────────────────
+
+// The Secrets tab shows both scanners. Gitleaks reads git history and Trivy
+// reads the target's content, so neither sees what the other does — and an
+// image, which Gitleaks cannot scan at all, has only Trivy's half.
+func TestTheSecretsTabShowsGitleaksAndTrivyAlike(t *testing.T) {
+	result := resultFixture()
+	result.Findings = append(result.Findings, scan.Finding{
+		ID: "aws-secret-access-key", Title: "AWS key in a layer", Severity: scan.SeverityCritical,
+		Source: scan.SourceTrivySecret, File: "app/.env", Line: 3, Match: "AKIA****MPLE",
+	})
+	result.CountFindings()
+
+	m := feed(t, newTestModel(t), ScanCompleteMsg{Result: result, Gen: newTestModel(t).scanGen})
+	m.switchTab(TabSecrets)
+
+	sources := map[string]bool{}
+	for _, f := range m.findingsTable.Items() {
+		sources[f.Source] = true
+	}
+	for _, want := range []string{scan.SourceGitleaks, scan.SourceTrivySecret} {
+		if !sources[want] {
+			t.Errorf("the Secrets tab omits findings from %q: %v", want, sources)
+		}
+	}
+}
+
+// The tab labels and scan.Result's counters were computed by two rules that
+// disagreed. They are one rule now, so the numbers cannot drift — including for
+// the three findings that used to fall between them.
+func TestTheTabCountsAgreeWithTheResultCounters(t *testing.T) {
+	result := resultFixture()
+	result.Findings = append(result.Findings,
+		scan.Finding{Source: scan.SourceTrivySecret, Severity: scan.SeverityHigh},
+		scan.Finding{Source: scan.SourceTrivy, Severity: scan.SeverityHigh}, // no PkgName
+		scan.Finding{Source: "grype", Severity: scan.SeverityLow},           // undeclared source
+	)
+	result.CountFindings()
+
+	m := Model{result: result}
+	cve, secrets, licenses, misconfigs := m.countFindingsByTab()
+
+	vulns := result.Counts.Critical + result.Counts.High + result.Counts.Medium +
+		result.Counts.Low + result.Counts.Unknown
+	if cve != vulns {
+		t.Errorf("the CVE tab shows %d, the header counters %d", cve, vulns)
+	}
+	if secrets != result.SecretCount {
+		t.Errorf("the Secrets tab shows %d, SecretCount is %d", secrets, result.SecretCount)
+	}
+	if licenses != result.LicenseCount {
+		t.Errorf("the Licenses tab shows %d, LicenseCount is %d", licenses, result.LicenseCount)
+	}
+	if misconfigs != result.MisconfigCount {
+		t.Errorf("the Misconfig tab shows %d, MisconfigCount is %d", misconfigs, result.MisconfigCount)
+	}
+	// Every finding is reachable through some tab; one visible in none of them
+	// is the failure the two rules produced.
+	if total := cve + secrets + licenses + misconfigs; total != len(result.Findings) {
+		t.Errorf("%d findings across the tabs, %d in the result — some are in no tab",
+			total, len(result.Findings))
+	}
+}
+
+// The Source column names the tool, not the category: the tab already says the
+// category, and telling the two secret scanners apart is why both are there.
+func TestTheSourceColumnNamesTheTool(t *testing.T) {
+	tests := map[string]string{
+		scan.SourceGitleaks:       "gitleaks",
+		scan.SourceTrivySecret:    "trivy",
+		scan.SourceTrivy:          "vuln",
+		scan.SourceTrivyLicense:   "license",
+		scan.SourceTrivyMisconfig: "misconfig",
+	}
+
+	for source, want := range tests {
+		if got := sourceDisplay(scan.Finding{Source: source}); got != want {
+			t.Errorf("sourceDisplay(%q) = %q, want %q", source, got, want)
+		}
+	}
+}
+
+// .gitleaksignore is matched on a Gitleaks fingerprint, which a Trivy secret
+// does not have. Offering 'i' there would fabricate one, write it, and report
+// success for a line Gitleaks will never match.
+func TestIgnoringIsOfferedForGitleaksFindingsOnly(t *testing.T) {
+	result := resultFixture()
+	result.Findings = append(result.Findings, scan.Finding{
+		ID: "aws-secret-access-key", Title: "AWS key in a layer", Severity: scan.SeverityCritical,
+		Source: scan.SourceTrivySecret, File: "app/.env", Line: 3,
+	})
+	result.CountFindings()
+	m := feed(t, newTestModel(t), ScanCompleteMsg{Result: result, Gen: newTestModel(t).scanGen})
+	m.switchTab(TabSecrets)
+
+	// The fixtures put the Gitleaks finding first.
+	if selected, _ := m.findingsTable.Selected(); selected.Source != scan.SourceGitleaks {
+		t.Fatalf("the first secret is %q, want the gitleaks one", selected.Source)
+	}
+	if !has(m.GetShortcuts(), "i") {
+		t.Error("'i' is not offered on a gitleaks finding")
+	}
+	m, _ = step(t, m, testutil.Key("i"))
+	if m.confirmModal == nil {
+		t.Error("'i' on a gitleaks finding did not ask for confirmation")
+	}
+
+	m.confirmModal = nil
+	m = feed(t, m, testutil.Key("down"))
+	if selected, _ := m.findingsTable.Selected(); selected.Source != scan.SourceTrivySecret {
+		t.Fatalf("the second secret is %q, want the trivy one", selected.Source)
+	}
+	if has(m.GetShortcuts(), "i") {
+		t.Error("'i' is offered on a trivy secret, which .gitleaksignore cannot express")
+	}
+
+	m, cmd := step(t, m, testutil.Key("i"))
+	if m.confirmModal != nil {
+		t.Error("'i' on a trivy secret asked to write a fingerprint it does not have")
+	}
+	if !strings.Contains(m.statusMessage, "Gitleaks") || cmd == nil {
+		t.Errorf("statusMessage = %q with cmd %v, want a reason and a timer (Rule 128)",
+			m.statusMessage, cmd != nil)
+	}
+}

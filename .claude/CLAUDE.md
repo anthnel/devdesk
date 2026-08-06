@@ -380,12 +380,58 @@ what was asked for.
 
 `internal/scan/` orchestrates Trivy + Gitleaks:
 - `scanner.go` — runs both tools concurrently, streams progress via `ProgressUpdate` channel
-- `trivy.go` — CVE, SBOM, misconfiguration detection
+- `trivy.go` — CVE, secret, SBOM, misconfiguration detection
 - `gitleaks.go` — secrets detection with custom config support
+- `category.go` — **where a finding goes: one rule, for everyone**
+
+**Secret scanning uses both tools, and they are not redundant.** Gitleaks reads
+a repository's working tree and git history; Trivy reads the target's content.
+Only Trivy's half applies to an image — Gitleaks cannot scan one — which is why
+an image scan had no secret stage at all before. Both are gated on
+`scan.enable_secret` and feed the one Secrets tab; the Source column names the
+tool.
+
+Two consequences worth keeping:
+
+- The vulnerability stage passes `--scanners vuln` **explicitly for images**.
+  Trivy's default there is `vuln,secret`, so that stage was running a secret
+  scan whose output nothing read — and would now report each secret twice.
+- `i` (add to `.gitleaksignore`) is offered for **Gitleaks findings only**. That
+  file is matched on a Gitleaks fingerprint, which a Trivy secret does not have;
+  `AddToGitleaksIgnore` would fabricate one and report success for a line
+  nothing will ever match.
+
+**`scan.Categorize` is the only thing that decides a finding's family.** There
+were two rules: `Result.CountFindings` switched on `Source` alone, the security
+view's tabs on `Source` plus `PkgName` plus `Match`. Three inputs separated them
+— a `trivy` finding with no `PkgName`, an undeclared source, and a `trivy`
+finding carrying a `Match` — and each produced a finding **counted in the header
+but present in no tab**, so invisible in the table. Classification is on the
+source and nothing else now, which is what required Trivy secrets to have a
+source of their own (`trivy-secret`) rather than being recognised by a `Match`.
+`TestEveryFindingIsCountedExactlyOnce` and
+`TestTheTabCountsAgreeWithTheResultCounters` are what hold the two ends together.
 
 **Security view** (`internal/ui/security/model.go`) has five states:
 `StateInventory` (the landing page), `StateInput` (the form, until phase 3),
 `StateScanning`, `StateResults` and `StateDetails` (with remediation info).
+
+**The header carries the context and one count, and nothing else.**
+`app_header.go`'s `buildInfoLines` renders exactly `headerMinHeight` (7) lines
+and drops the rest **in silence**, and the results state used to sit at exactly
+7 — an eighth field would have vanished. Most had stopped earning their line:
+the Trivy and Gitleaks versions answered "can I scan?" (the dashboard's
+question, from `shared.State.Tools`), `Filter` read `ALL` permanently and meant
+nothing on the Secrets tab or in the details, and `Secrets`/`Licenses`
+duplicated the tab bar a line below. The context replaced them and was the one
+thing missing: the scan caches are scoped to a context, so identical-looking
+rows mean different things in two of them.
+
+| State | Info |
+|---|---|
+| Inventory | `Context`, `Targets` |
+| Results / Details | `Context`, `Findings` |
+| Form / Scanning | `Context` |
 
 ### The security inventory
 
