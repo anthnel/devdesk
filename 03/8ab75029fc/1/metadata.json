@@ -1,0 +1,65 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "038ab75029fc",
+  "session_id": "f307729d-6b98-4d70-8818-8033534663dd",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-06T17:57:27.7962251Z",
+  "branch": "feat/security-inventory",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/scan/category.go",
+    "internal/scan/category_test.go",
+    "internal/scan/command_test.go",
+    "internal/scan/parse_test.go",
+    "internal/scan/scan_test.go",
+    "internal/scan/scanner.go",
+    "internal/scan/trivy.go",
+    "internal/scan/trivy_args.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/header_test.go",
+    "internal/ui/security/model_test.go",
+    "internal/ui/security/view_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "3c3f573b41c8",
+  "checkpoint_transcript_start": 594,
+  "transcript_lines_at_start": 594,
+  "compact_transcript_start": 161,
+  "token_usage": {
+    "input_tokens": 208,
+    "cache_creation_tokens": 109739,
+    "cache_read_tokens": 38126251,
+    "output_tokens": 61845,
+    "api_call_count": 110
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-06T17:57:27.6965718Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 487,
+    "human_modified": 313,
+    "human_removed": 0,
+    "total_committed": 487,
+    "total_lines_changed": 801,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 323,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 323
+      }
+    }
+  ]
+}

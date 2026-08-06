@@ -1,0 +1,5 @@
+analyse l'entête de la vue sec, il manque le context et de nombreux champs n'ont plus lieu d'être
+
+---
+
+Dans le header il faut afficher uniquement : context, nombre et c'est tout. corrige les défauts identifiés, la vue secrets doit afficher ceux trouvés par gitleaks et trivy (si option cochée dans config)
