@@ -12,6 +12,7 @@ arbitrate.
 | 1 — configuration view | shipped |
 | 2 — the inventory | shipped, alongside the form |
 | 3 — deleting the form | **outstanding** |
+| after 3 — removing SBOM generation | **outstanding**, see `docs/backlog.md` §3.14 |
 
 ## What was decided
 
@@ -430,6 +431,20 @@ Roughly 450–500 lines of production code, plus the form half of
 2. `scan.ValidateTrivyServer` — must be called on the config view's
    `trivy_server` field. This is the check that stops `":"` reaching Trivy and
    failing the whole scan.
+
+**Three fields die with the form, and only with it.** Each is written where it
+is, and read by something that goes in this phase:
+
+| Field | Read by | Becomes |
+|---|---|---|
+| `homeState` | `goHome` | unnecessary — the inventory is the only landing state left, so `goHome` stops branching |
+| `deps` (+ `checkDependencies`, `DepsCheckedMsg`) | `renderStartButton` only, since the header stopped showing tool versions (§3.12) | dead — the dashboard already reports tool availability from `shared.State.Tools` |
+| `generateSBOM` and the ~15 other option mirrors | the form's checkboxes | dead — the options come from the config view |
+
+**And one thing to do straight after this phase, not before:** removing SBOM
+generation — `docs/backlog.md` §3.14. It is deferred precisely because the form
+addresses its fields by index and SBOM is index 6 of thirteen, so doing it first
+renumbers seven fields and their tests for code this phase deletes.
 
 ---
 

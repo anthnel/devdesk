@@ -2558,6 +2558,124 @@ highest risk since the payload *is* the secret — possibly viable by sending ru
 name, path and entropy with the match withheld); container log explanation
 (logs carry env vars and DSNs routinely).
 
+### 3.14 Remove SBOM generation — **planned, after phase 3**
+
+Drop the feature entirely: the two settings, the scan stage, the Trivy command
+builders, the two controls, the field on `Result`, and the documentation. No
+inert remains — no option that can be set and not read, no function with no
+caller.
+
+**Why after phase 3** (the deletion of `internal/ui/security/form.go`, per
+[`configuration-view-plan.md`](../.claude/plans/configuration-view-plan.md)) and
+not before: the form addresses its fields by index, and SBOM is index 6 of
+thirteen. Removing it now renumbers everything above it —
+
+```
+before : 6=sbom  7=trivyServer  8=ignoreUnfixed  9=ignoreEOL  10=gitleaksConfig  11=history  12=button
+after  :         6=trivyServer  7=ignoreUnfixed  8=ignoreEOL   9=gitleaksConfig  10=history  11=button
+```
+
+— across `totalFields`, `isServerIncompatibleField`, `isTextInputField`,
+`focusTextField`, `Model.InEditMode`, the space-toggle switch, the right column
+of `renderInputView` and `renderStartButton`, plus the tests that pin those
+indices. All of it is thrown away when the form is deleted. Doing the removal
+after phase 3 skips that phase completely: the form's SBOM checkbox,
+`applyServerModeConstraints`, `generateSBOM` and the renumbering all disappear
+with the file that holds them.
+
+Everything below was established by survey; it is what phase 3 leaves to do.
+
+#### What goes
+
+| File | What |
+|---|---|
+| `internal/config/config.go` | `ScanConfig.GenerateSBOM`, `ScanConfig.SBOMOutputDir`, and the `expand(c.Scan.SBOMOutputDir)` line in `applyDefaults` |
+| `internal/scan/options.go` | the two assignments in `OptionsFromConfig` |
+| `internal/scan/scanner.go` | `ScanOptions.GenerateSBOM`, `ScanOptions.SBOMOutputDir`, `Result.SBOMPath`, the SBOM stage in `Scan`, and `\|\| s.options.GenerateSBOM` in `missingToolErrors` |
+| `internal/scan/trivy.go` | `GetSBOMCommand`, `GenerateSBOM` |
+| `internal/scan/trivy_args.go` | `sbomArgs`, `sbomSubcommand`, `sbomFileName`, the `containerOutputPath` constant, and the `path/filepath` import |
+| `internal/ui/configuration/fields.go` | the "Generate SBOM" toggle, the "SBOM output dir" text field, and the `serverModeFields` entry |
+| `internal/ui/configuration/update.go` | the `GenerateSBOM = false` line in `applyServerModeConstraints` |
+| `internal/ui/security/warnings.go` | the `"sbom generation failed: "` prefix |
+
+Two strings to reword rather than delete: the "Trivy server" description in
+`fields.go` ("Client-server mode; disables misconfig, license and SBOM") and the
+scan-types section of `GetHelpContent`.
+
+#### Six things the survey settled
+
+1. **`Result.SBOMPath` is written by the stage and read by nothing.** The help
+   claims "If SBOM was generated, its path is shown above the tabs"; no view
+   reads the field. There is nothing to replace, only to remove — and the help
+   line is wrong today, independently of this removal.
+2. **No migration is needed for `config.yaml`.** `config.Load` calls
+   `yaml.Unmarshal` without `KnownFields(true)`, so a file still carrying
+   `generate_sbom:` or `sbom_output_dir:` loads unchanged and the keys are
+   dropped at the next `config.Save`.
+3. **No migration is needed for the scan caches** either. Stored results are
+   JSON and `encoding/json` ignores unknown fields, so a cached report carrying
+   `sbom_path` reads back fine.
+4. **`containerOutputPath` dies with `sbomArgs`** — nothing else mounts a
+   writable output directory. **`dockerSocketMount` must survive**: `wrapTrivy`
+   uses it too. Deleting both together is the easy mistake, and the build
+   catches it.
+5. **`applyServerModeConstraints` exists twice** — in the form and in
+   `internal/ui/configuration/update.go`. Only the second survives phase 3, but
+   until then both force `GenerateSBOM = false` and both must be handled or they
+   disagree.
+6. **`TestEveryConfiguredOptionReachesTheScanner` needs no edit.** It walks the
+   field names `config.ScanConfig` and `scan.ScanOptions` share, so removing the
+   fields from both keeps it green — and it is the test that fails if only one
+   side is done.
+
+#### Tests
+
+Delete: the SBOM cases in `internal/scan/command_test.go`
+(`TestTheSBOMCommandIsShownLikeTheOthers`,
+`TestAnImageSBOMWithNoOutputDirectoryUsesTheWorkingDirectory`,
+`TestTheSBOMFileNameIsDerivedFromTheTarget`,
+`TestTheSBOMPathIsTheHostPathNotTheContainerPath`,
+`TestTheSBOMOutputMountIsWritable`, and the `sbomArgs` line in the
+server-address test) and in `internal/scan/execute_test.go`
+(`TestAFailedSBOMYieldsNoPath`, `TestTheSBOMPathComesBackOnSuccess`, and the
+unsupported-target-type case).
+
+Adjust `internal/scan/scan_test.go`: the `"sbom"` branch of `stageOf`,
+`everyStage()`, four stage scripts, the `SBOMPath` assertions, the expected
+stage lists (`"misconfig,sbom,trivy-secret,vuln"` loses one), the per-stage
+error count (**6 → 5**), and the assertion that the SBOM stage narrates no
+progress. Also `internal/ui/configuration/model_test.go` (server mode) and
+`internal/ui/security/warnings_test.go` (the prefix).
+
+The `internal/ui/security` tests that mention SBOM — the server-mode case, the
+field-index table, and `"Generate SBOM"` in the offered-options list — go with
+the form in phase 3 and need no work here.
+
+#### Documentation
+
+`.claude/CLAUDE.md` (the feature list and the `trivy.go` line), `README.md`,
+`docs/CODEMAPS/backend.md`, `docs/CODEMAPS/data.md`,
+`docs/CODEMAPS/dependencies.md`.
+
+Noted while surveying and **not caused by this change**: `docs/CODEMAPS/data.md`
+and `backend.md` describe a `SBOM []SBOMComponent` field and a `SBOMComponent`
+struct that **exist nowhere in the code**. The codemaps are stale there already;
+worth removing along with the rest rather than leaving a type nothing declares.
+
+`docs/backlog.md` §1.1 mentions `sbomArgs` in the record of an earlier fix.
+That is a historical entry and should be left as written — the removal gets its
+own entry rather than rewriting what happened.
+
+#### Validation
+
+```bash
+go build ./... && go vet ./... && mise run lint && go test ./...
+grep -rin "sbom" --include=*.go .   # expected: no match
+```
+
+Plus one manual check: a `config.yaml` carrying `generate_sbom: true` must still
+load without error.
+
 ### 3.13 A sortable column keeps room for its sort arrow — **done**
 
 **D33 — the sort arrow was truncated on any column narrower than its own
