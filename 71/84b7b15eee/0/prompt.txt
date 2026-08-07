@@ -1,0 +1,17 @@
+regarde la doc entire pour voir si c'est documenté, je viens d'installer aussi gh avec mise
+
+---
+
+je suis authentifié
+
+---
+
+oui corrige claude.md et quel est le workflow pour pousser proprement du code alors, les PR existent sur entire ?
+
+---
+
+ça me semble bizarre d'avoir deux remote
+
+---
+
+retire le
