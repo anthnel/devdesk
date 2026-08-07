@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -336,6 +337,42 @@ func TestEachTabRendersItsGroupHeadingsOnceInOrder(t *testing.T) {
 			if strings.Count(rendered, g) < 1 {
 				t.Errorf("tab %q: group heading %q is not rendered", m.sections[tab].Title, g)
 			}
+		}
+	}
+}
+
+// A locked checkbox is the same row as an unlocked one, minus the interaction:
+// theme.RenderCheckbox and theme.RenderCheckboxDisabled both emit the two-cell
+// indent themselves, so the view adding one of its own put the disabled scan
+// options two cells right of the rest of their group.
+func TestEveryCheckboxStartsOnTheSameColumn(t *testing.T) {
+	m := newModel(t)
+	m.config.Scan.TrivyServer = "localhost:4954" // locks Misconfiguration, Licenses, SBOM
+
+	for tab := range m.sections {
+		m.activeTab = tab
+
+		indents := map[int][]string{}
+		locked := 0
+		for _, f := range m.fields() {
+			if f.Kind != kindToggle {
+				continue
+			}
+			if m.isDisabled(f) {
+				locked++
+			}
+			row := ansi.Strip(m.renderField(f, false))
+			indent := len(row) - len(strings.TrimLeft(row, " "))
+			indents[indent] = append(indents[indent], f.Label)
+		}
+
+		if len(indents) > 1 {
+			t.Errorf("tab %q: checkboxes start on %d different columns: %v",
+				m.sections[tab].Title, len(indents), indents)
+		}
+		if m.sections[tab].Title == "scan" && locked != len(serverModeFields) {
+			t.Errorf("scan tab: %d locked checkboxes, want %d — the case this pins is not exercised",
+				locked, len(serverModeFields))
 		}
 	}
 }

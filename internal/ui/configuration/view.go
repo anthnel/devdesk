@@ -74,9 +74,11 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 // padding has to be measured on the whole prefix rather than on the label.
 func (m Model) renderField(f field, focused bool) string {
 	// A checkbox brings its own focus indicator and needs no value column.
+	// Both helpers already emit the two-cell indent, so the view must not add
+	// one — a locked checkbox would otherwise sit two cells right of the rest.
 	if f.Kind == kindToggle {
 		if m.isDisabled(f) {
-			return theme.Bg("  ") + theme.RenderCheckboxDisabled(f.Label)
+			return theme.RenderCheckboxDisabled(f.Label)
 		}
 		return theme.RenderCheckbox(f.Bool(m.config), f.Label, focused)
 	}
