@@ -91,10 +91,16 @@ branch and is a pre-merge step, not a substitute for the PR.
 ```bash
 git switch -c <branch>                          # work
 git push origin <branch>                        # via the mirror — forwarded to GitHub
-gh pr create --base main --head <branch>
-gh pr merge <n> --squash --delete-branch
+gh pr create -R anthnel/devdesk --base main --head <branch>
+gh pr merge -R anthnel/devdesk <n> --squash --delete-branch
 git fetch origin main && git merge --ff-only origin/main   # may need a retry, see below
 ```
+
+**`-R anthnel/devdesk` is not optional.** `gh` infers the repository from a
+remote pointing at a GitHub host, and `origin` is an `entire://` URL, so it
+finds none and fails with *"none of the git remotes configured for this
+repository point to a known GitHub host"*. The flag names the repo directly.
+Do not solve this by adding a GitHub remote — see below.
 
 **After a merge, `origin` can read stale for a minute or two.** The mirror lags
 GitHub, so `git fetch origin` right after `gh pr merge` may return the *previous*
