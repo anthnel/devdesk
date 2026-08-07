@@ -1,0 +1,74 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "0e5a95d4832d",
+  "session_id": "d0aae6df-5023-4e3c-b5e1-863c0863c89c",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-07T12:02:39.389198142Z",
+  "branch": "docs/single-remote",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".claude/CLAUDE.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "1425af38f4a6",
+  "checkpoint_transcript_start": 311,
+  "transcript_lines_at_start": 311,
+  "compact_transcript_start": 87,
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 9231,
+    "cache_read_tokens": 699584,
+    "output_tokens": 3666,
+    "api_call_count": 5
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01V1PjSHL6CX55DpDsfe66cv",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "entire"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "1425af38f4a6",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 151,
+        "end": 152,
+        "entry_ids": [
+          "f9686735-9e7a-41cd-a43b-6eb1a643b7f9"
+        ],
+        "tool_use_id": "toolu_01V1PjSHL6CX55DpDsfe66cv"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01V1PjSHL6CX55DpDsfe66cv"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: entire",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-07T12:02:39.314670203Z",
+    "agent_lines": 8,
+    "agent_removed": 2,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 8,
+    "total_lines_changed": 10,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
