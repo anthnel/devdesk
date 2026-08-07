@@ -1,0 +1,5 @@
+dans la vue config, tab scan, les options │ 󰄲 Vulnerabilities                                                                                                                                                                                                                                                         │
+│  󰄲 Secrets                                                                                                                                                                                                                                                                 │
+│    󰄱 Misconfiguration 󰌾                                                                                                                                                                                                                                                    │
+│    󰄱 Licenses 󰌾                                                                                                                                                                                                                                                            │
+│    󰄱 Generate SBOM 󰌾     ne sont pas bien alignées
