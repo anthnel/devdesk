@@ -6,6 +6,43 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// perPage is what every list endpoint asks for. GitLab caps it at 100.
+const perPage = 100
+
+// listAll walks every page of a list endpoint and returns the lot (D34).
+//
+// Each caller used to pass `Page: 1` and keep only what came back, so a group
+// with more than perPage subgroups or projects was silently cut: the explorer
+// showed fewer than it had and a recursive clone skipped repositories without
+// saying so. The loop lives here rather than at each of the four call sites
+// because four copies of it is how one of them would end up wrong.
+//
+// opts is the caller's embedded ListOptions, mutated between calls, so the
+// fetch closure sees the new page without the caller rebuilding its options.
+func listAll[T any](opts *gitlabclient.ListOptions, fetch func() ([]T, *gitlabclient.Response, error)) ([]T, error) {
+	opts.PerPage = perPage
+	opts.Page = 1
+
+	var all []T
+	for {
+		page, resp, err := fetch()
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+
+		// NextPage is 0 on the last page. Comparing against the page just
+		// fetched rather than against 0 alone also stops a server that keeps
+		// pointing back at it, which would otherwise spin for ever — and it is
+		// a bound that cannot cut a legitimate response short, which a page
+		// limit would be.
+		if resp == nil || resp.NextPage <= opts.Page {
+			return all, nil
+		}
+		opts.Page = resp.NextPage
+	}
+}
+
 // fetchGroupChildren fetches children (subgroups + projects) from GitLab API
 func (m Model) fetchGroupChildren(client *gitlabclient.Client, parentNode *TreeNode) ([]*TreeNode, error) {
 	groupID := int(parentNode.ID)
@@ -16,13 +53,10 @@ func (m Model) fetchGroupChildren(client *gitlabclient.Client, parentNode *TreeN
 	children := []*TreeNode{}
 
 	// Fetch direct subgroups only
-	subgroupsOpts := &gitlabclient.ListSubGroupsOptions{
-		ListOptions: gitlabclient.ListOptions{
-			PerPage: 100,
-			Page:    1,
-		},
-	}
-	subgroups, _, err := client.Groups.ListSubGroups(groupID, subgroupsOpts)
+	subgroupsOpts := &gitlabclient.ListSubGroupsOptions{}
+	subgroups, err := listAll(&subgroupsOpts.ListOptions, func() ([]*gitlabclient.Group, *gitlabclient.Response, error) {
+		return client.Groups.ListSubGroups(groupID, subgroupsOpts)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -42,13 +76,10 @@ func (m Model) fetchGroupChildren(client *gitlabclient.Client, parentNode *TreeN
 	}
 
 	// Fetch projects
-	projectsOpts := &gitlabclient.ListGroupProjectsOptions{
-		ListOptions: gitlabclient.ListOptions{
-			PerPage: 100,
-			Page:    1,
-		},
-	}
-	projects, _, err := client.Groups.ListGroupProjects(groupID, projectsOpts)
+	projectsOpts := &gitlabclient.ListGroupProjectsOptions{}
+	projects, err := listAll(&projectsOpts.ListOptions, func() ([]*gitlabclient.Project, *gitlabclient.Response, error) {
+		return client.Groups.ListGroupProjects(groupID, projectsOpts)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -73,14 +104,12 @@ func (m Model) loadRootGroups() tea.Cmd {
 	return func() tea.Msg {
 		// Récupérer les groupes racine (top-level groups)
 		opts := &gitlabclient.ListGroupsOptions{
-			ListOptions: gitlabclient.ListOptions{
-				PerPage: 100,
-				Page:    1,
-			},
 			TopLevelOnly: gitlabclient.Ptr(true),
 		}
 
-		groups, _, err := client.Groups.ListGroups(opts)
+		groups, err := listAll(&opts.ListOptions, func() ([]*gitlabclient.Group, *gitlabclient.Response, error) {
+			return client.Groups.ListGroups(opts)
+		})
 		if err != nil {
 			return LoadErrorMsg{Error: err}
 		}
@@ -119,13 +148,10 @@ func (m Model) loadChildren(parentNode *TreeNode) tea.Cmd {
 		children := []*TreeNode{}
 
 		// Charger les sous-groupes directs (pas les descendants)
-		subgroupsOpts := &gitlabclient.ListSubGroupsOptions{
-			ListOptions: gitlabclient.ListOptions{
-				PerPage: 100,
-				Page:    1,
-			},
-		}
-		subgroups, _, err := client.Groups.ListSubGroups(groupID, subgroupsOpts)
+		subgroupsOpts := &gitlabclient.ListSubGroupsOptions{}
+		subgroups, err := listAll(&subgroupsOpts.ListOptions, func() ([]*gitlabclient.Group, *gitlabclient.Response, error) {
+			return client.Groups.ListSubGroups(groupID, subgroupsOpts)
+		})
 		if err != nil {
 			return LoadErrorMsg{Error: err, ParentNode: parentNode}
 		}
@@ -146,13 +172,10 @@ func (m Model) loadChildren(parentNode *TreeNode) tea.Cmd {
 		}
 
 		// Charger les projets du groupe
-		projectsOpts := &gitlabclient.ListGroupProjectsOptions{
-			ListOptions: gitlabclient.ListOptions{
-				PerPage: 100,
-				Page:    1,
-			},
-		}
-		projects, _, err := client.Groups.ListGroupProjects(groupID, projectsOpts)
+		projectsOpts := &gitlabclient.ListGroupProjectsOptions{}
+		projects, err := listAll(&projectsOpts.ListOptions, func() ([]*gitlabclient.Project, *gitlabclient.Response, error) {
+			return client.Groups.ListGroupProjects(groupID, projectsOpts)
+		})
 		if err != nil {
 			return LoadErrorMsg{Error: err, ParentNode: parentNode}
 		}

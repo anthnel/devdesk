@@ -643,12 +643,22 @@ commits behind until the user fetches from a terminal. It is not a missing
 feature but a number that looks authoritative and is not. Blocks §3.17, which
 must fetch before it decides anything.
 
-**D34 — the explorer paginates nothing.** Every list in
-`internal/ui/gitlab/explorer/api.go` is built with `PerPage: 100, Page: 1`
-(lines 21, 47, 77, 124, 151), so a group with more than 100 subgroups or 100
-projects is silently truncated. Today the consequence is a clone that skips
-repositories without saying so; §3.16 makes it worse by putting a count on
-screen, which is why it is a prerequisite there rather than a nicety.
+**D34 — the explorer paginated nothing. Fixed.** Every list in
+`internal/ui/gitlab/explorer/api.go` was built with `PerPage: 100, Page: 1`, at
+five sites, so a group with more than 100 subgroups or 100 projects was silently
+truncated: the explorer showed fewer children than it had, and a recursive clone
+skipped repositories without saying so.
+
+`listAll` now walks every page and the four list calls go through it — one loop
+rather than four copies, which is how one of them would have ended up wrong. It
+terminates on `NextPage <= Page` rather than `NextPage == 0` alone: that also
+stops a server pointing back at the page just served, and unlike a page cap it
+is a bound that cannot cut a legitimate response short. `perPage` is the one
+place the 100 is written.
+
+Three tests assert both halves of a group's children and the pull's own walk
+follow every page, and were checked against the pre-fix code — all three fail on
+it. A fourth pins the runaway guard.
 
 **D25 — status acted on the wrong monitor under a filter. Fixed** by §2 step 6,
 which is also what found it. `getSelectedComponentIndex` replayed the sort by
@@ -2707,7 +2717,7 @@ its output, so it cannot go in a cell (Rule 122); only the raw icons can.
 This judgement flips the day a **second** table needs a selection. For one,
 generalising into `datatable` would be speculative.
 
-#### Two prerequisites, both defects in their own right
+#### Two prerequisites, both defects in their own right — one done
 
 **Discovery is far too expensive as it stands.** `fetchGroupChildren` costs one
 call for subgroups plus one for projects **per group**, plus **two more per
@@ -2716,10 +2726,10 @@ project** — `fetchLastPipelineStatus` and `fetchProjectAccessLevel`
 access level a clone has no use for. Discovery needs a lighter fetch than
 browsing does.
 
-**Nothing in `api.go` paginates** — every list is `PerPage: 100, Page: 1`. A
-group of 101 projects enumerates 100. Today that means a clone silently skips
-repositories; with a list on screen the view would state a count and be wrong.
-See D34.
+**Pagination — done.** Every list in `api.go` stopped at the first page, so a
+group of 101 projects enumerated 100. With a list on screen the view would have
+stated a count and been wrong, which is why this was a prerequisite rather than
+a nicety. Fixed ahead of the rework; see D34.
 
 #### What the rework fixes for free
 
