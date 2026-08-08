@@ -628,6 +628,28 @@ around.
 
 **D21** is the only defect left open.
 
+**D36 — `CachedGroups` and `CachedProjects` are invalidated and never filled.**
+`shared.State` declares both (`state.go:70-71`) and three call sites clear them
+(`app/configuration.go:104`, `app/context.go:167`, `app/gitlab.go:103`), but no
+production code ever writes a value into either — only tests do. It is an
+invalidation ritual around a cache that never holds anything, so every explorer
+open refetches. Either §3.16's discovery finally populates them, or they go.
+
+**D35 — the "unpulled" count is only as fresh as the user's last manual fetch.**
+`detectGitStatus` computes it with `rev-list --count HEAD..@{u}`
+(`workspaces/entry.go:90`). `@{u}` is the local remote-tracking ref, and nothing
+in DevDesk ever runs `git fetch`, so the column reads `0` on a repository forty
+commits behind until the user fetches from a terminal. It is not a missing
+feature but a number that looks authoritative and is not. Blocks §3.17, which
+must fetch before it decides anything.
+
+**D34 — the explorer paginates nothing.** Every list in
+`internal/ui/gitlab/explorer/api.go` is built with `PerPage: 100, Page: 1`
+(lines 21, 47, 77, 124, 151), so a group with more than 100 subgroups or 100
+projects is silently truncated. Today the consequence is a clone that skips
+repositories without saying so; §3.16 makes it worse by putting a count on
+screen, which is why it is a prerequisite there rather than a nicety.
+
 **D25 — status acted on the wrong monitor under a filter. Fixed** by §2 step 6,
 which is also what found it. `getSelectedComponentIndex` replayed the sort by
 hand and then indexed, but never applied the text filter the rows had already
@@ -2558,78 +2580,136 @@ highest risk since the payload *is* the secret — possibly viable by sending ru
 name, path and entropy with the match withheld); container log explanation
 (logs carry env vars and DSNs routinely).
 
-### 3.16 Reworking the pull from the explorer — **to brainstorm**
+### 3.16 The explorer clones, workspaces syncs — **designed, not started**
 
-`p` on a group or a project in the explorer clones the subtree into a workspace.
-It works, and it is the least designed path in the application. The rework is
-wanted **for the user experience**, so this entry records what the code does
-today and leaves the design open: nothing below is a decision.
+`p` on a group or a project in the explorer clones the subtree into a
+workspace. It works, and it was the least designed path in the application: a
+single `Cmd` covering the whole subtree behind a modal showing `"Pulling..."`,
+which on a large group is several minutes indistinguishable from a freeze —
+observed, not theorised.
 
-#### What it does today
+The design below came out of a brainstorm. What is settled is settled; the open
+questions are marked as such.
 
-`internal/ui/gitlab/explorer/pull.go`, 127 lines. `p` stores the selected node,
-asks the router to borrow the workspaces view for a destination, then runs
-`recursivePull` in a single `Cmd` that returns once the whole subtree is done.
-`ModePulling` shows a fixed string, `"Pulling..."`, and a `ReportModal` lists
-what was cloned, skipped and failed when it is over.
+#### Settled
 
-Four things about it are established fact, not opinion:
+| # | Question | Decision |
+|---|---|---|
+| 1 | What the explorer does | **Clones what is missing.** A repository already on disk is skipped untouched. |
+| 2 | What updates an existing clone | **Nothing here** — a `sync` feature in the workspaces view (§3.17). A dirty working copy is a property of a working copy, so it belongs to the view that owns what is on disk. |
+| 3 | The name | **Clone, not Pull.** It was never the behaviour that was wrong, only the label; `pull` is freed for §3.17. |
+| 4 | Disk layout | **Mirror from the forge root** under the target directory. |
+| 5 | Target directory | **Keep borrowing the workspaces view**, as today. |
+| 6 | `gitlab.pull.target_dir` | **Deleted** — done, see below. |
+| 7 | Discovery and cloning | **Pipelined.** The list fills as discovery finds repositories and a row starts spinning as soon as it is found. |
+| 8 | Selection | A new mode: **several parent folders at once**, confirmed in one go. |
+| 9 | Modals | **Yes/no confirmations only** (Rule 112). The list is the progress view and the report. |
 
-**It never pulls.** `internal/gitlab` has `Clone` and `DirExists` and no `Pull`
-at all (`git_ops.go`). A project already on disk goes to `report.Skipped` —
-`pull.go:102`. So the key called Pull, described in the help as
-`"Pull/clone the selected project or group into a workspace"`, clones what is
-missing and touches nothing that exists. Whatever the rework decides, it has to
-decide whether the name or the behaviour is the thing that is wrong.
+Decision 2 is the load-bearing one. It draws a line that holds: **the explorer
+creates what does not exist, workspaces reconciles what does.** The explorer
+then never needs to know what a dirty working tree is, and the per-row states
+collapse to five — to clone, cloning, cloned, already present, failed.
 
-**The four `gitlab.pull.*` settings are written and never read.** `TargetDir`,
-`ParallelJobs`, `MaxDepth` and `IncludeArchived` are declared in
-`config.go:60-63`, given defaults (`config.go:247-254`) and offered as fields in
-the configuration view (`fields.go:211-214`). Nothing else in the tree reads
-any of them — the pull hardcodes its own behaviour: the destination comes from
-the borrowed workspaces view rather than `TargetDir`, clones run one after
-another rather than `ParallelJobs` at a time, the recursion has no depth bound,
-and archived projects are neither included nor excluded deliberately. This is
-the class §3.14 just finished removing and the class D27 was: an option that can
-be set and not read. Four of them.
+Decision 4 is what decision 8 forces. Today `nodeSlug` keeps only the **last
+segment** of `FullPath` (`tree.go:69-72`), so `acme/platform/backend` pulled
+into `~/ws` lands at `~/ws/backend`. With several groups selected at once,
+`acme/platform` and `other/platform` would both land on `~/ws/platform` and
+silently merge. Mirroring the full path from the forge root cannot collide and
+matches what the explorer shows.
 
-**`node.Children` is written inside a `Cmd`** — `pull.go:88`, reached from the
-closure in `handlePullDestinationSelected`. The table is
-`datatable.Model[*TreeNode]`, so those are the same nodes `Update` reads at
-`navigation.go:24` and `:70`. That is Rule 110, and it is a real race rather
-than a stylistic one. `navigation.go:90` shows the shape the fix takes: the
-fetched children come back as a message and are assigned in `Update`.
+Decision 7 is the one that answers the freeze. Building a complete list first
+means walking the whole tree through the API before anything happens, which
+just moves the dead screen one step earlier. Pipelining removes it entirely, at
+the cost of the total only being known at the end — the header counts up
+(`47 found…`) instead of announcing a total. Reviewing the full list before
+anything starts is given up deliberately; selecting the groups is the act of
+decision.
 
-**There is no progress and no way to stop.** One `Cmd` covers the whole subtree,
-so nothing reports which repository is being cloned, how many remain, or how
-long it has taken, and there is no `context` to cancel. A group of fifty
-repositories is several minutes of a view that cannot be distinguished from a
-frozen one.
+Decision 5 costs nothing: `openBrowser` replaces only `views[ViewWorkspaces]`
+and never drops the explorer (`selection.go:37-41`), so a multi-selection in
+progress survives the round trip the way `pullTargetNode` does today, and
+`PullSelectionCancelledMsg` already returns without losing it.
 
-#### What the brainstorm has to answer
+#### Two prerequisites, both defects in their own right
 
-Open, in rough order of how much the rest depends on them:
+**Discovery is far too expensive as it stands.** `fetchGroupChildren` costs one
+call for subgroups plus one for projects **per group**, plus **two more per
+project** — `fetchLastPipelineStatus` and `fetchProjectAccessLevel`
+(`api.go:57-58`). Two hundred repositories is 400+ calls for a CI status and an
+access level a clone has no use for. Discovery needs a lighter fetch than
+browsing does.
 
-1. **What is the operation?** Clone-what-is-missing, update-what-exists, or
-   both — and if both, is it one key or two? This decides the name, the report
-   and whether a dirty working tree is a case to handle.
-2. **Where does the destination come from?** The borrowed workspaces view, the
-   unread `TargetDir`, or a choice offered per pull. Borrowing a view is the
-   heaviest interaction the feature has, for one path.
-3. **What does the user see while it runs?** Per-repository progress in the
-   table itself is one option — the security inventory already spins a marker on
-   the row it is rescanning, and the pattern transfers. A modal is another.
-4. **Can it be cancelled, and what is left behind if it is?** A half-finished
-   recursive clone leaves directories on disk.
-5. **Does the report stay a modal?** It is the only output today, and it is
-   shown once and dismissed with no way back to it.
-6. **What happens to the four unread settings?** Each is either wired up or
-   deleted. Leaving one declared and unread is not an outcome.
+**Nothing in `api.go` paginates** — every list is `PerPage: 100, Page: 1`. A
+group of 101 projects enumerates 100. Today that means a clone silently skips
+repositories; with a list on screen the view would state a count and be wrong.
+See D34.
 
-The Rule 110 write and the four unread settings are defects independent of the
-design; they can be fixed on the current shape if the rework is deferred. They
-are recorded here rather than in §1.3 because the rework touches the same code
-and the design should decide their fate rather than a patch pre-empting it.
+#### What the rework fixes for free
+
+- **Rule 110, by construction.** `node.Children` is written inside a `Cmd`
+  today (`pull.go:88`) on the same `*TreeNode` values `Update` reads
+  (`navigation.go:24`, `:70`). Discovery returning its children as messages —
+  the `navigation.go:90` pattern — removes the race rather than patching it.
+- **Three of the four unread `gitlab.pull.*` settings find a use**:
+  `ParallelJobs` is how many rows spin at once, `MaxDepth` bounds discovery,
+  `IncludeArchived` filters it. Each is either wired here or deleted; leaving
+  one declared and unread is not an outcome.
+- **`gitlab.pull.target_dir` is gone.** It duplicated `app.workspaces_dir` —
+  same meaning, and defaults differing by a single letter (`~/workspace` against
+  `~/workspaces`), so setting the wrong one changed nothing and said nothing.
+  Decision 5 leaves it no role at all. Removed ahead of the rework since it is
+  independent of it; `TestAConfigCarryingRetiredKeysStillLoads` covers the
+  configs already on disk.
+
+**Watch the name clash on `MaxDepth`.** §3.6 settles a *different* one — the
+depth a forge declares (1 for GitHub, unbounded for GitLab). Two settings of the
+same name meaning two things is a trap; one of them has to be renamed.
+
+#### Still open
+
+1. **Can individual projects be selected too**, or only parent folders? The
+   proposal says folders; a single project is the common case today.
+2. **The overlap rule.** Selecting a group and one of its descendants: the
+   descendant is redundant and should be dropped, but the tri-state display has
+   to say so.
+3. **Cancellation, and what it leaves on disk.** A clone interrupted mid-way
+   leaves a partial directory.
+4. **What the list does when it finishes** — stays until `esc`, presumably, but
+   whether it survives leaving the view is undecided.
+5. **Multi-select has no component.** `datatable` has none. The registry browser
+   is the precedent (`selectedRegs map[string]bool`, `groupState` → all/none/
+   some) but covers **two** levels, where the explorer is arbitrary depth.
+
+#### Forge neutrality
+
+The mode has to be built on `TreeNode`, not on GitLab vocabulary. §3.6 settles
+that the abstraction declares its depth — GitHub is organisations at level 1 and
+repositories at level 2 — so selecting "parent folders" means selecting
+organisations there, and decision 4 mirrors a path that is simply shallower.
+§3.6 also lists `GitLabConfig`, pull settings included, as GitLab-shaped and due
+to move; the fate of the three remaining settings should anticipate that.
+
+### 3.17 `sync` in the workspaces view — **not started**
+
+The counterpart to §3.16 decision 2: the explorer creates what is missing,
+workspaces reconciles what exists. Updating a clone, and every question about a
+dirty working copy, lives here.
+
+**The data already exists.** `workspaces.Entry` carries `GitBranch`,
+`GitRemote`, `GitModified`, `GitUntracked`, `GitUnpushed` and `GitUnpulled`, and
+`detectGitStatus` (`entry.go:51`) already fills them on every listing. What is
+missing is the **action** — fetch, pull, push — not the knowledge. That makes
+this much smaller than it sounds.
+
+**But one of those numbers is not trustworthy today.** `GitUnpulled` comes from
+`rev-list --count HEAD..@{u}` (`entry.go:90`), and `@{u}` is the *local*
+remote-tracking ref, which only moves after a `git fetch` — and nothing in
+DevDesk ever fetches. See D35. Sync therefore has to **fetch first and decide
+after**, or it offers to reconcile against stale answers.
+
+Open, all of it: whether sync acts on one row or a selection, whether push is in
+scope or only pull, and what it does with a dirty tree — refuse and report is
+the obvious default, and it is the whole reason this is not in the explorer.
 
 ### 3.15 The scan form is deleted (phase 3) — **done**
 

@@ -282,30 +282,58 @@ func TestANamedThemeSurvivesNormalisation(t *testing.T) {
 	}
 }
 
-// A config file written before SBOM generation was removed carries
-// generate_sbom and sbom_output_dir. Load unmarshals without KnownFields, so
-// the retired keys are ignored rather than refused — which is what makes the
-// removal need no migration. The keys are dropped at the next Save.
-func TestAConfigCarryingTheRetiredSBOMKeysStillLoads(t *testing.T) {
-	tmpDir := setupTmpHome(t)
-
-	configDir := filepath.Join(tmpDir, ".devdesk")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		t.Fatalf("Failed to create config dir: %v", err)
+// A config file written before a setting was removed still carries its key.
+// Load unmarshals without KnownFields, so a retired key is ignored rather than
+// refused — which is what makes each removal need no migration. The keys are
+// dropped at the next Save.
+//
+// One case per removal. They share a table because the guarantee is the same
+// one: it is Load's tolerance being pinned, not any particular setting.
+func TestAConfigCarryingRetiredKeysStillLoads(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		// check asserts the settings surrounding the retired keys were read. A
+		// key that is ignored must not take the rest of its section with it.
+		check func(*testing.T, *Config)
+	}{
+		{
+			name: "SBOM generation, removed in §3.14",
+			yaml: "scan:\n  enable_vuln: true\n  generate_sbom: true\n  sbom_output_dir: /out\n  timeout: 700\n",
+			check: func(t *testing.T, cfg *Config) {
+				if !cfg.Scan.EnableVuln || cfg.Scan.Timeout != 700 {
+					t.Errorf("the surrounding scan settings were not read: %+v", cfg.Scan)
+				}
+			},
+		},
+		{
+			name: "gitlab.pull.target_dir, removed in §3.16",
+			yaml: "gitlab:\n  url: https://gitlab.example.com\n  pull:\n    target_dir: /old\n    parallel_jobs: 7\n",
+			check: func(t *testing.T, cfg *Config) {
+				if cfg.GitLab.URL != "https://gitlab.example.com" || cfg.GitLab.Pull.ParallelJobs != 7 {
+					t.Errorf("the surrounding gitlab settings were not read: %+v", cfg.GitLab)
+				}
+			},
+		},
 	}
 
-	legacy := "scan:\n  enable_vuln: true\n  generate_sbom: true\n  sbom_output_dir: /out\n  timeout: 700\n"
-	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(legacy), 0600); err != nil {
-		t.Fatalf("Failed to write legacy config: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := setupTmpHome(t)
 
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("a config carrying the retired SBOM keys was refused: %v", err)
-	}
-	// The settings around them still have to be read: a key that is ignored
-	// must not take the rest of the section with it.
-	if !cfg.Scan.EnableVuln || cfg.Scan.Timeout != 700 {
-		t.Errorf("the surrounding scan settings were not read: %+v", cfg.Scan)
+			configDir := filepath.Join(tmpDir, ".devdesk")
+			if err := os.MkdirAll(configDir, 0755); err != nil {
+				t.Fatalf("Failed to create config dir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(tt.yaml), 0600); err != nil {
+				t.Fatalf("Failed to write legacy config: %v", err)
+			}
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("a config carrying retired keys was refused: %v", err)
+			}
+			tt.check(t, cfg)
+		})
 	}
 }
