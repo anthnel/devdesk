@@ -45,9 +45,6 @@ func TestDefault(t *testing.T) {
 	if cfg.GitLab.Pull.ParallelJobs != 4 {
 		t.Errorf("Expected parallel jobs 4, got %d", cfg.GitLab.Pull.ParallelJobs)
 	}
-	if cfg.GitLab.Pull.MaxDepth != 5 {
-		t.Errorf("Expected max depth 5, got %d", cfg.GitLab.Pull.MaxDepth)
-	}
 
 	// Test Scan defaults
 	if cfg.Scan.MaxCachedReports != 50 {
@@ -307,8 +304,8 @@ func TestAConfigCarryingRetiredKeysStillLoads(t *testing.T) {
 			},
 		},
 		{
-			name: "gitlab.pull.target_dir, removed in §3.16",
-			yaml: "gitlab:\n  url: https://gitlab.example.com\n  pull:\n    target_dir: /old\n    parallel_jobs: 7\n",
+			name: "gitlab.pull.target_dir and max_depth, removed in §3.16",
+			yaml: "gitlab:\n  url: https://gitlab.example.com\n  pull:\n    target_dir: /old\n    max_depth: 9\n    parallel_jobs: 7\n",
 			check: func(t *testing.T, cfg *Config) {
 				if cfg.GitLab.URL != "https://gitlab.example.com" || cfg.GitLab.Pull.ParallelJobs != 7 {
 					t.Errorf("the surrounding gitlab settings were not read: %+v", cfg.GitLab)

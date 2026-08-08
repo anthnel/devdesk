@@ -209,7 +209,6 @@ func sections(themes, views []string) []section {
 			),
 			group("Pull", theme.IconGitBranch,
 				integer("Parallel jobs", func(c *config.Config) *int { return &c.GitLab.Pull.ParallelJobs }, 1, 32, ""),
-				integer("Max depth", func(c *config.Config) *int { return &c.GitLab.Pull.MaxDepth }, 1, 20, ""),
 				toggle("Include archived projects", func(c *config.Config) *bool { return &c.GitLab.Pull.IncludeArchived }, ""),
 			),
 		)},

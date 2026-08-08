@@ -38,7 +38,6 @@ gitlab:
   clone_method: "https"            # https|ssh
   pull:
     parallel_jobs: 4
-    max_depth: 2                   # Group nesting level
     include_archived: false
 
 registry:

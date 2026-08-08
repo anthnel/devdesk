@@ -2727,20 +2727,25 @@ See D34.
   today (`pull.go:88`) on the same `*TreeNode` values `Update` reads
   (`navigation.go:24`, `:70`). Discovery returning its children as messages —
   the `navigation.go:90` pattern — removes the race rather than patching it.
-- **Three of the four unread `gitlab.pull.*` settings find a use**:
-  `ParallelJobs` is how many rows spin at once, `MaxDepth` bounds discovery,
-  `IncludeArchived` filters it. Each is either wired here or deleted; leaving
-  one declared and unread is not an outcome.
+- **The four unread `gitlab.pull.*` settings are resolved, two each way.**
+  `ParallelJobs` becomes how many rows spin at once and `IncludeArchived` a
+  discovery filter; `TargetDir` and `MaxDepth` are deleted. Leaving one declared
+  and unread is not an outcome.
 - **`gitlab.pull.target_dir` is gone.** It duplicated `app.workspaces_dir` —
   same meaning, and defaults differing by a single letter (`~/workspace` against
   `~/workspaces`), so setting the wrong one changed nothing and said nothing.
-  Decision 5 leaves it no role at all. Removed ahead of the rework since it is
-  independent of it; `TestAConfigCarryingRetiredKeysStillLoads` covers the
-  configs already on disk.
+  Decision 5 leaves it no role at all.
+- **`gitlab.pull.max_depth` is gone**, and not merely for being unread. A depth
+  bound **contradicts decision 10**: tick a group, have discovery stop at level
+  five, and you get less than you asked for with nothing saying so — the silent
+  truncation of D34, reintroduced as a feature. Exclusions express the same
+  intent precisely: "only the top level" is drilling in and unticking the
+  subgroups, which is explicit and visible. Deleting it also removes the name
+  clash with §3.6, which settles a *different* `MaxDepth` — the depth a forge
+  declares, 1 for GitHub and unbounded for GitLab.
 
-**Watch the name clash on `MaxDepth`.** §3.6 settles a *different* one — the
-depth a forge declares (1 for GitHub, unbounded for GitLab). Two settings of the
-same name meaning two things is a trap; one of them has to be renamed.
+Both removals landed ahead of the rework, being independent of it;
+`TestAConfigCarryingRetiredKeysStillLoads` covers the configs already on disk.
 
 #### Forge neutrality
 
