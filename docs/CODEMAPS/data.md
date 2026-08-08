@@ -37,7 +37,6 @@ gitlab:
   default_visibility: "private"    # private|internal|public
   clone_method: "https"            # https|ssh
   pull:
-    target_dir: "~/gitlab"
     parallel_jobs: 4
     max_depth: 2                   # Group nesting level
     include_archived: false

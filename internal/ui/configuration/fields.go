@@ -208,7 +208,6 @@ func sections(themes, views []string) []section {
 					[]string{"https", "ssh"}, ""),
 			),
 			group("Pull", theme.IconGitBranch,
-				text("Target dir", func(c *config.Config) *string { return &c.GitLab.Pull.TargetDir }, ""),
 				integer("Parallel jobs", func(c *config.Config) *int { return &c.GitLab.Pull.ParallelJobs }, 1, 32, ""),
 				integer("Max depth", func(c *config.Config) *int { return &c.GitLab.Pull.MaxDepth }, 1, 20, ""),
 				toggle("Include archived projects", func(c *config.Config) *bool { return &c.GitLab.Pull.IncludeArchived }, ""),

@@ -166,7 +166,7 @@ Additive. Nothing is removed in this phase, so it ships green on its own.
 | Section | Fields |
 |---|---|
 | `app` | `theme`, `default_view`, `workspaces_dir`, `ide_command`, `terminal_command`, `secret_backend`, `log_file` |
-| `gitlab` | `url`, `default_parent_group`, `default_visibility`, `clone_method`, `pull.target_dir`, `pull.parallel_jobs`, `pull.max_depth`, `pull.include_archived` |
+| `gitlab` | `url`, `default_parent_group`, `default_visibility`, `clone_method`, `pull.parallel_jobs`, `pull.max_depth`, `pull.include_archived` |
 | `scan` | the 9 option booleans, `trivy_source` + `trivy_path` + `trivy_image`, `gitleaks_source` + `gitleaks_path` + `gitleaks_image`, `trivy_server`, `gitleaks_config`, `sbom_output_dir`, `timeout`, `max_concurrent_scans`, `max_cached_reports` |
 | `docker` | `network_tool_image` |
 | `status` | `refresh_interval`, `timeout`, `auto_refresh` |

@@ -57,10 +57,9 @@ type GitLabConfig struct {
 
 // GitLabPullConfig contient la configuration pour la synchronisation
 type GitLabPullConfig struct {
-	TargetDir       string `yaml:"target_dir"`
-	ParallelJobs    int    `yaml:"parallel_jobs"`
-	MaxDepth        int    `yaml:"max_depth"`
-	IncludeArchived bool   `yaml:"include_archived"`
+	ParallelJobs    int  `yaml:"parallel_jobs"`
+	MaxDepth        int  `yaml:"max_depth"`
+	IncludeArchived bool `yaml:"include_archived"`
 }
 
 // RegistryItem represents a single Docker/OCI registry with optional alias support.
@@ -250,9 +249,6 @@ func applyDefaults(cfg *Config) error {
 	if cfg.GitLab.Pull.MaxDepth == 0 {
 		cfg.GitLab.Pull.MaxDepth = 5
 	}
-	if cfg.GitLab.Pull.TargetDir == "" {
-		cfg.GitLab.Pull.TargetDir = filepath.Join(homeDir, "workspace")
-	}
 	if cfg.Registry.CacheDir == "" {
 		cfg.Registry.CacheDir = filepath.Join(homeDir, ".devdesk", "cache", "templates")
 	}
@@ -324,7 +320,6 @@ func Default() *Config {
 			DefaultVisibility: "private",
 			CloneMethod:       "https",
 			Pull: GitLabPullConfig{
-				TargetDir:       filepath.Join(homeDir, "workspace"),
 				ParallelJobs:    4,
 				MaxDepth:        5,
 				IncludeArchived: false,
@@ -536,7 +531,6 @@ func (c *Config) ExpandPaths(homeDir string) {
 
 	c.App.LogFile = expand(c.App.LogFile)
 	c.App.WorkspacesDir = expand(c.App.WorkspacesDir)
-	c.GitLab.Pull.TargetDir = expand(c.GitLab.Pull.TargetDir)
 	c.Registry.CacheDir = expand(c.Registry.CacheDir)
 	c.Scan.CacheDir = expand(c.Scan.CacheDir)
 	c.Scan.TrivyPath = expand(c.Scan.TrivyPath)
