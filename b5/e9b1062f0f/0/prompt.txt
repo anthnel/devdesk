@@ -1,0 +1,65 @@
+merge
+
+---
+
+fais la suppression du sbom
+
+---
+
+on peut enlever le remote github, puis merge
+
+---
+
+est-ce qu'on peut configurer pour permettre la détection de race , il faut installer un compilateur c
+
+---
+
+ajoute au backlog une nouvelle entrée : je souhaite retravailler le pull depuis la vue explorer, il faudra qu'on brainstorm sur la meilleure façon de le faire pour l'expérience utilisateur
+
+---
+
+faisons le brainstorm maintenant, tu as déjà relevé un point problématique, j'ai fait un pull sur un grand nombre de repo et la modale était figée sans contexte. Il faut tenir compte du fait que la vue explorer est utilisée pour gitlab mais dans l'avenir on pourra aussi parcourir des org github. Je pensais que le pull pourrait faire basculer la vue dans un nouveau mode qui me permet de sélectionner un ou plusieurs dossier parent et quand je confirme la sélection, la vue reprend la liste de tous les repo qui vont être récupérer, un spinner indique si le pull/clone est en cours et quand le pull/clone est terminé une icone l'indique. Analyse cette proposition. Il faut aussi indiquer comme aujourd'hui le répertoire cible des clones, l'arborescence de l'explorer doit être concervée sur disque, cela signifie que des répertoires sont créés pour représenter les groupes gitlab. De manière générale les modales ne devraient pas être utilisée pour autre chose que simplement une confirmation oui/non. Actuellement dans la vue explorer la modale affiche le clone en cours et un résumé à la fin, ce n'est pas un bonne utilisation des modales.
+
+---
+
+si le répertoire existe déjà sur disque je le passerais simplement sans rien faire. Je pense ajouter une fonctionnalité de sync dans la vue workspace. Depuis la vue workspace, c'est là qu'il faudra gérer les cas de copie de travail dirty
+
+---
+
+pour le répertoire cible, je souhaite concerver le mécanisme actuelle, on se déplace dans la vue workspace pour sélectionner le répertoire cible à partir duquel les clones/création de répertoire vont être faits
+
+---
+
+supprime gitlab.pull.target_dir . et j'accepte ta proposition découverte et clone en pipeline
+
+---
+
+oui vas y
+
+---
+
+la vérification visuelle de l'onglet gitlab dans :config est ok
+
+---
+
+merge
+
+---
+
+oui on peut sélectionner un projet seul. ce que je propose : si on sélectionne un groupe parent, tous les enfants sont sélectionnés d'office, mais on peut se déplacer dans les enfants pour en désélectionner certains
+
+---
+
+quand on annule cela doit arrêter proprement la pipeline mais les clones en cours doivent aller jusqu'au bout. A la fin des clones si j'appuie sur esc je reviens à l'explorateur et je peux voir le résultat final dans le workspace donc on a pas besoin de concerver la liste . est-ce qu'on peut modifier datable pour ajouter cette fonctionnalité de sélection
+
+---
+
+je pense que maxdepth peut être supprimé
+
+---
+
+fais la pagination
+
+---
+
+renomme la branche et continue

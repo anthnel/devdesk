@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "b5e9b1062f0f",
+  "strategy": "manual-commit",
+  "branch": "feat/pull-rework-groundwork",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/b5/e9b1062f0f/0/metadata.json",
+      "transcript": "/b5/e9b1062f0f/0/full.jsonl",
+      "compact_transcript": "/b5/e9b1062f0f/0/transcript.jsonl",
+      "content_hash": "/b5/e9b1062f0f/0/content_hash.txt",
+      "prompt": "/b5/e9b1062f0f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1361,
+    "cache_creation_tokens": 1676981,
+    "cache_read_tokens": 228440798,
+    "output_tokens": 414663,
+    "api_call_count": 724
+  }
+}
