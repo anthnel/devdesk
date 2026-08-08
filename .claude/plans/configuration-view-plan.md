@@ -1,7 +1,17 @@
 # A configuration view, and `security` becomes an inventory
 
-Status: planned, not started. Decisions below are settled; open questions are
-marked as such and are the only things left to arbitrate.
+Status: **complete.** All five phases shipped. What is left is the SBOM removal
+that was deliberately deferred until after phase 3 -- `docs/backlog.md` §3.14.
+
+| Phase | State |
+|---|---|
+| 0 — `IgnoreEOL` (D26) | shipped |
+| 0b — per-context scan caches | shipped |
+| 0c — tool source and paths (D27) | shipped |
+| 1 — configuration view | shipped |
+| 2 — the inventory | shipped, alongside the form |
+| 3 — deleting the form | **shipped** |
+| after 3 — removing SBOM generation | **outstanding**, see `docs/backlog.md` §3.14 |
 
 ## What was decided
 
@@ -276,10 +286,25 @@ Two requirements that do not come for free:
 
 ---
 
-## Phase 2 — `security` becomes the inventory
+## Phase 2 — `security` becomes the inventory — **shipped**
 
 Still additive: the inventory is a new state alongside the form, which is not
 removed until phase 3.
+
+Shipped as described, in `inventory.go`, `inventory_table.go` and
+`inventory_commands.go`. Three things the plan did not anticipate, all recorded
+in `docs/backlog.md` §3.11:
+
+- `ctrl+a` purges the **counts**, not the rows — the rows are the list of what
+  has been scanned, so dropping them empties the view for the length of the
+  scans.
+- A reload has to keep an in-flight scan's marker, or a refresh landing
+  mid-rescan clears the spinner.
+- `InventoryScanFinishedMsg` needs routing to the security view wherever the
+  user has gone, exactly as `ociresources.ImageScanFinishedMsg` already does.
+
+`homeState` is the one field added beyond the plan; it goes with the form in
+phase 3.
 
 ### Data
 
@@ -381,7 +406,7 @@ the inventory; `checkDependencies` and the `deps` field go with the form.
 
 ---
 
-## Phase 3 — deletion
+## Phase 3 — deletion — **shipped**
 
 Only once phases 1 and 2 are merged.
 
@@ -405,6 +430,20 @@ Roughly 450–500 lines of production code, plus the form half of
 2. `scan.ValidateTrivyServer` — must be called on the config view's
    `trivy_server` field. This is the check that stops `":"` reaching Trivy and
    failing the whole scan.
+
+**Three fields die with the form, and only with it.** Each is written where it
+is, and read by something that goes in this phase:
+
+| Field | Read by | Becomes |
+|---|---|---|
+| `homeState` | `goHome` | unnecessary — the inventory is the only landing state left, so `goHome` stops branching |
+| `deps` (+ `checkDependencies`, `DepsCheckedMsg`) | `renderStartButton` only, since the header stopped showing tool versions (§3.12) | dead — the dashboard already reports tool availability from `shared.State.Tools` |
+| `generateSBOM` and the ~15 other option mirrors | the form's checkboxes | dead — the options come from the config view |
+
+**And one thing to do straight after this phase, not before:** removing SBOM
+generation — `docs/backlog.md` §3.14. It is deferred precisely because the form
+addresses its fields by index and SBOM is index 6 of thirteen, so doing it first
+renumbers seven fields and their tests for code this phase deletes.
 
 ---
 

@@ -10,7 +10,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
-	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -528,86 +527,6 @@ func TestRegistryLoginUpdatesTheStatus(t *testing.T) {
 	}
 }
 
-// ── Selection mode ───────────────────────────────────────────────────────────
-
-// Opened from the security view to pick an image, the view answers with a name
-// rather than acting on it.
-func TestSelectionModeReturnsTheHighlightedImage(t *testing.T) {
-	m := feed(t, NewForSelection(testConfig(), "Pick an image to scan"),
-		tea.WindowSizeMsg{Width: 180, Height: 30},
-		ImagesListMsg{Images: imageFixtures()})
-
-	_, cmd := step(t, m, testutil.Key("enter"))
-
-	msg, ok := testutil.MsgOf[ImageSelectedMsg](cmd)
-	if !ok {
-		t.Fatalf("enter in selection mode produced %T", testutil.Msg(cmd))
-	}
-	if msg.ImageName != "api:v1" {
-		t.Errorf("selected %q, want the highlighted row", msg.ImageName)
-	}
-}
-
-func TestSelectionModeCancels(t *testing.T) {
-	m := feed(t, NewForSelection(testConfig(), "Pick an image"),
-		tea.WindowSizeMsg{Width: 180, Height: 30},
-		ImagesListMsg{Images: imageFixtures()})
-
-	_, cmd := step(t, m, testutil.Key("esc"))
-
-	if _, ok := testutil.MsgOf[SelectionCancelledMsg](cmd); !ok {
-		t.Fatalf("esc in selection mode produced %T", testutil.Msg(cmd))
-	}
-}
-
-// Destructive keys must not reach the list while it is being browsed as a
-// picker.
-func TestSelectionModeIgnoresDestructiveKeys(t *testing.T) {
-	m := feed(t, NewForSelection(testConfig(), "Pick an image"),
-		tea.WindowSizeMsg{Width: 180, Height: 30},
-		ImagesListMsg{Images: imageFixtures()})
-
-	next := feed(t, m, testutil.Key("ctrl+d"), testutil.Key("p"), testutil.Key("ctrl+a"))
-
-	if next.confirmModal != nil {
-		t.Error("a destructive key opened a confirmation in selection mode")
-	}
-}
-
-// Leaving selection mode must not discard scans that started while it was open.
-func TestResetSelectionKeepsOngoingScans(t *testing.T) {
-	m := feed(t, NewForSelection(testConfig(), "Pick an image"),
-		tea.WindowSizeMsg{Width: 180, Height: 30},
-		ImagesListMsg{Images: imageFixtures()},
-		ImageScanStartingMsg{ImageName: "web:v3"},
-		ResetSelectionMsg{})
-
-	if m.selectionMode {
-		t.Error("selection mode survived the reset")
-	}
-	if !m.scanningImages["web:v3"] {
-		t.Error("the reset dropped an ongoing scan")
-	}
-}
-
-// ── Scans launched from the security view ────────────────────────────────────
-
-// The security view configures the options and hands the run back here, so the
-// options have to survive the trip.
-func TestLaunchedScansCarryTheirOptions(t *testing.T) {
-	opts := scan.ScanOptions{EnableVuln: true, IgnoreUnfixed: true, TrivyServer: "https://trivy:4954"}
-
-	single := feed(t, loadedModel(t), LaunchSingleImageScanMsg{ImageName: "web:v3", Opts: opts})
-	if single.lastScanOptions.TrivyServer != "https://trivy:4954" {
-		t.Errorf("single-image options = %+v", single.lastScanOptions)
-	}
-
-	batch := feed(t, loadedModel(t), LaunchBatchScanMsg{Opts: opts})
-	if !batch.lastScanOptions.IgnoreUnfixed {
-		t.Errorf("batch options = %+v", batch.lastScanOptions)
-	}
-}
-
 // ── Footer messages ──────────────────────────────────────────────────────────
 
 // Rule 128: footer messages expire after three seconds.
@@ -656,11 +575,6 @@ func TestInEditModeCoversEveryOverlay(t *testing.T) {
 	confirming := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
 	if !confirming.InEditMode() {
 		t.Error("InEditMode() is false with a confirmation open")
-	}
-
-	selecting := feed(t, NewForSelection(testConfig(), "Pick"), tea.WindowSizeMsg{Width: 180, Height: 30})
-	if !selecting.InEditMode() {
-		t.Error("InEditMode() is false in selection mode")
 	}
 }
 
@@ -739,5 +653,42 @@ func TestSlashDoesNothingOnTheResourceTabs(t *testing.T) {
 		if m.InEditMode() {
 			t.Errorf("tab %d: '/' opened a search on a table with nothing to search", tab)
 		}
+	}
+}
+
+// ── A scan asked for from outside ────────────────────────────────────────────
+
+// The router sends this when a cached scan's stored result has gone missing:
+// the row is still in the list, and the scan that replaces it belongs here, next
+// to the cache it writes. The name is both the cache key and the scan target.
+func TestAScanRequestRescansTheNamedImage(t *testing.T) {
+	next, cmd := step(t, loadedModel(t), ScanRequestMsg{ImageName: "web:v3"})
+
+	if !next.scanning {
+		t.Error("the view does not report a scan running")
+	}
+	starting, ok := testutil.MsgOf[ImageScanStartingMsg](cmd)
+	if !ok {
+		t.Fatal("the request started no scan")
+	}
+	if starting.ImageName != "web:v3" {
+		t.Errorf("scanning %q, want the requested image", starting.ImageName)
+	}
+}
+
+func TestAnEmptyImageScanRequestDoesNothing(t *testing.T) {
+	if _, cmd := step(t, loadedModel(t), ScanRequestMsg{}); cmd != nil {
+		t.Error("an empty request started a scan")
+	}
+}
+
+// A second request for an image already being scanned is dropped rather than
+// queued, as ctrl+s on the row is.
+func TestAScanRequestForARunningImageScanIsRefused(t *testing.T) {
+	m := loadedModel(t)
+	m.scanningImages["web:v3"] = true
+
+	if _, cmd := step(t, m, ScanRequestMsg{ImageName: "web:v3"}); cmd != nil {
+		t.Error("a duplicate request started a second scan")
 	}
 }

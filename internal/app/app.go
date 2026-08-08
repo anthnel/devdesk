@@ -302,17 +302,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ociresources.ImageScanFinishedMsg:
 		return a.routeToOCIImagesView(msg)
 
-	case ociresources.LaunchBatchScanMsg:
-		// The security view delegated the scan back to the OCI view.
-		return a.handleLaunchScan(msg)
-
-	case ociresources.LaunchSingleImageScanMsg:
-		return a.handleLaunchScan(msg)
+	case security.InventoryScanFinishedMsg:
+		// A rescan started from the inventory belongs to it wherever the user
+		// has gone. Forwarded rather than dropped: the row is marked as
+		// scanning, and a reload deliberately keeps that marker, so a lost
+		// completion leaves it spinning for the life of the view.
+		return a.routeToSecurityView(msg)
 
 	// ── Selection mode ───────────────────────────────────────────────────
-	case security.SelectionRequestMsg:
-		return a.handleSelectionRequest(msg)
-
+	// Only the explorer borrows a view now, and only the workspaces one: the
+	// security form was the other borrower, and picking a scan target went with
+	// it (phase 3).
 	case security.BackToOriginMsg:
 		return a, a.switchView(msg.Origin)
 
@@ -322,13 +322,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case workspaces.DirectorySelectedMsg:
 		return a.handleDirectorySelected(msg)
 
-	case ociresources.ImageSelectedMsg:
-		return a.handleImageSelected(msg)
-
 	case workspaces.SelectionCancelledMsg:
-		return a.handleSelectionCancelled()
-
-	case ociresources.SelectionCancelledMsg:
 		return a.handleSelectionCancelled()
 
 	default:

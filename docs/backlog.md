@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-04
+**Last Updated:** 2026-08-06
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -2557,6 +2557,316 @@ never trusted); Gitleaks triage (highest value since false positives dominate,
 highest risk since the payload *is* the secret — possibly viable by sending rule
 name, path and entropy with the match withheld); container log explanation
 (logs carry env vars and DSNs routinely).
+
+### 3.15 The scan form is deleted (phase 3) — **done**
+
+The last phase of
+[`configuration-view-plan.md`](../.claude/plans/configuration-view-plan.md).
+2 538 lines removed against 530 added, across 32 files.
+
+Both prerequisites had landed: `applyServerModeConstraints` lives in the
+configuration view's `update.go`, and `scan.ValidateTrivyServer` is wired to its
+`trivy_server` field.
+
+**`StateScanning` went with `StateInput`**, which the plan did not anticipate.
+`startScan` had two callers — the form, and the router's image fallback — and
+once both were gone the whole in-place scanning machinery had no user:
+the progress channel, `scanGen`, `cancelScan`, `waitForProgressCmd`,
+`purgeScanCacheCmd`, `ScanCompleteMsg`, `ScanProgressMsg`, `StartScanMsg`. The
+inventory rescans in the background with a spinner on the row (§3.11), so
+nothing waits on a whole screen for one target. `scan.go` emptied out except
+`hasScanSource`, which moved next to its one remaining caller.
+
+**Three fields died with the form**, as recorded in the plan: `homeState` (the
+inventory is the only landing state left, so `goHome` stopped branching), `deps`
+with `checkDependencies` and `DepsCheckedMsg` (the Start button was its last
+reader, the header having stopped showing tool versions in §3.12), and the ~15
+option mirrors.
+
+**The browser bridge went at both ends.** The form borrowed the workspaces view
+for a directory and the images view for an image; the explorer borrows the
+workspaces view for a clone destination, and that is the only borrow left. So
+`app/selection.go` stopped being parameterised over who is borrowing, and the
+images view lost `NewForSelection`, `ImageSelectedMsg`, `SelectionCancelledMsg`,
+`ResetSelectionMsg`, `selectionMode` and the six render sites that read it.
+`resetSelectionModeFor` collapsed to dropping one view.
+
+**A missing stored result now rescans in the list it came from.** `enter` on a
+scanned row asks the router for the result file; when it is gone,
+`rescanInOrigin` hands the target's name to that list and stays there, rather
+than opening a security view on nothing. `workspaces.ScanRequestMsg` and
+`ociresources.ScanRequestMsg` were **declared and unhandled** before this — dead
+types carrying exactly the right shape — and they have handlers now.
+`LaunchBatchScanMsg`, `LaunchSingleImageScanMsg` and `handleLaunchScan` went with
+the form: they carried the options it had collected, and options come from the
+configuration view.
+
+**Coverage.** The deleted tests were covering live code incidentally, and two
+regressions had to be repaired rather than accepted: the explorer's borrow
+(`handleDirectorySelected`, `leaveSelectionMode`, `returnToOrigin` all fell to
+0 %, exercised only by the security selection tests that went) and
+`openSecurityView` (the two result handlers' success path). Both have their own
+tests now, as do the two `ScanRequestMsg` handlers, `Init`, `handleSpinnerTick`
+and the details viewport's scrolling. `internal/ui/security` 86.5 % → 87.2 %,
+`internal/app` unchanged at 87.0 %, **no package lower than before**; project
+total 81.5 % → 81.4 %, the residue of deleting a well-covered package's code.
+
+`internal/ui/security/scan_test.go` was deleted whole. Its two durable
+invariants live elsewhere: `ValidateTrivyServer` refusing `":"` is
+`internal/scan/command_test.go`, and `alt+:` reaching the router rather than a
+text field is `internal/app/command_mode_test.go`.
+
+### 3.14 Remove SBOM generation — **planned, after phase 3**
+
+Drop the feature entirely: the two settings, the scan stage, the Trivy command
+builders, the two controls, the field on `Result`, and the documentation. No
+inert remains — no option that can be set and not read, no function with no
+caller.
+
+**Why after phase 3** (the deletion of `internal/ui/security/form.go`, §3.15,
+now shipped) and not before: the form addresses its fields by index, and SBOM is index 6 of
+thirteen. Removing it now renumbers everything above it —
+
+```
+before : 6=sbom  7=trivyServer  8=ignoreUnfixed  9=ignoreEOL  10=gitleaksConfig  11=history  12=button
+after  :         6=trivyServer  7=ignoreUnfixed  8=ignoreEOL   9=gitleaksConfig  10=history  11=button
+```
+
+— across `totalFields`, `isServerIncompatibleField`, `isTextInputField`,
+`focusTextField`, `Model.InEditMode`, the space-toggle switch, the right column
+of `renderInputView` and `renderStartButton`, plus the tests that pin those
+indices. All of it is thrown away when the form is deleted. Doing the removal
+after phase 3 skips that phase completely: the form's SBOM checkbox,
+`applyServerModeConstraints`, `generateSBOM` and the renumbering all disappear
+with the file that holds them.
+
+Everything below was established by survey before phase 3 shipped. Phase 3 has
+since removed the form, so the renumbering described above no longer applies and
+the security-view rows of the tables below are already gone -- what is left is
+the list from `internal/config` down.
+
+#### What goes
+
+| File | What |
+|---|---|
+| `internal/config/config.go` | `ScanConfig.GenerateSBOM`, `ScanConfig.SBOMOutputDir`, and the `expand(c.Scan.SBOMOutputDir)` line in `applyDefaults` |
+| `internal/scan/options.go` | the two assignments in `OptionsFromConfig` |
+| `internal/scan/scanner.go` | `ScanOptions.GenerateSBOM`, `ScanOptions.SBOMOutputDir`, `Result.SBOMPath`, the SBOM stage in `Scan`, and `\|\| s.options.GenerateSBOM` in `missingToolErrors` |
+| `internal/scan/trivy.go` | `GetSBOMCommand`, `GenerateSBOM` |
+| `internal/scan/trivy_args.go` | `sbomArgs`, `sbomSubcommand`, `sbomFileName`, the `containerOutputPath` constant, and the `path/filepath` import |
+| `internal/ui/configuration/fields.go` | the "Generate SBOM" toggle, the "SBOM output dir" text field, and the `serverModeFields` entry |
+| `internal/ui/configuration/update.go` | the `GenerateSBOM = false` line in `applyServerModeConstraints` |
+| `internal/ui/security/warnings.go` | the `"sbom generation failed: "` prefix |
+
+Two strings to reword rather than delete: the "Trivy server" description in
+`fields.go` ("Client-server mode; disables misconfig, license and SBOM") and the
+scan-types section of `GetHelpContent`.
+
+#### Six things the survey settled
+
+1. **`Result.SBOMPath` is written by the stage and read by nothing.** The help
+   claims "If SBOM was generated, its path is shown above the tabs"; no view
+   reads the field. There is nothing to replace, only to remove — and the help
+   line is wrong today, independently of this removal.
+2. **No migration is needed for `config.yaml`.** `config.Load` calls
+   `yaml.Unmarshal` without `KnownFields(true)`, so a file still carrying
+   `generate_sbom:` or `sbom_output_dir:` loads unchanged and the keys are
+   dropped at the next `config.Save`.
+3. **No migration is needed for the scan caches** either. Stored results are
+   JSON and `encoding/json` ignores unknown fields, so a cached report carrying
+   `sbom_path` reads back fine.
+4. **`containerOutputPath` dies with `sbomArgs`** — nothing else mounts a
+   writable output directory. **`dockerSocketMount` must survive**: `wrapTrivy`
+   uses it too. Deleting both together is the easy mistake, and the build
+   catches it.
+5. **`applyServerModeConstraints` exists twice** — in the form and in
+   `internal/ui/configuration/update.go`. Only the second survives phase 3, but
+   until then both force `GenerateSBOM = false` and both must be handled or they
+   disagree.
+6. **`TestEveryConfiguredOptionReachesTheScanner` needs no edit.** It walks the
+   field names `config.ScanConfig` and `scan.ScanOptions` share, so removing the
+   fields from both keeps it green — and it is the test that fails if only one
+   side is done.
+
+#### Tests
+
+Delete: the SBOM cases in `internal/scan/command_test.go`
+(`TestTheSBOMCommandIsShownLikeTheOthers`,
+`TestAnImageSBOMWithNoOutputDirectoryUsesTheWorkingDirectory`,
+`TestTheSBOMFileNameIsDerivedFromTheTarget`,
+`TestTheSBOMPathIsTheHostPathNotTheContainerPath`,
+`TestTheSBOMOutputMountIsWritable`, and the `sbomArgs` line in the
+server-address test) and in `internal/scan/execute_test.go`
+(`TestAFailedSBOMYieldsNoPath`, `TestTheSBOMPathComesBackOnSuccess`, and the
+unsupported-target-type case).
+
+Adjust `internal/scan/scan_test.go`: the `"sbom"` branch of `stageOf`,
+`everyStage()`, four stage scripts, the `SBOMPath` assertions, the expected
+stage lists (`"misconfig,sbom,trivy-secret,vuln"` loses one), the per-stage
+error count (**6 → 5**), and the assertion that the SBOM stage narrates no
+progress. Also `internal/ui/configuration/model_test.go` (server mode) and
+`internal/ui/security/warnings_test.go` (the prefix).
+
+The `internal/ui/security` tests that mention SBOM — the server-mode case, the
+field-index table, and `"Generate SBOM"` in the offered-options list — go with
+the form in phase 3 and need no work here.
+
+#### Documentation
+
+`.claude/CLAUDE.md` (the feature list and the `trivy.go` line), `README.md`,
+`docs/CODEMAPS/backend.md`, `docs/CODEMAPS/data.md`,
+`docs/CODEMAPS/dependencies.md`.
+
+Noted while surveying and **not caused by this change**: `docs/CODEMAPS/data.md`
+and `backend.md` describe a `SBOM []SBOMComponent` field and a `SBOMComponent`
+struct that **exist nowhere in the code**. The codemaps are stale there already;
+worth removing along with the rest rather than leaving a type nothing declares.
+
+`docs/backlog.md` §1.1 mentions `sbomArgs` in the record of an earlier fix.
+That is a historical entry and should be left as written — the removal gets its
+own entry rather than rewriting what happened.
+
+#### Validation
+
+```bash
+go build ./... && go vet ./... && mise run lint && go test ./...
+grep -rin "sbom" --include=*.go .   # expected: no match
+```
+
+Plus one manual check: a `config.yaml` carrying `generate_sbom: true` must still
+load without error.
+
+### 3.13 A sortable column keeps room for its sort arrow — **done**
+
+**D33 — the sort arrow was truncated on any column narrower than its own
+header plus two.** Reported from use on the inventory's `CRIT` and `HIGH`, which
+asked for 5 and rendered `CRIT ▼` into it.
+
+`Column.MinWidth` is the view's statement about the column's *content*.
+`titleFor` then appends an arrow to the header, and `solveWidths` knew nothing
+about those two cells — so the component silently widened the thing it was
+sizing. The fix belongs there rather than in the view: `askFor` reserves
+`width(Title) + sortArrowWidth` for any column carrying a `Less`, and the arrow
+strings are named constants so the renderer and the solver cannot drift.
+
+Reserved for **every** sortable column, not only the sorted one: reserving on
+demand would resize the column each time `.` moved the sort and shift every
+column beside it.
+
+Auditing the application afterwards, `CRIT` and `HIGH` are the **only** two
+columns the reserve changes — every other sortable column already had the room.
+The four count columns were then pinned to one width (`countColumnWidth`), since
+the reserve alone would leave `CRIT`/`HIGH` at 6 and `MED`/`LOW` at 5: four
+adjacent columns of the same kind, ragged.
+
+`TestTheWidthsAlwaysSumToWhatIsAvailable` gained the inventory's shape, because
+raising what a column asks for is another way to push the total past what is
+available and Rule 116 has to survive it.
+
+### 3.12 The Secrets tab shows both scanners, and one rule decides where a finding goes — **done**
+
+Found by reviewing the security header after §3.11, and fixed with it. Four
+defects, one cause: nothing owned the question "what kind of finding is this?".
+
+**D29 — two classifiers, and three findings fell between them.**
+`Result.CountFindings` switched on `Source` alone and sent everything unmatched
+to the severity counters; `countFindingsByTab` switched on `Source` plus
+`PkgName` plus `Match`. They disagreed on a `trivy` finding with no `PkgName`,
+on an undeclared source, and on a `trivy` finding carrying a `Match` — each of
+which was **counted in the header and shown in no tab at all**. Same family as
+D24, D25 and D26: two copies of a rule, one of them drifted, nothing said so.
+`scan.Categorize` is the only rule now, and it switches on the source alone.
+
+**D30 — Trivy's secrets were parsed and dropped.** `TrivyResult.Secrets` and
+`TrivySecret` were declared and unmarshalled into; nothing ever ranged over
+them. The help claimed "Secret Scan … (Gitleaks + Trivy)" throughout. Same shape
+as D27: declared, populated, read by nothing, silent about it. They are read
+now, under a source of their own — `trivy-secret`, which is also what let the
+classification stop guessing from `Match`.
+
+**D31 — an image scan ran a secret scan and threw it away.** Trivy's default
+scanners for an image are `vuln,secret`, and `trivyArgs` passed no `--scanners`
+flag for that target type. So every image scan paid for secret detection whose
+output was discarded — and would have reported each secret twice once they were
+read. The vulnerability stage now says `--scanners vuln` explicitly.
+
+**D32 — `i` on a Trivy secret would have written a fingerprint that matches
+nothing.** `.gitleaksignore` is keyed on a Gitleaks fingerprint;
+`AddToGitleaksIgnore` falls back to building one from file, rule and line when
+the finding has none. With Trivy secrets in the same tab, `i` would have written
+that fabrication and reported "Added … to .gitleaksignore" for a line Gitleaks
+will never match and Trivy never reads. It is offered for Gitleaks findings only
+now, and refused with a reason otherwise (Rule 128, Rule 130).
+
+Gitleaks and Trivy are **not redundant** — one reads git history, the other the
+target's content — so both run when `scan.enable_secret` is set, in separate
+stages with separate progress rows and separate error messages. Only Trivy's
+half applies to an image, which is what gives an image a secret scan at all.
+
+**The security header now carries the context and one count, and nothing else.**
+`buildInfoLines` renders exactly seven lines and drops the rest in silence; the
+results state sat at exactly seven, so an eighth field would have vanished. The
+tool versions answered the dashboard's question, `Filter` read `ALL`
+permanently, and `Secrets`/`Licenses` duplicated the tab bar one line below. The
+context was the one thing missing, and it is the view where it matters most: the
+scan caches are scoped to a context, so identical rows mean different things in
+two of them. `parseVersion`, `looksLikeVersion` and `renderSeverityBar` went
+with their only caller.
+
+### 3.11 `security` becomes an inventory — **phase 2 done**
+
+Phase 2 of [`configuration-view-plan.md`](../.claude/plans/configuration-view-plan.md).
+Phases 0, 0b and 0c shipped as D26, the per-context scan caches and D27; phase 1
+shipped the configuration view. This is the landing page that replaces the form,
+and phase 3 is what deletes the form.
+
+`:sec` opened on a form asking what to scan and with which options. Every one of
+those options now comes from the configuration view (§1.1, D26), and what gets
+scanned is either an image the registry knows or something under
+`workspaces_dir` — so the form was asking two questions that had already been
+answered elsewhere. It now opens on **everything this context has scanned**,
+read from the two scan caches: one `datatable` over images and repositories,
+sorted by CRITICAL descending, `theme.TimeAgo` for the age (Rule 127).
+
+`enter` opens a row's stored findings, `ctrl+s` rescans one, `ctrl+a` purges and
+rescans all (Rule 126), `ctrl+r` reloads from the caches.
+
+Four things settled while building it:
+
+- **The inventory runs its own scans.** With the options in the config there is
+  nothing left to carry to whoever would run one, which is the whole reason the
+  cross-view delegation existed. It writes to the same two caches, so a rescan
+  here and a `ctrl+s` in the images list are the same operation.
+- **`ctrl+a` purges the counts, not the rows.** The rows *are* the list of what
+  has been scanned; dropping them would empty the view for the length of the
+  scans and lose the targets entirely on a close. A purged row prints `-`, not
+  `0` — nothing found and nothing known are different answers, and zero is the
+  one that reads as clean.
+- **A reload keeps an in-flight scan's marker.** The cache says nothing about a
+  scan that has not finished writing to it, so a refresh landing mid-rescan
+  would clear the spinner and leave the row looking settled.
+- **A finished rescan is routed to the security view wherever the user is**
+  (`routeToSecurityView`), for the reason `routeToOCIImagesView` already exists:
+  the router forwards everything else to the active view only, and a lost
+  completion leaves a row spinning for the life of the view.
+
+`homeState` records where `esc` and `ctrl+r` return to from the results — the
+inventory for a view opened on `:sec`, the form for one opened with a target
+prefilled. A scan that *fails* uses it too: one started from the inventory must
+not land the user on a form they never opened. The field disappears in phase 3,
+when there is only one answer left.
+
+`datatable.Config` gained `SortDesc`. Ascending is the useless end of a count
+column, and cycling `.` past it on every open is not a default. A direction with
+no sortable column to apply it to is dropped along with the column, or the first
+`.` would open on descending with the arrow on nothing.
+
+Not touched, and deliberately: `OriginView` (it carries navigation, not options
+— and gains a third origin), the dependency banner (the dashboard already shows
+`shared.State.Tools`), and the form itself, which stays reachable through
+`NewWithTarget` and `NewWithImageTarget` until phase 3.
+
+Coverage: `internal/ui/security` 85.6 % → 85.8 %, project total 81.3 % → 81.4 %.
 
 ---
 

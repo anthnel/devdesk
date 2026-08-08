@@ -67,6 +67,11 @@ type Config[T any] struct {
 	TokenMatch func(item T, active map[string]bool) bool
 	// SortColumn is the column sorted by on open; -1 for no initial sort.
 	SortColumn int
+	// SortDesc opens the table on the descending order of SortColumn. It exists
+	// for the count columns, where ascending is the useless end: an inventory
+	// sorted by CRITICAL wants the worst target first, and cycling `.` past
+	// ascending to reach it on every open is not a default.
+	SortDesc bool
 	// SelectedStyles returns the table styles to use while the given item is
 	// under the cursor — that is the only thing bubbles/table can vary per
 	// selection, and it is what containers and security each re-derived by
@@ -106,13 +111,16 @@ func New[T any](cfg Config[T]) Model[T] {
 		bar = components.NewFilterBarWithTokens(cfg.Tokens)
 	}
 
-	m := Model[T]{cfg: cfg, table: t, bar: bar, sortColumn: cfg.SortColumn}
+	m := Model[T]{cfg: cfg, table: t, bar: bar, sortColumn: cfg.SortColumn, sortDesc: cfg.SortDesc}
 	// The invariant the rest of the file rests on: sortColumn is either -1 or a
 	// column that can actually be sorted by. Settling it once here is what lets
 	// CycleSort and sorted() stop re-checking — and what stops `.` getting stuck
 	// flipping the direction of a column with no comparator.
 	if m.sortColumn >= len(cfg.Columns) || (m.sortColumn >= 0 && cfg.Columns[m.sortColumn].Less == nil) {
 		m.sortColumn = -1
+		// A direction with no column to apply it to would put the header arrow
+		// on nothing and make `.` open on descending.
+		m.sortDesc = false
 	}
 	return m
 }
@@ -223,15 +231,23 @@ func (m *Model[T]) Resize(width, height int) {
 	m.applyStyles() // the selected row is pinned to this width
 }
 
+// The sort arrows, and what they cost. Named because widths.go has to reserve
+// room for them: a column's MinWidth is the view's statement about its content,
+// and it knows nothing about two cells this package appends to the header.
+const (
+	sortArrowAsc  = " ▲"
+	sortArrowDesc = " ▼"
+)
+
 // titleFor returns a column's header, with a sort arrow on the active one.
 func (m *Model[T]) titleFor(i int) string {
 	if i != m.sortColumn {
 		return m.cfg.Columns[i].Title
 	}
 	if m.sortDesc {
-		return m.cfg.Columns[i].Title + " ▼"
+		return m.cfg.Columns[i].Title + sortArrowDesc
 	}
-	return m.cfg.Columns[i].Title + " ▲"
+	return m.cfg.Columns[i].Title + sortArrowAsc
 }
 
 // CycleSort advances the sort: ascending, descending, then on to the next

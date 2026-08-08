@@ -1101,3 +1101,45 @@ func equalNames(a, b []string) bool {
 	}
 	return true
 }
+
+// ── A scan asked for from outside ────────────────────────────────────────────
+
+// The router sends this when a cached scan's stored result has gone missing:
+// the row is still in the list, and the scan that replaces it belongs here, next
+// to the cache it writes. The security form used to be opened instead, and it no
+// longer exists.
+func TestAScanRequestRescansTheNamedRepository(t *testing.T) {
+	m := scannedModel(t)
+
+	next, cmd := step(t, m, ScanRequestMsg{TargetPath: "/tmp/workspaces/devdesk"})
+
+	if _, still := next.scanCache["/tmp/workspaces/devdesk"]; still {
+		t.Error("the stale cached result survived the rescan request")
+	}
+	if cmd == nil {
+		t.Fatal("the request started no scan")
+	}
+}
+
+// A request naming nothing is a mistake upstream, not a reason to scan the
+// current directory.
+func TestAnEmptyScanRequestDoesNothing(t *testing.T) {
+	if _, cmd := step(t, scannedModel(t), ScanRequestMsg{}); cmd != nil {
+		t.Error("an empty request started a scan")
+	}
+}
+
+// Rule 128: asking while one is already running says so rather than queueing.
+func TestAScanRequestForARunningScanIsRefused(t *testing.T) {
+	m := scannedModel(t)
+	m.scanningPaths["/tmp/workspaces/devdesk"] = true
+
+	next, cmd := step(t, m, ScanRequestMsg{TargetPath: "/tmp/workspaces/devdesk"})
+
+	if next.footerInfo != "Scan already in progress" {
+		t.Errorf("footerInfo = %q, want the already-running notice", next.footerInfo)
+	}
+	if cmd == nil {
+		t.Error("the message was set without a timer to clear it")
+	}
+}

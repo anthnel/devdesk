@@ -1,10 +1,10 @@
 package security
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -20,30 +20,10 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		notWant []string
 	}{
 		{
-			name:    "the form",
-			open:    func(t *testing.T) Model { return newTestModel(t) },
-			want:    []string{"space", "←→", "enter / ctrl+s"},
-			notWant: []string{"b", "tab", "i", "."},
-		},
-		{
-			// 'b' opens a browser for the target, so it only means something
-			// while the target field has focus.
-			name: "the target field",
-			open: func(t *testing.T) Model {
-				m := newTestModel(t)
-				m.focusedField = 1
-				return m
-			},
-			want: []string{"b"},
-		},
-		{
-			name: "scanning",
-			open: func(t *testing.T) Model {
-				m := newTestModel(t)
-				m.state = StateScanning
-				return m
-			},
-			notWant: []string{"space", "enter / ctrl+s", "tab"},
+			name:    "the inventory",
+			open:    func(t *testing.T) Model { return inventoryModel(t, inventoryFixtures()...) },
+			want:    []string{"enter", "ctrl+s", "ctrl+a", "/"},
+			notWant: []string{"tab", "i", "."},
 		},
 		{
 			name:    "the CVE tab",
@@ -107,7 +87,7 @@ func TestOpenReferenceShortcutNeedsAReference(t *testing.T) {
 // Rule 137: descriptions read as imperative actions, capitalised.
 func TestShortcutDescriptionsAreImperative(t *testing.T) {
 	models := []Model{
-		newTestModel(t),
+		inventoryModel(t, inventoryFixtures()...),
 		scannedModel(t),
 		detailsModel(t),
 	}
@@ -127,12 +107,13 @@ func TestShortcutDescriptionsAreImperative(t *testing.T) {
 
 // ── Title and header info ────────────────────────────────────────────────────
 
-// Once a scan has run, the title carries what was scanned: the results table
-// says nothing about its own target.
+// The results table says nothing about its own target, so the title carries it.
+// On the inventory the title carries the context instead: the caches are scoped
+// to one, and two contexts hold rows that look identical.
 func TestTitleNamesTheTargetOnceScanned(t *testing.T) {
-	form := newTestModel(t).GetTitle()
-	if !strings.Contains(form, "Scan Configuration") {
-		t.Errorf("GetTitle() = %q on the form", form)
+	inventory := inventoryModel(t).GetTitle()
+	if !strings.Contains(inventory, "Inventory") {
+		t.Errorf("GetTitle() = %q on the inventory", inventory)
 	}
 
 	scanned := scannedModel(t).GetTitle()
@@ -141,68 +122,59 @@ func TestTitleNamesTheTargetOnceScanned(t *testing.T) {
 	}
 }
 
-// The header is where the user learns a tool is missing, before the scan fails
-// for a reason they cannot see.
-func TestHeaderReportsToolAvailability(t *testing.T) {
-	missing := newTestModel(t).GetHeaderInfo("work")
-	if len(missing) < 2 {
-		t.Fatalf("GetHeaderInfo() = %+v, want Trivy and Gitleaks", missing)
-	}
-	for _, info := range missing[:2] {
-		if info.Value != "not found" {
-			t.Errorf("%s = %q with no dependency check, want \"not found\"", info.Key, info.Value)
-		}
+// The header carries the context and one count, and nothing else.
+//
+// buildInfoLines renders exactly headerMinHeight lines and drops the rest in
+// silence, so an unbounded info list is not a cosmetic problem. The states are
+// checked together because the old header ignored the state entirely and showed
+// the same seven fields whatever was on screen.
+func TestTheHeaderCarriesTheContextAndOneCount(t *testing.T) {
+	tests := []struct {
+		name     string
+		open     func(t *testing.T) Model
+		wantKeys []string
+	}{
+		{"the inventory", func(t *testing.T) Model {
+			return inventoryModel(t, inventoryFixtures()...)
+		}, []string{"Context", "Targets"}},
+		{"the results", scannedModel, []string{"Context", "Findings"}},
+		{"the details", detailsModel, []string{"Context", "Findings"}},
 	}
 
-	present := feed(t, newTestModel(t), DepsCheckedMsg{Deps: scan.DependencyStatus{
-		TrivyAvailable: true, TrivyVersion: "Version: 0.50.0",
-		GitleaksAvailable: true, GitleaksVersion: "v8.18.2",
-	}}).GetHeaderInfo("work")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := tt.open(t).GetHeaderInfo("work")
 
-	if !strings.Contains(present[0].Value, "0.50.0") {
-		t.Errorf("Trivy = %q, want the parsed version", present[0].Value)
-	}
-	if !strings.Contains(present[1].Value, "8.18.2") {
-		t.Errorf("Gitleaks = %q, want the parsed version", present[1].Value)
-	}
-}
-
-// Once a result exists the header carries its duration and severity summary.
-func TestHeaderCarriesTheScanSummary(t *testing.T) {
-	info := scannedModel(t).GetHeaderInfo("work")
-
-	var keys []string
-	for _, i := range info {
-		keys = append(keys, i.Key)
-	}
-	joined := strings.Join(keys, ",")
-	if !strings.Contains(joined, "Duration") {
-		t.Errorf("the header keys are %v, want the scan duration among them", keys)
+			var keys []string
+			for _, i := range info {
+				keys = append(keys, i.Key)
+			}
+			if !equal(keys, tt.wantKeys) {
+				t.Errorf("header keys = %v, want exactly %v", keys, tt.wantKeys)
+			}
+			if info[0].Value != "work" {
+				t.Errorf("Context = %q, want the context the router passed", info[0].Value)
+			}
+		})
 	}
 }
 
-// The version string each tool prints is a different shape, and the header has
-// one narrow column for it.
-func TestParseVersion(t *testing.T) {
-	m := newTestModel(t)
-
-	tests := map[string]string{
-		"Version: 0.50.0":                   "0.50.0",
-		"v8.18.2":                           "8.18.2",
-		"":                                  "",
-		"gitleaks version 8.18.2":           "8.18.2",
-		"Version: 0.50.0\nVulnerability DB": "0.50.0",
+// The counts name what the state is a list of, and are the real ones.
+func TestTheHeaderCountMatchesWhatIsOnScreen(t *testing.T) {
+	inventory := inventoryModel(t, inventoryFixtures()...).GetHeaderInfo("work")
+	if inventory[1].Value != "2" {
+		t.Errorf("Targets = %q, want the two cached targets", inventory[1].Value)
 	}
 
-	for in, want := range tests {
-		if got := m.parseVersion(in); !strings.Contains(got, want) {
-			t.Errorf("parseVersion(%q) = %q, want it to contain %q", in, got, want)
-		}
+	results := scannedModel(t).GetHeaderInfo("work")
+	want := strconv.Itoa(resultFixture().TotalFindings())
+	if results[1].Value != want {
+		t.Errorf("Findings = %q, want %q", results[1].Value, want)
 	}
 }
 
 func TestGetIconIsEmpty(t *testing.T) {
-	if got := newTestModel(t).GetIcon(); got != "" {
+	if got := inventoryModel(t, inventoryFixtures()...).GetIcon(); got != "" {
 		t.Errorf("GetIcon() = %q; the title carries the icon", got)
 	}
 }
@@ -210,7 +182,7 @@ func TestGetIconIsEmpty(t *testing.T) {
 // ── Help ─────────────────────────────────────────────────────────────────────
 
 func TestHelpContentIsPopulated(t *testing.T) {
-	content := newTestModel(t).GetHelpContent()
+	content := inventoryModel(t, inventoryFixtures()...).GetHelpContent()
 
 	if content.Title == "" || content.Description == "" {
 		t.Error("the help has no title or description")
@@ -225,7 +197,7 @@ func TestHelpContentIsPopulated(t *testing.T) {
 // views.
 func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 	documented := map[string]bool{}
-	for _, kb := range newTestModel(t).GetHelpContent().KeyBindings {
+	for _, kb := range inventoryModel(t, inventoryFixtures()...).GetHelpContent().KeyBindings {
 		documented[strings.ToLower(kb.Key)] = true
 		for _, key := range strings.Split(kb.Key, "/") {
 			if trimmed := strings.ToLower(strings.TrimSpace(key)); trimmed != "" {
@@ -235,7 +207,7 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 	}
 
 	states := []Model{
-		func() Model { m := newTestModel(t); m.focusedField = 1; return m }(),
+		inventoryModel(t, inventoryFixtures()...),
 		scannedModel(t),
 		func() Model { m := scannedModel(t); m.switchTab(TabSecrets); return m }(),
 		detailsModel(t),
@@ -261,7 +233,7 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 // each one holds.
 func TestHelpExplainsTheTabs(t *testing.T) {
 	var body string
-	for _, section := range newTestModel(t).GetHelpContent().Sections {
+	for _, section := range inventoryModel(t, inventoryFixtures()...).GetHelpContent().Sections {
 		body += section.Title + " " + section.Body + "\n"
 	}
 

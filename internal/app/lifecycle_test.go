@@ -15,7 +15,6 @@ import (
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
-	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
@@ -410,48 +409,6 @@ func TestWorkspaceScanDetailsAskTheCache(t *testing.T) {
 	}
 }
 
-// The security view delegates scanning back to the OCI view, which owns the
-// image list and the scan cache. The router switches there and forwards it.
-func TestADelegatedScanSwitchesToTheOCIView(t *testing.T) {
-	tests := []struct {
-		name string
-		msg  tea.Msg
-	}{
-		{"a batch", ociresources.LaunchBatchScanMsg{}},
-		{"a single image", ociresources.LaunchSingleImageScanMsg{ImageName: "api:v1"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			oci := &fakeView{}
-			a := router(t, &fakeView{})
-			a.views[command.ViewOCIResources] = oci
-			a.currentView = command.ViewSecurity
-
-			a.Update(tt.msg)
-
-			if a.currentView != command.ViewOCIResources {
-				t.Errorf("current view = %s, want the OCI view running the scan", a.currentView)
-			}
-			if len(oci.received) == 0 {
-				t.Error("the OCI view was never handed the scan")
-			}
-		})
-	}
-}
-
-// The OCI view is built on demand: a scan can be delegated to it before the
-// user has ever opened it.
-func TestADelegatedScanBuildsTheOCIViewIfNeeded(t *testing.T) {
-	a := router(t, &fakeView{})
-
-	a.Update(ociresources.LaunchBatchScanMsg{})
-
-	if _, built := a.views[command.ViewOCIResources]; !built {
-		t.Error("the OCI view was not built to run the delegated scan")
-	}
-}
-
 // ── Selection mode ───────────────────────────────────────────────────────────
 
 // The explorer borrows the workspaces view to pick where to clone.
@@ -470,52 +427,6 @@ func TestTheExplorerBorrowsWorkspacesForAPullDestination(t *testing.T) {
 	}
 }
 
-// Picking an image returns it to the security view as a scan target.
-func TestPickingAnImageReturnsItToTheOrigin(t *testing.T) {
-	origin := &fakeView{}
-	oci := &fakeView{}
-	a := router(t, &fakeView{})
-	a.views[command.ViewSecurity] = origin
-	a.views[command.ViewOCIResources] = oci
-	a.selectionReturnView = command.ViewSecurity
-	a.currentView = command.ViewOCIResources
-
-	a.Update(ociresources.ImageSelectedMsg{ImageName: "api:v1"})
-
-	if a.currentView != command.ViewSecurity {
-		t.Errorf("current view = %s, want the security view back", a.currentView)
-	}
-	got, ok := receivedOf[security.SelectionResultMsg](origin)
-	if !ok {
-		t.Fatal("the security view never received the chosen image")
-	}
-	if got.Path != "api:v1" {
-		t.Errorf("received %q, want api:v1", got.Path)
-	}
-	if _, reset := receivedOf[ociresources.ResetSelectionMsg](oci); !reset {
-		t.Error("the OCI view was left in selection mode")
-	}
-}
-
-// Cancelling from the OCI view goes through the same path as cancelling from
-// workspaces.
-func TestCancellingFromTheImageBrowserReturnsToTheOrigin(t *testing.T) {
-	origin := &fakeView{}
-	a := router(t, &fakeView{})
-	a.views[command.ViewSecurity] = origin
-	a.selectionReturnView = command.ViewSecurity
-	a.currentView = command.ViewOCIResources
-
-	a.Update(ociresources.SelectionCancelledMsg{})
-
-	if a.currentView != command.ViewSecurity {
-		t.Errorf("current view = %s, want the security view back", a.currentView)
-	}
-	if _, ok := receivedOf[security.SelectionCancelledMsg](origin); !ok {
-		t.Error("the security view was not told the selection was cancelled")
-	}
-}
-
 // Esc in the security results returns to whichever view opened them.
 func TestLeavingTheSecurityResultsReturnsToTheOrigin(t *testing.T) {
 	a := router(t, &fakeView{})
@@ -526,5 +437,53 @@ func TestLeavingTheSecurityResultsReturnsToTheOrigin(t *testing.T) {
 
 	if a.currentView != command.ViewWorkspaces {
 		t.Errorf("current view = %s, want the workspaces view that opened the scan", a.currentView)
+	}
+}
+
+// The other half of the borrow, which the security form's own selection tests
+// used to cover incidentally. The explorer is the only borrower left, so this is
+// now the only thing exercising handleDirectorySelected, leaveSelectionMode and
+// returnToOrigin.
+func TestThePickedDirectoryGoesBackToTheExplorer(t *testing.T) {
+	origin := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewGitlabExplorer] = origin
+	a.views[command.ViewWorkspaces] = &fakeView{}
+	a.selectionReturnView = command.ViewGitlabExplorer
+	a.currentView = command.ViewWorkspaces
+
+	a.Update(workspaces.DirectorySelectedMsg{Path: "/repos/devdesk"})
+
+	if a.currentView != command.ViewGitlabExplorer {
+		t.Errorf("current view = %s, want the explorer back", a.currentView)
+	}
+	got, ok := receivedOf[explorer.PullDestinationSelectedMsg](origin)
+	if !ok {
+		t.Fatal("the explorer never received the chosen destination")
+	}
+	if got.Path != "/repos/devdesk" {
+		t.Errorf("received %q, want /repos/devdesk", got.Path)
+	}
+	// Dropped rather than reset, so it is rebuilt out of selection mode.
+	if _, kept := a.views[command.ViewWorkspaces]; kept {
+		t.Error("the workspaces view survived and will reopen in selection mode")
+	}
+}
+
+func TestCancellingTheBorrowReturnsToTheExplorer(t *testing.T) {
+	origin := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewGitlabExplorer] = origin
+	a.views[command.ViewWorkspaces] = &fakeView{}
+	a.selectionReturnView = command.ViewGitlabExplorer
+	a.currentView = command.ViewWorkspaces
+
+	a.Update(workspaces.SelectionCancelledMsg{})
+
+	if a.currentView != command.ViewGitlabExplorer {
+		t.Errorf("current view = %s, want the explorer back", a.currentView)
+	}
+	if _, ok := receivedOf[explorer.PullSelectionCancelledMsg](origin); !ok {
+		t.Error("the explorer was not told the selection was cancelled")
 	}
 }

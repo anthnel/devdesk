@@ -83,7 +83,11 @@ func trivyArgs(target string, targetType TargetType, licenseMode bool, tool Tool
 			args = append(args, "--scanners", "vuln")
 		}
 	case TargetImage:
-		args = []string{"image", "--format", "json"}
+		// --scanners vuln explicitly: Trivy's default for an image is
+		// "vuln,secret", so this stage was running the secret scanner on every
+		// image scan and throwing its output away. Secrets are the secret
+		// stage's job, and asking for them twice would report each one twice.
+		args = []string{"image", "--format", "json", "--scanners", "vuln"}
 	default:
 		return toolCmd{}, fmt.Errorf("unsupported target type: %s", targetType)
 	}
@@ -98,6 +102,35 @@ func trivyArgs(target string, targetType TargetType, licenseMode bool, tool Tool
 		args = append(args, "--ignore-status", "end_of_life")
 	}
 
+	return wrapTrivy(args, target, targetType, tool, server), nil
+}
+
+// trivySecretArgs builds a secret scan. Like misconfiguration, it reads content
+// rather than a package manifest, so it applies to both target types — which is
+// what gives an image scan a secret stage at all, Gitleaks being directory-only.
+func trivySecretArgs(target string, targetType TargetType, tool ToolSpec, server string) (toolCmd, error) {
+	server, err := serverAddr(server)
+	if err != nil {
+		return toolCmd{}, err
+	}
+
+	var args []string
+
+	switch targetType {
+	case TargetDirectory:
+		args = []string{"fs", "--format", "json", "--scanners", "secret"}
+	case TargetImage:
+		args = []string{"image", "--format", "json", "--scanners", "secret"}
+	default:
+		return toolCmd{}, fmt.Errorf("unsupported target type: %s", targetType)
+	}
+
+	if server != "" {
+		args = append(args, "--server", server)
+	}
+
+	// No --ignore-status: end_of_life describes a package's support window and
+	// says nothing about a secret sitting in a file.
 	return wrapTrivy(args, target, targetType, tool, server), nil
 }
 

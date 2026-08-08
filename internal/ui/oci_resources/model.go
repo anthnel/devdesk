@@ -10,7 +10,6 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/registrymgr"
-	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -36,7 +35,6 @@ type Model struct {
 	scanningImages  map[string]bool
 	failedScans     map[string]bool
 	spinnerFrameIdx int
-	lastScanOptions scan.ScanOptions
 	imageTable      datatable.Model[imageRow]
 	spinner         spinner.Model
 	loading         bool
@@ -77,13 +75,11 @@ type Model struct {
 	networkInspectForm *NetworkInspectForm
 	connectivityForm   *ConnectivityTestForm
 	// Shared state
-	errorMsg         string
-	infoMsg          string
-	confirmModal     *sharedcomponents.ConfirmModal
-	pendingAction    string
-	width, height    int
-	selectionMode    bool
-	selectionMessage string
+	errorMsg      string
+	infoMsg       string
+	confirmModal  *sharedcomponents.ConfirmModal
+	pendingAction string
+	width, height int
 }
 
 // Messages — Images
@@ -127,14 +123,6 @@ type ScanRequestMsg struct {
 	ImageName string
 }
 
-// ImageSelectedMsg is sent when an image is selected in selection mode
-type ImageSelectedMsg struct {
-	ImageName string
-}
-
-// SelectionCancelledMsg is sent when user cancels image selection
-type SelectionCancelledMsg struct{}
-
 // ScanAllRequestMsg is sent when user wants to scan all unscanned images
 type ScanAllRequestMsg struct {
 	ImageNames []string
@@ -145,24 +133,10 @@ type ScanCacheLoadedMsg struct {
 	Entries map[string]cache.ImageScanEntry
 }
 
-// LaunchBatchScanMsg requests the OCI images view to start a batch scan of all images with configured options
-type LaunchBatchScanMsg struct {
-	Opts scan.ScanOptions
-}
-
-// LaunchSingleImageScanMsg requests the OCI images view to scan a single image with configured options
-type LaunchSingleImageScanMsg struct {
-	ImageName string
-	Opts      scan.ScanOptions
-}
-
 // ScanDetailsRequestMsg is sent when the user wants to view cached scan details for a specific image
 type ScanDetailsRequestMsg struct {
 	ImageName string
 }
-
-// ResetSelectionMsg clears selection mode without losing other state (e.g. ongoing scans)
-type ResetSelectionMsg struct{}
 
 // Messages — Network Diagnostics
 
@@ -383,12 +357,4 @@ func New(cfg *config.Config) Model {
 		loadingNets:         true,
 		loadingVols:         true,
 	}
-}
-
-// NewForSelection creates an OCI images view in selection mode for picking an image
-func NewForSelection(cfg *config.Config, message string) Model {
-	m := New(cfg)
-	m.selectionMode = true
-	m.selectionMessage = message
-	return m
 }

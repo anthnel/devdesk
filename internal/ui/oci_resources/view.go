@@ -19,14 +19,14 @@ func (m Model) FilterBarVisible() bool {
 	}
 	return m.activeTab == tabImages && m.imageTable.FilterBar().IsVisible() &&
 		m.launchForm == nil && m.resourceForm == nil && m.registryForm == nil &&
-		m.connectivityForm == nil && m.networkInspectForm == nil && !m.selectionMode
+		m.connectivityForm == nil && m.networkInspectForm == nil
 }
 
-// InEditMode returns true when a form, modal, filter, or selection mode is active
+// InEditMode returns true when a form, modal or filter is active
 func (m Model) InEditMode() bool {
 	return m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
 		m.networkInspectForm != nil || m.connectivityForm != nil ||
-		m.confirmModal != nil || (m.activeTab == tabImages && m.imageTable.InEditMode()) || m.selectionMode ||
+		m.confirmModal != nil || (m.activeTab == tabImages && m.imageTable.InEditMode()) ||
 		m.registryBrowser != nil
 }
 
@@ -43,7 +43,7 @@ func (m Model) GetFooterHeight() int {
 	if m.activeTab == tabImages {
 		filterExtra = m.imageTable.FilterBar().ExtraHeight()
 	}
-	if !m.selectionMode && m.launchForm == nil && m.resourceForm == nil && m.registryForm == nil &&
+	if m.launchForm == nil && m.resourceForm == nil && m.registryForm == nil &&
 		m.connectivityForm == nil && m.networkInspectForm == nil {
 		crumbExtra := 0
 		if m.registryGroupSlug != "" {
@@ -51,23 +51,16 @@ func (m Model) GetFooterHeight() int {
 		}
 		return 3 + filterExtra + crumbExtra // tab bar + empty line + info line + filter/breadcrumb
 	}
-	return 2 // empty line + info line (no filter bar in form/selection mode)
+	return 2 // empty line + info line (no filter bar in form mode)
 }
 
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
-	if m.selectionMode || m.registryBrowser != nil || m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
+	if m.registryBrowser != nil || m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
 		m.connectivityForm != nil || m.networkInspectForm != nil {
-		// No tab bar or filter bar in selection/form mode — empty line + info line
+		// No tab bar or filter bar in form mode — empty line + info line
 		infoLine := theme.EmptyLineBg(width)
-		if m.selectionMode && m.selectionMessage != "" {
-			infoLine = lipgloss.NewStyle().
-				Foreground(theme.ColorHighlight).
-				Background(theme.ColorBackground).
-				Width(width).
-				Align(lipgloss.Center).
-				Render(m.selectionMessage)
-		} else if m.errorMsg != "" {
+		if m.errorMsg != "" {
 			infoLine = theme.StatusErrorStyle.Width(width).Align(lipgloss.Center).Render(m.errorMsg)
 		} else if m.infoMsg != "" {
 			infoLine = lipgloss.NewStyle().
@@ -238,14 +231,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			}
 			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "esc", Description: "Close browser"})
 			return shortcuts
-		}
-	}
-	if m.selectionMode {
-		return []shortcut.Shortcut{
-			{Key: "enter", Description: "Select"},
-			{Key: "/", Description: "Filter"},
-			{Key: ".", Description: "Sort"},
-			{Key: "esc", Description: "Cancel"},
 		}
 	}
 	if m.launchForm != nil {

@@ -1,11 +1,11 @@
 package security
 
 import (
-	"fmt"
-	"strings"
+	"strconv"
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -14,25 +14,8 @@ import (
 
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	switch m.state {
-	case StateInput:
-		shortcuts := []shortcut.Shortcut{
-			{Key: "space", Description: "Toggle"},
-			{Key: "←→", Description: "Cycle value"},
-			{Key: "enter / ctrl+s", Description: "Scan"},
-		}
-		// Show 'b' shortcut for directory and image modes on target field
-		if m.focusedField == 1 {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "b", Description: "Browse"})
-		}
-		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "alt+:", Description: "Command"},
-			shortcut.Shortcut{Key: "?", Description: "Help"},
-		)
-		return shortcuts
-	case StateScanning:
-		return []shortcut.Shortcut{
-			// {Key: "scanning...", Description: ""},
-		}
+	case StateInventory:
+		return m.inventoryShortcuts()
 	case StateResults:
 		shortcuts := []shortcut.Shortcut{
 			{Key: "tab", Description: "Switch tab"},
@@ -41,7 +24,11 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		if m.activeTab == TabCVE || m.activeTab == TabLicense || m.activeTab == TabMisconfig {
 			shortcuts = append(shortcuts, shortcut.Shortcut{Key: ".", Description: "Filter"})
 		}
-		if m.activeTab == TabSecrets {
+		// Rule 130: .gitleaksignore only accepts a Gitleaks fingerprint, so 'i'
+		// means nothing on a secret Trivy found — and the Secrets tab now holds
+		// both.
+		if selected, ok := m.findingsTable.Selected(); m.activeTab == TabSecrets && ok &&
+			selected.Source == scan.SourceGitleaks {
 			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "i", Description: "Ignore"})
 		}
 		shortcuts = append(shortcuts,
@@ -65,12 +52,36 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	return nil
 }
 
+// inventoryShortcuts advertises only what the selected row can actually do
+// (Rule 130). An empty inventory offers none of the per-row actions, and a row
+// with no stored counts cannot be opened.
+func (m Model) inventoryShortcuts() shortcut.Shortcuts {
+	shortcuts := []shortcut.Shortcut{}
+	if target, ok := m.inventory.Selected(); ok {
+		if target.Scanned {
+			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "Open findings"})
+		}
+		shortcuts = append(shortcuts,
+			shortcut.Shortcut{Key: "ctrl+s", Description: "Rescan"},
+			shortcut.Shortcut{Key: "ctrl+a", Description: "Rescan all"},
+			shortcut.Shortcut{Key: "/", Description: "Filter"},
+		)
+	}
+	return append(shortcuts,
+		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
+		shortcut.Shortcut{Key: "alt+:", Description: "Command"},
+		shortcut.Shortcut{Key: "?", Description: "Help"},
+	)
+}
+
 func (m Model) GetTitle() string {
 	base := theme.IconSecurity + " Security Scanner"
-	if m.state == StateInput {
-		return base + " " + theme.IconChevronRight + " Scan Configuration"
+	if m.state == StateInventory {
+		// The context is named because the caches are scoped to one: two
+		// contexts hold different inventories, and their rows look identical.
+		return base + " " + theme.IconChevronRight + " Inventory · " + config.CurrentContextName()
 	}
-	if m.targetPath != "" && (m.state == StateScanning || m.state == StateResults || m.state == StateDetails) {
+	if m.targetPath != "" {
 		annotation := lipgloss.NewStyle().
 			Foreground(theme.ColorSecondary).
 			Background(theme.ColorBackground).
@@ -84,185 +95,96 @@ func (m Model) GetIcon() string {
 	return ""
 }
 
-// GetHeaderInfo returns the key-value info for the header
-func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
-	trivyVal := "not found"
-	if m.deps.TrivyAvailable {
-		trivyVal = m.parseVersion(m.deps.TrivyVersion)
-	}
-	gitleaksVal := "not found"
-	if m.deps.GitleaksAvailable {
-		gitleaksVal = m.parseVersion(m.deps.GitleaksVersion)
-	}
-
+// GetHeaderInfo returns the key-value info for the header: the context, and one
+// count.
+//
+// It used to carry seven fields in the results state, which is exactly the
+// number buildInfoLines renders — an eighth would have been dropped in silence.
+// Most of them had stopped earning their line:
+//
+//   - Trivy and Gitleaks versions answered "can I scan?", which the dashboard
+//     already answers from shared.State.Tools, and which an inventory of past
+//     scans is not about.
+//   - Filter showed the severity filter, permanently reading ALL, and meaning
+//     nothing on the Secrets tab or in the details.
+//   - Secrets and Licenses duplicated the tab bar, which renders the same two
+//     numbers a line below.
+//
+// The context is what replaced them, and it is the one thing that was missing:
+// the scan caches are scoped to a context, so the same inventory rows mean
+// different things in two of them and look identical.
+func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	info := []shortcut.HeaderInfo{
-		{Key: "Trivy", Value: trivyVal, Style: theme.HeaderValueStyle},
-		{Key: "Gitleaks", Value: gitleaksVal, Style: theme.HeaderValueStyle},
+		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},
 	}
-
-	// If we have results, add scan info to header
-	if m.result != nil {
-		info = append(info, shortcut.HeaderInfo{
-			Key:   "Duration",
-			Value: m.result.Duration.Round(1e8).String(),
-			Style: theme.HeaderValueStyle,
-		})
-
-		info = append(info, shortcut.HeaderInfo{
-			Key:   "Filter",
-			Value: strings.ToUpper(m.severityFilter),
-			Style: theme.HeaderValueStyle,
-		})
-
-		// Secrets count
-		info = append(info, shortcut.HeaderInfo{
-			Key:   "Secrets",
-			Value: fmt.Sprintf("%d", m.result.SecretCount),
-			Style: theme.HeaderValueStyle,
-		})
-
-		// Licenses count
-		info = append(info, shortcut.HeaderInfo{
-			Key:   "Licenses",
-			Value: fmt.Sprintf("%d", m.result.LicenseCount),
-			Style: theme.HeaderValueStyle,
-		})
-
-		// CVE breakdown as a pill bar (vulnerabilities only) — pre-rendered, no style override
-		info = append(info, shortcut.HeaderInfo{
-			Key:   "CVEs",
-			Value: renderSeverityBar(m.result.Counts),
-		})
-
+	if key, value, ok := m.headerCount(); ok {
+		info = append(info, shortcut.HeaderInfo{Key: key, Value: value, Style: theme.HeaderValueStyle})
 	}
-
 	return info
 }
 
-// renderSeverityBar renders the color-coded CVE pill bar
-func renderSeverityBar(c scan.SeverityCounts) string {
-	renderBlock := func(count int, bg, fg lipgloss.Color) string {
-		s := lipgloss.NewStyle().
-			Background(bg).
-			Foreground(fg).
-			Width(4).
-			Align(lipgloss.Center)
-		if count == 0 {
-			s = s.Foreground(theme.ColorDim)
+// headerCount is the one number the header shows, named for whatever the state
+// is actually a list of. The form and the scanning screen are lists of nothing,
+// and report no count rather than a zero.
+func (m Model) headerCount() (key, value string, ok bool) {
+	switch m.state {
+	case StateInventory:
+		return "Targets", strconv.Itoa(len(m.inventory.Items())), true
+	case StateResults, StateDetails:
+		if m.result == nil {
+			return "", "", false
 		}
-		return s.Render(fmt.Sprintf("%d", count))
+		return "Findings", strconv.Itoa(m.result.TotalFindings()), true
 	}
-
-	return renderBlock(c.Critical, theme.ColorSeverityCritical, theme.ColorSeverityCriticalFg) +
-		renderBlock(c.High, theme.ColorSeverityHigh, theme.ColorSeverityHighFg) +
-		renderBlock(c.Medium, theme.ColorSeverityMedium, theme.ColorSeverityMediumFg) +
-		renderBlock(c.Low, theme.ColorSeverityLow, theme.ColorSeverityLowFg) +
-		renderBlock(c.Unknown, theme.ColorSeverityInfo, theme.ColorSeverityInfoFg)
-}
-
-// parseVersion extracts version number from tool output
-// versionDisplayWidth caps the fallback version string, which shares a narrow
-// header column with the tool name.
-const versionDisplayWidth = 18
-
-// looksLikeVersion reports whether a whitespace-separated token is a version
-// number. A leading "v" only counts when a digit follows it, or the word
-// "version" in "gitleaks version 8.18.2" would be taken for the version itself.
-func looksLikeVersion(part string) bool {
-	if part == "" {
-		return false
-	}
-	if part[0] >= '0' && part[0] <= '9' {
-		return true
-	}
-	return part[0] == 'v' && len(part) > 1 && part[1] >= '0' && part[1] <= '9'
-}
-
-func (m Model) parseVersion(versionOutput string) string {
-	if versionOutput == "" {
-		return ""
-	}
-
-	isDocker := false
-	output := versionOutput
-
-	// Handle docker versions (format: "docker:Version X.Y.Z...")
-	if strings.HasPrefix(versionOutput, "docker:") {
-		isDocker = true
-		output = strings.TrimPrefix(versionOutput, "docker:")
-		if output == "" {
-			return "(docker)"
-		}
-	}
-
-	// Extract first line and try to find version number
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	if len(lines) == 0 {
-		if isDocker {
-			return "(docker)"
-		}
-		return ""
-	}
-
-	firstLine := strings.TrimSpace(lines[0])
-	// Try to extract version pattern (e.g., "v0.50.1" or "0.50.1")
-	for _, part := range strings.Fields(firstLine) {
-		if looksLikeVersion(part) {
-			if isDocker {
-				return part + " (docker)"
-			}
-			return part
-		}
-	}
-
-	// Return first line if no version pattern found (truncated)
-	result := theme.TruncateWidth(firstLine, versionDisplayWidth)
-	if isDocker {
-		return result + " (docker)"
-	}
-	return result
+	return "", "", false
 }
 
 // GetHelpContent retourne le contenu d'aide de la vue Security
 func (m Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title:       "Security Scanner",
-		Description: "This view scans directories or Docker images for vulnerabilities, exposed secrets, license issues, and IaC misconfigurations. Optionally generates SBOM in CycloneDX format. Scans use Trivy and Gitleaks via Docker or local binary.",
+		Description: "This view opens on an inventory of everything scanned in the current configuration context — images and repositories, with what each scan found and when. Opening a row shows its findings; rescanning re-runs Trivy and Gitleaks with the options set in the configuration view.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
 			{Key: "g/Home", Description: "Go to top of list"},
 			{Key: "G/End", Description: "Go to bottom of list"},
-			{Key: "enter / ctrl+s", Description: "Start scan (from input form) / view details (in results)"},
-			{Key: "space", Description: "Toggle a scan option (only key that toggles checkboxes)"},
-			{Key: "ctrl+s", Description: "Start scan (from input form)"},
-			{Key: "b", Description: "Browse directories (workspaces view) or Docker images (on Target field)"},
-			{Key: "i", Description: "Ignore a secret (add to .gitleaksignore, in Secrets results tab)"},
+			{Key: "enter", Description: "Open the stored findings for the selected target (inventory)"},
+			{Key: "ctrl+s", Description: "Rescan the selected target, overwriting its cached result (inventory)"},
+			{Key: "ctrl+a", Description: "Purge every cached result and rescan every target (inventory)"},
+			{Key: "ctrl+r", Description: "Reload the inventory from the scan caches"},
+			{Key: "/", Description: "Filter the inventory by target name"},
+			{Key: ".", Description: "Cycle the sort column (inventory) or the severity filter (results)"},
+			{Key: "enter", Description: "Open the details of the selected finding (results)"},
+			{Key: "i", Description: "Ignore a secret (add to .gitleaksignore, in the Secrets tab)"},
 			{Key: "o", Description: "Open first reference URL in the default browser (detail view)"},
 			{Key: "tab / shift+tab", Description: "Switch tabs in results (CVE, Secrets, Licenses, Misconfig)"},
 			{Key: "1 / 2 / 3 / 4", Description: "Jump directly to a tab"},
-			{Key: ".", Description: "Cycle severity filter (in CVE/Licenses/Misconfig results)"},
-			{Key: "ctrl+r", Description: "New scan (from results)"},
-			{Key: "esc", Description: "Back / cancel"},
+			{Key: "ctrl+r", Description: "Back to the inventory (results)"},
+			{Key: "esc", Description: "Back"},
 			{Key: "alt+:", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{
 			{
+				Title: "Inventory",
+				Body:  "The table lists every image and repository scanned in the current context, sorted by CRITICAL findings. Counts come from the scan caches; the Scanned column shows how long ago each result was produced.\nScans launched from the OCI resources and workspaces views write to the same caches and appear here.\nA rescan reads its options from the configuration view (:cfg), scan tab — there is nothing to set here.\nRescanning all (ctrl+a) purges the cached results first, so a target shows '-' until its scan returns.",
+			},
+			{
 				Title: "Scan Types",
-				Body:  "Vulnerability Scan: detects CVEs in dependencies and packages (Trivy).\nSecret Scan: detects exposed secrets and API keys in code (Gitleaks + Trivy).\nMisconfig Scan: detects IaC misconfigurations in Dockerfiles, Terraform, K8s manifests (Trivy).\nLicense Scan: analyzes dependency licenses (Trivy).\nSBOM Generation: generates a CycloneDX SBOM report (Trivy).",
+				Body:  "Vulnerability Scan: detects CVEs in dependencies and packages (Trivy).\nSecret Scan: runs both scanners, and the Secrets tab shows their findings together. Gitleaks reads a repository's working tree and git history; Trivy reads the target's content, which is what gives an image a secret scan at all — Gitleaks cannot scan one. The Source column says which tool found each finding.\nMisconfig Scan: detects IaC misconfigurations in Dockerfiles, Terraform, K8s manifests (Trivy).\nLicense Scan: analyzes dependency licenses (Trivy).\nSBOM Generation: generates a CycloneDX SBOM report (Trivy).",
 			},
 			{
-				Title: "Target Types",
-				Body:  "Directory: scans a local directory. Use 'b' to browse via the Workspaces view.\nImage: scans a Docker image. Use 'b' to browse via the OCI Images view, or type the name manually (e.g., nginx:latest).",
+				Title: "Targets",
+				Body:  "A target is a Docker image or a repository under the configured workspaces directory. Images are scanned from the OCI resources view (:oci) and repositories from the workspaces view (:w); both write to the caches this inventory reads, so anything scanned anywhere appears here and can be rescanned from here.",
 			},
 			{
-				Title: "Advanced Options",
-				Body:  "Trivy Server: use a remote Trivy server (client-server mode). Persisted to config.\nIgnore Unfixed: only show vulnerabilities that have available fixes.\nScan Git History: scan the full git history for secrets (slower but more thorough).\nGitleaks Config: specify a custom .gitleaks.toml configuration file.",
+				Title: "Scan Options",
+				Body:  "Every option lives in the configuration view (:cfg), scan tab: which scanners run, whether to use a Trivy server, custom binaries or images, whether to ignore unfixed or end-of-life findings, a custom .gitleaks.toml, and whether Gitleaks reads the full git history. A rescan started here reads them at the moment it runs.",
 			},
 			{
 				Title: "Results",
-				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Use '.' to cycle the severity filter. Press Enter to view finding details. For secrets, 'i' adds a finding to .gitleaksignore. If SBOM was generated, its path is shown above the tabs.",
+				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Use '.' to cycle the severity filter. Press Enter to view finding details. For secrets, 'i' adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have.\nEsc returns to the inventory, or to the list the results were opened from.",
 			},
 			{
 				Title: "Command Logging",
@@ -270,7 +192,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Prerequisites",
-				Body:  "Trivy and Gitleaks must be installed (local binary or Docker image). Tool status is displayed in the header status bar.",
+				Body:  "Trivy and Gitleaks must be installed (local binary or Docker image). Whether each one is available is shown on the dashboard; a scan that could run no scanner at all reports that rather than returning an empty result.",
 			},
 		},
 	}

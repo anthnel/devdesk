@@ -55,7 +55,7 @@ Bubble Tea program.Run()
 | GitLab Auth | `internal/ui/gitlab/auth/` | Token entry, authentication state |
 | GitLab Explorer | `internal/ui/gitlab/explorer/` | Group/project browser, clone/pull, creation |
 | Workspaces | `internal/ui/workspaces/` | Local git repos, CRUD, terminal launch, selection mode |
-| Security | `internal/ui/security/` | Trivy + Gitleaks scanning, result tabs |
+| Security | `internal/ui/security/` | Inventory of what has been scanned, rescan, result tabs |
 | Containers | `internal/ui/containers/` | Docker container list, metrics, control |
 | OCI Resources | `internal/ui/oci_resources/` | Registry images, scan, launch, network inspect |
 | Network Diag | `internal/ui/netdiag/` | Diagnostics (ping, DNS, traceroute) + real-time port monitor |

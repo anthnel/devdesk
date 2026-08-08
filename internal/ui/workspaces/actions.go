@@ -316,3 +316,25 @@ func (m Model) openScanDetails() (tea.Model, tea.Cmd) {
 		return ScanDetailsRequestMsg{RepoPath: entry.Path}
 	}
 }
+
+// handleScanRequest rescans one repository by path, whoever asked.
+//
+// The router sends this when a cached scan's stored result has gone missing:
+// the row is still in the list, and the scan that would replace it belongs
+// here, next to the cache it writes. Rule 126's ctrl+s semantics — the entry is
+// overwritten, not purged — because the result the user tried to open is
+// precisely what is being replaced.
+func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
+	if msg.TargetPath == "" {
+		return m, nil
+	}
+	if m.scanningPaths[msg.TargetPath] {
+		m.footerInfo = "Scan already in progress"
+		return m, clearFooterInfoCmd()
+	}
+	delete(m.scanCache, msg.TargetPath)
+	return m, tea.Batch(
+		deleteScanCacheCmd([]string{msg.TargetPath}),
+		batchScanCmd([]string{msg.TargetPath}, scan.OptionsFromConfig(m.config.Scan)),
+	)
+}

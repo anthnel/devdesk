@@ -113,6 +113,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case ScanRequestMsg:
+		return m.handleScanRequest(msg)
+
 	case WorkspaceScanStartingMsg:
 		m.scanningPaths[msg.RepoPath] = true
 		m.footerInfo = ""

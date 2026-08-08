@@ -1,5 +1,7 @@
 package datatable
 
+import "github.com/charmbracelet/lipgloss"
+
 // Rule 116: the column widths must sum to exactly the space available, or the
 // selected row stops short of the right viewport border.
 //
@@ -26,6 +28,30 @@ func availableFor(viewportWidth, numColumns int) int {
 	return viewportWidth - borderWidth - numColumns*cellPadding
 }
 
+// sortArrowWidth is what titleFor appends to the sorted column's header.
+// Measured rather than assumed: the arrows are not ASCII, and bubbles/table
+// truncates the header with the same rune widths lipgloss counts.
+var sortArrowWidth = max(lipgloss.Width(sortArrowAsc), lipgloss.Width(sortArrowDesc))
+
+// askFor is the width a column needs, which is not always the MinWidth it
+// states.
+//
+// MinWidth is the view's statement about the column's *content*. A sortable
+// column also carries a header this package widens by an arrow, and nothing
+// told the view about those two cells — so a count column asking for 5 rendered
+// "CRIT ▼" into it and lost exactly the character that says how it is sorted.
+//
+// The room is reserved for every sortable column, not only the one currently
+// sorted: reserving it on demand would resize the column each time `.` moved
+// the sort, shifting every column beside it.
+func askFor[T any](c Column[T]) int {
+	width := max(c.MinWidth, 0)
+	if c.Less == nil {
+		return width
+	}
+	return max(width, lipgloss.Width(c.Title)+sortArrowWidth)
+}
+
 // solveWidths distributes available across the columns.
 //
 // Fixed columns (Flex == 0) ask for MinWidth. Flexible ones ask for MinWidth
@@ -43,7 +69,7 @@ func solveWidths[T any](columns []Column[T], available int) []int {
 
 	total := 0
 	for i, c := range columns {
-		widths[i] = max(c.MinWidth, 0)
+		widths[i] = askFor(c)
 		total += widths[i]
 	}
 

@@ -413,10 +413,130 @@ what was asked for.
 
 `internal/scan/` orchestrates Trivy + Gitleaks:
 - `scanner.go` — runs both tools concurrently, streams progress via `ProgressUpdate` channel
-- `trivy.go` — CVE, SBOM, misconfiguration detection
+- `trivy.go` — CVE, secret, SBOM, misconfiguration detection
 - `gitleaks.go` — secrets detection with custom config support
+- `category.go` — **where a finding goes: one rule, for everyone**
 
-**Security view** (`internal/ui/security/model.go`) has four states: `StateInput` → `StateScanning` → `StateResults` → `StateDetails` (with remediation info).
+**Secret scanning uses both tools, and they are not redundant.** Gitleaks reads
+a repository's working tree and git history; Trivy reads the target's content.
+Only Trivy's half applies to an image — Gitleaks cannot scan one — which is why
+an image scan had no secret stage at all before. Both are gated on
+`scan.enable_secret` and feed the one Secrets tab; the Source column names the
+tool.
+
+Two consequences worth keeping:
+
+- The vulnerability stage passes `--scanners vuln` **explicitly for images**.
+  Trivy's default there is `vuln,secret`, so that stage was running a secret
+  scan whose output nothing read — and would now report each secret twice.
+- `i` (add to `.gitleaksignore`) is offered for **Gitleaks findings only**. That
+  file is matched on a Gitleaks fingerprint, which a Trivy secret does not have;
+  `AddToGitleaksIgnore` would fabricate one and report success for a line
+  nothing will ever match.
+
+**`scan.Categorize` is the only thing that decides a finding's family.** There
+were two rules: `Result.CountFindings` switched on `Source` alone, the security
+view's tabs on `Source` plus `PkgName` plus `Match`. Three inputs separated them
+— a `trivy` finding with no `PkgName`, an undeclared source, and a `trivy`
+finding carrying a `Match` — and each produced a finding **counted in the header
+but present in no tab**, so invisible in the table. Classification is on the
+source and nothing else now, which is what required Trivy secrets to have a
+source of their own (`trivy-secret`) rather than being recognised by a `Match`.
+`TestEveryFindingIsCountedExactlyOnce` and
+`TestTheTabCountsAgreeWithTheResultCounters` are what hold the two ends together.
+
+**Security view** (`internal/ui/security/model.go`) has three states:
+`StateInventory` (the landing page), `StateResults` and `StateDetails` (with
+remediation info).
+
+**The scan form is gone** (phase 3), and with it `StateScanning`: there is no
+screen that runs one scan and waits on it. The inventory rescans in the
+background with a spinner on the row, the way the images list does. What went
+with the form, because nothing else read it:
+
+| Gone | Why it existed |
+|---|---|
+| `form.go`, `renderInputView` and the seven field renderers | the form |
+| `StateInput`, `StateScanning`, `renderScanningView` | its two screens |
+| `startScan`, the progress channel, `scanGen`, `cancelScan` | running one scan in place |
+| `deps`, `checkDependencies`, `DepsCheckedMsg` | the Start button, the last reader of "is a scanner installed" |
+| `homeState` | which of the two landing states to return to |
+| `SelectionRequestMsg` / `SelectionResultMsg` / `SelectionCancelledMsg` | picking a target by borrowing another view |
+| `NewWithTarget`, `NewWithImageTarget`, `NewWithTargetReturnToWorkspaces` | prefilling its fields |
+
+`NewWithPreloadedResult` is the only constructor left besides `New`.
+
+**Only the workspaces view is ever lent now.** The form borrowed it for a
+directory and the images view for an image; the explorer borrows it for a clone
+destination, and that is all. So `ociresources.NewForSelection`,
+`ImageSelectedMsg`, `SelectionCancelledMsg`, `ResetSelectionMsg` and the OCI
+view's `selectionMode` are gone, and `app/selection.go` is no longer
+parameterised over who is borrowing.
+
+**A missing stored result rescans in the list it came from.** `enter` on a
+scanned row asks the router for the result file; when it is gone,
+`rescanInOrigin` hands `workspaces.ScanRequestMsg` or
+`ociresources.ScanRequestMsg` to that list and stays there — the target lives
+there, and so does the scan that replaces it. It used to open the form with the
+target filled in. Both message types were declared and unhandled before this;
+they have handlers now, which is what they were named for.
+
+`LaunchBatchScanMsg`, `LaunchSingleImageScanMsg` and `app.handleLaunchScan` went
+with the form: they carried the *options* the form had collected to whoever
+would run the scan, and the options come from the configuration view now.
+
+**The header carries the context and one count, and nothing else.**
+`app_header.go`'s `buildInfoLines` renders exactly `headerMinHeight` (7) lines
+and drops the rest **in silence**, and the results state used to sit at exactly
+7 — an eighth field would have vanished. Most had stopped earning their line:
+the Trivy and Gitleaks versions answered "can I scan?" (the dashboard's
+question, from `shared.State.Tools`), `Filter` read `ALL` permanently and meant
+nothing on the Secrets tab or in the details, and `Secrets`/`Licenses`
+duplicated the tab bar a line below. The context replaced them and was the one
+thing missing: the scan caches are scoped to a context, so identical-looking
+rows mean different things in two of them.
+
+| State | Info |
+|---|---|
+| Inventory | `Context`, `Targets` |
+| Results / Details | `Context`, `Findings` |
+| Form / Scanning | `Context` |
+
+### The security inventory
+
+`:sec` opens on **everything the current context has scanned**, read from
+`ImageScanCache` and `WorkspaceScanCache` — one `datatable` over images and
+repositories, sorted by CRITICAL descending. The form it replaced asked two
+questions already answered elsewhere: the options come from the configuration
+view, and a target is either a known image or something under `workspaces_dir`.
+
+| Key | Effect |
+|---|---|
+| `enter` | open the row's stored findings (Rule 126: reads the cache, never scans) |
+| `ctrl+s` | rescan the row, **overwriting** its entry |
+| `ctrl+a` | **purge** every entry and rescan every target |
+| `ctrl+r` | reload from the caches |
+
+**The inventory runs its own scans.** With the options in the config there is
+nothing to carry to whoever would run one — which is the only reason the
+cross-view delegation exists. It writes to the same two caches, so a rescan here
+and `ctrl+s` in the images list are the same operation.
+
+Three invariants, each with a test that fails without it:
+
+- **`ctrl+a` purges the counts, not the rows.** The rows *are* the list of what
+  has been scanned; dropping them empties the view for the length of the scans
+  and loses the targets on a close. A purged row prints `-`, not `0`.
+- **A reload keeps an in-flight scan's marker.** The cache says nothing about a
+  scan still running, so a refresh landing mid-rescan would clear the spinner
+  and leave the row looking settled.
+- **`InventoryScanFinishedMsg` is routed to the security view wherever the user
+  is** (`app.routeToSecurityView`), the same reason `routeToOCIImagesView`
+  exists. Everything else is forwarded to the active view only, and a lost
+  completion leaves a row spinning for the life of the view.
+
+`esc` and `ctrl+r` return to the inventory, or to the list the results were
+opened from when `OriginView` is set.
 
 ### Registry group cache
 
@@ -558,9 +678,22 @@ datatable.New(datatable.Config[T]{
         Search: func(x T) string { … },  // nil = not searchable
     }},
     SortColumn:     0,
+    SortDesc:       false, // true opens on the descending order
     SelectedStyles: func(x T) table.Styles { … }, // e.g. TableStylesForSeverity
 })
 ```
+
+`SortDesc` exists for count columns: ascending is their useless end, and cycling
+`.` past it on every open is not a default. A direction with no sortable column
+to apply it to is dropped with the column, or the first `.` opens descending
+with the arrow on nothing.
+
+**A sortable column's `MinWidth` is not its whole ask.** `titleFor` appends a
+sort arrow the view never accounted for, so `solveWidths` reserves
+`width(Title) + 2` for any column with a `Less` — otherwise a narrow one renders
+`CRIT ▼` into five cells and loses exactly the character that says how it is
+sorted. The reserve applies whether or not the column is the sorted one, so
+cycling `.` does not resize it and shift every column beside it.
 
 Three things it guarantees that hand-wired tables did not:
 

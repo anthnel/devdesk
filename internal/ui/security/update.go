@@ -45,6 +45,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// on the width — bubbles truncates each cell to its own column — so
 		// there is nothing to rebuild here.
 		m.findingsTable.Resize(m.width, max(m.height, 5))
+		m.inventory.Resize(m.width, max(m.height, 5))
 		// Update details viewport size and refresh content
 		m.detailsViewport.Width = msg.Width
 		m.detailsViewport.Height = msg.Height
@@ -62,13 +63,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.handleKeyMsg(msg)
 
-	case DepsCheckedMsg:
-		m.deps = msg.Deps
-		return m, nil
-
-	case ScanCompleteMsg:
-		return m.handleScanComplete(msg)
-
 	case SecretIgnoredMsg:
 		if msg.Error != nil {
 			log.Printf("ERROR [security] ignore secret %s: %v", msg.Finding.File, msg.Error)
@@ -82,41 +76,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMessage = ""
 		return m, nil
 
-	case SelectionResultMsg:
-		m.targetPath = msg.Path
-		m.targetInput.SetValue(msg.Path)
-		return m, nil
+	case InventoryLoadedMsg:
+		return m.handleInventoryLoaded(msg)
 
-	case SelectionCancelledMsg:
-		return m, nil
+	case InventoryResultLoadedMsg:
+		return m.handleInventoryResultLoaded(msg)
 
-	case StartScanMsg:
-		return m.startScan()
-
-	case ScanProgressMsg:
-		return m.handleScanProgress(msg)
+	case InventoryScanFinishedMsg:
+		return m.handleInventoryScanFinished(msg)
 
 	case spinner.TickMsg:
-		if m.state == StateScanning {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
-		}
+		return m.handleSpinnerTick(msg)
 	}
 
 	return m, nil
 }
 
+// handleSpinnerTick advances the spinner while a rescan is running.
+//
+// The frame is a table cell rather than a scanning screen, and one that never
+// advances reads as a hung scan. The rows carry it, so they are restamped — but
+// only while something is running, since SetItems re-filters and re-sorts and
+// there is no reason to do that sixty times a second for a settled table.
+func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
+	if !m.inventoryScanning() {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.spinner, cmd = m.spinner.Update(msg)
+	m.setInventory(m.inventory.Items())
+	return m, cmd
+}
+
 // handleKeyMsg processes keyboard input
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state {
-	case StateInput:
-		return m.handleInputState(msg)
-	case StateScanning:
-		if msg.String() == "esc" || msg.String() == "ctrl+c" {
-			return m.cancelCurrentScan()
-		}
-		return m, nil
+	case StateInventory:
+		return m.handleInventoryState(msg)
 	case StateResults:
 		return m.handleResultsState(msg)
 	case StateDetails:

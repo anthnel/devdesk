@@ -1,10 +1,7 @@
 package security
 
 import (
-	"time"
-
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -16,14 +13,18 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// ViewState represents the current state of the security view
+// ViewState represents the current state of the security view.
+//
+// There were five. StateInput was the form, and StateScanning the screen that
+// ran one scan in place while the user watched it — both went with the form
+// (phase 3). What replaced them is the inventory, which rescans in the
+// background with a spinner on the row, so nothing waits on a whole screen.
 type ViewState int
 
 const (
-	StateInput    ViewState = iota // Form for selecting target and options
-	StateScanning                  // Scanning in progress
-	StateResults                   // Displaying results summary
-	StateDetails                   // Showing detailed findings
+	StateInventory ViewState = iota // What this context has scanned, read from the caches
+	StateResults                    // Displaying results summary
+	StateDetails                    // Showing detailed findings
 )
 
 // Model represents the security scanner view
@@ -33,35 +34,18 @@ type Model struct {
 	height int
 
 	state  ViewState
-	deps   scan.DependencyStatus
 	result *scan.Result
-	err    error
 
-	// Form state
-	targetType      string
-	targetPath      string
-	enableVuln      bool
-	enableSecret    bool
-	enableMisconfig bool
-	enableLicense   bool
-	generateSBOM    bool
-	targetInput     textinput.Model
-	focusedField    int
+	// Inventory state
+	inventory datatable.Model[scanTarget]
+	// spinner animates the rows being rescanned; it is stamped onto them by
+	// setInventory, because a Cell function is built once and cannot reach here.
+	spinner spinner.Model
 
-	// Advanced options
-	trivyServerInput    textinput.Model
-	gitleaksConfigInput textinput.Model
-	ignoreUnfixed       bool
-	ignoreEOL           bool
-	gitleaksHistory     bool
-
-	// Scanning state
-	spinner       spinner.Model
-	scanStartTime time.Time
-	scanStages    []scan.ProgressUpdate    // per-stage progress, in arrival order
-	progressCh    chan scan.ProgressUpdate // receives progress updates from scan goroutine
-	cancelScan    func()                   // cancels the running scan goroutine; nil when not scanning
-	scanGen       int                      // incremented on each startScan; used to discard stale ScanCompleteMsg
+	// targetPath is what the result on screen is about — an image reference or a
+	// repository path. It names the target in the title, and it is the directory
+	// .gitleaksignore is written into.
+	targetPath string
 
 	// Results state
 	findingsTable datatable.Model[scan.Finding]
@@ -72,18 +56,10 @@ type Model struct {
 	activeTab       int    // 0=CVE, 1=Secrets, 2=Licenses, 3=Misconfig
 	severityFilter  string // "all", "critical", "high", "medium", "low"
 
-	// Pre-populated target (from workspace view)
-	prefilledTarget string
-
-	// OCI images integration: when true, launching the scan returns to OCI images view
-	isImageScan       bool
-	returnToOCIImages bool
-
-	// Workspaces integration: when true, scan completion sends result back to workspaces view
-	returnToWorkspaces bool
-
 	// OriginView is the view to return to when Esc is pressed in StateResults.
-	// Set by the app router when opening this view from workspaces or oci_resources.
+	// Set by the app router when opening this view from workspaces or
+	// oci_resources. Empty when the results were opened from the inventory,
+	// which is inside this view and needs no round trip.
 	OriginView command.ViewType
 
 	// Status message (temporary feedback)
@@ -97,17 +73,11 @@ type Model struct {
 	findingToIgnore *scan.Finding
 }
 
-// New creates a new security scanner view
+// New creates a new security scanner view, on the inventory.
 func New(cfg *config.Config) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
-
-	ti := textinput.New()
-	ti.Placeholder = "/path/to/scan"
-	ti.CharLimit = 256
-	ti.Width = 50
-	theme.StyleTextInput(&ti)
 
 	t := datatable.New(datatable.Config[scan.Finding]{
 		Columns:        findingColumns(),
@@ -115,82 +85,18 @@ func New(cfg *config.Config) Model {
 		SelectedStyles: findingSelectedStyles,
 	})
 
-	// Advanced options textinputs
-	trivyServer := textinput.New()
-	trivyServer.Placeholder = "https://trivy-server:4954"
-	trivyServer.CharLimit = 256
-	trivyServer.Width = 40
-	theme.StyleTextInput(&trivyServer)
-	if cfg.Scan.TrivyServer != "" {
-		trivyServer.SetValue(cfg.Scan.TrivyServer)
-	}
-
-	gitleaksConfig := textinput.New()
-	gitleaksConfig.Placeholder = "/path/to/.gitleaks.toml"
-	gitleaksConfig.CharLimit = 256
-	gitleaksConfig.Width = 40
-	theme.StyleTextInput(&gitleaksConfig)
-
 	return Model{
-		config:              cfg,
-		state:               StateInput,
-		targetType:          "directory",
-		enableVuln:          cfg.Scan.EnableVuln,
-		enableSecret:        cfg.Scan.EnableSecret,
-		enableMisconfig:     cfg.Scan.EnableMisconfig,
-		enableLicense:       cfg.Scan.EnableLicense,
-		generateSBOM:        cfg.Scan.GenerateSBOM,
-		ignoreUnfixed:       cfg.Scan.IgnoreUnfixed,
-		ignoreEOL:           cfg.Scan.IgnoreEOL,
-		gitleaksHistory:     cfg.Scan.GitleaksHistory,
-		targetInput:         ti,
-		spinner:             s,
-		findingsTable:       t,
-		focusedField:        0,
-		severityFilter:      "all",
-		trivyServerInput:    trivyServer,
-		gitleaksConfigInput: gitleaksConfig,
+		config:         cfg,
+		state:          StateInventory,
+		inventory:      newInventoryTable(),
+		spinner:        s,
+		findingsTable:  t,
+		severityFilter: "all",
 	}
 }
 
-// NewWithTarget creates a security view pre-populated with a target path
-func NewWithTarget(cfg *config.Config, target string) Model {
-	m := New(cfg)
-	m.prefilledTarget = target
-	m.targetPath = target
-	m.targetInput.SetValue(target)
-	return m
-}
-
-// NewWithImageTarget creates a security view pre-populated with an image target.
-// Set returnToOCI=true when opened from the OCI images view: launching the scan will send
-// the configured options back to OCI images view instead of running the scan in-place.
-func NewWithImageTarget(cfg *config.Config, imageName string, returnToOCI bool) Model {
-	m := New(cfg)
-	m.prefilledTarget = imageName
-	m.targetPath = imageName
-	m.targetType = "image"
-	m.isImageScan = true
-	m.returnToOCIImages = returnToOCI
-	if imageName == "all" {
-		m.targetInput.SetValue("all")
-		m.targetInput.Placeholder = "All OCI Images"
-	} else {
-		m.targetInput.SetValue(imageName)
-	}
-	return m
-}
-
-// NewWithTargetReturnToWorkspaces creates a security view pre-populated with a target path.
-// After the scan completes, results are sent back to the workspaces view.
-func NewWithTargetReturnToWorkspaces(cfg *config.Config, target string) Model {
-	m := NewWithTarget(cfg, target)
-	m.returnToWorkspaces = true
-	return m
-}
-
-// NewWithPreloadedResult creates a security view in StateDetails with a pre-loaded scan result.
-// Used to display cached workspace scan results without re-scanning.
+// NewWithPreloadedResult creates a security view showing a stored scan result.
+// Used to display cached results without re-scanning (Rule 126).
 func NewWithPreloadedResult(cfg *config.Config, result *scan.Result) Model {
 	m := New(cfg)
 	m.state = StateResults
@@ -208,29 +114,22 @@ func NewWithPreloadedResult(cfg *config.Config, result *scan.Result) Model {
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
-		m.checkDependencies(),
 		m.spinner.Tick,
+		// Loaded whatever the opening state: a view opened on a result returns
+		// to the inventory on ctrl+r, and reading two small files is cheaper
+		// than the branch that would decide not to.
+		loadInventoryCmd(),
 	)
-}
-
-// checkDependencies verifies tool availability
-func (m Model) checkDependencies() tea.Cmd {
-	// Copied out of the model before the Cmd runs: a Cmd must not read state
-	// Update() may be writing (Rule 110).
-	scanCfg := m.config.Scan
-	return func() tea.Msg {
-		return DepsCheckedMsg{Deps: scan.CheckDependencies(scanCfg)}
-	}
 }
 
 // InEditMode reports whether a field or a modal has the keyboard, which is what
 // stops the router claiming ":", "q" and "?" for itself.
 //
-// The scanning, results and details states used to be listed here too, for one
-// reason: it was the only way to be handed esc. The router forwards esc
-// unconditionally now (§1.3 D15), so those states are ordinary again — and get
-// the command line, the help overlay and quit back with them.
+// The results and details states used to be listed here too, for one reason: it
+// was the only way to be handed esc. The router forwards esc unconditionally now
+// (§1.3 D15), so those states are ordinary again — and get the command line, the
+// help overlay and quit back with them.
 func (m Model) InEditMode() bool {
-	isTextInput := m.state == StateInput && (m.focusedField == 1 || m.focusedField == 7 || m.focusedField == 10)
-	return isTextInput || m.confirmModal != nil
+	isFiltering := m.state == StateInventory && m.inventory.InEditMode()
+	return isFiltering || m.confirmModal != nil
 }

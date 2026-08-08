@@ -6,7 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
+	"github.com/anthnel/devdesk/internal/scan"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -351,114 +351,6 @@ func TestUnknownMessagesGoToTheActiveView(t *testing.T) {
 	}
 }
 
-// ── Selection mode ───────────────────────────────────────────────────────────
-
-// The security view browses for a scan target through another view; the router
-// remembers where to come back to.
-func TestSelectionRequestOpensTheBrowserAndRemembersTheOrigin(t *testing.T) {
-	tests := []struct {
-		name string
-		kind string
-		want command.ViewType
-	}{
-		{"a directory is picked in workspaces", "directory", command.ViewWorkspaces},
-		{"an image is picked in oci-resources", "image", command.ViewOCIResources},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := router(t, &fakeView{})
-			a.currentView = command.ViewSecurity
-			a.views[command.ViewSecurity] = &fakeView{}
-
-			a.Update(security.SelectionRequestMsg{Type: tt.kind, Message: "pick one"})
-
-			if a.currentView != tt.want {
-				t.Errorf("current view = %s, want %s", a.currentView, tt.want)
-			}
-			if a.selectionReturnView != command.ViewSecurity {
-				t.Errorf("return view = %s, want the security view that asked", a.selectionReturnView)
-			}
-		})
-	}
-}
-
-// The answer goes back as the message the originating view understands, which
-// differs between the explorer's pull destination and a scan target.
-func TestTheSelectedPathGoesBackAsTheOriginExpects(t *testing.T) {
-	t.Run("the security view gets a selection result", func(t *testing.T) {
-		origin := &fakeView{}
-		a := router(t, &fakeView{})
-		a.views[command.ViewSecurity] = origin
-		a.selectionReturnView = command.ViewSecurity
-
-		a.Update(workspaces.DirectorySelectedMsg{Path: "/repos/devdesk"})
-
-		got, ok := receivedOf[security.SelectionResultMsg](origin)
-		if !ok {
-			t.Fatal("the security view never received the selected path")
-		}
-		if got.Path != "/repos/devdesk" {
-			t.Errorf("path = %q, want /repos/devdesk", got.Path)
-		}
-	})
-
-	t.Run("the explorer gets a pull destination", func(t *testing.T) {
-		origin := &fakeView{}
-		a := router(t, &fakeView{})
-		a.views[command.ViewGitlabExplorer] = origin
-		a.selectionReturnView = command.ViewGitlabExplorer
-
-		a.Update(workspaces.DirectorySelectedMsg{Path: "/repos"})
-
-		if _, ok := receivedOf[explorer.PullDestinationSelectedMsg](origin); !ok {
-			t.Errorf("the explorer received %d messages, none of them a pull destination", len(origin.received))
-		}
-	})
-}
-
-// Cancelling returns to the origin and tells it so, rather than leaving the
-// user in a browser they did not ask for.
-func TestCancellingSelectionReturnsToTheOrigin(t *testing.T) {
-	origin := &fakeView{}
-	a := router(t, &fakeView{})
-	a.views[command.ViewSecurity] = origin
-	a.selectionReturnView = command.ViewSecurity
-	a.currentView = command.ViewWorkspaces
-
-	a.Update(workspaces.SelectionCancelledMsg{})
-
-	if a.currentView != command.ViewSecurity {
-		t.Errorf("current view = %s, want the security view back", a.currentView)
-	}
-	if _, ok := receivedOf[security.SelectionCancelledMsg](origin); !ok {
-		t.Error("the security view was not told the selection was cancelled")
-	}
-}
-
-// The workspaces view is dropped so it is rebuilt out of selection mode; the
-// OCI view is kept and reset, because it holds scan state worth preserving.
-func TestLeavingSelectionResetsTheBrowserWithoutLosingScanState(t *testing.T) {
-	oci := &fakeView{}
-	a := router(t, &fakeView{})
-	a.views[command.ViewWorkspaces] = &fakeView{}
-	a.views[command.ViewOCIResources] = oci
-	a.views[command.ViewSecurity] = &fakeView{}
-	a.selectionReturnView = command.ViewSecurity
-
-	a.Update(workspaces.SelectionCancelledMsg{})
-
-	if _, kept := a.views[command.ViewWorkspaces]; kept {
-		t.Error("the workspaces view survived selection mode and will reopen in it")
-	}
-	if _, ok := a.views[command.ViewOCIResources]; !ok {
-		t.Fatal("the OCI view was dropped, losing its scan results")
-	}
-	if _, ok := receivedOf[ociresources.ResetSelectionMsg](oci); !ok {
-		t.Error("the OCI view was not taken out of selection mode")
-	}
-}
-
 // ── Cached scan results ──────────────────────────────────────────────────────
 
 // Rule 126: Enter on a scanned image reads the cache, it does not rescan.
@@ -476,32 +368,111 @@ func TestScanDetailsAsksTheCacheForTheResult(t *testing.T) {
 	}
 }
 
-// A cache entry whose result file is gone must not dead-end. The image falls
-// back to a fresh scan, the workspace to the form with its target filled in.
-func TestAMissingResultFileFallsBackInsteadOfFailingSilently(t *testing.T) {
-	t.Run("an image falls back to scanning", func(t *testing.T) {
+// A cache entry whose result file is gone must not dead-end.
+//
+// It used to open the security form with the target filled in. With the form
+// gone the fallback stays in the list the user pressed enter in and asks it to
+// rescan: that is where the target lives and where the scan that replaces the
+// missing result runs.
+func TestAMissingResultFileRescansInTheListItCameFrom(t *testing.T) {
+	t.Run("an image", func(t *testing.T) {
 		a := router(t, &fakeView{})
+		oci := &fakeView{}
+		a.views[command.ViewOCIResources] = oci
 
-		_, cmd := a.Update(ImageScanResultLoadedMsg{ImageName: "api:v1", Err: errNotOnDisk})
+		a.Update(ImageScanResultLoadedMsg{ImageName: "api:v1", Err: errNotOnDisk})
 
-		if a.currentView != command.ViewSecurity {
-			t.Fatalf("current view = %s, want the security view", a.currentView)
+		if a.currentView != command.ViewOCIResources {
+			t.Fatalf("current view = %s, want the images list", a.currentView)
 		}
-		if _, ok := testutil.MsgOf[security.StartScanMsg](cmd); !ok {
-			t.Error("no scan was started for an image whose cached result is gone")
+		request, ok := receivedOf[ociresources.ScanRequestMsg](oci)
+		if !ok {
+			t.Fatal("the images list was not asked to rescan")
+		}
+		if request.ImageName != "api:v1" {
+			t.Errorf("the request names %q, want api:v1", request.ImageName)
 		}
 	})
 
-	t.Run("a workspace falls back to the form", func(t *testing.T) {
+	t.Run("a repository", func(t *testing.T) {
 		a := router(t, &fakeView{})
+		ws := &fakeView{}
+		a.views[command.ViewWorkspaces] = ws
 
-		_, cmd := a.Update(WorkspaceScanResultLoadedMsg{RepoPath: "/repos/devdesk", Err: errNotOnDisk})
+		a.Update(WorkspaceScanResultLoadedMsg{RepoPath: "/repos/devdesk", Err: errNotOnDisk})
 
-		if a.currentView != command.ViewSecurity {
-			t.Fatalf("current view = %s, want the security view", a.currentView)
+		if a.currentView != command.ViewWorkspaces {
+			t.Fatalf("current view = %s, want the workspaces list", a.currentView)
 		}
-		if _, ok := testutil.MsgOf[security.StartScanMsg](cmd); ok {
-			t.Error("a workspace scan started on its own; the user must confirm the target first")
+		request, ok := receivedOf[workspaces.ScanRequestMsg](ws)
+		if !ok {
+			t.Fatal("the workspaces list was not asked to rescan")
+		}
+		if request.TargetPath != "/repos/devdesk" {
+			t.Errorf("the request names %q, want /repos/devdesk", request.TargetPath)
 		}
 	})
+}
+
+// Same for a rescan started from the security inventory. The row that launched
+// it is marked as scanning, and a reload deliberately keeps that marker, so a
+// completion delivered to the wrong view leaves it spinning for good.
+func TestAnInventoryRescanReachesTheSecurityViewFromAnotherView(t *testing.T) {
+	sec := &fakeView{}
+	dashboard := &fakeView{}
+	a := router(t, dashboard)
+	a.views[command.ViewSecurity] = sec
+
+	a.Update(security.InventoryScanFinishedMsg{Name: "nexus/api:1.4"})
+
+	if _, ok := receivedOf[security.InventoryScanFinishedMsg](sec); !ok {
+		t.Error("the rescan-finished message never reached the security view")
+	}
+	if a.currentView != command.ViewDashboard {
+		t.Errorf("routing a background rescan switched the view to %s", a.currentView)
+	}
+	if _, ok := receivedOf[security.InventoryScanFinishedMsg](dashboard); ok {
+		t.Error("the rescan message was also delivered to the active view")
+	}
+}
+
+// The success path of the same two handlers: a stored result opens the security
+// view on it, and records where esc returns to. This is what openSecurityView
+// exists for, and the missing-file tests above only exercise the fallback.
+func TestAStoredResultOpensTheSecurityViewOnItsOrigin(t *testing.T) {
+	tests := []struct {
+		name   string
+		msg    tea.Msg
+		origin command.ViewType
+	}{
+		{
+			"an image",
+			ImageScanResultLoadedMsg{ImageName: "api:v1", Result: &scan.Result{Target: "api:v1"}},
+			command.ViewOCIResources,
+		},
+		{
+			"a repository",
+			WorkspaceScanResultLoadedMsg{RepoPath: "/repos/devdesk", Result: &scan.Result{Target: "/repos/devdesk"}},
+			command.ViewWorkspaces,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := router(t, &fakeView{})
+
+			a.Update(tt.msg)
+
+			if a.currentView != command.ViewSecurity {
+				t.Fatalf("current view = %s, want the security view", a.currentView)
+			}
+			view, ok := a.views[command.ViewSecurity].(security.Model)
+			if !ok {
+				t.Fatalf("the installed view is %T, want a security.Model", a.views[command.ViewSecurity])
+			}
+			if view.OriginView != tt.origin {
+				t.Errorf("OriginView = %q, want %q — esc would return to the wrong list", view.OriginView, tt.origin)
+			}
+		})
+	}
 }

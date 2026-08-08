@@ -96,17 +96,44 @@ func resultFixture() *scan.Result {
 }
 
 // newTestModel returns a laid-out model on the empty form.
-func newTestModel(t *testing.T) Model {
+//
+// The form is asked for rather than assumed: New() opens on the inventory, and
+// a view rooted there returns to it from the results and from a failed scan.
+// The form's own tests are about the form, so they say so — and they go with it
+// in phase 3.
+// inventoryModel returns a laid-out model on the inventory, holding targets.
+func inventoryModel(t *testing.T, targets ...scanTarget) Model {
 	t.Helper()
-	return feed(t, New(testConfig()), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, New(testConfig()), tea.WindowSizeMsg{Width: 160, Height: 30})
+	return feed(t, m, InventoryLoadedMsg{Targets: targets})
+}
+
+// inventoryFixtures cover both kinds and both ends of the CRITICAL order.
+func inventoryFixtures() []scanTarget {
+	return []scanTarget{
+		{
+			Kind: kindImage, Name: "nexus/api:1.4", Scanned: true,
+			Counts:    scan.SeverityCounts{Critical: 3, High: 11, Medium: 4, Low: 1},
+			ScannedAt: time.Date(2026, 8, 1, 8, 0, 0, 0, time.UTC),
+		},
+		{
+			Kind: kindRepo, Name: "/home/dev/workspaces/devdesk", Scanned: true,
+			Counts:    scan.SeverityCounts{Critical: 0, High: 2},
+			ScannedAt: time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC),
+		},
+	}
 }
 
 // scannedModel returns a model showing results for the fixture scan.
+//
+// Built through NewWithPreloadedResult, which is how a result reaches the screen
+// now: from the cache, either from a row of the inventory or from a row of the
+// list it was scanned in. Nothing runs a scan and then shows it in place any
+// more — that was the form's path.
 func scannedModel(t *testing.T) Model {
 	t.Helper()
-	m := newTestModel(t)
-	m.targetPath = "/tmp/repo"
-	return feed(t, m, ScanCompleteMsg{Result: resultFixture(), Gen: m.scanGen})
+	return feed(t, NewWithPreloadedResult(testConfig(), resultFixture()),
+		tea.WindowSizeMsg{Width: 160, Height: 30})
 }
 
 // detailsModel returns a model in the details view for the first CVE.
