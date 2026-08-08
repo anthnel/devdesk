@@ -140,7 +140,6 @@ type ScanConfig struct {
 	GitleaksPath       string `yaml:"gitleaks_path"`        // Chemin custom vers gitleaks (optionnel)
 	GitleaksImage      string `yaml:"gitleaks_image"`       // Image Docker gitleaks (défaut: zricethezav/gitleaks)
 	CacheDir           string `yaml:"cache_dir"`            // Cache des rapports
-	SBOMOutputDir      string `yaml:"sbom_output_dir"`      // Répertoire de sortie SBOM (optionnel, défaut: à côté de la cible)
 	MaxCachedReports   int    `yaml:"max_cached_reports"`   // Nombre max de rapports conservés
 	Timeout            int    `yaml:"timeout"`              // Timeout en secondes
 	MaxConcurrentScans int    `yaml:"max_concurrent_scans"` // Nombre max de scans parallèles
@@ -150,7 +149,6 @@ type ScanConfig struct {
 	EnableSecret    bool   `yaml:"enable_secret"`
 	EnableMisconfig bool   `yaml:"enable_misconfig"`
 	EnableLicense   bool   `yaml:"enable_license"`
-	GenerateSBOM    bool   `yaml:"generate_sbom"`
 	IgnoreUnfixed   bool   `yaml:"ignore_unfixed"`
 	IgnoreEOL       bool   `yaml:"ignore_eol"`
 	GitleaksHistory bool   `yaml:"gitleaks_history"`
@@ -541,7 +539,6 @@ func (c *Config) ExpandPaths(homeDir string) {
 	c.GitLab.Pull.TargetDir = expand(c.GitLab.Pull.TargetDir)
 	c.Registry.CacheDir = expand(c.Registry.CacheDir)
 	c.Scan.CacheDir = expand(c.Scan.CacheDir)
-	c.Scan.SBOMOutputDir = expand(c.Scan.SBOMOutputDir)
 	c.Scan.TrivyPath = expand(c.Scan.TrivyPath)
 	c.Scan.GitleaksPath = expand(c.Scan.GitleaksPath)
 	c.Scan.GitleaksConfig = expand(c.Scan.GitleaksConfig)

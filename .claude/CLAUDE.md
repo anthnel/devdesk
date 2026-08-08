@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 DevDesk is a terminal-based TUI (Text User Interface) application built with Go and Bubble Tea framework. It provides DevSecOps functionality including:
 - System status monitoring (HTTP/HTTPS, ICMP, DNS, SSL checks)
 - GitLab integration (authentication, project explorer, clone/pull)
-- Security scanning (Trivy CVE/misconfig/SBOM + Gitleaks secrets)
+- Security scanning (Trivy CVE/secret/license/misconfig + Gitleaks secrets)
 - Docker container management with real-time metrics
 - OCI resource management (image scanning, container launching, network inspection)
 - Network diagnostics (ICMP, DNS, TCP traceroute, Netcat, HTTP, SSL) + real-time port monitoring
@@ -413,7 +413,7 @@ what was asked for.
 
 `internal/scan/` orchestrates Trivy + Gitleaks:
 - `scanner.go` — runs both tools concurrently, streams progress via `ProgressUpdate` channel
-- `trivy.go` — CVE, secret, SBOM, misconfiguration detection
+- `trivy.go` — CVE, secret, license, misconfiguration detection
 - `gitleaks.go` — secrets detection with custom config support
 - `category.go` — **where a finding goes: one rule, for everyone**
 

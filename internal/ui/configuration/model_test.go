@@ -154,18 +154,17 @@ func TestARefusedValueKeepsTheCursorOnItsField(t *testing.T) {
 	}
 }
 
-// A Trivy server address disables the three options its protocol cannot serve.
+// A Trivy server address disables the two options its protocol cannot serve.
 // A real constraint, carried over from the security form this view replaces.
 func TestAServerAddressForcesOffTheOptionsItCannotServe(t *testing.T) {
 	m := focusOn(t, newModel(t), "Trivy server")
 	m.config.Scan.EnableMisconfig = true
 	m.config.Scan.EnableLicense = true
-	m.config.Scan.GenerateSBOM = true
 	m.input.SetValue("https://trivy:4954")
 
 	m = feed(t, m, testutil.Key("down"))
 
-	if m.config.Scan.EnableMisconfig || m.config.Scan.EnableLicense || m.config.Scan.GenerateSBOM {
+	if m.config.Scan.EnableMisconfig || m.config.Scan.EnableLicense {
 		t.Errorf("server mode left incompatible options on: %+v", m.config.Scan)
 	}
 }
@@ -347,7 +346,7 @@ func TestEachTabRendersItsGroupHeadingsOnceInOrder(t *testing.T) {
 // options two cells right of the rest of their group.
 func TestEveryCheckboxStartsOnTheSameColumn(t *testing.T) {
 	m := newModel(t)
-	m.config.Scan.TrivyServer = "localhost:4954" // locks Misconfiguration, Licenses, SBOM
+	m.config.Scan.TrivyServer = "localhost:4954" // locks Misconfiguration and Licenses
 
 	for tab := range m.sections {
 		m.activeTab = tab

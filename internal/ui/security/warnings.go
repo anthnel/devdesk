@@ -43,7 +43,6 @@ func parseScanError(errMsg string) (source, detail string) {
 	for _, prefix := range []string{
 		"trivy failed: ",
 		"trivy misconfig failed: ",
-		"sbom generation failed: ",
 		"gitleaks failed: ",
 	} {
 		if strings.HasPrefix(rest, prefix) {

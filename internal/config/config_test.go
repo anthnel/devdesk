@@ -281,3 +281,31 @@ func TestANamedThemeSurvivesNormalisation(t *testing.T) {
 		t.Errorf("Theme = %q, want it untouched", cfg.App.Theme)
 	}
 }
+
+// A config file written before SBOM generation was removed carries
+// generate_sbom and sbom_output_dir. Load unmarshals without KnownFields, so
+// the retired keys are ignored rather than refused — which is what makes the
+// removal need no migration. The keys are dropped at the next Save.
+func TestAConfigCarryingTheRetiredSBOMKeysStillLoads(t *testing.T) {
+	tmpDir := setupTmpHome(t)
+
+	configDir := filepath.Join(tmpDir, ".devdesk")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+
+	legacy := "scan:\n  enable_vuln: true\n  generate_sbom: true\n  sbom_output_dir: /out\n  timeout: 700\n"
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte(legacy), 0600); err != nil {
+		t.Fatalf("Failed to write legacy config: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("a config carrying the retired SBOM keys was refused: %v", err)
+	}
+	// The settings around them still have to be read: a key that is ignored
+	// must not take the rest of the section with it.
+	if !cfg.Scan.EnableVuln || cfg.Scan.Timeout != 700 {
+		t.Errorf("the surrounding scan settings were not read: %+v", cfg.Scan)
+	}
+}

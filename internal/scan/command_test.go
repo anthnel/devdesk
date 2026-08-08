@@ -1,7 +1,6 @@
 package scan
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -150,9 +149,6 @@ func TestAnUnsupportedTargetTypeHasNoCommand(t *testing.T) {
 	if got := GetTrivyMisconfigCommand("x", TargetType("registry"), ToolSpec{Source: ToolSourceBinary}, "", false); got != "" {
 		t.Errorf("GetTrivyMisconfigCommand for an unknown target type = %q, want empty", got)
 	}
-	if got := GetSBOMCommand("x", TargetType("registry"), ToolSpec{Source: ToolSourceBinary}, "", ""); got != "" {
-		t.Errorf("GetSBOMCommand for an unknown target type = %q, want empty", got)
-	}
 }
 
 // D19 was the two builders drifting apart. They are now one, so the shown
@@ -169,7 +165,7 @@ func TestTheShownCommandIsTheExecutedOne(t *testing.T) {
 	}
 }
 
-// ── Misconfiguration and SBOM ────────────────────────────────────────────────
+// ── Misconfiguration ─────────────────────────────────────────────────────────
 
 // Misconfiguration scanning reads configuration files, so unlike the license
 // scanner it applies to images as well as directories.
@@ -200,122 +196,6 @@ func TestOptionalMisconfigFlagsAppearOnlyWhenAsked(t *testing.T) {
 		if !strings.Contains(full, want) {
 			t.Errorf("the command is missing %q:\n%s", want, full)
 		}
-	}
-}
-
-// SBOM generation had no display counterpart either, so its command was never
-// shown at all.
-func TestTheSBOMCommandIsShownLikeTheOthers(t *testing.T) {
-	cmd := GetSBOMCommand("/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "", "/out")
-
-	for _, want := range []string{"trivy", "fs", "--format cyclonedx", "--output"} {
-		if !strings.Contains(cmd, want) {
-			t.Errorf("the command is missing %q:\n%s", want, cmd)
-		}
-	}
-
-	served := GetSBOMCommand("api:v1", TargetImage, ToolSpec{Source: ToolSourceDocker}, "https://trivy:4954", "/out")
-	if !strings.Contains(served, "--server https://trivy:4954") {
-		t.Errorf("the server was not passed:\n%s", served)
-	}
-	// A server does the work, so there is no image to inspect through the socket.
-	if strings.Contains(served, "/var/run/docker.sock") {
-		t.Errorf("the socket was mounted although a server does the work:\n%s", served)
-	}
-
-	// The server reaches the binary form too — it is the same flag, and the
-	// two forms are built by the same builder.
-	binary := GetSBOMCommand("/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "https://trivy:4954", "")
-	if !strings.Contains(binary, "--server https://trivy:4954") {
-		t.Errorf("the server was not passed to the binary form:\n%s", binary)
-	}
-}
-
-// An image has no directory to write beside, so with nowhere configured the
-// SBOM lands in the working directory — which has to be mounted for the
-// container to reach it.
-func TestAnImageSBOMWithNoOutputDirectoryUsesTheWorkingDirectory(t *testing.T) {
-	tc, hostPath, err := sbomArgs("api:v1", TargetImage, ToolSpec{Source: ToolSourceDocker}, "", "")
-	if err != nil {
-		t.Fatalf("building failed: %v", err)
-	}
-
-	if hostPath != "sbom-api_v1.json" {
-		t.Errorf("host path = %q, want it relative to the working directory", hostPath)
-	}
-	if !strings.Contains(tc.String(), "-v .:"+containerOutputPath) {
-		t.Errorf("the working directory was not mounted:\n%s", tc)
-	}
-}
-
-// An image reference is not a legal filename, so the SBOM name is sanitised
-// while staying identifiable.
-func TestTheSBOMFileNameIsDerivedFromTheTarget(t *testing.T) {
-	tests := []struct {
-		name       string
-		target     string
-		targetType TargetType
-		want       string
-	}{
-		{"a directory", "/repos/devdesk", TargetDirectory, "sbom-report.json"},
-		{"a plain image", "api:v1", TargetImage, "sbom-api_v1.json"},
-		{"a registry-qualified image", "registry.example.com/team/api:v1", TargetImage,
-			"sbom-registry.example.com_team_api_v1.json"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := sbomFileName(tt.target, tt.targetType); got != tt.want {
-				t.Errorf("sbomFileName() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-// The SBOM has to land where the caller will look for it, which is not the path
-// Trivy is given when it runs in a container.
-func TestTheSBOMPathIsTheHostPathNotTheContainerPath(t *testing.T) {
-	tests := []struct {
-		name       string
-		targetType TargetType
-		target     string
-		outputDir  string
-		want       string
-	}{
-		{"beside the scanned directory", TargetDirectory, "/repos/devdesk", "", "/repos/devdesk/sbom-report.json"},
-		{"in the configured directory", TargetDirectory, "/repos/devdesk", "/out", "/out/sbom-report.json"},
-		{"an image with a configured directory", TargetImage, "api:v1", "/out", "/out/sbom-api_v1.json"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tc, hostPath, err := sbomArgs(tt.target, tt.targetType, ToolSpec{Source: ToolSourceDocker}, "", tt.outputDir)
-			if err != nil {
-				t.Fatalf("building failed: %v", err)
-			}
-			if filepath.ToSlash(hostPath) != tt.want {
-				t.Errorf("host path = %q, want %q", hostPath, tt.want)
-			}
-			if strings.Contains(tc.String(), " --output "+hostPath+" ") {
-				t.Errorf("trivy was given the host path rather than the mount:\n%s", tc)
-			}
-		})
-	}
-}
-
-// A directory SBOM has to be written back into a mount that is not read-only,
-// unlike every other directory scan.
-func TestTheSBOMOutputMountIsWritable(t *testing.T) {
-	tc, _, err := sbomArgs("/repos/devdesk", TargetDirectory, ToolSpec{Source: ToolSourceDocker}, "", "")
-	if err != nil {
-		t.Fatalf("building failed: %v", err)
-	}
-
-	if strings.Contains(tc.String(), "/repos/devdesk:/scan:ro") {
-		t.Errorf("the SBOM cannot be written to a read-only mount:\n%s", tc)
-	}
-	if !strings.Contains(tc.String(), "-v /repos/devdesk:/scan") {
-		t.Errorf("the target was not mounted:\n%s", tc)
 	}
 }
 
@@ -449,8 +329,8 @@ func TestEveryTrivyBuilderRefusesAnUnusableServer(t *testing.T) {
 	if _, err := trivyMisconfigArgs("/r", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, ":", false); err == nil {
 		t.Error("the misconfiguration builder accepted an unusable server address")
 	}
-	if _, _, err := sbomArgs("/r", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, ":", ""); err == nil {
-		t.Error("the SBOM builder accepted an unusable server address")
+	if _, err := trivySecretArgs("/r", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, ":"); err == nil {
+		t.Error("the secret builder accepted an unusable server address")
 	}
 }
 

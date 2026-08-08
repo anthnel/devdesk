@@ -53,7 +53,7 @@
 | Tool | Image/Binary | Used For |
 |------|--------------|----------|
 | Docker | `docker` binary or Docker daemon | Container management, network diagnostics, tool isolation |
-| Trivy | `aquasec/trivy:latest` | CVE scanning, SBOM, misconfig detection |
+| Trivy | `aquasec/trivy:latest` | CVE, secret, license and misconfig scanning |
 | Gitleaks | `zricethezav/gitleaks:latest` | Secrets scanning (git history, staged) |
 | git | System `git` binary | Cloning, pulling, fetching git metadata |
 | Network tools | `alpine` image (ping, curl, nc, traceroute, ss) | Network diagnostics |

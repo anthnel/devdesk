@@ -10,7 +10,7 @@ A terminal-based DevSecOps workstation built with Go and [Bubble Tea](https://gi
 | **Status**              | Real-time system monitoring (HTTP/HTTPS, ICMP ping, DNS, SSL) with CRUD for monitors      |
 | **GitLab Explorer**     | Browse groups and projects, clone/pull repositories, create and delete resources          |
 | **Workspaces**          | Navigate local git repositories with metadata (branch, status, last scan)                 |
-| **Security**            | Run Trivy (CVE, misconfig, SBOM) and Gitleaks (secrets) scans with remediation details    |
+| **Security**            | Run Trivy (CVE, secrets, licenses, misconfig) and Gitleaks (secrets) scans with remediation details    |
 | **Containers**          | List and manage Docker containers with live CPU/memory/network metrics                    |
 | **OCI Resources**       | Browse OCI images, scan them, launch containers, and inspect container networks           |
 | **Network Diagnostics** | ICMP, DNS, Traceroute, TCP Traceroute, Netcat, HTTP, SSL checks + real-time port monitor  |

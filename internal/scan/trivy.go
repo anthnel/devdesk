@@ -265,15 +265,6 @@ func GetTrivyMisconfigCommand(target string, targetType TargetType, tool ToolSpe
 	return tc.String()
 }
 
-// GetSBOMCommand returns the SBOM generation command for display.
-func GetSBOMCommand(target string, targetType TargetType, tool ToolSpec, server string, outputDir string) string {
-	tc, _, err := sbomArgs(target, targetType, tool, server, outputDir)
-	if err != nil {
-		return ""
-	}
-	return tc.String()
-}
-
 // RunTrivyMisconfig executes Trivy with --scanners misconfig and returns findings.
 // progressFn is an optional callback called with each stderr line.
 func RunTrivyMisconfig(ctx context.Context, target string, targetType TargetType, tool ToolSpec, server string, ignoreEOL bool, progressFn func(string)) ([]Finding, error) {
@@ -282,20 +273,4 @@ func RunTrivyMisconfig(ctx context.Context, target string, targetType TargetType
 		return nil, err
 	}
 	return runTrivy(ctx, tc, progressFn)
-}
-
-// GenerateSBOM generates a CycloneDX SBOM using Trivy and returns the path of
-// the file it wrote. If outputDir is non-empty, the SBOM is written there
-// instead of next to the target.
-func GenerateSBOM(ctx context.Context, target string, targetType TargetType, tool ToolSpec, server string, outputDir string) (string, error) {
-	tc, outputPath, err := sbomArgs(target, targetType, tool, server, outputDir)
-	if err != nil {
-		return "", err
-	}
-
-	// Unlike a scan, a non-zero exit here means no file was written.
-	if _, err := runner.Run(ctx, tc, nil); err != nil {
-		return "", fmt.Errorf("sbom generation failed: %w", err)
-	}
-	return outputPath, nil
 }

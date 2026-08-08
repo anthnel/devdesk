@@ -221,7 +221,6 @@ func sections(themes, views []string) []section {
 				toggle("Secrets", func(c *config.Config) *bool { return &c.Scan.EnableSecret }, "Gitleaks"),
 				toggle("Misconfiguration", func(c *config.Config) *bool { return &c.Scan.EnableMisconfig }, "Trivy"),
 				toggle("Licenses", func(c *config.Config) *bool { return &c.Scan.EnableLicense }, "Trivy"),
-				toggle("Generate SBOM", func(c *config.Config) *bool { return &c.Scan.GenerateSBOM }, "Trivy, CycloneDX"),
 			),
 			group("Trivy", theme.IconTarget,
 				cycle("Trivy source", func(c *config.Config) *string { return &c.Scan.TrivySource },
@@ -232,7 +231,7 @@ func sections(themes, views []string) []section {
 				text("Trivy image", func(c *config.Config) *string { return &c.Scan.TrivyImage },
 					"Empty uses "+scan.DefaultTrivyImage),
 				validated("Trivy server", func(c *config.Config) *string { return &c.Scan.TrivyServer },
-					"Client-server mode; disables misconfig, license and SBOM",
+					"Client-server mode; disables misconfig and license",
 					func(v string) error { return scan.ValidateTrivyServer(v) }),
 				toggle("Ignore unfixed", func(c *config.Config) *bool { return &c.Scan.IgnoreUnfixed }, ""),
 				toggle("Ignore end-of-life", func(c *config.Config) *bool { return &c.Scan.IgnoreEOL }, ""),
@@ -249,8 +248,6 @@ func sections(themes, views []string) []section {
 				toggle("Scan git history", func(c *config.Config) *bool { return &c.Scan.GitleaksHistory }, "Slower"),
 			),
 			group("Limits", theme.IconHourglass,
-				text("SBOM output dir", func(c *config.Config) *string { return &c.Scan.SBOMOutputDir },
-					"Empty writes beside the target"),
 				integer("Timeout (s)", func(c *config.Config) *int { return &c.Scan.Timeout }, 10, 3600, ""),
 				integer("Max concurrent scans", func(c *config.Config) *int { return &c.Scan.MaxConcurrentScans }, 1, 16, ""),
 				integer("Max cached reports", func(c *config.Config) *int { return &c.Scan.MaxCachedReports }, 1, 1000, ""),
@@ -276,5 +273,4 @@ func sections(themes, views []string) []section {
 var serverModeFields = map[string]bool{
 	"Misconfiguration": true,
 	"Licenses":         true,
-	"Generate SBOM":    true,
 }

@@ -26,8 +26,6 @@ type stageReply struct {
 func stageOf(tc toolCmd) string {
 	s := tc.String()
 	switch {
-	case strings.Contains(s, "cyclonedx"):
-		return "sbom"
 	case strings.Contains(s, "--scanners license"):
 		return "license"
 	case strings.Contains(s, "--scanners misconfig"):
@@ -86,7 +84,6 @@ func everyStage() ScanOptions {
 		EnableSecret:    true,
 		EnableLicense:   true,
 		EnableMisconfig: true,
-		GenerateSBOM:    true,
 	}
 }
 
@@ -152,7 +149,6 @@ func TestEveryEnabledStageContributesItsFindings(t *testing.T) {
 		"misconfig":    {stdout: misconfigReport(t)},
 		"secret":       {stdout: gitleaksReport(t, "aws-access-token"), err: &exitError{Code: gitleaksSecretsFound}},
 		"trivy-secret": {stdout: trivySecretReport(t, "aws-secret-access-key")},
-		"sbom":         {},
 	})
 
 	result, err := newScannerWithDeps(everyStage(), everyTool()).
@@ -181,9 +177,6 @@ func TestEveryEnabledStageContributesItsFindings(t *testing.T) {
 	}
 	if result.MisconfigCount != 1 {
 		t.Errorf("MisconfigCount = %d, want 1", result.MisconfigCount)
-	}
-	if result.SBOMPath == "" {
-		t.Error("the SBOM was generated but its path was not reported")
 	}
 	if result.Target != "/repos" || result.TargetType != TargetDirectory {
 		t.Errorf("the result does not describe what was scanned: %+v", result.Target)
@@ -310,7 +303,6 @@ func TestAnImageIsScannedForSecretsByTrivyOnly(t *testing.T) {
 		"vuln":         {stdout: `{"Results":[]}`},
 		"misconfig":    {stdout: `{"Results":[]}`},
 		"trivy-secret": {stdout: `{"Results":[]}`},
-		"sbom":         {},
 	})
 
 	if _, err := newScannerWithDeps(everyStage(), everyTool()).
@@ -319,7 +311,7 @@ func TestAnImageIsScannedForSecretsByTrivyOnly(t *testing.T) {
 	}
 
 	got := strings.Join(stagesRun(r), ",")
-	if got != "misconfig,sbom,trivy-secret,vuln" {
+	if got != "misconfig,trivy-secret,vuln" {
 		t.Errorf("stages run = %s, want licence and gitleaks left out and trivy's secret scan kept", got)
 	}
 }
@@ -397,7 +389,6 @@ func TestEveryStageReportsItsOwnFailure(t *testing.T) {
 		"misconfig":    {err: failing},
 		"secret":       {err: failing},
 		"trivy-secret": {err: failing},
-		"sbom":         {err: failing},
 	})
 
 	result, err := newScannerWithDeps(everyStage(), everyTool()).
@@ -406,7 +397,7 @@ func TestEveryStageReportsItsOwnFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	if len(result.Errors) != 6 {
+	if len(result.Errors) != 5 {
 		t.Fatalf("Errors = %v, want one per stage", result.Errors)
 	}
 	// Each entry has to say which stage it came from, or the footer message is
@@ -414,13 +405,10 @@ func TestEveryStageReportsItsOwnFailure(t *testing.T) {
 	// "gitleaks" and "trivy secret" fail for different causes and are fixed by
 	// different things.
 	joined := strings.Join(result.Errors, "\n")
-	for _, want := range []string{"trivy vuln", "trivy license", "trivy misconfig", "gitleaks", "trivy secret", "sbom"} {
+	for _, want := range []string{"trivy vuln", "trivy license", "trivy misconfig", "gitleaks", "trivy secret"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("no error naming %q:\n%s", want, joined)
 		}
-	}
-	if result.SBOMPath != "" {
-		t.Errorf("SBOMPath = %q, want empty when generation failed", result.SBOMPath)
 	}
 }
 
@@ -468,7 +456,6 @@ func TestEachStageLabelsItsOwnProgress(t *testing.T) {
 		"misconfig":    {stdout: `{"Results":[]}`},
 		"secret":       {stdout: "[]"},
 		"trivy-secret": {stdout: `{"Results":[]}`},
-		"sbom":         {},
 	})
 	r.progress = []string{"downloading db"}
 
@@ -490,8 +477,6 @@ func TestEachStageLabelsItsOwnProgress(t *testing.T) {
 		}
 	}
 
-	// The SBOM stage passes no callback: it writes a file rather than a report,
-	// so there is nothing to narrate.
 	for _, stage := range []string{"vuln", "license", "misconfig", "secret", "trivy-secret"} {
 		if labelled[stage] == "" {
 			t.Errorf("the %s stage did not forward the tool's progress under a label", stage)
@@ -501,9 +486,6 @@ func TestEachStageLabelsItsOwnProgress(t *testing.T) {
 	// and they must not: one can finish while the other is still running.
 	if labelled["secret"] == labelled["trivy-secret"] {
 		t.Errorf("both secret stages report the label %q, so they collapse onto one row", labelled["secret"])
-	}
-	if _, narrated := labelled["sbom"]; narrated {
-		t.Error("the SBOM stage narrated progress it does not collect")
 	}
 }
 

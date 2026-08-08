@@ -1,7 +1,7 @@
 # A configuration view, and `security` becomes an inventory
 
-Status: **complete.** All five phases shipped. What is left is the SBOM removal
-that was deliberately deferred until after phase 3 -- `docs/backlog.md` §3.14.
+Status: **complete.** All five phases shipped, and the SBOM removal that was
+deferred until after phase 3 has landed too -- `docs/backlog.md` §3.14.
 
 | Phase | State |
 |---|---|
