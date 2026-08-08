@@ -2606,6 +2606,9 @@ questions are marked as such.
 | 9 | Modals | **Yes/no confirmations only** (Rule 112). The list is the progress view and the report. |
 | 10 | Selecting a group | **Takes everything under it.** Drill in to deselect what you do not want. |
 | 11 | How a selection is stored | **Roots plus exclusions**, never a positive list of repositories. |
+| 12 | Cancelling | **Stops the pipeline, never a clone.** Discovery is cancelled and no new clone is issued; the ones running are awaited. |
+| 13 | The list afterwards | **Discarded on `esc`.** The result is what workspaces shows; there is nothing to keep. |
+| 14 | The selection control | **No change to `datatable`.** The view supplies the check state through the `Cell` seam that already exists. |
 
 Decision 2 is the load-bearing one. It draws a line that holds: **the explorer
 creates what does not exist, workspaces reconciles what does.** The explorer
@@ -2663,6 +2666,47 @@ and never drops the explorer (`selection.go:37-41`), so a multi-selection in
 progress survives the round trip the way `pullTargetNode` does today, and
 `PullSelectionCancelledMsg` already returns without losing it.
 
+Decision 12 dissolves the partial-directory question rather than answering it:
+a clone is never interrupted, so it never leaves half a repository behind. It
+does require **two cancellation scopes**, which is the part to get right.
+Discovery is HTTP reads and cancels through a `context` safely; a clone is a
+`git clone` writing into a directory, and a `context` that kills it recreates
+exactly the mess this decision avoids. So the context covers discovery, and the
+scheduler simply stops issuing work.
+
+The cost is that **cancelling is not instant** — up to `ParallelJobs` clones
+keep running, which on large repositories is visible. The view has to say so
+(`cancelling — 3 clones finishing`), or `esc` reads as ignored. A second `esc`
+must not force: forcing is the partial directory, back again.
+
+Decision 13 holds for the successes, which workspaces lists. It loses the
+**failures**: a clone that failed wrote nothing, so nothing on disk records it.
+That is acceptable because re-running the same selection is self-correcting —
+what exists is skipped, what is missing is retried — but the failures must still
+reach `log.Printf` and the footer (Rule 128) while the view is alive, or a user
+who looks away for three minutes never learns that three repositories failed.
+
+Decision 14 was expected to be the one piece of real work left and turned out
+not to be. `Column[T].Cell` is a `func(T) string` the view supplies, so a column
+rendering a checkbox glyph computed from the exclusion set is expressible today;
+`Update` is a whitelist switch with no `default`, so `Space` is never consumed
+and reaches the view. It is the same seam as `SelectedStyles`, for the same
+stated reason — the package does not learn what a selection is any more than it
+learned what a severity is.
+
+The state must **not** move into `datatable`: `SetItems` replaces the items on
+every drill-down, while the selection spans levels the table has never shown. A
+selection kept there would be lost on the first `→`.
+
+The real cost sits in the explorer. Columns are built once in `New` and cannot
+reach the live model, so the check state has to be carried on a **row type** —
+the `imageRow` pattern — moving the table from `Model[*TreeNode]` to
+`Model[explorerRow]`. Mechanical, but not free. And `RenderCheckboxTri` styles
+its output, so it cannot go in a cell (Rule 122); only the raw icons can.
+
+This judgement flips the day a **second** table needs a selection. For one,
+generalising into `datatable` would be speculative.
+
 #### Two prerequisites, both defects in their own right
 
 **Discovery is far too expensive as it stands.** `fetchGroupChildren` costs one
@@ -2697,16 +2741,6 @@ See D34.
 **Watch the name clash on `MaxDepth`.** §3.6 settles a *different* one — the
 depth a forge declares (1 for GitHub, unbounded for GitLab). Two settings of the
 same name meaning two things is a trap; one of them has to be renamed.
-
-#### Still open
-
-1. **Cancellation, and what it leaves on disk.** A clone interrupted mid-way
-   leaves a partial directory.
-2. **What the list does when it finishes** — stays until `esc`, presumably, but
-   whether it survives leaving the view is undecided.
-3. **Multi-select has no component.** `datatable` has none. The registry browser
-   is the precedent (`selectedRegs map[string]bool`, `groupState` → all/none/
-   some) but covers **two** levels, where the explorer is arbitrary depth.
 
 #### Forge neutrality
 
