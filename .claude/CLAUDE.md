@@ -64,27 +64,58 @@ mise run install      # Install to $GOPATH/bin
 ! [remote rejected] main -> main (protected branch)
 ```
 
-This is enforced by the mirror, not by GitHub (`gh api repos/anthnel/devdesk/branches/main`
-reports `"protected": false`). Every other branch, including
-`entire/checkpoints/v1`, pushes through the mirror and is forwarded to GitHub.
+This is enforced by the mirror, not by GitHub, and **Entire does not document it**
+— neither the CLI help nor `docs.entire.io` mentions a protected default branch.
+The only branch restriction Entire states is that `entire/unmirrored/*` is never
+forwarded. Treat the rejection as observed behaviour, not as a specified one.
+
+What rules GitHub out is that branch protection is *unavailable* on this
+repository: it is private on a free personal plan, so both endpoints answer
+`403 Upgrade to GitHub Pro or make this repository public` —
+`/repos/anthnel/devdesk/branches/main/protection` and `/repos/anthnel/devdesk/rulesets`
+alike. Do not cite `gh api repos/anthnel/devdesk/branches/main` reporting
+`"protected": false` as the proof: that field only ever reflects legacy branch
+protection, so it reads `false` under a ruleset too, and on this plan it would
+read `false` whatever the configuration. The 403 is the evidence; the `false` is
+not.
+
+Every other branch, including `entire/checkpoints/v1`, pushes through the mirror
+and is forwarded to GitHub.
+
+**Pull requests are GitHub's, not Entire's.** Entire has no merge-request
+concept — it layers checkpoints and sessions over git and forwards pushes. So
+the PR steps below are `gh`, and the branch they review is one `origin` carried
+to GitHub. `entire review` (labs) runs a multi-agent review against the current
+branch and is a pre-merge step, not a substitute for the PR.
 
 ```bash
 git switch -c <branch>                          # work
 git push origin <branch>                        # via the mirror — forwarded to GitHub
-gh pr create --base main --head <branch>
-gh pr merge <n> --squash --delete-branch
-git fetch github main && git merge --ff-only github/main   # see below
+gh pr create -R anthnel/devdesk --base main --head <branch>
+gh pr merge -R anthnel/devdesk <n> --squash --delete-branch
+git fetch origin main && git merge --ff-only origin/main   # may need a retry, see below
 ```
 
-**After a merge, fast-forward from `github`, not from `origin`.** The mirror
-lags GitHub by a minute or two, so `git fetch origin` right after
-`gh pr merge` returns the *previous* `main` — with no error, which is the part
-that misleads. `gh pr view <n> --json state` says `MERGED` while
-`git rev-parse origin/main` still points at the commit before it.
+**`-R anthnel/devdesk` is not optional.** `gh` infers the repository from a
+remote pointing at a GitHub host, and `origin` is an `entire://` URL, so it
+finds none and fails with *"none of the git remotes configured for this
+repository point to a known GitHub host"*. The flag names the repo directly.
+Do not solve this by adding a GitHub remote — see below.
 
-Pushing branches still goes through `origin`: the mirror forwards them, and it
-is the regional path. It is only the read-back immediately after a merge that
-has to come from the source of truth.
+**After a merge, `origin` can read stale for a minute or two.** The mirror lags
+GitHub, so `git fetch origin` right after `gh pr merge` may return the *previous*
+`main` — with no error, which is the part that misleads. `gh pr view <n> --json state`
+says `MERGED` while `git rev-parse origin/main` still points at the commit before
+it. Re-run the fetch a moment later; `gh` is what to trust in the meantime,
+because it talks to GitHub directly and needs no remote.
+
+**Do not add a second remote pointing at GitHub to work around that.** It would
+be the one path that defeats the only protection there is: `main` cannot be
+protected on GitHub here (see the 403 above), so the mirror's refusal is the
+whole of it, and `git push github main` would simply succeed. A direct push also
+bypasses the mirror, and with it the Entire hook that records checkpoints and
+sessions — which is not visible until much later. `origin` is the only remote,
+deliberately.
 
 **Merging several branches cut from the same commit conflicts in
 `docs/backlog.md`.** Every fix inserts its entry at the top of §1.1, so the
@@ -95,12 +126,14 @@ keep both sides — they are independent entries, not competing edits.
 
 | Remote | URL | Use |
 |--------|-----|-----|
-| `origin` | `entire://aws-eu-central-1.entire.io/gh/anthnel/devdesk` | Entire mirror — clone, fetch, push branches |
-| `github` | `https://github.com/anthnel/devdesk.git` | source of truth; fallback for direct pushes |
+| `origin` | `entire://aws-eu-central-1.entire.io/gh/anthnel/devdesk` | Entire mirror — everything: clone, fetch, push |
 
-The repository is hosted on GitHub and mirrored to EntireDB in `aws-eu-central-1`
-(a second placement exists in `aws-us-east-2`). Prefer `origin` for day-to-day
-work: it is the regional path and is what keeps agent reads fast.
+**There is one remote, and there should stay one.** The repository is hosted on
+GitHub and mirrored to EntireDB in `aws-eu-central-1` (a second placement exists
+in `aws-us-east-2`), but every git operation goes through the mirror: it is the
+regional path, it is what keeps agent reads fast, and it is where the checkpoint
+hook runs. Anything needing GitHub's own answer — PR state, review threads —
+goes through `gh`, which authenticates directly and does not need a remote.
 
 Semantic search (`entire search`, and the `entire:*` skills that depend on it) is
 **not available in the EU region** — the server answers `semantic search is not
