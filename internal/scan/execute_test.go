@@ -45,6 +45,23 @@ func (r *scriptedRunner) commands() []string {
 	return out
 }
 
+// commandForStage returns the invocation of one stage, or "" if it never ran.
+//
+// Scan runs its stages concurrently, so calls are recorded in completion order:
+// a test that wants one scanner's command has to name the stage. Taking the
+// last command that merely looked like Trivy is how this went: two stages
+// invoke Trivy, and whichever finished second won.
+func (r *scriptedRunner) commandForStage(stage string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, c := range r.calls {
+		if stageOf(c) == stage {
+			return c.String()
+		}
+	}
+	return ""
+}
+
 func (r *scriptedRunner) count() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()

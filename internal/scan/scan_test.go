@@ -543,19 +543,19 @@ func TestScanOptionsReachTheInvocation(t *testing.T) {
 		t.Fatalf("Scan: %v", err)
 	}
 
-	var trivy, gitleaks string
-	for _, c := range r.commands() {
-		if strings.HasPrefix(c, "gitleaks") {
-			gitleaks = c
-		} else {
-			trivy = c
-		}
-	}
+	vuln := r.commandForStage("vuln")
+	trivySecret := r.commandForStage("trivy-secret")
+	gitleaks := r.commandForStage("secret")
 
 	for _, want := range []string{"--server https://trivy:4954", "--ignore-unfixed", "--ignore-status end_of_life"} {
-		if !strings.Contains(trivy, want) {
-			t.Errorf("the trivy invocation is missing %q:\n%s", want, trivy)
+		if !strings.Contains(vuln, want) {
+			t.Errorf("the trivy vuln invocation is missing %q:\n%s", want, vuln)
 		}
+	}
+	// The secret stage takes a server too, and it is the one option it shares
+	// with the vuln stage — the other two do not apply to it.
+	if !strings.Contains(trivySecret, "--server https://trivy:4954") {
+		t.Errorf("the trivy secret invocation is missing the server:\n%s", trivySecret)
 	}
 	if !strings.Contains(gitleaks, "--config /etc/gitleaks.toml") {
 		t.Errorf("the gitleaks config was not passed:\n%s", gitleaks)
