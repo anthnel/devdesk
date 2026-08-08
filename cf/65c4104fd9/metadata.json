@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "cf65c4104fd9",
+  "strategy": "manual-commit",
+  "branch": "refactor/remove-sbom",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/cf/65c4104fd9/0/metadata.json",
+      "transcript": "/cf/65c4104fd9/0/full.jsonl",
+      "compact_transcript": "/cf/65c4104fd9/0/transcript.jsonl",
+      "content_hash": "/cf/65c4104fd9/0/content_hash.txt",
+      "prompt": "/cf/65c4104fd9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1073,
+    "cache_creation_tokens": 1500084,
+    "cache_read_tokens": 193750612,
+    "output_tokens": 298468,
+    "api_call_count": 569
+  }
+}

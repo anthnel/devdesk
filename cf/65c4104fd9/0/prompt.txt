@@ -1,0 +1,9 @@
+merge
+
+---
+
+fais la suppression du sbom
+
+---
+
+on peut enlever le remote github, puis merge
