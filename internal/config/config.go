@@ -58,7 +58,6 @@ type GitLabConfig struct {
 // GitLabPullConfig contient la configuration pour la synchronisation
 type GitLabPullConfig struct {
 	ParallelJobs    int  `yaml:"parallel_jobs"`
-	MaxDepth        int  `yaml:"max_depth"`
 	IncludeArchived bool `yaml:"include_archived"`
 }
 
@@ -246,9 +245,6 @@ func applyDefaults(cfg *Config) error {
 	if cfg.GitLab.Pull.ParallelJobs == 0 {
 		cfg.GitLab.Pull.ParallelJobs = 4
 	}
-	if cfg.GitLab.Pull.MaxDepth == 0 {
-		cfg.GitLab.Pull.MaxDepth = 5
-	}
 	if cfg.Registry.CacheDir == "" {
 		cfg.Registry.CacheDir = filepath.Join(homeDir, ".devdesk", "cache", "templates")
 	}
@@ -321,7 +317,6 @@ func Default() *Config {
 			CloneMethod:       "https",
 			Pull: GitLabPullConfig{
 				ParallelJobs:    4,
-				MaxDepth:        5,
 				IncludeArchived: false,
 			},
 		},

@@ -78,18 +78,23 @@ func (m Model) recursivePullNode(client *gitlabclient.Client, node *TreeNode, ba
 		return
 	}
 
-	// Load children if not already loaded
-	if node.Children == nil {
-		children, err := m.fetchGroupChildren(client, node)
+	// Walk the group. The children stay local: they are discovery nodes, which
+	// carry a type and a path and none of the decoration the view renders, so
+	// storing them on the tree would blank the role and CI columns for every
+	// group a clone passed through. Writing to node.Children from inside a Cmd
+	// was also a race against Update, which reads it (Rule 110).
+	children := node.Children
+	if children == nil {
+		fetched, err := discoverGroupChildren(client, node)
 		if err != nil {
 			report.Errors = append(report.Errors, fmt.Sprintf("fetch %s: %v", node.FullPath, err))
 			return
 		}
-		node.Children = children
+		children = fetched
 	}
 
 	// Process children recursively
-	for _, child := range node.Children {
+	for _, child := range children {
 		m.recursivePullNode(client, child, groupPath, cloneMethod, gitlabURL, report)
 	}
 }

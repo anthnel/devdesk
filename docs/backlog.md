@@ -643,12 +643,22 @@ commits behind until the user fetches from a terminal. It is not a missing
 feature but a number that looks authoritative and is not. Blocks §3.17, which
 must fetch before it decides anything.
 
-**D34 — the explorer paginates nothing.** Every list in
-`internal/ui/gitlab/explorer/api.go` is built with `PerPage: 100, Page: 1`
-(lines 21, 47, 77, 124, 151), so a group with more than 100 subgroups or 100
-projects is silently truncated. Today the consequence is a clone that skips
-repositories without saying so; §3.16 makes it worse by putting a count on
-screen, which is why it is a prerequisite there rather than a nicety.
+**D34 — the explorer paginated nothing. Fixed.** Every list in
+`internal/ui/gitlab/explorer/api.go` was built with `PerPage: 100, Page: 1`, at
+five sites, so a group with more than 100 subgroups or 100 projects was silently
+truncated: the explorer showed fewer children than it had, and a recursive clone
+skipped repositories without saying so.
+
+`listAll` now walks every page and the four list calls go through it — one loop
+rather than four copies, which is how one of them would have ended up wrong. It
+terminates on `NextPage <= Page` rather than `NextPage == 0` alone: that also
+stops a server pointing back at the page just served, and unlike a page cap it
+is a bound that cannot cut a legitimate response short. `perPage` is the one
+place the 100 is written.
+
+Three tests assert both halves of a group's children and the pull's own walk
+follow every page, and were checked against the pre-fix code — all three fail on
+it. A fourth pins the runaway guard.
 
 **D25 — status acted on the wrong monitor under a filter. Fixed** by §2 step 6,
 which is also what found it. `getSelectedComponentIndex` replayed the sort by
@@ -2602,8 +2612,13 @@ questions are marked as such.
 | 5 | Target directory | **Keep borrowing the workspaces view**, as today. |
 | 6 | `gitlab.pull.target_dir` | **Deleted** — done, see below. |
 | 7 | Discovery and cloning | **Pipelined.** The list fills as discovery finds repositories and a row starts spinning as soon as it is found. |
-| 8 | Selection | A new mode: **several parent folders at once**, confirmed in one go. |
+| 8 | Selection | A new mode: **several roots at once** — parent folders *and* individual projects — confirmed in one go. |
 | 9 | Modals | **Yes/no confirmations only** (Rule 112). The list is the progress view and the report. |
+| 10 | Selecting a group | **Takes everything under it.** Drill in to deselect what you do not want. |
+| 11 | How a selection is stored | **Roots plus exclusions**, never a positive list of repositories. |
+| 12 | Cancelling | **Stops the pipeline, never a clone.** Discovery is cancelled and no new clone is issued; the ones running are awaited. |
+| 13 | The list afterwards | **Discarded on `esc`.** The result is what workspaces shows; there is nothing to keep. |
+| 14 | The selection control | **No change to `datatable`.** The view supplies the check state through the `Cell` seam that already exists. |
 
 Decision 2 is the load-bearing one. It draws a line that holds: **the explorer
 creates what does not exist, workspaces reconciles what does.** The explorer
@@ -2625,60 +2640,132 @@ the cost of the total only being known at the end — the header counts up
 anything starts is given up deliberately; selecting the groups is the act of
 decision.
 
+Decision 11 is forced by decision 7, and this is the part worth keeping. A
+**positive** list of the chosen repositories cannot be built when a group is
+ticked without enumerating its children first — which is the full API walk, run
+at selection time. That is the freeze pipelining was chosen to remove, moved one
+screen earlier. **Roots plus exclusions represents "this group, minus these"
+without knowing what the group contains**, so nothing has to be discovered
+before the user confirms. It is the only representation compatible with
+decision 7. `RegistryBrowser` already stores its selection as the entries that
+were *un*checked (`registry_browser.go:201-202`) — same shape, weaker reason.
+
+Three things fall out of it:
+
+- **The tri-state needs no discovery.** A group renders `CheckSome` exactly when
+  some exclusion path is a descendant of it, which is known by construction: an
+  exclusion is only ever created by a keystroke on a node already on screen. So
+  a group nobody has expanded still displays correctly.
+  `theme.CheckState` and `theme.RenderCheckboxTri` already exist and are shared,
+  not browser-local.
+- **Deselection costs only what it inspects.** Drilling into a group to untick
+  something fetches that one level — the lazy navigation that already exists.
+- **The overlap question disappears.** Ticking a group and then a descendant is
+  meaningless, because the descendant is already implied; unticking makes an
+  exclusion and re-ticking removes it. There is no ambiguous case left to rule
+  on.
+
+What has to be accepted: **the confirmation screen cannot state a repository
+count** — only `3 groups · 1 project · 4 exclusions`. The number appears as
+discovery runs, which is the same trade decision 7 already made.
+
+Keys fit Rule 135 unchanged: `←→` drills, `Space` toggles, each keeping one job.
+
 Decision 5 costs nothing: `openBrowser` replaces only `views[ViewWorkspaces]`
 and never drops the explorer (`selection.go:37-41`), so a multi-selection in
 progress survives the round trip the way `pullTargetNode` does today, and
 `PullSelectionCancelledMsg` already returns without losing it.
 
-#### Two prerequisites, both defects in their own right
+Decision 12 dissolves the partial-directory question rather than answering it:
+a clone is never interrupted, so it never leaves half a repository behind. It
+does require **two cancellation scopes**, which is the part to get right.
+Discovery is HTTP reads and cancels through a `context` safely; a clone is a
+`git clone` writing into a directory, and a `context` that kills it recreates
+exactly the mess this decision avoids. So the context covers discovery, and the
+scheduler simply stops issuing work.
 
-**Discovery is far too expensive as it stands.** `fetchGroupChildren` costs one
-call for subgroups plus one for projects **per group**, plus **two more per
-project** — `fetchLastPipelineStatus` and `fetchProjectAccessLevel`
-(`api.go:57-58`). Two hundred repositories is 400+ calls for a CI status and an
-access level a clone has no use for. Discovery needs a lighter fetch than
-browsing does.
+The cost is that **cancelling is not instant** — up to `ParallelJobs` clones
+keep running, which on large repositories is visible. The view has to say so
+(`cancelling — 3 clones finishing`), or `esc` reads as ignored. A second `esc`
+must not force: forcing is the partial directory, back again.
 
-**Nothing in `api.go` paginates** — every list is `PerPage: 100, Page: 1`. A
-group of 101 projects enumerates 100. Today that means a clone silently skips
-repositories; with a list on screen the view would state a count and be wrong.
-See D34.
+Decision 13 holds for the successes, which workspaces lists. It loses the
+**failures**: a clone that failed wrote nothing, so nothing on disk records it.
+That is acceptable because re-running the same selection is self-correcting —
+what exists is skipped, what is missing is retried — but the failures must still
+reach `log.Printf` and the footer (Rule 128) while the view is alive, or a user
+who looks away for three minutes never learns that three repositories failed.
+
+Decision 14 was expected to be the one piece of real work left and turned out
+not to be. `Column[T].Cell` is a `func(T) string` the view supplies, so a column
+rendering a checkbox glyph computed from the exclusion set is expressible today;
+`Update` is a whitelist switch with no `default`, so `Space` is never consumed
+and reaches the view. It is the same seam as `SelectedStyles`, for the same
+stated reason — the package does not learn what a selection is any more than it
+learned what a severity is.
+
+The state must **not** move into `datatable`: `SetItems` replaces the items on
+every drill-down, while the selection spans levels the table has never shown. A
+selection kept there would be lost on the first `→`.
+
+The real cost sits in the explorer. Columns are built once in `New` and cannot
+reach the live model, so the check state has to be carried on a **row type** —
+the `imageRow` pattern — moving the table from `Model[*TreeNode]` to
+`Model[explorerRow]`. Mechanical, but not free. And `RenderCheckboxTri` styles
+its output, so it cannot go in a cell (Rule 122); only the raw icons can.
+
+This judgement flips the day a **second** table needs a selection. For one,
+generalising into `datatable` would be speculative.
+
+#### Two prerequisites, both defects in their own right — both done
+
+**A lighter fetch for discovery — done.** The recursive walk cost one call for
+subgroups plus one for projects per group, plus **two more per project** —
+`fetchLastPipelineStatus` and `fetchProjectAccessLevel`. Two hundred
+repositories was 400+ calls for a CI status and a role no clone reads.
+
+`listGroupChildren` is now the paginated, undecorated half both callers share;
+`discoverGroupChildren` builds nodes from it and decorates nothing, while
+`loadChildren` decorates as before. The two are **not** interchangeable, which
+is why the clone also stopped writing what it finds onto `node.Children`:
+discovery nodes on the tree the view renders would blank the role and CI
+columns for every group a clone had passed through.
+
+That write was also **Rule 110** — a `Cmd` assigning a field `Update` reads —
+so the race is gone as a side effect rather than as a patch. It was going to be
+removed by the rework anyway; the lighter fetch made keeping it actively
+harmful, which is what brought it forward.
+
+**Pagination — done.** Every list in `api.go` stopped at the first page, so a
+group of 101 projects enumerated 100. With a list on screen the view would have
+stated a count and been wrong, which is why this was a prerequisite rather than
+a nicety. Fixed ahead of the rework; see D34.
 
 #### What the rework fixes for free
 
-- **Rule 110, by construction.** `node.Children` is written inside a `Cmd`
-  today (`pull.go:88`) on the same `*TreeNode` values `Update` reads
-  (`navigation.go:24`, `:70`). Discovery returning its children as messages —
-  the `navigation.go:90` pattern — removes the race rather than patching it.
-- **Three of the four unread `gitlab.pull.*` settings find a use**:
-  `ParallelJobs` is how many rows spin at once, `MaxDepth` bounds discovery,
-  `IncludeArchived` filters it. Each is either wired here or deleted; leaving
-  one declared and unread is not an outcome.
+- **Rule 110 — already gone.** `node.Children` was written inside a `Cmd` on
+  the same `*TreeNode` values `Update` reads (`navigation.go:24`, `:70`). The
+  lighter discovery fetch removed the write, so the rework inherits a walk with
+  no shared state to race on.
+- **The four unread `gitlab.pull.*` settings are resolved, two each way.**
+  `ParallelJobs` becomes how many rows spin at once and `IncludeArchived` a
+  discovery filter; `TargetDir` and `MaxDepth` are deleted. Leaving one declared
+  and unread is not an outcome.
 - **`gitlab.pull.target_dir` is gone.** It duplicated `app.workspaces_dir` —
   same meaning, and defaults differing by a single letter (`~/workspace` against
   `~/workspaces`), so setting the wrong one changed nothing and said nothing.
-  Decision 5 leaves it no role at all. Removed ahead of the rework since it is
-  independent of it; `TestAConfigCarryingRetiredKeysStillLoads` covers the
-  configs already on disk.
+  Decision 5 leaves it no role at all.
+- **`gitlab.pull.max_depth` is gone**, and not merely for being unread. A depth
+  bound **contradicts decision 10**: tick a group, have discovery stop at level
+  five, and you get less than you asked for with nothing saying so — the silent
+  truncation of D34, reintroduced as a feature. Exclusions express the same
+  intent precisely: "only the top level" is drilling in and unticking the
+  subgroups, which is explicit and visible. Deleting it also removes the name
+  clash with §3.6, which settles a *different* `MaxDepth` — the depth a forge
+  declares, 1 for GitHub and unbounded for GitLab.
 
-**Watch the name clash on `MaxDepth`.** §3.6 settles a *different* one — the
-depth a forge declares (1 for GitHub, unbounded for GitLab). Two settings of the
-same name meaning two things is a trap; one of them has to be renamed.
-
-#### Still open
-
-1. **Can individual projects be selected too**, or only parent folders? The
-   proposal says folders; a single project is the common case today.
-2. **The overlap rule.** Selecting a group and one of its descendants: the
-   descendant is redundant and should be dropped, but the tri-state display has
-   to say so.
-3. **Cancellation, and what it leaves on disk.** A clone interrupted mid-way
-   leaves a partial directory.
-4. **What the list does when it finishes** — stays until `esc`, presumably, but
-   whether it survives leaving the view is undecided.
-5. **Multi-select has no component.** `datatable` has none. The registry browser
-   is the precedent (`selectedRegs map[string]bool`, `groupState` → all/none/
-   some) but covers **two** levels, where the explorer is arbitrary depth.
+Both removals landed ahead of the rework, being independent of it;
+`TestAConfigCarryingRetiredKeysStillLoads` covers the configs already on disk.
 
 #### Forge neutrality
 

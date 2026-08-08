@@ -166,7 +166,7 @@ Additive. Nothing is removed in this phase, so it ships green on its own.
 | Section | Fields |
 |---|---|
 | `app` | `theme`, `default_view`, `workspaces_dir`, `ide_command`, `terminal_command`, `secret_backend`, `log_file` |
-| `gitlab` | `url`, `default_parent_group`, `default_visibility`, `clone_method`, `pull.parallel_jobs`, `pull.max_depth`, `pull.include_archived` |
+| `gitlab` | `url`, `default_parent_group`, `default_visibility`, `clone_method`, `pull.parallel_jobs`, `pull.include_archived` |
 | `scan` | the 9 option booleans, `trivy_source` + `trivy_path` + `trivy_image`, `gitleaks_source` + `gitleaks_path` + `gitleaks_image`, `trivy_server`, `gitleaks_config`, `sbom_output_dir`, `timeout`, `max_concurrent_scans`, `max_cached_reports` |
 | `docker` | `network_tool_image` |
 | `status` | `refresh_interval`, `timeout`, `auto_refresh` |
@@ -196,7 +196,7 @@ one blank line of top padding (Rule 131).
 | Closed set | cycle `←→` (Rule 132) | `theme`, `default_view`, `secret_backend`, `clone_method`, `default_visibility`, `trivy_source`, `gitleaks_source` |
 | Boolean | checkbox, `Space` only | `auto_refresh`, `include_archived`, the 9 scan options |
 | Free text | `textinput` | paths, URLs, image names |
-| Integer | `textinput` + validation | `refresh_interval`, both `timeout`, `parallel_jobs`, `max_depth`, `max_concurrent_scans`, `max_cached_reports` |
+| Integer | `textinput` + validation | `refresh_interval`, both `timeout`, `parallel_jobs`, `max_concurrent_scans`, `max_cached_reports` |
 
 Two notes that will otherwise be got wrong:
 
