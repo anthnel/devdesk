@@ -2558,6 +2558,79 @@ highest risk since the payload *is* the secret — possibly viable by sending ru
 name, path and entropy with the match withheld); container log explanation
 (logs carry env vars and DSNs routinely).
 
+### 3.16 Reworking the pull from the explorer — **to brainstorm**
+
+`p` on a group or a project in the explorer clones the subtree into a workspace.
+It works, and it is the least designed path in the application. The rework is
+wanted **for the user experience**, so this entry records what the code does
+today and leaves the design open: nothing below is a decision.
+
+#### What it does today
+
+`internal/ui/gitlab/explorer/pull.go`, 127 lines. `p` stores the selected node,
+asks the router to borrow the workspaces view for a destination, then runs
+`recursivePull` in a single `Cmd` that returns once the whole subtree is done.
+`ModePulling` shows a fixed string, `"Pulling..."`, and a `ReportModal` lists
+what was cloned, skipped and failed when it is over.
+
+Four things about it are established fact, not opinion:
+
+**It never pulls.** `internal/gitlab` has `Clone` and `DirExists` and no `Pull`
+at all (`git_ops.go`). A project already on disk goes to `report.Skipped` —
+`pull.go:102`. So the key called Pull, described in the help as
+`"Pull/clone the selected project or group into a workspace"`, clones what is
+missing and touches nothing that exists. Whatever the rework decides, it has to
+decide whether the name or the behaviour is the thing that is wrong.
+
+**The four `gitlab.pull.*` settings are written and never read.** `TargetDir`,
+`ParallelJobs`, `MaxDepth` and `IncludeArchived` are declared in
+`config.go:60-63`, given defaults (`config.go:247-254`) and offered as fields in
+the configuration view (`fields.go:211-214`). Nothing else in the tree reads
+any of them — the pull hardcodes its own behaviour: the destination comes from
+the borrowed workspaces view rather than `TargetDir`, clones run one after
+another rather than `ParallelJobs` at a time, the recursion has no depth bound,
+and archived projects are neither included nor excluded deliberately. This is
+the class §3.14 just finished removing and the class D27 was: an option that can
+be set and not read. Four of them.
+
+**`node.Children` is written inside a `Cmd`** — `pull.go:88`, reached from the
+closure in `handlePullDestinationSelected`. The table is
+`datatable.Model[*TreeNode]`, so those are the same nodes `Update` reads at
+`navigation.go:24` and `:70`. That is Rule 110, and it is a real race rather
+than a stylistic one. `navigation.go:90` shows the shape the fix takes: the
+fetched children come back as a message and are assigned in `Update`.
+
+**There is no progress and no way to stop.** One `Cmd` covers the whole subtree,
+so nothing reports which repository is being cloned, how many remain, or how
+long it has taken, and there is no `context` to cancel. A group of fifty
+repositories is several minutes of a view that cannot be distinguished from a
+frozen one.
+
+#### What the brainstorm has to answer
+
+Open, in rough order of how much the rest depends on them:
+
+1. **What is the operation?** Clone-what-is-missing, update-what-exists, or
+   both — and if both, is it one key or two? This decides the name, the report
+   and whether a dirty working tree is a case to handle.
+2. **Where does the destination come from?** The borrowed workspaces view, the
+   unread `TargetDir`, or a choice offered per pull. Borrowing a view is the
+   heaviest interaction the feature has, for one path.
+3. **What does the user see while it runs?** Per-repository progress in the
+   table itself is one option — the security inventory already spins a marker on
+   the row it is rescanning, and the pattern transfers. A modal is another.
+4. **Can it be cancelled, and what is left behind if it is?** A half-finished
+   recursive clone leaves directories on disk.
+5. **Does the report stay a modal?** It is the only output today, and it is
+   shown once and dismissed with no way back to it.
+6. **What happens to the four unread settings?** Each is either wired up or
+   deleted. Leaving one declared and unread is not an outcome.
+
+The Rule 110 write and the four unread settings are defects independent of the
+design; they can be fixed on the current shape if the rework is deferred. They
+are recorded here rather than in §1.3 because the rework touches the same code
+and the design should decide their fate rather than a patch pre-empting it.
+
 ### 3.15 The scan form is deleted (phase 3) — **done**
 
 The last phase of
