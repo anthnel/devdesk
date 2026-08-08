@@ -1,0 +1,17 @@
+merge
+
+---
+
+fais la suppression du sbom
+
+---
+
+on peut enlever le remote github, puis merge
+
+---
+
+est-ce qu'on peut configurer pour permettre la détection de race , il faut installer un compilateur c
+
+---
+
+ajoute au backlog une nouvelle entrée : je souhaite retravailler le pull depuis la vue explorer, il faudra qu'on brainstorm sur la meilleure façon de le faire pour l'expérience utilisateur

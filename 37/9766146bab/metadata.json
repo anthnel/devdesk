@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "379766146bab",
+  "strategy": "manual-commit",
+  "branch": "docs/pull-rework-backlog",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/37/9766146bab/0/metadata.json",
+      "transcript": "/37/9766146bab/0/full.jsonl",
+      "compact_transcript": "/37/9766146bab/0/transcript.jsonl",
+      "content_hash": "/37/9766146bab/0/content_hash.txt",
+      "prompt": "/37/9766146bab/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1139,
+    "cache_creation_tokens": 1531173,
+    "cache_read_tokens": 198974518,
+    "output_tokens": 315193,
+    "api_call_count": 605
+  }
+}
