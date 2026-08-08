@@ -17,8 +17,6 @@ func OptionsFromConfig(c config.ScanConfig) ScanOptions {
 		EnableSecret:    c.EnableSecret,
 		EnableLicense:   c.EnableLicense,
 		EnableMisconfig: c.EnableMisconfig,
-		GenerateSBOM:    c.GenerateSBOM,
-		SBOMOutputDir:   c.SBOMOutputDir,
 		TrivySource:     c.TrivySource,
 		TrivyPath:       c.TrivyPath,
 		TrivyImage:      c.TrivyImage,

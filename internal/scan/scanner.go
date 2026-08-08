@@ -45,7 +45,7 @@ const (
 // ProgressUpdate carries structured progress notifications from the scanner to the UI.
 // It is emitted by OnProgress at the start, during, and on completion of each stage.
 type ProgressUpdate struct {
-	Stage  string      // unique identifier: "vuln", "secret", "license", "misconfig", "sbom"
+	Stage  string      // unique identifier: "vuln", "secret", "trivy-secret", "license", "misconfig"
 	Label  string      // human-readable label
 	Status StageStatus // current status of the stage
 	Detail string      // optional detail (e.g., DB download progress from Trivy stderr)
@@ -57,8 +57,6 @@ type ScanOptions struct {
 	EnableSecret    bool   // Secret scanning (Gitleaks)
 	EnableLicense   bool   // License scanning (Trivy)
 	EnableMisconfig bool   // Misconfiguration scanning (Trivy)
-	GenerateSBOM    bool   // SBOM generation (Trivy, CycloneDX format)
-	SBOMOutputDir   string // Output directory for SBOM files (optional)
 	TrivySource     string // Where Trivy runs from: auto | binary | image
 	TrivyPath       string // Custom Trivy executable (optional)
 	TrivyImage      string // Custom Docker image for Trivy (optional)
@@ -116,7 +114,6 @@ type Result struct {
 	MisconfigCount int            `json:"misconfig_count"` // Total misconfigurations found
 	Findings       []Finding      `json:"findings"`
 	Errors         []string       `json:"errors,omitempty"`
-	SBOMPath       string         `json:"sbom_path,omitempty"` // Path to generated SBOM file
 }
 
 // CountFindings aggregates findings into separate counters by category and
@@ -288,7 +285,7 @@ func newScannerWithDeps(opts ScanOptions, deps DependencyStatus) *Scanner {
 // reason that has nothing to do with what the machine has installed. Only the
 // stages that would otherwise have run are reported.
 func (s *Scanner) missingToolErrors(targetType TargetType) []string {
-	wantsTrivy := s.options.EnableVuln || s.options.EnableMisconfig || s.options.GenerateSBOM ||
+	wantsTrivy := s.options.EnableVuln || s.options.EnableMisconfig ||
 		s.options.EnableSecret || (s.options.EnableLicense && targetType == TargetDirectory)
 	wantsGitleaks := s.options.EnableSecret && targetType == TargetDirectory
 
@@ -330,7 +327,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	// looked at this image" being reported as "this image is fine" (§1.3 D20).
 	result.Errors = append(result.Errors, s.missingToolErrors(targetType)...)
 
-	// mu guards writes to result (Findings, Errors, SBOMPath) from concurrent goroutines
+	// mu guards writes to result (Findings, Errors) from concurrent goroutines
 	var mu sync.Mutex
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -446,24 +443,6 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			} else {
 				result.Findings = append(result.Findings, findings...)
 				notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageDone})
-			}
-			return nil
-		})
-	}
-
-	// SBOM generation (Trivy)
-	if s.options.GenerateSBOM && s.deps.TrivyAvailable {
-		eg.Go(func() error {
-			notify(ProgressUpdate{Stage: "sbom", Label: "SBOM", Status: StageRunning})
-			sbomPath, err := GenerateSBOM(egCtx, target, targetType, s.deps.TrivySpec(), s.options.TrivyServer, s.options.SBOMOutputDir)
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("sbom: %v", err))
-				notify(ProgressUpdate{Stage: "sbom", Label: "SBOM", Status: StageError})
-			} else {
-				result.SBOMPath = sbomPath
-				notify(ProgressUpdate{Stage: "sbom", Label: "SBOM", Status: StageDone})
 			}
 			return nil
 		})

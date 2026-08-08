@@ -219,7 +219,6 @@ func (m *Model) applyServerModeConstraints() {
 	}
 	m.config.Scan.EnableMisconfig = false
 	m.config.Scan.EnableLicense = false
-	m.config.Scan.GenerateSBOM = false
 }
 
 type saveFailedMsg struct{ err error }

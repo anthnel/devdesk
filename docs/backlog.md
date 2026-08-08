@@ -2616,7 +2616,7 @@ invariants live elsewhere: `ValidateTrivyServer` refusing `":"` is
 `internal/scan/command_test.go`, and `alt+:` reaching the router rather than a
 text field is `internal/app/command_mode_test.go`.
 
-### 3.14 Remove SBOM generation — **planned, after phase 3**
+### 3.14 Remove SBOM generation — **done**
 
 Drop the feature entirely: the two settings, the scan stage, the Trivy command
 builders, the two controls, the field on `Result`, and the documentation. No
@@ -2683,10 +2683,17 @@ scan-types section of `GetHelpContent`.
    `internal/ui/configuration/update.go`. Only the second survives phase 3, but
    until then both force `GenerateSBOM = false` and both must be handled or they
    disagree.
-6. **`TestEveryConfiguredOptionReachesTheScanner` needs no edit.** It walks the
+6. **`TestEveryConfiguredOptionReachesTheScanner` needs no edit** — it walks the
    field names `config.ScanConfig` and `scan.ScanOptions` share, so removing the
-   fields from both keeps it green — and it is the test that fails if only one
-   side is done.
+   fields from both keeps it green. **The survey was wrong about what it
+   catches**, and a probe during the removal established the truth: it does
+   *not* fail when only one side is done. A field present in one struct and not
+   the other is not *shared*, so the walk never visits it and the test passes.
+   What it catches is the field left in **both** structs but not carried by
+   `OptionsFromConfig` — verified by putting `GenerateSBOM` back in both and
+   watching it fail with `did not carry GenerateSBOM`. The half-done state it
+   was claimed to guard is caught by the compiler instead, which is why the
+   removal was still safe.
 
 #### Tests
 
@@ -2735,6 +2742,43 @@ grep -rin "sbom" --include=*.go .   # expected: no match
 
 Plus one manual check: a `config.yaml` carrying `generate_sbom: true` must still
 load without error.
+
+#### What it took
+
+Executed as surveyed, with three departures worth recording.
+
+**`internal/ui/security/header.go` was missing from the survey** — the
+`GetHelpContent` "Scan Types" section carried an `SBOM Generation:` line. The
+survey listed the help text under "two strings to reword" but named only
+`fields.go`; this one is a deletion, not a rewording.
+
+**`TestEveryTrivyBuilderRefusesAnUnusableServer` would have been left checking a
+single builder.** It asserted that `trivyMisconfigArgs` and `sbomArgs` both
+refuse `":"`, and the second was being deleted. `trivySecretArgs` also takes a
+server address and was covered by nothing, so it took the SBOM line's place —
+the test now means what its name says again rather than shrinking to one case.
+
+**Two codemap blocks were fiction, not merely stale.** The survey noted `SBOM
+[]SBOMComponent` and `SBOMComponent` exist nowhere. Checking the rest of the
+same block, neither do `Vulnerability`, `Secret`, `Misconfig` or `License`: the
+real `Result` carries one flat `Findings []Finding`, and which family a finding
+belongs to comes from `scan.Categorize`. Removing only the SBOM lines would have
+left four fabricated types looking reviewed and correct, so the `Result` block in
+`backend.md` and `data.md` was rewritten to describe what the code actually
+declares.
+
+Point 2 of the survey — that no config migration is needed — is now a test
+rather than a claim: `TestAConfigCarryingTheRetiredSBOMKeysStillLoads` writes a
+`config.yaml` carrying `generate_sbom` and `sbom_output_dir` and asserts it
+loads with the surrounding settings intact. It would fail the day someone adds
+`KnownFields(true)` to the loader without thinking about the files already on
+disk.
+
+Coverage: `internal/scan` 98.1 %, `internal/config` 91.0 % and
+`internal/ui/security` 87.2 % all unchanged; `internal/ui/configuration`
+83.4 % → 83.2 % and the project total 81.4 % → 81.3 %, both purely the
+arithmetic of deleting a covered statement — a function-by-function diff shows
+every percentage identical.
 
 ### 3.13 A sortable column keeps room for its sort arrow — **done**
 

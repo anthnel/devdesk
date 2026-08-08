@@ -28,7 +28,6 @@ func TestParseScanErrorStripsEveryToolPrefix(t *testing.T) {
 	prefixes := []string{
 		"trivy failed: ",
 		"trivy misconfig failed: ",
-		"sbom generation failed: ",
 		"gitleaks failed: ",
 	}
 

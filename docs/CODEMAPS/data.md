@@ -58,7 +58,6 @@ scan:
   trivy_server: ""                 # Optional: use server mode
   gitleaks_image: "zricethezav/gitleaks:v13.3.0"
   cache_dir: "~/.devdesk/cache"
-  sbom_output_dir: ""              # Default: same as target
   max_cached_reports: 50
   timeout: 300                     # seconds
   max_concurrent_scans: 3
@@ -66,7 +65,6 @@ scan:
   enable_secret: true
   enable_misconfig: true
   enable_license: false
-  generate_sbom: false
   ignore_unfixed: false
   ignore_eol: false
   gitleaks_history: false
@@ -158,48 +156,49 @@ const (
 
 ```go
 type Result struct {
-  Target           string              // Image name or repo path
-  Vulnerabilities []Vulnerability       // Trivy CVE findings
-  Secrets          []Secret             // Gitleaks secrets
-  Misconfigs       []Misconfig          // Config violations
-  Licenses         []License            // License findings
-  SBOM             []SBOMComponent      // CycloneDX output
+  Target         string
+  TargetType     TargetType     // image | directory
+  StartTime, EndTime time.Time
+  Duration       time.Duration
+  Counts         SeverityCounts // vulnerabilities, by severity
+  SecretCount    int            // gitleaks + trivy secrets
+  LicenseCount   int
+  MisconfigCount int
+  Findings       []Finding      // one flat list; scan.Categorize sorts them
+  Errors         []string
 }
+```
 
-type Vulnerability struct {
-  ID           string        // CVE-XXXX-XXXXX
-  PkgName      string        // Package name
-  InstalledVer string        // Installed version
-  FixedVer     string        // Patched version (if available)
-  Severity     SeverityLevel // CRITICAL | HIGH | MEDIUM | LOW | UNKNOWN
-  Description  string
-  References   []string      // URLs
+All findings share one `Finding` type — there is no per-family struct. Which
+family a finding belongs to comes from `scan.Categorize(f)` reading `f.Source`,
+and nothing else (see `internal/scan/category.go`).
+
+```go
+type Finding struct {
+  ID          string        // CVE-XXXX-XXXXX, a rule id, a license name
+  Title       string
+  Description string
+  Severity    SeverityLevel
+  Source      string        // trivy | trivy-secret | trivy-license | trivy-misconfig | gitleaks
+  File        string
+  Line        int
+  Match       string        // secrets: the masked value
+  Fingerprint string        // gitleaks only — what .gitleaksignore matches on
+  PkgName     string        // vulnerabilities
+  Version     string
+  FixedIn     string
+  Resolution  string
+  References  []string
+  FixCommand  string
 }
+```
 
-type Secret struct {
-  Type      string    // Slack token, GitHub token, AWS key, etc.
-  Match     string    // Masked secret
-  File      string    // Filename
-  Line      int       // Line number
-  Commit    string    // Git commit hash (gitleaks)
-  Author    string    // Git author (gitleaks)
-}
+`Source` is the whole of the classification, which is why Trivy's secrets carry
+`trivy-secret` rather than being recognised by the presence of `Match`.
+`Fingerprint` is Gitleaks-only, and it is why `i` (add to `.gitleaksignore`) is
+offered for Gitleaks findings alone.
 
-type Misconfig struct {
-  ID       string        // MIS-C001, etc.
-  Type     string        // dockerfile, kubernetes, terraform
-  Severity SeverityLevel
-  Title    string
-  File     string
-  Line     int
-}
-
-type SBOMComponent struct {
-  Name    string
-  Version string
-  Type    string // library, application, etc.
-}
-
+```go
 type SeverityLevel string
 const (
   SeverityCritical SeverityLevel = "CRITICAL"

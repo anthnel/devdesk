@@ -45,6 +45,23 @@ func (r *scriptedRunner) commands() []string {
 	return out
 }
 
+// commandForStage returns the invocation of one stage, or "" if it never ran.
+//
+// Scan runs its stages concurrently, so calls are recorded in completion order:
+// a test that wants one scanner's command has to name the stage. Taking the
+// last command that merely looked like Trivy is how this went: two stages
+// invoke Trivy, and whichever finished second won.
+func (r *scriptedRunner) commandForStage(stage string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, c := range r.calls {
+		if stageOf(c) == stage {
+			return c.String()
+		}
+	}
+	return ""
+}
+
 func (r *scriptedRunner) count() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -171,10 +188,6 @@ func TestAnUnsupportedTargetTypeSpawnsNothing(t *testing.T) {
 		ToolSpec{Source: ToolSourceBinary}, "", false, nil); err == nil {
 		t.Error("an unsupported target type was accepted for misconfig")
 	}
-	if _, err := GenerateSBOM(context.Background(), "x", TargetType("registry"),
-		ToolSpec{Source: ToolSourceBinary}, "", ""); err == nil {
-		t.Error("an unsupported target type was accepted for the SBOM")
-	}
 
 	if r.count() != 0 {
 		t.Errorf("%d process(es) were spawned for a target that cannot be scanned", r.count())
@@ -233,39 +246,6 @@ func TestTheMisconfigScanAsksForTheMisconfigScanner(t *testing.T) {
 	}
 	if cmds := r.commands(); len(cmds) != 1 || !strings.Contains(cmds[0], "--scanners misconfig") {
 		t.Errorf("ran %v, want the misconfig scanner", cmds)
-	}
-}
-
-// ── SBOM ─────────────────────────────────────────────────────────────────────
-
-// Unlike a scan, a non-zero exit here means no file was written, so there is
-// nothing to hand back.
-func TestAFailedSBOMYieldsNoPath(t *testing.T) {
-	answering(t, "", &exitError{Code: 1, Stderr: "permission denied"})
-
-	path, err := GenerateSBOM(context.Background(), "/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "", "")
-
-	if err == nil {
-		t.Fatal("a failed generation returned success")
-	}
-	if path != "" {
-		t.Errorf("path = %q, want empty when nothing was written", path)
-	}
-}
-
-func TestTheSBOMPathComesBackOnSuccess(t *testing.T) {
-	r := answering(t, "", nil)
-
-	path, err := GenerateSBOM(context.Background(), "/repos", TargetDirectory, ToolSpec{Source: ToolSourceBinary}, "", "/out")
-
-	if err != nil {
-		t.Fatalf("GenerateSBOM: %v", err)
-	}
-	if !strings.HasSuffix(strings.ReplaceAll(path, "\\", "/"), "/out/sbom-report.json") {
-		t.Errorf("path = %q", path)
-	}
-	if cmds := r.commands(); len(cmds) != 1 || !strings.Contains(cmds[0], "cyclonedx") {
-		t.Errorf("ran %v, want a CycloneDX generation", cmds)
 	}
 }
 

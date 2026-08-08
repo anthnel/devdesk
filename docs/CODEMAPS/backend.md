@@ -104,14 +104,12 @@ type WorkspaceScanEntry struct {
 **Orchestrator:**
 - `Scanner.Run(ctx, target, opts) → (Result, progress chan)` — Execute Trivy + Gitleaks
 - Runs both tools concurrently via `errgroup`
-- Emits `ProgressUpdate` structs per stage (vuln, secret, misconfig, license, sbom)
+- Emits `ProgressUpdate` structs per stage (vuln, secret, trivy-secret, misconfig, license)
 
 **ScanOptions:**
 ```go
 type ScanOptions struct {
   EnableVuln, EnableSecret, EnableMisconfig, EnableLicense bool
-  GenerateSBOM bool
-  SBOMOutputDir string
   TrivyImage, GitleaksImage string  // custom Docker images
   IgnoreUnfixed, IgnoreEOL bool
   GitleaksHistory, GitleaksConfig string
@@ -121,16 +119,25 @@ type ScanOptions struct {
 **Result Struct:**
 ```go
 type Result struct {
-  Target        string
-  Vulnerabilities []Vulnerability  // Trivy CVE results
-  Secrets         []Secret          // Gitleaks findings
-  Misconfigs      []Misconfig       // Config issues
-  SBOM           []SBOMComponent   // CycloneDX
+  Target         string
+  TargetType     TargetType     // image | directory
+  StartTime, EndTime time.Time
+  Duration       time.Duration
+  Counts         SeverityCounts // vulnerabilities, by severity
+  SecretCount    int            // gitleaks + trivy secrets
+  LicenseCount   int
+  MisconfigCount int
+  Findings       []Finding      // one flat list; scan.Categorize sorts them
+  Errors         []string
 }
 ```
 
+All findings share one `Finding` type — there is no per-family struct. Which
+family a finding belongs to comes from `scan.Categorize(f)` reading `f.Source`,
+and nothing else (see `internal/scan/category.go`).
+
 **Key Functions:**
-- `trivy.Scan()` — Run Trivy (CVE, SBOM, misconfig)
+- `trivy.Scan()` — Run Trivy (CVE, secrets, licenses, misconfig)
 - `gitleaks.Scan()` — Run Gitleaks (secrets)
 
 ## Docker Integration (`internal/docker/`)
