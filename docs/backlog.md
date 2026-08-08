@@ -2602,8 +2602,10 @@ questions are marked as such.
 | 5 | Target directory | **Keep borrowing the workspaces view**, as today. |
 | 6 | `gitlab.pull.target_dir` | **Deleted** — done, see below. |
 | 7 | Discovery and cloning | **Pipelined.** The list fills as discovery finds repositories and a row starts spinning as soon as it is found. |
-| 8 | Selection | A new mode: **several parent folders at once**, confirmed in one go. |
+| 8 | Selection | A new mode: **several roots at once** — parent folders *and* individual projects — confirmed in one go. |
 | 9 | Modals | **Yes/no confirmations only** (Rule 112). The list is the progress view and the report. |
+| 10 | Selecting a group | **Takes everything under it.** Drill in to deselect what you do not want. |
+| 11 | How a selection is stored | **Roots plus exclusions**, never a positive list of repositories. |
 
 Decision 2 is the load-bearing one. It draws a line that holds: **the explorer
 creates what does not exist, workspaces reconciles what does.** The explorer
@@ -2624,6 +2626,37 @@ the cost of the total only being known at the end — the header counts up
 (`47 found…`) instead of announcing a total. Reviewing the full list before
 anything starts is given up deliberately; selecting the groups is the act of
 decision.
+
+Decision 11 is forced by decision 7, and this is the part worth keeping. A
+**positive** list of the chosen repositories cannot be built when a group is
+ticked without enumerating its children first — which is the full API walk, run
+at selection time. That is the freeze pipelining was chosen to remove, moved one
+screen earlier. **Roots plus exclusions represents "this group, minus these"
+without knowing what the group contains**, so nothing has to be discovered
+before the user confirms. It is the only representation compatible with
+decision 7. `RegistryBrowser` already stores its selection as the entries that
+were *un*checked (`registry_browser.go:201-202`) — same shape, weaker reason.
+
+Three things fall out of it:
+
+- **The tri-state needs no discovery.** A group renders `CheckSome` exactly when
+  some exclusion path is a descendant of it, which is known by construction: an
+  exclusion is only ever created by a keystroke on a node already on screen. So
+  a group nobody has expanded still displays correctly.
+  `theme.CheckState` and `theme.RenderCheckboxTri` already exist and are shared,
+  not browser-local.
+- **Deselection costs only what it inspects.** Drilling into a group to untick
+  something fetches that one level — the lazy navigation that already exists.
+- **The overlap question disappears.** Ticking a group and then a descendant is
+  meaningless, because the descendant is already implied; unticking makes an
+  exclusion and re-ticking removes it. There is no ambiguous case left to rule
+  on.
+
+What has to be accepted: **the confirmation screen cannot state a repository
+count** — only `3 groups · 1 project · 4 exclusions`. The number appears as
+discovery runs, which is the same trade decision 7 already made.
+
+Keys fit Rule 135 unchanged: `←→` drills, `Space` toggles, each keeping one job.
 
 Decision 5 costs nothing: `openBrowser` replaces only `views[ViewWorkspaces]`
 and never drops the explorer (`selection.go:37-41`), so a multi-selection in
@@ -2667,16 +2700,11 @@ same name meaning two things is a trap; one of them has to be renamed.
 
 #### Still open
 
-1. **Can individual projects be selected too**, or only parent folders? The
-   proposal says folders; a single project is the common case today.
-2. **The overlap rule.** Selecting a group and one of its descendants: the
-   descendant is redundant and should be dropped, but the tri-state display has
-   to say so.
-3. **Cancellation, and what it leaves on disk.** A clone interrupted mid-way
+1. **Cancellation, and what it leaves on disk.** A clone interrupted mid-way
    leaves a partial directory.
-4. **What the list does when it finishes** — stays until `esc`, presumably, but
+2. **What the list does when it finishes** — stays until `esc`, presumably, but
    whether it survives leaving the view is undecided.
-5. **Multi-select has no component.** `datatable` has none. The registry browser
+3. **Multi-select has no component.** `datatable` has none. The registry browser
    is the precedent (`selectedRegs map[string]bool`, `groupState` → all/none/
    some) but covers **two** levels, where the explorer is arbitrary depth.
 
