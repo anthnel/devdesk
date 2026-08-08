@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "27cf304d14a2",
+  "strategy": "manual-commit",
+  "branch": "docs/pull-selection-model",
+  "checkpoints_count": 4,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/27/cf304d14a2/0/metadata.json",
+      "transcript": "/27/cf304d14a2/0/full.jsonl",
+      "compact_transcript": "/27/cf304d14a2/0/transcript.jsonl",
+      "content_hash": "/27/cf304d14a2/0/content_hash.txt",
+      "prompt": "/27/cf304d14a2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1237,
+    "cache_creation_tokens": 1599968,
+    "cache_read_tokens": 209970188,
+    "output_tokens": 366784,
+    "api_call_count": 658
+  }
+}
