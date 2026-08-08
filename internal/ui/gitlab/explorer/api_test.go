@@ -208,7 +208,7 @@ func TestLoadChildrenReportsEitherHalfFailing(t *testing.T) {
 	}
 }
 
-// fetchGroupChildren is the same fetch, run synchronously inside a recursive
+// discoverGroupChildren is the same walk, run synchronously inside a recursive
 // pull rather than as a command.
 func TestFetchGroupChildren(t *testing.T) {
 	f := newFakeGitLab(t, map[string]string{
@@ -220,10 +220,10 @@ func TestFetchGroupChildren(t *testing.T) {
 	m := serverModel(t, f)
 	parent := &TreeNode{ID: 1, Type: NodeTypeGroup}
 
-	children, err := m.fetchGroupChildren(m.shared.GitLabClient, parent)
+	children, err := discoverGroupChildren(m.shared.GitLabClient, parent)
 
 	if err != nil {
-		t.Fatalf("fetchGroupChildren() error = %v", err)
+		t.Fatalf("discoverGroupChildren() error = %v", err)
 	}
 	if len(children) != 2 {
 		t.Errorf("fetched %d children, want 2", len(children))
@@ -233,8 +233,8 @@ func TestFetchGroupChildren(t *testing.T) {
 func TestFetchGroupChildrenPropagatesFailure(t *testing.T) {
 	m := serverModel(t, newFakeGitLab(t, nil))
 
-	if _, err := m.fetchGroupChildren(m.shared.GitLabClient, &TreeNode{ID: 1}); err == nil {
-		t.Error("fetchGroupChildren() returned no error against a failing API")
+	if _, err := discoverGroupChildren(m.shared.GitLabClient, &TreeNode{ID: 1}); err == nil {
+		t.Error("discoverGroupChildren() returned no error against a failing API")
 	}
 }
 
@@ -529,7 +529,7 @@ func TestLoadChildrenFollowsEveryPageOfBothHalves(t *testing.T) {
 	}
 }
 
-// The pull walks the tree through fetchGroupChildren rather than loadChildren,
+// The pull walks the tree through discoverGroupChildren rather than loadChildren,
 // so it needs the same guarantee: a group of 101 projects used to clone 100.
 func TestFetchGroupChildrenFollowsEveryPage(t *testing.T) {
 	f := newPagedGitLab(t, map[string][]string{
@@ -546,9 +546,9 @@ func TestFetchGroupChildrenFollowsEveryPage(t *testing.T) {
 	m := pagedModel(t, f)
 	parent := &TreeNode{ID: 1, Name: "Infra", FullPath: "infra", Type: NodeTypeGroup}
 
-	children, err := m.fetchGroupChildren(m.shared.GitLabClient, parent)
+	children, err := discoverGroupChildren(m.shared.GitLabClient, parent)
 	if err != nil {
-		t.Fatalf("fetchGroupChildren() error = %v", err)
+		t.Fatalf("discoverGroupChildren() error = %v", err)
 	}
 	if len(children) != 2 {
 		t.Fatalf("fetched %d projects, want both pages", len(children))
@@ -588,5 +588,60 @@ func TestPaginationStopsWhenTheServerRepeatsAPage(t *testing.T) {
 
 	if calls != 1 {
 		t.Errorf("made %d requests, want 1: a repeated page is the end of the list", calls)
+	}
+}
+
+// The clone reads a path and a type. It used to pay two extra requests per
+// project for a CI badge and a role it never looks at — on two hundred
+// repositories, 400 calls for nothing.
+func TestDiscoveryDoesNotDecorateTheProjectsItFinds(t *testing.T) {
+	f := newFakeGitLab(t, map[string]string{
+		"/api/v4/groups/1/subgroups":    `[]`,
+		"/api/v4/groups/1/projects":     oneProjectJSON,
+		"/api/v4/projects/11/pipelines": pipelineJSON,
+		"/api/v4/projects/11/members":   memberJSON,
+	})
+	m := serverModel(t, f)
+
+	children, err := discoverGroupChildren(m.shared.GitLabClient, &TreeNode{ID: 1, FullPath: "infra"})
+	if err != nil {
+		t.Fatalf("discoverGroupChildren() error = %v", err)
+	}
+	if len(children) != 1 {
+		t.Fatalf("found %d children, want the project", len(children))
+	}
+
+	// What a clone needs is there.
+	if children[0].FullPath != "infra/api" || children[0].Type != NodeTypeProject {
+		t.Errorf("node = %+v, want the project's path and type", children[0])
+	}
+
+	for _, path := range f.paths {
+		if strings.Contains(path, "/pipelines") || strings.Contains(path, "/members") {
+			t.Errorf("discovery requested %q, which no clone reads", path)
+		}
+	}
+}
+
+// The explorer's own load still decorates: the role and CI columns are rendered
+// from those two fields, so dropping them there would empty two columns.
+func TestBrowsingStillDecoratesWhatItLists(t *testing.T) {
+	f := newFakeGitLab(t, map[string]string{
+		"/api/v4/groups/1/subgroups":    `[]`,
+		"/api/v4/groups/1/projects":     oneProjectJSON,
+		"/api/v4/projects/11/pipelines": pipelineJSON,
+		"/api/v4/projects/11/members":   memberJSON,
+	})
+	m := serverModel(t, f)
+
+	msg, ok := testutil.MsgOf[ChildrenLoadedMsg](m.loadChildren(&TreeNode{ID: 1, FullPath: "infra"}))
+	if !ok {
+		t.Fatalf("loadChildren() produced %T", testutil.Msg(m.loadChildren(&TreeNode{ID: 1})))
+	}
+	if len(msg.Children) != 1 {
+		t.Fatalf("loaded %d children, want the project", len(msg.Children))
+	}
+	if msg.Children[0].PipelineStatus != "failed" || msg.Children[0].AccessLevel != 40 {
+		t.Errorf("node = %+v, want the CI status and the role the columns render", msg.Children[0])
 	}
 }

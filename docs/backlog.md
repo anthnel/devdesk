@@ -2717,14 +2717,24 @@ its output, so it cannot go in a cell (Rule 122); only the raw icons can.
 This judgement flips the day a **second** table needs a selection. For one,
 generalising into `datatable` would be speculative.
 
-#### Two prerequisites, both defects in their own right — one done
+#### Two prerequisites, both defects in their own right — both done
 
-**Discovery is far too expensive as it stands.** `fetchGroupChildren` costs one
-call for subgroups plus one for projects **per group**, plus **two more per
-project** — `fetchLastPipelineStatus` and `fetchProjectAccessLevel`
-(`api.go:57-58`). Two hundred repositories is 400+ calls for a CI status and an
-access level a clone has no use for. Discovery needs a lighter fetch than
-browsing does.
+**A lighter fetch for discovery — done.** The recursive walk cost one call for
+subgroups plus one for projects per group, plus **two more per project** —
+`fetchLastPipelineStatus` and `fetchProjectAccessLevel`. Two hundred
+repositories was 400+ calls for a CI status and a role no clone reads.
+
+`listGroupChildren` is now the paginated, undecorated half both callers share;
+`discoverGroupChildren` builds nodes from it and decorates nothing, while
+`loadChildren` decorates as before. The two are **not** interchangeable, which
+is why the clone also stopped writing what it finds onto `node.Children`:
+discovery nodes on the tree the view renders would blank the role and CI
+columns for every group a clone had passed through.
+
+That write was also **Rule 110** — a `Cmd` assigning a field `Update` reads —
+so the race is gone as a side effect rather than as a patch. It was going to be
+removed by the rework anyway; the lighter fetch made keeping it actively
+harmful, which is what brought it forward.
 
 **Pagination — done.** Every list in `api.go` stopped at the first page, so a
 group of 101 projects enumerated 100. With a list on screen the view would have
@@ -2733,10 +2743,10 @@ a nicety. Fixed ahead of the rework; see D34.
 
 #### What the rework fixes for free
 
-- **Rule 110, by construction.** `node.Children` is written inside a `Cmd`
-  today (`pull.go:88`) on the same `*TreeNode` values `Update` reads
-  (`navigation.go:24`, `:70`). Discovery returning its children as messages —
-  the `navigation.go:90` pattern — removes the race rather than patching it.
+- **Rule 110 — already gone.** `node.Children` was written inside a `Cmd` on
+  the same `*TreeNode` values `Update` reads (`navigation.go:24`, `:70`). The
+  lighter discovery fetch removed the write, so the rework inherits a walk with
+  no shared state to race on.
 - **The four unread `gitlab.pull.*` settings are resolved, two each way.**
   `ParallelJobs` becomes how many rows spin at once and `IncludeArchived` a
   discovery filter; `TargetDir` and `MaxDepth` are deleted. Leaving one declared

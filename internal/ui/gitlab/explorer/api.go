@@ -43,53 +43,63 @@ func listAll[T any](opts *gitlabclient.ListOptions, fetch func() ([]T, *gitlabcl
 	}
 }
 
-// fetchGroupChildren fetches children (subgroups + projects) from GitLab API
-func (m Model) fetchGroupChildren(client *gitlabclient.Client, parentNode *TreeNode) ([]*TreeNode, error) {
-	groupID := int(parentNode.ID)
-	var currentUserID int64
-	if m.shared.CurrentUser != nil {
-		currentUserID = m.shared.CurrentUser.ID
-	}
-	children := []*TreeNode{}
-
-	// Fetch direct subgroups only
+// listGroupChildren lists a group's direct subgroups and its projects, every
+// page of each, and decorates nothing.
+//
+// It is the half the two callers share. What they do *not* share is the
+// decoration: the explorer wants a role and a CI status per row, and a clone
+// wants a path. Keeping the listing here and the decoration at each caller is
+// what lets the clone stop paying for two extra requests per project.
+func listGroupChildren(client *gitlabclient.Client, groupID int) ([]*gitlabclient.Group, []*gitlabclient.Project, error) {
 	subgroupsOpts := &gitlabclient.ListSubGroupsOptions{}
 	subgroups, err := listAll(&subgroupsOpts.ListOptions, func() ([]*gitlabclient.Group, *gitlabclient.Response, error) {
 		return client.Groups.ListSubGroups(groupID, subgroupsOpts)
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	for _, group := range subgroups {
-		children = append(children, &TreeNode{
-			ID:         group.ID,
-			Name:       group.Name,
-			FullPath:   group.FullPath,
-			Type:       NodeTypeGroup,
-			Parent:     parentNode,
-			Expanded:   false,
-			Visibility: string(group.Visibility),
-			CreatedAt:  group.CreatedAt,
-			WebURL:     group.WebURL,
-		})
-	}
-
-	// Fetch projects
 	projectsOpts := &gitlabclient.ListGroupProjectsOptions{}
 	projects, err := listAll(&projectsOpts.ListOptions, func() ([]*gitlabclient.Project, *gitlabclient.Response, error) {
 		return client.Groups.ListGroupProjects(groupID, projectsOpts)
 	})
 	if err != nil {
+		return nil, nil, err
+	}
+
+	return subgroups, projects, nil
+}
+
+// discoverGroupChildren walks a group for the recursive clone: the nodes it
+// returns carry a type and a path, which is all a clone reads.
+//
+// It deliberately skips the per-project pipeline status and access level that
+// the explorer's own load fetches. Those are two extra requests per project —
+// on two hundred repositories, 400 calls for a CI badge and a role that no
+// clone ever looks at.
+//
+// The nodes are therefore **not** interchangeable with the ones the explorer
+// browses, and must not be stored on the tree the view renders: the role and CI
+// columns would go blank for every group a clone had walked through.
+func discoverGroupChildren(client *gitlabclient.Client, parentNode *TreeNode) ([]*TreeNode, error) {
+	subgroups, projects, err := listGroupChildren(client, int(parentNode.ID))
+	if err != nil {
 		return nil, err
 	}
 
-	for _, project := range projects {
-		ciStatus := fetchLastPipelineStatus(client, project.ID)
-		accessLevel := fetchProjectAccessLevel(client, int64(project.ID), currentUserID)
-		children = append(children, projectToTreeNode(project, parentNode, ciStatus, accessLevel))
+	children := make([]*TreeNode, 0, len(subgroups)+len(projects))
+	for _, group := range subgroups {
+		children = append(children, &TreeNode{
+			ID:       group.ID,
+			Name:     group.Name,
+			FullPath: group.FullPath,
+			Type:     NodeTypeGroup,
+			Parent:   parentNode,
+		})
 	}
-
+	for _, project := range projects {
+		children = append(children, projectToTreeNode(project, parentNode, "", 0))
+	}
 	return children, nil
 }
 
@@ -147,11 +157,8 @@ func (m Model) loadChildren(parentNode *TreeNode) tea.Cmd {
 	return func() tea.Msg {
 		children := []*TreeNode{}
 
-		// Charger les sous-groupes directs (pas les descendants)
-		subgroupsOpts := &gitlabclient.ListSubGroupsOptions{}
-		subgroups, err := listAll(&subgroupsOpts.ListOptions, func() ([]*gitlabclient.Group, *gitlabclient.Response, error) {
-			return client.Groups.ListSubGroups(groupID, subgroupsOpts)
-		})
+		// Charger les sous-groupes directs (pas les descendants) et les projets
+		subgroups, projects, err := listGroupChildren(client, groupID)
 		if err != nil {
 			return LoadErrorMsg{Error: err, ParentNode: parentNode}
 		}
@@ -171,15 +178,7 @@ func (m Model) loadChildren(parentNode *TreeNode) tea.Cmd {
 			})
 		}
 
-		// Charger les projets du groupe
-		projectsOpts := &gitlabclient.ListGroupProjectsOptions{}
-		projects, err := listAll(&projectsOpts.ListOptions, func() ([]*gitlabclient.Project, *gitlabclient.Response, error) {
-			return client.Groups.ListGroupProjects(groupID, projectsOpts)
-		})
-		if err != nil {
-			return LoadErrorMsg{Error: err, ParentNode: parentNode}
-		}
-
+		// Décorer les projets : rôle et statut CI, que la vue affiche en colonnes
 		for _, project := range projects {
 			ciStatus := fetchLastPipelineStatus(client, project.ID)
 			accessLevel := fetchProjectAccessLevel(client, int64(project.ID), currentUserID)

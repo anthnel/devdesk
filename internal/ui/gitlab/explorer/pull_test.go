@@ -201,8 +201,12 @@ func TestPullFetchesUnloadedChildren(t *testing.T) {
 	if len(report.Cloned) != 1 {
 		t.Errorf("Cloned = %v, want the project fetched during the pull", report.Cloned)
 	}
-	if node.Children == nil {
-		t.Error("the fetched children were not cached on the node")
+	// And they stay off the tree. Discovery nodes carry a path and a type and
+	// none of the decoration the view renders, so caching them here blanked the
+	// role and CI columns for every group a clone walked through — and the write
+	// happened inside a Cmd, racing the Update that reads it (Rule 110).
+	if node.Children != nil {
+		t.Error("discovery nodes were stored on the tree the view renders")
 	}
 }
 
