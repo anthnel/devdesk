@@ -1578,6 +1578,54 @@ Both defects it found were the same shape and neither was hypothetical: filter a
 list, act on the highlighted row, watch the wrong object get deleted.
 
 
+#### Colour in the cells — `datatable` renders its own rows
+
+The sentence above — "`Cell func(T) string` gives styled text nowhere to go" —
+was right about the danger and wrong about the price. Fifteen tables in one
+palette read as fifteen tables with nothing to say, and the three commented-out
+`theme.StatusOKStyle.Render(...)` lines in `status/view.go` were what that cost
+looked like: somebody wanted a colour, hit Rule 122, and gave up.
+
+It was never a Bubble Tea limitation, and not a lipgloss one either. It is one
+line of `bubbles/table`:
+
+```go
+m.styles.Cell.Render(style.Render(runewidth.Truncate(value, width, "…")))
+```
+
+The value is measured *before* it is styled, and runewidth counts an escape
+sequence's bytes as width — `"running"` in a colour measures 28 against 7
+visible. So it is truncated in a column twice wide enough, the cut lands inside
+the escape, and the unterminated sequence bleeds down the table. `bubbles
+v1.0.0` — the latest, still on bubbletea v1 — has the identical line, so no
+upgrade reaches it.
+
+`render.go` inverts the order instead: `Cell` stays plain and is what gets
+measured, `Style func(T) lipgloss.Style` colours the finished cell. The failure
+becomes unexpressible rather than forbidden by review, which is the same trade
+the rest of §2 made. bubbles keeps the state — rows, columns, cursor, focus,
+height — and what moved is the drawing and the scroll offset its viewport kept
+unexported.
+
+Two properties fell out of it that were not obvious from the outside:
+
+- **The selected row ignores `Style`.** It is handed to `styles.Selected` whole,
+  and a colour inside closes with a reset that takes the selection background
+  with it for the rest of the line — the highlight would stop mid-row. It
+  renders exactly as it did before, and a test compares it character for
+  character against the uncoloured table.
+- **Every cell off the selected row carries an explicit background.** Plain
+  cells emitted nothing, so the app's viewport style covered them; the first
+  coloured cell would have stripped that background from everything to its
+  right. A column declaring only a foreground gets `ColorBackground` filled in,
+  so Rule 115 cannot be half-implemented per column.
+
+The discipline matters more than the mechanism: a zero count, a `-` and a
+never-scanned target are `DimStyle`, and the nominal majority state — a
+`running` container — keeps the default text colour. Colouring it would put a
+colour on the whole table and a signal on none of it.
+
+
 ### Race detector cannot run locally
 
 `mise run test-race` needs cgo and therefore a C compiler on `PATH`. Without one

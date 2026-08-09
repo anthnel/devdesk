@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -24,7 +25,13 @@ const numColumns = 4
 // three characters of title.
 func findingColumns() []datatable.Column[scan.Finding] {
 	return []datatable.Column[scan.Finding]{
-		{Title: "Severity", MinWidth: 10, Cell: func(f scan.Finding) string { return string(f.Severity) }},
+		{
+			Title: "Severity", MinWidth: 10,
+			Cell: func(f scan.Finding) string { return string(f.Severity) },
+			// The same palette the selected row uses, so a severity reads the
+			// same colour whether or not the cursor is on it.
+			Style: func(f scan.Finding) lipgloss.Style { return theme.SeverityTextStyle(string(f.Severity)) },
+		},
 		{Title: "ID", MinWidth: 18, Cell: func(f scan.Finding) string { return f.ID }},
 		{Title: "Title", MinWidth: 20, Flex: 1, Cell: func(f scan.Finding) string { return f.Title }},
 		{Title: "Source", MinWidth: 14, Cell: sourceDisplay},
