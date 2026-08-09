@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "6fd9a11b8b22",
+  "strategy": "manual-commit",
+  "branch": "feat/explorer-clone-rework",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/CODEMAPS/architecture.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6f/d9a11b8b22/0/metadata.json",
+      "transcript": "/6f/d9a11b8b22/0/full.jsonl",
+      "compact_transcript": "/6f/d9a11b8b22/0/transcript.jsonl",
+      "content_hash": "/6f/d9a11b8b22/0/content_hash.txt",
+      "prompt": "/6f/d9a11b8b22/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1591,
+    "cache_creation_tokens": 3068643,
+    "cache_read_tokens": 258712123,
+    "output_tokens": 517107,
+    "api_call_count": 848
+  }
+}
