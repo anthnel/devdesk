@@ -39,8 +39,8 @@ func TestConfirmedDeleteHitsTheRightEndpoint(t *testing.T) {
 			if msg.DeletedNode != tt.node {
 				t.Error("DeleteCompleteMsg does not name the node that was deleted")
 			}
-			if len(f.paths) == 0 || f.paths[0] != tt.want {
-				t.Errorf("first request = %v, want %s", f.paths, tt.want)
+			if len(f.paths()) == 0 || f.paths()[0] != tt.want {
+				t.Errorf("first request = %v, want %s", f.paths(), tt.want)
 			}
 			if updated := next.(Model); updated.deleteTargetNode != nil || updated.mode != ModeNormal {
 				t.Errorf("confirming left target=%v mode=%v", updated.deleteTargetNode, updated.mode)
@@ -101,8 +101,8 @@ func TestPermanentDeleteIsPassedThrough(t *testing.T) {
 
 	// The permanent path deletes twice: schedule, then purge under the renamed
 	// -deletion_scheduled-<id> path.
-	if len(f.paths) < 2 {
-		t.Fatalf("requests = %v, want the two-step permanent delete", f.paths)
+	if len(f.paths()) < 2 {
+		t.Fatalf("requests = %v, want the two-step permanent delete", f.paths())
 	}
 }
 

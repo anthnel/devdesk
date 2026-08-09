@@ -18,15 +18,14 @@ func (m Model) View() string {
 		return m.creationForm.View()
 	}
 
-	// Priority 2: Modals (centered overlays)
+	// Priority 2: the clone list, which is a full viewport of its own — the
+	// progress view and the report both (decision 9).
+	if m.mode == ModeCloning && m.clone != nil {
+		return m.clone.table.View()
+	}
+
+	// Priority 3: Modals (centered overlays)
 	switch m.mode {
-	case ModePulling:
-		return lipgloss.Place(
-			m.width, m.height,
-			lipgloss.Center, lipgloss.Center,
-			m.renderPullingStatus(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
-		)
 	case ModeLoadingTemplates:
 		return lipgloss.Place(
 			m.width, m.height,
@@ -34,15 +33,6 @@ func (m Model) View() string {
 			m.renderLoadingTemplates(),
 			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
 		)
-	case ModeShowingReport:
-		if m.reportModal != nil {
-			return lipgloss.Place(
-				m.width, m.height,
-				lipgloss.Center, lipgloss.Center,
-				m.reportModal.View(),
-				lipgloss.WithWhitespaceBackground(theme.ColorBackground),
-			)
-		}
 	case ModeConfirmingDelete:
 		if m.deleteConfirmModal != nil {
 			return lipgloss.Place(
@@ -78,35 +68,6 @@ func (m Model) View() string {
 	return m.renderTable()
 }
 
-// renderPullingStatus renders the pulling progress indicator
-func (m Model) renderPullingStatus() string {
-	var b strings.Builder
-
-	b.WriteString(theme.TitleStyle.Render("Pulling..."))
-	b.WriteString("\n\n")
-
-	spinnerStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorPrimary)
-	b.WriteString(spinnerStyle.Render(theme.IconHourglass + " Cloning repositories..."))
-	b.WriteString("\n\n")
-
-	if m.pullTargetNode != nil {
-		targetInfo := theme.DimStyle.Render(fmt.Sprintf("Target: %s", m.pullTargetNode.FullPath))
-		b.WriteString(targetInfo)
-		b.WriteString("\n\n")
-	}
-
-	b.WriteString(theme.HelpStyle.Render("Please wait..."))
-
-	return lipgloss.NewStyle().
-		Background(theme.ColorBackground).
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(theme.ColorPrimary).
-		BorderBackground(theme.ColorBackground).
-		Padding(1, 2).
-		Width(50).
-		Render(b.String())
-}
-
 // renderLoadingTemplates renders the template loading indicator
 func (m Model) renderLoadingTemplates() string {
 	var b strings.Builder
@@ -135,46 +96,101 @@ func (m Model) renderTable() string {
 }
 
 // GetFooterHeight returns the footer height for this view (Rule 124).
+//
+// The clone list has no breadcrumb — it is a flat list, and the tree's path
+// says nothing about it — so it takes the two-line footer plus its own filter
+// bar.
 func (m Model) GetFooterHeight() int {
-	if m.shared.GitLabClient != nil && !m.loading && m.error == "" && len(m.nodes) > 0 {
-		switch m.mode {
-		case ModePulling, ModeLoadingTemplates, ModeCreatingProject, ModeConfirmingDelete, ModeShowingReport:
-			// fall through to empty line + info line
-		default:
-			if m.creationForm != nil {
-				break // fall through to empty line + info line
-			}
-			// filter bar (when visible) + breadcrumb tab bar + empty line + info line
-			return 3 + m.table.FilterBar().ExtraHeight()
-		}
+	if m.mode == ModeCloning && m.clone != nil {
+		return 2 + m.clone.table.FilterBar().ExtraHeight()
+	}
+	if m.showsTree() {
+		// filter bar (when visible) + breadcrumb tab bar + empty line + info line
+		return 3 + m.table.FilterBar().ExtraHeight()
 	}
 	return 2 // empty line + info line
 }
 
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
-	infoLine := theme.EmptyLineBg(width)
-	if m.footerError != "" {
-		infoLine = theme.BgLine(theme.StatusErrorStyle.Render(m.footerError), width)
+	infoLine := m.renderInfoLine(width)
+
+	if m.mode == ModeCloning && m.clone != nil {
+		var parts []string
+		if bar := m.clone.table.FilterBar(); bar.IsVisible() {
+			parts = append(parts, bar.View())
+		}
+		return strings.Join(append(parts, theme.EmptyLineBg(width), infoLine), "\n")
 	}
 
-	if m.shared.GitLabClient != nil && !m.loading && m.error == "" && len(m.nodes) > 0 {
-		switch m.mode {
-		case ModePulling, ModeLoadingTemplates, ModeCreatingProject, ModeConfirmingDelete, ModeShowingReport:
-			// fall through to empty line + info line
-		default:
-			if m.creationForm != nil {
-				break // fall through to empty line + info line
-			}
-			var parts []string
-			if bar := m.table.FilterBar(); bar.IsVisible() {
-				parts = append(parts, bar.View())
-			}
-			parts = append(parts, m.renderTabBar(), theme.EmptyLineBg(width), infoLine)
-			return strings.Join(parts, "\n")
+	if m.showsTree() {
+		var parts []string
+		if bar := m.table.FilterBar(); bar.IsVisible() {
+			parts = append(parts, bar.View())
 		}
+		parts = append(parts, m.renderTabBar(), theme.EmptyLineBg(width), infoLine)
+		return strings.Join(parts, "\n")
 	}
 	return theme.EmptyLineBg(width) + "\n" + infoLine
+}
+
+// renderInfoLine is the footer's one line of text (Rule 128): an error, then a
+// transient info message, then whatever the current mode has to say.
+func (m Model) renderInfoLine(width int) string {
+	switch {
+	case m.footerError != "":
+		return theme.BgLine(theme.StatusErrorStyle.Render(m.footerError), width)
+	case m.footerInfo != "":
+		return renderInfoText(m.footerInfo, width)
+	case m.mode == ModeCloning && m.clone != nil:
+		return renderInfoText(m.cloneStatusLine(), width)
+	case m.mode == ModeSelecting:
+		return renderInfoText(m.selectionStatusLine(), width)
+	}
+	return theme.EmptyLineBg(width)
+}
+
+// renderInfoText is the footer's non-error line (Rule 128): ColorHighlight,
+// centred, filled to the width.
+func renderInfoText(text string, width int) string {
+	return lipgloss.NewStyle().
+		Foreground(theme.ColorHighlight).
+		Background(theme.ColorBackground).
+		Width(width).
+		Align(lipgloss.Center).
+		Render(text)
+}
+
+// selectionStatusLine states the selection in the only terms it can: the
+// repository count is not known until discovery has run (decision 7), so what
+// is shown is what was actually chosen.
+func (m Model) selectionStatusLine() string {
+	if m.selection.isEmpty() {
+		return "Select groups and projects with space, then press enter"
+	}
+	roots, exclusions := m.selection.counts()
+	line := plural(roots, "selection")
+	if exclusions > 0 {
+		line += " · " + plural(exclusions, "exclusion")
+	}
+	return line + " — enter to choose a destination"
+}
+
+// showsTree reports whether the tree table is what is on screen, which is what
+// decides whether the footer carries a breadcrumb and a filter bar.
+func (m Model) showsTree() bool {
+	if m.shared.GitLabClient == nil || m.loading || m.error != "" || len(m.nodes) == 0 {
+		return false
+	}
+	if m.creationForm != nil {
+		return false
+	}
+	switch m.mode {
+	case ModeNormal, ModeSelecting:
+		return true
+	default:
+		return false
+	}
 }
 
 // renderTabBar renders the tab bar at the bottom of the viewport
@@ -267,13 +283,20 @@ func timeAgo(t *time.Time) string {
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	// Mode-specific shortcuts
 	switch m.mode {
-	case ModePulling, ModeLoadingTemplates:
+	case ModeLoadingTemplates:
 		return []shortcut.Shortcut{}
-	case ModeShowingReport:
+	case ModeSelecting:
+		// ←→ keeps drilling here, and that is the point: deselecting inside a
+		// ticked group means going into it (decision 10).
 		return []shortcut.Shortcut{
-			{Key: "tab", Description: "Switch tab"},
-			{Key: "enter/esc", Description: "Close"},
+			{Key: "space", Description: "Tick or untick"},
+			{Key: "←→", Description: "Open/Back"},
+			{Key: "enter", Description: "Choose a destination"},
+			{Key: "/", Description: "Search"},
+			{Key: "esc", Description: "Cancel"},
 		}
+	case ModeCloning:
+		return m.cloningShortcuts()
 	case ModeCreatingProject:
 		return []shortcut.Shortcut{
 			{Key: "↑↓", Description: "Navigate fields"},
@@ -306,11 +329,11 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "←→", Description: "Open/Back"},
 		{Key: "ctrl+n", Description: "New"},
 		{Key: "ctrl+d", Description: "Delete"},
-		{Key: "p", Description: "Pull"},
+		{Key: "c", Description: "Clone"},
 	}
 
 	// ctrl+w: only show when a node is selected (all nodes have a WebURL from GitLab API)
-	if node, ok := m.table.Selected(); ok && node.WebURL != "" {
+	if node, ok := m.selectedNode(); ok && node.WebURL != "" {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+w", Description: "Browser"})
 	}
 
@@ -323,10 +346,39 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	)
 }
 
+// cloningShortcuts is state-aware (Rule 130): `esc` means three different
+// things across a run, and offering the same word for all three is how a user
+// presses it a second time expecting it to force.
+func (m Model) cloningShortcuts() shortcut.Shortcuts {
+	esc := shortcut.Shortcut{Key: "esc", Description: "Cancel"}
+	switch {
+	case m.clone == nil || m.clone.finished:
+		esc.Description = "Close"
+	case m.clone.cancelling:
+		esc.Description = "Waiting for the running clones"
+	}
+	return []shortcut.Shortcut{
+		esc,
+		{Key: "/", Description: "Search"},
+		{Key: ".", Description: "Sort"},
+		{Key: "?", Description: "Help"},
+	}
+}
+
 func (m Model) GetTitle() string {
 	base := theme.IconGitlab + " GitLab Explorer"
 	if m.creationForm != nil {
 		return base + " " + theme.IconChevronRight + " " + m.creationForm.GetTitle()
+	}
+	switch m.mode {
+	case ModeSelecting:
+		return base + " " + theme.IconChevronRight + " Select what to clone"
+	case ModeCloning:
+		// The destination is in the title because it is the one thing the list
+		// does not repeat on every row, and it is what a user checks first.
+		if m.clone != nil {
+			return base + " " + theme.IconChevronRight + " Cloning into " + m.clone.target
+		}
 	}
 	return base
 }
@@ -356,7 +408,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "→ / l", Description: "Drill into selected group"},
 			{Key: "← / h", Description: "Go back to parent group"},
 			{Key: "Esc", Description: "Go back to parent group"},
-			{Key: "p", Description: "Pull/clone the selected project or group into a workspace"},
+			{Key: "c", Description: "Start a clone selection"},
+			{Key: "Space", Description: "Tick or untick the selected row (selection mode)"},
 			{Key: "Ctrl+W", Description: "Open the selected group or project in the default web browser"},
 			{Key: "Ctrl+N", Description: "Create a new group or project under the current context. Use ←→ to select the type."},
 			{Key: "Ctrl+D", Description: "Delete the selected group or project"},
@@ -372,8 +425,14 @@ func (m Model) GetHelpContent() help.Content {
 				Body:  "The explorer uses a drill-down model. Press → on a group to see its contents. Press ← to go back. Tabs at the bottom show your current path.",
 			},
 			{
-				Title: "Pull / Clone",
-				Body:  "Select a project or group and press 'p'. Choose a destination directory in the workspace selector. If you select a group, all subgroups and projects will be cloned recursively, preserving the folder structure.",
+				Title: "Cloning",
+				Body: "Press 'c' to enter selection mode. Every row gains a checkbox; press Space to tick a group or a project. " +
+					"Ticking a group takes everything under it — drill in with → and untick what you do not want. " +
+					"Press Enter to choose a destination directory in the workspace selector.\n" +
+					"The clone list then fills as repositories are discovered, each row showing what it is doing. " +
+					"A repository already on disk is skipped untouched; use the workspaces view to update one.\n" +
+					"Press Esc to cancel: discovery stops immediately, but clones already running are allowed to finish " +
+					"rather than being killed half-written. Press Esc again once it is done to return to the tree.",
 			},
 			{
 				Title: "Creating Groups and Projects",

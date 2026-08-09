@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -35,7 +36,13 @@ type fakeGitLab struct {
 	server   *httptest.Server
 	prefixes []string
 	routes   map[string]string
-	paths    []string
+
+	// mu guards paths. The explorer's own loads are sequential, but the clone
+	// pipeline walks from a goroutine while the test reads the record, and an
+	// unguarded slice there is a data race `-race` would find rather than a
+	// theoretical one.
+	mu           sync.Mutex
+	requestPaths []string
 }
 
 func newFakeGitLab(t *testing.T, routes map[string]string) *fakeGitLab {
@@ -44,7 +51,9 @@ func newFakeGitLab(t *testing.T, routes map[string]string) *fakeGitLab {
 	slices.SortFunc(f.prefixes, func(a, b string) int { return len(b) - len(a) })
 
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f.paths = append(f.paths, r.URL.Path)
+		f.mu.Lock()
+		f.requestPaths = append(f.requestPaths, r.URL.Path)
+		f.mu.Unlock()
 		for _, prefix := range f.prefixes {
 			if strings.HasPrefix(r.URL.Path, prefix) {
 				w.Header().Set("Content-Type", "application/json")
@@ -56,6 +65,13 @@ func newFakeGitLab(t *testing.T, routes map[string]string) *fakeGitLab {
 	}))
 	t.Cleanup(f.server.Close)
 	return f
+}
+
+// paths returns the requests the fake has served, in order.
+func (f *fakeGitLab) paths() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.requestPaths)
 }
 
 // serverModel returns a laid-out model whose client talks to the fake API.
@@ -220,7 +236,7 @@ func TestFetchGroupChildren(t *testing.T) {
 	m := serverModel(t, f)
 	parent := &TreeNode{ID: 1, Type: NodeTypeGroup}
 
-	children, err := discoverGroupChildren(m.shared.GitLabClient, parent)
+	children, err := discoverGroupChildren(m.shared.GitLabClient, parent, true)
 
 	if err != nil {
 		t.Fatalf("discoverGroupChildren() error = %v", err)
@@ -233,7 +249,7 @@ func TestFetchGroupChildren(t *testing.T) {
 func TestFetchGroupChildrenPropagatesFailure(t *testing.T) {
 	m := serverModel(t, newFakeGitLab(t, nil))
 
-	if _, err := discoverGroupChildren(m.shared.GitLabClient, &TreeNode{ID: 1}); err == nil {
+	if _, err := discoverGroupChildren(m.shared.GitLabClient, &TreeNode{ID: 1}, true); err == nil {
 		t.Error("discoverGroupChildren() returned no error against a failing API")
 	}
 }
@@ -266,8 +282,8 @@ func TestAccessLevelIsSkippedWithoutAUser(t *testing.T) {
 	fetchGroupAccessLevel(m.shared.GitLabClient, 1, 0)
 	fetchProjectAccessLevel(m.shared.GitLabClient, 11, 0)
 
-	if len(f.paths) != 0 {
-		t.Errorf("requests issued for an anonymous session: %v", f.paths)
+	if len(f.paths()) != 0 {
+		t.Errorf("requests issued for an anonymous session: %v", f.paths())
 	}
 }
 
@@ -546,7 +562,7 @@ func TestFetchGroupChildrenFollowsEveryPage(t *testing.T) {
 	m := pagedModel(t, f)
 	parent := &TreeNode{ID: 1, Name: "Infra", FullPath: "infra", Type: NodeTypeGroup}
 
-	children, err := discoverGroupChildren(m.shared.GitLabClient, parent)
+	children, err := discoverGroupChildren(m.shared.GitLabClient, parent, true)
 	if err != nil {
 		t.Fatalf("discoverGroupChildren() error = %v", err)
 	}
@@ -603,7 +619,7 @@ func TestDiscoveryDoesNotDecorateTheProjectsItFinds(t *testing.T) {
 	})
 	m := serverModel(t, f)
 
-	children, err := discoverGroupChildren(m.shared.GitLabClient, &TreeNode{ID: 1, FullPath: "infra"})
+	children, err := discoverGroupChildren(m.shared.GitLabClient, &TreeNode{ID: 1, FullPath: "infra"}, true)
 	if err != nil {
 		t.Fatalf("discoverGroupChildren() error = %v", err)
 	}
@@ -616,7 +632,7 @@ func TestDiscoveryDoesNotDecorateTheProjectsItFinds(t *testing.T) {
 		t.Errorf("node = %+v, want the project's path and type", children[0])
 	}
 
-	for _, path := range f.paths {
+	for _, path := range f.paths() {
 		if strings.Contains(path, "/pipelines") || strings.Contains(path, "/members") {
 			t.Errorf("discovery requested %q, which no clone reads", path)
 		}

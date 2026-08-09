@@ -50,7 +50,11 @@ func listAll[T any](opts *gitlabclient.ListOptions, fetch func() ([]T, *gitlabcl
 // decoration: the explorer wants a role and a CI status per row, and a clone
 // wants a path. Keeping the listing here and the decoration at each caller is
 // what lets the clone stop paying for two extra requests per project.
-func listGroupChildren(client *gitlabclient.Client, groupID int) ([]*gitlabclient.Group, []*gitlabclient.Project, error) {
+// includeArchived says whether archived projects are listed. Browsing passes
+// true — the explorer shows what is there — and a clone passes
+// `gitlab.pull.include_archived`, which is what that setting means and the only
+// place it is read.
+func listGroupChildren(client *gitlabclient.Client, groupID int, includeArchived bool) ([]*gitlabclient.Group, []*gitlabclient.Project, error) {
 	subgroupsOpts := &gitlabclient.ListSubGroupsOptions{}
 	subgroups, err := listAll(&subgroupsOpts.ListOptions, func() ([]*gitlabclient.Group, *gitlabclient.Response, error) {
 		return client.Groups.ListSubGroups(groupID, subgroupsOpts)
@@ -60,6 +64,9 @@ func listGroupChildren(client *gitlabclient.Client, groupID int) ([]*gitlabclien
 	}
 
 	projectsOpts := &gitlabclient.ListGroupProjectsOptions{}
+	if !includeArchived {
+		projectsOpts.Archived = gitlabclient.Ptr(false)
+	}
 	projects, err := listAll(&projectsOpts.ListOptions, func() ([]*gitlabclient.Project, *gitlabclient.Response, error) {
 		return client.Groups.ListGroupProjects(groupID, projectsOpts)
 	})
@@ -81,8 +88,8 @@ func listGroupChildren(client *gitlabclient.Client, groupID int) ([]*gitlabclien
 // The nodes are therefore **not** interchangeable with the ones the explorer
 // browses, and must not be stored on the tree the view renders: the role and CI
 // columns would go blank for every group a clone had walked through.
-func discoverGroupChildren(client *gitlabclient.Client, parentNode *TreeNode) ([]*TreeNode, error) {
-	subgroups, projects, err := listGroupChildren(client, int(parentNode.ID))
+func discoverGroupChildren(client *gitlabclient.Client, parentNode *TreeNode, includeArchived bool) ([]*TreeNode, error) {
+	subgroups, projects, err := listGroupChildren(client, int(parentNode.ID), includeArchived)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +165,7 @@ func (m Model) loadChildren(parentNode *TreeNode) tea.Cmd {
 		children := []*TreeNode{}
 
 		// Charger les sous-groupes directs (pas les descendants) et les projets
-		subgroups, projects, err := listGroupChildren(client, groupID)
+		subgroups, projects, err := listGroupChildren(client, groupID, true)
 		if err != nil {
 			return LoadErrorMsg{Error: err, ParentNode: parentNode}
 		}

@@ -20,16 +20,16 @@ import (
 // explorer is the only borrower left, and only the workspaces view is ever lent.
 // That is why nothing here is parameterised any more.
 
-// pullDestinationPrompt is shown while the explorer borrows the workspaces view.
-const pullDestinationPrompt = "Enter into a parent directory — the repo will be cloned inside it"
+// cloneDestinationPrompt is shown while the explorer borrows the workspaces view.
+const cloneDestinationPrompt = "Enter into a parent directory — the repo will be cloned inside it"
 
-// handleExplorerPullRequest borrows the workspaces view to pick a clone target.
-func (a *App) handleExplorerPullRequest() (tea.Model, tea.Cmd) {
+// handleExplorerCloneRequest borrows the workspaces view to pick a clone target.
+func (a *App) handleExplorerCloneRequest() (tea.Model, tea.Cmd) {
 	a.selectionReturnView = a.currentView
-	log.Printf("Explorer pull request: switching to workspaces for directory selection")
+	log.Printf("Explorer clone request: switching to workspaces for directory selection")
 	return a, a.openBrowser(
 		command.ViewWorkspaces,
-		workspaces.NewForSelection(a.config, pullDestinationPrompt),
+		workspaces.NewForSelection(a.config, cloneDestinationPrompt),
 	)
 }
 
@@ -44,14 +44,14 @@ func (a *App) openBrowser(view command.ViewType, model tea.Model) tea.Cmd {
 func (a *App) handleDirectorySelected(msg workspaces.DirectorySelectedMsg) (tea.Model, tea.Cmd) {
 	log.Printf("Directory selected: %s, returning to %s", msg.Path, a.selectionReturnView)
 	a.leaveSelectionMode()
-	return a, a.returnToOrigin(explorer.PullDestinationSelectedMsg{Path: msg.Path})
+	return a, a.returnToOrigin(explorer.CloneDestinationSelectedMsg{Path: msg.Path})
 }
 
 // handleSelectionCancelled returns to the explorer without changes.
 func (a *App) handleSelectionCancelled() (tea.Model, tea.Cmd) {
 	log.Printf("Selection cancelled, returning to %s", a.selectionReturnView)
 	a.leaveSelectionMode()
-	return a, a.returnToOrigin(explorer.PullSelectionCancelledMsg{})
+	return a, a.returnToOrigin(explorer.CloneSelectionCancelledMsg{})
 }
 
 // leaveSelectionMode drops the workspaces view so it is rebuilt normally.

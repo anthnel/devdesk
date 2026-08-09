@@ -316,8 +316,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case security.BackToOriginMsg:
 		return a, a.switchView(msg.Origin)
 
-	case explorer.PullSelectionRequestMsg:
-		return a.handleExplorerPullRequest()
+	case explorer.CloneSelectionRequestMsg:
+		return a.handleExplorerCloneRequest()
 
 	case workspaces.DirectorySelectedMsg:
 		return a.handleDirectorySelected(msg)

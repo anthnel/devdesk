@@ -17,8 +17,13 @@ type ViewMode int
 
 const (
 	ModeNormal ViewMode = iota
-	ModePulling
-	ModeShowingReport
+	// ModeSelecting is the clone selection: the same tree, with a checkbox on
+	// every row and `Space` ticking it (§3.16, decision 8).
+	ModeSelecting
+	// ModeCloning is the discovery-and-clone pipeline: a flat list of what has
+	// been found, each row carrying its own state. It replaced the modal that
+	// said "Pulling..." for however many minutes the subtree took (decision 9).
+	ModeCloning
 	ModeLoadingTemplates
 	ModeCreatingProject
 	ModeConfirmingDelete
@@ -32,7 +37,7 @@ type Model struct {
 	height int
 
 	// Table
-	table   datatable.Model[*TreeNode]
+	table   datatable.Model[explorerRow]
 	spinner spinner.Model
 
 	// Tree state
@@ -46,11 +51,19 @@ type Model struct {
 	navigationStack  []*TreeNode // Stack of parent groups for backspace navigation
 	cursorStack      []int       // Cursor positions per level for restoration on drill-up
 
-	// Pull mode state
-	mode           ViewMode
-	reportModal    *components.ReportModal
-	pullTargetNode *TreeNode
-	pullStatus     string
+	mode ViewMode
+
+	// Clone selection and the run it starts. The selection outlives every
+	// drill-down — it names paths, not rows — and survives the round trip
+	// through the workspaces view that picks the destination.
+	selection cloneSelection
+	// selectionNodes is where the walk starts from, one node per root. The
+	// selection cannot hold them: it has to answer for paths nobody has fetched,
+	// which is the whole reason it is paths and exclusions (decision 11). And a
+	// root ticked three levels down is no longer on screen once the user has come
+	// back up, so the reference has to be kept when it is made.
+	selectionNodes map[string]*TreeNode
+	clone          *cloneList
 
 	// Creation mode state
 	creationForm       *components.CreationForm
@@ -64,7 +77,9 @@ type Model struct {
 	// Delete mode state
 	deleteConfirmModal *components.DeleteConfirmModal
 	deleteTargetNode   *TreeNode
-	footerError        string // transient action error shown in footer (Rule 128)
+	// Transient footer messages, both cleared by the same 3s timer (Rule 128).
+	footerError string
+	footerInfo  string
 
 	// Path to select after refresh (for newly created items)
 	pendingSelectPath string
@@ -77,12 +92,13 @@ func New(cfg *config.Config, sharedState *shared.State) Model {
 	s.Style = theme.SpinnerStyle()
 
 	return Model{
-		config:  cfg,
-		shared:  sharedState,
-		nodes:   []*TreeNode{},
-		loading: false,
-		mode:    ModeNormal,
-		table: datatable.New(datatable.Config[*TreeNode]{
+		config:    cfg,
+		shared:    sharedState,
+		nodes:     []*TreeNode{},
+		loading:   false,
+		mode:      ModeNormal,
+		selection: newCloneSelection(),
+		table: datatable.New(datatable.Config[explorerRow]{
 			Columns:    explorerColumns(),
 			SortColumn: columnType,
 		}),
@@ -100,21 +116,21 @@ func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-// InEditMode returns true if the view is in an edit mode or filter search
+// InEditMode returns true if the view is in an edit mode or filter search.
+//
+// `m.mode != ModeNormal` already covers both clone modes, which is what it has
+// to do: `c`, `space` and `esc` all mean something there, and a bare `:` would
+// otherwise open command mode over a selection in progress.
 func (m Model) InEditMode() bool {
 	return m.creationForm != nil || m.mode != ModeNormal || m.table.InEditMode()
 }
 
 // FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
 func (m Model) FilterBarVisible() bool {
-	if !m.table.FilterBar().IsVisible() || m.loading || m.error != "" || len(m.nodes) == 0 {
-		return false
+	if m.mode == ModeCloning && m.clone != nil {
+		return m.clone.table.FilterBar().IsVisible()
 	}
-	switch m.mode {
-	case ModePulling, ModeLoadingTemplates, ModeCreatingProject, ModeConfirmingDelete, ModeShowingReport:
-		return false
-	}
-	return m.creationForm == nil
+	return m.showsTree() && m.table.FilterBar().IsVisible()
 }
 
 // tabCount returns the total number of tabs (home + navigation stack + current group)
@@ -137,4 +153,7 @@ func (m *Model) resize(width, height int) {
 	// only the table's own header row is subtracted. The Rule 116 arithmetic is
 	// the component's — seven ratios and a remainder used to live here.
 	m.table.Resize(width, max(height-1, 1))
+	if m.clone != nil {
+		m.clone.table.Resize(width, max(height-1, 1))
+	}
 }

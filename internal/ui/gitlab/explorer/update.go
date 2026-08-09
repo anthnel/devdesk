@@ -23,11 +23,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKeyMsg(msg)
 
 	case spinner.TickMsg:
-		if m.loading {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
-		}
+		return m.handleSpinnerTick(msg)
 
 	case RootGroupsLoadedMsg:
 		m.loading = false
@@ -47,20 +43,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case LoadErrorMsg:
 		return m.handleLoadError(msg)
 
-	case PullDestinationSelectedMsg:
-		return m.handlePullDestinationSelected(msg)
+	case CloneDestinationSelectedMsg:
+		return m.handleCloneDestinationSelected(msg)
 
-	case PullSelectionCancelledMsg:
-		m.pullTargetNode = nil
+	case CloneSelectionCancelledMsg:
+		// The destination was refused, not the selection: stay in ModeSelecting
+		// so the ticks the user made are still there.
 		return m, nil
 
-	case PullCompleteMsg:
-		return m.handlePullComplete(msg)
+	case CloneEventMsg:
+		return m.handleCloneEvent(msg)
 
-	case components.ReportModalCloseMsg:
-		m.mode = ModeNormal
-		m.reportModal = nil
-		return m, nil
+	case CloneRunFinishedMsg:
+		return m.handleCloneRunFinished()
 
 	case components.CreationFormSubmitMsg:
 		return m.handleCreationSubmit(msg)
@@ -95,12 +90,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Error != nil {
 			log.Printf("ERROR [explorer] open browser: %v", msg.Error)
 			m.footerError = "Failed to open browser — check logs"
-			return m, clearFooterErrorCmd()
+			return m, clearFooterMsgCmd()
 		}
 		return m, nil
 
-	case clearFooterErrorMsg:
+	case clearFooterMsg:
 		m.footerError = ""
+		m.footerInfo = ""
 		return m, nil
 	}
 
@@ -118,14 +114,12 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Handle mode-specific input
 	switch m.mode {
-	case ModeShowingReport:
-		if m.reportModal != nil {
-			var cmd tea.Cmd
-			m.reportModal, cmd = m.reportModal.Update(msg)
-			return m, cmd
-		}
-	case ModePulling, ModeLoadingTemplates:
-		// Ignore input while pulling or loading templates
+	case ModeCloning:
+		return m.handleCloningKey(msg)
+	case ModeSelecting:
+		return m.handleSelectingKey(msg)
+	case ModeLoadingTemplates:
+		// Ignore input while loading templates
 		return m, nil
 	case ModeCreatingProject:
 		if m.creationForm != nil {
@@ -152,8 +146,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDrillUp()
 	case "ctrl+r":
 		return m.handleRefresh()
-	case "p":
-		return m.handlePullStart()
+	case "c":
+		return m.handleCloneStart()
 	case "ctrl+n":
 		return m.handleCreateResource()
 	case "ctrl+d":
@@ -166,9 +160,64 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, m.table.Update(msg)
 }
 
+// handleSelectingKey is the clone selection mode (Rule 135 unchanged): `space`
+// ticks, `←→` still drill, `enter` confirms.
+//
+// `esc` leaves the mode rather than drilling up, because cancelling is what the
+// key means when there is something to cancel; `←` is still the way up.
+func (m Model) handleSelectingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case " ":
+		return m.handleSelectionToggle()
+	case "enter":
+		return m.handleSelectionConfirm()
+	case "esc":
+		return m.handleSelectionCancel()
+	case "left", "h":
+		return m.handleDrillUp()
+	case "right", "l":
+		return m.handleDrillDown()
+	}
+	return m, m.table.Update(msg)
+}
+
+// handleCloningKey is the clone list: `esc` cancels, then closes. Navigation,
+// `/` and `.` are the list's own table.
+func (m Model) handleCloningKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.clone == nil {
+		m.mode = ModeNormal
+		return m, nil
+	}
+	// The list has its own filter bar, and its `esc` closes the search. Testing
+	// the key first would cancel the run from inside the search box.
+	if m.clone.table.InEditMode() {
+		return m, m.clone.table.Update(msg)
+	}
+	if msg.String() == "esc" {
+		return m.handleCloneEsc()
+	}
+	return m, m.clone.table.Update(msg)
+}
+
+// handleSpinnerTick advances the one spinner the view owns. It drives both the
+// loading indicator and the rows of a clone in flight, so it keeps ticking as
+// long as either is live — dropping it while cloning freezes every row's
+// spinner and makes a running clone look stuck.
+func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
+	if !m.loading && (m.clone == nil || m.clone.finished) {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.spinner, cmd = m.spinner.Update(msg)
+	if m.clone != nil && !m.clone.finished {
+		m.clone.advance()
+	}
+	return m, cmd
+}
+
 // handleOpenInBrowser opens the selected node's web URL in the default browser
 func (m Model) handleOpenInBrowser() (tea.Model, tea.Cmd) {
-	node, ok := m.table.Selected()
+	node, ok := m.selectedNode()
 	if !ok || node.WebURL == "" {
 		return m, nil
 	}

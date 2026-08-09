@@ -12,7 +12,7 @@ import (
 
 // handleDeleteStart handles ctrl+d key - start delete operation
 func (m Model) handleDeleteStart() (tea.Model, tea.Cmd) {
-	node, ok := m.table.Selected()
+	node, ok := m.selectedNode()
 	if !ok {
 		return m, nil
 	}
@@ -79,7 +79,7 @@ func (m Model) handleDeleteComplete(msg DeleteCompleteMsg) (tea.Model, tea.Cmd) 
 	if msg.Error != nil {
 		log.Printf("ERROR [explorer] delete: %v", msg.Error)
 		m.footerError = "Delete failed — check logs"
-		return m, clearFooterErrorCmd()
+		return m, clearFooterMsgCmd()
 	}
 	m.footerError = ""
 
