@@ -1,0 +1,1 @@
+sur une ligne sélectionnée on abandonne au profit du surlignage seul. Met à jour la rule 122 et implémente la solution, part de main par contre
