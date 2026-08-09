@@ -2,6 +2,7 @@ package workspaces
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -108,21 +109,35 @@ func (m Model) RenderFooter(width int) string {
 		if bar := m.table.FilterBar(); bar.IsVisible() {
 			parts = append(parts, bar.View())
 		}
-		infoLine := theme.EmptyLineBg(width)
-		if m.footerError != "" {
-			infoLine = theme.PadWithBg(theme.StatusErrorStyle.Render(m.footerError), width)
-		} else if m.footerInfo != "" {
-			infoLine = lipgloss.NewStyle().
-				Foreground(theme.ColorHighlight).
-				Background(theme.ColorBackground).
-				Width(width).
-				Align(lipgloss.Center).
-				Render(m.footerInfo)
-		}
-		parts = append(parts, m.renderTabBar(), theme.EmptyLineBg(width), infoLine)
+		parts = append(parts, m.renderTabBar(), theme.EmptyLineBg(width), m.renderInfoLine(width))
 		return strings.Join(parts, "\n")
 	}
 	return theme.EmptyLineBg(width) + "\n" + theme.EmptyLineBg(width)
+}
+
+// renderInfoLine is the footer's one line of state.
+//
+// A sync's progress is read from the run rather than from footerInfo because a
+// batch outlives the three seconds a footer message gets: a line set when the
+// first repository started would clear while the tenth was still fetching. An
+// error still wins over it — it is the thing that needs answering.
+func (m Model) renderInfoLine(width int) string {
+	if m.footerError != "" {
+		return theme.PadWithBg(theme.StatusErrorStyle.Render(m.footerError), width)
+	}
+	text := m.footerInfo
+	if line := m.syncStatusLine(); line != "" {
+		text = line
+	}
+	if text == "" {
+		return theme.EmptyLineBg(width)
+	}
+	return lipgloss.NewStyle().
+		Foreground(theme.ColorHighlight).
+		Background(theme.ColorBackground).
+		Width(width).
+		Align(lipgloss.Center).
+		Render(text)
 }
 
 // renderTabBar renders the breadcrumb tab bar at the bottom of the viewport
@@ -142,13 +157,19 @@ func (m Model) renderTabBar() string {
 	return theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, m.activeTabIndex), m.width)
 }
 
-// pathBaseName returns the last component of a path
+// pathBaseName returns the last component of a filesystem path.
+//
+// It splits with filepath, not on "/". The paths here are the ones os.ReadDir
+// and filepath.Join produced, so on Windows they are separated by backslashes —
+// and a split on "/" alone found nothing to cut, leaving the breadcrumb reading
+// `󰉋 C:\Users\anthoni\workspaces\anthnell  󰉋 C:\Users\anthoni\workspaces\anthnell\devsecops`
+// instead of `󰉋 anthnell  󰉋 devsecops`. Three tabs of that overflow the line
+// and say less than one word each would.
 func pathBaseName(path string) string {
-	parts := strings.Split(path, string('/'))
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
+	if path == "" {
+		return ""
 	}
-	return path
+	return filepath.Base(path)
 }
 
 // formatGitStatus formats the git status column for a table row
@@ -369,9 +390,13 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+w", Description: "Browser"})
 	}
 
-	// ctrl+s: shown for git repos and directories with nested repos
+	// ctrl+s and s: shown for git repos and directories with nested repos —
+	// both act on the same target, so they appear and disappear together.
 	if isGitRepo || hasSubRepos {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+s", Description: "Scan"})
+		shortcuts = append(shortcuts,
+			shortcut.Shortcut{Key: "ctrl+s", Description: "Scan"},
+			shortcut.Shortcut{Key: "s", Description: "Sync"},
+		)
 	}
 
 	shortcuts = append(shortcuts,
@@ -433,6 +458,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+o", Description: "Open in configured IDE"},
 			{Key: "ctrl+w", Description: "Open git repo remote URL in the default web browser"},
 			{Key: "ctrl+s", Description: "Launch a security scan on the selected directory (or all sub-repos for non-git dirs)"},
+			{Key: "s", Description: "Sync the selected git repo (or all sub-repos for non-git dirs): fetch, then fast-forward"},
 			{Key: "A", Description: "Scan all unscanned git repos visible in the current view"},
 			{Key: "ctrl+a", Description: "Scan all git repos in the current view, purging cached results first"},
 			{Key: "ctrl+r", Description: "Refresh the list"},
@@ -451,7 +477,11 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Git Status",
-				Body:  "Directories that are git repositories display their branch name and status indicators: modified files, untracked files, unpushed commits, and unpulled commits.",
+				Body:  "Directories that are git repositories display their branch name and status indicators: modified files, untracked files, unpushed commits, and unpulled commits. The unpulled count comes from the local remote-tracking ref, so it is only as fresh as the last fetch — press s to bring it up to date.",
+			},
+			{
+				Title: "Sync",
+				Body:  "Press s on a git repo to fetch its remote and fast-forward the current branch. On a non-git directory, s syncs every nested git repo. Sync never merges, rebases, stashes or pushes: a repository with uncommitted changes, with local commits the remote does not have, or on a detached HEAD is fetched and then left exactly as it was, and the footer says which one it was and why. The fetch happens either way, so a repository it declines still ends up showing how far behind it really is.",
 			},
 			{
 				Title: "Open in Browser",

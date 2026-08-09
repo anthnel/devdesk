@@ -13,6 +13,7 @@ import (
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/git"
 	"github.com/anthnel/devdesk/internal/gitlab"
 )
 
@@ -194,14 +195,14 @@ func discover(ctx context.Context, spec cloneSpec, node *TreeNode, found chan<- 
 // once.
 func cloneOne(node *TreeNode, spec cloneSpec, token string) (skipped bool, err error) {
 	dir := filepath.Join(spec.target, filepath.FromSlash(node.FullPath))
-	if gitlab.DirExists(dir) {
+	if git.DirExists(dir) {
 		return true, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return false, fmt.Errorf("mkdir %s: %w", filepath.Dir(dir), err)
 	}
 	url := cloneURL(spec.gitlabURL, spec.cloneMethod, node.FullPath)
-	if err := gitlab.Clone(url, dir, gitlab.CloneOptions{Token: token}); err != nil {
+	if err := git.Clone(url, dir, git.CloneOptions{Token: token}); err != nil {
 		return false, err
 	}
 	return false, nil

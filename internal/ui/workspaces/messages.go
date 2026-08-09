@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/git"
 )
 
 // EntriesLoadedMsg is sent when entries are loaded
@@ -74,6 +75,27 @@ type WorkspaceScanCompleteMsg struct {
 	ScannedAt time.Time
 	Error     error
 }
+
+// WorkspaceSyncStartingMsg is sent when a repository's sync begins
+type WorkspaceSyncStartingMsg struct {
+	RepoPath string
+}
+
+// WorkspaceSyncCompleteMsg is sent when a repository's sync ends, whatever it did.
+type WorkspaceSyncCompleteMsg struct {
+	RepoPath string
+	Outcome  git.SyncOutcome
+	Behind   int
+	Reason   string
+	// Status carries the repository re-read after the sync. Only its git fields
+	// are meaningful: it exists so the Git Status column stops describing the
+	// state before the fetch, which is the whole point of syncing (D35).
+	Status Entry
+	Error  error
+}
+
+// clearSyncSummaryMsg is sent after a delay to drop a finished sync's summary.
+type clearSyncSummaryMsg struct{}
 
 // ScanDetailsRequestMsg is sent when the user wants to view scan details for a repo
 type ScanDetailsRequestMsg struct {

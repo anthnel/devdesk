@@ -171,6 +171,31 @@ and nothing else (see `internal/scan/category.go`).
 - `GetTemplates(repo string) []Template` — List OCI templates
 - `PullAndExtract(repo, tag, outDir) error` — Download + extract tar.gz
 
+## Git (`internal/git/`)
+
+Runs the `git` binary. It sits outside `internal/gitlab` on purpose: cloning was
+a GitLab operation and could assume the configured token, syncing is not — the
+workspaces view reconciles whatever is on disk, and those repositories may have
+any remote at all. Deciding which host a credential may go to is the **caller's**
+job (`workspaces.tokenForRemote`), and a package named after one forge is the
+wrong place to be tempted into a default.
+
+`ops.go`:
+- `Clone(repoURL, targetPath, CloneOptions) error` — shells out to `git clone`
+- `DirExists(path) bool` — what makes an existing checkout skippable
+- `nonInteractiveEnv(token)` — the environment **both** operations run under: no
+  git prompt, no credential-helper browser flow, no askpass, ssh in batch mode,
+  a bounded low-speed abort, and the token as an `http.extraHeader` passed
+  through the environment rather than argv or the URL.
+
+`sync.go`:
+- `Sync(repoPath, SyncOptions) (SyncResult, error)` — fetch, then fast-forward
+  or refuse. Never merges, rebases, stashes or pushes.
+- `RemoteURL(repoPath) (string, error)` — what the caller needs to pick a token
+
+The URL is built by the caller (`explorer.cloneURL`), and the parallelism lives
+in the explorer's clone pipeline and the workspaces sync batch, not here.
+
 ## GitLab Integration (`internal/gitlab/`)
 
 **Auth:**
@@ -184,14 +209,6 @@ and nothing else (see `internal/scan/category.go`).
 - `GetUser() *gitlabclient.User`
 - `ListGroups() []*gitlabclient.Group`
 - `ListProjects(groupID) []*gitlabclient.Project`
-
-**Git Operations** (`git_ops.go`) — two functions, deliberately:
-- `Clone(repoURL, targetPath) error` — shells out to `git clone`
-- `DirExists(path) bool` — what makes an existing checkout skippable
-
-The URL is built by the caller (`explorer.cloneURL`), and the parallelism lives
-in the explorer's clone pipeline, not here. Nothing in this package updates an
-existing checkout; that is §3.17's `sync`, in the workspaces view.
 
 **Stats:**
 - `GetGitLabStats(client) GitLabStats` — Assigned MRs/issues, project/group counts

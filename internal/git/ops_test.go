@@ -1,4 +1,4 @@
-package gitlab
+package git
 
 import (
 	"encoding/base64"
@@ -114,7 +114,7 @@ func TestCloneReportsGitsReason(t *testing.T) {
 // and then waits for a browser. The row spins for ever and the screen is
 // corrupted, which is what was observed.
 func TestTheCloneEnvironmentForbidsEveryPrompt(t *testing.T) {
-	env := cloneEnv(CloneOptions{})
+	env := nonInteractiveEnv("")
 
 	for _, want := range []string{
 		"GIT_TERMINAL_PROMPT=0", // git's own prompt
@@ -139,7 +139,7 @@ func TestTheCloneEnvironmentForbidsEveryPrompt(t *testing.T) {
 // directory it was writing into, so a clone still never leaves half a
 // repository behind (§3.16, decision 12).
 func TestTheCloneEnvironmentBoundsAStalledTransfer(t *testing.T) {
-	env := cloneEnv(CloneOptions{})
+	env := nonInteractiveEnv("")
 
 	if !slices.Contains(env, "GIT_CONFIG_KEY_0=http.lowSpeedLimit") {
 		t.Errorf("no low-speed abort is configured:\n%v", gitConfigOf(env))
@@ -153,7 +153,7 @@ func TestTheCloneEnvironmentBoundsAStalledTransfer(t *testing.T) {
 // process list by anyone on the machine, and the URL form is written into every
 // cloned repository's .git/config and stays there.
 func TestTheTokenTravelsInTheEnvironmentAsBasicAuth(t *testing.T) {
-	env := cloneEnv(CloneOptions{Token: "glpat-secret"})
+	env := nonInteractiveEnv("glpat-secret")
 
 	want := "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("oauth2:glpat-secret"))
 	if !slices.Contains(env, "GIT_CONFIG_VALUE_2="+want) {
@@ -168,7 +168,7 @@ func TestTheTokenTravelsInTheEnvironmentAsBasicAuth(t *testing.T) {
 // over-count makes git fail on every clone, including the public ones that
 // need no token at all.
 func TestWithoutATokenTheHeaderIsAbsentAndTheCountMatches(t *testing.T) {
-	env := cloneEnv(CloneOptions{})
+	env := nonInteractiveEnv("")
 
 	if !slices.Contains(env, "GIT_CONFIG_COUNT=2") {
 		t.Errorf("GIT_CONFIG_COUNT does not match what is set:\n%v", gitConfigOf(env))

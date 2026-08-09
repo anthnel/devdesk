@@ -1,4 +1,12 @@
-package gitlab
+// Package git runs the git binary.
+//
+// It lives outside internal/gitlab on purpose. Cloning was a GitLab operation
+// and could take the configured token for granted; syncing is not — the
+// workspaces view reconciles whatever is on disk, and a repository there may
+// have any remote at all. A package named after one forge is the wrong place to
+// decide which host a credential may be sent to, and the wrong place to tempt
+// anyone into deciding it by default.
+package git
 
 import (
 	"bytes"
@@ -34,7 +42,7 @@ type CloneOptions struct {
 // fails immediately, with git's own reason.
 func Clone(repoURL, targetPath string, opts CloneOptions) error {
 	cmd := exec.Command("git", "clone", repoURL, targetPath)
-	cmd.Env = cloneEnv(opts)
+	cmd.Env = nonInteractiveEnv(opts.Token)
 
 	// stdin is the null device, and stdout/stderr are captured rather than
 	// merely discarded: git's reason for failing is the only thing the row's
@@ -53,8 +61,12 @@ func Clone(repoURL, targetPath string, opts CloneOptions) error {
 	return nil
 }
 
-// cloneEnv builds the environment one clone runs under.
-func cloneEnv(opts CloneOptions) []string {
+// nonInteractiveEnv builds the environment every git subprocess runs under.
+//
+// Clone and Sync share it because they share the hazard: both reach the
+// network, and either can end up in front of a credential helper. token is the
+// credential to offer, or "" for none.
+func nonInteractiveEnv(token string) []string {
 	env := append(os.Environ(),
 		// git's own prompt, the credential helper's browser flow, and the two
 		// askpass hooks. All four are ways for a child process to take the
@@ -77,7 +89,7 @@ func cloneEnv(opts CloneOptions) []string {
 		{"http.lowSpeedLimit", "1000"},
 		{"http.lowSpeedTime", "60"},
 	}
-	if opts.Token != "" {
+	if token != "" {
 		// Basic with `oauth2` as the username is GitLab's documented form for a
 		// personal access token over HTTPS.
 		//
@@ -86,7 +98,7 @@ func cloneEnv(opts CloneOptions) []string {
 		// also be the token, in the clear, once per clone. Nor does it go in the
 		// URL — that form is written into every cloned repository's
 		// .git/config and stays there.
-		credential := base64.StdEncoding.EncodeToString([]byte("oauth2:" + opts.Token))
+		credential := base64.StdEncoding.EncodeToString([]byte("oauth2:" + token))
 		config = append(config, [2]string{"http.extraHeader", "Authorization: Basic " + credential})
 	}
 

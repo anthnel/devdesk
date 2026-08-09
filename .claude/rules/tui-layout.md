@@ -36,7 +36,8 @@
   - `ctrl+n`: Create/New resource.
   - `e`: Edit resource.
   - `ctrl+d`: Delete resource (with confirmation).
-  - `ctrl+s`: Trigger scan/sync.
+  - `ctrl+s`: Trigger scan.
+  - `s`: Sync — fetch and fast-forward (workspaces view).
   - `ctrl+o`: Open in configured IDE (workspaces view).
   - `c`: Enter a multi-select mode over the current list (explorer clone).
 - **Control**:

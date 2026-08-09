@@ -23,6 +23,48 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D37 — the workspaces breadcrumb printed whole paths on Windows. Fixed.**
+Reported from use. `pathBaseName` split on `"/"` alone, and every path in that
+view comes from `filepath.Join` and `os.ReadDir` — so on Windows it found
+nothing to cut and each tab carried the full absolute path:
+
+```
+󰋜 home   󰉋 C:\Users\anthoni\workspaces\anthnell   󰉋 C:\Users\anthoni\workspaces\anthnell\devsecops
+```
+
+Three of those overflow the line, and none of them says where the user is any
+better than one word would. `filepath.Base` is the whole fix.
+
+The test builds its paths with `filepath.Join` for the same reason the view
+does, and so only distinguishes the two implementations where the separator is
+not `"/"` — which is precisely where the defect was. CI runs on Linux, so it is
+green there either way; it was checked against the pre-fix code on Windows,
+where it reproduces the line above exactly.
+
+**D38 — the workspaces spinner had been frozen on frame zero since it was
+written. Fixed**, and found while wiring §3.17's sync into the same mechanism.
+
+`spinner.TickMsg`'s handler stops scheduling the next tick once nothing is
+running — correctly, since there is no reason to rebuild the rows sixty times a
+second for a settled table. But nothing ever started the chain again: `Init`'s
+died on its first tick, and a scan beginning ten minutes later inherited a dead
+chain. The `⠋ scanning` cell never advanced.
+
+It went unnoticed because a stationary braille dot reads as a *marker*, not as a
+stalled animation. The security view had already hit this and grown
+`spinnerTickIfIdle`; the workspaces view had the same shape and none of the fix.
+
+The restart lives in the two Starting handlers — the single funnel every path
+goes through — and reads the maps *before* recording its own path, so the first
+repository starts a chain and the second does not start a second one. Starting
+two is the opposite defect and makes the frames advance at twice the rate.
+`TestTheFirstScanOrSyncRestartsTheSpinnerChain` covers both, for both actions,
+and fails on the pre-fix code.
+
+One window is left deliberately: an action started before `Init`'s first tick
+arrives doubles the chain for the life of the view. It is one frame interval
+wide and costs a fast spinner.
+
 **Two settings had a second, non-persisting writer. Both removed** once the
 configuration view gave them a home.
 
@@ -635,13 +677,19 @@ production code ever writes a value into either — only tests do. It is an
 invalidation ritual around a cache that never holds anything, so every explorer
 open refetches. Either §3.16's discovery finally populates them, or they go.
 
-**D35 — the "unpulled" count is only as fresh as the user's last manual fetch.**
-`detectGitStatus` computes it with `rev-list --count HEAD..@{u}`
-(`workspaces/entry.go:90`). `@{u}` is the local remote-tracking ref, and nothing
-in DevDesk ever runs `git fetch`, so the column reads `0` on a repository forty
-commits behind until the user fetches from a terminal. It is not a missing
-feature but a number that looks authoritative and is not. Blocks §3.17, which
-must fetch before it decides anything.
+**D35 — the "unpulled" count is only as fresh as the last fetch. Mitigated by
+§3.17, not closed.** `detectGitStatus` computes it with
+`rev-list --count HEAD..@{u}` (`workspaces/entry.go:90`), and `@{u}` is the local
+remote-tracking ref. Nothing in DevDesk moved it, so the column read `0` on a
+repository forty commits behind.
+
+`s` now does: sync fetches first and always, so a repository it touches — even
+one it *refuses* to fast-forward — comes out with a true count. What remains is
+that `loadEntries` still does not fetch, and must not: a directory listing that
+hits the network on every drill-down is a different defect. So a repository not
+synced since the app opened still shows a number nobody has checked. There is
+now a way to make it true, and the one feature that acts on it never trusts it —
+which is the difference between a lie and a stale reading.
 
 **D34 — the explorer paginated nothing. Fixed.** Every list in
 `internal/ui/gitlab/explorer/api.go` was built with `PerPage: 100, Page: 1`, at
@@ -2804,27 +2852,97 @@ cancellation with clones genuinely in flight. Both are covered by tests
 (`pipeline_test.go`, `TestPaginationStopsWhenTheServerRepeatsAPage`), against a
 fake forge and local git remotes.
 
-### 3.17 `sync` in the workspaces view — **not started**
+### 3.17 `sync` in the workspaces view — **done**
 
 The counterpart to §3.16 decision 2: the explorer creates what is missing,
 workspaces reconciles what exists. Updating a clone, and every question about a
 dirty working copy, lives here.
 
-**The data already exists.** `workspaces.Entry` carries `GitBranch`,
+The survey's reading held. `workspaces.Entry` already carried `GitBranch`,
 `GitRemote`, `GitModified`, `GitUntracked`, `GitUnpushed` and `GitUnpulled`, and
-`detectGitStatus` (`entry.go:51`) already fills them on every listing. What is
-missing is the **action** — fetch, pull, push — not the knowledge. That makes
-this much smaller than it sounds.
+`detectGitStatus` already filled them on every listing; what was missing was the
+**action**, not the knowledge. What the survey did not anticipate is that most of
+the work would be in deciding what sync refuses, and in where a credential is
+allowed to go.
 
-**But one of those numbers is not trustworthy today.** `GitUnpulled` comes from
-`rev-list --count HEAD..@{u}` (`entry.go:90`), and `@{u}` is the *local*
-remote-tracking ref, which only moves after a `git fetch` — and nothing in
-DevDesk ever fetches. See D35. Sync therefore has to **fetch first and decide
-after**, or it offers to reconcile against stale answers.
+#### The seven decisions
 
-Open, all of it: whether sync acts on one row or a selection, whether push is in
-scope or only pull, and what it does with a dirty tree — refuse and report is
-the obvious default, and it is the whole reason this is not in the explorer.
+| # | Question | Answer |
+|---|---|---|
+| 1 | One row or a selection | **Follow `ctrl+s`'s rule.** A git repository syncs itself, a plain directory syncs every repository nested under it. A selection mode would be a second targeting model in one view, and the aggregation this view already does is the same aggregation sync needs. |
+| 2 | Its own screen, like the clone list | **No — decorate the rows.** The clone opens a list because discovery *invents* its rows; here every repository is already on screen, so a list would print the same names twice. The spinner goes in the Git Status cell exactly as a scan's goes in Scanned. |
+| 3 | Push in scope | **No.** Sync is the pull direction. Publishing is a separate intent with separate failure modes (protected branches, write scopes), and nothing about "reconcile what exists" implies it. `GitUnpushed` stays informational. |
+| 4 | A dirty tree | **Fetch, then refuse.** Also for a divergence and a detached HEAD. No merge commit, no rebase, no stash — a divergence is a decision about someone's unpublished work, and guessing at it destroys hours in a keystroke that cannot be undone. |
+| 5 | Skip versus failure | **Two different things.** A skip means the repository is as its owner left it; a failure means DevDesk could not find out. An unreachable remote is a failure, an uncommitted change is not. |
+| 6 | Which token | **Only for the configured GitLab host.** See below — this is the one decision with a security consequence. |
+| 7 | A sync-all key | **No.** At the root the user syncs each top-level directory. `Shift+S` collides with Rule 111's sort menu, and a second key is not worth inventing one. |
+
+#### Decision 6, and why `internal/git` exists
+
+`git_ops.go` moved out of `internal/gitlab` into a package of its own. The
+reason is not tidiness: **cloning could assume the configured token and syncing
+cannot.** The explorer clones from one forge, known in advance. The workspaces
+view holds whatever the user has cloned — GitHub, a customer's Gitea, a bare
+path on a share — and `http.extraHeader` would put DevDesk's personal access
+token on the wire to any of them.
+
+So the *caller* decides (`workspaces.tokenForRemote`, host-matched against
+`gitlab.url`), and the package that runs git is named after git. Deciding a
+credential's destination inside a package named after one forge is how the
+default that must not exist gets written. A foreign remote never reaches the
+loader at all, so the secret store is not even read for it —
+`TestAForeignRemoteNeverTouchesTheSecretStore`, and a table covering ports,
+case, and the `evil-gitlab.example.com.attacker.net` suffix trick.
+
+`nonInteractiveEnv` is shared with `Clone` for a reason established the hard way
+in §3.16: a `git fetch` is a network call like any other, and left to itself it
+reaches the credential helper — which writes to the console over the rendered
+frame and then waits on a browser. Nothing about that was specific to cloning.
+
+#### D35, mitigated rather than closed
+
+Sync **fetches first, always, whatever the tree looks like**, and that ordering
+is the point rather than an implementation detail. A repository sync *declines*
+still comes out of it knowing how far behind it is, because the fetch happened
+either way — `TestARefusedSyncStillFetchedAndKnowsHowFarBehindItIs`. A refusal
+that taught the user nothing would be worse than no feature.
+
+But the column still reads stale **until a sync runs**: `loadEntries` does not
+fetch, and it must not — a directory listing that hits the network on every
+drill-down is a different defect. So D35 stays open, downgraded: there is now a
+way to make the number true, and the one thing that acts on it never trusts it.
+
+#### The rest, as built
+
+- **`Model.busy` guards both directions.** A scan reads the working tree while a
+  fast-forward rewrites it, and the visible result is a report describing a tree
+  that no longer exists. Only the scan side had a guard before; `ctrl+a`'s purge
+  needed one too, or a syncing row's counts are blanked with nothing on the way
+  to replace them.
+- **The footer line is rendered from the run, not assigned to `footerInfo`.** A
+  batch outlives the three seconds Rule 128 gives a footer message: a progress
+  line set on the first repository would vanish while the tenth was still
+  fetching. Its own timer only drops a *settled* run, so a sync started inside
+  those three seconds is not wiped by the previous one's tick.
+- **`gitlab.pull.parallel_jobs` bounds this too.** One number meaning "how many
+  git network operations at once" beats two the user has to keep in step, even
+  though the setting sits under `gitlab:` and a workspace repository need not be
+  a GitLab one.
+- **`workspaces.New` takes the secret store.** `NewForSelection` passes nil and
+  says why: a view lent out to answer one question never syncs.
+- **D38 came out of this.** Reusing the scan's spinner mechanism is what
+  revealed that the mechanism had never worked: the chain died after `Init` and
+  nothing restarted it, so the scan spinner had been frozen on frame zero all
+  along. Fixed for both actions.
+
+Ten tests in `internal/git/sync_test.go` drive real repositories against local
+remotes — a fake would have to model exactly the thing under test, what git
+considers a fast-forward and what it considers dirty, so it could only ever
+confirm the author's idea of those rules. Three of the view's tests were checked
+against the pre-fix code and fail on it.
+
+**Not verified by hand yet**: a sync against a real private GitLab remote, which
+is also the first confirmation that `tokenForRemote` picks the token up.
 
 ### 3.15 The scan form is deleted (phase 3) — **done**
 

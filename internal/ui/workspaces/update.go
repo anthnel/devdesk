@@ -98,7 +98,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case spinner.TickMsg:
-		if len(m.scanningPaths) > 0 {
+		if len(m.scanningPaths) > 0 || len(m.syncingPaths) > 0 {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			m.spinnerFrameIdx = (m.spinnerFrameIdx + 1) % len(spinner.Dot.Frames)
@@ -117,13 +117,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleScanRequest(msg)
 
 	case WorkspaceScanStartingMsg:
+		tick := m.spinnerTickIfIdle()
 		m.scanningPaths[msg.RepoPath] = true
 		m.footerInfo = ""
 		m.refreshRows()
-		return m, nil
+		return m, tick
 
 	case WorkspaceScanCompleteMsg:
 		return m.handleWorkspaceScanComplete(msg)
+
+	case WorkspaceSyncStartingMsg:
+		tick := m.spinnerTickIfIdle()
+		m.syncingPaths[msg.RepoPath] = true
+		m.footerInfo = ""
+		m.refreshRows()
+		return m, tick
+
+	case WorkspaceSyncCompleteMsg:
+		return m.handleWorkspaceSyncComplete(msg)
+
+	case clearSyncSummaryMsg:
+		// Only a settled run is dropped: a second sync started inside the three
+		// seconds must not have its progress wiped by the first one's timer.
+		if m.sync != nil && m.sync.finished() {
+			m.sync = nil
+		}
+		return m, nil
 
 	case clearFooterInfoMsg:
 		m.footerInfo = ""
@@ -195,6 +214,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openInBrowser()
 	case "ctrl+s":
 		return m.startSecurityScan()
+	case "s":
+		return m.startSync()
 	case "A":
 		return m.scanAllUnscanned()
 	case "ctrl+a":
@@ -210,6 +231,28 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// spinnerTickIfIdle restarts the spinner chain when nothing was keeping it
+// alive, and is why both Starting handlers read it *before* recording their
+// path.
+//
+// The TickMsg handler stops scheduling the next tick once nothing is running —
+// there is no reason to rebuild the rows sixty times a second for a settled
+// table — so the chain Init started dies on its first tick. Nothing brought it
+// back, and a scan's spinner has therefore been frozen on frame zero since it
+// was written: it looked like a marker rather than an animation, so it never
+// read as broken. Starting a second chain alongside a live one is the opposite
+// mistake, and makes the frames advance at twice the rate.
+//
+// One window is left, and deliberately: an action started before Init's first
+// tick has arrived doubles the chain until the view is closed. It is the
+// spinner's own frame interval wide, and the cost is a spinner that spins fast.
+func (m Model) spinnerTickIfIdle() tea.Cmd {
+	if len(m.scanningPaths) > 0 || len(m.syncingPaths) > 0 {
+		return nil
+	}
+	return m.spinner.Tick
 }
 
 // tabCount returns the total number of tabs (home + navigation stack entries + current)

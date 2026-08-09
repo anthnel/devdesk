@@ -2,6 +2,7 @@ package workspaces
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -218,6 +219,32 @@ func TestFooterBreadcrumbFollowsTheNavigation(t *testing.T) {
 
 	if !strings.Contains(m.RenderFooter(160), "clients") {
 		t.Errorf("the breadcrumb does not name the current directory:\n%s", m.RenderFooter(160))
+	}
+}
+
+// A breadcrumb tab names the directory, not the path leading to it. It used to
+// split on "/" alone, which cuts nothing on Windows: three tabs each carried the
+// whole absolute path, the line overflowed, and none of them said where the user
+// was any better than one word would have.
+//
+// filepath.Join is what builds these paths in the view, so it is what builds
+// them here. The assertion only tells the two implementations apart on a
+// platform whose separator is not "/" — which is precisely where the defect was.
+func TestABreadcrumbTabNamesTheDirectoryNotItsPath(t *testing.T) {
+	nested := filepath.Join("C:", "Users", "anthoni", "workspaces", "anthnell", "devsecops")
+	parent := filepath.Dir(nested)
+
+	m := loadedModel(t)
+	m.navigationStack = []string{parent}
+	m.currentPath = nested
+
+	footer := m.RenderFooter(160)
+
+	if !strings.Contains(footer, "devsecops") || !strings.Contains(footer, "anthnell") {
+		t.Errorf("the breadcrumb does not name both levels:\n%s", footer)
+	}
+	if strings.Contains(footer, parent) {
+		t.Errorf("a breadcrumb tab carries the whole path instead of the directory:\n%s", footer)
 	}
 }
 

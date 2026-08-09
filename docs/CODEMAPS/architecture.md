@@ -134,7 +134,8 @@ view.Update(msg) → (tea.Model, tea.Cmd)
 | `internal/scan/` | Trivy/Gitleaks orchestrator |
 | `internal/docker/` | Docker CLI wrapper, network diag tools |
 | `internal/oci/` | OCI registry HTTP client |
-| `internal/gitlab/` | GitLab API client wrapper, auth, git ops |
+| `internal/gitlab/` | GitLab API client wrapper, auth, stats |
+| `internal/git/` | The git binary: clone, sync, and the non-interactive environment both run under |
 | `internal/status/` | Health checker (HTTP/ICMP/DNS) |
 | `internal/credentials/` | Storage interface: File/Memory/GitCredential |
 

@@ -31,7 +31,11 @@ const numColumns = 11
 // columns can reach, since they are built once in New. Same shape as
 // oci_resources' imageRow, and for the same reason.
 type workspaceRow struct {
-	Entry     Entry
+	Entry Entry
+	// GitStatus is the branch and its counts, or the spinner while a sync is
+	// rewriting exactly those counts. Showing the stale numbers under a
+	// spinner elsewhere in the row would be showing the state being replaced.
+	GitStatus string
 	Sensitive string
 	Critical  string
 	High      string
@@ -58,7 +62,7 @@ func workspaceColumns() []datatable.Column[workspaceRow] {
 			Cell:   func(r workspaceRow) string { return r.Entry.GitRemote },
 			Search: func(r workspaceRow) string { return r.Entry.GitRemote },
 		},
-		text("Git Status", colGitFixed, func(r workspaceRow) string { return formatGitStatus(r.Entry) }),
+		text("Git Status", colGitFixed, func(r workspaceRow) string { return r.GitStatus }),
 		text("Type", colTypeFixed, func(r workspaceRow) string { return formatProjectType(r.Entry) }),
 		text("Secrets", colSensitiveFixed, func(r workspaceRow) string { return r.Sensitive }),
 		text("C", colCFixed, func(r workspaceRow) string { return r.Critical }),
@@ -77,8 +81,13 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 	rows := make([]workspaceRow, 0, len(entries))
 	for _, entry := range entries {
 		sensitive, c, h, med, l, scanned := m.formatScanColumns(entry, frame)
+		gitStatus := formatGitStatus(entry)
+		if m.syncingPaths[entry.Path] {
+			gitStatus = frame + " syncing"
+		}
 		rows = append(rows, workspaceRow{
 			Entry:     entry,
+			GitStatus: gitStatus,
 			Sensitive: sensitive,
 			Critical:  c,
 			High:      h,

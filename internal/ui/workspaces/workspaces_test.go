@@ -70,7 +70,7 @@ func entryFixtures() []Entry {
 // newTestModel returns a laid-out model with no entries yet.
 func newTestModel(t *testing.T) Model {
 	t.Helper()
-	return feed(t, New(testConfig()), tea.WindowSizeMsg{Width: 160, Height: 30})
+	return feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 }
 
 // loadedModel returns a model that has absorbed the fixture entries.
