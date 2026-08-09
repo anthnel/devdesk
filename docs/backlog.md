@@ -11,10 +11,11 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Four open.** Three are in the registry browser and were found while reviewing
-the design for §3.8 rather than by a test; the fourth is dead code found by the
-phase 6 coverage pass. See [§1.3](#13-open). D1–D11, D15–D20 and D22 are fixed;
-§1.1 records what each was and why the chosen fix was the right one.
+**None open.** D1 through D38 are all fixed or, in D35's case, deliberately
+downgraded to a stale reading with a way to refresh it. §1.1 records what each
+was and why the chosen fix was the right one — including the three that were
+answered by *removing* something rather than making it work: D8's write-only
+CRUD flags, D21's unreachable clamp and D36's never-filled cache.
 
 The five that stayed open longest — D4, D8, D9, D10 and D11 — were parked not
 because they were hard but because each altered something the user already saw,
@@ -22,6 +23,40 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D36 — `CachedGroups` and `CachedProjects` were invalidated and never filled.
+Removed rather than populated.** `shared.State` declared both and three call
+sites cleared them; no production code ever wrote a value into either, so the
+"every explorer open refetches" complaint was about a cache that had been nil at
+every moment of its life.
+
+Two things settled it against filling them:
+
+- **They could only ever be read while deliberately empty.** The explorer keeps
+  its own tree for as long as it exists, and `createView` rebuilds a view only
+  after dropping it — which happens on a config save, a context switch or a
+  logout. Those are precisely the three sites that cleared this cache.
+- **The shape is wrong.** §3.16 made the explorer a lazily-walked, paginated
+  tree. A flat `[]*Group` cannot say which level was fetched, and filling one
+  needs the full API walk §3.16 removed *because* it froze the view for minutes.
+  The right cache for a tree is the tree, and the explorer has it.
+
+Leaving the fields in place was the real risk: they read as a cache someone had
+not got round to filling, and the obvious way to fill them is the walk that was
+deliberately abolished. The reasoning is recorded where they were declared.
+
+Two tests asserted on them and now assert on `GitLabStats` — the one of the
+three the dashboard actually fills, and which nothing else covered. Both were
+checked against a build with the `GitLabStats = nil` lines removed, and both
+fail on it.
+
+**D21 — an unreachable focus clamp in `ConnectivityTestForm`. Removed**, the way
+D5 was. Cycling the test type can take `numFields()` from 4 to 3, and both
+handlers clamped the focus against that; neither could fire, because cycling
+only happens inside `focusedField == cFieldType`, so the focus is 1 and
+`numFields()` is never below 3. `TestCyclingTheTypeNeverStrandsTheFocus` was
+already written to pin the invariant rather than the code, and passes unchanged
+— which is what a test written that way is for.
 
 **D37 — the workspaces breadcrumb printed whole paths on Windows. Fixed.**
 Reported from use. `pathBaseName` split on `"/"` alone, and every path in that
@@ -668,14 +703,7 @@ the stale test and the stale backlog entry got found together.
 moment step 6 landed, which is what the pattern is for, and has been turned
 around.
 
-**D21** is the only defect left open.
-
-**D36 — `CachedGroups` and `CachedProjects` are invalidated and never filled.**
-`shared.State` declares both (`state.go:70-71`) and three call sites clear them
-(`app/configuration.go:104`, `app/context.go:167`, `app/gitlab.go:103`), but no
-production code ever writes a value into either — only tests do. It is an
-invalidation ritual around a cache that never holds anything, so every explorer
-open refetches. Either §3.16's discovery finally populates them, or they go.
+**Nothing is left open.** D21 and D36 were the last two; both are in §1.1.
 
 **D35 — the "unpulled" count is only as fresh as the last fetch. Mitigated by
 §3.17, not closed.** `detectGitStatus` computes it with
@@ -736,9 +764,8 @@ the answer was discarded on every browser open; not harmless once step 3 cached
 it, since one unreachable minute would have erased what was last known. The
 error now propagates and a failed discovery is not written through.
 
-**D21** also sits in that package but is **independent of §3.8** and should not
-wait for it. It is three lines of dead code with its invariant already pinned,
-so it belongs in whatever next touches `connectivity_form.go`.
+**D21** also sat in that package but was **independent of §3.8**, and was fixed
+without waiting for it — see §1.1.
 
 D20 and D22 are fixed — see §1.1.
 
@@ -790,19 +817,7 @@ Pinned inverted by `TestAGroupMembersFilterLabelIsStillARawURL`, which asserts
 the raw URL today and asserts the configured registry's alias alongside it as
 the contrast.
 
-**D21 — an unreachable focus clamp in `ConnectivityTestForm`.** Dead code, not a
-user-visible defect, and the same shape as D5 in `CreationForm`.
-
-The `left` and `right` handlers (`connectivity_form.go:242`, `:253`) clamp the
-focus after cycling the test type, guarding against the field count shrinking
-from four to three when the port field disappears. It cannot fire: both branches
-are inside `if f.focusedField == cFieldType`, so `focusedField` is 1, and
-`numFields()` is never below 3.
-
-Fix it the way D5 was: delete both clamps and record why they cannot fire, so
-they are not reintroduced defensively. The invariant they were guarding is
-already pinned by `TestCyclingTheTypeNeverStrandsTheFocus`, which passes before
-and after.
+**D21 is fixed** — see §1.1. It was the last entry in this section.
 
 ---
 
@@ -2941,8 +2956,9 @@ considers a fast-forward and what it considers dirty, so it could only ever
 confirm the author's idea of those rules. Three of the view's tests were checked
 against the pre-fix code and fail on it.
 
-**Not verified by hand yet**: a sync against a real private GitLab remote, which
-is also the first confirmation that `tokenForRemote` picks the token up.
+**Verified by hand** against a real private GitLab remote on 2026-08-09, which
+is also the confirmation that `tokenForRemote` picks the token up — the path the
+tests could only follow as far as the decision.
 
 ### 3.15 The scan form is deleted (phase 3) — **done**
 

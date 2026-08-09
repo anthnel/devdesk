@@ -105,11 +105,11 @@ func TestTheArrowsDoNotCycleTheTypeFromAnotherField(t *testing.T) {
 }
 
 // D21, pinning the invariant rather than the code: cycling the type can shrink
-// the field count, and the clamp guarding that in the left/right handlers
-// cannot fire — cycling only happens while cFieldType is focused, and that
-// index is below numFields() in every mode. The clamp is dead code (the shape
-// D5 records for CreationForm); this test is what keeps the invariant it was
-// guarding true once it is removed.
+// the field count, and the clamp that guarded that in the left/right handlers
+// could not fire — cycling only happens while cFieldType is focused, and that
+// index is below numFields() in every mode. Both clamps are gone (the shape D5
+// records for CreationForm); this test is what keeps the invariant they were
+// guarding true without them.
 func TestCyclingTheTypeNeverStrandsTheFocus(t *testing.T) {
 	f := onTypeField(t, newConnectivityForm(t))
 

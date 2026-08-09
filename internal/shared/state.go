@@ -66,9 +66,23 @@ type State struct {
 	IsAuthenticated bool
 	CurrentUser     *gitlabclient.User
 
-	// Cache
-	CachedGroups   []*gitlabclient.Group
-	CachedProjects []*gitlabclient.Project
+	// There is no groups/projects cache here, and that is a decision rather
+	// than an omission (D36). `CachedGroups` and `CachedProjects` were declared
+	// and cleared in three places for months without a single production write,
+	// so every explorer open was said to be refetching against a cache that had
+	// never held anything.
+	//
+	// Two things ruled out filling them. The explorer keeps its own tree for as
+	// long as it exists, and `createView` only rebuilds a view it has dropped —
+	// on a config save, a context switch or a logout, which are exactly the
+	// three moments this cache was being emptied. It could therefore only ever
+	// be consulted when it was deliberately empty.
+	//
+	// And the shape is wrong anyway. §3.16 made the explorer a lazily-walked,
+	// paginated tree; a flat slice of every group cannot say which level was
+	// fetched, and filling one needs the full API walk that §3.16 removed
+	// precisely because it froze the view for minutes. The right cache for a
+	// tree is the tree, and the explorer already holds it.
 
 	// Dashboard data
 	ServiceStatus     ServiceGlobalStatus

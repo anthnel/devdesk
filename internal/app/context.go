@@ -164,8 +164,6 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 	a.sharedState.GitLabClient = nil
 	a.sharedState.IsAuthenticated = false
 	a.sharedState.CurrentUser = nil
-	a.sharedState.CachedGroups = nil
-	a.sharedState.CachedProjects = nil
 	a.sharedState.GitLabStats = nil
 
 	// Apply auto-login result from the context switch if successful

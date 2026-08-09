@@ -101,7 +101,5 @@ func (a *App) closeGitLabSession() {
 	a.sharedState.GitLabClient = nil
 	a.sharedState.IsAuthenticated = false
 	a.sharedState.CurrentUser = nil
-	a.sharedState.CachedGroups = nil
-	a.sharedState.CachedProjects = nil
 	a.sharedState.GitLabStats = nil
 }

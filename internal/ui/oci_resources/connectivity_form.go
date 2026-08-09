@@ -235,13 +235,18 @@ func (f *ConnectivityTestForm) Update(msg tea.Msg) (*ConnectivityTestForm, tea.C
 			f.updateFocus()
 			return f, nil
 
+		// Cycling the type can hide the port field, taking numFields() from 4 to
+		// 3. Both handlers used to clamp the focus against that, and neither
+		// clamp could ever fire (D21): cycling only happens inside
+		// `focusedField == cFieldType`, so the focus is 1, and numFields() is
+		// never below 3. Reinstating them defensively would put back code no
+		// test can reach — `TestCyclingTheTypeNeverStrandsTheFocus` is what
+		// keeps the invariant they were guarding true.
+
 		case "left":
 			if f.focusedField == cFieldType {
 				n := len(testTypeLabels)
 				f.testType = connectivityTestType((int(f.testType) - 1 + n) % n)
-				if !f.isPortActive() && f.focusedField >= f.numFields() {
-					f.focusedField = f.numFields() - 1
-				}
 				f.updateFocus()
 			}
 			return f, nil
@@ -250,9 +255,6 @@ func (f *ConnectivityTestForm) Update(msg tea.Msg) (*ConnectivityTestForm, tea.C
 			if f.focusedField == cFieldType {
 				n := len(testTypeLabels)
 				f.testType = connectivityTestType((int(f.testType) + 1) % n)
-				if !f.isPortActive() && f.focusedField >= f.numFields() {
-					f.focusedField = f.numFields() - 1
-				}
 				f.updateFocus()
 			}
 			return f, nil
