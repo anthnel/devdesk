@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "e7b1d46806b4",
+  "strategy": "manual-commit",
+  "branch": "feat/workspaces-sync",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "internal/app/command_line.go",
+    "internal/ui/workspaces/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e7/b1d46806b4/0/metadata.json",
+      "transcript": "/e7/b1d46806b4/0/full.jsonl",
+      "compact_transcript": "/e7/b1d46806b4/0/transcript.jsonl",
+      "content_hash": "/e7/b1d46806b4/0/content_hash.txt",
+      "prompt": "/e7/b1d46806b4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1912,
+    "cache_creation_tokens": 3539461,
+    "cache_read_tokens": 298892807,
+    "output_tokens": 626166,
+    "api_call_count": 1017
+  }
+}
