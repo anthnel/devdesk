@@ -3,7 +3,7 @@
   "checkpoint_id": "4e99277cfc5c",
   "strategy": "manual-commit",
   "branch": "fix/pull-reference-scheme",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "internal/ui/oci_resources/browser_search_test.go",
     "internal/ui/oci_resources/browser_tags.go",
@@ -16,13 +16,20 @@
       "compact_transcript": "/4e/99277cfc5c/0/transcript.jsonl",
       "content_hash": "/4e/99277cfc5c/0/content_hash.txt",
       "prompt": "/4e/99277cfc5c/0/prompt.txt"
+    },
+    {
+      "metadata": "/4e/99277cfc5c/1/metadata.json",
+      "transcript": "/4e/99277cfc5c/1/full.jsonl",
+      "compact_transcript": "/4e/99277cfc5c/1/transcript.jsonl",
+      "content_hash": "/4e/99277cfc5c/1/content_hash.txt",
+      "prompt": "/4e/99277cfc5c/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 24,
-    "cache_creation_tokens": 115363,
-    "cache_read_tokens": 1431778,
-    "output_tokens": 12435,
-    "api_call_count": 13
+    "input_tokens": 2140,
+    "cache_creation_tokens": 4035750,
+    "cache_read_tokens": 335282953,
+    "output_tokens": 686698,
+    "api_call_count": 1138
   }
 }
