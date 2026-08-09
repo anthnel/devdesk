@@ -473,6 +473,74 @@ whose stored token is missing or under-scoped **fails** rather than falling back
 to a browser. That is the intended trade — a failed row naming git's reason
 beats a spinner that never resolves — but it makes the token the only way in.
 
+### The workspaces sync
+
+`s` fetches a repository and fast-forwards it (§3.17). It is the other half of
+the line §3.16 drew: **the explorer creates what does not exist, workspaces
+reconciles what does.**
+
+**It has no screen of its own, and that is the whole difference from the clone.**
+The clone opens a list because its rows do not exist yet — discovery invents
+them. Here every repository is already a row the user is looking at, so a second
+list would print the same names twice. Sync decorates instead: the spinner goes
+in the Git Status cell, exactly as a scan's goes in Scanned, and the counts tell
+the truth again when it lands. The progress and the summary are one footer line
+rendered from the run (`syncStatusLine`) rather than assigned to `footerInfo` —
+a batch outlives the three seconds a footer message gets (Rule 128).
+
+**The target follows `ctrl+s`'s rule rather than adding a selection mode**: a
+git repository syncs itself, a plain directory syncs every repository nested
+under it, anything else does nothing. Two actions with one targeting rule is one
+thing to learn; the shortcuts appear and disappear together for the same reason.
+There is deliberately no sync-all: at the root the user syncs each top-level
+directory, and a second key for it is not worth `Shift+S`'s collision with
+Rule 111's sort menu.
+
+**`git.Sync` refuses more than it does**, and each refusal is the point:
+
+| Situation | What happens |
+|---|---|
+| behind, clean, no local commits | fast-forwarded |
+| nothing to pull | up to date — unpushed commits do not change that, sync is the pull direction |
+| local commits the remote lacks | **skipped**, `diverged — N commits ahead` |
+| uncommitted changes, untracked included | **skipped**, `uncommitted changes` |
+| detached HEAD, or no upstream | **skipped**, named |
+| the remote could not be reached | **failed** — the difference from a skip is whether the repository is as its owner left it, or DevDesk could not find out |
+
+No merge commit, no rebase, no stash, and **never a push**. A divergence is a
+decision about someone's unpublished work, and a tool that guesses at it
+destroys hours in a keystroke that cannot be undone.
+
+**The fetch runs first and always, whatever the tree looks like.** That is D35:
+the "unpulled" count comes from `@{u}`, the *local* tracking ref, and nothing in
+DevDesk moved it — so it read `0` on a repository forty commits behind. A sync
+deciding from that number would be reconciling against an answer it had not
+checked. The consequence worth keeping: a repository sync **declines** still
+comes out of it knowing how far behind it is, because the fetch happened either
+way. `readGitStatus` re-reads the repository on every completion, refusal
+included, and `applyGitStatus` puts the fresh counts on the row.
+
+**A repository is never scanned and synced at once.** A scan reads the working
+tree while a fast-forward rewrites it; the visible result is a report describing
+a tree that no longer exists. `Model.busy` guards **both** directions —
+`ctrl+a`'s purge included, or a syncing row's counts are blanked with nothing on
+the way to replace them.
+
+**The token goes to the configured GitLab host and nowhere else.**
+`tokenForRemote` compares the repository's remote host with `gitlab.url`'s and
+returns `""` otherwise. This is not tidiness: the workspaces view holds whatever
+the user has cloned — GitHub, a customer's Gitea, a path on a share — and
+`http.extraHeader` would put DevDesk's personal access token on the wire to any
+of them. It is also why `internal/git` exists as a package separate from
+`internal/gitlab`: deciding a credential's destination in a package named after
+one forge invites the default that must not exist. A foreign remote never even
+reaches the loader, so the secret store is not read for it.
+
+The keyring is read **once per batch** (`tokenLoader`, a `sync.Once` closure) and
+on a command's goroutine, not in `Update` — same reasoning as the clone
+pipeline's. `gitlab.pull.parallel_jobs` bounds both: one number meaning "how many
+git network operations at once" beats two the user has to keep in step.
+
 ### Security Scanning
 
 **Where a scanner runs from is configured, not guessed.** `scan.trivy_source`

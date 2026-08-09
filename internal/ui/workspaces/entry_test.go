@@ -22,7 +22,7 @@ func TestCreateWorkspaceMakesTheDirectory(t *testing.T) {
 	root := t.TempDir()
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg)
+	m := New(cfg, nil)
 
 	msg := m.createWorkspace("new-project")().(WorkspaceCreatedMsg)
 
@@ -48,7 +48,7 @@ func TestCreateWorkspaceUsesTheBrowsedDirectory(t *testing.T) {
 	}
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg)
+	m := New(cfg, nil)
 	m.currentPath = nested
 
 	msg := m.createWorkspace("acme")().(WorkspaceCreatedMsg)
@@ -66,7 +66,7 @@ func TestCreateWorkspaceCreatesTheRootIfMissing(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "not-yet")
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg)
+	m := New(cfg, nil)
 
 	msg := m.createWorkspace("first")().(WorkspaceCreatedMsg)
 
@@ -88,7 +88,7 @@ func TestDeleteEntryRemovesRecursively(t *testing.T) {
 		t.Fatalf("writing the file: %v", err)
 	}
 
-	msg := New(config.Default()).deleteEntry(target)().(EntryDeletedMsg)
+	msg := New(config.Default(), nil).deleteEntry(target)().(EntryDeletedMsg)
 
 	if msg.Error != nil {
 		t.Fatalf("deleteEntry returned an error: %v", msg.Error)
@@ -107,7 +107,7 @@ func TestRenameEntryMovesWithinItsParent(t *testing.T) {
 		t.Fatalf("creating the directory: %v", err)
 	}
 
-	msg := New(config.Default()).renameEntry(old, "after")().(EntryRenamedMsg)
+	msg := New(config.Default(), nil).renameEntry(old, "after")().(EntryRenamedMsg)
 
 	if msg.Error != nil {
 		t.Fatalf("renameEntry returned an error: %v", msg.Error)
@@ -127,7 +127,7 @@ func TestRenameEntryMovesWithinItsParent(t *testing.T) {
 func TestRenameEntryReportsFailure(t *testing.T) {
 	root := t.TempDir()
 
-	msg := New(config.Default()).renameEntry(filepath.Join(root, "missing"), "after")().(EntryRenamedMsg)
+	msg := New(config.Default(), nil).renameEntry(filepath.Join(root, "missing"), "after")().(EntryRenamedMsg)
 
 	if msg.Error == nil {
 		t.Error("renaming a missing entry reported success")
@@ -255,7 +255,7 @@ func TestLoadEntriesReadsTheWorkspacesDirectory(t *testing.T) {
 
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg)
+	m := New(cfg, nil)
 
 	msg := m.loadEntries()()
 	loaded, ok := msg.(EntriesLoadedMsg)
@@ -280,7 +280,7 @@ func TestLoadEntriesCreatesTheRootOnFirstRun(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "does-not-exist")
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
-	m := New(cfg)
+	m := New(cfg, nil)
 
 	msg := m.loadEntries()()
 
@@ -301,7 +301,7 @@ func TestLoadEntriesCreatesTheRootOnFirstRun(t *testing.T) {
 func TestLoadEntriesReportsAMissingBrowsedDirectory(t *testing.T) {
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = t.TempDir()
-	m := New(cfg)
+	m := New(cfg, nil)
 	m.currentPath = filepath.Join(cfg.App.WorkspacesDir, "vanished")
 
 	msg := m.loadEntries()()
@@ -322,7 +322,7 @@ func TestLoadEntriesSkipsHiddenEntries(t *testing.T) {
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
 
-	loaded := New(cfg).loadEntries()().(EntriesLoadedMsg)
+	loaded := New(cfg, nil).loadEntries()().(EntriesLoadedMsg)
 
 	for _, e := range loaded.Entries {
 		if e.Name == ".hidden" {
@@ -344,7 +344,7 @@ func TestLoadedEntriesReachTheTable(t *testing.T) {
 	cfg := config.Default()
 	cfg.App.WorkspacesDir = root
 
-	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, New(cfg, nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m = feed(t, m, m.loadEntries()())
 
 	if got := rowNames(m.table.Table().Rows()); len(got) != 1 || got[0] != "alpha" {

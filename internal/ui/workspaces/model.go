@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/credentials"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -60,6 +61,19 @@ type Model struct {
 	// Paths currently being scanned (keyed by absolute path)
 	scanningPaths map[string]bool
 
+	// Paths currently being synced (keyed by absolute path). Separate from
+	// scanningPaths because the two are mutually exclusive per repository, and
+	// knowing which one holds it is what lets the view say so.
+	syncingPaths map[string]bool
+	// sync is the batch in flight, or the summary of the last one until it is
+	// cleared. Nil when neither.
+	sync *syncRun
+
+	// secrets is the context's secret store, the one the router resolved. A
+	// sync fetches, and a fetch against the configured GitLab needs the token —
+	// with the credential helper shut out, it is the only way in (§3.16).
+	secrets credentials.Storage
+
 	// footerError holds a short scan error message for the footer info line (Rule 128)
 	footerError string
 	// footerInfo holds a transient informational message for the footer info line
@@ -91,14 +105,18 @@ type Entry struct {
 	ProjectType string // "Go", "Node", "Python", "Rust", "Java", etc.
 }
 
-// New crée une nouvelle instance du modèle workspaces
-func New(cfg *config.Config) Model {
+// New crée une nouvelle instance du modèle workspaces.
+//
+// secrets may be nil for a view that will never sync — the borrowed selection
+// mode is the one such case — and a nil store simply means no token is offered.
+func New(cfg *config.Config, secrets credentials.Storage) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
 
 	return Model{
-		config: cfg,
+		config:  cfg,
+		secrets: secrets,
 		table: datatable.New(datatable.Config[workspaceRow]{
 			Columns:    workspaceColumns(),
 			SortColumn: -1, // the order the directory listing gave
@@ -108,12 +126,15 @@ func New(cfg *config.Config) Model {
 		spinner:       s,
 		scanCache:     make(map[string]cache.WorkspaceScanEntry),
 		scanningPaths: make(map[string]bool),
+		syncingPaths:  make(map[string]bool),
 	}
 }
 
-// NewForSelection creates a workspaces view in selection mode for picking a directory
+// NewForSelection creates a workspaces view in selection mode for picking a
+// directory. It is lent to another view to answer one question and never syncs,
+// so it carries no secret store.
 func NewForSelection(cfg *config.Config, message string) Model {
-	m := New(cfg)
+	m := New(cfg, nil)
 	m.mode = ModeSelecting
 	m.selectionMessage = message
 	return m

@@ -28,8 +28,8 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 		if targetPath == "" {
 			return m, nil
 		}
-		if m.scanningPaths[targetPath] {
-			m.footerInfo = "Scan already in progress"
+		if m.busy(targetPath) {
+			m.footerInfo = busyMessage
 			return m, clearFooterInfoCmd()
 		}
 		delete(m.scanCache, targetPath)
@@ -42,8 +42,8 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 	}
 
 	if entry.IsGitRepo {
-		if m.scanningPaths[entry.Path] {
-			m.footerInfo = "Scan already in progress"
+		if m.busy(entry.Path) {
+			m.footerInfo = busyMessage
 			return m, clearFooterInfoCmd()
 		}
 		delete(m.scanCache, entry.Path)
@@ -57,13 +57,13 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 
 	var toScan []string
 	for _, repoPath := range entry.SubRepoPaths {
-		if !m.scanningPaths[repoPath] {
+		if !m.busy(repoPath) {
 			toScan = append(toScan, repoPath)
 		}
 	}
 
 	if len(toScan) == 0 {
-		m.footerInfo = "Scan already in progress"
+		m.footerInfo = busyMessage
 		return m, clearFooterInfoCmd()
 	}
 
@@ -78,7 +78,7 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 	paths := m.collectAllRepoPaths()
 	var unscanned []string
 	for _, path := range paths {
-		if _, ok := m.scanCache[path]; !ok && !m.scanningPaths[path] {
+		if _, ok := m.scanCache[path]; !ok && !m.busy(path) {
 			unscanned = append(unscanned, path)
 		}
 	}
@@ -91,7 +91,14 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 // requestScanAll triggers batch scanning of all git repos visible in the current view,
 // purging in-memory and disk cache first (Rule 126).
 func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
-	paths := m.collectAllRepoPaths()
+	// A busy repository is left out of the purge as well as the rescan: purging
+	// it would blank its counts with nothing on the way to replace them.
+	var paths []string
+	for _, path := range m.collectAllRepoPaths() {
+		if !m.busy(path) {
+			paths = append(paths, path)
+		}
+	}
 	if len(paths) == 0 {
 		return m, nil
 	}
@@ -328,8 +335,8 @@ func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
 	if msg.TargetPath == "" {
 		return m, nil
 	}
-	if m.scanningPaths[msg.TargetPath] {
-		m.footerInfo = "Scan already in progress"
+	if m.busy(msg.TargetPath) {
+		m.footerInfo = busyMessage
 		return m, clearFooterInfoCmd()
 	}
 	delete(m.scanCache, msg.TargetPath)

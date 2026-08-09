@@ -50,7 +50,7 @@ func TestNewForSelectionStartsInSelectionMode(t *testing.T) {
 }
 
 func TestInitLoadsEntriesAndTheScanCache(t *testing.T) {
-	if cmd := New(testConfig()).Init(); cmd == nil {
+	if cmd := New(testConfig(), nil).Init(); cmd == nil {
 		t.Fatal("Init() returned no command, so the view never populates")
 	}
 }
@@ -522,7 +522,7 @@ func TestScanRefusesToStartTwice(t *testing.T) {
 
 	m, cmd := step(t, m, testutil.Key("ctrl+s"))
 
-	if m.footerInfo != "Scan already in progress" {
+	if m.footerInfo != busyMessage {
 		t.Errorf("footerInfo = %q, want the already-running notice", m.footerInfo)
 	}
 	// Rule 128: the message must come with the timer that clears it.
@@ -1136,7 +1136,7 @@ func TestAScanRequestForARunningScanIsRefused(t *testing.T) {
 
 	next, cmd := step(t, m, ScanRequestMsg{TargetPath: "/tmp/workspaces/devdesk"})
 
-	if next.footerInfo != "Scan already in progress" {
+	if next.footerInfo != busyMessage {
 		t.Errorf("footerInfo = %q, want the already-running notice", next.footerInfo)
 	}
 	if cmd == nil {
