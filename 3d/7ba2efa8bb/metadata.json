@@ -3,7 +3,7 @@
   "checkpoint_id": "3d7ba2efa8bb",
   "strategy": "manual-commit",
   "branch": "feat/datatable-cell-colors",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": null,
   "sessions": [
     {
@@ -12,13 +12,20 @@
       "compact_transcript": "/3d/7ba2efa8bb/0/transcript.jsonl",
       "content_hash": "/3d/7ba2efa8bb/0/content_hash.txt",
       "prompt": "/3d/7ba2efa8bb/0/prompt.txt"
+    },
+    {
+      "metadata": "/3d/7ba2efa8bb/1/metadata.json",
+      "transcript": "/3d/7ba2efa8bb/1/full.jsonl",
+      "compact_transcript": "/3d/7ba2efa8bb/1/transcript.jsonl",
+      "content_hash": "/3d/7ba2efa8bb/1/content_hash.txt",
+      "prompt": "/3d/7ba2efa8bb/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 69,
-    "cache_creation_tokens": 58497,
-    "cache_read_tokens": 6130180,
-    "output_tokens": 38365,
-    "api_call_count": 37
+    "input_tokens": 2228,
+    "cache_creation_tokens": 4005175,
+    "cache_read_tokens": 349085211,
+    "output_tokens": 726780,
+    "api_call_count": 1185
   }
 }
