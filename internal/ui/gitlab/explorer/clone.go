@@ -88,6 +88,7 @@ func (m Model) handleCloneDestinationSelected(msg CloneDestinationSelectedMsg) (
 		roots:           roots,
 		selection:       m.selection,
 		target:          msg.Path,
+		secrets:         m.shared.Secrets.Storage,
 		cloneMethod:     m.config.GitLab.CloneMethod,
 		gitlabURL:       m.config.GitLab.URL,
 		jobs:            m.config.GitLab.Pull.ParallelJobs,

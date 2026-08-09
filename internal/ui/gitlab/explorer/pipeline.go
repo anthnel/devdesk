@@ -3,6 +3,7 @@ package explorer
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
+	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/gitlab"
 )
 
@@ -56,14 +58,35 @@ const cloneEventBuffer = 256
 
 // cloneSpec is everything a run needs, read out of the model up front.
 type cloneSpec struct {
-	client          *gitlabclient.Client
-	roots           []*TreeNode
-	selection       cloneSelection
-	target          string
+	client    *gitlabclient.Client
+	roots     []*TreeNode
+	selection cloneSelection
+	target    string
+	// secrets is where the HTTPS token comes from. The storage rather than the
+	// token itself, so the keyring read happens on the run's goroutine — Update
+	// does no I/O.
+	secrets         credentials.Storage
 	cloneMethod     string
 	gitlabURL       string
 	jobs            int
 	includeArchived bool
+}
+
+// cloneToken is the token the clones authenticate with, or "" for SSH and for
+// a context whose secret store has nothing.
+//
+// A missing token is not an error here: a public repository clones without one,
+// and a clone that does need it fails with git's own reason, on its own row.
+func (s cloneSpec) cloneToken() string {
+	if s.cloneMethod == "ssh" || s.secrets == nil {
+		return ""
+	}
+	token, err := gitlab.NewAuth(s.secrets).LoadCredentials(s.gitlabURL)
+	if err != nil {
+		log.Printf("ERROR [explorer] loading the clone token: %v", err)
+		return ""
+	}
+	return token
 }
 
 // cloneRun is a pipeline in flight.
@@ -89,6 +112,10 @@ func startCloneRun(spec cloneSpec) *cloneRun {
 func runPipeline(ctx context.Context, spec cloneSpec, events chan<- cloneEvent) {
 	defer close(events)
 
+	// Once, here, rather than per clone: the keyring is not free, and four
+	// workers hitting it at the same time is four prompts on some backends.
+	token := spec.cloneToken()
+
 	found := make(chan *TreeNode)
 	go func() {
 		defer close(found)
@@ -112,7 +139,7 @@ func runPipeline(ctx context.Context, spec cloneSpec, events chan<- cloneEvent) 
 			defer func() { <-slots }()
 
 			events <- cloneEvent{kind: cloneBegan, path: n.FullPath}
-			skipped, err := cloneOne(n, spec)
+			skipped, err := cloneOne(n, spec, token)
 			events <- cloneEvent{kind: cloneEnded, path: n.FullPath, skipped: skipped, err: err}
 		}(node)
 	}
@@ -165,7 +192,7 @@ func discover(ctx context.Context, spec cloneSpec, node *TreeNode, found chan<- 
 // land on the same directory and merge — which could not happen while one
 // subtree was cloned at a time, and can now that several roots are confirmed at
 // once.
-func cloneOne(node *TreeNode, spec cloneSpec) (skipped bool, err error) {
+func cloneOne(node *TreeNode, spec cloneSpec, token string) (skipped bool, err error) {
 	dir := filepath.Join(spec.target, filepath.FromSlash(node.FullPath))
 	if gitlab.DirExists(dir) {
 		return true, nil
@@ -173,7 +200,8 @@ func cloneOne(node *TreeNode, spec cloneSpec) (skipped bool, err error) {
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return false, fmt.Errorf("mkdir %s: %w", filepath.Dir(dir), err)
 	}
-	if err := gitlab.Clone(cloneURL(spec.gitlabURL, spec.cloneMethod, node.FullPath), dir); err != nil {
+	url := cloneURL(spec.gitlabURL, spec.cloneMethod, node.FullPath)
+	if err := gitlab.Clone(url, dir, gitlab.CloneOptions{Token: token}); err != nil {
 		return false, err
 	}
 	return false, nil
