@@ -450,6 +450,29 @@ that failed wrote nothing, so that report is the only one there will be.
 `gitlab.pull.include_archived` is read by `listGroupChildren` and **only by the
 clone**: browsing lists everything the forge has.
 
+**A clone may never prompt, and `gitlab.Clone` is where that is enforced.**
+Sending git's streams to the null device does not prevent a credential prompt —
+it prevents git asking *itself*, after which the **credential helper** takes
+over, and a helper is a separate process. Git Credential Manager writes
+`info: please complete authentication in your browser` to the console directly,
+over the top of the rendered frame, then waits. Bubble Tea cannot recover a
+frame something else has written into: two frames end up visible at once, and
+the row spins with nothing on screen saying why. Observed, not theorised.
+
+So `cloneEnv` shuts every interactive path — `GIT_TERMINAL_PROMPT=0`,
+`GCM_INTERACTIVE=never`, both askpass hooks, ssh in `BatchMode` — and the token
+DevDesk already holds is passed as `http.extraHeader` **through the
+environment**: argv is readable from the process list, and the `user:token@host`
+URL form is written into every cloned repository's `.git/config` and stays
+there. A stalled transfer is bounded by `http.lowSpeedLimit`/`lowSpeedTime`
+rather than by killing the process, so git cleans up after itself and decision
+12 still holds.
+
+The consequence to keep in mind: with the helper out of the loop, a context
+whose stored token is missing or under-scoped **fails** rather than falling back
+to a browser. That is the intended trade — a failed row naming git's reason
+beats a spinner that never resolves — but it makes the token the only way in.
+
 ### Security Scanning
 
 **Where a scanner runs from is configured, not guessed.** `scan.trivy_source`
