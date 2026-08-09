@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ── Construction and loading ─────────────────────────────────────────────────
@@ -344,14 +345,15 @@ func TestActionsResolveTheRowTheUserCanSee(t *testing.T) {
 		}
 	})
 
-	t.Run("pull", func(t *testing.T) {
-		m := feed(t, filtered(t), testutil.Key("p"))
+	t.Run("clone selection", func(t *testing.T) {
+		m := feed(t, filtered(t), testutil.Key("c"), testutil.Key(" "))
 
-		if m.pullTargetNode == nil {
-			t.Fatal("'p' selected nothing")
+		roots := m.selection.rootPaths()
+		if len(roots) != 1 {
+			t.Fatalf("rootPaths() = %v, want the one visible row", roots)
 		}
-		if m.pullTargetNode.Name != "legacy" {
-			t.Errorf("'p' targeted %q, want the only visible row", m.pullTargetNode.Name)
+		if roots[0] != "alpha/legacy" {
+			t.Errorf("space ticked %q, want the only visible row", roots[0])
 		}
 	})
 
@@ -409,13 +411,13 @@ func TestDrillingIntoASmallerGroupClampsTheCursor(t *testing.T) {
 func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 	m := feed(t, drilledModel(t), testutil.Key("/"))
 
-	m = feed(t, m, testutil.Key("p"))
+	m = feed(t, m, testutil.Key("c"))
 
-	if m.pullTargetNode != nil {
-		t.Error("'p' started a pull while the search box had focus")
+	if m.mode != ModeNormal {
+		t.Error("'c' started a clone selection while the search box had focus")
 	}
-	if !strings.Contains(m.table.FilterBar().SearchQuery(), "p") {
-		t.Errorf("'p' did not reach the search box; query = %q", m.table.FilterBar().SearchQuery())
+	if !strings.Contains(m.table.FilterBar().SearchQuery(), "c") {
+		t.Errorf("'c' did not reach the search box; query = %q", m.table.FilterBar().SearchQuery())
 	}
 }
 
@@ -782,54 +784,283 @@ func TestDeleteFailureIsReportedInTheFooter(t *testing.T) {
 		t.Fatal("no clear timer was scheduled; Rule 128 caps footer messages at 3s")
 	}
 
-	m = feed(t, m, clearFooterErrorMsg{})
+	m = feed(t, m, clearFooterMsg{})
 	if m.footerError != "" {
 		t.Errorf("footerError = %q after the timer fired", m.footerError)
 	}
 }
 
-// ── Pull ─────────────────────────────────────────────────────────────────────
+// ── Clone selection ──────────────────────────────────────────────────────────
 
-func TestPullAsksTheAppForADestination(t *testing.T) {
+func TestCEntersTheSelectionMode(t *testing.T) {
+	m := feed(t, drilledModel(t), testutil.Key("c"))
+
+	if m.mode != ModeSelecting {
+		t.Fatalf("mode = %v after 'c', want ModeSelecting", m.mode)
+	}
+	if !m.selection.isEmpty() {
+		t.Error("the mode opened with something already ticked")
+	}
+}
+
+// The checkbox rides on the Type cell, so this also pins that it is drawn only
+// in the selection mode — and as a bare glyph, since a table cell carries no
+// escape sequences (Rule 122).
+func TestTheCheckboxAppearsOnlyWhileSelecting(t *testing.T) {
 	m := drilledModel(t)
-
-	m, cmd := step(t, m, testutil.Key("p"))
-
-	if _, ok := testutil.MsgOf[PullSelectionRequestMsg](cmd); !ok {
-		t.Fatalf("'p' emitted %T, want a destination request", testutil.Msg(cmd))
+	for _, row := range m.table.Table().Rows() {
+		if strings.ContainsAny(row[0], theme.IconCheckbox+theme.IconChecked) {
+			t.Fatalf("the plain table draws a checkbox: %q", row[0])
+		}
 	}
-	if m.pullTargetNode == nil || m.pullTargetNode.Name != "sub" {
-		t.Errorf("pullTargetNode = %v, want the highlighted row", m.pullTargetNode)
+
+	m = feed(t, m, testutil.Key("c"))
+	for _, row := range m.table.Table().Rows() {
+		if !strings.Contains(row[0], theme.IconCheckbox) {
+			t.Errorf("the selection mode row has no empty box: %q", row[0])
+		}
+		if strings.Contains(row[0], "\x1b") {
+			t.Errorf("the checkbox cell carries an escape sequence (Rule 122): %q", row[0])
+		}
 	}
 }
 
-func TestCancellingTheDestinationClearsTheTarget(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("p"), PullSelectionCancelledMsg{})
+func TestSpaceTicksTheRowAndTheCellFollows(t *testing.T) {
+	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "))
 
-	if m.pullTargetNode != nil {
-		t.Errorf("pullTargetNode = %v after cancelling", m.pullTargetNode)
+	node, ok := m.selectedNode()
+	if !ok {
+		t.Fatal("nothing is selected")
 	}
+	if !m.selection.includes(node.FullPath) {
+		t.Errorf("%s was not ticked by space", node.FullPath)
+	}
+	// The node is kept beside the path: the walk starts from it, and it is no
+	// longer on screen once the user has drilled back up.
+	if m.selectionNodes[node.FullPath] != node {
+		t.Error("the ticked node was not kept for the walk")
+	}
+	if row := m.table.Table().Rows()[m.table.Cursor()]; !strings.Contains(row[0], theme.IconChecked) {
+		t.Errorf("the ticked row still shows an empty box: %q", row[0])
+	}
+}
+
+// Unticking has to drop the node too, or a root removed from the selection
+// would still be walked.
+func TestUntickingDropsTheNodeAsWell(t *testing.T) {
+	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "), testutil.Key(" "))
+
+	if len(m.selectionNodes) != 0 {
+		t.Errorf("selectionNodes = %v after unticking", m.selectionNodes)
+	}
+	if len(m.rootNodes()) != 0 {
+		t.Errorf("rootNodes() = %v after unticking", m.rootNodes())
+	}
+}
+
+func TestConfirmingAnEmptySelectionSaysSoRatherThanProceeding(t *testing.T) {
+	m, cmd := step(t, feed(t, drilledModel(t), testutil.Key("c")), testutil.Key("enter"))
+
+	if _, ok := testutil.MsgOf[CloneSelectionRequestMsg](cmd); ok {
+		t.Fatal("an empty selection asked for a destination")
+	}
+	if m.footerInfo == "" {
+		t.Error("an empty selection was refused silently")
+	}
+	if m.mode != ModeSelecting {
+		t.Errorf("mode = %v, want to stay in the selection", m.mode)
+	}
+}
+
+func TestConfirmingASelectionAsksTheAppForADestination(t *testing.T) {
+	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "))
+
+	_, cmd := step(t, m, testutil.Key("enter"))
+
+	if _, ok := testutil.MsgOf[CloneSelectionRequestMsg](cmd); !ok {
+		t.Fatalf("enter emitted %T, want a destination request", testutil.Msg(cmd))
+	}
+}
+
+// The destination picker borrows the workspaces view and comes back. Refusing
+// it must not throw the ticks away — only the destination was refused.
+func TestCancellingTheDestinationKeepsTheSelection(t *testing.T) {
+	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "),
+		CloneSelectionCancelledMsg{})
+
+	if m.mode != ModeSelecting {
+		t.Errorf("mode = %v after cancelling the picker, want ModeSelecting", m.mode)
+	}
+	if m.selection.isEmpty() {
+		t.Error("cancelling the destination picker discarded the selection")
+	}
+}
+
+func TestEscLeavesTheSelectionMode(t *testing.T) {
+	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "), testutil.Key("esc"))
+
 	if m.mode != ModeNormal {
-		t.Errorf("mode = %v after cancelling, want ModeNormal", m.mode)
+		t.Errorf("mode = %v after esc, want ModeNormal", m.mode)
+	}
+	if !m.selection.isEmpty() {
+		t.Error("esc left the selection behind")
 	}
 }
 
-func TestPullCompleteShowsTheReport(t *testing.T) {
-	m := feed(t, drilledModel(t), PullCompleteMsg{Report: components.PullReport{
-		Cloned:  []string{"alpha/api"},
-		Skipped: []string{"alpha/legacy"},
-	}})
+// Drilling still works while selecting, which is the only way to deselect
+// inside a ticked group (decision 10).
+func TestDrillingStillWorksWhileSelecting(t *testing.T) {
+	m := feed(t, drilledModel(t), testutil.Key("c"))
+	before := m.currentGroupNode
 
-	if m.mode != ModeShowingReport || m.reportModal == nil {
-		t.Fatalf("mode = %v, modal = %v after a pull", m.mode, m.reportModal)
+	m = feed(t, m, tea.KeyMsg{Type: tea.KeyLeft})
+
+	if m.currentGroupNode == before {
+		t.Error("the left arrow did not drill up in the selection mode")
 	}
-	if view := m.reportModal.View(); !strings.Contains(view, "alpha/api") {
-		t.Errorf("the report does not list what was cloned:\n%s", view)
+	if m.mode != ModeSelecting {
+		t.Errorf("mode = %v after drilling, want to stay in the selection", m.mode)
+	}
+}
+
+// ── Clone run ────────────────────────────────────────────────────────────────
+
+// cloningModel puts the view in ModeCloning with a run nothing feeds, so the
+// list can be driven event by event.
+func cloningModel(t *testing.T) Model {
+	t.Helper()
+	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "))
+	m.mode = ModeCloning
+	m.clone = newCloneList("/ws", &cloneRun{events: make(chan cloneEvent), cancel: func() {}})
+	return m
+}
+
+func TestAFoundRepositoryBecomesARowStraightAway(t *testing.T) {
+	m := feed(t, cloningModel(t), CloneEventMsg{event: cloneEvent{kind: cloneFound, path: "alpha/api"}})
+
+	rows := m.clone.table.Table().Rows()
+	if len(rows) != 1 || rows[0][1] != "alpha/api" {
+		t.Fatalf("rows = %v, want the repository as soon as it was found", rows)
+	}
+	if found, _, _, _ := m.clone.counts(); found != 1 {
+		t.Errorf("found = %d, want 1", found)
+	}
+}
+
+func TestARowWalksThroughItsStates(t *testing.T) {
+	tests := []struct {
+		name  string
+		event cloneEvent
+		want  cloneState
+	}{
+		{"cloned", cloneEvent{kind: cloneEnded, path: "alpha/api"}, cloneCloned},
+		{"already there", cloneEvent{kind: cloneEnded, path: "alpha/api", skipped: true}, cloneAlreadyThere},
+		{"failed", cloneEvent{kind: cloneEnded, path: "alpha/api", err: errors.New("boom")}, cloneFailed},
 	}
 
-	m = feed(t, m, components.ReportModalCloseMsg{})
-	if m.mode != ModeNormal || m.reportModal != nil {
-		t.Errorf("closing the report left mode=%v modal=%v", m.mode, m.reportModal)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := feed(t, cloningModel(t),
+				CloneEventMsg{event: cloneEvent{kind: cloneFound, path: "alpha/api"}},
+				CloneEventMsg{event: cloneEvent{kind: cloneBegan, path: "alpha/api"}})
+
+			if m.clone.rows[0].state != cloneRunning {
+				t.Fatalf("state = %v after began, want cloneRunning", m.clone.rows[0].state)
+			}
+
+			m = feed(t, m, CloneEventMsg{event: tt.event})
+			if got := m.clone.rows[0].state; got != tt.want {
+				t.Errorf("state = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// A group that cannot be listed gets a row of its own. Folding it into a
+// repository's error would attribute it to one repository out of however many
+// were never discovered.
+func TestAFailedWalkGetsItsOwnRow(t *testing.T) {
+	m := feed(t, cloningModel(t), CloneEventMsg{
+		event: cloneEvent{kind: cloneWalkFailed, path: "alpha/sub", err: errors.New("403")},
+	})
+
+	rows := m.clone.rows
+	if len(rows) != 1 || rows[0].path != "alpha/sub" || rows[0].state != cloneFailed {
+		t.Fatalf("rows = %+v, want the group as a failed row", rows)
+	}
+	if !strings.Contains(rows[0].detail, "403") {
+		t.Errorf("detail = %q, want the API error", rows[0].detail)
+	}
+}
+
+// Decision 13 discards the list, and a failed clone wrote nothing — so the
+// failures have to be said while the view is still alive.
+func TestTheFailuresAreReportedWhenTheRunEnds(t *testing.T) {
+	m := feed(t, cloningModel(t),
+		CloneEventMsg{event: cloneEvent{kind: cloneEnded, path: "alpha/api", err: errors.New("boom")}})
+
+	m, cmd := step(t, m, CloneRunFinishedMsg{})
+
+	if !m.clone.finished {
+		t.Error("the run was not marked finished")
+	}
+	if !strings.Contains(m.footerError, "alpha/api") {
+		t.Errorf("footerError = %q, want the failed repository named", m.footerError)
+	}
+	if cmd == nil {
+		t.Error("no clear timer was scheduled; Rule 128 caps footer messages at 3s")
+	}
+}
+
+// Esc cancels, and cancelling is not instant: the running clones are awaited
+// rather than killed, because killing one leaves half a repository on disk.
+func TestEscCancelsWithoutClosingTheList(t *testing.T) {
+	cancelled := false
+	m := cloningModel(t)
+	m.clone.run = &cloneRun{events: make(chan cloneEvent), cancel: func() { cancelled = true }}
+	m = feed(t, m, CloneEventMsg{event: cloneEvent{kind: cloneFound, path: "alpha/api"}},
+		CloneEventMsg{event: cloneEvent{kind: cloneBegan, path: "alpha/api"}})
+
+	m = feed(t, m, testutil.Key("esc"))
+
+	if !cancelled {
+		t.Error("esc did not cancel the run")
+	}
+	if m.mode != ModeCloning || m.clone == nil {
+		t.Fatalf("esc closed the list while a clone was still running (mode=%v)", m.mode)
+	}
+	if !strings.Contains(m.cloneStatusLine(), "Cancelling") {
+		t.Errorf("the status line does not say it is cancelling: %q", m.cloneStatusLine())
+	}
+}
+
+// A second esc must not force. Forcing means killing a git clone mid-write,
+// which is the partial directory decision 12 exists to avoid.
+func TestASecondEscDoesNotForce(t *testing.T) {
+	calls := 0
+	m := cloningModel(t)
+	m.clone.run = &cloneRun{events: make(chan cloneEvent), cancel: func() { calls++ }}
+
+	m = feed(t, m, testutil.Key("esc"), testutil.Key("esc"), testutil.Key("esc"))
+
+	if calls != 1 {
+		t.Errorf("cancel was called %d times, want once", calls)
+	}
+	if m.mode != ModeCloning {
+		t.Errorf("mode = %v, want the list to stay until the run ends", m.mode)
+	}
+}
+
+func TestEscClosesTheListOnceTheRunHasEnded(t *testing.T) {
+	m := feed(t, cloningModel(t), CloneRunFinishedMsg{})
+
+	m = feed(t, m, testutil.Key("esc"))
+
+	if m.mode != ModeNormal || m.clone != nil {
+		t.Errorf("esc left mode=%v list=%v after the run ended", m.mode, m.clone)
+	}
+	if !m.selection.isEmpty() {
+		t.Error("closing the list kept the selection")
 	}
 }
 
@@ -837,16 +1068,16 @@ func TestPullCompleteShowsTheReport(t *testing.T) {
 
 // A long-running mode must not act on stray keystrokes.
 func TestBlockingModesIgnoreInput(t *testing.T) {
-	for _, mode := range []ViewMode{ModePulling, ModeLoadingTemplates} {
+	for _, mode := range []ViewMode{ModeLoadingTemplates} {
 		m := drilledModel(t)
 		m.mode = mode
 
-		next := feed(t, m, testutil.Key("ctrl+d"), testutil.Key("p"), testutil.Key("."))
+		next := feed(t, m, testutil.Key("ctrl+d"), testutil.Key("c"), testutil.Key("."))
 
 		if next.mode != mode {
 			t.Errorf("mode %v changed to %v under keystrokes", mode, next.mode)
 		}
-		if next.deleteConfirmModal != nil || next.pullTargetNode != nil {
+		if next.deleteConfirmModal != nil || !next.selection.isEmpty() {
 			t.Errorf("mode %v acted on a keystroke", mode)
 		}
 	}
@@ -864,7 +1095,7 @@ func TestInEditModeCoversEveryModalState(t *testing.T) {
 		t.Error("InEditMode() is false while the search box has focus")
 	}
 
-	for _, mode := range []ViewMode{ModePulling, ModeShowingReport, ModeLoadingTemplates, ModeCreatingProject, ModeConfirmingDelete} {
+	for _, mode := range []ViewMode{ModeSelecting, ModeCloning, ModeLoadingTemplates, ModeCreatingProject, ModeConfirmingDelete} {
 		m := loadedModel(t)
 		m.mode = mode
 		if !m.InEditMode() {
@@ -907,7 +1138,7 @@ func TestOpenInBrowserFailureIsReportedAndCleared(t *testing.T) {
 		t.Error("no clear timer was scheduled; Rule 128 caps footer messages at 3s")
 	}
 
-	m = feed(t, m, clearFooterErrorMsg{})
+	m = feed(t, m, clearFooterMsg{})
 	if m.footerError != "" {
 		t.Errorf("footerError = %q after the timer fired", m.footerError)
 	}

@@ -8,7 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/shared"
-	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -63,23 +62,16 @@ func TestViewShowsTheRows(t *testing.T) {
 	}
 }
 
-// The three long-running modes each take over the viewport.
+// The modes that take over the viewport.
 func TestViewShowsTheModalForEachMode(t *testing.T) {
 	tests := []struct {
 		name string
 		open func(*testing.T) Model
 		want string
 	}{
-		{"pulling", func(t *testing.T) Model {
-			m := feed(t, drilledModel(t), testutil.Key("p"))
-			return feed(t, m, PullDestinationSelectedMsg{Path: t.TempDir()})
-		}, "Pulling"},
 		{"loading templates", func(t *testing.T) Model {
 			return feed(t, drilledModel(t), testutil.Key("ctrl+n"))
 		}, "Loading templates"},
-		{"report", func(t *testing.T) Model {
-			return feed(t, drilledModel(t), PullCompleteMsg{Report: components.PullReport{Cloned: []string{"alpha/api"}}})
-		}, "Pull Complete"},
 		{"delete confirmation", func(t *testing.T) Model {
 			return feed(t, drilledModel(t), testutil.Key("ctrl+d"))
 		}, "Delete Group"},
@@ -255,24 +247,21 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		{
 			name: "browsing",
 			open: func(t *testing.T) Model { return drilledModel(t) },
-			want: []string{"ctrl+n", "ctrl+d", "p", "ctrl+w", ".", "/", "ctrl+r"},
+			want: []string{"ctrl+n", "ctrl+d", "c", "ctrl+w", ".", "/", "ctrl+r"},
 		},
 		{
-			name: "pulling",
+			name: "selecting what to clone",
 			open: func(t *testing.T) Model {
-				m := drilledModel(t)
-				m.mode = ModePulling
-				return m
+				return feed(t, drilledModel(t), testutil.Key("c"))
 			},
-			notWant: []string{"ctrl+n", "ctrl+d", "p", "esc"},
+			want:    []string{"space", "enter", "esc"},
+			notWant: []string{"ctrl+n", "ctrl+d"},
 		},
 		{
-			name: "report open",
-			open: func(t *testing.T) Model {
-				return feed(t, drilledModel(t), PullCompleteMsg{})
-			},
-			want:    []string{"enter/esc"},
-			notWant: []string{"ctrl+n"},
+			name:    "cloning",
+			open:    func(t *testing.T) Model { return cloningModel(t) },
+			want:    []string{"esc", "/"},
+			notWant: []string{"ctrl+n", "ctrl+d", "space"},
 		},
 		{
 			name: "confirming a delete",
@@ -332,7 +321,9 @@ func TestShortcutDescriptionsAreImperative(t *testing.T) {
 	models := []Model{
 		drilledModel(t),
 		feed(t, drilledModel(t), testutil.Key("ctrl+d")),
-		feed(t, drilledModel(t), PullCompleteMsg{}),
+		feed(t, drilledModel(t), testutil.Key("c")),
+		cloningModel(t),
+		feed(t, cloningModel(t), CloneRunFinishedMsg{}),
 		feed(t, drilledModel(t), testutil.Key("ctrl+n"), TemplatesLoadedMsg{}),
 	}
 

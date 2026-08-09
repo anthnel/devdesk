@@ -8,7 +8,7 @@ import (
 
 // handleDrillDown handles enter key - navigate into a group
 func (m Model) handleDrillDown() (tea.Model, tea.Cmd) {
-	node, ok := m.table.Selected()
+	node, ok := m.selectedNode()
 	if !ok || node.Type != NodeTypeGroup {
 		return m, nil
 	}
@@ -59,7 +59,7 @@ func (m Model) handleDrillUp() (tea.Model, tea.Cmd) {
 // out in table.go; they are the component's now. What is left is the one thing
 // this view knows and it does not: which level the table is showing.
 func (m *Model) updateTableRows() {
-	m.table.SetItems(m.currentItems())
+	m.table.SetItems(m.rowsFor(m.currentItems()))
 }
 
 // currentItems returns the children of the current drill-down group (or root nodes)
@@ -119,8 +119,8 @@ func (m Model) expandToPath(targetPath string) (tea.Model, tea.Cmd) {
 	// Check if the target is on screen. The rows, not currentItems(): under a
 	// filter or a non-default sort those are two different orderings, and the
 	// cursor indexes the one being shown.
-	for i, node := range m.table.Visible() {
-		if node.FullPath == targetPath {
+	for i, row := range m.table.Visible() {
+		if row.node.FullPath == targetPath {
 			m.table.SetCursor(i)
 			m.pendingSelectPath = ""
 			return m, nil

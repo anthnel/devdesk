@@ -412,12 +412,12 @@ func TestWorkspaceScanDetailsAskTheCache(t *testing.T) {
 // ── Selection mode ───────────────────────────────────────────────────────────
 
 // The explorer borrows the workspaces view to pick where to clone.
-func TestTheExplorerBorrowsWorkspacesForAPullDestination(t *testing.T) {
+func TestTheExplorerBorrowsWorkspacesForACloneDestination(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.currentView = command.ViewGitlabExplorer
 	a.views[command.ViewGitlabExplorer] = &fakeView{}
 
-	a.Update(explorer.PullSelectionRequestMsg{})
+	a.Update(explorer.CloneSelectionRequestMsg{})
 
 	if a.currentView != command.ViewWorkspaces {
 		t.Errorf("current view = %s, want the workspaces browser", a.currentView)
@@ -457,7 +457,7 @@ func TestThePickedDirectoryGoesBackToTheExplorer(t *testing.T) {
 	if a.currentView != command.ViewGitlabExplorer {
 		t.Errorf("current view = %s, want the explorer back", a.currentView)
 	}
-	got, ok := receivedOf[explorer.PullDestinationSelectedMsg](origin)
+	got, ok := receivedOf[explorer.CloneDestinationSelectedMsg](origin)
 	if !ok {
 		t.Fatal("the explorer never received the chosen destination")
 	}
@@ -483,7 +483,7 @@ func TestCancellingTheBorrowReturnsToTheExplorer(t *testing.T) {
 	if a.currentView != command.ViewGitlabExplorer {
 		t.Errorf("current view = %s, want the explorer back", a.currentView)
 	}
-	if _, ok := receivedOf[explorer.PullSelectionCancelledMsg](origin); !ok {
+	if _, ok := receivedOf[explorer.CloneSelectionCancelledMsg](origin); !ok {
 		t.Error("the explorer was not told the selection was cancelled")
 	}
 }

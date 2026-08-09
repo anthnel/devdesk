@@ -7,7 +7,6 @@ import (
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/oci"
-	"github.com/anthnel/devdesk/internal/ui/components"
 )
 
 // DeleteCompleteMsg is sent when a delete operation completes
@@ -52,31 +51,39 @@ type LoadErrorMsg struct {
 	ParentNode *TreeNode // Optional: node that was loading when error occurred
 }
 
-// PullCompleteMsg est envoyé quand l'opération de pull est terminée
-type PullCompleteMsg struct {
-	Report components.PullReport
-}
+// CloneSelectionRequestMsg asks the app to borrow the workspaces view so the
+// user can pick where the clones go (decision 5).
+type CloneSelectionRequestMsg struct{}
 
-// PullSelectionRequestMsg is sent to the app to open workspace selection for pull destination
-type PullSelectionRequestMsg struct{}
-
-// PullDestinationSelectedMsg is sent by the app when the user selected a workspace directory
-type PullDestinationSelectedMsg struct {
+// CloneDestinationSelectedMsg is the app's answer: the chosen directory.
+type CloneDestinationSelectedMsg struct {
 	Path string
 }
 
-// PullSelectionCancelledMsg is sent by the app when the user cancelled workspace selection
-type PullSelectionCancelledMsg struct{}
+// CloneSelectionCancelledMsg is sent by the app when the user backed out of the
+// destination picker. The selection is kept — only the destination was refused.
+type CloneSelectionCancelledMsg struct{}
 
-// clearFooterErrorCmd clears the footer error after 3 seconds (Rule 128)
-func clearFooterErrorCmd() tea.Cmd {
+// CloneEventMsg carries one pipeline event into Update. The event itself is
+// unexported: it is the pipeline's vocabulary, and nothing outside this package
+// has anything to do with it.
+type CloneEventMsg struct {
+	event cloneEvent
+}
+
+// CloneRunFinishedMsg is the closed event channel — every clone has returned,
+// whether the run was cancelled or ran to the end.
+type CloneRunFinishedMsg struct{}
+
+// clearFooterMsgCmd clears the footer error or info after 3 seconds (Rule 128)
+func clearFooterMsgCmd() tea.Cmd {
 	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return clearFooterErrorMsg{}
+		return clearFooterMsg{}
 	})
 }
 
-// clearFooterErrorMsg is sent to clear the footer error after a delay
-type clearFooterErrorMsg struct{}
+// clearFooterMsg is sent to clear the footer message after a delay
+type clearFooterMsg struct{}
 
 // BrowserOpenedMsg is sent when the browser launch command has been started
 type BrowserOpenedMsg struct {

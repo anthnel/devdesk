@@ -83,6 +83,11 @@ func (s cloneSelection) state(path string) theme.CheckState {
 // isEmpty reports whether anything at all is selected.
 func (s cloneSelection) isEmpty() bool { return len(s.roots) == 0 }
 
+// isRoot reports whether this exact path is one of the roots — not whether it
+// is included, which a descendant also is. The view uses it to decide whether
+// it has just made a root and should keep the node beside it.
+func (s cloneSelection) isRoot(path string) bool { return s.roots[path] }
+
 // counts is what the header states instead of a repository count: the number
 // cannot be known before discovery has run, and discovery only starts once the
 // user has confirmed (decision 7).
