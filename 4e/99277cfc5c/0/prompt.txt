@@ -1,0 +1,1 @@
+je trouve les datatable monotones sans couleur, je pense que c'est une limitation de bubbletea, peux tu analyser pour voir s'il serait possible d'ajouter des couleurs dans les valeurs des colonnes

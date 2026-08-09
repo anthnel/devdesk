@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "4e99277cfc5c",
+  "strategy": "manual-commit",
+  "branch": "fix/pull-reference-scheme",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/oci_resources/browser_search_test.go",
+    "internal/ui/oci_resources/browser_tags.go",
+    "internal/ui/oci_resources/commands.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4e/99277cfc5c/0/metadata.json",
+      "transcript": "/4e/99277cfc5c/0/full.jsonl",
+      "compact_transcript": "/4e/99277cfc5c/0/transcript.jsonl",
+      "content_hash": "/4e/99277cfc5c/0/content_hash.txt",
+      "prompt": "/4e/99277cfc5c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 115363,
+    "cache_read_tokens": 1431778,
+    "output_tokens": 12435,
+    "api_call_count": 13
+  }
+}
