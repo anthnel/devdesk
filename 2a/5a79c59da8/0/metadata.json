@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "2a5a79c59da8",
+  "session_id": "f307729d-6b98-4d70-8818-8033534663dd",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-09T10:50:44.9302747Z",
+  "branch": "feat/explorer-clone-rework",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "b449780eabcc",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 1635,
+    "cache_creation_tokens": 3106295,
+    "cache_read_tokens": 266309979,
+    "output_tokens": 542899,
+    "api_call_count": 871
+  },
+  "session_metrics": {
+    "turn_count": 21
+  }
+}
