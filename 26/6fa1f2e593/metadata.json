@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "266fa1f2e593",
+  "strategy": "manual-commit",
+  "branch": "feat/datatable-cell-colours",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/containers/model.go",
+    "internal/ui/datatable/datatable.go",
+    "internal/ui/datatable/render.go",
+    "internal/ui/datatable/render_test.go",
+    "internal/ui/gitlab/explorer/clone_list.go",
+    "internal/ui/gitlab/explorer/columns.go",
+    "internal/ui/gitlab/explorer/view.go",
+    "internal/ui/netdiag/ports_model.go",
+    "internal/ui/oci_resources/table.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/inventory_table.go",
+    "internal/ui/status/columns.go",
+    "internal/ui/workspaces/columns.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/26/6fa1f2e593/0/metadata.json",
+      "transcript": "/26/6fa1f2e593/0/full.jsonl",
+      "compact_transcript": "/26/6fa1f2e593/0/transcript.jsonl",
+      "content_hash": "/26/6fa1f2e593/0/content_hash.txt",
+      "prompt": "/26/6fa1f2e593/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 205,
+    "cache_creation_tokens": 243469,
+    "cache_read_tokens": 21563273,
+    "output_tokens": 83284,
+    "api_call_count": 110
+  }
+}
