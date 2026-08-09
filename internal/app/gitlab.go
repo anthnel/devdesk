@@ -100,8 +100,6 @@ func (a *App) clearAuthenticated() {
 	a.sharedState.GitLabClient = nil
 	a.sharedState.CurrentUser = nil
 	a.sharedState.IsAuthenticated = false
-	a.sharedState.CachedGroups = nil
-	a.sharedState.CachedProjects = nil
 	a.sharedState.GitLabStats = nil
 }
 

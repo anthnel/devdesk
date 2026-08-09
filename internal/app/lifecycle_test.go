@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
 	"github.com/anthnel/devdesk/internal/ui/security"
@@ -121,12 +122,13 @@ func TestReinitializingDropsEveryView(t *testing.T) {
 
 // ── Context switching ────────────────────────────────────────────────────────
 
-// The new context has its own credentials, so anything cached from the previous
-// one has to go — otherwise the explorer would list the old instance's groups.
+// The new context has its own credentials, so anything read through the
+// previous one's session has to go — otherwise the dashboard keeps reporting
+// the old instance's counters under the new context's name.
 func TestSwitchingContextClearsTheGitLabSession(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.sharedState.IsAuthenticated = true
-	a.sharedState.CachedGroups = []*gitlabclient.Group{{ID: 1, Name: "old"}}
+	a.sharedState.GitLabStats = &shared.GitLabStats{TotalProjects: 12}
 	a.sharedState.CurrentUser = &gitlabclient.User{Username: "before"}
 
 	a.Update(ContextSwitchCompleteMsg{ContextName: "work", Config: testConfig()})
@@ -134,8 +136,8 @@ func TestSwitchingContextClearsTheGitLabSession(t *testing.T) {
 	if a.sharedState.IsAuthenticated {
 		t.Error("the previous context's session survived the switch")
 	}
-	if a.sharedState.CachedGroups != nil {
-		t.Error("the previous context's groups survived the switch")
+	if a.sharedState.GitLabStats != nil {
+		t.Error("the previous context's counters survived the switch")
 	}
 	if a.currentContext != "work" {
 		t.Errorf("current context = %q, want work", a.currentContext)

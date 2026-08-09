@@ -6,6 +6,7 @@ import (
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 )
 
@@ -14,8 +15,7 @@ func signedIn(t *testing.T) *App {
 	t.Helper()
 	a := newWithSize(testConfig(), 120, 40)
 	a.setAuthenticated(&gitlabclient.Client{}, &gitlabclient.User{Username: "anthoni"})
-	a.sharedState.CachedGroups = []*gitlabclient.Group{{Name: "platform"}}
-	a.sharedState.CachedProjects = []*gitlabclient.Project{{Name: "devdesk"}}
+	a.sharedState.GitLabStats = &shared.GitLabStats{TotalProjects: 12}
 	return a
 }
 
@@ -39,15 +39,21 @@ func TestLoggingOutClearsTheSharedSession(t *testing.T) {
 	}
 }
 
-// The caches were read through the client that just stopped being valid.
+// The dashboard's counters were read through the client that just stopped being
+// valid, so they go with it — otherwise the dashboard keeps reporting a
+// signed-out user's project count.
+//
+// This used to assert on CachedGroups and CachedProjects too. They are gone
+// (D36): nothing ever wrote to them, so the assertion held for a cache that was
+// nil at every moment of its life. GitLabStats is the one of the three the
+// dashboard actually fills.
 func TestLoggingOutDropsTheCachedGitLabData(t *testing.T) {
 	a := signedIn(t)
 
 	_, _ = a.Update(auth.LogoutCompleteMsg{})
 
-	if a.sharedState.CachedGroups != nil || a.sharedState.CachedProjects != nil {
-		t.Errorf("cached groups=%d projects=%d survived the logout",
-			len(a.sharedState.CachedGroups), len(a.sharedState.CachedProjects))
+	if a.sharedState.GitLabStats != nil {
+		t.Errorf("GitLabStats survived the logout: %+v", a.sharedState.GitLabStats)
 	}
 }
 
