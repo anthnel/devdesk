@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	dockerpkg "github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -104,12 +105,30 @@ func portsColumns() []datatable.Column[dockerpkg.PortInfo] {
 
 	proto.Title, proto.MinWidth = "Proto", 6
 	state.Title, state.MinWidth = "State", 10
+	state.Style = portStateStyle
 	local.Title, local.MinWidth = "Local Address", 26
 	peer.Title, peer.MinWidth = "Peer Address", 26
 	pid.Title, pid.MinWidth = "PID", 7
 	process.Title, process.MinWidth, process.Flex = "Process", 10, 1
 
 	return []datatable.Column[dockerpkg.PortInfo]{proto, state, local, peer, pid, process}
+}
+
+// portStateStyle colours the socket state, which is the column this table is
+// scanned down: a listening port is something the machine offers, an
+// established one is a conversation in progress, and everything else is a
+// socket on its way out.
+func portStateStyle(p dockerpkg.PortInfo) lipgloss.Style {
+	switch strings.ToUpper(p.State) {
+	case "LISTEN":
+		return theme.StatusOKStyle
+	case "ESTAB", "ESTABLISHED":
+		return lipgloss.NewStyle().Foreground(theme.ColorHighlight)
+	case "":
+		return theme.DimStyle
+	default: // TIME-WAIT, CLOSE-WAIT, SYN-SENT — transient, and not the point
+		return theme.DimStyle
+	}
 }
 
 // matchPortTokens applies the toggle filters: OR within a group, AND between

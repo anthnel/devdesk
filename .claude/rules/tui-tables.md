@@ -44,40 +44,75 @@ Interdit :
 - ❌ Oublier le cell padding (`numColumns × 2`)
 - ❌ `Background()` sur `s.Cell` (masque `s.Selected.Background()`)
 
-### Rule 122 : Valeurs de cellules — texte brut OBLIGATOIRE ⚠️
+### Rule 122 : `Cell` mesure, `Style` colore — jamais l'inverse ⚠️
 
-**Les valeurs dans `table.Row{...}` doivent toujours être du texte brut, sans séquences ANSI.**
+**`Cell` retourne du texte brut, sans séquence ANSI. La couleur passe par `Style`,
+et par rien d'autre.**
 
-**Pourquoi :** `bubbles/table` appelle `runewidth.Truncate()` qui ne comprend pas les séquences ANSI. Un string stylé est tronqué au milieu d'une séquence, qui bleed sur toutes les lignes suivantes (artefacts `|`, `?`, etc.).
+**Pourquoi.** Une cellule est mesurée et tronquée *avant* d'être habillée, et la
+mesure passe par `runewidth`, qui compte les octets d'une séquence d'échappement
+comme de la largeur. Une chaîne de 7 cellules visibles portant une couleur mesure
+28 : elle est donc tronquée dans une colonne deux fois assez large, et la coupe
+tombe *à l'intérieur* de l'échappement — `"\x1b[38;2;166;2…"`. La séquence non
+terminée bave ensuite sur toutes les lignes suivantes.
 
-| Interdit | Alternative |
-|----------|-------------|
-| `theme.DimStyle.Render(text)` dans `table.Row` | `text` brut |
-| `theme.StatusErrorStyle.Render(icon + " error")` dans `table.Row` | `icon + " error"` brut |
-| N'importe quel `style.Render(...)` dans `table.Row` | Texte ou icône sans `Render()` |
+C'est une limitation de `bubbles/table`, pas de Bubble Tea ni de lipgloss, et
+elle est inchangée dans `bubbles v1.0.0`. `internal/ui/datatable` rend donc ses
+propres lignes (`render.go`) : le texte est mesuré tant qu'il est brut, la
+couleur est appliquée après. **L'interdit porte donc sur `Cell`, pas sur la
+couleur.**
 
 ```go
-// ✅ CORRECT
-rows = append(rows, table.Row{
-    name,
-    theme.IconError + " error",  // texte brut, pas de Render()
-    "7 mins ago",
-})
-m.myTable.SetStyles(theme.TableStylesForState("error"))  // styling via SetStyles()
+// ✅ CORRECT — le texte est mesurable, la couleur est décidée à part
+{
+    Title: "Severity", MinWidth: 10,
+    Cell:  func(f scan.Finding) string { return string(f.Severity) },
+    Style: func(f scan.Finding) lipgloss.Style {
+        return theme.SeverityTextStyle(string(f.Severity))
+    },
+}
 
-// ❌ INTERDIT
-rows = append(rows, table.Row{
-    name,
-    theme.StatusErrorStyle.Render(theme.IconError + " error"),  // DANGER
-    theme.DimStyle.Render("scanning"),                          // DANGER
-})
+// ❌ INTERDIT — la couleur entre dans ce qui sera mesuré
+{
+    Cell: func(f scan.Finding) string {
+        return theme.SeverityTextStyle(string(f.Severity)).Render(string(f.Severity))
+    },
+}
 ```
 
+#### Ligne sélectionnée
+
+**`Style` n'est pas consulté pour la ligne sous le curseur.** Elle est passée
+entière à `styles.Selected`, et une couleur à l'intérieur se referme par un
+reset qui emporte le fond de sélection pour tout le reste de la ligne : le
+surlignage s'arrêterait au milieu. Le surlignage répond à « où suis-je », et
+aucune couleur de colonne ne vaut de le perdre. Une colonne ne peut pas demander
+l'inverse.
+
+#### Fond
+
+lipgloss n'hérite pas d'un fond (Rule 115), et le style du viewport ne couvre
+que les cellules qui n'émettent rien. `render.go` donne donc un fond explicite à
+**chaque** cellule d'une ligne non sélectionnée, colorée ou non — sinon une
+seule cellule colorée dépouillerait de son fond tout ce qui la suit. Une colonne
+qui ne déclare qu'un `Foreground` reçoit `ColorBackground` automatiquement.
+
+#### Discipline de couleur
+
+Une couleur qui apparaît partout n'informe de rien :
+
+- un compteur à `0`, un `-`, une valeur absente → `theme.DimStyle` ;
+- l'état nominal et majoritaire (un conteneur `running`) → couleur de texte par
+  défaut, **pas** de vert ;
+- la couleur est réservée à ce qui mérite d'être repéré sans lire.
+
 Checklist :
-- [ ] Aucun `style.Render(...)` dans les valeurs de `table.Row{}`
+- [ ] Aucun `style.Render(...)` dans ce que retourne `Cell`
 - [ ] Icônes de statut en texte brut : `theme.IconError + " error"`
 - [ ] Spinners en texte brut : `frame + " scanning"`
-- [ ] Styling de ligne via `SetStyles()` ou `TableStylesForState/Severity()`
+- [ ] Couleur par cellule via `Style`, jamais via `Cell`
+- [ ] Couleur de la ligne sélectionnée via `SelectedStyles` / `TableStylesForState/Severity()`
+- [ ] Les zéros et les placeholders sont `DimStyle`, pas colorés
 
 ### Rule 125 : Alignement des colonnes d'icônes
 

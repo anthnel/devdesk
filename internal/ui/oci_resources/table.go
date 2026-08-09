@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
@@ -38,12 +39,36 @@ type imageRow struct {
 const imageColumnName = 1
 
 // cveColumn builds one of the four severity count columns.
-func cveColumn(title string, get func(cache.ImageScanEntry) int) datatable.Column[imageRow] {
+//
+// severity names the column's level for the colour, spelled as the scanners
+// spell it — the title here is a single letter, which is no basis for deciding
+// what colour a count is.
+func cveColumn(title, severity string, get func(cache.ImageScanEntry) int) datatable.Column[imageRow] {
 	return datatable.Column[imageRow]{
 		Title: title, MinWidth: 4,
 		Cell: func(r imageRow) string { return formatCVECount(get(r.Entry), r.Scanned) },
+		// A zero is dim, like an unscanned image: four coloured zeroes on a
+		// clean image would read as four findings.
+		Style: func(r imageRow) lipgloss.Style {
+			if !r.Scanned || get(r.Entry) == 0 {
+				return theme.DimStyle
+			}
+			return theme.SeverityTextStyle(severity)
+		},
 		Less: func(a, b imageRow) bool { return get(a.Entry) < get(b.Entry) },
 	}
+}
+
+// scannedStyle colours the scan state, a failure being the one value in the
+// column that asks for anything.
+func scannedStyle(r imageRow) lipgloss.Style {
+	switch {
+	case r.Failed:
+		return theme.StatusErrorStyle
+	case r.Scanning, !r.Scanned:
+		return theme.DimStyle
+	}
+	return lipgloss.NewStyle().Foreground(theme.ColorText)
 }
 
 // scannedCell reports the scan state: the spinner while one runs, an error icon
@@ -89,14 +114,15 @@ func imageColumns() []datatable.Column[imageRow] {
 			Cell: func(r imageRow) string { return formatBytes(r.Image.Size) },
 			Less: func(a, b imageRow) bool { return a.Image.Size < b.Image.Size },
 		},
-		cveColumn("C", func(e cache.ImageScanEntry) int { return e.Critical }),
-		cveColumn("H", func(e cache.ImageScanEntry) int { return e.High }),
-		cveColumn("M", func(e cache.ImageScanEntry) int { return e.Medium }),
-		cveColumn("L", func(e cache.ImageScanEntry) int { return e.Low }),
+		cveColumn("C", "CRITICAL", func(e cache.ImageScanEntry) int { return e.Critical }),
+		cveColumn("H", "HIGH", func(e cache.ImageScanEntry) int { return e.High }),
+		cveColumn("M", "MEDIUM", func(e cache.ImageScanEntry) int { return e.Medium }),
+		cveColumn("L", "LOW", func(e cache.ImageScanEntry) int { return e.Low }),
 		{
 			Title: "Scanned", MinWidth: 14,
-			Cell: scannedCell,
-			Less: func(a, b imageRow) bool { return a.Entry.ScannedAt.Before(b.Entry.ScannedAt) },
+			Cell:  scannedCell,
+			Style: scannedStyle,
+			Less:  func(a, b imageRow) bool { return a.Entry.ScannedAt.Before(b.Entry.ScannedAt) },
 		},
 	}
 }

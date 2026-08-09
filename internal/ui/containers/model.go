@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
@@ -134,6 +135,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 		{
 			Title: "Image", MinWidth: 20, Flex: 3,
 			Cell:   func(c docker.Container) string { return stateIcon(c.State) + " " + c.Image },
+			Style:  containerStateStyle,
 			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Image) < strings.ToLower(b.Image) },
 			Search: func(c docker.Container) string { return c.Image + " " + c.State },
 		},
@@ -189,6 +191,26 @@ func containerColumns() []datatable.Column[docker.Container] {
 			Title: "Ports", MinWidth: 16, Flex: 2,
 			Cell: func(c docker.Container) string { return c.Ports },
 		},
+	}
+}
+
+// containerStateStyle colours the Image cell, which is where the state icon is,
+// by that state.
+//
+// A running container is left in the default text colour rather than painted
+// green. Almost every row is running, so colouring them would put a colour on
+// the whole table and a signal on none of it — the colour is here to pick out
+// the containers that stopped, or that are on their way somewhere.
+func containerStateStyle(c docker.Container) lipgloss.Style {
+	switch c.State {
+	case "exited", "dead":
+		return theme.StatusErrorStyle
+	case "paused":
+		return theme.StatusWarningStyle
+	case "created", "restarting":
+		return lipgloss.NewStyle().Foreground(theme.ColorHighlight)
+	default:
+		return lipgloss.NewStyle().Foreground(theme.ColorText)
 	}
 }
 

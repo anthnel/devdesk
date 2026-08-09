@@ -827,6 +827,7 @@ datatable.New(datatable.Config[T]{
     Columns: []datatable.Column[T]{{
         Title: "Name", MinWidth: 20, Flex: 1,
         Cell:   func(x T) string { … },  // plain text — Rule 122 by construction
+        Style:  func(x T) lipgloss.Style { … }, // nil = the table's own colours
         Less:   func(a, b T) bool { … }, // nil = not sortable
         Search: func(x T) string { … },  // nil = not searchable
     }},
@@ -847,6 +848,38 @@ sort arrow the view never accounted for, so `solveWidths` reserves
 `CRIT ▼` into five cells and loses exactly the character that says how it is
 sorted. The reserve applies whether or not the column is the sorted one, so
 cycling `.` does not resize it and shift every column beside it.
+
+**The package renders its own rows** (`render.go`), and that is what makes
+`Style` possible at all. `bubbles/table` measures a cell with `runewidth`
+*before* styling it, and runewidth counts an escape sequence's bytes as width: a
+seven-cell string carrying a colour measures 28, so it is truncated in a column
+twice wide enough and the cut lands inside the escape — the unterminated
+sequence then bleeds over every row below. That is Rule 122, it is a
+`bubbles/table` limitation rather than a Bubble Tea one, and `bubbles v1.0.0`
+has the same line. Inverting the order — `Cell` is measured while plain, `Style`
+is applied to the finished cell — makes the failure unexpressible instead of
+forbidden by review.
+
+bubbles is still the state: rows, columns, cursor, focus and height. What moved
+here is the drawing and the scroll offset (`clampOffset`), which its viewport
+kept unexported. `Table()` reports the same thing it always did.
+
+Two consequences worth keeping:
+
+- **`Style` is not consulted for the selected row.** That row goes to
+  `styles.Selected` whole, and a colour inside it closes with a reset that takes
+  the selection background with it for the rest of the line. The highlight
+  answers "where am I"; no per-cell colour is worth ending it mid-row.
+- **Every cell on an unselected row carries an explicit background.** lipgloss
+  does not inherit one (Rule 115) and the app's viewport style only reaches
+  cells that emit nothing, so one coloured cell would otherwise strip the
+  background from everything to its right. A column declaring only a foreground
+  gets `ColorBackground` filled in.
+
+A colour that appears on every row informs no one: a zero count, a `-` and a
+never-scanned target are `DimStyle`, the nominal majority state (a `running`
+container) keeps the default text colour, and the colour is spent on what is
+worth spotting without reading.
 
 Three things it guarantees that hand-wired tables did not:
 

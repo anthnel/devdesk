@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/anthnel/devdesk/internal/status"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -37,7 +39,8 @@ func monitorColumns() []datatable.Column[status.ComponentStatus] {
 		},
 		{
 			Title: "Status", MinWidth: 10,
-			Cell: monitorStatusCell,
+			Cell:  monitorStatusCell,
+			Style: componentStatusStyle,
 		},
 		{
 			Title: "Type", MinWidth: 10,
@@ -74,6 +77,15 @@ func monitorStatusCell(c status.ComponentStatus) string {
 	}
 }
 
+// componentStatusStyle colours a status cell. Both tables use it: the icon is
+// the same vocabulary on a monitor and on a certificate, so it has to read the
+// same colour in both, and theme.StatusStyle is where that mapping already
+// lived — the Status cells rendered through it until Rule 122 sent them back to
+// plain text (the commented-out Render calls in view.go are what was left).
+func componentStatusStyle(c status.ComponentStatus) lipgloss.Style {
+	return theme.StatusStyle(string(c.Status))
+}
+
 // monitorTypeCell names the check kind, or says so when the config did not.
 func monitorTypeCell(c status.ComponentStatus) string {
 	if c.Type == "" {
@@ -96,7 +108,7 @@ func sslColumns() []datatable.Column[status.ComponentStatus] {
 			Cell:   func(c status.ComponentStatus) string { return c.Target },
 			Search: func(c status.ComponentStatus) string { return c.Target },
 		},
-		{Title: "Status", MinWidth: 12, Cell: formatSSLStatus},
+		{Title: "Status", MinWidth: 12, Cell: formatSSLStatus, Style: componentStatusStyle},
 		{
 			Title: "Days Left", MinWidth: 11,
 			Cell: func(c status.ComponentStatus) string {

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 )
 
@@ -89,7 +91,8 @@ func explorerColumns() []datatable.Column[explorerRow] {
 		},
 		{
 			Title: "CI", MinWidth: colCIMin,
-			Cell: func(r explorerRow) string { return pipelineStatusLabel(r.node) },
+			Cell:  func(r explorerRow) string { return pipelineStatusLabel(r.node) },
+			Style: func(r explorerRow) lipgloss.Style { return pipelineStatusStyle(r.node) },
 		},
 	}
 }

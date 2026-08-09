@@ -28,6 +28,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -43,12 +44,20 @@ type Column[T any] struct {
 	// Flex is the column's share of the space left over. 0 keeps it at
 	// MinWidth; the leftover is split between the flexible ones by weight.
 	Flex int
-	// Cell returns the text for this column. Plain text only: bubbles/table
-	// truncates with runewidth, which does not understand ANSI, so a styled
-	// string is cut mid-escape and bleeds over every row below it (Rule 122).
-	// Taking a string rather than a styled value is what makes that
-	// unexpressible here.
+	// Cell returns the text for this column. Plain text only: it is measured
+	// and truncated before anything is applied to it, and runewidth counts an
+	// escape sequence's bytes as width — a styled string is cut mid-escape and
+	// bleeds over every row below it (Rule 122). Taking a string rather than a
+	// styled value is what makes that unexpressible here.
 	Cell func(T) string
+	// Style colours the cell after it has been measured and truncated, which is
+	// the only order in which colour is safe (see render.go). Nil leaves the
+	// cell in the table's own colours.
+	//
+	// It is not consulted for the selected row: that row is handed to
+	// styles.Selected whole, and a colour inside it would end the highlight
+	// mid-row. A column cannot ask for that back.
+	Style func(T) lipgloss.Style
 	// Less sorts by this column. Nil means the column cannot be sorted by, and
 	// `.` skips it.
 	Less func(a, b T) bool
@@ -92,6 +101,14 @@ type Model[T any] struct {
 	// ordering while the screen shows another.
 	visible []T
 
+	// styles is what was last handed to the table. The rendering is this
+	// package's now (render.go) and bubbles keeps its copy unexported, so the
+	// styles have to be kept on this side to be readable at render time.
+	styles table.Styles
+	// offset is the first visible row — the scroll window bubbles kept in its
+	// viewport. clampOffset owns it.
+	offset int
+
 	sortColumn int
 	sortDesc   bool
 	width      int
@@ -104,7 +121,6 @@ func New[T any](cfg Config[T]) Model[T] {
 		cols[i] = table.Column{Title: c.Title, Width: c.MinWidth}
 	}
 	t := table.New(table.WithColumns(cols), table.WithFocused(true), table.WithHeight(10))
-	t.SetStyles(theme.DefaultTableStyles())
 
 	bar := components.NewFilterBar()
 	if len(cfg.Tokens) > 0 {
@@ -112,6 +128,11 @@ func New[T any](cfg Config[T]) Model[T] {
 	}
 
 	m := Model[T]{cfg: cfg, table: t, bar: bar, sortColumn: cfg.SortColumn, sortDesc: cfg.SortDesc}
+	// Through setStyles rather than the table alone: a table rendered before
+	// anything calls applyStyles — one built and drawn in the same frame — would
+	// otherwise render with the zero Styles, which carries no cell padding and
+	// so lays out two cells narrower per column than every width was solved for.
+	m.setStyles(theme.DefaultTableStyles())
 	// The invariant the rest of the file rests on: sortColumn is either -1 or a
 	// column that can actually be sorted by. Settling it once here is what lets
 	// CycleSort and sorted() stop re-checking — and what stops `.` getting stuck
@@ -162,13 +183,16 @@ func (m *Model[T]) SetCursor(i int) {
 		return
 	}
 	m.table.SetCursor(min(max(i, 0), len(m.visible)-1))
-	m.applyStyles()
+	m.afterCursorMove()
 }
 
 // GotoTop moves the cursor to the first row. Views that want the cursor reset
 // on a change of scope — security resets it when the tab changes — call this
 // explicitly, because SetItems deliberately does not.
-func (m *Model[T]) GotoTop() { m.table.GotoTop() }
+func (m *Model[T]) GotoTop() {
+	m.table.GotoTop()
+	m.afterCursorMove()
+}
 
 // FilterBar exposes the bar for RenderFooter and GetFooterHeight (Rule 136).
 func (m *Model[T]) FilterBar() *components.FilterBar { return &m.bar }
@@ -193,22 +217,23 @@ func (m *Model[T]) Searchable() bool {
 // Table exposes the underlying table for rendering.
 func (m *Model[T]) Table() *table.Model { return &m.table }
 
-// View renders the table.
-func (m *Model[T]) View() string { return m.table.View() }
-
-// SetHeight sets the number of rows shown.
-func (m *Model[T]) SetHeight(h int) { m.table.SetHeight(max(h, 1)) }
+// SetHeight sets the number of rows shown. The window is re-clamped: a table
+// that just got shorter can leave the cursor below its own last visible row.
+func (m *Model[T]) SetHeight(h int) {
+	m.table.SetHeight(max(h, 1))
+	m.clampOffset()
+}
 
 // Focus and Blur move the keyboard between two tables sharing a viewport, which
 // is what the status view does with its monitors and its certificates.
 func (m *Model[T]) Focus() {
 	m.table.Focus()
-	m.applyStyles()
+	m.afterCursorMove()
 }
 
 func (m *Model[T]) Blur() {
 	m.table.Blur()
-	m.table.SetStyles(theme.BlurredTableStyles())
+	m.setStyles(theme.BlurredTableStyles())
 }
 
 // Resize recomputes the column widths for a viewport of this width (Rule 116).
@@ -228,7 +253,7 @@ func (m *Model[T]) Resize(width, height int) {
 	if height > 0 {
 		m.SetHeight(height)
 	}
-	m.applyStyles() // the selected row is pinned to this width
+	m.afterCursorMove() // the selected row is pinned to this width
 }
 
 // The sort arrows, and what they cost. Named because widths.go has to reserve
@@ -328,22 +353,22 @@ func (m *Model[T]) Update(msg tea.Msg) tea.Cmd {
 		m.CycleSort()
 	case "up", "k":
 		m.table.MoveUp(1)
-		m.applyStyles()
+		m.afterCursorMove()
 	case "down", "j":
 		m.table.MoveDown(1)
-		m.applyStyles()
+		m.afterCursorMove()
 	case "pgup":
 		m.table.MoveUp(m.table.Height())
-		m.applyStyles()
+		m.afterCursorMove()
 	case "pgdown":
 		m.table.MoveDown(m.table.Height())
-		m.applyStyles()
+		m.afterCursorMove()
 	case "g", "home":
 		m.table.GotoTop()
-		m.applyStyles()
+		m.afterCursorMove()
 	case "G", "end":
 		m.table.GotoBottom()
-		m.applyStyles()
+		m.afterCursorMove()
 	}
 	return nil
 }
@@ -387,6 +412,15 @@ func (m *Model[T]) rebuild() {
 	case cursor < 0:
 		m.table.SetCursor(0)
 	}
+	m.afterCursorMove()
+}
+
+// afterCursorMove is what every cursor, height and item change ends with: the
+// styles follow the selected item, and the scroll window follows the cursor.
+// Keeping them on one call is what stops a new call site from remembering one
+// and forgetting the other — the offset was invisible while bubbles owned it.
+func (m *Model[T]) afterCursorMove() {
+	m.clampOffset()
 	m.applyStyles()
 }
 
@@ -407,6 +441,14 @@ func (m *Model[T]) applyStyles() {
 	if m.width > 2 {
 		styles.Selected = styles.Selected.Width(m.width - 2)
 	}
+	m.setStyles(styles)
+}
+
+// setStyles keeps bubbles' copy and this package's in step. The rendering reads
+// the one here (render.go); bubbles' is still what Table() reports, which the
+// tests and any view reaching for the raw table expect to be current.
+func (m *Model[T]) setStyles(styles table.Styles) {
+	m.styles = styles
 	m.table.SetStyles(styles)
 }
 

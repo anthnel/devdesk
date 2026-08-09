@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -85,7 +87,11 @@ const countColumnWidth = 6
 // countColumn builds one of the four severity columns. A purged row prints "-"
 // rather than "0": nothing was found and nothing is known are different answers,
 // and zero is the one a user reads as "clean".
-func countColumn(title string, get func(scan.SeverityCounts) int) datatable.Column[scanTarget] {
+//
+// severity names the column's own level, for the colour. It is passed rather
+// than derived from the title so that renaming a header cannot silently repaint
+// a column — "CRIT" is an abbreviation, "CRITICAL" is the scanners' vocabulary.
+func countColumn(title, severity string, get func(scan.SeverityCounts) int) datatable.Column[scanTarget] {
 	return datatable.Column[scanTarget]{
 		Title: title, MinWidth: countColumnWidth,
 		Cell: func(t scanTarget) string {
@@ -94,8 +100,30 @@ func countColumn(title string, get func(scan.SeverityCounts) int) datatable.Colu
 			}
 			return strconv.Itoa(get(t.Counts))
 		},
+		// Only a count that found something is coloured. Four columns of
+		// severity-coloured zeroes would be the whole table shouting at once,
+		// which says no more than a table with no colour at all.
+		Style: func(t scanTarget) lipgloss.Style {
+			if !t.Scanned || get(t.Counts) == 0 {
+				return theme.DimStyle
+			}
+			return theme.SeverityTextStyle(severity)
+		},
 		Less: func(a, b scanTarget) bool { return get(a.Counts) < get(b.Counts) },
 	}
+}
+
+// inventoryScannedStyle colours the scan state: a failure is the one thing in
+// this column worth interrupting for, and a target never scanned is dim rather
+// than absent.
+func inventoryScannedStyle(t scanTarget) lipgloss.Style {
+	switch {
+	case t.Failed:
+		return theme.StatusErrorStyle
+	case t.Scanning, !t.Scanned:
+		return theme.DimStyle
+	}
+	return lipgloss.NewStyle().Foreground(theme.ColorText)
 }
 
 // inventoryScannedCell reports the scan state: the spinner while one runs, an
@@ -126,14 +154,15 @@ func inventoryColumns() []datatable.Column[scanTarget] {
 			// a repository has to match the row that folds it to "~".
 			Search: func(t scanTarget) string { return t.Name },
 		},
-		countColumn("CRIT", func(c scan.SeverityCounts) int { return c.Critical }),
-		countColumn("HIGH", func(c scan.SeverityCounts) int { return c.High }),
-		countColumn("MED", func(c scan.SeverityCounts) int { return c.Medium }),
-		countColumn("LOW", func(c scan.SeverityCounts) int { return c.Low }),
+		countColumn("CRIT", "CRITICAL", func(c scan.SeverityCounts) int { return c.Critical }),
+		countColumn("HIGH", "HIGH", func(c scan.SeverityCounts) int { return c.High }),
+		countColumn("MED", "MEDIUM", func(c scan.SeverityCounts) int { return c.Medium }),
+		countColumn("LOW", "LOW", func(c scan.SeverityCounts) int { return c.Low }),
 		{
 			Title: "Scanned", MinWidth: 14,
-			Cell: inventoryScannedCell,
-			Less: func(a, b scanTarget) bool { return a.ScannedAt.Before(b.ScannedAt) },
+			Cell:  inventoryScannedCell,
+			Style: inventoryScannedStyle,
+			Less:  func(a, b scanTarget) bool { return a.ScannedAt.Before(b.ScannedAt) },
 		},
 	}
 }

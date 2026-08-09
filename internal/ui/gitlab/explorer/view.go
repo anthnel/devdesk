@@ -254,6 +254,29 @@ func pipelineStatusLabel(node *TreeNode) string {
 	}
 }
 
+// pipelineStatusStyle colours the CI cell. A failed pipeline is the one thing
+// in this table worth spotting without reading, and a green tick beside it is
+// what makes it spottable — so success is coloured here where a running
+// container is not: the CI column says nothing else, and most rows are not
+// successes.
+func pipelineStatusStyle(node *TreeNode) lipgloss.Style {
+	if node.Type != NodeTypeProject {
+		return theme.DimStyle
+	}
+	switch node.PipelineStatus {
+	case "success":
+		return theme.StatusOKStyle
+	case "failed":
+		return theme.StatusErrorStyle
+	case "running":
+		return lipgloss.NewStyle().Foreground(theme.ColorHighlight)
+	case "canceled", "skipped", "manual", "":
+		return theme.DimStyle
+	default:
+		return theme.StatusWarningStyle
+	}
+}
+
 // Helper rendering functions
 
 func renderNotAuthenticated() string {

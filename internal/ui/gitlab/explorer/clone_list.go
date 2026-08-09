@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -86,8 +87,9 @@ func cloneColumns() []datatable.Column[cloneRow] {
 	return []datatable.Column[cloneRow]{
 		{
 			Title: "Status", MinWidth: colCloneStatusMin,
-			Cell: func(r cloneRow) string { return cloneStatusLabel(r) },
-			Less: func(a, b cloneRow) bool { return a.state < b.state },
+			Cell:  func(r cloneRow) string { return cloneStatusLabel(r) },
+			Style: cloneStatusStyle,
+			Less:  func(a, b cloneRow) bool { return a.state < b.state },
 		},
 		{
 			Title: "Repository", MinWidth: colClonePathMin, Flex: 2,
@@ -116,6 +118,24 @@ func cloneStatusLabel(r cloneRow) string {
 		return theme.IconError + " failed"
 	default:
 		return theme.IconPending + " queued"
+	}
+}
+
+// cloneStatusStyle colours the status cell.
+//
+// The five states are the whole vocabulary of this screen, and they are the one
+// thing a run of forty rows is read for: which ones failed, which are still
+// going, which were already on disk and were left alone.
+func cloneStatusStyle(r cloneRow) lipgloss.Style {
+	switch r.state {
+	case cloneCloned:
+		return theme.StatusOKStyle
+	case cloneFailed:
+		return theme.StatusErrorStyle
+	case cloneRunning:
+		return lipgloss.NewStyle().Foreground(theme.ColorHighlight)
+	default: // queued, and already there — neither is news
+		return theme.DimStyle
 	}
 }
 

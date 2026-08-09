@@ -1,0 +1,171 @@
+package datatable
+
+import (
+	"strings"
+
+	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
+
+	"github.com/anthnel/devdesk/internal/ui/theme"
+)
+
+// Why this package renders its own rows rather than calling table.Model.View().
+//
+// bubbles/table builds a cell as:
+//
+//	m.styles.Cell.Render(style.Render(runewidth.Truncate(value, width, "…")))
+//
+// — it measures the value *before* styling it, with runewidth, which counts an
+// escape sequence's bytes as width. A seven-cell string carrying a colour
+// measures 28, so it is truncated in a column twice wide enough, and the cut
+// lands inside the escape: "\x1b[38;2;166;2…". The unterminated sequence then
+// bleeds over every row below. That is Rule 122, and no configuration of
+// bubbles avoids it — bubbles v1.0.0 has the same line.
+//
+// Here the order is inverted: Cell returns plain text, which is what gets
+// measured and truncated, and Style is applied to the finished cell. Nothing
+// styled is ever measured, so the failure is unexpressible rather than
+// forbidden by review.
+//
+// The other half of the reason is the selected row. bubbles hands the whole
+// joined row to styles.Selected, and a colour inside it closes with a reset
+// that takes the selection background with it for the rest of the line — the
+// highlight ends mid-row. So per-cell colours are dropped on the selected row
+// (see cellStyle), which is the one place the row keeps rendering exactly as it
+// did before.
+
+// truncationMarker ends a cell too narrow for its content.
+const truncationMarker = "…"
+
+// View renders the header and the window of rows around the cursor.
+func (m *Model[T]) View() string {
+	cols := m.table.Columns()
+	// At least one line under the header. A terminal too short to hold a single
+	// row leaves Height() at 0, and a table that renders literally nothing
+	// closes the viewport border onto itself — bubbles' viewport always emitted
+	// that line, and two views check for it at 20x1.
+	rows := max(m.table.Height(), 1)
+
+	lines := make([]string, 0, rows+1)
+	lines = append(lines, m.headerLine(cols))
+
+	cursor := m.table.Cursor()
+	for i := m.offset; i < len(m.visible) && len(lines) <= rows; i++ {
+		lines = append(lines, m.rowLine(cols, m.visible[i], i == cursor))
+	}
+	// Pad to the full height so the viewport border does not close in on a
+	// short list. bubbles' viewport did this with unstyled lines; filling them
+	// with the app background is Rule 115 applied to the one part of the table
+	// that had escaped it.
+	blank := theme.EmptyLineBg(contentWidth(cols))
+	for len(lines) <= rows {
+		lines = append(lines, blank)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// contentWidth is what the rendered lines span: every column plus the padding
+// bubbles adds around each. It equals the viewport width less its two borders
+// whenever Rule 116 holds, but it is measured rather than assumed so that a
+// table that has never been resized still pads to its own content.
+func contentWidth(cols []table.Column) int {
+	width := 0
+	for _, col := range cols {
+		if col.Width > 0 {
+			width += col.Width + cellPadding
+		}
+	}
+	return width
+}
+
+// headerLine renders the column titles, sort arrow included.
+func (m *Model[T]) headerLine(cols []table.Column) string {
+	var line strings.Builder
+	for _, col := range cols {
+		if col.Width <= 0 {
+			continue
+		}
+		line.WriteString(m.styles.Header.Render(fit(col.Title, col.Width)))
+	}
+	return line.String()
+}
+
+// rowLine renders one row.
+func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
+	var line strings.Builder
+	for i, c := range m.cfg.Columns {
+		if i >= len(cols) || cols[i].Width <= 0 {
+			continue
+		}
+		line.WriteString(m.cellStyle(c, item, selected).Render(fit(c.Cell(item), cols[i].Width)))
+	}
+	if selected {
+		return m.styles.Selected.Render(line.String())
+	}
+	return line.String()
+}
+
+// fit truncates the text to the column and pads it out, emitting no escape
+// sequence of its own — the caller styles what comes back. Doing it in that
+// order is the whole point of this file: runewidth counts an escape sequence's
+// bytes as width, so text has to be measured while it is still plain.
+func fit(text string, width int) string {
+	return lipgloss.NewStyle().Width(width).MaxWidth(width).Inline(true).
+		Render(runewidth.Truncate(text, width, truncationMarker))
+}
+
+// cellStyle is the style one cell is rendered with.
+//
+// On the selected row the column's own colours are dropped and the row is
+// handed to styles.Selected whole, exactly as bubbles did: a colour inside it
+// closes with a reset that takes the selection background with it for the rest
+// of the line. The highlight answers "where am I", and no per-cell colour is
+// worth losing it to.
+//
+// Off the selected row every cell carries an explicit background, whether or
+// not the column asked for a colour. It has to: lipgloss does not inherit a
+// background (Rule 115), and the app's viewport style only reaches the cells
+// that emit nothing of their own. One coloured cell would otherwise end its
+// line with a reset and strip the background from everything to its right.
+func (m *Model[T]) cellStyle(c Column[T], item T, selected bool) lipgloss.Style {
+	if selected {
+		// No background here, or it would mask styles.Selected's (Rule 116).
+		return m.styles.Cell
+	}
+	if c.Style == nil {
+		return m.styles.Cell.Background(theme.ColorBackground)
+	}
+	style := c.Style(item).Padding(0, 1)
+	if _, unset := style.GetBackground().(lipgloss.NoColor); unset {
+		style = style.Background(theme.ColorBackground)
+	}
+	return style
+}
+
+// clampOffset moves the scroll window the least it can to keep the cursor in
+// it. bubbles kept this in an unexported viewport; owning the rendering means
+// owning the offset too.
+//
+// The window is only moved when the cursor has left it, so a reload that keeps
+// the cursor on screen keeps the scroll position — the property SetItems was
+// written to protect.
+func (m *Model[T]) clampOffset() {
+	height := max(m.table.Height(), 1)
+	last := max(len(m.visible)-height, 0)
+
+	m.offset = min(max(m.offset, 0), last)
+
+	switch cursor := m.table.Cursor(); {
+	case cursor < 0: // nothing selected: an empty table scrolls nowhere
+		m.offset = 0
+	case cursor < m.offset:
+		m.offset = cursor
+	case cursor >= m.offset+height:
+		m.offset = cursor - height + 1
+	}
+}
+
+// Offset reports the first visible row, for tests that check the window
+// follows the cursor without going through the rendered string.
+func (m *Model[T]) Offset() int { return m.offset }
