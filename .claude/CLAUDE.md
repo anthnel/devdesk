@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DevDesk is a terminal-based TUI (Text User Interface) application built with Go and Bubble Tea framework. It provides DevSecOps functionality including:
 - System status monitoring (HTTP/HTTPS, ICMP, DNS, SSL checks)
-- GitLab integration (authentication, project explorer, clone/pull)
+- GitLab integration (authentication, project explorer, multi-select clone)
 - Security scanning (Trivy CVE/secret/license/misconfig + Gitleaks secrets)
 - Docker container management with real-time metrics
 - OCI resource management (image scanning, container launching, network inspection)
@@ -164,7 +164,7 @@ App (Router)
     ├── dashboard       - Overview (stats, tools, service status)
     ├── status          - System monitoring (CRUD monitors)
     ├── gitlab-auth     - GitLab authentication form
-    ├── gitlab-explorer - GitLab project/group browser + clone
+    ├── gitlab-explorer - GitLab project/group browser + multi-select clone
     ├── workspaces      - Local workspace management + git metadata
     ├── security        - Trivy + Gitleaks scanner with multi-tab results
     ├── containers      - Docker container list + live metrics
@@ -387,6 +387,68 @@ Key messages in `internal/app/messages.go`:
 - `SwitchViewMsg` — navigate to another view
 - `SelectionRequestMsg` / `SelectionResultMsg` — selection mode (e.g., workspaces opened from security view to pick a repo)
 - `ImageScanResultLoadedMsg` / `WorkspaceScanResultLoadedMsg` — cached results ready
+
+### The explorer clone
+
+`c` in the explorer opens a **selection mode** over the same tree, and `enter`
+starts a **pipeline** that discovers and clones at once (§3.16). It replaced a
+single `Cmd` covering a whole subtree behind a modal reading `"Pulling..."` —
+several minutes indistinguishable from a freeze on a large group.
+
+The line that holds it together: **the explorer creates what does not exist,
+workspaces reconciles what does.** A repository already on disk is skipped
+untouched, so the explorer never needs to know what a dirty working tree is and
+the per-row states collapse to five — queued, cloning, cloned, already there,
+failed. Updating an existing clone is §3.17's `sync`, in workspaces.
+
+| Mode | Screen | Keys |
+|---|---|---|
+| `ModeSelecting` | the tree, with a checkbox on the Type cell | `space` ticks, `←→` drill, `enter` confirms, `esc` cancels |
+| `ModeCloning` | a flat list, one row per repository | `esc` cancels, then closes |
+
+**The selection is roots plus exclusions, never a list of repositories**
+(`selection.go`). A positive list cannot be built when a group is ticked without
+enumerating its children — the full API walk, run at selection time, which is
+the freeze moved one screen earlier. "This group, minus these" needs to know
+nothing about what the group contains, so a group nobody has expanded can still
+be ticked, displayed with the right tri-state, and walked. It is the only
+representation compatible with discovering as you clone.
+
+The **nodes** are kept separately, in `Model.selectionNodes`: the walk has to
+start from one, and a root ticked three levels down is no longer on screen once
+the user has come back up. The selection itself stays paths-only, which is what
+lets it answer for paths nobody has fetched.
+
+**The check state travels on a row type.** `datatable` columns are built once in
+`New` and close over nothing, so the table moved from `Model[*TreeNode]` to
+`Model[explorerRow]` (`row.go`) — the `imageRow` pattern. The state must **not**
+move into `datatable`: `SetItems` replaces the items on every drill-down, while
+the selection spans levels the table has never shown. `RenderCheckboxTri` styles
+its output and so cannot go in a cell; `checkboxIcon` is the glyph without it
+(Rule 122).
+
+The checkbox **rides on the Type cell** rather than taking a column of its own.
+A column would cost four cells on every screen to say nothing on all but one of
+them, and at 80 columns the explorer has none to spare.
+
+**Two cancellation scopes, and the distinction is the point** (`pipeline.go`).
+`cloneRun.cancel` is a `context.CancelFunc` covering **discovery only** — HTTP
+reads, which cancel safely. A `git clone` is never interrupted: a context that
+kills one leaves half a repository on disk, which is exactly what this avoids.
+So `esc` cancels the walk and the scheduler stops issuing work, the running
+clones are awaited, and the footer says `Cancelling — 3 clones finishing`. A
+second `esc` must not force.
+
+`cloneWalkFailed` is a kind of its own: a group that cannot be listed gets a
+failed row naming the **group**, because the repositories under it were never
+discovered and no other row can stand for them.
+
+The **failures are named when the run ends**, in the footer and the log. The
+list is discarded on `esc` and workspaces records only the successes — a clone
+that failed wrote nothing, so that report is the only one there will be.
+
+`gitlab.pull.include_archived` is read by `listGroupChildren` and **only by the
+clone**: browsing lists everything the forge has.
 
 ### Security Scanning
 

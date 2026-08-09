@@ -53,7 +53,7 @@ Bubble Tea program.Run()
 | Dashboard | `internal/ui/dashboard/` | Stats aggregator, tool availability, service health |
 | Status | `internal/ui/status/` | HTTP/HTTPS/ICMP/DNS monitors, CRUD operations |
 | GitLab Auth | `internal/ui/gitlab/auth/` | Token entry, authentication state |
-| GitLab Explorer | `internal/ui/gitlab/explorer/` | Group/project browser, clone/pull, creation |
+| GitLab Explorer | `internal/ui/gitlab/explorer/` | Group/project browser, multi-select clone, creation |
 | Workspaces | `internal/ui/workspaces/` | Local git repos, CRUD, terminal launch, selection mode |
 | Security | `internal/ui/security/` | Inventory of what has been scanned, rescan, result tabs |
 | Containers | `internal/ui/containers/` | Docker container list, metrics, control |

@@ -951,12 +951,12 @@ it cannot.
 | git | executed against a seeded repository, skipped without `git` on `PATH` |
 | Desktop browser | not executed; the guard branches are driven, the launch is not |
 
-The pull tests are the clearest case: the "GitLab host" is a local directory
-holding seeded repositories, so `recursivePull` really clones and really writes
+The clone tests are the clearest case: the "GitLab host" is a local directory
+holding seeded repositories, so the pipeline really clones and really writes
 the directory tree. That is what proves the tree mirrors the group hierarchy,
 that an existing checkout is skipped rather than clobbered, and that a group
-whose children were never browsed is fetched mid-pull. `cloneURL` was extracted
-from `pullProject` to make the SSH and HTTPS URL shapes assertable — `gitlab.Clone`
+whose children were never browsed is walked mid-run. `cloneURL` was extracted
+to make the SSH and HTTPS URL shapes assertable — `gitlab.Clone`
 reports only an exit status, so the URL it was handed is not observable through
 the error.
 
@@ -2590,16 +2590,18 @@ highest risk since the payload *is* the secret — possibly viable by sending ru
 name, path and entropy with the match withheld); container log explanation
 (logs carry env vars and DSNs routinely).
 
-### 3.16 The explorer clones, workspaces syncs — **designed, not started**
+### 3.16 The explorer clones, workspaces syncs — **done**
 
-`p` on a group or a project in the explorer clones the subtree into a
-workspace. It works, and it was the least designed path in the application: a
+`p` on a group or a project in the explorer cloned the subtree into a
+workspace. It worked, and it was the least designed path in the application: a
 single `Cmd` covering the whole subtree behind a modal showing `"Pulling..."`,
 which on a large group is several minutes indistinguishable from a freeze —
 observed, not theorised.
 
-The design below came out of a brainstorm. What is settled is settled; the open
-questions are marked as such.
+`c` now opens a selection mode over the tree, `enter` starts a pipeline that
+discovers and clones at once, and the list is the progress view and the report.
+The design below came out of a brainstorm and was built as stated; the two
+prerequisites landed ahead of it.
 
 #### Settled
 
@@ -2774,7 +2776,33 @@ that the abstraction declares its depth — GitHub is organisations at level 1 a
 repositories at level 2 — so selecting "parent folders" means selecting
 organisations there, and decision 4 mirrors a path that is simply shallower.
 §3.6 also lists `GitLabConfig`, pull settings included, as GitLab-shaped and due
-to move; the fate of the three remaining settings should anticipate that.
+to move; the fate of the two remaining settings should anticipate that.
+
+#### What was built, and where it differs from the design
+
+Nothing was given up. Two things the design left open resolved in the building:
+
+- **The checkbox rides on the Type cell**, not on a column of its own. A column
+  costs four cells on every screen to say nothing on all but one of them, and at
+  80 columns the explorer has none to spare. Type is the left-most column, so
+  the box still sits where a checkbox belongs; `colTypeMin` went from 10 to 13,
+  because a Nerd Font glyph does not always render as narrow as `runewidth`
+  counts it.
+- **A failed walk gets a row naming the group** (`cloneWalkFailed`). The design
+  named five row states, all of them repository states, and said nothing about a
+  group that cannot be listed. Folding it into a repository's error would
+  attribute it to one repository out of however many were never discovered.
+
+The key is `c`, not `p`: decision 3 frees `pull` for §3.17, and a key still
+reading `p` for an operation renamed to clone is the label problem again.
+
+`components.ReportModal` went with the modal it was written for — its only
+caller — which is decision 9 taking effect rather than a separate cleanup.
+
+**Not verified by hand yet**: a group of more than a hundred projects, and a
+cancellation with clones genuinely in flight. Both are covered by tests
+(`pipeline_test.go`, `TestPaginationStopsWhenTheServerRepeatsAPage`), against a
+fake forge and local git remotes.
 
 ### 3.17 `sync` in the workspaces view — **not started**
 

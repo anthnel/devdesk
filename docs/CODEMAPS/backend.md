@@ -185,10 +185,13 @@ and nothing else (see `internal/scan/category.go`).
 - `ListGroups() []*gitlabclient.Group`
 - `ListProjects(groupID) []*gitlabclient.Project`
 
-**Git Operations:**
-- `CloneRepository(projectID, path, method) error` — Clone via HTTPS/SSH
-- `PullRepository(projectID, path) error` — Fetch + merge
-- `SyncToTarget(groups []int, targetDir, method string) PullStats` — Parallel clone/pull
+**Git Operations** (`git_ops.go`) — two functions, deliberately:
+- `Clone(repoURL, targetPath) error` — shells out to `git clone`
+- `DirExists(path) bool` — what makes an existing checkout skippable
+
+The URL is built by the caller (`explorer.cloneURL`), and the parallelism lives
+in the explorer's clone pipeline, not here. Nothing in this package updates an
+existing checkout; that is §3.17's `sync`, in the workspaces view.
 
 **Stats:**
 - `GetGitLabStats(client) GitLabStats` — Assigned MRs/issues, project/group counts
