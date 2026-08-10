@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-06
+**Last Updated:** 2026-08-10
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11,11 +11,16 @@ rather than carried over.
 
 ## 1. Known defects
 
-**None open.** D1 through D38 are all fixed or, in D35's case, deliberately
-downgraded to a stale reading with a way to refresh it. §1.1 records what each
-was and why the chosen fix was the right one — including the three that were
-answered by *removing* something rather than making it work: D8's write-only
-CRUD flags, D21's unreachable clamp and D36's never-filled cache.
+**Two open — D39 and D40**, both in the registry browser and both found on
+2026-08-10 while trying to browse a single proxy inside a real Nexus group. D39
+is what [§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix)
+exists to fix; D40 is the thing §3.18 blocks on.
+
+D1 through D38 are all fixed or, in D35's case, deliberately downgraded to a
+stale reading with a way to refresh it. §1.1 records what each was and why the
+chosen fix was the right one — including the three that were answered by
+*removing* something rather than making it work: D8's write-only CRUD flags,
+D21's unreachable clamp and D36's never-filled cache.
 
 The five that stayed open longest — D4, D8, D9, D10 and D11 — were parked not
 because they were hard but because each altered something the user already saw,
@@ -698,12 +703,59 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
+**D39 — every discovered group member browses, and none of them can be pulled.**
+`NexusDetector` synthesises each member as `host + "/repository/" + name`
+(`nexus.go:117`, `nexus.go:156`). Measured against `pic-nexus.spw.dev.wallonie.be`
+on 2026-08-10:
+
+| Request | Result |
+|---|---|
+| `GET /repository/dhi-io-proxy/v2/eclipse-temurin/tags/list` | **200** — the browse works |
+| `GET /v2/repository/dhi-io-proxy/eclipse-temurin/manifests/21` | **404** |
+
+The second is the path the Docker client builds from that same URL: it puts
+`/v2/` first and the whole repository path after it. So the tags table fills
+correctly and `p` on any row of it cannot work — the one produces a reference the
+other cannot resolve.
+
+It is not a matter of picking a better format string. Which of the four
+addressing forms applies is a per-repository Nexus setting, and on this instance
+the endpoint carrying it answers 403; the evidence and the design are in
+[§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix). Until then
+a member row is honest about tags and silently wrong about pulls, which is the
+worse half — nothing on screen says the reference will not resolve.
+
+Not reached before now because discovery had never succeeded against a group here
+(the same 403), so no member row had ever been rendered.
+
+**D40 — the browser picker keys its selection on the entry URL, so two entries
+sharing a host share one checkbox.** `buildEntries` writes
+`b.selectedRegs[e.URL]` (`registry_browser.go:241`), the toggle reads and writes
+that key (`browser_keys.go:97`), `submitSearch` tests it, and `Deselected()`
+returns URLs — which is also what `browser-selection.json` persists. Declaring
+two registries on one URL with different aliases is accepted today: `RegistryForm`
+enforces slug uniqueness, not URL uniqueness. Ticking either then ticks both, and
+unchecking either excludes both for good, across sessions.
+
+§3.8's step 5/6 note says two registries with the same URL no longer collide.
+That is true of what it was about — matching a discovery result — and the entry
+identity did move to the slug. The selection map did not.
+
+The obvious key is the wrong one: `browserRegistryEntry.Slug` holds the *group's*
+slug for a member, so every member of a group carries the same value. Each entry
+needs an identity of its own — group slug plus member, or a per-member slug.
+
+Reachable today and worth fixing on its own, but §3.18 is what makes it the
+normal case rather than a way to misconfigure: one entry per proxy, all on one
+host.
+
 **D12, D13 and D14 are all fixed** by §3.8 — steps 2 and 6 respectively. See
 "Step 2 as built" and "Steps 5 and 6 as built". D14's inverted test failed the
 moment step 6 landed, which is what the pattern is for, and has been turned
 around.
 
-**Nothing is left open.** D21 and D36 were the last two; both are in §1.1.
+**D39 and D40 are the only ones open**, both above. D21 and D36 closed everything
+that preceded them; both are in §1.1.
 
 **D35 — the "unpulled" count is only as fresh as the last fetch. Mitigated by
 §3.17, not closed.** `detectGitStatus` computes it with
@@ -2392,6 +2444,14 @@ One deviation from Rule 111, recorded: it offers `h`/`l` as aliases for `←`/`�
 but `l` is already login on this tab and a key has one role (Rule 135). The
 arrows are the drill-down; `h`/`l` are not bound.
 
+**What this left unfinished, found later.** The member URL kept the shape the
+table above records — `host + /repository/<name>` — because nothing had yet
+pulled from one. It browses and cannot pull (D39), and the addressing it stands
+in for turns out not to be derivable at all:
+[§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix). The
+selection map also stayed keyed on the URL when entry identity moved to the slug
+(D40).
+
 ### 3.9 Every secret goes to a host secret manager, and radio buttons go away — **done**
 
 No secret DevDesk holds is written to a file DevDesk owns. Tokens and registry
@@ -3361,6 +3421,124 @@ Not touched, and deliberately: `OriginView` (it carries navigation, not options
 `NewWithTarget` and `NewWithImageTarget` until phase 3.
 
 Coverage: `internal/ui/security` 85.6 % → 85.8 %, project total 81.3 % → 81.4 %.
+
+### 3.18 A registry member is an address, not a URL — `repo_prefix`
+
+Not started. §3.8 gave a group its members; this is about *reaching* one. It
+closes D39 and needs D40 closed with it.
+
+Found on 2026-08-10 trying to browse a single proxy inside a Nexus group. All
+measurements below are from that instance — `pic-nexus.spw.dev.wallonie.be`, 64
+repositories, 22 of them docker — and every one of them was an anonymous GET.
+
+#### What was measured
+
+Four ways to reach the same image, and no two of them derive from each other:
+
+| Form | `…/tags/list` | What `docker pull` asks for | Pull |
+|---|---|---|---|
+| **A** host, repo `dhi-io-proxy/eclipse-temurin` | 200 | `/v2/dhi-io-proxy/eclipse-temurin/…` → 200 | ✅ |
+| **B** host `…/repository/dhi-io-proxy`, repo `eclipse-temurin` | 200 | `/v2/repository/dhi-io-proxy/…` → 404 | ❌ |
+| **C** group subdomain, repo `eclipse-temurin` | 200 | `/v2/eclipse-temurin/…` → 200 | ✅ |
+| **D** host, repo `docker-unsecure-group/eclipse-temurin` | 404 | — | — |
+
+B is what `NexusDetector` builds today, and it is the one form that cannot pull.
+D is the same trick as A applied to the group, and it does not work: a group is
+reachable only through its own connector.
+
+And A is settled **per repository**, not per instance:
+
+| Proxy | A | B |
+|---|---|---|
+| `dhi-io-proxy` | 200 | 200 |
+| `k8s-io-proxy` | 200 | 200 |
+| `docker-io-proxy` | 404 | 200 |
+| `quay-io-proxy` | 404 | 200 |
+
+`docker-io-proxy/library/nginx` answering B and not A is the decisive pair: the
+image is there and reachable, the path-prefix route is not. Whether a Docker
+repository answers on a path prefix, a dedicated connector port or a subdomain is
+a setting on **that repository** — `docker.httpPort`, `docker.httpsPort`,
+`docker.subdomain`.
+
+#### Why no synthesis can be right
+
+Those three fields live in the repository's detailed configuration, behind
+`GET /service/rest/v1/repositories/{format}/{type}/{name}` — which answers **403**
+here for an ordinary pull account. The public
+`GET /service/rest/v1/repositories/{name}` returns the summary shape,
+`"attributes": {}`, carrying neither `memberNames` nor the connector fields.
+
+So the one endpoint that would say what the members are is also the one that would
+say how to reach them, and an instance that refuses it refuses both. That settles
+the question the same way §3.8 decision F settled `provider`: **the addressing is
+declared, not sniffed.** Guessing is what D39 already is.
+
+#### The design — one field
+
+`repo_prefix`, on `config.RegistryItem` and on `cache.RegistryGroupMember`. The
+four connector modes collapse onto the pair `(url, repo_prefix)`:
+
+| Mode | `url` | `repo_prefix` |
+|---|---|---|
+| path-based routing | `pic-nexus.spw.dev.wallonie.be` | `dhi-io-proxy` |
+| HTTP/HTTPS connector | `pic-nexus.spw.dev.wallonie.be:8082` | — |
+| subdomain routing | `dhi-io-proxy.spw.dev.wallonie.be` | — |
+| group connector (form C) | `pic-nexus-docker-unsecure-group.spw…` | — |
+
+Both directions derive from that one pair, which is the whole point: the prefix
+goes in front of the repository name, the host stays `url`, and browse and pull
+cannot disagree about which repository they mean — the disagreement being exactly
+what D39 is.
+
+Apply it **once**, in `submitSearch`, where the entry is in hand. The prefix is
+then already part of `MultiRegistryTag.Repo`, so `multiImageName` needs no change
+and neither does `registryAPIURL`. Teaching both of them about the prefix would
+be two places free to drift — the same argument that gave the configuration view
+one pointer accessor instead of a get/set pair.
+
+#### What it unlocks
+
+The request this came from: **one checkbox per proxy**. Declare a proxy per line
+(`kind: registry`, `url: <host>`, `repo_prefix: dhi-io-proxy`) and the picker
+built in §3.8 already does the rest. No discovery in the critical path — which
+matters precisely because discovery is what is 403 here.
+
+That is also why it blocks on **D40**: those entries all share one host.
+
+#### Scope
+
+| Site | Change |
+|---|---|
+| `config.RegistryItem` | `repo_prefix` field; absent in an existing config and that stays valid |
+| `config/registries.go` | validate at load: no leading or trailing `/`, refused on `kind: group` |
+| `registrymgr.GroupMember` | carry a prefix instead of a synthesised URL |
+| `NexusDetector` | emit `(host, prefix)`; leave the prefix empty when it cannot know |
+| `cache.RegistryGroupMember` | carry it, so a discovered member can too |
+| `RegistryForm` | one text field, shown for `kind: registry` |
+| `submitSearch` | prepend the prefix to the repo, once |
+| Registries tab | show it — an entry whose URL is a bare host says nothing on its own |
+
+Deliberately not done:
+
+- **No probing to pick the form.** Trying A, then B, then a connector port is
+  several requests per member per search to answer what the config can state, and
+  it would make a member's address depend on which probe answered first.
+- **No prefix on a group.** Form D is 404. A group's address is its connector,
+  and that is its `url`.
+- **No attempt to make `NexusDetector` fill the prefix in** where the detailed
+  endpoint is refused. An empty prefix against a bare host is wrong and visibly
+  so; a synthesised `/repository/` URL is wrong and plausible, which is D39.
+
+#### Tests worth writing first
+
+- A member with a prefix browses `<host>/v2/<prefix>/<repo>/tags/list` **and**
+  pulls `<host>/<prefix>/<repo>:<tag>` — the pair D39 fails, so it fails on the
+  current code.
+- A member with no prefix produces byte-identical requests to today.
+- Two entries sharing a host keep independent checkboxes, and their exclusions
+  survive a round trip through `browser-selection.json` (D40).
+- A `repo_prefix` on a `kind: group` entry fails `LoadContext` rather than loading.
 
 ---
 
