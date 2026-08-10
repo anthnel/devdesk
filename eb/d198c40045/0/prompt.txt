@@ -1,0 +1,17 @@
+analyse la feature de groupe de registre docker, j'ai accès à un registre nexus, il y a dedans un groupe qui déclare plusieurs proxy, lors du browse d'image je voudrais pouvoir sélectionner uniquement un proxy (dxi) dans ce groupe, comment faire
+
+---
+
+il n'a pas trouvé les members sur ce groupe pic-nexus-docker-unsecure-group.spw.dev.wallonie.be
+
+---
+
+pour info, ce pull la fonctionne pic-nexus.spw.dev.wallonie.be/dhi-io-proxy/eclipse-temurin:21
+
+---
+
+je suppose que ça dépend de la configuration du proxy dans nexus, actuellemetn dhi-proxy est configuré en path based routing, mais il y a d'autres options comme : others connector ou subdomain routing
+
+---
+
+documente le backlog avec ce qu'il faut faire et ne code rien

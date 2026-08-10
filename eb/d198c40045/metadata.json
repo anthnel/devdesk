@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "ebd198c40045",
+  "strategy": "manual-commit",
+  "branch": "docs/registry-member-addressing",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/eb/d198c40045/0/metadata.json",
+      "transcript": "/eb/d198c40045/0/full.jsonl",
+      "compact_transcript": "/eb/d198c40045/0/transcript.jsonl",
+      "content_hash": "/eb/d198c40045/0/content_hash.txt",
+      "prompt": "/eb/d198c40045/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 81,
+    "cache_creation_tokens": 155381,
+    "cache_read_tokens": 5891682,
+    "output_tokens": 47343,
+    "api_call_count": 44
+  }
+}
