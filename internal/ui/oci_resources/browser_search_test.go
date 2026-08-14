@@ -309,6 +309,70 @@ func TestThePullReferenceCarriesTheRegistryExceptOnTheHub(t *testing.T) {
 	}
 }
 
+// D39: a scheme is not part of a Docker reference. Nothing stopped one reaching
+// the pull, and every case below produced a string `docker pull` rejects
+// outright — including the Nexus member URLs the group discovery synthesises,
+// which inherit their group's scheme.
+//
+// The path form is confirmed pullable on a real Nexus (§3.8), so one URL per
+// member is enough and the browse URL is the pull URL with its scheme removed.
+func TestThePullReferenceNeverCarriesAScheme(t *testing.T) {
+	cases := []struct {
+		name, registry, repo, tag, want string
+	}{
+		{"https is stripped", "https://registry.example.com", "api", "v1", "registry.example.com/api:v1"},
+		{"http is stripped too", "http://registry.example.com:5000", "api", "v1", "registry.example.com:5000/api:v1"},
+		{"an uppercase scheme is still a scheme", "HTTPS://registry.example.com", "api", "v1", "registry.example.com/api:v1"},
+		{"a Nexus member keeps its path", "https://nexus.example.com/repository/dhi", "alpine", "3.19", "nexus.example.com/repository/dhi/alpine:3.19"},
+		{"the hub is recognised through a scheme", "https://docker.io", "library/nginx", "1.25", "library/nginx:1.25"},
+		{"surrounding space is not a host", "  registry.example.com  ", "api", "v1", "registry.example.com/api:v1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := multiImageName(tc.registry, tc.repo, tc.tag)
+			if got != tc.want {
+				t.Errorf("multiImageName(%q, %q, %q) = %q, want %q", tc.registry, tc.repo, tc.tag, got, tc.want)
+			}
+			if strings.Contains(got, "://") {
+				t.Errorf("the reference carries a scheme: %q", got)
+			}
+		})
+	}
+}
+
+// The hub is the one registry whose references carry no host, so failing to
+// recognise it costs the `library/` prefix and every bare image name 404s.
+func TestTheHubIsRecognisedWhicheverWayItIsWritten(t *testing.T) {
+	for _, url := range []string{
+		"docker.io", "registry-1.docker.io",
+		"https://docker.io", "https://registry-1.docker.io/", "HTTP://Docker.IO",
+	} {
+		if got := normalizeRepoForRegistry(url, "nginx"); got != "library/nginx" {
+			t.Errorf("normalizeRepoForRegistry(%q, \"nginx\") = %q, want the library prefix", url, got)
+		}
+		if got := registryAPIURL(url); got != "https://registry-1.docker.io" {
+			t.Errorf("registryAPIURL(%q) = %q, want the hub's API host", url, got)
+		}
+	}
+}
+
+// registryAPIURL is the one place a scheme is kept: an explicit http:// is how
+// a registry on a plain-HTTP port is reached, and upgrading it would break that
+// registry rather than fix anything.
+func TestTheBrowseURLKeepsAnExplicitScheme(t *testing.T) {
+	cases := map[string]string{
+		"http://nexus.example.com:8081": "http://nexus.example.com:8081",
+		"https://registry.example.com":  "https://registry.example.com",
+		"registry.example.com":          "https://registry.example.com",
+		"registry.example.com/":         "https://registry.example.com",
+	}
+	for in, want := range cases {
+		if got := registryAPIURL(in); got != want {
+			t.Errorf("registryAPIURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 // ── The results table ────────────────────────────────────────────────────────
 
 func TestEscOnTheResultsReturnsToTheForm(t *testing.T) {

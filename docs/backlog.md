@@ -16,8 +16,8 @@ rather than carried over.
 is what [§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix)
 exists to fix; D40 is the thing §3.18 blocks on.
 
-D1 through D38 are all fixed or, in D35's case, deliberately downgraded to a
-stale reading with a way to refresh it. §1.1 records what each was and why the
+D1 through D38, and D41, are all fixed or, in D35's case, deliberately
+downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
 D21's unreachable clamp and D36's never-filled cache.
@@ -28,6 +28,42 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D41 — the pull reference carried the URL scheme. Fixed.** Found while
+answering §3.8's one open question, not by a test.
+
+`multiImageName` built a reference by concatenating the configured registry URL
+with the repository and tag, and nothing anywhere stripped the scheme:
+
+```
+https://registry.example.com             →  https://registry.example.com/api:v1
+https://nexus.example.com/repository/dhi →  https://nexus.example.com/repository/dhi/alpine:3.19
+```
+
+`docker pull` rejects both — a scheme is not part of a Docker reference. This
+was never specific to groups: it reached every registry a user wrote with a
+scheme, which the form does not discourage and which this package's own examples
+use. Groups only multiplied it, because member URLs are synthesised from the
+group's, so one scheme in the config became eight unpullable references.
+
+**The same root cause had a second effect that reads as unrelated.** The
+Docker Hub alias check was a string comparison against `docker.io` and
+`registry-1.docker.io`, in three places. A Hub configured as `https://docker.io`
+matched none of them, so `normalizeRepoForRegistry` withheld the `library/`
+prefix and every bare image name resolved to a repository that does not exist.
+`registryAPIURL` had it too, returning `https://docker.io` instead of the API
+host.
+
+One helper now answers "what is this registry's host" and one answers "is this
+the Hub", and the three sites use them. `registryAPIURL` is the single place
+that still *keeps* a scheme, and that is deliberate: an explicit `http://` is
+how a registry on a plain-HTTP port is reached, so upgrading it would break that
+registry rather than fix anything.
+
+Every case in `TestThePullReferenceNeverCarriesAScheme` and
+`TestTheHubIsRecognisedWhicheverWayItIsWritten` fails on the pre-fix code. The
+existing test covered only scheme-less URLs, which is why it never said
+anything.
 
 **D36 — `CachedGroups` and `CachedProjects` were invalidated and never filled.
 Removed rather than populated.** `shared.State` declared both and three call
@@ -2173,9 +2209,8 @@ nexus.../repository/<name>/<image>:<tag>` works.** Path routing is in place, one
 URL per member is enough, and `multiImageName` was right to build the pull
 reference out of the browse URL.
 
-It was wrong about the *scheme* — found by this check, never specific to groups,
-and not yet recorded here: the defect entry and its fix are in the unmerged
-`fix/pull-reference-scheme`.
+It was wrong about the *scheme* — that is D41 in §1.1, found by this check, and
+never specific to groups.
 
 #### What building it added to the design
 
