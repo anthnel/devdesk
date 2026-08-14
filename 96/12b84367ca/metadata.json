@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "9612b84367ca",
+  "strategy": "manual-commit",
+  "branch": "fix/pull-reference-scheme-v2",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/96/12b84367ca/0/metadata.json",
+      "transcript": "/96/12b84367ca/0/full.jsonl",
+      "compact_transcript": "/96/12b84367ca/0/transcript.jsonl",
+      "content_hash": "/96/12b84367ca/0/content_hash.txt",
+      "prompt": "/96/12b84367ca/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 17346,
+    "cache_read_tokens": 3901859,
+    "output_tokens": 10833,
+    "api_call_count": 25
+  }
+}
