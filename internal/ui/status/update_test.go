@@ -32,8 +32,8 @@ func TestNewReadsRefreshSettingsFromConfig(t *testing.T) {
 	if m.refreshInterval != 45*time.Second {
 		t.Errorf("refreshInterval = %v, want 45s", m.refreshInterval)
 	}
-	if !m.paused {
-		t.Error("paused = false with AutoRefresh disabled; the view would refresh against the user's setting")
+	if m.autoRefresh {
+		t.Error("autoRefresh = true with AutoRefresh disabled; the view would refresh against the user's setting")
 	}
 	if !m.firstCheck {
 		t.Error("firstCheck = false on a new model")
@@ -46,12 +46,12 @@ func TestNewReadsRefreshSettingsFromConfig(t *testing.T) {
 	}
 }
 
-func TestNewAutoRefreshEnabledStartsUnpaused(t *testing.T) {
+func TestNewAutoRefreshEnabledRefreshesOnTicks(t *testing.T) {
 	cfg := config.Default()
 	cfg.Status.AutoRefresh = true
 
-	if New(cfg).paused {
-		t.Error("paused = true with AutoRefresh enabled")
+	if !New(cfg).autoRefresh {
+		t.Error("autoRefresh = false with AutoRefresh enabled")
 	}
 }
 
@@ -126,21 +126,21 @@ func TestCheckCompleteClearsAPreviousError(t *testing.T) {
 func TestTickStartsACheckOnlyWhenDue(t *testing.T) {
 	tests := []struct {
 		name         string
-		paused       bool
+		autoRefresh  bool
 		checking     bool
 		nextCheck    time.Time
 		wantChecking bool
 	}{
-		{"due and idle", false, false, time.Now().Add(-time.Second), true},
-		{"not due yet", false, false, time.Now().Add(time.Hour), false},
-		{"paused", true, false, time.Now().Add(-time.Second), false},
-		{"already checking", false, true, time.Now().Add(-time.Second), true},
+		{"due and idle", true, false, time.Now().Add(-time.Second), true},
+		{"not due yet", true, false, time.Now().Add(time.Hour), false},
+		{"auto-refresh off", false, false, time.Now().Add(-time.Second), false},
+		{"already checking", true, true, time.Now().Add(-time.Second), true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			m := loadedModel(t)
-			m.paused = tc.paused
+			m.autoRefresh = tc.autoRefresh
 			m.checking = tc.checking
 			m.nextCheck = tc.nextCheck
 
@@ -194,48 +194,37 @@ func TestCtrlRStartsACheckUnlessOneIsRunning(t *testing.T) {
 	}
 }
 
-func TestSpaceTogglesPause(t *testing.T) {
+// Auto-refresh is a setting, and the configuration view owns it.
+//
+// This view used to toggle it with space -- in memory only, so the running
+// value and status.auto_refresh could disagree and the toggle was lost on
+// restart. Same shape as the +/- interval below, and as gitlab.url in two
+// views: one setting, two holders, one of which does not persist.
+func TestAutoRefreshIsNotToggleableHere(t *testing.T) {
 	m := loadedModel(t)
-	m.paused = true
-	m.lastCheck = time.Now() // too recent to trigger an immediate check
-
-	m = feed(t, m, testutil.Key(" "))
-	if m.paused {
-		t.Error("space did not resume")
-	}
-	if m.checking {
-		t.Error("resuming started a check even though the last one was recent")
-	}
-
-	m = feed(t, m, testutil.Key(" "))
-	if !m.paused {
-		t.Error("space did not pause")
-	}
-}
-
-// Resuming after the interval has already elapsed should check immediately
-// rather than leave the table stale until the next tick.
-func TestResumingAfterTheIntervalChecksImmediately(t *testing.T) {
-	m := loadedModel(t)
-	m.paused = true
-	m.lastCheck = time.Now().Add(-2 * m.refreshInterval)
+	before := m.autoRefresh
 
 	m, cmd := step(t, m, testutil.Key(" "))
 
-	if !m.checking {
-		t.Error("resuming with a stale last check did not start one")
+	if m.autoRefresh != before {
+		t.Error("space toggled auto-refresh; it is set in :config")
 	}
-	if cmd == nil {
-		t.Error("resuming returned no command")
+	if cmd != nil {
+		t.Errorf("space produced %T", testutil.Msg(cmd))
 	}
 }
 
-// The refresh interval is configuration, and the configuration view owns it.
-//
-// This view used to adjust it with +/- -- in memory only. The running value and
-// status.refresh_interval could therefore disagree, and the adjustment was lost
-// on restart. Same shape as gitlab.url in two views: one setting, two holders,
-// one of which does not persist.
+// It comes from the configuration and nowhere else.
+func TestAutoRefreshComesFromTheConfiguration(t *testing.T) {
+	cfg := testConfig()
+	cfg.Status.AutoRefresh = false
+
+	if New(cfg).autoRefresh {
+		t.Error("autoRefresh = true with status.auto_refresh disabled")
+	}
+}
+
+// The refresh interval is configuration too, for the same reasons.
 func TestTheRefreshIntervalIsNotEditableHere(t *testing.T) {
 	m := newTestModel(t)
 	m.refreshInterval = 30 * time.Second
@@ -247,7 +236,6 @@ func TestTheRefreshIntervalIsNotEditableHere(t *testing.T) {
 	}
 }
 
-// It comes from the configuration and nowhere else.
 func TestTheRefreshIntervalComesFromTheConfiguration(t *testing.T) {
 	cfg := testConfig()
 	cfg.Status.RefreshInterval = 42
@@ -890,7 +878,7 @@ func TestUnhandledKeysAreInert(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("an unbound key produced %T", testutil.Msg(cmd))
 	}
-	if m.activeTab != before.activeTab || m.paused != before.paused || m.componentForm != nil {
+	if m.activeTab != before.activeTab || m.autoRefresh != before.autoRefresh || m.componentForm != nil {
 		t.Error("an unbound key changed the view state")
 	}
 }

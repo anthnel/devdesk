@@ -81,7 +81,7 @@ func (m Model) handleTick() (tea.Model, tea.Cmd) {
 	}
 
 	// Vérifier si on doit faire un check
-	if !m.paused && !m.checking && time.Now().After(m.nextCheck) {
+	if m.autoRefresh && !m.checking && time.Now().After(m.nextCheck) {
 		m.checking = true
 		return m, tea.Batch(
 			tickCmd(),
@@ -242,8 +242,8 @@ func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.filterBar.ActivateSearch()
 	case "q", "ctrl+c":
 		return m, tea.Quit
-	case "ctrl+r", " ":
-		return m.handleRefreshControls(msg)
+	case "ctrl+r":
+		return m.handleManualRefresh()
 	case "up", "down", "k", "j", "tab", "shift+tab", "g", "G", "home", "end":
 		return m.handleTableNavigation(msg)
 	case "ctrl+n", "e", "ctrl+d":
@@ -255,33 +255,21 @@ func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleRefreshControls handles refresh, pause, and interval adjustments
-func (m Model) handleRefreshControls(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+r":
-		// Refresh immédiat
-		if !m.checking {
-			m.checking = true
-			return m, tea.Batch(
-				m.spinner.Tick,
-				checkComponents(m.config),
-			)
-		}
-
-	case " ":
-		// Toggle pause
-		m.paused = !m.paused
-		if !m.paused && !m.checking && time.Since(m.lastCheck) >= m.refreshInterval {
-			m.checking = true
-			return m, tea.Batch(
-				m.spinner.Tick,
-				checkComponents(m.config),
-			)
-		}
-
+// handleManualRefresh runs a check now, whatever the auto-refresh setting says.
+//
+// It is the only refresh control left here: the interval and auto-refresh are
+// settings, and the configuration view owns them. Forcing a check is an action,
+// not a setting, so it stays (Rule 111).
+func (m Model) handleManualRefresh() (tea.Model, tea.Cmd) {
+	if m.checking {
+		return m, nil
 	}
 
-	return m, nil
+	m.checking = true
+	return m, tea.Batch(
+		m.spinner.Tick,
+		checkComponents(m.config),
+	)
 }
 
 // switchTab switches focus to the given tab

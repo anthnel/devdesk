@@ -36,8 +36,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "e", Description: "Edit monitor"},
 		{Key: "ctrl+d", Description: "Delete monitor"},
 		{Key: "ctrl+r", Description: "Refresh"},
-		{Key: "±", Description: "Adjust interval"},
-		{Key: "space", Description: "Pause/Resume"},
 		{Key: "tab", Description: "Switch tab"},
 		{Key: ".", Description: "Sort"},
 		{Key: "/", Description: "Search"},
@@ -196,7 +194,6 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "e", Description: "Edit the selected monitor"},
 			{Key: "ctrl+d", Description: "Delete the selected monitor (with confirmation)"},
 			{Key: "ctrl+r", Description: "Force an immediate refresh"},
-			{Key: "space", Description: "Pause / resume automatic refresh"},
 			{Key: "tab/shift+tab", Description: "Switch between Service Monitors and SSL Certificates tabs"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
@@ -214,7 +211,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Configuration",
-				Body:  "Monitors are saved in the active context configuration file (~/.devdesk/contexts/<context>/config.yaml). Refresh interval and auto-refresh are configurable.",
+				Body:  "Monitors are saved in the active context configuration file (~/.devdesk/contexts/<context>/config.yaml). The refresh interval and auto-refresh are settings, edited in the configuration view (:config, Status tab) — not here.",
 			},
 		},
 	}
