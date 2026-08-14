@@ -332,13 +332,17 @@ func verifyEntrypointCmd(seq int, image, entrypoint string) tea.Cmd {
 var ociHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
 // registryAPIURL converts a user-specified registry URL into a v2 API base URL.
+//
+// This is the one place that *keeps* a scheme rather than stripping it: an
+// explicit `http://` is how a registry on a plain-HTTP port is reached, and
+// upgrading it would break that registry rather than fix anything. Everything
+// Docker-facing goes through registryHost instead (D39).
 func registryAPIURL(registryURL string) string {
-	base := strings.TrimSuffix(registryURL, "/")
-	lower := strings.ToLower(base)
-	switch lower {
-	case "docker.io", "registry-1.docker.io":
+	base := strings.TrimSuffix(strings.TrimSpace(registryURL), "/")
+	if isDockerHub(base) {
 		return "https://registry-1.docker.io"
 	}
+	lower := strings.ToLower(base)
 	if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
 		return "https://" + base
 	}

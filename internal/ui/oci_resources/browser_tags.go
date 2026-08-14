@@ -162,24 +162,48 @@ func normalizeRepoForRegistry(registryURL, repo string) string {
 	if strings.Contains(repo, "/") {
 		return repo
 	}
-	base := strings.ToLower(strings.TrimSuffix(registryURL, "/"))
-	for _, alias := range []string{"docker.io", "registry-1.docker.io"} {
-		if base == alias {
-			return "library/" + repo
-		}
+	if isDockerHub(registryURL) {
+		return "library/" + repo
 	}
 	return repo
 }
 
-// multiImageName constructs the full image reference for pull/scan.
-func multiImageName(registryURL, repo, tag string) string {
-	base := strings.TrimSuffix(registryURL, "/")
-	for _, alias := range []string{"docker.io", "registry-1.docker.io"} {
-		if strings.EqualFold(base, alias) {
-			return repo + ":" + tag
+// registryHost strips the scheme from a configured registry URL, leaving what
+// Docker itself is keyed on: `host[:port]`, plus whatever path a repository
+// manager serves the registry under.
+//
+// A registry URL is written either way in practice — the form does not
+// normalize it, `registryAPIURL` explicitly accepts both, and this package's own
+// examples write `https://nexus.example.com/repository/docker-group`. Every
+// Docker-facing use has to strip it, and none of the three that needed to did
+// (D39): a `docker pull` reference carrying `https://` is not a reference at
+// all, and a hub alias compared against a scheme-bearing string never matched,
+// so images from a Hub configured as `https://docker.io` lost their `library/`
+// prefix.
+func registryHost(registryURL string) string {
+	base := strings.TrimSuffix(strings.TrimSpace(registryURL), "/")
+	for _, scheme := range []string{"https://", "http://"} {
+		if len(base) >= len(scheme) && strings.EqualFold(base[:len(scheme)], scheme) {
+			return base[len(scheme):]
 		}
 	}
-	return base + "/" + repo + ":" + tag
+	return base
+}
+
+// isDockerHub reports whether a registry URL names Docker Hub, under either of
+// the two spellings and with or without a scheme. Hub is the one registry whose
+// references carry no host, so every caller has to recognise it.
+func isDockerHub(registryURL string) bool {
+	host := registryHost(registryURL)
+	return strings.EqualFold(host, "docker.io") || strings.EqualFold(host, "registry-1.docker.io")
+}
+
+// multiImageName constructs the full image reference for pull/scan.
+func multiImageName(registryURL, repo, tag string) string {
+	if isDockerHub(registryURL) {
+		return repo + ":" + tag
+	}
+	return registryHost(registryURL) + "/" + repo + ":" + tag
 }
 
 func (b *RegistryBrowser) updateFocus() {
