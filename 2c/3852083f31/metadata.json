@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "2c3852083f31",
+  "strategy": "manual-commit",
+  "branch": "fix/d40-picker-selection-key",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/cache/browser_selection.go",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/browser_keys.go",
+    "internal/ui/oci_resources/browser_search_test.go",
+    "internal/ui/oci_resources/browser_view.go",
+    "internal/ui/oci_resources/model.go",
+    "internal/ui/oci_resources/registry_browser.go",
+    "internal/ui/oci_resources/registry_browser_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2c/3852083f31/0/metadata.json",
+      "transcript": "/2c/3852083f31/0/full.jsonl",
+      "compact_transcript": "/2c/3852083f31/0/transcript.jsonl",
+      "content_hash": "/2c/3852083f31/0/content_hash.txt",
+      "prompt": "/2c/3852083f31/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 152,
+    "cache_creation_tokens": 339057,
+    "cache_read_tokens": 12020810,
+    "output_tokens": 35370,
+    "api_call_count": 76
+  }
+}
