@@ -749,13 +749,12 @@ Reachable today and worth fixing on its own, but §3.18 is what makes it the
 normal case rather than a way to misconfigure: one entry per proxy, all on one
 host.
 
-**D12, D13 and D14 are all fixed** by §3.8 — steps 2 and 6 respectively. See
-"Step 2 as built" and "Steps 5 and 6 as built". D14's inverted test failed the
-moment step 6 landed, which is what the pattern is for, and has been turned
-around.
-
 **D39 and D40 are the only ones open**, both above. D21 and D36 closed everything
 that preceded them; both are in §1.1.
+
+D12, D13 and D14 were all fixed by §3.8 — see "The three defects it closed"
+there for what each turned out to be. D14's inverted test failed the moment the
+fix landed, which is what the pattern is for, and has been turned around.
 
 **D35 — the "unpulled" count is only as fresh as the last fetch. Mitigated by
 §3.17, not closed.** `detectGitStatus` computes it with
@@ -2063,386 +2062,195 @@ could never fire. Deleted, along with its one implementation;
 `TestCommandModeOnTheTopologyTab` became
 `TestTheTopologyTabNeverBlocksCommandMode` and records why.
 
-### 3.8 Docker registry groups
+### 3.8 Docker registry groups — **done**
 
-Two shapes have to be supported: a remote registry with or without
+Two shapes had to be supported: a remote registry with or without
 authentication, and a **group** fronting several remote registries, itself
-reachable anonymously or not. The second is the one the current model cannot
-express.
+reachable anonymously or not. The second was the one the model could not
+express — the parent/child relation lived in memory for the lifetime of one
+browser session, rediscovered over the network on every open, behind a blocking
+spinner.
 
-Not started. The decisions below are settled; one is not, and is marked as such.
+All six steps shipped. **D12, D13 and D14 are closed**, and D23 was found and
+fixed on the way.
 
-#### What the current code does
+*The model as it stands is described in `.claude/CLAUDE.md` under "Registry
+model", and this section is not a second copy of it.* What follows is why it has
+that shape — the decisions the code is answerable to, and the three places where
+building it changed one.
 
-| Concern | Today | Where |
-|---|---|---|
-| Parent/child relation | in memory only, for the lifetime of one browser session | `registry_browser.go:26` (`browserRegistryEntry`) |
-| Group discovery | Nexus REST, re-run on **every** browser open, 8 s timeout each, behind a blocking spinner | `registry_browser.go:153`, `registrymgr/nexus.go` |
-| Member URLs | synthesised as `host + /repository/<memberName>`, alias stripped of `-proxy`/`-hosted`/`-local` | `nexus.go:111`, `nexus.go:200` |
-| Credential inheritance | member searches use the **parent's** URL as the `~/.docker/config.json` lookup key | `browser_keys.go:130` |
-| Registries tab | flat table, no indication a group was ever found | `table.go:182` |
-| Result filter (`r`) | cycles member URLs; no group level | `browser_tags.go:25` |
-
-`RegistryConfig.Registries` is a flat `[]RegistryItem` and carries no parent
-field. Nothing about a group survives closing the browser: it is rediscovered,
-over the network, next time.
-
-The credential inheritance is the one piece that already behaves correctly, and
-the reason it does is the same reason the open decision below is hard.
-
-#### Settled
+#### The six decisions
 
 | Ref | Decision |
 |---|---|
 | A | **One list, one discriminator, one parent pointer** — `kind: registry \| group` plus `parent` on `RegistryItem`. Two parallel lists and a recursive `Children` tree were both rejected. |
 | 1 | The parent is referenced by **slug**, not by URL. |
 | 3 | Discovered members live in a **disk cache**, not in `config.yaml`. |
-| 4 | The Registries tab gets **drill-down** navigation (`←` / `→`), not an indented tree and not a `Group` column. |
+| 4 | The Registries tab gets **drill-down** (`←` / `→`), not an indented tree and not a `Group` column. |
 | 5 | **No purely logical groups.** A group always corresponds to a real repository-manager group. |
-| F | `provider` is a **declared field**, not sniffed from the URL. |
+| F | `provider` is a **declared field**, never sniffed from the URL. |
 
-**A — one list.** A Nexus group *is* a pullable registry as well as a container,
-so splitting `registries` and `registry_groups` would have duplicated the form,
-the table and the credential handling to model a distinction the server does not
-make. A single list with a discriminator keeps one table, one form (fields shown
-per `kind`), and leaves sorting and filtering intact.
+**A.** A Nexus group *is* a pullable registry as well as a container, so
+splitting `registries` and `registry_groups` would have duplicated the form, the
+table and the credential handling to model a distinction the server does not
+make.
 
-**1 — slug over URL.** The URL is today's de facto identifier and is threaded
-through `registryLoginStatus`, the scan cache keys and the message types, which
-is exactly why it is the wrong thing to hang a parent link on: editing a group's
-URL would silently orphan its members. The slug replaces the URL **only as the
-parent link and the cache key** — everything Docker-facing stays keyed on the
-URL, because that is what Docker itself is keyed on. Existing configs migrate by
-deriving a slug from the alias, falling back to the URL host; uniqueness has to
-be enforced at load, and the form needs to reject a collision rather than accept
-a config that will not round-trip.
+**1.** The URL was the de facto identifier, threaded through `registryLoginStatus`,
+the scan cache keys and the message types — which is exactly why it is the wrong
+thing to hang a parent link on: editing a group's URL would silently orphan its
+members. The slug replaces it **only** as the parent link and the cache key;
+everything Docker-facing stays keyed on the URL, because Docker is.
 
-**3 — cache, not config.** Discovered members are derived data with a server as
-their source of truth, and `config.yaml` is what the user declares. Putting them
-in the cache mirrors `ImageScanCache` and `WorkspaceScanCache` (Rule 126) rather
-than inventing a fourth persistence shape:
-`~/.devdesk/cache/registry-groups.json`, keyed by group slug, refreshed
-explicitly with `ctrl+r` on a group row. The browser then reads config plus
-cache and opens instantly and offline, which is what removes D13's blocking
-state rather than papering over it. A `Members` column showing the count and
-`theme.TimeAgo(discovered_at)` (Rule 127) is what keeps staleness visible —
-without it, a silently stale cache is worse than the current re-detection.
+**3.** Discovered members are derived data with a server as their source of
+truth, and `config.yaml` is what the user declares. The cache mirrors
+`ImageScanCache` and `WorkspaceScanCache` rather than inventing a fourth
+persistence shape. The `Members` column showing `count · TimeAgo` (Rule 127) is
+**part of what makes the cache safe**, not decoration: a cache with no visible
+age looks current whatever it holds, which would be worse than the re-detection
+it replaced.
 
-**4 — drill-down.** Level 1 lists groups and standalone registries; `→` enters a
-group and lists its members; `←` goes back, with a breadcrumb below the table
-(Rules 111, 123). The indented-tree alternative reads faster at five registries
-but breaks the moment the table is sorted or the FilterBar (Rule 136) narrows
-it, and drill-down is already the pattern `gitlab-explorer` uses. Proposed
-columns: `Alias | URL | Kind | Auth | Login | Members`.
+**4.** An indented tree reads faster at five registries but breaks the moment
+the table is sorted or the FilterBar narrows it, and drill-down is already the
+explorer's pattern.
 
-**5 — no logical groups.** Grouping unrelated registries under a user-invented
-name was considered and dropped: it has no server to discover from, no shared
-credential to inherit, and no group URL to pull through, so it would be a
-display-only concept carrying the weight of a real one. If the need for
-arbitrary grouping appears later it is a saved-selection feature in the browser,
-not a change to the registry model.
+**5.** Grouping unrelated registries under a user-invented name has no server to
+discover from, no shared credential to inherit and no group URL to pull through
+— a display-only concept carrying the weight of a real one. If arbitrary
+grouping is wanted later it is a saved-selection feature in the browser, not a
+change to the registry model.
 
-**F — declared provider.** `NexusDetector.CanHandle` currently returns true
-whenever `ManagementURL` is non-empty (`nexus.go:31`), which makes that field do
-double duty as an implicit "this is Nexus" flag and makes the detector list
-effectively single-vendor. A `provider` field on the group — `nexus`, `harbor`,
-`artifactory`, `gitlab`, `generic` — turns `CanHandle` into a match on a
-declared value, with the generic detector last. It is a cycle field in the form
-(Rule 132) and it is what makes a second implementation possible without
-guessing.
+**F.** `NexusDetector.CanHandle` returned true whenever `ManagementURL` was
+non-empty, which made that field an implicit "this is Nexus" flag and the
+detector list effectively single-vendor. `Detector` now states `Provider()` and
+`DetectGroup` dispatches on the declared value, falling back to a
+`GenericDetector` that discovers nothing. Registration order decides nothing —
+there is a test that swaps it to prove so — and a plain registry costs no HTTP
+call.
 
-#### Open: how far credential inheritance goes
+#### Credential inheritance: `docker login` is keyed on host
 
-The concrete case: a Nexus group **with** authentication fronting eight Nexus
-proxies. Browsing the proxy that points at `dhi.io` has to query the *proxy's*
-URL while authenticating with the *group's* credentials.
-
-That much the code already does — `submitSearch` sets
-`credURL = parentURL ?: entry.URL` — and the reason it works is worth stating
-explicitly, because it constrains everything else:
+The constraint that shaped the auth model, worth stating because it is not
+obvious and it settles more than it looks:
 
 > **`docker login` takes a registry host, not a path.** `~/.docker/config.json`
-> is keyed on `host[:port]`, so the group and all eight proxies share one single
-> credential entry, because they share `nexus.example.com`.
+> is keyed on `host[:port]`, so a group and all eight proxies behind it share
+> one single credential entry, because they share `nexus.example.com`.
 
-Three consequences:
-
-- `inherit` is not a convenience for path-based groups, it is the **only** thing
-  the credential store can represent. Every member of such a group authenticates
-  identically whether the model says so or not.
-- A per-member `credentials` override is **not storable today**. It would need a
-  secret keyed by slug rather than by registry URL, which `docker login` cannot
-  represent.
-
-  §3.9 changes what this costs, without changing the conclusion. DevDesk now has
-  a store — the host's, keyed by whatever string it likes — so a slug-keyed
-  password is no longer unstorable in principle, and it would not put plaintext
-  anywhere. What it would still do is take DevDesk out of `docker login`'s model
-  and into maintaining its own registry auth, for a case (§3.8) that has not been
-  shown to exist. `RegistryItem` still has no password field by construction, and
-  that is still the right default.
-- What a member *can* usefully override is **`anonymous`**: do not send the
-  group's credentials to this one. That is representable, costs nothing, and is
-  the safety valve — and it is the same mechanism D12 needs.
-
-Proposed, pending the discussion: replace `AuthEnabled bool` with an `AuthMode`
-cycle field where a group is `anonymous | credentials` and a member is
-`inherit | anonymous`. The four cases in scope then map cleanly:
+`AuthEnabled bool` became `AuthMode`:
 
 | Case | Group | Member |
 |---|---|---|
 | Remote registry, no auth | — | `kind: registry`, `anonymous` |
 | Remote registry, auth | — | `kind: registry`, `credentials` |
-| Group with auth, 8 proxies (the case above) | `credentials` | `inherit` |
+| Group with auth fronting proxies | `credentials` | `inherit` |
 | Anonymous group | `anonymous` | `inherit` |
 
-What still needs deciding is whether a member-level `credentials` is worth
-supporting at all. It only becomes meaningful for a group whose members are on
-different hosts, which decision 5 has just ruled out of the model — so the
-current reading is that it should not exist, and that a genuine need for it is a
-separate decision about who stores the password.
+Three consequences, all now enforced at load rather than merely intended:
 
-**Adjacent question to settle before the model is frozen: browse and pull may
-not share a URL.** Path-based Nexus access answers the registry API at
-`/repository/<name>/v2/...`, which is what `registryAPIURL` builds and what the
-tag search relies on. Whether `docker pull` accepts the same path-form reference
-depends on the deployment — a dedicated HTTP connector port per repository is
-the older Nexus arrangement, path routing needs a reverse proxy in front. If
-they differ, a member needs a third URL alongside `url` and `management_url`,
-and `multiImageName` (`browser_tags.go:125`) is building an unpullable
-reference today. **This should be checked against the actual Nexus instance**
-rather than reasoned about; it is one `docker pull` away from being answered.
+- `inherit` is not a convenience, it is the **only** thing the credential store
+  can represent for a path-based group. `inherit` on an entry with no group is
+  refused for the mirror reason.
+- **A member-level `credentials` does not exist.** It only becomes meaningful
+  for a group whose members are on different hosts, which decision 5 rules out;
+  a member declaring one is refused at load, naming the two modes it may take.
+  §3.9 changed what supporting it would *cost* — DevDesk now has a store keyed
+  by whatever string it likes — without changing the conclusion: it would take
+  DevDesk out of `docker login`'s model and into maintaining its own registry
+  auth, for a case that has not been shown to exist. `RegistryItem` still has no
+  password field, by construction.
+- What a member *can* override is **`anonymous`** — do not send the group's
+  credentials to this one. That is the safety valve, and it is the mechanism
+  D12 needed.
 
-#### Sequencing — **prerequisite met**
+#### Browse and pull share a URL — answered
 
-This lands in `internal/ui/oci_resources`, and the rule was: surface tests, then
-split, then complete coverage, and only then the feature. All three are done.
-Phase 4 split the package (no file is over the 800-line ceiling; the former
-822-line `registry_browser.go` is 243) and phase 6 finished the coverage, so
-**§3.8 is unblocked and can start on the feature directly.**
+The question left open when the model was frozen: path-based Nexus answers the
+registry API at `/repository/<name>/v2/...`, but a dedicated HTTP connector port
+per repository is the older arrangement, and if the two forms differ a member
+needs a third URL. The note said to check it against the real instance rather
+than reason about it. **Checked on 2026-08-09: `docker pull
+nexus.../repository/<name>/<image>:<tag>` works.** Path routing is in place, one
+URL per member is enough, and `multiImageName` was right to build the pull
+reference out of the browse URL.
 
-What is under it now, in the files this feature rewrites:
+It was wrong about the *scheme* — found by this check, never specific to groups,
+and not yet recorded here: the defect entry and its fix are in the unmerged
+`fix/pull-reference-scheme`.
 
-| File | Coverage | Pinned by |
-|---|---|---|
-| `browser_keys.go` | 78.1 % | the search form and the tags keymap |
-| `browser_tags.go` | ~97 % | sort, both filters, tag actions |
-| `browser_view.go` | ~99 % | the grouped form, the results table, the filter bar |
-| `commands.go` | 88.0 % | group detection against `httptest`, incl. the management-URL credential lookup |
+#### What building it added to the design
 
-Two of those tests are the inverted kind and are meant to fail when this feature
-lands: `TestAGroupMembersFilterLabelIsStillARawURL` (D14) and, in
-`registry_http_test.go`, `TestManagementCredentialsAreLookedUpByHostAlone`,
-which pins today's credential behaviour that step 2 changes. Turn both around
-rather than deleting them.
+- **Derived slugs step aside; declared ones never do.** Two registries aliased
+  `prod` is ordinary, and the slug DevDesk derives for the second is DevDesk's
+  own doing, so it becomes `prod-2`. A slug the *file* declares is a link
+  target: renaming it to resolve a clash would move one group's members under
+  another, so a duplicate is an error at load and the form refuses to write one.
+  A **dangling `parent` is an error** too — it can only come from a hand-edit,
+  and keeping it leaves an entry nothing can reach.
+- **Two migrations, one of them deliberately over-declaring.** A pre-`kind`
+  entry with a `management_url` becomes `kind: group, provider: nexus` — that
+  field *was* the group marker. Decision F would then have silently stopped
+  discovering groups whose only marker was a Nexus-shaped URL, so an entry whose
+  URL contains `/repository/` migrates the same way. It over-declares: a Nexus
+  *hosted* repository lives under `/repository/` too and is not a group. That is
+  the deliberate half — detection answers "not a group" for it exactly as
+  before, `kind: group` is visible in the table and one keystroke from being
+  corrected, whereas dropping a real group's discovery would not be. A kind the
+  file *states* is never second-guessed.
+- **The provider vocabulary is stated twice, on purpose.** `internal/config`
+  owns what a file may say, `internal/registrymgr` owns what can be detected,
+  and neither should import the other to say so.
+  `TestTheProviderVocabularyMatchesTheConfig` stops them drifting, including a
+  check that config offers no provider a detector cannot be selected for.
+- **An empty discovery is stored; a failed one is not.** "Asked, and it is not a
+  group" is an answer, and not storing it is what makes a non-group get probed
+  forever. This is **D23**: `NexusDetector.fetchRepoMeta` returned a bare
+  `ok=false` for both "the manager said no" and "the manager could not be
+  asked", which was harmless while the answer was discarded on every open and
+  stopped being harmless the moment it was cached — one unreachable minute would
+  have erased what was last known. The test pins both halves, since a fix making
+  *every* answer an error would pass one of them alone.
+- **Toggling a partial group completes it** rather than clearing it, and
+  `theme.RenderCheckboxTri` exists because half a group selected is not the same
+  statement as none — rendering them alike is how a user unchecks something they
+  did not mean to.
+- **The remembered selection stores what was *un*checked**, per context. Storing
+  the exceptions is what makes a member discovered since the last visit arrive
+  checked, rather than sitting out of every search because it did not exist when
+  the selection was saved.
+- **One deviation from Rule 111, recorded.** It offers `h`/`l` as aliases for
+  `←`/`→`, but `l` is already login on this tab and a key has one role
+  (Rule 135). The arrows are the drill-down; `h`/`l` are not bound.
 
-#### Sketch of the work
+#### The three defects it closed
 
-1. ~~Add `slug`, `kind`, `parent` and `provider` to `RegistryItem`; migrate
-   existing configs and enforce slug uniqueness at load.~~ — **done**, see below.
-2. ~~Replace `AuthEnabled` with `AuthMode`, and make **both** registry-facing
-   paths honour it — this is D12, and it is the step that gives `anonymous`
-   meaning.~~ — **done**, see below.
-3. ~~Add `internal/cache/registrygroups.go` alongside the two existing caches;
-   move discovery behind it and give the Registries tab an explicit refresh.~~
-   — **done**, see below.
-4. ~~Turn `CanHandle` into a match on the declared `provider`, with a generic
-   detector last.~~ — **done**, see below.
-5. ~~Drill-down in the Registries tab, with the `Members` column and
-   breadcrumb.~~ — **done** (the column landed in step 3).
-6. ~~Rework the browser to read config plus cache: no resolving state (D13),
-   group-level checkboxes with a tri-state, a group level in the result filter
-   and resolvable member labels (D14), and a remembered selection per
-   context.~~ — **done**.
-
-**§3.8 is complete.** Steps 1–4 made the group model expressible, step 3 gave it
-persistence, and steps 5–6 gave it a user interface. D12, D13 and D14 are closed;
-D23 was found and fixed along the way.
-
-#### Step 1 as built
-
-`RegistryItem` carries `slug`, `kind`, `parent` and `provider`;
-`internal/config/registries.go` holds the alphabet, the derivation and the
-normalization, and `applyDefaults` now returns an error so `LoadContext` can
-refuse a file it cannot honour.
-
-Three decisions were made while building it, none of them contradicting the ones
-above:
-
-- **Derived slugs are de-duplicated; declared ones are not.** Two registries
-  aliased `prod` is ordinary, and the slug DevDesk derives for the second is
-  DevDesk's own doing, so it steps aside to `prod-2`. A slug the *file* declares
-  is a link target: renaming it to resolve a clash would move one group's members
-  under another, so a duplicate is an error at load and the form refuses to write
-  one. The form rejects a badly-formed slug rather than correcting it, for the
-  same reason.
-- **A dangling `parent` is an error too.** It can only come from a hand-edit, and
-  keeping it would leave an entry nothing can reach. This is what gives `parent`
-  a meaning before step 3 puts discovered members in the cache.
-- **A pre-`kind` entry with a `management_url` migrates to `kind: group`,
-  `provider: nexus`.** That field *was* the group marker — `NexusDetector.CanHandle`
-  keyed on exactly it — so anything else would change what those entries do when
-  step 4 turns `CanHandle` into a match on `provider`.
-
-The form gained Kind and Provider as cycle fields (Rule 132) and a Slug field
-whose placeholder says it is optional. Management URL and Provider are group-only:
-they are skipped in both navigation directions and not rendered at all for a
-plain registry, and cycling back to `registry` drops both values rather than
-leaving a management URL pointed at a repository manager the entry says it does
-not have.
-
-The Registries tab is untouched — its columns are step 5's to redesign.
-
-#### Step 2 as built — and D12 closed
-
-`AuthEnabled bool` became `AuthMode string`: `credentials` or `anonymous`, plus
-`inherit` for a member. `auth_enabled` is read once at load, migrated and
-cleared, so it leaves the file on the next save.
-
-**The open question is settled: a member-level `credentials` does not exist.**
-The backlog's own reading was that it should not, and normalization now enforces
-it — a member declaring one is refused at load, naming the two modes it may take
-instead. `inherit` on an entry with no group is refused for the mirror reason.
-Nothing is lost: `docker login` is keyed on host, a member shares its group's
-host, and therefore shares its single credential entry. A per-member password
-has nowhere to go, and §3.9 changed what that would cost without changing the
-conclusion.
-
-**D12 is closed, on both paths.** `detectRegistryGroupCmd` and the browser's
-`credsFor` now read the mode before looking anything up, and send nothing —
-not even a configured username — when it says anonymous. Each has a test
+**D12** — `anonymous` meant nothing: `docker login` is keyed on host, so one
+login against a Nexus instance authenticated every repository it served. Closed
+on **both** registry-facing paths, `detectRegistryGroupCmd` and the browser's
+`credsFor`, which now read the mode before looking anything up and send nothing
+— not even a configured username — when it says anonymous. Each has a test
 asserting the refusal *and* a sibling asserting credentials still flow when the
-mode allows it, so neither can pass by breaking authentication outright. Both
-were checked by removing the gate and confirming the failure.
+mode allows it, so neither can pass by breaking authentication outright.
 
-One correction to the note above: `TestManagementCredentialsAreLookedUpByHostAlone`
-was listed as an inverted test to turn around, but it was not asserting broken
-behaviour. Stripping the repository path before a management-host lookup was
+One correction to the plan: `TestManagementCredentialsAreLookedUpByHostAlone`
+was listed as an inverted test to turn around, and it was not asserting broken
+behaviour — stripping the repository path before a management-host lookup was
 right and stays. What was missing was the gate in *front* of that lookup, so the
-test was made explicit about its mode rather than reversed, and
-`TestAnAnonymousRegistryIsProbedWithoutCredentials` was added beside it. The one
-genuinely inverted test, `TestAGroupMembersFilterLabelIsStillARawURL` (D14),
-still waits for step 6.
+test was made explicit about its mode rather than reversed.
 
-The Registries tab's `Auth` column now shows the mode itself rather than
-yes/no, which is what made it wide enough to be worth reading.
+**D13** — the blocking resolving state. `browserStateResolving`, `entryGroups`,
+`pendingDetections`, `HandleGroupDetected` and `finalizeEntries` are all gone:
+the browser builds its entries from config plus cache in its constructor and
+returns no command at all (`TestOpeningTheBrowserIssuesNoCommand`). It opens on
+the first frame, answers `esc`, and works offline. The smaller thing recorded
+under D13 went with it — nothing matches on `reg.URL` any more, so two
+registries configured with the same URL no longer collide.
 
-#### Step 4 as built
-
-`CanHandle(info) bool` is gone. `Detector` now states `Provider() string`, and
-`registrymgr.DetectGroup` dispatches on `info.Provider`, falling back to a new
-`GenericDetector` — which discovers nothing, because there is no manager to ask.
-Registration order stopped deciding anything, and there is a test that swaps the
-order to prove it.
-
-Two consequences worth stating:
-
-- **A Nexus-shaped URL is no longer probed as Nexus.** That was the point, but
-  it would have silently stopped discovering groups that are being discovered
-  today. So the step-1 migration was extended: an entry written before `kind`
-  existed whose URL contains `/repository/` now migrates to `kind: group`,
-  `provider: nexus`, exactly as one with a `management_url` already did. It
-  over-declares — a Nexus *hosted* repository lives under `/repository/` too and
-  is not a group — and that is the deliberate half: detection answers "not a
-  group" for it exactly as it does today, `kind: group` is visible in the table
-  and one keystroke from being corrected, whereas dropping a real group's
-  discovery would not be. A kind the file *states* is never second-guessed.
-- **Every registry no longer costs an HTTP probe.** A plain registry now reaches
-  the generic detector and returns immediately, which takes a bite out of D13
-  ahead of step 3 removing the resolving state entirely.
-
-The provider names are stated in **both** `internal/config` and
-`internal/registrymgr`, deliberately: config owns what a file may say, this
-package owns what can be detected, and neither should import the other to say
-so. `TestTheProviderVocabularyMatchesTheConfig` is what stops them drifting —
-including a check that config offers no provider a detector cannot be selected
-for.
-
-`registrymgr` went from 18.5 % to 30.6 %; the rest of it is the Nexus REST
-client, covered from `oci_resources` against `httptest`.
-
-#### Step 3 as built
-
-`internal/cache/registry_groups.go` (snake_case, like its two neighbours) holds
-`RegistryGroupCache`: slug → `{members, discovered_at}`, at
-`~/.devdesk/cache/registry-groups.json`. The member type is the cache's own
-rather than `registrymgr`'s — this is a file format, and it should not move
-because a domain type did.
-
-`detectRegistryGroupCmd` writes through to it, so both callers keep it warm.
-An empty result is stored: "asked, and it is not a group" is an answer, and not
-storing it is what makes a non-group get probed forever.
-
-**The `Members` column moved here from step 5.** Decision 3 says a cache with no
-visible age is worse than the re-detection it replaces, because it looks current
-whatever it holds — so the column showing `2 · 3 hr ago`, `never`, or the
-spinner is part of what makes the cache safe, not part of the table redesign.
-Step 5 still owns drill-down, the breadcrumb and the column *order*.
-
-`ctrl+r` on a group row re-runs discovery (Rule 130: the shortcut is only
-offered on a row that has members to discover). A second one while the first is
-in flight is refused rather than queued.
-
-Discovery is now fired **only for `kind: group`**. A plain registry becomes its
-own browser entry immediately, and a user with no groups configured never enters
-the resolving state at all — a real bite out of D13 before step 6 removes the
-state. `HandleGroupDetected` ignores a result for anything that was not waited
-for, which otherwise finalized the entry list a second time and dropped whatever
-the user had unchecked.
-
-**D23, found by writing the cache and fixed here.** `NexusDetector.fetchRepoMeta`
-returned a bare `ok=false` for *both* "the manager said no" and "the manager
-could not be asked", and `DetectGroup` turned both into `nil, nil`. That was
-harmless while the answer was thrown away on every open. It stopped being
-harmless the moment it was cached: one unreachable minute would have erased what
-was last known. `fetchRepoMeta` now returns an error, `DetectGroup` propagates
-it, and the write-through skips a failed discovery. The browser already handled
-`Err` correctly — it offers the registry as itself — so nothing else changed.
-The test pins both halves, since a fix that made *every* answer an error would
-pass one of them alone.
-
-#### Steps 5 and 6 as built — and D13, D14 closed
-
-**D13.** `browserStateResolving` is gone, along with `entryGroups`,
-`pendingDetections`, `HandleGroupDetected` and `finalizeEntries`. The browser
-builds its entries from config plus the group cache in its constructor and
-returns no command at all — `TestOpeningTheBrowserIssuesNoCommand` is what says
-so. It opens on the first frame, answers `esc`, and works offline.
-
-The smaller thing recorded under D13 went with it: nothing matches on `reg.URL`
-any more, so two registries configured with the same URL no longer collide. The
-slug is the key, as the design said it should be.
-
-**D14** is closed and its inverted test turned around. `registryFilterLabel`
+**D14** — a member's filter label was a synthesised URL. `registryFilterLabel`
 resolves through the browser's entries, which now include members, so a member
-reads `prod/dhi` instead of the synthesised URL. The filter gained the group
-level at the same time: `r` stops on the group first, then on each registry,
-then off. `resultFilter` replaced the bare URL string, so "this group" and "this
-registry" are different values rather than one field meaning two things.
-
-**Group checkboxes.** The picker is a list of rows rather than a flat list of
-entries: a group is a row of its own whose checkbox covers its members, with a
-third state for a partial selection. `theme.RenderCheckboxTri` is new for it —
-half a group selected is not the same statement as none, and rendering them
-alike is how a user unchecks something they did not mean to. Toggling a partial
-group **completes** it rather than clearing it.
-
-**Remembered selection.** `internal/cache/browser_selection.go` stores what was
-**un**checked, per context. Storing the exceptions rather than the selection is
-what makes a member discovered since the last visit arrive checked, instead of
-silently sitting out of every search because it did not exist when the selection
-was saved.
-
-**Drill-down.** Columns are now `Alias | URL | Kind | Auth | Login | Members`.
-`→` enters a group and lists its cached members, `←` and `esc` go back, and a
-breadcrumb sits between the table and the tab bar (Rules 111, 123). Inside a
-group the rows are cached members rather than config entries, so edit, login,
-remove and new are neither offered (Rule 130) nor accepted — `getSelectedRegistry`
-and `getSelectedRegistryIndex` both return nothing there.
-
-One deviation from Rule 111, recorded: it offers `h`/`l` as aliases for `←`/`→`,
-but `l` is already login on this tab and a key has one role (Rule 135). The
-arrows are the drill-down; `h`/`l` are not bound.
+reads `prod/dhi`. The filter gained the group level at the same time: `r` stops
+on the group first, then on each registry, then off, and `resultFilter` replaced
+the bare URL string so "this group" and "this registry" are different values
+rather than one field meaning two things.
 
 **What this left unfinished, found later.** The member URL kept the shape the
 table above records — `host + /repository/<name>` — because nothing had yet
