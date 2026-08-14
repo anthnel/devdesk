@@ -31,10 +31,15 @@ type Model struct {
 	nextCheck  time.Time
 
 	// Flags d'état
-	paused     bool
-	checking   bool
-	firstCheck bool
-	error      string
+	//
+	// autoRefresh comes from status.auto_refresh and has no other writer: the
+	// setting belongs to the configuration view, and this view had a `space`
+	// toggle that shadowed it in memory only — same shape as the +/- interval
+	// it lost for the same reason.
+	autoRefresh bool
+	checking    bool
+	firstCheck  bool
+	error       string
 
 	// Tables. Two datatables plus a focus helper, not a multi-table
 	// abstraction: they share a viewport and alternate focus, and that is all
@@ -80,7 +85,7 @@ func New(cfg *config.Config) Model {
 	return Model{
 		config:          cfg,
 		refreshInterval: time.Duration(cfg.Status.RefreshInterval) * time.Second,
-		paused:          !cfg.Status.AutoRefresh,
+		autoRefresh:     cfg.Status.AutoRefresh,
 		checking:        false,
 		firstCheck:      true,
 		spinner:         s,

@@ -471,10 +471,6 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 	}
 
 	for _, s := range m.GetShortcuts() {
-		switch s.Key {
-		case "±", "?": // rendered differently in the help ("+/-" and its own entry)
-			continue
-		}
 		if !documented[s.Key] {
 			t.Errorf("shortcut %q is advertised in the header but absent from the help", s.Key)
 		}
