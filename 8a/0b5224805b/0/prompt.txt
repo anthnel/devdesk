@@ -1,0 +1,13 @@
+je veux brainstormer sur la vue dashboard. Premier point je n'aime pas le fait qu'elle se remplisse au fur et à mesure quand on arrive dessus. Je voudrais que tous les libellés soient déjà affichés et les valeurs mises à "-" en attendant d'avoir la vraie valeur. L'espace occupé à l'écran ne change donc jamais. Deuxième point je voudrais ajouter des graphiques de monitoring (cpu, mémoire, réseau hôte / cpu, mémoire, réseau docker, etc.) Je pense à deux colonnes les informations textuelles à gauche, le graphique à droite. Mais tu peux me proposer autre chose (autre layout) ou d'autres informations à afficher
+
+---
+
+[Image #1] voici ce que je vois sur mon écran 4K, Il y a deux colonnes, je mettrais les infos texte only sur la première colonnes et les infos texte + graphique en colonne 2. On peut scroller vers le bas s'il n'y a pas assez de hauteur (dépend de la résolution). Concernant les autres informations à afficher je suis d'accord avec tes propositions. On utilise  shirou/gopsutil/v4 . J'aimerais par contre que tu recherches une librairie pour afficher les graphiques avec un beau visuel en TUI. Concernant les infos hôtes je ne sais pas que choisir aujourd'hui je suis sur windows/wsl, je pourrais utiliser dosker desktop. L'application doit être cross platform.
+
+---
+
+d'accord avec tes deux propositions. Est-ce qu'il vaut mieux faire un upgrade bubletea avant les dev ou le faire après dans une autre phase
+
+---
+
+oui rédige plan + backlog
