@@ -1,0 +1,5 @@
+la task mise run install n'installe pas sous $GOPATH mais sous /home/anthoni/.local/share/mise/installs/go/1.25.10/bin
+
+---
+
+oui vas y

@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "d304aa2ddb4d",
+  "strategy": "manual-commit",
+  "branch": "fix/mise-install-gopath",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "mise.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d3/04aa2ddb4d/0/metadata.json",
+      "transcript": "/d3/04aa2ddb4d/0/full.jsonl",
+      "compact_transcript": "/d3/04aa2ddb4d/0/transcript.jsonl",
+      "content_hash": "/d3/04aa2ddb4d/0/content_hash.txt",
+      "prompt": "/d3/04aa2ddb4d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 84546,
+    "cache_read_tokens": 1763674,
+    "output_tokens": 8555,
+    "api_call_count": 20
+  }
+}
