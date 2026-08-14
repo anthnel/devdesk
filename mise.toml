@@ -77,8 +77,13 @@ go clean
 """
 
 [tasks.install]
-description = "Install binary to $GOPATH/bin"
-run = "go install ."
+description = "Install the dk binary to $GOPATH/bin"
+# Two things a bare `go install` gets wrong here. It names the binary after the
+# module (`devdesk`), while the command — and `mise run build` — is `dk`; and
+# mise's go plugin exports GOBIN=<mise>/installs/go/<version>/bin, so the binary
+# would land in a directory that disappears on the next toolchain bump.
+shell = "bash -c"
+run = 'go build -o "$(go env GOPATH)/bin/dk" .'
 
 [tasks.check]
 description = "Run fmt, vet, lint and tests (pre-commit checklist)"
