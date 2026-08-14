@@ -1737,29 +1737,37 @@ never-scanned target are `DimStyle`, and the nominal majority state — a
 colour on the whole table and a signal on none of it.
 
 
-### Race detector cannot run locally
+### The race detector sees only what the tests run
 
-`mise run test-race` needs cgo and therefore a C compiler on `PATH`. Without one
-it fails with `cgo: C compiler "gcc" not found`. Bubble Tea `Cmd`s run
-concurrently, so this is the check most likely to catch a Rule 110 violation.
+**It runs locally now.** `mise run test-race` needs cgo and therefore a C
+compiler on `PATH`; without one it fails with `cgo: C compiler "gcc" not found`,
+which is what this entry used to be about. The Windows development machine has
+one — `gcc 16.1.0` (MinGW-w64, `x86_64-posix-seh`), with `go env CGO_ENABLED`
+reading `1` and `CC` reading `gcc` — so the check is available before a push
+rather than only after one.
 
-**Now covered by CI.** `.github/workflows/ci.yml` runs `mise run test-race` on
-every push and pull request, on `ubuntu-latest`, which has a toolchain. The first
-run reported no data race across all 17 packages.
+Measured on 2026-08-14 with `go test -race -count=1 ./...`, so nothing came from
+the test cache: **no data race, across all 29 packages that have tests** (three
+have none). It costs two to three minutes wall-clock, and two packages are most
+of it — `internal/ui/oci_resources` at 47 s and `internal/scan` at 33 s.
 
-That is a baseline, not a clean bill of health: the detector only sees code the
-tests actually execute, and coverage is 80.7 %. Rule 110 violations in untested
-paths remain invisible. The two efforts compound, so this is an argument for the
-coverage phases rather than a substitute for them.
+**CI still runs it, and that is not redundant.** `.github/workflows/ci.yml` runs
+`mise run test-race` on every push and pull request on `ubuntu-latest`. A race is
+a scheduling accident, so a second machine with a different core count and a
+different scheduler is a second sample rather than a repeat of the first — and
+CI is what covers a contributor whose machine has no toolchain.
 
-`internal/scan` is the package the detector has most to say about, since
-`Scanner.Scan` is the only place in the application that fans out to concurrent
-goroutines writing one shared result. Its tests now drive all five stages at
-once, so that fan-out is under the detector for the first time — but only on CI,
-which is where the confirmation has to be read.
+What has not changed is the limit worth keeping in mind: **the detector only
+sees code the tests actually execute**, and coverage is 80.7 %. Rule 110
+violations in untested paths remain invisible whichever machine runs it. The two
+efforts compound, so this stays an argument for the coverage phases rather than a
+substitute for them.
 
-Installing a local toolchain is still worth doing for anyone touching `Cmd`s, to
-avoid learning about a race from CI after the fact.
+`internal/scan` is the package it has most to say about, since `Scanner.Scan` is
+the only place in the application that fans out to concurrent goroutines writing
+one shared result. Its tests drive all five stages at once, so that fan-out is
+under the detector — and now under it locally, where a `Cmd` is being changed,
+rather than only where the change is being reported on.
 
 ---
 
