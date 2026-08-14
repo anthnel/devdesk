@@ -602,7 +602,7 @@ func hasShortcut(m Model, description string) bool {
 // Reopening the browser must not undo what the user just narrowed it to.
 func TestTheSelectionSurvivesClosingTheBrowser(t *testing.T) {
 	m := groupedModel(t)
-	dropped := m.registryBrowser.entries[0].URL
+	dropped := m.registryBrowser.entries[0].key
 	m.registryBrowser.selectedRegs[dropped] = false
 
 	m = feed(t, m, RegistryBrowserCloseMsg{})
@@ -615,7 +615,7 @@ func TestTheSelectionSurvivesClosingTheBrowser(t *testing.T) {
 		t.Errorf("%q came back checked", dropped)
 	}
 	for _, e := range m.registryBrowser.entries {
-		if e.URL != dropped && !m.registryBrowser.selectedRegs[e.URL] {
+		if e.key != dropped && !m.registryBrowser.selected(e) {
 			t.Errorf("%q was unchecked too, want only the one", e.URL)
 		}
 	}
@@ -626,7 +626,7 @@ func TestTheSelectionSurvivesClosingTheBrowser(t *testing.T) {
 // out of every search.
 func TestAMemberDiscoveredSinceTheLastVisitArrivesChecked(t *testing.T) {
 	m := groupedModel(t)
-	m.registryBrowser.selectedRegs[m.registryBrowser.entries[0].URL] = false
+	m.registryBrowser.selectedRegs[m.registryBrowser.entries[0].key] = false
 	m = feed(t, m, RegistryBrowserCloseMsg{})
 
 	// A third member turns up in the cache.
@@ -637,8 +637,89 @@ func TestAMemberDiscoveredSinceTheLastVisitArrivesChecked(t *testing.T) {
 	}
 	m = feed(t, m, RegistryGroupCacheLoadedMsg{Entries: entries}, testutil.Key("b"))
 
-	if !m.registryBrowser.selectedRegs["registry.example.com/repository/new-proxy"] {
+	if !m.registryBrowser.selectedRegs[memberKey("prod", "registry.example.com/repository/new-proxy")] {
 		t.Error("a member discovered since the last visit opened unchecked")
+	}
+}
+
+// ── Two entries on one host (D40) ────────────────────────────────────────────
+
+// A checkbox belongs to an entry, not to a URL. Two registries declared on one
+// host is something the form accepts — it enforces slug uniqueness, not URL
+// uniqueness — and §3.18 makes it the ordinary case: one entry per proxy, all
+// of them on the instance's host.
+
+// oneHostModel returns a browser over two registries sharing a URL.
+func oneHostModel(t *testing.T) Model {
+	t.Helper()
+	cfg := testConfig()
+	cfg.Registry.Registries = []config.RegistryItem{
+		{URL: "nexus.example.com", Alias: "dhi", Slug: "dhi", AuthMode: config.AuthAnonymous},
+		{URL: "nexus.example.com", Alias: "quay", Slug: "quay", AuthMode: config.AuthAnonymous},
+	}
+	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 180, Height: 30}, ImagesListMsg{Images: imageFixtures()})
+	m = feed(t, m, testutil.Key("b"))
+	if m.registryBrowser == nil {
+		t.Fatal("'b' did not open the registry browser")
+	}
+	if len(m.registryBrowser.entries) != 2 {
+		t.Fatalf("the picker holds %d entries, want one per configured registry", len(m.registryBrowser.entries))
+	}
+	return m
+}
+
+func TestTwoRegistriesOnOneHostKeepIndependentCheckboxes(t *testing.T) {
+	m := oneHostModel(t)
+	b := m.registryBrowser
+
+	feed(t, m, testutil.Key("down"), testutil.Key(" "))
+
+	if b.selected(b.entries[0]) {
+		t.Error("space did not uncheck the focused entry")
+	}
+	if !b.selected(b.entries[1]) {
+		t.Error("unchecking one entry unchecked the other one declared on the same host")
+	}
+}
+
+// The half that outlives the session: an exclusion is what gets remembered, so
+// a collision here excludes the other entry from every future search too.
+func TestAnExclusionOnOneHostDoesNotCarryToTheOtherEntry(t *testing.T) {
+	m := oneHostModel(t)
+
+	m = feed(t, m, testutil.Key("down"), testutil.Key(" "), RegistryBrowserCloseMsg{})
+
+	if len(m.browserDeselected) != 1 {
+		t.Fatalf("closing remembered %d exclusions, want only the entry unchecked", len(m.browserDeselected))
+	}
+
+	m = feed(t, m, testutil.Key("b"))
+	b := m.registryBrowser
+	if b.selected(b.entries[0]) {
+		t.Error("the unchecked entry came back checked")
+	}
+	if !b.selected(b.entries[1]) {
+		t.Error("the other entry on that host came back unchecked, and nothing will check it again")
+	}
+}
+
+// The obvious key is the wrong one: an entry's Slug is its *group's* for a
+// member, so keying the selection on it would give a whole group one checkbox.
+func TestGroupMembersKeepIndependentCheckboxes(t *testing.T) {
+	m := groupedModel(t)
+	b := m.registryBrowser
+	if b.entries[0].ParentSlug == "" || b.entries[0].ParentSlug != b.entries[1].ParentSlug {
+		t.Fatal("the fixture no longer opens on two members of one group")
+	}
+
+	// Two rows down: the group header, then its first member.
+	feed(t, m, testutil.Key("down"), testutil.Key("down"), testutil.Key(" "))
+
+	if b.selected(b.entries[0]) {
+		t.Error("space did not uncheck the focused member")
+	}
+	if !b.selected(b.entries[1]) {
+		t.Error("unchecking one member unchecked its sibling: the group shares one checkbox")
 	}
 }
 

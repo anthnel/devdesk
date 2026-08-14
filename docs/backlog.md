@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-10
+**Last Updated:** 2026-08-14
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11,12 +11,13 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Two open — D39 and D40**, both in the registry browser and both found on
-2026-08-10 while trying to browse a single proxy inside a real Nexus group. D39
-is what [§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix)
-exists to fix; D40 is the thing §3.18 blocks on.
+**One open — D39**, in the registry browser, found on 2026-08-10 while trying to
+browse a single proxy inside a real Nexus group. It is what
+[§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix) exists to
+fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
+on and is now closed on its own.
 
-D1 through D38, and D41, are all fixed or, in D35's case, deliberately
+D1 through D38, D40 and D41 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -28,6 +29,46 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D40 — the browser picker keyed its selection on the entry URL, so two entries
+sharing a host shared one checkbox. Fixed.** `browserRegistryEntry` now carries
+a `key`, and the checkbox, the group tri-state, `submitSearch` and the persisted
+exclusions all read it — through one `selected(entry)` accessor rather than
+seven separate map lookups, which is what stops the next site from picking a
+different identity.
+
+The key is **the slug for a standalone registry, and the group's slug plus the
+member's URL for a member**. Neither half of that is arbitrary:
+
+- The URL cannot serve, which is the defect: the form enforces slug uniqueness,
+  not URL uniqueness, so two registries declared on one host ticked and
+  unticked together — and stayed unticked, since the exclusion is what is
+  remembered.
+- `Slug` alone cannot serve either, which is the trap §1.3 flagged: a member
+  carries its *group's* slug, so keying on it would have given a whole group one
+  checkbox. `TestGroupMembersKeepIndependentCheckboxes` is the guard, and it
+  passed before the fix as well as after — it pins the property the obvious key
+  would have broken, not the defect.
+- Within a group the members are told apart by **URL, not alias**:
+  `cleanMemberAlias` strips `-proxy`, `-hosted` and `-local`, so
+  `docker-io-proxy` and `docker-io-hosted` both display as `docker-io`. §3.18
+  changes what distinguishes a member — it gives them one host and a
+  `repo_prefix` each — and `memberKey` is the one place that has to follow.
+
+`browser-selection.json` keeps its shape; only what the strings mean changes.
+An exclusion written by an earlier build is a URL, matches no key, and the entry
+arrives **checked** — the safe direction, and the reason no migration was
+written for it: the file records what a user unticked in a picker, and offering
+it back over-selected costs one keystroke where guessing wrong costs a silent
+omission from every search.
+
+Two tests were written first and both failed on the old code — one on the
+checkbox, one on the exclusion surviving a close and reopen, which is the half
+that outlives the session. What was *not* touched: `entryFor(url)`
+(`browser_tags.go:92`) still resolves a *result* by URL and collides the same
+way. It is unreachable today (a search over two entries on one host queries the
+same URL twice) and it is §3.18 that makes it live, because a result would then
+have to carry the prefix to be attributable at all.
 
 **D41 — the pull reference carried the URL scheme. Fixed.** Found while
 answering §3.8's one open question, not by a test.
@@ -764,29 +805,12 @@ worse half — nothing on screen says the reference will not resolve.
 Not reached before now because discovery had never succeeded against a group here
 (the same 403), so no member row had ever been rendered.
 
-**D40 — the browser picker keys its selection on the entry URL, so two entries
-sharing a host share one checkbox.** `buildEntries` writes
-`b.selectedRegs[e.URL]` (`registry_browser.go:241`), the toggle reads and writes
-that key (`browser_keys.go:97`), `submitSearch` tests it, and `Deselected()`
-returns URLs — which is also what `browser-selection.json` persists. Declaring
-two registries on one URL with different aliases is accepted today: `RegistryForm`
-enforces slug uniqueness, not URL uniqueness. Ticking either then ticks both, and
-unchecking either excludes both for good, across sessions.
+**D40 is fixed** — see §1.1. It was reachable on its own and was fixed on its
+own; §3.18 is what would have made it the normal case rather than a way to
+misconfigure, and it no longer has to carry that.
 
-§3.8's step 5/6 note says two registries with the same URL no longer collide.
-That is true of what it was about — matching a discovery result — and the entry
-identity did move to the slug. The selection map did not.
-
-The obvious key is the wrong one: `browserRegistryEntry.Slug` holds the *group's*
-slug for a member, so every member of a group carries the same value. Each entry
-needs an identity of its own — group slug plus member, or a per-member slug.
-
-Reachable today and worth fixing on its own, but §3.18 is what makes it the
-normal case rather than a way to misconfigure: one entry per proxy, all on one
-host.
-
-**D39 and D40 are the only ones open**, both above. D21 and D36 closed everything
-that preceded them; both are in §1.1.
+**D39 is the only one open**, above. D21 and D36 closed everything that preceded
+them; both are in §1.1.
 
 D12, D13 and D14 were all fixed by §3.8 — see "The three defects it closed"
 there for what each turned out to be. D14's inverted test failed the moment the
@@ -2298,7 +2322,7 @@ pulled from one. It browses and cannot pull (D39), and the addressing it stands
 in for turns out not to be derivable at all:
 [§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix). The
 selection map also stayed keyed on the URL when entry identity moved to the slug
-(D40).
+(D40, since fixed).
 
 ### 3.9 Every secret goes to a host secret manager, and radio buttons go away — **done**
 
@@ -3273,7 +3297,8 @@ Coverage: `internal/ui/security` 85.6 % → 85.8 %, project total 81.3 % → 81.
 ### 3.18 A registry member is an address, not a URL — `repo_prefix`
 
 Not started. §3.8 gave a group its members; this is about *reaching* one. It
-closes D39 and needs D40 closed with it.
+closes D39. D40, which it needed closed with it, was fixed on its own — see
+§1.1.
 
 Found on 2026-08-10 trying to browse a single proxy inside a Nexus group. All
 measurements below are from that instance — `pic-nexus.spw.dev.wallonie.be`, 64
@@ -3352,7 +3377,10 @@ The request this came from: **one checkbox per proxy**. Declare a proxy per line
 built in §3.8 already does the rest. No discovery in the critical path — which
 matters precisely because discovery is what is 403 here.
 
-That is also why it blocks on **D40**: those entries all share one host.
+That is what **D40** had to be fixed for: those entries all share one host, and
+until the picker keyed its selection on the entry rather than on the URL, one
+per proxy meant one checkbox for all of them. It is fixed, so this no longer
+waits on anything.
 
 #### Scope
 
@@ -3365,6 +3393,8 @@ That is also why it blocks on **D40**: those entries all share one host.
 | `cache.RegistryGroupMember` | carry it, so a discovered member can too |
 | `RegistryForm` | one text field, shown for `kind: registry` |
 | `submitSearch` | prepend the prefix to the repo, once |
+| `entryFor` | resolve a result by entry key, not by URL — every member of a host answers to the same URL once the prefix carries the difference, so a result becomes unattributable (the one site D40 deliberately left alone) |
+| `memberKey` | follow whatever tells two members apart once it is no longer the URL |
 | Registries tab | show it — an entry whose URL is a bare host says nothing on its own |
 
 Deliberately not done:
@@ -3384,8 +3414,6 @@ Deliberately not done:
   pulls `<host>/<prefix>/<repo>:<tag>` — the pair D39 fails, so it fails on the
   current code.
 - A member with no prefix produces byte-identical requests to today.
-- Two entries sharing a host keep independent checkboxes, and their exclusions
-  survive a round trip through `browser-selection.json` (D40).
 - A `repo_prefix` on a `kind: group` entry fails `LoadContext` rather than loading.
 
 ### 3.19 The dashboard stops reflowing, and gains resource charts

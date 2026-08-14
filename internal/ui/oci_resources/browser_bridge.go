@@ -34,8 +34,8 @@ func (m Model) closeMultiRegistryBrowser() (tea.Model, tea.Cmd) {
 	m.registryBrowser = nil
 
 	m.browserDeselected = make(map[string]bool, len(deselected))
-	for _, url := range deselected {
-		m.browserDeselected[url] = true
+	for _, key := range deselected {
+		m.browserDeselected[key] = true
 	}
 	return m, saveBrowserSelectionCmd(deselected)
 }

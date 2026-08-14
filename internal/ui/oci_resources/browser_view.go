@@ -95,7 +95,7 @@ func (b *RegistryBrowser) viewInput() string {
 				// partial selection — eight proxies are not eight keystrokes.
 				sb.WriteString(theme.RenderCheckboxTri(b.groupState(row.groupSlug), row.label, focused))
 			} else {
-				sb.WriteString(theme.RenderCheckbox(b.selectedRegs[b.entries[row.entry].URL], row.label, focused))
+				sb.WriteString(theme.RenderCheckbox(b.selected(b.entries[row.entry]), row.label, focused))
 			}
 			if i < len(b.rows)-1 {
 				sb.WriteString("\n")

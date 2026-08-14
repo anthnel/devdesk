@@ -90,7 +90,7 @@ func TestEveryRegistryStartsSelected(t *testing.T) {
 	b := browsingModel(t).registryBrowser
 
 	for _, entry := range b.entries {
-		if !b.selectedRegs[entry.URL] {
+		if !b.selected(entry) {
 			t.Errorf("%s opened unchecked", entry.URL)
 		}
 	}
@@ -100,14 +100,14 @@ func TestEveryRegistryStartsSelected(t *testing.T) {
 func TestSpaceTogglesTheFocusedRegistry(t *testing.T) {
 	m := browsingModel(t)
 	b := m.registryBrowser
-	first := b.entries[0].URL
+	first := b.entries[0]
 
 	m = feed(t, m, testutil.Key("down"), testutil.Key(" "))
-	if b.selectedRegs[first] {
+	if b.selected(first) {
 		t.Error("space did not uncheck the focused registry")
 	}
 	feed(t, m, testutil.Key(" "))
-	if !b.selectedRegs[first] {
+	if !b.selected(first) {
 		t.Error("space did not check it back")
 	}
 }
@@ -124,7 +124,7 @@ func TestSpaceOnTheRepositoryFieldIsTyped(t *testing.T) {
 		t.Errorf("repository = %q, want the space kept", b.repoInput.Value())
 	}
 	for _, entry := range b.entries {
-		if !b.selectedRegs[entry.URL] {
+		if !b.selected(entry) {
 			t.Errorf("typing a space unchecked %s", entry.URL)
 		}
 	}
@@ -180,7 +180,7 @@ func TestSearchingWithEveryRegistryUncheckedDoesNothing(t *testing.T) {
 	m := typeInto(t, browsingModel(t), "nginx")
 	b := m.registryBrowser
 	for _, entry := range b.entries {
-		b.selectedRegs[entry.URL] = false
+		b.selectedRegs[entry.key] = false
 	}
 
 	m = feed(t, m, testutil.Key("enter"))
@@ -197,7 +197,7 @@ func TestSearchingWithEveryRegistryUncheckedDoesNothing(t *testing.T) {
 func TestOnlyTheCheckedRegistriesAreSearched(t *testing.T) {
 	m := typeInto(t, browsingModel(t), "nginx")
 	b := m.registryBrowser
-	b.selectedRegs[b.entries[0].URL] = false
+	b.selectedRegs[b.entries[0].key] = false
 
 	m = feed(t, m, testutil.Key("enter"))
 
@@ -925,7 +925,7 @@ func TestTheGroupCheckboxCoversItsMembers(t *testing.T) {
 		t.Errorf("groupState = %v after toggling the group, want none", got)
 	}
 	for _, e := range b.entries {
-		if e.ParentSlug == "prod" && b.selectedRegs[e.URL] {
+		if e.ParentSlug == "prod" && b.selected(e) {
 			t.Errorf("member %q stayed checked", e.Alias)
 		}
 	}
@@ -943,7 +943,7 @@ func TestAHalfSelectedGroupSaysSo(t *testing.T) {
 
 	for _, e := range b.entries {
 		if e.ParentSlug == "prod" {
-			b.selectedRegs[e.URL] = false
+			b.selectedRegs[e.key] = false
 			break
 		}
 	}
@@ -960,7 +960,7 @@ func TestAHalfSelectedGroupSaysSo(t *testing.T) {
 // than discarding it.
 func TestTogglingAPartialGroupCompletesIt(t *testing.T) {
 	b := groupedModel(t).registryBrowser
-	b.selectedRegs[b.entries[0].URL] = false
+	b.selectedRegs[b.entries[0].key] = false
 
 	b.toggleGroup("prod")
 

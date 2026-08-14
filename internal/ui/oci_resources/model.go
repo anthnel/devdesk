@@ -60,8 +60,10 @@ type Model struct {
 	// refreshingGroups holds the slugs a discovery is running for, so ctrl+r on
 	// a row already refreshing does not fire a second one.
 	refreshingGroups map[string]bool
-	// browserDeselected is what the user unchecked in the registry browser, kept
-	// so the next open starts where the last one left off.
+	// browserDeselected holds the keys of the entries the user unchecked in the
+	// registry browser, kept so the next open starts where the last one left
+	// off. Keyed on the browser's entry key rather than a URL — see
+	// browserRegistryEntry.key (D40).
 	browserDeselected map[string]bool
 	// registryGroupSlug is the group the Registries tab has drilled into, empty
 	// at the top level.
