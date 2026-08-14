@@ -1,0 +1,1 @@
+dans la vue status, les shortcuts "Adjust Interval" "Pause/Resume" et "Refresh" n'ont plus de sens puisque le les paramètres sont dans la vue config

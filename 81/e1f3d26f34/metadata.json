@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "81e1f3d26f34",
+  "strategy": "manual-commit",
+  "branch": "fix/status-refresh-shortcuts",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/status/model.go",
+    "internal/ui/status/update.go",
+    "internal/ui/status/update_test.go",
+    "internal/ui/status/view.go",
+    "internal/ui/status/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/81/e1f3d26f34/0/metadata.json",
+      "transcript": "/81/e1f3d26f34/0/full.jsonl",
+      "compact_transcript": "/81/e1f3d26f34/0/transcript.jsonl",
+      "content_hash": "/81/e1f3d26f34/0/content_hash.txt",
+      "prompt": "/81/e1f3d26f34/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 68,
+    "cache_creation_tokens": 127424,
+    "cache_read_tokens": 4217370,
+    "output_tokens": 17213,
+    "api_call_count": 34
+  }
+}
