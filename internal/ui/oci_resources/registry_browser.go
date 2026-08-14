@@ -36,6 +36,17 @@ type browserRegistryEntry struct {
 	ParentAlias string // non-empty = member of a group
 	ParentSlug  string
 	parentURL   string // URL of the parent RegistryItem (for credential lookup)
+	// key identifies the entry among all the others, and is what the checkbox
+	// and the remembered exclusions are keyed on (D40). It is not the URL: two
+	// registries may be declared on one host — the form enforces slug
+	// uniqueness, not URL uniqueness — and §3.18 makes that the ordinary case.
+	// Nor is it Slug, which holds the *group's* slug for a member and would
+	// give a whole group one checkbox. So: the slug for a standalone registry,
+	// and the group's slug plus the member's URL for a member, the URL being
+	// what tells two members of one group apart. Their aliases do not:
+	// cleanMemberAlias strips `-proxy` and `-hosted`, so `docker-io-proxy` and
+	// `docker-io-hosted` both display as `docker-io`.
+	key string
 	// authMode is already resolved: a member carries what its group settled on,
 	// since `inherit` is the only thing the shared credential entry can mean.
 	authMode string
@@ -103,7 +114,7 @@ type RegistryBrowser struct {
 
 	// Form state
 	repoInput    textinput.Model
-	selectedRegs map[string]bool // entry URL → checked
+	selectedRegs map[string]bool // entry key → checked
 	focusedField int
 
 	// Results state
@@ -217,6 +228,7 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 			b.rows = append(b.rows, pickerRow{label: alias, entry: len(b.entries)})
 			b.entries = append(b.entries, browserRegistryEntry{
 				URL: reg.URL, Alias: alias, Slug: reg.Slug, authMode: mode,
+				key: reg.Slug,
 			})
 			continue
 		}
@@ -232,14 +244,22 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 				ParentSlug:  reg.Slug,
 				parentURL:   reg.URL,
 				authMode:    mode,
+				key:         memberKey(reg.Slug, m.URL),
 			})
 		}
 	}
 
 	b.selectedRegs = make(map[string]bool, len(b.entries))
 	for _, e := range b.entries {
-		b.selectedRegs[e.URL] = !deselected[e.URL]
+		b.selectedRegs[e.key] = !deselected[e.key]
 	}
+}
+
+// memberKey names one member of a group. Scoping it by the group's slug is what
+// keeps two groups fronting the same repository apart, and what keeps a member
+// from colliding with a standalone registry keyed on its own slug.
+func memberKey(groupSlug, memberURL string) string {
+	return groupSlug + "/" + memberURL
 }
 
 // browserAlias returns what a registry is labelled with in the browser.
@@ -250,6 +270,9 @@ func browserAlias(reg config.RegistryItem) string {
 	return reg.URL
 }
 
+// selected reports whether an entry is checked.
+func (b *RegistryBrowser) selected(e browserRegistryEntry) bool { return b.selectedRegs[e.key] }
+
 // groupState reports whether all, none or some of a group's members are checked.
 func (b *RegistryBrowser) groupState(slug string) theme.CheckState {
 	checked, total := 0, 0
@@ -258,7 +281,7 @@ func (b *RegistryBrowser) groupState(slug string) theme.CheckState {
 			continue
 		}
 		total++
-		if b.selectedRegs[e.URL] {
+		if b.selected(e) {
 			checked++
 		}
 	}
@@ -279,18 +302,18 @@ func (b *RegistryBrowser) toggleGroup(slug string) {
 	want := b.groupState(slug) != theme.CheckAll
 	for _, e := range b.entries {
 		if e.ParentSlug == slug {
-			b.selectedRegs[e.URL] = want
+			b.selectedRegs[e.key] = want
 		}
 	}
 }
 
-// Deselected returns the entries the user unchecked, which is what is
-// remembered between visits.
+// Deselected returns the keys of the entries the user unchecked, which is what
+// is remembered between visits.
 func (b *RegistryBrowser) Deselected() []string {
 	var out []string
 	for _, e := range b.entries {
-		if !b.selectedRegs[e.URL] {
-			out = append(out, e.URL)
+		if !b.selected(e) {
+			out = append(out, e.key)
 		}
 	}
 	return out

@@ -711,6 +711,13 @@ as their source of truth, and `config.yaml` is what the user declares.
 - `internal/cache/browser_selection.go` remembers what the browser had
   **un**checked, per context. Storing the exceptions is what makes a
   newly-discovered member arrive checked rather than silently excluded.
+- **A picker entry is identified by `browserRegistryEntry.key`, never by its
+  URL** (D40). Two registries may be declared on one host — the form enforces
+  slug uniqueness, not URL uniqueness — so a URL ticks and unticks both, and the
+  exclusion outlives the session. The key is the slug for a standalone registry
+  and `memberKey(groupSlug, memberURL)` for a member; `Slug` alone will not do,
+  since a member carries its *group's*. Read it through `selected(entry)` rather
+  than indexing `selectedRegs` at a new site.
 
 ### Scan Cache
 

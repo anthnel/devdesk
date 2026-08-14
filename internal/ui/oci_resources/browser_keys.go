@@ -94,8 +94,8 @@ func (b *RegistryBrowser) handleInputKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, t
 				b.toggleGroup(row.groupSlug)
 				return b, nil
 			}
-			url := b.entries[row.entry].URL
-			b.selectedRegs[url] = !b.selectedRegs[url]
+			key := b.entries[row.entry].key
+			b.selectedRegs[key] = !b.selectedRegs[key]
 			return b, nil
 		}
 	case "enter":
@@ -153,7 +153,7 @@ func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 
 	var cmds []tea.Cmd
 	for _, entry := range b.entries {
-		if !b.selectedRegs[entry.URL] {
+		if !b.selected(entry) {
 			continue
 		}
 		username, storedPass := b.credsFor(entry)

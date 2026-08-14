@@ -15,13 +15,18 @@ import (
 // selection was saved.
 //
 // Kept per context, because registries are.
+//
+// What is stored is the browser's own entry keys, not URLs (D40): two
+// registries may be declared on one host, and a URL would exclude both at once
+// and for good. An entry written by a build that stored URLs simply matches
+// nothing and arrives checked, which is the safe direction.
 
 // BrowserSelectionCache remembers the registries excluded from the browser
 // search, per configuration context.
 type BrowserSelectionCache struct {
 	mu       sync.RWMutex
 	path     string
-	excluded map[string][]string // context name → entry URLs left unchecked
+	excluded map[string][]string // context name → entry keys left unchecked
 }
 
 // NewBrowserSelectionCache creates or loads the cache from
@@ -64,27 +69,27 @@ func (c *BrowserSelectionCache) save() error {
 	return os.WriteFile(c.path, data, 0600)
 }
 
-// Deselected returns the entry URLs left unchecked in a context, as a set.
+// Deselected returns the entry keys left unchecked in a context, as a set.
 func (c *BrowserSelectionCache) Deselected(context string) map[string]bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	out := make(map[string]bool, len(c.excluded[context]))
-	for _, url := range c.excluded[context] {
-		out[url] = true
+	for _, key := range c.excluded[context] {
+		out[key] = true
 	}
 	return out
 }
 
-// SetDeselected records the entry URLs left unchecked in a context. An empty
+// SetDeselected records the entry keys left unchecked in a context. An empty
 // list removes the context rather than storing one, so a file that nobody has
 // excluded anything in stays empty.
-func (c *BrowserSelectionCache) SetDeselected(context string, urls []string) error {
+func (c *BrowserSelectionCache) SetDeselected(context string, keys []string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if len(urls) == 0 {
+	if len(keys) == 0 {
 		delete(c.excluded, context)
 	} else {
-		c.excluded[context] = urls
+		c.excluded[context] = keys
 	}
 	return c.save()
 }
