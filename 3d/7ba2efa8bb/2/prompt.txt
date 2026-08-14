@@ -1,0 +1,9 @@
+git pull ne fonctionne pas
+
+---
+
+nettoie les choses qui peuvent l'être
+
+---
+
+regarde pour récupérer le travail dans feat/datatable-cell-colors

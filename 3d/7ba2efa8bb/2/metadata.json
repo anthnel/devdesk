@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "3d7ba2efa8bb",
+  "session_id": "fc432a30-83e0-489e-bf24-a4c56e0d98f5",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-14T12:35:25.5883607Z",
+  "branch": "tmp/cp-onto-main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "1820c12ba45f",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 119927,
+    "cache_read_tokens": 4102619,
+    "output_tokens": 22628,
+    "api_call_count": 35
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-14T12:35:25.5338538Z",
+    "agent_lines": 332,
+    "agent_removed": 346,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 332,
+    "total_lines_changed": 678,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 430,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 430
+      }
+    }
+  ]
+}

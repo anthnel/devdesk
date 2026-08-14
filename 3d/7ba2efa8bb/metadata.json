@@ -2,9 +2,11 @@
   "cli_version": "0.9.0",
   "checkpoint_id": "3d7ba2efa8bb",
   "strategy": "manual-commit",
-  "branch": "feat/datatable-cell-colors",
-  "checkpoints_count": 2,
-  "files_touched": null,
+  "branch": "tmp/cp-onto-main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
   "sessions": [
     {
       "metadata": "/3d/7ba2efa8bb/0/metadata.json",
@@ -19,13 +21,20 @@
       "compact_transcript": "/3d/7ba2efa8bb/1/transcript.jsonl",
       "content_hash": "/3d/7ba2efa8bb/1/content_hash.txt",
       "prompt": "/3d/7ba2efa8bb/1/prompt.txt"
+    },
+    {
+      "metadata": "/3d/7ba2efa8bb/2/metadata.json",
+      "transcript": "/3d/7ba2efa8bb/2/full.jsonl",
+      "compact_transcript": "/3d/7ba2efa8bb/2/transcript.jsonl",
+      "content_hash": "/3d/7ba2efa8bb/2/content_hash.txt",
+      "prompt": "/3d/7ba2efa8bb/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 2228,
-    "cache_creation_tokens": 4005175,
-    "cache_read_tokens": 349085211,
-    "output_tokens": 726780,
-    "api_call_count": 1185
+    "input_tokens": 2298,
+    "cache_creation_tokens": 4125102,
+    "cache_read_tokens": 353187830,
+    "output_tokens": 749408,
+    "api_call_count": 1220
   }
 }
