@@ -1,0 +1,5 @@
+CI en cours — mise run test-race s'y exécute, et c'est le seul endroit où il tourne. J'attends avant de merger => tu peux l'exécuter sur le poste maintenant
+
+---
+
+oui mais à jour dans un commit à part
