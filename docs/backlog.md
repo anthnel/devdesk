@@ -1775,11 +1775,16 @@ Carried over from `todo.md`, except §3.7.
 - **Hot volume mount** — mount the current working directory into a running
   container on the fly, to test a local script without rebuilding the image.
 
-### 3.5 Resource dashboard (embedded mini-htop)
+### 3.5 Resource dashboard (embedded mini-htop) — **superseded by §3.19**
 
-- **TUI charts** — braille-character charts showing live CPU, RAM and network I/O
-  for every container in the selected project.
-- **Visual alerts** — user-defined thresholds (e.g. memory saturation).
+Asked for braille charts of live CPU, RAM and network I/O **for every container**,
+plus user-defined saturation thresholds.
+
+§3.19 keeps the charts and moves them. Per-container series belong to the
+`containers` view, where a row *is* a container; the dashboard has no row to hang
+one on, so it shows aggregates. The visual alerts are not carried over — a
+threshold is a setting, and settings live in the configuration view, so it needs
+its own entry rather than a line here.
 
 ### 3.6 GitHub support alongside GitLab, one active forge per context
 
@@ -3383,12 +3388,183 @@ Deliberately not done:
   survive a round trip through `browser-selection.json` (D40).
 - A `repo_prefix` on a `kind: group` entry fails `LoadContext` rather than loading.
 
+### 3.19 The dashboard stops reflowing, and gains resource charts
+
+Not started. Supersedes §3.5. Full plan:
+[`dashboard-resources-plan.md`](../.claude/plans/dashboard-resources-plan.md).
+
+Two things, and they turn out to be one. The view fills in as its data lands,
+and it has no live resource metrics.
+
+#### The reflow is structural
+
+`render*Section` builds a line count that depends on state — GitLab is 3 lines
+loading, 7 loaded, 4 when not connected; OCI 3 → 6; Tools 3 → 2+N. `View()`
+stacks the sections and equalises the two columns on the taller one, so **a
+value landing in the right column moves the left column too**.
+
+The fix is a rule: **a section declares its height and fills it. Data changes
+values, never line count.** Which needs three value states where there are
+currently two:
+
+| State | Rendered | Meaning |
+|---|---|---|
+| unknown | `-` `DimStyle` | not measured yet |
+| unavailable | `n/a` + one dim line | Docker absent, GitLab signed out |
+| zero | `0` `DimStyle` | measured, and it is zero |
+
+Today "Docker not available" *replaces* the block. With a skeleton the labels
+stay — the user sees what the dashboard would show, which is itself an answer.
+
+**And it makes the age mandatory.** Once a stale value looks exactly like a
+fresh one, "when was this true" has to be on screen. `m.lastRefresh` is stored
+today and never rendered; that stops being acceptable, not as polish but as the
+price of the placeholders.
+
+The vertical budget is already overspent — left column ≈22 lines, right ≈20,
+viewport gets `height - 11`, so a 30-row terminal cuts the rest **in silence**.
+Hence one `viewport` over the whole content (the idiom in four views already),
+not one per column: two scrolling columns means two cursors.
+
+#### The layout
+
+Left column text only, right column text plus a chart. At 4K the right column is
+≈118 cells, and a 100-cell braille chart holds 200 samples — over three minutes
+of history. That is a graph, not an ornament.
+
+#### What was measured, on 2026-08-14
+
+Windows 11, 16 cores, 33.4 GB, Docker Desktop, 9 containers / 2 running. None of
+this is quoted from documentation.
+
+**`gopsutil/v4@v4.26.7`** builds with `CGO_ENABLED=0` — same no-cgo constraint
+that picked `zalando/go-keyring`. `mem` 0 ms, `net` 5 ms, `disk.Usage` **1 ms**,
+`cpu.Percent(500ms)` 501 ms.
+
+⚠️ **`load.Avg()` returns `{0,0,0}` with `err=nil` on Windows.** It does not
+fail — it produces a number indistinguishable from data. Load average is
+therefore displayed on **no** platform: a metric present on two of three is
+worse than one present on none, because its absence reads as "idle".
+
+Two more that change the code: `cpu.Percent(interval, …)` blocks for the
+interval, so the sampler uses `cpu.Percent(0, false)`; and `net.IOCounters` is
+cumulative, so a rate is a delta and the **first** sample has none — it prints
+`-`, not `0`.
+
+**`docker stats --no-stream` costs 1365 / 1982 / 1993 ms**, against 603 ms for
+`docker system df`. A 2-second chart tick would keep the CLI running
+continuously, which is what forces **three clocks**: ~1 s for the gopsutil
+sample (5 ms), ~5 s for `docker stats` (2 s), and the existing
+`status.refresh_interval` for GitLab, `system df`, workspaces and tools. One
+tick driving all three is exactly what makes the cheap call wait on the
+expensive one.
+
+`calculateDiskUsage` (`du -sh` over the workspaces tree) leaves the periodic
+refresh with them. It is the one call whose cost grows with the user's data, and
+`disk.Usage` answers the useful question — how much room is left — in a
+millisecond.
+
+#### Host and Docker are not on one axis
+
+`workspaces_dir` is `C:\Users\anthoni\workspaces`, so `dk.exe` runs natively on
+Windows: gopsutil reports Windows, `docker stats` reports usage *inside* the
+Docker Desktop VM, whose footprint is a subset of the Windows totals. Both true,
+**not additive**. So two sections and a label naming the measurement point —
+`Host (Windows)`, `Docker (VM)`.
+
+Running `dk` *inside* WSL is the misleading case: gopsutil would read the
+distro's `/proc`, and Docker Desktop's containers live in another distro, so
+they would appear nowhere. Detectable via `/proc/version`, and to be said in the
+label rather than hidden.
+
+#### `ntcharts` — and the version is the whole question
+
+`NimbleMarkets/ntcharts` (MIT, 776★) is the only charting library written *for*
+Bubble Tea. `termui`, `termdash` and `tvxwidgets` are TUI frameworks that want to
+own the event loop; `asciigraph` has no lipgloss.
+
+⚠️ **`@latest` is v2, and v2 requires `charm.land/bubbletea/v2` + `lipgloss/v2`.**
+A plain `go get` would drag the whole application into Bubble Tea v2. **The
+version is `v0.5.1`**, the last of the v1 line, compiled and run against
+bubbletea v1.3.10 / lipgloss v1.1.0 / bubbles v0.21.0.
+
+Three properties that meet the house rules:
+
+- **`Draw()`, never `DrawColumnsOnly()`.** `Draw()` styles the whole canvas, so a
+  style carrying `Background(theme.ColorBackground)` fills the troughs.
+  `DrawColumnsOnly()` styles only the columns and lets the terminal's native
+  background through the gaps — the exact defect Rule 115 forbids.
+- Every rendered line is **exactly `width` cells** (`len=40`, `len=48`
+  verified), so Rule 116's arithmetic is untouched.
+- The model owns its ring buffer, so there is no history to write — but `Push()`
+  belongs in `Update()`, never in a `Cmd` (Rule 110).
+
+#### What the dashboard starts saying
+
+Free space on the workspaces volume and the Docker root; **reclaimable** Docker
+space, which is already in the `system df` output the view parses and discards;
+security posture from `ImageScanCache` and `WorkspaceScanCache` — targets
+scanned, open CRITICALs, oldest scan — which finally connects the dashboard to
+§3.11's inventory without running one; the nearest certificate expiry, from
+components already in memory; and the refresh age.
+
+Deferred: workspace hygiene (`3 dirty, 2 behind`, §3.17). Right data, but the
+walk cost grows with the repository count. Rejected: listening ports — `ss`
+needs a privileged container.
+
+#### Bubble Tea v2 is deliberately not bundled
+
+v2 is GA (bubbletea v2.0.8, lipgloss v2.0.6, bubbles v2.1.1); v1 is not
+deprecated; and **nothing here needs v2** — ntcharts v0.5.1 delivers braille and
+multi-series stream charts on v1, verified by running it.
+
+The reason for separating them, above all others: in v2 `msg.String()` returns
+`"space"` instead of `" "`, and there are **10 `case " ":` across 10 files**. The
+compiler says nothing — `case " ":` stays valid Go and simply stops matching.
+Rule 135 makes `Space` the only key allowed to tick a checkbox, so a careless
+migration silently breaks every checkbox in the application. That has to surface
+in a pull request that does nothing else.
+
+| Migration work | Extent | Nature |
+|---|---|---|
+| Imports → `charm.land/*/v2` | 154 files / 301 | mechanical |
+| `tea.KeyMsg` → `tea.KeyPressMsg` | 96 | compiler-found |
+| `View() string` → `View() tea.View` | 11 views + router | **architecture** |
+| `lipgloss.Color` as a type → `color.Color` | 46, nearly all in `colors.go` | one file |
+| `WithWhitespaceBackground` → `WithWhitespaceStyle` | 13 | mechanical |
+| `AdaptiveColor` / `TerminalColor` | 0 | no `compat` needed |
+
+The rules paid for themselves: Rule 119 (no hex outside `colors.go`) reduces
+lipgloss v2's largest change to one file, and `datatable` rendering its own rows
+(Rule 122) blunts the `bubbles/table` changes. The one real piece of
+architecture is that the router types views as `tea.Model` (`app.go:47`); the
+better answer is the inverse — DevDesk declares its own `View` interface and
+only `*App` stays a `tea.Model`.
+
+And ntcharts v2 is no reason to hurry: its `go.mod` carries
+`replace charm.land/bubbletea/v2 => github.com/neomantra/bubbletea/v2` under the
+comment *"Awaiting upstream merges"*. Migrating for it today would trade a stable
+v1 stack for a dependency on a fork.
+
+#### Tests worth writing first
+
+- Each section rendered unknown / loaded / unavailable has the **same line
+  count** — without it the next section added reintroduces the reflow.
+- `-` and `0` are distinguishable, and an unavailable source keeps its labels.
+- A cumulative counter read once yields **no** rate; a counter reset drops the
+  sample rather than rendering a negative throughput.
+- Every chart cell carries a background (Rule 115) and every chart line is
+  exactly the column width (Rule 116).
+- Load average is displayed nowhere — pins the Windows trap against someone
+  re-adding it because it works on Linux.
+
 ---
 
 ## 4. Existing plans
 
-Detailed plans live in `.claude/plans/`. One is referenced directly from the old
-`todo.md` and is still outstanding:
+Detailed plans live in `.claude/plans/`. Two are outstanding:
 
 - [`platform_compatibility_improvements.md`](../.claude/plans/platform_compatibility_improvements.md)
-  — Docker-layer platform portability.
+  — Docker-layer platform portability. Referenced from the old `todo.md`.
+- [`dashboard-resources-plan.md`](../.claude/plans/dashboard-resources-plan.md)
+  — §3.19, the dashboard skeleton and resource charts.
