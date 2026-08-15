@@ -1,0 +1,117 @@
+démarre l'implémentation de la mise à jour du backlog mais avant de commencer une question, est-ce qu'il ne serait pas mieux d'avoir un layout spécifique pour cette vue ?
+Au lieu d'avoir un cadre autour du viewport, je pense qu'il serait préférable de ne pas avoir de bordure extérieure mais un cadre par groupe logique.
+Donc comme actuellement, chaque cadre aurait le titre sur la bordure du groupe logique, ex : ┌─  Dashboard ──
+Pour le Dashboard il y aurait un cadre gitlab, et un autre par groupe logique, il faudrait déterminer les groupes logiques à afficher. 
+Il ne faut pas trop de cadre car ça alourdirait le layout.
+
+---
+
+on peut aussi prévoir une vue plus riche quand écran 4k et une plus light pour écran hd
+
+---
+
+[Image #3]
+
+---
+
+c'est l'image avec la dernière version j'ai lancé mise run dev
+
+---
+
+le nouveau path de devdesk : C:\Users\anthoni\projects\entire\anthnel\devdesk , il n'est plus sur gitlab
+
+---
+
+continue
+
+---
+
+les boites network, storage et tools sont dans les deux tabs
+
+---
+
+continue
+
+---
+
+ajoute un padding de 1 autour du texte dans chaque boite pour qu'il ne soit pas coler à la bordure. S'il n'y a qu'un seul tab afficher, il ne faut pas de tab (pas besoin de montrer le tab overview). ensuite continue sur la phase 3
+
+---
+
+envoie moi un printscreen
+
+---
+
+continue
+
+---
+
+ajoute un padding de 1 aussi entre le titre d'une boite et la première ligne à l'intérieur
+
+---
+
+continue
+
+---
+
+[Image #4], il y a de la place sur la hauteur. Le graphique de la ram ne s'affiche pas. Pour la partie code, je mettrais les label User, Host, Merge Request l'un en dessous de l'autre. Puis un arbre pour les merge request avec deux noeuds : assigned, to review et les compteurs. Idem un arbre pour les workspace. Pour containers je ferais aussi un arbre avec un noeud par état. Pour les graphique on ne voit pas bien le cadre réservé au graphique, je pense qu'un background plus clair pourrait aider.
+
+---
+
+Il manque aussi le graph ram pour Docker (VM), je mettrais Host, Network et Docker sur la même ligne comme ils  ont tous les trois deux graphes. Concernant health, je pense qu'on pourrait aussi mettre les trois états en arbre pour monitors et certs. Ce aurait sans doute aussi du sens de splitter scanned critical oldest en deux groupes (arbres) : image et répertoire
+
+---
+
+ne m'envoie plus de rendu mais continue, pour docker (VM) il faudrait mettre CPU et RAM tout en haut ainsi les graphiques seront alignés. Pour host, il faut mettre 15.4 GB of 31.1 GB à côté du pourcentage, pour CPU ce serait bien d'avoir le nombre de coeur. Pour healt mets juste les criticals, si tu veux mettre high c'est un enfant en plus pas à coté de critical
+
+---
+
+on va enlever la boite tools qui nous embête. Il faut une ligne vide en dessous de la ligne dashboard. Pour les graphique, il faut une ligne vide en dessous du cadre de chaque graphique. En mode wide, containers affiche 9 en total mais il y a aussi sur la même ligne 2 running alors que cette info est en noeud enfant. En mode standard, il manque le graphique RAN pour Docker (VM). Je pense que les tools pour être affiché dans la config. Pour code, mets le 󰗠 à droite du user, idem pour monitors, les icones devraient plutot être à droite sauf raison évidente
+
+---
+
+enchaine ensuite avec un /go-review
+
+---
+
+dans health à quoi correspond le expiry
+
+---
+
+<task-notification>
+<task-id>a91126e0c2f5693fb</task-id>
+<tool-use-id>toolu_01QL5WNMBu2QfH7cRqJc1YuL</tool-use-id>
+<output-file>C:\Users\anthoni\AppData\Local\Temp\claude\C--Users-anthoni-projects-entire-anthnel-devdesk\fc432a30-83e0-489e-bf24-a4c56e0d98f5\tasks\a91126e0c2f5693fb.output</output-file>
+<status>failed</status>
+<summary>Agent "Go review of the dashboard work" failed: Agent terminated early due to an API error: You've hit your session limit · resets 1:40pm (Europe/Paris)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Good coverage. Now let's check `internal/docker/system_test.go` diff for the reclaimable parsing tests, and confirm `parseSize` handles malformed input gracefully (no panic).</result>
+</task-notification>
+
+---
+
+continue
+
+---
+
+dans la vue dashboard, bloc health, dans "Expiry     58 days  google.com", 58 days devrait être aligné avec les autres lignes. Je voudrais aussi présenter l'info unscanned au lieu de high (remplacer le nombre de high par le nombre de unscanned). Dans la partie monitor et certs les icones ne sont pas correctes pour down et error
+
+---
+
+Dans la partie Code, il faut ajouter un noeud Gitlab et mettre User, Host, Issues, MR assigned, MR to review en dessous, tous les enfants au même niveau. Il serait aussi intéressante de mettre l'espace disque utilisé sous le path des workspaces
+
+---
+
+je veux vraiment l'espace occupé sous le path du workspace pas l'espace disque total utilisé. Ecris "issues assigned" au lieu de issues 0 assigned, ça permettra d'avoir un rendu cohérent avec MR assigned
+
+---
+
+Il faut une ligne vide entre deux arbres. Dans la partie health on pourrait faire deux colonnes, Arbre Monitor et Repositories dans la première colonne. Arbres Certs et Image dans la deuxième colonne. Expiry pourrait être sous Certs. Dans la partie Docker (VM) il pourrait aussi avoir deux colonnes sous le graph RAM. Première colonne avec les containers et la seconde avec Images et Volumes. Dans la partie Storage, la première ligne affiche le path des workspaces, ça semble redondant avec ce qui est mit dans Code. Dans la partie Host, Disk affiche l'espace libre, ça semble redondant avec ce qu'il y a sous storage. La partie storage est très succinte est-ce que tu vois d'autres informations utiles à afficher
+
+---
+
+continue
+
+---
+
+/plan ajouter l'info sur les secrets détectés dans les vues sec et oci/images. Trivy peut détecter des secrets, si c'est le cas il faut afficher l'info dans une nouvelle colonne comme c'est fait dans la vue ws. Dans le dashboard il faut aussi ajouter l'info dans Health sous Repositories et Images. Autre point, le foreground dans les vues oci/images, oci/network, oci/volumes, sec, status/monitor n'est pas correct, la couleur pour le texte dans les datatable ne respecte pas la couleur du theme. Vérifie tous les datatables.

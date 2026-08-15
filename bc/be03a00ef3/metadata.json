@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "bcbe03a00ef3",
+  "strategy": "manual-commit",
+  "branch": "dashboard-skeleton",
+  "checkpoints_count": 22,
+  "files_touched": [
+    "docs/backlog.md",
+    "go.mod",
+    "go.sum",
+    "internal/app/app.go",
+    "internal/app/app_header.go",
+    "internal/app/view.go",
+    "internal/app/view_contract_test.go",
+    "internal/docker/containers.go",
+    "internal/docker/parse.go",
+    "internal/docker/system.go",
+    "internal/docker/system_test.go",
+    "internal/metrics/host.go",
+    "internal/metrics/metrics.go",
+    "internal/metrics/metrics_test.go",
+    "internal/metrics/tree.go",
+    "internal/metrics/tree_test.go",
+    "internal/shared/state.go",
+    "internal/ui/dashboard/chart.go",
+    "internal/ui/dashboard/chart_test.go",
+    "internal/ui/dashboard/dashboard_test.go",
+    "internal/ui/dashboard/layout.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/posture.go",
+    "internal/ui/dashboard/posture_test.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/dashboard/view.go",
+    "internal/ui/dashboard/view_test.go",
+    "internal/ui/theme/box.go",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/icons.go",
+    "internal/ui/theme/manager.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/bc/be03a00ef3/0/metadata.json",
+      "transcript": "/bc/be03a00ef3/0/full.jsonl",
+      "compact_transcript": "/bc/be03a00ef3/0/transcript.jsonl",
+      "content_hash": "/bc/be03a00ef3/0/content_hash.txt",
+      "prompt": "/bc/be03a00ef3/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1354,
+    "cache_creation_tokens": 5118787,
+    "cache_read_tokens": 240568888,
+    "output_tokens": 456213,
+    "api_call_count": 679
+  }
+}

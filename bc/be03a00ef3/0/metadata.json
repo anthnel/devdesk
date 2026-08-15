@@ -1,0 +1,534 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "bcbe03a00ef3",
+  "session_id": "465e77ac-befa-4cb1-8e64-1429671e8000",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-15T16:06:25.4405598Z",
+  "branch": "dashboard-skeleton",
+  "checkpoints_count": 22,
+  "save_step_count": 21,
+  "files_touched": [
+    "docs/backlog.md",
+    "go.mod",
+    "go.sum",
+    "internal/app/app.go",
+    "internal/app/app_header.go",
+    "internal/app/view.go",
+    "internal/app/view_contract_test.go",
+    "internal/docker/containers.go",
+    "internal/docker/parse.go",
+    "internal/docker/system.go",
+    "internal/docker/system_test.go",
+    "internal/metrics/host.go",
+    "internal/metrics/metrics.go",
+    "internal/metrics/metrics_test.go",
+    "internal/metrics/tree.go",
+    "internal/metrics/tree_test.go",
+    "internal/shared/state.go",
+    "internal/ui/dashboard/chart.go",
+    "internal/ui/dashboard/chart_test.go",
+    "internal/ui/dashboard/dashboard_test.go",
+    "internal/ui/dashboard/layout.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/posture.go",
+    "internal/ui/dashboard/posture_test.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/dashboard/view.go",
+    "internal/ui/dashboard/view_test.go",
+    "internal/ui/theme/box.go",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/icons.go",
+    "internal/ui/theme/manager.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "c597c6014437",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 1354,
+    "cache_creation_tokens": 5118787,
+    "cache_read_tokens": 240568888,
+    "output_tokens": 456213,
+    "api_call_count": 679
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-08-15T15:55:09.8486093Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "21c1defa6bae",
+      "timestamp": "2026-08-15T15:55:09.8486093Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01TCz4eZkQbEp6yy1uPYEGrm",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "go-review"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "c597c6014437",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 2200,
+        "end": 2201,
+        "entry_ids": [
+          "bb5cb21f-ed61-477f-badd-f7bedbf28371"
+        ],
+        "tool_use_id": "toolu_01TCz4eZkQbEp6yy1uPYEGrm"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01TCz4eZkQbEp6yy1uPYEGrm"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: go-review",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 22
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-15T16:06:25.2109512Z",
+    "agent_lines": 1172,
+    "agent_removed": 0,
+    "human_added": 6286,
+    "human_modified": 1085,
+    "human_removed": 0,
+    "total_committed": 8394,
+    "total_lines_changed": 8563,
+    "agent_percentage": 13.686792012145277,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 433,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 433
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 583,
+      "user_lines_removed": 13,
+      "agent_lines_added": 969,
+      "agent_lines_removed": 530,
+      "user_added_per_file": {
+        ".claude/plans/dashboard-resources-plan.md": 148,
+        ".claude/settings.local.json": 435
+      },
+      "user_removed_per_file": {
+        ".claude/plans/dashboard-resources-plan.md": 13
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 583,
+      "user_lines_removed": 13,
+      "agent_lines_added": 969,
+      "agent_lines_removed": 530,
+      "user_added_per_file": {
+        ".claude/plans/dashboard-resources-plan.md": 148,
+        ".claude/settings.local.json": 435
+      },
+      "user_removed_per_file": {
+        ".claude/plans/dashboard-resources-plan.md": 13
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 586,
+      "user_lines_removed": 14,
+      "agent_lines_added": 969,
+      "agent_lines_removed": 530,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 148,
+        ".claude/settings.local.json": 435
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 13
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 601,
+      "user_lines_removed": 14,
+      "agent_lines_added": 1105,
+      "agent_lines_removed": 512,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 163,
+        ".claude/settings.local.json": 435
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 13
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 609,
+      "user_lines_removed": 14,
+      "agent_lines_added": 1201,
+      "agent_lines_removed": 514,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 170,
+        ".claude/settings.local.json": 436
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 13
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 637,
+      "user_lines_removed": 17,
+      "agent_lines_added": 1903,
+      "agent_lines_removed": 529,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 197,
+        ".claude/settings.local.json": 437
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 16
+      }
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 657,
+      "user_lines_removed": 19,
+      "agent_lines_added": 2342,
+      "agent_lines_removed": 526,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 217,
+        ".claude/settings.local.json": 437
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 18
+      }
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 659,
+      "user_lines_removed": 19,
+      "agent_lines_added": 2342,
+      "agent_lines_removed": 526,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 217,
+        ".claude/settings.local.json": 439
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 18
+      }
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 708,
+      "user_lines_removed": 23,
+      "agent_lines_added": 2690,
+      "agent_lines_removed": 530,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 247,
+        ".claude/settings.local.json": 439,
+        "internal/ui/theme/box.go": 19
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19,
+        "internal/ui/theme/box.go": 3
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 722,
+      "user_lines_removed": 23,
+      "agent_lines_added": 2754,
+      "agent_lines_removed": 530,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 261,
+        ".claude/settings.local.json": 439,
+        "internal/ui/theme/box.go": 19
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19,
+        "internal/ui/theme/box.go": 3
+      }
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 945,
+      "user_lines_removed": 71,
+      "agent_lines_added": 2915,
+      "agent_lines_removed": 542,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 261,
+        ".claude/settings.local.json": 443,
+        "internal/ui/dashboard/model.go": 20,
+        "internal/ui/dashboard/posture.go": 28,
+        "internal/ui/dashboard/posture_test.go": 38,
+        "internal/ui/dashboard/sections.go": 95,
+        "internal/ui/dashboard/view.go": 12,
+        "internal/ui/dashboard/zz_preview_test.go": 26,
+        "internal/ui/theme/box.go": 19
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19,
+        "internal/ui/dashboard/model.go": 12,
+        "internal/ui/dashboard/posture.go": 5,
+        "internal/ui/dashboard/posture_test.go": 15,
+        "internal/ui/dashboard/sections.go": 15,
+        "internal/ui/dashboard/view.go": 1,
+        "internal/ui/theme/box.go": 3
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 806,
+      "user_lines_removed": 43,
+      "agent_lines_added": 3116,
+      "agent_lines_removed": 534,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/settings.local.json": 443,
+        "internal/ui/dashboard/posture.go": 28,
+        "internal/ui/dashboard/posture_test.go": 38,
+        "internal/ui/theme/box.go": 19
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19,
+        "internal/ui/dashboard/posture.go": 5,
+        "internal/ui/dashboard/posture_test.go": 15,
+        "internal/ui/theme/box.go": 3
+      }
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 806,
+      "user_lines_removed": 43,
+      "agent_lines_added": 3088,
+      "agent_lines_removed": 534,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/settings.local.json": 443,
+        "internal/ui/dashboard/posture.go": 28,
+        "internal/ui/dashboard/posture_test.go": 38,
+        "internal/ui/theme/box.go": 19
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19,
+        "internal/ui/dashboard/posture.go": 5,
+        "internal/ui/dashboard/posture_test.go": 15,
+        "internal/ui/theme/box.go": 3
+      }
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 724,
+      "user_lines_removed": 20,
+      "agent_lines_added": 3150,
+      "agent_lines_removed": 534,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/settings.local.json": 446
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19
+      }
+    },
+    {
+      "checkpoint_number": 16,
+      "user_lines_added": 724,
+      "user_lines_removed": 20,
+      "agent_lines_added": 3150,
+      "agent_lines_removed": 534,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/settings.local.json": 446
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19
+      }
+    },
+    {
+      "checkpoint_number": 17,
+      "user_lines_added": 724,
+      "user_lines_removed": 20,
+      "agent_lines_added": 3215,
+      "agent_lines_removed": 534,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/settings.local.json": 446
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19
+      }
+    },
+    {
+      "checkpoint_number": 18,
+      "user_lines_added": 724,
+      "user_lines_removed": 20,
+      "agent_lines_added": 3513,
+      "agent_lines_removed": 537,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/settings.local.json": 446
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19
+      }
+    },
+    {
+      "checkpoint_number": 19,
+      "user_lines_added": 724,
+      "user_lines_removed": 20,
+      "agent_lines_added": 3623,
+      "agent_lines_removed": 533,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/settings.local.json": 446
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19
+      }
+    },
+    {
+      "checkpoint_number": 20,
+      "user_lines_added": 1239,
+      "user_lines_removed": 172,
+      "agent_lines_added": 3936,
+      "agent_lines_removed": 538,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/settings.local.json": 446,
+        "internal/docker/system.go": 8,
+        "internal/docker/system_test.go": 6,
+        "internal/metrics/host.go": 1,
+        "internal/metrics/metrics.go": 7,
+        "internal/shared/state.go": 3,
+        "internal/ui/dashboard/dashboard_test.go": 1,
+        "internal/ui/dashboard/model.go": 1,
+        "internal/ui/dashboard/posture_test.go": 188,
+        "internal/ui/dashboard/sections.go": 282,
+        "internal/ui/dashboard/view_test.go": 12,
+        "internal/ui/theme/box.go": 6
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19,
+        "internal/metrics/metrics.go": 1,
+        "internal/ui/dashboard/dashboard_test.go": 1,
+        "internal/ui/dashboard/posture_test.go": 38,
+        "internal/ui/dashboard/sections.go": 105,
+        "internal/ui/dashboard/view_test.go": 2,
+        "internal/ui/theme/box.go": 5
+      }
+    },
+    {
+      "checkpoint_number": 21,
+      "user_lines_added": 1208,
+      "user_lines_removed": 169,
+      "agent_lines_added": 4011,
+      "agent_lines_removed": 538,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/settings.local.json": 446,
+        "internal/metrics/host.go": 1,
+        "internal/metrics/metrics.go": 7,
+        "internal/ui/dashboard/posture_test.go": 188,
+        "internal/ui/dashboard/sections.go": 282,
+        "internal/ui/theme/box.go": 6
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19,
+        "internal/metrics/metrics.go": 1,
+        "internal/ui/dashboard/posture_test.go": 38,
+        "internal/ui/dashboard/sections.go": 105,
+        "internal/ui/theme/box.go": 5
+      }
+    },
+    {
+      "checkpoint_number": 22,
+      "user_lines_added": 1459,
+      "user_lines_removed": 169,
+      "agent_lines_added": 4011,
+      "agent_lines_removed": 538,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 3,
+        ".claude/plans/dashboard-resources-plan.md": 275,
+        ".claude/plans/secrets-column-and-datatable-foreground.md": 251,
+        ".claude/settings.local.json": 446,
+        "internal/metrics/host.go": 1,
+        "internal/metrics/metrics.go": 7,
+        "internal/ui/dashboard/posture_test.go": 188,
+        "internal/ui/dashboard/sections.go": 282,
+        "internal/ui/theme/box.go": 6
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/dashboard-resources-plan.md": 19,
+        "internal/metrics/metrics.go": 1,
+        "internal/ui/dashboard/posture_test.go": 38,
+        "internal/ui/dashboard/sections.go": 105,
+        "internal/ui/theme/box.go": 5
+      }
+    }
+  ]
+}
