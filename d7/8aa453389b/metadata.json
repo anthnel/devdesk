@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "d78aa453389b",
+  "strategy": "manual-commit",
+  "branch": "dashboard-skeleton",
+  "checkpoints_count": 22,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/metrics/tree.go",
+    "internal/metrics/tree_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d7/8aa453389b/0/metadata.json",
+      "transcript": "/d7/8aa453389b/0/full.jsonl",
+      "compact_transcript": "/d7/8aa453389b/0/transcript.jsonl",
+      "content_hash": "/d7/8aa453389b/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 18533,
+    "cache_read_tokens": 4106796,
+    "output_tokens": 8523,
+    "api_call_count": 19
+  }
+}
