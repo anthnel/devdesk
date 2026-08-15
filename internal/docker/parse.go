@@ -28,6 +28,22 @@ func parseNetIO(netIO string) (rx, tx int64) {
 	return parseSize(strings.TrimSpace(parts[0])), parseSize(strings.TrimSpace(parts[1]))
 }
 
+// formatSize is parseSize's inverse, in Docker's own decimal units rather than
+// binary ones: le chiffre est destiné à être comparé avec la sortie de
+// `docker system df`, où 1 GB vaut 10⁹ octets.
+func formatSize(bytes int64) string {
+	switch {
+	case bytes >= 1e9:
+		return strconv.FormatFloat(float64(bytes)/1e9, 'f', 1, 64) + "GB"
+	case bytes >= 1e6:
+		return strconv.FormatFloat(float64(bytes)/1e6, 'f', 1, 64) + "MB"
+	case bytes >= 1e3:
+		return strconv.FormatFloat(float64(bytes)/1e3, 'f', 1, 64) + "kB"
+	default:
+		return strconv.FormatInt(bytes, 10) + "B"
+	}
+}
+
 // parseSize parses Docker human-readable sizes like "1.5GB", "256MB", "10.2kB" into bytes
 func parseSize(s string) int64 {
 	s = strings.TrimSpace(s)

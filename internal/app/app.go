@@ -99,6 +99,14 @@ func viewportStyle() lipgloss.Style {
 		BorderBackground(theme.ColorBackground)
 }
 
+// framelessViewportStyle is the viewport style for a view that draws its own
+// frames (FramelessView): same background, no border.
+func framelessViewportStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Background(theme.ColorBackground).
+		Foreground(theme.ColorText)
+}
+
 // New crée une nouvelle App, dimensionnée sur le terminal courant.
 func New(cfg *config.Config) *App {
 	width, height, err := term.GetSize(os.Stdout.Fd())
@@ -197,10 +205,28 @@ func (a *App) requestResize() tea.Cmd {
 	}
 }
 
+// resize lays out the window. Il **itère**, et c'est nécessaire : la hauteur du
+// footer est demandée à la vue (Rule 124), mais une vue dont le footer dépend
+// de sa taille — le dashboard cache sa ligne d'onglets quand il n'en reste
+// qu'un — répond d'après la taille qu'elle avait *avant*. Une seule passe la
+// laisserait donc décalée d'une ligne jusqu'au redimensionnement suivant.
+// Deux passes suffisent : la seconde interroge une vue qui connaît sa taille.
 func (a *App) resize(width, height int) {
 	a.width = width
 	a.height = height
 
+	const passes = 2
+	for range passes {
+		if !a.layoutOnce(width, height) {
+			return
+		}
+	}
+}
+
+// layoutOnce sizes the viewport against the active view's footer and hands the
+// view its content height. Il retourne true quand la hauteur du footer a changé
+// en cours de route, c'est-à-dire quand une seconde passe dit autre chose.
+func (a *App) layoutOnce(width, height int) (changed bool) {
 	// Rule 124: footer height is deducted from the viewport (tabs + optional info line)
 	footerHeight := a.getFooterHeight()
 	a.lastFooterHeight = footerHeight
@@ -209,16 +235,23 @@ func (a *App) resize(width, height int) {
 	availableHeight := height - headerHeight - footerHeight
 	a.viewport.Width = width
 	a.viewport.Height = availableHeight - 1 // -1 for the custom title border line
-	a.viewport.Style = viewportStyle()
 
 	// Propager à la vue active. Le viewport a 1 bordure (bottom only), la vue
-	// doit connaître la hauteur intérieure.
-	const viewportBorderHeight = 1
+	// doit connaître la hauteur intérieure. Une vue sans cadre n'en a aucune et
+	// récupère la ligne.
+	viewportBorderHeight := 1
+	a.viewport.Style = viewportStyle()
+	if a.frameless() {
+		viewportBorderHeight = 0
+		a.viewport.Style = framelessViewportStyle()
+	}
 	contentHeight := max((availableHeight-1)-viewportBorderHeight, 1)
 	if view, ok := a.views[a.currentView]; ok {
 		updatedView, _ := view.Update(tea.WindowSizeMsg{Width: width, Height: contentHeight})
 		a.views[a.currentView] = updatedView
 	}
+
+	return a.getFooterHeight() != footerHeight
 }
 
 // getFooterHeight returns the current footer height for the active view.

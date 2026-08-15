@@ -7,9 +7,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -53,7 +56,11 @@ func loadedModel(t *testing.T) (Model, *shared.State) {
 		GitLabStatsMsg{Stats: shared.GitLabStats{AssignedMRs: 3, ReviewMRs: 2, AssignedIssues: 5, TotalProjects: 12, TotalGroups: 4}},
 		DockerStatsMsg{Stats: shared.DockerStats{Available: true, Running: 2, Stopped: 1, Paused: 1}},
 		OCIStatsMsg{Stats: shared.OCIStats{Available: true, ImagesCount: 8, ImagesSize: "1.2GB", ContainersCount: 4, ContainersSize: "300MB", VolumesCount: 2, VolumesSize: "50MB"}},
-		WorkspaceStatsMsg{Count: 6, DiskSize: "4.2G"},
+		WorkspaceStatsMsg{Count: 6},
+		DiskUsageMsg{Workspaces: metrics.DiskUsage{Path: "~/workspaces", Free: 210 << 30, Used: 290 << 30, Total: 500 << 30, UsedPercent: 58, OK: true}},
+		WorkspaceSizeMsg{Size: metrics.TreeSize{Path: "~/workspaces", Bytes: 12 << 30, OK: true}},
+		HostSampleMsg{Sample: metrics.HostSample{CPUPercent: 9.2, MemPercent: 92, MemUsed: 31 << 30, MemTotal: 33 << 30, OK: true}},
+		DockerMetricsMsg{Aggregate: docker.Aggregate{Available: true, Running: 2, CPUPercent: 3.5, MemPercent: 12}},
 		ToolsDetectedMsg{Tools: toolFixtures()},
 	)
 	return m, state
@@ -399,37 +406,353 @@ func TestDetectBinaryToolReportsAPresentBinary(t *testing.T) {
 
 // ── Layout ───────────────────────────────────────────────────────────────────
 
-func TestColumnWidthHasAFloor(t *testing.T) {
-	m, _ := newTestModel(t)
+// tierCases covers one terminal size per palier.
+var tierCases = []struct {
+	name    string
+	width   int
+	height  int
+	want    tier
+	columns int
+}{
+	// Heights are content lines, which is what the view is handed — roughly the
+	// terminal's rows less 13 (header, title line, footer). Only `wide` reads
+	// the height: fewer columns means more stacking, so shortening a terminal
+	// can never justify dropping one.
+	{"a narrow terminal", 80, 24, tierCompact, 1},
+	{"a short but wide terminal", 200, 12, tierStandard, 2},
+	{"an HD terminal", 120, 20, tierStandard, 2},
+	{"a 4K terminal", 240, 45, tierWide, 3},
+}
 
+func TestThePalierFollowsBothDimensions(t *testing.T) {
+	for _, tc := range tierCases {
+		got := layoutTier(tc.width, tc.height)
+		if got != tc.want {
+			t.Errorf("layoutTier(%d, %d) on %s = %v, want %v", tc.width, tc.height, tc.name, got, tc.want)
+		}
+		if cols := got.columns(); cols != tc.columns {
+			t.Errorf("%s lays out %d columns, want %d", tc.name, cols, tc.columns)
+		}
+	}
+}
+
+func TestTheColumnWidthHasAFloor(t *testing.T) {
+	// A terminal too narrow to divide must not produce a column the sections
+	// cannot render a label and a value in.
+	if got := tierCompact.columnWidth(10); got != minColumnWidth {
+		t.Errorf("columnWidth(10) = %d, want the floor of %d", got, minColumnWidth)
+	}
+}
+
+// TestEverySectionKeepsItsHeightWhateverItsState is the rule §3.19 phase 1
+// exists for: a section declares its height and fills it, so a value landing in
+// one column can never move another. Sans lui, la première section ajoutée
+// ensuite réintroduit le reflow.
+func TestEverySectionKeepsItsHeightWhateverItsState(t *testing.T) {
+	unknown, _ := newTestModel(t)  // nothing has landed yet
+	loaded, _ := loadedModel(t)    // every result message absorbed
+	unavailable := withNoDocker(t) // Docker absent, GitLab signed out
+
+	states := map[string]Model{"unknown": unknown, "loaded": loaded, "unavailable": unavailable}
+
+	for _, s := range append(overviewSections(), resourceSections()...) {
+		want := -1
+		for name, m := range states {
+			got := len(s.render(m, 40, tierStandard))
+			if want == -1 {
+				want = got
+				continue
+			}
+			if got != want {
+				t.Errorf("section %q renders %d lines when %s and %d in another state — that is the reflow",
+					s.title, got, name, want)
+			}
+		}
+		if want == 0 {
+			t.Errorf("section %q renders nothing", s.title)
+		}
+	}
+}
+
+// TestABoxNeverTruncatesItsSection — la hauteur d'une boîte est dérivée des
+// sections à l'écran, pas d'une constante. Une constante trop basse ne se voit
+// pas : la boîte reste bien formée, elle perd sa dernière ligne. C'est le
+// piège qui attend la phase 3, quand un graphe rendra une section plus haute.
+func TestABoxNeverTruncatesItsSection(t *testing.T) {
+	m, _ := loadedModel(t)
+
+	const extra = 3
+	tall := section{title: "Tall", render: func(Model, int, tier) []string {
+		lines := make([]string, 0, nominalInnerHeight+extra)
+		for i := range nominalInnerHeight + extra {
+			lines = append(lines, "line "+string(rune('a'+i)))
+		}
+		return lines
+	}}
+
+	columns := [][]section{{tall}}
+	inner := m.innerHeights(columns, 40, tierStandard)
+	if inner[0] != nominalInnerHeight+extra {
+		t.Errorf("innerHeight = %d for a section of %d lines, want the section's own height",
+			inner[0], nominalInnerHeight+extra)
+	}
+
+	out := plain(strings.Join(m.renderColumn(columns[0], 40, inner, tierStandard), "\n"))
+	last := "line " + string(rune('a'+nominalInnerHeight+extra-1))
+	if !strings.Contains(out, last) {
+		t.Errorf("the box dropped %q — it truncated its section:\n%s", last, out)
+	}
+}
+
+// TestTheGridRowsLineUp — à nombre de boîtes égal, deux colonnes doivent faire
+// exactement la même hauteur : une boîte plus haute que sa voisine décale la
+// rangée suivante, et ça se lit comme un bug de rendu plutôt que comme un
+// choix. (À `wide`, la troisième colonne porte une boîte de plus et dépasse
+// délibérément.)
+func TestTheGridRowsLineUp(t *testing.T) {
+	m, _ := loadedModel(t)
+	columns := m.columnsFor(tierStandard)
+	inner := m.innerHeights(columns, 56, tierStandard)
+
+	want := len(m.renderColumn(columns[0], 56, inner, tierStandard))
+	for i, col := range columns[1:] {
+		if got := len(m.renderColumn(col, 56, inner, tierStandard)); got != want {
+			t.Errorf("column %d is %d lines tall, column 0 is %d — the rows do not line up", i+1, got, want)
+		}
+	}
+}
+
+// TestAnUnavailableSourceKeepsItsLabels — "Docker not available" used to
+// replace the block. With a skeleton the labels stay: what the dashboard would
+// show is itself an answer.
+func TestAnUnavailableSourceKeepsItsLabels(t *testing.T) {
+	lines := renderDockerSection(withNoDocker(t), 40, tierStandard)
+
+	for _, label := range []string{"Containers", "Images", "Volumes"} {
+		if !containsLine(lines, label) {
+			t.Errorf("with no Docker, the section dropped the %q label: %q", label, lines)
+		}
+	}
+}
+
+// TestAnUnmeasuredValueIsNotZero — three value states, not two.
+func TestAnUnmeasuredValueIsNotZero(t *testing.T) {
+	if stripANSI(unknownValue) == stripANSI(countValue(0)) {
+		t.Error("an unmeasured value renders like a measured zero — the two cannot be told apart")
+	}
+	if stripANSI(unknownValue) != "-" {
+		t.Errorf("unknown renders %q, want %q", stripANSI(unknownValue), "-")
+	}
+	if stripANSI(countValue(0)) != "0" {
+		t.Errorf("a measured zero renders %q, want %q", stripANSI(countValue(0)), "0")
+	}
+}
+
+// routerOverhead is what the router keeps for itself out of the terminal's
+// rows: header (9), title line (1), footer with a tab bar (3).
+const routerOverhead = 9 + 1 + 3
+
+// TestTheOverviewFitsAtTheHeightItNeeds — le viewport du routeur **ne défile
+// pas** : rien ne lui transmet de touche, donc ce qui dépasse est perdu en
+// silence, pas repoussé sous une barre de défilement. La hauteur de la grille
+// est donc une promesse, et gridHeight() est ce qu'elle vaut.
+func TestTheOverviewFitsAtTheHeightItNeeds(t *testing.T) {
+	m, _ := loadedModel(t)
 	m = feed(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
-	if got := m.columnWidth(); got != (120-6)/2 {
-		t.Errorf("columnWidth() = %d at 120 columns, want %d", got, (120-6)/2)
-	}
 
-	// A narrow terminal must not produce a width the sections cannot render in.
-	m = feed(t, m, tea.WindowSizeMsg{Width: 20, Height: 40})
-	if got := m.columnWidth(); got != 30 {
-		t.Errorf("columnWidth() = %d on a narrow terminal, want the floor of 30", got)
+	need := m.gridHeight(tierStandard)
+	m = feed(t, m, tea.WindowSizeMsg{Width: 120, Height: need})
+
+	if got := strings.Count(m.View(), "\n") + 1; got > need {
+		t.Errorf("the overview renders %d lines into the %d it measured", got, need)
+	}
+	t.Logf("the two-column grid needs %d content lines, i.e. a %d-row terminal",
+		need, need+routerOverhead)
+}
+
+// TestTheChosenPalierLosesTheFewestLines — en dessous de gridHeight() aucun
+// layout ne tient, et le palier n'a plus à choisir le meilleur mais le moins
+// mauvais : une grille 2×2 amputée d'une ligne bat une colonne de quatre boîtes
+// amputée de dix-neuf. C'est cette règle-là qui justifie que
+// standardMinHeight soit *sous* gridHeight(), et non un oubli.
+func TestTheChosenPalierLosesTheFewestLines(t *testing.T) {
+	m, _ := loadedModel(t)
+
+	for height := 12; height <= 40; height++ {
+		chosen := layoutTier(120, height)
+		lost := overflowAt(t, m, 120, height, chosen)
+
+		for _, other := range []tier{tierCompact, tierStandard} {
+			if other == chosen {
+				continue
+			}
+			if alt := overflowAt(t, m, 120, height, other); alt < lost {
+				t.Errorf("at %d content lines the layout chose %v and loses %d lines, while %v would lose %d",
+					height, chosen, lost, other, alt)
+			}
+		}
 	}
 }
 
-func TestSectionsToLinesSeparatesWithBlankLines(t *testing.T) {
-	lines := sectionsToLines([]string{"a\nb", "c"}, 10)
+// overflowAt reports how many lines a palier's grid would lose at a height.
+func overflowAt(t *testing.T, m Model, width, height int, at tier) int {
+	t.Helper()
 
-	// Two lines, a separator, then one line.
-	if len(lines) != 4 {
-		t.Fatalf("sectionsToLines returned %d lines, want 4: %q", len(lines), lines)
+	columns := m.columnsFor(at)
+	inner := m.innerHeights(columns, at.columnWidth(width), at)
+
+	tallest := 0
+	for _, col := range columns {
+		if n := len(m.renderColumn(col, at.columnWidth(width), inner, at)); n > tallest {
+			tallest = n
+		}
 	}
-	if strings.TrimSpace(lines[2]) != "" {
-		t.Errorf("line 2 = %q, want the blank separator", lines[2])
+	return max(tallest-height, 0)
+}
+
+// TestNoFactIsUnreachableAtAnyPalier — le palier décide où est un fait, jamais
+// s'il existe. A section that shows at `wide` shows at `compact` too, inline or
+// behind a tab: a fact that vanishes on a small terminal is indistinguishable
+// from a bug.
+func TestNoFactIsUnreachableAtAnyPalier(t *testing.T) {
+	m, _ := loadedModel(t)
+
+	for _, tc := range tierCases {
+		var shown []string
+		for tab := range dashboardTab(tabCountFor(tc.want)) {
+			at := m
+			at.activeTab = tab
+			for _, col := range at.columnsFor(tc.want) {
+				for _, s := range col {
+					shown = append(shown, s.title)
+				}
+			}
+		}
+		for _, s := range append(overviewSections(), resourceSections()...) {
+			if !containsLine(shown, s.title) {
+				t.Errorf("section %q is reachable from no tab on %s", s.title, tc.name)
+			}
+		}
 	}
 }
 
-func TestSectionsToLinesAddsNoTrailingSeparator(t *testing.T) {
-	lines := sectionsToLines([]string{"only"}, 10)
+// TestNoBoxIsReachableFromTwoTabs — un onglet existe pour ce qui n'a pas de vue
+// à lui *et* qui n'est pas déjà à l'écran. À `wide`, la troisième colonne porte
+// les boîtes de Resources : offrir l'onglet en plus donne les mêmes trois
+// boîtes à deux endroits, ce qu'un onglet est censé éviter.
+func TestNoBoxIsReachableFromTwoTabs(t *testing.T) {
+	m, _ := loadedModel(t)
 
-	if len(lines) != 1 {
-		t.Errorf("a single section produced %d lines, want 1: %q", len(lines), lines)
+	for _, tc := range tierCases {
+		owner := map[string]dashboardTab{}
+		for tab := range dashboardTab(tabCountFor(tc.want)) {
+			at := m
+			at.activeTab = tab
+			for _, col := range at.columnsFor(tc.want) {
+				for _, s := range col {
+					if first, seen := owner[s.title]; seen {
+						t.Errorf("on %s, the %q box is on tab %d and tab %d", tc.name, s.title, first, tab)
+						continue
+					}
+					owner[s.title] = tab
+				}
+			}
+		}
 	}
+}
+
+// TestTheResourcesTabIsNotOfferedWhenItsBoxesAreOnScreen — et il ne suffit pas
+// de ne pas le proposer : la touche ne doit rien faire et le raccourci ne doit
+// pas être annoncé (Rule 130).
+func TestTheResourcesTabIsNotOfferedWhenItsBoxesAreOnScreen(t *testing.T) {
+	m, _ := loadedModel(t)
+	m = feed(t, m, tea.WindowSizeMsg{Width: 240, Height: 45}) // tierWide
+
+	if got := plain(m.RenderFooter(240)); strings.Contains(got, "Resources") {
+		t.Errorf("the tab bar still offers Resources while its boxes are on screen:\n%s", got)
+	}
+
+	m = feed(t, m, testutil.Key("tab"))
+	if m.activeTab != tabOverview {
+		t.Errorf("tab moved to %v when there is only one tab", m.activeTab)
+	}
+
+	for _, s := range m.GetShortcuts() {
+		if s.Key == "tab" {
+			t.Error("tab is advertised where it does nothing")
+		}
+	}
+}
+
+// A terminal shrinking back below `wide` gets the tab again; growing into it
+// while on Resources must not strand the view on a tab that no longer exists.
+func TestGrowingIntoWideLeavesTheResourcesTab(t *testing.T) {
+	m, _ := loadedModel(t)
+	m = feed(t, m, tea.WindowSizeMsg{Width: 120, Height: 20}, testutil.Key("tab"))
+	if m.activeTab != tabResources {
+		t.Fatalf("the view is on %v, want the Resources tab before growing", m.activeTab)
+	}
+
+	m = feed(t, m, tea.WindowSizeMsg{Width: 240, Height: 45})
+	if m.activeTab != tabOverview {
+		t.Errorf("growing into wide left the view on %v, a tab that no longer exists", m.activeTab)
+	}
+}
+
+// TestEveryRenderedLineIsExactlyTheViewWidth — Rule 116. Une seule ligne trop
+// longue décale tout ce qui est à sa droite.
+func TestEveryRenderedLineIsExactlyTheViewWidth(t *testing.T) {
+	m, _ := loadedModel(t)
+
+	for _, tc := range tierCases {
+		at := feed(t, m, tea.WindowSizeMsg{Width: tc.width, Height: tc.height})
+		for i, line := range strings.Split(at.View(), "\n") {
+			if got := lipgloss.Width(line); got != tc.width {
+				t.Errorf("on %s, line %d is %d cells wide, want %d", tc.name, i, got, tc.width)
+			}
+		}
+	}
+}
+
+// withNoDocker returns a model told that Docker is absent and GitLab signed
+// out — the "unavailable" state, distinct from "not measured yet".
+func withNoDocker(t *testing.T) Model {
+	t.Helper()
+	m, _ := newTestModel(t)
+	return feed(t, m,
+		StatusCheckMsg{Result: status.MonitorResult{Timestamp: time.Now()}},
+		GitLabStatsMsg{Stats: shared.GitLabStats{}},
+		DockerStatsMsg{Stats: shared.DockerStats{Available: false}},
+		OCIStatsMsg{Stats: shared.OCIStats{Available: false}},
+		WorkspaceStatsMsg{Count: 0},
+		ToolsDetectedMsg{Tools: nil},
+	)
+}
+
+// containsLine reports whether any line carries the substring.
+func containsLine(lines []string, substr string) bool {
+	for _, l := range lines {
+		if strings.Contains(stripANSI(l), stripANSI(substr)) {
+			return true
+		}
+	}
+	return false
+}
+
+// stripANSI removes escape sequences so an assertion compares what is on
+// screen rather than how it is coloured.
+func stripANSI(s string) string {
+	var b strings.Builder
+	inEscape := false
+	for _, r := range s {
+		switch {
+		case r == '\x1b':
+			inEscape = true
+		case inEscape && r == 'm':
+			inEscape = false
+		case !inEscape:
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }

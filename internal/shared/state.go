@@ -33,6 +33,12 @@ type OCIStats struct {
 	ContainersSize  string
 	VolumesCount    int
 	VolumesSize     string
+	// BuildCacheSize is the fourth row of `docker system df`, and the one that
+	// most often answers "where did the disk go".
+	BuildCacheSize string
+	// Reclaimable is what a prune would give back, summed over the three
+	// families. Il vient du même appel que le reste et était jeté.
+	Reclaimable string
 }
 
 // ToolInfo describes an available DevSecOps tool

@@ -47,6 +47,9 @@ func (a *App) renderBody() string {
 	}
 
 	innerWidth := a.viewport.Width - 2 // -2 pour les bordures
+	if a.frameless() {
+		innerWidth = a.viewport.Width
+	}
 	a.viewport.SetContent(lipgloss.NewStyle().
 		Background(theme.ColorBackground).
 		Foreground(theme.ColorText).
@@ -65,14 +68,31 @@ func (a *App) renderBody() string {
 	return body
 }
 
-// renderTitleLine draws the viewport's top border carrying the view's title.
+// renderTitleLine draws the viewport's top border carrying the view's title —
+// or, for a frameless view, a titled rule with no corners: GetTitle() garde un
+// lecteur là où une bordure haute dessinerait le haut d'une boîte inexistante.
 func (a *App) renderTitleLine() string {
+	title := ""
 	if view, ok := a.views[a.currentView]; ok {
 		if hv, implements := view.(HeaderView); implements {
-			return theme.RenderBorderTitle(hv.GetTitle(), a.width)
+			title = hv.GetTitle()
 		}
 	}
-	return theme.RenderBorderTitle("", a.width)
+	if a.frameless() {
+		return theme.RenderTitledRule(title, a.width)
+	}
+	return theme.RenderBorderTitle(title, a.width)
+}
+
+// frameless reports whether the active view draws its own frames (see
+// FramelessView). Le défaut est encadré.
+func (a *App) frameless() bool {
+	view, ok := a.views[a.currentView]
+	if !ok {
+		return false
+	}
+	fv, implements := view.(FramelessView)
+	return implements && fv.Frameless()
 }
 
 // renderViewFooter returns the active view's footer, or "" when it has none.

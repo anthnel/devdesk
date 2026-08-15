@@ -3424,9 +3424,9 @@ Deliberately not done:
 - A member with no prefix produces byte-identical requests to today.
 - A `repo_prefix` on a `kind: group` entry fails `LoadContext` rather than loading.
 
-### 3.19 The dashboard stops reflowing, and gains resource charts
+### 3.19 The dashboard stops reflowing, and gains resource charts — **done**
 
-Not started. Supersedes §3.5. Full plan:
+Supersedes §3.5. Full plan, with what each phase cost:
 [`dashboard-resources-plan.md`](../.claude/plans/dashboard-resources-plan.md).
 
 Two things, and they turn out to be one. The view fills in as its data lands,
@@ -3462,11 +3462,46 @@ viewport gets `height - 11`, so a 30-row terminal cuts the rest **in silence**.
 Hence one `viewport` over the whole content (the idiom in four views already),
 not one per column: two scrolling columns means two cursors.
 
-#### The layout
+#### The layout — no outer frame, four boxes, two tabs, three tiers
 
-Left column text only, right column text plus a chart. At 4K the right column is
+Text-only boxes on one side, chart-bearing boxes on the other. At 4K a column is
 ≈118 cells, and a 100-cell braille chart holds 200 samples — over three minutes
 of history. That is a graph, not an ornament.
+
+**The dashboard is the one view that is not one thing**: every other is a table
+or a form, so its border surrounds one object. Seven heterogeneous cards under a
+single frame say nothing about which value belongs with which. So the router
+grows a frame opt-out — default framed, unlike `HeaderView`'s silent half — and
+the dashboard draws **one titled box per logical group**. `renderTitleLine`
+gives a frameless view a titled rule with no corners, so `GetTitle()` keeps a
+reader.
+
+**Four boxes, because at four the framing is free**: two stacked boxes cost 5
+chrome lines per column against today's 3, and the outer frame gives 2 back. At
+seven it costs six lines on a budget that already truncates in silence. The
+groups regroup by question asked rather than by data source — `Code` (GitLab
+plus workspaces: the explorer creates, workspaces reconciles), `Health`
+(monitors, certificates, security posture), `Host (Windows)` (CPU, RAM, disk,
+tools — this machine's binaries, measured by the same probe), `Docker (VM)`.
+
+**A tab exists only for content with no view of its own.** `Overview` and
+`Resources`; a `Health` tab would be a fourth copy of rows `:status` and `:sec`
+already own.
+
+**The tier decides where a fact is, never whether it exists.** A terminal knows
+columns and rows, not pixels — two font sizes on one 4K screen are two
+terminals. `compact` (<100 wide or <26 high) stacks one column; `standard` fills
+16 lines exactly; `wide` (≥180 × ≥45) opens a **third** column, because two
+columns at 240 cells is framed emptiness. That third column holds the
+`Resources` tab's content, which is what makes the scheme safe: inline at 4K,
+one `Tab` away below it, never absent. One function computes the tier, for the
+same reason `scan.Categorize` alone decides a finding's family.
+
+The overflow is therefore designed away rather than scrolled; the router's
+`viewport` stays only as a safety net below 26 rows. And the sample history
+belongs to the model rather than to the chart: `ntcharts.Resize` rescales its own
+ring buffer, so a tier change would truncate the history at the moment the user
+enlarged the window to see more of it.
 
 #### What was measured, on 2026-08-14
 
@@ -3540,9 +3575,106 @@ Three properties that meet the house rules:
 Free space on the workspaces volume and the Docker root; **reclaimable** Docker
 space, which is already in the `system df` output the view parses and discards;
 security posture from `ImageScanCache` and `WorkspaceScanCache` — targets
-scanned, open CRITICALs, oldest scan — which finally connects the dashboard to
-§3.11's inventory without running one; the nearest certificate expiry, from
-components already in memory; and the refresh age.
+scanned, open CRITICALs, **targets never scanned**, oldest scan — which finally
+connects the dashboard to §3.11's inventory without running one; the nearest
+certificate expiry, from components already in memory; and the refresh age.
+
+The coverage figure took the place of a HIGH tally, and the reason is that it
+**decides something**: it names the targets the whole box says nothing about,
+and the answer is to run a scan. One more HIGH changed no decision the CRITICAL
+above it had not already taken. It is the one figure not read from the caches —
+`readPosture` counts what has been scanned, and the inventory it is subtracted
+from (`docker system df`, the workspaces count) is already in the model, so the
+subtraction happens in the view. It reports `(n, measured)` rather than an `int`:
+an inventory not yet loaded would otherwise render `0`, and *nothing left to
+scan* is the exact opposite of *not known yet*. It is floored at zero, because
+the cache outlives a deleted image.
+
+The Code box carries, under the path it describes, **what that tree occupies** —
+not the volume's fill level. The two answer different questions and only one of
+them is actionable: deleting a workspace gives the space back, whereas the
+volume mixes the workspaces in with everything else on the machine. The Host box
+keeps free space, which is the other half.
+
+That is a `du` by another name, and this same section had removed one — so the
+conditions it comes back under are the point:
+
+- It has **its own command**, off the one-level `os.ReadDir` that counts the
+  workspaces. That count is cheap and has no reason to pay the walk's price.
+- It runs **once per slow round**, not on every dashboard refresh, which is what
+  the removed `du -sh` did.
+- **Never two at once.** `Model.measuringSize` exists only for this: it is the
+  one call in the view that can outlast the interval that triggers it, and a
+  slow round has no way to know. The flag is raised in `Update()` (Rule 110),
+  and lowered by `WorkspaceSizeMsg`.
+- Measured rather than assumed: `C:\Users\anthoni\projects`, 2.38 GiB, **811 ms**
+  cold. Well inside a 30-second round.
+- Nothing is excluded, `.git` included — a clone costs its history as much as its
+  working tree, and the history is usually the heavier half. Symlinks are not
+  followed, which rules out both cycles and double counting.
+- A directory it cannot read makes the result `Partial`, and the node says so.
+  An underreported total with nothing to mark it reads as a measurement.
+
+#### Two columns inside a box
+
+Health and Docker split their lower half in two — `sideBySide`, assembled line by
+line with `PadWithBg` and never `lipgloss.JoinHorizontal`, which inserts bare
+spaces that let the terminal's own background through (Rule 115).
+
+Health's four trees stacked ran to nineteen lines, which made it the tallest box
+of its row and took those lines off the three charts above it. Split, it is
+eleven. The split is by **subject, not by kind**: supervision with the
+repositories it watches, certificates with the images.
+
+Three things the split forced, each of which would be a defect without it:
+
+- **A narrower value column** inside a split box (`narrowTreeLabelWidth`).
+  At 180 columns — the narrowest `wide` — half a box is 27 cells, and the wide
+  column would leave 8 for the value. `3 days ago` is 10.
+- **The certificate's name is gone** from the expiry node, which now hangs from
+  `Certs` rather than floating above the trees. The days are what decide
+  something; `:status` owns the named list.
+- **Both columns pad their first tree to the same height.** The expiry gives the
+  certificates one node more, so without it `Repositories` would open a line
+  above `Images` and the two lower trees would read as a staircase.
+
+A two-cell gutter is taken **off the left column**, not added to the right: a
+value filling its half otherwise touches the next tree's elbow and the two read
+as one.
+
+#### What moved out of duplication
+
+Three figures were in two boxes each, and the second copy was dropped:
+
+| Figure | Was | Now |
+|---|---|---|
+| the workspaces path | Storage's first line, and the Code tree | Code only, under the tree that talks about it |
+| free space | Host's `Disk` row, and Storage's `free` | Storage, which details the volume |
+| image and volume sizes | Docker (VM) as `8 (1.2GB)`, Storage as reclaimable only | Docker counts, Storage sizes |
+
+That last split is the general rule the boxes now follow: **Docker (VM) answers
+"how many", Storage answers "how much space".**
+
+Storage was thin because it read one figure out of `docker system df` and
+discarded the rest. It now carries both trees the command already pays for — the
+volume (capacity, used with its percentage, free) and Docker's own breakdown,
+**build cache included**. That fourth row was parsed, summed into the
+reclaimable total, and its own size thrown away — and it is the one that most
+often answers where the disk went.
+
+#### Un lien symbolique ne pèse rien, et CI l'a dit avant nous
+
+`metrics.Size` ajoutait la taille de l'entrée d'un lien symbolique. WalkDir ne
+suit pas le lien — c'était acquis, et c'est la moitié qui allait de soi — mais ce
+qu'il rend pour lui est la **longueur du chemin qu'il désigne** : la taille d'un
+arbre bougeait donc quand on renommait un dossier ailleurs. Le parcours ne
+compte plus que les fichiers réguliers.
+
+Ce qui compte autant que le défaut : `TestSizeDoesNotFollowSymlinks` existait, et
+il **se saute sous Windows**, où créer un lien demande un privilège que le compte
+de test n'a pas. Il n'a donc jamais tourné sur la machine de développement, et
+c'est CI — Linux — qui l'a exécuté pour la première fois. Un test qui se saute
+sur la seule machine où on le lance ne dit rien du tout, et rien ne le signale.
 
 Deferred: workspace hygiene (`3 dirty, 2 behind`, §3.17). Right data, but the
 walk cost grows with the repository count. Rejected: listening ports — `ss`
@@ -3593,6 +3725,10 @@ v1 stack for a dependency on a fork.
   exactly the column width (Rule 116).
 - Load average is displayed nowhere — pins the Windows trap against someone
   re-adding it because it works on Linux.
+- Every fact rendered at `wide` is present, inline or in a tab, at `compact`;
+  and the overview fits at 30 rows without the safety-net viewport scrolling.
+- Only the dashboard is frameless — the router's opt-out stays an exception
+  rather than a habit.
 
 ---
 
