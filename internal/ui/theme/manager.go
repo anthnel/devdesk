@@ -234,6 +234,12 @@ func ApplyTheme(t *Theme) {
 
 	ColorCmdLineFg = applyColor(t.CmdLineFg, ColorHighlight)
 	ColorCmdLineBg = applyColor(t.CmdLineBg, ColorCmdLineBg)
+
+	// Le fond d'un graphe est celui de la ligne de commande : c'est la surface
+	// « un cran plus claire » que chaque thème définit déjà, donc un graphe se
+	// détache du reste de sa boîte sans qu'aucun thème ait à déclarer une
+	// couleur de plus.
+	ColorChartBg = ColorCmdLineBg
 	ColorCmdLineInactiveFg = applyColor(t.CmdLineInactiveFg, ColorDim)
 
 	ColorViewportBorder = applyColor(t.ViewportBorder, ColorBorder)

@@ -10,9 +10,11 @@ has no row to hang one on.
 
 | | Decision |
 |---|---|
-| Layout | Two columns. **Left is text only, right is text plus a chart.** |
+| Frame | **No outer viewport border.** One titled box per logical group, four of them. |
+| Layout | A grid, tiered on the terminal's size. **Text-only boxes left, chart-bearing boxes right.** |
 | Skeleton | A section declares its height and fills it. Data changes values, never line count. |
-| Overflow | The whole content scrolls in one `viewport`. Not one per column. |
+| Tabs | `Overview` and `Resources`. A tab exists only for content that has no view of its own. |
+| Overflow | Designed away, not scrolled. The `viewport` stays as a safety net below 26 rows. |
 | Host metrics | `shirou/gopsutil/v4` |
 | Charts | `NimbleMarkets/ntcharts` **v0.5.1**, not v2 |
 | Bubble Tea v2 | **Out of scope.** Separate phase, after this ships. |
@@ -139,6 +141,169 @@ contains `microsoft`) and to be **stated in the section label**, not hidden.
 
 ---
 
+## The frame, the groups, the tabs and the tiers
+
+Decided in review, before phase 1 was written. Three questions, and they answer
+each other.
+
+### The dashboard is the one view that is not one thing
+
+Every other view is a table or a form, so one border around it is a border
+around one object. The dashboard is seven heterogeneous cards, and a single
+frame around them says nothing about which value belongs with which. So: **no
+outer frame, one titled box per logical group.**
+
+The frame is not the view's to remove — `app/view.go:19` stacks
+`renderHeader()` + `renderTitleLine()` (the top border carrying `GetTitle()`) and
+`viewportStyle()` (`app.go:97`) draws the other three sides. Drawing boxes inside
+the viewport gives a box in a box. So the router grows an opt-out, and its
+default — framed — is the safe one, unlike `HeaderView`, whose missing half
+renders an empty title in silence. `renderTitleLine` draws a **titled rule with
+no corners** for a frameless view (`󰕮 Dashboard ──────`), so `GetTitle()` keeps
+a reader and the `HeaderView` contract stays true.
+
+### Four boxes, because the arithmetic says four
+
+`resize()` hands the view `height - 13`: **17 lines on a 30-row terminal**, and
+this plan already establishes the budget is overspent.
+
+| Chrome, per column | Lines |
+|---|---|
+| Today — 4 sections, 3 blank separators | 3 |
+| Two stacked boxes — 2 borders each, 1 separator | 5, less the 2 the outer frame gives back → **≈ neutral** |
+| Three or four stacked boxes | +4 to +6, on a budget that already truncates in silence |
+
+Boxes are free at four and expensive at seven.
+
+**A box's height is derived from the sections on screen, not declared by the
+tier** — decided while wiring it. A constant (6 at `standard`, 8 at `wide`) is a
+number phase 3 would have to remember to raise, and the failure is invisible: an
+over-long section is truncated inside a box that still looks well formed. The
+frame takes the height of its tallest section instead, so a chart added later
+simply makes every box on screen taller. What stays fixed is phase 1's actual
+contract — a section renders the same number of lines whatever its data.
+
+Growing the boxes to fill a tall terminal was considered and **rejected for
+now**: with 24 facts and no charts it trades empty screen for empty boxes. The
+slack is phase 3's to spend.
+
+The groups regroup by **question asked**, not by data source — which is what the
+current seven sections do:
+
+| Box | Contents | Column |
+|---|---|---|
+| ` Code` | GitLab session, MRs assigned / to review, issues, workspace count, free space | text |
+| `󰒃 Health` | monitors up/down, certificates and nearest expiry, security posture (targets, open CRITICALs, oldest scan) | text |
+| `󰒋 Host (Windows)` | CPU and RAM chart, disk, detected tools | chart |
+| `󰡨 Docker (VM)` | containers by state, images/volumes, reclaimable, CPU and RAM chart | chart |
+
+Two of those merges carry the argument. **Workspaces joins GitLab**: the explorer
+creates what does not exist and workspaces reconciles what does — one subject
+seen from both ends. **Tools joins Host**: they are this machine's binaries,
+measured by the same probe. That is what takes seven sections to four without
+dropping a fact.
+
+### A tab exists only for content with no view of its own
+
+Tabs remove the overflow instead of scrolling it, which is the better answer: a
+dashboard that scrolls is not a glance, it is a page. The cost is one line — the
+footer goes from 2 to 3 (Rule 124) — leaving **16 lines at 30 rows**, which a
+2×2 of six-line boxes fills exactly. So the inner height is a tested constant,
+not an estimate.
+
+The trap is a `Health` tab reprinting the monitors and a `Security` tab
+reprinting the inventory: `:status` and `:sec` own those rows, and a fourth copy
+is a fourth thing to keep in step. Hence the rule in the heading. By it, exactly
+one tab joins `Overview` today:
+
+| Tab | Contents | Why it earns itself |
+|---|---|---|
+| `Overview` | the four boxes, aggregates only | it is the dashboard |
+| `Resources` | host and Docker series in detail — braille, RX/TX, disk per volume, reclaimable breakdown, and the tool list | **nothing else shows this**: there is no `:host`, and `:containers` shows a container, not the machine |
+
+The **tool list** is there rather than on the Overview for the same reason: the
+Host box answers "can I scan?" with a count, and *which* tool is missing is a
+detail of the machine. An undetected tool keeps its line and reads `-`, since
+dropping it would read as "there are only four".
+
+**At `wide` the Resources tab is not offered at all** — reported from use, after
+a first attempt kept it. The third column already carries its three boxes, so
+offering the tab as well puts the same boxes in two places, which is precisely
+what a tab is meant to avoid. The rule completes itself: a tab exists only for
+content that has no view of its own **and is not already on screen**. Growing a
+terminal into `wide` while on Resources returns to the Overview rather than
+stranding the view on a tab that no longer exists, `tab` does nothing, and
+Rule 130 takes the shortcut off the header.
+
+**The tab *bar* is still drawn at every tier**, showing one tab at `wide`: the
+router asks a view for its footer height *before* handing it its new size
+(`app.go:205`), so a line that appeared with the tier would lag one resize
+behind the boundary that summons it.
+
+### The tier decides where a fact is, never whether it exists
+
+A terminal does not know it is 4K — it knows columns and rows, and two font
+sizes on one screen are two terminals. The tier is therefore computed from
+`tea.WindowSizeMsg`, on both dimensions separately: width decides the column
+count and the chart kind, height decides what fits.
+
+| Tier | Condition | Layout |
+|---|---|---|
+| `compact` | width < 100 **or** height < 16 | one column, four stacked boxes, one-line sparkline |
+| `standard` | ≥ 100 × ≥ 16 | 2×2 grid, block charts, 3 rows — the HD target |
+| `wide` | ≥ 180 × ≥ 30 | **three columns**, braille 4 rows, RX/TX inline, detailed breakdown |
+
+The heights are **content lines, not terminal rows**: the view is handed what the
+router leaves it — header 9, title line 1, footer 3. Expressing them any other
+way would make the view guess at a number the router already knows.
+
+**Only `wide` reads the height, and a test imposed that.** Dropping columns as a
+terminal shortens is backwards: fewer columns means more boxes stacked, which
+needs *more* height, not less. At twelve content lines a 2×2 loses six lines and
+a single column loses twenty-four. `TestTheChosenPalierLosesTheFewestLines`
+compares each palier's loss against the alternative's at every height, and it is
+what caught the inversion.
+
+That test exists because **the router's viewport does not scroll**: nothing
+forwards a key to it, so what overflows is lost silently rather than pushed
+below a scrollbar. Calling it a safety net, as this plan first did, was wrong.
+Below `gridHeight()` no layout fits and the palier stops choosing the best one
+and starts choosing the least bad.
+
+At 240 columns two columns give 118-cell boxes to write `MRs 3 assigned` in;
+that is framed emptiness. Three columns of ≈78 are the answer to a 4K terminal.
+
+**And the third column is the `Resources` tab.** That is what makes the tier
+system safe: the same content is inline at `wide` and one `Tab` away below it.
+Nothing is ever unreachable, and nothing is written twice — a fact that vanishes
+at a small size is indistinguishable from a bug, which is the defect phase 1
+exists to remove.
+
+Two consequences for the code:
+
+- **One place computes the tier** (`layoutTier(w, h)`); no renderer decides its
+  own. Same reasoning as `scan.Categorize` being the only thing that decides a
+  finding's family: two tier rules, and the boxes of one grid stop agreeing on
+  their height.
+- **The sample history belongs to the model, not to the chart.**
+  `ntcharts.Resize` rescales its own ring buffer, so a `standard` → `wide`
+  change truncates the history at the exact moment the user enlarged the window
+  to see more of it. The dashboard keeps N samples and calls `PushAll` after a
+  tier change — which means `HostSample` is not only the latest reading.
+
+### Tests this adds
+
+- `TestTheOverviewFitsWithoutScrollingAt30Rows` — the viewport is a safety net,
+  not the reading mechanism.
+- `TestNoFactIsUnreachableAtAnyTier` — every fact rendered at `wide` is present,
+  inline or in a tab, at `compact`.
+- `TestOnlyTheDashboardIsFrameless` — the router's opt-out stays a deliberate
+  exception rather than a habit.
+- `TestATierChangeKeepsTheChartHistory` — pins `PushAll` against the `Resize`
+  truncation.
+
+---
+
 ## Phase 1 — the skeleton stops moving
 
 ### The rule
@@ -170,11 +335,16 @@ placeholder scheme costs.
 
 ### Scroll
 
-One `viewport` over the whole content. `bubbles/viewport` is already the house
-idiom (`containers`, `netdiag` ×2, `security`), so this introduces no new
-mechanism.
+**Superseded by the tiers — and there is no scroll to fall back on.** The
+router's `viewport` receives no key, so it never scrolls: overflow is silently
+cut. The overflow therefore has to be designed away rather than absorbed.
 
-Not one viewport per column: two independently scrolling columns means two
+A box costs `theme.BoxChrome` = 3 lines (two borders plus the blank line under
+the title), so a two-row grid needs `gridHeight()` = 18 content lines, i.e. a
+31-row terminal. `TestTheOverviewFitsAtTheHeightItNeeds` pins that number and
+fails if the arithmetic and the documentation drift apart.
+
+Never one viewport per column: two independently scrolling columns means two
 cursors and a reading position that cannot be described.
 
 ### Tests
@@ -188,7 +358,7 @@ cursors and a reading position that cannot be described.
 
 ---
 
-## Phase 2 — the metrics
+## Phase 2 — the metrics — **done**
 
 `internal/metrics`, a package of its own, deliberately not inside `docker/` or
 `ui/`. It owns sampling and rate computation; the view owns display.
@@ -204,6 +374,16 @@ type HostSample struct {
     HasRate     bool      // false on the first sample — the view prints `-`
 }
 ```
+
+**The package keeps no state, and that was decided by Rule 110.** A rate needs
+the previous cumulative reading, and holding it in the package would mean a
+`Cmd` mutating shared state — two overlapping samples would then compute a rate
+against the wrong instant. So `SampleHost(prev Counters) (HostSample, Counters)`
+takes the previous counters and returns the next: the state travels on the
+message, the model stores it, and `Update` is still the only writer.
+
+`docker.FetchAggregateMetrics()` sums the running containers' CPU and memory
+shares on top of the existing `GetContainerMetrics`.
 
 `disk.Usage` is queried for the workspaces volume and the Docker root, and stays
 on the slow clock: free space does not move in a second.
@@ -233,39 +413,86 @@ tick driving all three is what makes the expensive call follow the cheap one.
   and the view must not print `0`.
 - `TestARateSurvivesACounterReset` — an interface reset makes the delta
   negative; the sample is dropped, not rendered as a negative throughput.
-- `TestLoadAverageIsNeverDisplayed` — pins the Windows trap so nobody adds it
-  back on the strength of it "working on Linux".
+- `TestLoadAverageIsDisplayedNowhere` — pins the Windows trap so nobody adds it
+  back on the strength of it "working on Linux". **It parses imports rather than
+  grepping text**: a grep would forbid the comments that explain the decision,
+  which are the only thing keeping it alive.
+- `TestEachClockRearmsItself` — a clock that stops after one tick leaves frozen
+  values that look like values.
+- `TestTheModelKeepsTheSampleHistoryBounded` — the history belongs to the model,
+  and keeps its newest end.
+
+### What was dropped, and what replaced it
+
+`calculateDiskUsage` (`du -sh` over the workspaces tree) is **gone**, with
+`WorkspaceStatsMsg.DiskSize`: an unfilled field reads as a value someone forgot
+to display. The tree's own size is therefore no longer shown anywhere; free
+space on its volume is, at 1 ms instead of seconds, and it is the question the
+dashboard was actually being asked.
 
 ---
 
-## Phase 3 — the charts
+## Phase 3 — the charts — **done**
 
 `internal/ui/dashboard/chart.go` wraps `ntcharts` so the view never touches it
 directly, and so `Draw()`/`DrawColumnsOnly()` cannot be chosen at a call site.
 
+**The chart keeps no history, and that turned out to settle two problems at
+once.** It is rebuilt from the model's samples on every frame, so there is no
+`Push` to place in `Update` — Rule 110 holds by construction rather than by
+review — and the `Resize` truncation the tier section warns about cannot happen,
+because ntcharts never owns the history it would rescale.
+
+A chart **replaces a blank line** at `standard` rather than adding one: the
+grid there is exactly 16 lines, so a chart that grew the box would make the
+overview scroll. At `wide` it takes four lines and braille.
+
 At 4K the right column is ≈118 cells: a braille chart of 100 cells holds 200
 samples, over three minutes of history. That is a graph, not an ornament.
 
-Width tiers, one definition:
+**At `wide` the three chart boxes hold the first row and share one order** —
+CPU, its curve, RAM, its curve — so the curves fall on the same lines from one
+column to the next and can be compared without hunting for which is which. It
+also keeps a row from mixing a two-curve box with a text box, which would leave
+the taller of the two padding the shorter.
 
-| Column width | Chart |
+**The chart height is measured, not derived.** `fitCharts` renders the grid once
+with no curve at all, and what remains between that skeleton and the available
+height is what the curves may occupy. Constants describing the text heights were
+right the day they were written and wrong the moment a box gained a line — which
+happened to Health the same day it became a tree. The floor is one line, not
+three: a braille curve wants three to beat a sparkline, but forcing three where
+two fit overflows the grid, and what overflows is lost rather than pushed down.
+
+The chart kind follows the layout tier — it is not a second tier system, and
+`layoutTier(w, h)` is the only thing that decides:
+
+| Tier | Chart |
 |---|---|
-| ≥ 60 | braille, 4 rows |
-| 30–59 | blocks, 3 rows |
-| < 30 | one-line sparkline |
+| `wide` | braille, 4 rows |
+| `standard` | blocks, 3 rows |
+| `compact` | one-line sparkline |
 
-Below the tier where the right column can still hold a chart, it stacks under
-the left column rather than crushing both.
+At `compact` the chart-bearing boxes stack under the text ones rather than
+crushing both into half a terminal.
 
 ### Tests
 
 - `TestAChartLineIsExactlyTheColumnWidth` — Rule 116.
 - `TestEveryChartCellCarriesABackground` — Rule 115, the `DrawColumnsOnly` trap.
-- `TestSamplesArePushedInUpdateOnly` — Rule 110.
+  **It forces the colour profile for the duration of the test**: `go test` has no
+  TTY, so lipgloss degrades to Ascii and drops every escape — a test looking for
+  styling without that would pass with `DrawColumnsOnly` too. Confirmed to fail
+  when the call is swapped.
+- `TestNothingCallsDrawColumnsOnly` — the same invariant from the source side,
+  on calls rather than on text, so the comment explaining the trap may name it.
+- `TestAChartIsRebuiltFromTheModelRatherThanKeptByTheWidget` — Rule 110: two
+  renderings of one model are identical and rendering does not touch the model.
+- `TestAChartDoesNotGrowTheBoxAtStandard` — the 16-line budget.
 
 ---
 
-## Phase 4 — what the dashboard starts saying
+## Phase 4 — what the dashboard starts saying — **done**
 
 Ordered by value per unit of cost:
 
@@ -288,6 +515,35 @@ it belongs on the slow clock at best. Out of this plan.
 
 **Rejected**: listening-port count. `ss` needs a privileged container; too
 expensive for a view that refreshes itself.
+
+### What the wiring cost
+
+**The Health box lost its blank separator to the expiry line**, and the test is
+what decided it: a seventh row took the grid to 19 lines against the 17 a 30-row
+terminal leaves, so `TestTheOverviewFitsWithoutScrollingAt30Rows` failed. The
+box is six rows — Monitors, Certs, Expiry, Scanned, Critical, Oldest — because
+the budget is six.
+
+**Three distinctions that each needed their own state**, and each is a test:
+
+- an *unread* posture is not an *empty* one — the caches unread print `-`, an
+  empty cache prints a measured `0`;
+- an entry with **no timestamp does not become the oldest scan**: `time.Time`'s
+  zero precedes everything and would make a scanned inventory read as never
+  scanned;
+- SSL monitors none of which could be **read** print `-`, not a distant expiry.
+
+**`docker system df` already carried the reclaimable figure**; only the format
+string had to ask for it. The percentage Docker attaches to each size is
+relative to its own family and is dropped — it would not survive the sum. The
+total is formatted with `docker.formatSize`, in Docker's decimal units rather
+than binary ones, because the number exists to be compared with what
+`docker system df` prints.
+
+**Deferred: free space on the Docker root.** It needs `docker info` for the path,
+and on Docker Desktop that path lives inside the VM, so `disk.Usage` cannot
+reach it from the host — an extra call that would read `n/a` on this machine
+every time.
 
 ---
 

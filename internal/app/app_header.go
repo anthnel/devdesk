@@ -24,6 +24,17 @@ type FooterView interface {
 	RenderFooter(width int) string // rendered footer content
 }
 
+// FramelessView is implemented by a view that draws its own frames and wants
+// none around it. Le défaut — encadré — est le comportement sûr : une vue qui
+// n'implémente pas ça est encadrée comme toutes les autres, contrairement à
+// HeaderView dont la moitié manquante rend un titre vide en silence.
+//
+// Une seule vue l'implémente (le dashboard), et c'est délibéré : toutes les
+// autres encadrent un objet unique — une table, un formulaire.
+type FramelessView interface {
+	Frameless() bool
+}
+
 // headerMinHeight est la hauteur fixe du header (sans la ligne de commande).
 const headerMinHeight = 7
 

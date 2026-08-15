@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"log"
 	"strconv"
 	"strings"
 )
@@ -113,6 +114,36 @@ func GetContainerMetrics() (map[string]Container, error) {
 	}
 
 	return metrics, nil
+}
+
+// Aggregate is what every running container adds up to. Il est mesuré *dans*
+// la VM Docker quand DevDesk tourne sur Windows ou macOS, donc il n'est pas
+// additionnable avec les chiffres de l'hôte : c'est un sous-ensemble, et les
+// deux sections le disent dans leur titre.
+type Aggregate struct {
+	Available  bool
+	Running    int
+	CPUPercent float64
+	MemPercent float64
+}
+
+// FetchAggregateMetrics sums the running containers' CPU and memory shares.
+//
+// `docker stats --no-stream` coûte environ deux secondes, mesuré : c'est ce qui
+// lui vaut une horloge à lui plutôt qu'un tour dans le rafraîchissement rapide.
+func FetchAggregateMetrics() Aggregate {
+	metrics, err := GetContainerMetrics()
+	if err != nil {
+		log.Printf("ERROR [docker] aggregate metrics: %v", err)
+		return Aggregate{}
+	}
+
+	agg := Aggregate{Available: true, Running: len(metrics)}
+	for _, c := range metrics {
+		agg.CPUPercent += c.CPUPercent
+		agg.MemPercent += c.MemPercent
+	}
+	return agg
 }
 
 // StopContainer stops a container by ID

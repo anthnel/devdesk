@@ -28,6 +28,38 @@ func TestFetchOCIStatsParsesEachResourceType(t *testing.T) {
 	if got.VolumesCount != 7 || got.VolumesSize != "400MB" {
 		t.Errorf("volumes = %d/%q, want 7/\"400MB\"", got.VolumesCount, got.VolumesSize)
 	}
+	// Le cache de build entrait dans la somme du récupérable, mais sa taille
+	// propre était jetée — or c'est elle qui répond le plus souvent à « où est
+	// passé le disque ».
+	if got.BuildCacheSize != "2GB" {
+		t.Errorf("BuildCacheSize = %q, want %q", got.BuildCacheSize, "2GB")
+	}
+}
+
+// Le reclaimable est sommé sur les trois familles, et le pourcentage que Docker
+// accole à chaque taille est relatif à sa propre famille : il ne survivrait pas
+// à l'addition, donc il est écarté.
+func TestFetchOCIStatsSumsTheReclaimableSpace(t *testing.T) {
+	stubOutput(t, "system",
+		"Images\t12\t1.5GB\t1.2GB (80%)\n"+
+			"Containers\t3\t250MB\t250MB (100%)\n"+
+			"Local Volumes\t7\t400MB\t0B (0%)\n"+
+			"Build Cache\t20\t2GB\t2GB (100%)\n")
+
+	// 1.2GB + 250MB + 0 + 2GB, en unités décimales comme docker system df.
+	if got := FetchOCIStats().Reclaimable; got != "3.5GB" {
+		t.Errorf("Reclaimable = %q, want %q", got, "3.5GB")
+	}
+}
+
+// Un daemon qui ne rend pas la colonne — un format plus ancien — ne doit pas
+// produire un "0B" qui se lirait comme « rien à récupérer ».
+func TestAMissingReclaimableColumnIsNotZero(t *testing.T) {
+	stubOutput(t, "system", "Images\t12\t1.5GB\nContainers\t3\t250MB\n")
+
+	if got := FetchOCIStats().Reclaimable; got != "" {
+		t.Errorf("Reclaimable = %q with no column in the output, want empty", got)
+	}
 }
 
 // The dashboard renders these counters unconditionally, so a host without
