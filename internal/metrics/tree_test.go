@@ -60,8 +60,13 @@ func TestAMissingPathIsNotAnEmptyTree(t *testing.T) {
 	}
 }
 
-// Un lien symbolique n'est pas suivi : sa cible serait comptée deux fois si elle
-// est déjà dans l'arbre, et un cycle ne terminerait jamais.
+// Un lien symbolique ne compte pour rien, et c'est deux choses plutôt qu'une.
+// Sa cible n'est pas suivie — elle serait comptée deux fois si elle est déjà
+// dans l'arbre, et un cycle ne terminerait jamais. Mais son entrée à lui ne
+// compte pas non plus : WalkDir en rend la longueur du chemin désigné, donc la
+// taille de l'arbre bougerait au gré d'un renommage ailleurs. C'est la seconde
+// moitié qui manquait, et elle ne pouvait pas se voir sous Windows, où ce test
+// se saute.
 func TestSizeDoesNotFollowSymlinks(t *testing.T) {
 	root := t.TempDir()
 	write(t, filepath.Join(root, "data", "big.bin"), 5000)
@@ -76,6 +81,6 @@ func TestSizeDoesNotFollowSymlinks(t *testing.T) {
 	}
 
 	if got := Size(root); got.Bytes != 5000 {
-		t.Errorf("Size = %d bytes, want 5000 — the symlinked copy was counted again", got.Bytes)
+		t.Errorf("Size = %d bytes, want 5000 — the link weighed, by its target or by itself", got.Bytes)
 	}
 }

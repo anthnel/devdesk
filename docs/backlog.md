@@ -3662,6 +3662,20 @@ volume (capacity, used with its percentage, free) and Docker's own breakdown,
 reclaimable total, and its own size thrown away — and it is the one that most
 often answers where the disk went.
 
+#### Un lien symbolique ne pèse rien, et CI l'a dit avant nous
+
+`metrics.Size` ajoutait la taille de l'entrée d'un lien symbolique. WalkDir ne
+suit pas le lien — c'était acquis, et c'est la moitié qui allait de soi — mais ce
+qu'il rend pour lui est la **longueur du chemin qu'il désigne** : la taille d'un
+arbre bougeait donc quand on renommait un dossier ailleurs. Le parcours ne
+compte plus que les fichiers réguliers.
+
+Ce qui compte autant que le défaut : `TestSizeDoesNotFollowSymlinks` existait, et
+il **se saute sous Windows**, où créer un lien demande un privilège que le compte
+de test n'a pas. Il n'a donc jamais tourné sur la machine de développement, et
+c'est CI — Linux — qui l'a exécuté pour la première fois. Un test qui se saute
+sur la seule machine où on le lance ne dit rien du tout, et rien ne le signale.
+
 Deferred: workspace hygiene (`3 dirty, 2 behind`, §3.17). Right data, but the
 walk cost grows with the repository count. Rejected: listening ports — `ss`
 needs a privileged container.

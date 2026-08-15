@@ -45,7 +45,13 @@ func Size(path string) TreeSize {
 			}
 			return nil
 		}
-		if d.IsDir() {
+		// Seuls les fichiers réguliers portent des octets. Un dossier renvoie nil
+		// pour que le parcours y descende ; un lien symbolique, lui, ne doit pas
+		// compter pour autant : ce que WalkDir mesure sur un lien est la longueur
+		// du chemin qu'il désigne, donc la taille de l'arbre bougerait au gré
+		// d'un renommage ailleurs. Sa cible n'est pas comptée non plus — c'est
+		// tout l'objet de ne pas le suivre.
+		if !d.Type().IsRegular() {
 			return nil
 		}
 		info, err := d.Info()
