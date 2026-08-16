@@ -4100,12 +4100,74 @@ documentait. Il porte les deux maintenant.
 **Prune a sa propre ligne**, dans les quatre onglets : il n'agit sur aucune
 ligne, donc marquer toutes les lignes dirait faux.
 
-**`workspaces` est laissé en dehors, et c'est un choix.** Il avait déjà tout
-ça, à sa façon (`scanningPaths`, `syncingPaths`, `busy(path)`) — c'est même de
-là que vient le design. Sa seule action restante est un `os.RemoveAll` local, et
-le migrer serait refactorer du code qui marche sur la seule notion d'occupé qui
-n'est *pas* « un objet, une action » : scan et sync s'excluent à travers des
-chemins imbriqués.
+**`workspaces` est laissé en dehors, et c'est un choix** — les raisons, et ce
+qui resterait à faire, sont en
+[§3.23](#323-workspaces-et-la-notion-doccupé--deux-mécanismes-pour-une-question).
+
+---
+
+### 3.23 `workspaces` et la notion d'occupé — deux mécanismes pour une question
+
+Sorti de §3.22 : les six autres tables passent par `datatable`, `workspaces`
+garde le sien. Ce n'est pas un oubli — c'est la vue **d'où vient le design**,
+et elle est aussi la seule où le remplacement n'est pas mécanique.
+
+#### Ce qu'elle a déjà, et qui marche
+
+| | |
+|---|---|
+| `scanningPaths`, `syncingPaths` | deux maps de chemins absolus, tenues séparées **exprès** : savoir laquelle détient le dépôt est ce qui permet à la vue de le dire |
+| `busy(path)` | le garde-fou, avec un message unique (`busyMessage`) — la réponse de l'utilisateur est la même dans les deux cas : attendre |
+| le spinner | dans la cellule Git Status pour un sync, Scanned pour un scan |
+| `syncStatusLine` | la ligne de progression, rendue depuis l'état du run et non posée en `footerInfo`, dont le timer de 3 s expirerait au milieu d'un lot |
+
+Autrement dit : §3.22 a généralisé ce que cette vue faisait déjà. La dette
+n'est pas qu'il lui manque quelque chose, c'est qu'il y a **deux
+implémentations de la même idée** dans l'application.
+
+#### Le vrai trou, et il est petit
+
+**La suppression n'est pas couverte.** `handleConfirmDelete`
+(`update.go:431`) appelle `deleteEntry` et retourne sans rien marquer — le
+défaut exact de §3.22, sur la seule action de cette vue que sa propre
+machinerie ne connaît pas. `deleteEntry` fait un `os.RemoveAll` récursif, ce
+qui n'est instantané que sur un petit répertoire : un `node_modules` ou un
+dépôt de plusieurs Go prend des secondes, et rien ne le dit. Il n'y a pas non
+plus de garde-fou, donc un second `ctrl+d` lance un second `os.RemoveAll` dont
+l'échec sera rapporté à l'utilisateur alors que la suppression a réussi.
+
+C'est réparable **sans rien migrer** : `Key` sur le chemin, la cellule dépensée
+étant `Git Status` (un répertoire en train de disparaître n'a plus de statut
+git à annoncer), et `busy(path)` étendu à un troisième cas.
+
+#### Pourquoi la migration complète n'est pas mécanique
+
+`datatable.MarkBusy` répond à « un objet, une action ». Ici la notion est
+autre :
+
+- **Scan et sync s'excluent mutuellement par dépôt**, et la vue doit dire
+  *lequel* des deux détient le chemin. Une map unique `key → label` porterait
+  le libellé mais pas la distinction que `busy()` exploite.
+- **Le sync vise un arbre, pas une ligne.** `s` sur un répertoire simple
+  synchronise tous les dépôts imbriqués dessous : un appui marque N chemins qui
+  ne sont pas tous des lignes visibles au même niveau de drill-down.
+- **Le spinner ne va pas dans la même cellule** selon l'opération : `rowsFor`
+  (`columns.go:133`) écrit `frame + " syncing"` dans Git Status pour un sync, et
+  `formatScanColumns` décore les colonnes de scan pour un scan — alors que
+  `StatusColumn` est unique par table.
+
+Aucun de ces trois points n'est rédhibitoire, mais chacun demande une décision
+plutôt qu'un remplacement, et les trois portent sur du code qui fonctionne. Le
+risque de régression est réel et le gain visible est nul.
+
+#### Découpage proposé
+
+1. **La suppression d'abord**, seule, parce que c'est le seul défaut
+   observable — et elle ne demande aucune décision.
+2. **Ensuite seulement**, décider si `datatable` doit apprendre l'exclusion
+   mutuelle et la colonne variable, ou si `workspaces` reste l'exception
+   documentée. La deuxième réponse est légitime : une exception qui s'explique
+   en trois lignes coûte moins qu'une abstraction qui porte un cas unique.
 
 ---
 
