@@ -177,18 +177,6 @@ func (m Model) handleRegistriesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.enterSelectedGroup()
 	case "left", "esc":
 		return m.leaveGroup()
-	case "up", "k":
-		m.registryTable.MoveUp(1)
-		return m, nil
-	case "down", "j":
-		m.registryTable.MoveDown(1)
-		return m, nil
-	case "g", "home":
-		m.registryTable.GotoTop()
-		return m, nil
-	case "G", "end":
-		m.registryTable.GotoBottom()
-		return m, nil
 	}
-	return m, nil
+	return m, m.registryTable.Update(msg)
 }

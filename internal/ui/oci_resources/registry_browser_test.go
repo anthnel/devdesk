@@ -475,7 +475,7 @@ func TestTheMembersColumnShowsTheCountAndTheAge(t *testing.T) {
 		},
 	}})
 
-	rows := m.registryTable.Rows()
+	rows := m.registryTable.Table().Rows()
 	if len(rows) != 2 {
 		t.Fatalf("got %d rows, want the two configured registries", len(rows))
 	}
@@ -496,7 +496,7 @@ func TestAGroupNeverDiscoveredSaysSo(t *testing.T) {
 	m := registriesTab(t)
 
 	const members = 5
-	if got := m.registryTable.Rows()[0][members]; got != "never" {
+	if got := m.registryTable.Table().Rows()[0][members]; got != "never" {
 		t.Errorf("Members = %q for a group with no cached discovery, want %q", got, "never")
 	}
 }
@@ -512,7 +512,7 @@ func TestCtrlRRefreshesTheSelectedGroup(t *testing.T) {
 		t.Error("ctrl+r on a group row started no refresh")
 	}
 	const members = 5
-	if got := m.registryTable.Rows()[0][members]; !strings.Contains(got, "refreshing") {
+	if got := m.registryTable.Table().Rows()[0][members]; !strings.Contains(got, "refreshing") {
 		t.Errorf("Members = %q while refreshing, want it to say so", got)
 	}
 }
@@ -520,7 +520,7 @@ func TestCtrlRRefreshesTheSelectedGroup(t *testing.T) {
 // A plain registry has nothing to discover, so ctrl+r must not pretend to.
 func TestCtrlROnAPlainRegistryStartsNoDiscovery(t *testing.T) {
 	m := registriesTab(t)
-	m.registryTable.MoveDown(1) // docker.io
+	m.registryTable.Update(testutil.Key("down")) // docker.io
 
 	m = feed(t, m, testutil.Key("ctrl+r"))
 
@@ -582,7 +582,7 @@ func TestTheGroupRefreshShortcutFollowsTheSelectedRow(t *testing.T) {
 		t.Error("no group-refresh shortcut is offered on a group row")
 	}
 
-	m.registryTable.MoveDown(1) // docker.io, a plain registry
+	m.registryTable.Update(testutil.Key("down")) // docker.io, a plain registry
 	if hasShortcut(m, "Refresh group members") {
 		t.Error("the group-refresh shortcut is offered on a registry with no members")
 	}
@@ -733,11 +733,11 @@ func TestEnteringAGroupListsItsMembers(t *testing.T) {
 	if m.registryGroupSlug != "prod" {
 		t.Fatalf("registryGroupSlug = %q, want the group entered", m.registryGroupSlug)
 	}
-	if got := cells(m.registryTable.Rows(), 0); !equal(got, []string{"docker-hosted", "dhi"}) {
+	if got := cells(m.registryTable.Table().Rows(), 0); !equal(got, []string{"docker-hosted", "dhi"}) {
 		t.Errorf("the table holds %v, want the group's members", got)
 	}
 	// A member is not a config entry: its credentials are the group's.
-	if got := m.registryTable.Rows()[0][3]; got != config.AuthInherit {
+	if got := m.registryTable.Table().Rows()[0][3]; got != config.AuthInherit {
 		t.Errorf("a member's Auth reads %q, want %q", got, config.AuthInherit)
 	}
 	if crumb := m.renderRegistryBreadcrumb(120); !strings.Contains(crumb, "prod") {
@@ -820,5 +820,62 @@ func TestTheSelectionIsWrittenToDisk(t *testing.T) {
 
 	if !msg.Deselected["docker.io"] {
 		t.Errorf("Deselected = %v after a save, want the entry that was unchecked", msg.Deselected)
+	}
+}
+
+// ── The Registries table after §3.21 ─────────────────────────────────────────
+
+// Rule 116, now the solver's job: the copy written out here clamped URL at 20
+// *after* the remainder had been computed, which pushes the sum back over the
+// space available and leaves the selected row overrunning the border.
+func TestRegistryColumnsHoldTheWidthInvariant(t *testing.T) {
+	for _, width := range []int{40, 60, 80, 120, 200} {
+		m := feed(t, registriesTab(t), tea.WindowSizeMsg{Width: width, Height: 40})
+
+		total := 0
+		cols := m.registryTable.Table().Columns()
+		for i, col := range cols {
+			total += col.Width
+			if col.Width < 0 {
+				t.Errorf("at width %d column %d is %d cells wide", width, i, col.Width)
+			}
+		}
+		if want := width - 2 - len(cols)*2; total != want {
+			t.Errorf("at width %d the columns sum to %d, want %d", width, total, want)
+		}
+	}
+}
+
+// Rule 122: the Members cell used to render the spinner through its style while
+// a discovery ran. Nothing bled today because the bubbles default emits no
+// escape sequence, but one line setting a style would have made it.
+func TestTheRefreshingCellCarriesNoEscapeSequence(t *testing.T) {
+	m := feed(t, registriesTab(t), testutil.Key("ctrl+r"))
+
+	for _, row := range m.registryTable.Table().Rows() {
+		for col, cell := range row {
+			if strings.Contains(cell, "\x1b[") {
+				t.Errorf("row cell [%d] = %q carries an escape sequence", col, cell)
+			}
+		}
+	}
+}
+
+// The two populations share one table, so a row has to say which it belongs to.
+// Resolving the cursor by indexing m.registries is right today only because
+// this table neither sorts nor filters — the dependency nothing signalled.
+func TestAMemberRowStandsForNoConfigEntry(t *testing.T) {
+	m := feed(t, registriesTab(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
+
+	if idx := m.getSelectedRegistryIndex(); idx != 0 {
+		t.Errorf("at the top level the first row resolves to index %d, want 0", idx)
+	}
+
+	m = feed(t, m, testutil.Key("right"))
+	if idx := m.getSelectedRegistryIndex(); idx != -1 {
+		t.Errorf("a discovered member resolves to config index %d, want none", idx)
+	}
+	if reg := m.getSelectedRegistry(); reg != nil {
+		t.Errorf("a discovered member resolves to the config entry %+v", reg)
 	}
 }

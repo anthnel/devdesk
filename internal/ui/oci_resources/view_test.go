@@ -125,7 +125,7 @@ func TestTableCellsCarryNoEscapeSequences(t *testing.T) {
 		"images":     m.imageTable.Table().Rows(),
 		"networks":   m.networkTable.Table().Rows(),
 		"volumes":    m.volumeTable.Table().Rows(),
-		"registries": m.registryTable.Rows(),
+		"registries": m.registryTable.Table().Rows(),
 	} {
 		for _, row := range rows {
 			for i, cell := range row {

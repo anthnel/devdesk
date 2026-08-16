@@ -1,12 +1,15 @@
 package ociresources
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -84,6 +87,77 @@ type pickerRow struct {
 	entry     int // index into b.entries, or -1
 }
 
+// tagRow is one line of the tag table: the tag, plus what the row says about it
+// that does not live on the tag — the registry's display label, the cached scan
+// counts and whether a scan is running.
+//
+// The columns are built once, in newRegistryBrowser, so their Cell functions
+// cannot reach back into the browser for any of that. It is the imageRow
+// pattern, and it exists for the same reason: a column sorts by the value it
+// prints.
+type tagRow struct {
+	tag      MultiRegistryTag
+	label    string // registry alias, or its URL when it has none
+	entry    cache.ImageScanEntry
+	scanned  bool
+	scanning bool
+	// frame is the spinner's current character, plain text because a table cell
+	// carries no escape sequence (Rule 122).
+	frame string
+}
+
+// tagColumns describes the tag results table.
+func tagColumns() []datatable.Column[tagRow] {
+	return []datatable.Column[tagRow]{
+		{
+			Title: "Registry", MinWidth: 20,
+			Cell: func(r tagRow) string { return r.label },
+		},
+		{
+			Title: "Tag", MinWidth: 30, Flex: 1,
+			Cell: func(r tagRow) string { return r.tag.Tag },
+			Less: func(a, b tagRow) bool {
+				return strings.ToLower(a.tag.Tag) < strings.ToLower(b.tag.Tag)
+			},
+		},
+		{
+			Title: "Updated", MinWidth: 16,
+			Cell: func(r tagRow) string {
+				if r.tag.UpdatedAt.IsZero() {
+					return "-"
+				}
+				return theme.TimeAgo(r.tag.UpdatedAt)
+			},
+			// Newest first is this column's ascending order: "most recently
+			// updated" is what anyone sorting by it is after.
+			Less: func(a, b tagRow) bool { return a.tag.UpdatedAt.After(b.tag.UpdatedAt) },
+		},
+		tagCVEColumn("C", func(e cache.ImageScanEntry) int { return e.Critical }),
+		tagCVEColumn("H", func(e cache.ImageScanEntry) int { return e.High }),
+		tagCVEColumn("M", func(e cache.ImageScanEntry) int { return e.Medium }),
+		tagCVEColumn("L", func(e cache.ImageScanEntry) int { return e.Low }),
+	}
+}
+
+// tagCVEColumn builds one of the four severity count columns: the spinner while
+// a scan runs, the count once one has, and a dash for a tag never scanned —
+// nought findings and never looked at are different answers.
+func tagCVEColumn(title string, get func(cache.ImageScanEntry) int) datatable.Column[tagRow] {
+	return datatable.Column[tagRow]{
+		Title: title, MinWidth: 4,
+		Cell: func(r tagRow) string {
+			switch {
+			case r.scanning:
+				return r.frame
+			case r.scanned:
+				return strconv.Itoa(get(r.entry))
+			default:
+				return "-"
+			}
+		},
+	}
+}
+
 const brFieldRepo = 0
 
 // brFieldReg returns the form field index for the i-th picker row.
@@ -95,12 +169,13 @@ func (b *RegistryBrowser) brFieldSubmit() int { return 1 + len(b.rows) }
 // RegistryBrowserCloseMsg is sent when the user presses ESC on the browser input screen.
 type RegistryBrowserCloseMsg struct{}
 
-// tagSortField selects which column to sort the tag list by.
-type tagSortField int
-
+// The two sortable columns of the tag table. `.` cycles Tag ascending, Tag
+// descending, Updated, Updated descending and back — which is what
+// datatable.CycleSort does over exactly these two, so the cycle is no longer
+// written out.
 const (
-	tagSortByName    tagSortField = iota
-	tagSortByUpdated              // newest first
+	tagColumnTag     = 1
+	tagColumnUpdated = 2
 )
 
 // RegistryBrowser searches image tags across multiple configured registries.
@@ -121,16 +196,17 @@ type RegistryBrowser struct {
 	tags              []MultiRegistryTag
 	pendingSearches   int
 	registryFilter    resultFilter
-	tagTable          table.Model
+	tagTable          datatable.Model[tagRow]
 	scanCache         map[string]cache.ImageScanEntry
 	scanningTags      map[string]bool
 	tagScanSpinnerIdx int
 
-	// Tag filter/sort in results view
+	// Tag filter in the results view. The sort belongs to the table now; this
+	// filter stays here because it narrows the tags before the table sees them,
+	// alongside registryFilter, and because it is drawn in the OCI view's own
+	// footer rather than the table's bar.
 	filterInput  textinput.Model
 	filterActive bool
-	tagSortCol   tagSortField
-	tagSortDesc  bool
 
 	// Status screen (pull operation)
 	spinner   spinner.Model
@@ -162,22 +238,6 @@ func newRegistryBrowser(
 	fi.CharLimit = 128
 	theme.StyleTextInput(&fi)
 
-	tagCols := []table.Column{
-		{Title: "Registry", Width: 20},
-		{Title: "Tag", Width: 30},
-		{Title: "Updated", Width: 16},
-		{Title: "C", Width: 4},
-		{Title: "H", Width: 4},
-		{Title: "M", Width: 4},
-		{Title: "L", Width: 4},
-	}
-	tt := table.New(
-		table.WithColumns(tagCols),
-		table.WithFocused(true),
-		table.WithHeight(10),
-	)
-	tt.SetStyles(theme.DefaultTableStyles())
-
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = theme.SpinnerStyle()
@@ -190,9 +250,10 @@ func newRegistryBrowser(
 		selectedRegs: make(map[string]bool),
 		focusedField: brFieldRepo,
 		filterInput:  fi,
-		tagSortCol:   tagSortByName,
-		tagSortDesc:  false,
-		tagTable:     tt,
+		tagTable: datatable.New(datatable.Config[tagRow]{
+			Columns:    tagColumns(),
+			SortColumn: tagColumnTag,
+		}),
 		spinner:      sp,
 		scanCache:    make(map[string]cache.ImageScanEntry),
 		scanningTags: make(map[string]bool),
@@ -333,36 +394,12 @@ func (b *RegistryBrowser) resizeInputs() {
 	b.filterInput.Width = max(b.width-6, 10)
 }
 
+// resizeTagTable hands the table the viewport width.
+//
+// b.width is already the content width — the caller subtracted the borders —
+// and datatable.Resize subtracts them itself, so they are added back here. The
+// column solving, the Rule 116 remainder and the selected row's width are all
+// its business now.
 func (b *RegistryBrowser) resizeTagTable() {
-	b.tagTable.SetHeight(max(b.height, 1))
-
-	// b.width is already the viewport content width (full width - 2 borders).
-	// Subtract only the cell padding (numCols × 2) so column widths sum exactly to `available`.
-	const numCols = 7
-	available := max(b.width-numCols*2, 10)
-	fixedReg := 20
-	fixedUpdated := 16
-	fixedC, fixedH, fixedM := 4, 4, 4
-	fixedSum := fixedReg + fixedUpdated + fixedC + fixedH + fixedM
-	flexTag := max(available-fixedSum-4, 8) // reserve 4 for last col minimum
-
-	cols := b.tagTable.Columns()
-	if len(cols) == numCols {
-		cols[0].Width = fixedReg
-		cols[1].Width = flexTag
-		cols[2].Width = fixedUpdated
-		cols[3].Width = fixedC
-		cols[4].Width = fixedH
-		cols[5].Width = fixedM
-		// Last column absorbs leftover so sum(col_widths) == available exactly.
-		cols[6].Width = available - fixedReg - flexTag - fixedUpdated - fixedC - fixedH - fixedM
-		b.tagTable.SetColumns(cols)
-	}
-
-	// Force the Selected row style to span the viewport content width so the selected
-	// background extends to the right border, even when row content visually differs
-	// from the calculated width (e.g. Nerd Font icon width discrepancies). See workspaces fix.
-	styles := theme.DefaultTableStyles()
-	styles.Selected = styles.Selected.Width(b.width)
-	b.tagTable.SetStyles(styles)
+	b.tagTable.Resize(b.width+2, max(b.height, 1))
 }

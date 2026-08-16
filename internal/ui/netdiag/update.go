@@ -239,16 +239,8 @@ func (m *Model) handleKeyResults(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m.openDetails()
 	case "ctrl+r", "r":
 		return m.resetToForm()
-	case "up", "k":
-		m.resultsTable.MoveUp(1)
-	case "down", "j":
-		m.resultsTable.MoveDown(1)
-	case "g":
-		m.resultsTable.GotoTop()
-	case "G":
-		m.resultsTable.GotoBottom()
 	}
-	return m, nil
+	return m, m.resultsTable.Update(msg)
 }
 
 func (m *Model) handleKeyDetails(msg tea.KeyMsg) (*Model, tea.Cmd) {
@@ -278,16 +270,15 @@ func (m *Model) handleKeyDetails(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) openDetails() (*Model, tea.Cmd) {
-	idx := m.resultsTable.Cursor()
-	if idx < 0 || idx >= len(m.resultOrder) {
-		return m, nil
-	}
-	name := m.resultOrder[idx]
-	res, ok := m.results[name]
+	row, ok := m.resultsTable.Selected()
 	if !ok {
 		return m, nil
 	}
-	m.selectedTest = name
+	res, ok := m.results[row.name]
+	if !ok {
+		return m, nil
+	}
+	m.selectedTest = row.name
 	m.rawDetails = false
 	m.state = StateDetails
 	m.resizeDetailsViewport()

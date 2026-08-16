@@ -3,10 +3,10 @@ package ociresources
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -18,33 +18,44 @@ type NetworkInspectForm struct {
 	networkID   string
 	networkName string
 	containers  []docker.NetworkContainer
-	table       table.Model
+	table       datatable.Model[docker.NetworkContainer]
 	loading     bool
 	width       int
 	height      int
 }
 
+// containerColumns describes the network inspect table. Nothing sorts or
+// searches: a network holds a handful of containers, and the list is the
+// network's own order.
+func containerColumns() []datatable.Column[docker.NetworkContainer] {
+	return []datatable.Column[docker.NetworkContainer]{
+		{
+			Title: "Container", MinWidth: 20, Flex: 1,
+			Cell: func(c docker.NetworkContainer) string { return c.Name },
+		},
+		{
+			Title: "IPv4", MinWidth: 16,
+			Cell: func(c docker.NetworkContainer) string { return c.IPv4 },
+		},
+		{
+			Title: "MAC Address", MinWidth: 20,
+			Cell: func(c docker.NetworkContainer) string { return c.MacAddress },
+		},
+	}
+}
+
 // newNetworkInspectForm creates a NetworkInspectForm for the given network.
 func newNetworkInspectForm(networkID, networkName string, width, height int) *NetworkInspectForm {
-	columns := []table.Column{
-		{Title: "Container", Width: 30},
-		{Title: "IPv4", Width: 18},
-		{Title: "MAC Address", Width: 18},
-	}
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithFocused(true),
-		table.WithHeight(10),
-	)
-	t.SetStyles(theme.DefaultTableStyles())
-
 	f := &NetworkInspectForm{
 		networkID:   networkID,
 		networkName: networkName,
 		loading:     true,
 		width:       width,
 		height:      height,
-		table:       t,
+		table: datatable.New(datatable.Config[docker.NetworkContainer]{
+			Columns:    containerColumns(),
+			SortColumn: -1,
+		}),
 	}
 	f.resize(width, height)
 	return f
@@ -54,62 +65,33 @@ func newNetworkInspectForm(networkID, networkName string, width, height int) *Ne
 func (f *NetworkInspectForm) SetContainers(containers []docker.NetworkContainer) {
 	f.loading = false
 	f.containers = containers
-	rows := make([]table.Row, len(containers))
-	for i, c := range containers {
-		rows[i] = table.Row{c.Name, c.IPv4, c.MacAddress}
-	}
-	f.table.SetRows(rows)
+	f.table.SetItems(containers)
 }
 
 // SelectedContainer returns the currently selected container or nil.
 func (f *NetworkInspectForm) SelectedContainer() *docker.NetworkContainer {
-	cursor := f.table.Cursor()
-	if cursor < 0 || cursor >= len(f.containers) {
+	c, ok := f.table.Selected()
+	if !ok {
 		return nil
 	}
-	c := f.containers[cursor]
 	return &c
 }
 
 // Update handles input for the network inspect form.
 func (f *NetworkInspectForm) Update(msg tea.Msg) (*NetworkInspectForm, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "up", "k":
-			f.table.MoveUp(1)
-		case "down", "j":
-			f.table.MoveDown(1)
-		case "g", "home":
-			f.table.GotoTop()
-		case "G", "end":
-			f.table.GotoBottom()
-		}
-	}
-	return f, nil
+	return f, f.table.Update(msg)
 }
 
 // resize adjusts the table columns and height to fit the viewport.
+//
+// f.width is already the viewport's content width — the caller subtracted the
+// borders — and datatable.Resize subtracts them itself, so they are added back
+// here. The arithmetic written out before subtracted them a second time, which
+// left the selected row two cells short of the right border.
 func (f *NetworkInspectForm) resize(width, height int) {
 	f.width = width
 	f.height = height
-
-	// Rule 116: available = width - 2 (viewport borders) - numCols × 2 (cell padding)
-	numCols := 3
-	available := width - 2 - numCols*2
-	fixedIPv4 := 16
-	fixedMAC := 20
-	flexName := max(available-fixedIPv4-fixedMAC, 10)
-	columns := f.table.Columns()
-	if len(columns) >= 3 {
-		columns[0].Width = flexName
-		columns[1].Width = fixedIPv4
-		columns[2].Width = available - flexName - fixedIPv4
-		f.table.SetColumns(columns)
-	}
-
-	tableH := max(height-viewportOverhead, 3)
-	f.table.SetHeight(tableH)
+	f.table.Resize(width+2, max(height-viewportOverhead, 3))
 }
 
 // View renders the network inspect form in the viewport (Rule 112).

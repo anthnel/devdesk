@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
@@ -49,7 +48,7 @@ type Model struct {
 	loadingVols bool
 	// Registries tab
 	registries          []config.RegistryItem
-	registryTable       table.Model
+	registryTable       datatable.Model[registryRow]
 	loadingRegs         bool
 	registryForm        *RegistryForm
 	registryBrowser     *RegistryBrowser
@@ -324,20 +323,11 @@ func New(cfg *config.Config) Model {
 	vt := datatable.New(datatable.Config[docker.Volume]{Columns: volumeColumns(), SortColumn: -1})
 	vt.Blur()
 
-	regColumns := []table.Column{
-		{Title: "Alias", Width: 16},
-		{Title: "URL", Width: 30},
-		{Title: "Kind", Width: 10},
-		{Title: "Auth", Width: 12}, // holds "credentials"
-		{Title: "Logged", Width: 8},
-		{Title: "Members", Width: 16},
-	}
-	rt := table.New(
-		table.WithColumns(regColumns),
-		table.WithFocused(false),
-		table.WithHeight(10),
-	)
-	rt.SetStyles(theme.DefaultTableStyles())
+	rt := datatable.New(datatable.Config[registryRow]{
+		Columns:    registryColumns(),
+		SortColumn: -1,
+	})
+	rt.Blur()
 
 	return Model{
 		config:              cfg,

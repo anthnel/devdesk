@@ -956,17 +956,31 @@ unselected rows only, and a column declaring one of the two gets the other.
 A column with no opinion should return the zero `lipgloss.Style` rather than
 naming the theme's text colour itself.
 
-**All fifteen tables are migrated.** A new table uses `datatable`; there is no
-second way to build one. Four tables elsewhere are still `bubbles/table` —
-Registries, the registry browser's tags, network-inspect and netdiag's results —
-and they keep the terminal's foreground until they move.
+**Every table in the application is a `datatable`** (§3.21 moved the last four:
+Registries, the registry browser's tags, network-inspect and netdiag's results).
+A new table uses it; there is no second way to build one, and `bubbles/table` is
+imported outside this package only for its `Styles` type.
 
-Two views keep a filter of their own, and deliberately. `security` selects
+The Registries tab is the one worth knowing about, because it shows **two
+populations in one table** — the configured entries, and one group's discovered
+members after `→`. `datatable.Model[T]` is generic over a single `T`, so
+`registryRow` carries both and holds the index of the config entry it stands
+for, `-1` for a member. That index is what `getSelectedRegistry` resolves
+through: indexing `m.registries` by row number is right only while the table
+neither sorts nor filters, which is exactly the dependency nothing signalled.
+`explorerRow` exists for the same reason.
+
+Three views keep a filter of their own, and deliberately. `security` selects
 findings by tab and by severity, and `status` drives both its tables from one
 search box so the header counts agree — in both cases the view filters and calls
 `SetItems`, because a `FilterBar` query narrows a list that is already settled
 and these decide which rows exist at all. `security` also calls `GotoTop`
-explicitly on a tab change, which is the reset `SetItems` does not make.
+explicitly on a tab change, which is the reset `SetItems` does not make. The
+registry browser is the third: its text filter and its registry filter narrow
+the tags *before* the table sees them, and its bar is drawn in the OCI view's
+own footer rather than the table's. Its **sort** is the table's — `.` cycles
+Tag and Updated through `CycleSort`, and `SetSort` is what puts a new search
+back on the default order.
 
 `status` is the two-table case: two `datatable.Model` plus a focus helper.
 `Focus` and `Blur` carry the styles with them (Rule 118), so a tab switch does

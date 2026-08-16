@@ -4,12 +4,12 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -109,7 +109,7 @@ type Model struct {
 	runGen     int // incremented each run; stale testCompleteMsgs are discarded
 
 	// Results table
-	resultsTable table.Model
+	resultsTable datatable.Model[testResult]
 	resultOrder  []string // test names in display order
 
 	// Details view
@@ -168,5 +168,12 @@ func New(cfg *config.Config) *Model {
 		tests:          tests,
 		spinner:        sp,
 		results:        make(map[string]testResult),
+		resultsTable: datatable.New(datatable.Config[testResult]{
+			Columns: resultColumns(),
+			// The order the tests were started in, which is the order the form
+			// lists them. `.` sorts on demand; a results list that reorders
+			// itself is one the user has to re-read.
+			SortColumn: -1,
+		}),
 	}
 }

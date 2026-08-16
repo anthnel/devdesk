@@ -14,14 +14,11 @@ import (
 // including inside a group, where the rows are cached members rather than
 // config entries and nothing on them is editable.
 func (m Model) getSelectedRegistry() *config.RegistryItem {
-	if m.registryGroupSlug != "" {
+	idx := m.getSelectedRegistryIndex()
+	if idx < 0 {
 		return nil
 	}
-	cursor := m.registryTable.Cursor()
-	if cursor < 0 || cursor >= len(m.registries) {
-		return nil
-	}
-	return &m.registries[cursor]
+	return &m.registries[idx]
 }
 
 // enterSelectedGroup drills into the selected group (Rule 111: → goes down a
@@ -53,16 +50,14 @@ func (m Model) leaveGroup() (tea.Model, tea.Cmd) {
 }
 
 // getSelectedRegistryIndex returns the index of the selected registry, or -1 —
-// including inside a group, where the rows are cached members.
+// including inside a group, where the rows are cached members and carry no
+// config index of their own.
 func (m Model) getSelectedRegistryIndex() int {
-	if m.registryGroupSlug != "" {
+	row, ok := m.registryTable.Selected()
+	if !ok || row.config < 0 || row.config >= len(m.registries) {
 		return -1
 	}
-	cursor := m.registryTable.Cursor()
-	if cursor < 0 || cursor >= len(m.registries) {
-		return -1
-	}
-	return cursor
+	return row.config
 }
 
 // editSelectedRegistry opens a registry edit form for the selected entry

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -489,6 +491,50 @@ func TestNetworkInspectClosesOnEsc(t *testing.T) {
 
 	if m.networkInspectForm != nil {
 		t.Error("esc did not close the inspect overlay")
+	}
+}
+
+// The cursor resolves through the table rather than by indexing the container
+// slice, which is what the connectivity test acts on.
+func TestNetworkInspectActsOnTheHighlightedContainer(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("tab"), testutil.Key("enter"))
+	m = feed(t, m, NetworkInspectLoadedMsg{
+		NetworkID: "net11111", NetworkName: "bridge",
+		Containers: []docker.NetworkContainer{
+			{Name: "api", IPv4: "172.17.0.2/16"},
+			{Name: "web", IPv4: "172.17.0.3/16"},
+		},
+	})
+	m = feed(t, m, testutil.Key("down"))
+
+	sel := m.networkInspectForm.SelectedContainer()
+	if sel == nil || sel.Name != "web" {
+		t.Errorf("SelectedContainer() = %+v, want the row under the cursor", sel)
+	}
+}
+
+// Rule 116: the arithmetic written out here subtracted the viewport borders a
+// second time, so the columns summed two cells short and the selected row
+// stopped short of the right border. The solver owns it now, at every width.
+func TestNetworkInspectColumnsHoldTheWidthInvariant(t *testing.T) {
+	for _, width := range []int{40, 60, 80, 120, 200} {
+		m := feed(t, loadedModel(t), testutil.Key("tab"), testutil.Key("enter"))
+		m = feed(t, m, NetworkInspectLoadedMsg{NetworkID: "net11111", NetworkName: "bridge"})
+		m = feed(t, m, tea.WindowSizeMsg{Width: width, Height: 40})
+
+		total := 0
+		cols := m.networkInspectForm.table.Table().Columns()
+		for i, col := range cols {
+			total += col.Width
+			if col.Width < 0 {
+				t.Errorf("at width %d column %d is %d cells wide", width, i, col.Width)
+			}
+		}
+		// The form is handed the viewport content width, so its own borders are
+		// already gone: what is left to share is that width less the padding.
+		if want := width - 2 - len(cols)*2; total != want {
+			t.Errorf("at width %d the columns sum to %d, want %d", width, total, want)
+		}
 	}
 }
 

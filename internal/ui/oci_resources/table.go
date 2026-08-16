@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/cache"
@@ -233,7 +232,42 @@ func shortID(id string) string {
 	return id
 }
 
-// updateRegistryTable rebuilds the registry table rows
+// registryRow is one line of the Registries tab.
+//
+// The tab shows two populations in one table — the configured entries at the
+// top level, and one group's discovered members after `→` — and datatable is
+// generic over a single T, so the row type has to carry both. explorerRow
+// exists for the same reason.
+//
+// config is the index into Model.registries the row stands for, and -1 for a
+// discovered member: a member is not a config entry, has no alias of its own to
+// edit and no credentials but its group's, so every action on the tab has to be
+// able to tell the two apart. Carrying it on the row is also what lets the
+// cursor be resolved without indexing m.registries by row number, which is
+// correct today only because this table neither sorts nor filters.
+type registryRow struct {
+	alias   string
+	url     string
+	kind    string
+	auth    string
+	logged  string
+	members string
+	config  int
+}
+
+// registryColumns describes the Registries tab. Nothing sorts or searches: the
+// list is the order the config declares, which is the order the user wrote.
+func registryColumns() []datatable.Column[registryRow] {
+	return []datatable.Column[registryRow]{
+		{Title: "Alias", MinWidth: 16, Cell: func(r registryRow) string { return r.alias }},
+		{Title: "URL", MinWidth: 20, Flex: 1, Cell: func(r registryRow) string { return r.url }},
+		{Title: "Kind", MinWidth: 10, Cell: func(r registryRow) string { return r.kind }},
+		{Title: "Auth", MinWidth: 12, Cell: func(r registryRow) string { return r.auth }}, // holds "credentials"
+		{Title: "Logged", MinWidth: 8, Cell: func(r registryRow) string { return r.logged }},
+		{Title: "Members", MinWidth: 16, Cell: func(r registryRow) string { return r.members }}, // holds "12 · 30 days ago"
+	}
+}
+
 // membersCell reports what the last discovery for a group found, and when.
 //
 // The "when" is not decoration: a cache with no visible age is worse than the
@@ -244,7 +278,9 @@ func (m *Model) membersCell(reg config.RegistryItem) string {
 		return ""
 	}
 	if m.refreshingGroups[reg.Slug] {
-		return m.spinner.View() + "refreshing"
+		// The spinner's frame, not its View(): the latter renders through a
+		// style, and a table cell carries no escape sequence.
+		return spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)] + " refreshing"
 	}
 	entry, ok := m.groupCache[reg.Slug]
 	if !ok {
@@ -282,11 +318,16 @@ func (m *Model) updateRegistryTable() {
 		m.updateGroupMemberTable(*group)
 		return
 	}
-	rows := make([]table.Row, 0, len(m.registries))
-	for _, reg := range m.registries {
-		rows = append(rows, table.Row{
-			reg.Alias, reg.URL, reg.Kind, reg.AuthMode,
-			m.loggedCell(reg.AuthMode, reg.URL), m.membersCell(reg),
+	rows := make([]registryRow, 0, len(m.registries))
+	for i, reg := range m.registries {
+		rows = append(rows, registryRow{
+			alias:   reg.Alias,
+			url:     reg.URL,
+			kind:    reg.Kind,
+			auth:    reg.AuthMode,
+			logged:  m.loggedCell(reg.AuthMode, reg.URL),
+			members: m.membersCell(reg),
+			config:  i,
 		})
 	}
 	m.setRegistryRows(rows)
@@ -296,21 +337,24 @@ func (m *Model) updateRegistryTable() {
 //
 // A member is not a config entry: it has no alias of its own to edit, its
 // credentials are the group's, and it is what the cache holds — so the columns
-// say `inherit` and carry no member count.
+// say `inherit`, carry no member count, and the row points at no config entry.
 func (m *Model) updateGroupMemberTable(group config.RegistryItem) {
 	entry := m.groupCache[group.Slug]
-	rows := make([]table.Row, 0, len(entry.Members))
+	rows := make([]registryRow, 0, len(entry.Members))
 	for _, member := range entry.Members {
-		rows = append(rows, table.Row{
-			member.Alias, member.URL, "member", config.AuthInherit,
-			m.loggedCell(group.AuthMode, group.URL), "",
+		rows = append(rows, registryRow{
+			alias:  member.Alias,
+			url:    member.URL,
+			kind:   "member",
+			auth:   config.AuthInherit,
+			logged: m.loggedCell(group.AuthMode, group.URL),
+			config: -1,
 		})
 	}
 	m.setRegistryRows(rows)
 }
 
-func (m *Model) setRegistryRows(rows []table.Row) {
-	m.registryTable.SetRows(rows)
-	m.registryTable.SetStyles(theme.DefaultTableStyles())
-	m.registryTable.SetHeight(m.tableHeight())
+func (m *Model) setRegistryRows(rows []registryRow) {
+	m.registryTable.SetItems(rows)
+	m.registryTable.Resize(m.width, m.tableHeight())
 }

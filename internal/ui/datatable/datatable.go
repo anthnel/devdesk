@@ -325,6 +325,23 @@ func (m *Model[T]) sortableColumns() []int {
 // views that show it elsewhere. Column is -1 when nothing is sorted.
 func (m *Model[T]) SortState() (column int, desc bool) { return m.sortColumn, m.sortDesc }
 
+// SetSort puts the sort back where the table opened, or anywhere else the view
+// can name. It exists for the one thing CycleSort cannot express: the registry
+// browser starts a new search from the default order, and advancing `.` around
+// the cycle until it comes back is not that.
+//
+// A column that cannot be sorted by leaves the table unsorted rather than
+// silently sorted by something else — the same invariant New settles, so that
+// nothing downstream has to re-check it.
+func (m *Model[T]) SetSort(column int, desc bool) {
+	if column < 0 || column >= len(m.cfg.Columns) || m.cfg.Columns[column].Less == nil {
+		column, desc = -1, false
+	}
+	m.sortColumn, m.sortDesc = column, desc
+	m.rebuild()
+	m.Resize(m.width, 0) // the arrow moved
+}
+
 // Update handles the keys every table shares: navigation, `/` for the search,
 // `.` for the sort, and whatever the filter bar takes while it is focused.
 // Anything else is left alone, so the view keeps its own actions.

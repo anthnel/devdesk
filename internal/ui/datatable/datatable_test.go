@@ -265,6 +265,44 @@ func TestCycleSortDoesNothingWithNoSortableColumn(t *testing.T) {
 	}
 }
 
+// SetSort is the one thing CycleSort cannot express: putting the sort back
+// where the table opened. The registry browser does it when a new search starts.
+func TestSetSortPutsTheOrderBackAndMovesTheArrow(t *testing.T) {
+	m := loaded(t)
+	m.CycleSort() // name descending
+	m.CycleSort() // size ascending
+
+	m.SetSort(0, false)
+
+	if col, desc := m.SortState(); col != 0 || desc {
+		t.Fatalf("SortState = %d, %v, want name ascending", col, desc)
+	}
+	if got := names(m.Visible()); !equal(got, []string{"api", "cache", "web"}) {
+		t.Errorf("visible = %v, want them sorted by name again", got)
+	}
+	if got := m.Table().Columns()[0].Title; !strings.Contains(got, sortArrowAsc) {
+		t.Errorf("the Name header is %q, want the ascending arrow back", got)
+	}
+	if got := m.Table().Columns()[1].Title; strings.Contains(got, sortArrowAsc) {
+		t.Errorf("the Size header is %q, want its arrow gone", got)
+	}
+}
+
+// A column that cannot be sorted by leaves the table unsorted rather than
+// silently sorted by something else — the same invariant New settles, so that
+// nothing downstream has to re-check which column it holds.
+func TestSetSortRefusesAColumnThatCannotBeSortedBy(t *testing.T) {
+	for _, column := range []int{2, -1, 99} { // no comparator, none, out of range
+		m := loaded(t)
+
+		m.SetSort(column, true)
+
+		if col, desc := m.SortState(); col != -1 || desc {
+			t.Errorf("SetSort(%d) left SortState = %d, %v, want no sort", column, col, desc)
+		}
+	}
+}
+
 // The arrow says which column is sorted and which way — three views wrote this
 // out verbatim, down to the rune.
 func TestTheHeaderCarriesTheSortArrow(t *testing.T) {

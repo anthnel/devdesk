@@ -30,6 +30,20 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D41 — the Registries table gave two columns a negative width below 80
+columns. Fixed** by §3.21, which is also what found it. `resizeRegistryTable`
+floored the flexible URL column at 20 *after* the remainder had been computed —
+Rule 116's named failure mode — so the last column absorbed the whole shortfall
+and went to `-40` at 40 columns and `-20` at 60. The sum stayed exact, which is
+why the invariant as usually stated never caught it. The solver shares the
+shortfall out instead, and the three width tests added with the migration assert
+**non-negative widths as well as the sum** — checked against the old
+arithmetic, where they fail.
+
+Not reached before now because nobody had run the tab at that width; the
+symptom would have been the header and the selected row disagreeing about where
+the table ends.
+
 **D40 — the browser picker keyed its selection on the entry URL, so two entries
 sharing a host shared one checkbox. Fixed.** `browserRegistryEntry` now carries
 a `key`, and the checkbox, the group tri-state, `submitSearch` and the persisted
@@ -3848,7 +3862,7 @@ faite ici.
 
 ---
 
-### 3.21 The last four tables move to `datatable`
+### 3.21 The last four tables move to `datatable` — **done**
 
 Sorti de §3.20 : le correctif du foreground n'atteint que les `datatable`, et
 quatre tables n'en sont pas. Elles rendent leur texte dans la couleur par défaut
@@ -3905,6 +3919,54 @@ raison. C'est aussi là que se trouve le `SetStyles` de focus/blur, que
 
 Non compris : donner un tri ou un filtre à ces tables. La migration doit se voir
 uniquement à la couleur du texte.
+
+#### Ce que ça a donné
+
+Les quatre sont migrées et il ne reste **aucune `bubbles/table`** dans
+l'application : le paquet n'est plus importé ailleurs que pour son type
+`Styles`.
+
+La contrainte « uniquement la couleur du texte » a tenu, à une chose près qui
+n'est pas une régression : la table des tags **avait déjà** un tri, et il est
+passé à `CycleSort`. Le cycle est identique — Tag ↑, Tag ↓, Updated ↑,
+Updated ↓, retour — parce que `datatable` cycle exactement les colonnes qui
+portent un `Less`, et il n'y en a que ces deux. Les flèches d'en-tête, écrites
+à la main dans `rebuildTagTable`, tombent avec. Une seule chose manquait pour
+que ce soit un remplacement exact : **`datatable.SetSort`**, le pendant écrivain
+de `SortState` — `submitSearch` remet l'ordre par défaut au début d'une nouvelle
+recherche, et faire le tour du cycle avec `CycleSort` n'est pas ça.
+
+Le filtre texte de la table des tags, lui, **reste dans la vue** : il réduit les
+tags *avant* que la table les voie, comme le filtre par registre à côté de lui,
+et sa barre est rendue dans le footer de la vue OCI, pas dans celle de la table.
+C'est le cas `security` / `status` déjà documenté.
+
+**Registres : `registryRow` porte l'indice de l'entrée de config**, `-1` pour un
+membre découvert. C'était prévu comme la seule difficulté de forme, et ça a payé
+tout de suite : `getSelectedRegistry` indexait `m.registries` par numéro de
+ligne, ce qui n'est juste que tant que la table ne trie ni ne filtre.
+
+**Trois défauts trouvés en migrant**, chacun avec un test vérifié contre
+l'ancien code :
+
+- **D41**, ci-dessus (§1.1) : URL clampée après le reste, deux colonnes
+  négatives sous 80 colonnes.
+- **network-inspect soustrayait les bordures deux fois** — la vue lui passe déjà
+  la largeur de contenu — donc ses colonnes totalisaient deux cellules de moins
+  que la place disponible, à *toutes* les largeurs, et la ligne sélectionnée
+  s'arrêtait avant la bordure droite.
+- **netdiag débordait sous 46 colonnes** : la colonne Output était plancherée à
+  10 *après* le calcul du reste — le même geste que D41, mais ici c'est la somme
+  qui casse plutôt qu'une largeur qui devient négative. Mesuré : 38 cellules de
+  colonnes pour 32 disponibles à 40 colonnes.
+
+Le spinner « refreshing » de la colonne Members passe au *frame* brut plutôt
+qu'à `spinner.View()` : c'était la Rule 122 latente que §3.21 nommait, et un
+test l'interdit maintenant.
+
+Enfin, la table de résultats netdiag **garde son curseur** : elle était
+reconstruite par `table.New` à chaque mise à jour, donc un résultat tardif
+ramenait la ligne sous le curseur de l'utilisateur en haut.
 
 ---
 
