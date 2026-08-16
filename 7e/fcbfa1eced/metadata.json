@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "7efcbfa1eced",
+  "strategy": "manual-commit",
+  "branch": "row-status-and-busy",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7e/fcbfa1eced/0/metadata.json",
+      "transcript": "/7e/fcbfa1eced/0/full.jsonl",
+      "compact_transcript": "/7e/fcbfa1eced/0/transcript.jsonl",
+      "content_hash": "/7e/fcbfa1eced/0/content_hash.txt",
+      "prompt": "/7e/fcbfa1eced/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 10142,
+    "cache_read_tokens": 5161627,
+    "output_tokens": 5372,
+    "api_call_count": 10
+  }
+}
