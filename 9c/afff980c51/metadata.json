@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "9cafff980c51",
+  "strategy": "manual-commit",
+  "branch": "dashboard-boxes-say-what-to-do",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/docker/system.go",
+    "internal/docker/system_test.go",
+    "internal/shared/state.go",
+    "internal/ui/dashboard/dashboard_test.go",
+    "internal/ui/dashboard/layout.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/posture_test.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/dashboard/view.go",
+    "internal/ui/dashboard/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9c/afff980c51/0/metadata.json",
+      "transcript": "/9c/afff980c51/0/full.jsonl",
+      "compact_transcript": "/9c/afff980c51/0/transcript.jsonl",
+      "content_hash": "/9c/afff980c51/0/content_hash.txt",
+      "prompt": "/9c/afff980c51/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 166,
+    "cache_creation_tokens": 435789,
+    "cache_read_tokens": 15857122,
+    "output_tokens": 43053,
+    "api_call_count": 84
+  }
+}

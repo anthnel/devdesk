@@ -1,0 +1,14 @@
+Vue Dashboard
+- Toutes les boites : toujours une ligne vide en dernière position
+- Host : 
+  - Si tous les Tools sont disponibles, afficher "Tools all available (icone V verte)"
+  - S'il en manque, afficher "Missing Tools et un nœud par tool manquant (icone X rouge)"
+- Docker (VM) 
+  - Mettre Images , Volumes sous une racine. Ajouter Networks. La racine peut s'appeler resources ou autre chose qui convient
+- Storage : 
+  - Mettre 86% à côté de used entre parenthèse, style dimmed
+- Updated now toujours affiché dans le footer, on peut peut être simplement le supprimer
+
+---
+
+continue

@@ -1,0 +1,89 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "9cafff980c51",
+  "session_id": "d823034b-bdb8-44d6-ab2c-5d7c13abed3c",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-16T13:21:14.6542528Z",
+  "branch": "dashboard-boxes-say-what-to-do",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/docker/system.go",
+    "internal/docker/system_test.go",
+    "internal/shared/state.go",
+    "internal/ui/dashboard/dashboard_test.go",
+    "internal/ui/dashboard/layout.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/posture_test.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/dashboard/view.go",
+    "internal/ui/dashboard/view_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "8ef148d43902",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 166,
+    "cache_creation_tokens": 435789,
+    "cache_read_tokens": 15857122,
+    "output_tokens": 43053,
+    "api_call_count": 84
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-16T13:21:14.6147623Z",
+    "agent_lines": 0,
+    "agent_removed": 1,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 100,
+    "total_committed": 75,
+    "total_lines_changed": 101,
+    "agent_percentage": 0.9900990099009901,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 730,
+      "user_lines_removed": 100,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 454,
+        "internal/docker/system.go": 12,
+        "internal/shared/state.go": 3,
+        "internal/ui/dashboard/dashboard_test.go": 14,
+        "internal/ui/dashboard/layout.go": 12,
+        "internal/ui/dashboard/model.go": 1,
+        "internal/ui/dashboard/posture_test.go": 7,
+        "internal/ui/dashboard/sections.go": 102,
+        "internal/ui/dashboard/view.go": 13,
+        "internal/ui/dashboard/view_test.go": 96,
+        "internal/ui/dashboard/zz_dump_test.go": 16
+      },
+      "user_removed_per_file": {
+        "internal/ui/dashboard/dashboard_test.go": 16,
+        "internal/ui/dashboard/model.go": 2,
+        "internal/ui/dashboard/posture_test.go": 3,
+        "internal/ui/dashboard/sections.go": 46,
+        "internal/ui/dashboard/view.go": 16,
+        "internal/ui/dashboard/view_test.go": 17
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 454,
+      "user_lines_removed": 0,
+      "agent_lines_added": 335,
+      "agent_lines_removed": 101,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 454
+      }
+    }
+  ]
+}
