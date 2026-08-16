@@ -15,6 +15,7 @@ import (
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
 )
 
 // ── Construction and loading ─────────────────────────────────────────────────
@@ -27,9 +28,6 @@ func TestNewStartsLoading(t *testing.T) {
 	}
 	if m.showAll {
 		t.Error("showAll = true on a new model, want active containers only")
-	}
-	if m.state != stateTable {
-		t.Errorf("state = %d on a new model, want stateTable", m.state)
 	}
 }
 
@@ -557,9 +555,6 @@ func TestActionsAreInertWithoutASelection(t *testing.T) {
 			if m.confirmModal != nil {
 				t.Errorf("%q opened a confirmation with nothing selected", key)
 			}
-			if m.state != stateTable {
-				t.Errorf("%q left the table view with nothing selected", key)
-			}
 		})
 	}
 }
@@ -796,208 +791,94 @@ func TestSpinnerTicksOnlyWhileLoading(t *testing.T) {
 		t.Error("an idle model kept the spinner running")
 	}
 
-	m.logsLoading = true
+	m.loading = true
 	_, cmd = step(t, m, spinner.TickMsg{})
 	if cmd == nil {
-		t.Error("the spinner stopped while the logs were loading")
+		t.Error("the spinner stopped while the list was loading")
 	}
 }
 
-// ── Logs viewport ────────────────────────────────────────────────────────────
+// ── Logs and inspect open the viewer ─────────────────────────────────────────
+//
+// The pane these replace — its viewport, wrap, scrolling, reload, follow,
+// timestamps and pager — is the document viewer's now. The tests that pinned
+// that behaviour moved with it, to internal/ui/viewer and internal/viewer;
+// what is left to check here is that the right source leaves this view.
 
-func TestLogsOpensTheViewportForTheSelectedContainer(t *testing.T) {
+func TestLogsAsksForTheViewer(t *testing.T) {
 	m := loadedModel(t)
 
-	m, cmd := step(t, m, testutil.Key("l"))
+	_, cmd := step(t, m, testutil.Key("l"))
 
-	if m.state != stateLogs {
-		t.Fatal("l did not switch to the logs view")
+	source := openRequestSource(t, cmd)
+	logs, ok := source.(logsSource)
+	if !ok {
+		t.Fatalf("l asked for a %T, want a logsSource", source)
 	}
-	if m.logsContainerName != "api" {
-		t.Errorf("logsContainerName = %q, want the selected container", m.logsContainerName)
+	if logs.Container != "api" {
+		t.Errorf("Container = %q, want the selected container", logs.Container)
 	}
-	if !m.logsLoading {
-		t.Error("logsLoading = false right after opening the view")
-	}
-	if cmd == nil {
-		t.Error("opening the logs view did not fetch anything")
-	}
-}
-
-func TestLogsContentIsStrippedAndNormalised(t *testing.T) {
-	m := logsModel(t, "\x1b[31mred\x1b[0m line\r\nsecond\rthird\n")
-
-	if strings.Contains(m.logsRawContent, "\x1b") {
-		t.Errorf("log content kept escape sequences: %q", m.logsRawContent)
-	}
-	if strings.Contains(m.logsRawContent, "\r") {
-		t.Errorf("log content kept carriage returns: %q", m.logsRawContent)
-	}
-	if !strings.Contains(m.logsRawContent, "red line") {
-		t.Errorf("stripping mangled the text: %q", m.logsRawContent)
-	}
-	if m.logsLoading {
-		t.Error("logsLoading = true after the content arrived")
+	if logs.Kind() != viewerpkg.KindLog {
+		t.Errorf("Kind = %q, want log — the producer declares it, it is never sniffed", logs.Kind())
 	}
 }
 
-func TestLogsFailureShowsAMessageInTheViewport(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("l"))
+func TestInspectAsksForTheViewer(t *testing.T) {
+	m := loadedModel(t)
 
-	m = feed(t, m, ContainerLogsLoadedMsg{Err: errors.New("no such container")})
+	_, cmd := step(t, m, testutil.Key("i"))
 
-	if m.logsLoading {
-		t.Error("logsLoading = true after a failed fetch")
+	source := openRequestSource(t, cmd)
+	inspect, ok := source.(inspectSource)
+	if !ok {
+		t.Fatalf("i asked for a %T, want an inspectSource", source)
 	}
-	if !strings.Contains(m.logsRawContent, "Failed to load logs") {
-		t.Errorf("logsRawContent = %q, want a short failure message", m.logsRawContent)
-	}
-	if strings.Contains(m.logsRawContent, "no such container") {
-		t.Error("the raw Docker error leaked into the viewport")
-	}
-}
-
-func TestEscLeavesTheLogsView(t *testing.T) {
-	for _, key := range []string{"esc", "q"} {
-		t.Run(key, func(t *testing.T) {
-			m := logsModel(t, "line")
-
-			m = feed(t, m, testutil.Key(key))
-
-			if m.state != stateTable {
-				t.Errorf("%q did not return to the table", key)
-			}
-		})
+	if inspect.Kind() != viewerpkg.KindJSON {
+		t.Errorf("Kind = %q, want json", inspect.Kind())
 	}
 }
 
-func TestLogsWrapToggleRebuildsTheViewport(t *testing.T) {
-	long := strings.Repeat("x", 500)
-	m := logsModel(t, long)
+// Only the log source can be followed, paged or re-fetched with timestamps.
+// That is what the three single-method interfaces are for: the viewer offers
+// `t`, `ctrl+f` and `e` for this document and for no other.
+func TestOnlyTheLogSourceCarriesTheOptionalCapabilities(t *testing.T) {
+	logs := logsSource{ID: "abc123", Container: "api"}
+	inspect := inspectSource{ID: "abc123", Container: "api"}
 
-	m = feed(t, m, testutil.Key("w"))
-	if !m.logsWrapEnabled {
-		t.Fatal("w did not enable wrapping")
+	if _, ok := viewerpkg.Source(logs).(viewerpkg.Timestamped); !ok {
+		t.Error("logsSource is not Timestamped, so `t` never appears")
 	}
-	// The raw content is untouched; only the viewport is rebuilt.
-	if m.logsRawContent != long {
-		t.Error("enabling wrap modified the raw log content")
+	if _, ok := viewerpkg.Source(logs).(viewerpkg.Followable); !ok {
+		t.Error("logsSource is not Followable, so `ctrl+f` never appears")
 	}
-
-	m = feed(t, m, testutil.Key("w"))
-	if m.logsWrapEnabled {
-		t.Error("w did not disable wrapping")
-	}
-}
-
-func TestWrapLines(t *testing.T) {
-	tests := []struct {
-		name    string
-		content string
-		width   int
-		want    string
-	}{
-		{"short lines pass through", "ab\ncd", 10, "ab\ncd"},
-		{"exact width is not split", "abcde", 5, "abcde"},
-		{"long line splits", "abcdefg", 3, "abc\ndef\ng"},
-		{"zero width is a no-op", "abcdefg", 0, "abcdefg"},
-		{"negative width is a no-op", "abcdefg", -1, "abcdefg"},
-		{"empty content", "", 5, ""},
+	if _, ok := viewerpkg.Source(logs).(viewerpkg.Pageable); !ok {
+		t.Error("logsSource is not Pageable, so `e` never appears")
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := wrapLines(tc.content, tc.width); got != tc.want {
-				t.Errorf("wrapLines(%q, %d) = %q, want %q", tc.content, tc.width, got, tc.want)
-			}
-		})
+	if _, ok := viewerpkg.Source(inspect).(viewerpkg.Followable); ok {
+		t.Error("inspectSource claims to be followable; there is nothing to follow")
+	}
+	if _, ok := viewerpkg.Source(inspect).(viewerpkg.Pageable); ok {
+		t.Error("inspectSource claims a pager; every inspect pager path was deleted")
 	}
 }
 
-// Multibyte content must wrap on runes, not bytes, or the split lands mid-glyph.
-func TestWrapLinesCountsRunes(t *testing.T) {
-	got := wrapLines("ééééé", 2)
+// WithTimestamps returns a new source rather than mutating the one a command may
+// already hold (Rule 110).
+func TestWithTimestampsLeavesTheOriginalAlone(t *testing.T) {
+	original := logsSource{ID: "abc123", Container: "api"}
 
-	if got != "éé\néé\né" {
-		t.Errorf("wrapLines on multibyte content = %q, want it split every two runes", got)
+	updated := original.WithTimestamps(true)
+
+	if original.Timestamps {
+		t.Error("WithTimestamps mutated the receiver")
+	}
+	if !updated.(logsSource).Timestamps {
+		t.Error("WithTimestamps did not set the flag on the copy")
 	}
 }
 
-func TestTimestampsToggleRefetches(t *testing.T) {
-	m := logsModel(t, "line")
-
-	m, cmd := step(t, m, testutil.Key("t"))
-
-	if !m.logsTimestamps {
-		t.Error("t did not enable timestamps")
-	}
-	if !m.logsLoading {
-		t.Error("logsLoading = false after toggling timestamps, so the spinner never shows")
-	}
-	if cmd == nil {
-		t.Error("toggling timestamps did not refetch the logs")
-	}
-}
-
-func TestLogsReloadRefetches(t *testing.T) {
-	m := logsModel(t, "line")
-
-	m, cmd := step(t, m, testutil.Key("ctrl+r"))
-
-	if !m.logsLoading {
-		t.Error("logsLoading = false after ctrl+r in the logs view")
-	}
-	if cmd == nil {
-		t.Error("ctrl+r in the logs view issued no fetch")
-	}
-}
-
-func TestLogsScrollKeys(t *testing.T) {
-	m := logsModel(t, strings.Repeat("line\n", 200))
-
-	m = feed(t, m, testutil.Key("g"))
-	if m.logsViewport.YOffset != 0 {
-		t.Errorf("YOffset = %d after g, want the top", m.logsViewport.YOffset)
-	}
-
-	m = feed(t, m, testutil.Key("down"))
-	if m.logsViewport.YOffset != 1 {
-		t.Errorf("YOffset = %d after down, want 1", m.logsViewport.YOffset)
-	}
-
-	m = feed(t, m, testutil.Key("up"))
-	if m.logsViewport.YOffset != 0 {
-		t.Errorf("YOffset = %d after up, want 0", m.logsViewport.YOffset)
-	}
-
-	m = feed(t, m, testutil.Key("pgdown"))
-	if m.logsViewport.YOffset == 0 {
-		t.Error("pgdown did not scroll")
-	}
-
-	m = feed(t, m, testutil.Key("G"))
-	atBottom := m.logsViewport.YOffset
-	m = feed(t, m, testutil.Key("pgup"))
-	if m.logsViewport.YOffset >= atBottom {
-		t.Error("pgup did not scroll back up")
-	}
-}
-
-// The pager and the follow stream both suspend the TUI; returning from either
-// must reload rather than leave the stale buffer on screen.
-func TestReturningFromAPagerReloadsTheLogs(t *testing.T) {
-	m := logsModel(t, "line")
-
-	m, cmd := step(t, m, PagerExitMsg{})
-
-	if !m.logsLoading {
-		t.Error("logsLoading = false after returning from the pager")
-	}
-	if cmd == nil {
-		t.Error("returning from the pager did not refetch")
-	}
-}
-
+// PagerExitMsg now only ever comes back from the shell, so it has one branch.
 func TestReturningFromAPagerInTheTableRefreshes(t *testing.T) {
 	m := loadedModel(t)
 
@@ -1005,25 +886,6 @@ func TestReturningFromAPagerInTheTableRefreshes(t *testing.T) {
 
 	if cmd == nil {
 		t.Error("returning to the table did not restart the refresh loop")
-	}
-}
-
-// The external pager builds a shell command from the container ID, so a
-// malformed ID must be rejected before it reaches a shell.
-func TestExternalPagerRejectsAMalformedContainerID(t *testing.T) {
-	m := logsModel(t, "line")
-	m.logsContainerID = "abc; rm -rf /"
-
-	m, cmd := step(t, m, testutil.Key("e"))
-
-	// The message is what proves the reject branch was taken, and it is the
-	// only thing safe to assert on: executing the command to look inside it is
-	// exactly what must not happen if the guard ever fails.
-	if m.errorMsg != "Cannot open pager — invalid container ID" {
-		t.Errorf("errorMsg = %q, want the pager to have been refused", m.errorMsg)
-	}
-	if cmd == nil {
-		t.Error("a footer message was set with no timer to clear it")
 	}
 }
 
@@ -1103,19 +965,6 @@ func TestResizeFillsTheViewportWidth(t *testing.T) {
 	}
 }
 
-func TestResizeReflowsWrappedLogs(t *testing.T) {
-	m := logsModel(t, strings.Repeat("x", 300))
-	m = feed(t, m, testutil.Key("w")) // wrap on
-
-	// Narrowing must re-split the content, not leave lines longer than the
-	// viewport.
-	m = feed(t, m, tea.WindowSizeMsg{Width: 40, Height: 20})
-
-	if m.logsViewport.Width != 40 {
-		t.Errorf("logs viewport width = %d after the resize, want 40", m.logsViewport.Width)
-	}
-}
-
 func TestUnhandledKeysAreInert(t *testing.T) {
 	m := loadedModel(t)
 
@@ -1124,7 +973,7 @@ func TestUnhandledKeysAreInert(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("an unbound key produced %T", testutil.Msg(cmd))
 	}
-	if m.confirmModal != nil || m.state != stateTable {
+	if m.confirmModal != nil {
 		t.Error("an unbound key changed the view state")
 	}
 }

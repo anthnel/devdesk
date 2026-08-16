@@ -403,12 +403,18 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	}
 	hasSubRepos := selectedEntry != nil && !isGitRepo && len(selectedEntry.SubRepoPaths) > 0
 
+	isFile := selectedEntry != nil && !selectedEntry.IsDir
+
 	shortcuts := []shortcut.Shortcut{
 		{Key: "←→", Description: "Open/Back"},
 	}
 
-	// enter: only shown for git repos with cached scan results
-	if hasScanResult {
+	// enter carries two actions that cannot both apply: a file opens in the
+	// viewer, a scanned repository opens its findings.
+	switch {
+	case isFile:
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "View file"})
+	case hasScanResult:
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "Scan details"})
 	}
 
@@ -482,7 +488,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "g/Home", Description: "Go to top of list"},
 			{Key: "G/End", Description: "Go to bottom of list"},
 			{Key: "Esc", Description: "Go to parent directory"},
-			{Key: "enter", Description: "View scan details for selected git repo (requires cached scan result)"},
+			{Key: "enter", Description: "Open a file in the viewer, or view scan details for a scanned git repo"},
 			{Key: "ctrl+n", Description: "Create a new directory (at current level)"},
 			{Key: "r", Description: "Rename the selected entry"},
 			{Key: "ctrl+d", Description: "Delete the selected entry (with confirmation)"},
@@ -527,6 +533,12 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "View Scan Details",
 				Body:  "Press Enter on a git repo that has been scanned to open the Security view in detail mode, showing all findings from the cached scan result.",
+			},
+			{
+				Title: "Viewing files",
+				Body: "Press Enter on a file to open it read-only in the viewer. A .json or .xml opens on a navigable tree — → expands a node, ← collapses it, f shows the raw text instead — and everything else opens as text. " +
+					"c turns syntax coloring on and off, w wraps long lines, / searches, ctrl+r re-reads the file from disk, and Esc comes back here with the cursor where you left it. " +
+					"A file over 5 MB or one that is not text is refused, and the footer says which; a malformed JSON or XML is not refused — it opens as text with a note, because it is the file you need to look at.",
 			},
 		},
 	}

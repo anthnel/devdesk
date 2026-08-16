@@ -17,6 +17,7 @@ var (
 	IconCheck                 = "\U000F012C" // 󰄬 nf-md-check
 	IconCross                 = "\U000F0156" // 󰅖 nf-md-close
 	IconChevronRight          = "\U000F0142" // 󰅂 nf-md-chevron_right
+	IconChevronDown           = "\U000F0140" // 󰅀 nf-md-chevron_down
 	IconConfig                = "\ue615"     //  nf-seti-config
 	IconDirectory             = "\U000F024B" // 󰉋 nf-md-folder
 	IconDirectoryOpen         = "\uf4d4"     //  nf-oct-file_directory_open_fill

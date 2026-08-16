@@ -11,9 +11,9 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// InEditMode returns true when a modal, filter, or logs viewport is active
+// InEditMode returns true when a modal or the filter is active
 func (m Model) InEditMode() bool {
-	return m.confirmModal != nil || m.containerTable.InEditMode() || m.state == stateLogs
+	return m.confirmModal != nil || m.containerTable.InEditMode()
 }
 
 // FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
@@ -77,9 +77,6 @@ func (m Model) actionLine() string {
 
 // GetTitle returns the view title
 func (m Model) GetTitle() string {
-	if m.state == stateLogs {
-		return theme.IconContainer + " Logs: " + m.logsContainerName
-	}
 	return theme.IconContainer + " Containers"
 }
 
@@ -102,24 +99,6 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 
 // GetShortcuts returns the keyboard shortcuts for the header
 func (m Model) GetShortcuts() shortcut.Shortcuts {
-	if m.state == stateLogs {
-		wrapDesc := "Wrap: off"
-		if m.logsWrapEnabled {
-			wrapDesc = "Wrap: on"
-		}
-		tsDesc := "Timestamps: off"
-		if m.logsTimestamps {
-			tsDesc = "Timestamps: on"
-		}
-		return []shortcut.Shortcut{
-			{Key: "w", Description: wrapDesc},
-			{Key: "t", Description: tsDesc},
-			{Key: "f", Description: "Follow"},
-			{Key: "ctrl+r", Description: "Reload"},
-			{Key: "e", Description: "External pager"},
-			{Key: "esc", Description: "Back"},
-		}
-	}
 	if m.confirmModal != nil {
 		return []shortcut.Shortcut{
 			{Key: "y/n", Description: "Confirm"},
@@ -146,12 +125,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 // View renders the view
 func (m Model) View() string {
-	// Priority 1: logs viewport
-	if m.state == stateLogs {
-		return m.renderLogsView()
-	}
-
-	// Priority 2: confirm modal (centered)
+	// Priority 1: confirm modal (centered)
 	if m.confirmModal != nil {
 		return lipgloss.Place(
 			m.width, m.height,
@@ -161,16 +135,8 @@ func (m Model) View() string {
 		)
 	}
 
-	// Priority 3: normal view
+	// Priority 2: normal view
 	return m.renderNormalView()
-}
-
-// renderLogsView renders the internal logs viewport
-func (m Model) renderLogsView() string {
-	if m.logsLoading {
-		return theme.SpinnerMessage(m.spinner.View(), "Loading logs...")
-	}
-	return m.logsViewport.View()
 }
 
 // renderNormalView renders the main container list view
@@ -203,8 +169,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+d", Description: "Delete the selected container (with confirmation)"},
 			{Key: "s", Description: "Open an interactive shell (bash if available, sh otherwise) in the selected container, suspending the TUI (running only)"},
 			{Key: "S", Description: "Open the same shell in a new terminal window, leaving the TUI running (running only)"},
-			{Key: "l", Description: "View logs in the internal viewport. Press Esc to return, 'e' to open in external pager, 'w' to toggle wrap, 't' to toggle timestamps, 'f' to follow live output."},
-			{Key: "i", Description: "View inspect data (JSON) in system pager (less). Press q to return."},
+			{Key: "l", Description: "Open the container's logs in the viewer (Esc returns here)"},
+			{Key: "i", Description: "Open 'docker inspect' in the viewer, as a navigable JSON tree (Esc returns here)"},
 			{Key: "a", Description: "Toggle between active-only and all containers (including stopped)"},
 			{Key: ".", Description: "Cycle sort column (Name → Image → CPU → Mem → Net RX → Net TX → Block RX → Block TX → Created). Each press toggles asc/desc then moves to next column."},
 			{Key: "ctrl+r", Description: "Refresh containers and metrics"},
@@ -250,15 +216,13 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Logs & Inspect",
-				Body: "Pressing 'l' opens the last 500 lines of container logs in an internal scrollable viewport.\n" +
-					"Navigation: ↑/↓ scroll, g/G top/bottom, pgup/pgdn page.\n" +
-					"'/' search inline (n/N next/prev match), ctrl+r reload, Esc return.\n" +
-					"'w' toggle soft word-wrap (clears active search).\n" +
-					"'t' toggle timestamps — refetches logs with RFC3339Nano prefix per line.\n" +
-					"'f' follow live output (docker logs -f, Ctrl+C to return).\n" +
-					"'e' open in external pager ($PAGER or less).\n" +
-					"Active options (wrap, timestamps) are shown in the status bar at the bottom.\n\n" +
-					"Pressing 'i' shows the full JSON output of 'docker inspect' in the system pager (less). Press 'q' to return to the TUI.",
+				Body: "Both open in the document viewer, and Esc there returns to this list.\n\n" +
+					"'l' opens the last 500 lines of the container's logs. The viewer reads their levels: 'v' filters " +
+					"by verbosity, '/' searches, 'w' wraps long lines, 't' toggles timestamps, ctrl+r reloads, " +
+					"ctrl+f follows live output and 'e' opens the system pager. A line with no level of its own " +
+					"belongs to the entry above it, so filtering never breaks a stack trace apart.\n\n" +
+					"'i' opens 'docker inspect' as a navigable JSON tree: → expands a node, ← collapses it, and 'f' " +
+					"shows the raw JSON instead. Neither suspends the TUI.",
 			},
 			{
 				Title: "Prerequisites",

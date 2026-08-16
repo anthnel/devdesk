@@ -7,7 +7,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -17,13 +16,13 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// viewState represents the current display state of the containers view
-type viewState int
-
-const (
-	stateTable viewState = iota
-	stateLogs
-)
+// The logs pane used to live here — a viewState, a viewport, soft wrap, ANSI
+// stripping, scroll keys, reload, follow, a timestamps toggle and an external
+// pager. None of it was specific to containers except the last three, and those
+// are properties of where the text came from rather than of the pane, so the
+// whole thing moved into the document viewer and the three became a Source's
+// optional capabilities (see sources.go). `l` and `i` now emit one message and
+// this view goes back to being a table.
 
 // Model represents the containers view state
 type Model struct {
@@ -47,16 +46,6 @@ type Model struct {
 	// line of its own instead.
 	pruning       bool
 	width, height int
-
-	// Logs view state
-	state             viewState
-	logsViewport      viewport.Model
-	logsContainerID   string
-	logsContainerName string
-	logsLoading       bool
-	logsRawContent    string
-	logsWrapEnabled   bool
-	logsTimestamps    bool
 }
 
 // Messages
@@ -104,12 +93,6 @@ type PagerExitMsg struct {
 // ShellWindowOpenedMsg signals the result of launching a shell in a new terminal window
 type ShellWindowOpenedMsg struct {
 	Err error
-}
-
-// ContainerLogsLoadedMsg contains the fetched container logs content
-type ContainerLogsLoadedMsg struct {
-	Content string
-	Err     error
 }
 
 // columnStatus indexes containerColumns. Only the ones something else refers to
@@ -279,7 +262,6 @@ func New(cfg *config.Config) Model {
 			Key:          func(c docker.Container) string { return c.ID },
 			StatusColumn: columnStatus,
 		}),
-		loading:      true,
-		logsViewport: viewport.New(0, 0),
+		loading: true,
 	}
 }

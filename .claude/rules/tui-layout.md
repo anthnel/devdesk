@@ -39,7 +39,16 @@
   - `ctrl+s`: Trigger scan.
   - `s`: Sync — fetch and fast-forward (workspaces view).
   - `ctrl+o`: Open in configured IDE (workspaces view).
-  - `c`: Enter a multi-select mode over the current list (explorer clone).
+  - `c`: Enter a multi-select mode over the current list (explorer clone), or
+    toggle syntax coloring (viewer). Both are view-local; `c` is free because
+    Rule 111 reserves `h`/`l` as `←`/`→` aliases, so a "highlight" key cannot be `h`.
+- **Document viewer** (opened from another view; `esc` returns there):
+  - `f`: Switch display — tree ↔ the document's own text.
+  - `c`: Syntax coloring on/off.
+  - `w`: Soft wrap (text display).
+  - `v`: Cycle the minimum log level shown (logs only).
+  - `ctrl+r` / `ctrl+f`: Reload once / follow live output.
+  - `e`: Open in the system pager (the one surviving pager path, container logs only).
 - **Control**:
   - `Enter`: Validate, Execute, or Open.
   - `Esc`: Close modal, cancel, or go back.

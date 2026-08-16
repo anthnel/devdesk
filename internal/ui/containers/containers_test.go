@@ -15,7 +15,8 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
-	"github.com/anthnel/devdesk/internal/ui/testutil"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
+	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
 )
 
 // Every Cmd in this package shells out to the Docker CLI, so no test executes
@@ -100,11 +101,22 @@ func loadedModel(t *testing.T) Model {
 	return m
 }
 
-// logsModel returns a model showing the logs viewport for the running fixture.
-func logsModel(t *testing.T, content string) Model {
+// openRequestSource runs a command and returns the source it asked the viewer
+// to open. It fails the test on anything else, so a key that stopped emitting
+// the request is caught rather than silently asserting on a zero value.
+func openRequestSource(t *testing.T, cmd tea.Cmd) viewerpkg.Source {
 	t.Helper()
-	m := feed(t, loadedModel(t), testutil.Key("l"))
-	return feed(t, m, ContainerLogsLoadedMsg{Content: content})
+	if cmd == nil {
+		t.Fatal("no command was issued, so nothing was ever opened")
+	}
+	msg, ok := cmd().(uiviewer.OpenRequestMsg)
+	if !ok {
+		t.Fatalf("the command produced %T, want a viewer.OpenRequestMsg", cmd())
+	}
+	if msg.Source == nil {
+		t.Fatal("the open request carried no source")
+	}
+	return msg.Source
 }
 
 func feed(t *testing.T, m Model, msgs ...tea.Msg) Model {

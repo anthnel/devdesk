@@ -4216,6 +4216,130 @@ lit comme une donnée qu'on a oublié d'afficher.
 
 ---
 
+### 3.25 A viewer for documents — text, JSON, XML and logs — **done**
+
+Plan : [`document-viewer.md`](../.claude/plans/document-viewer.md).
+
+Une vue `viewer`, ouverte par le routeur à la demande d'une autre vue, jamais par
+son nom. Trois producteurs : `enter` sur un fichier dans `workspaces`, `i` et `l`
+dans `containers`. C'est la forme qu'a déjà la vue security — une destination
+ouverte depuis deux listes — et elle est câblée pareil.
+
+**Ce que ça supprime est le vrai résultat.** Le panneau de logs de `containers`
+— `viewState`, un `viewport`, le wrap, le strip ANSI, les touches de défilement,
+le reload, le follow, la bascule timestamps et le pager externe — n'avait rien
+de spécifique aux conteneurs sauf les trois derniers, et ces trois-là sont des
+propriétés de **l'origine du texte**, pas du panneau. Le panneau part donc en
+entier dans le viewer et `update.go` passe de 707 à 548 lignes. `wrapLines` et
+la normalisation ANSI/CR sont **déplacés**, commentaires compris : leurs raisons
+(systemd colore sa sortie, les barres de progression écrasent avec `\r`) valent
+pour n'importe quel texte affiché, pas pour les seuls logs.
+
+**Deux axes, pas quatre noms.** La demande parlait d'arbre, de raw, de plain text
+et d'une bascule de coloration. Il n'y a que deux faits indépendants : l'affichage
+(`f` : arbre ↔ texte) et la couleur (`c`). « Plain text », c'est le texte sans
+couleur. Un troisième affichage aurait donné deux chemins vers un même écran —
+la forme que §3.9 a retirée au backend de secrets et que la commande `:theme`
+a emportée avec elle.
+
+**Le document porte sa source, pas ses octets.** Recharger, suivre, re-fetcher
+avec des timestamps sont des questions posées à l'origine. `viewer.Source` a
+trois capacités optionnelles — `Timestamped`, `Followable`, `Pageable` — sondées
+par assertion de type, comme le routeur sonde `FooterView`. Chacune n'a **qu'une
+méthode** : l'avertissement de `HeaderView` porte sur une vue qui en fournit deux
+sur quatre et ne satisfait rien en silence ; une interface à une méthode n'a pas
+d'état à moitié satisfait. Seul `logsSource` les implémente toutes les trois, et
+c'est exactement ce que le viewer affiche : `t`, `ctrl+f` et `e` n'apparaissent
+que pour ce document-là (Rule 130).
+
+**Une ligne sans niveau hérite de celle du dessus.** C'est la décision sur
+laquelle repose tout le filtre : une stack trace, c'est douze lignes sans niveau,
+et un filtre réglé sur « ≥ warn » qui les avalerait détruirait précisément ce
+qu'on est venu lire. L'héritage se chaîne, et une ligne vide le coupe — sinon un
+seul ERROR colorerait la moitié du fichier. Le prix est assumé : une ligne
+réellement indépendante, sans niveau, suivant un INFO, est filtrée avec lui.
+Une ligne qu'aucun niveau ne précède reste `LevelUnknown` et passe **tous** les
+filtres.
+
+**La verbosité est un minimum qui cycle** (`v` : all → trace → debug → info →
+warn → error), pas quatre bascules indépendantes. C'est ce que veut dire
+« verbosité », et les niveaux de log sont monotones : personne ne veut warn sans
+error. Un seul token dans la `FilterBar` (Rule 136), qui disparaît à `all`.
+
+**Le format d'un log est déclaré, jamais reniflé.** « Ça ressemble à un log »
+n'est pas une question décidable ; le précédent est le champ `provider` des
+registries — déclaré, jamais déduit de l'URL. JSON et XML gardent leur reniflage,
+mais uniquement pour un fichier **sans extension** : un `.md` qui commence par
+une balise n'est pas un XML cassé, et le dire serait du bruit sur un fichier qui
+s'affiche très bien. D'où `detection.Declared` : une erreur de parsing n'est
+signalée que si le **nom** l'avait annoncé.
+
+**L'ordre est du contenu.** Les deux parseurs lisent un flux de tokens
+(`json.Decoder.Token`, `xml.Decoder.Token`) et non une valeur décodée :
+`map[string]any` perd l'ordre du fichier, et une configuration relue par ordre
+alphabétique est un autre document. C'est aussi pourquoi les colonnes de l'arbre
+ne déclarent **ni `Less` ni `Search`** — trier détruirait ce que le parseur a pris
+soin de garder, et un filtre texte masquerait les parents en orphelinant leurs
+enfants. `.` et `/` ne sont donc pas liés dans l'arbre, et Rule 138 le dit par
+omission.
+
+**L'arbre est un `datatable`, le texte un `viewport`.** L'arbre y a droit pour
+une raison qui mérite d'être dite : **une cellule d'arbre ne porte qu'une seule
+classe de syntaxe**, donc un `Style` par cellule suffit — `datatable` ne sait pas
+exprimer plusieurs couleurs dans une cellule, et n'a jamais à le faire ici. Le
+panneau texte, lui, n'est pas une table : Rule 122 ne s'y applique pas, mais
+Rule 115 si, et chaque style de token pose son fond explicitement.
+
+**Le wrap se fait sur des tokens, pas sur du texte coloré.** Une ligne déjà
+habillée ne peut pas être coupée : la mesure compte les octets d'échappement
+comme de la largeur, et la coupe tombe au milieu d'une séquence — le même piège
+que Rule 122 décrit pour les cellules. `docLine` garde donc la ligne sous forme
+de spans, `wrapTokens` la découpe pendant qu'elle est encore brute, et la couleur
+est posée après.
+
+**chroma sert de lexer et de rien d'autre.** Ses formatters écrivent leurs
+propres séquences ANSI et leurs resets, et un reset au milieu d'une ligne emporte
+le fond de l'application jusqu'à la marge (Rule 115). La correspondance
+`TokenType → TokenClass` a été **relevée sur les deux lexers**, pas devinée : ils
+émettent `NameTag` pour une clé JSON *et* pour une balise XML, d'où le `kind` en
+paramètre. L'invariant sur lequel tout repose — concaténer les tokens redonne
+l'entrée exactement — a son propre test.
+
+Le coût est mesuré et consigné : **19,9 Mo → 24,0 Mo**, soit +4,0 Mo (+21 %),
+parce que chroma embarque tous ses lexers. C'était le compromis accepté contre
+~250 lignes de gestion d'échappements et de CDATA écrites à la main, et contre
+l'absence de toute route vers Go, YAML ou Dockerfile.
+
+**Les couleurs de syntaxe sont des alias sémantiques** posés dans `ApplyTheme`,
+comme `ColorChartBg` : aucun des six fichiers de thème ne gagne une clé, et tous
+récupèrent une palette cohérente. Les niveaux de log n'en reçoivent **aucune** —
+`StatusErrorStyle`, `StatusWarningStyle` et `DimStyle` veulent déjà dire ça.
+
+**`ViewViewer` n'est pas dans `viewNames`** : `:viewer` ouvrirait un écran qui dit
+qu'il n'y a rien dedans, et `app.default_view` le proposerait comme vue
+d'atterrissage — le défaut pour lequel `ViewNames()` avait été séparé de
+`FullNames()`. `AllViewNames()` est né pour ça : les deux tests de contrat du
+routeur l'itèrent, parce qu'une vue ouverte par le routeur s'affiche dans le même
+viewport et échoue dans le même silence.
+
+Trois collisions de touches ont été résolues plutôt qu'acceptées : le follow
+passe de `f` à `ctrl+f` (`f` est la bascule d'affichage ; `ctrl+r` et `ctrl+f` se
+lisent maintenant comme « recharger une fois » / « recharger en continu »),
+`h` et `l` restent libres parce que Rule 111 en fait les alias de `←`/`→` — c'est
+justement le drill-down de l'arbre, d'où `c` pour la coloration — et `q` ne ferme
+plus rien : c'est la touche de sortie de l'application, et le panneau de logs
+était le seul écran à l'avaler.
+
+Les tests du panneau de logs ont **suivi le code** plutôt que d'être supprimés :
+défilement, wrap, reflow au redimensionnement, reload, retour de pager. C'est ce
+qui fait de ça un déplacement et non une réécriture.
+
+Non retenu : un réglage `app.syntax_highlight`. Le viewer ouvre avec la couleur
+et `c` la bascule pour la session ; rien n'est persisté, donc rien ne peut être
+en désaccord. Vingt-neuf réglages suffisent (YAGNI).
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

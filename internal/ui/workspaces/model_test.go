@@ -13,6 +13,8 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
+	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
 )
 
 // ── Construction ─────────────────────────────────────────────────────────────
@@ -790,6 +792,77 @@ func TestEnterOpensDetailsOnlyForScannedRepos(t *testing.T) {
 	if cmd == nil {
 		t.Error("enter did not open details for a scanned repo")
 	}
+}
+
+// ── Opening a file in the viewer ─────────────────────────────────────────────
+
+// enter carries two actions, and they cannot collide: a file is never a git
+// repository.
+func TestEnterOnAFileAsksForTheViewer(t *testing.T) {
+	m := scannedModel(t)
+	m.table.SetCursor(fileRow(t, m, "notes.md"))
+
+	_, cmd := step(t, m, testutil.Key("enter"))
+	if cmd == nil {
+		t.Fatal("enter on a file issued no command")
+	}
+	msg, ok := cmd().(uiviewer.OpenRequestMsg)
+	if !ok {
+		t.Fatalf("enter on a file produced %T, want a viewer.OpenRequestMsg", cmd())
+	}
+	source, ok := msg.Source.(viewerpkg.FileSource)
+	if !ok {
+		t.Fatalf("the request carried a %T, want a FileSource", msg.Source)
+	}
+	if source.Path != "/tmp/workspaces/notes.md" {
+		t.Errorf("Path = %q, want the selected file", source.Path)
+	}
+	// KindAuto: a file browser does not know what it is opening, so the
+	// extension and then the content decide.
+	if source.Kind() != viewerpkg.KindAuto {
+		t.Errorf("Kind = %q, want auto", source.Kind())
+	}
+}
+
+// Rule 130: the description changes with what is selected, because the action
+// does.
+func TestTheEnterShortcutNamesWhicheverActionApplies(t *testing.T) {
+	m := scannedModel(t)
+
+	m.table.SetCursor(fileRow(t, m, "notes.md"))
+	if got := shortcutFor(m, "enter"); got != "View file" {
+		t.Errorf("enter on a file reads %q, want \"View file\"", got)
+	}
+
+	m.table.SetCursor(0) // devdesk, scanned
+	if got := shortcutFor(m, "enter"); got != "Scan details" {
+		t.Errorf("enter on a scanned repo reads %q, want \"Scan details\"", got)
+	}
+
+	m.table.SetCursor(1) // clean-repo, never scanned
+	if got := shortcutFor(m, "enter"); got != "" {
+		t.Errorf("enter is advertised as %q on a repo with nothing to open", got)
+	}
+}
+
+func fileRow(t *testing.T, m Model, name string) int {
+	t.Helper()
+	for i, row := range m.table.Visible() {
+		if row.Entry.Name == name {
+			return i
+		}
+	}
+	t.Fatalf("no row named %q", name)
+	return -1
+}
+
+func shortcutFor(m Model, key string) string {
+	for _, s := range m.GetShortcuts() {
+		if s.Key == key {
+			return s.Description
+		}
+	}
+	return ""
 }
 
 // ── Filtering (Rule 136) ─────────────────────────────────────────────────────

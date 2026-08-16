@@ -246,6 +246,20 @@ func ApplyTheme(t *Theme) {
 
 	ColorHeaderKey = ColorSecondary
 
+	// Syntax colors: aliases of the semantic palette, assigned here rather than
+	// at declaration because the palette itself is only populated by this
+	// function — a package-level `= ColorSecondary` would capture the zero
+	// value and never follow a theme change. ColorChartBg above is the same
+	// pattern.
+	ColorSyntaxKey = ColorSecondary
+	ColorSyntaxString = ColorOK
+	ColorSyntaxNumber = ColorHighlight
+	ColorSyntaxLiteral = ColorPrimary
+	ColorSyntaxPunct = ColorDim
+	ColorSyntaxTag = ColorSecondary
+	ColorSyntaxAttr = ColorPrimary
+	ColorSyntaxComment = ColorDim
+
 	// Severity colors (background + foreground pairs)
 	ColorSeverityCritical = applyColor(t.SeverityCritical, ColorError)
 	ColorSeverityCriticalFg = applyColor(t.SeverityCriticalFg, ColorBlack)

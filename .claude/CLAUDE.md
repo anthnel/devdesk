@@ -172,7 +172,8 @@ App (Router)
     ├── containers      - Docker container list + live metrics
     ├── oci-resources   - OCI resource list, scan, launch containers, network inspection
     ├── netdiag         - Network diagnostics (Docker-based tools) + real-time port monitor
-    └── configuration   - Every scalar setting in the current context
+    ├── configuration   - Every scalar setting in the current context
+    └── viewer          - One document, read-only (router-only: no `:viewer`)
 ```
 
 ### View Switching & Command Mode
@@ -205,14 +206,25 @@ is what swaps the palette now.
 **`HeaderView` is all four methods or none.** The router probes for it with a
 type assertion and falls back silently, so a view supplying `GetTitle` and
 `GetShortcuts` but not `GetIcon` and `GetHeaderInfo` satisfies nothing and
-renders an empty viewport title — with nothing to say so. `command.ViewNames()`
-and `TestEveryViewSuppliesItsHeaderAndHelp` turn that into a contract every view
-is checked against.
+renders an empty viewport title — with nothing to say so.
+`command.AllViewNames()` and `TestEveryViewSuppliesItsHeaderAndHelp` turn that
+into a contract every view is checked against.
 
-`ViewNames()` is **not** `FullNames()`: the latter also carries the action
-commands (`context`, `theme`, `quit`), which is right for completion and wrong
-for anything meaning "a view" — the configuration view's `default_view` field
-offered `quit` as a landing view until they were separated.
+There are **three** name lists, and each answers a different question:
+
+| | Answers | Read by |
+|---|---|---|
+| `ViewNames()` | what can a user type | completion, `app.default_view` |
+| `AllViewNames()` | what can appear in the viewport | the router's contract tests |
+| `FullNames()` | every command, views and actions | completion |
+
+`FullNames()` also carries the action commands (`context`, `quit`), which is
+right for completion and wrong for anything meaning "a view" — the configuration
+view's `default_view` field offered `quit` as a landing view until they were
+separated. `AllViewNames()` adds the **router-only** views: `viewer` is opened on
+another view's request and `:viewer` resolves to nothing, but it renders in the
+same viewport as the rest and fails in the same silence, so the contract has to
+reach it.
 
 ### Multi-Context Configuration
 
@@ -542,6 +554,100 @@ The keyring is read **once per batch** (`tokenLoader`, a `sync.Once` closure) an
 on a command's goroutine, not in `Update` — same reasoning as the clone
 pipeline's. `gitlab.pull.parallel_jobs` bounds both: one number meaning "how many
 git network operations at once" beats two the user has to keep in step.
+
+### The document viewer — `internal/viewer` + `internal/ui/viewer`
+
+One document, read-only. A **destination with three producers**, the shape the
+security view already has:
+
+| Producer | Key | Source | Document |
+|---|---|---|---|
+| `workspaces` | `enter` on a file | `viewer.FileSource` | detected |
+| `containers` | `i` | `inspectSource` | JSON |
+| `containers` | `l` | `logsSource` | log |
+
+Two axes, and they are the whole interface: **display** (`f` — tree ↔ text) and
+**highlight** (`c`). "Plain text" is text with the colour off; a third display
+would be one screen reachable two ways — what §3.9 removed from the secret
+backend and what took the `:theme` command with it. A document with no structure
+is always text, and `f` is hidden for it (Rule 130).
+
+**A document carries its `Source`, not its bytes.** Reload, follow and the
+timestamps toggle are questions for the origin. Three **single-method** optional
+interfaces, probed by type assertion like `FooterView`:
+
+| Interface | Unlocks | Implemented by |
+|---|---|---|
+| `Timestamped` | `t` | `logsSource` |
+| `Followable` | `ctrl+f` | `logsSource` |
+| `Pageable` | `e` | `logsSource` |
+
+One method each on purpose: `HeaderView`'s warning is about a view supplying two
+of four and satisfying none in silence — a one-method interface has no
+half-satisfied state. `WithTimestamps` returns a *new* source rather than
+mutating one, so nothing is shared with a command in flight (Rule 110).
+
+**A log line with no level inherits the one above it.** This is what the filter
+rests on: a stack trace is a dozen unlevelled lines, and `≥ warn` swallowing them
+destroys exactly what the log was opened for. The chain breaks on a blank line —
+otherwise one ERROR colours half the file. A line before any level is
+`LevelUnknown` and passes **every** filter. The cost, stated rather than
+discovered: a genuinely unrelated unlevelled line after an INFO goes with it.
+
+`v` cycles a **minimum** (`all → trace → debug → info → warn → error`), not four
+toggles: that is what "verbosity" means and log levels are monotone. One
+`FilterBar` token (Rule 136), gone at `all`.
+
+**`KindLog` is declared, never sniffed** — "this looks like a log" is not
+decidable, and the registry `provider` field is the precedent. JSON and XML keep
+a content sniff, but only for a file with **no extension**: a `.md` opening with
+a tag is not a broken XML document, and saying so would be noise. Hence
+`detection.Declared` — a parse failure is reported only when the *name* claimed
+the kind.
+
+**Order is content.** Both parsers read a token stream (`json.Decoder.Token`,
+`xml.Decoder.Token`), never a decoded value: `map[string]any` loses the file's
+order. That is also why the tree's columns declare **neither `Less` nor
+`Search`** — sorting would destroy what the parser took care to keep, and a text
+filter would hide parents and orphan their children. `.` and `/` are unbound in
+the tree, and Rule 138 says so by omission.
+
+**The tree is a `datatable`, the text pane a `viewport`.** The tree qualifies for
+a reason worth stating: **a tree cell carries exactly one syntax class**, so one
+`Style` per cell is enough — `datatable` cannot express several colours in one
+cell and never has to here. The text pane is not a table, so Rule 122 does not
+apply; Rule 115 does, and every token style sets its background.
+
+**Wrapping happens on tokens, never on coloured text.** A styled line cannot be
+cut: the measure counts an escape's bytes as width and the cut lands inside the
+sequence — Rule 122's hazard, one layer up. `docLine` keeps a line as spans,
+`wrapTokens` splits it while it is still plain, and the colour goes on after.
+
+**chroma is a lexer and nothing else.** Its formatters emit their own ANSI and
+resets, and a reset mid-line takes the app background to the margin (Rule 115).
+The `TokenType → TokenClass` mapping was **read off the two lexers**, not guessed:
+both emit `NameTag` for a JSON key *and* an XML tag, hence the `kind` parameter.
+The invariant everything rests on — concatenating the tokens reproduces the input
+exactly — has a test of its own. Cost: **+4.0 MB** on the binary (19.9 → 24.0),
+because chroma embeds every lexer.
+
+Syntax colours are **semantic aliases assigned in `ApplyTheme`**, like
+`ColorChartBg`: no theme file gains a key. Log levels get none —
+`StatusErrorStyle`, `StatusWarningStyle` and `DimStyle` already mean that.
+
+Three key collisions were resolved rather than accepted: follow moved `f` →
+`ctrl+f` (`ctrl+r` and `ctrl+f` now read as *reload once* / *reload
+continuously*); `h`/`l` stay unbound because Rule 111 owns them as `←`/`→`, which
+is the tree's drill-down, hence `c` for coloration; and `q` closes nothing — it
+is the application's quit key, and the logs pane was the one screen that ate it.
+
+**What this deleted.** The containers logs pane — `viewState`, its `viewport`,
+wrap, ANSI stripping, scroll keys, reload, follow, timestamps and the external
+pager — moved here whole; `containers/update.go` went from 707 to 548 lines.
+`wrapLines` and the ANSI/CR normalisation were **moved**, comments included:
+their reasons apply to any text this application shows. Every `docker inspect`
+pager path is gone, Windows temp files included. `e` survives for logs alone,
+because `less` handles a gigabyte and follows it.
 
 ### Security Scanning
 

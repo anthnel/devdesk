@@ -20,7 +20,19 @@ const (
 	ViewOCIResources   ViewType = "oci-resources"
 	ViewNetdiag        ViewType = "netdiag"
 	ViewConfiguration  ViewType = "configuration"
+
+	// ViewViewer is opened by the router on another view's request — a file in
+	// workspaces, an inspect or a log in containers — and never by name. It is
+	// deliberately absent from viewNames: `:viewer` would open a pane saying
+	// there is nothing in it, and app.default_view would offer it as a landing
+	// view, which is the defect ViewNames() was split from FullNames() to fix.
+	ViewViewer ViewType = "viewer"
 )
+
+// routerViews are the views the router opens itself. They are real views with
+// real headers and help, so the contract tests have to reach them — see
+// AllViewNames — but nothing a user can type resolves to one.
+var routerViews = []ViewType{ViewViewer}
 
 // CommandType représente le type de commande
 type CommandType string
@@ -159,6 +171,23 @@ func ViewNames() []string {
 		if name == string(view) {
 			names = append(names, name)
 		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// AllViewNames lists every view the application can put on screen, typeable or
+// not, sorted.
+//
+// It is what the router's contract tests iterate. ViewNames() answers "what can
+// a user type", which is the right question for completion and for
+// app.default_view and the wrong one for "does every view supply a header and
+// help" — a router-only view renders in the same viewport as all the others and
+// fails the same way when it does not.
+func AllViewNames() []string {
+	names := ViewNames()
+	for _, view := range routerViews {
+		names = append(names, string(view))
 	}
 	sort.Strings(names)
 	return names
