@@ -16,10 +16,15 @@ import (
 // GetHeaderInfo, so it satisfied none of HeaderView and the viewport rendered
 // an empty title — with nothing to say so.
 //
-// Checking every view the command parser can name turns that into a build-time
-// contract rather than something noticed by looking at the screen.
+// Checking every view turns that into a build-time contract rather than
+// something noticed by looking at the screen.
+//
+// AllViewNames rather than ViewNames: a view the router opens itself — the
+// document viewer — renders in the same viewport as the rest and fails in
+// exactly the same silence. That it cannot be typed says nothing about whether
+// it has a title.
 func TestEveryViewSuppliesItsHeaderAndHelp(t *testing.T) {
-	for _, name := range command.ViewNames() {
+	for _, name := range command.AllViewNames() {
 		view := command.ViewType(name)
 
 		t.Run(name, func(t *testing.T) {
@@ -53,7 +58,7 @@ func TestEveryViewSuppliesItsHeaderAndHelp(t *testing.T) {
 // dessiner les siens. Une seule le fait — le dashboard, qui est la seule vue à
 // ne pas encadrer un objet unique. Ce test tient l'exception à une exception.
 func TestOnlyTheDashboardIsFrameless(t *testing.T) {
-	for _, name := range command.ViewNames() {
+	for _, name := range command.AllViewNames() {
 		view := command.ViewType(name)
 
 		app := newWithSize(testConfig(), 120, 40)

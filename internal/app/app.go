@@ -20,6 +20,7 @@ import (
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 
@@ -357,6 +358,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case workspaces.SelectionCancelledMsg:
 		return a.handleSelectionCancelled()
+
+	// ── The document viewer ──────────────────────────────────────────────
+	// One message, three producers: a file in workspaces, an inspect and a log
+	// in containers. The viewer is a destination like the security view, and is
+	// wired the same way.
+	case uiviewer.OpenRequestMsg:
+		return a.handleViewerOpenRequest(msg)
+
+	case uiviewer.BackToOriginMsg:
+		return a, a.switchView(msg.Origin)
 
 	default:
 		return a, a.forwardToActiveView(msg)

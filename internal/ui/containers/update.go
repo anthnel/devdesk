@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,9 +13,9 @@ import (
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	uiterminal "github.com/anthnel/devdesk/internal/ui/terminal"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 )
 
 // Init initializes the containers view
@@ -52,7 +51,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
 		}
-		if m.loading || m.logsLoading {
+		if m.loading {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
@@ -70,15 +69,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ContainerActionMsg:
 		return m.handleContainerAction(msg)
 
-	case ContainerLogsLoadedMsg:
-		return m.handleContainerLogsLoaded(msg)
-
 	case PagerExitMsg:
-		if m.state == stateLogs {
-			// Reload logs on return from follow or external pager
-			m.logsLoading = true
-			return m, tea.Batch(m.spinner.Tick, fetchContainerLogs(m.logsContainerID, m.logsTimestamps))
-		}
+		// Only the shell path comes back here now. The logs pane went to the
+		// viewer, and its pager and follow went with it (sources.go).
 		return m, tea.Batch(tickCmd(), fetchContainers(m.showAll))
 
 	case sharedcomponents.ConfirmModalYesMsg:
@@ -108,58 +101,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKeyMsg processes keyboard input with priority chain
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Priority 1: logs view
-	if m.state == stateLogs {
-		return m.handleLogsKeyMsg(msg)
-	}
-
-	// Priority 2: confirm modal
+	// Priority 1: confirm modal
 	if m.confirmModal != nil {
 		var cmd tea.Cmd
 		m.confirmModal, cmd = m.confirmModal.Update(msg)
 		return m, cmd
 	}
 
-	// Priority 3: filter input active
+	// Priority 2: filter input active
 	if m.containerTable.InEditMode() {
 		return m, m.containerTable.Update(msg)
 	}
 
-	// Priority 4: normal mode
+	// Priority 3: normal mode
 	return m.handleNormalKeyMsg(msg)
-}
-
-// handleLogsKeyMsg handles keys when the internal logs viewport is active
-func (m Model) handleLogsKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "q":
-		m.state = stateTable
-		return m, nil
-	case "e":
-		return m.openExternalPager()
-	case "w":
-		return m.toggleLogsWrap()
-	case "t":
-		return m.toggleLogsTimestamps()
-	case "f":
-		return m.followContainerLogs()
-	case "ctrl+r":
-		m.logsLoading = true
-		return m, tea.Batch(m.spinner.Tick, fetchContainerLogs(m.logsContainerID, m.logsTimestamps))
-	case "up", "k":
-		m.logsViewport.ScrollUp(1)
-	case "down", "j":
-		m.logsViewport.ScrollDown(1)
-	case "pgup":
-		m.logsViewport.HalfPageUp()
-	case "pgdown":
-		m.logsViewport.HalfPageDown()
-	case "g", "home":
-		m.logsViewport.GotoTop()
-	case "G", "end":
-		m.logsViewport.GotoBottom()
-	}
-	return m, nil
 }
 
 // handleNormalKeyMsg handles keys in normal mode
@@ -363,125 +318,30 @@ func (m Model) shellSelectedContainerInNewWindow() (tea.Model, tea.Cmd) {
 	}
 }
 
-// logsSelectedContainer switches to the internal logs viewport for the selected container
+// logsSelectedContainer opens the container's log in the document viewer.
+//
+// This used to be a pane of its own — a viewport, soft wrap, ANSI stripping,
+// scroll keys, reload, follow, a timestamps toggle and an external pager. All of
+// it is the viewer's now, and the three things that really were about docker
+// travel as the source's optional capabilities (sources.go). What is left here
+// is naming the container.
 func (m Model) logsSelectedContainer() (tea.Model, tea.Cmd) {
 	c := m.getSelectedContainer()
 	if c == nil {
 		return m, nil
 	}
-	m.state = stateLogs
-	m.logsContainerID = c.ID
-	m.logsContainerName = c.Name
-	m.logsLoading = true
-	m.logsViewport.GotoTop()
-	return m, tea.Batch(m.spinner.Tick, fetchContainerLogs(c.ID, m.logsTimestamps))
+	source := logsSource{ID: c.ID, Container: c.Name}
+	return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
 }
 
-// openExternalPager launches docker logs in the system pager (fallback for power users)
-func (m Model) openExternalPager() (tea.Model, tea.Cmd) {
-	if !docker.IsContainerID(m.logsContainerID) {
-		log.Printf("ERROR [containers] pager: rejected malformed container ID %q", m.logsContainerID)
-		m.errorMsg = "Cannot open pager — invalid container ID"
-		return m, clearErrorCmd()
-	}
-
-	var pagerCmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		// Write to a temp file then open with `more` (always available on Windows; less is not)
-		script := fmt.Sprintf(`docker logs --tail 500 %s > "%%TEMP%%\devdesk-logs.txt" 2>&1 && more "%%TEMP%%\devdesk-logs.txt"`, m.logsContainerID)
-		pagerCmd = exec.Command("cmd", "/c", script)
-	default:
-		pagerCmd = exec.Command("sh", "-c", fmt.Sprintf("docker logs --tail 500 %s 2>&1 | ${PAGER:-less} -R", m.logsContainerID))
-	}
-	return m, tea.ExecProcess(pagerCmd, func(err error) tea.Msg {
-		return PagerExitMsg{Err: err}
-	})
-}
-
-// handleContainerLogsLoaded processes fetched log content into the logs viewport
-func (m Model) handleContainerLogsLoaded(msg ContainerLogsLoadedMsg) (tea.Model, tea.Cmd) {
-	m.logsLoading = false
-	if msg.Err != nil {
-		log.Printf("ERROR [containers] logs %s: %v", m.logsContainerName, msg.Err)
-		m.logsRawContent = "Failed to load logs — check logs"
-		m.logsViewport.SetContent(m.logsRawContent)
-		return m, nil
-	}
-	// Strip ANSI escape sequences (colors, cursor moves, etc.) then normalize
-	// line endings. Both are needed: systemd emits colored output, and some
-	// containers use \r for progress-bar overwrites — both break the viewport.
-	content := ansi.Strip(msg.Content)
-	content = strings.ReplaceAll(content, "\r\n", "\n")
-	content = strings.ReplaceAll(content, "\r", "")
-	m.logsRawContent = content
-
-	m.refreshLogsViewport()
-	m.logsViewport.GotoBottom()
-	return m, nil
-}
-
-// refreshLogsViewport rebuilds the viewport content applying wrap if enabled.
-func (m *Model) refreshLogsViewport() {
-	if m.logsWrapEnabled {
-		m.logsViewport.SetContent(wrapLines(m.logsRawContent, m.logsViewport.Width))
-		return
-	}
-	m.logsViewport.SetContent(m.logsRawContent)
-}
-
-// wrapLines soft-wraps content so no line exceeds width runes.
-func wrapLines(content string, width int) string {
-	if width <= 0 {
-		return content
-	}
-	lines := strings.Split(content, "\n")
-	out := make([]string, 0, len(lines))
-	for _, line := range lines {
-		runes := []rune(line)
-		if len(runes) <= width {
-			out = append(out, line)
-			continue
-		}
-		for len(runes) > width {
-			out = append(out, string(runes[:width]))
-			runes = runes[width:]
-		}
-		if len(runes) > 0 {
-			out = append(out, string(runes))
-		}
-	}
-	return strings.Join(out, "\n")
-}
-
-// toggleLogsWrap toggles soft word-wrap for the logs viewport.
-func (m Model) toggleLogsWrap() (tea.Model, tea.Cmd) {
-	m.logsWrapEnabled = !m.logsWrapEnabled
-	m.refreshLogsViewport()
-	return m, nil
-}
-
-// toggleLogsTimestamps refetches logs with or without --timestamps.
-func (m Model) toggleLogsTimestamps() (tea.Model, tea.Cmd) {
-	m.logsTimestamps = !m.logsTimestamps
-	m.logsLoading = true
-	return m, tea.Batch(m.spinner.Tick, fetchContainerLogs(m.logsContainerID, m.logsTimestamps))
-}
-
-// followContainerLogs suspends the TUI and streams live logs via docker logs -f.
-func (m Model) followContainerLogs() (tea.Model, tea.Cmd) {
-	args := []string{"logs", "-f", "--tail", "100"}
-	if m.logsTimestamps {
-		args = append(args, "--timestamps")
-	}
-	args = append(args, m.logsContainerID)
-	followCmd := exec.Command("docker", args...)
-	return m, tea.ExecProcess(followCmd, func(err error) tea.Msg {
-		return PagerExitMsg{Err: err}
-	})
-}
-
-// inspectSelectedContainer opens docker inspect in the system pager (less)
+// inspectSelectedContainer opens `docker inspect` in the document viewer.
+//
+// The pager is gone, and the Windows temp file with it: that branch existed only
+// because `less` is absent there, and `more` cannot read a pipe. The viewer is
+// the same answer on every platform, and it never suspends the TUI.
+//
+// The ID check stays where it was worth keeping — in docker.InspectContainer,
+// next to the subprocess it guards, rather than at one of its call sites.
 func (m Model) inspectSelectedContainer() (tea.Model, tea.Cmd) {
 	c := m.getSelectedContainer()
 	if c == nil {
@@ -492,19 +352,8 @@ func (m Model) inspectSelectedContainer() (tea.Model, tea.Cmd) {
 		m.errorMsg = "Cannot inspect — invalid container ID"
 		return m, clearErrorCmd()
 	}
-
-	var pagerCmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		// Write to a temp file then open with `more` (always available on Windows; less is not)
-		script := fmt.Sprintf(`docker inspect %s > "%%TEMP%%\devdesk-inspect.txt" 2>&1 && more "%%TEMP%%\devdesk-inspect.txt"`, c.ID)
-		pagerCmd = exec.Command("cmd", "/c", script)
-	default:
-		pagerCmd = exec.Command("sh", "-c", fmt.Sprintf("docker inspect %s | less -R", c.ID))
-	}
-	return m, tea.ExecProcess(pagerCmd, func(err error) tea.Msg {
-		return PagerExitMsg{Err: err}
-	})
+	source := inspectSource{ID: c.ID, Container: c.Name}
+	return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
 }
 
 // handleConfirmYes routes confirmed modal actions
@@ -688,7 +537,7 @@ func relativeTime(createdAt string) string {
 	return theme.TimeAgo(t) // Rule 127
 }
 
-// resize adjusts the table and logs viewport dimensions
+// resize adjusts the table dimensions
 func (m *Model) resize(width, height int) {
 	m.width = width
 	m.height = height
@@ -696,12 +545,4 @@ func (m *Model) resize(width, height int) {
 	// Widths, headers and height in one call; the Rule 116 arithmetic is the
 	// component's rather than ten percentages written out here.
 	m.containerTable.Resize(width, height-2)
-
-	m.logsViewport.Width = width
-	m.logsViewport.Height = height
-
-	// Reflow wrapped content at the new width
-	if m.state == stateLogs && m.logsWrapEnabled && m.logsRawContent != "" {
-		m.refreshLogsViewport()
-	}
 }

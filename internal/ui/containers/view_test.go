@@ -11,7 +11,9 @@ import (
 
 // ── Header and metadata ──────────────────────────────────────────────────────
 
-func TestGetTitleNamesTheContainerInTheLogsView(t *testing.T) {
+// The title has one value again: naming the container was the logs pane's job,
+// and the viewer's own title does it now.
+func TestGetTitleNamesTheView(t *testing.T) {
 	m := loadedModel(t)
 
 	if got := m.GetTitle(); !strings.Contains(got, "Containers") {
@@ -19,8 +21,8 @@ func TestGetTitleNamesTheContainerInTheLogsView(t *testing.T) {
 	}
 
 	m = feed(t, m, testutil.Key("l"))
-	if got := m.GetTitle(); !strings.Contains(got, "api") {
-		t.Errorf("GetTitle() = %q in the logs view, want the container name", got)
+	if got := m.GetTitle(); !strings.Contains(got, "Containers") {
+		t.Errorf("GetTitle() = %q after opening the logs, want it unchanged", got)
 	}
 }
 
@@ -64,12 +66,11 @@ func TestGetShortcutsSwitchWithTheState(t *testing.T) {
 		t.Error("the table state does not expose the lifecycle shortcuts")
 	}
 
-	logs := feed(t, m, testutil.Key("l")).GetShortcuts()
-	if hasShortcut(logs, "ctrl+d") {
-		t.Error("the logs state still offers delete, which does nothing there")
-	}
-	if !hasShortcut(logs, "esc") || !hasShortcut(logs, "f") {
-		t.Error("the logs state does not offer back and follow")
+	// There is no logs state any more: `l` hands the document to the viewer and
+	// this view keeps the shortcuts it had.
+	afterLogs := feed(t, m, testutil.Key("l")).GetShortcuts()
+	if !hasShortcut(afterLogs, "ctrl+d") {
+		t.Error("opening the logs changed this view's shortcuts; it has one state now")
 	}
 
 	modal := feed(t, m, testutil.Key("ctrl+d")).GetShortcuts()
@@ -78,24 +79,18 @@ func TestGetShortcutsSwitchWithTheState(t *testing.T) {
 	}
 }
 
-// The logs shortcuts double as status indicators, so their descriptions have to
-// track the toggles.
-func TestLogsShortcutsReportToggleState(t *testing.T) {
-	m := logsModel(t, "line")
+// The wrap and timestamps shortcuts left with the logs pane: they belong to the
+// viewer now, where they are offered only for a source that supports them.
+func TestTheLogsPaneShortcutsAreGone(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("l"))
 
-	if got := shortcutDescription(m.GetShortcuts(), "w"); got != "Wrap: off" {
-		t.Errorf("wrap shortcut = %q, want \"Wrap: off\"", got)
+	for _, key := range []string{"w", "t", "e"} {
+		if shortcutDescription(m.GetShortcuts(), key) != "" {
+			t.Errorf("%q is still advertised here; it belongs to the viewer", key)
+		}
 	}
-	if got := shortcutDescription(m.GetShortcuts(), "t"); got != "Timestamps: off" {
-		t.Errorf("timestamps shortcut = %q, want \"Timestamps: off\"", got)
-	}
-
-	m = feed(t, m, testutil.Key("w"), testutil.Key("t"))
-	if got := shortcutDescription(m.GetShortcuts(), "w"); got != "Wrap: on" {
-		t.Errorf("wrap shortcut = %q after toggling, want \"Wrap: on\"", got)
-	}
-	if got := shortcutDescription(m.GetShortcuts(), "t"); got != "Timestamps: on" {
-		t.Errorf("timestamps shortcut = %q after toggling, want \"Timestamps: on\"", got)
+	if shortcutDescription(m.GetShortcuts(), "l") != "Logs" {
+		t.Error("l stopped advertising itself as the way to the logs")
 	}
 }
 
@@ -145,8 +140,10 @@ func TestInEditModeCoversEveryCapturingState(t *testing.T) {
 	if !feed(t, m, testutil.Key("ctrl+d")).InEditMode() {
 		t.Error("InEditMode() is false while the confirmation is open")
 	}
-	if !feed(t, m, testutil.Key("l")).InEditMode() {
-		t.Error("InEditMode() is false in the logs view, where q and g are bound")
+	// The logs pane used to be a third capturing state. It is the viewer's now,
+	// and the viewer answers for its own keys.
+	if feed(t, m, testutil.Key("l")).InEditMode() {
+		t.Error("InEditMode() is true after opening the logs; this view captures nothing then")
 	}
 }
 
@@ -196,19 +193,13 @@ func TestViewRendersTheConfirmationOverTheTable(t *testing.T) {
 	}
 }
 
-func TestViewRendersTheLogs(t *testing.T) {
-	m := logsModel(t, "hello from the container")
+// The view has one screen again: `l` hands the document to the router and this
+// one goes on showing its table underneath.
+func TestViewStaysOnTheTableWhenTheLogsAreOpened(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("l"))
 
-	if !strings.Contains(m.View(), "hello from the container") {
-		t.Error("the logs viewport does not render its content")
-	}
-}
-
-func TestViewShowsTheSpinnerWhileLogsLoad(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("l")) // logsLoading is true
-
-	if !strings.Contains(m.View(), "Loading logs") {
-		t.Error("View() does not report an in-flight log fetch")
+	if !strings.Contains(m.View(), "api") {
+		t.Error("the table stopped rendering when the logs were opened elsewhere")
 	}
 }
 
@@ -225,7 +216,6 @@ func TestFooterHeightMatchesWhatRenderFooterEmits(t *testing.T) {
 		{"error", func(t *testing.T) Model {
 			return feed(t, loadedModel(t), ContainersListMsg{Err: errors.New("boom")})
 		}},
-		{"logs", func(t *testing.T) Model { return logsModel(t, "line") }},
 	}
 
 	for _, tc := range tests {

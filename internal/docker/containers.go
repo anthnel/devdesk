@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -194,6 +195,22 @@ func GetContainerLogs(id string, tail int, timestamps bool) (string, error) {
 		return "", errWithOutput("docker logs", output)
 	}
 	return string(output), nil
+}
+
+// InspectContainer returns the full `docker inspect` JSON for a container.
+//
+// The ID is validated rather than trusted: it reaches this from a table row,
+// and a malformed one is a bug worth failing on rather than a string handed to
+// a subprocess.
+func InspectContainer(id string) ([]byte, error) {
+	if !IsContainerID(id) {
+		return nil, fmt.Errorf("docker inspect failed: %q is not a container ID", id)
+	}
+	output, err := dockerCombined("inspect", id)
+	if err != nil {
+		return nil, errWithOutput("docker inspect", output)
+	}
+	return output, nil
 }
 
 // ContainerStats contains Docker container counts

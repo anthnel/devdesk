@@ -15,6 +15,7 @@ import (
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/status"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 
@@ -150,6 +151,11 @@ func (a *App) createView(view command.ViewType) {
 		a.views[view] = netdiag.New(a.config)
 	case command.ViewConfiguration:
 		a.views[view] = configuration.New(a.config)
+	case command.ViewViewer:
+		// Empty: the viewer is normally installed with its source by
+		// handleViewerOpenRequest, and this case exists so the router can build
+		// one like any other view — which is what the contract test does.
+		a.views[view] = uiviewer.New(a.config)
 	}
 }
 

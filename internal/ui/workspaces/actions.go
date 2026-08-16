@@ -12,6 +12,8 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/scan"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
+	"github.com/anthnel/devdesk/internal/viewer"
 )
 
 // startSecurityScan launches a security scan on the selected entry using saved options.
@@ -307,11 +309,22 @@ func (m Model) deleteEntry(path string) tea.Cmd {
 	}
 }
 
-// openScanDetails opens the security details view for the selected git repo if it has cached results
+// openScanDetails is what `enter` does: it opens a file in the document viewer,
+// or a scanned repository's findings.
+//
+// The two cannot collide — a file is never a git repository — which is why one
+// key carries both rather than a second one being found for reading a file.
 func (m Model) openScanDetails() (tea.Model, tea.Cmd) {
 	entry, ok := m.selectedEntry()
 	if !ok {
 		return m, nil
+	}
+	if !entry.IsDir {
+		// The read itself happens in the viewer's Init, so what is too large or
+		// not text is decided and reported in one place rather than at each
+		// producer.
+		source := viewer.NewFileSource(entry.Path)
+		return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
 	}
 	if !entry.IsGitRepo {
 		return m, nil

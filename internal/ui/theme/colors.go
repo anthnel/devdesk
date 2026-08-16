@@ -57,6 +57,25 @@ var (
 
 	ColorHeaderKey lipgloss.Color
 
+	// Syntax colors, for the viewer's highlighted text and tree.
+	//
+	// Every one of them is an alias of a colour the theme already declares, so
+	// no theme file gains a key and all six get a coherent palette for free. A
+	// theme that wants to separate them later declares its own, exactly as the
+	// severity colours already allow.
+	//
+	// Log levels are deliberately absent: StatusErrorStyle, StatusWarningStyle
+	// and DimStyle already mean error, warn and debug, and a third name for one
+	// colour is how a palette stops being one.
+	ColorSyntaxKey     lipgloss.Color
+	ColorSyntaxString  lipgloss.Color
+	ColorSyntaxNumber  lipgloss.Color
+	ColorSyntaxLiteral lipgloss.Color
+	ColorSyntaxPunct   lipgloss.Color
+	ColorSyntaxTag     lipgloss.Color
+	ColorSyntaxAttr    lipgloss.Color
+	ColorSyntaxComment lipgloss.Color
+
 	// Severity colors (background + foreground pairs)
 	ColorSeverityCritical   lipgloss.Color
 	ColorSeverityCriticalFg lipgloss.Color

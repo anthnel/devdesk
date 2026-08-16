@@ -81,11 +81,5 @@ func pruneContainers() tea.Cmd {
 	}
 }
 
-// fetchContainerLogs fetches the last 500 lines of logs for a container.
-// Pass timestamps=true to prefix each line with its RFC3339Nano timestamp.
-func fetchContainerLogs(id string, timestamps bool) tea.Cmd {
-	return func() tea.Msg {
-		content, err := docker.GetContainerLogs(id, 500, timestamps)
-		return ContainerLogsLoadedMsg{Content: content, Err: err}
-	}
-}
+// Fetching the logs is the viewer's now: logsSource.Load does it, so the fetch
+// sits next to the reload and the follow that share its options (sources.go).
