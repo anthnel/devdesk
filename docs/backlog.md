@@ -4171,6 +4171,51 @@ risque de régression est réel et le gain visible est nul.
 
 ---
 
+### 3.24 The dashboard says what to do about it — **done**
+
+Cinq retouches sur les boîtes du dashboard, sans plan séparé. Elles ont un
+point commun : chacune remplace un chiffre exact par la chose qui se décide.
+
+**Une ligne vide en dernière position, dans toutes les boîtes.** Elle est
+ajoutée à la hauteur de la **rangée** (`trailingBlank`, `innerHeights`), pas au
+rendu de chaque section : `padTo` remplit ensuite, donc la boîte la plus haute
+de la rangée en reçoit exactement une et les autres davantage. C'était elle qui
+touchait sa bordure basse — et c'est celle que l'œil lit en premier.
+
+**Les outils manquants sont nommés.** « 4 of 5 available » posait la question
+qu'il ne répondait pas : lequel installer. La boîte Host tient sur une ligne
+quand tout est là (`all available ✓`) et liste un nœud par manquant sinon. Les
+manquants se lisent contre `knownTools`, pas contre ce que la détection a rendu
+— un outil absent de la détection est absent tout court.
+
+C'est **le seul bloc du dashboard dont la hauteur suit ses données**, et
+`TestEverySectionKeepsItsHeightWhateverItsState` le sait : les trois états y
+partagent désormais un même inventaire, ce qui laisse le test attraper tout ce
+qui bouge réellement d'un rafraîchissement à l'autre. L'exception se paie une
+fois, au démarrage, et se justifie ainsi : un outil installé ne se désinstalle
+pas entre deux tours, là où un compte change à chaque fois.
+
+**Images, volumes et réseaux pendent d'une racine `Resources`.** Trois lignes de
+premier niveau se lisaient comme trois sujets, alors que ce sont des objets d'un
+même daemon. **Networks entre au passage** : c'est une ressource que `:oci` gère
+et que le dashboard ne comptait pas — la seule des trois que `docker system df`
+ignore, faute d'octets à déclarer, d'où le `docker network ls` séparé dans
+`FetchOCIStats`. Une liste qui échoue laisse le compte à zéro plutôt que
+d'emporter les tailles avec elle.
+
+**Le pourcentage d'occupation passe entre parenthèses** : `290 GB  58 %` se lit
+comme deux faits côte à côte, `290 GB (58 %)` comme une mesure et sa part.
+
+**La ligne « Updated » quitte le footer.** Elle datait des valeurs figées à `-`,
+mais les trois horloges du dashboard tournent à la seconde, aux cinq secondes et
+à la trentaine : le plus vieux fait à l'écran n'a jamais une minute, donc
+`TimeAgo` répondait `now` en permanence. Une ligne dont la valeur ne change
+jamais n'informe de rien, et celle-ci coûtait la seule ligne d'information de la
+vue. `Model.lastRefresh` part avec elle — un champ que plus personne ne lit se
+lit comme une donnée qu'on a oublié d'afficher.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

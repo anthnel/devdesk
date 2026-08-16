@@ -3,8 +3,6 @@ package dashboard
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-
 	"github.com/anthnel/devdesk/internal/status"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -159,13 +157,14 @@ func (m Model) innerHeights(columns [][]section, width int, t tier) []int {
 
 	heights := make([]int, rows)
 	for i := range heights {
-		heights[i] = nominalInnerHeight
+		content := 0
 		for _, col := range columns {
 			if i >= len(col) {
 				continue
 			}
-			heights[i] = max(heights[i], len(col[i].render(m, width, t)))
+			content = max(content, len(col[i].render(m, width, t)))
 		}
+		heights[i] = max(nominalInnerHeight, content+trailingBlank)
 	}
 	return heights
 }
@@ -247,21 +246,19 @@ func (m Model) showsTabBar() bool {
 	return tabCountFor(layoutTier(m.width, m.height)) > 1
 }
 
-// RenderFooter draws the tab bar and the age of the data (Rule 124).
+// RenderFooter draws the tab bar (Rule 124).
 //
-// L'âge n'est pas de la décoration : avec des libellés qui restent en place et
-// des valeurs à `-`, une donnée périmée ressemble exactement à une donnée
-// fraîche. C'est le prix des placeholders, pas un ornement.
+// **Il n'y a pas de ligne « Updated »**, et son absence est un choix. Elle
+// existait pour dater des valeurs figées à `-`, mais les trois horloges du
+// dashboard tournent à la seconde, aux cinq secondes et à la trentaine : le
+// plus vieux fait à l'écran n'a jamais une minute, et TimeAgo répondait donc
+// `now` en permanence. Une ligne dont la valeur ne change jamais n'informe de
+// rien, et coûtait la seule ligne d'information de la vue.
+//
+// L'information reste rendue même vide : le routeur budgète sur
+// GetFooterHeight (Rule 124).
 func (m Model) RenderFooter(width int) string {
 	info := theme.EmptyLineBg(width)
-	if age := theme.TimeAgo(m.lastRefresh); age != "" {
-		info = lipgloss.NewStyle().
-			Foreground(theme.ColorHighlight).
-			Background(theme.ColorBackground).
-			Width(width).
-			Align(lipgloss.Center).
-			Render("Updated " + age)
-	}
 
 	if !m.showsTabBar() {
 		return theme.EmptyLineBg(width) + "\n" + info
@@ -335,7 +332,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Host and Docker",
-				Body:  "Two measurement points, and they are not on one axis: the Host box reads the machine dk runs on, while the Docker box reads inside the Docker Desktop VM, whose footprint is a subset of the host's. Both are true and they do not add up, which is why the box titles name where the number was measured.",
+				Body:  "Two measurement points, and they are not on one axis: the Host box reads the machine dk runs on, while the Docker box reads inside the Docker Desktop VM, whose footprint is a subset of the host's. Both are true and they do not add up, which is why the box titles name where the number was measured.\n\nThe Host box ends on the tooling: one line when every tool is there, one node per missing tool otherwise — the name is what you need to install it. The Docker box counts what the daemon holds under a Resources root: images, volumes and networks. The sizes are not there, they are in Storage.",
 			},
 			{
 				Title: "Resources",

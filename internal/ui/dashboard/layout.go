@@ -61,6 +61,18 @@ func (m Model) gridHeight(t tier) int {
 // leadingBlank is the empty line between the title rule and the first row.
 const leadingBlank = 1
 
+// trailingBlank is the empty line every box keeps under its last fact.
+//
+// Elle est ajoutée à la hauteur de la **rangée**, pas au rendu de chaque
+// section : padTo remplit ensuite jusqu'à cette hauteur, donc la boîte la plus
+// haute de la rangée en reçoit exactement une et les autres davantage. Une
+// ligne ajoutée par chaque render() aurait le même effet visuel sur la boîte la
+// plus haute et une de trop partout ailleurs.
+//
+// Sans elle, la dernière valeur de la boîte la plus haute touche sa bordure
+// basse — et c'est précisément la boîte que l'œil lit en premier.
+const trailingBlank = 1
+
 // Box geometry. Les boîtes empilées ne sont pas séparées par une ligne vide :
 // leurs bordures s'en chargent, et à 30 lignes le budget est exactement de
 // deux boîtes (2 × (6 + 2) = 16).

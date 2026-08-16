@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -61,6 +62,35 @@ func TestViewRowsAreUniformWidth(t *testing.T) {
 	for i, line := range lines {
 		if got := lipgloss.Width(line); got != width {
 			t.Fatalf("line %d is %d cells wide, want %d — the columns are not padded to a common width", i, got, width)
+		}
+	}
+}
+
+// Toute boîte garde une ligne vide sous son dernier fait. La hauteur d'une
+// rangée est celle de sa boîte la plus haute, donc c'est **elle** qui touchait
+// sa bordure basse — et c'est celle que l'œil lit en premier.
+func TestEveryBoxEndsOnABlankLine(t *testing.T) {
+	base, _ := loadedModel(t)
+
+	for _, tc := range tierCases {
+		m := feed(t, base, tea.WindowSizeMsg{Width: tc.width, Height: tc.height})
+		at := layoutTier(tc.width, tc.height)
+		width := at.columnWidth(tc.width)
+		columns := m.columnsFor(at)
+		m.chartLines = m.fitCharts(columns, width, at)
+		inner := m.innerHeights(columns, width, at)
+
+		for _, col := range columns {
+			for i, s := range col {
+				content := padTo(s.render(m, width, at), inner[i], theme.BoxContentWidth(width))
+				box := theme.RenderTitledBox(s.title, content, width)
+				// La dernière ligne est la bordure basse ; celle d'avant est la
+				// dernière ligne de contenu.
+				last := strings.Trim(stripANSI(box[len(box)-2]), "│ ")
+				if last != "" {
+					t.Errorf("%s: box %q ends on %q rather than a blank line", tc.name, s.title, last)
+				}
+			}
 		}
 	}
 }
@@ -229,6 +259,28 @@ func TestTheDockerBoxCountsWithoutSizing(t *testing.T) {
 	for _, size := range []string{"1.2GB", "50MB", "300MB"} {
 		if containsLine(lines, size) {
 			t.Errorf("the Docker box carries %q — the sizes belong to Storage", size)
+		}
+	}
+}
+
+// Les trois inventaires pendent d'une racine : trois lignes de premier niveau
+// se lisaient comme trois sujets, alors que ce sont des objets d'un même
+// daemon. Networks en fait partie et n'était pas compté — `docker system df`
+// l'ignore, faute d'octets à déclarer.
+func TestTheDockerBoxGroupsItsResourcesUnderOneRoot(t *testing.T) {
+	for _, at := range []tier{tierStandard, tierWide} {
+		lines := renderDockerSection(loadedOnly(t), 90, at)
+
+		if !containsLine(lines, "Resources") {
+			t.Errorf("tier %v: the inventory has no root: %q", at, lines)
+		}
+		for _, want := range []string{"images", "volumes", "networks"} {
+			if !containsLine(lines, want) {
+				t.Errorf("tier %v: the Docker box does not count %q: %q", at, want, lines)
+			}
+		}
+		if !containsLine(lines, "networks     3") {
+			t.Errorf("tier %v: the networks count did not reach the box: %q", at, lines)
 		}
 	}
 }
@@ -407,33 +459,60 @@ func TestTabSwitchesBetweenOverviewAndResources(t *testing.T) {
 	}
 }
 
-// La boîte Host compte les outils, et c'est tout ce que le dashboard en dit :
-// la liste nommée a quitté l'onglet Resources, sa place est dans la vue de
-// configuration — c'est un état de la machine, pas une ressource à surveiller.
-func TestTheToolsAreCountedAndNotListed(t *testing.T) {
+// La boîte Host ne compte plus les outils, elle nomme ceux qui manquent : « 4
+// of 5 available » posait la question qu'il ne répondait pas — lequel installer.
+func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
 	m, _ := loadedModel(t)
 
-	overview := plain(m.View())
-	if !strings.Contains(overview, "of 5 available") {
-		t.Errorf("the Host box does not count the tools:\n%s", overview)
+	// toolFixtures ne déclare que trois outils, dont Gitleaks indisponible :
+	// les deux que la détection n'a pas rendus manquent tout autant, et c'est
+	// knownTools qui le dit.
+	if got := missingTools(m.tools); !slices.Equal(got, []string{"Gitleaks", "Net Diag", "Git"}) {
+		t.Errorf("missingTools() = %v, want the undetected ones counted too", got)
 	}
 
-	m.activeTab = tabResources
-	for _, tab := range []string{overview, plain(m.View())} {
-		if strings.Contains(tab, "Gitleaks") {
-			t.Error("a tool is named on the dashboard — the list belongs to the configuration view")
+	lines := renderHostSection(m, 60, tierStandard)
+	if !containsLine(lines, "Missing tools") {
+		t.Errorf("the Host box does not head its missing tools: %q", lines)
+	}
+	for _, want := range []string{"Gitleaks", "Net Diag"} {
+		if !containsLine(lines, want+" ") {
+			t.Errorf("the Host box does not name %q among its missing tools: %q", want, lines)
 		}
+	}
+	// Les outils présents n'ont rien à dire : les nommer noierait les autres.
+	if containsLine(lines, "Trivy") {
+		t.Errorf("the Host box names an available tool: %q", lines)
 	}
 }
 
-// The footer carries the age of the data. Une valeur périmée ressemble
-// exactement à une valeur fraîche une fois les libellés figés — l'âge est le
-// prix des placeholders, pas un ornement.
-func TestTheFooterCarriesTheAgeOfTheData(t *testing.T) {
+// Et la contrepartie : une machine complètement outillée tient sur une ligne,
+// sinon la boîte dépense cinq lignes à dire cinq fois « oui ».
+func TestAFullyEquippedMachineSaysSoInOneLine(t *testing.T) {
+	m, _ := loadedModel(t)
+	var all []shared.ToolInfo
+	for _, name := range knownTools {
+		all = append(all, shared.ToolInfo{Name: name, Available: true})
+	}
+	m = feed(t, m, ToolsDetectedMsg{Tools: all})
+
+	block := toolsBlock(m)
+	if len(block) != 1 {
+		t.Errorf("a fully equipped machine takes %d lines: %q", len(block), block)
+	}
+	if !containsLine(block, "all available") {
+		t.Errorf("the Host box does not say the tools are all there: %q", block)
+	}
+}
+
+// Il n'y a **pas** de ligne « Updated » dans le footer. Les trois horloges du
+// dashboard tournent à la seconde, aux cinq secondes et à la trentaine : l'âge
+// répondait `now` en permanence, donc une ligne qui ne change jamais.
+func TestTheFooterDoesNotDateWhatIsAlwaysFresh(t *testing.T) {
 	m, _ := loadedModel(t)
 
-	if got := plain(m.RenderFooter(120)); !strings.Contains(got, "Updated") {
-		t.Errorf("the footer does not say when the data was measured:\n%s", got)
+	if got := plain(m.RenderFooter(120)); strings.Contains(got, "Updated") {
+		t.Errorf("the footer still dates the data:\n%s", got)
 	}
 }
 

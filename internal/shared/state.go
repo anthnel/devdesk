@@ -33,6 +33,9 @@ type OCIStats struct {
 	ContainersSize  string
 	VolumesCount    int
 	VolumesSize     string
+	// NetworksCount comes from `docker network ls`, not from `system df`: a
+	// network holds no bytes, so the disk report has no row for it.
+	NetworksCount int
 	// BuildCacheSize is the fourth row of `docker system df`, and the one that
 	// most often answers "where did the disk go".
 	BuildCacheSize string

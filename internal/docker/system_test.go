@@ -36,6 +36,35 @@ func TestFetchOCIStatsParsesEachResourceType(t *testing.T) {
 	}
 }
 
+// `docker system df` n'a pas de ligne pour les réseaux : ils ne portent pas
+// d'octets, donc le rapport disque les ignore. Le compte vient d'un second
+// appel, et une liste qui échoue ne doit pas emporter les tailles avec elle.
+func TestFetchOCIStatsCountsTheNetworksSeparately(t *testing.T) {
+	stub(t, &stubRunner{output: map[string][]byte{
+		"system":  []byte("Images\t12\t1.5GB\n"),
+		"network": []byte("abc\tbridge\tbridge\tlocal\n" + "def\thost\thost\tlocal\n"),
+	}})
+
+	if got := FetchOCIStats().NetworksCount; got != 2 {
+		t.Errorf("NetworksCount = %d, want 2", got)
+	}
+}
+
+func TestAFailingNetworkListStillLeavesTheSizes(t *testing.T) {
+	stub(t, &stubRunner{
+		output: map[string][]byte{"system": []byte("Images\t12\t1.5GB\n")},
+		err:    map[string]error{"network": errExit},
+	})
+
+	got := FetchOCIStats()
+	if got.ImagesSize != "1.5GB" || !got.Available {
+		t.Errorf("a failing network list dropped the disk report: %+v", got)
+	}
+	if got.NetworksCount != 0 {
+		t.Errorf("NetworksCount = %d after a failing list, want 0", got.NetworksCount)
+	}
+}
+
 // Le reclaimable est sommé sur les trois familles, et le pourcentage que Docker
 // accole à chaque taille est relatif à sa propre famille : il ne survivrait pas
 // à l'addition, donc il est écarté.

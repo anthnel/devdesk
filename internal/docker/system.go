@@ -15,6 +15,12 @@ type OCIStats struct {
 	VolumesCount    int
 	VolumesSize     string
 
+	// NetworksCount does **not** come from `docker system df`, which has no row
+	// for networks: they hold no bytes, so the disk report ignores them. Il est
+	// compté par un `docker network ls` séparé, et c'est le seul chiffre de
+	// cette structure qui coûte un second appel.
+	NetworksCount int
+
 	// BuildCacheSize is the fourth row `docker system df` prints, and the one
 	// that answers "where did the disk go" most often — un cache de build
 	// atteint couramment des dizaines de gigaoctets. Il entrait déjà dans la
@@ -76,6 +82,12 @@ func FetchOCIStats() OCIStats {
 
 	if reclaimable > 0 {
 		stats.Reclaimable = formatSize(reclaimable)
+	}
+
+	// Une liste qui échoue laisse le compte à zéro plutôt que de faire échouer
+	// tout l'appel : les tailles viennent d'être lues et valent d'être rendues.
+	if networks, err := ListNetworks(); err == nil {
+		stats.NetworksCount = len(networks)
 	}
 
 	return stats
