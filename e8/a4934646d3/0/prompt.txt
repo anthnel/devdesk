@@ -1,0 +1,35 @@
+analyse la base de code avec tout les shortcuts utilisés, sort moi un tableau avec le shortcut + ce qu'il fait, je voudrais tout harmoniser et utiliser des standards, attention ce doit être cross platform
+
+---
+
+conseille moi, je pense qu'on peut mettre de côté les raccourcis vim, les flèches suffisent. Le plus important sera les touches pour entrer en mode commande. Il faudra ajouter comme tu le dis une modale pour l'arrêt/démarrage de conteneur. Dans la vue dashboard, je pense réserver R pour ouvrir les MR, R pour review, pour github ça s'appelle PR. I pour ouvrir les issues, je préfères combiner au moins deux touches pour les actions.
+
+---
+
+oui et ajoute que je souhaite le support de pgup/pgdown pour la navigation, notamment dans les datatables. On laisse complètement tomber les bindings vim (sauf : pour commande et on ajoute ctrl+p). On utilise majoritairement shift+touche. Pour les variantes par exemple pour ouvrir un terminal externe est-ce que la combinaison ctrl+shift+touche est viable ?
+
+---
+
+I sur le dashboard ne suffit pas. i est aussi Inspect (containers) et Ignore (security) — la règle s'applique partout ou ne corrige rien. ok pour l'appliquer partout. Il n'y a pas de démarrage de conteneur. Tu parlais d'« arrêt/démarrage » : stopSelectedContainer ne répond que sur running, et rien ne relance un exited. C'est une action à créer, pas une modale à ajouter. => il y a un restart de conteneur. Et le démarrage d'un conteneur se fait depuis la liste des images. Est-ce qu'il reste des points à trancher
+
+---
+
+je valide b produis la table
+
+---
+
+je valide b et les 5 arbitrage produis la table
+
+---
+
+je comprends pas : Restent tes deux points non tranchés — la forme des variantes (la table suppose le réglage ; si tu prends Ctrl, seules deux lignes bougent) et le sort de 1–4.
+
+---
+
+1, je suis d'accord : la variante devient un réglage dans la vue configuration
+2, on supprime 1,2,3,4
+oui repasse sur la table en prenant en compte les derniers développements sur main
+
+---
+
+go
