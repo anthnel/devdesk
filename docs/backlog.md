@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-14
+**Last Updated:** 2026-08-16
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -4337,6 +4337,228 @@ qui fait de ça un déplacement et non une réécriture.
 Non retenu : un réglage `app.syntax_highlight`. Le viewer ouvre avec la couleur
 et `c` la bascule pour la session ; rien n'est persisté, donc rien ne peut être
 en désaccord. Vingt-neuf réglages suffisent (YAGNI).
+
+---
+
+### 3.26 Une touche, un sens — le clavier passe en majuscules
+
+Relevé complet des 184 liaisons des 15 surfaces à `90f178e` : 16 collisions, où
+la même touche ne veut pas dire la même chose selon la vue, et 6 risques de
+portabilité. Les deux se soignent par la même décision, mais c'est la contrainte
+du terminal qui la dicte — pas le goût.
+
+#### Le budget réel, et il est petit
+
+| Famille | Contrainte | Disponible |
+|---|---|---|
+| `Ctrl`+lettre | N'encode que l'ASCII 0x40–0x5F, et le tty en confisque quatre : **`ctrl+i` = TAB**, **`ctrl+m` = Entrée**, **`ctrl+j` = LF**, **`ctrl+h` = Backspace**. `ctrl+a`/`ctrl+b` sont les préfixes screen et tmux ; `ctrl+c`/`ctrl+d` sont SIGINT et EOF ; `ctrl+s`/`ctrl+q` sont le contrôle de flux. | ≈ 14 |
+| `Alt`+touche | Option n'est pas Meta sur macOS tant que l'utilisateur ne l'active pas. L'application ne reçoit rien. | 0 |
+| `Ctrl`+`Shift` | Le code de contrôle écrase la casse : `ctrl+a` et `ctrl+shift+a` émettent tous deux 0x01. Les distinguer exige le protocole clavier Kitty ou `modifyOtherKeys`, que **bubbletea v1.3.10 n'active pas** (c'est `WithKeyboardEnhancements()` en v2). Et même alors l'émulateur se sert d'abord : `ctrl+shift+c/v/t/w/n` sont copier, coller, onglet, fermer, fenêtre. | 0 |
+| `Shift`+lettre | Aucune. Passe sur tout émulateur, toute plateforme, à travers SSH et tmux. | 26 |
+
+`Shift`+lettre **est** une combinaison à deux touches : deux doigts, aucun départ
+accidentel. C'est elle qui porte le vocabulaire d'actions — non par défaut, mais
+parce que les deux autres familles sont amputées ou inutilisables.
+
+#### `alt+:` ne marche pas sur macOS, et c'est la voie d'entrée principale
+
+§3.7 a résolu l'entrée en mode commande depuis un champ focusé, et le
+raisonnement de `keys.go:7-10` sur `ctrl+:` est juste : `:` vaut 0x3A, hors de la
+plage que Ctrl encode. Mais le repli choisi hérite d'un autre défaut. Sur
+Terminal.app et iTerm2, `Option+Shift+;` émet un caractère littéral ; la touche
+n'atteint jamais l'application. C'est annoncé dans le `GetShortcuts()` de chaque
+vue, et c'est la seule voie qui traverse un champ focusé.
+
+**`ctrl+p` la remplace** : libre dans toute l'application, aucun caractère de
+contrôle tty, aucun préfixe de multiplexeur, et le sens est déjà appris —
+*palette*. Elle se place où est `alt+:`, **avant** le test `InEditMode()`.
+`:` reste, inopérant en édition : ce n'est pas un idiome vim mais celui de la
+ligne de commande, partagé avec less, ranger et k9s. `alt+:` est **supprimée**
+sans dépréciation douce — un alias qui marche sur deux plateformes sur trois est
+ce qui pourrit le plus vite.
+
+#### Trois espaces de noms disjoints
+
+C'est la forme qui rend la règle vérifiable par un test, et c'est le seul intérêt
+de la formuler ainsi :
+
+- une **majuscule** est une action, et son sens est global à l'application ;
+- une **minuscule** est un filtre ou une bascule d'affichage, ne modifie rien,
+  et peut donc se répéter d'une vue à l'autre ;
+- le **reste** est structurel et ne change jamais.
+
+Une quarantaine d'actions pour 26 lettres : la règle ne tient qu'après fusion des
+synonymes (`K` = arrêter et tuer, `D` = supprimer et retirer, `T` = terminal et
+shell) et parce que les bascules d'affichage sortent du compte. Elles occupent
+21 lettres ; `H J Q Y Z` restent libres.
+
+| Touche | Sens | Remplace |
+|---|---|---|
+| `N` | Créer une ressource depuis ce contexte | `ctrl+n` |
+| `E` | Éditer la ressource sélectionnée | `e` |
+| `D` | Supprimer la ressource sélectionnée | `ctrl+d` |
+| `M` | Renommer (*mv*) | `r` |
+| `S` | Scanner la cible sélectionnée | `ctrl+s` |
+| `A` | Scanner tout (modale : case « purger le cache d'abord ») | `A` *et* `ctrl+a` |
+| `F` | Se remettre au niveau de la source — fetch puis fast-forward, ou suivre un flux | `s` · `ctrl+f` |
+| `C` | Entrer en sélection de clone | `c` |
+| `T` | Ouvrir un terminal ou un shell | `t` · `s` |
+| `O` | Ouvrir dans l'IDE configuré | `ctrl+o` |
+| `W` | Ouvrir une URL dans le navigateur | `ctrl+w` · `o` |
+| `L` | Ouvrir les logs | `l` |
+| `V` | Ouvrir dans le pager système | `e` |
+| `K` | Arrêter, tuer (modale : Stop / Restart, ou SIGKILL) | `K` · `r` · `ctrl+k` |
+| `P` | Prune — supprimer les ressources inutilisées | `p` |
+| `B` | Ouvrir le navigateur multi-registries | `b` |
+| `G` | Pull (*get*) l'image ou le tag | `p` |
+| `U` | Login / logout registry — bascule sur l'état de la ligne | `l` *et* `L` |
+| `X` | Exclure — ajouter à `.gitleaksignore` | `i` |
+| `R` | Ouvrir les merge requests · PR | `m` |
+| `I` | Ouvrir les issues | `i` |
+
+Les minuscules restantes ne modifient rien, donc leur sens est local et deux vues
+peuvent employer la même lettre sans se contredire : `a` (containers, actifs
+seuls), `f` `c` `w` `v` `t` (viewer), `t` `u` `l` `e` `n` `z` (netdiag/Ports),
+`f` (netdiag/détail), `r` (browser, registry affiché), et `c` `h` `m` `l` pour
+les sévérités de security.
+
+#### Trois actions disparaissent sans perdre leur fonction
+
+C'est ce qui fait tenir le budget, et chacune corrige un défaut au passage.
+
+**`Restart` devient un bouton de la modale de `K`.** `stopSelectedContainer`
+(`update.go:217`) et `restartSelectedContainer` (`update.go:226`) agissent
+aujourd'hui sans confirmation, contrairement à `ctrl+d`. Avec Verr.Maj actif, un
+`k` de défilement arrête le conteneur sélectionné — et `restart` est le pire des
+deux, puisque c'est un stop+start qui coupe les connexions en cours. La
+confirmation était nécessaire de toute façon ; elle rend la seconde action
+gratuite.
+
+**`Purger puis tout scanner` devient une case à cocher dans la modale de `A`**,
+sur le motif que `DeleteConfirmModal` emploie déjà avec `permanentlyRemove`.
+`A` et `ctrl+a` ne se distinguaient que par le modificateur, et rien dans leur
+forme ne disait lequel purgeait : c'est la paire la plus proche d'une perte de
+données involontaire de l'application. L'option destructrice devient un geste
+délibéré, et `ctrl+a` cesse par la même occasion de heurter le préfixe de screen.
+
+**Lancer un conteneur depuis une image prend `N`**, sans collision : c'est bien
+« créer une ressource depuis la ligne sélectionnée », et rien d'autre ne se crée
+depuis l'onglet Images. `ctrl+e` disparaît.
+
+Et **`Inspect` passe sur `enter`** — non lié dans `containers`, et déjà le geste
+d'inspection dans OCI/Networks. C'est ce qui libère `i` pour les issues.
+
+#### Les alias vim partent en entier
+
+`h` `j` `k` `l` `g` `G` disparaissent, y compris ceux que §3.25 vient
+d'introduire dans le viewer (`h`/`l` pour plier-déplier un nœud, `j`/`k`/`g`/`G`
+pour défiler le texte), ainsi que `b`/`f` en demi-page dans le détail security.
+`home`/`end` couvrent déjà `g`/`G`.
+
+Le gain se concentre sur `l`, qui portait quatre sens ; le reste ne libère rien.
+Ce qu'on achète n'est donc pas la place mais une règle vérifiable — *aucune
+lettre nue n'est de la navigation*. Garder `j`/`k` laisserait une exception, et
+ce sont les exceptions qui ont produit l'état actuel. L'onglet Registries avait
+d'ailleurs déjà tranché seul dans ce sens (`keys.go:174-175`, `l` y est Login).
+
+Le coût est assumé : k9s, lazygit et btop gardent tous `hjkl`, et le public de
+DevDesk est terminal-natif. Il se paie une fois.
+
+**Une justification de §3.25 tombe avec eux.** `tui-layout.md:42-44` défend `c`
+pour la coloration en expliquant qu'une touche *highlight* ne peut pas être `h`,
+« puisque Rule 111 réserve `h`/`l` comme alias de `←`/`→` ». Ces alias
+disparaissent, donc `h` est libre et l'argument ne tient plus. **`c` reste, la
+raison est réécrite** : *coloration* est de toute façon un meilleur repère que
+*highlight*, et déplacer une touche livrée le jour même pour courir après un
+motif supprimé serait du bruit. Mais laisser la raison en l'état induirait en
+erreur le prochain lecteur.
+
+#### `pgup`/`pgdown` meurent dans trois vues, et la forme en est la cause
+
+`datatable` les gère depuis toujours (`datatable.go:415`). Ce sont les vues qui
+les interceptent et les jettent, parce qu'elles filtrent par liste blanche au
+lieu de transmettre par défaut :
+
+- `status/update.go:247` — la liste extérieure ne les cite pas, donc elles
+  n'atteignent jamais `handleTableNavigation`, **qui les gère pourtant en
+  ligne 284**. Le code est écrit, il est mort.
+- `oci_resources/keys.go:107` (Networks) et `:138` (Volumes) — cases explicites
+  pour `↑↓`, `g`, `G`, puis `return m, nil`.
+- `oci_resources/connectivity_form.go:186` — même forme.
+
+Les vues qui terminent par `return m, m.table.Update(msg)` — explorer,
+containers, Registries — n'ont aucun de ces trous. **La correction n'est donc pas
+d'allonger les listes blanches mais de les remplacer**, sinon la prochaine touche
+que `datatable` gagnera mourra au même endroit et il faudra refaire ce relevé.
+
+#### Ce qui disparaît encore
+
+| | |
+|---|---|
+| `1` `2` `3` `4` | Saut direct aux onglets de security — `tab` suffit, et l'exception d'une seule vue est précisément ce qu'on démonte |
+| `S` (shell), `T` (terminal) *nouvelle fenêtre* | La variante devient un réglage de la vue configuration : la capacité dépend de l'environnement — l'aide dit déjà qu'elle n'existe pas sous WSL, et à travers SSH il n'y a aucune fenêtre à ouvrir. Un réglage absent vaut mieux qu'une touche inerte |
+| `backspace` (détail security) | Alias d'`esc` unique dans l'application |
+| `r` (résultats netdiag) | « Nouveau diagnostic » est un retour arrière → `esc` |
+| `ctrl+e` `ctrl+o` `ctrl+w` `ctrl+s` `ctrl+a` `ctrl+d` `ctrl+n` `ctrl+k` `ctrl+f` | Passent en majuscule. Ne survivent que `ctrl+r`, `ctrl+p` et `ctrl+c` |
+
+`ctrl+r` garde un seul sens — **rafraîchir, jamais « revenir »** —, ce qui corrige
+les résultats de security et de netdiag où `esc` suffit ; et `.` reste le tri,
+ce qui déplace le filtre de sévérité de security.
+
+**Ce filtre change de nature, pas seulement de touche.** Rule 136 a déjà le
+composant qu'il lui faut, `NewFilterBarWithTokens`, employé par netdiag/Ports :
+quatre bascules cumulatives `c` `h` `m` `l` valent mieux qu'un cycle, parce que
+« CRITICAL **et** HIGH » est la question qu'on se pose réellement et qu'un cycle
+ne sait pas la poser.
+
+#### Confirmations
+
+`components.ConfirmModal` existe, focus par défaut sur « No » — rien à
+construire.
+
+| Action | |
+|---|---|
+| `ctrl+k` — SIGKILL sur un processus de l'hôte (`ports_model.go:336`) | **À ajouter en priorité.** Ce n'est pas un conteneur qu'on relance, c'est le processus de quelqu'un, et rien ne confirme aujourd'hui |
+| `K` — arrêter, `r` — redémarrer | À ajouter, absorbées dans la même modale |
+| `space` — pause / reprise | **Aucune.** Réversible et instantané ; une modale vue dix fois par heure entraîne à taper `y` sans lire, ce qui est exactement ce qui rend sans valeur celle de `ctrl+d` |
+
+#### Deux exceptions locales, déclarées
+
+`c` (test de connectivité, inspection réseau OCI) et `ctrl+y` (copier la commande
+`docker run`, formulaire de lancement) restent où ils sont : brûler deux
+majuscules globales pour des actions présentes dans un seul sous-écran à faible
+densité coûterait plus que ça ne rapporte. Elles doivent être **écrites comme
+exceptions dans la règle**, sinon le prochain relevé les comptera comme des
+dérives et quelqu'un les « corrigera ».
+
+#### Ce qui reste à surveiller
+
+`a` et `A` coexistent dans containers et OCI/Images — filtre « tous » d'un côté,
+« scanner tout » de l'autre. Les deux espaces de noms sont disjoints par
+construction, mais c'est la seule paire où la casse seule sépare une bascule
+d'une action. Si elle gêne à l'usage, c'est le filtre qui bouge, pas l'action.
+
+`F` est la plus lâche des 21 : elle mutualise le sync de workspaces et le follow
+du viewer sous « se remettre au niveau de la source ». La généralisation est
+juste au bon niveau d'abstraction, ou forcée — c'est la ligne à rejeter en
+premier, et `H J Q Y Z` sont libres.
+
+#### Non retenu
+
+**Un remappage configurable.** Ce serait la réponse évidente à « chacun ses
+touches », et c'est le contraire du problème : la difficulté n'est pas que les
+touches déplaisent, c'est qu'elles ne veulent pas dire la même chose d'une vue à
+l'autre. Un fichier de bindings rendrait l'incohérence configurable au lieu de la
+supprimer, et `GetShortcuts()` devrait alors rendre des touches qu'aucune règle
+ne garantit.
+
+**Garder `j`/`k` seuls.** Ils ne collisionnent avec rien et la navigation vim
+plairait au public visé. Mais une règle avec une exception n'est plus vérifiable
+par un test, et c'est tout ce qu'on achète ici.
+
+**Un préfixe façon vim (`g` puis `t`).** Il rendrait le budget de touches
+illimité, au prix d'un état clavier que rien dans l'application n'a aujourd'hui —
+et il réintroduirait par la porte de service l'idiome qu'on vient de retirer.
 
 ---
 
