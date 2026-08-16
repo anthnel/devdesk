@@ -38,7 +38,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 
+	case clearErrorMsg:
+		m.errorMsg = ""
+		return m, nil
+
 	case spinner.TickMsg:
+		// The table's own frame advances whenever anything is running on a row,
+		// which is not the same condition as the view's spinner: the list is
+		// loaded and on screen while a container stops.
+		if len(m.containerTable.BusyLabels()) > 0 {
+			m.containerTable.AdvanceSpinner()
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
 		if m.loading || m.logsLoading {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
@@ -83,6 +96,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			log.Printf("ERROR [containers] open shell window: %v", msg.Err)
 			m.errorMsg = "Failed to open terminal — check logs"
+			return m, clearErrorCmd()
 		}
 		return m, nil
 	}
@@ -207,14 +221,50 @@ func (m *Model) getSelectedContainer() *docker.Container {
 	return &c
 }
 
+// clearErrorMsg wipes the footer message (Rule 128). The view had no timer at
+// all: errorMsg was set and left until the next success happened to clear it,
+// so a failure could sit under an unrelated screen for minutes.
+type clearErrorMsg struct{}
+
+// clearErrorCmd is the three-second timer Rule 128 requires after every footer
+// message.
+func clearErrorCmd() tea.Cmd {
+	return tea.Tick(3*time.Second, func(time.Time) tea.Msg { return clearErrorMsg{} })
+}
+
+// busyMessage is what every action says when one is already running on that
+// container. One message rather than five, because the user's next move is the
+// same whichever it is: wait.
+const busyMessage = "Already busy — an action is running on this container"
+
+// startAction marks the container busy and issues the command, or refuses when
+// one is already running on it.
+//
+// The refusal is the point, and it is not cosmetic: `docker stop` takes the ten
+// second grace period by default, and nothing used to stop a second keypress
+// from issuing a second command. The second one fails with "no such container"
+// on an action that in fact worked, so the user is told an operation failed
+// when it did not.
+//
+// The guard asks the table rather than a field of this model, because the table
+// is what the spinner is read from — one answer, so the screen and the refusal
+// cannot disagree.
+func (m Model) startAction(c *docker.Container, label string, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if m.containerTable.IsBusy(c.ID) {
+		m.errorMsg = busyMessage
+		return m, clearErrorCmd()
+	}
+	m.containerTable.MarkBusy(c.ID, label+" "+c.Name)
+	return m, cmd
+}
+
 // stopSelectedContainer stops the selected container
 func (m Model) stopSelectedContainer() (tea.Model, tea.Cmd) {
 	c := m.getSelectedContainer()
 	if c == nil || c.State != "running" {
 		return m, nil
 	}
-	m.pendingAction = "Stopping " + c.Name
-	return m, stopContainer(c.ID, c.Name)
+	return m.startAction(c, "Stopping", stopContainer(c.ID, c.Name))
 }
 
 // restartSelectedContainer restarts the selected container
@@ -223,8 +273,7 @@ func (m Model) restartSelectedContainer() (tea.Model, tea.Cmd) {
 	if c == nil {
 		return m, nil
 	}
-	m.pendingAction = "Restarting " + c.Name
-	return m, restartContainer(c.ID, c.Name)
+	return m.startAction(c, "Restarting", restartContainer(c.ID, c.Name))
 }
 
 // pauseToggleSelectedContainer pauses a running container or unpauses a paused one
@@ -235,11 +284,9 @@ func (m Model) pauseToggleSelectedContainer() (tea.Model, tea.Cmd) {
 	}
 	switch c.State {
 	case "running":
-		m.pendingAction = "Pausing " + c.Name
-		return m, pauseContainer(c.ID, c.Name)
+		return m.startAction(c, "Pausing", pauseContainer(c.ID, c.Name))
 	case "paused":
-		m.pendingAction = "Resuming " + c.Name
-		return m, unpauseContainer(c.ID, c.Name)
+		return m.startAction(c, "Resuming", unpauseContainer(c.ID, c.Name))
 	}
 	return m, nil
 }
@@ -307,7 +354,7 @@ func (m Model) shellSelectedContainerInNewWindow() (tea.Model, tea.Cmd) {
 	bin, args, ok := uiterminal.ForCmd(innerArgs)
 	if !ok {
 		m.errorMsg = "Terminal not detected — use [s] for in-place shell"
-		return m, nil
+		return m, clearErrorCmd()
 	}
 
 	return m, func() tea.Msg {
@@ -335,7 +382,7 @@ func (m Model) openExternalPager() (tea.Model, tea.Cmd) {
 	if !docker.IsContainerID(m.logsContainerID) {
 		log.Printf("ERROR [containers] pager: rejected malformed container ID %q", m.logsContainerID)
 		m.errorMsg = "Cannot open pager — invalid container ID"
-		return m, nil
+		return m, clearErrorCmd()
 	}
 
 	var pagerCmd *exec.Cmd
@@ -443,7 +490,7 @@ func (m Model) inspectSelectedContainer() (tea.Model, tea.Cmd) {
 	if !docker.IsContainerID(c.ID) {
 		log.Printf("ERROR [containers] inspect: rejected malformed container ID %q", c.ID)
 		m.errorMsg = "Cannot inspect — invalid container ID"
-		return m, nil
+		return m, clearErrorCmd()
 	}
 
 	var pagerCmd *exec.Cmd
@@ -468,25 +515,24 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 
 	switch action {
 	case "confirm-prune":
-		m.pendingAction = "Pruning containers..."
+		m.pruning = true
 		return m, pruneContainers()
 	default: // confirm-delete
 		c := m.getSelectedContainer()
 		if c == nil {
 			return m, nil
 		}
-		m.pendingAction = "Removing " + c.Name
-		return m, removeContainer(c.ID, c.Name)
+		return m.startAction(c, "Removing", removeContainer(c.ID, c.Name))
 	}
 }
 
 // handlePruneComplete processes the prune result
 func (m Model) handlePruneComplete(msg ContainerPruneMsg) (tea.Model, tea.Cmd) {
-	m.pendingAction = ""
+	m.pruning = false
 	if msg.Err != nil {
 		log.Printf("ERROR [containers] prune: %v", msg.Err)
 		m.errorMsg = "Prune failed — check logs"
-		return m, nil
+		return m, clearErrorCmd()
 	}
 	m.errorMsg = ""
 	return m, fetchContainers(m.showAll)
@@ -498,7 +544,7 @@ func (m Model) handleContainersList(msg ContainersListMsg) (tea.Model, tea.Cmd) 
 	if msg.Err != nil {
 		log.Printf("ERROR [containers] list: %v", msg.Err)
 		m.errorMsg = "Failed to load containers — check logs"
-		return m, nil
+		return m, clearErrorCmd()
 	}
 	m.errorMsg = ""
 	m.containerTable.SetItems(msg.Containers)
@@ -534,13 +580,18 @@ func (m Model) handleContainerMetrics(msg ContainerMetricsMsg) (tea.Model, tea.C
 	return m, nil
 }
 
-// handleContainerAction processes action results
+// handleContainerAction processes action results.
+//
+// The marker is cleared before anything else, and on *every* outcome. Clearing
+// it only on success would leave the row spinning for the life of the view —
+// and worse, hide the state the container still has: a `docker stop` that
+// failed has to read `running` again rather than go on turning.
 func (m Model) handleContainerAction(msg ContainerActionMsg) (tea.Model, tea.Cmd) {
-	m.pendingAction = ""
+	m.containerTable.ClearBusy(msg.ID)
 	if msg.Err != nil {
-		log.Printf("ERROR [containers] %s %s: %v", msg.Action, msg.ID, msg.Err)
+		log.Printf("ERROR [containers] %s %s: %v", msg.Action, msg.Name, msg.Err)
 		m.errorMsg = "Action failed — check logs"
-		return m, nil
+		return m, clearErrorCmd()
 	}
 	m.errorMsg = ""
 	return m, fetchContainers(m.showAll)

@@ -132,17 +132,19 @@ func TestOnlyRunningContainersShowMetrics(t *testing.T) {
 
 	byName := map[string]table.Row{}
 	for _, row := range tableRows(m) {
-		byName[row[0]] = row
+		byName[row[columnName]] = row
 	}
 
-	if got := byName["web"][2]; got != "12.5%" {
+	// The metrics start after the status, name and image columns.
+	const columnCPU = columnImage + 1
+	if got := byName["web"][columnCPU]; got != "12.5%" {
 		t.Errorf("web CPU cell = %q, want \"12.5%%\"", got)
 	}
-	if got := byName["web"][3]; got != "150M/8G" {
+	if got := byName["web"][columnCPU+1]; got != "150M/8G" {
 		t.Errorf("web memory cell = %q, want \"150M/8G\"", got)
 	}
 	for _, name := range []string{"api", "cache", "zombie"} {
-		for _, col := range []int{2, 3, 4, 5, 6, 7} {
+		for col := columnCPU; col <= columnCPU+5; col++ {
 			if got := byName[name][col]; got != "-" {
 				t.Errorf("%s column %d = %q, want \"-\" for a non-running container", name, col, got)
 			}
@@ -304,8 +306,9 @@ func TestCycleSortWalksDirectionThenColumn(t *testing.T) {
 	}
 
 	// Each sortable column is visited ascending then descending, so a full
-	// cycle returns to the start. Every column but Ports sorts.
-	sortable := len(containerColumns()) - 1
+	// cycle returns to the start. Two columns do not sort: the status glyph and
+	// Ports.
+	sortable := len(containerColumns()) - 2
 	for range sortable*2 - 2 {
 		m = feed(t, m, testutil.Key("."))
 	}
@@ -324,15 +327,15 @@ func TestEachColumnOrdersByItsOwnValue(t *testing.T) {
 		{"name ascending", columnName, false, []string{"api", "cache", "web", "zombie"}},
 		{"name descending", columnName, true, []string{"zombie", "web", "cache", "api"}},
 		{"image ascending", columnImage, false, []string{"zombie", "api", "web", "cache"}},
-		{"cpu descending", 2, true, []string{"api", "web", "cache", "zombie"}},
-		{"mem descending", 3, true, []string{"web", "cache", "zombie", "api"}},
-		{"net rx descending", 4, true, []string{"web", "cache", "zombie", "api"}},
-		{"net tx descending", 5, true, []string{"web", "cache", "zombie", "api"}},
-		{"block rx descending", 6, true, []string{"web", "cache", "zombie", "api"}},
-		{"block tx descending", 7, true, []string{"web", "cache", "zombie", "api"}},
+		{"cpu descending", columnImage + 1, true, []string{"api", "web", "cache", "zombie"}},
+		{"mem descending", columnImage + 2, true, []string{"web", "cache", "zombie", "api"}},
+		{"net rx descending", columnImage + 3, true, []string{"web", "cache", "zombie", "api"}},
+		{"net tx descending", columnImage + 4, true, []string{"web", "cache", "zombie", "api"}},
+		{"block rx descending", columnImage + 5, true, []string{"web", "cache", "zombie", "api"}},
+		{"block tx descending", columnImage + 6, true, []string{"web", "cache", "zombie", "api"}},
 		// CreatedAt is compared as a string, so an unparseable value sorts
 		// after every ISO timestamp rather than being treated as unknown.
-		{"created ascending", 8, false, []string{"cache", "api", "web", "zombie"}},
+		{"created ascending", columnImage + 7, false, []string{"cache", "api", "web", "zombie"}},
 	}
 
 	for _, tc := range tests {
@@ -369,24 +372,24 @@ func TestSortingLeavesTheSourceListAlone(t *testing.T) {
 func TestSortIndicatorFollowsTheActiveColumn(t *testing.T) {
 	m := loadedModel(t) // name ascending
 
-	if got := m.containerTable.Table().Columns()[0].Title; got != "Name ▲" {
+	if got := m.containerTable.Table().Columns()[columnName].Title; got != "Name ▲" {
 		t.Errorf("Name header = %q, want the ascending arrow", got)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := m.containerTable.Table().Columns()[0].Title; got != "Name ▼" {
+	if got := m.containerTable.Table().Columns()[columnName].Title; got != "Name ▼" {
 		t.Errorf("Name header = %q after reversing, want the descending arrow", got)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := m.containerTable.Table().Columns()[1].Title; got != "Image ▲" {
+	if got := m.containerTable.Table().Columns()[columnImage].Title; got != "Image ▲" {
 		t.Errorf("Image header = %q, want the ascending arrow", got)
 	}
-	if got := m.containerTable.Table().Columns()[0].Title; got != "Name" {
+	if got := m.containerTable.Table().Columns()[columnName].Title; got != "Name" {
 		t.Errorf("Name header = %q once Image took over, want it bare", got)
 	}
 	// Ports is not sortable and must never gain an arrow.
-	if got := m.containerTable.Table().Columns()[9].Title; got != "Ports" {
+	if got := m.containerTable.Table().Columns()[len(containerColumns())-1].Title; got != "Ports" {
 		t.Errorf("Ports header = %q, want it bare", got)
 	}
 }
@@ -480,8 +483,8 @@ func TestStopOnlyActsOnRunningContainers(t *testing.T) {
 	if cmd != nil {
 		t.Error("K issued a stop for an exited container")
 	}
-	if m.pendingAction != "" {
-		t.Errorf("pendingAction = %q for a container that cannot be stopped", m.pendingAction)
+	if got := m.actionLine(); got != "" {
+		t.Errorf("actionLine = %q for a container that cannot be stopped", got)
 	}
 
 	m = feed(t, m, testutil.Key("down"), testutil.Key("down")) // web, running
@@ -489,8 +492,8 @@ func TestStopOnlyActsOnRunningContainers(t *testing.T) {
 	if cmd == nil {
 		t.Error("K did not issue a stop for a running container")
 	}
-	if m.pendingAction != "Stopping web" {
-		t.Errorf("pendingAction = %q, want \"Stopping web\"", m.pendingAction)
+	if got := m.actionLine(); got != "Stopping web…" {
+		t.Errorf("actionLine = %q, want \"Stopping web…\"", got)
 	}
 }
 
@@ -502,8 +505,8 @@ func TestRestartActsOnAnyContainer(t *testing.T) {
 	if cmd == nil {
 		t.Error("r did not issue a restart")
 	}
-	if m.pendingAction != "Restarting api" {
-		t.Errorf("pendingAction = %q, want \"Restarting api\"", m.pendingAction)
+	if got := m.actionLine(); got != "Restarting api…" {
+		t.Errorf("actionLine = %q, want \"Restarting api…\"", got)
 	}
 }
 
@@ -527,8 +530,12 @@ func TestSpaceTogglesPauseAccordingToState(t *testing.T) {
 
 			m, cmd := step(t, m, testutil.Key(" "))
 
-			if m.pendingAction != tc.wantAction {
-				t.Errorf("pendingAction = %q, want %q", m.pendingAction, tc.wantAction)
+			want := tc.wantAction
+			if want != "" {
+				want += "…"
+			}
+			if got := m.actionLine(); got != want {
+				t.Errorf("actionLine = %q, want %q", got, want)
 			}
 			if (cmd != nil) != (tc.wantAction != "") {
 				t.Errorf("command issued = %v, want %v", cmd != nil, tc.wantAction != "")
@@ -558,24 +565,32 @@ func TestActionsAreInertWithoutASelection(t *testing.T) {
 }
 
 func TestActionResultClearsPendingAndRefreshes(t *testing.T) {
-	m := loadedModel(t)
-	m.pendingAction = "Stopping web"
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
+	m = feed(t, m, testutil.Key("K"))
+	if m.actionLine() == "" {
+		t.Fatal("the stop was not marked as running")
+	}
 
-	m, cmd := step(t, m, ContainerActionMsg{Action: "stop", ID: "web"})
+	m, cmd := step(t, m, ContainerActionMsg{Action: "stop", ID: webID, Name: "web"})
 
-	if m.pendingAction != "" {
-		t.Errorf("pendingAction = %q after the action completed, want it cleared", m.pendingAction)
+	if got := m.actionLine(); got != "" {
+		t.Errorf("actionLine = %q after the action completed, want it cleared", got)
 	}
 	if cmd == nil {
 		t.Error("a completed action did not refresh the list")
 	}
 }
 
-func TestActionFailureSurfacesAShortMessage(t *testing.T) {
-	m := loadedModel(t)
-	m.pendingAction = "Stopping web"
+// A failure has to lift the marker as surely as a success does. Clearing only
+// on success leaves the row spinning for the life of the view — and hides the
+// state the container still has, which is worse than saying nothing.
+func TestActionFailureSurfacesAShortMessageAndClearsTheMarker(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
+	m = feed(t, m, testutil.Key("K"))
 
-	m, cmd := step(t, m, ContainerActionMsg{Action: "stop", ID: "web", Err: errors.New("permission denied")})
+	m, cmd := step(t, m, ContainerActionMsg{
+		Action: "stop", ID: webID, Name: "web", Err: errors.New("permission denied"),
+	})
 
 	if m.errorMsg == "" {
 		t.Error("a failed action left errorMsg empty")
@@ -583,11 +598,12 @@ func TestActionFailureSurfacesAShortMessage(t *testing.T) {
 	if strings.Contains(m.errorMsg, "permission denied") {
 		t.Errorf("errorMsg = %q leaks the raw error; Rule 128 wants a short message plus a log", m.errorMsg)
 	}
-	if cmd != nil {
-		t.Error("a failed action still refreshed the list")
+	if m.containerTable.IsBusy(webID) {
+		t.Error("the busy marker survived a failed action: the row spins for good")
 	}
-	if m.pendingAction != "" {
-		t.Errorf("pendingAction = %q after a failure, want it cleared", m.pendingAction)
+	// Rule 128: the message carries its own three-second timer.
+	if cmd == nil {
+		t.Error("a footer message was set with no timer to clear it")
 	}
 }
 
@@ -639,8 +655,11 @@ func TestConfirmationRoutesByPendingAction(t *testing.T) {
 		if cmd == nil {
 			t.Error("confirming a prune issued no command")
 		}
-		if m.pendingAction != "Pruning containers..." {
-			t.Errorf("pendingAction = %q, want the prune label", m.pendingAction)
+		if !m.pruning {
+			t.Error("confirming a prune did not mark the view as pruning")
+		}
+		if got := m.actionLine(); got != "Pruning containers…" {
+			t.Errorf("actionLine = %q, want the prune label", got)
 		}
 	})
 
@@ -652,8 +671,8 @@ func TestConfirmationRoutesByPendingAction(t *testing.T) {
 		if cmd == nil {
 			t.Error("confirming a delete issued no command")
 		}
-		if m.pendingAction != "Removing api" {
-			t.Errorf("pendingAction = %q, want \"Removing api\"", m.pendingAction)
+		if got := m.actionLine(); got != "Removing api…" {
+			t.Errorf("actionLine = %q, want \"Removing api…\"", got)
 		}
 	})
 }
@@ -676,13 +695,15 @@ func TestCancellingTheConfirmationDoesNothing(t *testing.T) {
 
 func TestPruneResultHandling(t *testing.T) {
 	t.Run("success refreshes", func(t *testing.T) {
-		m := loadedModel(t)
-		m.pendingAction = "Pruning containers..."
+		m := feed(t, loadedModel(t), testutil.Key("p"), sharedcomponents.ConfirmModalYesMsg{})
+		if !m.pruning {
+			t.Fatal("the prune was not marked as running")
+		}
 
 		m, cmd := step(t, m, ContainerPruneMsg{Output: "Total reclaimed space: 1.2GB"})
 
-		if m.pendingAction != "" {
-			t.Errorf("pendingAction = %q after the prune completed", m.pendingAction)
+		if m.pruning {
+			t.Error("the view still reads as pruning after the prune completed")
 		}
 		if cmd == nil {
 			t.Error("a completed prune did not refresh the list")
@@ -700,8 +721,11 @@ func TestPruneResultHandling(t *testing.T) {
 		if strings.Contains(m.errorMsg, "daemon refused") {
 			t.Errorf("errorMsg = %q leaks the raw error", m.errorMsg)
 		}
-		if cmd != nil {
-			t.Error("a failed prune still refreshed the list")
+		// The failure path returns before the refresh, and the message is what
+		// says it was taken. The command it does return is Rule 128's timer —
+		// asserted, not executed: running it would sleep three seconds.
+		if cmd == nil {
+			t.Error("a footer message was set with no timer to clear it")
 		}
 	})
 }
@@ -992,11 +1016,14 @@ func TestExternalPagerRejectsAMalformedContainerID(t *testing.T) {
 
 	m, cmd := step(t, m, testutil.Key("e"))
 
-	if cmd != nil {
-		t.Error("the pager ran with a malformed container ID")
+	// The message is what proves the reject branch was taken, and it is the
+	// only thing safe to assert on: executing the command to look inside it is
+	// exactly what must not happen if the guard ever fails.
+	if m.errorMsg != "Cannot open pager — invalid container ID" {
+		t.Errorf("errorMsg = %q, want the pager to have been refused", m.errorMsg)
 	}
-	if m.errorMsg == "" {
-		t.Error("rejecting the ID left errorMsg empty")
+	if cmd == nil {
+		t.Error("a footer message was set with no timer to clear it")
 	}
 }
 
@@ -1009,11 +1036,11 @@ func TestInspectRejectsAMalformedContainerID(t *testing.T) {
 
 	m, cmd := step(t, m, testutil.Key("i"))
 
-	if cmd != nil {
-		t.Error("inspect ran with a malformed container ID")
+	if m.errorMsg != "Cannot inspect — invalid container ID" {
+		t.Errorf("errorMsg = %q, want inspect to have been refused", m.errorMsg)
 	}
-	if m.errorMsg == "" {
-		t.Error("rejecting the ID left errorMsg empty")
+	if cmd == nil {
+		t.Error("a footer message was set with no timer to clear it")
 	}
 }
 
@@ -1070,7 +1097,7 @@ func TestResizeFillsTheViewportWidth(t *testing.T) {
 			total += col.Width
 		}
 		// terminal minus viewport borders minus two columns of padding per cell
-		if want := width - 2 - 10*2; total != want {
+		if want := width - 2 - len(containerColumns())*2; total != want {
 			t.Errorf("at width %d the columns total %d, want %d so the selected row reaches the border", width, total, want)
 		}
 	}
@@ -1100,4 +1127,127 @@ func TestUnhandledKeysAreInert(t *testing.T) {
 	if m.confirmModal != nil || m.state != stateTable {
 		t.Error("an unbound key changed the view state")
 	}
+}
+
+// ── A row says what is happening to it (§3.22) ───────────────────────────────
+
+// `docker stop` takes the ten second grace period by default. Nothing on screen
+// used to say an action was running at all — the row was identical to one where
+// nothing was happening, which is indistinguishable from a freeze.
+func TestAStoppingContainerShowsASpinnerInPlaceOfItsState(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
+	if !strings.Contains(renderedRowFor(t, m, "web"), stateIcon("running")) {
+		t.Fatal("the row does not show the running glyph before the action")
+	}
+
+	m = feed(t, m, testutil.Key("K"))
+
+	// The override is applied when the row is drawn, not when it is built: the
+	// stored cells would otherwise go stale every time the spinner advances.
+	if strings.Contains(renderedRowFor(t, m, "web"), stateIcon("running")) {
+		t.Error("the stopping container still shows its running glyph")
+	}
+	// And no other row is touched.
+	if !strings.Contains(renderedRowFor(t, m, "cache"), stateIcon("paused")) {
+		t.Error("an untouched row lost its own state glyph")
+	}
+}
+
+// The refusal is not cosmetic: a second command against a container already
+// stopping fails with "no such container", so the user is told an action failed
+// when the first one in fact worked.
+func TestASecondActionOnTheSameContainerIsRefused(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
+	m = feed(t, m, testutil.Key("K"))
+
+	m, cmd := step(t, m, testutil.Key("K"))
+
+	// The refusal is what the message proves; the command it returns is Rule
+	// 128's timer, asserted rather than executed.
+	if m.errorMsg != busyMessage {
+		t.Errorf("errorMsg = %q, want the busy message", m.errorMsg)
+	}
+	if cmd == nil {
+		t.Error("a footer message was set with no timer to clear it")
+	}
+}
+
+// The cursor is deliberately not locked. A scan already runs with a spinner in
+// the cell while the user keeps navigating, and locking the cursor would look
+// like the freeze this exists to remove.
+func TestTheCursorStillMovesWhileAnActionRuns(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
+	m = feed(t, m, testutil.Key("K"))
+
+	m = feed(t, m, testutil.Key("up"))
+
+	selected, ok := m.containerTable.Selected()
+	if !ok || selected.Name == "web" {
+		t.Error("the cursor was locked to the container the action is running on")
+	}
+	// And the marker stayed with the object rather than following the cursor.
+	if !m.containerTable.IsBusy(webID) {
+		t.Error("moving the cursor cleared the busy marker")
+	}
+}
+
+// The list is replaced every refresh tick while an action runs. Keying the
+// marker on the container ID rather than on a flag in the row is what survives.
+func TestTheMarkerSurvivesARefresh(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down"))
+	m = feed(t, m, testutil.Key("K"))
+
+	m = feed(t, m, ContainersListMsg{Containers: containerFixtures()})
+
+	if !m.containerTable.IsBusy(webID) {
+		t.Error("a periodic refresh dropped the busy marker")
+	}
+}
+
+// The glyph says something is happening; the footer says what. It is rendered
+// from the current state rather than set as a footer message, because a footer
+// message expires after three seconds and `docker stop` outlives that by seven.
+func TestTheFooterNamesTheRunningAction(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down"))
+	m = feed(t, m, testutil.Key("K"))
+
+	if !strings.Contains(m.RenderFooter(120), "Stopping web") {
+		t.Errorf("the footer does not name the action:\n%s", m.RenderFooter(120))
+	}
+
+	m = feed(t, m, ContainerActionMsg{Action: "stop", ID: webID, Name: "web"})
+	if strings.Contains(m.RenderFooter(120), "Stopping web") {
+		t.Error("the footer still names an action that finished")
+	}
+}
+
+// An error the user has not read yet matters more than the progress of what is
+// still running, so it takes the line.
+func TestAnErrorTakesTheFooterAheadOfTheRunningAction(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down"))
+	m = feed(t, m, testutil.Key("K"))
+	m.errorMsg = "Something went wrong"
+
+	footer := m.RenderFooter(120)
+
+	if !strings.Contains(footer, "Something went wrong") {
+		t.Errorf("the error was hidden by the action line:\n%s", footer)
+	}
+	if strings.Contains(footer, "Stopping web") {
+		t.Errorf("both lines were rendered at once:\n%s", footer)
+	}
+}
+
+// renderedRowFor returns the drawn line for a container, which is the only
+// place the busy override is visible — it is applied at render time so the
+// stored cells do not go stale as the spinner advances.
+func renderedRowFor(t *testing.T, m Model, name string) string {
+	t.Helper()
+	for _, line := range strings.Split(m.containerTable.View(), "\n") {
+		if strings.Contains(line, name) {
+			return line
+		}
+	}
+	t.Fatalf("no rendered row for %q", name)
+	return ""
 }

@@ -238,6 +238,17 @@ func TableStylesForState(state string) table.Styles {
 		s.Selected = s.Selected.
 			Background(ColorError).
 			Foreground(ColorBlack)
+	case "busy":
+		// A row an action is running on. It outranks "error" rather than the
+		// other way round: `exited` is precisely what is about to stop being
+		// true, so the transition is the newer fact.
+		//
+		// ColorHighlight is not an arbitrary pick — the containers view already
+		// paints docker's own transitional states (`created`, `restarting`) with
+		// it, and a transition DevDesk started is the same kind of thing.
+		s.Selected = s.Selected.
+			Background(ColorHighlight).
+			Foreground(ColorBlack)
 	default:
 		// normal — uses DefaultTableStyles values (ColorSecondary bg, ColorBlack fg)
 	}
