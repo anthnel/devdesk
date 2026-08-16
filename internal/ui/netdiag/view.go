@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -136,52 +136,54 @@ func (m *Model) renderDetailsContent(res testResult, width int) string {
 	return strings.Join(lines, "\n")
 }
 
+// resultColumns describes the diagnostics results table.
+func resultColumns() []datatable.Column[testResult] {
+	return []datatable.Column[testResult]{
+		{
+			Title: "Test", MinWidth: 22,
+			Cell: func(r testResult) string { return r.name },
+		},
+		{
+			Title: "Status", MinWidth: 6,
+			// No Style: the icon already says which way the test went, and the
+			// migration is meant to change nothing but the text colour.
+			Cell: resultStatusCell,
+		},
+		{
+			Title: "Output", MinWidth: 10, Flex: 1,
+			Cell: func(r testResult) string { return firstOutputLine(r.output) },
+		},
+	}
+}
+
+// resultStatusCell is the status cell: an icon and a word, plain text (Rule 122).
+func resultStatusCell(r testResult) string {
+	switch {
+	case r.cancelled:
+		return theme.IconCanceled + " —"
+	case r.success:
+		return theme.IconOK + " OK"
+	default:
+		return theme.IconError + " FAIL"
+	}
+}
+
+// rebuildResultsTable refills the results table in the order the tests were
+// started. The table itself is built once, in New: rebuilding it here is what
+// dropped the cursor back to the top on every update.
 func (m *Model) rebuildResultsTable() {
 	if m.state != StateResults {
 		return
 	}
 
-	w := max(m.width-2, 30)
-
-	numCols := 3
-	available := w - numCols*2
-	col1W := 22
-	col2W := 6
-	col3W := max(available-col1W-col2W, 10)
-
-	cols := []table.Column{
-		{Title: "Test", Width: col1W},
-		{Title: "Status", Width: col2W},
-		{Title: "Output", Width: col3W},
-	}
-
-	var rows []table.Row
+	items := make([]testResult, 0, len(m.resultOrder))
 	for _, name := range m.resultOrder {
-		res, ok := m.results[name]
-		if !ok {
-			continue
+		if res, ok := m.results[name]; ok {
+			items = append(items, res)
 		}
-		var statusIcon string
-		switch {
-		case res.cancelled:
-			statusIcon = theme.IconCanceled + " —"
-		case res.success:
-			statusIcon = theme.IconOK + " OK"
-		default:
-			statusIcon = theme.IconError + " FAIL"
-		}
-		firstLine := firstOutputLine(res.output, col3W)
-		rows = append(rows, table.Row{name, statusIcon, firstLine})
 	}
-
-	t := table.New(
-		table.WithColumns(cols),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(max(m.height-13, 3)),
-	)
-	t.SetStyles(theme.DefaultTableStyles())
-	m.resultsTable = t
+	m.resultsTable.SetItems(items)
+	m.resultsTable.Resize(m.width, max(m.height-13, 3))
 }
 
 func (m *Model) resizeInputs() {
@@ -199,15 +201,17 @@ func (m *Model) resizeDetailsViewport() {
 	m.detailsViewport.Style = lipgloss.NewStyle().Background(theme.ColorBackground)
 }
 
-// firstOutputLine returns the first non-empty line truncated to maxLen terminal
-// columns. The result goes into a table cell, so it must be valid UTF-8 (Rule
-// 122 / theme helpers per Rule 117) — slicing bytes here would cut a multibyte
-// rune in half and bleed into the rows below.
-func firstOutputLine(output string, maxLen int) string {
+// firstOutputLine returns the first non-empty line of a test's output.
+//
+// It no longer truncates: the column width belongs to the renderer, and
+// datatable measures and cuts on rune boundaries there (render.go). Truncating
+// here meant the cell had to know a width the Cell function is not given, which
+// is the coupling the migration removes.
+func firstOutputLine(output string) string {
 	for line := range strings.SplitSeq(output, "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" {
-			return theme.TruncateWidth(line, maxLen)
+			return line
 		}
 	}
 	return ""

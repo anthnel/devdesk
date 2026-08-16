@@ -213,8 +213,7 @@ func TestASecondSearchStartsFromAClearTable(t *testing.T) {
 	b := m.registryBrowser
 	b.filterInput.SetValue("v1")
 	b.registryFilter = resultFilter{url: "docker.io"}
-	b.tagSortCol = tagSortByUpdated
-	b.tagSortDesc = true
+	b.tagTable.SetSort(tagColumnUpdated, true)
 
 	m = feed(t, m, testutil.Key("esc")) // back to the form
 	m = typeInto(t, m, "redis")
@@ -226,8 +225,8 @@ func TestASecondSearchStartsFromAClearTable(t *testing.T) {
 	if b.filterInput.Value() != "" || !b.registryFilter.isEmpty() {
 		t.Errorf("filters survived: %q / %q", b.filterInput.Value(), b.registryFilter)
 	}
-	if b.tagSortCol != tagSortByName || b.tagSortDesc {
-		t.Error("the sort survived into a new search")
+	if col, desc := b.tagTable.SortState(); col != tagColumnTag || desc {
+		t.Errorf("the sort is column %d desc %v, want it back on the tag name ascending", col, desc)
 	}
 }
 
@@ -393,18 +392,19 @@ func TestTheSortCyclesThroughBothColumnsAndBack(t *testing.T) {
 	b := m.registryBrowser
 
 	want := []struct {
-		col  tagSortField
+		col  int
 		desc bool
 	}{
-		{tagSortByName, true},
-		{tagSortByUpdated, false},
-		{tagSortByUpdated, true},
-		{tagSortByName, false},
+		{tagColumnTag, true},
+		{tagColumnUpdated, false},
+		{tagColumnUpdated, true},
+		{tagColumnTag, false},
 	}
 	for i, step := range want {
 		m = feed(t, m, testutil.Key("."))
-		if b.tagSortCol != step.col || b.tagSortDesc != step.desc {
-			t.Fatalf("after %d presses: col %v desc %v, want %v/%v", i+1, b.tagSortCol, b.tagSortDesc, step.col, step.desc)
+		col, desc := b.tagTable.SortState()
+		if col != step.col || desc != step.desc {
+			t.Fatalf("after %d presses: col %v desc %v, want %v/%v", i+1, col, desc, step.col, step.desc)
 		}
 	}
 }
@@ -413,14 +413,14 @@ func TestTheSortedColumnCarriesTheArrow(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
 
-	if !strings.Contains(b.tagTable.Columns()[1].Title, "▲") {
-		t.Errorf("the Tag header is %q, want an ascending arrow", b.tagTable.Columns()[1].Title)
+	if !strings.Contains(b.tagTable.Table().Columns()[1].Title, "▲") {
+		t.Errorf("the Tag header is %q, want an ascending arrow", b.tagTable.Table().Columns()[1].Title)
 	}
 	m = feed(t, m, testutil.Key("."), testutil.Key("."))
-	if !strings.Contains(b.tagTable.Columns()[2].Title, "▲") {
-		t.Errorf("the Updated header is %q, want the arrow to have moved", b.tagTable.Columns()[2].Title)
+	if !strings.Contains(b.tagTable.Table().Columns()[2].Title, "▲") {
+		t.Errorf("the Updated header is %q, want the arrow to have moved", b.tagTable.Table().Columns()[2].Title)
 	}
-	if strings.Contains(b.tagTable.Columns()[1].Title, "▲") {
+	if strings.Contains(b.tagTable.Table().Columns()[1].Title, "▲") {
 		t.Error("the Tag header kept its arrow after the sort moved")
 	}
 }
@@ -502,7 +502,7 @@ func TestTheTagFilterAlsoMatchesTheRepository(t *testing.T) {
 	m = feed(t, m, testutil.Key("/"))
 	m = typeInto(t, m, "web")
 
-	if got := len(b.filteredSortedMultiTags()); got != 1 {
+	if got := len(b.tagTable.Visible()); got != 1 {
 		t.Errorf("%d rows matched 'web', want the one whose repository does", got)
 	}
 }
@@ -537,7 +537,7 @@ func TestTheRegistryFilterCyclesThroughEachRegistryAndBack(t *testing.T) {
 	if b.registryFilter != (resultFilter{url: "registry.example.com"}) {
 		t.Fatalf("registryFilter = %q, want the first registry", b.registryFilter)
 	}
-	if got := len(b.filteredSortedMultiTags()); got != 2 {
+	if got := len(b.tagTable.Visible()); got != 2 {
 		t.Errorf("%d rows shown, want only that registry's", got)
 	}
 
@@ -738,7 +738,7 @@ func TestTagRowsCarryNoEscapeSequences(t *testing.T) {
 	})
 	b.SetTagScanning("registry.example.com/api:v2", true)
 
-	for _, row := range b.tagTable.Rows() {
+	for _, row := range b.tagTable.Table().Rows() {
 		for col, cell := range row {
 			if strings.Contains(cell, "\x1b[") {
 				t.Errorf("row cell [%d] = %q carries an escape sequence", col, cell)
@@ -788,7 +788,7 @@ func TestTheUpdatedColumnIsRelative(t *testing.T) {
 	})
 	b := m.registryBrowser
 
-	if got := b.tagTable.Rows()[0][2]; got != "-" {
+	if got := b.tagTable.Table().Rows()[0][2]; got != "-" {
 		t.Errorf("Updated = %q, want a dash before the metadata lands", got)
 	}
 
@@ -796,7 +796,7 @@ func TestTheUpdatedColumnIsRelative(t *testing.T) {
 		RegistryURL: "registry.example.com", Repo: "api",
 		Meta: map[string]time.Time{"v1": time.Now().Add(-2 * time.Hour)},
 	})
-	if got := b.tagTable.Rows()[0][2]; !strings.Contains(got, "hr ago") {
+	if got := b.tagTable.Table().Rows()[0][2]; !strings.Contains(got, "hr ago") {
 		t.Errorf("Updated = %q, want a relative time", got)
 	}
 }
@@ -807,7 +807,7 @@ func TestATagWithNoAliasIsLabelledByItsRegistry(t *testing.T) {
 		RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"},
 	})
 
-	if got := m.registryBrowser.tagTable.Rows()[0][0]; got != "registry.example.com" {
+	if got := m.registryBrowser.tagTable.Table().Rows()[0][0]; got != "registry.example.com" {
 		t.Errorf("the Registry cell is %q, want the URL when there is no alias", got)
 	}
 }
@@ -886,7 +886,7 @@ func TestTheFormGroupsMembersUnderTheirParent(t *testing.T) {
 
 // tagOrder returns the tag column of the table as displayed.
 func tagOrder(b *RegistryBrowser) []string {
-	rows := b.tagTable.Rows()
+	rows := b.tagTable.Table().Rows()
 	out := make([]string, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, row[1])
@@ -897,9 +897,10 @@ func tagOrder(b *RegistryBrowser) []string {
 // rowFor returns the rendered row for an image reference.
 func rowFor(t *testing.T, b *RegistryBrowser, imageName string) []string {
 	t.Helper()
-	for i, tag := range b.filteredSortedMultiTags() {
+	for i, row := range b.tagTable.Visible() {
+		tag := row.tag
 		if multiImageName(tag.RegistryURL, tag.Repo, tag.Tag) == imageName {
-			return b.tagTable.Rows()[i]
+			return b.tagTable.Table().Rows()[i]
 		}
 	}
 	t.Fatalf("no row for %q", imageName)
@@ -1006,7 +1007,7 @@ func TestTheResultFilterHasAGroupLevel(t *testing.T) {
 	if b.registryFilter.groupSlug != "prod" {
 		t.Fatalf("the first stop is %+v, want the group", b.registryFilter)
 	}
-	if got := len(b.filteredSortedMultiTags()); got != 2 {
+	if got := len(b.tagTable.Visible()); got != 2 {
 		t.Errorf("%d rows under the group filter, want both its members'", got)
 	}
 
@@ -1025,5 +1026,52 @@ func TestTheResultFilterHasAGroupLevel(t *testing.T) {
 	m = feed(t, m, testutil.Key("r"))
 	if !b.registryFilter.isEmpty() {
 		t.Errorf("registryFilter = %+v, want it back to everything", b.registryFilter)
+	}
+}
+
+// ── The tag table after §3.21 ────────────────────────────────────────────────
+
+// Rule 116: the copy written out here floored the flexible Tag column at 8 and
+// then handed the whole shortfall to the last severity column, which goes
+// negative on a narrow terminal. The solver shares the shortfall instead.
+func TestTagColumnsHoldTheWidthInvariant(t *testing.T) {
+	for _, width := range []int{60, 80, 120, 200} {
+		m := feed(t, resultsModel(t), tea.WindowSizeMsg{Width: width, Height: 40})
+		b := m.registryBrowser
+
+		total := 0
+		cols := b.tagTable.Table().Columns()
+		for i, col := range cols {
+			total += col.Width
+			if col.Width < 0 {
+				t.Errorf("at width %d column %d is %d cells wide", width, i, col.Width)
+			}
+		}
+		// The browser is handed the viewport content width, so what is left to
+		// share is that width less the per-cell padding.
+		if want := width - 2 - len(cols)*2; total != want {
+			t.Errorf("at width %d the columns sum to %d, want %d", width, total, want)
+		}
+	}
+}
+
+// The cursor is resolved through the table rather than by replaying the filter
+// and the sort. `p`, `ctrl+s` and `enter` all act on what it returns, so the two
+// orderings drifting apart is a pull of the wrong image.
+func TestThePullActsOnTheRowUnderTheCursorAfterASort(t *testing.T) {
+	m := resultsModel(t)
+	b := m.registryBrowser
+
+	// Descending by tag, then down one row: neither the arrival order nor the
+	// ascending one puts the same tag there.
+	m = feed(t, m, testutil.Key("."), testutil.Key("down"))
+
+	row, ok := b.tagTable.Selected()
+	if !ok {
+		t.Fatal("no row is selected")
+	}
+	want := multiImageName(row.tag.RegistryURL, row.tag.Repo, row.tag.Tag)
+	if got := b.selectedImageName(); got != want {
+		t.Errorf("selectedImageName() = %q, want the highlighted row %q", got, want)
 	}
 }

@@ -1,69 +1,46 @@
 package ociresources
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// rebuildTagTable rebuilds the results table rows with current filter/sort/CVE data.
+// rebuildTagTable re-decorates the rows and hands them to the table.
+//
+// The decoration — the scan counts, whether a scan is running, the registry's
+// label — is not on the tag, and the columns are built once so they cannot
+// reach the browser for it. So it is recomputed wholesale on every change,
+// exactly as the images tab does with imageRow.
+//
+// The filters are applied here because they narrow the tags before the table
+// sees them; the sort and the header arrows are the table's.
 func (b *RegistryBrowser) rebuildTagTable() {
-	displayed := b.filteredSortedMultiTags()
-	rows := make([]table.Row, len(displayed))
-	for i, t := range displayed {
+	tags := b.filteredMultiTags()
+	frame := spinner.Dot.Frames[b.tagScanSpinnerIdx%len(spinner.Dot.Frames)]
+
+	rows := make([]tagRow, len(tags))
+	for i, t := range tags {
 		imageName := multiImageName(t.RegistryURL, t.Repo, t.Tag)
-
-		registryLabel := t.Alias
-		if registryLabel == "" {
-			registryLabel = t.RegistryURL
+		label := t.Alias
+		if label == "" {
+			label = t.RegistryURL
 		}
-
-		updated := "-"
-		if !t.UpdatedAt.IsZero() {
-			updated = theme.TimeAgo(t.UpdatedAt)
+		entry, scanned := b.scanCache[imageName]
+		rows[i] = tagRow{
+			tag:      t,
+			label:    label,
+			entry:    entry,
+			scanned:  scanned,
+			scanning: b.scanningTags[imageName],
+			frame:    frame,
 		}
-
-		crit, high, med, low := "-", "-", "-", "-"
-		if b.scanningTags[imageName] {
-			frame := spinner.Dot.Frames[b.tagScanSpinnerIdx%len(spinner.Dot.Frames)]
-			crit, high, med, low = frame, frame, frame, frame
-		} else if entry, ok := b.scanCache[imageName]; ok {
-			crit = fmt.Sprintf("%d", entry.Critical)
-			high = fmt.Sprintf("%d", entry.High)
-			med = fmt.Sprintf("%d", entry.Medium)
-			low = fmt.Sprintf("%d", entry.Low)
-		}
-
-		rows[i] = table.Row{registryLabel, t.Tag, updated, crit, high, med, low}
 	}
 
-	cols := b.tagTable.Columns()
-	if len(cols) == 7 {
-		cols[1].Title = "Tag"
-		cols[2].Title = "Updated"
-		switch b.tagSortCol {
-		case tagSortByName:
-			arrow := " ▲"
-			if b.tagSortDesc {
-				arrow = " ▼"
-			}
-			cols[1].Title = "Tag" + arrow
-		case tagSortByUpdated:
-			arrow := " ▲"
-			if b.tagSortDesc {
-				arrow = " ▼"
-			}
-			cols[2].Title = "Updated" + arrow
-		}
-		b.tagTable.SetColumns(cols)
-	}
-
-	b.tagTable.SetRows(rows)
+	b.tagTable.SetItems(rows)
 	b.resizeTagTable()
 }
 
@@ -121,8 +98,7 @@ func (b *RegistryBrowser) renderInputField(label, value string, fieldIdx int) st
 }
 
 func (b *RegistryBrowser) viewTags() string {
-	displayed := b.filteredSortedMultiTags()
-	if len(displayed) == 0 {
+	if len(b.tagTable.Visible()) == 0 {
 		if b.pendingSearches > 0 {
 			return theme.EmptyLineBg(b.width) + "\n" +
 				theme.SpinnerMessage(b.spinner.View(), "Searching registries...")

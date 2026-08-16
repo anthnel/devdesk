@@ -103,11 +103,14 @@ func (b *RegistryBrowser) selectedImageName() string {
 }
 
 // getSelectedMultiTag returns the MultiRegistryTag under the cursor, or nil.
+//
+// It used to replay the filter and the sort to map the cursor back to a tag,
+// with nothing tying that ordering to the one the rows were built from. The
+// table keeps the ordered slice it drew, so the two cannot disagree.
 func (b *RegistryBrowser) getSelectedMultiTag() *MultiRegistryTag {
-	displayed := b.filteredSortedMultiTags()
-	cursor := b.tagTable.Cursor()
-	if cursor < 0 || cursor >= len(displayed) {
+	row, ok := b.tagTable.Selected()
+	if !ok {
 		return nil
 	}
-	return &displayed[cursor]
+	return &row.tag
 }

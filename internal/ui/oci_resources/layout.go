@@ -36,44 +36,20 @@ func (m *Model) resize(width, height int) {
 		m.registryBrowser.SetSize(width-2, height)
 	}
 
-	m.registryTable.SetHeight(m.tableHeight())
-	m.resizeRegistryTable(width)
-
 	// Widths and height in one call, and the Rule 116 arithmetic is the
-	// component's rather than written out here three more times.
+	// component's rather than written out here four more times.
+	m.registryTable.Resize(width, m.tableHeight())
 	m.imageTable.Resize(width, m.tableHeight())
 	m.networkTable.Resize(width, m.tableHeight())
 	m.volumeTable.Resize(width, m.tableHeight())
 }
 
-// The images, networks and volumes width arithmetic used to live here. The
-// images copy clamped Name at 20 and then handed the entire shortfall to
-// Scanned, which went negative below 96 columns; the volumes copy did the same
-// to its last column. Both are the solver's job now.
-
-func (m *Model) resizeRegistryTable(width int) {
-	contentWidth := width - 2
-	columns := m.registryTable.Columns()
-	numCols := len(columns)
-	if numCols >= 6 {
-		available := contentWidth - numCols*2
-		fixedAlias := 16
-		fixedKind := 10
-		fixedAuth := 12 // holds "credentials"
-		fixedLogged := 8
-		fixedMembers := 16 // holds "12 · 30 days ago"
-		fixedSum := fixedAlias + fixedKind + fixedAuth + fixedLogged + fixedMembers
-		flexURL := max(available-fixedSum, 20)
-		columns[0].Width = fixedAlias
-		columns[1].Width = flexURL
-		columns[2].Width = fixedKind
-		columns[3].Width = fixedAuth
-		columns[4].Width = fixedLogged
-		// Last column absorbs the rounding so the selected row reaches the border.
-		columns[5].Width = available - fixedAlias - flexURL - fixedKind - fixedAuth - fixedLogged
-		m.registryTable.SetColumns(columns)
-	}
-}
+// The width arithmetic of all four tables used to live here. The images copy
+// clamped Name at 20 and then handed the entire shortfall to Scanned, which went
+// negative below 96 columns; the volumes copy did the same to its last column;
+// the registries copy clamped URL at 20 after the remainder had been computed,
+// which pushes the sum back over Rule 116's budget. All four are the solver's
+// job now.
 
 // timeAgo returns a compact relative time string (Rule 127).
 func timeAgo(t time.Time) string {

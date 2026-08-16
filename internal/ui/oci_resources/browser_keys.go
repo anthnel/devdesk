@@ -56,9 +56,7 @@ func (b *RegistryBrowser) delegateUpdate(msg tea.Msg) (*RegistryBrowser, tea.Cmd
 			b.rebuildTagTable()
 			return b, cmd
 		}
-		var cmd tea.Cmd
-		b.tagTable, cmd = b.tagTable.Update(msg)
-		return b, cmd
+		return b, b.tagTable.Update(msg)
 	}
 	return b, nil
 }
@@ -148,8 +146,9 @@ func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 	b.pendingSearches = 0
 	b.filterInput.SetValue("")
 	b.filterActive = false
-	b.tagSortCol = tagSortByName
-	b.tagSortDesc = false
+	// A new search starts from the default order, not wherever the last one's
+	// `.` presses left the table.
+	b.tagTable.SetSort(tagColumnTag, false)
 
 	var cmds []tea.Cmd
 	for _, entry := range b.entries {
@@ -202,23 +201,8 @@ func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, te
 		b.filterInput.Focus()
 		b.resizeTagTable()
 		return b, nil
-	case ".":
-		b.cycleSortTags()
-		return b, nil
 	case "r":
 		b.cycleRegistryFilter()
-		return b, nil
-	case "up", "k":
-		b.tagTable.MoveUp(1)
-		return b, nil
-	case "down", "j":
-		b.tagTable.MoveDown(1)
-		return b, nil
-	case "g", "home":
-		b.tagTable.GotoTop()
-		return b, nil
-	case "G", "end":
-		b.tagTable.GotoBottom()
 		return b, nil
 	case "enter":
 		return b.openTagScanDetails()
@@ -227,5 +211,8 @@ func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, te
 	case "ctrl+s":
 		return b.requestDirectScan()
 	}
-	return b, nil
+	// Navigation and `.` are the table's. `/` never reaches it: the browser's
+	// own filter took the key two cases above, and the table declares no
+	// searchable column, so it would decline it anyway.
+	return b, b.tagTable.Update(msg)
 }

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -109,34 +111,38 @@ func TestFirstOutputLine(t *testing.T) {
 	tests := []struct {
 		name   string
 		output string
-		maxLen int
 		want   string
 	}{
-		{"first non-empty line", "\n\n  hello\nworld", 40, "hello"},
-		{"trims", "   spaced   \n", 40, "spaced"},
-		{"empty output", "", 40, ""},
-		{"only blank lines", "\n  \n\t\n", 40, ""},
-		{"truncates", strings.Repeat("a", 50), 10, strings.Repeat("a", 7) + "..."},
-		{"exact length is kept", strings.Repeat("a", 10), 10, strings.Repeat("a", 10)},
+		{"first non-empty line", "\n\n  hello\nworld", "hello"},
+		{"trims", "   spaced   \n", "spaced"},
+		{"empty output", "", ""},
+		{"only blank lines", "\n  \n\t\n", ""},
+		{"long lines are left whole for the renderer", strings.Repeat("a", 50), strings.Repeat("a", 50)},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := firstOutputLine(tc.output, tc.maxLen); got != tc.want {
-				t.Errorf("firstOutputLine(%q, %d) = %q, want %q", tc.output, tc.maxLen, got, tc.want)
+			if got := firstOutputLine(tc.output); got != tc.want {
+				t.Errorf("firstOutputLine(%q) = %q, want %q", tc.output, got, tc.want)
 			}
 		})
 	}
 }
 
-// The result lands in a table cell, so a cut mid-rune produces invalid UTF-8
-// that bubbles then truncates again — the same defect as D1/D6 in the backlog.
-func TestFirstOutputLineKeepsMultibyteRunesIntact(t *testing.T) {
-	// Each "é" is two bytes: a byte-wise cut at 7 lands inside one.
-	got := firstOutputLine(strings.Repeat("é", 20), 10)
+// The output cell is cut to the column by the table's renderer now rather than
+// by firstOutputLine, and a cut mid-rune would produce invalid UTF-8 — the same
+// defect as D1/D6 in the backlog, one layer down.
+func TestTheOutputColumnIsCutOnRuneBoundaries(t *testing.T) {
+	// Each "é" is two bytes: a byte-wise cut lands inside one.
+	m := runningModel(t, "example.com", "Ping")
+	m = feed(t, m, testCompleteMsg{gen: m.runGen, name: "Ping", success: true, output: strings.Repeat("é", 200)})
 
-	if !utf8.ValidString(got) {
-		t.Errorf("firstOutputLine produced invalid UTF-8: %q", got)
+	view := m.resultsTable.View()
+	if !utf8.ValidString(view) {
+		t.Errorf("the results table rendered invalid UTF-8: %q", view)
+	}
+	if !strings.Contains(view, "é") {
+		t.Error("the output column shows none of the output")
 	}
 }
 
@@ -366,5 +372,63 @@ func TestGetHelpContentIsPopulated(t *testing.T) {
 	}
 	if len(content.KeyBindings) == 0 || len(content.Sections) == 0 {
 		t.Error("the help content has no key bindings or sections")
+	}
+}
+
+// ── The results table after §3.21 ────────────────────────────────────────────
+
+// The results table used to be rebuilt with table.New on every update, which
+// dropped the cursor back to the top. A late result — the metadata for a test
+// that finished after the others, a cancellation — moved the row under the
+// user's cursor while they were reading it.
+func TestALateResultKeepsTheCursorWhereItWas(t *testing.T) {
+	m := resultsModel(t)
+	m = feed(t, m, testutil.Key("down"))
+
+	if got := m.resultsTable.Cursor(); got != 1 {
+		t.Fatalf("cursor = %d before the refresh, want 1", got)
+	}
+	m.rebuildResultsTable()
+
+	if got := m.resultsTable.Cursor(); got != 1 {
+		t.Errorf("cursor = %d after a refresh, want it left where the user put it", got)
+	}
+}
+
+// Rule 116, now the solver's job rather than three fixed widths and a
+// subtraction: the columns must sum to exactly the space they have at every
+// width, or the selected row stops short of the right border.
+func TestResultColumnsHoldTheWidthInvariant(t *testing.T) {
+	for _, width := range []int{40, 60, 80, 120, 200} {
+		m := feed(t, resultsModel(t), tea.WindowSizeMsg{Width: width, Height: 40})
+
+		total := 0
+		cols := m.resultsTable.Table().Columns()
+		for i, col := range cols {
+			total += col.Width
+			if col.Width < 0 {
+				t.Errorf("at width %d column %d is %d cells wide", width, i, col.Width)
+			}
+		}
+		if want := width - 2 - len(cols)*2; total != want {
+			t.Errorf("at width %d the columns sum to %d, want %d", width, total, want)
+		}
+	}
+}
+
+// Enter opens the row under the cursor, resolved through the table rather than
+// by indexing resultOrder. The two orderings agree today only because this
+// table does not sort — which is exactly the dependency nothing signalled, and
+// what would have made adding one a silent defect.
+func TestEnterOpensTheRowUnderTheCursor(t *testing.T) {
+	m := resultsModel(t)
+	m = feed(t, m, testutil.Key("down"), testutil.Key("enter"))
+
+	row, ok := m.resultsTable.Selected()
+	if !ok {
+		t.Fatal("no row is selected")
+	}
+	if m.selectedTest != row.name {
+		t.Errorf("opened %q, want the selected row %q", m.selectedTest, row.name)
 	}
 }

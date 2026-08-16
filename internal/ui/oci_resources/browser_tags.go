@@ -1,26 +1,10 @@
 package ociresources
 
 import (
-	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-func (b *RegistryBrowser) cycleSortTags() {
-	if b.tagSortCol == tagSortByName && !b.tagSortDesc {
-		b.tagSortDesc = true
-	} else if b.tagSortCol == tagSortByName && b.tagSortDesc {
-		b.tagSortCol = tagSortByUpdated
-		b.tagSortDesc = false
-	} else if b.tagSortCol == tagSortByUpdated && !b.tagSortDesc {
-		b.tagSortDesc = true
-	} else {
-		b.tagSortCol = tagSortByName
-		b.tagSortDesc = false
-	}
-	b.rebuildTagTable()
-}
 
 // filterStops returns the values `r` cycles through: every group that produced
 // results, then every individual registry, then off. The group level is what
@@ -213,8 +197,10 @@ func (b *RegistryBrowser) updateFocus() {
 	}
 }
 
-// filteredSortedMultiTags returns tags after applying registry filter, text filter, and sort.
-func (b *RegistryBrowser) filteredSortedMultiTags() []MultiRegistryTag {
+// filteredMultiTags returns the tags the registry filter and the text filter let
+// through. The order is the table's — it is what holds the cursor and the
+// header arrow together.
+func (b *RegistryBrowser) filteredMultiTags() []MultiRegistryTag {
 	query := strings.ToLower(b.filterInput.Value())
 	var result []MultiRegistryTag
 	for _, t := range b.tags {
@@ -227,21 +213,5 @@ func (b *RegistryBrowser) filteredSortedMultiTags() []MultiRegistryTag {
 		}
 		result = append(result, t)
 	}
-
-	sortCol := b.tagSortCol
-	sortDesc := b.tagSortDesc
-	sort.SliceStable(result, func(i, j int) bool {
-		var less bool
-		switch sortCol {
-		case tagSortByUpdated:
-			less = result[i].UpdatedAt.After(result[j].UpdatedAt)
-		default:
-			less = strings.ToLower(result[i].Tag) < strings.ToLower(result[j].Tag)
-		}
-		if sortDesc {
-			return !less
-		}
-		return less
-	})
 	return result
 }

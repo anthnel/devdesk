@@ -248,7 +248,7 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		case tabRegistries:
 			var cmd tea.Cmd
-			m.registryTable, cmd = m.registryTable.Update(msg)
+			cmd = m.registryTable.Update(msg)
 			return m, cmd
 		}
 	}

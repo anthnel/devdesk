@@ -540,8 +540,8 @@ func TestNarrowTerminalDoesNotCollapseTheLayout(t *testing.T) {
 	if m.targetInput.Width < 20 {
 		t.Errorf("target input width = %d on a narrow terminal, want the floor of 20", m.targetInput.Width)
 	}
-	if m.resultsTable.Height() < 0 {
-		t.Errorf("results table height = %d, want it non-negative", m.resultsTable.Height())
+	if h := m.resultsTable.Table().Height(); h < 0 {
+		t.Errorf("results table height = %d, want it non-negative", h)
 	}
 	if m.View() == "" {
 		t.Error("View() returned nothing on a narrow terminal")

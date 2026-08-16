@@ -480,7 +480,7 @@ func TestRegistryTabShowsTheConfiguredRegistries(t *testing.T) {
 		m = feed(t, m, testutil.Key("tab"))
 	}
 
-	if got := cells(m.registryTable.Rows(), 1); !equal(got, []string{"registry.example.com", "docker.io"}) {
+	if got := cells(m.registryTable.Table().Rows(), 1); !equal(got, []string{"registry.example.com", "docker.io"}) {
 		t.Errorf("the registry table holds %v", got)
 	}
 }
