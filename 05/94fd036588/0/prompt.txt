@@ -1,0 +1,13 @@
+merge
+
+---
+
+je voudrais ton avis sur un point, quand je fais une action sur une ligne du datatable, ex je supprime une image docker, il résultat peut prendre un certain temps mais rien n'indique à l'écran qu'une action est en cours. Propose moi des solution pour gérer ce cas, je voudrais un indicateur visuel, est-ce qu'il faut dans le même temps empecher le déplacement sur une autre ligne ?
+
+---
+
+Je souhaite partir sur B, ce doit être une fonctionnalité générique d'un datatable. J'aurais envie d'avoir une colonne en première position qui pourrait prendre une icone de statut de ligne. Cette colonne pourrait contenir le statut d'un container avec les différentes icone par statut, mais si une action de transition est en cours alors il y a une icone genre spinner ou engrenage qui dit que quelque chose se passe. Le style de la ligne peut aussi être différent en plus de l'icone. Qu'est-ce que tu en dis
+
+---
+
+d'accord avec toi

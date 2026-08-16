@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "0594fd036588",
+  "strategy": "manual-commit",
+  "branch": "row-status-and-busy",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".claude/CLAUDE.md",
+    ".claude/plans/datatable-row-status-and-busy.md",
+    "docs/backlog.md",
+    "internal/ui/containers/model.go",
+    "internal/ui/containers/update.go",
+    "internal/ui/containers/update_test.go",
+    "internal/ui/containers/view.go",
+    "internal/ui/datatable/datatable.go",
+    "internal/ui/datatable/render.go",
+    "internal/ui/theme/styles.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/05/94fd036588/0/metadata.json",
+      "transcript": "/05/94fd036588/0/full.jsonl",
+      "compact_transcript": "/05/94fd036588/0/transcript.jsonl",
+      "content_hash": "/05/94fd036588/0/content_hash.txt",
+      "prompt": "/05/94fd036588/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 226,
+    "cache_creation_tokens": 121745,
+    "cache_read_tokens": 44023727,
+    "output_tokens": 78277,
+    "api_call_count": 113
+  }
+}
