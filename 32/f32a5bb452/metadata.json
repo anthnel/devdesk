@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "32f32a5bb452",
+  "strategy": "manual-commit",
+  "branch": "row-status-and-busy",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/CLAUDE.md",
+    "internal/ui/oci_resources/busy.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/32/f32a5bb452/0/metadata.json",
+      "transcript": "/32/f32a5bb452/0/full.jsonl",
+      "compact_transcript": "/32/f32a5bb452/0/transcript.jsonl",
+      "content_hash": "/32/f32a5bb452/0/content_hash.txt",
+      "prompt": "/32/f32a5bb452/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 94,
+    "cache_creation_tokens": 56482,
+    "cache_read_tokens": 22772630,
+    "output_tokens": 40389,
+    "api_call_count": 47
+  }
+}
