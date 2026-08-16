@@ -84,18 +84,29 @@ func (m Model) RenderFooter(width int) string {
 	}
 	tabBar := m.renderTabBar(width)
 	infoLine := theme.EmptyLineBg(width)
-	if m.errorMsg != "" {
+	// An error or a notice the user has not read yet comes first: the progress
+	// of what is still running is the least urgent of the three.
+	switch {
+	case m.errorMsg != "":
 		infoLine = theme.StatusErrorStyle.Width(width).Align(lipgloss.Center).Render(m.errorMsg)
-	} else if m.infoMsg != "" {
-		infoLine = lipgloss.NewStyle().
-			Foreground(theme.ColorHighlight).
-			Background(theme.ColorBackground).
-			Width(width).
-			Align(lipgloss.Center).
-			Render(m.infoMsg)
+	case m.infoMsg != "":
+		infoLine = highlightLine(m.infoMsg, width)
+	case m.actionLine() != "":
+		infoLine = highlightLine(m.actionLine(), width)
 	}
 	parts = append(parts, tabBar, theme.EmptyLineBg(width), infoLine)
 	return strings.Join(parts, "\n")
+}
+
+// highlightLine centres a notice on the footer line, in the one style the two
+// non-error messages share.
+func highlightLine(text string, width int) string {
+	return lipgloss.NewStyle().
+		Foreground(theme.ColorHighlight).
+		Background(theme.ColorBackground).
+		Width(width).
+		Align(lipgloss.Center).
+		Render(text)
 }
 
 // renderRegistryBreadcrumb renders the drill-down trail below the table when

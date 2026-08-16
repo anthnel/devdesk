@@ -1004,12 +1004,48 @@ Rendering, and each part is a decision:
 The status column must **not be sortable**: `askFor` reserves `width(Title)+2`
 for a column carrying a `Less`, which is expensive for a glyph.
 
-**`containers` is the first client**, and the state icon moved out of the Image
-cell to get there. Two things are deliberately outside this: a **scan**, whose
-spinner is in the Scanned column and which does not block the object the same
-way, and **`prune`**, which acts on no row — it gets a footer line rendered from
-the view's own state, like `syncStatusLine` (§3.17), because a footer *message*
-expires after three seconds (Rule 128) and `docker stop` outlives that by seven.
+**Which cell the spinner spends is a decision per table**, and it is the same
+decision every time: the one the user does not need while the action runs. Only
+`containers` gained a column, because only it has a state worth a column of its
+own; everywhere else the spinner rides an existing cell, which is §3.16's
+argument about the clone checkbox — a column costs cells on every screen to say
+nothing on all but one row.
+
+| Table | Key | Cell the spinner takes | Actions |
+|---|---|---|---|
+| `containers` | container ID | a status column of its own (the state icon left the Image cell) | stop, restart, pause/resume, remove |
+| `oci` images | image ID | `ID` — it neither sorts nor searches | remove |
+| `oci` networks | network ID | `ID` | remove |
+| `oci` volumes | name | `Driver` — a volume has no ID, so its **name** is the one cell that cannot go | remove |
+| `oci` registries | URL | `Logged` — precisely what the operation is about to change | login, logout |
+| `netdiag` ports | **PID** | `State` | kill |
+
+Two of those keys are worth the note. The ports table keys on the **PID, not the
+socket**, so every row of a process spins at once — which is what happens, the
+kill takes them all. The registries table keys on the **URL**, which is the one
+place D40's rule does not apply, and it does not apply because the *operation*
+is host-scoped: one `docker login` really does change the answer for every entry
+on that host.
+
+`oci_resources` gathers `BusyLabels()` from **all four tabs**, not the active
+one: an action started on Images goes on running after `tab`, and a spinner that
+stopped turning because the user looked elsewhere would read as a hang on the
+way back. The spinner tick has to keep being scheduled while anything is busy —
+that is what `advanceBusySpinners()` reports.
+
+Deliberately outside this:
+
+- **Scans** — their spinner is in the Scanned column and they do not block the
+  object the same way.
+- **`prune`** — it acts on no row, so marking every row would say something
+  false. It gets a footer line rendered from the view's own state (`m.pruning`),
+  like `syncStatusLine` (§3.17), because a footer *message* expires after three
+  seconds (Rule 128) and `docker stop` outlives that by seven.
+- **`workspaces`** — it already had all of this, its own way (`scanningPaths`,
+  `syncingPaths`, `busy(path)`), and is in fact where the design came from. Its
+  one remaining action is a local `os.RemoveAll`. Migrating it would be a
+  refactor of working code across the one busy notion that is *not* one object,
+  one action: scan and sync exclude each other across nested paths.
 
 **Every table in the application is a `datatable`** (§3.21 moved the last four:
 Registries, the registry browser's tags, network-inspect and netdiag's results).

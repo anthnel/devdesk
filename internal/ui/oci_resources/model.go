@@ -75,6 +75,10 @@ type Model struct {
 	resourceForm       *ResourceCreateForm
 	networkInspectForm *NetworkInspectForm
 	connectivityForm   *ConnectivityTestForm
+	// pruning names what a prune is working on, empty when none is. A prune
+	// acts on no row — marking every row would say something false — so it gets
+	// a footer line of its own instead.
+	pruning string
 	// Shared state
 	errorMsg      string
 	infoMsg       string
@@ -106,10 +110,16 @@ type ImagesListMsg struct {
 	Err    error
 }
 
-// ImageActionMsg signals result of an image action (remove)
+// ImageActionMsg signals result of an image action (remove).
+//
+// ID used to hold the image *reference*, not its ID: removeImageCmd filled it
+// from its `name` argument. Nothing caught it because the only reader was a log
+// line. It matters now — the busy marker is keyed on the ID, so a message
+// carrying a name would never lift it and the row would spin for good.
 type ImageActionMsg struct {
 	Action string
 	ID     string
+	Name   string
 	Err    error
 }
 
@@ -163,9 +173,14 @@ type NetworksListMsg struct {
 	Err      error
 }
 
-// NetworkActionMsg signals result of a network action
+// NetworkActionMsg signals result of a network action.
+//
+// ID names which network it was. The message carried no identity at all, which
+// was survivable while the only thing it did was refetch the list — a busy
+// marker has to be lifted from the row it was put on.
 type NetworkActionMsg struct {
 	Action string
+	ID     string
 	Err    error
 }
 
@@ -183,9 +198,13 @@ type VolumesListMsg struct {
 	Err     error
 }
 
-// VolumeActionMsg signals result of a volume action
+// VolumeActionMsg signals result of a volume action.
+//
+// Name is a volume's identity — it has no ID of its own. Same reason as
+// NetworkActionMsg: the message carried nothing to lift a marker from.
 type VolumeActionMsg struct {
 	Action string
+	Name   string
 	Err    error
 }
 
@@ -315,17 +334,49 @@ func New(cfg *config.Config) Model {
 	it := datatable.New(datatable.Config[imageRow]{
 		Columns:    imageColumns(),
 		SortColumn: imageColumnName,
+		Key:        func(r imageRow) string { return r.Image.ID },
+		// The ID cell, not a column of its own. §3.16 settled that argument for
+		// the clone checkbox: a column costs cells on every screen to say
+		// nothing on all but one row, and at 80 columns this view has none to
+		// spare. The ID is the cell to spend — it neither sorts nor searches,
+		// twelve hex characters being nothing anyone orders or looks for, and
+		// it is not what the user is watching while the image is removed.
+		StatusColumn: imageColumnID,
 	})
 
-	nt := datatable.New(datatable.Config[docker.Network]{Columns: networkColumns(), SortColumn: -1})
+	nt := datatable.New(datatable.Config[docker.Network]{
+		Columns:      networkColumns(),
+		SortColumn:   -1,
+		Key:          func(n docker.Network) string { return n.ID },
+		StatusColumn: networkColumnID,
+	})
 	nt.Blur()
 
-	vt := datatable.New(datatable.Config[docker.Volume]{Columns: volumeColumns(), SortColumn: -1})
+	vt := datatable.New(datatable.Config[docker.Volume]{
+		Columns:    volumeColumns(),
+		SortColumn: -1,
+		// A volume has no ID: its name is its identity, which is also why the
+		// spinner cannot go there — it is the one cell that says which row this
+		// is. Driver is the expendable one, and it reads "local" on very nearly
+		// every volume there has ever been.
+		Key:          func(v docker.Volume) string { return v.Name },
+		StatusColumn: volumeColumnDriver,
+	})
 	vt.Blur()
 
 	rt := datatable.New(datatable.Config[registryRow]{
 		Columns:    registryColumns(),
 		SortColumn: -1,
+		// The URL, because that is what docker keys a login on and what
+		// RegistryLoginCompleteMsg carries back. Two entries declared on one
+		// host therefore spin together — which is right: one `docker login`
+		// really does change the answer for both. This is the one place D40's
+		// rule does not apply, and it does not apply because the *operation* is
+		// host-scoped, not because the identity is convenient.
+		Key: func(r registryRow) string { return r.url },
+		// Logged is the cell a login is about to change, so it is the one to
+		// spend while it runs.
+		StatusColumn: registryColumnLogged,
 	})
 	rt.Blur()
 

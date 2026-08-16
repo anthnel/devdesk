@@ -3970,7 +3970,7 @@ ramenait la ligne sous le curseur de l'utilisateur en haut.
 
 ---
 
-### 3.22 A row says what it is, and what is happening to it — **done** (containers)
+### 3.22 A row says what it is, and what is happening to it — **done**
 
 Plan détaillé :
 [`datatable-row-status-and-busy.md`](../.claude/plans/datatable-row-status-and-busy.md).
@@ -4061,6 +4061,51 @@ rendu — sur ce que l'utilisateur voit. Trois d'entre eux exécutaient le timer
 3 s via `testutil.MsgOf`, ce qui ajoutait neuf secondes à la suite ; deux le
 faisaient sur le chemin du pager, où exécuter la commande **lancerait réellement
 le processus** si le garde-fou tombait. Ils affirment l'état.
+
+#### Étendu aux cinq autres tables
+
+| Table | Clé | Cellule dépensée | Actions |
+|---|---|---|---|
+| `oci` images | ID de l'image | `ID` — ne trie ni ne cherche | suppression |
+| `oci` networks | ID du réseau | `ID` | suppression |
+| `oci` volumes | nom | `Driver` — un volume n'a pas d'ID, donc son **nom** est la seule cellule intouchable | suppression |
+| `oci` registries | URL | `Logged` — exactement ce que l'opération va changer | login, logout |
+| `netdiag` ports | **PID** | `State` | kill |
+
+**Une seule table a gagné une colonne** : containers, la seule dont l'état vaut
+une colonne à lui. Partout ailleurs le spinner prend une cellule existante —
+c'est l'argument de §3.16 sur la case à cocher du clone, une colonne coûtant des
+cellules sur tout l'écran pour ne rien dire sur toutes les lignes sauf une.
+
+Deux clés méritent la note. **Ports est indexé sur le PID, pas sur la socket** :
+toutes les lignes d'un processus tournent ensemble, ce qui est ce qui se passe —
+le kill les prend toutes. **Registries est indexé sur l'URL**, seul endroit où
+la règle de D40 ne s'applique pas, et elle ne s'applique pas parce que
+l'*opération* est à portée d'hôte : un `docker login` change bien la réponse
+pour toutes les entrées de cet hôte.
+
+`oci_resources` ramasse `BusyLabels()` sur **les quatre onglets**, pas
+seulement l'actif : une action lancée sur Images continue après `tab`, et un
+spinner qui se serait arrêté parce que l'utilisateur a regardé ailleurs se
+lirait comme un gel au retour.
+
+**Deux messages ne portaient aucune identité.** `NetworkActionMsg` et
+`VolumeActionMsg` n'avaient que `Action` et `Err` — survivable tant que la seule
+chose qu'ils déclenchaient était un refetch de la liste, bloquant dès qu'il faut
+lever un marqueur de la ligne où il a été posé. `ImageActionMsg`, lui, avait le
+même décalage que celui des conteneurs mais **délibérément** : son champ `ID`
+portait le nom pour que le footer n'affiche pas un hash, et un test le
+documentait. Il porte les deux maintenant.
+
+**Prune a sa propre ligne**, dans les quatre onglets : il n'agit sur aucune
+ligne, donc marquer toutes les lignes dirait faux.
+
+**`workspaces` est laissé en dehors, et c'est un choix.** Il avait déjà tout
+ça, à sa façon (`scanningPaths`, `syncingPaths`, `busy(path)`) — c'est même de
+là que vient le design. Sa seule action restante est un `os.RemoveAll` local, et
+le migrer serait refactorer du code qui marche sur la seule notion d'occupé qui
+n'est *pas* « un objet, une action » : scan et sync s'excluent à travers des
+chemins imbriqués.
 
 ---
 

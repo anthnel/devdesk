@@ -21,25 +21,31 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		name := img.Name()
-		return m, removeImageCmd(img.ID, name)
+		m.imageTable.MarkBusy(img.ID, "Removing "+name)
+		return m, tea.Batch(removeImageCmd(img.ID, name), m.busyTick())
 	case "prune-images":
-		return m, pruneImagesCmd()
+		m.pruning = "images"
+		return m, tea.Batch(pruneImagesCmd(), m.busyTick())
 	case "delete-network":
 		net := m.getSelectedNetwork()
 		if net == nil {
 			return m, nil
 		}
-		return m, removeNetworkCmd(net.ID)
+		m.networkTable.MarkBusy(net.ID, "Removing "+net.Name)
+		return m, tea.Batch(removeNetworkCmd(net.ID), m.busyTick())
 	case "prune-networks":
-		return m, pruneNetworksCmd()
+		m.pruning = "networks"
+		return m, tea.Batch(pruneNetworksCmd(), m.busyTick())
 	case "delete-volume":
 		vol := m.getSelectedVolume()
 		if vol == nil {
 			return m, nil
 		}
-		return m, removeVolumeCmd(vol.Name)
+		m.volumeTable.MarkBusy(vol.Name, "Removing "+vol.Name)
+		return m, tea.Batch(removeVolumeCmd(vol.Name), m.busyTick())
 	case "prune-volumes":
-		return m, pruneVolumesCmd()
+		m.pruning = "volumes"
+		return m, tea.Batch(pruneVolumesCmd(), m.busyTick())
 	case "delete-registry":
 		idx := m.getSelectedRegistryIndex()
 		if idx < 0 {
@@ -81,10 +87,14 @@ func (m Model) handleScanCacheLoaded(msg ScanCacheLoadedMsg) (tea.Model, tea.Cmd
 	return m, nil
 }
 
-// handleImageAction processes action results
+// handleImageAction processes action results.
+//
+// The marker is lifted first, and on every outcome. Clearing it only on success
+// would leave the row spinning for the life of the view.
 func (m Model) handleImageAction(msg ImageActionMsg) (tea.Model, tea.Cmd) {
+	m.imageTable.ClearBusy(msg.ID)
 	if msg.Err != nil {
-		log.Printf("ERROR [oci_resources] %s %s: %v", msg.Action, msg.ID, msg.Err)
+		log.Printf("ERROR [oci_resources] %s %s: %v", msg.Action, msg.Name, msg.Err)
 		m.errorMsg = "Action failed — check logs"
 		return m, clearInfoMsgCmd()
 	}
@@ -94,6 +104,7 @@ func (m Model) handleImageAction(msg ImageActionMsg) (tea.Model, tea.Cmd) {
 
 // handlePruneComplete processes prune results
 func (m Model) handlePruneComplete(msg PruneCompleteMsg) (tea.Model, tea.Cmd) {
+	m.pruning = ""
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] prune: %v", msg.Err)
 		m.errorMsg = "Prune failed — check logs"
@@ -119,6 +130,7 @@ func (m Model) handleNetworksList(msg NetworksListMsg) (tea.Model, tea.Cmd) {
 
 // handleNetworkAction processes network action results
 func (m Model) handleNetworkAction(msg NetworkActionMsg) (tea.Model, tea.Cmd) {
+	m.networkTable.ClearBusy(msg.ID)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] network %s: %v", msg.Action, msg.Err)
 		m.errorMsg = "Network action failed — check logs"
@@ -130,6 +142,7 @@ func (m Model) handleNetworkAction(msg NetworkActionMsg) (tea.Model, tea.Cmd) {
 
 // handleNetworkPruneComplete processes network prune results
 func (m Model) handleNetworkPruneComplete(msg NetworkPruneCompleteMsg) (tea.Model, tea.Cmd) {
+	m.pruning = ""
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] network prune: %v", msg.Err)
 		m.errorMsg = "Network prune failed — check logs"
@@ -155,6 +168,7 @@ func (m Model) handleVolumesList(msg VolumesListMsg) (tea.Model, tea.Cmd) {
 
 // handleVolumeAction processes volume action results
 func (m Model) handleVolumeAction(msg VolumeActionMsg) (tea.Model, tea.Cmd) {
+	m.volumeTable.ClearBusy(msg.Name)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] volume %s: %v", msg.Action, msg.Err)
 		m.errorMsg = "Volume action failed — check logs"
@@ -166,6 +180,7 @@ func (m Model) handleVolumeAction(msg VolumeActionMsg) (tea.Model, tea.Cmd) {
 
 // handleVolumePruneComplete processes volume prune results
 func (m Model) handleVolumePruneComplete(msg VolumePruneCompleteMsg) (tea.Model, tea.Cmd) {
+	m.pruning = ""
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] volume prune: %v", msg.Err)
 		m.errorMsg = "Volume prune failed — check logs"
