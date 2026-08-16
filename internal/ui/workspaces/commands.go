@@ -172,13 +172,11 @@ func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, sem chan struct{}) t
 				log.Printf("ERROR [workspaces] scan errors for %s: %s", repoPath, combined)
 			}
 
-			sensitive := false
-			for _, f := range result.Findings {
-				if f.Source == "gitleaks" {
-					sensitive = true
-					break
-				}
-			}
+			// Le verdict vient du scan et de nulle part ailleurs : la boucle
+			// « une finding dont Source vaut gitleaks » qui était ici ne voyait
+			// pas les secrets trouvés par Trivy, et ne savait pas dire qu'aucune
+			// étape n'avait cherché.
+			sensitive := result.SecretVerdict()
 
 			entry := cache.WorkspaceScanEntry{
 				RepoPath:  repoPath,

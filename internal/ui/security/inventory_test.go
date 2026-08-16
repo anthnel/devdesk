@@ -7,11 +7,27 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/table"
 
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
+
+// columnIndex resolves a column by its header rather than by its position, so a
+// column inserted elsewhere moves an assertion instead of breaking it. La
+// comparaison est exacte, la flèche de tri retirée : un préfixe ferait répondre
+// une colonne voisine dont le titre commence pareil.
+func columnIndex(t *testing.T, cols []table.Column, title string) int {
+	t.Helper()
+	for i, col := range cols {
+		if strings.TrimSpace(strings.TrimRight(col.Title, "▲▼")) == title {
+			return i
+		}
+	}
+	t.Fatalf("no column titled %q among %d columns", title, len(cols))
+	return -1
+}
 
 // The inventory is what ":sec" lands on. Nothing here reaches a cache file or a
 // scanner: the loaders and the scan runners are commands, so the tests feed the
@@ -223,9 +239,10 @@ func TestAPurgedRowPrintsNoCountRatherThanZero(t *testing.T) {
 
 	m, _ = step(t, m, testutil.Key("ctrl+a"))
 
+	critical := columnIndex(t, m.inventory.Table().Columns(), "CRIT")
 	for _, row := range m.inventory.Table().Rows() {
-		if row[1] != "-" {
-			t.Errorf("CRITICAL cell = %q while purged, want %q", row[1], "-")
+		if row[critical] != "-" {
+			t.Errorf("CRITICAL cell = %q while purged, want %q", row[critical], "-")
 		}
 	}
 }

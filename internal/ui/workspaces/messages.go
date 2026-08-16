@@ -66,12 +66,15 @@ type WorkspaceScanStartingMsg struct {
 
 // WorkspaceScanCompleteMsg is sent by the security view when a workspace scan finishes
 type WorkspaceScanCompleteMsg struct {
-	RepoPath  string
-	Critical  int
-	High      int
-	Medium    int
-	Low       int
-	Sensitive bool
+	RepoPath string
+	Critical int
+	High     int
+	Medium   int
+	Low      int
+	// Sensitive is the secret verdict, nil when no stage looked — le même
+	// tri-état que porte l'entrée de cache, transporté tel quel plutôt
+	// qu'aplati en chemin.
+	Sensitive *bool
 	ScannedAt time.Time
 	Error     error
 }

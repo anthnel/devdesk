@@ -15,11 +15,20 @@ import (
 
 // ImageScanEntry holds cached CVE counts for a scanned image
 type ImageScanEntry struct {
-	ImageID   string    `json:"image_id"`
-	Critical  int       `json:"critical"`
-	High      int       `json:"high"`
-	Medium    int       `json:"medium"`
-	Low       int       `json:"low"`
+	ImageID  string `json:"image_id"`
+	Critical int    `json:"critical"`
+	High     int    `json:"high"`
+	Medium   int    `json:"medium"`
+	Low      int    `json:"low"`
+	// Sensitive is the secret verdict, and it is a pointer because it has three
+	// values: absent quand personne n'a cherché, false quand une étape a cherché
+	// sans rien trouver, true sinon. C'est `scan.Result.SecretVerdict()` qui
+	// l'écrit.
+	//
+	// Une image n'avait aucun champ de secrets jusqu'ici, donc **toute entrée
+	// déjà sur le disque décode à nil** — ce qui est la vérité : elle a été
+	// écrite par un scan d'image qui n'avait pas d'étape secrets du tout.
+	Sensitive *bool     `json:"sensitive,omitempty"`
 	ScannedAt time.Time `json:"scanned_at"`
 }
 

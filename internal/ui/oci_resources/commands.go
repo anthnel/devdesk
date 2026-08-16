@@ -115,10 +115,14 @@ func scanOneImageCmd(job imageScanJob, opts scan.ScanOptions, sem chan struct{})
 			}
 
 			entry := cache.ImageScanEntry{
-				Critical:  result.Counts.Critical,
-				High:      result.Counts.High,
-				Medium:    result.Counts.Medium,
-				Low:       result.Counts.Low,
+				Critical: result.Counts.Critical,
+				High:     result.Counts.High,
+				Medium:   result.Counts.Medium,
+				Low:      result.Counts.Low,
+				// Trivy lit les couches d'une image, ce que Gitleaks ne sait pas
+				// faire : c'est ce qui donne une étape secrets à un scan d'image,
+				// et donc un verdict à enregistrer.
+				Sensitive: result.SecretVerdict(),
 				ScannedAt: result.EndTime,
 			}
 			scanCache, cErr := cache.NewImageScanCache(config.CurrentContextName())

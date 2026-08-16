@@ -9,6 +9,12 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
+// secretsFound and secretsClean write the two known verdicts. Le troisième est
+// nil, et il s'écrit tout seul : c'est ce que porte une entrée dont personne n'a
+// cherché les secrets.
+func secretsFound() *bool { v := true; return &v }
+func secretsClean() *bool { v := false; return &v }
+
 // testContext is the context these caches are opened under. Scoping is covered
 // in scan_context_test.go; every test here is about one context's behaviour.
 const testContext = "default"
@@ -253,7 +259,7 @@ func TestWorkspaceCache_SetAndGet(t *testing.T) {
 	entry := WorkspaceScanEntry{
 		RepoPath:  "/home/user/project",
 		Critical:  1,
-		Sensitive: true,
+		Sensitive: secretsFound(),
 		ScannedAt: time.Now(),
 	}
 	if err := c.Set("/home/user/project", entry); err != nil {
@@ -264,7 +270,7 @@ func TestWorkspaceCache_SetAndGet(t *testing.T) {
 	if got == nil {
 		t.Fatal("Get() returned nil after Set()")
 	}
-	if !got.Sensitive || got.Critical != 1 {
+	if got.Sensitive == nil || !*got.Sensitive || got.Critical != 1 {
 		t.Errorf("unexpected entry values: %+v", got)
 	}
 }

@@ -33,8 +33,13 @@ type InventoryResultLoadedMsg struct {
 // ScannedAt is the scan's own end time, the value written to the cache — so the
 // row and a later reload of that cache report the same age.
 type InventoryScanFinishedMsg struct {
-	Name      string
-	Counts    scan.SeverityCounts
+	Name   string
+	Counts scan.SeverityCounts
+	// Sensitive is the secret verdict, carried for the same reason as the
+	// counts: sans lui la ligne rescannée garderait l'icône de son scan
+	// précédent jusqu'au prochain ctrl+r, en affichant par ailleurs des
+	// compteurs tout frais.
+	Sensitive *bool
 	ScannedAt time.Time
 	Err       error
 }
@@ -65,6 +70,7 @@ func loadInventoryCmd() tea.Cmd {
 						Critical: entry.Critical, High: entry.High,
 						Medium: entry.Medium, Low: entry.Low,
 					},
+					Sensitive: entry.Sensitive,
 					ScannedAt: entry.ScannedAt,
 				})
 			}
@@ -80,6 +86,7 @@ func loadInventoryCmd() tea.Cmd {
 						Critical: entry.Critical, High: entry.High,
 						Medium: entry.Medium, Low: entry.Low,
 					},
+					Sensitive: entry.Sensitive,
 					ScannedAt: entry.ScannedAt,
 				})
 			}
@@ -178,7 +185,10 @@ func rescanOneCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan struct{}
 		}
 
 		storeRescan(job, result)
-		return InventoryScanFinishedMsg{Name: job.Name, Counts: result.Counts, ScannedAt: result.EndTime}
+		return InventoryScanFinishedMsg{
+			Name: job.Name, Counts: result.Counts,
+			Sensitive: result.SecretVerdict(), ScannedAt: result.EndTime,
+		}
 	}
 }
 
@@ -190,6 +200,7 @@ func storeRescan(job inventoryScanJob, result *scan.Result) {
 			_ = c.Set(job.Name, cache.ImageScanEntry{
 				Critical: result.Counts.Critical, High: result.Counts.High,
 				Medium: result.Counts.Medium, Low: result.Counts.Low,
+				Sensitive: result.SecretVerdict(),
 				ScannedAt: result.EndTime,
 			})
 		}
@@ -203,23 +214,11 @@ func storeRescan(job inventoryScanJob, result *scan.Result) {
 			RepoPath: job.Name,
 			Critical: result.Counts.Critical, High: result.Counts.High,
 			Medium: result.Counts.Medium, Low: result.Counts.Low,
-			Sensitive: hasScanSource(result, "gitleaks"),
+			Sensitive: result.SecretVerdict(),
 			ScannedAt: result.EndTime,
 		})
 	}
 	if err := cache.SaveWorkspaceScanResult(job.Name, result); err != nil {
 		log.Printf("ERROR [security/inventory] save workspace result %s: %v", job.Name, err)
 	}
-}
-
-// hasScanSource reports whether any finding came from the given scanner. It
-// decides the "sensitive" flag on a workspace cache entry, which the workspaces
-// list shows as a column.
-func hasScanSource(result *scan.Result, source string) bool {
-	for _, f := range result.Findings {
-		if f.Source == source {
-			return true
-		}
-	}
-	return false
 }

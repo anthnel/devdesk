@@ -11,6 +11,23 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
+// columnIndex resolves a column by its header rather than by its position, so a
+// column inserted elsewhere in the table moves an assertion instead of breaking
+// it — ce qui vient d'arriver à celle-ci quand Secrets s'est intercalée.
+//
+// La comparaison est exacte, la flèche de tri retirée : un préfixe ferait
+// répondre « Content Size » à une recherche de la colonne « C ».
+func columnIndex(t *testing.T, cols []table.Column, title string) int {
+	t.Helper()
+	for i, col := range cols {
+		if strings.TrimSpace(strings.TrimRight(col.Title, "▲▼")) == title {
+			return i
+		}
+	}
+	t.Fatalf("no column titled %q among %d columns", title, len(cols))
+	return -1
+}
+
 // withTrueColor forces a colour profile for the run. Under go test lipgloss
 // detects no TTY, falls back to Ascii and strips every escape sequence, which
 // would make any assertion about styling pass whatever the code does.
@@ -72,24 +89,29 @@ func TestTabsShowASpinnerBeforeLoading(t *testing.T) {
 func TestScanCountsDistinguishCleanFromUnscanned(t *testing.T) {
 	m := loadedModel(t)
 
+	cols := m.imageTable.Table().Columns()
+	name := columnIndex(t, cols, "Name")
+	critical := columnIndex(t, cols, "C")
+
 	rows := m.imageTable.Table().Rows()
 	byName := map[string][]string{}
 	for _, row := range rows {
-		byName[row[1]] = row
+		byName[row[name]] = row
 	}
 
 	scanned, ok := byName["api:v1"]
 	if !ok {
 		t.Fatalf("api:v1 is missing from %v", byName)
 	}
-	if scanned[4] != "2" {
-		t.Errorf("the critical count for a scanned image = %q, want 2", scanned[4])
+	if scanned[critical] != "2" {
+		t.Errorf("the critical count for a scanned image = %q, want 2", scanned[critical])
 	}
 
 	clean := byName["cache:v2"]
 	unscanned := byName["web:v3"]
-	if clean[4] == unscanned[4] {
-		t.Errorf("a clean scan (%q) is indistinguishable from never scanned (%q)", clean[4], unscanned[4])
+	if clean[critical] == unscanned[critical] {
+		t.Errorf("a clean scan (%q) is indistinguishable from never scanned (%q)",
+			clean[critical], unscanned[critical])
 	}
 }
 

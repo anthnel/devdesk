@@ -3732,6 +3732,182 @@ v1 stack for a dependency on a fork.
 
 ---
 
+### 3.20 Secrets are shown where they are found, and table text takes the theme — **done**
+
+Plan : [`secrets-column-and-datatable-foreground.md`](../.claude/plans/secrets-column-and-datatable-foreground.md).
+
+Deux demandes sans rapport, sauf qu'elles se corrigent dans les mêmes tables.
+
+#### Le verdict « secrets » était faux là où il existait
+
+Deux calculs, la même boucle recopiée — `workspaces/commands.go` et
+`hasScanSource` dans `security/inventory_commands.go` — tous deux écrits « une
+finding dont `Source` vaut `gitleaks` ». C'était vrai jusqu'à ce que Trivy se
+mette à trouver des secrets lui aussi : depuis, un dépôt dont c'étaient les
+seuls se lisait **propre**, et une image n'avait aucun champ de secrets du tout.
+`scan.Categorize` est le seul classeur (§3.11) et `SecretCount` en est le
+résultat ; `Result.SecretVerdict()` est désormais le seul calcul du verdict.
+
+#### Et il n'est pas binaire
+
+Une étape secrets peut ne pas avoir tourné pour trois raisons : l'option est
+coupée, l'outil est absent (`scanner.go` exige `deps.*Available` sur les deux
+étapes), ou l'étape a échoué. Un `false` dans ces cas-là est une icône verte
+apposée à un scan qui n'a **rien regardé** — ce que D20 interdit déjà mot pour
+mot dans `Scan()` : *« nothing looked at this image » ne doit pas se lire « this
+image is fine »*. Le verdict est donc un `*bool` : `nil` = personne n'a cherché.
+
+`Result.SecretsScanned` porte le fait, mis à vrai par une étape qui **aboutit** ;
+c'est le scanner qui sait quelles étapes ont tourné, et les trois vues n'avaient
+pas à le redécouvrir depuis les options.
+
+| Cache | Avant | Après |
+|---|---|---|
+| `WorkspaceScanEntry.Sensitive` | `bool` | `*bool` |
+| `ImageScanEntry.Sensitive` | *absent* | `*bool` |
+
+La migration est gratuite, et pas par chance : l'ancien champ workspace
+s'écrivait **toujours** (`json:"sensitive"`, sans `omitempty`), donc un fichier
+existant décode en pointeur non nul, verdict compris. Une entrée d'image n'a pas
+la clé et décode `nil` — ce qui est la vérité sur elle : le scan qui l'a écrite
+n'avait pas d'étape secrets.
+
+#### Où ça s'affiche
+
+Une colonne `Secrets` de 7 cellules dans `oci/images` et dans l'inventaire
+`:sec`, à l'iconographie de `ws` — `theme.SecretsState` la porte maintenant pour
+les trois vues, ce qui a supprimé le style de `ws` qui décidait sa couleur **en
+comparant la chaîne d'icône déjà rendue**.
+
+Elle ne trie ni ici ni là. `datatable` réserve `largeur(titre) + 2` à une colonne
+triable pour sa flèche, et neuf cellules pour un glyphe se paieraient sur
+`Target` à 80 colonnes, dans la table la plus serrée de l'application.
+
+`inventoryColumnCritical` est passé de 1 à 2 : une constante d'indice périmée ne
+trie pas mal, elle **ne trie plus** — `datatable` laisse tomber une direction qui
+ne désigne aucune colonne triable. Deux tests indexaient leurs cellules par
+numéro ; ils résolvent la colonne par son titre maintenant, la flèche retirée et
+la comparaison exacte, sans quoi « Content Size » répond à une recherche de « C ».
+
+Dans le dashboard, un nœud `secrets` entre `critical` et `unscanned`, dans les
+deux arbres de Health — donc au palier `wide` seulement, les deux autres étant
+déjà à leur plafond de six lignes. Il compte des **cibles**, pas des secrets :
+deux dépôts sont deux décisions, quarante fuites dans le même n'en font qu'une,
+et `:sec` détaille. `postureSide.SecretsKnown` existe pour la même raison que le
+reste de cette section : sans lui un inventaire entier scanné sans étape secrets
+afficherait `0`, c'est-à-dire « aucune cible n'en porte ». Un verdict connu sur
+une partie suffit à afficher le compte — c'est alors un plancher, et un plancher
+non nul se décide.
+
+#### Le texte des tables ne venait pas du thème
+
+`theme.DefaultTableStyles()` et `BlurredTableStyles()` règlent `Header` et
+`Selected`, jamais `Cell` ; `bubbles/table.DefaultStyles()` ne lui donne qu'un
+padding. `datatable.cellStyle` complétait le **fond** d'une cellule sans `Style`
+(Rule 115) et pas le **texte** : toute colonne sans `Style` sortait donc dans le
+foreground par défaut du terminal. Quatre vues l'avaient contourné à la main —
+`containers`, `oci_resources`, `security`, `workspaces`, le même
+`Foreground(theme.ColorText)` recopié, ce qui est la forme que prend un défaut
+manquant.
+
+**Le correctif ne peut pas aller dans `DefaultTableStyles()`**, et c'est ce qui
+décide où il va : les cellules sont rendues puis la ligne entière est passée à
+`styles.Selected`, donc une couleur sur `Cell` ouvrirait une séquence dont le
+reset referme le surlignage au milieu de la ligne. La couleur se pose par
+cellule, dans le renderer qui sait si la ligne est sélectionnée. Un test l'énonce
+à l'envers (`TestTheSelectedRowKeepsItsHighlightWhole`) pour que le
+« correctif » évident ne repasse pas.
+
+Le padding d'une cellule sort en segments de sa seule couleur de fond ; exiger un
+foreground sur une espace serait exiger une séquence qui ne change rien à
+l'écran. Le garde-fou ne porte donc que sur les segments qui montrent du texte.
+
+#### Ce qui n'est pas couvert
+
+Quatre tables ne sont pas des `datatable` et gardent le foreground du terminal :
+Registries, le browser de tags, network-inspect et les résultats netdiag. Aucune
+n'est dans les vues signalées, et elles ne se corrigent pas de la même façon —
+même conflit avec `Selected`. La voie est la migration vers `datatable`, non
+faite ici.
+
+#### Tests écrits en premier
+
+- Un secret trouvé par **Trivy seul** est un verdict — la fixture est exactement
+  l'entrée que l'ancienne règle ratait, puisqu'elle ne contient aucune finding
+  `gitleaks`.
+- Les trois façons de ne pas avoir cherché rendent `nil` : option coupée, outil
+  absent, étape en erreur.
+- Un fichier de cache legacy relit ses deux verdicts ; une entrée d'image sans la
+  clé se lit `nil`.
+- Les trois icônes sont distinctes dans les deux tables, et une ligne purgée par
+  `ctrl+a` perd son verdict avec ses compteurs.
+- Le nœud `secrets` compte les cibles, et affiche `-` quand aucun verdict n'est
+  connu.
+- Les trois garde-fous du foreground **tombent sur le code d'avant**, vérifié en
+  le remettant.
+
+---
+
+### 3.21 The last four tables move to `datatable`
+
+Sorti de §3.20 : le correctif du foreground n'atteint que les `datatable`, et
+quatre tables n'en sont pas. Elles rendent leur texte dans la couleur par défaut
+du terminal, sur laquelle le thème n'a pas prise, et elles ne peuvent pas être
+corrigées là où elles sont — c'est la migration ou rien.
+
+| Table | Fichier | Ce qu'elle fait à la main |
+|---|---|---|
+| Registries (onglet OCI) | `oci_resources/table.go:311`, `layout.go:56` | largeurs, curseur → objet par indice, **deux sources de lignes** |
+| Tags du registry browser | `oci_resources/registry_browser.go:124` | largeurs, échange de styles au focus |
+| Network inspect | `oci_resources/network_inspect_form.go:21` | largeurs, `SelectedContainer()` indexe `f.containers` |
+| Résultats netdiag | `netdiag/view.go:152` | largeurs, **table reconstruite** à chaque mise à jour |
+
+#### Pourquoi ça ne peut pas se régler sur place
+
+`theme.DefaultTableStyles()` ne pose pas de foreground sur `Cell`, et lui en
+poser un casserait la ligne sélectionnée de ces tables exactement comme il
+casserait celle d'une `datatable` : les cellules sont rendues, puis la ligne
+entière passe à `styles.Selected`, dont le reset intérieur referme le
+surlignage au milieu. Le seul endroit où la couleur peut être décidée est un
+renderer qui sait si la ligne est sélectionnée — et c'est ce que `datatable`
+est.
+
+#### Ce que chacune gagne d'autre
+
+- **Rule 122 devient inexprimable.** Aujourd'hui elle n'y tient que par revue.
+  Le danger est réel mais **latent** : `membersCell` rend
+  `m.spinner.View() + "refreshing"` dans une cellule, et un spinner bubbles par
+  défaut n'émet aucune séquence — vérifié, `View()` rend `"⣾ "` — donc rien ne
+  bave aujourd'hui. Il suffit d'un `s.Style = …` pour que si.
+- **Rule 116 en un seul endroit.** Les quatre recalculent leurs largeurs à la
+  main ; `network_inspect_form` va jusqu'à écrire `columns[2].Width = available
+  - flexName - fixedIPv4`, ce que le solveur fait pour toutes.
+- **`Selected()` ne peut plus mentir.** Trois d'entre elles résolvent le curseur
+  en indexant la tranche d'origine. Sans tri ni filtre c'est correct — et c'est
+  précisément ce qui rend l'ajout d'un tri dangereux, puisque rien ne signale la
+  dépendance.
+- **Les résultats netdiag garderaient leur position.** La table y est
+  reconstruite (`table.New`) à chaque mise à jour, donc le curseur retombe en
+  haut ; `SetItems` ne le déplace que s'il est sorti de la fenêtre.
+
+#### L'ordre, et le seul morceau non trivial
+
+Les trois petites d'abord — network-inspect, tags, résultats netdiag — qui sont
+des colonnes fixes sur une tranche : row type, `Cell`, et les largeurs tombent.
+
+**Registries est le seul cas de forme.** Elle affiche deux populations dans la
+même table : les entrées de configuration (`updateRegistryTable`) et les membres
+découverts d'un groupe (`updateGroupMemberTable`), avec `←`/`→` entre les deux.
+`datatable.Model[T]` est générique sur un seul `T`, donc il faut un type de
+ligne qui porte les deux — le patron est `explorerRow`, qui existe pour la même
+raison. C'est aussi là que se trouve le `SetStyles` de focus/blur, que
+`Focus`/`Blur` portent déjà dans `datatable` (Rule 118).
+
+Non compris : donner un tri ou un filtre à ces tables. La migration doit se voir
+uniquement à la couleur du texte.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

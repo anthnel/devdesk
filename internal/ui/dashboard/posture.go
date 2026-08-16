@@ -33,6 +33,13 @@ type posture struct {
 type postureSide struct {
 	Targets  int
 	Critical int
+	// Secrets compte les **cibles** qui en portent, pas les secrets : deux
+	// dépôts sont deux décisions, quarante fuites dans le même n'en font qu'une.
+	Secrets int
+	// SecretsKnown compte celles dont le verdict est connu. Sans lui, un
+	// inventaire entier scanné sans étape secrets afficherait `0`, c'est-à-dire
+	// « aucune cible n'en porte », d'un ensemble où personne n'a regardé.
+	SecretsKnown int
 	// Oldest is the age of the least recently scanned target: c'est la question
 	// utile, parce qu'un compteur de CRITICAL vieux de trois semaines est un
 	// compteur sur du code qui n'existe plus.
@@ -44,6 +51,8 @@ func (p posture) Total() postureSide {
 	total := p.Images
 	total.Targets += p.Repositories.Targets
 	total.Critical += p.Repositories.Critical
+	total.Secrets += p.Repositories.Secrets
+	total.SecretsKnown += p.Repositories.SecretsKnown
 	if o := p.Repositories.Oldest; !o.IsZero() && (total.Oldest.IsZero() || o.Before(total.Oldest)) {
 		total.Oldest = o
 	}
@@ -62,18 +71,29 @@ func readPosture(context string) posture {
 
 	p := posture{Read: true}
 	for _, entry := range images.GetAll() {
-		p.Images.add(entry.Critical, entry.ScannedAt)
+		p.Images.add(entry.Critical, entry.Sensitive, entry.ScannedAt)
 	}
 	for _, entry := range workspaces.GetAll() {
-		p.Repositories.add(entry.Critical, entry.ScannedAt)
+		p.Repositories.add(entry.Critical, entry.Sensitive, entry.ScannedAt)
 	}
 	return p
 }
 
 // add folds one scanned target into a family's tally.
-func (p *postureSide) add(critical int, scannedAt time.Time) {
+//
+// `sensitive` est le verdict tel que le cache le porte : nil quand aucune étape
+// n'a cherché de secret sur cette cible-là, ce qui la laisse hors du décompte
+// des deux côtés — ni porteuse, ni innocentée.
+func (p *postureSide) add(critical int, sensitive *bool, scannedAt time.Time) {
 	p.Targets++
 	p.Critical += critical
+
+	if sensitive != nil {
+		p.SecretsKnown++
+		if *sensitive {
+			p.Secrets++
+		}
+	}
 
 	// Une entrée sans horodatage ne rajeunit pas la posture : le zéro d'un
 	// time.Time serait le plus ancien de tous et ferait lire « jamais scanné »

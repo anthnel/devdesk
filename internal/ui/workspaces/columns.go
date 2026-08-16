@@ -38,7 +38,7 @@ type workspaceRow struct {
 	// rewriting exactly those counts. Showing the stale numbers under a
 	// spinner elsewhere in the row would be showing the state being replaced.
 	GitStatus string
-	Sensitive string
+	Sensitive secretsCell
 	Critical  string
 	High      string
 	Medium    string
@@ -72,8 +72,8 @@ func workspaceColumns() []datatable.Column[workspaceRow] {
 		text("Type", colTypeFixed, func(r workspaceRow) string { return formatProjectType(r.Entry) }),
 		{
 			Title: "Secrets", MinWidth: colSensitiveFixed,
-			Cell:  func(r workspaceRow) string { return r.Sensitive },
-			Style: secretsStyle,
+			Cell:  func(r workspaceRow) string { return r.Sensitive.Text },
+			Style: func(r workspaceRow) lipgloss.Style { return theme.SecretsStyle(r.Sensitive.State) },
 		},
 		count("C", "CRITICAL", colCFixed, func(r workspaceRow) string { return r.Critical }),
 		count("H", "HIGH", colHFixed, func(r workspaceRow) string { return r.High }),
@@ -118,20 +118,8 @@ func gitStatusStyle(r workspaceRow) lipgloss.Style {
 	case r.Entry.GitModified > 0 || r.Entry.GitUntracked > 0:
 		return theme.StatusWarningStyle
 	}
-	return lipgloss.NewStyle().Foreground(theme.ColorText)
-}
-
-// secretsStyle colours the one cell that reports something found rather than
-// something counted: the icon is a verdict, and an untrusted repository is the
-// only state in this table worth reading before the counts.
-func secretsStyle(r workspaceRow) lipgloss.Style {
-	switch r.Sensitive {
-	case theme.IconWorkspaceUntrusted:
-		return theme.StatusErrorStyle
-	case theme.IconWorkspaceTrusted:
-		return theme.StatusOKStyle
-	}
-	return theme.DimStyle
+	// Aucune opinion : c'est la table qui pose la couleur de texte du thème.
+	return lipgloss.NewStyle()
 }
 
 // rowsFor decorates the entries with the scan state the table shows.

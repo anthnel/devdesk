@@ -43,8 +43,8 @@ func TestAnUnreadPostureIsNotAnEmptyOne(t *testing.T) {
 func TestThePostureKeepsTheTwoFamiliesApart(t *testing.T) {
 	var p posture
 	p.Read = true
-	p.Images.add(2, day(3))
-	p.Repositories.add(1, day(10))
+	p.Images.add(2, nil, day(3))
+	p.Repositories.add(1, nil, day(10))
 
 	if p.Images.Targets != 1 || p.Repositories.Targets != 1 {
 		t.Errorf("targets = %d images / %d repositories, want one each",
@@ -70,7 +70,7 @@ func TestThePostureKeepsTheTwoFamiliesApart(t *testing.T) {
 func TestAnEmptyFamilyDoesNotAgeTheTotal(t *testing.T) {
 	var p posture
 	p.Read = true
-	p.Images.add(0, day(4))
+	p.Images.add(0, nil, day(4))
 
 	if got := p.Total().Oldest; got.IsZero() {
 		t.Error("an empty family zeroed the total's oldest scan")
@@ -82,8 +82,8 @@ func TestAnEmptyFamilyDoesNotAgeTheTotal(t *testing.T) {
 // inventaire qui l'est.
 func TestAnUndatedEntryDoesNotBecomeTheOldestScan(t *testing.T) {
 	var side postureSide
-	side.add(0, day(2))
-	side.add(1, time.Time{})
+	side.add(0, nil, day(2))
+	side.add(1, nil, time.Time{})
 
 	if side.Oldest.IsZero() {
 		t.Error("an entry with no timestamp became the oldest scan")
@@ -396,8 +396,8 @@ func TestTheHealthBoxCountsWhatHasNeverBeenScanned(t *testing.T) {
 	m, _ := loadedModel(t) // eight images, six workspaces
 	var p posture
 	p.Read = true
-	p.Images.add(1, day(2))
-	p.Repositories.add(0, day(5))
+	p.Images.add(1, nil, day(2))
+	p.Repositories.add(0, nil, day(5))
 	m = feed(t, m, PostureMsg{Posture: p})
 
 	repos, images := healthColumns(m)
