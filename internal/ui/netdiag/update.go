@@ -253,17 +253,17 @@ func (m *Model) handleKeyDetails(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		res := m.results[m.selectedTest]
 		m.detailsViewport.SetContent(m.renderDetailsContent(res, m.detailsViewport.Width))
 		m.detailsViewport.GotoTop()
-	case "up", "k":
+	case "up":
 		m.detailsViewport.ScrollUp(1)
-	case "down", "j":
+	case "down":
 		m.detailsViewport.ScrollDown(1)
 	case "pgup":
 		m.detailsViewport.HalfPageUp()
 	case "pgdown":
 		m.detailsViewport.HalfPageDown()
-	case "g":
+	case "home":
 		m.detailsViewport.GotoTop()
-	case "G":
+	case "end":
 		m.detailsViewport.GotoBottom()
 	}
 	return m, nil

@@ -301,7 +301,7 @@ func (pm *PortsModel) toggleToken(label string) {
 
 func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
 	switch msg.String() {
-	case "up", "k", "down", "j", "pgup", "pgdown", "g", "G", "/":
+	case "up", "down", "pgup", "pgdown", "home", "end", "/":
 		return pm, pm.table.Update(msg)
 	case " ":
 		pm.paused = !pm.paused

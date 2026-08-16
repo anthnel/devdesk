@@ -523,9 +523,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "/", Description: "Filter images by repository or tag (Images tab only)"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
-			{Key: "g/Home", Description: "Go to top"},
-			{Key: "G/End", Description: "Go to bottom"},
-			{Key: "alt+:", Description: "Open command mode"},
+			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

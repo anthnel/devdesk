@@ -24,7 +24,7 @@ func (m Model) InEditMode() bool {
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	return []shortcut.Shortcut{
 		{Key: "enter", Description: "Submit / Advance field"},
-		{Key: "alt+:", Description: "Command mode"},
+		{Key: "ctrl+p", Description: "Command mode"},
 		{Key: "?", Description: "Help"},
 	}
 }
@@ -62,7 +62,7 @@ func (m Model) GetHelpContent() help.Content {
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑ / ↓", Description: "Navigate between form fields"},
 			{Key: "enter", Description: "Submit form / advance to next field"},
-			{Key: "alt+:", Description: "Open command mode"},
+			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

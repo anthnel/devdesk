@@ -542,11 +542,10 @@ func TestTheDetailsPaneScrolls(t *testing.T) {
 		want int
 	}{
 		{"down moves one line", []string{"down"}, 1},
-		{"j does the same", []string{"j"}, 1},
 		{"back up returns to the top", []string{"down", "down", "up", "up"}, 0},
 		{"a half page moves further than a line", []string{"pgdown"}, 5},
-		{"G goes to the bottom", []string{"G"}, tall.detailsViewport.TotalLineCount() - 10},
-		{"g comes back", []string{"G", "g"}, 0},
+		{"end goes to the bottom", []string{"end"}, tall.detailsViewport.TotalLineCount() - 10},
+		{"home comes back", []string{"end", "home"}, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := feed(t, tall, testutil.Keys(tc.keys...)...)

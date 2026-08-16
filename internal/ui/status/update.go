@@ -244,15 +244,19 @@ func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "ctrl+r":
 		return m.handleManualRefresh()
-	case "up", "down", "k", "j", "tab", "shift+tab", "g", "G", "home", "end":
-		return m.handleTableNavigation(msg)
+	case "tab", "shift+tab":
+		m.switchTab((m.activeTab + 1) % 2)
+		return m, nil
 	case "ctrl+n", "e", "ctrl+d":
 		return m.handleMonitorOperations(msg)
 	case ".":
 		return m.cycleSort()
 	}
 
-	return m, nil
+	// Everything else goes to the focused table. It used to be an allow-list
+	// that did not name pgup or pgdown, so they never reached
+	// handleTableNavigation — which handled them, in code nothing could run.
+	return m, m.getCurrentTable().Update(msg)
 }
 
 // handleManualRefresh runs a check now, whatever the auto-refresh setting says.
@@ -276,20 +280,6 @@ func (m Model) handleManualRefresh() (tea.Model, tea.Cmd) {
 func (m *Model) switchTab(tab int) {
 	m.activeTab = tab
 	m.applyTabFocus()
-}
-
-// handleTableNavigation handles up, down, and tab navigation
-func (m Model) handleTableNavigation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "up", "k", "down", "j", "pgup", "pgdown", "g", "home", "G", "end":
-		return m, m.getCurrentTable().Update(msg)
-	case "tab":
-		m.switchTab((m.activeTab + 1) % 2)
-	case "shift+tab":
-		m.switchTab((m.activeTab + 1) % 2)
-	}
-
-	return m, nil
 }
 
 // handleComponentFormSubmit processes form submission for component creation/editing

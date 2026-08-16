@@ -406,10 +406,14 @@ func (m *Model[T]) Update(msg tea.Msg) tea.Cmd {
 		return m.bar.ActivateSearch()
 	case ".":
 		m.CycleSort()
-	case "up", "k":
+	// No bare letter is navigation (§3.26). The vim aliases h/j/k/l/g/G are
+	// gone application-wide: home/end already covered g/G, and keeping j/k
+	// alone would leave the one exception that makes the rule unverifiable.
+	// The letters now belong to the action vocabulary — internal/ui/keymap.
+	case "up":
 		m.table.MoveUp(1)
 		m.afterCursorMove()
-	case "down", "j":
+	case "down":
 		m.table.MoveDown(1)
 		m.afterCursorMove()
 	case "pgup":
@@ -418,10 +422,10 @@ func (m *Model[T]) Update(msg tea.Msg) tea.Cmd {
 	case "pgdown":
 		m.table.MoveDown(m.table.Height())
 		m.afterCursorMove()
-	case "g", "home":
+	case "home":
 		m.table.GotoTop()
 		m.afterCursorMove()
-	case "G", "end":
+	case "end":
 		m.table.GotoBottom()
 		m.afterCursorMove()
 	}

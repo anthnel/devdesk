@@ -260,7 +260,7 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "i":
 		return m.handleIgnoreSecret()
-	case "up", "down", "k", "j", "pgup", "pgdown", "g", "home", "G", "end":
+	case "up", "down", "pgup", "pgdown", "home", "end":
 		return m, m.findingsTable.Update(msg)
 	}
 	return m, nil

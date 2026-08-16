@@ -21,15 +21,27 @@
 
 ### Rule 111 : Standard keybindings
 
+**Aucune lettre nue n'est de la navigation.** Les alias vim `h j k l g G` ont
+été supprimés en entier (§3.26), y compris dans les composants partagés et dans
+le `KeyMap` par défaut de `bubbles/viewport`. Une lettre appartient au
+vocabulaire d'actions — `internal/ui/keymap`, où la règle est déclarée et
+opposée au code par `TestNoBareLetterIsNavigation`.
+
+Ce qu'on achète n'est pas de la place (le gain se concentrait sur `l`, qui
+portait quatre sens) mais une règle vérifiable : garder `j`/`k` laisserait une
+exception, et ce sont les exceptions qui ont produit les 16 collisions du
+relevé. Le coût est assumé — k9s, lazygit et btop gardent tous `hjkl` — et il se
+paie une fois.
+
 - **Navigation (liste/table)**:
-  - `↑ / ↓` or `k / j`: Move up/down in the list.
+  - `↑ / ↓`: Move up/down in the list.
   - `PageUp / PageDown`: Scroll by page.
-  - `g / Home`: Go to top.
-  - `G / End`: Go to bottom.
+  - `Home`: Go to top.
+  - `End`: Go to bottom.
 - **Navigation (tabs & drill-down)**:
   - `Tab / Shift+Tab`: Move between breadcrumb tabs.
-  - `← / h`: Go back to parent level (drill up).
-  - `→ / l`: Enter selected group/directory (drill down).
+  - `←`: Go back to parent level (drill up).
+  - `→`: Enter selected group/directory (drill down).
   - `Enter`: Select/confirm item (visible only in selection mode, e.g. when browsing from security view).
   - `Esc`: Go back to parent level, or cancel/close modal.
 - **Resource Actions**:
@@ -40,8 +52,12 @@
   - `s`: Sync — fetch and fast-forward (workspaces view).
   - `ctrl+o`: Open in configured IDE (workspaces view).
   - `c`: Enter a multi-select mode over the current list (explorer clone), or
-    toggle syntax coloring (viewer). Both are view-local; `c` is free because
-    Rule 111 reserves `h`/`l` as `←`/`→` aliases, so a "highlight" key cannot be `h`.
+    toggle syntax coloring (viewer). Both are view-local. La raison a changé
+    avec §3.26 : elle invoquait `h`/`l` comme alias réservés de `←`/`→`, ce qui
+    interdisait une touche *highlight* en `h` — ces alias n'existent plus, donc
+    l'argument est tombé. `c` reste parce que *coloration* est de toute façon un
+    meilleur repère que *highlight*, et déplacer une touche pour courir après un
+    motif supprimé serait du bruit.
 - **Document viewer** (opened from another view; `esc` returns there):
   - `f`: Switch display — tree ↔ the document's own text.
   - `c`: Syntax coloring on/off.
@@ -54,10 +70,16 @@
   - `Esc`: Close modal, cancel, or go back.
   - `Space`: Toggle, Select, or Pause/Resume.
 - **Sorting**:
-  - `.` (dot): Cycle sort column.
-  - `Shift+S`: Open sorting menu.
+  - `.` (dot): Cycle sort column. C'est le seul contrôle de tri ; le
+    « sorting menu » en `Shift+S` que cette règle annonçait n'a jamais existé
+    dans le code, et `S` appartient au vocabulaire d'actions.
 - **Global**:
-  - `:`: Open command mode.
+  - `ctrl+p`: Open command mode — depuis n'importe où, champ focusé compris.
+    Remplace `alt+:`, qui n'atteignait pas Terminal.app ni iTerm2 (Option n'y
+    est pas Meta par défaut) alors que c'était la seule voie traversant un
+    champ. Voir `internal/ui/keymap.CommandMode`.
+  - `:`: Open command mode, sauf en édition — là c'est un caractère, dont les
+    valeurs comme `https://trivy-server:4954` ont besoin.
   - `/`: Search/Filter.
   - `?`: Open help menu.
   - `q`: Quit view/app.

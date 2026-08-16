@@ -31,28 +31,28 @@ func (v *editingView) keysSeen() []string { return v.received }
 
 // The point of the binding: a focused text input cannot claim it. Typing a URL
 // like https://trivy-server:4954 needs ":" to stay an ordinary character, so
-// alt+: is the only key that can be authoritative.
+// ctrl+p is the only key that can be authoritative.
 func TestAltColonEntersCommandModeFromInsideATextField(t *testing.T) {
 	view := &editingView{editing: true}
 	a := router(t, view)
 
-	a.handleKeyMsg(testutil.Key(altCommandModeKey))
+	a.handleKeyMsg(testutil.Key(commandModeKey))
 
 	if !a.commandMode {
-		t.Fatal("alt+: did not open the command line while the view was editing")
+		t.Fatal("ctrl+p did not open the command line while the view was editing")
 	}
 	if len(view.keysSeen()) != 0 {
-		t.Errorf("alt+: was forwarded to the view as %v; the router must consume it", view.keysSeen())
+		t.Errorf("ctrl+p was forwarded to the view as %v; the router must consume it", view.keysSeen())
 	}
 }
 
 func TestAltColonEntersCommandModeWithNothingFocused(t *testing.T) {
 	a := router(t, &editingView{editing: false})
 
-	a.handleKeyMsg(testutil.Key(altCommandModeKey))
+	a.handleKeyMsg(testutil.Key(commandModeKey))
 
 	if !a.commandMode {
-		t.Error("alt+: did not open the command line")
+		t.Error("ctrl+p did not open the command line")
 	}
 }
 
@@ -92,7 +92,7 @@ func TestBareColonStillDependsOnTheView(t *testing.T) {
 func TestEnteringCommandModeRequestsAResize(t *testing.T) {
 	a := router(t, &editingView{editing: true})
 
-	_, cmd := a.handleKeyMsg(testutil.Key(altCommandModeKey))
+	_, cmd := a.handleKeyMsg(testutil.Key(commandModeKey))
 
 	size, ok := testutil.MsgOf[tea.WindowSizeMsg](cmd)
 	if !ok {
@@ -109,7 +109,7 @@ func TestEnteringCommandModeClearsTheInput(t *testing.T) {
 	a := router(t, &editingView{editing: false})
 	a.commandInput.SetValue("security")
 
-	a.handleKeyMsg(testutil.Key(altCommandModeKey))
+	a.handleKeyMsg(testutil.Key(commandModeKey))
 
 	if got := a.commandInput.Value(); got != "" {
 		t.Errorf("the command line opened holding %q", got)

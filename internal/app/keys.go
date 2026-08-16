@@ -2,12 +2,26 @@ package app
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
-// altCommandModeKey enters command mode from anywhere, including from a focused
-// text input. Alt is used rather than Ctrl because a terminal encodes Ctrl only
-// for ASCII 0x40-0x5F; ":" is 0x3A, so "ctrl+:" never reaches the application.
-const altCommandModeKey = "alt+:"
+// commandModeKey enters command mode from anywhere, including from a focused
+// text input.
+//
+// It is not "ctrl+:", and the reason still holds: a terminal encodes Ctrl only
+// for ASCII 0x40-0x5F, and ":" is 0x3A, so that combination never reaches the
+// application. But the fallback chosen then — "alt+:" — had the mirror defect.
+// On Terminal.app and iTerm2, Option is not Meta unless the user turns it on:
+// Option+Shift+; emits a literal character and the key never arrives either.
+// That was worse than a key that plainly does not exist, because every view
+// advertised it in GetShortcuts() and it was the only way in from a focused
+// field.
+//
+// ctrl+p is free application-wide, is no tty control character, is neither
+// screen's prefix (ctrl+a) nor tmux's (ctrl+b), and its meaning is already
+// learned — palette. See internal/ui/keymap.
+const commandModeKey = keymap.CommandMode
 
 // handleKeyMsg processes keyboard input
 func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -31,7 +45,7 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, cmd
 	case "?":
 		return a.maybeOpenHelp(msg)
-	case altCommandModeKey:
+	case commandModeKey:
 		// The authoritative way in: handled here, before any InEditMode() check,
 		// so no text input can claim it. A bare ":" cannot play that role — it is
 		// an ordinary character in a field holding https://trivy-server:4954.

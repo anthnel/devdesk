@@ -386,11 +386,11 @@ func TestResultsNavigationAndReset(t *testing.T) {
 	if m.resultsTable.Cursor() != 1 {
 		t.Errorf("cursor = %d after down, want 1", m.resultsTable.Cursor())
 	}
-	m = feed(t, m, testutil.Key("g"))
+	m = feed(t, m, testutil.Key("home"))
 	if m.resultsTable.Cursor() != 0 {
 		t.Errorf("cursor = %d after g, want the top", m.resultsTable.Cursor())
 	}
-	m = feed(t, m, testutil.Key("G"))
+	m = feed(t, m, testutil.Key("end"))
 	if m.resultsTable.Cursor() != 1 {
 		t.Errorf("cursor = %d after G, want the last row", m.resultsTable.Cursor())
 	}
@@ -449,7 +449,7 @@ func TestDetailsToggleAndScroll(t *testing.T) {
 	}
 
 	m = feed(t, m, testutil.Key("down"))
-	m = feed(t, m, testutil.Key("g"))
+	m = feed(t, m, testutil.Key("home"))
 	if m.detailsViewport.YOffset != 0 {
 		t.Errorf("YOffset = %d after g, want the top", m.detailsViewport.YOffset)
 	}

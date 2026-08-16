@@ -138,9 +138,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Normal mode. Actions resolve the cursor through the table, which resolves
 	// it against the very slice its rows were built from.
 	switch msg.String() {
-	case "left", "h":
+	case "left":
 		return m.handleDrillUp()
-	case "right", "l":
+	case "right":
 		return m.handleDrillDown()
 	case "esc":
 		return m.handleDrillUp()
@@ -173,9 +173,9 @@ func (m Model) handleSelectingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSelectionConfirm()
 	case "esc":
 		return m.handleSelectionCancel()
-	case "left", "h":
+	case "left":
 		return m.handleDrillUp()
-	case "right", "l":
+	case "right":
 		return m.handleDrillDown()
 	}
 	return m, m.table.Update(msg)

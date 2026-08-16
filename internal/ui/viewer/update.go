@@ -176,10 +176,10 @@ func (m Model) reload() (tea.Model, tea.Cmd) {
 
 func (m Model) handleTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "right", "l":
+	case "right":
 		m.toggleNode(true)
 		return m, nil
-	case "left", "h":
+	case "left":
 		m.toggleNode(false)
 		return m, nil
 	}
@@ -210,17 +210,17 @@ func (m Model) handleTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// The scroll keys. `q` is deliberately absent: it is the application's quit
 	// key (Rule 111), and the logs pane this replaced was the one screen that
 	// swallowed it.
-	case "up", "k":
+	case "up":
 		m.textViewport.ScrollUp(1)
-	case "down", "j":
+	case "down":
 		m.textViewport.ScrollDown(1)
 	case "pgup":
 		m.textViewport.HalfPageUp()
 	case "pgdown":
 		m.textViewport.HalfPageDown()
-	case "g", "home":
+	case "home":
 		m.textViewport.GotoTop()
-	case "G", "end":
+	case "end":
 		m.textViewport.GotoBottom()
 	}
 	return m, nil

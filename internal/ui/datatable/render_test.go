@@ -310,7 +310,7 @@ func TestAReloadKeepsTheScrollPosition(t *testing.T) {
 	m := New(testConfig())
 	m.Resize(120, 6)
 	m.SetItems(manyRows(40))
-	m.Update(testutil.Key("G"))
+	m.Update(testutil.Key("end"))
 
 	before := m.Offset()
 	if before == 0 {
@@ -329,7 +329,7 @@ func TestAShorterListPullsTheWindowBack(t *testing.T) {
 	m := New(testConfig())
 	m.Resize(120, 6)
 	m.SetItems(manyRows(40))
-	m.Update(testutil.Key("G"))
+	m.Update(testutil.Key("end"))
 
 	m.SetItems(manyRows(3))
 

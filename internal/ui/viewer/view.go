@@ -163,8 +163,6 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "↓/j", Description: "Move down"},
 			{Key: "→/l", Description: "Expand the selected node (tree)"},
 			{Key: "←/h", Description: "Collapse the selected node (tree)"},
-			{Key: "g/Home", Description: "Go to the top"},
-			{Key: "G/End", Description: "Go to the bottom"},
 			{Key: "f", Description: "Switch between the tree and the document's own text"},
 			{Key: "c", Description: "Turn syntax coloring on or off"},
 			{Key: "w", Description: "Soft-wrap long lines (text)"},

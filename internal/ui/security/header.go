@@ -33,7 +33,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 		shortcuts = append(shortcuts,
 			shortcut.Shortcut{Key: "ctrl+r", Description: "New scan"},
-			shortcut.Shortcut{Key: "alt+:", Description: "Command"},
+			shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
 			shortcut.Shortcut{Key: "?", Description: "Help"},
 		)
 		return shortcuts
@@ -46,7 +46,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				shortcuts = append(shortcuts, shortcut.Shortcut{Key: "o", Description: "Open ref"})
 			}
 		}
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "alt+:", Description: "Command"})
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+p", Description: "Command"})
 		return shortcuts
 	}
 	return nil
@@ -69,7 +69,7 @@ func (m Model) inventoryShortcuts() shortcut.Shortcuts {
 	}
 	return append(shortcuts,
 		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
-		shortcut.Shortcut{Key: "alt+:", Description: "Command"},
+		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
 		shortcut.Shortcut{Key: "?", Description: "Help"},
 	)
 }
@@ -147,8 +147,6 @@ func (m Model) GetHelpContent() help.Content {
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
-			{Key: "g/Home", Description: "Go to top of list"},
-			{Key: "G/End", Description: "Go to bottom of list"},
 			{Key: "enter", Description: "Open the stored findings for the selected target (inventory)"},
 			{Key: "ctrl+s", Description: "Rescan the selected target, overwriting its cached result (inventory)"},
 			{Key: "ctrl+a", Description: "Purge every cached result and rescan every target (inventory)"},
@@ -162,7 +160,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "1 / 2 / 3 / 4", Description: "Jump directly to a tab"},
 			{Key: "ctrl+r", Description: "Back to the inventory (results)"},
 			{Key: "esc", Description: "Back"},
-			{Key: "alt+:", Description: "Open command mode"},
+			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

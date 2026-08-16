@@ -404,7 +404,7 @@ func TestTheResultScrollsAndStopsAtBothEnds(t *testing.T) {
 		t.Errorf("resultScroll = %d, want 2", f.resultScroll)
 	}
 
-	f, _ = key(t, f, "G")
+	f, _ = key(t, f, "end")
 	bottom := f.resultScroll
 	if bottom != 20-f.resultVisibleLines() {
 		t.Errorf("resultScroll = %d, want the last screenful", bottom)
@@ -414,7 +414,7 @@ func TestTheResultScrollsAndStopsAtBothEnds(t *testing.T) {
 		t.Errorf("resultScroll = %d, want it held at the bottom", f.resultScroll)
 	}
 
-	f, _ = key(t, f, "g")
+	f, _ = key(t, f, "home")
 	if f.resultScroll != 0 {
 		t.Errorf("resultScroll = %d, want it back at the top", f.resultScroll)
 	}

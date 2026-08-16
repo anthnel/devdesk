@@ -78,18 +78,18 @@ func TestOverlayCursorsClampAtBothEnds(t *testing.T) {
 	}
 }
 
-func TestOverlaysAcceptVimNavigation(t *testing.T) {
-	a := router(t, &fakeView{})
-	a.Update(ContextListMsg{Contexts: []string{"a", "b", "c"}, Current: "a"})
+// No bare letter is navigation (§3.26). The overlay used to answer j/k, which
+// is the exception that made the rule unverifiable everywhere else.
+func TestOverlaysRefuseVimNavigation(t *testing.T) {
+	for _, key := range []string{"j", "k", "h", "l", "g", "G"} {
+		a := router(t, &fakeView{})
+		a.Update(ContextListMsg{Contexts: []string{"a", "b", "c"}, Current: "a"})
 
-	a.handleKeyMsg(testutil.Key("j"))
-	if a.contextSelectedIdx != 1 {
-		t.Errorf("j moved the cursor to %d, want 1", a.contextSelectedIdx)
-	}
-
-	a.handleKeyMsg(testutil.Key("k"))
-	if a.contextSelectedIdx != 0 {
-		t.Errorf("k moved the cursor to %d, want 0", a.contextSelectedIdx)
+		a.handleKeyMsg(testutil.Key(key))
+		if a.contextSelectedIdx != 0 {
+			t.Errorf("%q moved the cursor to %d; letters are actions, not navigation",
+				key, a.contextSelectedIdx)
+		}
 	}
 }
 

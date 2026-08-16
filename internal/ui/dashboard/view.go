@@ -285,7 +285,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		)
 	}
 	shortcuts = append(shortcuts,
-		shortcut.Shortcut{Key: "alt+:", Description: "Command"},
+		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
 		shortcut.Shortcut{Key: "?", Description: "Help"},
 	)
 	return shortcuts
@@ -318,7 +318,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+r", Description: "Refresh all dashboard data"},
 			{Key: "m", Description: "Open assigned merge requests in browser (requires authentication)"},
 			{Key: "i", Description: "Open assigned issues in browser (requires authentication)"},
-			{Key: "alt+:", Description: "Open command mode to navigate to other views"},
+			{Key: "ctrl+p", Description: "Open command mode to navigate to other views"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{
@@ -340,7 +340,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Navigation",
-				Body:  "Press alt+: to open command mode, then type a view name: status for monitors, gitlab-auth for authentication, gitlab-explorer for browsing projects, workspaces for file management, containers for Docker management, oci-resources for OCI resource management, security for scanning.\n\nA bare : opens command mode too, but only when no text field has focus — inside one it types a colon, which values like https://trivy-server:4954 need. alt+: always works.",
+				Body:  "Press ctrl+p to open command mode, then type a view name: status for monitors, gitlab-auth for authentication, gitlab-explorer for browsing projects, workspaces for file management, containers for Docker management, oci-resources for OCI resource management, security for scanning.\n\nA bare : opens command mode too, but only when no text field has focus — inside one it types a colon, which values like https://trivy-server:4954 need. ctrl+p always works.",
 			},
 		},
 	}

@@ -156,12 +156,10 @@ func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "i":
 		return m.inspectSelectedContainer()
 
-	// Navigation, `/` and `.` are the table's, not the view's.
-	case "up", "k", "down", "j", "pgup", "pgdown", "g", "home", "G", "end", "/", ".":
-		return m, m.containerTable.Update(msg)
 	}
 
-	return m, nil
+	// Navigation, `/` and `.` are the table's, not the view's.
+	return m, m.containerTable.Update(msg)
 }
 
 // getSelectedContainer returns the selected container or nil.
