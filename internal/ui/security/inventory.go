@@ -188,6 +188,7 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 			if msg.Err == nil {
 				t.Scanned = true
 				t.Counts = msg.Counts
+				t.Sensitive = msg.Sensitive
 				t.ScannedAt = msg.ScannedAt
 			}
 		}

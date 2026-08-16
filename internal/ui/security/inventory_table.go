@@ -34,9 +34,12 @@ const (
 // are built once, in New, so their Cell functions have nothing to reach back
 // into, and each count column sorts by the number it prints.
 type scanTarget struct {
-	Kind      targetKind
-	Name      string // the cache key: "repo:tag", or the absolute repository path
-	Counts    scan.SeverityCounts
+	Kind   targetKind
+	Name   string // the cache key: "repo:tag", or the absolute repository path
+	Counts scan.SeverityCounts
+	// Sensitive is the secret verdict as the cache holds it: nil quand aucune
+	// étape n'a cherché, ce qui n'est pas la même chose que n'avoir rien trouvé.
+	Sensitive *bool
 	ScannedAt time.Time
 	// Scanned is false between a ctrl+a purge and the scan that replaces it.
 	// The target is still known — it is the counts that are not.
@@ -49,7 +52,12 @@ type scanTarget struct {
 // inventoryColumnCritical is the column the inventory opens sorted by,
 // descending: the target with the most critical findings is the one the view
 // exists to surface.
-const inventoryColumnCritical = 1
+//
+// C'est un indice, donc il suit l'ordre des colonnes : Secrets s'est intercalée
+// entre Target et CRIT. Une valeur périmée ne trie pas mal, elle ne trie plus du
+// tout — `datatable` laisse tomber une direction qui ne désigne aucune colonne
+// triable, et Secrets n'en est pas une.
+const inventoryColumnCritical = 2
 
 // displayName is what the Target column shows: the image reference as it is
 // cached, or the repository path with the home directory folded back to "~".
@@ -60,6 +68,12 @@ func (t scanTarget) displayName() string {
 		return theme.IconDocker + " " + t.Name
 	}
 	return theme.IconWorkspace + " " + shortenHome(t.Name)
+}
+
+// secrets is the row's verdict. Une ligne purgée par ctrl+a n'a plus de verdict
+// non plus : ses compteurs affichent `-`, et l'icône dit la même chose.
+func (t scanTarget) secrets() theme.SecretsState {
+	return theme.SecretsVerdict(t.Sensitive, t.Scanned)
 }
 
 // shortenHome replaces the home directory prefix with "~". It is the inverse of
@@ -123,7 +137,8 @@ func inventoryScannedStyle(t scanTarget) lipgloss.Style {
 	case t.Scanning, !t.Scanned:
 		return theme.DimStyle
 	}
-	return lipgloss.NewStyle().Foreground(theme.ColorText)
+	// Aucune opinion : c'est la table qui pose la couleur de texte du thème.
+	return lipgloss.NewStyle()
 }
 
 // inventoryScannedCell reports the scan state: the spinner while one runs, an
@@ -141,6 +156,14 @@ func inventoryScannedCell(t scanTarget) string {
 	return "-"
 }
 
+// secretsColumnWidth is the Secrets column, held to the width the workspaces
+// list gives it. Elle ne trie pas, et c'est délibéré alors que toutes ses
+// voisines trient : `datatable` réserve `largeur(titre) + 2` à une colonne
+// triable pour sa flèche, donc un tri coûterait neuf cellules à une colonne qui
+// n'affiche qu'un glyphe — dans la table la plus serrée de l'application, où
+// `Target` les paierait à 80 colonnes.
+const secretsColumnWidth = 7
+
 // inventoryColumns describes the inventory table.
 func inventoryColumns() []datatable.Column[scanTarget] {
 	return []datatable.Column[scanTarget]{
@@ -153,6 +176,11 @@ func inventoryColumns() []datatable.Column[scanTarget] {
 			// The cache key, not the displayed name: a query for the full path of
 			// a repository has to match the row that folds it to "~".
 			Search: func(t scanTarget) string { return t.Name },
+		},
+		{
+			Title: "Secrets", MinWidth: secretsColumnWidth,
+			Cell:  func(t scanTarget) string { return theme.SecretsIcon(t.secrets()) },
+			Style: func(t scanTarget) lipgloss.Style { return theme.SecretsStyle(t.secrets()) },
 		},
 		countColumn("CRIT", "CRITICAL", func(c scan.SeverityCounts) int { return c.Critical }),
 		countColumn("HIGH", "HIGH", func(c scan.SeverityCounts) int { return c.High }),

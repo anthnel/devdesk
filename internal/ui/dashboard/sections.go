@@ -407,6 +407,7 @@ func postureBranches(p posture, side postureSide, unscanned int, measured bool) 
 		return []string{
 			narrowBranch(false, "scanned", unknownValue),
 			narrowBranch(false, "critical", unknownValue),
+			narrowBranch(false, "secrets", unknownValue),
 			narrowBranch(false, "unscanned", unknownValue),
 			narrowBranch(true, "oldest", unknownValue),
 		}
@@ -414,9 +415,29 @@ func postureBranches(p posture, side postureSide, unscanned int, measured bool) 
 	return []string{
 		narrowBranch(false, "scanned", countValue(side.Targets)+theme.Bg(" targets")),
 		narrowBranch(false, "critical", severityCount(side.Critical)),
+		narrowBranch(false, "secrets", secretsValue(side)),
 		narrowBranch(false, "unscanned", unscannedValue(unscanned, measured)),
 		narrowBranch(true, "oldest", scanAge(side)),
 	}
+}
+
+// secretsValue renders how many targets carry a secret.
+//
+// Ce sont des cibles et non des secrets : deux dépôts sont deux décisions,
+// quarante fuites dans le même n'en font qu'une, et c'est l'inventaire (:sec)
+// qui détaille.
+//
+// `-` quand aucun verdict n'est connu, ce qui n'est pas une précaution
+// théorique : `scan.enable_secret` coupée, un outil absent, ou des entrées
+// écrites avant que le scan d'image ait une étape secrets — dans les trois cas
+// un `0` dirait « aucune cible n'en porte » de cibles que personne n'a
+// regardées. Un verdict connu sur une partie seulement suffit à afficher le
+// compte : il est alors un plancher, et un plancher non nul se décide.
+func secretsValue(side postureSide) string {
+	if side.SecretsKnown == 0 {
+		return unknownValue
+	}
+	return severityCount(side.Secrets)
 }
 
 // unscannedValue renders a coverage gap. Il ne prend pas le rouge de

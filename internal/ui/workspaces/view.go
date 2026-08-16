@@ -231,19 +231,21 @@ func formatProjectType(entry Entry) string {
 // formatScanColumns returns the SENSITIVE, C, H, M, L, SCANNED column values for an entry.
 // For git repos: looks up the scan cache directly.
 // For directories: aggregates sub-repo scan entries.
-func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive, c, h, med, l, scanned string) {
+func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsCell, c, h, med, l, scanned string) {
 	dash := "-"
 	empty := ""
+	none := secretsCell{}
+	unscanned := secretsCell{Text: dash}
 
 	if entry.IsGitRepo {
 		if m.scanningPaths[entry.Path] {
-			return empty, dash, dash, dash, dash, frame + " scanning"
+			return none, dash, dash, dash, dash, frame + " scanning"
 		}
 		scanEntry, ok := m.scanCache[entry.Path]
 		if !ok {
-			return dash, dash, dash, dash, dash, dash
+			return unscanned, dash, dash, dash, dash, dash
 		}
-		return formatSecrets(scanEntry.Sensitive, true),
+		return secretsFor(theme.SecretsVerdict(scanEntry.Sensitive, true)),
 			fmt.Sprintf("%d", scanEntry.Critical),
 			fmt.Sprintf("%d", scanEntry.High),
 			fmt.Sprintf("%d", scanEntry.Medium),
@@ -253,12 +255,12 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive, c, h, m
 
 	// Files are not scannable — return empty columns
 	if !entry.IsDir {
-		return empty, empty, empty, empty, empty, empty
+		return none, empty, empty, empty, empty, empty
 	}
 
 	// Directory: aggregate sub-repos
 	if len(entry.SubRepoPaths) == 0 {
-		return theme.IconWorkspaceUnknown, empty, empty, empty, empty, empty
+		return secretsFor(theme.SecretsUnknown), empty, empty, empty, empty, empty
 	}
 
 	// Count how many sub-repos are currently scanning
@@ -277,29 +279,33 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive, c, h, m
 	}
 
 	if len(scannedEntries) == 0 && scanningCount == 0 {
-		return dash, empty, empty, empty, empty, dash
+		return unscanned, empty, empty, empty, empty, dash
 	}
 	if len(scannedEntries) == 0 && scanningCount > 0 {
-		return empty, dash, dash, dash, dash, frame + " scanning"
+		return none, dash, dash, dash, dash, frame + " scanning"
 	}
 
 	totalC, totalH, totalM, totalL := 0, 0, 0, 0
-	hasSensitive := false
+	verdicts := make([]theme.SecretsState, 0, len(scannedEntries))
 	for _, e := range scannedEntries {
 		totalC += e.Critical
 		totalH += e.High
 		totalM += e.Medium
 		totalL += e.Low
-		if e.Sensitive {
-			hasSensitive = true
-		}
+		verdicts = append(verdicts, theme.SecretsVerdict(e.Sensitive, true))
 	}
 
 	scannedCount := len(scannedEntries)
 	totalCount := len(entry.SubRepoPaths)
 	scanned = theme.IconDirectory + " " + fmt.Sprintf("%d/%d", scannedCount, totalCount)
 
-	return formatSecrets(hasSensitive, scannedCount > 0),
+	// Le répertoire ne porte que les dépôts scannés : ceux qui ne le sont pas
+	// entrent dans le verdict par le compte ci-dessous, pas par un verdict à eux.
+	if scannedCount < totalCount {
+		verdicts = append(verdicts, theme.SecretsUnknown)
+	}
+
+	return secretsFor(foldSecrets(verdicts)),
 		fmt.Sprintf("%d", totalC),
 		fmt.Sprintf("%d", totalH),
 		fmt.Sprintf("%d", totalM),
@@ -307,15 +313,42 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive, c, h, m
 		scanned
 }
 
-// formatSecrets returns the Secrets column icon as plain text (Rule 122: no ANSI in table cells)
-func formatSecrets(sensitive bool, scanDone bool) string {
-	if !scanDone {
-		return theme.IconWorkspaceUnknown
+// secretsCell is the Secrets column's two halves: what it prints, and the
+// verdict that colours it.
+//
+// Les deux ne se déduisent pas l'un de l'autre. Le texte a des cas que le
+// verdict n'a pas — un tiret pour un dépôt jamais scanné, rien du tout pour un
+// fichier, rien non plus pendant un scan — et ces trois-là se colorent pareil,
+// en dim, parce qu'ils disent tous « pas de verdict ».
+type secretsCell struct {
+	Text  string
+	State theme.SecretsState
+}
+
+// secretsFor is the cell of a target that has a verdict. Texte brut (Rule 122) :
+// la couleur passe par Style.
+func secretsFor(state theme.SecretsState) secretsCell {
+	return secretsCell{Text: theme.SecretsIcon(state), State: state}
+}
+
+// foldSecrets is the verdict a directory row carries for the repositories under
+// it. Un secret trouvé l'emporte sur tout ; un dépôt que personne n'a regardé
+// l'emporte sur « propre », parce qu'un parent ne peut pas être plus sûr que ce
+// qu'on ignore de ses enfants.
+func foldSecrets(states []theme.SecretsState) theme.SecretsState {
+	out := theme.SecretsClean
+	if len(states) == 0 {
+		return theme.SecretsUnknown
 	}
-	if sensitive {
-		return theme.IconWorkspaceUntrusted
+	for _, state := range states {
+		switch state {
+		case theme.SecretsFound:
+			return theme.SecretsFound
+		case theme.SecretsUnknown:
+			out = theme.SecretsUnknown
+		}
 	}
-	return theme.IconWorkspaceTrusted
+	return out
 }
 
 // timeAgo is a local alias for theme.TimeAgo (Rule 127).

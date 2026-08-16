@@ -631,7 +631,7 @@ func TestScanLifecycle(t *testing.T) {
 
 	m = feed(t, m, WorkspaceScanCompleteMsg{
 		RepoPath: "/tmp/workspaces/devdesk",
-		Critical: 1, High: 2, Medium: 3, Low: 4, Sensitive: true,
+		Critical: 1, High: 2, Medium: 3, Low: 4, Sensitive: secretsFound(),
 	})
 	if m.scanningPaths["/tmp/workspaces/devdesk"] {
 		t.Error("the repo is still marked as scanning after the result arrived")
@@ -640,7 +640,7 @@ func TestScanLifecycle(t *testing.T) {
 	if !ok {
 		t.Fatal("the result was not cached")
 	}
-	if entry.Critical != 1 || entry.High != 2 || entry.Medium != 3 || entry.Low != 4 || !entry.Sensitive {
+	if entry.Critical != 1 || entry.High != 2 || entry.Medium != 3 || entry.Low != 4 || entry.Sensitive == nil || !*entry.Sensitive {
 		t.Errorf("cached entry = %+v, want the reported counts", entry)
 	}
 }

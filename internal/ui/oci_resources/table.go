@@ -38,6 +38,17 @@ type imageRow struct {
 // imageColumnName is the column the Images tab opens sorted by.
 const imageColumnName = 1
 
+// secretsColumnWidth is the Secrets column, at the width the workspaces list
+// gives it. Elle ne trie pas, comme là-bas : `datatable` réserve deux cellules
+// de plus à une colonne triable pour sa flèche, ce qui est cher pour un glyphe.
+const secretsColumnWidth = 7
+
+// secrets is the row's verdict — inconnu tant que l'image n'a pas été scannée,
+// et inconnu aussi pour un scan qui n'a pas eu d'étape secrets.
+func (r imageRow) secrets() theme.SecretsState {
+	return theme.SecretsVerdict(r.Entry.Sensitive, r.Scanned)
+}
+
 // cveColumn builds one of the four severity count columns.
 //
 // severity names the column's level for the colour, spelled as the scanners
@@ -68,7 +79,8 @@ func scannedStyle(r imageRow) lipgloss.Style {
 	case r.Scanning, !r.Scanned:
 		return theme.DimStyle
 	}
-	return lipgloss.NewStyle().Foreground(theme.ColorText)
+	// Aucune opinion : c'est la table qui pose la couleur de texte du thème.
+	return lipgloss.NewStyle()
 }
 
 // scannedCell reports the scan state: the spinner while one runs, an error icon
@@ -113,6 +125,11 @@ func imageColumns() []datatable.Column[imageRow] {
 			Title: "Content Size", MinWidth: 14,
 			Cell: func(r imageRow) string { return formatBytes(r.Image.Size) },
 			Less: func(a, b imageRow) bool { return a.Image.Size < b.Image.Size },
+		},
+		{
+			Title: "Secrets", MinWidth: secretsColumnWidth,
+			Cell:  func(r imageRow) string { return theme.SecretsIcon(r.secrets()) },
+			Style: func(r imageRow) lipgloss.Style { return theme.SecretsStyle(r.secrets()) },
 		},
 		cveColumn("C", "CRITICAL", func(e cache.ImageScanEntry) int { return e.Critical }),
 		cveColumn("H", "HIGH", func(e cache.ImageScanEntry) int { return e.High }),

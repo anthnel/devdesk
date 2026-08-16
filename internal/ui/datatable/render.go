@@ -123,20 +123,38 @@ func fit(text string, width int) string {
 // of the line. The highlight answers "where am I", and no per-cell colour is
 // worth losing it to.
 //
-// Off the selected row every cell carries an explicit background, whether or
-// not the column asked for a colour. It has to: lipgloss does not inherit a
-// background (Rule 115), and the app's viewport style only reaches the cells
-// that emit nothing of their own. One coloured cell would otherwise end its
-// line with a reset and strip the background from everything to its right.
+// Off the selected row every cell carries an explicit foreground **and**
+// background, whether or not the column asked for either. Both halves are
+// forced for the same reason and each fixes its own defect:
+//
+//   - Background: lipgloss does not inherit one (Rule 115), and the app's
+//     viewport style only reaches the cells that emit nothing of their own. One
+//     coloured cell would otherwise end its line with a reset and strip the
+//     background from everything to its right.
+//   - Foreground: neither theme.DefaultTableStyles() nor bubbles' own sets one
+//     on Cell, so a column that declares no Style rendered in whatever
+//     foreground the terminal happens to use — the theme had no say. Four views
+//     had written `Foreground(theme.ColorText)` into a Style of their own to get
+//     it back, which is the shape a missing default takes.
+//
+// **Il ne peut pas être mis sur `styles.Cell`, et c'est ce qui décide où il
+// va.** Les cellules sont rendues puis la ligne entière est passée à
+// `styles.Selected` : une couleur de cellule y ouvre une séquence dont le reset
+// referme le surlignage au milieu de la ligne. C'est le défaut de la Rule 122,
+// et la seule parade est de décider la couleur par cellule, ici, où l'on sait si
+// la ligne est sélectionnée.
 func (m *Model[T]) cellStyle(c Column[T], item T, selected bool) lipgloss.Style {
 	if selected {
-		// No background here, or it would mask styles.Selected's (Rule 116).
+		// Ni fond ni texte ici : ils masqueraient ceux de styles.Selected.
 		return m.styles.Cell
 	}
 	if c.Style == nil {
-		return m.styles.Cell.Background(theme.ColorBackground)
+		return m.styles.Cell.Foreground(theme.ColorText).Background(theme.ColorBackground)
 	}
 	style := c.Style(item).Padding(0, 1)
+	if _, unset := style.GetForeground().(lipgloss.NoColor); unset {
+		style = style.Foreground(theme.ColorText)
+	}
 	if _, unset := style.GetBackground().(lipgloss.NoColor); unset {
 		style = style.Background(theme.ColorBackground)
 	}

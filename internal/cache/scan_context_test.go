@@ -81,7 +81,7 @@ func TestAFlatImageCacheMigratesIntoTheOpeningContext(t *testing.T) {
 func TestAFlatWorkspaceCacheMigratesIntoTheOpeningContext(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "workspace-scans.json")
 	writeJSON(t, path, map[string]WorkspaceScanEntry{
-		"/home/u/repo": {Critical: 1, Sensitive: true},
+		"/home/u/repo": {Critical: 1, Sensitive: secretsFound()},
 	})
 
 	c := openWorkspaceCache(t, path, "work")
@@ -90,7 +90,7 @@ func TestAFlatWorkspaceCacheMigratesIntoTheOpeningContext(t *testing.T) {
 	if got == nil {
 		t.Fatal("the legacy entry was dropped instead of migrated")
 	}
-	if got.Critical != 1 || !got.Sensitive {
+	if got.Critical != 1 || got.Sensitive == nil || !*got.Sensitive {
 		t.Errorf("migrated entry = %+v, want Critical 1 / Sensitive true", got)
 	}
 }

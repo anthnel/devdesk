@@ -17,12 +17,21 @@ import (
 
 // WorkspaceScanEntry holds cached CVE counts for a scanned workspace git repo
 type WorkspaceScanEntry struct {
-	RepoPath  string    `json:"repo_path"`
-	Critical  int       `json:"critical"`
-	High      int       `json:"high"`
-	Medium    int       `json:"medium"`
-	Low       int       `json:"low"`
-	Sensitive bool      `json:"sensitive"` // true if secrets detected
+	RepoPath string `json:"repo_path"`
+	Critical int    `json:"critical"`
+	High     int    `json:"high"`
+	Medium   int    `json:"medium"`
+	Low      int    `json:"low"`
+	// Sensitive is the secret verdict — same three values as on ImageScanEntry,
+	// écrites par le même `scan.Result.SecretVerdict()`.
+	//
+	// Le passage du booléen au pointeur ne perd rien : l'ancien champ s'écrivait
+	// **toujours** (`json:"sensitive"`, sans omitempty), donc un fichier écrit
+	// par une version précédente décode en pointeur non nul, verdict compris.
+	// Ce que le pointeur ajoute est le cas qui manquait : une étape secrets
+	// coupée par l'option ou par un outil absent rendait `false`, c'est-à-dire
+	// « propre », d'un scan qui n'avait pas regardé.
+	Sensitive *bool     `json:"sensitive,omitempty"`
 	ScannedAt time.Time `json:"scanned_at"`
 }
 

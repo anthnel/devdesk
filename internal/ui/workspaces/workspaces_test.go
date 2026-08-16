@@ -14,6 +14,10 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 )
 
+// secretsFound writes the "a secret was found" verdict. Le verdict est un
+// pointeur parce qu'il en a trois : nil dit que personne n'a cherché.
+func secretsFound() *bool { v := true; return &v }
+
 // Loading entries walks the filesystem and shells out to git; scanning runs
 // Trivy and Gitleaks in containers. No test executes a command Update returns:
 // entries and scan results are fed in as messages instead.
@@ -87,7 +91,7 @@ func scannedModel(t *testing.T) Model {
 	return feed(t, m, ScanCacheLoadedMsg{Cache: map[string]cache.WorkspaceScanEntry{
 		"/tmp/workspaces/devdesk": {
 			RepoPath: "/tmp/workspaces/devdesk",
-			Critical: 1, High: 2, Medium: 3, Low: 4, Sensitive: true,
+			Critical: 1, High: 2, Medium: 3, Low: 4, Sensitive: secretsFound(),
 			ScannedAt: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC),
 		},
 	}})

@@ -600,6 +600,26 @@ source of their own (`trivy-secret`) rather than being recognised by a `Match`.
 `TestEveryFindingIsCountedExactlyOnce` and
 `TestTheTabCountsAgreeWithTheResultCounters` are what hold the two ends together.
 
+**`Result.SecretVerdict()` is the only thing that decides whether a target
+carries a secret**, and it has three answers. There were two calculations, the
+same loop copied — "a finding whose `Source` is `gitleaks`" — and both went wrong
+the day Trivy started finding secrets too: a repository whose only secrets were
+Trivy's read as clean, and an image had no secrets field at all. The verdict is a
+`*bool` because a secret stage can fail to run three ways — the option is off,
+the tool is absent (both stages require `deps.*Available`), or the stage errored
+— and `false` in any of them is a green icon on a scan that **looked at
+nothing**, which is D20 in one field. `Result.SecretsScanned` carries the fact,
+set by a stage that *succeeds*.
+
+Both caches hold it as `Sensitive *bool`, `nil` meaning nobody looked. The
+workspace side migrated for free: its old field was always written
+(`json:"sensitive"`, no `omitempty`), so an existing file decodes to a non-nil
+pointer. An image entry has no key at all and decodes `nil` — the truth about it.
+
+`theme.SecretsState` is the one iconography, used by `ws`, `oci/images` and the
+`:sec` inventory. Do not decide the colour from the rendered icon string, which
+is what `ws` did.
+
 **Security view** (`internal/ui/security/model.go`) has three states:
 `StateInventory` (the landing page), `StateResults` and `StateDetails` (with
 remediation info).
@@ -726,6 +746,11 @@ as their source of truth, and `config.yaml` is what the user declares.
 Two independent disk+memory caches in `internal/cache/`:
 - `ImageScanCache` — keyed by `"repo:tag"`, metadata at `~/.devdesk/cache/image-scans.json`, full results in `image-results/<sha256>.json`
 - `WorkspaceScanCache` — keyed by absolute repo path, metadata at `~/.devdesk/cache/workspace-scans.json`, full results in `workspace-results/<sha256>.json`
+
+Both entries carry the four severity counts and `Sensitive *bool`, the secret
+verdict written by `scan.Result.SecretVerdict()` (see Security Scanning). `nil`
+is a value: it means no stage looked, and it is what every image entry written
+before there was an image secret stage decodes to.
 
 **Both are scoped to a configuration context**, because the configuration is:
 `workspaces_dir` and the registry list are per context, so two contexts
@@ -919,8 +944,22 @@ The selected row is pinned to the content width: column widths count cells, and
 a Nerd Font icon does not always render as wide as it counts, so the highlight
 would otherwise stop short of the right border.
 
+**A cell's colours are decided here, not in `theme.DefaultTableStyles()`.**
+Neither it nor bubbles sets a foreground on `Cell`, so a column with no `Style`
+used to render in the terminal's own colour, whatever the theme said — four views
+had copied `Foreground(theme.ColorText)` into a `Style` to get it back. It cannot
+be fixed on `Cell`: the cells are rendered and *then* the whole line is handed to
+`styles.Selected`, so a colour inside it opens a sequence whose reset ends the
+highlight mid-row. `cellStyle` fills in both `ColorText` and `ColorBackground` on
+unselected rows only, and a column declaring one of the two gets the other.
+
+A column with no opinion should return the zero `lipgloss.Style` rather than
+naming the theme's text colour itself.
+
 **All fifteen tables are migrated.** A new table uses `datatable`; there is no
-second way to build one.
+second way to build one. Four tables elsewhere are still `bubbles/table` —
+Registries, the registry browser's tags, network-inspect and netdiag's results —
+and they keep the terminal's foreground until they move.
 
 Two views keep a filter of their own, and deliberately. `security` selects
 findings by tab and by severity, and `status` drives both its tables from one
