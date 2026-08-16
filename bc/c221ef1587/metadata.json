@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "bcc221ef1587",
+  "strategy": "manual-commit",
+  "branch": "tables-move-to-datatable",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/CLAUDE.md",
+    "docs/backlog.md",
+    "internal/ui/datatable/datatable.go",
+    "internal/ui/datatable/datatable_test.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/netdiag/view.go",
+    "internal/ui/netdiag/view_test.go",
+    "internal/ui/oci_resources/browser_keys.go",
+    "internal/ui/oci_resources/browser_search_test.go",
+    "internal/ui/oci_resources/browser_state.go",
+    "internal/ui/oci_resources/browser_tags.go",
+    "internal/ui/oci_resources/browser_view.go",
+    "internal/ui/oci_resources/forms_test.go",
+    "internal/ui/oci_resources/keys.go",
+    "internal/ui/oci_resources/layout.go",
+    "internal/ui/oci_resources/model.go",
+    "internal/ui/oci_resources/network_inspect_form.go",
+    "internal/ui/oci_resources/registries.go",
+    "internal/ui/oci_resources/registry_browser.go",
+    "internal/ui/oci_resources/table.go",
+    "internal/ui/oci_resources/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/bc/c221ef1587/0/metadata.json",
+      "transcript": "/bc/c221ef1587/0/full.jsonl",
+      "compact_transcript": "/bc/c221ef1587/0/transcript.jsonl",
+      "content_hash": "/bc/c221ef1587/0/content_hash.txt",
+      "prompt": "/bc/c221ef1587/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 310,
+    "cache_creation_tokens": 299588,
+    "cache_read_tokens": 35038775,
+    "output_tokens": 70261,
+    "api_call_count": 155
+  }
+}
