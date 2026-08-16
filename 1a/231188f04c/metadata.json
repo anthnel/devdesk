@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "1a231188f04c",
+  "strategy": "manual-commit",
+  "branch": "secrets-column",
+  "checkpoints_count": 22,
+  "files_touched": [
+    ".claude/CLAUDE.md",
+    "docs/backlog.md",
+    "internal/cache/cache_test.go",
+    "internal/cache/image_scan.go",
+    "internal/cache/verdict_test.go",
+    "internal/cache/workspace_scan.go",
+    "internal/scan/scanner.go",
+    "internal/scan/verdict_test.go",
+    "internal/ui/dashboard/posture.go",
+    "internal/ui/dashboard/secrets_test.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/datatable/foreground_test.go",
+    "internal/ui/datatable/render.go",
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/oci_resources/ociresources_test.go",
+    "internal/ui/oci_resources/secrets_column_test.go",
+    "internal/ui/oci_resources/table.go",
+    "internal/ui/oci_resources/view_test.go",
+    "internal/ui/security/inventory.go",
+    "internal/ui/security/inventory_commands.go",
+    "internal/ui/security/inventory_table.go",
+    "internal/ui/security/inventory_test.go",
+    "internal/ui/security/secrets_column_test.go",
+    "internal/ui/theme/secrets.go",
+    "internal/ui/workspaces/columns.go",
+    "internal/ui/workspaces/commands.go",
+    "internal/ui/workspaces/messages.go",
+    "internal/ui/workspaces/view.go",
+    "internal/ui/workspaces/workspaces_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1a/231188f04c/0/metadata.json",
+      "transcript": "/1a/231188f04c/0/full.jsonl",
+      "compact_transcript": "/1a/231188f04c/0/transcript.jsonl",
+      "content_hash": "/1a/231188f04c/0/content_hash.txt",
+      "prompt": "/1a/231188f04c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 266,
+    "cache_creation_tokens": 448469,
+    "cache_read_tokens": 37703127,
+    "output_tokens": 70925,
+    "api_call_count": 134
+  }
+}
