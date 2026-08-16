@@ -4562,6 +4562,140 @@ et il réintroduirait par la porte de service l'idiome qu'on vient de retirer.
 
 ---
 
+### 3.27 `containers` — la colonne Ports dit ce qu'elle montre, les filtres se voient
+
+Deux demandes sur la même vue, et elles ont le même fond : **la vue affiche ce
+que Docker a imprimé, pas ce que l'utilisateur est venu lire.** La colonne Ports
+recopie une chaîne du CLI, et le seul filtre à portée de main ne laisse aucune
+trace à l'écran.
+
+#### La colonne recopie `docker ps`
+
+`containers.go:40` demande `{{.Ports}}` dans le `--format`, `:66` range la chaîne
+telle quelle, et `model.go:207-210` la rend sans y toucher : `Cell` retourne
+`c.Ports`, sans `Less` ni `Search`. La colonne n'est donc pas une colonne, c'est
+un passe-plat.
+
+Ce que Docker imprime pour un seul `-p 80:80` :
+
+```
+0.0.0.0:80->80/tcp, :::80->80/tcp
+```
+
+Trente-trois caractères pour **un** port publié, dans une colonne à
+`MinWidth: 16`. Trois raisons cumulées :
+
+- **Docker écrit deux entrées pour une publication dual-stack.** L'IPv4 et
+  l'IPv6 sont la même publication ; les afficher deux fois double la largeur
+  sans ajouter un fait.
+- **Le port du conteneur est répété alors qu'il n'est presque jamais la
+  question.** Celui qu'on cherche est le port de l'hôte — c'est celui vers
+  lequel pointer un navigateur ou un `curl`.
+- **`0.0.0.0` et `127.0.0.1` sont écrits en toutes lettres** alors qu'ils ne
+  portent qu'un bit d'information : exposé à tout le monde, ou seulement à la
+  machine. C'est précisément la distinction qui compte pour la sécurité, et elle
+  est noyée dans le bruit.
+
+Un quatrième cas passe inaperçu : `docker ps` imprime aussi `80/tcp` tout court
+pour un port simplement `EXPOSE`, jamais publié. Ce n'est pas une association,
+et l'afficher dans la même colonne que les autres laisse croire qu'on peut s'y
+connecter.
+
+#### Ce que devient la colonne
+
+Le port de l'hôte, et trois icônes Nerd Font pour le reste — la portée du bind,
+la famille, le protocole. La forme visée, condensée sur une ligne :
+
+```
+󰋜 8080  󰛳 443
+```
+
+Trois conséquences, chacune une décision :
+
+**Le parsing descend dans `internal/docker`.** `Container.Ports string` devient
+une liste structurée, parsée là où la sortie du CLI est déjà lue. Le précédent
+est `parseSSOutput` (`ports.go:77`), qui a fait exactement ce chemin pour la
+table des ports de netdiag : la vue ne doit pas apprendre à lire du Docker.
+C'est aussi ce qui rend la colonne **cherchable** — filtrer par numéro de port
+est le besoin évident, et il est impossible tant que la cellule est une chaîne
+opaque.
+
+**La fusion dual-stack est le gain gratuit.** `0.0.0.0:80` et `:::80` sont une
+publication ; les réunir en une entrée portant les deux marqueurs de famille
+supprime la moitié de la largeur sans perdre quoi que ce soit. À faire avant
+même le reste — c'est le seul point où on ne renonce à rien.
+
+**Masquer le port du conteneur est une perte, et elle est assumée.** `8080->80`
+et `8080->8080` deviennent identiques à l'écran. C'est le bon compromis pour la
+lecture courante, mais il y a un cas où l'information manque : diagnostiquer un
+reverse proxy qui tape le mauvais port interne. Elle reste atteignable par
+`enter`, qui ouvre l'inspection JSON dans le viewer (§3.25) — ce qui n'est vrai
+que depuis §3.25, et vaut d'être écrit ici plutôt que redécouvert.
+
+Les icônes vont dans `theme/icons.go` (Rule 102). `IconHome` (`󰋜`) et
+`IconNetwork` (`󰛳`) existent déjà et disent exactement « cette machine » et
+« toutes les interfaces » ; il manque de quoi marquer v4/v6, à prendre dans
+Nerd Font et à déclarer là-bas, jamais dans la vue (Rule 119). Rule 122
+s'applique telle quelle : les icônes sortent de `Cell` en texte brut, la couleur
+passe par `Style` — et c'est la couleur qui doit porter le signal
+« toutes interfaces », pas un troisième glyphe. Rule 125 : la colonne reste
+alignée à gauche.
+
+Reste à trancher : le protocole. `tcp` est le cas massivement majoritaire, donc
+un marqueur affiché sur chaque ligne informerait de rien (la discipline de
+couleur de Rule 122 vaut aussi pour les glyphes). Ne marquer que `udp` est
+probablement le bon choix, mais c'est un arbitrage, pas une déduction.
+
+#### Les filtres, comme dans netdiag/Ports
+
+`containers` a un filtre texte (`/`, la `FilterBar` de `datatable`) et **un
+filtre invisible** : `a` (`update.go:123`) bascule `showAll` et relance
+`docker ps --all`. Rien à l'écran ne dit que la liste est restreinte — seul le
+nombre de lignes change, et il faut connaître le nombre attendu pour le voir.
+
+netdiag/Ports fait déjà ce qu'il faut : six jetons déclarés
+(`ports_model.go:75-82`, `:183-189`), chacun visible dans la `FilterBar` quand
+il est actif, et `z` qui les remet tous à zéro (`:326-335`). C'est Rule 136, et
+c'est le modèle à reprendre.
+
+**Le point qui n'est pas mécanique :** les jetons de Ports filtrent une liste
+déjà chargée, alors que `a` change la commande envoyée au démon. Un jeton doit
+donc pouvoir déclencher un re-fetch — ce que le jeton `numeric` de Ports fait
+déjà (`:322-325`), et c'est le précédent à suivre plutôt qu'un cas particulier à
+inventer.
+
+Reste à trancher : **quels jetons**. `all` en est un, évidemment. Des jetons
+d'état (`running`, `exited`, `paused`) sont tentants et cumulatifs comme
+`tcp`/`udp`, mais ils recouvrent partiellement `all` — un jeton `exited` actif
+implique `--all` — et cette interaction doit être décidée avant d'être codée,
+pas découverte à l'usage.
+
+#### Le troisième client de la même mécanique
+
+§3.26 déplace déjà le filtre de sévérité de `security` vers des jetons de
+`FilterBar`, pour la même raison : un cycle ne sait pas exprimer
+« CRITICAL **et** HIGH ». Avec `containers`, trois vues convergent sur le même
+composant. Si une quatrième suit, c'est le signe que `FilterBar` doit devenir la
+seule façon de filtrer une table — et que Rule 136 doit le dire à l'impératif
+plutôt qu'en exemple.
+
+#### Non retenu
+
+**Une colonne par facette** (Host, Port, Proto, Scope). Elle rendrait tout triable
+et cherchable sans rien inventer, mais `containers` a déjà dix colonnes et déborde
+à 80 colonnes : quatre de plus pour un fait que la plupart des lignes ne portent
+pas est l'inverse du problème posé. C'est le même arbitrage que §3.16 pour la case
+à cocher du clone et §3.22 pour le spinner — une colonne coûte des cellules sur
+tous les écrans pour ne rien dire sur presque toutes les lignes.
+
+**Garder la chaîne brute en `Search` pendant qu'on affiche la version condensée.**
+Séduisant — on chercherait ce que Docker a écrit tout en lisant autre chose — et
+c'est exactement le défaut que Rule 122 décrit une couche plus haut : ce qui est
+mesuré, affiché et cherché doit être la même valeur, sinon un filtre trouve une
+ligne que l'utilisateur ne voit pas correspondre.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:
