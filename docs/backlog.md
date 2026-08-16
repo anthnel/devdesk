@@ -3848,6 +3848,66 @@ faite ici.
 
 ---
 
+### 3.21 The last four tables move to `datatable`
+
+Sorti de §3.20 : le correctif du foreground n'atteint que les `datatable`, et
+quatre tables n'en sont pas. Elles rendent leur texte dans la couleur par défaut
+du terminal, sur laquelle le thème n'a pas prise, et elles ne peuvent pas être
+corrigées là où elles sont — c'est la migration ou rien.
+
+| Table | Fichier | Ce qu'elle fait à la main |
+|---|---|---|
+| Registries (onglet OCI) | `oci_resources/table.go:311`, `layout.go:56` | largeurs, curseur → objet par indice, **deux sources de lignes** |
+| Tags du registry browser | `oci_resources/registry_browser.go:124` | largeurs, échange de styles au focus |
+| Network inspect | `oci_resources/network_inspect_form.go:21` | largeurs, `SelectedContainer()` indexe `f.containers` |
+| Résultats netdiag | `netdiag/view.go:152` | largeurs, **table reconstruite** à chaque mise à jour |
+
+#### Pourquoi ça ne peut pas se régler sur place
+
+`theme.DefaultTableStyles()` ne pose pas de foreground sur `Cell`, et lui en
+poser un casserait la ligne sélectionnée de ces tables exactement comme il
+casserait celle d'une `datatable` : les cellules sont rendues, puis la ligne
+entière passe à `styles.Selected`, dont le reset intérieur referme le
+surlignage au milieu. Le seul endroit où la couleur peut être décidée est un
+renderer qui sait si la ligne est sélectionnée — et c'est ce que `datatable`
+est.
+
+#### Ce que chacune gagne d'autre
+
+- **Rule 122 devient inexprimable.** Aujourd'hui elle n'y tient que par revue.
+  Le danger est réel mais **latent** : `membersCell` rend
+  `m.spinner.View() + "refreshing"` dans une cellule, et un spinner bubbles par
+  défaut n'émet aucune séquence — vérifié, `View()` rend `"⣾ "` — donc rien ne
+  bave aujourd'hui. Il suffit d'un `s.Style = …` pour que si.
+- **Rule 116 en un seul endroit.** Les quatre recalculent leurs largeurs à la
+  main ; `network_inspect_form` va jusqu'à écrire `columns[2].Width = available
+  - flexName - fixedIPv4`, ce que le solveur fait pour toutes.
+- **`Selected()` ne peut plus mentir.** Trois d'entre elles résolvent le curseur
+  en indexant la tranche d'origine. Sans tri ni filtre c'est correct — et c'est
+  précisément ce qui rend l'ajout d'un tri dangereux, puisque rien ne signale la
+  dépendance.
+- **Les résultats netdiag garderaient leur position.** La table y est
+  reconstruite (`table.New`) à chaque mise à jour, donc le curseur retombe en
+  haut ; `SetItems` ne le déplace que s'il est sorti de la fenêtre.
+
+#### L'ordre, et le seul morceau non trivial
+
+Les trois petites d'abord — network-inspect, tags, résultats netdiag — qui sont
+des colonnes fixes sur une tranche : row type, `Cell`, et les largeurs tombent.
+
+**Registries est le seul cas de forme.** Elle affiche deux populations dans la
+même table : les entrées de configuration (`updateRegistryTable`) et les membres
+découverts d'un groupe (`updateGroupMemberTable`), avec `←`/`→` entre les deux.
+`datatable.Model[T]` est générique sur un seul `T`, donc il faut un type de
+ligne qui porte les deux — le patron est `explorerRow`, qui existe pour la même
+raison. C'est aussi là que se trouve le `SetStyles` de focus/blur, que
+`Focus`/`Blur` portent déjà dans `datatable` (Rule 118).
+
+Non compris : donner un tri ou un filtre à ces tables. La migration doit se voir
+uniquement à la couleur du texte.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:
