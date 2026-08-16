@@ -177,9 +177,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "/", Description: "Activate filter input to search by name, image, or state"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
-			{Key: "g/Home", Description: "Go to top of list"},
-			{Key: "G/End", Description: "Go to bottom of list"},
-			{Key: "alt+:", Description: "Open command mode"},
+			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

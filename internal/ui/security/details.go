@@ -22,17 +22,17 @@ func (m Model) handleDetailsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "o":
 		return m.handleDetailsOpenReference()
-	case "up", "k":
+	case "up":
 		m.detailsViewport.ScrollUp(1)
-	case "down", "j":
+	case "down":
 		m.detailsViewport.ScrollDown(1)
-	case "pgup", "b":
+	case "pgup":
 		m.detailsViewport.HalfPageUp()
-	case "pgdown", "f":
+	case "pgdown":
 		m.detailsViewport.HalfPageDown()
-	case "g", "home":
+	case "home":
 		m.detailsViewport.GotoTop()
-	case "G", "end":
+	case "end":
 		m.detailsViewport.GotoBottom()
 	}
 	return m, nil

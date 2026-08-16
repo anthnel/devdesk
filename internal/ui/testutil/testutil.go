@@ -46,6 +46,7 @@ var namedKeys = map[string]tea.KeyType{
 	"ctrl+k":    tea.KeyCtrlK,
 	"ctrl+n":    tea.KeyCtrlN,
 	"ctrl+o":    tea.KeyCtrlO,
+	"ctrl+p":    tea.KeyCtrlP,
 	"ctrl+r":    tea.KeyCtrlR,
 	"ctrl+s":    tea.KeyCtrlS,
 	"ctrl+w":    tea.KeyCtrlW,

@@ -428,21 +428,21 @@ func TestSelectionIsNilWhenTheListIsEmpty(t *testing.T) {
 func TestNavigationKeys(t *testing.T) {
 	m := loadedModel(t)
 
-	m = feed(t, m, testutil.Key("G"))
+	m = feed(t, m, testutil.Key("end"))
 	if got := m.containerTable.Cursor(); got != 3 {
-		t.Errorf("cursor = %d after G, want 3 (last row)", got)
+		t.Errorf("cursor = %d after end, want 3 (last row)", got)
 	}
-	m = feed(t, m, testutil.Key("g"))
+	m = feed(t, m, testutil.Key("home"))
 	if got := m.containerTable.Cursor(); got != 0 {
-		t.Errorf("cursor = %d after g, want 0", got)
+		t.Errorf("cursor = %d after home, want 0", got)
 	}
-	m = feed(t, m, testutil.Key("j"))
+	m = feed(t, m, testutil.Key("down"))
 	if got := m.containerTable.Cursor(); got != 1 {
-		t.Errorf("cursor = %d after j, want 1", got)
+		t.Errorf("cursor = %d after down, want 1", got)
 	}
-	m = feed(t, m, testutil.Key("k"))
+	m = feed(t, m, testutil.Key("up"))
 	if got := m.containerTable.Cursor(); got != 0 {
-		t.Errorf("cursor = %d after k, want 0", got)
+		t.Errorf("cursor = %d after up, want 0", got)
 	}
 }
 

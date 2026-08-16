@@ -74,16 +74,18 @@ func TestDeleteConfirmModalIgnoresTab(t *testing.T) {
 	}
 }
 
-func TestDeleteConfirmModalVimNavigation(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?")
+// Only y/n are letters here, and they confirm rather than move (§3.26: a modal
+// is a mode — it claims every key before the view sees it, which is why its
+// Y/N cannot collide with the action vocabulary).
+func TestDeleteConfirmModalVimKeysDoNotMoveTheFocus(t *testing.T) {
+	for _, key := range []string{"k", "j", "h", "l"} {
+		m := NewDeleteConfirmModal("Delete", "Sure?")
+		before := m.focused
 
-	m, _ = m.Update(testutil.Key("k"))
-	if m.focused != deleteFocusYes {
-		t.Errorf("focus = %d after k, want %d", m.focused, deleteFocusYes)
-	}
-	m, _ = m.Update(testutil.Key("j"))
-	if m.focused != deleteFocusNo {
-		t.Errorf("focus = %d after j, want %d", m.focused, deleteFocusNo)
+		m, _ = m.Update(testutil.Key(key))
+		if m.focused != before {
+			t.Errorf("%q moved the focus to %d; arrows are the only navigation", key, m.focused)
+		}
 	}
 }
 

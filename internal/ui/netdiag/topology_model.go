@@ -211,17 +211,17 @@ func (tm *TopologyModel) handleKey(msg tea.KeyMsg) (*TopologyModel, tea.Cmd) {
 		return tm, nil
 	}
 	switch msg.String() {
-	case "up", "k":
+	case "up":
 		tm.viewport.ScrollUp(1)
-	case "down", "j":
+	case "down":
 		tm.viewport.ScrollDown(1)
 	case "pgup":
 		tm.viewport.HalfPageUp()
 	case "pgdown":
 		tm.viewport.HalfPageDown()
-	case "g":
+	case "home":
 		tm.viewport.GotoTop()
-	case "G":
+	case "end":
 		tm.viewport.GotoBottom()
 	case "ctrl+r":
 		tm.state = topoStateLoading

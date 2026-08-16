@@ -344,7 +344,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 	if m.shared.GitLabClient == nil {
 		return []shortcut.Shortcut{
-			{Key: "alt+:", Description: "Command mode"},
+			{Key: "ctrl+p", Description: "Command mode"},
 		}
 	}
 
@@ -364,7 +364,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcut.Shortcut{Key: ".", Description: "Sort"},
 		shortcut.Shortcut{Key: "/", Description: "Search"},
 		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
-		shortcut.Shortcut{Key: "alt+:", Description: "Command"},
+		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
 		shortcut.Shortcut{Key: "?", Description: "Help"},
 	)
 }
@@ -427,7 +427,7 @@ func (m Model) GetHelpContent() help.Content {
 		Title:       "GitLab Explorer",
 		Description: "A drill-down explorer for browsing GitLab groups and projects. Navigate into groups with → and go back with ←. Tabs at the bottom show your current path.",
 		KeyBindings: []help.KeyBinding{
-			{Key: "↑↓ / jk", Description: "Navigate the list"},
+			{Key: "↑↓", Description: "Navigate the list"},
 			{Key: "→ / l", Description: "Drill into selected group"},
 			{Key: "← / h", Description: "Go back to parent group"},
 			{Key: "Esc", Description: "Go back to parent group"},
@@ -439,7 +439,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: ".", Description: "Cycle sort column (Type → Name → Visibility → Created → Activity)"},
 			{Key: "/", Description: "Filter the current level by name or path"},
 			{Key: "Ctrl+R", Description: "Refresh the explorer"},
-			{Key: "alt+:", Description: "Open command mode"},
+			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

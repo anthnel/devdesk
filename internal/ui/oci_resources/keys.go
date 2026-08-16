@@ -42,11 +42,9 @@ func (m Model) handleImagesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+r":
 		m.loading = true
 		return m, tea.Batch(m.spinner.Tick, fetchImages(), loadScanCache())
-	// Navigation, `/` and `.` are the table's, not the view's.
-	case "up", "k", "down", "j", "pgup", "pgdown", "g", "home", "G", "end", "/", ".":
-		return m, m.imageTable.Update(msg)
 	}
-	return m, nil
+	// Navigation, `/` and `.` are the table's, not the view's.
+	return m, m.imageTable.Update(msg)
 }
 
 // handleNetworkInspectKeyMsg handles keys when the network inspect overlay is open.
@@ -104,20 +102,13 @@ func (m Model) handleNetworksKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+r":
 		m.loadingNets = true
 		return m, tea.Batch(m.spinner.Tick, fetchNetworks())
-	case "up", "k":
-		m.networkTable.Update(msg)
-		return m, nil
-	case "down", "j":
-		m.networkTable.Update(msg)
-		return m, nil
-	case "g", "home":
-		m.networkTable.Update(msg)
-		return m, nil
-	case "G", "end":
-		m.networkTable.Update(msg)
-		return m, nil
 	}
-	return m, nil
+	// Anything the tab does not claim goes to the table. It used to be an
+	// allow-list of four navigation keys followed by `return m, nil`, which is
+	// why pgup/pgdown died here: datatable has handled them since it existed,
+	// but they were never among the four. Forwarding by default is the shape
+	// that cannot go stale — the next key datatable gains arrives working.
+	return m, m.networkTable.Update(msg)
 }
 
 // handleVolumesKeyMsg handles keys on the Volumes tab
@@ -135,20 +126,8 @@ func (m Model) handleVolumesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+r":
 		m.loadingVols = true
 		return m, tea.Batch(m.spinner.Tick, fetchVolumes())
-	case "up", "k":
-		m.volumeTable.Update(msg)
-		return m, nil
-	case "down", "j":
-		m.volumeTable.Update(msg)
-		return m, nil
-	case "g", "home":
-		m.volumeTable.Update(msg)
-		return m, nil
-	case "G", "end":
-		m.volumeTable.Update(msg)
-		return m, nil
 	}
-	return m, nil
+	return m, m.volumeTable.Update(msg)
 }
 
 // handleRegistriesKeyMsg handles keys on the Registries tab

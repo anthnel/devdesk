@@ -126,9 +126,11 @@ func TestCreationFormArrowNavigationWraps(t *testing.T) {
 	}
 }
 
-// j/k must not navigate while a text input has focus, otherwise the user could
-// never type the letters j or k into a name or description.
-func TestCreationFormVimKeysTypeIntoTextFields(t *testing.T) {
+// j/k are letters, and a letter typed into a text input is text. This used to
+// need a guard — isOnTextField() — because the form also answered j/k as
+// navigation; a navigation key that has to ask whether you are typing is a key
+// that should not be a letter, and §3.26 removed both the aliases and the guard.
+func TestCreationFormLettersTypeIntoTextFields(t *testing.T) {
 	f := newGroupForm()
 	f = feedForm(f, testutil.Key("down")) // focus name
 
@@ -142,12 +144,15 @@ func TestCreationFormVimKeysTypeIntoTextFields(t *testing.T) {
 	}
 }
 
-func TestCreationFormVimKeysNavigateOutsideTextFields(t *testing.T) {
-	f := newGroupForm() // focus on Type
+func TestCreationFormVimKeysDoNotNavigate(t *testing.T) {
+	for _, key := range []string{"j", "k"} {
+		f := newGroupForm() // focus on Type, which is not a text input
 
-	f = feedForm(f, testutil.Key("j"))
-	if f.focusedField != fieldName {
-		t.Errorf("focusedField = %d after j on the Type field, want %d", f.focusedField, fieldName)
+		f = feedForm(f, testutil.Key(key))
+		if f.focusedField != fieldType {
+			t.Errorf("%q moved the focus to %d; ↑/↓ are the only field navigation (Rule 135)",
+				key, f.focusedField)
+		}
 	}
 }
 

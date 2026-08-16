@@ -183,18 +183,20 @@ func (f *ConnectivityTestForm) Update(msg tea.Msg) (*ConnectivityTestForm, tea.C
 				f.resultErr = ""
 				f.resultExitCode = false
 				f.resultScroll = 0
-			case "up", "k":
-				if f.resultScroll > 0 {
-					f.resultScroll--
-				}
-			case "down", "j":
-				maxScroll := max(len(resultLines)-visibleLines, 0)
-				if f.resultScroll < maxScroll {
-					f.resultScroll++
-				}
-			case "g", "home":
+			case "up":
+				f.resultScroll = max(f.resultScroll-1, 0)
+			case "down":
+				f.resultScroll = min(f.resultScroll+1, max(len(resultLines)-visibleLines, 0))
+			// This pane is not a table, so it cannot forward to one: pgup and
+			// pgdown have to be written here. They were missing entirely, which
+			// is the same hole as the tabs' allow-lists and the same cause.
+			case "pgup":
+				f.resultScroll = max(f.resultScroll-visibleLines, 0)
+			case "pgdown":
+				f.resultScroll = min(f.resultScroll+visibleLines, max(len(resultLines)-visibleLines, 0))
+			case "home":
 				f.resultScroll = 0
-			case "G", "end":
+			case "end":
 				f.resultScroll = max(len(resultLines)-visibleLines, 0)
 			}
 		}

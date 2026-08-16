@@ -487,21 +487,38 @@ func TestNavigationKeysMoveTheCursor(t *testing.T) {
 	if m.Cursor() != 1 {
 		t.Errorf("cursor = %d after down, want 1", m.Cursor())
 	}
-	m.Update(testutil.Key("j"))
+	m.Update(testutil.Key("down"))
 	if m.Cursor() != 2 {
-		t.Errorf("cursor = %d after j, want 2", m.Cursor())
+		t.Errorf("cursor = %d after a second down, want 2", m.Cursor())
 	}
-	m.Update(testutil.Key("g"))
+	m.Update(testutil.Key("home"))
 	if m.Cursor() != 0 {
-		t.Errorf("cursor = %d after g, want the top", m.Cursor())
+		t.Errorf("cursor = %d after home, want the top", m.Cursor())
 	}
-	m.Update(testutil.Key("G"))
+	m.Update(testutil.Key("end"))
 	if m.Cursor() != 2 {
-		t.Errorf("cursor = %d after G, want the bottom", m.Cursor())
+		t.Errorf("cursor = %d after end, want the bottom", m.Cursor())
 	}
 	m.Update(testutil.Key("up"))
 	if m.Cursor() != 1 {
 		t.Errorf("cursor = %d after up, want 1", m.Cursor())
+	}
+}
+
+// The letters that used to alias the arrows are actions now, and the table must
+// leave them for the view (§3.26). This is the component-level half of the rule
+// keymap's source scan states globally.
+func TestVimAliasesAreNotNavigation(t *testing.T) {
+	for _, key := range []string{"j", "k", "g", "G", "h", "l"} {
+		m := loaded(t)
+		m.Update(testutil.Key("down"))
+		before := m.Cursor()
+
+		m.Update(testutil.Key(key))
+		if m.Cursor() != before {
+			t.Errorf("%q moved the cursor from %d to %d; no bare letter is navigation",
+				key, before, m.Cursor())
+		}
 	}
 }
 

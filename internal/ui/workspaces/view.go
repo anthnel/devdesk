@@ -453,7 +453,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcut.Shortcut{Key: "ctrl+d", Description: "Delete"},
 		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
 		shortcut.Shortcut{Key: "/", Description: "Search"},
-		shortcut.Shortcut{Key: "alt+:", Description: "Command"},
+		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
 		shortcut.Shortcut{Key: "?", Description: "Help"},
 	)
 
@@ -485,8 +485,6 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "↓/j", Description: "Move selection down"},
 			{Key: "→/l", Description: "Enter selected directory"},
 			{Key: "←/h", Description: "Go to parent directory"},
-			{Key: "g/Home", Description: "Go to top of list"},
-			{Key: "G/End", Description: "Go to bottom of list"},
 			{Key: "Esc", Description: "Go to parent directory"},
 			{Key: "enter", Description: "Open a file in the viewer, or view scan details for a scanned git repo"},
 			{Key: "ctrl+n", Description: "Create a new directory (at current level)"},
@@ -502,7 +500,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "ctrl+a", Description: "Scan all git repos in the current view, purging cached results first"},
 			{Key: "ctrl+r", Description: "Refresh the list"},
 			{Key: "/", Description: "Filter the list by name or git remote"},
-			{Key: "alt+:", Description: "Open command mode"},
+			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

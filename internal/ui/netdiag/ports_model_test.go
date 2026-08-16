@@ -331,21 +331,21 @@ func TestKillResultReportsBothOutcomes(t *testing.T) {
 func TestPortsNavigation(t *testing.T) {
 	m := portsModel(t)
 
-	m = feed(t, m, testutil.Key("G"))
+	m = feed(t, m, testutil.Key("end"))
 	if got := m.portsModel.table.Cursor(); got != 3 {
 		t.Errorf("cursor = %d after G, want the last row", got)
 	}
-	m = feed(t, m, testutil.Key("g"))
+	m = feed(t, m, testutil.Key("home"))
 	if got := m.portsModel.table.Cursor(); got != 0 {
-		t.Errorf("cursor = %d after g, want the top", got)
+		t.Errorf("cursor = %d after home, want the top", got)
 	}
-	m = feed(t, m, testutil.Key("j"))
+	m = feed(t, m, testutil.Key("down"))
 	if got := m.portsModel.table.Cursor(); got != 1 {
-		t.Errorf("cursor = %d after j, want 1", got)
+		t.Errorf("cursor = %d after down, want 1", got)
 	}
-	m = feed(t, m, testutil.Key("k"))
+	m = feed(t, m, testutil.Key("up"))
 	if got := m.portsModel.table.Cursor(); got != 0 {
-		t.Errorf("cursor = %d after k, want 0", got)
+		t.Errorf("cursor = %d after up, want 0", got)
 	}
 	m = feed(t, m, testutil.Key("pgdown"))
 	if m.portsModel.table.Cursor() == 0 {
@@ -355,7 +355,7 @@ func TestPortsNavigation(t *testing.T) {
 
 // A refresh must not throw the user back to the top of a long list.
 func TestDataRefreshPreservesTheCursor(t *testing.T) {
-	m := feed(t, portsModel(t), testutil.Key("G"))
+	m := feed(t, portsModel(t), testutil.Key("end"))
 	cursor := m.portsModel.table.Cursor()
 
 	m = feed(t, m, portsDataMsg{ports: portFixtures()})
@@ -367,7 +367,7 @@ func TestDataRefreshPreservesTheCursor(t *testing.T) {
 
 // Changing a filter does reset the cursor, since the rows underneath it moved.
 func TestFilterChangeResetsTheCursor(t *testing.T) {
-	m := feed(t, portsModel(t), testutil.Key("G"))
+	m := feed(t, portsModel(t), testutil.Key("end"))
 
 	m = feed(t, m, testutil.Key("t"))
 
@@ -479,7 +479,7 @@ func TestScrollSurvivesTheTwoSecondRefresh(t *testing.T) {
 // must not leave the cursor pointing past the end.
 func TestARefreshWithFewerPortsClampsTheCursor(t *testing.T) {
 	m := feed(t, portsModel(t), tea.WindowSizeMsg{Width: 160, Height: 40})
-	m = feed(t, m, testutil.Key("G")) // last row
+	m = feed(t, m, testutil.Key("end")) // last row
 
 	m = feed(t, m, portsDataMsg{ports: portFixtures()[:2]})
 

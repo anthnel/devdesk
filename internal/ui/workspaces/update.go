@@ -220,13 +220,13 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.scanAllUnscanned()
 	case "ctrl+a":
 		return m.requestScanAll()
-	case "left", "h":
+	case "left":
 		return m.navigateUp()
-	case "right", "l":
+	case "right":
 		return m.navigateIn()
 	case "esc":
 		return m.navigateUp()
-	case "up", "down", "k", "j", "pgup", "pgdown", "g", "home", "G", "end":
+	case "up", "down", "pgup", "pgdown", "home", "end":
 		return m, m.table.Update(msg)
 	}
 
@@ -327,11 +327,11 @@ func (m Model) handleSelectionKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			path = m.getExpandedWorkspacesDir()
 		}
 		return m, func() tea.Msg { return DirectorySelectedMsg{Path: path} }
-	case "left", "h":
+	case "left":
 		return m.navigateUp()
-	case "right", "l":
+	case "right":
 		return m.navigateIn()
-	case "up", "down", "k", "j", "pgup", "pgdown", "g", "home", "G", "end":
+	case "up", "down", "pgup", "pgdown", "home", "end":
 		return m, m.table.Update(msg)
 	}
 	return m, nil

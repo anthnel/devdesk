@@ -73,22 +73,22 @@ func (m *DeleteConfirmModal) Update(msg tea.Msg) (*DeleteConfirmModal, tea.Cmd) 
 		// Rule 135: ↑/↓ are the only field navigation. They cycle rather than
 		// clamp, so every control stays reachable in one direction — that is
 		// what tab used to provide before it was removed.
-		case "up", "k":
+		case "up":
 			m.focused = m.cycleFocus(-1)
 			return m, nil
 
-		case "down", "j":
+		case "down":
 			m.focused = m.cycleFocus(1)
 			return m, nil
 
-		case "left", "h":
+		case "left":
 			// Si sur les boutons, aller vers Yes
 			if m.focused == 2 {
 				m.focused = 1
 			}
 			return m, nil
 
-		case "right", "l":
+		case "right":
 			// Si sur les boutons, aller vers No
 			if m.focused == 1 {
 				m.focused = 2

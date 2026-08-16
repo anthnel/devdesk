@@ -196,9 +196,9 @@ func (a *App) handleContextListKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
 		a.showContextList = false
-	case "up", "k":
+	case "up":
 		a.contextSelectedIdx = max(a.contextSelectedIdx-1, 0)
-	case "down", "j":
+	case "down":
 		a.contextSelectedIdx = min(a.contextSelectedIdx+1, len(a.contextList)-1)
 	case "enter":
 		if len(a.contextList) > 0 {

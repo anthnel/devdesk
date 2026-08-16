@@ -252,21 +252,21 @@ func TestEscNavigatesUp(t *testing.T) {
 func TestVerticalNavigation(t *testing.T) {
 	m := loadedModel(t)
 
-	m = feed(t, m, testutil.Key("G"))
+	m = feed(t, m, testutil.Key("end"))
 	if got := m.table.Cursor(); got != 4 {
-		t.Errorf("cursor = %d after G, want the last row", got)
+		t.Errorf("cursor = %d after end, want the last row", got)
 	}
-	m = feed(t, m, testutil.Key("g"))
+	m = feed(t, m, testutil.Key("home"))
 	if got := m.table.Cursor(); got != 0 {
-		t.Errorf("cursor = %d after g, want the top", got)
+		t.Errorf("cursor = %d after home, want the top", got)
 	}
-	m = feed(t, m, testutil.Key("j"))
+	m = feed(t, m, testutil.Key("down"))
 	if got := m.table.Cursor(); got != 1 {
-		t.Errorf("cursor = %d after j, want 1", got)
+		t.Errorf("cursor = %d after down, want 1", got)
 	}
-	m = feed(t, m, testutil.Key("k"))
+	m = feed(t, m, testutil.Key("up"))
 	if got := m.table.Cursor(); got != 0 {
-		t.Errorf("cursor = %d after k, want 0", got)
+		t.Errorf("cursor = %d after up, want 0", got)
 	}
 }
 

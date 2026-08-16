@@ -147,10 +147,11 @@ func TestDrillUpAtTheRootDoesNothing(t *testing.T) {
 	}
 }
 
-// Esc is the third way back up, alongside ← and h (Rule 111).
+// Esc is the second way back up, alongside ←. The h/l aliases went with
+// every other bare-letter navigation (§3.26).
 func TestEveryDrillKeyWorks(t *testing.T) {
-	for _, down := range []string{"right", "l"} {
-		for _, up := range []string{"left", "h", "esc"} {
+	for _, down := range []string{"right"} {
+		for _, up := range []string{"left", "esc"} {
 			t.Run(down+"/"+up, func(t *testing.T) {
 				m := feed(t, loadedModel(t), testutil.Key(down))
 				if m.currentGroupNode == nil {
@@ -1084,7 +1085,7 @@ func TestBlockingModesIgnoreInput(t *testing.T) {
 }
 
 // InEditMode tells the app router to stop capturing ":" for command mode
-// (alt+: still gets through — the router handles it before asking).
+// (ctrl+p still gets through — the router handles it before asking).
 func TestInEditModeCoversEveryModalState(t *testing.T) {
 	if loadedModel(t).InEditMode() {
 		t.Error("InEditMode() is true on the plain table")

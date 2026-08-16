@@ -178,7 +178,7 @@ App (Router)
 
 ### View Switching & Command Mode
 
-Press `:` to enter command mode, then type:
+Press `ctrl+p` to enter command mode, then type:
 - `dashboard` or `d` - Switch to dashboard view
 - `status` or `s` - Switch to status view
 - `gitlab-auth` or `gla` - Switch to GitLab auth view
@@ -201,7 +201,27 @@ which is one setting with two writers. Its overlay, `internal/app/theme.go` and
 `CommandTheme` are all gone; `applyThemeNow` in `internal/app/configuration.go`
 is what swaps the palette now.
 
+**`ctrl+p` is the way in, and `:` is the convenience.** `ctrl+p` is handled
+before any `InEditMode()` check, so no text field can claim it; a bare `:` opens
+the command line too, but only when nothing is focused — inside a field it is an
+ordinary character, which a value like `https://trivy-server:4954` needs.
+
+It is not `ctrl+:` — `:` is 0x3A, outside the 0x40-0x5F range a terminal
+encodes for Ctrl, so that combination never arrives. It was `alt+:` until
+§3.26, which has the mirror defect: on Terminal.app and iTerm2, Option is not
+Meta unless the user turns it on, so `Option+Shift+;` emits a literal character
+and the key never arrives either. That was worse than a key that plainly does
+not exist, because every view advertised it. The vocabulary and the reasoning
+live in `internal/ui/keymap`.
+
 **Important:** The `FormView` interface (`InEditMode()`) prevents command mode activation when forms are active. Views with active forms must implement this interface.
+
+**No bare letter is navigation.** The vim aliases `h j k l g G` are gone
+application-wide (§3.26) — from `datatable`, from every view, from the shared
+modals, and from `bubbles/viewport`'s own default `KeyMap` in the help overlay.
+`internal/ui/keymap` declares the vocabulary that replaces them and
+`TestNoBareLetterIsNavigation` walks the source to check it, so the rule fails
+at `go test` rather than at the next audit.
 
 **`HeaderView` is all four methods or none.** The router probes for it with a
 type assertion and falls back silently, so a view supplying `GetTitle` and

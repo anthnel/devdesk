@@ -39,7 +39,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "tab", Description: "Switch tab"},
 		{Key: ".", Description: "Sort"},
 		{Key: "/", Description: "Search"},
-		{Key: "alt+:", Description: "Command mode"},
+		{Key: "ctrl+p", Description: "Command mode"},
 		{Key: "?", Description: "Help"},
 	}
 }
@@ -197,11 +197,9 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "tab/shift+tab", Description: "Switch between Service Monitors and SSL Certificates tabs"},
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
-			{Key: "g/Home", Description: "Go to top of list"},
-			{Key: "G/End", Description: "Go to bottom of list"},
 			{Key: ".", Description: "Cycle sort column and direction (Name, Target, Type, Response). Each column cycles ascending then descending before moving to the next. The active sort is shown with ▲ or ▼ in the column header."},
 			{Key: "/", Description: "Filter the active table by name, target or type"},
-			{Key: "alt+:", Description: "Open command mode"},
+			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
 		Sections: []help.Section{

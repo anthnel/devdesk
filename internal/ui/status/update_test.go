@@ -289,28 +289,28 @@ func TestVerticalNavigationMovesTheActiveTableOnly(t *testing.T) {
 func TestGotoTopAndBottom(t *testing.T) {
 	m := loadedModel(t)
 
-	m = feed(t, m, testutil.Key("G"))
+	m = feed(t, m, testutil.Key("end"))
 	last := len(m.monitorTable.Table().Rows()) - 1
 	if m.monitorTable.Cursor() != last {
-		t.Errorf("cursor = %d after G, want %d (last row)", m.monitorTable.Cursor(), last)
+		t.Errorf("cursor = %d after end, want %d (last row)", m.monitorTable.Cursor(), last)
 	}
 
-	m = feed(t, m, testutil.Key("g"))
+	m = feed(t, m, testutil.Key("home"))
 	if m.monitorTable.Cursor() != 0 {
-		t.Errorf("cursor = %d after g, want 0", m.monitorTable.Cursor())
+		t.Errorf("cursor = %d after home, want 0", m.monitorTable.Cursor())
 	}
 }
 
-func TestVimNavigationMatchesArrows(t *testing.T) {
-	m := loadedModel(t)
+// The vim aliases are gone (§3.26): a bare letter is an action, so the table
+// must leave j/k for the view rather than scrolling under it.
+func TestVimAliasesDoNotNavigate(t *testing.T) {
+	for _, key := range []string{"j", "k", "g", "G"} {
+		m := loadedModel(t)
 
-	m = feed(t, m, testutil.Key("j"))
-	if m.monitorTable.Cursor() != 1 {
-		t.Errorf("cursor = %d after j, want 1", m.monitorTable.Cursor())
-	}
-	m = feed(t, m, testutil.Key("k"))
-	if m.monitorTable.Cursor() != 0 {
-		t.Errorf("cursor = %d after k, want 0", m.monitorTable.Cursor())
+		m = feed(t, m, testutil.Key(key))
+		if m.monitorTable.Cursor() != 0 {
+			t.Errorf("%q moved the cursor to %d", key, m.monitorTable.Cursor())
+		}
 	}
 }
 

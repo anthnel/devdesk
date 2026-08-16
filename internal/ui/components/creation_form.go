@@ -165,32 +165,7 @@ func (f *CreationForm) handleKeyMsg(msg tea.KeyMsg) (*CreationForm, tea.Cmd) {
 		f.updateFocus()
 		return f, nil
 
-	case "j":
-		// j/k only navigate when NOT on a text input field
-		if f.isOnTextField() {
-			break // fall through to text input handling
-		}
-		if f.isOnTemplateField() && f.templateIdx < len(f.templates)-1 {
-			f.templateDown()
-			return f, nil
-		}
-		f.focusedField = (f.focusedField + 1) % (max + 1)
-		f.updateFocus()
-		return f, nil
-
 	case "up":
-		if f.isOnTemplateField() && f.templateIdx > 0 {
-			f.templateUp()
-			return f, nil
-		}
-		f.focusedField = (f.focusedField - 1 + max + 1) % (max + 1)
-		f.updateFocus()
-		return f, nil
-
-	case "k":
-		if f.isOnTextField() {
-			break // fall through to text input handling
-		}
 		if f.isOnTemplateField() && f.templateIdx > 0 {
 			f.templateUp()
 			return f, nil
@@ -242,11 +217,6 @@ func (f *CreationForm) handleKeyMsg(msg tea.KeyMsg) (*CreationForm, tea.Cmd) {
 	}
 
 	return f, cmd
-}
-
-// isOnTextField returns true if a text input field (name or description) has focus
-func (f *CreationForm) isOnTextField() bool {
-	return f.focusedField == 1 || f.focusedField == 2
 }
 
 // isOnTemplateField returns true if the template dropdown has focus

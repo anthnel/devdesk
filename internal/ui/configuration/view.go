@@ -200,7 +200,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "↑↓", Description: "Move between settings"},
 			{Key: "←→", Description: "Change a closed-list value"},
 			{Key: "space", Description: "Toggle a checkbox"},
-			{Key: "alt+:", Description: "Open the command line"},
+			{Key: "ctrl+p", Description: "Open the command line"},
 		},
 		Sections: []help.Section{
 			{
