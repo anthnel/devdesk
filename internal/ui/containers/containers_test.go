@@ -38,6 +38,10 @@ func TestMain(m *testing.M) {
 // containerFixtures covers one container per state that changes behaviour:
 // running (metrics and actions), paused (unpause), exited (error styling) and
 // dead. Names are deliberately out of alphabetical order.
+// webID is the fixture whose lifecycle the action tests drive. Named because
+// the busy marker is keyed on the ID, so the tests have to speak it.
+const webID = "aaaa111122223333"
+
 func containerFixtures() []docker.Container {
 	return []docker.Container{
 		{
@@ -149,7 +153,7 @@ func ansiPrefix(s string) string {
 func rowNames(rows []table.Row) []string {
 	names := make([]string, 0, len(rows))
 	for _, row := range rows {
-		names = append(names, row[0])
+		names = append(names, row[columnName])
 	}
 	return names
 }

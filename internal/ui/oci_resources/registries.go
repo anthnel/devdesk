@@ -145,7 +145,8 @@ func (m Model) handleRegistryFormSubmit(msg RegistryFormSubmitMsg) (tea.Model, t
 	}
 	m.errorMsg = ""
 	if msg.Password != "" && config.UsesCredentials(msg.Item.AuthMode) {
-		return m, registryLoginCmd(msg.Item.URL, msg.Item.Username, msg.Password)
+		m.registryTable.MarkBusy(msg.Item.URL, "Logging in to "+browserAlias(msg.Item))
+		return m, tea.Batch(registryLoginCmd(msg.Item.URL, msg.Item.Username, msg.Password), m.busyTick())
 	}
 	return m, nil
 }
@@ -163,6 +164,7 @@ func (m Model) registryLoginStatusCmd() tea.Cmd {
 }
 
 func (m Model) handleRegistryLoginComplete(msg RegistryLoginCompleteMsg) (tea.Model, tea.Cmd) {
+	m.registryTable.ClearBusy(msg.RegistryURL)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] login %s: %v", msg.RegistryURL, msg.Err)
 		m.errorMsg = "Login failed — check logs"
@@ -184,10 +186,16 @@ func (m Model) logoutSelectedRegistry() (tea.Model, tea.Cmd) {
 	if reg == nil {
 		return m, nil
 	}
-	return m, registryLogoutCmd(reg.URL)
+	if m.registryTable.IsBusy(reg.URL) {
+		m.infoMsg = busyMessage
+		return m, clearInfoMsgCmd()
+	}
+	m.registryTable.MarkBusy(reg.URL, "Logging out of "+browserAlias(*reg))
+	return m, tea.Batch(registryLogoutCmd(reg.URL), m.busyTick())
 }
 
 func (m Model) handleRegistryLogoutComplete(msg RegistryLogoutCompleteMsg) (tea.Model, tea.Cmd) {
+	m.registryTable.ClearBusy(msg.RegistryURL)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] logout %s: %v", msg.RegistryURL, msg.Err)
 		m.errorMsg = "Logout failed — check logs"

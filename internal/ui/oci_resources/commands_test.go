@@ -57,8 +57,11 @@ func TestFetchImagesReportsAnAbsentDocker(t *testing.T) {
 }
 
 // The command is handed both the ID it removes and the name the user sees, and
-// the two differ. Reporting the ID would put a hash in the footer.
-func TestRemoveImageReportsTheNameNotTheID(t *testing.T) {
+// the two differ. It used to report only one field, called ID and holding the
+// name — deliberately, since reporting the hash would put it in the footer. The
+// message carries both now: the name is still what is shown, and the ID is what
+// lifts the busy marker off the row (§3.22).
+func TestRemoveImageReportsBothTheIDAndTheName(t *testing.T) {
 	installFakeDocker(t, fakeScript{})
 
 	msg := run(t, removeImageCmd("sha256:aaa1111", "api:v1")).(ImageActionMsg)
@@ -66,8 +69,11 @@ func TestRemoveImageReportsTheNameNotTheID(t *testing.T) {
 	if msg.Action != "remove" {
 		t.Errorf("Action = %q, want remove", msg.Action)
 	}
-	if msg.ID != "api:v1" {
-		t.Errorf("ID = %q, want the display name", msg.ID)
+	if msg.Name != "api:v1" {
+		t.Errorf("Name = %q, want the display name", msg.Name)
+	}
+	if msg.ID != "sha256:aaa1111" {
+		t.Errorf("ID = %q, want the ID the marker is keyed on", msg.ID)
 	}
 	if msg.Err != nil {
 		t.Errorf("Err = %v, want a clean removal", msg.Err)

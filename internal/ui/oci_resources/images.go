@@ -48,6 +48,10 @@ func (m Model) deleteSelectedImage() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	name := img.Name()
+	if m.imageTable.IsBusy(img.ID) {
+		m.infoMsg = busyMessage
+		return m, clearInfoMsgCmd()
+	}
 	m.pendingAction = "delete-image"
 	m.confirmModal = sharedcomponents.NewConfirmModal("Delete Image", fmt.Sprintf("Delete '%s'?", name))
 	return m, nil

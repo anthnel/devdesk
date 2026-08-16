@@ -37,7 +37,7 @@ func fetchMetrics() tea.Cmd {
 func stopContainer(id, name string) tea.Cmd {
 	return func() tea.Msg {
 		err := docker.StopContainer(id)
-		return ContainerActionMsg{Action: "stop", ID: name, Err: err}
+		return ContainerActionMsg{Action: "stop", ID: id, Name: name, Err: err}
 	}
 }
 
@@ -45,7 +45,7 @@ func stopContainer(id, name string) tea.Cmd {
 func restartContainer(id, name string) tea.Cmd {
 	return func() tea.Msg {
 		err := docker.RestartContainer(id)
-		return ContainerActionMsg{Action: "restart", ID: name, Err: err}
+		return ContainerActionMsg{Action: "restart", ID: id, Name: name, Err: err}
 	}
 }
 
@@ -53,7 +53,7 @@ func restartContainer(id, name string) tea.Cmd {
 func removeContainer(id, name string) tea.Cmd {
 	return func() tea.Msg {
 		err := docker.RemoveContainer(id, false)
-		return ContainerActionMsg{Action: "remove", ID: name, Err: err}
+		return ContainerActionMsg{Action: "remove", ID: id, Name: name, Err: err}
 	}
 }
 
@@ -61,7 +61,7 @@ func removeContainer(id, name string) tea.Cmd {
 func pauseContainer(id, name string) tea.Cmd {
 	return func() tea.Msg {
 		err := docker.PauseContainer(id)
-		return ContainerActionMsg{Action: "pause", ID: name, Err: err}
+		return ContainerActionMsg{Action: "pause", ID: id, Name: name, Err: err}
 	}
 }
 
@@ -69,7 +69,7 @@ func pauseContainer(id, name string) tea.Cmd {
 func unpauseContainer(id, name string) tea.Cmd {
 	return func() tea.Msg {
 		err := docker.UnpauseContainer(id)
-		return ContainerActionMsg{Action: "unpause", ID: name, Err: err}
+		return ContainerActionMsg{Action: "unpause", ID: id, Name: name, Err: err}
 	}
 }
 

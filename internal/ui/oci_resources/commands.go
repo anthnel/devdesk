@@ -68,7 +68,7 @@ func deleteScanCacheCmd(keys []string) tea.Cmd {
 func removeImageCmd(id, name string) tea.Cmd {
 	return func() tea.Msg {
 		err := docker.RemoveImage(id, false)
-		return ImageActionMsg{Action: "remove", ID: name, Err: err}
+		return ImageActionMsg{Action: "remove", ID: id, Name: name, Err: err}
 	}
 }
 
@@ -173,7 +173,7 @@ func createNetworkCmd(name, driver string) tea.Cmd {
 func removeNetworkCmd(id string) tea.Cmd {
 	return func() tea.Msg {
 		err := docker.RemoveNetwork(id)
-		return NetworkActionMsg{Action: "remove", Err: err}
+		return NetworkActionMsg{Action: "remove", ID: id, Err: err}
 	}
 }
 
@@ -205,7 +205,7 @@ func createVolumeCmd(name, driver string) tea.Cmd {
 func removeVolumeCmd(name string) tea.Cmd {
 	return func() tea.Msg {
 		err := docker.RemoveVolume(name)
-		return VolumeActionMsg{Action: "remove", Err: err}
+		return VolumeActionMsg{Action: "remove", Name: name, Err: err}
 	}
 }
 

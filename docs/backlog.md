@@ -3970,6 +3970,207 @@ ramenait la ligne sous le curseur de l'utilisateur en haut.
 
 ---
 
+### 3.22 A row says what it is, and what is happening to it — **done**
+
+Plan détaillé :
+[`datatable-row-status-and-busy.md`](../.claude/plans/datatable-row-status-and-busy.md).
+
+`datatable` gagne une **colonne de statut** et la notion de **ligne occupée**.
+Suite directe de §3.21 : maintenant que les quinze tables passent par un seul
+renderer, c'est le seul endroit où ça peut être écrit une fois.
+
+#### Le trou
+
+`handleConfirmYes` déclenche la `Cmd` et retourne **sans toucher au modèle**
+(`oci_resources/results.go:17`, `containers/update.go:463`). Rien à l'écran ne
+dit qu'une action tourne, et `docker/containers.go:150` appelle `docker stop`
+sans `-t` : dix secondes de délai de grâce par défaut, donc dix secondes de
+table qui a l'air gelée. C'est le symptôme que §3.16 a enregistré pour la modale
+`"Pulling..."` du clone.
+
+**L'intention était là et a perdu son lecteur.** `containers.Model.pendingAction`
+est écrit à six endroits, dont trois phrases humaines — `"Stopping web"`,
+`"Restarting api"`, `"Pruning containers..."` — et quatre tests l'affirment.
+**Aucun code de rendu ne le lit.** Le champ est surchargé : il porte aussi la
+clé de routage de la modale (`"confirm-delete"`, `"confirm-prune"`), que
+`handleConfirmYes`, lui, lit bien. Un champ, deux sens, et celui que personne ne
+lit est celui qui devait se voir.
+
+#### La décision de forme
+
+Deux choses partagent un glyphe et ne doivent pas partager une fonction :
+**ce que l'objet est** (`running`, `exited`, `paused` — docker, au prochain
+refresh) et **ce qui lui arrive** (`stopping`, `removing` — DevDesk, le temps
+d'une commande). Les fusionner dans le glyphe est le but ; les fusionner dans
+l'API ferait ré-implémenter la préséance dans chaque table. `datatable` porte
+une règle : **occupé gagne sur l'état** — et pour une raison qui se dit, `exited`
+étant précisément ce qui est sur le point de cesser d'être vrai.
+
+**Ça ne peut pas être une closure.** L'invariant du paquet est que les colonnes
+sont construites une fois et ne ferment sur rien ; un `Busy func(T) string` sur
+la `Config` devrait fermer sur la map des actions en cours du modèle, ce que
+`imageRow` existe pour éviter. D'où la séparation identité / état : `Key func(T) string`
+sur la config, l'ensemble occupé tenu par la table et écrit depuis `Update`.
+
+Ce que ça achète et qui compte le plus : **`IsBusy(key)` répond avant que la
+ligne existe**, donc c'est aussi le garde-fou du chemin de confirmation. Rien
+n'empêche aujourd'hui un second `ctrl+d` sur une suppression lente de lancer un
+second `docker rmi` — le second échoue en « No such image » et l'utilisateur
+voit `Action failed` sur une suppression qui a marché.
+
+#### Hors périmètre, volontairement
+
+Les **scans** (leur spinner est dans la colonne Scanned et ils ne bloquent pas
+l'objet de la même façon) et **`prune`**, qui n'agit sur aucune ligne et relève
+d'une ligne de footer rendue depuis l'état de l'opération, comme `syncStatusLine`
+de §3.17 — pas de `footerInfo`, dont le timer de 3 s expirerait en cours.
+
+#### Ce que ça a donné
+
+`datatable` porte `Key`, `StatusColumn`, `MarkBusy`/`ClearBusy`/`IsBusy`/
+`BusyLabels`/`AdvanceSpinner`. **Containers est le premier client** et l'icône
+d'état a quitté la cellule Image pour la colonne 0 — ce qui explique enfin
+pourquoi cette colonne devait chercher sur `Image + State` : elle compensait le
+fait que l'icône n'était pas là où elle appartenait.
+
+Le curseur n'est **pas** verrouillé, conformément à la discussion : c'est
+l'objet qui l'est. Trois tests le pinnent — le curseur bouge, le marqueur reste
+avec le conteneur, et une seconde action sur le même conteneur est refusée.
+
+**Trois défauts trouvés en implémentant :**
+
+- **`ContainerActionMsg.ID` portait le *nom*, pas l'ID.** Les cinq commandes le
+  remplissaient depuis leur argument `name`. Rien ne l'avait attrapé parce que
+  le seul lecteur était une ligne de log, où un nom se lit très bien. Ça devient
+  bloquant ici — le marqueur est indexé sur l'ID, donc un message portant un nom
+  ne l'aurait jamais levé et la ligne aurait tourné à vie. Le message porte les
+  deux maintenant.
+- **`pendingAction` était deux champs en un** : la clé de routage de la modale,
+  lue par `handleConfirmYes`, et une phrase pour l'utilisateur que **rien n'a
+  jamais rendue**. Porter les deux est précisément pourquoi personne n'a vu que
+  la seconde n'avait pas de lecteur — le champ était visiblement utilisé. Il ne
+  garde que la clé ; ce que l'utilisateur lit vient de `BusyLabels()`.
+- **La vue containers n'avait aucun timer de footer** (Rule 128) : `errorMsg`
+  était posé et laissé jusqu'à ce qu'un succès ultérieur l'efface, donc un échec
+  pouvait rester sous un écran sans rapport pendant des minutes. Six sites ont
+  reçu `clearErrorCmd()`.
+
+Les tests d'action portaient tous sur `pendingAction`, c'est-à-dire sur un champ
+que rien n'affichait ; ils portent maintenant sur `actionLine()` et le footer
+rendu — sur ce que l'utilisateur voit. Trois d'entre eux exécutaient le timer de
+3 s via `testutil.MsgOf`, ce qui ajoutait neuf secondes à la suite ; deux le
+faisaient sur le chemin du pager, où exécuter la commande **lancerait réellement
+le processus** si le garde-fou tombait. Ils affirment l'état.
+
+#### Étendu aux cinq autres tables
+
+| Table | Clé | Cellule dépensée | Actions |
+|---|---|---|---|
+| `oci` images | ID de l'image | `ID` — ne trie ni ne cherche | suppression |
+| `oci` networks | ID du réseau | `ID` | suppression |
+| `oci` volumes | nom | `Driver` — un volume n'a pas d'ID, donc son **nom** est la seule cellule intouchable | suppression |
+| `oci` registries | URL | `Logged` — exactement ce que l'opération va changer | login, logout |
+| `netdiag` ports | **PID** | `State` | kill |
+
+**Une seule table a gagné une colonne** : containers, la seule dont l'état vaut
+une colonne à lui. Partout ailleurs le spinner prend une cellule existante —
+c'est l'argument de §3.16 sur la case à cocher du clone, une colonne coûtant des
+cellules sur tout l'écran pour ne rien dire sur toutes les lignes sauf une.
+
+Deux clés méritent la note. **Ports est indexé sur le PID, pas sur la socket** :
+toutes les lignes d'un processus tournent ensemble, ce qui est ce qui se passe —
+le kill les prend toutes. **Registries est indexé sur l'URL**, seul endroit où
+la règle de D40 ne s'applique pas, et elle ne s'applique pas parce que
+l'*opération* est à portée d'hôte : un `docker login` change bien la réponse
+pour toutes les entrées de cet hôte.
+
+`oci_resources` ramasse `BusyLabels()` sur **les quatre onglets**, pas
+seulement l'actif : une action lancée sur Images continue après `tab`, et un
+spinner qui se serait arrêté parce que l'utilisateur a regardé ailleurs se
+lirait comme un gel au retour.
+
+**Deux messages ne portaient aucune identité.** `NetworkActionMsg` et
+`VolumeActionMsg` n'avaient que `Action` et `Err` — survivable tant que la seule
+chose qu'ils déclenchaient était un refetch de la liste, bloquant dès qu'il faut
+lever un marqueur de la ligne où il a été posé. `ImageActionMsg`, lui, avait le
+même décalage que celui des conteneurs mais **délibérément** : son champ `ID`
+portait le nom pour que le footer n'affiche pas un hash, et un test le
+documentait. Il porte les deux maintenant.
+
+**Prune a sa propre ligne**, dans les quatre onglets : il n'agit sur aucune
+ligne, donc marquer toutes les lignes dirait faux.
+
+**`workspaces` est laissé en dehors, et c'est un choix** — les raisons, et ce
+qui resterait à faire, sont en
+[§3.23](#323-workspaces-et-la-notion-doccupé--deux-mécanismes-pour-une-question).
+
+---
+
+### 3.23 `workspaces` et la notion d'occupé — deux mécanismes pour une question
+
+Sorti de §3.22 : les six autres tables passent par `datatable`, `workspaces`
+garde le sien. Ce n'est pas un oubli — c'est la vue **d'où vient le design**,
+et elle est aussi la seule où le remplacement n'est pas mécanique.
+
+#### Ce qu'elle a déjà, et qui marche
+
+| | |
+|---|---|
+| `scanningPaths`, `syncingPaths` | deux maps de chemins absolus, tenues séparées **exprès** : savoir laquelle détient le dépôt est ce qui permet à la vue de le dire |
+| `busy(path)` | le garde-fou, avec un message unique (`busyMessage`) — la réponse de l'utilisateur est la même dans les deux cas : attendre |
+| le spinner | dans la cellule Git Status pour un sync, Scanned pour un scan |
+| `syncStatusLine` | la ligne de progression, rendue depuis l'état du run et non posée en `footerInfo`, dont le timer de 3 s expirerait au milieu d'un lot |
+
+Autrement dit : §3.22 a généralisé ce que cette vue faisait déjà. La dette
+n'est pas qu'il lui manque quelque chose, c'est qu'il y a **deux
+implémentations de la même idée** dans l'application.
+
+#### Le vrai trou, et il est petit
+
+**La suppression n'est pas couverte.** `handleConfirmDelete`
+(`update.go:431`) appelle `deleteEntry` et retourne sans rien marquer — le
+défaut exact de §3.22, sur la seule action de cette vue que sa propre
+machinerie ne connaît pas. `deleteEntry` fait un `os.RemoveAll` récursif, ce
+qui n'est instantané que sur un petit répertoire : un `node_modules` ou un
+dépôt de plusieurs Go prend des secondes, et rien ne le dit. Il n'y a pas non
+plus de garde-fou, donc un second `ctrl+d` lance un second `os.RemoveAll` dont
+l'échec sera rapporté à l'utilisateur alors que la suppression a réussi.
+
+C'est réparable **sans rien migrer** : `Key` sur le chemin, la cellule dépensée
+étant `Git Status` (un répertoire en train de disparaître n'a plus de statut
+git à annoncer), et `busy(path)` étendu à un troisième cas.
+
+#### Pourquoi la migration complète n'est pas mécanique
+
+`datatable.MarkBusy` répond à « un objet, une action ». Ici la notion est
+autre :
+
+- **Scan et sync s'excluent mutuellement par dépôt**, et la vue doit dire
+  *lequel* des deux détient le chemin. Une map unique `key → label` porterait
+  le libellé mais pas la distinction que `busy()` exploite.
+- **Le sync vise un arbre, pas une ligne.** `s` sur un répertoire simple
+  synchronise tous les dépôts imbriqués dessous : un appui marque N chemins qui
+  ne sont pas tous des lignes visibles au même niveau de drill-down.
+- **Le spinner ne va pas dans la même cellule** selon l'opération : `rowsFor`
+  (`columns.go:133`) écrit `frame + " syncing"` dans Git Status pour un sync, et
+  `formatScanColumns` décore les colonnes de scan pour un scan — alors que
+  `StatusColumn` est unique par table.
+
+Aucun de ces trois points n'est rédhibitoire, mais chacun demande une décision
+plutôt qu'un remplacement, et les trois portent sur du code qui fonctionne. Le
+risque de régression est réel et le gain visible est nul.
+
+#### Découpage proposé
+
+1. **La suppression d'abord**, seule, parce que c'est le seul défaut
+   observable — et elle ne demande aucune décision.
+2. **Ensuite seulement**, décider si `datatable` doit apprendre l'exclusion
+   mutuelle et la colonne variable, ou si `workspaces` reste l'exception
+   documentée. La deuxième réponse est légitime : une exception qui s'explique
+   en trois lignes coûte moins qu'une abstraction qui porte un cas unique.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

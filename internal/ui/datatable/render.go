@@ -92,13 +92,24 @@ func (m *Model[T]) headerLine(cols []table.Column) string {
 }
 
 // rowLine renders one row.
+//
+// A busy row shows the spinner in its status column instead of that column's
+// own cell — on the selected row too. The glyph is the primary signal, and a
+// signal that disappears under the cursor is one the user loses exactly when
+// they are looking at it.
 func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
+	_, busy := m.busyLabel(item)
+
 	var line strings.Builder
 	for i, c := range m.cfg.Columns {
 		if i >= len(cols) || cols[i].Width <= 0 {
 			continue
 		}
-		line.WriteString(m.cellStyle(c, item, selected).Render(fit(c.Cell(item), cols[i].Width)))
+		text := c.Cell(item)
+		if busy && i == m.cfg.StatusColumn {
+			text = m.spinnerFrame
+		}
+		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fit(text, cols[i].Width)))
 	}
 	if selected {
 		return m.styles.Selected.Render(line.String())
@@ -143,10 +154,21 @@ func fit(text string, width int) string {
 // referme le surlignage au milieu de la ligne. C'est le défaut de la Rule 122,
 // et la seule parade est de décider la couleur par cellule, ici, où l'on sait si
 // la ligne est sélectionnée.
-func (m *Model[T]) cellStyle(c Column[T], item T, selected bool) lipgloss.Style {
+// La ligne occupée, elle, ne consulte pas non plus `Style` : ce qu'elle dit,
+// c'est qu'un ordre est en cours, et une couleur par sévérité ou par état par
+// dessus dirait le contraire. Le glyphe du spinner garde `ColorHighlight`, le
+// reste passe en `DimStyle` — l'état affiché est en train de cesser d'être vrai.
+func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) lipgloss.Style {
 	if selected {
 		// Ni fond ni texte ici : ils masqueraient ceux de styles.Selected.
 		return m.styles.Cell
+	}
+	if busy {
+		style := theme.DimStyle
+		if at == m.cfg.StatusColumn {
+			style = lipgloss.NewStyle().Foreground(theme.ColorHighlight)
+		}
+		return style.Padding(0, 1).Background(theme.ColorBackground)
 	}
 	if c.Style == nil {
 		return m.styles.Cell.Foreground(theme.ColorText).Background(theme.ColorBackground)

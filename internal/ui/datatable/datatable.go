@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -81,6 +82,28 @@ type Config[T any] struct {
 	// sorted by CRITICAL wants the worst target first, and cycling `.` past
 	// ascending to reach it on every open is not a default.
 	SortDesc bool
+	// Key identifies an item across rebuilds, and is what the busy set is held
+	// on. Nil switches the busy facility off entirely, which is the default:
+	// most tables have no action to run on a row.
+	//
+	// It cannot be a `Busy func(T) bool` on this struct instead. Columns are
+	// built once, in New, and close over nothing — imageRow exists because of
+	// that — so a predicate here would have to close over the view's map of
+	// in-flight actions, which is the same trap. Separating the identity from
+	// the state is what avoids it, and it is also what lets IsBusy answer for an
+	// object whose row does not exist yet: the guard on a confirm path runs
+	// before anything is rebuilt.
+	//
+	// Keying on identity rather than a flag on the row is also what survives the
+	// periodic refresh, which replaces the items while an action is running.
+	Key func(T) string
+	// StatusColumn is the column whose cell the spinner replaces while a row is
+	// busy — the one that answers "what about this row". Ignored when Key is
+	// nil.
+	//
+	// That column must not be sortable: askFor reserves width(Title)+2 for a
+	// column carrying a Less, which is expensive for a glyph.
+	StatusColumn int
 	// SelectedStyles returns the table styles to use while the given item is
 	// under the cursor — that is the only thing bubbles/table can vary per
 	// selection, and it is what containers and security each re-derived by
@@ -109,6 +132,17 @@ type Model[T any] struct {
 	// viewport. clampOffset owns it.
 	offset int
 
+	// busy maps an item's Key to the label of the action running on it. Held
+	// here rather than in the view so that one answer — IsBusy — serves the
+	// rendering, the footer and the guard that stops a second command being
+	// issued for the same object.
+	busy map[string]string
+	// spinnerFrame is what a busy row's status cell shows. The frame lives here
+	// and the tick stays in the view: a spinner needs a Cmd, and this package
+	// returns none (Rule 110).
+	spinnerFrame string
+	spinnerIdx   int
+
 	sortColumn int
 	sortDesc   bool
 	width      int
@@ -128,6 +162,10 @@ func New[T any](cfg Config[T]) Model[T] {
 	}
 
 	m := Model[T]{cfg: cfg, table: t, bar: bar, sortColumn: cfg.SortColumn, sortDesc: cfg.SortDesc}
+	// A frame from the start: a table whose view never calls AdvanceSpinner —
+	// one rendered in the same frame the action began — would otherwise show an
+	// empty status cell, which reads as "nothing is happening".
+	m.AdvanceSpinner()
 	// Through setStyles rather than the table alone: a table rendered before
 	// anything calls applyStyles — one built and drawn in the same frame — would
 	// otherwise render with the zero Styles, which carries no cell padding and
@@ -390,6 +428,81 @@ func (m *Model[T]) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+// ── Rows an action is running on ─────────────────────────────────────────────
+//
+// A row says two things at once: what the object *is*, and what is *happening*
+// to it. They have different sources of truth — the state comes back from
+// docker on the next refresh, the transition is this application's own
+// knowledge — and different lifetimes. Sharing one glyph is the point; sharing
+// one function would make every table re-implement the precedence, so the rule
+// lives here and there is one of it: **busy wins over state**.
+
+// MarkBusy records that an action is running on the item with this key, and what
+// to call it. Call it from Update, never from a Cmd (Rule 110).
+//
+// A no-op when the config declares no Key: without one there is nothing to
+// match a row against, and silently keeping a label nothing can display would
+// be worse than ignoring it.
+func (m *Model[T]) MarkBusy(key, label string) {
+	if m.cfg.Key == nil || key == "" {
+		return
+	}
+	if m.busy == nil {
+		m.busy = make(map[string]string, 1)
+	}
+	m.busy[key] = label
+}
+
+// ClearBusy forgets an action.
+//
+// It must be called on **every** outcome, the failures included. Clearing only
+// on success leaves the row spinning for the life of the view, and — worse —
+// hides the state it still has: a `docker stop` that failed has to read
+// `running` again, not go on turning.
+func (m *Model[T]) ClearBusy(key string) { delete(m.busy, key) }
+
+// IsBusy reports whether an action is running on this key.
+//
+// It answers for an object whose row does not exist yet, which is what makes it
+// the guard on a confirm path: without it a second keypress on a slow removal
+// issues a second command, and the second one fails with "no such object" on an
+// operation that in fact worked.
+func (m *Model[T]) IsBusy(key string) bool {
+	_, ok := m.busy[key]
+	return ok
+}
+
+// BusyLabels returns what is running, sorted, for a view's footer line. Sorted
+// because a map's order changes between frames and a footer that reshuffles
+// itself is unreadable.
+func (m *Model[T]) BusyLabels() []string {
+	if len(m.busy) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m.busy))
+	for _, label := range m.busy {
+		out = append(out, label)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// AdvanceSpinner moves the frame shown on busy rows one step on. Views call it
+// from the spinner tick they already run.
+func (m *Model[T]) AdvanceSpinner() {
+	m.spinnerFrame = spinner.Dot.Frames[m.spinnerIdx%len(spinner.Dot.Frames)]
+	m.spinnerIdx++
+}
+
+// busyLabel returns the action running on an item, and whether there is one.
+func (m *Model[T]) busyLabel(item T) (string, bool) {
+	if m.cfg.Key == nil || len(m.busy) == 0 {
+		return "", false
+	}
+	label, ok := m.busy[m.cfg.Key(item)]
+	return label, ok
+}
+
 // SetTokenActive toggles one of the bar's filter tokens and re-applies it.
 func (m *Model[T]) SetTokenActive(label string, active bool) {
 	m.bar.SetTokenActive(label, active)
@@ -447,8 +560,19 @@ func (m *Model[T]) applyStyles() {
 		return // Blur owns the styles until Focus takes them back
 	}
 	styles := theme.DefaultTableStyles()
-	if item, ok := m.Selected(); ok && m.cfg.SelectedStyles != nil {
-		styles = m.cfg.SelectedStyles(item)
+	if item, ok := m.Selected(); ok {
+		if m.cfg.SelectedStyles != nil {
+			styles = m.cfg.SelectedStyles(item)
+		}
+		// Busy wins over whatever the view asked for, and this is the one place
+		// it can be said: the highlight is applied to the joined row, so a
+		// colour inside it would close with a reset and end the highlight
+		// mid-row (see render.go). An `exited` container being removed is not
+		// exited-and-that-is-that — the state is what the action is about to
+		// change, so the transition is the newer fact.
+		if _, busy := m.busyLabel(item); busy {
+			styles.Selected = theme.TableStylesForState("busy").Selected
+		}
 	}
 	// Pin the selected row to the full content width. Column widths are counted
 	// in cells, and a Nerd Font icon does not always render as wide as it

@@ -34,8 +34,19 @@ type Model struct {
 	loading        bool
 	errorMsg       string
 	confirmModal   *sharedcomponents.ConfirmModal
-	pendingAction  string
-	width, height  int
+	// pendingAction is the confirm modal's routing key, and only that.
+	//
+	// It used to be two fields in one: the routing key ("confirm-delete",
+	// "confirm-prune") that handleConfirmYes reads, and a sentence for the user
+	// ("Stopping web") that nothing ever rendered. Carrying both is why nobody
+	// noticed the second had no reader — the field was plainly in use. What the
+	// user is told now comes from the table's busy set.
+	pendingAction string
+	// pruning is the one action that belongs to no row: it acts on the whole
+	// list, so marking every row would say something false. It gets a footer
+	// line of its own instead.
+	pruning       bool
+	width, height int
 
 	// Logs view state
 	state             viewState
@@ -65,10 +76,17 @@ type ContainerMetricsMsg struct {
 	Err     error
 }
 
-// ContainerActionMsg signals result of a container action (stop, restart, remove)
+// ContainerActionMsg signals result of a container action (stop, restart, remove).
+//
+// ID used to be the container's *name*: every command filled it from its `name`
+// argument. Nothing caught it because the only reader was a log line, where a
+// name reads perfectly well. It matters now — the busy marker is keyed on the
+// ID, so a message carrying a name would never lift it and the row would spin
+// for the life of the view.
 type ContainerActionMsg struct {
 	Action string
 	ID     string
+	Name   string
 	Err    error
 }
 
@@ -94,18 +112,30 @@ type ContainerLogsLoadedMsg struct {
 	Err     error
 }
 
-// columnName indexes containerColumns. Only the ones something else refers to
+// columnStatus indexes containerColumns. Only the ones something else refers to
 // are named; the sort cycle walks them by position.
 const (
-	columnName = iota
+	columnStatus = iota
+	columnName
 	columnImage
-	columnPorts = 9
 )
+
+// statusColumnWidth is the state glyph and nothing else. It carries no title —
+// the icons say what they are — and it must not sort: `datatable` reserves two
+// cells beyond MinWidth for any column with a comparator, to hold its arrow,
+// which is expensive for a glyph.
+const statusColumnWidth = 3
 
 // containerColumns describes the containers table.
 //
-// The state is not a column of its own — it is the icon prefixed to the image —
-// but the filter has always matched it, so the Image column searches both.
+// The state has a column of its own (§3.22). It used to be an icon prefixed to
+// the Image cell, which is why that column had to search `Image + State` to
+// compensate for the icon not being where it belonged; the search still matches
+// both, because a container is looked for by either.
+//
+// That column is also where a running action shows its spinner. The two are one
+// glyph deliberately: a row answers "what is this" and "what is happening to
+// it" in the same place, and `datatable` owns the precedence — busy wins.
 func containerColumns() []datatable.Column[docker.Container] {
 	// Metrics only mean anything while the container runs: docker reports the
 	// last values it saw for the rest, which is why they read "-" rather than a
@@ -127,6 +157,11 @@ func containerColumns() []datatable.Column[docker.Container] {
 
 	return []datatable.Column[docker.Container]{
 		{
+			Title: "", MinWidth: statusColumnWidth,
+			Cell:  func(c docker.Container) string { return stateIcon(c.State) },
+			Style: containerStateStyle,
+		},
+		{
 			Title: "Name", MinWidth: 14, Flex: 2,
 			Cell:   func(c docker.Container) string { return c.Name },
 			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Name) < strings.ToLower(b.Name) },
@@ -134,8 +169,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 		},
 		{
 			Title: "Image", MinWidth: 20, Flex: 3,
-			Cell:   func(c docker.Container) string { return stateIcon(c.State) + " " + c.Image },
-			Style:  containerStateStyle,
+			Cell:   func(c docker.Container) string { return c.Image },
 			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Image) < strings.ToLower(b.Image) },
 			Search: func(c docker.Container) string { return c.Image + " " + c.State },
 		},
@@ -194,8 +228,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 	}
 }
 
-// containerStateStyle colours the Image cell, which is where the state icon is,
-// by that state.
+// containerStateStyle colours the status column by the state its glyph shows.
 //
 // A running container is left in the default text colour rather than painted
 // green. Almost every row is running, so colouring them would put a colour on
@@ -241,6 +274,10 @@ func New(cfg *config.Config) Model {
 			// list Z→A and disagree with the status view (D9).
 			SortColumn:     columnName,
 			SelectedStyles: containerSelectedStyles,
+			// The ID rather than the name: an action is issued against the ID,
+			// and two containers can carry the same name across a recreate.
+			Key:          func(c docker.Container) string { return c.ID },
+			StatusColumn: columnStatus,
 		}),
 		loading:      true,
 		logsViewport: viewport.New(0, 0),

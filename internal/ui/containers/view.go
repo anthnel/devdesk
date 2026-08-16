@@ -34,11 +34,45 @@ func (m Model) RenderFooter(width int) string {
 		parts = append(parts, bar.View())
 	}
 	infoLine := theme.EmptyLineBg(width)
-	if m.errorMsg != "" {
+	switch {
+	case m.errorMsg != "":
 		infoLine = theme.PadWithBg(theme.StatusErrorStyle.Render(m.errorMsg), width)
+	case m.actionLine() != "":
+		infoLine = theme.PadWithBg(theme.Bg("  ")+
+			lipgloss.NewStyle().
+				Background(theme.ColorBackground).
+				Foreground(theme.ColorHighlight).
+				Render(m.actionLine()), width)
 	}
 	parts = append(parts, theme.EmptyLineBg(width), infoLine)
 	return strings.Join(parts, "\n")
+}
+
+// actionLine names what is running, in words. The spinner on the row says that
+// *something* is; this says what.
+//
+// It is rendered from the current state rather than assigned to a footer
+// message, because a footer message expires after three seconds (Rule 128) and
+// a `docker stop` outlives that by seven — the same reason §3.17's sync
+// progress is a rendered line rather than footerInfo.
+//
+// An error takes the line ahead of it: a failure the user has not read yet
+// matters more than the progress of what is still running.
+func (m Model) actionLine() string {
+	if m.pruning {
+		return "Pruning containers…"
+	}
+	labels := m.containerTable.BusyLabels()
+	switch len(labels) {
+	case 0:
+		return ""
+	case 1:
+		return labels[0] + "…"
+	default:
+		// Naming them all would run past the line on a wide selection; the count
+		// is what the user is waiting on anyway.
+		return fmt.Sprintf("%d actions running…", len(labels))
+	}
 }
 
 // GetTitle returns the view title
@@ -185,8 +219,9 @@ func (m Model) GetHelpContent() help.Content {
 		Sections: []help.Section{
 			{
 				Title: "Columns",
-				Body: "Name: Container name.\n" +
-					"Image: Docker image with a state icon prefix (" + theme.IconCaretRight + " running, " + theme.IconSmallPause + " paused, " + theme.IconSmallSquare + " exited, " + theme.IconCaretUp + " created/restarting, " + theme.IconBan + " dead).\n" +
+				Body: "Status (first, untitled): the container state — " + theme.IconCaretRight + " running, " + theme.IconSmallPause + " paused, " + theme.IconSmallSquare + " exited, " + theme.IconCaretUp + " created/restarting, " + theme.IconBan + " dead. A spinner replaces it while an action is running on that container.\n" +
+					"Name: Container name.\n" +
+					"Image: Docker image.\n" +
 					"CPU: CPU usage percentage.\n" +
 					"Mem: Memory usage as compact label (e.g. '150M/8G').\n" +
 					"Net RX: Cumulative network bytes received since container start (e.g. '1.2kB', '3.4MB').\n" +
@@ -195,6 +230,11 @@ func (m Model) GetHelpContent() help.Content {
 					"Block TX: Cumulative block device bytes written since container start.\n" +
 					"Created: Relative timestamp when the container was created.\n" +
 					"Ports: Published port mappings (host:container).",
+			},
+			{
+				Title: "Running Actions",
+				Body: "Stop, restart, pause/resume and delete run in the background. While one is running the container's status column shows a spinner, the row is dimmed, and the footer names what is happening — 'docker stop' waits ten seconds for the container to exit on its own.\n" +
+					"A second action on the same container is refused until the first one finishes; the cursor is free to move in the meantime, and the spinner stays with the container rather than following it.",
 			},
 			{
 				Title: "Metrics Refresh",

@@ -34,8 +34,12 @@ type imageRow struct {
 	SpinnerFrame string
 }
 
-// imageColumnName is the column the Images tab opens sorted by.
-const imageColumnName = 1
+// The columns something else refers to. imageColumnID is where a running action
+// puts its spinner; imageColumnName is what the tab opens sorted by.
+const (
+	imageColumnID   = 0
+	imageColumnName = 1
+)
 
 // secretsColumnWidth is the Secrets column, at the width the workspaces list
 // gives it. Elle ne trie pas, comme là-bas : `datatable` réserve deux cellules
@@ -203,6 +207,13 @@ func (m *Model) updateImageTable() {
 	m.imageTable.SetHeight(m.tableHeight())
 }
 
+// networkColumnID and volumeColumnDriver are where a running action puts its
+// spinner — the cell each table can spare while one row is being removed.
+const (
+	networkColumnID    = 0
+	volumeColumnDriver = 1
+)
+
 // networkColumns describes the Networks tab. Neither this table nor the volumes
 // one sorts or filters today, so no Less and no Search: `/` and `.` stay inert
 // rather than being wired to a bar this view's footer does not render.
@@ -254,6 +265,10 @@ type registryRow struct {
 	members string
 	config  int
 }
+
+// registryColumnLogged is the cell a login or logout replaces with its spinner:
+// it is precisely the answer the operation is about to change.
+const registryColumnLogged = 4
 
 // registryColumns describes the Registries tab. Nothing sorts or searches: the
 // list is the order the config declares, which is the order the user wrote.

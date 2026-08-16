@@ -71,6 +71,10 @@ func (m Model) deleteSelectedNetwork() (tea.Model, tea.Cmd) {
 	if net == nil {
 		return m, nil
 	}
+	if m.networkTable.IsBusy(net.ID) {
+		m.infoMsg = busyMessage
+		return m, clearInfoMsgCmd()
+	}
 	m.pendingAction = "delete-network"
 	m.confirmModal = sharedcomponents.NewConfirmModal("Remove Network", fmt.Sprintf("Remove network '%s'?", net.Name))
 	return m, nil
@@ -81,6 +85,10 @@ func (m Model) deleteSelectedVolume() (tea.Model, tea.Cmd) {
 	vol := m.getSelectedVolume()
 	if vol == nil {
 		return m, nil
+	}
+	if m.volumeTable.IsBusy(vol.Name) {
+		m.infoMsg = busyMessage
+		return m, clearInfoMsgCmd()
 	}
 	m.pendingAction = "delete-volume"
 	m.confirmModal = sharedcomponents.NewConfirmModal("Remove Volume", fmt.Sprintf("Remove volume '%s'?", vol.Name))

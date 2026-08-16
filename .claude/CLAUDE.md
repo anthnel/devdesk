@@ -956,6 +956,97 @@ unselected rows only, and a column declaring one of the two gets the other.
 A column with no opinion should return the zero `lipgloss.Style` rather than
 naming the theme's text colour itself.
 
+### A row an action is running on (§3.22)
+
+A row says two things: what the object **is**, and what is **happening** to it.
+They share one glyph on purpose — one column answers "what about this row" — and
+`datatable` owns the one rule that follows: **busy wins over state**, because
+`exited` is precisely what the action is about to change.
+
+```go
+datatable.Config[T]{
+    Key:          func(c docker.Container) string { return c.ID }, // nil ⇒ facility off
+    StatusColumn: 0,                                               // the cell the spinner replaces
+}
+
+m.table.MarkBusy(id, "Stopping web")  // from Update, never a Cmd (Rule 110)
+m.table.ClearBusy(id)                 // on *every* outcome, failures included
+m.table.IsBusy(id)                    // the guard
+m.table.BusyLabels()                  // sorted, for the footer
+m.table.AdvanceSpinner()              // from the view's own spinner tick
+```
+
+**It cannot be a `Busy func(T) bool` on the config.** Columns are built once in
+`New` and close over nothing — that is why `imageRow` exists — so a predicate
+there would have to close over the view's map of in-flight actions. Separating
+the identity (`Key`) from the state is what avoids it, and it buys the thing
+that matters most: **`IsBusy` answers for an object whose row does not exist
+yet**, so it is also the guard on a confirm path. It is also what survives the
+periodic refresh, which replaces the items mid-action.
+
+The spinner's **frame lives in the table, its tick stays in the view**: a
+spinner needs a `Cmd`, and this package returns none.
+
+Rendering, and each part is a decision:
+
+- The status cell shows the spinner **on the selected row too** — a signal that
+  vanishes under the cursor is lost exactly when it is being looked at.
+- Off the cursor the row goes `DimStyle`, the spinner `ColorHighlight`, and the
+  column's own `Style` is dropped.
+- **On** the cursor the highlight itself changes
+  (`theme.TableStylesForState("busy")`), overriding whatever `SelectedStyles`
+  returned — a colour inside the joined row would close with a reset and end the
+  highlight mid-row (`render.go`).
+- The override is applied **when the row is drawn**, not when it is built, so
+  the stored cells do not go stale as the frame advances. Tests assert on
+  `View()`, not on `Table().Rows()`.
+
+The status column must **not be sortable**: `askFor` reserves `width(Title)+2`
+for a column carrying a `Less`, which is expensive for a glyph.
+
+**Which cell the spinner spends is a decision per table**, and it is the same
+decision every time: the one the user does not need while the action runs. Only
+`containers` gained a column, because only it has a state worth a column of its
+own; everywhere else the spinner rides an existing cell, which is §3.16's
+argument about the clone checkbox — a column costs cells on every screen to say
+nothing on all but one row.
+
+| Table | Key | Cell the spinner takes | Actions |
+|---|---|---|---|
+| `containers` | container ID | a status column of its own (the state icon left the Image cell) | stop, restart, pause/resume, remove |
+| `oci` images | image ID | `ID` — it neither sorts nor searches | remove |
+| `oci` networks | network ID | `ID` | remove |
+| `oci` volumes | name | `Driver` — a volume has no ID, so its **name** is the one cell that cannot go | remove |
+| `oci` registries | URL | `Logged` — precisely what the operation is about to change | login, logout |
+| `netdiag` ports | **PID** | `State` | kill |
+
+Two of those keys are worth the note. The ports table keys on the **PID, not the
+socket**, so every row of a process spins at once — which is what happens, the
+kill takes them all. The registries table keys on the **URL**, which is the one
+place D40's rule does not apply, and it does not apply because the *operation*
+is host-scoped: one `docker login` really does change the answer for every entry
+on that host.
+
+`oci_resources` gathers `BusyLabels()` from **all four tabs**, not the active
+one: an action started on Images goes on running after `tab`, and a spinner that
+stopped turning because the user looked elsewhere would read as a hang on the
+way back. The spinner tick has to keep being scheduled while anything is busy —
+that is what `advanceBusySpinners()` reports.
+
+Deliberately outside this:
+
+- **Scans** — their spinner is in the Scanned column and they do not block the
+  object the same way.
+- **`prune`** — it acts on no row, so marking every row would say something
+  false. It gets a footer line rendered from the view's own state (`m.pruning`),
+  like `syncStatusLine` (§3.17), because a footer *message* expires after three
+  seconds (Rule 128) and `docker stop` outlives that by seven.
+- **`workspaces`** — it already had all of this, its own way (`scanningPaths`,
+  `syncingPaths`, `busy(path)`), and is in fact where the design came from. Its
+  one remaining action is a local `os.RemoveAll`. Migrating it would be a
+  refactor of working code across the one busy notion that is *not* one object,
+  one action: scan and sync exclude each other across nested paths.
+
 **Every table in the application is a `datatable`** (§3.21 moved the last four:
 Registries, the registry browser's tags, network-inspect and netdiag's results).
 A new table uses it; there is no second way to build one, and `bubbles/table` is

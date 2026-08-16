@@ -538,3 +538,91 @@ func TestAQuerySpanningColumnsStillMatches(t *testing.T) {
 		t.Errorf("%d entries match \"tcp listen\", want the one — the joined search is gone", got)
 	}
 }
+
+// ── A kill says it is running (§3.22) ────────────────────────────────────────
+
+// KillProcess runs an ephemeral privileged container, so it is not the instant
+// a signal sounds like. The row used to look exactly as it had.
+func TestAKillSpinsTheSocketState(t *testing.T) {
+	m := feed(t, portsModel(t), testutil.Key("ctrl+k")) // sshd, PID 812
+
+	if !m.portsModel.table.IsBusy("812") {
+		t.Fatal("the kill was not marked on the row")
+	}
+	view := m.portsModel.table.View()
+	line := ""
+	for _, l := range strings.Split(view, "\n") {
+		if strings.Contains(l, "sshd") {
+			line = l
+		}
+	}
+	if strings.Contains(line, "LISTEN") {
+		t.Errorf("the row still shows the state the signal is about to change:\n%s", line)
+	}
+	if !strings.Contains(line, "sshd") {
+		t.Errorf("the row lost the process it names:\n%s", line)
+	}
+}
+
+// A PID is not a socket: killing a process takes every socket it holds, so all
+// of its rows spin together — which is what actually happens.
+func TestAKillSpinsEveryRowOfThatProcess(t *testing.T) {
+	shared := append(portFixtures(),
+		dockerpkg.PortInfo{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:2222", PID: "812", Process: "sshd"},
+	)
+	m := feed(t, newTestModel(t), testutil.Key("tab"))
+	m = feed(t, m, portsDataMsg{ports: shared})
+
+	m = feed(t, m, testutil.Key("ctrl+k"))
+
+	spinning := 0
+	for _, line := range strings.Split(m.portsModel.table.View(), "\n") {
+		if strings.Contains(line, "sshd") && !strings.Contains(line, "LISTEN") {
+			spinning++
+		}
+	}
+	if spinning != 2 {
+		t.Errorf("%d of the process's rows spin, want both", spinning)
+	}
+}
+
+// On every outcome: a kill that failed has to let the socket state show again
+// rather than go on turning.
+func TestAFailedKillLiftsTheMarker(t *testing.T) {
+	m := feed(t, portsModel(t), testutil.Key("ctrl+k"))
+
+	m = feed(t, m, portsKillResultMsg{pid: "812", err: errors.New("operation not permitted")})
+
+	if m.portsModel.table.IsBusy("812") {
+		t.Error("the marker survived a failed kill: the row spins for good")
+	}
+	if m.portsModel.footerError == "" {
+		t.Error("a failed kill reported nothing")
+	}
+}
+
+func TestASecondKillOfTheSamePIDIsRefused(t *testing.T) {
+	m := feed(t, portsModel(t), testutil.Key("ctrl+k"))
+
+	m = feed(t, m, testutil.Key("ctrl+k"))
+
+	if !strings.Contains(m.portsModel.footerInfo, "812") {
+		t.Errorf("footerInfo = %q, want it to say the kill is already running", m.portsModel.footerInfo)
+	}
+}
+
+// The tick stops itself once nothing is left running, rather than turning a
+// frame nobody is looking at for the life of the view.
+func TestTheKillSpinnerTickStopsWhenTheKillLands(t *testing.T) {
+	m := feed(t, portsModel(t), testutil.Key("ctrl+k"))
+
+	_, cmd := m.portsModel.handleSpinnerTick()
+	if cmd == nil {
+		t.Error("the tick stopped while a kill was still running")
+	}
+
+	m = feed(t, m, portsKillResultMsg{pid: "812"})
+	if _, cmd := m.portsModel.handleSpinnerTick(); cmd != nil {
+		t.Error("the tick went on being scheduled with nothing running")
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -32,6 +33,18 @@ type portsKillResultMsg struct {
 
 // portsClearFooterMsg clears the ports model footer after 3 seconds.
 type portsClearFooterMsg struct{}
+
+// portsSpinnerTickMsg turns the frame of a row a kill is running on.
+//
+// This model has no spinner of its own, and its data tick is two seconds apart
+// — a frame that advanced on that would look stopped, which is the impression
+// the whole thing exists to remove. So the kill starts a tick of its own and it
+// stops itself when nothing is left running.
+type portsSpinnerTickMsg struct{}
+
+func portsSpinnerCmd() tea.Cmd {
+	return tea.Tick(spinner.Dot.FPS, func(time.Time) tea.Msg { return portsSpinnerTickMsg{} })
+}
 
 func portsTickCmd() tea.Cmd {
 	return tea.Tick(2*time.Second, func(time.Time) tea.Msg {
@@ -92,6 +105,9 @@ type PortsModel struct {
 
 // portsColumns describes the ports table. Every column is searchable: the query
 // used to run against all six joined, and it still does.
+// portsColumnState is where a running kill puts its spinner.
+const portsColumnState = 1
+
 func portsColumns() []datatable.Column[dockerpkg.PortInfo] {
 	text := func(get func(dockerpkg.PortInfo) string) datatable.Column[dockerpkg.PortInfo] {
 		return datatable.Column[dockerpkg.PortInfo]{Cell: get, Search: get}
@@ -173,6 +189,12 @@ func newPortsModel(image string) *PortsModel {
 				{Label: filterTokenPaused},
 			},
 			TokenMatch: matchPortTokens,
+			// A PID, not a socket: killing a process takes every socket it
+			// holds, so every one of its rows spins together — which is what
+			// actually happens.
+			Key: func(p dockerpkg.PortInfo) string { return p.PID },
+			// The State cell, being exactly what the signal is about to change.
+			StatusColumn: portsColumnState,
 		}),
 	}
 }
@@ -207,6 +229,8 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 		return pm.handleData(msg)
 	case portsKillResultMsg:
 		return pm.handleKillResult(msg)
+	case portsSpinnerTickMsg:
+		return pm.handleSpinnerTick()
 	case portsClearFooterMsg:
 		pm.footerError = ""
 		pm.footerInfo = ""
@@ -215,6 +239,16 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 		return pm.handleKey(msg)
 	}
 	return pm, nil
+}
+
+// handleSpinnerTick advances the frame and schedules the next one, or lets the
+// tick die when the last kill has landed.
+func (pm *PortsModel) handleSpinnerTick() (*PortsModel, tea.Cmd) {
+	if len(pm.table.BusyLabels()) == 0 {
+		return pm, nil
+	}
+	pm.table.AdvanceSpinner()
+	return pm, portsSpinnerCmd()
 }
 
 func (pm *PortsModel) handleTick() (*PortsModel, tea.Cmd) {
@@ -237,6 +271,9 @@ func (pm *PortsModel) handleData(msg portsDataMsg) (*PortsModel, tea.Cmd) {
 }
 
 func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea.Cmd) {
+	// On every outcome: a kill that failed has to let the socket state show
+	// again rather than go on turning.
+	pm.table.ClearBusy(msg.pid)
 	if msg.err != nil {
 		log.Printf("ERROR [netdiag/ports] KillProcess pid=%s: %v", msg.pid, msg.err)
 		pm.footerError = fmt.Sprintf("Failed to kill PID %s", msg.pid)
@@ -311,7 +348,15 @@ func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
 		pm.footerInfo = "No PID available for this entry"
 		return pm, portsClearFooterCmd()
 	}
-	return pm, killProcessCmd(pm.image, entry.PID)
+	if pm.table.IsBusy(entry.PID) {
+		pm.footerInfo = "Already killing PID " + entry.PID
+		return pm, portsClearFooterCmd()
+	}
+	// Keyed on the PID, so every socket the process holds spins at once — which
+	// is what happens: the kill takes them all. The State cell is the one to
+	// spend, being exactly what the signal is about to change.
+	pm.table.MarkBusy(entry.PID, "Killing "+entry.Process+" ("+entry.PID+")")
+	return pm, tea.Batch(killProcessCmd(pm.image, entry.PID), portsSpinnerCmd())
 }
 
 func (pm *PortsModel) view() string {
