@@ -1,0 +1,19 @@
+/plan affichage des fichiers dans le viewport. Permettre d'afficher en lecture des fichiers au format plain text, json, xml.
+  Pour les fichiers json et xml il faut pouvoir parcourir l'arborescence via des nœuds mais aussi basculer en format raw.
+  A partir du ws il doit être possible d'ouvrir un fichier en lecture, si c'est un json il est ouvert par défaut au format json.
+  Si c'est un xml il est ouvert par défaut au format xml.
+  Il doit être possible de bascurer en format plain text, d'activer ou de désactiver la coloration syntaxique.
+  Tu peux t'aider de librairie qui existe déjà.
+  A partir de la vue container, le shortcut inspect doit ouvrir les infos dans le viewer.
+
+---
+
+autre précision, depuis un conteneur il est possible aujourd'hui d'afficher les logs, il y a peut être des choses à récupérer dans ce code. De plus les logs peuvent être affichés dans un viewer (format log) et il devrait être facile d'ajouter des filtres pour filtrer le niveau de verbosité (info, warn, etc.)
+
+---
+
+commence l'implémentation
+
+---
+
+continue
