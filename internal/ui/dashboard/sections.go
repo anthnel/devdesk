@@ -551,11 +551,6 @@ func (m Model) chartHeight(t tier) int {
 }
 
 func renderHostSection(m Model, width int, t tier) []string {
-	tools := unknownValue
-	if !m.loadingTools {
-		tools = toolsSummary(m.tools)
-	}
-
 	// La moyenne de charge n'est affichée nulle part : sur Windows elle
 	// retourne {0,0,0} avec err=nil, donc une valeur indiscernable d'une
 	// donnée, et un zéro se lit comme « au repos ».
@@ -582,9 +577,60 @@ func renderHostSection(m Model, width int, t tier) []string {
 	// de la boîte Storage, mot pour mot. Cette boîte mesure ce que le processeur
 	// et la mémoire font *maintenant* ; le disque ne bouge pas à la seconde et
 	// appartient à celle qui le détaille.
-	//
-	// Le compteur d'outils seulement : la liste est dans l'onglet Resources.
-	return append(lines, row("Tools", tools))
+	return append(lines, toolsBlock(m)...)
+}
+
+// toolsBlock says whether this machine can do the work, and names what it
+// cannot.
+//
+// Un compteur — « 4 of 5 available » — pose la question qu'il ne répond pas :
+// lequel manque, et donc quoi installer. La liste complète, elle, coûte cinq
+// lignes pour dire cinq fois « oui » sur une machine correctement outillée.
+// D'où les deux formes : une ligne quand tout est là, un nœud par manquant
+// sinon. C'est le seul bloc du dashboard dont la hauteur suit ses données, et
+// il peut se le permettre — un outil installé ne se désinstalle pas entre deux
+// rafraîchissements, là où un compte change à chaque tour.
+//
+// Les manquants se lisent contre knownTools et non contre ce qui a été
+// détecté : un outil absent de la détection est absent tout court, et un
+// dénominateur qui rétrécit avec elle rendrait « tout est là » d'une machine
+// qui a perdu une sonde.
+func toolsBlock(m Model) []string {
+	if m.loadingTools {
+		return []string{row("Tools", unknownValue)}
+	}
+
+	missing := missingTools(m.tools)
+	if len(missing) == 0 {
+		return []string{row("Tools", theme.Bg("all available  ")+theme.StatusOKStyle.Render(theme.IconOK))}
+	}
+
+	// Les noms gardent leur casse déclarée là où les autres nœuds sont en
+	// minuscules : `running` et `images` sont des mots, `Gitleaks` est ce qu'il
+	// faut taper pour l'installer.
+	lines := []string{theme.Bg("Missing tools")}
+	for i, name := range missing {
+		lines = append(lines, narrowBranch(i == len(missing)-1, name,
+			theme.StatusDownStyle.Render(theme.IconError)))
+	}
+	return lines
+}
+
+// missingTools returns the known tools this machine does not have, in the order
+// knownTools declares them.
+func missingTools(tools []shared.ToolInfo) []string {
+	available := make(map[string]bool, len(tools))
+	for _, t := range tools {
+		available[t.Name] = t.Available
+	}
+
+	var missing []string
+	for _, name := range knownTools {
+		if !available[name] {
+			missing = append(missing, name)
+		}
+	}
+	return missing
 }
 
 // coreSuffix names how many cores the percentage is spread over.
@@ -631,13 +677,6 @@ func renderDockerSection(m Model, width int, t tier) []string {
 	// Les **comptes** seulement : les tailles sont dans la boîte Storage, qui
 	// répond à « combien de place » là où celle-ci répond à « combien il y en
 	// a ». Elles étaient dans les deux, sous deux formes différentes.
-	images, volumes := unavailableValue, unavailableValue
-	if m.loadingOCI {
-		images, volumes = unknownValue, unknownValue
-	} else if m.ociStats != nil && m.ociStats.Available {
-		images = countValue(m.ociStats.ImagesCount)
-		volumes = countValue(m.ociStats.VolumesCount)
-	}
 
 	// CPU et RAM d'abord, dans le même ordre que Host et Network : les trois
 	// boîtes à graphes se lisent alors sur les mêmes lignes, et les courbes se
@@ -650,31 +689,62 @@ func renderDockerSection(m Model, width int, t tier) []string {
 	lines = append(lines, chartBlock(m, m.dockerMemSamples, width, t, 100)...)
 
 	if t != tierWide {
-		return append(lines, row("Containers", containers), row("Images", images), row("Volumes", volumes))
+		// Sans la seconde colonne, les deux arbres s'empilent : les conteneurs
+		// se réduisent alors à leur ligne de tête, qui porte déjà le compte des
+		// actifs, et l'inventaire garde sa racine — c'est elle qui dit que les
+		// trois chiffres suivants parlent tous de la même chose.
+		return append(append(lines, rowAt(narrowTreeValueColumn, "Containers", containers)),
+			resourceTree(m)...)
 	}
 
-	// Sous les courbes, deux colonnes : l'arbre des conteneurs à gauche, les
-	// deux inventaires à droite. L'arbre fait quatre lignes contre deux, et les
-	// empiler laissait une demi-boîte vide à leur droite.
-	left, right := dockerColumns(m, containers, images, volumes)
+	// Sous les courbes, deux colonnes : l'arbre des conteneurs à gauche,
+	// l'inventaire à droite. Ils font quatre lignes chacun, donc la boîte se
+	// remplit sans qu'aucune moitié attende l'autre.
+	left, right := dockerColumns(m, containers)
 	return append(lines, sideBySide(left, right, theme.BoxContentWidth(width))...)
 }
 
 // dockerColumns builds the two runs the Docker box ends on. Un nœud par état :
 // « 9 total  2 running » laisse le lecteur soustraire pour savoir combien
 // dorment, et ne dit rien des conteneurs en pause.
-func dockerColumns(m Model, containers, images, volumes string) (left, right []string) {
+func dockerColumns(m Model, containers string) (left, right []string) {
 	left = []string{
 		rowAt(narrowTreeValueColumn, "Containers", containers),
 		narrowBranch(false, "running", dockerState(m, func(d shared.DockerStats) int { return d.Running })),
 		narrowBranch(false, "stopped", dockerState(m, func(d shared.DockerStats) int { return d.Stopped })),
 		narrowBranch(true, "paused", dockerState(m, func(d shared.DockerStats) int { return d.Paused })),
 	}
-	right = []string{
-		row("Images", images),
-		row("Volumes", volumes),
+	return left, resourceTree(m)
+}
+
+// resourceTree lists what the daemon holds besides its containers. Les trois
+// comptes pendent d'une racine plutôt que de flotter côte à côte : ce sont des
+// objets du même daemon, et les aligner sous un mot dit lequel, là où trois
+// lignes de premier niveau se lisaient comme trois sujets.
+//
+// Networks y entre pour la même raison qu'images et volumes en font partie :
+// c'est une ressource que :oci gère et que le dashboard ne comptait pas — la
+// seule des trois que `docker system df` ignore, faute d'octets à déclarer.
+func resourceTree(m Model) []string {
+	return []string{
+		theme.Bg("Resources"),
+		narrowBranch(false, "images", ociCount(m, func(s shared.OCIStats) int { return s.ImagesCount })),
+		narrowBranch(false, "volumes", ociCount(m, func(s shared.OCIStats) int { return s.VolumesCount })),
+		narrowBranch(true, "networks", ociCount(m, func(s shared.OCIStats) int { return s.NetworksCount })),
 	}
-	return left, right
+}
+
+// ociCount renders one inventory count, telling "not read yet" from "Docker is
+// not there" the way every other value does.
+func ociCount(m Model, pick func(shared.OCIStats) int) string {
+	switch {
+	case m.loadingOCI:
+		return unknownValue
+	case m.ociStats == nil || !m.ociStats.Available:
+		return unavailableValue
+	default:
+		return countValue(pick(*m.ociStats))
+	}
 }
 
 // dockerState renders one container-state count, telling "not read yet" from
@@ -730,9 +800,9 @@ func renderNetworkSection(m Model, width int, t tier) []string {
 }
 
 // knownTools names the tools DevDesk detects, in the order detectTools builds
-// them. La liste est fixe, et c'est ce qui donne à cette boîte une hauteur
-// constante : un outil non détecté garde sa ligne et lit `-`, au lieu de
-// disparaître — ce qui se lirait comme "il n'y en a que quatre".
+// them. C'est **elle** qui décide ce qui manque, jamais la liste détectée : un
+// outil que la détection ne rend plus est absent, et le compter hors du
+// dénominateur le ferait disparaître au lieu de le signaler.
 //
 // Elle doit rester en phase avec detectTools (model.go).
 var knownTools = []string{"Docker", "Trivy", "Gitleaks", "Net Diag", "Git"}
@@ -780,13 +850,15 @@ func diskField(m Model, pick func(metrics.DiskUsage) string) string {
 }
 
 // diskUsedField carries the percentage next to the bytes: c'est le pourcentage
-// qui dit s'il faut faire quelque chose, et les octets de combien.
+// qui dit s'il faut faire quelque chose, et les octets de combien. Les
+// parenthèses disent lequel des deux est la mesure : `290 GB  86 %` se lit
+// comme deux faits côte à côte, `290 GB (86 %)` comme un seul.
 func diskUsedField(m Model) string {
 	if !m.wsDisk.OK {
 		return unknownValue
 	}
 	return theme.Bg(humanBytes(m.wsDisk.Used)) +
-		theme.DimStyle.Render(fmt.Sprintf("  %.0f%%", m.wsDisk.UsedPercent))
+		theme.DimStyle.Render(fmt.Sprintf("  (%.0f%%)", m.wsDisk.UsedPercent))
 }
 
 // ociSize renders one line of `docker system df`, telling "not read yet" from
@@ -887,22 +959,6 @@ func statusSummary(components []status.ComponentStatus) string {
 		out += theme.Bg(fmt.Sprintf("  %d ", errCount)) + theme.StatusErrorStyle.Render(theme.IconWarning)
 	}
 	return out
-}
-
-// toolsSummary renders "N of M available". Le dénominateur est knownTools, pas
-// ce qui a été détecté : sinon "5 of 5" et "4 of 4" se ressemblent, alors que
-// le second veut dire qu'un outil a disparu de la détection.
-func toolsSummary(tools []shared.ToolInfo) string {
-	if len(tools) == 0 {
-		return unavailableValue
-	}
-	available := 0
-	for _, t := range tools {
-		if t.Available {
-			available++
-		}
-	}
-	return countValue(available) + theme.Bg(fmt.Sprintf(" of %d available", len(knownTools)))
 }
 
 // truncatePath keeps a path's tail, which is the half that identifies it.

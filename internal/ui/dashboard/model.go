@@ -169,7 +169,6 @@ type Model struct {
 
 	// Refresh
 	refreshInterval time.Duration
-	lastRefresh     time.Time
 }
 
 // New creates a new dashboard model
@@ -379,7 +378,6 @@ func appendBounded(series []float64, value float64) []float64 {
 func (m Model) handleStatusCheck(msg StatusCheckMsg) (tea.Model, tea.Cmd) {
 	m.loadingServices = false
 	m.serviceComponents = msg.Result.Components
-	m.lastRefresh = msg.Result.Timestamp
 
 	m.serviceStatus = computeGlobalStatus(m.serviceComponents)
 
@@ -485,6 +483,7 @@ func (m Model) fetchOCIStats() tea.Cmd {
 			ContainersSize:  stats.ContainersSize,
 			VolumesCount:    stats.VolumesCount,
 			VolumesSize:     stats.VolumesSize,
+			NetworksCount:   stats.NetworksCount,
 			BuildCacheSize:  stats.BuildCacheSize,
 			Reclaimable:     stats.Reclaimable,
 		}}

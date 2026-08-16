@@ -55,7 +55,7 @@ func loadedModel(t *testing.T) (Model, *shared.State) {
 		StatusCheckMsg{Result: status.MonitorResult{Components: componentFixtures(), Timestamp: time.Now()}},
 		GitLabStatsMsg{Stats: shared.GitLabStats{AssignedMRs: 3, ReviewMRs: 2, AssignedIssues: 5, TotalProjects: 12, TotalGroups: 4}},
 		DockerStatsMsg{Stats: shared.DockerStats{Available: true, Running: 2, Stopped: 1, Paused: 1}},
-		OCIStatsMsg{Stats: shared.OCIStats{Available: true, ImagesCount: 8, ImagesSize: "1.2GB", ContainersCount: 4, ContainersSize: "300MB", VolumesCount: 2, VolumesSize: "50MB"}},
+		OCIStatsMsg{Stats: shared.OCIStats{Available: true, ImagesCount: 8, ImagesSize: "1.2GB", ContainersCount: 4, ContainersSize: "300MB", VolumesCount: 2, VolumesSize: "50MB", NetworksCount: 3}},
 		WorkspaceStatsMsg{Count: 6},
 		DiskUsageMsg{Workspaces: metrics.DiskUsage{Path: "~/workspaces", Free: 210 << 30, Used: 290 << 30, Total: 500 << 30, UsedPercent: 58, OK: true}},
 		WorkspaceSizeMsg{Size: metrics.TreeSize{Path: "~/workspaces", Bytes: 12 << 30, OK: true}},
@@ -182,17 +182,6 @@ func TestResultsArePublishedToSharedState(t *testing.T) {
 	// And the model itself stopped loading.
 	if m.loadingServices || m.loadingGitLab || m.loadingDocker || m.loadingOCI || m.loadingWorkspaces || m.loadingTools {
 		t.Error("a section is still loading after its result arrived")
-	}
-}
-
-func TestStatusCheckRecordsTheTimestamp(t *testing.T) {
-	m, _ := newTestModel(t)
-	at := time.Date(2026, 8, 2, 9, 0, 0, 0, time.UTC)
-
-	m = feed(t, m, StatusCheckMsg{Result: status.MonitorResult{Components: componentFixtures(), Timestamp: at}})
-
-	if !m.lastRefresh.Equal(at) {
-		t.Errorf("lastRefresh = %v, want %v", m.lastRefresh, at)
 	}
 }
 
@@ -455,6 +444,15 @@ func TestEverySectionKeepsItsHeightWhateverItsState(t *testing.T) {
 
 	states := map[string]Model{"unknown": unknown, "loaded": loaded, "unavailable": unavailable}
 
+	// Le bloc des outils est l'exception, et elle est délibérée : sa hauteur
+	// suit l'inventaire de la machine (voir toolsBlock), pas l'arrivée d'un
+	// résultat. Les trois états partagent donc le même inventaire, ce qui laisse
+	// le test attraper tout le reste — c'est-à-dire tout ce qui bouge d'un
+	// rafraîchissement à l'autre.
+	for name, m := range states {
+		states[name] = feed(t, m, ToolsDetectedMsg{Tools: toolFixtures()})
+	}
+
 	for _, s := range append(overviewSections(), resourceSections()...) {
 		want := -1
 		for name, m := range states {
@@ -492,9 +490,9 @@ func TestABoxNeverTruncatesItsSection(t *testing.T) {
 
 	columns := [][]section{{tall}}
 	inner := m.innerHeights(columns, 40, tierStandard)
-	if inner[0] != nominalInnerHeight+extra {
-		t.Errorf("innerHeight = %d for a section of %d lines, want the section's own height",
-			inner[0], nominalInnerHeight+extra)
+	if want := nominalInnerHeight + extra + trailingBlank; inner[0] != want {
+		t.Errorf("innerHeight = %d for a section of %d lines, want its own height plus the trailing blank (%d)",
+			inner[0], nominalInnerHeight+extra, want)
 	}
 
 	out := plain(strings.Join(m.renderColumn(columns[0], 40, inner, tierStandard), "\n"))
@@ -528,7 +526,7 @@ func TestTheGridRowsLineUp(t *testing.T) {
 func TestAnUnavailableSourceKeepsItsLabels(t *testing.T) {
 	lines := renderDockerSection(withNoDocker(t), 40, tierStandard)
 
-	for _, label := range []string{"Containers", "Images", "Volumes"} {
+	for _, label := range []string{"Containers", "Resources", "images", "volumes", "networks"} {
 		if !containsLine(lines, label) {
 			t.Errorf("with no Docker, the section dropped the %q label: %q", label, lines)
 		}

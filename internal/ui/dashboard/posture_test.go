@@ -217,7 +217,7 @@ func TestEveryTreeNodeAlignsItsValue(t *testing.T) {
 	m = feed(t, m, PostureMsg{Posture: posture{Read: true}})
 
 	healthLeft, healthRight := healthColumns(m)
-	dockerLeft, _ := dockerColumns(m, "4 total", "8", "2") // the right column is flat rows
+	dockerLeft, dockerRight := dockerColumns(m, "4 total")
 
 	// Les colonnes sont vérifiées **avant** leur assemblage : une fois collées,
 	// les nœuds des deux arbres partagent une ligne, et la colonne de droite
@@ -231,6 +231,8 @@ func TestEveryTreeNodeAlignsItsValue(t *testing.T) {
 		{"Health left", narrowTreeValueColumn, healthLeft},
 		{"Health right", narrowTreeValueColumn, healthRight},
 		{"Docker left", narrowTreeValueColumn, dockerLeft},
+		{"Docker right", narrowTreeValueColumn, dockerRight},
+		{"Host", narrowTreeValueColumn, renderHostSection(m, 60, tierStandard)},
 		{"Storage", narrowTreeValueColumn, renderStorageSection(m, 60, tierStandard)},
 	}
 
@@ -538,8 +540,10 @@ func TestStorageReportsTheVolume(t *testing.T) {
 			t.Errorf("the %q node reads %q, want %q", label, got, want)
 		}
 	}
-	if got := nodeUnder(lines, "Volume", "used"); !strings.Contains(got, "58%") {
-		t.Errorf("the used node reads %q, want the percentage beside the bytes", got)
+	// Entre parenthèses : `290.0 GB  58%` se lit comme deux faits côte à côte,
+	// `290.0 GB (58%)` comme une mesure et sa part.
+	if got := nodeUnder(lines, "Volume", "used"); !strings.Contains(got, "(58%)") {
+		t.Errorf("the used node reads %q, want the percentage bracketed beside the bytes", got)
 	}
 }
 
