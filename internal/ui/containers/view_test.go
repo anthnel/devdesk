@@ -290,3 +290,54 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 		}
 	}
 }
+
+// A modal takes the keyboard from priority 1 of the key chain, so a modal that
+// renders nothing does not merely look wrong — it kills the view. K's choice
+// modal shipped exactly like that: wired into Update and into the key chain,
+// left out of View, InEditMode and GetShortcuts. One keypress and every key
+// after it went to a modal nobody could see.
+//
+// Driven by the keys rather than by setting the fields, so a modal reachable by
+// no key would be caught too.
+func TestEveryModalIsVisibleAndDeclared(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		key   string
+		title string
+	}{
+		{"stop or restart", keymap.Kill, "Container"},
+		{"delete", keymap.Delete, "Delete Container"},
+		{"prune", keymap.Prune, "Prune Containers"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := feed(t, loadedModel(t), testutil.Key(tc.key))
+
+			if !strings.Contains(m.View(), tc.title) {
+				t.Errorf("the modal is not rendered; View() = %q", m.View())
+			}
+			if !m.InEditMode() {
+				t.Error("InEditMode() is false while a modal holds the keyboard, " +
+					"so the router still claims q, ? and :")
+			}
+			if got := m.GetShortcuts(); len(got) > 3 {
+				t.Errorf("GetShortcuts() advertises %d keys, want the modal's own", len(got))
+			}
+			if !hasShortcut(m.GetShortcuts(), "esc") {
+				t.Error("the modal does not advertise the way out")
+			}
+		})
+	}
+}
+
+// The corollary: a key that opens nothing must leave the view usable. This is
+// what makes the test above meaningful rather than tautological.
+func TestAKeyThatOpensNoModalLeavesTheViewAlive(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("a"))
+
+	if m.InEditMode() {
+		t.Error("toggling the scope captured the keyboard")
+	}
+	if len(m.GetShortcuts()) < 5 {
+		t.Error("the view lost its shortcuts without a modal to explain it")
+	}
+}
