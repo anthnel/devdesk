@@ -1,0 +1,5 @@
+/plan dans le viewer ajoute le support de la coloration syntaxique des fichier yaml et toml. De plus une recherche doit mettre les occurences en surbrillance
+
+---
+
+pars sur ce plan

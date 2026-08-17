@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "faefcd3f384c",
+  "strategy": "manual-commit",
+  "branch": "viewer-yaml-toml-search-highlight",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/CLAUDE.md",
+    ".claude/plans/viewer-yaml-toml-and-search-highlight.md",
+    ".claude/rules/tui-layout.md",
+    "docs/backlog.md",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/manager.go",
+    "internal/ui/viewer/lines.go",
+    "internal/ui/viewer/syntax.go",
+    "internal/ui/viewer/text.go",
+    "internal/ui/viewer/text_test.go",
+    "internal/ui/viewer/view.go",
+    "internal/viewer/detect.go",
+    "internal/viewer/detect_test.go",
+    "internal/viewer/document.go",
+    "internal/viewer/highlight.go",
+    "internal/viewer/highlight_test.go",
+    "internal/viewer/match.go",
+    "internal/viewer/match_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/fa/efcd3f384c/0/metadata.json",
+      "transcript": "/fa/efcd3f384c/0/full.jsonl",
+      "compact_transcript": "/fa/efcd3f384c/0/transcript.jsonl",
+      "content_hash": "/fa/efcd3f384c/0/content_hash.txt",
+      "prompt": "/fa/efcd3f384c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 164,
+    "cache_creation_tokens": 221554,
+    "cache_read_tokens": 15873590,
+    "output_tokens": 63090,
+    "api_call_count": 82
+  }
+}

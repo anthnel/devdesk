@@ -1,0 +1,93 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "faefcd3f384c",
+  "session_id": "0a9adeab-22ab-45cc-996f-78f6f4a61c6d",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-17T14:08:25.239911Z",
+  "branch": "viewer-yaml-toml-search-highlight",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/plans/viewer-yaml-toml-and-search-highlight.md",
+    "internal/viewer/document.go",
+    "internal/viewer/detect.go",
+    "internal/viewer/highlight.go",
+    "internal/viewer/detect_test.go",
+    "internal/viewer/highlight_test.go",
+    "internal/viewer/match.go",
+    "internal/viewer/match_test.go",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/manager.go",
+    "internal/ui/viewer/syntax.go",
+    "internal/ui/viewer/lines.go",
+    "internal/ui/viewer/text.go",
+    "internal/ui/viewer/text_test.go",
+    "internal/ui/viewer/view.go",
+    ".claude/CLAUDE.md",
+    ".claude/rules/tui-layout.md",
+    "docs/backlog.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "615dc83fff22",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 164,
+    "cache_creation_tokens": 221554,
+    "cache_read_tokens": 15873590,
+    "output_tokens": 63090,
+    "api_call_count": 82
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-08-17T13:42:26.5790043Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "15c53263f014",
+      "timestamp": "2026-08-17T13:42:26.5790043Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-17T14:08:25.1847082Z",
+    "agent_lines": 870,
+    "agent_removed": 39,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 870,
+    "total_lines_changed": 909,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 834,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/viewer-yaml-toml-and-search-highlight.md": 364,
+        ".claude/settings.local.json": 470
+      }
+    }
+  ]
+}
