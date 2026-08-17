@@ -13,7 +13,24 @@ import (
 
 // InEditMode returns true when a modal or the filter is active
 func (m Model) InEditMode() bool {
-	return m.confirmModal != nil || m.containerTable.InEditMode()
+	return m.anyModal() != nil || m.containerTable.InEditMode()
+}
+
+// anyModal is the one place that answers "is a modal open, and which".
+//
+// It exists because the alternative failed: K's choice modal was added to the
+// key chain and to Update, and left out of View, InEditMode and GetShortcuts.
+// Nothing said so — the modal opened, took the keyboard from priority 1, and
+// rendered nothing, so the whole view went dead on one keystroke. Resolving it
+// once means a new modal cannot be half-wired.
+func (m Model) anyModal() interface{ View() string } {
+	switch {
+	case m.confirmModal != nil:
+		return m.confirmModal
+	case m.choiceModal != nil:
+		return m.choiceModal
+	}
+	return nil
 }
 
 // FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
@@ -99,6 +116,13 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 
 // GetShortcuts returns the keyboard shortcuts for the header
 func (m Model) GetShortcuts() shortcut.Shortcuts {
+	if m.choiceModal != nil {
+		return []shortcut.Shortcut{
+			{Key: "←→", Description: "Choose"},
+			{Key: "enter", Description: "Confirm"},
+			{Key: "esc", Description: "Cancel"},
+		}
+	}
 	if m.confirmModal != nil {
 		return []shortcut.Shortcut{
 			{Key: "y/n", Description: "Confirm"},
@@ -123,12 +147,12 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 // View renders the view
 func (m Model) View() string {
-	// Priority 1: confirm modal (centered)
-	if m.confirmModal != nil {
+	// Priority 1: whichever modal is open (centered)
+	if modal := m.anyModal(); modal != nil {
 		return lipgloss.Place(
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
-			m.confirmModal.View(),
+			modal.View(),
 			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
 		)
 	}
