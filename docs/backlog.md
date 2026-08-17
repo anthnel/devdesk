@@ -4865,7 +4865,114 @@ juste, et à trois fichiers de l'endroit où il fallait le lire.
 
 ---
 
-### 3.29 Un message, trois niveaux, un composant — **done**
+### 3.29 Le viewer colore YAML et TOML, et une recherche montre où elle a trouvé — **done**
+
+Deux ajouts sans lien entre eux au-delà de la vue qui les porte.
+
+#### YAML et TOML : quatre lignes de mapping, et une décision
+
+`.yaml`, `.yml`, `.toml` entrent dans `extensionKinds`, `lexerName` gagne deux
+cas. Aucune dépendance et aucun octet de plus sur le binaire : chroma embarque
+tous ses lexers, c'est ce que les +4.0 MB de §3.25 ont acheté.
+
+Le mapping a été **relevé sur les lexers**, pas supposé — la méthode de §3.25 —
+et c'est ce qui a évité de livrer la moitié du travail :
+
+| | Ce que chroma émet | Ce qu'il fallait faire |
+|---|---|---|
+| **YAML** | clés en `NameTag`, scalaires en `Literal`, `true`/`null` en `KeywordConstant` | **rien** — tout tombait déjà juste |
+| **TOML** | **toutes** ses clés, en-têtes de table `[app]` comprises, en `NameOther` | une ligne : `NameOther → ClassKey` |
+
+Sans cette ligne, un `.toml` sortait colorié partout **sauf ses clés**, c'est-à-dire
+sauf ce qui mérite la couleur. Le mapping n'est pas gardé par le `kind` : ni le
+lexer JSON ni le lexer XML n'émet `NameOther`, et les deux tests de
+classification existants sont ce qui maintient l'affirmation.
+
+**Aucun des deux n'a d'arbre, et c'est une décision.** `Structured()` les exclut :
+les deux ont une structure, mais aucun parseur *ici* ne préserve l'ordre du
+fichier, et l'ordre est du contenu (§3.25). `yaml.v3` saurait le faire —
+`yaml.Node` garde l'ordre et les commentaires, et c'est déjà une dépendance —
+tandis que TOML en coûterait une autre. Tant que ça ne vaut pas la peine, ce sont
+des textes colorés et `f` reste masqué (Rule 130). L'absence est écrite dans le
+commentaire de `Structured()` pour qu'elle ne se relise pas comme un oubli.
+
+**Ni l'un ni l'autre n'est deviné du contenu.** Un fichier qui commence par `---`
+est de l'entête Markdown aussi souvent qu'un flux YAML, et une ligne `[section]`
+est de la prose dans la moitié des fichiers qui en portent une. C'est l'argument
+déjà écrit pour `KindLog`, et `TestYAMLAndTOMLAreNeverInferredFromContent` en fait
+une garde.
+
+#### La recherche : une seule règle décide « ça matche » et « ici »
+
+`/` filtrait déjà — les lignes sans occurrence disparaissent — mais sur une ligne
+de 300 caractères conservée, rien ne disait **où**. Elle surligne maintenant, et
+elle continue de filtrer : ajouter la surbrillance, pas la remplacer.
+
+Le point de conception est ailleurs. Le filtre était
+`strings.Contains(strings.ToLower(line.Plain), query)` ; si la surbrillance avait
+calculé ses positions de son côté, on aurait eu **deux calculs pour une question**
+— exactement ce que `scan.Categorize` (§3.12) et `Result.SecretVerdict` (§3.20)
+ont chacun dû défaire, avec deux fois le même symptôme : un élément compté d'un
+côté, introuvable de l'autre. Ici : une ligne conservée par le filtre sans une
+seule occurrence visible, et rien pour dire pourquoi.
+
+Donc `MatchRanges` est la seule chose qui décide qu'une ligne matche, et elle dit
+où dans la même réponse : le filtre **est** `len(ranges) > 0`. « Une ligne
+conservée porte au moins une occurrence surlignée » devient vrai par construction,
+et `TestEveryLineTheSearchKeptCarriesAnOccurrence` l'oppose au code.
+
+Ce qui en découle, chaque point avec son test :
+
+- **Une occurrence est un span de plus, jamais une couleur posée sur une ligne
+  finie.** `MarkMatches` coupe les tokens tant qu'ils sont bruts, pour la raison
+  même qui fait exister `docLine` : une ligne stylée ne peut pas être coupée, la
+  mesure comptant les octets d'un échappement comme de la largeur (Rule 122, un
+  étage plus haut). Le marquage passe **après** le filtre, donc seulement sur les
+  lignes qui vont être dessinées, et il conserve l'invariant octet-pour-octet de
+  `Tokenize`.
+- **`matchStyle` gagne sur la classe et sur le niveau.** Une ligne de log sort en
+  niveau, occurrence, niveau : le niveau porte toujours le reste, donc un ERROR se
+  repère encore d'un coup d'œil, et une recherche invisible dans un log manquerait
+  précisément là où les lignes sont les plus longues. Le commentaire de
+  `renderSegment` a été réécrit, parce qu'il affirmait le contraire.
+- **`c` n'a pas voix au chapitre.** Une occurrence n'est pas de la coloration
+  syntaxique ; éteindre les couleurs est la façon de lire un document en texte
+  brut, et une recherche qu'on n'y verrait plus serait la seule chose que ça
+  coûterait.
+- **Couper un token le copie** (`withText`, `appendSpan`) au lieu d'en
+  reconstruire un littéral. Un littéral doit nommer chaque champ pour le garder,
+  et c'est ainsi qu'une surbrillance marche jusqu'à ce que la ligne soit assez
+  longue pour être wrappée — le seul cas pour lequel elle existe. Vérifié en
+  cassant la propagation : `TestSearchHighlightSurvivesWrap` échoue.
+- **Décalages en octets, pas en runes** : un token porte une `string`. Et quand
+  `strings.ToLower` change la longueur en octets (`İ`), la recherche retombe sur
+  une recherche sensible à la casse plutôt que de surligner **à côté** du résultat.
+
+`ColorSearchMatch`/`Fg` sont des alias sémantiques assignés dans `ApplyTheme`,
+comme les couleurs syntaxiques : aucun thème ne gagne de clé (Rule 119).
+
+#### Non retenu
+
+**Surligner sans filtrer.** C'est une autre fonctionnalité : `matchedLines`,
+`emptyTextMessage()` et le token du `FilterBar` perdent leur objet, et sur un log
+de 50 000 lignes une recherche ne servirait plus à rien sans un `n` pour sauter
+d'occurrence en occurrence — qui n'existe pas, aucune lettre nue n'étant de la
+navigation (§3.26).
+
+**`n` / `N` pour circuler entre les occurrences.** Même raison. La surbrillance
+répond à « où est-ce », le scroll existe pour y aller.
+
+**Un arbre YAML via `yaml.Node`.** Faisable, et hors sujet : la demande portait
+sur la coloration, et un arbre pour YAML sans arbre pour TOML ferait de `f` une
+touche qui marche sur un des deux formats ajoutés. À faire ensemble ou pas du
+tout.
+
+**Deviner YAML sur `---`.** Voir plus haut : c'est de l'entête Markdown aussi
+souvent qu'un flux YAML.
+
+---
+
+### 3.30 Un message, trois niveaux, un composant — **done**
 
 Le footer était écrit huit fois. Chaque vue portait sa paire de champs
 (`footerError`/`footerInfo`, ou `errorMsg`/`infoMsg`, ou `statusMessage`), sa

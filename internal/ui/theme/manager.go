@@ -260,6 +260,9 @@ func ApplyTheme(t *Theme) {
 	ColorSyntaxAttr = ColorPrimary
 	ColorSyntaxComment = ColorDim
 
+	ColorSearchMatch = ColorHighlight
+	ColorSearchMatchFg = ColorBlack
+
 	// Severity colors (background + foreground pairs)
 	ColorSeverityCritical = applyColor(t.SeverityCritical, ColorError)
 	ColorSeverityCriticalFg = applyColor(t.SeverityCriticalFg, ColorBlack)

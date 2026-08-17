@@ -76,6 +76,12 @@ var (
 	ColorSyntaxAttr    lipgloss.Color
 	ColorSyntaxComment lipgloss.Color
 
+	// A search occurrence, in reverse video like a selected row: it is the most
+	// urgent thing on the screen while a search is running, so it takes
+	// precedence over the syntax class or the log level underneath it.
+	ColorSearchMatch   lipgloss.Color
+	ColorSearchMatchFg lipgloss.Color
+
 	// Footer message colors, one per level (Rule 128).
 	//
 	// Aliases assigned in ApplyTheme, like the syntax colours above: no theme

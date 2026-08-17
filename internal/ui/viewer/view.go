@@ -154,7 +154,8 @@ func (m Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title: "Viewer",
 		Description: "A read-only view of one document. JSON and XML open on a navigable tree; " +
-			"logs open as text with a verbosity filter; everything else opens as text. " +
+			"YAML and TOML open as colored text; logs open as text with a verbosity filter; " +
+			"everything else opens as text. " +
 			"The viewer is opened from another view — a file in workspaces, an inspect or a log in containers — and Esc returns there.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑/k", Description: "Move up"},
@@ -165,7 +166,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "c", Description: "Turn syntax coloring on or off"},
 			{Key: "w", Description: "Soft-wrap long lines (text)"},
 			{Key: "v", Description: "Cycle the minimum log level shown (logs)"},
-			{Key: "/", Description: "Search the text"},
+			{Key: "/", Description: "Search the text — matching lines only, occurrences highlighted"},
 			{Key: "t", Description: "Show or hide timestamps (container logs)"},
 			{Key: "ctrl+r", Description: "Reload from the source"},
 			{Key: "F", Description: "Follow live output (container logs)"},
@@ -178,13 +179,22 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Tree and text",
 				Body: "A JSON or XML document opens on its tree: → expands a node, ← collapses it, and a closed " +
 					"container shows how many children it holds. Press f for the document's own text, exactly as it " +
-					"is on disk — press f again to come back. A document with no structure, including a log, has no " +
-					"tree and f does nothing.",
+					"is on disk — press f again to come back. A document with no structure has no tree and f does " +
+					"nothing: that includes a log, and it includes YAML and TOML, which are colored but not walkable.",
 			},
 			{
 				Title: "Coloring",
-				Body: "c turns syntax coloring on and off, in the tree and in the text alike. With it off the " +
-					"document reads as plain text. Colors follow the current theme; no document has colors of its own.",
+				Body: "c turns syntax coloring on and off, in the tree and in the text alike. JSON, XML, YAML and " +
+					"TOML are colored; a file is recognized by its extension, never by what its content looks like. " +
+					"With coloring off the document reads as plain text. Colors follow the current theme; no document " +
+					"has colors of its own.",
+			},
+			{
+				Title: "Search",
+				Body: "/ searches the text. Lines with no match are hidden and the header counts what is left, so " +
+					"a search reads as a filter — and every occurrence in the lines that remain is highlighted, which " +
+					"is what says where the match is in a long line. The highlight is not syntax coloring: it stays " +
+					"on with c off, it survives soft wrap, and in a log the line keeps its level color around it.",
 			},
 			{
 				Title: "Log verbosity",
