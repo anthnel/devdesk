@@ -4739,6 +4739,86 @@ ligne que l'utilisateur ne voit pas correspondre.
 
 ---
 
+### 3.28 Un état juste et invisible — la garde qui manque aux tests
+
+Deux bugs livrés le même jour, dans deux vues, avec la même forme : **l'état
+était correct et l'écran ne le montrait pas.**
+
+| | L'état, juste | Ce qui manquait |
+|---|---|---|
+| `containers` (#72) | la modale de `K` existait et prenait le clavier | `View`, `InEditMode`, `GetShortcuts` l'ignoraient — un `K` et la vue était morte |
+| `security` (#73) | la ligne était `Scanning`, la frame avançait | la cellule portait sa couleur, donc elle était tronquée dans sa séquence et ne rendait rien |
+
+Aucun des deux n'est un défaut de logique. Les deux sont des défauts de
+**restitution**, et c'est la catégorie que la suite de tests ne couvre pas.
+
+#### Pourquoi les tests ne les ont pas vus
+
+Ils vérifient qu'une touche **fait** quelque chose — un `Cmd` est retourné, un
+champ change — jamais que l'écran **le dit**. Deux angles morts précis :
+
+- **Le profil de couleur.** `lipgloss` n'émet aucune séquence hors TTY, donc une
+  cellule stylée est indiscernable d'une cellule brute. `withTrueColor` existe
+  pourtant déjà dans cinq paquets ; il n'était simplement jamais posé sur les
+  chemins « action en cours ».
+- **Les états transitoires.** Un scan qui tourne, une modale ouverte, une ligne
+  occupée : ce sont exactement les états que personne ne rend, parce qu'ils sont
+  pénibles à atteindre et qu'on croit tenir la vérité en lisant le modèle.
+
+`ansiPrefix` et `withTrueColor` sont dupliqués dans `containers` et `security`,
+ce qui est le signal habituel : le besoin est commun, l'outil ne l'est pas.
+
+#### Ce que la garde doit vérifier
+
+Trois propriétés, et chacune a déjà échoué une fois :
+
+1. **Aucune cellule ne porte de séquence d'échappement.** Rule 122 par
+   construction plutôt que par revue — c'est la propriété qui se teste le plus
+   mécaniquement, puisqu'elle se lit sur `Table().Rows()`.
+2. **Une modale ouverte est visible et déclarée.** Elle prend le clavier en
+   priorité 1, donc une modale qui ne rend rien ne fait pas que déplaire : elle
+   tue la vue jusqu'à `esc`, sans que rien ne le dise.
+3. **Un spinner avance.** Une frame figée se lit comme un scan planté, et le
+   test qui vérifie qu'elle s'affiche ne dit rien de son mouvement.
+
+#### Où ça vit, et c'est l'arbitrage à trancher
+
+Le premier point est mécanique et pourrait s'écrire une fois pour les **16
+tables** de l'application — `datatable` est le seul endroit qui les connaisse
+toutes. Mais `datatable` ne sait pas amener une vue dans un état intéressant :
+une garde qui ne s'exécute que sur une table vide ne vérifie rien.
+
+Donc probablement un **helper exporté** que chaque vue appelle après avoir atteint
+ses états — `datatable.AssertPlainCells(t, m.Table().Rows())` — plus la remontée
+de `withTrueColor` dans `internal/ui/testutil`, où il aurait dû naître. Le coût
+est qu'il faut se rappeler de l'appeler ; le bénéfice est qu'il porte le message
+d'erreur qui explique *pourquoi*, ce qu'un test local réécrit à chaque fois.
+
+L'alternative — un test de contrat qui instancie chaque vue et la pilote — est
+séduisante et probablement hors de portée : les états transitoires s'atteignent
+par des chemins différents dans chaque vue, ce qui est précisément ce qui les
+rend difficiles à couvrir.
+
+#### Ce qui est déjà bon, et qu'il s'agit de ne pas laisser dériver
+
+Rien ne viole Rule 122 aujourd'hui : `datatable` stampe `spinner.Dot.Frames`,
+`oci_resources` et `workspaces` aussi, et aucun `Cell` n'appelle `Render`. **Cette
+entrée est une garde contre la récidive, pas un correctif** — et elle mérite
+d'être écrite parce que la récidive a eu lieu deux fois en une journée, sur du
+code qui venait d'être relu.
+
+#### Non retenu
+
+**Interdire la couleur dans les vues et tout décider dans `datatable`.** Ce serait
+imperméable, et c'est le contraire de ce que `Style` existe pour faire : une
+couleur dépend souvent de la ligne, et la table ne connaît pas le domaine.
+
+**Se fier à la revue.** C'est ce qui a été fait, sur les deux. Le commentaire
+d'`oci_resources` disant « the spinner's frame, not its `View()` » était écrit,
+juste, et à trois fichiers de l'endroit où il fallait le lire.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:
