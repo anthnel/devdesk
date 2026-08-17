@@ -79,14 +79,14 @@ func renderCodeSection(m Model, width int, t tier) []string {
 			theme.Bg("  ") + theme.StatusOKStyle.Render(theme.IconOK)
 	}
 
-	mrs, review, issues := unknownValue, unknownValue, unknownValue
+	mrs, review, issues := unknownValue(), unknownValue(), unknownValue()
 	if m.gitlabStats != nil {
 		mrs = countValue(m.gitlabStats.AssignedMRs)
 		review = countValue(m.gitlabStats.ReviewMRs)
 		issues = countValue(m.gitlabStats.AssignedIssues)
 	}
 
-	workspaces := unknownValue
+	workspaces := unknownValue()
 	if !m.loadingWorkspaces {
 		workspaces = countValue(m.workspaceCount)
 	}
@@ -147,7 +147,7 @@ func treeGap() string { return theme.Bg("") }
 // l'arborescence entière. Voir metrics.Size et Model.measuringSize.
 func treeSize(size metrics.TreeSize) string {
 	if !size.OK {
-		return unknownValue
+		return unknownValue()
 	}
 	out := theme.Bg(humanBytes(size.Bytes))
 	if size.Partial {
@@ -268,7 +268,7 @@ func renderHealthSection(m Model, width int, t tier) []string {
 		return sideBySide(left, right, theme.BoxContentWidth(width))
 	}
 
-	monitors, certs := unknownValue, unknownValue
+	monitors, certs := unknownValue(), unknownValue()
 	if !m.loadingServices {
 		monitors = statusSummary(m.filterComponents(false))
 		certs = statusSummary(m.filterComponents(true))
@@ -279,7 +279,7 @@ func renderHealthSection(m Model, width int, t tier) []string {
 	// sécurité a payé l'échéance de certificat. Une septième ligne ici ferait
 	// déborder l'overview entier.
 	total := m.posture.Total()
-	scanned, critical, oldest := unknownValue, unknownValue, unknownValue
+	scanned, critical, oldest := unknownValue(), unknownValue(), unknownValue()
 	if m.posture.Read {
 		scanned = countValue(total.Targets) + theme.Bg(" targets")
 		critical = severityCount(total.Critical) + theme.Bg("  ") +
@@ -357,7 +357,7 @@ func statusBranches(components []status.ComponentStatus, loading bool, expiry st
 
 	switch {
 	case loading:
-		return nodes(unknownValue, unknownValue, unknownValue)
+		return nodes(unknownValue(), unknownValue(), unknownValue())
 	case len(components) == 0:
 		// Rien à surveiller : un seul nœud le dit, et les lignes vides gardent
 		// la hauteur — une boîte qui rétrécit décale toute sa rangée.
@@ -405,11 +405,11 @@ func failureCount(n int, glyph string, style lipgloss.Style) string {
 func postureBranches(p posture, side postureSide, unscanned int, measured bool) []string {
 	if !p.Read {
 		return []string{
-			narrowBranch(false, "scanned", unknownValue),
-			narrowBranch(false, "critical", unknownValue),
-			narrowBranch(false, "secrets", unknownValue),
-			narrowBranch(false, "unscanned", unknownValue),
-			narrowBranch(true, "oldest", unknownValue),
+			narrowBranch(false, "scanned", unknownValue()),
+			narrowBranch(false, "critical", unknownValue()),
+			narrowBranch(false, "secrets", unknownValue()),
+			narrowBranch(false, "unscanned", unknownValue()),
+			narrowBranch(true, "oldest", unknownValue()),
 		}
 	}
 	return []string{
@@ -435,7 +435,7 @@ func postureBranches(p posture, side postureSide, unscanned int, measured bool) 
 // compte : il est alors un plancher, et un plancher non nul se décide.
 func secretsValue(side postureSide) string {
 	if side.SecretsKnown == 0 {
-		return unknownValue
+		return unknownValue()
 	}
 	return severityCount(side.Secrets)
 }
@@ -445,7 +445,7 @@ func secretsValue(side postureSide) string {
 // inconnue, et les deux ne se règlent pas de la même façon.
 func unscannedValue(n int, measured bool) string {
 	if !measured {
-		return unknownValue
+		return unknownValue()
 	}
 	return countValue(n)
 }
@@ -469,7 +469,7 @@ func scanAge(side postureSide) string {
 		return theme.DimStyle.Render("never")
 	}
 	if side.Oldest.IsZero() {
-		return unknownValue
+		return unknownValue()
 	}
 	return theme.Bg(theme.TimeAgo(side.Oldest))
 }
@@ -482,7 +482,7 @@ func scanAge(side postureSide) string {
 // quelque chose. La liste nommée appartient à :status, qui la possède déjà.
 func nearestExpiry(certs []status.ComponentStatus, loading, named bool) string {
 	if loading {
-		return unknownValue
+		return unknownValue()
 	}
 	if len(certs) == 0 {
 		return theme.DimStyle.Render("none configured")
@@ -500,7 +500,7 @@ func nearestExpiry(certs []status.ComponentStatus, loading, named bool) string {
 	if soonest == nil {
 		// Des certificats surveillés dont aucun n'a pu être lu : c'est une
 		// absence de mesure, pas une échéance lointaine.
-		return unknownValue
+		return unknownValue()
 	}
 
 	days := *soonest.SSLDaysLeft
@@ -554,7 +554,7 @@ func renderHostSection(m Model, width int, t tier) []string {
 	// La moyenne de charge n'est affichée nulle part : sur Windows elle
 	// retourne {0,0,0} avec err=nil, donc une valeur indiscernable d'une
 	// donnée, et un zéro se lit comme « au repos ».
-	cpu, ram := unknownValue, unknownValue
+	cpu, ram := unknownValue(), unknownValue()
 	if m.host.OK {
 		// Le pourcentage porte ce qui le rend lisible : 40 % sur quatre cœurs
 		// et 40 % sur trente-deux ne décrivent pas la même machine, et 92 %
@@ -597,7 +597,7 @@ func renderHostSection(m Model, width int, t tier) []string {
 // qui a perdu une sonde.
 func toolsBlock(m Model) []string {
 	if m.loadingTools {
-		return []string{row("Tools", unknownValue)}
+		return []string{row("Tools", unknownValue())}
 	}
 
 	missing := missingTools(m.tools)
@@ -662,9 +662,9 @@ func chartBlock(m Model, values []float64, width int, t tier, maxValue float64) 
 }
 
 func renderDockerSection(m Model, width int, t tier) []string {
-	containers := unavailableValue
+	containers := unavailableValue()
 	if m.loadingDocker {
-		containers = unknownValue
+		containers = unknownValue()
 	} else if m.dockerStats != nil && m.dockerStats.Available {
 		d := m.dockerStats
 		containers = countValue(d.Running+d.Stopped+d.Paused) + theme.Bg(" total")
@@ -739,9 +739,9 @@ func resourceTree(m Model) []string {
 func ociCount(m Model, pick func(shared.OCIStats) int) string {
 	switch {
 	case m.loadingOCI:
-		return unknownValue
+		return unknownValue()
 	case m.ociStats == nil || !m.ociStats.Available:
-		return unavailableValue
+		return unavailableValue()
 	default:
 		return countValue(pick(*m.ociStats))
 	}
@@ -752,9 +752,9 @@ func ociCount(m Model, pick func(shared.OCIStats) int) string {
 func dockerState(m Model, pick func(shared.DockerStats) int) string {
 	switch {
 	case m.loadingDocker:
-		return unknownValue
+		return unknownValue()
 	case m.dockerStats == nil || !m.dockerStats.Available:
-		return unavailableValue
+		return unavailableValue()
 	default:
 		return countValue(pick(*m.dockerStats))
 	}
@@ -765,9 +765,9 @@ func dockerState(m Model, pick func(shared.DockerStats) int) string {
 func dockerPercent(m Model, pick func(docker.Aggregate) float64) string {
 	switch {
 	case !m.dockerRead:
-		return unknownValue
+		return unknownValue()
 	case !m.dockerAgg.Available:
-		return unavailableValue
+		return unavailableValue()
 	case m.dockerAgg.Running == 0:
 		return theme.DimStyle.Render("no running container")
 	default:
@@ -779,13 +779,13 @@ func renderNetworkSection(m Model, width int, t tier) []string {
 	// net.IOCounters est cumulatif : le premier échantillon n'a rien à
 	// soustraire, et une interface réinitialisée fait reculer le compteur. Dans
 	// les deux cas il n'y a pas de débit — `-`, pas `0`.
-	rx, tx := unknownValue, unknownValue
+	rx, tx := unknownValue(), unknownValue()
 	if m.host.HasRate {
 		rx = theme.Bg(humanBytes(uint64(m.host.NetRXPerSec))) + theme.DimStyle.Render("/s")
 		tx = theme.Bg(humanBytes(uint64(m.host.NetTXPerSec))) + theme.DimStyle.Render("/s")
 	}
 
-	samples := unknownValue
+	samples := unknownValue()
 	if n := len(m.samples); n > 0 {
 		samples = countValue(n) + theme.DimStyle.Render(" samples")
 	}
@@ -844,7 +844,7 @@ func renderStorageSection(m Model, _ int, _ tier) []string {
 // diskField renders one figure of the volume, `-` until it has been read.
 func diskField(m Model, pick func(metrics.DiskUsage) string) string {
 	if !m.wsDisk.OK {
-		return unknownValue
+		return unknownValue()
 	}
 	return theme.Bg(pick(m.wsDisk))
 }
@@ -855,7 +855,7 @@ func diskField(m Model, pick func(metrics.DiskUsage) string) string {
 // comme deux faits côte à côte, `290 GB (86 %)` comme un seul.
 func diskUsedField(m Model) string {
 	if !m.wsDisk.OK {
-		return unknownValue
+		return unknownValue()
 	}
 	return theme.Bg(humanBytes(m.wsDisk.Used)) +
 		theme.DimStyle.Render(fmt.Sprintf("  (%.0f%%)", m.wsDisk.UsedPercent))
@@ -866,11 +866,11 @@ func diskUsedField(m Model) string {
 func ociSize(m Model, pick func(shared.OCIStats) string) string {
 	switch {
 	case m.loadingOCI:
-		return unknownValue
+		return unknownValue()
 	case m.ociStats == nil || !m.ociStats.Available:
-		return unavailableValue
+		return unavailableValue()
 	case pick(*m.ociStats) == "":
-		return unknownValue
+		return unknownValue()
 	default:
 		return theme.Bg(pick(*m.ociStats))
 	}
@@ -881,9 +881,9 @@ func ociSize(m Model, pick func(shared.OCIStats) string) string {
 func reclaimable(m Model) string {
 	switch {
 	case m.loadingOCI:
-		return unknownValue
+		return unknownValue()
 	case m.ociStats == nil || !m.ociStats.Available:
-		return unavailableValue
+		return unavailableValue()
 	case m.ociStats.Reclaimable == "":
 		return theme.DimStyle.Render("nothing")
 	default:
@@ -893,10 +893,28 @@ func reclaimable(m Model) string {
 
 // Value states (§3.19). Trois états, pas deux : `-` n'est pas `0`, et une
 // source indisponible garde ses libellés au lieu de les remplacer.
-var (
-	unknownValue     = theme.DimStyle.Render("-")
-	unavailableValue = theme.DimStyle.Render("n/a")
-)
+//
+// Ce sont des fonctions, et pas des `var`, pour deux raisons dont la seconde
+// touchait toute l'application :
+//
+//   - un `Render()` au niveau du paquet s'exécute à l'init, donc avant que
+//     `ApplyTheme` n'ait chargé le thème du contexte : les deux chaînes
+//     restaient figées sur les couleurs du thème par défaut. C'est le même
+//     piège que celui déjà documenté sur `ColorChartBg` dans `ApplyTheme`.
+//   - surtout, ce premier rendu déclenche le `sync.Once` par lequel lipgloss
+//     mémorise le profil de couleur du terminal, **définitivement**. Il était
+//     donc calculé pendant l'init des paquets, c'est-à-dire avant la ligne de
+//     `main()` qui pose `COLORTERM=truecolor` quand WSL ne l'a pas propagé.
+//     Tout le TUI retombait en ANSI256, où le fond de chaque thème est
+//     quantifié sur la palette 256 : `#1e1e2e` (default, mocha) devient le
+//     noir 232 et `#24273a` (macchiato) le bleu marine 17. Le fond ne
+//     « respectait pas le thème » parce qu'il n'en recevait jamais la couleur
+//     exacte.
+//
+// Rendre à la demande suffit à corriger les deux : le premier rendu a alors
+// lieu dans `View()`, longtemps après `main()`.
+func unknownValue() string     { return theme.DimStyle.Render("-") }
+func unavailableValue() string { return theme.DimStyle.Render("n/a") }
 
 // row renders one "label  value" line, aligned on labelWidth. Un libellé aussi
 // long que la colonne garde quand même son espace : sans lui, "Docker root" et

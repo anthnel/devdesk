@@ -17,7 +17,7 @@ browse a single proxy inside a real Nexus group. It is what
 fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
 on and is now closed on its own.
 
-D1 through D38, D40 and D41 are all fixed or, in D35's case, deliberately
+D1 through D38, D40, D41 and D42 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +29,52 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D42 — the background ignored the theme, because two package-level variables
+rendered a string before `main()` ran. Fixed.** Reported from WSL Arch: the
+application was black under `default` and `catppuccin-mocha`, navy blue under
+`catppuccin-macchiato`. The theme was loading correctly the whole time — its
+colour simply never reached the terminal.
+
+`dashboard/sections.go` declared `unknownValue` and `unavailableValue` as
+`var`s initialised by `theme.DimStyle.Render(…)`. That runs during package
+initialisation, and the first render is what trips the `sync.Once` by which
+lipgloss memoises the terminal's colour profile — **permanently**
+(`Renderer.ColorProfile`, lipgloss v1.1.0). The profile was therefore decided
+before the line in `main()` that sets `COLORTERM=truecolor`, which exists
+precisely because WSL does not forward it. The whole TUI then ran in ANSI256,
+where each theme's background is quantised onto the 256-colour palette:
+
+| Theme | Declared | Emitted | Read as |
+|---|---|---|---|
+| default, mocha | `#1e1e2e` | `48;5;232` (`#080808`) | black |
+| macchiato | `#24273a` | `48;5;17` (`#00005f`) | navy blue |
+| frappé | `#303446` | `48;5;59` (`#5f5f5f`) | grey |
+
+Two functions instead of two `var`s is the whole fix: the first render then
+happens in `View()`, long after `main()`. Measured under a pty, the profile goes
+from `1` (ANSI256) to `0` (TrueColor) and `#24273a` is emitted as
+`48;2;36;39;58` — the theme's own colour.
+
+The same `var` carried a second defect it is worth naming, because it is the one
+that would have survived a narrower fix: a string rendered at package
+initialisation is frozen on the **default** theme's colours and follows no
+subsequent `ApplyTheme`. That is the trap already documented on `ColorChartBg`
+in `ApplyTheme`, met a second time in a place nothing was watching.
+
+`TestNoPackageLevelVarRendersAString` (`internal/ui/theme`) is what closes the
+class rather than the instance: it walks the AST of every non-test file in the
+repository and refuses a package-level `var` initialised by a `.Render()` or by
+any call into `theme`. It was checked against a reintroduced canary, so it is
+known not to pass vacuously.
+
+**What this does not fix.** `main()` only recovers `COLORTERM` when `WT_SESSION`
+is set — Windows Terminal and nothing else. Under tmux, VS Code's terminal or
+SSH the variable is not forwarded and the application still falls back to
+ANSI256. `export COLORTERM=truecolor` is the workaround; the proper answer is an
+`app.color_profile` setting in the configuration view, on the same argument as
+`app.terminal_new_window` — a capability of the environment is declared, not
+sniffed. Not done here, and not urgent.
 
 **D41 — the Registries table gave two columns a negative width below 80
 columns. Fixed** by §3.21, which is also what found it. `resizeRegistryTable`

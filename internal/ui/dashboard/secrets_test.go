@@ -63,8 +63,8 @@ func TestAnInventoryWithNoVerdictAtAllPrintsNoCount(t *testing.T) {
 		{repos, "Repositories", "repositories"},
 	} {
 		got := nodeUnder(tt.side, tt.head, "secrets")
-		if !strings.Contains(got, unknownValue) {
-			t.Errorf("the %s node reads %q with no verdict known, want %q", tt.label, got, unknownValue)
+		if !strings.Contains(got, unknownValue()) {
+			t.Errorf("the %s node reads %q with no verdict known, want %q", tt.label, got, unknownValue())
 		}
 		if strings.Contains(got, "0") {
 			t.Errorf("the %s node reads %q — a zero says nobody carries a secret, of targets nobody looked at",

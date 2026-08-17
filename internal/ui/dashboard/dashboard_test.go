@@ -536,11 +536,11 @@ func TestAnUnavailableSourceKeepsItsLabels(t *testing.T) {
 
 // TestAnUnmeasuredValueIsNotZero — three value states, not two.
 func TestAnUnmeasuredValueIsNotZero(t *testing.T) {
-	if stripANSI(unknownValue) == stripANSI(countValue(0)) {
+	if stripANSI(unknownValue()) == stripANSI(countValue(0)) {
 		t.Error("an unmeasured value renders like a measured zero — the two cannot be told apart")
 	}
-	if stripANSI(unknownValue) != "-" {
-		t.Errorf("unknown renders %q, want %q", stripANSI(unknownValue), "-")
+	if stripANSI(unknownValue()) != "-" {
+		t.Errorf("unknown renders %q, want %q", stripANSI(unknownValue()), "-")
 	}
 	if stripANSI(countValue(0)) != "0" {
 		t.Errorf("a measured zero renders %q, want %q", stripANSI(countValue(0)), "0")
