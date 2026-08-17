@@ -148,6 +148,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pendingAction = ""
 		return m, nil
 
+	case sharedcomponents.OptionConfirmModalYesMsg:
+		m.scanAllModal = nil
+		return m.scanAll(msg.Option)
+
+	case sharedcomponents.OptionConfirmModalNoMsg:
+		m.scanAllModal = nil
+		return m, nil
+
 	case NetworkInspectLoadedMsg:
 		return m.handleNetworkInspectLoaded(msg)
 
@@ -293,10 +301,15 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.networkInspectForm != nil {
 		return m.handleNetworkInspectKeyMsg(msg)
 	}
-	// Priority 4: confirm modal
+	// Priority 4: whichever modal is open
 	if m.confirmModal != nil {
 		var cmd tea.Cmd
 		m.confirmModal, cmd = m.confirmModal.Update(msg)
+		return m, cmd
+	}
+	if m.scanAllModal != nil {
+		var cmd tea.Cmd
+		m.scanAllModal, cmd = m.scanAllModal.Update(msg)
 		return m, cmd
 	}
 	// Priority 4: filter input active (images tab only)

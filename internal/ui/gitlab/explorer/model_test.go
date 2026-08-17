@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -336,7 +337,7 @@ func TestActionsResolveTheRowTheUserCanSee(t *testing.T) {
 	}
 
 	t.Run("delete", func(t *testing.T) {
-		m := feed(t, filtered(t), testutil.Key("ctrl+d"))
+		m := feed(t, filtered(t), testutil.Key(keymap.Delete))
 
 		if m.deleteTargetNode == nil {
 			t.Fatal("ctrl+d selected nothing")
@@ -347,7 +348,7 @@ func TestActionsResolveTheRowTheUserCanSee(t *testing.T) {
 	})
 
 	t.Run("clone selection", func(t *testing.T) {
-		m := feed(t, filtered(t), testutil.Key("c"), testutil.Key(" "))
+		m := feed(t, filtered(t), testutil.Key(keymap.Clone), testutil.Key(" "))
 
 		roots := m.selection.rootPaths()
 		if len(roots) != 1 {
@@ -385,7 +386,7 @@ func TestFilteringClampsTheCursor(t *testing.T) {
 		t.Fatalf("cursor = %d with %d rows left; nothing is highlighted", got, rows)
 	}
 
-	m = feed(t, m, testutil.Key("enter"), testutil.Key("ctrl+d"))
+	m = feed(t, m, testutil.Key("enter"), testutil.Key(keymap.Delete))
 	if m.deleteTargetNode == nil {
 		t.Error("ctrl+d after narrowing the filter selected nothing")
 	}
@@ -412,13 +413,13 @@ func TestDrillingIntoASmallerGroupClampsTheCursor(t *testing.T) {
 func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 	m := feed(t, drilledModel(t), testutil.Key("/"))
 
-	m = feed(t, m, testutil.Key("c"))
+	m = feed(t, m, testutil.Key(keymap.Clone))
 
 	if m.mode != ModeNormal {
-		t.Error("'c' started a clone selection while the search box had focus")
+		t.Error("C started a clone selection while the search box had focus")
 	}
-	if !strings.Contains(m.table.FilterBar().SearchQuery(), "c") {
-		t.Errorf("'c' did not reach the search box; query = %q", m.table.FilterBar().SearchQuery())
+	if !strings.Contains(m.table.FilterBar().SearchQuery(), keymap.Clone) {
+		t.Errorf("C did not reach the search box; query = %q", m.table.FilterBar().SearchQuery())
 	}
 }
 
@@ -428,7 +429,7 @@ func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 // highlighted row — creating inside a group you are looking at is the common
 // case, and the highlighted row may be a project.
 func TestCreateParentsOnTheBrowsedGroup(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+n"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 	if m.creationParentID != 0 || m.creationParentName != "" {
 		t.Errorf("at the root, parent = (%d, %q), want none", m.creationParentID, m.creationParentName)
 	}
@@ -436,14 +437,14 @@ func TestCreateParentsOnTheBrowsedGroup(t *testing.T) {
 		t.Errorf("mode = %v after ctrl+n, want ModeLoadingTemplates", m.mode)
 	}
 
-	m = feed(t, drilledModel(t), testutil.Key("down"), testutil.Key("ctrl+n"))
+	m = feed(t, drilledModel(t), testutil.Key("down"), testutil.Key(keymap.New))
 	if m.creationParentID != 1 || m.creationParentName != "alpha" {
 		t.Errorf("inside alpha, parent = (%d, %q), want alpha regardless of the cursor", m.creationParentID, m.creationParentName)
 	}
 }
 
 func TestTemplatesLoadedOpensTheForm(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+n"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 
 	m = feed(t, m, TemplatesLoadedMsg{Templates: []oci.TemplateEntry{
 		{Name: "go-service", Repository: "templates/go", Tag: "v1"},
@@ -464,7 +465,7 @@ func TestTemplatesLoadedOpensTheForm(t *testing.T) {
 // anyway, and says why the template list is empty as soon as the list is on
 // screen — not only once the field takes focus, which is what D10 fixed.
 func TestTemplateFailureStillOpensTheForm(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+n"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 
 	m = feed(t, m, TemplatesLoadedMsg{Error: errors.New("registry unreachable")})
 
@@ -487,7 +488,7 @@ func TestTemplateFailureStillOpensTheForm(t *testing.T) {
 }
 
 func TestCancellingCreationReturnsToNormal(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+n"), TemplatesLoadedMsg{})
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
 
 	m = feed(t, m, components.CreationFormCancelMsg{})
 
@@ -698,7 +699,7 @@ func TestSpinnerTicksOnlyWhileLoading(t *testing.T) {
 // ── Delete ───────────────────────────────────────────────────────────────────
 
 func TestDeleteOpensAConfirmationNamingTheTarget(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Delete))
 
 	if m.mode != ModeConfirmingDelete {
 		t.Fatalf("mode = %v after ctrl+d, want ModeConfirmingDelete", m.mode)
@@ -715,7 +716,7 @@ func TestDeleteOpensAConfirmationNamingTheTarget(t *testing.T) {
 // locks the "permanent" checkbox rather than offering a choice that does
 // nothing.
 func TestDeletingAScheduledProjectLocksThePermanentOption(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("down"), testutil.Key("down"), testutil.Key("ctrl+d"))
+	m := feed(t, drilledModel(t), testutil.Key("down"), testutil.Key("down"), testutil.Key(keymap.Delete))
 
 	if m.deleteTargetNode == nil || m.deleteTargetNode.Name != "legacy" {
 		t.Fatalf("deleteTargetNode = %v, want the scheduled project", m.deleteTargetNode)
@@ -726,7 +727,7 @@ func TestDeletingAScheduledProjectLocksThePermanentOption(t *testing.T) {
 }
 
 func TestDeclineClosesTheConfirmation(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("ctrl+d"), components.DeleteConfirmModalNoMsg{})
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Delete), components.OptionConfirmModalNoMsg{})
 
 	if m.mode != ModeNormal || m.deleteConfirmModal != nil || m.deleteTargetNode != nil {
 		t.Errorf("declining left mode=%v modal=%v target=%v", m.mode, m.deleteConfirmModal, m.deleteTargetNode)
@@ -734,9 +735,9 @@ func TestDeclineClosesTheConfirmation(t *testing.T) {
 }
 
 func TestConfirmingDeleteIssuesTheCall(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Delete))
 
-	m, cmd := step(t, m, components.DeleteConfirmModalYesMsg{})
+	m, cmd := step(t, m, components.OptionConfirmModalYesMsg{})
 
 	if cmd == nil {
 		t.Error("confirming a delete issued no command")
@@ -794,7 +795,7 @@ func TestDeleteFailureIsReportedInTheFooter(t *testing.T) {
 // ── Clone selection ──────────────────────────────────────────────────────────
 
 func TestCEntersTheSelectionMode(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("c"))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone))
 
 	if m.mode != ModeSelecting {
 		t.Fatalf("mode = %v after 'c', want ModeSelecting", m.mode)
@@ -815,7 +816,7 @@ func TestTheCheckboxAppearsOnlyWhileSelecting(t *testing.T) {
 		}
 	}
 
-	m = feed(t, m, testutil.Key("c"))
+	m = feed(t, m, testutil.Key(keymap.Clone))
 	for _, row := range m.table.Table().Rows() {
 		if !strings.Contains(row[0], theme.IconCheckbox) {
 			t.Errorf("the selection mode row has no empty box: %q", row[0])
@@ -827,7 +828,7 @@ func TestTheCheckboxAppearsOnlyWhileSelecting(t *testing.T) {
 }
 
 func TestSpaceTicksTheRowAndTheCellFollows(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone), testutil.Key(" "))
 
 	node, ok := m.selectedNode()
 	if !ok {
@@ -849,7 +850,7 @@ func TestSpaceTicksTheRowAndTheCellFollows(t *testing.T) {
 // Unticking has to drop the node too, or a root removed from the selection
 // would still be walked.
 func TestUntickingDropsTheNodeAsWell(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "), testutil.Key(" "))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone), testutil.Key(" "), testutil.Key(" "))
 
 	if len(m.selectionNodes) != 0 {
 		t.Errorf("selectionNodes = %v after unticking", m.selectionNodes)
@@ -860,7 +861,7 @@ func TestUntickingDropsTheNodeAsWell(t *testing.T) {
 }
 
 func TestConfirmingAnEmptySelectionSaysSoRatherThanProceeding(t *testing.T) {
-	m, cmd := step(t, feed(t, drilledModel(t), testutil.Key("c")), testutil.Key("enter"))
+	m, cmd := step(t, feed(t, drilledModel(t), testutil.Key(keymap.Clone)), testutil.Key("enter"))
 
 	if _, ok := testutil.MsgOf[CloneSelectionRequestMsg](cmd); ok {
 		t.Fatal("an empty selection asked for a destination")
@@ -874,7 +875,7 @@ func TestConfirmingAnEmptySelectionSaysSoRatherThanProceeding(t *testing.T) {
 }
 
 func TestConfirmingASelectionAsksTheAppForADestination(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone), testutil.Key(" "))
 
 	_, cmd := step(t, m, testutil.Key("enter"))
 
@@ -886,7 +887,7 @@ func TestConfirmingASelectionAsksTheAppForADestination(t *testing.T) {
 // The destination picker borrows the workspaces view and comes back. Refusing
 // it must not throw the ticks away — only the destination was refused.
 func TestCancellingTheDestinationKeepsTheSelection(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "),
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone), testutil.Key(" "),
 		CloneSelectionCancelledMsg{})
 
 	if m.mode != ModeSelecting {
@@ -898,7 +899,7 @@ func TestCancellingTheDestinationKeepsTheSelection(t *testing.T) {
 }
 
 func TestEscLeavesTheSelectionMode(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "), testutil.Key("esc"))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone), testutil.Key(" "), testutil.Key("esc"))
 
 	if m.mode != ModeNormal {
 		t.Errorf("mode = %v after esc, want ModeNormal", m.mode)
@@ -911,7 +912,7 @@ func TestEscLeavesTheSelectionMode(t *testing.T) {
 // Drilling still works while selecting, which is the only way to deselect
 // inside a ticked group (decision 10).
 func TestDrillingStillWorksWhileSelecting(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("c"))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone))
 	before := m.currentGroupNode
 
 	m = feed(t, m, tea.KeyMsg{Type: tea.KeyLeft})
@@ -930,7 +931,7 @@ func TestDrillingStillWorksWhileSelecting(t *testing.T) {
 // list can be driven event by event.
 func cloningModel(t *testing.T) Model {
 	t.Helper()
-	m := feed(t, drilledModel(t), testutil.Key("c"), testutil.Key(" "))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone), testutil.Key(" "))
 	m.mode = ModeCloning
 	m.clone = newCloneList("/ws", &cloneRun{events: make(chan cloneEvent), cancel: func() {}})
 	return m
@@ -1073,7 +1074,7 @@ func TestBlockingModesIgnoreInput(t *testing.T) {
 		m := drilledModel(t)
 		m.mode = mode
 
-		next := feed(t, m, testutil.Key("ctrl+d"), testutil.Key("c"), testutil.Key("."))
+		next := feed(t, m, testutil.Key(keymap.Delete), testutil.Key(keymap.Clone), testutil.Key("."))
 
 		if next.mode != mode {
 			t.Errorf("mode %v changed to %v under keystrokes", mode, next.mode)
@@ -1151,7 +1152,7 @@ func TestOpenInBrowserWithoutAURLDoesNothing(t *testing.T) {
 		child.WebURL = ""
 	}
 
-	_, cmd := step(t, m, testutil.Key("ctrl+w"))
+	_, cmd := step(t, m, testutil.Key(keymap.Web))
 
 	if cmd != nil {
 		t.Error("ctrl+w issued a command for a node with no web URL")

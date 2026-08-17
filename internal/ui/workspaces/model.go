@@ -21,7 +21,8 @@ const (
 	ModeAdding
 	ModeConfirmingDelete
 	ModeRenaming
-	ModeSelecting // Selecting a directory for another view (e.g., security)
+	ModeSelecting         // Selecting a directory for another view (e.g., security)
+	ModeConfirmingScanAll // A asked to scan everything; the modal carries the purge option
 )
 
 // Model représente le modèle de la vue Workspaces
@@ -46,6 +47,10 @@ type Model struct {
 	mode         ViewMode
 	input        *WorkspaceInput
 	confirmModal *sharedcomponents.ConfirmModal
+	// scanAllModal carries A's purge checkbox. Separate from confirmModal
+	// because the two answer different messages, and one field holding either
+	// would make the handler guess which question was asked.
+	scanAllModal *sharedcomponents.OptionConfirmModal
 	// pendingEntry is what the open modal or rename form is about. It holds the
 	// entry rather than its row index: the index meant nothing once the list it
 	// indexed stopped being the list on screen (D24).

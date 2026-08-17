@@ -33,6 +33,10 @@ type Model struct {
 	loading        bool
 	errorMsg       string
 	confirmModal   *sharedcomponents.ConfirmModal
+	// choiceModal is K's Stop / Restart / Cancel. Separate from confirmModal
+	// because the two answer different messages, and one field holding either
+	// would make the handler guess which question was asked.
+	choiceModal *sharedcomponents.ChoiceModal
 	// pendingAction is the confirm modal's routing key, and only that.
 	//
 	// It used to be two fields in one: the routing key ("confirm-delete",

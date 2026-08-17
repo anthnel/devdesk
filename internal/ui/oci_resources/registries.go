@@ -73,6 +73,23 @@ func (m Model) editSelectedRegistry() (tea.Model, tea.Cmd) {
 // loginSelectedRegistry triggers a docker login for the selected registry
 // loginSelectedRegistry opens the edit form so the user can enter a password.
 // Passwords are never stored in config, so login always requires re-entry.
+// toggleSelectedRegistryAuth logs in or out depending on where the row stands.
+//
+// The row already answers "am I logged in" — it is the Logged column, and the
+// cell the spinner takes while the operation runs. Two keys separated by shift
+// alone made the user answer a question the screen had already answered, and
+// pressing the wrong one silently did the opposite of what was wanted.
+func (m Model) toggleSelectedRegistryAuth() (tea.Model, tea.Cmd) {
+	reg := m.getSelectedRegistry()
+	if reg == nil {
+		return m, nil
+	}
+	if m.registryLoginStatus[reg.URL] {
+		return m.logoutSelectedRegistry()
+	}
+	return m.loginSelectedRegistry()
+}
+
 func (m Model) loginSelectedRegistry() (tea.Model, tea.Cmd) {
 	idx := m.getSelectedRegistryIndex()
 	if idx < 0 {

@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/status"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/status/components"
 )
 
@@ -247,7 +248,7 @@ func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "tab", "shift+tab":
 		m.switchTab((m.activeTab + 1) % 2)
 		return m, nil
-	case "ctrl+n", "e", "ctrl+d":
+	case keymap.New, keymap.Edit, keymap.Delete:
 		return m.handleMonitorOperations(msg)
 	case ".":
 		return m.cycleSort()
@@ -314,11 +315,11 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 // handleMonitorOperations handles new, edit, and delete operations
 func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+n":
+	case keymap.New:
 		// Nouveau composant
 		m.componentForm = components.NewComponentForm(nil)
 
-	case "e":
+	case keymap.Edit:
 		// Éditer le composant sélectionné
 		if len(m.components) > 0 {
 			idx := m.getSelectedComponentIndex()
@@ -328,7 +329,7 @@ func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case "ctrl+d":
+	case keymap.Delete:
 		// Supprimer le composant sélectionné
 		if len(m.components) > 0 {
 			idx := m.getSelectedComponentIndex()

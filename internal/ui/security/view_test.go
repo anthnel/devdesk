@@ -8,6 +8,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -73,7 +74,7 @@ func TestDetailsOfASecretShowWhereItIs(t *testing.T) {
 func TestConfirmationReplacesTheView(t *testing.T) {
 	m := scannedModel(t)
 	m.switchTab(TabSecrets)
-	m = feed(t, m, testutil.Key("i"))
+	m = feed(t, m, testutil.Key(keymap.Exclude))
 
 	view := m.View()
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -22,14 +23,14 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		{
 			name:    "the inventory",
 			open:    func(t *testing.T) Model { return inventoryModel(t, inventoryFixtures()...) },
-			want:    []string{"enter", "ctrl+s", "ctrl+a", "/"},
-			notWant: []string{"tab", "i", "."},
+			want:    []string{"enter", keymap.Scan, keymap.ScanAll, "/"},
+			notWant: []string{"tab", keymap.Exclude, "."},
 		},
 		{
 			name:    "the CVE tab",
 			open:    func(t *testing.T) Model { return scannedModel(t) },
 			want:    []string{"tab", "enter", ".", "ctrl+r"},
-			notWant: []string{"i", "space"},
+			notWant: []string{keymap.Exclude, "space"},
 		},
 		{
 			// '.' has no severity axis on secrets and 'i' has nothing to ignore
@@ -40,7 +41,7 @@ func TestShortcutsFollowTheState(t *testing.T) {
 				m.switchTab(TabSecrets)
 				return m
 			},
-			want:    []string{"i"},
+			want:    []string{keymap.Exclude},
 			notWant: []string{"."},
 		},
 		{

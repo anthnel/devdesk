@@ -22,11 +22,23 @@ func (m Model) FilterBarVisible() bool {
 		m.connectivityForm == nil && m.networkInspectForm == nil
 }
 
+// modalView renders whichever modal is open, or "" when none is.
+func (m Model) modalView() string {
+	switch {
+	case m.confirmModal != nil:
+		return m.confirmModal.View()
+	case m.scanAllModal != nil:
+		return m.scanAllModal.View()
+	}
+	return ""
+}
+
 // InEditMode returns true when a form, modal or filter is active
 func (m Model) InEditMode() bool {
 	return m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
 		m.networkInspectForm != nil || m.connectivityForm != nil ||
-		m.confirmModal != nil || (m.activeTab == tabImages && m.imageTable.InEditMode()) ||
+		m.confirmModal != nil || m.scanAllModal != nil ||
+		(m.activeTab == tabImages && m.imageTable.InEditMode()) ||
 		m.registryBrowser != nil
 }
 
@@ -225,8 +237,8 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "View CVE details"})
 			}
 			shortcuts = append(shortcuts,
-				shortcut.Shortcut{Key: "ctrl+s", Description: "Scan image"},
-				shortcut.Shortcut{Key: "p", Description: "Pull image"},
+				shortcut.Shortcut{Key: "S", Description: "Scan image"},
+				shortcut.Shortcut{Key: "G", Description: "Pull image"},
 				shortcut.Shortcut{Key: "r", Description: "Filter registry"},
 				shortcut.Shortcut{Key: "/", Description: "Filter"},
 				shortcut.Shortcut{Key: ".", Description: "Sort"},
@@ -302,7 +314,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			{Key: "esc", Description: "Close"},
 		}
 	}
-	if m.confirmModal != nil {
+	if m.confirmModal != nil || m.scanAllModal != nil {
 		return []shortcut.Shortcut{
 			{Key: "y/n", Description: "Confirm"},
 			{Key: "esc", Description: "Cancel"},
@@ -320,31 +332,30 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			base = append(base, shortcut.Shortcut{Key: theme.IconRefresh, Description: "scanning..."})
 		} else {
 			base = append(base,
-				shortcut.Shortcut{Key: "ctrl+e", Description: "Launch"},
-				shortcut.Shortcut{Key: "ctrl+s", Description: "Scan"},
-				shortcut.Shortcut{Key: "ctrl+d", Description: "Delete"},
+				shortcut.Shortcut{Key: "N", Description: "Launch"},
+				shortcut.Shortcut{Key: "S", Description: "Scan"},
+				shortcut.Shortcut{Key: "D", Description: "Delete"},
 			)
 		}
 		base = append(base,
-			shortcut.Shortcut{Key: "b", Description: "Browse registries"},
-			shortcut.Shortcut{Key: "ctrl+a", Description: "Scan all"},
-			shortcut.Shortcut{Key: "A", Description: "Scan unscanned"},
-			shortcut.Shortcut{Key: "p", Description: "Prune"},
+			shortcut.Shortcut{Key: "B", Description: "Browse registries"},
+			shortcut.Shortcut{Key: "A", Description: "Scan all"},
+			shortcut.Shortcut{Key: "P", Description: "Prune"},
 			shortcut.Shortcut{Key: ".", Description: "Sort"},
 			shortcut.Shortcut{Key: "/", Description: "Filter"},
 		)
 	case tabNetworks:
 		base = append(base,
 			shortcut.Shortcut{Key: "enter", Description: "Inspect"},
-			shortcut.Shortcut{Key: "ctrl+n", Description: "New network"},
-			shortcut.Shortcut{Key: "ctrl+d", Description: "Remove"},
-			shortcut.Shortcut{Key: "p", Description: "Prune"},
+			shortcut.Shortcut{Key: "N", Description: "New network"},
+			shortcut.Shortcut{Key: "D", Description: "Remove"},
+			shortcut.Shortcut{Key: "P", Description: "Prune"},
 		)
 	case tabVolumes:
 		base = append(base,
-			shortcut.Shortcut{Key: "ctrl+n", Description: "New volume"},
-			shortcut.Shortcut{Key: "ctrl+d", Description: "Remove"},
-			shortcut.Shortcut{Key: "p", Description: "Prune"},
+			shortcut.Shortcut{Key: "N", Description: "New volume"},
+			shortcut.Shortcut{Key: "D", Description: "Remove"},
+			shortcut.Shortcut{Key: "P", Description: "Prune"},
 		)
 	case tabRegistries:
 		// Inside a group the rows are cached members, not config entries: there
@@ -356,11 +367,10 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			)
 		}
 		base = append(base,
-			shortcut.Shortcut{Key: "ctrl+n", Description: "New registry"},
-			shortcut.Shortcut{Key: "e", Description: "Edit registry"},
-			shortcut.Shortcut{Key: "l", Description: "Login"},
-			shortcut.Shortcut{Key: "L", Description: "Logout"},
-			shortcut.Shortcut{Key: "ctrl+d", Description: "Remove"},
+			shortcut.Shortcut{Key: "N", Description: "New registry"},
+			shortcut.Shortcut{Key: "E", Description: "Edit registry"},
+			shortcut.Shortcut{Key: "U", Description: "Log in or out"},
+			shortcut.Shortcut{Key: "D", Description: "Remove"},
 		)
 		if reg := m.getSelectedRegistry(); reg != nil && reg.Kind == config.KindGroup {
 			// Rule 130: only offered on a row that has members.
@@ -401,12 +411,12 @@ func (m Model) View() string {
 	if m.connectivityForm != nil {
 		return m.connectivityForm.View()
 	}
-	// Priority 5: confirm modal (centered)
-	if m.confirmModal != nil {
+	// Priority 5: whichever modal is open (centered)
+	if modal := m.modalView(); modal != "" {
 		return lipgloss.Place(
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
-			m.confirmModal.View(),
+			modal,
 			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
 		)
 	}
@@ -496,25 +506,24 @@ func (m Model) GetHelpContent() help.Content {
 		KeyBindings: []help.KeyBinding{
 			{Key: "tab / shift+tab", Description: "Switch between Images, Networks, Volumes, and Registries tabs"},
 			{Key: "enter (Images)", Description: "View scan details for the selected image (loads from cache; falls back to scan if not yet scanned)"},
-			{Key: "ctrl+e (Images)", Description: "Launch a container from the selected image"},
-			{Key: "ctrl+s (Images)", Description: "Configure and launch a scan for the selected image"},
-			{Key: "ctrl+a (Images)", Description: "Scan all images (purges cache first)"},
+			{Key: "N (Images)", Description: "Launch a container from the selected image"},
+			{Key: "S (Images)", Description: "Launch a scan for the selected image"},
+			{Key: "A (Images)", Description: "Scan every image. The confirmation carries a checkbox to purge the cached results first — unchecked, only what has never been scanned is scanned"},
 			{Key: "A (Images)", Description: "Scan all unscanned images using config defaults"},
-			{Key: "ctrl+d", Description: "Delete the selected resource (with confirmation)"},
-			{Key: "p", Description: "Prune unused resources (with confirmation)"},
+			{Key: "D", Description: "Delete the selected resource (with confirmation)"},
+			{Key: "P", Description: "Prune unused resources (with confirmation)"},
 			{Key: "enter (Networks)", Description: "Inspect the selected network — shows connected containers with IP and MAC addresses"},
 			{Key: "c (Network Inspect)", Description: "Open a connectivity test form for the selected container (runs from an ephemeral network-multitool container)"},
-			{Key: "ctrl+n (Networks)", Description: "Create a new network"},
-			{Key: "ctrl+n (Volumes)", Description: "Create a new volume"},
-			{Key: "ctrl+n (Registries)", Description: "Add a registry"},
-			{Key: "e (Registries)", Description: "Edit the selected registry"},
-			{Key: "l (Registries)", Description: "Log in to the selected registry with docker login"},
-			{Key: "L (Registries)", Description: "Log out of the selected registry"},
+			{Key: "N (Networks)", Description: "Create a new network"},
+			{Key: "N (Volumes)", Description: "Create a new volume"},
+			{Key: "N (Registries)", Description: "Add a registry"},
+			{Key: "E (Registries)", Description: "Edit the selected registry"},
+			{Key: "U (Registries)", Description: "Log in or out of the selected registry — the direction follows the Logged column, so there is nothing to get wrong"},
 			{Key: ".", Description: "Cycle sort column (Images tab only)"},
 			{Key: "b (Images)", Description: "Open the multi-registry browser — search tags across all configured registries"},
 			{Key: "r (Browser tags)", Description: "Cycle the active registry filter (shows tags from one registry at a time)"},
 			{Key: "p (Browser)", Description: "Pull the selected image tag to the local Docker store"},
-			{Key: "ctrl+s (Browser)", Description: "Scan the selected image tag directly via Trivy (no pull required)"},
+			{Key: "S (Browser)", Description: "Scan the selected image tag directly via Trivy (no pull required)"},
 			{Key: "enter (Browser tags)", Description: "View CVE details for the selected tag (only when scan results are cached)"},
 			{Key: "esc (Browser)", Description: "Go back to the previous screen in the registry browser"},
 			{Key: "ctrl+r", Description: "Refresh the current tab's data — on a group row, re-run member discovery"},
@@ -538,15 +547,15 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Networks Tab",
 				Body: "Lists Docker networks (ID, Name, Driver, Scope). Press Enter to inspect the selected network and see connected containers. " +
 					"From the inspect overlay, press 'c' to open a connectivity test form that runs ping, curl, or nc from an ephemeral wbitt/network-multitool container. " +
-					"Press 'n' to create a new network, Ctrl+D to remove the selected one, 'p' to prune all unused networks.",
+					"Press N to create a new network, D to remove the selected one, P to prune all unused networks.",
 			},
 			{
 				Title: "Volumes Tab",
-				Body:  "Lists Docker volumes (Name, Driver, Mountpoint). Press 'n' to create a new volume, Ctrl+D to remove the selected one, 'p' to prune all unused volumes.",
+				Body:  "Lists Docker volumes (Name, Driver, Mountpoint). Press N to create a new volume, D to remove the selected one, P to prune all unused volumes.",
 			},
 			{
 				Title: "Registries Tab",
-				Body:  "Lists configured Docker/OCI registries. Press 'n' to add a new registry, 'e' to edit, 'l' to log in, Ctrl+D to remove. Aliases shorten long registry URLs in the Images tab display.",
+				Body:  "Lists configured Docker/OCI registries. Press N to add a new registry, E to edit, U to log in or out, D to remove. Aliases shorten long registry URLs in the Images tab display.",
 			},
 			{
 				Title: "Registry Browser",
@@ -554,7 +563,7 @@ func (m Model) GetHelpContent() help.Content {
 					"select which registries to search using Space, then press Browse Tags. " +
 					"Results show tags from all selected registries concurrently. " +
 					"Press 'r' to cycle the registry filter (one registry at a time), '/' to filter by tag name, '.' to sort. " +
-					"Press 'p' to pull the selected tag, Ctrl+S to scan it directly via Trivy (no pull), or Enter to view cached CVE details. " +
+					"Press G to pull the selected tag, S to scan it directly via Trivy (no pull), or Enter to view cached CVE details. " +
 					"Press Esc to go back to the search form.",
 			},
 			{

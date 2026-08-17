@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -20,7 +21,7 @@ func TestGetTitleNamesTheView(t *testing.T) {
 		t.Errorf("GetTitle() = %q, want it to name the view", got)
 	}
 
-	m = feed(t, m, testutil.Key("l"))
+	m = feed(t, m, testutil.Key(keymap.Logs))
 	if got := m.GetTitle(); !strings.Contains(got, "Containers") {
 		t.Errorf("GetTitle() = %q after opening the logs, want it unchanged", got)
 	}
@@ -62,18 +63,18 @@ func TestGetShortcutsSwitchWithTheState(t *testing.T) {
 	m := loadedModel(t)
 
 	main := m.GetShortcuts()
-	if !hasShortcut(main, "ctrl+d") || !hasShortcut(main, "l") {
+	if !hasShortcut(main, keymap.Delete) || !hasShortcut(main, keymap.Logs) {
 		t.Error("the table state does not expose the lifecycle shortcuts")
 	}
 
-	// There is no logs state any more: `l` hands the document to the viewer and
+	// There is no logs state any more: L hands the document to the viewer and
 	// this view keeps the shortcuts it had.
-	afterLogs := feed(t, m, testutil.Key("l")).GetShortcuts()
-	if !hasShortcut(afterLogs, "ctrl+d") {
+	afterLogs := feed(t, m, testutil.Key(keymap.Logs)).GetShortcuts()
+	if !hasShortcut(afterLogs, keymap.Delete) {
 		t.Error("opening the logs changed this view's shortcuts; it has one state now")
 	}
 
-	modal := feed(t, m, testutil.Key("ctrl+d")).GetShortcuts()
+	modal := feed(t, m, testutil.Key(keymap.Delete)).GetShortcuts()
 	if len(modal) != 2 || !hasShortcut(modal, "esc") {
 		t.Errorf("the confirmation state exposes %v, want just confirm and cancel", modal)
 	}
@@ -82,23 +83,23 @@ func TestGetShortcutsSwitchWithTheState(t *testing.T) {
 // The wrap and timestamps shortcuts left with the logs pane: they belong to the
 // viewer now, where they are offered only for a source that supports them.
 func TestTheLogsPaneShortcutsAreGone(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("l"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Logs))
 
 	for _, key := range []string{"w", "t", "e"} {
 		if shortcutDescription(m.GetShortcuts(), key) != "" {
 			t.Errorf("%q is still advertised here; it belongs to the viewer", key)
 		}
 	}
-	if shortcutDescription(m.GetShortcuts(), "l") != "Logs" {
-		t.Error("l stopped advertising itself as the way to the logs")
+	if shortcutDescription(m.GetShortcuts(), keymap.Logs) != "Logs" {
+		t.Error("L stopped advertising itself as the way to the logs")
 	}
 }
 
 // Rule 137: descriptions are capitalised imperatives.
 func TestShortcutDescriptionsAreCapitalised(t *testing.T) {
 	m := loadedModel(t)
-	all := append(m.GetShortcuts(), feed(t, m, testutil.Key("l")).GetShortcuts()...)
-	all = append(all, feed(t, m, testutil.Key("ctrl+d")).GetShortcuts()...)
+	all := append(m.GetShortcuts(), feed(t, m, testutil.Key(keymap.Logs)).GetShortcuts()...)
+	all = append(all, feed(t, m, testutil.Key(keymap.Delete)).GetShortcuts()...)
 
 	for _, s := range all {
 		if s.Description == "" {
@@ -137,12 +138,12 @@ func TestInEditModeCoversEveryCapturingState(t *testing.T) {
 	if !feed(t, m, testutil.Key("/")).InEditMode() {
 		t.Error("InEditMode() is false while the filter input has focus")
 	}
-	if !feed(t, m, testutil.Key("ctrl+d")).InEditMode() {
+	if !feed(t, m, testutil.Key(keymap.Delete)).InEditMode() {
 		t.Error("InEditMode() is false while the confirmation is open")
 	}
 	// The logs pane used to be a third capturing state. It is the viewer's now,
 	// and the viewer answers for its own keys.
-	if feed(t, m, testutil.Key("l")).InEditMode() {
+	if feed(t, m, testutil.Key(keymap.Logs)).InEditMode() {
 		t.Error("InEditMode() is true after opening the logs; this view captures nothing then")
 	}
 }
@@ -182,7 +183,7 @@ func TestViewKeepsTheTableWhenAFilterMatchesNothing(t *testing.T) {
 }
 
 func TestViewRendersTheConfirmationOverTheTable(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
 	out := m.View()
 	if !strings.Contains(out, "Delete Container") {
@@ -196,7 +197,7 @@ func TestViewRendersTheConfirmationOverTheTable(t *testing.T) {
 // The view has one screen again: `l` hands the document to the router and this
 // one goes on showing its table underneath.
 func TestViewStaysOnTheTableWhenTheLogsAreOpened(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("l"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Logs))
 
 	if !strings.Contains(m.View(), "api") {
 		t.Error("the table stopped rendering when the logs were opened elsewhere")

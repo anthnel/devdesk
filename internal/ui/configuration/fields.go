@@ -186,9 +186,15 @@ func sections(themes, views []string) []section {
 			),
 			group("External commands", theme.IconTools,
 				text("IDE command", func(c *config.Config) *string { return &c.App.IDECommand },
-					"Run by ctrl+o in the workspaces view"),
+					"Run by O in the workspaces view"),
 				text("Terminal command", func(c *config.Config) *string { return &c.App.TerminalCommand },
 					"Empty auto-detects; e.g. kitty --directory"),
+				// The variant is a setting rather than a second key: the
+				// capability belongs to the environment, not to the moment —
+				// no window can be opened under WSL, and through SSH there is
+				// none to open (§3.26).
+				toggle("Terminal in a new window", func(c *config.Config) *bool { return &c.App.TerminalNewWindow },
+					"T opens a separate window instead of suspending the TUI"),
 			),
 			group("Secrets", theme.IconLock,
 				cycle("Secret backend", func(c *config.Config) *string { return &c.App.SecretBackend },

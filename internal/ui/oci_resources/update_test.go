@@ -11,6 +11,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -197,12 +198,12 @@ func TestTheFilterMatchesBothTheAliasAndTheRawName(t *testing.T) {
 func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("/"))
 
-	m = feed(t, m, testutil.Key("p"))
+	m = feed(t, m, testutil.Key(keymap.Prune))
 
 	if m.confirmModal != nil {
 		t.Error("'p' opened the prune confirmation while the search box had focus")
 	}
-	if !strings.Contains(m.imageTable.FilterBar().SearchQuery(), "p") {
+	if !strings.Contains(m.imageTable.FilterBar().SearchQuery(), keymap.Prune) {
 		t.Errorf("'p' did not reach the search box; query = %q", m.imageTable.FilterBar().SearchQuery())
 	}
 }
@@ -250,13 +251,14 @@ func TestAFailedScanIsRemembered(t *testing.T) {
 	}
 }
 
-// Rule 126: 'A' scans only what has never been scanned, so pressing it twice
-// does not redo work. The command it returns runs Trivy, so the assertion is on
-// the flag it sets — and on the branch where there is nothing left to do.
+// Rule 126: A with the purge unchecked scans only what has never been scanned,
+// so pressing it twice does not redo work. The command it returns runs Trivy, so
+// the assertion is on the flag it sets — and on the branch where there is
+// nothing left to do.
 func TestScanAllUnscannedSkipsWhatIsCached(t *testing.T) {
 	m := loadedModel(t)
 
-	m, cmd := step(t, m, testutil.Key("A"))
+	m, cmd := scanAll(t, m, false)
 
 	if !m.scanning {
 		t.Error("'A' did not start a batch scan while two images were unscanned")
@@ -275,7 +277,7 @@ func TestScanAllUnscannedWithNothingLeft(t *testing.T) {
 		"web:v3": {ScannedAt: at(3)}, "orphan": {ScannedAt: at(4)},
 	}
 
-	m, _ = step(t, m, testutil.Key("A"))
+	m, _ = scanAll(t, m, false)
 
 	if m.scanning {
 		t.Error("'A' started a batch scan with nothing left to scan")
@@ -290,25 +292,46 @@ func TestScanAllIgnoredWhileABatchRuns(t *testing.T) {
 	m := loadedModel(t)
 	m.scanning = true
 
-	_, cmd := step(t, m, testutil.Key("A"))
+	m, cmd := step(t, m, testutil.Key(keymap.ScanAll))
 
-	if cmd != nil {
-		t.Errorf("'A' issued %T while a batch was already running", testutil.Msg(cmd))
+	// Refused before the question is even put: there is nothing to confirm.
+	if m.scanAllModal != nil {
+		t.Error("'A' opened its confirmation while a batch was already running")
+	}
+	if testutil.Msg(cmd) == nil {
+		t.Error("the refusal set a footer message with no timer to clear it")
 	}
 }
 
-// Rule 126: ctrl+a purges the cache first, so nothing is skipped and no stale
-// entry survives an interrupted run.
+// Rule 126: A with the purge checked clears the cache first, so nothing is
+// skipped and no stale entry survives an interrupted run. It was ctrl+a, a key
+// that differed from A by the modifier alone with nothing saying which one
+// destroyed data (§3.26).
 func TestScanAllPurgesTheCacheFirst(t *testing.T) {
 	m := loadedModel(t)
 
-	m, cmd := step(t, m, testutil.Key("ctrl+a"))
+	m, cmd := scanAll(t, m, true)
 
 	if len(m.scanCache) != 0 {
 		t.Errorf("the in-memory cache still holds %v", m.scanCache)
 	}
 	if cmd == nil {
-		t.Error("ctrl+a issued no commands")
+		t.Error("the purging scan issued no commands")
+	}
+}
+
+// The purge is a deliberate gesture: A alone asks, and declining does nothing.
+func TestDecliningTheScanAllConfirmationDoesNothing(t *testing.T) {
+	m := loadedModel(t)
+
+	m, _ = step(t, m, testutil.Key(keymap.ScanAll))
+	m, cmd := step(t, m, sharedcomponents.OptionConfirmModalNoMsg{})
+
+	if m.scanning {
+		t.Error("declining still started a scan")
+	}
+	if cmd != nil {
+		t.Errorf("declining issued %T", testutil.Msg(cmd))
 	}
 }
 
@@ -333,7 +356,7 @@ func TestEnterAsksForTheCachedDetails(t *testing.T) {
 func TestKeysAreInertWhileTheSelectedImageScans(t *testing.T) {
 	m := feed(t, loadedModel(t), ImageScanStartingMsg{ImageName: "api:v1"})
 
-	for _, key := range []string{"ctrl+e", "ctrl+d", "ctrl+s"} {
+	for _, key := range []string{keymap.New, keymap.Delete, keymap.Scan} {
 		next := feed(t, m, testutil.Key(key))
 		if next.launchForm != nil || next.confirmModal != nil {
 			t.Errorf("%q acted on an image being scanned", key)
@@ -344,7 +367,7 @@ func TestKeysAreInertWhileTheSelectedImageScans(t *testing.T) {
 // ── Images: destructive actions ──────────────────────────────────────────────
 
 func TestDeleteAsksFirstAndNamesTheImage(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
 	if m.confirmModal == nil {
 		t.Fatal("ctrl+d removed an image without asking")
@@ -355,7 +378,7 @@ func TestDeleteAsksFirstAndNamesTheImage(t *testing.T) {
 }
 
 func TestPruneAsksFirst(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("p"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Prune))
 
 	if m.confirmModal == nil {
 		t.Fatal("'p' pruned without asking")
@@ -363,7 +386,7 @@ func TestPruneAsksFirst(t *testing.T) {
 }
 
 func TestDecliningAConfirmationActsOnNothing(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
 	m, cmd := step(t, m, sharedcomponents.ConfirmModalNoMsg{})
 
@@ -376,7 +399,7 @@ func TestDecliningAConfirmationActsOnNothing(t *testing.T) {
 }
 
 func TestConfirmingADeleteIssuesIt(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
 	m, cmd := step(t, m, sharedcomponents.ConfirmModalYesMsg{})
 
@@ -409,10 +432,10 @@ func TestNetworkAndVolumeActionsAskFirst(t *testing.T) {
 		tab  int
 		key  string
 	}{
-		{"delete a network", 1, "ctrl+d"},
-		{"prune networks", 1, "p"},
-		{"delete a volume", 2, "ctrl+d"},
-		{"prune volumes", 2, "p"},
+		{"delete a network", 1, keymap.Delete},
+		{"prune networks", 1, keymap.Prune},
+		{"delete a volume", 2, keymap.Delete},
+		{"prune volumes", 2, keymap.Prune},
 	}
 
 	for _, tt := range tests {
@@ -572,7 +595,7 @@ func TestInEditModeCoversEveryOverlay(t *testing.T) {
 		t.Error("InEditMode() is false while the search box has focus")
 	}
 
-	confirming := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+	confirming := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 	if !confirming.InEditMode() {
 		t.Error("InEditMode() is false with a confirmation open")
 	}

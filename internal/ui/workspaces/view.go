@@ -42,6 +42,16 @@ func (m Model) View() string {
 		)
 	}
 
+	// Mode scan-all - show the option modal overlay
+	if m.mode == ModeConfirmingScanAll && m.scanAllModal != nil {
+		return lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			m.scanAllModal.View(),
+			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+		)
+	}
+
 	// Mode renaming - show rename input overlay
 	if m.mode == ModeRenaming && m.input != nil {
 		return lipgloss.Place(
@@ -419,38 +429,36 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	}
 
 	shortcuts = append(shortcuts,
-		shortcut.Shortcut{Key: "t", Description: "Terminal (in-place)"},
-		shortcut.Shortcut{Key: "T", Description: "Terminal (new window)"},
-		shortcut.Shortcut{Key: "ctrl+o", Description: "IDE"},
+		shortcut.Shortcut{Key: "T", Description: "Terminal"},
+		shortcut.Shortcut{Key: "O", Description: "IDE"},
 	)
 
 	// ctrl+w: only shown for git repos
 	if isGitRepo {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+w", Description: "Browser"})
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "W", Description: "Browser"})
 	}
 
 	// ctrl+s and s: shown for git repos and directories with nested repos —
 	// both act on the same target, so they appear and disappear together.
 	if isGitRepo || hasSubRepos {
 		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "ctrl+s", Description: "Scan"},
-			shortcut.Shortcut{Key: "s", Description: "Sync"},
+			shortcut.Shortcut{Key: "S", Description: "Scan"},
+			shortcut.Shortcut{Key: "F", Description: "Sync"},
 		)
 	}
 
 	shortcuts = append(shortcuts,
-		shortcut.Shortcut{Key: "A", Description: "Scan unscanned"},
-		shortcut.Shortcut{Key: "ctrl+a", Description: "Scan all"},
+		shortcut.Shortcut{Key: "A", Description: "Scan all"},
 	)
 
 	// ctrl+n: hidden when a git repo is selected
 	if !isGitRepo {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+n", Description: "New directory"})
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "N", Description: "New directory"})
 	}
 
 	shortcuts = append(shortcuts,
-		shortcut.Shortcut{Key: "r", Description: "Rename"},
-		shortcut.Shortcut{Key: "ctrl+d", Description: "Delete"},
+		shortcut.Shortcut{Key: "M", Description: "Rename"},
+		shortcut.Shortcut{Key: "D", Description: "Delete"},
 		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
 		shortcut.Shortcut{Key: "/", Description: "Search"},
 		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
@@ -487,17 +495,15 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "←/h", Description: "Go to parent directory"},
 			{Key: "Esc", Description: "Go to parent directory"},
 			{Key: "enter", Description: "Open a file in the viewer, or view scan details for a scanned git repo"},
-			{Key: "ctrl+n", Description: "Create a new directory (at current level)"},
-			{Key: "r", Description: "Rename the selected entry"},
-			{Key: "ctrl+d", Description: "Delete the selected entry (with confirmation)"},
-			{Key: "t", Description: "Open an in-place terminal at the selected directory (suspends TUI)"},
-			{Key: "T", Description: "Open a new terminal window at the selected directory (not supported on WSL)"},
-			{Key: "ctrl+o", Description: "Open in configured IDE"},
-			{Key: "ctrl+w", Description: "Open git repo remote URL in the default web browser"},
-			{Key: "ctrl+s", Description: "Launch a security scan on the selected directory (or all sub-repos for non-git dirs)"},
-			{Key: "s", Description: "Sync the selected git repo (or all sub-repos for non-git dirs): fetch, then fast-forward"},
-			{Key: "A", Description: "Scan all unscanned git repos visible in the current view"},
-			{Key: "ctrl+a", Description: "Scan all git repos in the current view, purging cached results first"},
+			{Key: "N", Description: "Create a new directory (at current level)"},
+			{Key: "M", Description: "Rename the selected entry (mv)"},
+			{Key: "D", Description: "Delete the selected entry (with confirmation)"},
+			{Key: "T", Description: "Open a terminal at the selected directory. In place (suspends the TUI) or in a new window, per app.terminal_new_window — the window variant is not supported on WSL"},
+			{Key: "O", Description: "Open in configured IDE"},
+			{Key: "W", Description: "Open git repo remote URL in the default web browser"},
+			{Key: "S", Description: "Launch a security scan on the selected directory (or all sub-repos for non-git dirs)"},
+			{Key: "F", Description: "Sync the selected git repo (or all sub-repos for non-git dirs): fetch, then fast-forward"},
+			{Key: "A", Description: "Scan every git repo in the current view. The confirmation carries a checkbox to purge the cached results first — unchecked, only what has never been scanned is scanned"},
 			{Key: "ctrl+r", Description: "Refresh the list"},
 			{Key: "/", Description: "Filter the list by name or git remote"},
 			{Key: "ctrl+p", Description: "Open command mode"},
@@ -522,11 +528,11 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Open in Browser",
-				Body:  "Press Ctrl+W on a git repo to open its remote URL in the default web browser. The Remote column shows the path (without the server hostname); Ctrl+W opens the full URL.",
+				Body:  "Press W on a git repo to open its remote URL in the default web browser. The Remote column shows the path (without the server hostname); W opens the full URL.",
 			},
 			{
 				Title: "Security Scan",
-				Body:  "Press Ctrl+S on a git repo to scan it. On a non-git directory, Ctrl+S scans all nested git repos in parallel. Press A to scan all unscanned repos visible in the current view, or Ctrl+A to rescan everything (purges cached results first). Scans run in parallel using up to half the available CPU cores. Results are saved to disk; the table shows CVE counts (C/H/M/L), a Secrets indicator, and the scan timestamp.",
+				Body:  "Press S on a git repo to scan it. On a non-git directory, S scans all nested git repos in parallel. Press A to scan every repo in the current view — its confirmation carries a checkbox to purge the cached results first, and without it only the never-scanned repos are scanned. Scans run in parallel using up to half the available CPU cores. Results are saved to disk; the table shows CVE counts (C/H/M/L), a Secrets indicator, and the scan timestamp.",
 			},
 			{
 				Title: "View Scan Details",

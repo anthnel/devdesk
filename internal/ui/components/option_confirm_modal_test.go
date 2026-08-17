@@ -9,30 +9,30 @@ import (
 
 // Focus indices in this modal: 0 = checkbox, 1 = Yes, 2 = No.
 const (
-	deleteFocusCheckbox = 0
-	deleteFocusYes      = 1
-	deleteFocusNo       = 2
+	focusCheckbox = 0
+	focusYes      = 1
+	focusNo       = 2
 )
 
 func TestNewDeleteConfirmModalDefaultsToNo(t *testing.T) {
 	m := NewDeleteConfirmModal("Delete project", "This cannot be undone")
 
-	if m.focused != deleteFocusNo {
-		t.Errorf("focus = %d on a new modal, want %d (No)", m.focused, deleteFocusNo)
+	if m.focused != focusNo {
+		t.Errorf("focus = %d on a new modal, want %d (No)", m.focused, focusNo)
 	}
-	if m.permanentlyRemove {
+	if m.option {
 		t.Error("immediate deletion is pre-checked on the standard modal")
 	}
 }
 
-func TestNewDeleteConfirmModalPermanentPreChecksImmediateDeletion(t *testing.T) {
-	m := NewDeleteConfirmModalPermanent("Delete project", "Already marked for deletion")
+func TestNewDeleteConfirmModalLockedPreChecksImmediateDeletion(t *testing.T) {
+	m := NewDeleteConfirmModalLocked("Delete project", "Already marked for deletion")
 
-	if !m.permanentlyRemove {
+	if !m.option {
 		t.Error("the permanent variant did not pre-check immediate deletion")
 	}
-	if m.focused != deleteFocusNo {
-		t.Errorf("focus = %d, want %d (No) even on the permanent variant", m.focused, deleteFocusNo)
+	if m.focused != focusNo {
+		t.Errorf("focus = %d, want %d (No) even on the permanent variant", m.focused, focusNo)
 	}
 }
 
@@ -42,20 +42,20 @@ func TestDeleteConfirmModalVerticalNavigationCycles(t *testing.T) {
 	m := NewDeleteConfirmModal("Delete", "Sure?") // starts on No
 
 	m, _ = m.Update(testutil.Key("down"))
-	if m.focused != deleteFocusCheckbox {
-		t.Errorf("focus = %d after down from No, want %d (wraps to the checkbox)", m.focused, deleteFocusCheckbox)
+	if m.focused != focusCheckbox {
+		t.Errorf("focus = %d after down from No, want %d (wraps to the checkbox)", m.focused, focusCheckbox)
 	}
 
 	m, _ = m.Update(testutil.Key("up"))
-	if m.focused != deleteFocusNo {
-		t.Errorf("focus = %d after up from the checkbox, want %d (wraps back to No)", m.focused, deleteFocusNo)
+	if m.focused != focusNo {
+		t.Errorf("focus = %d after up from the checkbox, want %d (wraps back to No)", m.focused, focusNo)
 	}
 
 	// A full cycle in either direction returns where it started.
 	for range 3 {
 		m, _ = m.Update(testutil.Key("down"))
 	}
-	if m.focused != deleteFocusNo {
+	if m.focused != focusNo {
 		t.Errorf("focus = %d after a full cycle", m.focused)
 	}
 }
@@ -93,28 +93,28 @@ func TestDeleteConfirmModalHorizontalMovesBetweenButtonsOnly(t *testing.T) {
 	m := NewDeleteConfirmModal("Delete", "Sure?")
 
 	m, _ = m.Update(testutil.Key("left"))
-	if m.focused != deleteFocusYes {
-		t.Errorf("focus = %d after left from No, want %d (Yes)", m.focused, deleteFocusYes)
+	if m.focused != focusYes {
+		t.Errorf("focus = %d after left from No, want %d (Yes)", m.focused, focusYes)
 	}
 	m, _ = m.Update(testutil.Key("right"))
-	if m.focused != deleteFocusNo {
-		t.Errorf("focus = %d after right from Yes, want %d (No)", m.focused, deleteFocusNo)
+	if m.focused != focusNo {
+		t.Errorf("focus = %d after right from Yes, want %d (No)", m.focused, focusNo)
 	}
 
 	// From the checkbox, horizontal keys must not jump into the buttons.
-	m.focused = deleteFocusCheckbox
+	m.focused = focusCheckbox
 	m, _ = m.Update(testutil.Key("left"))
-	if m.focused != deleteFocusCheckbox {
+	if m.focused != focusCheckbox {
 		t.Errorf("focus = %d after left from the checkbox, want it unchanged", m.focused)
 	}
 }
 
 func TestDeleteConfirmModalSpaceTogglesCheckboxWhenFocused(t *testing.T) {
 	m := NewDeleteConfirmModal("Delete", "Sure?")
-	m.focused = deleteFocusCheckbox
+	m.focused = focusCheckbox
 
 	m, cmd := m.Update(testutil.Key(" "))
-	if !m.permanentlyRemove {
+	if !m.option {
 		t.Error("space on the checkbox did not check it")
 	}
 	if cmd != nil {
@@ -122,7 +122,7 @@ func TestDeleteConfirmModalSpaceTogglesCheckboxWhenFocused(t *testing.T) {
 	}
 
 	m, _ = m.Update(testutil.Key(" "))
-	if m.permanentlyRemove {
+	if m.option {
 		t.Error("space on the checkbox did not uncheck it")
 	}
 }
@@ -140,16 +140,16 @@ func TestDeleteConfirmModalConfirmCarriesCheckboxState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewDeleteConfirmModal("Delete", "Sure?")
-			m.permanentlyRemove = tt.permanent
-			m.focused = deleteFocusYes
+			m.option = tt.permanent
+			m.focused = focusYes
 
 			_, cmd := m.Update(testutil.Key("enter"))
-			msg, ok := testutil.MsgOf[DeleteConfirmModalYesMsg](cmd)
+			msg, ok := testutil.MsgOf[OptionConfirmModalYesMsg](cmd)
 			if !ok {
-				t.Fatalf("enter on Yes did not emit DeleteConfirmModalYesMsg, got %T", testutil.Msg(cmd))
+				t.Fatalf("enter on Yes did not emit OptionConfirmModalYesMsg, got %T", testutil.Msg(cmd))
 			}
-			if msg.PermanentlyRemove != tt.wantPermanent {
-				t.Errorf("PermanentlyRemove = %v, want %v", msg.PermanentlyRemove, tt.wantPermanent)
+			if msg.Option != tt.wantPermanent {
+				t.Errorf("Option = %v, want %v", msg.Option, tt.wantPermanent)
 			}
 		})
 	}
@@ -159,20 +159,20 @@ func TestDeleteConfirmModalEnterOnNoCancels(t *testing.T) {
 	m := NewDeleteConfirmModal("Delete", "Sure?") // focus starts on No
 
 	_, cmd := m.Update(testutil.Key("enter"))
-	if _, ok := testutil.MsgOf[DeleteConfirmModalNoMsg](cmd); !ok {
-		t.Errorf("enter on No did not emit DeleteConfirmModalNoMsg, got %T", testutil.Msg(cmd))
+	if _, ok := testutil.MsgOf[OptionConfirmModalNoMsg](cmd); !ok {
+		t.Errorf("enter on No did not emit OptionConfirmModalNoMsg, got %T", testutil.Msg(cmd))
 	}
 }
 
 func TestDeleteConfirmModalEnterOnCheckboxTogglesInsteadOfConfirming(t *testing.T) {
 	m := NewDeleteConfirmModal("Delete", "Sure?")
-	m.focused = deleteFocusCheckbox
+	m.focused = focusCheckbox
 
 	m, cmd := m.Update(testutil.Key("enter"))
 	if cmd != nil {
 		t.Error("enter on the checkbox emitted an answer command instead of toggling")
 	}
-	if !m.permanentlyRemove {
+	if !m.option {
 		t.Error("enter on the checkbox did not toggle it")
 	}
 }
@@ -180,14 +180,14 @@ func TestDeleteConfirmModalEnterOnCheckboxTogglesInsteadOfConfirming(t *testing.
 func TestDeleteConfirmModalLetterShortcuts(t *testing.T) {
 	t.Run("y confirms regardless of focus", func(t *testing.T) {
 		m := NewDeleteConfirmModal("Delete", "Sure?")
-		m.permanentlyRemove = true
+		m.option = true
 
 		_, cmd := m.Update(testutil.Key("y"))
-		msg, ok := testutil.MsgOf[DeleteConfirmModalYesMsg](cmd)
+		msg, ok := testutil.MsgOf[OptionConfirmModalYesMsg](cmd)
 		if !ok {
 			t.Fatalf("y did not confirm, got %T", testutil.Msg(cmd))
 		}
-		if !msg.PermanentlyRemove {
+		if !msg.Option {
 			t.Error("y dropped the checkbox state")
 		}
 	})
@@ -195,10 +195,10 @@ func TestDeleteConfirmModalLetterShortcuts(t *testing.T) {
 	for _, key := range []string{"n", "N", "esc"} {
 		t.Run(key+" cancels", func(t *testing.T) {
 			m := NewDeleteConfirmModal("Delete", "Sure?")
-			m.focused = deleteFocusYes
+			m.focused = focusYes
 
 			_, cmd := m.Update(testutil.Key(key))
-			if _, ok := testutil.MsgOf[DeleteConfirmModalNoMsg](cmd); !ok {
+			if _, ok := testutil.MsgOf[OptionConfirmModalNoMsg](cmd); !ok {
 				t.Errorf("%q did not cancel, got %T", key, testutil.Msg(cmd))
 			}
 		})
@@ -210,12 +210,12 @@ func TestDeleteConfirmModalLetterShortcuts(t *testing.T) {
 func TestDeleteConfirmModalPermanentCheckboxIsLocked(t *testing.T) {
 	for _, key := range []string{" ", "enter"} {
 		t.Run(key+" leaves it checked", func(t *testing.T) {
-			m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion")
-			m.focused = deleteFocusCheckbox
+			m := NewDeleteConfirmModalLocked("Delete", "Already marked for deletion")
+			m.focused = focusCheckbox
 
 			m, _ = m.Update(testutil.Key(key))
 
-			if !m.permanentlyRemove {
+			if !m.option {
 				t.Errorf("%q unchecked the locked checkbox", key)
 			}
 		})
@@ -225,17 +225,17 @@ func TestDeleteConfirmModalPermanentCheckboxIsLocked(t *testing.T) {
 // A focusable control that ignores every key is more confusing than an absent
 // one, so navigation skips the locked checkbox entirely.
 func TestDeleteConfirmModalPermanentSkipsCheckboxWhenNavigating(t *testing.T) {
-	m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion") // starts on No
+	m := NewDeleteConfirmModalLocked("Delete", "Already marked for deletion") // starts on No
 
 	// Cycling never lands on the checkbox: it toggles between the two buttons.
-	for i, want := range []int{deleteFocusYes, deleteFocusNo, deleteFocusYes, deleteFocusNo} {
+	for i, want := range []int{focusYes, focusNo, focusYes, focusNo} {
 		m, _ = m.Update(testutil.Key("down"))
 		if m.focused != want {
 			t.Fatalf("down #%d landed on %d, want %d", i+1, m.focused, want)
 		}
 	}
 
-	for i, want := range []int{deleteFocusYes, deleteFocusNo, deleteFocusYes} {
+	for i, want := range []int{focusYes, focusNo, focusYes} {
 		m, _ = m.Update(testutil.Key("up"))
 		if m.focused != want {
 			t.Fatalf("up #%d landed on %d, want %d", i+1, m.focused, want)
@@ -245,16 +245,16 @@ func TestDeleteConfirmModalPermanentSkipsCheckboxWhenNavigating(t *testing.T) {
 
 // Confirming the permanent variant must carry the checked state through.
 func TestDeleteConfirmModalPermanentConfirmsAsImmediate(t *testing.T) {
-	m := NewDeleteConfirmModalPermanent("Delete", "Already marked for deletion")
-	m.focused = deleteFocusYes
+	m := NewDeleteConfirmModalLocked("Delete", "Already marked for deletion")
+	m.focused = focusYes
 
 	_, cmd := m.Update(testutil.Key("enter"))
-	msg, ok := testutil.MsgOf[DeleteConfirmModalYesMsg](cmd)
+	msg, ok := testutil.MsgOf[OptionConfirmModalYesMsg](cmd)
 	if !ok {
-		t.Fatalf("enter on Yes did not emit DeleteConfirmModalYesMsg, got %T", testutil.Msg(cmd))
+		t.Fatalf("enter on Yes did not emit OptionConfirmModalYesMsg, got %T", testutil.Msg(cmd))
 	}
-	if !msg.PermanentlyRemove {
-		t.Error("the permanent variant confirmed with PermanentlyRemove = false")
+	if !msg.Option {
+		t.Error("the permanent variant confirmed with Option = false")
 	}
 }
 
@@ -274,7 +274,7 @@ func TestDeleteConfirmModalViewShowsWarningOnlyWhenChecked(t *testing.T) {
 		t.Error("the irreversibility warning shows while immediate deletion is unchecked")
 	}
 
-	m.permanentlyRemove = true
+	m.option = true
 	view := m.View()
 	if !strings.Contains(view, "irreversible") {
 		t.Error("the irreversibility warning is missing while immediate deletion is checked")

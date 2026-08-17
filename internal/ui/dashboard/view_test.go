@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -561,7 +562,7 @@ func TestShortcutsFollowAuthentication(t *testing.T) {
 	m, _ := newTestModel(t)
 
 	signedOut := m.GetShortcuts()
-	if hasShortcut(signedOut, "m") || hasShortcut(signedOut, "i") {
+	if hasShortcut(signedOut, keymap.Requests) || hasShortcut(signedOut, keymap.Issues) {
 		t.Error("the browser shortcuts are advertised without a session")
 	}
 	if !hasShortcut(signedOut, "ctrl+r") {
@@ -570,7 +571,7 @@ func TestShortcutsFollowAuthentication(t *testing.T) {
 
 	authenticated, _ := authenticatedModel(t)
 	signedIn := authenticated.GetShortcuts()
-	if !hasShortcut(signedIn, "m") || !hasShortcut(signedIn, "i") {
+	if !hasShortcut(signedIn, keymap.Requests) || !hasShortcut(signedIn, keymap.Issues) {
 		t.Error("the browser shortcuts are missing for a signed-in user")
 	}
 }

@@ -13,6 +13,7 @@ import (
 	dockerpkg "github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -98,6 +99,11 @@ type PortsModel struct {
 
 	// address display
 	numericAddrs bool // true = raw IPs/ports (-n flag), false = DNS names
+
+	// confirmModal guards the kill. It is the only action in the application
+	// that reaches a process outside it, so it is the one that most needed a
+	// confirmation and had none.
+	confirmModal *components.ConfirmModal
 
 	footerError string
 	footerInfo  string
@@ -204,9 +210,10 @@ func (pm *PortsModel) initPorts() tea.Cmd {
 	return tea.Batch(fetchPortsCmd(pm.image, pm.numericAddrs), portsTickCmd())
 }
 
-// InEditMode returns true when the search input is active.
+// InEditMode returns true when the search input or the kill confirmation has
+// the keyboard.
 func (pm *PortsModel) InEditMode() bool {
-	return pm.table.InEditMode()
+	return pm.table.InEditMode() || pm.confirmModal != nil
 }
 
 // resize updates terminal dimensions and lays the table out (Rule 116).
@@ -234,6 +241,12 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 	case portsClearFooterMsg:
 		pm.footerError = ""
 		pm.footerInfo = ""
+		return pm, nil
+	case components.ConfirmModalYesMsg:
+		pm.confirmModal = nil
+		return pm.killSelected()
+	case components.ConfirmModalNoMsg:
+		pm.confirmModal = nil
 		return pm, nil
 	case tea.KeyMsg:
 		return pm.handleKey(msg)
@@ -284,6 +297,11 @@ func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea
 }
 
 func (pm *PortsModel) handleKey(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
+	if pm.confirmModal != nil {
+		var cmd tea.Cmd
+		pm.confirmModal, cmd = pm.confirmModal.Update(msg)
+		return pm, cmd
+	}
 	if pm.table.InEditMode() {
 		cmd := pm.table.Update(msg)
 		pm.table.GotoTop() // a narrowing query starts from the first match
@@ -333,13 +351,20 @@ func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
 		pm.table.SetItems(pm.table.Items()) // re-apply with the query gone
 		pm.paused = false
 		pm.table.GotoTop()
-	case "ctrl+k":
-		return pm.killSelected()
+	case keymap.Kill:
+		return pm.confirmKill()
 	}
 	return pm, nil
 }
 
-func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
+// confirmKill asks before sending the signal.
+//
+// This is the one action in the application that reaches outside it: not a
+// container to be brought back up, but a process belonging to whoever is at
+// this machine, killed with SIGKILL so it gets no chance to save anything. It
+// had no confirmation at all, while deleting a container — recreatable from its
+// image — had one (§3.26).
+func (pm *PortsModel) confirmKill() (*PortsModel, tea.Cmd) {
 	entry, ok := pm.table.Selected()
 	if !ok {
 		return pm, nil
@@ -351,6 +376,23 @@ func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
 	if pm.table.IsBusy(entry.PID) {
 		pm.footerInfo = "Already killing PID " + entry.PID
 		return pm, portsClearFooterCmd()
+	}
+	pm.confirmModal = components.NewConfirmModal(
+		"Kill Process",
+		fmt.Sprintf("Send SIGKILL to %s (PID %s)?\n\nThe process gets no chance to shut down cleanly.",
+			entry.Process, entry.PID),
+	)
+	return pm, nil
+}
+
+// killSelected sends the signal, once confirmed.
+func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
+	entry, ok := pm.table.Selected()
+	if !ok {
+		return pm, nil
+	}
+	if entry.PID == "" || pm.table.IsBusy(entry.PID) {
+		return pm, nil
 	}
 	// Keyed on the PID, so every socket the process holds spins at once — which
 	// is what happens: the kill takes them all. The State cell is the one to

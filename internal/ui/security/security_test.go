@@ -12,6 +12,8 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -158,6 +160,17 @@ func step(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
 		t.Fatalf("Update() returned %T, want security.Model", next)
 	}
 	return updated, cmd
+}
+
+// scanAll runs A and answers its modal, which is what one key used to do.
+// purge is the checkbox: ctrl+a's half of the old pair (§3.26).
+func scanAll(t *testing.T, m Model, purge bool) (Model, tea.Cmd) {
+	t.Helper()
+	m, _ = step(t, m, testutil.Key(keymap.ScanAll))
+	if m.scanAllModal == nil {
+		t.Fatal("A did not open the scan-all confirmation")
+	}
+	return step(t, m, sharedcomponents.OptionConfirmModalYesMsg{Option: purge})
 }
 
 // rowIDs returns the ID cell of every table row.

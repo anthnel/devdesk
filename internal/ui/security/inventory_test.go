@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -117,7 +118,7 @@ func TestEnterOpensTheStoredFindings(t *testing.T) {
 // A row purged by ctrl+a has no result to open until its rescan returns.
 func TestEnterOnAPurgedRowSaysThereIsNothingToOpenYet(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
-	m, _ = step(t, m, testutil.Key("ctrl+a"))
+	m, _ = scanAll(t, m, true)
 
 	m, cmd := step(t, m, testutil.Key("enter"))
 
@@ -135,7 +136,7 @@ func TestEnterOnAPurgedRowSaysThereIsNothingToOpenYet(t *testing.T) {
 // Rule 130 hides the row actions on an empty inventory, but the keys still
 // arrive — the router forwards every one of them.
 func TestRowActionsOnAnEmptyInventoryDoNothing(t *testing.T) {
-	for _, key := range []string{"enter", "ctrl+s", "ctrl+a"} {
+	for _, key := range []string{"enter", keymap.Scan, keymap.ScanAll} {
 		t.Run(key, func(t *testing.T) {
 			m, cmd := step(t, inventoryModel(t), testutil.Key(key))
 
@@ -197,7 +198,7 @@ func TestEscFromAResultReturnsToTheInventoryAndReloadsIt(t *testing.T) {
 func TestRescanningOneRowMarksOnlyThatRow(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 
-	m, _ = step(t, m, testutil.Key("ctrl+s"))
+	m, _ = step(t, m, testutil.Key(keymap.Scan))
 
 	for _, target := range m.inventory.Items() {
 		wantScanning := target.Name == "nexus/api:1.4"
@@ -216,7 +217,7 @@ func TestRescanningOneRowMarksOnlyThatRow(t *testing.T) {
 func TestRescanningAllPurgesTheCountsButKeepsTheTargets(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 
-	m, _ = step(t, m, testutil.Key("ctrl+a"))
+	m, _ = scanAll(t, m, true)
 
 	if len(m.inventory.Items()) != 2 {
 		t.Fatalf("%d rows after ctrl+a, want both targets kept", len(m.inventory.Items()))
@@ -237,7 +238,7 @@ func TestRescanningAllPurgesTheCountsButKeepsTheTargets(t *testing.T) {
 func TestAPurgedRowPrintsNoCountRatherThanZero(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 
-	m, _ = step(t, m, testutil.Key("ctrl+a"))
+	m, _ = scanAll(t, m, true)
 
 	critical := columnIndex(t, m.inventory.Table().Columns(), "CRIT")
 	for _, row := range m.inventory.Table().Rows() {
@@ -249,7 +250,7 @@ func TestAPurgedRowPrintsNoCountRatherThanZero(t *testing.T) {
 
 func TestAFinishedRescanUpdatesItsRowAlone(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
-	m, _ = step(t, m, testutil.Key("ctrl+a"))
+	m, _ = scanAll(t, m, true)
 	scannedAt := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 
 	m = feed(t, m, InventoryScanFinishedMsg{
@@ -276,7 +277,7 @@ func TestAFinishedRescanUpdatesItsRowAlone(t *testing.T) {
 
 func TestAFailedRescanMarksTheRowAndSaysSo(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
-	m, _ = step(t, m, testutil.Key("ctrl+s"))
+	m, _ = step(t, m, testutil.Key(keymap.Scan))
 
 	m, cmd := step(t, m, InventoryScanFinishedMsg{Name: "nexus/api:1.4", Err: errors.New("no such image")})
 
@@ -302,7 +303,7 @@ func TestAFailedRescanMarksTheRowAndSaysSo(t *testing.T) {
 // settled while its scan is still running.
 func TestAReloadDoesNotSettleARowStillBeingScanned(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
-	m, _ = step(t, m, testutil.Key("ctrl+s"))
+	m, _ = step(t, m, testutil.Key(keymap.Scan))
 
 	m = feed(t, m, InventoryLoadedMsg{Targets: inventoryFixtures()})
 
@@ -320,7 +321,7 @@ func TestASecondRescanDoesNotStartASecondSpinnerChain(t *testing.T) {
 	if m.spinnerTickIfIdle() == nil {
 		t.Fatal("nothing is scanning, so the first rescan must start the spinner")
 	}
-	m, _ = step(t, m, testutil.Key("ctrl+s"))
+	m, _ = step(t, m, testutil.Key(keymap.Scan))
 	if m.spinnerTickIfIdle() != nil {
 		t.Error("a rescan was already running, so a second must not start another chain")
 	}
@@ -331,13 +332,13 @@ func TestTheInventoryAdvertisesOnlyWhatTheSelectedRowCanDo(t *testing.T) {
 	empty := inventoryModel(t)
 	filled := inventoryModel(t, inventoryFixtures()...)
 
-	if has(empty.GetShortcuts(), "enter") || has(empty.GetShortcuts(), "ctrl+s") {
+	if has(empty.GetShortcuts(), "enter") || has(empty.GetShortcuts(), keymap.Scan) {
 		t.Errorf("an empty inventory advertises row actions: %v", empty.GetShortcuts())
 	}
 	if !has(empty.GetShortcuts(), "ctrl+r") {
 		t.Error("an empty inventory cannot be refreshed")
 	}
-	for _, key := range []string{"enter", "ctrl+s", "ctrl+a", "/"} {
+	for _, key := range []string{"enter", keymap.Scan, keymap.ScanAll, "/"} {
 		if !has(filled.GetShortcuts(), key) {
 			t.Errorf("%q is not advertised on a row that supports it", key)
 		}
@@ -435,7 +436,7 @@ func TestTheSpinnerAdvancesOnlyWhileARescanRuns(t *testing.T) {
 		t.Error("a settled inventory scheduled another spinner frame")
 	}
 
-	scanning, _ := step(t, settled, testutil.Key("ctrl+s"))
+	scanning, _ := step(t, settled, testutil.Key(keymap.Scan))
 	before := scanning.spinner.View()
 
 	next, cmd := step(t, scanning, spinner.TickMsg{ID: scanning.spinner.ID()})

@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -71,9 +72,11 @@ func TestTabCountsMatchTheTabs(t *testing.T) {
 func TestTabKeysAndCycling(t *testing.T) {
 	m := scannedModel(t)
 
-	for key, want := range map[string]int{"1": TabCVE, "2": TabSecrets, "3": TabLicense, "4": TabMisconfig} {
-		if got := feed(t, m, testutil.Key(key)).activeTab; got != want {
-			t.Errorf("%q selected tab %d, want %d", key, got, want)
+	// 1-4 jumped straight to a tab. They were the application's only numeric
+	// bindings, and a single view's exception is what §3.26 dismantles.
+	for _, key := range []string{"1", "2", "3", "4"} {
+		if got := feed(t, m, testutil.Key(key)).activeTab; got != TabCVE {
+			t.Errorf("%q selected tab %d; the numeric jumps are gone, tab reaches all four", key, got)
 		}
 	}
 
@@ -94,41 +97,42 @@ func TestTabKeysAndCycling(t *testing.T) {
 	}
 }
 
-// '.' walks the severity floor: each step admits one more level.
-func TestSeverityFilterIsCumulative(t *testing.T) {
-	m := scannedModel(t)
-
-	steps := []struct {
-		filter string
-		want   []string
+// c/h/m/l are cumulative, which is the whole reason they replaced the cycle on
+// '.': "CRITICAL and HIGH" is not a threshold — it excludes MEDIUM while
+// including CRITICAL — so a floor could never express it.
+func TestSeverityTokensAreCumulative(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		keys []string
+		want []string
 	}{
-		{"critical", []string{"CVE-2026-0001"}},
-		{"high", []string{"CVE-2026-0001"}},
-		{"medium", []string{"CVE-2026-0001", "CVE-2026-0002"}},
-		{"low", []string{"CVE-2026-0001", "CVE-2026-0002"}},
-		{"all", []string{"CVE-2026-0001", "CVE-2026-0002"}},
-	}
+		{"no token shows everything", nil, []string{"CVE-2026-0001", "CVE-2026-0002"}},
+		{"one token selects its level", []string{"c"}, []string{"CVE-2026-0001"}},
+		{"two tokens select both", []string{"c", "m"}, []string{"CVE-2026-0001", "CVE-2026-0002"}},
+		{"toggling off restores everything", []string{"c", "c"}, []string{"CVE-2026-0001", "CVE-2026-0002"}},
+		{"a level with no finding shows none", []string{"l"}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := feed(t, scannedModel(t), testutil.Keys(tc.keys...)...)
 
-	for _, s := range steps {
-		m = feed(t, m, testutil.Key("."))
-		if m.severityFilter != s.filter {
-			t.Fatalf("severityFilter = %q, want %q", m.severityFilter, s.filter)
-		}
-		if got := rowIDs(m.findingsTable.Table().Rows()); !equal(got, s.want) {
-			t.Errorf("filter %q shows %v, want %v", s.filter, got, s.want)
-		}
+			if got := rowIDs(m.findingsTable.Table().Rows()); !equal(got, tc.want) {
+				t.Errorf("%v shows %v, want %v", tc.keys, got, tc.want)
+			}
+		})
 	}
 }
 
-// The secrets tab has no severity axis worth filtering, so '.' is inert there.
-func TestSeverityFilterIsInertOnTheSecretsTab(t *testing.T) {
+// '.' is the sort again. It cycled the severity floor, which cost every findings
+// table the one key Rule 111 reserves for sorting (§3.26).
+func TestDotDoesNotFilterBySeverity(t *testing.T) {
 	m := scannedModel(t)
-	m.switchTab(TabSecrets)
+	before := rowIDs(m.findingsTable.Table().Rows())
 
-	filtered := feed(t, m, testutil.Key("."))
+	m = feed(t, m, testutil.Key("."))
 
-	if filtered.severityFilter != "all" {
-		t.Errorf("severityFilter = %q on the secrets tab", filtered.severityFilter)
+	if got := rowIDs(m.findingsTable.Table().Rows()); len(got) != len(before) {
+		t.Errorf("'.' changed the row count from %d to %d; it sorts, it does not filter",
+			len(before), len(got))
 	}
 }
 
@@ -162,7 +166,7 @@ func TestEnterOnAnEmptyTabDoesNothing(t *testing.T) {
 }
 
 func TestDetailsGoesBackToTheResults(t *testing.T) {
-	for _, key := range []string{"esc", "backspace"} {
+	for _, key := range []string{"esc"} { // backspace was the application's only alias of esc (§3.26)
 		if got := feed(t, detailsModel(t), testutil.Key(key)).state; got != StateResults {
 			t.Errorf("%q left state = %v, want StateResults", key, got)
 		}
@@ -173,7 +177,7 @@ func TestDetailsGoesBackToTheResults(t *testing.T) {
 // launching a browser at nothing.
 func TestOpeningAReference(t *testing.T) {
 	t.Run("with a reference", func(t *testing.T) {
-		_, cmd := step(t, detailsModel(t), testutil.Key("o"))
+		_, cmd := step(t, detailsModel(t), testutil.Key(keymap.Web))
 
 		if cmd == nil {
 			t.Error("'o' issued no command for a finding with a reference")
@@ -187,7 +191,7 @@ func TestOpeningAReference(t *testing.T) {
 	t.Run("without one", func(t *testing.T) {
 		m := feed(t, scannedModel(t), testutil.Key("down"), testutil.Key("enter"))
 
-		m = feed(t, m, testutil.Key("o"))
+		m = feed(t, m, testutil.Key(keymap.Web))
 
 		if m.statusMessage != "No references available" {
 			t.Errorf("statusMessage = %q, want the view to say there is nothing to open", m.statusMessage)
@@ -239,8 +243,8 @@ func TestRescanResetsTheView(t *testing.T) {
 	if m.state != StateInventory {
 		t.Errorf("state = %v after ctrl+r", m.state)
 	}
-	if m.activeTab != TabCVE || m.severityFilter != "all" {
-		t.Errorf("tab = %d, filter = %q after ctrl+r", m.activeTab, m.severityFilter)
+	if m.activeTab != TabCVE {
+		t.Errorf("tab = %d after ctrl+r", m.activeTab)
 	}
 }
 
@@ -251,7 +255,7 @@ func TestIgnoringASecretAsksFirst(t *testing.T) {
 	m := scannedModel(t)
 	m.switchTab(TabSecrets)
 
-	m = feed(t, m, testutil.Key("i"))
+	m = feed(t, m, testutil.Key(keymap.Exclude))
 
 	if m.confirmModal == nil {
 		t.Fatal("'i' wrote to .gitleaksignore without asking")
@@ -266,7 +270,7 @@ func TestIgnoringASecretAsksFirst(t *testing.T) {
 
 // The key belongs to the secrets tab; a CVE has nothing to ignore.
 func TestIgnoringIsOnlyOfferedOnTheSecretsTab(t *testing.T) {
-	m := feed(t, scannedModel(t), testutil.Key("i"))
+	m := feed(t, scannedModel(t), testutil.Key(keymap.Exclude))
 
 	if m.confirmModal != nil {
 		t.Error("'i' opened a confirmation on the CVE tab")
@@ -276,7 +280,7 @@ func TestIgnoringIsOnlyOfferedOnTheSecretsTab(t *testing.T) {
 func TestConfirmingAnIgnoreIssuesTheWrite(t *testing.T) {
 	m := scannedModel(t)
 	m.switchTab(TabSecrets)
-	m = feed(t, m, testutil.Key("i"))
+	m = feed(t, m, testutil.Key(keymap.Exclude))
 
 	m, cmd := step(t, m, sharedcomponents.ConfirmModalYesMsg{})
 
@@ -291,7 +295,7 @@ func TestConfirmingAnIgnoreIssuesTheWrite(t *testing.T) {
 func TestDecliningAnIgnoreWritesNothing(t *testing.T) {
 	m := scannedModel(t)
 	m.switchTab(TabSecrets)
-	m = feed(t, m, testutil.Key("i"))
+	m = feed(t, m, testutil.Key(keymap.Exclude))
 
 	m, cmd := step(t, m, sharedcomponents.ConfirmModalNoMsg{})
 
@@ -337,7 +341,7 @@ func TestFooterMessagesExpire(t *testing.T) {
 		}},
 		{"a finding has no reference", func(t *testing.T) (Model, tea.Cmd) {
 			m := feed(t, scannedModel(t), testutil.Key("down"), testutil.Key("enter"))
-			return step(t, m, testutil.Key("o"))
+			return step(t, m, testutil.Key(keymap.Web))
 		}},
 	}
 
@@ -364,7 +368,7 @@ func TestFooterMessagesExpire(t *testing.T) {
 func TestTheConfirmationSwallowsResultsShortcuts(t *testing.T) {
 	m := scannedModel(t)
 	m.switchTab(TabSecrets)
-	m = feed(t, m, testutil.Key("i"))
+	m = feed(t, m, testutil.Key(keymap.Exclude))
 
 	m = feed(t, m, testutil.Key("1"))
 
@@ -396,7 +400,7 @@ func TestInEditModeIsTrueOnlyWhereSomethingHasTheKeyboard(t *testing.T) {
 
 	withModal := scannedModel(t)
 	withModal.switchTab(TabSecrets)
-	if !feed(t, withModal, testutil.Key("i")).InEditMode() {
+	if !feed(t, withModal, testutil.Key(keymap.Exclude)).InEditMode() {
 		t.Error("InEditMode() is false with a confirmation open")
 	}
 }
@@ -502,10 +506,10 @@ func TestIgnoringIsOfferedForGitleaksFindingsOnly(t *testing.T) {
 	if selected, _ := m.findingsTable.Selected(); selected.Source != scan.SourceGitleaks {
 		t.Fatalf("the first secret is %q, want the gitleaks one", selected.Source)
 	}
-	if !has(m.GetShortcuts(), "i") {
+	if !has(m.GetShortcuts(), keymap.Exclude) {
 		t.Error("'i' is not offered on a gitleaks finding")
 	}
-	m, _ = step(t, m, testutil.Key("i"))
+	m, _ = step(t, m, testutil.Key(keymap.Exclude))
 	if m.confirmModal == nil {
 		t.Error("'i' on a gitleaks finding did not ask for confirmation")
 	}
@@ -515,11 +519,11 @@ func TestIgnoringIsOfferedForGitleaksFindingsOnly(t *testing.T) {
 	if selected, _ := m.findingsTable.Selected(); selected.Source != scan.SourceTrivySecret {
 		t.Fatalf("the second secret is %q, want the trivy one", selected.Source)
 	}
-	if has(m.GetShortcuts(), "i") {
+	if has(m.GetShortcuts(), keymap.Exclude) {
 		t.Error("'i' is offered on a trivy secret, which .gitleaksignore cannot express")
 	}
 
-	m, cmd := step(t, m, testutil.Key("i"))
+	m, cmd := step(t, m, testutil.Key(keymap.Exclude))
 	if m.confirmModal != nil {
 		t.Error("'i' on a trivy secret asked to write a fingerprint it does not have")
 	}

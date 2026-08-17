@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/scan"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/viewer"
 )
@@ -73,6 +74,34 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 		delete(m.scanCache, path)
 	}
 	return m, tea.Batch(deleteScanCacheCmd(toScan), batchScanCmd(toScan, opts))
+}
+
+// confirmScanAll asks before scanning everything, and the purge is the modal's
+// checkbox rather than a second key.
+//
+// A and ctrl+a differed only by a modifier, and nothing in their shape said
+// which one purged the cache — the closest this application came to losing data
+// by accident (§3.26). The destructive half is a deliberate gesture now.
+func (m Model) confirmScanAll() (tea.Model, tea.Cmd) {
+	if len(m.collectAllRepoPaths()) == 0 {
+		return m, nil
+	}
+	m.mode = ModeConfirmingScanAll
+	m.scanAllModal = sharedcomponents.NewOptionConfirmModal(
+		"Scan All",
+		"Scan every repository below this level?",
+		"Purge cached results first (rescans everything)",
+	)
+	return m, nil
+}
+
+// scanAll scans what is below the cursor: everything when the cache was purged,
+// only what has never been scanned otherwise.
+func (m Model) scanAll(purge bool) (tea.Model, tea.Cmd) {
+	if purge {
+		return m.requestScanAll()
+	}
+	return m.scanAllUnscanned()
 }
 
 // scanAllUnscanned triggers batch scanning of all unscanned git repos visible in the current view.
@@ -168,6 +197,19 @@ func launchDetachedCmd(bin string, args []string) tea.Cmd {
 		cmd := exec.Command(bin, args...)
 		return TerminalOpenedMsg{Error: cmd.Start()}
 	}
+}
+
+// openTerminal opens a shell at the target directory, in place or in a window
+// of its own depending on app.terminal_new_window.
+//
+// One key, one meaning: `t` and `T` used to be the two variants, which spent a
+// second letter on a choice that is a property of the environment rather than
+// of the moment — there is no window to open under WSL or through SSH (§3.26).
+func (m Model) openTerminal() (tea.Model, tea.Cmd) {
+	if m.config.App.TerminalNewWindow {
+		return m.openTerminalWindow()
+	}
+	return m.openTerminalInPlace(m.resolveTargetPath())
 }
 
 // openTerminalWindow opens a new terminal window at the target directory.

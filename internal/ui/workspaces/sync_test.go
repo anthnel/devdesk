@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -25,7 +26,7 @@ func TestSyncTargetsTheRepositoryUnderTheCursor(t *testing.T) {
 	m := loadedModel(t)
 	m.table.SetCursor(0) // devdesk, a git repo
 
-	m, cmd := step(t, m, testutil.Key("s"))
+	m, cmd := step(t, m, testutil.Key(keymap.Fetch))
 
 	if cmd == nil {
 		t.Fatal("pressing s on a git repository started nothing")
@@ -39,7 +40,7 @@ func TestSyncOnAPlainDirectoryTakesEveryRepositoryUnderIt(t *testing.T) {
 	m := loadedModel(t)
 	m.table.SetCursor(2) // clients, two nested repos
 
-	m, cmd := step(t, m, testutil.Key("s"))
+	m, cmd := step(t, m, testutil.Key(keymap.Fetch))
 
 	if cmd == nil {
 		t.Fatal("pressing s on a directory of repositories started nothing")
@@ -61,7 +62,7 @@ func TestSyncDoesNothingWhereThereIsNoRepository(t *testing.T) {
 			m := loadedModel(t)
 			m.table.SetCursor(tt.cursor)
 
-			m, cmd := step(t, m, testutil.Key("s"))
+			m, cmd := step(t, m, testutil.Key(keymap.Fetch))
 
 			if cmd != nil || m.sync != nil {
 				t.Errorf("pressing s started a sync on %s", tt.name)
@@ -81,7 +82,7 @@ func TestAScanAndASyncNeverShareARepository(t *testing.T) {
 		m.table.SetCursor(0)
 		m.scanningPaths[devdeskPath] = true
 
-		m, cmd := step(t, m, testutil.Key("s"))
+		m, cmd := step(t, m, testutil.Key(keymap.Fetch))
 
 		if m.sync != nil {
 			t.Error("a sync started on a repository already being scanned")
@@ -96,7 +97,7 @@ func TestAScanAndASyncNeverShareARepository(t *testing.T) {
 		m.table.SetCursor(0)
 		m.syncingPaths[devdeskPath] = true
 
-		m, cmd := step(t, m, testutil.Key("ctrl+s"))
+		m, cmd := step(t, m, testutil.Key(keymap.Scan))
 
 		if m.footerInfo != busyMessage || cmd == nil {
 			t.Errorf("footerInfo = %q with cmd == nil: %v", m.footerInfo, cmd == nil)
@@ -111,7 +112,7 @@ func TestScanAllLeavesASyncingRepositorysCacheAlone(t *testing.T) {
 	m := scannedModel(t)
 	m.syncingPaths[devdeskPath] = true
 
-	m, _ = step(t, m, testutil.Key("ctrl+a"))
+	m, _ = step(t, m, testutil.Key(keymap.ScanAll))
 
 	if _, ok := m.scanCache[devdeskPath]; !ok {
 		t.Error("the syncing repository's cached counts were purged")

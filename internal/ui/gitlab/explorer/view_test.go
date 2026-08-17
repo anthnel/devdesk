@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -70,10 +71,10 @@ func TestViewShowsTheModalForEachMode(t *testing.T) {
 		want string
 	}{
 		{"loading templates", func(t *testing.T) Model {
-			return feed(t, drilledModel(t), testutil.Key("ctrl+n"))
+			return feed(t, drilledModel(t), testutil.Key(keymap.New))
 		}, "Loading templates"},
 		{"delete confirmation", func(t *testing.T) Model {
-			return feed(t, drilledModel(t), testutil.Key("ctrl+d"))
+			return feed(t, drilledModel(t), testutil.Key(keymap.Delete))
 		}, "Delete Group"},
 	}
 
@@ -89,7 +90,7 @@ func TestViewShowsTheModalForEachMode(t *testing.T) {
 // Rule 112: the creation form takes the whole viewport rather than opening as a
 // modal.
 func TestViewShowsTheCreationFormFullWidth(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("ctrl+n"), TemplatesLoadedMsg{})
+	m := feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
 
 	view := m.View()
 
@@ -134,10 +135,10 @@ func TestFooterHeightMatchesWhatIsRendered(t *testing.T) {
 		{"filtering", func(t *testing.T) Model { return feed(t, drilledModel(t), testutil.Key("/")) }},
 		{"empty", func(t *testing.T) Model { return feed(t, newTestModel(t), RootGroupsLoadedMsg{}) }},
 		{"confirming a delete", func(t *testing.T) Model {
-			return feed(t, drilledModel(t), testutil.Key("ctrl+d"))
+			return feed(t, drilledModel(t), testutil.Key(keymap.Delete))
 		}},
 		{"creating", func(t *testing.T) Model {
-			return feed(t, drilledModel(t), testutil.Key("ctrl+n"), TemplatesLoadedMsg{})
+			return feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
 		}},
 	}
 
@@ -208,7 +209,7 @@ func TestTitleFollowsTheCreationForm(t *testing.T) {
 		t.Errorf("GetTitle() = %q", got)
 	}
 
-	creating := feed(t, drilledModel(t), testutil.Key("ctrl+n"), TemplatesLoadedMsg{})
+	creating := feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
 	if got := creating.GetTitle(); !strings.Contains(got, theme.IconChevronRight) {
 		t.Errorf("GetTitle() = %q while creating, want the form appended", got)
 	}
@@ -242,42 +243,42 @@ func TestShortcutsFollowTheState(t *testing.T) {
 			open: func(t *testing.T) Model {
 				return feed(t, New(testConfig(), &shared.State{}), tea.WindowSizeMsg{Width: 160, Height: 30})
 			},
-			notWant: []string{"ctrl+n", "ctrl+d", "p"},
+			notWant: []string{keymap.New, keymap.Delete, "p"},
 		},
 		{
 			name: "browsing",
 			open: func(t *testing.T) Model { return drilledModel(t) },
-			want: []string{"ctrl+n", "ctrl+d", "c", "ctrl+w", ".", "/", "ctrl+r"},
+			want: []string{keymap.New, keymap.Delete, keymap.Clone, keymap.Web, ".", "/", "ctrl+r"},
 		},
 		{
 			name: "selecting what to clone",
 			open: func(t *testing.T) Model {
-				return feed(t, drilledModel(t), testutil.Key("c"))
+				return feed(t, drilledModel(t), testutil.Key(keymap.Clone))
 			},
 			want:    []string{"space", "enter", "esc"},
-			notWant: []string{"ctrl+n", "ctrl+d"},
+			notWant: []string{keymap.New, keymap.Delete},
 		},
 		{
 			name:    "cloning",
 			open:    func(t *testing.T) Model { return cloningModel(t) },
 			want:    []string{"esc", "/"},
-			notWant: []string{"ctrl+n", "ctrl+d", "space"},
+			notWant: []string{keymap.New, keymap.Delete, "space"},
 		},
 		{
 			name: "confirming a delete",
 			open: func(t *testing.T) Model {
-				return feed(t, drilledModel(t), testutil.Key("ctrl+d"))
+				return feed(t, drilledModel(t), testutil.Key(keymap.Delete))
 			},
 			want:    []string{"space", "esc"},
-			notWant: []string{"ctrl+d"},
+			notWant: []string{keymap.Delete},
 		},
 		{
 			name: "creating",
 			open: func(t *testing.T) Model {
-				return feed(t, drilledModel(t), testutil.Key("ctrl+n"), TemplatesLoadedMsg{})
+				return feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
 			},
 			want:    []string{"enter", "esc"},
-			notWant: []string{"ctrl+n"},
+			notWant: []string{keymap.New},
 		},
 	}
 
@@ -310,7 +311,7 @@ func TestBrowserShortcutNeedsAURL(t *testing.T) {
 	}
 
 	for _, s := range m.GetShortcuts() {
-		if s.Key == "ctrl+w" {
+		if s.Key == keymap.Web {
 			t.Error("ctrl+w is advertised for a node with no web URL")
 		}
 	}
@@ -320,11 +321,11 @@ func TestBrowserShortcutNeedsAURL(t *testing.T) {
 func TestShortcutDescriptionsAreImperative(t *testing.T) {
 	models := []Model{
 		drilledModel(t),
-		feed(t, drilledModel(t), testutil.Key("ctrl+d")),
-		feed(t, drilledModel(t), testutil.Key("c")),
+		feed(t, drilledModel(t), testutil.Key(keymap.Delete)),
+		feed(t, drilledModel(t), testutil.Key(keymap.Clone)),
 		cloningModel(t),
 		feed(t, cloningModel(t), CloneRunFinishedMsg{}),
-		feed(t, drilledModel(t), testutil.Key("ctrl+n"), TemplatesLoadedMsg{}),
+		feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{}),
 	}
 
 	for _, m := range models {

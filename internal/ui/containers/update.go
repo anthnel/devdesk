@@ -11,6 +11,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/docker"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	uiterminal "github.com/anthnel/devdesk/internal/ui/terminal"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
@@ -82,6 +83,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pendingAction = ""
 		return m, nil
 
+	case sharedcomponents.ChoiceModalPickedMsg:
+		return m.handleChoicePicked(msg)
+
+	case sharedcomponents.ChoiceModalCancelledMsg:
+		m.choiceModal = nil
+		return m, nil
+
 	case ContainerPruneMsg:
 		return m.handlePruneComplete(msg)
 
@@ -101,10 +109,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKeyMsg processes keyboard input with priority chain
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Priority 1: confirm modal
+	// Priority 1: whichever modal is open
 	if m.confirmModal != nil {
 		var cmd tea.Cmd
 		m.confirmModal, cmd = m.confirmModal.Update(msg)
+		return m, cmd
+	}
+	if m.choiceModal != nil {
+		var cmd tea.Cmd
+		m.choiceModal, cmd = m.choiceModal.Update(msg)
 		return m, cmd
 	}
 
@@ -125,35 +138,36 @@ func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loading = true
 		return m, tea.Batch(m.spinner.Tick, fetchContainers(m.showAll))
 
-	case "K":
-		return m.stopSelectedContainer()
+	case keymap.Kill:
+		return m.confirmStopOrRestart()
 
-	case "r":
-		return m.restartSelectedContainer()
-
+	// Space stays unconfirmed, deliberately: pause is reversible and instant,
+	// and a modal seen ten times an hour trains the user to hit y without
+	// reading — which is exactly what makes the delete confirmation worthless.
 	case " ":
 		return m.pauseToggleSelectedContainer()
 
-	case "p":
+	case keymap.Prune:
 		return m.pruneContainers()
 
-	case "ctrl+d":
+	case keymap.Delete:
 		return m.deleteSelectedContainer()
 
 	case "ctrl+r":
 		m.loading = true
 		return m, tea.Batch(m.spinner.Tick, fetchContainers(m.showAll), fetchMetrics())
 
-	case "s":
+	// The "new window" variant is a setting rather than a second key: the
+	// capability belongs to the environment, not to the moment (§3.26).
+	case keymap.Terminal:
 		return m.shellSelectedContainer()
 
-	case "S":
-		return m.shellSelectedContainerInNewWindow()
-
-	case "l":
+	case keymap.Logs:
 		return m.logsSelectedContainer()
 
-	case "i":
+	// Inspect moved off `i`, which the dashboard needed for issues. `enter` was
+	// unbound here and is already the inspect gesture in OCI/Networks.
+	case "enter":
 		return m.inspectSelectedContainer()
 
 	}
@@ -209,6 +223,49 @@ func (m Model) startAction(c *docker.Container, label string, cmd tea.Cmd) (tea.
 	}
 	m.containerTable.MarkBusy(c.ID, label+" "+c.Name)
 	return m, cmd
+}
+
+// confirmStopOrRestart asks which of the two to run, or neither.
+//
+// Both used to act with no confirmation at all, unlike delete — and with caps
+// lock on, a `k` meant for scrolling stopped the selected container. Restart is
+// the worse of the two, being a stop and a start, so it cuts live connections
+// just the same. The confirmation was needed either way; having it is what
+// makes the second action free and lets `r` go (§3.26).
+func (m Model) confirmStopOrRestart() (tea.Model, tea.Cmd) {
+	c := m.getSelectedContainer()
+	if c == nil {
+		return m, nil
+	}
+	if m.containerTable.IsBusy(c.ID) {
+		m.errorMsg = busyMessage
+		return m, clearErrorCmd()
+	}
+	m.choiceModal = sharedcomponents.NewChoiceModal(
+		"Container",
+		fmt.Sprintf("What should happen to '%s'?", c.Name),
+		choiceStop, choiceRestart,
+	)
+	return m, nil
+}
+
+// The two labels the choice modal offers, named so the handler routes on the
+// same strings the modal rendered.
+const (
+	choiceStop    = "Stop"
+	choiceRestart = "Restart"
+)
+
+// handleChoicePicked runs whichever action the modal returned.
+func (m Model) handleChoicePicked(msg sharedcomponents.ChoiceModalPickedMsg) (tea.Model, tea.Cmd) {
+	m.choiceModal = nil
+	switch msg.Label {
+	case choiceStop:
+		return m.stopSelectedContainer()
+	case choiceRestart:
+		return m.restartSelectedContainer()
+	}
+	return m, nil
 }
 
 // stopSelectedContainer stops the selected container
@@ -278,12 +335,19 @@ func detectShell(containerID string) string {
 	return "/bin/sh"
 }
 
-// shellSelectedContainer opens a shell in the selected container.
-// Prefers /bin/bash when available, falls back to /bin/sh.
+// shellSelectedContainer opens a shell in the selected container, in place or
+// in a window of its own depending on app.terminal_new_window.
+//
+// Prefers /bin/bash when available, falls back to /bin/sh. The two used to be
+// `s` and `S`, spending a second letter on a choice that belongs to the
+// environment: there is no window to open under WSL or through SSH (§3.26).
 func (m Model) shellSelectedContainer() (tea.Model, tea.Cmd) {
 	c := m.getSelectedContainer()
 	if c == nil || c.State != "running" {
 		return m, nil
+	}
+	if m.config.App.TerminalNewWindow {
+		return m.shellSelectedContainerInNewWindow()
 	}
 
 	shell := detectShell(c.ID)

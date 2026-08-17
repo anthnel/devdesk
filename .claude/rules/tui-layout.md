@@ -44,27 +44,57 @@ paie une fois.
   - `→`: Enter selected group/directory (drill down).
   - `Enter`: Select/confirm item (visible only in selection mode, e.g. when browsing from security view).
   - `Esc`: Go back to parent level, or cancel/close modal.
-- **Resource Actions**:
-  - `ctrl+n`: Create/New resource.
-  - `e`: Edit resource.
-  - `ctrl+d`: Delete resource (with confirmation).
-  - `ctrl+s`: Trigger scan.
-  - `s`: Sync — fetch and fast-forward (workspaces view).
-  - `ctrl+o`: Open in configured IDE (workspaces view).
-  - `c`: Enter a multi-select mode over the current list (explorer clone), or
-    toggle syntax coloring (viewer). Both are view-local. La raison a changé
-    avec §3.26 : elle invoquait `h`/`l` comme alias réservés de `←`/`→`, ce qui
-    interdisait une touche *highlight* en `h` — ces alias n'existent plus, donc
-    l'argument est tombé. `c` reste parce que *coloration* est de toute façon un
-    meilleur repère que *highlight*, et déplacer une touche pour courir après un
-    motif supprimé serait du bruit.
+- **Resource Actions** — une **majuscule**, toujours, et son sens est le même
+  partout. Le vocabulaire complet est déclaré dans `internal/ui/keymap`, et
+  `TestNoViewBindsAnUndeclaredUppercaseKey` parcourt les sources pour vérifier
+  qu'aucune vue n'en sort. Les lettres libres y sont listées (`H J Q Y Z`) :
+  une nouvelle action s'y sert, elle ne s'invente pas une touche.
+
+  | | | | |
+  |---|---|---|---|
+  | `N` Créer | `E` Éditer | `D` Supprimer | `M` Renommer (*mv*) |
+  | `S` Scanner | `A` Scanner tout | `F` Se remettre à jour | `C` Sélection de clone |
+  | `T` Terminal | `O` IDE | `W` Navigateur | `L` Logs |
+  | `V` Pager | `K` Arrêter / tuer | `P` Prune | `B` Navigateur de registries |
+  | `G` Pull (*get*) | `U` Login / logout | `X` Exclure | `R` MR · PR |
+  | `I` Issues | | | |
+
+- **Minuscules** — un filtre ou une bascule d'affichage, jamais une action. Elle
+  ne modifie rien, donc son sens est **local** et deux vues peuvent employer la
+  même lettre : `l` est le protocole dans netdiag et la sévérité LOW dans
+  security. « Local » veut dire **déclaré** : chaque surface énumère ses touches
+  dans `keymap.localToggles`, et `TestEveryLowercaseBindingIsDeclared` refuse
+  celles qui n'y sont pas.
+  - `a` (containers) : afficher aussi les conteneurs arrêtés.
+  - `f` `c` `w` `v` `t` (viewer) : affichage, coloration, retour à la ligne,
+    verbosité, horodatage.
+  - `t` `u` `l` `e` `n` `z` (netdiag/Ports) : filtres de protocole et d'état.
+  - `r` (browser OCI) : registry affiché.
+  - `c` `h` `m` `l` (security) : sévérités, **cumulatives** — `c`+`h` demande
+    « CRITICAL **ou** HIGH », ce qu'un seuil ne sait pas exprimer.
+
+- **Deux exceptions, déclarées** dans `keymap.DeclaredExceptions()` : `c` (test
+  de connectivité, inspection réseau OCI) et `ctrl+y` (copier la commande
+  `docker run`). Brûler une majuscule globale pour une action présente dans un
+  seul sous-écran coûterait plus que ça ne rapporte. Elles sont écrites comme
+  exceptions pour que le prochain relevé ne les prenne pas pour des dérives.
+
+- **Une modale est un quatrième espace**, disjoint par le *mode* et non par la
+  casse : elle réclame toute touche avant que la vue ne la voie, donc son
+  `y`/`n` ne heurte aucune action.
+
 - **Document viewer** (opened from another view; `esc` returns there):
   - `f`: Switch display — tree ↔ the document's own text.
-  - `c`: Syntax coloring on/off.
+  - `c`: Syntax coloring on/off. La raison a changé avec §3.26 : elle invoquait
+    `h`/`l` comme alias réservés de `←`/`→`, ce qui interdisait une touche
+    *highlight* en `h` — ces alias n'existent plus, donc l'argument est tombé.
+    `c` reste parce que *coloration* est de toute façon un meilleur repère que
+    *highlight*, et déplacer une touche pour courir après un motif supprimé
+    serait du bruit.
   - `w`: Soft wrap (text display).
   - `v`: Cycle the minimum log level shown (logs only).
-  - `ctrl+r` / `ctrl+f`: Reload once / follow live output.
-  - `e`: Open in the system pager (the one surviving pager path, container logs only).
+  - `ctrl+r` / `F`: Reload once / follow live output.
+  - `V`: Open in the system pager (the one surviving pager path, container logs only).
 - **Control**:
   - `Enter`: Validate, Execute, or Open.
   - `Esc`: Close modal, cancel, or go back.
@@ -83,7 +113,21 @@ paie une fois.
   - `/`: Search/Filter.
   - `?`: Open help menu.
   - `q`: Quit view/app.
-  - `ctrl+r`: Reload/Refresh data.
+  - `ctrl+r`: **Rafraîchir, et rien d'autre.** Elle voulait aussi dire « revenir »
+    dans les résultats de security et de netdiag, où `esc` suffit.
+
+**Il ne reste que trois combinaisons `Ctrl`**, et `TestOnlyThreeCtrlCombinationsSurvive`
+le vérifie : `ctrl+c` (SIGINT), `ctrl+r` (rafraîchir) et `ctrl+p` (la ligne de
+commande). Le budget est d'environ quatorze touches et chacune traîne une
+contrainte — `ctrl+a` est le préfixe de screen, `ctrl+b` celui de tmux,
+`ctrl+s`/`ctrl+q` le contrôle de flux, `ctrl+i`/`ctrl+m`/`ctrl+j`/`ctrl+h` sont
+TAB, Entrée, LF et Backspace. Une action qui se réinstallerait derrière `Ctrl`
+reprendrait une place que `Shift` donne gratuitement.
+
+`Ctrl+Shift` n'est pas une option : le code de contrôle écrase la casse, donc
+`ctrl+a` et `ctrl+shift+a` émettent tous deux 0x01. Les distinguer exige le
+protocole clavier Kitty ou `modifyOtherKeys`, que bubbletea v1.3.10 n'active pas
+— et même alors l'émulateur se sert d'abord (`ctrl+shift+c/v/t/w/n`).
 
 ### Rule 112 : Formulaires dans le viewport (pas de modales)
 

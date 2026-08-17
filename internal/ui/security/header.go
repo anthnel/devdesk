@@ -29,7 +29,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		// both.
 		if selected, ok := m.findingsTable.Selected(); m.activeTab == TabSecrets && ok &&
 			selected.Source == scan.SourceGitleaks {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "i", Description: "Ignore"})
+			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "X", Description: "Exclude"})
 		}
 		shortcuts = append(shortcuts,
 			shortcut.Shortcut{Key: "ctrl+r", Description: "New scan"},
@@ -62,8 +62,8 @@ func (m Model) inventoryShortcuts() shortcut.Shortcuts {
 			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "Open findings"})
 		}
 		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "ctrl+s", Description: "Rescan"},
-			shortcut.Shortcut{Key: "ctrl+a", Description: "Rescan all"},
+			shortcut.Shortcut{Key: "S", Description: "Rescan"},
+			shortcut.Shortcut{Key: "A", Description: "Rescan all"},
 			shortcut.Shortcut{Key: "/", Description: "Filter"},
 		)
 	}
@@ -148,16 +148,16 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "↑/k", Description: "Move selection up"},
 			{Key: "↓/j", Description: "Move selection down"},
 			{Key: "enter", Description: "Open the stored findings for the selected target (inventory)"},
-			{Key: "ctrl+s", Description: "Rescan the selected target, overwriting its cached result (inventory)"},
-			{Key: "ctrl+a", Description: "Purge every cached result and rescan every target (inventory)"},
+			{Key: "S", Description: "Rescan the selected target, overwriting its cached result (inventory)"},
+			{Key: "A", Description: "Rescan every target. The confirmation carries a checkbox to purge the cached counts first (inventory)"},
 			{Key: "ctrl+r", Description: "Reload the inventory from the scan caches"},
 			{Key: "/", Description: "Filter the inventory by target name"},
 			{Key: ".", Description: "Cycle the sort column (inventory) or the severity filter (results)"},
 			{Key: "enter", Description: "Open the details of the selected finding (results)"},
-			{Key: "i", Description: "Ignore a secret (add to .gitleaksignore, in the Secrets tab)"},
+			{Key: "X", Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab, Gitleaks findings only)"},
 			{Key: "o", Description: "Open first reference URL in the default browser (detail view)"},
 			{Key: "tab / shift+tab", Description: "Switch tabs in results (CVE, Secrets, Licenses, Misconfig)"},
-			{Key: "1 / 2 / 3 / 4", Description: "Jump directly to a tab"},
+			{Key: "c / h / m / l", Description: "Filter by severity — cumulative, so c and h together show CRITICAL and HIGH"},
 			{Key: "ctrl+r", Description: "Back to the inventory (results)"},
 			{Key: "esc", Description: "Back"},
 			{Key: "ctrl+p", Description: "Open command mode"},

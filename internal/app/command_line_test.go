@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -322,7 +323,7 @@ func TestTheCommandLineOwnsTheKeyboardWhileOpen(t *testing.T) {
 	a := commanding(t, view)
 
 	typeCommand(t, a, "d")
-	feedKey(t, a, testutil.Key("ctrl+d"))
+	feedKey(t, a, testutil.Key(keymap.Delete))
 
 	if view.sawKey("d") || view.sawKey("ctrl+d") {
 		t.Errorf("the view received %v from behind the command line", view.keysSeen())

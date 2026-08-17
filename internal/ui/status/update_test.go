@@ -16,6 +16,7 @@ import (
 	"github.com/anthnel/devdesk/internal/status"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/status/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -431,7 +432,7 @@ func namesOf(components []status.ComponentStatus) []string {
 func TestCtrlNOpensAnEmptyForm(t *testing.T) {
 	m := loadedModel(t)
 
-	m = feed(t, m, testutil.Key("ctrl+n"))
+	m = feed(t, m, testutil.Key(keymap.New))
 
 	if m.componentForm == nil {
 		t.Fatal("ctrl+n did not open the component form")
@@ -445,7 +446,7 @@ func TestEditOpensTheFormOnTheSelectedMonitor(t *testing.T) {
 	m := loadedModel(t)
 	m = feed(t, m, testutil.Key("down")) // second row, sorted by name ascending
 
-	m = feed(t, m, testutil.Key("e"))
+	m = feed(t, m, testutil.Key(keymap.Edit))
 
 	if m.componentForm == nil {
 		t.Fatal("e did not open the component form")
@@ -462,12 +463,12 @@ func TestEditOpensTheFormOnTheSelectedMonitor(t *testing.T) {
 func TestEditAndDeleteAreInertWithoutData(t *testing.T) {
 	m := newTestModel(t, monitorConfigs()...) // no check results yet
 
-	m = feed(t, m, testutil.Key("e"))
+	m = feed(t, m, testutil.Key(keymap.Edit))
 	if m.componentForm != nil {
 		t.Error("e opened a form with no monitors loaded")
 	}
 
-	m = feed(t, m, testutil.Key("ctrl+d"))
+	m = feed(t, m, testutil.Key(keymap.Delete))
 	if m.confirmModal != nil {
 		t.Error("ctrl+d opened a confirmation with no monitors loaded")
 	}
@@ -476,7 +477,7 @@ func TestEditAndDeleteAreInertWithoutData(t *testing.T) {
 func TestCtrlDOpensAConfirmationNamingTheMonitor(t *testing.T) {
 	m := loadedModel(t)
 
-	m = feed(t, m, testutil.Key("ctrl+d"))
+	m = feed(t, m, testutil.Key(keymap.Delete))
 
 	if m.confirmModal == nil {
 		t.Fatal("ctrl+d did not open the confirmation modal")
@@ -608,7 +609,7 @@ func TestFormSubmitWithAnUnknownOriginalChangesNothing(t *testing.T) {
 
 func TestConfirmDeleteRemovesTheSelectedMonitor(t *testing.T) {
 	m := loadedModel(t)
-	m = feed(t, m, testutil.Key("ctrl+d")) // selects api (config index 1)
+	m = feed(t, m, testutil.Key(keymap.Delete)) // selects api (config index 1)
 	before := len(m.config.Status.Components)
 
 	m, cmd := step(t, m, sharedcomponents.ConfirmModalYesMsg{})
@@ -631,7 +632,7 @@ func TestConfirmDeleteRemovesTheSelectedMonitor(t *testing.T) {
 
 func TestCancellingDeleteKeepsEverything(t *testing.T) {
 	m := loadedModel(t)
-	m = feed(t, m, testutil.Key("ctrl+d"))
+	m = feed(t, m, testutil.Key(keymap.Delete))
 	before := len(m.config.Status.Components)
 
 	m = feed(t, m, sharedcomponents.ConfirmModalNoMsg{})
@@ -827,7 +828,7 @@ func TestSearchMatchesTargetAndType(t *testing.T) {
 func TestOpenOverlaysCaptureKeys(t *testing.T) {
 	t.Run("form", func(t *testing.T) {
 		m := loadedModel(t)
-		m = feed(t, m, testutil.Key("ctrl+n"))
+		m = feed(t, m, testutil.Key(keymap.New))
 		cursor := m.monitorTable.Cursor()
 
 		m = feed(t, m, testutil.Key("down"))
@@ -842,7 +843,7 @@ func TestOpenOverlaysCaptureKeys(t *testing.T) {
 
 	t.Run("confirmation", func(t *testing.T) {
 		m := loadedModel(t)
-		m = feed(t, m, testutil.Key("ctrl+d"))
+		m = feed(t, m, testutil.Key(keymap.Delete))
 		cursor := m.monitorTable.Cursor()
 
 		m = feed(t, m, testutil.Key("down"))
@@ -937,7 +938,7 @@ func TestAFilteredSelectionEditsTheRowTheUserSees(t *testing.T) {
 		t.Fatalf("rows under the filter = %v, want just dns-primary", got)
 	}
 
-	m = feed(t, m, testutil.Key("ctrl+d"))
+	m = feed(t, m, testutil.Key(keymap.Delete))
 	if m.confirmModal == nil {
 		t.Fatal("ctrl+d did not open the delete confirmation")
 	}

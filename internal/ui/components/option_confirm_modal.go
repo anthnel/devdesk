@@ -9,60 +9,83 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// DeleteConfirmModal est une boîte de dialogue de confirmation pour suppression
-// avec option de suppression immédiate
-type DeleteConfirmModal struct {
-	title             string
-	message           string
-	focused           int  // 0 = checkbox, 1 = Yes, 2 = No
-	permanentlyRemove bool // Si true, suppression immédiate sans période de grâce
-	locked            bool // Si true, la checkbox n'est ni modifiable ni focusable
-	width             int
-	height            int
+// OptionConfirmModal est une confirmation portant une case à cocher : « fais-le,
+// et fais-le de cette façon-là ».
+//
+// Elle servait la seule suppression, d'où son ancien nom. §3.26 lui donne un
+// second emploi — la purge du cache avant un scan complet — et c'est le même
+// besoin : deux actions que seul un modificateur distinguait, dont rien dans la
+// forme ne disait laquelle était destructrice. Ici la variante destructrice est
+// un geste délibéré, sous les yeux de celui qui la déclenche.
+type OptionConfirmModal struct {
+	title   string
+	message string
+	focused int // 0 = checkbox, 1 = Yes, 2 = No
+	// option est la case, et son sens appartient à l'appelant : suppression
+	// immédiate ici, purge du cache là.
+	option        bool
+	optionLabel   string
+	optionWarning string // affiché quand la case est cochée ; vide = rien à dire
+	locked        bool   // Si true, la checkbox n'est ni modifiable ni focusable
+	width         int
+	height        int
+}
+
+// immediateDeletionLabel est l'option de la suppression, et la raison pour
+// laquelle cette modale existe.
+const (
+	immediateDeletionLabel   = "Immediate deletion (no grace period)"
+	immediateDeletionWarning = "This action is irreversible!"
+)
+
+// NewOptionConfirmModal crée une confirmation avec une case à cocher nommée.
+// Sans warning : une option qui n'est pas destructrice n'en mérite pas.
+func NewOptionConfirmModal(title, message, optionLabel string) *OptionConfirmModal {
+	return &OptionConfirmModal{
+		title:       title,
+		message:     message,
+		focused:     2, // Default sur "No"
+		optionLabel: optionLabel,
+	}
 }
 
 // NewDeleteConfirmModal crée une nouvelle modal de confirmation de suppression
-func NewDeleteConfirmModal(title, message string) *DeleteConfirmModal {
-	return &DeleteConfirmModal{
-		title:             title,
-		message:           message,
-		focused:           2, // Default sur "No" pour éviter les suppressions accidentelles
-		permanentlyRemove: false,
-	}
+func NewDeleteConfirmModal(title, message string) *OptionConfirmModal {
+	m := NewOptionConfirmModal(title, message, immediateDeletionLabel)
+	m.optionWarning = immediateDeletionWarning
+	return m
 }
 
-// NewDeleteConfirmModalPermanent crée une modal avec la case "immediate deletion" pré-cochée et non modifiable.
+// NewDeleteConfirmModalLocked crée une modal avec la case "immediate deletion" pré-cochée et non modifiable.
 // À utiliser quand le projet est déjà marqué pour suppression — seule la suppression permanente est possible.
-func NewDeleteConfirmModalPermanent(title, message string) *DeleteConfirmModal {
-	return &DeleteConfirmModal{
-		title:             title,
-		message:           message,
-		focused:           2, // Default sur "No"
-		permanentlyRemove: true,
-		locked:            true,
-	}
+func NewDeleteConfirmModalLocked(title, message string) *OptionConfirmModal {
+	m := NewDeleteConfirmModal(title, message)
+	m.option = true
+	m.locked = true
+	return m
 }
 
 // minFocus retourne le premier élément atteignable au clavier. La checkbox est
 // exclue quand elle est verrouillée : un contrôle focusable qui ignore toute
 // touche est plus déroutant qu'un contrôle absent.
-func (m *DeleteConfirmModal) minFocus() int {
+func (m *OptionConfirmModal) minFocus() int {
 	if m.locked {
 		return 1
 	}
 	return 0
 }
 
-// DeleteConfirmModalYesMsg est envoyé quand l'utilisateur confirme la suppression
-type DeleteConfirmModalYesMsg struct {
-	PermanentlyRemove bool
+// OptionConfirmModalYesMsg est envoyé quand l'utilisateur confirme. Option porte
+// l'état de la case, dont le sens appartient à celui qui a ouvert la modale.
+type OptionConfirmModalYesMsg struct {
+	Option bool
 }
 
-// DeleteConfirmModalNoMsg est envoyé quand l'utilisateur annule
-type DeleteConfirmModalNoMsg struct{}
+// OptionConfirmModalNoMsg est envoyé quand l'utilisateur annule
+type OptionConfirmModalNoMsg struct{}
 
 // Update met à jour la modal
-func (m *DeleteConfirmModal) Update(msg tea.Msg) (*DeleteConfirmModal, tea.Cmd) {
+func (m *OptionConfirmModal) Update(msg tea.Msg) (*OptionConfirmModal, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -109,13 +132,13 @@ func (m *DeleteConfirmModal) Update(msg tea.Msg) (*DeleteConfirmModal, tea.Cmd) 
 		case "y", "Y":
 			// Raccourci pour Yes
 			return m, func() tea.Msg {
-				return DeleteConfirmModalYesMsg{PermanentlyRemove: m.permanentlyRemove}
+				return OptionConfirmModalYesMsg{Option: m.option}
 			}
 
 		case "n", "N", "esc":
 			// Raccourci pour No
 			return m, func() tea.Msg {
-				return DeleteConfirmModalNoMsg{}
+				return OptionConfirmModalNoMsg{}
 			}
 		}
 	}
@@ -125,22 +148,22 @@ func (m *DeleteConfirmModal) Update(msg tea.Msg) (*DeleteConfirmModal, tea.Cmd) 
 
 // cycleFocus fait tourner le focus dans le sens donné, en sautant les éléments
 // exclus par minFocus().
-func (m *DeleteConfirmModal) cycleFocus(step int) int {
+func (m *OptionConfirmModal) cycleFocus(step int) int {
 	min := m.minFocus()
 	span := 3 - min
 	return min + ((m.focused-min+step)%span+span)%span
 }
 
 // toggleCheckbox inverse la case "immediate deletion", sauf si elle est verrouillée.
-func (m *DeleteConfirmModal) toggleCheckbox() {
+func (m *OptionConfirmModal) toggleCheckbox() {
 	if m.locked {
 		return
 	}
-	m.permanentlyRemove = !m.permanentlyRemove
+	m.option = !m.option
 }
 
 // handleConfirm gère la confirmation selon l'élément sélectionné
-func (m *DeleteConfirmModal) handleConfirm() (*DeleteConfirmModal, tea.Cmd) {
+func (m *OptionConfirmModal) handleConfirm() (*OptionConfirmModal, tea.Cmd) {
 	switch m.focused {
 	case 0:
 		// Toggle checkbox
@@ -149,19 +172,19 @@ func (m *DeleteConfirmModal) handleConfirm() (*DeleteConfirmModal, tea.Cmd) {
 	case 1:
 		// Yes
 		return m, func() tea.Msg {
-			return DeleteConfirmModalYesMsg{PermanentlyRemove: m.permanentlyRemove}
+			return OptionConfirmModalYesMsg{Option: m.option}
 		}
 	case 2:
 		// No
 		return m, func() tea.Msg {
-			return DeleteConfirmModalNoMsg{}
+			return OptionConfirmModalNoMsg{}
 		}
 	}
 	return m, nil
 }
 
 // View affiche la modal
-func (m *DeleteConfirmModal) View() string {
+func (m *OptionConfirmModal) View() string {
 	var b strings.Builder
 
 	// Titre
@@ -183,7 +206,7 @@ func (m *DeleteConfirmModal) View() string {
 	}
 
 	checkbox := theme.IconCheckbox
-	if m.permanentlyRemove {
+	if m.option {
 		checkbox = theme.IconChecked
 	}
 
@@ -192,15 +215,15 @@ func (m *DeleteConfirmModal) View() string {
 		indicator = theme.IconCircleSmall + " "
 	}
 
-	checkboxLabel := " Immediate deletion (no grace period)"
+	checkboxLabel := " " + m.optionLabel
 	checkboxLine := checkboxStyle.Render(indicator + checkbox + checkboxLabel)
 	b.WriteString(checkboxLine)
 
-	// Warning si suppression immédiate activée
-	if m.permanentlyRemove {
+	// Warning quand la case est cochée, si l'appelant en a un à donner.
+	if m.option && m.optionWarning != "" {
 		b.WriteString("\n")
 		warningStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorHighlight).Italic(true)
-		b.WriteString(warningStyle.Render("  " + theme.IconWarning + " This action is irreversible!"))
+		b.WriteString(warningStyle.Render("  " + theme.IconWarning + " " + m.optionWarning))
 	}
 	b.WriteString("\n\n")
 

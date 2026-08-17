@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -23,7 +24,7 @@ import (
 func groupedModel(t *testing.T) Model {
 	t.Helper()
 	m := feed(t, loadedModel(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
-	return feed(t, m, testutil.Key("b"))
+	return feed(t, m, testutil.Key(keymap.Browser))
 }
 
 func typeInto(t *testing.T, m Model, s string) Model {
@@ -595,7 +596,7 @@ func TestARegistryWithNoAliasIsLabelledByItsURL(t *testing.T) {
 	cfg.Registry.Registries[0].Alias = ""
 	cfg.Registry.Registries[0].Kind = config.KindRegistry
 	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 180, Height: 30}, ImagesListMsg{Images: imageFixtures()})
-	m = feed(t, m, testutil.Key("b"))
+	m = feed(t, m, testutil.Key(keymap.Browser))
 
 	b := m.registryBrowser
 	b.registryFilter = resultFilter{url: "registry.example.com"}
@@ -611,7 +612,7 @@ func TestPullingATagShowsTheOperation(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
 
-	m = feed(t, m, testutil.Key("p"))
+	m = feed(t, m, testutil.Key(keymap.Get))
 
 	if b.state != browserStateStatus {
 		t.Fatalf("state = %d, want the status screen", b.state)
@@ -630,9 +631,9 @@ func TestPullingATagShowsTheOperation(t *testing.T) {
 func TestNoKeyActsWhileAPullRuns(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
-	m = feed(t, m, testutil.Key("p"))
+	m = feed(t, m, testutil.Key(keymap.Get))
 
-	feed(t, m, testutil.Key("esc"), testutil.Key("p"), testutil.Key("."))
+	feed(t, m, testutil.Key("esc"), testutil.Key(keymap.Get), testutil.Key("."))
 
 	if b.state != browserStateStatus {
 		t.Errorf("state = %d, want the pull still showing", b.state)
@@ -642,7 +643,7 @@ func TestNoKeyActsWhileAPullRuns(t *testing.T) {
 func TestAFinishedPullReturnsToTheTags(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
-	m = feed(t, m, testutil.Key("p"))
+	m = feed(t, m, testutil.Key(keymap.Get))
 
 	b.SetOperationSuccess()
 
@@ -654,7 +655,7 @@ func TestAFinishedPullReturnsToTheTags(t *testing.T) {
 func TestAFailedPullAlsoReturnsToTheTags(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
-	m = feed(t, m, testutil.Key("p"))
+	m = feed(t, m, testutil.Key(keymap.Get))
 
 	b.SetOperationError("manifest unknown")
 
@@ -668,7 +669,7 @@ func TestAFailedPullAlsoReturnsToTheTags(t *testing.T) {
 func TestCtrlSAsksForADirectScanOfTheSelectedTag(t *testing.T) {
 	m := resultsModel(t)
 
-	_, cmd := step(t, m, testutil.Key("ctrl+s"))
+	_, cmd := step(t, m, testutil.Key(keymap.Scan))
 
 	msg, ok := testutil.MsgOf[RegistryTagDirectScanMsg](cmd)
 	if !ok {
@@ -712,7 +713,7 @@ func TestTheTagActionsDeclineWithNothingSelected(t *testing.T) {
 	b := m.registryBrowser
 	b.state = browserStateTags
 
-	for _, name := range []string{"p", "ctrl+s", "enter"} {
+	for _, name := range []string{keymap.Get, keymap.Scan, "enter"} {
 		next, cmd := step(t, m, testutil.Key(name))
 		if cmd != nil {
 			t.Errorf("%q acted with no tag selected", name)

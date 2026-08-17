@@ -84,6 +84,10 @@ type Model struct {
 	infoMsg       string
 	confirmModal  *sharedcomponents.ConfirmModal
 	pendingAction string
+	// scanAllModal carries A's purge checkbox. Separate from confirmModal
+	// because the two answer different messages, and one field holding either
+	// would make the handler guess which question was asked.
+	scanAllModal  *sharedcomponents.OptionConfirmModal
 	width, height int
 }
 

@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // Update gère les messages
@@ -74,10 +75,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ProjectCreatedMsg:
 		return m.handleProjectCreated(msg)
 
-	case components.DeleteConfirmModalYesMsg:
-		return m.handleDeleteConfirmed(msg.PermanentlyRemove)
+	case components.OptionConfirmModalYesMsg:
+		return m.handleDeleteConfirmed(msg.Option)
 
-	case components.DeleteConfirmModalNoMsg:
+	case components.OptionConfirmModalNoMsg:
 		m.mode = ModeNormal
 		m.deleteConfirmModal = nil
 		m.deleteTargetNode = nil
@@ -146,13 +147,13 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDrillUp()
 	case "ctrl+r":
 		return m.handleRefresh()
-	case "c":
+	case keymap.Clone:
 		return m.handleCloneStart()
-	case "ctrl+n":
+	case keymap.New:
 		return m.handleCreateResource()
-	case "ctrl+d":
+	case keymap.Delete:
 		return m.handleDeleteStart()
-	case "ctrl+w":
+	case keymap.Web:
 		return m.handleOpenInBrowser()
 	}
 

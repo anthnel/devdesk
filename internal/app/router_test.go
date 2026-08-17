@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -32,7 +33,7 @@ func TestAnOpenOverlaySwallowsEveryKey(t *testing.T) {
 			a := router(t, view)
 			tt.open(a)
 
-			for _, key := range testutil.Keys("ctrl+d", "p", "enter", "down") {
+			for _, key := range testutil.Keys(keymap.Delete, "p", "enter", "down") {
 				a.handleKeyMsg(key.(tea.KeyMsg))
 			}
 
@@ -174,11 +175,11 @@ func TestUnclaimedKeysGoToTheActiveView(t *testing.T) {
 	view := &fakeView{}
 	a := router(t, view)
 
-	for _, key := range testutil.Keys("ctrl+s", "j", "enter", "/") {
+	for _, key := range testutil.Keys(keymap.Scan, "x", "enter", "/") {
 		a.handleKeyMsg(key.(tea.KeyMsg))
 	}
 
-	want := []string{"ctrl+s", "j", "enter", "/"}
+	want := []string{keymap.Scan, "x", "enter", "/"}
 	got := view.keysSeen()
 	if len(got) != len(want) {
 		t.Fatalf("the view received %v, want %v", got, want)

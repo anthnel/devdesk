@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -54,20 +55,16 @@ const (
 
 // updateFindingsTable populates the findings table based on active tab and filters.
 //
-// The tab and the severity are this view's own filters, not the component's:
-// they select which findings exist at all, where a FilterBar query narrows a
-// list that is already settled. So the view filters and hands the result over.
+// The tab is this view's own filter, not the component's: it selects which
+// findings exist at all, where a FilterBar query narrows a list that is already
+// settled. The severity went the other way — it is four cumulative tokens the
+// table owns (Rule 136), which is what gave `.` back to the sort.
 func (m *Model) updateFindingsTable() {
 	if m.result == nil {
 		return
 	}
 
-	findings := m.filterFindingsByTab()
-	if (m.activeTab == TabCVE || m.activeTab == TabLicense || m.activeTab == TabMisconfig) && m.severityFilter != "all" {
-		findings = m.filterFindingsBySeverity(findings)
-	}
-
-	m.findingsTable.SetItems(findings)
+	m.findingsTable.SetItems(m.filterFindingsByTab())
 	// A change of tab or severity is a change of scope, not a shorter list, so
 	// the cursor goes back to the top. SetItems deliberately leaves it alone.
 	m.findingsTable.GotoTop()
@@ -99,34 +96,6 @@ func (m *Model) filterFindingsByTab() []scan.Finding {
 	var filtered []scan.Finding
 	for _, f := range m.result.Findings {
 		if scan.Categorize(f) == want {
-			filtered = append(filtered, f)
-		}
-	}
-	return filtered
-}
-
-// filterFindingsBySeverity filters findings by selected severity level
-func (m *Model) filterFindingsBySeverity(findings []scan.Finding) []scan.Finding {
-	if m.severityFilter == "all" {
-		return findings
-	}
-
-	var filtered []scan.Finding
-	for _, f := range findings {
-		switch m.severityFilter {
-		case "critical":
-			if f.Severity == scan.SeverityCritical {
-				filtered = append(filtered, f)
-			}
-		case "high":
-			if f.Severity == scan.SeverityCritical || f.Severity == scan.SeverityHigh {
-				filtered = append(filtered, f)
-			}
-		case "medium":
-			if f.Severity == scan.SeverityCritical || f.Severity == scan.SeverityHigh || f.Severity == scan.SeverityMedium {
-				filtered = append(filtered, f)
-			}
-		case "low":
 			filtered = append(filtered, f)
 		}
 	}
@@ -232,7 +201,6 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "ctrl+r":
 		m.activeTab = TabCVE
-		m.severityFilter = "all"
 		return m.goHome()
 	case "tab":
 		m.switchTab((m.activeTab + 1) % 4)
@@ -240,40 +208,24 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "shift+tab":
 		m.switchTab((m.activeTab + 3) % 4)
 		return m, nil
-	case "1":
-		m.switchTab(TabCVE)
-		return m, nil
-	case "2":
-		m.switchTab(TabSecrets)
-		return m, nil
-	case "3":
-		m.switchTab(TabLicense)
-		return m, nil
-	case "4":
-		m.switchTab(TabMisconfig)
-		return m, nil
-	case ".":
-		if m.activeTab == TabCVE || m.activeTab == TabLicense || m.activeTab == TabMisconfig {
-			m.cycleSeverityFilter()
-			m.updateFindingsTable()
-		}
-		return m, nil
-	case "i":
+	// 1-4 jumped straight to a tab. They were the application's only numeric
+	// bindings, and an exception in a single view is precisely what §3.26
+	// dismantles — tab reaches all four.
+	case "c", "h", "m", "l":
+		return m.toggleSeverity(msg.String())
+	case keymap.Exclude:
 		return m.handleIgnoreSecret()
-	case "up", "down", "pgup", "pgdown", "home", "end":
-		return m, m.findingsTable.Update(msg)
 	}
-	return m, nil
+	// `.` is the sort again, and the search and the severity tokens are the
+	// table's (Rule 136).
+	return m, m.findingsTable.Update(msg)
 }
 
-// cycleSeverityFilter cycles through severity filter options
-func (m *Model) cycleSeverityFilter() {
-	filters := []string{"all", "critical", "high", "medium", "low"}
-	for i, f := range filters {
-		if f == m.severityFilter {
-			m.severityFilter = filters[(i+1)%len(filters)]
-			return
-		}
-	}
-	m.severityFilter = "all"
+// toggleSeverity flips one severity token. Cumulative: c and h together ask for
+// "CRITICAL or HIGH", which is the question a threshold cycle could not put.
+func (m Model) toggleSeverity(key string) (tea.Model, tea.Cmd) {
+	label := map[string]string{"c": "critical", "h": "high", "m": "medium", "l": "low"}[key]
+	m.findingsTable.SetTokenActive(label, !m.findingsTable.IsTokenActive(label))
+	m.findingsTable.GotoTop()
+	return m, nil
 }

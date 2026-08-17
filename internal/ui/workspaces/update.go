@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // Init initialise le modèle
@@ -77,6 +78,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sharedcomponents.ConfirmModalNoMsg:
 		m.mode = ModeNormal
 		m.confirmModal = nil
+		return m, nil
+
+	case sharedcomponents.OptionConfirmModalYesMsg:
+		m.mode = ModeNormal
+		m.scanAllModal = nil
+		return m.scanAll(msg.Option)
+
+	case sharedcomponents.OptionConfirmModalNoMsg:
+		m.mode = ModeNormal
+		m.scanAllModal = nil
 		return m, nil
 
 	case TerminalExitMsg:
@@ -178,6 +189,13 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// Mode scan-all - delegate to the option modal
+	if m.mode == ModeConfirmingScanAll && m.scanAllModal != nil {
+		var cmd tea.Cmd
+		m.scanAllModal, cmd = m.scanAllModal.Update(msg)
+		return m, cmd
+	}
+
 	// Mode renaming - delegate to input component
 	if m.mode == ModeRenaming && m.input != nil {
 		var cmd tea.Cmd
@@ -198,28 +216,27 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openScanDetails()
 	case "ctrl+r":
 		return m, m.loadEntries()
-	case "ctrl+n":
+	case keymap.New:
 		return m.startAdd()
-	case "r":
+	case keymap.Rename:
 		return m.startRename()
-	case "ctrl+d":
+	case keymap.Delete:
 		return m.startDelete()
-	case "t":
-		return m.openTerminalInPlace(m.resolveTargetPath())
-	case "T":
-		return m.openTerminalWindow()
-	case "ctrl+o":
+	// The "new window" variant is a setting, not a second key: the capability
+	// depends on the environment — the help already says it does not exist
+	// under WSL, and through SSH there is no window to open (§3.26).
+	case keymap.Terminal:
+		return m.openTerminal()
+	case keymap.IDE:
 		return m.openIDE()
-	case "ctrl+w":
+	case keymap.Web:
 		return m.openInBrowser()
-	case "ctrl+s":
+	case keymap.Scan:
 		return m.startSecurityScan()
-	case "s":
+	case keymap.Fetch:
 		return m.startSync()
-	case "A":
-		return m.scanAllUnscanned()
-	case "ctrl+a":
-		return m.requestScanAll()
+	case keymap.ScanAll:
+		return m.confirmScanAll()
 	case "left":
 		return m.navigateUp()
 	case "right":
@@ -321,7 +338,7 @@ func (m Model) handleSelectionKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg { return SelectionCancelledMsg{} }
 	case "enter":
 		// Confirm selection: use the current browsing directory (not the highlighted entry).
-		// Use → / l to navigate into a subdirectory first.
+		// Use → to navigate into a subdirectory first.
 		path := m.currentPath
 		if path == "" {
 			path = m.getExpandedWorkspacesDir()

@@ -24,7 +24,7 @@ func (m Model) handleDeleteStart() (tea.Model, tea.Cmd) {
 	if node.Type == NodeTypeProject && node.MarkedForDeletion {
 		title := "Permanently Delete Project"
 		message := fmt.Sprintf("'%s' is already scheduled for deletion.\n\nConfirm to permanently delete it now.", node.Name)
-		m.deleteConfirmModal = components.NewDeleteConfirmModalPermanent(title, message)
+		m.deleteConfirmModal = components.NewDeleteConfirmModalLocked(title, message)
 		return m, nil
 	}
 

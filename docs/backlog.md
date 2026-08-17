@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-16
+**Last Updated:** 2026-08-17
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -4340,7 +4340,7 @@ en désaccord. Vingt-neuf réglages suffisent (YAGNI).
 
 ---
 
-### 3.26 Une touche, un sens — le clavier passe en majuscules
+### 3.26 Une touche, un sens — le clavier passe en majuscules — **done**
 
 Relevé complet des 184 liaisons des 15 surfaces à `90f178e` : 16 collisions, où
 la même touche ne veut pas dire la même chose selon la vue, et 6 risques de
@@ -4542,6 +4542,49 @@ d'une action. Si elle gêne à l'usage, c'est le filtre qui bouge, pas l'action.
 du viewer sous « se remettre au niveau de la source ». La généralisation est
 juste au bon niveau d'abstraction, ou forcée — c'est la ligne à rejeter en
 premier, et `H J Q Y Z` sont libres.
+
+#### Ce que l'implémentation a ajouté
+
+Le relevé portait sur 15 surfaces ; le **scan de source** qui vérifie la règle en
+a trouvé quatre de plus, et c'est l'argument pour lui plutôt que pour une revue :
+
+- **Les modales de confirmation lient `Y`/`N`.** Ce n'est pas une collision — une
+  modale réclame toute touche avant que la vue ne la voie, exactement comme
+  `InEditMode` — donc c'est un **quatrième espace de noms**, disjoint par le
+  *mode* et non par la casse. Déclaré, pas effacé.
+- **`bubbles/viewport` a son propre `KeyMap`**, qui répond `j/k/u/d/b/f`.
+  L'overlay d'aide est le seul endroit qui lui passe une touche brute : il
+  défilait donc sur des lettres dans le dos de l'application. `arrowOnlyScroll()`
+  le remplace.
+- **`netdiag/topology_model.go`** était absent du relevé.
+- **`CreationForm.isOnTextField()`** n'existait que pour empêcher `j`/`k` de
+  naviguer pendant la frappe. Une touche de navigation qui doit demander « es-tu
+  en train de taper ? » est une touche qui ne devrait pas être une lettre ; elle
+  est morte avec les alias.
+
+Trois composants ont bougé plutôt que d'être dupliqués :
+
+- **`DeleteConfirmModal` → `OptionConfirmModal`.** Il servait la seule
+  suppression, d'où son nom ; il porte maintenant deux questions, et
+  `PermanentlyRemove` aurait été un mensonge pour la purge. Le libellé de la case
+  est un paramètre, le warning aussi — une option non destructrice n'en mérite
+  pas.
+- **`ChoiceModal`** est neuf, pour `K`. `ConfirmModal` pose une question fermée
+  et `OptionConfirmModal` une question fermée avec variante ; ni l'une ni l'autre
+  ne sait proposer **deux actions distinctes**. Une case à cocher aurait fait
+  d'un choix exclusif une bascule, ce que Rule 132 interdit.
+- **Les jetons de sévérité sont ceux de `datatable`**, qui portait déjà `Tokens`
+  et `TokenMatch` : rien à construire. La table de findings a donc gagné une
+  `FilterBar`, et le footer de security résout **une** barre
+  (`activeFilterBar()`) plutôt que trois — sans quoi `GetFooterHeight` et
+  `RenderFooter` peuvent se contredire d'une ligne.
+
+**`U` décide sa direction depuis la ligne**, pas depuis la touche : `l` et `L`
+faisaient répondre à l'utilisateur une question que la colonne Logged affichait
+déjà, et se tromper de touche faisait silencieusement l'inverse.
+
+**Livré en deux PR** : le vocabulaire, `ctrl+p` et les alias vim (#70), puis le
+tableau des 21, les modales, le filtre de sévérité et le réglage (#71).
 
 #### Non retenu
 

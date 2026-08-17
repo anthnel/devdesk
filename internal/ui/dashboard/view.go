@@ -280,8 +280,8 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"})
 	if m.shared.IsAuthenticated {
 		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "m", Description: "Open MRs"},
-			shortcut.Shortcut{Key: "i", Description: "Open issues"},
+			shortcut.Shortcut{Key: "R", Description: "Open MRs"},
+			shortcut.Shortcut{Key: "I", Description: "Open issues"},
 		)
 	}
 	shortcuts = append(shortcuts,
@@ -316,8 +316,8 @@ func (m Model) GetHelpContent() help.Content {
 		KeyBindings: []help.KeyBinding{
 			{Key: "tab", Description: "Switch between the Overview and Resources tabs"},
 			{Key: "ctrl+r", Description: "Refresh all dashboard data"},
-			{Key: "m", Description: "Open assigned merge requests in browser (requires authentication)"},
-			{Key: "i", Description: "Open assigned issues in browser (requires authentication)"},
+			{Key: "R", Description: "Open assigned merge requests in browser (requires authentication)"},
+			{Key: "I", Description: "Open assigned issues in browser (requires authentication)"},
 			{Key: "ctrl+p", Description: "Open command mode to navigate to other views"},
 			{Key: "?", Description: "Show this help"},
 		},
