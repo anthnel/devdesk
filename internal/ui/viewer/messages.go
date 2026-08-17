@@ -36,7 +36,3 @@ type BackToOriginMsg struct {
 type PagerExitMsg struct {
 	Err error
 }
-
-// clearFooterMsg drops a transient footer message after its three seconds
-// (Rule 128).
-type clearFooterMsg struct{}

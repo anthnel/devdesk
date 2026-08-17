@@ -117,6 +117,3 @@ type TerminalExitMsg struct{}
 type TerminalOpenedMsg struct {
 	Error error
 }
-
-// clearFooterInfoMsg is sent after a delay to clear the transient footer info message.
-type clearFooterInfoMsg struct{}

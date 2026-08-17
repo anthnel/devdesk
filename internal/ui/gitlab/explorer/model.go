@@ -78,8 +78,8 @@ type Model struct {
 	deleteConfirmModal *components.OptionConfirmModal
 	deleteTargetNode   *TreeNode
 	// Transient footer messages, both cleared by the same 3s timer (Rule 128).
-	footerError string
-	footerInfo  string
+	// footer is the one line of transient state below the viewport (Rule 128).
+	footer components.FooterMessage
 
 	// Path to select after refresh (for newly created items)
 	pendingSelectPath string

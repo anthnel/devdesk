@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -64,8 +65,8 @@ func TestBrowserNeedsARegistry(t *testing.T) {
 	if m.registryBrowser != nil {
 		t.Error("the browser opened with no registries configured")
 	}
-	if !strings.Contains(m.errorMsg, "No registries") {
-		t.Errorf("errorMsg = %q, want it to name the missing configuration", m.errorMsg)
+	if !strings.Contains(m.footer.Text(), "No registries") {
+		t.Errorf("footer = %q, want it to name the missing configuration", m.footer.Text())
 	}
 }
 
@@ -222,17 +223,22 @@ func TestTagMetadataEnrichesTheRows(t *testing.T) {
 
 // ── Pulling ──────────────────────────────────────────────────────────────────
 
+// Both outcomes report, and the level is what tells them apart — the two used
+// to live in separate fields, so "reported nothing" was how a success was
+// recognised.
 func TestPullResultIsReported(t *testing.T) {
 	ok := feed(t, searchedModel(t), RegistryPullCompleteMsg{ImageName: "registry.example.com/api:v1"})
-	if ok.errorMsg != "" {
-		t.Errorf("a successful pull reported %q", ok.errorMsg)
+	if !ok.footer.IsSet() || ok.footer.Level() != sharedcomponents.LevelInfo {
+		t.Errorf("a successful pull reported %q at level %v, want it as info",
+			ok.footer.Text(), ok.footer.Level())
 	}
 
 	failed := feed(t, searchedModel(t), RegistryPullCompleteMsg{
 		ImageName: "registry.example.com/api:v1", Err: errors.New("manifest unknown"),
 	})
-	if failed.errorMsg == "" {
-		t.Error("a failed pull reported nothing")
+	if failed.footer.Level() != sharedcomponents.LevelError {
+		t.Errorf("a failed pull reported %q at level %v, want it as an error",
+			failed.footer.Text(), failed.footer.Level())
 	}
 }
 
@@ -570,7 +576,7 @@ func TestAFailedRefreshIsReported(t *testing.T) {
 	m = feed(t, m, RegistryGroupDetectedMsg{
 		RegistryURL: "registry.example.com", Slug: "prod", Err: errors.New("unreachable")})
 
-	if m.errorMsg == "" {
+	if !m.footer.IsSet() {
 		t.Error("a failed refresh reported nothing")
 	}
 }
@@ -764,8 +770,8 @@ func TestEnteringAGroupWithNoMembersSaysWhy(t *testing.T) {
 	if m.registryGroupSlug != "" {
 		t.Error("the tab drilled into a group with nothing discovered")
 	}
-	if !strings.Contains(m.infoMsg, "ctrl+r") {
-		t.Errorf("infoMsg = %q, want it to name the key that would help", m.infoMsg)
+	if !strings.Contains(m.footer.Text(), "ctrl+r") {
+		t.Errorf("footer = %q, want it to name the key that would help", m.footer.Text())
 	}
 }
 

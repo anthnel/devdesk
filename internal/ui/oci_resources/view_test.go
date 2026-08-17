@@ -208,13 +208,12 @@ func TestFooterShowsEveryTab(t *testing.T) {
 
 func TestFooterShowsTheMessages(t *testing.T) {
 	m := loadedModel(t)
-	m.errorMsg = "Failed to load images — check logs"
+	m.footer.Error("Failed to load images — check logs")
 	if !strings.Contains(m.RenderFooter(180), "Failed to load") {
 		t.Error("the footer does not show the error message")
 	}
 
-	m.errorMsg = ""
-	m.infoMsg = "Total reclaimed space: 1.2GB"
+	m.footer.Info("Total reclaimed space: 1.2GB")
 	if !strings.Contains(m.RenderFooter(180), "reclaimed") {
 		t.Error("the footer does not show the info message")
 	}

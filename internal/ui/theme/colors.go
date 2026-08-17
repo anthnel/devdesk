@@ -82,6 +82,24 @@ var (
 	ColorSearchMatch   lipgloss.Color
 	ColorSearchMatchFg lipgloss.Color
 
+	// Footer message colors, one per level (Rule 128).
+	//
+	// Aliases assigned in ApplyTheme, like the syntax colours above: no theme
+	// file gains a key, and the three follow whatever palette is applied.
+	//
+	// They point at the **severity** colours rather than at ColorError/ColorWarn.
+	// The default theme makes each pair identical, so the choice is invisible
+	// today; it stops being invisible in a theme that separates them, and the
+	// intent is that a footer error reads like a CRITICAL finding and a warning
+	// like a MEDIUM one — same alphabet everywhere in the application.
+	//
+	// Info is deliberately ColorText, the application's ordinary text colour:
+	// ColorHighlight carried it before and is a yellow one notch from the
+	// warning's orange, which made the two levels indistinguishable.
+	ColorFooterInfo  lipgloss.Color
+	ColorFooterWarn  lipgloss.Color
+	ColorFooterError lipgloss.Color
+
 	// Severity colors (background + foreground pairs)
 	ColorSeverityCritical   lipgloss.Color
 	ColorSeverityCriticalFg lipgloss.Color

@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/status"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -105,14 +106,27 @@ func (m Model) renderError() string {
 		Render(msg)
 }
 
+// renderEmpty is what shows when there is nothing to list.
+//
+// The check says so in the footer, with a spinner, and the body stays empty:
+// the load belongs to one line, and the invitation to add a monitor would
+// otherwise be replaced by it on every refresh.
 func (m Model) renderEmpty() string {
-	var content string
 	if m.checking {
-		content = theme.SpinnerMessage(m.spinner.View(), "Checking components...")
-	} else {
-		content = theme.DimStyle.Render("No components configured. Press [ctrl+n] to add a monitor.")
+		return ""
 	}
-	return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(content)
+	return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
+		theme.DimStyle.Render("No components configured. Press [ctrl+n] to add a monitor."),
+	)
+}
+
+// status is what the view derives on every frame. The check has no timer: it
+// lasts exactly as long as it lasts.
+func (m Model) status() sharedcomponents.Status {
+	if m.checking {
+		return sharedcomponents.Status{Text: "Checking components...", Spinner: true}
+	}
+	return sharedcomponents.Status{}
 }
 
 // renderTabs renders the tab bar for monitors/certificates
@@ -151,11 +165,11 @@ func (m Model) RenderFooter(width int) string {
 		parts = append(parts,
 			theme.PadWithBg(theme.Bg(" ")+m.renderTabs(), width),
 			theme.EmptyLineBg(width),
-			theme.EmptyLineBg(width),
+			m.footer.View(width, m.status()),
 		)
 		return strings.Join(parts, "\n")
 	}
-	return theme.EmptyLineBg(width) + "\n" + theme.EmptyLineBg(width)
+	return theme.EmptyLineBg(width) + "\n" + m.footer.View(width, m.status())
 }
 
 // updateTable refills both tables from the last check.

@@ -1,9 +1,6 @@
 package explorer
 
 import (
-	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/oci"
@@ -74,16 +71,6 @@ type CloneEventMsg struct {
 // CloneRunFinishedMsg is the closed event channel — every clone has returned,
 // whether the run was cancelled or ran to the end.
 type CloneRunFinishedMsg struct{}
-
-// clearFooterMsgCmd clears the footer error or info after 3 seconds (Rule 128)
-func clearFooterMsgCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return clearFooterMsg{}
-	})
-}
-
-// clearFooterMsg is sent to clear the footer message after a delay
-type clearFooterMsg struct{}
 
 // BrowserOpenedMsg is sent when the browser launch command has been started
 type BrowserOpenedMsg struct {

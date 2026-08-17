@@ -1,14 +1,12 @@
 package netdiag
 
 import (
-	"time"
-
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -70,15 +68,6 @@ type testCompleteMsg struct {
 	output  string
 }
 
-// clearFooterMsg clears the footer message after 3 seconds
-type clearFooterMsg struct{}
-
-func clearFooterCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return clearFooterMsg{}
-	})
-}
-
 // Model represents the network diagnostics view
 type Model struct {
 	config *config.Config
@@ -118,8 +107,8 @@ type Model struct {
 	rawDetails      bool // true = raw output, false = formatted (traceroute only)
 
 	// Footer
-	footerError string
-	footerInfo  string
+	// footer is the one line of transient state below the tab bar (Rule 128).
+	footer components.FooterMessage
 }
 
 // New creates a new netdiag view

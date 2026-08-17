@@ -149,7 +149,7 @@ func (m *Model) countFindingsByTab() (cve, secrets, licenses, misconfigs int) {
 // switchTab switches to the given tab index and refreshes the table
 func (m *Model) switchTab(tab int) {
 	m.activeTab = tab
-	m.statusMessage = ""
+	m.footer.Clear()
 	m.updateFindingsTable()
 }
 
@@ -165,8 +165,7 @@ func (m Model) handleIgnoreSecret() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if finding.Source != scan.SourceGitleaks {
-		m.statusMessage = "Only Gitleaks findings can be added to .gitleaksignore"
-		return m, clearStatusCmd()
+		return m, m.footer.Warn("Only Gitleaks findings can be added to .gitleaksignore")
 	}
 	m.findingToIgnore = &finding
 	m.confirmModal = sharedcomponents.NewConfirmModal(

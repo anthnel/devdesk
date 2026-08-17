@@ -52,8 +52,12 @@ func TestTopologyStartsLoading(t *testing.T) {
 	if m.topologyModel.state != topoStateLoading {
 		t.Errorf("state = %d before any data, want loading", m.topologyModel.state)
 	}
-	if !strings.Contains(m.View(), "Loading network data") {
-		t.Error("the topology tab does not report the first fetch")
+	// The load is reported in the footer, never in the pane.
+	if !strings.Contains(m.RenderFooter(120), "Loading network data") {
+		t.Error("the topology tab does not report the first fetch in the footer")
+	}
+	if strings.Contains(m.View(), "Loading network data") {
+		t.Error("the pane reports the load; it belongs in the footer alone")
 	}
 }
 

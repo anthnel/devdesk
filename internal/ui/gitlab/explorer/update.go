@@ -90,17 +90,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case BrowserOpenedMsg:
 		if msg.Error != nil {
 			log.Printf("ERROR [explorer] open browser: %v", msg.Error)
-			m.footerError = "Failed to open browser — check logs"
-			return m, clearFooterMsgCmd()
+			return m, m.footer.Error("Failed to open browser — check logs")
 		}
-		return m, nil
-
-	case clearFooterMsg:
-		m.footerError = ""
-		m.footerInfo = ""
 		return m, nil
 	}
 
+	m.footer.Handle(msg)
 	return m, nil
 }
 
@@ -210,6 +205,9 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	m.spinner, cmd = m.spinner.Update(msg)
+	// The load is reported in the footer, so the frame has to reach it — a
+	// spinner stuck on frame zero reads as a hang.
+	m.footer.SetSpinnerFrame(m.spinner.View())
 	if m.clone != nil && !m.clone.finished {
 		m.clone.advance()
 	}

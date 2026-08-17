@@ -275,6 +275,13 @@ func ApplyTheme(t *Theme) {
 	ColorSeverityInfo = applyColor(t.SeverityInfo, ColorSeverityInfo)
 	ColorSeverityInfoFg = applyColor(t.SeverityInfoFg, ColorText)
 
+	// Footer message colours (Rule 128). Assigned after the severity block
+	// because they alias it — the intent is that a footer error reads like a
+	// CRITICAL finding and a warning like a MEDIUM one.
+	ColorFooterInfo = ColorText
+	ColorFooterWarn = ColorSeverityMedium
+	ColorFooterError = ColorSeverityCritical
+
 	// Rafraîchir les styles qui dépendent des couleurs
 	RefreshStyles()
 }

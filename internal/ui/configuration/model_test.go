@@ -149,7 +149,7 @@ func TestARefusedValueKeepsTheCursorOnItsField(t *testing.T) {
 	if m.config.GitLab.Pull.ParallelJobs != 4 {
 		t.Errorf("ParallelJobs = %d, want the old value kept", m.config.GitLab.Pull.ParallelJobs)
 	}
-	if m.footerError == "" {
+	if !m.footer.IsSet() {
 		t.Error("nothing was reported to the user")
 	}
 }
@@ -179,8 +179,8 @@ func TestADisabledOptionCannotBeToggledAndSaysWhy(t *testing.T) {
 	if m.config.Scan.EnableMisconfig {
 		t.Error("a disabled option was toggled on")
 	}
-	if !strings.Contains(strings.ToLower(m.footerInfo), "client-server") {
-		t.Errorf("footerInfo = %q, want it to say why", m.footerInfo)
+	if !strings.Contains(strings.ToLower(m.footer.Text()), "client-server") {
+		t.Errorf("footer = %q, want it to say why", m.footer.Text())
 	}
 }
 
@@ -531,6 +531,9 @@ func firstCells(s string) string {
 // host. The view says so and flags it for the router; it does not forbid the
 // change, which is the same call as for the secret backend.
 func TestChangingTheGitLabURLFlagsTheSession(t *testing.T) {
+	// This test drains the Cmd, and the footer timer inside it really sleeps.
+	testutil.FastTimers(t, &sharedcomponents.FooterMsgDuration)
+
 	m := focusOn(t, newModel(t), "URL")
 	m.config.GitLab.URL = "https://old.example.com"
 	m.input.SetValue("https://new.example.com")
@@ -541,8 +544,8 @@ func TestChangingTheGitLabURLFlagsTheSession(t *testing.T) {
 	if m.config.GitLab.URL != "https://new.example.com" {
 		t.Fatalf("URL = %q, want the typed value committed", m.config.GitLab.URL)
 	}
-	if !strings.Contains(m.footerInfo, ":gla") {
-		t.Errorf("footerInfo = %q, want it to say where to sign in again", m.footerInfo)
+	if !strings.Contains(m.footer.Text(), ":gla") {
+		t.Errorf("footer = %q, want it to say where to sign in again", m.footer.Text())
 	}
 
 	var saw *ConfigSavedMsg
@@ -568,8 +571,8 @@ func TestRetypingTheSameGitLabURLChangesNothing(t *testing.T) {
 	updated, cmd := m.Update(testutil.Key("down"))
 	m = updated.(Model)
 
-	if m.footerInfo != "" {
-		t.Errorf("footerInfo = %q for an unchanged URL", m.footerInfo)
+	if m.footer.IsSet() {
+		t.Errorf("footer = %q for an unchanged URL", m.footer.Text())
 	}
 	for _, msg := range testutil.Msgs(cmd) {
 		if s, ok := msg.(ConfigSavedMsg); ok && s.GitLabURLChanged {

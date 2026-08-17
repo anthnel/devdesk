@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -133,30 +134,23 @@ func (m *Model) RenderFooter(width int) string {
 	}, m.activeTab)
 	tabBar := theme.PadWithBg(theme.Bg(" ")+tabs, width)
 
-	// Show footer error/info from the active tab
-	footerErr, footerInfo := m.footerError, m.footerInfo
+	// The message belongs to the tab that raised it: each sub-model keeps its
+	// own, so switching away does not carry one tab's notice onto another.
+	footer, status := m.activeFooter()
+	parts = append(parts, tabBar, theme.EmptyLineBg(width), footer.View(width, status))
+	return strings.Join(parts, "\n")
+}
+
+// activeFooter resolves the message line of whichever tab is on screen, and the
+// status that tab derives on every frame.
+func (m *Model) activeFooter() (*components.FooterMessage, components.Status) {
 	switch m.activeTab {
 	case tabPorts:
-		footerErr = m.portsModel.footerError
-		footerInfo = m.portsModel.footerInfo
+		return &m.portsModel.footer, m.portsModel.statusLine()
 	case tabTopology:
-		footerErr = m.topologyModel.footerError
-		footerInfo = m.topologyModel.footerInfo
+		return &m.topologyModel.footer, m.topologyModel.statusLine()
 	}
-
-	infoLine := theme.EmptyLineBg(width)
-	if footerErr != "" {
-		infoLine = theme.PadWithBg(theme.StatusErrorStyle.Render(footerErr), width)
-	} else if footerInfo != "" {
-		infoLine = lipgloss.NewStyle().
-			Foreground(theme.ColorHighlight).
-			Background(theme.ColorBackground).
-			Width(width).
-			Align(lipgloss.Center).
-			Render(footerInfo)
-	}
-	parts = append(parts, tabBar, theme.EmptyLineBg(width), infoLine)
-	return strings.Join(parts, "\n")
+	return &m.footer, components.Status{}
 }
 
 // GetHelpContent implements help.Provider

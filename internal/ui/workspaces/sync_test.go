@@ -87,8 +87,8 @@ func TestAScanAndASyncNeverShareARepository(t *testing.T) {
 		if m.sync != nil {
 			t.Error("a sync started on a repository already being scanned")
 		}
-		if m.footerInfo != busyMessage || cmd == nil {
-			t.Errorf("footerInfo = %q with cmd == nil: %v", m.footerInfo, cmd == nil)
+		if m.footer.Text() != busyMessage || cmd == nil {
+			t.Errorf("footer = %q with cmd == nil: %v", m.footer.Text(), cmd == nil)
 		}
 	})
 
@@ -99,8 +99,8 @@ func TestAScanAndASyncNeverShareARepository(t *testing.T) {
 
 		m, cmd := step(t, m, testutil.Key(keymap.Scan))
 
-		if m.footerInfo != busyMessage || cmd == nil {
-			t.Errorf("footerInfo = %q with cmd == nil: %v", m.footerInfo, cmd == nil)
+		if m.footer.Text() != busyMessage || cmd == nil {
+			t.Errorf("footer = %q with cmd == nil: %v", m.footer.Text(), cmd == nil)
 		}
 	})
 }

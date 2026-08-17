@@ -31,8 +31,9 @@ type Model struct {
 	containerTable datatable.Model[docker.Container]
 	spinner        spinner.Model
 	loading        bool
-	errorMsg       string
-	confirmModal   *sharedcomponents.ConfirmModal
+	// footer is the one line of transient state below the viewport (Rule 128).
+	footer       sharedcomponents.FooterMessage
+	confirmModal *sharedcomponents.ConfirmModal
 	// choiceModal is K's Stop / Restart / Cancel. Separate from confirmModal
 	// because the two answer different messages, and one field holding either
 	// would make the handler guess which question was asked.

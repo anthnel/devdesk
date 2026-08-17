@@ -1,12 +1,15 @@
 package viewer
 
 import (
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/viewer"
 )
 
@@ -33,6 +36,9 @@ type Model struct {
 	source  viewer.Source
 	doc     viewer.Document
 	loading bool
+	// spinner turns while the document is being read. The load is reported in
+	// the footer, so the pane keeps whatever it was already showing.
+	spinner spinner.Model
 
 	display   display
 	highlight bool
@@ -59,8 +65,7 @@ type Model struct {
 	// asked for the document.
 	OriginView command.ViewType
 
-	footerError string
-	footerInfo  string
+	footer components.FooterMessage
 }
 
 // New builds an empty viewer.
@@ -70,7 +75,12 @@ type Model struct {
 // there is nothing open, which is the truth and is only ever reached by opening
 // the view without a document.
 func New(cfg *config.Config) Model {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = theme.SpinnerStyle()
+
 	return Model{
+		spinner:      s,
 		config:       cfg,
 		highlight:    true,
 		collapsed:    make(map[int]bool),
@@ -121,7 +131,10 @@ func (m Model) isLog() bool { return m.doc.Kind == viewer.KindLog }
 // document arrives from a first load, from a reload and from a timestamps
 // toggle, and a display left pointing at a tree that the new document does not
 // have would render an empty pane with nothing to say why.
-func (m *Model) applyDocument(doc viewer.Document) {
+//
+// It returns the footer message's expiry timer, which the caller must pass on:
+// a message set without one never clears (Rule 128).
+func (m *Model) applyDocument(doc viewer.Document) tea.Cmd {
 	m.doc = doc
 	m.loading = false
 	m.collapsed = make(map[int]bool)
@@ -148,9 +161,12 @@ func (m *Model) applyDocument(doc viewer.Document) {
 	m.rebuildText()
 	m.textViewport.GotoTop()
 
+	// A warning, not an error: nothing failed, the document simply cannot be
+	// shown the way its name asked for.
 	if doc.ParseErr != nil {
-		m.footerInfo = "Malformed " + doc.Name + " — showing text"
+		return m.footer.Warn("Malformed " + doc.Name + " — showing text")
 	}
+	return nil
 }
 
 // toggleHighlight is `c`. It rebuilds the spans, which is the one thing that

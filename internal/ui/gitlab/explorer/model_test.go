@@ -776,19 +776,19 @@ func TestDeleteCompleteRemovesARootGroup(t *testing.T) {
 func TestDeleteFailureIsReportedInTheFooter(t *testing.T) {
 	m, cmd := step(t, drilledModel(t), DeleteCompleteMsg{Error: errors.New("403 forbidden")})
 
-	if m.footerError == "" {
+	if !m.footer.IsSet() {
 		t.Error("a failed delete reported nothing")
 	}
-	if strings.Contains(m.footerError, "403") {
-		t.Errorf("footerError = %q; Rule 128 keeps the raw error out of the UI", m.footerError)
+	if strings.Contains(m.footer.Text(), "403") {
+		t.Errorf("footer = %q; Rule 128 keeps the raw error out of the UI", m.footer.Text())
 	}
 	if cmd == nil {
 		t.Fatal("no clear timer was scheduled; Rule 128 caps footer messages at 3s")
 	}
 
-	m = feed(t, m, clearFooterMsg{})
-	if m.footerError != "" {
-		t.Errorf("footerError = %q after the timer fired", m.footerError)
+	m = feed(t, m, components.ClearFooterMsg{ID: m.footer.ID()})
+	if m.footer.IsSet() {
+		t.Errorf("footer = %q after the timer fired", m.footer.Text())
 	}
 }
 
@@ -861,12 +861,15 @@ func TestUntickingDropsTheNodeAsWell(t *testing.T) {
 }
 
 func TestConfirmingAnEmptySelectionSaysSoRatherThanProceeding(t *testing.T) {
+	// This test drains the Cmd, and the footer timer inside it really sleeps.
+	testutil.FastTimers(t, &components.FooterMsgDuration)
+
 	m, cmd := step(t, feed(t, drilledModel(t), testutil.Key(keymap.Clone)), testutil.Key("enter"))
 
 	if _, ok := testutil.MsgOf[CloneSelectionRequestMsg](cmd); ok {
 		t.Fatal("an empty selection asked for a destination")
 	}
-	if m.footerInfo == "" {
+	if !m.footer.IsSet() {
 		t.Error("an empty selection was refused silently")
 	}
 	if m.mode != ModeSelecting {
@@ -1006,8 +1009,8 @@ func TestTheFailuresAreReportedWhenTheRunEnds(t *testing.T) {
 	if !m.clone.finished {
 		t.Error("the run was not marked finished")
 	}
-	if !strings.Contains(m.footerError, "alpha/api") {
-		t.Errorf("footerError = %q, want the failed repository named", m.footerError)
+	if !strings.Contains(m.footer.Text(), "alpha/api") {
+		t.Errorf("footer = %q, want the failed repository named", m.footer.Text())
 	}
 	if cmd == nil {
 		t.Error("no clear timer was scheduled; Rule 128 caps footer messages at 3s")
@@ -1133,16 +1136,16 @@ func TestOpenInBrowserFailureIsReportedAndCleared(t *testing.T) {
 
 	m, cmd := step(t, m, BrowserOpenedMsg{Error: errors.New("exec: \"xdg-open\": not found")})
 
-	if m.footerError == "" {
+	if !m.footer.IsSet() {
 		t.Error("a failed browser launch reported nothing")
 	}
 	if cmd == nil {
 		t.Error("no clear timer was scheduled; Rule 128 caps footer messages at 3s")
 	}
 
-	m = feed(t, m, clearFooterMsg{})
-	if m.footerError != "" {
-		t.Errorf("footerError = %q after the timer fired", m.footerError)
+	m = feed(t, m, components.ClearFooterMsg{ID: m.footer.ID()})
+	if m.footer.IsSet() {
+		t.Errorf("footer = %q after the timer fired", m.footer.Text())
 	}
 }
 

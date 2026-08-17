@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -219,8 +220,8 @@ func TestRunRejectsInvalidInput(t *testing.T) {
 			if m.state != StateInput {
 				t.Errorf("state = %d after a rejected run, want to stay on the form", m.state)
 			}
-			if !strings.Contains(m.footerError, tc.wantMsg) {
-				t.Errorf("footerError = %q, want it to mention %q", m.footerError, tc.wantMsg)
+			if !strings.Contains(m.footer.Text(), tc.wantMsg) {
+				t.Errorf("footer = %q, want it to mention %q", m.footer.Text(), tc.wantMsg)
 			}
 			// Rule 128: a footer message must come with the timer that clears it.
 			if cmd == nil {
@@ -233,13 +234,12 @@ func TestRunRejectsInvalidInput(t *testing.T) {
 // Rule 128: footer messages are cleared by their own message, not left behind.
 func TestClearFooterMessageEmptiesBoth(t *testing.T) {
 	m := newTestModel(t)
-	m.footerError = "something"
-	m.footerInfo = "something else"
+	m.footer.Error("something")
 
-	m = feed(t, m, clearFooterMsg{})
+	m = feed(t, m, components.ClearFooterMsg{ID: m.footer.ID()})
 
-	if m.footerError != "" || m.footerInfo != "" {
-		t.Errorf("footer still holds %q / %q after the clear message", m.footerError, m.footerInfo)
+	if m.footer.IsSet() {
+		t.Errorf("footer still holds %q after its expiry", m.footer.Text())
 	}
 }
 

@@ -79,15 +79,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SecretIgnoredMsg:
 		if msg.Error != nil {
 			log.Printf("ERROR [security] ignore secret %s: %v", msg.Finding.File, msg.Error)
-			m.statusMessage = "Failed to ignore secret — check logs"
-		} else {
-			m.statusMessage = fmt.Sprintf("Added %s to .gitleaksignore", msg.Finding.File)
+			return m, m.footer.Error("Failed to ignore secret — check logs")
 		}
-		return m, clearStatusCmd()
-
-	case clearStatusMsg:
-		m.statusMessage = ""
-		return m, nil
+		return m, m.footer.Info(fmt.Sprintf("Added %s to .gitleaksignore", msg.Finding.File))
 
 	case InventoryLoadedMsg:
 		return m.handleInventoryLoaded(msg)
@@ -102,6 +96,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSpinnerTick(msg)
 	}
 
+	m.footer.Handle(msg)
 	return m, nil
 }
 

@@ -824,9 +824,17 @@ func TestAnEmptyResultSaysSo(t *testing.T) {
 		t.Error("an empty result screen does not say it is empty")
 	}
 
+	// The search says so in the footer, never in the body: the tag table keeps
+	// its place while the registries answer.
 	b.pendingSearches = 1
-	if !strings.Contains(b.View(), "Searching registries") {
-		t.Error("a search still in flight does not say so")
+	if strings.Contains(b.View(), "Searching registries") {
+		t.Error("the body reports the search; it belongs in the footer alone")
+	}
+	if label, ok := b.LoadingLabel(); !ok || !strings.Contains(label, "Searching registries") {
+		t.Errorf("LoadingLabel() = %q, %v; want the footer to be told about the search", label, ok)
+	}
+	if strings.Contains(b.View(), "No tags found") {
+		t.Error("the body says there are no tags while a search is in flight")
 	}
 }
 

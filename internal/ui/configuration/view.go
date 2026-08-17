@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/config"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -145,26 +146,11 @@ func (m Model) RenderFooter(width int) string {
 	}
 	tabBar := theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, m.activeTab), width)
 
-	info := theme.EmptyLineBg(width)
-	switch {
-	case m.footerError != "":
-		info = theme.PadWithBg(theme.StatusErrorStyle.Render(m.footerError), width)
-	case m.footerInfo != "":
-		info = centeredInfo(m.footerInfo, width)
-	case m.current().hint != "":
-		info = centeredInfo(m.current().hint, width)
-	}
+	// The field's hint is the derived status: it is a permanent property of
+	// where the cursor is, so it has no timer and any message displaces it.
+	info := m.footer.View(width, sharedcomponents.Status{Text: m.current().hint})
 
 	return tabBar + "\n" + theme.EmptyLineBg(width) + "\n" + info
-}
-
-func centeredInfo(s string, width int) string {
-	return lipgloss.NewStyle().
-		Foreground(theme.ColorHighlight).
-		Background(theme.ColorBackground).
-		Width(width).
-		Align(lipgloss.Center).
-		Render(s)
 }
 
 // GetShortcuts lists only what is not self-evident (Rules 130, 137, 138).

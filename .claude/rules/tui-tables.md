@@ -130,6 +130,54 @@ Interdit :
 - ❌ `.Align(lipgloss.Center)` sur une colonne d'icônes
 - ❌ `.Align(lipgloss.Right)` sur une colonne d'icônes
 
+### Rule 139 : Le chargement d'une table s'affiche dans le footer
+
+**Quand un `datatable` charge ses données, la table reste à l'écran** et le
+chargement est rendu par `components.Status{Text: "...", Spinner: true}` dans le
+footer (Rule 128). Le corps ne se remplace jamais par un spinner.
+
+**Pourquoi.** Un corps qui se substitue au tableau perd son en-tête et ses
+colonnes le temps de chaque `ctrl+r`, puis les retrouve : la mise en page saute
+à chaque rafraîchissement, et le tableau vide qui reste dit exactement la même
+chose sans bouger.
+
+```go
+// ✅ CORRECT — la table reste, le footer parle
+func (m Model) renderImagesView() string {
+    if _, loading := m.loadingLabel(); loading {
+        return m.imageTable.View()
+    }
+    if len(m.imageTable.Visible()) == 0 && !m.imageTable.FilterBar().IsVisible() {
+        return theme.DimStyle.Render("No images found")
+    }
+    return m.imageTable.View()
+}
+
+func (m Model) status() sharedcomponents.Status {
+    if text, ok := m.loadingLabel(); ok {
+        return sharedcomponents.Status{Text: text, Spinner: true}
+    }
+    return sharedcomponents.Status{Text: m.actionLine()}
+}
+
+// ❌ INTERDIT — le corps se remplace par un spinner
+if m.loading && len(m.images) == 0 {
+    return theme.SpinnerMessage(m.spinner.View(), "Loading images...")
+}
+```
+
+**Le message vide est conditionné à la fin du chargement.** Sans cette garde, la
+table annonce l'absence de ce qu'elle est en train de chercher — ce que les
+onglets Networks et Volumes faisaient à la première frame.
+
+La frame du spinner est poussée depuis le handler `spinner.TickMsg` :
+`m.footer.SetSpinnerFrame(m.spinner.View())`. Sans cet appel le spinner reste sur
+la frame zéro, ce qui se lit comme un blocage.
+
+`TestNoTableViewRendersALoadingBody` (`internal/ui/components`) refuse un
+`theme.SpinnerMessage` dans les vues à table. Un écran d'opération sans table
+derrière (un `docker pull` en cours) est une exception **déclarée dans le test**.
+
 ### Rule 136 : Filter Bar for Tables
 
 **Every table view must use `components.FilterBar` for search and toggle filters. No ad-hoc filter implementations.**

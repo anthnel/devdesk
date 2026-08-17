@@ -525,8 +525,8 @@ func TestScanRefusesToStartTwice(t *testing.T) {
 
 	m, cmd := step(t, m, testutil.Key(keymap.Scan))
 
-	if m.footerInfo != busyMessage {
-		t.Errorf("footerInfo = %q, want the already-running notice", m.footerInfo)
+	if m.footer.Text() != busyMessage {
+		t.Errorf("footerInfo = %q, want the already-running notice", m.footer.Text())
 	}
 	// Rule 128: the message must come with the timer that clears it.
 	if cmd == nil {
@@ -657,11 +657,11 @@ func TestFailedScanSurfacesAShortMessage(t *testing.T) {
 		Error:    errors.New("trivy: exit status 1"),
 	})
 
-	if m.footerError == "" {
+	if !m.footer.IsSet() {
 		t.Error("a failed scan left the footer empty")
 	}
-	if strings.Contains(m.footerError, "exit status") {
-		t.Errorf("footerError = %q leaks the raw error; Rule 128 wants a short message plus a log", m.footerError)
+	if strings.Contains(m.footer.Text(), "exit status") {
+		t.Errorf("footer = %q leaks the raw error; Rule 128 wants a short message plus a log", m.footer.Text())
 	}
 	if m.scanningPaths["/tmp/workspaces/devdesk"] {
 		t.Error("a failed scan left the repo marked as scanning forever")
@@ -674,15 +674,14 @@ func TestFailedScanSurfacesAShortMessage(t *testing.T) {
 	}
 }
 
-func TestClearFooterEmptiesBoth(t *testing.T) {
+func TestTheFooterClearsOnItsOwnExpiry(t *testing.T) {
 	m := loadedModel(t)
-	m.footerError = "something"
-	m.footerInfo = "something else"
+	m.footer.Error("something")
 
-	m = feed(t, m, clearFooterInfoMsg{})
+	m = feed(t, m, sharedcomponents.ClearFooterMsg{ID: m.footer.ID()})
 
-	if m.footerError != "" || m.footerInfo != "" {
-		t.Error("the footer survived its clear message")
+	if m.footer.IsSet() {
+		t.Errorf("footer = %q after its expiry", m.footer.Text())
 	}
 }
 
@@ -740,7 +739,7 @@ func TestExternalToolFailuresSurface(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := feed(t, loadedModel(t), tc.msg)
 
-			if m.error == "" && m.footerError == "" {
+			if m.error == "" && !m.footer.IsSet() {
 				t.Error("a failed launch said nothing")
 			}
 		})
@@ -1211,8 +1210,8 @@ func TestAScanRequestForARunningScanIsRefused(t *testing.T) {
 
 	next, cmd := step(t, m, ScanRequestMsg{TargetPath: "/tmp/workspaces/devdesk"})
 
-	if next.footerInfo != busyMessage {
-		t.Errorf("footerInfo = %q, want the already-running notice", next.footerInfo)
+	if next.footer.Text() != busyMessage {
+		t.Errorf("footerInfo = %q, want the already-running notice", next.footer.Text())
 	}
 	if cmd == nil {
 		t.Error("the message was set without a timer to clear it")

@@ -54,8 +54,8 @@ func TestPortsDataPopulatesTheTable(t *testing.T) {
 	if got := portRows(m); len(got) != 4 {
 		t.Errorf("the table holds %v, want four rows", got)
 	}
-	if m.portsModel.footerError != "" {
-		t.Errorf("footerError = %q after a successful fetch", m.portsModel.footerError)
+	if m.portsModel.footer.IsSet() {
+		t.Errorf("footer = %q after a successful fetch", m.portsModel.footer.Text())
 	}
 }
 
@@ -64,11 +64,11 @@ func TestPortsFetchFailureSurfacesAShortMessage(t *testing.T) {
 
 	m, cmd := step(t, m, portsDataMsg{err: errors.New("permission denied")})
 
-	if m.portsModel.footerError == "" {
+	if !m.portsModel.footer.IsSet() {
 		t.Error("a failed fetch left the footer empty")
 	}
-	if strings.Contains(m.portsModel.footerError, "permission denied") {
-		t.Errorf("footerError = %q leaks the raw error; Rule 128 wants a short message plus a log", m.portsModel.footerError)
+	if strings.Contains(m.portsModel.footer.Text(), "permission denied") {
+		t.Errorf("footer = %q leaks the raw error; Rule 128 wants a short message plus a log", m.portsModel.footer.Text())
 	}
 	// Rule 128: a footer message must come with the timer that clears it.
 	if cmd == nil {
@@ -76,15 +76,14 @@ func TestPortsFetchFailureSurfacesAShortMessage(t *testing.T) {
 	}
 }
 
-func TestPortsClearFooterEmptiesBoth(t *testing.T) {
+func TestThePortsFooterClearsOnItsOwnExpiry(t *testing.T) {
 	m := portsModel(t)
-	m.portsModel.footerError = "something"
-	m.portsModel.footerInfo = "something else"
+	m.portsModel.footer.Error("something")
 
-	m = feed(t, m, portsClearFooterMsg{})
+	m = feed(t, m, components.ClearFooterMsg{ID: m.portsModel.footer.ID()})
 
-	if m.portsModel.footerError != "" || m.portsModel.footerInfo != "" {
-		t.Error("the ports footer survived its clear message")
+	if m.portsModel.footer.IsSet() {
+		t.Errorf("the ports footer holds %q after its expiry", m.portsModel.footer.Text())
 	}
 }
 
@@ -115,7 +114,9 @@ func TestPauseIsAdvertisedAsAToken(t *testing.T) {
 	if !m.portsModel.table.FilterBar().IsTokenActive(filterTokenPaused) {
 		t.Error("pausing did not light the paused token")
 	}
-	if m.portsModel.footerInfo == "" {
+	// Pausing is a state, so it is derived rather than set as a message — one
+	// would expire after three seconds while the tab is still paused.
+	if m.portsModel.statusLine().Text == "" {
 		t.Error("pausing said nothing in the footer")
 	}
 
@@ -123,8 +124,8 @@ func TestPauseIsAdvertisedAsAToken(t *testing.T) {
 	if m.portsModel.table.FilterBar().IsTokenActive(filterTokenPaused) {
 		t.Error("resuming left the paused token lit")
 	}
-	if m.portsModel.footerInfo != "" {
-		t.Errorf("footerInfo = %q after resuming, want it cleared", m.portsModel.footerInfo)
+	if got := m.portsModel.statusLine().Text; got != "" {
+		t.Errorf("footer = %q after resuming, want it cleared", got)
 	}
 }
 
@@ -278,7 +279,7 @@ func TestKillRequiresAPID(t *testing.T) {
 	if m.portsModel.confirmModal != nil {
 		t.Error("a PID-less entry was offered a confirmation it cannot act on")
 	}
-	if m.portsModel.footerInfo == "" {
+	if !m.portsModel.footer.IsSet() {
 		t.Error("killing a PID-less entry said nothing")
 	}
 	if cmd == nil {
@@ -316,8 +317,8 @@ func TestKillResultReportsBothOutcomes(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m, cmd := step(t, portsModel(t), portsKillResultMsg{pid: "812"})
 
-		if !strings.Contains(m.portsModel.footerInfo, "812") {
-			t.Errorf("footerInfo = %q, want it to name the terminated process", m.portsModel.footerInfo)
+		if !strings.Contains(m.portsModel.footer.Text(), "812") {
+			t.Errorf("footer = %q, want it to name the terminated process", m.portsModel.footer.Text())
 		}
 		if cmd == nil {
 			t.Error("no clear timer after the kill result")
@@ -327,10 +328,10 @@ func TestKillResultReportsBothOutcomes(t *testing.T) {
 	t.Run("failure", func(t *testing.T) {
 		m, _ := step(t, portsModel(t), portsKillResultMsg{pid: "812", err: errors.New("operation not permitted")})
 
-		if !strings.Contains(m.portsModel.footerError, "812") {
-			t.Errorf("footerError = %q, want it to name the PID", m.portsModel.footerError)
+		if !strings.Contains(m.portsModel.footer.Text(), "812") {
+			t.Errorf("footer = %q, want it to name the PID", m.portsModel.footer.Text())
 		}
-		if strings.Contains(m.portsModel.footerError, "not permitted") {
+		if strings.Contains(m.portsModel.footer.Text(), "not permitted") {
 			t.Error("the raw error leaked into the footer")
 		}
 	})
@@ -606,7 +607,7 @@ func TestAFailedKillLiftsTheMarker(t *testing.T) {
 	if m.portsModel.table.IsBusy("812") {
 		t.Error("the marker survived a failed kill: the row spins for good")
 	}
-	if m.portsModel.footerError == "" {
+	if !m.portsModel.footer.IsSet() {
 		t.Error("a failed kill reported nothing")
 	}
 }
@@ -616,8 +617,8 @@ func TestASecondKillOfTheSamePIDIsRefused(t *testing.T) {
 
 	m = feed(t, m, testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
-	if !strings.Contains(m.portsModel.footerInfo, "812") {
-		t.Errorf("footerInfo = %q, want it to say the kill is already running", m.portsModel.footerInfo)
+	if !strings.Contains(m.portsModel.footer.Text(), "812") {
+		t.Errorf("footer = %q, want it to say the kill is already running", m.portsModel.footer.Text())
 	}
 }
 

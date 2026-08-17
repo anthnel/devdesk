@@ -30,13 +30,20 @@ func TestViewWithoutAClientPointsAtTheAuthView(t *testing.T) {
 	}
 }
 
-// Before the first load completes the view shows the spinner rather than
-// "No groups found", which would be a lie while the request is in flight.
-func TestViewShowsTheSpinnerUntilTheFirstLoadLands(t *testing.T) {
+// Before the first load completes the footer reports it, rather than the body
+// saying "No groups found" — which would be a lie while the request is in
+// flight. The load belongs to the footer alone, so the tree keeps its place.
+func TestTheLoadIsReportedInTheFooterUntilTheFirstLoadLands(t *testing.T) {
 	m := newTestModel(t)
 
-	if view := m.View(); !strings.Contains(view, "Loading GitLab groups") {
-		t.Errorf("a model that has never loaded does not show the spinner:\n%s", view)
+	if footer := m.RenderFooter(160); !strings.Contains(footer, "Loading GitLab groups") {
+		t.Errorf("a model that has never loaded does not report it in the footer:\n%s", footer)
+	}
+	if view := m.View(); strings.Contains(view, "Loading GitLab groups") {
+		t.Errorf("the body reports the load; it belongs in the footer alone:\n%s", view)
+	}
+	if view := m.View(); strings.Contains(view, "No groups found") {
+		t.Errorf("the body says there is nothing while the load is in flight:\n%s", view)
 	}
 
 	empty := feed(t, m, RootGroupsLoadedMsg{})

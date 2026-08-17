@@ -130,7 +130,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case WorkspaceScanStartingMsg:
 		tick := m.spinnerTickIfIdle()
 		m.scanningPaths[msg.RepoPath] = true
-		m.footerInfo = ""
+		m.footer.Clear()
 		m.refreshRows()
 		return m, tick
 
@@ -140,7 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case WorkspaceSyncStartingMsg:
 		tick := m.spinnerTickIfIdle()
 		m.syncingPaths[msg.RepoPath] = true
-		m.footerInfo = ""
+		m.footer.Clear()
 		m.refreshRows()
 		return m, tick
 
@@ -155,10 +155,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case clearFooterInfoMsg:
-		m.footerInfo = ""
-		m.footerError = ""
 	}
+
+	m.footer.Handle(msg)
 
 	// Update table only in normal mode
 	if m.mode == ModeNormal {

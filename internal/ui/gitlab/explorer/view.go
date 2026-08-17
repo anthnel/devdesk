@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -52,21 +53,25 @@ func (m Model) View() string {
 		return contentStyle.Render(renderNotAuthenticated())
 	}
 
-	if m.loading || !m.firstLoadDone {
-		loadingStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1)
-		return loadingStyle.Render(theme.SpinnerMessage(m.spinner.View(), "Loading GitLab groups..."))
-	}
-
 	if m.error != "" {
 		return contentStyle.Render(renderError(m.error))
 	}
 
+	// The load says so in the footer, with a spinner, and the tree stays on
+	// screen. "Nothing here" is therefore conditional on the load being over,
+	// or the view would announce the absence of what it is still fetching.
 	if len(m.nodes) == 0 {
+		if m.loadingTree() {
+			return ""
+		}
 		return contentStyle.Render(renderEmpty())
 	}
 
 	return m.renderTable()
 }
+
+// loadingTree reports whether the group tree is still being fetched.
+func (m Model) loadingTree() bool { return m.loading || !m.firstLoadDone }
 
 // renderLoadingTemplates renders the template loading indicator
 func (m Model) renderLoadingTemplates() string {
@@ -134,31 +139,25 @@ func (m Model) RenderFooter(width int) string {
 	return theme.EmptyLineBg(width) + "\n" + infoLine
 }
 
-// renderInfoLine is the footer's one line of text (Rule 128): an error, then a
-// transient info message, then whatever the current mode has to say.
+// renderInfoLine is the footer's one line of text (Rule 128): a message when
+// there is one, otherwise whatever the current mode has to say.
 func (m Model) renderInfoLine(width int) string {
-	switch {
-	case m.footerError != "":
-		return theme.BgLine(theme.StatusErrorStyle.Render(m.footerError), width)
-	case m.footerInfo != "":
-		return renderInfoText(m.footerInfo, width)
-	case m.mode == ModeCloning && m.clone != nil:
-		return renderInfoText(m.cloneStatusLine(), width)
-	case m.mode == ModeSelecting:
-		return renderInfoText(m.selectionStatusLine(), width)
-	}
-	return theme.EmptyLineBg(width)
+	return m.footer.View(width, m.status())
 }
 
-// renderInfoText is the footer's non-error line (Rule 128): ColorHighlight,
-// centred, filled to the width.
-func renderInfoText(text string, width int) string {
-	return lipgloss.NewStyle().
-		Foreground(theme.ColorHighlight).
-		Background(theme.ColorBackground).
-		Width(width).
-		Align(lipgloss.Center).
-		Render(text)
+// status is what the view derives on every frame. None of the three has a
+// timer: a clone run outlives the three seconds a message gets, and the load
+// and the selection last exactly as long as they last.
+func (m Model) status() components.Status {
+	switch {
+	case m.mode == ModeCloning && m.clone != nil:
+		return components.Status{Text: m.cloneStatusLine()}
+	case m.mode == ModeSelecting:
+		return components.Status{Text: m.selectionStatusLine()}
+	case m.shared.GitLabClient != nil && m.loadingTree():
+		return components.Status{Text: "Loading GitLab groups...", Spinner: true}
+	}
+	return components.Status{}
 }
 
 // selectionStatusLine states the selection in the only terms it can: the

@@ -1066,6 +1066,99 @@ Status view supports adding/editing/deleting monitors:
 
 State flags in Model: `creating`, `editing`, `confirming`, `selectedIdx`
 
+## Le footer — `components.FooterMessage`
+
+One line of state below every viewport, and **one implementation**. There were
+eight, one per view, each with its own pair of fields, its own clear message and
+its own lipgloss block — which is precisely how the errors ended up left-aligned
+everywhere while the notices were centred: nobody ever centred the error branch,
+in any of the eight.
+
+```go
+type Model struct { footer sharedcomponents.FooterMessage }
+
+// From Update() only (Rule 110). The Cmd is the expiry timer; a message set
+// without it never clears.
+return m, m.footer.Error("Failed to load — check logs")
+return m, m.footer.Warn("Scan already in progress")
+return m, m.footer.Info("Image pulled: " + name)
+
+m.footer.Handle(msg)                              // consumes its own expiry
+m.footer.SetSpinnerFrame(m.spinner.View())        // from the spinner tick
+
+// From View(), read-only. Always one full-width, centred line — empty included,
+// because Rule 124 budgets one whatever it holds.
+m.footer.View(width, m.status())
+```
+
+**Three levels, defined by what happened rather than by how it feels.** An
+`Error` is an operation that failed or was refused by the system; a `Warn` is an
+action that cannot be honoured as asked while nothing failed — a precondition
+unmet, something already running, a setting with no meaning here; `Info` is a
+neutral fact or a success.
+
+| Level | Colour |
+|---|---|
+| Error | `ColorFooterError`, the **CRITICAL** severity red |
+| Warning | `ColorFooterWarn`, the **MEDIUM** severity orange |
+| Info | `ColorFooterInfo` — `ColorText`, the ordinary text colour |
+
+The three are **semantic aliases assigned in `ApplyTheme`**, like the viewer's
+syntax colours: no theme file gains a key. They alias the **severity** colours
+rather than `ColorError`/`ColorWarn`, which the default theme makes identical —
+the choice is invisible today and stops being so in a theme that separates them.
+Info is `ColorText` because `ColorHighlight` carried it before and is a yellow
+one notch from the warning's orange: the two levels were indistinguishable.
+Info is not bold, the other two are.
+
+**Green is gone from every footer.** It belongs to status icons (Rule 121); the
+security view's status line was the one place it leaked in.
+
+**The expiry is identified.** `ClearFooterMsg{ID}` only clears the message it
+was started for, which is what makes the type safe to share between packages —
+and what fixes the defect all eight local implementations had: a message set at
+t+2.9s was wiped at t+3s by its predecessor's timer.
+
+**`Status` is the second argument, and it has no timer.** A progress line, a
+hint, a table loading its rows — these are states the view derives on every
+frame, not events. A batch outlives the three seconds a message gets, so a line
+set when the first repository started would clear while the tenth was still
+fetching. It is a parameter rather than a field because it is derived: the
+containers action line comes from `BusyLabels()`, which changes with no event to
+push it on.
+
+Precedence inside `View`: **error → warning → info → status**. A failure the
+user has not read yet matters more than the progress of what is still running.
+
+**A table's load is a footer status with a spinner** (Rule 139). The table stays
+on screen: a body that swapped itself for a spinner lost its header and its
+columns for the length of every `ctrl+r`, then got them back. The empty state
+(`No images found`) is therefore conditional on the load being over, or the
+table announces the absence of what it is in the middle of fetching.
+
+The spinner frame is the **rendered** `spinner.View()`, not a bare frame: every
+view already styles its spinner with `theme.SpinnerStyle()`, and restyling would
+nest one escape inside another. It is measured with `lipgloss.Width`, which
+ignores escapes — the opposite of a table cell's rule (Rule 122), and the
+difference is which measurer is doing the work.
+
+**`FooterMsgDuration` is an exported var, and only tests touch it.** `tea.Tick`
+blocks for its whole duration and `testutil.Msgs` runs every command it is
+handed, so a test inspecting a Cmd that carries the timer paid three real
+seconds — four did. A test that wants to see a message expire builds
+`components.ClearFooterMsg{ID: m.footer.ID()}` instead; one that must drain the
+Cmd calls `testutil.FastTimers(t, &components.FooterMsgDuration)`.
+`TestAMessageGetsThreeSeconds` pins the production value.
+
+Two source-level tests hold the line, on the model of `internal/ui/keymap`'s:
+`TestNoViewStylesItsOwnFooterMessage` fails on a `StatusErrorStyle`,
+`StatusOKStyle`, `StatusWarningStyle` or `ColorHighlight` inside a
+`RenderFooter`/`renderInfoLine`/`renderInfoText`, and
+`TestNoTableViewRendersALoadingBody` fails on a `theme.SpinnerMessage` in a
+table view. The one screen that legitimately fills itself with a spinner — the
+registry browser mid-pull, which has no table behind it — is written down as a
+declared exception, the way `keymap.DeclaredExceptions()` is.
+
 ## Tables — `internal/ui/datatable`
 
 The shared mechanism behind the application's tables: column widths, sorting,

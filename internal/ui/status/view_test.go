@@ -151,13 +151,18 @@ func TestViewRendersTheEmptyStateOnlyAfterTheFirstCheck(t *testing.T) {
 	}
 }
 
-func TestViewShowsTheSpinnerWhileTheFirstCheckRuns(t *testing.T) {
+// The check is reported in the footer, never in the body: the invitation to add
+// a monitor would otherwise be replaced by it on every refresh.
+func TestTheCheckIsReportedInTheFooterWhileItRuns(t *testing.T) {
 	m := newTestModel(t)
 	m = feed(t, m, CheckCompleteMsg{Components: nil, Timestamp: time.Now()})
 	m.checking = true
 
-	if !strings.Contains(m.View(), "Checking components") {
-		t.Error("View() does not report an in-flight check on an empty list")
+	if !strings.Contains(m.RenderFooter(160), "Checking components") {
+		t.Error("the footer does not report an in-flight check on an empty list")
+	}
+	if strings.Contains(m.View(), "Checking components") {
+		t.Error("the body reports the check; it belongs in the footer alone")
 	}
 }
 

@@ -79,10 +79,8 @@ type Model struct {
 	// with the credential helper shut out, it is the only way in (§3.16).
 	secrets credentials.Storage
 
-	// footerError holds a short scan error message for the footer info line (Rule 128)
-	footerError string
-	// footerInfo holds a transient informational message for the footer info line
-	footerInfo string
+	// footer is the one line of transient state below the viewport (Rule 128).
+	footer sharedcomponents.FooterMessage
 
 	// selectionMessage is displayed in the footer when in ModeSelecting
 	selectionMessage string

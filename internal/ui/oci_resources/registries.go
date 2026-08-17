@@ -29,8 +29,7 @@ func (m Model) enterSelectedGroup() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if len(m.groupCache[reg.Slug].Members) == 0 {
-		m.infoMsg = "No members discovered yet — press ctrl+r to look"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn("No members discovered yet — press ctrl+r to look")
 	}
 	m.registryGroupSlug = reg.Slug
 	m.updateRegistryTable()
@@ -97,8 +96,7 @@ func (m Model) loginSelectedRegistry() (tea.Model, tea.Cmd) {
 	}
 	reg := m.registries[idx]
 	if !config.UsesCredentials(reg.AuthMode) {
-		m.errorMsg = "This registry is marked anonymous"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn("This registry is marked anonymous")
 	}
 	m.registryForm = NewRegistryEditForm(idx, reg, m.registries, m.width-2)
 	return m, nil
@@ -157,10 +155,9 @@ func (m Model) handleRegistryFormSubmit(msg RegistryFormSubmitMsg) (tea.Model, t
 	m.updateRegistryTable()
 	if err := config.Save(m.config); err != nil {
 		log.Printf("ERROR [oci_resources] save registry config: %v", err)
-		m.errorMsg = "Failed to save registry — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Failed to save registry — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	if msg.Password != "" && config.UsesCredentials(msg.Item.AuthMode) {
 		m.registryTable.MarkBusy(msg.Item.URL, "Logging in to "+browserAlias(msg.Item))
 		return m, tea.Batch(registryLoginCmd(msg.Item.URL, msg.Item.Username, msg.Password), m.busyTick())
@@ -184,13 +181,12 @@ func (m Model) handleRegistryLoginComplete(msg RegistryLoginCompleteMsg) (tea.Mo
 	m.registryTable.ClearBusy(msg.RegistryURL)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] login %s: %v", msg.RegistryURL, msg.Err)
-		m.errorMsg = "Login failed — check logs"
 		m.registryLoginStatus[msg.RegistryURL] = false
 		m.updateRegistryTable()
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Login failed — check logs")
 	}
 	log.Printf("INFO [oci_resources] login successful: %s", msg.RegistryURL)
-	m.errorMsg = ""
+	m.footer.Clear()
 	// Optimistic update + re-check from disk to confirm credential helper cases
 	m.registryLoginStatus[msg.RegistryURL] = true
 	m.updateRegistryTable()
@@ -204,8 +200,7 @@ func (m Model) logoutSelectedRegistry() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.registryTable.IsBusy(reg.URL) {
-		m.infoMsg = busyMessage
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn(busyMessage)
 	}
 	m.registryTable.MarkBusy(reg.URL, "Logging out of "+browserAlias(*reg))
 	return m, tea.Batch(registryLogoutCmd(reg.URL), m.busyTick())
@@ -215,11 +210,10 @@ func (m Model) handleRegistryLogoutComplete(msg RegistryLogoutCompleteMsg) (tea.
 	m.registryTable.ClearBusy(msg.RegistryURL)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] logout %s: %v", msg.RegistryURL, msg.Err)
-		m.errorMsg = "Logout failed — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Logout failed — check logs")
 	}
 	log.Printf("INFO [oci_resources] logout successful: %s", msg.RegistryURL)
-	m.errorMsg = ""
+	m.footer.Clear()
 	// Do NOT call registryLoginStatusCmd here: docker logout docker.io may not remove
 	// the https://index.docker.io/v1/ key from config.json, causing the file-check to
 	// override this correct false status back to true.

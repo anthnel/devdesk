@@ -32,8 +32,7 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.busy(targetPath) {
-			m.footerInfo = busyMessage
-			return m, clearFooterInfoCmd()
+			return m, m.footer.Warn(busyMessage)
 		}
 		delete(m.scanCache, targetPath)
 		return m, tea.Batch(deleteScanCacheCmd([]string{targetPath}), batchScanCmd([]string{targetPath}, opts))
@@ -46,8 +45,7 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 
 	if entry.IsGitRepo {
 		if m.busy(entry.Path) {
-			m.footerInfo = busyMessage
-			return m, clearFooterInfoCmd()
+			return m, m.footer.Warn(busyMessage)
 		}
 		delete(m.scanCache, entry.Path)
 		return m, tea.Batch(deleteScanCacheCmd([]string{entry.Path}), batchScanCmd([]string{entry.Path}, opts))
@@ -66,8 +64,7 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 	}
 
 	if len(toScan) == 0 {
-		m.footerInfo = busyMessage
-		return m, clearFooterInfoCmd()
+		return m, m.footer.Warn(busyMessage)
 	}
 
 	for _, path := range toScan {
@@ -159,11 +156,10 @@ func (m Model) handleWorkspaceScanComplete(msg WorkspaceScanCompleteMsg) (tea.Mo
 	delete(m.scanningPaths, msg.RepoPath)
 	if msg.Error != nil {
 		log.Printf("ERROR [workspaces] scan complete %s: %v", msg.RepoPath, msg.Error)
-		m.footerError = "Scan failed — check logs"
 		m.refreshRows()
-		return m, clearFooterInfoCmd()
+		return m, m.footer.Error("Scan failed — check logs")
 	}
-	m.footerError = ""
+	m.footer.Clear()
 	m.scanCache[msg.RepoPath] = cache.WorkspaceScanEntry{
 		RepoPath:  msg.RepoPath,
 		Critical:  msg.Critical,
@@ -232,8 +228,7 @@ func (m Model) openTerminalWindow() (tea.Model, tea.Cmd) {
 	}
 
 	// No terminal detected (common on WSL) — report to user
-	m.footerError = "No terminal detected — set App.TerminalCommand in config"
-	return m, clearFooterInfoCmd()
+	return m, m.footer.Warn("No terminal detected — set App.TerminalCommand in config")
 }
 
 // openTerminalInPlace suspends the TUI and opens a shell in the given directory.
@@ -258,8 +253,7 @@ func (m Model) openTerminalInPlace(targetPath string) (tea.Model, tea.Cmd) {
 func (m Model) handleTerminalOpened(msg TerminalOpenedMsg) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
 		log.Printf("ERROR [workspaces] open terminal: %v", msg.Error)
-		m.footerError = "Failed to open terminal — check logs"
-		return m, clearFooterInfoCmd()
+		return m, m.footer.Error("Failed to open terminal — check logs")
 	}
 	return m, nil
 }
@@ -391,8 +385,7 @@ func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.busy(msg.TargetPath) {
-		m.footerInfo = busyMessage
-		return m, clearFooterInfoCmd()
+		return m, m.footer.Warn(busyMessage)
 	}
 	delete(m.scanCache, msg.TargetPath)
 	return m, tea.Batch(

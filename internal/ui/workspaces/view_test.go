@@ -260,7 +260,7 @@ func TestFooterCarriesTheSelectionMessage(t *testing.T) {
 
 func TestFooterCarriesScanMessages(t *testing.T) {
 	m := loadedModel(t)
-	m.footerError = "Scan failed — check logs"
+	m.footer.Error("Scan failed — check logs")
 
 	if !strings.Contains(m.RenderFooter(160), "Scan failed") {
 		t.Error("the footer does not surface the scan error")

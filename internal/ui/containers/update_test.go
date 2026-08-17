@@ -44,8 +44,8 @@ func TestContainersListPopulatesTheTable(t *testing.T) {
 	if m.loading {
 		t.Error("loading = true after the list arrived")
 	}
-	if m.errorMsg != "" {
-		t.Errorf("errorMsg = %q after a successful list", m.errorMsg)
+	if m.footer.IsSet() {
+		t.Errorf("footer = %q after a successful list", m.footer.Text())
 	}
 	if got := rowNames(tableRows(m)); len(got) != 4 {
 		t.Errorf("table holds %v, want the four fixtures", got)
@@ -57,11 +57,11 @@ func TestContainersListErrorSurfacesAndKeepsRows(t *testing.T) {
 
 	m = feed(t, m, ContainersListMsg{Err: errors.New("docker daemon is down")})
 
-	if m.errorMsg == "" {
-		t.Error("a failed list left errorMsg empty")
+	if !m.footer.IsSet() {
+		t.Error("a failed list said nothing")
 	}
-	if strings.Contains(m.errorMsg, "daemon") {
-		t.Errorf("errorMsg = %q leaks the raw error into the UI; Rule 128 wants a short message plus a log", m.errorMsg)
+	if strings.Contains(m.footer.Text(), "daemon") {
+		t.Errorf("footer = %q leaks the raw error into the UI; Rule 128 wants a short message plus a log", m.footer.Text())
 	}
 	if len(tableRows(m)) != 4 {
 		t.Error("a failed list wiped the table instead of keeping the last known state")
@@ -117,8 +117,8 @@ func TestMetricsFailureIsIgnored(t *testing.T) {
 	if m.containerTable.Items()[0].CPUPercent != before {
 		t.Error("a failed metrics fetch overwrote the previous values")
 	}
-	if m.errorMsg != "" {
-		t.Errorf("errorMsg = %q; a metrics hiccup should not shout at the user", m.errorMsg)
+	if m.footer.IsSet() {
+		t.Errorf("footer = %q; a metrics hiccup should not shout at the user", m.footer.Text())
 	}
 }
 
@@ -588,11 +588,11 @@ func TestActionFailureSurfacesAShortMessageAndClearsTheMarker(t *testing.T) {
 		Action: "stop", ID: webID, Name: "web", Err: errors.New("permission denied"),
 	})
 
-	if m.errorMsg == "" {
-		t.Error("a failed action left errorMsg empty")
+	if !m.footer.IsSet() {
+		t.Error("a failed action said nothing")
 	}
-	if strings.Contains(m.errorMsg, "permission denied") {
-		t.Errorf("errorMsg = %q leaks the raw error; Rule 128 wants a short message plus a log", m.errorMsg)
+	if strings.Contains(m.footer.Text(), "permission denied") {
+		t.Errorf("footer = %q leaks the raw error; Rule 128 wants a short message plus a log", m.footer.Text())
 	}
 	if m.containerTable.IsBusy(webID) {
 		t.Error("the busy marker survived a failed action: the row spins for good")
@@ -711,11 +711,11 @@ func TestPruneResultHandling(t *testing.T) {
 
 		m, cmd := step(t, m, ContainerPruneMsg{Err: errors.New("daemon refused")})
 
-		if m.errorMsg == "" {
-			t.Error("a failed prune left errorMsg empty")
+		if !m.footer.IsSet() {
+			t.Error("a failed prune said nothing")
 		}
-		if strings.Contains(m.errorMsg, "daemon refused") {
-			t.Errorf("errorMsg = %q leaks the raw error", m.errorMsg)
+		if strings.Contains(m.footer.Text(), "daemon refused") {
+			t.Errorf("footer = %q leaks the raw error", m.footer.Text())
 		}
 		// The failure path returns before the refresh, and the message is what
 		// says it was taken. The command it does return is Rule 128's timer —
@@ -899,8 +899,8 @@ func TestInspectRejectsAMalformedContainerID(t *testing.T) {
 
 	m, cmd := step(t, m, testutil.Key("enter"))
 
-	if m.errorMsg != "Cannot inspect — invalid container ID" {
-		t.Errorf("errorMsg = %q, want inspect to have been refused", m.errorMsg)
+	if m.footer.Text() != "Cannot inspect — invalid container ID" {
+		t.Errorf("footer = %q, want inspect to have been refused", m.footer.Text())
 	}
 	if cmd == nil {
 		t.Error("a footer message was set with no timer to clear it")
@@ -919,8 +919,8 @@ func TestShellInNewWindowIsInertOnANonRunningContainer(t *testing.T) {
 	if cmd != nil {
 		t.Error("S launched a shell for an exited container")
 	}
-	if m.errorMsg != "" {
-		t.Errorf("errorMsg = %q; an inert key should say nothing", m.errorMsg)
+	if m.footer.IsSet() {
+		t.Errorf("footer = %q; an inert key should say nothing", m.footer.Text())
 	}
 }
 
@@ -929,19 +929,19 @@ func TestShellWindowFailureSurfaces(t *testing.T) {
 
 	m = feed(t, m, ShellWindowOpenedMsg{Err: errors.New("no terminal emulator")})
 
-	if m.errorMsg == "" {
-		t.Error("a failed terminal launch left errorMsg empty")
+	if !m.footer.IsSet() {
+		t.Error("a failed terminal launch said nothing")
 	}
-	if strings.Contains(m.errorMsg, "emulator") {
-		t.Errorf("errorMsg = %q leaks the raw error", m.errorMsg)
+	if strings.Contains(m.footer.Text(), "emulator") {
+		t.Errorf("footer = %q leaks the raw error", m.footer.Text())
 	}
 }
 
 func TestShellWindowSuccessSaysNothing(t *testing.T) {
 	m := feed(t, loadedModel(t), ShellWindowOpenedMsg{})
 
-	if m.errorMsg != "" {
-		t.Errorf("errorMsg = %q after a successful launch", m.errorMsg)
+	if m.footer.IsSet() {
+		t.Errorf("footer = %q after a successful launch", m.footer.Text())
 	}
 }
 
@@ -1014,8 +1014,8 @@ func TestASecondActionOnTheSameContainerIsRefused(t *testing.T) {
 
 	// The refusal is what the message proves; the command it returns is Rule
 	// 128's timer, asserted rather than executed.
-	if m.errorMsg != busyMessage {
-		t.Errorf("errorMsg = %q, want the busy message", m.errorMsg)
+	if m.footer.Text() != busyMessage {
+		t.Errorf("footer = %q, want the busy message", m.footer.Text())
 	}
 	if cmd == nil {
 		t.Error("a footer message was set with no timer to clear it")
@@ -1076,7 +1076,7 @@ func TestTheFooterNamesTheRunningAction(t *testing.T) {
 func TestAnErrorTakesTheFooterAheadOfTheRunningAction(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down"))
 	m, _ = pressK(t, m, choiceStop)
-	m.errorMsg = "Something went wrong"
+	m.footer.Error("Something went wrong")
 
 	footer := m.RenderFooter(120)
 

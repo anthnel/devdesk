@@ -38,8 +38,12 @@ type Model struct {
 	// it lost for the same reason.
 	autoRefresh bool
 	checking    bool
-	firstCheck  bool
-	error       string
+	// footer is the one line of transient state below the tab bar (Rule 128).
+	// This view raises no message; it carries the spinner the check is reported
+	// with.
+	footer     sharedcomponents.FooterMessage
+	firstCheck bool
+	error      string
 
 	// Tables. Two datatables plus a focus helper, not a multi-table
 	// abstraction: they share a viewport and alternate focus, and that is all

@@ -73,7 +73,30 @@ func open(t *testing.T, source viewerpkg.Source) Model {
 	if init == nil {
 		t.Fatal("Init returned no command, so the source is never loaded")
 	}
-	return feed(t, m, init())
+	return feed(t, m, resolve(t, init)...)
+}
+
+// resolve runs a Cmd and returns the messages it produced, unwrapping a
+// tea.Batch into its members. Init batches the load with the spinner's first
+// tick, so calling the Cmd alone yields a BatchMsg and the document never
+// arrives — which is exactly the silence this unwraps.
+func resolve(t *testing.T, cmd tea.Cmd) []tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		return nil
+	}
+	switch msg := cmd().(type) {
+	case tea.BatchMsg:
+		var out []tea.Msg
+		for _, c := range msg {
+			out = append(out, resolve(t, c)...)
+		}
+		return out
+	case nil:
+		return nil
+	default:
+		return []tea.Msg{msg}
+	}
 }
 
 func feed(t *testing.T, m Model, msgs ...tea.Msg) Model {

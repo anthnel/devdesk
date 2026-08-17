@@ -61,8 +61,7 @@ func (m Model) startSync() (tea.Model, tea.Cmd) {
 		}
 	}
 	if len(toSync) == 0 {
-		m.footerInfo = busyMessage
-		return m, clearFooterInfoCmd()
+		return m, m.footer.Warn(busyMessage)
 	}
 
 	m.sync = &syncRun{total: len(toSync)}

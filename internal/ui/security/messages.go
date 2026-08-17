@@ -1,10 +1,6 @@
 package security
 
 import (
-	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/scan"
 )
@@ -31,14 +27,4 @@ type SecretIgnoredMsg struct {
 // BackToOriginMsg is sent when the user presses Esc in StateResults to return to the originating view.
 type BackToOriginMsg struct {
 	Origin command.ViewType
-}
-
-// clearStatusMsg clears the footer status message (Rule 128).
-type clearStatusMsg struct{}
-
-// clearStatusCmd expires the footer status message after 3 seconds (Rule 128).
-func clearStatusCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return clearStatusMsg{}
-	})
 }
