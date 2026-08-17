@@ -40,7 +40,12 @@ type Model struct {
 	inventory datatable.Model[scanTarget]
 	// spinner animates the rows being rescanned; it is stamped onto them by
 	// setInventory, because a Cell function is built once and cannot reach here.
-	spinner spinner.Model
+	//
+	// It survives only to produce the tick Cmd. What lands in a cell is
+	// spinnerFrameIdx, because spinner.View() renders through a style and a
+	// table cell carries no escape sequence (Rule 122).
+	spinner         spinner.Model
+	spinnerFrameIdx int
 
 	// targetPath is what the result on screen is about — an image reference or a
 	// repository path. It names the target in the title, and it is the directory

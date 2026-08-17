@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -231,8 +232,15 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 // setInventory replaces the rows, stamping the current spinner frame on them so
 // the ones being rescanned animate. The frame is read here rather than in a Cell
 // function, which is built once and cannot reach the model.
+//
+// It is the spinner's *frame*, never its View(): the latter renders through
+// SpinnerStyle, and a table cell carries no escape sequence (Rule 122). A styled
+// frame measured 47 cells in a column 14 wide, so the cut landed inside the
+// escape and the Scanned column rendered as nothing at all — a scan with no
+// visible sign it was running. oci_resources and workspaces already stamp the
+// bare frame; this was the one that did not.
 func (m *Model) setInventory(targets []scanTarget) {
-	frame := m.spinner.View()
+	frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
 	stamped := make([]scanTarget, len(targets))
 	for i, t := range targets {
 		t.SpinnerFrame = frame
