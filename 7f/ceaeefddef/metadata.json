@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.9.0",
+  "checkpoint_id": "7fceaeefddef",
+  "strategy": "manual-commit",
+  "branch": "fix/theme-background-color-profile",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/dashboard/dashboard_test.go",
+    "internal/ui/dashboard/secrets_test.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/theme/initrender_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7f/ceaeefddef/0/metadata.json",
+      "transcript": "/7f/ceaeefddef/0/full.jsonl",
+      "compact_transcript": "/7f/ceaeefddef/0/transcript.jsonl",
+      "content_hash": "/7f/ceaeefddef/0/content_hash.txt",
+      "prompt": "/7f/ceaeefddef/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 89,
+    "cache_creation_tokens": 146684,
+    "cache_read_tokens": 5848198,
+    "output_tokens": 32874,
+    "api_call_count": 50
+  }
+}

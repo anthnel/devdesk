@@ -1,0 +1,21 @@
+sous WSL archlinux, le background de l'application ne respecte pas le theme, il noir pour default et catppuccin mocha, il est bleu pour catppuccin macchiato
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+continue
