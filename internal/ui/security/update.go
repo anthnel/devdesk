@@ -117,6 +117,7 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	m.spinner, cmd = m.spinner.Update(msg)
+	m.spinnerFrameIdx++
 	m.setInventory(m.inventory.Items())
 	return m, cmd
 }
