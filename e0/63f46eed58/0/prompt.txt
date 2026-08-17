@@ -11,3 +11,7 @@ les tests prennent trop de temps avec les 3 secondes de sleep , regarde pour gar
 ---
 
 continue
+
+---
+
+commit, merge récupère aussi les modifications distantes sur main
