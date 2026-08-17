@@ -659,12 +659,31 @@ discovered: a genuinely unrelated unlevelled line after an INFO goes with it.
 toggles: that is what "verbosity" means and log levels are monotone. One
 `FilterBar` token (Rule 136), gone at `all`.
 
-**`KindLog` is declared, never sniffed** — "this looks like a log" is not
-decidable, and the registry `provider` field is the precedent. JSON and XML keep
-a content sniff, but only for a file with **no extension**: a `.md` opening with
-a tag is not a broken XML document, and saying so would be noise. Hence
-`detection.Declared` — a parse failure is reported only when the *name* claimed
-the kind.
+**`KindLog`, `KindYAML` and `KindTOML` are declared, never sniffed** — "this
+looks like a log" is not decidable, and neither is "this looks like YAML": a file
+opening with `---` is Markdown front matter as often as a YAML stream, and a
+`[section]` line is prose in half the files that hold one. The registry
+`provider` field is the precedent. JSON and XML keep a content sniff, but only
+for a file with **no extension**: a `.md` opening with a tag is not a broken XML
+document, and saying so would be noise. Hence `detection.Declared` — a parse
+failure is reported only when the *name* claimed the kind.
+
+**YAML and TOML are coloured, and have no tree.** `Structured()` excludes them by
+decision, not by oversight: both have a structure, but neither has a parser
+*here* that preserves the file's order, and order is content (below). `yaml.v3`
+could do it — `yaml.Node` keeps order and comments, and it is already a
+dependency — while TOML would cost another one. Until that is worth doing they
+are text with the colour on, and `f` is hidden for them (Rule 130).
+
+The class mapping was **read off the four lexers**, not guessed, which is what
+settled them: YAML needed nothing (its keys arrive as `NameTag`, its scalars as
+`Literal`, `true`/`null` as `KeywordConstant`), and TOML needed one line —
+every one of its keys, table headers included, arrives as `NameOther`, which fell
+through to `ClassText` and left a TOML document coloured everywhere except the
+thing worth colouring. Neither the JSON nor the XML lexer emits `NameOther`, so
+the mapping is not guarded on the kind; the two classification tests are what
+keep that true. No dependency and no binary growth: chroma embeds every lexer
+already, which is what the +4.0 MB below bought.
 
 **Order is content.** Both parsers read a token stream (`json.Decoder.Token`,
 `xml.Decoder.Token`), never a decoded value: `map[string]any` loses the file's
@@ -686,8 +705,9 @@ sequence — Rule 122's hazard, one layer up. `docLine` keeps a line as spans,
 
 **chroma is a lexer and nothing else.** Its formatters emit their own ANSI and
 resets, and a reset mid-line takes the app background to the margin (Rule 115).
-The `TokenType → TokenClass` mapping was **read off the two lexers**, not guessed:
-both emit `NameTag` for a JSON key *and* an XML tag, hence the `kind` parameter.
+The `TokenType → TokenClass` mapping was **read off the lexers**, not guessed:
+JSON and XML both emit `NameTag`, for a key and for a tag respectively, hence the
+`kind` parameter.
 The invariant everything rests on — concatenating the tokens reproduces the input
 exactly — has a test of its own. Cost: **+4.0 MB** on the binary (19.9 → 24.0),
 because chroma embeds every lexer.
@@ -695,6 +715,35 @@ because chroma embeds every lexer.
 Syntax colours are **semantic aliases assigned in `ApplyTheme`**, like
 `ColorChartBg`: no theme file gains a key. Log levels get none —
 `StatusErrorStyle`, `StatusWarningStyle` and `DimStyle` already mean that.
+`ColorSearchMatch`/`Fg` are the same kind of alias.
+
+**A search filters and highlights, and one rule decides both.** `MatchRanges` is
+the only thing that says a line matched, and it says *where* in the same answer:
+the filter is `len(ranges) > 0`, so "a line the search kept carries at least one
+highlighted occurrence" holds by construction. Two calculations for one question
+is what `scan.Categorize` and `Result.SecretVerdict` each had to undo, and the
+symptom was identical both times — something counted in one place and absent from
+the other. Here it would be a line kept with nothing visible in it.
+
+The consequences, each with a test:
+
+- **A match is one more span, never a colour laid over a finished line.**
+  `MarkMatches` cuts the tokens while they are still plain, for the reason
+  `docLine` exists at all. It runs *after* the filter, so only on the lines about
+  to be drawn, and it keeps Tokenize's byte-for-byte invariant.
+- **`matchStyle` overrides the class and the level both.** A log line comes out as
+  level, match, level: the level still carries the rest of it, so an ERROR is
+  still picked out at a glance, and a search invisible in a log would be missing
+  precisely where the lines are longest.
+- **`c` has no say over it.** An occurrence is not syntax colouring; turning the
+  colours off is how someone reads a document as plain text, and a search they
+  then could not see would be the one thing that cost them.
+- **Cutting a token copies it** (`withText`, `appendSpan`) rather than rebuilding
+  a literal. A literal has to name every field to keep it, which is how a
+  highlight works right up until the line is long enough to wrap — the one case it
+  exists for. Byte offsets, not runes: a token holds a string. And when
+  `strings.ToLower` changes a string's length in bytes (`İ`), the search falls
+  back to a case-sensitive one rather than pointing beside the match.
 
 Three key collisions were resolved rather than accepted: follow moved `f` →
 `F` (`ctrl+r` and `F` read as *reload once* / *keep reloading*); `h`/`l` are

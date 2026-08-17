@@ -27,6 +27,11 @@ const (
 type Token struct {
 	Class TokenClass
 	Text  string
+
+	// Match says the current search found this run. It is a second axis, not a
+	// ninth class: Class is what the text *is*, and an occurrence inside a key is
+	// still a key. Tokenize never sets it — MarkMatches does, after the filter.
+	Match bool
 }
 
 // Tokenize splits text for highlighting.
@@ -74,6 +79,10 @@ func lexerName(kind Kind) string {
 		return "json"
 	case KindXML:
 		return "xml"
+	case KindYAML:
+		return "yaml"
+	case KindTOML:
+		return "toml"
 	default:
 		return ""
 	}
@@ -81,11 +90,18 @@ func lexerName(kind Kind) string {
 
 // classOf maps a chroma token type onto our palette.
 //
-// The mapping was read off the two lexers rather than guessed: chroma emits
+// The mapping was read off the four lexers rather than guessed: chroma emits
 // NameTag for a JSON object key *and* for an XML tag, which is why the kind is
 // a parameter. Both happen to resolve to the same colour today; naming them
 // apart is what lets a theme separate them later without this function being
 // wrong in the meantime.
+//
+// The reading is what settled YAML and TOML too. YAML needed nothing: its keys
+// come out as NameTag, its scalars as Literal, its `true`/`null` as
+// KeywordConstant, all of which already landed somewhere sensible. TOML needed
+// one line — every one of its keys, table headers included, comes out as
+// NameOther, which fell through to ClassText and left a TOML document coloured
+// everywhere except the thing worth colouring.
 func classOf(kind Kind, t chroma.TokenType) TokenClass {
 	switch t.Category() {
 	case chroma.Comment:
@@ -107,6 +123,13 @@ func classOf(kind Kind, t chroma.TokenType) TokenClass {
 			if kind == KindXML {
 				return ClassTag
 			}
+			return ClassKey
+		case chroma.NameOther:
+			// "A name the lexer could not qualify further", which in TOML is
+			// precisely a key. It is not guarded on the kind because neither the
+			// JSON nor the XML lexer emits it — TestJSONTokensAreClassified and
+			// TestXMLTagsAndAttributesAreClassifiedApart are what keep that true,
+			// and `if kind == KindTOML` is the one-line fallback if it stops being.
 			return ClassKey
 		default:
 			return ClassText

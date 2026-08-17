@@ -262,6 +262,65 @@ func TestTheFilterBarFollowsTheVerbosity(t *testing.T) {
 	}
 }
 
+// ── YAML and TOML ────────────────────────────────────────────────────────────
+
+// The whole chain in one assertion: the extension decides the kind, the kind
+// picks the lexer, the class picks the style. Each link is unit-tested elsewhere;
+// this is what fails if one of them is not wired to the next.
+func TestYAMLAndTOMLReachTheScreenColored(t *testing.T) {
+	cases := []struct {
+		file    string
+		content string
+		format  string
+		key     string
+		value   string
+	}{
+		{"compose.yaml", "services:\n  api:\n    image: nginx\n", "yaml", "services", "nginx"},
+		{"compose.yml", "services:\n  api:\n    image: nginx\n", "yaml", "services", "nginx"},
+		{"Cargo.toml", "[package]\nname = \"devdesk\"\n", "toml", "package", `"devdesk"`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.file, func(t *testing.T) {
+			m := open(t, fakeSource{name: tc.file, content: tc.content})
+
+			if got := m.formatLabel(); got != tc.format {
+				t.Errorf("formatLabel = %q, want %q", got, tc.format)
+			}
+			rendered := m.View()
+			if !strings.Contains(rendered, syntaxStyle(viewerpkg.ClassKey).Render(tc.key)) {
+				t.Errorf("%q is not colored as a key", tc.key)
+			}
+			if !strings.Contains(rendered, syntaxStyle(viewerpkg.ClassString).Render(tc.value)) {
+				t.Errorf("%q is not colored as a value", tc.value)
+			}
+		})
+	}
+}
+
+// Neither has a tree, so `f` is not offered and does nothing (Rule 130): a
+// shortcut advertised for a display that renders an empty pane is worse than no
+// shortcut.
+func TestNeitherYAMLNorTOMLOffersTheTree(t *testing.T) {
+	for _, file := range []string{"compose.yaml", "Cargo.toml"} {
+		m := open(t, fakeSource{name: file, content: "a: 1\n"})
+
+		if m.display != displayText {
+			t.Errorf("%s did not open on the text display", file)
+		}
+		for _, s := range m.GetShortcuts() {
+			if s.Key == "f" {
+				t.Errorf("%s offers f, which has no tree to switch to", file)
+			}
+		}
+
+		before := m.View()
+		if after := feed(t, m, testutil.Key("f")).View(); after != before {
+			t.Errorf("f changed the %s display", file)
+		}
+	}
+}
+
 // ── Search ───────────────────────────────────────────────────────────────────
 
 func TestSearchNarrowsTheText(t *testing.T) {
@@ -274,7 +333,9 @@ func TestSearchNarrowsTheText(t *testing.T) {
 	m = feed(t, m, testutil.Type("disk")...)
 	m = feed(t, m, testutil.Key("enter"))
 
-	rendered := m.textViewport.View()
+	// Stripped, because the occurrence is a styled run of its own now: the
+	// rendered line carries an escape sequence between "disk" and what follows it.
+	rendered := ansi.Strip(m.textViewport.View())
 	if !strings.Contains(rendered, "disk almost full") {
 		t.Error("the matching line is missing")
 	}
@@ -294,6 +355,103 @@ func TestAnEmptyResultSaysWhy(t *testing.T) {
 	if !strings.Contains(m.textViewport.View(), "No line matches") {
 		t.Errorf("an empty search result says nothing: %q", m.textViewport.View())
 	}
+}
+
+func TestSearchHighlightsItsOccurrences(t *testing.T) {
+	m := searchFor(t, logModel(t, mixedLog), "disk")
+
+	rendered := m.textViewport.View()
+	if !strings.Contains(rendered, matchStyle().Render("disk")) {
+		t.Error("the occurrence is not highlighted; the line is kept but nothing says where it matched")
+	}
+	if !strings.Contains(ansi.Strip(rendered), "disk almost full") {
+		t.Error("highlighting changed the text, not just its colour")
+	}
+}
+
+// The test that earns its place. splitTokenLines and wrapTokens each rebuild a
+// token literally, so a Match left behind there gives a highlight that works
+// until the line is long enough to be cut — which is the line it exists for.
+func TestSearchHighlightSurvivesWrap(t *testing.T) {
+	beyondTheFold := strings.Repeat("x", 100) + "needle"
+	m := logModel(t, beyondTheFold)
+
+	m = feed(t, m, testutil.Key("w"))
+	if !m.wrap {
+		t.Fatal("w did not turn wrapping on")
+	}
+	m = searchFor(t, m, "needle")
+
+	if !strings.Contains(m.textViewport.View(), matchStyle().Render("needle")) {
+		t.Error("the occurrence lost its highlight past the wrap: Match did not travel with the run")
+	}
+}
+
+// An occurrence is not syntax coloring, so `c` has no say over it: turning the
+// colors off is how someone reads a document as plain text, and a search they
+// then could not see would be the one thing they lost by it.
+func TestSearchHighlightIgnoresTheColoringToggle(t *testing.T) {
+	m := jsonModel(t)
+	m = feed(t, m, testutil.Key("f")) // the text display
+	m = feed(t, m, testutil.Key("c"))
+	if m.highlight {
+		t.Fatal("c did not turn highlighting off")
+	}
+
+	m = searchFor(t, m, "ports")
+	if !strings.Contains(m.textViewport.View(), matchStyle().Render("ports")) {
+		t.Error("the occurrence is not highlighted with coloring off")
+	}
+}
+
+// A log line is styled by its level in one piece, except where a search cut it:
+// the level still carries the rest of the line, so an ERROR is picked out at a
+// glance and the occurrence is picked out inside it.
+func TestSearchHighlightsInsideALogLine(t *testing.T) {
+	m := searchFor(t, logModel(t, mixedLog), "disk")
+
+	rendered := m.textViewport.View()
+	if !strings.Contains(rendered, matchStyle().Render("disk")) {
+		t.Error("the occurrence lost its highlight to the level style")
+	}
+	if !strings.Contains(rendered, levelStyle(viewerpkg.LevelWarn).Render("2026-01-01 [WARN] ")) {
+		t.Error("the rest of the line lost its level; a search must not cost the level color")
+	}
+}
+
+// The invariant the filter rests on: one rule decides both that a line matches
+// and where, so a line the search kept always carries at least one occurrence.
+// Two calculations for one question is what produced a finding counted in the
+// header and present in no tab.
+func TestEveryLineTheSearchKeptCarriesAnOccurrence(t *testing.T) {
+	m := searchFor(t, logModel(t, mixedLog), "2026")
+
+	var checked int
+	for _, line := range strings.Split(m.textViewport.View(), "\n") {
+		if strings.TrimSpace(ansi.Strip(line)) == "" {
+			continue
+		}
+		checked++
+		if !strings.Contains(line, matchStyle().Render("2026")) {
+			t.Errorf("line %q was kept by the search with nothing highlighted in it", ansi.Strip(line))
+		}
+	}
+	if checked == 0 {
+		t.Fatal("the search kept no line at all, so the invariant was never tested")
+	}
+}
+
+// searchFor drives `/`, the query and enter — the three steps every search test
+// starts with.
+func searchFor(t *testing.T, m Model, query string) Model {
+	t.Helper()
+
+	m = feed(t, m, testutil.Key("/"))
+	if !m.InEditMode() {
+		t.Fatal("/ did not focus the search field")
+	}
+	m = feed(t, m, testutil.Type(query)...)
+	return feed(t, m, testutil.Key("enter"))
 }
 
 // ── Colour ───────────────────────────────────────────────────────────────────

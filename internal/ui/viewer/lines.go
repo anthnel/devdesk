@@ -3,6 +3,8 @@ package viewer
 import (
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/anthnel/devdesk/internal/viewer"
 )
 
@@ -44,6 +46,19 @@ func buildLines(doc viewer.Document, highlight bool) []docLine {
 	return lines
 }
 
+// withText is a piece of a token: everything the run said about itself, over a
+// shorter span of text.
+//
+// It is a copy rather than a fresh literal on purpose. Both of the functions
+// below cut tokens up, and a literal has to name every field to keep it — which
+// is how a highlight ends up working right until the line is long enough to be
+// wrapped, the one case it exists for. Copying makes the omission unexpressible
+// instead of something to remember for the next field anyone adds.
+func withText(token viewer.Token, text string) viewer.Token {
+	token.Text = text
+	return token
+}
+
 // splitTokenLines cuts a document-wide token stream into one slice of tokens per
 // line, splitting any token that spans a newline.
 func splitTokenLines(tokens []viewer.Token) []docLine {
@@ -66,7 +81,7 @@ func splitTokenLines(tokens []viewer.Token) []docLine {
 			if part == "" {
 				continue
 			}
-			current = append(current, viewer.Token{Class: token.Class, Text: part})
+			current = append(current, withText(token, part))
 			plain.WriteString(part)
 		}
 	}
@@ -103,7 +118,7 @@ func wrapTokens(tokens []viewer.Token, width int) [][]viewer.Token {
 				current, room = nil, width
 			}
 			take := min(room, len(runes))
-			current = append(current, viewer.Token{Class: token.Class, Text: string(runes[:take])})
+			current = append(current, withText(token, string(runes[:take])))
 			runes = runes[take:]
 			room -= take
 		}
@@ -111,21 +126,32 @@ func wrapTokens(tokens []viewer.Token, width int) [][]viewer.Token {
 	return append(segments, current)
 }
 
-// render paints a segment. A log line takes one style for the whole of it, so
-// that an ERROR is picked out at a glance; anything else is coloured token by
-// token.
+// renderSegment paints a segment, one run at a time.
+//
+// A log line still reads as one piece — its level styles every run of it, so an
+// ERROR is picked out at a glance, and a log has exactly one token per line
+// unless a search cut it. That is the deliberate exception: an occurrence takes
+// matchStyle even inside a log line, so the line comes out as level, match,
+// level. A search that could not be seen in a log would be missing precisely
+// where the lines are longest.
+//
+// Anything else is coloured by token class, with a match overriding it the same
+// way.
 func renderSegment(tokens []viewer.Token, level viewer.Level, isLog bool) string {
-	if isLog {
-		var plain strings.Builder
-		for _, token := range tokens {
-			plain.WriteString(token.Text)
-		}
-		return levelStyle(level).Render(plain.String())
-	}
-
 	var out strings.Builder
 	for _, token := range tokens {
-		out.WriteString(syntaxStyle(token.Class).Render(token.Text))
+		out.WriteString(runStyle(token, level, isLog).Render(token.Text))
 	}
 	return out.String()
+}
+
+func runStyle(token viewer.Token, level viewer.Level, isLog bool) lipgloss.Style {
+	switch {
+	case token.Match:
+		return matchStyle()
+	case isLog:
+		return levelStyle(level)
+	default:
+		return syntaxStyle(token.Class)
+	}
 }
