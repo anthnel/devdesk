@@ -20,6 +20,14 @@ func TestHighlightingReproducesTheInputExactly(t *testing.T) {
 		{KindLog, "2026-01-01 [ERROR] boom\n"},
 		{KindJSON, ""},
 		{KindJSON, "{not really json"},
+		{KindYAML, "# c\napp:\n  name: dk\n  port: 8080\n  on: true\n---\nlist:\n  - one\n"},
+		{KindTOML, "# c\ntitle = \"dk\"\n\n[app]\nport = 8080\nratio = 1.5\n"},
+
+		// A malformed document is exactly the one someone opens the viewer for. The
+		// lexers do not refuse it, and the invariant has to hold anyway: the
+		// rendered lines are matched against the document's real ones by index.
+		{KindYAML, "app:\n\tname: [unclosed\n  : :\n"},
+		{KindTOML, "[unclosed\nkey = = 1\n"},
 	}
 
 	for _, tc := range cases {
@@ -70,6 +78,64 @@ func TestXMLTagsAndAttributesAreClassifiedApart(t *testing.T) {
 	}
 	if classes[ClassKey] {
 		t.Error("an XML tag was classified as a JSON key")
+	}
+}
+
+func TestYAMLTokensAreClassified(t *testing.T) {
+	tokens := Tokenize(KindYAML, "# note\nname: devdesk\nport: 8080\ndebug: true\n")
+
+	assertFirstPerClass(t, tokens, map[TokenClass]string{
+		ClassComment: "# note",
+		ClassKey:     "name",
+		ClassPunct:   ":",
+		ClassString:  "devdesk",
+		ClassNumber:  "8080",
+		ClassLiteral: "true",
+	})
+}
+
+// The test that earns its place: every TOML key, table headers included, comes
+// out of chroma as NameOther. Without that mapping a TOML document is coloured
+// everywhere except its keys.
+func TestTOMLKeysAreClassifiedAsKeys(t *testing.T) {
+	tokens := Tokenize(KindTOML, "# note\ntitle = \"devdesk\"\n\n[app]\nport = 8080\ndebug = true\n")
+
+	assertFirstPerClass(t, tokens, map[TokenClass]string{
+		ClassComment: "# note",
+		ClassKey:     "title",
+		ClassPunct:   "=",
+		ClassString:  `"devdesk"`,
+		ClassNumber:  "8080",
+		ClassLiteral: "true",
+	})
+
+	var tableName bool
+	for _, token := range tokens {
+		if token.Text == "app" && token.Class == ClassKey {
+			tableName = true
+		}
+	}
+	if !tableName {
+		t.Error("a [table] header is not classified as a key; it names a section, which is the same thing")
+	}
+}
+
+// assertFirstPerClass checks the first token of each class, which is what pins a
+// mapping without asserting on the whole stream — a lexer is free to split a run
+// differently between versions.
+func assertFirstPerClass(t *testing.T, tokens []Token, want map[TokenClass]string) {
+	t.Helper()
+
+	seen := map[TokenClass]string{}
+	for _, token := range tokens {
+		if _, ok := seen[token.Class]; !ok {
+			seen[token.Class] = token.Text
+		}
+	}
+	for class, text := range want {
+		if seen[class] != text {
+			t.Errorf("class %d first matched %q, want %q", class, seen[class], text)
+		}
 	}
 }
 

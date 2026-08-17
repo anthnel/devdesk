@@ -17,12 +17,20 @@ func TestDetectionPrefersTheExtensionThenTheContent(t *testing.T) {
 		{"json extension", "config.json", `{"a":1}`, KindJSON},
 		{"xml extension", "pod.xml", `<a/>`, KindXML},
 		{"log extension", "app.log", `whatever`, KindLog},
+		{"yaml extension", "compose.yaml", "app:\n  name: dk\n", KindYAML},
+		{"yml extension", "compose.yml", "app:\n  name: dk\n", KindYAML},
+		{"toml extension", "Cargo.toml", "[package]\nname = \"dk\"\n", KindTOML},
 
 		// A named extension is taken at its word. Sniffing a .md would open a
 		// Markdown file as a tree the first time someone started one with a tag.
 		{"markdown starting with a tag", "README.md", `<div>hi</div>`, KindPlain},
 		{"go source", "main.go", "package main", KindPlain},
 		{"text holding json", "notes.txt", `{"a":1}`, KindPlain},
+
+		// A Markdown front matter block opens on `---`, which is also how a YAML
+		// stream separates documents. The extension decides, so the question never
+		// comes up.
+		{"markdown with front matter", "post.md", "---\ntitle: hi\n---\n", KindPlain},
 
 		// Only a file with no extension at all is guessed at.
 		{"extensionless object", "dump", `  {"a":1}`, KindJSON},
@@ -53,6 +61,41 @@ func TestALogKindIsNeverInferredFromContent(t *testing.T) {
 	}
 	if got := DetectKind("app.log", []byte(logLike)); got != KindLog {
 		t.Errorf("DetectKind(app.log) = %q, want log from the extension", got)
+	}
+}
+
+// Same rule, same reason: `---` at the top of a file does not make it YAML, and
+// a `[section]` line is prose in half the files that hold one.
+func TestYAMLAndTOMLAreNeverInferredFromContent(t *testing.T) {
+	cases := []struct {
+		name    string
+		file    string
+		content string
+	}{
+		{"a yaml document separator", "dump", "---\napp:\n  name: dk\n"},
+		{"a yaml mapping", "dump", "app:\n  name: dk\n"},
+		{"a toml table", "dump", "[package]\nname = \"dk\"\n"},
+		{"a toml assignment", "notes.txt", "name = \"dk\"\n"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := DetectKind(tc.file, []byte(tc.content))
+			if got == KindYAML || got == KindTOML {
+				t.Errorf("DetectKind(%q) = %q; the kind must be declared, never sniffed", tc.file, got)
+			}
+		})
+	}
+}
+
+// Neither has a tree, and the absence is a decision (see Kind.Structured): the
+// view offers `f` off the back of this answer, so a wrong one would advertise a
+// display that renders an empty pane.
+func TestNeitherYAMLNorTOMLClaimsATree(t *testing.T) {
+	for _, kind := range []Kind{KindYAML, KindTOML} {
+		if kind.Structured() {
+			t.Errorf("%q reports a tree it has no parser for", kind)
+		}
 	}
 }
 

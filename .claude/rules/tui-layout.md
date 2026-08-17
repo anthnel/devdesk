@@ -93,6 +93,11 @@ paie une fois.
     serait du bruit.
   - `w`: Soft wrap (text display).
   - `v`: Cycle the minimum log level shown (logs only).
+  - `/`: Search — filtre **et** surligne. Les lignes sans occurrence disparaissent
+    et chaque occurrence des lignes restantes est mise en surbrillance : c'est ce
+    qui dit *où* dans une ligne longue. La surbrillance ne dépend pas de `c` (une
+    occurrence n'est pas de la coloration syntaxique), survit à `w`, et dans un log
+    le niveau garde le reste de la ligne.
   - `ctrl+r` / `F`: Reload once / follow live output.
   - `V`: Open in the system pager (the one surviving pager path, container logs only).
 - **Control**:

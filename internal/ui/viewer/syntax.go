@@ -43,6 +43,19 @@ func syntaxStyle(class viewer.TokenClass) lipgloss.Style {
 	}
 }
 
+// matchStyle is a run the current search found.
+//
+// Reverse video, like a selected table row, and it overrides whatever the run
+// would otherwise have been — its syntax class or its log level. A search
+// occurrence is the most urgent thing on the screen while a search is running,
+// and a colour that had to compete with eight others for attention would not be
+// findable, which is the whole point of showing it.
+func matchStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Background(theme.ColorSearchMatch).
+		Foreground(theme.ColorSearchMatchFg)
+}
+
 // levelStyle colours a whole log line by its severity.
 //
 // A log line is styled in one piece rather than per token: its level is a fact

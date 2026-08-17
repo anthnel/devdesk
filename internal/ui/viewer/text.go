@@ -16,7 +16,7 @@ import (
 // frame would not be viable even if it did not.
 func (m *Model) rebuildText() {
 	width := m.textViewport.Width
-	query := strings.ToLower(strings.TrimSpace(m.bar.SearchQuery()))
+	query := strings.TrimSpace(m.bar.SearchQuery())
 	isLog := m.doc.Kind == viewer.KindLog
 
 	var out []string
@@ -26,14 +26,25 @@ func (m *Model) rebuildText() {
 		if isLog && !line.Level.Passes(m.minLevel) {
 			continue
 		}
-		if query != "" && !strings.Contains(strings.ToLower(line.Plain), query) {
-			continue
+
+		// One rule decides both that a line matches and where. The filter *is*
+		// the absence of an occurrence, so "a line the search kept carries at
+		// least one highlight" holds by construction — two calculations for one
+		// question is what scan.Categorize and SecretVerdict each had to undo.
+		var ranges []viewer.Range
+		if query != "" {
+			if ranges = viewer.MatchRanges(line.Plain, query); len(ranges) == 0 {
+				continue
+			}
 		}
 		m.matchedLines++
 
-		segments := [][]viewer.Token{line.Tokens}
+		// Marking comes after the filter, so it only ever runs on the lines that
+		// are about to be drawn. With no ranges it returns the slice untouched.
+		tokens := viewer.MarkMatches(line.Tokens, ranges)
+		segments := [][]viewer.Token{tokens}
 		if m.wrap && width > 0 {
-			segments = wrapTokens(line.Tokens, width)
+			segments = wrapTokens(tokens, width)
 		}
 		for _, segment := range segments {
 			// Padded to the full width: lipgloss inherits no background

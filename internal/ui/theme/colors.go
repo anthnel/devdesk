@@ -76,6 +76,12 @@ var (
 	ColorSyntaxAttr    lipgloss.Color
 	ColorSyntaxComment lipgloss.Color
 
+	// A search occurrence, in reverse video like a selected row: it is the most
+	// urgent thing on the screen while a search is running, so it takes
+	// precedence over the syntax class or the log level underneath it.
+	ColorSearchMatch   lipgloss.Color
+	ColorSearchMatchFg lipgloss.Color
+
 	// Severity colors (background + foreground pairs)
 	ColorSeverityCritical   lipgloss.Color
 	ColorSeverityCriticalFg lipgloss.Color

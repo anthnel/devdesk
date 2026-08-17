@@ -17,11 +17,22 @@ const (
 	KindJSON  Kind = "json"
 	KindXML   Kind = "xml"
 	KindLog   Kind = "log"
+	KindYAML  Kind = "yaml"
+	KindTOML  Kind = "toml"
 )
 
 // Structured reports whether the kind has a tree to walk. It is the one question
 // the view asks before offering the tree display, so it is answered here rather
 // than by a switch written out at each call site.
+//
+// YAML and TOML are absent by decision, not by oversight. Both have a structure
+// — a tree could be drawn — but neither has a parser *here* that preserves the
+// file's order, and order is content: a document read back through a
+// map[string]any is a different document from the one on disk, which is why the
+// JSON and XML parsers read a token stream. yaml.v3 could do it (yaml.Node keeps
+// order and comments, and it is already a dependency); TOML would cost another
+// one. Until that is worth doing, both are coloured text and `f` is hidden for
+// them (Rule 130).
 func (k Kind) Structured() bool {
 	return k == KindJSON || k == KindXML
 }
