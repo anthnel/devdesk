@@ -37,6 +37,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.findingToIgnore = nil
 		return m, nil
 
+	case sharedcomponents.OptionConfirmModalYesMsg:
+		m.scanAllModal = nil
+		return m.rescanAll(msg.Option)
+
+	case sharedcomponents.OptionConfirmModalNoMsg:
+		m.scanAllModal = nil
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -55,10 +63,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Pass key messages to confirm modal if active
+		// Whichever modal is open takes every key before the view sees one.
 		if m.confirmModal != nil {
 			var cmd tea.Cmd
 			m.confirmModal, cmd = m.confirmModal.Update(msg)
+			return m, cmd
+		}
+		if m.scanAllModal != nil {
+			var cmd tea.Cmd
+			m.scanAllModal, cmd = m.scanAllModal.Update(msg)
 			return m, cmd
 		}
 		return m.handleKeyMsg(msg)

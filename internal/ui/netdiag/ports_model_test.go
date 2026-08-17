@@ -8,6 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	dockerpkg "github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -271,8 +273,11 @@ func TestKillRequiresAPID(t *testing.T) {
 	m := portsModel(t)
 	m.portsModel.table.Table().SetCursor(3) // the kernel socket, which has no PID
 
-	m, cmd := step(t, m, testutil.Key("ctrl+k"))
+	m, cmd := step(t, m, testutil.Key(keymap.Kill))
 
+	if m.portsModel.confirmModal != nil {
+		t.Error("a PID-less entry was offered a confirmation it cannot act on")
+	}
 	if m.portsModel.footerInfo == "" {
 		t.Error("killing a PID-less entry said nothing")
 	}
@@ -285,20 +290,25 @@ func TestKillIssuesACommandForAnEntryWithAPID(t *testing.T) {
 	m := portsModel(t)
 	m.portsModel.table.Table().SetCursor(0) // sshd, pid 812
 
-	_, cmd := step(t, m, testutil.Key("ctrl+k"))
+	m, _ = step(t, m, testutil.Key(keymap.Kill))
 
-	if cmd == nil {
-		t.Error("ctrl+k on a killable entry issued no command")
+	// K asks first: this is a SIGKILL on a process of the host, not a container
+	// to be brought back up (§3.26).
+	if m.portsModel.confirmModal == nil {
+		t.Fatal("K on a killable entry did not ask for confirmation")
+	}
+	if _, cmd := step(t, m, components.ConfirmModalYesMsg{}); cmd == nil {
+		t.Error("confirming the kill issued no command")
 	}
 }
 
 func TestKillIsInertWithoutASelection(t *testing.T) {
 	m := feed(t, newTestModel(t), testutil.Key("tab")) // no data yet
 
-	_, cmd := step(t, m, testutil.Key("ctrl+k"))
+	_, cmd := step(t, m, testutil.Key(keymap.Kill))
 
 	if cmd != nil {
-		t.Error("ctrl+k issued a command with nothing selected")
+		t.Error("K issued a command with nothing selected")
 	}
 }
 
@@ -544,7 +554,7 @@ func TestAQuerySpanningColumnsStillMatches(t *testing.T) {
 // KillProcess runs an ephemeral privileged container, so it is not the instant
 // a signal sounds like. The row used to look exactly as it had.
 func TestAKillSpinsTheSocketState(t *testing.T) {
-	m := feed(t, portsModel(t), testutil.Key("ctrl+k")) // sshd, PID 812
+	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{}) // sshd, PID 812
 
 	if !m.portsModel.table.IsBusy("812") {
 		t.Fatal("the kill was not marked on the row")
@@ -573,7 +583,7 @@ func TestAKillSpinsEveryRowOfThatProcess(t *testing.T) {
 	m := feed(t, newTestModel(t), testutil.Key("tab"))
 	m = feed(t, m, portsDataMsg{ports: shared})
 
-	m = feed(t, m, testutil.Key("ctrl+k"))
+	m = feed(t, m, testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
 	spinning := 0
 	for _, line := range strings.Split(m.portsModel.table.View(), "\n") {
@@ -589,7 +599,7 @@ func TestAKillSpinsEveryRowOfThatProcess(t *testing.T) {
 // On every outcome: a kill that failed has to let the socket state show again
 // rather than go on turning.
 func TestAFailedKillLiftsTheMarker(t *testing.T) {
-	m := feed(t, portsModel(t), testutil.Key("ctrl+k"))
+	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
 	m = feed(t, m, portsKillResultMsg{pid: "812", err: errors.New("operation not permitted")})
 
@@ -602,9 +612,9 @@ func TestAFailedKillLiftsTheMarker(t *testing.T) {
 }
 
 func TestASecondKillOfTheSamePIDIsRefused(t *testing.T) {
-	m := feed(t, portsModel(t), testutil.Key("ctrl+k"))
+	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
-	m = feed(t, m, testutil.Key("ctrl+k"))
+	m = feed(t, m, testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
 	if !strings.Contains(m.portsModel.footerInfo, "812") {
 		t.Errorf("footerInfo = %q, want it to say the kill is already running", m.portsModel.footerInfo)
@@ -614,7 +624,7 @@ func TestASecondKillOfTheSamePIDIsRefused(t *testing.T) {
 // The tick stops itself once nothing is left running, rather than turning a
 // frame nobody is looking at for the life of the view.
 func TestTheKillSpinnerTickStopsWhenTheKillLands(t *testing.T) {
-	m := feed(t, portsModel(t), testutil.Key("ctrl+k"))
+	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{})
 
 	_, cmd := m.portsModel.handleSpinnerTick()
 	if cmd == nil {

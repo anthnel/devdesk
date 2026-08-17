@@ -75,7 +75,7 @@ type Model struct {
 	activeTabIndex int // Focused tab index (last tab = current level)
 
 	// Delete mode state
-	deleteConfirmModal *components.DeleteConfirmModal
+	deleteConfirmModal *components.OptionConfirmModal
 	deleteTargetNode   *TreeNode
 	// Transient footer messages, both cleared by the same 3s timer (Rule 128).
 	footerError string

@@ -16,6 +16,16 @@ import (
 func (m *Model) View() string {
 	switch m.activeTab {
 	case tabPorts:
+		// The kill confirmation is centred over the tab, like every other
+		// modal (Rule 112).
+		if modal := m.portsModel.confirmModal; modal != nil {
+			return lipgloss.Place(
+				m.width, m.height,
+				lipgloss.Center, lipgloss.Center,
+				modal.View(),
+				lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			)
+		}
 		return m.portsModel.view()
 	case tabTopology:
 		return m.topologyModel.view()

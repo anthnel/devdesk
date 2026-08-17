@@ -6,6 +6,8 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/ui/components"
 )
 
 // Init implements tea.Model
@@ -70,8 +72,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.footerInfo = ""
 		return m, nil
 
-	// Ports sub-model messages
-	case portsTickMsg, portsDataMsg, portsKillResultMsg, portsClearFooterMsg:
+	// Ports sub-model messages. The confirm-modal answers are here because the
+	// kill asks before it acts (§3.26), and the modal is the ports tab's.
+	case portsTickMsg, portsDataMsg, portsKillResultMsg, portsClearFooterMsg,
+		components.ConfirmModalYesMsg, components.ConfirmModalNoMsg:
 		var cmd tea.Cmd
 		m.portsModel, cmd = m.portsModel.update(msg)
 		return m, cmd
@@ -237,7 +241,9 @@ func (m *Model) handleKeyResults(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m.openDetails()
-	case "ctrl+r", "r":
+	// ctrl+r means refresh and only refresh (§3.26). Going back is esc, which
+	// handleKeyResults already reaches through the table.
+	case "esc":
 		return m.resetToForm()
 	}
 	return m, m.resultsTable.Update(msg)

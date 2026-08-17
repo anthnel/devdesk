@@ -80,6 +80,34 @@ func (m Model) scanSelectedImage() (tea.Model, tea.Cmd) {
 }
 
 // scanAllUnscanned triggers batch scanning of all unscanned images using config defaults
+// confirmScanAll asks before scanning every image, and the purge is the modal's
+// checkbox rather than a second key.
+//
+// A and ctrl+a differed only by a modifier, and nothing in their shape said
+// which one purged the cache — the closest this application came to losing data
+// by accident (§3.26). The destructive half is a deliberate gesture now.
+func (m Model) confirmScanAll() (tea.Model, tea.Cmd) {
+	if m.scanning {
+		m.errorMsg = "A scan is already running"
+		return m, clearInfoMsgCmd()
+	}
+	m.scanAllModal = sharedcomponents.NewOptionConfirmModal(
+		"Scan All",
+		"Scan every image in this list?",
+		"Purge cached results first (rescans everything)",
+	)
+	return m, nil
+}
+
+// scanAll scans the whole list when the cache was purged, and only what has
+// never been scanned otherwise.
+func (m Model) scanAll(purge bool) (tea.Model, tea.Cmd) {
+	if purge {
+		return m.requestScanAll()
+	}
+	return m.scanAllUnscanned()
+}
+
 func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 	if m.scanning {
 		return m, nil

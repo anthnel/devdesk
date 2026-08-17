@@ -12,6 +12,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -25,7 +26,7 @@ func TestGetTitleShowsTheFormAsABreadcrumb(t *testing.T) {
 		t.Errorf("GetTitle() = %q, want it to name the view", got)
 	}
 
-	m = feed(t, m, testutil.Key("ctrl+n"))
+	m = feed(t, m, testutil.Key(keymap.New))
 	got := m.GetTitle()
 	if !strings.Contains(got, "Status Monitor") || !strings.Contains(got, "Add New Monitor") {
 		t.Errorf("GetTitle() = %q with the form open, want the view and the form title", got)
@@ -63,13 +64,13 @@ func TestGetShortcutsSwitchesWithTheForm(t *testing.T) {
 	if len(main) < 5 {
 		t.Fatalf("the main view exposes %d shortcuts, want the full set", len(main))
 	}
-	if !hasShortcut(main, "ctrl+n") || !hasShortcut(main, "ctrl+d") {
+	if !hasShortcut(main, keymap.New) || !hasShortcut(main, keymap.Delete) {
 		t.Error("the main view does not expose the CRUD shortcuts")
 	}
 
-	m = feed(t, m, testutil.Key("ctrl+n"))
+	m = feed(t, m, testutil.Key(keymap.New))
 	form := m.GetShortcuts()
-	if hasShortcut(form, "ctrl+n") {
+	if hasShortcut(form, keymap.New) {
 		t.Error("the form state still offers ctrl+n, which does nothing there")
 	}
 	if !hasShortcut(form, "esc") || !hasShortcut(form, "enter") {
@@ -81,7 +82,7 @@ func TestGetShortcutsSwitchesWithTheForm(t *testing.T) {
 func TestShortcutDescriptionsAreCapitalisedImperatives(t *testing.T) {
 	m := loadedModel(t)
 
-	for _, s := range append(m.GetShortcuts(), feed(t, m, testutil.Key("ctrl+n")).GetShortcuts()...) {
+	for _, s := range append(m.GetShortcuts(), feed(t, m, testutil.Key(keymap.New)).GetShortcuts()...) {
 		if s.Description == "" {
 			t.Errorf("shortcut %q has no description", s.Key)
 			continue
@@ -104,7 +105,7 @@ func hasShortcut(shortcuts shortcut.Shortcuts, key string) bool {
 // ── View states ──────────────────────────────────────────────────────────────
 
 func TestViewRendersTheFormWhenOpen(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+n"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 
 	out := m.View()
 
@@ -114,7 +115,7 @@ func TestViewRendersTheFormWhenOpen(t *testing.T) {
 }
 
 func TestViewRendersTheConfirmationWhenOpen(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
 	out := m.View()
 
@@ -184,7 +185,7 @@ func TestFooterHeightMatchesWhatRenderFooterEmits(t *testing.T) {
 	}{
 		{"loaded", loadedModel},
 		{"empty", func(t *testing.T) Model { return newTestModel(t) }},
-		{"form open", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("ctrl+n")) }},
+		{"form open", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key(keymap.New)) }},
 		{"searching", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("/")) }},
 		{"error", func(t *testing.T) Model {
 			return feed(t, newTestModel(t), CheckCompleteMsg{Err: errors.New("boom"), Timestamp: time.Now()})
@@ -230,7 +231,7 @@ func TestFilterBarVisibilityFollowsTheViewState(t *testing.T) {
 	}
 
 	// An overlay covers the table, so its filter bar has nothing to filter.
-	withForm := feed(t, m, testutil.Key("ctrl+n"))
+	withForm := feed(t, m, testutil.Key(keymap.New))
 	withForm.filterBar = searching.filterBar
 	if withForm.FilterBarVisible() {
 		t.Error("the filter bar stayed visible under the form")
@@ -248,7 +249,7 @@ func TestFilterBarVisibilityFollowsTheViewState(t *testing.T) {
 func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("/"))
 
-	m = feed(t, m, testutil.Key("ctrl+n"))
+	m = feed(t, m, testutil.Key(keymap.New))
 
 	if m.componentForm != nil {
 		t.Error("ctrl+n opened the form while the search input had focus")

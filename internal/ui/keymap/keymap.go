@@ -45,6 +45,7 @@ package keymap
 import (
 	"maps"
 	"sort"
+	"strings"
 )
 
 // Les 21 actions. Une quarantaine d'actions existaient pour 26 lettres : la
@@ -169,30 +170,54 @@ func Free() []string {
 	return out
 }
 
-// localToggles recense les minuscules employées comme bascules d'affichage ou
-// de filtre, par surface. Elles ne modifient rien, donc leur sens est local et
-// la même lettre peut servir deux fois — `l` est le protocole dans netdiag et
-// la sévérité LOW dans security, sans contradiction.
+// Surface est un écran, ses fichiers, et les minuscules qu'il emploie.
 //
-// La liste existe pour que le prochain relevé sache que ces lettres sont
-// voulues, et pour que le test des majuscules puisse affirmer qu'aucune d'elles
-// n'a glissé dans l'espace des actions.
-var localToggles = map[string][]string{
-	"containers":      {"a"},
-	"viewer":          {"f", "c", "w", "v", "t"},
-	"netdiag/ports":   {"t", "u", "l", "e", "n", "z"},
-	"netdiag/detail":  {"f"},
-	"oci/browser":     {"r"},
-	"security/detail": {"c", "h", "m", "l"},
+// Path est ce qui rattache un fichier à sa surface, et il est là pour que la
+// déclaration soit vérifiable : sans lui, « ces lettres sont locales à cette
+// vue » se contrôle en réunissant toutes les listes, et `l` déclaré pour
+// netdiag excuserait `l` dans les registries. La correspondance se fait sur le
+// préfixe le plus long, donc netdiag/ports peut restreindre netdiag.
+type Surface struct {
+	Name string
+	Path string
+	Keys []string
 }
 
-// LocalToggles rend les bascules déclarées, par surface.
-func LocalToggles() map[string][]string {
-	out := make(map[string][]string, len(localToggles))
-	for surface, keys := range localToggles {
-		out[surface] = append([]string(nil), keys...)
+// localToggles recense les minuscules employées comme bascules d'affichage ou
+// de filtre. Elles ne modifient rien, donc leur sens est local et la même
+// lettre peut servir deux fois sans se contredire — `l` est le protocole dans
+// netdiag et la sévérité LOW dans security.
+//
+// Un fichier qui ne correspond à aucune surface n'a droit à aucune minuscule :
+// c'est le défaut, et c'est ce qui fait que la liste doit être tenue.
+var localToggles = []Surface{
+	{"containers", "ui/containers/", []string{"a"}},
+	{"viewer", "ui/viewer/", []string{"f", "c", "w", "v", "t"}},
+	{"netdiag/ports", "ui/netdiag/ports_model.go", []string{"t", "u", "l", "e", "n", "z"}},
+	{"netdiag/detail", "ui/netdiag/", []string{"f"}},
+	{"oci/browser", "ui/oci_resources/browser_", []string{"r"}},
+	{"security/findings", "ui/security/", []string{"c", "h", "m", "l"}},
+}
+
+// LocalToggles rend les surfaces déclarées.
+func LocalToggles() []Surface {
+	return append([]Surface(nil), localToggles...)
+}
+
+// SurfaceFor rattache un chemin de fichier à sa surface, par préfixe le plus
+// long. Le second retour dit si une surface a été trouvée.
+func SurfaceFor(path string) (Surface, bool) {
+	var best Surface
+	found := false
+	for _, s := range localToggles {
+		if !strings.Contains(path, s.Path) {
+			continue
+		}
+		if !found || len(s.Path) > len(best.Path) {
+			best, found = s, true
+		}
 	}
-	return out
+	return best, found
 }
 
 // Exception est une touche qui déroge au vocabulaire, avec sa raison.

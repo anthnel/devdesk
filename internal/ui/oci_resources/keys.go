@@ -4,12 +4,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // handleImagesKeyMsg handles keys on the Images tab
 func (m Model) handleImagesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "b":
+	case keymap.Browser:
 		return m.openMultiRegistryBrowser()
 	case "enter":
 		img := m.getSelectedImage()
@@ -18,27 +19,28 @@ func (m Model) handleImagesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		name := img.Name()
 		return m, func() tea.Msg { return ScanDetailsRequestMsg{ImageName: name} }
-	case "ctrl+e":
+	// Launching a container from an image is "create a resource from the
+	// selected row", and nothing else is created from this tab — so it is N,
+	// with no collision (§3.26).
+	case keymap.New:
 		if m.isSelectedImageScanning() {
 			return m, nil
 		}
 		return m.openLaunchForm()
-	case "ctrl+d":
+	case keymap.Delete:
 		if m.isSelectedImageScanning() {
 			return m, nil
 		}
 		return m.deleteSelectedImage()
-	case "p":
+	case keymap.Prune:
 		return m.pruneImages()
-	case "ctrl+s":
+	case keymap.Scan:
 		if m.isSelectedImageScanning() {
 			return m, nil
 		}
 		return m.scanSelectedImage()
-	case "A":
-		return m.scanAllUnscanned()
-	case "ctrl+a":
-		return m.requestScanAll()
+	case keymap.ScanAll:
+		return m.confirmScanAll()
 	case "ctrl+r":
 		m.loading = true
 		return m, tea.Batch(m.spinner.Tick, fetchImages(), loadScanCache())
@@ -90,12 +92,12 @@ func (m Model) handleNetworksKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m.openNetworkInspect()
-	case "ctrl+n":
+	case keymap.New:
 		m.resourceForm = NewResourceForm(resourceFormNetwork, m.width-2)
 		return m, nil
-	case "ctrl+d":
+	case keymap.Delete:
 		return m.deleteSelectedNetwork()
-	case "p":
+	case keymap.Prune:
 		m.pendingAction = "prune-networks"
 		m.confirmModal = sharedcomponents.NewConfirmModal("Prune Networks", "Remove all unused networks?")
 		return m, nil
@@ -114,12 +116,12 @@ func (m Model) handleNetworksKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleVolumesKeyMsg handles keys on the Volumes tab
 func (m Model) handleVolumesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+n":
+	case keymap.New:
 		m.resourceForm = NewResourceForm(resourceFormVolume, m.width-2)
 		return m, nil
-	case "ctrl+d":
+	case keymap.Delete:
 		return m.deleteSelectedVolume()
-	case "p":
+	case keymap.Prune:
 		m.pendingAction = "prune-volumes"
 		m.confirmModal = sharedcomponents.NewConfirmModal("Prune Volumes", "Remove all unused volumes?")
 		return m, nil
@@ -133,25 +135,24 @@ func (m Model) handleVolumesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleRegistriesKeyMsg handles keys on the Registries tab
 func (m Model) handleRegistriesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+n":
+	case keymap.New:
 		// A member is discovered, not declared, so there is nothing to add here.
 		if m.registryGroupSlug != "" {
 			return m, nil
 		}
 		m.registryForm = NewRegistryForm(m.registries, m.width-2)
 		return m, nil
-	case "e":
+	case keymap.Edit:
 		return m.editSelectedRegistry()
-	case "l":
-		return m.loginSelectedRegistry()
-	case "L":
-		return m.logoutSelectedRegistry()
-	case "ctrl+d":
+	// One key for both directions, because the row already says which way it
+	// goes: `l` and `L` were login and logout, a distinction carried by the
+	// shift alone on two operations that are each other's opposite (§3.26).
+	case keymap.Auth:
+		return m.toggleSelectedRegistryAuth()
+	case keymap.Delete:
 		return m.deleteSelectedRegistry()
 	case "ctrl+r":
 		return m.refreshRegistries()
-	// Rule 111 offers `l`/`h` as aliases for →/←, but `l` is login on this tab
-	// and a key has one role (Rule 135). The arrows are the drill-down.
 	case "right":
 		return m.enterSelectedGroup()
 	case "left", "esc":

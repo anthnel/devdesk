@@ -216,12 +216,53 @@ live in `internal/ui/keymap`.
 
 **Important:** The `FormView` interface (`InEditMode()`) prevents command mode activation when forms are active. Views with active forms must implement this interface.
 
-**No bare letter is navigation.** The vim aliases `h j k l g G` are gone
-application-wide (§3.26) — from `datatable`, from every view, from the shared
-modals, and from `bubbles/viewport`'s own default `KeyMap` in the help overlay.
-`internal/ui/keymap` declares the vocabulary that replaces them and
-`TestNoBareLetterIsNavigation` walks the source to check it, so the rule fails
-at `go test` rather than at the next audit.
+### The keyboard — `internal/ui/keymap`
+
+**Four namespaces, and the whole point is that a test can check them.** The
+package declares the vocabulary; three tests parse every `.go` under
+`internal/app` and `internal/ui`, find the switches that decide keys, and fail
+naming file, line and rule. A convention nothing verifies is what produced the
+16 collisions §3.26 relieved.
+
+| | Meaning | Checked by |
+|---|---|---|
+| **UPPERCASE** | an action, global to the application | `TestNoViewBindsAnUndeclaredUppercaseKey` |
+| lowercase | a filter or display toggle, local but **declared** per surface | `TestEveryLowercaseBindingIsDeclared` |
+| `Ctrl` | only `ctrl+c`, `ctrl+r`, `ctrl+p` survive | `TestOnlyThreeCtrlCombinationsSurvive` |
+| a modal's `y`/`n` | a *mode*, not a case — it takes every key before the view | declared in `modalKeys` |
+
+`Shift` carries the actions because the other families are amputated: `Ctrl`
+encodes only ASCII 0x40–0x5F and the tty confiscates four of them, `Alt` is not
+Meta on macOS by default, and `Ctrl+Shift` is indistinguable from `Ctrl` without
+a keyboard protocol bubbletea v1 does not enable. The reasoning lives in the
+package doc so it does not have to be rediscovered.
+
+**No bare letter is navigation.** `h j k l g G` are gone application-wide — from
+`datatable`, from every view, from the shared modals, and from
+`bubbles/viewport`'s own default `KeyMap` in the help overlay, which was
+scrolling on letters behind the application's back.
+
+**Free letters are declared too** (`H J Q Y Z`). A new action takes one of them;
+it does not invent a key, and `TestFreeLettersAreActuallyFree` stops the list
+going stale.
+
+Three actions were dissolved rather than given a letter, and each fixed a defect
+on the way out:
+
+| Gone | Where it went |
+|---|---|
+| `r` — restart a container | a button in `K`'s modal. Both used to act with **no confirmation**, and with caps lock on a scrolling `k` stopped the selected container |
+| `ctrl+a` — purge then scan all | a checkbox in `A`'s modal. The pair differed by a modifier alone, with nothing in their shape saying which one destroyed data |
+| `ctrl+e` — launch a container | `N`. It is "create a resource from the selected row", and nothing else is created from the Images tab |
+
+`i` moved to `enter` for the same reason — inspect was already `enter` in
+OCI/Networks — which is what freed `I` for the dashboard's issues.
+
+**`t`/`T` and `s`/`S` became one key and a setting.** `app.terminal_new_window`
+decides whether `T` suspends the TUI or opens a window. The capability belongs
+to the environment rather than to the moment: there is no window to open under
+WSL or through SSH, and a key that is inert on two setups out of three is worse
+than a setting that is simply off there.
 
 **`HeaderView` is all four methods or none.** The router probes for it with a
 type assertion and falls back silently, so a view supplying `GetTitle` and
@@ -424,7 +465,7 @@ Key messages in `internal/app/messages.go`:
 
 ### The explorer clone
 
-`c` in the explorer opens a **selection mode** over the same tree, and `enter`
+`C` in the explorer opens a **selection mode** over the same tree, and `enter`
 starts a **pipeline** that discovers and clones at once (§3.16). It replaced a
 single `Cmd` covering a whole subtree behind a modal reading `"Pulling..."` —
 several minutes indistinguishable from a freeze on a large group.
@@ -509,7 +550,7 @@ beats a spinner that never resolves — but it makes the token the only way in.
 
 ### The workspaces sync
 
-`s` fetches a repository and fast-forwards it (§3.17). It is the other half of
+`F` fetches a repository and fast-forwards it (§3.17). It is the other half of
 the line §3.16 drew: **the explorer creates what does not exist, workspaces
 reconciles what does.**
 
@@ -522,7 +563,7 @@ the truth again when it lands. The progress and the summary are one footer line
 rendered from the run (`syncStatusLine`) rather than assigned to `footerInfo` —
 a batch outlives the three seconds a footer message gets (Rule 128).
 
-**The target follows `ctrl+s`'s rule rather than adding a selection mode**: a
+**The target follows `S`'s rule rather than adding a selection mode**: a
 git repository syncs itself, a plain directory syncs every repository nested
 under it, anything else does nothing. Two actions with one targeting rule is one
 thing to learn; the shortcuts appear and disappear together for the same reason.
@@ -557,7 +598,7 @@ included, and `applyGitStatus` puts the fresh counts on the row.
 **A repository is never scanned and synced at once.** A scan reads the working
 tree while a fast-forward rewrites it; the visible result is a report describing
 a tree that no longer exists. `Model.busy` guards **both** directions —
-`ctrl+a`'s purge included, or a syncing row's counts are blanked with nothing on
+`A`'s purge included, or a syncing row's counts are blanked with nothing on
 the way to replace them.
 
 **The token goes to the configured GitLab host and nowhere else.**
@@ -583,8 +624,8 @@ security view already has:
 | Producer | Key | Source | Document |
 |---|---|---|---|
 | `workspaces` | `enter` on a file | `viewer.FileSource` | detected |
-| `containers` | `i` | `inspectSource` | JSON |
-| `containers` | `l` | `logsSource` | log |
+| `containers` | `enter` | `inspectSource` | JSON |
+| `containers` | `L` | `logsSource` | log |
 
 Two axes, and they are the whole interface: **display** (`f` — tree ↔ text) and
 **highlight** (`c`). "Plain text" is text with the colour off; a third display
@@ -599,8 +640,8 @@ interfaces, probed by type assertion like `FooterView`:
 | Interface | Unlocks | Implemented by |
 |---|---|---|
 | `Timestamped` | `t` | `logsSource` |
-| `Followable` | `ctrl+f` | `logsSource` |
-| `Pageable` | `e` | `logsSource` |
+| `Followable` | `F` | `logsSource` |
+| `Pageable` | `V` | `logsSource` |
 
 One method each on purpose: `HeaderView`'s warning is about a view supplying two
 of four and satisfying none in silence — a one-method interface has no
@@ -656,17 +697,17 @@ Syntax colours are **semantic aliases assigned in `ApplyTheme`**, like
 `StatusErrorStyle`, `StatusWarningStyle` and `DimStyle` already mean that.
 
 Three key collisions were resolved rather than accepted: follow moved `f` →
-`ctrl+f` (`ctrl+r` and `ctrl+f` now read as *reload once* / *reload
-continuously*); `h`/`l` stay unbound because Rule 111 owns them as `←`/`→`, which
-is the tree's drill-down, hence `c` for coloration; and `q` closes nothing — it
-is the application's quit key, and the logs pane was the one screen that ate it.
+`F` (`ctrl+r` and `F` read as *reload once* / *keep reloading*); `h`/`l` are
+unbound because no bare letter is navigation and no lowercase letter acts
+(§3.26), hence `c` for coloration; and `q` closes nothing — it is the
+application's quit key, and the logs pane was the one screen that ate it.
 
 **What this deleted.** The containers logs pane — `viewState`, its `viewport`,
 wrap, ANSI stripping, scroll keys, reload, follow, timestamps and the external
 pager — moved here whole; `containers/update.go` went from 707 to 548 lines.
 `wrapLines` and the ANSI/CR normalisation were **moved**, comments included:
 their reasons apply to any text this application shows. Every `docker inspect`
-pager path is gone, Windows temp files included. `e` survives for logs alone,
+pager path is gone, Windows temp files included. `V` survives for logs alone,
 because `less` handles a gigabyte and follows it.
 
 ### Security Scanning
@@ -710,7 +751,7 @@ Two consequences worth keeping:
 - The vulnerability stage passes `--scanners vuln` **explicitly for images**.
   Trivy's default there is `vuln,secret`, so that stage was running a secret
   scan whose output nothing read — and would now report each secret twice.
-- `i` (add to `.gitleaksignore`) is offered for **Gitleaks findings only**. That
+- `X` (exclude — add to `.gitleaksignore`) is offered for **Gitleaks findings only**. That
   file is matched on a Gitleaks fingerprint, which a Trivy secret does not have;
   `AddToGitleaksIgnore` would fabricate one and report success for a line
   nothing will ever match.
@@ -814,18 +855,18 @@ view, and a target is either a known image or something under `workspaces_dir`.
 | Key | Effect |
 |---|---|
 | `enter` | open the row's stored findings (Rule 126: reads the cache, never scans) |
-| `ctrl+s` | rescan the row, **overwriting** its entry |
-| `ctrl+a` | **purge** every entry and rescan every target |
+| `S` | rescan the row, **overwriting** its entry |
+| `A` | rescan every target; its confirmation carries a **purge** checkbox |
 | `ctrl+r` | reload from the caches |
 
 **The inventory runs its own scans.** With the options in the config there is
 nothing to carry to whoever would run one — which is the only reason the
 cross-view delegation exists. It writes to the same two caches, so a rescan here
-and `ctrl+s` in the images list are the same operation.
+and `S` in the images list are the same operation.
 
 Three invariants, each with a test that fails without it:
 
-- **`ctrl+a` purges the counts, not the rows.** The rows *are* the list of what
+- **The purge clears the counts, not the rows.** The rows *are* the list of what
   has been scanned; dropping them empties the view for the length of the scans
   and loses the targets on a close. A purged row prints `-`, not `0`.
 - **A reload keeps an in-flight scan's marker.** The cache says nothing about a
@@ -896,7 +937,7 @@ The result blobs under `image-results/` and `workspace-results/` are unchanged
 — they are content-addressed by SHA256 of the target, and only the metadata
 index is keyed by context.
 
-Cache invalidation: `ctrl+s` (single) overwrites; `ctrl+a` (all) purges cache then rescans.
+Cache invalidation: `S` (single) overwrites; `A` (all) rescans, and purges the cache first when its checkbox is ticked.
 
 ### Docker / OCI Integration
 
@@ -909,7 +950,7 @@ Cache invalidation: `ctrl+s` (single) overwrites; `ctrl+a` (all) purges cache th
 
 `internal/ui/netdiag/` — two-tab interface:
 - **Diagnostics tab** (`model.go`): Interactive form with target/port inputs and checkboxes to select tests (ICMP, DNS, Traceroute, TCP Traceroute, Netcat, HTTP/HTTPS, SSL). Runs selected tests in parallel via Docker ephemeral containers. Results table uses Nerd Font icons.
-- **Ports tab** (`ports_model.go`): Live `ss` monitoring with real-time filtering by protocol (TCP/UDP), state (LISTEN/ESTAB), and text search. `ctrl+k` kills a process (requires privileged container). Active filter shown in status line.
+- **Ports tab** (`ports_model.go`): Live `ss` monitoring with real-time filtering by protocol (TCP/UDP), state (LISTEN/ESTAB), and text search. `K` kills a process, after a confirmation (requires privileged container). Active filter shown in status line.
 
 Both tabs use Docker with host network/PID namespaces. DNS hostname resolution uses mounted host DNS files (`/etc/resolv.conf`, `/etc/hosts`, `/etc/nsswitch.conf`).
 

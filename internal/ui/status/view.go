@@ -32,9 +32,9 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 	// vue principale status
 	return []shortcut.Shortcut{
-		{Key: "ctrl+n", Description: "New monitor"},
-		{Key: "e", Description: "Edit monitor"},
-		{Key: "ctrl+d", Description: "Delete monitor"},
+		{Key: "N", Description: "New monitor"},
+		{Key: "E", Description: "Edit monitor"},
+		{Key: "D", Description: "Delete monitor"},
 		{Key: "ctrl+r", Description: "Refresh"},
 		{Key: "tab", Description: "Switch tab"},
 		{Key: ".", Description: "Sort"},
@@ -190,9 +190,9 @@ func (m Model) GetHelpContent() help.Content {
 		Title:       "Status Monitor",
 		Description: "This view monitors the status of your services in real time. Checks are performed automatically at regular intervals. Two tabs display service monitors (HTTP, ICMP, DNS) and SSL certificates respectively.",
 		KeyBindings: []help.KeyBinding{
-			{Key: "ctrl+n", Description: "Add a new monitor"},
-			{Key: "e", Description: "Edit the selected monitor"},
-			{Key: "ctrl+d", Description: "Delete the selected monitor (with confirmation)"},
+			{Key: "N", Description: "Add a new monitor"},
+			{Key: "E", Description: "Edit the selected monitor"},
+			{Key: "D", Description: "Delete the selected monitor (with confirmation)"},
 			{Key: "ctrl+r", Description: "Force an immediate refresh"},
 			{Key: "tab/shift+tab", Description: "Switch between Service Monitors and SSL Certificates tabs"},
 			{Key: "↑/k", Description: "Move selection up"},

@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -80,11 +81,11 @@ func TestFreeLettersAreActuallyFree(t *testing.T) {
 // disjoints. Ils le sont par la casse, mais une bascule déclarée en majuscule
 // par inadvertance les recollerait sans bruit.
 func TestNoLocalToggleShadowsAnAction(t *testing.T) {
-	for surface, keys := range localToggles {
-		for _, key := range keys {
+	for _, surface := range localToggles {
+		for _, key := range surface.Keys {
 			if key != strings.ToLower(key) {
 				t.Errorf("%s declares %q as a toggle, but it is not lowercase; "+
-					"a toggle changes nothing and an action does", surface, key)
+					"a toggle changes nothing and an action does", surface.Name, key)
 			}
 		}
 	}
@@ -146,6 +147,73 @@ func TestNoBareLetterIsNavigation(t *testing.T) {
 				t.Errorf("%s: binds %q alongside navigation keys %v — no bare "+
 					"letter is navigation", clause.where, key, clause.keys)
 			}
+		}
+	}
+}
+
+// TestOnlyThreeCtrlCombinationsSurvive : le budget Ctrl est de ~14 touches et
+// chacune traîne une contrainte (préfixe de multiplexeur, contrôle de flux,
+// caractère du tty). §3.26 n'en garde que trois, et toute action qui se
+// réinstallerait derrière Ctrl reprendrait une place que Shift donne
+// gratuitement.
+func TestOnlyThreeCtrlCombinationsSurvive(t *testing.T) {
+	survivors := map[string]string{
+		"ctrl+c": "SIGINT — quitter",
+		"ctrl+r": "rafraîchir, et rien d'autre",
+		"ctrl+p": "la ligne de commande",
+	}
+	for _, clause := range keySwitchClauses(t) {
+		for _, key := range clause.keys {
+			if !strings.HasPrefix(key, "ctrl+") {
+				continue
+			}
+			if _, ok := survivors[key]; ok {
+				continue
+			}
+			if IsException(key) {
+				continue
+			}
+			t.Errorf("%s: binds %q.\n"+
+				"Only ctrl+c, ctrl+r and ctrl+p survive; an action belongs to the "+
+				"uppercase vocabulary (internal/ui/keymap). Declared exceptions: %v",
+				clause.where, key, exceptionKeys())
+		}
+	}
+}
+
+// TestEveryLowercaseBindingIsDeclared : une minuscule ne modifie rien, donc son
+// sens peut être local — mais « local » doit vouloir dire déclaré, sinon c'est
+// juste « non relevé », qui est l'état d'où l'on vient.
+func TestEveryLowercaseBindingIsDeclared(t *testing.T) {
+	// Ce qui vaut partout : les raccourcis de modale, les dérogations déclarées,
+	// et `q` — que le routeur possède et qu'aucune vue ne lie.
+	everywhere := map[string]bool{"q": true}
+	for key := range modalKeys {
+		everywhere[key] = true
+	}
+	for _, e := range exceptions {
+		everywhere[e.Key] = true
+	}
+
+	for _, clause := range keySwitchClauses(t) {
+		surface, hasSurface := SurfaceFor(clause.where)
+
+		for _, key := range clause.keys {
+			if len([]rune(key)) != 1 || key < "a" || key > "z" {
+				continue
+			}
+			if everywhere[key] || (hasSurface && slices.Contains(surface.Keys, key)) {
+				continue
+			}
+			where := "no surface"
+			if hasSurface {
+				where = surface.Name + " (" + strings.Join(surface.Keys, " ") + ")"
+			}
+			t.Errorf("%s: binds %q, which %s declares.\n"+
+				"A lowercase letter is a filter or a display toggle and changes "+
+				"nothing; if it acts, it is an action and belongs in uppercase. "+
+				"Declare it on the surface or move it (internal/ui/keymap).",
+				clause.where, key, where)
 		}
 	}
 }
@@ -311,6 +379,14 @@ func isModalSwitch(clauses []caseClause) bool {
 		}
 	}
 	return yes && no
+}
+
+func exceptionKeys() []string {
+	out := make([]string, 0, len(exceptions))
+	for _, e := range exceptions {
+		out = append(out, e.Key+" ("+e.Surface+")")
+	}
+	return out
 }
 
 func isLetter(key string) bool {

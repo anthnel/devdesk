@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -189,8 +190,9 @@ func TestShortcutsFollowTheState(t *testing.T) {
 	}
 
 	results := resultsModel(t).GetShortcuts()
-	if !hasShortcut(results, "enter") || !hasShortcut(results, "r") {
-		t.Error("the results state does not advertise details and restart")
+	// esc goes back to the form; ctrl+r means refresh and only refresh (§3.26).
+	if !hasShortcut(results, "enter") || !hasShortcut(results, "esc") {
+		t.Error("the results state does not advertise details and going back")
 	}
 }
 
@@ -240,7 +242,7 @@ func TestShortcutsFollowTheActiveTab(t *testing.T) {
 	m := feed(t, newTestModel(t), testutil.Key("tab")) // ports
 
 	ports := m.GetShortcuts()
-	if !hasShortcut(ports, "ctrl+k") || !hasShortcut(ports, "/") {
+	if !hasShortcut(ports, keymap.Kill) || !hasShortcut(ports, "/") {
 		t.Error("the ports tab does not advertise its own shortcuts")
 	}
 	if hasShortcut(ports, "space") && shortcutDescription(ports, "space") == "Toggle checkbox" {

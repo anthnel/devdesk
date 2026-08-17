@@ -139,10 +139,10 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+r", Description: "Reload"})
 	}
 	if _, ok := m.followable(); ok {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+f", Description: "Follow live output"})
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "F", Description: "Follow live output"})
 	}
 	if _, ok := m.pageable(); ok {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "e", Description: "Open in system pager"})
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "V", Description: "Open in system pager"})
 	}
 
 	return append(shortcuts,
@@ -170,8 +170,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "/", Description: "Search the text"},
 			{Key: "t", Description: "Show or hide timestamps (container logs)"},
 			{Key: "ctrl+r", Description: "Reload from the source"},
-			{Key: "ctrl+f", Description: "Follow live output (container logs)"},
-			{Key: "e", Description: "Open in the system pager (container logs)"},
+			{Key: "F", Description: "Follow live output (container logs)"},
+			{Key: "V", Description: "Open in the system pager (container logs)"},
 			{Key: "esc", Description: "Return to the view the document was opened from"},
 			{Key: "?", Description: "Show this help"},
 		},

@@ -15,6 +15,7 @@ import (
 	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -293,13 +294,13 @@ func TestCtrlRMarksEverySectionLoadingAgain(t *testing.T) {
 func TestBrowserShortcutsRequireASession(t *testing.T) {
 	m, _ := newTestModel(t) // not authenticated
 
-	_, cmd := step(t, m, testutil.Key("i"))
+	_, cmd := step(t, m, testutil.Key(keymap.Issues))
 	if cmd != nil {
 		t.Error("i opened a URL without a signed-in user")
 	}
 
 	authenticated, _ := authenticatedModel(t)
-	_, cmd = step(t, authenticated, testutil.Key("i"))
+	_, cmd = step(t, authenticated, testutil.Key(keymap.Issues))
 	if cmd == nil {
 		t.Error("i did nothing for a signed-in user")
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // Messages
@@ -280,9 +281,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.cycleTab(msg.String() == "tab"), nil
 	case "ctrl+r":
 		return m.handleReload()
-	case "m":
+	case keymap.Requests:
 		return m, openURL(fmt.Sprintf("%s/dashboard/merge_requests", m.config.GitLab.URL))
-	case "i":
+	case keymap.Issues:
 		if m.shared.CurrentUser != nil {
 			return m, openURL(fmt.Sprintf("%s/dashboard/issues?sort=created_date&state=opened&assignee_username[]=%s", m.config.GitLab.URL, m.shared.CurrentUser.Username))
 		}

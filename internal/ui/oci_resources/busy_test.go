@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -16,7 +17,7 @@ import (
 // removeSelected walks the confirm modal for the tab the model is on.
 func removeSelected(t *testing.T, m Model) Model {
 	t.Helper()
-	return feed(t, m, testutil.Key("ctrl+d"), sharedcomponents.ConfirmModalYesMsg{})
+	return feed(t, m, testutil.Key(keymap.Delete), sharedcomponents.ConfirmModalYesMsg{})
 }
 
 // busyCell returns the drawn line for a row, where the spinner override lives —
@@ -75,7 +76,7 @@ func TestAFailedImageRemovalStillLiftsTheMarker(t *testing.T) {
 func TestASecondRemovalOfTheSameImageIsRefused(t *testing.T) {
 	m := removeSelected(t, loadedModel(t))
 
-	m, _ = step(t, m, testutil.Key("ctrl+d"))
+	m, _ = step(t, m, testutil.Key(keymap.Delete))
 
 	if m.confirmModal != nil {
 		t.Error("a second removal opened its confirmation while the first was running")
@@ -126,10 +127,14 @@ func TestRemovingAVolumeSpinsItsRowAndKeepsItsName(t *testing.T) {
 }
 
 // Logged is exactly the answer a login or logout is about to change, so it is
-// the cell to spend while one runs.
+// the cell to spend while one runs. U picks the direction from that same cell,
+// which is why the status has to be seeded here (§3.26).
 func TestALogoutSpinsTheLoggedCell(t *testing.T) {
-	m := feed(t, registriesTab(t), testutil.Key("L"))
+	m := registriesTab(t)
 	reg := m.registries[0]
+	m = feed(t, m,
+		RegistryLoginStatusMsg{Status: map[string]bool{reg.URL: true}},
+		testutil.Key(keymap.Auth))
 
 	if !m.registryTable.IsBusy(reg.URL) {
 		t.Fatal("the logout was not marked on the row")
@@ -161,7 +166,7 @@ func TestTheFrameTurnsForAnActionOnAnotherTab(t *testing.T) {
 // A prune acts on no row, so marking every row would say something false. It
 // gets a line of its own.
 func TestAPruneSaysSoWithoutMarkingAnyRow(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("p"), sharedcomponents.ConfirmModalYesMsg{})
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Prune), sharedcomponents.ConfirmModalYesMsg{})
 	if m.pruning != "images" {
 		t.Fatalf("pruning = %q after confirming, want the images prune marked", m.pruning)
 	}

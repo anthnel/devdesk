@@ -53,8 +53,7 @@ type Model struct {
 	// rather than its row index, so a list that changes underneath cannot make
 	// the details describe a different one.
 	selectedFinding *scan.Finding
-	activeTab       int    // 0=CVE, 1=Secrets, 2=Licenses, 3=Misconfig
-	severityFilter  string // "all", "critical", "high", "medium", "low"
+	activeTab       int // 0=CVE, 1=Secrets, 2=Licenses, 3=Misconfig
 
 	// OriginView is the view to return to when Esc is pressed in StateResults.
 	// Set by the app router when opening this view from workspaces or
@@ -71,6 +70,11 @@ type Model struct {
 	// Ignore secret confirmation
 	confirmModal    *sharedcomponents.ConfirmModal
 	findingToIgnore *scan.Finding
+
+	// scanAllModal carries the purge checkbox for A. It is separate from
+	// confirmModal because the two answer different messages, and one field
+	// holding either would make the handler guess which question was asked.
+	scanAllModal *sharedcomponents.OptionConfirmModal
 }
 
 // New creates a new security scanner view, on the inventory.
@@ -83,16 +87,47 @@ func New(cfg *config.Config) Model {
 		Columns:        findingColumns(),
 		SortColumn:     -1, // the order the scanner reported
 		SelectedStyles: findingSelectedStyles,
+		Tokens:         severityTokens(),
+		TokenMatch:     matchesSeverity,
 	})
 
 	return Model{
-		config:         cfg,
-		state:          StateInventory,
-		inventory:      newInventoryTable(),
-		spinner:        s,
-		findingsTable:  t,
-		severityFilter: "all",
+		config:        cfg,
+		state:         StateInventory,
+		inventory:     newInventoryTable(),
+		spinner:       s,
+		findingsTable: t,
 	}
+}
+
+// severityTokens are the four cumulative severity filters (Rule 136).
+//
+// They replaced a cycle on `.` — which also cost the table its sort key. A
+// cycle can only ask "at least this severe", and the question actually asked is
+// "CRITICAL and HIGH", which is not a threshold: it excludes MEDIUM while
+// including CRITICAL. Four toggles can say it and a cycle never could.
+func severityTokens() []sharedcomponents.FilterToken {
+	return []sharedcomponents.FilterToken{
+		{Label: "critical"}, {Label: "high"}, {Label: "medium"}, {Label: "low"},
+	}
+}
+
+// severityToken maps a finding's severity onto its token label. UNKNOWN has no
+// token, so it is only ever hidden by an explicit choice of others.
+var severityToken = map[scan.SeverityLevel]string{
+	scan.SeverityCritical: "critical",
+	scan.SeverityHigh:     "high",
+	scan.SeverityMedium:   "medium",
+	scan.SeverityLow:      "low",
+}
+
+// matchesSeverity keeps everything while no token is active: an empty filter
+// means "no opinion", not "nothing".
+func matchesSeverity(f scan.Finding, active map[string]bool) bool {
+	if len(active) == 0 {
+		return true
+	}
+	return active[severityToken[f.Severity]]
 }
 
 // NewWithPreloadedResult creates a security view showing a stored scan result.
@@ -103,7 +138,6 @@ func NewWithPreloadedResult(cfg *config.Config, result *scan.Result) Model {
 	m.result = result
 	m.targetPath = result.Target
 	m.activeTab = TabCVE
-	m.severityFilter = "all"
 	// Filled here rather than waiting for the first WindowSizeMsg: the rows do
 	// not depend on the width any more, so nothing was gained by deferring and
 	// the table was empty until the terminal happened to report its size.
@@ -130,6 +164,15 @@ func (m Model) Init() tea.Cmd {
 // (§1.3 D15), so those states are ordinary again — and get the command line, the
 // help overlay and quit back with them.
 func (m Model) InEditMode() bool {
-	isFiltering := m.state == StateInventory && m.inventory.InEditMode()
-	return isFiltering || m.confirmModal != nil
+	switch {
+	case m.confirmModal != nil, m.scanAllModal != nil:
+		return true
+	case m.state == StateInventory:
+		return m.inventory.InEditMode()
+	case m.state == StateResults:
+		// The findings table gained a filter bar with the severity tokens, so
+		// this state has a focused field to declare like any other.
+		return m.findingsTable.InEditMode()
+	}
+	return false
 }

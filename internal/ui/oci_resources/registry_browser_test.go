@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -27,7 +28,7 @@ import (
 // groupedModel is the variant with members.
 func browsingModel(t *testing.T) Model {
 	t.Helper()
-	m := feed(t, loadedModel(t), testutil.Key("b"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Browser))
 	if m.registryBrowser == nil {
 		t.Fatal("'b' did not open the registry browser")
 	}
@@ -58,7 +59,7 @@ func TestBrowserNeedsARegistry(t *testing.T) {
 	cfg.Registry.Registries = nil
 	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 180, Height: 30}, ImagesListMsg{Images: imageFixtures()})
 
-	m = feed(t, m, testutil.Key("b"))
+	m = feed(t, m, testutil.Key(keymap.Browser))
 
 	if m.registryBrowser != nil {
 		t.Error("the browser opened with no registries configured")
@@ -101,7 +102,7 @@ func TestTheBrowserOpensStraightOntoItsForm(t *testing.T) {
 func TestOpeningTheBrowserIssuesNoCommand(t *testing.T) {
 	m := feed(t, loadedModel(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
 
-	_, cmd := step(t, m, testutil.Key("b"))
+	_, cmd := step(t, m, testutil.Key(keymap.Browser))
 
 	if cmd != nil {
 		t.Errorf("opening the browser produced %T, want nothing to run", testutil.Msg(cmd))
@@ -242,7 +243,7 @@ func TestPullResultIsReported(t *testing.T) {
 func TestTheBrowserSwallowsTheViewShortcuts(t *testing.T) {
 	m := browsingModel(t)
 
-	m = feed(t, m, testutil.Key("ctrl+d"), testutil.Key("p"))
+	m = feed(t, m, testutil.Key(keymap.Delete), testutil.Key(keymap.Prune))
 
 	if m.confirmModal != nil {
 		t.Error("a destructive key fired behind the registry browser")
@@ -610,7 +611,7 @@ func TestTheSelectionSurvivesClosingTheBrowser(t *testing.T) {
 		t.Fatalf("closing the browser forgot the unchecked %q", dropped)
 	}
 
-	m = feed(t, m, testutil.Key("b"))
+	m = feed(t, m, testutil.Key(keymap.Browser))
 	if m.registryBrowser.selectedRegs[dropped] {
 		t.Errorf("%q came back checked", dropped)
 	}
@@ -635,7 +636,7 @@ func TestAMemberDiscoveredSinceTheLastVisitArrivesChecked(t *testing.T) {
 		Members: append(entries["prod"].Members,
 			cache.RegistryGroupMember{Alias: "new", URL: "registry.example.com/repository/new-proxy"}),
 	}
-	m = feed(t, m, RegistryGroupCacheLoadedMsg{Entries: entries}, testutil.Key("b"))
+	m = feed(t, m, RegistryGroupCacheLoadedMsg{Entries: entries}, testutil.Key(keymap.Browser))
 
 	if !m.registryBrowser.selectedRegs[memberKey("prod", "registry.example.com/repository/new-proxy")] {
 		t.Error("a member discovered since the last visit opened unchecked")
@@ -658,7 +659,7 @@ func oneHostModel(t *testing.T) Model {
 		{URL: "nexus.example.com", Alias: "quay", Slug: "quay", AuthMode: config.AuthAnonymous},
 	}
 	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 180, Height: 30}, ImagesListMsg{Images: imageFixtures()})
-	m = feed(t, m, testutil.Key("b"))
+	m = feed(t, m, testutil.Key(keymap.Browser))
 	if m.registryBrowser == nil {
 		t.Fatal("'b' did not open the registry browser")
 	}
@@ -693,7 +694,7 @@ func TestAnExclusionOnOneHostDoesNotCarryToTheOtherEntry(t *testing.T) {
 		t.Fatalf("closing remembered %d exclusions, want only the entry unchecked", len(m.browserDeselected))
 	}
 
-	m = feed(t, m, testutil.Key("b"))
+	m = feed(t, m, testutil.Key(keymap.Browser))
 	b := m.registryBrowser
 	if b.selected(b.entries[0]) {
 		t.Error("the unchecked entry came back checked")
@@ -784,7 +785,7 @@ func TestInsideAGroupTheEntryActionsAreGone(t *testing.T) {
 	}
 
 	// And the actions themselves do nothing rather than acting on the wrong row.
-	m = feed(t, m, testutil.Key("e"), testutil.Key("ctrl+d"), testutil.Key("ctrl+n"))
+	m = feed(t, m, testutil.Key(keymap.Edit), testutil.Key(keymap.Delete), testutil.Key(keymap.New))
 	if m.registryForm != nil || m.confirmModal != nil {
 		t.Error("an entry action fired on a discovered member")
 	}

@@ -11,16 +11,18 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // handleDetailsState processes input in details state
 func (m Model) handleDetailsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc", "backspace":
+	// backspace was an alias of esc, and the only one in the application.
+	case "esc":
 		m.state = StateResults
 		return m, nil
-	case "o":
+	case keymap.Web:
 		return m.handleDetailsOpenReference()
 	case "up":
 		m.detailsViewport.ScrollUp(1)

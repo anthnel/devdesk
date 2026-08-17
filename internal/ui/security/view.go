@@ -6,17 +6,19 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // View renders the UI
 func (m Model) View() string {
-	// Show confirm modal if active
-	if m.confirmModal != nil {
+	// Show whichever modal is active (Rule 112: modals confirm, forms fill the
+	// viewport).
+	if modal := m.modalView(); modal != "" {
 		return lipgloss.Place(
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
-			m.confirmModal.View(),
+			modal,
 			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
 		)
 	}
@@ -57,13 +59,14 @@ func (m Model) renderResultsView() string {
 
 // GetFooterHeight returns the footer height for this view (Rule 124).
 func (m Model) GetFooterHeight() int {
+	height := 2 // empty line + info line
 	if m.showsResultTabs() {
-		return 3 // tab bar + empty line + info line
+		height = 3 // tab bar + empty line + info line
 	}
-	if m.state == StateInventory {
-		return 2 + m.inventory.FilterBar().ExtraHeight() // Rule 136
+	if bar := m.activeFilterBar(); bar != nil {
+		height += bar.ExtraHeight() // Rule 136
 	}
-	return 2 // empty line + info line
+	return height
 }
 
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
@@ -83,12 +86,41 @@ func (m Model) RenderFooter(width int) string {
 	return theme.EmptyLineBg(width) + "\n" + m.renderInfoLine(width)
 }
 
+// modalView renders whichever modal is open, or "" when none is.
+func (m Model) modalView() string {
+	switch {
+	case m.confirmModal != nil:
+		return m.confirmModal.View()
+	case m.scanAllModal != nil:
+		return m.scanAllModal.View()
+	}
+	return ""
+}
+
 // FilterBarVisible reports whether the filter bar is on screen, which is what
 // closes the viewport's bottom border around it (implements app.FilterBarView,
-// Rule 136). Only the inventory has one — the findings table filters by tab and
-// severity, not by query.
+// Rule 136). Both tables have one now: the findings table gained the four
+// severity tokens that used to be a cycle on `.`.
 func (m Model) FilterBarVisible() bool {
-	return m.state == StateInventory && m.inventory.FilterBar().IsVisible()
+	return m.activeFilterBar() != nil
+}
+
+// activeFilterBar is the bar of whichever table is on screen, or nil when the
+// state has no table. One resolution rather than three, so GetFooterHeight and
+// RenderFooter cannot disagree about whether the bar is there — which is the
+// one way to make Rule 124's arithmetic wrong by a line.
+func (m Model) activeFilterBar() *sharedcomponents.FilterBar {
+	var bar *sharedcomponents.FilterBar
+	switch {
+	case m.state == StateInventory:
+		bar = m.inventory.FilterBar()
+	case m.showsResultTabs():
+		bar = m.findingsTable.FilterBar()
+	}
+	if bar == nil || !bar.IsVisible() {
+		return nil
+	}
+	return bar
 }
 
 // showsResultTabs reports whether the findings tab bar is on screen. Warnings

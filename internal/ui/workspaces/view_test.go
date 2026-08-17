@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -56,9 +57,9 @@ func TestViewRendersOverlays(t *testing.T) {
 		key  string
 		want string
 	}{
-		{"create", "ctrl+n", "Create"},
-		{"rename", "r", "Rename"},
-		{"delete", "ctrl+d", "Delete"},
+		{"create", keymap.New, "Create"},
+		{"rename", keymap.Rename, "Rename"},
+		{"delete", keymap.Delete, "Delete"},
 	}
 
 	for _, tc := range tests {
@@ -186,7 +187,7 @@ func TestFooterHeightMatchesWhatRenderFooterEmits(t *testing.T) {
 		{"loaded", loadedModel},
 		{"empty", newTestModel},
 		{"searching", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("/")) }},
-		{"create overlay", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("ctrl+n")) }},
+		{"create overlay", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key(keymap.New)) }},
 		{"error", func(t *testing.T) Model {
 			return feed(t, newTestModel(t), LoadErrorMsg{Error: errors.New("boom")})
 		}},
@@ -278,7 +279,7 @@ func TestFilterBarVisibilityFollowsTheState(t *testing.T) {
 	}
 
 	// An overlay covers the table, so its filter bar has nothing to filter.
-	overlay := feed(t, searching, testutil.Key("esc"), testutil.Key("ctrl+n"))
+	overlay := feed(t, searching, testutil.Key("esc"), testutil.Key(keymap.New))
 	if overlay.FilterBarVisible() {
 		t.Error("the filter bar stayed visible under the create overlay")
 	}
@@ -299,23 +300,23 @@ func TestShortcutsFollowTheSelectedEntry(t *testing.T) {
 	}{
 		{
 			name: "scanned git repo", cursor: 0, scanned: true,
-			present: []string{"enter", "ctrl+w", "ctrl+s"},
-			absent:  []string{"ctrl+n"}, // creating inside a repo is not offered
+			present: []string{"enter", keymap.Web, keymap.Scan},
+			absent:  []string{keymap.New}, // creating inside a repo is not offered
 		},
 		{
 			name: "unscanned git repo", cursor: 1,
-			present: []string{"ctrl+w", "ctrl+s"},
-			absent:  []string{"enter", "ctrl+n"}, // no cached result to open
+			present: []string{keymap.Web, keymap.Scan},
+			absent:  []string{"enter", keymap.New}, // no cached result to open
 		},
 		{
 			name: "directory with nested repos", cursor: 2,
-			present: []string{"ctrl+s", "ctrl+n"},
-			absent:  []string{"enter", "ctrl+w"},
+			present: []string{keymap.Scan, keymap.New},
+			absent:  []string{"enter", keymap.Web},
 		},
 		{
 			name: "plain directory", cursor: 3,
-			present: []string{"ctrl+n"},
-			absent:  []string{"enter", "ctrl+w", "ctrl+s"},
+			present: []string{keymap.New},
+			absent:  []string{"enter", keymap.Web, keymap.Scan},
 		},
 	}
 
@@ -348,9 +349,9 @@ func TestShortcutsFollowTheMode(t *testing.T) {
 		open func(t *testing.T) Model
 		want string
 	}{
-		{"create", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("ctrl+n")) }, "Create"},
-		{"rename", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("r")) }, "Rename"},
-		{"delete", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("ctrl+d")) }, "Confirm"},
+		{"create", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key(keymap.New)) }, "Create"},
+		{"rename", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key(keymap.Rename)) }, "Rename"},
+		{"delete", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key(keymap.Delete)) }, "Confirm"},
 	}
 
 	for _, tc := range tests {
@@ -367,7 +368,7 @@ func TestShortcutsFollowTheMode(t *testing.T) {
 	}
 
 	selection := feed(t, NewForSelection(testConfig(), "pick"), tea.WindowSizeMsg{Width: 160, Height: 30}).GetShortcuts()
-	if hasShortcut(selection, "ctrl+d") || hasShortcut(selection, "ctrl+s") {
+	if hasShortcut(selection, keymap.Delete) || hasShortcut(selection, keymap.Scan) {
 		t.Error("selection mode advertises destructive actions it does not perform")
 	}
 	if !hasShortcut(selection, "enter") {
@@ -379,8 +380,8 @@ func TestShortcutsFollowTheMode(t *testing.T) {
 func TestShortcutDescriptionsAreCapitalised(t *testing.T) {
 	sets := []shortcut.Shortcuts{
 		scannedModel(t).GetShortcuts(),
-		feed(t, loadedModel(t), testutil.Key("ctrl+n")).GetShortcuts(),
-		feed(t, loadedModel(t), testutil.Key("ctrl+d")).GetShortcuts(),
+		feed(t, loadedModel(t), testutil.Key(keymap.New)).GetShortcuts(),
+		feed(t, loadedModel(t), testutil.Key(keymap.Delete)).GetShortcuts(),
 		feed(t, NewForSelection(testConfig(), "pick"), tea.WindowSizeMsg{Width: 160, Height: 30}).GetShortcuts(),
 	}
 

@@ -12,6 +12,9 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // secretsFound writes the "a secret was found" verdict. Le verdict est un
@@ -103,6 +106,17 @@ func feed(t *testing.T, m Model, msgs ...tea.Msg) Model {
 		m, _ = step(t, m, msg)
 	}
 	return m
+}
+
+// scanAll runs A and answers its modal, which is what one of two keys used to
+// do. purge is the checkbox: ctrl+a's half of the old pair (§3.26).
+func scanAll(t *testing.T, m Model, purge bool) (Model, tea.Cmd) {
+	t.Helper()
+	m, _ = step(t, m, testutil.Key(keymap.ScanAll))
+	if m.scanAllModal == nil {
+		t.Fatal("A did not open the scan-all confirmation")
+	}
+	return step(t, m, sharedcomponents.OptionConfirmModalYesMsg{Option: purge})
 }
 
 func step(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {

@@ -36,6 +36,15 @@ type AppConfig struct {
 	IDECommand      string `yaml:"ide_command"`
 	TerminalCommand string `yaml:"terminal_command"` // e.g. "kitty --directory" — empty = auto-detect
 
+	// TerminalNewWindow decides what T does: open a shell in place, suspending
+	// the TUI (false, the default), or launch a separate terminal window (true).
+	//
+	// It is a setting rather than a second key because the capability depends on
+	// the environment and not on the intent: no window can be opened under WSL,
+	// and through SSH there is none to open. A key that is inert on two setups
+	// out of three is worse than a setting that is simply off there (§3.26).
+	TerminalNewWindow bool `yaml:"terminal_new_window"`
+
 	// SecretBackend pins where secrets are stored: "auto" (default), "keyring"
 	// for the host secret manager only, or "git-credential" for git's helper.
 	// See credentials.Select for what each one resolves to.

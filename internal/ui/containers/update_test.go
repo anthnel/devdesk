@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
@@ -477,7 +478,7 @@ func TestSelectionStyleFollowsTheContainerState(t *testing.T) {
 func TestStopOnlyActsOnRunningContainers(t *testing.T) {
 	m := loadedModel(t) // api, exited
 
-	m, cmd := step(t, m, testutil.Key("K"))
+	m, cmd := pressK(t, m, choiceStop)
 	if cmd != nil {
 		t.Error("K issued a stop for an exited container")
 	}
@@ -486,7 +487,7 @@ func TestStopOnlyActsOnRunningContainers(t *testing.T) {
 	}
 
 	m = feed(t, m, testutil.Key("down"), testutil.Key("down")) // web, running
-	m, cmd = step(t, m, testutil.Key("K"))
+	m, cmd = pressK(t, m, choiceStop)
 	if cmd == nil {
 		t.Error("K did not issue a stop for a running container")
 	}
@@ -498,7 +499,7 @@ func TestStopOnlyActsOnRunningContainers(t *testing.T) {
 func TestRestartActsOnAnyContainer(t *testing.T) {
 	m := loadedModel(t) // api, exited
 
-	m, cmd := step(t, m, testutil.Key("r"))
+	m, cmd := pressK(t, m, choiceRestart)
 
 	if cmd == nil {
 		t.Error("r did not issue a restart")
@@ -561,7 +562,7 @@ func TestActionsAreInertWithoutASelection(t *testing.T) {
 
 func TestActionResultClearsPendingAndRefreshes(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
-	m = feed(t, m, testutil.Key("K"))
+	m, _ = pressK(t, m, choiceStop)
 	if m.actionLine() == "" {
 		t.Fatal("the stop was not marked as running")
 	}
@@ -581,7 +582,7 @@ func TestActionResultClearsPendingAndRefreshes(t *testing.T) {
 // state the container still has, which is worse than saying nothing.
 func TestActionFailureSurfacesAShortMessageAndClearsTheMarker(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
-	m = feed(t, m, testutil.Key("K"))
+	m, _ = pressK(t, m, choiceStop)
 
 	m, cmd := step(t, m, ContainerActionMsg{
 		Action: "stop", ID: webID, Name: "web", Err: errors.New("permission denied"),
@@ -607,7 +608,7 @@ func TestActionFailureSurfacesAShortMessageAndClearsTheMarker(t *testing.T) {
 func TestDeleteAsksForConfirmationNamingTheContainer(t *testing.T) {
 	m := loadedModel(t)
 
-	m, cmd := step(t, m, testutil.Key("ctrl+d"))
+	m, cmd := step(t, m, testutil.Key(keymap.Delete))
 
 	if m.confirmModal == nil {
 		t.Fatal("ctrl+d did not open the confirmation")
@@ -626,7 +627,7 @@ func TestDeleteAsksForConfirmationNamingTheContainer(t *testing.T) {
 func TestPruneAsksForConfirmation(t *testing.T) {
 	m := loadedModel(t)
 
-	m, cmd := step(t, m, testutil.Key("p"))
+	m, cmd := step(t, m, testutil.Key(keymap.Prune))
 
 	if m.confirmModal == nil {
 		t.Fatal("p did not open the confirmation")
@@ -643,7 +644,7 @@ func TestPruneAsksForConfirmation(t *testing.T) {
 // the answer — confirming a prune must not delete the selected container.
 func TestConfirmationRoutesByPendingAction(t *testing.T) {
 	t.Run("prune", func(t *testing.T) {
-		m := feed(t, loadedModel(t), testutil.Key("p"))
+		m := feed(t, loadedModel(t), testutil.Key(keymap.Prune))
 
 		m, cmd := step(t, m, sharedcomponents.ConfirmModalYesMsg{})
 
@@ -659,7 +660,7 @@ func TestConfirmationRoutesByPendingAction(t *testing.T) {
 	})
 
 	t.Run("delete", func(t *testing.T) {
-		m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+		m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
 		m, cmd := step(t, m, sharedcomponents.ConfirmModalYesMsg{})
 
@@ -673,7 +674,7 @@ func TestConfirmationRoutesByPendingAction(t *testing.T) {
 }
 
 func TestCancellingTheConfirmationDoesNothing(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
 	m, cmd := step(t, m, sharedcomponents.ConfirmModalNoMsg{})
 
@@ -690,7 +691,7 @@ func TestCancellingTheConfirmationDoesNothing(t *testing.T) {
 
 func TestPruneResultHandling(t *testing.T) {
 	t.Run("success refreshes", func(t *testing.T) {
-		m := feed(t, loadedModel(t), testutil.Key("p"), sharedcomponents.ConfirmModalYesMsg{})
+		m := feed(t, loadedModel(t), testutil.Key(keymap.Prune), sharedcomponents.ConfirmModalYesMsg{})
 		if !m.pruning {
 			t.Fatal("the prune was not marked as running")
 		}
@@ -727,7 +728,7 @@ func TestPruneResultHandling(t *testing.T) {
 
 // The modal owns the keyboard while it is open.
 func TestConfirmationCapturesKeys(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 	cursor := m.containerTable.Cursor()
 
 	m = feed(t, m, testutil.Key("down"))
@@ -808,7 +809,7 @@ func TestSpinnerTicksOnlyWhileLoading(t *testing.T) {
 func TestLogsAsksForTheViewer(t *testing.T) {
 	m := loadedModel(t)
 
-	_, cmd := step(t, m, testutil.Key("l"))
+	_, cmd := step(t, m, testutil.Key(keymap.Logs))
 
 	source := openRequestSource(t, cmd)
 	logs, ok := source.(logsSource)
@@ -826,7 +827,7 @@ func TestLogsAsksForTheViewer(t *testing.T) {
 func TestInspectAsksForTheViewer(t *testing.T) {
 	m := loadedModel(t)
 
-	_, cmd := step(t, m, testutil.Key("i"))
+	_, cmd := step(t, m, testutil.Key("enter"))
 
 	source := openRequestSource(t, cmd)
 	inspect, ok := source.(inspectSource)
@@ -896,7 +897,7 @@ func TestInspectRejectsAMalformedContainerID(t *testing.T) {
 	}
 	m := feed(t, newTestModel(t), ContainersListMsg{Containers: broken})
 
-	m, cmd := step(t, m, testutil.Key("i"))
+	m, cmd := step(t, m, testutil.Key("enter"))
 
 	if m.errorMsg != "Cannot inspect — invalid container ID" {
 		t.Errorf("errorMsg = %q, want inspect to have been refused", m.errorMsg)
@@ -913,7 +914,7 @@ func TestInspectRejectsAMalformedContainerID(t *testing.T) {
 func TestShellInNewWindowIsInertOnANonRunningContainer(t *testing.T) {
 	m := loadedModel(t) // api, exited
 
-	m, cmd := step(t, m, testutil.Key("S"))
+	m, cmd := step(t, m, testutil.Key(keymap.Terminal))
 
 	if cmd != nil {
 		t.Error("S launched a shell for an exited container")
@@ -989,7 +990,7 @@ func TestAStoppingContainerShowsASpinnerInPlaceOfItsState(t *testing.T) {
 		t.Fatal("the row does not show the running glyph before the action")
 	}
 
-	m = feed(t, m, testutil.Key("K"))
+	m, _ = pressK(t, m, choiceStop)
 
 	// The override is applied when the row is drawn, not when it is built: the
 	// stored cells would otherwise go stale every time the spinner advances.
@@ -1007,9 +1008,9 @@ func TestAStoppingContainerShowsASpinnerInPlaceOfItsState(t *testing.T) {
 // when the first one in fact worked.
 func TestASecondActionOnTheSameContainerIsRefused(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
-	m = feed(t, m, testutil.Key("K"))
+	m, _ = pressK(t, m, choiceStop)
 
-	m, cmd := step(t, m, testutil.Key("K"))
+	m, cmd := pressK(t, m, choiceStop)
 
 	// The refusal is what the message proves; the command it returns is Rule
 	// 128's timer, asserted rather than executed.
@@ -1026,7 +1027,7 @@ func TestASecondActionOnTheSameContainerIsRefused(t *testing.T) {
 // like the freeze this exists to remove.
 func TestTheCursorStillMovesWhileAnActionRuns(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
-	m = feed(t, m, testutil.Key("K"))
+	m, _ = pressK(t, m, choiceStop)
 
 	m = feed(t, m, testutil.Key("up"))
 
@@ -1044,7 +1045,7 @@ func TestTheCursorStillMovesWhileAnActionRuns(t *testing.T) {
 // marker on the container ID rather than on a flag in the row is what survives.
 func TestTheMarkerSurvivesARefresh(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down"))
-	m = feed(t, m, testutil.Key("K"))
+	m, _ = pressK(t, m, choiceStop)
 
 	m = feed(t, m, ContainersListMsg{Containers: containerFixtures()})
 
@@ -1058,7 +1059,7 @@ func TestTheMarkerSurvivesARefresh(t *testing.T) {
 // message expires after three seconds and `docker stop` outlives that by seven.
 func TestTheFooterNamesTheRunningAction(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down"))
-	m = feed(t, m, testutil.Key("K"))
+	m, _ = pressK(t, m, choiceStop)
 
 	if !strings.Contains(m.RenderFooter(120), "Stopping web") {
 		t.Errorf("the footer does not name the action:\n%s", m.RenderFooter(120))
@@ -1074,7 +1075,7 @@ func TestTheFooterNamesTheRunningAction(t *testing.T) {
 // still running, so it takes the line.
 func TestAnErrorTakesTheFooterAheadOfTheRunningAction(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down"))
-	m = feed(t, m, testutil.Key("K"))
+	m, _ = pressK(t, m, choiceStop)
 	m.errorMsg = "Something went wrong"
 
 	footer := m.RenderFooter(120)

@@ -350,14 +350,14 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 	shortcuts := []shortcut.Shortcut{
 		{Key: "←→", Description: "Open/Back"},
-		{Key: "ctrl+n", Description: "New"},
-		{Key: "ctrl+d", Description: "Delete"},
-		{Key: "c", Description: "Clone"},
+		{Key: "N", Description: "New"},
+		{Key: "D", Description: "Delete"},
+		{Key: "C", Description: "Clone"},
 	}
 
 	// ctrl+w: only show when a node is selected (all nodes have a WebURL from GitLab API)
 	if node, ok := m.selectedNode(); ok && node.WebURL != "" {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+w", Description: "Browser"})
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "W", Description: "Browser"})
 	}
 
 	return append(shortcuts,
@@ -428,14 +428,14 @@ func (m Model) GetHelpContent() help.Content {
 		Description: "A drill-down explorer for browsing GitLab groups and projects. Navigate into groups with → and go back with ←. Tabs at the bottom show your current path.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑↓", Description: "Navigate the list"},
-			{Key: "→ / l", Description: "Drill into selected group"},
-			{Key: "← / h", Description: "Go back to parent group"},
+			{Key: "→", Description: "Drill into selected group"},
+			{Key: "←", Description: "Go back to parent group"},
 			{Key: "Esc", Description: "Go back to parent group"},
-			{Key: "c", Description: "Start a clone selection"},
+			{Key: "C", Description: "Start a clone selection"},
 			{Key: "Space", Description: "Tick or untick the selected row (selection mode)"},
-			{Key: "Ctrl+W", Description: "Open the selected group or project in the default web browser"},
-			{Key: "Ctrl+N", Description: "Create a new group or project under the current context. Use ←→ to select the type."},
-			{Key: "Ctrl+D", Description: "Delete the selected group or project"},
+			{Key: "W", Description: "Open the selected group or project in the default web browser"},
+			{Key: "N", Description: "Create a new group or project under the current context. Use ←→ to select the type."},
+			{Key: "D", Description: "Delete the selected group or project"},
 			{Key: ".", Description: "Cycle sort column (Type → Name → Visibility → Created → Activity)"},
 			{Key: "/", Description: "Filter the current level by name or path"},
 			{Key: "Ctrl+R", Description: "Refresh the explorer"},
@@ -459,7 +459,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Creating Groups and Projects",
-				Body:  "Press Ctrl+N to open the creation form. Use ←→ on the Type field to switch between Group and Project. The form uses the current group as parent. Project templates are loaded automatically from the OCI registry if configured.",
+				Body:  "Press N to open the creation form. Use ←→ on the Type field to switch between Group and Project. The form uses the current group as parent. Project templates are loaded automatically from the OCI registry if configured.",
 			},
 			{
 				Title: "CI Column Legend",

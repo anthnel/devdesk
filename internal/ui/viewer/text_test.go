@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
 )
@@ -132,14 +133,14 @@ func TestReturningFromAPagerReloads(t *testing.T) {
 
 func TestTimestampsAndFollowAppearOnlyForASourceThatSupportsThem(t *testing.T) {
 	capable := logModel(t, "line")
-	for _, key := range []string{"t", "ctrl+f", "e"} {
+	for _, key := range []string{"t", keymap.Fetch, keymap.Pager} {
 		if !hasShortcut(capable, key) {
 			t.Errorf("%q is not offered for a source that supports it", key)
 		}
 	}
 
 	plain := open(t, fakeSource{name: "notes.md", content: "hello"})
-	for _, key := range []string{"t", "ctrl+f", "e"} {
+	for _, key := range []string{"t", keymap.Fetch, keymap.Pager} {
 		if hasShortcut(plain, key) {
 			t.Errorf("%q is offered for a source that cannot do it", key)
 		}

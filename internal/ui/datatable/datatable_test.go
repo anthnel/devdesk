@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -528,7 +529,7 @@ func TestUnclaimedKeysAreLeftAlone(t *testing.T) {
 	m := loaded(t)
 	before := m.Cursor()
 
-	if cmd := m.Update(testutil.Key("ctrl+d")); cmd != nil {
+	if cmd := m.Update(testutil.Key(keymap.Delete)); cmd != nil {
 		t.Errorf("the component answered ctrl+d with %T", testutil.Msg(cmd))
 	}
 	if m.Cursor() != before {

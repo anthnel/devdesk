@@ -8,6 +8,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/scan"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -27,10 +29,10 @@ func (m Model) handleInventoryState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m.openSelectedTarget()
-	case "ctrl+s":
+	case keymap.Scan:
 		return m.rescanSelected()
-	case "ctrl+a":
-		return m.rescanAll()
+	case keymap.ScanAll:
+		return m.confirmRescanAll()
 	case "ctrl+r":
 		return m, loadInventoryCmd()
 	}
@@ -78,13 +80,37 @@ func (m Model) spinnerTickIfIdle() tea.Cmd {
 	return m.spinner.Tick
 }
 
-// rescanAll purges every entry and rescans every target (Rule 126).
+// confirmRescanAll asks before rescanning everything, and the purge is the
+// modal's checkbox rather than a second key.
+//
+// A and ctrl+a differed only by a modifier, and nothing in their shape said
+// which one purged — the closest this application came to losing data by
+// accident (§3.26). The destructive half is now a deliberate gesture, under the
+// eyes of whoever triggers it.
+func (m Model) confirmRescanAll() (tea.Model, tea.Cmd) {
+	if len(m.inventory.Items()) == 0 {
+		return m, nil
+	}
+	m.scanAllModal = sharedcomponents.NewOptionConfirmModal(
+		"Scan All",
+		fmt.Sprintf("Rescan all %d targets?", len(m.inventory.Items())),
+		purgeCacheOptionLabel,
+	)
+	return m, nil
+}
+
+// purgeCacheOptionLabel names the destructive half in the one place three views
+// show it, so they cannot word it differently.
+const purgeCacheOptionLabel = "Purge cached results first"
+
+// rescanAll rescans every target, purging their counts first when asked
+// (Rule 126).
 //
 // The rows themselves stay: they are the list of what is known to have been
 // scanned, and dropping them would leave an empty view for as long as the scans
 // take — and lose the targets entirely if the application were closed meanwhile.
 // It is the counts that are purged, on disk and on screen both.
-func (m Model) rescanAll() (tea.Model, tea.Cmd) {
+func (m Model) rescanAll(purge bool) (tea.Model, tea.Cmd) {
 	targets := m.inventory.Items()
 	if len(targets) == 0 {
 		return m, nil
@@ -96,12 +122,13 @@ func (m Model) rescanAll() (tea.Model, tea.Cmd) {
 		names = append(names, t.Name)
 	}
 	tick := m.spinnerTickIfIdle()
-	m.markScanning(names, true)
-	return m, tea.Batch(
-		tick,
-		purgeInventoryCmd(jobs),
-		rescanCmd(jobs, scan.OptionsFromConfig(m.config.Scan)),
-	)
+	m.markScanning(names, purge)
+	cmds := []tea.Cmd{tick}
+	if purge {
+		cmds = append(cmds, purgeInventoryCmd(jobs))
+	}
+	cmds = append(cmds, rescanCmd(jobs, scan.OptionsFromConfig(m.config.Scan)))
+	return m, tea.Batch(cmds...)
 }
 
 // markScanning flags the named rows as scanning. purge also clears their counts,
@@ -172,7 +199,6 @@ func (m Model) handleInventoryResultLoaded(msg InventoryResultLoadedMsg) (tea.Mo
 	m.targetPath = msg.Name
 	m.state = StateResults
 	m.activeTab = TabCVE
-	m.severityFilter = "all"
 	m.updateFindingsTable()
 	return m, nil
 }

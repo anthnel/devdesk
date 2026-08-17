@@ -5,6 +5,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -109,12 +110,12 @@ func TestPermanentDeleteIsPassedThrough(t *testing.T) {
 // Rule 128 again, from the key rather than from a synthesised message: the
 // confirmation modal answers ctrl+d's modal with a Yes.
 func TestDeleteFlowFromTheKeyToTheFooter(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, drilledModel(t), testutil.Key(keymap.Delete))
 	if m.deleteConfirmModal == nil {
 		t.Fatal("ctrl+d opened no confirmation")
 	}
 
-	m = feed(t, m, components.DeleteConfirmModalYesMsg{PermanentlyRemove: false})
+	m = feed(t, m, components.OptionConfirmModalYesMsg{Option: false})
 	if m.deleteConfirmModal != nil {
 		t.Error("the confirmation is still open after answering it")
 	}

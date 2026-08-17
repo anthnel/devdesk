@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/viewer"
 )
 
@@ -202,9 +203,9 @@ func (m Model) handleTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "t":
 		return m.toggleTimestamps()
-	case "ctrl+f":
+	case keymap.Fetch:
 		return m.follow()
-	case "e":
+	case keymap.Pager:
 		return m.openPager()
 
 	// The scroll keys. `q` is deliberately absent: it is the application's quit

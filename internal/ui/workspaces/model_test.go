@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
@@ -344,7 +345,7 @@ func TestSelectionModeIgnoresTheEditingKeys(t *testing.T) {
 // ── Create, rename, delete ───────────────────────────────────────────────────
 
 func TestCreateFlow(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+n"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 	if m.mode != ModeAdding || m.input == nil {
 		t.Fatal("ctrl+n did not open the create input")
 	}
@@ -359,7 +360,7 @@ func TestCreateFlow(t *testing.T) {
 }
 
 func TestCreateCancel(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+n"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 
 	m = feed(t, m, WorkspaceInputCancelMsg{})
 
@@ -372,7 +373,7 @@ func TestRenameFlowUsesTheSelectedEntry(t *testing.T) {
 	m := loadedModel(t)
 	m.table.SetCursor(1) // clean-repo
 
-	m = feed(t, m, testutil.Key("r"))
+	m = feed(t, m, testutil.Key(keymap.Rename))
 	if m.mode != ModeRenaming || m.input == nil {
 		t.Fatal("r did not open the rename input")
 	}
@@ -393,7 +394,7 @@ func TestRenameFlowUsesTheSelectedEntry(t *testing.T) {
 // whatever happens to be under the cursor by then. The form used to carry a row
 // index, which named a different entry the moment the list changed under it.
 func TestRenameWithNothingPendingIsInert(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("r"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Rename))
 	m.pendingEntry = nil
 
 	_, cmd := step(t, m, RenameInputSubmitMsg{Name: "renamed"})
@@ -407,7 +408,7 @@ func TestDeleteFlowNamesTheEntry(t *testing.T) {
 	m := loadedModel(t)
 	m.table.SetCursor(3) // empty-dir
 
-	m = feed(t, m, testutil.Key("ctrl+d"))
+	m = feed(t, m, testutil.Key(keymap.Delete))
 	if m.mode != ModeConfirmingDelete || m.confirmModal == nil {
 		t.Fatal("ctrl+d did not open the confirmation")
 	}
@@ -430,20 +431,20 @@ func TestDeleteConfirmationDistinguishesFilesFromDirectories(t *testing.T) {
 	m := loadedModel(t)
 
 	m.table.SetCursor(4) // notes.md
-	file := feed(t, m, testutil.Key("ctrl+d"))
+	file := feed(t, m, testutil.Key(keymap.Delete))
 	if !strings.Contains(file.confirmModal.View(), "Delete File") {
 		t.Error("deleting a file does not say so")
 	}
 
 	m.table.SetCursor(3) // empty-dir
-	dir := feed(t, m, testutil.Key("ctrl+d"))
+	dir := feed(t, m, testutil.Key(keymap.Delete))
 	if !strings.Contains(dir.confirmModal.View(), "Delete Directory") {
 		t.Error("deleting a directory does not say so")
 	}
 }
 
 func TestDeleteCancel(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+	m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
 	m, cmd := step(t, m, sharedcomponents.ConfirmModalNoMsg{})
 
@@ -506,7 +507,7 @@ func TestScanOneRepoPurgesItsCacheEntry(t *testing.T) {
 	m := scannedModel(t)
 	m.table.SetCursor(0) // devdesk, which has a cached result
 
-	m, cmd := step(t, m, testutil.Key("ctrl+s"))
+	m, cmd := step(t, m, testutil.Key(keymap.Scan))
 
 	if _, still := m.scanCache["/tmp/workspaces/devdesk"]; still {
 		t.Error("the cached result survived a rescan request")
@@ -522,7 +523,7 @@ func TestScanRefusesToStartTwice(t *testing.T) {
 	m.table.SetCursor(0)
 	m.scanningPaths["/tmp/workspaces/devdesk"] = true
 
-	m, cmd := step(t, m, testutil.Key("ctrl+s"))
+	m, cmd := step(t, m, testutil.Key(keymap.Scan))
 
 	if m.footerInfo != busyMessage {
 		t.Errorf("footerInfo = %q, want the already-running notice", m.footerInfo)
@@ -538,7 +539,7 @@ func TestScanOnADirectoryScansItsSubRepos(t *testing.T) {
 	m := loadedModel(t)
 	m.table.SetCursor(2) // clients, with two sub-repos
 
-	_, cmd := step(t, m, testutil.Key("ctrl+s"))
+	_, cmd := step(t, m, testutil.Key(keymap.Scan))
 
 	if cmd == nil {
 		t.Error("scanning a directory with nested repos issued no command")
@@ -558,7 +559,7 @@ func TestScanIsInertOnEntriesWithNothingToScan(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m.table.SetCursor(tc.cursor)
 
-			_, cmd := step(t, m, testutil.Key("ctrl+s"))
+			_, cmd := step(t, m, testutil.Key(keymap.Scan))
 
 			if cmd != nil {
 				t.Errorf("a scan was issued for %s", tc.name)
@@ -567,18 +568,19 @@ func TestScanIsInertOnEntriesWithNothingToScan(t *testing.T) {
 	}
 }
 
-// Rule 126: "A" scans only what has never been scanned, ctrl+a purges and
-// rescans everything.
+// Rule 126: A with the purge unchecked scans only what has never been scanned;
+// checked, it purges and rescans everything. They were A and ctrl+a, two keys
+// separated by a modifier with nothing saying which one destroyed data (§3.26).
 func TestScanAllUnscannedSkipsCachedRepos(t *testing.T) {
 	m := scannedModel(t) // devdesk is cached, clean-repo and the two sub-repos are not
 
-	m, cmd := step(t, m, testutil.Key("A"))
+	m, cmd := scanAll(t, m, false)
 
 	if cmd == nil {
 		t.Fatal("A issued no scan even though repos were unscanned")
 	}
 	if _, gone := m.scanCache["/tmp/workspaces/devdesk"]; !gone {
-		t.Error("A purged the cached result; only ctrl+a should do that")
+		t.Error("A purged the cached result with the checkbox unticked")
 	}
 }
 
@@ -591,7 +593,7 @@ func TestScanAllUnscannedIsInertWhenEverythingIsCached(t *testing.T) {
 		"/tmp/workspaces/clients/b":  {RepoPath: "/tmp/workspaces/clients/b"},
 	}})
 
-	_, cmd := step(t, m, testutil.Key("A"))
+	_, cmd := scanAll(t, m, false)
 
 	if cmd != nil {
 		t.Error("A issued a scan with nothing left unscanned")
@@ -601,13 +603,13 @@ func TestScanAllUnscannedIsInertWhenEverythingIsCached(t *testing.T) {
 func TestScanAllPurgesTheWholeCache(t *testing.T) {
 	m := scannedModel(t)
 
-	m, cmd := step(t, m, testutil.Key("ctrl+a"))
+	m, cmd := scanAll(t, m, true)
 
 	if len(m.scanCache) != 0 {
-		t.Errorf("scanCache still holds %d entries after ctrl+a, want it purged", len(m.scanCache))
+		t.Errorf("scanCache still holds %d entries after the purging scan", len(m.scanCache))
 	}
 	if cmd == nil {
-		t.Error("ctrl+a issued no scan")
+		t.Error("the purging scan issued no scan")
 	}
 }
 
@@ -616,7 +618,7 @@ func TestScanAllIsInertWithNoRepos(t *testing.T) {
 		{Name: "notes.md", Path: "/tmp/workspaces/notes.md"},
 	}})
 
-	_, cmd := step(t, m, testutil.Key("ctrl+a"))
+	_, cmd := step(t, m, testutil.Key(keymap.ScanAll))
 
 	if cmd != nil {
 		t.Error("ctrl+a issued a scan with no repos in view")
@@ -762,7 +764,7 @@ func TestBrowserRequiresARemote(t *testing.T) {
 		{Name: "local-only", Path: "/tmp/workspaces/local-only", IsDir: true, IsGitRepo: true},
 	}})
 
-	_, cmd := step(t, m, testutil.Key("ctrl+w"))
+	_, cmd := step(t, m, testutil.Key(keymap.Web))
 
 	if cmd != nil {
 		t.Error("ctrl+w opened a browser for a repo with no remote")
@@ -903,7 +905,7 @@ func TestSearchModeCapturesKeys(t *testing.T) {
 		t.Fatal("InEditMode() is false while the search input has focus")
 	}
 
-	m = feed(t, m, testutil.Key("ctrl+n"))
+	m = feed(t, m, testutil.Key(keymap.New))
 	if m.mode != ModeNormal {
 		t.Error("ctrl+n opened the create input while the search had focus")
 	}
@@ -916,9 +918,9 @@ func TestOverlaysCaptureKeys(t *testing.T) {
 		name string
 		open func(t *testing.T) Model
 	}{
-		{"create input", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("ctrl+n")) }},
-		{"rename input", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("r")) }},
-		{"confirmation", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("ctrl+d")) }},
+		{"create input", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key(keymap.New)) }},
+		{"rename input", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key(keymap.Rename)) }},
+		{"confirmation", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key(keymap.Delete)) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := tc.open(t)
@@ -1154,7 +1156,7 @@ func TestAFilteredSelectionActsOnTheRowTheUserSees(t *testing.T) {
 		t.Fatalf("rows under the filter = %v, want just empty-dir", got)
 	}
 
-	m, _ = step(t, m, testutil.Key("ctrl+d"))
+	m, _ = step(t, m, testutil.Key(keymap.Delete))
 	if m.mode != ModeConfirmingDelete {
 		t.Fatalf("mode = %d after ctrl+d, want the delete confirmation", m.mode)
 	}

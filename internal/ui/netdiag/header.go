@@ -60,7 +60,7 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 			{Key: "z", Description: "Reset filters"},
 			{Key: "/", Description: "Search"},
 			{Key: "space", Description: "Pause/Resume"},
-			{Key: "ctrl+k", Description: "Kill process"},
+			{Key: "K", Description: "Kill process"},
 			{Key: "?", Description: "Help"},
 		}
 		return append(tabShortcuts, sc...)
@@ -80,7 +80,7 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 	case StateResults:
 		return append(tabShortcuts, shortcut.Shortcuts{
 			{Key: "enter", Description: "View logs"},
-			{Key: "r", Description: "New diagnostic"},
+			{Key: "esc", Description: "New diagnostic"},
 			{Key: "?", Description: "Help"},
 		}...)
 	case StateDetails:
@@ -175,7 +175,7 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "esc (running)", Description: "Cancel run and show partial results"},
 			// Results
 			{Key: "enter (results)", Description: "View full log output for selected test"},
-			{Key: "r", Description: "New diagnostic (back to form)"},
+			{Key: "esc", Description: "New diagnostic (back to form)"},
 			// Details
 			{Key: "esc (details)", Description: "Back to results table"},
 			{Key: "pgup / pgdown", Description: "Scroll half page up / down"},
@@ -188,7 +188,7 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "z", Description: "Reset all active filters (Ports tab)"},
 			{Key: "/", Description: "Search ports by address, process or PID (Ports tab)"},
 			{Key: "space (Ports)", Description: "Pause / resume auto-refresh (Ports tab)"},
-			{Key: "ctrl+k", Description: "Send SIGKILL to selected process (Ports tab)"},
+			{Key: "K", Description: "Send SIGKILL to the selected process, after confirmation (Ports tab)"},
 		},
 		Sections: []help.Section{
 			{

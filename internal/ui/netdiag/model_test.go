@@ -395,9 +395,10 @@ func TestResultsNavigationAndReset(t *testing.T) {
 		t.Errorf("cursor = %d after G, want the last row", m.resultsTable.Cursor())
 	}
 
-	m = feed(t, m, testutil.Key("r"))
+	// esc goes back; ctrl+r means refresh and only refresh (§3.26).
+	m = feed(t, m, testutil.Key("esc"))
 	if m.state != StateInput {
-		t.Errorf("state = %d after r, want a fresh form", m.state)
+		t.Errorf("state = %d after esc, want a fresh form", m.state)
 	}
 	if len(m.results) != 0 || m.totalTests != 0 || m.resultOrder != nil {
 		t.Error("resetting to the form kept the previous run's results")

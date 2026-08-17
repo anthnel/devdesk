@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -142,7 +143,7 @@ func TestTableCellsCarryNoEscapeSequences(t *testing.T) {
 // Rule 112: forms take the whole viewport; only confirmations are modals.
 func TestFormsReplaceTheViewAndModalsOverlayIt(t *testing.T) {
 	t.Run("a form replaces the table", func(t *testing.T) {
-		m := feed(t, loadedModel(t), testutil.Key("ctrl+e"))
+		m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 		if m.launchForm == nil {
 			t.Skip("ctrl+e did not open the launch form")
 		}
@@ -153,7 +154,7 @@ func TestFormsReplaceTheViewAndModalsOverlayIt(t *testing.T) {
 	})
 
 	t.Run("a confirmation names its target", func(t *testing.T) {
-		m := feed(t, loadedModel(t), testutil.Key("ctrl+d"))
+		m := feed(t, loadedModel(t), testutil.Key(keymap.Delete))
 
 		if view := m.View(); !strings.Contains(view, "api:v1") {
 			t.Errorf("the confirmation does not name the image:\n%s", view)
@@ -176,7 +177,7 @@ func TestFooterHeightMatchesWhatIsRendered(t *testing.T) {
 		{"registries", func(t *testing.T) Model {
 			return feed(t, loadedModel(t), testutil.Key("tab"), testutil.Key("tab"), testutil.Key("tab"))
 		}},
-		{"confirming", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key("ctrl+d")) }},
+		{"confirming", func(t *testing.T) Model { return feed(t, loadedModel(t), testutil.Key(keymap.Delete)) }},
 		{"browsing a registry", func(t *testing.T) Model { return browsingModel(t) }},
 	}
 
@@ -280,10 +281,10 @@ func TestShortcutsFollowTheTab(t *testing.T) {
 		want    []string
 		notWant []string
 	}{
-		{"images", 0, []string{"ctrl+s", "ctrl+e", "/"}, nil},
-		{"networks", 1, nil, []string{"ctrl+s", "/"}},
-		{"volumes", 2, nil, []string{"ctrl+s", "ctrl+e"}},
-		{"registries", 3, nil, []string{"ctrl+s", "ctrl+e"}},
+		{"images", 0, []string{keymap.Scan, keymap.New, "/"}, nil},
+		{"networks", 1, nil, []string{keymap.Scan, "/"}},
+		{"volumes", 2, nil, []string{keymap.Scan, keymap.Browser}},
+		{"registries", 3, nil, []string{keymap.Scan, keymap.Browser}},
 	}
 
 	for _, tt := range tests {

@@ -14,7 +14,10 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	viewerpkg "github.com/anthnel/devdesk/internal/viewer"
 )
@@ -135,6 +138,19 @@ func step(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
 		t.Fatalf("Update() returned %T, want containers.Model", next)
 	}
 	return updated, cmd
+}
+
+// pressK opens K's modal and picks one of its two actions, which is what a
+// single unconfirmed keypress used to do (§3.26).
+func pressK(t *testing.T, m Model, label string) (Model, tea.Cmd) {
+	t.Helper()
+	m, cmd := step(t, m, testutil.Key(keymap.Kill))
+	if m.choiceModal == nil {
+		// Refused before asking — busy, or no row. The Cmd is Rule 128's timer
+		// for the refusal message, so it has to come back out.
+		return m, cmd
+	}
+	return step(t, m, sharedcomponents.ChoiceModalPickedMsg{Label: label})
 }
 
 // withTrueColor forces the lipgloss default renderer to emit escape sequences

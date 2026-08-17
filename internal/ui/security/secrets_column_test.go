@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/scan"
-	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -72,13 +71,13 @@ func cellFor(rows map[string]string, fragment string) (string, bool) {
 	return "", false
 }
 
-// Une ligne purgée par ctrl+a n'a plus de compteurs — elle affiche `-` — et elle
+// Une ligne purgée par A (case « purge » cochée) n'a plus de compteurs — elle affiche `-` — et elle
 // n'a pas davantage de verdict : celui qu'elle portait décrit un scan que la
 // purge vient d'effacer.
 func TestAPurgedRowHasNoVerdictEither(t *testing.T) {
 	m := inventoryModel(t, verdictFixtures()...)
 
-	m, _ = step(t, m, testutil.Key("ctrl+a"))
+	m, _ = scanAll(t, m, true)
 
 	secrets := columnIndex(t, m.inventory.Table().Columns(), "Secrets")
 	unknown := theme.SecretsIcon(theme.SecretsUnknown)
@@ -94,7 +93,7 @@ func TestAPurgedRowHasNoVerdictEither(t *testing.T) {
 // jusqu'au prochain ctrl+r.
 func TestAFinishedRescanBringsBackItsVerdict(t *testing.T) {
 	m := inventoryModel(t, verdictFixtures()...)
-	m, _ = step(t, m, testutil.Key("ctrl+a"))
+	m, _ = scanAll(t, m, true)
 
 	m = feed(t, m, InventoryScanFinishedMsg{
 		Name: "nexus/api:1.4", Counts: scan.SeverityCounts{Critical: 1},

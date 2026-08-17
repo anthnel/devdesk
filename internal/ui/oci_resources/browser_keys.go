@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // InEditMode returns true when a text input is active (blocks command mode).
@@ -206,9 +207,9 @@ func (b *RegistryBrowser) handleTagsKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, te
 		return b, nil
 	case "enter":
 		return b.openTagScanDetails()
-	case "p":
+	case keymap.Get:
 		return b.pullSelectedTag()
-	case "ctrl+s":
+	case keymap.Scan:
 		return b.requestDirectScan()
 	}
 	// Navigation and `.` are the table's. `/` never reaches it: the browser's
