@@ -1,0 +1,17 @@
+/plan uniformiser les messages dans le footer. Tous les messages du footer doivent être centrés. Les messages d'info doive avoir une couleur plus neutre qu'actuellement. Les warning avoir une couleur orange (comme les CVE medium) les erreurs doivent avoir une couleur rouge comme les CVE critiques. Actuellement il y a des message en vert, alignés à gauche. De plus quand un datable charge des infos, le message devrait être un message d'info affiché uniquement dans le footer avec un spinner et plus dans le corps du datatable
+
+---
+
+oui
+
+---
+
+les tests prennent trop de temps avec les 3 secondes de sleep , regarde pour garder les tests mais réduire le temps
+
+---
+
+continue
+
+---
+
+commit, merge récupère aussi les modifications distantes sur main
