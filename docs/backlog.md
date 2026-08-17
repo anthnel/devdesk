@@ -4865,6 +4865,93 @@ juste, et à trois fichiers de l'endroit où il fallait le lire.
 
 ---
 
+### 3.29 Un message, trois niveaux, un composant — **done**
+
+Le footer était écrit huit fois. Chaque vue portait sa paire de champs
+(`footerError`/`footerInfo`, ou `errorMsg`/`infoMsg`, ou `statusMessage`), sa
+minuterie locale (`clearFooterCmd`, `clearFooterMsgCmd`, `clearInfoMsgCmd`,
+`portsClearFooterCmd`) et son bloc lipgloss — dont trois copies du même helper
+sous trois noms (`centeredInfo`, `renderInfoText`, `highlightLine`).
+
+**Le défaut que ça produit est structurel, pas cosmétique.** Personne n'a jamais
+centré la branche d'erreur, dans aucune des huit : les erreurs étaient donc
+alignées à gauche partout et les notices centrées, et la moitié des vues
+mélangeaient les deux dans le même `RenderFooter`. Le vert du `statusMessage` de
+`security` était le seul de son espèce, aligné à gauche lui aussi, et redoublé
+dans le viewport sous le panneau de warnings.
+
+**Il n'existait aucun niveau *warning*.** Tout était erreur ou info, et une
+bonne moitié des « infos » étaient des refus : `Scan already in progress`,
+`Not supported in Trivy client-server mode`, `Nothing selected`, `All images are
+already scanned`. Elles s'affichaient dans le jaune des notices, à un cran de
+rien.
+
+`components.FooterMessage` porte le texte, le niveau et la minuterie. Trois
+niveaux définis par **ce qui s'est passé** — `Error` : une opération a échoué ou
+le système l'a refusée ; `Warn` : l'action ne peut pas être honorée telle que
+demandée, mais rien n'a échoué ; `Info` : un fait neutre ou une réussite.
+
+Les couleurs sont des alias sémantiques assignés dans `ApplyTheme`, comme celles
+de la syntaxe du viewer : aucun fichier de thème ne gagne de clé. Elles visent
+les noms **severity** et non `ColorError`/`ColorWarn`, que le thème par défaut
+rend identiques — le choix est invisible aujourd'hui et cesse de l'être dans un
+thème qui les sépare. `ColorFooterInfo` est `ColorText` : `ColorHighlight` est un
+jaune à un cran de l'orange du warning, donc les deux niveaux étaient
+indiscernables.
+
+**L'expiration est identifiée** (`ClearFooterMsg{ID}`). C'est ce qui rend le
+type partageable entre paquets, et ça corrige au passage un défaut que les huit
+implémentations avaient toutes sans exception : un message posé à t+2,9 s était
+effacé à t+3 s par la minuterie du précédent.
+
+**`Status` est le second argument de `View`, et il n'a pas de minuterie.** Une
+progression, un hint, un chargement sont des états dérivés à chaque frame, pas
+des événements — un lot de syncs survit aux trois secondes qu'un message obtient.
+C'est un paramètre plutôt qu'un champ parce qu'il est dérivé : la ligne d'action
+de `containers` vient de `BusyLabels()`, qui change sans événement pour la
+pousser. Précédence : **erreur → warning → info → status**.
+
+**Le chargement d'une table passe au footer, avec un spinner, et la table reste
+à l'écran.** Sept corps s'y substituaient un spinner : chacun perdait son en-tête
+et ses colonnes le temps de chaque `ctrl+r` puis les retrouvait — un saut de mise
+en page à chaque rafraîchissement. Conséquence obligatoire, et c'était déjà faux
+sur deux onglets : le message vide est conditionné à la fin du chargement, sinon
+la table annonce l'absence de ce qu'elle cherche.
+
+Deux détails qui ont failli passer :
+
+- La frame est le `spinner.View()` **rendu**, pas une frame brute : chaque vue
+  style déjà son spinner avec `theme.SpinnerStyle()`, et le restyler
+  imbriquerait une séquence dans une autre. La mesure passe par
+  `lipgloss.Width` — l'inverse de la règle d'une cellule (Rule 122), et la
+  différence tient à qui mesure.
+- `Paused — press space to resume` dans netdiag/Ports était posé sans minuterie
+  et resterait donc affiché trois secondes puis disparaîtrait alors que l'onglet
+  est toujours en pause. C'est un `Status`, pas un message.
+
+Deux tests source-level tiennent la ligne, sur le modèle de ceux de
+`internal/ui/keymap` : `TestNoViewStylesItsOwnFooterMessage` refuse un
+`StatusErrorStyle`/`StatusOKStyle`/`StatusWarningStyle`/`ColorHighlight` dans un
+`RenderFooter` ou un `renderInfoLine`, et `TestNoTableViewRendersALoadingBody`
+refuse un `theme.SpinnerMessage` dans une vue à table. Le seul écran qui se
+remplit légitimement d'un spinner — le browser de registries pendant un pull, qui
+n'a pas de table derrière — est une **exception déclarée**, comme
+`keymap.DeclaredExceptions()`.
+
+**La minuterie dort pour de vrai, et la suite le payait.** `tea.Tick` bloque sa
+durée entière et `testutil.Msgs` exécute tout le lot : quatre tests inspectaient
+un `Cmd` portant la minuterie et payaient trois secondes chacun — c'était déjà
+vrai des huit minuteries locales, personne ne l'avait relevé. Un test qui veut
+voir un message expirer construit maintenant `ClearFooterMsg{ID: …}` ; les quatre
+qui doivent drainer le `Cmd` appellent
+`testutil.FastTimers(t, &components.FooterMsgDuration)`. La suite complète est
+passée de plus d'une minute d'attente pure à cinq secondes.
+
+Le plan est dans
+[`.claude/plans/footer-messages-unification.md`](../.claude/plans/footer-messages-unification.md).
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

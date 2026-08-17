@@ -79,7 +79,7 @@ func TestListFailuresStopTheSpinner(t *testing.T) {
 			if tt.busy(m) {
 				t.Error("still loading after the failure")
 			}
-			if m.errorMsg == "" {
+			if !m.footer.IsSet() {
 				t.Error("the failure was not reported")
 			}
 		})
@@ -282,13 +282,16 @@ func TestScanAllUnscannedWithNothingLeft(t *testing.T) {
 	if m.scanning {
 		t.Error("'A' started a batch scan with nothing left to scan")
 	}
-	if m.errorMsg == "" {
+	if !m.footer.IsSet() {
 		t.Error("'A' said nothing when there was nothing to do")
 	}
 }
 
 // A batch already running must not be restarted on a second press.
 func TestScanAllIgnoredWhileABatchRuns(t *testing.T) {
+	// This test drains the Cmd, and the footer timer inside it really sleeps.
+	testutil.FastTimers(t, &sharedcomponents.FooterMsgDuration)
+
 	m := loadedModel(t)
 	m.scanning = true
 
@@ -419,7 +422,7 @@ func TestImageActionFailureIsReported(t *testing.T) {
 		Err: errors.New("image is being used by running container"),
 	})
 
-	if m.errorMsg == "" {
+	if !m.footer.IsSet() {
 		t.Error("a failed removal reported nothing")
 	}
 }
@@ -461,7 +464,7 @@ func TestNetworkActionFailureIsReported(t *testing.T) {
 		Action: "remove", Err: errors.New("bridge is a pre-defined network and cannot be removed"),
 	})
 
-	if m.errorMsg == "" {
+	if !m.footer.IsSet() {
 		t.Error("a failed network action reported nothing")
 	}
 }
@@ -481,15 +484,15 @@ func TestPruneReportsOnlyFailures(t *testing.T) {
 
 	for _, tt := range tests {
 		m, cmd := step(t, loadedModel(t), tt.ok)
-		if m.errorMsg != "" {
-			t.Errorf("%T reported %q on success", tt.ok, m.errorMsg)
+		if m.footer.IsSet() {
+			t.Errorf("%T reported %q on success", tt.ok, m.footer.Text())
 		}
 		if cmd == nil {
 			t.Errorf("%T did not refetch", tt.ok)
 		}
 
 		failed := feed(t, loadedModel(t), tt.failed)
-		if failed.errorMsg == "" {
+		if !failed.footer.IsSet() {
 			t.Errorf("%T reported nothing", tt.failed)
 		}
 	}
@@ -545,7 +548,7 @@ func TestRegistryLoginUpdatesTheStatus(t *testing.T) {
 	if failed.registryLoginStatus["registry.example.com"] {
 		t.Error("a failed login left the registry marked logged in")
 	}
-	if failed.errorMsg == "" {
+	if !failed.footer.IsSet() {
 		t.Error("a failed login reported nothing")
 	}
 }
@@ -565,7 +568,7 @@ func TestFooterMessagesExpire(t *testing.T) {
 	for _, msg := range tests {
 		m, cmd := step(t, loadedModel(t), msg)
 
-		if m.errorMsg == "" {
+		if !m.footer.IsSet() {
 			t.Errorf("%T reported nothing", msg)
 			continue
 		}
@@ -574,9 +577,9 @@ func TestFooterMessagesExpire(t *testing.T) {
 			continue
 		}
 
-		cleared := feed(t, m, clearInfoMsgMsg{})
-		if cleared.infoMsg != "" || cleared.errorMsg != "" {
-			t.Errorf("%T left info=%q error=%q after the timer", msg, cleared.infoMsg, cleared.errorMsg)
+		cleared := feed(t, m, sharedcomponents.ClearFooterMsg{ID: m.footer.ID()})
+		if cleared.footer.IsSet() {
+			t.Errorf("%T left %q after the timer", msg, cleared.footer.Text())
 		}
 	}
 }

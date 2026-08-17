@@ -47,8 +47,7 @@ func (m Model) openSelectedTarget() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if !target.Scanned {
-		m.statusMessage = "No result yet for " + target.Name
-		return m, clearStatusCmd()
+		return m, m.footer.Warn("No result yet for " + target.Name)
 	}
 	return m, loadInventoryResultCmd(target)
 }
@@ -61,8 +60,7 @@ func (m Model) rescanSelected() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if target.Scanning {
-		m.statusMessage = "Scan already in progress"
-		return m, clearStatusCmd()
+		return m, m.footer.Warn("Scan already in progress")
 	}
 	tick := m.spinnerTickIfIdle()
 	m.markScanning([]string{target.Name}, false)
@@ -193,8 +191,7 @@ func (m Model) handleInventoryLoaded(msg InventoryLoadedMsg) (tea.Model, tea.Cmd
 // ctrl+s rescans it.
 func (m Model) handleInventoryResultLoaded(msg InventoryResultLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil || msg.Result == nil {
-		m.statusMessage = "No stored result for " + msg.Name + " — ctrl+s to rescan"
-		return m, clearStatusCmd()
+		return m, m.footer.Warn("No stored result for " + msg.Name + " — ctrl+s to rescan")
 	}
 	m.result = msg.Result
 	m.targetPath = msg.Name
@@ -223,8 +220,7 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 	}
 	m.setInventory(updated)
 	if msg.Err != nil {
-		m.statusMessage = fmt.Sprintf("Scan failed for %s — check logs", msg.Name)
-		return m, clearStatusCmd()
+		return m, m.footer.Error(fmt.Sprintf("Scan failed for %s — check logs", msg.Name))
 	}
 	return m, nil
 }

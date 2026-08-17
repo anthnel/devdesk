@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -16,8 +17,11 @@ func (m Model) View() string {
 	contentStyle := lipgloss.NewStyle().Background(theme.ColorBackground).PaddingLeft(1)
 
 	switch {
-	case m.loading:
-		return contentStyle.Render(theme.DimStyle.Render("\nLoading..."))
+	case m.loading && !m.hasDocument():
+		// The load says so in the footer, with a spinner. Nothing is shown here
+		// because there is nothing yet to show — and a reload keeps the
+		// document on screen rather than blanking it, which is the case below.
+		return ""
 	case !m.hasDocument():
 		return contentStyle.Render(theme.HelpStyle.Render("\nNothing open\n\nOpen a file from workspaces, or inspect a container."))
 	case m.display == displayTree:
@@ -39,23 +43,17 @@ func (m Model) RenderFooter(width int) string {
 	if m.bar.IsVisible() {
 		parts = append(parts, m.bar.View())
 	}
-	parts = append(parts, theme.EmptyLineBg(width), m.renderInfoLine(width))
+	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, m.status()))
 	return strings.Join(parts, "\n")
 }
 
-func (m Model) renderInfoLine(width int) string {
-	if m.footerError != "" {
-		return theme.PadWithBg(theme.StatusErrorStyle.Render(m.footerError), width)
+// status is what the view derives on every frame: the read, reported here so
+// the pane does not swap itself for a message.
+func (m Model) status() components.Status {
+	if m.loading {
+		return components.Status{Text: "Loading " + m.Name() + "...", Spinner: true}
 	}
-	if m.footerInfo == "" {
-		return theme.EmptyLineBg(width)
-	}
-	return lipgloss.NewStyle().
-		Foreground(theme.ColorHighlight).
-		Background(theme.ColorBackground).
-		Width(width).
-		Align(lipgloss.Center).
-		Render(m.footerInfo)
+	return components.Status{}
 }
 
 // ── HeaderView ───────────────────────────────────────────────────────────────

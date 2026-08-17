@@ -47,8 +47,7 @@ func (m Model) handleDetailsOpenReference() (tea.Model, tea.Cmd) {
 	}
 	f := *m.selectedFinding
 	if len(f.References) == 0 {
-		m.statusMessage = "No references available"
-		return m, clearStatusCmd()
+		return m, m.footer.Warn("No references available")
 	}
 	url := f.References[0]
 	return m, func() tea.Msg {

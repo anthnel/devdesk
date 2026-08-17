@@ -36,12 +36,11 @@ func (m Model) handleLaunchOptionsCacheLoaded(msg LaunchOptionsCacheLoadedMsg) (
 func (m Model) handleContainerLaunchComplete(msg ContainerLaunchCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] launch container: %v", msg.Err)
-		m.errorMsg = "Failed to launch container — check logs"
 		m.lastLaunchOpts = nil
 		m.lastLaunchImage = ""
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Failed to launch container — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	if m.lastLaunchOpts != nil {
 		saveCmd := saveLaunchOptionsCmd(m.lastLaunchImage, *m.lastLaunchOpts)
 		m.lastLaunchOpts = nil
@@ -52,15 +51,12 @@ func (m Model) handleContainerLaunchComplete(msg ContainerLaunchCompleteMsg) (te
 }
 
 // handleClipboardCopy processes the result of copying the docker command to clipboard (Rule 128).
-// clearInfoMsgCmd clears both errorMsg and infoMsg after 3 seconds — correct for both branches.
 func (m Model) handleClipboardCopy(msg ClipboardCopyMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] clipboard copy: %v", msg.Err)
-		m.errorMsg = "Failed to copy command to clipboard"
-	} else {
-		m.infoMsg = "Docker command copied to clipboard"
+		return m, m.footer.Error("Failed to copy command to clipboard")
 	}
-	return m, clearInfoMsgCmd()
+	return m, m.footer.Info("Docker command copied to clipboard")
 }
 
 // handleLaunchFormSubmit dispatches the container launch.
@@ -84,8 +80,7 @@ func (m Model) handleLaunchFormSubmit(msg LaunchFormSubmitMsg) (tea.Model, tea.C
 		cmd, err := docker.BuildLaunchCmd(opts)
 		if err != nil {
 			log.Printf("ERROR [oci_resources] build launch cmd: %v", err)
-			m.errorMsg = "Failed to launch container — check logs"
-			return m, clearInfoMsgCmd()
+			return m, m.footer.Error("Failed to launch container — check logs")
 		}
 		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 			if err != nil {

@@ -72,66 +72,147 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 }
 ```
 
-### Rule 128 : Messages footer — log + timer 3s, jamais dans le viewport
+### Rule 128 : Messages footer — trois niveaux, centrés, un seul composant
 
-**Tout message dans le footer (erreur ou info) disparaît automatiquement après 3 secondes.**
+**`components.FooterMessage` est la seule implémentation.** Une vue ne rend pas
+son propre message : elle en déclare un, le pose depuis `Update()`, et le rend
+par `m.footer.View(width, status)`.
 
-#### Types de messages
+Il y en avait huit, une par vue, chacune avec ses champs, sa minuterie et son
+bloc lipgloss. C'est ce qui a produit le défaut que ce composant supprime :
+personne n'a jamais centré la branche d'erreur, dans aucune des huit, donc les
+erreurs étaient alignées à gauche partout et les notices centrées.
 
-| Type | Champ | Couleur | Usage |
-|------|-------|---------|-------|
-| Erreur | `footerError` / `errorMsg` | `ColorError` + `StatusErrorStyle` | Échec d'opération, action bloquée |
-| Info | `footerInfo` / `infoMsg` | `ColorHighlight` | Feedback non-critique (scan déjà en cours, etc.) |
+#### Les trois niveaux
+
+Ils sont définis par **ce qui s'est passé**, pas par le ressenti :
+
+| Niveau | Sens | Couleur |
+|--------|------|---------|
+| `Error` | une opération a échoué, ou le système l'a refusée | `ColorFooterError` = le rouge des CVE **CRITICAL** |
+| `Warn` | l'action ne peut pas être honorée telle que demandée, mais rien n'a échoué : précondition non remplie, déjà en cours, sans objet ici | `ColorFooterWarn` = l'orange des CVE **MEDIUM** |
+| `Info` | un fait neutre, ou une opération réussie | `ColorFooterInfo` = `ColorText`, la couleur de texte ordinaire |
+
+Info n'est pas en gras, les deux autres le sont : la hiérarchie passe par la
+graisse autant que par la teinte, et une info neutre en gras redeviendrait une
+alerte.
+
+Les couleurs sont des **alias sémantiques** assignés dans `ApplyTheme`
+(`colors.go`), comme les couleurs de syntaxe du viewer : aucun fichier de thème
+ne gagne de clé. Elles visent les noms **severity** et non `ColorError` /
+`ColorWarn` — le thème par défaut les fait coïncider, donc le choix est
+invisible aujourd'hui ; il cesse de l'être dans un thème qui les sépare.
+
+#### Ce qui est interdit
+
+- ❌ `theme.StatusErrorStyle`, `StatusOKStyle`, `StatusWarningStyle` ou
+  `ColorHighlight` dans un `RenderFooter`, un `renderInfoLine` ou un
+  `renderInfoText` — `TestNoViewStylesItsOwnFooterMessage` parcourt les sources
+  et échoue en nommant fichier, ligne et fonction.
+- ❌ Le **vert** dans un footer. Il est réservé aux icônes de statut (Rule 121).
+- ❌ Un message **aligné à gauche**. `View` centre, toujours, sur toute la
+  largeur.
+- ❌ Une minuterie locale (`clearFooterCmd`, `clearInfoMsgCmd`, …) : le
+  composant la porte.
 
 #### Pattern obligatoire
 
 ```go
-// 1. Déclarer le message de nettoyage dans le package
-type clearFooterMsgMsg struct{}
-
-// 2. Déclarer la commande timer
-func clearFooterMsgCmd() tea.Cmd {
-    return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-        return clearFooterMsgMsg{}
-    })
+// 1. Le modèle déclare un champ.
+type Model struct {
+    footer sharedcomponents.FooterMessage
 }
 
-// 3. Dans Update() — handler du message de nettoyage
-case clearFooterMsgMsg:
-    m.footerError = ""
-    m.footerInfo = ""
-
-// 4. À chaque set de message footer — toujours retourner le timer
+// 2. Update() pose le message et retourne sa minuterie. Un message posé sans
+//    sa minuterie ne disparaît jamais.
 case SomeErrorMsg:
-    m.footerError = "Failed to load data — check logs"
-    return m, clearFooterMsgCmd()
+    log.Printf("ERROR [package/view] action: %v", msg.Err)
+    return m, m.footer.Error("Failed to load data — check logs")
 
 case ScanAlreadyRunningMsg:
-    m.footerInfo = "Scan already in progress"
-    return m, clearFooterMsgCmd()
-```
+    return m, m.footer.Warn("Scan already in progress")
 
-#### Rendu dans RenderFooter()
+// 3. Update() offre les messages non traités au composant, qui consomme
+//    l'expiration qui lui est adressée.
+m.footer.Handle(msg)
+return m, nil
 
-```go
-infoLine := theme.EmptyLineBg(width)
-if m.footerError != "" {
-    infoLine = theme.PadWithBg(theme.StatusErrorStyle.Render(m.footerError), width)
-} else if m.footerInfo != "" {
-    infoLine = lipgloss.NewStyle().
-        Foreground(theme.ColorHighlight).
-        Background(theme.ColorBackground).
-        Width(width).
-        Align(lipgloss.Center).
-        Render(m.footerInfo)
+// 4. RenderFooter() rend la ligne, vide comprise — Rule 124 la budgète.
+func (m Model) RenderFooter(width int) string {
+    return theme.EmptyLineBg(width) + "
+" + m.footer.View(width, m.status())
 }
 ```
+
+**L'expiration est identifiée** (`ClearFooterMsg{ID}`) : une minuterie périmée
+n'efface pas le message qui a pris la place du sien. C'est ce qui rend le type
+partageable entre paquets, et ça corrige au passage un défaut que les huit
+implémentations avaient toutes — un message posé à t+2,9 s était effacé à t+3 s
+par la minuterie du précédent.
+
+#### `Status` — ce qui n'a pas de minuterie
+
+Une progression, un hint, un chargement : ce sont des **états**, pas des
+événements. Ils sont dérivés à chaque frame et passés en second argument de
+`View`, jamais posés comme message — une ligne posée quand le premier dépôt
+démarre s'effacerait pendant que le dixième tourne encore.
+
+```go
+func (m Model) status() sharedcomponents.Status {
+    if m.loading && len(m.table.Items()) == 0 {
+        return sharedcomponents.Status{Text: "Loading images...", Spinner: true}
+    }
+    return sharedcomponents.Status{Text: m.actionLine()}
+}
+```
+
+Précédence dans `View` : **erreur → warning → info → status**. Un échec que
+l'utilisateur n'a pas lu prime sur la progression de ce qui tourne encore.
+
+`Spinner: true` préfixe la frame courante, que la vue pousse depuis son handler
+`spinner.TickMsg` par `m.footer.SetSpinnerFrame(m.spinner.View())`. C'est le
+spinner **rendu** et non une frame brute : chaque vue donne déjà à son spinner
+le style `theme.SpinnerStyle()`, et le restyler imbriquerait une séquence dans
+une autre. La mesure passe par `lipgloss.Width`, qui ignore les échappements —
+c'est l'inverse de la règle d'une cellule de table (Rule 122), et la différence
+tient à qui mesure.
+
+#### Le chargement d'une table appartient au footer
+
+**Quand un `datatable` charge, la table reste à l'écran** et le chargement est
+un message d'info avec spinner, dans le footer uniquement. Un corps qui se
+remplace par un spinner perd son en-tête et ses colonnes le temps de chaque
+`ctrl+r`, puis les retrouve : un saut de mise en page à chaque rafraîchissement.
+
+Conséquence obligatoire : le message vide (« No images found ») est **conditionné
+à la fin du chargement**, sinon la table annonce l'absence de ce qu'elle est en
+train de chercher.
+
+`TestNoTableViewRendersALoadingBody` refuse un `theme.SpinnerMessage` dans les
+vues concernées. Les exceptions — un écran d'opération sans table derrière —
+sont **déclarées** dans le test, à la manière de `keymap.DeclaredExceptions()`.
+
+#### Tests — la minuterie dort pour de vrai
+
+`tea.Tick` bloque sa durée entière, et `testutil.Msgs` exécute tout le lot qu'on
+lui donne : un test qui inspecte un `Cmd` portant la minuterie paie les trois
+secondes en entier.
+
+- Pour vérifier qu'un message **disparaît**, construire l'expiration plutôt que
+  d'exécuter le `Cmd` :
+  `feed(t, m, components.ClearFooterMsg{ID: m.footer.ID()})`.
+- Pour un test qui doit drainer le `Cmd` (parce qu'il en cherche un autre
+  dedans), raccourcir la minuterie :
+  `testutil.FastTimers(t, &components.FooterMsgDuration)`.
+
+`FooterMsgDuration` est un `var` exporté pour cette seule raison ; sa valeur de
+production est fixée par `TestAMessageGetsThreeSeconds`.
+
+#### Autres interdits
 
 Format de log obligatoire : `log.Printf("ERROR [package/view] action: %v", err)`
 
-Interdit :
-- ❌ `return m, nil` après avoir set un message footer (pas de timer → message permanent)
-- ❌ `err.Error()` directement dans l'UI
+- ❌ `err.Error()` directement dans l'UI (sauf message de validation déjà écrit
+  pour être lu)
 - ❌ Remplacer la vue par un écran d'erreur (sauf erreurs fatales d'initialisation)
 - ❌ Ignorer une erreur sans `log.Printf`
-- ❌ Messages footer sans limite de durée

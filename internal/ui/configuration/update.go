@@ -26,13 +26,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case saveFailedMsg:
 		log.Printf("ERROR [configuration] save: %v", msg.err)
-		m.footerError = "Failed to save — check logs"
-		return m, clearFooterCmd()
-
-	case clearFooterMsg:
-		m.footerError = ""
-		m.footerInfo = ""
-		return m, nil
+		return m, m.footer.Error("Failed to save — check logs")
 
 	case tea.KeyMsg:
 		if m.confirmModal != nil {
@@ -42,6 +36,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.handleKey(msg)
 	}
+
+	m.footer.Handle(msg)
 	return m, nil
 }
 
@@ -136,8 +132,7 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 
 	if err := f.Apply(m.config, m.input.Value()); err != nil {
 		log.Printf("ERROR [configuration] %s: %v", f.Label, err)
-		m.footerError = err.Error()
-		return m, clearFooterCmd(), false
+		return m, m.footer.Error(err.Error()), false
 	}
 
 	if isGitLabURL && m.config.GitLab.URL != before {
@@ -145,8 +140,10 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 		// view holds no session state, and "you will need to sign in again" is
 		// true either way. Warning beats forbidding — the same call as for the
 		// secret backend.
-		m.footerInfo = "GitLab URL changed — sign in again with :gla"
-		return m, tea.Batch(m.persist(saved{gitlabURL: true}), clearFooterCmd()), true
+		return m, tea.Batch(
+			m.persist(saved{gitlabURL: true}),
+			m.footer.Info("GitLab URL changed — sign in again with :gla"),
+		), true
 	}
 	return m, m.persist(saved{}), true
 }
@@ -179,8 +176,8 @@ func (m Model) toggleField() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.isDisabled(f) {
-		m.footerInfo = "Not supported in Trivy client-server mode"
-		return m, clearFooterCmd()
+		// A warning: nothing failed, the setting simply has no meaning here.
+		return m, m.footer.Warn("Not supported in Trivy client-server mode")
 	}
 	f.Toggle(m.config)
 	return m, m.persist(saved{})
@@ -231,8 +228,7 @@ func (m Model) handleBackendConfirmed() (tea.Model, tea.Cmd) {
 
 	if err := config.Save(m.config); err != nil {
 		log.Printf("ERROR [configuration] save context %s: %v", m.context, err)
-		m.footerError = "Failed to save — check logs"
-		return m, clearFooterCmd()
+		return m, m.footer.Error("Failed to save — check logs")
 	}
 	cfg := m.config
 	return m, func() tea.Msg {

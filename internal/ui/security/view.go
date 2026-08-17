@@ -40,21 +40,16 @@ func (m Model) renderResultsView() string {
 		return "No results"
 	}
 
-	var b strings.Builder
-
 	// Warnings replace the table and hide the tab bar (no partial results to browse)
+	//
+	// The status message used to be repeated here, under the panel. The footer
+	// already carries it, and a message printed twice is a message the two
+	// copies can disagree about (Rule 134's reasoning, one layer down).
 	if len(m.result.Errors) > 0 {
-		b.WriteString(m.renderWarningsPanel())
-		if m.statusMessage != "" {
-			b.WriteString("\n")
-			b.WriteString(theme.StatusOKStyle.Render(m.statusMessage))
-		}
-		return b.String()
+		return m.renderWarningsPanel()
 	}
 
-	b.WriteString(m.findingsTable.View())
-
-	return b.String()
+	return m.findingsTable.View()
 }
 
 // GetFooterHeight returns the footer height for this view (Rule 124).
@@ -132,10 +127,7 @@ func (m Model) showsResultTabs() bool {
 // renderInfoLine is the footer's message line, always rendered even when empty
 // (Rule 124). The message expires on its own after three seconds (Rule 128).
 func (m Model) renderInfoLine(width int) string {
-	if m.statusMessage == "" {
-		return theme.EmptyLineBg(width)
-	}
-	return theme.PadWithBg(theme.StatusOKStyle.Render(m.statusMessage), width)
+	return m.footer.View(width, sharedcomponents.Status{})
 }
 
 // renderTabs renders the tab bar

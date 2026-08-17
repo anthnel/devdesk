@@ -67,14 +67,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case testCompleteMsg:
 		return m.handleTestComplete(msg)
 
-	case clearFooterMsg:
-		m.footerError = ""
-		m.footerInfo = ""
-		return m, nil
-
 	// Ports sub-model messages. The confirm-modal answers are here because the
 	// kill asks before it acts (§3.26), and the modal is the ports tab's.
-	case portsTickMsg, portsDataMsg, portsKillResultMsg, portsClearFooterMsg,
+	case portsTickMsg, portsDataMsg, portsKillResultMsg,
 		components.ConfirmModalYesMsg, components.ConfirmModalNoMsg:
 		var cmd tea.Cmd
 		m.portsModel, cmd = m.portsModel.update(msg)
@@ -89,6 +84,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
+
+	// Each tab holds its own footer, so an expiry has to be offered to all
+	// three: the timer fires wherever the user has since navigated.
+	m.footer.Handle(msg)
+	m.portsModel.footer.Handle(msg)
+	m.topologyModel.footer.Handle(msg)
 	return m, nil
 }
 

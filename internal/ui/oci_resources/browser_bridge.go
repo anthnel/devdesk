@@ -14,8 +14,7 @@ import (
 // openMultiRegistryBrowser opens the multi-registry browser (triggered by 'b' on Images tab).
 func (m Model) openMultiRegistryBrowser() (tea.Model, tea.Cmd) {
 	if len(m.registries) == 0 {
-		m.errorMsg = "No registries configured — add one in the Registries tab"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn("No registries configured — add one in the Registries tab")
 	}
 	// Config plus cache, read here and now: no network, no waiting, no state
 	// that ignores esc (D13).
@@ -78,19 +77,16 @@ func (m Model) handleRegistryPullComplete(msg RegistryPullCompleteMsg) (tea.Mode
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] pull %s: %v", msg.ImageName, msg.Err)
 		m.registryBrowser.SetOperationError("")
-		m.errorMsg = "Pull failed — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Pull failed — check logs")
 	}
 	m.registryBrowser.SetOperationSuccess()
-	m.infoMsg = "Image pulled: " + msg.ImageName
-	return m, tea.Batch(fetchImages(), clearInfoMsgCmd())
+	return m, tea.Batch(fetchImages(), m.footer.Info("Image pulled: "+msg.ImageName))
 }
 
 // handleRegistryTagDirectScan starts a direct remote Trivy scan without pulling the image.
 func (m Model) handleRegistryTagDirectScan(msg RegistryTagDirectScanMsg) (tea.Model, tea.Cmd) {
 	if m.scanningImages[msg.ImageName] {
-		m.infoMsg = "Scan already in progress"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn("Scan already in progress")
 	}
 	job := imageScanJob{Name: msg.ImageName, Target: msg.ImageName}
 	return m, batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config.Scan))
@@ -122,9 +118,8 @@ func (m Model) handleRegistryGroupDetected(msg RegistryGroupDetectedMsg) (tea.Mo
 		// The cache keeps what was last known rather than being emptied by an
 		// unreachable manager, so the column keeps showing it — stale, and
 		// visibly so.
-		m.errorMsg = "Group refresh failed — check logs"
 		m.updateRegistryTable()
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Group refresh failed — check logs")
 	}
 	if msg.Slug != "" {
 		m.groupCache[msg.Slug] = cache.RegistryGroupEntry{

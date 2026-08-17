@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	dockerpkg "github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -132,8 +133,8 @@ type TopologyModel struct {
 	viewport viewport.Model
 	spinner  spinner.Model
 
-	footerError string
-	footerInfo  string
+	// footer is this tab's own message line (see PortsModel.footer).
+	footer components.FooterMessage
 }
 
 func newTopologyModel(image string) *TopologyModel {
@@ -179,6 +180,9 @@ func (tm *TopologyModel) update(msg tea.Msg) (*TopologyModel, tea.Cmd) {
 		if tm.state == topoStateLoading {
 			var cmd tea.Cmd
 			tm.spinner, cmd = tm.spinner.Update(msg)
+			// The load is reported in the footer, so the frame has to reach it
+			// — a spinner stuck on frame zero reads as a hang.
+			tm.footer.SetSpinnerFrame(tm.spinner.View())
 			return tm, cmd
 		}
 		return tm, nil
@@ -373,15 +377,23 @@ func (tm *TopologyModel) buildViewportContent() string {
 	return strings.Join(lines, "\n")
 }
 
+// statusLine is what the Topology tab derives on every frame: the load, which
+// is reported in the footer with a spinner rather than replacing the pane.
+func (tm *TopologyModel) statusLine() components.Status {
+	if tm.state == topoStateLoading {
+		return components.Status{Text: "Loading network data...", Spinner: true}
+	}
+	return components.Status{}
+}
+
 func (tm *TopologyModel) view() string {
 	w := max(tm.width-2, 20)
 
+	// The load says so in the footer, with a spinner (statusLine), so the pane
+	// stays blank rather than carrying a second copy of the same message.
 	if tm.state == topoStateLoading {
-		spinnerLine := theme.SpinnerMessage(tm.spinner.View(), "Loading network data...")
 		lines := make([]string, 0, tm.height)
-		lines = append(lines, theme.EmptyLineBg(w))
-		lines = append(lines, theme.PadWithBg(theme.Bg("  ")+spinnerLine, w))
-		for i := 2; i < tm.height; i++ {
+		for range tm.height {
 			lines = append(lines, theme.EmptyLineBg(w))
 		}
 		return strings.Join(lines, "\n")

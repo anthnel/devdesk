@@ -473,7 +473,7 @@ func TestNetworkInspectReportsAFailure(t *testing.T) {
 
 	m = feed(t, m, NetworkInspectLoadedMsg{NetworkID: "net11111", Err: errTest})
 
-	if m.errorMsg == "" && m.networkInspectForm != nil {
+	if !m.footer.IsSet() && m.networkInspectForm != nil {
 		t.Error("a failed inspect reported nothing")
 	}
 }

@@ -2,7 +2,6 @@ package ociresources
 
 import (
 	"maps"
-	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 
@@ -10,16 +9,6 @@ import (
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
-
-// clearInfoMsgMsg is sent after a delay to clear the transient footer info message.
-type clearInfoMsgMsg struct{}
-
-// clearInfoMsgCmd returns a command that clears the footer info message after 3 seconds.
-func clearInfoMsgCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return clearInfoMsgMsg{}
-	})
-}
 
 // Init initializes the OCI resources view
 func (m Model) Init() tea.Cmd {
@@ -48,10 +37,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ImageScanStartingMsg:
 		return m.handleImageScanStarting(msg)
 
-	case clearInfoMsgMsg:
-		m.infoMsg = ""
-		m.errorMsg = ""
-
 	case ImageScanFinishedMsg:
 		return m.handleImageScanFinished(msg)
 
@@ -68,6 +53,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			m.spinnerFrameIdx = (m.spinnerFrameIdx + 1) % len(spinner.Dot.Frames)
+			// A tab's load is reported in the footer, so the frame has to reach
+			// it — a spinner stuck on frame zero reads as a hang.
+			m.footer.SetSpinnerFrame(m.spinner.View())
 			cmds = append(cmds, cmd)
 		}
 		if m.registryBrowser != nil {
@@ -206,6 +194,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case RegistryTagDirectScanMsg:
 		return m.handleRegistryTagDirectScan(msg)
+	}
+
+	if m.footer.Handle(msg) {
+		return m, nil
 	}
 
 	// Delegate to active form or table
@@ -363,10 +355,10 @@ func (m Model) switchTab(idx int) (tea.Model, tea.Cmd) {
 		// The registries come from config, so the table can be filled now
 		// rather than waiting on the login check — otherwise the tab opens
 		// empty and only fills once docker answers.
-		m.errorMsg = ""
+		m.footer.Clear()
 		m.updateRegistryTable()
 		return m, m.registryLoginStatusCmd()
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	return m, nil
 }

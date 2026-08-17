@@ -66,7 +66,7 @@ func TestAFailedImageRemovalStillLiftsTheMarker(t *testing.T) {
 	if m.imageTable.IsBusy(id) {
 		t.Error("the marker survived a failed removal: the row spins for good")
 	}
-	if m.errorMsg == "" {
+	if !m.footer.IsSet() {
 		t.Error("a failed removal reported nothing")
 	}
 }
@@ -81,8 +81,8 @@ func TestASecondRemovalOfTheSameImageIsRefused(t *testing.T) {
 	if m.confirmModal != nil {
 		t.Error("a second removal opened its confirmation while the first was running")
 	}
-	if m.infoMsg != busyMessage {
-		t.Errorf("infoMsg = %q, want the busy message", m.infoMsg)
+	if m.footer.Text() != busyMessage {
+		t.Errorf("footer = %q, want the busy message", m.footer.Text())
 	}
 }
 

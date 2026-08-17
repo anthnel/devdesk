@@ -78,10 +78,9 @@ func (m Model) handleDeleteConfirmed(permanentlyRemove bool) (tea.Model, tea.Cmd
 func (m Model) handleDeleteComplete(msg DeleteCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
 		log.Printf("ERROR [explorer] delete: %v", msg.Error)
-		m.footerError = "Delete failed — check logs"
-		return m, clearFooterMsgCmd()
+		return m, m.footer.Error("Delete failed — check logs")
 	}
-	m.footerError = ""
+	m.footer.Clear()
 
 	// Remove deleted node from local tree and stay in current group
 	if msg.DeletedNode != nil {

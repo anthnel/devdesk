@@ -1,20 +1,15 @@
 package configuration
 
 import (
-	"log"
-	"time"
-
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"log"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
-
-// footerMsgDuration is how long a footer message stays up (Rule 128).
-const footerMsgDuration = 3 * time.Second
 
 // ConfigSavedMsg tells the router the context's configuration changed on disk.
 //
@@ -29,12 +24,6 @@ type ConfigSavedMsg struct {
 	// credentials.Selection, the other invalidates a live GitLab session.
 	BackendChanged   bool
 	GitLabURLChanged bool
-}
-
-type clearFooterMsg struct{}
-
-func clearFooterCmd() tea.Cmd {
-	return tea.Tick(footerMsgDuration, func(time.Time) tea.Msg { return clearFooterMsg{} })
 }
 
 // Model is the configuration view: every scalar setting in the current context,
@@ -64,8 +53,8 @@ type Model struct {
 	backendOnFocus string
 	confirmModal   *sharedcomponents.ConfirmModal
 
-	footerError string
-	footerInfo  string
+	// footer is the one line of transient state below the tab bar (Rule 128).
+	footer sharedcomponents.FooterMessage
 
 	width  int
 	height int

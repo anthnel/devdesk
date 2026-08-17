@@ -2,8 +2,8 @@ package viewer
 
 import (
 	"log"
-	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -15,7 +15,7 @@ func (m Model) Init() tea.Cmd {
 	if m.source == nil {
 		return nil
 	}
-	return loadCmd(m.source)
+	return tea.Batch(loadCmd(m.source), m.spinner.Tick)
 }
 
 // loadCmd fetches a source's content. Every read the viewer does goes through
@@ -30,12 +30,6 @@ func loadCmd(source viewer.Source) tea.Cmd {
 			Err:     err,
 		}
 	}
-}
-
-// clearFooterCmd drops a footer message after the three seconds every one of
-// them gets (Rule 128).
-func clearFooterCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg { return clearFooterMsg{} })
 }
 
 // InEditMode keeps command mode out while the search field has the keyboard.
@@ -62,11 +56,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PagerExitMsg:
 		return m.handlePagerExit(msg)
 
-	case clearFooterMsg:
-		m.footerError = ""
-		m.footerInfo = ""
-		return m, nil
+	case spinner.TickMsg:
+		// The chain stops when nothing is loading, and Init/reload restart it.
+		if !m.loading {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		m.footer.SetSpinnerFrame(m.spinner.View())
+		return m, cmd
 	}
+
+	m.footer.Handle(msg)
 	return m, nil
 }
 
@@ -89,15 +90,10 @@ func (m Model) handleDocumentLoaded(msg DocumentLoadedMsg) (tea.Model, tea.Cmd) 
 	m.loading = false
 	if msg.Err != nil {
 		log.Printf("ERROR [viewer] load %s: %v", msg.Name, msg.Err)
-		m.footerError = loadErrorMessage(msg.Err)
-		return m, clearFooterCmd()
+		return m, m.footer.Error(loadErrorMessage(msg.Err))
 	}
-	m.footerError = ""
-	m.applyDocument(viewer.Open(msg.Name, msg.Kind, msg.Content))
-	if m.footerInfo != "" {
-		return m, clearFooterCmd()
-	}
-	return m, nil
+	m.footer.Clear()
+	return m, m.applyDocument(viewer.Open(msg.Name, msg.Kind, msg.Content))
 }
 
 // loadErrorMessage names the two refusals and hides the rest behind the log
@@ -172,7 +168,7 @@ func (m Model) reload() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.loading = true
-	return m, loadCmd(m.source)
+	return m, tea.Batch(loadCmd(m.source), m.spinner.Tick)
 }
 
 func (m Model) handleTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

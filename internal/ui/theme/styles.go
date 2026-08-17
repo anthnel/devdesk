@@ -79,6 +79,32 @@ var (
 				Bold(true)
 )
 
+// Footer message styles, one per level (Rule 128).
+//
+// Info is not bold, the other two are: the hierarchy runs through weight as
+// well as hue, and a neutral notice rendered bold would read as an alert again
+// — which is what the yellow ColorHighlight line did before.
+//
+// Nothing outside components.FooterMessage should use these. They exist as
+// exported styles so a theme change refreshes them like every other style, not
+// so a view can render its own footer line.
+var (
+	FooterInfoStyle = lipgloss.NewStyle().
+			Background(ColorBackground).
+			Foreground(ColorFooterInfo).
+			Bold(false)
+
+	FooterWarnStyle = lipgloss.NewStyle().
+			Background(ColorBackground).
+			Foreground(ColorFooterWarn).
+			Bold(true)
+
+	FooterErrorStyle = lipgloss.NewStyle().
+				Background(ColorBackground).
+				Foreground(ColorFooterError).
+				Bold(true)
+)
+
 // Component styles
 var (
 	KeyStyle = lipgloss.NewStyle().
@@ -544,6 +570,21 @@ func RefreshStyles() {
 	StatusWarningStyle = lipgloss.NewStyle().
 		Background(ColorBackground).
 		Foreground(ColorWarn).
+		Bold(true)
+
+	FooterInfoStyle = lipgloss.NewStyle().
+		Background(ColorBackground).
+		Foreground(ColorFooterInfo).
+		Bold(false)
+
+	FooterWarnStyle = lipgloss.NewStyle().
+		Background(ColorBackground).
+		Foreground(ColorFooterWarn).
+		Bold(true)
+
+	FooterErrorStyle = lipgloss.NewStyle().
+		Background(ColorBackground).
+		Foreground(ColorFooterError).
 		Bold(true)
 
 	KeyStyle = lipgloss.NewStyle().

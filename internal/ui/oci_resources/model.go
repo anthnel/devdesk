@@ -80,8 +80,8 @@ type Model struct {
 	// a footer line of its own instead.
 	pruning string
 	// Shared state
-	errorMsg      string
-	infoMsg       string
+	// footer is the one line of transient state below the tab bar (Rule 128).
+	footer        sharedcomponents.FooterMessage
 	confirmModal  *sharedcomponents.ConfirmModal
 	pendingAction string
 	// scanAllModal carries A's purge checkbox. Separate from confirmModal

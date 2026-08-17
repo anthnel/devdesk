@@ -16,9 +16,29 @@ package testutil
 import (
 	"reflect"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// FastTimers shortens a package-level timer for the length of the test.
+//
+// Msgs and MsgOf run the commands they are handed, and a footer message's
+// expiry is a tea.Tick that really sleeps for the three seconds Rule 128 gives
+// it (components.FooterMsgDuration). A view batches that timer with whatever
+// else it returns, so one assertion on such a command costs the suite three
+// full seconds.
+//
+// It takes a pointer rather than importing the duration it shortens: this
+// package is imported by components' own tests, and reaching back into
+// components from here would be an import cycle.
+//
+//	testutil.FastTimers(t, &components.FooterMsgDuration)
+func FastTimers(t interface{ Cleanup(func()) }, d *time.Duration) {
+	restore := *d
+	*d = time.Millisecond
+	t.Cleanup(func() { *d = restore })
+}
 
 // namedKeys maps the key names used throughout the views (they all dispatch on
 // tea.KeyMsg.String()) onto the key types that render back to those names.

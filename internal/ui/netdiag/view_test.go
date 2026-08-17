@@ -309,12 +309,12 @@ func TestFooterHeightMatchesWhatRenderFooterEmits(t *testing.T) {
 		{"results", resultsModel},
 		{"footer error", func(t *testing.T) *Model {
 			m := newTestModel(t)
-			m.footerError = "Invalid target"
+			m.footer.Error("Invalid target")
 			return m
 		}},
 		{"footer info", func(t *testing.T) *Model {
 			m := newTestModel(t)
-			m.footerInfo = "Nothing to do"
+			m.footer.Info("Nothing to do")
 			return m
 		}},
 		{"ports", func(t *testing.T) *Model { return feed(t, newTestModel(t), testutil.Key("tab")) }},
@@ -341,7 +341,7 @@ func TestFooterHeightMatchesWhatRenderFooterEmits(t *testing.T) {
 
 func TestFooterShowsTheTabsAndTheActiveMessage(t *testing.T) {
 	m := newTestModel(t)
-	m.footerError = "Invalid target"
+	m.footer.Error("Invalid target")
 
 	footer := m.RenderFooter(120)
 	for _, tab := range []string{"Diagnostics", "Ports", "Topology"} {
@@ -357,7 +357,7 @@ func TestFooterShowsTheTabsAndTheActiveMessage(t *testing.T) {
 // Each tab owns its own footer message; switching tabs must not carry one over.
 func TestFooterMessageIsPerTab(t *testing.T) {
 	m := newTestModel(t)
-	m.footerError = "Invalid target"
+	m.footer.Error("Invalid target")
 
 	m = feed(t, m, testutil.Key("tab")) // ports
 

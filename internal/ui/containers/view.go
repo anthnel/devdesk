@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -50,19 +51,17 @@ func (m Model) RenderFooter(width int) string {
 	if bar := m.containerTable.FilterBar(); bar.IsVisible() {
 		parts = append(parts, bar.View())
 	}
-	infoLine := theme.EmptyLineBg(width)
-	switch {
-	case m.errorMsg != "":
-		infoLine = theme.PadWithBg(theme.StatusErrorStyle.Render(m.errorMsg), width)
-	case m.actionLine() != "":
-		infoLine = theme.PadWithBg(theme.Bg("  ")+
-			lipgloss.NewStyle().
-				Background(theme.ColorBackground).
-				Foreground(theme.ColorHighlight).
-				Render(m.actionLine()), width)
-	}
-	parts = append(parts, theme.EmptyLineBg(width), infoLine)
+	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, m.status()))
 	return strings.Join(parts, "\n")
+}
+
+// status is what the view derives on every frame: the load, then whatever
+// action is running. Neither has a timer, and both are displaced by a message.
+func (m Model) status() sharedcomponents.Status {
+	if m.loading && len(m.containerTable.Items()) == 0 {
+		return sharedcomponents.Status{Text: "Loading containers...", Spinner: true}
+	}
+	return sharedcomponents.Status{Text: m.actionLine()}
 }
 
 // actionLine names what is running, in words. The spinner on the row says that
@@ -161,21 +160,22 @@ func (m Model) View() string {
 	return m.renderNormalView()
 }
 
-// renderNormalView renders the main container list view
+// renderNormalView renders the main container list view.
+//
+// The load says so in the footer, with a spinner, and the table stays on
+// screen: a body that swapped itself for a spinner lost its header and its
+// columns for the length of every ctrl+r, then got them back — a jump in the
+// layout on every refresh.
+//
+// "No containers found" is therefore conditional on the load being over, or the
+// table would announce the absence of what it is in the middle of fetching.
 func (m Model) renderNormalView() string {
-	var sections []string
-
-	// Loading or table
-	if m.loading && len(m.containerTable.Items()) == 0 {
-		sections = append(sections, theme.SpinnerMessage(m.spinner.View(), "Loading containers..."))
-	} else if len(m.containerTable.Visible()) == 0 && !m.containerTable.FilterBar().IsVisible() {
-		sections = append(sections, theme.DimStyle.Render("No containers found"))
-	} else {
-		// Always render the table when a filter is active so the filter bar stays at the bottom
-		sections = append(sections, m.containerTable.View())
+	loading := m.loading && len(m.containerTable.Items()) == 0
+	if !loading && len(m.containerTable.Visible()) == 0 && !m.containerTable.FilterBar().IsVisible() {
+		return theme.DimStyle.Render("No containers found")
 	}
-
-	return strings.Join(sections, "\n")
+	// Always render the table when a filter is active so the filter bar stays at the bottom
+	return m.containerTable.View()
 }
 
 // GetHelpContent returns help content for the containers view (Rule 114)

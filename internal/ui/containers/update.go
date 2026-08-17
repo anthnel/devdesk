@@ -38,10 +38,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 
-	case clearErrorMsg:
-		m.errorMsg = ""
-		return m, nil
-
 	case spinner.TickMsg:
 		// The table's own frame advances whenever anything is running on a row,
 		// which is not the same condition as the view's spinner: the list is
@@ -50,11 +46,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.containerTable.AdvanceSpinner()
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
+			m.footer.SetSpinnerFrame(m.spinner.View())
 			return m, cmd
 		}
 		if m.loading {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
+			// The load is reported in the footer, so the frame has to reach it —
+			// a spinner stuck on frame zero reads as a hang.
+			m.footer.SetSpinnerFrame(m.spinner.View())
 			return m, cmd
 		}
 
@@ -96,14 +96,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ShellWindowOpenedMsg:
 		if msg.Err != nil {
 			log.Printf("ERROR [containers] open shell window: %v", msg.Err)
-			m.errorMsg = "Failed to open terminal — check logs"
-			return m, clearErrorCmd()
+			return m, m.footer.Error("Failed to open terminal — check logs")
 		}
 		return m, nil
 	}
 
 	// Every message the table reacts to is a key, and keys are routed by
 	// handleKeyMsg above, so nothing falls through to it here.
+	m.footer.Handle(msg)
 	return m, nil
 }
 
@@ -188,17 +188,6 @@ func (m *Model) getSelectedContainer() *docker.Container {
 	return &c
 }
 
-// clearErrorMsg wipes the footer message (Rule 128). The view had no timer at
-// all: errorMsg was set and left until the next success happened to clear it,
-// so a failure could sit under an unrelated screen for minutes.
-type clearErrorMsg struct{}
-
-// clearErrorCmd is the three-second timer Rule 128 requires after every footer
-// message.
-func clearErrorCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg { return clearErrorMsg{} })
-}
-
 // busyMessage is what every action says when one is already running on that
 // container. One message rather than five, because the user's next move is the
 // same whichever it is: wait.
@@ -218,8 +207,7 @@ const busyMessage = "Already busy — an action is running on this container"
 // cannot disagree.
 func (m Model) startAction(c *docker.Container, label string, cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if m.containerTable.IsBusy(c.ID) {
-		m.errorMsg = busyMessage
-		return m, clearErrorCmd()
+		return m, m.footer.Warn(busyMessage)
 	}
 	m.containerTable.MarkBusy(c.ID, label+" "+c.Name)
 	return m, cmd
@@ -238,8 +226,7 @@ func (m Model) confirmStopOrRestart() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.containerTable.IsBusy(c.ID) {
-		m.errorMsg = busyMessage
-		return m, clearErrorCmd()
+		return m, m.footer.Warn(busyMessage)
 	}
 	m.choiceModal = sharedcomponents.NewChoiceModal(
 		"Container",
@@ -370,8 +357,7 @@ func (m Model) shellSelectedContainerInNewWindow() (tea.Model, tea.Cmd) {
 
 	bin, args, ok := uiterminal.ForCmd(innerArgs)
 	if !ok {
-		m.errorMsg = "Terminal not detected — use [s] for in-place shell"
-		return m, clearErrorCmd()
+		return m, m.footer.Warn("Terminal not detected — use [s] for in-place shell")
 	}
 
 	return m, func() tea.Msg {
@@ -411,8 +397,7 @@ func (m Model) inspectSelectedContainer() (tea.Model, tea.Cmd) {
 	}
 	if !docker.IsContainerID(c.ID) {
 		log.Printf("ERROR [containers] inspect: rejected malformed container ID %q", c.ID)
-		m.errorMsg = "Cannot inspect — invalid container ID"
-		return m, clearErrorCmd()
+		return m, m.footer.Error("Cannot inspect — invalid container ID")
 	}
 	source := inspectSource{ID: c.ID, Container: c.Name}
 	return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
@@ -442,10 +427,9 @@ func (m Model) handlePruneComplete(msg ContainerPruneMsg) (tea.Model, tea.Cmd) {
 	m.pruning = false
 	if msg.Err != nil {
 		log.Printf("ERROR [containers] prune: %v", msg.Err)
-		m.errorMsg = "Prune failed — check logs"
-		return m, clearErrorCmd()
+		return m, m.footer.Error("Prune failed — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	return m, fetchContainers(m.showAll)
 }
 
@@ -454,10 +438,9 @@ func (m Model) handleContainersList(msg ContainersListMsg) (tea.Model, tea.Cmd) 
 	m.loading = false
 	if msg.Err != nil {
 		log.Printf("ERROR [containers] list: %v", msg.Err)
-		m.errorMsg = "Failed to load containers — check logs"
-		return m, clearErrorCmd()
+		return m, m.footer.Error("Failed to load containers — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	m.containerTable.SetItems(msg.Containers)
 	return m, nil
 }
@@ -501,10 +484,9 @@ func (m Model) handleContainerAction(msg ContainerActionMsg) (tea.Model, tea.Cmd
 	m.containerTable.ClearBusy(msg.ID)
 	if msg.Err != nil {
 		log.Printf("ERROR [containers] %s %s: %v", msg.Action, msg.Name, msg.Err)
-		m.errorMsg = "Action failed — check logs"
-		return m, clearErrorCmd()
+		return m, m.footer.Error("Action failed — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	return m, fetchContainers(m.showAll)
 }
 

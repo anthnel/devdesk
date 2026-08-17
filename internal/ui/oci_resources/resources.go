@@ -18,8 +18,7 @@ func (m Model) handleNetworkInspectLoaded(msg NetworkInspectLoadedMsg) (tea.Mode
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] network inspect %s: %v", msg.NetworkID, msg.Err)
 		m.networkInspectForm = nil
-		m.errorMsg = "Failed to inspect network — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Failed to inspect network — check logs")
 	}
 	m.networkInspectForm.SetContainers(msg.Containers)
 	return m, nil
@@ -72,8 +71,7 @@ func (m Model) deleteSelectedNetwork() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.networkTable.IsBusy(net.ID) {
-		m.infoMsg = busyMessage
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn(busyMessage)
 	}
 	m.pendingAction = "delete-network"
 	m.confirmModal = sharedcomponents.NewConfirmModal("Remove Network", fmt.Sprintf("Remove network '%s'?", net.Name))
@@ -87,8 +85,7 @@ func (m Model) deleteSelectedVolume() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.volumeTable.IsBusy(vol.Name) {
-		m.infoMsg = busyMessage
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn(busyMessage)
 	}
 	m.pendingAction = "delete-volume"
 	m.confirmModal = sharedcomponents.NewConfirmModal("Remove Volume", fmt.Sprintf("Remove volume '%s'?", vol.Name))

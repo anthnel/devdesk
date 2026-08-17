@@ -97,15 +97,23 @@ func (b *RegistryBrowser) renderInputField(label, value string, fieldIdx int) st
 	return labelStr + "\n  " + value
 }
 
+// viewTags renders the tag table. The search says so in the footer, with a
+// spinner (LoadingLabel), so the table keeps its place here and "No tags found"
+// waits until there is nothing left in flight to find them.
 func (b *RegistryBrowser) viewTags() string {
-	if len(b.tagTable.Visible()) == 0 {
-		if b.pendingSearches > 0 {
-			return theme.EmptyLineBg(b.width) + "\n" +
-				theme.SpinnerMessage(b.spinner.View(), "Searching registries...")
-		}
+	if len(b.tagTable.Visible()) == 0 && b.pendingSearches == 0 {
 		return theme.DimStyle.Render("  No tags found")
 	}
 	return b.tagTable.View()
+}
+
+// LoadingLabel names what the browser is fetching, for the OCI view's footer.
+// The second result is false when nothing is in flight.
+func (b *RegistryBrowser) LoadingLabel() (string, bool) {
+	if b.state == browserStateTags && b.pendingSearches > 0 {
+		return "Searching registries...", true
+	}
+	return "", false
 }
 
 // FilterIsVisible returns true when the tag filter bar should be shown in the footer.

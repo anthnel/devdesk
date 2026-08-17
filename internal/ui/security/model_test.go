@@ -193,8 +193,8 @@ func TestOpeningAReference(t *testing.T) {
 
 		m = feed(t, m, testutil.Key(keymap.Web))
 
-		if m.statusMessage != "No references available" {
-			t.Errorf("statusMessage = %q, want the view to say there is nothing to open", m.statusMessage)
+		if m.footer.Text() != "No references available" {
+			t.Errorf("statusMessage = %q, want the view to say there is nothing to open", m.footer.Text())
 		}
 	})
 }
@@ -311,16 +311,16 @@ func TestIgnoreResultIsReported(t *testing.T) {
 	finding := findingFixtures()[2]
 
 	ok := feed(t, scannedModel(t), SecretIgnoredMsg{Finding: finding})
-	if !strings.Contains(ok.statusMessage, "config/prod.env") {
-		t.Errorf("statusMessage = %q, want it to name the file", ok.statusMessage)
+	if !strings.Contains(ok.footer.Text(), "config/prod.env") {
+		t.Errorf("statusMessage = %q, want it to name the file", ok.footer.Text())
 	}
 
 	failed := feed(t, scannedModel(t), SecretIgnoredMsg{Finding: finding, Error: errors.New("permission denied")})
-	if failed.statusMessage == "" {
+	if !failed.footer.IsSet() {
 		t.Error("a failed ignore reported nothing")
 	}
-	if strings.Contains(failed.statusMessage, "permission denied") {
-		t.Errorf("statusMessage = %q; Rule 128 keeps the raw error out of the UI", failed.statusMessage)
+	if strings.Contains(failed.footer.Text(), "permission denied") {
+		t.Errorf("statusMessage = %q; Rule 128 keeps the raw error out of the UI", failed.footer.Text())
 	}
 }
 
@@ -349,15 +349,16 @@ func TestFooterMessagesExpire(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m, cmd := tt.open(t)
 
-			if m.statusMessage == "" {
+			if !m.footer.IsSet() {
 				t.Fatal("nothing was reported")
 			}
 			if cmd == nil {
 				t.Fatal("no clear timer was scheduled")
 			}
 
-			if cleared := feed(t, m, clearStatusMsg{}); cleared.statusMessage != "" {
-				t.Errorf("statusMessage = %q after the timer fired", cleared.statusMessage)
+			expiry := sharedcomponents.ClearFooterMsg{ID: m.footer.ID()}
+			if cleared := feed(t, m, expiry); cleared.footer.IsSet() {
+				t.Errorf("footer = %q after the timer fired", cleared.footer.Text())
 			}
 		})
 	}
@@ -527,9 +528,9 @@ func TestIgnoringIsOfferedForGitleaksFindingsOnly(t *testing.T) {
 	if m.confirmModal != nil {
 		t.Error("'i' on a trivy secret asked to write a fingerprint it does not have")
 	}
-	if !strings.Contains(m.statusMessage, "Gitleaks") || cmd == nil {
+	if !strings.Contains(m.footer.Text(), "Gitleaks") || cmd == nil {
 		t.Errorf("statusMessage = %q with cmd %v, want a reason and a timer (Rule 128)",
-			m.statusMessage, cmd != nil)
+			m.footer.Text(), cmd != nil)
 	}
 }
 

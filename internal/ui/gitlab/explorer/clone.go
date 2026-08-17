@@ -56,8 +56,7 @@ func (m Model) handleSelectionToggle() (tea.Model, tea.Cmd) {
 // handleSelectionConfirm asks the app for a destination directory.
 func (m Model) handleSelectionConfirm() (tea.Model, tea.Cmd) {
 	if m.selection.isEmpty() {
-		m.footerInfo = "Nothing selected — press space to tick a group or a project"
-		return m, clearFooterMsgCmd()
+		return m, m.footer.Warn("Nothing selected — press space to tick a group or a project")
 	}
 	return m, func() tea.Msg { return CloneSelectionRequestMsg{} }
 }
@@ -79,8 +78,9 @@ func (m Model) handleCloneDestinationSelected(msg CloneDestinationSelectedMsg) (
 		// which is a bug rather than a user action — say so instead of opening
 		// an empty list.
 		log.Printf("ERROR [explorer] clone: the selection resolved to no nodes")
-		m.footerError = "Nothing to clone — check logs"
-		return m.handleSelectionCancel()
+		cancelled, _ := m.handleSelectionCancel()
+		m = cancelled.(Model)
+		return m, m.footer.Error("Nothing to clone — check logs")
 	}
 
 	run := startCloneRun(cloneSpec{
@@ -139,8 +139,7 @@ func (m Model) handleCloneRunFinished() (tea.Model, tea.Cmd) {
 	// Decision 13 keeps only what workspaces can show, and a failed clone wrote
 	// nothing. Naming the failures now is the only record there will be.
 	if failed := m.clone.failures(); len(failed) > 0 {
-		m.footerError = failureSummary(failed)
-		return m, clearFooterMsgCmd()
+		return m, m.footer.Error(failureSummary(failed))
 	}
 	return m, nil
 }

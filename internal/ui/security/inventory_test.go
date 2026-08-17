@@ -125,8 +125,8 @@ func TestEnterOnAPurgedRowSaysThereIsNothingToOpenYet(t *testing.T) {
 	if m.state != StateInventory {
 		t.Errorf("state = %v, want to stay on the inventory", m.state)
 	}
-	if !strings.Contains(m.statusMessage, "No result yet") {
-		t.Errorf("statusMessage = %q, want it to say the result is not there yet", m.statusMessage)
+	if !strings.Contains(m.footer.Text(), "No result yet") {
+		t.Errorf("statusMessage = %q, want it to say the result is not there yet", m.footer.Text())
 	}
 	if cmd == nil {
 		t.Error("the message was set without a timer to clear it (Rule 128)")
@@ -140,9 +140,9 @@ func TestRowActionsOnAnEmptyInventoryDoNothing(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			m, cmd := step(t, inventoryModel(t), testutil.Key(key))
 
-			if m.state != StateInventory || m.statusMessage != "" || cmd != nil {
+			if m.state != StateInventory || m.footer.IsSet() || cmd != nil {
 				t.Errorf("%q on an empty inventory produced state %v, message %q, cmd %v",
-					key, m.state, m.statusMessage, cmd != nil)
+					key, m.state, m.footer.Text(), cmd != nil)
 			}
 		})
 	}
@@ -169,8 +169,8 @@ func TestAMissingResultIsReportedRatherThanOpened(t *testing.T) {
 	if m.state != StateInventory {
 		t.Errorf("state = %v after a missing result, want to stay on the inventory", m.state)
 	}
-	if !strings.Contains(m.statusMessage, "nexus/api:1.4") {
-		t.Errorf("statusMessage = %q, want it to name the target", m.statusMessage)
+	if !strings.Contains(m.footer.Text(), "nexus/api:1.4") {
+		t.Errorf("statusMessage = %q, want it to name the target", m.footer.Text())
 	}
 	// The command's identity, not its message: it is a three-second tea.Tick,
 	// and running it here would make the test take three seconds.
@@ -290,8 +290,8 @@ func TestAFailedRescanMarksTheRowAndSaysSo(t *testing.T) {
 	if target.Scanning || !target.Failed {
 		t.Errorf("the failed row = %+v, want it marked failed and no longer scanning", target)
 	}
-	if !strings.Contains(m.statusMessage, "nexus/api:1.4") {
-		t.Errorf("statusMessage = %q, want it to name the target", m.statusMessage)
+	if !strings.Contains(m.footer.Text(), "nexus/api:1.4") {
+		t.Errorf("statusMessage = %q, want it to name the target", m.footer.Text())
 	}
 	if cmd == nil {
 		t.Error("the error message was set without a timer to clear it (Rule 128)")

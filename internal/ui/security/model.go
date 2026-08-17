@@ -66,8 +66,8 @@ type Model struct {
 	// which is inside this view and needs no round trip.
 	OriginView command.ViewType
 
-	// Status message (temporary feedback)
-	statusMessage string
+	// footer is the one line of transient state below the viewport (Rule 128).
+	footer sharedcomponents.FooterMessage
 
 	// Details view scrollable viewport
 	detailsViewport viewport.Model

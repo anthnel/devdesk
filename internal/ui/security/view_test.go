@@ -151,14 +151,14 @@ func TestTabBarCarriesTheCounts(t *testing.T) {
 
 func TestFooterShowsTheStatusMessage(t *testing.T) {
 	m := scannedModel(t)
-	m.statusMessage = "Added config/prod.env to .gitleaksignore"
+	m.footer.Info("Added config/prod.env to .gitleaksignore")
 
 	if !strings.Contains(m.RenderFooter(160), "gitleaksignore") {
 		t.Error("the footer does not show the status message on the results")
 	}
 
 	details := detailsModel(t)
-	details.statusMessage = "No references available"
+	details.footer.Warn("No references available")
 	if !strings.Contains(details.RenderFooter(160), "No references") {
 		t.Error("the footer does not show the status message in the details")
 	}

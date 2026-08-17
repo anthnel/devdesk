@@ -18,13 +18,6 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
-// clearFooterInfoCmd returns a command that clears the footer info message after a delay.
-func clearFooterInfoCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return clearFooterInfoMsg{}
-	})
-}
-
 // clearSyncSummaryCmd drops a finished sync's summary from the footer after the
 // same three seconds every other footer message gets (Rule 128).
 func clearSyncSummaryCmd() tea.Cmd {

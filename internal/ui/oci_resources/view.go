@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/config"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -71,17 +72,7 @@ func (m Model) RenderFooter(width int) string {
 	if m.registryBrowser != nil || m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
 		m.connectivityForm != nil || m.networkInspectForm != nil {
 		// No tab bar or filter bar in form mode — empty line + info line
-		infoLine := theme.EmptyLineBg(width)
-		if m.errorMsg != "" {
-			infoLine = theme.StatusErrorStyle.Width(width).Align(lipgloss.Center).Render(m.errorMsg)
-		} else if m.infoMsg != "" {
-			infoLine = lipgloss.NewStyle().
-				Foreground(theme.ColorHighlight).
-				Background(theme.ColorBackground).
-				Width(width).
-				Align(lipgloss.Center).
-				Render(m.infoMsg)
-		}
+		infoLine := m.footer.View(width, m.formStatus())
 		if m.registryBrowser != nil && m.registryBrowser.FilterIsVisible() {
 			return m.registryBrowser.FilterBarView(width) + "\n" + theme.EmptyLineBg(width) + "\n" + infoLine
 		}
@@ -94,31 +85,47 @@ func (m Model) RenderFooter(width int) string {
 	if crumb := m.renderRegistryBreadcrumb(width); crumb != "" {
 		parts = append(parts, crumb)
 	}
-	tabBar := m.renderTabBar(width)
-	infoLine := theme.EmptyLineBg(width)
 	// An error or a notice the user has not read yet comes first: the progress
-	// of what is still running is the least urgent of the three.
-	switch {
-	case m.errorMsg != "":
-		infoLine = theme.StatusErrorStyle.Width(width).Align(lipgloss.Center).Render(m.errorMsg)
-	case m.infoMsg != "":
-		infoLine = highlightLine(m.infoMsg, width)
-	case m.actionLine() != "":
-		infoLine = highlightLine(m.actionLine(), width)
-	}
-	parts = append(parts, tabBar, theme.EmptyLineBg(width), infoLine)
+	// of what is still running is the least urgent of the three, and the
+	// component is what enforces that order now.
+	parts = append(parts, m.renderTabBar(width), theme.EmptyLineBg(width), m.footer.View(width, m.status()))
 	return strings.Join(parts, "\n")
 }
 
-// highlightLine centres a notice on the footer line, in the one style the two
-// non-error messages share.
-func highlightLine(text string, width int) string {
-	return lipgloss.NewStyle().
-		Foreground(theme.ColorHighlight).
-		Background(theme.ColorBackground).
-		Width(width).
-		Align(lipgloss.Center).
-		Render(text)
+// status is what the view derives on every frame: the active tab's load, then
+// whatever action is running. Neither has a timer.
+func (m Model) status() sharedcomponents.Status {
+	if text, ok := m.loadingLabel(); ok {
+		return sharedcomponents.Status{Text: text, Spinner: true}
+	}
+	return sharedcomponents.Status{Text: m.actionLine()}
+}
+
+// formStatus is the status while a form or the browser has the viewport. The
+// tables behind them are not on screen, so their loads say nothing here; the
+// browser's own search does.
+func (m Model) formStatus() sharedcomponents.Status {
+	if m.registryBrowser != nil {
+		if text, ok := m.registryBrowser.LoadingLabel(); ok {
+			return sharedcomponents.Status{Text: text, Spinner: true}
+		}
+	}
+	return sharedcomponents.Status{}
+}
+
+// loadingLabel names what the active tab is fetching, or reports that it is
+// settled. Only the tab on screen answers: a volumes load says nothing while
+// the Images tab is showing.
+func (m Model) loadingLabel() (string, bool) {
+	switch m.activeTab {
+	case tabImages:
+		return "Loading images...", m.loading && len(m.images) == 0
+	case tabNetworks:
+		return "Loading networks...", m.loadingNets && len(m.networkTable.Items()) == 0
+	case tabVolumes:
+		return "Loading volumes...", m.loadingVols && len(m.volumeTable.Items()) == 0
+	}
+	return "", false
 }
 
 // renderRegistryBreadcrumb renders the drill-down trail below the table when
@@ -452,30 +459,27 @@ func (m Model) renderRegistriesView() string {
 	return m.registryTable.View()
 }
 
-// renderImagesView renders the images table
+// renderImagesView renders the images table.
+//
+// The load says so in the footer, with a spinner, and the table stays on
+// screen: a body that swapped itself for a spinner lost its header and its
+// columns for the length of every refresh. The empty state is therefore
+// conditional on the load being over, or the tab would announce the absence of
+// what it is in the middle of fetching.
 func (m Model) renderImagesView() string {
-	var sections []string
-
-	if m.loading && len(m.images) == 0 {
-		sections = append(sections, theme.SpinnerMessage(m.spinner.View(), "Loading images..."))
-	} else if len(m.imageTable.Visible()) == 0 && !m.imageTable.FilterBar().IsVisible() {
-		sections = append(sections, theme.DimStyle.Render("No images found"))
-	} else {
-		// Always render the table when a filter is active so the filter bar stays at the bottom
-		sections = append(sections, m.imageTable.View())
+	if _, loading := m.loadingLabel(); loading {
+		return m.imageTable.View()
 	}
-
-	return strings.Join(sections, "\n")
+	if len(m.imageTable.Visible()) == 0 && !m.imageTable.FilterBar().IsVisible() {
+		return theme.DimStyle.Render("No images found")
+	}
+	// Always render the table when a filter is active so the filter bar stays at the bottom
+	return m.imageTable.View()
 }
 
 // renderNetworksView renders the networks table
 func (m Model) renderNetworksView() string {
-	if m.loadingNets && len(m.networkTable.Items()) == 0 {
-		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
-			theme.SpinnerMessage(m.spinner.View(), "Loading networks..."),
-		)
-	}
-	if len(m.networkTable.Items()) == 0 {
+	if _, loading := m.loadingLabel(); !loading && len(m.networkTable.Items()) == 0 {
 		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
 			theme.DimStyle.Render("No networks found"),
 		)
@@ -485,12 +489,7 @@ func (m Model) renderNetworksView() string {
 
 // renderVolumesView renders the volumes table
 func (m Model) renderVolumesView() string {
-	if m.loadingVols && len(m.volumeTable.Items()) == 0 {
-		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
-			theme.SpinnerMessage(m.spinner.View(), "Loading volumes..."),
-		)
-	}
-	if len(m.volumeTable.Items()) == 0 {
+	if _, loading := m.loadingLabel(); !loading && len(m.volumeTable.Items()) == 0 {
 		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
 			theme.DimStyle.Render("No volumes found"),
 		)

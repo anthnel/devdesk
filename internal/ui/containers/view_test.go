@@ -150,16 +150,30 @@ func TestInEditModeCoversEveryCapturingState(t *testing.T) {
 
 // ── View states ──────────────────────────────────────────────────────────────
 
-func TestViewShowsTheSpinnerOnlyBeforeTheFirstList(t *testing.T) {
+// The load is reported in the footer, never in the body: the table stays on
+// screen so its header and columns do not vanish on every refresh.
+func TestTheLoadIsReportedInTheFooterOnlyBeforeTheFirstList(t *testing.T) {
 	m := newTestModel(t) // loading, no containers yet
 
-	if !strings.Contains(m.View(), "Loading containers") {
-		t.Error("View() does not show the spinner before the first list arrives")
+	if !strings.Contains(m.RenderFooter(160), "Loading containers") {
+		t.Error("the footer does not report the load before the first list arrives")
+	}
+	if strings.Contains(m.View(), "Loading containers") {
+		t.Error("the body reports the load; it belongs in the footer alone")
 	}
 
 	loaded := loadedModel(t)
-	if strings.Contains(loaded.View(), "Loading containers") {
-		t.Error("View() still shows the spinner after the list arrived")
+	if strings.Contains(loaded.RenderFooter(160), "Loading containers") {
+		t.Error("the footer still reports the load after the list arrived")
+	}
+}
+
+// A table in the middle of fetching must not announce that it found nothing.
+func TestTheEmptyStateWaitsForTheLoadToFinish(t *testing.T) {
+	m := newTestModel(t) // loading, no containers yet
+
+	if strings.Contains(m.View(), "No containers found") {
+		t.Error("the body says the list is empty while it is still loading")
 	}
 }
 

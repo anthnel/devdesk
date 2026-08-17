@@ -49,8 +49,7 @@ func (m Model) deleteSelectedImage() (tea.Model, tea.Cmd) {
 	}
 	name := img.Name()
 	if m.imageTable.IsBusy(img.ID) {
-		m.infoMsg = busyMessage
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn(busyMessage)
 	}
 	m.pendingAction = "delete-image"
 	m.confirmModal = sharedcomponents.NewConfirmModal("Delete Image", fmt.Sprintf("Delete '%s'?", name))
@@ -72,8 +71,7 @@ func (m Model) scanSelectedImage() (tea.Model, tea.Cmd) {
 	}
 	name := img.Name()
 	if m.scanningImages[name] {
-		m.infoMsg = "Scan already in progress"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn("Scan already in progress")
 	}
 	m.scanning = true
 	return m, batchScanCmd([]imageScanJob{{Name: name, Target: img.ScanTarget()}}, scan.OptionsFromConfig(m.config.Scan))
@@ -88,8 +86,7 @@ func (m Model) scanSelectedImage() (tea.Model, tea.Cmd) {
 // by accident (§3.26). The destructive half is a deliberate gesture now.
 func (m Model) confirmScanAll() (tea.Model, tea.Cmd) {
 	if m.scanning {
-		m.errorMsg = "A scan is already running"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn("A scan is already running")
 	}
 	m.scanAllModal = sharedcomponents.NewOptionConfirmModal(
 		"Scan All",
@@ -123,8 +120,7 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 		}
 	}
 	if len(jobs) == 0 {
-		m.errorMsg = "All images are already scanned"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Warn("All images are already scanned")
 	}
 	m.scanning = true
 	return m, batchScanCmd(jobs, scan.OptionsFromConfig(m.config.Scan))
@@ -158,7 +154,7 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 func (m Model) handleImageScanStarting(msg ImageScanStartingMsg) (tea.Model, tea.Cmd) {
 	wasScanning := len(m.scanningImages) > 0
 	m.scanningImages[msg.ImageName] = true
-	m.infoMsg = ""
+	m.footer.Clear()
 	m.updateImageTable()
 	if m.registryBrowser != nil {
 		m.registryBrowser.SetTagScanning(msg.ImageName, true)
@@ -177,7 +173,7 @@ func (m Model) handleImageScanFinished(msg ImageScanFinishedMsg) (tea.Model, tea
 	} else {
 		delete(m.failedScans, msg.ImageName)
 		m.scanCache[msg.ImageName] = msg.Entry
-		m.errorMsg = ""
+		m.footer.Clear()
 	}
 	m.scanning = len(m.scanningImages) > 0
 	m.updateImageTable()

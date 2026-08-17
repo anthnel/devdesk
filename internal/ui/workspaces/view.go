@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -103,15 +104,7 @@ func (m Model) GetFooterHeight() int {
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
 	if m.mode == ModeSelecting {
-		infoLine := theme.EmptyLineBg(width)
-		if m.selectionMessage != "" {
-			infoLine = lipgloss.NewStyle().
-				Foreground(theme.ColorHighlight).
-				Background(theme.ColorBackground).
-				Width(width).
-				Align(lipgloss.Center).
-				Render(m.selectionMessage)
-		}
+		infoLine := m.footer.View(width, sharedcomponents.Status{Text: m.selectionMessage})
 		return m.renderTabBar() + "\n" + theme.EmptyLineBg(width) + "\n" + infoLine
 	}
 	if m.mode == ModeNormal && len(m.table.Items()) > 0 && m.error == "" {
@@ -132,22 +125,7 @@ func (m Model) RenderFooter(width int) string {
 // first repository started would clear while the tenth was still fetching. An
 // error still wins over it — it is the thing that needs answering.
 func (m Model) renderInfoLine(width int) string {
-	if m.footerError != "" {
-		return theme.PadWithBg(theme.StatusErrorStyle.Render(m.footerError), width)
-	}
-	text := m.footerInfo
-	if line := m.syncStatusLine(); line != "" {
-		text = line
-	}
-	if text == "" {
-		return theme.EmptyLineBg(width)
-	}
-	return lipgloss.NewStyle().
-		Foreground(theme.ColorHighlight).
-		Background(theme.ColorBackground).
-		Width(width).
-		Align(lipgloss.Center).
-		Render(text)
+	return m.footer.View(width, sharedcomponents.Status{Text: m.syncStatusLine()})
 }
 
 // renderTabBar renders the breadcrumb tab bar at the bottom of the viewport

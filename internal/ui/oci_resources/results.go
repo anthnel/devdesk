@@ -57,7 +57,9 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 		m.updateRegistryTable()
 		if err := config.Save(m.config); err != nil {
 			log.Printf("ERROR [oci_resources] delete registry: %v", err)
-			m.errorMsg = "Failed to save config — check logs"
+			// The timer was missing here: the message was set and left until
+			// something else happened to clear it (Rule 128).
+			return m, m.footer.Error("Failed to save config — check logs")
 		}
 		return m, nil
 	}
@@ -69,10 +71,9 @@ func (m Model) handleImagesList(msg ImagesListMsg) (tea.Model, tea.Cmd) {
 	m.loading = false
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] list: %v", msg.Err)
-		m.errorMsg = "Failed to load images — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Failed to load images — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	m.images = msg.Images
 	m.updateImageTable()
 	return m, nil
@@ -95,10 +96,9 @@ func (m Model) handleImageAction(msg ImageActionMsg) (tea.Model, tea.Cmd) {
 	m.imageTable.ClearBusy(msg.ID)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] %s %s: %v", msg.Action, msg.Name, msg.Err)
-		m.errorMsg = "Action failed — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Action failed — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	return m, fetchImages()
 }
 
@@ -107,10 +107,9 @@ func (m Model) handlePruneComplete(msg PruneCompleteMsg) (tea.Model, tea.Cmd) {
 	m.pruning = ""
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] prune: %v", msg.Err)
-		m.errorMsg = "Prune failed — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Prune failed — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	return m, fetchImages()
 }
 
@@ -119,10 +118,9 @@ func (m Model) handleNetworksList(msg NetworksListMsg) (tea.Model, tea.Cmd) {
 	m.loadingNets = false
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] network list: %v", msg.Err)
-		m.errorMsg = "Failed to load networks — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Failed to load networks — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	m.networkTable.SetItems(msg.Networks)
 
 	return m, nil
@@ -133,10 +131,9 @@ func (m Model) handleNetworkAction(msg NetworkActionMsg) (tea.Model, tea.Cmd) {
 	m.networkTable.ClearBusy(msg.ID)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] network %s: %v", msg.Action, msg.Err)
-		m.errorMsg = "Network action failed — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Network action failed — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	return m, fetchNetworks()
 }
 
@@ -145,10 +142,9 @@ func (m Model) handleNetworkPruneComplete(msg NetworkPruneCompleteMsg) (tea.Mode
 	m.pruning = ""
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] network prune: %v", msg.Err)
-		m.errorMsg = "Network prune failed — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Network prune failed — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	return m, fetchNetworks()
 }
 
@@ -157,10 +153,9 @@ func (m Model) handleVolumesList(msg VolumesListMsg) (tea.Model, tea.Cmd) {
 	m.loadingVols = false
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] volume list: %v", msg.Err)
-		m.errorMsg = "Failed to load volumes — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Failed to load volumes — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	m.volumeTable.SetItems(msg.Volumes)
 
 	return m, nil
@@ -171,10 +166,9 @@ func (m Model) handleVolumeAction(msg VolumeActionMsg) (tea.Model, tea.Cmd) {
 	m.volumeTable.ClearBusy(msg.Name)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] volume %s: %v", msg.Action, msg.Err)
-		m.errorMsg = "Volume action failed — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Volume action failed — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	return m, fetchVolumes()
 }
 
@@ -183,9 +177,8 @@ func (m Model) handleVolumePruneComplete(msg VolumePruneCompleteMsg) (tea.Model,
 	m.pruning = ""
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] volume prune: %v", msg.Err)
-		m.errorMsg = "Volume prune failed — check logs"
-		return m, clearInfoMsgCmd()
+		return m, m.footer.Error("Volume prune failed — check logs")
 	}
-	m.errorMsg = ""
+	m.footer.Clear()
 	return m, fetchVolumes()
 }

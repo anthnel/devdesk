@@ -32,9 +32,6 @@ type portsKillResultMsg struct {
 	err error
 }
 
-// portsClearFooterMsg clears the ports model footer after 3 seconds.
-type portsClearFooterMsg struct{}
-
 // portsSpinnerTickMsg turns the frame of a row a kill is running on.
 //
 // This model has no spinner of its own, and its data tick is two seconds apart
@@ -67,10 +64,14 @@ func killProcessCmd(image, pid string) tea.Cmd {
 	}
 }
 
-func portsClearFooterCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return portsClearFooterMsg{}
-	})
+// statusLine is what the Ports tab derives on every frame. Pausing is a state
+// rather than an event, so it is rendered from pm.paused instead of set as a
+// message — a message would expire after three seconds while still paused.
+func (pm *PortsModel) statusLine() components.Status {
+	if pm.paused {
+		return components.Status{Text: "Paused — press space to resume"}
+	}
+	return components.Status{}
 }
 
 // filterTokenProto and filterTokenState are the label constants for FilterBar tokens.
@@ -105,8 +106,9 @@ type PortsModel struct {
 	// confirmation and had none.
 	confirmModal *components.ConfirmModal
 
-	footerError string
-	footerInfo  string
+	// footer is this tab's own message line. Each tab keeps one: a shared
+	// instance would let a message set on Ports outlive the switch away from it.
+	footer components.FooterMessage
 }
 
 // portsColumns describes the ports table. Every column is searchable: the query
@@ -238,10 +240,6 @@ func (pm *PortsModel) update(msg tea.Msg) (*PortsModel, tea.Cmd) {
 		return pm.handleKillResult(msg)
 	case portsSpinnerTickMsg:
 		return pm.handleSpinnerTick()
-	case portsClearFooterMsg:
-		pm.footerError = ""
-		pm.footerInfo = ""
-		return pm, nil
 	case components.ConfirmModalYesMsg:
 		pm.confirmModal = nil
 		return pm.killSelected()
@@ -274,8 +272,7 @@ func (pm *PortsModel) handleTick() (*PortsModel, tea.Cmd) {
 func (pm *PortsModel) handleData(msg portsDataMsg) (*PortsModel, tea.Cmd) {
 	if msg.err != nil {
 		log.Printf("ERROR [netdiag/ports] RunSS: %v", msg.err)
-		pm.footerError = "Failed to fetch ports — check logs"
-		return pm, portsClearFooterCmd()
+		return pm, pm.footer.Error("Failed to fetch ports — check logs")
 	}
 	// The cursor and the scroll survive this, which is what the whole
 	// tableReady dance existed to achieve on a two-second tick.
@@ -289,11 +286,9 @@ func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea
 	pm.table.ClearBusy(msg.pid)
 	if msg.err != nil {
 		log.Printf("ERROR [netdiag/ports] KillProcess pid=%s: %v", msg.pid, msg.err)
-		pm.footerError = fmt.Sprintf("Failed to kill PID %s", msg.pid)
-	} else {
-		pm.footerInfo = fmt.Sprintf("Process %s terminated", msg.pid)
+		return pm, pm.footer.Error(fmt.Sprintf("Failed to kill PID %s", msg.pid))
 	}
-	return pm, portsClearFooterCmd()
+	return pm, pm.footer.Info(fmt.Sprintf("Process %s terminated", msg.pid))
 }
 
 func (pm *PortsModel) handleKey(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
@@ -324,11 +319,8 @@ func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
 	case " ":
 		pm.paused = !pm.paused
 		pm.table.SetTokenActive(filterTokenPaused, pm.paused)
-		if pm.paused {
-			pm.footerInfo = "Paused — press space to resume"
-		} else {
-			pm.footerInfo = ""
-		}
+		// Pausing is a state, not an event: it is derived in statusLine rather
+		// than set as a message, which would expire while still paused.
 	case "t":
 		pm.toggleToken(filterTokenTCP)
 	case "u":
@@ -370,12 +362,10 @@ func (pm *PortsModel) confirmKill() (*PortsModel, tea.Cmd) {
 		return pm, nil
 	}
 	if entry.PID == "" {
-		pm.footerInfo = "No PID available for this entry"
-		return pm, portsClearFooterCmd()
+		return pm, pm.footer.Warn("No PID available for this entry")
 	}
 	if pm.table.IsBusy(entry.PID) {
-		pm.footerInfo = "Already killing PID " + entry.PID
-		return pm, portsClearFooterCmd()
+		return pm, pm.footer.Warn("Already killing PID " + entry.PID)
 	}
 	pm.confirmModal = components.NewConfirmModal(
 		"Kill Process",

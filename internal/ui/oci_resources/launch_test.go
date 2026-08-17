@@ -159,7 +159,7 @@ func TestAFailedLaunchReportsAndForgetsTheOptions(t *testing.T) {
 
 	next, cmd := step(t, m, ContainerLaunchCompleteMsg{Err: errors.New("port is already allocated")})
 
-	if next.errorMsg == "" {
+	if !next.footer.IsSet() {
 		t.Error("a failed launch reported nothing to the user")
 	}
 	// Rule 128: a footer message without a timer stays on screen forever.
@@ -209,7 +209,7 @@ func TestAnInteractiveLaunchWithNoDockerIsReported(t *testing.T) {
 		Image: "api:v1", Interactive: true, TTY: true,
 	}})
 
-	if next.errorMsg == "" {
+	if !next.footer.IsSet() {
 		t.Error("a launch that could not be built reported nothing")
 	}
 	if cmd == nil {
@@ -224,15 +224,15 @@ func TestCopyingTheCommandReportsEitherWay(t *testing.T) {
 	m := loadedModel(t)
 
 	ok, okCmd := step(t, m, ClipboardCopyMsg{})
-	if !strings.Contains(ok.infoMsg, "copied") {
-		t.Errorf("infoMsg = %q, want confirmation of the copy", ok.infoMsg)
+	if !strings.Contains(ok.footer.Text(), "copied") {
+		t.Errorf("footer = %q, want confirmation of the copy", ok.footer.Text())
 	}
 	if okCmd == nil {
 		t.Error("the confirmation was set with no clear timer")
 	}
 
 	failed, failedCmd := step(t, m, ClipboardCopyMsg{Err: errors.New("no clipboard on this system")})
-	if failed.errorMsg == "" {
+	if !failed.footer.IsSet() {
 		t.Error("a failed copy reported nothing")
 	}
 	if failedCmd == nil {

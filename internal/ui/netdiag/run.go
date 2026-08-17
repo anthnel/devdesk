@@ -11,8 +11,7 @@ import (
 func (m *Model) startTests() (*Model, tea.Cmd) {
 	target := strings.TrimSpace(m.targetInput.Value())
 	if err := validateTarget(target); err != nil {
-		m.footerError = capitalize(err.Error())
-		return m, clearFooterCmd()
+		return m, m.footer.Error(capitalize(err.Error()))
 	}
 
 	port := strings.TrimSpace(m.portInput.Value())
@@ -20,14 +19,12 @@ func (m *Model) startTests() (*Model, tea.Cmd) {
 		port = defaultPort
 	}
 	if err := validatePort(port); err != nil {
-		m.footerError = capitalize(err.Error())
-		return m, clearFooterCmd()
+		return m, m.footer.Error(capitalize(err.Error()))
 	}
 
 	enabled := m.enabledTests()
 	if len(enabled) == 0 {
-		m.footerError = "Select at least one test"
-		return m, clearFooterCmd()
+		return m, m.footer.Warn("Select at least one test")
 	}
 
 	m.runGen++
