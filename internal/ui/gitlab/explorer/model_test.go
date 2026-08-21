@@ -944,7 +944,7 @@ func TestAFoundRepositoryBecomesARowStraightAway(t *testing.T) {
 	m := feed(t, cloningModel(t), CloneEventMsg{event: cloneEvent{kind: cloneFound, path: "alpha/api"}})
 
 	rows := m.clone.table.Table().Rows()
-	if len(rows) != 1 || rows[0][1] != "alpha/api" {
+	if len(rows) != 1 || rows[0][colCloneRepository] != "alpha/api" {
 		t.Fatalf("rows = %v, want the repository as soon as it was found", rows)
 	}
 	if found, _, _, _ := m.clone.counts(); found != 1 {
