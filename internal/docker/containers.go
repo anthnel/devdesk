@@ -18,6 +18,10 @@ type Container struct {
 	Ports      string
 	CPUPercent float64
 	MemUsage   string // "150MiB / 8GiB"
+	// MemBytes is the used half of MemUsage. It exists because MemPercent
+	// cannot be aggregated: it is a share of *this* container's limit, so two
+	// of them are fractions of different wholes (see Aggregate).
+	MemBytes   int64
 	MemPercent float64
 	NetIO      string // "1.2kB / 3.4kB"
 	NetRX      int64  // received bytes (parsed from NetIO)
@@ -92,6 +96,7 @@ func GetContainerMetrics() (map[string]Container, error) {
 
 		cpu, _ := strconv.ParseFloat(strings.TrimSuffix(parts[1], "%"), 64)
 		mem, _ := strconv.ParseFloat(strings.TrimSuffix(parts[3], "%"), 64)
+		memBytes, _ := parsePair(parts[2])
 		netRX, netTX := parseNetIO(parts[4])
 
 		var blockIO string
@@ -104,6 +109,7 @@ func GetContainerMetrics() (map[string]Container, error) {
 			ID:         parts[0],
 			CPUPercent: cpu,
 			MemUsage:   parts[2],
+			MemBytes:   memBytes,
 			MemPercent: mem,
 			NetIO:      parts[4],
 			NetRX:      netRX,
@@ -117,21 +123,97 @@ func GetContainerMetrics() (map[string]Container, error) {
 	return metrics, nil
 }
 
-// Aggregate is what every running container adds up to. Il est mesuré *dans*
-// la VM Docker quand DevDesk tourne sur Windows ou macOS, donc il n'est pas
-// additionnable avec les chiffres de l'hôte : c'est un sous-ensemble, et les
-// deux sections le disent dans leur titre.
+// Aggregate is what every running container adds up to, **on the daemon's
+// scale**: both percentages run from 0 to 100, whatever the machine.
+//
+// That normalization is the whole of this type, and it exists because neither
+// figure `docker stats` prints is one to begin with.
+//
+//   - `.CPUPerc` is relative to **one core**: Docker computes
+//     `(cpuDelta/systemDelta) × onlineCPUs × 100`, so a container busy on two
+//     cores reports 199% (measured, not assumed). Summed over the containers,
+//     the raw total runs to `NCPU × 100` — 1400% on a sixteen-CPU daemon, which
+//     is a true statement about fourteen cores and not a percentage of
+//     anything. Divided by NCPU it becomes one.
+//   - `.MemPerc` is relative to **that container's own limit**. Summing them
+//     adds fractions of different wholes: a container capped at 256 MiB sitting
+//     at 0.13% and one against the daemon's 15 GiB at 0.03% do not add up to
+//     0.16% of anything. So the bytes are summed instead, over the daemon's own
+//     total.
+//
+// It is measured *inside* the Docker VM on Windows and macOS, so it is still
+// not addable with the host's numbers — it is a subset, and both dashboard
+// sections say so in their title. What changes here is that the two are now at
+// least in the same unit.
 type Aggregate struct {
 	Available  bool
 	Running    int
 	CPUPercent float64
 	MemPercent float64
+
+	// Cores is the daemon's CPU count, which is what CPUPercent was divided by.
+	// The dashboard prints it beside the figure for the same reason the host
+	// section prints its own: 40% of four cores and 40% of thirty-two do not
+	// describe the same machine.
+	Cores int
 }
 
-// FetchAggregateMetrics sums the running containers' CPU and memory shares.
+// Capacity is what the daemon has to give, and therefore the denominator every
+// percentage above is taken against.
+type Capacity struct {
+	// Cores is `docker info`'s NCPU and MemTotal its memory, both as the
+	// *daemon* sees them — which on Windows and macOS is the VM's allocation
+	// and not the machine's. Reading the host's core count instead would be
+	// wrong on exactly the two platforms where Docker is not the host.
+	Cores    int
+	MemTotal int64
+}
+
+// OK reports whether the capacity can serve as a denominator.
+func (c Capacity) OK() bool { return c.Cores > 0 && c.MemTotal > 0 }
+
+// FetchCapacity reads what the daemon has, from `docker info`.
+//
+// It is read on every aggregate rather than memoized, and the 240 ms it costs
+// (measured, against the 1–2 s `docker stats` already spends) is what buys it:
+// a Docker Desktop reconfigured with a new CPU allocation changes this number
+// under a running DevDesk, and a memo would divide by the old one for the life
+// of the process — silently, since a wrong denominator still produces a
+// plausible percentage.
+func FetchCapacity() (Capacity, error) {
+	if err := requireDocker(); err != nil {
+		return Capacity{}, err
+	}
+	output, err := dockerOutput("info", "--format", "{{.NCPU}}\t{{.MemTotal}}")
+	if err != nil {
+		return Capacity{}, wrapErr("docker info", err)
+	}
+
+	fields := strings.SplitN(strings.TrimSpace(string(output)), "\t", 2)
+	if len(fields) < 2 {
+		return Capacity{}, fmt.Errorf("docker info: unreadable capacity %q", output)
+	}
+	cores, err := strconv.Atoi(strings.TrimSpace(fields[0]))
+	if err != nil {
+		return Capacity{}, fmt.Errorf("docker info: unreadable NCPU %q: %w", fields[0], err)
+	}
+	total, err := strconv.ParseInt(strings.TrimSpace(fields[1]), 10, 64)
+	if err != nil {
+		return Capacity{}, fmt.Errorf("docker info: unreadable MemTotal %q: %w", fields[1], err)
+	}
+	return Capacity{Cores: cores, MemTotal: total}, nil
+}
+
+// FetchAggregateMetrics reports what the running containers are using, as a
+// share of what the daemon has.
 //
 // `docker stats --no-stream` coûte environ deux secondes, mesuré : c'est ce qui
 // lui vaut une horloge à lui plutôt qu'un tour dans le rafraîchissement rapide.
+//
+// A capacity it cannot read makes the whole thing unavailable rather than a
+// number on an unstated scale. That is the choice this function exists to make:
+// the raw sums are not percentages, so there is nothing honest to show without
+// their denominator — and `-` is a word this dashboard already has.
 func FetchAggregateMetrics() Aggregate {
 	metrics, err := GetContainerMetrics()
 	if err != nil {
@@ -139,11 +221,32 @@ func FetchAggregateMetrics() Aggregate {
 		return Aggregate{}
 	}
 
-	agg := Aggregate{Available: true, Running: len(metrics)}
+	capacity, err := FetchCapacity()
+	if err != nil {
+		log.Printf("ERROR [docker] aggregate capacity: %v", err)
+		return Aggregate{}
+	}
+	if !capacity.OK() {
+		log.Printf("ERROR [docker] aggregate capacity: daemon reports %d cores and %d bytes",
+			capacity.Cores, capacity.MemTotal)
+		return Aggregate{}
+	}
+
+	return aggregate(metrics, capacity)
+}
+
+// aggregate is the arithmetic on its own, so a test can hand it readings rather
+// than a daemon.
+func aggregate(metrics map[string]Container, capacity Capacity) Aggregate {
+	agg := Aggregate{Available: true, Running: len(metrics), Cores: capacity.Cores}
+
+	var memBytes int64
 	for _, c := range metrics {
 		agg.CPUPercent += c.CPUPercent
-		agg.MemPercent += c.MemPercent
+		memBytes += c.MemBytes
 	}
+	agg.CPUPercent /= float64(capacity.Cores)
+	agg.MemPercent = float64(memBytes) / float64(capacity.MemTotal) * 100
 	return agg
 }
 

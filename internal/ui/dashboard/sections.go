@@ -683,9 +683,16 @@ func renderDockerSection(m Model, width int, t tier) []string {
 	// comparent sans chercher laquelle est laquelle. Les comptes suivent.
 	//
 	// `docker stats` tourne sur son horloge propre (≈ 2 s par appel mesuré).
-	lines := []string{row("CPU", dockerPercent(m, func(a docker.Aggregate) float64 { return a.CPUPercent }))}
+	// Les deux parts sont ramenées à ce que le daemon possède, donc elles vont
+	// de 0 à 100 comme celles de Host — c'est ce que la mise en page promet en
+	// les posant sur les mêmes lignes. Le suffixe dit contre quoi : `docker
+	// info` compte les cœurs de la VM sous Windows et macOS, pas ceux de la
+	// machine, donc ce n'est pas forcément le chiffre de la boîte Host.
+	lines := []string{row("CPU", dockerPercent(m,
+		func(a docker.Aggregate) float64 { return a.CPUPercent }, coreSuffix(m.dockerAgg.Cores)))}
 	lines = append(lines, chartBlock(m, m.dockerSamples, width, t, 100)...)
-	lines = append(lines, row("RAM", dockerPercent(m, func(a docker.Aggregate) float64 { return a.MemPercent })))
+	lines = append(lines, row("RAM", dockerPercent(m,
+		func(a docker.Aggregate) float64 { return a.MemPercent }, "")))
 	lines = append(lines, chartBlock(m, m.dockerMemSamples, width, t, 100)...)
 
 	if t != tierWide {
@@ -762,7 +769,14 @@ func dockerState(m Model, pick func(shared.DockerStats) int) string {
 
 // dockerPercent renders one figure of the container aggregate, telling apart
 // "not sampled yet" from "Docker is not there".
-func dockerPercent(m Model, pick func(docker.Aggregate) float64) string {
+// dockerPercent renders one share of the daemon, and appends `suffix` only when
+// there is a number for it to qualify.
+//
+// The suffix is a parameter rather than something the caller sticks on
+// afterwards because the decision is the same one: three of the four branches
+// below produce a word, not a value, and `-  16 cores` would read as a
+// measurement of nothing.
+func dockerPercent(m Model, pick func(docker.Aggregate) float64, suffix string) string {
 	switch {
 	case !m.dockerRead:
 		return unknownValue()
@@ -771,7 +785,7 @@ func dockerPercent(m Model, pick func(docker.Aggregate) float64) string {
 	case m.dockerAgg.Running == 0:
 		return theme.DimStyle.Render("no running container")
 	default:
-		return percentValue(pick(m.dockerAgg))
+		return percentValue(pick(m.dockerAgg)) + suffix
 	}
 }
 

@@ -422,13 +422,28 @@ func TestEachClockRearmsItself(t *testing.T) {
 func TestTheDockerAggregateTellsUnreadFromUnavailable(t *testing.T) {
 	m, _ := authenticatedModel(t)
 
-	if got := stripANSI(dockerPercent(m, func(a docker.Aggregate) float64 { return a.CPUPercent })); got != "-" {
+	cpu := func(a docker.Aggregate) float64 { return a.CPUPercent }
+
+	// The suffix is passed and must not appear: three of dockerPercent's four
+	// branches produce a word rather than a value, and "-  16 cores" would read
+	// as a measurement of nothing.
+	if got := stripANSI(dockerPercent(m, cpu, coreSuffix(16))); got != "-" {
 		t.Errorf("before any sample the aggregate reads %q, want %q", got, "-")
 	}
 
 	m = feed(t, m, DockerMetricsMsg{Aggregate: docker.Aggregate{Available: false}})
-	if got := stripANSI(dockerPercent(m, func(a docker.Aggregate) float64 { return a.CPUPercent })); got != "n/a" {
+	if got := stripANSI(dockerPercent(m, cpu, coreSuffix(16))); got != "n/a" {
 		t.Errorf("with Docker absent the aggregate reads %q, want %q", got, "n/a")
+	}
+
+	m = feed(t, m, DockerMetricsMsg{Aggregate: docker.Aggregate{Available: true, Running: 0, Cores: 16}})
+	if got := stripANSI(dockerPercent(m, cpu, coreSuffix(16))); got != "no running container" {
+		t.Errorf("with nothing running the aggregate reads %q", got)
+	}
+
+	m = feed(t, m, DockerMetricsMsg{Aggregate: docker.Aggregate{Available: true, Running: 2, CPUPercent: 87.5, Cores: 16}})
+	if got := stripANSI(dockerPercent(m, cpu, coreSuffix(16))); got != "88 %  16 cores" {
+		t.Errorf("a real share reads %q, want the value and what it is a share of", got)
 	}
 }
 
