@@ -120,7 +120,17 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 	}
 
-	if m.display == displayText {
+	// The same key, and the wording says which way it goes — "Show raw" on a
+	// rendered document, "Show rendered" on its source.
+	if m.renderable() {
+		if m.display == displayRendered {
+			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "f", Description: "Show raw markdown"})
+		} else {
+			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "f", Description: "Show rendered markdown"})
+		}
+	}
+
+	if m.display != displayTree {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "w", Description: "Toggle wrap"})
 		if m.isLog() {
 			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "v", Description: "Verbosity"})
@@ -154,15 +164,16 @@ func (m Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title: "Viewer",
 		Description: "A read-only view of one document. JSON and XML open on a navigable tree; " +
-			"YAML and TOML open as colored text; logs open as text with a verbosity filter; " +
-			"everything else opens as text. " +
+			"Markdown opens rendered, with its markers applied rather than shown; " +
+			"YAML, TOML, Dockerfiles and shell scripts open as colored text; " +
+			"logs open as text with a verbosity filter; everything else opens as text. " +
 			"The viewer is opened from another view — a file in workspaces, an inspect or a log in containers — and Esc returns there.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑/k", Description: "Move up"},
 			{Key: "↓/j", Description: "Move down"},
 			{Key: "→/l", Description: "Expand the selected node (tree)"},
 			{Key: "←/h", Description: "Collapse the selected node (tree)"},
-			{Key: "f", Description: "Switch between the tree and the document's own text"},
+			{Key: "f", Description: "Switch between the derived view — tree, or rendered Markdown — and the source"},
 			{Key: "c", Description: "Turn syntax coloring on or off"},
 			{Key: "w", Description: "Soft-wrap long lines (text)"},
 			{Key: "v", Description: "Cycle the minimum log level shown (logs)"},
@@ -176,18 +187,33 @@ func (m Model) GetHelpContent() help.Content {
 		},
 		Sections: []help.Section{
 			{
-				Title: "Tree and text",
-				Body: "A JSON or XML document opens on its tree: → expands a node, ← collapses it, and a closed " +
-					"container shows how many children it holds. Press f for the document's own text, exactly as it " +
-					"is on disk — press f again to come back. A document with no structure has no tree and f does " +
-					"nothing: that includes a log, and it includes YAML and TOML, which are colored but not walkable.",
+				Title: "The source, and the view derived from it",
+				Body: "f switches between the document as it is on disk and the one view its kind derives from it. " +
+					"A JSON or XML document derives a tree: → expands a node, ← collapses it, and a closed container " +
+					"shows how many children it holds. A Markdown document derives its rendered form: the #, the ** " +
+					"and the backticks are applied as weight, italics and color instead of being shown, list bullets " +
+					"become •, a quote becomes a rule down the margin, and a fenced code block keeps the coloring of " +
+					"its own language. Press f again for the source, to the character. " +
+					"A kind derives at most one view, so f is never ambiguous — and for a kind that derives none it " +
+					"is hidden rather than offered and ignored: that covers logs, YAML, TOML, Dockerfiles and shell " +
+					"scripts, all of which are colored but not walkable.",
+			},
+			{
+				Title: "What rendering does not do",
+				Body: "Links, tables and horizontal rules are shown as they are written. A link's brackets are " +
+					"ordinary text to the lexer, indistinguishable from a bracket in a sentence, and this viewer " +
+					"guesses at nothing — the link text and its URL are colored apart instead. Nothing is out of " +
+					"reach either way: f shows the source exactly.",
 			},
 			{
 				Title: "Coloring",
-				Body: "c turns syntax coloring on and off, in the tree and in the text alike. JSON, XML, YAML and " +
-					"TOML are colored; a file is recognized by its extension, never by what its content looks like. " +
-					"With coloring off the document reads as plain text. Colors follow the current theme; no document " +
-					"has colors of its own.",
+				Body: "c turns syntax coloring on and off, in the tree and in the text alike. JSON, XML, YAML, TOML, " +
+					"Markdown, Dockerfiles and shell scripts are colored. A file is recognized by its extension or by " +
+					"its whole name — Dockerfile, Dockerfile.dev, .bashrc — and never by what its content looks like; " +
+					"the one exception is a file with no extension at all opening on a shebang, which is the file " +
+					"naming its own interpreter. With coloring off the document reads as plain text, and a rendered " +
+					"Markdown keeps its markers hidden: c is coloring, f is the display. Colors follow the current " +
+					"theme; no document has colors of its own.",
 			},
 			{
 				Title: "Search",

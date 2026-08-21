@@ -684,11 +684,47 @@ security view already has:
 | `containers` | `enter` | `inspectSource` | JSON |
 | `containers` | `L` | `logsSource` | log |
 
-Two axes, and they are the whole interface: **display** (`f` — tree ↔ text) and
-**highlight** (`c`). "Plain text" is text with the colour off; a third display
+Two axes, and they are the whole interface: **display** (`f`) and **highlight**
+(`c`). "Plain text" is text with the colour off; a display of its own for it
 would be one screen reachable two ways — what §3.9 removed from the secret
-backend and what took the `:theme` command with it. A document with no structure
-is always text, and `f` is hidden for it (Rule 130).
+backend and what took the `:theme` command with it.
+
+**`f` is one axis with one meaning: the document as it is, against the one view
+its kind derives from it.** A kind derives at most one — a tree when
+`Kind.Structured()`, a rendered form when `Kind.Renderable()`, never both, and
+`TestNoKindHasTwoDerivedDisplays` says so. That is what keeps the toggle binary
+at every moment even though `display` has three values, and why `Model.derived()`
+is one function rather than a switch at each of the three call sites that need
+it: `f`, the opening display and `GetShortcuts` have to give the same answer or
+the view offers a display it will then refuse to show (Rule 130).
+
+| Kind | `f` switches between | Derived by |
+|---|---|---|
+| JSON, XML | the tree and the text | `parseJSON` / `parseXML` |
+| Markdown | the rendered form and the raw source | `RenderMarkdown` |
+| everything else | nothing — `f` is hidden (Rule 130) | — |
+
+**A rendered Markdown is the same token stream with its markers removed**, and
+nothing more. Every marker `RenderMarkdown` takes off is one chroma *already
+identified* — a heading, a strong, an emphasis, a strikethrough, a bullet, a
+quote prefix, a fence. Nothing there parses, and nothing decides from what a
+character looks like: that is why **links, tables and thematic breaks survive
+untouched**. A link's `[` and `]` arrive as bare `Text`, indistinguishable from a
+bracket in prose, so rebuilding one would be exactly the guesswork this package
+refuses everywhere else — the link text and its URL are coloured apart instead,
+which is most of what rendering it would have bought.
+
+The one invariant it breaks is Tokenize's: **the concatenation no longer
+reproduces the input**. It is the point. Everything downstream copes because it
+reads the tokens rather than the document — `splitTokenLines` rebuilds each
+line's plain text from them, so the search filters and highlights what is
+actually on screen. The raw display is still the source to the character, which
+is what makes the omissions above limits rather than losses.
+
+`c` stays orthogonal to all of it: turning the colour off in a rendered document
+does **not** put the asterisks back. The rendering is a display, the colouring is
+a colouring, and a `c` that revealed markers would be the second way to reach one
+screen that the paragraph above rules out.
 
 **A document carries its `Source`, not its bytes.** Reload, follow and the
 timestamps toggle are questions for the origin. Three **single-method** optional
@@ -716,31 +752,88 @@ discovered: a genuinely unrelated unlevelled line after an INFO goes with it.
 toggles: that is what "verbosity" means and log levels are monotone. One
 `FilterBar` token (Rule 136), gone at `all`.
 
-**`KindLog`, `KindYAML` and `KindTOML` are declared, never sniffed** — "this
-looks like a log" is not decidable, and neither is "this looks like YAML": a file
-opening with `---` is Markdown front matter as often as a YAML stream, and a
-`[section]` line is prose in half the files that hold one. The registry
-`provider` field is the precedent. JSON and XML keep a content sniff, but only
-for a file with **no extension**: a `.md` opening with a tag is not a broken XML
-document, and saying so would be noise. Hence `detection.Declared` — a parse
-failure is reported only when the *name* claimed the kind.
+**Six kinds are declared, never sniffed**: `KindLog`, `KindYAML`, `KindTOML`,
+`KindMarkdown`, `KindDockerfile` and `KindShell`. "This looks like a log" is not
+decidable, and neither is "this looks like YAML" — a file opening with `---` is
+Markdown front matter as often as a YAML stream, and a `[section]` line is prose
+in half the files that hold one. The registry `provider` field is the precedent.
+JSON and XML keep a content sniff, but only for a file with **no extension**: a
+`.md` opening with a tag is not a broken XML document, and saying so would be
+noise. Hence `detection.Declared` — a parse failure is reported only when the
+*name* claimed the kind.
 
-**YAML and TOML are coloured, and have no tree.** `Structured()` excludes them by
-decision, not by oversight: both have a structure, but neither has a parser
-*here* that preserves the file's order, and order is content (below). `yaml.v3`
-could do it — `yaml.Node` keeps order and comments, and it is already a
-dependency — while TOML would cost another one. Until that is worth doing they
-are text with the colour on, and `f` is hidden for them (Rule 130).
+**A name declares in two ways, and the basename is read first.** `Dockerfile`
+carries no extension at all, and `Dockerfile.dev` carries `.dev` — which is in no
+table, so an extension-first lookup would settle it as plain text before the name
+was ever read. Hence `basenameKinds` and the `dockerfile.` prefix ahead of
+`extensionKinds`. A dotfile goes the other way round and lands in the extension
+table, because Go's `filepath.Ext(".bashrc")` returns the whole name; which table
+holds it is an implementation detail, that it is found is not.
 
-The class mapping was **read off the four lexers**, not guessed, which is what
-settled them: YAML needed nothing (its keys arrive as `NameTag`, its scalars as
-`Literal`, `true`/`null` as `KeywordConstant`), and TOML needed one line —
-every one of its keys, table headers included, arrives as `NameOther`, which fell
-through to `ClassText` and left a TOML document coloured everywhere except the
-thing worth colouring. Neither the JSON nor the XML lexer emits `NameOther`, so
-the mapping is not guarded on the kind; the two classification tests are what
-keep that true. No dependency and no binary growth: chroma embeds every lexer
-already, which is what the +4.0 MB below bought.
+**The shebang is the one exception, and it is written down as one** — in
+`sniff()`, in `TestAShebangDeclaresAShellScript`, and here. `#!/usr/bin/env bash`
+is not an indication of what a file resembles: it is the file naming the
+interpreter it is to be run by, which is an extension's standing minus the
+extension. It applies only where `sniff` already did — a file with no extension
+at all — and only to a short list of shells, because answering a
+`#!/usr/bin/env python` with the bash lexer would colour a Python file wrong,
+which is worse than leaving it plain since it looks deliberate.
+
+**YAML, TOML, Dockerfiles and shell scripts are coloured, and have no tree.**
+`Structured()` excludes YAML and TOML by decision, not by oversight: both have a
+structure, but neither has a parser *here* that preserves the file's order, and
+order is content (below). `yaml.v3` could do it — `yaml.Node` keeps order and
+comments, and it is already a dependency — while TOML would cost another one.
+Until that is worth doing they are text with the colour on, and `f` is hidden for
+them (Rule 130). A Dockerfile and a shell script are not excluded from anything:
+they are programs, and a program is read in its own order.
+
+The class mapping is **read off the lexers**, not guessed, and each kind added
+has said something the guess would have missed:
+
+| Kind | What the reading found |
+|---|---|
+| YAML | nothing to do — keys arrive as `NameTag`, scalars as `Literal`, `true`/`null` as `KeywordConstant` |
+| TOML | every key, table headers included, arrives as `NameOther`, which fell through to `ClassText` — a TOML coloured everywhere except the thing worth colouring |
+| Markdown | the whole `Generic` category was unmapped, so a Markdown arrived very nearly colourless |
+| Dockerfile, shell | instructions and `if`/`fi` arrive as a **bare `Keyword`**, and a shell variable as `NameVariable`, which fell through to ordinary text |
+
+Neither the JSON nor the XML lexer emits `NameOther`, so the mapping is not
+guarded on the kind; the classification tests are what keep that true. No
+dependency and no binary growth for any of it: chroma embeds every lexer already,
+which is what the +4.0 MB below bought.
+
+**`Keyword` and `KeywordConstant` are separated, and the test is equality.**
+`KeywordConstant` is `true`, `false`, `null` — a value, so `ClassLiteral`; every
+other keyword is a word of the language, so `ClassKeyword`. The split could not
+disturb what already worked, and that is checked rather than hoped: the JSON,
+YAML, TOML and XML lexers emit `KeywordConstant` and never a bare `Keyword`, and
+`TestAKeywordConstantIsStillALiteral` is what keeps it so. Written the obvious
+way it would have been wrong — chroma implements a sub-category as
+`t/100 == other/100`, so `InSubCategory(KeywordConstant)` answers **true for every
+keyword there is** and silently swallows the other branch. `ColorSyntaxKeyword`
+aliases `ColorPrimary`, the literal's colour: invisible in the default theme, and
+a name for a theme that wants to separate them — the argument already made for
+`ColorFooterError` against `ColorError`.
+
+**Five classes carry a text attribute rather than a colour**, and Markdown is why:
+once the rendered display has taken the `**` and the `~~` away, weight and
+strikethrough are the only thing left saying two runs were ever different, and a
+hue would say it less — a bold word is bold in any theme. `ClassStrong`,
+`ClassEmph` and `ClassStrike` therefore keep `ColorText` and set `Bold`, `Italic`
+and `Strikethrough`; `ClassHeading` takes `ColorSyntaxHeading` and bold both.
+They still set a background like every other style (Rule 115), which is exactly
+what an attribute-only style invites you to forget —
+`TestEveryRenderedStyleCarriesTheAppBackground` asks each of them directly.
+
+**`Tokenize` coalesces adjacent runs of one class**, and that is not tidiness. The
+markdown lexer ends its inline rules with a catch-all single-character
+alternative, so ordinary prose comes back **one token per character**: at the
+5 MiB `MaxSize` ceiling that is millions of `Token` values for a paragraph that
+is a handful of runs. `TestAdjacentRunsOfOneClassAreCoalesced` counts them. It
+preserves the concatenation invariant — only the boundaries move — and drops the
+empty runs several lexers emit between groups. `Match` is deliberately not
+consulted: `Tokenize` never sets it, `MarkMatches` does, after the filter.
 
 **Order is content.** Both parsers read a token stream (`json.Decoder.Token`,
 `xml.Decoder.Token`), never a decoded value: `map[string]any` loses the file's

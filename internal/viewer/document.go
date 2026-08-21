@@ -12,13 +12,16 @@ type Kind string
 const (
 	// KindAuto asks Open to decide from the name and, failing that, the content.
 	// It is what a producer passes when it does not know — a file browser.
-	KindAuto  Kind = ""
-	KindPlain Kind = "plain"
-	KindJSON  Kind = "json"
-	KindXML   Kind = "xml"
-	KindLog   Kind = "log"
-	KindYAML  Kind = "yaml"
-	KindTOML  Kind = "toml"
+	KindAuto       Kind = ""
+	KindPlain      Kind = "plain"
+	KindJSON       Kind = "json"
+	KindXML        Kind = "xml"
+	KindLog        Kind = "log"
+	KindYAML       Kind = "yaml"
+	KindTOML       Kind = "toml"
+	KindMarkdown   Kind = "markdown"
+	KindDockerfile Kind = "dockerfile"
+	KindShell      Kind = "shell"
 )
 
 // Structured reports whether the kind has a tree to walk. It is the one question
@@ -35,6 +38,22 @@ const (
 // them (Rule 130).
 func (k Kind) Structured() bool {
 	return k == KindJSON || k == KindXML
+}
+
+// Renderable reports whether the kind has a *rendered* display — the same
+// document with its markup applied rather than shown.
+//
+// It is the second half of the one question `f` asks. A kind has at most one
+// derived display: a tree when it is Structured, a rendered form when it is
+// Renderable, never both. That is what keeps the toggle binary at every moment
+// and stops one screen being reachable two ways.
+//
+// Markdown is the only kind that qualifies, and it qualifies because its markup
+// is *decoration*: the markers exist to be replaced by weight, italics and
+// indentation, so hiding them loses nothing the reader wanted. A Dockerfile and
+// a shell script have no such layer — their punctuation is the program.
+func (k Kind) Renderable() bool {
+	return k == KindMarkdown
 }
 
 // String is the kind as the header prints it.

@@ -67,14 +67,20 @@ var (
 	// Log levels are deliberately absent: StatusErrorStyle, StatusWarningStyle
 	// and DimStyle already mean error, warn and debug, and a third name for one
 	// colour is how a palette stops being one.
+	// Strong, emphasis and strikethrough are absent, and the absence is the
+	// same decision: they are text *attributes*, so they are carried by
+	// lipgloss's Bold, Italic and Strikethrough over the ordinary text colour.
+	// A bold word is bold in every theme, which a hue is not.
 	ColorSyntaxKey     lipgloss.Color
 	ColorSyntaxString  lipgloss.Color
 	ColorSyntaxNumber  lipgloss.Color
 	ColorSyntaxLiteral lipgloss.Color
+	ColorSyntaxKeyword lipgloss.Color
 	ColorSyntaxPunct   lipgloss.Color
 	ColorSyntaxTag     lipgloss.Color
 	ColorSyntaxAttr    lipgloss.Color
 	ColorSyntaxComment lipgloss.Color
+	ColorSyntaxHeading lipgloss.Color
 
 	// A search occurrence, in reverse video like a selected row: it is the most
 	// urgent thing on the screen while a search is running, so it takes

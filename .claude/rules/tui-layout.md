@@ -84,13 +84,19 @@ paie une fois.
   `y`/`n` ne heurte aucune action.
 
 - **Document viewer** (opened from another view; `esc` returns there):
-  - `f`: Switch display — tree ↔ the document's own text.
+  - `f`: Bascule entre le document tel qu'il est et la **seule** vue que son
+    kind en dérive — l'arbre pour JSON et XML, la forme rendue pour Markdown.
+    Un kind n'en dérive jamais deux, donc la touche n'est jamais ambiguë ; pour
+    un kind qui n'en dérive aucune elle est masquée (Rule 130).
   - `c`: Syntax coloring on/off. La raison a changé avec §3.26 : elle invoquait
     `h`/`l` comme alias réservés de `←`/`→`, ce qui interdisait une touche
     *highlight* en `h` — ces alias n'existent plus, donc l'argument est tombé.
     `c` reste parce que *coloration* est de toute façon un meilleur repère que
     *highlight*, et déplacer une touche pour courir après un motif supprimé
-    serait du bruit.
+    serait du bruit. **`c` est orthogonale à `f`** : éteindre la couleur d'un
+    Markdown rendu ne fait pas réapparaître ses marqueurs — le rendu est un
+    affichage, la coloration en est une autre, et un `c` qui révélerait les
+    marqueurs serait la seconde voie vers un même écran.
   - `w`: Soft wrap (text display).
   - `v`: Cycle the minimum log level shown (logs only).
   - `/`: Search — filtre **et** surligne. Les lignes sans occurrence disparaissent

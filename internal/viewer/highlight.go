@@ -7,8 +7,14 @@ import (
 
 // TokenClass is what a run of text is, for colouring purposes. It is a small
 // closed set of this package's own rather than chroma's several hundred token
-// types: the theme has to have an opinion about every one of them, and eight is
-// a number a palette can carry.
+// types: the theme has to have an opinion about every one of them, and a dozen
+// is a number a palette can carry.
+//
+// The last three carry a text *attribute* rather than a colour, and they are the
+// only ones that do. Markdown needs it: once the rendered display has taken the
+// `**` and the `~~` away, weight and strikethrough are the only thing left
+// saying the two runs were ever different, and a hue would say it less — a bold
+// word is bold in any theme.
 type TokenClass int
 
 const (
@@ -17,10 +23,15 @@ const (
 	ClassString
 	ClassNumber
 	ClassLiteral // true, false, null
+	ClassKeyword // if, FROM, func — a word of the language, not a value
 	ClassPunct
 	ClassTag
 	ClassAttr
 	ClassComment
+	ClassHeading
+	ClassStrong
+	ClassEmph
+	ClassStrike
 )
 
 // Token is a run of text and what it is.
@@ -66,6 +77,35 @@ func Tokenize(kind Kind, text string) []Token {
 	for _, token := range raw {
 		out = append(out, Token{Class: classOf(kind, token.Type), Text: token.Value})
 	}
+	return coalesce(out)
+}
+
+// coalesce merges neighbouring runs of the same class into one token.
+//
+// It is not a tidiness pass, it is what makes Markdown affordable. chroma's
+// markdown lexer ends its inline rules with a catch-all single-character
+// alternative, so ordinary prose comes back
+// **one token per character** — "Some" is four tokens. At the viewer's 5 MiB
+// ceiling (MaxSize) that is millions of Token values, each carrying a string
+// header, for a document whose prose is a handful of runs.
+//
+// It preserves the invariant Tokenize promises — the concatenation is unchanged,
+// only the boundaries move — and it drops empty runs, which several lexers emit
+// between groups. Match is deliberately not consulted: Tokenize never sets it
+// (MarkMatches does, after the filter), so there is no occurrence here to merge
+// away.
+func coalesce(tokens []Token) []Token {
+	out := tokens[:0]
+	for _, token := range tokens {
+		if token.Text == "" {
+			continue
+		}
+		if n := len(out); n > 0 && out[n-1].Class == token.Class {
+			out[n-1].Text += token.Text
+			continue
+		}
+		out = append(out, token)
+	}
 	return out
 }
 
@@ -83,6 +123,12 @@ func lexerName(kind Kind) string {
 		return "yaml"
 	case KindTOML:
 		return "toml"
+	case KindMarkdown:
+		return "markdown"
+	case KindDockerfile:
+		return "docker"
+	case KindShell:
+		return "bash"
 	default:
 		return ""
 	}
@@ -90,7 +136,7 @@ func lexerName(kind Kind) string {
 
 // classOf maps a chroma token type onto our palette.
 //
-// The mapping was read off the four lexers rather than guessed: chroma emits
+// The mapping was read off the lexers rather than guessed: chroma emits
 // NameTag for a JSON object key *and* for an XML tag, which is why the kind is
 // a parameter. Both happen to resolve to the same colour today; naming them
 // apart is what lets a theme separate them later without this function being
@@ -102,12 +148,37 @@ func lexerName(kind Kind) string {
 // one line — every one of its keys, table headers included, comes out as
 // NameOther, which fell through to ClassText and left a TOML document coloured
 // everywhere except the thing worth colouring.
+//
+// Markdown, Dockerfile and shell were read the same way, and each said something
+// the guess would have missed: the whole Generic category was unmapped, so
+// Markdown arrived almost colourless; a Dockerfile instruction and a shell `if`
+// come out as a bare Keyword, which no earlier kind ever emitted; and a shell
+// variable arrives as NameVariable, which fell through to ordinary text.
 func classOf(kind Kind, t chroma.TokenType) TokenClass {
 	switch t.Category() {
 	case chroma.Comment:
 		return ClassComment
+	case chroma.Generic:
+		return genericClass(t)
 	case chroma.Keyword:
-		return ClassLiteral
+		// KeywordConstant is `true`, `false`, `null` — a value. Every other
+		// keyword is a word of the language: `if`, `fi`, `FROM`, `func`.
+		//
+		// Splitting them is free of consequence for what already worked, and
+		// that is a checked fact rather than a hope: the JSON, YAML, TOML and
+		// XML lexers emit KeywordConstant and never a bare Keyword, so the
+		// second branch below is reached only by the three kinds added with it.
+		// TestAKeywordConstantIsStillALiteral is what keeps that true.
+		//
+		// The test is equality and not InSubCategory, which would answer true
+		// for every keyword there is: chroma implements a sub-category as
+		// `t/100 == other/100`, and a bare Keyword shares that quotient with
+		// KeywordConstant. Written the obvious way, this branch swallowed the
+		// other one whole.
+		if t == chroma.KeywordConstant {
+			return ClassLiteral
+		}
+		return ClassKeyword
 	case chroma.Punctuation, chroma.Operator:
 		return ClassPunct
 	case chroma.Literal:
@@ -124,6 +195,15 @@ func classOf(kind Kind, t chroma.TokenType) TokenClass {
 				return ClassTag
 			}
 			return ClassKey
+		case chroma.NameVariable, chroma.NameVariableGlobal, chroma.NameVariableInstance,
+			chroma.NameVariableClass, chroma.NameVariableMagic,
+			chroma.NameBuiltin, chroma.NameBuiltinPseudo, chroma.NameFunction:
+			// The identifier family: a shell variable, a builtin, a function
+			// name inside a fenced code block. They join the JSON, YAML and TOML
+			// keys rather than taking a colour of their own — "a name this
+			// document defines or uses" is one idea, and a Dockerfile whose
+			// $ARGs were the ordinary text colour was coloured half way.
+			return ClassKey
 		case chroma.NameOther:
 			// "A name the lexer could not qualify further", which in TOML is
 			// precisely a key. It is not guarded on the kind because neither the
@@ -134,6 +214,28 @@ func classOf(kind Kind, t chroma.TokenType) TokenClass {
 		default:
 			return ClassText
 		}
+	default:
+		return ClassText
+	}
+}
+
+// genericClass maps chroma's Generic family, which is where a markup lexer puts
+// everything that is markup rather than code.
+//
+// It is Markdown's whole vocabulary: the category was mapped nowhere before, so
+// a Markdown document reached the screen very nearly colourless. GenericDeleted
+// is strikethrough here and not "a deleted line of a diff" — this application
+// has no diff lexer, and the markdown lexer is what emits it.
+func genericClass(t chroma.TokenType) TokenClass {
+	switch t {
+	case chroma.GenericHeading, chroma.GenericSubheading:
+		return ClassHeading
+	case chroma.GenericStrong:
+		return ClassStrong
+	case chroma.GenericEmph:
+		return ClassEmph
+	case chroma.GenericDeleted:
+		return ClassStrike
 	default:
 		return ClassText
 	}

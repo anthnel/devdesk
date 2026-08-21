@@ -13,15 +13,23 @@ import (
 	"github.com/anthnel/devdesk/internal/viewer"
 )
 
-// display is how the document is shown. Two values, not three: "plain text" is
-// this pane with the colour off, and giving it a display of its own would make
-// one screen reachable two ways — the shape §3.9 removed from the secret
-// backend and the deleted `:theme` command.
+// display is how the document is shown.
+//
+// One axis, and `f` is the only thing that moves along it: the document as it
+// is, against the one derived view its kind has. A kind has at most one — a tree
+// when it is Structured, a rendered form when it is Renderable — so the toggle
+// stays binary at every moment even though there are three values here.
+//
+// "Plain text" is still not one of them. It is this pane with the colour off,
+// and giving it a display of its own would make one screen reachable two ways —
+// the shape §3.9 removed from the secret backend and the deleted `:theme`
+// command took with it.
 type display int
 
 const (
 	displayTree display = iota
 	displayText
+	displayRendered
 )
 
 // Model is the document viewer.
@@ -121,6 +129,28 @@ func (m Model) structured() bool {
 	return m.doc.Kind.Structured() && m.doc.Root != nil
 }
 
+// renderable reports whether the rendered display is available at all.
+func (m Model) renderable() bool {
+	return m.doc.Kind.Renderable()
+}
+
+// derived is the display this document has besides its own text, and whether it
+// has one at all.
+//
+// One function so that `f`, the opening display and the shortcuts all read the
+// same answer. Three call sites deciding it with their own switch is how a view
+// ends up offering a display it will then refuse to show (Rule 130).
+func (m Model) derived() (display, bool) {
+	switch {
+	case m.structured():
+		return displayTree, true
+	case m.renderable():
+		return displayRendered, true
+	default:
+		return displayText, false
+	}
+}
+
 // isLog reports whether the verbosity filter applies.
 func (m Model) isLog() bool { return m.doc.Kind == viewer.KindLog }
 
@@ -138,16 +168,16 @@ func (m *Model) applyDocument(doc viewer.Document) tea.Cmd {
 	m.doc = doc
 	m.loading = false
 	m.collapsed = make(map[int]bool)
-	m.lines = buildLines(doc, m.highlight)
 
-	// A structured document opens on its tree, which is what the request asked
-	// for: a .json opens as json, a .xml as xml. Everything else has no tree to
-	// open on.
-	if m.structured() {
-		m.display = displayTree
-	} else {
-		m.display = displayText
-	}
+	// A document opens on its derived display when it has one, which is what
+	// the request asked for: a .json opens as json, a .xml as xml, a .md as the
+	// document it is meant to read as. `f` is there for the source.
+	m.display, _ = m.derived()
+
+	// The spans come after the display, not before: a rendered document is a
+	// different token stream from its source, so which one to build is the
+	// display's answer to give.
+	m.lines = buildLines(doc, m.highlight, m.display == displayRendered)
 
 	// A verbosity filter left over from a previous document would hide lines of
 	// this one for a reason the user set on something else.
@@ -174,22 +204,34 @@ func (m *Model) applyDocument(doc viewer.Document) tea.Cmd {
 // recomputed on every frame.
 func (m *Model) toggleHighlight() {
 	m.highlight = !m.highlight
-	m.lines = buildLines(m.doc, m.highlight)
+	m.lines = buildLines(m.doc, m.highlight, m.display == displayRendered)
 	m.rebuildTree()
 	m.rebuildText()
 }
 
-// toggleDisplay is `f`. It does nothing for a document with no tree, and the
-// shortcut is hidden in that case rather than offered and ignored.
+// toggleDisplay is `f`. It does nothing for a document with no derived display,
+// and the shortcut is hidden in that case rather than offered and ignored.
+//
+// It rebuilds the spans when it crosses the rendered boundary, because the two
+// sides are not the same tokens: the rendered form is the stream with its
+// markers taken out. The tree costs nothing here — it reads the parsed nodes,
+// not these lines.
 func (m *Model) toggleDisplay() {
-	if !m.structured() {
+	derived, ok := m.derived()
+	if !ok {
 		return
 	}
-	if m.display == displayTree {
+	if m.display == derived {
 		m.display = displayText
-		return
+	} else {
+		m.display = derived
 	}
-	m.display = displayTree
+
+	if derived == displayRendered {
+		m.lines = buildLines(m.doc, m.highlight, m.display == displayRendered)
+		m.rebuildText()
+		m.textViewport.GotoTop()
+	}
 }
 
 // formatLabel is what the header prints: the kind and the display, and the
@@ -204,6 +246,12 @@ func (m Model) formatLabel() string {
 			return label + " · tree"
 		}
 		return label + " · text"
+	}
+	if m.renderable() {
+		if m.display == displayRendered {
+			return label + " · rendered"
+		}
+		return label + " · raw"
 	}
 	if m.isLog() && m.minLevel != viewer.LevelUnknown {
 		return label + " · " + minLevelLabel(m.minLevel)
