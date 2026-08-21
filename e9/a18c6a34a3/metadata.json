@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "e9a18c6a34a3",
+  "strategy": "manual-commit",
+  "branch": "docs/worktree-workflow",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/e9/a18c6a34a3/0/metadata.json",
+      "transcript": "/e9/a18c6a34a3/0/full.jsonl",
+      "compact_transcript": "/e9/a18c6a34a3/0/transcript.jsonl",
+      "content_hash": "/e9/a18c6a34a3/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 21691,
+    "cache_read_tokens": 3512526,
+    "output_tokens": 9165,
+    "api_call_count": 17
+  }
+}
