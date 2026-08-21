@@ -390,9 +390,10 @@ func has(shortcuts shortcut.Shortcuts, key string) bool {
 }
 
 // Rule 136: the bar and the viewport border form one closed rectangle, which
-// the router draws from this method. The findings table has no bar to close
-// around — it filters by tab and severity, not by query.
-func TestOnlyTheInventoryReportsAVisibleFilterBar(t *testing.T) {
+// the router draws from this method. Both tables have a bar, so what is
+// reported is the bar of whichever one is on screen — and a state that opens
+// with no filter of its own reports none.
+func TestTheReportedFilterBarFollowsTheTableOnScreen(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 
 	if m.FilterBarVisible() {

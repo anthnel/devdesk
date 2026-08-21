@@ -19,11 +19,23 @@ const numColumns = 4
 
 // findingColumns describes the findings table.
 //
-// Nothing sorts and nothing searches: the severity order is the one the scanner
-// reported and `.` is the severity *filter* on this view, not Rule 111's sort.
-// The Title is not pre-truncated either — bubbles cuts every cell to its column
-// width with the same ellipsis, and doing it by hand at width-3 first only cost
-// three characters of title.
+// The table opens on the order the scanner reported — `SortColumn: -1`, which
+// datatable keeps as a stop on the cycle, so `.` always leads back to it. Every
+// column sorts, because `.` was handed back to the sort when the severity floor
+// became four tokens (§3.26) and then no column was ever given a `Less`:
+// CycleSort returned on its first line and the header advertised a key that did
+// nothing at all.
+//
+// Three columns search, and that is not optional either. Declaring tokens makes
+// `Searchable()` true, so `/` already opened a query — against no searchable
+// column, which matches nothing and empties the table. The bar's own left half
+// says `/ search...` whether or not anything answers it.
+//
+// Severity searches nothing on purpose: c/h/m/l are the severity filter, and a
+// second way to ask one question is what this codebase spends its time
+// removing. The Title is not pre-truncated either — bubbles cuts every cell to
+// its column width with the same ellipsis, and doing it by hand at width-3
+// first only cost three characters of title.
 func findingColumns() []datatable.Column[scan.Finding] {
 	return []datatable.Column[scan.Finding]{
 		{
@@ -32,10 +44,52 @@ func findingColumns() []datatable.Column[scan.Finding] {
 			// The same palette the selected row uses, so a severity reads the
 			// same colour whether or not the cursor is on it.
 			Style: func(f scan.Finding) lipgloss.Style { return theme.SeverityTextStyle(string(f.Severity)) },
+			Less:  func(a, b scan.Finding) bool { return severityRank(a.Severity) < severityRank(b.Severity) },
 		},
-		{Title: "ID", MinWidth: 18, Cell: func(f scan.Finding) string { return f.ID }},
-		{Title: "Title", MinWidth: 20, Flex: 1, Cell: func(f scan.Finding) string { return f.Title }},
-		{Title: "Source", MinWidth: 14, Cell: sourceDisplay},
+		{
+			Title: "ID", MinWidth: 18,
+			Cell:   func(f scan.Finding) string { return f.ID },
+			Less:   func(a, b scan.Finding) bool { return a.ID < b.ID },
+			Search: func(f scan.Finding) string { return f.ID },
+		},
+		{
+			Title: "Title", MinWidth: 20, Flex: 1,
+			Cell:   func(f scan.Finding) string { return f.Title },
+			Less:   func(a, b scan.Finding) bool { return a.Title < b.Title },
+			Search: func(f scan.Finding) string { return f.Title + " " + f.PkgName + " " + f.File },
+		},
+		{
+			Title: "Source", MinWidth: 14,
+			Cell:   sourceDisplay,
+			Less:   func(a, b scan.Finding) bool { return sourceDisplay(a) < sourceDisplay(b) },
+			Search: sourceDisplay,
+		},
+	}
+}
+
+// severityRank orders the levels by how bad they are, which is the only order
+// worth sorting this column by: alphabetically, CRITICAL lands between no two
+// levels it belongs with — HIGH, LOW, MEDIUM — so a descending sort would put
+// MEDIUM at the top and bury the finding the user opened the view for.
+//
+// Ascending is least-severe-first, so `.`'s second press (descending, Rule 111)
+// is the one that answers "what is worst here".
+//
+// UNKNOWN ranks below LOW rather than above CRITICAL: it is what a scanner
+// says when it has no score, not a claim that something is worse than critical.
+// It has no token either, for the same reason — see severityToken.
+func severityRank(s scan.SeverityLevel) int {
+	switch s {
+	case scan.SeverityCritical:
+		return 4
+	case scan.SeverityHigh:
+		return 3
+	case scan.SeverityMedium:
+		return 2
+	case scan.SeverityLow:
+		return 1
+	default:
+		return 0
 	}
 }
 
@@ -175,8 +229,17 @@ func (m Model) handleIgnoreSecret() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleResultsState processes input in results state
+// handleResultsState processes input in results state.
+//
+// The search answers first, and every key below is unreachable while it has the
+// keyboard: "c" is a character in a query, "esc" cancels the search rather than
+// leaving the results, and "enter" confirms it rather than opening a finding.
+// The inventory has had this guard since it gained a bar; this state gained one
+// the day the severity floor became tokens, and never got the guard with it.
 func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.findingsTable.InEditMode() {
+		return m, m.findingsTable.Update(msg)
+	}
 	switch msg.String() {
 	case "esc":
 		// No origin view means this view was opened directly, so esc stays

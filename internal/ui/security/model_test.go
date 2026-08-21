@@ -136,6 +136,73 @@ func TestDotDoesNotFilterBySeverity(t *testing.T) {
 	}
 }
 
+// …and it has to sort *something*. The key was handed back to the sort when the
+// severity cycle became four tokens, but no column was ever given a Less, so
+// CycleSort returned on its first line and the shortcut advertised a key that
+// did nothing at all.
+func TestDotSortsTheFindings(t *testing.T) {
+	m := scannedModel(t)
+	if column, _ := m.findingsTable.SortState(); column != -1 {
+		t.Fatalf("the table opens sorted on column %d, want the scanner's own order", column)
+	}
+
+	m = feed(t, m, testutil.Key("."))
+
+	column, _ := m.findingsTable.SortState()
+	if column < 0 {
+		t.Fatal("'.' left the table unsorted; no column declares a Less")
+	}
+}
+
+// Sorting a severity alphabetically puts CRITICAL next to no one it belongs
+// with — HIGH, LOW, MEDIUM, UNKNOWN reads as a random order to anyone looking
+// for the worst finding first, which is the only reason to sort this column.
+func TestSeveritySortsByRankNotAlphabetically(t *testing.T) {
+	// The CVE tab holds a CRITICAL and a MEDIUM, which is what tells the two
+	// orders apart: alphabetically, descending would put MEDIUM first.
+	m := feed(t, scannedModel(t), testutil.Key("."), testutil.Key(".")) // Severity, descending
+
+	rows := m.findingsTable.Table().Rows()
+	if len(rows) != 2 {
+		t.Fatalf("the CVE tab holds %d rows, want the two fixtures", len(rows))
+	}
+	if got := rows[0][0]; got != string(scan.SeverityCritical) {
+		t.Errorf("the first row is %q, want CRITICAL at the top of a descending severity sort", got)
+	}
+}
+
+// The tokens fill the bar, and the bar renders a "/ search..." prompt whether or
+// not anything is searchable. Nothing declared a Search, so '/' opened a query
+// that could only ever match nothing and emptied the table.
+func TestSearchingTheFindings(t *testing.T) {
+	m := feed(t, scannedModel(t), testutil.Key("/"))
+	m = feed(t, m, testutil.Type("libbar")...)
+	m = feed(t, m, testutil.Key("enter"))
+
+	if got := rowIDs(m.findingsTable.Table().Rows()); !equal(got, []string{"CVE-2026-0002"}) {
+		t.Errorf("a search for \"libbar\" shows %v, want only the finding whose title holds it", got)
+	}
+}
+
+// While the search has the keyboard, c/h/m/l are characters. They were read as
+// severity toggles before the view saw whether a field was focused, so typing
+// "critical" filtered four times and typed nothing.
+func TestTheSearchTakesTheKeysThatAreOtherwiseFilters(t *testing.T) {
+	m := feed(t, scannedModel(t), testutil.Key("/"), testutil.Key("c"))
+
+	if m.findingsTable.IsTokenActive("critical") {
+		t.Error("a keystroke meant for the search box toggled the CRITICAL token")
+	}
+	if !m.InEditMode() {
+		t.Fatal("the search lost focus")
+	}
+	// And esc cancels the search rather than leaving the results behind it.
+	m, _ = step(t, m, testutil.Key("esc"))
+	if m.state != StateResults {
+		t.Error("esc left the results state instead of closing the search")
+	}
+}
+
 // ── Details ──────────────────────────────────────────────────────────────────
 
 func TestEnterOpensTheDetailsOfTheHighlightedFinding(t *testing.T) {

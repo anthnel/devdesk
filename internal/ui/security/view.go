@@ -65,20 +65,26 @@ func (m Model) GetFooterHeight() int {
 }
 
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
+//
+// The bar comes first whatever the state, because its top edge *is* the
+// viewport's bottom border (Rule 136) — the same order oci_resources uses for
+// the one bar it draws above a tab bar.
+//
+// It is resolved through activeFilterBar, like the height. The results branch
+// drew no bar at all while GetFooterHeight counted one, so the router took two
+// lines off the viewport and nothing filled them: the table's bottom border
+// climbed the moment a severity token went on, and the tokens the user had just
+// switched on were nowhere on screen.
 func (m Model) RenderFooter(width int) string {
+	var parts []string
+	if bar := m.activeFilterBar(); bar != nil {
+		parts = append(parts, bar.View())
+	}
 	if m.showsResultTabs() {
-		return theme.PadWithBg(theme.Bg(" ")+m.renderTabs(), width) + "\n" +
-			theme.EmptyLineBg(width) + "\n" + m.renderInfoLine(width)
+		parts = append(parts, theme.PadWithBg(theme.Bg(" ")+m.renderTabs(), width))
 	}
-	if m.state == StateInventory {
-		var parts []string
-		if bar := m.inventory.FilterBar(); bar.IsVisible() {
-			parts = append(parts, bar.View())
-		}
-		parts = append(parts, theme.EmptyLineBg(width), m.renderInfoLine(width))
-		return strings.Join(parts, "\n")
-	}
-	return theme.EmptyLineBg(width) + "\n" + m.renderInfoLine(width)
+	parts = append(parts, theme.EmptyLineBg(width), m.renderInfoLine(width))
+	return strings.Join(parts, "\n")
 }
 
 // modalView renders whichever modal is open, or "" when none is.
