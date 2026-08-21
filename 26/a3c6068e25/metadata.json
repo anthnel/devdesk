@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "26a3c6068e25",
+  "strategy": "manual-commit",
+  "branch": "netdiag-checks",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/docker/netdiag.go",
+    "internal/netcheck/netcheck.go",
+    "internal/netcheck/run.go",
+    "internal/netcheck/run_test.go",
+    "internal/ui/keymap/keymap.go",
+    "internal/ui/netdiag/dns_formatter.go",
+    "internal/ui/netdiag/dns_formatter_test.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/netdiag_test.go",
+    "internal/ui/netdiag/run.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/netdiag/validation.go",
+    "internal/ui/netdiag/view.go",
+    "internal/ui/netdiag/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/26/a3c6068e25/0/metadata.json",
+      "transcript": "/26/a3c6068e25/0/full.jsonl",
+      "compact_transcript": "/26/a3c6068e25/0/transcript.jsonl",
+      "content_hash": "/26/a3c6068e25/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 104,
+    "cache_creation_tokens": 101621,
+    "cache_read_tokens": 19294685,
+    "output_tokens": 72175,
+    "api_call_count": 52
+  }
+}
