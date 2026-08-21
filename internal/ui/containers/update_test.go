@@ -1022,6 +1022,43 @@ func TestASecondActionOnTheSameContainerIsRefused(t *testing.T) {
 	}
 }
 
+// The spinner on the row only turns while a tick is being scheduled, and Init's
+// tick stops as soon as the list has arrived — a loaded, idle view schedules
+// nothing (TestSpinnerTicksOnlyWhileLoading). So an action begun after that sat
+// on frame zero for the whole ten second grace period of a `docker stop`, which
+// is exactly the freeze the spinner exists to disprove.
+//
+// The command is stubbed rather than real: what is asserted is what startAction
+// batches alongside it, and testutil.Msgs runs everything it is handed — the
+// real one shells out to docker.
+func TestAnActionRestartsTheSpinner(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down")) // web, running
+	if _, cmd := step(t, m, spinner.TickMsg{}); cmd != nil {
+		t.Fatal("the idle model was still ticking, so this test would prove nothing")
+	}
+
+	c := docker.Container{ID: webID, Name: "web"}
+	_, cmd := m.startAction(&c, "Stopping", func() tea.Msg { return nil })
+
+	if _, ok := testutil.MsgOf[spinner.TickMsg](cmd); !ok {
+		t.Error("the action scheduled no tick, so its row spins on a frozen frame")
+	}
+}
+
+// And once running, the tick has to go on being scheduled: the list is loaded
+// and on screen the whole time a container stops, so the view's own loading
+// flag says nothing about it.
+func TestTheSpinnerKeepsTickingWhileAnActionRuns(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key("down"), testutil.Key("down"))
+	m, _ = pressK(t, m, choiceStop)
+
+	_, cmd := step(t, m, spinner.TickMsg{})
+
+	if cmd == nil {
+		t.Error("the spinner stopped being scheduled while an action was running")
+	}
+}
+
 // The cursor is deliberately not locked. A scan already runs with a spinner in
 // the cell while the user keeps navigating, and locking the cursor would look
 // like the freeze this exists to remove.

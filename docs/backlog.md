@@ -17,7 +17,7 @@ browse a single proxy inside a real Nexus group. It is what
 fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
 on and is now closed on its own.
 
-D1 through D38 and D40 through D43 are all fixed or, in D35's case, deliberately
+D1 through D38 and D40 through D44 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +29,37 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D44 — le spinner d'un conteneur qu'on arrête restait figé. Corrigé.** Signalé
+depuis une vraie session : `K` → `Stop`, la ligne prend bien le spinner à la
+place de son icône d'état, et la frame ne bouge plus.
+
+La frame ne tourne que tant qu'un `spinner.TickMsg` est reprogrammé, et le
+handler ne le reprogramme que si quelque chose tourne — `BusyLabels()` non vide,
+ou `m.loading`. Or `Init` lance une boucle qui **s'éteint dès que la liste est
+arrivée** : le premier tick reçu par une vue chargée et au repos ne retourne
+aucun `Cmd`. Une action démarrée après ce moment-là posait donc son marqueur sur
+une boucle déjà morte, et personne ne la relançait. Le rafraîchissement
+périodique n'y change rien : `RefreshTickMsg` ne repasse pas par `m.loading`.
+
+Ce qui rend le défaut coûteux, c'est ce qu'il fige : `docker stop` prend les dix
+secondes du délai de grâce par défaut, et le spinner existe précisément pour dire
+que ces dix secondes ne sont pas un blocage. Une frame arrêtée dit l'inverse de
+ce pour quoi elle est là.
+
+`startAction` retourne maintenant `tea.Batch(cmd, m.busyTick())` — le même
+`busyTick()` que `oci_resources` (§3.22) et que le kill de netdiag, qui
+l'avaient tous les deux et que ce défaut ne touchait donc pas. Relancer une
+boucle déjà vivante ne coûte rien : bubbles étiquette chaque tick, donc le
+premier accepté périme l'autre et il n'en reste qu'une.
+
+Deux tests. `TestAnActionRestartsTheSpinner` vérifie d'abord qu'une vue chargée
+ne tick plus — sans quoi il ne prouverait rien — puis que l'action programme un
+tick ; il passe une commande factice, parce que la vraie shell out vers docker
+et que `testutil.Msgs` exécute tout ce qu'on lui donne.
+`TestTheSpinnerKeepsTickingWhileAnActionRuns` tient l'autre moitié : la liste est
+chargée et à l'écran pendant tout l'arrêt, donc `m.loading` ne dit rien de ce
+qui tourne.
 
 **D43 — tenir `→` enfoncée empilait le même chemin dans le fil d'Ariane.
 Corrigé.** Signalé depuis une vraie session :

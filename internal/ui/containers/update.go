@@ -210,8 +210,18 @@ func (m Model) startAction(c *docker.Container, label string, cmd tea.Cmd) (tea.
 		return m, m.footer.Warn(busyMessage)
 	}
 	m.containerTable.MarkBusy(c.ID, label+" "+c.Name)
-	return m, cmd
+	return m, tea.Batch(cmd, m.busyTick())
 }
+
+// busyTick is what an action returns alongside its command so the row's frame
+// turns. Init starts a tick, but it stops as soon as the list has arrived and
+// nothing is running; an action begun after that would sit on frame zero for
+// the whole ten second grace period of a `docker stop` — the freeze the spinner
+// exists to disprove.
+//
+// Restarting a loop that is already running costs nothing: bubbles tags each
+// tick, so the first one accepted invalidates the other and one loop remains.
+func (m Model) busyTick() tea.Cmd { return m.spinner.Tick }
 
 // confirmStopOrRestart asks which of the two to run, or neither.
 //
