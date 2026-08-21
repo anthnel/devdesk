@@ -118,6 +118,16 @@ func TestFooterHeightMatchesWhatIsRendered(t *testing.T) {
 			return feed(t, inventoryModel(t, inventoryFixtures()...), testutil.Key("/"))
 		}},
 		{"results", func(t *testing.T) Model { return scannedModel(t) }},
+		// The two states the results table's own bar opens in. Both were two
+		// lines short: GetFooterHeight counted the bar and RenderFooter never
+		// drew it, so the router shrank the viewport around a gap and the
+		// table's bottom border climbed.
+		{"results, a severity token", func(t *testing.T) Model {
+			return feed(t, scannedModel(t), testutil.Key("c"))
+		}},
+		{"results, searching", func(t *testing.T) Model {
+			return feed(t, scannedModel(t), testutil.Key("/"))
+		}},
 		{"details", func(t *testing.T) Model { return detailsModel(t) }},
 	}
 
@@ -131,6 +141,43 @@ func TestFooterHeightMatchesWhatIsRendered(t *testing.T) {
 				t.Errorf("GetFooterHeight() = %d, RenderFooter() emitted %d lines", got, lines)
 			}
 		})
+	}
+}
+
+// The active severity tokens belong in the bar under the table, next to the
+// search field — the ports view's arrangement, which is what says at a glance
+// why rows are missing. They were kept in the table's FilterBar all along and
+// simply never rendered here.
+func TestTheResultsFilterBarIsRendered(t *testing.T) {
+	m := feed(t, scannedModel(t), testutil.Key("c"), testutil.Key("h"))
+
+	footer := m.RenderFooter(160)
+
+	for _, want := range []string{"critical", "high"} {
+		if !strings.Contains(footer, want) {
+			t.Errorf("the footer does not name the active %q token:\n%s", want, footer)
+		}
+	}
+	// And it sits above the tab bar, so its top edge is the viewport's own
+	// bottom border (Rule 136) rather than a line floating under the tabs.
+	if bar, tabs := strings.Index(footer, "critical"), strings.Index(footer, "CVE ("); bar > tabs {
+		t.Errorf("the filter bar renders below the tab bar:\n%s", footer)
+	}
+}
+
+// FilterBarVisible is what closes the viewport's bottom corners around the bar
+// (Rule 136). It answered only for the inventory, so the results bar — once
+// drawn — would have hung off an unclosed rectangle.
+func TestTheResultsBarClosesTheViewport(t *testing.T) {
+	m := scannedModel(t)
+	if m.FilterBarVisible() {
+		t.Fatal("a results view with no filter reports a visible bar")
+	}
+
+	m = feed(t, m, testutil.Key("c"))
+
+	if !m.FilterBarVisible() {
+		t.Error("an active severity token left the viewport border unclosed")
 	}
 }
 

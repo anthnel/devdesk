@@ -17,7 +17,7 @@ browse a single proxy inside a real Nexus group. It is what
 fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
 on and is now closed on its own.
 
-D1 through D38 and D40 through D44 are all fixed or, in D35's case, deliberately
+D1 through D38 and D40 through D45 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +29,58 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D45 — dans les résultats de security, le bord bas du tableau remontait dès
+qu'un filtre s'activait, `.` ne faisait rien, et les filtres n'étaient annoncés
+nulle part. Corrigé.** Signalé depuis une vraie session, en trois symptômes qui
+n'en font qu'un : la barre de filtre de ce tableau était **déclarée mais jamais
+dessinée**.
+
+`GetFooterHeight()` comptait ses deux lignes (Rule 136) et `RenderFooter()` n'en
+rendait aucune dans l'état résultats — le routeur retirait donc deux lignes au
+viewport et rien ne venait les occuper. Le tableau rétrécissait, sa bordure
+basse montait, et les tokens que l'utilisateur venait d'activer n'étaient
+visibles nulle part. `TestFooterHeightMatchesWhatIsRendered` couvrait déjà
+l'inventaire et l'état résultats *au repos* ; les deux cas où la barre s'ouvre
+manquaient, et c'est exactement là que l'écart valait 2.
+
+Deux autres choses étaient déclarées sans être atteignables, et elles se tiennent
+toutes les trois :
+
+- **`.` ne triait rien.** La touche est revenue au tri quand le seuil de
+  sévérité est devenu quatre tokens (§3.26), mais aucune colonne n'a jamais reçu
+  de `Less` : `CycleSort` retournait sur sa première ligne et le header
+  annonçait une touche inerte. Les quatre colonnes trient maintenant, et le
+  tableau garde `SortColumn: -1` — l'ordre du scanner reste le point de départ
+  et `datatable` en fait une étape du cycle, donc `.` y ramène.
+- **`/` vidait le tableau.** Déclarer des tokens rend `Searchable()` vrai, donc
+  `/` ouvrait bien une recherche — contre aucune colonne `Search`, ce qui ne
+  correspond à rien et filtre tout. La barre affichait `/ search...` par-dessus
+  le marché. ID, Title (avec le paquet et le fichier) et Source cherchent
+  maintenant ; Severity non, parce que c/h/m/l sont déjà ça.
+
+**La sévérité se trie par rang, pas par ordre alphabétique.** CRITICAL n'est
+alphabétiquement voisin d'aucun niveau dont il est proche — HIGH, LOW, MEDIUM —
+donc un tri décroissant mettrait MEDIUM en tête et enterrerait ce pour quoi la
+vue est ouverte. UNKNOWN passe sous LOW : c'est l'absence de score, pas une
+prétention à pire que critique, et c'est aussi pourquoi il n'a pas de token.
+
+**Un quatrième défaut est tombé en route** : `handleResultsState` n'avait pas la
+garde `InEditMode()` que l'inventaire a depuis qu'il a une barre. Pendant une
+recherche, `c` basculait le token CRITICAL au lieu de s'écrire, `esc` quittait
+les résultats au lieu d'annuler la recherche et `enter` ouvrait un finding au
+lieu de valider. La recherche répond maintenant avant tout le reste.
+
+**Les raccourcis disent enfin ce que la vue fait.** `c` `h` `m` `l` étaient liés
+et annoncés nulle part — il fallait ouvrir l'aide pour apprendre que la vue
+filtrait. `.` était offert sur trois onglets sur quatre, reste de l'époque où il
+cyclait le seuil ; c'est le tri, donc il vaut partout. Et pendant une recherche
+le header ne montre plus que `enter/esc`, comme la vue ports : lister des
+touches qui ne font plus ce qu'elles annoncent est pire que n'en lister aucune.
+
+Sept tests, dont les six qui échouent sans le correctif —
+`GetFooterHeight() = 5, RenderFooter() emitted 3 lines` étant le symptôme
+signalé, à la ligne près.
 
 **D44 — le spinner d'un conteneur qu'on arrête restait figé. Corrigé.** Signalé
 depuis une vraie session : `K` → `Stop`, la ligne prend bien le spinner à la

@@ -8,6 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -17,26 +18,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	case StateInventory:
 		return m.inventoryShortcuts()
 	case StateResults:
-		shortcuts := []shortcut.Shortcut{
-			{Key: "tab", Description: "Switch tab"},
-			{Key: "enter", Description: "Details"},
-		}
-		if m.activeTab == TabCVE || m.activeTab == TabLicense || m.activeTab == TabMisconfig {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: ".", Description: "Filter"})
-		}
-		// Rule 130: .gitleaksignore only accepts a Gitleaks fingerprint, so 'i'
-		// means nothing on a secret Trivy found — and the Secrets tab now holds
-		// both.
-		if selected, ok := m.findingsTable.Selected(); m.activeTab == TabSecrets && ok &&
-			selected.Source == scan.SourceGitleaks {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "X", Description: "Exclude"})
-		}
-		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "ctrl+r", Description: "New scan"},
-			shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
-			shortcut.Shortcut{Key: "?", Description: "Help"},
-		)
-		return shortcuts
+		return m.resultsShortcuts()
 	case StateDetails:
 		shortcuts := []shortcut.Shortcut{
 			{Key: "esc/⌫", Description: "Back"},
@@ -50,6 +32,43 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		return shortcuts
 	}
 	return nil
+}
+
+// resultsShortcuts advertises the findings table's own keys.
+//
+// The four severity toggles were bound and unadvertised — a user had to open
+// the help to learn the view filtered at all — and `.` was offered on three
+// tabs out of four, from back when it cycled the severity floor. It is the sort
+// now (Rule 111), so it applies wherever there is a table.
+//
+// While the search has the keyboard, everything else is a character: listing
+// keys that no longer do what they say is worse than listing nothing, so only
+// the two that end the search are shown. Same shape as the ports view.
+func (m Model) resultsShortcuts() shortcut.Shortcuts {
+	if m.findingsTable.InEditMode() {
+		return shortcut.Shortcuts{{Key: "enter/esc", Description: "Confirm / Cancel search"}}
+	}
+	shortcuts := []shortcut.Shortcut{
+		{Key: "tab", Description: "Switch tab"},
+		{Key: "enter", Description: "Details"},
+		{Key: "c", Description: "Toggle CRITICAL"},
+		{Key: "h", Description: "Toggle HIGH"},
+		{Key: "m", Description: "Toggle MEDIUM"},
+		{Key: "l", Description: "Toggle LOW"},
+		{Key: "/", Description: "Search"},
+		{Key: ".", Description: "Sort"},
+	}
+	// Rule 130: .gitleaksignore only accepts a Gitleaks fingerprint, so X means
+	// nothing on a secret Trivy found — and the Secrets tab now holds both.
+	if selected, ok := m.findingsTable.Selected(); m.activeTab == TabSecrets && ok &&
+		selected.Source == scan.SourceGitleaks {
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: keymap.Exclude, Description: "Exclude"})
+	}
+	return append(shortcuts,
+		shortcut.Shortcut{Key: "ctrl+r", Description: "New scan"},
+		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
+		shortcut.Shortcut{Key: "?", Description: "Help"},
+	)
 }
 
 // inventoryShortcuts advertises only what the selected row can actually do
@@ -145,14 +164,12 @@ func (m Model) GetHelpContent() help.Content {
 		Title:       "Security Scanner",
 		Description: "This view opens on an inventory of everything scanned in the current configuration context — images and repositories, with what each scan found and when. Opening a row shows its findings; rescanning re-runs Trivy and Gitleaks with the options set in the configuration view.",
 		KeyBindings: []help.KeyBinding{
-			{Key: "↑/k", Description: "Move selection up"},
-			{Key: "↓/j", Description: "Move selection down"},
 			{Key: "enter", Description: "Open the stored findings for the selected target (inventory)"},
 			{Key: "S", Description: "Rescan the selected target, overwriting its cached result (inventory)"},
 			{Key: "A", Description: "Rescan every target. The confirmation carries a checkbox to purge the cached counts first (inventory)"},
 			{Key: "ctrl+r", Description: "Reload the inventory from the scan caches"},
-			{Key: "/", Description: "Filter the inventory by target name"},
-			{Key: ".", Description: "Cycle the sort column (inventory) or the severity filter (results)"},
+			{Key: "/", Description: "Search — the inventory by target name, the findings by ID, title, package or file"},
+			{Key: ".", Description: "Cycle the sort column — the findings table opens on the order the scanner reported, and the cycle leads back to it"},
 			{Key: "enter", Description: "Open the details of the selected finding (results)"},
 			{Key: "X", Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab, Gitleaks findings only)"},
 			{Key: "o", Description: "Open first reference URL in the default browser (detail view)"},
@@ -166,7 +183,7 @@ func (m Model) GetHelpContent() help.Content {
 		Sections: []help.Section{
 			{
 				Title: "Inventory",
-				Body:  "The table lists every image and repository scanned in the current context, sorted by CRITICAL findings. Counts come from the scan caches; the Scanned column shows how long ago each result was produced.\nScans launched from the OCI resources and workspaces views write to the same caches and appear here.\nA rescan reads its options from the configuration view (:cfg), scan tab — there is nothing to set here.\nRescanning all (ctrl+a) purges the cached results first, so a target shows '-' until its scan returns.",
+				Body:  "The table lists every image and repository scanned in the current context, sorted by CRITICAL findings. Counts come from the scan caches; the Scanned column shows how long ago each result was produced.\nScans launched from the OCI resources and workspaces views write to the same caches and appear here.\nA rescan reads its options from the configuration view (:cfg), scan tab — there is nothing to set here.\nRescanning all (A) purges the cached results first, when its checkbox is ticked, so a target shows '-' until its scan returns.",
 			},
 			{
 				Title: "Scan Types",
@@ -182,7 +199,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Results",
-				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Use '.' to cycle the severity filter. Press Enter to view finding details. For secrets, 'i' adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have.\nEsc returns to the inventory, or to the list the results were opened from.",
+				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Severity is filtered with c, h, m and l — they are cumulative, so c and h together ask for CRITICAL or HIGH, which a threshold could not express. The active ones are shown in the bar under the table, beside the search field. '.' cycles the sort column and '/' searches. Press Enter to view finding details. For secrets, X adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have.\nEsc returns to the inventory, or to the list the results were opened from.",
 			},
 			{
 				Title: "Command Logging",

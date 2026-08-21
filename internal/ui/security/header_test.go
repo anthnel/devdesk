@@ -27,22 +27,35 @@ func TestShortcutsFollowTheState(t *testing.T) {
 			notWant: []string{"tab", keymap.Exclude, "."},
 		},
 		{
+			// The four severity toggles were bound and unadvertised: a user had
+			// to read the help to learn the view filters at all.
 			name:    "the CVE tab",
 			open:    func(t *testing.T) Model { return scannedModel(t) },
-			want:    []string{"tab", "enter", ".", "ctrl+r"},
+			want:    []string{"tab", "enter", ".", "/", "c", "h", "m", "l", "ctrl+r"},
 			notWant: []string{keymap.Exclude, "space"},
 		},
 		{
-			// '.' has no severity axis on secrets and 'i' has nothing to ignore
-			// anywhere else, so the two swap.
+			// '.' is the sort, so it applies to every tab — it was advertised
+			// on three of four back when it cycled the severity floor.
 			name: "the secrets tab",
 			open: func(t *testing.T) Model {
 				m := scannedModel(t)
 				m.switchTab(TabSecrets)
 				return m
 			},
-			want:    []string{keymap.Exclude},
-			notWant: []string{"."},
+			want:    []string{keymap.Exclude, "."},
+			notWant: []string{"space"},
+		},
+		{
+			// While the search has the keyboard, every other key is a
+			// character; advertising them would be advertising what they no
+			// longer do.
+			name: "the results, searching",
+			open: func(t *testing.T) Model {
+				return feed(t, scannedModel(t), testutil.Key("/"))
+			},
+			want:    []string{"enter/esc"},
+			notWant: []string{"c", ".", "tab"},
 		},
 		{
 			name:    "the details",

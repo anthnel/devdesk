@@ -897,6 +897,21 @@ is what `ws` did.
 `StateInventory` (the landing page), `StateResults` and `StateDetails` (with
 remediation info).
 
+**The findings table has one filter bar and it is drawn** (D45). The bar carries
+the four severity tokens (`c` `h` `m` `l`, cumulative), the search and — since
+`.` went back to the sort — the arrow saying which column is sorted. Three of
+those were declared and unreachable: `RenderFooter` drew no bar in the results
+state while `GetFooterHeight` counted one, so the router took two lines off the
+viewport and nothing filled them; no column declared a `Less`, so `CycleSort`
+returned on its first line; no column declared a `Search`, so `/` — which the
+tokens alone make available — opened a query that matched nothing.
+
+`severityRank` is what the Severity column sorts by. Alphabetically, CRITICAL
+sits between no two levels it belongs with, so a descending sort would put
+MEDIUM on top and bury what the view was opened for. UNKNOWN ranks below LOW: it
+is the absence of a score, not a claim of something worse than critical — which
+is also why it has no token.
+
 **The scan form is gone** (phase 3), and with it `StateScanning`: there is no
 screen that runs one scan and waits on it. The inventory rescans in the
 background with a spinner on the row, the way the images list does. What went
@@ -1428,11 +1443,13 @@ neither sorts nor filters, which is exactly the dependency nothing signalled.
 `explorerRow` exists for the same reason.
 
 Three views keep a filter of their own, and deliberately. `security` selects
-findings by tab and by severity, and `status` drives both its tables from one
-search box so the header counts agree — in both cases the view filters and calls
-`SetItems`, because a `FilterBar` query narrows a list that is already settled
-and these decide which rows exist at all. `security` also calls `GotoTop`
-explicitly on a tab change, which is the reset `SetItems` does not make. The
+findings **by tab**, and `status` drives both its tables from one search box so
+the header counts agree — in both cases the view filters and calls `SetItems`,
+because a `FilterBar` query narrows a list that is already settled and these
+decide which rows exist at all. `security` also calls `GotoTop` explicitly on a
+tab change, which is the reset `SetItems` does not make. Its **severity** goes
+the other way: four cumulative tokens the table owns, and its sort and its
+search are the table's too. The
 registry browser is the third: its text filter and its registry filter narrow
 the tags *before* the table sees them, and its bar is drawn in the OCI view's
 own footer rather than the table's. Its **sort** is the table's — `.` cycles
