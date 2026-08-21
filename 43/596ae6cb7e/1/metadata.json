@@ -1,0 +1,82 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "43596ae6cb7e",
+  "session_id": "c86005c5-4bf2-4d51-9979-52c8f88456bc",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-21T13:24:34.3561093Z",
+  "branch": "viewer-markdown-dockerfile-shell",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/manager.go",
+    "internal/ui/viewer/lines.go",
+    "internal/ui/viewer/markdown_test.go",
+    "internal/ui/viewer/model.go",
+    "internal/ui/viewer/syntax.go",
+    "internal/ui/viewer/tree_test.go",
+    "internal/ui/viewer/update.go",
+    "internal/ui/viewer/view.go",
+    "internal/viewer/detect.go",
+    "internal/viewer/detect_test.go",
+    "internal/viewer/document.go",
+    "internal/viewer/document_test.go",
+    "internal/viewer/highlight.go",
+    "internal/viewer/highlight_test.go",
+    "internal/viewer/markdown.go",
+    "internal/viewer/markdown_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "9ec5731140c0",
+  "checkpoint_transcript_start": 323,
+  "transcript_lines_at_start": 323,
+  "compact_transcript_start": 61,
+  "token_usage": {
+    "input_tokens": 116,
+    "cache_creation_tokens": 85856,
+    "cache_read_tokens": 15992432,
+    "output_tokens": 54947,
+    "api_call_count": 58
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-08-21T12:49:01.3590652Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "700779be3310",
+      "timestamp": "2026-08-21T12:49:01.3590652Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-21T13:24:34.2986382Z",
+    "agent_lines": 1351,
+    "agent_removed": 116,
+    "human_added": 346,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1697,
+    "total_lines_changed": 1842,
+    "agent_percentage": 79.64169381107492,
+    "metric_version": 2
+  }
+}
