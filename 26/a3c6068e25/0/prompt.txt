@@ -1,0 +1,34 @@
+je voudrais branstormer sur la vue net/diagnostics. L'objectif de cet vue est de vérifier qu'un hôte est joignable, s'il y a des certificats que la chaine est correcte. Au lieu de devoir cocher les tests à faire je me demande s'il ne serait pas préférable de faire une analyse et de présenter le résultat complet, correctemetn formater, par exemple dans un tableau avec une explication. On pourrait même prévoir optionnellement de faire analyser le résultat par un llm qui donnerait une explication sur ce qui est observé
+
+---
+
+Autre question que je me demande, est-ce que ça vaut mieux de pouvoir appeler un lLM depuis l'application ou d'exposer un serveur MCP ? et qu'un agent externe vient interroger.
+
+---
+
+Qu'est-ce qu'il faut trancher avant de pouvoir lancer le plan d'implémentation?
+
+---
+
+1. refonte 
+2. a
+4. touche 
+5. ok avec ta recommandations
+6. ok
+pour le 3 explique moi
+
+---
+
+démarre et laisse la 4 ouverte on affinera plus tard
+
+---
+
+go
+
+---
+
+merge et continue
+
+---
+
+merge et go
