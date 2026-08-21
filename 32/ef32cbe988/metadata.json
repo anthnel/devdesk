@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "32ef32cbe988",
+  "strategy": "manual-commit",
+  "branch": "clone-status-column-right",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/gitlab/explorer/clone_list.go",
+    "internal/ui/gitlab/explorer/model_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/32/ef32cbe988/0/metadata.json",
+      "transcript": "/32/ef32cbe988/0/full.jsonl",
+      "compact_transcript": "/32/ef32cbe988/0/transcript.jsonl",
+      "content_hash": "/32/ef32cbe988/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 284,
+    "cache_creation_tokens": 325753,
+    "cache_read_tokens": 35295392,
+    "output_tokens": 127177,
+    "api_call_count": 142
+  }
+}
