@@ -4344,7 +4344,7 @@ qui resterait à faire, sont en
 
 ---
 
-### 3.23 `workspaces` et la notion d'occupé — deux mécanismes pour une question
+### 3.23 `workspaces` et la notion d'occupé — **étape 1 faite**
 
 Sorti de §3.22 : les six autres tables passent par `datatable`, `workspaces`
 garde le sien. Ce n'est pas un oubli — c'est la vue **d'où vient le design**,
@@ -4363,20 +4363,47 @@ Autrement dit : §3.22 a généralisé ce que cette vue faisait déjà. La dette
 n'est pas qu'il lui manque quelque chose, c'est qu'il y a **deux
 implémentations de la même idée** dans l'application.
 
-#### Le vrai trou, et il est petit
+#### Le vrai trou, et il est petit — **corrigé**
 
-**La suppression n'est pas couverte.** `handleConfirmDelete`
-(`update.go:431`) appelle `deleteEntry` et retourne sans rien marquer — le
-défaut exact de §3.22, sur la seule action de cette vue que sa propre
-machinerie ne connaît pas. `deleteEntry` fait un `os.RemoveAll` récursif, ce
-qui n'est instantané que sur un petit répertoire : un `node_modules` ou un
-dépôt de plusieurs Go prend des secondes, et rien ne le dit. Il n'y a pas non
-plus de garde-fou, donc un second `ctrl+d` lance un second `os.RemoveAll` dont
-l'échec sera rapporté à l'utilisateur alors que la suppression a réussi.
+**La suppression n'était pas couverte.** `handleConfirmDelete` appelait
+`deleteEntry` et retournait sans rien marquer — le défaut exact de §3.22, sur
+la seule action de cette vue que sa propre machinerie ne connaissait pas.
+`deleteEntry` fait un `os.RemoveAll` récursif, ce qui n'est instantané que sur
+un petit répertoire : un `node_modules` ou un dépôt de plusieurs Go prend des
+secondes, et rien ne le disait. Il n'y avait pas non plus de garde-fou, donc un
+second `D` lançait un second `os.RemoveAll` dont l'échec était rapporté à
+l'utilisateur alors que la suppression avait réussi.
 
-C'est réparable **sans rien migrer** : `Key` sur le chemin, la cellule dépensée
-étant `Git Status` (un répertoire en train de disparaître n'a plus de statut
-git à annoncer), et `busy(path)` étendu à un troisième cas.
+Réparé **sans rien migrer**, exactement comme annoncé : un troisième map
+`deletingPaths` à côté des deux autres, `busy(path)` étendu, et la cellule
+dépensée est `Git Status` — un répertoire en train de disparaître n'a plus de
+statut git à annoncer, ce qui en fait la cellule la moins chère de la ligne.
+
+Quatre points qui ne se lisent pas dans l'énoncé :
+
+- **La garde est posée deux fois.** `startDelete` refuse avant d'ouvrir la
+  modale — poser la question puis décliner la réponse est le seul ordre qui
+  fasse perdre du temps. `handleConfirmDelete` redemande, parce qu'un sync de
+  lot marque ses dépôts depuis un `Cmd` : un chemin peut être pris pendant que
+  la modale est à l'écran, et c'est ce handler qui émet l'appel irréversible.
+- **Le marqueur est levé à chaque issue, échec compris.** `deleteEntry`
+  construit son message en **un seul site**
+  (`EntryDeletedMsg{Path: path, Error: os.RemoveAll(path)}`) : l'oubli du
+  chemin sur la branche d'échec — qui aurait bloqué la ligne pour la durée de
+  vie de la vue — devient inexprimable plutôt qu'interdit par revue.
+- **`busy()` est un seul prédicat**, donc `S` et `F` héritent de la garde sans
+  une ligne de plus, dans les deux sens.
+- **`anyBusy()` remplace les deux copies** de
+  `len(scanningPaths) > 0 || len(syncingPaths) > 0` qui décidaient de la chaîne
+  du spinner. Un troisième map aurait sinon dû être retenu à trois endroits.
+
+Neuf tests, dont six ont été vérifiés en échec sur le code d'avant : la garde,
+la seconde garde, l'héritage par `S` et `F`, le marquage, le spinner dans
+`Git Status` et la levée du marqueur sur les deux issues. Le dixième test
+envisagé — forcer `os.RemoveAll` à échouer — a été abandonné plutôt que rendu
+fragile : `RemoveAll` sur un chemin absent renvoie `nil`, et les moyens de le
+faire échouer ne sont pas les mêmes sous Windows et sous Linux. C'est le site
+unique de construction qui porte l'invariant à sa place.
 
 #### Pourquoi la migration complète n'est pas mécanique
 
@@ -4398,14 +4425,18 @@ Aucun de ces trois points n'est rédhibitoire, mais chacun demande une décision
 plutôt qu'un remplacement, et les trois portent sur du code qui fonctionne. Le
 risque de régression est réel et le gain visible est nul.
 
-#### Découpage proposé
+#### Découpage
 
-1. **La suppression d'abord**, seule, parce que c'est le seul défaut
-   observable — et elle ne demande aucune décision.
-2. **Ensuite seulement**, décider si `datatable` doit apprendre l'exclusion
+1. ~~**La suppression d'abord**, seule, parce que c'est le seul défaut
+   observable — et elle ne demande aucune décision.~~ **Faite.**
+2. **Reste ouvert** : décider si `datatable` doit apprendre l'exclusion
    mutuelle et la colonne variable, ou si `workspaces` reste l'exception
    documentée. La deuxième réponse est légitime : une exception qui s'explique
-   en trois lignes coûte moins qu'une abstraction qui porte un cas unique.
+   en trois lignes coûte moins qu'une abstraction qui porte un cas unique — et
+   l'étape 1 vient de la rendre plus légitime encore, puisque le seul défaut
+   observable qui plaidait pour la migration n'existe plus. Il ne reste que de
+   la symétrie, et la symétrie ne se paie pas en risque de régression sur du
+   code qui marche.
 
 ---
 

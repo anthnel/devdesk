@@ -76,6 +76,13 @@ type Model struct {
 	// scanningPaths because the two are mutually exclusive per repository, and
 	// knowing which one holds it is what lets the view say so.
 	syncingPaths map[string]bool
+
+	// Paths currently being deleted (keyed by absolute path). A third map for
+	// the same reason the first two are separate: the view says which
+	// operation holds the row, and a delete is the one the user must not
+	// re-issue — os.RemoveAll on an already-removed path fails, and reporting
+	// that failure would deny a deletion that in fact succeeded.
+	deletingPaths map[string]bool
 	// sync is the batch in flight, or the summary of the last one until it is
 	// cleared. Nil when neither.
 	sync *syncRun
@@ -136,6 +143,7 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		scanCache:     make(map[string]cache.WorkspaceScanEntry),
 		scanningPaths: make(map[string]bool),
 		syncingPaths:  make(map[string]bool),
+		deletingPaths: make(map[string]bool),
 	}
 }
 

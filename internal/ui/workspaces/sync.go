@@ -25,18 +25,29 @@ import (
 // git repository syncs itself, a plain directory syncs every repository nested
 // under it, anything else does nothing.
 
-// busyMessage is what both actions say when the other one holds the repository.
-// One message rather than two, because the user's next move is the same either
-// way: wait.
-const busyMessage = "Already busy — a scan or sync is running here"
+// busyMessage is what every action says when another one holds the repository.
+// One message rather than three, because the user's next move is the same
+// whichever holds it: wait.
+const busyMessage = "Already busy — a scan, sync or delete is running here"
 
-// busy reports whether a repository is already being scanned or synced.
+// busy reports whether a repository is already being scanned, synced or
+// deleted.
 //
 // A scan reads the working tree while a fast-forward rewrites it; running both
 // at once is a race whose visible result is a report describing a tree that no
-// longer exists. Whichever started first keeps the repository.
+// longer exists. A delete is worse on both counts — it takes the tree away
+// from under either of them, and re-issuing it fails on a path that is already
+// gone. Whichever started first keeps the repository.
 func (m Model) busy(path string) bool {
-	return m.scanningPaths[path] || m.syncingPaths[path]
+	return m.scanningPaths[path] || m.syncingPaths[path] || m.deletingPaths[path]
+}
+
+// anyBusy reports whether any operation is running at all. It is what decides
+// whether the spinner chain keeps going, and it is one function rather than
+// the predicate written out at each site — a fourth map would otherwise have
+// to be remembered in three places.
+func (m Model) anyBusy() bool {
+	return len(m.scanningPaths) > 0 || len(m.syncingPaths) > 0 || len(m.deletingPaths) > 0
 }
 
 // startSync syncs the row under the cursor, or everything beneath it.

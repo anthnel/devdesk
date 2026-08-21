@@ -2,6 +2,7 @@ package workspaces
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -119,7 +120,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case spinner.TickMsg:
-		if len(m.scanningPaths) > 0 || len(m.syncingPaths) > 0 {
+		if m.anyBusy() {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			m.spinnerFrameIdx = (m.spinnerFrameIdx + 1) % len(spinner.Dot.Frames)
@@ -275,7 +276,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // tick has arrived doubles the chain until the view is closed. It is the
 // spinner's own frame interval wide, and the cost is a spinner that spins fast.
 func (m Model) spinnerTickIfIdle() tea.Cmd {
-	if len(m.scanningPaths) > 0 || len(m.syncingPaths) > 0 {
+	if m.anyBusy() {
 		return nil
 	}
 	return m.spinner.Tick
@@ -402,6 +403,11 @@ func (m Model) startDelete() (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	// Refused before the modal rather than after it: asking the question and
+	// then declining the answer is the one order that wastes the user's time.
+	if m.busy(entry.Path) {
+		return m, m.footer.Warn(busyMessage)
+	}
 
 	m.pendingEntry = &entry
 	m.mode = ModeConfirmingDelete
@@ -477,7 +483,20 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 	if m.pendingEntry == nil {
 		return m, nil
 	}
-	return m, m.deleteEntry(m.pendingEntry.Path)
+	path := m.pendingEntry.Path
+	// Checked again here, not only in startDelete: a batch sync marks its
+	// repositories from a Cmd, so one can take this path while the
+	// confirmation is on screen. This is where the irreversible call is
+	// issued, so this is where the answer has to be current.
+	if m.busy(path) {
+		return m, m.footer.Warn(busyMessage)
+	}
+
+	tick := m.spinnerTickIfIdle()
+	m.deletingPaths[path] = true
+	m.footer.Clear()
+	m.refreshRows()
+	return m, tea.Batch(tick, m.deleteEntry(path))
 }
 
 // handleWorkspaceCreated handles the result of workspace creation
@@ -491,7 +510,12 @@ func (m Model) handleWorkspaceCreated(msg WorkspaceCreatedMsg) (tea.Model, tea.C
 
 // handleEntryDeleted handles the result of entry deletion
 func (m Model) handleEntryDeleted(msg EntryDeletedMsg) (tea.Model, tea.Cmd) {
+	// Cleared on every outcome, failures included: a marker left behind holds
+	// the path against every other action for the life of the view.
+	delete(m.deletingPaths, msg.Path)
+
 	if msg.Error != nil {
+		log.Printf("ERROR [workspaces] delete %s: %v", msg.Path, msg.Error)
 		m.error = msg.Error.Error()
 		return m, nil
 	}
