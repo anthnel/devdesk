@@ -1,0 +1,1 @@
+nouveau bug, dans la vue container, quand on stop un conteneur le spinner est figé
