@@ -58,6 +58,61 @@ mise run install      # Install to $GOPATH/bin
 
 `test-race` needs cgo and therefore a C compiler (`gcc`/`clang`) on `PATH`.
 
+## Work starts in a new worktree
+
+**Any task that will produce a commit begins with its own worktree**, cut from
+the current `main`, outside the repository directory:
+
+```bash
+git fetch origin main
+git worktree add -b <branch> ../devdesk-<branch> origin/main
+cd ../devdesk-<branch>
+```
+
+Answering a question, reading code, running the app — none of that needs one.
+Editing does.
+
+**Outside the repository, not under it.** A worktree placed at `.worktrees/x`
+would be a second copy of every package inside the module root: `go build ./...`
+and `go test ./...` would walk into it, compile it, and report failures from a
+tree nobody is looking at. Siblings of the checkout (`../devdesk-<branch>`) keep
+the module root holding one copy of the code, which is why they are not merely a
+tidier choice.
+
+**What isolates, and what does not.** git refuses to check out one branch in two
+worktrees, so two agents cannot land on the same branch by accident — that is the
+whole protection, and it is worth knowing what it does *not* cover:
+
+| Shared by every worktree | Consequence |
+|---|---|
+| `~/.devdesk/` — contexts, `config.yaml`, scan caches | two agents editing settings or scanning at once overwrite each other's; nothing warns |
+| the host keyring, Docker, the ports the app binds | one at a time, whoever gets there first |
+| `.git/hooks` | verified: `git rev-parse --git-path hooks` resolves to the **main** checkout's, so the Entire checkpoint and pre-push hooks fire normally from a worktree |
+| `origin` | inherited — `git push -u origin <branch>` goes through the mirror as usual |
+
+`mise` tasks and `go build` work unchanged; both read the tree they are run in.
+
+**`entire graph` indexes per directory.** A fresh worktree has no index, so the
+first `entire graph search` there pays a full build (~5 s on this repo, measured)
+and the symbol ids it returns are namespaced by the directory name
+(`local/devdesk-<branch>:Go:…`). Nothing breaks; do not be surprised by the
+first search being slow or by ids that do not match another worktree's.
+
+**Clean up when the PR is merged**, from the main checkout:
+
+```bash
+git worktree remove ../devdesk-<branch>
+git worktree list          # what is still out there
+git worktree prune         # after a directory was deleted by hand
+```
+
+`git worktree remove` refuses a tree with uncommitted changes, which is the
+point — look before forcing.
+
+**The main checkout stays on `main` and stays clean.** It is what `git fetch
+origin main && git merge --ff-only origin/main` needs after each merge, and what
+every new worktree is cut from.
+
 ## Git workflow — pull requests only
 
 **Never push directly to `main`.** The Entire mirror rejects it:
@@ -91,11 +146,13 @@ to GitHub. `entire review` (labs) runs a multi-agent review against the current
 branch and is a pre-merge step, not a substitute for the PR.
 
 ```bash
-git switch -c <branch>                          # work
-git push origin <branch>                        # via the mirror — forwarded to GitHub
+git worktree add -b <branch> ../devdesk-<branch> origin/main   # work happens here
+git push -u origin <branch>                     # via the mirror — forwarded to GitHub
 gh pr create -R anthnel/devdesk --base main --head <branch>
 gh pr merge -R anthnel/devdesk <n> --squash --delete-branch
+# then, from the main checkout:
 git fetch origin main && git merge --ff-only origin/main   # may need a retry, see below
+git worktree remove ../devdesk-<branch>
 ```
 
 **`-R anthnel/devdesk` is not optional.** `gh` infers the repository from a
