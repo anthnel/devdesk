@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "43596ae6cb7e",
+  "strategy": "manual-commit",
+  "branch": "viewer-markdown-dockerfile-shell",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/manager.go",
+    "internal/ui/viewer/lines.go",
+    "internal/ui/viewer/markdown_test.go",
+    "internal/ui/viewer/model.go",
+    "internal/ui/viewer/syntax.go",
+    "internal/ui/viewer/tree_test.go",
+    "internal/ui/viewer/update.go",
+    "internal/ui/viewer/view.go",
+    "internal/viewer/detect.go",
+    "internal/viewer/detect_test.go",
+    "internal/viewer/document.go",
+    "internal/viewer/document_test.go",
+    "internal/viewer/highlight.go",
+    "internal/viewer/highlight_test.go",
+    "internal/viewer/markdown.go",
+    "internal/viewer/markdown_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/43/596ae6cb7e/0/metadata.json",
+      "transcript": "/43/596ae6cb7e/0/full.jsonl",
+      "compact_transcript": "/43/596ae6cb7e/0/transcript.jsonl",
+      "content_hash": "/43/596ae6cb7e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 66,
+    "cache_creation_tokens": 41980,
+    "cache_read_tokens": 6060361,
+    "output_tokens": 10698,
+    "api_call_count": 33
+  }
+}
