@@ -1323,3 +1323,136 @@ func TestAScanRequestForARunningScanIsRefused(t *testing.T) {
 		t.Error("the message was set without a timer to clear it")
 	}
 }
+
+// ── The delete is guarded like every other action ────────────────────────────
+//
+// §3.23: the delete was the one action this view's own busy machinery did not
+// know about. os.RemoveAll on a multi-gigabyte tree takes seconds with nothing
+// on screen saying so, and a second D fired a second RemoveAll whose failure
+// was reported to the user for a deletion that had in fact succeeded.
+
+// confirmDeleteOf runs D on the row at idx and answers its confirmation.
+func confirmDeleteOf(t *testing.T, m Model, idx int) (Model, tea.Cmd) {
+	t.Helper()
+	m.table.SetCursor(idx)
+	m, _ = step(t, m, testutil.Key(keymap.Delete))
+	if m.mode != ModeConfirmingDelete {
+		t.Fatal("D did not open the delete confirmation")
+	}
+	return step(t, m, sharedcomponents.ConfirmModalYesMsg{})
+}
+
+func TestAConfirmedDeleteMarksThePathBusy(t *testing.T) {
+	m, cmd := confirmDeleteOf(t, loadedModel(t), 3) // empty-dir
+
+	if !m.deletingPaths["/tmp/workspaces/empty-dir"] {
+		t.Error("the confirmed delete left the path unmarked")
+	}
+	if cmd == nil {
+		t.Error("confirming issued no delete")
+	}
+}
+
+func TestADeletingRowSpinsInTheGitStatusColumn(t *testing.T) {
+	m, _ := confirmDeleteOf(t, loadedModel(t), 0) // devdesk, a git repo
+
+	row := m.table.Items()[0]
+	if !strings.Contains(row.GitStatus, "deleting") {
+		t.Errorf("Git Status = %q, want the delete marker", row.GitStatus)
+	}
+	// Rule 122: a table cell carries no escape sequences.
+	if strings.Contains(row.GitStatus, "\x1b") {
+		t.Errorf("Git Status carries ANSI: %q", row.GitStatus)
+	}
+}
+
+// The second D is the defect: it used to fire a second os.RemoveAll, which
+// fails on a path the first one has already taken away.
+func TestASecondDeleteIsRefusedWhileTheFirstRuns(t *testing.T) {
+	m, _ := confirmDeleteOf(t, loadedModel(t), 3)
+
+	next, cmd := step(t, m, testutil.Key(keymap.Delete))
+
+	if next.mode != ModeNormal || next.confirmModal != nil {
+		t.Error("a second D opened the confirmation on a row already being deleted")
+	}
+	if next.footer.Text() != busyMessage || cmd == nil {
+		t.Errorf("footer = %q, want the busy warning", next.footer.Text())
+	}
+}
+
+// The guard runs again at the confirmation, because a batch sync marks its
+// repositories from a Cmd — one can take the path while the modal is open.
+func TestADeleteConfirmedOnANowSyncingPathIsRefused(t *testing.T) {
+	m := loadedModel(t)
+	m.table.SetCursor(0)
+	m, _ = step(t, m, testutil.Key(keymap.Delete))
+
+	m = feed(t, m, WorkspaceSyncStartingMsg{RepoPath: devdeskPath})
+	m, cmd := step(t, m, sharedcomponents.ConfirmModalYesMsg{})
+
+	if m.deletingPaths[devdeskPath] {
+		t.Error("a repository being synced was marked for deletion")
+	}
+	if m.footer.Text() != busyMessage || cmd == nil {
+		t.Errorf("footer = %q, want the busy warning", m.footer.Text())
+	}
+}
+
+// A marker left behind holds the path against every other action for the life
+// of the view, so it is cleared on the failure too — which is the outcome that
+// used to leave nothing to clear it.
+func TestADeleteClearsItsMarkerOnEitherOutcome(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  EntryDeletedMsg
+	}{
+		{"success", EntryDeletedMsg{Path: devdeskPath}},
+		{"failure", EntryDeletedMsg{Path: devdeskPath, Error: errors.New("permission denied")}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _ := confirmDeleteOf(t, loadedModel(t), 0)
+
+			m = feed(t, m, tc.msg)
+
+			if m.deletingPaths[devdeskPath] {
+				t.Error("the marker survived the completion")
+			}
+		})
+	}
+}
+
+// busy() is one predicate, so the other two actions inherit the guard.
+func TestADeletingPathIsRefusedByScanAndSync(t *testing.T) {
+	for _, key := range []string{keymap.Scan, keymap.Fetch} {
+		t.Run(key, func(t *testing.T) {
+			m := loadedModel(t)
+			m.deletingPaths[devdeskPath] = true
+			m.table.SetCursor(0)
+
+			next, cmd := step(t, m, testutil.Key(key))
+
+			if next.footer.Text() != busyMessage || cmd == nil {
+				t.Errorf("footer = %q, want the busy warning", next.footer.Text())
+			}
+		})
+	}
+}
+
+// The spinner has to keep being scheduled, or the frame freezes and reads as a
+// hang — which is what a delete looks like anyway.
+func TestADeleteKeepsTheSpinnerTurning(t *testing.T) {
+	m, _ := confirmDeleteOf(t, loadedModel(t), 3)
+
+	before := m.spinnerFrameIdx
+	next, cmd := step(t, m, spinner.TickMsg{})
+
+	if next.spinnerFrameIdx == before {
+		t.Error("the spinner frame did not advance during a delete")
+	}
+	if cmd == nil {
+		t.Error("the tick chain stopped during a delete")
+	}
+}

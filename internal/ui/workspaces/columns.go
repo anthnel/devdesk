@@ -130,7 +130,14 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 	for _, entry := range entries {
 		sensitive, c, h, med, l, scanned := m.formatScanColumns(entry, frame)
 		gitStatus := formatGitStatus(entry)
-		if m.syncingPaths[entry.Path] {
+		// A row can only be held by one of the two — busy() is what keeps them
+		// apart — so the order below decides nothing. The delete spends this
+		// cell for the same reason the sync does, and with less to lose: a
+		// directory on its way out has no git status left to announce.
+		switch {
+		case m.deletingPaths[entry.Path]:
+			gitStatus = frame + " deleting"
+		case m.syncingPaths[entry.Path]:
 			gitStatus = frame + " syncing"
 		}
 		rows = append(rows, workspaceRow{

@@ -474,7 +474,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "enter", Description: "Open a file in the viewer, or view scan details for a scanned git repo"},
 			{Key: "N", Description: "Create a new directory (at current level)"},
 			{Key: "M", Description: "Rename the selected entry (mv)"},
-			{Key: "D", Description: "Delete the selected entry (with confirmation)"},
+			{Key: "D", Description: "Delete the selected entry (with confirmation). A large tree takes seconds: the row spins in the Git Status column meanwhile, and every action on it — a second D included — is refused until it finishes"},
 			{Key: "T", Description: "Open a terminal at the selected directory. In place (suspends the TUI) or in a new window, per app.terminal_new_window — the window variant is not supported on WSL"},
 			{Key: "O", Description: "Open in configured IDE"},
 			{Key: "W", Description: "Open git repo remote URL in the default web browser"},

@@ -97,6 +97,11 @@ func TestDeleteEntryRemovesRecursively(t *testing.T) {
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
 		t.Errorf("the directory survived the delete: err=%v", err)
 	}
+	// The path is what Update clears the deleting marker by (§3.23), so it has
+	// to come back whatever the outcome was.
+	if msg.Path != target {
+		t.Errorf("Path = %q, want %q", msg.Path, target)
+	}
 }
 
 // ── Rename ───────────────────────────────────────────────────────────────────

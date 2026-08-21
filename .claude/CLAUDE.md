@@ -652,11 +652,25 @@ comes out of it knowing how far behind it is, because the fetch happened either
 way. `readGitStatus` re-reads the repository on every completion, refusal
 included, and `applyGitStatus` puts the fresh counts on the row.
 
-**A repository is never scanned and synced at once.** A scan reads the working
-tree while a fast-forward rewrites it; the visible result is a report describing
-a tree that no longer exists. `Model.busy` guards **both** directions —
-`A`'s purge included, or a syncing row's counts are blanked with nothing on
-the way to replace them.
+**A repository is never scanned and synced at once, and neither runs on one
+being deleted.** A scan reads the working tree while a fast-forward rewrites
+it; the visible result is a report describing a tree that no longer exists. A
+delete takes the tree away from under either of them. `Model.busy` is the one
+predicate all three consult — `A`'s purge included, or a syncing row's counts
+are blanked with nothing on the way to replace them — and `deletingPaths` is
+the third map beside `scanningPaths` and `syncingPaths`, kept separate for the
+same reason: the view says *which* operation holds the row.
+
+**`D` is guarded twice, and the second time is not redundant.** `startDelete`
+refuses before the confirmation opens, because asking a question and then
+declining the answer wastes the user's time; `handleConfirmDelete` asks again
+because a batch sync marks its repositories from a `Cmd`, so one can take the
+path while the modal is on screen — and that handler is where the irreversible
+call is issued. The marker is cleared on **every** outcome, failure included:
+`deleteEntry` builds its message at one site so the path cannot be omitted from
+the failure, which is what would strand the row as busy for the life of the
+view. Before this, a second `D` fired a second `os.RemoveAll` and reported its
+failure to the user for a deletion that had in fact succeeded (§3.23).
 
 **The token goes to the configured GitLab host and nowhere else.**
 `tokenForRemote` compares the repository's remote host with `gitlab.url`'s and
@@ -1516,10 +1530,13 @@ Deliberately outside this:
   like `syncStatusLine` (§3.17), because a footer *message* expires after three
   seconds (Rule 128) and `docker stop` outlives that by seven.
 - **`workspaces`** — it already had all of this, its own way (`scanningPaths`,
-  `syncingPaths`, `busy(path)`), and is in fact where the design came from. Its
-  one remaining action is a local `os.RemoveAll`. Migrating it would be a
-  refactor of working code across the one busy notion that is *not* one object,
-  one action: scan and sync exclude each other across nested paths.
+  `syncingPaths`, `deletingPaths`, `busy(path)`), and is in fact where the
+  design came from. Its delete was the one action its own machinery did not
+  know about, and §3.23 step 1 taught it rather than migrating the view.
+  Migrating would be a refactor of working code across the one busy notion that
+  is *not* one object, one action: scan and sync exclude each other across
+  nested paths, a sync targets a tree rather than a row, and the spinner does
+  not spend the same cell for every operation.
 
 **Every table in the application is a `datatable`** (§3.21 moved the last four:
 Registries, the registry browser's tags, network-inspect and netdiag's results).

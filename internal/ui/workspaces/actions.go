@@ -334,14 +334,15 @@ func (m Model) createWorkspace(name string) tea.Cmd {
 	}
 }
 
-// deleteEntry deletes a file or directory recursively
+// deleteEntry deletes a file or directory recursively.
+//
+// One construction site rather than a branch per outcome: Path is what Update
+// clears the deleting marker by, so a message that omitted it on the failure
+// would strand the row as busy for the life of the view. Written this way the
+// omission is unexpressible.
 func (m Model) deleteEntry(path string) tea.Cmd {
 	return func() tea.Msg {
-		err := os.RemoveAll(path)
-		if err != nil {
-			return EntryDeletedMsg{Error: err}
-		}
-		return EntryDeletedMsg{Path: path}
+		return EntryDeletedMsg{Path: path, Error: os.RemoveAll(path)}
 	}
 }
 
