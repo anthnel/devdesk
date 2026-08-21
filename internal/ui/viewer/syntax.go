@@ -30,6 +30,8 @@ func syntaxStyle(class viewer.TokenClass) lipgloss.Style {
 		return base.Foreground(theme.ColorSyntaxNumber)
 	case viewer.ClassLiteral:
 		return base.Foreground(theme.ColorSyntaxLiteral)
+	case viewer.ClassKeyword:
+		return base.Foreground(theme.ColorSyntaxKeyword)
 	case viewer.ClassPunct:
 		return base.Foreground(theme.ColorSyntaxPunct)
 	case viewer.ClassTag:
@@ -38,6 +40,20 @@ func syntaxStyle(class viewer.TokenClass) lipgloss.Style {
 		return base.Foreground(theme.ColorSyntaxAttr)
 	case viewer.ClassComment:
 		return base.Foreground(theme.ColorSyntaxComment)
+
+	// The three attribute classes. They keep the ordinary text colour on
+	// purpose: in a rendered Markdown the marks are gone, so the weight is the
+	// only thing left saying the run was ever different — and a colour would
+	// say it less well, since a reader has to have learnt what the colour meant
+	// whereas nobody has to be taught what bold is.
+	case viewer.ClassHeading:
+		return base.Foreground(theme.ColorSyntaxHeading).Bold(true)
+	case viewer.ClassStrong:
+		return base.Foreground(theme.ColorText).Bold(true)
+	case viewer.ClassEmph:
+		return base.Foreground(theme.ColorText).Italic(true)
+	case viewer.ClassStrike:
+		return base.Foreground(theme.ColorText).Strikethrough(true)
 	default:
 		return base.Foreground(theme.ColorText)
 	}

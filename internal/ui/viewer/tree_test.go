@@ -34,13 +34,15 @@ func TestAnXMLDocumentOpensOnItsTree(t *testing.T) {
 }
 
 func TestATextDocumentHasNoTree(t *testing.T) {
-	m := open(t, fakeSource{name: "notes.md", content: "# hello"})
+	// A .txt, not a .md: Markdown derives a rendered display now, so it is no
+	// longer an example of a document with nothing behind `f`.
+	m := open(t, fakeSource{name: "notes.txt", content: "hello"})
 
 	if m.display != displayText {
 		t.Error("a text document opened on a tree it does not have")
 	}
 	if m.structured() {
-		t.Error("structured() is true for a Markdown file")
+		t.Error("structured() is true for a plain text file")
 	}
 }
 
@@ -141,18 +143,18 @@ func TestFSwitchesBetweenTreeAndText(t *testing.T) {
 	}
 }
 
-// Rule 130: a document with no tree does not advertise a key that would do
-// nothing.
+// Rule 130: a document with no derived display does not advertise a key that
+// would do nothing.
 func TestAPlainDocumentOffersNoDisplayToggle(t *testing.T) {
-	m := open(t, fakeSource{name: "notes.md", content: "hello"})
+	m := open(t, fakeSource{name: "notes.txt", content: "hello"})
 
 	if hasShortcut(m, "f") {
-		t.Error("a document with no tree advertises f")
+		t.Error("a document with nothing to derive advertises f")
 	}
 
 	m = feed(t, m, testutil.Key("f"))
 	if m.display != displayText {
-		t.Error("f moved a document that has no tree")
+		t.Error("f moved a document that derives nothing")
 	}
 }
 

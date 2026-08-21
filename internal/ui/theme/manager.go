@@ -260,6 +260,17 @@ func ApplyTheme(t *Theme) {
 	ColorSyntaxAttr = ColorPrimary
 	ColorSyntaxComment = ColorDim
 
+	// A keyword shares the literal's colour today, and that is deliberate
+	// rather than an oversight: `if` and `true` are both words of the language,
+	// so the pairing is defensible until a theme decides otherwise — at which
+	// point it has a name to decide about. It is the argument already made for
+	// ColorFooterError against ColorError.
+	ColorSyntaxKeyword = ColorPrimary
+
+	// A heading takes the key colour, and its weight comes from the style
+	// rather than from here.
+	ColorSyntaxHeading = ColorSecondary
+
 	ColorSearchMatch = ColorHighlight
 	ColorSearchMatchFg = ColorBlack
 

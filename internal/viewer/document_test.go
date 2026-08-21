@@ -54,10 +54,14 @@ func TestAMalformedJSONOpensAsTextAndSaysSo(t *testing.T) {
 }
 
 // The other half of the same rule: nothing *claimed* this was structured, so a
-// failed guess must be silent. A Markdown file opening with a tag is not a
+// failed guess must be silent. A file that merely opens with a tag is not a
 // broken XML document.
+//
+// The example is a file with no extension at all, because that is the only thing
+// still sniffed. `Dockerfile` used to serve here and no longer can: it is a
+// declared kind now, recognised by its name.
 func TestASniffedKindThatFailsToParseReportsNothing(t *testing.T) {
-	doc := Open("Dockerfile", KindAuto, []byte("<not really xml"))
+	doc := Open("dump", KindAuto, []byte("<not really xml"))
 
 	if doc.Kind != KindPlain {
 		t.Errorf("Kind = %q, want plain", doc.Kind)

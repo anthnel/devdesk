@@ -28,6 +28,14 @@ func TestHighlightingReproducesTheInputExactly(t *testing.T) {
 		// rendered lines are matched against the document's real ones by index.
 		{KindYAML, "app:\n\tname: [unclosed\n  : :\n"},
 		{KindTOML, "[unclosed\nkey = = 1\n"},
+
+		// The three kinds added with the rendered display. The invariant is what
+		// makes the raw display of a Markdown its source to the character, so it
+		// is exactly what `f` promises.
+		{KindMarkdown, "# T\n\nSome **bold** and `code`.\n\n- one\n\n```go\nfunc f() {}\n```\n"},
+		{KindMarkdown, "---\ntitle: hi\n---\n\n# After the front matter\n"},
+		{KindDockerfile, "# c\nFROM alpine:3.19 AS build\nENV FOO=bar\nCMD [\"sh\"]\n"},
+		{KindShell, "#!/usr/bin/env bash\nset -e\nN=\"world\"\nif [ -n \"$N\" ]; then\n  echo \"hi ${N}\"\nfi\n"},
 	}
 
 	for _, tc := range cases {
@@ -135,6 +143,117 @@ func assertFirstPerClass(t *testing.T, tokens []Token, want map[TokenClass]strin
 	for class, text := range want {
 		if seen[class] != text {
 			t.Errorf("class %d first matched %q, want %q", class, seen[class], text)
+		}
+	}
+}
+
+// The mapping for the three kinds added with the rendered display, read off the
+// lexers rather than guessed — which is what caught each of the three surprises
+// below.
+func TestMarkdownTokensAreClassified(t *testing.T) {
+	tokens := Tokenize(KindMarkdown, sampleMarkdown)
+
+	assertFirstPerClass(t, tokens, map[TokenClass]string{
+		ClassHeading: "# Title\n",
+		ClassStrong:  "**bold**",
+		ClassEmph:    "*emph*",
+		ClassStrike:  "~~gone~~",
+		ClassKeyword: "-",
+	})
+}
+
+// A Dockerfile instruction is the one thing worth colouring in the file, and it
+// arrives as a bare Keyword — a type no earlier kind ever emitted.
+func TestDockerfileInstructionsAreKeywords(t *testing.T) {
+	tokens := Tokenize(KindDockerfile, "# note\nFROM alpine:3.19\nENV FOO=bar\n")
+
+	assertFirstPerClass(t, tokens, map[TokenClass]string{
+		ClassComment: "# note",
+		ClassKeyword: "FROM",
+		ClassString:  "alpine:3.19",
+		ClassKey:     "FOO",
+	})
+}
+
+// A shell variable arrives as NameVariable, which fell through to ordinary text
+// before it was mapped — leaving a script coloured everywhere except the names.
+func TestShellKeywordsAndVariablesAreClassified(t *testing.T) {
+	tokens := Tokenize(KindShell, "#!/bin/bash\nN=1\nif [ -n \"$N\" ]; then\n  echo hi\nfi\n")
+
+	classes := map[TokenClass]bool{}
+	var variable, keyword bool
+	for _, token := range tokens {
+		classes[token.Class] = true
+		if token.Text == "$N" && token.Class == ClassKey {
+			variable = true
+		}
+		if token.Text == "if" && token.Class == ClassKeyword {
+			keyword = true
+		}
+	}
+	if !keyword {
+		t.Error("a shell keyword is not classified as one")
+	}
+	if !variable {
+		t.Error("a shell variable fell through to ordinary text")
+	}
+	if !classes[ClassComment] {
+		t.Error("the shebang line is not a comment")
+	}
+}
+
+// The guard on the Keyword split. Every kind that worked before this change
+// emits KeywordConstant and never a bare Keyword, so routing the two apart could
+// not disturb them — but only for as long as that stays true, and only if the
+// test is equality: chroma implements a sub-category as `t/100 == other/100`, so
+// InSubCategory(KeywordConstant) answers true for every keyword there is and
+// would quietly put `if` and `FROM` back in the literal colour.
+func TestAKeywordConstantIsStillALiteral(t *testing.T) {
+	cases := []struct {
+		kind Kind
+		text string
+		word string
+	}{
+		{KindJSON, `{"ok": true, "z": null}`, "true"},
+		{KindYAML, "debug: true\nempty: null\n", "true"},
+		{KindTOML, "debug = true\n", "true"},
+	}
+
+	for _, tc := range cases {
+		var found bool
+		for _, token := range Tokenize(tc.kind, tc.text) {
+			if token.Text != tc.word {
+				continue
+			}
+			found = true
+			if token.Class != ClassLiteral {
+				t.Errorf("%s: %q is class %d, want ClassLiteral", tc.kind, tc.word, token.Class)
+			}
+		}
+		if !found {
+			t.Errorf("%s: never saw %q", tc.kind, tc.word)
+		}
+	}
+}
+
+// The guard that makes Markdown affordable. chroma's markdown lexer ends its
+// inline rules with a catch-all single-character alternative, so prose comes back
+// one token per character — at the 5 MiB ceiling that is millions of Token values
+// for a paragraph. Without coalescing this test counts one token per letter.
+func TestAdjacentRunsOfOneClassAreCoalesced(t *testing.T) {
+	prose := "a plain sentence of ordinary words with nothing marked up in it at all"
+	tokens := Tokenize(KindMarkdown, prose)
+
+	if len(tokens) != 1 {
+		t.Errorf("a paragraph of prose came back as %d tokens, want 1", len(tokens))
+	}
+	if joined(tokens) != prose {
+		t.Errorf("coalescing changed the text: %q", joined(tokens))
+	}
+
+	for _, token := range Tokenize(KindMarkdown, sampleMarkdown) {
+		if token.Text == "" {
+			t.Error("an empty run survived coalescing")
 		}
 	}
 }

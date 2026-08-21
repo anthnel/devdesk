@@ -5145,6 +5145,181 @@ qu'une vue **raconte**. L'aide est donc la seule surface où une touche morte
 survit sans que rien ne le dise — ce qui vaut d'être noté pour le prochain
 relevé.
 
+### 3.32 Le viewer colore Markdown, Dockerfile et shell — et rend le Markdown — **done**
+
+Deux demandes, et la seconde est la plus intéressante : colorer trois formats de
+plus, et pouvoir lire un Markdown « en format brut ou pas ».
+
+#### Ce que la sonde des lexers a établi
+
+Le mapping `classOf` est documenté comme **lu sur les lexers, pas deviné**, donc
+la première action a été de faire tourner `markdown`, `docker` et `bash` sur des
+échantillons et de regarder la sortie. Quatre faits mesurés ont décidé de la
+forme du reste :
+
+- **La catégorie `Generic` n'était mappée nulle part.** C'est tout le vocabulaire
+  de Markdown — titres, gras, italique, barré — donc un `.md` serait arrivé
+  quasiment incolore. C'est ce qui impose de nouvelles classes plutôt qu'un
+  simple ajout de lexer.
+- **Aucun des quatre lexers déjà en place n'émet un `Keyword` nu.** JSON, YAML,
+  TOML et XML n'émettent que `KeywordConstant`. Séparer les deux est donc une
+  modification **à régression nulle** — et vérifiable, ce qui vaut mieux que
+  probable.
+- **Le lexer markdown émet un token par caractère** pour la prose : sa dernière
+  règle inline est une alternative attrape-tout d'un caractère. À 5 MiB
+  (`viewer.MaxSize`) c'est des millions de `Token` pour un paragraphe qui compte
+  une poignée de runs.
+- **Une fence ```` ```go ```` est déjà sous-lexée en Go par chroma.** Le rendu en
+  hérite gratuitement : un bloc de code garde la coloration de son langage.
+
+#### `f` porte un axe, pas un écran de plus
+
+`f` faisait « arbre ↔ texte ». Le rendu Markdown est **la même question** : le
+document tel qu'il est, contre la seule vue que son kind en dérive. Donc `display`
+gagne `displayRendered`, mais la bascule reste binaire à tout instant — un kind
+dérive au plus une vue, `Structured()` ou `Renderable()`, jamais les deux, et
+`TestNoKindHasTwoDerivedDisplays` le dit.
+
+`Model.derived()` est **une** fonction pour cette raison : `f`, l'affichage
+d'ouverture et `GetShortcuts` doivent donner la même réponse, ou la vue propose
+un affichage qu'elle refusera ensuite de montrer (Rule 130). Un `.md` s'ouvre
+donc rendu, comme un `.json` s'ouvre sur son arbre.
+
+**`c` reste orthogonale.** Éteindre la couleur d'un Markdown rendu ne fait pas
+réapparaître ses marqueurs : le rendu est un affichage, la coloration en est une
+autre. Un `c` qui révélerait les marqueurs serait la seconde voie vers un même
+écran — exactement ce que §3.9 a démonté sur le backend de secrets et ce qui a
+emporté la commande `:theme`.
+
+#### Le rendu est le même flux de tokens, marqueurs retirés
+
+`RenderMarkdown` ne parse rien. Chaque marqueur qu'il retire est un que **le
+lexer a déjà identifié** — un titre, un gras, une emphase, un barré, une puce, un
+préfixe de citation, une fence. Rien n'y décide à partir de ce à quoi un
+caractère ressemble.
+
+C'est ce qui trace la limite, et la limite est le meilleur de la décision :
+**les liens, les tableaux et les filets horizontaux passent intacts.** Les
+crochets d'un lien arrivent en `Text` nu, indistinguables d'un crochet de prose,
+donc reconstruire un lien serait précisément la devinette que ce paquet refuse
+partout ailleurs. Le texte du lien et son URL sont colorés séparément à la place,
+ce qui est l'essentiel de ce que le rendu aurait apporté.
+
+L'invariant que ça casse est celui de `Tokenize` : **la concaténation ne
+reproduit plus l'entrée**. C'est le but. Tout l'aval s'en accommode parce qu'il
+lit les tokens et non le document — `splitTokenLines` reconstruit le texte de
+chaque ligne à partir d'eux, donc la recherche filtre et surligne ce qui est
+réellement à l'écran. Et l'affichage brut reste la source au caractère près, ce
+qui fait des omissions ci-dessus des limites plutôt que des pertes.
+
+Un détail qui a demandé deux essais : la coalescence (ci-dessous) **soude** les
+backticks d'ouverture, le nom du langage et parfois le premier run du corps en un
+seul token. Le délimiteur est donc retiré **à la ligne** et non reconnu en
+entier, sans quoi un bloc dont le code commence par une chaîne perdait sa
+première ligne avec la fence. `TestAFencedBodyStartingWithAStringSurvives` tient
+ce cas.
+
+#### Cinq classes de plus, deux couleurs seulement
+
+`TokenClass` passe de 8 à 13, et trois des nouvelles ne portent **pas de teinte**
+mais un attribut :
+
+| Classe | Style | Pourquoi |
+|---|---|---|
+| `ClassKeyword` | `ColorSyntaxKeyword` = `ColorPrimary` | `FROM`, `RUN`, `if`, `fi` |
+| `ClassHeading` | `ColorSyntaxHeading` = `ColorSecondary`, gras | titres |
+| `ClassStrong` | `ColorText` + `Bold` | attribut, pas teinte |
+| `ClassEmph` | `ColorText` + `Italic` | idem |
+| `ClassStrike` | `ColorText` + `Strikethrough` | sans lui, `~~x~~` rendu est du texte nu |
+
+Une fois les `**` et les `~~` partis, la graisse est la seule chose qui reste à
+dire que deux runs étaient différents — et elle le dit mieux qu'une teinte, parce
+qu'un mot en gras est en gras dans tous les thèmes alors qu'une couleur doit
+avoir été apprise.
+
+Contrepartie : un style qui ne porte qu'un attribut est exactement celui qu'on
+écrit sans fond. Ils en posent un comme tous les autres (Rule 115), et
+`TestEveryRenderedStyleCarriesTheAppBackground` le demande à chacun d'eux
+directement plutôt que d'espérer le voir dans un rendu.
+
+Les deux couleurs sont des **alias sémantiques assignés dans `ApplyTheme`**,
+comme `ColorChartBg` et les couleurs de footer : aucun fichier de thème ne gagne
+de clé. `ColorSyntaxKeyword` vaut aujourd'hui `ColorSyntaxLiteral` — invisible
+dans le thème par défaut, et un nom pour un thème qui voudra les séparer. C'est
+l'argument déjà tenu pour `ColorFooterError` contre `ColorError`.
+
+#### La séparation `Keyword` / `KeywordConstant`, et le piège qui va avec
+
+`KeywordConstant` est `true`, `false`, `null` — une valeur, donc `ClassLiteral` ;
+tout autre mot-clé est un mot du langage, donc `ClassKeyword`.
+
+Écrite de la façon évidente, la branche était fausse : chroma implémente une
+sous-catégorie par `t/100 == other/100`, donc `InSubCategory(KeywordConstant)`
+répond **vrai pour n'importe quel mot-clé** et avalait l'autre branche en
+silence. Le symptôme était visible et discret à la fois — les puces Markdown
+restaient des `-` au lieu de devenir des `•`, parce qu'elles arrivent en
+`Keyword` et repartaient en `ClassLiteral`. Le test est donc une égalité, et
+`TestAKeywordConstantIsStillALiteral` garde les quatre kinds d'origine.
+
+#### La coalescence, sans laquelle Markdown n'est pas abordable
+
+`Tokenize` finit par une passe qui fusionne les runs voisins de même classe. Ce
+n'est pas du rangement : c'est la parade au troisième fait mesuré plus haut. Elle
+préserve l'invariant de concaténation — seules les frontières bougent — et
+supprime les runs vides que plusieurs lexers émettent entre leurs groupes.
+`Match` n'est délibérément pas consulté : `Tokenize` ne le pose jamais,
+`MarkMatches` le fait, après le filtre.
+
+Mesuré sur l'échantillon de test : 43 tokens au lieu d'environ 120, et un
+paragraphe de prose revient en **un** token au lieu d'un par lettre.
+
+#### Reconnu par le nom, jamais par le contenu — sauf le shebang
+
+`Dockerfile` n'a pas d'extension et `Dockerfile.dev` en a une (`.dev`) qui n'est
+dans aucune table : une recherche par extension d'abord l'aurait classé texte
+avant même de lire le nom. D'où `basenameKinds` et le préfixe `dockerfile.`
+**avant** `extensionKinds`. Un dotfile fait l'inverse et atterrit dans la table
+des extensions, parce que `filepath.Ext(".bashrc")` rend le nom entier ; quelle
+table le trouve est un détail d'implémentation, qu'il soit trouvé ne l'est pas.
+
+**Le shebang est la seule exception, et elle est écrite comme telle** — dans
+`sniff()`, dans `TestAShebangDeclaresAShellScript`, et ici. `#!/usr/bin/env bash`
+n'est pas un indice sur ce à quoi le fichier ressemble : c'est le fichier qui
+nomme l'interpréteur qui doit l'exécuter, ce qui a le rang d'une extension moins
+l'extension. À comparer avec `---` en tête d'un fichier, qui est du front matter
+Markdown aussi souvent que du YAML — c'est pourquoi l'un est lu et l'autre pas.
+Elle ne s'applique que là où `sniff` s'appliquait déjà (aucune extension du tout)
+et qu'à une courte liste de shells : répondre à un `#!/usr/bin/env python` avec
+le lexer bash colorerait un fichier Python de travers, ce qui est pire que de le
+laisser nu puisque ça a l'air délibéré.
+
+#### Ce que ça n'a pas coûté
+
+Aucune dépendance : chroma embarque tous ses lexers, ce que les +4,0 Mo du
+binaire avaient déjà payé. Aucune touche : `f` et `c` étaient déjà déclarées pour
+le viewer dans `internal/ui/keymap`, donc le relevé de §3.26 n'a pas bougé.
+
+#### Non retenu
+
+- **glamour**, ou tout moteur de rendu Markdown. Ses formatteurs émettent leurs
+  propres séquences ANSI et leurs propres resets — exactement ce que §3.29 a
+  refusé aux formatteurs de chroma, et pour la même raison (Rule 115 : un reset
+  en milieu de ligne emporte le fond jusqu'à la marge). Une sortie déjà colorée
+  ne peut pas non plus être coupée pour le wrap.
+- **Un arbre pour Markdown.** Ce serait la troisième vue dérivée d'un même kind,
+  donc `f` ambiguë ; et un plan de document n'est pas ce qu'on ouvre un fichier
+  pour lire.
+- **Tableaux, filets horizontaux, listes imbriquées ré-indentées.** Le lexer ne
+  les distingue pas, donc les rendre serait deviner. L'affichage brut reste la
+  source exacte, ce qui rend la limite tenable.
+- **Une classe par variable shell.** `NameVariable`, `NameBuiltin` et
+  `NameFunction` rejoignent `ClassKey`, la famille « identifiant » où vivent déjà
+  les clés JSON, TOML et YAML. « Un nom que ce document définit ou utilise » est
+  une seule idée.
+
+Le plan est dans
+[`.claude/plans/viewer-markdown-dockerfile-shell.md`](../.claude/plans/viewer-markdown-dockerfile-shell.md).
+
 ---
 
 ## 4. Existing plans

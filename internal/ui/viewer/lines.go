@@ -24,12 +24,25 @@ type docLine struct {
 
 // buildLines splits a document into styled-per-line spans.
 //
-// It is called when the document loads and when `c` toggles, and not otherwise:
-// tokenising five megabytes per frame is not viable, and the filter and the
-// wrap both work on the result rather than redoing it.
-func buildLines(doc viewer.Document, highlight bool) []docLine {
+// It is called when the document loads, when `c` toggles and when `f` crosses
+// the rendered boundary — and not otherwise: tokenising five megabytes per frame
+// is not viable, and the filter and the wrap both work on the result rather than
+// redoing it.
+//
+// `rendered` is not a second kind of highlighting, which is why it composes with
+// `highlight` instead of replacing it. The markers have to be found before they
+// can be taken away, so a rendered document is tokenised whatever `c` says; the
+// colour is then dropped afterwards, and `c` off leaves clean prose rather than
+// putting the asterisks back.
+func buildLines(doc viewer.Document, highlight, rendered bool) []docLine {
 	tokens := []viewer.Token{{Class: viewer.ClassText, Text: doc.Text}}
-	if highlight {
+	switch {
+	case rendered:
+		tokens = viewer.RenderMarkdown(viewer.Tokenize(doc.Kind, doc.Text))
+		if !highlight {
+			tokens = flatten(tokens)
+		}
+	case highlight:
 		tokens = viewer.Tokenize(doc.Kind, doc.Text)
 	}
 
@@ -44,6 +57,20 @@ func buildLines(doc viewer.Document, highlight bool) []docLine {
 		}
 	}
 	return lines
+}
+
+// flatten takes the classes off a stream, leaving the text exactly as it is.
+//
+// It is how `c` behaves in a rendered document: the markers stay gone — the
+// rendering is a display, not a colouring — and what is left reads as ordinary
+// prose. Classes are dropped rather than the tokens merged, because a merge
+// would have to run before MarkMatches cuts them again for no gain.
+func flatten(tokens []viewer.Token) []viewer.Token {
+	out := make([]viewer.Token, 0, len(tokens))
+	for _, token := range tokens {
+		out = append(out, viewer.Token{Class: viewer.ClassText, Text: token.Text})
+	}
+	return out
 }
 
 // withText is a piece of a token: everything the run said about itself, over a

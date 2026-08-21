@@ -38,7 +38,10 @@ func (m Model) InEditMode() bool { return m.bar.InEditMode() }
 // FilterBarVisible tells the router to close the viewport border into the bar
 // (Rule 136).
 func (m Model) FilterBarVisible() bool {
-	return m.bar.IsVisible() && m.display == displayText
+	// Every display but the tree is text, and the search belongs to all of
+	// them: a rendered Markdown is searched on what it shows, which is the only
+	// answer that agrees with the screen.
+	return m.bar.IsVisible() && m.display != displayTree
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

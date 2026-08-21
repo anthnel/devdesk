@@ -21,22 +21,25 @@ func TestDetectionPrefersTheExtensionThenTheContent(t *testing.T) {
 		{"yml extension", "compose.yml", "app:\n  name: dk\n", KindYAML},
 		{"toml extension", "Cargo.toml", "[package]\nname = \"dk\"\n", KindTOML},
 
-		// A named extension is taken at its word. Sniffing a .md would open a
-		// Markdown file as a tree the first time someone started one with a tag.
-		{"markdown starting with a tag", "README.md", `<div>hi</div>`, KindPlain},
+		{"markdown extension", "README.md", "# Title", KindMarkdown},
+		{"shell extension", "deploy.sh", "echo hi", KindShell},
+
+		// A named extension is still taken at its word: what a Markdown file
+		// opens with never changes what it is.
+		{"markdown starting with a tag", "README.md", `<div>hi</div>`, KindMarkdown},
 		{"go source", "main.go", "package main", KindPlain},
 		{"text holding json", "notes.txt", `{"a":1}`, KindPlain},
 
 		// A Markdown front matter block opens on `---`, which is also how a YAML
 		// stream separates documents. The extension decides, so the question never
 		// comes up.
-		{"markdown with front matter", "post.md", "---\ntitle: hi\n---\n", KindPlain},
+		{"markdown with front matter", "post.md", "---\ntitle: hi\n---\n", KindMarkdown},
 
 		// Only a file with no extension at all is guessed at.
 		{"extensionless object", "dump", `  {"a":1}`, KindJSON},
 		{"extensionless array", "dump", `[1,2]`, KindJSON},
 		{"extensionless document", "dump", `<?xml version="1.0"?><a/>`, KindXML},
-		{"Dockerfile", "Dockerfile", "FROM alpine", KindPlain},
+		{"extensionless prose", "dump", "just words", KindPlain},
 	}
 
 	for _, tc := range cases {
@@ -45,6 +48,88 @@ func TestDetectionPrefersTheExtensionThenTheContent(t *testing.T) {
 				t.Errorf("DetectKind(%q) = %q, want %q", tc.file, got, tc.want)
 			}
 		})
+	}
+}
+
+// Some files carry their declaration in their whole name because they have no
+// extension to carry it in. The basename is therefore consulted first: a
+// `Dockerfile.dev` has the extension ".dev", which is in no table, so an
+// extension-first lookup would settle it as plain text before the name was read.
+func TestDockerfileAndShellAreRecognisedByName(t *testing.T) {
+	cases := []struct {
+		file string
+		want Kind
+	}{
+		{"Dockerfile", KindDockerfile},
+		{"dockerfile", KindDockerfile},
+		{"Containerfile", KindDockerfile},
+		{"Dockerfile.dev", KindDockerfile},
+		{"Dockerfile.prod", KindDockerfile},
+		{"web.dockerfile", KindDockerfile},
+		{"/srv/app/Dockerfile", KindDockerfile},
+
+		// Go's filepath.Ext returns the whole name for a dotfile, so these are
+		// found in the extension table rather than the basename one. Which table
+		// holds them is an implementation detail; that they are found is not.
+		{".bashrc", KindShell},
+		{".zshrc", KindShell},
+		{".profile", KindShell},
+		{"deploy.sh", KindShell},
+		{"lib.bash", KindShell},
+
+		// A name that merely contains one of the words is not one of them.
+		{"docker-compose.yml", KindYAML},
+		{"dockerfiles.txt", KindPlain},
+		{"README.md", KindMarkdown},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.file, func(t *testing.T) {
+			if got := DetectKind(tc.file, []byte("FROM alpine")); got != tc.want {
+				t.Errorf("DetectKind(%q) = %q, want %q", tc.file, got, tc.want)
+			}
+		})
+	}
+}
+
+// The one exception to "declared, never sniffed", and it is written down here as
+// well as in sniff() so that neither can be changed without the other noticing.
+//
+// A shebang is not an indication of what a file resembles: it is the file naming
+// the interpreter it is to be run by, which is the same standing as an extension
+// minus the extension. Contrast `---`, which is Markdown front matter as often as
+// it is a YAML stream — that is why one is read and the other is not.
+func TestAShebangDeclaresAShellScript(t *testing.T) {
+	shell := []string{
+		"#!/bin/sh\necho hi\n",
+		"#!/bin/bash\necho hi\n",
+		"#!/usr/bin/env bash\necho hi\n",
+		"#!/usr/bin/env bash -e\necho hi\n",
+		"#!/usr/bin/zsh\necho hi\n",
+	}
+	for _, content := range shell {
+		if got := DetectKind("hook", []byte(content)); got != KindShell {
+			t.Errorf("DetectKind(hook) = %q for %q, want shell", got, content)
+		}
+	}
+
+	// Another language's shebang is left alone. Colouring a Python file with the
+	// bash lexer is worse than leaving it plain, because it looks deliberate.
+	other := []string{
+		"#!/usr/bin/env python\nprint(1)\n",
+		"#!/usr/bin/env node\nconsole.log(1)\n",
+		"# not a shebang at all\n",
+	}
+	for _, content := range other {
+		if got := DetectKind("hook", []byte(content)); got == KindShell {
+			t.Errorf("DetectKind(hook) = shell for %q", content)
+		}
+	}
+
+	// And an extension still outranks it: a shebang inside a .md is a code
+	// sample, not a declaration about the file.
+	if got := DetectKind("notes.md", []byte("#!/bin/bash\n")); got != KindMarkdown {
+		t.Errorf("DetectKind(notes.md) = %q, want markdown", got)
 	}
 }
 
@@ -91,8 +176,8 @@ func TestYAMLAndTOMLAreNeverInferredFromContent(t *testing.T) {
 // Neither has a tree, and the absence is a decision (see Kind.Structured): the
 // view offers `f` off the back of this answer, so a wrong one would advertise a
 // display that renders an empty pane.
-func TestNeitherYAMLNorTOMLClaimsATree(t *testing.T) {
-	for _, kind := range []Kind{KindYAML, KindTOML} {
+func TestOnlyJSONAndXMLClaimATree(t *testing.T) {
+	for _, kind := range []Kind{KindYAML, KindTOML, KindMarkdown, KindDockerfile, KindShell} {
 		if kind.Structured() {
 			t.Errorf("%q reports a tree it has no parser for", kind)
 		}
