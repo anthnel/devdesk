@@ -1,0 +1,13 @@
+écris dans les instructions qu'il faut commencer à travailler dans un nouveau git worktree, je veux pouvoir démarrer des taches en parallèle sans se marcher sur les pieds
+
+---
+
+déplace-la dans une worktree et fais la PR
+
+---
+
+merge
+
+---
+
+nouveau bug dans ws: si j'appuie rapidement sur la flèche de droite le meme path s'accumule dans la navigation bar :  󰋜 home   󰉋 anthnell   󰉋 devsecops   󰉋 devsecops   󰉋 devsecops   󰉋 devex   󰉋 devex   󰉋 coder-golang-sandbox   󰉋 coder-golang-sandbox
