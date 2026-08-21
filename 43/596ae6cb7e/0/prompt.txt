@@ -1,0 +1,13 @@
+nouveau bug, dans la vue container, quand on stop un conteneur le spinner est figé
+
+---
+
+tu as mergé ?
+
+---
+
+merge
+
+---
+
+dans la vue security, le shortcut "." ne fait rien, les filtres c, h, etc. sont actifs mais absent du menu. Quand j'active un filtre le bord du bas du tableau remonte. Je voudrais que les filtres utilisent le même mécanisme que dans la vue net/ports, les filtres actifs sont mis dans le bas du tableau à côté du champ filtre
