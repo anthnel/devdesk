@@ -3,7 +3,7 @@
   "checkpoint_id": "6a2f94cd3bdd",
   "strategy": "manual-commit",
   "branch": "fix/ws-double-drilldown",
-  "checkpoints_count": 2,
+  "checkpoints_count": 3,
   "files_touched": [
     "docs/backlog.md",
     "internal/ui/workspaces/messages.go",
@@ -20,13 +20,20 @@
       "compact_transcript": "/6a/2f94cd3bdd/0/transcript.jsonl",
       "content_hash": "/6a/2f94cd3bdd/0/content_hash.txt",
       "prompt": ""
+    },
+    {
+      "metadata": "/6a/2f94cd3bdd/1/metadata.json",
+      "transcript": "/6a/2f94cd3bdd/1/full.jsonl",
+      "compact_transcript": "/6a/2f94cd3bdd/1/transcript.jsonl",
+      "content_hash": "/6a/2f94cd3bdd/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 54,
-    "cache_creation_tokens": 32858,
-    "cache_read_tokens": 6344859,
-    "output_tokens": 20984,
-    "api_call_count": 27
+    "input_tokens": 98,
+    "cache_creation_tokens": 182863,
+    "cache_read_tokens": 9539615,
+    "output_tokens": 33358,
+    "api_call_count": 49
   }
 }
