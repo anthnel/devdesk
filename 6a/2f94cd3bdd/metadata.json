@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "6a2f94cd3bdd",
+  "strategy": "manual-commit",
+  "branch": "fix/ws-double-drilldown",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/workspaces/messages.go",
+    "internal/ui/workspaces/model.go",
+    "internal/ui/workspaces/model_test.go",
+    "internal/ui/workspaces/table.go",
+    "internal/ui/workspaces/update.go",
+    "internal/ui/workspaces/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6a/2f94cd3bdd/0/metadata.json",
+      "transcript": "/6a/2f94cd3bdd/0/full.jsonl",
+      "compact_transcript": "/6a/2f94cd3bdd/0/transcript.jsonl",
+      "content_hash": "/6a/2f94cd3bdd/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 54,
+    "cache_creation_tokens": 32858,
+    "cache_read_tokens": 6344859,
+    "output_tokens": 20984,
+    "api_call_count": 27
+  }
+}
