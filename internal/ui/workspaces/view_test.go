@@ -37,7 +37,7 @@ func TestViewDistinguishesTheTwoEmptyStates(t *testing.T) {
 	nested := loadedModel(t)
 	nested.table.SetCursor(3)
 	nested = feed(t, nested, testutil.Key("right"))
-	nested = feed(t, nested, EntriesLoadedMsg{Entries: nil})
+	nested = feed(t, nested, EntriesLoadedMsg{Path: nested.currentPath})
 	if !strings.Contains(nested.View(), "Empty directory") {
 		t.Errorf("the nested empty state does not say so:\n%s", nested.View())
 	}

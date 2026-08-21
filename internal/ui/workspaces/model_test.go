@@ -166,7 +166,7 @@ func TestNestedNavigationTracksTheStack(t *testing.T) {
 	m := loadedModel(t)
 	m.table.SetCursor(2)
 	m = feed(t, m, testutil.Key("right")) // into clients
-	m = feed(t, m, EntriesLoadedMsg{Entries: []Entry{
+	m = feed(t, m, EntriesLoadedMsg{Path: "/tmp/workspaces/clients", Entries: []Entry{
 		{Name: "a", Path: "/tmp/workspaces/clients/a", IsDir: true, IsGitRepo: true},
 	}})
 
@@ -187,6 +187,102 @@ func TestNestedNavigationTracksTheStack(t *testing.T) {
 	}
 	if len(m.navigationStack) != 0 {
 		t.Errorf("navigationStack = %v, want it popped", m.navigationStack)
+	}
+}
+
+// Holding `→` used to drill twice from one listing. The load is a Cmd, so the
+// table still held the parent's rows when the second press arrived: it read the
+// same row again and pushed the new currentPath onto the stack, so the
+// breadcrumb grew `devsecops devsecops`. Reported from a real session.
+func TestASecondDrillDownBeforeTheListingLandsDoesNothing(t *testing.T) {
+	m := loadedModel(t)
+	m.table.SetCursor(2) // clients
+
+	m = feed(t, m, testutil.Key("right"))
+	m = feed(t, m, testutil.Key("right")) // the listing has not landed yet
+
+	if m.currentPath != "/tmp/workspaces/clients" {
+		t.Errorf("currentPath = %q, want the directory entered once", m.currentPath)
+	}
+	if len(m.navigationStack) != 0 {
+		t.Errorf("navigationStack = %v, want nothing pushed — the root is not a tab", m.navigationStack)
+	}
+	if got := m.tabCount(); got != 2 {
+		t.Errorf("tabCount() = %d, want 2 (home + clients); a duplicate breadcrumb is the reported symptom", got)
+	}
+}
+
+// Worse than a duplicate: with the cursor moved in between, the second press
+// pushed a *sibling* of the directory just entered as if it were nested in it.
+func TestMovingTheCursorMidLoadCannotFabricateANestedPath(t *testing.T) {
+	m := loadedModel(t)
+	m.table.SetCursor(2) // clients
+
+	m = feed(t, m, testutil.Key("right"))
+	m = feed(t, m, testutil.Key("down")) // still the parent's rows
+	m = feed(t, m, testutil.Key("right"))
+
+	if m.currentPath != "/tmp/workspaces/clients" {
+		t.Errorf("currentPath = %q, want the directory actually entered", m.currentPath)
+	}
+	if len(m.navigationStack) != 0 {
+		t.Errorf("navigationStack = %v, want nothing pushed", m.navigationStack)
+	}
+}
+
+// Once the listing lands, `→` works again — the guard is about the rows in
+// hand, not a lock that has to be released by something.
+func TestTheDrillDownWorksAgainOnceTheListingLands(t *testing.T) {
+	m := loadedModel(t)
+	m.table.SetCursor(2)
+	m = feed(t, m, testutil.Key("right"))
+	m = feed(t, m, EntriesLoadedMsg{Path: "/tmp/workspaces/clients", Entries: []Entry{
+		{Name: "a", Path: "/tmp/workspaces/clients/a", IsDir: true},
+	}})
+
+	m = feed(t, m, testutil.Key("right"))
+
+	if m.currentPath != "/tmp/workspaces/clients/a" {
+		t.Errorf("currentPath = %q, want the nested directory", m.currentPath)
+	}
+	if len(m.navigationStack) != 1 || m.navigationStack[0] != "/tmp/workspaces/clients" {
+		t.Errorf("navigationStack = %v, want the parent pushed once", m.navigationStack)
+	}
+}
+
+// `←` is not guarded: it reads the stack, not the table. What must not happen
+// is the listing it overtook landing on top of the directory it went back to.
+func TestAListingThatArrivesAfterNavigatingAwayIsDropped(t *testing.T) {
+	m := loadedModel(t)
+	m.table.SetCursor(2)
+	m = feed(t, m, testutil.Key("right")) // into clients
+	m = feed(t, m, testutil.Key("left"))  // straight back out
+
+	// The load issued for clients lands now.
+	m = feed(t, m, EntriesLoadedMsg{Path: "/tmp/workspaces/clients", Entries: []Entry{
+		{Name: "a", Path: "/tmp/workspaces/clients/a", IsDir: true},
+	}})
+
+	if m.currentPath != "" {
+		t.Fatalf("currentPath = %q, want the root", m.currentPath)
+	}
+	if got := len(m.table.Items()); got != len(entryFixtures()) {
+		t.Errorf("the table holds %d rows, want the root's %d — a stale listing was displayed", got, len(entryFixtures()))
+	}
+}
+
+// The same for an error: one about a directory nobody is looking at any more
+// must not be reported over the one on screen.
+func TestAnErrorAboutAnAbandonedDirectoryIsDropped(t *testing.T) {
+	m := loadedModel(t)
+	m.table.SetCursor(2)
+	m = feed(t, m, testutil.Key("right"))
+	m = feed(t, m, testutil.Key("left"))
+
+	m = feed(t, m, LoadErrorMsg{Path: "/tmp/workspaces/clients", Error: errors.New("permission denied")})
+
+	if m.error != "" {
+		t.Errorf("error = %q, want none — it is about a directory that was left", m.error)
 	}
 }
 
