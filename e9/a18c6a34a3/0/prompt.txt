@@ -1,0 +1,5 @@
+écris dans les instructions qu'il faut commencer à travailler dans un nouveau git worktree, je veux pouvoir démarrer des taches en parallèle sans se marcher sur les pieds
+
+---
+
+déplace-la dans une worktree et fais la PR
