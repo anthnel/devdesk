@@ -298,7 +298,7 @@ The app supports multiple configuration contexts (e.g., work, personal, client-A
 ### Configuration System
 
 Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/config/config.go`:
-- `App` - Global settings (theme, default view, workspaces dir, `secret_backend`)
+- `App` - Global settings (theme, default view, workspaces dir, `show_hidden_files`, `secret_backend`)
 - `Status` - Monitoring settings (refresh interval, components)
 - `GitLab` - GitLab URL and clone settings
 - `Registry` - OCI registry configuration (see Registry model below)

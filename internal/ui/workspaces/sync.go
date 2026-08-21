@@ -21,7 +21,7 @@ import (
 // scan decorates the Scanned cell, and the counts tell the truth again when it
 // finishes.
 //
-// The target follows ctrl+s's rule rather than inventing a selection mode: a
+// The target follows S's rule rather than inventing a selection mode: a
 // git repository syncs itself, a plain directory syncs every repository nested
 // under it, anything else does nothing.
 

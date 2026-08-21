@@ -3,7 +3,6 @@ package workspaces
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -53,6 +52,9 @@ func (m Model) selectedEntry() (Entry, bool) {
 func (m Model) loadEntries() tea.Cmd {
 	currentPath := m.currentPath
 	workspacesDir := m.getExpandedWorkspacesDir()
+	// Copied here rather than read inside the closure: a Cmd runs on its own
+	// goroutine and must not touch the model (Rule 110).
+	showHidden := m.config.App.ShowHiddenFiles
 
 	return func() tea.Msg {
 		targetDir := workspacesDir
@@ -78,8 +80,7 @@ func (m Model) loadEntries() tea.Cmd {
 
 		entries := make([]Entry, 0, len(dirEntries))
 		for _, dirEntry := range dirEntries {
-			// Skip hidden files/directories
-			if strings.HasPrefix(dirEntry.Name(), ".") {
+			if isHidden(dirEntry.Name(), showHidden) {
 				continue
 			}
 
@@ -97,7 +98,7 @@ func (m Model) loadEntries() tea.Cmd {
 
 			// Enrich directory entries with git and project type info
 			if entry.IsDir {
-				enrichEntry(&entry)
+				enrichEntry(&entry, showHidden)
 			}
 
 			entries = append(entries, entry)

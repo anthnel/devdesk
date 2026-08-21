@@ -1059,25 +1059,35 @@ func TestDetectSubRepoPaths(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(shallow, "vendor", "inner", ".git"), 0o755); err != nil {
 		t.Fatalf("creating the nested repo: %v", err)
 	}
-	// Hidden directories are skipped.
-	if err := os.MkdirAll(filepath.Join(root, ".hidden", ".git"), 0o755); err != nil {
-		t.Fatalf("creating the hidden repo: %v", err)
-	}
+	// A hidden directory is walked, or not, according to the setting: the walk
+	// feeds S, F and A, so it answers the same question the listing does.
+	hidden := mkRepo(".hidden")
 
-	got := detectSubRepoPaths(root, 3)
+	for _, tc := range []struct {
+		name       string
+		showHidden bool
+		wantHidden bool
+	}{
+		{"hidden files off", false, false},
+		{"hidden files on", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := detectSubRepoPaths(root, 3, tc.showHidden)
 
-	found := map[string]bool{}
-	for _, p := range got {
-		found[p] = true
-	}
-	if !found[shallow] || !found[nested] {
-		t.Errorf("detectSubRepoPaths = %v, want both %q and %q", got, shallow, nested)
-	}
-	if found[filepath.Join(shallow, "vendor", "inner")] {
-		t.Error("a repo nested inside another repo was reported")
-	}
-	if found[filepath.Join(root, ".hidden")] {
-		t.Error("a repo inside a hidden directory was reported")
+			found := map[string]bool{}
+			for _, p := range got {
+				found[p] = true
+			}
+			if !found[shallow] || !found[nested] {
+				t.Errorf("detectSubRepoPaths = %v, want both %q and %q", got, shallow, nested)
+			}
+			if found[filepath.Join(shallow, "vendor", "inner")] {
+				t.Error("a repo nested inside another repo was reported")
+			}
+			if found[hidden] != tc.wantHidden {
+				t.Errorf("the hidden repo was reported = %v, want %v", found[hidden], tc.wantHidden)
+			}
+		})
 	}
 }
 
@@ -1088,16 +1098,16 @@ func TestDetectSubRepoPathsRespectsTheDepthLimit(t *testing.T) {
 		t.Fatalf("creating the deep repo: %v", err)
 	}
 
-	if got := detectSubRepoPaths(root, 2); len(got) != 0 {
+	if got := detectSubRepoPaths(root, 2, false); len(got) != 0 {
 		t.Errorf("detectSubRepoPaths = %v at depth 2, want nothing that deep", got)
 	}
-	if got := detectSubRepoPaths(root, 4); len(got) != 1 {
+	if got := detectSubRepoPaths(root, 4, false); len(got) != 1 {
 		t.Errorf("detectSubRepoPaths = %v at depth 4, want the deep repo", got)
 	}
 }
 
 func TestDetectSubRepoPathsOnAMissingDirectory(t *testing.T) {
-	if got := detectSubRepoPaths(filepath.Join(t.TempDir(), "nope"), 3); len(got) != 0 {
+	if got := detectSubRepoPaths(filepath.Join(t.TempDir(), "nope"), 3, false); len(got) != 0 {
 		t.Errorf("detectSubRepoPaths = %v on a missing directory, want nothing", got)
 	}
 }

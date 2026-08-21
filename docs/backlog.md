@@ -5057,6 +5057,55 @@ passée de plus d'une minute d'attente pure à cinq secondes.
 Le plan est dans
 [`.claude/plans/footer-messages-unification.md`](../.claude/plans/footer-messages-unification.md).
 
+### 3.31 `ws` montre les fichiers cachés, si on le lui demande — **done**
+
+La vue `workspaces` sautait toute entrée commençant par un point, sans que rien
+ne le dise et sans moyen de revenir dessus. C'est un défaut le jour où le dépôt
+qu'on cherche s'appelle `.dotfiles`.
+
+`app.show_hidden_files` décide, et `false` reste le défaut : c'est ce que la vue
+a toujours fait, donc aucun fichier existant ne change de sens et il n'y a rien à
+migrer. Le réglage se règle dans la vue `configuration`, onglet `app`, sous
+`Workspaces dir` — il qualifie la racine que ce champ déclare.
+
+**Pas de touche.** Une minuscule serait légale (Rule 111 : une bascule
+d'affichage locale), mais elle ferait deux écrivains pour un réglage — ce que
+§3.9 a démonté en supprimant le picker de thème, qui écrivait `app.theme` dans le
+dos du formulaire. Un réglage, un endroit. La propagation est gratuite :
+`handleConfigSaved` jette toutes les vues sauf `configuration`, donc `ws` se
+reconstruit contre le config sauvé.
+
+**Une seule règle, deux lecteurs.** Il y avait deux filtres indépendants — le
+listing (`table.go`) et la marche à la recherche des dépôts imbriqués
+(`walkSubRepos`, qui alimente les cibles de `S`, `F` et `A`). `isHidden(name,
+showHidden)` est consulté par les deux : ce que la vue montre est ce qu'elle
+scanne et synchronise, et deux règles pour cette question laisseraient un dépôt
+être une ligne visible et une cible invisible en même temps.
+
+La conséquence est assumée et écrite dans le code plutôt que découverte : réglage
+activé, `S` sur un dossier descend aussi dans ce que `.venv`, `.terraform` ou
+`.cache` embarquent. La limite de profondeur (3) est ce qui la borne.
+
+`TestTheSettingReachesNestedDiscovery` est la garde qui relie les deux bouts :
+sans elle, un futur `enrichEntry` pourrait oublier le paramètre et les deux
+filtres reprendraient leur vie séparée en silence.
+
+**Au passage, l'aide de `ws` mentait depuis §3.26.** Écrire une section pour le
+nouveau réglage a montré le reste : `GetHelpContent` annonçait toujours `↑/k`,
+`→/l`, `←/h` — les alias vim supprimés en entier — une section « Terminal »
+décrivant un `t` qui n'existe plus à côté d'un `T` dont le comportement est
+désormais un réglage, et **`s` pour synchroniser** dans deux sections alors que
+c'est `F`. Le vide de la vue disait `Press [ctrl+n]`, une touche disparue *et*
+une ligne d'aide dans le viewport que Rule 134 interdit : elle est retirée, le
+header offre déjà `N`. Trois commentaires de `GetShortcuts` nommaient encore
+`ctrl+w`, `ctrl+s` et `ctrl+n`.
+
+Rien de tout ça n'est vérifié par un test : `internal/ui/keymap` oppose les
+*sources* à la règle et attrape une touche qu'une vue **lie**, pas une touche
+qu'une vue **raconte**. L'aide est donc la seule surface où une touche morte
+survit sans que rien ne le dise — ce qui vaut d'être noté pour le prochain
+relevé.
+
 ---
 
 ## 4. Existing plans

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -174,7 +175,7 @@ func TestEnrichEntryReadsGitMetadata(t *testing.T) {
 	}
 
 	entry := Entry{Name: filepath.Base(repo), Path: repo, IsDir: true}
-	enrichEntry(&entry)
+	enrichEntry(&entry, false)
 
 	if !entry.IsGitRepo {
 		t.Fatal("the repository was not detected as one")
@@ -210,7 +211,7 @@ func TestEnrichEntryOnAPlainDirectoryFindsNestedRepos(t *testing.T) {
 	}
 
 	entry := Entry{Name: "clients", Path: root, IsDir: true}
-	enrichEntry(&entry)
+	enrichEntry(&entry, false)
 
 	if entry.IsGitRepo {
 		t.Error("a plain directory was reported as a git repo")
@@ -223,7 +224,7 @@ func TestEnrichEntryOnAPlainDirectoryFindsNestedRepos(t *testing.T) {
 func TestEnrichEntryOnANonRepoLeavesGitFieldsEmpty(t *testing.T) {
 	entry := Entry{Name: "empty", Path: t.TempDir(), IsDir: true}
 
-	enrichEntry(&entry)
+	enrichEntry(&entry, false)
 
 	if entry.IsGitRepo || entry.GitBranch != "" || entry.GitRemote != "" {
 		t.Errorf("git fields were populated for a non-repo: %+v", entry)
@@ -311,7 +312,8 @@ func TestLoadEntriesReportsAMissingBrowsedDirectory(t *testing.T) {
 	}
 }
 
-// Hidden entries are skipped: .git and friends are noise in a workspace list.
+// Hidden entries are skipped by default: .git and friends are noise in a
+// workspace list, and that default is what an existing config keeps meaning.
 func TestLoadEntriesSkipsHiddenEntries(t *testing.T) {
 	root := t.TempDir()
 	for _, name := range []string{"visible", ".hidden"} {
@@ -331,6 +333,52 @@ func TestLoadEntriesSkipsHiddenEntries(t *testing.T) {
 	}
 	if len(loaded.Entries) != 1 {
 		t.Errorf("loaded %d entries, want just the visible one", len(loaded.Entries))
+	}
+}
+
+// app.show_hidden_files is what lifts it.
+func TestLoadEntriesListsHiddenEntriesWhenTheSettingIsOn(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"visible", ".hidden"} {
+		if err := os.MkdirAll(filepath.Join(root, name), 0o755); err != nil {
+			t.Fatalf("creating %q: %v", name, err)
+		}
+	}
+	cfg := config.Default()
+	cfg.App.WorkspacesDir = root
+	cfg.App.ShowHiddenFiles = true
+
+	loaded := New(cfg, nil).loadEntries()().(EntriesLoadedMsg)
+
+	var names []string
+	for _, e := range loaded.Entries {
+		names = append(names, e.Name)
+	}
+	if len(loaded.Entries) != 2 {
+		t.Fatalf("loaded %v, want both the visible and the hidden entry", names)
+	}
+}
+
+// The setting reaches the nested-repo walk, not only the listing. Without this
+// the two could part in silence: a hidden repository would be a visible row and
+// an invisible target for S and F.
+func TestTheSettingReachesNestedDiscovery(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "clients", ".tools", "repo", ".git"), 0o755); err != nil {
+		t.Fatalf("creating the hidden nested repo: %v", err)
+	}
+	cfg := config.Default()
+	cfg.App.WorkspacesDir = root
+	cfg.App.ShowHiddenFiles = true
+
+	loaded := New(cfg, nil).loadEntries()().(EntriesLoadedMsg)
+
+	if len(loaded.Entries) != 1 {
+		t.Fatalf("loaded %d entries, want just clients", len(loaded.Entries))
+	}
+	want := filepath.Join(root, "clients", ".tools", "repo")
+	if !slices.Contains(loaded.Entries[0].SubRepoPaths, want) {
+		t.Errorf("SubRepoPaths = %v, want it to carry %q", loaded.Entries[0].SubRepoPaths, want)
 	}
 }
 
