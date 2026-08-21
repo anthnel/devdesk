@@ -1,0 +1,9 @@
+/plan dans la vue ws je voudrais pouvoir afficher ou masquer les fichiers cachés, ce devrait être une option de la configuration.
+
+---
+
+go
+
+---
+
+oui corrige : L'aide de ws annonce toujours ↑/k, →/l, ←/h et une section « Press t… », supprimés par §3.26
