@@ -66,16 +66,16 @@ func (m Model) loadEntries() tea.Cmd {
 		if _, err := os.Stat(targetDir); os.IsNotExist(err) {
 			if currentPath == "" {
 				if err := os.MkdirAll(targetDir, 0755); err != nil {
-					return LoadErrorMsg{Error: err}
+					return LoadErrorMsg{Path: currentPath, Error: err}
 				}
-				return EntriesLoadedMsg{Entries: []Entry{}}
+				return EntriesLoadedMsg{Path: currentPath}
 			}
-			return LoadErrorMsg{Error: err}
+			return LoadErrorMsg{Path: currentPath, Error: err}
 		}
 
 		dirEntries, err := os.ReadDir(targetDir)
 		if err != nil {
-			return LoadErrorMsg{Error: err}
+			return LoadErrorMsg{Path: currentPath, Error: err}
 		}
 
 		entries := make([]Entry, 0, len(dirEntries))
@@ -104,6 +104,6 @@ func (m Model) loadEntries() tea.Cmd {
 			entries = append(entries, entry)
 		}
 
-		return EntriesLoadedMsg{Entries: entries}
+		return EntriesLoadedMsg{Path: currentPath, Entries: entries}
 	}
 }

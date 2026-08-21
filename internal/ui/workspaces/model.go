@@ -35,7 +35,13 @@ type Model struct {
 	error string
 
 	// Navigation state (drill-down like explorer)
-	currentPath     string   // Empty = root (workspaces list), otherwise = current directory path
+	currentPath string // Empty = root (workspaces list), otherwise = current directory path
+	// listingPath is the directory the rows currently in the table were read
+	// from. It equals currentPath exactly when the table shows where the view
+	// says it is; between a navigation and the load landing, it does not — and
+	// that difference is the one thing that says "these rows are not this
+	// directory's".
+	listingPath     string
 	navigationStack []string // Stack of parent paths for breadcrumb tabs
 	cursorStack     []int    // Cursor positions per level for restoration on navigate-up
 	pendingCursor   int      // Cursor to restore after async loadEntries (-1 = none)

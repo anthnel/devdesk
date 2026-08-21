@@ -17,7 +17,7 @@ browse a single proxy inside a real Nexus group. It is what
 fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
 on and is now closed on its own.
 
-D1 through D38, D40, D41 and D42 are all fixed or, in D35's case, deliberately
+D1 through D38 and D40 through D43 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +29,45 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D43 — tenir `→` enfoncée empilait le même chemin dans le fil d'Ariane.
+Corrigé.** Signalé depuis une vraie session :
+`󰉋 devsecops   󰉋 devsecops   󰉋 devex   󰉋 devex   󰉋 coder-golang-sandbox   󰉋 coder-golang-sandbox`.
+
+Le chargement d'un répertoire est un `Cmd`. Entre `navigateIn` et l'arrivée de
+`EntriesLoadedMsg`, `currentPath` désigne déjà l'enfant tandis que la table
+tient encore les lignes du **parent** — et `navigateIn` lit la sélection dans la
+table. Une seconde pression relisait donc la même ligne, empilait le nouveau
+`currentPath` sur `navigationStack`, et le fil d'Ariane gagnait un doublon. Le
+`cursorStack` en gagnait un aussi, donc `←` demandait ensuite une pression de
+trop.
+
+**Le doublon était le symptôme bénin.** Avec le curseur déplacé entre les deux
+pressions — `→ ↓ →`, trivial en tenant les touches — la seconde entrait dans un
+**frère** du répertoire qu'on venait d'ouvrir, empilé comme s'il y était niché.
+Le fil d'Ariane affirmait alors une hiérarchie qui n'existe pas sur le disque.
+
+Une seule notion corrige les deux, plus une troisième que le relevé a exhibée :
+`listingPath`, le répertoire d'où viennent les lignes actuellement dans la
+table. Il est égal à `currentPath` exactement quand la table montre là où la vue
+se dit ; entre une navigation et l'atterrissage du chargement, il ne l'est pas.
+
+- `navigateIn` **refuse** tant que `listingPath != currentPath` : les lignes en
+  main ne sont pas celles de ce répertoire, il n'y a donc rien à y ouvrir. Ce
+  n'est pas un verrou à relâcher — c'est une question posée aux lignes.
+- `EntriesLoadedMsg` et `LoadErrorMsg` portent le répertoire dont ils parlent, et
+  Update **jette** ceux qui ne parlent pas de `currentPath`. C'est le troisième
+  défaut, non signalé et de la même famille : `→` puis `←` laisse deux
+  chargements en vol, et rien ne garantissait lequel arriverait en dernier — les
+  lignes de l'enfant pouvaient se poser sous le fil d'Ariane du parent.
+
+**`←` n'est délibérément pas gardée** : elle lit la pile, pas la table, donc
+elle est juste quoi qu'il arrive — et le chargement qu'elle double est
+maintenant jeté à l'arrivée. Garder les deux aurait avalé des frappes sans rien
+acheter.
+
+Quatre tests, et les quatre échouent sans le correctif — dont
+`tabCount() = 3, want 2`, le doublon signalé, à l'unité près.
 
 **D42 — the background ignored the theme, because two package-level variables
 rendered a string before `main()` ran. Fixed.** Reported from WSL Arch: the

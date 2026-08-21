@@ -7,13 +7,22 @@ import (
 	"github.com/anthnel/devdesk/internal/git"
 )
 
-// EntriesLoadedMsg is sent when entries are loaded
+// EntriesLoadedMsg is sent when entries are loaded.
+//
+// Path is the directory the listing was read from, in the model's own terms —
+// "" for the workspaces root. It is what lets Update tell a listing that
+// belongs here from one the user has already navigated away from: a load is a
+// Cmd, so nothing stops a second navigation from overtaking the first.
 type EntriesLoadedMsg struct {
+	Path    string
 	Entries []Entry
 }
 
-// LoadErrorMsg est envoyé en cas d'erreur
+// LoadErrorMsg est envoyé en cas d'erreur. Path carries the same stamp, for the
+// same reason: an error about a directory nobody is looking at any more must
+// not be reported over the one on screen.
 type LoadErrorMsg struct {
+	Path  string
 	Error error
 }
 

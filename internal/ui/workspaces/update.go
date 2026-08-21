@@ -41,6 +41,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKeyMsg(msg)
 
 	case EntriesLoadedMsg:
+		// A listing of somewhere the user has already left: two loads were in
+		// flight and this is the loser. Displaying it would put one directory's
+		// rows under another's breadcrumb.
+		if msg.Path != m.currentPath {
+			return m, nil
+		}
+		m.listingPath = msg.Path
 		m.setEntries(msg.Entries)
 		m.error = ""
 		m.refreshRows()
@@ -50,6 +57,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case LoadErrorMsg:
+		if msg.Path != m.currentPath {
+			return m, nil
+		}
 		m.error = msg.Error.Error()
 
 	case WorkspaceInputSubmitMsg:
@@ -281,8 +291,24 @@ func (m Model) tabCount() int {
 	return count
 }
 
-// navigateIn enters the selected directory
+// navigateIn enters the selected directory.
+//
+// It does nothing while the table still holds the previous directory's rows.
+// A load is a Cmd, so holding `→` used to drill twice from one listing: the
+// second press read the same row, pushed the *new* currentPath onto the stack,
+// and the breadcrumb grew a duplicate — `devsecops devsecops devex devex`. With
+// the cursor moved in between it was worse than duplication: a sibling of the
+// directory just entered was pushed as if it were nested inside it.
+//
+// Refusing is the honest answer rather than a hazard to remember: the rows in
+// hand are not this directory's, so there is nothing here to enter yet. `←` is
+// deliberately not guarded — it reads the stack, not the table, and a listing
+// it overtakes is dropped on arrival.
 func (m Model) navigateIn() (tea.Model, tea.Cmd) {
+	if m.listingPath != m.currentPath {
+		return m, nil
+	}
+
 	entry, ok := m.selectedEntry()
 	if !ok || !entry.IsDir {
 		return m, nil
