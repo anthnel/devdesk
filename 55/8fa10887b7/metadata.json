@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "558fa10887b7",
+  "strategy": "manual-commit",
+  "branch": "netcheck-explain",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/netcheck/explain.go",
+    "internal/netcheck/explain_test.go",
+    "internal/netcheck/netcheck.go",
+    "internal/netcheck/stage_reach.go",
+    "internal/netcheck/stage_tls.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/55/8fa10887b7/0/metadata.json",
+      "transcript": "/55/8fa10887b7/0/full.jsonl",
+      "compact_transcript": "/55/8fa10887b7/0/transcript.jsonl",
+      "content_hash": "/55/8fa10887b7/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 21876,
+    "cache_read_tokens": 3363434,
+    "output_tokens": 21461,
+    "api_call_count": 11
+  }
+}

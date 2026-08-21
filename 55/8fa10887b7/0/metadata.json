@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "558fa10887b7",
+  "session_id": "613e3c30-37d5-4d6e-8252-f47750b1044d",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-21T18:33:43.0022469Z",
+  "branch": "netcheck-explain",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/netcheck/explain.go",
+    "internal/netcheck/explain_test.go",
+    "internal/netcheck/netcheck.go",
+    "internal/netcheck/stage_reach.go",
+    "internal/netcheck/stage_tls.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "34a792035449",
+  "checkpoint_transcript_start": 484,
+  "transcript_lines_at_start": 484,
+  "compact_transcript_start": 73,
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 21876,
+    "cache_read_tokens": 3363434,
+    "output_tokens": 21461,
+    "api_call_count": 11
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-21T18:33:42.9530027Z",
+    "agent_lines": 595,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 595,
+    "total_lines_changed": 595,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 485,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 485
+      }
+    }
+  ]
+}
