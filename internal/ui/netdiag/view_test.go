@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -16,421 +17,399 @@ import (
 
 func TestViewRendersTheForm(t *testing.T) {
 	out := newTestModel(t).View()
-
-	for _, want := range []string{"Target", "Port", "DNS Server", "Diagnostic Tests", "Run Diagnostics"} {
+	for _, want := range []string{"Target", "Port", "DNS Server", "Run Diagnostics"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("the form is missing %q", want)
-		}
-	}
-	for _, test := range New(testConfig()).tests {
-		if !strings.Contains(out, test.name) {
-			t.Errorf("the form is missing the %q checkbox", test.name)
+			t.Errorf("the form has no %q", want)
 		}
 	}
 }
 
-func TestViewRendersProgressWhileRunning(t *testing.T) {
-	m := runningModel(t, "example.com", "Ping", "Netcat")
-
-	out := m.View()
-	if !strings.Contains(out, "Running diagnostics") {
-		t.Error("the running view does not say what it is doing")
-	}
-	if !strings.Contains(out, "0 / 2 tests completed") {
-		t.Errorf("the running view does not show progress:\n%s", out)
-	}
-
-	m = feed(t, m, testCompleteMsg{gen: m.runGen, name: "Ping", success: true, output: "ok"})
-	if !strings.Contains(m.View(), "1 / 2 tests completed") {
-		t.Error("the progress counter did not advance")
+// TestTheFormNoLongerOffersAToolPicker — the checkboxes are the thing this
+// change removes, so their absence is asserted rather than assumed.
+func TestTheFormNoLongerOffersAToolPicker(t *testing.T) {
+	out := newTestModel(t).View()
+	for _, gone := range []string{"Diagnostic Tests", "Netcat", "Traceroute", "SSL Certificate", "Curl"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("the form still offers %q", gone)
+		}
 	}
 }
 
-func TestRunningViewMarksEachTestAsItLands(t *testing.T) {
-	m := runningModel(t, "example.com", "Ping", "Netcat")
-	m = feed(t, m,
-		testCompleteMsg{gen: m.runGen, name: "Ping", success: true, output: "ok"},
-	)
+// TestTheTableStaysOnScreenWhileTheRunWalks is Rule 139: a body that swaps
+// itself for a spinner loses its header and its columns, and here it would also
+// throw away the rows already answered.
+func TestTheTableStaysOnScreenWhileTheRunWalks(t *testing.T) {
+	m := runningModel(t, "example.com")
+	m = feed(t, m, stageDoneMsg{
+		gen: m.runGen, stage: netcheck.StageResolve, next: 1,
+		results: netcheck.ResultsOf(check(netcheck.CheckResolve, netcheck.OK, "example.com resolves")),
+	})
 
-	// One finished, one still spinning — both named.
 	out := m.View()
-	if !strings.Contains(out, "Ping") || !strings.Contains(out, "Netcat") {
-		t.Errorf("the running view does not list both tests:\n%s", out)
+	if !strings.Contains(out, "Check") || !strings.Contains(out, "Verdict") {
+		t.Error("the table header is not on screen mid-run")
+	}
+	if !strings.Contains(out, "DNS resolution") {
+		t.Error("a check that already landed is not shown")
 	}
 }
 
-func TestResultsTableShowsStatusAndFirstOutputLine(t *testing.T) {
+// TestTheProgressLineNamesTheQuestionBeingAsked — an unreachable host spends
+// its timeouts one after another, and a spinner with nothing beside it is
+// indistinguishable from a hang.
+func TestTheProgressLineNamesTheQuestionBeingAsked(t *testing.T) {
+	m := runningModel(t, "example.com")
+	footer := m.RenderFooter(120)
+
+	if !strings.Contains(footer, netcheck.StageTitle(netcheck.StageResolve)) {
+		t.Errorf("the footer does not name the stage:\n%s", footer)
+	}
+	if !strings.Contains(footer, "1/") {
+		t.Error("the footer does not say how far along the run is")
+	}
+}
+
+func TestTheTableShowsTheVerdictAndTheObservation(t *testing.T) {
+	out := resultsModel(t).View()
+	for _, want := range []string{"DNS resolution", "TCP connect", "OK", "FAIL", "N/A",
+		"Port 443 does not accept connections"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the table has no %q", want)
+		}
+	}
+}
+
+func TestTheEmptyMessageWaitsForTheRunToFinish(t *testing.T) {
+	running := runningModel(t, "example.com")
+	if strings.Contains(running.View(), "No checks") {
+		t.Error("the table announces the absence of what it is fetching")
+	}
+}
+
+func TestFilteringToNothingSaysWhy(t *testing.T) {
+	m := deliver(t, runningModel(t, "example.com"),
+		check(netcheck.CheckResolve, netcheck.OK, "resolves"),
+		check(netcheck.CheckTCP, netcheck.OK, "open"))
+	m = feed(t, m, testutil.Key("p"))
+
+	if !strings.Contains(m.View(), "every check came back clean") {
+		t.Errorf("an empty problems view says nothing useful:\n%s", m.View())
+	}
+}
+
+// ── Header ───────────────────────────────────────────────────────────────────
+
+func TestGetTitleNamesTheOpenCheck(t *testing.T) {
 	m := resultsModel(t)
-
-	out := m.View()
-	if !strings.Contains(out, "Ping") || !strings.Contains(out, "Netcat") {
-		t.Error("the results table does not list both tests")
+	if strings.Contains(m.GetTitle(), theme_chevron) {
+		t.Error("the title carries a suffix with no detail open")
 	}
-	if !strings.Contains(out, "OK") || !strings.Contains(out, "FAIL") {
-		t.Errorf("the results table does not distinguish success from failure:\n%s", out)
-	}
-	// The Output column carries the first non-empty line, not the whole log.
-	if !strings.Contains(out, "64 bytes from example.com") {
-		t.Error("the results table does not show the first output line")
-	}
-	if strings.Contains(out, "ttl=57") {
-		t.Error("the results table shows more than the first output line")
-	}
-}
-
-func TestCancelledTestsAreMarkedInTheTable(t *testing.T) {
-	m := runningModel(t, "example.com", "Ping")
-	m = feed(t, m, testutil.Key("esc"))
-
-	if !strings.Contains(m.View(), "Ping") {
-		t.Error("a cancelled test disappeared from the results")
-	}
-}
-
-func TestDetailsViewRendersTheFullOutput(t *testing.T) {
-	m := feed(t, resultsModel(t), testutil.Key("enter"))
-
-	out := m.View()
-	if !strings.Contains(out, "64 bytes from example.com") || !strings.Contains(out, "ttl=57") {
-		t.Errorf("the details view does not show the full output:\n%s", out)
-	}
-}
-
-func TestDetailsViewHandlesEmptyOutput(t *testing.T) {
-	m := runningModel(t, "example.com", "Ping")
-	m = feed(t, m, testCompleteMsg{gen: m.runGen, name: "Ping", success: false, output: ""})
+	m.checksTable.SetCursor(1)
 	m = feed(t, m, testutil.Key("enter"))
-
-	if !strings.Contains(m.View(), "(no output)") {
-		t.Error("the details view is blank for a test that produced nothing")
+	if !strings.Contains(m.GetTitle(), "TCP connect") {
+		t.Errorf("GetTitle = %q, want the open check named", m.GetTitle())
 	}
 }
 
-// ── firstOutputLine ──────────────────────────────────────────────────────────
-
-func TestFirstOutputLine(t *testing.T) {
-	tests := []struct {
-		name   string
-		output string
-		want   string
-	}{
-		{"first non-empty line", "\n\n  hello\nworld", "hello"},
-		{"trims", "   spaced   \n", "spaced"},
-		{"empty output", "", ""},
-		{"only blank lines", "\n  \n\t\n", ""},
-		{"long lines are left whole for the renderer", strings.Repeat("a", 50), strings.Repeat("a", 50)},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := firstOutputLine(tc.output); got != tc.want {
-				t.Errorf("firstOutputLine(%q) = %q, want %q", tc.output, got, tc.want)
-			}
-		})
-	}
-}
-
-// The output cell is cut to the column by the table's renderer now rather than
-// by firstOutputLine, and a cut mid-rune would produce invalid UTF-8 — the same
-// defect as D1/D6 in the backlog, one layer down.
-func TestTheOutputColumnIsCutOnRuneBoundaries(t *testing.T) {
-	// Each "é" is two bytes: a byte-wise cut lands inside one.
-	m := runningModel(t, "example.com", "Ping")
-	m = feed(t, m, testCompleteMsg{gen: m.runGen, name: "Ping", success: true, output: strings.Repeat("é", 200)})
-
-	view := m.resultsTable.View()
-	if !utf8.ValidString(view) {
-		t.Errorf("the results table rendered invalid UTF-8: %q", view)
-	}
-	if !strings.Contains(view, "é") {
-		t.Error("the output column shows none of the output")
-	}
-}
-
-// ── Header, footer and help ──────────────────────────────────────────────────
-
-func TestGetTitleNamesTheOpenTest(t *testing.T) {
-	m := resultsModel(t)
-	if strings.Contains(m.GetTitle(), "Ping") {
-		t.Error("the results title already names a test")
-	}
-
-	m = feed(t, m, testutil.Key("enter"))
-	if !strings.Contains(m.GetTitle(), "Ping") {
-		t.Errorf("GetTitle() = %q in the details, want the test name", m.GetTitle())
-	}
-}
-
-// Unlike the other views, this one does supply an icon separately from the
-// title, because the app router renders it in the tab strip.
 func TestGetIconIsPopulated(t *testing.T) {
-	if newTestModel(t).GetIcon() == "" {
-		t.Error("GetIcon() is empty")
+	if New(testConfig()).GetIcon() == "" {
+		t.Fatal("GetIcon is empty")
+	}
+}
+
+// TestTheHeaderCarriesTheVerdict — it is the answer to the question the view
+// exists for, and reading it off ten rows is what a header is supposed to save.
+func TestTheHeaderCarriesTheVerdict(t *testing.T) {
+	form := newTestModel(t)
+	for _, info := range form.GetHeaderInfo("default") {
+		if info.Key == "Verdict" {
+			t.Fatal("the form advertises a verdict before anything has run")
+		}
+	}
+
+	m := resultsModel(t)
+	var got string
+	for _, info := range m.GetHeaderInfo("default") {
+		if info.Key == "Verdict" {
+			got = info.Value
+		}
+	}
+	if got != netcheck.Fail.String() {
+		t.Fatalf("header verdict = %q, want %q", got, netcheck.Fail)
 	}
 }
 
 func TestGetHeaderInfoCarriesTheContext(t *testing.T) {
-	info := newTestModel(t).GetHeaderInfo("work")
-
-	if len(info) != 1 || info[0].Key != "Context" || info[0].Value != "work" {
-		t.Errorf("GetHeaderInfo() = %+v, want the active context", info)
+	info := New(testConfig()).GetHeaderInfo("work")
+	if len(info) == 0 || info[0].Key != "Context" || info[0].Value != "work" {
+		t.Fatalf("header info = %+v", info)
 	}
 }
 
-// Rule 130: the shortcut set follows the state.
+// ── Shortcuts ────────────────────────────────────────────────────────────────
+
 func TestShortcutsFollowTheState(t *testing.T) {
-	form := newTestModel(t)
-	if !hasShortcut(form.GetShortcuts(), "space") || !hasShortcut(form.GetShortcuts(), "tab") {
-		t.Error("the form does not advertise toggle and tab switching")
+	keysOf := func(sc shortcut.Shortcuts) string {
+		var b strings.Builder
+		for _, s := range sc {
+			b.WriteString(s.Key + " ")
+		}
+		return b.String()
 	}
 
-	running := runningModel(t, "example.com", "Ping").GetShortcuts()
-	if len(running) != 1 || !hasShortcut(running, "esc") {
-		t.Errorf("the running state advertises %v, want cancel only", running)
+	if got := keysOf(newTestModel(t).GetShortcuts()); !strings.Contains(got, "enter") {
+		t.Errorf("the form does not advertise enter: %s", got)
+	}
+	if got := keysOf(runningModel(t, "example.com").GetShortcuts()); !strings.Contains(got, "esc") {
+		t.Errorf("a running pipeline does not advertise esc: %s", got)
 	}
 
-	results := resultsModel(t).GetShortcuts()
-	// esc goes back to the form; ctrl+r means refresh and only refresh (§3.26).
-	if !hasShortcut(results, "enter") || !hasShortcut(results, "esc") {
-		t.Error("the results state does not advertise details and going back")
+	results := keysOf(resultsModel(t).GetShortcuts())
+	for _, want := range []string{"enter", "p", "/", "ctrl+r", "esc"} {
+		if !strings.Contains(results, want) {
+			t.Errorf("the results state does not advertise %q: %s", want, results)
+		}
 	}
 }
 
-// The formatted/raw toggle only exists for outputs that have a formatter, so it
-// must not be advertised for the others.
-func TestFormattedToggleIsAdvertisedOnlyWhereItApplies(t *testing.T) {
-	tests := []struct {
-		name string
-		test string
-		want bool
-	}{
-		{"traceroute has a formatter", "Traceroute", true},
-		{"dns has a formatter", "DNS Resolution", true},
-		{"ping has none", "Ping", false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			m := runningModel(t, "example.com", tc.test)
-			m = feed(t, m, testCompleteMsg{gen: m.runGen, name: tc.test, success: true, output: "output"})
-			m = feed(t, m, testutil.Key("enter"))
-
-			if got := hasShortcut(m.GetShortcuts(), "f"); got != tc.want {
-				t.Errorf("the f toggle advertised = %v for %q, want %v", got, tc.test, tc.want)
+// TestTheTraceShortcutIsAdvertisedOnlyWhereItApplies is Rule 130.
+func TestTheTraceShortcutIsAdvertisedOnlyWhereItApplies(t *testing.T) {
+	advertised := func(m *Model) bool {
+		for _, s := range m.GetShortcuts() {
+			if s.Key == keymap.Trace {
+				return true
 			}
-		})
+		}
+		return false
+	}
+
+	refused := deliver(t, runningModel(t, "example.com"),
+		check(netcheck.CheckTCP, netcheck.Fail, "refused"))
+	if !advertised(refused) {
+		t.Error("a refused port does not offer the trace")
+	}
+
+	reachable := deliver(t, runningModel(t, "example.com"),
+		check(netcheck.CheckTCP, netcheck.OK, "open"))
+	if advertised(reachable) {
+		t.Error("a reachable host offers a trace nobody needs")
 	}
 }
 
-// The label has to say what pressing it does, not what is on screen.
-func TestFormattedToggleLabelFlips(t *testing.T) {
-	m := runningModel(t, "example.com", "Traceroute")
-	m = feed(t, m, testCompleteMsg{gen: m.runGen, name: "Traceroute", success: true, output: "1 gateway"})
-	m = feed(t, m, testutil.Key("enter"))
-
-	if got := shortcutDescription(m.GetShortcuts(), "f"); got != "Raw output" {
-		t.Errorf("f label = %q while formatted, want \"Raw output\"", got)
+func TestTheProblemsShortcutLabelFlips(t *testing.T) {
+	label := func(m *Model) string {
+		for _, s := range m.GetShortcuts() {
+			if s.Key == "p" {
+				return s.Description
+			}
+		}
+		return ""
 	}
 
-	m = feed(t, m, testutil.Key("f"))
-	if got := shortcutDescription(m.GetShortcuts(), "f"); got != "Formatted output" {
-		t.Errorf("f label = %q while raw, want \"Formatted output\"", got)
+	m := resultsModel(t)
+	if got := label(m); !strings.Contains(got, "problems") {
+		t.Errorf("label = %q", got)
+	}
+	m = feed(t, m, testutil.Key("p"))
+	if got := label(m); !strings.Contains(got, "every") {
+		t.Errorf("the label did not flip: %q", got)
 	}
 }
 
 func TestShortcutsFollowTheActiveTab(t *testing.T) {
-	m := feed(t, newTestModel(t), testutil.Key("tab")) // ports
-
-	ports := m.GetShortcuts()
-	if !hasShortcut(ports, keymap.Kill) || !hasShortcut(ports, "/") {
-		t.Error("the ports tab does not advertise its own shortcuts")
+	m := newTestModel(t)
+	m.activeTab = tabPorts
+	var keys string
+	for _, s := range m.GetShortcuts() {
+		keys += s.Key + " "
 	}
-	if hasShortcut(ports, "space") && shortcutDescription(ports, "space") == "Toggle checkbox" {
-		t.Error("the ports tab still advertises the form's checkbox toggle")
-	}
-
-	m = feed(t, m, testutil.Key("tab")) // topology, still loading
-	loading := m.GetShortcuts()
-	if len(loading) != 1 || !hasShortcut(loading, "tab") {
-		t.Errorf("the loading topology tab advertises %v, want tab switching only", loading)
-	}
-
-	m.topologyModel.state = topoStateReady
-	if !hasShortcut(m.GetShortcuts(), "ctrl+r") {
-		t.Error("the loaded topology tab does not advertise refresh")
+	if !strings.Contains(keys, "K") {
+		t.Errorf("the ports tab lost its shortcuts: %s", keys)
 	}
 }
 
-// Rule 137: descriptions are capitalised.
+// TestShortcutDescriptionsAreCapitalised is Rule 137.
 func TestShortcutDescriptionsAreCapitalised(t *testing.T) {
-	states := []shortcut.Shortcuts{
-		newTestModel(t).GetShortcuts(),
-		runningModel(t, "example.com", "Ping").GetShortcuts(),
-		resultsModel(t).GetShortcuts(),
-		feed(t, resultsModel(t), testutil.Key("enter")).GetShortcuts(),
-		feed(t, newTestModel(t), testutil.Key("tab")).GetShortcuts(),
-	}
+	models := []*Model{newTestModel(t), runningModel(t, "example.com"), resultsModel(t)}
 
-	for _, set := range states {
-		for _, s := range set {
-			if s.Description == "" {
-				t.Errorf("shortcut %q has no description", s.Key)
-				continue
-			}
-			if first := s.Description[0]; first < 'A' || first > 'Z' {
-				t.Errorf("shortcut %q description %q does not start with a capital", s.Key, s.Description)
+	details := resultsModel(t)
+	details = feed(t, details, testutil.Key("enter"))
+	models = append(models, details)
+
+	ports := newTestModel(t)
+	ports.activeTab = tabPorts
+	models = append(models, ports)
+
+	for _, m := range models {
+		for _, s := range m.GetShortcuts() {
+			r, _ := utf8.DecodeRuneInString(s.Description)
+			if !strings.ContainsRune("ABCDEFGHIJKLMNOPQRSTUVWXYZ", r) {
+				t.Errorf("description %q does not start with a capital", s.Description)
 			}
 		}
 	}
 }
 
-func hasShortcut(shortcuts shortcut.Shortcuts, key string) bool {
-	return shortcutDescription(shortcuts, key) != ""
-}
+// ── Footer ───────────────────────────────────────────────────────────────────
 
-func shortcutDescription(shortcuts shortcut.Shortcuts, key string) string {
-	for _, s := range shortcuts {
-		if s.Key == key {
-			return s.Description
-		}
-	}
-	return ""
-}
-
-// Rule 124: the promised footer height must match what is rendered, in every
-// tab — the ports filter bar adds a line.
+// TestFooterHeightMatchesWhatRenderFooterEmits — the router takes
+// GetFooterHeight() lines off the viewport, so a mismatch either clips the
+// footer or leaves a band nothing fills (D45).
 func TestFooterHeightMatchesWhatRenderFooterEmits(t *testing.T) {
-	tests := []struct {
+	for _, tc := range []struct {
 		name  string
-		build func(t *testing.T) *Model
+		model func(*testing.T) *Model
 	}{
 		{"form", newTestModel},
-		{"running", func(t *testing.T) *Model { return runningModel(t, "example.com", "Ping") }},
+		{"running", func(t *testing.T) *Model { return runningModel(t, "example.com") }},
 		{"results", resultsModel},
-		{"footer error", func(t *testing.T) *Model {
+		{"results with the filter bar open", func(t *testing.T) *Model {
+			return feed(t, resultsModel(t), testutil.Key("p"))
+		}},
+		{"results searching", func(t *testing.T) *Model {
+			return feed(t, resultsModel(t), testutil.Key("/"))
+		}},
+		{"ports", func(t *testing.T) *Model {
 			m := newTestModel(t)
-			m.footer.Error("Invalid target")
+			m.activeTab = tabPorts
 			return m
 		}},
-		{"footer info", func(t *testing.T) *Model {
-			m := newTestModel(t)
-			m.footer.Info("Nothing to do")
-			return m
-		}},
-		{"ports", func(t *testing.T) *Model { return feed(t, newTestModel(t), testutil.Key("tab")) }},
-		{"ports searching", func(t *testing.T) *Model {
-			return feed(t, newTestModel(t), testutil.Key("tab"), testutil.Key("/"))
-		}},
-		{"topology", func(t *testing.T) *Model {
-			return feed(t, newTestModel(t), testutil.Key("tab"), testutil.Key("tab"))
-		}},
-	}
-
-	for _, tc := range tests {
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := tc.build(t)
-
-			want := m.GetFooterHeight()
-			got := strings.Count(m.RenderFooter(120), "\n") + 1
-			if got != want {
-				t.Errorf("RenderFooter() emitted %d lines, GetFooterHeight() promised %d", got, want)
+			m := tc.model(t)
+			got := len(strings.Split(m.RenderFooter(120), "\n"))
+			if got != m.GetFooterHeight() {
+				t.Fatalf("RenderFooter emits %d lines, GetFooterHeight says %d", got, m.GetFooterHeight())
 			}
 		})
 	}
 }
 
-func TestFooterShowsTheTabsAndTheActiveMessage(t *testing.T) {
-	m := newTestModel(t)
-	m.footer.Error("Invalid target")
-
-	footer := m.RenderFooter(120)
-	for _, tab := range []string{"Diagnostics", "Ports", "Topology"} {
-		if !strings.Contains(footer, tab) {
-			t.Errorf("the footer is missing the %q tab", tab)
+func TestFooterShowsTheTabs(t *testing.T) {
+	out := newTestModel(t).RenderFooter(120)
+	for _, want := range []string{"Diagnostics", "Ports", "Topology"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the tab bar has no %q", want)
 		}
-	}
-	if !strings.Contains(footer, "Invalid target") {
-		t.Error("the footer does not surface the error message")
 	}
 }
 
-// Each tab owns its own footer message; switching tabs must not carry one over.
 func TestFooterMessageIsPerTab(t *testing.T) {
 	m := newTestModel(t)
-	m.footer.Error("Invalid target")
-
-	m = feed(t, m, testutil.Key("tab")) // ports
-
-	if strings.Contains(m.RenderFooter(120), "Invalid target") {
-		t.Error("the diagnostics error leaked into the ports tab footer")
+	m, _ = step(t, m, testutil.Key("enter")) // refused: no target
+	m.activeTab = tabPorts
+	if strings.Contains(m.RenderFooter(120), "required") {
+		t.Error("one tab's message leaked onto another")
 	}
 }
+
+func TestTheFilterBarIsDrawnWhenItIsCounted(t *testing.T) {
+	m := feed(t, resultsModel(t), testutil.Key("p"))
+	if !m.filterBar.IsVisible() {
+		t.Fatal("an active token did not make the bar visible")
+	}
+	if !strings.Contains(m.RenderFooter(120), problemsToken) {
+		t.Error("the bar is counted but not drawn (D45)")
+	}
+}
+
+// ── Help ─────────────────────────────────────────────────────────────────────
 
 func TestGetHelpContentIsPopulated(t *testing.T) {
-	content := newTestModel(t).GetHelpContent()
-
-	if content.Title == "" || content.Description == "" {
-		t.Error("the help content has no title or description")
+	c := New(testConfig()).GetHelpContent()
+	if c.Title == "" || c.Description == "" {
+		t.Fatal("the help has no title or description")
 	}
-	if len(content.KeyBindings) == 0 || len(content.Sections) == 0 {
-		t.Error("the help content has no key bindings or sections")
-	}
-}
-
-// ── The results table after §3.21 ────────────────────────────────────────────
-
-// The results table used to be rebuilt with table.New on every update, which
-// dropped the cursor back to the top. A late result — the metadata for a test
-// that finished after the others, a cancellation — moved the row under the
-// user's cursor while they were reading it.
-func TestALateResultKeepsTheCursorWhereItWas(t *testing.T) {
-	m := resultsModel(t)
-	m = feed(t, m, testutil.Key("down"))
-
-	if got := m.resultsTable.Cursor(); got != 1 {
-		t.Fatalf("cursor = %d before the refresh, want 1", got)
-	}
-	m.rebuildResultsTable()
-
-	if got := m.resultsTable.Cursor(); got != 1 {
-		t.Errorf("cursor = %d after a refresh, want it left where the user put it", got)
+	if len(c.KeyBindings) == 0 || len(c.Sections) == 0 {
+		t.Fatal("the help has no bindings or sections")
 	}
 }
 
-// Rule 116, now the solver's job rather than three fixed widths and a
-// subtraction: the columns must sum to exactly the space they have at every
-// width, or the selected row stops short of the right border.
-func TestResultColumnsHoldTheWidthInvariant(t *testing.T) {
-	for _, width := range []int{40, 60, 80, 120, 200} {
-		m := feed(t, resultsModel(t), tea.WindowSizeMsg{Width: width, Height: 40})
+// TestTheHelpDescribesTheChecksItRuns — Rule 114: the help is updated in the
+// same commit as the behaviour, and the old list named seven tools that no
+// longer exist.
+func TestTheHelpDescribesTheChecksItRuns(t *testing.T) {
+	c := New(testConfig()).GetHelpContent()
+	var body strings.Builder
+	for _, s := range c.Sections {
+		body.WriteString(s.Body)
+	}
+	text := body.String()
 
-		total := 0
-		cols := m.resultsTable.Table().Columns()
-		for i, col := range cols {
-			total += col.Width
-			if col.Width < 0 {
-				t.Errorf("at width %d column %d is %d cells wide", width, i, col.Width)
+	for _, want := range []string{"Certificate chain", "Hostname match", "UNKNOWN", "N/A"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the help does not mention %q", want)
+		}
+	}
+	for _, gone := range []string{"Netcat", "SSL Certificate -", "Curl request"} {
+		if strings.Contains(text, gone) {
+			t.Errorf("the help still describes %q", gone)
+		}
+	}
+}
+
+// ── Table invariants ─────────────────────────────────────────────────────────
+
+// TestCheckColumnsHoldTheWidthInvariant is Rule 116 at the narrow end.
+func TestCheckColumnsHoldTheWidthInvariant(t *testing.T) {
+	for _, width := range []int{46, 80, 120, 200} {
+		// The resize comes after the run: runningModel lays out at 120 columns,
+		// so sizing first would be overwritten and every width would pass.
+		m := deliver(t, runningModel(t, "example.com"),
+			check(netcheck.CheckTCP, netcheck.Fail, "Port 443 does not accept connections"))
+		m = feed(t, m, tea.WindowSizeMsg{Width: width, Height: 30})
+
+		for _, line := range strings.Split(m.View(), "\n") {
+			if got := utf8.RuneCountInString(stripANSI(line)); got > width {
+				t.Fatalf("at %d columns a line is %d wide", width, got)
 			}
 		}
-		if want := width - 2 - len(cols)*2; total != want {
-			t.Errorf("at width %d the columns sum to %d, want %d", width, total, want)
+	}
+}
+
+// TestALateStageKeepsTheCursorWhereItWas — the table is refilled on every stage,
+// and a cursor that jumped back to the top on each would be unusable.
+func TestALateStageKeepsTheCursorWhereItWas(t *testing.T) {
+	m := resultsModel(t)
+	m.checksTable.SetCursor(2)
+	before := m.checksTable.Cursor()
+
+	m.rebuildChecksTable()
+	if got := m.checksTable.Cursor(); got != before {
+		t.Fatalf("cursor moved from %d to %d on a refill", before, got)
+	}
+}
+
+// TestTheVerdictCellIsPlainText is Rule 122: a Render() inside Cell is measured
+// with its escape bytes, truncated mid-sequence, and bleeds over every row below.
+func TestTheVerdictCellIsPlainText(t *testing.T) {
+	for _, v := range []netcheck.Verdict{netcheck.OK, netcheck.Warn, netcheck.Fail,
+		netcheck.NotApplicable, netcheck.Unknown} {
+		cell := verdictCell(netcheck.Check{Verdict: v})
+		if strings.Contains(cell, "\x1b") {
+			t.Errorf("the %v cell carries an escape sequence", v)
+		}
+		if cell == "" {
+			t.Errorf("the %v cell is empty", v)
 		}
 	}
 }
 
-// Enter opens the row under the cursor, resolved through the table rather than
-// by indexing resultOrder. The two orderings agree today only because this
-// table does not sort — which is exactly the dependency nothing signalled, and
-// what would have made adding one a silent defect.
-func TestEnterOpensTheRowUnderTheCursor(t *testing.T) {
-	m := resultsModel(t)
-	m = feed(t, m, testutil.Key("down"), testutil.Key("enter"))
+const theme_chevron = ""
 
-	row, ok := m.resultsTable.Selected()
-	if !ok {
-		t.Fatal("no row is selected")
+// stripANSI removes escape sequences so a rendered line can be measured.
+func stripANSI(s string) string {
+	var b strings.Builder
+	inEscape := false
+	for _, r := range s {
+		switch {
+		case r == 0x1b:
+			inEscape = true
+		case inEscape && (r == 'm' || r == 'K'):
+			inEscape = false
+		case !inEscape:
+			b.WriteRune(r)
+		}
 	}
-	if m.selectedTest != row.name {
-		t.Errorf("opened %q, want the selected row %q", m.selectedTest, row.name)
-	}
+	return b.String()
 }

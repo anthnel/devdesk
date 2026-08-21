@@ -1,10 +1,8 @@
 package netdiag
 
 import (
-	"bufio"
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -54,8 +52,11 @@ func isHostname(s string) bool {
 }
 
 // validateTarget checks that the target is a usable IP address or hostname.
-// Targets reach external tools as command arguments, so rejecting anything that
-// is not a plain host keeps shell metacharacters out of the diagnostic commands.
+//
+// The route trace still hands the target to a container as an argument, so
+// rejecting anything that is not a plain host keeps shell metacharacters out of
+// the one command that still takes one. The checks themselves no longer shell
+// out at all, which retired the openssl pipeline this guard was written for.
 func validateTarget(target string) error {
 	if target == "" {
 		return fmt.Errorf("target is required")
@@ -73,25 +74,4 @@ func validatePort(port string) error {
 		return fmt.Errorf("port must be a number between 1 and 65535")
 	}
 	return nil
-}
-
-// defaultDNSServer reads the first nameserver entry from /etc/resolv.conf.
-// Returns an empty string if the file is unavailable or has no nameserver line.
-func defaultDNSServer() string {
-	f, err := os.Open("/etc/resolv.conf")
-	if err != nil {
-		return ""
-	}
-	defer f.Close() //nolint:errcheck // read-only file, close error is irrelevant
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "nameserver") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				return parts[1]
-			}
-		}
-	}
-	return ""
 }

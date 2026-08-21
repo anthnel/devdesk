@@ -74,6 +74,7 @@ const (
 	Exclude  = "X" // Exclure — ajouter à .gitleaksignore
 	Requests = "R" // Ouvrir les merge requests · PR
 	Issues   = "I" // Ouvrir les issues
+	Trace    = "H" // Tracer la route (hops) — netdiag
 )
 
 // CommandMode ouvre la ligne de commande, depuis n'importe où — y compris
@@ -111,6 +112,7 @@ var actions = map[string]string{
 	Exclude:  "Exclude — add to .gitleaksignore",
 	Requests: "Open merge requests · PRs",
 	Issues:   "Open issues",
+	Trace:    "Trace the route to the target",
 }
 
 // Actions rend une copie de la table touche → sens.
@@ -161,7 +163,7 @@ func IsModalKey(key string) bool {
 //
 // `Y` y figure bien qu'une modale l'emploie : une action `Y` et le raccourci
 // « Yes » ne sont jamais joignables en même temps.
-var free = []string{"H", "J", "Q", "Y", "Z"}
+var free = []string{"J", "Q", "Y", "Z"}
 
 // Free rend les majuscules encore disponibles, triées.
 func Free() []string {
@@ -194,7 +196,7 @@ var localToggles = []Surface{
 	{"containers", "ui/containers/", []string{"a"}},
 	{"viewer", "ui/viewer/", []string{"f", "c", "w", "v", "t"}},
 	{"netdiag/ports", "ui/netdiag/ports_model.go", []string{"t", "u", "l", "e", "n", "z"}},
-	{"netdiag/detail", "ui/netdiag/", []string{"f"}},
+	{"netdiag/checks", "ui/netdiag/", []string{"p"}},
 	{"oci/browser", "ui/oci_resources/browser_", []string{"r"}},
 	{"security/findings", "ui/security/", []string{"c", "h", "m", "l"}},
 }
