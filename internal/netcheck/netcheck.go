@@ -128,7 +128,40 @@ type Check struct {
 	// upstream failure. Empty on a NotApplicable that simply has no meaning
 	// here, which is what separates "blocked" from "irrelevant".
 	Because CheckID
+	// Reason is a stable sub-code for a verdict that has more than one cause.
+	//
+	// It exists because the remedies differ where the verdict does not: a chain
+	// that fails because the leaf is self-signed, because the server sent no
+	// intermediates, and because the root is unknown are one Fail with three
+	// different things to go and do. Summary already says which in prose;
+	// Reason is what an explanation — or a serialization — can switch on.
+	//
+	// Empty is the common case: most verdicts have exactly one cause.
+	Reason Reason
 }
+
+// Reason discriminates the causes of a verdict that has several. It is stable:
+// the guidance table is keyed on it.
+type Reason string
+
+const (
+	// Certificate chain
+	ReasonSelfSigned      Reason = "self-signed"
+	ReasonNoIntermediates Reason = "no-intermediates"
+	ReasonUntrustedRoot   Reason = "untrusted-root"
+	ReasonChainIncomplete Reason = "chain-incomplete"
+
+	// Certificate validity
+	ReasonExpired     Reason = "expired"
+	ReasonNotYetValid Reason = "not-yet-valid"
+
+	// ICMP
+	ReasonNoReply     Reason = "no-reply"
+	ReasonPartialLoss Reason = "partial-loss"
+
+	// TLS handshake
+	ReasonNotTLS Reason = "not-tls"
+)
 
 // fact appends an observed value, skipping empty ones so a detail pane never
 // shows a key with nothing beside it.

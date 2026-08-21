@@ -66,6 +66,7 @@ func handshakeFailed(t Target, err error) []Check {
 	if errors.As(err, &rhe) {
 		c := newCheck(CheckTLSHandshake, StageTLS, NotApplicable,
 			fmt.Sprintf("Port %d does not speak TLS", t.Port))
+		c.Reason = ReasonNotTLS
 		return append([]Check{c}, dependentsOf("", "Port does not speak TLS")...)
 	}
 
@@ -118,6 +119,7 @@ func chainCheck(state *tls.ConnectionState, now time.Time, expiryVerdict Verdict
 	if expiryVerdict == Fail {
 		c.Verdict = NotApplicable
 		c.Because = CheckTLSExpiry
+		c.Reason = ReasonExpired
 		c.Summary = "Not verified — the certificate is expired"
 		return c
 	}
@@ -133,18 +135,22 @@ func chainCheck(state *tls.ConnectionState, now time.Time, expiryVerdict Verdict
 	switch {
 	case err != nil && selfSigned:
 		c.Verdict = Fail
+		c.Reason = ReasonSelfSigned
 		c.Summary = "Certificate is self-signed and not trusted"
 		c.fact("Error", err.Error())
 	case err != nil && len(state.PeerCertificates) == 1:
 		c.Verdict = Fail
+		c.Reason = ReasonNoIntermediates
 		c.Summary = "Chain does not verify — the server sent no intermediate certificates"
 		c.fact("Error", err.Error())
 	case err != nil:
 		c.Verdict = Fail
+		c.Reason = ReasonUntrustedRoot
 		c.Summary = "Chain does not verify against the system trust store"
 		c.fact("Error", err.Error())
 	case len(state.PeerCertificates) == 1 && !selfSigned:
 		c.Verdict = Warn
+		c.Reason = ReasonChainIncomplete
 		c.Summary = "Chain verifies here, but the server sent no intermediates — other clients may fail"
 	default:
 		c.Summary = fmt.Sprintf("Chain verifies against the system trust store (%d certificate(s))",
@@ -186,10 +192,12 @@ func expiryCheck(leaf *x509.Certificate, now time.Time) Check {
 	switch {
 	case now.Before(leaf.NotBefore):
 		c.Verdict = Fail
+		c.Reason = ReasonNotYetValid
 		c.Summary = fmt.Sprintf("Certificate is not valid until %s (in %s)",
 			leaf.NotBefore.UTC().Format(time.DateOnly), inDays(leaf.NotBefore.Sub(now)))
 	case now.After(leaf.NotAfter):
 		c.Verdict = Fail
+		c.Reason = ReasonExpired
 		c.Summary = fmt.Sprintf("Certificate expired %s ago, on %s",
 			inDays(now.Sub(leaf.NotAfter)), leaf.NotAfter.UTC().Format(time.DateOnly))
 	case leaf.NotAfter.Sub(now) < expiryWarnWindow:

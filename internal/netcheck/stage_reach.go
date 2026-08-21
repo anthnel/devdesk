@@ -31,9 +31,11 @@ func runReach(ctx context.Context, t Target, env Env, _ *Results) []Check {
 	switch {
 	case stats.Received == 0:
 		c.Verdict = Warn
+		c.Reason = ReasonNoReply
 		c.Summary = "No ICMP reply — echo may be filtered"
 	case stats.Received < stats.Sent:
 		c.Verdict = Warn
+		c.Reason = ReasonPartialLoss
 		c.Summary = fmt.Sprintf("Partial loss: %d of %d replies, %s average",
 			stats.Received, stats.Sent, roundedMillis(stats.AvgRTT))
 		c.fact("Average RTT", roundedMillis(stats.AvgRTT))
