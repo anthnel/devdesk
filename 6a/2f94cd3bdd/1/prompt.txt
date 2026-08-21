@@ -1,0 +1,1 @@
+/plan dans le viewer je voudrais ajouter le support de la coloration syntaxique des markdown, dockerfile, et shell scripts, je voudrais aussi pouvoir afficher les markdown en format brut ou pas.
