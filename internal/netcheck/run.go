@@ -41,6 +41,56 @@ type stage struct {
 	run      func(ctx context.Context, t Target, env Env, prior *Results) []Check
 }
 
+// stageTitles names a stage for a progress line. A stage is what the user waits
+// on, so it is what the wait is labelled with.
+var stageTitles = map[StageID]string{
+	StageResolve: "Resolving the name",
+	StageReach:   "Probing reachability",
+	StageConnect: "Connecting to the port",
+	StageTLS:     "Inspecting the certificate",
+	StageHTTP:    "Asking for a response",
+}
+
+// StageTitle names a stage, for a caller reporting progress.
+func StageTitle(id StageID) string { return stageTitles[id] }
+
+// Steps returns the pipeline in order.
+//
+// It exists so an interactive caller can run one stage at a time and say which
+// question is being asked. That matters most in the case worth diagnosing: an
+// unreachable host spends its timeouts one after another, and a spinner with
+// nothing beside it is indistinguishable from a hang — §3.16's lesson.
+func Steps() []StageID {
+	all := stages()
+	out := make([]StageID, 0, len(all))
+	for _, s := range all {
+		out = append(out, s.id)
+	}
+	return out
+}
+
+// RunStep runs one stage against the results so far and returns the updated
+// set. It applies the same skip rule Run does — there is one cascade, not two.
+//
+// prior is never modified: the returned Results is built from a copy, so a
+// caller may hold the previous value across a goroutine boundary without
+// sharing anything with this call. That is what lets a Bubble Tea view chain
+// the stages through messages and never touch a model from inside a Cmd
+// (Rule 110).
+func RunStep(ctx context.Context, t Target, env Env, id StageID, prior Results) Results {
+	res := prior.clone()
+	all := stages()
+	gateOf := gatesOf(all)
+
+	for _, s := range all {
+		if s.id != id {
+			continue
+		}
+		runStage(ctx, s, gateOf, t, env, &res)
+	}
+	return res
+}
+
 // stages is the pipeline, in order.
 //
 // Two of the dependencies are worth reading twice:
@@ -102,28 +152,39 @@ func Run(ctx context.Context, t Target, env Env) (Results, error) {
 	}
 
 	all := stages()
-	gateOf := make(map[StageID]CheckID, len(all))
+	gateOf := gatesOf(all)
 	for _, s := range all {
-		if s.gate != "" {
-			gateOf[s.id] = s.gate
-		}
-	}
-
-	for _, s := range all {
-		if ctx.Err() != nil {
-			addPlaceholders(&res, s, Unknown, "", "Cancelled before this check ran")
-			continue
-		}
-		if blocker, ok := blockedBy(s, gateOf, res); ok {
-			summary := "Skipped — " + checkTitles[blocker] + " did not succeed"
-			addPlaceholders(&res, s, NotApplicable, blocker, summary)
-			continue
-		}
-		for _, c := range s.run(ctx, t, env, &res) {
-			res.add(c)
-		}
+		runStage(ctx, s, gateOf, t, env, &res)
 	}
 	return res, nil
+}
+
+// gatesOf indexes the gate each stage provides.
+func gatesOf(all []stage) map[StageID]CheckID {
+	out := make(map[StageID]CheckID, len(all))
+	for _, s := range all {
+		if s.gate != "" {
+			out[s.id] = s.gate
+		}
+	}
+	return out
+}
+
+// runStage is the one place a stage is either run, skipped or cancelled, so
+// Run and RunStep cannot drift apart on what any of the three means.
+func runStage(ctx context.Context, s stage, gateOf map[StageID]CheckID, t Target, env Env, res *Results) {
+	if ctx.Err() != nil {
+		addPlaceholders(res, s, Unknown, "", "Cancelled before this check ran")
+		return
+	}
+	if blocker, ok := blockedBy(s, gateOf, *res); ok {
+		addPlaceholders(res, s, NotApplicable, blocker,
+			"Skipped — "+checkTitles[blocker]+" did not succeed")
+		return
+	}
+	for _, c := range s.run(ctx, t, env, res) {
+		res.add(c)
+	}
 }
 
 // blockedBy reports whether s must be skipped, and which check blocked it.

@@ -7,544 +7,562 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // ── Construction ─────────────────────────────────────────────────────────────
 
-func TestNewStartsOnTheFormWithEveryTestEnabled(t *testing.T) {
-	m := newTestModel(t)
+// TestTheFormAsksThreeQuestions is the shape of §netcheck: the seven checkboxes
+// asked the user to select tools, which the pipeline derives.
+func TestTheFormAsksThreeQuestions(t *testing.T) {
+	m := New(testConfig())
 
 	if m.state != StateInput {
-		t.Errorf("state = %d on a new model, want StateInput", m.state)
+		t.Errorf("state = %v, want StateInput", m.state)
 	}
-	if m.activeTab != tabDiagnostics {
-		t.Errorf("activeTab = %d on a new model, want the diagnostics tab", m.activeTab)
+	if fieldCount != 4 {
+		t.Errorf("the form has %d fields, want 4 — target, port, resolver, button", fieldCount)
 	}
 	if m.focusedField != fieldTarget {
-		t.Errorf("focusedField = %d on a new model, want the target field", m.focusedField)
+		t.Errorf("focus starts on %d, want the target field", m.focusedField)
 	}
-	if got := len(m.enabledTests()); got != 7 {
-		t.Errorf("%d tests are enabled on a new model, want all 7", got)
+}
+
+// TestTheResolverDefaultsToTheSystemOne — the old default read the first
+// nameserver out of /etc/resolv.conf, which does not exist on Windows, so the
+// field was silently empty on the platform this is developed on. Empty now
+// means the system resolver, and says so.
+func TestTheResolverDefaultsToTheSystemOne(t *testing.T) {
+	m := New(testConfig())
+
+	if got := m.dnsServerInput.Value(); got != "" {
+		t.Errorf("resolver field starts as %q, want empty", got)
+	}
+	if !strings.Contains(m.dnsServerInput.Placeholder, "system") {
+		t.Errorf("placeholder %q does not say what empty means", m.dnsServerInput.Placeholder)
 	}
 }
 
 func TestInitLoadsBothSubTabs(t *testing.T) {
-	if cmd := New(testConfig()).Init(); cmd == nil {
-		t.Fatal("Init() returned no command, so the ports and topology tabs never load")
+	if New(testConfig()).Init() == nil {
+		t.Fatal("Init returned no command")
 	}
 }
 
-// ── Tab switching (Rule 135) ─────────────────────────────────────────────────
+// ── Tabs ─────────────────────────────────────────────────────────────────────
 
 func TestTabCyclesThroughTheThreeTabs(t *testing.T) {
 	m := newTestModel(t)
-
 	for _, want := range []int{tabPorts, tabTopology, tabDiagnostics} {
 		m = feed(t, m, testutil.Key("tab"))
 		if m.activeTab != want {
-			t.Fatalf("activeTab = %d after tab, want %d", m.activeTab, want)
+			t.Fatalf("activeTab = %d, want %d", m.activeTab, want)
 		}
 	}
-
-	m = feed(t, m, testutil.Key("shift+tab"))
-	if m.activeTab != tabTopology {
-		t.Errorf("activeTab = %d after shift+tab, want the topology tab (wrapped)", m.activeTab)
+	for _, want := range []int{tabTopology, tabPorts, tabDiagnostics} {
+		m = feed(t, m, testutil.Key("shift+tab"))
+		if m.activeTab != want {
+			t.Fatalf("activeTab = %d, want %d", m.activeTab, want)
+		}
 	}
 }
 
-// Tab must switch tabs even mid-run, and must not be swallowed by a text input.
 func TestTabSwitchesFromEveryState(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
-		build func(t *testing.T) *Model
+		model func(*testing.T) *Model
 	}{
 		{"form", newTestModel},
-		{"running", func(t *testing.T) *Model { return runningModel(t, "example.com", "Ping") }},
+		{"running", func(t *testing.T) *Model { return runningModel(t, "example.com") }},
 		{"results", resultsModel},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := feed(t, tc.build(t), testutil.Key("tab"))
-
+			m := feed(t, tc.model(t), testutil.Key("tab"))
 			if m.activeTab != tabPorts {
-				t.Errorf("activeTab = %d after tab, want the ports tab", m.activeTab)
+				t.Fatalf("activeTab = %d, want the ports tab", m.activeTab)
 			}
 		})
 	}
 }
 
-// ── Form navigation ──────────────────────────────────────────────────────────
+// ── The form ─────────────────────────────────────────────────────────────────
 
 func TestVerticalNavigationWrapsAcrossEveryField(t *testing.T) {
 	m := newTestModel(t)
-
-	for i := 1; i < fieldCount; i++ {
+	for i := 1; i <= fieldCount; i++ {
 		m = feed(t, m, testutil.Key("down"))
-		if m.focusedField != i {
-			t.Fatalf("focusedField = %d after %d downs, want %d", m.focusedField, i, i)
+		want := i % fieldCount
+		if m.focusedField != want {
+			t.Fatalf("after %d downs focus = %d, want %d", i, m.focusedField, want)
 		}
 	}
-
-	m = feed(t, m, testutil.Key("down"))
-	if m.focusedField != fieldTarget {
-		t.Errorf("focusedField = %d after wrapping past the button, want the target field", m.focusedField)
-	}
-
 	m = feed(t, m, testutil.Key("up"))
-	if m.focusedField != fieldButton {
-		t.Errorf("focusedField = %d after up from the first field, want the button", m.focusedField)
+	if m.focusedField != fieldCount-1 {
+		t.Fatalf("up from the first field = %d, want %d", m.focusedField, fieldCount-1)
 	}
 }
 
 func TestFocusFollowsTheTextFields(t *testing.T) {
 	m := newTestModel(t)
 	if !m.targetInput.Focused() {
-		t.Fatal("the target input is not focused on a new form")
+		t.Fatal("the target field does not start focused")
 	}
-
 	m = feed(t, m, testutil.Key("down"))
-	if !m.portInput.Focused() || m.targetInput.Focused() {
-		t.Error("focus did not move from the target to the port input")
+	if m.targetInput.Focused() || !m.portInput.Focused() {
+		t.Fatal("focus did not move to the port field")
 	}
-
 	m = feed(t, m, testutil.Key("down"))
-	if !m.dnsServerInput.Focused() || m.portInput.Focused() {
-		t.Error("focus did not move to the DNS server input")
+	if m.portInput.Focused() || !m.dnsServerInput.Focused() {
+		t.Fatal("focus did not move to the resolver field")
 	}
-
-	// The checkboxes and the button hold no text input.
 	m = feed(t, m, testutil.Key("down"))
-	if m.targetInput.Focused() || m.portInput.Focused() || m.dnsServerInput.Focused() {
-		t.Error("an input kept focus on the first checkbox")
+	if m.dnsServerInput.Focused() {
+		t.Fatal("the resolver field kept focus on the button")
 	}
 }
 
 func TestTypingReachesTheFocusedInput(t *testing.T) {
 	m := typeInto(t, newTestModel(t), "example.com")
 	if got := m.targetInput.Value(); got != "example.com" {
-		t.Errorf("target input = %q, want the typed value", got)
-	}
-
-	m = feed(t, m, testutil.Key("down"))
-	m = feed(t, m, testutil.Type("8443")...)
-	if got := m.portInput.Value(); got != "8443" {
-		t.Errorf("port input = %q, want the typed value", got)
-	}
-	if m.targetInput.Value() != "example.com" {
-		t.Error("typing into the port field also changed the target")
+		t.Fatalf("target = %q", got)
 	}
 }
 
-// Rule 135: space is the only key that toggles a checkbox, and enter must not.
-func TestSpaceTogglesTheFocusedCheckbox(t *testing.T) {
-	m := newTestModel(t)
-	m.focusedField = fieldPing
-
-	m = feed(t, m, testutil.Key(" "))
-	if enabledByName(m)["Ping"] {
-		t.Error("space did not uncheck the focused test")
-	}
-
-	m = feed(t, m, testutil.Key(" "))
-	if !enabledByName(m)["Ping"] {
-		t.Error("space did not re-check the focused test")
-	}
-}
-
-func TestEnterDoesNotToggleCheckboxes(t *testing.T) {
-	m := newTestModel(t)
-	m.focusedField = fieldPing
-
-	m, cmd := step(t, m, testutil.Key("enter"))
-
-	if !enabledByName(m)["Ping"] {
-		t.Error("enter toggled a checkbox; Rule 135 reserves that for space")
-	}
-	if cmd != nil {
-		t.Error("enter on a checkbox started a run")
-	}
-}
-
-func TestSpaceOnATextFieldDoesNotToggleAnything(t *testing.T) {
-	m := newTestModel(t)
-	m.focusedField = fieldTarget
-	before := enabledByName(m)
-
-	m = feed(t, m, testutil.Key(" "))
-
-	for name, was := range before {
-		if enabledByName(m)[name] != was {
-			t.Errorf("space on the target field toggled %q", name)
+// TestEnterRunsFromAnywhereInTheForm: with three fields and one button there is
+// nothing else enter could mean, and walking to the button first buys nothing.
+func TestEnterRunsFromAnywhereInTheForm(t *testing.T) {
+	for _, field := range []int{fieldTarget, fieldPort, fieldDNSServer, fieldButton} {
+		m := typeInto(t, newTestModel(t), "example.com")
+		m.focusedField = field
+		m = feed(t, m, testutil.Key("enter"))
+		if m.state != StateRunning {
+			t.Errorf("enter on field %d did not start the run", field)
 		}
 	}
 }
 
-func enabledByName(m *Model) map[string]bool {
-	out := map[string]bool{}
-	for _, test := range m.tests {
-		out[test.name] = test.enabled
-	}
-	return out
-}
-
-// ── Starting a run ───────────────────────────────────────────────────────────
-
 func TestRunRejectsInvalidInput(t *testing.T) {
-	tests := []struct {
-		name    string
-		target  string
-		port    string
-		disable bool
-		wantMsg string
+	for _, tc := range []struct {
+		name   string
+		target string
+		port   string
 	}{
-		{"no target", "", "", false, "arget"},
-		{"invalid target", "-bad.example.com", "", false, "arget"},
-		{"invalid port", "example.com", "notaport", false, "ort"},
-		{"port out of range", "example.com", "70000", false, "ort"},
-		{"no test selected", "example.com", "", true, "at least one test"},
-	}
-
-	for _, tc := range tests {
+		{"no target", "", ""},
+		{"target with a shell metacharacter", "example.com; rm -rf /", ""},
+		{"port out of range", "example.com", "70000"},
+		{"port that is not a number", "example.com", "https"},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := newTestModel(t)
-			if tc.disable {
-				m = withOnly(t, m)
+			m := typeInto(t, newTestModel(t), tc.target)
+			if tc.port != "" {
+				m.focusedField = fieldPort
+				m.portInput.Focus()
+				m = feed(t, m, testutil.Type(tc.port)...)
 			}
-			m = typeInto(t, m, tc.target)
-			m.portInput.SetValue(tc.port)
 			m.focusedField = fieldButton
+			m = feed(t, m, testutil.Key("enter"))
 
-			m, cmd := step(t, m, testutil.Key("enter"))
-
-			if m.state != StateInput {
-				t.Errorf("state = %d after a rejected run, want to stay on the form", m.state)
+			if m.state == StateRunning {
+				t.Fatal("the run started on input that should have been refused")
 			}
-			if !strings.Contains(m.footer.Text(), tc.wantMsg) {
-				t.Errorf("footer = %q, want it to mention %q", m.footer.Text(), tc.wantMsg)
-			}
-			// Rule 128: a footer message must come with the timer that clears it.
-			if cmd == nil {
-				t.Error("no command returned, so the footer message would never clear")
+			if !strings.Contains(m.View(), "Target") {
+				t.Error("the form is no longer on screen")
 			}
 		})
 	}
 }
 
-// Rule 128: footer messages are cleared by their own message, not left behind.
-func TestClearFooterMessageEmptiesBoth(t *testing.T) {
-	m := newTestModel(t)
-	m.footer.Error("something")
-
-	m = feed(t, m, components.ClearFooterMsg{ID: m.footer.ID()})
-
-	if m.footer.IsSet() {
-		t.Errorf("footer still holds %q after its expiry", m.footer.Text())
+func TestAnEmptyPortFallsBackToTheDefault(t *testing.T) {
+	m := typeInto(t, newTestModel(t), "example.com")
+	tg, err := m.buildTarget()
+	if err != nil {
+		t.Fatalf("buildTarget: %v", err)
+	}
+	if tg.Port != 443 {
+		t.Fatalf("port = %d, want the 443 default", tg.Port)
 	}
 }
 
-func TestRunStartsTheEnabledTestsOnly(t *testing.T) {
-	m := runningModel(t, "example.com", "Ping", "SSL Certificate")
+// ── The pipeline ─────────────────────────────────────────────────────────────
 
-	if m.state != StateRunning {
-		t.Fatalf("state = %d after a valid run, want StateRunning", m.state)
-	}
-	if m.totalTests != 2 {
-		t.Errorf("totalTests = %d, want 2", m.totalTests)
-	}
-	if len(m.resultOrder) != 2 {
-		t.Errorf("resultOrder = %v, want the two enabled tests", m.resultOrder)
-	}
-	if m.doneTests != 0 {
-		t.Errorf("doneTests = %d at the start of a run, want 0", m.doneTests)
-	}
-}
+// TestTheRunChainsItsStages pins that each stage schedules the next: the whole
+// point of chaining through messages is that the footer can name the question
+// being asked while it is being asked.
+func TestTheRunChainsItsStages(t *testing.T) {
+	m := runningModel(t, "example.com")
+	steps := netcheck.Steps()
 
-// An empty port falls back to the default rather than failing validation.
-func TestRunFallsBackToTheDefaultPort(t *testing.T) {
-	m := newTestModel(t)
-	m = typeInto(t, m, "example.com")
-	m.portInput.SetValue("")
-	m.focusedField = fieldButton
-
-	m, _ = step(t, m, testutil.Key("enter"))
-
-	if m.state != StateRunning {
-		t.Errorf("state = %d with an empty port, want the run to start on the default", m.state)
+	for i := 0; i < len(steps)-1; i++ {
+		next, cmd := step(t, m, stageDoneMsg{
+			gen: m.runGen, stage: steps[i], next: i + 1, results: netcheck.ResultsOf(),
+		})
+		m = next
+		if cmd == nil {
+			t.Fatalf("stage %d landed without scheduling the next", i)
+		}
+		if m.state != StateRunning {
+			t.Fatalf("state = %v after stage %d, want StateRunning", m.state, i)
+		}
+		if m.runStage != steps[i+1] {
+			t.Fatalf("runStage = %q, want %q", m.runStage, steps[i+1])
+		}
 	}
-}
 
-// An IP target turns the forward lookup into a reverse one, and the row is
-// relabelled so the results table does not claim otherwise.
-func TestDNSTestBecomesReverseDNSForAnIPTarget(t *testing.T) {
-	m := runningModel(t, "1.1.1.1", "DNS Resolution")
-
-	if len(m.resultOrder) != 1 || m.resultOrder[0] != "Reverse DNS" {
-		t.Errorf("resultOrder = %v, want it relabelled to Reverse DNS", m.resultOrder)
-	}
-	if _, stale := m.results["DNS Resolution"]; stale {
-		t.Error("the forward-lookup entry survived alongside the reverse one")
+	m = feed(t, m, stageDoneMsg{
+		gen: m.runGen, stage: steps[len(steps)-1], next: len(steps), results: netcheck.ResultsOf(),
+	})
+	if m.state != StateResults {
+		t.Fatalf("state = %v after the last stage, want StateResults", m.state)
 	}
 }
 
-func TestDNSTestStaysForwardForAHostname(t *testing.T) {
-	m := runningModel(t, "example.com", "DNS Resolution")
+func TestTheHeadlineVerdictIsTheWorstOfTheChecks(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   []netcheck.Check
+		want netcheck.Verdict
+	}{
+		{"all clean", []netcheck.Check{
+			check(netcheck.CheckResolve, netcheck.OK, "resolves"),
+			check(netcheck.CheckTCP, netcheck.OK, "open"),
+		}, netcheck.OK},
+		{"a warning shows", []netcheck.Check{
+			check(netcheck.CheckResolve, netcheck.OK, "resolves"),
+			check(netcheck.CheckICMP, netcheck.Warn, "filtered"),
+		}, netcheck.Warn},
+		{"a failure wins", []netcheck.Check{
+			check(netcheck.CheckICMP, netcheck.Warn, "filtered"),
+			check(netcheck.CheckTCP, netcheck.Fail, "refused"),
+		}, netcheck.Fail},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := deliver(t, runningModel(t, "example.com"), tc.in...)
+			if m.verdict != tc.want {
+				t.Fatalf("verdict = %v, want %v", m.verdict, tc.want)
+			}
+		})
+	}
+}
 
-	if len(m.resultOrder) != 1 || m.resultOrder[0] != "DNS Resolution" {
-		t.Errorf("resultOrder = %v, want the forward lookup", m.resultOrder)
+func TestStaleResultsFromASupersededRunAreDiscarded(t *testing.T) {
+	m := runningModel(t, "example.com")
+	stale := m.runGen
+	m = feed(t, m, testutil.Key("esc")) // cancels, bumping the generation
+
+	m = feed(t, m, stageDoneMsg{
+		gen: stale, stage: netcheck.StageResolve, next: 1,
+		results: netcheck.ResultsOf(check(netcheck.CheckResolve, netcheck.OK, "resolves")),
+	})
+	if len(m.results.All()) != 0 {
+		t.Fatalf("a superseded run's results landed: %v", m.results.All())
+	}
+}
+
+// TestCancellingKeepsWhatCompleted — the stage in flight is a network read that
+// times out on its own; what has already been answered is worth keeping.
+func TestCancellingKeepsWhatCompleted(t *testing.T) {
+	m := runningModel(t, "example.com")
+	m = feed(t, m, stageDoneMsg{
+		gen: m.runGen, stage: netcheck.StageResolve, next: 1,
+		results: netcheck.ResultsOf(check(netcheck.CheckResolve, netcheck.OK, "resolves")),
+	})
+	m = feed(t, m, testutil.Key("esc"))
+
+	if m.state != StateResults {
+		t.Fatalf("state = %v after cancelling, want StateResults", m.state)
+	}
+	if len(m.results.All()) != 1 {
+		t.Fatalf("cancelling threw away %d completed checks", 1-len(m.results.All()))
+	}
+}
+
+func TestOtherKeysAreInertWhileRunning(t *testing.T) {
+	m := runningModel(t, "example.com")
+	for _, key := range []string{"enter", "p", "/", "H", "up", "down"} {
+		m = feed(t, m, testutil.Key(key))
+		if m.state != StateRunning {
+			t.Fatalf("%q left StateRunning", key)
+		}
+	}
+}
+
+func TestSpinnerTicksOnlyWhileSomethingRuns(t *testing.T) {
+	idle := newTestModel(t)
+	if _, cmd := step(t, idle, spinner.TickMsg{}); cmd != nil {
+		t.Error("the spinner ticks on the idle form")
+	}
+	running := runningModel(t, "example.com")
+	if _, cmd := step(t, running, spinner.TickMsg{}); cmd == nil {
+		t.Error("the spinner does not tick while the pipeline runs")
 	}
 }
 
 // ── Results ──────────────────────────────────────────────────────────────────
 
-func TestRunCompletesWhenEveryTestReports(t *testing.T) {
-	m := runningModel(t, "example.com", "Ping", "Netcat")
-
-	m = feed(t, m, testCompleteMsg{gen: m.runGen, name: "Ping", success: true, output: "ok"})
-	if m.state != StateRunning {
-		t.Error("the view left the running state before every test reported")
-	}
-	if m.doneTests != 1 {
-		t.Errorf("doneTests = %d after one result, want 1", m.doneTests)
-	}
-
-	m = feed(t, m, testCompleteMsg{gen: m.runGen, name: "Netcat", success: false, output: "refused"})
-	if m.state != StateResults {
-		t.Errorf("state = %d once every test reported, want StateResults", m.state)
-	}
-}
-
-// Cancelling bumps the generation so results from the abandoned run cannot
-// resurrect it.
-func TestStaleResultsFromACancelledRunAreDiscarded(t *testing.T) {
-	m := runningModel(t, "example.com", "Ping", "Netcat")
-	staleGen := m.runGen
-
-	m = feed(t, m, testutil.Key("esc"))
-	if m.state != StateResults {
-		t.Fatalf("state = %d after esc, want the run cancelled into StateResults", m.state)
-	}
-	doneAfterCancel := m.doneTests
-
-	m = feed(t, m, testCompleteMsg{gen: staleGen, name: "Ping", success: true, output: "late"})
-
-	if m.doneTests != doneAfterCancel {
-		t.Errorf("doneTests = %d after a stale result, want it unchanged at %d", m.doneTests, doneAfterCancel)
-	}
-	if res := m.results["Ping"]; !res.cancelled {
-		t.Error("a stale result overwrote the cancelled marker")
-	}
-}
-
-func TestCancellingMarksOutstandingTestsOnly(t *testing.T) {
-	m := runningModel(t, "example.com", "Ping", "Netcat")
-	m = feed(t, m, testCompleteMsg{gen: m.runGen, name: "Ping", success: true, output: "ok"})
-
-	m = feed(t, m, testutil.Key("esc"))
-
-	if m.results["Ping"].cancelled {
-		t.Error("a test that had already reported was marked cancelled")
-	}
-	if !m.results["Netcat"].cancelled {
-		t.Error("the outstanding test was not marked cancelled")
-	}
-	if m.doneTests != m.totalTests {
-		t.Errorf("doneTests = %d, want it to reach totalTests = %d after cancelling", m.doneTests, m.totalTests)
-	}
-}
-
-// Only esc cancels; other keys must not disturb a run in flight.
-func TestOtherKeysAreInertWhileRunning(t *testing.T) {
-	m := runningModel(t, "example.com", "Ping")
-
-	m = feed(t, m, testutil.Key("enter"), testutil.Key("q"), testutil.Key("down"))
-
-	if m.state != StateRunning {
-		t.Errorf("state = %d, want the run to continue", m.state)
-	}
-}
-
-func TestSpinnerTicksOnlyWhileRunning(t *testing.T) {
-	m := newTestModel(t)
-
-	_, cmd := step(t, m, spinner.TickMsg{})
-	if cmd != nil {
-		t.Error("the spinner ran while the form was showing")
-	}
-
-	running := runningModel(t, "example.com", "Ping")
-	_, cmd = step(t, running, spinner.TickMsg{})
-	if cmd == nil {
-		t.Error("the spinner stopped while tests were running")
-	}
-}
-
-func TestResultsNavigationAndReset(t *testing.T) {
+func TestEnterOpensTheCheckUnderTheCursor(t *testing.T) {
 	m := resultsModel(t)
+	m.checksTable.SetCursor(1)
+	m = feed(t, m, testutil.Key("enter"))
 
-	m = feed(t, m, testutil.Key("down"))
-	if m.resultsTable.Cursor() != 1 {
-		t.Errorf("cursor = %d after down, want 1", m.resultsTable.Cursor())
+	if m.state != StateDetails {
+		t.Fatalf("state = %v, want StateDetails", m.state)
 	}
-	m = feed(t, m, testutil.Key("home"))
-	if m.resultsTable.Cursor() != 0 {
-		t.Errorf("cursor = %d after g, want the top", m.resultsTable.Cursor())
+	if m.selected.ID != netcheck.CheckTCP {
+		t.Fatalf("opened %q, want the row under the cursor", m.selected.ID)
 	}
-	m = feed(t, m, testutil.Key("end"))
-	if m.resultsTable.Cursor() != 1 {
-		t.Errorf("cursor = %d after G, want the last row", m.resultsTable.Cursor())
+}
+
+func TestEnterIsInertWithoutResults(t *testing.T) {
+	m := runningModel(t, "example.com")
+	m = feed(t, m, stageDoneMsg{
+		gen: m.runGen, stage: netcheck.Steps()[len(netcheck.Steps())-1],
+		next: len(netcheck.Steps()), results: netcheck.ResultsOf(),
+	})
+	if m = feed(t, m, testutil.Key("enter")); m.state == StateDetails {
+		t.Fatal("enter opened a detail pane with no rows")
+	}
+}
+
+// TestTheProblemsFilterDropsTheSettledRows — one token rather than four: ten
+// rows do not need cumulative severity filters, they need the noise gone.
+func TestTheProblemsFilterDropsTheSettledRows(t *testing.T) {
+	m := resultsModel(t)
+	if got := len(m.checksTable.Visible()); got != 3 {
+		t.Fatalf("the table shows %d rows, want all 3", got)
 	}
 
-	// esc goes back; ctrl+r means refresh and only refresh (§3.26).
+	m = feed(t, m, testutil.Key("p"))
+	visible := m.checksTable.Visible()
+	if len(visible) != 1 {
+		t.Fatalf("problems only shows %d rows, want 1", len(visible))
+	}
+	if visible[0].ID != netcheck.CheckTCP {
+		t.Fatalf("kept %q, want the failing check", visible[0].ID)
+	}
+
+	m = feed(t, m, testutil.Key("p"))
+	if got := len(m.checksTable.Visible()); got != 3 {
+		t.Fatalf("toggling back shows %d rows, want 3", got)
+	}
+}
+
+func TestSearchNarrowsTheChecks(t *testing.T) {
+	m := resultsModel(t)
+	m = feed(t, m, testutil.Key("/"))
+	if !m.filterBar.InEditMode() {
+		t.Fatal("/ did not open the search")
+	}
+	// "TCP" would also match the blocked row, whose summary names what blocked
+	// it — the search covers the observation as well as the title, on purpose.
+	m = feed(t, m, testutil.Type("resolution")...)
+	if got := len(m.checksTable.Visible()); got != 1 {
+		t.Fatalf("searching resolution shows %d rows, want 1", got)
+	}
+}
+
+// TestAQueryCanContainABoundLetter — the filter bar takes every key while it is
+// in edit mode, or "p" would toggle the filter instead of being typed.
+func TestAQueryCanContainABoundLetter(t *testing.T) {
+	m := resultsModel(t)
+	m = feed(t, m, testutil.Key("/"))
+	m = feed(t, m, testutil.Type("p")...)
+
+	if m.filterBar.IsTokenActive(problemsToken) {
+		t.Fatal("typing p into the search toggled the problems filter")
+	}
+	if got := m.filterBar.SearchQuery(); got != "p" {
+		t.Fatalf("query = %q, want %q", got, "p")
+	}
+}
+
+func TestEscReturnsToTheFormAndClearsTheFilters(t *testing.T) {
+	m := resultsModel(t)
+	m = feed(t, m, testutil.Key("p"))
 	m = feed(t, m, testutil.Key("esc"))
+
 	if m.state != StateInput {
-		t.Errorf("state = %d after esc, want a fresh form", m.state)
+		t.Fatalf("state = %v, want StateInput", m.state)
 	}
-	if len(m.results) != 0 || m.totalTests != 0 || m.resultOrder != nil {
-		t.Error("resetting to the form kept the previous run's results")
+	if m.filterBar.IsTokenActive(problemsToken) {
+		t.Error("the problems filter survived the return to the form")
 	}
-	if !m.targetInput.Focused() {
-		t.Error("the target input is not focused after resetting")
+	if len(m.results.All()) != 0 {
+		t.Error("the previous run's checks survived the return to the form")
+	}
+}
+
+func TestCtrlRRunsAgain(t *testing.T) {
+	m := resultsModel(t)
+	gen := m.runGen
+	m = feed(t, m, testutil.Key("ctrl+r"))
+
+	if m.state != StateRunning {
+		t.Fatalf("state = %v, want StateRunning", m.state)
+	}
+	if m.runGen == gen {
+		t.Error("the generation did not advance, so the previous run's results would land")
+	}
+}
+
+// ── The trace ────────────────────────────────────────────────────────────────
+
+// TestTheTraceIsOfferedOnlyWhenSomethingPointsAtThePath is Rule 130 and the
+// cost argument together: thirty hops at a second each is the one expensive
+// probe left, and a certificate that does not verify is not a routing problem.
+func TestTheTraceIsOfferedOnlyWhenSomethingPointsAtThePath(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   []netcheck.Check
+		want bool
+	}{
+		{"a refused port", []netcheck.Check{
+			check(netcheck.CheckTCP, netcheck.Fail, "refused")}, true},
+		{"a filtered ping", []netcheck.Check{
+			check(netcheck.CheckICMP, netcheck.Warn, "no reply")}, true},
+		{"everything reachable", []netcheck.Check{
+			check(netcheck.CheckTCP, netcheck.OK, "open")}, false},
+		{"a broken certificate", []netcheck.Check{
+			check(netcheck.CheckTCP, netcheck.OK, "open"),
+			check(netcheck.CheckTLSChain, netcheck.Fail, "untrusted")}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := deliver(t, runningModel(t, "example.com"), tc.in...)
+			if got := m.traceWorthOffering(); got != tc.want {
+				t.Fatalf("traceWorthOffering = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestTracingAnUnroutableProblemIsRefusedWithAWarning(t *testing.T) {
+	m := deliver(t, runningModel(t, "example.com"),
+		check(netcheck.CheckTCP, netcheck.OK, "open"))
+
+	m, cmd := step(t, m, testutil.Key("H"))
+	if m.tracing {
+		t.Fatal("a trace started with nothing pointing at the path")
+	}
+	if cmd == nil {
+		t.Fatal("the refusal said nothing")
+	}
+}
+
+func TestATraceOpensTheDetailPaneAndNamesWhereItRan(t *testing.T) {
+	m := deliver(t, runningModel(t, "example.com"),
+		check(netcheck.CheckTCP, netcheck.Fail, "refused"))
+	m = feed(t, m, traceDoneMsg{
+		gen: m.runGen, output: " 1  192.168.1.1  1.2 ms\n 2  * * *", tcp: true,
+	})
+
+	if m.state != StateDetails {
+		t.Fatalf("state = %v, want StateDetails", m.state)
+	}
+	out := m.View()
+	if !strings.Contains(out, "TCP route") {
+		t.Error("the pane does not say which kind of trace it is")
+	}
+	// The trace is the one probe still running in a container, so it answers
+	// for the container's network and can disagree with the checks above it.
+	if !strings.Contains(out, "container") {
+		t.Error("the pane does not warn that the trace ran elsewhere")
 	}
 }
 
 // ── Details ──────────────────────────────────────────────────────────────────
 
-func TestEnterOpensTheDetailsForTheSelectedTest(t *testing.T) {
+func TestTheDetailPaneCarriesTheExplanation(t *testing.T) {
 	m := resultsModel(t)
-
+	m.checksTable.SetCursor(1)
 	m = feed(t, m, testutil.Key("enter"))
 
-	if m.state != StateDetails {
-		t.Fatalf("state = %d after enter, want StateDetails", m.state)
-	}
-	if m.selectedTest != "Ping" {
-		t.Errorf("selectedTest = %q, want the row under the cursor", m.selectedTest)
-	}
-	if m.rawDetails {
-		t.Error("the details opened in raw mode; formatted is the default")
+	out := m.View()
+	for _, want := range []string{"Observed", "What it means", "What to do"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the detail pane has no %q section", want)
+		}
 	}
 }
 
-func TestEnterIsInertWithoutResults(t *testing.T) {
-	m := newTestModel(t)
-	m.state = StateResults
-
+// TestABlockedCheckPointsAtWhatBlockedIt — the cascade's whole payoff is that
+// one row tells you where to go.
+func TestABlockedCheckPointsAtWhatBlockedIt(t *testing.T) {
+	m := resultsModel(t)
+	m.checksTable.SetCursor(2)
 	m = feed(t, m, testutil.Key("enter"))
 
-	if m.state != StateResults {
-		t.Errorf("state = %d after enter on an empty results table, want it unchanged", m.state)
+	if !strings.Contains(m.View(), "TCP connect") {
+		t.Error("the blocked check does not name what blocked it")
 	}
 }
 
-func TestDetailsToggleAndScroll(t *testing.T) {
-	m := feed(t, resultsModel(t), testutil.Key("enter"))
-
-	m = feed(t, m, testutil.Key("f"))
-	if !m.rawDetails {
-		t.Error("f did not switch to raw output")
-	}
-	m = feed(t, m, testutil.Key("f"))
-	if m.rawDetails {
-		t.Error("f did not switch back to formatted output")
-	}
-
-	m = feed(t, m, testutil.Key("down"))
-	m = feed(t, m, testutil.Key("home"))
-	if m.detailsViewport.YOffset != 0 {
-		t.Errorf("YOffset = %d after g, want the top", m.detailsViewport.YOffset)
-	}
-
+func TestEscLeavesTheDetails(t *testing.T) {
+	m := resultsModel(t)
+	m = feed(t, m, testutil.Key("enter"))
 	m = feed(t, m, testutil.Key("esc"))
 	if m.state != StateResults {
-		t.Errorf("state = %d after esc, want to be back on the results", m.state)
+		t.Fatalf("state = %v, want StateResults", m.state)
 	}
 }
 
-// ── Edit mode ────────────────────────────────────────────────────────────────
+// ── Router contracts ─────────────────────────────────────────────────────────
 
-// InEditMode keeps the app router from stealing the character keys a focused
-// field needs — a target can contain ':'. It says nothing about esc, which the
-// router forwards whatever the view answers (D15), so a state that holds no
-// field claims no key even when it uses esc.
 func TestInEditModeIsTrueOnlyWhereAFieldHasTheKeyboard(t *testing.T) {
-	m := newTestModel(t)
-
-	m.focusedField = fieldTarget
-	if !m.InEditMode() {
-		t.Error("InEditMode() is false on the target field")
+	form := newTestModel(t)
+	if !form.InEditMode() {
+		t.Error("the target field does not claim the keyboard")
 	}
-	m.focusedField = fieldPing
-	if m.InEditMode() {
-		t.Error("InEditMode() is true on a checkbox, which needs no character keys")
+	form.focusedField = fieldButton
+	if form.InEditMode() {
+		t.Error("the button claims the keyboard")
 	}
-
-	if runningModel(t, "example.com", "Ping").InEditMode() {
-		t.Error("InEditMode() is true while running, which costs the run ':' and '?'")
-	}
-	if feed(t, resultsModel(t), testutil.Key("enter")).InEditMode() {
-		t.Error("InEditMode() is true in the details, which takes no text")
+	if runningModel(t, "example.com").InEditMode() {
+		t.Error("a running pipeline claims the keyboard")
 	}
 	if resultsModel(t).InEditMode() {
-		t.Error("InEditMode() is true on the results table, which takes no text")
+		t.Error("the results table claims the keyboard")
+	}
+	searching := feed(t, resultsModel(t), testutil.Key("/"))
+	if !searching.InEditMode() {
+		t.Error("an open search does not claim the keyboard")
 	}
 }
 
-// Esc still closes the details and cancels a run — it arrives from the router
-// now rather than through InEditMode, and that has to keep working.
-func TestEscStillLeavesTheDetailsAndCancelsARun(t *testing.T) {
-	details := feed(t, resultsModel(t), testutil.Key("enter"))
-	if got := feed(t, details, testutil.Key("esc")).state; got != StateResults {
-		t.Errorf("esc left the details in state %v, want the results", got)
-	}
-
-	running := runningModel(t, "example.com", "Ping")
-	if got := feed(t, running, testutil.Key("esc")).state; got != StateResults {
-		t.Errorf("esc left the run in state %v, want the results", got)
-	}
-}
-
-// The topology tab takes no text, so a bare ":" reaches the router there
-// whatever the topology is doing. The view used to carry an AllowCommandMode()
-// that claimed to unlock ":" once the data had arrived; it could never fire,
-// because InEditMode() is already false on this tab and the router only
-// consulted it when InEditMode() was true. It is gone.
 func TestTheTopologyTabNeverBlocksCommandMode(t *testing.T) {
-	m := feed(t, newTestModel(t), testutil.Key("tab"), testutil.Key("tab")) // to topology
-
+	m := newTestModel(t)
+	m.activeTab = tabTopology
 	if m.InEditMode() {
-		t.Error("InEditMode() is true while the topology data is still loading")
-	}
-
-	m.topologyModel.state = topoStateReady
-	if m.InEditMode() {
-		t.Error("InEditMode() is true on the topology tab, which takes no text")
+		t.Fatal("the topology tab claims the keyboard")
 	}
 }
 
-// ── Layout ───────────────────────────────────────────────────────────────────
+func TestClearFooterMessageEmptiesBoth(t *testing.T) {
+	m := newTestModel(t)
+	m, _ = step(t, m, testutil.Key("enter")) // refused: no target
+	m = feed(t, m, components.ClearFooterMsg{ID: m.footer.ID()})
+	if strings.Contains(m.RenderFooter(120), "Target is required") {
+		t.Error("the footer message outlived its expiry")
+	}
+}
 
 func TestResizeIsForwardedToEverySubModel(t *testing.T) {
-	m := feed(t, newTestModel(t), tea.WindowSizeMsg{Width: 200, Height: 60})
-
-	if m.width != 200 || m.height != 60 {
-		t.Errorf("window size = %dx%d, want 200x60", m.width, m.height)
+	m := feed(t, New(testConfig()), tea.WindowSizeMsg{Width: 100, Height: 30})
+	if m.width != 100 || m.height != 30 {
+		t.Fatalf("model kept %dx%d", m.width, m.height)
 	}
-	if m.targetInput.Width <= 0 {
-		t.Error("the target input was not resized")
+	if m.portsModel.width != 100 || m.topologyModel.width != 100 {
+		t.Error("a sub-model did not receive the resize")
 	}
 }
 
 func TestNarrowTerminalDoesNotCollapseTheLayout(t *testing.T) {
-	m := feed(t, resultsModel(t), tea.WindowSizeMsg{Width: 10, Height: 4})
-
-	if m.targetInput.Width < 20 {
-		t.Errorf("target input width = %d on a narrow terminal, want the floor of 20", m.targetInput.Width)
-	}
-	if h := m.resultsTable.Table().Height(); h < 0 {
-		t.Errorf("results table height = %d, want it non-negative", h)
-	}
-	if m.View() == "" {
-		t.Error("View() returned nothing on a narrow terminal")
+	m := deliver(t, runningModel(t, "example.com"),
+		check(netcheck.CheckTCP, netcheck.Fail, "Port 443 does not accept connections"))
+	// The resize comes last: runningModel lays out at 120 columns, so sizing
+	// before it would be overwritten and the test would not be narrow at all.
+	m = feed(t, m, tea.WindowSizeMsg{Width: 46, Height: 20})
+	if out := m.View(); strings.TrimSpace(out) == "" {
+		t.Fatal("the view is empty at 46 columns")
 	}
 }

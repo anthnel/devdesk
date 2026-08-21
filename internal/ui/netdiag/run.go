@@ -1,122 +1,77 @@
 package netdiag
 
 import (
-	"strings"
+	"context"
+	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	dockerpkg "github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/netcheck"
 )
 
-func (m *Model) startTests() (*Model, tea.Cmd) {
-	target := strings.TrimSpace(m.targetInput.Value())
-	if err := validateTarget(target); err != nil {
+// startRun validates the form and starts the pipeline at its first stage.
+func (m *Model) startRun() (*Model, tea.Cmd) {
+	tg, err := m.buildTarget()
+	if err != nil {
 		return m, m.footer.Error(capitalize(err.Error()))
-	}
-
-	port := strings.TrimSpace(m.portInput.Value())
-	if port == "" {
-		port = defaultPort
-	}
-	if err := validatePort(port); err != nil {
-		return m, m.footer.Error(capitalize(err.Error()))
-	}
-
-	enabled := m.enabledTests()
-	if len(enabled) == 0 {
-		return m, m.footer.Warn("Select at least one test")
 	}
 
 	m.runGen++
-	gen := m.runGen
 	m.state = StateRunning
-	m.results = make(map[string]testResult)
-	m.resultOrder = nil
-	m.doneTests = 0
-	m.totalTests = len(enabled)
+	m.results = netcheck.Results{}
+	m.verdict = netcheck.Unknown
+	m.runStep = 0
+	m.totalSteps = len(netcheck.Steps())
+	m.runStage = netcheck.Steps()[0]
+	m.traceOutput = ""
 
-	dnsServer := strings.TrimSpace(m.dnsServerInput.Value())
-	image := m.config.Docker.NetworkToolImage
-
-	var cmds []tea.Cmd
-	cmds = append(cmds, m.spinner.Tick)
-
-	for _, t := range enabled {
-		name := t.name
-		m.results[name] = testResult{name: name, done: false}
-		m.resultOrder = append(m.resultOrder, name)
-
-		var cmd tea.Cmd
-		switch name {
-		case "Ping":
-			cmd = runTestCmd(gen, name, func() dockerpkg.DiagResult {
-				return dockerpkg.RunPing(image, target)
-			})
-		case "DNS Resolution":
-			cmd = m.buildDNSTestCmd(gen, target, dnsServer, image)
-		case "Traceroute":
-			cmd = runTestCmd(gen, name, func() dockerpkg.DiagResult {
-				return dockerpkg.RunTraceroute(image, target)
-			})
-		case "TCP Traceroute":
-			cmd = runTestCmd(gen, name, func() dockerpkg.DiagResult {
-				return dockerpkg.RunTCPTraceroute(image, target, port)
-			})
-		case "Netcat":
-			cmd = runTestCmd(gen, name, func() dockerpkg.DiagResult {
-				return dockerpkg.RunNetcat(image, target, port)
-			})
-		case "HTTP/HTTPS (Curl)":
-			cmd = runTestCmd(gen, name, func() dockerpkg.DiagResult {
-				return dockerpkg.RunCurl(image, target, port)
-			})
-		case "SSL Certificate":
-			cmd = runTestCmd(gen, name, func() dockerpkg.DiagResult {
-				return dockerpkg.RunSSLCert(image, target, port)
-			})
-		}
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	return m, tea.Batch(cmds...)
+	return m, tea.Batch(m.spinner.Tick, runStageCmd(m.runGen, tg, 0, netcheck.Results{}))
 }
 
-// buildDNSTestCmd builds the DNS or reverse DNS test command depending on the target.
-// If the target is an IP address, it uses dig -x for PTR lookup and relabels the result row.
-func (m *Model) buildDNSTestCmd(gen int, target, dnsServer, image string) tea.Cmd {
-	effectiveName := "DNS Resolution"
-	runner := func() dockerpkg.DiagResult {
-		return dockerpkg.RunDNS(image, target, dnsServer)
+// runStageCmd runs one stage of the pipeline and reports the accumulated
+// results.
+//
+// The stages are chained through messages rather than run as one command, so
+// the footer can name the question being asked. That matters on precisely the
+// case worth diagnosing: an unreachable host spends its timeouts one after
+// another, and a spinner with nothing beside it is indistinguishable from a
+// hang — the defect §3.16 recorded for the clone's "Pulling..." modal.
+//
+// Nothing the model holds is touched here. The accumulated results are passed
+// in by value and returned in the message, which is what netcheck.RunStep
+// copies for (Rule 110).
+func runStageCmd(gen int, tg netcheck.Target, step int, prior netcheck.Results) tea.Cmd {
+	steps := netcheck.Steps()
+	if step >= len(steps) {
+		return nil
 	}
-	if isIPAddress(target) {
-		effectiveName = "Reverse DNS"
-		runner = func() dockerpkg.DiagResult {
-			return dockerpkg.RunReverseDNS(image, target, dnsServer)
-		}
-	}
-	// Rename the key/order entry that was set before the switch in startTests()
-	m.results[effectiveName] = m.results["DNS Resolution"]
-	delete(m.results, "DNS Resolution")
-	m.resultOrder[len(m.resultOrder)-1] = effectiveName
-	return runTestCmd(gen, effectiveName, runner)
-}
-
-// runTestCmd creates a tea.Cmd that runs fn and returns a testCompleteMsg tagged with gen
-func runTestCmd(gen int, name string, fn func() dockerpkg.DiagResult) tea.Cmd {
+	id := steps[step]
 	return func() tea.Msg {
-		res := fn()
-		return testCompleteMsg{gen: gen, name: name, success: res.Success, output: res.Output}
+		res := netcheck.RunStep(context.Background(), tg, netcheck.SystemEnv(), id, prior)
+		return stageDoneMsg{gen: gen, stage: id, next: step + 1, results: res}
 	}
 }
 
-func (m *Model) enabledTests() []testDef {
-	var out []testDef
-	for _, t := range m.tests {
-		if t.enabled {
-			out = append(out, t)
+// traceCmd runs a route trace in the network tool container.
+//
+// This is the one probe still shelling out, and it is the only one that has to:
+// traceroute needs raw sockets and a tool worth not reimplementing. Everything
+// else answers from this process, on this machine's network stack — which is
+// the point, since --network host on Docker Desktop is the VM's stack and not
+// the user's.
+//
+// The consequence is stated rather than left to be discovered: a trace answers
+// for the container's view of the network, so it can disagree with the checks
+// above it. renderTraceHeader says so on screen.
+func traceCmd(gen int, image string, tg netcheck.Target, tcp bool) tea.Cmd {
+	return func() tea.Msg {
+		var res dockerpkg.DiagResult
+		if tcp {
+			res = dockerpkg.RunTCPTraceroute(image, tg.Host, strconv.Itoa(tg.Port))
+		} else {
+			res = dockerpkg.RunTraceroute(image, tg.Host)
 		}
+		return traceDoneMsg{gen: gen, output: res.Output, tcp: tcp}
 	}
-	return out
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
 
@@ -15,8 +16,8 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(textinput.Blink, m.portsModel.initPorts(), m.topologyModel.initTopology())
 }
 
-// InEditMode implements FormView — true when a text input is active, tests are running,
-// or the detail view is open (so esc is forwarded to the view instead of consumed by the app).
+// InEditMode implements FormView — true when a text input is active, so the
+// router hands the key to the field rather than opening the command line.
 func (m *Model) InEditMode() bool {
 	switch m.activeTab {
 	case tabPorts:
@@ -24,18 +25,21 @@ func (m *Model) InEditMode() bool {
 	case tabTopology:
 		return false
 	}
-	// StateRunning and StateDetails were listed here only to be handed esc, which
-	// the router now forwards on its own (§1.3 D15). A running test and a details
-	// pane hold no field, so they claim no key.
+	if m.filterBar.InEditMode() {
+		return true
+	}
 	if m.state == StateInput {
 		return m.focusedField == fieldTarget || m.focusedField == fieldPort || m.focusedField == fieldDNSServer
 	}
 	return false
 }
 
-// FilterBarVisible returns true when the ports filter bar is visible (implements app.FilterBarView).
+// FilterBarVisible implements app.FilterBarView.
 func (m *Model) FilterBarVisible() bool {
-	return m.activeTab == tabPorts && m.portsModel.table.FilterBar().IsVisible()
+	if m.activeTab == tabPorts {
+		return m.portsModel.table.FilterBar().IsVisible()
+	}
+	return m.activeTab == tabDiagnostics && m.filterBar.IsVisible()
 }
 
 // Update implements tea.Model
@@ -45,27 +49,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.resizeInputs()
-		m.rebuildResultsTable()
+		m.filterBar.Resize(msg.Width)
+		m.rebuildChecksTable()
 		m.resizeDetailsViewport()
 		m.portsModel.resize(msg.Width, msg.Height)
 		m.topologyModel.resize(msg.Width, msg.Height)
 		return m, nil
 
 	case spinner.TickMsg:
-		if m.state == StateRunning {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
-		}
-		if m.activeTab == tabTopology {
-			var cmd tea.Cmd
-			m.topologyModel, cmd = m.topologyModel.update(msg)
-			return m, cmd
-		}
-		return m, nil
+		return m.handleSpinnerTick(msg)
 
-	case testCompleteMsg:
-		return m.handleTestComplete(msg)
+	case stageDoneMsg:
+		return m.handleStageDone(msg)
+
+	case traceDoneMsg:
+		return m.handleTraceDone(msg)
 
 	// Ports sub-model messages. The confirm-modal answers are here because the
 	// kill asks before it acts (§3.26), and the modal is the ports tab's.
@@ -93,27 +91,80 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) handleTestComplete(msg testCompleteMsg) (*Model, tea.Cmd) {
-	if msg.gen != m.runGen {
-		return m, nil // stale result from a cancelled run
+func (m *Model) handleSpinnerTick(msg spinner.TickMsg) (*Model, tea.Cmd) {
+	if m.state == StateRunning || m.tracing {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		m.footer.SetSpinnerFrame(m.spinner.View())
+		return m, cmd
 	}
-	m.results[msg.name] = testResult{
-		name:    msg.name,
-		success: msg.success,
-		output:  msg.output,
-		done:    true,
-	}
-	m.doneTests++
-	log.Printf("INFO [netdiag] test %q done: success=%v", msg.name, msg.success)
-
-	if m.doneTests >= m.totalTests {
-		m.state = StateResults
-		m.rebuildResultsTable()
+	if m.activeTab == tabTopology {
+		var cmd tea.Cmd
+		m.topologyModel, cmd = m.topologyModel.update(msg)
+		return m, cmd
 	}
 	return m, nil
 }
 
+// handleStageDone records one stage's answers and starts the next.
+func (m *Model) handleStageDone(msg stageDoneMsg) (*Model, tea.Cmd) {
+	if msg.gen != m.runGen {
+		return m, nil // a superseded run
+	}
+	m.results = msg.results
+	m.rebuildChecksTable()
+
+	steps := netcheck.Steps()
+	if msg.next >= len(steps) {
+		m.state = StateResults
+		m.verdict = netcheck.Summarize(m.results.All())
+		log.Printf("INFO [netdiag] run finished: verdict=%s over %d checks",
+			m.verdict, len(m.results.All()))
+		return m, nil
+	}
+
+	m.runStep = msg.next
+	m.runStage = steps[msg.next]
+
+	tg, err := m.buildTarget()
+	if err != nil {
+		// The form has not changed since the run started, so this cannot
+		// normally fail. Reporting it beats continuing with a target nobody
+		// can name.
+		log.Printf("ERROR [netdiag] target became invalid mid-run: %v", err)
+		m.state = StateResults
+		return m, m.footer.Error("Run stopped — the target is no longer valid")
+	}
+	return m, runStageCmd(m.runGen, tg, msg.next, m.results)
+}
+
+func (m *Model) handleTraceDone(msg traceDoneMsg) (*Model, tea.Cmd) {
+	if msg.gen != m.runGen {
+		return m, nil
+	}
+	m.tracing = false
+	if msg.output == "" {
+		return m, m.footer.Error("The trace produced no output — check logs")
+	}
+	m.traceOutput = msg.output
+	m.traceTCP = msg.tcp
+	m.state = StateDetails
+	m.resizeDetailsViewport()
+	m.detailsViewport.SetContent(m.renderDetailsContent(m.detailsViewport.Width))
+	m.detailsViewport.GotoTop()
+	return m, nil
+}
+
 func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	// A filter bar in edit mode claims every key before anything else, or a
+	// query cannot contain the letters the view binds.
+	if m.activeTab == tabDiagnostics && m.filterBar.InEditMode() {
+		var cmd tea.Cmd
+		m.filterBar, cmd = m.filterBar.Update(msg)
+		m.rebuildChecksTable()
+		return m, cmd
+	}
+
 	// Tab / Shift+Tab cycles between the three tabs (Rule 135)
 	switch msg.String() {
 	case "tab":
@@ -149,22 +200,18 @@ func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleKeyRunning cancels the run. The stage in flight is awaited rather than
+// interrupted — it is a network read that will time out on its own — and its
+// result is discarded by the generation counter.
 func (m *Model) handleKeyRunning(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	if msg.String() != "esc" {
 		return m, nil
 	}
-	// Invalidate the current run so arriving testCompleteMsgs are discarded
 	m.runGen++
-	// Mark all non-done tests as cancelled
-	for _, name := range m.resultOrder {
-		if res := m.results[name]; !res.done {
-			m.results[name] = testResult{name: name, done: true, cancelled: true, output: "cancelled"}
-			m.doneTests++
-		}
-	}
 	m.state = StateResults
-	m.rebuildResultsTable()
-	return m, nil
+	m.verdict = netcheck.Summarize(m.results.All())
+	m.rebuildChecksTable()
+	return m, m.footer.Warn("Run cancelled — showing what completed")
 }
 
 func (m *Model) handleKeyInput(msg tea.KeyMsg) (*Model, tea.Cmd) {
@@ -176,24 +223,17 @@ func (m *Model) handleKeyInput(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.moveFocus(-1)
 		return m, nil
 	case "enter":
-		if m.focusedField == fieldButton {
-			return m.startTests()
-		}
-		return m, nil
-	case " ":
-		// Space is the only key that toggles checkboxes (Rule 135)
-		m.toggleFocusedCheckbox()
-		return m, nil
+		// enter runs from anywhere in the form: with three fields and one
+		// button there is nothing else it could mean, and making the user walk
+		// to the button first is a step that buys nothing.
+		return m.startRun()
 	case "esc":
 		return m, nil
 	}
-
-	// Forward to active text input
 	return m.updateActiveInput(msg)
 }
 
 func (m *Model) moveFocus(delta int) {
-	// Blur current input if leaving a text field
 	switch m.focusedField {
 	case fieldTarget:
 		m.targetInput.Blur()
@@ -205,7 +245,6 @@ func (m *Model) moveFocus(delta int) {
 
 	m.focusedField = (m.focusedField + delta + fieldCount) % fieldCount
 
-	// Focus new input if entering a text field
 	switch m.focusedField {
 	case fieldTarget:
 		m.targetInput.Focus()
@@ -213,15 +252,6 @@ func (m *Model) moveFocus(delta int) {
 		m.portInput.Focus()
 	case fieldDNSServer:
 		m.dnsServerInput.Focus()
-	}
-}
-
-func (m *Model) toggleFocusedCheckbox() {
-	for i := range m.tests {
-		if m.tests[i].fieldIdx == m.focusedField {
-			m.tests[i].enabled = !m.tests[i].enabled
-			return
-		}
 	}
 }
 
@@ -242,24 +272,44 @@ func (m *Model) handleKeyResults(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m.openDetails()
-	// ctrl+r means refresh and only refresh (§3.26). Going back is esc, which
-	// handleKeyResults already reaches through the table.
 	case "esc":
 		return m.resetToForm()
+	case "ctrl+r":
+		return m.startRun()
+	case "/":
+		return m, m.filterBar.ActivateSearch()
+	case "p":
+		m.filterBar.SetTokenActive(problemsToken, !m.filterBar.IsTokenActive(problemsToken))
+		m.rebuildChecksTable()
+		return m, nil
+	case "H":
+		return m.startTrace()
 	}
-	return m, m.resultsTable.Update(msg)
+	return m, m.checksTable.Update(msg)
+}
+
+// startTrace runs a route trace, when a check makes one worth running.
+func (m *Model) startTrace() (*Model, tea.Cmd) {
+	if !m.traceWorthOffering() {
+		return m, m.footer.Warn("Nothing here points at a routing problem")
+	}
+	tg, err := m.buildTarget()
+	if err != nil {
+		return m, m.footer.Error(capitalize(err.Error()))
+	}
+	// A refused port is a path question about that port, so it is traced with
+	// TCP; a filtered ping is a question about the path itself.
+	tcp := m.results.VerdictOf(netcheck.CheckTCP) == netcheck.Fail
+	m.tracing = true
+	return m, tea.Batch(m.spinner.Tick, traceCmd(m.runGen, m.config.Docker.NetworkToolImage, tg, tcp))
 }
 
 func (m *Model) handleKeyDetails(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.state = StateResults
+		m.traceOutput = ""
 		return m, nil
-	case "f":
-		m.rawDetails = !m.rawDetails
-		res := m.results[m.selectedTest]
-		m.detailsViewport.SetContent(m.renderDetailsContent(res, m.detailsViewport.Width))
-		m.detailsViewport.GotoTop()
 	case "up":
 		m.detailsViewport.ScrollUp(1)
 	case "down":
@@ -277,19 +327,15 @@ func (m *Model) handleKeyDetails(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) openDetails() (*Model, tea.Cmd) {
-	row, ok := m.resultsTable.Selected()
+	c, ok := m.checksTable.Selected()
 	if !ok {
 		return m, nil
 	}
-	res, ok := m.results[row.name]
-	if !ok {
-		return m, nil
-	}
-	m.selectedTest = row.name
-	m.rawDetails = false
+	m.selected = c
+	m.traceOutput = ""
 	m.state = StateDetails
 	m.resizeDetailsViewport()
-	m.detailsViewport.SetContent(m.renderDetailsContent(res, m.detailsViewport.Width))
+	m.detailsViewport.SetContent(m.renderDetailsContent(m.detailsViewport.Width))
 	m.detailsViewport.GotoTop()
 	return m, nil
 }
@@ -298,9 +344,11 @@ func (m *Model) resetToForm() (*Model, tea.Cmd) {
 	m.state = StateInput
 	m.focusedField = fieldTarget
 	m.targetInput.Focus()
-	m.results = make(map[string]testResult)
-	m.doneTests = 0
-	m.totalTests = 0
-	m.resultOrder = nil
+	m.results = netcheck.Results{}
+	m.verdict = netcheck.Unknown
+	m.traceOutput = ""
+	m.filterBar.ClearSearch()
+	m.filterBar.SetTokenActive(problemsToken, false)
+	m.rebuildChecksTable()
 	return m, nil
 }

@@ -5506,6 +5506,155 @@ Le plan est dans
 
 ---
 
+### 3.33 Netdiag répond à des questions, pas à des outils — **done**
+
+L'onglet Diagnostics lançait sept outils et affichait sept lignes portant leur
+nom. L'objectif pour lequel il existe est plus étroit et mieux posé : **cet hôte
+est-il joignable, et sa chaîne de certificats est-elle saine.** Une ligne est
+désormais une question qui a reçu une réponse.
+
+Trois PR : `internal/netcheck` (#87), les explications déterministes (#88), la
+vue (#89). Une quatrième — l'explication passée à un modèle, par serveur MCP ou
+par le client de §3.10 — reste **ouverte** ; rien dans les trois premières n'en
+dépend. Le plan complet est dans `.claude/plans/netdiag-checks-and-verdicts.md`.
+
+#### Quatre défauts, mesurés
+
+**`--network host` n'est pas cet hôte.** Sur Docker Desktop le conteneur
+atterrit dans l'espace de noms réseau de la VM `docker-desktop` — relevé sur la
+machine de développement : `hostname` répond `docker-desktop`, les adresses sont
+`10.254.254.3/24` et `172.17.0.1/16`, le résolveur est `10.254.254.7`, quand la
+machine résout par `10.2.0.1` (ProtonVPN actif) ou `192.168.1.2`. Le diagnostic
+répondait pour un réseau sur lequel l'utilisateur n'est pas, et ne le disait
+jamais. Le même défaut se lisait sans rien lancer : `defaultDNSServer()` ouvrait
+`/etc/resolv.conf`, absent sous Windows.
+
+**La chaîne n'était jamais vérifiée.** `sslCertScript` passait
+`s_client -showcerts` dans `openssl x509 -noout -text`, et `x509` ne lit que le
+premier bloc PEM — la feuille. Les intermédiaires étaient téléchargés puis
+jetés, `Verify return code` partait dans `2>/dev/null`, et il n'y avait ni
+correspondance de nom, ni échéance relative, ni version négociée. Sur la seule
+question que la vue existe pour poser, la réponse était « on n'a pas regardé »,
+rendue en vert. C'est la forme de D20, et `SecretVerdict` retourne un `*bool`
+pour exactement cette raison.
+
+**`Status` était le code de sortie du process**, donc la colonne n'était pas
+comparable : `nc` qui sort en 1 dit « port fermé », `curl` qui sort en 1 dit une
+douzaine de choses. **Et `RunCurl` choisissait le schéma sur `port == "443"`**,
+donc `:8443` était sondé en clair, échouait, et se lisait « l'hôte est mort ».
+
+**C'était aussi un doublon.** `internal/status` répond déjà nativement à ICMP
+(pro-bing), DNS (`net.Resolver` avec nameserver choisi) et HTTP (`net/http`).
+Deux implémentations de trois questions, répondant depuis deux piles réseau
+différentes, et ne s'accordant pas.
+
+#### Ce qui remplace les cases à cocher
+
+Cinq verdicts, **valeur zéro `Unknown`** : un constat que personne n'a rempli ne
+doit pas se lire comme un succès. `Warn` et `Fail` se séparent sur « l'objectif
+est-il atteint », jamais sur l'inquiétude que ça inspire — la règle des niveaux
+de footer (Rule 128). `NotApplicable` a deux sens, distingués par `Because` :
+sans objet ici, ou bloqué en amont.
+
+Un pipeline en couches — resolve, reach, connect, tls, http — où un étage dont
+la dépendance a échoué ne tourne pas : ses constats reviennent `NotApplicable`
+en nommant la cause **d'origine**, pas la cause immédiate. Sept lignes rouges
+deviennent une ligne rouge et un point de rupture nommé. C'est ce qui rend les
+cases inutiles plutôt que démodées : il n'y a plus rien à sélectionner.
+
+Deux dépendances méritent d'être lues deux fois, et un test tient chacune.
+**`reach` ne bloque rien** : ICMP est filtré sur une large part des hôtes
+parfaitement joignables, donc un ping muet ne doit pas supprimer la question
+qu'on est venu poser. **`http` dépend de `connect`, pas de `tls`** : une chaîne
+cassée ne doit pas cacher que le service répond.
+
+`Summarize` est le seul agrégat, pour la raison que `scan.Categorize` et
+`SecretVerdict` ont chacun dû défaire.
+
+#### La poignée de main n'est pas vérifiée, et c'est le point
+
+`crypto/tls` qui avorte sur une racine inconnue effondrerait quatre questions en
+une chaîne d'erreur et emporterait le certificat qu'il faut inspecter. La
+vérification est donc faite par l'étage, qui distingue une racine inconnue, une
+chaîne incomplète, un certificat auto-signé et un nom qui ne correspond pas.
+
+Il signale aussi un serveur **qui n'envoie pas ses intermédiaires alors même que
+la vérification réussit** : la plateforme locale complète parfois une chaîne
+qu'un autre client ne complétera pas. C'est le bug classique qui marche sur le
+poste du développeur et casse en production, et aucune version de l'ancien
+contrôle ne pouvait le voir.
+
+« Ce port ne parle pas TLS » est une **observation** et non une heuristique sur
+le numéro de port : c'est `tls.RecordHeaderError`, que `crypto/tls` émet
+lui-même. Un test le vérifie contre un vrai serveur HTTP en clair, parce que
+c'est une affirmation sur le comportement de la bibliothèque et non sur le
+nôtre. Deviner d'après le port serait l'heuristique que §3.8 a écartée ailleurs.
+
+#### `Reason` — un verdict, plusieurs métiers
+
+Un `Fail` de chaîne a trois causes aux remèdes différents : installer une CA,
+déployer le fichier de chaîne complet, ou découvrir ce qui s'intercale dans la
+connexion — un proxy d'entreprise fait exactement ça. Le verdict ne les sépare
+pas, le résumé le fait en prose, et `Reason` est ce sur quoi une explication —
+ou une sérialisation — peut brancher.
+
+#### Les explications vivent dans `netcheck`
+
+Observé / ce que ça signifie / quoi faire, en table déclarative, hors-ligne.
+La connaissance porte sur le domaine et non sur la mise en page, et la PR 4
+sérialisera les constats **avec** leurs explications : dans la couche UI, ce qui
+les consomme devrait importer une vue Bubble Tea.
+
+Deux règles, toutes deux vérifiées : `Means` énonce une conséquence et non une
+paraphrase du résumé, et `Do` est **vide sur un succès** — une action inventée
+pour une ligne verte apprend au lecteur à sauter le champ sur celles qui en ont
+une.
+
+#### La vue
+
+Le formulaire passe de onze champs à quatre, et `enter` lance depuis n'importe
+lequel : avec trois champs et un bouton il n'y a rien d'autre que ça puisse
+vouloir dire.
+
+**Les étages sont chaînés par messages**, pas lancés en un seul `Cmd`. C'est ce
+qui permet au footer de nommer la question en cours, et ça compte précisément
+sur le cas qui mérite un diagnostic : un hôte injoignable épuise ses délais l'un
+après l'autre, et un spinner sans rien à côté est indistinguable d'un blocage —
+la leçon de la modale `"Pulling..."` de §3.16. Les résultats accumulés voyagent
+**dans le message** ; `netcheck.RunStep` copie pour ça, donc rien n'est partagé
+entre `Update` et un `Cmd` (Rule 110).
+
+La table reste à l'écran pendant que le pipeline avance et se remplit au fur et
+à mesure (Rule 139) — un corps remplacé par un spinner perdrait aussi les lignes
+déjà répondues. Le verdict global va dans `GetHeaderInfo`, comme security porte
+`Findings`.
+
+**Un seul jeton de filtre, `p`**, et non un par verdict : dix lignes n'ont pas
+besoin de quatre filtres cumulatifs, elles ont besoin que le bruit disparaisse.
+
+**Le tracé de route est la seule sonde qui sort encore un process**, parce que
+c'est la seule qui doit : il faut des sockets bruts et un outil qu'il ne vaut
+pas la peine de réécrire. Il est offert sur `H` **seulement quand un constat
+désigne le chemin** (Rule 130) — un certificat qui ne vérifie pas n'est pas un
+problème de routage, et trente secondes de tracé n'y répondraient pas. Le
+panneau dit qu'il a tourné dans le conteneur, donc qu'il peut légitimement
+contredire les constats au-dessus de lui.
+
+#### Ce que ça supprime
+
+`dns_formatter.go` et son test (le DNS est natif, il n'y a plus de sortie `dig`
+à parser), six des huit runners de `internal/docker/netdiag.go` —
+`sslCertScript` compris, ce qui retire la surface d'injection shell que
+`validation_test.go` gardait — et `defaultDNSServer()`. `traceroute_formatter.go`
+reste : le tracé reste.
+
+#### Ce qui reste écarté
+
+Des jeux de constats dérivés du port (§3.8 a tranché cette classe de choix dans
+l'autre sens : déclaré, jamais reniflé), Presidio, la lettre de raccourci d'une
+explication par modèle, la **migration de `internal/status` sur `netcheck`** —
+consignée ici pour que le doublon ne se réinstalle pas — et la capture tcpdump.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

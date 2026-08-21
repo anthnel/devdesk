@@ -221,6 +221,35 @@ func (r *Results) add(c Check) {
 	r.checks = append(r.checks, c)
 }
 
+// clone returns a deep-enough copy: the slice and the index are fresh, so
+// adding to the copy cannot write into the original's backing array. It is what
+// makes RunStep safe to call on a goroutine while the caller still holds the
+// previous value.
+func (r Results) clone() Results {
+	out := Results{
+		checks: make([]Check, len(r.checks)),
+		index:  make(map[CheckID]int, len(r.index)),
+	}
+	copy(out.checks, r.checks)
+	for k, v := range r.index {
+		out.index[k] = v
+	}
+	return out
+}
+
+// ResultsOf assembles a Results from checks that are already known.
+//
+// It exists for the callers that receive checks rather than produce them: a
+// view driving the pipeline through messages, a test describing a situation,
+// and — later — anything reading a serialized run back.
+func ResultsOf(checks ...Check) Results {
+	var r Results
+	for _, c := range checks {
+		r.add(c)
+	}
+	return r
+}
+
 // All returns the checks in pipeline order.
 func (r Results) All() []Check { return r.checks }
 

@@ -276,3 +276,64 @@ func TestVerdictNamesAreShortEnoughForATableCell(t *testing.T) {
 		}
 	}
 }
+
+// TestRunStepWalksTheSamePipelineAsRun pins the factoring: Run and RunStep share
+// runStage, so the skip rule cannot mean one thing to a batch caller and another
+// to a view chaining the stages through messages.
+func TestRunStepWalksTheSamePipelineAsRun(t *testing.T) {
+	env := fakeEnv{
+		dial: func(context.Context, string) (time.Duration, error) {
+			return 0, errors.New("connection refused")
+		},
+	}
+
+	whole, err := Run(context.Background(), target(), env)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	var piecewise Results
+	for _, id := range Steps() {
+		piecewise = RunStep(context.Background(), target(), env, id, piecewise)
+	}
+
+	if len(piecewise.All()) != len(whole.All()) {
+		t.Fatalf("piecewise produced %d checks, Run produced %d", len(piecewise.All()), len(whole.All()))
+	}
+	for i, c := range whole.All() {
+		got := piecewise.All()[i]
+		if got.ID != c.ID || got.Verdict != c.Verdict || got.Because != c.Because {
+			t.Errorf("check %d: piecewise %s/%s/%s, Run %s/%s/%s",
+				i, got.ID, got.Verdict, got.Because, c.ID, c.Verdict, c.Because)
+		}
+	}
+}
+
+// TestRunStepDoesNotWriteIntoTheResultsItWasGiven is the property a Bubble Tea
+// caller depends on: the previous value is held by the model while the next
+// stage runs on a goroutine, so a shared backing array would be a data race on
+// the one thing Rule 110 exists to prevent.
+func TestRunStepDoesNotWriteIntoTheResultsItWasGiven(t *testing.T) {
+	first := RunStep(context.Background(), target(), fakeEnv{}, StageResolve, Results{})
+	snapshot := len(first.All())
+
+	RunStep(context.Background(), target(), fakeEnv{}, StageReach, first)
+	RunStep(context.Background(), target(), fakeEnv{}, StageConnect, first)
+
+	if len(first.All()) != snapshot {
+		t.Fatalf("the earlier Results grew from %d to %d checks", snapshot, len(first.All()))
+	}
+}
+
+// TestEveryStageIsNamedForAProgressLine — a stage the user waits on with no
+// label is the mute spinner this indirection exists to avoid.
+func TestEveryStageIsNamedForAProgressLine(t *testing.T) {
+	for _, id := range Steps() {
+		if StageTitle(id) == "" {
+			t.Errorf("stage %q has no title", id)
+		}
+	}
+	if len(Steps()) != len(stages()) {
+		t.Errorf("Steps() reports %d stages, the pipeline has %d", len(Steps()), len(stages()))
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -33,10 +34,12 @@ func (m *Model) View() string {
 	switch m.state {
 	case StateInput:
 		return m.renderInputForm()
-	case StateRunning:
-		return m.renderRunning()
-	case StateResults:
-		return m.renderResults()
+	case StateRunning, StateResults:
+		// The table stays on screen while the pipeline runs, filling in as each
+		// stage lands. A body that swaps itself for a spinner loses its header
+		// and its columns (Rule 139), and here it would also throw away the
+		// rows already answered.
+		return m.renderChecks()
 	case StateDetails:
 		return m.detailsViewport.View()
 	}
@@ -46,29 +49,12 @@ func (m *Model) View() string {
 func (m *Model) renderInputForm() string {
 	var b strings.Builder
 
-	// Target field
 	b.WriteString(m.renderTextInputField("Target", m.targetInput, fieldTarget))
 	b.WriteString("\n")
-
-	// Port field
 	b.WriteString(m.renderTextInputField("Port", m.portInput, fieldPort))
 	b.WriteString("\n")
-
-	// DNS Server field
 	b.WriteString(m.renderTextInputField("DNS Server", m.dnsServerInput, fieldDNSServer))
 	b.WriteString("\n\n")
-
-	// Tests section
-	b.WriteString(theme.SubTitleStyle.Render(theme.IconConfig + " Diagnostic Tests"))
-	b.WriteString("\n\n")
-
-	for _, t := range m.tests {
-		b.WriteString(theme.RenderCheckbox(t.enabled, t.name, m.focusedField == t.fieldIdx))
-		b.WriteString("\n")
-	}
-
-	// Start button
-	b.WriteString("\n")
 	b.WriteString("  " + theme.RenderButton("Run Diagnostics", m.focusedField == fieldButton, "primary"))
 
 	return lipgloss.NewStyle().
@@ -85,115 +71,151 @@ func (m *Model) renderTextInputField(label string, input textinput.Model, fieldI
 	return theme.KeyStyle.Render(prefix+label+" "+theme.IconChevronRight+" ") + input.View()
 }
 
-func (m *Model) renderRunning() string {
-	w := max(m.width-2, 20)
-
-	var lines []string
-	lines = append(lines, theme.EmptyLineBg(w))
-
-	title := theme.SpinnerMessage(m.spinner.View(), "Running diagnostics...")
-	lines = append(lines, theme.PadWithBg(theme.Bg("  ")+title, w))
-	lines = append(lines, theme.EmptyLineBg(w))
-
-	for _, name := range m.resultOrder {
-		res := m.results[name]
-		var label string
-		switch {
-		case !res.done:
-			label = theme.Bg("  ") + theme.SpinnerMessage(m.spinner.View(), name)
-		case res.cancelled:
-			label = theme.Bg("  ") + theme.DimStyle.Render(theme.IconCanceled+" "+name)
-		case res.success:
-			label = theme.Bg("  ") + theme.StatusOKStyle.Render(theme.IconOK) + theme.Bg(" "+name)
-		default:
-			label = theme.Bg("  ") + theme.StatusErrorStyle.Render(theme.IconError) + theme.Bg(" "+name)
+// renderChecks draws the results table. The empty message is conditional on the
+// run being over, or the table announces the absence of what it is fetching
+// (Rule 139).
+func (m *Model) renderChecks() string {
+	if m.state == StateResults && len(m.checksTable.Visible()) == 0 {
+		if m.filterBar.IsTokenActive(problemsToken) && len(m.results.All()) > 0 {
+			return theme.DimStyle.Render("Nothing to report — every check came back clean")
 		}
-		lines = append(lines, theme.PadWithBg(label, w))
+		if !m.filterBar.IsVisible() {
+			return theme.DimStyle.Render("No checks")
+		}
+	}
+	return m.checksTable.View()
+}
+
+// checkColumns describes the results table.
+//
+// A row is a question that got an answer, so the columns are the question, the
+// answer, and what was observed — never the name of a tool.
+func checkColumns() []datatable.Column[netcheck.Check] {
+	return []datatable.Column[netcheck.Check]{
+		{
+			Title: "Check", MinWidth: 20,
+			Cell: func(c netcheck.Check) string { return c.Title },
+		},
+		{
+			Title: "Verdict", MinWidth: 9,
+			Cell:  verdictCell,
+			Style: verdictStyle,
+		},
+		{
+			Title: "Observed", MinWidth: 20, Flex: 1,
+			Cell: func(c netcheck.Check) string { return c.Summary },
+		},
+	}
+}
+
+// verdictCell is plain text: the colour is decided by Style (Rule 122).
+func verdictCell(c netcheck.Check) string {
+	switch c.Verdict {
+	case netcheck.OK:
+		return theme.IconOK + " OK"
+	case netcheck.Warn:
+		return theme.IconWarning + " WARN"
+	case netcheck.Fail:
+		return theme.IconError + " FAIL"
+	case netcheck.NotApplicable:
+		return theme.IconCanceled + " N/A"
+	default:
+		return theme.IconCanceled + " ?"
+	}
+}
+
+// verdictStyle spends colour on what is worth spotting without reading.
+//
+// OK keeps the default text colour rather than taking green: it is the nominal
+// majority state, and a colour that appears on every row informs nobody
+// (Rule 122). N/A and Unknown are dim for the same reason a zero count is.
+func verdictStyle(c netcheck.Check) lipgloss.Style {
+	switch c.Verdict {
+	case netcheck.Fail:
+		return theme.SeverityTextStyle("CRITICAL")
+	case netcheck.Warn:
+		return theme.SeverityTextStyle("MEDIUM")
+	case netcheck.NotApplicable, netcheck.Unknown:
+		return theme.DimStyle
+	default:
+		return lipgloss.Style{}
+	}
+}
+
+// renderDetailsContent draws one check: what was observed, what it means, what
+// to do, and the facts behind it.
+func (m *Model) renderDetailsContent(width int) string {
+	if m.traceOutput != "" {
+		return m.renderTrace(width)
 	}
 
-	lines = append(lines, theme.EmptyLineBg(w))
-	prog := fmt.Sprintf("  %d / %d tests completed", m.doneTests, m.totalTests)
-	lines = append(lines, theme.PadWithBg(theme.Bg(prog), w))
+	c := m.selected
+	e := netcheck.Explain(c)
 
-	return strings.Join(lines, "\n")
-}
-
-func (m *Model) renderResults() string {
-	return m.resultsTable.View()
-}
-
-func (m *Model) renderDetailsContent(res testResult, width int) string {
 	var lines []string
 	lines = append(lines, theme.EmptyLineBg(width))
-
-	output := res.output
-	if output == "" {
-		output = "(no output)"
+	lines = append(lines, section(width, "Observed", e.Observed)...)
+	lines = append(lines, section(width, "What it means", e.Means)...)
+	if e.Do != "" {
+		lines = append(lines, section(width, "What to do", e.Do)...)
 	}
 
-	switch {
-	case !m.rawDetails && (res.name == "Traceroute" || res.name == "TCP Traceroute"):
-		lines = append(lines, formatTracerouteOutput(output, width)...)
-	case !m.rawDetails && (res.name == "DNS Resolution" || res.name == "Reverse DNS"):
-		lines = append(lines, formatDNSOutput(output, width)...)
-	default:
-		lineStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText)
-		for line := range strings.SplitSeq(output, "\n") {
-			lines = append(lines, theme.PadWithBg(lineStyle.Render(line), width))
+	if len(c.Facts) > 0 {
+		lines = append(lines, theme.PadWithBg(theme.SubTitleStyle.Render(theme.IconConfig+" Details"), width))
+		lines = append(lines, theme.EmptyLineBg(width))
+		for _, f := range c.Facts {
+			line := theme.KeyStyle.Render("  "+f.Key+" "+theme.IconChevronRight+" ") + theme.Bg(f.Value)
+			lines = append(lines, theme.PadWithBg(line, width))
 		}
+		lines = append(lines, theme.EmptyLineBg(width))
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-// resultColumns describes the diagnostics results table.
-func resultColumns() []datatable.Column[testResult] {
-	return []datatable.Column[testResult]{
-		{
-			Title: "Test", MinWidth: 22,
-			Cell: func(r testResult) string { return r.name },
-		},
-		{
-			Title: "Status", MinWidth: 6,
-			// No Style: the icon already says which way the test went, and the
-			// migration is meant to change nothing but the text colour.
-			Cell: resultStatusCell,
-		},
-		{
-			Title: "Output", MinWidth: 10, Flex: 1,
-			Cell: func(r testResult) string { return firstOutputLine(r.output) },
-		},
+// section renders a titled block of prose, wrapped to the pane.
+func section(width int, title, body string) []string {
+	if strings.TrimSpace(body) == "" {
+		return nil
 	}
+	lines := []string{
+		theme.PadWithBg(theme.SubTitleStyle.Render(theme.IconConfig+" "+title), width),
+		theme.EmptyLineBg(width),
+	}
+	wrapped := lipgloss.NewStyle().Width(max(width-4, 20)).Render(body)
+	for line := range strings.SplitSeq(wrapped, "\n") {
+		lines = append(lines, theme.PadWithBg(theme.Bg("  "+line), width))
+	}
+	lines = append(lines, theme.EmptyLineBg(width))
+	return lines
 }
 
-// resultStatusCell is the status cell: an icon and a word, plain text (Rule 122).
-func resultStatusCell(r testResult) string {
-	switch {
-	case r.cancelled:
-		return theme.IconCanceled + " —"
-	case r.success:
-		return theme.IconOK + " OK"
-	default:
-		return theme.IconError + " FAIL"
+// renderTrace draws a route trace, with the caveat that makes it readable.
+func (m *Model) renderTrace(width int) string {
+	title := "ICMP route"
+	if m.traceTCP {
+		title = "TCP route"
 	}
+
+	lines := []string{
+		theme.EmptyLineBg(width),
+		theme.PadWithBg(theme.SubTitleStyle.Render(theme.IconNetwork+" "+title), width),
+		theme.EmptyLineBg(width),
+	}
+	// The trace is the one probe that still runs in a container, so it answers
+	// for the container's network and can disagree with the checks above it.
+	// Saying so is cheaper than a user reconciling two contradictory screens.
+	lines = append(lines, theme.PadWithBg(
+		theme.DimStyle.Render("  Traced from the Docker network tool container, not from this machine."), width))
+	lines = append(lines, theme.EmptyLineBg(width))
+	lines = append(lines, formatTracerouteOutput(m.traceOutput, width)...)
+	return strings.Join(lines, "\n")
 }
 
-// rebuildResultsTable refills the results table in the order the tests were
-// started. The table itself is built once, in New: rebuilding it here is what
-// dropped the cursor back to the top on every update.
-func (m *Model) rebuildResultsTable() {
-	if m.state != StateResults {
-		return
-	}
-
-	items := make([]testResult, 0, len(m.resultOrder))
-	for _, name := range m.resultOrder {
-		if res, ok := m.results[name]; ok {
-			items = append(items, res)
-		}
-	}
-	m.resultsTable.SetItems(items)
-	m.resultsTable.Resize(m.width, max(m.height-13, 3))
+// rebuildChecksTable refills the table from the filtered results.
+func (m *Model) rebuildChecksTable() {
+	m.checksTable.SetItems(m.visibleChecks())
+	m.checksTable.Resize(m.width, max(m.height-13, 3))
 }
 
 func (m *Model) resizeInputs() {
@@ -211,18 +233,8 @@ func (m *Model) resizeDetailsViewport() {
 	m.detailsViewport.Style = lipgloss.NewStyle().Background(theme.ColorBackground)
 }
 
-// firstOutputLine returns the first non-empty line of a test's output.
-//
-// It no longer truncates: the column width belongs to the renderer, and
-// datatable measures and cuts on rune boundaries there (render.go). Truncating
-// here meant the cell had to know a width the Cell function is not given, which
-// is the coupling the migration removes.
-func firstOutputLine(output string) string {
-	for line := range strings.SplitSeq(output, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			return line
-		}
-	}
-	return ""
+// progressLabel names the question being asked, so a wait on a slow stage is
+// legible rather than mute.
+func (m *Model) progressLabel() string {
+	return fmt.Sprintf("%s (%d/%d)", netcheck.StageTitle(m.runStage), m.runStep+1, m.totalSteps)
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -14,10 +15,15 @@ import (
 // GetTitle implements HeaderView
 func (m *Model) GetTitle() string {
 	base := theme.IconNetwork + " Network"
-	if m.state == StateDetails && m.selectedTest != "" {
-		detailStyle := lipgloss.NewStyle().Foreground(theme.ColorPrimary).Background(theme.ColorBackground)
-		suffix := detailStyle.Render(" " + theme.IconChevronRight + " " + m.selectedTest)
-		return base + suffix
+	if m.state == StateDetails {
+		label := m.selected.Title
+		if m.traceOutput != "" {
+			label = "Route trace"
+		}
+		if label != "" {
+			detailStyle := lipgloss.NewStyle().Foreground(theme.ColorPrimary).Background(theme.ColorBackground)
+			return base + detailStyle.Render(" "+theme.IconChevronRight+" "+label)
+		}
 	}
 	return base
 }
@@ -70,43 +76,80 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 	switch m.state {
 	case StateInput:
 		return append(tabShortcuts, shortcut.Shortcuts{
-			{Key: "space", Description: "Toggle checkbox"},
-			{Key: "enter", Description: "Run (on button)"},
+			{Key: "enter", Description: "Run the checks"},
 			{Key: "?", Description: "Help"},
 		}...)
 	case StateRunning:
 		return shortcut.Shortcuts{
-			{Key: "esc", Description: "Cancel & show results"},
+			{Key: "esc", Description: "Cancel and keep what completed"},
 		}
 	case StateResults:
-		return append(tabShortcuts, shortcut.Shortcuts{
-			{Key: "enter", Description: "View logs"},
-			{Key: "esc", Description: "New diagnostic"},
-			{Key: "?", Description: "Help"},
-		}...)
-	case StateDetails:
-		sc := shortcut.Shortcuts{
-			{Key: "esc", Description: "Back to results"},
-		}
-		res, ok := m.results[m.selectedTest]
-		isDNS := ok && (res.name == "DNS Resolution" || res.name == "Reverse DNS")
-		isTrace := ok && (res.name == "Traceroute" || res.name == "TCP Traceroute")
-		if isDNS || isTrace {
-			label := "Raw output"
-			if m.rawDetails {
-				label = "Formatted output"
+		if m.filterBar.InEditMode() {
+			return shortcut.Shortcuts{
+				{Key: "enter/esc", Description: "Confirm / Cancel search"},
 			}
-			sc = append(sc, shortcut.Shortcut{Key: "f", Description: label})
 		}
-		return sc
+		sc := shortcut.Shortcuts{
+			{Key: "enter", Description: "Explain the check"},
+		}
+		// Rule 130: the trace is offered only when something points at the
+		// path. A certificate that does not verify is not a routing problem.
+		if m.traceWorthOffering() {
+			sc = append(sc, shortcut.Shortcut{Key: "H", Description: "Trace the route"})
+		}
+		label := "Show problems only"
+		if m.filterBar.IsTokenActive(problemsToken) {
+			label = "Show every check"
+		}
+		sc = append(sc,
+			shortcut.Shortcut{Key: "p", Description: label},
+			shortcut.Shortcut{Key: "/", Description: "Search"},
+			shortcut.Shortcut{Key: "ctrl+r", Description: "Run again"},
+			shortcut.Shortcut{Key: "esc", Description: "New diagnostic"},
+			shortcut.Shortcut{Key: "?", Description: "Help"},
+		)
+		return append(tabShortcuts, sc...)
+	case StateDetails:
+		return shortcut.Shortcuts{
+			{Key: "esc", Description: "Go back to the checks"},
+		}
 	}
 	return tabShortcuts
 }
 
-// GetHeaderInfo implements HeaderView
+// GetHeaderInfo implements HeaderView.
+//
+// The verdict is the one line worth spending: it is the answer to the question
+// the view exists for, and reading it off ten rows is what the header is
+// supposed to save. It appears only once there is a run to summarise.
 func (m *Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
-	return []shortcut.HeaderInfo{
+	info := []shortcut.HeaderInfo{
 		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},
+	}
+	if m.activeTab != tabDiagnostics || m.state == StateInput {
+		return info
+	}
+	if len(m.results.All()) == 0 {
+		return info
+	}
+	return append(info, shortcut.HeaderInfo{
+		Key:   "Verdict",
+		Value: m.verdict.String(),
+		Style: verdictHeaderStyle(m.verdict),
+	})
+}
+
+// verdictHeaderStyle colours the headline the way the table colours a cell.
+func verdictHeaderStyle(v netcheck.Verdict) lipgloss.Style {
+	switch v {
+	case netcheck.Fail:
+		return theme.SeverityTextStyle("CRITICAL")
+	case netcheck.Warn:
+		return theme.SeverityTextStyle("MEDIUM")
+	case netcheck.OK:
+		return theme.StatusOKStyle
+	default:
+		return theme.DimStyle
 	}
 }
 
@@ -115,6 +158,9 @@ func (m *Model) GetFooterHeight() int {
 	if m.activeTab == tabPorts {
 		return 3 + m.portsModel.table.FilterBar().ExtraHeight()
 	}
+	if m.activeTab == tabDiagnostics {
+		return 3 + m.filterBar.ExtraHeight()
+	}
 	return 3
 }
 
@@ -122,9 +168,12 @@ func (m *Model) GetFooterHeight() int {
 func (m *Model) RenderFooter(width int) string {
 	var parts []string
 
-	// Ports filter bar renders above the tab bar when visible
-	if m.activeTab == tabPorts && m.portsModel.table.FilterBar().IsVisible() {
+	// The active tab's filter bar renders above the tab bar when visible.
+	switch {
+	case m.activeTab == tabPorts && m.portsModel.table.FilterBar().IsVisible():
 		parts = append(parts, m.portsModel.table.FilterBar().View())
+	case m.activeTab == tabDiagnostics && m.filterBar.IsVisible():
+		parts = append(parts, m.filterBar.View())
 	}
 
 	tabs := theme.RenderTabs([]theme.TabItem{
@@ -150,28 +199,43 @@ func (m *Model) activeFooter() (*components.FooterMessage, components.Status) {
 	case tabTopology:
 		return &m.topologyModel.footer, m.topologyModel.statusLine()
 	}
-	return &m.footer, components.Status{}
+	return &m.footer, m.statusLine()
+}
+
+// statusLine is what the diagnostics tab derives on every frame: a progress
+// label while the pipeline walks, and nothing once it has an answer. It is a
+// status rather than a footer message because it is a state, not an event —
+// a message expires after three seconds and a run outlives that (Rule 128).
+func (m *Model) statusLine() components.Status {
+	switch {
+	case m.tracing:
+		return components.Status{Text: "Tracing the route...", Spinner: true}
+	case m.state == StateRunning:
+		return components.Status{Text: m.progressLabel(), Spinner: true}
+	default:
+		return components.Status{}
+	}
 }
 
 // GetHelpContent implements help.Provider
 func (m *Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title:       "Network",
-		Description: "Three-tab view: run diagnostic tests (Diagnostics), monitor live ports (Ports), or inspect network topology (Topology).",
+		Description: "Three-tab view: check whether a host is reachable and its certificate chain sound (Diagnostics), monitor live ports (Ports), or inspect network topology (Topology).",
 		KeyBindings: []help.KeyBinding{
 			// Tab navigation
 			{Key: "tab / shift+tab", Description: "Cycle between Diagnostics, Ports, and Topology tabs"},
-			// Diagnostics form
+			// Diagnostics
 			{Key: "↑ / ↓", Description: "Navigate between fields (Diagnostics tab)"},
-			{Key: "space", Description: "Toggle checkbox (Diagnostics tab)"},
-			{Key: "enter", Description: "Run diagnostics (on button)"},
-			// Running
-			{Key: "esc (running)", Description: "Cancel run and show partial results"},
-			// Results
-			{Key: "enter (results)", Description: "View full log output for selected test"},
-			{Key: "esc", Description: "New diagnostic (back to form)"},
-			// Details
-			{Key: "esc (details)", Description: "Back to results table"},
+			{Key: "enter (form)", Description: "Run the checks against the target"},
+			{Key: "esc (running)", Description: "Cancel the run and keep what completed"},
+			{Key: "enter (results)", Description: "Explain the selected check"},
+			{Key: "H", Description: "Trace the route — offered only when a check points at the path"},
+			{Key: "p", Description: "Show problems only / show every check (Diagnostics tab)"},
+			{Key: "/", Description: "Search checks by name or observation (Diagnostics tab)"},
+			{Key: "ctrl+r", Description: "Run the checks again"},
+			{Key: "esc (results)", Description: "Back to the target form"},
+			{Key: "esc (details)", Description: "Back to the checks"},
 			{Key: "pgup / pgdown", Description: "Scroll half page up / down"},
 			// Ports tab
 			{Key: "t", Description: "Toggle TCP filter — cumulative with u (Ports tab)"},
@@ -186,20 +250,38 @@ func (m *Model) GetHelpContent() help.Content {
 		},
 		Sections: []help.Section{
 			{
-				Title: "Diagnostics Tab — Available Tests",
-				Body: "Ping           - ICMP reachability check\n" +
-					"DNS Resolution  - Resolve hostname to IP (auto: Reverse DNS for IP targets)\n" +
-					"Traceroute      - ICMP network path to target\n" +
-					"TCP Traceroute  - TCP network path to target:port\n" +
-					"Netcat          - TCP port connectivity check\n" +
-					"HTTP/HTTPS      - Curl request with status code\n" +
-					"SSL Certificate - Certificate validity and expiry",
+				Title: "Diagnostics Tab — What it asks",
+				Body: "One target, one run. The checks follow from the target and from what has " +
+					"already failed, so there is nothing to select.\n\n" +
+					"DNS resolution     - the name, against the resolver your own traffic uses\n" +
+					"Reverse DNS        - the name an address publishes (literal targets only)\n" +
+					"ICMP echo          - reachability; a filtered echo is a warning, never a failure\n" +
+					"TCP connect        - the port you named, and the answer that decides reachability\n" +
+					"TLS handshake      - whether the port speaks TLS at all\n" +
+					"Certificate chain  - verified against this machine's store, intermediates included\n" +
+					"Hostname match     - whether the certificate names the host you dialled\n" +
+					"Certificate expiry - the validity window, in days\n" +
+					"TLS version        - the negotiated protocol version\n" +
+					"HTTP response      - whether the service answers, over the scheme actually spoken",
+			},
+			{
+				Title: "Diagnostics Tab — Reading the verdicts",
+				Body: "OK      - the objective is met\n" +
+					"WARN    - met, but something is off: a certificate near expiry, a deprecated\n" +
+					"          version, a chain that verifies here and will not elsewhere\n" +
+					"FAIL    - the objective is not met\n" +
+					"N/A     - no meaning for this target, or blocked by a check above it\n" +
+					"UNKNOWN - the check could not look, which is not the same as a pass\n\n" +
+					"A stage whose dependency failed does not run: its checks come back N/A naming " +
+					"what blocked them, so a broken run reads as one failure and a named point of " +
+					"rupture rather than as ten red rows.\n\n" +
+					"Press enter on any row for what it means and what to do about it.",
 			},
 			{
 				Title: "Ports Tab — How it works",
 				Body: "Runs ss -tupan inside an ephemeral Docker container with --net=host --pid=host " +
 					"every 2 seconds. Shows all active TCP/UDP sockets on the host including the owning " +
-					"process name and PID. ctrl+k runs kill -9 via a --privileged container.",
+					"process name and PID. K runs kill -9 via a --privileged container, after a confirmation.",
 			},
 			{
 				Title: "Topology Tab — How it works",
@@ -217,9 +299,15 @@ func (m *Model) GetHelpContent() help.Content {
 					"  FAILED     — unreachable, ARP probe received no reply (red)",
 			},
 			{
-				Title: "Docker image",
-				Body: "All tabs use the image configured at docker.network_tool_image in your config. " +
-					"The image must include ss (iproute2), ping, traceroute, nc, curl, openssl, ip, and " +
+				Title: "Where the checks run",
+				Body: "The diagnostic checks run in this process, on this machine's network stack. " +
+					"They therefore answer for the resolver, the routing table and the VPN you are " +
+					"actually on.\n\n" +
+					"The route trace (H), the Ports tab and the Topology tab still run in the image " +
+					"configured at docker.network_tool_image. On Docker Desktop that container lives " +
+					"in a Linux VM with its own network namespace, so a trace can legitimately " +
+					"disagree with the checks above it. The trace pane says so.\n\n" +
+					"The image must include traceroute, tcptraceroute, ss (iproute2), ip, and " +
 					"iptables or nft for firewall inspection.",
 			},
 		},
