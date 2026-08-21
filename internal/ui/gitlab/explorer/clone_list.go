@@ -67,6 +67,14 @@ const (
 	colCloneDetailMin = 20
 )
 
+// The column order, named so a test asserting on a cell does not hard-code the
+// position it happens to sit at today.
+const (
+	colCloneRepository = iota
+	colCloneDetail
+	colCloneStatus
+)
+
 func newCloneList(target string, run *cloneRun) *cloneList {
 	return &cloneList{
 		target: target,
@@ -83,14 +91,13 @@ func newCloneList(target string, run *cloneRun) *cloneList {
 }
 
 // cloneColumns describes the clone list.
+//
+// The repository comes first and the status last. The rows are one long list of
+// paths under a common prefix, so the name is what the eye runs down to find a
+// line; a status column on the left pushes every one of them right by sixteen
+// cells and puts the changing text where the stable text should be.
 func cloneColumns() []datatable.Column[cloneRow] {
 	return []datatable.Column[cloneRow]{
-		{
-			Title: "Status", MinWidth: colCloneStatusMin,
-			Cell:  func(r cloneRow) string { return cloneStatusLabel(r) },
-			Style: cloneStatusStyle,
-			Less:  func(a, b cloneRow) bool { return a.state < b.state },
-		},
 		{
 			Title: "Repository", MinWidth: colClonePathMin, Flex: 2,
 			Cell:   func(r cloneRow) string { return r.path },
@@ -101,6 +108,12 @@ func cloneColumns() []datatable.Column[cloneRow] {
 			Title: "Detail", MinWidth: colCloneDetailMin, Flex: 1,
 			Cell:   func(r cloneRow) string { return r.detail },
 			Search: func(r cloneRow) string { return r.detail },
+		},
+		{
+			Title: "Status", MinWidth: colCloneStatusMin,
+			Cell:  func(r cloneRow) string { return cloneStatusLabel(r) },
+			Style: cloneStatusStyle,
+			Less:  func(a, b cloneRow) bool { return a.state < b.state },
 		},
 	}
 }
