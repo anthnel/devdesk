@@ -30,6 +30,76 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D46 — le CPU Docker du dashboard montait à 1400 %, et la RAM additionnait des
+fractions de touts différents. Corrigé.** Signalé depuis une vraie session. Le
+1400 % n'était pas une erreur d'arithmétique : c'était un chiffre juste sous une
+étiquette fausse. Les deux lignes de la boîte Docker sont maintenant des parts
+de ce que le daemon possède, donc de 0 à 100 comme celles de Host.
+
+**Ce que `docker stats` donne, mesuré et non supposé.** `.CPUPerc` est relatif à
+**un cœur** : Docker calcule `(cpuDelta/systemDelta) × onlineCPUs × 100`. Un
+conteneur lancé avec quatre boucles occupées a été relevé à **398,36 %**.
+`FetchAggregateMetrics` sommait ces valeurs, donc le total allait de 0 à
+`NCPU × 100` — 1600 % sur ce daemon-ci, et le 1400 % signalé voulait dire
+« quatorze cœurs occupés ».
+
+Trois conséquences, dont une seule était visible :
+
+- **Deux échelles sous un même mot.** Host affiche `cpu.Percent(0, false)`, la
+  moyenne sur tous les cœurs, de 0 à 100. Docker affichait une somme relative
+  aux cœurs. Les deux passaient par `percentValue`, sur une ligne appelée `CPU`,
+  à la même position dans deux boîtes voisines — et le commentaire d'`Aggregate`
+  invitait explicitement à les comparer.
+- **La courbe était morte au-dessus d'un cœur.** `chartBlock(…, 100)` pose
+  `WithMaxValue(100)` et `WithNoAutoMaxValue()` : tout ce qui dépasse est
+  écrêté. Au-delà d'un cœur occupé la courbe CPU de Docker était une ligne
+  droite en haut, donc plate exactement quand il y avait quelque chose à voir.
+- **La ligne RAM était pire, et c'était bien un calcul faux.** `.MemPerc` est la
+  part de la limite **du conteneur lui-même**. Relevé sur un vrai daemon : un
+  conteneur plafonné à 256 MiB annonce `344KiB / 256MiB` → 0,13 %, un autre
+  `5.324MiB / 15.18GiB` → 0,03 %. Les additionner donne 0,16 %, qui n'est un
+  pourcentage de rien. Ça ne se voyait pas tant qu'aucun conteneur ne déclarait
+  `--memory`, puisque tous les dénominateurs valaient alors le total du daemon.
+
+**Le dénominateur vient de `docker info`, pas de l'hôte.** `FetchCapacity` lit
+`{{.NCPU}}` et `{{.MemTotal}}` — ce que le *daemon* voit, ce qui sous Windows et
+macOS est l'allocation de la VM et non la machine. Lire le compte de cœurs de
+l'hôte aurait été faux sur exactement les deux plateformes où Docker n'est pas
+l'hôte, et le commentaire d'`Aggregate` reconnaissait déjà cette VM.
+
+Il est relu **à chaque agrégat** plutôt que mémoïsé. Les 240 ms que ça coûte
+(mesurées, contre les 1 à 2 s que `docker stats` dépense déjà sur la même
+horloge) achètent ceci : une Docker Desktop reconfigurée change ce nombre sous
+un DevDesk qui tourne, et un memo diviserait par l'ancien jusqu'à la fin du
+processus — sans que rien ne le dise, puisqu'un mauvais dénominateur produit un
+pourcentage parfaitement plausible.
+
+**Une capacité illisible rend l'agrégat indisponible**, elle ne le rend pas brut.
+Les sommes ne sont pas des pourcentages ; sans leur dénominateur il n'y a rien
+d'honnête à afficher, et `-` est un mot que ce dashboard a déjà.
+
+**`parseSize` ne connaissait pas les unités binaires.** `MemUsage` est la seule
+colonne que Docker formate en MiB/GiB, et `"15.18GiB"` tombait à travers tous
+les cas décimaux jusqu'au `"B"` nu, échouait à lire `"15.18Gi"` comme un nombre,
+et rendait **0**. L'ordre de la table compte : les suffixes binaires finissent
+aussi par `B`, donc une table décimale d'abord fait correspondre `GB` à la queue
+de `GiB` et ne les atteint jamais. Un test pinait l'ancienne limite (« binary
+unit is not decoded ») ; il pinait le défaut.
+
+**`parsePair` est `parseNetIO` renommée pour ce qu'elle fait.** Les deux moitiés
+d'un `MemUsage` sont « utilisé » et « limite », pas « reçu » et « émis » : le
+parsing est identique, les mots ne le sont pas, et une lecture mémoire passant
+par une fonction appelée `parseNetIO` se lirait comme une erreur à chaque appel.
+
+**Ce qui n'a pas changé : le CPU par conteneur, dans la vue `containers`.** Il
+reste relatif à un cœur, comme `docker stats` — c'est ce que voit quelqu'un qui
+compare les deux, et le normaliser là rendrait DevDesk incohérent avec l'outil
+qu'il enveloppe. La normalisation appartient à l'agrégat, qui est le seul
+endroit où l'on prétend parler de la machine.
+
+Vérifié bout en bout sur le daemon : quatre boucles occupées, le conteneur à
+398,36 %, l'agrégat à **25,02 %** — quatre cœurs sur seize.
+
 **D45 — dans les résultats de security, le bord bas du tableau remontait dès
 qu'un filtre s'activait, `.` ne faisait rien, et les filtres n'étaient annoncés
 nulle part. Corrigé.** Signalé depuis une vraie session, en trois symptômes qui

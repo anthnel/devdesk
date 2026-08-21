@@ -2,11 +2,16 @@ package docker
 
 import "testing"
 
-// parseSize only ever sees Docker's decimal SI formatting ("1.23GB"), because its
-// call sites are `docker image ls {{.Size}}`, `docker system df -v` and the
-// NetIO/BlockIO columns of `docker stats` — all of which go through
-// units.HumanSize. Binary units (MiB/GiB) come from MemUsage, which is formatted
-// elsewhere and never reaches this function.
+// parseSize sees both of Docker's unit families, and which one depends on the
+// column: `docker image ls {{.Size}}`, `docker system df -v` and the
+// NetIO/BlockIO cells of `docker stats` go through units.HumanSize and come out
+// decimal, while MemUsage is formatted elsewhere and comes out binary.
+//
+// The binary half is newer than the rest of this function, and it was added for
+// a reason worth keeping in view: "15.18GiB" used to fall past every decimal
+// case to the bare "B", fail to parse "15.18Gi" as a number, and return 0 — a
+// value that then served as the denominator of the dashboard's Docker memory
+// share.
 func TestParseSize(t *testing.T) {
 	tests := []struct {
 		name string
@@ -22,8 +27,16 @@ func TestParseSize(t *testing.T) {
 		{"fractional kilobytes", "1.2kB", 1200},
 		{"surrounding whitespace is trimmed", "  64MB  ", 64_000_000},
 		{"gigabytes take precedence over the bare B suffix", "2GB", 2_000_000_000},
-		{"unknown unit yields zero", "5TB", 0},
-		{"binary unit is not decoded", "1.5GiB", 0},
+		{"terabytes", "5TB", 5_000_000_000_000},
+
+		// The binary family, and the order that makes it reachable: every one of
+		// these ends in "B" too, so a decimal-first table matches "GB" against
+		// "GiB"'s tail and never gets here.
+		{"binary kilobytes", "512KiB", 524_288},
+		{"binary megabytes", "5.324MiB", 5_582_618},
+		{"binary gigabytes", "1.5GiB", 1_610_612_736},
+		{"binary terabytes", "2TiB", 2_199_023_255_552},
+		{"a binary unit is not read as its decimal neighbour", "15.18GiB", 16_299_400_888},
 		{"non-numeric value yields zero", "abcMB", 0},
 		{"missing unit yields zero", "1024", 0},
 		{"embedded space breaks parsing", "1.5 GB", 0},
