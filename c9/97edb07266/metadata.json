@@ -3,7 +3,7 @@
   "checkpoint_id": "c997edb07266",
   "strategy": "manual-commit",
   "branch": "fix-containers-busy-spinner",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "docs/backlog.md",
     "internal/ui/containers/update.go",
@@ -16,13 +16,20 @@
       "compact_transcript": "/c9/97edb07266/0/transcript.jsonl",
       "content_hash": "/c9/97edb07266/0/content_hash.txt",
       "prompt": ""
+    },
+    {
+      "metadata": "/c9/97edb07266/1/metadata.json",
+      "transcript": "/c9/97edb07266/1/full.jsonl",
+      "compact_transcript": "/c9/97edb07266/1/transcript.jsonl",
+      "content_hash": "/c9/97edb07266/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 68,
-    "cache_creation_tokens": 140810,
-    "cache_read_tokens": 4795163,
-    "output_tokens": 11585,
-    "api_call_count": 34
+    "input_tokens": 126,
+    "cache_creation_tokens": 179813,
+    "cache_read_tokens": 10904650,
+    "output_tokens": 39526,
+    "api_call_count": 63
   }
 }
