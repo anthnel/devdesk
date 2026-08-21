@@ -1,0 +1,13 @@
+/plan dans le viewer je voudrais ajouter le support de la coloration syntaxique des markdown, dockerfile, et shell scripts, je voudrais aussi pouvoir afficher les markdown en format brut ou pas.
+
+---
+
+implémente
+
+---
+
+merge la PR
+
+---
+
+dans la vue explorer quand je fais le clone je voudrais que la colonne status soit tout à droite au lieu d'etre au début
