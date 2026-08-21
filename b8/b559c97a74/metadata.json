@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "b8b559c97a74",
+  "strategy": "manual-commit",
+  "branch": "fix-security-filters",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/header_test.go",
+    "internal/ui/security/inventory_test.go",
+    "internal/ui/security/model_test.go",
+    "internal/ui/security/view.go",
+    "internal/ui/security/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b8/b559c97a74/0/metadata.json",
+      "transcript": "/b8/b559c97a74/0/full.jsonl",
+      "compact_transcript": "/b8/b559c97a74/0/transcript.jsonl",
+      "content_hash": "/b8/b559c97a74/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 37140,
+    "cache_read_tokens": 7964097,
+    "output_tokens": 24495,
+    "api_call_count": 35
+  }
+}
