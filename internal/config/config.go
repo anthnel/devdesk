@@ -45,6 +45,16 @@ type AppConfig struct {
 	// out of three is worse than a setting that is simply off there (§3.26).
 	TerminalNewWindow bool `yaml:"terminal_new_window"`
 
+	// ShowHiddenFiles decides whether the workspaces view lists entries whose
+	// name starts with a dot. False is the default because that is what the
+	// view has always done, so an existing config keeps its meaning and there
+	// is nothing to migrate.
+	//
+	// It governs the listing *and* the nested-repo discovery behind S, F and A:
+	// what the view shows is what those act on, and two rules for one question
+	// would let a repository be a visible row and an invisible target at once.
+	ShowHiddenFiles bool `yaml:"show_hidden_files"`
+
 	// SecretBackend pins where secrets are stored: "auto" (default), "keyring"
 	// for the host secret manager only, or "git-credential" for git's helper.
 	// See credentials.Select for what each one resolves to.

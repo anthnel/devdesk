@@ -74,7 +74,7 @@ func (m Model) View() string {
 
 	if len(m.table.Items()) == 0 {
 		if m.currentPath == "" {
-			return contentStyle.Render(theme.HelpStyle.Render("\nNo workspaces found\n\nPress [ctrl+n] to create a new workspace."))
+			return contentStyle.Render(theme.HelpStyle.Render("\nNo workspaces found\n"))
 		}
 		return contentStyle.Render(theme.HelpStyle.Render("\nEmpty directory\n"))
 	}
@@ -411,13 +411,13 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcut.Shortcut{Key: "O", Description: "IDE"},
 	)
 
-	// ctrl+w: only shown for git repos
+	// W: only shown for git repos
 	if isGitRepo {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "W", Description: "Browser"})
 	}
 
-	// ctrl+s and s: shown for git repos and directories with nested repos —
-	// both act on the same target, so they appear and disappear together.
+	// S and F: shown for git repos and directories with nested repos — both act
+	// on the same target, so they appear and disappear together.
 	if isGitRepo || hasSubRepos {
 		shortcuts = append(shortcuts,
 			shortcut.Shortcut{Key: "S", Description: "Scan"},
@@ -429,7 +429,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcut.Shortcut{Key: "A", Description: "Scan all"},
 	)
 
-	// ctrl+n: hidden when a git repo is selected
+	// N: hidden when a git repo is selected
 	if !isGitRepo {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "N", Description: "New directory"})
 	}
@@ -467,10 +467,9 @@ func (m Model) GetHelpContent() help.Content {
 		Title:       "Workspaces",
 		Description: "A drill-down file browser for your local working directories. Workspaces are folders within the configured directory (" + m.config.App.WorkspacesDir + "). Navigate into directories with → and go back with ←. Tabs at the bottom show your current path.",
 		KeyBindings: []help.KeyBinding{
-			{Key: "↑/k", Description: "Move selection up"},
-			{Key: "↓/j", Description: "Move selection down"},
-			{Key: "→/l", Description: "Enter selected directory"},
-			{Key: "←/h", Description: "Go to parent directory"},
+			{Key: "↑ / ↓", Description: "Move the selection"},
+			{Key: "→", Description: "Enter selected directory"},
+			{Key: "←", Description: "Go to parent directory"},
 			{Key: "Esc", Description: "Go to parent directory"},
 			{Key: "enter", Description: "Open a file in the viewer, or view scan details for a scanned git repo"},
 			{Key: "N", Description: "Create a new directory (at current level)"},
@@ -490,7 +489,11 @@ func (m Model) GetHelpContent() help.Content {
 		Sections: []help.Section{
 			{
 				Title: "Terminal",
-				Body:  "Press t to open an in-place terminal at the selected directory (TUI suspends until you exit the shell). Press T (Shift+T) to open a new terminal window — auto-detected from the environment or set via App.TerminalCommand in config. Note: new window mode does not work on WSL.",
+				Body:  "Press T to open a terminal at the selected directory. What that means is a setting, not a second key: with app.terminal_new_window off (the default) the shell opens in place and the TUI suspends until you exit it; with it on, a separate terminal window is launched — auto-detected from the environment, or set app.terminal_command yourself. The window variant has nothing to open under WSL or through SSH, which is why it is a setting and off there.",
+			},
+			{
+				Title: "Hidden files",
+				Body:  "Entries whose name starts with a dot are left out by default. Set app.show_hidden_files in the configuration view (:config, app tab) to list them. There is no key for it here: the setting governs both what this view lists and the nested-repo discovery behind S, F and A, so with it on, a scan of a directory reaches repositories vendored under .venv or .terraform too.",
 			},
 			{
 				Title: "Navigation",
@@ -498,11 +501,11 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Git Status",
-				Body:  "Directories that are git repositories display their branch name and status indicators: modified files, untracked files, unpushed commits, and unpulled commits. The unpulled count comes from the local remote-tracking ref, so it is only as fresh as the last fetch — press s to bring it up to date.",
+				Body:  "Directories that are git repositories display their branch name and status indicators: modified files, untracked files, unpushed commits, and unpulled commits. The unpulled count comes from the local remote-tracking ref, so it is only as fresh as the last fetch — press F to bring it up to date.",
 			},
 			{
 				Title: "Sync",
-				Body:  "Press s on a git repo to fetch its remote and fast-forward the current branch. On a non-git directory, s syncs every nested git repo. Sync never merges, rebases, stashes or pushes: a repository with uncommitted changes, with local commits the remote does not have, or on a detached HEAD is fetched and then left exactly as it was, and the footer says which one it was and why. The fetch happens either way, so a repository it declines still ends up showing how far behind it really is.",
+				Body:  "Press F on a git repo to fetch its remote and fast-forward the current branch. On a non-git directory, F syncs every nested git repo. Sync never merges, rebases, stashes or pushes: a repository with uncommitted changes, with local commits the remote does not have, or on a detached HEAD is fetched and then left exactly as it was, and the footer says which one it was and why. The fetch happens either way, so a repository it declines still ends up showing how far behind it really is.",
 			},
 			{
 				Title: "Open in Browser",

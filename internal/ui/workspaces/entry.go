@@ -8,15 +8,28 @@ import (
 	"strings"
 )
 
+// isHidden decides what the workspaces view leaves out.
+//
+// One rule, consulted by the listing and by the nested-repo walk both: what the
+// view shows is what S and F act on, and two rules for that question would let
+// a repository be a visible row and an invisible target at once.
+//
+// The consequence of showHidden is worth stating rather than discovering: the
+// walk will then descend into .venv, .terraform and .cache, so S on a directory
+// reaches whatever they vendor. The depth limit is what bounds it.
+func isHidden(name string, showHidden bool) bool {
+	return !showHidden && strings.HasPrefix(name, ".")
+}
+
 // enrichEntry populates git and project type metadata for a directory entry
-func enrichEntry(entry *Entry) {
+func enrichEntry(entry *Entry, showHidden bool) {
 	entry.ProjectType = detectProjectType(entry.Path)
 	detectGitStatus(entry)
 	if entry.IsGitRepo {
 		return
 	}
 	// For non-git directories, find nested git repos (depth ≤ 3)
-	entry.SubRepoPaths = detectSubRepoPaths(entry.Path, 3)
+	entry.SubRepoPaths = detectSubRepoPaths(entry.Path, 3, showHidden)
 }
 
 // detectProjectType detects the project type by looking for signature files
@@ -159,14 +172,14 @@ func execGit(dir string, args ...string) (string, error) {
 }
 
 // detectSubRepoPaths walks a directory up to maxDepth and returns paths of git repos found.
-func detectSubRepoPaths(basePath string, maxDepth int) []string {
+func detectSubRepoPaths(basePath string, maxDepth int, showHidden bool) []string {
 	var repos []string
-	walkSubRepos(basePath, 0, maxDepth, &repos)
+	walkSubRepos(basePath, 0, maxDepth, showHidden, &repos)
 	return repos
 }
 
 // walkSubRepos is the recursive helper for detectSubRepoPaths
-func walkSubRepos(dir string, depth, maxDepth int, repos *[]string) {
+func walkSubRepos(dir string, depth, maxDepth int, showHidden bool, repos *[]string) {
 	if depth > maxDepth {
 		return
 	}
@@ -180,9 +193,9 @@ func walkSubRepos(dir string, depth, maxDepth int, repos *[]string) {
 		return
 	}
 	for _, e := range entries {
-		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+		if !e.IsDir() || isHidden(e.Name(), showHidden) {
 			continue
 		}
-		walkSubRepos(filepath.Join(dir, e.Name()), depth+1, maxDepth, repos)
+		walkSubRepos(filepath.Join(dir, e.Name()), depth+1, maxDepth, showHidden, repos)
 	}
 }

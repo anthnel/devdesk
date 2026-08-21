@@ -182,6 +182,10 @@ func sections(themes, views []string) []section {
 			group("Paths", theme.IconDirectory,
 				text("Workspaces dir", func(c *config.Config) *string { return &c.App.WorkspacesDir },
 					"Root the workspaces view browses"),
+				// It qualifies the root declared just above, which is why it
+				// sits here rather than under Appearance.
+				toggle("Show hidden files", func(c *config.Config) *bool { return &c.App.ShowHiddenFiles },
+					"Dot entries, in the listing and in nested-repo discovery"),
 				text("Log file", func(c *config.Config) *string { return &c.App.LogFile }, ""),
 			),
 			group("External commands", theme.IconTools,
