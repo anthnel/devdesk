@@ -5941,6 +5941,65 @@ dépenserait. Ils passent par `labelFor`, qui **résout la ligne** plutôt que d
 plier la chaîne à l'aveugle : un chemin absolu de dépôt peut légitimement
 commencer par une URL de registry configurée, et seule la ligne sait de quel
 cache le nom vient.
+### 3.37 L'inventaire de `:sec` ne liste plus ce qui n'existe plus — **done**
+
+Une image supprimée par `D` continuait d'apparaître dans `:sec`. La suppression
+retire l'image et relance `fetchImages()`, mais ne touche jamais
+`ImageScanCache` — et l'inventaire *est* ce cache. `deleteScanCacheCmd` existait
+déjà dans le même fichier ; seul le purge de `A` l'appelait.
+
+Le défaut n'était pas sur un chemin mais sur quatre :
+
+| Chemin | Ce qui restait |
+|---|---|
+| `D` sur une image (`:oci`) | l'entrée `ImageScanCache` |
+| `P` (prune) | toutes les entrées des images supprimées |
+| `D` sur un dépôt (`:ws`) | l'entrée `WorkspaceScanCache` |
+| un `docker rmi` ou un `rm -rf` hors DevDesk | idem |
+
+#### Réconcilier au chargement plutôt que cascader
+
+Quatre cascades auraient corrigé trois cas et demi : le prune supprime un
+ensemble d'images qu'il ne nomme pas, et le quatrième chemin est le monde
+extérieur, qui n'appelle rien. Une règle unique au chargement les couvre tous —
+`loadInventoryCmd` écarte une image absente de `docker image ls` et un chemin de
+dépôt qui n'existe plus.
+
+Le coût est réel et assumé : `:sec` ne lisait que deux fichiers, il fait
+maintenant un `docker image ls` à chaque ouverture et à chaque `ctrl+r`. C'est
+ce que la vue OCI fait déjà, et c'est le prix d'une seule règle plutôt que de
+quatre appelants à ne pas oublier.
+
+#### Un échec n'est pas une absence
+
+C'est le garde-fou sur lequel toute la conception repose. « Docker n'est pas
+lancé » et « l'image a disparu » sont le même silence vu de l'appelant, et lire
+le premier comme le second viderait l'inventaire de toutes ses images à l'arrêt
+du démon. `localImages` rend donc un **second retour** disant si elle a pu
+savoir : une énumération ratée conserve tout. `isGone` teste `os.IsNotExist` et
+rien d'autre — une erreur de permission ou un partage non monté veut dire que le
+chemin n'a pas pu être *lu*, ce qui n'est pas la même affirmation.
+
+C'est le même défaut que D20 sous un autre jour : afficher une cible qui n'existe
+plus est une ligne périmée, en cacher une qui existe est un mensonge.
+
+#### Cacher, pas supprimer
+
+L'entrée et son résultat stocké restent sur le disque. Une réponse transitoire —
+un démon qui revient avec une liste plus courte, un partage pas encore monté — ne
+doit pas détruire un scan que personne n'a demandé de purger, et `A` ne rescanne
+que les lignes présentes, donc une entrée cachée ne coûte rien en attendant.
+
+#### `listImages` est une variable de paquet
+
+Pour cette seule raison, et la production ne la réassigne jamais — le précédent
+est `FooterMsgDuration`. La réconciliation fait dépendre le loader de ce que le
+démon détient, et un test ne peut pas *pull* une image : sans cette couture, les
+allers-retours par les vrais fichiers de cache se réduiraient à vérifier qu'une
+fixture est absente, ce qu'ils réussiraient pour la mauvaise raison. Deux d'entre
+eux ont été corrigés dans le même mouvement — les dépôts fixtures sont désormais
+de vrais répertoires temporaires, et le test de cloisonnement par contexte
+déclare son image *pullée* pour que son absence ne puisse venir que du contexte.
 
 ## 4. Existing plans
 

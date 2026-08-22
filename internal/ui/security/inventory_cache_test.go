@@ -1,11 +1,15 @@
 package security
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -26,6 +30,39 @@ func findTarget(t *testing.T, targets []scanTarget, name string) scanTarget {
 	return scanTarget{}
 }
 
+// pulled makes the daemon answer with exactly these image names for the length
+// of one test. The inventory drops an image nothing lists, and a test cannot
+// pull one — without this, every image assertion below would pass or fail for
+// the wrong reason.
+func pulled(t *testing.T, names ...string) {
+	t.Helper()
+	previous := listImages
+	listImages = func() ([]docker.Image, error) {
+		images := make([]docker.Image, 0, len(names))
+		for _, name := range names {
+			repo, tag, found := strings.Cut(name, ":")
+			if !found {
+				tag = ""
+			}
+			images = append(images, docker.Image{Repository: repo, Tag: tag})
+		}
+		return images, nil
+	}
+	t.Cleanup(func() { listImages = previous })
+}
+
+// existingRepo is a real directory, because the loader now drops a repository
+// path that is not one. A fixture under /srv never existed on the machine
+// running the test.
+func existingRepo(t *testing.T, name string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("create the repository fixture: %v", err)
+	}
+	return path
+}
+
 func loadedTargets(t *testing.T) []scanTarget {
 	t.Helper()
 	msg, ok := testutil.MsgOf[InventoryLoadedMsg](loadInventoryCmd())
@@ -40,6 +77,8 @@ func loadedTargets(t *testing.T) []scanTarget {
 func TestTheInventoryReadsBothCaches(t *testing.T) {
 	contextName := config.CurrentContextName()
 	scannedAt := time.Date(2026, 8, 5, 9, 0, 0, 0, time.UTC)
+	pulled(t, "registry.test/both:1")
+	repoPath := existingRepo(t, "both-repo")
 
 	images, err := cache.NewImageScanCache(contextName)
 	if err != nil {
@@ -52,12 +91,12 @@ func TestTheInventoryReadsBothCaches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open workspace cache: %v", err)
 	}
-	if err := repos.Set("/srv/both-repo", cache.WorkspaceScanEntry{RepoPath: "/srv/both-repo", High: 4, ScannedAt: scannedAt}); err != nil {
+	if err := repos.Set(repoPath, cache.WorkspaceScanEntry{RepoPath: repoPath, High: 4, ScannedAt: scannedAt}); err != nil {
 		t.Fatalf("cache a workspace scan: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = images.Delete("registry.test/both:1")
-		_ = repos.Delete("/srv/both-repo")
+		_ = repos.Delete(repoPath)
 	})
 
 	targets := loadedTargets(t)
@@ -69,7 +108,7 @@ func TestTheInventoryReadsBothCaches(t *testing.T) {
 	if !image.ScannedAt.Equal(scannedAt) {
 		t.Errorf("ScannedAt = %v, want the cached time %v", image.ScannedAt, scannedAt)
 	}
-	repo := findTarget(t, targets, "/srv/both-repo")
+	repo := findTarget(t, targets, repoPath)
 	if repo.Kind != kindRepo || repo.Counts.High != 4 {
 		t.Errorf("the repository row = %+v, want a repository carrying its counts", repo)
 	}
@@ -87,6 +126,8 @@ func TestTheInventoryListsOnlyTheCurrentContext(t *testing.T) {
 		t.Fatalf("cache under another context: %v", err)
 	}
 	t.Cleanup(func() { _ = other.Delete("elsewhere/api:9") })
+	// The image is pulled, so its absence can only come from the context scope.
+	pulled(t, "elsewhere/api:9")
 
 	for _, target := range loadedTargets(t) {
 		if target.Name == "elsewhere/api:9" {
@@ -128,15 +169,27 @@ func TestAStoredRescanIsReadableByBothTheRowAndEnter(t *testing.T) {
 	for _, tc := range []struct {
 		kind targetKind
 		name string
-		load func(string) (*scan.Result, error)
+		// exists makes the target real for the length of the subtest and
+		// returns the name to store it under: the loader now drops a target
+		// with nothing behind it.
+		exists func(t *testing.T, name string) string
+		load   func(string) (*scan.Result, error)
 	}{
-		{kindImage, "registry.test/stored:2", cache.LoadImageScanResult},
-		{kindRepo, "/srv/stored-repo", cache.LoadWorkspaceScanResult},
+		{
+			kind: kindImage, name: "registry.test/stored:2",
+			exists: func(t *testing.T, name string) string { pulled(t, name); return name },
+			load:   cache.LoadImageScanResult,
+		},
+		{
+			kind: kindRepo, name: "stored-repo",
+			exists: existingRepo,
+			load:   cache.LoadWorkspaceScanResult,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			result := resultFixture()
 			result.Counts = scan.SeverityCounts{Critical: 2, High: 1}
-			job := inventoryScanJob{Kind: tc.kind, Name: tc.name}
+			job := inventoryScanJob{Kind: tc.kind, Name: tc.exists(t, tc.name)}
 
 			storeRescan(job, result)
 			t.Cleanup(func() {
