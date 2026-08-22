@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -102,8 +103,26 @@ func TestTopologyFetchFailureSurfacesAShortMessage(t *testing.T) {
 	if m.topologyModel.state != topoStateReady {
 		t.Error("a failed fetch left the tab spinning forever")
 	}
-	if !strings.Contains(m.View(), "Failed to load network data") {
-		t.Error("the failure is not shown in the viewport")
+	// The failure belongs to the footer (Rule 128), not to the pane: a red block
+	// in the middle of the sections put the heaviest thing on screen inside what
+	// it was about, and it needs to outlive the three seconds a message gets.
+	if strings.Contains(m.View(), "Failed to load network data") {
+		t.Error("the failure is rendered inside the viewport")
+	}
+	status := m.topologyModel.statusLine()
+	if !strings.Contains(status.Text, "Failed to load network data") {
+		t.Errorf("status = %q, does not carry the failure", status.Text)
+	}
+	if status.Level != components.LevelError {
+		t.Error("the failure does not render as an error")
+	}
+	// The section reads like its neighbours do when they hold nothing.
+	if !strings.Contains(m.View(), "No interfaces found") {
+		t.Error("the interfaces section says nothing at all")
+	}
+	// Rule 134: the header already advertises ctrl+r.
+	if strings.Contains(m.View(), "retry") {
+		t.Error("the pane carries an inline shortcut hint")
 	}
 }
 
@@ -212,5 +231,69 @@ func TestTopologyResizeHasAFloor(t *testing.T) {
 	if m.topologyModel.viewport.Width < 20 || m.topologyModel.viewport.Height < 3 {
 		t.Errorf("viewport = %dx%d on a tiny terminal, want the floors of 20x3",
 			m.topologyModel.viewport.Width, m.topologyModel.viewport.Height)
+	}
+}
+
+// TestAFailedRefreshDatesTheSectionsItKeeps — the error banner was already
+// persistent, so it was visible; what was missing is that the sections under it
+// are from an earlier load. An error line above data the reader takes for
+// current is the same defect the ports table had, one screen over.
+func TestAFailedRefreshDatesTheSectionsItKeeps(t *testing.T) {
+	m := topologyModel(t)
+	before := len(m.topologyModel.interfaces)
+	if before == 0 {
+		t.Fatal("the fixture loaded no interfaces")
+	}
+
+	m = feed(t, m, topoDataMsg{err: errors.New("cannot connect to the Docker daemon")})
+
+	if got := len(m.topologyModel.interfaces); got != before {
+		t.Fatalf("the pane holds %d interfaces after a failed refresh, want %d", got, before)
+	}
+	if !strings.Contains(m.topologyModel.loadErr, "Refresh failed") {
+		t.Errorf("banner = %q, does not say the refresh is what failed", m.topologyModel.loadErr)
+	}
+	// theme.TimeAgo (Rule 127) says "now" under a minute and "5 min ago" past
+	// it, so the banner is phrased to read with either.
+	if !strings.Contains(m.topologyModel.loadErr, "last loaded:") {
+		t.Errorf("banner = %q, does not date the sections below it", m.topologyModel.loadErr)
+	}
+}
+
+// TestAFirstLoadThatFailsIsAPlainFailure — with nothing on screen there is
+// nothing to date, and "showing the load from" would be a lie.
+func TestAFirstLoadThatFailsIsAPlainFailure(t *testing.T) {
+	m := newTestModel(t)
+	m.activeTab = tabTopology
+	m = feed(t, m, topoDataMsg{err: errors.New("daemon down")})
+
+	if strings.Contains(m.topologyModel.loadErr, "Refresh failed") {
+		t.Errorf("banner = %q claims to show an earlier load that never happened",
+			m.topologyModel.loadErr)
+	}
+	if m.topologyModel.loadErr == "" {
+		t.Error("a failed first load said nothing")
+	}
+}
+
+// TestEverySectionSaysSomethingWhenItHoldsNothing — a heading with nothing
+// under it reads as a rendering bug rather than as an empty section, and
+// Routing Table was the one that did it: it suppressed its empty message while
+// loadErr was set, from when the error was drawn in the pane in its place.
+func TestEverySectionSaysSomethingWhenItHoldsNothing(t *testing.T) {
+	m := newTestModel(t)
+	m.activeTab = tabTopology
+	m = feed(t, m, topoDataMsg{err: errors.New("daemon down")})
+
+	out := m.View()
+	for _, want := range []string{
+		"No interfaces found",
+		"No routes found",
+		"No neighbours found",
+		"Firewall status unavailable",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("a section is silent: %q is missing", want)
+		}
 	}
 }

@@ -59,20 +59,98 @@ func TestPortsDataPopulatesTheTable(t *testing.T) {
 	}
 }
 
-func TestPortsFetchFailureSurfacesAShortMessage(t *testing.T) {
+// TestAFailedFetchKeepsTheRowsAndDatesThem is the defect this replaces: the
+// early return kept the table and the footer message expired after three
+// seconds, leaving a table refreshing into failure with nothing on screen
+// saying so. Dropping the rows would be the wrong fix — on a two-second tick a
+// transient hiccup would flash the table empty, and the rows are not wrong,
+// they are dated.
+func TestAFailedFetchKeepsTheRowsAndDatesThem(t *testing.T) {
+	m := portsModel(t)
+	before := len(m.portsModel.table.Items())
+	if before == 0 {
+		t.Fatal("the fixture has no rows to keep")
+	}
+
+	m, cmd := step(t, m, portsDataMsg{err: errors.New("cannot connect to the Docker daemon")})
+
+	if got := len(m.portsModel.table.Items()); got != before {
+		t.Fatalf("the table holds %d rows after a failure, want the %d it had", got, before)
+	}
+	if !m.portsModel.stale {
+		t.Fatal("the failure was not recorded as staleness")
+	}
+	// Rule 128: this is a state, not an event. A message would expire, and its
+	// expiry is exactly what made a dead table look alive.
+	if m.portsModel.footer.IsSet() {
+		t.Errorf("footer = %q; staleness belongs to the status line, which has no timer",
+			m.portsModel.footer.Text())
+	}
+	if cmd != nil {
+		t.Error("a command was returned for a state that needs no timer")
+	}
+
+	status := m.portsModel.statusLine().Text
+	if !strings.Contains(status, "unreachable") {
+		t.Errorf("status = %q, does not say Docker is unreachable", status)
+	}
+	if !strings.Contains(status, "as of") {
+		t.Errorf("status = %q, does not date the rows on screen", status)
+	}
+	if strings.Contains(status, "cannot connect") {
+		t.Errorf("status = %q leaks the raw error; Rule 128 wants a short line plus a log", status)
+	}
+}
+
+// TestStalenessOutranksThePause — a pause is what the user asked for, an
+// unreachable Docker is not, and only one of the two makes the rows lie.
+func TestStalenessOutranksThePause(t *testing.T) {
+	m := portsModel(t)
+	m = feed(t, m, testutil.Key(" "))
+	if !m.portsModel.paused {
+		t.Fatal("space did not pause")
+	}
+	m = feed(t, m, portsDataMsg{err: errors.New("daemon down")})
+
+	if got := m.portsModel.statusLine().Text; !strings.Contains(got, "unreachable") {
+		t.Fatalf("status = %q, want the staleness to win over the pause", got)
+	}
+}
+
+// TestAFetchThatNeverSucceededSaysSoRatherThanDatingNothing — TimeAgo renders
+// the zero time as an empty string, so "ports as of " would trail off.
+func TestAFetchThatNeverSucceededSaysSoRatherThanDatingNothing(t *testing.T) {
 	m := feed(t, newTestModel(t), testutil.Key("tab"))
+	m = feed(t, m, portsDataMsg{err: errors.New("daemon down")})
 
-	m, cmd := step(t, m, portsDataMsg{err: errors.New("permission denied")})
+	status := m.portsModel.statusLine().Text
+	if strings.HasSuffix(status, "as of ") || strings.Contains(status, "as of") {
+		t.Fatalf("status = %q dates rows that were never fetched", status)
+	}
+	if !strings.Contains(status, "unreachable") {
+		t.Fatalf("status = %q", status)
+	}
+	// And the body must not claim the host has no open ports.
+	if body := m.portsModel.view(); strings.Contains(body, "No active ports found") {
+		t.Error("the empty state claims there are no ports when none could be read")
+	}
+}
 
-	if !m.portsModel.footer.IsSet() {
-		t.Error("a failed fetch left the footer empty")
+// TestASuccessfulFetchClearsTheStaleness — the state has to end, or a recovered
+// daemon still reads as dead.
+func TestASuccessfulFetchClearsTheStaleness(t *testing.T) {
+	m := portsModel(t)
+	m = feed(t, m, portsDataMsg{err: errors.New("daemon down")})
+	if !m.portsModel.stale {
+		t.Fatal("the failure was not recorded")
 	}
-	if strings.Contains(m.portsModel.footer.Text(), "permission denied") {
-		t.Errorf("footer = %q leaks the raw error; Rule 128 wants a short message plus a log", m.portsModel.footer.Text())
+
+	m = feed(t, m, portsDataMsg{ports: portFixtures()})
+	if m.portsModel.stale {
+		t.Fatal("a successful fetch left the staleness set")
 	}
-	// Rule 128: a footer message must come with the timer that clears it.
-	if cmd == nil {
-		t.Error("no command returned, so the footer message would never clear")
+	if got := m.portsModel.statusLine().Text; got != "" {
+		t.Errorf("status = %q after recovery, want empty", got)
 	}
 }
 

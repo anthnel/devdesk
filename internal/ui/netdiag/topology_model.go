@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -129,6 +130,10 @@ type TopologyModel struct {
 	firewall    []FirewallChain
 	firewallSrc string
 	loadErr     string
+	// loadedAt dates the sections on screen. A failed refresh keeps them — they
+	// are the last true answer — so the banner has to say how old they are, or
+	// an error line sits above data the reader takes for current.
+	loadedAt time.Time
 
 	viewport viewport.Model
 	spinner  spinner.Model
@@ -195,7 +200,11 @@ func (tm *TopologyModel) update(msg tea.Msg) (*TopologyModel, tea.Cmd) {
 func (tm *TopologyModel) handleData(msg topoDataMsg) (*TopologyModel, tea.Cmd) {
 	if msg.err != nil {
 		log.Printf("ERROR [netdiag/topology] fetch: %v", msg.err)
-		tm.loadErr = "Failed to load network data — check logs"
+		if tm.hasData() {
+			tm.loadErr = "Refresh failed — sections last loaded: " + theme.TimeAgo(tm.loadedAt)
+		} else {
+			tm.loadErr = "Failed to load network data — check logs"
+		}
 	} else {
 		tm.interfaces = msg.interfaces
 		tm.routes = msg.routes
@@ -203,11 +212,20 @@ func (tm *TopologyModel) handleData(msg topoDataMsg) (*TopologyModel, tea.Cmd) {
 		tm.firewall = msg.firewall
 		tm.firewallSrc = msg.firewallSrc
 		tm.loadErr = ""
+		tm.loadedAt = time.Now()
 	}
 	tm.state = topoStateReady
 	tm.viewport.SetContent(tm.buildViewportContent())
 	tm.viewport.GotoTop()
 	return tm, nil
+}
+
+// hasData reports whether an earlier load left anything on screen. A refresh
+// that fails over nothing is a plain failure; one that fails over data is a
+// dating problem, and the two deserve different words.
+func (tm *TopologyModel) hasData() bool {
+	return len(tm.interfaces) > 0 || len(tm.routes) > 0 ||
+		len(tm.neighbours) > 0 || len(tm.firewall) > 0
 }
 
 func (tm *TopologyModel) handleKey(msg tea.KeyMsg) (*TopologyModel, tea.Cmd) {
@@ -247,10 +265,12 @@ func (tm *TopologyModel) buildViewportContent() string {
 	lines = append(lines, theme.PadWithBg(theme.SubTitleStyle.Render("  "+theme.IconNetwork+" Network Interfaces"), w))
 	lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  "+sep), w))
 
-	if tm.loadErr != "" {
-		lines = append(lines, theme.PadWithBg(theme.StatusErrorStyle.Render("  "+tm.loadErr), w))
-		lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  ctrl+r — retry"), w))
-	} else if len(tm.interfaces) == 0 {
+	// The failure itself belongs to the footer (Rule 128): it is a state, it
+	// needs to outlive three seconds, and a red block inside the pane put the
+	// heaviest thing on screen in the middle of the sections it was about. The
+	// section says what its neighbours say when they are empty. The retry hint
+	// went with it — the header already advertises ctrl+r (Rule 134).
+	if len(tm.interfaces) == 0 {
 		lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  No interfaces found"), w))
 	} else {
 		for _, iface := range tm.interfaces {
@@ -302,7 +322,12 @@ func (tm *TopologyModel) buildViewportContent() string {
 	lines = append(lines, theme.PadWithBg(theme.SubTitleStyle.Render("  "+theme.IconArrowRight+" Routing Table"), w))
 	lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  "+sep), w))
 
-	if len(tm.routes) == 0 && tm.loadErr == "" {
+	// The `&& tm.loadErr == ""` this used to carry made Routing Table the one
+	// section that fell silent on a failed load, back when the error was drawn
+	// inside the pane and stood in for it. The error is in the footer now, so
+	// the guard left a heading with nothing under it while its three
+	// neighbours all said something.
+	if len(tm.routes) == 0 {
 		lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  No routes found"), w))
 	}
 	for _, route := range tm.routes {
@@ -382,6 +407,9 @@ func (tm *TopologyModel) buildViewportContent() string {
 func (tm *TopologyModel) statusLine() components.Status {
 	if tm.state == topoStateLoading {
 		return components.Status{Text: "Loading network data...", Spinner: true}
+	}
+	if tm.loadErr != "" {
+		return components.Status{Text: tm.loadErr, Level: components.LevelError}
 	}
 	return components.Status{}
 }

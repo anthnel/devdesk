@@ -68,10 +68,23 @@ func killProcessCmd(image, pid string) tea.Cmd {
 // rather than an event, so it is rendered from pm.paused instead of set as a
 // message — a message would expire after three seconds while still paused.
 func (pm *PortsModel) statusLine() components.Status {
+	// Staleness outranks the pause: a pause is what the user asked for, an
+	// unreachable Docker is not, and only one of the two makes the rows lie.
+	if pm.stale {
+		return components.Status{Text: pm.staleLabel(), Level: components.LevelError}
+	}
 	if pm.paused {
 		return components.Status{Text: "Paused — press space to resume"}
 	}
 	return components.Status{}
+}
+
+// staleLabel dates the rows on screen, or says there are none to date.
+func (pm *PortsModel) staleLabel() string {
+	if pm.lastOK.IsZero() {
+		return "Docker unreachable — no ports could be read"
+	}
+	return "Docker unreachable — ports as of " + theme.TimeAgo(pm.lastOK)
 }
 
 // filterTokenProto and filterTokenState are the label constants for FilterBar tokens.
@@ -105,6 +118,19 @@ type PortsModel struct {
 	// that reaches a process outside it, so it is the one that most needed a
 	// confirmation and had none.
 	confirmModal *components.ConfirmModal
+
+	// lastOK is when the table last received real data, and stale says the most
+	// recent fetch failed.
+	//
+	// They exist because a failed fetch keeps the rows: dropping them would
+	// flash the table empty on a transient hiccup, two seconds apart, and the
+	// rows are not wrong — they are dated. What was missing is their age. A
+	// footer *message* cannot carry it either: it expires after three seconds
+	// (Rule 128), and what was left was a table refreshing into failure with
+	// nothing on screen saying so. That is D20's shape — "we could not look"
+	// rendered as data.
+	lastOK time.Time
+	stale  bool
 
 	// footer is this tab's own message line. Each tab keeps one: a shared
 	// instance would let a message set on Ports outlive the switch away from it.
@@ -272,8 +298,14 @@ func (pm *PortsModel) handleTick() (*PortsModel, tea.Cmd) {
 func (pm *PortsModel) handleData(msg portsDataMsg) (*PortsModel, tea.Cmd) {
 	if msg.err != nil {
 		log.Printf("ERROR [netdiag/ports] RunSS: %v", msg.err)
-		return pm, pm.footer.Error("Failed to fetch ports — check logs")
+		// The rows stay: they are dated, not wrong, and the status line is what
+		// says so. No footer message — this is a state, and a state that
+		// expires after three seconds is how a dead table came to look alive.
+		pm.stale = true
+		return pm, nil
 	}
+	pm.stale = false
+	pm.lastOK = time.Now()
 	// The cursor and the scroll survive this, which is what the whole
 	// tableReady dance existed to achieve on a two-second tick.
 	pm.table.SetItems(msg.ports)
@@ -401,7 +433,12 @@ func (pm *PortsModel) view() string {
 	if len(pm.table.Visible()) == 0 && !pm.table.FilterBar().IsVisible() {
 		lines = append(lines, theme.EmptyLineBg(w))
 		msg := "No active ports found"
-		if pm.table.Items() == nil {
+		switch {
+		case pm.stale:
+			// The status line already dates the failure; the body must not
+			// claim the host has no open ports when nothing could be read.
+			msg = "No ports could be read"
+		case pm.table.Items() == nil:
 			msg = "Loading ports..."
 		}
 		lines = append(lines, theme.PadWithBg(theme.Bg("  ")+theme.DimStyle.Render(msg), w))
