@@ -15,3 +15,9 @@ donne moi un exemple de 󰒋 8080 │ one named address
 ---
 
 permute les positions des colonnes ports et created
+
+---
+
+merge et est-ce que le worktree install-go-exe a été intégré sur main : 16:39:03 ❯ git worktree list
+C:/Users/anthoni/projects/entire/anthnel/devdesk                60a81bd [main]
+C:/Users/anthoni/projects/entire/anthnel/devdesk-install-goexe  d041d80 [install-goexe]
