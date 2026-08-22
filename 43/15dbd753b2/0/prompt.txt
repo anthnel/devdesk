@@ -1,0 +1,13 @@
+dans la vue config, Il faut ajouter le context dans le header (comme pour les autres vues) et File qui donne le path du fichier de config doit aller sous Paths>Workspaces dir. La checkbox Show hidden files doit être mise sous les trois path : Workspace dir, Config file, Log file sinon ça choque visuellement. Le titre du datatable ne doit pas avoir " · dev", c'est le context qui le dit dans le header.
+
+---
+
+/plan autre point dans la meme pr, remplace la section docker par network, regarde aussi les paramètres qui pourraient être ajoutés comme timeout ou autre (utilisé dans la vue diadnostics)
+
+---
+
+go
+
+---
+
+commit and open the PR
