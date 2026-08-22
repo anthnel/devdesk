@@ -1,0 +1,53 @@
+regarde ce qu'il reste dans le backlog
+
+---
+
+mets à jour l'entrée Table plumbing. Ensuite on attaque 3.6. Il faut qu'on affine un peu. Comme déjà dit une seule forge active par contexte. Je souhaite un seul écran pour faire l'authentification (exemple git-auth / ga et pas gla) ecran d'authentification s'adapte en fonction de la forge choisie pour le contexte. L'explorer doit fonctionner pour les deux forges. dans la config il y aura sans doute un nouvel onglet github.
+
+---
+
+oui, tranche : SDK Go, et consigne la décision
+
+---
+
+oui, attaque l'étape 0
+
+---
+
+merge la PR et attaque l'étape 1
+
+---
+
+merge et continue
+
+---
+
+oui
+
+---
+
+continue
+
+---
+
+oui, merge et attaque l'étape 4
+
+---
+
+continue étape 5
+
+---
+
+continue
+
+---
+
+oui, merge et attaque l'étape 7
+
+---
+
+continue
+
+---
+
+merge et attaque l'étape 8
