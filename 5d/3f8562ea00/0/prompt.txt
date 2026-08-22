@@ -1,0 +1,54 @@
+je voudrais branstormer sur la vue net/diagnostics. L'objectif de cet vue est de vérifier qu'un hôte est joignable, s'il y a des certificats que la chaine est correcte. Au lieu de devoir cocher les tests à faire je me demande s'il ne serait pas préférable de faire une analyse et de présenter le résultat complet, correctemetn formater, par exemple dans un tableau avec une explication. On pourrait même prévoir optionnellement de faire analyser le résultat par un llm qui donnerait une explication sur ce qui est observé
+
+---
+
+Autre question que je me demande, est-ce que ça vaut mieux de pouvoir appeler un lLM depuis l'application ou d'exposer un serveur MCP ? et qu'un agent externe vient interroger.
+
+---
+
+Qu'est-ce qu'il faut trancher avant de pouvoir lancer le plan d'implémentation?
+
+---
+
+1. refonte 
+2. a
+4. touche 
+5. ok avec ta recommandations
+6. ok
+pour le 3 explique moi
+
+---
+
+démarre et laisse la 4 ouverte on affinera plus tard
+
+---
+
+go
+
+---
+
+merge et continue
+
+---
+
+merge et go
+
+---
+
+merge
+
+---
+
+l'image network tool est utilisé pour quelles fonctionnalités par rapport à ce que le code go fait ?
+
+---
+
+quand j'arrête docker, que je vais sur ports, il me met dans le footer un message d'erreur mais le datatable est toujours alimenté
+
+---
+
+oui, corrige, et vérifie topology et le test OCI aussi
+
+---
+
+[Image #1] je mettrais le message rouge dans le footer et un message dim sous network interface comme les autres sections
