@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "f30afef56828",
+  "strategy": "manual-commit",
+  "branch": "backend-github",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "go.mod",
+    "go.sum",
+    "internal/app/context.go",
+    "internal/app/gitlab.go",
+    "internal/forge/github/browse.go",
+    "internal/forge/github/browse_test.go",
+    "internal/forge/github/fake_test.go",
+    "internal/forge/github/github.go",
+    "internal/forge/github/urls_test.go",
+    "internal/forge/github/write.go",
+    "internal/forge/github/write_test.go",
+    "internal/forge/gitlab/auth.go",
+    "internal/forge/gitlab/auth_test.go",
+    "internal/forge/session/auth_test.go",
+    "internal/forge/session/fake_test.go",
+    "internal/forge/session/session.go",
+    "internal/forge/session/session_test.go",
+    "internal/ui/gitlab/auth/update.go",
+    "internal/ui/gitlab/explorer/pipeline.go",
+    "internal/ui/workspaces/commands.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f3/0afef56828/0/metadata.json",
+      "transcript": "/f3/0afef56828/0/full.jsonl",
+      "compact_transcript": "/f3/0afef56828/0/transcript.jsonl",
+      "content_hash": "/f3/0afef56828/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 60875,
+    "cache_read_tokens": 29762519,
+    "output_tokens": 43964,
+    "api_call_count": 42
+  }
+}
