@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
@@ -140,7 +141,7 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 	if f.Label == secretBackendLabel && *f.str(m.config) != m.backendOnFocus {
 		m.confirmModal = sharedcomponents.NewConfirmModal(
 			"Change secret backend",
-			"Stored secrets are not migrated. The GitLab token and registry passwords will have to be entered again. Continue?")
+			"Stored secrets are not migrated. The "+m.vocab().Name+" token and registry passwords will have to be entered again. Continue?")
 		return m, nil, false
 	}
 
@@ -166,7 +167,7 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 		// secret backend.
 		return m, tea.Batch(
 			m.persist(saved{gitlabURL: true}),
-			m.footer.Info("GitLab URL changed — sign in again with :gla"),
+			m.footer.Info(m.vocab().Name+" URL changed — sign in again with :"+string(command.ViewGitlabAuth)),
 		), true
 	}
 	return m, m.persist(saved{}), true

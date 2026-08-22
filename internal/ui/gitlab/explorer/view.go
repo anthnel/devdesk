@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -50,7 +52,7 @@ func (m Model) View() string {
 
 	// Normal view
 	if !m.shared.IsAuthenticated {
-		return contentStyle.Render(renderNotAuthenticated())
+		return contentStyle.Render(renderNotAuthenticated(m.vocab()))
 	}
 
 	if m.error != "" {
@@ -64,7 +66,7 @@ func (m Model) View() string {
 		if m.loadingTree() {
 			return ""
 		}
-		return contentStyle.Render(renderEmpty())
+		return contentStyle.Render(renderEmpty(m.vocab()))
 	}
 
 	return m.renderTable()
@@ -155,7 +157,7 @@ func (m Model) status() components.Status {
 	case m.mode == ModeSelecting:
 		return components.Status{Text: m.selectionStatusLine()}
 	case m.shared.IsAuthenticated && m.loadingTree():
-		return components.Status{Text: "Loading GitLab groups...", Spinner: true}
+		return components.Status{Text: "Loading " + m.vocab().Name + " " + strings.ToLower(m.vocab().Namespaces) + "...", Spinner: true}
 	}
 	return components.Status{}
 }
@@ -206,12 +208,33 @@ func (m Model) renderTabBar() string {
 	return theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, m.activeTabIndex), m.width)
 }
 
-// nodeTypeLabel returns the type label for a tree node
-func nodeTypeLabel(node *TreeNode) string {
+// nodeTypeLabel returns the type label for a tree node, in the forge's own
+// words: a GitLab user reads Group/Project, a GitHub user Organization/
+// Repository.
+func nodeTypeLabel(v forge.Vocabulary, node *TreeNode) string {
 	if node.Type == NodeTypeGroup {
-		return "Group"
+		return v.Namespace
 	}
-	return "Project"
+	return v.Repository
+}
+
+// vocab is the wording of the forge this context targets. Resolved from the
+// config: the "not authenticated" screen needs the words before a session
+// exists, so a value hanging off a live Forge would be unavailable exactly
+// where it is needed most.
+func (m Model) vocab() forge.Vocabulary {
+	if m.config == nil {
+		return forge.VocabularyFor("")
+	}
+	return forge.VocabularyFor(m.config.Forge.Type)
+}
+
+// forgeIcon is the glyph naming the active forge.
+func (m Model) forgeIcon() string {
+	if m.config == nil {
+		return theme.ForgeIcon("")
+	}
+	return theme.ForgeIcon(m.config.Forge.Type)
 }
 
 // visibilityLabel returns the visibility label for a tree node
@@ -278,9 +301,14 @@ func pipelineStatusStyle(node *TreeNode) lipgloss.Style {
 
 // Helper rendering functions
 
-func renderNotAuthenticated() string {
+// renderNotAuthenticated names the forge and the command that signs into it.
+//
+// The command comes from internal/command rather than from a literal: it is
+// routing identity, the same for both forges, and writing it out here is how a
+// message survives a rename by going quietly wrong.
+func renderNotAuthenticated(v forge.Vocabulary) string {
 	style := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError)
-	return style.Render(theme.IconWarning + " GitLab not authenticated\n\nPlease authenticate first with :gitlab-auth (or :gla)")
+	return style.Render(theme.IconWarning + " " + v.Name + " not authenticated\n\nPlease authenticate first with :" + string(command.ViewGitlabAuth))
 }
 
 func renderError(err string) string {
@@ -288,8 +316,9 @@ func renderError(err string) string {
 	return style.Render(fmt.Sprintf("%s Error: %s", theme.IconError, err))
 }
 
-func renderEmpty() string {
-	return theme.HelpStyle.Render("No groups found\n\nYou may not have access to any GitLab groups.")
+func renderEmpty(v forge.Vocabulary) string {
+	lower := strings.ToLower(v.Namespaces)
+	return theme.HelpStyle.Render("No " + lower + " found\n\nYou may not have access to any " + v.Name + " " + lower + ".")
 }
 
 // timeAgo formats a time pointer as a compact relative string (Rule 127).
@@ -388,7 +417,7 @@ func (m Model) cloningShortcuts() shortcut.Shortcuts {
 }
 
 func (m Model) GetTitle() string {
-	base := theme.IconGitlab + " GitLab Explorer"
+	base := m.forgeIcon() + " " + m.vocab().Name + " Explorer"
 	if m.creationForm != nil {
 		return base + " " + theme.IconChevronRight + " " + m.creationForm.GetTitle()
 	}
@@ -424,9 +453,12 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 
 // GetHelpContent retourne le contenu d'aide de la vue GitLab Explorer
 func (m Model) GetHelpContent() help.Content {
+	v := m.vocab()
 	return help.Content{
-		Title:       "GitLab Explorer",
-		Description: "A drill-down explorer for browsing GitLab groups and projects. Navigate into groups with → and go back with ←. Tabs at the bottom show your current path.",
+		Title: v.Name + " Explorer",
+		Description: "A drill-down explorer for browsing " + v.Name + " " + strings.ToLower(v.Namespaces) + " and " +
+			strings.ToLower(v.Repositories) + ". Navigate into " + strings.ToLower(v.Namespaces) +
+			" with → and go back with ←. Tabs at the bottom show your current path.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑↓", Description: "Navigate the list"},
 			{Key: "→", Description: "Drill into selected group"},
@@ -476,7 +508,8 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Prerequisites",
-				Body:  "You must be authenticated (via :gitlab-auth) to access the explorer. The clone method (SSH or HTTPS) is configurable in the context configuration.",
+				Body: "You must be authenticated (via :" + string(command.ViewGitlabAuth) + ") to access the explorer. " +
+					"The clone method (SSH or HTTPS) is configurable in the context configuration.",
 			},
 		},
 	}

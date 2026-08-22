@@ -193,7 +193,7 @@ func (m *Model) authenticate() tea.Cmd {
 	token := m.tokenInput.Value()
 
 	if url == "" {
-		m.error = "No GitLab URL configured — set it in :config, gitlab tab"
+		m.error = "No " + m.vocab().Name + " URL configured — set it in :config, " + m.forgeTab() + " tab"
 		return nil
 	}
 	if token == "" {

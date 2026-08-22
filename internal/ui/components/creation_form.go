@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"github.com/anthnel/devdesk/internal/forge"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -22,14 +23,20 @@ const (
 	FormTypeProject
 )
 
-// resourceTypes lists the available resource types in cycle order.
-var resourceTypes = []string{"Group", "Project"}
+// resourceTypeLabels are what the two kinds are called, in cycle order. They
+// come from the forge's vocabulary rather than being written here: a GitLab
+// user creates a Group or a Project, a GitHub user an Organization or a
+// Repository, and this component knows neither (§3.6).
+func resourceTypeLabels(v forge.Vocabulary) [2]string {
+	return [2]string{v.Namespace, v.Repository}
+}
 
 // CreationForm is a form for creating GitLab groups or projects
 type CreationForm struct {
-	resourceType int      // 0=Group, 1=Project
-	formType     FormType // kept in sync with resourceType
-	parentName   string   // Name of parent group (for display)
+	resourceType   int       // 0=namespace, 1=repository
+	resourceLabels [2]string // the forge's words for the two, in cycle order
+	formType       FormType  // kept in sync with resourceType
+	parentName     string    // Name of parent group (for display)
 	// parentID is the forge's opaque identifier for the parent namespace, empty
 	// at the root. It was an int64 — GitLab's numeric id — which is exactly what
 	// §3.6 made opaque: the form carries it and never reads it.
@@ -79,7 +86,7 @@ func formTypeFromResourceType(rt int) FormType {
 // NewCreationForm creates the unified group/project creation form.
 // defaultResourceType: 0=Group, 1=Project.
 // focusedField starts at 0 (Type) so the user can immediately cycle the resource type.
-func NewCreationForm(defaultResourceType int, parentName string, parentID string, defaultVisibility string, templates []string) *CreationForm {
+func NewCreationForm(defaultResourceType int, parentName string, parentID string, defaultVisibility string, templates []string, v forge.Vocabulary) *CreationForm {
 	nameInput := textinput.New()
 	nameInput.Placeholder = "name"
 	nameInput.CharLimit = 100
@@ -101,17 +108,18 @@ func NewCreationForm(defaultResourceType int, parentName string, parentID string
 	allTemplates := append([]string{"none"}, templates...)
 
 	return &CreationForm{
-		resourceType: defaultResourceType,
-		formType:     formTypeFromResourceType(defaultResourceType),
-		parentName:   parentName,
-		parentID:     parentID,
-		nameInput:    nameInput,
-		descInput:    descInput,
-		visibility:   visIdx,
-		visibilities: visibilities,
-		templates:    allTemplates,
-		templateIdx:  0,
-		focusedField: 0, // start on Type
+		resourceType:   defaultResourceType,
+		resourceLabels: resourceTypeLabels(v),
+		formType:       formTypeFromResourceType(defaultResourceType),
+		parentName:     parentName,
+		parentID:       parentID,
+		nameInput:      nameInput,
+		descInput:      descInput,
+		visibility:     visIdx,
+		visibilities:   visibilities,
+		templates:      allTemplates,
+		templateIdx:    0,
+		focusedField:   0, // start on Type
 	}
 }
 
@@ -190,9 +198,9 @@ func (f *CreationForm) handleKeyMsg(msg tea.KeyMsg) (*CreationForm, tea.Cmd) {
 		// Field 0: cycle resource type (Group ↔ Project)
 		if f.focusedField == 0 {
 			if msg.String() == "left" {
-				f.resourceType = (f.resourceType - 1 + len(resourceTypes)) % len(resourceTypes)
+				f.resourceType = (f.resourceType - 1 + len(f.resourceLabels)) % len(f.resourceLabels)
 			} else {
-				f.resourceType = (f.resourceType + 1) % len(resourceTypes)
+				f.resourceType = (f.resourceType + 1) % len(f.resourceLabels)
 			}
 			f.formType = formTypeFromResourceType(f.resourceType)
 			// Pas de clamp du focus ici : cette branche n'est atteinte qu'avec
@@ -270,7 +278,7 @@ func (f *CreationForm) updateFocus() {
 // GetTitle returns the form title for use in the viewport breadcrumb.
 // Includes the parent name when applicable: "New Project (parent: group/sub)".
 func (f *CreationForm) GetTitle() string {
-	base := "New " + resourceTypes[f.resourceType]
+	base := "New " + f.resourceLabels[f.resourceType]
 	if f.parentName != "" {
 		parent := lipgloss.NewStyle().Foreground(theme.ColorSecondary).Background(theme.ColorBackground).Render("(parent: " + f.parentName + ")")
 		return base + " " + parent
@@ -365,7 +373,7 @@ func (f *CreationForm) renderField(label, value string, fieldIdx int) string {
 func (f *CreationForm) renderResourceTypeField() string {
 	label := "Type " + theme.IconSelect + " "
 	value := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText).
-		Render(resourceTypes[f.resourceType])
+		Render(f.resourceLabels[f.resourceType])
 	if f.focusedField == 0 {
 		return theme.KeyStyle.Render(theme.IconCircleSmall+" "+label+theme.IconChevronRight+" ") + value
 	}

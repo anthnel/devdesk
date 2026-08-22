@@ -2504,23 +2504,27 @@ invariants — a test grepping `internal/ui` for `"GitLab"` / `"GitHub"`, on the
 model of the existing check that every key in `GetShortcuts()` appears in
 `GetHelpContent()`.
 
-Sites to move, none of them subtle:
+**Sites déplacés — vingt-cinq, pas douze.** Le relevé à la main donnait la liste
+ci-dessous ; le scan des sources qu'a écrit l'étape 5 en a trouvé le double, dont
+l'aide de trois vues, le message de changement de backend de secrets et la ligne
+« Navigation » du dashboard. La liste est conservée pour ce qu'elle disait de
+chaque site, pas pour son décompte.
 
 | Location | Literal |
 |---|---|
-| `explorer/view.go:342` | `IconGitlab + " GitLab Explorer"` |
-| `explorer/view.go:258` | `"GitLab not authenticated … with :gitlab-auth (or :gla)"` — name **and** command |
-| `explorer/view.go:267` | `"No groups found … any GitLab groups."` |
-| `explorer/view.go:81` | `"Loading GitLab groups..."` |
-| `explorer/view.go:210` | `nodeTypeLabel()` → `"Group"` / `"Project"` |
-| `components/creation_form.go:26` | `resourceTypes = []string{"Group", "Project"}` |
-| `auth/view.go:43` | `IconUser + " Gitlab Authentication"` — wrong icon *and* wrong casing next to the explorer's |
-| `auth/view.go:186,227` | `"GitLab URL: "` (read-only display) and its label |
-| `auth/view.go:231` | `"not configured — set it in :config, gitlab tab"` — command **and** tab name, and the tab is now named after the forge |
-| `auth/view.go:60,61,77` | title, description, and the help text asserting the token starts with `glpat-` |
-| `dashboard/view.go:80,85` | `IconGitlab + " GitLab"`, `"Authenticate with :gitlab-auth"` |
-| `dashboard/view.go:104` | `"Merge Requests:"` |
-| `configuration/fields.go:228` | the tab title `"gitlab"` — it becomes the active forge's name |
+| `explorer/view.go` | `IconGitlab + " GitLab Explorer"` |
+| `explorer/view.go` | `"GitLab not authenticated … with :gitlab-auth (or :gla)"` — nom **et** commande |
+| `explorer/view.go` | `"No groups found … any GitLab groups."` |
+| `explorer/view.go` | `"Loading GitLab groups..."` |
+| `explorer/view.go` | `nodeTypeLabel()` → `"Group"` / `"Project"` |
+| `components/creation_form.go` | `resourceTypes = []string{"Group", "Project"}` |
+| `auth/view.go` | `IconUser + " Gitlab Authentication"` — mauvaise icône *et* mauvaise casse à côté de celle de l'explorer |
+| `auth/view.go` | `"GitLab URL: "` (affichage en lecture seule) et son libellé |
+| `auth/view.go` | `"not configured — set it in :config, gitlab tab"` — commande **et** nom d'onglet |
+| `auth/view.go` | titre, description, et le texte affirmant que le token `must` commencer par `glpat-` |
+| `dashboard/view.go` | `IconGitlab + " GitLab"`, `"Authenticate with :gitlab-auth"` |
+| `dashboard/view.go` | `"Merge Requests:"` |
+| `configuration/fields.go` | le titre d'onglet `"gitlab"` |
 
 Two of these are shapes wearing a word's clothes. `AccessLevelName()`
 (`tree.go:52`) maps GitLab's numeric levels to Owner/Maintainer/…; GitHub uses
@@ -2724,10 +2728,9 @@ font contre GitLab seul.
 4. ~~`GitLabConfig` devient `ForgeConfig`, section `forge:` avec un `type:`.~~
    **Faite** — migrée depuis `gitlab:` en tête d'`applyDefaults`, et l'ordre
    s'est révélé être tout le sujet. Détails plus bas.
-5. Extraire la `Vocabulary` et y déplacer chaque littéral du tableau ci-dessus,
-   avec le test qui les empêche de revenir. Faisable contre GitLab seul, avant
-   qu'une ligne de GitHub n'existe — c'est ce qui en fait un refactor et non une
-   réécriture.
+5. ~~Extraire la `Vocabulary` et y déplacer chaque littéral du tableau
+   ci-dessus, avec le test qui les empêche de revenir.~~ **Faite** — et le test
+   a trouvé plus de sites que le tableau n'en listait. Détails plus bas.
 6. **L'onglet de configuration devient adaptatif** : titre et jeu de visibilité
    tirés de la forge active, champ `Forge` en tête du groupe Connection,
    détection sur l'hôte avec son drapeau *dirty*, et la fermeture de session
@@ -2922,6 +2925,57 @@ réécrive le fichier sans lui.
 L'étape 6 le rend adaptatif — titre tiré de la forge active — ce qui donne
 « gitlab » aujourd'hui. Les deux messages qui citent « `:config`, gitlab tab »
 restent donc vrais.
+
+#### Ce que l'étape 5 a trouvé
+
+**Le tableau des littéraux était incomplet, et c'est le test qui l'a dit.** Il
+listait douze sites ; le scan des sources sous `internal/ui` en a trouvé
+**vingt-cinq**, dont l'aide de trois vues, le message de changement de backend
+de secrets et la ligne « Navigation » du dashboard qui énumère les noms de vues.
+Écrire la garde d'abord aurait été plus rapide que dresser la liste à la main —
+c'est la leçon, et c'est la même qu'à l'étape 0.
+
+**La vocabulaire se résout depuis la configuration, pas depuis la session.**
+L'entrée disait « porté par `shared.State` ». Ça ne marche pas : l'écran « non
+authentifié » de l'explorer et le titre de la vue d'auth ont besoin des mots
+**avant** qu'une session existe, donc une valeur accrochée à un `Forge` vivant
+manquerait exactement là où elle sert le plus. Chaque vue a un petit `vocab()`,
+et la config est ce qu'elles tiennent déjà toutes.
+
+**Un nom de commande n'est pas du vocabulaire.** C'est de l'identité de routage,
+la même pour les deux forges (l'étape 8 en fait `git-auth`), donc un message qui
+en cite une la construit depuis `command.ViewGitlabAuth` plutôt que de l'écrire.
+C'est aussi ce qui fait qu'il survivra au renommage au lieu de lui survivre en
+silence — trois messages citaient `:gla` ou `:gitlab-auth` en dur.
+
+**L'icône reste au thème, mais les deux tables tapent sur la même constante.**
+`theme.ForgeIcon` et `forge.VocabularyFor` sont deux tables parce qu'un paquet
+de domaine ne doit pas importer l'UI. Elles ne sont pas tenues par un test :
+elles commutent toutes les deux sur `config.ForgeGitLab` / `config.ForgeGitHub`,
+donc il n'existe qu'une seule orthographe de « gitlab » dans l'application et
+une forge ne peut pas être à moitié ajoutée.
+
+**Trois défauts d'affichage corrigés en passant**, chacun invisible tant que
+chaque vue écrivait ses mots :
+
+- La vue d'auth affichait « Gitlab Authentication » et l'explorer « GitLab
+  Explorer ». Deux casses pour un nom propre, sur deux titres voisins.
+- L'aide de la vue d'auth affirmait que le token « **must** start with
+  `glpat-` ». Rien ne le vérifie : c'est un indice, et dire « doit » de ce que
+  personne n'impose est la façon dont un utilisateur en vient à croire qu'un
+  token qui marche est cassé. C'est devenu « usually starts with ».
+- La boîte Code du dashboard portait l'icône GitLab en dur ; elle suit la forge.
+
+**Ce qui n'est pas dans le vocabulaire, et délibérément :** le jeu de visibilité
+(une *forme*, sur `Shape`), le rôle humanisé (celui du backend, parce que les
+nombres de GitLab et les mots de GitHub ne s'alignent pas), et le préfixe du
+token comme *contrôle* — c'est `TokenPlaceholder`, un indice.
+
+**Le libellé court a demandé un champ de plus.** La colonne de libellés du
+dashboard fait onze cellules : « Merge Request » n'y tient pas, et le tronquer
+donnerait « Merge Req… » sur une forge et « Pull Requ… » sur l'autre.
+`ChangeRequestShort` porte l'initialisme — `MR`, `PR` — et c'est le seul endroit
+où une abréviation valait un champ.
 
 ### 3.7 Command mode from inside a text field — **done**
 

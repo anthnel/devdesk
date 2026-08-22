@@ -457,7 +457,7 @@ func TestEverySectionKeepsItsHeightWhateverItsState(t *testing.T) {
 		states[name] = feed(t, m, ToolsDetectedMsg{Tools: toolFixtures()})
 	}
 
-	for _, s := range append(overviewSections(), resourceSections()...) {
+	for _, s := range append(overviewSections(config.ForgeGitLab), resourceSections()...) {
 		want := -1
 		for name, m := range states {
 			got := len(s.render(m, 40, tierStandard))
@@ -630,7 +630,7 @@ func TestNoFactIsUnreachableAtAnyPalier(t *testing.T) {
 				}
 			}
 		}
-		for _, s := range append(overviewSections(), resourceSections()...) {
+		for _, s := range append(overviewSections(config.ForgeGitLab), resourceSections()...) {
 			if !containsLine(shown, s.title) {
 				t.Errorf("section %q is reachable from no tab on %s", s.title, tc.name)
 			}

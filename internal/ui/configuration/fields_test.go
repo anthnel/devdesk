@@ -7,12 +7,13 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/forge"
 )
 
 func allFields(t *testing.T) []field {
 	t.Helper()
 	var out []field
-	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames(), "/home/u/.devdesk/config.yaml") {
+	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames(), "/home/u/.devdesk/config.yaml", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab)) {
 		out = append(out, s.Fields...)
 	}
 	return out
@@ -319,7 +320,7 @@ func TestTheConfigFileRowIsReadOnly(t *testing.T) {
 // without renaming the key would have left the one tab about to grow as the
 // only one whose name says nothing about where its values land.
 func TestEveryTabIsNamedAfterTheSectionItWrites(t *testing.T) {
-	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml")
+	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab))
 
 	want := []string{"app", "gitlab", "scan", "network", "status"}
 	got := make([]string, 0, len(all))

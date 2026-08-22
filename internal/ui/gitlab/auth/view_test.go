@@ -2,6 +2,8 @@ package auth
 
 import (
 	"errors"
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/forge"
 	"strings"
 	"testing"
 
@@ -220,7 +222,10 @@ func TestViewSurvivesANarrowTerminal(t *testing.T) {
 func TestGetTitleAndIcon(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	if !strings.Contains(m.GetTitle(), "Gitlab Authentication") {
+	// The forge names itself, so the casing is its own — it used to read
+	// "Gitlab" here and "GitLab" in the explorer, on two titles side by side.
+	v := forge.VocabularyFor(config.ForgeGitLab)
+	if !strings.Contains(m.GetTitle(), v.Name+" Authentication") {
 		t.Errorf("GetTitle() = %q, want it to name the view", m.GetTitle())
 	}
 	if m.GetIcon() != "" {

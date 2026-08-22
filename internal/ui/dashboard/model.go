@@ -750,3 +750,21 @@ func openURL(url string) tea.Cmd {
 		return nil
 	}
 }
+
+// vocab is the wording of the forge this context targets, resolved from the
+// config. The Code box and its help name it, and both are rendered whether or
+// not a session is open.
+func (m Model) vocab() forge.Vocabulary {
+	if m.config == nil {
+		return forge.VocabularyFor("")
+	}
+	return forge.VocabularyFor(m.config.Forge.Type)
+}
+
+// forgeType is the configured platform, empty-safe.
+func (m Model) forgeType() string {
+	if m.config == nil {
+		return ""
+	}
+	return m.config.Forge.Type
+}

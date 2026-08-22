@@ -422,8 +422,10 @@ Config is injected into views at creation. Use `config.Save()` to persist change
 
 ### Configuration view — `internal/ui/configuration`
 
-Edits every **scalar** setting a context carries, in five tabs (`app`, `gitlab`,
-`scan`, `network`, `status`). Lists stay where they are consulted: monitors keep
+Edits every **scalar** setting a context carries, in five tabs (`app`, the
+forge's own name, `scan`, `network`, `status`). The second is titled after the
+platform the context targets — `gitlab` or `github` — rather than after the
+section key: `forge:` is what the file says, and no user calls it that. Lists stay where they are consulted: monitors keep
 their CRUD in `status`, registries keep `RegistryForm` in `oci-resources`.
 Duplicating them here would be the opposite of the point.
 
@@ -632,6 +634,59 @@ declared forge, and this is one of the two places it will live.
 Worth knowing: **go-gitlab retries 5xx** with an exponential backoff — a test
 serving 500 took 35 seconds, measured. Not a regression (it is the SDK's
 default), but an unreachable instance makes the user wait behind a spinner.
+
+### The vocabulary — `forge.Vocabulary`
+
+What a forge is **called**, as opposed to what it can do. The distinction is
+§3.6's and it is the whole design: "Group" against "Organization" is a *word*,
+while nesting depth and the visibility set are *shapes* — they change what the
+application can promise, and no wording helps with them. `Shape` carries the
+second, `Vocabulary` the first, and neither grows conditionals for the other.
+
+**Per forge, not neutral.** A GitLab user says *group*, a GitHub user says
+*repository*; "namespace" is a third language nobody speaks and makes the
+application read as an abstraction layer rather than as a tool. The *field
+names* are neutral because the code has to be — a view cannot switch on which
+forge it is talking to — but nothing a user reads is.
+
+**Resolved from the config, not from the session.** `forge.VocabularyFor(
+cfg.Forge.Type)`, not a method on `Forge` and not a field on `shared.State`:
+the explorer's "not authenticated" screen and the auth view's own title both
+need the words *before* any session exists, so a value hanging off a live
+backend would be missing exactly where it is needed most. Each view has a small
+`vocab()` helper; the config is what every one of them already holds.
+
+**No view writes a forge's name into a string, and a test says so.**
+`internal/ui/vocabtest` parses every `.go` under `internal/ui` and fails on a
+string literal containing "gitlab" or "github" — import paths excluded, and one
+declared exception (`theme.ForgeIcon`'s own switch), on the model of
+`keymap.DeclaredExceptions()`. A wording table nothing enforces drifts back one
+message at a time, and the messages that drift are the ones nobody reads until a
+GitHub context renders "GitLab not authenticated".
+
+**A command name is not vocabulary.** It is routing identity, the same for both
+forges (§3.6 step 8 makes it `git-auth`), so a message quoting one builds it
+from `command.ViewGitlabAuth` rather than writing it out. That is also what
+makes the message survive the rename instead of quietly outliving it.
+
+**The icon is the theme's, keyed on the same constant.** `theme.ForgeIcon` and
+`forge.VocabularyFor` are two tables because a domain package must not import
+the UI — but both switch on `config.ForgeGitLab` / `config.ForgeGitHub` rather
+than on a literal, so there is one spelling of "gitlab" in the application and a
+new forge cannot be half-added.
+
+What is *not* in the vocabulary, and deliberately: the visibility set (a shape,
+on `Shape`), the humanised role (the backend's, because GitLab's numbers and
+GitHub's words do not align), and the token prefix as a *check* — it is a hint,
+`TokenPlaceholder`, and DevDesk validates nothing, so saying "must" about it is
+how a user comes to believe a working token is broken.
+
+Sites it took over: the explorer's title, its loading line, its empty and
+signed-out screens, its Type column and its help; the auth view's title, help,
+URL label and both "not configured" messages; the dashboard's Code box, its
+tree root and its help; the configuration view's forge tab — its title, its
+icon, its URL example and two field labels; and `CreationForm`'s two resource
+types.
 
 ### Cross-View Communication
 

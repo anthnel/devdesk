@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"github.com/anthnel/devdesk/internal/command"
 	"os"
 	"path/filepath"
 	"strings"
@@ -595,7 +596,9 @@ func TestChangingTheGitLabURLFlagsTheSession(t *testing.T) {
 	if m.config.Forge.URL != "https://new.example.com" {
 		t.Fatalf("URL = %q, want the typed value committed", m.config.Forge.URL)
 	}
-	if !strings.Contains(m.footer.Text(), ":gla") {
+	// The command comes from internal/command rather than from a literal, so the
+	// message follows a rename instead of quietly outliving it.
+	if !strings.Contains(m.footer.Text(), ":"+string(command.ViewGitlabAuth)) {
 		t.Errorf("footer = %q, want it to say where to sign in again", m.footer.Text())
 	}
 

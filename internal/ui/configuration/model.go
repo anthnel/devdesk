@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/forge"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -86,7 +87,7 @@ func New(cfg *config.Config) Model {
 	m := Model{
 		config:   cfg,
 		context:  context,
-		sections: sections(themes, command.ViewNames(), configPath),
+		sections: sections(themes, command.ViewNames(), configPath, cfg.Forge.Type, forge.VocabularyFor(cfg.Forge.Type)),
 		input:    in,
 	}
 	m.bindInput()
@@ -139,4 +140,14 @@ func (m Model) isDisabled(f field) bool {
 
 func (m Model) serverMode() bool {
 	return m.config.Scan.TrivyServer != ""
+}
+
+// vocab is the wording of the forge this context targets, resolved from the
+// config it is editing. It is what keeps a message about "the GitLab token"
+// from saying GitLab in a GitHub context.
+func (m Model) vocab() forge.Vocabulary {
+	if m.config == nil {
+		return forge.VocabularyFor("")
+	}
+	return forge.VocabularyFor(m.config.Forge.Type)
 }

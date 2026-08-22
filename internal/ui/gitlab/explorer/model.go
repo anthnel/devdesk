@@ -1,6 +1,7 @@
 package explorer
 
 import (
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -99,7 +100,7 @@ func New(cfg *config.Config, sharedState *shared.State) Model {
 		mode:      ModeNormal,
 		selection: newCloneSelection(),
 		table: datatable.New(datatable.Config[explorerRow]{
-			Columns:    explorerColumns(),
+			Columns:    explorerColumns(forge.VocabularyFor(cfg.Forge.Type)),
 			SortColumn: columnType,
 		}),
 		spinner: s,
