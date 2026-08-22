@@ -11,6 +11,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/registryalias"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -149,12 +150,7 @@ func imageColumns() []datatable.Column[imageRow] {
 
 // imageRows decorates the image list with the scan state the table shows.
 func (m *Model) imageRows() []imageRow {
-	aliases := make([]docker.RegistryAlias, 0, len(m.registries))
-	for _, reg := range m.registries {
-		if reg.Alias != "" {
-			aliases = append(aliases, docker.RegistryAlias{URL: reg.URL, Alias: reg.Alias})
-		}
-	}
+	aliases := registryalias.From(m.registries)
 	frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
 
 	rows := make([]imageRow, 0, len(m.images))

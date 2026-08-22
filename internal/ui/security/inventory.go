@@ -8,9 +8,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/registryalias"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -47,7 +49,7 @@ func (m Model) openSelectedTarget() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if !target.Scanned {
-		return m, m.footer.Warn("No result yet for " + target.Name)
+		return m, m.footer.Warn("No result yet for " + target.shortName())
 	}
 	return m, loadInventoryResultCmd(target)
 }
@@ -191,10 +193,13 @@ func (m Model) handleInventoryLoaded(msg InventoryLoadedMsg) (tea.Model, tea.Cmd
 // ctrl+s rescans it.
 func (m Model) handleInventoryResultLoaded(msg InventoryResultLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil || msg.Result == nil {
-		return m, m.footer.Warn("No stored result for " + msg.Name + " — ctrl+s to rescan")
+		return m, m.footer.Warn("No stored result for " + m.labelFor(msg.Name) + " — ctrl+s to rescan")
 	}
 	m.result = msg.Result
+	// targetPath stays the cache key: it is what AddToGitleaksIgnore writes
+	// into. The label is the folded form, and only the title reads it.
 	m.targetPath = msg.Name
+	m.targetLabel = m.labelFor(msg.Name)
 	m.state = StateResults
 	m.activeTab = TabCVE
 	m.updateFindingsTable()
@@ -220,7 +225,7 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 	}
 	m.setInventory(updated)
 	if msg.Err != nil {
-		return m, m.footer.Error(fmt.Sprintf("Scan failed for %s — check logs", msg.Name))
+		return m, m.footer.Error(fmt.Sprintf("Scan failed for %s — check logs", m.labelFor(msg.Name)))
 	}
 	return m, nil
 }
@@ -237,9 +242,16 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 // bare frame; this was the one that did not.
 func (m *Model) setInventory(targets []scanTarget) {
 	frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
+	// The alias is stamped here for the same reason as the frame, and it is the
+	// only place that can: the rows come from a Cmd, which must not read the
+	// model, and the Target column is built once in New with nothing to reach.
+	aliases := registryalias.From(m.config.Registry.Registries)
 	stamped := make([]scanTarget, len(targets))
 	for i, t := range targets {
 		t.SpinnerFrame = frame
+		if t.Kind == kindImage {
+			t.Display = docker.ApplyAliases(t.Name, aliases)
+		}
 		stamped[i] = t
 	}
 	m.inventory.SetItems(stamped)

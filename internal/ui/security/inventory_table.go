@@ -9,8 +9,11 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/registryalias"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -43,9 +46,17 @@ type scanTarget struct {
 	ScannedAt time.Time
 	// Scanned is false between a ctrl+a purge and the scan that replaces it.
 	// The target is still known — it is the counts that are not.
-	Scanned      bool
-	Scanning     bool
-	Failed       bool
+	Scanned  bool
+	Scanning bool
+	Failed   bool
+	// Display is the image reference with its registry prefix replaced by the
+	// configured alias, stamped by setInventory the way SpinnerFrame is — the
+	// rows arrive from a Cmd, which cannot read the configuration off the model
+	// (Rule 110), and a column function is built once and cannot either.
+	//
+	// Empty means nobody stamped it, and displayName falls back to Name: a row
+	// built by hand must stay readable rather than render an empty cell.
+	Display      string
 	SpinnerFrame string
 }
 
@@ -59,21 +70,70 @@ type scanTarget struct {
 // triable, et Secrets n'en est pas une.
 const inventoryColumnCritical = 2
 
-// displayName is what the Target column shows: the image reference as it is
-// cached, or the repository path with the home directory folded back to "~".
-// The cache key stays the value everything else uses, so folding here cannot
-// reach a loader or a scanner.
+// displayName is what the Target column shows: the image reference with its
+// registry prefix folded to the configured alias, or the repository path with
+// the home directory folded back to "~".
+//
+// Both foldings answer the same pressure — this is the narrowest table in the
+// application, and what a `nexus.example.com/docker-hosted/` prefix pushes out
+// of the cell is the part that identifies the image. And both obey the same
+// rule: the cache key stays the value everything else uses, so folding here
+// cannot reach a loader, a scanner, or the directory a .gitleaksignore is
+// written into.
 func (t scanTarget) displayName() string {
 	if t.Kind == kindImage {
-		return theme.IconDocker + " " + t.Name
+		return theme.IconDocker + " " + t.shortName()
 	}
 	return theme.IconWorkspace + " " + shortenHome(t.Name)
+}
+
+// shortName is the target without its icon: what the title and the footer
+// messages name it, where an icon would be noise.
+func (t scanTarget) shortName() string {
+	if t.Kind == kindRepo {
+		return shortenHome(t.Name)
+	}
+	if t.Display != "" {
+		return t.Display
+	}
+	return t.Name
 }
 
 // secrets is the row's verdict. Une ligne purgée par ctrl+a n'a plus de verdict
 // non plus : ses compteurs affichent `-`, et l'icône dit la même chose.
 func (t scanTarget) secrets() theme.SecretsState {
 	return theme.SecretsVerdict(t.Sensitive, t.Scanned)
+}
+
+// labelFor names a target the way the table does, for the messages that have
+// only a cache key to go on.
+//
+// It resolves the row rather than folding the string blind: an absolute
+// repository path can legitimately begin with a configured registry URL, and
+// only the row knows which of the two caches the name came from. A name with no
+// row — nothing has been loaded yet — is returned untouched, which is worse
+// than the alias but never wrong.
+func (m Model) labelFor(name string) string {
+	for _, t := range m.inventory.Items() {
+		if t.Name == name {
+			return t.shortName()
+		}
+	}
+	return name
+}
+
+// labelForResult folds a result's target the same way, for the one caller that
+// has no inventory to resolve against: a view constructed straight onto a
+// stored result. The result carries its own TargetType, which is the same fact
+// targetKind holds.
+func labelForResult(cfg *config.Config, result *scan.Result) string {
+	if result == nil {
+		return ""
+	}
+	if result.TargetType != scan.TargetImage {
+		return shortenHome(result.Target)
+	}
+	return docker.ApplyAliases(result.Target, registryalias.From(cfg.Registry.Registries))
 }
 
 // shortenHome replaces the home directory prefix with "~". It is the inverse of
@@ -170,12 +230,17 @@ func inventoryColumns() []datatable.Column[scanTarget] {
 		{
 			Title: "Target", MinWidth: 24, Flex: 1,
 			Cell: func(t scanTarget) string { return t.displayName() },
+			// The cache key, not the alias: an alias is a display name the user
+			// can rename, and sorting by it would move every row of a registry
+			// the day they do.
 			Less: func(a, b scanTarget) bool {
 				return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 			},
-			// The cache key, not the displayed name: a query for the full path of
-			// a repository has to match the row that folds it to "~".
-			Search: func(t scanTarget) string { return t.Name },
+			// Both names. A query for the full path of a repository has to match
+			// the row that folds it to "~", and a query for the alias the row
+			// actually shows has to match it too — a column saying one name while
+			// the search wants the other reads as a bug.
+			Search: func(t scanTarget) string { return t.Name + " " + t.Display },
 		},
 		{
 			Title: "Secrets", MinWidth: secretsColumnWidth,

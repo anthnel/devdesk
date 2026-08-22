@@ -48,9 +48,15 @@ type Model struct {
 	spinnerFrameIdx int
 
 	// targetPath is what the result on screen is about — an image reference or a
-	// repository path. It names the target in the title, and it is the directory
-	// .gitleaksignore is written into.
+	// repository path. It is the directory .gitleaksignore is written into, so
+	// it is the key and never a display form.
 	targetPath string
+	// targetLabel is the same target folded for the title: the registry prefix
+	// replaced by its alias, or the home directory by "~". It is a second field
+	// rather than a folding applied to targetPath because the two are read for
+	// opposite purposes — one is shown, the other is written to disk, and an
+	// aliased path names a directory that does not exist.
+	targetLabel string
 
 	// Results state
 	findingsTable datatable.Model[scan.Finding]
@@ -142,6 +148,7 @@ func NewWithPreloadedResult(cfg *config.Config, result *scan.Result) Model {
 	m.state = StateResults
 	m.result = result
 	m.targetPath = result.Target
+	m.targetLabel = labelForResult(cfg, result)
 	m.activeTab = TabCVE
 	// Filled here rather than waiting for the first WindowSizeMsg: the rows do
 	// not depend on the width any more, so nothing was gained by deferring and
