@@ -30,6 +30,36 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D49 — `mise run install` posait un binaire que Windows refuse de lancer.
+Corrigé.** Signalé le 2026-08-22 : `mise run install` réussit, puis `dk` répond
+*« The term 'dk' is not recognized »*.
+
+`go build -o` prend le nom **au pied de la lettre**, là où `go install` aurait
+ajouté `.exe`. Le fichier atterrissait donc en `dk`, sans extension. C'est un PE
+parfaitement valide — d'où l'absence de toute erreur au build — mais PowerShell
+et cmd résolvent une commande nue par `PATHEXT`, et un fichier sans extension n'y
+figure pas. Il ne se lance même pas par chemin explicite : PowerShell répond
+*« Cannot run a document in the middle of a pipeline »*, c'est-à-dire qu'il le
+prend pour un document.
+
+`$(go env GOEXE)` est exactement ce que `go install` aurait ajouté, et il est
+vide partout ailleurs. Trois tâches le portent maintenant : `install`, `build`,
+et le `run` qui exécute le binaire de `build`.
+
+**`build` avait le même défaut et personne ne l'avait vu**, parce que son seul
+consommateur est `mise run run`, qui passe par bash — et bash, lui, exécute un PE
+sans extension. Le défaut n'attendait que quelqu'un tapant `.\bin\dk` dans le
+terminal où il travaille déjà.
+
+**La seconde moitié du symptôme n'est pas un défaut du dépôt** : `$GOPATH/bin`
+n'est pas sur le `PATH` de cette machine, donc `dk.exe` ne se résout pas plus que
+`dk`. La tâche **annonce désormais où elle a posé le binaire** plutôt que de le
+tester : savoir si `dk` se résoudra est une question sur le `PATH` du shell
+*appelant*, la tâche tourne sous bash, et une vérification faite là répondrait
+pour le mauvais shell tout en étant crue. Dire où le fichier est allé laisse le
+lecteur trancher lui-même — c'est précisément ce qu'un « command not found »
+trois secondes plus tard ne lui dit pas.
+
 **D48 — la vue `config` ne nommait pas son contexte là où les autres le font, et
 son groupe Paths se lisait de travers. Corrigé.** Signalé le 2026-08-22 en
 ouvrant `:cfg`.

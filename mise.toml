@@ -11,13 +11,19 @@ golangci-lint = "2.12.2"
 
 [tasks.build]
 description = "Build the binary to bin/dk"
-run = "go build -o bin/dk ."
+# `$(go env GOEXE)` for the same reason as [tasks.install]: `-o` takes the name
+# literally, and PowerShell refuses to run an extension-less file even by
+# explicit path — "Cannot run a document in the middle of a pipeline". Only
+# `mise run run` uses this binary today, and it goes through bash, which is why
+# nothing has complained. Empty on every other platform.
+shell = "bash -c"
+run = 'go build -o "bin/dk$(go env GOEXE)" .'
 
 [tasks.run]
 description = "Build and run the application"
 depends = ["build"]
 shell = "bash -c"
-run = "./bin/dk"
+run = './bin/dk$(go env GOEXE)'
 
 [tasks.dev]
 description = "Run directly with go run (faster for development)"
@@ -82,8 +88,25 @@ description = "Install the dk binary to $GOPATH/bin"
 # module (`devdesk`), while the command — and `mise run build` — is `dk`; and
 # mise's go plugin exports GOBIN=<mise>/installs/go/<version>/bin, so the binary
 # would land in a directory that disappears on the next toolchain bump.
+#
+# `go env GOEXE` is what `go install` would have appended, and dropping it is not
+# cosmetic on Windows: `-o` takes the name literally, so the file lands as `dk`
+# with no extension. It is a valid PE and runs by explicit path — which is why
+# `mise run run` never noticed — but PowerShell and cmd resolve a bare command
+# through PATHEXT, so `dk` is simply not found. GOEXE is empty everywhere else.
+#
+# The destination is printed rather than tested. Whether `dk` will resolve is a
+# question about the *calling* shell's PATH, and this task runs under bash: a
+# check here would answer for the wrong shell and be believed. Saying where the
+# binary went lets the reader answer it themselves, which is the one thing a
+# "command not found" a second later does not tell them.
 shell = "bash -c"
-run = 'go build -o "$(go env GOPATH)/bin/dk" .'
+run = """
+target="$(go env GOPATH)/bin/dk$(go env GOEXE)"
+go build -o "$target" .
+echo "installed $target"
+echo "run it as 'dk' once $(dirname "$target") is on PATH"
+"""
 
 [tasks.check]
 description = "Run fmt, vet, lint and tests (pre-commit checklist)"
