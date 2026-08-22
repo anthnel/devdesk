@@ -123,7 +123,7 @@ func produced(t *testing.T) []Check {
 	t.Helper()
 	var all []Check
 	for _, s := range batteries(t) {
-		res, err := Run(context.Background(), s.tg, s.env)
+		res, err := Run(context.Background(), s.tg, s.env, DefaultSettings())
 		if err != nil {
 			t.Fatalf("%s: %v", s.name, err)
 		}
@@ -138,7 +138,7 @@ func produced(t *testing.T) []Check {
 // have to be kept in step with the stages by hand.
 func TestEveryCheckAScenarioProducesIsExplained(t *testing.T) {
 	for _, s := range batteries(t) {
-		res, err := Run(context.Background(), s.tg, s.env)
+		res, err := Run(context.Background(), s.tg, s.env, DefaultSettings())
 		if err != nil {
 			t.Fatalf("%s: %v", s.name, err)
 		}

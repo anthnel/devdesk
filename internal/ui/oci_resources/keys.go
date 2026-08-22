@@ -64,7 +64,7 @@ func (m Model) handleNetworkInspectKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.connectivityForm = newConnectivityTestForm(
 			containerName,
 			m.networkInspectForm.networkID,
-			m.config.Docker.NetworkToolImage,
+			m.config.Network.ToolImage,
 			m.networkInspectForm.containers,
 			m.width-2,
 			m.height,

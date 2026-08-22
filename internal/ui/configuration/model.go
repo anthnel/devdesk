@@ -74,10 +74,19 @@ func New(cfg *config.Config) Model {
 	in.CharLimit = 512
 	theme.StyleTextInput(&in)
 
+	context := config.CurrentContextName()
+
+	// A home directory that cannot be resolved leaves the row empty rather than
+	// absent: the label still says which fact is missing.
+	configPath, err := config.GetContextPath(context)
+	if err != nil {
+		log.Printf("ERROR [configuration] resolve context path for %s: %v", context, err)
+	}
+
 	m := Model{
 		config:   cfg,
-		context:  config.CurrentContextName(),
-		sections: sections(themes, command.ViewNames()),
+		context:  context,
+		sections: sections(themes, command.ViewNames(), configPath),
 		input:    in,
 	}
 	m.bindInput()
@@ -115,6 +124,11 @@ func (m Model) fields() []field {
 func (f field) takesText() bool {
 	return f.Kind == kindText || f.Kind == kindInteger
 }
+
+// focusable reports whether the cursor may stop on a field. A static row is the
+// one that answers no: there is nothing to type, cycle or toggle on it, and a
+// focus indicator on a row no key acts upon says the opposite.
+func (f field) focusable() bool { return f.Kind != kindStatic }
 
 // isDisabled reports whether a scan option is unavailable because a Trivy
 // server is configured. The protocol does not support these three, so they are

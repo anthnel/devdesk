@@ -295,12 +295,63 @@ func TestTheFormOpensWithOneBlankLine(t *testing.T) {
 	}
 }
 
-// The header names the context. Editing workspaces_dir in the wrong context is
-// otherwise a silent mistake — the fields look identical in all of them.
+// The header names the context, as every other view's does. Editing
+// workspaces_dir in the wrong context is otherwise a silent mistake — the
+// fields look identical in all of them.
 func TestTheHeaderNamesTheContextItEdits(t *testing.T) {
 	m := newModel(t)
-	if !strings.Contains(m.GetTitle(), m.context) {
-		t.Errorf("GetTitle() = %q, want it to name the context %q", m.GetTitle(), m.context)
+
+	var got string
+	for _, info := range m.GetHeaderInfo("dev") {
+		if info.Key == "Context" {
+			got = info.Value
+		}
+	}
+	if got != "dev" {
+		t.Errorf("the header's Context reads %q, want the context the router passed", got)
+	}
+}
+
+// The title does not repeat it. The header says which context this is, so a
+// title saying it too is the same fact twice on one screen.
+func TestTheTitleDoesNotRepeatTheContext(t *testing.T) {
+	m := newModel(t)
+	if strings.Contains(m.GetTitle(), m.context) {
+		t.Errorf("GetTitle() = %q, want the context left to the header", m.GetTitle())
+	}
+}
+
+// The config file path moved out of the header and into the Paths group, where
+// it sits beside the two paths it belongs with.
+func TestTheHeaderNoLongerCarriesTheFilePath(t *testing.T) {
+	m := newModel(t)
+	for _, info := range m.GetHeaderInfo("default") {
+		if info.Key == "File" {
+			t.Errorf("the header still carries File = %q; it belongs under Paths", info.Value)
+		}
+	}
+
+	m = focusOn(t, m, "Workspaces dir")
+	m.activeTab = 0
+	rendered := stripANSI(m.View())
+	if !strings.Contains(rendered, "Config file") {
+		t.Error("the app tab does not show the config file path")
+	}
+}
+
+// ↓ onto a read-only row lands past it, and ↑ lands above it — a cursor that
+// stopped there would show a focus indicator on a row no key acts upon.
+func TestTheCursorStepsPastTheReadOnlyRow(t *testing.T) {
+	m := focusOn(t, newModel(t), "Workspaces dir")
+
+	m = feed(t, m, testutil.Key("down"))
+	if got := m.current().Label; got != "Log file" {
+		t.Errorf("↓ from the workspaces root landed on %q, want Log file", got)
+	}
+
+	m = feed(t, m, testutil.Key("up"))
+	if got := m.current().Label; got != "Workspaces dir" {
+		t.Errorf("↑ landed on %q, want Workspaces dir", got)
 	}
 }
 

@@ -3,6 +3,7 @@ package netdiag
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -145,8 +146,8 @@ func New(cfg *config.Config) *Model {
 		config:         cfg,
 		state:          StateInput,
 		activeTab:      tabDiagnostics,
-		portsModel:     newPortsModel(cfg.Docker.NetworkToolImage),
-		topologyModel:  newTopologyModel(cfg.Docker.NetworkToolImage),
+		portsModel:     newPortsModel(cfg.Network.ToolImage, time.Duration(cfg.Network.PortsRefreshInterval)*time.Second),
+		topologyModel:  newTopologyModel(cfg.Network.ToolImage),
 		targetInput:    targetIn,
 		portInput:      portIn,
 		dnsServerInput: dnsIn,
@@ -231,5 +232,22 @@ func (m *Model) traceWorthOffering() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// checkSettings is what the config says the pipeline should wait for and send.
+//
+// Read on every run rather than captured at construction: the configuration
+// view rebuilds this model on save, but a run already in flight holds its own
+// copy through the message chain, and taking the values here keeps the two from
+// disagreeing halfway down the pipeline.
+//
+// netcheck.Settings.normalize fills in anything non-positive, so a hand-edited
+// zero becomes the default rather than a dial with no deadline.
+func (m *Model) checkSettings() netcheck.Settings {
+	return netcheck.Settings{
+		CheckTimeout:     time.Duration(m.config.Network.CheckTimeout) * time.Second,
+		PingCount:        m.config.Network.PingCount,
+		ExpiryWarnWindow: time.Duration(m.config.Network.CertExpiryWarnDays) * 24 * time.Hour,
 	}
 }

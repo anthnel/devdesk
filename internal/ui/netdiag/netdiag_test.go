@@ -27,7 +27,7 @@ func TestMain(m *testing.M) {
 
 func testConfig() *config.Config {
 	cfg := config.Default()
-	cfg.Docker.NetworkToolImage = "nicolaka/netshoot"
+	cfg.Network.ToolImage = "nicolaka/netshoot"
 	return cfg
 }
 

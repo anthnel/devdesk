@@ -17,14 +17,70 @@ type Config struct {
 	GitLab   GitLabConfig   `yaml:"gitlab"`
 	Registry RegistryConfig `yaml:"registry"`
 	Scan     ScanConfig     `yaml:"scan"`
-	Docker   DockerConfig   `yaml:"docker"`
+	Network  NetworkConfig  `yaml:"network"`
+
+	// Docker is what `network:` replaced. Read once at load, migrated into
+	// Network and cleared, so the key disappears from the file on the next save.
+	//
+	// Deprecated: use Network.
+	Docker DockerConfig `yaml:"docker,omitempty"`
 }
 
-// DockerConfig contient les paramètres Docker de l'application
+// NetworkConfig holds what the netdiag view runs on.
+//
+// It was `docker:`, and it held one image — which was never a Docker setting:
+// it names the container the route traces and the ports table run in. Every
+// other scalar here was a constant in internal/netcheck, whose own comment said
+// they became settings when somebody asked for them.
+type NetworkConfig struct {
+	// ToolImage must carry ping, curl, nc, traceroute and ss.
+	ToolImage string `yaml:"tool_image"`
+
+	// CheckTimeout is how long one probe waits for an answer, in seconds.
+	//
+	// One setting rather than five: netcheck held 5 s for DNS and the dial, 8 s
+	// for TLS and HTTP and 4 s for the ping, and nothing anywhere argued for the
+	// split — it read as five separate guesses. The default is the old maximum,
+	// so nothing that answers today starts failing; the cost is that an
+	// unreachable host now spends 8 s on DNS instead of 5, which the staged
+	// progress line makes legible rather than mysterious.
+	CheckTimeout int `yaml:"check_timeout"`
+
+	// PingCount is how many ICMP echo requests one reachability probe sends.
+	PingCount int `yaml:"ping_count"`
+
+	// CertExpiryWarnDays is how close a certificate may come to expiring before
+	// the TLS check warns. Thirty days is a renewal cycle.
+	CertExpiryWarnDays int `yaml:"cert_expiry_warn_days"`
+
+	// TracerouteMaxHops bounds a route trace. The wait per hop stays a constant:
+	// the two multiply, so a second setting would let a user build a
+	// fifteen-minute trace out of two numbers that each look reasonable.
+	TracerouteMaxHops int `yaml:"traceroute_max_hops"`
+
+	// PortsRefreshInterval is how often the Ports tab re-reads ss, in seconds.
+	PortsRefreshInterval int `yaml:"ports_refresh_interval"`
+}
+
+// Network defaults. They are the values internal/netcheck and the netdiag view
+// held as constants before they became settings, so a config that predates them
+// behaves exactly as it did — except CheckTimeout, which is the old maximum
+// rather than any one of the five values it replaces.
+const (
+	DefaultNetworkToolImage     = "nicolaka/netshoot"
+	DefaultCheckTimeout         = 8
+	DefaultPingCount            = 3
+	DefaultCertExpiryWarnDays   = 30
+	DefaultTracerouteMaxHops    = 30
+	DefaultPortsRefreshInterval = 2
+)
+
+// DockerConfig is the shape of the `docker:` block that `network:` replaced.
+// It exists to be migrated; nothing reads it after applyDefaults.
+//
+// Deprecated: use NetworkConfig.
 type DockerConfig struct {
-	// NetworkToolImage is the Docker image used for network connectivity tests.
-	// It must include ping, curl, and nc (netcat) binaries.
-	NetworkToolImage string `yaml:"network_tool_image"`
+	NetworkToolImage string `yaml:"network_tool_image,omitempty"`
 }
 
 // AppConfig contient les paramètres globaux de l'app
@@ -296,8 +352,35 @@ func applyDefaults(cfg *Config) error {
 		cfg.Scan.GitleaksSource = ToolSourceAuto
 	}
 
-	if cfg.Docker.NetworkToolImage == "" {
-		cfg.Docker.NetworkToolImage = "nicolaka/netshoot"
+	// The rename runs before the defaults below, and that order is the whole of
+	// it: yaml.Unmarshal is not strict here, so an un-migrated `docker:` block
+	// is dropped in silence and the image reverts to nicolaka/netshoot with
+	// nothing on screen saying it moved. Cleared once carried over, so the key
+	// leaves the file on the next save — the precedent is RegistryItem.AuthEnabled.
+	if cfg.Docker.NetworkToolImage != "" {
+		if cfg.Network.ToolImage == "" {
+			cfg.Network.ToolImage = cfg.Docker.NetworkToolImage
+		}
+		cfg.Docker.NetworkToolImage = ""
+	}
+
+	if cfg.Network.ToolImage == "" {
+		cfg.Network.ToolImage = DefaultNetworkToolImage
+	}
+	if cfg.Network.CheckTimeout == 0 {
+		cfg.Network.CheckTimeout = DefaultCheckTimeout
+	}
+	if cfg.Network.PingCount == 0 {
+		cfg.Network.PingCount = DefaultPingCount
+	}
+	if cfg.Network.CertExpiryWarnDays == 0 {
+		cfg.Network.CertExpiryWarnDays = DefaultCertExpiryWarnDays
+	}
+	if cfg.Network.TracerouteMaxHops == 0 {
+		cfg.Network.TracerouteMaxHops = DefaultTracerouteMaxHops
+	}
+	if cfg.Network.PortsRefreshInterval == 0 {
+		cfg.Network.PortsRefreshInterval = DefaultPortsRefreshInterval
 	}
 
 	// Backward compat: configs created before the scan-option booleans were introduced
@@ -354,8 +437,13 @@ func Default() *Config {
 			EnableVuln:         true,
 			EnableSecret:       true,
 		},
-		Docker: DockerConfig{
-			NetworkToolImage: "nicolaka/netshoot",
+		Network: NetworkConfig{
+			ToolImage:            DefaultNetworkToolImage,
+			CheckTimeout:         DefaultCheckTimeout,
+			PingCount:            DefaultPingCount,
+			CertExpiryWarnDays:   DefaultCertExpiryWarnDays,
+			TracerouteMaxHops:    DefaultTracerouteMaxHops,
+			PortsRefreshInterval: DefaultPortsRefreshInterval,
 		},
 	}
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -40,31 +39,34 @@ func (m Model) View() string {
 	return strings.Join(lines, "\n")
 }
 
-// GetTitle is the viewport's border title. It carries the context because a
-// configuration belongs to one, and editing workspaces_dir in the wrong context
-// is otherwise a silent mistake — the fields look identical in all of them.
+// GetTitle is the viewport's border title. The context is not repeated here:
+// the header names it, as it does for every other view, and a title saying it
+// too is the same fact twice on one screen.
 func (m Model) GetTitle() string {
-	return theme.IconConfig + " Configuration · " + m.context
+	return theme.IconConfig + " Configuration"
 }
 
 // GetIcon is unused by the header, like every other view's.
 func (m Model) GetIcon() string { return "" }
 
-// GetHeaderInfo names the section and where its settings are written. The file
-// path is the point: this view is the one place a user needs to know which file
-// their keystrokes are landing in.
-func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
+// GetHeaderInfo names the context and the section.
+//
+// The context is what every other view puts here, and it is what this view
+// needs most: editing workspaces_dir in the wrong context is otherwise a silent
+// mistake, because the fields look identical in all of them.
+//
+// The file path used to sit here too. It moved into the Paths group, beside the
+// two paths it belongs with — the header is for what changes as the user moves,
+// and the file does not.
+func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	section := ""
 	if m.activeTab >= 0 && m.activeTab < len(m.sections) {
 		section = m.sections[m.activeTab].Title
 	}
-	info := []shortcut.HeaderInfo{
+	return []shortcut.HeaderInfo{
+		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},
 		{Key: "Section", Value: section, Style: theme.HeaderValueStyle},
 	}
-	if path, err := config.GetContextPath(m.context); err == nil {
-		info = append(info, shortcut.HeaderInfo{Key: "File", Value: path, Style: theme.HeaderValueStyle})
-	}
-	return info
 }
 
 // renderField draws one setting (Rules 120, 132).
@@ -89,6 +91,12 @@ func (m Model) renderField(f field, focused bool) string {
 		indicator = theme.IconCircleSmall + " "
 	}
 	prefix := indicator + m.padHead(fieldHead(f)) + " " + theme.IconChevronRight + " "
+
+	// A static row is never focused (Model.settleFocus walks past it) and its
+	// value is dimmed, which is what says it is read here rather than edited.
+	if f.Kind == kindStatic {
+		return theme.Bg(prefix) + theme.DimStyle.Render(f.Value(m.config))
+	}
 
 	if focused {
 		if f.Kind == kindCycle {

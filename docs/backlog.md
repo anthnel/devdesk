@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-17
+**Last Updated:** 2026-08-22
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -17,7 +17,7 @@ browse a single proxy inside a real Nexus group. It is what
 fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
 on and is now closed on its own.
 
-D1 through D38 and D40 through D47 are all fixed or, in D35's case, deliberately
+D1 through D38 and D40 through D48 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +29,37 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D48 — la vue `config` ne nommait pas son contexte là où les autres le font, et
+son groupe Paths se lisait de travers. Corrigé.** Signalé le 2026-08-22 en
+ouvrant `:cfg`.
+
+Trois choses, un seul défaut : **le même fait rendu au mauvais endroit**.
+
+- Le contexte était dans le **titre du viewport** (`󰙨 Configuration · dev`) et
+  nulle part dans le header. Les huit autres vues le mettent dans le header
+  (`{Key: "Context"}`), donc l’œil qui a appris où regarder ne le trouvait pas,
+  et la seule vue où se tromper de contexte est coûteuse était celle qui le
+  disait ailleurs. Le contexte est passé dans `GetHeaderInfo`, et le titre ne le
+  répète pas : deux fois le même fait sur un écran n’en dit pas plus qu’une.
+- Le **chemin du fichier** était un champ de header. Un header dit ce qui change
+  quand l’utilisateur se déplace ; ce chemin ne change pas. Il est descendu dans
+  **Paths**, sous `workspaces_dir`, auprès des deux chemins auxquels il
+  appartient.
+- **Show hidden files** était coincée *entre* `workspaces_dir` et `log_file`. Une
+  checkbox n’a ni chevron ni valeur : plantée au milieu, elle coupe en deux la
+  colonne que les lignes à valeur partagent. Elle passe en fin de groupe, où elle
+  qualifie les trois chemins au lieu d’en séparer deux.
+
+Le chemin est le premier champ **`kindStatic`** : montré, jamais écrit.
+`Model.settleFocus` fait passer le curseur par-dessus, **dans le sens où il
+allait déjà** — `↓` atterrit dessous, `↑` au-dessus, plutôt que de renvoyer le
+curseur d’où il vient. Un indicateur de focus sur une ligne qu’aucune touche ne
+modifie dirait le contraire de ce qui est vrai.
+
+`TestThePathsGroupEndsWithItsCheckbox`, `TestTheConfigFileRowIsReadOnly`,
+`TestTheCursorStepsPastTheReadOnlyRow`, `TestTheTitleDoesNotRepeatTheContext` et
+`TestTheHeaderNoLongerCarriesTheFilePath` tiennent les cinq bouts.
 
 **D47 — la table des ports continuait de s'afficher après l'arrêt de Docker, sans
 rien dire qu'elle était morte. Corrigé.** Signalé le 2026-08-22 en arrêtant
@@ -5724,6 +5755,81 @@ Des jeux de constats dérivés du port (§3.8 a tranché cette classe de choix d
 l'autre sens : déclaré, jamais reniflé), Presidio, la lettre de raccourci d'une
 explication par modèle, la **migration de `internal/status` sur `netcheck`** —
 consignée ici pour que le doublon ne se réinstalle pas — et la capture tcpdump.
+
+### 3.34 L'onglet `docker` devient `network`, et netdiag cesse de coder ses délais en dur — **done**
+
+L'onglet `docker` de la vue configuration portait **un** réglage,
+`network_tool_image`, et ce n'était pas un réglage Docker : il nomme le
+conteneur dans lequel tournent les tracés de route et la table des ports. Les
+quatre autres onglets portent le nom de la section de config qu'ils écrivent, ce
+qui vaut renommer la clé YAML et pas seulement l'étiquette — sans quoi le seul
+onglet sur le point de grossir serait le seul dont le nom ne dit pas où
+atterrissent ses valeurs.
+
+**La migration est le vrai risque, et elle est silencieuse.** `LoadContext`
+appelle `yaml.Unmarshal` sans `KnownFields`, donc un bloc `docker:` non migré est
+**ignoré sans un mot** : l'image reviendrait à `nicolaka/netshoot`, et quelqu'un
+qui pointe vers son propre miroir verrait ses tracés retomber sur Docker Hub sans
+rien à l'écran pour le dire. `applyDefaults` reporte donc
+`docker.network_tool_image` dans `network.tool_image` **avant** les valeurs par
+défaut, puis vide l'ancienne clé pour qu'elle quitte le fichier à la prochaine
+sauvegarde — le précédent est `RegistryItem.AuthEnabled`.
+`TestANetworkToolImageSurvivesTheRename` et `TestTheNewKeyWinsOverTheOldOne`
+tiennent les deux bouts : la nouvelle clé gagne toujours, l'ancienne n'est qu'une
+source de migration et jamais un second écrivain.
+
+#### Ce que l'onglet a gagné
+
+`internal/netcheck/env.go` disait de ses constantes qu'elles *« deviennent des
+réglages quand quelqu'un les demande, pas avant »*. Quelqu'un a demandé.
+
+| Réglage | Remplace |
+|---|---|
+| `check_timeout` | cinq constantes — 5 s pour le DNS et le dial, 8 s pour TLS et HTTP, 4 s pour le ping |
+| `ping_count` | `pingCount` |
+| `cert_expiry_warn_days` | `expiryWarnWindow` |
+| `traceroute_max_hops` | le `-m 30` de `docker/netdiag.go` |
+| `ports_refresh_interval` | le tick de 2 s |
+
+**Un délai pour cinq.** Le partage 5 / 5 / 8 / 8 / 4 n'est argumenté nulle part :
+il se lit comme cinq estimations séparées, pas comme une conception. Cinq lignes
+de formulaire pour une seule idée — *combien de temps une sonde attend une
+réponse* — c'est précisément ce que §3.33 a retiré à cette vue en supprimant ses
+sept cases à cocher.
+
+Le défaut est **l'ancien maximum** (8 s), pas une moyenne : rien de ce qui répond
+aujourd'hui ne se met à échouer. Le coût est énoncé plutôt que découvert — un
+hôte injoignable passe maintenant 8 s sur le DNS au lieu de 5 — et il est
+acceptable pour la raison que §3.16 a payée : le pipeline annonce l'étape en
+cours (`StageTitle`), donc l'attente se lit au lieu de ressembler à un blocage.
+
+#### Trois choses restent en dur, et chacune pour une raison
+
+- **L'attente par saut du traceroute (`-w 1`)** se multiplie avec le nombre de
+  sauts. Deux réglages laisseraient construire un tracé de quinze minutes à
+  partir de deux nombres qui semblent chacun raisonnables.
+- **`MinVersion: VersionTLS10`** — la poignée de main *sonde*, elle ne sécurise
+  pas. Signaler une version périmée est tout l'objet ; un réglage ne pourrait que
+  rendre l'outil aveugle à ce qu'il existe pour trouver.
+- **`InsecureSkipVerify`** — l'étape TLS vérifie la chaîne elle-même pour dire
+  *quelle* partie a lâché. Un réglage ici écraserait quatre constats en une
+  chaîne d'erreur.
+
+#### `Settings` voyage à côté de `Env`, pas dessus
+
+`Env` est la couture vers le réseau ; `PingCount` et `ExpiryWarnWindow` sont lus
+par des **étapes** et par aucun appel réseau. Les mettre derrière la couture
+obligerait chaque fake à répondre pour une préférence.
+
+`Settings.Normalized()` comble ce qui est ≤ 0, à **chaque** point d'entrée — un
+`0` écrit à la main devient le défaut au lieu d'un dial sans échéance, c'est-à-dire
+un blocage au lieu d'un verdict. La vue appelle `checkSettings()` par exécution
+plutôt qu'à la construction : la vue configuration reconstruit le modèle à chaque
+sauvegarde, et une exécution déjà en vol porte sa copie dans la chaîne de
+messages — les deux ne peuvent donc pas diverger à mi-pipeline.
+`portsTickCmd` porte la même garde pour la même raison, au dernier lecteur plutôt
+qu'au constructeur : un intervalle nul ferait tirer `tea.Tick` sans pause, soit un
+`docker exec` par frame.
 
 ## 4. Existing plans
 

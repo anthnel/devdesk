@@ -19,7 +19,7 @@ import (
 // broken certificate must not hide whether the application responds. "It works,
 // the certificate is what is wrong" is a useful thing to be told, and the
 // certificate problem has four rows of its own.
-func runHTTP(ctx context.Context, t Target, env Env, prior *Results) []Check {
+func runHTTP(ctx context.Context, t Target, env Env, _ Settings, prior *Results) []Check {
 	scheme := "http"
 	if prior.VerdictOf(CheckTLSHandshake) == OK {
 		scheme = "https"

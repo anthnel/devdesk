@@ -12,7 +12,7 @@ import (
 func allFields(t *testing.T) []field {
 	t.Helper()
 	var out []field
-	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames()) {
+	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames(), "/home/u/.devdesk/config.yaml") {
 		out = append(out, s.Fields...)
 	}
 	return out
@@ -46,6 +46,13 @@ func TestEveryFieldCarriesTheAccessorItsKindNeeds(t *testing.T) {
 			if len(f.Options) < 2 {
 				t.Errorf("%q cycles through %d options; a closed set needs at least two", f.Label, len(f.Options))
 			}
+		case kindStatic:
+			if f.fact == "" {
+				t.Errorf("%q is a static row with nothing to show", f.Label)
+			}
+			if f.str != nil || f.num != nil || f.flag != nil {
+				t.Errorf("%q is a static row carrying an accessor; nothing may write it", f.Label)
+			}
 		}
 	}
 }
@@ -58,8 +65,8 @@ func TestNoTwoFieldsAddressTheSameSetting(t *testing.T) {
 
 	for i, a := range fields {
 		for _, b := range fields[i+1:] {
-			if a.Kind != b.Kind {
-				continue
+			if a.Kind != b.Kind || a.Kind == kindStatic {
+				continue // a static row addresses no setting
 			}
 			if samePointer(cfg, a, b) {
 				t.Errorf("%q and %q edit the same setting", a.Label, b.Label)
@@ -255,5 +262,111 @@ func TestTheDefaultViewFieldOffersOnlyViews(t *testing.T) {
 		if slices.Contains(f.Options, action) {
 			t.Errorf("%q is an action, not a view, and must not be offered", action)
 		}
+	}
+}
+
+// The Paths group reads as three paths and then the option that qualifies them.
+// A checkbox wedged between two value rows breaks the column they share, which
+// is what put Show hidden files between the workspaces root and the log file.
+func TestThePathsGroupEndsWithItsCheckbox(t *testing.T) {
+	var paths []field
+	for _, f := range allFields(t) {
+		if f.Group == "Paths" {
+			paths = append(paths, f)
+		}
+	}
+
+	want := []string{"Workspaces dir", "Config file", "Log file", "Show hidden files"}
+	if len(paths) != len(want) {
+		t.Fatalf("the Paths group holds %v, want %v", labelsOf(paths), want)
+	}
+	for i, label := range want {
+		if paths[i].Label != label {
+			t.Fatalf("the Paths group reads %v, want %v", labelsOf(paths), want)
+		}
+	}
+	if paths[len(paths)-1].Kind != kindToggle {
+		t.Error("the group does not end on its checkbox")
+	}
+	for _, f := range paths[:len(paths)-1] {
+		if f.Kind == kindToggle {
+			t.Errorf("%q is a checkbox among the value rows", f.Label)
+		}
+	}
+}
+
+// The config file is shown, not edited: it is where the keystrokes land, and
+// nothing in this view can move it.
+func TestTheConfigFileRowIsReadOnly(t *testing.T) {
+	f := fieldNamed(t, "Config file")
+
+	if f.Kind != kindStatic {
+		t.Fatalf("Config file is a %v; it must be static", f.Kind)
+	}
+	if f.focusable() {
+		t.Error("the cursor can stop on a row no key acts upon")
+	}
+	if f.Value(config.Default()) == "" {
+		t.Error("the row shows nothing")
+	}
+}
+
+// The tab is `network`, not `docker`, and it is named after the config section
+// it writes — as all five are.
+//
+// The one setting the old tab held was never a Docker setting: it names the
+// container the route traces and the ports table run in. Renaming the tab
+// without renaming the key would have left the one tab about to grow as the
+// only one whose name says nothing about where its values land.
+func TestEveryTabIsNamedAfterTheSectionItWrites(t *testing.T) {
+	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml")
+
+	want := []string{"app", "gitlab", "scan", "network", "status"}
+	got := make([]string, 0, len(all))
+	for _, s := range all {
+		got = append(got, s.Title)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("the tabs are %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("the tabs are %v, want %v — network keeps docker's slot", got, want)
+		}
+	}
+}
+
+// Every dial the netdiag view reads is editable, and each is bounded.
+//
+// internal/netcheck said its constants would become settings when somebody
+// asked; this is the list they became, and an unbounded one would let a user
+// write a zero that netcheck then has to defend itself against.
+func TestTheNetworkTabEditsEveryNetdiagDial(t *testing.T) {
+	cfg := config.Default()
+
+	want := map[string]*int{
+		"Check timeout (s)":     &cfg.Network.CheckTimeout,
+		"Ping count":            &cfg.Network.PingCount,
+		"Traceroute max hops":   &cfg.Network.TracerouteMaxHops,
+		"Ports refresh (s)":     &cfg.Network.PortsRefreshInterval,
+		"Expiry warning (days)": &cfg.Network.CertExpiryWarnDays,
+	}
+
+	for label, ref := range want {
+		f := fieldNamed(t, label)
+		if f.Kind != kindInteger {
+			t.Errorf("%q is a %v, want an integer field", label, f.Kind)
+			continue
+		}
+		if f.num(cfg) != ref {
+			t.Errorf("%q does not address the setting it names", label)
+		}
+		if f.min < 1 {
+			t.Errorf("%q admits %d; a zero dial is what netcheck has to normalize away", label, f.min)
+		}
+	}
+
+	if f := fieldNamed(t, "Network tool image"); f.str(cfg) != &cfg.Network.ToolImage {
+		t.Error("the tool image no longer addresses network.tool_image")
 	}
 }

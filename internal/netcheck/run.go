@@ -38,7 +38,7 @@ type stage struct {
 	// checks that never ran. TestEveryStageProducesWhatItDeclares keeps the two
 	// in step.
 	produces []CheckID
-	run      func(ctx context.Context, t Target, env Env, prior *Results) []Check
+	run      func(ctx context.Context, t Target, env Env, set Settings, prior *Results) []Check
 }
 
 // stageTitles names a stage for a progress line. A stage is what the user waits
@@ -77,8 +77,9 @@ func Steps() []StageID {
 // sharing anything with this call. That is what lets a Bubble Tea view chain
 // the stages through messages and never touch a model from inside a Cmd
 // (Rule 110).
-func RunStep(ctx context.Context, t Target, env Env, id StageID, prior Results) Results {
+func RunStep(ctx context.Context, t Target, env Env, set Settings, id StageID, prior Results) Results {
 	res := prior.clone()
+	set = set.Normalized()
 	all := stages()
 	gateOf := gatesOf(all)
 
@@ -86,7 +87,7 @@ func RunStep(ctx context.Context, t Target, env Env, id StageID, prior Results) 
 		if s.id != id {
 			continue
 		}
-		runStage(ctx, s, gateOf, t, env, &res)
+		runStage(ctx, s, gateOf, t, env, set, &res)
 	}
 	return res
 }
@@ -145,16 +146,17 @@ func stages() []stage {
 // A stage whose dependency failed does not run: its checks come back
 // NotApplicable carrying the check that blocked them. That is what turns seven
 // red rows into one red row and a named point of rupture.
-func Run(ctx context.Context, t Target, env Env) (Results, error) {
+func Run(ctx context.Context, t Target, env Env, set Settings) (Results, error) {
 	var res Results
 	if err := t.Validate(); err != nil {
 		return res, err
 	}
 
+	set = set.Normalized()
 	all := stages()
 	gateOf := gatesOf(all)
 	for _, s := range all {
-		runStage(ctx, s, gateOf, t, env, &res)
+		runStage(ctx, s, gateOf, t, env, set, &res)
 	}
 	return res, nil
 }
@@ -172,7 +174,7 @@ func gatesOf(all []stage) map[StageID]CheckID {
 
 // runStage is the one place a stage is either run, skipped or cancelled, so
 // Run and RunStep cannot drift apart on what any of the three means.
-func runStage(ctx context.Context, s stage, gateOf map[StageID]CheckID, t Target, env Env, res *Results) {
+func runStage(ctx context.Context, s stage, gateOf map[StageID]CheckID, t Target, env Env, set Settings, res *Results) {
 	if ctx.Err() != nil {
 		addPlaceholders(res, s, Unknown, "", "Cancelled before this check ran")
 		return
@@ -182,7 +184,7 @@ func runStage(ctx context.Context, s stage, gateOf map[StageID]CheckID, t Target
 			"Skipped — "+checkTitles[blocker]+" did not succeed")
 		return
 	}
-	for _, c := range s.run(ctx, t, env, res) {
+	for _, c := range s.run(ctx, t, env, set, res) {
 		res.add(c)
 	}
 }
