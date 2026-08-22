@@ -1,0 +1,104 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "4315dbd753b2",
+  "session_id": "fb64f3f6-22af-4a4e-8b52-7405258f1952",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-22T10:01:20.6259654Z",
+  "branch": "config-header-paths",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/config/config.go",
+    "internal/config/network_test.go",
+    "internal/docker/netdiag.go",
+    "internal/netcheck/env.go",
+    "internal/netcheck/env_test.go",
+    "internal/netcheck/explain_test.go",
+    "internal/netcheck/run.go",
+    "internal/netcheck/run_test.go",
+    "internal/netcheck/settings_test.go",
+    "internal/netcheck/stage_connect.go",
+    "internal/netcheck/stage_http.go",
+    "internal/netcheck/stage_reach.go",
+    "internal/netcheck/stage_resolve.go",
+    "internal/netcheck/stage_tls.go",
+    "internal/netcheck/stages_test.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/fields_test.go",
+    "internal/ui/configuration/model.go",
+    "internal/ui/configuration/model_test.go",
+    "internal/ui/configuration/update.go",
+    "internal/ui/configuration/view.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/netdiag_test.go",
+    "internal/ui/netdiag/ports_model.go",
+    "internal/ui/netdiag/run.go",
+    "internal/ui/netdiag/settings_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/oci_resources/keys.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "83f93d995648",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 220,
+    "cache_creation_tokens": 259871,
+    "cache_read_tokens": 23853092,
+    "output_tokens": 70654,
+    "api_call_count": 110
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-08-22T09:41:02.7188514Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "25c6e3823f88",
+      "timestamp": "2026-08-22T09:41:02.7188514Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-22T10:01:20.5809815Z",
+    "agent_lines": 947,
+    "agent_removed": 146,
+    "human_added": 296,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1243,
+    "total_lines_changed": 1396,
+    "agent_percentage": 78.29512893982809,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 486,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 486
+      }
+    }
+  ]
+}

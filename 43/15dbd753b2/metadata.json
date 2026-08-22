@@ -1,0 +1,55 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "4315dbd753b2",
+  "strategy": "manual-commit",
+  "branch": "config-header-paths",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/config/config.go",
+    "internal/config/network_test.go",
+    "internal/docker/netdiag.go",
+    "internal/netcheck/env.go",
+    "internal/netcheck/env_test.go",
+    "internal/netcheck/explain_test.go",
+    "internal/netcheck/run.go",
+    "internal/netcheck/run_test.go",
+    "internal/netcheck/settings_test.go",
+    "internal/netcheck/stage_connect.go",
+    "internal/netcheck/stage_http.go",
+    "internal/netcheck/stage_reach.go",
+    "internal/netcheck/stage_resolve.go",
+    "internal/netcheck/stage_tls.go",
+    "internal/netcheck/stages_test.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/fields_test.go",
+    "internal/ui/configuration/model.go",
+    "internal/ui/configuration/model_test.go",
+    "internal/ui/configuration/update.go",
+    "internal/ui/configuration/view.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/netdiag_test.go",
+    "internal/ui/netdiag/ports_model.go",
+    "internal/ui/netdiag/run.go",
+    "internal/ui/netdiag/settings_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/oci_resources/keys.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/43/15dbd753b2/0/metadata.json",
+      "transcript": "/43/15dbd753b2/0/full.jsonl",
+      "compact_transcript": "/43/15dbd753b2/0/transcript.jsonl",
+      "content_hash": "/43/15dbd753b2/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 220,
+    "cache_creation_tokens": 259871,
+    "cache_read_tokens": 23853092,
+    "output_tokens": 70654,
+    "api_call_count": 110
+  }
+}
