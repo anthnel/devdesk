@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/viewer"
@@ -62,31 +63,57 @@ func (s logsSource) WithTimestamps(on bool) viewer.Source {
 	return s
 }
 
-// FollowCmd streams live output. It suspends the TUI (tea.ExecProcess) rather
-// than tailing into the viewport: following is what `docker logs -f` already
-// does, and re-implementing it against a viewport would be re-implementing
-// `less +F` badly.
-func (s logsSource) FollowCmd() *exec.Cmd {
-	args := []string{"logs", "-f", "--tail", fmt.Sprint(logsTail)}
-	if s.Timestamps {
-		args = append(args, "--timestamps")
-	}
-	return exec.Command("docker", append(args, s.ID)...)
-}
+// followInterval is how often a followed log is re-read.
+//
+// Two seconds, the ports tab's cadence, and for the same reason: it is about
+// the slowest a live pane can refresh and still read as live. A re-read is one
+// `docker logs --tail 500` — the very exec `ctrl+r` already runs — so following
+// costs one process every two seconds while the user is watching it, and
+// nothing at all once they stop.
+const followInterval = 2 * time.Second
+
+// FollowInterval makes a container log followable.
+//
+// This was FollowCmd, handing the terminal to `docker logs -f` through
+// tea.ExecProcess. The reasoning was that following is what docker already
+// does — true, and beside the point: the only way out of `docker logs -f` is
+// ctrl+c, the suspended TUI never sees it, so it killed DevDesk outright and
+// gave the terminal back in whatever mode the child had left it, with keys no
+// longer answering. A capability whose only exit kills the application is not
+// one.
+func (s logsSource) FollowInterval() time.Duration { return followInterval }
 
 // PagerCmd hands the log to the system pager.
 //
 // This is the one pager path the viewer keeps, and it is kept for a reason the
 // viewport cannot answer: `less` handles a gigabyte and follows it, while the
-// viewport holds the whole document in memory. The Windows branch writes to a
-// temp file first because `more` cannot read a pipe the way `less` can — it is
-// the shape the logs pane already used, and the only place it survives.
+// viewport holds the whole document in memory.
+//
+// **No quotes, on either branch, and that is load-bearing on Windows.** The
+// Windows branch used to write to a temp file and page that:
+//
+//	docker logs --tail 500 ID > "%TEMP%\devdesk-logs.txt" 2>&1 && more "%TEMP%\devdesk-logs.txt"
+//
+// It never worked. Go's exec.Command escapes an argument's inner quotes as `\"`
+// when it builds the Windows command line, and cmd.exe does not understand that
+// escaping — it sees the backslashes as part of the path. The result was
+// `C:\C:\Users\...\devdesk-logs.txt\`, cmd answering "the filename, directory
+// name or volume label syntax is incorrect", and the pager returning to DevDesk
+// instantly with an exit status nobody rendered. Measured, by running the exact
+// string through exec.Command.
+//
+// The temp file went with it, because the reason given for it was not true:
+// `more` reads a pipe perfectly well — `dir | more` is its canonical use — so
+// the two branches now differ only in the shell and the pager's name. Nothing
+// is written to disk, and no path needs quoting.
+//
+// The container ID is interpolated into a shell string, which is only safe
+// because it comes from `docker ps`. Do not extend this to a value the user
+// types.
 func (s logsSource) PagerCmd() *exec.Cmd {
 	if runtime.GOOS == "windows" {
-		script := fmt.Sprintf(
-			`docker logs --tail %d %s > "%%TEMP%%\devdesk-logs.txt" 2>&1 && more "%%TEMP%%\devdesk-logs.txt"`,
-			logsTail, s.ID)
-		return exec.Command("cmd", "/c", script)
+		return exec.Command("cmd", "/c",
+			fmt.Sprintf("docker logs --tail %d %s 2>&1 | more", logsTail, s.ID))
 	}
 	return exec.Command("sh", "-c",
 		fmt.Sprintf("docker logs --tail %d %s 2>&1 | ${PAGER:-less} -R", logsTail, s.ID))

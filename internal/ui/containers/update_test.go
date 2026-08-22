@@ -1031,6 +1031,49 @@ func TestOnlyTheLogSourceCarriesTheOptionalCapabilities(t *testing.T) {
 	}
 }
 
+// The pager command carries no quote, and that is what the Windows branch got
+// wrong for its whole life.
+//
+// Go's exec.Command escapes an argument's inner quotes as `\"` when it builds a
+// Windows command line, and cmd.exe does not understand that escaping: it reads
+// the backslashes as part of the path. `more "%TEMP%\devdesk-logs.txt"` became
+// `C:\C:\Users\...\devdesk-logs.txt\`, cmd refused it, and `V` came straight
+// back to DevDesk with an exit status nobody rendered.
+//
+// The assertion is on the string rather than on the platform, because the
+// hazard is not platform-specific: a quote inside a shell script handed to
+// exec.Command is the trap, and the Unix branch has no more business carrying
+// one.
+func TestThePagerCommandCarriesNoQuote(t *testing.T) {
+	cmd := logsSource{ID: "abc123", Container: "api"}.PagerCmd()
+
+	for _, arg := range cmd.Args {
+		if strings.ContainsAny(arg, `"'`) {
+			t.Errorf("pager argument %q carries a quote; exec.Command escapes it and cmd.exe does not understand that", arg)
+		}
+	}
+}
+
+// The temp file went with the quotes, because the reason given for it was not
+// true: `more` reads a pipe perfectly well — `dir | more` is its canonical use.
+// Both branches are one shape now, a pipe into a pager.
+func TestThePagerPipesRatherThanWritingAFile(t *testing.T) {
+	cmd := logsSource{ID: "abc123", Container: "api"}.PagerCmd()
+	script := cmd.Args[len(cmd.Args)-1]
+
+	if !strings.Contains(script, "|") {
+		t.Errorf("pager script %q does not pipe", script)
+	}
+	// `2>&1` is a redirect and stays; what must not come back is a redirect to a
+	// file, which is what needed the quoting that broke the whole thing.
+	if strings.Contains(strings.ToUpper(script), "TEMP") || strings.Contains(script, ".txt") {
+		t.Errorf("pager script %q still writes a temp file", script)
+	}
+	if !strings.Contains(script, "abc123") {
+		t.Errorf("pager script %q does not name the container", script)
+	}
+}
+
 // WithTimestamps returns a new source rather than mutating the one a command may
 // already hold (Rule 110).
 func TestWithTimestampsLeavesTheOriginalAlone(t *testing.T) {

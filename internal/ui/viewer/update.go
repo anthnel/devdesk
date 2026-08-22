@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"log"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,6 +33,24 @@ func loadCmd(source viewer.Source) tea.Cmd {
 	}
 }
 
+// followTickMsg asks for the next read of a followed source. It carries the
+// generation it was started for, so a loop the user has stopped cannot
+// resurrect itself — see stopFollowing.
+type followTickMsg struct{ gen int }
+
+func followTickCmd(every time.Duration, gen int) tea.Cmd {
+	// A non-positive interval would make tea.Tick fire without pausing and spin
+	// one docker exec per frame. Refused here rather than trusted, the way the
+	// ports tab refuses a hand-edited 0.
+	if every <= 0 {
+		every = defaultFollowInterval
+	}
+	return tea.Tick(every, func(time.Time) tea.Msg { return followTickMsg{gen: gen} })
+}
+
+// defaultFollowInterval is the floor a source with no sensible answer falls to.
+const defaultFollowInterval = 2 * time.Second
+
 // InEditMode keeps command mode out while the search field has the keyboard.
 func (m Model) InEditMode() bool { return m.bar.InEditMode() }
 
@@ -58,6 +77,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case PagerExitMsg:
 		return m.handlePagerExit(msg)
+
+	case followTickMsg:
+		return m.handleFollowTick(msg)
 
 	case spinner.TickMsg:
 		// The chain stops when nothing is loading, and Init/reload restart it.
@@ -113,18 +135,26 @@ func loadErrorMessage(err error) string {
 	}
 }
 
+// handlePagerExit takes the pager's return, and says so when it failed.
+//
+// The report is not decoration. A pager that cannot start comes back in
+// milliseconds and looks exactly like one the user quit at once, so the whole
+// event is indistinguishable from `V` doing nothing — which is precisely how the
+// broken Windows command line went unnoticed. The log line was already there and
+// nobody reads a log to find out why a key did nothing.
 func (m Model) handlePagerExit(msg PagerExitMsg) (tea.Model, tea.Cmd) {
+	var report tea.Cmd
 	if msg.Err != nil {
 		log.Printf("ERROR [viewer] pager: %v", msg.Err)
+		report = m.footer.Error("Pager failed — check logs")
 	}
-	// Whatever the pager or the follow showed, the document may have moved on
-	// while the TUI was suspended. Reloading is the only way back to something
-	// true.
+	// Whatever the pager showed, the document may have moved on while the TUI
+	// was suspended. Reloading is the only way back to something true.
 	if m.source == nil {
-		return m, nil
+		return m, report
 	}
 	m.loading = true
-	return m, loadCmd(m.source)
+	return m, tea.Batch(report, loadCmd(m.source))
 }
 
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -162,6 +192,11 @@ func (m Model) goBack() (tea.Model, tea.Cmd) {
 	if m.OriginView == "" {
 		return m, nil
 	}
+	// Leaving stops the clock. The router keeps this view, so a loop left
+	// running would go on shelling out to docker every two seconds for a
+	// document nobody is looking at — and the user would come back to a pane
+	// that had scrolled itself to the bottom while they were gone.
+	m = m.stopFollowing()
 	origin := m.OriginView
 	return m, func() tea.Msg { return BackToOriginMsg{Origin: origin} }
 }
@@ -203,7 +238,7 @@ func (m Model) handleTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "t":
 		return m.toggleTimestamps()
 	case keymap.Fetch:
-		return m.follow()
+		return m.toggleFollow()
 	case keymap.Pager:
 		return m.openPager()
 
@@ -264,14 +299,63 @@ func (m Model) toggleTimestamps() (tea.Model, tea.Cmd) {
 	return m, loadCmd(m.source)
 }
 
-func (m Model) follow() (tea.Model, tea.Cmd) {
+// toggleFollow is `F`. It re-reads the source on its own clock, into this pane.
+//
+// It used to be tea.ExecProcess over `docker logs -f`, and the defect that
+// replaced it is worth keeping written down: the only way out of that process
+// is ctrl+c, a suspended TUI does not intercept it, so it killed DevDesk and
+// gave the terminal back in whatever mode the child had left it — after which
+// keys stopped answering. A capability whose only exit kills the application is
+// not one.
+//
+// The read is the one `ctrl+r` already does: same command, same message, same
+// handler. Following is that key on a timer and nothing more, which is why it
+// costs no new loading path.
+func (m Model) toggleFollow() (tea.Model, tea.Cmd) {
 	src, ok := m.followable()
 	if !ok {
 		return m, nil
 	}
-	return m, tea.ExecProcess(src.FollowCmd(), func(err error) tea.Msg {
-		return PagerExitMsg{Err: err}
-	})
+	if m.following {
+		return m.stopFollowing(), nil
+	}
+	m.following = true
+	m.followGen++
+	// The first read is immediate. Waiting a whole interval before anything
+	// moves would leave the user unsure the key did anything, and what is on
+	// screen is already up to one interval old.
+	return m, tea.Batch(loadCmd(m.source), followTickCmd(src.FollowInterval(), m.followGen))
+}
+
+// stopFollowing is the one place following is turned off, so no path can leave
+// the flag set with no tick behind it, or a tick running with the flag clear.
+func (m Model) stopFollowing() Model {
+	m.following = false
+	// Bumping the generation is what actually ends the loop. The tick already
+	// in flight blocks for its whole interval and arrives whatever happens
+	// here; the mismatch is what makes it a no-op instead of it finding the
+	// flag turned back on and carrying a second loop into the new run.
+	m.followGen++
+	return m
+}
+
+// handleFollowTick re-reads, then schedules the next one.
+//
+// A stale tick — from a loop the user stopped, or restarted — returns no
+// command, which is how the old loop dies rather than running beside the new.
+func (m Model) handleFollowTick(msg followTickMsg) (tea.Model, tea.Cmd) {
+	if !m.following || msg.gen != m.followGen || m.source == nil {
+		return m, nil
+	}
+	src, ok := m.followable()
+	if !ok {
+		return m.stopFollowing(), nil
+	}
+	// m.loading stays false deliberately: a load is reported in the footer with
+	// a spinner (Rule 139), and one blinking every two seconds would read as
+	// something going wrong with the thing that is working. The follow status
+	// line is what says the pane is live.
+	return m, tea.Batch(loadCmd(m.source), followTickCmd(src.FollowInterval(), msg.gen))
 }
 
 // openPager hands the document to the system pager.

@@ -783,6 +783,38 @@ of four and satisfying none in silence — a one-method interface has no
 half-satisfied state. `WithTimestamps` returns a *new* source rather than
 mutating one, so nothing is shared with a command in flight (Rule 110).
 
+**`F` follows in the pane, and `Followable` returns an interval rather than a
+command.** It used to return an `*exec.Cmd` run through `tea.ExecProcess`, on
+the argument that `docker logs -f` already does this and re-implementing it
+against a viewport would be re-implementing `less +F` badly. The argument was
+true and beside the point: **the only way out of `docker logs -f` is ctrl+c, and
+a suspended TUI does not intercept it** — so leaving the follow killed DevDesk
+outright, and gave the terminal back in whatever mode the child had left it,
+after which keys stopped answering. Observed, not theorised. A capability whose
+only exit kills the application is not one.
+
+Following is therefore `ctrl+r` on a timer: the same `loadCmd`, the same
+`DocumentLoadedMsg`, the same handler, plus a `followTickMsg` — the ports tab's
+shape. Three things follow from it, each with a test:
+
+- **The generation ends a loop, not the flag.** `tea.Tick` blocks its whole
+  interval, so a tick scheduled before `F` stopped still arrives; restarting
+  before it lands would leave two loops reading for the life of the view.
+  `stopFollowing` bumps `followGen` and is the one place following is turned
+  off — `esc` included, since the router keeps this view and a loop left behind
+  it would shell out every interval for a document nobody is looking at.
+- **A followed document lands at the bottom**, where the new lines are. Every
+  other arrival lands at the top, because a first load, a reload and a
+  timestamps toggle all mean "here is the document".
+- **`m.loading` stays false on a follow read.** The footer spinner belongs to a
+  load the user waits on, and one blinking every two seconds reads as a fault in
+  the thing that is working. `Following — F to stop` is what says the pane is
+  live, derived per frame rather than posted (Rule 128).
+
+The trade is stated rather than discovered: this polls, so a line can wait up to
+one interval and a burst longer than `logsTail` is missed between two reads. `V`
+still streams, and `less` is left with `q` rather than ctrl+c.
+
 **A log line with no level inherits the one above it.** This is what the filter
 rests on: a stack trace is a dozen unlevelled lines, and `≥ warn` swallowing them
 destroys exactly what the log was opened for. The chain breaks on a blank line —
@@ -950,6 +982,28 @@ pager — moved here whole; `containers/update.go` went from 707 to 548 lines.
 their reasons apply to any text this application shows. Every `docker inspect`
 pager path is gone, Windows temp files included. `V` survives for logs alone,
 because `less` handles a gigabyte and follows it.
+
+**`PagerCmd` carries no quote, on either branch.** Go's `exec.Command` escapes
+an argument's inner quotes as `\"` when it builds a Windows command line, and
+`cmd.exe` does not understand that escaping — it reads the backslashes as part
+of the path. So `more "%TEMP%\devdesk-logs.txt"` reached cmd as
+`C:\C:\Users\...\devdesk-logs.txt\`, which it refused, and `V` returned to
+DevDesk instantly with an exit status nobody rendered: on Windows the pager
+never once worked. Measured by running the exact string through
+`exec.Command`, not deduced.
+
+The temp file went with the quotes, because its stated reason was false: **`more`
+reads a pipe** — `dir | more` is its canonical use. The two branches now differ
+only in the shell and the pager's name, nothing touches disk, and no path needs
+quoting. The container ID is still interpolated into a shell string, which is
+safe only because it comes from `docker ps`; do not extend that to a value the
+user types.
+
+A failed pager is now **reported** (`Pager failed — check logs`). One that
+cannot start comes back in milliseconds and is indistinguishable from one the
+user quit at once, which is exactly how a command line broken since the day it
+was written went unnoticed — the log line was there all along, and nobody reads
+a log to find out why a key did nothing.
 
 ### Security Scanning
 

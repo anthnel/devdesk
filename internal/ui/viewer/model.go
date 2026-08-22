@@ -58,6 +58,19 @@ type Model struct {
 	// nothing to read the flag back off.
 	showTimestamps bool
 
+	// following re-reads the source on its own clock, into this pane. It
+	// replaced a `docker logs -f` run through tea.ExecProcess, which could only
+	// be left with ctrl+c — killing the application and handing the terminal
+	// back in the child's mode.
+	following bool
+	// followGen invalidates a tick loop the user has already stopped.
+	//
+	// tea.Tick blocks for its whole interval, so a tick scheduled before `F`
+	// turned following off still arrives after it; turning follow back on before
+	// that one lands would leave two loops running and double the read rate for
+	// the life of the view. A stale tick is the one that fails to match this.
+	followGen int
+
 	// The tree half.
 	tree      datatable.Model[treeRow]
 	collapsed map[int]bool
@@ -189,7 +202,18 @@ func (m *Model) applyDocument(doc viewer.Document) tea.Cmd {
 	m.rebuildTree()
 	m.tree.GotoTop()
 	m.rebuildText()
-	m.textViewport.GotoTop()
+
+	// A followed document lands at the bottom, where the new lines are. Every
+	// other arrival lands at the top: a first load, a reload and a timestamps
+	// toggle are all "here is the document", and the document starts at line
+	// one. Following is the one case where the interesting end is the other one,
+	// and a re-read that jumped back to the top every two seconds would make the
+	// pane unusable for exactly what it was turned on for.
+	if m.following {
+		m.textViewport.GotoBottom()
+	} else {
+		m.textViewport.GotoTop()
+	}
 
 	// A warning, not an error: nothing failed, the document simply cannot be
 	// shown the way its name asked for.
