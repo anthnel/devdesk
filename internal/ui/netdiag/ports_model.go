@@ -71,7 +71,7 @@ func (pm *PortsModel) statusLine() components.Status {
 	// Staleness outranks the pause: a pause is what the user asked for, an
 	// unreachable Docker is not, and only one of the two makes the rows lie.
 	if pm.stale {
-		return components.Status{Text: pm.staleLabel()}
+		return components.Status{Text: pm.staleLabel(), Level: components.LevelError}
 	}
 	if pm.paused {
 		return components.Status{Text: "Paused — press space to resume"}

@@ -72,6 +72,22 @@ maintenant `Refresh failed — sections last loaded: 5 min ago`, et un **premier
 chargement qui échoue reste une erreur simple : avec rien à l'écran, il n'y a
 rien à dater et « showing the load from » serait un mensonge.
 
+**Et ce bandeau a quitté le panneau pour le footer**, sur relecture d'une
+capture. Un bloc rouge au milieu des sections mettait la chose la plus lourde de
+l'écran à l'intérieur de ce dont elle parlait, alors que la section
+« Network Interfaces » n'avait plus qu'à dire ce que disent ses voisines quand
+elles ne tiennent rien — « No interfaces found », en `DimStyle`. La ligne
+`ctrl+r — retry` est partie avec : l'en-tête annonce déjà `ctrl+r` (Rule 134).
+
+Ça a demandé un champ : **`components.Status` gagne un `Level`**, de valeur zéro
+`LevelInfo`, donc aucun statut écrit avant ne change de rendu. Un état dérivé
+peut être un échec aussi légitimement qu'une progression — « Docker
+injoignable » n'est pas un événement survenu une fois, c'est ce qui est vrai
+maintenant — et il lui faut **la couleur d'une erreur avec la durée de vie d'un
+état**. Seul `Status` peut donner les deux : un message expire en trois
+secondes, ce qui est D47 en un champ. La ligne de péremption des ports prend le
+même niveau, puisque c'est la même condition.
+
 **Le test de connectivité OCI n'était pas concerné.** C'est une requête unique
 avec sa réponse : `SetResult` pose un `resultErr` persistant, il n'y a pas de
 tick, donc pas de donnée qui vieillit à l'écran. Vérifié plutôt que supposé.

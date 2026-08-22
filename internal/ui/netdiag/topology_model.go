@@ -265,10 +265,12 @@ func (tm *TopologyModel) buildViewportContent() string {
 	lines = append(lines, theme.PadWithBg(theme.SubTitleStyle.Render("  "+theme.IconNetwork+" Network Interfaces"), w))
 	lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  "+sep), w))
 
-	if tm.loadErr != "" {
-		lines = append(lines, theme.PadWithBg(theme.StatusErrorStyle.Render("  "+tm.loadErr), w))
-		lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  ctrl+r — retry"), w))
-	} else if len(tm.interfaces) == 0 {
+	// The failure itself belongs to the footer (Rule 128): it is a state, it
+	// needs to outlive three seconds, and a red block inside the pane put the
+	// heaviest thing on screen in the middle of the sections it was about. The
+	// section says what its neighbours say when they are empty. The retry hint
+	// went with it — the header already advertises ctrl+r (Rule 134).
+	if len(tm.interfaces) == 0 {
 		lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  No interfaces found"), w))
 	} else {
 		for _, iface := range tm.interfaces {
@@ -400,6 +402,9 @@ func (tm *TopologyModel) buildViewportContent() string {
 func (tm *TopologyModel) statusLine() components.Status {
 	if tm.state == topoStateLoading {
 		return components.Status{Text: "Loading network data...", Spinner: true}
+	}
+	if tm.loadErr != "" {
+		return components.Status{Text: tm.loadErr, Level: components.LevelError}
 	}
 	return components.Status{}
 }

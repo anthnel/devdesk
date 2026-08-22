@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -102,8 +103,26 @@ func TestTopologyFetchFailureSurfacesAShortMessage(t *testing.T) {
 	if m.topologyModel.state != topoStateReady {
 		t.Error("a failed fetch left the tab spinning forever")
 	}
-	if !strings.Contains(m.View(), "Failed to load network data") {
-		t.Error("the failure is not shown in the viewport")
+	// The failure belongs to the footer (Rule 128), not to the pane: a red block
+	// in the middle of the sections put the heaviest thing on screen inside what
+	// it was about, and it needs to outlive the three seconds a message gets.
+	if strings.Contains(m.View(), "Failed to load network data") {
+		t.Error("the failure is rendered inside the viewport")
+	}
+	status := m.topologyModel.statusLine()
+	if !strings.Contains(status.Text, "Failed to load network data") {
+		t.Errorf("status = %q, does not carry the failure", status.Text)
+	}
+	if status.Level != components.LevelError {
+		t.Error("the failure does not render as an error")
+	}
+	// The section reads like its neighbours do when they hold nothing.
+	if !strings.Contains(m.View(), "No interfaces found") {
+		t.Error("the interfaces section says nothing at all")
+	}
+	// Rule 134: the header already advertises ctrl+r.
+	if strings.Contains(m.View(), "retry") {
+		t.Error("the pane carries an inline shortcut hint")
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	"github.com/muesli/termenv"
 )
 
 // expiry is the message the current message's timer will eventually deliver.
@@ -340,6 +341,54 @@ func stripANSI(s string) string {
 		}
 		b.WriteByte(s[i])
 		i++
+	}
+	return b.String()
+}
+
+// TestAStatusRendersInItsLevel — a derived state can be a failure as
+// legitimately as it can be progress, and it needs the colour of an error with
+// the lifetime of a state. The zero value stays Info, so every status written
+// before this existed renders exactly as it did.
+func TestAStatusRendersInItsLevel(t *testing.T) {
+	// Two things have to be forced or this test passes on nothing: the footer
+	// colours are semantic aliases assigned in ApplyTheme and captured by the
+	// styles at that moment, and lipgloss strips colour entirely under the
+	// Ascii profile a test process gets.
+	theme.ApplyTheme(theme.DefaultTheme())
+	saved := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(saved) })
+
+	var f FooterMessage
+
+	plain := f.View(80, Status{Text: "Loading..."})
+	errored := f.View(80, Status{Text: "Loading...", Level: LevelError})
+
+	if plain == errored {
+		t.Fatal("an error-level status renders identically to an info one")
+	}
+	var zero Status
+	if zero.Level != LevelInfo {
+		t.Error("the zero Level is not LevelInfo")
+	}
+	// And it still has no timer: View is what draws it, nothing schedules it.
+	if !strings.Contains(stripEscapes(errored), "Loading...") {
+		t.Errorf("the text is missing: %q", errored)
+	}
+}
+
+func stripEscapes(s string) string {
+	var b strings.Builder
+	esc := false
+	for _, r := range s {
+		switch {
+		case r == 0x1b:
+			esc = true
+		case esc && (r == 'm' || r == 'K'):
+			esc = false
+		case !esc:
+			b.WriteRune(r)
+		}
 	}
 	return b.String()
 }

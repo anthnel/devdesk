@@ -81,6 +81,15 @@ type Status struct {
 	Text string
 	// Spinner prepends the current spinner frame — a table loading its rows.
 	Spinner bool
+	// Level colours the line, and the zero value is LevelInfo, so a status that
+	// says nothing about it renders exactly as it always did.
+	//
+	// A derived state can be a failure as legitimately as it can be progress:
+	// "Docker unreachable" is not an event that happened once, it is what is
+	// true right now, and a message would expire after three seconds — which is
+	// D47 in one field. It needs the colour of an error and the lifetime of a
+	// state, and only Status can give it both.
+	Level Level
 }
 
 // footerMsgSeq numbers messages so a timer can name the one it was started for.
@@ -209,7 +218,7 @@ func (f *FooterMessage) View(width int, status Status) string {
 	if budget <= 0 {
 		return theme.EmptyLineBg(width)
 	}
-	return centerLine(spinner+theme.FooterInfoStyle.Render(theme.TruncateWidth(status.Text, budget)), width)
+	return centerLine(spinner+status.Level.Style().Render(theme.TruncateWidth(status.Text, budget)), width)
 }
 
 // centerLine centres already-styled content on a line filled with the app
