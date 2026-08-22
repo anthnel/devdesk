@@ -111,11 +111,11 @@ func (f *stubForge) Shape() Shape { return f.shape }
 
 func (f *stubForge) CurrentUser(context.Context) (User, error) { return f.user, nil }
 
-func (f *stubForge) RootNamespaces(context.Context) ([]Namespace, error) {
+func (f *stubForge) RootNamespaces(context.Context, BrowseOptions) ([]Namespace, error) {
 	return []Namespace{{ID: "1", Path: "acme", Name: "Acme"}}, nil
 }
 
-func (f *stubForge) Children(context.Context, string, ChildrenOptions) (Children, error) {
+func (f *stubForge) Children(context.Context, string, BrowseOptions) (Children, error) {
 	return Children{}, nil
 }
 

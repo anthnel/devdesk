@@ -2709,11 +2709,10 @@ font contre GitLab seul.
 1. ~~Définir l'abstraction `forge` à partir de ce que le code consomme
    réellement.~~ **Faite** — `internal/forge` : les types du domaine,
    l'interface, et `Shape`. Ce que le fait de l'écrire a tranché est plus bas.
-2. Implémenter le backend GitLab en déplaçant le code existant derrière
-   l'interface — sans changement de comportement, et couvert par les tests que §2
-   phase 5 a ajoutés. **C'était l'étape 6** ; elle passe devant, parce que l'étape
-   suivante ne peut pas mettre dans `shared.State` une interface que rien
-   n'implémente.
+2. ~~Implémenter le backend GitLab en déplaçant le code existant derrière
+   l'interface.~~ **Faite** — `internal/forge/gitlab`, seul endroit de DevDesk
+   qui sache que go-gitlab existe. Ce qu'il cache et ce qu'écrire l'a trouvé
+   sont plus bas.
 3. Remplacer `shared.State.GitLabClient` par cette interface, et faire passer les
    branches « authentifié ou non » par `IsAuthenticated` au passage. C'est le
    changement dont les 41 autres appels découlent — le décompte de 66 était
@@ -2789,6 +2788,57 @@ n'implémente compile quoi qu'elle déclare, ce qui est la façon dont une étap
 qui ne fait que définir se trompe. Le stub reste dans le test : l'étape 3 est
 celle qui gagne des appelants voulant un double, et un paquet d'aide écrit avant
 ses consommateurs devinerait ce dont ils ont besoin.
+
+#### Ce que l'étape 2 a trouvé
+
+`internal/forge/gitlab` implémente l'interface en entier, avec les tests
+`httptest` du paquet `internal/gitlab` — le harnais est déplacé avec le code
+qu'il exerce. C'est la propriété qui a fait choisir les SDK contre les CLIs :
+le SDK prend une URL de base, donc un serveur de test tient lieu d'instance et
+le backend n'a besoin d'aucune couture.
+
+Ce que le backend cache, et que chaque élément avait fui dans une vue :
+la pagination (D34), les identifiants numériques là où un chemin ne passe pas,
+la suppression permanente en deux appels et son chemin renommé, et la traduction
+d'un niveau d'accès en mot.
+
+Quatre choses qui ne se lisent pas dans l'énoncé :
+
+- **L'utilisateur est résolu une fois par listing, pas une fois par ligne.** Les
+  recherches de rôle ont besoin de l'ID de l'appelant, et le demander dans la
+  boucle ajouterait une requête par groupe — ce qui aurait porté à **trois** par
+  dépôt une décoration qui en coûte déjà deux. `decoratingAs` le fait une fois
+  et retourne 0 quand rien n'est décoré, ce qui est aussi ce qui empêche N
+  requêtes de membre quand la session est morte.
+  `TestADecoratedListingResolvesTheUserOnce` compte l'appel.
+- **Une décoration qui échoue ne fait pas échouer le listing, un listing qui
+  échoue n'est jamais une liste vide.** Les deux sens ont un test, et c'est la
+  même règle que D20 vue de deux côtés : une colonne en moins vaut mieux qu'un
+  explorer vide, et un explorer vide ne doit jamais vouloir dire « ce groupe ne
+  contient rien ».
+- **`MaxNamespaceDepth` est 0 pour GitLab**, non borné, alors que la doc GitLab
+  annonce 20 sur les instances auto-hébergées. La limite est configurable et
+  l'API ne la publie pas : la déclarer serait affirmer ce que le backend ne peut
+  pas vérifier, et refuser une création légitime. Le serveur refuse avec son
+  propre message, ce qui est mieux qu'une supposition.
+- **go-gitlab réessaie les 5xx**, en backoff exponentiel — un test rendant 500
+  a mis **35 secondes**, mesuré. Ce n'est pas une régression (c'est le défaut du
+  SDK, déjà en place), et ça vaut d'être su : une instance en panne fait attendre
+  l'utilisateur une demi-minute derrière un spinner. Les tests utilisent 403,
+  qui n'est pas réessayé et qui est de toute façon l'échec réaliste — un token
+  dont le scope ne couvre pas l'endpoint.
+
+**Une correction de l'étape 1 :** `ChildrenOptions` est devenu `BrowseOptions` et
+couvre aussi `RootNamespaces`. La marche du clone part d'une racine et ne paie
+de décoration à aucun niveau ; l'étape 1 n'avait donné l'option qu'aux enfants,
+ce qui aurait fait payer à un clone une requête de rôle par groupe racine.
+
+**Ce que l'étape 2 ne fait pas.** `internal/gitlab` et `explorer/api.go` sont
+intacts et portent encore leurs propres chemins : les déplacer demande que
+`TreeNode` porte un `ID` opaque et un `Path`, ce qui est l'étape 3. Le
+recouvrement est donc réel — la pagination et le listing existent en deux
+exemplaires — et il dure exactement une PR. Le supprimer ici aurait voulu dire
+fusionner les étapes 2 et 3 en un diff de plus de mille lignes.
 
 ### 3.7 Command mode from inside a text field — **done**
 

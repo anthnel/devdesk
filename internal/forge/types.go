@@ -76,9 +76,15 @@ type Children struct {
 	Repositories []Repository
 }
 
-// ChildrenOptions is what a listing may vary. Both fields cost something, which
+// BrowseOptions is what a listing may vary. Both fields cost something, which
 // is why neither is implied.
-type ChildrenOptions struct {
+//
+// It covers RootNamespaces as well as Children, because the difference the
+// clone needs is the same at both levels: its walk starts from a root and pays
+// for no decoration anywhere. IncludeArchived is meaningless for namespaces —
+// neither forge archives one — and is ignored there rather than split into a
+// second type for one field.
+type BrowseOptions struct {
 	// IncludeArchived lists archived repositories. Browsing passes true — the
 	// explorer shows what is there — and a clone passes
 	// `gitlab.pull.include_archived`, which is what that setting means and the
