@@ -124,21 +124,33 @@ func verdictCell(c netcheck.Check) string {
 	}
 }
 
-// verdictStyle spends colour on what is worth spotting without reading.
+// verdictStyle gives each verdict its own colour.
 //
-// OK keeps the default text colour rather than taking green: it is the nominal
-// majority state, and a colour that appears on every row informs nobody
-// (Rule 122). N/A and Unknown are dim for the same reason a zero count is.
+// Rule 122 reserves colour for what is worth spotting without reading, and its
+// worked example — a container list where nearly every row is `running` —
+// argues against colouring the nominal state. This column is the other case,
+// and the difference is what the reader is doing: a diagnostic is read once,
+// end to end, to find where it broke. Every row is a distinct question, there
+// is no majority state to drown in, and the column *is* the answer. So the four
+// outcomes are told apart at a glance, as Rule 121 has status indicators do.
+//
+// The one that is not a colour choice is UNKNOWN. It must not share N/A's dim:
+// "no meaning here" and "we could not look" are the distinction the whole
+// package is built on — the reason Verdict's zero value is Unknown and the
+// reason SecretVerdict returns a *bool. Rendering them alike on screen would
+// give back exactly what the types take care to keep apart.
 func verdictStyle(c netcheck.Check) lipgloss.Style {
 	switch c.Verdict {
 	case netcheck.Fail:
 		return theme.SeverityTextStyle("CRITICAL")
 	case netcheck.Warn:
 		return theme.SeverityTextStyle("MEDIUM")
-	case netcheck.NotApplicable, netcheck.Unknown:
+	case netcheck.OK:
+		return theme.StatusOKStyle
+	case netcheck.Unknown:
+		return theme.SeverityTextStyle("HIGH")
+	default: // NotApplicable — nothing was asked, so nothing is worth spotting
 		return theme.DimStyle
-	default:
-		return lipgloss.Style{}
 	}
 }
 

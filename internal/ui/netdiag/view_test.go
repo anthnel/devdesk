@@ -1,6 +1,7 @@
 package netdiag
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -412,4 +413,31 @@ func stripANSI(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// TestEveryVerdictHasItsOwnColour — the column is the answer the view exists
+// for, so the four outcomes have to be tellable apart without reading.
+func TestEveryVerdictHasItsOwnColour(t *testing.T) {
+	seen := map[string]netcheck.Verdict{}
+	for _, v := range []netcheck.Verdict{
+		netcheck.OK, netcheck.Warn, netcheck.Fail, netcheck.NotApplicable, netcheck.Unknown,
+	} {
+		fg := fmt.Sprint(verdictStyle(netcheck.Check{Verdict: v}).GetForeground())
+		if prev, ok := seen[fg]; ok {
+			t.Errorf("%v renders in the same colour as %v", v, prev)
+		}
+		seen[fg] = v
+	}
+}
+
+// TestUnknownDoesNotShareNotApplicablesDim is the distinction the whole package
+// is built on: "no meaning here" and "we could not look" are not the same
+// answer, and rendering them alike gives back what the types keep apart.
+func TestUnknownDoesNotShareNotApplicablesDim(t *testing.T) {
+	unknown := verdictStyle(netcheck.Check{Verdict: netcheck.Unknown})
+	na := verdictStyle(netcheck.Check{Verdict: netcheck.NotApplicable})
+
+	if fmt.Sprint(unknown.GetForeground()) == fmt.Sprint(na.GetForeground()) {
+		t.Fatal("UNKNOWN is rendered as dimly as N/A")
+	}
 }
