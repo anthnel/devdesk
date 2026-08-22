@@ -2842,12 +2842,20 @@ is not on the ACL of — which, for items DevDesk itself wrote, it is.
 
 ---
 
-### 3.10 An inference-backed explainer for network diagnostics
+### 3.10 An inference-backed explainer for network diagnostics — **superseded by §3.38**
 
 Netdiag runs the tests but leaves the interpretation to the user. The first —
 and for now only — AI feature is an **explainer over diagnostic results that
 DevDesk already holds**. It sends a few kilobytes of structured facts, needs no
 new privilege, and touches no packet payload.
+
+**§3.38 supersedes this.** The direction reverses: DevDesk serves what it knows
+over a read-only MCP server, and the agent does the interpreting. That deletes
+the client, the provider config, the pseudonymiser and its inverse, the
+confirmation pane and the streaming — and it moves decision 4's guarantee from
+DevDesk to the user, once, at `mcp.enabled`. What survives is this entry's
+reasoning: allow-list construction beats scrubbing, and a Gitleaks match can
+never be pseudonymised because the payload *is* the secret.
 
 #### Settled
 
@@ -5615,9 +5623,10 @@ est-il joignable, et sa chaîne de certificats est-elle saine.** Une ligne est
 désormais une question qui a reçu une réponse.
 
 Trois PR : `internal/netcheck` (#87), les explications déterministes (#88), la
-vue (#89). Une quatrième — l'explication passée à un modèle, par serveur MCP ou
-par le client de §3.10 — reste **ouverte** ; rien dans les trois premières n'en
-dépend. Le plan complet est dans `.claude/plans/netdiag-checks-and-verdicts.md`.
+vue (#89). Une quatrième — l'explication passée à un modèle — est tranchée par
+§3.38 : elle passe par un serveur MCP en lecture seule, et non par le client de
+§3.10, qui tombe. Rien dans les trois premières n'en dépend. Le plan complet est
+dans `.claude/plans/netdiag-checks-and-verdicts.md`.
 
 #### Quatre défauts, mesurés
 
@@ -6000,6 +6009,169 @@ fixture est absente, ce qu'ils réussiraient pour la mauvaise raison. Deux d'ent
 eux ont été corrigés dans le même mouvement — les dépôts fixtures sont désormais
 de vrais répertoires temporaires, et le test de cloisonnement par contexte
 déclare son image *pullée* pour que son absence ne puisse venir que du contexte.
+
+### 3.38 Un serveur MCP en lecture seule — le modèle vient à DevDesk
+
+**§3.10 partait dans l'autre sens : DevDesk assemblait un payload, le
+pseudonymisait, le montrait, l'envoyait à un endpoint qu'il fallait configurer,
+et affichait la réponse en streaming.** Le sens s'inverse. DevDesk **expose ce
+qu'il sait** par un serveur MCP, et l'agent — Claude Code, ou n'importe quel
+client MCP — vient le lire. §3.10 est remplacée par cette entrée.
+
+#### Ce qui est arrêté
+
+| # | Question | Décision |
+|---|---|---|
+| 1 | Sens | DevDesk est **serveur**, l'agent est client. §3.10 tombe. |
+| 2 | Transport | **stdio**, par une sous-commande `dk mcp`. Pas de HTTP en v1. |
+| 3 | Périmètre | **Lecture seule.** Aucun tier `act` — ni maintenant, ni dans le champ de cette entrée. |
+| 4 | Activation | `mcp.enabled: false` par défaut. `dk mcp` refuse en nommant le réglage et le contexte. |
+| 5 | Portée | **Un contexte par process** — `dk mcp --context <name>`. |
+| 6 | Secrets | Aucun outil ne lit le store de §3.9, et le `Match` d'un finding de secret ne sort jamais. |
+| 7 | Exposition | **Allow-list explicite** de noms d'outils, jamais une deny-list. |
+
+#### Pourquoi §3.10 tombe
+
+Ce que le renversement supprime, et qui n'a donc pas à être écrit : le client
+OpenAI-compatible, le bloc `AIConfig` et son token, le pseudonymiseur et son
+inverse, le panneau de confirmation, le streaming en Bubble Tea — le canal, le
+`Cmd` qui se réarme, le compteur de génération — et la `context.CancelFunc` que
+D13 rendait obligatoire. C'est la moitié d'une fonctionnalité qui disparaît
+parce qu'un protocole existe pour ça.
+
+Le coût est réel et tient en une phrase : **l'explication n'est plus dans le
+TUI.** L'utilisateur la lit dans son agent. §3.10 s'inquiétait déjà d'en faire
+un produit de chat et refusait une vue dédiée ; MCP va au bout de ce
+raisonnement — DevDesk ne parle pas du tout au modèle.
+
+**La garantie change de main, et c'est plus honnête.** §3.10 rendait DevDesk
+responsable de ce qui atteint un modèle, à chaque envoi, par une
+pseudonymisation. Ici la responsabilité est celle de l'utilisateur, une fois, au
+moment où il bascule `mcp.enabled`. Le troc est assumé parce que la promesse de
+§3.10 n'était pas tenable jusqu'au bout : la pseudonymisation préserve la classe
+analytique d'une adresse, elle ne pouvait rien pour un `Match` Gitleaks, où le
+payload *est* le secret. Une garantie qui vaut pour les adresses et pas pour les
+secrets est plus dangereuse qu'un réglage explicite, parce qu'elle se lit comme
+si elle valait pour tout.
+
+#### Un TUI ne peut pas servir du stdio
+
+Bubble Tea possède stdin et stdout en entier : il n'y a pas de place pour un
+second protocole dans le même process. Le serveur est donc une **sous-commande
+headless**, `dk mcp`, que le client lance lui-même. `main()` part aujourd'hui
+directement dans le TUI sans lire un seul argument, donc c'est une quinzaine de
+lignes en tête de `main.go` et aucun framework CLI.
+
+| | stdio (`dk mcp`) | Streamable HTTP servi par le TUI |
+|---|---|---|
+| Cycle de vie | le client lance et tue | le TUI doit tourner |
+| Authentification | aucune — le process est déjà l'utilisateur | bearer token obligatoire, bind sur `127.0.0.1` |
+| État visible | ce qui est sur disque | la session vivante |
+| Agent en conteneur | impossible — il ne peut pas exécuter le binaire hôte | seule voie |
+
+**L'état vivant n'est pas le sujet**, et c'est ce qui rend stdio suffisant : les
+contextes, `config.yaml`, les deux caches de scan et le cache de groupes de
+registry sont sur disque ; les conteneurs, les images et la forge sont ailleurs.
+Un process headless répond aux mêmes questions qu'une session ouverte. Le
+transport reste derrière l'interface du SDK pour que HTTP soit un flag et non
+une réécriture.
+
+#### La lecture seule achète l'absence de verrou
+
+`~/.devdesk/` n'a aucun verrou — le CLAUDE.md le dit déjà pour les worktrees, et
+rien n'avertit quand deux écrivains se croisent. Un serveur qui n'écrit rien
+retire la question : il peut tourner pendant que le TUI tourne, dans un autre
+contexte, sans que personne ait à y penser.
+
+**Une exception, et elle est précise.** `readScanCacheFile` met à niveau en place
+un cache antérieur aux contextes, dès la première ouverture, et son commentaire
+dit pourquoi : le propriétaire des entrées devient *le contexte courant au
+moment de la mise à niveau*. Un serveur ouvert avec `--context X` réclamerait
+donc pour X des entrées que personne ne lui a attribuées — un chemin de lecture
+qui écrit, et qui décide. Le serveur doit donc lire **sans mettre à niveau** :
+il sert les entrées héritées et laisse la décision de propriété au TUI, où
+quelqu'un est présent pour la voir.
+
+#### Les outils
+
+La règle de sélection : **exposer ce que DevDesk sait et qu'un agent ne peut pas
+obtenir à moindre coût.** Un agent sait lancer `docker ps` et `trivy` tout seul ;
+il ne sait pas ce que la notion de contexte veut dire ici, ni ce qui a déjà été
+scanné.
+
+| Outil | Ce qu'il apporte |
+|---|---|
+| `context_list` / `context_get` | l'abstraction contexte : `workspaces_dir`, alias de registry, URL de forge. **Sans secret par construction** — le schéma n'a aucun champ pour en porter (§3.9) |
+| `scan_inventory` | l'inventaire de `:sec` : cibles, quatre compteurs, `Sensitive *bool`, âge. Déjà réconcilié (§3.37) |
+| `scan_result` | les findings d'une cible, filtrés par sévérité et **paginés** — un scan d'image en produit des milliers |
+| `workspaces_list` | les dépôts, leurs métadonnées git (ahead/behind, arbre sale) et leur état de scan |
+| `registries_list` / `registry_tags` | depuis le cache de groupes, **jamais le réseau** — la règle du browser |
+| `containers_list` / `images_list` / `ports_list` | l'inventaire, sans que l'agent invente ses flags |
+| `net_check` | le pipeline `internal/netcheck` : cinq verdicts et leur `Because` |
+
+`net_check` est la pièce pour laquelle cette entrée vaut la peine. C'est le seul
+outil qui touche le réseau, et il est retenu quand même : il *lit* le réseau
+sans rien changer sur l'hôte, DevDesk le lance déjà sur une touche sans
+confirmation, et son résultat est structuré et déterministe — « le nom résout,
+le port accepte, la chaîne est incomplète à l'intermédiaire » est ce qu'un
+modèle sait exploiter, contrairement à un code de sortie de `curl`. Le résidu se
+dit plutôt qu'il ne se découvre : un agent peut le pointer sur n'importe quel
+hôte, donc c'est une primitive de sonde autant qu'un diagnostic.
+
+Le `Sensitive *bool` traverse tel quel, `nil` compris. Un serveur qui le rendrait
+`false` referait D20 à travers un protocole.
+
+#### Non retenu
+
+- **Tout tier `act`.** Scanner, cloner, synchroniser, arrêter un conteneur,
+  purger : hors du serveur, et pas dans un second niveau désactivé par défaut.
+  Un agent qui se trompe de ligne dans le TUI rencontre une modale ; ici il n'y
+  a personne.
+- **`container_logs`.** §3.10 l'avait déjà classé — les logs portent des
+  variables d'environnement et des DSN de façon routinière. Un log se lit dans
+  le viewer, où l'utilisateur voit ce qu'il transmet.
+- **Le `Match` d'un finding de secret.** Règle, chemin, ligne, entropie : oui.
+  La chaîne : jamais. C'est la conclusion à laquelle §3.10 arrivait déjà pour le
+  triage Gitleaks.
+- **Presidio.** Sans objet ici : DevDesk n'assemble plus le payload, donc il n'y
+  a rien à re-vérifier après construction.
+- **HTTP en v1**, et le token qui va avec.
+
+#### Le réglage
+
+```yaml
+mcp:
+  enabled: false               # dk mcp refuse en nommant le réglage et le contexte
+  expose: []                   # allow-list de noms d'outils ; vide = tous
+  redact_secret_matches: true
+```
+
+Une septième section dans `Config`, et un sixième onglet dans la vue
+configuration pour ses deux scalaires — `expose` est une liste, donc elle reste
+au fichier, comme les monitors et les registries restent là où on les consulte.
+
+`expose` est une allow-list et non une deny-list pour la raison que §3.10 avait
+déjà formulée dans l'autre sens : **un champ jamais inclus ne peut pas rater sa
+redaction.**
+
+#### Ce que ça ne coûte pas
+
+Aucun impact TUI : pas de vue, pas de touche, pas de message. Un paquet
+`internal/mcp` qui appelle les mêmes paquets que les vues, plus un SDK. Une
+table d'outils déclarés et un test qui vérifie que chacun a un handler et
+réciproquement — l'esprit de `internal/ui/keymap` et de `AllViewNames()`.
+
+#### Questions ouvertes
+
+1. **L'agent en conteneur.** Si un agent tournant en sandbox doit atteindre le
+   serveur, stdio ne suffit pas et HTTP n'est plus « plus tard » mais v1, avec
+   son token et son bind.
+2. **Resources et prompts MCP.** Un résultat de scan est adressable et immuable
+   (`devdesk://ctx/dev/scan/<cible>`), donc naturellement une *resource* plutôt
+   qu'un tool ; un prompt « trie ce scan » embarquerait la doctrine du dépôt —
+   UNKNOWN n'est pas pire que CRITICAL, un `Sensitive` nil veut dire que
+   personne n'a regardé. À trancher au plan.
+3. **Le SDK Go**, à choisir et à vérifier au moment d'écrire — le terrain bouge.
 
 ## 4. Existing plans
 
