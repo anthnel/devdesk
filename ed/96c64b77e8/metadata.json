@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "ed96c64b77e8",
+  "strategy": "manual-commit",
+  "branch": "backend-gitlab",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/forge/forge.go",
+    "internal/forge/forge_test.go",
+    "internal/forge/gitlab/browse.go",
+    "internal/forge/gitlab/browse_test.go",
+    "internal/forge/gitlab/fake_test.go",
+    "internal/forge/gitlab/gitlab.go",
+    "internal/forge/gitlab/urls_test.go",
+    "internal/forge/gitlab/write.go",
+    "internal/forge/gitlab/write_test.go",
+    "internal/forge/types.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ed/96c64b77e8/0/metadata.json",
+      "transcript": "/ed/96c64b77e8/0/full.jsonl",
+      "compact_transcript": "/ed/96c64b77e8/0/transcript.jsonl",
+      "content_hash": "/ed/96c64b77e8/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 46490,
+    "cache_read_tokens": 9358743,
+    "output_tokens": 39664,
+    "api_call_count": 29
+  }
+}
