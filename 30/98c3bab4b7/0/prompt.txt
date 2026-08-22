@@ -1,0 +1,17 @@
+dans la vue ct, il y a une bascule entre les conteneurs en cours d'exécution et all pour inclure ceux qui sont arrête. Uniformise le filtre pour utiliser le même mécanisme que net/ports. Les filtres ne doivent pas être dans le header. Par défaut la vue doit afficher les conteneurs en cours d'exécution et il est possible ensuite de filtrer par état
+
+---
+
+quand j'arrive sur la vue je vois le filtre running dans la barre de search/filtre, si j'appuie sur z, les runnings sont affichés et la barre est masquée. En arrivant sur la vue ça devrait être dans cet état là, barre masquée et conteneurs running affichés
+
+---
+
+regarde dans le backlog, on avait déjà regardé pour rendre la colonne ports de la vue ct plus courte
+
+---
+
+donne moi un exemple de 󰒋 8080 │ one named address
+
+---
+
+permute les positions des colonnes ports et created

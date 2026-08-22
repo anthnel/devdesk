@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "3098c3bab4b7",
+  "strategy": "manual-commit",
+  "branch": "ct-ports-and-filters",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/docker/container_ports.go",
+    "internal/docker/container_ports_test.go",
+    "internal/docker/containers.go",
+    "internal/docker/containers_test.go",
+    "internal/ui/containers/commands.go",
+    "internal/ui/containers/containers_test.go",
+    "internal/ui/containers/model.go",
+    "internal/ui/containers/ports.go",
+    "internal/ui/containers/ports_test.go",
+    "internal/ui/containers/update.go",
+    "internal/ui/containers/update_test.go",
+    "internal/ui/containers/view.go",
+    "internal/ui/containers/view_test.go",
+    "internal/ui/keymap/keymap.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/30/98c3bab4b7/0/metadata.json",
+      "transcript": "/30/98c3bab4b7/0/full.jsonl",
+      "compact_transcript": "/30/98c3bab4b7/0/transcript.jsonl",
+      "content_hash": "/30/98c3bab4b7/0/content_hash.txt",
+      "prompt": "/30/98c3bab4b7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 304,
+    "cache_creation_tokens": 335971,
+    "cache_read_tokens": 36219304,
+    "output_tokens": 79230,
+    "api_call_count": 152
+  }
+}
