@@ -126,3 +126,12 @@ type TerminalExitMsg struct{}
 type TerminalOpenedMsg struct {
 	Error error
 }
+
+// PathCopiedMsg reports the result of copying the selected entry's path to the
+// system clipboard. Path is carried for the log line: a clipboard write fails
+// for reasons outside the application (no X selection owner, no pbcopy), and
+// naming what it was trying to copy is what makes that report worth reading.
+type PathCopiedMsg struct {
+	Path  string
+	Error error
+}

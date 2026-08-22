@@ -119,6 +119,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case PathCopiedMsg:
+		return m.handlePathCopied(msg)
+
 	case spinner.TickMsg:
 		if m.anyBusy() {
 			var cmd tea.Cmd
@@ -247,6 +250,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.startSync()
 	case keymap.ScanAll:
 		return m.confirmScanAll()
+	case keymap.Copy:
+		return m.copyPath()
 	case "left":
 		return m.navigateUp()
 	case "right":
@@ -258,6 +263,20 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// handlePathCopied reports the clipboard write (Rule 128).
+//
+// The confirmation says "full path" rather than repeating the entry's name: the
+// row is under the cursor, so naming it again would be the same fact twice on
+// one screen. What is not on screen is the *form* of what landed — the absolute
+// path, not the name — and that is what the line says.
+func (m Model) handlePathCopied(msg PathCopiedMsg) (tea.Model, tea.Cmd) {
+	if msg.Error != nil {
+		log.Printf("ERROR [workspaces] copy path %s to clipboard: %v", msg.Path, msg.Error)
+		return m, m.footer.Error("Failed to copy the path — check logs")
+	}
+	return m, m.footer.Info("Full path copied to the clipboard")
 }
 
 // spinnerTickIfIdle restarts the spinner chain when nothing was keeping it

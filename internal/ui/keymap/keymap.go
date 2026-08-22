@@ -48,7 +48,7 @@ import (
 	"strings"
 )
 
-// Les 21 actions. Une quarantaine d'actions existaient pour 26 lettres : la
+// Les 23 actions. Une quarantaine d'actions existaient pour 26 lettres : la
 // règle ne tient qu'après fusion des synonymes (Kill = arrêter et tuer,
 // Delete = supprimer et retirer, Terminal = terminal et shell) et parce que les
 // bascules d'affichage sortent du compte.
@@ -75,6 +75,10 @@ const (
 	Requests = "R" // Ouvrir les merge requests · PR
 	Issues   = "I" // Ouvrir les issues
 	Trace    = "H" // Tracer la route (hops) — netdiag
+	// Copy est `Y` — yank. La lettre était libre bien qu'une modale l'emploie
+	// pour « Yes » : une modale réclame toute touche avant que la vue ne la
+	// voie, donc les deux ne sont jamais joignables en même temps.
+	Copy = "Y" // Copier le chemin de la sélection dans le presse-papier
 )
 
 // CommandMode ouvre la ligne de commande, depuis n'importe où — y compris
@@ -113,6 +117,7 @@ var actions = map[string]string{
 	Requests: "Open merge requests · PRs",
 	Issues:   "Open issues",
 	Trace:    "Trace the route to the target",
+	Copy:     "Copy the selection's path to the clipboard",
 }
 
 // Actions rend une copie de la table touche → sens.
@@ -160,10 +165,7 @@ func IsModalKey(key string) bool {
 // plutôt que laissées à déduire : le prochain ajout doit savoir où piocher sans
 // refaire le relevé, et une action qui s'installe ailleurs qu'ici est un
 // doublon qui s'ignore.
-//
-// `Y` y figure bien qu'une modale l'emploie : une action `Y` et le raccourci
-// « Yes » ne sont jamais joignables en même temps.
-var free = []string{"J", "Q", "Y", "Z"}
+var free = []string{"J", "Q", "Z"}
 
 // Free rend les majuscules encore disponibles, triées.
 func Free() []string {

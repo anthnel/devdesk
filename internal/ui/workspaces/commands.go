@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
@@ -219,4 +220,12 @@ func batchScanCmd(repoPaths []string, opts scan.ScanOptions) tea.Cmd {
 		cmds[i] = scanOneRepoCmd(path, opts, sem)
 	}
 	return tea.Batch(cmds...)
+}
+
+// copyPathCmd writes a path to the system clipboard (Rule 110: the I/O happens
+// in the Cmd, and the outcome comes back as a message).
+func copyPathCmd(path string) tea.Cmd {
+	return func() tea.Msg {
+		return PathCopiedMsg{Path: path, Error: clipboard.WriteAll(path)}
+	}
 }

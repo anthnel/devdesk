@@ -11,6 +11,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -434,6 +435,12 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "N", Description: "New directory"})
 	}
 
+	// Y: a row is required — it copies that row's path and has no fallback to
+	// the browsed directory (Rule 130).
+	if selectedEntry != nil {
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: keymap.Copy, Description: "Copy path"})
+	}
+
 	shortcuts = append(shortcuts,
 		shortcut.Shortcut{Key: "M", Description: "Rename"},
 		shortcut.Shortcut{Key: "D", Description: "Delete"},
@@ -480,6 +487,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "W", Description: "Open git repo remote URL in the default web browser"},
 			{Key: "S", Description: "Launch a security scan on the selected directory (or all sub-repos for non-git dirs)"},
 			{Key: "F", Description: "Sync the selected git repo (or all sub-repos for non-git dirs): fetch, then fast-forward"},
+			{Key: "Y", Description: "Copy the selected entry's absolute path to the system clipboard — a directory or a file alike. It needs a selected row and has no fallback to the browsed directory, so it is offered only when there is one"},
 			{Key: "A", Description: "Scan every git repo in the current view. The confirmation carries a checkbox to purge the cached results first — unchecked, only what has never been scanned is scanned"},
 			{Key: "ctrl+r", Description: "Refresh the list"},
 			{Key: "/", Description: "Filter the list by name or git remote"},
