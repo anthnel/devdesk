@@ -56,11 +56,24 @@ type Model struct {
 	height int
 }
 
+// forgeTypeOf reads the context's platform, empty-safe. It exists because New
+// runs before the model does, so m.vocab() is not available yet.
+func forgeTypeOf(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Forge.Type
+}
+
 // New crée une nouvelle vue d'authentification
 func New(cfg *config.Config, secrets credentials.Selection, notices []string) *Model {
 	// Créer les inputs
 	tokenInput := textinput.New()
-	tokenInput.Placeholder = "glpat-xxxxxxxxxxxxxxxxxxxx"
+	// The example token is the forge's. It was a GitLab literal here, and it
+	// escaped vocabtest because `glpat-` names no forge — the guard looks for
+	// the platforms' names, and a token prefix is forge-specific without
+	// carrying one.
+	tokenInput.Placeholder = forge.VocabularyFor(forgeTypeOf(cfg)).TokenPlaceholder
 	tokenInput.CharLimit = 100
 	tokenInput.Width = 60
 	tokenInput.EchoMode = textinput.EchoPassword

@@ -777,13 +777,23 @@ need the words *before* any session exists, so a value hanging off a live
 backend would be missing exactly where it is needed most. Each view has a small
 `vocab()` helper; the config is what every one of them already holds.
 
-**No view writes a forge's name into a string, and a test says so.**
-`internal/ui/vocabtest` parses every `.go` under `internal/ui` and fails on a
-string literal containing "gitlab" or "github" — import paths excluded, and one
-declared exception (`theme.ForgeIcon`'s own switch), on the model of
+**No view writes anything specific to one forge into a string, and a test says
+so.** `internal/ui/vocabtest` parses every `.go` under `internal/ui` and fails
+on a string literal containing a forge **marker** — import paths excluded, and
+one declared exception (`theme.ForgeIcon`'s own switch), on the model of
 `keymap.DeclaredExceptions()`. A wording table nothing enforces drifts back one
 message at a time, and the messages that drift are the ones nobody reads until a
 GitHub context renders "GitLab not authenticated".
+
+The markers are the two **names** *and* the token **prefixes** (`glpat-`,
+`ghp_`, `github_pat_`, …), and the second half was added after the first half
+missed something. The auth view carried `glpat-xxxxxxxxxxxxxxxxxxxx` as its
+token placeholder for the whole of §3.6, and this test walked past it every
+time: a token prefix is forge-specific **without naming a forge**, which is
+exactly the shape a guard on names cannot see. `Vocabulary.TokenPlaceholder`
+carries it now — shaped like a real value, because that is what a placeholder
+is, while the prose about which prefixes exist lives in `TokenHelp`, where there
+is room to name more than one.
 
 **A command name is not vocabulary.** It is routing identity, the same for both
 forges (§3.6 step 8 makes it `git-auth`), so a message quoting one builds it

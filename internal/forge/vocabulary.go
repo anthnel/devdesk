@@ -48,11 +48,14 @@ type Vocabulary struct {
 	// TokenLabel is what the auth view calls the secret it asks for.
 	TokenLabel string
 
-	// TokenPlaceholder is a token's recognisable prefix, shown as a hint.
+	// TokenPlaceholder is an example token, shown greyed in the input until the
+	// user types.
 	//
 	// It is a hint and never a check: DevDesk does not validate the prefix, and
 	// a forge that changes its format must not turn a working token into a
-	// refused one.
+	// refused one. Shaped like a real value rather than as prose, because that
+	// is what a placeholder is — the prose about which prefixes exist lives in
+	// TokenHelp, where there is room to name more than one.
 	TokenPlaceholder string
 
 	// TokenHelp says where to create a token and which scopes it needs. One
