@@ -231,11 +231,17 @@ func sections(themes, views []string, configPath, forgeType string, v forge.Voca
 
 		{Title: forgeType, Fields: slices.Concat(
 			group("Connection", theme.ForgeIcon(forgeType),
+				// Forge comes first, above the URL, because everything below it
+				// reconfigures from it: the URL example, the visibility set and
+				// the two labels beside them. Putting it first is what lets the
+				// user see that happen.
+				cycle(forgeLabel, func(c *config.Config) *string { return &c.Forge.Type },
+					config.ForgeTypes(), "Declared, never guessed from the URL"),
 				text("URL", func(c *config.Config) *string { return &c.Forge.URL },
 					"e.g. "+v.ExampleURL),
 				text("Default parent "+strings.ToLower(v.Namespace), func(c *config.Config) *string { return &c.Forge.DefaultParentGroup }, ""),
 				cycle("Default visibility", func(c *config.Config) *string { return &c.Forge.DefaultVisibility },
-					[]string{"private", "internal", "public"}, ""),
+					forge.ShapeFor(forgeType).Visibilities, ""),
 				cycle("Clone method", func(c *config.Config) *string { return &c.Forge.CloneMethod },
 					[]string{"https", "ssh"}, ""),
 			),

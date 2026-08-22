@@ -136,6 +136,15 @@ func (m Model) settleFocus(idx, step int) int {
 func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 	f := m.current()
 
+	// Leaving the forge with a different platform closes the session and says
+	// so. Settled here rather than on every ←→ for the reason the backend below
+	// is: cycling through three values would otherwise close the session three
+	// times, including on the way back to where it started.
+	if f.Label == forgeLabel {
+		m, cmd := m.commitForge()
+		return m, cmd, true
+	}
+
 	// Leaving the secret backend with a different value asks first. Confirming
 	// on the way out rather than on every ←→ is what makes the field usable.
 	if f.Label == secretBackendLabel && *f.str(m.config) != m.backendOnFocus {
@@ -152,7 +161,7 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 	// Compared by accessor, not by label: two tabs could both hold a field
 	// called "URL", and pointer identity cannot be wrong about which setting is
 	// in front of the cursor.
-	isGitLabURL := f.str != nil && f.str(m.config) == &m.config.Forge.URL
+	isForgeURL := f.str != nil && f.str(m.config) == &m.config.Forge.URL
 	before := m.config.Forge.URL
 
 	if err := f.Apply(m.config, m.input.Value()); err != nil {
@@ -160,13 +169,15 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 		return m, m.footer.Error(err.Error()), false
 	}
 
-	if isGitLabURL && m.config.Forge.URL != before {
+	if isForgeURL && m.config.Forge.URL != before {
+		m = m.detectForgeFromURL()
+
 		// Said unconditionally rather than only when a session is open: this
 		// view holds no session state, and "you will need to sign in again" is
 		// true either way. Warning beats forbidding — the same call as for the
 		// secret backend.
 		return m, tea.Batch(
-			m.persist(saved{gitlabURL: true}),
+			m.persist(saved{forgeChanged: true}),
 			m.footer.Info(m.vocab().Name+" URL changed — sign in again with :"+string(command.ViewGitlabAuth)),
 		), true
 	}
@@ -191,6 +202,14 @@ func (m Model) cycleField(step int) (tea.Model, tea.Cmd) {
 	if f.Label == secretBackendLabel {
 		return m, nil
 	}
+	// The forge is settled on blur too, and for a related reason: cycling
+	// through it would otherwise close the session once per keypress, including
+	// on the way back to where it started.
+	if f.Label == forgeLabel {
+		// Touched: from here on, host detection leaves the field alone.
+		m.forgeTouched = true
+		return m, nil
+	}
 	return m, m.persist(saved{})
 }
 
@@ -211,8 +230,12 @@ func (m Model) toggleField() (tea.Model, tea.Cmd) {
 // saved says which settings this write touched that the router has to act on
 // rather than merely rebuild views against.
 type saved struct {
-	theme     bool
-	gitlabURL bool
+	theme bool
+	// forgeChanged says the session this context holds was opened against
+	// something the config no longer describes — a different host, or a
+	// different platform. One flag for both, because the consequence is one:
+	// the session is stale and the user has to sign in again.
+	forgeChanged bool
 }
 
 // persist applies the cross-field constraints, saves, and tells the router.
@@ -228,7 +251,7 @@ func (m Model) persist(what saved) tea.Cmd {
 
 	cfg := m.config
 	return func() tea.Msg {
-		return ConfigSavedMsg{Config: cfg, ThemeChanged: what.theme, GitLabURLChanged: what.gitlabURL}
+		return ConfigSavedMsg{Config: cfg, ThemeChanged: what.theme, ForgeChanged: what.forgeChanged}
 	}
 }
 
@@ -276,6 +299,9 @@ func (m *Model) bindInput() {
 	if f.Label == secretBackendLabel {
 		m.backendOnFocus = m.config.App.SecretBackend
 	}
+	if f.Label == forgeLabel {
+		m.forgeOnFocus = m.config.Forge.Type
+	}
 
 	if !f.takesText() {
 		m.input.Blur()
@@ -294,6 +320,7 @@ func (m *Model) bindInput() {
 const (
 	themeLabel         = "Theme"
 	secretBackendLabel = "Secret backend"
+	forgeLabel         = "Forge"
 )
 
 // resizeInput fits the input between the value column and the right border.

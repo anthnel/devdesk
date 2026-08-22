@@ -33,8 +33,8 @@ func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, te
 	if msg.BackendChanged {
 		a.resolveSecretBackend()
 	}
-	if msg.GitLabURLChanged {
-		a.closeGitLabSession()
+	if msg.ForgeChanged {
+		a.closeForgeSession()
 	}
 
 	// Every view except this one is dropped so it is rebuilt against the saved
@@ -85,16 +85,17 @@ func (a *App) resolveSecretBackend() {
 	log.Printf("Secret backend for context %s resolved to %s", a.currentContext, selection.Backend)
 }
 
-// closeGitLabSession drops the client-side session after the GitLab URL
-// changed. The session was established against the previous host, so keeping it
-// would mean the next call fails somewhere far from the cause.
+// closeForgeSession drops the client-side session after the forge's URL or its
+// platform changed. The session was established against the previous one, so
+// keeping it would mean the next call fails somewhere far from the cause.
 //
-// Nothing is revoked and no token is deleted: the user changed an address, not
-// their credentials, and a token for the old host is still theirs.
-func (a *App) closeGitLabSession() {
+// Nothing is revoked and no token is deleted: the user changed an address or a
+// platform, not their credentials, and a token for the old host is still
+// theirs — and it is still what the store holds for that URL.
+func (a *App) closeForgeSession() {
 	if !a.sharedState.IsAuthenticated {
 		return
 	}
-	log.Printf("GitLab URL changed; closing the session for context %s", a.currentContext)
+	log.Printf("Forge changed; closing the session for context %s", a.currentContext)
 	a.clearAuthenticated()
 }
