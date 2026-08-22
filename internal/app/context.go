@@ -11,7 +11,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/forge"
-	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
+	"github.com/anthnel/devdesk/internal/forge/session"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -118,14 +118,14 @@ func autoLoginForContext(contextName string, cfg *config.Config, storage credent
 		return nil, forge.User{}
 	}
 
-	auth := gitlabforge.NewAuth(storage)
+	auth := session.NewAuth(storage)
 
 	token, err := auth.LoadCredentials(cfg.Forge.URL)
 	if err != nil || token == "" {
 		return nil, forge.User{}
 	}
 
-	result, err := auth.AuthenticateOnly(context.Background(), cfg.Forge.URL, token)
+	result, err := auth.AuthenticateOnly(context.Background(), cfg.Forge.Type, cfg.Forge.URL, token)
 	if err != nil {
 		log.Printf("Auto-login failed for context '%s': %v", contextName, err)
 		return nil, forge.User{}

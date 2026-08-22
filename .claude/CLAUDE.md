@@ -633,7 +633,9 @@ it.
 
 What DevDesk asks of a code-hosting platform, so a context can target GitLab or
 GitHub — exactly one, never two (§3.6). `internal/forge/gitlab` is the only
-package that knows go-gitlab exists.
+package that knows go-gitlab exists, `internal/forge/github` the only one that
+knows go-github, and `internal/forge/session` the only one that knows both
+exist.
 
 Five decisions hold it together, each forced by what the code consumes:
 
@@ -660,10 +662,53 @@ never an empty list.** Both directions have a test. It is one rule seen from two
 sides: a column short beats an empty explorer, and an empty explorer must never
 mean "this group contains nothing".
 
-**`internal/forge/gitlab/auth.go` opens sessions.** Nothing about the credential
-store is GitLab-shaped, but building a session means building a backend. When a
-second backend exists, choosing between them is a switch on the context's
-declared forge, and this is one of the two places it will live.
+**`internal/forge/session` opens sessions, and it is the one place that knows
+both backends exist.** `internal/forge` must not import an implementation and a
+backend must not import its sibling, so something above both has to choose:
+`session.Backend(forgeType, url, token)` is that switch, and an unknown type
+falls through to GitLab — `applyDefaults` has already normalised the value, and
+the one backend that has always existed beats an error nothing can act on.
+
+The credential store is **not** forge-shaped: `Storage` is keyed on a URL and
+knows nothing else, so loading and forgetting a token are the same code either
+way. Only opening a session differs, and only in which constructor it calls —
+which also means a context that switches platform without changing host finds
+the token it already had, and that is right, because it is the same host asking.
+
+**GitHub refuses what it cannot express, rather than doing something
+adjacent.** There is no REST endpoint for creating or deleting an organisation
+— both come back as errors naming the reason, where the tempting alternative
+would be creating a repository under the user's own account and calling it an
+organisation. A permanent delete is refused for the same reason: GitHub deletes
+at once, so honouring the flag would report a distinction the platform does not
+make, and `Shape.PermanentDelete` is false so the checkbox is never offered.
+
+**An initial commit is one commit, and that is why it is four calls.**
+`Repositories.CreateFile` in a loop makes one commit per file, so a three-file
+template would arrive as three — and each would need the SHA the last returned,
+which is a chain rather than a batch. The git data API takes it at once: a blob
+per file, one tree, a commit with **no parent**, then the ref. No parent is what
+makes it *initial*; on a repository that already has one the ref creation fails,
+which is the honest outcome — this is not a way to overwrite history.
+
+Three smaller decisions worth knowing:
+
+- **The user's own account is not among `RootNamespaces`.** A personal namespace
+  is not an organisation: it cannot be created or deleted, so listing it as one
+  would put a row in the tree that half the actions refuse.
+- **`visibilityOf` reads `Visibility` before `Private`.** The first is what
+  Enterprise fills with `internal`; reading only the boolean would report an
+  Enterprise `internal` repository as `private`, which is a different thing.
+- **A running workflow reports its *status*.** A run in flight has no
+  conclusion, and falling through to empty would make a repository whose build
+  is running read as having no CI at all.
+
+The configured URL is the **web** host. On Enterprise the API lives under
+`/api/v3/`, which `WithEnterpriseURLs` appends — conflating the two would send a
+user to `https://git.acme.test/api/v3/acme/api` when they asked to open a
+repository in a browser.
+
+Cost: **+0.55 MB** on the binary (24.4 → 25.0).
 
 Worth knowing: **go-gitlab retries 5xx** with an exponential backoff — a test
 serving 500 took 35 seconds, measured. Not a regression (it is the SDK's
@@ -1940,6 +1985,7 @@ Key libraries (see `go.mod`):
 - `github.com/charmbracelet/lipgloss` - Styling
 - `gitlab.com/gitlab-org/api/client-go` - GitLab API client
 - `github.com/prometheus-community/pro-bing` - ICMP ping functionality (maintained fork of go-ping/ping)
+- `github.com/google/go-github/v68` - GitHub API client (§3.6)
 - `github.com/zalando/go-keyring` - host secret manager (wincred / Keychain / Secret Service), no cgo
 - `gopkg.in/yaml.v3` - YAML configuration
 

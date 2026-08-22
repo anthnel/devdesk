@@ -2736,8 +2736,9 @@ font contre GitLab seul.
    visibilité tirés de la forge active, champ `Forge` en tête du groupe
    Connection, détection sur l'hôte avec son drapeau *dirty*, et la fermeture de
    session quand il change.~~ **Faite.** Détails plus bas.
-7. Implémenter le backend GitHub. C'est ici que `go-github` entre dans
-   `go.mod`, et nulle part avant.
+7. ~~Implémenter le backend GitHub. C'est ici que `go-github` entre dans
+   `go.mod`, et nulle part avant.~~ **Faite** — et l'abstraction a tenu :
+   l'interface n'a pas bougé d'une méthode. Détails plus bas.
 8. Renommer les vues et les commandes en `git-auth` / `ga` et
    `git-explorer` / `ge`, garder les anciennes qui parsent sans être suggérées,
    et rendre la complétion consciente de la forge.
@@ -3025,6 +3026,70 @@ elle est indexée par type : la vue configuration a besoin du jeu de visibilité
 **avant** qu'une session existe, exactement comme le vocabulaire. Le `Shape()`
 de l'interface délègue, donc il n'y a toujours qu'une table — la méthode reste
 pour un consommateur qui tient une session et ignore le type.
+
+#### Ce que l'étape 7 a trouvé
+
+**L'interface n'a pas bougé d'une méthode.** C'est le résultat qui compte : elle
+avait été dérivée de ce que le code consomme, contre une seule forge, et la
+seconde s'y est logée sans rien y ajouter. Les endroits où GitHub ne peut pas
+faire ce que GitLab fait sont ceux que `Shape` déclarait déjà.
+
+**Un paquet de plus, et il était inévitable.** `internal/forge` ne doit pas
+importer une implémentation, et un backend ne doit pas importer son frère : il
+fallait quelque chose au-dessus des deux pour choisir. `internal/forge/session`
+est ce switch, et `auth.go` y a déménagé depuis le backend GitLab. Le store de
+secrets n'est pas de forme *forge* — `Storage` est indexé par URL — donc charger
+et oublier un token est le même code des deux côtés ; seule l'ouverture d'une
+session diffère, et seulement par le constructeur qu'elle appelle.
+
+Conséquence à connaître : un contexte qui change de plateforme **sans changer
+d'hôte** retrouve le token qu'il avait. C'est juste — c'est le même hôte qui
+demande.
+
+**GitHub refuse ce qu'il ne sait pas exprimer, au lieu de faire à côté.** Il n'y
+a pas d'endpoint REST pour créer ou supprimer une **organisation** : les deux
+renvoient une erreur qui nomme la raison, là où la tentation aurait été de créer
+un dépôt sous le compte de l'utilisateur et d'appeler ça une organisation. La
+suppression permanente est refusée pour la même raison : GitHub supprime tout de
+suite, donc honorer le drapeau annoncerait une distinction que la plateforme ne
+fait pas.
+
+**Un commit initial, c'est un commit — et c'est pour ça que c'est quatre
+appels.** `Repositories.CreateFile` en boucle produit un commit par fichier :
+un template de trois fichiers arriverait en trois commits, et chacun aurait
+besoin du SHA rendu par le précédent, ce qui est une chaîne et non un lot.
+L'API git data prend le tout d'un coup — un blob par fichier, un arbre, un
+commit **sans parent**, puis la ref. Sans parent est ce qui en fait un commit
+*initial* : sur un dépôt qui en a déjà un, la création de la ref échoue, ce qui
+est la bonne issue — ce n'est pas un moyen de réécrire l'historique.
+
+**Trois décisions plus petites, chacune un défaut évité :**
+
+- **Le compte personnel n'est pas dans `RootNamespaces`.** Un namespace
+  personnel n'est pas une organisation : il ne peut être ni créé ni supprimé,
+  donc le lister comme telle mettrait dans l'arbre une ligne dont la moitié des
+  actions se retirent.
+- **`visibilityOf` lit `Visibility` avant `Private`.** Le premier est ce
+  qu'Enterprise remplit avec `internal` ; ne lire que le booléen rendrait un
+  dépôt Enterprise `internal` comme `private`, ce qui est autre chose.
+- **Un workflow en cours rapporte son *status*.** Une exécution en vol n'a pas
+  de conclusion, et retomber sur la chaîne vide ferait lire « pas de CI du tout »
+  pour un dépôt dont le build tourne.
+
+**L'URL configurée est l'hôte *web*.** Sur Enterprise l'API vit sous `/api/v3/`,
+que `WithEnterpriseURLs` ajoute — confondre les deux enverrait l'utilisateur sur
+`https://git.acme.test/api/v3/acme/api` quand il demande à ouvrir un dépôt dans
+son navigateur. Deux tests tiennent les deux bouts, dont un qui vérifie que
+github.com **ne** reçoit **pas** ce traitement : son API est `api.github.com`.
+
+**Les rôles ne s'alignent pas, et c'est pourquoi le backend les humanise.**
+GitLab rend un nombre, GitHub un jeu de booléens, et l'appartenance à une
+organisation GitHub est *admin* ou *member* — inventer les trois niveaux
+intermédiaires pour coller à GitLab rapporterait une distinction que la
+plateforme ne fait pas.
+
+Coût : **+0,55 Mo** sur le binaire (24,4 → 25,0). Couverture :
+`internal/forge/github` 89,8 %, `internal/forge/session` 100 %, projet 82,2 %.
 
 ### 3.7 Command mode from inside a text field — **done**
 
