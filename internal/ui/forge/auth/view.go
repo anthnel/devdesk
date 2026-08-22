@@ -97,7 +97,7 @@ func (m Model) GetHelpContent() help.Content {
 				// The prefix is a hint, never a check: DevDesk does not validate
 				// it, and saying "must" about something nothing enforces is how
 				// a user comes to believe a working token is broken.
-				Body: v.TokenHelp + " It usually starts with " + v.TokenPlaceholder + ".",
+				Body: v.TokenHelp + " Tokens look like " + v.TokenPlaceholder + ".",
 			},
 		},
 	}

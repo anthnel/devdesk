@@ -25,8 +25,20 @@ import (
 // uiRoot is the tree every view lives in.
 const uiRoot = ".."
 
-// forgeNames are what no view may write into a string.
-var forgeNames = []string{"gitlab", "github"}
+// forgeMarkers are what no view may write into a string.
+//
+// The names are the obvious half. The prefixes are the half that got through:
+// the auth view carried `glpat-xxxxxxxxxxxxxxxxxxxx` as its token placeholder
+// for the life of §3.6, and this test walked past it every time because
+// `glpat-` names no platform. A token prefix is forge-specific without saying
+// which forge, which is exactly the shape a guard on names cannot see.
+//
+// They are matched case-insensitively on a substring, so `ghp_` catches a
+// placeholder and an error message alike.
+var forgeMarkers = []string{
+	"gitlab", "github",
+	"glpat-", "ghp_", "github_pat_", "gho_", "ghs_",
+}
 
 // allowed are the literals that legitimately carry a forge's name.
 //
@@ -81,12 +93,13 @@ func TestNoViewNamesAForge(t *testing.T) {
 				return true
 			}
 			lower := strings.ToLower(value)
-			for _, name := range forgeNames {
-				if strings.Contains(lower, name) {
-					t.Errorf("%s: a string names a forge: %q\n"+
-						"  Use forge.Vocabulary for the words and internal/command for a command name.\n"+
+			for _, marker := range forgeMarkers {
+				if strings.Contains(lower, marker) {
+					t.Errorf("%s: a string is specific to one forge (%q): %q\n"+
+						"  Use forge.Vocabulary for the words and the token example,\n"+
+						"  and internal/command for a command name.\n"+
 						"  If it truly belongs here, declare it in `allowed` with the reason.",
-						fset.Position(lit.Pos()), value)
+						fset.Position(lit.Pos()), marker, value)
 					return false
 				}
 			}

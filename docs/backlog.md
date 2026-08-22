@@ -30,6 +30,33 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D54 — la vue d'auth proposait un token GitLab en exemple, quelle que soit la
+forge. Corrigé.** Signalé le 2026-08-22, juste après D53.
+
+Le placeholder du champ token était `glpat-xxxxxxxxxxxxxxxxxxxx`, écrit en dur
+dans `auth/model.go`. Un utilisateur GitHub se voyait donc montrer la forme d'un
+token GitLab comme exemple de ce qu'il devait coller.
+
+**Ce qui vaut d'être retenu, c'est pourquoi le garde-fou ne l'a pas vu.**
+`internal/ui/vocabtest` cherche les *noms* des plateformes dans les littéraux —
+et `glpat-` n'en nomme aucune. Un préfixe de token est spécifique à une forge
+**sans dire laquelle**, ce qui est précisément la forme qu'une garde sur les noms
+ne peut pas voir. Le test a marché à côté à chaque exécution de §3.6, étapes 5 à
+8 comprises.
+
+Les marqueurs incluent maintenant les préfixes (`glpat-`, `ghp_`,
+`github_pat_`, `gho_`, `ghs_`) en plus des deux noms, et la garde a été vérifiée
+en échec en remettant l'ancienne valeur : elle nomme le fichier, la ligne, le
+marqueur et le littéral.
+
+`Vocabulary.TokenPlaceholder` le porte, et sa forme a changé avec son emploi :
+c'était `glpat-…` pour une phrase d'aide, c'est un exemple de valeur maintenant,
+parce que c'est ce qu'un placeholder est. La prose sur les préfixes vit dans
+`TokenHelp`, où il y a la place d'en nommer plusieurs — et l'aide GitHub s'en
+sert pour distinguer un token classic d'un fine-grained, ce que D53 a montré
+utile : `/user/orgs` ne renvoie rien pour un fine-grained tant que chaque
+organisation ne l'a pas approuvé, ce qui se lit « vous n'appartenez à aucune ».
+
 **D53 — l'explorer GitHub s'ouvrait vide sur un compte personnel. Corrigé.**
 Signalé le 2026-08-22, quelques minutes après la livraison de §3.6 étape 7, par
 la première utilisation réelle avec un token GitHub.
@@ -2413,16 +2440,22 @@ fausses en écrivant le code, et chacune est nommée là où elle a cédé :
 | le cycle de forge n'aura qu'une valeur | il en a deux depuis l'étape 4, ce qui a permis de tester la bascule pour de vrai (étape 6) |
 | rendre la complétion consciente de la forge | sans objet : un écran nommé d'après le rôle n'a rien à filtrer par plateforme (étape 8) |
 
-Quatre défauts trouvés en chemin : **D52** (un compteur du dashboard illisible
-affiché `0`), une ligne de `.claude/CLAUDE.md` fausse depuis le commit initial,
-l'ordre de la migration `gitlab:` → `forge:` qui perdait silencieusement un
-réglage, et **D53** — l'explorer GitHub vide sur un compte personnel, signalé
-par la première utilisation réelle et corrigé le jour même. Tous les quatre sont
-corrigés.
+Cinq défauts trouvés en chemin, tous corrigés : **D52** (un compteur du
+dashboard illisible affiché `0`), une ligne de `.claude/CLAUDE.md` fausse depuis
+le commit initial, l'ordre de la migration `gitlab:` → `forge:` qui perdait
+silencieusement un réglage, **D53** (l'explorer GitHub vide sur un compte
+personnel) et **D54** (un token GitLab proposé en exemple sur GitHub).
 
-D53 est le seul qui ait échappé à la relecture *et* aux tests, et il vaut d'être
-retenu pour ça : le raisonnement qui l'a produit était écrit et argumenté — ce
-qui le rendait convaincant — et il portait sur une différence qui n'existe pas.
+**Les deux derniers sont venus de la première utilisation réelle, pas d'une
+relecture**, et chacun dit quelque chose de différent :
+
+- **D53** est le seul qui ait échappé à la relecture *et* aux tests. Le
+  raisonnement qui l'a produit était écrit et argumenté — ce qui le rendait
+  convaincant — et il portait sur une différence qui n'existe pas.
+- **D54** a échappé à une garde écrite pour l'attraper. `vocabtest` cherche les
+  *noms* des plateformes, et `glpat-` n'en nomme aucune : un préfixe de token est
+  spécifique à une forge sans dire laquelle. La garde connaît les préfixes
+  maintenant.
 
 #### What was coupled to GitLab (relevé'ouverture)
 

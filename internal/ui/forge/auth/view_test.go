@@ -313,3 +313,26 @@ func keysOf(shortcuts shortcut.Shortcuts) string {
 	}
 	return strings.Join(keys, ",")
 }
+
+// TestTheTokenPlaceholderFollowsTheForge — it was a GitLab literal, and it
+// escaped vocabtest because `glpat-` names no platform. A GitHub user was shown
+// a GitLab token's shape as the example of what to paste.
+func TestTheTokenPlaceholderFollowsTheForge(t *testing.T) {
+	for _, forgeType := range config.ForgeTypes() {
+		cfg := testConfig()
+		cfg.Forge.Type = forgeType
+		m := newTestModel(t, cfg, newFakeStorage())
+
+		want := forge.VocabularyFor(forgeType).TokenPlaceholder
+		if got := m.tokenInput.Placeholder; got != want {
+			t.Errorf("%s: placeholder = %q, want %q", forgeType, got, want)
+		}
+	}
+
+	// And the two are not the same string, or the field would be carrying
+	// nothing.
+	if forge.VocabularyFor(config.ForgeGitLab).TokenPlaceholder ==
+		forge.VocabularyFor(config.ForgeGitHub).TokenPlaceholder {
+		t.Error("both forges show the same example token")
+	}
+}
