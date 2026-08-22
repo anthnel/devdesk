@@ -7,3 +7,7 @@ mets à jour l'entrée Table plumbing. Ensuite on attaque 3.6. Il faut qu'on aff
 ---
 
 oui, tranche : SDK Go, et consigne la décision
+
+---
+
+oui, attaque l'étape 0
