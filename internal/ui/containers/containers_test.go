@@ -50,19 +50,30 @@ func containerFixtures() []docker.Container {
 	return []docker.Container{
 		{
 			ID: "aaaa111122223333", Name: "web", Image: "nginx:1.27", State: "running",
-			CreatedAt: "2026-08-01 12:14:13 +0100 CET", Ports: "0.0.0.0:80->80/tcp",
+			// Through the parser rather than hand-built, so the fixture cannot
+			// drift from what `docker ps` actually produces.
+			CreatedAt:  "2026-08-01 12:14:13 +0100 CET",
+			Ports:      docker.ParseContainerPorts("0.0.0.0:80->80/tcp, :::80->80/tcp"),
 			CPUPercent: 12.5, MemUsage: "150MiB / 7.776GiB", MemPercent: 1.9,
 			NetIO: "1.2kB / 3.4kB", NetRX: 1200, NetTX: 3400,
 			BlockIO: "1.2MB / 600kB", BlockRX: 1_200_000, BlockTX: 600_000,
 		},
 		{
 			ID: "bbbb111122223333", Name: "api", Image: "golang:1.24", State: "exited",
-			CreatedAt: "2026-07-30 09:00:00 +0100 CET", Ports: "",
+			CreatedAt: "2026-07-30 09:00:00 +0100 CET",
+			// Exposed by the image, published by nobody — the fourth case, and
+			// the one that used to look connectable.
+			Ports:      docker.ParseContainerPorts("8080/tcp"),
 			CPUPercent: 99, MemUsage: "900MiB / 7.776GiB", // must be ignored: not running
 		},
 		{
 			ID: "cccc111122223333", Name: "cache", Image: "redis:7", State: "paused",
 			CreatedAt: "2026-07-29 09:00:00 +0100 CET",
+			// Loopback, dual-stack, plus a udp publication on a named address:
+			// between this row and web, every scope and both protocol branches
+			// are exercised by the fixture the view tests already use.
+			Ports: docker.ParseContainerPorts(
+				"127.0.0.1:6379->6379/tcp, [::1]:6379->6379/tcp, 192.168.1.5:5353->53/udp"),
 			// Distinct from the others so every sort column is a total order:
 			// sort.Slice is not stable, and ties would make the expected
 			// sequences ambiguous.
@@ -85,9 +96,29 @@ func newTestModel(t *testing.T) Model {
 // rawModel returns a model that has absorbed a container list and kept the
 // view's own default sort — name ascending, so the row order is api, cache,
 // web, zombie. See TestDefaultSortIsNameAscending.
+//
+// It turns every state filter on, and every selection and action test below
+// depends on that: the view opens on the running containers, and three of the
+// four fixtures are not running. Leaving the default would make those tests
+// assert on a one-row table, which is what the filter's own tests are for —
+// here it would only hide what they mean to drive.
+//
+// Not `z`: that is the reset, and the reset is the running-only default. The
+// four keys are how a user actually asks for every container, so this is a
+// state a real session can be in.
 func rawModel(t *testing.T) Model {
 	t.Helper()
-	return feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
+	m := feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
+	return allStates(t, m)
+}
+
+// allStates turns the four state filters on, which is what "show me every
+// container" is: there is no `all` token, because it would be a fifth state to
+// select alongside four real ones.
+func allStates(t *testing.T, m Model) Model {
+	t.Helper()
+	return feed(t, m,
+		testutil.Key("r"), testutil.Key("p"), testutil.Key("s"), testutil.Key("t"))
 }
 
 // loadedModel is what selection and action tests use. It was a distinct helper

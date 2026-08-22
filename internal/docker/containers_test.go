@@ -2,6 +2,7 @@ package docker
 
 import (
 	"errors"
+	"reflect"
 	"slices"
 	"testing"
 )
@@ -22,13 +23,15 @@ func TestListContainersParsesTabSeparatedOutput(t *testing.T) {
 	want := Container{
 		ID: "abc123", Name: "web", Image: "nginx:1.25", State: "running",
 		Status: "Up 2 hours", CreatedAt: "2026-08-01 10:00:00 +0200 CEST",
-		Ports: "0.0.0.0:80->80/tcp",
+		Ports: []PortBinding{
+			{HostPort: "80", ContainerPort: "80", Protocol: "tcp", Scope: ScopeAll, V4: true},
+		},
 	}
-	if got[0] != want {
+	if !reflect.DeepEqual(got[0], want) {
 		t.Errorf("first container = %+v, want %+v", got[0], want)
 	}
 	// An empty trailing field must not drop the row or shift the others.
-	if got[1].Ports != "" || got[1].Name != "db" {
+	if len(got[1].Ports) != 0 || got[1].Name != "db" {
 		t.Errorf("second container = %+v, want db with no ports", got[1])
 	}
 }
