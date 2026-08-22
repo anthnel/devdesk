@@ -119,7 +119,7 @@ func renderCodeSection(m Model, width int, t tier) []string {
 	return []string{
 		theme.Bg("GitLab"),
 		branch(false, "user", sessionLine),
-		branch(false, "host", theme.Bg(forgeHost(m.config.GitLab.URL))),
+		branch(false, "host", theme.Bg(forgeHost(m.config.Forge.URL))),
 		branch(false, "issues assigned", issues),
 		branch(false, "MR assigned", mrs),
 		branch(true, "MR to review", review),

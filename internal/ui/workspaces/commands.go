@@ -94,7 +94,7 @@ func syncOneRepoCmd(repoPath string, spec syncSpec, sem chan struct{}) tea.Cmd {
 	)
 }
 
-// batchSyncCmd syncs every path through a pool of gitlab.pull.parallel_jobs.
+// batchSyncCmd syncs every path through a pool of forge.pull.parallel_jobs.
 //
 // The setting is shared with the explorer's clone deliberately: both are "how
 // many git network operations at once", and one number the user can reason

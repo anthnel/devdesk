@@ -151,15 +151,15 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 	// Compared by accessor, not by label: two tabs could both hold a field
 	// called "URL", and pointer identity cannot be wrong about which setting is
 	// in front of the cursor.
-	isGitLabURL := f.str != nil && f.str(m.config) == &m.config.GitLab.URL
-	before := m.config.GitLab.URL
+	isGitLabURL := f.str != nil && f.str(m.config) == &m.config.Forge.URL
+	before := m.config.Forge.URL
 
 	if err := f.Apply(m.config, m.input.Value()); err != nil {
 		log.Printf("ERROR [configuration] %s: %v", f.Label, err)
 		return m, m.footer.Error(err.Error()), false
 	}
 
-	if isGitLabURL && m.config.GitLab.URL != before {
+	if isGitLabURL && m.config.Forge.URL != before {
 		// Said unconditionally rather than only when a session is open: this
 		// view holds no session state, and "you will need to sign in again" is
 		// true either way. Warning beats forbidding — the same call as for the

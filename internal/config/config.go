@@ -14,7 +14,7 @@ import (
 type Config struct {
 	App      AppConfig      `yaml:"app"`
 	Status   StatusConfig   `yaml:"status"`
-	GitLab   GitLabConfig   `yaml:"gitlab"`
+	Forge    ForgeConfig    `yaml:"forge"`
 	Registry RegistryConfig `yaml:"registry"`
 	Scan     ScanConfig     `yaml:"scan"`
 	Network  NetworkConfig  `yaml:"network"`
@@ -24,6 +24,13 @@ type Config struct {
 	//
 	// Deprecated: use Network.
 	Docker DockerConfig `yaml:"docker,omitempty"`
+
+	// GitLab is what `forge:` replaced. Same treatment as Docker above, and for
+	// the same reason: a context targets one forge, so the section is named
+	// after the role rather than after the one implementation there was.
+	//
+	// Deprecated: use Forge.
+	GitLab GitLabConfig `yaml:"gitlab,omitempty"`
 }
 
 // NetworkConfig holds what the netdiag view runs on.
@@ -117,23 +124,52 @@ type AppConfig struct {
 	SecretBackend string `yaml:"secret_backend"`
 }
 
-// GitLabConfig contient la configuration GitLab
+// ForgeConfig is the code-hosting platform this context targets — exactly one,
+// never two (§3.6).
 //
 // Le token n'est pas ici : il vit dans le gestionnaire de secrets de l'hôte
 // (§3.9). Un `token:` laissé par une version antérieure est déplacé dans le
 // store puis retiré du fichier — voir secrets.go.
-type GitLabConfig struct {
-	URL                string           `yaml:"url"`
-	DefaultParentGroup string           `yaml:"default_parent_group"`
-	DefaultVisibility  string           `yaml:"default_visibility"`
-	CloneMethod        string           `yaml:"clone_method"`
-	Pull               GitLabPullConfig `yaml:"pull"`
+type ForgeConfig struct {
+	// Type names the backend: "gitlab" or "github". It is **declared, never
+	// sniffed** — the registry `provider` field is the precedent (§3.8), and
+	// `git.acme.com` is exactly the URL that cannot be told apart.
+	//
+	// Empty means "gitlab", which is what every file written before this key
+	// existed meant.
+	Type string `yaml:"type"`
+
+	URL                string          `yaml:"url"`
+	DefaultParentGroup string          `yaml:"default_parent_group"`
+	DefaultVisibility  string          `yaml:"default_visibility"`
+	CloneMethod        string          `yaml:"clone_method"`
+	Pull               ForgePullConfig `yaml:"pull"`
 }
 
-// GitLabPullConfig contient la configuration pour la synchronisation
-type GitLabPullConfig struct {
+// ForgePullConfig contient la configuration pour la synchronisation
+type ForgePullConfig struct {
 	ParallelJobs    int  `yaml:"parallel_jobs"`
 	IncludeArchived bool `yaml:"include_archived"`
+}
+
+// GitLabConfig is the shape `gitlab:` had. It is read at load and migrated into
+// ForgeConfig; nothing else may use it.
+//
+// Deprecated: use ForgeConfig.
+type GitLabConfig struct {
+	URL                string           `yaml:"url,omitempty"`
+	DefaultParentGroup string           `yaml:"default_parent_group,omitempty"`
+	DefaultVisibility  string           `yaml:"default_visibility,omitempty"`
+	CloneMethod        string           `yaml:"clone_method,omitempty"`
+	Pull               GitLabPullConfig `yaml:"pull,omitempty"`
+}
+
+// GitLabPullConfig is `gitlab.pull:`.
+//
+// Deprecated: use ForgePullConfig.
+type GitLabPullConfig struct {
+	ParallelJobs    int  `yaml:"parallel_jobs,omitempty"`
+	IncludeArchived bool `yaml:"include_archived,omitempty"`
 }
 
 // RegistryItem represents a single Docker/OCI registry with optional alias support.
@@ -280,6 +316,18 @@ func Load() (*Config, error) {
 func applyDefaults(cfg *Config) error {
 	homeDir, _ := os.UserHomeDir()
 
+	// `gitlab:` → `forge:`, and it runs **first**. That is not tidiness: every
+	// default below writes into cfg.Forge, so a migration placed after them
+	// would find a block that is no longer empty and take the field-by-field
+	// path — where every field is already filled with a default, and the user's
+	// own `parallel_jobs: 7` is silently dropped. Measured, not theorised: it
+	// is what the first draft did, and the retired-keys test caught it.
+	//
+	// The other half of the reason is `docker:` → `network:`'s: yaml.Unmarshal
+	// is not strict here, so an un-migrated block is dropped in silence, and the
+	// silence would point a context at no host at all.
+	migrateGitLabSection(cfg)
+
 	// "dark" was a third name for the built-in theme: LoadTheme accepts "",
 	// "dark" and "default" alike, but ListThemes only ever offers "default", so
 	// a config saying "dark" named a theme no picker could show. Normalised at
@@ -311,14 +359,17 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Status.Timeout == 0 {
 		cfg.Status.Timeout = 5
 	}
-	if cfg.GitLab.DefaultVisibility == "" {
-		cfg.GitLab.DefaultVisibility = "private"
+	if cfg.Forge.Type == "" {
+		cfg.Forge.Type = ForgeGitLab
 	}
-	if cfg.GitLab.CloneMethod == "" {
-		cfg.GitLab.CloneMethod = "https"
+	if cfg.Forge.DefaultVisibility == "" {
+		cfg.Forge.DefaultVisibility = "private"
 	}
-	if cfg.GitLab.Pull.ParallelJobs == 0 {
-		cfg.GitLab.Pull.ParallelJobs = 4
+	if cfg.Forge.CloneMethod == "" {
+		cfg.Forge.CloneMethod = "https"
+	}
+	if cfg.Forge.Pull.ParallelJobs == 0 {
+		cfg.Forge.Pull.ParallelJobs = 4
 	}
 	if cfg.Registry.CacheDir == "" {
 		cfg.Registry.CacheDir = filepath.Join(homeDir, ".devdesk", "cache", "templates")
@@ -414,10 +465,11 @@ func Default() *Config {
 			Timeout:         5,
 			Components:      []ComponentConfig{},
 		},
-		GitLab: GitLabConfig{
+		Forge: ForgeConfig{
+			Type:              ForgeGitLab,
 			DefaultVisibility: "private",
 			CloneMethod:       "https",
-			Pull: GitLabPullConfig{
+			Pull: ForgePullConfig{
 				ParallelJobs:    4,
 				IncludeArchived: false,
 			},
@@ -748,9 +800,9 @@ func CreateContext(contextName string) error {
 	// Créer config avec defaults
 	cfg := Default()
 
-	// Vider monitors et GitLab pour nouveau contexte
+	// Vider monitors et forge pour nouveau contexte
 	cfg.Status.Components = []ComponentConfig{}
-	cfg.GitLab.URL = ""
+	cfg.Forge.URL = ""
 
 	// Sauvegarder
 	return SaveContext(cfg, contextName)

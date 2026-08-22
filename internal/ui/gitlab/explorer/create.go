@@ -94,7 +94,7 @@ func (m Model) handleTemplatesLoaded(msg TemplatesLoadedMsg) (tea.Model, tea.Cmd
 		0, // defaultResourceType = Group (user can switch with ←→)
 		m.creationParentName,
 		m.creationParentID,
-		m.config.GitLab.DefaultVisibility,
+		m.config.Forge.DefaultVisibility,
 		names,
 	)
 	if msg.Error != nil {

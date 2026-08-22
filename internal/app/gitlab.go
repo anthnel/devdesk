@@ -22,7 +22,7 @@ type GitLabAutoLoginMsg struct {
 
 // tryAutoLogin tente de se connecter automatiquement à GitLab avec les credentials sauvegardés
 func (a *App) tryAutoLogin() tea.Cmd {
-	url := a.config.GitLab.URL
+	url := a.config.Forge.URL
 	storage := a.sharedState.Secrets.Storage
 
 	// Si pas d'URL configurée, pas d'auto-login
@@ -78,7 +78,7 @@ func (a *App) handleAuthResult(msg auth.AuthResultMsg) (tea.Model, tea.Cmd) {
 		if err := config.Save(msg.ConfigToSave); err != nil {
 			log.Printf("ERROR: Failed to save config after authentication: %v", err)
 		} else {
-			log.Printf("Config saved successfully (URL: %s)", msg.ConfigToSave.GitLab.URL)
+			log.Printf("Config saved successfully (URL: %s)", msg.ConfigToSave.Forge.URL)
 		}
 	}
 

@@ -42,9 +42,9 @@ func TestMain(m *testing.M) {
 
 func testConfig() *config.Config {
 	cfg := config.Default()
-	cfg.GitLab.URL = "https://gitlab.example.com"
-	cfg.GitLab.CloneMethod = "https"
-	cfg.GitLab.DefaultVisibility = "private"
+	cfg.Forge.URL = "https://gitlab.example.com"
+	cfg.Forge.CloneMethod = "https"
+	cfg.Forge.DefaultVisibility = "private"
 	return cfg
 }
 

@@ -139,14 +139,14 @@ func TestTheSpeciallyHandledLabelsExist(t *testing.T) {
 // zero is how `trivy_server: ":"` reached a config file.
 func TestAnIntegerFieldRefusesRatherThanCoerces(t *testing.T) {
 	cfg := config.Default()
-	f := integer("Jobs", func(c *config.Config) *int { return &c.GitLab.Pull.ParallelJobs }, 1, 32, "")
-	cfg.GitLab.Pull.ParallelJobs = 4
+	f := integer("Jobs", func(c *config.Config) *int { return &c.Forge.Pull.ParallelJobs }, 1, 32, "")
+	cfg.Forge.Pull.ParallelJobs = 4
 
 	for _, bad := range []string{"", "abc", "0", "33", "-1"} {
 		if err := f.Apply(cfg, bad); err == nil {
 			t.Errorf("Apply(%q) was accepted", bad)
 		}
-		if got := cfg.GitLab.Pull.ParallelJobs; got != 4 {
+		if got := cfg.Forge.Pull.ParallelJobs; got != 4 {
 			t.Fatalf("Apply(%q) changed the setting to %d despite failing", bad, got)
 		}
 	}
@@ -154,8 +154,8 @@ func TestAnIntegerFieldRefusesRatherThanCoerces(t *testing.T) {
 	if err := f.Apply(cfg, " 8 "); err != nil {
 		t.Errorf("Apply(\" 8 \") = %v, want the surrounding space trimmed and accepted", err)
 	}
-	if cfg.GitLab.Pull.ParallelJobs != 8 {
-		t.Errorf("ParallelJobs = %d, want 8", cfg.GitLab.Pull.ParallelJobs)
+	if cfg.Forge.Pull.ParallelJobs != 8 {
+		t.Errorf("ParallelJobs = %d, want 8", cfg.Forge.Pull.ParallelJobs)
 	}
 }
 
@@ -194,19 +194,19 @@ func TestClearingTheTrivyServerIsAllowed(t *testing.T) {
 func TestCycleWraps(t *testing.T) {
 	cfg := config.Default()
 	f := fieldNamed(t, "Clone method")
-	cfg.GitLab.CloneMethod = "https"
+	cfg.Forge.CloneMethod = "https"
 
 	f.Cycle(cfg, 1)
-	if cfg.GitLab.CloneMethod != "ssh" {
-		t.Fatalf("after one step: %q, want ssh", cfg.GitLab.CloneMethod)
+	if cfg.Forge.CloneMethod != "ssh" {
+		t.Fatalf("after one step: %q, want ssh", cfg.Forge.CloneMethod)
 	}
 	f.Cycle(cfg, 1)
-	if cfg.GitLab.CloneMethod != "https" {
-		t.Errorf("after wrapping: %q, want https", cfg.GitLab.CloneMethod)
+	if cfg.Forge.CloneMethod != "https" {
+		t.Errorf("after wrapping: %q, want https", cfg.Forge.CloneMethod)
 	}
 	f.Cycle(cfg, -1)
-	if cfg.GitLab.CloneMethod != "ssh" {
-		t.Errorf("stepping back: %q, want ssh", cfg.GitLab.CloneMethod)
+	if cfg.Forge.CloneMethod != "ssh" {
+		t.Errorf("stepping back: %q, want ssh", cfg.Forge.CloneMethod)
 	}
 }
 
@@ -215,12 +215,12 @@ func TestCycleWraps(t *testing.T) {
 func TestCycleFromAnUnknownValueLandsOnTheFirstOption(t *testing.T) {
 	cfg := config.Default()
 	f := fieldNamed(t, "Clone method")
-	cfg.GitLab.CloneMethod = "carrier-pigeon"
+	cfg.Forge.CloneMethod = "carrier-pigeon"
 
 	f.Cycle(cfg, 1)
 
-	if cfg.GitLab.CloneMethod != f.Options[1] {
-		t.Errorf("got %q, want %q — an unknown value is treated as index 0", cfg.GitLab.CloneMethod, f.Options[1])
+	if cfg.Forge.CloneMethod != f.Options[1] {
+		t.Errorf("got %q, want %q — an unknown value is treated as index 0", cfg.Forge.CloneMethod, f.Options[1])
 	}
 }
 

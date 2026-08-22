@@ -91,10 +91,10 @@ func (m Model) handleCloneDestinationSelected(msg CloneDestinationSelectedMsg) (
 		selection:       m.selection,
 		target:          msg.Path,
 		secrets:         m.shared.Secrets.Storage,
-		cloneMethod:     forge.CloneMethod(m.config.GitLab.CloneMethod),
-		gitlabURL:       m.config.GitLab.URL,
-		jobs:            m.config.GitLab.Pull.ParallelJobs,
-		includeArchived: m.config.GitLab.Pull.IncludeArchived,
+		cloneMethod:     forge.CloneMethod(m.config.Forge.CloneMethod),
+		gitlabURL:       m.config.Forge.URL,
+		jobs:            m.config.Forge.Pull.ParallelJobs,
+		includeArchived: m.config.Forge.Pull.IncludeArchived,
 	})
 
 	m.mode = ModeCloning
