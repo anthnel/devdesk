@@ -1138,6 +1138,29 @@ nothing to carry to whoever would run one — which is the only reason the
 cross-view delegation exists. It writes to the same two caches, so a rescan here
 and `S` in the images list are the same operation.
 
+**The load reconciles: a target with nothing behind it is not listed.** A cache
+outlives what it describes, and a deletion reaches it from four directions — `D`
+on an image, `P`, `D` on a repository, and any `docker rmi` or `rm -rf` outside
+the application, which no cascade can observe. One rule at the load covers all
+four: an image absent from `docker image ls` and a repository path that is gone
+are dropped from `InventoryLoadedMsg`.
+
+Two things it deliberately does not do:
+
+- **It never reads a failure as an absence.** `localImages` returns a second
+  value saying whether it could find out, and a failed enumeration keeps every
+  image — a stopped daemon would otherwise empty the inventory. `isGone` tests
+  `os.IsNotExist` and nothing else, so a permission error or an unmounted share
+  keeps the row.
+- **It hides, it does not delete.** The entry and its stored result stay on
+  disk: a transient answer must not destroy a scan nobody asked to purge. `A`
+  only rescans the rows that are there, so a hidden entry costs nothing while it
+  waits.
+
+`listImages` is a package var only because of this — a test cannot pull an image,
+and the cache round trips would otherwise be reduced to asserting a fixture is
+absent, which they would pass for the wrong reason.
+
 Three invariants, each with a test that fails without it:
 
 - **The purge clears the counts, not the rows.** The rows *are* the list of what

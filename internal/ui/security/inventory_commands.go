@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
@@ -50,20 +52,31 @@ type inventoryScanJob struct {
 	Name string
 }
 
-// loadInventoryCmd reads both scan caches for the current context.
+// loadInventoryCmd reads both scan caches for the current context, and drops
+// what no longer exists.
 //
 // Only this context's entries are visible: the caches are bound to one at
 // construction, which is what stops the inventory listing what another context
 // scanned (§0b).
+//
+// The reconciliation is here rather than on each delete because a delete is not
+// the only way a target goes away: `P` prunes an unknown set of images at once,
+// and a `docker rmi` or an `rm -rf` outside DevDesk is not observed at all. One
+// rule at the load covers the four, where four cascades would each have to be
+// remembered.
 func loadInventoryCmd() tea.Cmd {
 	return func() tea.Msg {
 		contextName := config.CurrentContextName()
 		targets := make([]scanTarget, 0)
+		images, imagesKnown := localImages()
 
 		if c, err := cache.NewImageScanCache(contextName); err != nil {
 			log.Printf("ERROR [security/inventory] open image scan cache: %v", err)
 		} else {
 			for name, entry := range c.GetAll() {
+				if !stillPulled(name, images, imagesKnown) {
+					continue
+				}
 				targets = append(targets, scanTarget{
 					Kind: kindImage, Name: name, Scanned: true,
 					Counts: scan.SeverityCounts{
@@ -80,6 +93,9 @@ func loadInventoryCmd() tea.Cmd {
 			log.Printf("ERROR [security/inventory] open workspace scan cache: %v", err)
 		} else {
 			for path, entry := range c.GetAll() {
+				if isGone(path) {
+					continue
+				}
 				targets = append(targets, scanTarget{
 					Kind: kindRepo, Name: path, Scanned: true,
 					Counts: scan.SeverityCounts{
@@ -101,6 +117,59 @@ func loadInventoryCmd() tea.Cmd {
 		})
 		return InventoryLoadedMsg{Targets: targets}
 	}
+}
+
+// listImages is docker.ListImages, indirected for the tests and for nothing
+// else — production never reassigns it.
+//
+// The seam exists because the reconciliation below makes the loader depend on
+// what the daemon holds, and a test cannot pull an image to satisfy it. The
+// round trips through the real cache files would otherwise be reduced to
+// asserting that a fixture is absent, which they would pass for the wrong
+// reason.
+var listImages = docker.ListImages
+
+// localImages names the images present on this machine, and says whether it
+// could find out.
+//
+// The second return is the whole point. "Docker is not running" and "the image
+// is gone" are the same silence from a caller's side, and reading the first as
+// the second would empty the inventory of every image the moment the daemon
+// stops. A failed enumeration keeps every entry instead: showing a target that
+// no longer exists is a stale row, hiding one that does is a lie.
+func localImages() (map[string]struct{}, bool) {
+	list, err := listImages()
+	if err != nil {
+		log.Printf("INFO [security/inventory] image list unavailable, keeping every cached image: %v", err)
+		return nil, false
+	}
+	names := make(map[string]struct{}, len(list))
+	for _, img := range list {
+		names[img.Name()] = struct{}{}
+	}
+	return names, true
+}
+
+// stillPulled says whether a cached image entry still has an image behind it.
+// It is a function of its own so a test can put the two answers to it without a
+// daemon: an enumeration that failed keeps everything, one that succeeded keeps
+// what it listed.
+func stillPulled(name string, images map[string]struct{}, known bool) bool {
+	if !known {
+		return true
+	}
+	_, ok := images[name]
+	return ok
+}
+
+// isGone says a repository path has been removed, and only that.
+//
+// os.IsNotExist and nothing else: a permission error, or a share that answers
+// slowly, means the path could not be *read*, which is not the same claim. The
+// entry survives anything but a definite absence.
+func isGone(path string) bool {
+	_, err := os.Stat(path)
+	return err != nil && os.IsNotExist(err)
 }
 
 // loadInventoryResultCmd reads back the full result stored for one target
