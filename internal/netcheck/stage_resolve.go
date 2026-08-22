@@ -10,7 +10,7 @@ import (
 // runResolve answers what the target's name maps to, or what its address maps
 // back to. Exactly one of the two questions has meaning for a given target,
 // and the other says so rather than being absent.
-func runResolve(ctx context.Context, t Target, env Env, _ *Results) []Check {
+func runResolve(ctx context.Context, t Target, env Env, _ Settings, _ *Results) []Check {
 	if ip := net.ParseIP(strings.TrimSpace(t.Host)); ip != nil {
 		return []Check{
 			literalAddress(ip),

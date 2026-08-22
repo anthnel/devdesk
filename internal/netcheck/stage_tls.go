@@ -20,7 +20,7 @@ import (
 // root would collapse all of them into one error string and take the
 // certificate with it. The check this replaces greped the leaf's text and never
 // looked at the chain at all.
-func runTLS(ctx context.Context, t Target, env Env, _ *Results) []Check {
+func runTLS(ctx context.Context, t Target, env Env, set Settings, _ *Results) []Check {
 	state, err := env.Handshake(ctx, t.Addr(), t.Host)
 	if err != nil {
 		return handshakeFailed(t, err)
@@ -39,7 +39,7 @@ func runTLS(ctx context.Context, t Target, env Env, _ *Results) []Check {
 	hs.fact("Subject", leaf.Subject.CommonName)
 	hs.fact("Issuer", leaf.Issuer.CommonName)
 
-	expiry := expiryCheck(leaf, now)
+	expiry := expiryCheck(leaf, now, set.ExpiryWarnWindow)
 
 	return []Check{
 		hs,
@@ -184,7 +184,7 @@ func hostnameCheck(leaf *x509.Certificate, host string) Check {
 
 // expiryCheck reports the validity window in days, which is the unit the
 // decision is actually made in.
-func expiryCheck(leaf *x509.Certificate, now time.Time) Check {
+func expiryCheck(leaf *x509.Certificate, now time.Time, warnWindow time.Duration) Check {
 	c := newCheck(CheckTLSExpiry, StageTLS, OK, "")
 	c.fact("Not before", leaf.NotBefore.UTC().Format(time.RFC3339))
 	c.fact("Not after", leaf.NotAfter.UTC().Format(time.RFC3339))
@@ -200,7 +200,7 @@ func expiryCheck(leaf *x509.Certificate, now time.Time) Check {
 		c.Reason = ReasonExpired
 		c.Summary = fmt.Sprintf("Certificate expired %s ago, on %s",
 			inDays(now.Sub(leaf.NotAfter)), leaf.NotAfter.UTC().Format(time.DateOnly))
-	case leaf.NotAfter.Sub(now) < expiryWarnWindow:
+	case leaf.NotAfter.Sub(now) < warnWindow:
 		c.Verdict = Warn
 		c.Summary = fmt.Sprintf("Certificate expires in %s, on %s",
 			inDays(leaf.NotAfter.Sub(now)), leaf.NotAfter.UTC().Format(time.DateOnly))

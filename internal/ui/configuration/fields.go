@@ -20,6 +20,11 @@ const (
 	kindInteger
 	kindToggle
 	kindCycle
+	// kindStatic is a fact about the context, shown among the settings it
+	// qualifies but edited nowhere: the config file's own path. It sits in the
+	// form rather than in the header because it belongs beside the other paths,
+	// and the header has seven lines to spend on what changes.
+	kindStatic
 )
 
 // field is one editable setting.
@@ -42,6 +47,7 @@ type field struct {
 	str  func(*config.Config) *string // text, cycle
 	num  func(*config.Config) *int    // integer
 	flag func(*config.Config) *bool   // toggle
+	fact string                       // kindStatic only — read once, never written
 
 	min, max int                // integer bounds, inclusive
 	validate func(string) error // text only, beyond emptiness
@@ -89,6 +95,10 @@ func cycle(label string, ref func(*config.Config) *string, options []string, hin
 	return field{Label: label, Kind: kindCycle, str: ref, Options: options, hint: hint}
 }
 
+func static(label, value, hint string) field {
+	return field{Label: label, Kind: kindStatic, fact: value, hint: hint}
+}
+
 // ── reading and writing ─────────────────────────────────────────────────────
 
 // Value renders the setting as the text the field edits.
@@ -98,6 +108,8 @@ func (f field) Value(c *config.Config) string {
 		return strconv.Itoa(*f.num(c))
 	case kindToggle:
 		return strconv.FormatBool(*f.flag(c))
+	case kindStatic:
+		return f.fact
 	default:
 		return *f.str(c)
 	}
@@ -169,8 +181,9 @@ func (f field) Apply(c *config.Config, raw string) error {
 // would be the opposite of the point.
 //
 // themes and views are passed in because both are discovered rather than
-// declared — themes from a directory, views from the command parser.
-func sections(themes, views []string) []section {
+// declared — themes from a directory, views from the command parser; configPath
+// because it names the context's file, which the config itself does not carry.
+func sections(themes, views []string, configPath string) []section {
 	return []section{
 		{Title: "app", Fields: slices.Concat(
 			group("Appearance", theme.IconDashboard,
@@ -182,11 +195,16 @@ func sections(themes, views []string) []section {
 			group("Paths", theme.IconDirectory,
 				text("Workspaces dir", func(c *config.Config) *string { return &c.App.WorkspacesDir },
 					"Root the workspaces view browses"),
-				// It qualifies the root declared just above, which is why it
-				// sits here rather than under Appearance.
+				// Where the keystrokes land. It is the one path the user cannot
+				// change from here, so it is shown rather than edited — and it
+				// belongs beside the other two, not alone in the header.
+				static("Config file", configPath, "Written as you edit; there is no save step"),
+				text("Log file", func(c *config.Config) *string { return &c.App.LogFile }, ""),
+				// Last of the group: it qualifies the paths above it, and a
+				// checkbox wedged between two value rows breaks the column they
+				// share.
 				toggle("Show hidden files", func(c *config.Config) *bool { return &c.App.ShowHiddenFiles },
 					"Dot entries, in the listing and in nested-repo discovery"),
-				text("Log file", func(c *config.Config) *string { return &c.App.LogFile }, ""),
 			),
 			group("External commands", theme.IconTools,
 				text("IDE command", func(c *config.Config) *string { return &c.App.IDECommand },
@@ -262,9 +280,28 @@ func sections(themes, views []string) []section {
 			),
 		)},
 
-		{Title: "docker", Fields: group("Tools", theme.IconDocker,
-			text("Network tool image", func(c *config.Config) *string { return &c.Docker.NetworkToolImage },
-				"Must carry ping, curl and nc"),
+		{Title: "network", Fields: slices.Concat(
+			group("Tools", theme.IconNetwork,
+				text("Network tool image", func(c *config.Config) *string { return &c.Network.ToolImage },
+					"Must carry traceroute and ss"),
+			),
+			group("Checks", theme.IconHourglass,
+				// One timeout rather than five. netcheck held 5 s for DNS and
+				// the dial, 8 s for TLS and HTTP and 4 s for the ping, and
+				// nothing argued the split — five rows for one idea.
+				integer("Check timeout (s)", func(c *config.Config) *int { return &c.Network.CheckTimeout }, 1, 120,
+					"How long one probe waits for an answer"),
+				integer("Ping count", func(c *config.Config) *int { return &c.Network.PingCount }, 1, 20,
+					"ICMP echo requests per run"),
+				integer("Traceroute max hops", func(c *config.Config) *int { return &c.Network.TracerouteMaxHops }, 1, 64,
+					"The wait per hop is fixed; the two would multiply"),
+				integer("Ports refresh (s)", func(c *config.Config) *int { return &c.Network.PortsRefreshInterval }, 1, 60,
+					"How often the Ports tab re-reads ss"),
+			),
+			group("Certificates", theme.IconCertificate,
+				integer("Expiry warning (days)", func(c *config.Config) *int { return &c.Network.CertExpiryWarnDays }, 1, 365,
+					"A certificate closer than this warns"),
+			),
 		)},
 
 		{Title: "status", Fields: group("Monitoring", theme.IconRefresh,

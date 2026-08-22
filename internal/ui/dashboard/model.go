@@ -546,7 +546,7 @@ func (m Model) detectTools() tea.Cmd {
 		})
 
 		// Network Diagnostics image
-		tools = append(tools, detectDockerImage("Net Diag", cfg.Docker.NetworkToolImage))
+		tools = append(tools, detectDockerImage("Net Diag", cfg.Network.ToolImage))
 
 		// Git
 		tools = append(tools, detectBinaryTool("Git", "git", "--version"))

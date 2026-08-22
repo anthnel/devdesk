@@ -26,7 +26,7 @@ func (m *Model) startRun() (*Model, tea.Cmd) {
 	m.runStage = netcheck.Steps()[0]
 	m.traceOutput = ""
 
-	return m, tea.Batch(m.spinner.Tick, runStageCmd(m.runGen, tg, 0, netcheck.Results{}))
+	return m, tea.Batch(m.spinner.Tick, runStageCmd(m.runGen, tg, m.checkSettings(), 0, netcheck.Results{}))
 }
 
 // runStageCmd runs one stage of the pipeline and reports the accumulated
@@ -41,14 +41,14 @@ func (m *Model) startRun() (*Model, tea.Cmd) {
 // Nothing the model holds is touched here. The accumulated results are passed
 // in by value and returned in the message, which is what netcheck.RunStep
 // copies for (Rule 110).
-func runStageCmd(gen int, tg netcheck.Target, step int, prior netcheck.Results) tea.Cmd {
+func runStageCmd(gen int, tg netcheck.Target, set netcheck.Settings, step int, prior netcheck.Results) tea.Cmd {
 	steps := netcheck.Steps()
 	if step >= len(steps) {
 		return nil
 	}
 	id := steps[step]
 	return func() tea.Msg {
-		res := netcheck.RunStep(context.Background(), tg, netcheck.SystemEnv(), id, prior)
+		res := netcheck.RunStep(context.Background(), tg, netcheck.SystemEnv(set), set, id, prior)
 		return stageDoneMsg{gen: gen, stage: id, next: step + 1, results: res}
 	}
 }
@@ -64,13 +64,13 @@ func runStageCmd(gen int, tg netcheck.Target, step int, prior netcheck.Results) 
 // The consequence is stated rather than left to be discovered: a trace answers
 // for the container's view of the network, so it can disagree with the checks
 // above it. renderTraceHeader says so on screen.
-func traceCmd(gen int, image string, tg netcheck.Target, tcp bool) tea.Cmd {
+func traceCmd(gen int, image string, maxHops int, tg netcheck.Target, tcp bool) tea.Cmd {
 	return func() tea.Msg {
 		var res dockerpkg.DiagResult
 		if tcp {
-			res = dockerpkg.RunTCPTraceroute(image, tg.Host, strconv.Itoa(tg.Port))
+			res = dockerpkg.RunTCPTraceroute(image, tg.Host, strconv.Itoa(tg.Port), maxHops)
 		} else {
-			res = dockerpkg.RunTraceroute(image, tg.Host)
+			res = dockerpkg.RunTraceroute(image, tg.Host, maxHops)
 		}
 		return traceDoneMsg{gen: gen, output: res.Output, tcp: tcp}
 	}

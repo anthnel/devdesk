@@ -1,6 +1,9 @@
 package docker
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // DiagResult holds the output and success status of a diagnostic command
 type DiagResult struct {
@@ -30,19 +33,28 @@ func runDiagHost(image string, args []string) DiagResult {
 	return DiagResult{err == nil, out}
 }
 
-// RunTraceroute executes traceroute -m 30 -w 1 <target> in the network tool container
-func RunTraceroute(image, target string) DiagResult {
-	return runDiagHost(image, []string{"traceroute", "-m", "30", "-w", "1", target})
+// hopWait is how long a trace waits for each hop's reply, in seconds.
+//
+// It stays a constant while the hop limit is configurable, because the two
+// multiply: a second setting would let a caller build a fifteen-minute trace
+// out of two numbers that each look reasonable on their own.
+const hopWait = "1"
+
+// RunTraceroute executes traceroute -m <maxHops> -w 1 <target> in the network
+// tool container.
+func RunTraceroute(image, target string, maxHops int) DiagResult {
+	return runDiagHost(image, []string{"traceroute", "-m", strconv.Itoa(maxHops), "-w", hopWait, target})
 }
 
 // RunTCPTraceroute executes tcptraceroute -m 30 -w 1 <target> <port> in the network tool container.
 // The exit code is ignored: tcptraceroute returns non-zero when the destination is not reached within
 // the hop limit, but the partial trace is still useful output.
-func RunTCPTraceroute(image, target, port string) DiagResult {
+func RunTCPTraceroute(image, target, port string, maxHops int) DiagResult {
 	if runner.LookPath() != nil {
 		return DiagResult{false, "docker not found"}
 	}
-	args := []string{"run", "--rm", "--network", "host", image, "tcptraceroute", "-m", "30", "-w", "1", target, port}
+	args := []string{"run", "--rm", "--network", "host", image,
+		"tcptraceroute", "-m", strconv.Itoa(maxHops), "-w", hopWait, target, port}
 	output, _ := dockerCombined(args...)
 	out := strings.ReplaceAll(string(output), "\r\n", "\n")
 	out = strings.ReplaceAll(out, "\r", "\n")

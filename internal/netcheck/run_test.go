@@ -12,7 +12,7 @@ func target() Target { return Target{Host: "example.com", Port: 443} }
 
 func runWith(t *testing.T, env Env, tg Target) []Check {
 	t.Helper()
-	res, err := Run(context.Background(), tg, env)
+	res, err := Run(context.Background(), tg, env, DefaultSettings())
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestEveryStageProducesWhatItDeclares(t *testing.T) {
 			},
 		} {
 			var prior Results
-			got := idsOf(s.run(context.Background(), target(), env, &prior))
+			got := idsOf(s.run(context.Background(), target(), env, DefaultSettings(), &prior))
 			if len(got) != len(s.produces) {
 				t.Fatalf("stage %q produced %v, declares %v", s.id, got, s.produces)
 			}
@@ -212,7 +212,7 @@ func TestACancelledRunReportsUnknownRatherThanFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	res, err := Run(ctx, target(), fakeEnv{})
+	res, err := Run(ctx, target(), fakeEnv{}, DefaultSettings())
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestRunRejectsATargetItCannotActdOn(t *testing.T) {
 		{"port too high", Target{Host: "example.com", Port: 70000}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := Run(context.Background(), tc.tg, fakeEnv{}); err == nil {
+			if _, err := Run(context.Background(), tc.tg, fakeEnv{}, DefaultSettings()); err == nil {
 				t.Fatal("want an error, got none")
 			}
 		})
@@ -287,14 +287,14 @@ func TestRunStepWalksTheSamePipelineAsRun(t *testing.T) {
 		},
 	}
 
-	whole, err := Run(context.Background(), target(), env)
+	whole, err := Run(context.Background(), target(), env, DefaultSettings())
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
 	var piecewise Results
 	for _, id := range Steps() {
-		piecewise = RunStep(context.Background(), target(), env, id, piecewise)
+		piecewise = RunStep(context.Background(), target(), env, DefaultSettings(), id, piecewise)
 	}
 
 	if len(piecewise.All()) != len(whole.All()) {
@@ -314,11 +314,11 @@ func TestRunStepWalksTheSamePipelineAsRun(t *testing.T) {
 // stage runs on a goroutine, so a shared backing array would be a data race on
 // the one thing Rule 110 exists to prevent.
 func TestRunStepDoesNotWriteIntoTheResultsItWasGiven(t *testing.T) {
-	first := RunStep(context.Background(), target(), fakeEnv{}, StageResolve, Results{})
+	first := RunStep(context.Background(), target(), fakeEnv{}, DefaultSettings(), StageResolve, Results{})
 	snapshot := len(first.All())
 
-	RunStep(context.Background(), target(), fakeEnv{}, StageReach, first)
-	RunStep(context.Background(), target(), fakeEnv{}, StageConnect, first)
+	RunStep(context.Background(), target(), fakeEnv{}, DefaultSettings(), StageReach, first)
+	RunStep(context.Background(), target(), fakeEnv{}, DefaultSettings(), StageConnect, first)
 
 	if len(first.All()) != snapshot {
 		t.Fatalf("the earlier Results grew from %d to %d checks", snapshot, len(first.All()))

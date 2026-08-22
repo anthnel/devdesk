@@ -82,7 +82,7 @@ func (m Model) switchTab(step int) (tea.Model, tea.Cmd) {
 	}
 
 	m.activeTab = (m.activeTab + step + len(m.sections)) % len(m.sections)
-	m.focusedField = 0
+	m.focusedField = m.settleFocus(0, 1)
 	m.bindInput()
 	return m, cmd
 }
@@ -98,9 +98,33 @@ func (m Model) moveField(step int) (tea.Model, tea.Cmd) {
 	if len(fields) == 0 {
 		return m, cmd
 	}
-	m.focusedField = (m.focusedField + step + len(fields)) % len(fields)
+	m.focusedField = m.settleFocus((m.focusedField+step+len(fields))%len(fields), step)
 	m.bindInput()
 	return m, cmd
+}
+
+// settleFocus walks past the rows the cursor may not stop on, in the direction
+// it was already moving — so ↓ onto a static row lands below it and ↑ above,
+// rather than bouncing the cursor back where it came from.
+//
+// The walk is bounded by the field count: a tab of nothing but static rows
+// would otherwise loop forever, and returning where it started is the honest
+// answer for one.
+func (m Model) settleFocus(idx, step int) int {
+	fields := m.fields()
+	if len(fields) == 0 {
+		return 0
+	}
+	if step == 0 {
+		step = 1
+	}
+	for range fields {
+		if fields[idx].focusable() {
+			return idx
+		}
+		idx = (idx + step + len(fields)) % len(fields)
+	}
+	return idx
 }
 
 // commitFocused writes the focused field back to the config and persists.

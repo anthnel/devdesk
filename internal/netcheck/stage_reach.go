@@ -12,8 +12,8 @@ import (
 // says little about the host and nothing about its certificate. A no-reply is
 // therefore a Warn, never a Fail — the question "is it reachable" is settled by
 // the TCP connect, which is the port the user actually named.
-func runReach(ctx context.Context, t Target, env Env, _ *Results) []Check {
-	stats, err := env.Ping(ctx, t.Host, pingCount)
+func runReach(ctx context.Context, t Target, env Env, set Settings, _ *Results) []Check {
+	stats, err := env.Ping(ctx, t.Host, set.PingCount)
 
 	// A probe that could not be sent is Unknown, not a failure of the host.
 	// On a machine without the privilege to open an ICMP socket, reporting

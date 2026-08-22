@@ -135,7 +135,7 @@ func (m *Model) handleStageDone(msg stageDoneMsg) (*Model, tea.Cmd) {
 		m.state = StateResults
 		return m, m.footer.Error("Run stopped — the target is no longer valid")
 	}
-	return m, runStageCmd(m.runGen, tg, msg.next, m.results)
+	return m, runStageCmd(m.runGen, tg, m.checkSettings(), msg.next, m.results)
 }
 
 func (m *Model) handleTraceDone(msg traceDoneMsg) (*Model, tea.Cmd) {
@@ -301,7 +301,7 @@ func (m *Model) startTrace() (*Model, tea.Cmd) {
 	// TCP; a filtered ping is a question about the path itself.
 	tcp := m.results.VerdictOf(netcheck.CheckTCP) == netcheck.Fail
 	m.tracing = true
-	return m, tea.Batch(m.spinner.Tick, traceCmd(m.runGen, m.config.Docker.NetworkToolImage, tg, tcp))
+	return m, tea.Batch(m.spinner.Tick, traceCmd(m.runGen, m.config.Network.ToolImage, m.config.Network.TracerouteMaxHops, tg, tcp))
 }
 
 func (m *Model) handleKeyDetails(msg tea.KeyMsg) (*Model, tea.Cmd) {

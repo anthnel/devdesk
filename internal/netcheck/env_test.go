@@ -23,7 +23,7 @@ func TestDialTCPReportsAnOpenPortAndARefusedOne(t *testing.T) {
 	}
 	addr := ln.Addr().String()
 
-	elapsed, err := SystemEnv().DialTCP(context.Background(), addr)
+	elapsed, err := SystemEnv(DefaultSettings()).DialTCP(context.Background(), addr)
 	if err != nil {
 		t.Fatalf("dial an open port: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestDialTCPReportsAnOpenPortAndARefusedOne(t *testing.T) {
 	if err := ln.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	if _, err := SystemEnv().DialTCP(context.Background(), addr); err == nil {
+	if _, err := SystemEnv(DefaultSettings()).DialTCP(context.Background(), addr); err == nil {
 		t.Fatal("dialling a closed port returned no error")
 	}
 }
@@ -53,7 +53,7 @@ func TestANonTlsPortProducesARecordHeaderError(t *testing.T) {
 	defer srv.Close()
 
 	host := strings.TrimPrefix(srv.URL, "http://")
-	_, err := SystemEnv().Handshake(context.Background(), host, "127.0.0.1")
+	_, err := SystemEnv(DefaultSettings()).Handshake(context.Background(), host, "127.0.0.1")
 	if err == nil {
 		t.Fatal("handshaking with a plain HTTP server succeeded")
 	}
@@ -76,7 +76,7 @@ func TestHandshakeReturnsTheChainWithoutVerifyingIt(t *testing.T) {
 	defer srv.Close()
 
 	host := strings.TrimPrefix(srv.URL, "https://")
-	state, err := SystemEnv().Handshake(context.Background(), host, "127.0.0.1")
+	state, err := SystemEnv(DefaultSettings()).Handshake(context.Background(), host, "127.0.0.1")
 	if err != nil {
 		t.Fatalf("handshake: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestHeadAnswersDespiteAnUntrustedCertificate(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	res, err := SystemEnv().Head(context.Background(), srv.URL)
+	res, err := SystemEnv(DefaultSettings()).Head(context.Background(), srv.URL)
 	if err != nil {
 		t.Fatalf("head over an untrusted certificate: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestHeadDoesNotFollowRedirects(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	res, err := SystemEnv().Head(context.Background(), srv.URL+"/")
+	res, err := SystemEnv(DefaultSettings()).Head(context.Background(), srv.URL+"/")
 	if err != nil {
 		t.Fatalf("head: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestHeadReportsAContextThatExpired(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
-	if _, err := SystemEnv().Head(ctx, srv.URL); err == nil {
+	if _, err := SystemEnv(DefaultSettings()).Head(ctx, srv.URL); err == nil {
 		t.Fatal("want an error on an expired context, got none")
 	}
 }
@@ -152,21 +152,21 @@ func TestHeadReportsAContextThatExpired(t *testing.T) {
 // TestResolverForNamesAPortWhenTheNameserverOmitsOne covers the arithmetic a
 // user hits by typing "1.1.1.1" rather than "1.1.1.1:53".
 func TestResolverForNamesAPortWhenTheNameserverOmitsOne(t *testing.T) {
-	if r := resolverFor(""); r.PreferGo {
+	if r := resolverFor("", DefaultCheckTimeout); r.PreferGo {
 		t.Error("an empty nameserver must yield the system resolver, untouched")
 	}
 	for _, ns := range []string{"1.1.1.1", "1.1.1.1:5353", "[2001:db8::1]:53"} {
-		if r := resolverFor(ns); r == nil || !r.PreferGo || r.Dial == nil {
+		if r := resolverFor(ns, DefaultCheckTimeout); r == nil || !r.PreferGo || r.Dial == nil {
 			t.Errorf("resolverFor(%q) did not build a directed resolver", ns)
 		}
 	}
 }
 
 func TestSystemEnvTrustsTheHostStore(t *testing.T) {
-	if got := SystemEnv().TrustRoots(); got != nil {
+	if got := SystemEnv(DefaultSettings()).TrustRoots(); got != nil {
 		t.Error("TrustRoots must be nil — a chain verifies only against a store somebody uses")
 	}
-	if SystemEnv().Now().IsZero() {
+	if SystemEnv(DefaultSettings()).Now().IsZero() {
 		t.Error("Now returned the zero time")
 	}
 }

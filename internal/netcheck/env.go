@@ -12,22 +12,74 @@ import (
 	probing "github.com/prometheus-community/pro-bing"
 )
 
-// Timeouts and counts are named constants, not configuration. Every scalar
-// added to the config is a row in configuration/fields.go and its tests; these
-// become settings when someone asks for them, not before.
+// Defaults for Settings. These were the package's constants, and the comment
+// they carried said they would become settings when somebody asked for them.
+// Somebody has, so the constants are now the fallback rather than the rule.
 const (
-	resolveTimeout = 5 * time.Second
-	dialTimeout    = 5 * time.Second
-	tlsTimeout     = 8 * time.Second
-	httpTimeout    = 8 * time.Second
-	pingTimeout    = 4 * time.Second
-	pingCount      = 3
-
-	// expiryWarnWindow is how close a certificate may come to expiring before
-	// the check warns. Thirty days is a renewal cycle: past it, nobody has
-	// started renewing yet, so warning earlier is noise.
-	expiryWarnWindow = 30 * 24 * time.Hour
+	// DefaultCheckTimeout is the old maximum of the five per-stage timeouts
+	// (5 s for DNS and the dial, 8 s for TLS and HTTP, 4 s for the ping). Taking
+	// the maximum is what keeps a target that answers today answering; the cost
+	// is that an unreachable host spends longer on the stages that were quicker.
+	DefaultCheckTimeout = 8 * time.Second
+	// DefaultPingCount is how many echo requests a reachability probe sends.
+	DefaultPingCount = 3
+	// DefaultExpiryWarnWindow is how close a certificate may come to expiring
+	// before the check warns. Thirty days is a renewal cycle: past it, nobody
+	// has started renewing yet, so warning earlier is noise.
+	DefaultExpiryWarnWindow = 30 * 24 * time.Hour
 )
+
+// Settings are the dials the user turns. They travel beside Env rather than on
+// it because Env is the seam to the network and these are policy: PingCount and
+// ExpiryWarnWindow are read by stages, not by any network call, so putting them
+// behind the seam would make every fake answer for a preference.
+//
+// It is deliberately closed at three fields. Everything else the netdiag view
+// configures — the traceroute hop limit, the ports refresh — belongs to callers
+// that do not go through this pipeline at all.
+type Settings struct {
+	// CheckTimeout bounds every probe: the resolution, the ping, the dial, the
+	// handshake and the HTTP request each get it in full.
+	CheckTimeout time.Duration
+	// PingCount is how many ICMP echo requests the reachability stage sends.
+	PingCount int
+	// ExpiryWarnWindow is how close a certificate may come to expiring before
+	// the expiry check warns.
+	ExpiryWarnWindow time.Duration
+}
+
+// DefaultSettings returns what the package used to hardcode.
+func DefaultSettings() Settings {
+	return Settings{
+		CheckTimeout:     DefaultCheckTimeout,
+		PingCount:        DefaultPingCount,
+		ExpiryWarnWindow: DefaultExpiryWarnWindow,
+	}
+}
+
+// Normalized fills in what a caller left at zero.
+//
+// The zero value must not mean "wait forever" or "send no packets": Settings is
+// a plain struct, so a caller that builds one by hand and forgets a field would
+// otherwise get a dial with no deadline — a hang rather than a verdict. Every
+// entry point normalizes, so no stage has to check.
+//
+// It is exported because a caller assembling one from a config file has a real
+// question to ask of it — "what will actually be used" — and answering that by
+// reimplementing the fallbacks is how two rules for one question start.
+func (s Settings) Normalized() Settings {
+	d := DefaultSettings()
+	if s.CheckTimeout <= 0 {
+		s.CheckTimeout = d.CheckTimeout
+	}
+	if s.PingCount <= 0 {
+		s.PingCount = d.PingCount
+	}
+	if s.ExpiryWarnWindow <= 0 {
+		s.ExpiryWarnWindow = d.ExpiryWarnWindow
+	}
+	return s
+}
 
 // PingStats is what one ICMP probe run observed.
 type PingStats struct {
@@ -83,10 +135,10 @@ type Env interface {
 
 // systemEnv is the production Env: it answers from this process, on this
 // machine's network stack.
-type systemEnv struct{}
+type systemEnv struct{ timeout time.Duration }
 
-// SystemEnv returns the Env that talks to the real network.
-func SystemEnv() Env { return systemEnv{} }
+// SystemEnv returns the Env that talks to the real network, bounded by s.
+func SystemEnv(s Settings) Env { return systemEnv{timeout: s.Normalized().CheckTimeout} }
 
 func (systemEnv) Now() time.Time { return time.Now() }
 
@@ -98,7 +150,7 @@ func (systemEnv) TrustRoots() *x509.CertPool { return nil }
 // system one when none is named. The pattern mirrors status/dns_checker.go —
 // PreferGo plus a Dial that redirects every query — which is the only way to
 // query a chosen server without a DNS library.
-func resolverFor(nameserver string) *net.Resolver {
+func resolverFor(nameserver string, timeout time.Duration) *net.Resolver {
 	if nameserver == "" {
 		return &net.Resolver{}
 	}
@@ -109,17 +161,17 @@ func resolverFor(nameserver string) *net.Resolver {
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-			d := net.Dialer{Timeout: resolveTimeout}
+			d := net.Dialer{Timeout: timeout}
 			return d.DialContext(ctx, network, addr)
 		},
 	}
 }
 
-func (systemEnv) Resolve(ctx context.Context, host, resolver string) ([]net.IP, error) {
-	ctx, cancel := context.WithTimeout(ctx, resolveTimeout)
+func (e systemEnv) Resolve(ctx context.Context, host, resolver string) ([]net.IP, error) {
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
 
-	addrs, err := resolverFor(resolver).LookupIPAddr(ctx, host)
+	addrs, err := resolverFor(resolver, e.timeout).LookupIPAddr(ctx, host)
 	if err != nil {
 		return nil, err
 	}
@@ -130,19 +182,19 @@ func (systemEnv) Resolve(ctx context.Context, host, resolver string) ([]net.IP, 
 	return ips, nil
 }
 
-func (systemEnv) ReverseLookup(ctx context.Context, ip, resolver string) ([]string, error) {
-	ctx, cancel := context.WithTimeout(ctx, resolveTimeout)
+func (e systemEnv) ReverseLookup(ctx context.Context, ip, resolver string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
-	return resolverFor(resolver).LookupAddr(ctx, ip)
+	return resolverFor(resolver, e.timeout).LookupAddr(ctx, ip)
 }
 
-func (systemEnv) Ping(ctx context.Context, host string, count int) (PingStats, error) {
+func (e systemEnv) Ping(ctx context.Context, host string, count int) (PingStats, error) {
 	pinger, err := probing.NewPinger(host)
 	if err != nil {
 		return PingStats{}, err
 	}
 	pinger.Count = count
-	pinger.Timeout = pingTimeout
+	pinger.Timeout = e.timeout
 	// Windows has no unprivileged ICMP socket: pro-bing's UDP mode silently
 	// receives nothing there, which reads as "host down" on a host that is up.
 	// Elsewhere unprivileged is right, because DevDesk must not need root.
@@ -155,8 +207,8 @@ func (systemEnv) Ping(ctx context.Context, host string, count int) (PingStats, e
 	return PingStats{Sent: s.PacketsSent, Received: s.PacketsRecv, AvgRTT: s.AvgRtt}, nil
 }
 
-func (systemEnv) DialTCP(ctx context.Context, addr string) (time.Duration, error) {
-	ctx, cancel := context.WithTimeout(ctx, dialTimeout)
+func (e systemEnv) DialTCP(ctx context.Context, addr string) (time.Duration, error) {
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
 
 	start := time.Now()
@@ -178,8 +230,8 @@ func (systemEnv) DialTCP(ctx context.Context, addr string) (time.Duration, error
 // all four into one error string and lose the certificate we need to inspect,
 // which is the defect this package exists to fix: the old check greped the
 // leaf and never looked at the chain at all.
-func (systemEnv) Handshake(ctx context.Context, addr, serverName string) (*tls.ConnectionState, error) {
-	ctx, cancel := context.WithTimeout(ctx, tlsTimeout)
+func (e systemEnv) Handshake(ctx context.Context, addr, serverName string) (*tls.ConnectionState, error) {
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
 
 	d := tls.Dialer{
@@ -208,8 +260,8 @@ func (systemEnv) Handshake(ctx context.Context, addr, serverName string) (*tls.C
 // certificate problem must not hide whether the service answers. "The app
 // works, the cert is what is broken" is a useful thing to be told, and the TLS
 // checks report the cert problem on rows of their own.
-func (systemEnv) Head(ctx context.Context, url string) (HTTPResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, httpTimeout)
+func (e systemEnv) Head(ctx context.Context, url string) (HTTPResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
 
 	client := &http.Client{

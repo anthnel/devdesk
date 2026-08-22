@@ -44,8 +44,16 @@ func portsSpinnerCmd() tea.Cmd {
 	return tea.Tick(spinner.Dot.FPS, func(time.Time) tea.Msg { return portsSpinnerTickMsg{} })
 }
 
-func portsTickCmd() tea.Cmd {
-	return tea.Tick(2*time.Second, func(time.Time) tea.Msg {
+// defaultPortsRefresh is what the interval falls back to. A non-positive one —
+// a hand-edited 0 in the config — would make tea.Tick fire without pausing and
+// spin a docker exec per frame, so it is refused here rather than trusted.
+const defaultPortsRefresh = 2 * time.Second
+
+func portsTickCmd(every time.Duration) tea.Cmd {
+	if every <= 0 {
+		every = defaultPortsRefresh
+	}
+	return tea.Tick(every, func(time.Time) tea.Msg {
 		return portsTickMsg{}
 	})
 }
@@ -99,9 +107,13 @@ const (
 
 // PortsModel manages the real-time port monitoring sub-view.
 type PortsModel struct {
-	image  string
-	width  int
-	height int
+	image string
+	// refresh is how often the table re-reads ss. The spinner tick is separate
+	// and much faster: a frame advancing on this interval would look stopped,
+	// which is the impression the whole tab exists to remove.
+	refresh time.Duration
+	width   int
+	height  int
 
 	// The table holds the entries, filters them and keeps the cursor. The
 	// tableReady / lastTableWidth / lastTableHeight trio that used to live here
@@ -207,9 +219,10 @@ func matchesActive(value string, active map[string]bool, labels ...string) bool 
 }
 
 // newPortsModel creates a new PortsModel.
-func newPortsModel(image string) *PortsModel {
+func newPortsModel(image string, refresh time.Duration) *PortsModel {
 	return &PortsModel{
 		image:        image,
+		refresh:      refresh,
 		numericAddrs: true,
 		table: datatable.New(datatable.Config[dockerpkg.PortInfo]{
 			Columns:    portsColumns(),
@@ -235,7 +248,7 @@ func newPortsModel(image string) *PortsModel {
 
 // initPorts returns the initial commands: an immediate fetch + the first tick.
 func (pm *PortsModel) initPorts() tea.Cmd {
-	return tea.Batch(fetchPortsCmd(pm.image, pm.numericAddrs), portsTickCmd())
+	return tea.Batch(fetchPortsCmd(pm.image, pm.numericAddrs), portsTickCmd(pm.refresh))
 }
 
 // InEditMode returns true when the search input or the kill confirmation has
@@ -290,9 +303,9 @@ func (pm *PortsModel) handleSpinnerTick() (*PortsModel, tea.Cmd) {
 
 func (pm *PortsModel) handleTick() (*PortsModel, tea.Cmd) {
 	if pm.paused {
-		return pm, portsTickCmd()
+		return pm, portsTickCmd(pm.refresh)
 	}
-	return pm, tea.Batch(fetchPortsCmd(pm.image, pm.numericAddrs), portsTickCmd())
+	return pm, tea.Batch(fetchPortsCmd(pm.image, pm.numericAddrs), portsTickCmd(pm.refresh))
 }
 
 func (pm *PortsModel) handleData(msg portsDataMsg) (*PortsModel, tea.Cmd) {

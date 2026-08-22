@@ -14,7 +14,7 @@ func tlsChecks(t *testing.T, o chainOpts, tg Target) []Check {
 	t.Helper()
 	state, roots := buildChain(t, o)
 	var prior Results
-	return runTLS(context.Background(), tg, fakeEnv{roots: roots, handshake: handshakeReturning(state)}, &prior)
+	return runTLS(context.Background(), tg, fakeEnv{roots: roots, handshake: handshakeReturning(state)}, DefaultSettings(), &prior)
 }
 
 // --- the chain ---------------------------------------------------------------
@@ -212,7 +212,7 @@ func TestADeprecatedVersionWarnsRatherThanFails(t *testing.T) {
 func TestAPortThatDoesNotSpeakTlsIsNotAFailure(t *testing.T) {
 	var prior Results
 	checks := runTLS(context.Background(), Target{Host: "example.com", Port: 22},
-		fakeEnv{}, &prior) // the fake's default handshake is a RecordHeaderError
+		fakeEnv{}, DefaultSettings(), &prior) // the fake's default handshake is a RecordHeaderError
 
 	for _, c := range checks {
 		if c.Verdict != NotApplicable {
@@ -230,7 +230,7 @@ func TestABrokenHandshakeFailsAndTheCertificateChecksBlameIt(t *testing.T) {
 		handshake: func(context.Context, string, string) (*tls.ConnectionState, error) {
 			return nil, errors.New("tls: protocol version not supported")
 		},
-	}, &prior)
+	}, DefaultSettings(), &prior)
 
 	if got := verdictOf(t, checks, CheckTLSHandshake); got != Fail {
 		t.Fatalf("handshake verdict = %v, want Fail", got)

@@ -360,6 +360,22 @@ Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/con
 - `GitLab` - GitLab URL and clone settings
 - `Registry` - OCI registry configuration (see Registry model below)
 - `Scan` - Security scanning (Trivy, Gitleaks)
+- `Network` - what the netdiag view runs on: the tool image, and the dials
+  `internal/netcheck` used to hardcode
+
+**`network:` was `docker:`, and the rename is migrated rather than announced.**
+The one key it held, `network_tool_image`, was never a Docker setting — it names
+the container the route traces and the ports table run in — and the four other
+tabs of the configuration view are each named after the section they write, so
+renaming the tab without the key would have left the one section about to grow
+as the only one whose name says nothing about where its values land.
+`applyDefaults` carries `docker.network_tool_image` into `network.tool_image`
+**before** filling in defaults, then clears it so the key leaves the file on the
+next save (the precedent is `RegistryItem.AuthEnabled`). The order is the whole
+of it: `yaml.Unmarshal` is not strict here, so an un-migrated block is dropped in
+silence and a user pointing at their own mirror would find their traces pulling
+from Docker Hub. `TestANetworkToolImageSurvivesTheRename` is what makes that
+checkable rather than commented.
 
 **No secret goes in this file.** `GitLabConfig` has no `Token` and
 `RegistryConfig` has no `Password`; both live in the host secret store (see
@@ -371,7 +387,7 @@ Config is injected into views at creation. Use `config.Save()` to persist change
 ### Configuration view — `internal/ui/configuration`
 
 Edits every **scalar** setting a context carries, in five tabs (`app`, `gitlab`,
-`scan`, `docker`, `status`). Lists stay where they are consulted: monitors keep
+`scan`, `network`, `status`). Lists stay where they are consulted: monitors keep
 their CRUD in `status`, registries keep `RegistryForm` in `oci-resources`.
 Duplicating them here would be the opposite of the point.
 
@@ -393,9 +409,21 @@ heading onto a contiguous run rather than each field carrying its own, so a run
 cannot be split by a typo and render its heading twice —
 `TestEachTabRendersItsGroupHeadingsOnceInOrder` pins that.
 
-`GetTitle()` carries the context (`󰙨 Configuration · default`): a configuration
+**The header names the context, and the title does not.** A configuration
 belongs to one, and editing `workspaces_dir` in the wrong context is otherwise
-silent, because the fields look identical in all of them.
+silent because the fields look identical in all of them — but that is what
+`GetHeaderInfo` says here as it does in every other view, so a title repeating
+it was the same fact twice on one screen. `GetTitle()` is `󰙨 Configuration`.
+
+**The context's file path is a row in the form, not a header field.** It sits in
+**Paths** under `workspaces_dir`, because that is what it belongs beside; the
+header is for what changes as the user moves, and the file does not. It is the
+one `kindStatic` field — shown, never written, and `Model.settleFocus` walks the
+cursor past it in whichever direction it was already moving, since a focus
+indicator on a row no key acts upon says the opposite of what is true. The
+**Paths** group therefore reads three paths and then the checkbox that qualifies
+them (`show_hidden_files`): a checkbox wedged between two value rows breaks the
+column they share.
 
 Chevrons and values are aligned on one column per tab, padded on the **head**
 (label plus a cycle field's select icon) rather than on the label — padding the
@@ -1176,11 +1204,61 @@ Cache invalidation: `S` (single) overwrites; `A` (all) rescans, and purges the c
 
 ### Network Diagnostics View
 
-`internal/ui/netdiag/` — two-tab interface:
-- **Diagnostics tab** (`model.go`): Interactive form with target/port inputs and checkboxes to select tests (ICMP, DNS, Traceroute, TCP Traceroute, Netcat, HTTP/HTTPS, SSL). Runs selected tests in parallel via Docker ephemeral containers. Results table uses Nerd Font icons.
-- **Ports tab** (`ports_model.go`): Live `ss` monitoring with real-time filtering by protocol (TCP/UDP), state (LISTEN/ESTAB), and text search. `K` kills a process, after a confirmation (requires privileged container). Active filter shown in status line.
+`internal/ui/netdiag/` — three tabs:
+- **Diagnostics tab** (`model.go`): target, port and resolver, then
+  `internal/netcheck`'s pipeline — resolve, reach, connect, TLS, HTTP — chained
+  one stage per message so the footer can name the question being asked. The
+  seven tool checkboxes are gone (§3.33): the checks follow from the target and
+  from what has already failed.
+- **Ports tab** (`ports_model.go`): live `ss` monitoring with filtering by
+  protocol, state and text. `K` kills a process, after a confirmation (requires
+  a privileged container).
+- **Topology tab** (`topology_model.go`): Docker network inspection.
 
-Both tabs use Docker with host network/PID namespaces. DNS hostname resolution uses mounted host DNS files (`/etc/resolv.conf`, `/etc/hosts`, `/etc/nsswitch.conf`).
+**What is configurable, and what is not.** `internal/netcheck` held its timeouts
+as constants with a comment saying they would become settings when somebody
+asked; `network:` is what they became.
+
+| Setting | Replaces |
+|---|---|
+| `check_timeout` | five per-stage constants — 5 s for DNS and the dial, 8 s for TLS and HTTP, 4 s for the ping |
+| `ping_count` | `pingCount` |
+| `cert_expiry_warn_days` | `expiryWarnWindow` |
+| `traceroute_max_hops` | `-m 30` in `docker/netdiag.go` |
+| `ports_refresh_interval` | the 2 s tick |
+
+**One timeout replaces five**, and the default is the old *maximum* so nothing
+that answers today starts failing. The 5 / 5 / 8 / 8 / 4 split was never argued
+anywhere — five rows for one idea, and each of the five a separate guess. The
+cost is stated rather than discovered: an unreachable host now spends 8 s on DNS
+instead of 5, which the staged progress line makes legible rather than a hang.
+
+Three things stay hardcoded, each for a reason:
+
+- **The traceroute wait per hop (`-w 1`)** multiplies with the hop limit, so a
+  second setting would let a user build a fifteen-minute trace out of two
+  numbers that each look reasonable.
+- **`MinVersion: VersionTLS10`** — the handshake is *probing*, not securing.
+  Reporting an old version is the point; a setting could only make the tool
+  blind to what it exists to find.
+- **`InsecureSkipVerify`** — the TLS stage verifies the chain itself so it can
+  say *which* part failed. A setting here would collapse four checks into one
+  error string.
+
+`netcheck.Settings` travels **beside** `Env`, not on it: `Env` is the seam to
+the network, while `PingCount` and `ExpiryWarnWindow` are read by stages and
+never by a network call — putting a preference behind the seam would make every
+fake answer for one. `Settings.Normalized()` fills in anything non-positive at
+every entry point, so a hand-edited `0` becomes the default rather than a dial
+with no deadline. The view calls `checkSettings()` per run rather than capturing
+at construction, so a run already in flight and the config cannot disagree
+halfway down the pipeline.
+
+A route trace is the one probe that still shells out — it needs raw sockets and
+a tool worth not reimplementing — so it answers for the *container's* view of
+the network, and `renderTraceHeader` says so on screen. Everything else answers
+from the DevDesk process, because `--network host` on Docker Desktop is the VM's
+namespace and not the machine's.
 
 ### Status Monitoring System
 

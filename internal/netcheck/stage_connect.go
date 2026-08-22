@@ -11,7 +11,7 @@ import (
 // the port does not answer, there is no handshake to inspect and no response to
 // read, so TLS and HTTP come back NotApplicable pointing here rather than
 // producing failures of their own about a connection that never existed.
-func runConnect(ctx context.Context, t Target, env Env, _ *Results) []Check {
+func runConnect(ctx context.Context, t Target, env Env, _ Settings, _ *Results) []Check {
 	elapsed, err := env.DialTCP(ctx, t.Addr())
 
 	c := newCheck(CheckTCP, StageConnect, OK, "")
