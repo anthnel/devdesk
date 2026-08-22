@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "6932c2d3d124",
+  "strategy": "manual-commit",
+  "branch": "install-goexe",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "mise.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/69/32c2d3d124/0/metadata.json",
+      "transcript": "/69/32c2d3d124/0/full.jsonl",
+      "compact_transcript": "/69/32c2d3d124/0/transcript.jsonl",
+      "content_hash": "/69/32c2d3d124/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 21040,
+    "cache_read_tokens": 8985332,
+    "output_tokens": 13217,
+    "api_call_count": 25
+  }
+}
