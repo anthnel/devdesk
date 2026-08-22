@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "354204cbb917",
+  "strategy": "manual-commit",
+  "branch": "viewer-follow-in-viewport",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/containers/sources.go",
+    "internal/ui/viewer/follow_test.go",
+    "internal/ui/viewer/model.go",
+    "internal/ui/viewer/update.go",
+    "internal/ui/viewer/view.go",
+    "internal/ui/viewer/viewer_test.go",
+    "internal/viewer/source.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/35/4204cbb917/0/metadata.json",
+      "transcript": "/35/4204cbb917/0/full.jsonl",
+      "compact_transcript": "/35/4204cbb917/0/transcript.jsonl",
+      "content_hash": "/35/4204cbb917/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 144,
+    "cache_creation_tokens": 65419,
+    "cache_read_tokens": 28741581,
+    "output_tokens": 30553,
+    "api_call_count": 72
+  }
+}
