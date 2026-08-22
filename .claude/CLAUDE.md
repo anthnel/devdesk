@@ -242,7 +242,7 @@ Press `ctrl+p` to enter command mode, then type:
 - `gitlab-explorer` or `gle` - Switch to GitLab explorer view
 - `workspaces` or `w` - Switch to workspaces view
 - `security` or `sec` - Switch to security scanner view
-- `containers` or `c` - Switch to containers view
+- `containers`, `cont` or `ct` - Switch to containers view
 - `oci-resources` or `oci` - Switch to OCI resources view
 - `netdiag` or `net` - Switch to network diagnostics view
 - `configuration`, `config` or `cfg` - Switch to the configuration view

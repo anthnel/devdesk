@@ -1760,22 +1760,42 @@ tests drive its `Update` directly and so never see the router at all. All five
 are now fixed (§1.1); the `esc` one turned out to be holding two views' notion of
 "editing" hostage, which no view could have reported on its own either.
 
-### Table plumbing is written out again in every view
+### Table plumbing is written out again in every view — **closed**
 
-**15 `table.Model` instances across 8 packages, each wired by hand.** What is
-shared today is the *look* — `theme.DefaultTableStyles()`,
-`TableStylesForState/Severity()`, `components.FilterBar`, `theme.TimeAgo` — and
-none of the mechanism. Column widths, sorting, sort arrows, filter matching,
-cursor clamping and cursor-to-object resolution are re-implemented per view.
+**Rien ne reste.** `internal/ui/datatable` est le seul mécanisme de table de
+l'application : **17 instances dans 8 paquets**, et `bubbles/table` n'est plus
+importé hors du paquet que pour son type `Styles` (`containers/model.go`,
+`security/findings.go`, `theme/styles.go`). Une nouvelle table s'y écrit ; il
+n'y a pas de seconde façon d'en construire une.
 
-| Package | Tables |
+L'inventaire ci-dessous est ce que l'entrée décrivait à son ouverture — quinze
+tables câblées à la main, dont le *look* était partagé et la mécanique jamais.
+Il est conservé parce que les six étapes qui le suivent disent ce que chaque
+migration a trouvé, et que deux d'entre elles ont trouvé un défaut réel (D24,
+D25).
+
+| Paquet | Tables (à l'ouverture de l'entrée) |
 |---|---|
 | `oci_resources` | `imageTable`, `networkTable`, `volumeTable`, `registryTable`, `tagTable` (browser), `table` (network inspect) |
 | `status` | `monitorTable`, `sslTable` |
 | `netdiag` | `resultsTable`, ports `table` |
 | `containers`, `explorer`, `security`, `workspaces` | one each |
 
-#### What is duplicated
+**Ce qui est arrivé après « quinze sur quinze ».** Le décompte de quinze était
+juste et n'était pas final : quatre tables n'avaient jamais été inventoriées ici
+et sont parties en **§3.21** — Registries, les tags du registry browser,
+network-inspect et les résultats netdiag. **§3.22** a ensuite ajouté au composant
+la notion de ligne occupée (`Key`, `StatusColumn`, `MarkBusy`), et l'arbre du
+viewer (**§3.25**) est né `datatable` — d'où 17 plutôt que 19.
+
+Une exception subsiste, documentée plutôt que subie : `workspaces` garde sa
+propre notion d'occupé (`scanningPaths`, `syncingPaths`, `deletingPaths`), parce
+que scan et sync s'y excluent par dépôt, qu'un sync vise un arbre et non une
+ligne, et que le spinner n'y dépense pas la même cellule selon l'opération.
+C'est l'étape 2 de **§3.23**, où la réponse « ça reste une exception » est tenue
+pour légitime.
+
+#### What was duplicated
 
 | Concern | Copies | Where |
 |---|---|---|
@@ -1791,7 +1811,7 @@ so are the three arrow blocks, down to the `sortColIndex` / `baseTitles` maps an
 `arrow := " ▲"`. The five filter loops all lowercase the query and run
 `strings.Contains` over N fields.
 
-#### The width clamps break the invariant they exist to protect
+#### The width clamps broke the invariant they existed to protect
 
 Rule 116 requires `sum(col_widths) == available` so the selected row reaches the
 right viewport border. Every site enforces it the same way — last column absorbs
@@ -1811,7 +1831,7 @@ One solver that distributes the *shortfall* across flexible columns instead of
 clamping each one independently removes the whole class. It is also the only way
 to test the invariant once rather than eleven times.
 
-#### The cursor is coupled to the pipeline by hand
+#### The cursor was coupled to the pipeline by hand
 
 Each `getSelectedX()` replays filter-then-sort to map a cursor back to a domain
 object:
@@ -2302,9 +2322,13 @@ Support GitHub as well as GitLab, with **exactly one backend active per
 configuration context**. A context targets one forge; switching forge means
 switching context.
 
-Not started. The presentation layer — vocabulary, command names and how the
-forge gets chosen — is settled and recorded below; the abstraction underneath it
-is not.
+Not started. La couche de présentation est arrêtée et consignée plus bas —
+vocabulaire, noms de commandes, **un seul écran d'authentification
+(`git-auth` / `ga`)**, **un explorer qui sert les deux forges
+(`git-explorer` / `ge`)**, et **un onglet de configuration unique nommé d'après
+la forge active**, où la forge se choisit. Le **choix de la bibliothèque est
+tranché** aussi : SDK Go, pas les CLIs `gh` / `glab`. Ce qui reste à écrire est
+l'abstraction en dessous.
 
 #### What is coupled to GitLab today
 
@@ -2331,21 +2355,66 @@ decide whether the user is logged in, even though `shared.IsAuthenticated`
 exists and says exactly that. Those sites are inside the 66, but they need a
 semantic change rather than a type substitution.
 
-**The command surface is already duplicated four times, and already drifting.**
+**La surface de commandes était dupliquée quatre fois. Ce n'est plus vrai —
+D16/D17 l'ont effondrée**, et cette entrée l'affirmait encore. Ce qui suit est
+ce qu'elle décrivait, conservé parce que c'est le raisonnement qui a rendu
+l'étape 0 obligatoire :
 
-| Location | Role |
+| Emplacement | Rôle |
 |---|---|
-| `parser.go:78` `viewMap` | `ParseCommand()` — the authoritative one |
-| `parser.go:120` `commands` | `Parse()`, legacy, duplicates the above |
-| `parser.go:155` `GetAliases()` | feeds completion |
-| `completion.go:47` `buildCommands` | a fourth hardcoded list, **stale today** |
+| `parser.go` `viewMap` | `ParseCommand()` — celle qui faisait autorité |
+| `parser.go` `commands` | `Parse()`, héritée, doublon de la précédente |
+| `parser.go` `GetAliases()` | alimentait la complétion |
+| `completion.go` `buildCommands` | une quatrième liste en dur, **périmée** |
 
-`buildCommands` offers `gitlab-auth` but not `gitlab-explorer`, and omits
-`workspaces`, `security` and `net` entirely — so those commands work but are
-never suggested. Adding a forge dimension to four unsynchronised tables
-guarantees the drift gets worse. **Collapsing them to one source table is a
-prerequisite**, and it is worth doing on its own: it fixes the stale completion
-list today, independently of GitHub.
+`buildCommands` proposait `gitlab-auth` mais pas `gitlab-explorer`, et omettait
+`workspaces`, `security` et `net` — ces commandes marchaient et n'étaient jamais
+suggérées.
+
+Aujourd'hui `viewNames` est la seule table : `Parse`, `GetAliases`, `FullNames`
+et `buildCommands` en dérivent, et deux tests tiennent les deux bouts —
+`TestEverythingThatParsesCanBeCompleted` et `TestEverythingSuggestedCanBeRun`.
+Ajouter une dimension de forge s'y fait en un endroit.
+
+**Un troisième bord manquait, et il était faux depuis le commit initial.** Les
+deux tests ci-dessus opposent le parser à la complétion ; rien n'opposait l'un
+ou l'autre à la **documentation**. `.claude/CLAUDE.md` annonçait
+« `containers` or `c` » alors que `c` a toujours résolu vers `context` — jamais
+vrai, pas une dérive. C'est exactement D16 dans l'autre sens (`:netdiag`
+documenté et refusé par le parser), et D16 avait été trouvé par un test.
+
+`internal/command/doc_test.go` ferme les deux sens, sur le modèle de source-scan
+d'`internal/ui/keymap` :
+
+- `TestEveryDocumentedCommandParsesToWhatItClaims` lit les puces de la liste de
+  CLAUDE.md et exige que chaque orthographe soit acceptée **et** que toutes
+  celles d'une même puce mènent au même endroit — c'est la puce qui affirme
+  qu'elles sont synonymes. C'est ce qui a nommé le défaut :
+  `"containers" resolves to view/containers, "c" to context/`.
+- `TestEveryTypeableViewIsDocumented` ferme le sens de D16 : une vue qu'on peut
+  taper et que la documentation ne nomme pas est une vue que personne ne
+  trouvera. Seuls les **noms complets** sont exigés — quels alias montrer est un
+  choix éditorial, un nom complet absent ne l'est pas.
+
+Les deux ont été vérifiés en échec : le premier sur la ligne `c`, le second en
+retirant `netdiag` de la liste.
+
+**Ce qui n'a pas été fait, et pourquoi.** L'étape 0 devait aussi rendre
+exprimable « ça parse mais ce n'est pas suggéré ». Le mécanisme n'a **aucun
+client** avant l'étape 8 — aucune orthographe d'aujourd'hui n'a de raison d'être
+cachée — et une machinerie dont la liste d'exceptions est vide est précisément
+ce que YAGNI interdit. Elle se fait à l'étape 8, avec les anciens noms comme
+premiers clients. Ce que l'étape 0 laisse derrière elle est ce dont l'étape 8 a
+réellement besoin : une seule table, et un test qui refuse une documentation qui
+ment.
+
+**Question laissée ouverte, pas tranchée en passant :** `c` abrège `context`
+alors que `ctx` le fait déjà et que `containers` commence par un c. Que la
+documentation se soit trompée dès le premier jour est un indice sur le mnémonique
+plutôt que sur la documentation. Le code est cohérent et testé depuis toujours,
+donc c'est la documentation qui a été corrigée ; réassigner `c` est une décision
+de vocabulaire clavier, qui appartient à `internal/ui/keymap` et à personne
+d'autre.
 
 #### Model mismatches to settle before coding
 
@@ -2374,7 +2443,7 @@ promise.
   request. The UI must pick per-backend labels or a neutral vocabulary; Rule 129
   applies either way.
 
-#### Settled: vocabulary, commands and forge selection
+#### Settled: vocabulary, commands, screens and forge selection
 
 The organising distinction, which the mismatches above blur: the two forges
 differ in **words** and in **shapes**, and only the first is a presentation
@@ -2420,11 +2489,13 @@ Sites to move, none of them subtle:
 | `explorer/view.go:81` | `"Loading GitLab groups..."` |
 | `explorer/view.go:210` | `nodeTypeLabel()` → `"Group"` / `"Project"` |
 | `components/creation_form.go:26` | `resourceTypes = []string{"Group", "Project"}` |
-| `auth/view.go:46` | `IconUser + " Gitlab Authentication"` — wrong icon *and* wrong casing next to the explorer's |
-| `auth/view.go:132,140` | `"GitLab URL"`, `"Personal Access Token"` |
-| `auth/view.go:81` | help text asserting the token starts with `glpat-` |
+| `auth/view.go:43` | `IconUser + " Gitlab Authentication"` — wrong icon *and* wrong casing next to the explorer's |
+| `auth/view.go:186,227` | `"GitLab URL: "` (read-only display) and its label |
+| `auth/view.go:231` | `"not configured — set it in :config, gitlab tab"` — command **and** tab name, and the tab is now named after the forge |
+| `auth/view.go:60,61,77` | title, description, and the help text asserting the token starts with `glpat-` |
 | `dashboard/view.go:80,85` | `IconGitlab + " GitLab"`, `"Authenticate with :gitlab-auth"` |
 | `dashboard/view.go:104` | `"Merge Requests:"` |
+| `configuration/fields.go:228` | the tab title `"gitlab"` — it becomes the active forge's name |
 
 Two of these are shapes wearing a word's clothes. `AccessLevelName()`
 (`tree.go:52`) maps GitLab's numeric levels to Owner/Maintainer/…; GitHub uses
@@ -2434,117 +2505,220 @@ UI translates. And `internal` visibility does not exist on GitHub.com, so
 `CreationForm`'s three hardcoded values have to come from the forge. Nothing to
 undo for the token prefix: `glpat-` appears only in help text, never validated.
 
-**Routing identity is forge-neutral; only aliases and titles vary.** `ViewType`
-is a map key in `a.views` and a `switch` case in `app.go:1480,1496`, so it stays
-stable — otherwise every new forge touches the router. Canonical names become
-neutral (`explorer` is already an alias and becomes the name; `auth` for the
-other), and `gitlab-auth` / `gla` **and** `github-auth` / `gha` all parse, to the
-same view.
+**Un seul écran d'authentification, et il s'appelle `git-auth`.** Il n'y en a
+jamais deux : un contexte cible une forge, donc un écran qui demanderait
+laquelle serait un écran qui ignore ce que le contexte dit déjà. La commande est
+`git-auth` / `ga`, et l'explorer — qui sert les deux forges de la même façon —
+est `git-explorer` / `ge`. Le préfixe `git-` est ce qui rend les deux devinables
+l'une depuis l'autre.
 
-Deliberately permissive: there is only one authentication view, so `gla` typed
-in a GitHub context should go there rather than fail. Punishing muscle memory
-buys nothing. **The filtering happens in completion, not in parsing** — `gla`
-always works, but is never *suggested* while the active forge is GitHub. That
-split is what makes it feel fluid without breaking anything existing.
+`ViewType` reste stable : c'est une clé de `a.views` et un `case` du routeur, et
+le renommer ferait toucher au routeur à chaque forge ajoutée. Seuls les noms
+tapés changent.
 
-Messages that quote a command (`explorer/view.go:258`,
-`dashboard/view.go:85`) must quote the active forge's spelling; once the
-vocabulary is centralised that is one more field on the same struct.
+Ce qui parse, et ce qui est suggéré, ne sont pas la même liste :
 
-**Forge selection: detect, and let the user take it back.** URL sniffing alone is
-unreliable — `github.com` and `gitlab.com` are trivial, but self-hosted is the
-case that matters and `git.acme.com` could be either. Probing (`/api/v4/version`
-vs `/api/v3/`) costs a round-trip and fails on instances that require auth on
-those endpoints. A mandatory picker alone is friction on the two most common
-cases, where the URL is unambiguous. So:
+| Tapé | Parse | Suggéré |
+|---|---|---|
+| `git-auth`, `ga` | oui | **oui** |
+| `git-explorer`, `ge` | oui | **oui** |
+| `gitlab-auth`, `gla`, `github-auth`, `gha` | oui | non |
+| `gitlab-explorer`, `gle`, `github-explorer`, `ghe` | oui | non |
 
-- The forge is **field 0** of the auth form, above the URL. It governs the URL
-  placeholder, the token placeholder and label, and the scope help — putting it
-  first is what lets everything below it reconfigure live.
-- It is a **cycle field** (`←` / `→`, Rule 132), pre-filled by host detection.
-- Detection re-runs as the URL is typed, **but only while the user has not
-  touched the forge field** — a dirty flag. Without it, detection overwrites an
-  explicit choice, which is the difference between helpful and possessive.
-- The token prefix (`glpat-` vs `ghp_` / `github_pat_`) is a second signal used
-  to **warn**, never to switch: by then the user has already chosen above.
-- **Once authentication succeeds the forge is frozen for that context**, per the
-  one-forge-per-context decision. Changing it requires an explicit logout, or a
-  new context. Before a successful login it stays freely editable.
+Délibérément permissif : il n'y a qu'une vue d'authentification, donc `gla` tapé
+dans un contexte GitHub doit y mener plutôt qu'échouer. Punir la mémoire
+musculaire ne rapporte rien. **Le filtrage se fait à la complétion, pas à
+l'analyse** — les anciens noms marchent toujours et ne sont plus proposés.
+C'est aussi ce qui rend l'étape 0 (une seule table de commandes) obligatoire
+plutôt que souhaitable : quatre listes désynchronisées ne peuvent pas porter
+une distinction parse/suggère.
 
-This makes the auth form mix a cycle field with the radio buttons it uses for
-the save options (`auth/view.go:146`) — themselves a closed two-value set, so
-the form was already at odds with Rule 132. **Settled in §3.9**: those radios are
-deleted outright, along with the choice they present, so the form is left with a
-cycle field and nothing else.
+Les messages qui citent une commande (`explorer/view.go:258`,
+`dashboard/view.go:85`) citent la nouvelle orthographe ; une fois le vocabulaire
+centralisé, c'est un champ de plus sur la même structure.
 
-#### Open decision: Go SDKs or the `gh` / `glab` CLIs
+**L'écran d'auth s'adapte, il ne choisit pas.** Il lit la forge du contexte et
+en tire son titre, son icône, le libellé et le placeholder du token, l'URL
+d'aide sur les scopes, et le nom cité dans ses messages. Il possède le token et
+l'acte de se connecter, rien d'autre — c'est la ligne que §3.9 a tracée et elle
+ne bouge pas.
 
-Worth deciding before any code is written, because it determines whether the
-package needs a seam.
+**Donc la forge se choisit là où l'URL se règle : dans la vue configuration.**
+La version précédente de cette entrée mettait la forge en champ 0 du formulaire
+d'auth, au-dessus de l'URL. Ce n'est plus possible et c'est mieux ainsi : §3.9 a
+retiré l'URL de l'auth view — les deux vues l'écrivaient, donc aucune ne faisait
+autorité — et la forge est exactement le même genre de réglage. Un champ qui
+gouverne le placeholder d'un autre doit être dans le même écran que lui.
 
-Arguments for the CLIs:
+**Un seul onglet de forge, nommé d'après la forge active.** `gitlab` devient
+`github` quand le contexte cible GitHub ; il n'y a pas deux onglets dont un
+serait inerte. C'est la même décision que pour l'écran d'auth, et pour la même
+raison : un onglet `github` visible mais sans effet dans un contexte GitLab dit
+le contraire de « une seule forge par contexte ».
 
-- Authentication is already solved, including OAuth device flow, self-hosted
-  hosts and token storage. DevDesk's own credential handling could shrink — and
-  it has already proven fragile (see §1.1).
-- `gh api` and `glab api` are raw REST/GraphQL passthroughs, so no SDK is needed
-  for coverage of endpoints the abstraction does not model.
-- No SDK version churn to track for two forges.
+```
+┌ app ┬ github ┬ scan ┬ network ┬ status ┐
 
-Arguments against:
+  Connection
+● Forge            󰅂 github
+  URL              󰅂 https://github.com
+  Default org      󰅂 acme
+  Default visibility 󰅂 public
 
-- **Per-context isolation conflicts with how these tools store auth.** Both keep
-  global per-host state (`~/.config/gh/hosts.yml`). DevDesk contexts want
-  *different tokens for the same host*. Driving `gh auth switch` from the TUI
-  would mutate the user's global CLI state — the exact mistake avoided in §1.1 by
-  scoping `credential.useHttpPath` to the invocation. The clean route is
-  `GH_TOKEN` / `GITLAB_TOKEN` per invocation, but then DevDesk still owns the
-  tokens and the main benefit is gone.
-- **Two more hard dependencies.** Today DevDesk needs `git`, and `docker` only
-  for the features that use it. Requiring `gh` and `glab` for the core forge
-  feature is a real setup-friction regression.
-- **Cost per call.** A process spawn per request, against a reused HTTP
-  connection today. The dashboard alone issues five calls, and the explorer
-  paginates.
-- **Testability regresses.** `internal/gitlab` reaches 100 % with no seam,
-  because the SDK takes a base URL that an `httptest` server can stand in for.
-  Shelling out would put it back in the position `internal/docker` was in, needing
-  a manufactured seam — and stubbed CLI output encodes assumptions about the tool
-  rather than testing against it.
+  Clone
+  Clone method     󰅂 https
+  Parallel jobs    󰅂 8
+  ☐ Include archived repositories
+```
 
-**Current recommendation:** keep Go SDKs (go-gitlab, go-github) for the API
-surface, and use the CLIs only as an *optional* token source — when a context has
-no token, offer to read one from `gh auth token --hostname <host>` or
-`glab auth status`. That takes the convenience without the coupling. Recorded as
-a recommendation, not a decision.
+Les sept champs sont ceux d'aujourd'hui ; deux seulement dépendent de la forge,
+et chacune est une **forme**, pas un mot :
+
+- **Le jeu de visibilité** est fourni par la forge. `internal` n'existe pas sur
+  GitHub.com, donc le cycle a trois valeurs ici et deux là. C'est le premier
+  client réel de « la forge déclare sa forme ».
+- **« Default parent group » / « Default org »** est un mot, pas une forme : le
+  champ pointe le même réglage, le vocabulaire décide de son libellé.
+
+**La section du fichier devient `forge:`, avec un `type:`.** Le précédent est
+`docker:` → `network:` (§3.34) : `applyDefaults` porte `gitlab.*` vers
+`forge.*` **avant** de remplir les défauts, puis vide l'ancien bloc pour qu'il
+quitte le fichier à la sauvegarde suivante. L'ordre est tout : `yaml.Unmarshal`
+n'est pas strict, donc un bloc non migré est perdu en silence — et ici le silence
+donnerait un contexte pointant sur gitlab.com par défaut. `type` absent vaut
+`gitlab`, ce qui est ce que tout fichier existant veut dire.
+
+**La détection propose, l'utilisateur dispose.** Le sniffing d'URL seul n'est pas
+fiable : `github.com` et `gitlab.com` sont triviaux, mais l'auto-hébergé est le
+cas qui compte et `git.acme.com` peut être l'un ou l'autre. Sonder
+(`/api/v4/version` vs `/api/v3/`) coûte un aller-retour et échoue sur les
+instances qui authentifient ces endpoints. Un sélecteur obligatoire seul est une
+friction sur les deux cas les plus courants. Donc :
+
+- **Forge est le premier champ** du groupe **Connection**, au-dessus de l'URL —
+  c'est ce qui permet à tout ce qui suit de se reconfigurer sous les yeux de
+  l'utilisateur.
+- C'est un **champ à cycle** (`←` / `→`, Rule 132), pré-rempli par détection sur
+  l'hôte.
+- La détection **rejoue quand l'URL change, et seulement tant que l'utilisateur
+  n'a pas touché au champ Forge** — un drapeau *dirty*. Sans lui, la détection
+  écrase un choix explicite, ce qui est la différence entre serviable et
+  envahissant.
+- Le préfixe du token (`glpat-` contre `ghp_` / `github_pat_`) est un second
+  signal, utilisé pour **avertir** dans l'écran d'auth, jamais pour basculer :
+  la forge a déjà été choisie ailleurs, et un écran qui ne la choisit pas ne
+  peut pas la changer.
+- **Changer la forge ferme la session du contexte**, exactement comme changer
+  l'URL le fait déjà (`GitLabURLChanged` sur le message). C'est le même appel :
+  on ne l'interdit pas, on dit ce que ça a fait. Le gel « une fois authentifié »
+  de la version précédente était la bonne intention au mauvais endroit — la
+  session est ce qui devient faux, pas le réglage.
+
+`RegistryForm` est le précédent pour le refus plutôt que la correction : une
+URL dont l'hôte contredit la forge déclarée n'est pas réécrite, elle est
+signalée.
+
+#### Settled: SDKs Go, et les CLIs ne sont pas dans le périmètre
+
+**Décision : `go-gitlab` et `go-github`.** DevDesk parle aux forges en HTTP,
+depuis son propre process, avec ses propres tokens. `gh` et `glab` ne sont ni
+requis ni invoqués — ni pour l'API, ni pour lire un token.
+
+Ce que les CLIs avaient pour elles était réel : l'authentification est déjà
+résolue chez elles, device flow OAuth compris ; `gh api` et `glab api` sont des
+passe-plats REST/GraphQL, donc aucun endpoint hors abstraction n'est hors de
+portée ; et il n'y a pas de version de SDK à suivre pour deux forges.
+
+Quatre choses ont pesé plus lourd, et la première est décisive :
+
+- **L'isolation par contexte est incompatible avec la façon dont ces outils
+  stockent l'auth.** Les deux tiennent un état global par hôte
+  (`~/.config/gh/hosts.yml`), là où un contexte DevDesk veut *un token différent
+  pour le même hôte*. Piloter `gh auth switch` depuis le TUI muterait l'état
+  global de l'utilisateur — exactement la faute que §1.1 a évitée en cantonnant
+  `credential.useHttpPath` à l'invocation. La voie propre est `GH_TOKEN` /
+  `GITLAB_TOKEN` par appel, mais alors DevDesk possède toujours les tokens et le
+  bénéfice principal a disparu. **C'est un contrat de l'application qui est en
+  jeu, pas une préférence** : « un contexte, ses identifiants » est ce que §3.9
+  et les caches par contexte ont construit.
+- **Deux dépendances dures de plus.** Aujourd'hui DevDesk a besoin de `git`, et
+  de `docker` seulement pour ce qui s'en sert. Exiger `gh` **et** `glab` pour la
+  fonctionnalité forge — qui est le cœur — est une régression de friction
+  d'installation, sur toutes les plateformes à la fois.
+- **Un spawn de process par appel**, contre une connexion HTTP réutilisée. Le
+  dashboard émet cinq appels à lui seul et l'explorer pagine (D34 : `listAll`
+  parcourt *toutes* les pages). Un clone de groupe en fait des centaines.
+- **La testabilité régresse.** `internal/gitlab` est à **100 %** sans aucune
+  couture, parce que `gitlabclient.WithBaseURL` accepte l'URL d'un
+  `httptest.Server` — `fakeGitLab` dans `client_test.go` enregistre chaque
+  requête. Passer par un exécutable remettrait le paquet dans la position dont
+  `internal/docker` n'est pas sorti (65,4 %), avec une couture fabriquée à la
+  main ; et une sortie de CLI mise en dur encode des hypothèses sur l'outil au
+  lieu de tester contre lui.
+
+**La source de token optionnelle est écartée aussi, et c'est le seul point qui
+change par rapport à la recommandation.** Elle proposait, quand un contexte n'a
+pas de token, d'en lire un avec `gh auth token --hostname <host>` ou
+`glab auth status`. C'est séduisant et ça coûte trois choses qui ne se voient
+pas au moment de l'écrire : une dépendance molle — absente, elle donne un
+chemin qui marche chez l'auteur et pas chez l'utilisateur ; **une seconde façon
+pour un secret d'entrer dans le store**, alors que §3.9 vient d'en supprimer une
+(l'option qui écrivait dans deux backends à la fois) ; et un token dont la
+portée a été décidée ailleurs, pour d'autres besoins, sans que DevDesk sache
+dire lequel. Rien n'empêche l'utilisateur de coller la sortie de
+`gh auth token` dans le champ ; c'est la même commodité sans le couplage.
+
+Ce que la décision rend vrai pour la suite : **l'abstraction `forge` n'a pas
+besoin de couture d'exécution.** Chaque backend est un SDK derrière une
+interface, chacun prend une URL de base, donc chacun se teste contre un
+`httptest.Server` comme `internal/gitlab` le fait déjà — et l'étape 6 (déplacer
+GitLab derrière l'interface) conserve sa couverture au lieu d'en négocier une.
+
+`go-github` s'ajoute à `go.mod` à l'étape 7, pas avant : les étapes 0 à 6 se
+font contre GitLab seul.
 
 #### Sketch of the work
 
-0. Collapse the four command tables into one source, and let `Parse`,
-   `GetAliases` and `buildCommands` derive from it. Independent of everything
-   else, and it fixes the stale completion list today.
-1. Define a `forge` abstraction from what the code actually consumes: current
-   user, namespace tree, create/delete namespace and repository, initial commit,
-   dashboard counters, clone URL. It also declares its **shape** — depth,
-   visibility set, humanised roles — not just its data.
-2. Replace `shared.State.GitLabClient` with that interface, and switch the
-   authenticated-or-not branches to `IsAuthenticated` while passing through.
-   This is the change the other 65 call sites follow from.
-3. Generalise `GitLabConfig` into a per-context forge config carrying a
-   `type: gitlab | github` discriminator, and migrate existing config files.
-4. Extract the `Vocabulary` table and move every literal in the table above onto
-   it, with the grep test that keeps them from coming back. Doable against
-   GitLab alone, before any GitHub code exists — which is what makes it a
-   refactor rather than a rewrite.
-5. Implement the GitLab backend by moving the existing code behind the
-   interface — behaviour-preserving, and covered by the tests §2 phase 5 adds.
-6. Implement the GitHub backend.
-7. Rename the views and commands, keeping `gla` / `gle` as aliases so muscle
-   memory survives, and make completion forge-aware.
+0. ~~**Une seule table de commandes**, dont `Parse`, `GetAliases` et
+   `buildCommands` dérivent.~~ **Faite** — la table l'était déjà (D16/D17), et
+   ce qui manquait était le troisième bord : `internal/command/doc_test.go`
+   oppose désormais CLAUDE.md au parser, dans les deux sens. Il a trouvé une
+   ligne fausse depuis le commit initial. La distinction « parse mais n'est pas
+   suggéré » est reportée à l'étape 8, où elle a un client.
+1. Définir l'abstraction `forge` à partir de ce que le code consomme réellement :
+   utilisateur courant, arbre de namespaces, créer/supprimer un namespace et un
+   dépôt, commit initial, compteurs du dashboard, URL de clone. Elle déclare
+   aussi sa **forme** — profondeur, jeu de visibilité, rôles humanisés — pas
+   seulement ses données.
+2. Remplacer `shared.State.GitLabClient` par cette interface, et faire passer les
+   branches « authentifié ou non » par `IsAuthenticated` au passage. C'est le
+   changement dont les 65 autres appels découlent.
+3. `GitLabConfig` devient `ForgeConfig`, section `forge:` avec un `type:`, migrée
+   depuis `gitlab:` dans `applyDefaults` **avant** les défauts, sur le précédent
+   de `docker:` → `network:` (§3.34). Un test du genre
+   `TestAGitLabSectionSurvivesTheRename`.
+4. Extraire la `Vocabulary` et y déplacer chaque littéral du tableau ci-dessus,
+   avec le test qui les empêche de revenir. Faisable contre GitLab seul, avant
+   qu'une ligne de GitHub n'existe — c'est ce qui en fait un refactor et non une
+   réécriture.
+5. **L'onglet de configuration devient adaptatif** : titre et jeu de visibilité
+   tirés de la forge active, champ `Forge` en tête du groupe Connection,
+   détection sur l'hôte avec son drapeau *dirty*, et la fermeture de session
+   quand il change — le même appel que `GitLabURLChanged`. Se fait contre GitLab
+   seul : le cycle n'a qu'une valeur, ce qui est un cas dégénéré et non un cas
+   particulier.
+6. Implémenter le backend GitLab en déplaçant le code existant derrière
+   l'interface — sans changement de comportement, et couvert par les tests que §2
+   phase 5 a ajoutés.
+7. Implémenter le backend GitHub. C'est ici que `go-github` entre dans
+   `go.mod`, et nulle part avant.
+8. Renommer les vues et les commandes en `git-auth` / `ga` et
+   `git-explorer` / `ge`, garder les anciennes qui parsent sans être suggérées,
+   et rendre la complétion consciente de la forge.
 
-Steps 0 and 4 stand alone and improve the code with no GitHub in sight. Steps
-1–5 are a refactor of working code with tests already in place, and they are
-what makes step 6 tractable.
+Les étapes 4 et 5 tiennent seules et améliorent le code sans que GitHub soit
+en vue, comme l'étape 0 l'a fait. Les étapes 1–6 sont un refactor de code qui marche, avec les tests déjà
+en place, et c'est ce qui rend l'étape 7 abordable.
 
 ### 3.7 Command mode from inside a text field — **done**
 
