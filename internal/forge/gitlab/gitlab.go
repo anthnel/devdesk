@@ -23,6 +23,7 @@ import (
 
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
 )
 
@@ -59,21 +60,15 @@ func NewWithClient(client *gitlabclient.Client, baseURL string) *Forge {
 	return &Forge{client: client, baseURL: strings.TrimSuffix(baseURL, "/")}
 }
 
-// Shape is GitLab's, and it is a constant: nothing here depends on the instance
-// or on the token.
+// Shape is GitLab's, and it is a constant: nothing about it depends on the
+// instance or on the token.
 //
-// MaxNamespaceDepth is 0 — unbounded. GitLab documents a limit of 20 on
-// self-managed instances, but it is configurable and not reported by the API,
-// so declaring 20 would be asserting something this backend cannot check. An
-// over-deep create is refused by the server with its own message, which is
-// better than a guess refusing a legitimate one.
+// It delegates to forge.ShapeFor so there is one table rather than two. A shape
+// is a property of the platform, and the configuration view needs it before any
+// session exists — this method is for a consumer that holds a session and does
+// not know the type.
 func (f *Forge) Shape() forge.Shape {
-	return forge.Shape{
-		Name:              "gitlab",
-		MaxNamespaceDepth: 0,
-		Visibilities:      []string{"private", "internal", "public"},
-		PermanentDelete:   true,
-	}
+	return forge.ShapeFor(config.ForgeGitLab)
 }
 
 // CurrentUser is who the token belongs to, and the connection test with it.

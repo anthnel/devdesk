@@ -495,11 +495,45 @@ auth view now shows it read-only, points at `:config`, and owns only the token
 and the act of logging in — which is where the §3.9 line falls: this view's
 contract is "everything here goes to `config.yaml`", and a token never does.
 
-Changing the URL closes the client-side GitLab session (`GitLabURLChanged` on
-the message) and says so, rather than forbidding the change — the same call as
-for the secret backend. The field is recognised by **accessor identity**
-(`f.str(cfg) == &cfg.GitLab.URL`), not by label: two tabs could both hold a
-field called "URL".
+**`Forge` is the first field of the Connection group, above the URL.**
+Everything below it reconfigures from it — the URL example, the visibility set,
+two labels, the tab's own title and icon — so it has to be above them for the
+user to watch that happen.
+
+It is a cycle field (Rule 132) whose values are `config.ForgeTypes()`, and it is
+**settled on blur**, not on every `←→`: the change closes the session, and
+cycling through the list would close it once per keypress, including on the way
+back to where it started. That is the secret backend's shape, minus the
+question — changing the platform is neither forbidden nor confirmed, the user is
+told what it did.
+
+**Changing the URL *or* the platform closes the client-side session**
+(`ForgeChanged` on the message) and says so. One flag for two settings, because
+the consequence is one: the session was opened against something the config no
+longer describes. Nothing is revoked and no token is deleted — the user changed
+an address or a platform, not their credentials.
+
+The URL field is recognised by **accessor identity**
+(`f.str(cfg) == &cfg.Forge.URL`), not by label: two tabs could both hold a field
+called "URL".
+
+**The host is detected, and an explicit choice is never overwritten.**
+`forge.DetectType` recognises `gitlab.com` and `github.com` and **nothing else**
+— self-hosted is the case that matters and `git.acme.com` could be either, so an
+unrecognised host changes nothing rather than guessing confidently. Detection
+re-runs when the URL is committed, but only while `forgeTouched` is false: once
+the user has moved the Forge field, typing a URL must not contradict them. That
+flag is the whole difference between helpful and possessive. Probing
+(`/api/v4/version` against `/api/v3/`) was rejected — a round trip per commit,
+and it fails on instances that authenticate those endpoints.
+
+**Two things follow a platform change, and both would be silent bugs without
+it.** The field table is rebuilt, because it is computed once from the type and
+the router *keeps* this view on a save — so nothing else would. And a
+`default_visibility` the new platform does not have is coerced to its most
+private: GitHub.com has no `internal`, and a context carrying it would hold a
+value the server refuses while the cycle field opened on a value absent from its
+own list.
 
 `ConfigSavedMsg` goes to the router, which drops every view *except this one* so
 they rebuild against the saved config — keeping the configuration view is what

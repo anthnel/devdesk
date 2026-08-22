@@ -2624,7 +2624,7 @@ cas qui compte et `git.acme.com` peut être l'un ou l'autre. Sonder
 instances qui authentifient ces endpoints. Un sélecteur obligatoire seul est une
 friction sur les deux cas les plus courants. Donc :
 
-- **Forge est le premier champ** du groupe **Connection**, au-dessus de l'URL —
+- ~~**Forge est le premier champ**~~ **(fait, étape 6)** Forge est le premier champ du groupe **Connection**, au-dessus de l'URL —
   c'est ce qui permet à tout ce qui suit de se reconfigurer sous les yeux de
   l'utilisateur.
 - C'est un **champ à cycle** (`←` / `→`, Rule 132), pré-rempli par détection sur
@@ -2638,7 +2638,8 @@ friction sur les deux cas les plus courants. Donc :
   la forge a déjà été choisie ailleurs, et un écran qui ne la choisit pas ne
   peut pas la changer.
 - **Changer la forge ferme la session du contexte**, exactement comme changer
-  l'URL le fait déjà (`GitLabURLChanged` sur le message). C'est le même appel :
+  l'URL le fait déjà — un seul drapeau, `ForgeChanged`, parce que la conséquence
+  est une. C'est le même appel :
   on ne l'interdit pas, on dit ce que ça a fait. Le gel « une fois authentifié »
   de la version précédente était la bonne intention au mauvais endroit — la
   session est ce qui devient faux, pas le réglage.
@@ -2731,12 +2732,10 @@ font contre GitLab seul.
 5. ~~Extraire la `Vocabulary` et y déplacer chaque littéral du tableau
    ci-dessus, avec le test qui les empêche de revenir.~~ **Faite** — et le test
    a trouvé plus de sites que le tableau n'en listait. Détails plus bas.
-6. **L'onglet de configuration devient adaptatif** : titre et jeu de visibilité
-   tirés de la forge active, champ `Forge` en tête du groupe Connection,
-   détection sur l'hôte avec son drapeau *dirty*, et la fermeture de session
-   quand il change — le même appel que `GitLabURLChanged`. Se fait contre GitLab
-   seul : le cycle n'a qu'une valeur, ce qui est un cas dégénéré et non un cas
-   particulier.
+6. ~~**L'onglet de configuration devient adaptatif** : titre et jeu de
+   visibilité tirés de la forge active, champ `Forge` en tête du groupe
+   Connection, détection sur l'hôte avec son drapeau *dirty*, et la fermeture de
+   session quand il change.~~ **Faite.** Détails plus bas.
 7. Implémenter le backend GitHub. C'est ici que `go-github` entre dans
    `go.mod`, et nulle part avant.
 8. Renommer les vues et les commandes en `git-auth` / `ga` et
@@ -2976,6 +2975,56 @@ dashboard fait onze cellules : « Merge Request » n'y tient pas, et le tronquer
 donnerait « Merge Req… » sur une forge et « Pull Requ… » sur l'autre.
 `ChangeRequestShort` porte l'initialisme — `MR`, `PR` — et c'est le seul endroit
 où une abréviation valait un champ.
+
+#### Ce que l'étape 6 a trouvé
+
+**Le cycle n'a pas qu'une valeur, et c'est tant mieux.** L'entrée annonçait
+« se fait contre GitLab seul : le cycle n'a qu'une valeur ». Faux depuis
+l'étape 4 : `config.ForgeTypes()` en offre deux, et `github` est sélectionnable
+avant que son backend existe. C'est ce qui a permis de tester la bascule pour de
+vrai — le vocabulaire change, l'onglet se renomme, la visibilité se corrige —
+plutôt que d'écrire un cas dégénéré et d'espérer.
+
+**Deux choses suivent un changement de plateforme, et chacune serait un bug
+silencieux sans elle :**
+
+- **La table de champs est reconstruite.** Elle est calculée une fois depuis le
+  type — titre de l'onglet, icône, exemple d'URL, deux libellés et la liste des
+  visibilités — et le routeur **garde** cette vue lors d'une sauvegarde (c'est
+  ce qui empêche une sauvegarde de jeter le curseur). Rien d'autre ne la
+  reconstruirait.
+- **Une `default_visibility` que la nouvelle plateforme n'a pas est ramenée à la
+  plus privée.** GitHub.com n'a pas d'`internal` : un contexte qui la portait
+  garderait une valeur que le serveur refuse, pendant que le champ à cycle
+  s'ouvrirait sur une valeur absente de sa propre liste.
+
+**Le drapeau `forgeTouched` est toute la différence entre serviable et
+envahissant.** La détection rejoue quand l'URL est validée, mais seulement tant
+que l'utilisateur n'a pas bougé le champ Forge. Sans lui, taper une URL
+contredirait un choix explicite.
+
+**`DetectType` ne reconnaît que les deux instances publiques**, et refuse de
+deviner autrement. `gitlab.acme.test` et `github.acme.test` renvoient `""` —
+l'auto-hébergé est le cas qui compte, et un hôte peut porter n'importe quel nom.
+Le test qui vaut le plus est `TestAPathIsNotAHost` : un contrôle sur la *chaîne*
+plutôt que sur l'hôte analysé dirait « GitLab » pour
+`https://evil.test/gitlab.com`.
+
+**`GitLabURLChanged` devient `ForgeChanged`, un seul drapeau pour deux
+réglages.** L'URL et la plateforme ont la même conséquence — la session a été
+ouverte contre quelque chose que la configuration ne décrit plus — et deux
+drapeaux pour une conséquence sont deux façons de dire une chose.
+
+**Le champ est réglé au *blur*, pas à chaque `←→`.** C'est la forme du backend
+de secrets moins la question : cycler à travers la liste fermerait la session une
+fois par appui, y compris au retour vers la valeur de départ. Rien n'est demandé
+— changer de plateforme n'est ni interdit ni confirmé, on dit ce que ça a fait.
+
+**Une table de moins.** `Shape` a quitté le backend pour `internal/forge`, où
+elle est indexée par type : la vue configuration a besoin du jeu de visibilités
+**avant** qu'une session existe, exactement comme le vocabulaire. Le `Shape()`
+de l'interface délègue, donc il n'y a toujours qu'une table — la méthode reste
+pour un consommateur qui tient une session et ignore le type.
 
 ### 3.7 Command mode from inside a text field — **done**
 

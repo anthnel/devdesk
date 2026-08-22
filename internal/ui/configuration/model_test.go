@@ -611,8 +611,8 @@ func TestChangingTheGitLabURLFlagsTheSession(t *testing.T) {
 	if saw == nil {
 		t.Fatal("no ConfigSavedMsg was emitted")
 	}
-	if !saw.GitLabURLChanged {
-		t.Error("GitLabURLChanged is false, so the router would keep a session pointed at the old host")
+	if !saw.ForgeChanged {
+		t.Error("ForgeChanged is false, so the router would keep a session pointed at the old host")
 	}
 }
 
@@ -629,7 +629,7 @@ func TestRetypingTheSameGitLabURLChangesNothing(t *testing.T) {
 		t.Errorf("footer = %q for an unchanged URL", m.footer.Text())
 	}
 	for _, msg := range testutil.Msgs(cmd) {
-		if s, ok := msg.(ConfigSavedMsg); ok && s.GitLabURLChanged {
+		if s, ok := msg.(ConfigSavedMsg); ok && s.ForgeChanged {
 			t.Error("an unchanged URL was reported as changed")
 		}
 	}

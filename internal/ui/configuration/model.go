@@ -20,11 +20,15 @@ import (
 type ConfigSavedMsg struct {
 	Config       *config.Config
 	ThemeChanged bool
-	// BackendChanged and GitLabURLChanged are the two settings the router must
-	// act on rather than just rebuild views against: one needs a fresh
-	// credentials.Selection, the other invalidates a live GitLab session.
-	BackendChanged   bool
-	GitLabURLChanged bool
+	// BackendChanged and ForgeChanged are the two settings the router must act
+	// on rather than just rebuild views against: one needs a fresh
+	// credentials.Selection, the other invalidates a live forge session.
+	//
+	// ForgeChanged is one flag for two settings — the URL and the platform —
+	// because the consequence is one: the session was opened against something
+	// the config no longer describes.
+	BackendChanged bool
+	ForgeChanged   bool
 }
 
 // Model is the configuration view: every scalar setting in the current context,
@@ -47,6 +51,19 @@ type Model struct {
 	// blur, so the input is a view onto the setting rather than a second copy of
 	// it.
 	input textinput.Model
+
+	// forgeOnFocus is what forge.type held when the field took focus, and
+	// forgeTouched whether the user has ever moved it. The second is what stops
+	// host detection overwriting an explicit choice — the difference between
+	// helpful and possessive.
+	forgeOnFocus string
+	forgeTouched bool
+
+	// themes and configPath are kept because the field table is rebuilt when
+	// the forge changes: its title, its icon and half its options come from the
+	// platform, and the router keeps this view on a save.
+	themes     []string
+	configPath string
 
 	// backendOnFocus is what app.secret_backend held when the field took focus.
 	// Changing it is confirmed on the way out rather than on every ←/→, and this
@@ -85,10 +102,13 @@ func New(cfg *config.Config) Model {
 	}
 
 	m := Model{
-		config:   cfg,
-		context:  context,
-		sections: sections(themes, command.ViewNames(), configPath, cfg.Forge.Type, forge.VocabularyFor(cfg.Forge.Type)),
-		input:    in,
+		config:       cfg,
+		context:      context,
+		sections:     sections(themes, command.ViewNames(), configPath, cfg.Forge.Type, forge.VocabularyFor(cfg.Forge.Type)),
+		input:        in,
+		themes:       themes,
+		configPath:   configPath,
+		forgeOnFocus: cfg.Forge.Type,
 	}
 	m.bindInput()
 	return m
