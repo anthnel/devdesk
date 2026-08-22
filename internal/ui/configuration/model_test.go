@@ -598,7 +598,7 @@ func TestChangingTheGitLabURLFlagsTheSession(t *testing.T) {
 	}
 	// The command comes from internal/command rather than from a literal, so the
 	// message follows a rename instead of quietly outliving it.
-	if !strings.Contains(m.footer.Text(), ":"+string(command.ViewGitlabAuth)) {
+	if !strings.Contains(m.footer.Text(), ":"+string(command.ViewGitAuth)) {
 		t.Errorf("footer = %q, want it to say where to sign in again", m.footer.Text())
 	}
 
@@ -637,12 +637,12 @@ func TestRetypingTheSameGitLabURLChangesNothing(t *testing.T) {
 
 // Only one view may write a setting. Both used to write gitlab.url, so neither
 // was authoritative and editing it in one left the other stale.
-func TestOnlyTheConfigurationViewOwnsTheGitLabURL(t *testing.T) {
-	if !strings.Contains(sourceOf(t, "../gitlab/auth/update.go"), "m.config.Forge.URL") {
+func TestOnlyTheConfigurationViewOwnsTheForgeURL(t *testing.T) {
+	if !strings.Contains(sourceOf(t, "../forge/auth/update.go"), "m.config.Forge.URL") {
 		t.Skip("the auth view no longer reads the URL at all")
 	}
-	if strings.Contains(sourceOf(t, "../gitlab/auth/update.go"), "config.Forge.URL = ") {
-		t.Error("the auth view assigns gitlab.url; the configuration view owns it")
+	if strings.Contains(sourceOf(t, "../forge/auth/update.go"), "config.Forge.URL = ") {
+		t.Error("the auth view assigns forge.url; the configuration view owns it")
 	}
 }
 

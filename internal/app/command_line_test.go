@@ -69,8 +69,8 @@ func TestEveryNamedViewCanBeReached(t *testing.T) {
 	}{
 		{"dashboard", command.ViewDashboard},
 		{"status", command.ViewStatus},
-		{"gitlab-auth", command.ViewGitlabAuth},
-		{"gitlab-explorer", command.ViewGitlabExplorer},
+		{"gitlab-auth", command.ViewGitAuth},
+		{"gitlab-explorer", command.ViewGitExplorer},
 		{"workspaces", command.ViewWorkspaces},
 		{"security", command.ViewSecurity},
 		{"containers", command.ViewContainers},

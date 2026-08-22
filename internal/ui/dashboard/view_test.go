@@ -245,7 +245,7 @@ func TestSignedOutKeepsTheCodeBoxLabels(t *testing.T) {
 // to say the first for both.
 func TestACounterThatCouldNotBeReadPrintsADash(t *testing.T) {
 	m, _ := authenticatedModel(t)
-	m = feed(t, m, GitLabStatsMsg{Stats: forge.DashboardStats{
+	m = feed(t, m, ForgeStatsMsg{Stats: forge.DashboardStats{
 		AssignedChangeRequests: forge.Count(3),
 		// ReviewChangeRequests and AssignedIssues stayed nil: their requests
 		// failed.
@@ -269,7 +269,7 @@ func TestACounterThatCouldNotBeReadPrintsADash(t *testing.T) {
 // is an answer, and prints as one.
 func TestACountedZeroStillPrintsZero(t *testing.T) {
 	m, _ := authenticatedModel(t)
-	m = feed(t, m, GitLabStatsMsg{Stats: forge.DashboardStats{
+	m = feed(t, m, ForgeStatsMsg{Stats: forge.DashboardStats{
 		AssignedChangeRequests: forge.Count(0),
 		ReviewChangeRequests:   forge.Count(0),
 		AssignedIssues:         forge.Count(0),

@@ -70,6 +70,6 @@ func (m Model) commitForge() (Model, tea.Cmd) {
 
 	return m, tea.Batch(
 		m.persist(saved{forgeChanged: true}),
-		m.footer.Info("Forge is now "+m.vocab().Name+" — sign in again with :"+string(command.ViewGitlabAuth)),
+		m.footer.Info("Forge is now "+m.vocab().Name+" — sign in again with :"+string(command.ViewGitAuth)),
 	)
 }

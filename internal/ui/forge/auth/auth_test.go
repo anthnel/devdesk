@@ -503,7 +503,7 @@ func TestAuthenticateWritesNoConfiguration(t *testing.T) {
 func TestGitLabAuthSuccessFromTheRouter(t *testing.T) {
 	m := newTestModel(t, testConfig(), newFakeStorage())
 
-	m = feed(t, m, GitLabAuthSuccessMsg{User: testUser()})
+	m = feed(t, m, ForgeAuthSuccessMsg{User: testUser()})
 
 	if !m.authenticated || m.user.Username == "" {
 		t.Error("the view ignored a session established by the router")

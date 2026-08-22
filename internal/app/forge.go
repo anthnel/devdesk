@@ -10,11 +10,11 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/forge/session"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
+	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 )
 
-// GitLabAutoLoginMsg signale le résultat de l'auto-login
-type GitLabAutoLoginMsg struct {
+// ForgeAutoLoginMsg signale le résultat de l'auto-login
+type ForgeAutoLoginMsg struct {
 	Forge forge.Forge
 	User  forge.User
 	Error error
@@ -38,23 +38,23 @@ func (a *App) tryAutoLogin() tea.Cmd {
 		// écrit en clair dans la configuration (§3.9).
 		token, err := auth.LoadCredentials(url)
 		if err != nil || token == "" {
-			return GitLabAutoLoginMsg{}
+			return ForgeAutoLoginMsg{}
 		}
 
 		result, err := auth.AuthenticateOnly(context.Background(), forgeType, url, token)
 		if err != nil {
 			log.Printf("Auto-login failed: %v", err)
-			return GitLabAutoLoginMsg{Error: err}
+			return ForgeAutoLoginMsg{Error: err}
 		}
 
 		log.Printf("Auto-login successful: %s", result.User.Username)
-		return GitLabAutoLoginMsg{Forge: result.Forge, User: result.User}
+		return ForgeAutoLoginMsg{Forge: result.Forge, User: result.User}
 	}
 }
 
 // handleAutoLoginResult applies a successful auto-login. A failure is ignored:
 // the user can still authenticate by hand from the auth view.
-func (a *App) handleAutoLoginResult(msg GitLabAutoLoginMsg) (tea.Model, tea.Cmd) {
+func (a *App) handleAutoLoginResult(msg ForgeAutoLoginMsg) (tea.Model, tea.Cmd) {
 	if msg.Error != nil || msg.Forge == nil {
 		return a, nil
 	}
@@ -102,7 +102,7 @@ func (a *App) clearAuthenticated() {
 	a.sharedState.Forge = nil
 	a.sharedState.CurrentUser = forge.User{}
 	a.sharedState.IsAuthenticated = false
-	a.sharedState.GitLabStats = nil
+	a.sharedState.ForgeStats = nil
 }
 
 // handleLogoutComplete clears the session the way logging in sets it.
@@ -121,10 +121,10 @@ func (a *App) handleLogoutComplete(msg auth.LogoutCompleteMsg) (tea.Model, tea.C
 	log.Printf("GitLab logout for context %s", a.currentContext)
 	a.clearAuthenticated()
 
-	authView := a.views[command.ViewGitlabAuth]
+	authView := a.views[command.ViewGitAuth]
 	a.views = make(map[command.ViewType]tea.Model)
 	if authView != nil {
-		a.views[command.ViewGitlabAuth] = authView
+		a.views[command.ViewGitAuth] = authView
 	}
 	a.createView(a.currentView)
 

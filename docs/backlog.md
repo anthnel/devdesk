@@ -2337,21 +2337,35 @@ one on, so it shows aggregates. The visual alerts are not carried over — a
 threshold is a setting, and settings live in the configuration view, so it needs
 its own entry rather than a line here.
 
-### 3.6 GitHub support alongside GitLab, one active forge per context
+### 3.6 GitHub support alongside GitLab, one active forge per context — **done**
 
 Support GitHub as well as GitLab, with **exactly one backend active per
 configuration context**. A context targets one forge; switching forge means
 switching context.
 
-Not started. La couche de présentation est arrêtée et consignée plus bas —
-vocabulaire, noms de commandes, **un seul écran d'authentification
-(`git-auth` / `ga`)**, **un explorer qui sert les deux forges
-(`git-explorer` / `ge`)**, et **un onglet de configuration unique nommé d'après
-la forge active**, où la forge se choisit. Le **choix de la bibliothèque est
-tranché** aussi : SDK Go, pas les CLIs `gh` / `glab`. Ce qui reste à écrire est
-l'abstraction en dessous.
+**Les neuf étapes sont faites.** Un contexte déclare sa plateforme dans
+`forge.type`, `internal/forge` dit ce que DevDesk lui demande, deux backends y
+répondent, et l'application entière — vues, vocabulaire, configuration,
+commandes — parle de « la forge » plutôt que de GitLab.
 
-#### What is coupled to GitLab today
+Ce que chaque étape a trouvé est consigné sous le découpage ; l'entrée est
+conservée en entier parce que la moitié de sa valeur est ce qu'elle a fallu
+corriger en cours de route. Quatre décisions de l'énoncé se sont révélées
+fausses en écrivant le code, et chacune est nommée là où elle a cédé :
+
+| Ce que l'entrée disait | Ce qu'il a fallu faire |
+|---|---|
+| l'étape 2 met l'interface dans `shared.State` | impossible tant que rien ne l'implémente : le backend GitLab passe devant (étape 1) |
+| le vocabulaire est porté par `shared.State` | il se résout depuis la configuration : l'écran « non authentifié » a besoin des mots avant qu'une session existe (étape 5) |
+| le cycle de forge n'aura qu'une valeur | il en a deux depuis l'étape 4, ce qui a permis de tester la bascule pour de vrai (étape 6) |
+| rendre la complétion consciente de la forge | sans objet : un écran nommé d'après le rôle n'a rien à filtrer par plateforme (étape 8) |
+
+Trois défauts trouvés en chemin : **D52** (un compteur du dashboard illisible
+affiché `0`, corrigé), une ligne de `.claude/CLAUDE.md` fausse depuis le commit
+initial, et l'ordre de la migration `gitlab:` → `forge:` qui perdait
+silencieusement un réglage.
+
+#### What was coupled to GitLab (relevé'ouverture)
 
 | Surface | Size |
 |---|---|
@@ -2739,9 +2753,10 @@ font contre GitLab seul.
 7. ~~Implémenter le backend GitHub. C'est ici que `go-github` entre dans
    `go.mod`, et nulle part avant.~~ **Faite** — et l'abstraction a tenu :
    l'interface n'a pas bougé d'une méthode. Détails plus bas.
-8. Renommer les vues et les commandes en `git-auth` / `ga` et
+8. ~~Renommer les vues et les commandes en `git-auth` / `ga` et
    `git-explorer` / `ge`, garder les anciennes qui parsent sans être suggérées,
-   et rendre la complétion consciente de la forge.
+   et rendre la complétion consciente de la forge.~~ **Faite** — sauf le
+   dernier tiers, qui s'est dissous. Détails plus bas.
 
 Les étapes 5 et 6 tiennent seules et améliorent le code sans que GitHub soit en
 vue, comme l'étape 0 l'a fait. Les étapes 1–6 sont un refactor de code qui
@@ -3090,6 +3105,54 @@ plateforme ne fait pas.
 
 Coût : **+0,55 Mo** sur le binaire (24,4 → 25,0). Couverture :
 `internal/forge/github` 89,8 %, `internal/forge/session` 100 %, projet 82,2 %.
+
+#### Ce que l'étape 8 a trouvé
+
+**« Rendre la complétion consciente de la forge » n'a plus d'objet, et c'est le
+signe que la décision de §3.6 était la bonne.** L'entrée l'écrivait quand les
+commandes étaient `gitlab-auth` et `github-auth` : il aurait fallu ne suggérer
+que celle de la forge active. Avec un seul écran nommé d'après le *rôle*, il n'y
+a plus rien à filtrer par forge — il reste seulement des noms retirés, qui ne
+sont suggérés dans aucun contexte. Le tiers de l'étape qui disparaît est celui
+que la nomenclature rendait inutile.
+
+**Le mécanisme reporté à l'étape 0 a trouvé ses clients, et il y en a dix.**
+`legacyNames` porte `gitlab-auth`, `gla`, `github-auth`, `gha`, leurs
+équivalents explorer, et les plus anciens `explorer` / `exp`. Les orthographes
+GitHub **n'ont jamais été acceptées avant** et sont là pour la même raison que
+les GitLab : quelqu'un dont le contexte vise GitHub tapera `gha` avant `ga`, et
+avoir raison vaut mieux qu'être cohérent sur ce qui existait.
+
+Le report était juste : construit à l'étape 0, le mécanisme aurait eu une liste
+d'exceptions vide.
+
+**Le test de documentation a fait son travail au premier lancement.**
+`TestEveryTypeableViewIsDocumented`, écrit à l'étape 0, a échoué en nommant
+`git-auth` et `git-explorer` comme typables et absentes de CLAUDE.md — avant
+qu'aucun humain ne relise quoi que ce soit. C'est exactement le défaut qu'il a
+été écrit pour attraper, et il l'a attrapé sur le premier renommage venu.
+
+**Trois renommages de plus, décidés en constatant qu'ils mentaient :**
+
+- `internal/ui/gitlab/{auth,explorer}` → `internal/ui/forge/…`. Le chemin
+  apparaît dans chaque ligne d'import de ces vues, et l'explorer parcourt GitHub
+  depuis l'étape 7.
+- `shared.State.GitLabStats` → `ForgeStats`. Le champ porte un
+  `forge.DashboardStats` depuis l'étape 3 : un nom qui dit GitLab dans un
+  contexte GitHub est précisément ce que cette entrée passe son temps à
+  supprimer.
+- `internal/app/gitlab.go` → `forge.go`, avec `GitLabAutoLoginMsg` →
+  `ForgeAutoLoginMsg` et les identifiants du dashboard.
+
+Ce sont des identifiants, donc invisibles à l'utilisateur — mais ils sont lus
+par la prochaine personne qui cherchera où vit une session, et un fichier
+`app/gitlab.go` qui ouvre des sessions GitHub est un faux indice.
+
+**Trois messages sont restés justes tout seuls.** L'écran « non authentifié » de
+l'explorer, le pied de page du changement d'URL et l'aide du dashboard citent
+tous une commande : elle vient de `internal/command` depuis l'étape 5, donc le
+renommage les a suivis sans qu'on y touche. C'était l'argument de l'étape 5, et
+c'est la première fois qu'il se vérifie.
 
 ### 3.7 Command mode from inside a text field — **done**
 

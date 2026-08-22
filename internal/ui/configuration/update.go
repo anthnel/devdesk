@@ -178,7 +178,7 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 		// secret backend.
 		return m, tea.Batch(
 			m.persist(saved{forgeChanged: true}),
-			m.footer.Info(m.vocab().Name+" URL changed — sign in again with :"+string(command.ViewGitlabAuth)),
+			m.footer.Info(m.vocab().Name+" URL changed — sign in again with :"+string(command.ViewGitAuth)),
 		), true
 	}
 	return m, m.persist(saved{}), true

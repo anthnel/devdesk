@@ -169,7 +169,7 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 		a.setAuthenticated(msg.Forge, msg.GitLabUser)
 	} else {
 		// No credentials available — navigate to auth view for manual login
-		a.currentView = command.ViewGitlabAuth
+		a.currentView = command.ViewGitAuth
 	}
 
 	// Reinitialize views with new config; auth state is already populated above
