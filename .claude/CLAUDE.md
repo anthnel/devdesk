@@ -983,6 +983,28 @@ their reasons apply to any text this application shows. Every `docker inspect`
 pager path is gone, Windows temp files included. `V` survives for logs alone,
 because `less` handles a gigabyte and follows it.
 
+**`PagerCmd` carries no quote, on either branch.** Go's `exec.Command` escapes
+an argument's inner quotes as `\"` when it builds a Windows command line, and
+`cmd.exe` does not understand that escaping — it reads the backslashes as part
+of the path. So `more "%TEMP%\devdesk-logs.txt"` reached cmd as
+`C:\C:\Users\...\devdesk-logs.txt\`, which it refused, and `V` returned to
+DevDesk instantly with an exit status nobody rendered: on Windows the pager
+never once worked. Measured by running the exact string through
+`exec.Command`, not deduced.
+
+The temp file went with the quotes, because its stated reason was false: **`more`
+reads a pipe** — `dir | more` is its canonical use. The two branches now differ
+only in the shell and the pager's name, nothing touches disk, and no path needs
+quoting. The container ID is still interpolated into a shell string, which is
+safe only because it comes from `docker ps`; do not extend that to a value the
+user types.
+
+A failed pager is now **reported** (`Pager failed — check logs`). One that
+cannot start comes back in milliseconds and is indistinguishable from one the
+user quit at once, which is exactly how a command line broken since the day it
+was written went unnoticed — the log line was there all along, and nobody reads
+a log to find out why a key did nothing.
+
 ### Security Scanning
 
 **Where a scanner runs from is configured, not guessed.** `scan.trivy_source`

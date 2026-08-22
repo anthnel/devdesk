@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -191,6 +192,37 @@ func TestFollowOnAPlainSourceIsInert(t *testing.T) {
 
 	if m.following || cmd != nil {
 		t.Error("F acted on a source that cannot be followed")
+	}
+}
+
+// ── The pager ────────────────────────────────────────────────────────────────
+
+// A pager that cannot start comes back in milliseconds and looks exactly like
+// one the user quit at once, so a silent failure is indistinguishable from `V`
+// doing nothing. That is how the broken Windows command line went unnoticed:
+// the log line was there, and nobody reads a log to find out why a key did
+// nothing.
+func TestAFailedPagerSaysSo(t *testing.T) {
+	m := logModel(t, "line")
+
+	m, _ = step(t, m, PagerExitMsg{Err: errors.New("exit status 1")})
+
+	if !m.footer.IsSet() {
+		t.Fatal("a pager that failed said nothing, so V reads as a key that does nothing")
+	}
+	if strings.Contains(m.footer.Text(), "exit status") {
+		t.Errorf("footer = %q leaks the raw error; Rule 128 wants a short message plus a log", m.footer.Text())
+	}
+}
+
+// A pager the user simply quit is not a failure, and must not be reported as one.
+func TestAPagerThatSucceededSaysNothing(t *testing.T) {
+	m := logModel(t, "line")
+
+	m, _ = step(t, m, PagerExitMsg{})
+
+	if m.footer.IsSet() {
+		t.Errorf("footer = %q after a clean pager exit, want silence", m.footer.Text())
 	}
 }
 

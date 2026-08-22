@@ -135,18 +135,26 @@ func loadErrorMessage(err error) string {
 	}
 }
 
+// handlePagerExit takes the pager's return, and says so when it failed.
+//
+// The report is not decoration. A pager that cannot start comes back in
+// milliseconds and looks exactly like one the user quit at once, so the whole
+// event is indistinguishable from `V` doing nothing — which is precisely how the
+// broken Windows command line went unnoticed. The log line was already there and
+// nobody reads a log to find out why a key did nothing.
 func (m Model) handlePagerExit(msg PagerExitMsg) (tea.Model, tea.Cmd) {
+	var report tea.Cmd
 	if msg.Err != nil {
 		log.Printf("ERROR [viewer] pager: %v", msg.Err)
+		report = m.footer.Error("Pager failed — check logs")
 	}
-	// Whatever the pager or the follow showed, the document may have moved on
-	// while the TUI was suspended. Reloading is the only way back to something
-	// true.
+	// Whatever the pager showed, the document may have moved on while the TUI
+	// was suspended. Reloading is the only way back to something true.
 	if m.source == nil {
-		return m, nil
+		return m, report
 	}
 	m.loading = true
-	return m, loadCmd(m.source)
+	return m, tea.Batch(report, loadCmd(m.source))
 }
 
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

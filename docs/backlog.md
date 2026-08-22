@@ -17,7 +17,7 @@ browse a single proxy inside a real Nexus group. It is what
 fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
 on and is now closed on its own.
 
-D1 through D38 and D40 through D50 are all fixed or, in D35's case, deliberately
+D1 through D38 and D40 through D51 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +29,54 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D51 — `V` (pager) n'a jamais marché sous Windows : il revenait aussitôt, sans
+rien dire. Corrigé.** Signalé le 2026-08-22, juste après D50.
+
+Deux défauts empilés, et c'est l'empilement qui l'a rendu invisible si
+longtemps.
+
+**Le premier : la ligne de commande était corrompue.** `PagerCmd` construisait
+
+```
+docker logs --tail 500 ID > "%TEMP%\devdesk-logs.txt" 2>&1 && more "%TEMP%\devdesk-logs.txt"
+```
+
+et le passait à `exec.Command("cmd", "/c", script)`. Go échappe les guillemets
+internes d'un argument en `\"` quand il assemble la ligne de commande Windows,
+et **`cmd.exe` ne connaît pas cet échappement** : il lit les antislashs comme
+faisant partie du chemin. cmd recevait donc
+`C:\C:\Users\...\devdesk-logs.txt\`, répondait « La syntaxe du nom de fichier,
+de répertoire ou de volume est incorrecte », et rendait la main immédiatement.
+Mesuré en passant la chaîne exacte dans `exec.Command`, pas déduit.
+
+**Le second : l'échec était muet.** `handlePagerExit` journalisait l'erreur et
+rechargeait. Un pager qui ne démarre pas revient en quelques millisecondes,
+donc l'événement est *indiscernable* d'un pager qu'on quitte tout de suite :
+`V` avait l'air d'une touche qui ne fait rien. La ligne de log était là depuis
+le début, et personne ne lit un log pour savoir pourquoi une touche n'a rien
+fait. Elle dit maintenant `Pager failed — check logs` (Rule 128).
+
+**Le fichier temporaire est parti avec les guillemets, parce que sa raison
+d'être était fausse.** Le commentaire disait que la branche Windows écrivait un
+fichier « parce que `more` ne sait pas lire un tube comme `less` ». `more` lit
+parfaitement un tube — `dir | more` est son usage canonique, vérifié. Les deux
+branches ne diffèrent donc plus que par le shell et le nom du pager :
+
+```
+cmd /c  docker logs --tail 500 ID 2>&1 | more
+sh  -c  docker logs --tail 500 ID 2>&1 | ${PAGER:-less} -R
+```
+
+Rien n'est écrit sur le disque, et aucun chemin n'a besoin de guillemets.
+`TestThePagerCommandCarriesNoQuote` porte sur la **chaîne**, pas sur la
+plateforme : le piège n'est pas propre à Windows, c'est un guillemet dans un
+script confié à `exec.Command`, et la branche Unix n'a pas plus de raison d'en
+porter un.
+
+Ce qui reste vrai et qu'il faut garder en tête : l'ID du conteneur est
+interpolé dans une chaîne de shell. C'est sûr parce qu'il vient de `docker ps`
+— ne pas étendre ce motif à une valeur que l'utilisateur tape.
 
 **D50 — `F` dans le viewer tuait l'application et abîmait le terminal.
 Corrigé.** Signalé le 2026-08-22 en suivant les logs d'un conteneur.
