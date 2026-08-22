@@ -5831,6 +5831,54 @@ messages — les deux ne peuvent donc pas diverger à mi-pipeline.
 qu'au constructeur : un intervalle nul ferait tirer `tea.Tick` sans pause, soit un
 `docker exec` par frame.
 
+### 3.35 `Y` copie le chemin de la ligne sélectionnée — **done**
+
+`ws` est un explorateur de fichiers, et la chose qu'on veut en sortir le plus
+souvent n'est ni un terminal ni un IDE : c'est le chemin lui-même, pour le coller
+ailleurs. Il n'y avait aucun moyen de l'obtenir autrement qu'en le relisant à
+l'écran et en le retapant — un chemin absolu de six segments, à la main.
+
+**La touche est `Y`, prise dans la liste des libres.** C'est *yank*, et la lettre
+y figurait déjà avec sa réserve écrite : une modale l'emploie pour « Yes », mais
+une modale réclame toute touche avant que la vue ne la voie, donc les deux ne
+sont jamais joignables en même temps. `free` passe donc à `J Q Z`, et les deux
+documents qui recopiaient la liste sont corrigés au passage — ils annonçaient
+encore `H`, que `Trace` occupe depuis §3.33. Une liste de disponibles périmée est
+pire que pas de liste : c'est exactement ce contre quoi
+`TestFreeLettersAreActuallyFree` existe, et il ne relit pas la documentation.
+
+#### Pas de repli sur le répertoire courant
+
+`T` et `O` en ont un — `resolveTargetPath` remonte au chemin parcouru quand aucune
+ligne n'est sélectionnée — et c'est juste pour eux : ils agissent sur *un lieu*,
+donc « ici » est une réponse sensée. `Y` répond à « qu'est-ce que cette ligne »,
+et rendre silencieusement le répertoire parent serait une réponse **fausse**
+plutôt qu'absente : le presse-papier ne dit pas d'où vient ce qu'il contient, donc
+l'erreur ne se découvrirait qu'au collage, ailleurs. Sans ligne, la touche ne fait
+rien et n'est pas annoncée (Rule 130).
+
+**Un fichier compte autant qu'un répertoire.** Toutes les autres actions de la vue
+visent un dossier — `S`, `F`, `T`, `O` filtrent sur `IsDir` ou sur `IsGitRepo` —
+donc un résolveur écrit sur leur modèle aurait sauté le seul cas que l'utilisateur
+a nommé en premier. `copyTarget` est séparée de `copyPath` pour cette raison :
+elle rend le chemin choisi sans écrire nulle part, donc un test peut vérifier
+*quelle* ligne a été prise sans toucher au presse-papier de la machine — qui n'est
+ni le sien à prendre, ni disponible sur un runner sans session graphique.
+
+#### Ce que le footer dit, et ce qu'il ne répète pas
+
+`Full path copied to the clipboard` — pas le nom de l'entrée, qui est sous le
+curseur : le répéter serait le même fait deux fois sur un écran. Ce qui n'est pas
+à l'écran, c'est la **forme** de ce qui a atterri — le chemin absolu et non le nom
+— et c'est ce que la ligne dit.
+
+L'échec est une **erreur** au sens de la Rule 128, pas une notice : `WriteAll`
+échoue pour des raisons extérieures à l'application (pas de propriétaire de
+sélection sous X, pas de `pbcopy`), et un échec silencieux laisse coller ce qui
+s'y trouvait avant — un chemin plausible, pris pour le bon. `PathCopiedMsg` porte
+le chemin pour la ligne de log, seule à pouvoir nommer ce qu'on essayait de
+copier.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

@@ -299,7 +299,7 @@ package doc so it does not have to be rediscovered.
 `bubbles/viewport`'s own default `KeyMap` in the help overlay, which was
 scrolling on letters behind the application's back.
 
-**Free letters are declared too** (`H J Q Y Z`). A new action takes one of them;
+**Free letters are declared too** (`J Q Z`). A new action takes one of them;
 it does not invent a key, and `TestFreeLettersAreActuallyFree` stops the list
 going stale.
 

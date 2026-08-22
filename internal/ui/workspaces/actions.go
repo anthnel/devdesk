@@ -311,6 +311,33 @@ func (m Model) openInBrowser() (tea.Model, tea.Cmd) {
 	}
 }
 
+// copyPath puts the selected entry's absolute path on the system clipboard.
+//
+// It is the selected row and nothing else — no fallback to the browsed
+// directory, the way T and O have one. Those act on a place, so "here" is a
+// sensible answer when no row is selected; this one answers "what is that
+// row", and a copy that silently hands back the parent directory is a wrong
+// answer rather than a missing one. Rule 130 hides Y when there is no row.
+func (m Model) copyPath() (tea.Model, tea.Cmd) {
+	path, ok := m.copyTarget()
+	if !ok {
+		return m, nil
+	}
+	return m, copyPathCmd(path)
+}
+
+// copyTarget names what Y will put on the clipboard. It is split from copyPath
+// so a test can check which row was chosen without running the Cmd: running it
+// would write to the machine's real clipboard, which is neither the test's to
+// take nor available on a headless runner.
+func (m Model) copyTarget() (string, bool) {
+	entry, ok := m.selectedEntry()
+	if !ok {
+		return "", false
+	}
+	return entry.Path, true
+}
+
 // createWorkspace creates a new workspace directory
 func (m Model) createWorkspace(name string) tea.Cmd {
 	workspacesDir := m.getExpandedWorkspacesDir()
