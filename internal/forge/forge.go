@@ -75,14 +75,14 @@ type Forge interface {
 
 	// RootNamespaces lists the top-level namespaces the user can see — GitLab's
 	// top-level groups, GitHub's organisations. Complete, every page.
-	RootNamespaces(ctx context.Context) ([]Namespace, error)
+	RootNamespaces(ctx context.Context, opts BrowseOptions) ([]Namespace, error)
 
 	// Children lists one namespace's direct children, complete.
 	//
 	// Direct, not recursive: the explorer drills one level at a time and the
 	// clone walks levels itself, so a recursive listing would fetch what
 	// neither asked for.
-	Children(ctx context.Context, namespaceID string, opts ChildrenOptions) (Children, error)
+	Children(ctx context.Context, namespaceID string, opts BrowseOptions) (Children, error)
 
 	// CreateNamespace creates a namespace, optionally under a parent. A backend
 	// whose Shape refuses the requested depth returns an error rather than
