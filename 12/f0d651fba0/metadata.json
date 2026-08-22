@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "12f0d651fba0",
+  "strategy": "manual-commit",
+  "branch": "ws-copy-path",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/keymap/keymap.go",
+    "internal/ui/workspaces/actions.go",
+    "internal/ui/workspaces/commands.go",
+    "internal/ui/workspaces/copy_test.go",
+    "internal/ui/workspaces/messages.go",
+    "internal/ui/workspaces/update.go",
+    "internal/ui/workspaces/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/12/f0d651fba0/0/metadata.json",
+      "transcript": "/12/f0d651fba0/0/full.jsonl",
+      "compact_transcript": "/12/f0d651fba0/0/transcript.jsonl",
+      "content_hash": "/12/f0d651fba0/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 156,
+    "cache_creation_tokens": 198653,
+    "cache_read_tokens": 13617241,
+    "output_tokens": 30661,
+    "api_call_count": 78
+  }
+}
