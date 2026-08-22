@@ -80,9 +80,7 @@ func (a *App) resolveSecretBackend() {
 	// The GitLab session was authenticated against the previous store, so it no
 	// longer has a token behind it. Saying so beats a client that fails on its
 	// next call.
-	a.sharedState.GitLabClient = nil
-	a.sharedState.IsAuthenticated = false
-	a.sharedState.CurrentUser = nil
+	a.clearAuthenticated()
 
 	log.Printf("Secret backend for context %s resolved to %s", a.currentContext, selection.Backend)
 }
@@ -98,8 +96,5 @@ func (a *App) closeGitLabSession() {
 		return
 	}
 	log.Printf("GitLab URL changed; closing the session for context %s", a.currentContext)
-	a.sharedState.GitLabClient = nil
-	a.sharedState.IsAuthenticated = false
-	a.sharedState.CurrentUser = nil
-	a.sharedState.GitLabStats = nil
+	a.clearAuthenticated()
 }

@@ -8,10 +8,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/forge"
+	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
@@ -44,7 +45,9 @@ func authenticatedModel(t *testing.T) (Model, *shared.State) {
 	t.Helper()
 	m, state := newTestModel(t)
 	state.IsAuthenticated = true
-	state.CurrentUser = &gitlabclient.User{ID: 7, Username: "anthoni"}
+	state.CurrentUser = forge.User{ID: "7", Username: "anthoni"}
+	// The deep links are the forge's now, so a session means a backend too.
+	state.Forge = gitlabforge.NewWithClient(nil, "https://gitlab.example.com")
 	return m, state
 }
 
@@ -54,7 +57,7 @@ func loadedModel(t *testing.T) (Model, *shared.State) {
 	m, state := authenticatedModel(t)
 	m = feed(t, m,
 		StatusCheckMsg{Result: status.MonitorResult{Components: componentFixtures(), Timestamp: time.Now()}},
-		GitLabStatsMsg{Stats: shared.GitLabStats{AssignedMRs: 3, ReviewMRs: 2, AssignedIssues: 5, TotalProjects: 12, TotalGroups: 4}},
+		GitLabStatsMsg{Stats: forge.DashboardStats{AssignedChangeRequests: forge.Count(3), ReviewChangeRequests: forge.Count(2), AssignedIssues: forge.Count(5), Repositories: forge.Count(12), Namespaces: forge.Count(4)}},
 		DockerStatsMsg{Stats: shared.DockerStats{Available: true, Running: 2, Stopped: 1, Paused: 1}},
 		OCIStatsMsg{Stats: shared.OCIStats{Available: true, ImagesCount: 8, ImagesSize: "1.2GB", ContainersCount: 4, ContainersSize: "300MB", VolumesCount: 2, VolumesSize: "50MB", NetworksCount: 3}},
 		WorkspaceStatsMsg{Count: 6},
@@ -158,7 +161,7 @@ func TestInEditModeIsAlwaysFalse(t *testing.T) {
 func TestResultsArePublishedToSharedState(t *testing.T) {
 	m, state := loadedModel(t)
 
-	if state.GitLabStats == nil || state.GitLabStats.AssignedMRs != 3 {
+	if state.GitLabStats == nil || state.GitLabStats.AssignedChangeRequests == nil || *state.GitLabStats.AssignedChangeRequests != 3 {
 		t.Errorf("shared GitLabStats = %+v, want the fetched counts", state.GitLabStats)
 	}
 	if state.DockerStats == nil || state.DockerStats.Running != 2 {
@@ -720,7 +723,7 @@ func withNoDocker(t *testing.T) Model {
 	m, _ := newTestModel(t)
 	return feed(t, m,
 		StatusCheckMsg{Result: status.MonitorResult{Timestamp: time.Now()}},
-		GitLabStatsMsg{Stats: shared.GitLabStats{}},
+		GitLabStatsMsg{},
 		DockerStatsMsg{Stats: shared.DockerStats{Available: false}},
 		OCIStatsMsg{Stats: shared.OCIStats{Available: false}},
 		WorkspaceStatsMsg{Count: 0},

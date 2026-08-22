@@ -3,10 +3,10 @@ package auth
 import (
 	"log"
 
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
@@ -41,8 +41,10 @@ type Model struct {
 
 	currentField int
 
-	authenticated bool               // True si l'utilisateur est authentifié
-	user          *gitlabclient.User // Utilisateur actuellement authentifié
+	authenticated bool // True si l'utilisateur est authentifié
+	// user is the signed-in user, zero when there is none — m.authenticated is
+	// the flag, and a second way to ask is how the two came to disagree.
+	user forge.User
 
 	authenticating bool
 	spinner        spinner.Model
@@ -132,7 +134,7 @@ type CredentialsLoadedMsg struct {
 }
 
 // SetAuth configure l'authentification depuis l'extérieur (auto-login global)
-func (m *Model) SetAuth(client *gitlabclient.Client, user *gitlabclient.User) {
+func (m *Model) SetAuth(_ forge.Forge, user forge.User) {
 	m.authenticating = false
 	m.authenticated = true
 	m.user = user
@@ -147,8 +149,8 @@ type AuthStartMsg struct{}
 
 // AuthResultMsg contient le résultat de l'authentification
 type AuthResultMsg struct {
-	Client      *gitlabclient.Client
-	User        *gitlabclient.User
+	Forge       forge.Forge
+	User        forge.User
 	Error       error
 	SaveWarning string // Warning si la sauvegarde du secret a échoué
 

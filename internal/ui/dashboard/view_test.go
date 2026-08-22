@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
@@ -227,6 +228,51 @@ func TestSignedOutKeepsTheCodeBoxLabels(t *testing.T) {
 	}
 	if !strings.Contains(out, "not connected") {
 		t.Error("the Code box does not report the missing session")
+	}
+}
+
+// D52: a counter that could not be read prints `-`, not `0`.
+//
+// The five come from five independent requests and any of them can fail on its
+// own — a token whose scope does not cover issues, a rate limit, an endpoint
+// that is down. A `0` there says "you have no merge requests assigned", which
+// is a different sentence from "nobody could find out", and the dashboard used
+// to say the first for both.
+func TestACounterThatCouldNotBeReadPrintsADash(t *testing.T) {
+	m, _ := authenticatedModel(t)
+	m = feed(t, m, GitLabStatsMsg{Stats: forge.DashboardStats{
+		AssignedChangeRequests: forge.Count(3),
+		// ReviewChangeRequests and AssignedIssues stayed nil: their requests
+		// failed.
+		Repositories: forge.Count(0),
+	}})
+
+	out := plain(strings.Join(renderCodeSection(m, 40, tierStandard), "\n"))
+
+	if !strings.Contains(out, "3 assigned") {
+		t.Errorf("the counter that was read is missing: %q", out)
+	}
+	if !strings.Contains(out, "- to review") {
+		t.Errorf("a counter nobody could read did not print a dash: %q", out)
+	}
+	if strings.Contains(out, "0 to review") {
+		t.Errorf("a counter nobody could read printed 0, which reads as an answer: %q", out)
+	}
+}
+
+// The other half of the same rule: a counter that *was* read and came back zero
+// is an answer, and prints as one.
+func TestACountedZeroStillPrintsZero(t *testing.T) {
+	m, _ := authenticatedModel(t)
+	m = feed(t, m, GitLabStatsMsg{Stats: forge.DashboardStats{
+		AssignedChangeRequests: forge.Count(0),
+		ReviewChangeRequests:   forge.Count(0),
+		AssignedIssues:         forge.Count(0),
+	}})
+
+	out := plain(strings.Join(renderCodeSection(m, 40, tierStandard), "\n"))
+	if !strings.Contains(out, "0 assigned") {
+		t.Errorf("a counted zero did not print 0: %q", out)
 	}
 }
 

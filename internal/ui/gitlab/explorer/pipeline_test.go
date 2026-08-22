@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/anthnel/devdesk/internal/forge"
+	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 )
 
 // The pipeline is run for real against throwaway git repositories and a
@@ -86,10 +89,14 @@ func endedFor(events []cloneEvent, path string) (cloneEvent, bool) {
 	return cloneEvent{}, false
 }
 
+// baseSpec points the run at a local git server. The backend is built with no
+// client on purpose: the pipeline only asks it for a clone URL, which needs the
+// host and nothing else.
 func baseSpec(remotes, target string) cloneSpec {
 	return cloneSpec{
+		backend:     gitlabforge.NewWithClient(nil, remotes),
 		target:      target,
-		cloneMethod: "https",
+		cloneMethod: forge.CloneHTTPS,
 		gitlabURL:   remotes,
 		jobs:        2,
 	}
@@ -235,12 +242,13 @@ func TestThePipelineWalksAGroupAndMirrorsIt(t *testing.T) {
 		"/api/v4/groups/2/subgroups": `[]`,
 		"/api/v4/groups/2/projects":  `[{"id":12,"name":"CLI","path_with_namespace":"infra/tools/cli"}]`,
 	})
-	m := serverModel(t, f)
-
 	spec := baseSpec(remotes, target)
-	spec.client = m.shared.GitLabClient
+	// The walk talks to the fake API, the clones read a local path. The backend
+	// takes the client and the host separately, which is what lets one value
+	// serve both here.
+	spec.backend = gitlabforge.NewWithClient(apiClient(t, f), remotes)
 	spec.selection = selecting("infra")
-	spec.roots = []*TreeNode{{ID: 1, Name: "Infra", FullPath: "infra", Type: NodeTypeGroup}}
+	spec.roots = []*TreeNode{{ID: "1", Name: "Infra", FullPath: "infra", Type: NodeTypeGroup}}
 
 	events := collect(t, startCloneRun(spec))
 
@@ -268,15 +276,16 @@ func TestAnExcludedSubtreeIsNeverWalked(t *testing.T) {
 		"/api/v4/groups/2/subgroups": `[]`,
 		"/api/v4/groups/2/projects":  `[{"id":12,"name":"Old","path_with_namespace":"infra/legacy/old"}]`,
 	})
-	m := serverModel(t, f)
-
 	selection := selecting("infra")
 	selection.toggle("infra/legacy") // drilled in, unticked
 
 	spec := baseSpec(remotes, target)
-	spec.client = m.shared.GitLabClient
+	// The walk talks to the fake API, the clones read a local path. The backend
+	// takes the client and the host separately, which is what lets one value
+	// serve both here.
+	spec.backend = gitlabforge.NewWithClient(apiClient(t, f), remotes)
 	spec.selection = selection
-	spec.roots = []*TreeNode{{ID: 1, FullPath: "infra", Type: NodeTypeGroup}}
+	spec.roots = []*TreeNode{{ID: "1", FullPath: "infra", Type: NodeTypeGroup}}
 
 	events := collect(t, startCloneRun(spec))
 
@@ -300,9 +309,9 @@ func TestAFailedWalkIsReported(t *testing.T) {
 	m := serverModel(t, newFakeGitLab(t, nil)) // everything 404s
 
 	spec := baseSpec("https://gl", t.TempDir())
-	spec.client = m.shared.GitLabClient
+	spec.backend = m.shared.Forge
 	spec.selection = selecting("infra")
-	spec.roots = []*TreeNode{{ID: 1, FullPath: "infra", Type: NodeTypeGroup}}
+	spec.roots = []*TreeNode{{ID: "1", FullPath: "infra", Type: NodeTypeGroup}}
 
 	events := collect(t, startCloneRun(spec))
 
@@ -323,9 +332,9 @@ func TestTheWalkLeavesTheTreeAlone(t *testing.T) {
 	})
 	m := serverModel(t, f)
 
-	root := &TreeNode{ID: 1, FullPath: "infra", Type: NodeTypeGroup} // Children nil
+	root := &TreeNode{ID: "1", FullPath: "infra", Type: NodeTypeGroup} // Children nil
 	spec := baseSpec(t.TempDir(), t.TempDir())
-	spec.client = m.shared.GitLabClient
+	spec.backend = m.shared.Forge
 	spec.selection = selecting("infra")
 	spec.roots = []*TreeNode{root}
 
@@ -344,9 +353,9 @@ func TestCancellingEndsTheRun(t *testing.T) {
 	m := serverModel(t, newFakeGitLab(t, nil))
 
 	spec := baseSpec("https://gl", t.TempDir())
-	spec.client = m.shared.GitLabClient
+	spec.backend = m.shared.Forge
 	spec.selection = selecting("infra")
-	spec.roots = []*TreeNode{{ID: 1, FullPath: "infra", Type: NodeTypeGroup}}
+	spec.roots = []*TreeNode{{ID: "1", FullPath: "infra", Type: NodeTypeGroup}}
 
 	run := startCloneRun(spec)
 	run.cancel()
@@ -355,29 +364,3 @@ func TestCancellingEndsTheRun(t *testing.T) {
 }
 
 // ── URLs ─────────────────────────────────────────────────────────────────────
-
-// The clone method decides the URL shape. SSH takes the host alone, so the
-// scheme has to come off, and a trailing slash on the configured URL must not
-// produce a double slash in the HTTPS form.
-func TestCloneURL(t *testing.T) {
-	tests := []struct {
-		name      string
-		gitlabURL string
-		method    string
-		want      string
-	}{
-		{"https", "https://gl.example.com", "https", "https://gl.example.com/infra/api.git"},
-		{"https with a trailing slash", "https://gl.example.com/", "https", "https://gl.example.com/infra/api.git"},
-		{"an unset method defaults to https", "https://gl.example.com", "", "https://gl.example.com/infra/api.git"},
-		{"ssh", "https://gl.example.com", "ssh", "git@gl.example.com:infra/api.git"},
-		{"ssh over plain http", "http://gl.example.com/", "ssh", "git@gl.example.com:infra/api.git"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := cloneURL(tt.gitlabURL, tt.method, "infra/api"); got != tt.want {
-				t.Errorf("cloneURL() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}

@@ -74,16 +74,16 @@ func renderCodeSection(m Model, width int, t tier) []string {
 	// endroit sur toutes les lignes, ce qu'une icône en tête décale d'un cran
 	// sur les seules lignes qui en portent une.
 	sessionLine := theme.DimStyle.Render("not connected") + theme.Bg("  ") + theme.DimStyle.Render(theme.IconError)
-	if m.shared.IsAuthenticated && m.shared.CurrentUser != nil {
+	if m.shared.IsAuthenticated {
 		sessionLine = theme.PrimaryColorStyle.Bold(true).Render(m.shared.CurrentUser.Username) +
 			theme.Bg("  ") + theme.StatusOKStyle.Render(theme.IconOK)
 	}
 
 	mrs, review, issues := unknownValue(), unknownValue(), unknownValue()
 	if m.gitlabStats != nil {
-		mrs = countValue(m.gitlabStats.AssignedMRs)
-		review = countValue(m.gitlabStats.ReviewMRs)
-		issues = countValue(m.gitlabStats.AssignedIssues)
+		mrs = maybeCountValue(m.gitlabStats.AssignedChangeRequests)
+		review = maybeCountValue(m.gitlabStats.ReviewChangeRequests)
+		issues = maybeCountValue(m.gitlabStats.AssignedIssues)
 	}
 
 	workspaces := unknownValue()
@@ -948,6 +948,20 @@ func rowAt(column int, label, value string) string {
 
 // countValue renders a measured count: a zero informs no one, so it stays dim
 // and the colour is spent on what is worth spotting (Rule 122's discipline).
+// maybeCountValue renders a counter that may not have been read (D52).
+//
+// The five come from five independent requests, and the one that fails leaves
+// nil. Rendering it as `0` — which is what an int forced — says "you have no
+// merge requests assigned" for a token whose scope does not cover them. `-` is
+// what the section already shows before the counters arrive, and it means the
+// same thing here: nobody knows.
+func maybeCountValue(n *int) string {
+	if n == nil {
+		return unknownValue()
+	}
+	return countValue(*n)
+}
+
 func countValue(n int) string {
 	if n > 0 {
 		return theme.PrimaryColorStyle.Bold(true).Render(fmt.Sprintf("%d", n))

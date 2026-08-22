@@ -166,8 +166,8 @@ func (a *App) newAuthView() tea.Model {
 	log.Printf("Creating GitLab auth view with context: %s", a.currentContext)
 
 	authView := auth.New(a.config, a.sharedState.Secrets, a.sharedState.SecretNotices)
-	if a.sharedState.GitLabClient != nil && a.sharedState.CurrentUser != nil {
-		authView.SetAuth(a.sharedState.GitLabClient, a.sharedState.CurrentUser)
+	if a.sharedState.IsAuthenticated {
+		authView.SetAuth(a.sharedState.Forge, a.sharedState.CurrentUser)
 	}
 	return authView
 }

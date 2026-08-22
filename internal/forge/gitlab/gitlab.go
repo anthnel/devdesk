@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
@@ -28,6 +29,11 @@ import (
 // Forge is a GitLab instance, bound to one host and one token.
 type Forge struct {
 	client *gitlabclient.Client
+	// mu guards user, the memoised answer to CurrentUser. The clone pipeline
+	// calls into the backend from several goroutines, so this is a real race
+	// rather than a theoretical one.
+	mu   sync.Mutex
+	user *forge.User
 	// baseURL is the host as the user configured it, trailing slash removed.
 	// The SDK holds its own API base; this one builds clone URLs and web links,
 	// which are not API paths.
@@ -71,16 +77,33 @@ func (f *Forge) Shape() forge.Shape {
 }
 
 // CurrentUser is who the token belongs to, and the connection test with it.
+// It is memoised, and that is not an optimisation. Every decorated listing
+// needs the caller's id for its role lookups; asking the host each time would
+// add one request per listing that the pre-abstraction code did not make,
+// because it took the id from a session the view was already holding. Who a
+// token belongs to does not change for the life of a session.
 func (f *Forge) CurrentUser(ctx context.Context) (forge.User, error) {
+	f.mu.Lock()
+	if f.user != nil {
+		defer f.mu.Unlock()
+		return *f.user, nil
+	}
+	f.mu.Unlock()
+
 	user, _, err := f.client.Users.CurrentUser(gitlabclient.WithContext(ctx))
 	if err != nil {
 		return forge.User{}, err
 	}
-	return forge.User{
+	resolved := forge.User{
 		ID:       fmt.Sprint(user.ID),
 		Username: user.Username,
 		Name:     user.Name,
-	}, nil
+	}
+
+	f.mu.Lock()
+	f.user = &resolved
+	f.mu.Unlock()
+	return resolved, nil
 }
 
 // CloneURL builds the git URL. No network and no token: the token travels

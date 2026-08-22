@@ -1,20 +1,10 @@
 package shared
 
 import (
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
-
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/status"
 )
-
-// GitLabStats contains aggregated GitLab statistics for the dashboard
-type GitLabStats struct {
-	AssignedMRs    int
-	ReviewMRs      int
-	AssignedIssues int
-	TotalProjects  int
-	TotalGroups    int
-}
 
 // DockerStats contains Docker container statistics for the dashboard
 type DockerStats struct {
@@ -70,10 +60,20 @@ type State struct {
 	Secrets       credentials.Selection
 	SecretNotices []string
 
-	// GitLab
-	GitLabClient    *gitlabclient.Client
+	// Forge is the code-hosting backend this context targets — exactly one,
+	// never two (§3.6). Nil until a session opens.
+	//
+	// It used to be a *gitlabclient.Client, which bound every consumer to
+	// go-gitlab rather than to a DevDesk abstraction, and doubled as the
+	// authentication flag: three sites branched on `GitLabClient != nil` while
+	// IsAuthenticated sat beside them saying the same thing. IsAuthenticated is
+	// the flag; Forge is what you call.
+	Forge           forge.Forge
 	IsAuthenticated bool
-	CurrentUser     *gitlabclient.User
+	// CurrentUser is a value, not a pointer: IsAuthenticated already answers
+	// "is there a session", and a second way to ask it is how the two came to
+	// disagree.
+	CurrentUser forge.User
 
 	// There is no groups/projects cache here, and that is a decision rather
 	// than an omission (D36). `CachedGroups` and `CachedProjects` were declared
@@ -96,9 +96,12 @@ type State struct {
 	// Dashboard data
 	ServiceStatus     ServiceGlobalStatus
 	ServiceComponents []status.ComponentStatus
-	GitLabStats       *GitLabStats
-	DockerStats       *DockerStats
-	OCIStats          *OCIStats
-	WorkspaceCount    int
-	Tools             []ToolInfo
+	// GitLabStats are the dashboard's forge counters, nil until they are
+	// fetched. It was a struct of its own here, field for field identical to
+	// what internal/gitlab returned — a third copy of the same five numbers.
+	GitLabStats    *forge.DashboardStats
+	DockerStats    *DockerStats
+	OCIStats       *OCIStats
+	WorkspaceCount int
+	Tools          []ToolInfo
 }

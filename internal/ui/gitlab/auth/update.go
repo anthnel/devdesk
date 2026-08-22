@@ -1,19 +1,19 @@
 package auth
 
 import (
+	"context"
 	"log"
 
+	"github.com/anthnel/devdesk/internal/forge"
+	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
-
-	gitlabpkg "github.com/anthnel/devdesk/internal/gitlab"
 )
 
 // GitLabAuthSuccessMsg est le message d'authentification réussie (venant de app.go)
 type GitLabAuthSuccessMsg struct {
-	Client *gitlabclient.Client
-	User   *gitlabclient.User
+	Forge forge.Forge
+	User  forge.User
 }
 
 // Update gère les mises à jour
@@ -101,7 +101,7 @@ func (m *Model) handleInputUpdate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleAuthResult traite le résultat d'authentification
 func (m *Model) handleAuthResult(msg AuthResultMsg) (tea.Model, tea.Cmd) {
-	log.Printf("AUTH: AuthResultMsg received (Error: %v, User: %v)", msg.Error, msg.User != nil)
+	log.Printf("AUTH: AuthResultMsg received (Error: %v, User: %q)", msg.Error, msg.User.Username)
 	m.authenticating = false
 	if msg.Error != nil {
 		log.Printf("AUTH: Authentication failed: %v", msg.Error)
@@ -148,7 +148,7 @@ func (m *Model) handleGitLabAuthSuccess(msg GitLabAuthSuccessMsg) (tea.Model, te
 // handleLogoutComplete réinitialise l'état après logout
 func (m *Model) handleLogoutComplete() (tea.Model, tea.Cmd) {
 	m.authenticated = false
-	m.user = nil
+	m.user = forge.User{}
 	m.currentField = fieldToken
 	m.tokenInput.SetValue("")
 	m.error = ""
@@ -208,23 +208,19 @@ func (m *Model) authenticate() tea.Cmd {
 	// Commande asynchrone
 	return func() tea.Msg {
 		// Créer l'auth
-		auth := gitlabpkg.NewAuth(storage)
+		auth := gitlabforge.NewAuth(storage)
 
 		// Il n'y a plus de choix : le token part vers le store, toujours.
-		result, err := auth.Authenticate(url, token)
+		result, err := auth.Authenticate(context.Background(), url, token)
 		if err != nil {
-			return AuthResultMsg{
-				Client: nil,
-				User:   nil,
-				Error:  err,
-			}
+			return AuthResultMsg{Error: err}
 		}
 
 		// Nothing to save: the URL came from the configuration and the token is
 		// already in the store. ConfigToSave is kept so the router's handler is
 		// unchanged, but it carries no edit of this view's making.
 		return AuthResultMsg{
-			Client:       result.Client,
+			Forge:        result.Forge,
 			User:         result.User,
 			Error:        nil,
 			SaveWarning:  result.SaveWarning,
@@ -241,7 +237,7 @@ func (m *Model) logout() tea.Cmd {
 	// Commande asynchrone
 	return func() tea.Msg {
 		// Créer l'auth
-		auth := gitlabpkg.NewAuth(storage)
+		auth := gitlabforge.NewAuth(storage)
 
 		// Supprimer les credentials du storage
 		_ = auth.Logout(url) // Ignorer l'erreur, on déconnecte quand même

@@ -1,26 +1,27 @@
 package app
 
 import (
+	"context"
 	"log"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
-	"github.com/anthnel/devdesk/internal/gitlab"
+	"github.com/anthnel/devdesk/internal/forge"
+	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ContextSwitchCompleteMsg signale le succès du switch de contexte
 type ContextSwitchCompleteMsg struct {
-	ContextName  string
-	Config       *config.Config
-	Created      bool // true si le contexte a été créé automatiquement
-	GitLabClient *gitlabclient.Client
-	GitLabUser   *gitlabclient.User
+	ContextName string
+	Config      *config.Config
+	Created     bool // true si le contexte a été créé automatiquement
+	Forge       forge.Forge
+	GitLabUser  forge.User
 
 	// Secrets is the store resolved for the new context, and Notices what the
 	// migration off plaintext had to say. Both are carried in the message
@@ -56,17 +57,17 @@ func (a *App) switchContext(contextName string) tea.Cmd {
 		secrets := credentials.Select(contextName, cfg.App.SecretBackend)
 		notices := credentials.MigrateLegacySecrets(secrets.Storage, contextName)
 
-		glClient, glUser := autoLoginForContext(contextName, cfg, secrets.Storage)
+		backend, user := autoLoginForContext(contextName, cfg, secrets.Storage)
 
 		log.Printf("Context switch successful: %s (created: %v, secrets: %s)", contextName, created, secrets.Backend)
 		return ContextSwitchCompleteMsg{
-			ContextName:  contextName,
-			Config:       cfg,
-			Created:      created,
-			GitLabClient: glClient,
-			GitLabUser:   glUser,
-			Secrets:      secrets,
-			Notices:      notices,
+			ContextName: contextName,
+			Config:      cfg,
+			Created:     created,
+			Forge:       backend,
+			GitLabUser:  user,
+			Secrets:     secrets,
+			Notices:     notices,
 		}
 	}
 }
@@ -112,25 +113,25 @@ func loadOrCreateContext(contextName string) (*config.Config, bool, error) {
 
 // autoLoginForContext tries the new context's own credentials. A failure is not
 // an error: the user is sent to the auth view instead.
-func autoLoginForContext(contextName string, cfg *config.Config, storage credentials.Storage) (*gitlabclient.Client, *gitlabclient.User) {
+func autoLoginForContext(contextName string, cfg *config.Config, storage credentials.Storage) (forge.Forge, forge.User) {
 	if cfg.GitLab.URL == "" {
-		return nil, nil
+		return nil, forge.User{}
 	}
 
-	gitlabAuth := gitlab.NewAuth(storage)
+	auth := gitlabforge.NewAuth(storage)
 
-	token, err := gitlabAuth.LoadCredentials(cfg.GitLab.URL)
+	token, err := auth.LoadCredentials(cfg.GitLab.URL)
 	if err != nil || token == "" {
-		return nil, nil
+		return nil, forge.User{}
 	}
 
-	result, err := gitlabAuth.AuthenticateOnly(cfg.GitLab.URL, token)
+	result, err := auth.AuthenticateOnly(context.Background(), cfg.GitLab.URL, token)
 	if err != nil {
 		log.Printf("Auto-login failed for context '%s': %v", contextName, err)
-		return nil, nil
+		return nil, forge.User{}
 	}
 	log.Printf("Auto-login successful for context '%s': %s", contextName, result.User.Username)
-	return result.Client, result.User
+	return result.Forge, result.User
 }
 
 // listContexts retrieves available contexts
@@ -161,16 +162,11 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 	a.sharedState.SecretNotices = msg.Notices
 
 	// Reset GitLab auth state — the new context has its own credentials
-	a.sharedState.GitLabClient = nil
-	a.sharedState.IsAuthenticated = false
-	a.sharedState.CurrentUser = nil
-	a.sharedState.GitLabStats = nil
+	a.clearAuthenticated()
 
 	// Apply auto-login result from the context switch if successful
-	if msg.GitLabClient != nil && msg.GitLabUser != nil {
-		a.sharedState.GitLabClient = msg.GitLabClient
-		a.sharedState.CurrentUser = msg.GitLabUser
-		a.sharedState.IsAuthenticated = true
+	if msg.Forge != nil {
+		a.setAuthenticated(msg.Forge, msg.GitLabUser)
 	} else {
 		// No credentials available — navigate to auth view for manual login
 		a.currentView = command.ViewGitlabAuth

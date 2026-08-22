@@ -1,14 +1,14 @@
 package explorer
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
-	"github.com/anthnel/devdesk/internal/gitlab"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
@@ -19,7 +19,7 @@ func (m Model) handleCreateResource() (tea.Model, tea.Cmd) {
 	// Use the currently browsed group as parent, not the selected item.
 	// currentGroupNode is nil at root level.
 	parentName := ""
-	var parentID int64 = 0
+	parentID := ""
 
 	if m.currentGroupNode != nil {
 		parentName = m.currentGroupNode.FullPath
@@ -108,9 +108,8 @@ func (m Model) handleCreationSubmit(msg components.CreationFormSubmitMsg) (tea.M
 	m.mode = ModeNormal
 	m.creationForm = nil
 
-	client := m.shared.GitLabClient
-	if client == nil {
-		m.error = "GitLab client not initialized"
+	if m.shared.Forge == nil {
+		m.error = "Not connected to a forge"
 		return m, nil
 	}
 
@@ -122,31 +121,39 @@ func (m Model) handleCreationSubmit(msg components.CreationFormSubmitMsg) (tea.M
 
 // createGroup creates a new GitLab group
 func (m Model) createGroup(msg components.CreationFormSubmitMsg) tea.Cmd {
-	client := m.shared.GitLabClient
-	name := msg.Name
-	description := msg.Description
-	visibility := msg.Visibility
-	parentID := msg.ParentID
+	backend := m.shared.Forge
+	spec := forge.NewNamespace{
+		Name:        msg.Name,
+		Slug:        slugify(msg.Name),
+		Description: msg.Description,
+		Visibility:  msg.Visibility,
+		ParentID:    msg.ParentID,
+	}
 
 	return func() tea.Msg {
-		// Use name as path (slug)
-		path := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-
-		group, err := gitlab.CreateGroup(client, name, path, description, visibility, parentID)
+		ns, err := backend.CreateNamespace(context.Background(), spec)
 		if err != nil {
 			return GroupCreatedMsg{Error: err}
 		}
-		return GroupCreatedMsg{Group: group}
+		return GroupCreatedMsg{Namespace: ns}
 	}
+}
+
+// slugify turns a display name into the path segment a forge wants.
+func slugify(name string) string {
+	return strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 }
 
 // createProject creates a new GitLab project and optionally applies a template
 func (m Model) createProject(msg components.CreationFormSubmitMsg) tea.Cmd {
-	client := m.shared.GitLabClient
-	name := msg.Name
-	description := msg.Description
-	visibility := msg.Visibility
-	namespaceID := msg.ParentID
+	backend := m.shared.Forge
+	spec := forge.NewRepository{
+		Name:        msg.Name,
+		Slug:        slugify(msg.Name),
+		Description: msg.Description,
+		Visibility:  msg.Visibility,
+		NamespaceID: msg.ParentID,
+	}
 	registryURL := m.config.Registry.URL
 	username := m.config.Registry.Username
 	password := m.registryPassword()
@@ -164,29 +171,26 @@ func (m Model) createProject(msg components.CreationFormSubmitMsg) tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		// Use name as path (slug)
-		path := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-
-		project, err := gitlab.CreateProject(client, name, path, description, visibility, namespaceID)
+		repo, err := backend.CreateRepository(context.Background(), spec)
 		if err != nil {
 			return ProjectCreatedMsg{Error: err}
 		}
 
 		// Apply template if one was selected and resolved
 		if templateRepo != "" {
-			templateErr := applyTemplate(client, int(project.ID), registryURL, username, password, templateRepo, templateTag)
+			templateErr := applyTemplate(backend, repo.ID, registryURL, username, password, templateRepo, templateTag)
 			if templateErr != nil {
-				return ProjectCreatedMsg{Project: project, TemplateError: templateErr}
+				return ProjectCreatedMsg{Repository: repo, TemplateError: templateErr}
 			}
 		}
 
-		return ProjectCreatedMsg{Project: project}
+		return ProjectCreatedMsg{Repository: repo}
 	}
 }
 
 // applyTemplate downloads an OCI template and commits its files to the project.
 // This is a standalone function (not a method) because it runs inside a goroutine.
-func applyTemplate(client *gitlabclient.Client, projectID int, registryURL, username, password, repository, tag string) error {
+func applyTemplate(backend forge.Forge, repositoryID string, registryURL, username, password, repository, tag string) error {
 	ociClient := oci.NewClient(registryURL, username, password)
 
 	tmpl, err := ociClient.DownloadTemplate(repository, tag)
@@ -195,20 +199,20 @@ func applyTemplate(client *gitlabclient.Client, projectID int, registryURL, user
 	}
 
 	// Convert template files to commit actions
-	actions := make([]gitlab.CommitAction, 0, len(tmpl.Files))
+	files := make([]forge.FileChange, 0, len(tmpl.Files))
 	for filePath, content := range tmpl.Files {
-		actions = append(actions, gitlab.CommitAction{
-			Action:   "create",
-			FilePath: filePath,
-			Content:  content,
+		files = append(files, forge.FileChange{
+			Action:  forge.FileCreate,
+			Path:    filePath,
+			Content: content,
 		})
 	}
 
-	if len(actions) == 0 {
+	if len(files) == 0 {
 		return nil
 	}
 
-	return gitlab.InitializeProjectWithFiles(client, projectID, actions)
+	return backend.InitialCommit(context.Background(), repositoryID, files)
 }
 
 // handleGroupCreated handles GroupCreatedMsg
@@ -218,9 +222,7 @@ func (m Model) handleGroupCreated(msg GroupCreatedMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	// Store path to select after refresh
-	if msg.Group != nil {
-		m.pendingSelectPath = msg.Group.FullPath
-	}
+	m.pendingSelectPath = msg.Namespace.Path
 	// Refresh tree to show new group
 	return m.handleRefresh()
 }
@@ -239,9 +241,7 @@ func (m Model) handleProjectCreated(msg ProjectCreatedMsg) (tea.Model, tea.Cmd) 
 	}
 
 	// Store path to select after refresh
-	if msg.Project != nil {
-		m.pendingSelectPath = msg.Project.PathWithNamespace
-	}
+	m.pendingSelectPath = msg.Repository.Path
 	// Refresh tree to show new project (even if template failed)
 	return m.handleRefresh()
 }

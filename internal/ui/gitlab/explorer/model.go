@@ -68,7 +68,7 @@ type Model struct {
 	// Creation mode state
 	creationForm       *components.CreationForm
 	creationParentName string              // Parent stashed during template loading
-	creationParentID   int64               // Parent ID stashed during template loading
+	creationParentID   string              // Parent ID stashed during template loading
 	templateEntries    []oci.TemplateEntry // Loaded template entries for repo+tag resolution
 
 	// Tab navigation
@@ -109,7 +109,7 @@ func New(cfg *config.Config, sharedState *shared.State) Model {
 // Init initialise le modèle
 func (m Model) Init() tea.Cmd {
 	// Charger les groupes racine au démarrage
-	if m.shared.GitLabClient != nil {
+	if m.shared.IsAuthenticated {
 		m.loading = true
 		return tea.Batch(m.spinner.Tick, m.loadRootGroups())
 	}

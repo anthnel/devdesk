@@ -80,7 +80,7 @@ func TestLoadErrorStopsTheSpinner(t *testing.T) {
 // A failure while drilling into a group must also release that group's own
 // spinner, or the row keeps a permanent loading marker.
 func TestLoadErrorReleasesTheParentNode(t *testing.T) {
-	parent := &TreeNode{ID: 1, Name: "alpha", Type: NodeTypeGroup, Loading: true}
+	parent := &TreeNode{ID: "1", Name: "alpha", Type: NodeTypeGroup, Loading: true}
 
 	feed(t, newTestModel(t), LoadErrorMsg{Error: errors.New("boom"), ParentNode: parent})
 
@@ -400,7 +400,7 @@ func TestDrillingIntoASmallerGroupClampsTheCursor(t *testing.T) {
 	m = feed(t, m, testutil.Key("right"))
 	m = feed(t, m, ChildrenLoadedMsg{
 		ParentNode: m.currentGroupNode,
-		Children:   []*TreeNode{{ID: 90, Name: "only", FullPath: "gamma/only", Type: NodeTypeProject}},
+		Children:   []*TreeNode{{ID: "90", Name: "only", FullPath: "gamma/only", Type: NodeTypeProject}},
 	})
 
 	if got := m.table.Cursor(); got >= len(m.table.Table().Rows()) {
@@ -430,16 +430,16 @@ func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 // case, and the highlighted row may be a project.
 func TestCreateParentsOnTheBrowsedGroup(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
-	if m.creationParentID != 0 || m.creationParentName != "" {
-		t.Errorf("at the root, parent = (%d, %q), want none", m.creationParentID, m.creationParentName)
+	if m.creationParentID != "" || m.creationParentName != "" {
+		t.Errorf("at the root, parent = (%q, %q), want none", m.creationParentID, m.creationParentName)
 	}
 	if m.mode != ModeLoadingTemplates {
 		t.Errorf("mode = %v after ctrl+n, want ModeLoadingTemplates", m.mode)
 	}
 
 	m = feed(t, drilledModel(t), testutil.Key("down"), testutil.Key(keymap.New))
-	if m.creationParentID != 1 || m.creationParentName != "alpha" {
-		t.Errorf("inside alpha, parent = (%d, %q), want alpha regardless of the cursor", m.creationParentID, m.creationParentName)
+	if m.creationParentID != "1" || m.creationParentName != "alpha" {
+		t.Errorf("inside alpha, parent = (%q, %q), want alpha regardless of the cursor", m.creationParentID, m.creationParentName)
 	}
 }
 
@@ -500,7 +500,7 @@ func TestCancellingCreationReturnsToNormal(t *testing.T) {
 // A created resource is selected after the refresh, so the user sees what they
 // just made instead of having to hunt for it.
 func TestCreationSchedulesASelection(t *testing.T) {
-	m := feed(t, loadedModel(t), GroupCreatedMsg{Group: newGroup(7, "alpha/new")})
+	m := feed(t, loadedModel(t), GroupCreatedMsg{Namespace: newGroup(7, "alpha/new")})
 
 	if m.pendingSelectPath != "alpha/new" {
 		t.Errorf("pendingSelectPath = %q after creating a group", m.pendingSelectPath)
@@ -525,7 +525,7 @@ func TestCreationFailureIsReported(t *testing.T) {
 // the message has to say both things.
 func TestProjectCreatedWithAFailedTemplateStillRefreshes(t *testing.T) {
 	m := feed(t, loadedModel(t), ProjectCreatedMsg{
-		Project:       newProject(9, "alpha/svc"),
+		Repository:    newProject(9, "alpha/svc"),
 		TemplateError: errors.New("download template: 404"),
 	})
 
@@ -565,10 +565,10 @@ func TestCreationSubmitWithoutAClientReports(t *testing.T) {
 	m, cmd := step(t, m, components.CreationFormSubmitMsg{FormType: components.FormTypeGroup, Name: "x"})
 
 	if cmd != nil {
-		t.Errorf("submitting without a client issued %T", testutil.Msg(cmd))
+		t.Errorf("submitting with no forge issued %T", testutil.Msg(cmd))
 	}
-	if !strings.Contains(m.error, "not initialized") {
-		t.Errorf("error = %q, want it to name the missing client", m.error)
+	if !strings.Contains(m.error, "Not connected") {
+		t.Errorf("error = %q, want it to name the missing session", m.error)
 	}
 }
 
@@ -1186,24 +1186,6 @@ func TestNodeSlugTakesTheLastSegment(t *testing.T) {
 	for path, want := range tests {
 		if got := nodeSlug(path); got != want {
 			t.Errorf("nodeSlug(%q) = %q, want %q", path, got, want)
-		}
-	}
-}
-
-func TestAccessLevelNames(t *testing.T) {
-	tests := []struct {
-		level int
-		want  string
-	}{
-		{50, "Owner"}, {60, "Owner"},
-		{40, "Maintainer"}, {30, "Developer"},
-		{20, "Reporter"}, {10, "Guest"},
-		{0, ""}, {5, ""},
-	}
-	for _, tt := range tests {
-		node := &TreeNode{AccessLevel: tt.level}
-		if got := node.AccessLevelName(); got != tt.want {
-			t.Errorf("AccessLevelName(%d) = %q, want %q", tt.level, got, tt.want)
 		}
 	}
 }

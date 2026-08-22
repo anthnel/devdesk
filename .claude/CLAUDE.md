@@ -523,10 +523,23 @@ the kind is not a group.
 
 **A session is set and cleared by the router, both ways.** `setAuthenticated`
 and `clearAuthenticated` in `internal/app/gitlab.go` are mirrors, and every
-GitLab-backed view reads `sharedState` rather than holding its own answer. A
-view resetting only its own fields is what D28 was: logging out left
-`GitLabClient` and `CurrentUser` in place, so the explorer kept browsing and the
-header kept naming a signed-out user.
+forge-backed view reads `sharedState` rather than holding its own answer. A
+view resetting only its own fields is what D28 was: logging out left the client
+and the user in place, so the explorer kept browsing and the header kept naming
+a signed-out user.
+
+**`clearAuthenticated` is the only place a session is torn down.** Three sites
+used to write the same three or four fields by hand — the secret-backend change,
+the GitLab-URL change and the context switch — which is the shape D28 came in.
+They call it now.
+
+**`IsAuthenticated` is the flag, and `Forge` is what you call.** The client used
+to be both: `GitLabClient != nil` decided "is the user logged in" at three sites
+while `IsAuthenticated` sat beside them saying the same thing. `CurrentUser` is
+a value rather than a pointer for the same reason — a second way to ask a
+question is how two answers come to disagree. The header shows the user when
+there **is** a username, not when the flag is set, so a session whose user could
+not be read does not print a bare `@`.
 
 Clearing `sharedState` does not empty a table a view already loaded, so a
 session ending also drops the views — all but the one on screen that reported
@@ -535,11 +548,54 @@ it.
 
 `internal/shared/state.go` holds cross-view data injected at view creation:
 - `Secrets`, `SecretNotices` — the context's secret store and what the migration off plaintext reported
-- `GitLabClient`, `IsAuthenticated`, `CurrentUser` — GitLab session
+- `Forge`, `IsAuthenticated`, `CurrentUser` — the forge session (§3.6)
 - `CachedGroups`, `CachedProjects` — GitLab data cache
-- `GitLabStats`, `DockerStats`, `OCIStats` — Dashboard counters
+- `GitLabStats`, `DockerStats`, `OCIStats` — Dashboard counters. `GitLabStats`
+  is a `*forge.DashboardStats`, whose five counters are each a `*int`: `nil`
+  means nobody could read it, and the dashboard prints `-` rather than the `0`
+  that read as "you have none" (D52)
 - `ServiceStatus`, `ServiceComponents` — Status monitoring results
 - `WorkspaceCount`, `Tools []ToolInfo` — Tool availability (Trivy, Gitleaks, Docker)
+
+### The forge abstraction — `internal/forge`
+
+What DevDesk asks of a code-hosting platform, so a context can target GitLab or
+GitHub — exactly one, never two (§3.6). `internal/forge/gitlab` is the only
+package that knows go-gitlab exists.
+
+Five decisions hold it together, each forced by what the code consumes:
+
+| | |
+|---|---|
+| **Identity is opaque, the path is not** | `ID` addresses an object with the backend and means nothing outside — GitLab needs a number for `ParentID`, GitHub addresses by owner. `Path` is what the clone URL, the display and GitLab's renamed-path deletion are built from. The type is a string so arithmetic on it cannot be written; only the backend reads it back |
+| **A namespace and a repository are different types** | only a namespace has children, only a repository has a CI status and a scheduled deletion. "Drill into a repository" is unexpressible rather than forbidden by review |
+| **Decoration is an option** (`BrowseOptions.Decorated`) | the role and CI status cost two requests **per repository** on GitLab. The explorer asks; the clone's walk does not, which is what keeps a two-hundred-repository group from costing 400 calls for a badge nobody reads |
+| **`Shape` is declared, never sniffed** | nesting depth, the visibility set, whether a delete can be permanent. `CanNestUnder` reads the "unbounded" sentinel in one place — the obvious comparison refuses the *root* namespace on GitHub, where the maximum is 1 |
+| **`DashboardStats` counters are `*int`** | five independent requests, any of which fails on its own. `nil` means nobody looked (D52) |
+
+Two properties come with the seam: **the backend paginates** and no caller ever
+sees a page (D34), and **every call takes a context**, which is what the clone's
+cancellable discovery needs and `context.Background()` everywhere prevented.
+
+`CurrentUser` is **memoised** on the backend. Every decorated listing needs the
+caller's id for its role lookups, and asking the host each time would add a
+request per listing that the pre-abstraction code did not make — it took the id
+from a session the view was already holding. Who a token belongs to does not
+change for the life of a session.
+
+**A decoration that fails does not fail the listing; a listing that fails is
+never an empty list.** Both directions have a test. It is one rule seen from two
+sides: a column short beats an empty explorer, and an empty explorer must never
+mean "this group contains nothing".
+
+**`internal/forge/gitlab/auth.go` opens sessions.** Nothing about the credential
+store is GitLab-shaped, but building a session means building a backend. When a
+second backend exists, choosing between them is a switch on the context's
+declared forge, and this is one of the two places it will live.
+
+Worth knowing: **go-gitlab retries 5xx** with an exponential backoff — a test
+serving 500 took 35 seconds, measured. Not a regression (it is the SDK's
+default), but an unreachable instance makes the user wait behind a spinner.
 
 ### Cross-View Communication
 
@@ -706,8 +762,8 @@ returns `""` otherwise. This is not tidiness: the workspaces view holds whatever
 the user has cloned — GitHub, a customer's Gitea, a path on a share — and
 `http.extraHeader` would put DevDesk's personal access token on the wire to any
 of them. It is also why `internal/git` exists as a package separate from
-`internal/gitlab`: deciding a credential's destination in a package named after
-one forge invites the default that must not exist. A foreign remote never even
+`internal/forge/gitlab`: deciding a credential's destination in a package named
+after one forge invites the default that must not exist. A foreign remote never even
 reaches the loader, so the secret store is not read for it.
 
 The keyring is read **once per batch** (`tokenLoader`, a `sync.Once` closure) and
