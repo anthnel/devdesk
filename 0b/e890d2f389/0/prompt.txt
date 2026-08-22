@@ -1,0 +1,9 @@
+continuons la discussion sur la mise en place d'un serveur mcp dans devdesk, ce serveur serait accessible uniquement s'il est activé dans la config devdesk, quelles fonctionnalités ils pourraient offrir et quel protocol utiliser (stdio, ou autre)
+
+---
+
+oui écris le backlog pour figer les décisions, on fera le plan plus tard. donc 3.10 tombe, et on fait que read.
+
+---
+
+merge
