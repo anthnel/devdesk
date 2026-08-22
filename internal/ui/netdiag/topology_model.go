@@ -322,7 +322,12 @@ func (tm *TopologyModel) buildViewportContent() string {
 	lines = append(lines, theme.PadWithBg(theme.SubTitleStyle.Render("  "+theme.IconArrowRight+" Routing Table"), w))
 	lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  "+sep), w))
 
-	if len(tm.routes) == 0 && tm.loadErr == "" {
+	// The `&& tm.loadErr == ""` this used to carry made Routing Table the one
+	// section that fell silent on a failed load, back when the error was drawn
+	// inside the pane and stood in for it. The error is in the footer now, so
+	// the guard left a heading with nothing under it while its three
+	// neighbours all said something.
+	if len(tm.routes) == 0 {
 		lines = append(lines, theme.PadWithBg(theme.DimStyle.Render("  No routes found"), w))
 	}
 	for _, route := range tm.routes {

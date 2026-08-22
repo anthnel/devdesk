@@ -79,6 +79,13 @@ l'écran à l'intérieur de ce dont elle parlait, alors que la section
 elles ne tiennent rien — « No interfaces found », en `DimStyle`. La ligne
 `ctrl+r — retry` est partie avec : l'en-tête annonce déjà `ctrl+r` (Rule 134).
 
+**Et `Routing Table` s'est révélée muette** dans la foulée : elle portait un
+`&& tm.loadErr == ""` sur son message vide, du temps où l'erreur se dessinait
+dans le panneau et lui tenait lieu de contenu. L'erreur étant partie au footer,
+la garde ne laissait plus qu'un titre suivi de rien, seule des quatre sections.
+Un titre sans rien dessous se lit comme un défaut de rendu, pas comme une
+section vide. Un test parcourt maintenant les quatre.
+
 Ça a demandé un champ : **`components.Status` gagne un `Level`**, de valeur zéro
 `LevelInfo`, donc aucun statut écrit avant ne change de rendu. Un état dérivé
 peut être un échec aussi légitimement qu'une progression — « Docker

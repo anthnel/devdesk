@@ -275,3 +275,25 @@ func TestAFirstLoadThatFailsIsAPlainFailure(t *testing.T) {
 		t.Error("a failed first load said nothing")
 	}
 }
+
+// TestEverySectionSaysSomethingWhenItHoldsNothing — a heading with nothing
+// under it reads as a rendering bug rather than as an empty section, and
+// Routing Table was the one that did it: it suppressed its empty message while
+// loadErr was set, from when the error was drawn in the pane in its place.
+func TestEverySectionSaysSomethingWhenItHoldsNothing(t *testing.T) {
+	m := newTestModel(t)
+	m.activeTab = tabTopology
+	m = feed(t, m, topoDataMsg{err: errors.New("daemon down")})
+
+	out := m.View()
+	for _, want := range []string{
+		"No interfaces found",
+		"No routes found",
+		"No neighbours found",
+		"Firewall status unavailable",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("a section is silent: %q is missing", want)
+		}
+	}
+}
