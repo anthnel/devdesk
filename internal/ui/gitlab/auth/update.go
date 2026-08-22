@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/anthnel/devdesk/internal/forge"
-	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
+	"github.com/anthnel/devdesk/internal/forge/session"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -204,14 +204,15 @@ func (m *Model) authenticate() tea.Cmd {
 	// Copier les données nécessaires AVANT la goroutine (Rule 110)
 	storage := m.secrets.Storage
 	config := m.config
+	forgeType := m.config.Forge.Type
 
 	// Commande asynchrone
 	return func() tea.Msg {
 		// Créer l'auth
-		auth := gitlabforge.NewAuth(storage)
+		auth := session.NewAuth(storage)
 
 		// Il n'y a plus de choix : le token part vers le store, toujours.
-		result, err := auth.Authenticate(context.Background(), url, token)
+		result, err := auth.Authenticate(context.Background(), forgeType, url, token)
 		if err != nil {
 			return AuthResultMsg{Error: err}
 		}
@@ -237,7 +238,7 @@ func (m *Model) logout() tea.Cmd {
 	// Commande asynchrone
 	return func() tea.Msg {
 		// Créer l'auth
-		auth := gitlabforge.NewAuth(storage)
+		auth := session.NewAuth(storage)
 
 		// Supprimer les credentials du storage
 		_ = auth.Logout(url) // Ignorer l'erreur, on déconnecte quand même

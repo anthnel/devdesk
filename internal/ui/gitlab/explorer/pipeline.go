@@ -10,7 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/forge"
-	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
+	"github.com/anthnel/devdesk/internal/forge/session"
 	"github.com/anthnel/devdesk/internal/git"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -80,7 +80,7 @@ func (s cloneSpec) cloneToken() string {
 	if s.cloneMethod == forge.CloneSSH || s.secrets == nil {
 		return ""
 	}
-	token, err := gitlabforge.NewAuth(s.secrets).LoadCredentials(s.gitlabURL)
+	token, err := session.NewAuth(s.secrets).LoadCredentials(s.gitlabURL)
 	if err != nil {
 		log.Printf("ERROR [explorer] loading the clone token: %v", err)
 		return ""

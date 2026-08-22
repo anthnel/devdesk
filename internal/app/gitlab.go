@@ -9,7 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
-	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
+	"github.com/anthnel/devdesk/internal/forge/session"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 )
 
@@ -23,6 +23,7 @@ type GitLabAutoLoginMsg struct {
 // tryAutoLogin tente de se connecter automatiquement à GitLab avec les credentials sauvegardés
 func (a *App) tryAutoLogin() tea.Cmd {
 	url := a.config.Forge.URL
+	forgeType := a.config.Forge.Type
 	storage := a.sharedState.Secrets.Storage
 
 	// Si pas d'URL configurée, pas d'auto-login
@@ -31,7 +32,7 @@ func (a *App) tryAutoLogin() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		auth := gitlabforge.NewAuth(storage)
+		auth := session.NewAuth(storage)
 
 		// Le token vient du store et de nulle part ailleurs : il n'est plus
 		// écrit en clair dans la configuration (§3.9).
@@ -40,7 +41,7 @@ func (a *App) tryAutoLogin() tea.Cmd {
 			return GitLabAutoLoginMsg{}
 		}
 
-		result, err := auth.AuthenticateOnly(context.Background(), url, token)
+		result, err := auth.AuthenticateOnly(context.Background(), forgeType, url, token)
 		if err != nil {
 			log.Printf("Auto-login failed: %v", err)
 			return GitLabAutoLoginMsg{Error: err}

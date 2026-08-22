@@ -14,7 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
-	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
+	"github.com/anthnel/devdesk/internal/forge/session"
 	"github.com/anthnel/devdesk/internal/git"
 	"github.com/anthnel/devdesk/internal/scan"
 )
@@ -50,7 +50,7 @@ func tokenLoader(storage credentials.Storage, gitlabURL string) func() string {
 	var token string
 	return func() string {
 		once.Do(func() {
-			loaded, err := gitlabforge.NewAuth(storage).LoadCredentials(gitlabURL)
+			loaded, err := session.NewAuth(storage).LoadCredentials(gitlabURL)
 			if err != nil {
 				log.Printf("ERROR [workspaces] loading the sync token: %v", err)
 				return

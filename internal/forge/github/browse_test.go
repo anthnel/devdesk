@@ -1,0 +1,284 @@
+package github
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/anthnel/devdesk/internal/forge"
+)
+
+// page writes a paginated list response, telling the client whether another
+// follows the way GitHub does — with a Link header.
+func page(w http.ResponseWriter, body, nextURL string) {
+	if nextURL != "" {
+		w.Header().Set("Link", `<`+nextURL+`>; rel="next"`)
+	}
+	_, _ = w.Write([]byte(body))
+}
+
+// TestEveryPageOfAListIsWalked is D34's rule applied to the second backend.
+// GitHub paginates by Link header rather than by X-Next-Page, so the loop is
+// different and the property is the same: a list is complete or it is an error.
+func TestEveryPageOfAListIsWalked(t *testing.T) {
+	var base string
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("page") {
+		case "", "1":
+			page(w, `[{"login":"one"}]`, base+"?page=2")
+		case "2":
+			page(w, `[{"login":"two"}]`, base+"?page=3")
+		default:
+			page(w, `[{"login":"three"}]`, "")
+		}
+	})
+	base = fake.server.URL + "/api/v3/user/orgs"
+
+	got, err := fake.forge(t).RootNamespaces(context.Background(), forge.BrowseOptions{})
+	if err != nil {
+		t.Fatalf("RootNamespaces() error = %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("got %d namespaces across three pages, want 3: %+v", len(got), got)
+	}
+	if got[2].Name != "three" {
+		t.Errorf("the last page was dropped: got %q", got[2].Name)
+	}
+}
+
+// TestAnOrganizationHoldsNoOrganization is Shape.MaxNamespaceDepth of 1 seen
+// from the data: the empty slice is the answer, not a missing feature.
+func TestAnOrganizationHoldsNoOrganization(t *testing.T) {
+	fake := newFakeGitHub(t, childrenHandler)
+
+	children, err := fake.forge(t).Children(context.Background(), "acme", forge.BrowseOptions{IncludeArchived: true})
+	if err != nil {
+		t.Fatalf("Children() error = %v", err)
+	}
+	if len(children.Namespaces) != 0 {
+		t.Errorf("an organisation returned %d namespaces, want none", len(children.Namespaces))
+	}
+	if len(children.Repositories) != 2 {
+		t.Fatalf("got %d repositories, want 2", len(children.Repositories))
+	}
+}
+
+// TestArchivedRepositoriesAreDroppedUnlessAsked — GitHub has no filter for it,
+// so the backend does it after the fact rather than pretending the option does
+// not exist.
+func TestArchivedRepositoriesAreDroppedUnlessAsked(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts forge.BrowseOptions
+		want int
+	}{
+		{"browsing shows what is there", forge.BrowseOptions{IncludeArchived: true}, 2},
+		{"a clone excludes archived", forge.BrowseOptions{}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := newFakeGitHub(t, childrenHandler)
+			children, err := fake.forge(t).Children(context.Background(), "acme", tc.opts)
+			if err != nil {
+				t.Fatalf("Children() error = %v", err)
+			}
+			if len(children.Repositories) != tc.want {
+				t.Errorf("got %d repositories, want %d: %+v", len(children.Repositories), tc.want, children.Repositories)
+			}
+		})
+	}
+}
+
+// TestAnUndecoratedListingCostsNothingExtra is the property the clone's walk
+// depends on, and it holds on both backends for the same reason.
+func TestAnUndecoratedListingCostsNothingExtra(t *testing.T) {
+	fake := newFakeGitHub(t, childrenHandler)
+
+	children, err := fake.forge(t).Children(context.Background(), "acme", forge.BrowseOptions{IncludeArchived: true})
+	if err != nil {
+		t.Fatalf("Children() error = %v", err)
+	}
+
+	if n := fake.countPaths("/actions/runs"); n != 0 {
+		t.Errorf("an undecorated listing made %d workflow requests, want 0", n)
+	}
+	if children.Repositories[0].Role != "" || children.Repositories[0].CIStatus != "" {
+		t.Errorf("an undecorated repository carries a decoration: %+v", children.Repositories[0])
+	}
+}
+
+// TestADecoratedListingResolvesTheUserOnce pins the cost of the decoration:
+// the role lookups need the caller's login, and asking per row would add a
+// request per row on top of the two per repository.
+func TestADecoratedListingResolvesTheUserOnce(t *testing.T) {
+	fake := newFakeGitHub(t, childrenHandler)
+
+	children, err := fake.forge(t).Children(context.Background(), "acme",
+		forge.BrowseOptions{IncludeArchived: true, Decorated: true})
+	if err != nil {
+		t.Fatalf("Children() error = %v", err)
+	}
+
+	if n := fake.countPaths("/api/v3/user"); n != 1 {
+		t.Errorf("the current user was fetched %d times, want 1: %v", n, fake.paths())
+	}
+	if got := children.Repositories[0].Role; got != "Maintainer" {
+		t.Errorf("role = %q, want Maintainer — `maintain` is the permission the fake grants", got)
+	}
+	if got := children.Repositories[0].CIStatus; got != "success" {
+		t.Errorf("CI status = %q, want the last run's conclusion", got)
+	}
+}
+
+// TestPermissionFlagsBecomeAWord is the humanisation the interface promises,
+// and the reason it is the backend's job: GitHub returns a set of booleans
+// where GitLab returns a number, and neither maps onto the other.
+func TestPermissionFlagsBecomeAWord(t *testing.T) {
+	for _, tc := range []struct {
+		perms map[string]bool
+		want  string
+	}{
+		{map[string]bool{"admin": true, "push": true, "pull": true}, "Owner"},
+		{map[string]bool{"maintain": true, "push": true}, "Maintainer"},
+		{map[string]bool{"push": true, "pull": true}, "Developer"},
+		{map[string]bool{"triage": true, "pull": true}, "Reporter"},
+		{map[string]bool{"pull": true}, "Guest"},
+		// Not known is not the lowest role there is.
+		{map[string]bool{}, ""},
+		{nil, ""},
+	} {
+		if got := roleName(tc.perms); got != tc.want {
+			t.Errorf("roleName(%v) = %q, want %q", tc.perms, got, tc.want)
+		}
+	}
+}
+
+// TestARunningWorkflowReportsItsStatus — a run in flight has no conclusion, and
+// falling through to "" would make a repository whose build is running read as
+// having no CI at all.
+func TestARunningWorkflowReportsItsStatus(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/api/v3/user"):
+			_, _ = w.Write([]byte(`{"login":"ada","name":"Ada"}`))
+		case strings.Contains(r.URL.Path, "/actions/runs"):
+			_, _ = w.Write([]byte(`{"total_count":1,"workflow_runs":[{"id":1,"status":"in_progress","conclusion":""}]}`))
+		case strings.Contains(r.URL.Path, "/memberships/"):
+			_, _ = w.Write([]byte(`{"role":"member"}`))
+		default:
+			_, _ = w.Write([]byte(`[{"name":"api","full_name":"acme/api","owner":{"login":"acme"},"permissions":{"push":true}}]`))
+		}
+	})
+
+	children, err := fake.forge(t).Children(context.Background(), "acme",
+		forge.BrowseOptions{IncludeArchived: true, Decorated: true})
+	if err != nil {
+		t.Fatalf("Children() error = %v", err)
+	}
+	if got := children.Repositories[0].CIStatus; got != "in_progress" {
+		t.Errorf("CI status = %q, want the run's status when it has no conclusion", got)
+	}
+}
+
+// TestAnEnterpriseInternalVisibilityIsReported — `Visibility` is the field
+// Enterprise fills; falling back to the `Private` boolean alone would report
+// `internal` as `private`, which is a different thing.
+func TestAnEnterpriseInternalVisibilityIsReported(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"name":"api","full_name":"acme/api","private":true,"visibility":"internal"}]`))
+	})
+
+	children, err := fake.forge(t).Children(context.Background(), "acme", forge.BrowseOptions{IncludeArchived: true})
+	if err != nil {
+		t.Fatalf("Children() error = %v", err)
+	}
+	if got := children.Repositories[0].Visibility; got != "internal" {
+		t.Errorf("visibility = %q, want internal", got)
+	}
+}
+
+// TestAFailedListingIsAnError — an empty explorer must never mean "this
+// organisation contains nothing". Same rule as the GitLab backend's, and it is
+// the one that stops D20 reappearing a level up.
+func TestAFailedListingIsAnError(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"Forbidden"}`))
+	})
+	f := fake.forge(t)
+
+	if _, err := f.RootNamespaces(context.Background(), forge.BrowseOptions{}); err == nil {
+		t.Error("RootNamespaces() succeeded against a failing server")
+	}
+	if _, err := f.Children(context.Background(), "acme", forge.BrowseOptions{}); err == nil {
+		t.Error("Children() succeeded against a failing server")
+	}
+	if _, err := f.CurrentUser(context.Background()); err == nil {
+		t.Error("CurrentUser() succeeded against a failing server")
+	}
+}
+
+// TestADecorationThatFailsDoesNotFailTheListing is the other direction, and
+// deliberately: a column short beats an empty explorer.
+func TestADecorationThatFailsDoesNotFailTheListing(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/api/v3/user"):
+			_, _ = w.Write([]byte(`{"login":"ada"}`))
+		case strings.Contains(r.URL.Path, "/actions/runs"), strings.Contains(r.URL.Path, "/memberships/"):
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"Forbidden"}`))
+		default:
+			_, _ = w.Write([]byte(`[{"name":"api","full_name":"acme/api"}]`))
+		}
+	})
+
+	children, err := fake.forge(t).Children(context.Background(), "acme",
+		forge.BrowseOptions{IncludeArchived: true, Decorated: true})
+	if err != nil {
+		t.Fatalf("Children() error = %v — a refused decoration must not fail the listing", err)
+	}
+	if len(children.Repositories) != 1 || children.Repositories[0].CIStatus != "" {
+		t.Errorf("a refused decoration invented a value: %+v", children.Repositories)
+	}
+}
+
+// TestTheUserIsMemoised — every decorated listing needs the login, and asking
+// the host each time would add a request per listing the GitLab backend does
+// not make either.
+func TestTheUserIsMemoised(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"login":"ada","name":"Ada"}`))
+	})
+	f := fake.forge(t)
+
+	for range 3 {
+		if _, err := f.CurrentUser(context.Background()); err != nil {
+			t.Fatalf("CurrentUser() error = %v", err)
+		}
+	}
+	if n := len(fake.calls()); n != 1 {
+		t.Errorf("three calls made %d requests, want 1", n)
+	}
+}
+
+// childrenHandler serves one organisation with two repositories, one archived,
+// plus the decoration endpoints.
+func childrenHandler(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case strings.HasSuffix(r.URL.Path, "/api/v3/user"):
+		_, _ = w.Write([]byte(`{"login":"ada","name":"Ada"}`))
+	case strings.Contains(r.URL.Path, "/actions/runs"):
+		_, _ = w.Write([]byte(`{"total_count":1,"workflow_runs":[{"id":1,"status":"completed","conclusion":"success"}]}`))
+	case strings.Contains(r.URL.Path, "/memberships/"):
+		_, _ = w.Write([]byte(`{"role":"admin"}`))
+	case strings.Contains(r.URL.Path, "/orgs/"):
+		_, _ = fmt.Fprint(w, `[
+			{"name":"api","full_name":"acme/api","owner":{"login":"acme"},"private":true,"permissions":{"maintain":true}},
+			{"name":"legacy","full_name":"acme/legacy","owner":{"login":"acme"},"archived":true}
+		]`)
+	default:
+		_, _ = w.Write([]byte(`[{"login":"acme","name":"Acme"}]`))
+	}
+}

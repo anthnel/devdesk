@@ -1,0 +1,250 @@
+package github
+
+import (
+	"context"
+	"strings"
+
+	gh "github.com/google/go-github/v68/github"
+
+	"github.com/anthnel/devdesk/internal/forge"
+)
+
+// perPage is what every list endpoint asks for. GitHub caps it at 100.
+const perPage = 100
+
+// listAll walks every page and returns the lot — D34's rule, applied to the
+// second backend before it can go wrong here too.
+//
+// GitHub paginates by Link header, which go-github surfaces as
+// Response.NextPage, 0 on the last page. The guard against a server that keeps
+// pointing at the page just served is the GitLab backend's, for the same
+// reason: it cannot cut a legitimate response short, which a page cap would.
+func listAll[T any](fetch func(opts *gh.ListOptions) ([]T, *gh.Response, error)) ([]T, error) {
+	opts := &gh.ListOptions{PerPage: perPage, Page: 1}
+
+	var all []T
+	for {
+		page, resp, err := fetch(opts)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+
+		if resp == nil || resp.NextPage <= opts.Page {
+			return all, nil
+		}
+		opts.Page = resp.NextPage
+	}
+}
+
+// RootNamespaces lists the organisations the token can see.
+//
+// The user's own account is deliberately not among them. A personal namespace
+// is not an organisation: it cannot be created or deleted, so listing it as one
+// would put a row in the tree that half the actions refuse.
+func (f *Forge) RootNamespaces(ctx context.Context, opts forge.BrowseOptions) ([]forge.Namespace, error) {
+	orgs, err := listAll(func(page *gh.ListOptions) ([]*gh.Organization, *gh.Response, error) {
+		return f.client.Organizations.List(ctx, "", page)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return f.namespaces(ctx, orgs, f.decoratingAs(ctx, opts)), nil
+}
+
+// Children lists an organisation's repositories.
+//
+// Never namespaces: an organisation does not hold another one, which is what a
+// MaxNamespaceDepth of 1 declares. The empty slice is the answer, not a missing
+// feature.
+func (f *Forge) Children(ctx context.Context, namespaceID string, opts forge.BrowseOptions) (forge.Children, error) {
+	listOpts := &gh.RepositoryListByOrgOptions{Type: "all"}
+
+	repos, err := listAll(func(page *gh.ListOptions) ([]*gh.Repository, *gh.Response, error) {
+		listOpts.ListOptions = *page
+		return f.client.Repositories.ListByOrg(ctx, namespaceID, listOpts)
+	})
+	if err != nil {
+		return forge.Children{}, err
+	}
+
+	// GitHub has no "exclude archived" filter, so they are dropped after the
+	// fact. It costs nothing extra: they were in the page either way.
+	if !opts.IncludeArchived {
+		kept := repos[:0]
+		for _, repo := range repos {
+			if !repo.GetArchived() {
+				kept = append(kept, repo)
+			}
+		}
+		repos = kept
+	}
+
+	return forge.Children{Repositories: f.repositories(ctx, repos, f.decoratingAs(ctx, opts))}, nil
+}
+
+// decoratingAs resolves the caller's login once per listing, or "" when no
+// decoration was asked for. Once per listing, not once per row — the same cost
+// argument as the GitLab backend's.
+func (f *Forge) decoratingAs(ctx context.Context, opts forge.BrowseOptions) string {
+	if !opts.Decorated {
+		return ""
+	}
+	user, err := f.CurrentUser(ctx)
+	if err != nil {
+		return ""
+	}
+	return user.Username
+}
+
+// namespaces converts organisations.
+func (f *Forge) namespaces(ctx context.Context, orgs []*gh.Organization, login string) []forge.Namespace {
+	out := make([]forge.Namespace, 0, len(orgs))
+	for _, org := range orgs {
+		created := org.GetCreatedAt().Time
+		ns := forge.Namespace{
+			ID:     org.GetLogin(),
+			Path:   org.GetLogin(),
+			Name:   firstNonEmpty(org.GetName(), org.GetLogin()),
+			WebURL: f.webBase() + "/" + org.GetLogin(),
+			// An organisation has no visibility of its own on GitHub — its
+			// repositories do. Left empty rather than invented.
+			CreatedAt: &created,
+		}
+		if login != "" {
+			ns.Role = f.orgRole(ctx, org.GetLogin(), login)
+		}
+		out = append(out, ns)
+	}
+	return out
+}
+
+// repositories converts repositories, decorating each with the caller's role
+// and the last workflow run when asked.
+//
+// The decoration is two extra requests per repository here too, and the clone's
+// walk asks for none of it.
+func (f *Forge) repositories(ctx context.Context, repos []*gh.Repository, login string) []forge.Repository {
+	out := make([]forge.Repository, 0, len(repos))
+	for _, repo := range repos {
+		created, pushed := repo.GetCreatedAt().Time, repo.GetPushedAt().Time
+		full := repo.GetFullName()
+
+		converted := forge.Repository{
+			ID:             full,
+			Path:           full,
+			Name:           repo.GetName(),
+			Visibility:     visibilityOf(repo),
+			CreatedAt:      &created,
+			LastActivityAt: &pushed,
+			WebURL:         repo.GetHTMLURL(),
+			// GitHub deletes at once, so a repository is never *scheduled* for
+			// deletion. Always false, and Shape.PermanentDelete says why.
+			DeletionScheduled: false,
+		}
+		if login != "" {
+			converted.Role = roleName(repo.GetPermissions())
+			converted.CIStatus = f.lastWorkflowConclusion(ctx, repo.GetOwner().GetLogin(), repo.GetName())
+		}
+		out = append(out, converted)
+	}
+	return out
+}
+
+// visibilityOf reads a repository's visibility.
+//
+// Visibility is the field Enterprise populates with `internal`; Private is the
+// older boolean github.com always sets. Reading the first and falling back to
+// the second is what keeps an Enterprise `internal` from being reported as
+// `private` — a visibility this platform's Shape does not offer for creation,
+// but which an Enterprise instance really has.
+func visibilityOf(repo *gh.Repository) string {
+	if v := repo.GetVisibility(); v != "" {
+		return v
+	}
+	if repo.GetPrivate() {
+		return "private"
+	}
+	return "public"
+}
+
+// roleName turns GitHub's permission flags into the word
+// forge.Repository.Role promises.
+//
+// They arrive as a set of booleans rather than as a level, so the mapping reads
+// most-privileged first. Nothing means the permissions were not returned, which
+// is not the same as "no access" — hence the empty string, as on GitLab.
+func roleName(perms map[string]bool) string {
+	switch {
+	case perms["admin"]:
+		return "Owner"
+	case perms["maintain"]:
+		return "Maintainer"
+	case perms["push"]:
+		return "Developer"
+	case perms["triage"]:
+		return "Reporter"
+	case perms["pull"]:
+		return "Guest"
+	default:
+		return ""
+	}
+}
+
+// orgRole is the caller's humanised role in an organisation.
+//
+// Two words, not five: GitHub's organisation membership is admin or member, and
+// inventing the three levels in between to match GitLab's would be reporting a
+// distinction the platform does not make.
+//
+// A membership that cannot be read is not an error — the explorer would show
+// nothing rather than a column short, which is the wrong trade (§3.6 step 2).
+func (f *Forge) orgRole(ctx context.Context, org, login string) string {
+	membership, _, err := f.client.Organizations.GetOrgMembership(ctx, login, org)
+	if err != nil {
+		return ""
+	}
+	if membership.GetRole() == "admin" {
+		return "Owner"
+	}
+	return "Member"
+}
+
+// lastWorkflowConclusion is the most recent Actions run's outcome, in the same
+// words the GitLab backend reports.
+//
+// A run still in flight has no conclusion, so its *status* is used instead —
+// otherwise a repository whose build is running would read as having no CI at
+// all.
+func (f *Forge) lastWorkflowConclusion(ctx context.Context, owner, repo string) string {
+	runs, _, err := f.client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo,
+		&gh.ListWorkflowRunsOptions{ListOptions: gh.ListOptions{PerPage: 1, Page: 1}})
+	if err != nil || runs == nil || len(runs.WorkflowRuns) == 0 {
+		return ""
+	}
+
+	run := runs.WorkflowRuns[0]
+	if conclusion := run.GetConclusion(); conclusion != "" {
+		return conclusion
+	}
+	return run.GetStatus()
+}
+
+// splitPath cuts an owner/repo identifier.
+//
+// GitHub addresses a repository by its two halves in every write call, and this
+// is the one place that knows the identifier has halves at all — outside this
+// package it is opaque.
+func splitPath(id string) (owner, repo string, ok bool) {
+	owner, repo, ok = strings.Cut(id, "/")
+	return owner, repo, ok && owner != "" && repo != ""
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}

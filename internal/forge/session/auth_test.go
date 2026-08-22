@@ -1,10 +1,12 @@
-package gitlab
+package session
 
 import (
 	"context"
 	"errors"
 	"net/http"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // memStore is a credentials.Storage that lives in the test. It records what was
@@ -48,10 +50,10 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestAuthenticateOpensASessionAndKeepsTheToken(t *testing.T) {
-	fake := newFakeGitLab(t, userHandler)
+	fake := newFakeForge(t, userHandler)
 	store := newMemStore()
 
-	result, err := NewAuth(store).Authenticate(context.Background(), fake.server.URL, "glpat-x")
+	result, err := NewAuth(store).Authenticate(context.Background(), config.ForgeGitLab, fake.server.URL, "glpat-x")
 	if err != nil {
 		t.Fatalf("Authenticate() error = %v", err)
 	}
@@ -73,11 +75,11 @@ func TestAuthenticateOpensASessionAndKeepsTheToken(t *testing.T) {
 // only its persistence failed. Reporting an error would tell the user they are
 // not logged in when they are.
 func TestAStoreThatRefusesTheTokenStillOpensTheSession(t *testing.T) {
-	fake := newFakeGitLab(t, userHandler)
+	fake := newFakeForge(t, userHandler)
 	store := newMemStore()
 	store.saveErr = errors.New("keyring locked")
 
-	result, err := NewAuth(store).Authenticate(context.Background(), fake.server.URL, "glpat-x")
+	result, err := NewAuth(store).Authenticate(context.Background(), config.ForgeGitLab, fake.server.URL, "glpat-x")
 	if err != nil {
 		t.Fatalf("Authenticate() error = %v, want the session to open anyway", err)
 	}
@@ -92,10 +94,10 @@ func TestAStoreThatRefusesTheTokenStillOpensTheSession(t *testing.T) {
 // TestAuthenticateOnlyWritesNothing is the auto-login path: its token already
 // came from the store, and writing it back would be a write nobody asked for.
 func TestAuthenticateOnlyWritesNothing(t *testing.T) {
-	fake := newFakeGitLab(t, userHandler)
+	fake := newFakeForge(t, userHandler)
 	store := newMemStore()
 
-	if _, err := NewAuth(store).AuthenticateOnly(context.Background(), fake.server.URL, "glpat-x"); err != nil {
+	if _, err := NewAuth(store).AuthenticateOnly(context.Background(), config.ForgeGitLab, fake.server.URL, "glpat-x"); err != nil {
 		t.Fatalf("AuthenticateOnly() error = %v", err)
 	}
 	if len(store.saveArgs) != 0 {
@@ -107,13 +109,13 @@ func TestAuthenticateOnlyWritesNothing(t *testing.T) {
 // authentication, so a host that refuses the token must not yield a forge the
 // caller would then use.
 func TestARejectedTokenIsAnErrorAndNoSession(t *testing.T) {
-	fake := newFakeGitLab(t, func(w http.ResponseWriter, r *http.Request) {
+	fake := newFakeForge(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte(`{"message":"401 Unauthorized"}`))
 	})
 	store := newMemStore()
 
-	result, err := NewAuth(store).Authenticate(context.Background(), fake.server.URL, "bad")
+	result, err := NewAuth(store).Authenticate(context.Background(), config.ForgeGitLab, fake.server.URL, "bad")
 	if err == nil {
 		t.Fatal("Authenticate() succeeded against a host that refused the token")
 	}
@@ -160,7 +162,7 @@ func TestNoStoreIsNotAFailure(t *testing.T) {
 // TestAnUnreachableHostIsAnErrorNotAnEmptySession pins the other failure: a
 // URL the client cannot even be built for.
 func TestAnUnreachableHostIsAnErrorNotAnEmptySession(t *testing.T) {
-	if _, err := NewAuth(nil).AuthenticateOnly(context.Background(), "://not a url", "x"); err == nil {
+	if _, err := NewAuth(nil).AuthenticateOnly(context.Background(), config.ForgeGitLab, "://not a url", "x"); err == nil {
 		t.Error("AuthenticateOnly() accepted a malformed host")
 	}
 }
