@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/metrics"
@@ -221,7 +222,11 @@ func TestSignedOutKeepsTheCodeBoxLabels(t *testing.T) {
 	m, _ := newTestModel(t)
 
 	out := plain(m.View())
-	for _, label := range []string{"Merge req.", "Issues", "Workspaces"} {
+	// The change-request label is the forge's own initialism — MRs on GitLab,
+	// PRs on GitHub — because the label column is eleven cells and the long
+	// form does not fit either of them.
+	v := forge.VocabularyFor(config.ForgeGitLab)
+	for _, label := range []string{v.ChangeRequestShort + "s", "Issues", "Workspaces"} {
 		if !strings.Contains(out, label) {
 			t.Errorf("signed out, the Code box dropped the %q label:\n%s", label, out)
 		}

@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -447,11 +449,22 @@ func TestGroupsShowNoPipelineStatus(t *testing.T) {
 }
 
 func TestTypeAndVisibilityLabels(t *testing.T) {
-	if got := nodeTypeLabel(&TreeNode{Type: NodeTypeGroup}); got != "Group" {
+	gitlab := forge.VocabularyFor(config.ForgeGitLab)
+	if got := nodeTypeLabel(gitlab, &TreeNode{Type: NodeTypeGroup}); got != "Group" {
 		t.Errorf("nodeTypeLabel(group) = %q", got)
 	}
-	if got := nodeTypeLabel(&TreeNode{Type: NodeTypeProject}); got != "Project" {
+	if got := nodeTypeLabel(gitlab, &TreeNode{Type: NodeTypeProject}); got != "Project" {
 		t.Errorf("nodeTypeLabel(project) = %q", got)
+	}
+
+	// The same two rows in a GitHub context read differently, which is the
+	// whole point of the vocabulary.
+	github := forge.VocabularyFor(config.ForgeGitHub)
+	if got := nodeTypeLabel(github, &TreeNode{Type: NodeTypeGroup}); got != "Organization" {
+		t.Errorf("nodeTypeLabel(github group) = %q, want Organization", got)
+	}
+	if got := nodeTypeLabel(github, &TreeNode{Type: NodeTypeProject}); got != "Repository" {
+		t.Errorf("nodeTypeLabel(github project) = %q, want Repository", got)
 	}
 
 	labels := map[string]string{
@@ -473,5 +486,41 @@ func TestTimeAgoOfAMissingDateIsEmpty(t *testing.T) {
 	}
 	if got := timeAgo(at(1)); got == "" {
 		t.Error("timeAgo() of a real date is empty")
+	}
+}
+
+// TestAGitHubContextSpeaksGitHub is what the vocabulary is for, seen from the
+// outside: the same view, the same rows, a different set of nouns.
+//
+// It is the test the grep guard cannot be — vocabtest refuses a *literal*, and
+// a screen can be free of literals and still read the wrong forge's words
+// because a site resolved the vocabulary for the wrong context.
+func TestAGitHubContextSpeaksGitHub(t *testing.T) {
+	cfg := testConfig()
+	cfg.Forge.Type = config.ForgeGitHub
+	cfg.Forge.URL = "https://github.com"
+
+	m := feed(t, New(cfg, &shared.State{}), tea.WindowSizeMsg{Width: 160, Height: 30})
+
+	if got := m.GetTitle(); !strings.Contains(got, "GitHub Explorer") {
+		t.Errorf("GetTitle() = %q, want it to name GitHub", got)
+	}
+	if strings.Contains(m.GetTitle(), "GitLab") {
+		t.Errorf("GetTitle() = %q still names GitLab", m.GetTitle())
+	}
+
+	// Signed out is the screen that needs the words before any session exists.
+	// No colour profile is forced, so lipgloss emits no escapes under go test.
+	out := m.View()
+	if !strings.Contains(out, "GitHub not authenticated") {
+		t.Errorf("the signed-out screen does not name GitHub:\n%s", out)
+	}
+
+	help := m.GetHelpContent()
+	if !strings.Contains(help.Description, "organizations") {
+		t.Errorf("the help still describes groups rather than organizations: %q", help.Description)
+	}
+	if strings.Contains(help.Title, "GitLab") {
+		t.Errorf("the help title still names GitLab: %q", help.Title)
 	}
 }

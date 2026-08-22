@@ -1,6 +1,7 @@
 package explorer
 
 import (
+	"github.com/anthnel/devdesk/internal/forge"
 	"strings"
 	"time"
 
@@ -43,15 +44,19 @@ const columnType = 0
 // nothing on all but one of them, and at 80 columns the explorer has none to
 // spare. Type is the left-most column, so the box still sits where a checkbox
 // belongs.
-func explorerColumns() []datatable.Column[explorerRow] {
+// v is the forge's wording. It is a parameter rather than something the cells
+// reach for, because datatable builds its columns once in New and they close
+// over nothing (§2) — and it is safe to capture because the router drops and
+// rebuilds every view when the config is saved, so it cannot go stale.
+func explorerColumns(v forge.Vocabulary) []datatable.Column[explorerRow] {
 	return []datatable.Column[explorerRow]{
 		{
 			Title: "Type", MinWidth: colTypeMin,
 			Cell: func(r explorerRow) string {
 				if !r.selecting {
-					return nodeTypeLabel(r.node)
+					return nodeTypeLabel(v, r.node)
 				}
-				return checkboxIcon(r.check) + " " + nodeTypeLabel(r.node)
+				return checkboxIcon(r.check) + " " + nodeTypeLabel(v, r.node)
 			},
 			Less: func(a, b explorerRow) bool { return string(a.node.Type) < string(b.node.Type) },
 		},

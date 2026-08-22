@@ -91,11 +91,12 @@ func (m Model) handleTemplatesLoaded(msg TemplatesLoadedMsg) (tea.Model, tea.Cmd
 	}
 
 	m.creationForm = components.NewCreationForm(
-		0, // defaultResourceType = Group (user can switch with ←→)
+		0, // defaultResourceType = namespace (user can switch with ←→)
 		m.creationParentName,
 		m.creationParentID,
 		m.config.Forge.DefaultVisibility,
 		names,
+		m.vocab(),
 	)
 	if msg.Error != nil {
 		m.creationForm.SetTemplateWarning(fmt.Sprintf("Registry error: %v", msg.Error))

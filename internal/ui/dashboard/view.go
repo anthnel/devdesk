@@ -3,6 +3,7 @@ package dashboard
 import (
 	"strings"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/status"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -61,7 +62,7 @@ func (m Model) View() string {
 // À `wide`, la troisième colonne porte le contenu de l'onglet Resources : le
 // palier décide où se trouve un fait, jamais s'il existe.
 func (m Model) columnsFor(t tier) [][]section {
-	overview, resources := overviewSections(), resourceSections()
+	overview, resources := overviewSections(m.forgeType()), resourceSections()
 
 	if m.activeTab == tabResources {
 		return distribute(resources, t.columns())
@@ -310,6 +311,7 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 
 // GetHelpContent returns help content for the dashboard (Rule 114)
 func (m Model) GetHelpContent() help.Content {
+	v := m.vocab()
 	return help.Content{
 		Title:       "Dashboard",
 		Description: "The dashboard groups everything it knows into four titled boxes: Code, Health, Host and Docker. The layout follows the terminal's size — one column when it is narrow, a grid when it is not, and a third column on a large terminal, where it shows the Resources tab inline. A value that has not been measured yet reads '-', a source that is absent reads 'n/a', and a measured zero reads '0'.",
@@ -324,7 +326,11 @@ func (m Model) GetHelpContent() help.Content {
 		Sections: []help.Section{
 			{
 				Title: "Code",
-				Body:  "Your GitLab activity — assigned merge requests, MRs awaiting your review, assigned issues — and the local clones under the workspaces directory. The two belong together: the explorer creates what does not exist, workspaces reconciles what does. Requires authentication via :gitlab-auth.",
+				Body: "Your " + v.Name + " activity — assigned " + strings.ToLower(v.ChangeRequests) + ", " +
+					strings.ToLower(v.ChangeRequests) + " awaiting your review, assigned issues —" +
+					" and the local clones under the workspaces directory. The two belong together: the explorer " +
+					"creates what does not exist, workspaces reconciles what does. Requires authentication via :" +
+					string(command.ViewGitlabAuth) + ".",
 			},
 			{
 				Title: "Health",
@@ -340,7 +346,16 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Navigation",
-				Body:  "Press ctrl+p to open command mode, then type a view name: status for monitors, gitlab-auth for authentication, gitlab-explorer for browsing projects, workspaces for file management, containers for Docker management, oci-resources for OCI resource management, security for scanning.\n\nA bare : opens command mode too, but only when no text field has focus — inside one it types a colon, which values like https://trivy-server:4954 need. ctrl+p always works.",
+				Body: "Press ctrl+p to open command mode, then type a view name: " +
+					string(command.ViewStatus) + " for monitors, " +
+					string(command.ViewGitlabAuth) + " for authentication, " +
+					string(command.ViewGitlabExplorer) + " for browsing " + strings.ToLower(v.Repositories) + ", " +
+					string(command.ViewWorkspaces) + " for file management, " +
+					string(command.ViewContainers) + " for Docker management, " +
+					string(command.ViewOCIResources) + " for OCI resource management, " +
+					string(command.ViewSecurity) + " for scanning.\n\n" +
+					"A bare : opens command mode too, but only when no text field has focus — inside one it " +
+					"types a colon, which values like https://trivy-server:4954 need. ctrl+p always works.",
 			},
 		},
 	}

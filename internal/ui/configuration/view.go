@@ -216,7 +216,7 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Secret backend",
 				Body: "Changing it is confirmed, and stored secrets are not migrated:\n" +
-					"the GitLab token and registry passwords have to be entered again.",
+					"the " + m.vocab().Name + " token and registry passwords have to be entered again.",
 			},
 		},
 	}

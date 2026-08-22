@@ -36,9 +36,9 @@ const labelWidth = 11
 // deux fusions : workspaces rejoint GitLab (l'explorer crée, workspaces
 // réconcilie : un seul sujet vu des deux bouts) et les outils rejoignent Host
 // (ce sont les binaires de cette machine, mesurés par la même sonde).
-func overviewSections() []section {
+func overviewSections(forgeType string) []section {
 	return []section{
-		{title: theme.IconGitlab + " Code", render: renderCodeSection},
+		{title: theme.ForgeIcon(forgeType) + " Code", render: renderCodeSection},
 		{title: theme.IconSecurity + " Health", render: renderHealthSection},
 		{title: theme.IconServer + " " + hostLabel(), render: renderHostSection},
 		{title: theme.IconDocker + " Docker (VM)", render: renderDockerSection},
@@ -70,6 +70,7 @@ func hostLabel() string {
 }
 
 func renderCodeSection(m Model, width int, t tier) []string {
+	v := m.vocab()
 	// L'icône suit la valeur : la colonne des valeurs commence alors au même
 	// endroit sur toutes les lignes, ce qu'une icône en tête décale d'un cran
 	// sur les seules lignes qui en portent une.
@@ -94,7 +95,7 @@ func renderCodeSection(m Model, width int, t tier) []string {
 	if t != tierWide {
 		return []string{
 			sessionLine,
-			row("Merge req.", mrs+theme.Bg(" assigned  ")+review+theme.Bg(" to review")),
+			row(v.ChangeRequestShort+"s", mrs+theme.Bg(" assigned  ")+review+theme.Bg(" to review")),
 			row("Issues", issues+theme.Bg(" assigned")),
 			theme.Bg(""),
 			row("Workspaces", workspaces),
@@ -117,12 +118,12 @@ func renderCodeSection(m Model, width int, t tier) []string {
 	// chose. Les trois compteurs se lisent maintenant en colonne.
 	pathWidth := theme.BoxContentWidth(width) - treeValueColumn
 	return []string{
-		theme.Bg("GitLab"),
+		theme.Bg(v.Name),
 		branch(false, "user", sessionLine),
 		branch(false, "host", theme.Bg(forgeHost(m.config.Forge.URL))),
 		branch(false, "issues assigned", issues),
-		branch(false, "MR assigned", mrs),
-		branch(true, "MR to review", review),
+		branch(false, v.ChangeRequestShort+" assigned", mrs),
+		branch(true, v.ChangeRequestShort+" to review", review),
 		treeGap(),
 		theme.Bg("Workspaces"),
 		branch(false, "repositories", workspaces),

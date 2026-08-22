@@ -1,5 +1,7 @@
 package theme
 
+import "github.com/anthnel/devdesk/internal/config"
+
 var (
 	IconPause                 = "\U000F03E4" // 󰏤 nf-md-pause
 	IconPlay                  = "\U000F040A" // 󰐊 nf-md-play
@@ -39,6 +41,7 @@ var (
 	IconSelect                = "\uf516"     //  nf-oct-single_selectc
 	IconCertificate           = "\uf23e"     //  nf-fa-expeditedssl
 	IconGitlab                = "\uf296"     //  nf-fa-gitlab
+	IconGithub                = "\uf09b"     //  nf-fa-github
 	IconWorkspace             = IconDirectoryOpen
 	IconDashboard             = "\ueacd"        //  nf-cod-dashboard
 	IconWorkspaceTrusted      = "\uebc1"        //  nf-cod-workspace_trusted
@@ -82,3 +85,23 @@ var (
 	IconService = IconPlay //  status view title
 	IconRunning = IconPlay //  pipeline running
 )
+
+// ForgeIcon is the glyph that names a code-hosting platform.
+//
+// The vocabulary lives in internal/forge and the glyphs live here, because a
+// domain package must not import the UI. Both key on config's own constants
+// rather than on a literal, so there is one spelling of "gitlab" in the
+// application and a new forge cannot be half-added.
+//
+// An unknown forge gets the generic git glyph rather than nothing: a missing
+// icon shifts every title it prefixes by one cell.
+func ForgeIcon(forgeType string) string {
+	switch forgeType {
+	case config.ForgeGitHub:
+		return IconGithub
+	case config.ForgeGitLab:
+		return IconGitlab
+	default:
+		return IconGitBranch
+	}
+}

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/anthnel/devdesk/internal/forge"
 	"strings"
 	"testing"
 
@@ -19,11 +20,11 @@ const (
 )
 
 func newGroupForm() *CreationForm {
-	return NewCreationForm(0, "", "", "private", nil)
+	return NewCreationForm(0, "", "", "private", nil, forge.VocabularyFor(""))
 }
 
 func newProjectForm(templates ...string) *CreationForm {
-	return NewCreationForm(1, "parent/group", "42", "private", templates)
+	return NewCreationForm(1, "parent/group", "42", "private", templates, forge.VocabularyFor(""))
 }
 
 // feedForm applies messages in order.
@@ -75,7 +76,7 @@ func TestNewCreationFormResolvesDefaultVisibility(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.given, func(t *testing.T) {
-			f := NewCreationForm(0, "", "", tt.given, nil)
+			f := NewCreationForm(0, "", "", tt.given, nil, forge.VocabularyFor(""))
 			if f.visibility != tt.want {
 				t.Errorf("visibility = %d for %q, want %d", f.visibility, tt.given, tt.want)
 			}
@@ -327,7 +328,7 @@ func TestCreationFormNoneTemplateSubmitsEmpty(t *testing.T) {
 }
 
 func TestCreationFormGroupNeverSubmitsATemplate(t *testing.T) {
-	f := NewCreationForm(0, "", "7", "private", []string{"go"})
+	f := NewCreationForm(0, "", "7", "private", []string{"go"}, forge.VocabularyFor(""))
 	f.focusedField = fieldName
 	f.updateFocus()
 	f = feedForm(f, testutil.Type("grp")...)

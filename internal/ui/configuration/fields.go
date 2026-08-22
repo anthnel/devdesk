@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -183,7 +184,10 @@ func (f field) Apply(c *config.Config, raw string) error {
 // themes and views are passed in because both are discovered rather than
 // declared — themes from a directory, views from the command parser; configPath
 // because it names the context's file, which the config itself does not carry.
-func sections(themes, views []string, configPath string) []section {
+// forgeType and v name the tab and its words. The tab is titled after the
+// platform the context targets, not after the section key: `forge:` is what the
+// file says, and no user calls it that.
+func sections(themes, views []string, configPath, forgeType string, v forge.Vocabulary) []section {
 	return []section{
 		{Title: "app", Fields: slices.Concat(
 			group("Appearance", theme.IconDashboard,
@@ -225,11 +229,11 @@ func sections(themes, views []string, configPath string) []section {
 			),
 		)},
 
-		{Title: "gitlab", Fields: slices.Concat(
-			group("Connection", theme.IconGitlab,
+		{Title: forgeType, Fields: slices.Concat(
+			group("Connection", theme.ForgeIcon(forgeType),
 				text("URL", func(c *config.Config) *string { return &c.Forge.URL },
-					"e.g. https://gitlab.com"),
-				text("Default parent group", func(c *config.Config) *string { return &c.Forge.DefaultParentGroup }, ""),
+					"e.g. "+v.ExampleURL),
+				text("Default parent "+strings.ToLower(v.Namespace), func(c *config.Config) *string { return &c.Forge.DefaultParentGroup }, ""),
 				cycle("Default visibility", func(c *config.Config) *string { return &c.Forge.DefaultVisibility },
 					[]string{"private", "internal", "public"}, ""),
 				cycle("Clone method", func(c *config.Config) *string { return &c.Forge.CloneMethod },
@@ -237,7 +241,7 @@ func sections(themes, views []string, configPath string) []section {
 			),
 			group("Pull", theme.IconGitBranch,
 				integer("Parallel jobs", func(c *config.Config) *int { return &c.Forge.Pull.ParallelJobs }, 1, 32, ""),
-				toggle("Include archived projects", func(c *config.Config) *bool { return &c.Forge.Pull.IncludeArchived }, ""),
+				toggle("Include archived "+strings.ToLower(v.Repositories), func(c *config.Config) *bool { return &c.Forge.Pull.IncludeArchived }, ""),
 			),
 		)},
 

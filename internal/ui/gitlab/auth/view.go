@@ -5,6 +5,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -39,8 +41,23 @@ func (m Model) RenderFooter(width int) string {
 	return theme.EmptyLineBg(width) + "\n" + theme.EmptyLineBg(width)
 }
 
+// vocab is the wording of the forge this context targets. Resolved from the
+// config rather than carried on shared.State: the title and the help are needed
+// before any session exists, so a value hanging off a live Forge would be
+// unavailable exactly where it is needed most.
+func (m Model) vocab() forge.Vocabulary {
+	if m.config == nil {
+		return forge.VocabularyFor("")
+	}
+	return forge.VocabularyFor(m.config.Forge.Type)
+}
+
 func (m Model) GetTitle() string {
-	return theme.IconUser + " Gitlab Authentication"
+	forgeType := ""
+	if m.config != nil {
+		forgeType = m.config.Forge.Type
+	}
+	return theme.ForgeIcon(forgeType) + " " + m.vocab().Name + " Authentication"
 }
 
 func (m Model) GetIcon() string {
@@ -56,9 +73,12 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 
 // GetHelpContent retourne le contenu d'aide de la vue GitLab Auth
 func (m Model) GetHelpContent() help.Content {
+	v := m.vocab()
 	return help.Content{
-		Title:       "GitLab Authentication",
-		Description: "This view allows you to connect to a GitLab instance. Once authenticated, you can explore groups and projects, clone repositories, and manage your GitLab resources.",
+		Title: v.Name + " Authentication",
+		Description: "This view allows you to connect to a " + v.Name + " instance. Once authenticated, you can explore " +
+			strings.ToLower(v.Namespaces) + " and " + strings.ToLower(v.Repositories) +
+			", clone repositories, and manage your " + v.Name + " resources.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "↑ / ↓", Description: "Navigate between form fields"},
 			{Key: "enter", Description: "Submit form / advance to next field"},
@@ -73,8 +93,11 @@ func (m Model) GetHelpContent() help.Content {
 					"Set app.secret_backend in the context configuration to \"keyring\" or \"git-credential\" to pin one of them instead of letting DevDesk choose.",
 			},
 			{
-				Title: "Personal Access Token",
-				Body:  "Create a token in GitLab > Settings > Access Tokens. Required scopes: api, read_user. The token must start with 'glpat-'.",
+				Title: v.TokenLabel,
+				// The prefix is a hint, never a check: DevDesk does not validate
+				// it, and saying "must" about something nothing enforces is how
+				// a user comes to believe a working token is broken.
+				Body: v.TokenHelp + " It usually starts with " + v.TokenPlaceholder + ".",
 			},
 		},
 	}
@@ -181,9 +204,9 @@ func (m *Model) renderLoggedInView() string {
 	}
 	b.WriteString("\n")
 
-	// Afficher l'URL GitLab
+	// Afficher l'URL de la forge
 	if m.config != nil && m.config.Forge.URL != "" {
-		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText).Bold(true).Render("GitLab URL: "))
+		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText).Bold(true).Render(m.vocab().Name + " URL: "))
 		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorPrimary).Bold(true).Render(m.config.Forge.URL) + "\n")
 	}
 	b.WriteString("\n")
@@ -224,15 +247,28 @@ func (m *Model) renderError() string {
 // is nothing to log into, and the user would otherwise be told the token is
 // missing for a problem that is not the token.
 func (m Model) renderConfiguredURL() string {
-	label := lipgloss.NewStyle().Background(theme.ColorBackground).Bold(true).Render("GitLab URL")
+	label := lipgloss.NewStyle().Background(theme.ColorBackground).Bold(true).Render(m.vocab().Name + " URL")
 
 	if m.config == nil || m.config.Forge.URL == "" {
 		return label + "\n" + theme.StatusErrorStyle.Render(
-			theme.IconWarning+" not configured — set it in :config, gitlab tab")
+			theme.IconWarning+" not configured — set it in :config, "+m.forgeTab()+" tab")
 	}
 	value := lipgloss.NewStyle().
 		Background(theme.ColorBackground).
 		Foreground(theme.ColorPrimary).
 		Render(m.config.Forge.URL)
 	return label + "\n" + value + theme.DimStyle.Render("   change it in :config")
+}
+
+// forgeTab names the configuration tab that holds the forge settings.
+//
+// The tab is titled after the active forge, so this is the forge's key rather
+// than a literal — the message stays true when the context targets GitHub, and
+// it stayed true when the section under it was renamed from `gitlab:` to
+// `forge:` (§3.6 step 4), because the *tab* is still named after the platform.
+func (m Model) forgeTab() string {
+	if m.config == nil || m.config.Forge.Type == "" {
+		return config.ForgeGitLab
+	}
+	return m.config.Forge.Type
 }
