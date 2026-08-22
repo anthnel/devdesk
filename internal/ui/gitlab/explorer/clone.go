@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/forge"
 )
 
 // The clone flow, end to end (§3.16):
@@ -20,7 +22,7 @@ import (
 
 // handleCloneStart enters the selection mode.
 func (m Model) handleCloneStart() (tea.Model, tea.Cmd) {
-	if m.shared.GitLabClient == nil || len(m.nodes) == 0 {
+	if !m.shared.IsAuthenticated || len(m.nodes) == 0 {
 		return m, nil
 	}
 	m.mode = ModeSelecting
@@ -84,12 +86,12 @@ func (m Model) handleCloneDestinationSelected(msg CloneDestinationSelectedMsg) (
 	}
 
 	run := startCloneRun(cloneSpec{
-		client:          m.shared.GitLabClient,
+		backend:         m.shared.Forge,
 		roots:           roots,
 		selection:       m.selection,
 		target:          msg.Path,
 		secrets:         m.shared.Secrets.Storage,
-		cloneMethod:     m.config.GitLab.CloneMethod,
+		cloneMethod:     forge.CloneMethod(m.config.GitLab.CloneMethod),
 		gitlabURL:       m.config.GitLab.URL,
 		jobs:            m.config.GitLab.Pull.ParallelJobs,
 		includeArchived: m.config.GitLab.Pull.IncludeArchived,

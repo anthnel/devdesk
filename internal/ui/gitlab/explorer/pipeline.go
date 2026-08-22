@@ -6,15 +6,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
-	tea "github.com/charmbracelet/bubbletea"
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
-
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/forge"
+	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/git"
-	"github.com/anthnel/devdesk/internal/gitlab"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // The clone pipeline: a discovery walk feeding a bounded pool of clones
@@ -59,7 +57,7 @@ const cloneEventBuffer = 256
 
 // cloneSpec is everything a run needs, read out of the model up front.
 type cloneSpec struct {
-	client    *gitlabclient.Client
+	backend   forge.Forge
 	roots     []*TreeNode
 	selection cloneSelection
 	target    string
@@ -67,7 +65,7 @@ type cloneSpec struct {
 	// token itself, so the keyring read happens on the run's goroutine — Update
 	// does no I/O.
 	secrets         credentials.Storage
-	cloneMethod     string
+	cloneMethod     forge.CloneMethod
 	gitlabURL       string
 	jobs            int
 	includeArchived bool
@@ -79,10 +77,10 @@ type cloneSpec struct {
 // A missing token is not an error here: a public repository clones without one,
 // and a clone that does need it fails with git's own reason, on its own row.
 func (s cloneSpec) cloneToken() string {
-	if s.cloneMethod == "ssh" || s.secrets == nil {
+	if s.cloneMethod == forge.CloneSSH || s.secrets == nil {
 		return ""
 	}
-	token, err := gitlab.NewAuth(s.secrets).LoadCredentials(s.gitlabURL)
+	token, err := gitlabforge.NewAuth(s.secrets).LoadCredentials(s.gitlabURL)
 	if err != nil {
 		log.Printf("ERROR [explorer] loading the clone token: %v", err)
 		return ""
@@ -172,7 +170,7 @@ func discover(ctx context.Context, spec cloneSpec, node *TreeNode, found chan<- 
 		return
 	}
 
-	children, err := discoverGroupChildren(spec.client, node, spec.includeArchived)
+	children, err := discoverChildren(ctx, spec.backend, node, spec.includeArchived)
 	if err != nil {
 		// A cancelled walk reports nothing: the error is the cancellation, and a
 		// failed row for it would read as a repository nobody could clone.
@@ -201,24 +199,11 @@ func cloneOne(node *TreeNode, spec cloneSpec, token string) (skipped bool, err e
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return false, fmt.Errorf("mkdir %s: %w", filepath.Dir(dir), err)
 	}
-	url := cloneURL(spec.gitlabURL, spec.cloneMethod, node.FullPath)
+	url := spec.backend.CloneURL(forge.Repository{Path: node.FullPath}, spec.cloneMethod)
 	if err := git.Clone(url, dir, git.CloneOptions{Token: token}); err != nil {
 		return false, err
 	}
 	return false, nil
-}
-
-// cloneURL builds the git URL for a project from the configured GitLab URL and
-// the clone method. SSH form takes the host alone, so the scheme is stripped.
-func cloneURL(gitlabURL, cloneMethod, fullPath string) string {
-	cleanURL := strings.TrimSuffix(gitlabURL, "/")
-	if cloneMethod != "ssh" {
-		return fmt.Sprintf("%s/%s.git", cleanURL, fullPath)
-	}
-
-	host := strings.TrimPrefix(cleanURL, "https://")
-	host = strings.TrimPrefix(host, "http://")
-	return fmt.Sprintf("git@%s:%s.git", host, fullPath)
 }
 
 // waitForCloneEvent blocks on the run's channel and hands one event to Update.

@@ -18,8 +18,8 @@ func TestConfirmedDeleteHitsTheRightEndpoint(t *testing.T) {
 		node *TreeNode
 		want string
 	}{
-		{"group", &TreeNode{ID: 42, FullPath: "infra", Type: NodeTypeGroup}, "/api/v4/groups/42"},
-		{"project", &TreeNode{ID: 7, FullPath: "infra/api", Type: NodeTypeProject}, "/api/v4/projects/7"},
+		{"group", &TreeNode{ID: "42", FullPath: "infra", Type: NodeTypeGroup}, "/api/v4/groups/42"},
+		{"project", &TreeNode{ID: "7", FullPath: "infra/api", Type: NodeTypeProject}, "/api/v4/projects/7"},
 	}
 
 	for _, tt := range tests {
@@ -54,7 +54,7 @@ func TestConfirmedDeleteHitsTheRightEndpoint(t *testing.T) {
 // the command, or the row silently stays.
 func TestConfirmedDeleteReportsAFailure(t *testing.T) {
 	m := serverModel(t, newFakeGitLab(t, nil)) // everything 404s
-	m.deleteTargetNode = &TreeNode{ID: 42, FullPath: "infra", Type: NodeTypeGroup}
+	m.deleteTargetNode = &TreeNode{ID: "42", FullPath: "infra", Type: NodeTypeGroup}
 
 	_, cmd := m.handleDeleteConfirmed(false)
 
@@ -77,7 +77,7 @@ func TestConfirmedDeleteWithoutATargetOrAClient(t *testing.T) {
 
 	t.Run("no client", func(t *testing.T) {
 		m := New(testConfig(), &shared.State{})
-		m.deleteTargetNode = &TreeNode{ID: 1, Type: NodeTypeGroup}
+		m.deleteTargetNode = &TreeNode{ID: "1", Type: NodeTypeGroup}
 
 		next, cmd := m.handleDeleteConfirmed(false)
 
@@ -95,7 +95,7 @@ func TestConfirmedDeleteWithoutATargetOrAClient(t *testing.T) {
 func TestPermanentDeleteIsPassedThrough(t *testing.T) {
 	f := newFakeGitLab(t, map[string]string{"/api/v4": `{}`})
 	m := serverModel(t, f)
-	m.deleteTargetNode = &TreeNode{ID: 42, FullPath: "infra/tools", Type: NodeTypeGroup}
+	m.deleteTargetNode = &TreeNode{ID: "42", FullPath: "infra/tools", Type: NodeTypeGroup}
 
 	_, cmd := m.handleDeleteConfirmed(true)
 	testutil.Msg(cmd)

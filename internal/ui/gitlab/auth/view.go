@@ -120,7 +120,7 @@ func (m *Model) renderForm() string {
 	}
 
 	// Si authentifié, afficher la vue "Logged in"
-	if m.authenticated && m.user != nil {
+	if m.authenticated {
 		return m.renderLoggedInView()
 	}
 

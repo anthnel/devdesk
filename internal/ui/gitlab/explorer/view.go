@@ -49,7 +49,7 @@ func (m Model) View() string {
 	contentStyle := lipgloss.NewStyle().Background(theme.ColorBackground).PaddingLeft(1)
 
 	// Normal view
-	if m.shared.GitLabClient == nil {
+	if !m.shared.IsAuthenticated {
 		return contentStyle.Render(renderNotAuthenticated())
 	}
 
@@ -154,7 +154,7 @@ func (m Model) status() components.Status {
 		return components.Status{Text: m.cloneStatusLine()}
 	case m.mode == ModeSelecting:
 		return components.Status{Text: m.selectionStatusLine()}
-	case m.shared.GitLabClient != nil && m.loadingTree():
+	case m.shared.IsAuthenticated && m.loadingTree():
 		return components.Status{Text: "Loading GitLab groups...", Spinner: true}
 	}
 	return components.Status{}
@@ -178,7 +178,7 @@ func (m Model) selectionStatusLine() string {
 // showsTree reports whether the tree table is what is on screen, which is what
 // decides whether the footer carries a breadcrumb and a filter bar.
 func (m Model) showsTree() bool {
-	if m.shared.GitLabClient == nil || m.loading || m.error != "" || len(m.nodes) == 0 {
+	if !m.shared.IsAuthenticated || m.loading || m.error != "" || len(m.nodes) == 0 {
 		return false
 	}
 	if m.creationForm != nil {
@@ -341,7 +341,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		return []shortcut.Shortcut{}
 	}
 
-	if m.shared.GitLabClient == nil {
+	if !m.shared.IsAuthenticated {
 		return []shortcut.Shortcut{
 			{Key: "ctrl+p", Description: "Command mode"},
 		}
@@ -414,7 +414,9 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	info := []shortcut.HeaderInfo{
 		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},
 	}
-	if m.shared.CurrentUser != nil {
+	// The username, not the flag: a session whose user could not be read would
+	// otherwise put a bare "@" in the header.
+	if m.shared.CurrentUser.Username != "" {
 		info = append(info, shortcut.HeaderInfo{Key: "User", Value: "@" + m.shared.CurrentUser.Username, Style: theme.HeaderValueStyle})
 	}
 	return info

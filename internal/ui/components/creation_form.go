@@ -27,10 +27,13 @@ var resourceTypes = []string{"Group", "Project"}
 
 // CreationForm is a form for creating GitLab groups or projects
 type CreationForm struct {
-	resourceType    int      // 0=Group, 1=Project
-	formType        FormType // kept in sync with resourceType
-	parentName      string   // Name of parent group (for display)
-	parentID        int64    // ID of parent group
+	resourceType int      // 0=Group, 1=Project
+	formType     FormType // kept in sync with resourceType
+	parentName   string   // Name of parent group (for display)
+	// parentID is the forge's opaque identifier for the parent namespace, empty
+	// at the root. It was an int64 — GitLab's numeric id — which is exactly what
+	// §3.6 made opaque: the form carries it and never reads it.
+	parentID        string
 	nameInput       textinput.Model
 	descInput       WrappedInput
 	visibility      int      // 0=private, 1=internal, 2=public
@@ -53,7 +56,7 @@ type CreationFormSubmitMsg struct {
 	Description string
 	Visibility  string
 	Template    string // for projects
-	ParentID    int64
+	ParentID    string
 }
 
 // CreationFormCancelMsg is sent when form is cancelled
@@ -76,7 +79,7 @@ func formTypeFromResourceType(rt int) FormType {
 // NewCreationForm creates the unified group/project creation form.
 // defaultResourceType: 0=Group, 1=Project.
 // focusedField starts at 0 (Type) so the user can immediately cycle the resource type.
-func NewCreationForm(defaultResourceType int, parentName string, parentID int64, defaultVisibility string, templates []string) *CreationForm {
+func NewCreationForm(defaultResourceType int, parentName string, parentID string, defaultVisibility string, templates []string) *CreationForm {
 	nameInput := textinput.New()
 	nameInput.Placeholder = "name"
 	nameInput.CharLimit = 100

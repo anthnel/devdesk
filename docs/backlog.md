@@ -30,6 +30,26 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D52 — un compteur du dashboard qui n'a pas pu être lu s'affichait `0`.
+Corrigé** par §3.6 étape 3, qui est aussi ce qui l'a trouvé — l'étape 1 a dû
+décider ce que `forge.DashboardStats` pouvait promettre, et cinq `int` ne
+savaient pas dire « personne n'a regardé ».
+
+`FetchDashboardStats` émettait **cinq requêtes indépendantes** et avalait
+l'erreur de chacune : le champ restait à zéro, et `countValue` rendait un `0`
+grisé — exactement ce qu'il rend quand il n'y a réellement aucune merge request
+assignée. Un token dont le scope ne couvre pas les issues, une instance qui
+limite le débit, un endpoint indisponible : les trois donnaient un dashboard
+qui disait « rien à faire ». C'était D20 dans cinq champs.
+
+Chaque compteur est un `*int`, `nil` voulant dire que rien n'a compté, et
+`maybeCountValue` rend `-`. Le précédent est `Sensitive *bool` des caches de
+scan, où la même distinction avait dû être ajoutée après coup.
+
+Deux tests, et le premier a été vérifié en échec sur un `maybeCountValue` qui
+rendrait `0` : un compteur lu qui vaut zéro **reste** un `0`, parce que c'est
+une réponse ; un compteur que personne n'a pu lire est un `-`.
+
 **D51 — `V` (pager) n'a jamais marché sous Windows : il revenait aussitôt, sans
 rien dire. Corrigé.** Signalé le 2026-08-22, juste après D50.
 
@@ -1258,27 +1278,6 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
-**D52 — un compteur du dashboard qui n'a pas pu être lu s'affiche `0`.**
-`FetchDashboardStats` (`internal/gitlab/stats.go`) émet **cinq requêtes
-indépendantes** et avale l'erreur de chacune : `if _, resp, err := …; err == nil`
-remplit le champ, sinon il reste à sa valeur zéro. `countValue`
-(`dashboard/sections.go:951`) rend alors un `0` en `DimStyle`, qui est
-exactement ce qu'il rend quand il n'y a réellement aucune merge request
-assignée.
-
-C'est D20 dans cinq champs : un zéro qui veut dire « personne n'a regardé » se
-lit comme une réponse. Un token dont le scope ne couvre pas les issues, une
-instance qui limite le débit, un endpoint indisponible — les trois donnent un
-dashboard qui dit « rien à faire ».
-
-Trouvé en écrivant §3.6 étape 1, et c'est ce qui a décidé la forme de
-`forge.DashboardStats` : chaque compteur y est un `*int`, `nil` voulant dire que
-rien n'a compté. Le précédent est `Sensitive *bool` dans les caches de scan, où
-la même distinction a dû être ajoutée après coup. **Le type le rend exprimable ;
-il n'est pas encore corrigé** — `internal/gitlab` reste tel quel jusqu'à ce que
-les appels passent par l'interface, et le dashboard devra rendre `-` plutôt que
-`0` pour un `nil`.
-
 **D39 — every discovered group member browses, and none of them can be pulled.**
 `NexusDetector` synthesises each member as `host + "/repository/" + name`
 (`nexus.go:117`, `nexus.go:156`). Measured against `pic-nexus.spw.dev.wallonie.be`
@@ -1308,7 +1307,8 @@ Not reached before now because discovery had never succeeded against a group her
 own; §3.18 is what would have made it the normal case rather than a way to
 misconfigure, and it no longer has to carry that.
 
-**D39 et D52 sont les seuls ouverts**, ci-dessus. D21 and D36 closed everything that preceded
+**D39 est le seul ouvert**, ci-dessus. D52, trouvé en écrivant §3.6 étape 1,
+a été corrigé à l'étape 3 — voir §1.1. D21 and D36 closed everything that preceded
 them; both are in §1.1.
 
 D12, D13 and D14 were all fixed by §3.8 — see "The three defects it closed"
@@ -2356,7 +2356,10 @@ l'abstraction en dessous.
 | Surface | Size |
 |---|---|
 | `internal/gitlab` + `internal/ui/gitlab/{auth,explorer}` | ~3 900 lines |
-| Direct uses of the SDK types outside `internal/gitlab` | **41, across 10 files** (66 at the entry's opening) |
+| Direct uses of the SDK types outside `internal/gitlab` | **0** — 41 when step 3 started, 66 at the entry's opening |
+
+Le tableau est historique : `internal/gitlab` n'existe plus, et le SDK n'est
+importé que par `internal/forge/gitlab`.
 
 The concrete SDK type leaks into `internal/shared/state.go:57`
 (`GitLabClient *gitlabclient.Client`), so every consumer is bound to go-gitlab
@@ -2370,11 +2373,11 @@ and their `gla` / `gle` aliases in `internal/command/parser.go`, and
 
 Two findings from the design review that the count above does not capture:
 
-**The client doubles as the authentication flag.** `explorer/view.go:153`,
-`:174` and `GetShortcuts()` all branch on `m.shared.GitLabClient != nil` to
-decide whether the user is logged in, even though `shared.IsAuthenticated`
-exists and says exactly that. Those sites are inside the 66, but they need a
-semantic change rather than a type substitution.
+**The client doubled as the authentication flag. Corrigé à l'étape 3.** Three
+sites branched on `m.shared.GitLabClient != nil` to decide whether the user was
+logged in, with `shared.IsAuthenticated` sitting beside them saying the same
+thing. They were inside the 66 and needed a semantic change rather than a type
+substitution, which is why they are called out here.
 
 **La surface de commandes était dupliquée quatre fois. Ce n'est plus vrai —
 D16/D17 l'ont effondrée**, et cette entrée l'affirmait encore. Ce qui suit est
@@ -2713,12 +2716,10 @@ font contre GitLab seul.
    l'interface.~~ **Faite** — `internal/forge/gitlab`, seul endroit de DevDesk
    qui sache que go-gitlab existe. Ce qu'il cache et ce qu'écrire l'a trouvé
    sont plus bas.
-3. Remplacer `shared.State.GitLabClient` par cette interface, et faire passer les
-   branches « authentifié ou non » par `IsAuthenticated` au passage. C'est le
-   changement dont les 41 autres appels découlent — le décompte de 66 était
-   celui de l'ouverture de l'entrée. `internal/gitlab` et `explorer/api.go`
-   disparaissent ici, ce qui est aussi ce qui empêche la pagination et le
-   listing d'exister en double.
+3. ~~Remplacer `shared.State.GitLabClient` par cette interface.~~ **Faite** —
+   `Forge` et `CurrentUser` sont dans `shared.State`, `internal/gitlab` et
+   `explorer/api.go` ont disparu, et D52 est corrigé au passage. Détails plus
+   bas.
 4. `GitLabConfig` devient `ForgeConfig`, section `forge:` avec un `type:`, migrée
    depuis `gitlab:` dans `applyDefaults` **avant** les défauts, sur le précédent
    de `docker:` → `network:` (§3.34). Un test du genre
@@ -2839,6 +2840,46 @@ intacts et portent encore leurs propres chemins : les déplacer demande que
 recouvrement est donc réel — la pagination et le listing existent en deux
 exemplaires — et il dure exactement une PR. Le supprimer ici aurait voulu dire
 fusionner les étapes 2 et 3 en un diff de plus de mille lignes.
+
+#### Ce que l'étape 3 a trouvé
+
+`internal/gitlab` et `explorer/api.go` ont disparu : le premier a été déplacé en
+entier — sa session dans `internal/forge/gitlab/auth.go`, ses appels d'API dans
+le backend — et le second ne garde que la conversion des types de la forge vers
+le `TreeNode` que la vue rend. Le recouvrement d'une PR annoncé à l'étape 2 est
+donc refermé, et la pagination n'existe plus qu'à un endroit.
+
+- **`CurrentUser` est mémoïsé sur le backend, et ce n'est pas une optimisation.**
+  Chaque listing décoré a besoin de l'ID de l'appelant pour ses recherches de
+  rôle ; le demander à chaque fois ajoutait **une requête par listing** que le
+  code d'avant ne faisait pas, puisqu'il lisait l'ID d'une session que la vue
+  tenait déjà. Trouvé par un test de l'explorer qui rendait des lignes non
+  décorées sans rien dire, parce que le faux serveur ne servait pas `/user`.
+- **`IsAuthenticated` est le drapeau, `Forge` est ce qu'on appelle.** Le client
+  était les deux : `GitLabClient != nil` décidait « l'utilisateur est-il
+  connecté » à trois endroits, avec `IsAuthenticated` juste à côté qui disait la
+  même chose. `CurrentUser` devient une **valeur** pour la même raison — une
+  seconde façon de poser une question est la façon dont deux réponses finissent
+  par diverger. Le header montre l'utilisateur quand il y a un **nom**, pas
+  quand le drapeau est levé : une session dont l'utilisateur n'a pas pu être lu
+  affichait sinon un `@` tout seul.
+- **`clearAuthenticated` est le seul endroit où une session est démontée.** Trois
+  sites écrivaient les trois ou quatre champs à la main — le changement de
+  backend de secrets, le changement d'URL GitLab et le changement de contexte —
+  ce qui est exactement la forme de D28. Ils l'appellent.
+- **Le clone et la marche partagent un backend, et les tests ont dû l'admettre.**
+  `cloneURL` était construit depuis `spec.gitlabURL` pendant que la marche
+  utilisait `spec.client` : deux hôtes, ce que la production n'a jamais eu mais
+  dont les tests vivaient. `NewWithClient(client, host)` prend les deux
+  séparément, donc une seule valeur sert les deux — et c'est la production qui
+  décide, pas le test.
+- **Les tests déplacés ont été supprimés, pas dupliqués.** Pagination, coût de la
+  décoration, dégradation d'une décoration refusée, traduction d'un niveau
+  d'accès, forme de l'URL de clone : tous appartiennent au backend et y sont
+  testés. `explorer/api_test.go` garde ce qui est à l'explorer — quelles options
+  il demande, et comment il convertit ce qu'il reçoit.
+
+Couverture du projet : 80,7 % → **82,1 %**.
 
 ### 3.7 Command mode from inside a text field — **done**
 

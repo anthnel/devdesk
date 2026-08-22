@@ -13,9 +13,17 @@ const (
 	NodeTypeProject NodeType = "project"
 )
 
-// TreeNode représente un nœud dans l'arbre GitLab
+// TreeNode représente un nœud dans l'arbre de la forge.
+//
+// Il survit à l'abstraction (§3.6) parce que ce qu'il porte en plus est de
+// l'état de vue — développé, en cours de chargement, parent, profondeur — dont
+// une forge n'a pas d'avis. Ce qu'il ne porte plus est ce que la forge décide :
+// l'identifiant est opaque et le rôle est déjà un mot.
 type TreeNode struct {
-	ID       int64 // GitLab uses int64 for IDs
+	// ID adresse le nœud auprès du backend et ne veut rien dire ici. C'était un
+	// int64 — l'identifiant numérique de GitLab — que quatre sites convertissaient
+	// en int pour le repasser au SDK.
+	ID       string
 	Name     string
 	FullPath string
 	Type     NodeType
@@ -26,8 +34,12 @@ type TreeNode struct {
 	Depth    int // Depth in tree (for rendering)
 
 	// Metadata for flat table display
-	Visibility        string     // "private", "internal", "public"
-	AccessLevel       int        // User's access level (0=none, 10=guest, 20=reporter, 30=dev, 40=maintainer, 50=owner)
+	Visibility string // "private", "internal", "public"
+	// Role is already humanised — "Owner", "Maintainer", … — because the
+	// backend humanises it: GitLab's numeric levels and GitHub's words do not
+	// align one to one, so a view translating an integer would be translating
+	// GitLab's. It replaces AccessLevel and AccessLevelName().
+	Role              string
 	CreatedAt         *time.Time // Creation date
 	LastActivityAt    *time.Time // Last activity date
 	PipelineStatus    string     // Last pipeline status ("success", "failed", "running", "pending", etc.)
@@ -44,24 +56,6 @@ func (n *TreeNode) IsExpandable() bool {
 func (n *TreeNode) Toggle() {
 	if n.IsExpandable() {
 		n.Expanded = !n.Expanded
-	}
-}
-
-// AccessLevelName returns a human-readable role name for the access level
-func (n *TreeNode) AccessLevelName() string {
-	switch {
-	case n.AccessLevel >= 50:
-		return "Owner"
-	case n.AccessLevel >= 40:
-		return "Maintainer"
-	case n.AccessLevel >= 30:
-		return "Developer"
-	case n.AccessLevel >= 20:
-		return "Reporter"
-	case n.AccessLevel >= 10:
-		return "Guest"
-	default:
-		return ""
 	}
 }
 

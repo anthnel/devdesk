@@ -19,11 +19,11 @@ const (
 )
 
 func newGroupForm() *CreationForm {
-	return NewCreationForm(0, "", 0, "private", nil)
+	return NewCreationForm(0, "", "", "private", nil)
 }
 
 func newProjectForm(templates ...string) *CreationForm {
-	return NewCreationForm(1, "parent/group", 42, "private", templates)
+	return NewCreationForm(1, "parent/group", "42", "private", templates)
 }
 
 // feedForm applies messages in order.
@@ -75,7 +75,7 @@ func TestNewCreationFormResolvesDefaultVisibility(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.given, func(t *testing.T) {
-			f := NewCreationForm(0, "", 0, tt.given, nil)
+			f := NewCreationForm(0, "", "", tt.given, nil)
 			if f.visibility != tt.want {
 				t.Errorf("visibility = %d for %q, want %d", f.visibility, tt.given, tt.want)
 			}
@@ -303,8 +303,8 @@ func TestCreationFormSubmitPayload(t *testing.T) {
 	if msg.Template != "python" {
 		t.Errorf("Template = %q, want python", msg.Template)
 	}
-	if msg.ParentID != 42 {
-		t.Errorf("ParentID = %d, want 42", msg.ParentID)
+	if msg.ParentID != "42" {
+		t.Errorf("ParentID = %q, want 42", msg.ParentID)
 	}
 }
 
@@ -327,7 +327,7 @@ func TestCreationFormNoneTemplateSubmitsEmpty(t *testing.T) {
 }
 
 func TestCreationFormGroupNeverSubmitsATemplate(t *testing.T) {
-	f := NewCreationForm(0, "", 7, "private", []string{"go"})
+	f := NewCreationForm(0, "", "7", "private", []string{"go"})
 	f.focusedField = fieldName
 	f.updateFocus()
 	f = feedForm(f, testutil.Type("grp")...)

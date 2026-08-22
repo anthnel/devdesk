@@ -1,8 +1,7 @@
 package explorer
 
 import (
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
-
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/oci"
 )
 
@@ -19,13 +18,13 @@ type RootGroupsLoadedMsg struct {
 
 // GroupCreatedMsg est envoyé quand un groupe est créé
 type GroupCreatedMsg struct {
-	Group *gitlabclient.Group
-	Error error
+	Namespace forge.Namespace
+	Error     error
 }
 
 // ProjectCreatedMsg est envoyé quand un projet est créé
 type ProjectCreatedMsg struct {
-	Project       *gitlabclient.Project
+	Repository    forge.Repository
 	Error         error
 	TemplateError error // Non-nil if template application failed (project still exists)
 }

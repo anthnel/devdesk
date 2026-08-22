@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
-	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/forge"
+	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
 	"github.com/anthnel/devdesk/internal/ui/security"
@@ -128,8 +128,8 @@ func TestReinitializingDropsEveryView(t *testing.T) {
 func TestSwitchingContextClearsTheGitLabSession(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.sharedState.IsAuthenticated = true
-	a.sharedState.GitLabStats = &shared.GitLabStats{TotalProjects: 12}
-	a.sharedState.CurrentUser = &gitlabclient.User{Username: "before"}
+	a.sharedState.GitLabStats = &forge.DashboardStats{Repositories: forge.Count(12)}
+	a.sharedState.CurrentUser = forge.User{Username: "before"}
 
 	a.Update(ContextSwitchCompleteMsg{ContextName: "work", Config: testConfig()})
 
@@ -162,10 +162,10 @@ func TestSwitchingWithCredentialsKeepsTheView(t *testing.T) {
 	a := router(t, &fakeView{})
 
 	a.Update(ContextSwitchCompleteMsg{
-		ContextName:  "work",
-		Config:       testConfig(),
-		GitLabClient: &gitlabclient.Client{},
-		GitLabUser:   &gitlabclient.User{Username: "anthnel"},
+		ContextName: "work",
+		Config:      testConfig(),
+		Forge:       gitlabforge.NewWithClient(nil, "https://gitlab.example.com"),
+		GitLabUser:  forge.User{Username: "anthnel"},
 	})
 
 	if !a.sharedState.IsAuthenticated {
@@ -296,7 +296,7 @@ func TestAutoLoginUsesTheSavedToken(t *testing.T) {
 	if result.Error != nil {
 		t.Fatalf("the auto-login failed: %v", result.Error)
 	}
-	if result.User == nil || result.User.Username != "anthnel" {
+	if result.User.Username != "anthnel" {
 		t.Errorf("logged in as %v, want anthnel", result.User)
 	}
 }
@@ -322,8 +322,8 @@ func TestAutoLoginReportsARejectedToken(t *testing.T) {
 	if result.Error == nil {
 		t.Error("a rejected token was reported as a successful login")
 	}
-	if result.Client != nil {
-		t.Error("a rejected token produced a client")
+	if result.Forge != nil {
+		t.Error("a rejected token produced a session")
 	}
 }
 
@@ -343,8 +343,8 @@ func TestASuccessfulAutoLoginPopulatesTheSession(t *testing.T) {
 	a := router(t, &fakeView{})
 
 	a.Update(GitLabAutoLoginMsg{
-		Client: &gitlabclient.Client{},
-		User:   &gitlabclient.User{Username: "anthnel"},
+		Forge: gitlabforge.NewWithClient(nil, "https://gitlab.example.com"),
+		User:  forge.User{Username: "anthnel"},
 	})
 
 	if !a.sharedState.IsAuthenticated {
@@ -363,8 +363,8 @@ func TestAManualAuthenticationPersistsTheConfig(t *testing.T) {
 	saved.GitLab.URL = "https://gitlab.example.com"
 
 	a.Update(auth.AuthResultMsg{
-		Client:       &gitlabclient.Client{},
-		User:         &gitlabclient.User{Username: "anthnel"},
+		Forge:        gitlabforge.NewWithClient(nil, "https://gitlab.example.com"),
+		User:         forge.User{Username: "anthnel"},
 		ConfigToSave: saved,
 	})
 

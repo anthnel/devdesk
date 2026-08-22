@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -11,10 +12,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/gitlab"
+	"github.com/anthnel/devdesk/internal/forge"
+	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
@@ -47,15 +48,16 @@ func testConfig() *config.Config {
 	return cfg
 }
 
-// authenticatedState carries a client so the view leaves its "not authenticated"
-// branch. Building one issues no request; only the commands would.
+// authenticatedState carries a backend so the view leaves its "not
+// authenticated" branch. Building one issues no request; only the commands
+// would.
 func authenticatedState(t *testing.T) *shared.State {
 	t.Helper()
-	client, err := gitlab.NewClient("https://gitlab.example.com", "test-token")
+	backend, err := gitlabforge.New("https://gitlab.example.com", "test-token")
 	if err != nil {
-		t.Fatalf("gitlab.NewClient() error = %v", err)
+		t.Fatalf("gitlabforge.New() error = %v", err)
 	}
-	return &shared.State{GitLabClient: client, IsAuthenticated: true}
+	return &shared.State{Forge: backend, IsAuthenticated: true}
 }
 
 func at(day int) *time.Time {
@@ -69,18 +71,18 @@ func at(day int) *time.Time {
 func rootFixtures() []*TreeNode {
 	return []*TreeNode{
 		{
-			ID: 1, Name: "alpha", FullPath: "alpha", Type: NodeTypeGroup,
-			Visibility: "private", AccessLevel: 50, CreatedAt: at(1),
+			ID: "1", Name: "alpha", FullPath: "alpha", Type: NodeTypeGroup,
+			Visibility: "private", Role: "Owner", CreatedAt: at(1),
 			WebURL: "https://gitlab.example.com/alpha",
 		},
 		{
-			ID: 2, Name: "beta", FullPath: "beta", Type: NodeTypeGroup,
-			Visibility: "internal", AccessLevel: 30, CreatedAt: at(2),
+			ID: "2", Name: "beta", FullPath: "beta", Type: NodeTypeGroup,
+			Visibility: "internal", Role: "Developer", CreatedAt: at(2),
 			WebURL: "https://gitlab.example.com/beta",
 		},
 		{
-			ID: 3, Name: "gamma", FullPath: "gamma", Type: NodeTypeGroup,
-			Visibility: "public", AccessLevel: 10, CreatedAt: at(3),
+			ID: "3", Name: "gamma", FullPath: "gamma", Type: NodeTypeGroup,
+			Visibility: "public", Role: "Guest", CreatedAt: at(3),
 			WebURL: "https://gitlab.example.com/gamma",
 		},
 	}
@@ -91,18 +93,18 @@ func rootFixtures() []*TreeNode {
 func childFixtures(parent *TreeNode) []*TreeNode {
 	return []*TreeNode{
 		{
-			ID: 10, Name: "sub", FullPath: "alpha/sub", Type: NodeTypeGroup, Parent: parent,
-			Visibility: "private", AccessLevel: 40, CreatedAt: at(4),
+			ID: "10", Name: "sub", FullPath: "alpha/sub", Type: NodeTypeGroup, Parent: parent,
+			Visibility: "private", Role: "Maintainer", CreatedAt: at(4),
 			WebURL: "https://gitlab.example.com/alpha/sub",
 		},
 		{
-			ID: 11, Name: "api", FullPath: "alpha/api", Type: NodeTypeProject, Parent: parent,
-			Visibility: "internal", AccessLevel: 30, CreatedAt: at(5), LastActivityAt: at(6),
+			ID: "11", Name: "api", FullPath: "alpha/api", Type: NodeTypeProject, Parent: parent,
+			Visibility: "internal", Role: "Developer", CreatedAt: at(5), LastActivityAt: at(6),
 			PipelineStatus: "success", WebURL: "https://gitlab.example.com/alpha/api",
 		},
 		{
-			ID: 12, Name: "legacy", FullPath: "alpha/legacy", Type: NodeTypeProject, Parent: parent,
-			Visibility: "public", AccessLevel: 20, CreatedAt: at(7), LastActivityAt: at(8),
+			ID: "12", Name: "legacy", FullPath: "alpha/legacy", Type: NodeTypeProject, Parent: parent,
+			Visibility: "public", Role: "Reporter", CreatedAt: at(7), LastActivityAt: at(8),
 			PipelineStatus: "failed", MarkedForDeletion: true,
 			WebURL: "https://gitlab.example.com/alpha/legacy",
 		},
@@ -159,16 +161,16 @@ func rowNames(rows []table.Row) []string {
 
 // newGroup and newProject build the API payloads the creation handlers read,
 // which is only the path they select afterwards.
-func newGroup(id int64, fullPath string) *gitlabclient.Group {
-	return &gitlabclient.Group{ID: id, FullPath: fullPath}
+func newGroup(id int64, fullPath string) forge.Namespace {
+	return forge.Namespace{ID: strconv.FormatInt(id, 10), Path: fullPath}
 }
 
-func newProject(id int64, pathWithNamespace string) *gitlabclient.Project {
-	return &gitlabclient.Project{ID: id, PathWithNamespace: pathWithNamespace}
+func newProject(id int64, pathWithNamespace string) forge.Repository {
+	return forge.Repository{ID: strconv.FormatInt(id, 10), Path: pathWithNamespace}
 }
 
-func newUser(username string) *gitlabclient.User {
-	return &gitlabclient.User{ID: 1, Username: username}
+func newUser(username string) forge.User {
+	return forge.User{ID: "1", Username: username}
 }
 
 // withTrueColor forces a colour profile for the run. Under go test lipgloss

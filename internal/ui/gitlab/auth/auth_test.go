@@ -10,10 +10,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -101,8 +101,8 @@ func step(t *testing.T, m *Model, msg tea.Msg) (*Model, tea.Cmd) {
 	return updated, cmd
 }
 
-func testUser() *gitlabclient.User {
-	return &gitlabclient.User{ID: 7, Username: "anthoni", Name: "Anthoni D"}
+func testUser() forge.User {
+	return forge.User{ID: "7", Username: "anthoni", Name: "Anthoni D"}
 }
 
 // ── Construction ─────────────────────────────────────────────────────────────
@@ -424,7 +424,7 @@ func TestSuccessfulAuthResultRecordsTheUser(t *testing.T) {
 	if m.authenticating {
 		t.Error("authenticating = true after the result arrived")
 	}
-	if m.user == nil || m.user.Username != "anthoni" {
+	if m.user.Username != "anthoni" {
 		t.Errorf("user = %+v, want the authenticated user", m.user)
 	}
 	if !strings.Contains(m.success, "anthoni") {
@@ -505,7 +505,7 @@ func TestGitLabAuthSuccessFromTheRouter(t *testing.T) {
 
 	m = feed(t, m, GitLabAuthSuccessMsg{User: testUser()})
 
-	if !m.authenticated || m.user == nil {
+	if !m.authenticated || m.user.Username == "" {
 		t.Error("the view ignored a session established by the router")
 	}
 	if !strings.Contains(m.success, "Already authenticated") {
@@ -546,7 +546,7 @@ func TestLogoutCompleteClearsTheSession(t *testing.T) {
 
 	m = feed(t, m, LogoutCompleteMsg{})
 
-	if m.authenticated || m.user != nil {
+	if m.authenticated || m.user.Username != "" {
 		t.Error("the session survived the logout")
 	}
 	if m.tokenInput.Value() != "" {

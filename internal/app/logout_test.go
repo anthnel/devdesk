@@ -3,10 +3,9 @@ package app
 import (
 	"testing"
 
-	gitlabclient "gitlab.com/gitlab-org/api/client-go"
-
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/forge"
+	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
 )
 
@@ -14,8 +13,8 @@ import (
 func signedIn(t *testing.T) *App {
 	t.Helper()
 	a := newWithSize(testConfig(), 120, 40)
-	a.setAuthenticated(&gitlabclient.Client{}, &gitlabclient.User{Username: "anthoni"})
-	a.sharedState.GitLabStats = &shared.GitLabStats{TotalProjects: 12}
+	a.setAuthenticated(gitlabforge.NewWithClient(nil, "https://gitlab.example.com"), forge.User{Username: "anthoni"})
+	a.sharedState.GitLabStats = &forge.DashboardStats{Repositories: forge.Count(12)}
 	return a
 }
 
@@ -31,10 +30,10 @@ func TestLoggingOutClearsTheSharedSession(t *testing.T) {
 	if a.sharedState.IsAuthenticated {
 		t.Error("IsAuthenticated is still true after logging out")
 	}
-	if a.sharedState.GitLabClient != nil {
-		t.Error("the GitLab client survived the logout, so views can still call the API")
+	if a.sharedState.Forge != nil {
+		t.Error("the forge survived the logout, so views can still call the API")
 	}
-	if a.sharedState.CurrentUser != nil {
+	if a.sharedState.CurrentUser.Username != "" {
 		t.Error("CurrentUser survived, so the header still names a signed-out user")
 	}
 }

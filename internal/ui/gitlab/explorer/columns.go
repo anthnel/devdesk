@@ -77,7 +77,7 @@ func explorerColumns() []datatable.Column[explorerRow] {
 		},
 		{
 			Title: "Role", MinWidth: colRoleMin,
-			Cell: func(r explorerRow) string { return r.node.AccessLevelName() },
+			Cell: func(r explorerRow) string { return r.node.Role },
 		},
 		{
 			Title: "Created", MinWidth: colCreatedMin,

@@ -1,12 +1,13 @@
 package explorer
 
 import (
+	"context"
 	"fmt"
 	"log"
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/anthnel/devdesk/internal/gitlab"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
 
@@ -53,22 +54,24 @@ func (m Model) handleDeleteConfirmed(permanentlyRemove bool) (tea.Model, tea.Cmd
 		return m, nil
 	}
 
-	client := m.shared.GitLabClient
-	if client == nil {
-		m.error = "GitLab client not initialized"
+	backend := m.shared.Forge
+	if backend == nil {
+		m.error = "Not connected to a forge"
 		return m, nil
 	}
 
-	nodeID := int(node.ID)
+	// The whole value goes to the backend, not just an identifier: a permanent
+	// deletion addresses the path the forge renames the object to, so the call
+	// needs both (see forge.Forge.DeleteNamespace).
 	nodeType := node.Type
-	fullPath := node.FullPath
+	id, path := node.ID, node.FullPath
 
 	return m, func() tea.Msg {
 		var err error
 		if nodeType == NodeTypeGroup {
-			err = gitlab.DeleteGroup(client, nodeID, fullPath, permanentlyRemove)
+			err = backend.DeleteNamespace(context.Background(), forge.Namespace{ID: id, Path: path}, permanentlyRemove)
 		} else {
-			err = gitlab.DeleteProject(client, nodeID, fullPath, permanentlyRemove)
+			err = backend.DeleteRepository(context.Background(), forge.Repository{ID: id, Path: path}, permanentlyRemove)
 		}
 		return DeleteCompleteMsg{Error: err, DeletedNode: node}
 	}

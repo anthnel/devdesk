@@ -1,7 +1,8 @@
 package dashboard
 
 import (
-	"fmt"
+	"context"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
-	gitlabpkg "github.com/anthnel/devdesk/internal/gitlab"
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/shared"
@@ -30,7 +31,7 @@ type StatusCheckMsg struct {
 
 // GitLabStatsMsg contains fetched GitLab statistics
 type GitLabStatsMsg struct {
-	Stats shared.GitLabStats
+	Stats forge.DashboardStats
 }
 
 // DockerStatsMsg contains fetched Docker statistics
@@ -131,7 +132,7 @@ type Model struct {
 	// Data
 	serviceComponents []status.ComponentStatus
 	serviceStatus     shared.ServiceGlobalStatus
-	gitlabStats       *shared.GitLabStats
+	gitlabStats       *forge.DashboardStats
 	dockerStats       *shared.DockerStats
 	ociStats          *shared.OCIStats
 	tools             []shared.ToolInfo
@@ -281,11 +282,15 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.cycleTab(msg.String() == "tab"), nil
 	case "ctrl+r":
 		return m.handleReload()
+	// The two deep links are the forge's: the paths differ per forge, and
+	// building them here with fmt.Sprintf was a forge shape written in a view.
 	case keymap.Requests:
-		return m, openURL(fmt.Sprintf("%s/dashboard/merge_requests", m.config.GitLab.URL))
+		if m.shared.Forge != nil {
+			return m, openURL(m.shared.Forge.ChangeRequestsURL())
+		}
 	case keymap.Issues:
-		if m.shared.CurrentUser != nil {
-			return m, openURL(fmt.Sprintf("%s/dashboard/issues?sort=created_date&state=opened&assignee_username[]=%s", m.config.GitLab.URL, m.shared.CurrentUser.Username))
+		if m.shared.Forge != nil && m.shared.IsAuthenticated {
+			return m, openURL(m.shared.Forge.AssignedIssuesURL(m.shared.CurrentUser))
 		}
 	}
 	return m, nil
@@ -439,25 +444,23 @@ func (m Model) checkServices() tea.Cmd {
 }
 
 func (m Model) fetchGitLabStats() tea.Cmd {
-	client := m.shared.GitLabClient
+	backend := m.shared.Forge
 	user := m.shared.CurrentUser
 
-	if client == nil || user == nil {
+	// No session means no counter was read, which is not the same as five
+	// zeros — the zero DashboardStats says exactly that (D52).
+	if backend == nil || !m.shared.IsAuthenticated {
 		return func() tea.Msg {
-			return GitLabStatsMsg{Stats: shared.GitLabStats{}}
+			return GitLabStatsMsg{}
 		}
 	}
 
-	userID := user.ID
 	return func() tea.Msg {
-		stats := gitlabpkg.FetchDashboardStats(client, userID)
-		return GitLabStatsMsg{Stats: shared.GitLabStats{
-			AssignedMRs:    stats.AssignedMRs,
-			ReviewMRs:      stats.ReviewMRs,
-			AssignedIssues: stats.AssignedIssues,
-			TotalProjects:  stats.TotalProjects,
-			TotalGroups:    stats.TotalGroups,
-		}}
+		stats, err := backend.DashboardStats(context.Background(), user)
+		if err != nil {
+			log.Printf("ERROR [dashboard] fetching forge stats: %v", err)
+		}
+		return GitLabStatsMsg{Stats: stats}
 	}
 }
 

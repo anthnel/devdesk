@@ -1,27 +1,34 @@
 package explorer
 
 import (
+	"context"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	gitlabclient "gitlab.com/gitlab-org/api/client-go"
 
-	"github.com/anthnel/devdesk/internal/gitlab"
+	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // The API commands are executed here rather than asserted on identity: the
 // GitLab SDK takes a base URL, so an httptest server standing in for the API
-// covers argument building and response mapping the way internal/gitlab does.
-// A stub would only prove the stub works.
+// covers argument building and response mapping the way the backend's own
+// tests do. A stub would only prove the stub works.
+//
+// What is asserted here is the **explorer's** half — which options it asks the
+// forge for, and how it turns namespaces and repositories into tree nodes.
+// Pagination, the decoration's cost and the degradation of a failed decoration
+// are the backend's, tested in internal/forge/gitlab; the copies that used to
+// live here went with the code they covered (§3.6 step 3).
 
 // fakeGitLab answers by path prefix, longest first. Anything unrouted 404s, so
 // a request the test did not expect shows up as an error rather than as a
@@ -47,6 +54,15 @@ type fakeGitLab struct {
 
 func newFakeGitLab(t *testing.T, routes map[string]string) *fakeGitLab {
 	t.Helper()
+	// /api/v4/user is served by default. The backend asks who the token belongs
+	// to before a decorated listing — once per session, memoised — where the
+	// pre-abstraction code took the id from a session the view was holding. A
+	// fake that 404s it silently returns undecorated rows.
+	withUser := map[string]string{"/api/v4/user": currentUserJSON}
+	for prefix, body := range routes {
+		withUser[prefix] = body
+	}
+	routes = withUser
 	f := &fakeGitLab{routes: routes, prefixes: slices.Sorted(maps.Keys(routes))}
 	slices.SortFunc(f.prefixes, func(a, b string) int { return len(b) - len(a) })
 
@@ -74,14 +90,27 @@ func (f *fakeGitLab) paths() []string {
 	return slices.Clone(f.requestPaths)
 }
 
-// serverModel returns a laid-out model whose client talks to the fake API.
+// apiClient is a GitLab SDK client pointed at the fake API. It exists for the
+// pipeline tests, where the walk reads the fake API and the clones read a local
+// path — the backend takes the client and the host separately, so one value
+// serves both.
+func apiClient(t *testing.T, f *fakeGitLab) *gitlabclient.Client {
+	t.Helper()
+	c, err := gitlabclient.NewClient("test-token", gitlabclient.WithBaseURL(f.server.URL))
+	if err != nil {
+		t.Fatalf("gitlabclient.NewClient() error = %v", err)
+	}
+	return c
+}
+
+// serverModel returns a laid-out model whose backend talks to the fake API.
 func serverModel(t *testing.T, f *fakeGitLab) Model {
 	t.Helper()
-	client, err := gitlab.NewClient(f.server.URL, "test-token")
+	backend, err := gitlabforge.New(f.server.URL, "test-token")
 	if err != nil {
-		t.Fatalf("gitlab.NewClient() error = %v", err)
+		t.Fatalf("gitlabforge.New() error = %v", err)
 	}
-	state := &shared.State{GitLabClient: client, IsAuthenticated: true, CurrentUser: newUser("anthnel")}
+	state := &shared.State{Forge: backend, IsAuthenticated: true, CurrentUser: newUser("anthnel")}
 	return feed(t, New(testConfig(), state), tea.WindowSizeMsg{Width: 160, Height: 30})
 }
 
@@ -95,8 +124,9 @@ const (
 		"id":11,"name":"API","path_with_namespace":"infra/api","visibility":"private",
 		"web_url":"https://gl/infra/api","marked_for_deletion_on":"2026-07-01T00:00:00Z"
 	}]`
-	pipelineJSON = `[{"id":900,"status":"failed"}]`
-	memberJSON   = `{"id":1,"username":"anthnel","access_level":40}`
+	pipelineJSON    = `[{"id":900,"status":"failed"}]`
+	memberJSON      = `{"id":1,"username":"anthnel","access_level":40}`
+	currentUserJSON = `{"id":1,"username":"anthnel","name":"Anthnel"}`
 )
 
 // ── Loading ──────────────────────────────────────────────────────────────────
@@ -127,28 +157,9 @@ func TestLoadRootGroupsMapsTheResponse(t *testing.T) {
 	if first.Children != nil {
 		t.Error("root groups arrived with children; they are meant to load lazily")
 	}
-	if first.AccessLevel != 40 {
-		t.Errorf("AccessLevel = %d, want the inherited member's 40", first.AccessLevel)
+	if first.Role != "Maintainer" {
+		t.Errorf("Role = %q, want the inherited member's humanised 40", first.Role)
 	}
-}
-
-// Only top-level groups belong at the root; the whole tree would arrive flat
-// otherwise.
-func TestLoadRootGroupsAsksForTopLevelOnly(t *testing.T) {
-	f := newFakeGitLab(t, map[string]string{"/api/v4/groups": `[]`})
-	m := serverModel(t, f)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.URL.Query().Get("top_level_only"); got != "true" {
-			t.Errorf("top_level_only = %q, want true", got)
-		}
-		_, _ = w.Write([]byte(`[]`))
-	}))
-	defer server.Close()
-
-	client, _ := gitlab.NewClient(server.URL, "t")
-	m.shared.GitLabClient = client
-	testutil.Msg(m.loadRootGroups())
 }
 
 func TestLoadRootGroupsReportsAFailure(t *testing.T) {
@@ -175,7 +186,7 @@ func TestLoadChildrenMergesSubgroupsAndProjects(t *testing.T) {
 		"/api/v4/groups/10/members":     memberJSON,
 	})
 	m := serverModel(t, f)
-	parent := &TreeNode{ID: 1, Name: "Infra", FullPath: "infra", Type: NodeTypeGroup}
+	parent := &TreeNode{ID: "1", Name: "Infra", FullPath: "infra", Type: NodeTypeGroup}
 
 	msg, ok := testutil.MsgOf[ChildrenLoadedMsg](m.loadChildren(parent))
 	if !ok {
@@ -211,7 +222,7 @@ func TestLoadChildrenReportsEitherHalfFailing(t *testing.T) {
 	for name, routes := range tests {
 		t.Run(name, func(t *testing.T) {
 			m := serverModel(t, newFakeGitLab(t, routes))
-			parent := &TreeNode{ID: 1, Type: NodeTypeGroup}
+			parent := &TreeNode{ID: "1", Type: NodeTypeGroup}
 
 			msg, ok := testutil.MsgOf[LoadErrorMsg](m.loadChildren(parent))
 			if !ok {
@@ -234,12 +245,12 @@ func TestFetchGroupChildren(t *testing.T) {
 		"/api/v4/projects/11/members":   memberJSON,
 	})
 	m := serverModel(t, f)
-	parent := &TreeNode{ID: 1, Type: NodeTypeGroup}
+	parent := &TreeNode{ID: "1", Type: NodeTypeGroup}
 
-	children, err := discoverGroupChildren(m.shared.GitLabClient, parent, true)
+	children, err := discoverChildren(context.Background(), m.shared.Forge, parent, true)
 
 	if err != nil {
-		t.Fatalf("discoverGroupChildren() error = %v", err)
+		t.Fatalf("discoverChildren() error = %v", err)
 	}
 	if len(children) != 2 {
 		t.Errorf("fetched %d children, want 2", len(children))
@@ -249,52 +260,12 @@ func TestFetchGroupChildren(t *testing.T) {
 func TestFetchGroupChildrenPropagatesFailure(t *testing.T) {
 	m := serverModel(t, newFakeGitLab(t, nil))
 
-	if _, err := discoverGroupChildren(m.shared.GitLabClient, &TreeNode{ID: 1}, true); err == nil {
-		t.Error("discoverGroupChildren() returned no error against a failing API")
+	if _, err := discoverChildren(context.Background(), m.shared.Forge, &TreeNode{ID: "1"}, true); err == nil {
+		t.Error("discoverChildren() returned no error against a failing API")
 	}
 }
 
 // ── Access level and pipeline lookups ────────────────────────────────────────
-
-// These decorate rows; a failure has to degrade to a blank cell rather than
-// abort the whole load.
-func TestDecoratorsDegradeQuietly(t *testing.T) {
-	m := serverModel(t, newFakeGitLab(t, nil)) // everything 404s
-	client := m.shared.GitLabClient
-
-	if got := fetchLastPipelineStatus(client, 11); got != "" {
-		t.Errorf("fetchLastPipelineStatus() = %q against a failing API", got)
-	}
-	if got := fetchGroupAccessLevel(client, 1, 1); got != 0 {
-		t.Errorf("fetchGroupAccessLevel() = %d against a failing API", got)
-	}
-	if got := fetchProjectAccessLevel(client, 11, 1); got != 0 {
-		t.Errorf("fetchProjectAccessLevel() = %d against a failing API", got)
-	}
-}
-
-// An anonymous session has no membership to look up, so the call is skipped
-// entirely rather than issued and discarded.
-func TestAccessLevelIsSkippedWithoutAUser(t *testing.T) {
-	f := newFakeGitLab(t, map[string]string{"/api/v4": memberJSON})
-	m := serverModel(t, f)
-
-	fetchGroupAccessLevel(m.shared.GitLabClient, 1, 0)
-	fetchProjectAccessLevel(m.shared.GitLabClient, 11, 0)
-
-	if len(f.paths()) != 0 {
-		t.Errorf("requests issued for an anonymous session: %v", f.paths())
-	}
-}
-
-func TestPipelineStatusIsEmptyWithoutPipelines(t *testing.T) {
-	f := newFakeGitLab(t, map[string]string{"/api/v4/projects/11/pipelines": `[]`})
-	m := serverModel(t, f)
-
-	if got := fetchLastPipelineStatus(m.shared.GitLabClient, 11); got != "" {
-		t.Errorf("fetchLastPipelineStatus() = %q for a project with no pipelines", got)
-	}
-}
 
 // ── Creation ─────────────────────────────────────────────────────────────────
 
@@ -313,8 +284,8 @@ func TestCreateGroupSlugsTheName(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, _ := gitlab.NewClient(server.URL, "t")
-	m := New(testConfig(), &shared.State{GitLabClient: client})
+	backend, _ := gitlabforge.New(server.URL, "t")
+	m := New(testConfig(), &shared.State{Forge: backend, IsAuthenticated: true})
 
 	msg, ok := testutil.MsgOf[GroupCreatedMsg](m.createGroup(creationSubmit("My New Group")))
 
@@ -353,8 +324,8 @@ func TestCreateProjectWithoutATemplate(t *testing.T) {
 	if msg.Error != nil || msg.TemplateError != nil {
 		t.Errorf("createProject() error = %v, template error = %v", msg.Error, msg.TemplateError)
 	}
-	if msg.Project == nil || msg.Project.PathWithNamespace != "infra/svc" {
-		t.Errorf("created project = %+v", msg.Project)
+	if msg.Repository.Path != "infra/svc" {
+		t.Errorf("created repository = %+v", msg.Repository)
 	}
 }
 
@@ -403,209 +374,9 @@ func TestLoadTemplatesReportsARegistryFailure(t *testing.T) {
 	}
 }
 
-// ── Pagination (D34) ─────────────────────────────────────────────────────────
-
-// pagedGitLab serves a list endpoint one page at a time and sets X-Next-Page
-// the way GitLab does. newFakeGitLab answers one fixed body per prefix, which
-// cannot express a second page at all — which is exactly why the truncation it
-// stands for went unnoticed.
-//
-// requests are capped: a caller that fails to stop would otherwise spin until
-// the whole test binary times out, and a hang says much less than a failure.
-type pagedGitLab struct {
-	server *httptest.Server
-	pages  map[string][]string // path prefix → one body per page
-	seen   map[string][]string // path prefix → the page= values asked for
-	calls  int
-}
-
-const pagedRequestCap = 12
-
-func newPagedGitLab(t *testing.T, pages map[string][]string) *pagedGitLab {
-	t.Helper()
-	f := &pagedGitLab{pages: pages, seen: map[string][]string{}}
-
-	prefixes := slices.Sorted(maps.Keys(pages))
-	slices.SortFunc(prefixes, func(a, b string) int { return len(b) - len(a) })
-
-	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f.calls++
-		if f.calls > pagedRequestCap {
-			http.Error(w, `{"message":"too many requests — the caller never stopped"}`, http.StatusInternalServerError)
-			return
-		}
-		for _, prefix := range prefixes {
-			if !strings.HasPrefix(r.URL.Path, prefix) {
-				continue
-			}
-			page := r.URL.Query().Get("page")
-			f.seen[prefix] = append(f.seen[prefix], page)
-
-			idx := 0
-			if page != "" {
-				n, err := strconv.Atoi(page)
-				if err != nil || n < 1 {
-					t.Errorf("page = %q, want a positive number", page)
-				}
-				idx = n - 1
-			}
-			bodies := f.pages[prefix]
-			if idx >= len(bodies) {
-				// Past the last page the caller was told about: answering with
-				// an empty list would hide an over-fetch, so fail loudly.
-				t.Errorf("%s asked for page %s of %d", prefix, page, len(bodies))
-				idx = len(bodies) - 1
-			}
-			if idx < len(bodies)-1 {
-				w.Header().Set("X-Next-Page", strconv.Itoa(idx+2))
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(bodies[idx]))
-			return
-		}
-		http.Error(w, `{"message":"404 Not Found"}`, http.StatusNotFound)
-	}))
-	t.Cleanup(f.server.Close)
-	return f
-}
-
-func pagedModel(t *testing.T, f *pagedGitLab) Model {
-	t.Helper()
-	client, err := gitlab.NewClient(f.server.URL, "test-token")
-	if err != nil {
-		t.Fatalf("gitlab.NewClient() error = %v", err)
-	}
-	state := &shared.State{GitLabClient: client, IsAuthenticated: true, CurrentUser: newUser("anthnel")}
-	return feed(t, New(testConfig(), state), tea.WindowSizeMsg{Width: 160, Height: 30})
-}
-
-// A GitLab instance with more than one page of top-level groups showed only the
-// first, and said nothing about the rest.
-func TestLoadRootGroupsFollowsEveryPage(t *testing.T) {
-	f := newPagedGitLab(t, map[string][]string{
-		"/api/v4/groups/1/members": {memberJSON},
-		"/api/v4/groups/2/members": {memberJSON},
-		"/api/v4/groups/3/members": {memberJSON},
-		"/api/v4/groups": {
-			twoGroupsJSON,
-			`[{"id":3,"name":"Data","full_path":"data","visibility":"private","web_url":"https://gl/data"}]`,
-		},
-	})
-	m := pagedModel(t, f)
-
-	msg, ok := testutil.MsgOf[RootGroupsLoadedMsg](m.loadRootGroups())
-	if !ok {
-		t.Fatalf("loadRootGroups() produced %T", testutil.Msg(m.loadRootGroups()))
-	}
-
-	if len(msg.Nodes) != 3 {
-		t.Fatalf("loaded %d groups, want all 3 across the two pages", len(msg.Nodes))
-	}
-	if msg.Nodes[2].Name != "Data" {
-		t.Errorf("the second page is missing: last node = %q", msg.Nodes[2].Name)
-	}
-	if got := f.seen["/api/v4/groups"]; len(got) != 2 || got[1] != "2" {
-		t.Errorf("pages requested = %v, want the first then the second", got)
-	}
-}
-
-// Both halves of a group's children paginate, and they paginate independently:
-// a second page of projects must be fetched even when the subgroups fit in one.
-func TestLoadChildrenFollowsEveryPageOfBothHalves(t *testing.T) {
-	f := newPagedGitLab(t, map[string][]string{
-		"/api/v4/groups/1/subgroups": {
-			oneSubgroupJSON,
-			`[{"id":20,"name":"Ops","full_path":"infra/ops","visibility":"private","web_url":"https://gl/infra/ops"}]`,
-		},
-		"/api/v4/groups/1/projects": {
-			oneProjectJSON,
-			`[{"id":21,"name":"Web","path_with_namespace":"infra/web","visibility":"private","web_url":"https://gl/infra/web"}]`,
-		},
-		"/api/v4/projects/11/pipelines": {pipelineJSON},
-		"/api/v4/projects/21/pipelines": {pipelineJSON},
-		"/api/v4/projects/11/members":   {memberJSON},
-		"/api/v4/projects/21/members":   {memberJSON},
-		"/api/v4/groups/10/members":     {memberJSON},
-		"/api/v4/groups/20/members":     {memberJSON},
-	})
-	m := pagedModel(t, f)
-	parent := &TreeNode{ID: 1, Name: "Infra", FullPath: "infra", Type: NodeTypeGroup}
-
-	msg, ok := testutil.MsgOf[ChildrenLoadedMsg](m.loadChildren(parent))
-	if !ok {
-		t.Fatalf("loadChildren() produced %T", testutil.Msg(m.loadChildren(parent)))
-	}
-
-	if len(msg.Children) != 4 {
-		t.Fatalf("loaded %d children, want 2 subgroups and 2 projects", len(msg.Children))
-	}
-	names := []string{msg.Children[0].Name, msg.Children[1].Name, msg.Children[2].Name, msg.Children[3].Name}
-	if !slices.Contains(names, "Ops") || !slices.Contains(names, "Web") {
-		t.Errorf("children = %v, want the second page of each half", names)
-	}
-}
-
-// The pull walks the tree through discoverGroupChildren rather than loadChildren,
-// so it needs the same guarantee: a group of 101 projects used to clone 100.
-func TestFetchGroupChildrenFollowsEveryPage(t *testing.T) {
-	f := newPagedGitLab(t, map[string][]string{
-		"/api/v4/groups/1/subgroups": {`[]`},
-		"/api/v4/groups/1/projects": {
-			oneProjectJSON,
-			`[{"id":21,"name":"Web","path_with_namespace":"infra/web","visibility":"private","web_url":"https://gl/infra/web"}]`,
-		},
-		"/api/v4/projects/11/pipelines": {pipelineJSON},
-		"/api/v4/projects/21/pipelines": {pipelineJSON},
-		"/api/v4/projects/11/members":   {memberJSON},
-		"/api/v4/projects/21/members":   {memberJSON},
-	})
-	m := pagedModel(t, f)
-	parent := &TreeNode{ID: 1, Name: "Infra", FullPath: "infra", Type: NodeTypeGroup}
-
-	children, err := discoverGroupChildren(m.shared.GitLabClient, parent, true)
-	if err != nil {
-		t.Fatalf("discoverGroupChildren() error = %v", err)
-	}
-	if len(children) != 2 {
-		t.Fatalf("fetched %d projects, want both pages", len(children))
-	}
-}
-
-// A server that keeps pointing at the page just served must not spin for ever.
-// The cap in the fake turns a runaway into a failure rather than a hang.
-func TestPaginationStopsWhenTheServerRepeatsAPage(t *testing.T) {
-	var calls int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		if calls > pagedRequestCap {
-			http.Error(w, `{"message":"runaway"}`, http.StatusInternalServerError)
-			return
-		}
-		page := r.URL.Query().Get("page")
-		if page == "" {
-			page = "1"
-		}
-		w.Header().Set("X-Next-Page", page) // the page just served, over and over
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[]`))
-	}))
-	defer server.Close()
-
-	client, err := gitlab.NewClient(server.URL, "t")
-	if err != nil {
-		t.Fatalf("gitlab.NewClient() error = %v", err)
-	}
-	opts := &gitlabclient.ListGroupsOptions{}
-	if _, err := listAll(&opts.ListOptions, func() ([]*gitlabclient.Group, *gitlabclient.Response, error) {
-		return client.Groups.ListGroups(opts)
-	}); err != nil {
-		t.Fatalf("listAll() error = %v", err)
-	}
-
-	if calls != 1 {
-		t.Errorf("made %d requests, want 1: a repeated page is the end of the list", calls)
-	}
-}
+// Pagination went with the listing: it is the backend's, and D34's tests live
+// in internal/forge/gitlab (§3.6 step 3). The paged fake that served it here
+// went with them.
 
 // The clone reads a path and a type. It used to pay two extra requests per
 // project for a CI badge and a role it never looks at — on two hundred
@@ -619,9 +390,9 @@ func TestDiscoveryDoesNotDecorateTheProjectsItFinds(t *testing.T) {
 	})
 	m := serverModel(t, f)
 
-	children, err := discoverGroupChildren(m.shared.GitLabClient, &TreeNode{ID: 1, FullPath: "infra"}, true)
+	children, err := discoverChildren(context.Background(), m.shared.Forge, &TreeNode{ID: "1", FullPath: "infra"}, true)
 	if err != nil {
-		t.Fatalf("discoverGroupChildren() error = %v", err)
+		t.Fatalf("discoverChildren() error = %v", err)
 	}
 	if len(children) != 1 {
 		t.Fatalf("found %d children, want the project", len(children))
@@ -650,14 +421,14 @@ func TestBrowsingStillDecoratesWhatItLists(t *testing.T) {
 	})
 	m := serverModel(t, f)
 
-	msg, ok := testutil.MsgOf[ChildrenLoadedMsg](m.loadChildren(&TreeNode{ID: 1, FullPath: "infra"}))
+	msg, ok := testutil.MsgOf[ChildrenLoadedMsg](m.loadChildren(&TreeNode{ID: "1", FullPath: "infra"}))
 	if !ok {
-		t.Fatalf("loadChildren() produced %T", testutil.Msg(m.loadChildren(&TreeNode{ID: 1})))
+		t.Fatalf("loadChildren() produced %T", testutil.Msg(m.loadChildren(&TreeNode{ID: "1"})))
 	}
 	if len(msg.Children) != 1 {
 		t.Fatalf("loaded %d children, want the project", len(msg.Children))
 	}
-	if msg.Children[0].PipelineStatus != "failed" || msg.Children[0].AccessLevel != 40 {
+	if msg.Children[0].PipelineStatus != "failed" || msg.Children[0].Role != "Maintainer" {
 		t.Errorf("node = %+v, want the CI status and the role the columns render", msg.Children[0])
 	}
 }
