@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "4e65f1fb7b88",
+  "strategy": "manual-commit",
+  "branch": "onglet-forge",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/app/configuration.go",
+    "internal/forge/detect.go",
+    "internal/forge/detect_test.go",
+    "internal/forge/gitlab/gitlab.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/forge.go",
+    "internal/ui/configuration/forge_test.go",
+    "internal/ui/configuration/model.go",
+    "internal/ui/configuration/model_test.go",
+    "internal/ui/configuration/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/4e/65f1fb7b88/0/metadata.json",
+      "transcript": "/4e/65f1fb7b88/0/full.jsonl",
+      "compact_transcript": "/4e/65f1fb7b88/0/transcript.jsonl",
+      "content_hash": "/4e/65f1fb7b88/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 38318,
+    "cache_read_tokens": 22960922,
+    "output_tokens": 26129,
+    "api_call_count": 35
+  }
+}
