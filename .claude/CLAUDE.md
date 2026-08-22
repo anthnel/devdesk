@@ -717,9 +717,20 @@ which is the honest outcome — this is not a way to overwrite history.
 
 Three smaller decisions worth knowing:
 
-- **The user's own account is not among `RootNamespaces`.** A personal namespace
-  is not an organisation: it cannot be created or deleted, so listing it as one
-  would put a row in the tree that half the actions refuse.
+- **The user's own account is the first root namespace, and leaving it out was
+  a bug.** The reasoning that excluded it — "a personal namespace cannot be
+  created or deleted, so half the actions would refuse the row" — is wrong on
+  its own terms: *no* GitHub organisation can be created or deleted through the
+  API either, so the personal account is not less capable but **more**. It is
+  the one namespace where a repository can be created and deleted. The cost was
+  the common case: a personal account belongs to no organisation, so the
+  explorer opened empty on the account shape most people have. Its `ID` is the
+  **empty string** — the interface's own word for "the user's own namespace",
+  and what `Repositories.Create` takes for its `org` argument; the login would
+  404, because GitHub refuses to treat a user as an organisation. Its children
+  come from `/user/repos` with `Affiliation: owner`, without which the list also
+  carries every repository the user collaborates on — which belongs under
+  whoever owns it, and would appear twice in a tree that shows both.
 - **`visibilityOf` reads `Visibility` before `Private`.** The first is what
   Enterprise fills with `internal`; reading only the boolean would report an
   Enterprise `internal` repository as `private`, which is a different thing.
@@ -731,6 +742,13 @@ The configured URL is the **web** host. On Enterprise the API lives under
 `/api/v3/`, which `WithEnterpriseURLs` appends — conflating the two would send a
 user to `https://git.acme.test/api/v3/acme/api` when they asked to open a
 repository in a browser.
+
+**One rough edge, left rough and written down.** The explorer's Type column
+reads the vocabulary, so the personal account's row says "Organization". GitHub
+calls the union "Owner", but taking that word into `Vocabulary.Namespace` would
+make the configuration read "Default parent owner", which is worse — and a third
+node kind would reintroduce the sum type the two-types decision exists to avoid.
+One inaccurate cell beats either.
 
 Cost: **+0.55 MB** on the binary (24.4 → 25.0).
 

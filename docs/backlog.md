@@ -30,6 +30,59 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D53 — l'explorer GitHub s'ouvrait vide sur un compte personnel. Corrigé.**
+Signalé le 2026-08-22, quelques minutes après la livraison de §3.6 étape 7, par
+la première utilisation réelle avec un token GitHub.
+
+`RootNamespaces` ne listait que les organisations. Un compte GitHub personnel
+n'appartient à aucune, donc l'explorer affichait « No organizations found — You
+may not have access to any GitHub organizations » : un écran vide, un message
+qui suggère un problème de droits, et aucun dépôt visible alors que le token
+marchait parfaitement.
+
+**Le raisonnement qui excluait le compte personnel était écrit, argumenté, et
+faux sur ses propres termes** — c'est ce qui le rendait convaincant :
+
+> Un namespace personnel n'est pas une organisation : il ne peut être ni créé ni
+> supprimé, donc le lister mettrait dans l'arbre une ligne dont la moitié des
+> actions se retirent.
+
+Or *aucune* organisation GitHub ne peut être créée ni supprimée par l'API — le
+backend refuse déjà les deux pour toutes. Le compte personnel n'est donc pas
+moins capable qu'une organisation, il l'est **plus** : c'est le seul namespace
+où un dépôt peut être créé et supprimé. L'argument s'appliquait à une différence
+qui n'existe pas.
+
+Trois choses tombent du correctif :
+
+- **L'ID du namespace personnel est la chaîne vide.** C'est le mot que
+  l'interface emploie déjà — `forge.NewRepository.NamespaceID` documente
+  « vide veut dire le namespace de l'utilisateur » — et c'est ce que le `org` de
+  `Repositories.Create` attend. Passer le login à la place renverrait 404 :
+  GitHub refuse de traiter un utilisateur comme une organisation, ce qui est la
+  distinction même que cette ligne porte.
+- **Ses enfants viennent de `/user/repos` avec `Affiliation: owner`.** Sans
+  l'affiliation, la liste porte aussi tous les dépôts où l'utilisateur est
+  collaborateur — qui appartiennent à quelqu'un d'autre, et apparaîtraient deux
+  fois dans un arbre qui montre les deux.
+- **Il est en tête.** C'est là que sont les dépôts d'un compte solo ; l'enterrer
+  sous une liste d'organisations cacherait la seule ligne que la moitié d'entre
+  eux possède.
+
+**Les tests existants passaient, et pour la mauvaise raison.** Leur faux serveur
+ne répondait pas à `/api/v3/user`, donc `personalNamespace` échouait en silence
+et la ligne n'apparaissait pas — un test de pagination qui comptait trois
+namespaces en aurait compté quatre. Corriger le faux serveur d'abord, puis
+compter, est ce qui a rendu les quatre nouveaux tests capables de mordre ; ils
+ont été vérifiés en échec sur le code d'avant.
+
+**Une aspérité assumée :** la colonne Type lit le vocabulaire, donc la ligne du
+compte personnel affiche « Organization ». GitHub appelle l'union « Owner »,
+mais mettre ce mot dans `Vocabulary.Namespace` ferait lire « Default parent
+owner » dans la configuration, ce qui est pire — et un troisième kind de nœud
+réintroduirait le type somme que la décision « deux types » existe pour éviter.
+Une cellule inexacte vaut mieux que l'un ou l'autre.
+
 **D52 — un compteur du dashboard qui n'a pas pu être lu s'affichait `0`.
 Corrigé** par §3.6 étape 3, qui est aussi ce qui l'a trouvé — l'étape 1 a dû
 décider ce que `forge.DashboardStats` pouvait promettre, et cinq `int` ne
@@ -2360,10 +2413,16 @@ fausses en écrivant le code, et chacune est nommée là où elle a cédé :
 | le cycle de forge n'aura qu'une valeur | il en a deux depuis l'étape 4, ce qui a permis de tester la bascule pour de vrai (étape 6) |
 | rendre la complétion consciente de la forge | sans objet : un écran nommé d'après le rôle n'a rien à filtrer par plateforme (étape 8) |
 
-Trois défauts trouvés en chemin : **D52** (un compteur du dashboard illisible
-affiché `0`, corrigé), une ligne de `.claude/CLAUDE.md` fausse depuis le commit
-initial, et l'ordre de la migration `gitlab:` → `forge:` qui perdait
-silencieusement un réglage.
+Quatre défauts trouvés en chemin : **D52** (un compteur du dashboard illisible
+affiché `0`), une ligne de `.claude/CLAUDE.md` fausse depuis le commit initial,
+l'ordre de la migration `gitlab:` → `forge:` qui perdait silencieusement un
+réglage, et **D53** — l'explorer GitHub vide sur un compte personnel, signalé
+par la première utilisation réelle et corrigé le jour même. Tous les quatre sont
+corrigés.
+
+D53 est le seul qui ait échappé à la relecture *et* aux tests, et il vaut d'être
+retenu pour ça : le raisonnement qui l'a produit était écrit et argumenté — ce
+qui le rendait convaincant — et il portait sur une différence qui n'existe pas.
 
 #### What was coupled to GitLab (relevé'ouverture)
 
@@ -3080,10 +3139,16 @@ est la bonne issue — ce n'est pas un moyen de réécrire l'historique.
 
 **Trois décisions plus petites, chacune un défaut évité :**
 
-- **Le compte personnel n'est pas dans `RootNamespaces`.** Un namespace
-  personnel n'est pas une organisation : il ne peut être ni créé ni supprimé,
-  donc le lister comme telle mettrait dans l'arbre une ligne dont la moitié des
-  actions se retirent.
+- ~~**Le compte personnel n'est pas dans `RootNamespaces`.**~~ **C'était un
+  bug, signalé et corrigé le jour même.** Le raisonnement — « un namespace
+  personnel ne peut être ni créé ni supprimé, donc la moitié des actions se
+  retireraient de la ligne » — est faux sur ses propres termes : *aucune*
+  organisation GitHub ne peut être créée ni supprimée par l'API, donc le compte
+  personnel n'est pas moins capable qu'une organisation mais **plus** — c'est le
+  seul namespace où un dépôt peut être créé et supprimé. Le coût était le cas
+  courant : un compte personnel n'appartient à aucune organisation, donc
+  l'explorer s'ouvrait vide sur la forme de compte que la plupart des gens ont.
+  Voir « D53 » en §1.1.
 - **`visibilityOf` lit `Visibility` avant `Private`.** Le premier est ce
   qu'Enterprise remplit avec `internal` ; ne lire que le booléen rendrait un
   dépôt Enterprise `internal` comme `private`, ce qui est autre chose.
