@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "8ba6bf5e1592",
+  "strategy": "manual-commit",
+  "branch": "ports-stale",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/netdiag/view.go",
+    "internal/ui/netdiag/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/8b/a6bf5e1592/0/metadata.json",
+      "transcript": "/8b/a6bf5e1592/0/full.jsonl",
+      "compact_transcript": "/8b/a6bf5e1592/0/transcript.jsonl",
+      "content_hash": "/8b/a6bf5e1592/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 5214,
+    "cache_read_tokens": 2458815,
+    "output_tokens": 3825,
+    "api_call_count": 5
+  }
+}
