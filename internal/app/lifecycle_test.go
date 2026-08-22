@@ -14,8 +14,8 @@ import (
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/forge"
 	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
+	"github.com/anthnel/devdesk/internal/ui/forge/auth"
+	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
@@ -128,7 +128,7 @@ func TestReinitializingDropsEveryView(t *testing.T) {
 func TestSwitchingContextClearsTheGitLabSession(t *testing.T) {
 	a := router(t, &fakeView{})
 	a.sharedState.IsAuthenticated = true
-	a.sharedState.GitLabStats = &forge.DashboardStats{Repositories: forge.Count(12)}
+	a.sharedState.ForgeStats = &forge.DashboardStats{Repositories: forge.Count(12)}
 	a.sharedState.CurrentUser = forge.User{Username: "before"}
 
 	a.Update(ContextSwitchCompleteMsg{ContextName: "work", Config: testConfig()})
@@ -136,7 +136,7 @@ func TestSwitchingContextClearsTheGitLabSession(t *testing.T) {
 	if a.sharedState.IsAuthenticated {
 		t.Error("the previous context's session survived the switch")
 	}
-	if a.sharedState.GitLabStats != nil {
+	if a.sharedState.ForgeStats != nil {
 		t.Error("the previous context's counters survived the switch")
 	}
 	if a.currentContext != "work" {
@@ -151,7 +151,7 @@ func TestSwitchingWithoutCredentialsLandsOnTheAuthView(t *testing.T) {
 
 	a.Update(ContextSwitchCompleteMsg{ContextName: "work", Config: testConfig()})
 
-	if a.currentView != command.ViewGitlabAuth {
+	if a.currentView != command.ViewGitAuth {
 		t.Errorf("current view = %s, want the auth view", a.currentView)
 	}
 }
@@ -171,7 +171,7 @@ func TestSwitchingWithCredentialsKeepsTheView(t *testing.T) {
 	if !a.sharedState.IsAuthenticated {
 		t.Error("the session carried by the switch was not adopted")
 	}
-	if a.currentView == command.ViewGitlabAuth {
+	if a.currentView == command.ViewGitAuth {
 		t.Error("the user was sent to the auth view despite being authenticated")
 	}
 }
@@ -223,12 +223,12 @@ func TestTheSwitchCommandCarriesAStore(t *testing.T) {
 // which holds the store it was constructed with.
 func TestUseSecretsRebuildsTheAuthView(t *testing.T) {
 	a := router(t, &fakeView{})
-	a.createView(command.ViewGitlabAuth)
-	before := a.views[command.ViewGitlabAuth]
+	a.createView(command.ViewGitAuth)
+	before := a.views[command.ViewGitAuth]
 
 	a.useSecrets(credentials.SessionOnly("under test"))
 
-	if a.views[command.ViewGitlabAuth] == before {
+	if a.views[command.ViewGitAuth] == before {
 		t.Error("the auth view kept the store it was built with")
 	}
 	if a.sharedState.Secrets.Backend != credentials.BackendMemory {
@@ -289,7 +289,7 @@ func TestAutoLoginUsesTheSavedToken(t *testing.T) {
 		t.Fatalf("seeding the secret store: %v", err)
 	}
 
-	result, ok := testutil.MsgOf[GitLabAutoLoginMsg](a.tryAutoLogin())
+	result, ok := testutil.MsgOf[ForgeAutoLoginMsg](a.tryAutoLogin())
 	if !ok {
 		t.Fatal("the auto-login produced no result")
 	}
@@ -315,7 +315,7 @@ func TestAutoLoginReportsARejectedToken(t *testing.T) {
 		t.Fatalf("seeding the secret store: %v", err)
 	}
 
-	result, ok := testutil.MsgOf[GitLabAutoLoginMsg](a.tryAutoLogin())
+	result, ok := testutil.MsgOf[ForgeAutoLoginMsg](a.tryAutoLogin())
 	if !ok {
 		t.Fatal("the auto-login produced no result")
 	}
@@ -332,7 +332,7 @@ func TestAutoLoginReportsARejectedToken(t *testing.T) {
 func TestAFailedAutoLoginIsIgnored(t *testing.T) {
 	a := router(t, &fakeView{})
 
-	a.Update(GitLabAutoLoginMsg{Error: errors.New("401 unauthorized")})
+	a.Update(ForgeAutoLoginMsg{Error: errors.New("401 unauthorized")})
 
 	if a.sharedState.IsAuthenticated {
 		t.Error("a failed auto-login left the session marked authenticated")
@@ -342,7 +342,7 @@ func TestAFailedAutoLoginIsIgnored(t *testing.T) {
 func TestASuccessfulAutoLoginPopulatesTheSession(t *testing.T) {
 	a := router(t, &fakeView{})
 
-	a.Update(GitLabAutoLoginMsg{
+	a.Update(ForgeAutoLoginMsg{
 		Forge: gitlabforge.NewWithClient(nil, "https://gitlab.example.com"),
 		User:  forge.User{Username: "anthnel"},
 	})
@@ -416,15 +416,15 @@ func TestWorkspaceScanDetailsAskTheCache(t *testing.T) {
 // The explorer borrows the workspaces view to pick where to clone.
 func TestTheExplorerBorrowsWorkspacesForACloneDestination(t *testing.T) {
 	a := router(t, &fakeView{})
-	a.currentView = command.ViewGitlabExplorer
-	a.views[command.ViewGitlabExplorer] = &fakeView{}
+	a.currentView = command.ViewGitExplorer
+	a.views[command.ViewGitExplorer] = &fakeView{}
 
 	a.Update(explorer.CloneSelectionRequestMsg{})
 
 	if a.currentView != command.ViewWorkspaces {
 		t.Errorf("current view = %s, want the workspaces browser", a.currentView)
 	}
-	if a.selectionReturnView != command.ViewGitlabExplorer {
+	if a.selectionReturnView != command.ViewGitExplorer {
 		t.Errorf("return view = %s, want the explorer that asked", a.selectionReturnView)
 	}
 }
@@ -449,14 +449,14 @@ func TestLeavingTheSecurityResultsReturnsToTheOrigin(t *testing.T) {
 func TestThePickedDirectoryGoesBackToTheExplorer(t *testing.T) {
 	origin := &fakeView{}
 	a := router(t, &fakeView{})
-	a.views[command.ViewGitlabExplorer] = origin
+	a.views[command.ViewGitExplorer] = origin
 	a.views[command.ViewWorkspaces] = &fakeView{}
-	a.selectionReturnView = command.ViewGitlabExplorer
+	a.selectionReturnView = command.ViewGitExplorer
 	a.currentView = command.ViewWorkspaces
 
 	a.Update(workspaces.DirectorySelectedMsg{Path: "/repos/devdesk"})
 
-	if a.currentView != command.ViewGitlabExplorer {
+	if a.currentView != command.ViewGitExplorer {
 		t.Errorf("current view = %s, want the explorer back", a.currentView)
 	}
 	got, ok := receivedOf[explorer.CloneDestinationSelectedMsg](origin)
@@ -475,14 +475,14 @@ func TestThePickedDirectoryGoesBackToTheExplorer(t *testing.T) {
 func TestCancellingTheBorrowReturnsToTheExplorer(t *testing.T) {
 	origin := &fakeView{}
 	a := router(t, &fakeView{})
-	a.views[command.ViewGitlabExplorer] = origin
+	a.views[command.ViewGitExplorer] = origin
 	a.views[command.ViewWorkspaces] = &fakeView{}
-	a.selectionReturnView = command.ViewGitlabExplorer
+	a.selectionReturnView = command.ViewGitExplorer
 	a.currentView = command.ViewWorkspaces
 
 	a.Update(workspaces.SelectionCancelledMsg{})
 
-	if a.currentView != command.ViewGitlabExplorer {
+	if a.currentView != command.ViewGitExplorer {
 		t.Errorf("current view = %s, want the explorer back", a.currentView)
 	}
 	if _, ok := receivedOf[explorer.CloneSelectionCancelledMsg](origin); !ok {

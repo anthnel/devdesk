@@ -10,8 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// GitLabAuthSuccessMsg est le message d'authentification réussie (venant de app.go)
-type GitLabAuthSuccessMsg struct {
+// ForgeAuthSuccessMsg est le message d'authentification réussie (venant de app.go)
+type ForgeAuthSuccessMsg struct {
 	Forge forge.Forge
 	User  forge.User
 }
@@ -44,7 +44,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case CredentialsLoadedMsg:
 		return m.handleCredentialsLoaded(msg)
 
-	case GitLabAuthSuccessMsg:
+	case ForgeAuthSuccessMsg:
 		return m.handleGitLabAuthSuccess(msg)
 
 	case LogoutCompleteMsg:
@@ -135,7 +135,7 @@ func (m *Model) handleCredentialsLoaded(msg CredentialsLoadedMsg) (tea.Model, te
 }
 
 // handleGitLabAuthSuccess traite l'authentification réussie venant de app.go
-func (m *Model) handleGitLabAuthSuccess(msg GitLabAuthSuccessMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleGitLabAuthSuccess(msg ForgeAuthSuccessMsg) (tea.Model, tea.Cmd) {
 	m.authenticating = false
 	m.authenticated = true
 	m.user = msg.User

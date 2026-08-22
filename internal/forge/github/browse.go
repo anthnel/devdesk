@@ -37,11 +37,20 @@ func listAll[T any](fetch func(opts *gh.ListOptions) ([]T, *gh.Response, error))
 	}
 }
 
-// RootNamespaces lists the organisations the token can see.
+// RootNamespaces lists the user's own account, then the organisations the token
+// can see.
 //
-// The user's own account is deliberately not among them. A personal namespace
-// is not an organisation: it cannot be created or deleted, so listing it as one
-// would put a row in the tree that half the actions refuse.
+// **The personal account comes first, and leaving it out was a bug.** The first
+// version of this excluded it, reasoning that "a personal namespace is not an
+// organisation: it cannot be created or deleted, so listing it would put a row
+// in the tree that half the actions refuse". That is wrong on its own terms —
+// *no* GitHub organisation can be created or deleted through the API, so the
+// personal account is not less capable than an organisation but **more**: it is
+// the one namespace where a repository can be created and deleted.
+//
+// The cost of the mistake was the common case. A personal GitHub account
+// belongs to no organisation, so the explorer opened empty and said so, on the
+// account shape most people have.
 func (f *Forge) RootNamespaces(ctx context.Context, opts forge.BrowseOptions) ([]forge.Namespace, error) {
 	orgs, err := listAll(func(page *gh.ListOptions) ([]*gh.Organization, *gh.Response, error) {
 		return f.client.Organizations.List(ctx, "", page)
@@ -49,7 +58,43 @@ func (f *Forge) RootNamespaces(ctx context.Context, opts forge.BrowseOptions) ([
 	if err != nil {
 		return nil, err
 	}
-	return f.namespaces(ctx, orgs, f.decoratingAs(ctx, opts)), nil
+
+	namespaces := f.namespaces(ctx, orgs, f.decoratingAs(ctx, opts))
+
+	// The personal namespace is prepended rather than appended: it is where a
+	// solo account's repositories are, and burying it under a list of
+	// organisations would hide the only row half of them have.
+	if personal, ok := f.personalNamespace(ctx); ok {
+		return append([]forge.Namespace{personal}, namespaces...), nil
+	}
+	return namespaces, nil
+}
+
+// personalNamespace is the signed-in user as a namespace.
+//
+// **Its ID is the empty string, and that is the interface's own word for it**:
+// forge.NewRepository.NamespaceID documents "empty means the user's own
+// namespace", and go-github's Repositories.Create takes exactly that for the
+// `org` argument. Passing the login instead would 404 — GitHub refuses to treat
+// a user as an organisation, which is the same distinction this row exists to
+// carry.
+//
+// A user that cannot be read yields no row rather than an error: the
+// organisations are still worth showing, and CurrentUser is memoised so this
+// costs nothing after the first call.
+func (f *Forge) personalNamespace(ctx context.Context) (forge.Namespace, bool) {
+	user, err := f.CurrentUser(ctx)
+	if err != nil {
+		return forge.Namespace{}, false
+	}
+	return forge.Namespace{
+		ID:     "",
+		Path:   user.Username,
+		Name:   firstNonEmpty(user.Name, user.Username),
+		WebURL: f.webBase() + "/" + user.Username,
+		// Owner without asking: it is the account the token belongs to.
+		Role: "Owner",
+	}, true
 }
 
 // Children lists an organisation's repositories.
@@ -58,12 +103,7 @@ func (f *Forge) RootNamespaces(ctx context.Context, opts forge.BrowseOptions) ([
 // MaxNamespaceDepth of 1 declares. The empty slice is the answer, not a missing
 // feature.
 func (f *Forge) Children(ctx context.Context, namespaceID string, opts forge.BrowseOptions) (forge.Children, error) {
-	listOpts := &gh.RepositoryListByOrgOptions{Type: "all"}
-
-	repos, err := listAll(func(page *gh.ListOptions) ([]*gh.Repository, *gh.Response, error) {
-		listOpts.ListOptions = *page
-		return f.client.Repositories.ListByOrg(ctx, namespaceID, listOpts)
-	})
+	repos, err := f.repositoriesOf(ctx, namespaceID)
 	if err != nil {
 		return forge.Children{}, err
 	}
@@ -81,6 +121,29 @@ func (f *Forge) Children(ctx context.Context, namespaceID string, opts forge.Bro
 	}
 
 	return forge.Children{Repositories: f.repositories(ctx, repos, f.decoratingAs(ctx, opts))}, nil
+}
+
+// repositoriesOf lists what a namespace holds, every page.
+//
+// The empty namespace is the signed-in user's own, and it takes a different
+// endpoint: /user/repos rather than /orgs/{org}/repos. `Affiliation: owner`
+// keeps it to what the user owns — without it the list also carries every
+// repository they collaborate on, which belongs under whoever owns it and would
+// appear twice in a tree that shows both.
+func (f *Forge) repositoriesOf(ctx context.Context, namespaceID string) ([]*gh.Repository, error) {
+	if namespaceID == "" {
+		opts := &gh.RepositoryListByAuthenticatedUserOptions{Affiliation: "owner"}
+		return listAll(func(page *gh.ListOptions) ([]*gh.Repository, *gh.Response, error) {
+			opts.ListOptions = *page
+			return f.client.Repositories.ListByAuthenticatedUser(ctx, opts)
+		})
+	}
+
+	opts := &gh.RepositoryListByOrgOptions{Type: "all"}
+	return listAll(func(page *gh.ListOptions) ([]*gh.Repository, *gh.Response, error) {
+		opts.ListOptions = *page
+		return f.client.Repositories.ListByOrg(ctx, namespaceID, opts)
+	})
 }
 
 // decoratingAs resolves the caller's login once per listing, or "" when no

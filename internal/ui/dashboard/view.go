@@ -330,7 +330,7 @@ func (m Model) GetHelpContent() help.Content {
 					strings.ToLower(v.ChangeRequests) + " awaiting your review, assigned issues —" +
 					" and the local clones under the workspaces directory. The two belong together: the explorer " +
 					"creates what does not exist, workspaces reconciles what does. Requires authentication via :" +
-					string(command.ViewGitlabAuth) + ".",
+					string(command.ViewGitAuth) + ".",
 			},
 			{
 				Title: "Health",
@@ -348,8 +348,8 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Navigation",
 				Body: "Press ctrl+p to open command mode, then type a view name: " +
 					string(command.ViewStatus) + " for monitors, " +
-					string(command.ViewGitlabAuth) + " for authentication, " +
-					string(command.ViewGitlabExplorer) + " for browsing " + strings.ToLower(v.Repositories) + ", " +
+					string(command.ViewGitAuth) + " for authentication, " +
+					string(command.ViewGitExplorer) + " for browsing " + strings.ToLower(v.Repositories) + ", " +
 					string(command.ViewWorkspaces) + " for file management, " +
 					string(command.ViewContainers) + " for Docker management, " +
 					string(command.ViewOCIResources) + " for OCI resource management, " +

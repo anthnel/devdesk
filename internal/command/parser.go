@@ -10,16 +10,21 @@ import (
 type ViewType string
 
 const (
-	ViewDashboard      ViewType = "dashboard"
-	ViewStatus         ViewType = "status"
-	ViewGitlabAuth     ViewType = "gitlab-auth"
-	ViewGitlabExplorer ViewType = "gitlab-explorer"
-	ViewWorkspaces     ViewType = "workspaces"
-	ViewSecurity       ViewType = "security"
-	ViewContainers     ViewType = "containers"
-	ViewOCIResources   ViewType = "oci-resources"
-	ViewNetdiag        ViewType = "netdiag"
-	ViewConfiguration  ViewType = "configuration"
+	ViewDashboard ViewType = "dashboard"
+	ViewStatus    ViewType = "status"
+	// ViewGitAuth and ViewGitExplorer are named after the *role*, not after a
+	// platform: a context targets one forge (§3.6), so there is one
+	// authentication screen and one explorer, and both adapt to whichever it
+	// is. A `gitlab-` prefix would have to be typed as `github-` half the time
+	// for the same view.
+	ViewGitAuth       ViewType = "git-auth"
+	ViewGitExplorer   ViewType = "git-explorer"
+	ViewWorkspaces    ViewType = "workspaces"
+	ViewSecurity      ViewType = "security"
+	ViewContainers    ViewType = "containers"
+	ViewOCIResources  ViewType = "oci-resources"
+	ViewNetdiag       ViewType = "netdiag"
+	ViewConfiguration ViewType = "configuration"
 
 	// ViewViewer is opened by the router on another view's request — a file in
 	// workspaces, an inspect or a log in containers — and never by name. It is
@@ -59,32 +64,72 @@ type Command struct {
 // tab-completed, and `netdiag` was documented everywhere while only `net`
 // parsed (§1.3 D16, D17).
 var viewNames = map[string]ViewType{
-	"dashboard":       ViewDashboard,
-	"dash":            ViewDashboard,
-	"d":               ViewDashboard,
-	"status":          ViewStatus,
-	"s":               ViewStatus,
-	"gitlab-auth":     ViewGitlabAuth,
-	"gla":             ViewGitlabAuth,
-	"gitlab-explorer": ViewGitlabExplorer,
-	"gle":             ViewGitlabExplorer,
-	"explorer":        ViewGitlabExplorer,
-	"exp":             ViewGitlabExplorer,
-	"workspaces":      ViewWorkspaces,
-	"ws":              ViewWorkspaces,
-	"w":               ViewWorkspaces,
-	"security":        ViewSecurity,
-	"sec":             ViewSecurity,
-	"containers":      ViewContainers,
-	"cont":            ViewContainers,
-	"ct":              ViewContainers,
-	"oci-resources":   ViewOCIResources,
-	"oci":             ViewOCIResources,
-	"netdiag":         ViewNetdiag,
-	"net":             ViewNetdiag,
-	"configuration":   ViewConfiguration,
-	"config":          ViewConfiguration,
-	"cfg":             ViewConfiguration,
+	"dashboard":     ViewDashboard,
+	"dash":          ViewDashboard,
+	"d":             ViewDashboard,
+	"status":        ViewStatus,
+	"s":             ViewStatus,
+	"git-auth":      ViewGitAuth,
+	"ga":            ViewGitAuth,
+	"git-explorer":  ViewGitExplorer,
+	"ge":            ViewGitExplorer,
+	"workspaces":    ViewWorkspaces,
+	"ws":            ViewWorkspaces,
+	"w":             ViewWorkspaces,
+	"security":      ViewSecurity,
+	"sec":           ViewSecurity,
+	"containers":    ViewContainers,
+	"cont":          ViewContainers,
+	"ct":            ViewContainers,
+	"oci-resources": ViewOCIResources,
+	"oci":           ViewOCIResources,
+	"netdiag":       ViewNetdiag,
+	"net":           ViewNetdiag,
+	"configuration": ViewConfiguration,
+	"config":        ViewConfiguration,
+	"cfg":           ViewConfiguration,
+}
+
+// legacyNames are spellings that still resolve but are never suggested.
+//
+// They are the forge-prefixed names §3.6 replaced. Keeping them parseable is
+// deliberately permissive: there is one authentication view, so `gla` typed out
+// of habit should go there rather than fail, and punishing muscle memory buys
+// nothing. Keeping them *unsuggested* is what makes the new names the ones a
+// user learns — the completion list is the only place most people read them.
+//
+// The GitHub spellings were never accepted before and are here for the same
+// reason as the GitLab ones: someone whose context targets GitHub will guess
+// `gha` before `ga`, and being right is worth more than being consistent about
+// what used to exist.
+//
+// **The filtering happens in completion, not in parsing.** That split is what
+// makes the rename feel like a rename rather than a removal.
+var legacyNames = map[string]ViewType{
+	"gitlab-auth":     ViewGitAuth,
+	"gla":             ViewGitAuth,
+	"github-auth":     ViewGitAuth,
+	"gha":             ViewGitAuth,
+	"gitlab-explorer": ViewGitExplorer,
+	"gle":             ViewGitExplorer,
+	"github-explorer": ViewGitExplorer,
+	"ghe":             ViewGitExplorer,
+
+	// `explorer` and `exp` predate the prefix question entirely. They are
+	// retired for the same reason: one short form per view, and `ge` is the one
+	// that pairs with `ga`.
+	"explorer": ViewGitExplorer,
+	"exp":      ViewGitExplorer,
+}
+
+// resolveView looks a spelling up in both tables. Parsing sees them as one;
+// only completion tells them apart.
+func resolveView(name string) (ViewType, bool) {
+	if view, ok := viewNames[name]; ok {
+		return view, true
+	}
+	view, ok := legacyNames[name]
+	return view, ok
 }
 
 // actionNames are the commands that do not name a view. They take arguments
@@ -127,7 +172,7 @@ func ParseCommand(input string) Command {
 		return Command{Type: action, Args: args}
 	}
 
-	if view, ok := viewNames[mainCmd]; ok {
+	if view, ok := resolveView(mainCmd); ok {
 		return Command{Type: CommandView, View: view}
 	}
 
@@ -138,7 +183,7 @@ func ParseCommand(input string) Command {
 // utilisée pour lire `default_view` en configuration.
 // Retourne une vue vide, sans erreur, quand le nom n'est pas reconnu.
 func Parse(input string) (ViewType, error) {
-	if view, ok := viewNames[normalize(input)]; ok {
+	if view, ok := resolveView(normalize(input)); ok {
 		return view, nil
 	}
 	return "", nil
@@ -146,6 +191,9 @@ func Parse(input string) (ViewType, error) {
 
 // GetAliases retourne chaque alias avec le nom complet qu'il abrège, vues et
 // commandes d'action confondues.
+//
+// legacyNames is deliberately absent: this feeds completion, and a spelling
+// that parses without being suggested is exactly what those are.
 func GetAliases() map[string]string {
 	aliases := make(map[string]string, len(viewNames)+len(actionAliases))
 	for name, view := range viewNames {

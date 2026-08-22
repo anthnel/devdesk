@@ -57,7 +57,7 @@ func loadedModel(t *testing.T) (Model, *shared.State) {
 	m, state := authenticatedModel(t)
 	m = feed(t, m,
 		StatusCheckMsg{Result: status.MonitorResult{Components: componentFixtures(), Timestamp: time.Now()}},
-		GitLabStatsMsg{Stats: forge.DashboardStats{AssignedChangeRequests: forge.Count(3), ReviewChangeRequests: forge.Count(2), AssignedIssues: forge.Count(5), Repositories: forge.Count(12), Namespaces: forge.Count(4)}},
+		ForgeStatsMsg{Stats: forge.DashboardStats{AssignedChangeRequests: forge.Count(3), ReviewChangeRequests: forge.Count(2), AssignedIssues: forge.Count(5), Repositories: forge.Count(12), Namespaces: forge.Count(4)}},
 		DockerStatsMsg{Stats: shared.DockerStats{Available: true, Running: 2, Stopped: 1, Paused: 1}},
 		OCIStatsMsg{Stats: shared.OCIStats{Available: true, ImagesCount: 8, ImagesSize: "1.2GB", ContainersCount: 4, ContainersSize: "300MB", VolumesCount: 2, VolumesSize: "50MB", NetworksCount: 3}},
 		WorkspaceStatsMsg{Count: 6},
@@ -115,7 +115,7 @@ func TestNewStartsEverySectionLoading(t *testing.T) {
 
 	loading := map[string]bool{
 		"services":   m.loadingServices,
-		"gitlab":     m.loadingGitLab,
+		"gitlab":     m.loadingForge,
 		"docker":     m.loadingDocker,
 		"oci":        m.loadingOCI,
 		"workspaces": m.loadingWorkspaces,
@@ -161,8 +161,8 @@ func TestInEditModeIsAlwaysFalse(t *testing.T) {
 func TestResultsArePublishedToSharedState(t *testing.T) {
 	m, state := loadedModel(t)
 
-	if state.GitLabStats == nil || state.GitLabStats.AssignedChangeRequests == nil || *state.GitLabStats.AssignedChangeRequests != 3 {
-		t.Errorf("shared GitLabStats = %+v, want the fetched counts", state.GitLabStats)
+	if state.ForgeStats == nil || state.ForgeStats.AssignedChangeRequests == nil || *state.ForgeStats.AssignedChangeRequests != 3 {
+		t.Errorf("shared ForgeStats = %+v, want the fetched counts", state.ForgeStats)
 	}
 	if state.DockerStats == nil || state.DockerStats.Running != 2 {
 		t.Errorf("shared DockerStats = %+v, want the fetched counts", state.DockerStats)
@@ -184,7 +184,7 @@ func TestResultsArePublishedToSharedState(t *testing.T) {
 	}
 
 	// And the model itself stopped loading.
-	if m.loadingServices || m.loadingGitLab || m.loadingDocker || m.loadingOCI || m.loadingWorkspaces || m.loadingTools {
+	if m.loadingServices || m.loadingForge || m.loadingDocker || m.loadingOCI || m.loadingWorkspaces || m.loadingTools {
 		t.Error("a section is still loading after its result arrived")
 	}
 }
@@ -280,7 +280,7 @@ func TestCtrlRMarksEverySectionLoadingAgain(t *testing.T) {
 	}
 	for name, isLoading := range map[string]bool{
 		"services":   m.loadingServices,
-		"gitlab":     m.loadingGitLab,
+		"gitlab":     m.loadingForge,
 		"docker":     m.loadingDocker,
 		"oci":        m.loadingOCI,
 		"workspaces": m.loadingWorkspaces,
@@ -723,7 +723,7 @@ func withNoDocker(t *testing.T) Model {
 	m, _ := newTestModel(t)
 	return feed(t, m,
 		StatusCheckMsg{Result: status.MonitorResult{Timestamp: time.Now()}},
-		GitLabStatsMsg{},
+		ForgeStatsMsg{},
 		DockerStatsMsg{Stats: shared.DockerStats{Available: false}},
 		OCIStatsMsg{Stats: shared.OCIStats{Available: false}},
 		WorkspaceStatsMsg{Count: 0},

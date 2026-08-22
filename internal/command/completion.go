@@ -9,7 +9,7 @@ import (
 type Suggestion struct {
 	Text     string // Texte de la commande: "status", "s", "ctx list"
 	Display  string // Format d'affichage: "s (status)", "ctx list"
-	IsAlias  bool   // true pour les alias comme "s", "gla"
+	IsAlias  bool   // true pour les alias comme "s", "ga"
 	FullName string // Nom complet si alias: "status" pour "s"
 	Priority int    // Priorité de tri (1=exact, 2=alias, 3=full)
 }

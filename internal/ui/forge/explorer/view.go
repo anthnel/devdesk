@@ -308,7 +308,7 @@ func pipelineStatusStyle(node *TreeNode) lipgloss.Style {
 // message survives a rename by going quietly wrong.
 func renderNotAuthenticated(v forge.Vocabulary) string {
 	style := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError)
-	return style.Render(theme.IconWarning + " " + v.Name + " not authenticated\n\nPlease authenticate first with :" + string(command.ViewGitlabAuth))
+	return style.Render(theme.IconWarning + " " + v.Name + " not authenticated\n\nPlease authenticate first with :" + string(command.ViewGitAuth))
 }
 
 func renderError(err string) string {
@@ -508,7 +508,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Prerequisites",
-				Body: "You must be authenticated (via :" + string(command.ViewGitlabAuth) + ") to access the explorer. " +
+				Body: "You must be authenticated (via :" + string(command.ViewGitAuth) + ") to access the explorer. " +
 					"The clone method (SSH or HTTPS) is configurable in the context configuration.",
 			},
 		},

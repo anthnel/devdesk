@@ -25,6 +25,10 @@ func page(w http.ResponseWriter, body, nextURL string) {
 func TestEveryPageOfAListIsWalked(t *testing.T) {
 	var base string
 	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/api/v3/user") {
+			_, _ = w.Write([]byte(`{"login":"ada","name":"Ada"}`))
+			return
+		}
 		switch r.URL.Query().Get("page") {
 		case "", "1":
 			page(w, `[{"login":"one"}]`, base+"?page=2")
@@ -40,11 +44,121 @@ func TestEveryPageOfAListIsWalked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RootNamespaces() error = %v", err)
 	}
-	if len(got) != 3 {
-		t.Fatalf("got %d namespaces across three pages, want 3: %+v", len(got), got)
+	// The personal namespace plus three pages of one organisation each.
+	if len(got) != 4 {
+		t.Fatalf("got %d namespaces, want 4: %+v", len(got), got)
 	}
-	if got[2].Name != "three" {
-		t.Errorf("the last page was dropped: got %q", got[2].Name)
+	if got[3].Name != "three" {
+		t.Errorf("the last page was dropped: got %q", got[3].Name)
+	}
+}
+
+// TestThePersonalAccountIsARootNamespace is the bug the first version of this
+// backend shipped: a personal GitHub account belongs to no organisation, so the
+// explorer opened empty and said so — on the account shape most people have.
+//
+// The reasoning that excluded it was wrong on its own terms. *No* GitHub
+// organisation can be created or deleted through the API, so the personal
+// account is not less capable than an organisation but more: it is the one
+// namespace where a repository can be created and deleted.
+func TestThePersonalAccountIsARootNamespace(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/api/v3/user") {
+			_, _ = w.Write([]byte(`{"login":"ada","name":"Ada Lovelace"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`[]`)) // no organisations, the common case
+	})
+
+	got, err := fake.forge(t).RootNamespaces(context.Background(), forge.BrowseOptions{})
+	if err != nil {
+		t.Fatalf("RootNamespaces() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("an account with no organisation got %d namespaces, want its own: %+v", len(got), got)
+	}
+
+	personal := got[0]
+	if personal.Path != "ada" || personal.Name != "Ada Lovelace" {
+		t.Errorf("personal namespace = %+v, want the signed-in user", personal)
+	}
+	// The empty ID is the interface's own word for "the user's own namespace",
+	// and it is what go-github's Create takes for the `org` argument. The login
+	// would 404: GitHub refuses to treat a user as an organisation.
+	if personal.ID != "" {
+		t.Errorf("personal namespace ID = %q, want the empty string", personal.ID)
+	}
+	if personal.Role != "Owner" {
+		t.Errorf("role = %q, want Owner — it is the account the token belongs to", personal.Role)
+	}
+}
+
+// TestThePersonalAccountComesFirst — it is where a solo account's repositories
+// are, and burying it under a list of organisations would hide the only row
+// half of them have.
+func TestThePersonalAccountComesFirst(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/api/v3/user") {
+			_, _ = w.Write([]byte(`{"login":"ada"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`[{"login":"acme"},{"login":"beta"}]`))
+	})
+
+	got, err := fake.forge(t).RootNamespaces(context.Background(), forge.BrowseOptions{})
+	if err != nil {
+		t.Fatalf("RootNamespaces() error = %v", err)
+	}
+	if len(got) != 3 || got[0].Path != "ada" {
+		t.Errorf("namespaces = %+v, want the personal account first", got)
+	}
+}
+
+// TestAUserThatCannotBeReadStillListsTheOrganizations — the organisations are
+// worth showing on their own, so a failed CurrentUser drops the row rather than
+// the listing.
+func TestAUserThatCannotBeReadStillListsTheOrganizations(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/api/v3/user") {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"Forbidden"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`[{"login":"acme"}]`))
+	})
+
+	got, err := fake.forge(t).RootNamespaces(context.Background(), forge.BrowseOptions{})
+	if err != nil {
+		t.Fatalf("RootNamespaces() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Path != "acme" {
+		t.Errorf("namespaces = %+v, want the organisation alone", got)
+	}
+}
+
+// TestThePersonalNamespaceListsWhatTheUserOwns — a different endpoint, and
+// `Affiliation: owner` keeps it to what they own: without it the list also
+// carries every repository they collaborate on, which belongs under whoever
+// owns it and would appear twice in a tree that shows both.
+func TestThePersonalNamespaceListsWhatTheUserOwns(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"name":"dotfiles","full_name":"ada/dotfiles"}]`))
+	})
+
+	children, err := fake.forge(t).Children(context.Background(), "", forge.BrowseOptions{IncludeArchived: true})
+	if err != nil {
+		t.Fatalf("Children() error = %v", err)
+	}
+	if len(children.Repositories) != 1 || children.Repositories[0].Path != "ada/dotfiles" {
+		t.Fatalf("repositories = %+v", children.Repositories)
+	}
+
+	call := fake.calls()[0]
+	if !strings.HasSuffix(call.Path, "/api/v3/user/repos") {
+		t.Errorf("the listing addressed %q, want /user/repos", call.Path)
+	}
+	if got := call.Query.Get("affiliation"); got != "owner" {
+		t.Errorf("affiliation = %q, want owner", got)
 	}
 }
 

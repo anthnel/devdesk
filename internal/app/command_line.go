@@ -9,8 +9,8 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/containers"
 	"github.com/anthnel/devdesk/internal/ui/dashboard"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
+	"github.com/anthnel/devdesk/internal/ui/forge/auth"
+	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
@@ -126,7 +126,7 @@ func (a *App) switchView(view command.ViewType) tea.Cmd {
 
 // createView crée une vue (lazy loading)
 func (a *App) createView(view command.ViewType) {
-	if _, exists := a.views[view]; exists && view != command.ViewGitlabAuth {
+	if _, exists := a.views[view]; exists && view != command.ViewGitAuth {
 		return
 	}
 
@@ -135,9 +135,9 @@ func (a *App) createView(view command.ViewType) {
 		a.views[view] = dashboard.New(a.config, a.sharedState)
 	case command.ViewStatus:
 		a.views[view] = status.New(a.config)
-	case command.ViewGitlabAuth:
+	case command.ViewGitAuth:
 		a.views[view] = a.newAuthView()
-	case command.ViewGitlabExplorer:
+	case command.ViewGitExplorer:
 		a.views[view] = explorer.New(a.config, a.sharedState)
 	case command.ViewWorkspaces:
 		a.views[view] = workspaces.New(a.config, a.sharedState.Secrets.Storage)

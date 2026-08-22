@@ -6,7 +6,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/forge"
 	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
+	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 )
 
 // signedIn puts the router in the state a successful login leaves it in.
@@ -14,7 +14,7 @@ func signedIn(t *testing.T) *App {
 	t.Helper()
 	a := newWithSize(testConfig(), 120, 40)
 	a.setAuthenticated(gitlabforge.NewWithClient(nil, "https://gitlab.example.com"), forge.User{Username: "anthoni"})
-	a.sharedState.GitLabStats = &forge.DashboardStats{Repositories: forge.Count(12)}
+	a.sharedState.ForgeStats = &forge.DashboardStats{Repositories: forge.Count(12)}
 	return a
 }
 
@@ -44,15 +44,15 @@ func TestLoggingOutClearsTheSharedSession(t *testing.T) {
 //
 // This used to assert on CachedGroups and CachedProjects too. They are gone
 // (D36): nothing ever wrote to them, so the assertion held for a cache that was
-// nil at every moment of its life. GitLabStats is the one of the three the
+// nil at every moment of its life. ForgeStats is the one of the three the
 // dashboard actually fills.
 func TestLoggingOutDropsTheCachedGitLabData(t *testing.T) {
 	a := signedIn(t)
 
 	_, _ = a.Update(auth.LogoutCompleteMsg{})
 
-	if a.sharedState.GitLabStats != nil {
-		t.Errorf("GitLabStats survived the logout: %+v", a.sharedState.GitLabStats)
+	if a.sharedState.ForgeStats != nil {
+		t.Errorf("ForgeStats survived the logout: %+v", a.sharedState.ForgeStats)
 	}
 }
 
@@ -60,14 +60,14 @@ func TestLoggingOutDropsTheCachedGitLabData(t *testing.T) {
 // the view itself has to go.
 func TestLoggingOutDropsTheExplorer(t *testing.T) {
 	a := signedIn(t)
-	a.createView(command.ViewGitlabExplorer)
-	if _, ok := a.views[command.ViewGitlabExplorer]; !ok {
+	a.createView(command.ViewGitExplorer)
+	if _, ok := a.views[command.ViewGitExplorer]; !ok {
 		t.Fatal("the explorer was not built, so the test proves nothing")
 	}
 
 	_, _ = a.Update(auth.LogoutCompleteMsg{})
 
-	if _, ok := a.views[command.ViewGitlabExplorer]; ok {
+	if _, ok := a.views[command.ViewGitExplorer]; ok {
 		t.Error("the explorer survived the logout with whatever it had loaded")
 	}
 }
@@ -76,12 +76,12 @@ func TestLoggingOutDropsTheExplorer(t *testing.T) {
 // successfully", which rebuilding would throw away.
 func TestLoggingOutKeepsTheAuthView(t *testing.T) {
 	a := signedIn(t)
-	a.createView(command.ViewGitlabAuth)
-	before := a.views[command.ViewGitlabAuth]
+	a.createView(command.ViewGitAuth)
+	before := a.views[command.ViewGitAuth]
 
 	_, _ = a.Update(auth.LogoutCompleteMsg{})
 
-	if a.views[command.ViewGitlabAuth] != before {
+	if a.views[command.ViewGitAuth] != before {
 		t.Error("the auth view was rebuilt, discarding the logout confirmation")
 	}
 }
@@ -89,8 +89,8 @@ func TestLoggingOutKeepsTheAuthView(t *testing.T) {
 // The message still has to reach the view, or the form never resets.
 func TestTheLogoutMessageStillReachesTheView(t *testing.T) {
 	a := signedIn(t)
-	a.currentView = command.ViewGitlabAuth
-	a.createView(command.ViewGitlabAuth)
+	a.currentView = command.ViewGitAuth
+	a.createView(command.ViewGitAuth)
 
 	_, cmd := a.Update(auth.LogoutCompleteMsg{})
 

@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/shared"
@@ -27,7 +28,9 @@ func TestViewWithoutAClientPointsAtTheAuthView(t *testing.T) {
 	if !strings.Contains(view, "not authenticated") {
 		t.Errorf("the view does not say it is unauthenticated:\n%s", view)
 	}
-	if !strings.Contains(view, "gitlab-auth") {
+	// The command comes from internal/command, so this follows the rename
+	// rather than outliving it — which is what §3.6 step 5 moved it there for.
+	if !strings.Contains(view, string(command.ViewGitAuth)) {
 		t.Error("the view does not name the command that authenticates")
 	}
 }

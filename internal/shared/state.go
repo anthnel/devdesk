@@ -96,10 +96,10 @@ type State struct {
 	// Dashboard data
 	ServiceStatus     ServiceGlobalStatus
 	ServiceComponents []status.ComponentStatus
-	// GitLabStats are the dashboard's forge counters, nil until they are
+	// ForgeStats are the dashboard's forge counters, nil until they are
 	// fetched. It was a struct of its own here, field for field identical to
 	// what internal/gitlab returned — a third copy of the same five numbers.
-	GitLabStats    *forge.DashboardStats
+	ForgeStats     *forge.DashboardStats
 	DockerStats    *DockerStats
 	OCIStats       *OCIStats
 	WorkspaceCount int

@@ -14,8 +14,8 @@ type SwitchViewMsg struct {
 	View command.ViewType
 }
 
-// GitLabAuthSuccessMsg indique une authentification réussie
-type GitLabAuthSuccessMsg struct {
+// ForgeAuthSuccessMsg indique une authentification réussie
+type ForgeAuthSuccessMsg struct {
 	Client *gitlabclient.Client
 	User   *gitlabclient.User
 }

@@ -15,8 +15,8 @@ import (
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/configuration"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/auth"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
+	"github.com/anthnel/devdesk/internal/ui/forge/auth"
+	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -132,8 +132,8 @@ func (a *App) useSecrets(sel credentials.Selection) {
 
 	// The auth view holds the storage it was built with, so rebuild it if it
 	// already exists. Every other view reaches secrets through the router.
-	if _, ok := a.views[command.ViewGitlabAuth]; ok {
-		a.views[command.ViewGitlabAuth] = a.newAuthView()
+	if _, ok := a.views[command.ViewGitAuth]; ok {
+		a.views[command.ViewGitAuth] = a.newAuthView()
 	}
 }
 
@@ -310,7 +310,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case auth.LogoutCompleteMsg:
 		return a.handleLogoutComplete(msg)
 
-	case GitLabAutoLoginMsg:
+	case ForgeAutoLoginMsg:
 		return a.handleAutoLoginResult(msg)
 
 	// ── Scans ────────────────────────────────────────────────────────────

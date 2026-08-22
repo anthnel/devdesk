@@ -6,7 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/ui/gitlab/explorer"
+	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 

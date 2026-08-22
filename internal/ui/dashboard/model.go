@@ -29,8 +29,8 @@ type StatusCheckMsg struct {
 	Result status.MonitorResult
 }
 
-// GitLabStatsMsg contains fetched GitLab statistics
-type GitLabStatsMsg struct {
+// ForgeStatsMsg contains fetched GitLab statistics
+type ForgeStatsMsg struct {
 	Stats forge.DashboardStats
 }
 
@@ -132,7 +132,7 @@ type Model struct {
 	// Data
 	serviceComponents []status.ComponentStatus
 	serviceStatus     shared.ServiceGlobalStatus
-	gitlabStats       *forge.DashboardStats
+	forgeStats        *forge.DashboardStats
 	dockerStats       *shared.DockerStats
 	ociStats          *shared.OCIStats
 	tools             []shared.ToolInfo
@@ -156,7 +156,7 @@ type Model struct {
 
 	// Loading flags
 	loadingServices   bool
-	loadingGitLab     bool
+	loadingForge      bool
 	loadingDocker     bool
 	loadingOCI        bool
 	loadingWorkspaces bool
@@ -180,7 +180,7 @@ func New(cfg *config.Config, state *shared.State) Model {
 		shared:            state,
 		serviceStatus:     shared.ServiceStatusUnknown,
 		loadingServices:   true,
-		loadingGitLab:     true,
+		loadingForge:      true,
 		loadingDocker:     true,
 		loadingOCI:        true,
 		loadingWorkspaces: true,
@@ -196,7 +196,7 @@ func New(cfg *config.Config, state *shared.State) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.checkServices(),
-		m.fetchGitLabStats(),
+		m.fetchForgeStats(),
 		m.fetchDockerStats(),
 		m.fetchOCIStats(),
 		m.fetchWorkspaceStats(),
@@ -231,8 +231,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StatusCheckMsg:
 		return m.handleStatusCheck(msg)
 
-	case GitLabStatsMsg:
-		return m.handleGitLabStats(msg)
+	case ForgeStatsMsg:
+		return m.handleForgeStats(msg)
 
 	case DockerStatsMsg:
 		return m.handleDockerStats(msg)
@@ -300,7 +300,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // slow round runs at once.
 func (m Model) handleReload() (tea.Model, tea.Cmd) {
 	m.loadingServices = true
-	m.loadingGitLab = true
+	m.loadingForge = true
 	m.loadingDocker = true
 	m.loadingOCI = true
 	m.loadingWorkspaces = true
@@ -393,11 +393,11 @@ func (m Model) handleStatusCheck(msg StatusCheckMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleGitLabStats processes GitLab stats results
-func (m Model) handleGitLabStats(msg GitLabStatsMsg) (tea.Model, tea.Cmd) {
-	m.loadingGitLab = false
-	m.gitlabStats = &msg.Stats
-	m.shared.GitLabStats = &msg.Stats
+// handleForgeStats processes GitLab stats results
+func (m Model) handleForgeStats(msg ForgeStatsMsg) (tea.Model, tea.Cmd) {
+	m.loadingForge = false
+	m.forgeStats = &msg.Stats
+	m.shared.ForgeStats = &msg.Stats
 	return m, nil
 }
 
@@ -443,7 +443,7 @@ func (m Model) checkServices() tea.Cmd {
 	}
 }
 
-func (m Model) fetchGitLabStats() tea.Cmd {
+func (m Model) fetchForgeStats() tea.Cmd {
 	backend := m.shared.Forge
 	user := m.shared.CurrentUser
 
@@ -451,7 +451,7 @@ func (m Model) fetchGitLabStats() tea.Cmd {
 	// zeros — the zero DashboardStats says exactly that (D52).
 	if backend == nil || !m.shared.IsAuthenticated {
 		return func() tea.Msg {
-			return GitLabStatsMsg{}
+			return ForgeStatsMsg{}
 		}
 	}
 
@@ -460,7 +460,7 @@ func (m Model) fetchGitLabStats() tea.Cmd {
 		if err != nil {
 			log.Printf("ERROR [dashboard] fetching forge stats: %v", err)
 		}
-		return GitLabStatsMsg{Stats: stats}
+		return ForgeStatsMsg{Stats: stats}
 	}
 }
 
@@ -639,7 +639,7 @@ func (m Model) scheduleRefresh() tea.Cmd {
 func (m Model) refreshAll() tea.Cmd {
 	return tea.Batch(
 		m.checkServices(),
-		m.fetchGitLabStats(),
+		m.fetchForgeStats(),
 		m.fetchDockerStats(),
 		m.fetchOCIStats(),
 		m.fetchWorkspaceStats(),

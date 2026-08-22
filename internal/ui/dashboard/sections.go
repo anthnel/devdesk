@@ -81,10 +81,10 @@ func renderCodeSection(m Model, width int, t tier) []string {
 	}
 
 	mrs, review, issues := unknownValue(), unknownValue(), unknownValue()
-	if m.gitlabStats != nil {
-		mrs = maybeCountValue(m.gitlabStats.AssignedChangeRequests)
-		review = maybeCountValue(m.gitlabStats.ReviewChangeRequests)
-		issues = maybeCountValue(m.gitlabStats.AssignedIssues)
+	if m.forgeStats != nil {
+		mrs = maybeCountValue(m.forgeStats.AssignedChangeRequests)
+		review = maybeCountValue(m.forgeStats.ReviewChangeRequests)
+		issues = maybeCountValue(m.forgeStats.AssignedIssues)
 	}
 
 	workspaces := unknownValue()

@@ -77,7 +77,7 @@ func TestLeavingTheForgeClosesTheSessionAndSaysSo(t *testing.T) {
 	if !strings.Contains(m.footer.Text(), "GitHub") {
 		t.Errorf("footer = %q, want it to name the new platform", m.footer.Text())
 	}
-	if !strings.Contains(m.footer.Text(), ":"+string(command.ViewGitlabAuth)) {
+	if !strings.Contains(m.footer.Text(), ":"+string(command.ViewGitAuth)) {
 		t.Errorf("footer = %q, want it to say where to sign in again", m.footer.Text())
 	}
 }

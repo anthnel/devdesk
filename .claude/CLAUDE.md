@@ -222,8 +222,8 @@ App (Router)
 └── Views (lazy-loaded):
     ├── dashboard       - Overview (stats, tools, service status)
     ├── status          - System monitoring (CRUD monitors)
-    ├── gitlab-auth     - GitLab authentication form
-    ├── gitlab-explorer - GitLab project/group browser + multi-select clone
+    ├── git-auth        - forge authentication form (GitLab or GitHub)
+    ├── git-explorer    - forge namespace/repository browser + multi-select clone
     ├── workspaces      - Local workspace management + git metadata
     ├── security        - Trivy + Gitleaks scanner with multi-tab results
     ├── containers      - Docker container list + live metrics
@@ -238,8 +238,8 @@ App (Router)
 Press `ctrl+p` to enter command mode, then type:
 - `dashboard` or `d` - Switch to dashboard view
 - `status` or `s` - Switch to status view
-- `gitlab-auth` or `gla` - Switch to GitLab auth view
-- `gitlab-explorer` or `gle` - Switch to GitLab explorer view
+- `git-auth` or `ga` - Switch to the forge authentication view
+- `git-explorer` or `ge` - Switch to the forge explorer view
 - `workspaces` or `w` - Switch to workspaces view
 - `security` or `sec` - Switch to security scanner view
 - `containers`, `cont` or `ct` - Switch to containers view
@@ -251,6 +251,30 @@ Press `ctrl+p` to enter command mode, then type:
 - `quit` - Exit application
 
 Command parsing and tab-completion live in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandQuit`, `CommandUnknown`.
+
+**The forge views are `git-auth` and `git-explorer`, named after the role.**
+A context targets one forge (§3.6), so there is one authentication screen and
+one explorer, and both adapt to whichever it is — a `gitlab-` prefix would have
+to be typed as `github-` half the time for the same view. Their packages live
+under `internal/ui/forge/`, which is what the import line says too.
+
+**Ten spellings still parse and none of them is suggested.** `gitlab-auth`,
+`gla`, `github-auth`, `gha` and their explorer counterparts, plus the older
+`explorer` / `exp`, resolve through `legacyNames`. Keeping them parseable is
+deliberately permissive — there is one authentication view, so `gla` typed out
+of habit should go there rather than fail. Keeping them *unsuggested* is what
+makes the new names the ones a user learns, because the completion list is the
+only place most people read a command.
+
+The GitHub spellings were never accepted before and are there for the same
+reason as the GitLab ones: someone whose context targets GitHub will guess `gha`
+before `ga`, and being right is worth more than being consistent about what used
+to exist.
+
+**The filtering happens in completion, not in parsing.** That split is the whole
+of it — it makes a rename feel like a rename rather than a removal — and it is
+the client §3.6 step 0 deferred the mechanism for, rather than building it with
+an empty exception list.
 
 **There is no `:theme` command.** The theme is a setting, so the configuration
 view owns it — the picker wrote `app.theme` behind the settings form's back,
@@ -693,9 +717,20 @@ which is the honest outcome — this is not a way to overwrite history.
 
 Three smaller decisions worth knowing:
 
-- **The user's own account is not among `RootNamespaces`.** A personal namespace
-  is not an organisation: it cannot be created or deleted, so listing it as one
-  would put a row in the tree that half the actions refuse.
+- **The user's own account is the first root namespace, and leaving it out was
+  a bug.** The reasoning that excluded it — "a personal namespace cannot be
+  created or deleted, so half the actions would refuse the row" — is wrong on
+  its own terms: *no* GitHub organisation can be created or deleted through the
+  API either, so the personal account is not less capable but **more**. It is
+  the one namespace where a repository can be created and deleted. The cost was
+  the common case: a personal account belongs to no organisation, so the
+  explorer opened empty on the account shape most people have. Its `ID` is the
+  **empty string** — the interface's own word for "the user's own namespace",
+  and what `Repositories.Create` takes for its `org` argument; the login would
+  404, because GitHub refuses to treat a user as an organisation. Its children
+  come from `/user/repos` with `Affiliation: owner`, without which the list also
+  carries every repository the user collaborates on — which belongs under
+  whoever owns it, and would appear twice in a tree that shows both.
 - **`visibilityOf` reads `Visibility` before `Private`.** The first is what
   Enterprise fills with `internal`; reading only the boolean would report an
   Enterprise `internal` repository as `private`, which is a different thing.
@@ -707,6 +742,13 @@ The configured URL is the **web** host. On Enterprise the API lives under
 `/api/v3/`, which `WithEnterpriseURLs` appends — conflating the two would send a
 user to `https://git.acme.test/api/v3/acme/api` when they asked to open a
 repository in a browser.
+
+**One rough edge, left rough and written down.** The explorer's Type column
+reads the vocabulary, so the personal account's row says "Organization". GitHub
+calls the union "Owner", but taking that word into `Vocabulary.Namespace` would
+make the configuration read "Default parent owner", which is worse — and a third
+node kind would reintroduce the sum type the two-types decision exists to avoid.
+One inaccurate cell beats either.
 
 Cost: **+0.55 MB** on the binary (24.4 → 25.0).
 
