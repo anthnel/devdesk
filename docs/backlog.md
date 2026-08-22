@@ -5879,6 +5879,69 @@ s'y trouvait avant — un chemin plausible, pris pour le bon. `PathCopiedMsg` po
 le chemin pour la ligne de log, seule à pouvoir nommer ce qu'on essayait de
 copier.
 
+### 3.36 `:sec` nomme une image par son alias de registry — **done**
+
+L'inventaire affichait la clé de cache brute
+(`nexus.example.com/docker-hosted/agent-base:1.0`) là où l'onglet Images d'`:oci`
+substitue depuis toujours l'alias configuré (`nx/agent-base:1.0`). C'est la table
+la plus serrée de l'application — `Target` partage sa largeur avec Secrets, quatre
+colonnes de sévérité et Scanned — donc le préfixe est exactement ce qui pousse
+hors de la cellule la partie qui identifie l'image. La substitution existait
+(`docker.ApplyAliases`) ; il manquait de l'appeler, et un endroit d'où l'appeler
+deux fois sans la réécrire.
+
+#### L'invariant, et pourquoi il coûte un champ de plus
+
+**`scanTarget.Name` est la clé de cache et ne bouge pas.** C'est ce que résolvent
+`enter`, `S` et `A`, et c'est ce que `AddToGitleaksIgnore` reçoit via
+`m.targetPath` : un alias qui atteindrait cette valeur ferait écrire un
+`.gitleaksignore` dans un répertoire qui n'existe pas. La règle était déjà écrite
+pour le pliage de `~` — *le nom affiché est dérivé, la clé est portée* — et c'est
+elle qui impose `targetLabel` **à côté** de `targetPath` plutôt qu'un pliage
+appliqué sur place. Les deux champs sont lus dans des buts opposés : l'un est
+montré, l'autre est écrit sur le disque.
+
+L'alias voyage donc sur la ligne (`Display`), estampillé par `setInventory` à côté
+de la frame du spinner, pour les deux mêmes raisons : les lignes arrivent d'un
+`Cmd`, qui ne doit pas lire le modèle (Rule 110), et une fonction de colonne est
+construite une fois dans `New` et ne peut atteindre ni l'un ni l'autre. C'est le
+patron `imageRow`, une deuxième fois.
+
+`displayName()` retombe sur `Name` quand `Display` est vide : une ligne fabriquée
+à la main — les fixtures des tests en construisent — doit rester lisible plutôt
+que d'afficher une cellule vide.
+
+#### Où vit l'adaptateur, et pourquoi pas dans l'un des deux paquets
+
+`internal/docker` ne connaît pas `internal/config`, délibérément : c'est le pilote
+de la CLI Docker, et `docker.RegistryAlias` est son type propre pour cette raison
+— un pilote qui apprend le schéma d'un fichier YAML ne peut plus être appelé sans
+lui. L'inverse est pire : `config` décrit ce que l'utilisateur écrit, et n'a
+aucune raison de dépendre de la façon dont Docker nomme les choses.
+
+`internal/ui/registryalias` est donc **au-dessus des deux**, et côté UI parce que
+ses deux appelants sont des vues qui affichent la même image et doivent l'écrire
+pareil. Il porte une fonction. `From` préserve l'ordre de déclaration, et ce n'est
+pas cosmétique : `ApplyAliases` retient le **premier** préfixe qui matche, donc
+c'est l'ordre qui départage deux registries dont l'un préfixe l'autre. Une entrée
+sans alias ou sans URL est écartée plutôt que portée avec une chaîne vide, qui
+ferait matcher tout nom d'image.
+
+#### Trier sur la clé, chercher les deux
+
+Le tri reste sur `Name` : un alias est un nom d'affichage que l'utilisateur peut
+renommer, et trier dessus déplacerait toutes les lignes d'un registry le jour où
+il en change. La recherche prend les deux noms — c'est ce que l'onglet Images fait
+déjà, et pour la raison qui y est écrite : une colonne qui affiche un nom pendant
+que la requête en veut un autre se lit comme un défaut.
+
+Les trois messages de footer qui nomment une cible sont pliés aussi. Le footer
+tronque à la largeur (Rule 128), et le préfixe est précisément ce qui s'y
+dépenserait. Ils passent par `labelFor`, qui **résout la ligne** plutôt que de
+plier la chaîne à l'aveugle : un chemin absolu de dépôt peut légitimement
+commencer par une URL de registry configurée, et seule la ligne sait de quel
+cache le nom vient.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

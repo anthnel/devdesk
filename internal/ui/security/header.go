@@ -100,11 +100,14 @@ func (m Model) GetTitle() string {
 		// contexts hold different inventories, and their rows look identical.
 		return base + " " + theme.IconChevronRight + " Inventory · " + config.CurrentContextName()
 	}
-	if m.targetPath != "" {
+	// The label, not the key: the title is the one place the target is read
+	// rather than used, and a registry prefix is what pushes the image's own
+	// name off the line.
+	if m.targetLabel != "" {
 		annotation := lipgloss.NewStyle().
 			Foreground(theme.ColorSecondary).
 			Background(theme.ColorBackground).
-			Render("(" + m.targetPath + ")")
+			Render("(" + m.targetLabel + ")")
 		return base + " " + annotation
 	}
 	return base

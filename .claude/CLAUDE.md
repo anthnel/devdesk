@@ -1115,6 +1115,24 @@ view, and a target is either a known image or something under `workspaces_dir`.
 | `A` | rescan every target; its confirmation carries a **purge** checkbox |
 | `ctrl+r` | reload from the caches |
 
+**A target is displayed folded and resolved whole.** An image shows its registry
+prefix replaced by the configured alias (`nx/agent-base:1.0`), exactly as the
+images tab does — `internal/ui/registryalias` is the adapter both call, and it
+lives above `config` and `docker` because neither imports the other and neither
+should. A repository still folds its home directory to `~`. Both foldings obey
+one rule: **`scanTarget.Name` is the cache key and never moves.** It is what
+`enter`, `S` and `A` resolve, and what `AddToGitleaksIgnore` writes into via
+`m.targetPath` — hence `targetLabel` as a second field rather than a folding
+applied in place, since an aliased reference names a directory that does not
+exist. The alias rides on the row (`Display`), stamped by `setInventory` beside
+the spinner frame, for the same two reasons: the rows arrive from a `Cmd`, and a
+column function is built once in `New` and can reach neither.
+
+The Target column therefore **sorts on the key and searches both names**: an
+alias is a display name the user can rename, so sorting by it would move every
+row of a registry the day they do, while a column showing one name and matching
+only the other reads as a bug.
+
 **The inventory runs its own scans.** With the options in the config there is
 nothing to carry to whoever would run one — which is the only reason the
 cross-view delegation exists. It writes to the same two caches, so a rescan here
