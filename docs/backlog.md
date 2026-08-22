@@ -1258,6 +1258,27 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
+**D52 — un compteur du dashboard qui n'a pas pu être lu s'affiche `0`.**
+`FetchDashboardStats` (`internal/gitlab/stats.go`) émet **cinq requêtes
+indépendantes** et avale l'erreur de chacune : `if _, resp, err := …; err == nil`
+remplit le champ, sinon il reste à sa valeur zéro. `countValue`
+(`dashboard/sections.go:951`) rend alors un `0` en `DimStyle`, qui est
+exactement ce qu'il rend quand il n'y a réellement aucune merge request
+assignée.
+
+C'est D20 dans cinq champs : un zéro qui veut dire « personne n'a regardé » se
+lit comme une réponse. Un token dont le scope ne couvre pas les issues, une
+instance qui limite le débit, un endpoint indisponible — les trois donnent un
+dashboard qui dit « rien à faire ».
+
+Trouvé en écrivant §3.6 étape 1, et c'est ce qui a décidé la forme de
+`forge.DashboardStats` : chaque compteur y est un `*int`, `nil` voulant dire que
+rien n'a compté. Le précédent est `Sensitive *bool` dans les caches de scan, où
+la même distinction a dû être ajoutée après coup. **Le type le rend exprimable ;
+il n'est pas encore corrigé** — `internal/gitlab` reste tel quel jusqu'à ce que
+les appels passent par l'interface, et le dashboard devra rendre `-` plutôt que
+`0` pour un `nil`.
+
 **D39 — every discovered group member browses, and none of them can be pulled.**
 `NexusDetector` synthesises each member as `host + "/repository/" + name`
 (`nexus.go:117`, `nexus.go:156`). Measured against `pic-nexus.spw.dev.wallonie.be`
@@ -1287,7 +1308,7 @@ Not reached before now because discovery had never succeeded against a group her
 own; §3.18 is what would have made it the normal case rather than a way to
 misconfigure, and it no longer has to carry that.
 
-**D39 is the only one open**, above. D21 and D36 closed everything that preceded
+**D39 et D52 sont les seuls ouverts**, ci-dessus. D21 and D36 closed everything that preceded
 them; both are in §1.1.
 
 D12, D13 and D14 were all fixed by §3.8 — see "The three defects it closed"
@@ -2335,7 +2356,7 @@ l'abstraction en dessous.
 | Surface | Size |
 |---|---|
 | `internal/gitlab` + `internal/ui/gitlab/{auth,explorer}` | ~3 900 lines |
-| Direct uses of `*gitlabclient.Client` outside `internal/gitlab` | 66, across 8 files |
+| Direct uses of the SDK types outside `internal/gitlab` | **41, across 10 files** (66 at the entry's opening) |
 
 The concrete SDK type leaks into `internal/shared/state.go:57`
 (`GitLabClient *gitlabclient.Client`), so every consumer is bound to go-gitlab
@@ -2685,40 +2706,89 @@ font contre GitLab seul.
    oppose désormais CLAUDE.md au parser, dans les deux sens. Il a trouvé une
    ligne fausse depuis le commit initial. La distinction « parse mais n'est pas
    suggéré » est reportée à l'étape 8, où elle a un client.
-1. Définir l'abstraction `forge` à partir de ce que le code consomme réellement :
-   utilisateur courant, arbre de namespaces, créer/supprimer un namespace et un
-   dépôt, commit initial, compteurs du dashboard, URL de clone. Elle déclare
-   aussi sa **forme** — profondeur, jeu de visibilité, rôles humanisés — pas
-   seulement ses données.
-2. Remplacer `shared.State.GitLabClient` par cette interface, et faire passer les
+1. ~~Définir l'abstraction `forge` à partir de ce que le code consomme
+   réellement.~~ **Faite** — `internal/forge` : les types du domaine,
+   l'interface, et `Shape`. Ce que le fait de l'écrire a tranché est plus bas.
+2. Implémenter le backend GitLab en déplaçant le code existant derrière
+   l'interface — sans changement de comportement, et couvert par les tests que §2
+   phase 5 a ajoutés. **C'était l'étape 6** ; elle passe devant, parce que l'étape
+   suivante ne peut pas mettre dans `shared.State` une interface que rien
+   n'implémente.
+3. Remplacer `shared.State.GitLabClient` par cette interface, et faire passer les
    branches « authentifié ou non » par `IsAuthenticated` au passage. C'est le
-   changement dont les 65 autres appels découlent.
-3. `GitLabConfig` devient `ForgeConfig`, section `forge:` avec un `type:`, migrée
+   changement dont les 41 autres appels découlent — le décompte de 66 était
+   celui de l'ouverture de l'entrée. `internal/gitlab` et `explorer/api.go`
+   disparaissent ici, ce qui est aussi ce qui empêche la pagination et le
+   listing d'exister en double.
+4. `GitLabConfig` devient `ForgeConfig`, section `forge:` avec un `type:`, migrée
    depuis `gitlab:` dans `applyDefaults` **avant** les défauts, sur le précédent
    de `docker:` → `network:` (§3.34). Un test du genre
    `TestAGitLabSectionSurvivesTheRename`.
-4. Extraire la `Vocabulary` et y déplacer chaque littéral du tableau ci-dessus,
+5. Extraire la `Vocabulary` et y déplacer chaque littéral du tableau ci-dessus,
    avec le test qui les empêche de revenir. Faisable contre GitLab seul, avant
    qu'une ligne de GitHub n'existe — c'est ce qui en fait un refactor et non une
    réécriture.
-5. **L'onglet de configuration devient adaptatif** : titre et jeu de visibilité
+6. **L'onglet de configuration devient adaptatif** : titre et jeu de visibilité
    tirés de la forge active, champ `Forge` en tête du groupe Connection,
    détection sur l'hôte avec son drapeau *dirty*, et la fermeture de session
    quand il change — le même appel que `GitLabURLChanged`. Se fait contre GitLab
    seul : le cycle n'a qu'une valeur, ce qui est un cas dégénéré et non un cas
    particulier.
-6. Implémenter le backend GitLab en déplaçant le code existant derrière
-   l'interface — sans changement de comportement, et couvert par les tests que §2
-   phase 5 a ajoutés.
 7. Implémenter le backend GitHub. C'est ici que `go-github` entre dans
    `go.mod`, et nulle part avant.
 8. Renommer les vues et les commandes en `git-auth` / `ga` et
    `git-explorer` / `ge`, garder les anciennes qui parsent sans être suggérées,
    et rendre la complétion consciente de la forge.
 
-Les étapes 4 et 5 tiennent seules et améliorent le code sans que GitHub soit
-en vue, comme l'étape 0 l'a fait. Les étapes 1–6 sont un refactor de code qui marche, avec les tests déjà
-en place, et c'est ce qui rend l'étape 7 abordable.
+Les étapes 5 et 6 tiennent seules et améliorent le code sans que GitHub soit en
+vue, comme l'étape 0 l'a fait. Les étapes 1–6 sont un refactor de code qui
+marche, avec les tests déjà en place, et c'est ce qui rend l'étape 7 abordable.
+
+#### Ce que l'étape 1 a tranché
+
+Cinq décisions, chacune parce que le code les demandait :
+
+- **L'identité est opaque, le chemin ne l'est pas.** Un `Namespace` et un
+  `Repository` portent un `ID` et un `Path`. L'`ID` adresse l'objet auprès du
+  backend et ne veut rien dire dehors — GitLab a besoin d'un nombre pour créer
+  sous un parent (`CreateGroupOptions.ParentID` est un `*int64`), GitHub adresse
+  par `owner`. Le `Path` est celui qu'on lit, dont on construit l'URL de clone,
+  et sur lequel repose la suppression permanente de GitLab. Un appelant qui
+  parse un `ID` est un appelant lié à une forge ; le type est une `string` pour
+  que l'arithmétique ne soit pas écrivable. Vérifié au passage : chaque
+  identifiant de go-gitlab est un `any` qui accepte le chemin, donc rien
+  n'oblige à garder le nombre visible.
+- **Un namespace et un dépôt sont deux types**, pas un nœud avec un champ
+  `kind`. Seul un namespace a des enfants ; seul un dépôt a un statut CI et une
+  suppression programmée. Deux types rendent « descendre dans un dépôt »
+  inexprimable plutôt qu'interdit par revue — le même troc que
+  `Cell func(T) string` pour la Rule 122. Le `TreeNode` de l'explorer reste :
+  *expanded*, *loading*, *parent*, *depth* sont de l'état de vue, dont une forge
+  n'a pas d'avis.
+- **La décoration est une option, pas un défaut.** `ChildrenOptions.Decorated`
+  remplit le rôle et le statut CI, ce qui coûte **deux requêtes par dépôt** sur
+  GitLab : sur un groupe de deux cents dépôts, 400 appels pour un badge et un
+  rôle qu'un clone ne regarde jamais. L'explorer la demande, la marche du clone
+  non — c'est la propriété que `discoverGroupChildren` avait déjà et que
+  l'interface devait garder exprimable.
+- **`MaxNamespaceDepth` se lit par `CanNestUnder`, jamais par comparaison.** Le
+  sentinelle « ≤ 0 veut dire non borné » est un piège classique, et la
+  comparaison évidente (`depth < max`) refuse en plus le namespace racine sur
+  GitHub, où le maximum est 1. Deux tests tiennent les deux bouts et les deux
+  ont été vérifiés en échec.
+- **`DashboardStats` porte des `*int`, et ça a trouvé D52.** Les cinq compteurs
+  viennent de cinq requêtes indépendantes dont chacune peut échouer seule ;
+  `int` ne sait pas dire « personne n'a regardé », et le dashboard rend
+  aujourd'hui un `0` grisé pour un compteur qu'il n'a pas pu lire. Le précédent
+  est `Sensitive *bool` des caches de scan.
+
+**Ce que l'étape 1 ne fait pas :** rien n'implémente encore l'interface, et rien
+ne l'appelle. La complétude est vérifiée par un `stubForge` dans le fichier de
+test et un `var _ Forge = (*stubForge)(nil)` — une interface que personne
+n'implémente compile quoi qu'elle déclare, ce qui est la façon dont une étape
+qui ne fait que définir se trompe. Le stub reste dans le test : l'étape 3 est
+celle qui gagne des appelants voulant un double, et un paquet d'aide écrit avant
+ses consommateurs devinerait ce dont ils ont besoin.
 
 ### 3.7 Command mode from inside a text field — **done**
 
