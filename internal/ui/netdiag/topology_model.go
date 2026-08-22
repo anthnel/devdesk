@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -129,6 +130,10 @@ type TopologyModel struct {
 	firewall    []FirewallChain
 	firewallSrc string
 	loadErr     string
+	// loadedAt dates the sections on screen. A failed refresh keeps them — they
+	// are the last true answer — so the banner has to say how old they are, or
+	// an error line sits above data the reader takes for current.
+	loadedAt time.Time
 
 	viewport viewport.Model
 	spinner  spinner.Model
@@ -195,7 +200,11 @@ func (tm *TopologyModel) update(msg tea.Msg) (*TopologyModel, tea.Cmd) {
 func (tm *TopologyModel) handleData(msg topoDataMsg) (*TopologyModel, tea.Cmd) {
 	if msg.err != nil {
 		log.Printf("ERROR [netdiag/topology] fetch: %v", msg.err)
-		tm.loadErr = "Failed to load network data — check logs"
+		if tm.hasData() {
+			tm.loadErr = "Refresh failed — sections last loaded: " + theme.TimeAgo(tm.loadedAt)
+		} else {
+			tm.loadErr = "Failed to load network data — check logs"
+		}
 	} else {
 		tm.interfaces = msg.interfaces
 		tm.routes = msg.routes
@@ -203,11 +212,20 @@ func (tm *TopologyModel) handleData(msg topoDataMsg) (*TopologyModel, tea.Cmd) {
 		tm.firewall = msg.firewall
 		tm.firewallSrc = msg.firewallSrc
 		tm.loadErr = ""
+		tm.loadedAt = time.Now()
 	}
 	tm.state = topoStateReady
 	tm.viewport.SetContent(tm.buildViewportContent())
 	tm.viewport.GotoTop()
 	return tm, nil
+}
+
+// hasData reports whether an earlier load left anything on screen. A refresh
+// that fails over nothing is a plain failure; one that fails over data is a
+// dating problem, and the two deserve different words.
+func (tm *TopologyModel) hasData() bool {
+	return len(tm.interfaces) > 0 || len(tm.routes) > 0 ||
+		len(tm.neighbours) > 0 || len(tm.firewall) > 0
 }
 
 func (tm *TopologyModel) handleKey(msg tea.KeyMsg) (*TopologyModel, tea.Cmd) {

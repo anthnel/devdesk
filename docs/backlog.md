@@ -17,7 +17,7 @@ browse a single proxy inside a real Nexus group. It is what
 fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
 on and is now closed on its own.
 
-D1 through D38 and D40 through D45 are all fixed or, in D35's case, deliberately
+D1 through D38 and D40 through D47 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +29,53 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D47 — la table des ports continuait de s'afficher après l'arrêt de Docker, sans
+rien dire qu'elle était morte. Corrigé.** Signalé le 2026-08-22 en arrêtant
+Docker puis en ouvrant l'onglet Ports.
+
+`handleData` (`ports_model.go:272`) retournait **avant** `SetItems` sur erreur,
+donc la table gardait le dernier fetch réussi. Le message d'erreur, lui, expirait
+au bout de trois secondes (Rule 128). Passé ce délai il ne restait qu'un tableau
+de ports périmés, rafraîchi toutes les deux secondes en échec silencieux, et
+**rien à l'écran ne disait qu'il était mort**. C'est la forme de D20 : « on n'a
+pas pu regarder » rendu comme une donnée.
+
+**Vider la table aurait été le mauvais correctif.** Sur un tick à deux secondes,
+un hoquet transitoire ferait clignoter la table à vide. Et les lignes ne sont pas
+fausses — elles sont **datées**. Ce qui manquait n'est pas leur contenu, c'est
+leur âge.
+
+Rule 128 sépare déjà les deux : un événement va dans un message (trois
+secondes), un **état** va dans `Status`, qui n'a pas de minuterie. « Docker est
+injoignable » est un état. La ligne de statut porte donc
+`Docker unreachable — ports as of 42 s ago` (`theme.TimeAgo`, Rule 127), le
+message de footer disparaît, et l'état s'efface au premier fetch réussi — sans
+quoi un démon revenu se lirait encore comme mort.
+
+Trois conséquences, chacune avec un test :
+
+- **La péremption prime sur la pause.** Une pause est ce que l'utilisateur a
+  demandé, un Docker injoignable ne l'est pas, et une seule des deux fait mentir
+  les lignes.
+- **Un fetch qui n'a jamais réussi le dit** plutôt que de dater le vide :
+  `TimeAgo` rend la valeur zéro par une chaîne vide, donc « ports as of » aurait
+  traîné dans le vide.
+- **Le corps vide ne prétend plus qu'il n'y a pas de ports.** « No active ports
+  found » affirme quelque chose sur l'hôte ; quand rien n'a pu être lu, il dit
+  « No ports could be read ».
+
+**Le même trou existait dans Topology, en plus étroit.** Son bandeau d'erreur
+était déjà persistant, donc visible — ce qui manquait, c'est que les sections
+en dessous viennent d'un chargement antérieur. Un `ctrl+r` qui échoue affiche
+maintenant `Refresh failed — sections last loaded: 5 min ago`, et un **premier**
+chargement qui échoue reste une erreur simple : avec rien à l'écran, il n'y a
+rien à dater et « showing the load from » serait un mensonge.
+
+**Le test de connectivité OCI n'était pas concerné.** C'est une requête unique
+avec sa réponse : `SetResult` pose un `resultErr` persistant, il n'y a pas de
+tick, donc pas de donnée qui vieillit à l'écran. Vérifié plutôt que supposé.
+
 
 **D46 — le CPU Docker du dashboard montait à 1400 %, et la RAM additionnait des
 fractions de touts différents. Corrigé.** Signalé depuis une vraie session. Le

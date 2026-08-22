@@ -214,3 +214,45 @@ func TestTopologyResizeHasAFloor(t *testing.T) {
 			m.topologyModel.viewport.Width, m.topologyModel.viewport.Height)
 	}
 }
+
+// TestAFailedRefreshDatesTheSectionsItKeeps — the error banner was already
+// persistent, so it was visible; what was missing is that the sections under it
+// are from an earlier load. An error line above data the reader takes for
+// current is the same defect the ports table had, one screen over.
+func TestAFailedRefreshDatesTheSectionsItKeeps(t *testing.T) {
+	m := topologyModel(t)
+	before := len(m.topologyModel.interfaces)
+	if before == 0 {
+		t.Fatal("the fixture loaded no interfaces")
+	}
+
+	m = feed(t, m, topoDataMsg{err: errors.New("cannot connect to the Docker daemon")})
+
+	if got := len(m.topologyModel.interfaces); got != before {
+		t.Fatalf("the pane holds %d interfaces after a failed refresh, want %d", got, before)
+	}
+	if !strings.Contains(m.topologyModel.loadErr, "Refresh failed") {
+		t.Errorf("banner = %q, does not say the refresh is what failed", m.topologyModel.loadErr)
+	}
+	// theme.TimeAgo (Rule 127) says "now" under a minute and "5 min ago" past
+	// it, so the banner is phrased to read with either.
+	if !strings.Contains(m.topologyModel.loadErr, "last loaded:") {
+		t.Errorf("banner = %q, does not date the sections below it", m.topologyModel.loadErr)
+	}
+}
+
+// TestAFirstLoadThatFailsIsAPlainFailure — with nothing on screen there is
+// nothing to date, and "showing the load from" would be a lie.
+func TestAFirstLoadThatFailsIsAPlainFailure(t *testing.T) {
+	m := newTestModel(t)
+	m.activeTab = tabTopology
+	m = feed(t, m, topoDataMsg{err: errors.New("daemon down")})
+
+	if strings.Contains(m.topologyModel.loadErr, "Refresh failed") {
+		t.Errorf("banner = %q claims to show an earlier load that never happened",
+			m.topologyModel.loadErr)
+	}
+	if m.topologyModel.loadErr == "" {
+		t.Error("a failed first load said nothing")
+	}
+}
