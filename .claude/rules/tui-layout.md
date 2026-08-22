@@ -65,7 +65,13 @@ paie une fois.
   security. « Local » veut dire **déclaré** : chaque surface énumère ses touches
   dans `keymap.localToggles`, et `TestEveryLowercaseBindingIsDeclared` refuse
   celles qui n'y sont pas.
-  - `a` (containers) : afficher aussi les conteneurs arrêtés.
+  - `r` `p` `s` `t` `z` (containers) : filtres d'état, **cumulatifs**, et la
+    remise à zéro. Rien d'actif veut dire `running` — c'est l'état de repos de
+    la vue, donc elle s'ouvre **sans barre**, et `z` y ramène : arriver et
+    appuyer sur `z` donnent le même écran. « Tout » est les quatre jetons
+    ensemble ; il n'y a pas de jeton `all`, ce serait un cinquième état à
+    sélectionner à côté de quatre vrais. C'est la différence avec netdiag/Ports,
+    où rien d'actif veut dire « pas d'avis » et montre tout.
   - `f` `c` `w` `v` `t` (viewer) : affichage, coloration, retour à la ligne,
     verbosité, horodatage.
   - `t` `u` `l` `e` `n` `z` (netdiag/Ports) : filtres de protocole et d'état.

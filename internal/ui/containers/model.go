@@ -27,7 +27,6 @@ import (
 // Model represents the containers view state
 type Model struct {
 	config         *config.Config
-	showAll        bool
 	containerTable datatable.Model[docker.Container]
 	spinner        spinner.Model
 	loading        bool
@@ -106,6 +105,16 @@ const (
 	columnStatus = iota
 	columnName
 	columnImage
+)
+
+// The last two, named for the same reason as the first three: something else
+// refers to them. Counting from columnImage at each site is what broke the day
+// Ports and Created traded places — the six metric columns sit between, so the
+// offsets are right up until the order changes and then wrong in silence.
+// TestTheNamedColumnsAreWhereTheirNamesSay is what keeps these honest.
+const (
+	columnPorts   = columnImage + 7
+	columnCreated = columnImage + 8
 )
 
 // statusColumnWidth is the state glyph and nothing else. It carries no title —
@@ -202,16 +211,21 @@ func containerColumns() []datatable.Column[docker.Container] {
 			Less: byInt64(func(c docker.Container) int64 { return c.BlockTX }),
 		},
 		{
+			Title: "Ports", MinWidth: 16, Flex: 2,
+			Cell: portsCell,
+			// Search matches what is on screen, icons and all. Keeping the raw
+			// docker string here instead is the tempting version and the wrong
+			// one: a filter would then find a row the user cannot see matching,
+			// which is Rule 122's hazard one layer up.
+			Search: portsCell,
+		},
+		{
 			Title: "Created", MinWidth: 12,
 			Cell: func(c docker.Container) string { return relativeTime(c.CreatedAt) },
 			// CreatedAt is compared as the string docker printed, so a value
 			// that will not parse sorts after every timestamp rather than
 			// silently becoming the zero time and leading the list.
 			Less: func(a, b docker.Container) bool { return a.CreatedAt < b.CreatedAt },
-		},
-		{
-			Title: "Ports", MinWidth: 16, Flex: 2,
-			Cell: func(c docker.Container) string { return c.Ports },
 		},
 	}
 }
@@ -247,6 +261,90 @@ func containerSelectedStyles(c docker.Container) table.Styles {
 	return theme.TableStylesForState("normal")
 }
 
+// The state filter tokens (Rule 136). They replace `a`, a two-position switch
+// — running only, or everything — whose one piece of feedback was a word in the
+// header, which is precisely where Rule 136 says a filter does not go. The
+// ports tab already had the mechanism; this is the same one.
+//
+// There are four rather than one per docker state because the mapping has to be
+// total: a state named by no token would be a container hidden with nothing on
+// screen saying which filter hid it. They are exactly the four groups
+// containerStateStyle already colours, so the bar and the status column say the
+// same thing.
+const (
+	filterTokenRunning   = "running"
+	filterTokenPaused    = "paused"
+	filterTokenStopped   = "stopped"
+	filterTokenTransient = "transient"
+)
+
+// stateTokens is the declaration order, which is the order the bar shows them
+// in and the order `z` walks to clear them.
+var stateTokens = []string{
+	filterTokenRunning, filterTokenPaused, filterTokenStopped, filterTokenTransient,
+}
+
+// defaultStateToken is what an empty selection shows.
+//
+// It is the view's resting state rather than a token that starts lit: a lit
+// token keeps the filter bar on screen from the first frame, and the bar is not
+// the point — the running containers are. So the view opens with no token, the
+// bar hidden, and this is the set. `z` returns here, which is why arriving and
+// pressing `z` now land on the same screen instead of two different ones.
+//
+// The cost, stated rather than discovered: the opening scope is not written
+// anywhere on screen. It is the one thing the old `a` got wrong, and it is kept
+// on purpose — the difference is that the moment the user has an opinion, the
+// bar appears and names every state it is showing, which `a` never did.
+const defaultStateToken = filterTokenRunning
+
+// stateToken names the token a docker state belongs to.
+//
+// The default branch is what makes it total: `exited` and `dead` land there
+// today, and so does anything docker starts reporting tomorrow — a state the
+// application does not recognise still belongs to a container that is not
+// running, which is a row the user can reach rather than one that has vanished.
+func stateToken(state string) string {
+	switch state {
+	case "running":
+		return filterTokenRunning
+	case "paused":
+		return filterTokenPaused
+	case "created", "restarting", "removing":
+		return filterTokenTransient
+	default: // exited, dead, and whatever comes next
+		return filterTokenStopped
+	}
+}
+
+// matchContainerTokens applies the state filter: OR between the tokens that are
+// on, and defaultStateToken when none of them is.
+//
+// The empty selection is the view's default rather than "everything", which is
+// where this parts company with the ports tab: there, nothing on means no
+// opinion and shows every socket. Here the resting state is an opinion — the
+// running containers — and it has to be, because it is what keeps the bar
+// hidden on arrival. "Everything" is therefore the four tokens together, which
+// is what it literally is; there is no `all` token, because that would be a
+// fifth state to select alongside four real ones.
+func matchContainerTokens(c docker.Container, active map[string]bool) bool {
+	token := stateToken(c.State)
+	anyOn := false
+	for _, label := range stateTokens {
+		if !active[label] {
+			continue
+		}
+		anyOn = true
+		if token == label {
+			return true
+		}
+	}
+	if anyOn {
+		return false
+	}
+	return token == defaultStateToken
+}
+
 // New creates a new containers view
 func New(cfg *config.Config) Model {
 	s := spinner.New()
@@ -262,6 +360,16 @@ func New(cfg *config.Config) Model {
 			// list Z→A and disagree with the status view (D9).
 			SortColumn:     columnName,
 			SelectedStyles: containerSelectedStyles,
+			// None of them starts on: the bar is hidden on arrival, and
+			// matchContainerTokens reads the empty selection as
+			// defaultStateToken. See the note there.
+			Tokens: []sharedcomponents.FilterToken{
+				{Label: filterTokenRunning},
+				{Label: filterTokenPaused},
+				{Label: filterTokenStopped},
+				{Label: filterTokenTransient},
+			},
+			TokenMatch: matchContainerTokens,
 			// The ID rather than the name: an action is issued against the ID,
 			// and two containers can carry the same name across a recreate.
 			Key:          func(c docker.Container) string { return c.ID },

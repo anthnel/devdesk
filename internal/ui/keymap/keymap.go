@@ -195,7 +195,7 @@ type Surface struct {
 // Un fichier qui ne correspond à aucune surface n'a droit à aucune minuscule :
 // c'est le défaut, et c'est ce qui fait que la liste doit être tenue.
 var localToggles = []Surface{
-	{"containers", "ui/containers/", []string{"a"}},
+	{"containers", "ui/containers/", []string{"r", "p", "s", "t", "z"}},
 	{"viewer", "ui/viewer/", []string{"f", "c", "w", "v", "t"}},
 	{"netdiag/ports", "ui/netdiag/ports_model.go", []string{"t", "u", "l", "e", "n", "z"}},
 	{"netdiag/checks", "ui/netdiag/", []string{"p"}},

@@ -17,10 +17,16 @@ func tickCmd() tea.Cmd {
 	})
 }
 
-// fetchContainers fetches the container list
-func fetchContainers(all bool) tea.Cmd {
+// fetchContainers fetches the container list — always all of it.
+//
+// The scope used to be docker's: `a` flipped `--all` and refetched, so the rows
+// the user could not see did not exist locally either. The state filter is the
+// table's now, and a filter can only narrow what it holds, so the list has to
+// arrive whole. It also means toggling a state is instant rather than a round
+// trip to the daemon.
+func fetchContainers() tea.Cmd {
 	return func() tea.Msg {
-		containers, err := docker.ListContainers(all)
+		containers, err := docker.ListContainers(true)
 		return ContainersListMsg{Containers: containers, Err: err}
 	}
 }

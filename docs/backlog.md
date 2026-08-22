@@ -4983,14 +4983,14 @@ et il réintroduirait par la porte de service l'idiome qu'on vient de retirer.
 
 ---
 
-### 3.27 `containers` — la colonne Ports dit ce qu'elle montre, les filtres se voient
+### 3.27 `containers` — la colonne Ports dit ce qu'elle montre, les filtres se voient — **done**
 
 Deux demandes sur la même vue, et elles ont le même fond : **la vue affiche ce
 que Docker a imprimé, pas ce que l'utilisateur est venu lire.** La colonne Ports
 recopie une chaîne du CLI, et le seul filtre à portée de main ne laisse aucune
 trace à l'écran.
 
-#### La colonne recopie `docker ps`
+#### La colonne recopie `docker ps` — **done**
 
 `containers.go:40` demande `{{.Ports}}` dans le `--format`, `:66` range la chaîne
 telle quelle, et `model.go:207-210` la rend sans y toucher : `Cell` retourne
@@ -5053,43 +5053,118 @@ reverse proxy qui tape le mauvais port interne. Elle reste atteignable par
 `enter`, qui ouvre l'inspection JSON dans le viewer (§3.25) — ce qui n'est vrai
 que depuis §3.25, et vaut d'être écrit ici plutôt que redécouvert.
 
-Les icônes vont dans `theme/icons.go` (Rule 102). `IconHome` (`󰋜`) et
-`IconNetwork` (`󰛳`) existent déjà et disent exactement « cette machine » et
-« toutes les interfaces » ; il manque de quoi marquer v4/v6, à prendre dans
-Nerd Font et à déclarer là-bas, jamais dans la vue (Rule 119). Rule 122
-s'applique telle quelle : les icônes sortent de `Cell` en texte brut, la couleur
-passe par `Style` — et c'est la couleur qui doit porter le signal
-« toutes interfaces », pas un troisième glyphe. Rule 125 : la colonne reste
-alignée à gauche.
+Le rendu final, une entrée par publication :
 
-Reste à trancher : le protocole. `tcp` est le cas massivement majoritaire, donc
-un marqueur affiché sur chaque ligne informerait de rien (la discipline de
-couleur de Rule 122 vaut aussi pour les glyphes). Ne marquer que `udp` est
-probablement le bon choix, mais c'est un arbitrage, pas une déduction.
+| | Portée | Icône |
+|---|---|---|
+| `󰛳 80` | toutes les interfaces | `IconNetwork` |
+| `󰋜 5432` | cette machine seulement | `IconHome` |
+| `󰒋 8080` | une adresse nommée | `IconServer` |
+| `󰌾 6379` | déclaré par l'image, publié par personne | `IconLock` |
 
-#### Les filtres, comme dans netdiag/Ports
+Aucune icône nouvelle : les quatre existaient déjà dans `theme/icons.go`.
 
-`containers` a un filtre texte (`/`, la `FilterBar` de `datatable`) et **un
-filtre invisible** : `a` (`update.go:123`) bascule `showAll` et relance
-`docker ps --all`. Rien à l'écran ne dit que la liste est restreinte — seul le
-nombre de lignes change, et il faut connaître le nombre attendu pour le voir.
+**Deux choix laissés ouverts ci-dessus, tranchés à l'implémentation, et l'un des
+deux contre le plan.**
 
-netdiag/Ports fait déjà ce qu'il faut : six jetons déclarés
-(`ports_model.go:75-82`, `:183-189`), chacun visible dans la `FilterBar` quand
-il est actif, et `z` qui les remet tous à zéro (`:326-335`). C'est Rule 136, et
-c'est le modèle à reprendre.
+**La portée passe par le glyphe, pas par la couleur.** Le plan voulait
+« la couleur porte *toutes interfaces*, pas un troisième glyphe ». C'est
+impossible : `Style` colore une **cellule**, et une cellule porte plusieurs
+publications qui ne partagent pas leur portée — styler dans `Cell` étant
+précisément ce que Rule 122 interdit. Et ce serait de toute façon le mauvais
+outil : publier sur toutes les interfaces est ce que `-p 80:80` fait par défaut,
+donc c'est l'état majoritaire, et le colorer mettrait une couleur sur presque
+toutes les cellules non vides pour un signal sur aucune. La colonne n'a donc
+**aucune couleur**, ce qui est la discipline de Rule 122 appliquée telle quelle.
 
-**Le point qui n'est pas mécanique :** les jetons de Ports filtrent une liste
-déjà chargée, alors que `a` change la commande envoyée au démon. Un jeton doit
-donc pouvoir déclencher un re-fetch — ce que le jeton `numeric` de Ports fait
-déjà (`:322-325`), et c'est le précédent à suivre plutôt qu'un cas particulier à
-inventer.
+**Le protocole n'est nommé que s'il n'est pas tcp**, comme le plan le
+recommandait. **La famille v4/v6 n'est jamais nommée**, ce que le plan
+n'envisageait pas — mais le raisonnement qui écarte un marqueur `tcp` écarte un
+marqueur dual-stack aussi fort : après la fusion, presque toute publication est
+soit les deux familles, soit la seule que l'hôte a. Et rien ne se décide dessus :
+on se connecte à un port d'hôte par son nom, et le résolveur choisit la famille.
+Elle reste sur `PortBinding.V4`/`V6` pour qui en aurait besoin ; elle ne monte
+pas à l'écran.
 
-Reste à trancher : **quels jetons**. `all` en est un, évidemment. Des jetons
-d'état (`running`, `exited`, `paused`) sont tentants et cumulatifs comme
-`tcp`/`udp`, mais ils recouvrent partiellement `all` — un jeton `exited` actif
-implique `--all` — et cette interaction doit être décidée avant d'être codée,
-pas découverte à l'usage.
+`isPort` est le garde-fou qui manquait au plan : sans lui, toute entrée sans
+`->` se lit comme un port `EXPOSE` **portant son propre texte**, et une sortie
+docker inattendue atterrit dans la colonne en ayant l'air d'un port joignable.
+
+#### Les filtres, comme dans netdiag/Ports — **done**
+
+`containers` avait un filtre texte (`/`, la `FilterBar` de `datatable`) et **un
+filtre invisible** : `a` basculait `showAll` et relançait `docker ps --all`. Rien
+à l'écran ne disait que la liste était restreinte — sauf un mot dans le header,
+`4 (Active)`, c'est-à-dire un filtre affiché à l'endroit précis où Rule 136 dit
+qu'un filtre ne va pas, et dans un vocabulaire que les jetons de la barre ne
+partagent pas.
+
+C'est le mécanisme de netdiag/Ports, repris tel quel : des jetons déclarés sur le
+`datatable`, visibles dans la `FilterBar` quand ils sont actifs, cumulatifs, et
+`z` qui les remet tous à zéro **et** vide la recherche.
+
+**Le point qui n'était pas mécanique a été tranché dans l'autre sens.** La note
+ci-dessus proposait qu'un jeton puisse déclencher un re-fetch, sur le précédent
+du jeton `numeric` de Ports. C'est ce qu'il ne fallait pas faire : `numeric`
+change ce que `ss` *imprime*, donc seul le démon peut répondre, alors qu'un état
+de conteneur est déjà dans la ligne. `fetchContainers` charge donc **toujours**
+tout (`docker ps -a`) et le filtre est local — un état revient dans la frame où
+il est pressé, sans aller-retour. Un filtre ne peut de toute façon que restreindre
+ce que la table détient : garder la portée côté démon aurait voulu dire que les
+lignes masquées n'existaient pas non plus localement, et donc qu'aucun jeton ne
+pouvait les ramener sans recharger.
+
+**Quels jetons** : quatre, `running` `paused` `stopped` `transient`, et pas un
+par état Docker. La contrainte est que la table soit **totale** — un état que
+nul jeton ne nomme serait un conteneur masqué sans que rien à l'écran dise quel
+filtre le masque. `stateToken` a donc une branche par défaut : `exited` et `dead`
+y tombent aujourd'hui, et tout ce que Docker se mettra à rapporter demain. Ce
+sont exactement les quatre groupes que `containerStateStyle` colore déjà, donc la
+barre et la colonne d'état disent la même chose.
+
+Pas de jeton `all` : « tout », c'est les quatre jetons ensemble, ce qu'ils sont
+littéralement. Un cinquième jeton à côté de quatre vrais états serait une valeur
+d'un autre ordre dans la même liste.
+
+**La sélection vide est le défaut de la vue, pas « tout ».** C'est là que ça
+diverge de netdiag/Ports, et le premier jet s'était trompé : il gardait la règle
+de Ports — rien d'actif montre tout — et exprimait le défaut par un jeton
+`running` **actif au départ**. La barre était donc à l'écran dès la première
+frame, et `z` menait à un écran sur lequel la vue ne s'ouvre jamais. Deux
+états pour une même intention, et le plus courant des deux coûtait deux lignes de
+viewport en permanence.
+
+`matchContainerTokens` lit donc la sélection vide comme `defaultStateToken`. Ce
+que ça achète :
+
+- la vue s'ouvre **sans barre**, sur les conteneurs qui tournent ;
+- `z` y ramène, donc arriver et appuyer sur `z` sont un seul écran ;
+- la barre apparaît **au moment où l'utilisateur a un avis**, et nomme alors
+  exactement les états montrés.
+
+Le coût est assumé et écrit : la portée d'ouverture n'est inscrite nulle part à
+l'écran — précisément ce qu'on reprochait à `a`. La différence est que `a` ne
+disait jamais rien, alors qu'ici le premier appui sur une touche d'état met la
+barre debout.
+
+Deux autres conséquences écrites plutôt que découvertes :
+
+- `GetHeaderInfo` ne rend plus que le compte. Le label de portée est parti là où
+  Rule 136 le veut.
+- Le message de table vide ne peut plus se conditionner à
+  `FilterBar().IsVisible()` : la barre cachée ne veut plus dire « liste non
+  filtrée », c'est exactement l'état par défaut. `emptyLabel` tranche donc sur ce
+  que la table **détient** — des lignes qu'on ne voit pas veulent dire que le
+  filtre les cache. C'est justement sur une machine dont tous les conteneurs sont
+  arrêtés que la différence compte, et c'est le seul écran où la portée
+  d'ouverture se dit à l'écran.
+
+`t` reprend la lettre que l'ancien volet de logs employait pour les horodatages.
+Le sens d'une minuscule est local par construction (`keymap.localToggles`), donc
+la lettre revient sans son ancien sens ; `TestTheLogsPaneShortcutsAreGone` le
+vérifie sur ce que la touche *dit*, pas sur le fait qu'elle soit liée.
+
+Les deux moitiés de §3.27 sont livrées.
 
 #### Le troisième client de la même mécanique
 

@@ -101,15 +101,16 @@ func (m Model) GetIcon() string {
 	return ""
 }
 
-// GetHeaderInfo returns the key-value info for the header
+// GetHeaderInfo returns the key-value info for the header.
+//
+// The count, and nothing about the filter. It used to read "4 (Active)", which
+// put the scope in the one place Rule 136 keeps clear of filters — and said it
+// twice over once the search bar existed, in two different vocabularies. The
+// filter bar carries it now, tokens and all.
 func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
-	label := "Active"
-	if m.showAll {
-		label = "All"
-	}
 	total := len(m.containerTable.Visible())
 	return []shortcut.HeaderInfo{
-		{Key: "Containers", Value: fmt.Sprintf("%d (%s)", total, label), Style: theme.HeaderValueStyle},
+		{Key: "Containers", Value: fmt.Sprintf("%d", total), Style: theme.HeaderValueStyle},
 	}
 }
 
@@ -136,7 +137,11 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "T", Description: "Shell"},
 		{Key: "L", Description: "Logs"},
 		{Key: "enter", Description: "Inspect"},
-		{Key: "a", Description: "Toggle all"},
+		{Key: "r", Description: "Toggle running"},
+		{Key: "p", Description: "Toggle paused"},
+		{Key: "s", Description: "Toggle stopped"},
+		{Key: "t", Description: "Toggle transient"},
+		{Key: "z", Description: "Reset filters"},
 		{Key: ".", Description: "Sort"},
 		{Key: "ctrl+r", Description: "Refresh"},
 		{Key: "/", Description: "Filter"},
@@ -171,11 +176,25 @@ func (m Model) View() string {
 // table would announce the absence of what it is in the middle of fetching.
 func (m Model) renderNormalView() string {
 	loading := m.loading && len(m.containerTable.Items()) == 0
-	if !loading && len(m.containerTable.Visible()) == 0 && !m.containerTable.FilterBar().IsVisible() {
-		return theme.DimStyle.Render("No containers found")
+	if !loading && len(m.containerTable.Visible()) == 0 {
+		return theme.DimStyle.Render(m.emptyLabel())
 	}
-	// Always render the table when a filter is active so the filter bar stays at the bottom
 	return m.containerTable.View()
+}
+
+// emptyLabel separates "docker has none" from "the filter hides them all".
+//
+// The check on the filter bar's visibility used to stand for the second, and
+// stopped meaning anything the day the view opened with a token on: the bar is
+// visible from the first frame, so an empty table would have rendered nothing
+// at all. What answers the question is whether the list holds rows the filter
+// is keeping off screen — and it is exactly on a machine whose containers are
+// all stopped that the user needs telling which of the two they are looking at.
+func (m Model) emptyLabel() string {
+	if len(m.containerTable.Items()) > 0 {
+		return "No containers match the current filter"
+	}
+	return "No containers found"
 }
 
 // GetHelpContent returns help content for the containers view (Rule 114)
@@ -191,7 +210,11 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "T", Description: "Open an interactive shell (bash if available, sh otherwise) in the selected container. In place or in a new window, per app.terminal_new_window (running only)"},
 			{Key: "L", Description: "Open the container's logs in the viewer (Esc returns here)"},
 			{Key: "enter", Description: "Open 'docker inspect' in the viewer, as a navigable JSON tree (Esc returns here)"},
-			{Key: "a", Description: "Toggle between active-only and all containers (including stopped)"},
+			{Key: "r", Description: "Filter: running containers"},
+			{Key: "p", Description: "Filter: paused containers"},
+			{Key: "s", Description: "Filter: stopped containers (exited, dead)"},
+			{Key: "t", Description: "Filter: containers in transition (created, restarting, removing)"},
+			{Key: "z", Description: "Reset — drops every state filter and the search, back to running only"},
 			{Key: ".", Description: "Cycle sort column (Name → Image → CPU → Mem → Net RX → Net TX → Block RX → Block TX → Created). Each press toggles asc/desc then moves to next column."},
 			{Key: "ctrl+r", Description: "Refresh containers and metrics"},
 			{Key: "/", Description: "Activate filter input to search by name, image, or state"},
@@ -212,8 +235,11 @@ func (m Model) GetHelpContent() help.Content {
 					"Net TX: Cumulative network bytes transmitted since container start.\n" +
 					"Block RX: Cumulative block device bytes read since container start.\n" +
 					"Block TX: Cumulative block device bytes written since container start.\n" +
-					"Created: Relative timestamp when the container was created.\n" +
-					"Ports: Published port mappings (host:container).",
+					"Ports: One entry per publication — the host port, and an icon saying who can reach it: " +
+					theme.IconNetwork + " every interface, " + theme.IconHome + " this machine only, " +
+					theme.IconServer + " one named address, " + theme.IconLock + " declared by the image but published by nobody. " +
+					"A protocol is named only when it is not tcp. The two lines docker prints for a dual-stack publication are one entry here, and the container-side port is left out — press enter for the full mapping.\n" +
+					"Created: Relative timestamp when the container was created.",
 			},
 			{
 				Title: "Running Actions",
@@ -226,11 +252,14 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Filter",
-				Body:  "Press '/' to activate the filter input. Type to search by container name, image, or state. Press Enter to confirm the filter or Esc to clear it.",
+				Body: "The view opens on the running containers, with no filter bar. Every container is loaded either way, so a state is turned on and off instantly — nothing is refetched.\n\n" +
+					"'r', 'p', 's' and 't' toggle the four state groups, and they are cumulative: 'r'+'s' asks for running or stopped, and all four together show every container. As soon as one is on, the bar appears and names exactly what is being shown.\n\n" +
+					"'z' turns them all off and returns to the opening state — running only, bar hidden. It also drops the search, which is the half a state key cannot reach.\n\n" +
+					"Press '/' to search by container name, image, or state. Enter confirms, Esc clears. The search narrows whatever the state filters left.",
 			},
 			{
 				Title: "Shell Access",
-				Body:  "Pressing 's' suspends the TUI and opens an interactive /bin/sh shell inside the container. Type 'exit' to return to the TUI. Only available for running containers.",
+				Body:  "'T' opens an interactive shell inside the container — bash if it has one, sh otherwise. In place (type 'exit' to return to the TUI) or in a new terminal window, per app.terminal_new_window. Only available for running containers.",
 			},
 			{
 				Title: "Logs & Inspect",

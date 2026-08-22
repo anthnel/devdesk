@@ -9,13 +9,16 @@ import (
 
 // Container represents a Docker container with its metrics
 type Container struct {
-	ID         string
-	Name       string
-	Image      string
-	State      string // running, exited, paused, created, restarting, dead
-	Status     string // "Up 2 hours", "Exited (0) 5min ago"
-	CreatedAt  string // "2 hours ago"
-	Ports      string
+	ID        string
+	Name      string
+	Image     string
+	State     string // running, exited, paused, created, restarting, dead
+	Status    string // "Up 2 hours", "Exited (0) 5min ago"
+	CreatedAt string // "2 hours ago"
+	// Ports is parsed here rather than carried as the string docker printed:
+	// the view must not learn to read Docker's output, and an opaque string
+	// cannot be searched by port number. See ParseContainerPorts.
+	Ports      []PortBinding
 	CPUPercent float64
 	MemUsage   string // "150MiB / 8GiB"
 	// MemBytes is the used half of MemUsage. It exists because MemPercent
@@ -67,7 +70,7 @@ func ListContainers(all bool) ([]Container, error) {
 			c.CreatedAt = parts[5]
 		}
 		if len(parts) > 6 {
-			c.Ports = parts[6]
+			c.Ports = ParseContainerPorts(parts[6])
 		}
 		containers = append(containers, c)
 	}

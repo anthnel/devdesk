@@ -27,8 +27,12 @@ func TestNewStartsLoading(t *testing.T) {
 	if !m.loading {
 		t.Error("loading = false on a new model, so the spinner never shows before the first list arrives")
 	}
-	if m.showAll {
-		t.Error("showAll = true on a new model, want active containers only")
+	// None of them: the default set is the empty selection, which is what keeps
+	// the filter bar off the screen on arrival.
+	for _, label := range stateTokens {
+		if m.containerTable.IsTokenActive(label) {
+			t.Errorf("%s is lit on a new model, so the view opens with a filter bar", label)
+		}
 	}
 }
 
@@ -334,7 +338,7 @@ func TestEachColumnOrdersByItsOwnValue(t *testing.T) {
 		{"block tx descending", columnImage + 6, true, []string{"web", "cache", "zombie", "api"}},
 		// CreatedAt is compared as a string, so an unparseable value sorts
 		// after every ISO timestamp rather than being treated as unknown.
-		{"created ascending", columnImage + 7, false, []string{"cache", "api", "web", "zombie"}},
+		{"created ascending", columnCreated, false, []string{"cache", "api", "web", "zombie"}},
 	}
 
 	for _, tc := range tests {
@@ -356,6 +360,7 @@ func TestSortingLeavesTheSourceListAlone(t *testing.T) {
 	input := containerFixtures()
 
 	m := feed(t, newTestModel(t), ContainersListMsg{Containers: input})
+	m = allStates(t, m) // every state, so the sorted order is the whole list
 
 	if input[0].Name != "web" {
 		t.Errorf("the sort reordered the caller's slice: first entry is now %q", input[0].Name)
@@ -388,8 +393,32 @@ func TestSortIndicatorFollowsTheActiveColumn(t *testing.T) {
 		t.Errorf("Name header = %q once Image took over, want it bare", got)
 	}
 	// Ports is not sortable and must never gain an arrow.
-	if got := m.containerTable.Table().Columns()[len(containerColumns())-1].Title; got != "Ports" {
+	if got := m.containerTable.Table().Columns()[columnPorts].Title; got != "Ports" {
 		t.Errorf("Ports header = %q, want it bare", got)
+	}
+}
+
+// The named indices are the one thing that goes wrong quietly when columns are
+// reordered: the six metric columns sit between Image and these two, so an
+// offset stays plausible while pointing at the wrong column.
+func TestTheNamedColumnsAreWhereTheirNamesSay(t *testing.T) {
+	cols := containerColumns()
+	for _, tc := range []struct {
+		index int
+		title string
+	}{
+		{columnStatus, ""},
+		{columnName, "Name"},
+		{columnImage, "Image"},
+		{columnPorts, "Ports"},
+		{columnCreated, "Created"},
+	} {
+		if tc.index >= len(cols) {
+			t.Fatalf("index %d is past the %d columns there are", tc.index, len(cols))
+		}
+		if got := cols[tc.index].Title; got != tc.title {
+			t.Errorf("column %d is %q, want %q", tc.index, got, tc.title)
+		}
 	}
 }
 
@@ -738,28 +767,166 @@ func TestConfirmationCapturesKeys(t *testing.T) {
 	}
 }
 
-// ── Refresh ──────────────────────────────────────────────────────────────────
+// ── State filter ─────────────────────────────────────────────────────────────
 
-func TestToggleAllRefetches(t *testing.T) {
-	m := loadedModel(t)
-
-	m, cmd := step(t, m, testutil.Key("a"))
-
-	if !m.showAll {
-		t.Error("a did not switch to all containers")
+// names reads the container names the table is actually showing, in order.
+func names(m Model) []string {
+	out := make([]string, 0, len(m.containerTable.Visible()))
+	for _, c := range m.containerTable.Visible() {
+		out = append(out, c.Name)
 	}
-	if !m.loading {
-		t.Error("loading = false after switching scope, so the spinner never shows")
-	}
-	if cmd == nil {
-		t.Error("switching scope did not refetch")
-	}
+	return out
+}
 
-	m, _ = step(t, m, testutil.Key("a"))
-	if m.showAll {
-		t.Error("a did not switch back to active containers")
+// The default the whole change exists for: the list arrives whole, the view
+// shows the running part of it, and there is no bar over it.
+func TestTheViewOpensOnTheRunningContainersWithNoBar(t *testing.T) {
+	m := feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
+
+	if got := names(m); len(got) != 1 || got[0] != "web" {
+		t.Errorf("visible = %v, want only the running container", got)
+	}
+	if m.containerTable.FilterBar().IsVisible() {
+		t.Error("the filter bar is on screen on arrival, so the view opens under a visible filter")
+	}
+	if len(m.containerTable.Items()) != len(containerFixtures()) {
+		t.Error("the table does not hold every container, so a state cannot be filtered back in")
 	}
 }
+
+// Each key stands for a group, and a lit token replaces the default rather than
+// adding to it.
+func TestEachStateKeyFiltersItsGroup(t *testing.T) {
+	tests := []struct {
+		key  string
+		want []string
+	}{
+		{"r", []string{"web"}},           // running — the default, said out loud
+		{"p", []string{"cache"}},         // paused
+		{"s", []string{"api", "zombie"}}, // exited + dead
+		{"t", nil},                       // no fixture is in transition
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.key, func(t *testing.T) {
+			m := feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
+			m = feed(t, m, testutil.Key(tc.key))
+
+			got := names(m)
+			if len(got) != len(tc.want) {
+				t.Fatalf("%s showed %v, want %v", tc.key, got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("%s showed %v, want %v", tc.key, got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+// A key that is on puts the bar up, which is the whole difference from the
+// opening default: the moment the user has an opinion, it is named on screen.
+func TestATokenPutsTheBarUp(t *testing.T) {
+	m := feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
+
+	m = feed(t, m, testutil.Key("s"))
+	if !m.containerTable.FilterBar().IsVisible() {
+		t.Error("the bar stayed hidden with a state filter on, so nothing says the list is restricted")
+	}
+
+	m = feed(t, m, testutil.Key("s"))
+	if m.containerTable.FilterBar().IsVisible() {
+		t.Error("the bar survived turning the last filter off")
+	}
+}
+
+// Cumulative, like the security view's severities: `r`+`p` asks for running or
+// paused, which no single-value switch can express.
+func TestStateFiltersAreCumulative(t *testing.T) {
+	m := feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
+	m = feed(t, m, testutil.Key("r"), testutil.Key("p"))
+
+	got := names(m)
+	if len(got) != 2 || got[0] != "cache" || got[1] != "web" {
+		t.Errorf("visible = %v, want the running and the paused container", got)
+	}
+}
+
+// "Everything" is the four together. There is no `all` token, because it would
+// be a fifth state to select alongside four real ones.
+func TestTheFourStatesTogetherShowEveryContainer(t *testing.T) {
+	m := rawModel(t)
+
+	if len(m.containerTable.Visible()) != len(containerFixtures()) {
+		t.Errorf("visible = %v with every state on, want every container", names(m))
+	}
+}
+
+// The reset and the arrival state are one screen, not two. This is the whole
+// correction: with the default lit as a token, `z` unlit it and landed
+// somewhere the view never opens on.
+func TestResetLandsWhereTheViewOpens(t *testing.T) {
+	opened := feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
+	reset := feed(t, rawModel(t), testutil.Key("z"))
+
+	if got, want := names(reset), names(opened); len(got) != len(want) {
+		t.Fatalf("z showed %v, want the opening state %v", got, want)
+	}
+	if reset.containerTable.FilterBar().IsVisible() {
+		t.Error("the bar survived z, so the reset is not where the view opens")
+	}
+	for _, label := range stateTokens {
+		if reset.containerTable.IsTokenActive(label) {
+			t.Errorf("%s survived z", label)
+		}
+	}
+}
+
+// z clears the search too, which is the half a state key cannot reach.
+func TestClearingFiltersDropsTheSearch(t *testing.T) {
+	m := feed(t, rawModel(t), testutil.Key("/"))
+	m = feed(t, m, testutil.Type("redis")...)
+	m = feed(t, m, testutil.Key("enter")) // confirm, or `z` is a character
+	if len(m.containerTable.Visible()) != 1 {
+		t.Fatalf("the search did not narrow the table: %v", names(m))
+	}
+
+	m = feed(t, m, testutil.Key("z"))
+
+	if q := m.containerTable.FilterBar().SearchQuery(); q != "" {
+		t.Errorf("search query = %q after z, want it cleared", q)
+	}
+	if got := names(m); len(got) != 1 || got[0] != "web" {
+		t.Errorf("visible = %v after z, want the running default", got)
+	}
+}
+
+// A state that no token names must not be a container that disappears.
+func TestAnUnknownStateIsStopped(t *testing.T) {
+	if got := stateToken("something-docker-invented"); got != filterTokenStopped {
+		t.Errorf("stateToken(unknown) = %q, want %q", got, filterTokenStopped)
+	}
+	for _, state := range []string{"running", "paused", "exited", "dead", "created", "restarting", "removing"} {
+		if stateToken(state) == "" {
+			t.Errorf("state %q maps to no token, so such a container can be hidden by every filter", state)
+		}
+	}
+}
+
+// The filter is local: no refetch, so a state comes back in the frame it is
+// pressed rather than after a round trip to the daemon.
+func TestTogglingAStateIssuesNoCommand(t *testing.T) {
+	m := loadedModel(t)
+
+	_, cmd := step(t, m, testutil.Key("s"))
+
+	if cmd != nil {
+		t.Error("toggling a state issued a command — the list already holds every container")
+	}
+}
+
+// ── Refresh ──────────────────────────────────────────────────────────────────
 
 func TestRefreshTickFetchesListAndMetrics(t *testing.T) {
 	m := loadedModel(t)

@@ -42,19 +42,31 @@ func TestGetHeaderInfoCountsTheFilteredList(t *testing.T) {
 	if len(info) != 1 {
 		t.Fatalf("GetHeaderInfo() returned %d entries, want 1", len(info))
 	}
-	if info[0].Value != "4 (Active)" {
-		t.Errorf("header value = %q, want \"4 (Active)\"", info[0].Value)
+	if info[0].Value != "4" {
+		t.Errorf("header value = %q, want \"4\"", info[0].Value)
 	}
 
 	m = feed(t, m, testutil.Key("/"))
 	m = feed(t, m, testutil.Type("redis")...)
-	if got := m.GetHeaderInfo("")[0].Value; got != "1 (Active)" {
-		t.Errorf("header value = %q under a filter, want \"1 (Active)\"", got)
+	if got := m.GetHeaderInfo("")[0].Value; got != "1" {
+		t.Errorf("header value = %q under a filter, want \"1\"", got)
 	}
+}
 
-	m = feed(t, loadedModel(t), testutil.Key("a"))
-	if got := m.GetHeaderInfo("")[0].Value; !strings.Contains(got, "(All)") {
-		t.Errorf("header value = %q after toggling scope, want the All label", got)
+// The scope belongs to the filter bar, not to the header (Rule 136). It used to
+// read "4 (Active)" — a filter stated in the one place a filter must not be,
+// and in a vocabulary the bar's tokens do not share.
+func TestTheHeaderCarriesNoFilterLabel(t *testing.T) {
+	for _, m := range []Model{
+		feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()}), // running only
+		loadedModel(t), // every state
+	} {
+		got := m.GetHeaderInfo("")[0].Value
+		for _, banned := range []string{"Active", "All", "(", "running"} {
+			if strings.Contains(got, banned) {
+				t.Errorf("header value = %q, want the count alone", got)
+			}
+		}
 	}
 }
 
@@ -85,10 +97,17 @@ func TestGetShortcutsSwitchWithTheState(t *testing.T) {
 func TestTheLogsPaneShortcutsAreGone(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key(keymap.Logs))
 
-	for _, key := range []string{"w", "t", "e"} {
+	for _, key := range []string{"w", "e"} {
 		if shortcutDescription(m.GetShortcuts(), key) != "" {
 			t.Errorf("%q is still advertised here; it belongs to the viewer", key)
 		}
+	}
+	// `t` was the timestamps toggle and is now the transient state filter. The
+	// letter came back, its old meaning did not — and a lowercase letter's sense
+	// is local by design, so the check is on what it says, not on whether it is
+	// bound.
+	if got := shortcutDescription(m.GetShortcuts(), "t"); strings.Contains(strings.ToLower(got), "timestamp") {
+		t.Errorf("t = %q here; timestamps belong to the viewer", got)
 	}
 	if shortcutDescription(m.GetShortcuts(), keymap.Logs) != "Logs" {
 		t.Error("L stopped advertising itself as the way to the logs")
@@ -255,7 +274,9 @@ func TestFooterCarriesTheErrorMessage(t *testing.T) {
 }
 
 func TestFilterBarVisibilityFollowsTheSearch(t *testing.T) {
-	m := loadedModel(t)
+	// Not loadedModel: it lights the four state tokens, which is a filter of its
+	// own and would put the bar up before the search ever ran.
+	m := feed(t, newTestModel(t), ContainersListMsg{Containers: containerFixtures()})
 	if m.FilterBarVisible() {
 		t.Error("the filter bar is visible before any search")
 	}
@@ -346,10 +367,10 @@ func TestEveryModalIsVisibleAndDeclared(t *testing.T) {
 // The corollary: a key that opens nothing must leave the view usable. This is
 // what makes the test above meaningful rather than tautological.
 func TestAKeyThatOpensNoModalLeavesTheViewAlive(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key("a"))
+	m := feed(t, loadedModel(t), testutil.Key("s"))
 
 	if m.InEditMode() {
-		t.Error("toggling the scope captured the keyboard")
+		t.Error("toggling a state filter captured the keyboard")
 	}
 	if len(m.GetShortcuts()) < 5 {
 		t.Error("the view lost its shortcuts without a modal to explain it")

@@ -24,7 +24,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
 		tickCmd(),
-		fetchContainers(m.showAll),
+		fetchContainers(),
 	)
 }
 
@@ -59,7 +59,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case RefreshTickMsg:
-		return m, tea.Batch(fetchContainers(m.showAll), fetchMetrics())
+		return m, tea.Batch(fetchContainers(), fetchMetrics())
 
 	case ContainersListMsg:
 		return m.handleContainersList(msg)
@@ -73,7 +73,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PagerExitMsg:
 		// Only the shell path comes back here now. The logs pane went to the
 		// viewer, and its pager and follow went with it (sources.go).
-		return m, tea.Batch(tickCmd(), fetchContainers(m.showAll))
+		return m, tea.Batch(tickCmd(), fetchContainers())
 
 	case sharedcomponents.ConfirmModalYesMsg:
 		return m.handleConfirmYes()
@@ -133,10 +133,26 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleNormalKeyMsg handles keys in normal mode
 func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "a":
-		m.showAll = !m.showAll
-		m.loading = true
-		return m, tea.Batch(m.spinner.Tick, fetchContainers(m.showAll))
+	// The state filters. Nothing is refetched: the list already holds every
+	// container, so a state is turned on and off in the frame it is pressed.
+	case "r":
+		m.toggleToken(filterTokenRunning)
+		return m, nil
+
+	case "p":
+		m.toggleToken(filterTokenPaused)
+		return m, nil
+
+	case "s":
+		m.toggleToken(filterTokenStopped)
+		return m, nil
+
+	case "t":
+		m.toggleToken(filterTokenTransient)
+		return m, nil
+
+	case "z":
+		return m.clearFilters()
 
 	case keymap.Kill:
 		return m.confirmStopOrRestart()
@@ -155,7 +171,7 @@ func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "ctrl+r":
 		m.loading = true
-		return m, tea.Batch(m.spinner.Tick, fetchContainers(m.showAll), fetchMetrics())
+		return m, tea.Batch(m.spinner.Tick, fetchContainers(), fetchMetrics())
 
 	// The "new window" variant is a setting rather than a second key: the
 	// capability belongs to the environment, not to the moment (§3.26).
@@ -174,6 +190,29 @@ func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Navigation, `/` and `.` are the table's, not the view's.
 	return m, m.containerTable.Update(msg)
+}
+
+// toggleToken flips a state filter and returns to the top, since the list under
+// the cursor is not the list the user was looking at any more.
+func (m *Model) toggleToken(label string) {
+	m.containerTable.SetTokenActive(label, !m.containerTable.IsTokenActive(label))
+	m.containerTable.GotoTop()
+}
+
+// clearFilters turns every state off and drops the search, which puts the view
+// back exactly where it opens: the running containers, and no bar.
+//
+// That equivalence is the point. `z` on a freshly opened view has to be a
+// no-op — two ways to reach one screen is what the arrival state and the reset
+// were before, when the default was a lit token and `z` unlit it.
+func (m Model) clearFilters() (tea.Model, tea.Cmd) {
+	for _, label := range stateTokens {
+		m.containerTable.SetTokenActive(label, false)
+	}
+	m.containerTable.FilterBar().ClearSearch()
+	m.containerTable.SetItems(m.containerTable.Items()) // re-apply with the query gone
+	m.containerTable.GotoTop()
+	return m, nil
 }
 
 // getSelectedContainer returns the selected container or nil.
@@ -440,7 +479,7 @@ func (m Model) handlePruneComplete(msg ContainerPruneMsg) (tea.Model, tea.Cmd) {
 		return m, m.footer.Error("Prune failed — check logs")
 	}
 	m.footer.Clear()
-	return m, fetchContainers(m.showAll)
+	return m, fetchContainers()
 }
 
 // handleContainersList processes the container list response
@@ -497,7 +536,7 @@ func (m Model) handleContainerAction(msg ContainerActionMsg) (tea.Model, tea.Cmd
 		return m, m.footer.Error("Action failed — check logs")
 	}
 	m.footer.Clear()
-	return m, fetchContainers(m.showAll)
+	return m, fetchContainers()
 }
 
 // formatNetBytes formats bytes into a compact human-readable string (e.g. "1.2kB", "3.4MB")
