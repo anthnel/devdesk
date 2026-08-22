@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -57,8 +58,12 @@ func (s capableSource) WithTimestamps(on bool) viewerpkg.Source {
 	s.timestamps = on
 	return s
 }
-func (s capableSource) FollowCmd() *exec.Cmd { return exec.Command("true") }
-func (s capableSource) PagerCmd() *exec.Cmd  { return exec.Command("true") }
+
+// followInterval is short so a test can drive a whole tick without paying for
+// it. tea.Tick blocks its full duration and testutil.Msgs runs every command it
+// is handed — the reason components.FooterMsgDuration is a var (Rule 128).
+func (s capableSource) FollowInterval() time.Duration { return time.Millisecond }
+func (s capableSource) PagerCmd() *exec.Cmd           { return exec.Command("true") }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

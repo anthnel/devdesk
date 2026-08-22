@@ -3,6 +3,7 @@ package viewer
 import (
 	"os/exec"
 	"path/filepath"
+	"time"
 )
 
 // Source is where a document came from, and it is carried rather than the bytes
@@ -38,14 +39,27 @@ type Timestamped interface {
 	WithTimestamps(on bool) Source
 }
 
-// Followable is a source that can stream live output. It unlocks `ctrl+f`.
+// Followable is a source worth re-reading on a clock. It unlocks `F`.
 //
-// It returns a command rather than a stream because following suspends the TUI
-// and hands the terminal over (tea.ExecProcess): a viewport that tried to tail
-// a stream would be re-implementing `less +F` badly.
+// It returns an interval rather than a command, and that is the whole of the
+// fix. Following used to hand the terminal to `docker logs -f` through
+// tea.ExecProcess, and there is no way out of that process but ctrl+c — which
+// the suspended TUI does not intercept, so it killed DevDesk outright and left
+// the terminal in whatever mode the child had put it in. Keys stopped answering
+// afterwards. Observed, not theorised.
+//
+// A follow is therefore a re-read on a timer, inside the viewport, which is
+// exactly what the ports tab already does with `ss`. The source names the
+// cadence because only it knows what a read costs: a `docker logs --tail 500`
+// is not a file stat.
+//
+// The trade is stated rather than discovered: this polls, it does not stream.
+// A line can wait up to one interval, and a burst longer than the source's tail
+// is missed between two reads. `V` still hands the whole thing to the pager,
+// which does stream — and which the user leaves with `q` rather than ctrl+c.
 type Followable interface {
 	Source
-	FollowCmd() *exec.Cmd
+	FollowInterval() time.Duration
 }
 
 // Pageable is a source that can be handed to the system pager. It unlocks `e`.

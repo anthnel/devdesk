@@ -110,8 +110,13 @@ paie une fois.
     qui dit *où* dans une ligne longue. La surbrillance ne dépend pas de `c` (une
     occurrence n'est pas de la coloration syntaxique), survit à `w`, et dans un log
     le niveau garde le reste de la ligne.
-  - `ctrl+r` / `F`: Reload once / follow live output.
-  - `V`: Open in the system pager (the one surviving pager path, container logs only).
+  - `ctrl+r` / `F`: Relire une fois / relire en boucle. `F` est une **bascule**,
+    et le suivi se fait **dans le viewport** — le document suivi reste collé en
+    bas. Il ouvrait `docker logs -f` par `tea.ExecProcess`, dont on ne sort que
+    par ctrl+c : le TUI suspendu ne l'intercepte pas, donc ça tuait
+    l'application et rendait le terminal dans le mode du processus fils.
+  - `V`: Open in the system pager (the one surviving pager path, container logs
+    only). C'est lui qui *stream* vraiment, et on en sort par `q`.
 - **Control**:
   - `Enter`: Validate, Execute, or Open.
   - `Esc`: Close modal, cancel, or go back.

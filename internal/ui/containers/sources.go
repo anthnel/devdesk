@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/viewer"
@@ -62,17 +63,25 @@ func (s logsSource) WithTimestamps(on bool) viewer.Source {
 	return s
 }
 
-// FollowCmd streams live output. It suspends the TUI (tea.ExecProcess) rather
-// than tailing into the viewport: following is what `docker logs -f` already
-// does, and re-implementing it against a viewport would be re-implementing
-// `less +F` badly.
-func (s logsSource) FollowCmd() *exec.Cmd {
-	args := []string{"logs", "-f", "--tail", fmt.Sprint(logsTail)}
-	if s.Timestamps {
-		args = append(args, "--timestamps")
-	}
-	return exec.Command("docker", append(args, s.ID)...)
-}
+// followInterval is how often a followed log is re-read.
+//
+// Two seconds, the ports tab's cadence, and for the same reason: it is about
+// the slowest a live pane can refresh and still read as live. A re-read is one
+// `docker logs --tail 500` — the very exec `ctrl+r` already runs — so following
+// costs one process every two seconds while the user is watching it, and
+// nothing at all once they stop.
+const followInterval = 2 * time.Second
+
+// FollowInterval makes a container log followable.
+//
+// This was FollowCmd, handing the terminal to `docker logs -f` through
+// tea.ExecProcess. The reasoning was that following is what docker already
+// does — true, and beside the point: the only way out of `docker logs -f` is
+// ctrl+c, the suspended TUI never sees it, so it killed DevDesk outright and
+// gave the terminal back in whatever mode the child had left it, with keys no
+// longer answering. A capability whose only exit kills the application is not
+// one.
+func (s logsSource) FollowInterval() time.Duration { return followInterval }
 
 // PagerCmd hands the log to the system pager.
 //

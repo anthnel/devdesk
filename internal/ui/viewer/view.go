@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -52,6 +53,15 @@ func (m Model) RenderFooter(width int) string {
 func (m Model) status() components.Status {
 	if m.loading {
 		return components.Status{Text: "Loading " + m.Name() + "...", Spinner: true}
+	}
+	// Following is a state, not an event, so it is derived here rather than
+	// posted as a footer message — one would expire after three seconds while
+	// the pane went on refreshing (Rule 128). It is also the only thing on
+	// screen saying the document is live: the reads themselves are deliberately
+	// silent, because a spinner blinking every two seconds would read as
+	// something going wrong with the thing that is working.
+	if m.following {
+		return components.Status{Text: "Following — " + keymap.Fetch + " to stop"}
 	}
 	return components.Status{}
 }
@@ -147,7 +157,12 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+r", Description: "Reload"})
 	}
 	if _, ok := m.followable(); ok {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "F", Description: "Follow live output"})
+		// The wording says which way the key goes, the way `f` does above.
+		if m.following {
+			shortcuts = append(shortcuts, shortcut.Shortcut{Key: keymap.Fetch, Description: "Stop following"})
+		} else {
+			shortcuts = append(shortcuts, shortcut.Shortcut{Key: keymap.Fetch, Description: "Follow live output"})
+		}
 	}
 	if _, ok := m.pageable(); ok {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "V", Description: "Open in system pager"})
@@ -180,8 +195,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "/", Description: "Search the text — matching lines only, occurrences highlighted"},
 			{Key: "t", Description: "Show or hide timestamps (container logs)"},
 			{Key: "ctrl+r", Description: "Reload from the source"},
-			{Key: "F", Description: "Follow live output (container logs)"},
-			{Key: "V", Description: "Open in the system pager (container logs)"},
+			{Key: "F", Description: "Follow live output — re-reads the log every 2s in this pane, and keeps the view pinned to the bottom. Press F again to stop (container logs)"},
+			{Key: "V", Description: "Open in the system pager, which streams rather than polls. Leave it with 'q' (container logs)"},
 			{Key: "esc", Description: "Return to the view the document was opened from"},
 			{Key: "?", Description: "Show this help"},
 		},

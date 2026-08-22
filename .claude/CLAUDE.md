@@ -783,6 +783,38 @@ of four and satisfying none in silence — a one-method interface has no
 half-satisfied state. `WithTimestamps` returns a *new* source rather than
 mutating one, so nothing is shared with a command in flight (Rule 110).
 
+**`F` follows in the pane, and `Followable` returns an interval rather than a
+command.** It used to return an `*exec.Cmd` run through `tea.ExecProcess`, on
+the argument that `docker logs -f` already does this and re-implementing it
+against a viewport would be re-implementing `less +F` badly. The argument was
+true and beside the point: **the only way out of `docker logs -f` is ctrl+c, and
+a suspended TUI does not intercept it** — so leaving the follow killed DevDesk
+outright, and gave the terminal back in whatever mode the child had left it,
+after which keys stopped answering. Observed, not theorised. A capability whose
+only exit kills the application is not one.
+
+Following is therefore `ctrl+r` on a timer: the same `loadCmd`, the same
+`DocumentLoadedMsg`, the same handler, plus a `followTickMsg` — the ports tab's
+shape. Three things follow from it, each with a test:
+
+- **The generation ends a loop, not the flag.** `tea.Tick` blocks its whole
+  interval, so a tick scheduled before `F` stopped still arrives; restarting
+  before it lands would leave two loops reading for the life of the view.
+  `stopFollowing` bumps `followGen` and is the one place following is turned
+  off — `esc` included, since the router keeps this view and a loop left behind
+  it would shell out every interval for a document nobody is looking at.
+- **A followed document lands at the bottom**, where the new lines are. Every
+  other arrival lands at the top, because a first load, a reload and a
+  timestamps toggle all mean "here is the document".
+- **`m.loading` stays false on a follow read.** The footer spinner belongs to a
+  load the user waits on, and one blinking every two seconds reads as a fault in
+  the thing that is working. `Following — F to stop` is what says the pane is
+  live, derived per frame rather than posted (Rule 128).
+
+The trade is stated rather than discovered: this polls, so a line can wait up to
+one interval and a burst longer than `logsTail` is missed between two reads. `V`
+still streams, and `less` is left with `q` rather than ctrl+c.
+
 **A log line with no level inherits the one above it.** This is what the filter
 rests on: a stack trace is a dozen unlevelled lines, and `≥ warn` swallowing them
 destroys exactly what the log was opened for. The chain breaks on a blank line —

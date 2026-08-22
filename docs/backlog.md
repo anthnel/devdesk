@@ -17,7 +17,7 @@ browse a single proxy inside a real Nexus group. It is what
 fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
 on and is now closed on its own.
 
-D1 through D38 and D40 through D48 are all fixed or, in D35's case, deliberately
+D1 through D38 and D40 through D50 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +29,53 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D50 — `F` dans le viewer tuait l'application et abîmait le terminal.
+Corrigé.** Signalé le 2026-08-22 en suivant les logs d'un conteneur.
+
+`Followable.FollowCmd` rendait un `*exec.Cmd` que la vue lançait par
+`tea.ExecProcess` : `docker logs -f`, TUI suspendu, terminal rendu au fils.
+**On ne sort de `docker logs -f` que par ctrl+c**, et un TUI suspendu ne
+l'intercepte pas — le signal allait donc au groupe de processus et emportait
+DevDesk avec lui. Le terminal revenait ensuite dans le mode que le fils avait
+posé, et des touches ne répondaient plus. Observé, pas déduit.
+
+Le raisonnement d'origine est écrit dans le code et il était *juste* :
+« suivre, c'est ce que `docker logs -f` fait déjà, et le refaire contre un
+viewport serait refaire `less +F` en moins bien ». Juste, et à côté : il compare
+deux façons d'**afficher** un flux, alors que ce qui manquait était une
+**sortie**. Une capacité dont la seule sortie tue l'application n'en est pas
+une, si bien affiche-t-elle.
+
+`Followable` rend donc un `time.Duration`, et suivre est **`ctrl+r` sur une
+horloge** : même `loadCmd`, même `DocumentLoadedMsg`, même handler, plus un
+`followTickMsg`. C'est la forme de l'onglet Ports, qui relit `ss` toutes les
+deux secondes depuis toujours. La source donne la cadence parce qu'elle seule
+sait ce qu'une lecture lui coûte.
+
+Trois conséquences, chacune avec un test :
+
+- **C'est la génération qui arrête une boucle, pas le drapeau.** `tea.Tick`
+  bloque tout son intervalle, donc un tick programmé avant l'arrêt arrive quand
+  même ; relancer avant qu'il n'atterrisse laisserait deux boucles à lire pour
+  la vie de la vue. `stopFollowing` incrémente `followGen` et c'est le seul
+  endroit où le suivi s'arrête — `esc` compris, puisque le routeur garde la vue
+  et qu'une boucle oubliée derrière elle continuerait à lancer un `docker`
+  toutes les deux secondes pour un document que personne ne regarde.
+- **Un document suivi atterrit en bas**, là où sont les nouvelles lignes. Toutes
+  les autres arrivées atterrissent en haut : une première lecture, un
+  rechargement et la bascule d'horodatage veulent tous dire « voici le
+  document ».
+- **`m.loading` reste faux pendant une lecture de suivi.** Le spinner du footer
+  appartient à un chargement qu'on attend ; un spinner qui clignote toutes les
+  deux secondes se lit comme une panne de ce qui marche. La ligne
+  `Following — F to stop` est ce qui dit que le volet est vivant, dérivée à
+  chaque frame plutôt que posée (Rule 128).
+
+Le compromis est écrit plutôt que découvert : **ça interroge, ça ne diffuse
+pas.** Une ligne peut attendre un intervalle, et une rafale plus longue que
+`logsTail` est perdue entre deux lectures. `V` diffuse toujours, et on quitte
+`less` par `q` — ce qui est exactement la différence qui compte ici.
 
 **D49 — `mise run install` posait un binaire que Windows refuse de lancer.
 Corrigé.** Signalé le 2026-08-22 : `mise run install` réussit, puis `dk` répond
