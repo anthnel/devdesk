@@ -26,7 +26,7 @@ import (
 
 func testConfig() *config.Config {
 	cfg := config.Default()
-	cfg.GitLab.URL = "https://gitlab.example.com"
+	cfg.Forge.URL = "https://gitlab.example.com"
 	cfg.App.WorkspacesDir = "~/workspaces"
 	cfg.Status.RefreshInterval = 30
 	return cfg

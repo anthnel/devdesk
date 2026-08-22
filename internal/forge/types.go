@@ -87,7 +87,7 @@ type Children struct {
 type BrowseOptions struct {
 	// IncludeArchived lists archived repositories. Browsing passes true — the
 	// explorer shows what is there — and a clone passes
-	// `gitlab.pull.include_archived`, which is what that setting means and the
+	// `forge.pull.include_archived`, which is what that setting means and the
 	// only place it is read.
 	IncludeArchived bool
 

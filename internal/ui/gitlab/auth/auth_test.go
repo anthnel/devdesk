@@ -73,7 +73,7 @@ func persisted(storage credentials.Storage) credentials.Selection {
 
 func testConfig() *config.Config {
 	cfg := config.Default()
-	cfg.GitLab.URL = ""
+	cfg.Forge.URL = ""
 	return cfg
 }
 
@@ -112,7 +112,7 @@ func testUser() forge.User {
 // Both used to write gitlab.url, so neither was authoritative.
 func TestTheURLIsReadFromTheConfiguration(t *testing.T) {
 	cfg := testConfig()
-	cfg.GitLab.URL = "https://gitlab.example.com"
+	cfg.Forge.URL = "https://gitlab.example.com"
 
 	m := newTestModel(t, cfg, newFakeStorage())
 
@@ -128,7 +128,7 @@ func TestTheURLIsReadFromTheConfiguration(t *testing.T) {
 // would name the wrong problem.
 func TestNoConfiguredURLIsReportedAsSuch(t *testing.T) {
 	cfg := testConfig()
-	cfg.GitLab.URL = ""
+	cfg.Forge.URL = ""
 	m := newTestModel(t, cfg, newFakeStorage())
 	m.tokenInput.SetValue("glpat-x")
 
@@ -174,7 +174,7 @@ func TestInitLoadsSavedCredentials(t *testing.T) {
 // build that left one there had it migrated into the store at startup (§3.9).
 func TestLoadSavedCredentialsReadsTheStore(t *testing.T) {
 	cfg := testConfig()
-	cfg.GitLab.URL = "https://gitlab.example.com"
+	cfg.Forge.URL = "https://gitlab.example.com"
 	storage := newFakeStorage()
 	storage.token = "glpat-from-store"
 
@@ -206,7 +206,7 @@ func TestLoadSavedCredentialsReportsNothingFound(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := testConfig()
-			cfg.GitLab.URL = tc.url
+			cfg.Forge.URL = tc.url
 
 			m := New(cfg, credentials.Selection{Storage: tc.storage}, nil)
 
@@ -297,7 +297,7 @@ func TestFocusFollowsTheCurrentField(t *testing.T) {
 
 func TestTypingReachesTheFocusedInput(t *testing.T) {
 	cfg := testConfig()
-	cfg.GitLab.URL = "https://git.example.com"
+	cfg.Forge.URL = "https://git.example.com"
 	m := newTestModel(t, cfg, newFakeStorage())
 
 	m = feed(t, m, testutil.Type("glpat-abc")...)
@@ -305,7 +305,7 @@ func TestTypingReachesTheFocusedInput(t *testing.T) {
 	if got := m.tokenInput.Value(); got != "glpat-abc" {
 		t.Errorf("token input = %q after typing, want the typed value", got)
 	}
-	if m.config.GitLab.URL != "https://git.example.com" {
+	if m.config.Forge.URL != "https://git.example.com" {
 		t.Error("typing into the token field changed the configured URL")
 	}
 }
@@ -480,7 +480,7 @@ func TestFailedAuthResultSurfacesTheError(t *testing.T) {
 // at all — the URL it authenticates against is the one it was handed.
 func TestAuthenticateWritesNoConfiguration(t *testing.T) {
 	cfg := testConfig()
-	cfg.GitLab.URL = "https://gitlab.example.com"
+	cfg.Forge.URL = "https://gitlab.example.com"
 	m := newTestModel(t, cfg, newFakeStorage())
 	m.tokenInput.SetValue("glpat-secret")
 
@@ -490,8 +490,8 @@ func TestAuthenticateWritesNoConfiguration(t *testing.T) {
 
 	// The Cmd itself reaches the network, so assert on the config it was
 	// handed: it is the same pointer, and nothing may have been set on it.
-	if m.config.GitLab.URL != "https://gitlab.example.com" {
-		t.Errorf("URL = %q; authenticate() must not rewrite the setting it read", m.config.GitLab.URL)
+	if m.config.Forge.URL != "https://gitlab.example.com" {
+		t.Errorf("URL = %q; authenticate() must not rewrite the setting it read", m.config.Forge.URL)
 	}
 	if m.config.Scan.GitleaksConfig != "" || m.config.App.Theme != cfg.App.Theme {
 		t.Error("authenticate() wrote to the config outside Update() (Rule 110)")
@@ -615,5 +615,5 @@ func TestWindowSizeIsStored(t *testing.T) {
 // setConfigURL is where the URL lives now: the configuration view owns it, this
 // view reads it. Tests that used to type into a URL input set it here instead.
 func setConfigURL(m *Model, url string) {
-	m.config.GitLab.URL = url
+	m.config.Forge.URL = url
 }

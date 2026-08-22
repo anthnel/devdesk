@@ -114,18 +114,18 @@ func loadOrCreateContext(contextName string) (*config.Config, bool, error) {
 // autoLoginForContext tries the new context's own credentials. A failure is not
 // an error: the user is sent to the auth view instead.
 func autoLoginForContext(contextName string, cfg *config.Config, storage credentials.Storage) (forge.Forge, forge.User) {
-	if cfg.GitLab.URL == "" {
+	if cfg.Forge.URL == "" {
 		return nil, forge.User{}
 	}
 
 	auth := gitlabforge.NewAuth(storage)
 
-	token, err := auth.LoadCredentials(cfg.GitLab.URL)
+	token, err := auth.LoadCredentials(cfg.Forge.URL)
 	if err != nil || token == "" {
 		return nil, forge.User{}
 	}
 
-	result, err := auth.AuthenticateOnly(context.Background(), cfg.GitLab.URL, token)
+	result, err := auth.AuthenticateOnly(context.Background(), cfg.Forge.URL, token)
 	if err != nil {
 		log.Printf("Auto-login failed for context '%s': %v", contextName, err)
 		return nil, forge.User{}

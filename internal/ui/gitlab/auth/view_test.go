@@ -136,7 +136,7 @@ func TestViewShowsTheSpinnerWhileAuthenticating(t *testing.T) {
 
 func TestViewShowsTheLoggedInStateInsteadOfTheForm(t *testing.T) {
 	cfg := testConfig()
-	cfg.GitLab.URL = "https://gitlab.example.com"
+	cfg.Forge.URL = "https://gitlab.example.com"
 	m := newTestModel(t, cfg, newFakeStorage())
 
 	m = feed(t, m, AuthResultMsg{User: testUser()})

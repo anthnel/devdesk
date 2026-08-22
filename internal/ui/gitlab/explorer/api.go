@@ -94,7 +94,7 @@ func (m Model) loadRootGroups() tea.Cmd {
 // affiche le rôle et le statut CI en colonnes.
 //
 // Elle liste les dépôts archivés — l'explorer montre ce qui est là.
-// `gitlab.pull.include_archived` ne concerne que le clone, et c'est
+// `forge.pull.include_archived` ne concerne que le clone, et c'est
 // discoverChildren qui le lit.
 func (m Model) loadChildren(parentNode *TreeNode) tea.Cmd {
 	backend := m.shared.Forge

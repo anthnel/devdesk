@@ -27,7 +27,7 @@ const (
 // Model représente la vue d'authentification GitLab
 type Model struct {
 	config *config.Config
-	// There is no URL input. gitlab.url is configuration and the configuration
+	// There is no URL input. forge.url is configuration and the configuration
 	// view owns it; this view owns the token, which is a secret, and the act of
 	// logging in. Both used to write the URL, so neither was authoritative.
 	tokenInput textinput.Model
@@ -103,7 +103,7 @@ func (m *Model) Init() tea.Cmd {
 // version antérieure qui en aurait laissé un s'est fait migrer au démarrage
 // (credentials.MigrateLegacySecrets).
 func (m *Model) loadSavedCredentials() tea.Cmd {
-	url := m.config.GitLab.URL
+	url := m.config.Forge.URL
 	storage := m.secrets.Storage
 
 	return func() tea.Msg {

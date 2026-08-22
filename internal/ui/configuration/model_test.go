@@ -104,19 +104,19 @@ func TestOnlySpaceTogglesACheckbox(t *testing.T) {
 
 func TestArrowsCycleAClosedSetAndPersist(t *testing.T) {
 	m := focusOn(t, newModel(t), "Clone method")
-	m.config.GitLab.CloneMethod = "https"
+	m.config.Forge.CloneMethod = "https"
 
 	m = feed(t, m, testutil.Key("right"))
 
-	if m.config.GitLab.CloneMethod != "ssh" {
-		t.Errorf("CloneMethod = %q after →, want ssh", m.config.GitLab.CloneMethod)
+	if m.config.Forge.CloneMethod != "ssh" {
+		t.Errorf("CloneMethod = %q after →, want ssh", m.config.Forge.CloneMethod)
 	}
 	reloaded, err := config.Load()
 	if err != nil {
 		t.Fatalf("reloading the saved config: %v", err)
 	}
-	if reloaded.GitLab.CloneMethod != "ssh" {
-		t.Errorf("the file holds %q; a cycle field persists as it changes", reloaded.GitLab.CloneMethod)
+	if reloaded.Forge.CloneMethod != "ssh" {
+		t.Errorf("the file holds %q; a cycle field persists as it changes", reloaded.Forge.CloneMethod)
 	}
 }
 
@@ -138,7 +138,7 @@ func TestLeavingATextFieldCommitsIt(t *testing.T) {
 func TestARefusedValueKeepsTheCursorOnItsField(t *testing.T) {
 	m := focusOn(t, newModel(t), "Parallel jobs")
 	was := m.focusedField
-	m.config.GitLab.Pull.ParallelJobs = 4
+	m.config.Forge.Pull.ParallelJobs = 4
 	m.input.SetValue("not-a-number")
 
 	m = feed(t, m, testutil.Key("down"))
@@ -146,8 +146,8 @@ func TestARefusedValueKeepsTheCursorOnItsField(t *testing.T) {
 	if m.focusedField != was {
 		t.Errorf("focus moved to %d despite a refused value", m.focusedField)
 	}
-	if m.config.GitLab.Pull.ParallelJobs != 4 {
-		t.Errorf("ParallelJobs = %d, want the old value kept", m.config.GitLab.Pull.ParallelJobs)
+	if m.config.Forge.Pull.ParallelJobs != 4 {
+		t.Errorf("ParallelJobs = %d, want the old value kept", m.config.Forge.Pull.ParallelJobs)
 	}
 	if !m.footer.IsSet() {
 		t.Error("nothing was reported to the user")
@@ -586,14 +586,14 @@ func TestChangingTheGitLabURLFlagsTheSession(t *testing.T) {
 	testutil.FastTimers(t, &sharedcomponents.FooterMsgDuration)
 
 	m := focusOn(t, newModel(t), "URL")
-	m.config.GitLab.URL = "https://old.example.com"
+	m.config.Forge.URL = "https://old.example.com"
 	m.input.SetValue("https://new.example.com")
 
 	updated, cmd := m.Update(testutil.Key("down"))
 	m = updated.(Model)
 
-	if m.config.GitLab.URL != "https://new.example.com" {
-		t.Fatalf("URL = %q, want the typed value committed", m.config.GitLab.URL)
+	if m.config.Forge.URL != "https://new.example.com" {
+		t.Fatalf("URL = %q, want the typed value committed", m.config.Forge.URL)
 	}
 	if !strings.Contains(m.footer.Text(), ":gla") {
 		t.Errorf("footer = %q, want it to say where to sign in again", m.footer.Text())
@@ -616,7 +616,7 @@ func TestChangingTheGitLabURLFlagsTheSession(t *testing.T) {
 // Retyping the same URL is not a change, and must not close a working session.
 func TestRetypingTheSameGitLabURLChangesNothing(t *testing.T) {
 	m := focusOn(t, newModel(t), "URL")
-	m.config.GitLab.URL = "https://same.example.com"
+	m.config.Forge.URL = "https://same.example.com"
 	m.input.SetValue("https://same.example.com")
 
 	updated, cmd := m.Update(testutil.Key("down"))
@@ -635,10 +635,10 @@ func TestRetypingTheSameGitLabURLChangesNothing(t *testing.T) {
 // Only one view may write a setting. Both used to write gitlab.url, so neither
 // was authoritative and editing it in one left the other stale.
 func TestOnlyTheConfigurationViewOwnsTheGitLabURL(t *testing.T) {
-	if !strings.Contains(sourceOf(t, "../gitlab/auth/update.go"), "m.config.GitLab.URL") {
+	if !strings.Contains(sourceOf(t, "../gitlab/auth/update.go"), "m.config.Forge.URL") {
 		t.Skip("the auth view no longer reads the URL at all")
 	}
-	if strings.Contains(sourceOf(t, "../gitlab/auth/update.go"), "config.GitLab.URL = ") {
+	if strings.Contains(sourceOf(t, "../gitlab/auth/update.go"), "config.Forge.URL = ") {
 		t.Error("the auth view assigns gitlab.url; the configuration view owns it")
 	}
 }

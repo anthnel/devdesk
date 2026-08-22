@@ -167,8 +167,8 @@ func TestRemoveLegacySecretsLeavesALoadableFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadContext() after the rewrite: %v", err)
 	}
-	if cfg.GitLab.URL != "https://gitlab.example.com" {
-		t.Errorf("GitLab.URL = %q, want it preserved", cfg.GitLab.URL)
+	if cfg.Forge.URL != "https://gitlab.example.com" {
+		t.Errorf("GitLab.URL = %q, want it preserved", cfg.Forge.URL)
 	}
 	if cfg.App.Theme != "mocha" {
 		t.Errorf("App.Theme = %q, want mocha", cfg.App.Theme)

@@ -83,9 +83,9 @@ func (m Model) startSync() (tea.Model, tea.Cmd) {
 // commands touch nothing (Rule 110).
 func (m Model) syncSpec() syncSpec {
 	return syncSpec{
-		gitlabURL: m.config.GitLab.URL,
-		token:     tokenLoader(m.secrets, m.config.GitLab.URL),
-		jobs:      m.config.GitLab.Pull.ParallelJobs,
+		gitlabURL: m.config.Forge.URL,
+		token:     tokenLoader(m.secrets, m.config.Forge.URL),
+		jobs:      m.config.Forge.Pull.ParallelJobs,
 	}
 }
 

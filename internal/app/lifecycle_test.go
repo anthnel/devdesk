@@ -284,7 +284,7 @@ func TestAutoLoginIsSkippedWithoutAURL(t *testing.T) {
 func TestAutoLoginUsesTheSavedToken(t *testing.T) {
 	srv := fakeGitLab(t, "anthnel")
 	a := router(t, &fakeView{})
-	a.config.GitLab.URL = srv.URL
+	a.config.Forge.URL = srv.URL
 	if err := a.sharedState.Secrets.Storage.Save(srv.URL, "saved-token"); err != nil {
 		t.Fatalf("seeding the secret store: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestAutoLoginReportsARejectedToken(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	a := router(t, &fakeView{})
-	a.config.GitLab.URL = srv.URL
+	a.config.Forge.URL = srv.URL
 	if err := a.sharedState.Secrets.Storage.Save(srv.URL, "revoked"); err != nil {
 		t.Fatalf("seeding the secret store: %v", err)
 	}
@@ -360,7 +360,7 @@ func TestASuccessfulAutoLoginPopulatesTheSession(t *testing.T) {
 func TestAManualAuthenticationPersistsTheConfig(t *testing.T) {
 	a := router(t, &fakeView{})
 	saved := testConfig()
-	saved.GitLab.URL = "https://gitlab.example.com"
+	saved.Forge.URL = "https://gitlab.example.com"
 
 	a.Update(auth.AuthResultMsg{
 		Forge:        gitlabforge.NewWithClient(nil, "https://gitlab.example.com"),
@@ -375,8 +375,8 @@ func TestAManualAuthenticationPersistsTheConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading back the config: %v", err)
 	}
-	if reloaded.GitLab.URL != "https://gitlab.example.com" {
-		t.Errorf("the persisted URL is %q, want the one just authenticated", reloaded.GitLab.URL)
+	if reloaded.Forge.URL != "https://gitlab.example.com" {
+		t.Errorf("the persisted URL is %q, want the one just authenticated", reloaded.Forge.URL)
 	}
 }
 

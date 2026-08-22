@@ -2366,10 +2366,11 @@ The concrete SDK type leaks into `internal/shared/state.go:57`
 rather than to a DevDesk abstraction. That field is the load-bearing change: an
 interface there is what makes a second forge possible at all.
 
-Also GitLab-shaped: `GitLabConfig` in `internal/config/config.go:41` (URL, token,
-clone method, pull settings), the `gitlab-auth` / `gitlab-explorer` view names
-and their `gla` / `gle` aliases in `internal/command/parser.go`, and
-`shared.GitLabStats`.
+Also GitLab-shaped, **et tous traités depuis** : `GitLabConfig` (URL, token,
+clone method, pull settings) est `ForgeConfig` sous `forge:` avec un `type:`
+(étape 4), `shared.GitLabStats` est `forge.DashboardStats` (étape 3). Restent
+les noms de vues `gitlab-auth` / `gitlab-explorer` et leurs alias `gla` / `gle`
+dans `internal/command/parser.go`, qui sont l'étape 8.
 
 Two findings from the design review that the count above does not capture:
 
@@ -2720,10 +2721,9 @@ font contre GitLab seul.
    `Forge` et `CurrentUser` sont dans `shared.State`, `internal/gitlab` et
    `explorer/api.go` ont disparu, et D52 est corrigé au passage. Détails plus
    bas.
-4. `GitLabConfig` devient `ForgeConfig`, section `forge:` avec un `type:`, migrée
-   depuis `gitlab:` dans `applyDefaults` **avant** les défauts, sur le précédent
-   de `docker:` → `network:` (§3.34). Un test du genre
-   `TestAGitLabSectionSurvivesTheRename`.
+4. ~~`GitLabConfig` devient `ForgeConfig`, section `forge:` avec un `type:`.~~
+   **Faite** — migrée depuis `gitlab:` en tête d'`applyDefaults`, et l'ordre
+   s'est révélé être tout le sujet. Détails plus bas.
 5. Extraire la `Vocabulary` et y déplacer chaque littéral du tableau ci-dessus,
    avec le test qui les empêche de revenir. Faisable contre GitLab seul, avant
    qu'une ligne de GitHub n'existe — c'est ce qui en fait un refactor et non une
@@ -2880,6 +2880,48 @@ donc refermé, et la pagination n'existe plus qu'à un endroit.
   il demande, et comment il convertit ce qu'il reçoit.
 
 Couverture du projet : 80,7 % → **82,1 %**.
+
+#### Ce que l'étape 4 a trouvé
+
+**L'ordre était le sujet, et le premier jet s'est trompé.** La migration devait
+tourner « avant les défauts », ce que l'entrée disait déjà — mais elle a d'abord
+été posée à côté de celle de `docker:` → `network:`, qui est en bas
+d'`applyDefaults`. Or **tous** les défauts écrivent dans `cfg.Forge` : la
+migration trouvait alors un bloc qui n'était plus vide, prenait le chemin
+champ-par-champ, et ne migrait que l'URL — le `parallel_jobs: 7` de
+l'utilisateur remplacé en silence par le 4 par défaut.
+
+Ce n'est pas un risque imaginé pour le commentaire : c'est ce qu'a attrapé
+`TestAConfigCarryingRetiredKeysStillLoads`, qui existait déjà pour une autre
+raison. `migrateGitLabSection` est la **première** instruction
+d'`applyDefaults`, et le commentaire dit pourquoi.
+
+**Deux chemins, et la distinction n'existe que pour un champ.**
+`IncludeArchived` est un booléen : « non renseigné » et « délibérément faux »
+sont la même valeur, donc aucune garde par champ ne peut les distinguer. Il ne
+peut être repris que lorsque le nouveau bloc ne dit rien du tout — d'où la copie
+en bloc quand `forge:` est absent, et le champ-par-champ quand les deux sont
+présents. Dans ce second cas le nouveau gagne : ses valeurs ont été écrites plus
+tard, et les écraser par les anciennes annulerait l'édition qui a créé la
+situation.
+
+**Le vocabulaire est tenu par un test, pas par une convention.** `forge.type`
+est écrit dans `internal/config` et dans le `Shape()` de chaque backend :
+`config` ne doit pas importer un backend, et un backend ne doit pas faire
+autorité sur ce qu'un fichier de configuration peut dire.
+`TestTheForgeVocabularyMatchesTheConfig` est la seule chose qui puisse les tenir
+ensemble — même montage que les noms de `provider` des registries (§3.8).
+
+**La migration des secrets n'est pas touchée, et l'ordre valait d'être
+vérifié :** `credentials.MigrateLegacySecrets` lit le **fichier brut** à la
+construction du routeur, avant que quoi que ce soit puisse sauvegarder. Un
+`gitlab.token` en clair atteint donc le store avant que le renommage ne
+réécrive le fichier sans lui.
+
+**L'onglet de configuration s'appelle toujours `gitlab`, et c'est juste.**
+L'étape 6 le rend adaptatif — titre tiré de la forge active — ce qui donne
+« gitlab » aujourd'hui. Les deux messages qui citent « `:config`, gitlab tab »
+restent donc vrais.
 
 ### 3.7 Command mode from inside a text field — **done**
 

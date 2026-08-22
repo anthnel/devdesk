@@ -182,9 +182,9 @@ func (m *Model) renderLoggedInView() string {
 	b.WriteString("\n")
 
 	// Afficher l'URL GitLab
-	if m.config != nil && m.config.GitLab.URL != "" {
+	if m.config != nil && m.config.Forge.URL != "" {
 		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText).Bold(true).Render("GitLab URL: "))
-		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorPrimary).Bold(true).Render(m.config.GitLab.URL) + "\n")
+		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorPrimary).Bold(true).Render(m.config.Forge.URL) + "\n")
 	}
 	b.WriteString("\n")
 
@@ -226,13 +226,13 @@ func (m *Model) renderError() string {
 func (m Model) renderConfiguredURL() string {
 	label := lipgloss.NewStyle().Background(theme.ColorBackground).Bold(true).Render("GitLab URL")
 
-	if m.config == nil || m.config.GitLab.URL == "" {
+	if m.config == nil || m.config.Forge.URL == "" {
 		return label + "\n" + theme.StatusErrorStyle.Render(
 			theme.IconWarning+" not configured — set it in :config, gitlab tab")
 	}
 	value := lipgloss.NewStyle().
 		Background(theme.ColorBackground).
 		Foreground(theme.ColorPrimary).
-		Render(m.config.GitLab.URL)
+		Render(m.config.Forge.URL)
 	return label + "\n" + value + theme.DimStyle.Render("   change it in :config")
 }

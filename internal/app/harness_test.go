@@ -56,7 +56,7 @@ var errNotOnDisk = errors.New("open result: no such file or directory")
 // attempt an auto-login, which reaches the network.
 func testConfig() *config.Config {
 	cfg := config.Default()
-	cfg.GitLab.URL = ""
+	cfg.Forge.URL = ""
 	return cfg
 }
 

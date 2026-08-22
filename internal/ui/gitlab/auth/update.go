@@ -189,7 +189,7 @@ func (m *Model) updateFocus() {
 
 // authenticate lance l'authentification
 func (m *Model) authenticate() tea.Cmd {
-	url := m.config.GitLab.URL
+	url := m.config.Forge.URL
 	token := m.tokenInput.Value()
 
 	if url == "" {
@@ -231,7 +231,7 @@ func (m *Model) authenticate() tea.Cmd {
 
 // logout déconnecte l'utilisateur
 func (m *Model) logout() tea.Cmd {
-	url := m.config.GitLab.URL
+	url := m.config.Forge.URL
 	storage := m.secrets.Storage
 
 	// Commande asynchrone

@@ -227,17 +227,17 @@ func sections(themes, views []string, configPath string) []section {
 
 		{Title: "gitlab", Fields: slices.Concat(
 			group("Connection", theme.IconGitlab,
-				text("URL", func(c *config.Config) *string { return &c.GitLab.URL },
+				text("URL", func(c *config.Config) *string { return &c.Forge.URL },
 					"e.g. https://gitlab.com"),
-				text("Default parent group", func(c *config.Config) *string { return &c.GitLab.DefaultParentGroup }, ""),
-				cycle("Default visibility", func(c *config.Config) *string { return &c.GitLab.DefaultVisibility },
+				text("Default parent group", func(c *config.Config) *string { return &c.Forge.DefaultParentGroup }, ""),
+				cycle("Default visibility", func(c *config.Config) *string { return &c.Forge.DefaultVisibility },
 					[]string{"private", "internal", "public"}, ""),
-				cycle("Clone method", func(c *config.Config) *string { return &c.GitLab.CloneMethod },
+				cycle("Clone method", func(c *config.Config) *string { return &c.Forge.CloneMethod },
 					[]string{"https", "ssh"}, ""),
 			),
 			group("Pull", theme.IconGitBranch,
-				integer("Parallel jobs", func(c *config.Config) *int { return &c.GitLab.Pull.ParallelJobs }, 1, 32, ""),
-				toggle("Include archived projects", func(c *config.Config) *bool { return &c.GitLab.Pull.IncludeArchived }, ""),
+				integer("Parallel jobs", func(c *config.Config) *int { return &c.Forge.Pull.ParallelJobs }, 1, 32, ""),
+				toggle("Include archived projects", func(c *config.Config) *bool { return &c.Forge.Pull.IncludeArchived }, ""),
 			),
 		)},
 

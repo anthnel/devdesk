@@ -35,15 +35,15 @@ func TestDefault(t *testing.T) {
 		t.Error("Expected AutoRefresh to be true")
 	}
 
-	// Test GitLab defaults
-	if cfg.GitLab.DefaultVisibility != "private" {
-		t.Errorf("Expected visibility 'private', got '%s'", cfg.GitLab.DefaultVisibility)
+	// Test forge defaults
+	if cfg.Forge.DefaultVisibility != "private" {
+		t.Errorf("Expected visibility 'private', got '%s'", cfg.Forge.DefaultVisibility)
 	}
-	if cfg.GitLab.CloneMethod != "https" {
-		t.Errorf("Expected clone method 'https', got '%s'", cfg.GitLab.CloneMethod)
+	if cfg.Forge.CloneMethod != "https" {
+		t.Errorf("Expected clone method 'https', got '%s'", cfg.Forge.CloneMethod)
 	}
-	if cfg.GitLab.Pull.ParallelJobs != 4 {
-		t.Errorf("Expected parallel jobs 4, got %d", cfg.GitLab.Pull.ParallelJobs)
+	if cfg.Forge.Pull.ParallelJobs != 4 {
+		t.Errorf("Expected parallel jobs 4, got %d", cfg.Forge.Pull.ParallelJobs)
 	}
 
 	// Test Scan defaults
@@ -114,7 +114,7 @@ func TestSaveAndLoad(t *testing.T) {
 				},
 			},
 		},
-		GitLab: GitLabConfig{
+		Forge: ForgeConfig{
 			URL:               "https://gitlab.example.com",
 			DefaultVisibility: "public",
 			CloneMethod:       "ssh",
@@ -158,8 +158,8 @@ func TestSaveAndLoad(t *testing.T) {
 	if loadedCfg.Status.Components[0].Name != "test-component" {
 		t.Errorf("Expected component name 'test-component', got '%s'", loadedCfg.Status.Components[0].Name)
 	}
-	if loadedCfg.GitLab.URL != "https://gitlab.example.com" {
-		t.Errorf("Expected GitLab URL 'https://gitlab.example.com', got '%s'", loadedCfg.GitLab.URL)
+	if loadedCfg.Forge.URL != "https://gitlab.example.com" {
+		t.Errorf("Expected GitLab URL 'https://gitlab.example.com', got '%s'", loadedCfg.Forge.URL)
 	}
 }
 
@@ -235,11 +235,11 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	if loadedCfg.Status.RefreshInterval != 10 {
 		t.Errorf("Expected default refresh interval 10, got %d", loadedCfg.Status.RefreshInterval)
 	}
-	if loadedCfg.GitLab.DefaultVisibility != "private" {
-		t.Errorf("Expected default visibility 'private', got '%s'", loadedCfg.GitLab.DefaultVisibility)
+	if loadedCfg.Forge.DefaultVisibility != "private" {
+		t.Errorf("Expected default visibility 'private', got '%s'", loadedCfg.Forge.DefaultVisibility)
 	}
-	if loadedCfg.GitLab.Pull.ParallelJobs != 4 {
-		t.Errorf("Expected default parallel jobs 4, got %d", loadedCfg.GitLab.Pull.ParallelJobs)
+	if loadedCfg.Forge.Pull.ParallelJobs != 4 {
+		t.Errorf("Expected default parallel jobs 4, got %d", loadedCfg.Forge.Pull.ParallelJobs)
 	}
 	// Backward compat: a config with no scan option booleans (all false) must get vuln+secret enabled
 	if !loadedCfg.Scan.EnableVuln {
@@ -307,8 +307,8 @@ func TestAConfigCarryingRetiredKeysStillLoads(t *testing.T) {
 			name: "gitlab.pull.target_dir and max_depth, removed in §3.16",
 			yaml: "gitlab:\n  url: https://gitlab.example.com\n  pull:\n    target_dir: /old\n    max_depth: 9\n    parallel_jobs: 7\n",
 			check: func(t *testing.T, cfg *Config) {
-				if cfg.GitLab.URL != "https://gitlab.example.com" || cfg.GitLab.Pull.ParallelJobs != 7 {
-					t.Errorf("the surrounding gitlab settings were not read: %+v", cfg.GitLab)
+				if cfg.Forge.URL != "https://gitlab.example.com" || cfg.Forge.Pull.ParallelJobs != 7 {
+					t.Errorf("the surrounding gitlab settings were not read: %+v", cfg.Forge)
 				}
 			},
 		},
