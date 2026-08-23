@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "df64f5a113de",
+  "strategy": "manual-commit",
+  "branch": "mcp-server",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/cache/readonly.go",
+    "internal/mcp/context_tools.go",
+    "internal/mcp/context_tools_test.go",
+    "internal/mcp/registry_tools.go",
+    "internal/mcp/registry_tools_test.go",
+    "internal/mcp/tools.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/df/64f5a113de/0/metadata.json",
+      "transcript": "/df/64f5a113de/0/full.jsonl",
+      "compact_transcript": "/df/64f5a113de/0/transcript.jsonl",
+      "content_hash": "/df/64f5a113de/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 21853,
+    "cache_read_tokens": 3968072,
+    "output_tokens": 14663,
+    "api_call_count": 10
+  }
+}
