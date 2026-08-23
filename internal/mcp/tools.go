@@ -36,6 +36,16 @@ func tools() []toolDef {
 			Description: "List the DevDesk configuration contexts on this machine, and say which one this server answers for.",
 			register:    registerContextList,
 		},
+		{
+			Name:        "scan_inventory",
+			Description: "List every image and repository this DevDesk context has scanned, with its severity counts, its secret verdict and how long ago the scan ran. Targets whose image or directory no longer exists are left out.",
+			register:    registerScanInventory,
+		},
+		{
+			Name:        "scan_result",
+			Description: "Read the findings of one stored scan, filtered by severity and category and returned one page at a time. The matched string of a secret finding is never included.",
+			register:    registerScanResult,
+		},
 	}
 }
 

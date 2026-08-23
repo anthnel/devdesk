@@ -81,7 +81,7 @@ Chaque étape est un commit et une PR.
 | # | Contenu | Sort |
 |---|---|---|
 | 1 | La sous-commande, le réglage, le squelette du serveur, la table d'outils déclarés + son test de contrat, et `context_list` pour prouver le câblage | **faite** |
-| 2 | `scan_inventory`, `scan_result` — et la lecture qui **ne met pas à niveau** le cache | |
+| 2 | `scan_inventory`, `scan_result` — et la lecture qui **ne met pas à niveau** le cache | **faite** |
 | 3 | `context_get`, `workspaces_list` | |
 | 4 | `registries_list`, `registry_tags` — cache seul, jamais le réseau | |
 | 5 | `containers_list`, `images_list`, `ports_list` | |
@@ -139,3 +139,45 @@ Trois choses se sont décidées en écrivant :
   c'est la seule façon de voir une closure qui enregistre sous un autre nom, ou
   deux fois, ou pas du tout. Ce harnais (`connect`, `callTool`) sert les six
   étapes suivantes.
+
+### Étape 2 — faite le 2026-08-23
+
+**L'exception était plus large que prévu : les deux caches écrivent à l'ouverture,
+et un troisième chemin aussi.**
+
+Le plan ne visait que `readScanCacheFile` et son attribution. En écrivant, trois
+écritures sont apparues sur ce qui devait être un chemin de lecture :
+
+1. l'attribution des entrées héritées au contexte ouvrant — celle qui était
+   prévue, et la seule qui *décide* quelque chose ;
+2. le repli de §3.39, réécrit au premier open d'un cache d'images. Il ne décide
+   rien de nuisible — il est déterministe — mais c'est un second process qui
+   écrit un fichier sans verrou au-dessus ;
+3. le `MkdirAll` que font les deux constructeurs **et** les deux
+   `Load*ScanResult`, qui résolvent leur chemin par un helper créant le
+   répertoire de résultats. Lire un résultat absent créait le répertoire où il
+   n'était pas.
+
+D'où `internal/cache/readonly.go`, qui **retourne des maps plutôt qu'un cache**.
+Un cache en lecture seule dont le `Set` ne fait rien, ou renvoie une erreur que
+personne ne regarde, est un piège posé pour le prochain appelant ; sans cache il
+n'y a pas de `Set`, et l'écriture devient inexprimable au lieu d'être interdite
+par revue. C'est la forme de Rule 122, une couche plus haut.
+
+`parseScanCacheFile` est la lecture sans la mise à niveau ; `readScanCacheFile`
+reste la lecture *avec*, pour le TUI. Un fichier hérité est servi à quel que soit
+le contexte qui demande, parce que personne n'a encore décidé à qui il est — et
+ce n'est pas ici que ça se décide.
+
+**`scan.Category` est un int sans `String()`.** Une conversion aurait produit une
+rune ; `go vet` l'a dit. Les quatre valeurs sont un vocabulaire sur lequel un
+agent filtre, donc elles font partie du contrat de l'outil et non d'une énum
+interne — `categoryName` les nomme, avec le défaut de `Categorize` : une source
+inconnue reste visible dans la famille qu'on regarde en premier.
+
+**Le `Match` ne sort pas parce qu'il n'y a pas de champ pour lui.** `finding` est
+une projection qui nomme chacun des champs qu'elle copie, donc un champ ajouté à
+`scan.Finding` arrive ici comme un oubli et non comme une fuite.
+`TestTheMatchedStringOfASecretNeverLeaves` cherche la chaîne **dans la réponse
+sérialisée** et pas un nom de champ : un `Match` recopié un jour dans un `Title`
+passerait une vérification de forme. Vérifié en échec en rajoutant le champ.
