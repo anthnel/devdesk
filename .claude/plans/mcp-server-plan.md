@@ -85,7 +85,7 @@ Chaque étape est un commit et une PR.
 | 3 | `context_get`, `workspaces_list` | **faite** |
 | 4 | `registries_list` — cache seul, jamais le réseau. **`registry_tags` abandonné**, voir le journal | **faite** |
 | 5 | `containers_list`, `images_list`. **`ports_list` abandonné**, voir le journal | **faite** |
-| 6 | `net_check` | |
+| 6 | `net_check` | **faite** |
 | 7 | Le sixième onglet de la vue configuration, `.claude/CLAUDE.md`, `docs/backlog.md` | |
 
 ### Étape 1 en détail
@@ -302,3 +302,42 @@ lente.
 sur la suite complète — « git credential fill timed out » — et repasse seul comme
 en paquet. Il interroge le credential helper de l'hôte derrière un délai ; sous
 une suite complète, la machine chargée le dépasse. Antérieur à cette branche.
+
+### Étape 6 — faite le 2026-08-23
+
+Binaire : **27,97 Mo**.
+
+`net_check` est le seul outil qui touche le réseau, et §3.38 le garde
+délibérément : il *lit* sans rien changer sur l'hôte, DevDesk le lance déjà sur
+une touche sans confirmation, et son résultat est structuré — « le nom résout, le
+port accepte, la chaîne est incomplète à l'intermédiaire » est exploitable par un
+modèle, là où le code de sortie de `curl` ne l'est pas.
+
+**Il ne lance aucun conteneur.** Le pipeline est du Go pur ; le traceroute est la
+seule sonde de DevDesk qui shell out, et il n'en fait pas partie. C'est ce qui
+sépare cet outil de `ports_list`.
+
+Trois choses décidées en écrivant :
+
+- **Les réglages viennent de `network:`, pas d'un argument.** Ce sont
+  l'étalonnage de cette machine par l'opérateur ; un appelant qui pourrait les
+  surcharger pourrait aussi faire marteler un hôte ou faire pendre le serveur.
+  `Normalized()` remplit ce qui est ≤ 0, donc un zéro laissé à la main devient le
+  défaut et non un dial sans échéance.
+- **Le contexte passé est celui du client**, donc annuler l'appel arrête vraiment
+  les sondes — un hôte injoignable dépense un timeout par étage.
+- **`Because` traverse.** Un N/A causé par un échec amont nomme ce qui l'a
+  bloqué ; un N/A qui n'a simplement pas de sens ici n'a rien à nommer. C'est la
+  distinction dont un agent qui lit un mur de N/A a le plus besoin.
+
+Un `checkEnv` remplaçable a été ajouté pour les tests : `netcheck` prend son
+`Env` en paramètre exprès, mais cet outil construit celui de production
+lui-même, donc un test qui ne doit pas toucher le réseau n'a pas d'autre point
+d'entrée.
+
+**Observé sur la vérification manuelle** : sur `example.com:443`, tous les
+contrôles passent sauf l'ICMP, qui rend `UNKNOWN` faute de sockets bruts sous
+Windows — et le verdict global est donc `UNKNOWN`, parce que `severity()` classe
+Unknown au-dessus de Warn (« ne pas avoir regardé est pire qu'avoir regardé et
+trouvé un défaut »). C'est la règle du TUI, partagée volontairement ; la corriger
+ici donnerait deux réponses à une question.

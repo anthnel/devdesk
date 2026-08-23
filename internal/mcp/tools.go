@@ -62,6 +62,11 @@ func tools() []toolDef {
 			register:    registerImagesList,
 		},
 		{
+			Name:        "net_check",
+			Description: "Run DevDesk's connectivity pipeline against a host and port: name resolution, ICMP reachability, the TCP connect, the certificate — handshake, chain, hostname, expiry, version — and an HTTP response. Each check answers with a verdict, what was observed, why it matters and what to do about it. This is the one tool here that touches the network, and it can be pointed at any host.",
+			register:    registerNetCheck,
+		},
+		{
 			Name:        "scan_inventory",
 			Description: "List every image and repository this DevDesk context has scanned, with its severity counts, its secret verdict and how long ago the scan ran. Targets whose image or directory no longer exists are left out.",
 			register:    registerScanInventory,
