@@ -7315,6 +7315,132 @@ rapporte différemment selon la plateforme, donc à vérifier avant de décider.
 sa raison écrite ; c'est une décision à revisiter, pas un défaut à corriger — le
 statut de D35.
 
+### 3.41 Se passer de `netshoot` — ce qui se réécrit en Go, et ce qu'on abandonne
+
+À analyser. L'image `nicolaka/netshoot` (`network.tool_image`) est la dernière
+dépendance de DevDesk à un conteneur pour des fonctions qui ne sont pas Docker.
+La question est de savoir ce qu'il resterait si elle disparaissait.
+
+#### Le périmètre réel est plus petit qu'il n'en a l'air
+
+§3.33 a déjà fait la moitié du travail sans le formuler ainsi : DNS, ICMP, TCP,
+TLS et HTTP sont partis dans `internal/netcheck`, qui répond depuis le process
+DevDesk. `RunPing`, `RunDNS`, `RunNetcat`, `RunCurl` et `RunSSLCert` **n'existent
+plus** — il n'y a pas de code mort à supprimer.
+
+Il reste **trois sites d'appel en production**, pour deux fonctionnalités :
+
+| Site | Fonction | Ce que le conteneur apporte |
+|---|---|---|
+| `netdiag/run.go:71,73` | `RunTraceroute`, `RunTCPTraceroute` (`H`) | sockets bruts + `traceroute`/`tcptraceroute` |
+| `netdiag/ports_model.go:63` | `RunSS` (onglet Ports) | `ss -tupan` avec `--net=host --pid=host --privileged` |
+| `netdiag/ports_model.go:70` | `KillProcess` (`K`) | `kill -9` dans le même conteneur privilégié |
+
+Soit 197 lignes en tout (`docker/netdiag.go` 63, `docker/ports.go` 134).
+
+#### L'argument principal n'est pas la dépendance, c'est la justesse
+
+`--net=host` sur Docker Desktop est le namespace **de la VM**, pas celui de la
+machine. Le dépôt le dit déjà — c'est la raison écrite en tête de `runDiagHost`,
+et c'est pourquoi §3.33 a rapatrié les cinq autres sondes.
+
+**La même phrase s'applique à `RunSS` et à `KillProcess`, et personne ne l'a
+tirée.** Si elle tient, alors sous Windows et macOS l'onglet Ports liste les
+sockets de la VM Linux et non ceux de la machine, et `K` tue un processus de la
+VM. Ce serait un défaut silencieux et exactement du genre que ce dépôt classe en
+§1.1 — une vue qui répond à côté sans rien dire.
+
+**À vérifier avant tout le reste**, et c'est peu coûteux : ouvrir `:net`,
+onglet Ports, sous Windows, et chercher un port que seul l'hôte écoute (le
+serveur de développement d'un projet, par exemple). S'il n'apparaît pas,
+l'analyse change de nature : ce n'est plus « peut-on se passer de l'image »
+mais « il faut s'en passer ».
+
+#### Ce qui se réécrit, et avec quoi
+
+**`gopsutil/v4` est déjà une dépendance directe, et `gopsutil/v4/net` est déjà
+importé** par `internal/metrics/host.go`. Le remplacement de `ss` ne coûterait
+donc **aucune dépendance nouvelle** et probablement rien sur le binaire.
+
+`net.ConnectionStat` porte `Laddr`, `Raddr`, `Status` et `Pid` — tout ce que
+`PortInfo` a besoin sauf le *nom* du processus, que `gopsutil/v4/process` donne
+depuis le PID. Les implémentations sont :
+
+| Plateforme | Comment | Sous-processus |
+|---|---|---|
+| Windows | `GetExtendedTcpTable` / `GetExtendedUdpTable` (iphlpapi) | non |
+| Linux | `/proc` | non |
+| macOS, FreeBSD | `lsof -i tcp -i udp` | **oui** |
+
+macOS est donc le cas à assumer : `lsof` est livré avec le système, donc ce n'est
+pas une dépendance à installer, mais c'est un exec là où les deux autres
+plateformes font un appel système. À mettre en balance avec ce qu'on retire — un
+conteneur privilégié.
+
+**`KillProcess` est le cas facile, et il devrait partir même si rien d'autre ne
+bouge.** `os.FindProcess` + `Kill()` est une ligne, sans conteneur, sans
+privilège Docker, et — si l'hypothèse du namespace tient — il tue le bon
+processus là où l'actuel tue celui de la VM. C'est un candidat à faire seul, en
+premier, comme l'étape 1 de §3.23.
+
+**Le traceroute est le seul qui résiste.** Il demande d'émettre avec un TTL
+croissant et d'écouter les `ICMP Time Exceeded` en retour, donc un socket ICMP
+brut. `golang.org/x/net/ipv4`/`ipv6` (déjà en dépendance indirecte) exposent ce
+qu'il faut, mais :
+
+- sous **Windows**, un socket ICMP brut demande l'élévation ;
+- sous **Linux**, il demande root ou `CAP_NET_RAW` — les sockets ICMP datagram
+  non privilégiés existent mais dépendent de `ping_group_range` ;
+- `pro-bing`, déjà là, fait le ping et **pas** le traceroute.
+
+Et la règle que DevDesk s'est donnée est écrite dans `netcheck/env.go` :
+« DevDesk must not need root ». Un traceroute en Go la contredit sur au moins
+deux plateformes sur trois.
+
+#### Ce qu'on abandonnerait : le traceroute, et rien d'autre
+
+C'est la réponse à la question posée. Trois options, par ordre de préférence
+provisoire :
+
+1. **Garder l'image pour `H` seul.** L'image reste, mais elle ne sert plus qu'à
+   une touche, et `RunSS`/`KillProcess` cessent d'en dépendre. Le réglage
+   `network.tool_image` survit avec un nom qui redevient exact.
+2. **Abandonner le traceroute.** `H` disparaît, l'image aussi, et
+   `network.tool_image` avec elle. Ce qu'on perd est réel : quand un `net_check`
+   échoue au TCP, la question suivante est « où ça s'arrête », et c'est la seule
+   chose qui y répond. Mais elle y répond déjà **pour la VM et pas pour la
+   machine** sous Docker Desktop, ce que `renderTraceHeader` affiche — donc sur
+   deux plateformes sur trois on abandonnerait une réponse qui n'était pas à la
+   bonne question.
+3. **Traceroute en Go, qui échoue proprement sans privilèges.** Le plus de
+   travail, et il faudrait décider quoi afficher quand ça refuse — ce qui est le
+   même problème que §3.40, un mot qui ne varie jamais.
+
+L'option 1 est probablement la bonne première étape, parce qu'elle ne demande de
+renoncer à rien et qu'elle isole la question restante.
+
+#### Ce que ça retirerait aussi
+
+- `--privileged`, `--pid=host` et les trois montages de `/etc` disparaissent du
+  code ; DevDesk cesse de demander à Docker des droits qu'il n'utilise que pour
+  lire une table.
+- **`ports_list` redeviendrait exposable en MCP** (§3.38 l'a écarté précisément
+  parce que `RunSS` démarre un conteneur privilégié). Sans conteneur, l'argument
+  tombe.
+- L'onglet Ports fonctionnerait **sans Docker installé**, ce qui est aujourd'hui
+  une condition pour voir ses propres ports.
+
+#### À vérifier avant de planifier
+
+1. L'hypothèse du namespace, ci-dessus. Tout en dépend.
+2. Ce que `gopsutil` rend sur les trois plateformes pour un socket en écoute
+   sans processus attribuable — la colonne PID est ce sur quoi `K` agit, et un
+   PID vide ne doit pas donner une ligne qui prétend pouvoir être tuée.
+3. Si le PID exige des privilèges pour les processus d'autres utilisateurs.
+   `ss -p` les obtient parce que le conteneur est privilégié ; un DevDesk non
+   élevé verra probablement moins. C'est un vrai renoncement possible, à mesurer
+   plutôt qu'à deviner.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:
