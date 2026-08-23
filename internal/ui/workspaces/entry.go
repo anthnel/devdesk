@@ -1,11 +1,11 @@
 package workspaces
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/anthnel/devdesk/internal/git"
 )
 
 // isHidden decides what the workspaces view leaves out.
@@ -60,7 +60,16 @@ func detectProjectType(path string) string {
 	return ""
 }
 
-// detectGitStatus populates git-related fields on the entry
+// detectGitStatus populates git-related fields on the entry.
+//
+// The reading itself is git.ReadStatus: this file used to run the four commands
+// with its own execGit while internal/git counted the divergence again for the
+// sync, and the MCP server (§3.38) needed the same answers a third time. What
+// stays here is the part that is a *display* decision — turning `origin` into
+// something a user reads and something a browser opens — because that is what
+// the view owns and the domain package deliberately does not.
+//
+// GitUnpulled is as fresh as the last fetch, and nothing here fetches (D35).
 func detectGitStatus(entry *Entry) {
 	gitDir := filepath.Join(entry.Path, ".git")
 	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
@@ -68,41 +77,20 @@ func detectGitStatus(entry *Entry) {
 	}
 	entry.IsGitRepo = true
 
-	// Get current branch
-	if out, err := execGit(entry.Path, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
-		entry.GitBranch = strings.TrimSpace(out)
+	status, err := git.ReadStatus(entry.Path)
+	if err != nil {
+		return
 	}
 
-	// Get remote URL: store display path and full normalized URL
-	if out, err := execGit(entry.Path, "remote", "get-url", "origin"); err == nil {
-		rawURL := strings.TrimSpace(out)
-		entry.GitRemote = extractRemotePath(rawURL)
-		entry.GitRemoteURL = normalizeRemoteURL(rawURL)
-	}
+	entry.GitBranch = status.Branch
+	entry.GitModified = status.Modified
+	entry.GitUntracked = status.Untracked
+	entry.GitUnpushed = status.Ahead
+	entry.GitUnpulled = status.Behind
 
-	// Get modified/untracked counts from porcelain status
-	if out, err := execGit(entry.Path, "status", "--porcelain"); err == nil {
-		for line := range strings.SplitSeq(out, "\n") {
-			if len(line) < 2 {
-				continue
-			}
-			xy := line[:2]
-			if xy == "??" {
-				entry.GitUntracked++
-			} else {
-				entry.GitModified++
-			}
-		}
-	}
-
-	// Get unpushed commits count
-	if out, err := execGit(entry.Path, "rev-list", "--count", "@{u}..HEAD"); err == nil {
-		_, _ = fmt.Sscanf(strings.TrimSpace(out), "%d", &entry.GitUnpushed)
-	}
-
-	// Get unpulled commits count
-	if out, err := execGit(entry.Path, "rev-list", "--count", "HEAD..@{u}"); err == nil {
-		_, _ = fmt.Sscanf(strings.TrimSpace(out), "%d", &entry.GitUnpulled)
+	if status.Remote != "" {
+		entry.GitRemote = extractRemotePath(status.Remote)
+		entry.GitRemoteURL = normalizeRemoteURL(status.Remote)
 	}
 }
 
@@ -158,17 +146,6 @@ func normalizeRemoteURL(rawURL string) string {
 		return scheme + "://" + strings.TrimSuffix(rest, ".git")
 	}
 	return rawURL
-}
-
-// execGit runs a git command in the given directory and returns stdout
-func execGit(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return string(out), nil
 }
 
 // detectSubRepoPaths walks a directory up to maxDepth and returns paths of git repos found.

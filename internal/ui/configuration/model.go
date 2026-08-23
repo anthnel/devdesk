@@ -104,7 +104,7 @@ func New(cfg *config.Config) Model {
 	m := Model{
 		config:       cfg,
 		context:      context,
-		sections:     sections(themes, command.ViewNames(), configPath, cfg.Forge.Type, forge.VocabularyFor(cfg.Forge.Type)),
+		sections:     sections(themes, command.ViewNames(), configPath, context, cfg.Forge.Type, forge.VocabularyFor(cfg.Forge.Type)),
 		input:        in,
 		themes:       themes,
 		configPath:   configPath,

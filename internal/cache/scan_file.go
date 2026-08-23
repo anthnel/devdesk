@@ -24,44 +24,67 @@ type scanCacheFile[T any] struct {
 }
 
 // readScanCacheFile loads every context's entries, upgrading the file in place
-// when it predates contexts.
-//
-// A legacy file is a bare key → entry map. Unmarshalled into the struct it
-// leaves Version at 0 and Contexts nil — no field matches — which identifies it
-// without having to guess from the data.
+// when it predates contexts. parseScanCacheFile is the same read without the
+// upgrade.
 //
 // The upgrade is written back immediately rather than left until the first Set.
 // Deferring it would let every context that opens the file claim the legacy
 // entries in turn, so what the user saw would depend on which context happened
 // to write first. Writing once, on the first open, makes the owner the context
 // that was current at upgrade time and nothing else.
-//
-// A file that cannot be read is empty, not an error: that is a cache which does
-// not exist yet.
 func readScanCacheFile[T any](path, context string) (map[string]map[string]T, error) {
-	data, err := os.ReadFile(path)
+	contexts, legacy, err := parseScanCacheFile[T](path)
 	if err != nil {
-		return map[string]map[string]T{}, nil
-	}
-
-	var file scanCacheFile[T]
-	if err := json.Unmarshal(data, &file); err == nil && file.Contexts != nil {
-		return file.Contexts, nil
-	}
-
-	var flat map[string]T
-	if err := json.Unmarshal(data, &flat); err != nil {
 		return nil, err
 	}
-	if len(flat) == 0 {
-		return map[string]map[string]T{}, nil
+	if len(legacy) == 0 {
+		return contexts, nil
 	}
 
-	contexts := map[string]map[string]T{context: flat}
+	contexts[context] = legacy
 	if err := writeScanCacheFile(path, contexts); err != nil {
 		return nil, err
 	}
 	return contexts, nil
+}
+
+// parseScanCacheFile reads the file and upgrades nothing.
+//
+// It returns the per-context entries, and *separately* the entries of a legacy
+// pre-context file — which belong to no context yet. Deciding whose they are is
+// a write, and this function does not make it: that is the whole reason it
+// exists beside readScanCacheFile, which does.
+//
+// The read-only MCP server is what needs the distinction (§3.38). A server
+// opened on context X would otherwise claim for X entries nobody attributed to
+// it — a read path that writes, and decides. It serves them and leaves the
+// decision to the TUI, where somebody is present to see it.
+//
+// A legacy file is a bare key → entry map. Unmarshalled into the struct it
+// leaves Version at 0 and Contexts nil — no field matches — which identifies it
+// without having to guess from the data.
+//
+// A file that cannot be read is empty, not an error: that is a cache which does
+// not exist yet.
+func parseScanCacheFile[T any](path string) (contexts map[string]map[string]T, legacy map[string]T, err error) {
+	data, readErr := os.ReadFile(path)
+	if readErr != nil {
+		return map[string]map[string]T{}, nil, nil
+	}
+
+	var file scanCacheFile[T]
+	if err := json.Unmarshal(data, &file); err == nil && file.Contexts != nil {
+		return file.Contexts, nil, nil
+	}
+
+	var flat map[string]T
+	if err := json.Unmarshal(data, &flat); err != nil {
+		return nil, nil, err
+	}
+	if len(flat) == 0 {
+		return map[string]map[string]T{}, nil, nil
+	}
+	return map[string]map[string]T{}, flat, nil
 }
 
 // writeScanCacheFile persists every context, not just the one that changed —
