@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "6ffa51b449ff",
+  "strategy": "manual-commit",
+  "branch": "mcp-server",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/git/status.go",
+    "internal/git/status_test.go",
+    "internal/mcp/context_tools.go",
+    "internal/mcp/context_tools_test.go",
+    "internal/mcp/tools.go",
+    "internal/mcp/workspace_tools.go",
+    "internal/mcp/workspace_tools_test.go",
+    "internal/ui/workspaces/entry.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6f/fa51b449ff/0/metadata.json",
+      "transcript": "/6f/fa51b449ff/0/full.jsonl",
+      "compact_transcript": "/6f/fa51b449ff/0/transcript.jsonl",
+      "content_hash": "/6f/fa51b449ff/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 74,
+    "cache_creation_tokens": 60095,
+    "cache_read_tokens": 13121008,
+    "output_tokens": 35152,
+    "api_call_count": 37
+  }
+}
