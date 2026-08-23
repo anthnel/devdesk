@@ -1,0 +1,5 @@
+explique moi le D39 et comment le 3.18 le ferme
+
+---
+
+démarre l'implémentation
