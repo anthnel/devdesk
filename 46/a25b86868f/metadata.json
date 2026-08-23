@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "46a25b86868f",
+  "strategy": "manual-commit",
+  "branch": "mcp-server",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/mcp/docker_tools.go",
+    "internal/mcp/docker_tools_test.go",
+    "internal/mcp/tools.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/46/a25b86868f/0/metadata.json",
+      "transcript": "/46/a25b86868f/0/full.jsonl",
+      "compact_transcript": "/46/a25b86868f/0/transcript.jsonl",
+      "content_hash": "/46/a25b86868f/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 24610,
+    "cache_read_tokens": 6797283,
+    "output_tokens": 15415,
+    "api_call_count": 16
+  }
+}
