@@ -1,0 +1,141 @@
+# §3.38 — Un serveur MCP en lecture seule
+
+Plan d'implémentation. Les décisions déjà arrêtées sont dans `docs/backlog.md`
+§3.38 ; ce fichier ne les répète pas, il tranche ce qui restait ouvert et
+découpe le travail.
+
+## Les trois questions ouvertes, tranchées
+
+### 1. Transport — **stdio seul, comme prévu**
+
+Décidé par l'utilisateur le 2026-08-23. Pas de HTTP en v1, donc pas de token,
+pas de bind, pas d'agent en conteneur. Le transport reste derrière l'interface
+du SDK pour que ça reste un flag plus tard.
+
+### 2. Resources et prompts MCP — **outils seuls en v1**
+
+Un résultat de scan *est* adressable et immuable, l'argument tenait. Mais une
+*resource* se lit par URI après énumération : elle ne se filtre pas et ne se
+pagine pas, et c'est précisément ce dont `scan_result` a besoin — un scan
+d'image produit des milliers de findings. Exposer les deux ferait deux chemins
+vers la même donnée, dont un inutilisable sur les gros scans.
+
+Un *prompt* qui embarquerait la doctrine du dépôt — UNKNOWN n'est pas pire que
+CRITICAL, un `Sensitive` nil veut dire que personne n'a regardé — est
+séduisant, et c'est de la documentation dans un emballage protocolaire. Ce
+serait la seule partie du serveur à pouvoir devenir fausse sans que rien
+n'échoue.
+
+### 3. SDK — **`github.com/modelcontextprotocol/go-sdk` v1.7.0**
+
+Mesuré le 2026-08-23 : **+2,31 Mo** pour le SDK seul (24,98 → 27,29 Mo), et non
+les +6,34 Mo qu'un serveur isolé coûte — DevDesk lie déjà `oauth2`, `x/sync`,
+`x/time`, `net/http` et `encoding/json`, que le SDK réclame. Go 1.25.0 minimum,
+le dépôt est sur 1.25.5.
+
+Retenu pour la garantie de compatibilité v1 : c'est le seul des deux à en
+porter une, et la table des révisions de spec est déclarée par le SDK plutôt
+que suivie à la main.
+
+## Deux corrections à l'énoncé
+
+### `redact_secret_matches` disparaît
+
+L'entrée le déclarait comme réglage à `true` par défaut, et classait par
+ailleurs le `Match` d'un finding de secret en **non retenu** — « la chaîne :
+jamais ». Les deux ne tiennent pas ensemble : un réglage dont l'autre valeur est
+refusée est un paramètre qu'il faut ignorer, ce que §3.39 vient de retirer
+ailleurs pour cette raison exacte.
+
+Il y a pire. `false` est la valeur zéro d'un `bool`, donc **tout fichier écrit
+avant l'arrivée de la clé décoderait à « ne pas caviarder »** — la forme exacte
+de D12, où `auth_enabled` absent envoyait des identifiants.
+
+Donc : pas de champ, pas de réglage. Le schéma des outils n'a aucun endroit où
+porter la chaîne, ce qui est la garantie que `context_get` obtient déjà par
+construction (§3.9).
+
+```yaml
+mcp:
+  enabled: false
+  expose: []
+```
+
+### Rien n'écrit sur stdout sauf le protocole
+
+Contrainte que l'énoncé ne nomme pas et qui casse tout si elle tombe : en stdio,
+**stdout est le canal**. Un `fmt.Println` sur un chemin atteint par `dk mcp`
+corrompt la trame, et le client rapporte une erreur de parsing JSON qui ne
+désigne rien.
+
+`main()` en fait aujourd'hui quatre — chargement de config, répertoire, fichier
+de log, erreur fatale. Le chemin `dk mcp` doit donc écrire ses diagnostics sur
+**stderr** et rien d'autre, refus inclus. Un test de source, à la manière de
+`TestNoViewStylesItsOwnFooterMessage`, refuse `fmt.Print*` et `os.Stdout` dans
+`internal/mcp`.
+
+## Découpage
+
+Chaque étape est un commit et une PR.
+
+| # | Contenu | Sort |
+|---|---|---|
+| 1 | La sous-commande, le réglage, le squelette du serveur, la table d'outils déclarés + son test de contrat, et `context_list` pour prouver le câblage | **faite** |
+| 2 | `scan_inventory`, `scan_result` — et la lecture qui **ne met pas à niveau** le cache | |
+| 3 | `context_get`, `workspaces_list` | |
+| 4 | `registries_list`, `registry_tags` — cache seul, jamais le réseau | |
+| 5 | `containers_list`, `images_list`, `ports_list` | |
+| 6 | `net_check` | |
+| 7 | Le sixième onglet de la vue configuration, `.claude/CLAUDE.md`, `docs/backlog.md` | |
+
+### Étape 1 en détail
+
+- `main.go` lit `os.Args` avant tout le reste. Aucun framework CLI : une
+  sous-commande, deux flags.
+- `dk mcp [--context <name>]` — sans le flag, le contexte courant, résolu une
+  fois au démarrage. Le process en sert un seul, pour la vie du process.
+- `mcp.enabled: false` → refus sur **stderr** nommant le réglage *et* le
+  contexte, sortie non nulle. Nommer le contexte est ce qui évite l'heure perdue
+  à activer le réglage dans le mauvais.
+- `internal/mcp` : `Serve(ctx, cfg, contextName) error`, une table
+  `[]toolDef{Name, Description, Handler}` et `expose` appliqué comme
+  **allow-list** au moment de l'enregistrement — un outil non listé n'existe
+  pas, plutôt qu'il refuse.
+- `TestEveryDeclaredToolHasAHandler` et sa réciproque, dans l'esprit de
+  `keymap` et de `AllViewNames()`.
+
+### L'exception de l'étape 2
+
+`readScanCacheFile` met à niveau en place un cache antérieur aux contextes dès
+la première ouverture, et attribue les entrées héritées au contexte courant. Un
+serveur ouvert sur X réclamerait donc pour X des entrées que personne ne lui a
+données — un chemin de lecture qui écrit, et qui décide.
+
+Le cache d'images n'a plus le problème depuis §3.39 : il replie, il n'attribue
+pas. C'est **`WorkspaceScanCache` seul** qui a besoin d'une ouverture en lecture
+pure. Un test vérifie qu'un fichier hérité est servi tel quel et que son mtime
+n'a pas bougé.
+
+## Journal
+
+### Étape 1 — faite le 2026-08-23
+
+Coût réel, étape 1 comprise : **+2,76 Mo** (24,98 → 27,74 Mo).
+
+Trois choses se sont décidées en écrivant :
+
+- **`io.EOF` n'est pas un échec.** Un serveur stdio se termine quand le client
+  ferme le tube ; le rapporter avec un code de sortie non nul donne à certains
+  clients de quoi afficher un plantage pour un serveur qui a marché. Le
+  sentinelle est comparée plutôt que le message, parce que l'`ErrServerClosing`
+  du SDK vit dans un paquet `internal` et n'est pas atteignable.
+- **Un nom inconnu dans `expose` est refusé.** Une coquille dans une allow-list
+  expose *moins* que demandé et rien n'échoue — tout marche, en silence, avec un
+  outil en moins. C'est la panne que personne ne remarque.
+- **La table d'outils porte une closure, pas un handler.** `sdk.AddTool` est
+  générique sur les types d'entrée et de sortie, donc une table homogène ne peut
+  pas tenir des handlers qui diffèrent des deux côtés. Le test de contrat fait
+  donc un aller-retour client/serveur en mémoire plutôt que de lire la table :
+  c'est la seule façon de voir une closure qui enregistre sous un autre nom, ou
+  deux fois, ou pas du tout. Ce harnais (`connect`, `callTool`) sert les six
+  étapes suivantes.

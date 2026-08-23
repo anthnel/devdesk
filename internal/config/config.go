@@ -18,6 +18,7 @@ type Config struct {
 	Registry RegistryConfig `yaml:"registry"`
 	Scan     ScanConfig     `yaml:"scan"`
 	Network  NetworkConfig  `yaml:"network"`
+	MCP      MCPConfig      `yaml:"mcp"`
 
 	// Docker is what `network:` replaced. Read once at load, migrated into
 	// Network and cleared, so the key disappears from the file on the next save.
@@ -31,6 +32,33 @@ type Config struct {
 	//
 	// Deprecated: use Forge.
 	GitLab GitLabConfig `yaml:"gitlab,omitempty"`
+}
+
+// MCPConfig governs the read-only MCP server, `dk mcp` (§3.38).
+//
+// Enabled is false by default and that is the whole safety story: turning it on
+// is the moment the user decides an agent may read this context. Nothing
+// migrates it, and nothing turns it on as a side effect.
+//
+// There is no setting for the `Match` of a secret finding, and its absence is
+// the guarantee. The entry proposed `redact_secret_matches: true` while also
+// classing the string itself as never exposed — a setting whose other value is
+// refused is a parameter that has to be ignored (§3.39). Worse, `false` is a
+// bool's zero value, so every file written before the key existed would decode
+// to "do not redact": the exact shape of D12. The tool schemas simply have
+// nowhere to carry the string, which is the guarantee `context_get` already
+// gets by construction (§3.9).
+type MCPConfig struct {
+	// Enabled decides whether `dk mcp` will serve at all. It refuses on stderr
+	// naming this setting and the context, because activating it in the wrong
+	// context is otherwise an hour of silence.
+	Enabled bool `yaml:"enabled"`
+
+	// Expose is an **allow-list** of tool names; empty means every declared
+	// tool. It is not a deny-list, for the reason §3.38 gives in the other
+	// direction: a tool never registered cannot fail to be excluded, whereas a
+	// deny-list is one forgotten line away from exposing what arrives next.
+	Expose []string `yaml:"expose,omitempty"`
 }
 
 // NetworkConfig holds what the netdiag view runs on.
