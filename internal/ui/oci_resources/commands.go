@@ -42,7 +42,7 @@ func fetchImages() tea.Cmd {
 // loadScanCache loads the image scan cache from disk
 func loadScanCache() tea.Cmd {
 	return func() tea.Msg {
-		c, err := cache.NewImageScanCache(config.CurrentContextName())
+		c, err := cache.NewImageScanCache()
 		if err != nil {
 			return ScanCacheLoadedMsg{Entries: nil}
 		}
@@ -53,7 +53,7 @@ func loadScanCache() tea.Cmd {
 // deleteScanCacheCmd removes the given image keys from the disk cache (Rule 126: scan all purges cache)
 func deleteScanCacheCmd(keys []string) tea.Cmd {
 	return func() tea.Msg {
-		c, err := cache.NewImageScanCache(config.CurrentContextName())
+		c, err := cache.NewImageScanCache()
 		if err != nil {
 			return nil
 		}
@@ -125,7 +125,7 @@ func scanOneImageCmd(job imageScanJob, opts scan.ScanOptions, sem chan struct{})
 				Sensitive: result.SecretVerdict(),
 				ScannedAt: result.EndTime,
 			}
-			scanCache, cErr := cache.NewImageScanCache(config.CurrentContextName())
+			scanCache, cErr := cache.NewImageScanCache()
 			if cErr != nil {
 				log.Printf("ERROR: Failed to open scan cache: %v", cErr)
 			} else if sErr := scanCache.Set(job.Name, entry); sErr != nil {

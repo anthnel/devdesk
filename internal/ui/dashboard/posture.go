@@ -62,7 +62,7 @@ func (p posture) Total() postureSide {
 // readPosture sums both caches for one context. Un cache illisible n'est pas
 // une posture vide : il rend Read=false, donc `-` et non `0`.
 func readPosture(context string) posture {
-	images, errImages := cache.NewImageScanCache(context)
+	images, errImages := cache.NewImageScanCache()
 	workspaces, errWorkspaces := cache.NewWorkspaceScanCache(context)
 	if errImages != nil || errWorkspaces != nil {
 		log.Printf("ERROR [dashboard] reading the scan caches: %v / %v", errImages, errWorkspaces)

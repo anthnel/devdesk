@@ -1461,8 +1461,10 @@ the Trivy and Gitleaks versions answered "can I scan?" (the dashboard's
 question, from `shared.State.Tools`), `Filter` read `ALL` permanently and meant
 nothing on the Secrets tab or in the details, and `Secrets`/`Licenses`
 duplicated the tab bar a line below. The context replaced them and was the one
-thing missing: the scan caches are scoped to a context, so identical-looking
-rows mean different things in two of them.
+thing missing: the workspace scan cache is scoped to a context, so
+identical-looking repository rows mean different things in two of them. Image
+rows are shared (§3.39) and the header still names the context, because the row
+that *is* scoped sits in the same table.
 
 | State | Info |
 |---|---|
@@ -1586,23 +1588,49 @@ verdict written by `scan.Result.SecretVerdict()` (see Security Scanning). `nil`
 is a value: it means no stage looked, and it is what every image entry written
 before there was an image secret stage decodes to.
 
-**Both are scoped to a configuration context**, because the configuration is:
-`workspaces_dir` and the registry list are per context, so two contexts
-legitimately hold different roots and different images. A cache is bound to one
-context at construction — `NewImageScanCache(config.CurrentContextName())` —
-and `Get`, `Set`, `GetAll` and `Delete` only ever see that context's entries.
+**One is scoped to a configuration context and the other is not, and the
+asymmetry is the point** (§3.39). What decides it is whether the *key* is
+per context:
 
-`internal/cache/scan_file.go` owns the on-disk shape both share
-(`{version, contexts: {name: {key: entry}}}`) and the upgrade from the flat
-`{key: entry}` file that predates contexts. The legacy file is recognised by
-`Contexts == nil` after a successful unmarshal, and the upgrade is **written
-back on the first open** rather than deferred to the next `Set`: deferring
-would let every context that opened the file claim the legacy entries in turn,
-so ownership would depend on which context happened to write first.
+| Cache | Key | Scoped |
+|---|---|---|
+| `WorkspaceScanCache` | absolute repo path, reached through `workspaces_dir` | **yes** — `workspaces_dir` is per context, so the same path may be different work |
+| `ImageScanCache` | a local Docker reference | **no** — `docker image ls` answers for the machine, not for a configuration |
 
-The result blobs under `image-results/` and `workspace-results/` are unchanged
-— they are content-addressed by SHA256 of the target, and only the metadata
-index is keyed by context.
+Scoping the image cache was the mistake. Two contexts looking at `nginx:1.25`
+are looking at the same bytes, so a context switch dropped counts for images
+that had not moved — and the full results beside the index were **never** scoped
+at all: they are content-addressed by image name, with no context anywhere. The
+index and the blobs disagreed, and the index was the one that was wrong.
+
+So `NewImageScanCache()` takes no context — a parameter that has to be ignored
+is worse than none — while `NewWorkspaceScanCache(config.CurrentContextName())`
+keeps its own.
+
+`internal/cache/scan_file.go` owns the scoped shape
+(`{version, contexts: {name: {key: entry}}}`): the workspace cache writes it, and
+the image cache still *reads* it in order to fold it back.
+`image_scan.go` owns the flat one (`{version: 2, entries: {key: entry}}`) and
+understands all three shapes it has had — v2 as it stands, v1 folded into one
+map, and the bare `{key: entry}` map that predates contexts, which is already
+this shape and needs only a version stamped on it.
+
+**A collision in the fold is settled, not reported**: two contexts holding the
+same image is the ordinary case — it is one image, and both saw it — so the more
+recent `ScannedAt` wins. The image did not change between them; the vulnerability
+database did.
+
+The fold is **written back on the first open** rather than deferred to the next
+`Set`, for the reason the context migration was: a file left in the old shape is
+folded again on every open, so what it holds would depend on when it was last
+read.
+
+**A shared entry may have been produced under another context's scan options.**
+`enable_vuln`, `ignore_unfixed` and the rest are per context, so counts written
+elsewhere can differ from what this context would produce. That is the accepted
+cost: the `Scanned` column carries the age, and `S` rescans. The secret verdict
+is unaffected — `Sensitive` is `nil` when no stage looked, which is what a scan
+run with secrets off writes anyway.
 
 Cache invalidation: `S` (single) overwrites; `A` (all) rescans, and purges the cache first when its checkbox is ticked.
 

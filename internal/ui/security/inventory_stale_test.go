@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/cache"
-	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 )
 
@@ -93,7 +92,7 @@ func TestAPathThatCannotBeReadIsKept(t *testing.T) {
 // cache entry, and the inventory listed it forever.
 func TestAnImageDeletedSinceItsScanLeavesTheInventory(t *testing.T) {
 	const deleted = "vsc-discours-f6f52be-uid:latest"
-	images, err := cache.NewImageScanCache(config.CurrentContextName())
+	images, err := cache.NewImageScanCache()
 	if err != nil {
 		t.Fatalf("open image cache: %v", err)
 	}
@@ -123,7 +122,7 @@ func TestAnImageDeletedSinceItsScanLeavesTheInventory(t *testing.T) {
 // not ask" is not "it is gone".
 func TestAStoppedDaemonHidesNothing(t *testing.T) {
 	const scanned = "registry.test/still-there:1"
-	images, err := cache.NewImageScanCache(config.CurrentContextName())
+	images, err := cache.NewImageScanCache()
 	if err != nil {
 		t.Fatalf("open image cache: %v", err)
 	}

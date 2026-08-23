@@ -15,14 +15,15 @@ import (
 func secretsFound() *bool { v := true; return &v }
 func secretsClean() *bool { v := false; return &v }
 
-// testContext is the context these caches are opened under. Scoping is covered
-// in scan_context_test.go; every test here is about one context's behaviour.
+// testContext is the context the *workspace* cache is opened under here — the
+// image cache has none (§3.39). Scoping is covered in scan_context_test.go;
+// every test in this file is about one cache's behaviour.
 const testContext = "default"
 
 // newTestImageCache creates an ImageScanCache backed by a temp dir.
 func newTestImageCache(t *testing.T) *ImageScanCache {
 	t.Helper()
-	return openImageCache(t, filepath.Join(t.TempDir(), "image-scans.json"), testContext)
+	return openImageCache(t, filepath.Join(t.TempDir(), "image-scans.json"))
 }
 
 // newTestWorkspaceCache creates a WorkspaceScanCache backed by a temp dir.
@@ -135,7 +136,7 @@ func TestImageCache_Persist(t *testing.T) {
 	}
 
 	// Create a new cache pointing at the same file
-	c2 := openImageCache(t, c.path, testContext)
+	c2 := openImageCache(t, c.path)
 
 	got := c2.Get("persist:test")
 	if got == nil || got.High != 7 {
@@ -150,7 +151,7 @@ func TestImageCache_Reload(t *testing.T) {
 	}
 
 	// Simulate external modification: write directly to the file
-	c2 := openImageCache(t, c.path, testContext)
+	c2 := openImageCache(t, c.path)
 	if err := c2.Set("after:reload", ImageScanEntry{Medium: 11}); err != nil {
 		t.Fatalf("Set() setup error: %v", err)
 	}

@@ -4456,8 +4456,9 @@ results state sat at exactly seven, so an eighth field would have vanished. The
 tool versions answered the dashboard's question, `Filter` read `ALL`
 permanently, and `Secrets`/`Licenses` duplicated the tab bar one line below. The
 context was the one thing missing, and it is the view where it matters most: the
-scan caches are scoped to a context, so identical rows mean different things in
-two of them. `parseVersion`, `looksLikeVersion` and `renderSeverityBar` went
+workspace scan cache is scoped to a context, so identical repository rows mean
+different things in two of them (§3.39 later un-scoped the image half, which
+never was). `parseVersion`, `looksLikeVersion` and `renderSeverityBar` went
 with their only caller.
 
 ### 3.11 `security` becomes an inventory — **phase 2 done**
@@ -7125,6 +7126,87 @@ réciproquement — l'esprit de `internal/ui/keymap` et de `AllViewNames()`.
    UNKNOWN n'est pas pire que CRITICAL, un `Sensitive` nil veut dire que
    personne n'a regardé. À trancher au plan.
 3. **Le SDK Go**, à choisir et à vérifier au moment d'écrire — le terrain bouge.
+
+### 3.39 Le cache de scan d'images cesse d'être scopé au contexte — **done**
+
+Fait le 2026-08-23. Signalé par l'utilisateur : changer de contexte fait
+disparaître les compteurs de CVE des images, alors que les images, elles, n'ont
+pas bougé.
+
+#### Ce qui décide, c'est la clé — pas la configuration
+
+La phase 0b de [`configuration-view-plan.md`](../.claude/plans/configuration-view-plan.md)
+avait scopé les **deux** caches de scan au contexte, avec un seul argument pour
+les deux : « la configuration est par contexte ». C'est vrai du cache des
+workspaces et faux de celui des images, et la différence tient à ce sur quoi
+chacun est indexé :
+
+| Cache | Clé | Scopé |
+|---|---|---|
+| `WorkspaceScanCache` | chemin absolu, atteint via `workspaces_dir` | **oui** — `workspaces_dir` est par contexte, donc un même chemin peut désigner un travail différent |
+| `ImageScanCache` | une référence Docker locale | **non** — `docker image ls` répond pour la machine, pas pour une configuration |
+
+Deux contextes qui regardent `nginx:1.25` regardent les mêmes octets. Les scoper
+faisait donc perdre, à chaque bascule, des compteurs pour des images qui
+n'avaient pas changé.
+
+**Et l'incohérence était déjà dans le code.** Les résultats complets n'ont
+*jamais* été scopés : `SaveImageScanResult` / `LoadImageScanResult` adressent par
+SHA256 du nom de l'image, sans contexte nulle part. L'index et les blobs à côté
+de lui se contredisaient, et c'est l'index qui avait tort — le disque gardait des
+findings que la vue déclarait absents.
+
+#### Ce qui change
+
+`NewImageScanCache()` ne prend plus de contexte : un paramètre qu'il faut ignorer
+est pire que pas de paramètre, et le compilateur a trouvé les neuf appels.
+
+Le fichier revient à une carte plate, versionnée : `{version: 2, entries: {…}}`.
+`readImageScanCacheFile` connaît les trois formes qu'il a eues —
+
+- **v2**, telle quelle ;
+- **v1**, une carte par contexte, repliée en une seule ;
+- **v0**, la carte nue d'avant les contextes, qui *est* déjà cette forme et n'a
+  qu'une version à recevoir.
+
+**Une collision dans le repli se tranche, elle ne se signale pas.** Deux
+contextes ayant scanné la même image est le cas ordinaire — c'est une image, et
+tous les deux l'ont vue — donc le `ScannedAt` le plus récent gagne : l'image n'a
+pas changé entre les deux, la base de vulnérabilités si.
+
+Le repli est **écrit au premier open**, pas différé au premier `Set`, pour la
+raison qui valait déjà pour la migration vers les contextes : un fichier laissé
+dans l'ancienne forme serait replié à chaque ouverture, donc ce qu'il contient
+dépendrait de quand il a été lu pour la dernière fois.
+
+`internal/cache/scan_file.go` garde la forme scopée, qui reste celle du cache des
+workspaces — et que le cache d'images lit encore, uniquement pour la replier.
+
+#### Le coût, énoncé plutôt que découvert
+
+**Les options de scan sont par contexte** (`enable_vuln`, `ignore_unfixed`,
+`enable_secret`…), donc une entrée partagée a pu être produite sous celles d'un
+autre contexte. C'est le prix accepté : la colonne `Scanned` porte l'âge, et `S`
+rescanne. Le verdict de secrets n'est pas touché — `Sensitive` vaut `nil` quand
+aucune étape n'a cherché, ce qu'écrit de toute façon un scan lancé secrets
+éteints.
+
+L'inventaire de `:sec` montre l'asymétrie à l'écran : un dépôt scanné sous un
+autre contexte reste caché, une image non. C'est l'inverse de ce que
+`TestTheInventoryListsOnlyTheCurrentContext` affirmait, et ce test a été retourné
+plutôt que supprimé.
+
+#### Les tests
+
+Écrits d'abord, et rouges sur le code d'avant :
+`TestImageEntriesAreSharedBetweenContexts`,
+`TestAScopedImageCacheIsFoldedBackIntoOne`,
+`TestTheNewerScanWinsWhenTwoContextsHoldTheSameImage`,
+`TestTheFoldIsWrittenBackOnTheFirstOpen`,
+`TestAFlatImageCacheIsReadAsItStands`, `TestSuccessiveWritesAccumulate`,
+`TestDeleteRemovesTheEntry`, et
+`TestTheInventoryHidesAnotherContextsRepositoriesButNotItsImages` pour les deux
+moitiés de l'asymétrie.
 
 ## 4. Existing plans
 

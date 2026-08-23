@@ -80,7 +80,7 @@ func TestTheInventoryReadsBothCaches(t *testing.T) {
 	pulled(t, "registry.test/both:1")
 	repoPath := existingRepo(t, "both-repo")
 
-	images, err := cache.NewImageScanCache(contextName)
+	images, err := cache.NewImageScanCache()
 	if err != nil {
 		t.Fatalf("open image cache: %v", err)
 	}
@@ -114,25 +114,46 @@ func TestTheInventoryReadsBothCaches(t *testing.T) {
 	}
 }
 
-// §0b: the caches are scoped to a configuration context, and the inventory is
-// the view that would put another context's findings on screen. It reads the
-// current context and only that one.
-func TestTheInventoryListsOnlyTheCurrentContext(t *testing.T) {
-	other, err := cache.NewImageScanCache("some-other-context")
+// §3.39 — the inventory is the view where the asymmetry shows, and it is the
+// inverse of what this test used to assert for images.
+//
+// A **repository** scanned under another context stays hidden: a path is reached
+// through `workspaces_dir`, which is per context, so the same path may be
+// different work. An **image** does not: the daemon lists it whichever context
+// is current, so hiding its counts threw away a scan somebody had paid for and
+// made a context switch look like it had deleted something.
+func TestTheInventoryHidesAnotherContextsRepositoriesButNotItsImages(t *testing.T) {
+	elsewhereRepo := existingRepo(t, "elsewhere-repo")
+	repos, err := cache.NewWorkspaceScanCache("some-other-context")
 	if err != nil {
-		t.Fatalf("open the other context's cache: %v", err)
+		t.Fatalf("open the other context's workspace cache: %v", err)
 	}
-	if err := other.Set("elsewhere/api:9", cache.ImageScanEntry{Critical: 1}); err != nil {
-		t.Fatalf("cache under another context: %v", err)
+	if err := repos.Set(elsewhereRepo, cache.WorkspaceScanEntry{RepoPath: elsewhereRepo, Critical: 1}); err != nil {
+		t.Fatalf("cache a workspace scan under another context: %v", err)
 	}
-	t.Cleanup(func() { _ = other.Delete("elsewhere/api:9") })
-	// The image is pulled, so its absence can only come from the context scope.
+	t.Cleanup(func() { _ = repos.Delete(elsewhereRepo) })
+
+	images, err := cache.NewImageScanCache()
+	if err != nil {
+		t.Fatalf("open the image cache: %v", err)
+	}
+	if err := images.Set("elsewhere/api:9", cache.ImageScanEntry{Critical: 1}); err != nil {
+		t.Fatalf("cache an image scan: %v", err)
+	}
+	t.Cleanup(func() { _ = images.Delete("elsewhere/api:9") })
+	// The image is pulled, so its presence or absence is the cache's doing only.
 	pulled(t, "elsewhere/api:9")
 
-	for _, target := range loadedTargets(t) {
-		if target.Name == "elsewhere/api:9" {
-			t.Fatalf("the inventory listed %q, scanned under another context", target.Name)
+	targets := loadedTargets(t)
+
+	for _, target := range targets {
+		if target.Name == elsewhereRepo {
+			t.Errorf("the inventory listed %q, scanned under another context", target.Name)
 		}
+	}
+	image := findTarget(t, targets, "elsewhere/api:9")
+	if !image.Scanned || image.Counts.Critical != 1 {
+		t.Errorf("the image row = %+v, want the counts it was scanned with", image)
 	}
 }
 

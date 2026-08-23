@@ -6,7 +6,7 @@ deferred until after phase 3 has landed too -- `docs/backlog.md` §3.14.
 | Phase | State |
 |---|---|
 | 0 — `IgnoreEOL` (D26) | shipped |
-| 0b — per-context scan caches | shipped |
+| 0b — per-context scan caches | shipped; the image half was un-scoped again by §3.39 |
 | 0c — tool source and paths (D27) | shipped |
 | 1 — configuration view | shipped |
 | 2 — the inventory | shipped, alongside the form |
