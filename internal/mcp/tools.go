@@ -52,6 +52,16 @@ func tools() []toolDef {
 			register:    registerRegistriesList,
 		},
 		{
+			Name:        "containers_list",
+			Description: "List the Docker containers on this machine, with their state and their published ports already parsed — the scope of each publication says whether it is reachable from the network or from this machine only. It carries no CPU or memory figures, which need a second call that blocks.",
+			register:    registerContainersList,
+		},
+		{
+			Name:        "images_list",
+			Description: "List the Docker images on this machine, with their size, how many containers use each, and whether DevDesk has ever scanned it. The findings themselves come from scan_result.",
+			register:    registerImagesList,
+		},
+		{
 			Name:        "scan_inventory",
 			Description: "List every image and repository this DevDesk context has scanned, with its severity counts, its secret verdict and how long ago the scan ran. Targets whose image or directory no longer exists are left out.",
 			register:    registerScanInventory,

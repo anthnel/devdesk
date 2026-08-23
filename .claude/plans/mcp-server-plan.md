@@ -84,7 +84,7 @@ Chaque étape est un commit et une PR.
 | 2 | `scan_inventory`, `scan_result` — et la lecture qui **ne met pas à niveau** le cache | **faite** |
 | 3 | `context_get`, `workspaces_list` | **faite** |
 | 4 | `registries_list` — cache seul, jamais le réseau. **`registry_tags` abandonné**, voir le journal | **faite** |
-| 5 | `containers_list`, `images_list`, `ports_list` | |
+| 5 | `containers_list`, `images_list`. **`ports_list` abandonné**, voir le journal | **faite** |
 | 6 | `net_check` | |
 | 7 | Le sixième onglet de la vue configuration, `.claude/CLAUDE.md`, `docs/backlog.md` | |
 
@@ -260,3 +260,45 @@ discipline que `Sensitive *bool`.
 Un groupe que personne n'a sondé n'est **pas sondé ici** : une découverte est un
 appel réseau *et* une écriture (elle met son résultat en cache), et ce serveur
 ne fait ni l'un ni l'autre.
+
+### Étape 5 — faite le 2026-08-23
+
+Binaire : **27,93 Mo**.
+
+#### `ports_list` est abandonné — décision de l'utilisateur, 2026-08-23
+
+Les sockets en écoute de l'hôte se lisent par `docker.RunSS`, c'est-à-dire
+`docker run --rm --net=host --pid=host --privileged` — **le même appel que
+`KillProcess`**, à la commande passée près. Rien de persistant ne change sur
+l'hôte, donc ce n'est pas une écriture au sens de §3.9 ; mais la promesse de ce
+serveur est qu'il n'agit pas sur la machine, et démarrer un conteneur privilégié
+est agir sur elle. Une image absente en local serait téléchargée — un appel
+réseau et une écriture disque de la part d'un serveur qui ne promettait ni l'un
+ni l'autre — et un agent peut appeler un outil en boucle.
+
+Les sockets restent lisibles dans `:net`, où quelqu'un est présent.
+
+#### Ce que les deux outils livrés valent
+
+Leur valeur n'est pas la donnée — un agent sait lancer `docker ps` — mais la
+**forme** : les ports arrivent parsés, avec la portée en mot plutôt que
+l'adresse. `0.0.0.0` et `127.0.0.1` portent un bit chacun, joignable depuis le
+réseau ou depuis cette machine, et c'est le bit qui compte, noyé dans le reste
+des caractères. L'adresse n'est gardée que pour la seule portée où elle n'est pas
+une constante.
+
+`images_list` porte un **booléen `scanned` et aucun compteur**. Les compteurs
+appartiennent à `scan_inventory` et `scan_result` ; le booléen répond à ce
+qu'aucun des deux ne peut dire — quelles images n'ont jamais été regardées.
+
+Pas de métriques CPU/mémoire : elles viennent de `docker stats`, un second appel
+qui bloque une seconde ou plus, et un agent qui demande ce qui tourne n'en a pas
+besoin. Un outil qui les paierait toujours rendrait la question courante la plus
+lente.
+
+#### Un test instable, sans rapport
+
+`TestGitCredentialPreservesURLScheme` (`internal/credentials`) a échoué une fois
+sur la suite complète — « git credential fill timed out » — et repasse seul comme
+en paquet. Il interroge le credential helper de l'hôte derrière un délai ; sous
+une suite complète, la machine chargée le dépasse. Antérieur à cette branche.
