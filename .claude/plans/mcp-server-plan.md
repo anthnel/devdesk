@@ -86,7 +86,7 @@ Chaque étape est un commit et une PR.
 | 4 | `registries_list` — cache seul, jamais le réseau. **`registry_tags` abandonné**, voir le journal | **faite** |
 | 5 | `containers_list`, `images_list`. **`ports_list` abandonné**, voir le journal | **faite** |
 | 6 | `net_check` | **faite** |
-| 7 | Le sixième onglet de la vue configuration, `.claude/CLAUDE.md`, `docs/backlog.md` | |
+| 7 | Le sixième onglet de la vue configuration, `.claude/CLAUDE.md`, `docs/backlog.md` | **faite** |
 
 ### Étape 1 en détail
 
@@ -341,3 +341,24 @@ Windows — et le verdict global est donc `UNKNOWN`, parce que `severity()` clas
 Unknown au-dessus de Warn (« ne pas avoir regardé est pire qu'avoir regardé et
 trouvé un défaut »). C'est la règle du TUI, partagée volontairement ; la corriger
 ici donnerait deux réponses à une question.
+
+### Étape 7 — faite le 2026-08-23
+
+**Un onglet pour une case à cocher, et c'est le bon découpage.** Chaque autre
+onglet est nommé d'après la section qu'il écrit ; mettre le seul scalaire de
+`mcp:` sous `app` en ferait le seul réglage de la vue dont l'onglet ne dit pas
+où il atterrit — l'argument exact de §3.34 pour renommer `docker:`. `expose` est
+une liste, donc elle reste au fichier, là où les monitors et les registries
+restent aussi.
+
+L'onglet porte une **seconde ligne, statique** : `dk mcp --context <nom>`. Un
+réglage dont l'effet demande une commande dont personne n'a parlé se lit comme
+cassé. Elle a coûté un paramètre à `sections()` — le nom du contexte, que la
+config ne porte pas, pour la même raison que `configPath`.
+
+`docs/backlog.md` gagne **§3.40**, pour le verdict global `UNKNOWN` observé à
+l'étape 6. Il est classé comme §3.38 le voulait pour D35 : une décision à
+revisiter, pas un défaut — le comportement est celui que `Verdict.severity()`
+déclare, avec sa raison écrite. Ce qui a changé est la fréquence, pas la règle :
+sous Windows l'ICMP rend `UNKNOWN` systématiquement, donc le verdict global
+aussi, et un mot qui ne varie jamais n'informe de rien.

@@ -13,7 +13,7 @@ import (
 func allFields(t *testing.T) []field {
 	t.Helper()
 	var out []field
-	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames(), "/home/u/.devdesk/config.yaml", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab)) {
+	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames(), "/home/u/.devdesk/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab)) {
 		out = append(out, s.Fields...)
 	}
 	return out
@@ -320,9 +320,9 @@ func TestTheConfigFileRowIsReadOnly(t *testing.T) {
 // without renaming the key would have left the one tab about to grow as the
 // only one whose name says nothing about where its values land.
 func TestEveryTabIsNamedAfterTheSectionItWrites(t *testing.T) {
-	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab))
+	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab))
 
-	want := []string{"app", "gitlab", "scan", "network", "status"}
+	want := []string{"app", "gitlab", "scan", "network", "mcp", "status"}
 	got := make([]string, 0, len(all))
 	for _, s := range all {
 		got = append(got, s.Title)
@@ -369,5 +369,54 @@ func TestTheNetworkTabEditsEveryNetdiagDial(t *testing.T) {
 
 	if f := fieldNamed(t, "Network tool image"); f.str(cfg) != &cfg.Network.ToolImage {
 		t.Error("the tool image no longer addresses network.tool_image")
+	}
+}
+
+// The MCP server is off by default and turning it on is the moment the user
+// decides an agent may read this context (§3.38). The tab exists so that
+// decision is made where every other setting is made, rather than by editing
+// YAML.
+func TestTheMCPTabTogglesTheServer(t *testing.T) {
+	var enabled *field
+	for _, f := range allFields(t) {
+		if f.Label == "Enabled" && f.Kind == kindToggle {
+			candidate := f
+			enabled = &candidate
+		}
+	}
+	if enabled == nil {
+		t.Fatal("no Enabled toggle in the field table")
+	}
+
+	cfg := config.Default()
+	if enabled.flag(cfg) != &cfg.MCP.Enabled {
+		t.Error("the Enabled toggle does not address mcp.enabled")
+	}
+}
+
+// A setting whose effect needs a command nobody has been told about reads as
+// broken. The row names the context this DevDesk is in, because that is the one
+// a client has to be pointed at.
+func TestTheMCPTabNamesTheCommandThatServesThisContext(t *testing.T) {
+	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab))
+
+	var mcp *section
+	for i := range all {
+		if all[i].Title == "mcp" {
+			mcp = &all[i]
+		}
+	}
+	if mcp == nil {
+		t.Fatal("no mcp tab")
+	}
+
+	var found string
+	for _, f := range mcp.Fields {
+		if f.Kind == kindStatic {
+			found = f.Value(config.Default())
+		}
+	}
+	if !strings.Contains(found, "dk mcp") || !strings.Contains(found, "work") {
+		t.Errorf("the command row reads %q, want it to name `dk mcp` and the served context", found)
 	}
 }

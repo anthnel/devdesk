@@ -6964,7 +6964,7 @@ eux ont été corrigés dans le même mouvement — les dépôts fixtures sont d
 de vrais répertoires temporaires, et le test de cloisonnement par contexte
 déclare son image *pullée* pour que son absence ne puisse venir que du contexte.
 
-### 3.38 Un serveur MCP en lecture seule — le modèle vient à DevDesk
+### 3.38 Un serveur MCP en lecture seule — le modèle vient à DevDesk — **done**
 
 **§3.10 partait dans l'autre sens : DevDesk assemblait un payload, le
 pseudonymisait, le montrait, l'envoyait à un endpoint qu'il fallait configurer,
@@ -7127,6 +7127,59 @@ réciproquement — l'esprit de `internal/ui/keymap` et de `AllViewNames()`.
    personne n'a regardé. À trancher au plan.
 3. **Le SDK Go**, à choisir et à vérifier au moment d'écrire — le terrain bouge.
 
+#### Ce que la réalisation a changé à l'énoncé
+
+Fait le 2026-08-23, en sept étapes. Le plan détaillé et son journal sont dans
+[`.claude/plans/mcp-server-plan.md`](../.claude/plans/mcp-server-plan.md).
+
+Trois décisions ont dû être prises **contre** ce qui est écrit plus haut, et
+chacune parce que l'énoncé se contredisait ou demandait l'impossible :
+
+**`redact_secret_matches` n'existe pas.** Le réglage était déclaré à `true` par
+défaut alors que la même entrée classe la chaîne d'un finding de secret en
+« jamais exposée » : son autre valeur était donc refusée, ce qui en fait un
+paramètre qu'il faut ignorer — l'argument de §3.39. Pire, `false` est la valeur
+zéro d'un `bool`, donc tout fichier écrit avant la clé aurait décodé à « ne pas
+caviarder » : D12 exactement. Le schéma des outils n'a aucun champ où porter la
+chaîne, ce qui est la garantie que `context_get` obtient déjà par construction.
+
+**`registry_tags` n'est pas constructible.** L'entrée le voulait « depuis le
+cache de groupes » : il n'y a pas de cache de tags. Le cache de groupes tient les
+*membres*, et les tags sont récupérés en HTTP quand le browser cherche. Les
+chercher ici demanderait un identifiant pour chaque registry que quelqu'un fait
+tourner, alors que la décision 6 est qu'aucun outil ne lit le store de §3.9. Un
+listing anonyme répondrait « aucun tag » pour un registry privé — une absence lue
+comme un vide, c'est-à-dire D20.
+
+**`ports_list` est abandonné**, décision de l'utilisateur. `docker.RunSS` est
+`docker run --rm --net=host --pid=host --privileged`, le même appel que
+`KillProcess` à la commande près. Rien de persistant ne change sur l'hôte, mais
+la promesse de ce serveur est qu'il n'agit pas sur la machine, et démarrer un
+conteneur privilégié est agir sur elle. Les sockets restent lisibles dans `:net`.
+
+Une contrainte que l'énoncé ne nommait pas et qui casse tout si elle tombe :
+**rien n'écrit sur stdout sauf le protocole**. `main()` en faisait quatre sur le
+chemin TUI, et une seule avant le serveur ferait rapporter au client une erreur
+de parsing qui ne désigne rien. Deux tests de source la tiennent.
+
+Et l'exception de lecture seule était plus large que prévu : **trois** chemins
+d'écriture traînaient sur ce qui devait être une lecture — l'attribution des
+entrées héritées, le repli de §3.39, et le `MkdirAll` des constructeurs *et* des
+`Load*ScanResult`. `internal/cache/readonly.go` retourne des **maps et pas un
+cache** : sans cache il n'y a pas de `Set`, donc l'écriture est inexprimable
+plutôt qu'interdite par revue.
+
+Deux questions ouvertes sur trois sont tranchées : le SDK est
+`modelcontextprotocol/go-sdk` v1.7.0 (garantie de compatibilité v1, table des
+révisions de spec déclarée par le SDK), et il n'y a **ni resources ni prompts** —
+une resource se lit par URI après énumération, donc elle ne se filtre ni ne se
+pagine, ce dont `scan_result` a précisément besoin ; un prompt embarquant la
+doctrine du dépôt serait la seule partie du serveur à pouvoir devenir fausse sans
+que rien n'échoue. La troisième reste ouverte : **l'agent en conteneur**, qui
+demanderait HTTP en v1 avec son token et son bind.
+
+Coût : **+2,99 Mo** sur le binaire (24,98 → 27,97 Mo).
+
 ### 3.39 Le cache de scan d'images cesse d'être scopé au contexte — **done**
 
 Fait le 2026-08-23. Signalé par l'utilisateur : changer de contexte fait
@@ -7207,6 +7260,60 @@ plutôt que supprimé.
 `TestDeleteRemovesTheEntry`, et
 `TestTheInventoryHidesAnotherContextsRepositoriesButNotItsImages` pour les deux
 moitiés de l'asymétrie.
+
+### 3.40 Un verdict global `UNKNOWN` sur un hôte parfaitement sain
+
+Trouvé en vérifiant `net_check` à la main le 2026-08-23, contre
+`example.com:443` sous Windows :
+
+```
+verdict: UNKNOWN
+  resolve         OK      example.com resolves to 2 addresses
+  icmp            UNKNOWN ICMP could not be probed
+  tcp             OK      Port 443 accepted the connection in 12 ms
+  tls-chain       OK      Chain verifies against the system trust store
+  http            OK      Service answered with HTTP 200 over https
+```
+
+Neuf contrôles sur dix passent, et le verdict global dit `UNKNOWN`.
+
+**Ce n'est pas un défaut de `Summarize`, et c'est ce qui rend l'entrée
+intéressante.** `Verdict.severity()` classe délibérément Unknown **au-dessus** de
+Warn, avec une raison écrite : « ne pas avoir regardé est pire qu'avoir regardé
+et trouvé un défaut ». Sur un contrôle isolé c'est juste. Sur l'agrégat, ça donne
+le mot le moins informatif de la table à un hôte dont on vient d'établir qu'il
+répond.
+
+**Ce qui a changé, c'est la fréquence.** L'ICMP demande des sockets bruts ;
+`pro-bing` les obtient sous Linux, pas sous Windows sans privilèges. Donc sur la
+machine de développement l'ICMP rend `UNKNOWN` **systématiquement**, et le
+verdict global aussi — un mot qui ne varie jamais n'informe de rien. Dans le TUI
+la table est juste à côté, ce qui limite les dégâts ; par MCP, un agent lit le
+verdict global d'abord et peut s'arrêter là.
+
+#### Trois pistes, aucune tranchée
+
+1. **`Summarize` ignore un `Unknown` isolé quand un contrôle plus tardif a
+   réussi.** Un `tcp` OK établit que l'hôte répond, donc l'`icmp` inconnu ne dit
+   plus rien sur la joignabilité. C'est le plus juste et le plus délicat :
+   « plus tardif » veut dire connaître l'ordre des étages depuis `Summarize`, qui
+   ne le connaît pas aujourd'hui.
+2. **L'ICMP rend `NotApplicable` plutôt qu'`Unknown` quand la plateforme ne peut
+   pas sonder.** `NotApplicable` est déjà exclu de l'agrégat. C'est le plus
+   simple, et c'est défendable : « cette machine ne peut pas poser la question »
+   n'est pas la même chose que « la question est restée sans réponse ». Le risque
+   est de masquer un vrai échec ICMP derrière la même case.
+3. **Un second champ dans la sortie MCP** — le verdict des seuls contrôles qui
+   ont pu regarder, à côté du verdict global. Le moins invasif, et le plus
+   proche de deux réponses à une question, ce que ce dépôt refuse ailleurs.
+
+La 2 est probablement la bonne, et elle demande de savoir distinguer « pas de
+privilèges » de « pas de réponse » dans `stage_reach.go` — ce que `pro-bing`
+rapporte différemment selon la plateforme, donc à vérifier avant de décider.
+
+**Ce n'est pas dans §1.3.** Le comportement est celui que le code déclare, avec
+sa raison écrite ; c'est une décision à revisiter, pas un défaut à corriger — le
+statut de D35.
 
 ## 4. Existing plans
 

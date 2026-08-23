@@ -187,7 +187,11 @@ func (f field) Apply(c *config.Config, raw string) error {
 // forgeType and v name the tab and its words. The tab is titled after the
 // platform the context targets, not after the section key: `forge:` is what the
 // file says, and no user calls it that.
-func sections(themes, views []string, configPath, forgeType string, v forge.Vocabulary) []section {
+//
+// contextName is here for one row: the command that serves this context over
+// MCP. It is the context's name and not the config's, because the config does
+// not carry it — the same reason configPath is passed.
+func sections(themes, views []string, configPath, contextName, forgeType string, v forge.Vocabulary) []section {
 	return []section{
 		{Title: "app", Fields: slices.Concat(
 			group("Appearance", theme.IconDashboard,
@@ -312,6 +316,22 @@ func sections(themes, views []string, configPath, forgeType string, v forge.Voca
 				integer("Expiry warning (days)", func(c *config.Config) *int { return &c.Network.CertExpiryWarnDays }, 1, 365,
 					"A certificate closer than this warns"),
 			),
+		)},
+
+		// One toggle, and a tab of its own for it. Every other tab is named
+		// after the section it writes, and `mcp:` is a section — putting its
+		// one scalar under `app` would be the only setting in the view whose
+		// tab does not say where it lands (§3.34's argument for renaming
+		// `docker:`). `expose` is a list, so it stays in the file, where the
+		// monitors and the registries also stay.
+		{Title: "mcp", Fields: group("Server", theme.IconServer,
+			toggle("Enabled", func(c *config.Config) *bool { return &c.MCP.Enabled },
+				"Lets an MCP client read this context; nothing is written back"),
+			// What to point a client at, once the toggle is on. A setting whose
+			// effect needs a command nobody has been told about is a setting
+			// that reads as broken.
+			static("Command", "dk mcp --context "+contextName,
+				"Read-only over stdio; mcp.expose in the file narrows the tools"),
 		)},
 
 		{Title: "status", Fields: group("Monitoring", theme.IconRefresh,
