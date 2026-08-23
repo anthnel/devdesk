@@ -1401,7 +1401,67 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
-**Nothing is open.** D39 was the last, and §3.18 closed it on 2026-08-23 — see
+**D55 — l'onglet Ports liste les sockets de la VM Docker, pas ceux de la
+machine. Ouvert.** Vérifié à l'écran le 2026-08-23, sous Windows.
+
+`RunSS` lance `docker run --rm --net=host --pid=host --privileged`, et sur Docker
+Desktop `--net=host` est le namespace **de la VM Linux**. La vue montre donc les
+sockets et les processus de la VM. Ce n'est pas une hypothèse : les deux relevés
+côte à côte n'ont rien en commun.
+
+`Get-NetTCPConnection -State Listen` sur l'hôte — 38 sockets, dont :
+
+```
+::           11434   Listen   22328      (ollama)
+::            7680   Listen    4604
+::            5357   Listen       4      (System)
+::             445   Listen       4
+0.0.0.0      62841   Listen   32428
+127.0.0.1     6463   Listen   20696
+192.168.1.21   139   Listen       4
+```
+
+L'onglet Ports au même instant :
+
+```
+tcp  LISTEN  0.0.0.0:5000     125  dockerd
+tcp  LISTEN  0.0.0.0:51031     75  rpc.statd
+tcp  LISTEN  0.0.0.0:111       76  rpcbind
+tcp  LISTEN  [::]:111          76  rpcbind
+tcp  LISTEN  [::]:59517        75  rpc.statd
+```
+
+`rpcbind` et `rpc.statd` sont les démons NFS de la VM Docker Desktop, et des PID
+à deux chiffres sont ceux d'un système qui vient de démarrer. **Pas un des 38
+sockets de l'hôte n'est listé.** Le seul port qui apparaît des deux côtés est
+5000, et c'est une coïncidence de forwarding : côté Windows il appartient aux PID
+28360 et 32852, côté vue à `dockerd` PID 125 — c'est-à-dire l'autre bout du même
+tunnel, pas le même socket.
+
+**`K` est la moitié grave.** Il tue par `docker run --pid=host --privileged
+<image> kill -9 <pid>`, donc dans le même namespace : l'utilisateur croit avoir
+libéré le port qui le gêne et a tué un démon de la VM. Rien à l'écran ne le dit,
+et le port est toujours pris.
+
+Le défaut est **du même famille que celui que §3.33 a corrigé** : DNS, ICMP, TCP,
+TLS et HTTP répondaient pour la VM et ont été rapatriés dans `internal/netcheck`
+pour cette raison exacte. La phrase est écrite en tête de `runDiagHost` depuis ;
+personne ne l'a tirée pour `RunSS` et `KillProcess`, qui sont restés.
+
+Ce que ça veut dire pour §3.41 : la question n'est plus « peut-on se passer de
+l'image » mais « il faut s'en passer », au moins pour l'onglet Ports. Le
+remplacement est écrit là-bas — `gopsutil/v4/net` est déjà une dépendance
+directe, et `KillProcess` est une ligne de Go. Les traces de route restent une
+question ouverte à part, et elles au moins **disent** qu'elles répondent pour le
+conteneur (`renderTraceHeader`).
+
+**Sous Linux le défaut n'existe pas** : `--net=host` y est bien le namespace de
+la machine. C'est ce qui l'a fait passer inaperçu — la vue est juste sur la
+plateforme où elle a probablement été écrite.
+
+---
+
+D39 was the last one before it, and §3.18 closed it on 2026-08-23 — see
 §1.1 for what it was and what the fix cost on the screens around it. D40, which
 it needed closed with it, had already been fixed on its own. D52, trouvé en
 écrivant §3.6 étape 1, a été corrigé à l'étape 3. D21 and D36 closed everything
@@ -7350,11 +7410,15 @@ sockets de la VM Linux et non ceux de la machine, et `K` tue un processus de la
 VM. Ce serait un défaut silencieux et exactement du genre que ce dépôt classe en
 §1.1 — une vue qui répond à côté sans rien dire.
 
-**À vérifier avant tout le reste**, et c'est peu coûteux : ouvrir `:net`,
-onglet Ports, sous Windows, et chercher un port que seul l'hôte écoute (le
-serveur de développement d'un projet, par exemple). S'il n'apparaît pas,
-l'analyse change de nature : ce n'est plus « peut-on se passer de l'image »
-mais « il faut s'en passer ».
+**Vérifié le 2026-08-23, et l'hypothèse tient** : voir **D55** en §1.3 pour les
+deux relevés côte à côte. Pas un des 38 sockets en écoute de l'hôte Windows
+n'apparaît dans l'onglet, qui montre `rpcbind` et `rpc.statd` — les démons NFS
+de la VM.
+
+L'analyse change donc de nature : ce n'est plus « peut-on se passer de l'image »
+mais **« il faut s'en passer »**, au moins pour l'onglet Ports et pour `K`. Ce
+qui suit reste valable, mais se lit comme un plan de correction plutôt que comme
+une évaluation.
 
 #### Ce qui se réécrit, et avec quoi
 
@@ -7432,11 +7496,12 @@ renoncer à rien et qu'elle isole la question restante.
 
 #### À vérifier avant de planifier
 
-1. L'hypothèse du namespace, ci-dessus. Tout en dépend.
-2. Ce que `gopsutil` rend sur les trois plateformes pour un socket en écoute
+L'hypothèse du namespace est vérifiée (D55). Restent deux mesures :
+
+1. Ce que `gopsutil` rend sur les trois plateformes pour un socket en écoute
    sans processus attribuable — la colonne PID est ce sur quoi `K` agit, et un
    PID vide ne doit pas donner une ligne qui prétend pouvoir être tuée.
-3. Si le PID exige des privilèges pour les processus d'autres utilisateurs.
+2. Si le PID exige des privilèges pour les processus d'autres utilisateurs.
    `ss -p` les obtient parce que le conteneur est privilégié ; un DevDesk non
    élevé verra probablement moins. C'est un vrai renoncement possible, à mesurer
    plutôt qu'à deviner.
