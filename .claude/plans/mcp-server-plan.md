@@ -82,7 +82,7 @@ Chaque étape est un commit et une PR.
 |---|---|---|
 | 1 | La sous-commande, le réglage, le squelette du serveur, la table d'outils déclarés + son test de contrat, et `context_list` pour prouver le câblage | **faite** |
 | 2 | `scan_inventory`, `scan_result` — et la lecture qui **ne met pas à niveau** le cache | **faite** |
-| 3 | `context_get`, `workspaces_list` | |
+| 3 | `context_get`, `workspaces_list` | **faite** |
 | 4 | `registries_list`, `registry_tags` — cache seul, jamais le réseau | |
 | 5 | `containers_list`, `images_list`, `ports_list` | |
 | 6 | `net_check` | |
@@ -181,3 +181,42 @@ une projection qui nomme chacun des champs qu'elle copie, donc un champ ajouté 
 `TestTheMatchedStringOfASecretNeverLeaves` cherche la chaîne **dans la réponse
 sérialisée** et pas un nom de champ : un `Match` recopié un jour dans un `Title`
 passerait une vérification de forme. Vérifié en échec en rajoutant le champ.
+
+### Étape 3 — faite le 2026-08-23
+
+Binaire : **27,86 Mo** (+0,12 Mo sur l'étape 2).
+
+**Le lecteur de statut git était déjà dupliqué avant d'arriver ici.**
+`workspaces/entry.go` lançait quatre commandes avec son propre `execGit` pendant
+qu'`internal/git/sync.go` recomptait la divergence dans `divergence` pour le
+sync. Un troisième consommateur rendait la troisième copie évidente, donc
+`git.ReadStatus` a été remonté et la vue délègue — un seul corps de fonction
+changé, aucun site d'appel touché, `execGit` supprimé.
+
+**Le refactor a introduit une régression, et le test l'a attrapée.** Ma première
+version faisait échouer toute la lecture quand `rev-parse --abbrev-ref HEAD`
+échouait — ce qui est le cas d'un dépôt fraîchement initialisé, sans commit,
+c'est-à-dire précisément l'état où un dépôt n'a **que** des fichiers non suivis.
+Il rapportait donc zéro fichier non suivi. Le garde-fou est maintenant
+`rev-parse --git-dir`, et la branche est lue par `symbolic-ref` (qui répond pour
+un HEAD non né) avec `rev-parse` en repli (qui répond pour un HEAD détaché).
+La vue avait le même défaut pendant quelques minutes.
+
+**`workspaces_list` liste des dépôts, pas des répertoires.** C'est la différence
+entre un écran qu'on navigue et une réponse à une question : un agent qui demande
+ce qui est en local veut les dépôts, à n'importe quelle profondeur, pas un niveau
+d'arbre qu'il faudrait ensuite parcourir un appel à la fois. Il ne descend pas
+*dans* un dépôt — un `.git` à l'intérieur d'un dépôt est un sous-module ou une
+copie vendorée.
+
+**`behind_is_stale` est un champ, pas une ligne de documentation.** D35 dit que
+le compteur vient de `@{u}` et que rien ici ne fetch ; un agent lit des champs,
+pas des commentaires.
+
+**La garde contre les champs porteurs de secret a un critère de type.** Écrite
+sur le nom seul, elle refusait `Scan.Secrets` — un booléen disant si l'étape
+tourne. Un secret est une **chaîne** : un `bool` ne peut pas en porter un, donc
+le kind fait partie de la règle plutôt que d'une exception à déclarer. Le nom a
+été changé quand même (`secret_scanning`), parce que « secrets » sous un bloc
+« scan » se lit comme « ce contexte a des secrets ». Vérifiée en échec en
+ajoutant un `Token string` à `forgeOut`.

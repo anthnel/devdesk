@@ -10,7 +10,7 @@ import (
 // contextListOut is what context_list answers.
 //
 // Served is not decoration: this process serves one context, so an agent that
-// reads Contexts alone would reasonably assume it can ask about any of them.
+// read Contexts alone would reasonably assume it can ask about any of them.
 // Saying which one is readable puts the scope decision in the data rather than
 // only in the documentation.
 type contextListOut struct {
@@ -42,14 +42,129 @@ func registerContextList(s *sdk.Server, env *Env) {
 	})
 }
 
-// toolDescription reads a tool's description off the declared table, so the
-// registration and the vocabulary cannot drift into saying two different things
-// about the same tool.
-func toolDescription(name string) string {
-	for _, t := range tools() {
-		if t.Name == name {
-			return t.Description
-		}
+// ── context_get ─────────────────────────────────────────────────────────────
+
+// contextGetOut is the served context's configuration, and **no field here can
+// carry a secret**.
+//
+// That is not a filter applied on the way out, it is §3.9's guarantee arriving
+// for free: ForgeConfig has no Token and RegistryItem has no Password, because
+// no secret DevDesk holds is written to a file DevDesk owns. A projection of
+// that file therefore has nothing to redact. The registry entries are the case
+// worth noticing, since a registry is exactly the kind of thing that used to
+// carry a password in its config block.
+//
+// RegistryItem.Username is left out, and not because it is sensitive — it is
+// not. Nothing an agent can do read-only needs it, and a field never included
+// cannot fail to be excluded later.
+type contextGetOut struct {
+	Name          string         `json:"name"`
+	IsCurrent     bool           `json:"is_current" jsonschema:"whether the DevDesk TUI is currently set to this context"`
+	WorkspacesDir string         `json:"workspaces_dir" jsonschema:"where this context's repositories live; workspaces_list reads under it"`
+	Forge         forgeOut       `json:"forge"`
+	Scan          scanOptionsOut `json:"scan" jsonschema:"the options a scan launched from this context runs with; a shared image entry may have been produced under another context's"`
+	Registries    []registryOut  `json:"registries"`
+	Monitors      []monitorOut   `json:"monitors" jsonschema:"the endpoints the status view watches"`
+}
+
+type forgeOut struct {
+	Type               string `json:"type" jsonschema:"gitlab or github"`
+	URL                string `json:"url" jsonschema:"the web host; on an Enterprise install the API lives under a different path"`
+	DefaultParentGroup string `json:"default_parent_group,omitempty"`
+	DefaultVisibility  string `json:"default_visibility,omitempty"`
+	IncludeArchived    bool   `json:"include_archived" jsonschema:"whether a clone walks archived repositories"`
+}
+
+type scanOptionsOut struct {
+	Vulnerabilities bool `json:"vulnerabilities"`
+	// SecretScanning is the odd name of the four, and deliberately: `secrets`
+	// under a `scan` block reads as "this context has secrets", which is a
+	// different claim from "its scans look for them".
+	SecretScanning  bool `json:"secret_scanning"`
+	Licenses        bool `json:"licenses"`
+	Misconfig       bool `json:"misconfigurations"`
+	IgnoreUnfixed   bool `json:"ignore_unfixed"`
+	GitleaksHistory bool `json:"gitleaks_history" jsonschema:"whether the secret scan reads git history as well as the working tree"`
+}
+
+type registryOut struct {
+	Slug       string `json:"slug" jsonschema:"DevDesk's own identifier for this entry"`
+	Alias      string `json:"alias,omitempty" jsonschema:"the short name shown in place of the URL"`
+	URL        string `json:"url"`
+	RepoPrefix string `json:"repo_prefix,omitempty" jsonschema:"goes in front of the repository name; together with url it is the entry's whole address"`
+	Kind       string `json:"kind" jsonschema:"registry or group"`
+	Provider   string `json:"provider,omitempty"`
+	AuthMode   string `json:"auth_mode" jsonschema:"credentials, anonymous, or inherit for a group member"`
+}
+
+type monitorOut struct {
+	Name   string `json:"name"`
+	Type   string `json:"type" jsonschema:"http, https, icmp or dns"`
+	Target string `json:"target"`
+}
+
+func registerContextGet(s *sdk.Server, env *Env) {
+	sdk.AddTool(s, &sdk.Tool{
+		Name:        "context_get",
+		Description: toolDescription("context_get"),
+	}, func(_ context.Context, _ *sdk.CallToolRequest, _ any) (*sdk.CallToolResult, contextGetOut, error) {
+		return nil, describeContext(env), nil
+	})
+}
+
+// describeContext projects the loaded configuration. It names every field it
+// copies, so a setting added to config.Config arrives here as an omission rather
+// than as an exposure — the same argument the tool allow-list and the finding
+// projection each make.
+//
+// It takes no context name: this process serves one, and the configuration it
+// answers with was loaded once at startup. Reading another context's file here
+// would undo the scope decision in a single function.
+func describeContext(env *Env) contextGetOut {
+	cfg := env.Config
+
+	out := contextGetOut{
+		Name:          env.Context,
+		IsCurrent:     config.CurrentContextName() == env.Context,
+		WorkspacesDir: cfg.App.WorkspacesDir,
+		Forge: forgeOut{
+			Type:               cfg.Forge.Type,
+			URL:                cfg.Forge.URL,
+			DefaultParentGroup: cfg.Forge.DefaultParentGroup,
+			DefaultVisibility:  cfg.Forge.DefaultVisibility,
+			IncludeArchived:    cfg.Forge.Pull.IncludeArchived,
+		},
+		Scan: scanOptionsOut{
+			Vulnerabilities: cfg.Scan.EnableVuln,
+			SecretScanning:  cfg.Scan.EnableSecret,
+			Licenses:        cfg.Scan.EnableLicense,
+			Misconfig:       cfg.Scan.EnableMisconfig,
+			IgnoreUnfixed:   cfg.Scan.IgnoreUnfixed,
+			GitleaksHistory: cfg.Scan.GitleaksHistory,
+		},
+		Registries: []registryOut{},
+		Monitors:   []monitorOut{},
 	}
-	return ""
+
+	for _, reg := range cfg.Registry.Registries {
+		out.Registries = append(out.Registries, registryOut{
+			Slug:       reg.Slug,
+			Alias:      reg.Alias,
+			URL:        reg.URL,
+			RepoPrefix: reg.RepoPrefix,
+			Kind:       reg.Kind,
+			Provider:   reg.Provider,
+			AuthMode:   reg.AuthMode,
+		})
+	}
+
+	for _, component := range cfg.Status.Components {
+		out.Monitors = append(out.Monitors, monitorOut{
+			Name:   component.Name,
+			Type:   component.Type,
+			Target: component.Target,
+		})
+	}
+
+	return out
 }

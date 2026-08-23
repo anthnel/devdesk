@@ -37,6 +37,16 @@ func tools() []toolDef {
 			register:    registerContextList,
 		},
 		{
+			Name:        "context_get",
+			Description: "Read the configuration of the context this server answers for: where its repositories live, which forge it targets, the options its scans run with, its registries and its monitors. It carries no credential of any kind.",
+			register:    registerContextGet,
+		},
+		{
+			Name:        "workspaces_list",
+			Description: "List the git repositories checked out under this context's workspaces directory, with their branch, their uncommitted and unpushed work, and what the scan cache knows about each. The behind count is only as fresh as the last fetch.",
+			register:    registerWorkspacesList,
+		},
+		{
 			Name:        "scan_inventory",
 			Description: "List every image and repository this DevDesk context has scanned, with its severity counts, its secret verdict and how long ago the scan ran. Targets whose image or directory no longer exists are left out.",
 			register:    registerScanInventory,
@@ -93,6 +103,18 @@ func exposedTools(expose []string) ([]toolDef, error) {
 			len(unknown), strings.Join(unknown, ", "), strings.Join(toolNames(), ", "))
 	}
 	return out, nil
+}
+
+// toolDescription reads a tool's description off the declared table, so the
+// registration and the vocabulary cannot drift into saying two different things
+// about one tool.
+func toolDescription(name string) string {
+	for _, t := range tools() {
+		if t.Name == name {
+			return t.Description
+		}
+	}
+	return ""
 }
 
 // toolNames returns every declared name, sorted, for error messages and tests.
