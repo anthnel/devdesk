@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/cache"
-	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -61,7 +60,7 @@ func TestAScanLeavesItsCountsAndItsFullReportOnDisk(t *testing.T) {
 		t.Errorf("Entry = %+v, want 1 critical and 2 high", done.Entry)
 	}
 
-	cached, err := cache.NewImageScanCache(config.CurrentContextName())
+	cached, err := cache.NewImageScanCache()
 	if err != nil {
 		t.Fatalf("reopening the scan cache: %v", err)
 	}
@@ -95,7 +94,7 @@ func TestAnUntaggedImageIsScannedByIDAndCachedByName(t *testing.T) {
 		t.Errorf("ImageName = %q, want the name the table shows", done.ImageName)
 	}
 	t.Cleanup(func() {
-		if c, err := cache.NewImageScanCache(config.CurrentContextName()); err == nil {
+		if c, err := cache.NewImageScanCache(); err == nil {
 			_ = c.Delete("orphan")
 		}
 	})
@@ -144,7 +143,7 @@ func TestAScanWithNoScannerInstalledIsReportedAsAFailure(t *testing.T) {
 
 	// The half that did the damage: an empty result must not reach the disk, or
 	// the row keeps claiming the image is clean after a restart.
-	cached, err := cache.NewImageScanCache(config.CurrentContextName())
+	cached, err := cache.NewImageScanCache()
 	if err != nil {
 		t.Fatalf("reopening the scan cache: %v", err)
 	}
@@ -164,7 +163,7 @@ func TestABatchAnnouncesAndAnswersForEveryImage(t *testing.T) {
 	}
 	msgs := testutil.Msgs(batchScanCmd(jobs, vulnScan()))
 	t.Cleanup(func() {
-		if c, err := cache.NewImageScanCache(config.CurrentContextName()); err == nil {
+		if c, err := cache.NewImageScanCache(); err == nil {
 			for _, job := range jobs {
 				_ = c.Delete(job.Name)
 			}

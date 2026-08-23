@@ -65,7 +65,7 @@ func TestAnImageEntryWrittenBeforeTheSecretStageHasNoVerdict(t *testing.T) {
 	writeRaw(t, path, `{"version":1,"contexts":{"work":{"api:v1":{
 		"image_id":"sha256:abc","critical":2,"scanned_at":"2026-08-01T12:00:00Z"}}}}`)
 
-	got := openImageCache(t, path, "work").Get("api:v1")
+	got := openImageCache(t, path).Get("api:v1")
 
 	if got == nil {
 		t.Fatal("the entry was dropped")
@@ -92,14 +92,14 @@ func TestTheThreeVerdictsSurviveARoundTrip(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "image-scans.json")
-			c := openImageCache(t, path, testContext)
+			c := openImageCache(t, path)
 			if err := c.Set("api:v1", ImageScanEntry{Sensitive: tt.write}); err != nil {
 				t.Fatalf("Set: %v", err)
 			}
 
 			// Relu depuis le fichier, pas depuis la mémoire de l'instance qui
 			// vient de l'écrire : c'est la sérialisation qui est en cause.
-			got := openImageCache(t, path, testContext).Get("api:v1")
+			got := openImageCache(t, path).Get("api:v1")
 
 			if got == nil {
 				t.Fatal("the entry did not come back")

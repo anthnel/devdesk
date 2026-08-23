@@ -8,33 +8,36 @@ import (
 	"time"
 )
 
-// The scan caches are per context because the configuration is. Two contexts
-// legitimately point at different workspace roots and different registries, so
-// one flat namespace made them share results.
+// The **workspace** cache is per context because the configuration is: two
+// contexts legitimately point at different workspace roots, so one flat
+// namespace made them share results for paths that are not the same work.
 //
-// Nothing showed it while the caches were only ever queried — you ask about the
-// image in front of you. The inventory view lists everything the cache holds,
-// which is what turns this into something the user can see.
+// The **image** cache is not, and scoping it was the mistake (§3.39). Its key is
+// a local Docker reference, and `docker image ls` answers for the machine rather
+// than for a context — so switching context dropped the counts for images that
+// had not moved. The full results were never scoped at all: they are
+// content-addressed by image name, with no context anywhere, so the index and
+// the blobs beside it disagreed.
 
-func TestImageEntriesAreScopedToTheirContext(t *testing.T) {
+func TestImageEntriesAreSharedBetweenContexts(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "image-scans.json")
 
-	work := openImageCache(t, path, "work")
+	work := openImageCache(t, path)
 	if err := work.Set("nginx:latest", ImageScanEntry{Critical: 3}); err != nil {
-		t.Fatalf("Set in context work: %v", err)
+		t.Fatalf("Set: %v", err)
 	}
 
-	perso := openImageCache(t, path, "perso")
-	if got := perso.Get("nginx:latest"); got != nil {
-		t.Errorf("context perso can see context work's entry: %+v", got)
+	// The same file, opened again — which is what a context switch does.
+	perso := openImageCache(t, path)
+	got := perso.Get("nginx:latest")
+	if got == nil {
+		t.Fatal("the scan was lost across a context switch")
 	}
-	if got := perso.GetAll(); len(got) != 0 {
-		t.Errorf("GetAll in context perso returned %d entries, want none", len(got))
+	if got.Critical != 3 {
+		t.Errorf("entry = %+v, want Critical 3", got)
 	}
-
-	// And the write did not cost the other context its own view of the key.
-	if got := openImageCache(t, path, "work").Get("nginx:latest"); got == nil || got.Critical != 3 {
-		t.Errorf("context work lost its own entry: %+v", got)
+	if all := perso.GetAll(); len(all) != 1 {
+		t.Errorf("GetAll returned %d entries (%v), want the one", len(all), keysOf(all))
 	}
 }
 
@@ -55,26 +58,99 @@ func TestWorkspaceEntriesAreScopedToTheirContext(t *testing.T) {
 	}
 }
 
-// A cache written before contexts existed is a bare key → entry map. It belongs
-// to whichever context is current when it is first opened: that is the context
-// the scans were run under, since there was only one namespace.
-func TestAFlatImageCacheMigratesIntoTheOpeningContext(t *testing.T) {
+// The oldest image cache is a bare key → entry map, which is the shape the cache
+// has again — so it is read as it stands, with nothing to fold.
+func TestAFlatImageCacheIsReadAsItStands(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "image-scans.json")
 	writeJSON(t, path, map[string]ImageScanEntry{
 		"nginx:latest": {Critical: 2, High: 7, ScannedAt: time.Now().UTC().Truncate(time.Second)},
 	})
 
-	c := openImageCache(t, path, "work")
+	got := openImageCache(t, path).Get("nginx:latest")
 
-	got := c.Get("nginx:latest")
 	if got == nil {
-		t.Fatal("the legacy entry was dropped instead of migrated")
+		t.Fatal("the legacy entry was dropped")
 	}
 	if got.Critical != 2 || got.High != 7 {
-		t.Errorf("migrated entry = %+v, want Critical 2 / High 7", got)
+		t.Errorf("entry = %+v, want Critical 2 / High 7", got)
 	}
-	if other := openImageCache(t, path, "perso").Get("nginx:latest"); other != nil {
-		t.Errorf("the migrated entry landed in every context, not just the opening one: %+v", other)
+}
+
+// A file written while the image cache was scoped holds one map per context. The
+// contexts are folded back into one, because the key was never context-specific
+// in the first place.
+func TestAScopedImageCacheIsFoldedBackIntoOne(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "image-scans.json")
+	writeJSON(t, path, scanCacheFile[ImageScanEntry]{
+		Version: 1,
+		Contexts: map[string]map[string]ImageScanEntry{
+			"work":  {"nginx:latest": {Critical: 3}, "redis:7": {Low: 1}},
+			"perso": {"alpine:3": {Medium: 2}},
+		},
+	})
+
+	c := openImageCache(t, path)
+
+	if got := c.GetAll(); len(got) != 3 {
+		t.Errorf("the fold kept %d entries (%v), want all three", len(got), keysOf(got))
+	}
+	for _, key := range []string{"nginx:latest", "redis:7", "alpine:3"} {
+		if c.Get(key) == nil {
+			t.Errorf("%s was dropped by the fold", key)
+		}
+	}
+}
+
+// Two contexts having scanned the same image is the ordinary case — it is one
+// image, and both of them saw it. The most recent scan wins: the image did not
+// change, but the vulnerability database did.
+func TestTheNewerScanWinsWhenTwoContextsHoldTheSameImage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "image-scans.json")
+	older := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	newer := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+	writeJSON(t, path, scanCacheFile[ImageScanEntry]{
+		Version: 1,
+		Contexts: map[string]map[string]ImageScanEntry{
+			"work":  {"nginx:latest": {Critical: 3, ScannedAt: newer}},
+			"perso": {"nginx:latest": {Critical: 9, ScannedAt: older}},
+		},
+	})
+
+	got := openImageCache(t, path).Get("nginx:latest")
+
+	if got == nil {
+		t.Fatal("the entry was dropped by the fold")
+	}
+	if got.Critical != 3 || !got.ScannedAt.Equal(newer) {
+		t.Errorf("entry = %+v, want the more recent scan (Critical 3)", got)
+	}
+}
+
+// The fold is written back on the first open rather than deferred to the first
+// Set, for the reason the context migration was: a file left in the old shape is
+// folded again on every open, so what it holds depends on when it was last read.
+func TestTheFoldIsWrittenBackOnTheFirstOpen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "image-scans.json")
+	writeJSON(t, path, scanCacheFile[ImageScanEntry]{
+		Version:  1,
+		Contexts: map[string]map[string]ImageScanEntry{"work": {"nginx:latest": {Critical: 3}}},
+	})
+
+	openImageCache(t, path)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	var file imageScanCacheFile
+	if err := json.Unmarshal(data, &file); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if file.Version != imageScanCacheVersion {
+		t.Errorf("version = %d, want %d", file.Version, imageScanCacheVersion)
+	}
+	if _, ok := file.Entries["nginx:latest"]; !ok {
+		t.Errorf("the folded file holds %v, want the entry at the top level", keysOf(file.Entries))
 	}
 }
 
@@ -95,60 +171,51 @@ func TestAFlatWorkspaceCacheMigratesIntoTheOpeningContext(t *testing.T) {
 	}
 }
 
-// The migration must not run twice. Once a context has been written, the file
-// is in the new shape and a second open must read it as such — re-running the
-// legacy branch would fold every context back into the one being opened.
-func TestOpeningAMigratedFileDoesNotMigrateAgain(t *testing.T) {
+// Writes accumulate rather than replacing the file: open, write, open again,
+// write again, and both entries are there. Running the fold twice is what could
+// break it.
+func TestSuccessiveWritesAccumulate(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "image-scans.json")
 	writeJSON(t, path, map[string]ImageScanEntry{"nginx:latest": {Critical: 2}})
 
-	// First open migrates into "work" and writes the new shape.
-	first := openImageCache(t, path, "work")
+	first := openImageCache(t, path)
 	if err := first.Set("redis:7", ImageScanEntry{Critical: 1}); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
-
-	// A different context opens the same file and writes its own entry.
-	perso := openImageCache(t, path, "perso")
-	if err := perso.Set("alpine:3", ImageScanEntry{Low: 4}); err != nil {
-		t.Fatalf("Set in context perso: %v", err)
+	second := openImageCache(t, path)
+	if err := second.Set("alpine:3", ImageScanEntry{Low: 4}); err != nil {
+		t.Fatalf("Set: %v", err)
 	}
 
-	// Neither context may have acquired the other's keys.
-	if got := openImageCache(t, path, "work").GetAll(); len(got) != 2 {
-		t.Errorf("context work holds %d entries (%v), want 2", len(got), keysOf(got))
-	}
-	if got := openImageCache(t, path, "perso").GetAll(); len(got) != 1 {
-		t.Errorf("context perso holds %d entries (%v), want 1", len(got), keysOf(got))
+	if got := openImageCache(t, path).GetAll(); len(got) != 3 {
+		t.Errorf("the cache holds %d entries (%v), want all three", len(got), keysOf(got))
 	}
 }
 
-// Deleting is scoped too: purging a context's cache before a rescan (Rule 126)
-// must not reach into another context's entries.
-func TestDeleteOnlyTouchesTheOwnContext(t *testing.T) {
+// Deleting is what a purge does before a rescan (Rule 126). With one namespace
+// there is nothing to scope it to, and it removes the entry outright.
+func TestDeleteRemovesTheEntry(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "image-scans.json")
 
-	work := openImageCache(t, path, "work")
-	_ = work.Set("shared:tag", ImageScanEntry{Critical: 1})
-	perso := openImageCache(t, path, "perso")
-	_ = perso.Set("shared:tag", ImageScanEntry{Critical: 9})
+	c := openImageCache(t, path)
+	_ = c.Set("shared:tag", ImageScanEntry{Critical: 1})
 
-	if err := perso.Delete("shared:tag"); err != nil {
+	if err := c.Delete("shared:tag"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 
-	if got := openImageCache(t, path, "work").Get("shared:tag"); got == nil {
-		t.Error("deleting in context perso removed context work's entry")
+	if got := openImageCache(t, path).Get("shared:tag"); got != nil {
+		t.Errorf("the entry survived the delete: %+v", got)
 	}
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
-func openImageCache(t *testing.T, path, context string) *ImageScanCache {
+func openImageCache(t *testing.T, path string) *ImageScanCache {
 	t.Helper()
-	c, err := newImageScanCacheAt(path, context)
+	c, err := newImageScanCacheAt(path)
 	if err != nil {
-		t.Fatalf("open image cache for context %q: %v", context, err)
+		t.Fatalf("open image cache: %v", err)
 	}
 	return c
 }

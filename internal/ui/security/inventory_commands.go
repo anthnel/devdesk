@@ -70,7 +70,7 @@ func loadInventoryCmd() tea.Cmd {
 		targets := make([]scanTarget, 0)
 		images, imagesKnown := localImages()
 
-		if c, err := cache.NewImageScanCache(contextName); err != nil {
+		if c, err := cache.NewImageScanCache(); err != nil {
 			log.Printf("ERROR [security/inventory] open image scan cache: %v", err)
 		} else {
 			for name, entry := range c.GetAll() {
@@ -199,7 +199,7 @@ func purgeInventoryCmd(jobs []inventoryScanJob) tea.Cmd {
 	}
 	return func() tea.Msg {
 		contextName := config.CurrentContextName()
-		imageCache, imageErr := cache.NewImageScanCache(contextName)
+		imageCache, imageErr := cache.NewImageScanCache()
 		repoCache, repoErr := cache.NewWorkspaceScanCache(contextName)
 		for _, job := range jobs {
 			if job.Kind == kindImage {
@@ -265,7 +265,7 @@ func rescanOneCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan struct{}
 func storeRescan(job inventoryScanJob, result *scan.Result) {
 	contextName := config.CurrentContextName()
 	if job.Kind == kindImage {
-		if c, err := cache.NewImageScanCache(contextName); err == nil {
+		if c, err := cache.NewImageScanCache(); err == nil {
 			_ = c.Set(job.Name, cache.ImageScanEntry{
 				Critical: result.Counts.Critical, High: result.Counts.High,
 				Medium: result.Counts.Medium, Low: result.Counts.Low,

@@ -10,10 +10,14 @@ import (
 // map, which is what `Contexts == nil` after a successful unmarshal means.
 const scanCacheVersion = 1
 
-// scanCacheFile is the on-disk shape shared by the image and workspace scan
-// caches. Both are keyed by context because the configuration is: two contexts
-// legitimately point at different workspace roots and different registries, so
-// one flat namespace made them share results.
+// scanCacheFile is the on-disk shape of the workspace scan cache, and of the
+// image scan cache as it was written between the arrival of contexts and §3.39.
+//
+// A workspace path is reached through `workspaces_dir`, which is per context, so
+// two contexts holding the same path may legitimately mean different work — one
+// flat namespace made them share results. An image key is a local Docker
+// reference and answers for the machine, which is why that cache is flat again;
+// the image side still reads this shape to fold it back (readImageScanCacheFile).
 type scanCacheFile[T any] struct {
 	Version  int                     `json:"version"`
 	Contexts map[string]map[string]T `json:"contexts"`
