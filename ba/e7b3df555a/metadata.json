@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "bae7b3df555a",
+  "strategy": "manual-commit",
+  "branch": "netshoot-analysis",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ba/e7b3df555a/0/metadata.json",
+      "transcript": "/ba/e7b3df555a/0/full.jsonl",
+      "compact_transcript": "/ba/e7b3df555a/0/transcript.jsonl",
+      "content_hash": "/ba/e7b3df555a/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 26129,
+    "cache_read_tokens": 14814871,
+    "output_tokens": 18071,
+    "api_call_count": 29
+  }
+}
