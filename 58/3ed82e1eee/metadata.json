@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "583ed82e1eee",
+  "strategy": "manual-commit",
+  "branch": "image-cache-shared",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/cache/cache_test.go",
+    "internal/cache/image_scan.go",
+    "internal/cache/scan_context_test.go",
+    "internal/cache/scan_file.go",
+    "internal/cache/verdict_test.go",
+    "internal/ui/dashboard/posture.go",
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/oci_resources/commands_test.go",
+    "internal/ui/oci_resources/scan_commands_test.go",
+    "internal/ui/security/inventory_cache_test.go",
+    "internal/ui/security/inventory_commands.go",
+    "internal/ui/security/inventory_stale_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/58/3ed82e1eee/0/metadata.json",
+      "transcript": "/58/3ed82e1eee/0/full.jsonl",
+      "compact_transcript": "/58/3ed82e1eee/0/transcript.jsonl",
+      "content_hash": "/58/3ed82e1eee/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 104,
+    "cache_creation_tokens": 365389,
+    "cache_read_tokens": 17029690,
+    "output_tokens": 37397,
+    "api_call_count": 52
+  }
+}
