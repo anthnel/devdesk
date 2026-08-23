@@ -16,9 +16,17 @@ const (
 )
 
 // GroupMember represents a single member of a registry group.
+//
+// A member is an *address*, not a URL: `(URL, RepoPrefix)` is the pair browse and
+// pull both derive from, which is what stops them meaning two different
+// repositories (D39, §3.18). RepoPrefix is empty when the detector cannot know
+// how the member is reached, and empty is the honest answer there — an empty
+// prefix against a bare host is wrong and visibly so, where a synthesised path
+// is wrong and plausible.
 type GroupMember struct {
-	Alias string
-	URL   string
+	Alias      string
+	URL        string
+	RepoPrefix string
 }
 
 // RegistryInfo carries the information needed for group detection.

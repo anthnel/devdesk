@@ -125,9 +125,13 @@ func scanCacheFixture() map[string]cache.ImageScanEntry {
 func groupCacheFixture() map[string]cache.RegistryGroupEntry {
 	return map[string]cache.RegistryGroupEntry{
 		"prod": {
+			// A member is an address, not a URL (§3.18): the group's host, and
+			// the member's name in front of the repository. Both share the
+			// host, which is what makes the entry key the only thing telling
+			// them apart.
 			Members: []cache.RegistryGroupMember{
-				{Alias: "docker-hosted", URL: "registry.example.com/repository/docker-hosted"},
-				{Alias: "dhi", URL: "registry.example.com/repository/dhi-proxy"},
+				{Alias: "docker-hosted", URL: "registry.example.com", RepoPrefix: "docker-hosted"},
+				{Alias: "dhi", URL: "registry.example.com", RepoPrefix: "dhi-proxy"},
 			},
 			DiscoveredAt: at(3),
 		},

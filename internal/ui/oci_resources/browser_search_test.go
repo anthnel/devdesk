@@ -46,8 +46,8 @@ func resultsModel(t *testing.T, msgs ...tea.Msg) Model {
 	}
 	if len(msgs) == 0 {
 		msgs = []tea.Msg{
-			MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com", Alias: "prod", Repo: "api", Tags: []string{"v1", "v2"}},
-			MultiRegistryTagsLoadedMsg{RegistryURL: "docker.io", Alias: "hub", Repo: "api", Tags: []string{"latest"}},
+			MultiRegistryTagsLoadedMsg{EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "api", Tags: []string{"v1", "v2"}},
+			MultiRegistryTagsLoadedMsg{EntryKey: "hub", RegistryURL: "docker.io", Alias: "hub", Repo: "api", Tags: []string{"latest"}},
 		}
 	}
 	return feed(t, m, msgs...)
@@ -213,7 +213,7 @@ func TestASecondSearchStartsFromAClearTable(t *testing.T) {
 	m := resultsModel(t)
 	b := m.registryBrowser
 	b.filterInput.SetValue("v1")
-	b.registryFilter = resultFilter{url: "docker.io"}
+	b.registryFilter = resultFilter{entryKey: "hub"}
 	b.tagTable.SetSort(tagColumnUpdated, true)
 
 	m = feed(t, m, testutil.Key("esc")) // back to the form
@@ -428,7 +428,7 @@ func TestTheSortedColumnCarriesTheArrow(t *testing.T) {
 
 func TestSortingByNameOrdersTheRows(t *testing.T) {
 	m := resultsModel(t, MultiRegistryTagsLoadedMsg{
-		RegistryURL: "registry.example.com", Alias: "prod", Repo: "api",
+		EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "api",
 		Tags: []string{"v3", "v1", "v2"},
 	})
 	b := m.registryBrowser
@@ -446,11 +446,11 @@ func TestSortingByNameOrdersTheRows(t *testing.T) {
 // most likely wants is at the top.
 func TestSortingByUpdatedPutsTheNewestFirst(t *testing.T) {
 	m := resultsModel(t, MultiRegistryTagsLoadedMsg{
-		RegistryURL: "registry.example.com", Alias: "prod", Repo: "api",
+		EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "api",
 		Tags: []string{"old", "new"},
 	})
 	m = feed(t, m, MultiRegistryTagsMetaMsg{
-		RegistryURL: "registry.example.com", Repo: "api",
+		EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api",
 		Meta: map[string]time.Time{"old": at(1), "new": at(5)},
 	})
 	b := m.registryBrowser
@@ -495,8 +495,8 @@ func TestTheTagFilterNarrowsTheTable(t *testing.T) {
 // span repositories on different registries.
 func TestTheTagFilterAlsoMatchesTheRepository(t *testing.T) {
 	m := resultsModel(t,
-		MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com", Alias: "prod", Repo: "api", Tags: []string{"v1"}},
-		MultiRegistryTagsLoadedMsg{RegistryURL: "docker.io", Alias: "hub", Repo: "web", Tags: []string{"v1"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "api", Tags: []string{"v1"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: "hub", RegistryURL: "docker.io", Alias: "hub", Repo: "web", Tags: []string{"v1"}},
 	)
 	b := m.registryBrowser
 
@@ -535,7 +535,7 @@ func TestTheRegistryFilterCyclesThroughEachRegistryAndBack(t *testing.T) {
 	b := m.registryBrowser
 
 	m = feed(t, m, testutil.Key("r"))
-	if b.registryFilter != (resultFilter{url: "registry.example.com"}) {
+	if b.registryFilter != (resultFilter{entryKey: "prod"}) {
 		t.Fatalf("registryFilter = %q, want the first registry", b.registryFilter)
 	}
 	if got := len(b.tagTable.Visible()); got != 2 {
@@ -543,7 +543,7 @@ func TestTheRegistryFilterCyclesThroughEachRegistryAndBack(t *testing.T) {
 	}
 
 	m = feed(t, m, testutil.Key("r"))
-	if b.registryFilter != (resultFilter{url: "docker.io"}) {
+	if b.registryFilter != (resultFilter{entryKey: "hub"}) {
 		t.Fatalf("registryFilter = %q, want the second registry", b.registryFilter)
 	}
 
@@ -557,7 +557,7 @@ func TestTheRegistryFilterCyclesThroughEachRegistryAndBack(t *testing.T) {
 // filter set would hide nothing while claiming to filter.
 func TestTheRegistryFilterIsInertWithASingleRegistry(t *testing.T) {
 	m := resultsModel(t, MultiRegistryTagsLoadedMsg{
-		RegistryURL: "registry.example.com", Alias: "prod", Repo: "api", Tags: []string{"v1"},
+		EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "api", Tags: []string{"v1"},
 	})
 
 	m = feed(t, m, testutil.Key("r"))
@@ -576,7 +576,7 @@ func TestTheRegistryFilterIsInertWithASingleRegistry(t *testing.T) {
 // anything else, qualified by the group they came from.
 func TestAGroupMembersFilterLabelResolves(t *testing.T) {
 	b := groupedModel(t).registryBrowser
-	b.registryFilter = resultFilter{url: "registry.example.com/repository/dhi-proxy"}
+	b.registryFilter = resultFilter{entryKey: memberKey("prod", "registry.example.com", "dhi-proxy")}
 
 	if got := b.registryFilterLabel(); got != "prod/dhi" {
 		t.Errorf("registryFilterLabel() = %q, want the member qualified by its group", got)
@@ -599,7 +599,7 @@ func TestARegistryWithNoAliasIsLabelledByItsURL(t *testing.T) {
 	m = feed(t, m, testutil.Key(keymap.Browser))
 
 	b := m.registryBrowser
-	b.registryFilter = resultFilter{url: "registry.example.com"}
+	b.registryFilter = resultFilter{entryKey: "prod"}
 
 	if got := b.registryFilterLabel(); got != "registry.example.com" {
 		t.Errorf("registryFilterLabel() = %q, want the URL", got)
@@ -785,7 +785,7 @@ func TestAnUnscannedTagShowsNoCounts(t *testing.T) {
 // Rule 127: relative times, from the shared helper.
 func TestTheUpdatedColumnIsRelative(t *testing.T) {
 	m := resultsModel(t, MultiRegistryTagsLoadedMsg{
-		RegistryURL: "registry.example.com", Alias: "prod", Repo: "api", Tags: []string{"v1"},
+		EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "api", Tags: []string{"v1"},
 	})
 	b := m.registryBrowser
 
@@ -794,7 +794,7 @@ func TestTheUpdatedColumnIsRelative(t *testing.T) {
 	}
 
 	m = feed(t, m, MultiRegistryTagsMetaMsg{
-		RegistryURL: "registry.example.com", Repo: "api",
+		EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api",
 		Meta: map[string]time.Time{"v1": time.Now().Add(-2 * time.Hour)},
 	})
 	if got := b.tagTable.Table().Rows()[0][2]; !strings.Contains(got, "hr ago") {
@@ -805,7 +805,7 @@ func TestTheUpdatedColumnIsRelative(t *testing.T) {
 // A registry whose alias never made it onto the tag still has to be named.
 func TestATagWithNoAliasIsLabelledByItsRegistry(t *testing.T) {
 	m := resultsModel(t, MultiRegistryTagsLoadedMsg{
-		RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"},
+		EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"},
 	})
 
 	if got := m.registryBrowser.tagTable.Table().Rows()[0][0]; got != "registry.example.com" {
@@ -1006,9 +1006,9 @@ func TestTheResultFilterHasAGroupLevel(t *testing.T) {
 	m = typeInto(t, m, "api")
 	m = feed(t, m, testutil.Key("enter"))
 	m = feed(t, m,
-		MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com/repository/docker-hosted", Alias: "prod/docker-hosted", Repo: "api", Tags: []string{"v1"}},
-		MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com/repository/dhi-proxy", Alias: "prod/dhi", Repo: "api", Tags: []string{"v2"}},
-		MultiRegistryTagsLoadedMsg{RegistryURL: "docker.io", Alias: "hub", Repo: "api", Tags: []string{"latest"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: memberKey("prod", "registry.example.com", "docker-hosted"), RegistryURL: "registry.example.com", Alias: "prod/docker-hosted", Repo: "docker-hosted/api", Tags: []string{"v1"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: memberKey("prod", "registry.example.com", "dhi-proxy"), RegistryURL: "registry.example.com", Alias: "prod/dhi", Repo: "dhi-proxy/api", Tags: []string{"v2"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: "hub", RegistryURL: "docker.io", Alias: "hub", Repo: "api", Tags: []string{"latest"}},
 	)
 	b := m.registryBrowser
 
@@ -1024,11 +1024,11 @@ func TestTheResultFilterHasAGroupLevel(t *testing.T) {
 	seen := map[string]bool{}
 	for range len(b.entries) {
 		m = feed(t, m, testutil.Key("r"))
-		seen[b.registryFilter.url] = true
+		seen[b.registryFilter.entryKey] = true
 	}
 	for _, e := range b.entries {
-		if !seen[e.URL] {
-			t.Errorf("the cycle never stopped on %s", e.URL)
+		if !seen[e.key] {
+			t.Errorf("the cycle never stopped on %s", e.key)
 		}
 	}
 

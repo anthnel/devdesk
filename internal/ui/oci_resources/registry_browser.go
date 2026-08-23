@@ -31,6 +31,11 @@ const (
 type browserRegistryEntry struct {
 	URL   string
 	Alias string
+	// repoPrefix goes in front of the repository name. With URL it forms the
+	// entry's address, and both the browse path and the pull reference derive
+	// from that one pair — which is what stops them meaning two different
+	// repositories (D39, §3.18).
+	repoPrefix string
 	// Slug identifies the entry: its own for a standalone registry, its group's
 	// for a member. It is what the result filter resolves labels through, and
 	// what replaced matching on URL — two registries configured with the same
@@ -39,14 +44,14 @@ type browserRegistryEntry struct {
 	ParentAlias string // non-empty = member of a group
 	ParentSlug  string
 	parentURL   string // URL of the parent RegistryItem (for credential lookup)
-	// key identifies the entry among all the others, and is what the checkbox
-	// and the remembered exclusions are keyed on (D40). It is not the URL: two
-	// registries may be declared on one host — the form enforces slug
-	// uniqueness, not URL uniqueness — and §3.18 makes that the ordinary case.
-	// Nor is it Slug, which holds the *group's* slug for a member and would
-	// give a whole group one checkbox. So: the slug for a standalone registry,
-	// and the group's slug plus the member's URL for a member, the URL being
-	// what tells two members of one group apart. Their aliases do not:
+	// key identifies the entry among all the others, and is what the checkbox,
+	// the remembered exclusions and every result are keyed on (D40). It is not
+	// the URL: two registries may be declared on one host — the form enforces
+	// slug uniqueness, not URL uniqueness — and §3.18 makes that the ordinary
+	// case, since a member is now a bare host plus a prefix. Nor is it Slug,
+	// which holds the *group's* slug for a member and would give a whole group
+	// one checkbox. So: the slug for a standalone registry, and the group's slug
+	// plus the member's address for a member — the address, not the alias:
 	// cleanMemberAlias strips `-proxy` and `-hosted`, so `docker-io-proxy` and
 	// `docker-io-hosted` both display as `docker-io`.
 	key string
@@ -57,23 +62,27 @@ type browserRegistryEntry struct {
 
 // resultFilter narrows the tag table to one group or one registry. Both empty
 // means everything.
+//
+// The single-registry level is an entry key rather than a URL: several entries
+// share one host once a member is a host plus a prefix, so a URL would select
+// every proxy on that instance at once (§3.18, and D40 one screen along).
 type resultFilter struct {
 	groupSlug string
-	url       string
+	entryKey  string
 }
 
-func (f resultFilter) isEmpty() bool { return f.groupSlug == "" && f.url == "" }
+func (f resultFilter) isEmpty() bool { return f.groupSlug == "" && f.entryKey == "" }
 
-// matches reports whether a result from url passes the filter. A group matches
-// every member's URL, which is what the group level is for.
-func (f resultFilter) matches(url string, entry *browserRegistryEntry) bool {
+// matches reports whether a result from entryKey passes the filter. A group
+// matches every one of its members, which is what the group level is for.
+func (f resultFilter) matches(entryKey string, entry *browserRegistryEntry) bool {
 	switch {
 	case f.isEmpty():
 		return true
 	case f.groupSlug != "":
 		return entry != nil && entry.ParentSlug == f.groupSlug
 	default:
-		return url == f.url
+		return entryKey == f.entryKey
 	}
 }
 
@@ -289,7 +298,8 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 			b.rows = append(b.rows, pickerRow{label: alias, entry: len(b.entries)})
 			b.entries = append(b.entries, browserRegistryEntry{
 				URL: reg.URL, Alias: alias, Slug: reg.Slug, authMode: mode,
-				key: reg.Slug,
+				repoPrefix: reg.RepoPrefix,
+				key:        reg.Slug,
 			})
 			continue
 		}
@@ -300,12 +310,13 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 			b.entries = append(b.entries, browserRegistryEntry{
 				URL:         m.URL,
 				Alias:       m.Alias,
+				repoPrefix:  m.RepoPrefix,
 				Slug:        reg.Slug,
 				ParentAlias: alias,
 				ParentSlug:  reg.Slug,
 				parentURL:   reg.URL,
 				authMode:    mode,
-				key:         memberKey(reg.Slug, m.URL),
+				key:         memberKey(reg.Slug, m.URL, m.RepoPrefix),
 			})
 		}
 	}
@@ -319,16 +330,23 @@ func (b *RegistryBrowser) buildEntries(groups map[string]cache.RegistryGroupEntr
 // memberKey names one member of a group. Scoping it by the group's slug is what
 // keeps two groups fronting the same repository apart, and what keeps a member
 // from colliding with a standalone registry keyed on its own slug.
-func memberKey(groupSlug, memberURL string) string {
-	return groupSlug + "/" + memberURL
+//
+// The URL alone will not do: every member of a path-routed group answers to the
+// same host now, and the prefix is the whole of what tells them apart (§3.18).
+func memberKey(groupSlug, memberURL, repoPrefix string) string {
+	return groupSlug + "/" + memberURL + "/" + repoPrefix
 }
 
 // browserAlias returns what a registry is labelled with in the browser.
+//
+// With no alias it falls back to the entry's *address* rather than its URL: one
+// line per proxy is one host repeated, so the URL alone would label every proxy
+// of an instance identically (§3.18).
 func browserAlias(reg config.RegistryItem) string {
 	if reg.Alias != "" {
 		return reg.Alias
 	}
-	return reg.URL
+	return registryRef(reg.URL, reg.RepoPrefix)
 }
 
 // selected reports whether an entry is checked.

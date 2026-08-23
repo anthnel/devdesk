@@ -161,7 +161,36 @@ func normalizeRegistries(items []RegistryItem) error {
 	if err := checkParents(items, taken); err != nil {
 		return err
 	}
+	if err := checkRepoPrefixes(items); err != nil {
+		return err
+	}
 	return checkAuthModes(items)
+}
+
+// checkRepoPrefixes refuses a prefix that cannot mean what it says.
+//
+// A prefix is a path segment placed in front of the repository name, so a slash
+// at either end would double one when the two are joined — and the reference
+// would then be wrong in a way only the remote could report. A prefix on a group
+// is refused outright: a group is reachable only through its own connector, and
+// the same trick applied to it answers 404 (§3.18).
+func checkRepoPrefixes(items []RegistryItem) error {
+	for i := range items {
+		prefix := strings.TrimSpace(items[i].RepoPrefix)
+		items[i].RepoPrefix = prefix
+		if prefix == "" {
+			continue
+		}
+		if items[i].Kind == KindGroup {
+			return fmt.Errorf(
+				"registry %q is a group and cannot declare a repo prefix: a group is reached through its own connector", items[i].Slug)
+		}
+		if strings.HasPrefix(prefix, "/") || strings.HasSuffix(prefix, "/") {
+			return fmt.Errorf(
+				"registry %q declares the repo prefix %q: write it without a leading or trailing slash", items[i].Slug, prefix)
+		}
+	}
+	return nil
 }
 
 // applyAuthMode migrates the boolean auth_mode replaced, and clears it so the

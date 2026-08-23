@@ -8,7 +8,7 @@ import (
 
 // AddRegistryTags incorporates results from one registry into the combined tag list.
 // Always decrements pendingSearches, even on error (tags will be nil).
-func (b *RegistryBrowser) AddRegistryTags(registryURL, alias, repo string, tags []string) {
+func (b *RegistryBrowser) AddRegistryTags(entryKey, registryURL, alias, repo string, tags []string) {
 	// Floored: a duplicate or late response would otherwise drive the counter
 	// negative, and the next search would start from that base — IsSearching()
 	// would stay false while requests were genuinely in flight, so the spinner
@@ -18,6 +18,7 @@ func (b *RegistryBrowser) AddRegistryTags(registryURL, alias, repo string, tags 
 	}
 	for _, tag := range tags {
 		b.tags = append(b.tags, MultiRegistryTag{
+			EntryKey:    entryKey,
 			RegistryURL: registryURL,
 			Alias:       alias,
 			Repo:        repo,
@@ -29,10 +30,14 @@ func (b *RegistryBrowser) AddRegistryTags(registryURL, alias, repo string, tags 
 	}
 }
 
-// SetMultiTagsMeta stores last-updated metadata for tags belonging to one registry.
-func (b *RegistryBrowser) SetMultiTagsMeta(registryURL string, meta map[string]time.Time) {
+// SetMultiTagsMeta stores last-updated metadata for tags belonging to one entry.
+//
+// Keyed on the entry, not the host: several entries share one host once a
+// registry is a host plus a repo prefix, so a URL would stamp one proxy's dates
+// onto every proxy of that instance (§3.18).
+func (b *RegistryBrowser) SetMultiTagsMeta(entryKey string, meta map[string]time.Time) {
 	for i := range b.tags {
-		if b.tags[i].RegistryURL != registryURL {
+		if b.tags[i].EntryKey != entryKey {
 			continue
 		}
 		if t, ok := meta[b.tags[i].Tag]; ok {

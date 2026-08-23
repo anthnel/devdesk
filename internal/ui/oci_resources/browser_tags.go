@@ -10,17 +10,17 @@ import (
 // results, then every individual registry, then off. The group level is what
 // makes "everything from this Nexus" one keystroke rather than eight.
 func (b *RegistryBrowser) filterStops() []resultFilter {
-	seenGroup, seenURL := map[string]bool{}, map[string]bool{}
+	seenGroup, seenEntry := map[string]bool{}, map[string]bool{}
 	var groups, singles []resultFilter
 	for _, t := range b.tags {
-		entry := b.entryFor(t.RegistryURL)
+		entry := b.entryFor(t.EntryKey)
 		if entry != nil && entry.ParentSlug != "" && !seenGroup[entry.ParentSlug] {
 			seenGroup[entry.ParentSlug] = true
 			groups = append(groups, resultFilter{groupSlug: entry.ParentSlug})
 		}
-		if !seenURL[t.RegistryURL] {
-			seenURL[t.RegistryURL] = true
-			singles = append(singles, resultFilter{url: t.RegistryURL})
+		if !seenEntry[t.EntryKey] {
+			seenEntry[t.EntryKey] = true
+			singles = append(singles, resultFilter{entryKey: t.EntryKey})
 		}
 	}
 	// A single source has nothing to filter down to.
@@ -73,9 +73,13 @@ func (b *RegistryBrowser) cycleRegistryFilter() {
 }
 
 // entryFor returns the browser entry a result came from, or nil.
-func (b *RegistryBrowser) entryFor(url string) *browserRegistryEntry {
+//
+// It resolves by entry key, not by URL: every member of a path-routed group
+// answers to the same host, so a URL identifies a whole instance and a result
+// would be unattributable (§3.18, and D40 one screen along).
+func (b *RegistryBrowser) entryFor(key string) *browserRegistryEntry {
 	for i := range b.entries {
-		if b.entries[i].URL == url {
+		if b.entries[i].key == key {
 			return &b.entries[i]
 		}
 	}
@@ -97,13 +101,16 @@ func (b *RegistryBrowser) registryFilterLabel() string {
 		}
 		return b.registryFilter.groupSlug
 	}
-	if entry := b.entryFor(b.registryFilter.url); entry != nil && entry.Alias != "" {
+	if entry := b.entryFor(b.registryFilter.entryKey); entry != nil {
 		if entry.ParentAlias != "" {
 			return entry.ParentAlias + "/" + entry.Alias
 		}
-		return entry.Alias
+		if entry.Alias != "" {
+			return entry.Alias
+		}
+		return registryRef(entry.URL, entry.repoPrefix)
 	}
-	return b.registryFilter.url
+	return b.registryFilter.entryKey
 }
 
 func (b *RegistryBrowser) pullSelectedTag() (*RegistryBrowser, tea.Cmd) {
@@ -139,6 +146,18 @@ func (b *RegistryBrowser) openTagScanDetails() (*RegistryBrowser, tea.Cmd) {
 		return b, nil
 	}
 	return b, func() tea.Msg { return ScanDetailsRequestMsg{ImageName: name} }
+}
+
+// joinRepoPrefix puts an entry's prefix in front of the repository name.
+//
+// One slash, always: the prefix is a path segment and normalization has already
+// refused one carrying a slash at either end, so there is nothing here to guess
+// about (§3.18).
+func joinRepoPrefix(prefix, repo string) string {
+	if prefix == "" {
+		return repo
+	}
+	return prefix + "/" + repo
 }
 
 // normalizeRepoForRegistry prepends "library/" for bare names on Docker Hub.
@@ -204,7 +223,7 @@ func (b *RegistryBrowser) filteredMultiTags() []MultiRegistryTag {
 	query := strings.ToLower(b.filterInput.Value())
 	var result []MultiRegistryTag
 	for _, t := range b.tags {
-		if !b.registryFilter.matches(t.RegistryURL, b.entryFor(t.RegistryURL)) {
+		if !b.registryFilter.matches(t.EntryKey, b.entryFor(t.EntryKey)) {
 			continue
 		}
 		if query != "" && !strings.Contains(strings.ToLower(t.Tag), query) &&

@@ -16,6 +16,7 @@ import (
 const (
 	regFieldKind = iota
 	regFieldURL
+	regFieldRepoPrefix // registry only
 	regFieldSlug
 	regFieldAlias
 	regFieldUsername
@@ -47,6 +48,7 @@ type RegistryForm struct {
 	usernameInput textinput.Model
 	passwordInput textinput.Model
 	aliasInput    textinput.Model
+	prefixInput   textinput.Model
 	nexusURLInput textinput.Model
 	authModeIdx   int
 	kindIdx       int
@@ -105,6 +107,14 @@ func newRegistryForm(index int, item config.RegistryItem, existing []config.Regi
 	theme.StyleTextInput(&aliasInput)
 	aliasInput.SetValue(item.Alias)
 
+	prefixInput := textinput.New()
+	prefixInput.CharLimit = 128
+	// Shaped like a real value, because that is what a placeholder is: a Nexus
+	// proxy is the case this field exists for (§3.18).
+	prefixInput.Placeholder = "dhi-io-proxy  (optional)"
+	theme.StyleTextInput(&prefixInput)
+	prefixInput.SetValue(item.RepoPrefix)
+
 	nexusURLInput := textinput.New()
 	nexusURLInput.CharLimit = 512
 	nexusURLInput.Placeholder = "https://registry-mgr.example.com/path/to/group  (optional)"
@@ -119,6 +129,7 @@ func newRegistryForm(index int, item config.RegistryItem, existing []config.Regi
 		usernameInput: usernameInput,
 		passwordInput: passwordInput,
 		aliasInput:    aliasInput,
+		prefixInput:   prefixInput,
 		nexusURLInput: nexusURLInput,
 		authModeIdx:   indexOf(config.AuthModes(item.Parent != ""), item.AuthMode),
 		kindIdx:       indexOf(config.Kinds(), item.Kind),
@@ -159,6 +170,7 @@ func (f *RegistryForm) resizeInputs() {
 	f.usernameInput.Width = w
 	f.passwordInput.Width = w
 	f.aliasInput.Width = w
+	f.prefixInput.Width = w
 	f.nexusURLInput.Width = w
 }
 
@@ -167,11 +179,18 @@ func (f *RegistryForm) isGroup() bool {
 	return config.Kinds()[f.kindIdx] == config.KindGroup
 }
 
-// isFieldSkipped reports whether a field is absent for the current kind. The
-// management URL and the provider describe where a group's members come from,
-// so they mean nothing on a plain registry.
+// isFieldSkipped reports whether a field is absent for the current kind.
+//
+// The management URL and the provider describe where a group's members come
+// from, so they mean nothing on a plain registry. The repo prefix goes the other
+// way: a group is reachable only through its own connector, and config refuses
+// one that declares a prefix (§3.18), so the field is not offered where it
+// could not be saved.
 func (f *RegistryForm) isFieldSkipped(idx int) bool {
-	return !f.isGroup() && (idx == regFieldMgmtURL || idx == regFieldProvider)
+	if f.isGroup() {
+		return idx == regFieldRepoPrefix
+	}
+	return idx == regFieldMgmtURL || idx == regFieldProvider
 }
 
 func (f *RegistryForm) nextField() int {
@@ -265,6 +284,7 @@ func (f *RegistryForm) updateFocus() {
 	f.usernameInput.Blur()
 	f.passwordInput.Blur()
 	f.aliasInput.Blur()
+	f.prefixInput.Blur()
 	f.nexusURLInput.Blur()
 	switch f.focusedField {
 	case regFieldURL:
@@ -277,6 +297,8 @@ func (f *RegistryForm) updateFocus() {
 		f.usernameInput.Focus()
 	case regFieldPassword:
 		f.passwordInput.Focus()
+	case regFieldRepoPrefix:
+		f.prefixInput.Focus()
 	case regFieldMgmtURL:
 		f.nexusURLInput.Focus()
 	}
@@ -295,6 +317,8 @@ func (f *RegistryForm) updateActiveInput(msg tea.Msg) (*RegistryForm, tea.Cmd) {
 		f.usernameInput, cmd = f.usernameInput.Update(msg)
 	case regFieldPassword:
 		f.passwordInput, cmd = f.passwordInput.Update(msg)
+	case regFieldRepoPrefix:
+		f.prefixInput, cmd = f.prefixInput.Update(msg)
 	case regFieldMgmtURL:
 		f.nexusURLInput, cmd = f.nexusURLInput.Update(msg)
 	}
@@ -319,6 +343,11 @@ func (f *RegistryForm) submit() (*RegistryForm, tea.Cmd) {
 	if f.isGroup() {
 		item.Provider = config.Providers()[f.providerIdx]
 		item.ManagementURL = strings.TrimSpace(f.nexusURLInput.Value())
+	} else {
+		// The slashes are trimmed rather than refused: config would reject the
+		// entry at the next load, and a user typing `/dhi-io-proxy` means the
+		// same thing as one typing `dhi-io-proxy` (§3.18).
+		item.RepoPrefix = strings.Trim(strings.TrimSpace(f.prefixInput.Value()), "/")
 	}
 
 	slug, err := f.resolveSlug(item)
@@ -387,6 +416,10 @@ func (f *RegistryForm) View() string {
 	b.WriteString("\n\n")
 	b.WriteString(f.renderField("URL", f.urlInput.View(), regFieldURL))
 	b.WriteString("\n\n")
+	if !f.isGroup() {
+		b.WriteString(f.renderField("Repo prefix", f.prefixInput.View(), regFieldRepoPrefix))
+		b.WriteString("\n\n")
+	}
 	b.WriteString(f.renderField("Slug", f.slugInput.View(), regFieldSlug))
 	b.WriteString("\n\n")
 	b.WriteString(f.renderField("Alias", f.aliasInput.View(), regFieldAlias))

@@ -536,3 +536,65 @@ registry:
 		t.Errorf("err = %v, want it to name the slug", err)
 	}
 }
+
+// ── repo_prefix (§3.18) ──────────────────────────────────────────────────────
+
+// The prefix goes in front of the repository name, so it is a path segment and
+// nothing else. A leading or trailing slash would double one when it is joined,
+// and the reference would be wrong in a way only the remote could report.
+func TestARepoPrefixWithASlashAtEitherEndIsRefused(t *testing.T) {
+	for _, prefix := range []string{"/dhi-io-proxy", "dhi-io-proxy/", "/dhi-io-proxy/"} {
+		items := []RegistryItem{{URL: "https://nexus.example.com", Slug: "dhi", RepoPrefix: prefix}}
+
+		err := normalizeRegistries(items)
+		if err == nil {
+			t.Fatalf("the prefix %q was accepted", prefix)
+		}
+		if !strings.Contains(err.Error(), prefix) {
+			t.Errorf("err = %v, want it to quote the value", err)
+		}
+	}
+}
+
+// A group's address is its own connector: form D — the group reached as a path
+// prefix on the manager's host — is a 404 (§3.18). Accepting a prefix here would
+// let a user write an address that cannot exist.
+func TestARepoPrefixOnAGroupIsRefused(t *testing.T) {
+	items := []RegistryItem{{
+		URL: "https://nexus.example.com/repository/g", Slug: "grp",
+		Kind: KindGroup, RepoPrefix: "dhi-io-proxy",
+	}}
+
+	err := normalizeRegistries(items)
+	if err == nil {
+		t.Fatal("a group declaring a repo prefix was accepted")
+	}
+	if !strings.Contains(err.Error(), "grp") {
+		t.Errorf("err = %v, want it to name the entry", err)
+	}
+}
+
+// The ordinary entry: a bare host and a prefix, which is what one line per proxy
+// looks like.
+func TestARepoPrefixOnARegistryIsKept(t *testing.T) {
+	items := []RegistryItem{{URL: "nexus.example.com", Slug: "dhi", RepoPrefix: "dhi-io-proxy"}}
+
+	if err := normalizeRegistries(items); err != nil {
+		t.Fatalf("normalizeRegistries: %v", err)
+	}
+	if items[0].RepoPrefix != "dhi-io-proxy" {
+		t.Errorf("repo prefix = %q, want it kept as declared", items[0].RepoPrefix)
+	}
+}
+
+// An entry that predates the field is what every existing config is.
+func TestAConfigWithNoRepoPrefixStillLoads(t *testing.T) {
+	items := []RegistryItem{{URL: "https://a.example.com", Slug: "a"}}
+
+	if err := normalizeRegistries(items); err != nil {
+		t.Fatalf("normalizeRegistries: %v", err)
+	}
+	if items[0].RepoPrefix != "" {
+		t.Errorf("repo prefix = %q, want nothing invented", items[0].RepoPrefix)
+	}
+}

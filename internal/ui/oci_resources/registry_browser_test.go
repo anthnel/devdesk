@@ -41,11 +41,11 @@ func searchedModel(t *testing.T) Model {
 	t.Helper()
 	return feed(t, browsingModel(t),
 		MultiRegistryTagsLoadedMsg{
-			RegistryURL: "registry.example.com", Alias: "prod", Repo: "api",
+			EntryKey: "prod", RegistryURL: "registry.example.com", Alias: "prod", Repo: "api",
 			Tags: []string{"v1", "v2"},
 		},
 		MultiRegistryTagsLoadedMsg{
-			RegistryURL: "docker.io", Alias: "hub", Repo: "api",
+			EntryKey: "hub", RegistryURL: "docker.io", Alias: "hub", Repo: "api",
 			Tags: []string{"latest"},
 		},
 	)
@@ -152,13 +152,13 @@ func TestTheBrowserSearchesUntilEveryRegistryAnswers(t *testing.T) {
 	m.registryBrowser.pendingSearches = 2 // two registries queried
 
 	m = feed(t, m, MultiRegistryTagsLoadedMsg{
-		RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"},
+		EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"},
 	})
 	if !m.registryBrowser.IsSearching() {
 		t.Error("the browser stopped searching with one registry outstanding")
 	}
 
-	m = feed(t, m, MultiRegistryTagsLoadedMsg{RegistryURL: "docker.io", Repo: "api", Tags: []string{"latest"}})
+	m = feed(t, m, MultiRegistryTagsLoadedMsg{EntryKey: "hub", RegistryURL: "docker.io", Repo: "api", Tags: []string{"latest"}})
 	if m.registryBrowser.IsSearching() {
 		t.Error("the browser is still searching once every registry answered")
 	}
@@ -171,9 +171,9 @@ func TestExtraResponsesDoNotDriveTheCounterNegative(t *testing.T) {
 	m.registryBrowser.pendingSearches = 1
 
 	m = feed(t, m,
-		MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"}},
-		MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"}},
-		MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1"}},
 	)
 
 	if got := m.registryBrowser.pendingSearches; got != 0 {
@@ -190,8 +190,8 @@ func TestExtraResponsesDoNotDriveTheCounterNegative(t *testing.T) {
 // One registry failing must not lose the other's results.
 func TestAFailedSearchKeepsTheOtherResults(t *testing.T) {
 	m := feed(t, browsingModel(t),
-		MultiRegistryTagsLoadedMsg{RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1", "v2"}},
-		MultiRegistryTagsLoadedMsg{RegistryURL: "docker.io", Repo: "api", Err: errors.New("401 unauthorized")},
+		MultiRegistryTagsLoadedMsg{EntryKey: "prod", RegistryURL: "registry.example.com", Repo: "api", Tags: []string{"v1", "v2"}},
+		MultiRegistryTagsLoadedMsg{EntryKey: "hub", RegistryURL: "docker.io", Repo: "api", Err: errors.New("401 unauthorized")},
 	)
 
 	if got := len(m.registryBrowser.tags); got != 2 {
@@ -205,9 +205,9 @@ func TestTagMetadataEnrichesTheRows(t *testing.T) {
 	m := searchedModel(t)
 
 	m = feed(t, m, MultiRegistryTagsMetaMsg{
-		RegistryURL: "registry.example.com",
-		Repo:        "api",
-		Meta:        map[string]time.Time{"v1": at(1)},
+		EntryKey: "prod", RegistryURL: "registry.example.com",
+		Repo: "api",
+		Meta: map[string]time.Time{"v1": at(1)},
 	})
 
 	var enriched bool
@@ -640,11 +640,11 @@ func TestAMemberDiscoveredSinceTheLastVisitArrivesChecked(t *testing.T) {
 	entries := groupCacheFixture()
 	entries["prod"] = cache.RegistryGroupEntry{
 		Members: append(entries["prod"].Members,
-			cache.RegistryGroupMember{Alias: "new", URL: "registry.example.com/repository/new-proxy"}),
+			cache.RegistryGroupMember{Alias: "new", URL: "registry.example.com", RepoPrefix: "new-proxy"}),
 	}
 	m = feed(t, m, RegistryGroupCacheLoadedMsg{Entries: entries}, testutil.Key(keymap.Browser))
 
-	if !m.registryBrowser.selectedRegs[memberKey("prod", "registry.example.com/repository/new-proxy")] {
+	if !m.registryBrowser.selectedRegs[memberKey("prod", "registry.example.com", "new-proxy")] {
 		t.Error("a member discovered since the last visit opened unchecked")
 	}
 }

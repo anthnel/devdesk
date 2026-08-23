@@ -139,7 +139,8 @@ func (m Model) deleteSelectedRegistry() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.pendingAction = "delete-registry"
-	m.confirmModal = sharedcomponents.NewConfirmModal("Remove Registry", fmt.Sprintf("Remove registry '%s'?", reg.URL))
+	m.confirmModal = sharedcomponents.NewConfirmModal(
+		"Remove Registry", fmt.Sprintf("Remove registry '%s'?", registryRef(reg.URL, reg.RepoPrefix)))
 	return m, nil
 }
 
