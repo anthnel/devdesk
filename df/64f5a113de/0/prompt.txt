@@ -1,0 +1,41 @@
+explique moi le D39 et comment le 3.18 le ferme
+
+---
+
+démarre l'implémentation
+
+---
+
+merge
+
+---
+
+j'ai remarqué que quand je change de contexte je perds les scans sur les images, les images sont les mêmes d'un contexte à l'autre donc on pourrait partager le cache pour ce cas précis. Concernant les répertoires il est normal de ne pas partager le cache car il pourrait être différent
+
+---
+
+merge
+
+---
+
+les icones semblent petites sur un écran 4K
+
+---
+
+qu'est-ce qu'il reste dans le backlog
+
+---
+
+commençons la 3.38, on reste en stdio, pose moi la question pour le sdk go (recherche les dernières infos)
+
+---
+
+continue étape 2
+
+---
+
+continue étape 3
+
+---
+
+continue étape 4
