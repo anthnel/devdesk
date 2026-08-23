@@ -18,9 +18,15 @@ import (
 // file format, and it should not move because a domain type did.
 
 // RegistryGroupMember is one repository fronted by a group.
+//
+// The pair (URL, RepoPrefix) is the member's address, and both halves are needed
+// because the prefix is what tells two members of one group apart once they no
+// longer each carry a synthesised URL of their own (§3.18). An entry written
+// before the field existed decodes to an empty prefix, which is what it meant.
 type RegistryGroupMember struct {
-	Alias string `json:"alias"`
-	URL   string `json:"url"`
+	Alias      string `json:"alias"`
+	URL        string `json:"url"`
+	RepoPrefix string `json:"repo_prefix,omitempty"`
 }
 
 // RegistryGroupEntry is the result of one discovery. An entry with no members

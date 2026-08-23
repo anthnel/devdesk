@@ -539,3 +539,75 @@ func TestNetworkInspectColumnsHoldTheWidthInvariant(t *testing.T) {
 }
 
 var errTest = errors.New("docker: no such network")
+
+// ── Registry: the repo prefix (§3.18) ────────────────────────────────────────
+
+// The pair (url, repo_prefix) is what an entry is addressed by, so the prefix
+// has to be typeable — the case it exists for is one line per Nexus proxy, all
+// of them on the instance's host.
+func TestARepoPrefixIsSavedOnTheEntry(t *testing.T) {
+	f := NewRegistryForm(nil, 120)
+	f = typeIntoField(f, regFieldURL, "nexus.example.com")
+	f = typeIntoField(f, regFieldRepoPrefix, "dhi-io-proxy")
+
+	item, formErr := saveRegistryForm(t, f)
+
+	if formErr != "" {
+		t.Fatalf("the form refused the entry: %s", formErr)
+	}
+	if item.RepoPrefix != "dhi-io-proxy" {
+		t.Errorf("RepoPrefix = %q, want what was typed", item.RepoPrefix)
+	}
+}
+
+// A slash at either end would double one when the prefix is joined to the
+// repository name, and config refuses the entry at the next load. Trimming it
+// is not correction for its own sake: `/dhi-io-proxy` means the same thing.
+func TestASlashAroundTheRepoPrefixIsTrimmedRatherThanSaved(t *testing.T) {
+	f := NewRegistryForm(nil, 120)
+	f = typeIntoField(f, regFieldURL, "nexus.example.com")
+	f = typeIntoField(f, regFieldRepoPrefix, "/dhi-io-proxy/")
+
+	item, formErr := saveRegistryForm(t, f)
+
+	if formErr != "" {
+		t.Fatalf("the form refused the entry: %s", formErr)
+	}
+	if item.RepoPrefix != "dhi-io-proxy" {
+		t.Errorf("RepoPrefix = %q, want the slashes gone", item.RepoPrefix)
+	}
+}
+
+// A group is reached through its own connector — the same trick applied to it
+// answers 404 — so config refuses a prefix on one. The field is therefore not
+// offered where it could not be saved.
+func TestTheRepoPrefixIsSkippedForAGroup(t *testing.T) {
+	f := NewRegistryForm(nil, 120)
+	f = typeIntoField(f, regFieldURL, "nexus.example.com")
+	f = typeIntoField(f, regFieldRepoPrefix, "dhi-io-proxy")
+
+	// Turn it into a group.
+	f.focusedField = regFieldKind
+	f, _ = f.Update(testutil.Key("right"))
+	if !f.isGroup() {
+		t.Fatal("the kind did not cycle to group")
+	}
+
+	if view := f.View(); strings.Contains(view, "Repo prefix") {
+		t.Errorf("a group renders the prefix field:\n%s", view)
+	}
+
+	f.focusedField = regFieldURL
+	f, _ = f.Update(testutil.Key("down"))
+	if f.focusedField == regFieldRepoPrefix {
+		t.Error("down from URL landed on the prefix, which a group has no use for")
+	}
+
+	item, formErr := saveRegistryForm(t, f)
+	if formErr != "" {
+		t.Fatalf("the form refused the group: %s", formErr)
+	}
+	if item.RepoPrefix != "" {
+		t.Errorf("RepoPrefix = %q, want a group to carry none", item.RepoPrefix)
+	}
+}

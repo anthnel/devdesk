@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-22
+**Last Updated:** 2026-08-23
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11,13 +11,13 @@ rather than carried over.
 
 ## 1. Known defects
 
-**One open — D39**, in the registry browser, found on 2026-08-10 while trying to
-browse a single proxy inside a real Nexus group. It is what
-[§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix) exists to
-fix. D40, found the same day and on the same screen, was the thing §3.18 blocked
-on and is now closed on its own.
+**None open.** D39, the last one, was the registry browser addressing a group's
+members one way to browse them and another way to pull them; it is closed by
+[§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix), which is
+what it existed for. D40, found the same day and on the same screen, was the
+thing §3.18 blocked on and had already been closed on its own.
 
-D1 through D38 and D40 through D51 are all fixed or, in D35's case, deliberately
+D1 through D51 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +29,47 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D39 — every discovered group member browsed, and none of them could be
+pulled. Fixed** by §3.18. Found on 2026-08-10 against a real Nexus, closed on
+2026-08-23.
+
+`NexusDetector` synthesised each member as `host + "/repository/" + name`, and
+two consumers read that one URL without building the same request from it:
+`GET /repository/dhi-io-proxy/v2/eclipse-temurin/tags/list` answered **200**,
+while the reference Docker builds from the same string —
+`/v2/repository/dhi-io-proxy/…` — answered **404**. So the tags table filled
+correctly and `G` on any row of it could not work. That was the worse half:
+nothing on screen said the reference would not resolve.
+
+**It was never a format string to correct.** Which of four addressing forms
+applies is a per-repository Nexus setting (`docker.httpPort`, `docker.httpsPort`,
+`docker.subdomain`), and the endpoint carrying it answers 403 to an ordinary pull
+account — the same endpoint that would say what a group's members are. So the
+addressing is **declared**, on the `provider` precedent: `repo_prefix`, on
+`config.RegistryItem` and on `cache.RegistryGroupMember`. The pair
+`(url, repo_prefix)` is the address, both directions derive from it, and browse
+and pull can no longer mean two different repositories.
+
+It is applied **once**, in `submitSearch` — the prefix is then already part of
+`MultiRegistryTag.Repo`, so `multiImageName` and `registryAPIURL` needed no
+change. Teaching both of them about it would have been two places free to drift,
+which is what the defect already was.
+
+**What the fix cost elsewhere is the interesting part**, and it is D40's
+territory: once several entries answer to one host, a URL identifies an instance
+rather than an entry. So `entryFor` resolves by entry key, `resultFilter` holds a
+key rather than a URL, `MultiRegistryTag` carries one, and `memberKey` takes the
+prefix — a member's URL alone no longer tells two members of one group apart. The
+Registries tab and the browser's labels show the address rather than the URL for
+the same reason: one line per proxy is otherwise one host repeated.
+
+`NexusDetector` no longer synthesises anything. A group written as a path
+prefix serves its members the same way, so it emits `(host, memberName)`, which
+is consistent by construction; reached through a connector of its own — a port,
+a subdomain — it emits the group's URL and **no** prefix, because which connector
+a member answers on is exactly what it cannot read. An empty prefix against a
+bare host is wrong and visibly so; the synthesised path was wrong and plausible.
 
 **D54 — la vue d'auth proposait un token GitLab en exemple, quelle que soit la
 forge. Corrigé.** Signalé le 2026-08-22, juste après D53.
@@ -630,8 +671,10 @@ member's URL for a member**. Neither half of that is arbitrary:
 - Within a group the members are told apart by **URL, not alias**:
   `cleanMemberAlias` strips `-proxy`, `-hosted` and `-local`, so
   `docker-io-proxy` and `docker-io-hosted` both display as `docker-io`. §3.18
-  changes what distinguishes a member — it gives them one host and a
-  `repo_prefix` each — and `memberKey` is the one place that has to follow.
+  has since changed what distinguishes a member — they share one host and carry a
+  `repo_prefix` each — and `memberKey` was the one place that had to follow: it
+  takes the prefix as a third segment, so a member is keyed on its *address*
+  rather than on a URL that is now the group's.
 
 `browser-selection.json` keeps its shape; only what the strings mean changes.
 An exclusion written by an earlier build is a URL, matches no key, and the entry
@@ -1358,38 +1401,15 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
-**D39 — every discovered group member browses, and none of them can be pulled.**
-`NexusDetector` synthesises each member as `host + "/repository/" + name`
-(`nexus.go:117`, `nexus.go:156`). Measured against `pic-nexus.spw.dev.wallonie.be`
-on 2026-08-10:
+**Nothing is open.** D39 was the last, and §3.18 closed it on 2026-08-23 — see
+§1.1 for what it was and what the fix cost on the screens around it. D40, which
+it needed closed with it, had already been fixed on its own. D52, trouvé en
+écrivant §3.6 étape 1, a été corrigé à l'étape 3. D21 and D36 closed everything
+that preceded them. All of them are in §1.1.
 
-| Request | Result |
-|---|---|
-| `GET /repository/dhi-io-proxy/v2/eclipse-temurin/tags/list` | **200** — the browse works |
-| `GET /v2/repository/dhi-io-proxy/eclipse-temurin/manifests/21` | **404** |
-
-The second is the path the Docker client builds from that same URL: it puts
-`/v2/` first and the whole repository path after it. So the tags table fills
-correctly and `p` on any row of it cannot work — the one produces a reference the
-other cannot resolve.
-
-It is not a matter of picking a better format string. Which of the four
-addressing forms applies is a per-repository Nexus setting, and on this instance
-the endpoint carrying it answers 403; the evidence and the design are in
-[§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix). Until then
-a member row is honest about tags and silently wrong about pulls, which is the
-worse half — nothing on screen says the reference will not resolve.
-
-Not reached before now because discovery had never succeeded against a group here
-(the same 403), so no member row had ever been rendered.
-
-**D40 is fixed** — see §1.1. It was reachable on its own and was fixed on its
-own; §3.18 is what would have made it the normal case rather than a way to
-misconfigure, and it no longer has to carry that.
-
-**D39 est le seul ouvert**, ci-dessus. D52, trouvé en écrivant §3.6 étape 1,
-a été corrigé à l'étape 3 — voir §1.1. D21 and D36 closed everything that preceded
-them; both are in §1.1.
+What remains below is **D35**, which is not open and not closed: a stale reading
+with a way to refresh it, kept here because that is a decision rather than a
+fix.
 
 D12, D13 and D14 were all fixed by §3.8 — see "The three defects it closed"
 there for what each turned out to be. D14's inverted test failed the moment the
@@ -3508,13 +3528,14 @@ on the group first, then on each registry, then off, and `resultFilter` replaced
 the bare URL string so "this group" and "this registry" are different values
 rather than one field meaning two things.
 
-**What this left unfinished, found later.** The member URL kept the shape the
-table above records — `host + /repository/<name>` — because nothing had yet
-pulled from one. It browses and cannot pull (D39), and the addressing it stands
-in for turns out not to be derivable at all:
-[§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix). The
-selection map also stayed keyed on the URL when entry identity moved to the slug
-(D40, since fixed).
+**What this left unfinished, found later — and since fixed.** The member URL
+kept the shape the table above records — `host + /repository/<name>` — because
+nothing had yet pulled from one. It browsed and could not pull (D39), and the
+addressing it stood in for turned out not to be derivable at all, so it is
+declared instead:
+[§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix) replaced the
+synthesised URL with the pair `(url, repo_prefix)`. The selection map also stayed
+keyed on the URL when entry identity moved to the slug (D40, since fixed).
 
 ### 3.9 Every secret goes to a host secret manager, and radio buttons go away — **done**
 
@@ -4494,10 +4515,10 @@ Not touched, and deliberately: `OriginView` (it carries navigation, not options
 
 Coverage: `internal/ui/security` 85.6 % → 85.8 %, project total 81.3 % → 81.4 %.
 
-### 3.18 A registry member is an address, not a URL — `repo_prefix`
+### 3.18 A registry member is an address, not a URL — `repo_prefix` — **done**
 
-Not started. §3.8 gave a group its members; this is about *reaching* one. It
-closes D39. D40, which it needed closed with it, was fixed on its own — see
+Done on 2026-08-23. §3.8 gave a group its members; this is about *reaching* one.
+It closes D39. D40, which it needed closed with it, was fixed on its own — see
 §1.1.
 
 Found on 2026-08-10 trying to browse a single proxy inside a Nexus group. All
@@ -4608,13 +4629,39 @@ Deliberately not done:
   endpoint is refused. An empty prefix against a bare host is wrong and visibly
   so; a synthesised `/repository/` URL is wrong and plausible, which is D39.
 
-#### Tests worth writing first
+#### The tests, written first
 
-- A member with a prefix browses `<host>/v2/<prefix>/<repo>/tags/list` **and**
-  pulls `<host>/<prefix>/<repo>:<tag>` — the pair D39 fails, so it fails on the
-  current code.
-- A member with no prefix produces byte-identical requests to today.
-- A `repo_prefix` on a `kind: group` entry fails `LoadContext` rather than loading.
+All three were written before the change and checked against the pre-fix code.
+
+- `TestAPrefixedRegistryBrowsesAndPullsTheSameRepository` — the pair D39 fails:
+  the browse asks `<host>/v2/<prefix>/<repo>/tags/list` and the pull reference is
+  `<host>/<prefix>/<repo>:<tag>`. It failed on both halves before the fix.
+- `TestARegistryWithNoPrefixIsUnchanged` — byte-identical requests to before,
+  which is what makes this an addition rather than a new address for everything
+  that already worked.
+- `TestARepoPrefixOnAGroupIsRefused` and
+  `TestARepoPrefixWithASlashAtEitherEndIsRefused` — normalization refuses both
+  rather than correcting them, so the join has nothing to guess about.
+
+Two more came out of doing it: `TestAMemberIsAddressedByPrefixAndNeverBySynthesisedPath`
+pins what the detector emits in each of the four connector shapes, and
+`TestTwoPrefixesOnOneHostAreTwoEntries` is D40 seen from the case that makes it
+ordinary.
+
+#### What it turned out to touch
+
+The scope table above held, with one addition the design implied and did not
+name: **the results themselves**. `MultiRegistryTag` and both registry messages
+carry an `EntryKey`, because a tag arriving from `nexus.example.com` no longer
+says which of that instance's proxies answered — so the result filter, the filter
+labels and the last-updated enrichment are all keyed on the entry now. Keeping
+`RegistryURL` beside it is deliberate: it is what the pull reference is built
+from, and only that.
+
+`registryRef(url, prefix)` is the one place an entry is turned into something a
+user reads, and the Registries tab, the browser's picker and its filter labels
+all go through it. It is the head of the pull reference, exactly — which is what
+makes it the honest thing to show.
 
 ### 3.19 The dashboard stops reflowing, and gains resource charts — **done**
 

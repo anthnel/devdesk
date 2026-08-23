@@ -1,6 +1,9 @@
 package registrymgr
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseNexusURL(t *testing.T) {
 	tests := []struct {
@@ -100,6 +103,64 @@ func TestCleanMemberAlias(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := cleanMemberAlias(tt.in); got != tt.want {
 				t.Errorf("cleanMemberAlias(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// A member is an address, not a URL (§3.18). The synthesis this replaces put the
+// member's name into the *path* — `host/repository/<name>` — which browses and
+// cannot pull: the Docker client puts `/v2/` first and the whole path after it,
+// so the two ends of the same row meant two different repositories (D39).
+func TestAMemberIsAddressedByPrefixAndNeverBySynthesisedPath(t *testing.T) {
+	tests := []struct {
+		name       string
+		dockerURL  string
+		member     string
+		wantURL    string
+		wantPrefix string
+	}{
+		{
+			name:      "a group reached by path prefix serves its members the same way",
+			dockerURL: "https://nexus.example.com/repository/docker-group",
+			member:    "dhi-io-proxy",
+			// The host, and the member in front of the repository name: browse
+			// and pull build the same path from it.
+			wantURL: "https://nexus.example.com", wantPrefix: "dhi-io-proxy",
+		},
+		{
+			name:      "the scheme the group was written with is kept",
+			dockerURL: "http://nexus.local:8081/repository/docker-group",
+			member:    "quay-io-proxy",
+			wantURL:   "http://nexus.local:8081", wantPrefix: "quay-io-proxy",
+		},
+		{
+			name: "a connector port is the group's own, so nothing is claimed about a member",
+			// Which connector a member answers on is a setting on that
+			// repository, and the endpoint carrying it is refused to an ordinary
+			// pull account. An empty prefix is wrong and visibly so; a
+			// synthesised path is wrong and plausible.
+			dockerURL: "nexus.example.com:8082",
+			member:    "dhi-io-proxy",
+			wantURL:   "nexus.example.com:8082", wantPrefix: "",
+		},
+		{
+			name:      "a subdomain connector says nothing about a member either",
+			dockerURL: "https://nexus-docker-group.example.com",
+			member:    "dhi-io-proxy",
+			wantURL:   "https://nexus-docker-group.example.com", wantPrefix: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url, prefix := memberAddress(tt.dockerURL, tt.member)
+			if url != tt.wantURL || prefix != tt.wantPrefix {
+				t.Errorf("memberAddress(%q, %q) = (%q, %q), want (%q, %q)",
+					tt.dockerURL, tt.member, url, prefix, tt.wantURL, tt.wantPrefix)
+			}
+			if strings.Contains(url, "/repository/") {
+				t.Errorf("the member URL carries a synthesised repository path: %q", url)
 			}
 		})
 	}

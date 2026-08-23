@@ -221,7 +221,14 @@ type VolumePruneCompleteMsg struct {
 // Messages — Registry Browser
 
 // MultiRegistryTag represents a single tag result from one registry.
+//
+// EntryKey is what the result is attributed by. RegistryURL no longer
+// identifies anything on its own: several entries share one host once a
+// registry is an address — a host plus a repo prefix — rather than a URL
+// (§3.18). It is kept because it is what the pull reference is built from.
+// Repo already carries the prefix, applied once in submitSearch.
 type MultiRegistryTag struct {
+	EntryKey    string
 	RegistryURL string
 	Alias       string
 	Repo        string
@@ -231,6 +238,7 @@ type MultiRegistryTag struct {
 
 // MultiRegistryTagsLoadedMsg carries the tag list from one registry search.
 type MultiRegistryTagsLoadedMsg struct {
+	EntryKey    string
 	RegistryURL string
 	Alias       string
 	Repo        string
@@ -240,6 +248,7 @@ type MultiRegistryTagsLoadedMsg struct {
 
 // MultiRegistryTagsMetaMsg carries last-updated times for tags from one registry (background enrichment).
 type MultiRegistryTagsMetaMsg struct {
+	EntryKey    string
 	RegistryURL string
 	Repo        string
 	Meta        map[string]time.Time

@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -508,6 +509,28 @@ func TestRegistryTabShowsTheConfiguredRegistries(t *testing.T) {
 
 	if got := cells(m.registryTable.Table().Rows(), 1); !equal(got, []string{"registry.example.com", "docker.io"}) {
 		t.Errorf("the registry table holds %v", got)
+	}
+}
+
+// The URL column shows the entry's *address* — the host with its repo prefix —
+// because that is what tells one line from another once several proxies are
+// declared on one instance, and it is exactly the head of the pull reference
+// (§3.18). Without it a group's members are the same host repeated.
+func TestTheRegistryTabShowsTheAddressAndNotTheBareHost(t *testing.T) {
+	cfg := testConfig()
+	cfg.Registry.Registries = []config.RegistryItem{
+		{URL: "nexus.example.com", Alias: "dhi", Slug: "dhi", AuthMode: config.AuthAnonymous, RepoPrefix: "dhi-io-proxy"},
+		{URL: "nexus.example.com", Alias: "quay", Slug: "quay", AuthMode: config.AuthAnonymous, RepoPrefix: "quay-io-proxy"},
+		{URL: "docker.io", Alias: "hub", Slug: "hub", AuthMode: config.AuthAnonymous},
+	}
+	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 180, Height: 30}, ImagesListMsg{Images: imageFixtures()})
+	for range 3 {
+		m = feed(t, m, testutil.Key("tab"))
+	}
+
+	want := []string{"nexus.example.com/dhi-io-proxy", "nexus.example.com/quay-io-proxy", "docker.io"}
+	if got := cells(m.registryTable.Table().Rows(), 1); !equal(got, want) {
+		t.Errorf("the registry table holds %v, want %v", got, want)
 	}
 }
 

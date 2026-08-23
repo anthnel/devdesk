@@ -195,6 +195,17 @@ type RegistryItem struct {
 	URL      string `yaml:"url"`
 	Username string `yaml:"username"`
 	Alias    string `yaml:"alias"`
+	// RepoPrefix is what goes in front of the repository name to reach this
+	// entry: `(url, repo_prefix)` is the whole address, and browse and pull both
+	// derive from it, which is what stops them meaning two different repositories
+	// (D39, §3.18).
+	//
+	// It is declared rather than sniffed, and for the same reason `provider` is:
+	// whether a repository manager answers on a path prefix, a dedicated
+	// connector port or a subdomain is a setting on that repository, and the one
+	// endpoint that would say so is the one an ordinary pull account is refused.
+	// Empty is the ordinary case — a registry reached at its own host.
+	RepoPrefix string `yaml:"repo_prefix,omitempty"`
 	// AuthMode says whether DevDesk may send stored credentials to this entry:
 	// "credentials" or "anonymous", plus "inherit" for a member that takes its
 	// group's. It is the only per-member override the credential store can

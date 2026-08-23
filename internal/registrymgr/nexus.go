@@ -111,12 +111,7 @@ func (n *NexusDetector) fetchRepoMeta(ctx context.Context, host, repoName string
 	if len(rawNames) == 0 {
 		rawNames = result.Attributes.Group.MemberNames
 	}
-	for _, name := range rawNames {
-		members = append(members, GroupMember{
-			Alias: cleanMemberAlias(name),
-			URL:   fmt.Sprintf("%s/repository/%s", host, name),
-		})
-	}
+	members = memberList(info.URL, rawNames)
 	return result.Type, result.Format, members, nil
 }
 
@@ -149,14 +144,51 @@ func (n *NexusDetector) fetchGroupMembers(ctx context.Context, host, repoName, f
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil
 	}
-	members := make([]GroupMember, 0, len(result.Group.MemberNames))
-	for _, name := range result.Group.MemberNames {
+	return memberList(info.URL, result.Group.MemberNames)
+}
+
+// memberList turns the names a group declares into addresses.
+func memberList(dockerURL string, names []string) []GroupMember {
+	members := make([]GroupMember, 0, len(names))
+	for _, name := range names {
+		url, prefix := memberAddress(dockerURL, name)
 		members = append(members, GroupMember{
-			Alias: cleanMemberAlias(name),
-			URL:   fmt.Sprintf("%s/repository/%s", host, name),
+			Alias:      cleanMemberAlias(name),
+			URL:        url,
+			RepoPrefix: prefix,
 		})
 	}
 	return members
+}
+
+// memberAddress decides how one member of a group is reached, from the URL the
+// group itself is pulled from.
+//
+// A group written as a path prefix — `host/repository/<group>` — is an instance
+// serving its Docker repositories that way, so its members are reached the same
+// way: the host, with the member's name in front of the repository. That pair is
+// consistent by construction, because browse and pull build the same path from
+// it.
+//
+// Anything else is a connector of the group's own — a dedicated port, a
+// subdomain — and says nothing about a member. Which of those a repository
+// answers on is a setting on that repository (`docker.httpPort`,
+// `docker.httpsPort`, `docker.subdomain`), and the endpoint carrying it is
+// refused to an ordinary pull account. So nothing is claimed: the member is
+// offered at the group's own address with no prefix, which browses to nothing
+// visibly rather than pulling to nothing plausibly (§3.18).
+func memberAddress(dockerURL, memberName string) (url, prefix string) {
+	host, _, err := parseNexusURL(dockerURL)
+	if err != nil {
+		return dockerURL, ""
+	}
+	// parseNexusURL supplies https:// for a URL written without a scheme. The
+	// group's own spelling is what the rest of the application is keyed on, so
+	// it is kept rather than normalised here.
+	if !strings.Contains(strings.ToLower(dockerURL), "://") {
+		host = strings.TrimPrefix(host, "https://")
+	}
+	return host, memberName
 }
 
 // nexusGET performs an authenticated GET and returns the response body.

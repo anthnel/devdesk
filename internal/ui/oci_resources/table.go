@@ -279,6 +279,20 @@ func registryColumns() []datatable.Column[registryRow] {
 	}
 }
 
+// registryRef is what an entry is displayed as: its address, not its URL.
+//
+// The prefix has to be on screen or the tab says nothing useful — one line per
+// proxy is one host repeated, and a group's members all answer to the same host
+// too (§3.18). Joined with a slash because that is exactly the head of the pull
+// reference: `docker pull nexus.example.com/dhi-io-proxy/eclipse-temurin:21`.
+// Plain text only — Rule 122.
+func registryRef(url, repoPrefix string) string {
+	if repoPrefix == "" {
+		return url
+	}
+	return strings.TrimSuffix(url, "/") + "/" + repoPrefix
+}
+
 // membersCell reports what the last discovery for a group found, and when.
 //
 // The "when" is not decoration: a cache with no visible age is worse than the
@@ -333,7 +347,7 @@ func (m *Model) updateRegistryTable() {
 	for i, reg := range m.registries {
 		rows = append(rows, registryRow{
 			alias:   reg.Alias,
-			url:     reg.URL,
+			url:     registryRef(reg.URL, reg.RepoPrefix),
 			kind:    reg.Kind,
 			auth:    reg.AuthMode,
 			logged:  m.loggedCell(reg.AuthMode, reg.URL),
@@ -355,7 +369,7 @@ func (m *Model) updateGroupMemberTable(group config.RegistryItem) {
 	for _, member := range entry.Members {
 		rows = append(rows, registryRow{
 			alias:  member.Alias,
-			url:    member.URL,
+			url:    registryRef(member.URL, member.RepoPrefix),
 			kind:   "member",
 			auth:   config.AuthInherit,
 			logged: m.loggedCell(group.AuthMode, group.URL),

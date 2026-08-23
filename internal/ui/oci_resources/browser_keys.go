@@ -161,10 +161,14 @@ func (b *RegistryBrowser) submitSearch() (*RegistryBrowser, tea.Cmd) {
 		if entry.ParentAlias != "" {
 			alias = entry.ParentAlias + "/" + entry.Alias
 		}
-		normalizedRepo := normalizeRepoForRegistry(entry.URL, repo)
+		// The prefix is applied here and nowhere else: it is then already part
+		// of MultiRegistryTag.Repo, so multiImageName and registryAPIURL need to
+		// know nothing about it. Teaching both would be two places free to
+		// drift, which is the disagreement D39 already is (§3.18).
+		normalizedRepo := joinRepoPrefix(entry.repoPrefix, normalizeRepoForRegistry(entry.URL, repo))
 		apiURL := registryAPIURL(entry.URL)
 		b.pendingSearches++
-		cmds = append(cmds, searchRegistryTagsCmd(entry.URL, alias, apiURL, normalizedRepo, username, storedPass))
+		cmds = append(cmds, searchRegistryTagsCmd(entry.key, entry.URL, alias, apiURL, normalizedRepo, username, storedPass))
 	}
 
 	if len(cmds) == 0 {

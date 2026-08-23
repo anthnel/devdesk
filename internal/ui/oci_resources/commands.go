@@ -487,10 +487,12 @@ func fetchRegistryTags(apiURL, repo, username, password string) ([]string, error
 }
 
 // searchRegistryTagsCmd fetches tags from one registry and returns a MultiRegistryTagsLoadedMsg.
-func searchRegistryTagsCmd(registryURL, alias, apiURL, repo, username, password string) tea.Cmd {
+func searchRegistryTagsCmd(entryKey, registryURL, alias, apiURL, repo, username, password string) tea.Cmd {
 	return func() tea.Msg {
 		tags, err := fetchRegistryTags(apiURL, repo, username, password)
-		return MultiRegistryTagsLoadedMsg{RegistryURL: registryURL, Alias: alias, Repo: repo, Tags: tags, Err: err}
+		return MultiRegistryTagsLoadedMsg{
+			EntryKey: entryKey, RegistryURL: registryURL, Alias: alias, Repo: repo, Tags: tags, Err: err,
+		}
 	}
 }
 
@@ -535,19 +537,22 @@ func fetchDockerHubTagsMeta(namespace, repo string) (map[string]time.Time, error
 
 // loadMultiRegistryTagsMetaCmd fetches tag metadata for one registry in the background.
 // For Docker Hub it uses the Hub API; other registries return empty (no error).
-func loadMultiRegistryTagsMetaCmd(registryURL, repo string) tea.Cmd {
+func loadMultiRegistryTagsMetaCmd(entryKey, registryURL, repo string) tea.Cmd {
 	return func() tea.Msg {
+		empty := MultiRegistryTagsMetaMsg{EntryKey: entryKey, RegistryURL: registryURL, Repo: repo}
 		base := strings.ToLower(strings.TrimSuffix(registryURL, "/"))
 		isDockerhub := base == "docker.io" || base == "registry-1.docker.io"
 		if !isDockerhub {
-			return MultiRegistryTagsMetaMsg{RegistryURL: registryURL, Repo: repo, Meta: nil, Err: nil}
+			return empty
 		}
 		parts := strings.SplitN(repo, "/", 2)
 		if len(parts) != 2 {
-			return MultiRegistryTagsMetaMsg{RegistryURL: registryURL, Repo: repo, Meta: nil, Err: nil}
+			return empty
 		}
 		meta, err := fetchDockerHubTagsMeta(parts[0], parts[1])
-		return MultiRegistryTagsMetaMsg{RegistryURL: registryURL, Repo: repo, Meta: meta, Err: err}
+		return MultiRegistryTagsMetaMsg{
+			EntryKey: entryKey, RegistryURL: registryURL, Repo: repo, Meta: meta, Err: err,
+		}
 	}
 }
 
@@ -614,7 +619,7 @@ func cacheGroupMembers(slug string, members []registrymgr.GroupMember) {
 		DiscoveredAt: time.Now(),
 	}
 	for _, m := range members {
-		entry.Members = append(entry.Members, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL})
+		entry.Members = append(entry.Members, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL, RepoPrefix: m.RepoPrefix})
 	}
 	if err := c.Set(slug, entry); err != nil {
 		log.Printf("ERROR [oci_resources] save group members for %q: %v", slug, err)

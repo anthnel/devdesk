@@ -578,6 +578,44 @@ registries and is pullable itself, which is why they share a list.
 | `parent` | slug of the owning group — carried by discovered members, not normally by config entries |
 | `provider` | `generic`, `nexus`, `harbor`, `artifactory`, `gitlab`; declared, never sniffed from the URL |
 | `auth_mode` | `credentials`, `anonymous`, or `inherit` for a member. Replaces `auth_enabled`, which is migrated at load and then dropped. |
+| `repo_prefix` | what goes in front of the repository name. With `url` it is the entry's **address** (§3.18) |
+
+**An entry is an address, not a URL** (§3.18, D39). The pair `(url, repo_prefix)`
+is what a registry is reached by, and both directions derive from it — the browse
+asks `<url>/v2/<prefix>/<repo>/tags/list`, the pull reference is
+`<url>/<prefix>/<repo>:<tag>` — so they cannot mean two different repositories.
+That disagreement is exactly what D39 was: `NexusDetector` synthesised a member
+as `host/repository/<name>`, which browses (200) and cannot pull (404), because
+the Docker client puts `/v2/` first and the whole path after it.
+
+Like `provider`, it is **declared, never sniffed**. Whether a repository answers
+on a path prefix, a connector port or a subdomain is a setting on that repository
+(`docker.httpPort`, `docker.httpsPort`, `docker.subdomain`), and the one endpoint
+carrying it answers 403 to an ordinary pull account — the same endpoint that
+would say what a group's members are. An instance that refuses one refuses both,
+so guessing is not a fallback, it is the defect.
+
+Three things follow, each with a test:
+
+- **The prefix is applied once**, in `submitSearch`. It is then already part of
+  `MultiRegistryTag.Repo`, so `multiImageName` and `registryAPIURL` know nothing
+  about it — teaching both would be two places free to drift.
+- **A group may not declare one**, and `LoadContext` refuses it: a group is
+  reachable only through its own connector, and the same trick applied to a group
+  answers 404. `RegistryForm` therefore does not offer the field on a group.
+- **A URL no longer identifies an entry.** Several entries share one host now, so
+  `entryFor` resolves by entry key, `resultFilter` holds a key, every
+  `MultiRegistryTag` carries one, and `memberKey` takes the prefix as a third
+  segment — a member's URL is its *group's*. `registryRef(url, prefix)` is the one
+  place an entry becomes something a user reads, and it is the head of the pull
+  reference exactly.
+
+`NexusDetector` synthesises nothing any more. A group written as a path prefix
+serves its members the same way, so it emits `(host, memberName)` — consistent by
+construction. Reached through a connector of its own it emits the group's URL and
+**no** prefix, because which connector a member answers on is precisely what it
+cannot read: an empty prefix against a bare host is wrong and visibly so, where
+the synthesised path was wrong and plausible.
 
 **`auth_mode` is read before any credential lookup**, on both paths that talk to
 a registry: `detectRegistryGroupCmd` and the browser's `credsFor`. `anonymous`

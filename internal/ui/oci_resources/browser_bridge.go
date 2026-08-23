@@ -46,12 +46,12 @@ func (m Model) handleMultiRegistryTagsLoaded(msg MultiRegistryTagsLoadedMsg) (te
 	}
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] registry tags %s from %s: %v", msg.Repo, msg.RegistryURL, msg.Err)
-		m.registryBrowser.AddRegistryTags(msg.RegistryURL, msg.Alias, msg.Repo, nil)
+		m.registryBrowser.AddRegistryTags(msg.EntryKey, msg.RegistryURL, msg.Alias, msg.Repo, nil)
 		return m, nil
 	}
 	m.registryBrowser.SetScanCache(m.scanCache)
-	m.registryBrowser.AddRegistryTags(msg.RegistryURL, msg.Alias, msg.Repo, msg.Tags)
-	return m, loadMultiRegistryTagsMetaCmd(msg.RegistryURL, msg.Repo)
+	m.registryBrowser.AddRegistryTags(msg.EntryKey, msg.RegistryURL, msg.Alias, msg.Repo, msg.Tags)
+	return m, loadMultiRegistryTagsMetaCmd(msg.EntryKey, msg.RegistryURL, msg.Repo)
 }
 
 // handleMultiRegistryTagsMeta stores tag metadata for one registry in the browser.
@@ -64,7 +64,7 @@ func (m Model) handleMultiRegistryTagsMeta(msg MultiRegistryTagsMetaMsg) (tea.Mo
 		return m, nil
 	}
 	if msg.Meta != nil {
-		m.registryBrowser.SetMultiTagsMeta(msg.RegistryURL, msg.Meta)
+		m.registryBrowser.SetMultiTagsMeta(msg.EntryKey, msg.Meta)
 	}
 	return m, nil
 }
@@ -136,7 +136,7 @@ func (m Model) handleRegistryGroupDetected(msg RegistryGroupDetectedMsg) (tea.Mo
 func toCachedMembers(members []registrymgr.GroupMember) []cache.RegistryGroupMember {
 	out := make([]cache.RegistryGroupMember, 0, len(members))
 	for _, m := range members {
-		out = append(out, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL})
+		out = append(out, cache.RegistryGroupMember{Alias: m.Alias, URL: m.URL, RepoPrefix: m.RepoPrefix})
 	}
 	return out
 }
