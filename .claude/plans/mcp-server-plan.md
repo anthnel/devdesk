@@ -83,7 +83,7 @@ Chaque étape est un commit et une PR.
 | 1 | La sous-commande, le réglage, le squelette du serveur, la table d'outils déclarés + son test de contrat, et `context_list` pour prouver le câblage | **faite** |
 | 2 | `scan_inventory`, `scan_result` — et la lecture qui **ne met pas à niveau** le cache | **faite** |
 | 3 | `context_get`, `workspaces_list` | **faite** |
-| 4 | `registries_list`, `registry_tags` — cache seul, jamais le réseau | |
+| 4 | `registries_list` — cache seul, jamais le réseau. **`registry_tags` abandonné**, voir le journal | **faite** |
 | 5 | `containers_list`, `images_list`, `ports_list` | |
 | 6 | `net_check` | |
 | 7 | Le sixième onglet de la vue configuration, `.claude/CLAUDE.md`, `docs/backlog.md` | |
@@ -220,3 +220,43 @@ le kind fait partie de la règle plutôt que d'une exception à déclarer. Le no
 été changé quand même (`secret_scanning`), parce que « secrets » sous un bloc
 « scan » se lit comme « ce contexte a des secrets ». Vérifiée en échec en
 ajoutant un `Token string` à `forgeOut`.
+
+### Étape 4 — faite le 2026-08-23
+
+Binaire : **27,89 Mo**.
+
+#### `registry_tags` n'est pas constructible tel que §3.38 le décrit
+
+L'entrée le voulait « depuis le cache de groupes, jamais le réseau ». Il n'y a
+**pas de cache de tags** : le cache de groupes tient les *membres* qu'une
+découverte a trouvés, et les tags sont récupérés en HTTP quand le browser
+cherche. Rien ne les stocke.
+
+Les chercher ici demanderait un identifiant pour chaque registry que quelqu'un
+fait vraiment tourner, et la décision 6 de la même entrée est qu'**aucun outil
+ne lit le store de §3.9**. Un listing anonyme répondrait « aucun tag » pour un
+registry privé — une absence lue comme un vide, ce qui est la forme de D20 —
+donc pire que de ne pas exister.
+
+Ce que DevDesk sait et qu'un agent n'obtient pas à moindre coût, c'est la
+**configuration** des registries et ce que la découverte a trouvé. C'est
+`registries_list`, et c'est tout ce que cette étape livre.
+
+#### Les registries quittent `context_get`
+
+`context_get` en portait une copie plus mince. Deux outils qui répondent à une
+même question, c'est la forme que D12, D24 et D25 ont chacun prise — et un agent
+qui a deux sources doit en plus deviner laquelle fait foi. `registries_list` est
+la seule.
+
+#### La découverte est un pointeur
+
+`discovery: null` veut dire que personne n'a jamais sondé ce groupe ;
+`discovery.members: []` veut dire que quelqu'un a sondé et que ce n'en est pas
+un. C'est exactement la distinction que le cache existe pour tenir (§3.8,
+décision 3), et elle serait perdue si les deux revenaient en liste vide. Même
+discipline que `Sensitive *bool`.
+
+Un groupe que personne n'a sondé n'est **pas sondé ici** : une découverte est un
+appel réseau *et* une écriture (elle met son résultat en cache), et ce serveur
+ne fait ni l'un ni l'autre.

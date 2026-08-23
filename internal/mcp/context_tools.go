@@ -54,17 +54,18 @@ func registerContextList(s *sdk.Server, env *Env) {
 // worth noticing, since a registry is exactly the kind of thing that used to
 // carry a password in its config block.
 //
-// RegistryItem.Username is left out, and not because it is sensitive — it is
-// not. Nothing an agent can do read-only needs it, and a field never included
-// cannot fail to be excluded later.
+// The registries are **not** here, and that is a change from what §3.38 sketched.
+// registries_list answers for them, with what discovery found alongside the
+// declaration; carrying a second, thinner copy here would be two answers to one
+// question, which is the shape D12, D24 and D25 each turned out to be. An agent
+// with two tools for one fact also has to guess which is authoritative.
 type contextGetOut struct {
 	Name          string         `json:"name"`
 	IsCurrent     bool           `json:"is_current" jsonschema:"whether the DevDesk TUI is currently set to this context"`
 	WorkspacesDir string         `json:"workspaces_dir" jsonschema:"where this context's repositories live; workspaces_list reads under it"`
 	Forge         forgeOut       `json:"forge"`
 	Scan          scanOptionsOut `json:"scan" jsonschema:"the options a scan launched from this context runs with; a shared image entry may have been produced under another context's"`
-	Registries    []registryOut  `json:"registries"`
-	Monitors      []monitorOut   `json:"monitors" jsonschema:"the endpoints the status view watches"`
+	Monitors      []monitorOut   `json:"monitors" jsonschema:"the endpoints the status view watches; registries_list answers for the registries"`
 }
 
 type forgeOut struct {
@@ -85,16 +86,6 @@ type scanOptionsOut struct {
 	Misconfig       bool `json:"misconfigurations"`
 	IgnoreUnfixed   bool `json:"ignore_unfixed"`
 	GitleaksHistory bool `json:"gitleaks_history" jsonschema:"whether the secret scan reads git history as well as the working tree"`
-}
-
-type registryOut struct {
-	Slug       string `json:"slug" jsonschema:"DevDesk's own identifier for this entry"`
-	Alias      string `json:"alias,omitempty" jsonschema:"the short name shown in place of the URL"`
-	URL        string `json:"url"`
-	RepoPrefix string `json:"repo_prefix,omitempty" jsonschema:"goes in front of the repository name; together with url it is the entry's whole address"`
-	Kind       string `json:"kind" jsonschema:"registry or group"`
-	Provider   string `json:"provider,omitempty"`
-	AuthMode   string `json:"auth_mode" jsonschema:"credentials, anonymous, or inherit for a group member"`
 }
 
 type monitorOut struct {
@@ -142,20 +133,7 @@ func describeContext(env *Env) contextGetOut {
 			IgnoreUnfixed:   cfg.Scan.IgnoreUnfixed,
 			GitleaksHistory: cfg.Scan.GitleaksHistory,
 		},
-		Registries: []registryOut{},
-		Monitors:   []monitorOut{},
-	}
-
-	for _, reg := range cfg.Registry.Registries {
-		out.Registries = append(out.Registries, registryOut{
-			Slug:       reg.Slug,
-			Alias:      reg.Alias,
-			URL:        reg.URL,
-			RepoPrefix: reg.RepoPrefix,
-			Kind:       reg.Kind,
-			Provider:   reg.Provider,
-			AuthMode:   reg.AuthMode,
-		})
+		Monitors: []monitorOut{},
 	}
 
 	for _, component := range cfg.Status.Components {

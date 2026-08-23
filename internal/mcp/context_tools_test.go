@@ -68,10 +68,6 @@ func TestContextGetReportsTheServedContextsConfiguration(t *testing.T) {
 	env.Config.Forge.Type = "github"
 	env.Config.Forge.URL = "https://github.com"
 	env.Config.Scan.EnableSecret = true
-	env.Config.Registry.Registries = []config.RegistryItem{{
-		Slug: "nx", Alias: "nx", URL: "nexus.example.com",
-		RepoPrefix: "docker-hosted", Kind: "registry", AuthMode: "credentials",
-	}}
 	env.Config.Status.Components = []config.ComponentConfig{{
 		Name: "api", Type: "https", Target: "https://api.example.com",
 	}}
@@ -90,9 +86,6 @@ func TestContextGetReportsTheServedContextsConfiguration(t *testing.T) {
 	}
 	if !out.Scan.SecretScanning {
 		t.Error("scan.secret_scanning = false, want the configured true")
-	}
-	if len(out.Registries) != 1 || out.Registries[0].RepoPrefix != "docker-hosted" {
-		t.Errorf("registries = %+v", out.Registries)
 	}
 	if len(out.Monitors) != 1 || out.Monitors[0].Target != "https://api.example.com" {
 		t.Errorf("monitors = %+v", out.Monitors)

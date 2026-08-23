@@ -38,13 +38,18 @@ func tools() []toolDef {
 		},
 		{
 			Name:        "context_get",
-			Description: "Read the configuration of the context this server answers for: where its repositories live, which forge it targets, the options its scans run with, its registries and its monitors. It carries no credential of any kind.",
+			Description: "Read the configuration of the context this server answers for: where its repositories live, which forge it targets, the options its scans run with, its registries and its monitors. It carries no credential of any kind, and registries_list is what answers for its registries.",
 			register:    registerContextGet,
 		},
 		{
 			Name:        "workspaces_list",
 			Description: "List the git repositories checked out under this context's workspaces directory, with their branch, their uncommitted and unpushed work, and what the scan cache knows about each. The behind count is only as fresh as the last fetch.",
 			register:    registerWorkspacesList,
+		},
+		{
+			Name:        "registries_list",
+			Description: "List the OCI registries this context is configured with — their address, kind, provider and authentication mode — together with the members that discovery last found for a repository-manager group. It reads the cache and never the network, so a group nobody has probed is reported as unprobed rather than probed here.",
+			register:    registerRegistriesList,
 		},
 		{
 			Name:        "scan_inventory",

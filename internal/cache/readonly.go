@@ -145,3 +145,30 @@ func readScanResult(path string) (*scan.Result, error) {
 	}
 	return &result, nil
 }
+
+// ReadRegistryGroups returns every group discovery on disk, without writing.
+//
+// An absent slug and a slug whose entry holds no members are different answers:
+// the first means nobody has asked this registry whether it is a group, the
+// second means somebody asked and it is not (§3.8, decision 3). Both come back
+// here as they are stored, and the caller keeps them apart.
+func ReadRegistryGroups() (map[string]RegistryGroupEntry, error) {
+	dir, err := scanCacheDir()
+	if err != nil {
+		return nil, err
+	}
+	return readRegistryGroupsAt(filepath.Join(dir, "registry-groups.json"))
+}
+
+func readRegistryGroupsAt(path string) (map[string]RegistryGroupEntry, error) {
+	entries := map[string]RegistryGroupEntry{}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// A cache that does not exist yet is empty, not an error.
+		return entries, nil
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
