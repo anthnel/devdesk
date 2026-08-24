@@ -1,0 +1,155 @@
+explique moi le D39 et comment le 3.18 le ferme
+
+---
+
+démarre l'implémentation
+
+---
+
+merge
+
+---
+
+j'ai remarqué que quand je change de contexte je perds les scans sur les images, les images sont les mêmes d'un contexte à l'autre donc on pourrait partager le cache pour ce cas précis. Concernant les répertoires il est normal de ne pas partager le cache car il pourrait être différent
+
+---
+
+merge
+
+---
+
+les icones semblent petites sur un écran 4K
+
+---
+
+qu'est-ce qu'il reste dans le backlog
+
+---
+
+commençons la 3.38, on reste en stdio, pose moi la question pour le sdk go (recherche les dernières infos)
+
+---
+
+continue étape 2
+
+---
+
+continue étape 3
+
+---
+
+continue étape 4
+
+---
+
+continue étape 5
+
+---
+
+continue étape 6
+
+---
+
+continue avec l'étape 7 et ajoute une entrée au backlog pour UNKNOWN
+
+---
+
+oui et explique moi comment tester le serveur mcp
+
+---
+
+merge quand la CI passe
+
+---
+
+claude mcp add devdesk -- dk mcp
+
+---
+
+ajoute une entrée dans le backlog, je voudrais qu'on analyse la possibilité de se passer de l'image netshoot, voir ce qu'il serait possible de réécrire en go (ou via librairie), et si on devrait se passer de certaines fonctionnalités lesquelles
+
+---
+
+oui et merge dans la foulée
+
+---
+
+20:10:34 ❯ Get-NetTCPConnection -State Listen
+
+LocalAddress                        LocalPort RemoteAddress                       RemotePort State       AppliedSetting OwningProcess
+------------                        --------- -------------                       ---------- -----       -------------- -------------
+::                                  49675     ::                                  0          Listen                     1732
+::                                  49668     ::                                  0          Listen                     4268
+::                                  49667     ::                                  0          Listen                     3860
+::                                  49666     ::                                  0          Listen                     2580
+::                                  49665     ::                                  0          Listen                     1652
+::                                  49664     ::                                  0          Listen                     1804
+::                                  11434     ::                                  0          Listen                     22328
+::                                  7680      ::                                  0          Listen                     4604
+::                                  5357      ::                                  0          Listen                     4
+::1                                 5000      ::                                  0          Listen                     32852
+::                                  5000      ::                                  0          Listen                     28360
+::                                  2179      ::                                  0          Listen                     3380
+::                                  1462      ::                                  0          Listen                     4
+::                                  445       ::                                  0          Listen                     4
+::                                  135       ::                                  0          Listen                     1400
+0.0.0.0                             62841     0.0.0.0                             0          Listen                     32428
+0.0.0.0                             57621     0.0.0.0                             0          Listen                     32428
+0.0.0.0                             49675     0.0.0.0                             0          Listen                     1732
+0.0.0.0                             49668     0.0.0.0                             0          Listen                     4268
+0.0.0.0                             49667     0.0.0.0                             0          Listen                     3860
+0.0.0.0                             49666     0.0.0.0                             0          Listen                     2580
+0.0.0.0                             49665     0.0.0.0                             0          Listen                     1652
+0.0.0.0                             49664     0.0.0.0                             0          Listen                     1804
+127.0.0.1                           49312     0.0.0.0                             0          Listen                     26616
+127.0.0.1                           33683     0.0.0.0                             0          Listen                     8624
+127.0.0.1                           32683     0.0.0.0                             0          Listen                     8624
+127.0.0.1                           26822     0.0.0.0                             0          Listen                     20416
+127.0.0.1                           12434     0.0.0.0                             0          Listen                     28360
+127.0.0.1                           7768      0.0.0.0                             0          Listen                     32428
+127.0.0.1                           6463      0.0.0.0                             0          Listen                     20696
+127.0.0.1                           5354      0.0.0.0                             0          Listen                     30740
+0.0.0.0                             5040      0.0.0.0                             0          Listen                     10688
+0.0.0.0                             2179      0.0.0.0                             0          Listen                     3380
+192.168.1.21                        139       0.0.0.0                             0          Listen                     4
+172.31.176.1                        139       0.0.0.0                             0          Listen                     4
+172.27.128.1                        139       0.0.0.0                             0          Listen                     4
+10.2.0.2                            139       0.0.0.0                             0          Listen                     4
+0.0.0.0                             135       0.0.0.0                             0          Listen                     1400
+ ┌─ 󰛳 Network ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Proto   State       Local Address               Peer Address                PID      Process                                                                                                                                                                               │
+│ tcp     LISTEN      0.0.0.0:5000                0.0.0.0:*                   125      dockerd                                                                                                                                                                               │
+│ tcp     LISTEN      0.0.0.0:51031               0.0.0.0:*                   75       rpc.statd                                                                                                                                                                             │
+│ tcp     LISTEN      0.0.0.0:111                 0.0.0.0:*                   76       rpcbind                                                                                                                                                                               │
+│ tcp     LISTEN      [::]:111                    [::]:*                      76       rpcbind                                                                                                                                                                               │
+│ tcp     LISTEN      [::]:59517                  [::]:*                      75       rpc.statd
+
+---
+
+implémente la solution
+
+---
+
+implémente la solution
+
+---
+
+est-ce que les fonctionnalités Kill et Pause ont encore du sens
+
+---
+
+attend avant d'écrire au backlog, vérifie s'il est possible de se passer de l'image docker pour la vue topology
+
+---
+
+une session parallèle a modifier le backlog sur main, récupère les changements avant de modifier le backlog. Ajoute tous les défauts découverts plus une entrée pour le remplacement. S'il n'est pas possible d'afficher facilement les trois informations cross platform on supprime
+
+---
+
+ajoute aussi ceci dans le backlog : 
+- nouveau défaut trouvé, lors d'un scan sur arborescence de répertoire il oublie parfois de passer dans certains répertoires
+- nouvelle fonctionnalité: avoir un datatable avec une taille de colonne intelligente, exemple de la table ports, j'ai plein de place à droite et la colonne peer address est tronquée, il faudrait calculer la largeur nécessaire pour afficher les valeurs, si tout tient à l'écran tout afficher, sinon tronquer les colonnes nécessaires seulement quand il n'y a pas assez de place.
+- nouvelle fonctionnalité: dans la vue ws, afficher une icone tout à gauche comme l'extension shell eza : -a--- 6.1k 20 Jul 14:53 -- 󰂺 README.md
+17:24:50 ❯ ls
+ bin   configs   deploy   internal             Dockerfile   go.sum     󰂺 README.md
+ cmd   data      docs     docker-compose.yml   go.mod       mise.toml et supprimer la colonne type. Icone de répertoire ou fichier. Les icones sont affichées en fonction de l'extension ou de certains nom connu comme ".gitlab-ci.yml"
