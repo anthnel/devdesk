@@ -16,23 +16,8 @@ import (
 // string docker printed, and, for an image, whether DevDesk has ever looked at
 // it.
 //
-// # ports_list is not here, and that is a decision
-//
-// §3.38 named it beside these two. It is not built, for the reason
-// registry_tags is not: what the entry asks for cannot be had under the rules it
-// sets in the same breath.
-//
-// The host's listening sockets are read by `docker.RunSS`, which is
-// `docker run --rm --net=host --pid=host --privileged` — the same call as
-// `KillProcess`, differing only in the command handed to an equally privileged
-// container. Nothing persistent changes on the host, so it is not a write in the
-// sense §3.9 means; but the promise of this server is that it does not act on
-// the machine, and starting a privileged container is acting on it. An image
-// that is not already local would be pulled, which is a network call and a disk
-// write from a server that promised neither, and an agent can call a tool in a
-// loop.
-//
-// The sockets remain readable in `:net`, where a person is present.
+// The sockets open on the machine are ports_list, in ports_tools.go: they are not
+// the daemon's, and since D55 they are not read through it either.
 
 // ── containers_list ─────────────────────────────────────────────────────────
 

@@ -68,7 +68,12 @@ type MCPConfig struct {
 // other scalar here was a constant in internal/netcheck, whose own comment said
 // they became settings when somebody asked for them.
 type NetworkConfig struct {
-	// ToolImage must carry ping, curl, nc, traceroute and ss.
+	// ToolImage must carry traceroute, tcptraceroute, ip, and iptables or nft.
+	//
+	// It no longer needs ss: the Ports tab reads the socket table in-process
+	// (internal/ports). What is left in the image is what genuinely cannot be had
+	// without one — a route trace needs raw ICMP sockets, and the topology tab
+	// needs netfilter.
 	ToolImage string `yaml:"tool_image"`
 
 	// CheckTimeout is how long one probe waits for an answer, in seconds.

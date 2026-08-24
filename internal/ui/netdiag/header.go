@@ -242,7 +242,7 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "u", Description: "Toggle UDP filter — cumulative with t (Ports tab)"},
 			{Key: "l", Description: "Toggle LISTEN state filter — cumulative with e (Ports tab)"},
 			{Key: "e", Description: "Toggle ESTAB state filter — cumulative with l (Ports tab)"},
-			{Key: "n", Description: "Toggle numeric addresses / DNS names (Ports tab)"},
+			{Key: "n", Description: "Toggle numeric addresses / reverse-DNS host names (Ports tab)"},
 			{Key: "z", Description: "Reset all active filters (Ports tab)"},
 			{Key: "/", Description: "Search ports by address, process or PID (Ports tab)"},
 			{Key: "space (Ports)", Description: "Pause / resume auto-refresh (Ports tab)"},
@@ -279,9 +279,13 @@ func (m *Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Ports Tab — How it works",
-				Body: "Runs ss -tupan inside an ephemeral Docker container with --net=host --pid=host " +
-					"every 2 seconds. Shows all active TCP/UDP sockets on the host including the owning " +
-					"process name and PID. K runs kill -9 via a --privileged container, after a confirmation.",
+				Body: "Reads this machine's TCP and UDP sockets every 2 seconds, in this process — no " +
+					"container, no Docker. Shows the owning process name and PID where the system will " +
+					"name one. K terminates that process, after a confirmation, with the rights DevDesk " +
+					"itself has: another user's process or a service comes back refused rather than " +
+					"silently killed elsewhere.\n\n" +
+					"n toggles reverse DNS on the addresses. Host names only — port numbers stay " +
+					"numeric, because a service name would be DevDesk's guess and not the system's.",
 			},
 			{
 				Title: "Topology Tab — How it works",
@@ -300,15 +304,15 @@ func (m *Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Where the checks run",
-				Body: "The diagnostic checks run in this process, on this machine's network stack. " +
-					"They therefore answer for the resolver, the routing table and the VPN you are " +
-					"actually on.\n\n" +
-					"The route trace (H), the Ports tab and the Topology tab still run in the image " +
-					"configured at docker.network_tool_image. On Docker Desktop that container lives " +
-					"in a Linux VM with its own network namespace, so a trace can legitimately " +
-					"disagree with the checks above it. The trace pane says so.\n\n" +
-					"The image must include traceroute, tcptraceroute, ss (iproute2), ip, and " +
-					"iptables or nft for firewall inspection.",
+				Body: "The diagnostic checks and the Ports tab run in this process, on this machine's " +
+					"network stack. They therefore answer for the resolver, the routing table, the " +
+					"sockets and the VPN you are actually on.\n\n" +
+					"The route trace (H) and the Topology tab still run in the image configured at " +
+					"network.tool_image. On Docker Desktop that container lives in a Linux VM with " +
+					"its own network namespace, so both answer for the VM and can legitimately " +
+					"disagree with everything above. The trace pane says so.\n\n" +
+					"The image must include traceroute, tcptraceroute, ip, and iptables or nft for " +
+					"firewall inspection.",
 			},
 		},
 	}

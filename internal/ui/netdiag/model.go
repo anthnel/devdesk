@@ -146,7 +146,7 @@ func New(cfg *config.Config) *Model {
 		config:         cfg,
 		state:          StateInput,
 		activeTab:      tabDiagnostics,
-		portsModel:     newPortsModel(cfg.Network.ToolImage, time.Duration(cfg.Network.PortsRefreshInterval)*time.Second),
+		portsModel:     newPortsModel(time.Duration(cfg.Network.PortsRefreshInterval) * time.Second),
 		topologyModel:  newTopologyModel(cfg.Network.ToolImage),
 		targetInput:    targetIn,
 		portInput:      portIn,

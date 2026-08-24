@@ -1,6 +1,7 @@
 package netdiag
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -10,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	dockerpkg "github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ports"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -20,13 +21,13 @@ import (
 // portsTickMsg triggers a data refresh cycle.
 type portsTickMsg struct{}
 
-// portsDataMsg carries the result of a RunSS call.
+// portsDataMsg carries the result of a socket-table read.
 type portsDataMsg struct {
-	ports []dockerpkg.PortInfo
+	ports []ports.Socket
 	err   error
 }
 
-// portsKillResultMsg carries the result of a KillProcess call.
+// portsKillResultMsg carries the result of a kill.
 type portsKillResultMsg struct {
 	pid string
 	err error
@@ -58,17 +59,23 @@ func portsTickCmd(every time.Duration) tea.Cmd {
 	})
 }
 
-func fetchPortsCmd(image string, numeric bool) tea.Cmd {
+// portsFetchTimeout bounds one read. Reverse DNS is the part that can hang —
+// the socket table itself is a system call — and a fetch outliving several
+// ticks would stack one behind another.
+const portsFetchTimeout = 5 * time.Second
+
+func fetchPortsCmd(numeric bool) tea.Cmd {
 	return func() tea.Msg {
-		ports, err := dockerpkg.RunSS(image, numeric)
-		return portsDataMsg{ports: ports, err: err}
+		ctx, cancel := context.WithTimeout(context.Background(), portsFetchTimeout)
+		defer cancel()
+		sockets, err := ports.List(ctx, !numeric)
+		return portsDataMsg{ports: sockets, err: err}
 	}
 }
 
-func killProcessCmd(image, pid string) tea.Cmd {
+func killProcessCmd(pid string) tea.Cmd {
 	return func() tea.Msg {
-		err := dockerpkg.KillProcess(image, pid)
-		return portsKillResultMsg{pid: pid, err: err}
+		return portsKillResultMsg{pid: pid, err: ports.Kill(pid)}
 	}
 }
 
@@ -90,9 +97,9 @@ func (pm *PortsModel) statusLine() components.Status {
 // staleLabel dates the rows on screen, or says there are none to date.
 func (pm *PortsModel) staleLabel() string {
 	if pm.lastOK.IsZero() {
-		return "Docker unreachable — no ports could be read"
+		return "The socket table could not be read"
 	}
-	return "Docker unreachable — ports as of " + theme.TimeAgo(pm.lastOK)
+	return "The socket table could not be read — ports as of " + theme.TimeAgo(pm.lastOK)
 }
 
 // filterTokenProto and filterTokenState are the label constants for FilterBar tokens.
@@ -107,8 +114,7 @@ const (
 
 // PortsModel manages the real-time port monitoring sub-view.
 type PortsModel struct {
-	image string
-	// refresh is how often the table re-reads ss. The spinner tick is separate
+	// refresh is how often the table re-reads the socket table. The spinner tick is separate
 	// and much faster: a frame advancing on this interval would look stopped,
 	// which is the impression the whole tab exists to remove.
 	refresh time.Duration
@@ -119,12 +125,16 @@ type PortsModel struct {
 	// tableReady / lastTableWidth / lastTableHeight trio that used to live here
 	// existed only to avoid recreating the table on every two-second tick and
 	// losing the scroll position; SetItems guarantees that instead.
-	table datatable.Model[dockerpkg.PortInfo]
+	table datatable.Model[ports.Socket]
 
 	paused bool
 
 	// address display
-	numericAddrs bool // true = raw IPs/ports (-n flag), false = DNS names
+	// numericAddrs true shows addresses as the system reports them; false asks
+	// reverse DNS for the host half. The port half stays numeric either way —
+	// resolving it to a service name would be DevDesk guessing where `ss` read
+	// /etc/services, and saying less beats saying something the system did not.
+	numericAddrs bool
 
 	// confirmModal guards the kill. It is the only action in the application
 	// that reaches a process outside it, so it is the one that most needed a
@@ -154,16 +164,16 @@ type PortsModel struct {
 // portsColumnState is where a running kill puts its spinner.
 const portsColumnState = 1
 
-func portsColumns() []datatable.Column[dockerpkg.PortInfo] {
-	text := func(get func(dockerpkg.PortInfo) string) datatable.Column[dockerpkg.PortInfo] {
-		return datatable.Column[dockerpkg.PortInfo]{Cell: get, Search: get}
+func portsColumns() []datatable.Column[ports.Socket] {
+	text := func(get func(ports.Socket) string) datatable.Column[ports.Socket] {
+		return datatable.Column[ports.Socket]{Cell: get, Search: get}
 	}
-	proto := text(func(p dockerpkg.PortInfo) string { return p.Protocol })
-	state := text(func(p dockerpkg.PortInfo) string { return p.State })
-	local := text(func(p dockerpkg.PortInfo) string { return p.LocalAddr })
-	peer := text(func(p dockerpkg.PortInfo) string { return p.PeerAddr })
-	pid := text(func(p dockerpkg.PortInfo) string { return p.PID })
-	process := text(func(p dockerpkg.PortInfo) string { return p.Process })
+	proto := text(func(p ports.Socket) string { return p.Protocol })
+	state := text(func(p ports.Socket) string { return p.State })
+	local := text(func(p ports.Socket) string { return p.LocalAddr })
+	peer := text(func(p ports.Socket) string { return p.PeerAddr })
+	pid := text(func(p ports.Socket) string { return p.PID })
+	process := text(func(p ports.Socket) string { return p.Process })
 
 	proto.Title, proto.MinWidth = "Proto", 6
 	state.Title, state.MinWidth = "State", 10
@@ -173,14 +183,14 @@ func portsColumns() []datatable.Column[dockerpkg.PortInfo] {
 	pid.Title, pid.MinWidth = "PID", 7
 	process.Title, process.MinWidth, process.Flex = "Process", 10, 1
 
-	return []datatable.Column[dockerpkg.PortInfo]{proto, state, local, peer, pid, process}
+	return []datatable.Column[ports.Socket]{proto, state, local, peer, pid, process}
 }
 
 // portStateStyle colours the socket state, which is the column this table is
 // scanned down: a listening port is something the machine offers, an
 // established one is a conversation in progress, and everything else is a
 // socket on its way out.
-func portStateStyle(p dockerpkg.PortInfo) lipgloss.Style {
+func portStateStyle(p ports.Socket) lipgloss.Style {
 	switch strings.ToUpper(p.State) {
 	case "LISTEN":
 		return theme.StatusOKStyle
@@ -196,7 +206,7 @@ func portStateStyle(p dockerpkg.PortInfo) lipgloss.Style {
 // matchPortTokens applies the toggle filters: OR within a group, AND between
 // them. `numeric` and `paused` are shown in the bar but filter nothing — they
 // report a mode, which is why they are not consulted here.
-func matchPortTokens(p dockerpkg.PortInfo, active map[string]bool) bool {
+func matchPortTokens(p ports.Socket, active map[string]bool) bool {
 	return matchesActive(p.Protocol, active, filterTokenTCP, filterTokenUDP) &&
 		matchesActive(p.State, active, filterTokenListen, filterTokenEstab)
 }
@@ -219,12 +229,11 @@ func matchesActive(value string, active map[string]bool, labels ...string) bool 
 }
 
 // newPortsModel creates a new PortsModel.
-func newPortsModel(image string, refresh time.Duration) *PortsModel {
+func newPortsModel(refresh time.Duration) *PortsModel {
 	return &PortsModel{
-		image:        image,
 		refresh:      refresh,
 		numericAddrs: true,
-		table: datatable.New(datatable.Config[dockerpkg.PortInfo]{
+		table: datatable.New(datatable.Config[ports.Socket]{
 			Columns:    portsColumns(),
 			SortColumn: -1, // the order ss reports is the order shown
 			Tokens: []components.FilterToken{
@@ -239,7 +248,7 @@ func newPortsModel(image string, refresh time.Duration) *PortsModel {
 			// A PID, not a socket: killing a process takes every socket it
 			// holds, so every one of its rows spins together — which is what
 			// actually happens.
-			Key: func(p dockerpkg.PortInfo) string { return p.PID },
+			Key: func(p ports.Socket) string { return p.PID },
 			// The State cell, being exactly what the signal is about to change.
 			StatusColumn: portsColumnState,
 		}),
@@ -248,7 +257,7 @@ func newPortsModel(image string, refresh time.Duration) *PortsModel {
 
 // initPorts returns the initial commands: an immediate fetch + the first tick.
 func (pm *PortsModel) initPorts() tea.Cmd {
-	return tea.Batch(fetchPortsCmd(pm.image, pm.numericAddrs), portsTickCmd(pm.refresh))
+	return tea.Batch(fetchPortsCmd(pm.numericAddrs), portsTickCmd(pm.refresh))
 }
 
 // InEditMode returns true when the search input or the kill confirmation has
@@ -305,12 +314,12 @@ func (pm *PortsModel) handleTick() (*PortsModel, tea.Cmd) {
 	if pm.paused {
 		return pm, portsTickCmd(pm.refresh)
 	}
-	return pm, tea.Batch(fetchPortsCmd(pm.image, pm.numericAddrs), portsTickCmd(pm.refresh))
+	return pm, tea.Batch(fetchPortsCmd(pm.numericAddrs), portsTickCmd(pm.refresh))
 }
 
 func (pm *PortsModel) handleData(msg portsDataMsg) (*PortsModel, tea.Cmd) {
 	if msg.err != nil {
-		log.Printf("ERROR [netdiag/ports] RunSS: %v", msg.err)
+		log.Printf("ERROR [netdiag/ports] ports.List: %v", msg.err)
 		// The rows stay: they are dated, not wrong, and the status line is what
 		// says so. No footer message — this is a state, and a state that
 		// expires after three seconds is how a dead table came to look alive.
@@ -330,7 +339,7 @@ func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea
 	// again rather than go on turning.
 	pm.table.ClearBusy(msg.pid)
 	if msg.err != nil {
-		log.Printf("ERROR [netdiag/ports] KillProcess pid=%s: %v", msg.pid, msg.err)
+		log.Printf("ERROR [netdiag/ports] ports.Kill pid=%s: %v", msg.pid, msg.err)
 		return pm, pm.footer.Error(fmt.Sprintf("Failed to kill PID %s", msg.pid))
 	}
 	return pm, pm.footer.Info(fmt.Sprintf("Process %s terminated", msg.pid))
@@ -377,7 +386,7 @@ func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
 	case "n":
 		pm.numericAddrs = !pm.numericAddrs
 		pm.table.SetTokenActive(filterTokenNumeric, pm.numericAddrs)
-		return pm, fetchPortsCmd(pm.image, pm.numericAddrs)
+		return pm, fetchPortsCmd(pm.numericAddrs)
 	case "z":
 		for _, label := range []string{
 			filterTokenTCP, filterTokenUDP, filterTokenListen, filterTokenEstab, filterTokenPaused,
@@ -433,7 +442,7 @@ func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
 	// is what happens: the kill takes them all. The State cell is the one to
 	// spend, being exactly what the signal is about to change.
 	pm.table.MarkBusy(entry.PID, "Killing "+entry.Process+" ("+entry.PID+")")
-	return pm, tea.Batch(killProcessCmd(pm.image, entry.PID), portsSpinnerCmd())
+	return pm, tea.Batch(killProcessCmd(entry.PID), portsSpinnerCmd())
 }
 
 func (pm *PortsModel) view() string {

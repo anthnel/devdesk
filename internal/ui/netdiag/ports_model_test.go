@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	dockerpkg "github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ports"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -19,8 +19,8 @@ import (
 
 // portFixtures cover both protocols and both states, plus one entry with no PID
 // (kernel sockets have none) and one with a hostname rather than an address.
-func portFixtures() []dockerpkg.PortInfo {
-	return []dockerpkg.PortInfo{
+func portFixtures() []ports.Socket {
+	return []ports.Socket{
 		{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:22", PeerAddr: "0.0.0.0:*", PID: "812", Process: "sshd"},
 		{Protocol: "tcp", State: "ESTAB", LocalAddr: "10.0.0.5:443", PeerAddr: "93.184.216.34:52344", PID: "1204", Process: "nginx"},
 		{Protocol: "udp", State: "UNCONN", LocalAddr: "0.0.0.0:53", PeerAddr: "0.0.0.0:*", PID: "440", Process: "dnsmasq"},
@@ -91,8 +91,8 @@ func TestAFailedFetchKeepsTheRowsAndDatesThem(t *testing.T) {
 	}
 
 	status := m.portsModel.statusLine().Text
-	if !strings.Contains(status, "unreachable") {
-		t.Errorf("status = %q, does not say Docker is unreachable", status)
+	if !strings.Contains(status, "could not be read") {
+		t.Errorf("status = %q, does not say the socket table could not be read", status)
 	}
 	if !strings.Contains(status, "as of") {
 		t.Errorf("status = %q, does not date the rows on screen", status)
@@ -102,17 +102,17 @@ func TestAFailedFetchKeepsTheRowsAndDatesThem(t *testing.T) {
 	}
 }
 
-// TestStalenessOutranksThePause — a pause is what the user asked for, an
-// unreachable Docker is not, and only one of the two makes the rows lie.
+// TestStalenessOutranksThePause — a pause is what the user asked for, a socket
+// table that will not answer is not, and only one of the two makes the rows lie.
 func TestStalenessOutranksThePause(t *testing.T) {
 	m := portsModel(t)
 	m = feed(t, m, testutil.Key(" "))
 	if !m.portsModel.paused {
 		t.Fatal("space did not pause")
 	}
-	m = feed(t, m, portsDataMsg{err: errors.New("daemon down")})
+	m = feed(t, m, portsDataMsg{err: errors.New("socket table refused")})
 
-	if got := m.portsModel.statusLine().Text; !strings.Contains(got, "unreachable") {
+	if got := m.portsModel.statusLine().Text; !strings.Contains(got, "could not be read") {
 		t.Fatalf("status = %q, want the staleness to win over the pause", got)
 	}
 }
@@ -121,13 +121,13 @@ func TestStalenessOutranksThePause(t *testing.T) {
 // the zero time as an empty string, so "ports as of " would trail off.
 func TestAFetchThatNeverSucceededSaysSoRatherThanDatingNothing(t *testing.T) {
 	m := feed(t, newTestModel(t), testutil.Key("tab"))
-	m = feed(t, m, portsDataMsg{err: errors.New("daemon down")})
+	m = feed(t, m, portsDataMsg{err: errors.New("socket table refused")})
 
 	status := m.portsModel.statusLine().Text
 	if strings.HasSuffix(status, "as of ") || strings.Contains(status, "as of") {
 		t.Fatalf("status = %q dates rows that were never fetched", status)
 	}
-	if !strings.Contains(status, "unreachable") {
+	if !strings.Contains(status, "could not be read") {
 		t.Fatalf("status = %q", status)
 	}
 	// And the body must not claim the host has no open ports.
@@ -140,7 +140,7 @@ func TestAFetchThatNeverSucceededSaysSoRatherThanDatingNothing(t *testing.T) {
 // daemon still reads as dead.
 func TestASuccessfulFetchClearsTheStaleness(t *testing.T) {
 	m := portsModel(t)
-	m = feed(t, m, portsDataMsg{err: errors.New("daemon down")})
+	m = feed(t, m, portsDataMsg{err: errors.New("socket table refused")})
 	if !m.portsModel.stale {
 		t.Fatal("the failure was not recorded")
 	}
@@ -471,7 +471,7 @@ func TestPortsViewStates(t *testing.T) {
 		t.Error("the ports tab does not report the first fetch")
 	}
 
-	empty := feed(t, loading, portsDataMsg{ports: []dockerpkg.PortInfo{}})
+	empty := feed(t, loading, portsDataMsg{ports: []ports.Socket{}})
 	if !strings.Contains(empty.View(), "No active ports found") {
 		t.Error("the ports tab does not report an empty result")
 	}
@@ -630,8 +630,8 @@ func TestAQuerySpanningColumnsStillMatches(t *testing.T) {
 
 // ── A kill says it is running (§3.22) ────────────────────────────────────────
 
-// KillProcess runs an ephemeral privileged container, so it is not the instant
-// a signal sounds like. The row used to look exactly as it had.
+// A kill is not the instant a signal sounds like — the process has to go, and
+// the table has to re-read to notice. The row used to look exactly as it had.
 func TestAKillSpinsTheSocketState(t *testing.T) {
 	m := feed(t, portsModel(t), testutil.Key(keymap.Kill), components.ConfirmModalYesMsg{}) // sshd, PID 812
 
@@ -657,7 +657,7 @@ func TestAKillSpinsTheSocketState(t *testing.T) {
 // of its rows spin together — which is what actually happens.
 func TestAKillSpinsEveryRowOfThatProcess(t *testing.T) {
 	shared := append(portFixtures(),
-		dockerpkg.PortInfo{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:2222", PID: "812", Process: "sshd"},
+		ports.Socket{Protocol: "tcp", State: "LISTEN", LocalAddr: "0.0.0.0:2222", PID: "812", Process: "sshd"},
 	)
 	m := feed(t, newTestModel(t), testutil.Key("tab"))
 	m = feed(t, m, portsDataMsg{ports: shared})
