@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-23
+**Last Updated:** 2026-08-24
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11,7 +11,7 @@ rather than carried over.
 
 ## 1. Known defects
 
-**None open.** D39, the last one, was the registry browser addressing a group's
+**Deux ouverts : D55 et D56** — voir [§1.3](#13-open). D39, the last one, was the registry browser addressing a group's
 members one way to browse them and another way to pull them; it is closed by
 [§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix), which is
 what it existed for. D40, found the same day and on the same screen, was the
@@ -1400,6 +1400,92 @@ and D11 each had one, and each failed the moment the fix landed, which is how
 the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
+
+**D56 — `scan.gitleaks_config` ne peut pas fonctionner en mode Docker, et son
+échec se lit « aucun secret ». Ouvert.** Trouvé en écrivant [§3.42](#342-plumber--un-score-de-sécurité-de-pipeline-par-dépôt),
+qui a besoin exactement du même réglage, et vérifié à l'exécution le 2026-08-24.
+
+`gitleaksArgs` monte la **cible** (`-v <cible>:/scan:ro`) puis ajoute
+`--config <chemin>` **après le nom de l'image**. Le chemin est donc résolu
+**dans le conteneur**, où le fichier n'est pas : le réglage est un chemin hôte,
+et `applyDefaults` en développe même le `~` (`config.go:731`). Rien ne le monte.
+
+Ce que `GetGitleaksCommand` construit :
+
+```
+docker run --rm -v C:\repos\devdesk:/scan:ro zricethezav/gitleaks detect \
+  --source /scan --gitleaks-ignore-path /scan --report-format json \
+  --report-path /dev/fd/1 --no-git --config C:\Users\anthoni\gitleaks.toml
+```
+
+et ce que ça rend, mesuré :
+
+```
+FTL unable to load gitleaks config, err: open C:\Users\...\gitleaks.toml:
+    no such file or directory
+exit = 1 ; stdout = 0 octet
+```
+
+**Le défaut n'est pas l'échec, c'est le code de sortie.** `1` est
+`gitleaksSecretsFound` — celui que `RunGitleaks` traite comme « il a tourné et
+n'a rien trouvé » **quand stdout est vide**, ce qui est exactement le cas ici
+(0 octet, mesuré en séparant les flux : la bannière et le `FTL` partent sur
+stderr). La chaîne complète :
+
+| Étape | Ce qui se passe |
+|---|---|
+| `RunGitleaks` | `exit 1` + stdout vide → `[]Finding{}, nil` |
+| l'étape secrets | se termine en `StageDone` |
+| `Result.SecretsScanned` | passe à `true` — une étape qui *réussit* l'écrit |
+| `Result.SecretVerdict()` | rend un `false` **non nul** : « on a regardé, c'est propre » |
+| la colonne Secrets de `ws` | icône verte |
+
+Un scan qui n'a **rien lu du tout** est présenté comme un dépôt propre. C'est
+D20 dans sa forme achevée : le champ inventé pour distinguer « personne n'a
+regardé » de « rien trouvé » est rempli par une étape qui n'a rien regardé.
+
+**Qui le rencontre.** `gitleaks_source: auto` retombe sur l'image dès qu'il n'y a
+pas de binaire — le cas courant, et celui de cette machine. Il suffit donc
+d'avoir renseigné un fichier de règles et de ne pas avoir installé gitleaks.
+
+**Pourquoi les tests ne l'ont pas vu.** `TestACustomGitleaksConfigIsPassedThrough`
+n'exerce que le mode **binaire**, là où ses trois voisins immédiats —
+`TestGitleaksReportsToStdout`, `TestTheIgnoreFileIsAlwaysPassed`,
+`TestGitleaksDockerModeMountsTheTargetReadOnly` — vérifient les deux. Et il
+vérifie que le drapeau est **présent**, jamais que le chemin est **atteignable** :
+`--config /etc/gitleaks.toml` passe des deux côtés, et ne veut dire la même
+chose dans aucun des deux.
+
+**Le correctif est mesuré, pas déduit.** Monter le fichier en lecture seule et
+pointer `--config` sur le point de montage :
+
+```
+docker run --rm -v <cible>:/scan:ro -v <config>:/gitleaks.toml:ro ... \
+  --config /gitleaks.toml
+```
+
+Avec ça, une règle que seul ce fichier définit se déclenche : un finding
+`devdesk-marker` sur stdout, 466 octets de JSON, relevé le 2026-08-24 sur un
+fixture écrit pour ça.
+
+Trois choses à décider en même temps, parce qu'aucune n'est réglée par le montage :
+
+1. **Un `--config` illisible doit être une erreur, pas un résultat vide**, dans
+   les deux modes. La garde de `RunGitleaks` ne regarde que le code de sortie,
+   et gitleaks émet `1` pour « j'ai trouvé » comme pour « je n'ai pas pu me
+   charger ». Le mode binaire a donc le même trou pour un chemin qui n'existe
+   pas : c'est le même programme, et c'est du reste ce que la mesure ci-dessus
+   montre — de son point de vue le fichier n'existait simplement pas.
+2. **Un chemin relatif n'a pas le même sens des deux côtés** — relatif au cwd de
+   DevDesk en binaire, à celui du conteneur en Docker. À rendre absolu au
+   chargement, ou à refuser.
+3. **Le nom du point de montage ne doit pas pouvoir entrer en collision** avec un
+   fichier du dépôt scanné : la cible est montée sur `/scan`, donc `/gitleaks.toml`
+   à la racine est libre, mais c'est à écrire quelque part plutôt qu'à supposer.
+
+Le même montage sera nécessaire pour `scan.plumber_config` (§3.42), qui est le
+même réglage pour un autre outil. Le corriger ici d'abord évite de l'écrire deux
+fois faux.
 
 **D55 — l'onglet Ports liste les sockets de la VM Docker, pas ceux de la
 machine. Ouvert.** Vérifié à l'écran le 2026-08-23, sous Windows.
@@ -7505,6 +7591,241 @@ L'hypothèse du namespace est vérifiée (D55). Restent deux mesures :
    `ss -p` les obtient parce que le conteneur est privilégié ; un DevDesk non
    élevé verra probablement moins. C'est un vrai renoncement possible, à mesurer
    plutôt qu'à deviner.
+
+### 3.42 `plumber` — un score de sécurité de pipeline, par dépôt
+
+À planifier. [`getplumber/plumber`](https://github.com/getplumber/plumber) lit la
+configuration CI d'un dépôt — `.gitlab-ci.yml`, workflows GitHub Actions — la
+passe dans un moteur de politiques Rego, et en tire un **Plumber Score** : une
+lettre de A à E, des points sur 100, et les findings qui l'expliquent.
+
+La demande : un réglage sous `scan:`, une colonne **CI Score** dans `ws`, le
+détail dans un onglet de plus à côté de CVE, Secrets, Licenses et Misconfig, un
+outil résolu depuis le PATH **ou** depuis une image Docker comme Trivy et
+Gitleaks, et un fichier de configuration global référençable depuis la config.
+
+**Tout ce qui suit est relevé sur `plumber 0.4.40`, installé sur cette machine,
+et sur une exécution réelle** — pas sur la documentation, qui diffère de la CLI
+sur au moins deux points (elle annonce un code de sortie `3` qui n'existe pas, et
+ne dit pas que le chemin GitHub est local).
+
+#### Deux chemins, et un seul interroge la forge
+
+C'est le fait qui gouverne tout le reste, et il n'est écrit que dans
+`plumber analyze --help` :
+
+| Chemin | Déclenché par | Ce qu'il lit | Token |
+|---|---|---|---|
+| **GitLab** | remote GitLab, ou `--gitlab-url` + `--project` | l'**API** : configuration CI, réglages du projet, protection de branche | `GITLAB_TOKEN` **requis** |
+| **GitHub** | origin GitHub, sans `--gitlab-url`/`--project` | les fichiers **locaux** `.github/workflows` uniquement (Rego) | aucun |
+
+Donc côté GitHub, plumber se comporte comme Trivy et Gitleaks — un chemin, des
+fichiers, pas de réseau — et côté GitLab, pas du tout. Cinq conséquences :
+
+1. **Le token n'est nécessaire que sur GitLab**, et alors la règle de §3.17
+   s'applique telle quelle : `internal/git.tokenForRemote` compare l'hôte du
+   remote à celui de `forge.url` et ne rend rien sinon. `workspaces_dir` contient
+   par construction des dépôts clonés d'ailleurs, et `GITLAB_TOKEN` est une
+   variable d'environnement — donc lisible dans l'environnement du processus fils,
+   ce qui est déjà l'arrangement retenu pour `http.extraHeader` au clone.
+2. **Un dépôt GitLab sans remote joignable ou sans token n'est pas scannable.**
+   La cellule est **vide**, pas `-` : c'est la distinction que les quatre colonnes
+   de sévérité font déjà entre « jamais scanné » et « ne peut pas l'être ».
+3. **Sur GitLab, le score décrit une branche du serveur, pas le HEAD local.**
+   `--branch` existe, mais la branche courante n'est peut-être pas poussée.
+   À trancher : la passer et accepter l'échec, ou assumer la branche par défaut
+   et **le dire à l'écran**, comme `renderTraceHeader` dit que la route est celle
+   du conteneur. Sur GitHub la question ne se pose pas — c'est l'arbre de travail.
+4. **Il ne s'applique pas aux images**, comme Gitleaks. La colonne n'existe que
+   dans `ws`, et l'onglet est vide sur un résultat d'image.
+5. **Le mode Docker n'a pas le même besoin selon le chemin.** GitHub exige que le
+   dépôt soit monté ; GitLab n'a besoin que du réseau, du token et du fichier de
+   configuration. Un seul montage de la cible couvre les deux, mais la raison
+   diffère, et c'est ce qui décide si un dépôt sans `.git` peut être scanné.
+
+#### Ce que la CLI offre — `plumber analyze`
+
+| Drapeau | Défaut | Ce qu'il fait |
+|---|---|---|
+| `--config` | `.plumber.yaml` | chemin du fichier de configuration |
+| `--output`, `-o` | — | écrit les résultats JSON dans un fichier |
+| `--score` | `false` | bannière sur stdout, **et le bloc `plumberScore` dans le JSON** |
+| `--provider` | auto | force `github` ou `gitlab` |
+| `--gitlab-url` | auto | instance GitLab |
+| `--github-url` | `api.github.com` | hôte d'API GitHub **Enterprise** |
+| `--project` | auto | chemin du projet, déduit du remote git |
+| `--branch` | branche par défaut | branche analysée (chemin GitLab) |
+| `--min-score` / `--min-points` | — / `100` | portes de sortie |
+| `--print` | `true` | rapport lisible **et barre de progression sur un tty** |
+| `--controls` / `--skip-controls` | — | restreindre les contrôles joués |
+| `--ci-config-path` | auto | chemin du fichier CI |
+
+Codes de sortie, **trois et pas quatre** : `0` porte tenue, `1` porte non tenue,
+`2` erreur d'exécution (configuration, réseau, token manquant). `--fail-warnings`
+sort en `2`, pas en `3` comme le dit le README.
+
+**`1` est le cas courant** — le défaut de `--min-points` est 100, donc le moindre
+finding le déclenche. Comme pour Gitleaks, un code non nul n'est pas un échec ;
+mais ici la séparation est propre et il faut s'en servir : `1` veut dire « il a
+répondu », `2` veut dire « il n'a pas répondu ». Les confondre mettrait un échec
+dans la colonne comme s'il était un verdict — ce qui est exactement D56, un
+étage plus bas.
+
+**Trois drapeaux ne doivent jamais être exposés dans la configuration.**
+`--score-push` publie la posture du dépôt sur un service hébergé
+(`score.getplumber.io`), `--platform` y pousse les **résultats complets**, et
+`--score-endpoint` choisit la destination. Ce ne sont pas des options de scan,
+c'est une divulgation sortante. Que `--score-push` soit un no-op hors CI ne
+change rien à l'argument : l'absence du champ est la garantie, et c'est la forme
+qu'ont déjà les trois garanties de secret de §3.38.
+
+#### Le JSON, relevé sur une exécution
+
+Un run sur un workflow GitHub écrit pour déclencher cinq contrôles. Ce qui compte :
+
+- **Une issue ne porte pas sa sévérité.** Ses clés sont `code` (`ISSUE-701`),
+  `docUrl`, `fingerprint`, `identity.fields` (dont `file`), `job`, `url`, plus
+  des champs propres au contrôle (`uses`, `scriptLine`). La sévérité vit
+  **ailleurs**, dans `plumberScore.codeLosses[]`, indexée par `code`.
+  **Donc `--score` n'est pas optionnel pour DevDesk** : sans lui il n'y a aucune
+  sévérité, donc pas de colonne Severity, pas de jetons de filtre, rien à trier.
+  Le remplissage d'un `Finding` passe par une jointure `code → severity`.
+- **Le vocabulaire tombe juste** : `critical`, `high`, `medium`, `low`, en
+  minuscules, sans `unknown`. C'est exactement `SeverityLevel` après passage en
+  majuscules, donc les quatre jetons cumulatifs de la barre de filtre marchent
+  sans traduction.
+- **Une issue n'a ni titre ni description.** `docUrl` pointe la page du code, et
+  `plumber explain <code>` est la commande faite pour ça — donc `Title` se
+  construit du `code` et du `controlName` du bloc qui la porte, et `Resolution`
+  peut porter la commande. Rien à inventer, mais rien de gratuit non plus.
+- **`url` est un chemin hôte absolu suffixé `:<ligne>`**
+  (`C:\...\.github\workflows\ci.yml:8`). `File` et `Line` s'en tirent, mais il
+  faut le rendre relatif au dépôt avant de l'afficher — et en mode Docker ce
+  chemin sera celui du conteneur.
+- **`fingerprint` existe**, sur le modèle de Gitleaks : de quoi bâtir un `X` plus
+  tard, si plumber a un fichier d'exclusion. À ne pas fabriquer autrement (c'est
+  l'argument qui réserve `X` aux findings Gitleaks).
+- **`dataCollectionDegraded` et `degradedReasons` sont le quatrième état**, et le
+  plus important pour la colonne. Sur le run relevé :
+  `["branch protection could not be fetched; branch controls were not evaluated"]`,
+  et la CLI répond « the score is withheld ». Le JSON continue pourtant d'écrire
+  `"score": "E"`. **Reprendre cette lettre telle quelle serait afficher un E pour
+  des contrôles qui n'ont pas tourné** — le même défaut que D56, sur un autre
+  outil. Un run dégradé doit rendre le même « personne n'a regardé » qu'un run
+  absent.
+- `ciMissing` est un état de plus : un dépôt sans CI n'a pas un mauvais score, il
+  n'a pas de pipeline.
+
+Le reste du document est un bloc `<contrôle>Result` par contrôle — 23 sur ce run
+— chacun avec `controlName`, `status`, `skipped`, `issues`, `metrics`.
+
+#### La configuration — `scan.plumber_*`, sur le patron de Trivy et Gitleaks
+
+```yaml
+scan:
+  enable_ci_score: false     # off par défaut, comme les autres étapes
+  plumber_source: auto       # auto | binary | image
+  plumber_path: ""           # binaire hors PATH
+  plumber_image: ""          # défaut getplumber/plumber
+  plumber_config: ""         # --config : le fichier global demandé
+```
+
+`DependencyStatus` gagne `PlumberAvailable`, `PlumberSource`, `PlumberVersion`,
+`PlumberBinary`, `PlumberImage`, et une méthode `PlumberSpec() ToolSpec`.
+**Le chemin du binaire va sur le `ToolSpec`, pas en paramètre positionnel** —
+c'est D27 : `trivy_path` est resté non lu longtemps précisément parce que le
+couple `(source, image)` n'avait nulle part où le porter. La version se lit par
+`plumber version` (vérifié), qui écrit aussi une ligne « une version est
+disponible » à ne pas confondre avec la version installée.
+
+`binary` échoue bruyamment plutôt que de retomber sur Docker, pour la raison déjà
+écrite : c'est le repli silencieux qui rend un réglage invisible, puisque les
+scans continuent de marcher avec autre chose que ce qui a été demandé.
+
+Vue configuration : un groupe **Plumber** dans l'onglet `scan`, à côté de Trivy
+et de Gitleaks, et `enable_ci_score` dans **Scanners** avec les quatre autres.
+La table de `fields.go` prend cinq lignes de plus, chacune avec son unique
+accesseur pointeur.
+
+#### Le fichier de configuration global — corriger D56 d'abord
+
+« Global » veut dire : un fichier pour tous les dépôts du contexte, désigné par
+un chemin absolu, au lieu du `.plumber.yaml` que plumber cherche dans chaque
+dépôt. C'est mot pour mot ce que `scan.gitleaks_config` est déjà.
+
+**Et `scan.gitleaks_config` ne marche pas en mode Docker** : le chemin hôte part
+tel quel dans le conteneur, gitleaks ne le trouve pas, sort en `1` avec stdout
+vide, et DevDesk lit ça comme « aucun secret ». C'est **D56**, vérifié à
+l'exécution le 2026-08-24, avec le montage qui le corrige mesuré dans la foulée.
+Le corriger avant d'écrire `plumber_config`, sans quoi la même erreur est écrite
+deux fois — et la seconde fois en connaissance de cause.
+
+#### La colonne dans `ws`
+
+La table a onze colonnes et 120 cellules de largeurs fixes ; avec le minimum de
+`Remote`, le padding et les bordures elle demande déjà ~156 colonnes de
+terminal. **C'est le titre qui coûte**, pas la valeur : `CI Score` fait huit
+cellules pour afficher une lettre. Les quatre colonnes de sévérité s'appellent
+`C H M L` pour cette raison exacte. Proposition — titre `CI`, largeur 4, valeur
+la lettre seule ; les points sont dans l'onglet, où il y a la place. À trancher,
+parce que la demande dit « CI Score ».
+
+Quatre états, un de plus que les colonnes voisines :
+
+| Cellule | Sens |
+|---|---|
+| `A`…`E` | un score, d'un run complet |
+| `?` | run **dégradé** (`dataCollectionDegraded`) ou `ciMissing` — à distinguer, ou pas, mais pas à confondre avec une lettre |
+| `-` | jamais scanné |
+| *(vide)* | ne peut pas l'être — pas un dépôt, pas de remote, remote étranger |
+
+`WorkspaceScanEntry` gagne donc `CIScore *string` et non `string` : `nil` veut
+dire que personne n'a regardé, ce qui est exactement l'argument de
+`Sensitive *bool`. `ImageScanEntry` ne gagne rien. Comme le champ n'a jamais été
+écrit, un fichier de cache existant décode en `nil`, ce qui est la vérité sur lui.
+
+La couleur passe par `Style`, jamais par `Cell` (Rule 122), et suit la discipline
+de couleur : `A` est l'état nominal et reste en couleur de texte, `-`, le vide et
+`?` sont `DimStyle`, la couleur est dépensée sur `D` et `E`. Une fonction
+`theme.CIScoreStyle(state)` sur le modèle de `theme.SecretsState` — **l'état, pas
+la chaîne rendue** : décider la couleur d'après ce qui a été imprimé est
+précisément ce que `ws` faisait et qu'il a fallu défaire.
+
+#### L'onglet
+
+`SourcePlumber = "plumber"`, `CategoryCIScore`, une ligne dans `Categorize`, une
+dans `tabCategory`, `TabCIScore = 4`. La classification se fait **sur la source
+et rien d'autre** (§3.12) : pas de reconnaissance à la présence d'un champ, c'est
+ce qui avait produit des findings comptés dans le header et absents de tout
+onglet.
+
+**Un score n'est pas un finding**, et c'est ce qui distingue cet onglet des
+quatre autres. La lettre, les points et l'état dégradé doivent apparaître
+quelque part : soit dans le header, qui porte aujourd'hui `Context` et `Findings`
+et rend exactement sept lignes en jetant le reste **en silence**, soit en tête de
+l'onglet, au-dessus de la table. À trancher. Sur `Result`, la forme à suivre est
+celle des secrets : `CIScanned bool` écrit par une étape qui **réussit**, et une
+seule fonction qui décide du verdict — deux calculs de la même question sont ce
+que `SecretVerdict()` a eu à défaire.
+
+Les `<contrôle>Result` qui passent ne sont pas des findings et ne vont dans aucun
+onglet ; ils sont pourtant ce qui donne son sens au score. Les ignorer d'abord,
+et le noter.
+
+#### Ce qui reste ouvert
+
+Le schéma JSON, le vocabulaire de sévérité, la commande de version et le
+comportement dégradé sont relevés ci-dessus. Restent :
+
+1. **Ce que l'image `getplumber/plumber` a besoin de voir**, et si `--config`
+   accepte un chemin hors du dépôt — les deux décident du `-v`, et D56 dit
+   pourquoi ça ne se devine pas.
+2. **Le comportement sur un token GitLab sans droits**, qui doit se distinguer
+   d'un mauvais score jusque dans la cellule. `2` est censé le dire ; à vérifier
+   qu'il le dit toujours.
+3. **La licence de plumber** et le poids de l'image. Rien n'entre dans le
+   binaire, mais c'est une dépendance de plus à installer ou à tirer.
+4. **Le titre de la colonne** (`CI` contre `CI Score`), et où va le score.
 
 ## 4. Existing plans
 
