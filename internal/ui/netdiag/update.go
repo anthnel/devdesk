@@ -13,7 +13,7 @@ import (
 
 // Init implements tea.Model
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, m.portsModel.initPorts(), m.topologyModel.initTopology())
+	return tea.Batch(textinput.Blink, m.portsModel.initPorts(), m.interfacesModel.initInterfaces())
 }
 
 // InEditMode implements FormView — true when a text input is active, so the
@@ -22,8 +22,11 @@ func (m *Model) InEditMode() bool {
 	switch m.activeTab {
 	case tabPorts:
 		return m.portsModel.InEditMode()
-	case tabTopology:
-		return false
+	case tabInterfaces:
+		// The interfaces table has a search box now, where the Topology tab it
+		// replaced had no input at all. Returning false here would let a ":"
+		// typed into the query open the command line instead (Rule 111).
+		return m.interfacesModel.InEditMode()
 	}
 	if m.filterBar.InEditMode() {
 		return true
@@ -53,7 +56,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildChecksTable()
 		m.resizeDetailsViewport()
 		m.portsModel.resize(msg.Width, msg.Height)
-		m.topologyModel.resize(msg.Width, msg.Height)
+		m.interfacesModel.resize(msg.Width, msg.Height)
 		return m, nil
 
 	case spinner.TickMsg:
@@ -74,9 +77,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	// Topology sub-model messages
-	case topoDataMsg:
+	case ifaceDataMsg:
 		var cmd tea.Cmd
-		m.topologyModel, cmd = m.topologyModel.update(msg)
+		m.interfacesModel, cmd = m.interfacesModel.update(msg)
 		return m, cmd
 
 	case tea.KeyMsg:
@@ -87,7 +90,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// three: the timer fires wherever the user has since navigated.
 	m.footer.Handle(msg)
 	m.portsModel.footer.Handle(msg)
-	m.topologyModel.footer.Handle(msg)
+	m.interfacesModel.footer.Handle(msg)
 	return m, nil
 }
 
@@ -98,9 +101,9 @@ func (m *Model) handleSpinnerTick(msg spinner.TickMsg) (*Model, tea.Cmd) {
 		m.footer.SetSpinnerFrame(m.spinner.View())
 		return m, cmd
 	}
-	if m.activeTab == tabTopology {
+	if m.activeTab == tabInterfaces {
 		var cmd tea.Cmd
-		m.topologyModel, cmd = m.topologyModel.update(msg)
+		m.interfacesModel, cmd = m.interfacesModel.update(msg)
 		return m, cmd
 	}
 	return m, nil
@@ -181,9 +184,9 @@ func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.portsModel, cmd = m.portsModel.update(msg)
 		return m, cmd
 	}
-	if m.activeTab == tabTopology {
+	if m.activeTab == tabInterfaces {
 		var cmd tea.Cmd
-		m.topologyModel, cmd = m.topologyModel.update(msg)
+		m.interfacesModel, cmd = m.interfacesModel.update(msg)
 		return m, cmd
 	}
 

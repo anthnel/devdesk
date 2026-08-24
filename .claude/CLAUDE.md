@@ -624,7 +624,7 @@ execution sees a closure that registers under another name, twice, or not at all
 | `images_list` | the local images, and whether each has ever been scanned |
 | `scan_inventory` | every target this context has scanned, reconciled against what still exists |
 | `scan_result` | one scan's findings, filtered by severity and category, paginated |
-| `net_check` | the `internal/netcheck` pipeline: ten checks, each with a verdict and what to do |
+| `net_check` | the `internal/netcheck` pipeline: eleven checks, each with a verdict and what to do |
 
 **Three secrecy guarantees, and each is the absence of a field rather than a
 filter.**
@@ -1773,22 +1773,26 @@ Cache invalidation: `S` (single) overwrites; `A` (all) rescans, and purges the c
 ### Docker / OCI Integration
 
 - `internal/docker/client.go` — wraps Docker CLI (exec-based): list, metrics, stop, restart, pause, remove, prune
-- `internal/docker/netdiag.go` — ephemeral container runners with `--network host`: `RunTraceroute`, `RunTCPTraceroute` → returns `DiagResult{Success, Output}`. §3.33 took the five probes that did not need a container; §3.43 took the ports table
+- `internal/docker/netdiag.go` — ephemeral container runners with `--network host`: `RunTraceroute`, `RunTCPTraceroute` → returns `DiagResult{Success, Output}`. §3.33 took the five probes that did not need a container; §3.43 took the ports table; §3.44 took the topology and with it `docker/topology.go` and the last `--privileged` in the application
 - `internal/oci/oci.go` — OCI registry HTTP client: list tags/templates, download + extract tar.gz
 
 ### Network Diagnostics View
 
 `internal/ui/netdiag/` — three tabs:
 - **Diagnostics tab** (`model.go`): target, port and resolver, then
-  `internal/netcheck`'s pipeline — resolve, reach, connect, TLS, HTTP — chained
-  one stage per message so the footer can name the question being asked. The
-  seven tool checkboxes are gone (§3.33): the checks follow from the target and
-  from what has already failed.
+  `internal/netcheck`'s pipeline — resolve, route, reach, connect, TLS, HTTP —
+  chained one stage per message so the footer can name the question being asked.
+  The seven tool checkboxes are gone (§3.33): the checks follow from the target
+  and from what has already failed.
 - **Ports tab** (`ports_model.go`): the machine's own socket table, re-read
   every `ports_refresh_interval`, filtered by protocol, state and text. `K`
   terminates a process, after a confirmation. It runs **no container** — see
   `internal/ports` below.
-- **Topology tab** (`topology_model.go`): Docker network inspection.
+- **Interfaces tab** (`interfaces_model.go`): this machine's network interfaces
+  — name, state, MTU, MAC, RX/TX error counters, addresses — in a `datatable`.
+  It runs **no container**; see `internal/netiface` below. It was the Topology
+  tab, and §3.44 is why three of its four sections are gone rather than
+  translated.
 
 **What is configurable, and what is not.** `internal/netcheck` held its timeouts
 as constants with a comment saying they would become settings when somebody
@@ -1834,6 +1838,37 @@ a tool worth not reimplementing — so it answers for the *container's* view of
 the network, and `renderTraceHeader` says so on screen. Everything else answers
 from the DevDesk process, because `--network host` on Docker Desktop is the VM's
 namespace and not the machine's.
+
+**The `route` stage answers the question no other check can** (§3.44): when a
+VPN captures the default route, a host that is plainly reachable elsewhere is
+unreachable here, and every other row reports the *symptom* — no ICMP reply, no
+TCP connect — while none reports the cause. `Env.Route(ctx, ip)` returns a
+`RouteHop{Interface, Source, Gateway}`, and the summary names the **interface**
+because that is what the user recognises: "Traffic leaves through ProtonVPN"
+answers the question, `10.2.0.1` needs a second lookup to mean anything.
+
+`github.com/libp2p/go-netroute` is what makes it one implementation instead of
+three — `GetBestRoute2` on Windows, an `RTM_GETROUTE` netlink query on Linux, the
+routing socket on the BSDs — with no privilege anywhere and ~2 ms per lookup,
+measured. It depends only on `x/net` and `x/sys`, both already in the graph.
+
+Four decisions, each with a test:
+
+- **It gates nothing**, for `reach`'s reason: a machine whose routing table
+  cannot be read still has a perfectly answerable question about the port.
+- **A lookup that fails is `Unknown`, never `Fail`.** "Could not determine the
+  route" is not "there is no route", and rendering the first as the second is
+  D20. The platform error is also **localised** — Windows returns
+  `ERROR_NETWORK_UNREACHABLE` in the machine's own language — so it goes in a
+  fact and never in the summary (Rule 129).
+- **One family without a route is a `Warn` with its count.** That is the IPv6
+  case, and it is worth reporting: a client that prefers IPv6 hangs before
+  falling back.
+- **It takes its addresses from the `resolve` check's facts**, capped at
+  `maxRoutedAddresses`, rather than resolving again — on a round-robin name the
+  two could diverge and the route would describe an address no other check in the
+  run ever touched. `TestTheRouteStageReadsWhatTheResolveStageWrote` pins the
+  coupling, which is otherwise the kind that breaks in silence.
 
 ### The socket table — `internal/ports`
 
@@ -1894,10 +1929,60 @@ loopback and unspecified addresses are never asked at all.
 another user's process, or a service, now comes back refused by the operating
 system instead of succeeding against the wrong machine.
 
-What is left in `network.tool_image` is what genuinely cannot be had without a
-container — a route trace needs raw ICMP sockets, and the Topology tab needs
-netfilter. Both still answer for the VM, and `renderTraceHeader` and the help
-say so.
+What is left in `network.tool_image` is the route trace, which genuinely cannot
+be had without a container — it needs raw ICMP sockets, and DevDesk must not
+need root. It still answers for the VM, and `renderTraceHeader` and the help say
+so. The other reader is the OCI connectivity test, which runs an image *inside a
+Docker network* and is correct by construction — §3.47 is the plan for the
+setting, and the fact that it serves two different questions is why it cannot
+simply be deleted.
+
+### The interfaces — `internal/netiface`
+
+This machine's network interfaces, read **in this process**. `List(ctx)` is the
+whole interface.
+
+**It exists because the old one answered for the wrong machine** (D57), and it
+is `internal/ports`' story exactly one screen over. The Topology tab ran
+`ip addr`, `ip -s link`, `ip route`, `ip neigh` and `iptables` in containers
+started with `--network host`, which on Docker Desktop is the Linux VM's
+namespace: the tab showed `eth0 10.254.254.3`, `docker0` and the `br-*` while
+the machine had `Ethernet 2`, ProtonVPN, Tailscale and **two competing default
+routes**. Not one interface and not one route in common. Under Linux the defect
+did not exist, which is why it went unnoticed.
+
+No new dependency: `net.Interfaces()` is the standard library and
+`gopsutil/v4/net` was already imported. Measured here: 10 interfaces in 4,6 ms,
+10 counter rows in 2,6 ms, and **0 of 10 interfaces without a matching counter
+row** — the names agree character for character, so there is no correspondence
+table to keep.
+
+Three decisions, each with a test:
+
+- **`RxErrors` and `TxErrors` are `*uint64`.** The counters come from a second
+  source that fails on its own, and a zero written because nobody looked is
+  indistinguishable from an interface that has dropped nothing. `nil` renders as
+  `-`, never `0` — D58 at the scale of a column, and `SecretVerdict`'s `*bool`
+  under another name.
+- **A counter failure does not fail the listing.** `List` returns an error only
+  when the interfaces themselves could not be read: a list without its error
+  counts is still the answer to "which adapters does this machine have".
+- **An MTU the platform does not report is withheld.** Windows returns `-1` for
+  its loopback pseudo-interface where `ip` returns 65536; `HasMTU` is what keeps
+  a cell from printing a number the machine never meant.
+
+**Three sections were removed rather than translated**, and §3.44 measures why
+for each: the ARP cache loses IPv6 and four of its six states outside netlink,
+the firewall's `{Name, Policy, Rules}` is an iptables shape that Windows profiles
+and `pf` do not fit, and the routing *table* became a routing *question* — see
+the `route` stage below.
+
+**The tab is named after what it shows.** At one section "Topology" described
+nothing, and deleting it would have meant rehousing the interfaces in Diagnostics
+or Ports, where neither has room. One consequence has a test: the table has a
+search box where the old tab had no input at all, so `InEditMode()` had to stop
+returning a hardcoded `false` — otherwise a `:` typed into the query opens the
+command line (Rule 111).
 
 ### Status Monitoring System
 
@@ -2304,6 +2389,7 @@ Key libraries (see `go.mod`):
 - `gitlab.com/gitlab-org/api/client-go` - GitLab API client
 - `github.com/prometheus-community/pro-bing` - ICMP ping functionality (maintained fork of go-ping/ping)
 - `github.com/google/go-github/v68` - GitHub API client (§3.6)
+- `github.com/libp2p/go-netroute` - which interface a destination leaves by, on all three platforms (§3.44)
 - `github.com/zalando/go-keyring` - host secret manager (wincred / Keychain / Secret Service), no cgo
 - `gopkg.in/yaml.v3` - YAML configuration
 

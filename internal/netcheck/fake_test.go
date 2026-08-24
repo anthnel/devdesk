@@ -29,6 +29,7 @@ type fakeEnv struct {
 	dial      func(ctx context.Context, addr string) (time.Duration, error)
 	handshake func(ctx context.Context, addr, serverName string) (*tls.ConnectionState, error)
 	head      func(ctx context.Context, url string) (HTTPResult, error)
+	route     func(ctx context.Context, ip net.IP) (RouteHop, error)
 	roots     *x509.CertPool
 	now       time.Time
 }
@@ -52,6 +53,17 @@ func (f fakeEnv) Ping(ctx context.Context, host string, count int) (PingStats, e
 		return f.ping(ctx, host, count)
 	}
 	return PingStats{Sent: count, Received: count, AvgRTT: 12 * time.Millisecond}, nil
+}
+
+func (f fakeEnv) Route(ctx context.Context, ip net.IP) (RouteHop, error) {
+	if f.route != nil {
+		return f.route(ctx, ip)
+	}
+	return RouteHop{
+		Interface: "eth0",
+		Source:    net.ParseIP("192.168.1.21"),
+		Gateway:   net.ParseIP("192.168.1.1"),
+	}, nil
 }
 
 func (f fakeEnv) DialTCP(ctx context.Context, addr string) (time.Duration, error) {

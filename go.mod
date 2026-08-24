@@ -12,6 +12,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.10.1
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/google/go-github/v68 v68.0.0
+	github.com/libp2p/go-netroute v0.4.0
 	github.com/mattn/go-runewidth v0.0.16
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/muesli/termenv v0.16.0

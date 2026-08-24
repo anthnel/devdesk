@@ -86,6 +86,7 @@ type CheckID string
 const (
 	CheckResolve      CheckID = "resolve"
 	CheckReverseDNS   CheckID = "reverse-dns"
+	CheckRoute        CheckID = "route"
 	CheckICMP         CheckID = "icmp"
 	CheckTCP          CheckID = "tcp"
 	CheckTLSHandshake CheckID = "tls-handshake"
@@ -101,6 +102,7 @@ type StageID string
 
 const (
 	StageResolve StageID = "resolve"
+	StageRoute   StageID = "route"
 	StageReach   StageID = "reach"
 	StageConnect StageID = "connect"
 	StageTLS     StageID = "tls"
@@ -161,6 +163,9 @@ const (
 
 	// TLS handshake
 	ReasonNotTLS Reason = "not-tls"
+
+	// Local route
+	ReasonPartialRoute Reason = "partial-route"
 )
 
 // fact appends an observed value, skipping empty ones so a detail pane never

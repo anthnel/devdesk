@@ -297,7 +297,7 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 		{Title: "network", Fields: slices.Concat(
 			group("Tools", theme.IconNetwork,
 				text("Network tool image", func(c *config.Config) *string { return &c.Network.ToolImage },
-					"Must carry traceroute and ss"),
+					"Must carry traceroute and tcptraceroute"),
 			),
 			group("Checks", theme.IconHourglass,
 				// One timeout rather than five. netcheck held 5 s for DNS and

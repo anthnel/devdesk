@@ -11,20 +11,24 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Quatre ouverts : D56, D57, D58 et D59** — voir [§1.3](#13-open).
+**Deux ouverts : D56 et D59** — voir [§1.3](#13-open).
 
-D55 — l'onglet Ports listait les sockets de la VM Docker au lieu de ceux de la
-machine — est fermé par
-[§3.43](#343-longlet-ports-lit-la-machine--internalports). **D57 est le même
-défaut dans l'onglet Topology**, où il est total : pas une interface ni une route
-en commun avec la machine. **D58** a été trouvé en lisant le code de D57 : un
-échec partiel y fait afficher « aucune route », « aucun voisin » et « aucune
-chaîne ». Les deux sont traités par
-[§3.44](#344-longlet-topology--ce-qui-se-lit-nativement-et-ce-quon-supprime).
-**D59** est ailleurs et se lit de la même façon : un scan lancé sur une
-arborescence oubliait les dépôts situés plus bas que trois niveaux, et ceux
-derrière un lien symbolique, sans jamais dire combien il en écartait. La limite
-de profondeur est supprimée ; le lien symbolique reste ouvert.
+Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
+ils se lisent ensemble. **D55** — l'onglet Ports listait les sockets de la VM
+Docker — est fermé par
+[§3.43](#343-longlet-ports-lit-la-machine--internalports). **D57 était le même
+défaut dans l'onglet Topology**, où il était total : pas une interface ni une
+route en commun avec la machine. **D58** a été trouvé en lisant le code de D57 :
+un échec partiel y faisait afficher « aucune route », « aucun voisin » et
+« aucune chaîne ». Les deux sont fermés par
+[§3.44](#344-longlet-topology-devient-longlet-interfaces--done), qui a supprimé
+trois sections sur quatre plutôt que de les traduire, et déplacé la question de
+la route dans le pipeline de Diagnostics.
+
+Il reste **D56**, et **D59** à moitié : un scan lancé sur une arborescence
+oubliait les dépôts situés plus bas que trois niveaux, et ceux derrière un lien
+symbolique, sans jamais dire combien il en écartait. La limite de profondeur est
+supprimée ; le lien symbolique reste ouvert.
 
 D39, before them, was the registry browser addressing a group's
 members one way to browse them and another way to pull them; it is closed by
@@ -32,7 +36,7 @@ members one way to browse them and another way to pull them; it is closed by
 what it existed for. D40, found the same day and on the same screen, was the
 thing §3.18 blocked on and had already been closed on its own.
 
-D1 through D55 are all fixed or, in D35's case, deliberately
+D1 through D58 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -44,6 +48,125 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D57 — l'onglet Topology affichait le réseau de la VM Docker, pas celui de la
+machine. Corrigé** par
+[§3.44](#344-longlet-topology-devient-longlet-interfaces--done). Vérifié à
+l'écran le 2026-08-24 sous Windows, en cherchant si l'onglet pouvait se passer de
+l'image ; fermé le même jour.
+
+C'est **D55 dans une autre vue**, et en pire : là où l'onglet Ports partageait au
+moins un numéro de port avec l'hôte par coïncidence de forwarding, ici il n'y a
+**aucun recouvrement d'aucune sorte**.
+
+Ce que l'onglet lit :
+
+```
+eth0        10.254.254.3/24     docker0     172.17.0.1/16
+services1   10.254.254.6/32     br-73a880…  172.19.0.1/16
+veth69d515f@if2                 br-7d0ff2…  172.20.0.1/16
+default via 10.254.254.1 dev eth0
+```
+
+Ce que la machine a :
+
+```
+Ethernet 2   192.168.1.21/24    ProtonVPN  10.2.0.2/32     Tailscale  169.254.83.107/16
+Wi-Fi, Wi-Fi 3, Wi-Fi 4, Connexion réseau Bluetooth, vEthernet (Default Switch), vEthernet (WSL)
+default via 192.168.1.1 dev Ethernet 2   +   default dev ProtonVPN
+```
+
+**Pas une interface en commun, pas une route en commun.** Les cinq sondes sont
+`runDiagHost`, c'est-à-dire `docker run --rm --network host`, et sur Docker
+Desktop ce namespace est celui de la VM Linux. Donc :
+
+| Section | Ce qui s'affiche |
+|---|---|
+| Network Interfaces | `eth0`, `docker0`, les `br-*`, les `veth*` de la VM |
+| Routes | la table de la VM, passerelle `10.254.254.1` |
+| ARP / Neighbours | **3 entrées**, toutes internes à la VM |
+| Firewall | les chaînes `DOCKER`, `DOCKER-USER`, `DOCKER-FORWARD` |
+
+Ni ProtonVPN, ni Tailscale, ni la carte Ethernet, ni les deux routes par défaut
+concurrentes — c'est-à-dire exactement ce qu'on vient chercher dans un
+diagnostic réseau. Un utilisateur qui demande « suis-je sur le VPN » obtient une
+réponse qui ne parle pas de sa machine, et rien à l'écran ne le dit : le titre
+est « Topology », pas « Docker Topology ».
+
+**Une différence réelle avec D55**, et elle change le correctif : ici, montrer la
+VM est **faux mais pas inutile**. `docker0`, les `br-*`, les `veth*` et les
+chaînes `DOCKER` répondent à une vraie question — pourquoi mon conteneur
+n'atteint pas X. Les sockets de la VM, eux, n'intéressaient personne. Ce n'est
+donc pas « remplacer » mais « dire de quoi on parle, puis décider quoi garder » —
+§3.44.
+
+**Sous Linux le défaut n'existe pas**, pour la raison qui l'a fait passer
+inaperçu partout ailleurs : `--network host` y est bien le namespace de la
+machine.
+
+L'aide le disait à moitié : la section « Where the checks run » nommait bien
+l'onglet Topology parmi ce qui tourne dans l'image et dans la VM. Mais elle est
+derrière `?`, et l'onglet lui-même n'en dit rien — c'est la moitié qui compte.
+
+---
+
+**D58 — un échec partiel de l'onglet Topology s'affichait « aucune route »,
+« aucun voisin », « aucune chaîne ». Corrigé** par
+[§3.44](#344-longlet-topology-devient-longlet-interfaces--done). Trouvé en
+lisant `fetchTopoDataCmd` pour D57, le 2026-08-24, et fermé le même jour.
+
+`fetchTopoDataCmd` lance cinq commandes en parallèle et **une seule d'entre elles
+peut faire échouer le lot** :
+
+```go
+if addrRes.Success {  ifaces = parseIPAddr(addrRes.Output)  } else { err = … }
+if linkRes.Success {  ifaces = parseIPLink(…)  } else { log.Printf("WARN"…) }
+if routeRes.Success { routes = parseIPRoute(routeRes.Output) }   // sinon : nil, sans un mot
+neighbours    := parseIPNeigh(neighRes.Output)                   // Success jamais consulté
+firewall, src := parseFirewall(fwRes.Output)                     // Success jamais consulté
+```
+
+Si `ip addr show` réussit et que les trois autres échouent — un `--privileged`
+refusé, une image sans `iptables`, un démon qui s'arrête entre deux des cinq
+`docker run` —, alors `err` est nil, `loadErr` est vidé, et l'écran affiche :
+
+```
+  No routes found
+  No neighbours found
+  No chains found
+```
+
+**Une machine sans route n'existe pas.** C'est D20 dans sa forme la plus
+littérale, trois fois sur un même écran : « je n'ai pas pu regarder » rendu comme
+« il n'y a rien ». Et c'est la vue qui a le moins de chances d'être crue à
+l'envers — trois sections vides d'un coup ressemblent à une machine en panne
+plutôt qu'à un outil en panne.
+
+Deux détails qui l'aggravent :
+
+- **`parseIPNeigh` et `parseFirewall` reçoivent la sortie d'échec** et la
+  parsent comme des données. En pratique le message d'erreur de Docker ne
+  ressemble à aucune ligne de leur grammaire, donc le résultat est vide plutôt
+  que faux — c'est de la chance, pas une décision.
+- **`ip -s link` est le seul échec journalisé** (`WARN`), et il est aussi le seul
+  des quatre dont la perte est invisible : les interfaces s'affichent quand même,
+  avec `MTU 0` et zéro erreur RX/TX. Un compteur d'erreurs à zéro parce que
+  personne n'a regardé est le même défaut, sur une colonne au lieu d'une section.
+
+**Ce qui a été fait**, et c'est §3.44 qui l'a rendu court : avec cinq sources
+réduites à deux, la règle tient en une phrase et il n'y avait plus d'excuse pour
+ne pas la tenir. `netiface.List` ne rend une erreur que si les interfaces
+elles-mêmes n'ont pas pu être lues ; les compteurs qui échouent laissent
+`RxErrors` et `TxErrors` à **`nil`**, et la vue affiche `-` — jamais `0`. C'est
+le `*bool` de `SecretVerdict()` à l'échelle d'une colonne, et
+`TestACounterNobodyReadIsADashAndNeverAZero` échoue si le zéro revient.
+
+Une lecture qui échoue **garde les lignes** et les date (« interfaces as of
+2 min ago »), la règle que l'onglet Ports suivait déjà : elles ne sont pas
+fausses, elles sont datées, et les jeter viderait l'onglet sur un incident
+passager.
+
+---
 
 **D55 — l'onglet Ports listait les sockets de la VM Docker, pas ceux de la
 machine. Corrigé** par §3.43. Vérifié à l'écran le 2026-08-23 sous Windows,
@@ -1581,115 +1704,6 @@ all nested git repos », ce qui était un mensonge et ne l'est plus.
   dépôts écartés, et le dépôt *bare* non reconnu. Le second est le plus
   important des trois : c'est ce qui décide qu'un manque se voit ou non, et il
   vaut pour la cause 2 exactement comme il valait pour la profondeur.
-
----
-
-**D57 — l'onglet Topology affiche le réseau de la VM Docker, pas celui de la
-machine. Ouvert.** Vérifié à l'écran le 2026-08-24 sous Windows, en cherchant si
-[§3.44](#344-longlet-topology--ce-qui-se-lit-nativement-et-ce-quon-supprime)
-pouvait se passer de l'image.
-
-C'est **D55 dans une autre vue**, et en pire : là où l'onglet Ports partageait au
-moins un numéro de port avec l'hôte par coïncidence de forwarding, ici il n'y a
-**aucun recouvrement d'aucune sorte**.
-
-Ce que l'onglet lit :
-
-```
-eth0        10.254.254.3/24     docker0     172.17.0.1/16
-services1   10.254.254.6/32     br-73a880…  172.19.0.1/16
-veth69d515f@if2                 br-7d0ff2…  172.20.0.1/16
-default via 10.254.254.1 dev eth0
-```
-
-Ce que la machine a :
-
-```
-Ethernet 2   192.168.1.21/24    ProtonVPN  10.2.0.2/32     Tailscale  169.254.83.107/16
-Wi-Fi, Wi-Fi 3, Wi-Fi 4, Connexion réseau Bluetooth, vEthernet (Default Switch), vEthernet (WSL)
-default via 192.168.1.1 dev Ethernet 2   +   default dev ProtonVPN
-```
-
-**Pas une interface en commun, pas une route en commun.** Les cinq sondes sont
-`runDiagHost`, c'est-à-dire `docker run --rm --network host`, et sur Docker
-Desktop ce namespace est celui de la VM Linux. Donc :
-
-| Section | Ce qui s'affiche |
-|---|---|
-| Network Interfaces | `eth0`, `docker0`, les `br-*`, les `veth*` de la VM |
-| Routes | la table de la VM, passerelle `10.254.254.1` |
-| ARP / Neighbours | **3 entrées**, toutes internes à la VM |
-| Firewall | les chaînes `DOCKER`, `DOCKER-USER`, `DOCKER-FORWARD` |
-
-Ni ProtonVPN, ni Tailscale, ni la carte Ethernet, ni les deux routes par défaut
-concurrentes — c'est-à-dire exactement ce qu'on vient chercher dans un
-diagnostic réseau. Un utilisateur qui demande « suis-je sur le VPN » obtient une
-réponse qui ne parle pas de sa machine, et rien à l'écran ne le dit : le titre
-est « Topology », pas « Docker Topology ».
-
-**Une différence réelle avec D55**, et elle change le correctif : ici, montrer la
-VM est **faux mais pas inutile**. `docker0`, les `br-*`, les `veth*` et les
-chaînes `DOCKER` répondent à une vraie question — pourquoi mon conteneur
-n'atteint pas X. Les sockets de la VM, eux, n'intéressaient personne. Ce n'est
-donc pas « remplacer » mais « dire de quoi on parle, puis décider quoi garder » —
-§3.44.
-
-**Sous Linux le défaut n'existe pas**, pour la raison qui l'a fait passer
-inaperçu partout ailleurs : `--network host` y est bien le namespace de la
-machine.
-
-L'aide le disait à moitié : la section « Where the checks run » nommait bien
-l'onglet Topology parmi ce qui tourne dans l'image et dans la VM. Mais elle est
-derrière `?`, et l'onglet lui-même n'en dit rien — c'est la moitié qui compte.
-
----
-
-**D58 — un échec partiel de l'onglet Topology s'affiche « aucune route »,
-« aucun voisin », « aucune chaîne ». Ouvert.** Trouvé en lisant
-`fetchTopoDataCmd` pour D57, le 2026-08-24.
-
-`fetchTopoDataCmd` lance cinq commandes en parallèle et **une seule d'entre elles
-peut faire échouer le lot** :
-
-```go
-if addrRes.Success {  ifaces = parseIPAddr(addrRes.Output)  } else { err = … }
-if linkRes.Success {  ifaces = parseIPLink(…)  } else { log.Printf("WARN"…) }
-if routeRes.Success { routes = parseIPRoute(routeRes.Output) }   // sinon : nil, sans un mot
-neighbours    := parseIPNeigh(neighRes.Output)                   // Success jamais consulté
-firewall, src := parseFirewall(fwRes.Output)                     // Success jamais consulté
-```
-
-Si `ip addr show` réussit et que les trois autres échouent — un `--privileged`
-refusé, une image sans `iptables`, un démon qui s'arrête entre deux des cinq
-`docker run` —, alors `err` est nil, `loadErr` est vidé, et l'écran affiche :
-
-```
-  No routes found
-  No neighbours found
-  No chains found
-```
-
-**Une machine sans route n'existe pas.** C'est D20 dans sa forme la plus
-littérale, trois fois sur un même écran : « je n'ai pas pu regarder » rendu comme
-« il n'y a rien ». Et c'est la vue qui a le moins de chances d'être crue à
-l'envers — trois sections vides d'un coup ressemblent à une machine en panne
-plutôt qu'à un outil en panne.
-
-Deux détails qui l'aggravent :
-
-- **`parseIPNeigh` et `parseFirewall` reçoivent la sortie d'échec** et la
-  parsent comme des données. En pratique le message d'erreur de Docker ne
-  ressemble à aucune ligne de leur grammaire, donc le résultat est vide plutôt
-  que faux — c'est de la chance, pas une décision.
-- **`ip -s link` est le seul échec journalisé** (`WARN`), et il est aussi le seul
-  des quatre dont la perte est invisible : les interfaces s'affichent quand même,
-  avec `MTU 0` et zéro erreur RX/TX. Un compteur d'erreurs à zéro parce que
-  personne n'a regardé est le même défaut, sur une colonne au lieu d'une section.
-
-Le correctif ne demande pas §3.44 : chaque source doit porter son propre état —
-lue, vide, ou pas lue — et une section qui n'a pas pu être lue doit le dire à la
-place de son contenu. Mais il vaut mieux le faire **avec** §3.44, parce que la
-liste des sources est précisément ce que §3.44 raccourcit.
 
 ---
 
@@ -8178,17 +8192,17 @@ et non d'un comportement : un helper ajouté là qui lancerait un processus
 remettrait le défaut sans faire échouer quoi que ce soit d'autre. Même forme que
 `internal/ui/keymap` et que les deux tests de stdout de §3.38.
 
-### 3.44 L'onglet Topology — ce qui se lit nativement, et ce qu'on supprime
+### 3.44 L'onglet Topology devient l'onglet Interfaces — **done**
 
-À faire. Suite de §3.41 pour la seconde des deux fonctionnalités restées dans
-l'image, et correctif de **D57** (la vue montre la VM) et de **D58** (un échec
-partiel se lit comme une absence).
+Fait le 2026-08-24. Suite de §3.41 pour la seconde des deux fonctionnalités
+restées dans l'image, et correctif de **D57** (la vue montrait la VM) et de
+**D58** (un échec partiel se lisait comme une absence).
 
-La règle donnée est simple : **ce qui ne s'affiche pas facilement sur les trois
+La règle donnée était simple : **ce qui ne s'affiche pas facilement sur les trois
 plateformes est supprimé, pas traduit.** Ce qui suit l'applique source par
 source, en mesurant plutôt qu'en supposant.
 
-#### Les quatre sources, et ce qui les remplace
+#### Les quatre sources, et ce qu'elles sont devenues
 
 Tout est relevé le 2026-08-24 sur cette machine, sans élévation.
 
@@ -8196,40 +8210,64 @@ Tout est relevé le 2026-08-24 sur cette machine, sans élévation.
 |---|---|---|---|
 | Interfaces — nom, état, adresses, MTU | `net.Interfaces()`, **stdlib** | aucune | **gardée** |
 | Erreurs RX/TX par interface | `gopsutil/v4/net.IOCounters(true)` | aucune (déjà là) | **gardée** |
-| Routes | Windows : `x/sys/windows.GetIpForwardTable2`. Linux : `/proc/net/route` + `/proc/net/ipv6_route`. macOS : `x/net/route` | aucune — `x/sys` et `x/net` sont déjà dans le graphe | **gardée**, voir la réserve |
+| Routes | `go-netroute`, une implémentation pour les trois plateformes | `github.com/libp2p/go-netroute` | **déplacée dans Diagnostics** |
 | ARP / Neighbours | rien de portable — détail plus bas | — | **supprimée** |
 | Firewall | rien du tout | — | **supprimée** |
 
 **Les deux premières sont gratuites et exactes.** `net.Interfaces()` rend les 10
-interfaces de la machine, et `IOCounters(true)` en rend 10 aussi : **0 interface
-sur 10 sans ligne de compteurs correspondante**, les noms concordent au caractère
-près, donc les erreurs tombent sur la bonne ligne sans table de correspondance.
-Un seul écueil relevé, à écrire dans le code : la loopback rend **`MTU = -1`**
-sous Windows, là où `ip` rend 65536.
+interfaces de la machine en 4,6 ms, et `IOCounters(true)` en rend 10 aussi en
+2,6 ms : **0 interface sur 10 sans ligne de compteurs correspondante**, les noms
+concordent au caractère près, donc les erreurs tombent sur la bonne ligne sans
+table de correspondance. Le seul écueil relevé est écrit dans le code et rendu à
+l'écran : la loopback rend **`MTU = -1`** sous Windows, là où `ip` rend 65536 —
+la cellule affiche `-` plutôt qu'un nombre que la machine ne veut pas dire.
 
-**Les routes marchent, et elles sont la réponse à la question qu'on pose.**
-`GetIpForwardTable2` a rendu **46 routes sans élévation**, dont les deux routes
-par défaut concurrentes que l'onglet actuel ne montre pas :
+L'onglet **gagne au passage le MAC**, que `net.Interfaces()` donne pour rien et
+que l'ancienne vue jetait. C'est ce sur quoi un bail DHCP, un port de switch et
+un inventaire de parc sont tous indexés, donc c'est le champ qu'on vient copier.
+
+#### Les routes : la question a changé de forme, et c'est ce qui a tout décidé
+
+L'entrée d'origine recommandait de garder la table de routage au prix de **trois
+implémentations** — `GetIpForwardTable2` sous Windows, `/proc/net/route` sous
+Linux, `x/net/route` sous macOS — et signalait que c'était le seul poste qui
+coûtait vraiment.
+
+`github.com/libp2p/go-netroute` fait les trois derrière une seule API, et ne
+dépend que de `x/net` et `x/sys`, **tous deux déjà dans le graphe**. Mais il ne
+liste pas la table : il répond « quelle route gagne pour cette destination »
+(`GetBestRoute2` sous Windows, une requête netlink `RTM_GETROUTE` sous Linux, la
+socket de routage sur les BSD). Mesuré ici : **~2 ms par requête, sans
+élévation**.
+
+C'est ce décalage qui a fait le design. Une requête se pose **sur une cible**,
+donc elle n'appartient pas à un écran de topologie : elle appartient au pipeline
+de Diagnostics, qui a déjà une cible. Relevé à l'exécution :
 
 ```
-default          via 192.168.1.1   dev Ethernet 2   metric=0
-default          via —             dev ProtonVPN    metric=0
-10.2.0.2/32      via —             dev ProtonVPN    metric=256
-172.22.160.0/20  via —             dev vEthernet (Default Switch)
+dl.google.com  ->  [OK] Traffic leaves through ProtonVPN   src 10.2.0.2
+192.168.1.1    ->  [OK] Traffic leaves through Ethernet 2  src 192.168.1.21
 ```
 
-C'est-à-dire la question du split tunnel, qui est la première qu'on se pose quand
-un `net_check` échoue.
+C'est-à-dire la question du split tunnel, répondue là où elle se pose. L'étage
+`route` s'insère après `resolve`, **ne barre rien** (une table illisible ne doit
+pas cascader sur le port et le certificat — l'argument de `reach`), et prend ses
+adresses du check `resolve` plutôt que de résoudre une seconde fois : sur un nom
+en round-robin, les deux pourraient diverger et la route décrirait une adresse
+qu'aucun autre check n'a touchée.
 
-**La réserve, à trancher :** les routes coûtent **trois implémentations** — une
-par plateforme — là où interfaces et compteurs n'en coûtent aucune. Aucune
-dépendance nouvelle et aucun contenu perdu, mais ce n'est pas gratuit, et la
-règle dit « facilement ». Si « les trois informations » se lit comme un bloc,
-alors les routes tombent avec les deux autres et il ne reste que la section
-Interfaces — auquel cas l'onglet Topology, à une section, n'est plus un onglet et
-la question devient celle de sa suppression pure et simple. **Les deux issues
-sont défendables ; celle recommandée ici garde les routes**, parce qu'elles ne
-perdent rien et qu'elles répondent seules à la question du VPN.
+Trois décisions y sont pinnées par un test :
+
+- **Un lookup qui échoue est `Unknown`, jamais `Fail`.** Windows rend
+  `ERROR_NETWORK_UNREACHABLE` pour une IPv6 sur un réseau sans IPv6 ; le traduire
+  en « il n'y a pas de route » serait D20 une fois de plus. Le message brut est
+  en outre **localisé**, donc il part dans un fact et jamais dans le résumé
+  (Rule 129).
+- **Une famille sans route sur deux est un `Warn`**, avec son compte. C'est le
+  cas qui vaut d'être signalé : un client qui préfère IPv6 attend avant de
+  retomber sur IPv4, et tous les autres checks n'en montrent que le symptôme.
+- **Une passerelle absente se dit** (« directly connected ») plutôt que de rendre
+  une cellule vide, qui se lirait comme une mesure manquante.
 
 #### Pourquoi l'ARP n'est pas portable, mesuré
 
@@ -8239,20 +8277,18 @@ côte à côte dans le même conteneur :
 ```
 $ ip neigh show
 10.254.254.1  dev eth0      lladdr 5a:94:ef:e4:0c:dd  REACHABLE
-10.254.254.7  dev services1 lladdr 52:ed:dc:63:88:55  REACHABLE
 fe80::50ed:dcff:fe63:8855 dev services1 lladdr 52:ed:dc:63:88:55  STALE
 
 $ cat /proc/net/arp
 IP address     HW type  Flags  HW address           Mask  Device
 10.254.254.1   0x1      0x2    5a:94:ef:e4:0c:dd    *     eth0
-10.254.254.7   0x1      0x2    52:ed:dc:63:88:55    *     services1
 ```
 
-Deux pertes, et chacune touche ce que la section affiche :
+Deux pertes, et chacune touche ce que la section affichait :
 
 1. **L'entrée IPv6 n'est pas là.** `/proc/net/arp` est IPv4 seul.
-2. **Les états n'existent pas.** `0x2` est `ATF_COM` — complet. La section a une
-   légende de six états (`REACHABLE`, `PERMANENT`, `STALE`, `DELAY`,
+2. **Les états n'existent pas.** `0x2` est `ATF_COM` — complet. La section avait
+   une légende de six états (`REACHABLE`, `PERMANENT`, `STALE`, `DELAY`,
    `INCOMPLETE`, `FAILED`), avec trois couleurs, et `/proc` n'en distingue que
    deux. Les récupérer demande **netlink**, donc une bibliothèque ou du socket à
    la main, sur la plateforme où le défaut D57 n'existe même pas.
@@ -8279,39 +8315,47 @@ Rien de tout ça ne rentre dans trois colonnes nommées chaîne / politique /
 nombre de règles sans mentir sur la forme. **Supprimée.**
 
 Le pare-feu était par ailleurs la seule raison du `--privileged` dans
-`docker/topology.go`, donc sa suppression retire le dernier conteneur privilégié
-de l'application après §3.43.
+`docker/topology.go`, donc sa suppression retire **le dernier conteneur
+privilégié de l'application** après §3.43.
+
+#### D58 s'est corrigé ici, et c'est §3.44 qui l'a rendu court
+
+Avec deux sources au lieu de cinq, la règle tient en une phrase : **chaque source
+porte son propre état**. `netiface.List` ne rend une erreur que si les interfaces
+elles-mêmes n'ont pas pu être lues ; des compteurs qui échouent laissent
+`RxErrors`/`TxErrors` à `nil`, et la cellule affiche `-`. Un compteur d'erreurs
+à zéro parce que personne n'a regardé est exactement le `*bool` de
+`SecretVerdict()` sous un autre nom, et
+`TestACounterNobodyReadIsADashAndNeverAZero` échoue si le zéro revient.
+
+#### L'onglet est renommé, pas supprimé
+
+À une section, « Topology » ne décrivait plus rien. Le nom devient **Interfaces**,
+qui est exactement ce que la vue montre — et la question « je sors par quelle
+carte, avec quelle MTU, quel MAC » reste légitime. Le supprimer aurait obligé à
+reloger les interfaces dans Diagnostics ou dans Ports, où ni l'une ni l'autre n'a
+de place.
+
+La section rendue à la main dans un `viewport` devient une **`datatable`** : tri,
+filtre et recherche gratuits, et §3.45 s'y appliquera. Conséquence à ne pas
+manquer, et elle a un test : la table a une boîte de recherche là où l'ancien
+onglet n'avait aucun champ, donc `InEditMode()` devait cesser de rendre `false`
+en dur — sinon un `:` tapé dans la requête ouvre la ligne de commande.
 
 #### Ce que ça donne
 
-- L'onglet garde **Interfaces** (nom, état, adresses, MTU, erreurs RX/TX) et
-  **Routes**, tous deux lus sur la machine.
-- `internal/docker/topology.go` disparaît en entier, `--privileged` avec.
-- `network.tool_image` ne sert plus qu'à **une** chose, la trace de route, et son
-  commentaire redevient exact pour la seconde fois en deux entrées.
-- La question posée par §3.41 se réduit alors à sa forme la plus nette : une
-  image Docker de 300 Mo pour une seule touche. Les options 2 et 3 de §3.41 —
-  abandonner `H`, ou écrire un traceroute en Go qui échoue proprement sans
-  privilèges — deviennent la seule chose qui reste à décider.
+| | |
+|---|---|
+| `internal/netiface` | nouveau — les interfaces, lues dans le process |
+| `internal/netcheck` | + l'étage `route`, `Env.Route`, `RouteHop` |
+| `internal/docker/topology.go` | **supprimé**, `--privileged` avec |
+| `internal/ui/netdiag/topology_model.go` | **supprimé** (792 lignes), plus 729 lignes de tests de parsers |
+| lignes | **-231 net**, pour une capacité en plus |
+| binaire | 28,08 → 28,14 Mo (**+0,05**) |
 
-#### D58 se corrige ici, pas ailleurs
-
-Avec deux sources au lieu de cinq, la règle est courte à écrire et il n'y a plus
-d'excuse pour ne pas la tenir : **chaque section porte son propre état** — lue,
-lue et vide, ou pas lue — et une section qui n'a pas pu être lue le dit à la
-place de son contenu. Une lecture d'interfaces qui échoue n'est pas une machine
-sans interface.
-
-Le cas du compteur d'erreurs est le même à l'échelle d'une colonne : `IOCounters`
-peut échouer seul, et zéro erreur RX/TX parce que personne n'a regardé est
-exactement le `*bool` de `SecretVerdict()` sous un autre nom.
-
-#### Une remarque sur l'ordre
-
-D57 est un mensonge à l'écran et se corrige en une ligne : nommer la VM dans le
-titre ou dans un bandeau, comme `renderTraceHeader` le fait déjà pour la trace.
-Ça ne coûte rien et ça supprime le mensonge tout de suite, avant que quoi que ce
-soit d'autre ne bouge. Le reste de cette entrée peut suivre à son rythme.
+`network.tool_image` ne sert plus qu'à **une** chose côté hôte, la trace de
+route — et à une autre, côté réseau Docker, que personne n'avait comptée. C'est
+[§3.47](#347-retirer-networktool_image--ce-quil-reste-à-décider).
 
 
 ### 3.45 `datatable` — des largeurs de colonnes qui regardent le contenu
@@ -8475,6 +8519,95 @@ glyphe au lieu d'une ligne sur dix.
 L'espace est neutre : la colonne Type fait aujourd'hui `colTypeFixed` cellules,
 et la colonne d'icône en prendra deux au même endroit. Sur une vue à onze
 colonnes, c'est ce qui rend l'échange gratuit plutôt qu'un ajout.
+
+
+### 3.47 Retirer `network.tool_image` — ce qu'il reste à décider
+
+À faire. §3.41 posait la question « se passer de netshoot » ; §3.43 et §3.44 ont
+retiré quatre des cinq usages. Cette entrée fait l'inventaire de ce qui reste et
+tranche ce qui peut l'être, parce que **le relevé a trouvé un usage que les trois
+entrées précédentes n'avaient pas compté**.
+
+#### Ce qui lit encore le réglage
+
+| Site | Ce qu'il lance | Namespace | Statut |
+|---|---|---|---|
+| `netdiag/update.go` → `traceCmd` | `traceroute` / `tcptraceroute` | `--network host` — **la VM** | D57 s'y applique encore |
+| `oci_resources/keys.go` → `RunDiagnosticContainer` | `ping`, `curl`, `nc` | `--network <networkID>` — **un réseau Docker** | **correct par construction** |
+| `dashboard/model.go` | rien, il affiche la disponibilité de l'image | — | suit ce que les deux décident |
+| `configuration/fields.go` | le champ texte | — | idem |
+
+**Les deux premiers ne sont pas la même question, et c'est le point de
+l'entrée.** La trace tourne sur le réseau de l'hôte, donc elle répond pour la VM
+et pas pour la machine — c'est D57, non corrigé, et l'onglet le dit
+(`renderTraceHeader`). Le test de connectivité OCI, lui, tourne **dans un réseau
+Docker qu'on a choisi**, et c'est précisément ce qu'il faut : la question posée
+est « ce conteneur en atteint-il un autre sur ce bridge », et aucun process hôte
+ne peut y répondre. Le supprimer ou le rapatrier serait une régression.
+
+Autrement dit : `network.tool_image` ne peut pas simplement disparaître. Il faut
+soit **deux réglages**, soit **un réglage dont le nom cesse de mentir**, soit
+**un défaut en dur**.
+
+#### La mesure qui change la discussion
+
+Relevé le 2026-08-24 :
+
+| Image | Taille | Couvre |
+|---|---|---|
+| `nicolaka/netshoot` | **874 Mo** | tout |
+| `busybox` | **6,81 Mo** | `ping`, `nc`, `wget`, `traceroute`, `traceroute6`, `nslookup`, `telnet` |
+
+Un facteur **128**. Et `traceroute` de busybox tourne **sans `--privileged`**
+dans un conteneur par défaut — vérifié, Docker accorde `NET_RAW` — donc rien du
+côté des droits ne réclame netshoot.
+
+Il manque exactement deux choses à busybox :
+
+- **`curl`**, pour le test HTTP GET de l'onglet OCI. `wget -S -O-` répond à la
+  même question ; la sortie affichée change, et c'est une sortie brute que
+  l'utilisateur lit, donc c'est un changement visible et pas un détail interne.
+- **`tcptraceroute`**, et c'est le vrai obstacle. `traceCmd` le choisit
+  **exactement quand le connect TCP a échoué** (`VerdictOf(CheckTCP) == Fail`),
+  c'est-à-dire dans le seul cas où la trace ICMP a de bonnes chances d'être
+  filtrée. Le remplacer par `traceroute` reviendrait à répondre à côté au moment
+  où on en a le plus besoin.
+
+#### Les issues, du moins cher au plus cher
+
+1. **Renommer sans rien retirer.** `network.tool_image` devient
+   `network.diag_image` — ou reste — et sa documentation dit les deux usages
+   plutôt qu'un. Coût nul, mais le réglage reste, et une image de 874 Mo reste le
+   défaut.
+2. **Changer le défaut pour `busybox`, garder le réglage.** Gagne le facteur 128
+   pour tout le monde, et laisse celui qui veut `tcptraceroute` et `curl` pointer
+   sur netshoot. Il faut alors que `H` **dise** ce qu'il a lancé quand
+   `tcptraceroute` manque, plutôt que d'échouer avec la sortie brute de `docker
+   run` — sinon c'est un « échec lu comme une absence » de plus.
+3. **Deux réglages** — `network.trace_image` et `registry`/`oci.diag_image` —
+   parce que ce sont deux questions. Honnête, et c'est un réglage de plus dans
+   une vue de configuration qui en compte déjà vingt-neuf.
+4. **Écrire la trace en Go et supprimer le réglage côté hôte.** C'est l'option 3
+   de §3.41, jamais tranchée. Ce qui a changé depuis : `netcheck` fait déjà de
+   l'ICMP sans privilège (`pro-bing`, `SetPrivileged` seulement sous Windows), et
+   `go-netroute` a montré qu'une seule implémentation pour trois plateformes est
+   possible quand la bibliothèque existe. À vérifier avant de s'engager, et
+   **aucune de ces trois n'est acquise** :
+   - lire le `TIME_EXCEEDED` ICMP en retour sans socket brute — plausible sous
+     Windows (`IcmpSendEcho2` rend `IP_TTL_EXPIRED_TRANSIT` comme statut) et sous
+     Linux (socket ICMP datagramme + `IP_RECVERR`), à mesurer ;
+   - le TTL par paquet avec `pro-bing`, qui ne l'expose pas aujourd'hui ;
+   - le mode TCP, qui demande de lire l'ICMP d'erreur d'une connexion sortante.
+   Si les trois passent, `H` répond enfin **pour la machine** et D57 se ferme
+   avec le réglage. Si l'une échoue, l'issue 2 reste la bonne.
+
+**Recommandation : l'issue 2 maintenant, l'issue 4 quand quelqu'un a une
+journée.** Le facteur 128 est acquis tout de suite et ne bloque rien ; réécrire
+la trace est un projet, et le mesurer d'abord est ce que §3.41 demandait déjà.
+
+Ce qui n'est **pas** discutable, quelle que soit l'issue : le test de
+connectivité OCI garde une image, et le réglage qui le sert doit dire qu'il le
+sert. C'est ce que le nom actuel ne fait pas.
 
 
 ## 4. Existing plans

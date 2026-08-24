@@ -152,6 +152,23 @@ var explanations = []guidance{
 		do: "Nothing — the TCP connect answers the reachability question without needing " +
 			"any privilege."},
 
+	// --- the way out ---
+	{check: CheckRoute, verdict: OK,
+		means: "The machine has a route to this target and knows which interface will carry " +
+			"it. That rules out a split tunnel or a missing route as the cause of anything " +
+			"that fails below."},
+	{check: CheckRoute, verdict: Warn, reason: ReasonPartialRoute,
+		means: "Some of the addresses this name resolves to have no route out of this " +
+			"machine. That is usually IPv6 on a network that carries none, and it makes a " +
+			"client that prefers IPv6 hang before it falls back.",
+		do: "Check whether this machine is meant to have IPv6. If it is not, the addresses " +
+			"without a route are harmless; if it is, the missing route is the fault."},
+	{check: CheckRoute, verdict: Unknown,
+		means: "The routing table could not answer, so this says nothing about the target. " +
+			"It is not a claim that no route exists.",
+		do: "Read the TCP connect below — it answers whether the target responds without " +
+			"needing this."},
+
 	// --- the port ---
 	{check: CheckTCP, verdict: OK,
 		means: "The port is open and something is listening, which is the reachability " +
