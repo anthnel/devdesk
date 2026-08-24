@@ -1,0 +1,9 @@
+ajoute dans le backlog l'intégration de https://github.com/getplumber/plumber, l'option doit pouvoir être sélectionnée dans la config sous scan. Cela alimente une nouvelle colonne "CI Score" dans ws. Le détail est accessible à côté des CVE, secrets, ... (nouveau tab). L'outil peut être disponible dans le path ou via image docker (comme trivy, gitleaks). Il doit pouvoir être possible de référencer un fichier de configuration global dans la config.
+
+---
+
+vérifie le défaut gitleaks --config et ouvre D56
+
+---
+
+commit, et merge
