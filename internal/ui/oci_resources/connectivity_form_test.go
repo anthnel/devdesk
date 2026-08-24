@@ -79,7 +79,7 @@ func TestTheTestTypeCyclesInBothDirections(t *testing.T) {
 	f := onTypeField(t, newConnectivityForm(t))
 
 	f, _ = key(t, f, "right")
-	if f.testType != testCurl {
+	if f.testType != testHTTP {
 		t.Errorf("testType = %v, want curl", f.testType)
 	}
 	f, _ = key(t, f, "right", "right")
@@ -247,9 +247,9 @@ func TestTheCommandMatchesTheSelectedTest(t *testing.T) {
 		want     string
 	}{
 		{"ping ignores the port", testPing, "8080", "ping -c 3 10.0.0.5"},
-		{"curl builds a URL", testCurl, "8080", "curl -v -s -m 5 http://10.0.0.5:8080"},
+		{"the HTTP test builds a URL", testHTTP, "8080", "wget -S -O- -T 5 http://10.0.0.5:8080"},
 		{"netcat probes the port", testNetcat, "5432", "nc -zv -w 5 10.0.0.5 5432"},
-		{"an empty port falls back to 80", testCurl, "", "curl -v -s -m 5 http://10.0.0.5:80"},
+		{"an empty port falls back to 80", testHTTP, "", "wget -S -O- -T 5 http://10.0.0.5:80"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

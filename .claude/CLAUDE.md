@@ -21,7 +21,7 @@ DevDesk is a terminal-based TUI (Text User Interface) application built with Go 
 - Security scanning (Trivy CVE/secret/license/misconfig + Gitleaks secrets)
 - Docker container management with real-time metrics
 - OCI resource management (image scanning, container launching, network inspection)
-- Network diagnostics (ICMP, DNS, TCP traceroute, Netcat, HTTP, SSL) + real-time port monitoring
+- Network diagnostics (DNS, route, ICMP, TCP, TLS, HTTP) + real-time port monitoring + this machine's interfaces
 - Multi-context configuration management via YAML
 - Local workspaces management with git metadata
 
@@ -425,18 +425,21 @@ The legacy secret migration is unaffected and the order is worth knowing:
 construction, before anything can save, so a plaintext `gitlab.token` reaches
 the store before the rename can rewrite the file without it.
 
-**`network:` was `docker:`, and the rename is migrated rather than announced.**
-The one key it held, `network_tool_image`, was never a Docker setting — it names
-the container the route traces and the ports table run in — and the four other
-tabs of the configuration view are each named after the section they write, so
-renaming the tab without the key would have left the one section about to grow
-as the only one whose name says nothing about where its values land.
-`applyDefaults` carries `docker.network_tool_image` into `network.tool_image`
-**before** filling in defaults, then clears it so the key leaves the file on the
-next save (the precedent is `RegistryItem.AuthEnabled`). The order is the whole
-of it: `yaml.Unmarshal` is not strict here, so an un-migrated block is dropped in
-silence and a user pointing at their own mirror would find their traces pulling
-from Docker Hub. `TestANetworkToolImageSurvivesTheRename` is what makes that
+**`network:` was `docker:`, and the image key has been renamed twice since.**
+The one key `docker:` held was never a Docker setting, and the four other tabs of
+the configuration view are each named after the section they write. Then the
+setting itself lost its readers one by one — `ss` to §3.43, `ip`/`iptables` to
+§3.44, `traceroute` to §3.47 — until only the OCI connectivity test was left, so
+it is now named after it.
+
+The chain is `docker.network_tool_image` → `network.tool_image` →
+`network.connectivity_image`, and a file may sit at **any point** on it. Both
+renames run in `applyDefaults` **before** the defaults, oldest first, each
+clearing its key so it leaves the file on the next save (the precedent is
+`RegistryItem.AuthEnabled`). The order is the whole of it: `yaml.Unmarshal` is
+not strict here, so an un-migrated block is dropped in silence and a user
+pointing at their own mirror would find the probe pulling from Docker Hub.
+`TestTheImageSurvivesBothRenames` and `TestTheNewestKeyWins` are what make that
 checkable rather than commented.
 
 **No secret goes in this file.** `GitLabConfig` has no `Token` and
@@ -1773,7 +1776,7 @@ Cache invalidation: `S` (single) overwrites; `A` (all) rescans, and purges the c
 ### Docker / OCI Integration
 
 - `internal/docker/client.go` — wraps Docker CLI (exec-based): list, metrics, stop, restart, pause, remove, prune
-- `internal/docker/netdiag.go` — ephemeral container runners with `--network host`: `RunTraceroute`, `RunTCPTraceroute` → returns `DiagResult{Success, Output}`. §3.33 took the five probes that did not need a container; §3.43 took the ports table; §3.44 took the topology and with it `docker/topology.go` and the last `--privileged` in the application
+- `internal/docker/netdiag.go` — **gone**. §3.33 took the five probes that did not need a container, §3.43 the ports table, §3.44 the topology (and with it `docker/topology.go` and the last `--privileged`), §3.47 the route trace and the file itself. `RunDiagnosticContainer` in `networks.go` is the one container runner left, and it attaches to a Docker network rather than to the host
 - `internal/oci/oci.go` — OCI registry HTTP client: list tags/templates, download + extract tar.gz
 
 ### Network Diagnostics View
@@ -1803,7 +1806,6 @@ asked; `network:` is what they became.
 | `check_timeout` | five per-stage constants — 5 s for DNS and the dial, 8 s for TLS and HTTP, 4 s for the ping |
 | `ping_count` | `pingCount` |
 | `cert_expiry_warn_days` | `expiryWarnWindow` |
-| `traceroute_max_hops` | `-m 30` in `docker/netdiag.go` |
 | `ports_refresh_interval` | the 2 s tick |
 
 **One timeout replaces five**, and the default is the old *maximum* so nothing
@@ -1812,11 +1814,11 @@ anywhere — five rows for one idea, and each of the five a separate guess. The
 cost is stated rather than discovered: an unreachable host now spends 8 s on DNS
 instead of 5, which the staged progress line makes legible rather than a hang.
 
-Three things stay hardcoded, each for a reason:
+`traceroute_max_hops` was a sixth setting and went with the trace it bounded
+(§3.47).
 
-- **The traceroute wait per hop (`-w 1`)** multiplies with the hop limit, so a
-  second setting would let a user build a fifteen-minute trace out of two
-  numbers that each look reasonable.
+Two things stay hardcoded, each for a reason:
+
 - **`MinVersion: VersionTLS10`** — the handshake is *probing*, not securing.
   Reporting an old version is the point; a setting could only make the tool
   blind to what it exists to find.
@@ -1833,11 +1835,9 @@ with no deadline. The view calls `checkSettings()` per run rather than capturing
 at construction, so a run already in flight and the config cannot disagree
 halfway down the pipeline.
 
-A route trace is the one probe that still shells out — it needs raw sockets and
-a tool worth not reimplementing — so it answers for the *container's* view of
-the network, and `renderTraceHeader` says so on screen. Everything else answers
-from the DevDesk process, because `--network host` on Docker Desktop is the VM's
-namespace and not the machine's.
+Every probe here answers from the DevDesk process. The route trace was the one
+exception and §3.47 removed it: `--network host` on Docker Desktop is the VM's
+namespace, so it traced a path from somewhere else. Nothing shells out.
 
 **The `route` stage answers the question no other check can** (§3.44): when a
 VPN captures the default route, a host that is plainly reachable elsewhere is
@@ -1929,13 +1929,47 @@ loopback and unspecified addresses are never asked at all.
 another user's process, or a service, now comes back refused by the operating
 system instead of succeeding against the wrong machine.
 
-What is left in `network.tool_image` is the route trace, which genuinely cannot
-be had without a container — it needs raw ICMP sockets, and DevDesk must not
-need root. It still answers for the VM, and `renderTraceHeader` and the help say
-so. The other reader is the OCI connectivity test, which runs an image *inside a
-Docker network* and is correct by construction — §3.47 is the plan for the
-setting, and the fact that it serves two different questions is why it cannot
-simply be deleted.
+**Nothing in the application runs `--network host` any more** (§3.47). §3.33
+brought DNS, ICMP, TCP, TLS and HTTP into the process, §3.43 the socket table,
+§3.44 the interfaces, and §3.47 removed the route trace — the last one. That is
+the checkable form of "DevDesk never claims to answer for a machine that is not
+yours", and it closes **D57**.
+
+**The route trace was deleted rather than rewritten**, and the reasons are worth
+keeping because they are the shape of the decision, not of this feature:
+
+- it answered for the **wrong machine** — `--network host` traced from the Docker
+  Desktop VM, so the hops were the VM's;
+- what people came for has a **better answer**: `netcheck`'s Local route check
+  names the interface and source address from *this* machine, in 2 ms, which is
+  the split-tunnel question;
+- rewriting it was **three unmeasured unknowns** — reading ICMP `TIME_EXCEEDED`
+  without a raw socket on three platforms, a per-packet TTL `pro-bing` does not
+  expose, and a TCP mode needing the ICMP error of an outgoing connection.
+
+`H` went back into `keymap.Free()` beside `J`, `Q` and `Z`: a letter an action
+has just released is redeclared free, or it stays reserved for something that no
+longer exists.
+
+**One image setting is left, and it is named after its one reader.**
+`network.connectivity_image` (was `tool_image`) is what the **OCI connectivity
+test** runs — `:oci` → Networks → `enter` → `c` — inside a Docker network the
+user picked, never on the host. That is correct by construction: "can this
+container reach that one on this bridge" has no answer from a host process, and
+it is the only container DevDesk still starts.
+
+It must carry `ping`, `nc` and `wget`. The default is **busybox, 6,81 MB**,
+against `nicolaka/netshoot`'s **874 MB** — a factor of 128. `curl` became `wget
+-S -O-`, which is in *both* images and produces the same status line and headers
+(measured side by side), so it is one command rather than a conditional fallback.
+
+**The migration chain has three links** — `docker.network_tool_image` →
+`network.tool_image` → `network.connectivity_image` — and a file may sit at any
+point on it. Both renames run before the defaults, oldest first, each clearing
+its key once carried over. The order is the whole of it: `yaml.Unmarshal` is not
+strict here, so an un-migrated block is dropped in silence and the image reverts
+to the default with nothing on screen saying so. Only the *default* changed — a
+config already naming netshoot is not rewritten.
 
 ### The interfaces — `internal/netiface`
 

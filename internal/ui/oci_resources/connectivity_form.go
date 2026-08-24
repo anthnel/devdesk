@@ -16,11 +16,11 @@ type connectivityTestType int
 
 const (
 	testPing   connectivityTestType = iota
-	testCurl                        // HTTP GET via curl
+	testHTTP                        // HTTP GET via wget
 	testNetcat                      // Port check via nc
 )
 
-var testTypeLabels = []string{"Ping (ICMP)", "HTTP GET (curl)", "Port Check (nc)"}
+var testTypeLabels = []string{"Ping (ICMP)", "HTTP GET (wget)", "Port Check (nc)"}
 
 type connectivityFormState int
 
@@ -88,7 +88,7 @@ func newConnectivityTestForm(sourceContainer, networkID, diagnosticImage string,
 
 // isPortActive reports whether the port field should be shown (curl or netcat mode).
 func (f *ConnectivityTestForm) isPortActive() bool {
-	return f.testType == testCurl || f.testType == testNetcat
+	return f.testType == testHTTP || f.testType == testNetcat
 }
 
 // numFields returns the total number of navigable fields based on the current test type.
@@ -136,8 +136,12 @@ func (f *ConnectivityTestForm) buildCommand() []string {
 		port = "80"
 	}
 	switch f.testType {
-	case testCurl:
-		return []string{"curl", "-v", "-s", "-m", "5", "http://" + target + ":" + port}
+	case testHTTP:
+		// wget rather than curl, because it is in *both* images rather than in
+		// one of them: busybox has no curl, and netshoot has both. That is what
+		// made busybox affordable as the default (§3.47) — verified side by
+		// side, the two produce the same status line and the same headers.
+		return []string{"wget", "-S", "-O-", "-T", "5", "http://" + target + ":" + port}
 	case testNetcat:
 		return []string{"nc", "-zv", "-w", "5", target, port}
 	default: // testPing
@@ -147,7 +151,8 @@ func (f *ConnectivityTestForm) buildCommand() []string {
 
 // SetResult updates the form with the diagnostic test result (called from parent Update).
 // If both output and an error are present, the test ran but exited with a non-zero code
-// (e.g. curl exit 52 = empty reply). We treat this as a warning rather than a hard failure.
+// (wget exits 1 on an HTTP error status, nc non-zero on a closed port). We treat this as
+// a warning rather than a hard failure: the output is the answer either way.
 func (f *ConnectivityTestForm) SetResult(output string, err error) {
 	f.state = connectivityStateResults
 	f.result = output
@@ -156,7 +161,7 @@ func (f *ConnectivityTestForm) SetResult(output string, err error) {
 		// Strip the "diagnostic command failed: " wrapper added by RunDiagnosticContainer
 		errMsg := strings.TrimPrefix(err.Error(), "diagnostic command failed: ")
 		f.resultErr = errMsg
-		// If there is output, the container ran but exited non-zero (e.g. curl/nc exit codes)
+		// If there is output, the container ran but exited non-zero (e.g. wget/nc exit codes)
 		f.resultExitCode = output != ""
 	} else {
 		f.resultErr = ""

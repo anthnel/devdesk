@@ -61,25 +61,38 @@ type MCPConfig struct {
 	Expose []string `yaml:"expose,omitempty"`
 }
 
-// NetworkConfig holds what the netdiag view runs on.
+// NetworkConfig holds what the netdiag view runs on, plus the one image
+// DevDesk still starts a container from.
 //
-// It was `docker:`, and it held one image — which was never a Docker setting:
-// it names the container the route traces and the ports table run in. Every
-// other scalar here was a constant in internal/netcheck, whose own comment said
-// they became settings when somebody asked for them.
+// It was `docker:`, and it held one image — which was never a Docker setting.
+// Every other scalar here was a constant in internal/netcheck, whose own
+// comment said they became settings when somebody asked for them.
 type NetworkConfig struct {
-	// ToolImage must carry traceroute and tcptraceroute, and nothing else.
+	// ConnectivityImage is the image the OCI connectivity test runs, and it is
+	// the last image DevDesk starts a container from.
 	//
-	// It needed ss until the Ports tab read the socket table in-process
-	// (internal/ports), and ip and iptables until the Topology tab became the
-	// Interfaces tab (§3.44). The route trace is the one thing left that
-	// genuinely cannot be had without a container: it needs raw ICMP sockets,
-	// and DevDesk must not need root.
+	// It must carry ping, nc and wget. busybox has all three in 6,81 MB, which
+	// is why it is the default; it was nicolaka/netshoot, 874 MB, a factor of
+	// 128 (§3.47).
 	//
-	// It is therefore one setting for one key, and §3.47 is the plan for
-	// removing it — with the connectivity test, which runs an image in a Docker
-	// network rather than on the host and is a different question.
-	ToolImage string `yaml:"tool_image"`
+	// It was `tool_image`, and the name said nothing because the setting served
+	// two unrelated things. The others left one by one: ss when the Ports tab
+	// read the socket table in-process (internal/ports, §3.43), ip and iptables
+	// when the Topology tab became the Interfaces tab (§3.44), traceroute when
+	// the route trace was removed (§3.47). What is left has one reader, so it is
+	// named after it.
+	//
+	// The container it starts runs `--network <networkID>` — a Docker network
+	// the user picked — never `--network host`. That distinction is the whole
+	// reason this survived: "can this container reach that one on this bridge"
+	// has no answer from a host process, whereas everything asked about *this
+	// machine* was answering for the Docker Desktop VM (D55, D57).
+	ConnectivityImage string `yaml:"connectivity_image"`
+
+	// ToolImage is the retired spelling of ConnectivityImage, migrated at load
+	// and then cleared so the key leaves the file on the next save — the
+	// precedent is RegistryItem.AuthEnabled.
+	ToolImage string `yaml:"tool_image,omitempty"`
 
 	// CheckTimeout is how long one probe waits for an answer, in seconds.
 	//
@@ -98,12 +111,8 @@ type NetworkConfig struct {
 	// the TLS check warns. Thirty days is a renewal cycle.
 	CertExpiryWarnDays int `yaml:"cert_expiry_warn_days"`
 
-	// TracerouteMaxHops bounds a route trace. The wait per hop stays a constant:
-	// the two multiply, so a second setting would let a user build a
-	// fifteen-minute trace out of two numbers that each look reasonable.
-	TracerouteMaxHops int `yaml:"traceroute_max_hops"`
-
-	// PortsRefreshInterval is how often the Ports tab re-reads ss, in seconds.
+	// PortsRefreshInterval is how often the Ports tab re-reads the socket
+	// table, in seconds.
 	PortsRefreshInterval int `yaml:"ports_refresh_interval"`
 }
 
@@ -112,11 +121,10 @@ type NetworkConfig struct {
 // behaves exactly as it did — except CheckTimeout, which is the old maximum
 // rather than any one of the five values it replaces.
 const (
-	DefaultNetworkToolImage     = "nicolaka/netshoot"
+	DefaultConnectivityImage    = "busybox"
 	DefaultCheckTimeout         = 8
 	DefaultPingCount            = 3
 	DefaultCertExpiryWarnDays   = 30
-	DefaultTracerouteMaxHops    = 30
 	DefaultPortsRefreshInterval = 2
 )
 
@@ -452,20 +460,31 @@ func applyDefaults(cfg *Config) error {
 		cfg.Scan.GitleaksSource = ToolSourceAuto
 	}
 
-	// The rename runs before the defaults below, and that order is the whole of
-	// it: yaml.Unmarshal is not strict here, so an un-migrated `docker:` block
-	// is dropped in silence and the image reverts to nicolaka/netshoot with
-	// nothing on screen saying it moved. Cleared once carried over, so the key
-	// leaves the file on the next save — the precedent is RegistryItem.AuthEnabled.
+	// The two renames run before the defaults below, oldest first, and that
+	// order is the whole of it: yaml.Unmarshal is not strict here, so an
+	// un-migrated block is dropped in silence and the image reverts to the
+	// default with nothing on screen saying it moved — a user pointing at their
+	// own mirror would find the probe pulling from Docker Hub. Each is cleared
+	// once carried over, so the key leaves the file on the next save; the
+	// precedent is RegistryItem.AuthEnabled.
+	//
+	// The chain is `docker.network_tool_image` -> `network.tool_image` ->
+	// `network.connectivity_image`, and a config may sit at any point on it.
 	if cfg.Docker.NetworkToolImage != "" {
 		if cfg.Network.ToolImage == "" {
 			cfg.Network.ToolImage = cfg.Docker.NetworkToolImage
 		}
 		cfg.Docker.NetworkToolImage = ""
 	}
+	if cfg.Network.ToolImage != "" {
+		if cfg.Network.ConnectivityImage == "" {
+			cfg.Network.ConnectivityImage = cfg.Network.ToolImage
+		}
+		cfg.Network.ToolImage = ""
+	}
 
-	if cfg.Network.ToolImage == "" {
-		cfg.Network.ToolImage = DefaultNetworkToolImage
+	if cfg.Network.ConnectivityImage == "" {
+		cfg.Network.ConnectivityImage = DefaultConnectivityImage
 	}
 	if cfg.Network.CheckTimeout == 0 {
 		cfg.Network.CheckTimeout = DefaultCheckTimeout
@@ -475,9 +494,6 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Network.CertExpiryWarnDays == 0 {
 		cfg.Network.CertExpiryWarnDays = DefaultCertExpiryWarnDays
-	}
-	if cfg.Network.TracerouteMaxHops == 0 {
-		cfg.Network.TracerouteMaxHops = DefaultTracerouteMaxHops
 	}
 	if cfg.Network.PortsRefreshInterval == 0 {
 		cfg.Network.PortsRefreshInterval = DefaultPortsRefreshInterval
@@ -539,11 +555,10 @@ func Default() *Config {
 			EnableSecret:       true,
 		},
 		Network: NetworkConfig{
-			ToolImage:            DefaultNetworkToolImage,
+			ConnectivityImage:    DefaultConnectivityImage,
 			CheckTimeout:         DefaultCheckTimeout,
 			PingCount:            DefaultPingCount,
 			CertExpiryWarnDays:   DefaultCertExpiryWarnDays,
-			TracerouteMaxHops:    DefaultTracerouteMaxHops,
 			PortsRefreshInterval: DefaultPortsRefreshInterval,
 		},
 	}
