@@ -162,6 +162,7 @@ type fakeNetEnv struct {
 	dialEr    error
 	pingEr    error
 	pingCount int
+	routeEr   error
 	onResolve func()
 }
 
@@ -182,6 +183,13 @@ func (e *fakeNetEnv) Ping(_ context.Context, _ string, count int) (netcheck.Ping
 		return netcheck.PingStats{}, e.pingEr
 	}
 	return netcheck.PingStats{Sent: count, Received: count, AvgRTT: 10 * time.Millisecond}, nil
+}
+
+func (e *fakeNetEnv) Route(_ context.Context, ip net.IP) (netcheck.RouteHop, error) {
+	if e.routeEr != nil {
+		return netcheck.RouteHop{}, e.routeEr
+	}
+	return netcheck.RouteHop{Interface: "eth0", Source: net.ParseIP("192.168.1.21")}, nil
 }
 
 func (e *fakeNetEnv) DialTCP(context.Context, string) (time.Duration, error) {

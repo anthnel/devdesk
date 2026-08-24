@@ -16,6 +16,7 @@ var errNotTLSConn = errors.New("connection is not a TLS connection")
 var checkTitles = map[CheckID]string{
 	CheckResolve:      "DNS resolution",
 	CheckReverseDNS:   "Reverse DNS",
+	CheckRoute:        "Local route",
 	CheckICMP:         "ICMP echo",
 	CheckTCP:          "TCP connect",
 	CheckTLSHandshake: "TLS handshake",
@@ -45,6 +46,7 @@ type stage struct {
 // on, so it is what the wait is labelled with.
 var stageTitles = map[StageID]string{
 	StageResolve: "Resolving the name",
+	StageRoute:   "Finding the way out",
 	StageReach:   "Probing reachability",
 	StageConnect: "Connecting to the port",
 	StageTLS:     "Inspecting the certificate",
@@ -109,6 +111,12 @@ func stages() []stage {
 			gate:     CheckResolve,
 			produces: []CheckID{CheckResolve, CheckReverseDNS},
 			run:      runResolve,
+		},
+		{
+			id:        StageRoute,
+			dependsOn: StageResolve,
+			produces:  []CheckID{CheckRoute},
+			run:       runRoute,
 		},
 		{
 			id:        StageReach,

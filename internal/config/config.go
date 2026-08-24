@@ -68,12 +68,17 @@ type MCPConfig struct {
 // other scalar here was a constant in internal/netcheck, whose own comment said
 // they became settings when somebody asked for them.
 type NetworkConfig struct {
-	// ToolImage must carry traceroute, tcptraceroute, ip, and iptables or nft.
+	// ToolImage must carry traceroute and tcptraceroute, and nothing else.
 	//
-	// It no longer needs ss: the Ports tab reads the socket table in-process
-	// (internal/ports). What is left in the image is what genuinely cannot be had
-	// without one — a route trace needs raw ICMP sockets, and the topology tab
-	// needs netfilter.
+	// It needed ss until the Ports tab read the socket table in-process
+	// (internal/ports), and ip and iptables until the Topology tab became the
+	// Interfaces tab (§3.44). The route trace is the one thing left that
+	// genuinely cannot be had without a container: it needs raw ICMP sockets,
+	// and DevDesk must not need root.
+	//
+	// It is therefore one setting for one key, and §3.47 is the plan for
+	// removing it — with the connectivity test, which runs an image in a Docker
+	// network rather than on the host and is a different question.
 	ToolImage string `yaml:"tool_image"`
 
 	// CheckTimeout is how long one probe waits for an answer, in seconds.

@@ -55,13 +55,13 @@ func TestInitLoadsBothSubTabs(t *testing.T) {
 
 func TestTabCyclesThroughTheThreeTabs(t *testing.T) {
 	m := newTestModel(t)
-	for _, want := range []int{tabPorts, tabTopology, tabDiagnostics} {
+	for _, want := range []int{tabPorts, tabInterfaces, tabDiagnostics} {
 		m = feed(t, m, testutil.Key("tab"))
 		if m.activeTab != want {
 			t.Fatalf("activeTab = %d, want %d", m.activeTab, want)
 		}
 	}
-	for _, want := range []int{tabTopology, tabPorts, tabDiagnostics} {
+	for _, want := range []int{tabInterfaces, tabPorts, tabDiagnostics} {
 		m = feed(t, m, testutil.Key("shift+tab"))
 		if m.activeTab != want {
 			t.Fatalf("activeTab = %d, want %d", m.activeTab, want)
@@ -529,11 +529,11 @@ func TestInEditModeIsTrueOnlyWhereAFieldHasTheKeyboard(t *testing.T) {
 	}
 }
 
-func TestTheTopologyTabNeverBlocksCommandMode(t *testing.T) {
+func TestTheInterfacesTabDoesNotBlockCommandModeAtRest(t *testing.T) {
 	m := newTestModel(t)
-	m.activeTab = tabTopology
+	m.activeTab = tabInterfaces
 	if m.InEditMode() {
-		t.Fatal("the topology tab claims the keyboard")
+		t.Fatal("the interfaces tab claims the keyboard with no search open")
 	}
 }
 
@@ -551,7 +551,7 @@ func TestResizeIsForwardedToEverySubModel(t *testing.T) {
 	if m.width != 100 || m.height != 30 {
 		t.Fatalf("model kept %dx%d", m.width, m.height)
 	}
-	if m.portsModel.width != 100 || m.topologyModel.width != 100 {
+	if m.portsModel.width != 100 || m.interfacesModel.width != 100 {
 		t.Error("a sub-model did not receive the resize")
 	}
 }

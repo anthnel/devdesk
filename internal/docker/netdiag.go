@@ -14,10 +14,11 @@ type DiagResult struct {
 // runDiagHost runs a command in an ephemeral container with --network host.
 //
 // Only the route traces are left here. DNS, ICMP, TCP, TLS and HTTP moved to
-// internal/netcheck, which answers from the DevDesk process — because
+// internal/netcheck, the socket table to internal/ports and the interfaces to
+// internal/netiface, all of which answer from the DevDesk process — because
 // --network host is the Docker Desktop VM's network namespace on Windows and
-// macOS, not the machine's, so those checks were answering for a resolver and a
-// routing table the user is not on.
+// macOS, not the machine's, so every one of them was answering for a resolver,
+// a routing table and a set of adapters the user is not on.
 //
 // A traceroute needs raw sockets and a tool worth not reimplementing, so it
 // stays, and it keeps that caveat: it answers for the container's view.

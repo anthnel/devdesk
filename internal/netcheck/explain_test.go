@@ -93,6 +93,23 @@ func batteries(t *testing.T) []scenario {
 				return PingStats{}, errors.New("operation not permitted")
 			}}, target()},
 
+		{"one of two addresses has no route", fakeEnv{
+			roots: goodRoots, handshake: handshakeReturning(good),
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return []net.IP{net.ParseIP("93.184.216.34"), net.ParseIP("2606:2800:220:1::1")}, nil
+			},
+			route: func(_ context.Context, ip net.IP) (RouteHop, error) {
+				if ip.To4() == nil {
+					return RouteHop{}, errors.New("network is unreachable")
+				}
+				return RouteHop{Interface: "eth0", Source: net.ParseIP("192.168.1.21")}, nil
+			}}, target()},
+		{"the routing table cannot answer", fakeEnv{
+			roots: goodRoots, handshake: handshakeReturning(good),
+			route: func(context.Context, net.IP) (RouteHop, error) {
+				return RouteHop{}, errors.New("network is unreachable")
+			}}, target()},
+
 		{"the port is refused", fakeEnv{
 			dial: func(context.Context, string) (time.Duration, error) {
 				return 0, errors.New("connection refused")

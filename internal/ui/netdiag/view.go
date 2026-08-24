@@ -28,8 +28,8 @@ func (m *Model) View() string {
 			)
 		}
 		return m.portsModel.view()
-	case tabTopology:
-		return m.topologyModel.view()
+	case tabInterfaces:
+		return m.interfacesModel.view()
 	}
 	switch m.state {
 	case StateInput:

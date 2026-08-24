@@ -30,7 +30,7 @@ const (
 const (
 	tabDiagnostics = 0
 	tabPorts       = 1
-	tabTopology    = 2
+	tabInterfaces  = 2
 )
 
 // Form field indices.
@@ -80,10 +80,10 @@ type Model struct {
 	width  int
 	height int
 
-	// Active tab (tabDiagnostics, tabPorts, or tabTopology)
-	activeTab     int
-	portsModel    *PortsModel
-	topologyModel *TopologyModel
+	// Active tab (tabDiagnostics, tabPorts, or tabInterfaces)
+	activeTab       int
+	portsModel      *PortsModel
+	interfacesModel *InterfacesModel
 
 	state ViewState
 
@@ -143,17 +143,17 @@ func New(cfg *config.Config) *Model {
 	sp.Style = theme.SpinnerStyle()
 
 	return &Model{
-		config:         cfg,
-		state:          StateInput,
-		activeTab:      tabDiagnostics,
-		portsModel:     newPortsModel(time.Duration(cfg.Network.PortsRefreshInterval) * time.Second),
-		topologyModel:  newTopologyModel(cfg.Network.ToolImage),
-		targetInput:    targetIn,
-		portInput:      portIn,
-		dnsServerInput: dnsIn,
-		focusedField:   fieldTarget,
-		spinner:        sp,
-		filterBar:      components.NewFilterBarWithTokens([]components.FilterToken{{Label: problemsToken}}),
+		config:          cfg,
+		state:           StateInput,
+		activeTab:       tabDiagnostics,
+		portsModel:      newPortsModel(time.Duration(cfg.Network.PortsRefreshInterval) * time.Second),
+		interfacesModel: newInterfacesModel(),
+		targetInput:     targetIn,
+		portInput:       portIn,
+		dnsServerInput:  dnsIn,
+		focusedField:    fieldTarget,
+		spinner:         sp,
+		filterBar:       components.NewFilterBarWithTokens([]components.FilterToken{{Label: problemsToken}}),
 		checksTable: datatable.New(datatable.Config[netcheck.Check]{
 			Columns: checkColumns(),
 			// Pipeline order is content: resolve, reach, connect, TLS, HTTP is

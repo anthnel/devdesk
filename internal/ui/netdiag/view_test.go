@@ -288,7 +288,7 @@ func TestFooterHeightMatchesWhatRenderFooterEmits(t *testing.T) {
 
 func TestFooterShowsTheTabs(t *testing.T) {
 	out := newTestModel(t).RenderFooter(120)
-	for _, want := range []string{"Diagnostics", "Ports", "Topology"} {
+	for _, want := range []string{"Diagnostics", "Ports", "Interfaces"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the tab bar has no %q", want)
 		}

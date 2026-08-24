@@ -39,17 +39,16 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "tab", Description: "Switch tab"},
 	}
 
-	if m.activeTab == tabTopology {
-		switch m.topologyModel.state {
-		case topoStateLoading:
+	if m.activeTab == tabInterfaces {
+		if m.interfacesModel.loading {
 			return tabShortcuts
-		case topoStateReady:
-			return append(tabShortcuts, shortcut.Shortcuts{
-				{Key: "ctrl+r", Description: "Refresh"},
-				{Key: "?", Description: "Help"},
-			}...)
 		}
-		return tabShortcuts
+		return append(tabShortcuts, shortcut.Shortcuts{
+			{Key: "ctrl+r", Description: "Refresh"},
+			{Key: "/", Description: "Filter"},
+			{Key: ".", Description: "Sort"},
+			{Key: "?", Description: "Help"},
+		}...)
 	}
 
 	if m.activeTab == tabPorts {
@@ -126,6 +125,13 @@ func (m *Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	info := []shortcut.HeaderInfo{
 		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},
 	}
+	if m.activeTab == tabInterfaces {
+		return append(info, shortcut.HeaderInfo{
+			Key:   "Interfaces",
+			Value: m.interfacesModel.summaryLine(),
+			Style: theme.HeaderValueStyle,
+		})
+	}
 	if m.activeTab != tabDiagnostics || m.state == StateInput {
 		return info
 	}
@@ -161,6 +167,9 @@ func (m *Model) GetFooterHeight() int {
 	if m.activeTab == tabDiagnostics {
 		return 3 + m.filterBar.ExtraHeight()
 	}
+	if m.activeTab == tabInterfaces {
+		return 3 + m.interfacesModel.table.FilterBar().ExtraHeight()
+	}
 	return 3
 }
 
@@ -174,12 +183,14 @@ func (m *Model) RenderFooter(width int) string {
 		parts = append(parts, m.portsModel.table.FilterBar().View())
 	case m.activeTab == tabDiagnostics && m.filterBar.IsVisible():
 		parts = append(parts, m.filterBar.View())
+	case m.activeTab == tabInterfaces && m.interfacesModel.table.FilterBar().IsVisible():
+		parts = append(parts, m.interfacesModel.table.FilterBar().View())
 	}
 
 	tabs := theme.RenderTabs([]theme.TabItem{
 		{Label: "Diagnostics"},
 		{Label: "Ports"},
-		{Label: "Topology"},
+		{Label: "Interfaces"},
 	}, m.activeTab)
 	tabBar := theme.PadWithBg(theme.Bg(" ")+tabs, width)
 
@@ -196,8 +207,8 @@ func (m *Model) activeFooter() (*components.FooterMessage, components.Status) {
 	switch m.activeTab {
 	case tabPorts:
 		return &m.portsModel.footer, m.portsModel.statusLine()
-	case tabTopology:
-		return &m.topologyModel.footer, m.topologyModel.statusLine()
+	case tabInterfaces:
+		return &m.interfacesModel.footer, m.interfacesModel.statusLine()
 	}
 	return &m.footer, m.statusLine()
 }
@@ -247,6 +258,10 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "/", Description: "Search ports by address, process or PID (Ports tab)"},
 			{Key: "space (Ports)", Description: "Pause / resume auto-refresh (Ports tab)"},
 			{Key: "K", Description: "Send SIGKILL to the selected process, after confirmation (Ports tab)"},
+			// Interfaces tab
+			{Key: "/", Description: "Search interfaces by name, MAC or address (Interfaces tab)"},
+			{Key: ".", Description: "Cycle the sort column (Interfaces tab)"},
+			{Key: "ctrl+r", Description: "Re-read the interfaces (Interfaces tab)"},
 		},
 		Sections: []help.Section{
 			{
@@ -255,6 +270,7 @@ func (m *Model) GetHelpContent() help.Content {
 					"already failed, so there is nothing to select.\n\n" +
 					"DNS resolution     - the name, against the resolver your own traffic uses\n" +
 					"Reverse DNS        - the name an address publishes (literal targets only)\n" +
+					"Local route        - which interface carries this target, and from which address\n" +
 					"ICMP echo          - reachability; a filtered echo is a warning, never a failure\n" +
 					"TCP connect        - the port you named, and the answer that decides reachability\n" +
 					"TLS handshake      - whether the port speaks TLS at all\n" +
@@ -288,31 +304,32 @@ func (m *Model) GetHelpContent() help.Content {
 					"numeric, because a service name would be DevDesk's guess and not the system's.",
 			},
 			{
-				Title: "Topology Tab — How it works",
-				Body: "Fetches five data sources concurrently on load: network interfaces with MTU (ip addr show + " +
-					"ip -s link show), routing table (ip route show), ARP/neighbour cache (ip neigh show), and " +
-					"firewall rules (iptables or nft). Network errors section is shown only when RX/TX errors are " +
-					"non-zero. Firewall summary shows chain names, default policy, and rule count. " +
-					"Press ctrl+r to reload all sections.\n\n" +
-					"ARP / Neighbours states:\n" +
-					"  REACHABLE  — entry confirmed reachable recently (green)\n" +
-					"  PERMANENT  — static entry, never expires (green)\n" +
-					"  STALE      — entry not confirmed recently, will be re-probed on next use (dim)\n" +
-					"  DELAY      — waiting for confirmation after sending a probe (dim)\n" +
-					"  INCOMPLETE — ARP request sent, no reply yet (dim)\n" +
-					"  FAILED     — unreachable, ARP probe received no reply (red)",
+				Title: "Interfaces Tab — How it works",
+				Body: "Lists this machine's network interfaces, read in this process — no container, " +
+					"no Docker. Name, state, MTU, hardware address, error counters and every address " +
+					"the interface carries. ctrl+r re-reads them.\n\n" +
+					"A dash is not a zero. RX err and TX err show a dash when the counters could not " +
+					"be read at all, which is a different thing from an interface that has dropped " +
+					"nothing; MTU shows one where the platform reports no figure, as Windows does " +
+					"for its loopback.\n\n" +
+					"This was the Topology tab. Its routing table, ARP cache and firewall summary " +
+					"were read by running ip and iptables in a container on the Docker Desktop VM, " +
+					"so they described the VM and not this machine. Nothing portable produces them, " +
+					"so they were removed rather than translated — and the route question moved to " +
+					"the Diagnostics tab, where it is asked about a target: the Local route check " +
+					"names the interface your traffic to that host actually leaves by.",
 			},
 			{
 				Title: "Where the checks run",
-				Body: "The diagnostic checks and the Ports tab run in this process, on this machine's " +
-					"network stack. They therefore answer for the resolver, the routing table, the " +
-					"sockets and the VPN you are actually on.\n\n" +
-					"The route trace (H) and the Topology tab still run in the image configured at " +
-					"network.tool_image. On Docker Desktop that container lives in a Linux VM with " +
-					"its own network namespace, so both answer for the VM and can legitimately " +
-					"disagree with everything above. The trace pane says so.\n\n" +
-					"The image must include traceroute, tcptraceroute, ip, and iptables or nft for " +
-					"firewall inspection.",
+				Body: "Every tab now runs in this process, on this machine's network stack: the " +
+					"diagnostic checks, the socket table and the interfaces alike. They answer for " +
+					"the resolver, the routing table, the sockets and the VPN you are actually on.\n\n" +
+					"One thing still runs in a container: the route trace (H), in the image " +
+					"configured at network.tool_image, because it needs raw ICMP sockets and a tool " +
+					"worth not reimplementing. On Docker Desktop that container lives in a Linux VM " +
+					"with its own network namespace, so the trace answers for the VM and can " +
+					"legitimately disagree with everything above. The trace pane says so.\n\n" +
+					"The image must include traceroute and tcptraceroute.",
 			},
 		},
 	}

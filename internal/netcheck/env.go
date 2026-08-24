@@ -97,6 +97,18 @@ type HTTPResult struct {
 	TLS bool
 }
 
+// RouteHop is how a packet to one address leaves this machine.
+//
+// Every field may be empty, and each emptiness means something: no gateway is a
+// directly-connected destination, no source is a stack that did not say which
+// address it would use. They are net.IP rather than strings so a caller cannot
+// be handed "<nil>".
+type RouteHop struct {
+	Interface string
+	Source    net.IP
+	Gateway   net.IP
+}
+
 // Env is the seam every stage reaches the network through.
 //
 // internal/docker's dockerRunner is the precedent, with one difference: that
@@ -120,6 +132,10 @@ type Env interface {
 	Handshake(ctx context.Context, addr, serverName string) (*tls.ConnectionState, error)
 	// Head issues an HTTP HEAD request.
 	Head(ctx context.Context, url string) (HTTPResult, error)
+	// Route reports how a packet to ip would leave this machine. It sends
+	// nothing: it asks the local routing table, which is why it is the one
+	// method here that answers without touching the network.
+	Route(ctx context.Context, ip net.IP) (RouteHop, error)
 	// TrustRoots is the store the chain is verified against. nil means the
 	// host's own, which is the only answer that matters in production — a
 	// chain "verifies" only against a store somebody actually uses.
