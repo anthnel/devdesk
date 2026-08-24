@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "51741c697c91",
+  "strategy": "manual-commit",
+  "branch": "ws-file-icons",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/mcp/workspace_tools.go",
+    "internal/mcp/workspace_tools_test.go",
+    "internal/ui/fileicon/fileicon.go",
+    "internal/ui/fileicon/fileicon_test.go",
+    "internal/ui/vocabtest/vocabtest_test.go",
+    "internal/ui/workspaces/columns.go",
+    "internal/ui/workspaces/entry.go",
+    "internal/ui/workspaces/entry_test.go",
+    "internal/ui/workspaces/model.go",
+    "internal/ui/workspaces/model_test.go",
+    "internal/ui/workspaces/sync_test.go",
+    "internal/ui/workspaces/view.go",
+    "internal/ui/workspaces/view_test.go",
+    "internal/ui/workspaces/workspaces_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/51/741c697c91/0/metadata.json",
+      "transcript": "/51/741c697c91/0/full.jsonl",
+      "compact_transcript": "/51/741c697c91/0/transcript.jsonl",
+      "content_hash": "/51/741c697c91/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1784,
+    "cache_creation_tokens": 2496617,
+    "cache_read_tokens": 297334803,
+    "output_tokens": 708569,
+    "api_call_count": 895
+  }
+}
