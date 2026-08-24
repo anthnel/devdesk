@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "a7ac7c84a3da",
+  "strategy": "manual-commit",
+  "branch": "ports-native",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/config/config.go",
+    "internal/docker/ports.go",
+    "internal/docker/ports_test.go",
+    "internal/mcp/docker_tools.go",
+    "internal/mcp/ports_tools.go",
+    "internal/mcp/tools.go",
+    "internal/ports/ports.go",
+    "internal/ports/ports_test.go",
+    "internal/ports/resolve.go",
+    "internal/ports/resolve_test.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/ports_model.go",
+    "internal/ui/netdiag/ports_model_test.go",
+    "internal/ui/netdiag/settings_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a7/ac7c84a3da/0/metadata.json",
+      "transcript": "/a7/ac7c84a3da/0/full.jsonl",
+      "compact_transcript": "/a7/ac7c84a3da/0/transcript.jsonl",
+      "content_hash": "/a7/ac7c84a3da/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 108,
+    "cache_creation_tokens": 261671,
+    "cache_read_tokens": 11657185,
+    "output_tokens": 58037,
+    "api_call_count": 56
+  }
+}
