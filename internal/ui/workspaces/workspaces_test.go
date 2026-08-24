@@ -53,13 +53,11 @@ func entryFixtures() []Entry {
 			IsGitRepo: true, GitBranch: "main", GitRemote: "anthnel/devdesk",
 			GitRemoteURL: "https://github.com/anthnel/devdesk",
 			GitModified:  2, GitUntracked: 1, GitUnpushed: 3, GitUnpulled: 0,
-			ProjectType: "Go",
 		},
 		{
 			Name: "clean-repo", Path: "/tmp/workspaces/clean-repo", IsDir: true, ModTime: modTime,
 			IsGitRepo: true, GitBranch: "main", GitRemote: "anthnel/clean",
 			GitRemoteURL: "https://github.com/anthnel/clean",
-			ProjectType:  "Node",
 		},
 		{
 			Name: "clients", Path: "/tmp/workspaces/clients", IsDir: true, ModTime: modTime,
@@ -129,11 +127,23 @@ func step(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
 	return updated, cmd
 }
 
+// colName is the Name cell's index. Column 0 is the glyph naming what the row
+// is, so a test reading names has to skip it — and naming the index here means
+// a future column added to the left moves one constant rather than every test.
+// Column indices the tests read by name. Column 0 is the glyph naming what the
+// row is, so naming these means a column added to the left moves three
+// constants rather than every assertion.
+const (
+	colIcon      = 0
+	colName      = 1
+	colGitStatus = 3
+)
+
 // rowNames returns the Name cell of every table row.
 func rowNames(rows []table.Row) []string {
 	names := make([]string, 0, len(rows))
 	for _, row := range rows {
-		names = append(names, row[0])
+		names = append(names, row[colName])
 	}
 	return names
 }

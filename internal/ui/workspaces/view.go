@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/fileicon"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -189,31 +190,30 @@ func formatGitStatus(entry Entry) string {
 	return strings.Join(parts, " ")
 }
 
-// formatProjectType formats the project type column with Nerd Font icons
-func formatProjectType(entry Entry) string {
-	switch entry.ProjectType {
-	case "Go":
-		return theme.IconGo
-	case "Rust":
-		return theme.IconRust
-	case "Node":
-		return theme.IconNode
-	case "Python":
-		return theme.IconPython
-	case "Java":
-		return theme.IconJava
-	case "Ruby":
-		return theme.IconRuby
-	case "PHP":
-		return theme.IconPHP
-	case "Elixir":
-		return theme.IconElixir
-	case "Make":
-		return theme.IconTools
-	case "Docker":
-		return theme.IconDocker
+// entryIcon is the glyph in the leftmost column: what this row *is*.
+//
+// It replaced a Type column that showed a *project* type — detectProjectType
+// looked for go.mod or package.json and answered "this is a Go project", which
+// is a different question and was judged not worth a column of its own.
+//
+// Three genres, and the first is the one that earns the column. Half the keys
+// in this view act on IsGitRepo — S, F, A, D, enter — and Rule 130 shows or
+// hides them accordingly, so the user watched the shortcuts change with nothing
+// on the row saying why. Git Status betrays a repository only when it has a
+// readable branch: one in detached HEAD, one that is empty, one git refuses to
+// read all showed an empty cell and looked like any other directory.
+//
+// A directory holding *nested* repositories still reads as a plain directory.
+// S, F and A act on it too, so a fourth glyph would be defensible; three is
+// what was asked for, and the row already has no other way to say it either.
+func entryIcon(entry Entry) string {
+	switch {
+	case entry.IsGitRepo:
+		return theme.IconGitBranch
+	case entry.IsDir:
+		return theme.IconDirectory
 	default:
-		return ""
+		return fileicon.For(entry.Name)
 	}
 }
 

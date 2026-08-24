@@ -194,9 +194,6 @@ func TestEnrichEntryReadsGitMetadata(t *testing.T) {
 	if entry.GitRemoteURL != "https://gitlab.com/group/project" {
 		t.Errorf("GitRemoteURL = %q, want a browsable HTTPS URL", entry.GitRemoteURL)
 	}
-	if entry.ProjectType != "Go" {
-		t.Errorf("ProjectType = %q, want Go", entry.ProjectType)
-	}
 	if entry.GitModified != 1 {
 		t.Errorf("GitModified = %d, want 1", entry.GitModified)
 	}

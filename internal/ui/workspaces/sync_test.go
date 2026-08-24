@@ -157,7 +157,7 @@ func TestAFinishedSyncReplacesTheRowsGitCounts(t *testing.T) {
 	if entry.GitUnpushed != 3 {
 		t.Errorf("GitUnpushed = %d, want the re-read value", entry.GitUnpushed)
 	}
-	if entry.Name != "devdesk" || entry.ProjectType != "Go" {
+	if entry.Name != "devdesk" || entry.ModTime.IsZero() {
 		t.Errorf("the listing's own fields were overwritten: %+v", entry)
 	}
 	if m.syncingPaths[devdeskPath] {
@@ -312,7 +312,7 @@ func TestReadGitStatusReturnsTheGitFieldsAndNothingElse(t *testing.T) {
 	}
 	// The listing owns these; a sync had no reason to look at them, and
 	// applyGitStatus must not be handed values to overwrite a row with.
-	if status.Name != "" || status.ProjectType != "" || !status.ModTime.IsZero() {
+	if status.Name != "" || !status.ModTime.IsZero() {
 		t.Errorf("readGitStatus filled fields that belong to the listing: %+v", status)
 	}
 }

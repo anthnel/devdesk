@@ -1089,55 +1089,6 @@ func TestNormalizeRemoteURL(t *testing.T) {
 	}
 }
 
-func TestDetectProjectType(t *testing.T) {
-	tests := []struct {
-		file string
-		want string
-	}{
-		{"go.mod", "Go"},
-		{"Cargo.toml", "Rust"},
-		{"package.json", "Node"},
-		{"pyproject.toml", "Python"},
-		{"requirements.txt", "Python"},
-		{"pom.xml", "Java"},
-		{"Gemfile", "Ruby"},
-		{"composer.json", "PHP"},
-		{"Dockerfile", "Docker"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.file, func(t *testing.T) {
-			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, tc.file), nil, 0o600); err != nil {
-				t.Fatalf("writing the signature file: %v", err)
-			}
-
-			if got := detectProjectType(dir); got != tc.want {
-				t.Errorf("detectProjectType with %q = %q, want %q", tc.file, got, tc.want)
-			}
-		})
-	}
-
-	if got := detectProjectType(t.TempDir()); got != "" {
-		t.Errorf("detectProjectType on an empty directory = %q, want empty", got)
-	}
-}
-
-// The first matching signature wins, so a Go project that also has a Makefile
-// is reported as Go.
-func TestDetectProjectTypeIsOrdered(t *testing.T) {
-	dir := t.TempDir()
-	for _, name := range []string{"Makefile", "go.mod"} {
-		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
-			t.Fatalf("writing %q: %v", name, err)
-		}
-	}
-
-	if got := detectProjectType(dir); got != "Go" {
-		t.Errorf("detectProjectType = %q, want Go to win over Make", got)
-	}
-}
-
 func TestDetectSubRepoPaths(t *testing.T) {
 	root := t.TempDir()
 	mkRepo := func(parts ...string) string {
