@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "2f571739c850",
+  "strategy": "manual-commit",
+  "branch": "tool-image-busybox",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/config/config.go",
+    "internal/config/network_test.go",
+    "internal/docker/netdiag.go",
+    "internal/docker/netdiag_test.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/run.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/netdiag/view.go",
+    "internal/ui/oci_resources/connectivity_form.go",
+    "internal/ui/oci_resources/connectivity_form_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2f/571739c850/0/metadata.json",
+      "transcript": "/2f/571739c850/0/full.jsonl",
+      "compact_transcript": "/2f/571739c850/0/transcript.jsonl",
+      "content_hash": "/2f/571739c850/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 64,
+    "cache_creation_tokens": 40424,
+    "cache_read_tokens": 11367525,
+    "output_tokens": 26162,
+    "api_call_count": 32
+  }
+}
