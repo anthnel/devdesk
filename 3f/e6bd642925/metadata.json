@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "3fe6bd642925",
+  "strategy": "manual-commit",
+  "branch": "topology-native",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "go.mod",
+    "go.sum",
+    "internal/config/config.go",
+    "internal/docker/netdiag.go",
+    "internal/docker/topology.go",
+    "internal/mcp/netcheck_tools_test.go",
+    "internal/netcheck/env.go",
+    "internal/netcheck/env_route.go",
+    "internal/netcheck/env_route_test.go",
+    "internal/netcheck/explain.go",
+    "internal/netcheck/explain_test.go",
+    "internal/netcheck/fake_test.go",
+    "internal/netcheck/netcheck.go",
+    "internal/netcheck/run.go",
+    "internal/netcheck/stage_route.go",
+    "internal/netcheck/stage_route_test.go",
+    "internal/netiface/netiface.go",
+    "internal/netiface/netiface_test.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/interfaces_model.go",
+    "internal/ui/netdiag/interfaces_model_test.go",
+    "internal/ui/netdiag/model.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/topology_model.go",
+    "internal/ui/netdiag/topology_model_test.go",
+    "internal/ui/netdiag/topology_parsers_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/netdiag/view.go",
+    "internal/ui/netdiag/view_test.go",
+    "internal/ui/theme/manager.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/3f/e6bd642925/0/metadata.json",
+      "transcript": "/3f/e6bd642925/0/full.jsonl",
+      "compact_transcript": "/3f/e6bd642925/0/transcript.jsonl",
+      "content_hash": "/3f/e6bd642925/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1410,
+    "cache_creation_tokens": 2284156,
+    "cache_read_tokens": 215198839,
+    "output_tokens": 576753,
+    "api_call_count": 708
+  }
+}
