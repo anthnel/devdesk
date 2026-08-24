@@ -620,6 +620,7 @@ execution sees a closure that registers under another name, twice, or not at all
 | `workspaces_list` | the repositories under `workspaces_dir`, their git state and their scan state |
 | `registries_list` | the configured registries, and the members discovery last found |
 | `containers_list` | what the daemon holds, with the ports parsed |
+| `ports_list` | the TCP and UDP sockets open on this machine, and the process holding each |
 | `images_list` | the local images, and whether each has ever been scanned |
 | `scan_inventory` | every target this context has scanned, reconciled against what still exists |
 | `scan_result` | one scan's findings, filtered by severity and category, paginated |
@@ -648,19 +649,23 @@ refused: a parameter that has to be ignored is worse than none (§3.39's
 argument). Worse, `false` is a `bool`'s zero value, so every file written before
 the key existed would have decoded to "do not redact" — D12 exactly.
 
-**Two tools the entry named were not built, and the reasons are in the source.**
+**`registry_tags` was not built, and the reason is in the source.** There is no
+tag cache. The group cache holds discovered *members*; tags are fetched over HTTP
+when the browser searches. Fetching them here would need a credential for every
+registry anyone actually runs, and decision 6 is that no tool reads the §3.9
+store. An anonymous-only listing would answer "no tags" for a private registry:
+an absence read as an emptiness, which is D20.
 
-- **`registry_tags`** — there is no tag cache. The group cache holds discovered
-  *members*; tags are fetched over HTTP when the browser searches. Fetching them
-  here would need a credential for every registry anyone actually runs, and
-  decision 6 is that no tool reads the §3.9 store. An anonymous-only listing
-  would answer "no tags" for a private registry: an absence read as an emptiness,
-  which is D20.
-- **`ports_list`** — `docker.RunSS` is
-  `docker run --rm --net=host --pid=host --privileged`, the same call as
-  `KillProcess` bar the command. Nothing persistent changes on the host, but the
-  promise here is that the server does not act on the machine. The sockets stay
-  readable in `:net`, where a person is present.
+**`ports_list` was refused and then built**, and the reversal is the point.
+§3.38 kept it out because `docker.RunSS` was
+`docker run --rm --net=host --pid=host --privileged` — the same call as
+`KillProcess` bar the command — and starting a privileged container is acting on
+the machine, which is the one thing this server promises not to do. D55 then
+established that the same call was reading the *wrong* machine. `internal/ports`
+reads the socket table in this process, so there is no container to start and the
+argument left with it. It never resolves an address: `net_check` is the one tool
+that touches the network, and a listing that quietly asked reverse DNS for every
+peer it found would be a second.
 
 **`net_check` is the one tool that touches the network, and it runs no
 container** — the pipeline is pure Go, and the route trace, DevDesk's one probe
@@ -1750,8 +1755,7 @@ Cache invalidation: `S` (single) overwrites; `A` (all) rescans, and purges the c
 ### Docker / OCI Integration
 
 - `internal/docker/client.go` — wraps Docker CLI (exec-based): list, metrics, stop, restart, pause, remove, prune
-- `internal/docker/netdiag.go` — ephemeral container runners with `--network host`: `RunPing`, `RunDNS`, `RunTraceroute`, `RunTCPTraceroute`, `RunNetcat`, `RunCurl`, `RunSSLCert` → returns `DiagResult{Success, Output}`
-- `internal/docker/network.go` — `RunSS(image, numeric)` for real-time port table (mounts host DNS files, uses `--privileged --net=host --pid=host`), `KillProcess(image, pid)`, `PortInfo` struct, `parseSSOutput()` multi-format parser
+- `internal/docker/netdiag.go` — ephemeral container runners with `--network host`: `RunTraceroute`, `RunTCPTraceroute` → returns `DiagResult{Success, Output}`. §3.33 took the five probes that did not need a container; §3.43 took the ports table
 - `internal/oci/oci.go` — OCI registry HTTP client: list tags/templates, download + extract tar.gz
 
 ### Network Diagnostics View
@@ -1762,9 +1766,10 @@ Cache invalidation: `S` (single) overwrites; `A` (all) rescans, and purges the c
   one stage per message so the footer can name the question being asked. The
   seven tool checkboxes are gone (§3.33): the checks follow from the target and
   from what has already failed.
-- **Ports tab** (`ports_model.go`): live `ss` monitoring with filtering by
-  protocol, state and text. `K` kills a process, after a confirmation (requires
-  a privileged container).
+- **Ports tab** (`ports_model.go`): the machine's own socket table, re-read
+  every `ports_refresh_interval`, filtered by protocol, state and text. `K`
+  terminates a process, after a confirmation. It runs **no container** — see
+  `internal/ports` below.
 - **Topology tab** (`topology_model.go`): Docker network inspection.
 
 **What is configurable, and what is not.** `internal/netcheck` held its timeouts
@@ -1811,6 +1816,70 @@ a tool worth not reimplementing — so it answers for the *container's* view of
 the network, and `renderTraceHeader` says so on screen. Everything else answers
 from the DevDesk process, because `--network host` on Docker Desktop is the VM's
 namespace and not the machine's.
+
+### The socket table — `internal/ports`
+
+The machine's TCP and UDP sockets, and the process holding each, read **in this
+process**. `List(ctx, resolve)` and `Kill(pid)` are the whole interface.
+
+**It exists because the old one answered for the wrong machine** (D55). The
+Ports tab ran `ss -tupan` inside
+`docker run --rm --net=host --pid=host --privileged`, and on Docker Desktop
+`--net=host` is the namespace of the Linux VM: the tab listed the VM's NFS
+daemons with two-digit PIDs while not one of the host's 38 listening sockets
+appeared, and `K` sent SIGKILL to a process of the VM under the impression it was
+freeing a port on the machine. The sentence explaining this has sat at the top of
+`docker.runDiagHost` since §3.33 rapatriated DNS, ICMP, TCP, TLS and HTTP for
+exactly the same reason; `RunSS` and `KillProcess` were the two nobody pulled it
+for. **Under Linux the defect did not exist**, which is why it went unnoticed:
+the tab was right on the platform it was written on.
+
+No new dependency: `gopsutil/v4/net` was already imported by
+`internal/metrics/host.go`. Windows reads iphlpapi, Linux `/proc`, macOS and the
+BSDs `lsof` — the last is a subprocess, but one the system supplies, and it
+replaces a privileged container.
+
+Four decisions, each with a test:
+
+- **The process names come from one enumeration, not one call per socket.** The
+  obvious `process.NewProcess(pid).Name()` goes through `OpenProcess` on
+  Windows and needs rights over the target: measured here, **98 of 189** sockets
+  came back *Access denied*, so the Process column would have been empty for
+  every service on the box. `Processes()` reads a Toolhelp32 snapshot instead
+  and named **294 of 294** in 11 ms, elevated or not. The bulk call is not an
+  optimisation over the per-PID one — it is the difference between a column that
+  is filled in and one that is not.
+- **A PID of zero carries no PID.** It is the system declining to attribute the
+  socket, and `K` keys on that field: left as `"0"` the row would look killable,
+  and process 0 is a whole process group on Unix. `Kill` refuses it a second
+  time, on the model of §3.23's double guard. The name is a *separate* question:
+  a row may know which process holds the socket and not what it is called, and
+  it must stay killable — that is the row the user is acting on.
+- **Two states are normalised, and neither is cosmetic.** An unconnected
+  datagram socket is `NONE` on Linux and nothing at all on Windows, so the same
+  socket read differently depending on where DevDesk ran — and the `l`/`e`
+  filters with it. `ESTABLISHED` is shortened to `ESTAB` because the State
+  column is ten cells wide, so the long spelling renders as `ESTABLISHE`.
+- **`n` resolves the host half only.** `ss` without `-n` also turned 22 into
+  `ssh`; Go resolves a name to a port and not the other way round, so honouring
+  that would mean shipping a copy of `/etc/services` and calling the result the
+  system's answer. Saying less beats saying something the system did not.
+
+The reverse-DNS cache is **package-level**, because the lookups run inside a
+`Cmd` and a `Cmd` may not touch the model (Rule 110). It caches the failures
+too: a machine talking to hosts with no PTR record would otherwise re-ask for
+every one of them on every two-second tick — the storm the cache exists to
+prevent, arriving through the failures instead of the successes. Wildcard,
+loopback and unspecified addresses are never asked at all.
+
+**`Kill` signals with the rights DevDesk has**, which is the visible change:
+another user's process, or a service, now comes back refused by the operating
+system instead of succeeding against the wrong machine.
+
+What is left in `network.tool_image` is what genuinely cannot be had without a
+container — a route trace needs raw ICMP sockets, and the Topology tab needs
+netfilter. Both still answer for the VM, and `renderTraceHeader` and the help
+say so.
 
 ### Status Monitoring System
 

@@ -62,6 +62,11 @@ func tools() []toolDef {
 			register:    registerImagesList,
 		},
 		{
+			Name:        "ports_list",
+			Description: "List the TCP and UDP sockets open on this machine, with the process holding each one. It reads the socket table in this process — no container, no network call — and the addresses are never resolved to host names.",
+			register:    registerPortsList,
+		},
+		{
 			Name:        "net_check",
 			Description: "Run DevDesk's connectivity pipeline against a host and port: name resolution, ICMP reachability, the TCP connect, the certificate — handshake, chain, hostname, expiry, version — and an HTTP response. Each check answers with a verdict, what was observed, why it matters and what to do about it. This is the one tool here that touches the network, and it can be pointed at any host.",
 			register:    registerNetCheck,

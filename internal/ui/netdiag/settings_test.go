@@ -56,7 +56,7 @@ func TestThePortsRefreshComesFromTheConfig(t *testing.T) {
 // A non-positive interval would make tea.Tick fire without pausing, so it falls
 // back rather than spinning a docker exec per frame.
 func TestANonPositiveRefreshFallsBackRatherThanSpinning(t *testing.T) {
-	pm := newPortsModel("netshoot", 0)
+	pm := newPortsModel(0)
 
 	if cmd := portsTickCmd(pm.refresh); cmd == nil {
 		t.Fatal("no tick command was produced")

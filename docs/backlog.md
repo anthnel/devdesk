@@ -11,13 +11,24 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Deux ouverts : D55 et D56** — voir [§1.3](#13-open). D39, the last one, was the registry browser addressing a group's
+**Trois ouverts : D56, D57 et D58** — voir [§1.3](#13-open).
+
+D55 — l'onglet Ports listait les sockets de la VM Docker au lieu de ceux de la
+machine — est fermé par
+[§3.43](#343-longlet-ports-lit-la-machine--internalports). **D57 est le même
+défaut dans l'onglet Topology**, où il est total : pas une interface ni une route
+en commun avec la machine. **D58** a été trouvé en lisant le code de D57 : un
+échec partiel y fait afficher « aucune route », « aucun voisin » et « aucune
+chaîne ». Les deux sont traités par
+[§3.44](#344-longlet-topology--ce-qui-se-lit-nativement-et-ce-quon-supprime).
+
+D39, before them, was the registry browser addressing a group's
 members one way to browse them and another way to pull them; it is closed by
 [§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix), which is
 what it existed for. D40, found the same day and on the same screen, was the
 thing §3.18 blocked on and had already been closed on its own.
 
-D1 through D51 are all fixed or, in D35's case, deliberately
+D1 through D55 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -29,6 +40,63 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D55 — l'onglet Ports listait les sockets de la VM Docker, pas ceux de la
+machine. Corrigé** par §3.43. Vérifié à l'écran le 2026-08-23 sous Windows,
+fermé le 2026-08-24.
+
+`RunSS` lançait `docker run --rm --net=host --pid=host --privileged`, et sur
+Docker Desktop `--net=host` est le namespace **de la VM Linux**. La vue montrait
+donc les sockets et les processus de la VM. Ce n'était pas une hypothèse : les
+deux relevés côte à côte n'avaient rien en commun.
+
+`Get-NetTCPConnection -State Listen` sur l'hôte — 38 sockets, dont :
+
+```
+::           11434   Listen   22328      (ollama)
+::            7680   Listen    4604
+::            5357   Listen       4      (System)
+::             445   Listen       4
+0.0.0.0      62841   Listen   32428
+127.0.0.1     6463   Listen   20696
+192.168.1.21   139   Listen       4
+```
+
+L'onglet Ports au même instant :
+
+```
+tcp  LISTEN  0.0.0.0:5000     125  dockerd
+tcp  LISTEN  0.0.0.0:51031     75  rpc.statd
+tcp  LISTEN  0.0.0.0:111       76  rpcbind
+tcp  LISTEN  [::]:111          76  rpcbind
+tcp  LISTEN  [::]:59517        75  rpc.statd
+```
+
+`rpcbind` et `rpc.statd` sont les démons NFS de la VM Docker Desktop, et des PID
+à deux chiffres ceux d'un système qui vient de démarrer. **Pas un des 38 sockets
+de l'hôte n'était listé.** Le seul port apparaissant des deux côtés était 5000,
+et c'était une coïncidence de forwarding : côté Windows il appartenait aux PID
+28360 et 32852, côté vue à `dockerd` PID 125 — l'autre bout du même tunnel, pas
+le même socket.
+
+**`K` était la moitié grave.** Il tuait par `docker run --pid=host --privileged
+<image> kill -9 <pid>`, donc dans le même namespace : l'utilisateur croyait avoir
+libéré le port qui le gênait et avait tué un démon de la VM. Rien à l'écran ne le
+disait, et le port restait pris.
+
+Le défaut était **de la même famille que celui que §3.33 a corrigé** : DNS, ICMP,
+TCP, TLS et HTTP répondaient pour la VM et ont été rapatriés dans
+`internal/netcheck` pour cette raison exacte. La phrase est écrite en tête de
+`runDiagHost` depuis ; personne ne l'avait tirée pour `RunSS` et `KillProcess`,
+qui étaient restés.
+
+**Sous Linux le défaut n'existait pas** : `--net=host` y est bien le namespace de
+la machine. C'est ce qui l'a fait passer inaperçu — la vue était juste sur la
+plateforme où elle a probablement été écrite.
+
+Ce que la correction a coûté et rapporté est en §3.43.
+
+---
 
 **D39 — every discovered group member browsed, and none of them could be
 pulled. Fixed** by §3.18. Found on 2026-08-10 against a real Nexus, closed on
@@ -1401,6 +1469,115 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
+**D57 — l'onglet Topology affiche le réseau de la VM Docker, pas celui de la
+machine. Ouvert.** Vérifié à l'écran le 2026-08-24 sous Windows, en cherchant si
+[§3.44](#344-longlet-topology--ce-qui-se-lit-nativement-et-ce-quon-supprime)
+pouvait se passer de l'image.
+
+C'est **D55 dans une autre vue**, et en pire : là où l'onglet Ports partageait au
+moins un numéro de port avec l'hôte par coïncidence de forwarding, ici il n'y a
+**aucun recouvrement d'aucune sorte**.
+
+Ce que l'onglet lit :
+
+```
+eth0        10.254.254.3/24     docker0     172.17.0.1/16
+services1   10.254.254.6/32     br-73a880…  172.19.0.1/16
+veth69d515f@if2                 br-7d0ff2…  172.20.0.1/16
+default via 10.254.254.1 dev eth0
+```
+
+Ce que la machine a :
+
+```
+Ethernet 2   192.168.1.21/24    ProtonVPN  10.2.0.2/32     Tailscale  169.254.83.107/16
+Wi-Fi, Wi-Fi 3, Wi-Fi 4, Connexion réseau Bluetooth, vEthernet (Default Switch), vEthernet (WSL)
+default via 192.168.1.1 dev Ethernet 2   +   default dev ProtonVPN
+```
+
+**Pas une interface en commun, pas une route en commun.** Les cinq sondes sont
+`runDiagHost`, c'est-à-dire `docker run --rm --network host`, et sur Docker
+Desktop ce namespace est celui de la VM Linux. Donc :
+
+| Section | Ce qui s'affiche |
+|---|---|
+| Network Interfaces | `eth0`, `docker0`, les `br-*`, les `veth*` de la VM |
+| Routes | la table de la VM, passerelle `10.254.254.1` |
+| ARP / Neighbours | **3 entrées**, toutes internes à la VM |
+| Firewall | les chaînes `DOCKER`, `DOCKER-USER`, `DOCKER-FORWARD` |
+
+Ni ProtonVPN, ni Tailscale, ni la carte Ethernet, ni les deux routes par défaut
+concurrentes — c'est-à-dire exactement ce qu'on vient chercher dans un
+diagnostic réseau. Un utilisateur qui demande « suis-je sur le VPN » obtient une
+réponse qui ne parle pas de sa machine, et rien à l'écran ne le dit : le titre
+est « Topology », pas « Docker Topology ».
+
+**Une différence réelle avec D55**, et elle change le correctif : ici, montrer la
+VM est **faux mais pas inutile**. `docker0`, les `br-*`, les `veth*` et les
+chaînes `DOCKER` répondent à une vraie question — pourquoi mon conteneur
+n'atteint pas X. Les sockets de la VM, eux, n'intéressaient personne. Ce n'est
+donc pas « remplacer » mais « dire de quoi on parle, puis décider quoi garder » —
+§3.44.
+
+**Sous Linux le défaut n'existe pas**, pour la raison qui l'a fait passer
+inaperçu partout ailleurs : `--network host` y est bien le namespace de la
+machine.
+
+L'aide le disait à moitié : la section « Where the checks run » nommait bien
+l'onglet Topology parmi ce qui tourne dans l'image et dans la VM. Mais elle est
+derrière `?`, et l'onglet lui-même n'en dit rien — c'est la moitié qui compte.
+
+---
+
+**D58 — un échec partiel de l'onglet Topology s'affiche « aucune route »,
+« aucun voisin », « aucune chaîne ». Ouvert.** Trouvé en lisant
+`fetchTopoDataCmd` pour D57, le 2026-08-24.
+
+`fetchTopoDataCmd` lance cinq commandes en parallèle et **une seule d'entre elles
+peut faire échouer le lot** :
+
+```go
+if addrRes.Success {  ifaces = parseIPAddr(addrRes.Output)  } else { err = … }
+if linkRes.Success {  ifaces = parseIPLink(…)  } else { log.Printf("WARN"…) }
+if routeRes.Success { routes = parseIPRoute(routeRes.Output) }   // sinon : nil, sans un mot
+neighbours    := parseIPNeigh(neighRes.Output)                   // Success jamais consulté
+firewall, src := parseFirewall(fwRes.Output)                     // Success jamais consulté
+```
+
+Si `ip addr show` réussit et que les trois autres échouent — un `--privileged`
+refusé, une image sans `iptables`, un démon qui s'arrête entre deux des cinq
+`docker run` —, alors `err` est nil, `loadErr` est vidé, et l'écran affiche :
+
+```
+  No routes found
+  No neighbours found
+  No chains found
+```
+
+**Une machine sans route n'existe pas.** C'est D20 dans sa forme la plus
+littérale, trois fois sur un même écran : « je n'ai pas pu regarder » rendu comme
+« il n'y a rien ». Et c'est la vue qui a le moins de chances d'être crue à
+l'envers — trois sections vides d'un coup ressemblent à une machine en panne
+plutôt qu'à un outil en panne.
+
+Deux détails qui l'aggravent :
+
+- **`parseIPNeigh` et `parseFirewall` reçoivent la sortie d'échec** et la
+  parsent comme des données. En pratique le message d'erreur de Docker ne
+  ressemble à aucune ligne de leur grammaire, donc le résultat est vide plutôt
+  que faux — c'est de la chance, pas une décision.
+- **`ip -s link` est le seul échec journalisé** (`WARN`), et il est aussi le seul
+  des quatre dont la perte est invisible : les interfaces s'affichent quand même,
+  avec `MTU 0` et zéro erreur RX/TX. Un compteur d'erreurs à zéro parce que
+  personne n'a regardé est le même défaut, sur une colonne au lieu d'une section.
+
+Le correctif ne demande pas §3.44 : chaque source doit porter son propre état —
+lue, vide, ou pas lue — et une section qui n'a pas pu être lue doit le dire à la
+place de son contenu. Mais il vaut mieux le faire **avec** §3.44, parce que la
+liste des sources est précisément ce que §3.44 raccourcit.
+
+---
+
 **D56 — `scan.gitleaks_config` ne peut pas fonctionner en mode Docker, et son
 échec se lit « aucun secret ». Ouvert.** Trouvé en écrivant [§3.42](#342-plumber--un-score-de-sécurité-de-pipeline-par-dépôt),
 qui a besoin exactement du même réglage, et vérifié à l'exécution le 2026-08-24.
@@ -1487,63 +1664,6 @@ Le même montage sera nécessaire pour `scan.plumber_config` (§3.42), qui est l
 même réglage pour un autre outil. Le corriger ici d'abord évite de l'écrire deux
 fois faux.
 
-**D55 — l'onglet Ports liste les sockets de la VM Docker, pas ceux de la
-machine. Ouvert.** Vérifié à l'écran le 2026-08-23, sous Windows.
-
-`RunSS` lance `docker run --rm --net=host --pid=host --privileged`, et sur Docker
-Desktop `--net=host` est le namespace **de la VM Linux**. La vue montre donc les
-sockets et les processus de la VM. Ce n'est pas une hypothèse : les deux relevés
-côte à côte n'ont rien en commun.
-
-`Get-NetTCPConnection -State Listen` sur l'hôte — 38 sockets, dont :
-
-```
-::           11434   Listen   22328      (ollama)
-::            7680   Listen    4604
-::            5357   Listen       4      (System)
-::             445   Listen       4
-0.0.0.0      62841   Listen   32428
-127.0.0.1     6463   Listen   20696
-192.168.1.21   139   Listen       4
-```
-
-L'onglet Ports au même instant :
-
-```
-tcp  LISTEN  0.0.0.0:5000     125  dockerd
-tcp  LISTEN  0.0.0.0:51031     75  rpc.statd
-tcp  LISTEN  0.0.0.0:111       76  rpcbind
-tcp  LISTEN  [::]:111          76  rpcbind
-tcp  LISTEN  [::]:59517        75  rpc.statd
-```
-
-`rpcbind` et `rpc.statd` sont les démons NFS de la VM Docker Desktop, et des PID
-à deux chiffres sont ceux d'un système qui vient de démarrer. **Pas un des 38
-sockets de l'hôte n'est listé.** Le seul port qui apparaît des deux côtés est
-5000, et c'est une coïncidence de forwarding : côté Windows il appartient aux PID
-28360 et 32852, côté vue à `dockerd` PID 125 — c'est-à-dire l'autre bout du même
-tunnel, pas le même socket.
-
-**`K` est la moitié grave.** Il tue par `docker run --pid=host --privileged
-<image> kill -9 <pid>`, donc dans le même namespace : l'utilisateur croit avoir
-libéré le port qui le gêne et a tué un démon de la VM. Rien à l'écran ne le dit,
-et le port est toujours pris.
-
-Le défaut est **du même famille que celui que §3.33 a corrigé** : DNS, ICMP, TCP,
-TLS et HTTP répondaient pour la VM et ont été rapatriés dans `internal/netcheck`
-pour cette raison exacte. La phrase est écrite en tête de `runDiagHost` depuis ;
-personne ne l'a tirée pour `RunSS` et `KillProcess`, qui sont restés.
-
-Ce que ça veut dire pour §3.41 : la question n'est plus « peut-on se passer de
-l'image » mais « il faut s'en passer », au moins pour l'onglet Ports. Le
-remplacement est écrit là-bas — `gopsutil/v4/net` est déjà une dépendance
-directe, et `KillProcess` est une ligne de Go. Les traces de route restent une
-question ouverte à part, et elles au moins **disent** qu'elles répondent pour le
-conteneur (`renderTraceHeader`).
-
-**Sous Linux le défaut n'existe pas** : `--net=host` y est bien le namespace de
-la machine. C'est ce qui l'a fait passer inaperçu — la vue est juste sur la
-plateforme où elle a probablement été écrite.
 
 ---
 
@@ -7461,11 +7581,16 @@ rapporte différemment selon la plateforme, donc à vérifier avant de décider.
 sa raison écrite ; c'est une décision à revisiter, pas un défaut à corriger — le
 statut de D35.
 
-### 3.41 Se passer de `netshoot` — ce qui se réécrit en Go, et ce qu'on abandonne
+### 3.41 Se passer de `netshoot` — ce qui se réécrit en Go, et ce qu'on abandonne — **analysé, suite en §3.43**
 
-À analyser. L'image `nicolaka/netshoot` (`network.tool_image`) est la dernière
-dépendance de DevDesk à un conteneur pour des fonctions qui ne sont pas Docker.
-La question est de savoir ce qu'il resterait si elle disparaissait.
+L'analyse est faite et **l'option 1 a été prise** : §3.43 a sorti l'onglet Ports
+et `K` de l'image, qui ne sert plus qu'à la trace de route et à l'onglet
+Topology. Ce qui suit reste l'énoncé d'origine ; les deux mesures qu'il demandait
+sont rapportées en §3.43, et l'une des deux a décidé de l'implémentation.
+
+L'image `nicolaka/netshoot` (`network.tool_image`) était la dernière dépendance
+de DevDesk à un conteneur pour des fonctions qui ne sont pas Docker. La question
+est de savoir ce qu'il resterait si elle disparaissait.
 
 #### Le périmètre réel est plus petit qu'il n'en a l'air
 
@@ -7554,7 +7679,10 @@ provisoire :
 
 1. **Garder l'image pour `H` seul.** L'image reste, mais elle ne sert plus qu'à
    une touche, et `RunSS`/`KillProcess` cessent d'en dépendre. Le réglage
-   `network.tool_image` survit avec un nom qui redevient exact.
+   `network.tool_image` survit avec un nom qui redevient exact. — *Prise, en deux
+   temps : §3.43 pour l'onglet Ports et `K`, §3.44 pour l'onglet Topology, qui
+   n'avait été relevé par personne dans cette analyse et porte le même défaut
+   (D57).*
 2. **Abandonner le traceroute.** `H` disparaît, l'image aussi, et
    `network.tool_image` avec elle. Ce qu'on perd est réel : quand un `net_check`
    échoue au TCP, la question suivante est « où ça s'arrête », et c'est la seule
@@ -7567,7 +7695,9 @@ provisoire :
    même problème que §3.40, un mot qui ne varie jamais.
 
 L'option 1 est probablement la bonne première étape, parce qu'elle ne demande de
-renoncer à rien et qu'elle isole la question restante.
+renoncer à rien et qu'elle isole la question restante. — *C'est ce qui a été
+fait. Une fois §3.44 passée, il ne reste que la trace de route, donc les options
+2 et 3 sont tout ce qu'il restera à trancher.*
 
 #### Ce que ça retirerait aussi
 
@@ -7580,17 +7710,18 @@ renoncer à rien et qu'elle isole la question restante.
 - L'onglet Ports fonctionnerait **sans Docker installé**, ce qui est aujourd'hui
   une condition pour voir ses propres ports.
 
-#### À vérifier avant de planifier
+#### À vérifier avant de planifier — **mesuré**
 
-L'hypothèse du namespace est vérifiée (D55). Restent deux mesures :
+L'hypothèse du namespace était vérifiée (D55), et les deux mesures qui restaient
+sont prises. Les chiffres sont en §3.43 ; en un mot :
 
-1. Ce que `gopsutil` rend sur les trois plateformes pour un socket en écoute
-   sans processus attribuable — la colonne PID est ce sur quoi `K` agit, et un
-   PID vide ne doit pas donner une ligne qui prétend pouvoir être tuée.
-2. Si le PID exige des privilèges pour les processus d'autres utilisateurs.
-   `ss -p` les obtient parce que le conteneur est privilégié ; un DevDesk non
-   élevé verra probablement moins. C'est un vrai renoncement possible, à mesurer
-   plutôt qu'à deviner.
+1. **Un socket en écoute sans processus attribuable existe** — 5 sur 189 ici — et
+   son PID nul devient une chaîne vide, pas `"0"`, parce que `K` agit sur ce
+   champ.
+2. **Le PID n'exige aucun privilège ; le *nom* du processus, si.** Et c'est
+   l'énumération en masse qui le contourne, sans élévation. Le renoncement
+   redouté n'a donc pas lieu : la colonne Process est remplie pour tous les
+   processus de la machine.
 
 ### 3.42 `plumber` — un score de sécurité de pipeline, par dépôt
 
@@ -7826,6 +7957,247 @@ comportement dégradé sont relevés ci-dessus. Restent :
 3. **La licence de plumber** et le poids de l'image. Rien n'entre dans le
    binaire, mais c'est une dépendance de plus à installer ou à tirer.
 4. **Le titre de la colonne** (`CI` contre `CI Score`), et où va le score.
+
+### 3.43 L'onglet Ports lit la machine — `internal/ports` — **done**
+
+Fait le 2026-08-24. C'est l'option 1 de §3.41, prise pour la raison que D55 a
+établie : la question n'était plus « peut-on se passer de l'image » mais « il
+faut s'en passer », au moins pour l'onglet Ports et pour `K`.
+
+#### Ce qui a bougé
+
+| | Avant | Après |
+|---|---|---|
+| lecture des sockets | `ss -tupan` dans `docker run --rm --net=host --pid=host --privileged` | `gopsutil/v4/net` dans le process DevDesk |
+| `K` | `docker run --pid=host --privileged <image> kill -9 <pid>` | `os.FindProcess` + `Kill()` |
+| dépendance Docker de l'onglet | obligatoire | **aucune** |
+| dépendance Go nouvelle | — | **aucune** : `gopsutil/v4/net` était déjà importé par `internal/metrics/host.go` |
+| taille du binaire | 27,97 Mo | **28,09 Mo** (+0,11) — `gopsutil/v4/process`, qui n'était pas encore lié |
+
+`internal/docker/ports.go` et son test disparaissent (197 lignes avec
+`netdiag.go`, dont 134 ici). `internal/ports` les remplace par deux fichiers, et
+c'est un paquet plutôt qu'un fichier de plus dans `docker/` parce que ce qu'il
+fait n'a plus rien à voir avec Docker — le laisser là aurait été garder le nom du
+défaut.
+
+#### Les deux mesures que §3.41 demandait avant de planifier
+
+Prises sur la machine, et la première a décidé de l'implémentation :
+
+**Le nom du processus exige des droits ; le PID non.** `process.NewProcess(pid).
+Name()` passe par `OpenProcess` sous Windows : **98 sockets sur 189** ont répondu
+*Accès refusé*, c'est-à-dire tous les services de la machine. `Processes()` lit un
+snapshot Toolhelp32 à la place et a nommé **294 processus sur 294 en 11 ms**, sans
+élévation. L'énumération en masse n'est donc pas une optimisation de l'appel par
+PID : c'est la différence entre une colonne Process remplie et une colonne vide.
+C'était exactement le « vrai renoncement possible » que §3.41 demandait de
+mesurer plutôt que de deviner — et il n'a pas lieu.
+
+**Cinq sockets sur 189 n'ont aucun processus attribuable** (PID 0). Le PID est ce
+sur quoi `K` agit, donc un PID nul devient une chaîne vide et pas `"0"` : rendu
+`"0"` la ligne aurait l'air tuable, et le processus 0 est un groupe entier sous
+Unix. `Kill` le refuse une seconde fois, sur le modèle de la double garde de
+§3.23.
+
+#### Trois choix qui ne sont pas cosmétiques
+
+- **`ESTABLISHED` est raccourci en `ESTAB`.** La colonne State fait dix cellules,
+  donc l'orthographe longue est tronquée en `ESTABLISHE` — et le jeton de filtre
+  de `e` se lit mieux court.
+- **Un socket datagramme non connecté devient `UNCONN`.** Linux rapporte `NONE`,
+  Windows ne rapporte rien : sans normalisation le même socket se lisait
+  différemment selon la plateforme, et les filtres `l`/`e` avec lui.
+- **`n` ne résout que la moitié hôte.** `ss` sans `-n` transformait aussi 22 en
+  `ssh` ; Go résout un nom vers un port et pas l'inverse, donc honorer cette
+  moitié demanderait d'embarquer une copie de `/etc/services` et d'appeler ça la
+  réponse du système. En dire moins vaut mieux que dire ce que le système n'a pas
+  dit. C'est le seul renoncement de l'opération.
+
+Le cache de résolution inverse est **au niveau du paquet**, parce que les
+recherches tournent dans un `Cmd` et qu'un `Cmd` ne touche pas au modèle
+(Rule 110). Il mémorise **aussi les échecs** : une machine parlant à des hôtes
+sans enregistrement PTR les redemanderait à chaque tick de deux secondes — la
+rafale que le cache existe pour éviter, arrivant par les échecs au lieu des
+succès. Les adresses génériques, loopback et non spécifiées ne sont jamais
+demandées.
+
+#### Ce que ça a rendu possible
+
+**`ports_list` existe en MCP.** §3.38 l'avait refusé parce que `RunSS` démarrait
+un conteneur privilégié et que la promesse du serveur est de ne pas agir sur la
+machine ; sans conteneur, l'argument part avec. Il ne résout jamais d'adresse :
+`net_check` est le seul outil qui touche au réseau, et un listing qui demanderait
+discrètement le reverse DNS de chaque pair trouvé en serait un second.
+
+**L'onglet Ports fonctionne sans Docker installé**, ce qui était jusqu'ici une
+condition pour voir ses propres ports.
+
+**`K` signale avec les droits que DevDesk a.** C'est le changement visible : le
+processus d'un autre utilisateur, ou un service, revient maintenant refusé par le
+système au lieu de réussir contre la mauvaise machine.
+
+#### Ce qui reste dans l'image, et pourquoi
+
+`network.tool_image` sert encore à deux choses, et le commentaire de
+`NetworkConfig.ToolImage` le dit maintenant : **la trace de route** (`H`), qui
+demande des sockets ICMP bruts — la règle écrite dans `netcheck/env.go` est
+« DevDesk must not need root », et un traceroute en Go la contredirait sous
+Windows et sous Linux — et **l'onglet Topology**, qui a besoin de netfilter.
+
+Les deux répondent toujours pour la VM. `renderTraceHeader` le dit à l'écran, et
+la section d'aide « Where the checks run » a été réécrite pour ne plus prétendre
+que l'onglet Ports en fait partie.
+
+**L'onglet Topology, lui, ne le dit nulle part**, et §3.41 ne l'avait pas relevé.
+Vérifié aussitôt après : c'est le même défaut, sans le moindre recouvrement entre
+la VM et la machine — **D57**, et **D58** trouvé en lisant le même code. Le
+remplacement et ce qu'on en supprime sont en §3.44 ; ce qui restera après elle
+est la trace de route seule, donc les options 2 et 3 de §3.41.
+
+#### Une garde de source plutôt qu'une convention
+
+`TestNothingHereRunsASubprocessOrTalksToDocker` refuse `os/exec` et
+`internal/docker` dans `internal/ports`. La correction n'est pas « appeler Docker
+autrement », c'est « ne pas appeler Docker », et c'est une propriété de la source
+et non d'un comportement : un helper ajouté là qui lancerait un processus
+remettrait le défaut sans faire échouer quoi que ce soit d'autre. Même forme que
+`internal/ui/keymap` et que les deux tests de stdout de §3.38.
+
+### 3.44 L'onglet Topology — ce qui se lit nativement, et ce qu'on supprime
+
+À faire. Suite de §3.41 pour la seconde des deux fonctionnalités restées dans
+l'image, et correctif de **D57** (la vue montre la VM) et de **D58** (un échec
+partiel se lit comme une absence).
+
+La règle donnée est simple : **ce qui ne s'affiche pas facilement sur les trois
+plateformes est supprimé, pas traduit.** Ce qui suit l'applique source par
+source, en mesurant plutôt qu'en supposant.
+
+#### Les quatre sources, et ce qui les remplace
+
+Tout est relevé le 2026-08-24 sur cette machine, sans élévation.
+
+| Section | Remplacement natif | Nouvelle dépendance | Verdict |
+|---|---|---|---|
+| Interfaces — nom, état, adresses, MTU | `net.Interfaces()`, **stdlib** | aucune | **gardée** |
+| Erreurs RX/TX par interface | `gopsutil/v4/net.IOCounters(true)` | aucune (déjà là) | **gardée** |
+| Routes | Windows : `x/sys/windows.GetIpForwardTable2`. Linux : `/proc/net/route` + `/proc/net/ipv6_route`. macOS : `x/net/route` | aucune — `x/sys` et `x/net` sont déjà dans le graphe | **gardée**, voir la réserve |
+| ARP / Neighbours | rien de portable — détail plus bas | — | **supprimée** |
+| Firewall | rien du tout | — | **supprimée** |
+
+**Les deux premières sont gratuites et exactes.** `net.Interfaces()` rend les 10
+interfaces de la machine, et `IOCounters(true)` en rend 10 aussi : **0 interface
+sur 10 sans ligne de compteurs correspondante**, les noms concordent au caractère
+près, donc les erreurs tombent sur la bonne ligne sans table de correspondance.
+Un seul écueil relevé, à écrire dans le code : la loopback rend **`MTU = -1`**
+sous Windows, là où `ip` rend 65536.
+
+**Les routes marchent, et elles sont la réponse à la question qu'on pose.**
+`GetIpForwardTable2` a rendu **46 routes sans élévation**, dont les deux routes
+par défaut concurrentes que l'onglet actuel ne montre pas :
+
+```
+default          via 192.168.1.1   dev Ethernet 2   metric=0
+default          via —             dev ProtonVPN    metric=0
+10.2.0.2/32      via —             dev ProtonVPN    metric=256
+172.22.160.0/20  via —             dev vEthernet (Default Switch)
+```
+
+C'est-à-dire la question du split tunnel, qui est la première qu'on se pose quand
+un `net_check` échoue.
+
+**La réserve, à trancher :** les routes coûtent **trois implémentations** — une
+par plateforme — là où interfaces et compteurs n'en coûtent aucune. Aucune
+dépendance nouvelle et aucun contenu perdu, mais ce n'est pas gratuit, et la
+règle dit « facilement ». Si « les trois informations » se lit comme un bloc,
+alors les routes tombent avec les deux autres et il ne reste que la section
+Interfaces — auquel cas l'onglet Topology, à une section, n'est plus un onglet et
+la question devient celle de sa suppression pure et simple. **Les deux issues
+sont défendables ; celle recommandée ici garde les routes**, parce qu'elles ne
+perdent rien et qu'elles répondent seules à la question du VPN.
+
+#### Pourquoi l'ARP n'est pas portable, mesuré
+
+Ce n'est pas « plus difficile en Go », c'est **du contenu qui disparaît**. Relevé
+côte à côte dans le même conteneur :
+
+```
+$ ip neigh show
+10.254.254.1  dev eth0      lladdr 5a:94:ef:e4:0c:dd  REACHABLE
+10.254.254.7  dev services1 lladdr 52:ed:dc:63:88:55  REACHABLE
+fe80::50ed:dcff:fe63:8855 dev services1 lladdr 52:ed:dc:63:88:55  STALE
+
+$ cat /proc/net/arp
+IP address     HW type  Flags  HW address           Mask  Device
+10.254.254.1   0x1      0x2    5a:94:ef:e4:0c:dd    *     eth0
+10.254.254.7   0x1      0x2    52:ed:dc:63:88:55    *     services1
+```
+
+Deux pertes, et chacune touche ce que la section affiche :
+
+1. **L'entrée IPv6 n'est pas là.** `/proc/net/arp` est IPv4 seul.
+2. **Les états n'existent pas.** `0x2` est `ATF_COM` — complet. La section a une
+   légende de six états (`REACHABLE`, `PERMANENT`, `STALE`, `DELAY`,
+   `INCOMPLETE`, `FAILED`), avec trois couleurs, et `/proc` n'en distingue que
+   deux. Les récupérer demande **netlink**, donc une bibliothèque ou du socket à
+   la main, sur la plateforme où le défaut D57 n'existe même pas.
+
+Côté Windows, `GetIpNetTable2` **n'est pas exposé par `x/sys/windows`** —
+vérifié : `MibIpForwardRow2` y est, `MibIpNetRow2` non. Il faudrait déclarer la
+structure et l'appel à la main. Côté macOS, `x/net/route` avec `RTF_LLINFO`.
+
+Soit trois implémentations dont deux à écrire depuis zéro, pour une section dont
+le contenu serait amputé sur celle des trois où il était complet. **Supprimée.**
+
+#### Pourquoi le pare-feu n'est pas traduisible
+
+`FirewallChain{Name, Policy, Rules}` est une **structure iptables**. `INPUT`,
+`FORWARD`, `OUTPUT` avec une politique par défaut ne sont pas un concept réseau,
+c'est le modèle de Netfilter.
+
+Windows a des **profils** — Domain, Private, Public — avec une action par défaut
+entrante et sortante, et des règles à plat. Relevé sans élévation sur cette
+machine : les trois profils actifs, `DefaultInboundAction = NotConfigured`, et
+**391 règles activées**. macOS a `pf`, qui est encore un troisième modèle.
+
+Rien de tout ça ne rentre dans trois colonnes nommées chaîne / politique /
+nombre de règles sans mentir sur la forme. **Supprimée.**
+
+Le pare-feu était par ailleurs la seule raison du `--privileged` dans
+`docker/topology.go`, donc sa suppression retire le dernier conteneur privilégié
+de l'application après §3.43.
+
+#### Ce que ça donne
+
+- L'onglet garde **Interfaces** (nom, état, adresses, MTU, erreurs RX/TX) et
+  **Routes**, tous deux lus sur la machine.
+- `internal/docker/topology.go` disparaît en entier, `--privileged` avec.
+- `network.tool_image` ne sert plus qu'à **une** chose, la trace de route, et son
+  commentaire redevient exact pour la seconde fois en deux entrées.
+- La question posée par §3.41 se réduit alors à sa forme la plus nette : une
+  image Docker de 300 Mo pour une seule touche. Les options 2 et 3 de §3.41 —
+  abandonner `H`, ou écrire un traceroute en Go qui échoue proprement sans
+  privilèges — deviennent la seule chose qui reste à décider.
+
+#### D58 se corrige ici, pas ailleurs
+
+Avec deux sources au lieu de cinq, la règle est courte à écrire et il n'y a plus
+d'excuse pour ne pas la tenir : **chaque section porte son propre état** — lue,
+lue et vide, ou pas lue — et une section qui n'a pas pu être lue le dit à la
+place de son contenu. Une lecture d'interfaces qui échoue n'est pas une machine
+sans interface.
+
+Le cas du compteur d'erreurs est le même à l'échelle d'une colonne : `IOCounters`
+peut échouer seul, et zéro erreur RX/TX parce que personne n'a regardé est
+exactement le `*bool` de `SecretVerdict()` sous un autre nom.
+
+#### Une remarque sur l'ordre
+
+D57 est un mensonge à l'écran et se corrige en une ligne : nommer la VM dans le
+titre ou dans un bandeau, comme `renderTraceHeader` le fait déjà pour la trace.
+Ça ne coûte rien et ça supprime le mensonge tout de suite, avant que quoi que ce
+soit d'autre ne bouge. Le reste de cette entrée peut suivre à son rythme.
+
 
 ## 4. Existing plans
 
