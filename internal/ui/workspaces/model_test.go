@@ -1168,7 +1168,7 @@ func TestDetectSubRepoPaths(t *testing.T) {
 		{"hidden files on", true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := detectSubRepoPaths(root, 3, tc.showHidden)
+			got := detectSubRepoPaths(root, tc.showHidden)
 
 			found := map[string]bool{}
 			for _, p := range got {
@@ -1187,23 +1187,44 @@ func TestDetectSubRepoPaths(t *testing.T) {
 	}
 }
 
-func TestDetectSubRepoPathsRespectsTheDepthLimit(t *testing.T) {
+// D59: the walk stopped at three levels, so a repository at
+// `monorepos/client/2026/api` was invisible to S, F and A while the directory
+// holding it browsed normally — and nothing said a limit had been applied.
+func TestARepositoryIsFoundHoweverDeepItSits(t *testing.T) {
 	root := t.TempDir()
-	deep := filepath.Join(root, "a", "b", "c", "d")
+	deep := filepath.Join(root, "a", "b", "c", "d", "e", "f", "g", "deep-repo")
 	if err := os.MkdirAll(filepath.Join(deep, ".git"), 0o755); err != nil {
 		t.Fatalf("creating the deep repo: %v", err)
 	}
 
-	if got := detectSubRepoPaths(root, 2, false); len(got) != 0 {
-		t.Errorf("detectSubRepoPaths = %v at depth 2, want nothing that deep", got)
+	got := detectSubRepoPaths(root, false)
+	if len(got) != 1 || got[0] != deep {
+		t.Errorf("detectSubRepoPaths = %v, want the repository eight levels down (%q)", got, deep)
 	}
-	if got := detectSubRepoPaths(root, 4, false); len(got) != 1 {
-		t.Errorf("detectSubRepoPaths = %v at depth 4, want the deep repo", got)
+}
+
+// The prune that does the work, and the one the depth limit was covering for: a
+// repository's own vendored tree is never entered, so removing the limit does
+// not turn a scan of a monorepo into a walk of every node_modules under it.
+func TestTheWalkStopsAtEveryRepositoryItFinds(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "outer")
+	buried := filepath.Join(repo, "node_modules", "pkg", "vendored")
+	if err := os.MkdirAll(filepath.Join(buried, ".git"), 0o755); err != nil {
+		t.Fatalf("creating the buried repo: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {
+		t.Fatalf("creating the outer repo: %v", err)
+	}
+
+	got := detectSubRepoPaths(root, false)
+	if len(got) != 1 || got[0] != repo {
+		t.Errorf("detectSubRepoPaths = %v, want only the outer repository %q", got, repo)
 	}
 }
 
 func TestDetectSubRepoPathsOnAMissingDirectory(t *testing.T) {
-	if got := detectSubRepoPaths(filepath.Join(t.TempDir(), "nope"), 3, false); len(got) != 0 {
+	if got := detectSubRepoPaths(filepath.Join(t.TempDir(), "nope"), false); len(got) != 0 {
 		t.Errorf("detectSubRepoPaths = %v on a missing directory, want nothing", got)
 	}
 }
