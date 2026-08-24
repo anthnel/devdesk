@@ -157,10 +157,6 @@ func verdictStyle(c netcheck.Check) lipgloss.Style {
 // renderDetailsContent draws one check: what was observed, what it means, what
 // to do, and the facts behind it.
 func (m *Model) renderDetailsContent(width int) string {
-	if m.traceOutput != "" {
-		return m.renderTrace(width)
-	}
-
 	c := m.selected
 	e := netcheck.Explain(c)
 
@@ -200,28 +196,6 @@ func section(width int, title, body string) []string {
 	}
 	lines = append(lines, theme.EmptyLineBg(width))
 	return lines
-}
-
-// renderTrace draws a route trace, with the caveat that makes it readable.
-func (m *Model) renderTrace(width int) string {
-	title := "ICMP route"
-	if m.traceTCP {
-		title = "TCP route"
-	}
-
-	lines := []string{
-		theme.EmptyLineBg(width),
-		theme.PadWithBg(theme.SubTitleStyle.Render(theme.IconNetwork+" "+title), width),
-		theme.EmptyLineBg(width),
-	}
-	// The trace is the one probe that still runs in a container, so it answers
-	// for the container's network and can disagree with the checks above it.
-	// Saying so is cheaper than a user reconciling two contradictory screens.
-	lines = append(lines, theme.PadWithBg(
-		theme.DimStyle.Render("  Traced from the Docker network tool container, not from this machine."), width))
-	lines = append(lines, theme.EmptyLineBg(width))
-	lines = append(lines, formatTracerouteOutput(m.traceOutput, width)...)
-	return strings.Join(lines, "\n")
 }
 
 // rebuildChecksTable refills the table from the filtered results.

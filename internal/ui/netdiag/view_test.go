@@ -9,7 +9,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/netcheck"
-	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -170,30 +169,6 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		if !strings.Contains(results, want) {
 			t.Errorf("the results state does not advertise %q: %s", want, results)
 		}
-	}
-}
-
-// TestTheTraceShortcutIsAdvertisedOnlyWhereItApplies is Rule 130.
-func TestTheTraceShortcutIsAdvertisedOnlyWhereItApplies(t *testing.T) {
-	advertised := func(m *Model) bool {
-		for _, s := range m.GetShortcuts() {
-			if s.Key == keymap.Trace {
-				return true
-			}
-		}
-		return false
-	}
-
-	refused := deliver(t, runningModel(t, "example.com"),
-		check(netcheck.CheckTCP, netcheck.Fail, "refused"))
-	if !advertised(refused) {
-		t.Error("a refused port does not offer the trace")
-	}
-
-	reachable := deliver(t, runningModel(t, "example.com"),
-		check(netcheck.CheckTCP, netcheck.OK, "open"))
-	if advertised(reachable) {
-		t.Error("a reachable host offers a trace nobody needs")
 	}
 }
 

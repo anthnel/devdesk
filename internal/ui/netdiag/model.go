@@ -23,7 +23,7 @@ const (
 	StateInput   ViewState = iota // Target, port and resolver
 	StateRunning                  // The pipeline is walking its stages
 	StateResults                  // The checks and their verdicts
-	StateDetails                  // One check explained, or a route trace
+	StateDetails                  // One check explained
 )
 
 // Tab indices
@@ -67,13 +67,6 @@ type stageDoneMsg struct {
 	results netcheck.Results
 }
 
-// traceDoneMsg carries the output of a route trace.
-type traceDoneMsg struct {
-	gen    int
-	output string
-	tcp    bool
-}
-
 // Model represents the network diagnostics view
 type Model struct {
 	config *config.Config
@@ -106,12 +99,9 @@ type Model struct {
 	checksTable datatable.Model[netcheck.Check]
 	filterBar   components.FilterBar
 
-	// Details: one check explained, or a route trace
+	// Details: one check explained
 	detailsViewport viewport.Model
 	selected        netcheck.Check
-	traceOutput     string
-	traceTCP        bool
-	tracing         bool
 
 	// footer is the one line of transient state below the tab bar (Rule 128).
 	footer components.FooterMessage
@@ -211,28 +201,6 @@ func (m *Model) visibleChecks() []netcheck.Check {
 func matchesQuery(c netcheck.Check, query string) bool {
 	return strings.Contains(strings.ToLower(c.Title), query) ||
 		strings.Contains(strings.ToLower(c.Summary), query)
-}
-
-// tracedTarget reports whether a failed check makes a route trace worth
-// offering, and it is the only rule that decides (Rule 130).
-//
-// Tracing is the one expensive probe left — thirty hops at a second each — and
-// cost was the only honest reason a checkbox ever existed. So it is offered
-// when the path is in question and hidden when it is not: a certificate that
-// does not verify is not a routing problem, and a trace would be thirty seconds
-// spent answering something nobody asked.
-func (m *Model) traceWorthOffering() bool {
-	if m.state != StateResults {
-		return false
-	}
-	switch {
-	case m.results.VerdictOf(netcheck.CheckTCP) == netcheck.Fail:
-		return true
-	case m.results.VerdictOf(netcheck.CheckICMP) == netcheck.Warn:
-		return true
-	default:
-		return false
-	}
 }
 
 // checkSettings is what the config says the pipeline should wait for and send.

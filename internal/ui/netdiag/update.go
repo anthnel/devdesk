@@ -65,9 +65,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stageDoneMsg:
 		return m.handleStageDone(msg)
 
-	case traceDoneMsg:
-		return m.handleTraceDone(msg)
-
 	// Ports sub-model messages. The confirm-modal answers are here because the
 	// kill asks before it acts (§3.26), and the modal is the ports tab's.
 	case portsTickMsg, portsDataMsg, portsKillResultMsg,
@@ -95,7 +92,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleSpinnerTick(msg spinner.TickMsg) (*Model, tea.Cmd) {
-	if m.state == StateRunning || m.tracing {
+	if m.state == StateRunning {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		m.footer.SetSpinnerFrame(m.spinner.View())
@@ -139,23 +136,6 @@ func (m *Model) handleStageDone(msg stageDoneMsg) (*Model, tea.Cmd) {
 		return m, m.footer.Error("Run stopped — the target is no longer valid")
 	}
 	return m, runStageCmd(m.runGen, tg, m.checkSettings(), msg.next, m.results)
-}
-
-func (m *Model) handleTraceDone(msg traceDoneMsg) (*Model, tea.Cmd) {
-	if msg.gen != m.runGen {
-		return m, nil
-	}
-	m.tracing = false
-	if msg.output == "" {
-		return m, m.footer.Error("The trace produced no output — check logs")
-	}
-	m.traceOutput = msg.output
-	m.traceTCP = msg.tcp
-	m.state = StateDetails
-	m.resizeDetailsViewport()
-	m.detailsViewport.SetContent(m.renderDetailsContent(m.detailsViewport.Width))
-	m.detailsViewport.GotoTop()
-	return m, nil
 }
 
 func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
@@ -285,33 +265,14 @@ func (m *Model) handleKeyResults(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.filterBar.SetTokenActive(problemsToken, !m.filterBar.IsTokenActive(problemsToken))
 		m.rebuildChecksTable()
 		return m, nil
-	case "H":
-		return m.startTrace()
 	}
 	return m, m.checksTable.Update(msg)
-}
-
-// startTrace runs a route trace, when a check makes one worth running.
-func (m *Model) startTrace() (*Model, tea.Cmd) {
-	if !m.traceWorthOffering() {
-		return m, m.footer.Warn("Nothing here points at a routing problem")
-	}
-	tg, err := m.buildTarget()
-	if err != nil {
-		return m, m.footer.Error(capitalize(err.Error()))
-	}
-	// A refused port is a path question about that port, so it is traced with
-	// TCP; a filtered ping is a question about the path itself.
-	tcp := m.results.VerdictOf(netcheck.CheckTCP) == netcheck.Fail
-	m.tracing = true
-	return m, tea.Batch(m.spinner.Tick, traceCmd(m.runGen, m.config.Network.ToolImage, m.config.Network.TracerouteMaxHops, tg, tcp))
 }
 
 func (m *Model) handleKeyDetails(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.state = StateResults
-		m.traceOutput = ""
 		return m, nil
 	case "up":
 		m.detailsViewport.ScrollUp(1)
@@ -335,7 +296,6 @@ func (m *Model) openDetails() (*Model, tea.Cmd) {
 		return m, nil
 	}
 	m.selected = c
-	m.traceOutput = ""
 	m.state = StateDetails
 	m.resizeDetailsViewport()
 	m.detailsViewport.SetContent(m.renderDetailsContent(m.detailsViewport.Width))
@@ -349,7 +309,6 @@ func (m *Model) resetToForm() (*Model, tea.Cmd) {
 	m.targetInput.Focus()
 	m.results = netcheck.Results{}
 	m.verdict = netcheck.Unknown
-	m.traceOutput = ""
 	m.filterBar.ClearSearch()
 	m.filterBar.SetTokenActive(problemsToken, false)
 	m.rebuildChecksTable()

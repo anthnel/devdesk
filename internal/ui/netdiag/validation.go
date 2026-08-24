@@ -53,10 +53,12 @@ func isHostname(s string) bool {
 
 // validateTarget checks that the target is a usable IP address or hostname.
 //
-// The route trace still hands the target to a container as an argument, so
-// rejecting anything that is not a plain host keeps shell metacharacters out of
-// the one command that still takes one. The checks themselves no longer shell
-// out at all, which retired the openssl pipeline this guard was written for.
+// Nothing here shells out any more — the openssl pipeline this guard was
+// written for went with §3.33, and the route trace, the last command that took
+// the target as an argument, went with §3.47. It is kept because a resolver
+// asked for "example.com; rm -rf /" should be told the target is malformed
+// rather than handed it, and because a guard is cheaper to keep than to
+// reinstate the day something shells out again.
 func validateTarget(target string) error {
 	if target == "" {
 		return fmt.Errorf("target is required")

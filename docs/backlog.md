@@ -14,7 +14,10 @@ rather than carried over.
 **Deux ouverts : D56 et D59** — voir [§1.3](#13-open).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
-ils se lisent ensemble. **D55** — l'onglet Ports listait les sockets de la VM
+ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
+l'application : ce qui interroge cette machine tourne dans ce process, et le seul
+conteneur qui reste interroge un réseau Docker, ce qu'aucun process hôte ne peut
+faire. **D55** — l'onglet Ports listait les sockets de la VM
 Docker — est fermé par
 [§3.43](#343-longlet-ports-lit-la-machine--internalports). **D57 était le même
 défaut dans l'onglet Topology**, où il était total : pas une interface ni une
@@ -23,7 +26,9 @@ un échec partiel y faisait afficher « aucune route », « aucun voisin » et
 « aucune chaîne ». Les deux sont fermés par
 [§3.44](#344-longlet-topology-devient-longlet-interfaces--done), qui a supprimé
 trois sections sur quatre plutôt que de les traduire, et déplacé la question de
-la route dans le pipeline de Diagnostics.
+la route dans le pipeline de Diagnostics — puis par
+[§3.47](#347-la-trace-de-route-est-supprimée-et-networktool_image-avec--done),
+qui a supprimé la trace de route et avec elle le dernier `--network host`.
 
 Il reste **D56**, et **D59** à moitié : un scan lancé sur une arborescence
 oubliait les dépôts situés plus bas que trois niveaux, et ceux derrière un lien
@@ -93,12 +98,24 @@ diagnostic réseau. Un utilisateur qui demande « suis-je sur le VPN » obtient 
 réponse qui ne parle pas de sa machine, et rien à l'écran ne le dit : le titre
 est « Topology », pas « Docker Topology ».
 
-**Une différence réelle avec D55**, et elle change le correctif : ici, montrer la
-VM est **faux mais pas inutile**. `docker0`, les `br-*`, les `veth*` et les
+**Une différence réelle avec D55**, et elle a décidé du correctif : ici, montrer
+la VM était **faux mais pas inutile**. `docker0`, les `br-*`, les `veth*` et les
 chaînes `DOCKER` répondent à une vraie question — pourquoi mon conteneur
-n'atteint pas X. Les sockets de la VM, eux, n'intéressaient personne. Ce n'est
-donc pas « remplacer » mais « dire de quoi on parle, puis décider quoi garder » —
-§3.44.
+n'atteint pas X. Les sockets de la VM, eux, n'intéressaient personne. Ce n'était
+donc pas « remplacer » mais « dire de quoi on parle, puis décider quoi garder ».
+
+**Ce qui a été gardé l'est là où la question se pose** : le test de connectivité
+OCI (`:oci` → Networks → `enter` → `c`) lance un conteneur **dans un réseau
+Docker choisi**, ce qui est correct par construction — et c'est le seul endroit
+de l'application qui démarre encore un conteneur. Tout le reste répond depuis ce
+process.
+
+**Le défaut est clos des deux côtés.** §3.44 a rapatrié les interfaces et
+déplacé la question de la route dans le pipeline de Diagnostics ;
+[§3.47](#347-la-trace-de-route-est-supprimée-et-networktool_image-avec--done) a
+supprimé la trace de route, qui était le dernier `--network host` de
+l'application. Il n'en reste aucun, ce qui est la forme vérifiable de
+« DevDesk ne prétend plus répondre pour une machine qui n'est pas la vôtre ».
 
 **Sous Linux le défaut n'existe pas**, pour la raison qui l'a fait passer
 inaperçu partout ailleurs : `--network host` y est bien le namespace de la
@@ -8355,7 +8372,8 @@ en dur — sinon un `:` tapé dans la requête ouvre la ligne de commande.
 
 `network.tool_image` ne sert plus qu'à **une** chose côté hôte, la trace de
 route — et à une autre, côté réseau Docker, que personne n'avait comptée. C'est
-[§3.47](#347-retirer-networktool_image--ce-quil-reste-à-décider).
+[§3.47](#347-la-trace-de-route-est-supprimée-et-networktool_image-avec--done),
+qui a supprimé la première et renommé le réglage d'après la seconde.
 
 
 ### 3.45 `datatable` — des largeurs de colonnes qui regardent le contenu
@@ -8521,93 +8539,116 @@ et la colonne d'icône en prendra deux au même endroit. Sur une vue à onze
 colonnes, c'est ce qui rend l'échange gratuit plutôt qu'un ajout.
 
 
-### 3.47 Retirer `network.tool_image` — ce qu'il reste à décider
+### 3.47 La trace de route est supprimée, et `network.tool_image` avec — **done**
 
-À faire. §3.41 posait la question « se passer de netshoot » ; §3.43 et §3.44 ont
-retiré quatre des cinq usages. Cette entrée fait l'inventaire de ce qui reste et
-tranche ce qui peut l'être, parce que **le relevé a trouvé un usage que les trois
-entrées précédentes n'avaient pas compté**.
+Fait le 2026-08-24. §3.41 posait la question « se passer de netshoot », §3.43 et
+§3.44 en ont retiré quatre usages sur cinq, et cette entrée retire le
+cinquième — en supprimant la fonctionnalité plutôt qu'en la réécrivant. Elle
+**ferme D57**.
 
-#### Ce qui lit encore le réglage
+#### L'inventaire, et l'usage que personne n'avait compté
 
-| Site | Ce qu'il lance | Namespace | Statut |
+Après §3.44, le réglage avait deux lecteurs, et le relevé a montré que ce
+n'étaient pas la même question :
+
+| Site | Ce qu'il lance | Namespace | Verdict |
 |---|---|---|---|
-| `netdiag/update.go` → `traceCmd` | `traceroute` / `tcptraceroute` | `--network host` — **la VM** | D57 s'y applique encore |
-| `oci_resources/keys.go` → `RunDiagnosticContainer` | `ping`, `curl`, `nc` | `--network <networkID>` — **un réseau Docker** | **correct par construction** |
-| `dashboard/model.go` | rien, il affiche la disponibilité de l'image | — | suit ce que les deux décident |
-| `configuration/fields.go` | le champ texte | — | idem |
+| `netdiag` → `traceCmd` | `traceroute` / `tcptraceroute` | `--network host` — **la VM** | **supprimé** |
+| `oci_resources` → `RunDiagnosticContainer` | `ping`, `nc`, `wget` | `--network <networkID>` — **un réseau Docker** | **gardé** |
 
-**Les deux premiers ne sont pas la même question, et c'est le point de
-l'entrée.** La trace tourne sur le réseau de l'hôte, donc elle répond pour la VM
-et pas pour la machine — c'est D57, non corrigé, et l'onglet le dit
-(`renderTraceHeader`). Le test de connectivité OCI, lui, tourne **dans un réseau
-Docker qu'on a choisi**, et c'est précisément ce qu'il faut : la question posée
-est « ce conteneur en atteint-il un autre sur ce bridge », et aucun process hôte
-ne peut y répondre. Le supprimer ou le rapatrier serait une régression.
+Le second se trouve sous `:oci` → onglet Networks → `enter` → `c`, ce qui
+explique pourquoi trois entrées successives sur netdiag ne l'avaient jamais
+croisé. Il est **correct par construction** : « ce conteneur en atteint-il un
+autre sur ce bridge » n'a pas de réponse depuis un process hôte. C'est la
+distinction qui décide de tout ici — ce qui interroge *cette machine* doit tourner
+dans ce process, ce qui interroge *un réseau Docker* doit tourner dedans.
 
-Autrement dit : `network.tool_image` ne peut pas simplement disparaître. Il faut
-soit **deux réglages**, soit **un réglage dont le nom cesse de mentir**, soit
-**un défaut en dur**.
+#### Pourquoi la trace part au lieu d'être réécrite
 
-#### La mesure qui change la discussion
+Trois raisons, dans l'ordre où elles pèsent.
 
-Relevé le 2026-08-24 :
+**Elle répondait pour la mauvaise machine.** `--network host` est le namespace de
+la VM Linux sur Docker Desktop : la trace partait de `10.254.254.3` et suivait la
+route de la VM, pas celle de la machine — la même erreur que D55 et D57, sur le
+dernier endroit où elle subsistait. La vue le disait (« Traced from the Docker
+network tool container »), ce qui est mieux que rien et ne rend pas le résultat
+juste pour autant.
 
-| Image | Taille | Couvre |
-|---|---|---|
-| `nicolaka/netshoot` | **874 Mo** | tout |
-| `busybox` | **6,81 Mo** | `ping`, `nc`, `wget`, `traceroute`, `traceroute6`, `nslookup`, `telnet` |
+**Ce qu'on venait y chercher a une meilleure réponse.** La question posée en
+pratique est « pourquoi je n'atteins pas cet hôte », et sa cause la plus fréquente
+sur un poste de travail est un VPN qui capture la route par défaut. Le check
+**Local route** de §3.44 y répond depuis cette machine, en 2 ms, en nommant
+l'interface et l'adresse source. Le chemin saut par saut est réellement perdu ;
+il était de toute façon celui de la VM.
 
-Un facteur **128**. Et `traceroute` de busybox tourne **sans `--privileged`**
-dans un conteneur par défaut — vérifié, Docker accorde `NET_RAW` — donc rien du
-côté des droits ne réclame netshoot.
+**La réécrire coûtait cher et n'était pas acquise.** L'issue 4 de la version
+précédente de cette entrée listait trois inconnues — lire le `TIME_EXCEEDED` ICMP
+sans socket brute sur trois plateformes, un TTL par paquet que `pro-bing`
+n'expose pas, et le mode TCP qui demande de lire l'ICMP d'erreur d'une connexion
+sortante. C'était un projet, pour une fonctionnalité dont la valeur venait de
+retomber.
 
-Il manque exactement deux choses à busybox :
+#### Ce que ça supprime
 
-- **`curl`**, pour le test HTTP GET de l'onglet OCI. `wget -S -O-` répond à la
-  même question ; la sortie affichée change, et c'est une sortie brute que
-  l'utilisateur lit, donc c'est un changement visible et pas un détail interne.
-- **`tcptraceroute`**, et c'est le vrai obstacle. `traceCmd` le choisit
-  **exactement quand le connect TCP a échoué** (`VerdictOf(CheckTCP) == Fail`),
-  c'est-à-dire dans le seul cas où la trace ICMP a de bonnes chances d'être
-  filtrée. Le remplacer par `traceroute` reviendrait à répondre à côté au moment
-  où on en a le plus besoin.
+| | |
+|---|---|
+| `internal/docker/netdiag.go` | **entier** — `runDiagHost`, `RunTraceroute`, `RunTCPTraceroute`, `DiagResult` |
+| `internal/ui/netdiag/traceroute_formatter.go` | **entier**, 278 lignes |
+| `traceCmd`, `traceDoneMsg`, `handleTraceDone`, `startTrace`, `renderTrace`, `traceWorthOffering`, `m.tracing` | le pipeline complet de la touche |
+| `network.traceroute_max_hops` | le réglage, son défaut, son champ dans la vue de configuration |
+| `keymap.Trace` | **`H` redevient une lettre libre** |
+| lignes | **-769 net** |
+| binaire | 28,14 → 28,09 Mo (**-0,05**) — soit +0,01 Mo pour §3.44 et §3.47 réunies |
 
-#### Les issues, du moins cher au plus cher
+**`H` est remise dans `free`**, à côté de `J`, `Q` et `Z`. Une lettre qu'une
+action vient de libérer se redéclare libre, sinon elle reste réservée à un usage
+qui n'existe plus — et `TestFreeLettersAreActuallyFree` la vérifie comme les
+autres.
 
-1. **Renommer sans rien retirer.** `network.tool_image` devient
-   `network.diag_image` — ou reste — et sa documentation dit les deux usages
-   plutôt qu'un. Coût nul, mais le réglage reste, et une image de 874 Mo reste le
-   défaut.
-2. **Changer le défaut pour `busybox`, garder le réglage.** Gagne le facteur 128
-   pour tout le monde, et laisse celui qui veut `tcptraceroute` et `curl` pointer
-   sur netshoot. Il faut alors que `H` **dise** ce qu'il a lancé quand
-   `tcptraceroute` manque, plutôt que d'échouer avec la sortie brute de `docker
-   run` — sinon c'est un « échec lu comme une absence » de plus.
-3. **Deux réglages** — `network.trace_image` et `registry`/`oci.diag_image` —
-   parce que ce sont deux questions. Honnête, et c'est un réglage de plus dans
-   une vue de configuration qui en compte déjà vingt-neuf.
-4. **Écrire la trace en Go et supprimer le réglage côté hôte.** C'est l'option 3
-   de §3.41, jamais tranchée. Ce qui a changé depuis : `netcheck` fait déjà de
-   l'ICMP sans privilège (`pro-bing`, `SetPrivileged` seulement sous Windows), et
-   `go-netroute` a montré qu'une seule implémentation pour trois plateformes est
-   possible quand la bibliothèque existe. À vérifier avant de s'engager, et
-   **aucune de ces trois n'est acquise** :
-   - lire le `TIME_EXCEEDED` ICMP en retour sans socket brute — plausible sous
-     Windows (`IcmpSendEcho2` rend `IP_TTL_EXPIRED_TRANSIT` comme statut) et sous
-     Linux (socket ICMP datagramme + `IP_RECVERR`), à mesurer ;
-   - le TTL par paquet avec `pro-bing`, qui ne l'expose pas aujourd'hui ;
-   - le mode TCP, qui demande de lire l'ICMP d'erreur d'une connexion sortante.
-   Si les trois passent, `H` répond enfin **pour la machine** et D57 se ferme
-   avec le réglage. Si l'une échoue, l'issue 2 reste la bonne.
+#### D57 est fermé, et c'est vérifiable
 
-**Recommandation : l'issue 2 maintenant, l'issue 4 quand quelqu'un a une
-journée.** Le facteur 128 est acquis tout de suite et ne bloque rien ; réécrire
-la trace est un projet, et le mesurer d'abord est ce que §3.41 demandait déjà.
+**Plus aucun `--network host` dans l'application.** C'était la dernière, après
+que §3.33 eut rapatrié DNS/ICMP/TCP/TLS/HTTP, §3.43 la table des sockets et
+§3.44 les interfaces. Ce qui reste de Docker dans DevDesk ne prétend plus jamais
+répondre pour cette machine.
 
-Ce qui n'est **pas** discutable, quelle que soit l'issue : le test de
-connectivité OCI garde une image, et le réglage qui le sert doit dire qu'il le
-sert. C'est ce que le nom actuel ne fait pas.
+#### Le réglage est renommé, pas supprimé
+
+`network.tool_image` → **`network.connectivity_image`**. Le nom ne disait rien
+parce que le réglage servait deux choses sans rapport ; il n'en sert plus qu'une,
+donc il est nommé d'après elle, et son commentaire dit ce que l'image doit
+porter : `ping`, `nc`, `wget`. **busybox** couvre les trois en 6,81 Mo, contre
+874 Mo pour `nicolaka/netshoot` — facteur 128 — et c'est le nouveau défaut.
+
+`curl` était le quatrième besoin ; il est devenu `wget -S -O-`, qui est dans les
+**deux** images et rend la même ligne de statut et les mêmes en-têtes, mesuré
+côte à côte. Ce n'est donc pas un repli conditionnel : c'est une commande, qui
+marche partout.
+
+**La chaîne de migration a trois maillons** —
+`docker.network_tool_image` → `network.tool_image` → `network.connectivity_image`
+— et un fichier peut se trouver à n'importe quel point dessus. Les deux renommages
+tournent avant les défauts, du plus ancien au plus récent, chacun effaçant sa clé
+une fois reportée. L'ordre est l'essentiel : `yaml.Unmarshal` n'est pas strict
+ici, donc un bloc non migré est ignoré en silence et l'image revient au défaut
+sans que rien à l'écran ne le dise — un utilisateur pointant sur son propre
+miroir verrait la sonde tirer de Docker Hub. `TestTheImageSurvivesBothRenames`
+couvre les deux orthographes retirées, `TestTheNewestKeyWins` un fichier qui les
+porte toutes les trois.
+
+Seul le **défaut** change : un `config.yaml` qui nomme déjà `nicolaka/netshoot`
+n'est pas réécrit. Ce que le fichier déclare n'est jamais corrigé d'office.
+
+#### Ce qui est abandonné avec la trace
+
+`tcptraceroute` et son repli — construits une heure plus tôt dans cette même
+branche — partent avec la fonctionnalité qu'ils servaient. L'arrangement méritait
+d'être noté au passage, parce qu'il resservira : un shell qui décide lui-même
+dans **un seul conteneur**, avec des marqueurs explicites en tête de sortie
+(`TCP:` / `ICMP:`), plutôt qu'un `command -v` en conteneur séparé qui double la
+latence, ou qu'un message d'erreur reniflé dans la langue de l'image. C'est
+l'arrangement `IPTABLES:` / `UNAVAILABLE:` de `RunFirewallRules`, que §3.44 avait
+supprimé avec le pare-feu.
 
 
 ## 4. Existing plans

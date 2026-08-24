@@ -47,8 +47,12 @@ paie une fois.
 - **Resource Actions** — une **majuscule**, toujours, et son sens est le même
   partout. Le vocabulaire complet est déclaré dans `internal/ui/keymap`, et
   `TestNoViewBindsAnUndeclaredUppercaseKey` parcourt les sources pour vérifier
-  qu'aucune vue n'en sort. Les lettres libres y sont listées (`J Q Z`) :
-  une nouvelle action s'y sert, elle ne s'invente pas une touche.
+  qu'aucune vue n'en sort. Les lettres libres y sont listées (`H J Q Z`) :
+  une nouvelle action s'y sert, elle ne s'invente pas une touche. `H` y est
+  revenue avec §3.47 : elle traçait la route, et la trace a été supprimée parce
+  qu'elle répondait pour la VM Docker et non pour la machine (D57). Une lettre
+  qu'une action libère se redéclare libre, sinon elle reste réservée à un usage
+  qui n'existe plus.
 
   | | | | |
   |---|---|---|---|
@@ -57,7 +61,7 @@ paie une fois.
   | `T` Terminal | `O` IDE | `W` Navigateur | `L` Logs |
   | `V` Pager | `K` Arrêter / tuer | `P` Prune | `B` Navigateur de registries |
   | `G` Pull (*get*) | `U` Login / logout | `X` Exclure | `R` MR · PR |
-  | `I` Issues | `H` Tracer la route | `Y` Copier le chemin | |
+  | `I` Issues | `Y` Copier le chemin | | |
 
 - **Minuscules** — un filtre ou une bascule d'affichage, jamais une action. Elle
   ne modifie rien, donc son sens est **local** et deux vues peuvent employer la

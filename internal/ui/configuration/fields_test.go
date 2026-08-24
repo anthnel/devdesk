@@ -348,7 +348,6 @@ func TestTheNetworkTabEditsEveryNetdiagDial(t *testing.T) {
 	want := map[string]*int{
 		"Check timeout (s)":     &cfg.Network.CheckTimeout,
 		"Ping count":            &cfg.Network.PingCount,
-		"Traceroute max hops":   &cfg.Network.TracerouteMaxHops,
 		"Ports refresh (s)":     &cfg.Network.PortsRefreshInterval,
 		"Expiry warning (days)": &cfg.Network.CertExpiryWarnDays,
 	}
@@ -367,8 +366,8 @@ func TestTheNetworkTabEditsEveryNetdiagDial(t *testing.T) {
 		}
 	}
 
-	if f := fieldNamed(t, "Network tool image"); f.str(cfg) != &cfg.Network.ToolImage {
-		t.Error("the tool image no longer addresses network.tool_image")
+	if f := fieldNamed(t, "Connectivity test image"); f.str(cfg) != &cfg.Network.ConnectivityImage {
+		t.Error("the connectivity image no longer addresses network.connectivity_image")
 	}
 }
 

@@ -6,36 +6,45 @@ import (
 	"testing"
 )
 
-// The `docker:` section became `network:`, and the one key it held has to come
-// across.
+// The image key has been renamed twice: `docker.network_tool_image` became
+// `network.tool_image` when the section was renamed, and `network.tool_image`
+// became `network.connectivity_image` when the route trace was removed and the
+// OCI connectivity test was left as its only reader (§3.47). A config may sit
+// at any point on that chain.
 //
 // This is the migration that could not be a comment: Load unmarshals without
-// KnownFields, so an un-migrated `docker:` block is dropped in silence — the
-// image would revert to nicolaka/netshoot with nothing on screen saying it had
-// moved, and a user pointing at their own mirror would find their traces
-// pulling from Docker Hub.
-func TestANetworkToolImageSurvivesTheRename(t *testing.T) {
-	cfg := writeAndLoad(t, "docker:\n  network_tool_image: mirror.local/netshoot:1.2\n")
+// KnownFields, so an un-migrated block is dropped in silence — the image would
+// revert to the default with nothing on screen saying it had moved, and a user
+// pointing at their own mirror would find the probe pulling from Docker Hub.
+func TestTheImageSurvivesBothRenames(t *testing.T) {
+	for _, tt := range []struct{ name, yaml string }{
+		{"the oldest spelling", "docker:\n  network_tool_image: mirror.local/probe:1.2\n"},
+		{"the middle spelling", "network:\n  tool_image: mirror.local/probe:1.2\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := writeAndLoad(t, tt.yaml)
 
-	if cfg.Network.ToolImage != "mirror.local/netshoot:1.2" {
-		t.Errorf("Network.ToolImage = %q, want the image carried over from docker:", cfg.Network.ToolImage)
-	}
-	if cfg.Docker.NetworkToolImage != "" {
-		t.Errorf("docker.network_tool_image = %q; it must be cleared so the key leaves the file on the next save",
-			cfg.Docker.NetworkToolImage)
+			if cfg.Network.ConnectivityImage != "mirror.local/probe:1.2" {
+				t.Errorf("ConnectivityImage = %q, want the image carried over", cfg.Network.ConnectivityImage)
+			}
+			if cfg.Docker.NetworkToolImage != "" || cfg.Network.ToolImage != "" {
+				t.Error("a retired key was kept; it must be cleared so it leaves the file on the next save")
+			}
+		})
 	}
 }
 
-// A file already carrying both keeps what `network:` says. The old key is a
-// migration source, not a second writer: letting it win would make the setting
-// the configuration view edits the one that loses.
-func TestTheNewKeyWinsOverTheOldOne(t *testing.T) {
+// A file carrying several spellings keeps the newest. An old key is a migration
+// source, not a second writer: letting it win would make the setting the
+// configuration view edits the one that loses.
+func TestTheNewestKeyWins(t *testing.T) {
 	cfg := writeAndLoad(t,
-		"docker:\n  network_tool_image: old.example.com/netshoot\n"+
-			"network:\n  tool_image: new.example.com/netshoot\n")
+		"docker:\n  network_tool_image: oldest.example.com/probe\n"+
+			"network:\n  tool_image: middle.example.com/probe\n"+
+			"  connectivity_image: newest.example.com/probe\n")
 
-	if cfg.Network.ToolImage != "new.example.com/netshoot" {
-		t.Errorf("Network.ToolImage = %q, want network: to win", cfg.Network.ToolImage)
+	if cfg.Network.ConnectivityImage != "newest.example.com/probe" {
+		t.Errorf("ConnectivityImage = %q, want connectivity_image to win", cfg.Network.ConnectivityImage)
 	}
 }
 
@@ -52,7 +61,6 @@ func TestTheNetworkSettingsDefault(t *testing.T) {
 		{"check_timeout", cfg.Network.CheckTimeout, DefaultCheckTimeout},
 		{"ping_count", cfg.Network.PingCount, DefaultPingCount},
 		{"cert_expiry_warn_days", cfg.Network.CertExpiryWarnDays, DefaultCertExpiryWarnDays},
-		{"traceroute_max_hops", cfg.Network.TracerouteMaxHops, DefaultTracerouteMaxHops},
 		{"ports_refresh_interval", cfg.Network.PortsRefreshInterval, DefaultPortsRefreshInterval},
 	}
 	for _, tt := range tests {
@@ -60,8 +68,8 @@ func TestTheNetworkSettingsDefault(t *testing.T) {
 			t.Errorf("%s = %d, want %d", tt.name, tt.got, tt.want)
 		}
 	}
-	if cfg.Network.ToolImage != DefaultNetworkToolImage {
-		t.Errorf("tool_image = %q, want %q", cfg.Network.ToolImage, DefaultNetworkToolImage)
+	if cfg.Network.ConnectivityImage != DefaultConnectivityImage {
+		t.Errorf("connectivity_image = %q, want %q", cfg.Network.ConnectivityImage, DefaultConnectivityImage)
 	}
 }
 

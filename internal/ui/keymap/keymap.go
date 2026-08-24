@@ -74,7 +74,6 @@ const (
 	Exclude  = "X" // Exclure — ajouter à .gitleaksignore
 	Requests = "R" // Ouvrir les merge requests · PR
 	Issues   = "I" // Ouvrir les issues
-	Trace    = "H" // Tracer la route (hops) — netdiag
 	// Copy est `Y` — yank. La lettre était libre bien qu'une modale l'emploie
 	// pour « Yes » : une modale réclame toute touche avant que la vue ne la
 	// voie, donc les deux ne sont jamais joignables en même temps.
@@ -116,7 +115,6 @@ var actions = map[string]string{
 	Exclude:  "Exclude — add to .gitleaksignore",
 	Requests: "Open merge requests · PRs",
 	Issues:   "Open issues",
-	Trace:    "Trace the route to the target",
 	Copy:     "Copy the selection's path to the clipboard",
 }
 
@@ -165,7 +163,11 @@ func IsModalKey(key string) bool {
 // plutôt que laissées à déduire : le prochain ajout doit savoir où piocher sans
 // refaire le relevé, et une action qui s'installe ailleurs qu'ici est un
 // doublon qui s'ignore.
-var free = []string{"J", "Q", "Z"}
+// H est revenue ici avec §3.47 : elle traçait la route, et la trace a été
+// supprimée parce qu'elle répondait pour la VM Docker et non pour la machine
+// (D57). Une lettre qu'une action vient de libérer se redéclare libre, sinon
+// elle reste réservée à un usage qui n'existe plus.
+var free = []string{"H", "J", "Q", "Z"}
 
 // Free rend les majuscules encore disponibles, triées.
 func Free() []string {

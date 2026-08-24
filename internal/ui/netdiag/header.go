@@ -16,11 +16,7 @@ import (
 func (m *Model) GetTitle() string {
 	base := theme.IconNetwork + " Network"
 	if m.state == StateDetails {
-		label := m.selected.Title
-		if m.traceOutput != "" {
-			label = "Route trace"
-		}
-		if label != "" {
+		if label := m.selected.Title; label != "" {
 			detailStyle := lipgloss.NewStyle().Foreground(theme.ColorPrimary).Background(theme.ColorBackground)
 			return base + detailStyle.Render(" "+theme.IconChevronRight+" "+label)
 		}
@@ -90,11 +86,6 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 		}
 		sc := shortcut.Shortcuts{
 			{Key: "enter", Description: "Explain the check"},
-		}
-		// Rule 130: the trace is offered only when something points at the
-		// path. A certificate that does not verify is not a routing problem.
-		if m.traceWorthOffering() {
-			sc = append(sc, shortcut.Shortcut{Key: "H", Description: "Trace the route"})
 		}
 		label := "Show problems only"
 		if m.filterBar.IsTokenActive(problemsToken) {
@@ -218,14 +209,10 @@ func (m *Model) activeFooter() (*components.FooterMessage, components.Status) {
 // status rather than a footer message because it is a state, not an event —
 // a message expires after three seconds and a run outlives that (Rule 128).
 func (m *Model) statusLine() components.Status {
-	switch {
-	case m.tracing:
-		return components.Status{Text: "Tracing the route...", Spinner: true}
-	case m.state == StateRunning:
+	if m.state == StateRunning {
 		return components.Status{Text: m.progressLabel(), Spinner: true}
-	default:
-		return components.Status{}
 	}
+	return components.Status{}
 }
 
 // GetHelpContent implements help.Provider
@@ -241,7 +228,6 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "enter (form)", Description: "Run the checks against the target"},
 			{Key: "esc (running)", Description: "Cancel the run and keep what completed"},
 			{Key: "enter (results)", Description: "Explain the selected check"},
-			{Key: "H", Description: "Trace the route — offered only when a check points at the path"},
 			{Key: "p", Description: "Show problems only / show every check (Diagnostics tab)"},
 			{Key: "/", Description: "Search checks by name or observation (Diagnostics tab)"},
 			{Key: "ctrl+r", Description: "Run the checks again"},
@@ -321,15 +307,20 @@ func (m *Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Where the checks run",
-				Body: "Every tab now runs in this process, on this machine's network stack: the " +
+				Body: "Everything here runs in this process, on this machine's network stack: the " +
 					"diagnostic checks, the socket table and the interfaces alike. They answer for " +
-					"the resolver, the routing table, the sockets and the VPN you are actually on.\n\n" +
-					"One thing still runs in a container: the route trace (H), in the image " +
-					"configured at network.tool_image, because it needs raw ICMP sockets and a tool " +
-					"worth not reimplementing. On Docker Desktop that container lives in a Linux VM " +
-					"with its own network namespace, so the trace answers for the VM and can " +
-					"legitimately disagree with everything above. The trace pane says so.\n\n" +
-					"The image must include traceroute and tcptraceroute.",
+					"the resolver, the routing table, the sockets and the VPN you are actually on, " +
+					"and nothing needs Docker.\n\n" +
+					"The route trace used to be the exception. It ran traceroute in a container " +
+					"started with --network host, which on Docker Desktop is the Linux VM's " +
+					"namespace — so it traced the path from the VM and not from here, and the two " +
+					"are not the same network. It was removed rather than kept with a caveat.\n\n" +
+					"What replaced it, for the question people actually asked: the Local route " +
+					"check names the interface and source address your traffic to this target " +
+					"leaves by. That is the split-tunnel answer, read from this machine.\n\n" +
+					"One image setting is left, network.connectivity_image, and the netdiag view " +
+					"does not use it: it belongs to the OCI connectivity test, which runs ping, nc " +
+					"or wget inside a Docker network you pick. busybox covers all three in 6,81 MB.",
 			},
 		},
 	}
