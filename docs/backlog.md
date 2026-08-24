@@ -11,7 +11,7 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Trois ouverts : D56, D57 et D58** — voir [§1.3](#13-open).
+**Quatre ouverts : D56, D57, D58 et D59** — voir [§1.3](#13-open).
 
 D55 — l'onglet Ports listait les sockets de la VM Docker au lieu de ceux de la
 machine — est fermé par
@@ -21,6 +21,9 @@ en commun avec la machine. **D58** a été trouvé en lisant le code de D57 : un
 échec partiel y fait afficher « aucune route », « aucun voisin » et « aucune
 chaîne ». Les deux sont traités par
 [§3.44](#344-longlet-topology--ce-qui-se-lit-nativement-et-ce-quon-supprime).
+**D59** est ailleurs et se lit de la même façon : un scan lancé sur une
+arborescence oublie les dépôts situés plus bas que trois niveaux, et ceux
+derrière un lien symbolique, sans jamais dire combien il en a écartés.
 
 D39, before them, was the registry browser addressing a group's
 members one way to browse them and another way to pull them; it is closed by
@@ -1468,6 +1471,65 @@ and D11 each had one, and each failed the moment the fix landed, which is how
 the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
+
+**D59 — un scan lancé sur une arborescence oublie certains dépôts, en
+silence. Ouvert.** Signalé à l'usage, puis reproduit sur fixture le 2026-08-24.
+
+`S` sur un répertoire non-git scanne `entry.SubRepoPaths`, que
+`detectSubRepoPaths` remplit par `walkSubRepos`. **Deux causes, mesurées,
+indépendantes l'une de l'autre.**
+
+**1. La profondeur est limitée à 3, et ce n'est écrit nulle part.**
+`enrichEntry` appelle `detectSubRepoPaths(entry.Path, 3, showHidden)`, littéral
+dans le code, et `walkSubRepos` abandonne dès `depth > maxDepth`. Sur une
+arborescence portant un dépôt à chaque niveau :
+
+```
+root/shallow-repo/.git            → trouvé
+root/a/b/mid-repo/.git            → trouvé
+root/a/b/c/d/deep-repo/.git       → PAS trouvé
+```
+
+Un `monorepos/client/2026/api/.git` est donc invisible pour `S`, `F` et `A`
+alors que le répertoire, lui, se parcourt normalement à la main. C'est très
+probablement le « parfois » du rapport : ça dépend de la profondeur à laquelle
+les dépôts se trouvent, ce que rien à l'écran ne laisse deviner.
+
+**2. Un lien symbolique ou une jonction vers un répertoire est ignoré.**
+`walkSubRepos` filtre sur `e.IsDir()`, qui vient de `os.ReadDir` et ne suit pas
+le lien. Relevé sur la même fixture, avec une jonction Windows :
+
+```
+entry a         IsDir=true   type=d---------  statIsDir=true
+entry linked    IsDir=false  type=?---------  statIsDir=true   ← ignorée
+```
+
+`os.Stat` dit `true`, `DirEntry.IsDir()` dit `false`, et c'est la seconde qui
+décide. Tout ce qui est derrière le lien est invisible. Le même filtre est dans
+`table.go`, donc la **liste** affiche le lien comme un fichier : ni parcourable,
+ni scannable, sans que rien ne dise pourquoi.
+
+**Trois aggravants**, chacun de la même famille :
+
+- **`os.ReadDir` en échec est avalé** : `walkSubRepos` fait `return` sans un
+  `log.Printf`. Un répertoire refusé en lecture ne contribue rien et ne se
+  signale pas.
+- **Rien ne compte ce qui a été écarté.** Le footer annonce le nombre de dépôts
+  qui *vont* être scannés ; il n'existe aucun nombre pour ceux qui n'ont pas été
+  trouvés, donc l'utilisateur n'a aucun moyen de savoir qu'il en manque. C'est ce
+  qui rend le défaut silencieux plutôt que gênant.
+- **Un dépôt *bare* n'est pas reconnu** : le test est `os.Stat(dir/.git)`, ce qui
+  attrape bien un worktree (où `.git` est un fichier) mais pas un dépôt nu, dont
+  `HEAD`, `objects` et `refs` sont à la racine.
+
+La limite de profondeur n'est pas gratuite — c'est ce qui borne la descente dans
+`.venv`, `node_modules` et `.terraform` quand `show_hidden_files` est actif, et
+`isHidden`'s propre commentaire le dit. La remplacer demande donc de décider ce
+qui borne la marche à sa place : une liste d'exclusions par nom, un budget de
+répertoires visités, ou la profondeur devenue réglable et **affichée**. Ce qui
+n'est pas discutable, c'est qu'un dépôt écarté doit être compté et dit.
+
+---
 
 **D57 — l'onglet Topology affiche le réseau de la VM Docker, pas celui de la
 machine. Ouvert.** Vérifié à l'écran le 2026-08-24 sous Windows, en cherchant si
@@ -8197,6 +8259,169 @@ D57 est un mensonge à l'écran et se corrige en une ligne : nommer la VM dans l
 titre ou dans un bandeau, comme `renderTraceHeader` le fait déjà pour la trace.
 Ça ne coûte rien et ça supprime le mensonge tout de suite, avant que quoi que ce
 soit d'autre ne bouge. Le reste de cette entrée peut suivre à son rythme.
+
+
+### 3.45 `datatable` — des largeurs de colonnes qui regardent le contenu
+
+À faire. Aujourd'hui une colonne demande sa `MinWidth` et rien d'autre, et tout
+l'espace en trop va aux colonnes `Flex`. Le résultat est visible sur l'onglet
+Ports, à 160 colonnes :
+
+| Colonne | `MinWidth` | `Flex` | Obtenu | Contenu réel |
+|---|---|---|---|---|
+| Proto | 6 | — | 6 | `tcp` |
+| State | 10 | — | 10 | `LISTEN` |
+| Local Address | 26 | — | 26 | `[fe80::1%12]:445` |
+| Peer Address | 26 | — | **26** | `[2606:2800:220:1:248:1893:25c8:1946]:443` — **tronqué** |
+| PID | 7 | — | 7 | `27564` |
+| Process | 10 | **1** | **71** | `svchost.exe` |
+
+Les six `MinWidth` font 85 cellules, plus 12 de padding : 97 sur 146
+disponibles. Les **49 restantes vont intégralement à Process**, qui n'en a
+besoin d'aucune, pendant que Peer Address coupe une adresse qu'on est justement
+en train de lire. `Flex` dit *qui* reçoit le surplus, jamais *qui en a besoin*.
+
+#### La règle demandée
+
+Mesurer ce que les cellules contiennent, et :
+
+1. si tout tient à l'écran, **tout afficher** ;
+2. sinon, ne tronquer **que** les colonnes qui l'exigent.
+
+`MinWidth` garde son sens de plancher ; ce qui apparaît est un plafond implicite
+— la plus large valeur affichée. `Flex` cesse d'être le distributeur du surplus
+et redevient ce qu'il aurait dû être : le départage quand il reste de la place
+*après* que tout le monde est servi.
+
+#### Ce qui rend ça possible, et qu'il faut dire
+
+**`Cell` rend du texte brut** (Rule 122). C'est précisément ce qui permet de le
+mesurer : une cellule portant déjà sa couleur mesurerait ses octets
+d'échappement, ce qui est le défaut que Rule 122 existe pour rendre
+inexprimable. La mesure passe donc par `lipgloss.Width` sur la sortie de `Cell`,
+avant tout style — la même inversion que `render.go`.
+
+#### Ce qu'il faut trancher, et c'est le vrai sujet
+
+**Sur quelles lignes mesurer.** Les lignes **visibles** (filtrées), pas
+`m.items` : une recherche qui ne garde que des adresses courtes doit rendre la
+place, sinon le filtre ne sert à rien visuellement.
+
+**Quand recalculer.** À chaque `SetItems`, donc **toutes les deux secondes** sur
+l'onglet Ports. C'est là qu'est le piège : des largeurs qui suivent le contenu
+font *danser* les colonnes à chaque rafraîchissement dès qu'une connexion
+apparaît ou disparaît. Un tableau qui se réorganise sous les yeux est pire que
+la troncature qu'il corrige. Trois sorties possibles, à décider avant d'écrire
+quoi que ce soit :
+
+- **cliquet** — une colonne s'élargit mais ne rétrécit jamais tant que la table
+  est à l'écran, et repart de zéro sur `ctrl+r` ou un changement de filtre ;
+- **hystérésis** — on ne bouge que si l'écart dépasse quelques cellules ;
+- **recalcul aux seuls moments visibles** — redimensionnement, changement de
+  filtre, changement d'onglet — et jamais sur un tick périodique.
+
+La troisième est la plus simple et la plus prévisible ; le cliquet est le plus
+agréable et le plus dur à tester.
+
+**Le coût.** 197 lignes × 6 colonnes = ~1 200 appels à `Cell` et à
+`lipgloss.Width` par recalcul. Négligeable en absolu, mais `Cell` est une
+closure arbitraire et rien ne garantit aujourd'hui qu'elle est bon marché — le
+contrat « `Cell` est pur et pas cher » deviendrait une exigence à écrire dans la
+doc du paquet, puisque le rendu l'appellerait déjà une fois par cellule visible
+et la mesure une fois par cellule **de toutes** les lignes visibles, y compris
+celles hors écran.
+
+**Un plafond dur reste nécessaire.** Une colonne Remote portant une URL de 200
+caractères ne doit pas réclamer 200 cellules et affamer tout le reste : la
+demande est `min(contenu, MaxWidth)`, avec un `MaxWidth` optionnel par colonne
+et un défaut raisonnable.
+
+Rien de tout ça ne change `shrink` : quand ça ne rentre pas, la règle actuelle —
+le déficit sort des colonnes flexibles avant les fixes — reste la bonne.
+
+#### Ce que ça corrigerait ailleurs
+
+Toutes les tables sont des `datatable` depuis §3.21, donc le gain est général.
+Les cas les plus visibles : Remote dans `ws` (une URL longue à côté de colonnes
+de comptage à un chiffre), Target dans l'inventaire `:sec`, et Image dans les
+conteneurs.
+
+### 3.46 `ws` — une icône par ligne, et la colonne Type disparaît
+
+À faire, sur le modèle de `eza` : une colonne d'icône à gauche du nom, dérivée
+du **nom du fichier**, et la colonne Type supprimée.
+
+```
+ bin   configs   deploy   internal            Dockerfile   go.sum    󰂺 README.md
+ cmd   data      docs     docker-compose.yml  go.mod       mise.toml
+```
+
+#### Ce qu'on remplace n'est pas ce qu'on ajoute
+
+C'est le point à décider, et il est facile à manquer. La colonne Type
+d'aujourd'hui n'est pas un type de fichier : `detectProjectType` cherche une
+**signature** dans le répertoire — `go.mod`, `Cargo.toml`, `package.json`,
+`pom.xml` — et rend « ce répertoire est un projet Go ». L'icône `eza`, elle,
+dérive du **nom de l'entrée**. Sur une vue dont la quasi-totalité des lignes sont
+des répertoires, et qu'un répertoire n'a pas d'extension, remplacer l'une par
+l'autre **perd de l'information** sur presque toutes les lignes.
+
+Une colonne, deux règles selon le genre de la ligne, coûte le même espace et ne
+perd rien :
+
+| Ligne | Icône |
+|---|---|
+| dépôt git ou répertoire **avec** une signature | l'icône du projet — `detectProjectType`, exactement ce que la colonne Type affiche déjà |
+| autre répertoire | `IconDirectory` |
+| fichier | par nom de base, puis par extension |
+
+C'est ce qui est recommandé ici. L'alternative — dossier ou fichier, rien de
+plus, comme demandé littéralement — est plus simple et supprime
+`detectProjectType` et `formatProjectType` en entier ; elle est défendable si on
+juge que le type de projet ne valait pas sa colonne. **À trancher.**
+
+#### La table des icônes est déclarée, jamais devinée
+
+`internal/viewer/detect.go` porte déjà exactement cette structure et son
+raisonnement : `basenameKinds` consulté **avant** `extensionKinds`, parce que
+`Dockerfile` n'a pas d'extension et que `Dockerfile.dev` en a une qui n'est dans
+aucune table. `.gitlab-ci.yml` que demande la description est un nom de base, et
+tombe donc du bon côté sans rien changer à la règle.
+
+Deux choses à ne pas faire :
+
+- **Réutiliser `viewer.Kind` comme clé d'icône.** Il en existe une dizaine, pour
+  décider d'un lexer ; il faut une cinquantaine d'icônes, dont beaucoup
+  partagent un `Kind` (`.js`, `.ts`, `.py`, `.rs` seraient tous « texte »). Ce
+  sont deux questions différentes sur la même entrée.
+- **Dupliquer la règle de résolution.** Le nom de base d'abord, l'extension
+  ensuite, et rien de deviné à partir du contenu : c'est écrit dans `detect.go`
+  et ça doit être la même phrase des deux côtés. La bonne forme est probablement
+  un petit paquet — `internal/ui/fileicon` — que `ws` consomme, avec sa table à
+  lui et la règle de résolution empruntée.
+
+#### Les contraintes de rendu, qui ne sont pas négociables
+
+- **Rule 122** : `Cell` rend l'icône en texte brut, la couleur passe par
+  `Style`. Une icône colorée dans `Cell` serait mesurée en octets et coupée au
+  milieu de sa séquence.
+- **Rule 125** : une colonne d'icône est alignée à **gauche**, parce que la
+  largeur rendue d'une glyphe Nerd Font varie d'un terminal à l'autre.
+- **La largeur** : deux cellules, glyphe plus espace. Une seule suffit sur les
+  terminaux qui rendent la glyphe en simple largeur et coupe sur les autres.
+- **Pas de tri, pas de recherche** sur cette colonne : elle n'ajoute aucun texte
+  que l'utilisateur puisse taper. Le `Search` reste sur Name et Remote.
+
+#### Ce que ça coûte, et à qui
+
+Une police Nerd Font est **déjà** requise — toute l'application en dépend, et la
+colonne Type affiche déjà `IconGo` et `IconDocker`. Ce n'est donc pas une
+nouvelle exigence, seulement une plus visible : une ligne sur deux portera une
+glyphe au lieu d'une ligne sur dix.
+
+L'espace est neutre : la colonne Type fait aujourd'hui `colTypeFixed` cellules,
+et la colonne d'icône en prendra deux au même endroit. Sur une vue à onze
+colonnes, c'est ce qui rend l'échange gratuit plutôt qu'un ajout.
 
 
 ## 4. Existing plans
