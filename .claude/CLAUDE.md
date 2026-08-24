@@ -1086,6 +1086,24 @@ a batch outlives the three seconds a footer message gets (Rule 128).
 git repository syncs itself, a plain directory syncs every repository nested
 under it, anything else does nothing. Two actions with one targeting rule is one
 thing to learn; the shortcuts appear and disappear together for the same reason.
+
+**"Nested under it" means at any depth**, and it did not until D59 was fixed:
+`detectSubRepoPaths` carried a literal `3`, so a repository at
+`monorepos/client/2026/api` was invisible to `S`, `F` and `A` while the
+directory holding it browsed normally — and nothing on screen said a limit had
+been applied. What bounds the walk is that **it stops at every repository it
+finds**, so a repository's own `node_modules` is never entered; that prune was
+always the one doing the work, and the depth limit was covering for nothing.
+Measured before removing it: unbounded is as fast or faster over `~/projects`,
+and 283 ms against 37 ms over the Go module cache — tens of thousands of
+directories with no repository anywhere to prune it, which is the worst case and
+runs in a `Cmd`.
+
+The other half of D59 is still open: the walk filters on `DirEntry.IsDir()`,
+which reports on a symlink rather than on its target, so a repository behind one
+is not found — and the same filter in `table.go` lists the link as a *file*.
+Whoever fixes that needs a cycle guard, which the depth limit used to provide by
+accident.
 There is deliberately no sync-all: at the root the user syncs each top-level
 directory, and a second key for it is not worth `Shift+S`'s collision with
 Rule 111's sort menu.

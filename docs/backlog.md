@@ -22,8 +22,9 @@ en commun avec la machine. **D58** a été trouvé en lisant le code de D57 : un
 chaîne ». Les deux sont traités par
 [§3.44](#344-longlet-topology--ce-qui-se-lit-nativement-et-ce-quon-supprime).
 **D59** est ailleurs et se lit de la même façon : un scan lancé sur une
-arborescence oublie les dépôts situés plus bas que trois niveaux, et ceux
-derrière un lien symbolique, sans jamais dire combien il en a écartés.
+arborescence oubliait les dépôts situés plus bas que trois niveaux, et ceux
+derrière un lien symbolique, sans jamais dire combien il en écartait. La limite
+de profondeur est supprimée ; le lien symbolique reste ouvert.
 
 D39, before them, was the registry browser addressing a group's
 members one way to browse them and another way to pull them; it is closed by
@@ -1473,7 +1474,13 @@ the stale test and the stale backlog entry got found together.
 ### 1.3 Open
 
 **D59 — un scan lancé sur une arborescence oublie certains dépôts, en
-silence. Ouvert.** Signalé à l'usage, puis reproduit sur fixture le 2026-08-24.
+silence. Moitié corrigée, moitié ouverte.** Signalé à l'usage, puis reproduit
+sur fixture le 2026-08-24.
+
+> **La limite de profondeur est supprimée** le 2026-08-24 — il n'y en a plus, et
+> le walk trouve un dépôt à n'importe quelle profondeur. **La cause 2, le lien
+> symbolique, reste ouverte.** Ce qui suit décrit le défaut tel qu'il a été
+> trouvé ; la correction et ce qui la borne désormais sont en fin d'entrée.
 
 `S` sur un répertoire non-git scanne `entry.SubRepoPaths`, que
 `detectSubRepoPaths` remplit par `walkSubRepos`. **Deux causes, mesurées,
@@ -1522,12 +1529,58 @@ ni scannable, sans que rien ne dise pourquoi.
   attrape bien un worktree (où `.git` est un fichier) mais pas un dépôt nu, dont
   `HEAD`, `objects` et `refs` sont à la racine.
 
-La limite de profondeur n'est pas gratuite — c'est ce qui borne la descente dans
-`.venv`, `node_modules` et `.terraform` quand `show_hidden_files` est actif, et
-`isHidden`'s propre commentaire le dit. La remplacer demande donc de décider ce
-qui borne la marche à sa place : une liste d'exclusions par nom, un budget de
-répertoires visités, ou la profondeur devenue réglable et **affichée**. Ce qui
-n'est pas discutable, c'est qu'un dépôt écarté doit être compté et dit.
+#### Ce qui a été corrigé, et ce qui borne la marche à la place
+
+**La limite est partie, sans rien pour la remplacer, et c'était le bon choix
+parce que la question était mal posée.** L'entrée d'origine disait que la
+profondeur bornait la descente dans `.venv` et `node_modules`, en reprenant le
+commentaire d'`isHidden`. C'est faux, et la mesure le montre : ce qui borne le
+walk est qu'**il s'arrête à chaque dépôt qu'il trouve**, donc le `node_modules`
+d'un dépôt n'est jamais parcouru. Cette coupe faisait déjà tout le travail ; la
+limite de profondeur ne couvrait rien.
+
+Mesuré avant de la retirer :
+
+| Arborescence | avec limite 3 | sans limite |
+|---|---|---|
+| `~/projects` (4 répertoires, 19 dépôts) | 10 ms | **≤ 2 ms** — mêmes dépôts |
+| cache de modules Go (des dizaines de milliers de répertoires, **aucun** dépôt pour élaguer) | 37 ms | **283 ms** |
+
+Le premier cas est le cas réel et il est plus *rapide* sans limite : les dépôts
+sont peu profonds, donc les deux s'arrêtent aux mêmes endroits et la version
+bornée paie en plus sa comptabilité. Le second est le pire cas absolu — un
+`workspaces_dir` pointé sur quelque chose qui n'est pas un espace de travail —
+et 283 ms dans un `Cmd`, hors du chemin d'`Update`, est le prix de ne pas perdre
+de dépôts.
+
+Aucune liste d'exclusions par nom n'a été ajoutée : ce serait réintroduire
+l'omission silencieuse que ce défaut *est*. `node_modules` peut contenir un
+dépôt — npm installe depuis git — et un outil qui décide seul de ne pas le
+regarder répète l'erreur sous un autre nom.
+
+**Il n'y a pas de risque de cycle**, et c'est ce qui rend la suppression sûre
+plutôt que téméraire : le walk ne suit pas les liens, précisément parce que la
+cause 2 n'est pas corrigée. Les deux moitiés sont donc liées dans un sens qu'il
+faut connaître — **qui corrigera la cause 2 devra ajouter la garde de cycle que
+la limite de profondeur fournissait par accident**, en suivant les inodes ou les
+chemins résolus.
+
+`TestARepositoryIsFoundHoweverDeepItSits` place un dépôt huit niveaux plus bas ;
+`TestTheWalkStopsAtEveryRepositoryItFinds` fixe la coupe qui fait le travail, de
+sorte qu'une future exclusion par nom ne puisse pas être justifiée par « sinon on
+descend dans node_modules ». Le premier échoue si la limite revient.
+
+L'aide de la vue devient exacte sans être touchée : elle disait déjà « S scans
+all nested git repos », ce qui était un mensonge et ne l'est plus.
+
+#### Ce qui reste ouvert
+
+- **La cause 2**, le lien symbolique — avec la garde de cycle qu'elle implique,
+  et la ligne de la liste qui affiche un lien comme un fichier.
+- **Les trois aggravants** : le `os.ReadDir` avalé, l'absence de compte des
+  dépôts écartés, et le dépôt *bare* non reconnu. Le second est le plus
+  important des trois : c'est ce qui décide qu'un manque se voit ou non, et il
+  vaut pour la cause 2 exactement comme il valait pour la profondeur.
 
 ---
 
