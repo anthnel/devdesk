@@ -216,10 +216,10 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 
 // handleOpenInBrowser opens the selected node's web URL in the default browser
 func (m Model) handleOpenInBrowser() (tea.Model, tea.Cmd) {
-	node, ok := m.selectedNode()
-	if !ok || node.WebURL == "" {
-		return m, nil
+	if browse := m.browsable(); !browse.Enabled() {
+		return m, m.footer.Warn(browse.Reason)
 	}
+	node, _ := m.selectedNode()
 	url := node.WebURL
 	return m, func() tea.Msg {
 		var cmd *exec.Cmd

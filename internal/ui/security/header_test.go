@@ -15,24 +15,30 @@ import (
 // advertised.
 func TestShortcutsFollowTheState(t *testing.T) {
 	tests := []struct {
-		name    string
-		open    func(*testing.T) Model
-		want    []string
-		notWant []string
+		name string
+		open func(*testing.T) Model
+		// enabled: advertised and acts here.
+		// disabled: advertised, greyed — the same screen, a row or a tab it
+		//   does not apply to (Rule 130).
+		// absent: belongs to another screen entirely, so the list is replaced.
+		enabled  []string
+		disabled []string
+		absent   []string
 	}{
 		{
 			name:    "the inventory",
 			open:    func(t *testing.T) Model { return inventoryModel(t, inventoryFixtures()...) },
-			want:    []string{"enter", keymap.Scan, keymap.ScanAll, "/"},
-			notWant: []string{"tab", keymap.Exclude, "."},
+			enabled: []string{"enter", keymap.Scan, keymap.ScanAll, "/"},
+			absent:  []string{"tab", keymap.Exclude, "."},
 		},
 		{
 			// The four severity toggles were bound and unadvertised: a user had
 			// to read the help to learn the view filters at all.
-			name:    "the CVE tab",
-			open:    func(t *testing.T) Model { return scannedModel(t) },
-			want:    []string{"tab", "enter", ".", "/", "c", "h", "m", "l", "ctrl+r"},
-			notWant: []string{keymap.Exclude, "space"},
+			name:     "the CVE tab",
+			open:     func(t *testing.T) Model { return scannedModel(t) },
+			enabled:  []string{"tab", "enter", ".", "/", "c", "h", "m", "l", "ctrl+r"},
+			disabled: []string{keymap.Exclude},
+			absent:   []string{"space"},
 		},
 		{
 			// '.' is the sort, so it applies to every tab — it was advertised
@@ -43,8 +49,8 @@ func TestShortcutsFollowTheState(t *testing.T) {
 				m.switchTab(TabSecrets)
 				return m
 			},
-			want:    []string{keymap.Exclude, "."},
-			notWant: []string{"space"},
+			enabled: []string{keymap.Exclude, "."},
+			absent:  []string{"space"},
 		},
 		{
 			// While the search has the keyboard, every other key is a
@@ -54,47 +60,53 @@ func TestShortcutsFollowTheState(t *testing.T) {
 			open: func(t *testing.T) Model {
 				return feed(t, scannedModel(t), testutil.Key("/"))
 			},
-			want:    []string{"enter/esc"},
-			notWant: []string{"c", ".", "tab"},
+			enabled: []string{"enter/esc"},
+			absent:  []string{"c", ".", "tab"},
 		},
 		{
 			name:    "the details",
 			open:    func(t *testing.T) Model { return detailsModel(t) },
-			want:    []string{"esc/⌫", "o"},
-			notWant: []string{"tab", "ctrl+r"},
+			enabled: []string{"esc/⌫", "o"},
+			absent:  []string{"tab", "ctrl+r"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys := map[string]bool{}
-			for _, s := range tt.open(t).GetShortcuts() {
-				keys[s.Key] = true
-			}
-			for _, key := range tt.want {
-				if !keys[key] {
-					t.Errorf("%q is not advertised", key)
+			got := tt.open(t).GetShortcuts()
+
+			for _, key := range tt.enabled {
+				if !testutil.ShortcutEnabled(got, key) {
+					t.Errorf("%q is not offered here", key)
 				}
 			}
-			for _, key := range tt.notWant {
-				if keys[key] {
-					t.Errorf("%q is advertised but cannot run here", key)
+			for _, key := range tt.disabled {
+				if !testutil.HasShortcut(got, key) {
+					t.Errorf("%q disappeared instead of being greyed", key)
+				} else if !testutil.ShortcutDisabled(got, key) {
+					t.Errorf("%q is offered where it cannot run", key)
+				}
+			}
+			for _, key := range tt.absent {
+				if testutil.HasShortcut(got, key) {
+					t.Errorf("%q is advertised but belongs to another screen", key)
 				}
 			}
 		})
 	}
 }
 
-// 'o' opens the first advisory link, so it must not be advertised for a finding
-// that has none.
+// 'o' opens the first advisory link, so it is greyed — never dropped — for a
+// finding that has none (Rule 130).
 func TestOpenReferenceShortcutNeedsAReference(t *testing.T) {
 	// The second CVE in the fixtures carries no references.
 	m := feed(t, scannedModel(t), testutil.Key("down"), testutil.Key("enter"))
 
-	for _, s := range m.GetShortcuts() {
-		if s.Key == "o" {
-			t.Error("'o' is advertised for a finding with no reference")
-		}
+	if !testutil.HasShortcut(m.GetShortcuts(), "o") {
+		t.Fatal("'o' disappeared for a finding with no reference instead of being greyed")
+	}
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), "o") {
+		t.Error("'o' is offered for a finding with no reference")
 	}
 }
 

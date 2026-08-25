@@ -24,10 +24,10 @@ func (m Model) getSelectedRegistry() *config.RegistryItem {
 // enterSelectedGroup drills into the selected group (Rule 111: → goes down a
 // level). A group with nothing discovered has no level to enter.
 func (m Model) enterSelectedGroup() (tea.Model, tea.Cmd) {
-	reg := m.getSelectedRegistry()
-	if reg == nil || reg.Kind != config.KindGroup {
-		return m, nil
+	if in := m.registryDrillIn(); !in.Enabled() {
+		return m, m.footer.Warn(in.Reason)
 	}
+	reg := m.getSelectedRegistry()
 	if len(m.groupCache[reg.Slug].Members) == 0 {
 		return m, m.footer.Warn("No members discovered yet — press ctrl+r to look")
 	}
@@ -61,9 +61,12 @@ func (m Model) getSelectedRegistryIndex() int {
 
 // editSelectedRegistry opens a registry edit form for the selected entry
 func (m Model) editSelectedRegistry() (tea.Model, tea.Cmd) {
+	if act := m.registryEntryActions(); !act.Enabled() {
+		return m, m.footer.Warn(act.Reason)
+	}
 	idx := m.getSelectedRegistryIndex()
 	if idx < 0 {
-		return m, nil
+		return m, m.footer.Warn(reasonNoRegistry)
 	}
 	m.registryForm = NewRegistryEditForm(idx, m.registries[idx], m.registries, m.width-2)
 	return m, nil
@@ -79,10 +82,10 @@ func (m Model) editSelectedRegistry() (tea.Model, tea.Cmd) {
 // alone made the user answer a question the screen had already answered, and
 // pressing the wrong one silently did the opposite of what was wanted.
 func (m Model) toggleSelectedRegistryAuth() (tea.Model, tea.Cmd) {
-	reg := m.getSelectedRegistry()
-	if reg == nil {
-		return m, nil
+	if act := m.registryEntryActions(); !act.Enabled() {
+		return m, m.footer.Warn(act.Reason)
 	}
+	reg := m.getSelectedRegistry()
 	if m.registryLoginStatus[reg.URL] {
 		return m.logoutSelectedRegistry()
 	}
@@ -134,10 +137,10 @@ func (m *Model) refreshSelectedGroupCmd() tea.Cmd {
 
 // deleteSelectedRegistry shows a confirm modal for registry removal
 func (m Model) deleteSelectedRegistry() (tea.Model, tea.Cmd) {
-	reg := m.getSelectedRegistry()
-	if reg == nil {
-		return m, nil
+	if act := m.registryEntryActions(); !act.Enabled() {
+		return m, m.footer.Warn(act.Reason)
 	}
+	reg := m.getSelectedRegistry()
 	m.pendingAction = "delete-registry"
 	m.confirmModal = sharedcomponents.NewConfirmModal(
 		"Remove Registry", fmt.Sprintf("Remove registry '%s'?", registryRef(reg.URL, reg.RepoPrefix)))

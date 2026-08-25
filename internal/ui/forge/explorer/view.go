@@ -9,6 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/charmbracelet/lipgloss"
@@ -365,36 +366,47 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 	}
 
-	// Normal mode
-	if m.loading {
-		return []shortcut.Shortcut{}
-	}
-
+	// Signed out is a different screen — there is no tree, so there is nothing
+	// to grey. That is a mode, not a state (Rule 130).
 	if !m.shared.IsAuthenticated {
 		return []shortcut.Shortcut{
 			{Key: "ctrl+p", Description: "Command mode"},
 		}
 	}
 
-	shortcuts := []shortcut.Shortcut{
-		{Key: "←→", Description: "Open/Back"},
-		{Key: "N", Description: "New"},
-		{Key: "D", Description: "Delete"},
-		{Key: "C", Description: "Clone"},
-	}
+	// Normal mode. A load in flight greys the lot rather than emptying it: the
+	// tree is the same screen either side of a refresh, and a column that
+	// vanishes and comes back on every ctrl+r is the flicker Rule 130 is about.
+	loading := m.loading
+	browse := m.browsable()
 
-	// ctrl+w: only show when a node is selected (all nodes have a WebURL from GitLab API)
-	if node, ok := m.selectedNode(); ok && node.WebURL != "" {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "W", Description: "Browser"})
+	return []shortcut.Shortcut{
+		{Key: "←→", Description: "Open/Back", Disabled: loading},
+		{Key: keymap.New, Description: "New", Disabled: loading},
+		{Key: keymap.Delete, Description: "Delete", Disabled: loading},
+		{Key: keymap.Clone, Description: "Clone", Disabled: loading},
+		{Key: keymap.Web, Description: "Browser", Disabled: loading || !browse.Enabled()},
+		{Key: ".", Description: "Sort", Disabled: loading},
+		{Key: "/", Description: "Search", Disabled: loading},
+		{Key: "ctrl+r", Description: "Refresh"},
+		{Key: "ctrl+p", Description: "Command"},
+		{Key: "?", Description: "Help"},
 	}
+}
 
-	return append(shortcuts,
-		shortcut.Shortcut{Key: ".", Description: "Sort"},
-		shortcut.Shortcut{Key: "/", Description: "Search"},
-		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
-		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
-		shortcut.Shortcut{Key: "?", Description: "Help"},
-	)
+// reasonNoWebURL is why W does not apply. The row exists, it simply has no page.
+const reasonNoWebURL = "This entry has no web page to open"
+
+// browsable reports whether W can open the selected row.
+//
+// Every node the forges return carries a WebURL, so in practice this only
+// refuses on an empty level — but the handler already checked for it and
+// returned in silence, which is what Rule 130 now forbids.
+func (m Model) browsable() shortcut.Availability {
+	if node, ok := m.selectedNode(); !ok || node.WebURL == "" {
+		return shortcut.Unavailable(reasonNoWebURL)
+	}
+	return shortcut.Availability{}
 }
 
 // cloningShortcuts is state-aware (Rule 130): `esc` means three different

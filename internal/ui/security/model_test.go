@@ -587,8 +587,8 @@ func TestIgnoringIsOfferedForGitleaksFindingsOnly(t *testing.T) {
 	if selected, _ := m.findingsTable.Selected(); selected.Source != scan.SourceTrivySecret {
 		t.Fatalf("the second secret is %q, want the trivy one", selected.Source)
 	}
-	if has(m.GetShortcuts(), keymap.Exclude) {
-		t.Error("'i' is offered on a trivy secret, which .gitleaksignore cannot express")
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.Exclude) {
+		t.Error("X is offered on a trivy secret, which .gitleaksignore cannot express")
 	}
 
 	m, cmd := step(t, m, testutil.Key(keymap.Exclude))

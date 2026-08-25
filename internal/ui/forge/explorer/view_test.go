@@ -314,18 +314,38 @@ func TestShortcutsFollowTheState(t *testing.T) {
 	}
 }
 
-// ctrl+w opens the highlighted node in a browser, so it must not be advertised
-// for a node GitLab gave no URL for.
+// W opens the highlighted node in a browser, so it is greyed — never
+// dropped — for a node the forge gave no URL for.
 func TestBrowserShortcutNeedsAURL(t *testing.T) {
 	m := drilledModel(t)
 	for _, child := range m.currentGroupNode.Children {
 		child.WebURL = ""
 	}
 
-	for _, s := range m.GetShortcuts() {
-		if s.Key == keymap.Web {
-			t.Error("ctrl+w is advertised for a node with no web URL")
-		}
+	if !testutil.HasShortcut(m.GetShortcuts(), keymap.Web) {
+		t.Fatal("W disappeared for a node with no web URL instead of being greyed")
+	}
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.Web) {
+		t.Error("W is offered for a node with no web URL")
+	}
+}
+
+// A refresh must not empty the column and refill it: the tree is the same
+// screen either side of a load, so the keys are greyed in place.
+func TestALoadGreysTheKeysInsteadOfRemovingThem(t *testing.T) {
+	m := drilledModel(t)
+	settled := testutil.ShortcutKeys(m.GetShortcuts())
+
+	m.loading = true
+
+	if got := testutil.ShortcutKeys(m.GetShortcuts()); strings.Join(got, " ") != strings.Join(settled, " ") {
+		t.Errorf("a load advertises %v, want the same keys as a settled tree %v", got, settled)
+	}
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.Clone) {
+		t.Error("C is offered while the tree is loading")
+	}
+	if !testutil.ShortcutEnabled(m.GetShortcuts(), "ctrl+r") {
+		t.Error("ctrl+r is greyed while loading; a refresh is exactly what still applies")
 	}
 }
 

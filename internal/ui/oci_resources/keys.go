@@ -13,30 +13,33 @@ func (m Model) handleImagesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keymap.Browser:
 		return m.openMultiRegistryBrowser()
 	case "enter":
-		img := m.getSelectedImage()
-		if img == nil {
-			return m, nil
+		if open := m.imageOpen(); !open.Enabled() {
+			return m, m.footer.Warn(open.Reason)
 		}
-		name := img.Name()
+		name := m.getSelectedImage().Name()
 		return m, func() tea.Msg { return ScanDetailsRequestMsg{ImageName: name} }
 	// Launching a container from an image is "create a resource from the
 	// selected row", and nothing else is created from this tab — so it is N,
 	// with no collision (§3.26).
+	//
+	// The three row actions share one guard and one reason (Rule 130): they
+	// used to return in silence, with the header dropping them and putting a
+	// spinner in the shortcut column in their place.
 	case keymap.New:
-		if m.isSelectedImageScanning() {
-			return m, nil
+		if act := m.imageActions(); !act.Enabled() {
+			return m, m.footer.Warn(act.Reason)
 		}
 		return m.openLaunchForm()
 	case keymap.Delete:
-		if m.isSelectedImageScanning() {
-			return m, nil
+		if act := m.imageActions(); !act.Enabled() {
+			return m, m.footer.Warn(act.Reason)
 		}
 		return m.deleteSelectedImage()
 	case keymap.Prune:
 		return m.pruneImages()
 	case keymap.Scan:
-		if m.isSelectedImageScanning() {
-			return m, nil
+		if act := m.imageActions(); !act.Enabled() {
+			return m, m.footer.Warn(act.Reason)
 		}
 		return m.scanSelectedImage()
 	case keymap.ScanAll:
@@ -137,8 +140,8 @@ func (m Model) handleRegistriesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keymap.New:
 		// A member is discovered, not declared, so there is nothing to add here.
-		if m.registryGroupSlug != "" {
-			return m, nil
+		if create := m.registryCreate(); !create.Enabled() {
+			return m, m.footer.Warn(create.Reason)
 		}
 		m.registryForm = NewRegistryForm(m.registries, m.width-2)
 		return m, nil

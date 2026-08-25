@@ -163,23 +163,29 @@ func (m Model) RenderFooter(width int) string {
 
 // GetShortcuts lists only what is not self-evident (Rules 130, 137, 138).
 // ↑↓ and tab are deliberately absent.
+// GetShortcuts lists the three controls a field can take, greying the two the
+// focused field does not (Rule 130).
+//
+// It used to return one of three single-entry lists, so the column changed
+// shape on every ↑↓ — in a form, where the cursor moves constantly. `←→` and
+// `space` are greyed rather than refused with a message: they are controls, not
+// actions, and a footer line on every stray arrow key in a form would be noise.
+//
+// `↑↓` is never greyed because it always moves; only its wording changes, since
+// a cycle or a checkbox has already persisted by the time the cursor leaves.
 func (m Model) GetShortcuts() shortcut.Shortcuts {
-	switch m.current().Kind {
-	case kindCycle:
-		return []shortcut.Shortcut{
-			{Key: "←→", Description: "Change value"},
-			{Key: "?", Description: "Open help"},
-		}
-	case kindToggle:
-		return []shortcut.Shortcut{
-			{Key: "space", Description: "Toggle"},
-			{Key: "?", Description: "Open help"},
-		}
-	default:
-		return []shortcut.Shortcut{
-			{Key: "↑↓", Description: "Save and move on"},
-			{Key: "?", Description: "Open help"},
-		}
+	field := m.current()
+
+	move := "Move between fields"
+	if field.takesText() {
+		move = "Save and move on"
+	}
+
+	return []shortcut.Shortcut{
+		{Key: "↑↓", Description: move},
+		{Key: "←→", Description: "Change value", Disabled: field.Kind != kindCycle},
+		{Key: "space", Description: "Toggle", Disabled: field.Kind != kindToggle},
+		{Key: "?", Description: "Open help"},
 	}
 }
 

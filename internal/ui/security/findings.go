@@ -11,6 +11,7 @@ import (
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -214,19 +215,52 @@ func (m *Model) switchTab(tab int) {
 // from the file and rule, write it, and report success for a line Gitleaks will
 // never match and Trivy never reads. Refusing says so instead.
 func (m Model) handleIgnoreSecret() (tea.Model, tea.Cmd) {
-	finding, ok := m.findingsTable.Selected()
-	if m.activeTab != TabSecrets || !ok {
-		return m, nil
+	if exclude := m.canExclude(); !exclude.Enabled() {
+		return m, m.footer.Warn(exclude.Reason)
 	}
-	if finding.Source != scan.SourceGitleaks {
-		return m, m.footer.Warn("Only Gitleaks findings can be added to .gitleaksignore")
-	}
+	finding, _ := m.findingsTable.Selected()
 	m.findingToIgnore = &finding
 	m.confirmModal = sharedcomponents.NewConfirmModal(
 		"Ignore Secret",
 		fmt.Sprintf("Add this secret to .gitleaksignore?\n\nFile: %s\nRule: %s", finding.File, finding.ID),
 	)
 	return m, nil
+}
+
+// The two findings actions, and why each does not apply (Rule 130).
+const (
+	reasonNoFinding    = "No finding selected"
+	reasonNotASecret   = ".gitleaksignore only holds secrets — open the Secrets tab"
+	reasonNotGitleaks  = "Only Gitleaks findings can be added to .gitleaksignore"
+	reasonNothingToSee = "No finding to open"
+)
+
+// canOpenFinding reports whether enter has a row to detail.
+func (m Model) canOpenFinding() shortcut.Availability {
+	if _, ok := m.findingsTable.Selected(); !ok {
+		return shortcut.Unavailable(reasonNothingToSee)
+	}
+	return shortcut.Availability{}
+}
+
+// canExclude reports whether X applies to the selected finding.
+//
+// .gitleaksignore is matched on a Gitleaks fingerprint, which a Trivy secret
+// does not have — fabricating one would report success for a line nothing will
+// ever match. The tab is checked first because it is the coarser answer: on
+// the CVE tab the key means nothing at all, whatever the row.
+func (m Model) canExclude() shortcut.Availability {
+	if m.activeTab != TabSecrets {
+		return shortcut.Unavailable(reasonNotASecret)
+	}
+	finding, ok := m.findingsTable.Selected()
+	switch {
+	case !ok:
+		return shortcut.Unavailable(reasonNoFinding)
+	case finding.Source != scan.SourceGitleaks:
+		return shortcut.Unavailable(reasonNotGitleaks)
+	}
+	return shortcut.Availability{}
 }
 
 // handleResultsState processes input in results state.

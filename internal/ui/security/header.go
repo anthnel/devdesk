@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -20,16 +19,14 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	case StateResults:
 		return m.resultsShortcuts()
 	case StateDetails:
-		shortcuts := []shortcut.Shortcut{
+		// A finding with no published reference is the same screen as one with
+		// three, so `o` is greyed rather than dropped (Rule 130).
+		f := m.selectedFinding
+		return []shortcut.Shortcut{
 			{Key: "esc/⌫", Description: "Back"},
+			{Key: "o", Description: "Open ref", Disabled: f == nil || len(f.References) == 0},
+			{Key: "ctrl+p", Description: "Command"},
 		}
-		if f := m.selectedFinding; f != nil {
-			if len(f.References) > 0 {
-				shortcuts = append(shortcuts, shortcut.Shortcut{Key: "o", Description: "Open ref"})
-			}
-		}
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+p", Description: "Command"})
-		return shortcuts
 	}
 	return nil
 }
@@ -48,49 +45,44 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 	if m.findingsTable.InEditMode() {
 		return shortcut.Shortcuts{{Key: "enter/esc", Description: "Confirm / Cancel search"}}
 	}
-	shortcuts := []shortcut.Shortcut{
+	// X is greyed rather than dropped (Rule 130): a tab is not a different
+	// screen, and the entry used to appear and disappear as the cursor crossed
+	// a Trivy secret in a list holding both tools' findings.
+	return []shortcut.Shortcut{
 		{Key: "tab", Description: "Switch tab"},
-		{Key: "enter", Description: "Details"},
+		{Key: "enter", Description: "Details", Disabled: !m.canOpenFinding().Enabled()},
 		{Key: "c", Description: "Toggle CRITICAL"},
 		{Key: "h", Description: "Toggle HIGH"},
 		{Key: "m", Description: "Toggle MEDIUM"},
 		{Key: "l", Description: "Toggle LOW"},
 		{Key: "/", Description: "Search"},
 		{Key: ".", Description: "Sort"},
+		{Key: keymap.Exclude, Description: "Exclude", Disabled: !m.canExclude().Enabled()},
+		{Key: "ctrl+r", Description: "New scan"},
+		{Key: "ctrl+p", Description: "Command"},
+		{Key: "?", Description: "Help"},
 	}
-	// Rule 130: .gitleaksignore only accepts a Gitleaks fingerprint, so X means
-	// nothing on a secret Trivy found — and the Secrets tab now holds both.
-	if selected, ok := m.findingsTable.Selected(); m.activeTab == TabSecrets && ok &&
-		selected.Source == scan.SourceGitleaks {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: keymap.Exclude, Description: "Exclude"})
-	}
-	return append(shortcuts,
-		shortcut.Shortcut{Key: "ctrl+r", Description: "New scan"},
-		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
-		shortcut.Shortcut{Key: "?", Description: "Help"},
-	)
 }
 
 // inventoryShortcuts advertises only what the selected row can actually do
 // (Rule 130). An empty inventory offers none of the per-row actions, and a row
 // with no stored counts cannot be opened.
+// inventoryShortcuts is the landing state's column.
+//
+// An empty inventory is the same screen as a full one — the table is there,
+// with no rows — so the row actions are greyed rather than dropped (Rule 130).
+// The first scan of a context used to make four entries appear at once.
 func (m Model) inventoryShortcuts() shortcut.Shortcuts {
-	shortcuts := []shortcut.Shortcut{}
-	if target, ok := m.inventory.Selected(); ok {
-		if target.Scanned {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "Open findings"})
-		}
-		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "S", Description: "Rescan"},
-			shortcut.Shortcut{Key: "A", Description: "Rescan all"},
-			shortcut.Shortcut{Key: "/", Description: "Filter"},
-		)
+	_, hasRow := m.inventory.Selected()
+	return []shortcut.Shortcut{
+		{Key: "enter", Description: "Open findings", Disabled: !m.canOpenTarget().Enabled()},
+		{Key: keymap.Scan, Description: "Rescan", Disabled: !m.canRescanSelected().Enabled()},
+		{Key: keymap.ScanAll, Description: "Rescan all", Disabled: !m.canRescanAll().Enabled()},
+		{Key: "/", Description: "Filter", Disabled: !hasRow},
+		{Key: "ctrl+r", Description: "Refresh"},
+		{Key: "ctrl+p", Description: "Command"},
+		{Key: "?", Description: "Help"},
 	}
-	return append(shortcuts,
-		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
-		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
-		shortcut.Shortcut{Key: "?", Description: "Help"},
-	)
 }
 
 func (m Model) GetTitle() string {

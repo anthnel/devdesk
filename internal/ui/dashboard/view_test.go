@@ -622,14 +622,17 @@ func TestTheFooterHeightMatchesAtEveryPalier(t *testing.T) {
 
 // ── Header, footer and help ──────────────────────────────────────────────────
 
-// Rule 130: the browser shortcuts only work with a session, so they must not be
-// advertised without one.
+// Rule 130: the browser shortcuts only work with a session, so they are greyed
+// without one — the entry keeps its place either way.
 func TestShortcutsFollowAuthentication(t *testing.T) {
 	m, _ := newTestModel(t)
 
 	signedOut := m.GetShortcuts()
-	if hasShortcut(signedOut, keymap.Requests) || hasShortcut(signedOut, keymap.Issues) {
-		t.Error("the browser shortcuts are advertised without a session")
+	if !hasShortcut(signedOut, keymap.Requests) || !hasShortcut(signedOut, keymap.Issues) {
+		t.Error("a browser shortcut disappeared without a session instead of being greyed")
+	}
+	if testutil.ShortcutEnabled(signedOut, keymap.Requests) || testutil.ShortcutEnabled(signedOut, keymap.Issues) {
+		t.Error("the browser shortcuts are offered without a session")
 	}
 	if !hasShortcut(signedOut, "ctrl+r") {
 		t.Error("refresh is not advertised")

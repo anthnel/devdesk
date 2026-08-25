@@ -388,13 +388,19 @@ already dim, so a disabled line reads as one uniform grey. `maxLenKey()` counts
 the disabled entries, or the alignment would depend on availability and the
 column would move anyway.
 
-**One calculation, two readers.** `internal/ui/workspaces/availability.go` is the
-reference: an `actionSet` of `actionState{Reason string}`, empty meaning
-available. `GetShortcuts` reads it to grey, `m.guard` reads it to refuse — so a
-greyed key that still acts is not expressible, and the refusal cannot be
-silent. That silence is what it replaced: `openInBrowser` returned `m, nil` on a
-repository with no remote, and `W` was advertised anyway because the shortcut
-keyed on `IsGitRepo`.
+**One calculation, two readers.** `shortcut.Availability` carries a single
+`Reason string`, empty meaning available; `GetShortcuts` reads it to grey and
+the handler reads it to refuse — so a greyed key that still acts is not
+expressible, and the refusal cannot be silent. That silence is what it replaced:
+`openInBrowser` returned `m, nil` on a repository with no remote, and `W` was
+advertised anyway because the shortcut keyed on `IsGitRepo`. The reference
+implementations are `internal/ui/workspaces/availability.go` and
+`internal/ui/oci_resources/availability.go`.
+
+**A footer reason is for an action, not for a control.** `←→` on a field that is
+not a cycle, `space` on what is not a checkbox, `tab` with one tab — greying is
+the whole of it: there is nothing to explain, and a footer line on every stray
+arrow key in a form would be noise.
 
 Two rules the entry earned:
 
@@ -407,8 +413,26 @@ Two rules the entry earned:
   not apply" about an action that worked; greying would repeat that, and
   refusing would be a regression.
 
-Only `workspaces` is migrated. The others still hide, and Rule 130 says where
-the line falls.
+**Every view is migrated**, and what still replaces the list is the screen
+changing: a mode, a tab, a state of the view, a signed-out screen — and, in the
+viewer, the **document kind**. A Markdown file has no verbosity and never will,
+which is a difference between openings rather than a "not now"; what varies
+*within* one document — the tree against the text — is greyed like everything
+else.
+
+Three things it turned up on the way through:
+
+- The Images tab advertised a **spinner frame as a key**: while a scan ran, `N`,
+  `S` and `D` were replaced by an entry reading `󰑐  scanning...`, in the column
+  that lists bindings. The row's own Scanned cell already carries that spinner
+  (Rule 139). `TestNoShortcutAdvertisesAGlyphAsAKey` checks the Private Use
+  Area rather than a list of icons, so nothing has to be kept in step with
+  `theme/icons.go`.
+- The **dashboard had no footer message** at all. It budgets an info line
+  (Rule 124) and left it permanently empty, so `R` and `I` without a session
+  fell through in silence with nowhere to say why.
+- `R` **checked less than `I` did**: it opened a URL from a backend whose
+  session was never verified. One `forgeLinks()` for both keys is what fixed it.
 
 ### Multi-Context Configuration
 

@@ -8732,7 +8732,7 @@ latence, ou qu'un message d'erreur reniflé dans la langue de l'image. C'est
 l'arrangement `IPTABLES:` / `UNAVAILABLE:` de `RunFirewallRules`, que §3.44 avait
 supprimé avec le pare-feu.
 
-### 3.48 Un raccourci sans objet est grisé, pas supprimé — **done (workspaces)**
+### 3.48 Un raccourci sans objet est grisé, pas supprimé — **done**
 
 Fait le 2026-08-25. Rule 130 disait de **masquer** l'entrée d'une action qui ne
 s'applique pas ; elle dit maintenant de la **griser**. Le mécanisme est écrit une
@@ -8824,13 +8824,62 @@ dispositif.
 C'est la règle générale que l'entrée dégage : **le grisage décrit ce que
 l'action peut faire, pas ce qu'on préférerait que l'utilisateur ne fasse pas.**
 
-#### Ce qui reste
+#### Les autres vues — fait
 
-Les dix autres vues masquent toujours. Les branches conditionnelles à reprendre,
-par ordre de volume : `oci_resources` 28, `viewer` 12, `netdiag` 11, `explorer`
-9, `security` 6, le reste ≤ 3. Chacune demande de trancher mode contre état, et
-les tests d'absence deviennent des tests de grisage — `shortcutDisabled` et
-`refused` sont les deux helpers à copier.
+Toutes migrées dans la foulée. `shortcut.Availability` a été remontée dans
+`internal/ui/shortcut` : le type ne portait qu'un champ et huit paquets en
+avaient besoin. Les helpers de test sont dans `internal/ui/testutil`
+(`ShortcutDisabled`, `ShortcutEnabled`, `HasShortcut`, `ShortcutKeys`), pour la
+même raison.
+
+| Vue | Grisé | Continue de remplacer la liste |
+|---|---|---|
+| `dashboard` | `tab` sans second onglet, `R`/`I` sans session | — |
+| `configuration` | `←→` et `space` selon le kind du champ focusé | — |
+| `explorer` | `W` sans page web ; tout le reste pendant un chargement | les modes, l'écran déconnecté |
+| `security` | inventaire `enter`/`S`/`A`/`/`, résultats `X`, détails `o` | inventaire / résultats / détails, la recherche qui a le clavier |
+| `netdiag` | `/` et `.` pendant la lecture des interfaces | les onglets, les états, la recherche |
+| `viewer` | `←→`, `w`, `v`, `/` selon l'affichage | le **kind du document** |
+| `oci_resources` | images `enter`/`N`/`S`/`D`, registries `N`/`E`/`U`/`D`/`→`/`←`, browser `enter`, les contrôles des trois formulaires | les onglets, les formulaires, le `docker pull` en cours |
+| `containers`, `status` | rien — leurs seules conditions étaient déjà des modes | |
+
+**Le kind d'un document est un mode, pas un état.** C'est la seule vue où la
+ligne se déplace, et elle se déplace dans l'autre sens : le viewer montre **un**
+document, ouvrir un autre document est une nouvelle invocation. Griser `t`, `F`,
+`V` et `v` sur chaque fichier texte ajouterait quatre lignes grises permanentes
+pour dire « pas pour ce genre de chose, jamais » — ce qui n'est pas « pas
+maintenant ». Ce qui varie *dans* un document — l'arbre contre le texte — est
+grisé comme partout ailleurs.
+
+**Une action se justifie, un contrôle non.** Le refus au footer vaut pour le
+vocabulaire majuscule, `enter` et `→`. Pour `←→` sur un champ qui n'est pas à
+cycle, `space` sur ce qui n'est pas une case, `tab` quand il n'y a qu'un onglet,
+le grisage suffit : il n'y a rien à expliquer, et une ligne de footer à chaque
+flèche perdue dans un formulaire serait du bruit.
+
+#### Trois défauts trouvés en migrant
+
+- **L'onglet Images annonçait une frame de spinner comme une touche.** Pendant
+  un scan, `N`, `S` et `D` étaient remplacées par une entrée lisant
+  `󰑐  scanning...`, dans la colonne qui liste les raccourcis — un état déguisé
+  en binding, alors que la cellule Scanned de la ligne porte déjà ce spinner
+  (Rule 139). `TestNoShortcutAdvertisesAGlyphAsAKey` teste la zone à usage privé
+  d'Unicode plutôt qu'une liste de glyphes, donc rien n'est à tenir en phase
+  avec `theme/icons.go`.
+- **Le dashboard n'avait aucun message de footer.** Il budgète une ligne d'info
+  (Rule 124) et la laissait vide en permanence, donc `R` et `I` sans session
+  tombaient dans le silence sans nulle part où dire pourquoi.
+- **`R` vérifiait moins que `I`.** Elle ouvrait une URL construite depuis un
+  backend dont la session n'était pas vérifiée. Un seul `forgeLinks()` pour les
+  deux touches referme ça.
+
+#### N'ont pas été touchées
+
+Des touches toujours annoncées et parfois inertes, qui n'ont jamais été masquées
+et sortent donc du périmètre de cette entrée : `K`, `D`, `T`, `L`, `enter` de
+`containers` sur une liste vide, `K` de netdiag/Ports sur une ligne sans PID,
+`N` et `D` de l'explorer sans nœud sélectionné. Elles relèvent de la même règle
+et se grisent de la même façon, mais c'est du grisage neuf, pas une migration.
 
 
 ## 4. Existing plans
