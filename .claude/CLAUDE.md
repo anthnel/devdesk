@@ -2135,6 +2135,26 @@ No new dependency: `net.Interfaces()` is the standard library and
 row** — the names agree character for character, so there is no correspondence
 table to keep.
 
+**The addresses are split by family, one column each** (§3.49). The split
+happens in `List`, where each address is still a `net.IP` and the family is a
+fact — `To4()` answers for an IPv4-mapped address as well as for a plain one,
+which is right, it *is* an IPv4 address. A view splitting `AddressList()` again
+would be parsing text this package produced, and would have to decide what an
+unparseable entry means: a question that only exists once the type has been
+thrown away. Hence `IPv4 []string` and `IPv6 []string` rather than one
+`Addresses`.
+
+Two consequences in the view:
+
+- **Both columns are flexible.** `datatable.shrink` reclaims from the flexible
+  columns first and always from the widest, so two of them are levelled against
+  each other; with the flex on IPv6 alone it absorbed the whole shortfall and
+  rendered at **zero width, header included, from about 100 columns down**.
+- **Below about 88 columns both are squeezed out**, and that cliff is the
+  table's rather than the split's — the single Addresses column had the same
+  one. `MinWidth` is an ask, not a floor, and giving the solver one would change
+  every table in the application. Written down rather than pretended away.
+
 Three decisions, each with a test:
 
 - **`RxErrors` and `TxErrors` are `*uint64`.** The counters come from a second

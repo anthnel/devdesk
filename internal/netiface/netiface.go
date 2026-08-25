@@ -28,11 +28,21 @@ import (
 
 // Interface is one network interface of this machine.
 type Interface struct {
-	Name      string
-	State     string // UP, DOWN, or LOOP
-	MTU       int
-	MAC       string
-	Addresses []string // CIDR notation
+	Name  string
+	State string // UP, DOWN, or LOOP
+	MTU   int
+	MAC   string
+
+	// IPv4 and IPv6 are the interface's addresses, in CIDR notation, split by
+	// family rather than joined into one list.
+	//
+	// The split happens **here**, where each address is still a net.IP and the
+	// family is a fact rather than something to read back out of a string. A
+	// view splitting `AddressList()` again would be parsing text this package
+	// produced, and would have to decide what an unparseable entry means —
+	// a question that only exists once the type has been thrown away.
+	IPv4 []string
+	IPv6 []string
 
 	// RxErrors and TxErrors are nil when the counters could not be read.
 	//
@@ -73,12 +83,12 @@ func List(ctx context.Context) ([]Interface, error) {
 	out := make([]Interface, 0, len(ifaces))
 	for _, i := range ifaces {
 		item := Interface{
-			Name:      i.Name,
-			State:     stateOf(i.Flags),
-			MTU:       i.MTU,
-			MAC:       i.HardwareAddr.String(),
-			Addresses: addressesOf(i),
+			Name:  i.Name,
+			State: stateOf(i.Flags),
+			MTU:   i.MTU,
+			MAC:   i.HardwareAddr.String(),
 		}
+		item.IPv4, item.IPv6 = addressesOf(i)
 		if c, ok := counters[i.Name]; ok {
 			rx, tx := c.Errin, c.Errout
 			item.RxErrors, item.TxErrors = &rx, &tx
@@ -124,17 +134,49 @@ func stateOf(flags net.Flags) string {
 	}
 }
 
-// addressesOf renders an interface's addresses in CIDR notation.
-func addressesOf(i net.Interface) []string {
+// addressesOf renders an interface's addresses in CIDR notation, one slice per
+// family.
+//
+// The family is read off the net.IP, never off the rendered string: To4()
+// answers for an IPv4-mapped address (::ffff:192.0.2.1) as well as for a plain
+// one, which is right — it is an IPv4 address, whatever notation it arrived in.
+//
+// An address of a kind neither branch recognises — a Unix socket address on an
+// interface, which does not happen but is expressible — is dropped rather than
+// filed under a family it does not belong to. Guessing would put a wrong answer
+// in a cell, where an absent one is at least visibly absent.
+func addressesOf(i net.Interface) (v4, v6 []string) {
 	addrs, err := i.Addrs()
 	if err != nil {
-		return nil
+		return nil, nil
 	}
-	out := make([]string, 0, len(addrs))
 	for _, a := range addrs {
-		out = append(out, a.String())
+		ip := ipOf(a)
+		switch {
+		case ip == nil:
+			continue
+		case ip.To4() != nil:
+			v4 = append(v4, a.String())
+		default:
+			v6 = append(v6, a.String())
+		}
 	}
-	return out
+	return v4, v6
+}
+
+// ipOf pulls the address out of whichever net.Addr the platform returned.
+//
+// net.Interface.Addrs documents *net.IPNet, and every platform in the standard
+// library returns that; *net.IPAddr is accepted because the interface permits
+// it and a type switch that refused it would drop the address in silence.
+func ipOf(a net.Addr) net.IP {
+	switch v := a.(type) {
+	case *net.IPNet:
+		return v.IP
+	case *net.IPAddr:
+		return v.IP
+	}
+	return nil
 }
 
 // HasMTU reports whether the MTU is a figure worth showing.
@@ -144,5 +186,6 @@ func addressesOf(i net.Interface) []string {
 // nothing rather than a number the machine does not mean.
 func (i Interface) HasMTU() bool { return i.MTU > 0 }
 
-// AddressList joins the addresses for a single-line cell.
-func (i Interface) AddressList() string { return strings.Join(i.Addresses, "  ") }
+// IPv4List and IPv6List join one family's addresses for a single-line cell.
+func (i Interface) IPv4List() string { return strings.Join(i.IPv4, "  ") }
+func (i Interface) IPv6List() string { return strings.Join(i.IPv6, "  ") }

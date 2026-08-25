@@ -132,13 +132,63 @@ func interfaceColumns() []datatable.Column[netiface.Interface] {
 	}
 	rx := errorColumn("RX err", func(i netiface.Interface) *uint64 { return i.RxErrors })
 	tx := errorColumn("TX err", func(i netiface.Interface) *uint64 { return i.TxErrors })
-	addrs := datatable.Column[netiface.Interface]{
-		Title: "Addresses", MinWidth: 20, Flex: 1,
-		Cell:   func(i netiface.Interface) string { return i.AddressList() },
-		Search: func(i netiface.Interface) string { return i.AddressList() },
-	}
+	// Both address columns are flexible, and that is what stops one of them
+	// disappearing. `shrink` reclaims a shortfall from the flexible columns
+	// first and always from the widest, so two of them are levelled against
+	// each other — with the flex on IPv6 alone it absorbed the whole shortfall
+	// and rendered at zero width from about 100 columns down, header included.
+	// IPv6 asks for more and grows faster because its notation is longer.
+	v4 := addressColumn("IPv4", minIPv4Width, 1, netiface.Interface.IPv4List)
+	v6 := addressColumn("IPv6", minIPv6Width, 2, netiface.Interface.IPv6List)
 
-	return []datatable.Column[netiface.Interface]{name, state, mtu, mac, rx, tx, addrs}
+	return []datatable.Column[netiface.Interface]{name, state, mtu, mac, rx, tx, v4, v6}
+}
+
+// The address columns' minimum widths, from what the notation can hold:
+// 255.255.255.255/32 is 18 characters, and a full IPv6 with its prefix length
+// is 43. The IPv6 minimum is deliberately short of that — a column wide enough
+// for the worst case would take half an 80-column terminal to serve the rare
+// machine that has one, and the solver gives it the slack when there is any
+// (Rule 116).
+//
+// Below about 88 columns the six fixed columns take everything and both
+// address columns are squeezed out. That cliff belongs to the table rather
+// than to the split — the single Addresses column this replaced had the same
+// one — and it is stated rather than pretended away: MinWidth is an ask, not a
+// floor, and giving the solver one would change every table in the
+// application.
+const (
+	minIPv4Width = 18
+	minIPv6Width = 22
+)
+
+// addressColumn builds one family's column.
+//
+// An interface with no address of this family renders a dim dash rather than an
+// empty cell: a machine with IPv4 only has no IPv6 address, which is a fact
+// about it, and a blank cell reads as a reading that failed. It is the same
+// distinction the MAC column already makes.
+//
+// Neither column sorts. A list of addresses has no order anyone means, and
+// sorting on the joined string would rank 10.x above 9.x — a lexical answer to
+// a question nobody asked in text.
+func addressColumn(title string, minWidth, flex int, list func(netiface.Interface) string) datatable.Column[netiface.Interface] {
+	return datatable.Column[netiface.Interface]{
+		Title: title, MinWidth: minWidth, Flex: flex,
+		Cell: func(i netiface.Interface) string {
+			if s := list(i); s != "" {
+				return s
+			}
+			return "-"
+		},
+		Search: list,
+		Style: func(i netiface.Interface) lipgloss.Style {
+			if list(i) == "" {
+				return theme.DimStyle
+			}
+			return lipgloss.Style{}
+		},
+	}
 }
 
 // macOrDash renders the hardware address, or says it has none.

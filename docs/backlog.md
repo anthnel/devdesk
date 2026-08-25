@@ -8882,7 +8882,7 @@ et sortent donc du périmètre de cette entrée : `K`, `D`, `T`, `L`, `enter` de
 et se grisent de la même façon, mais c'est du grisage neuf, pas une migration.
 
 
-### 3.49 `net`/Ports — `K` dit quand elle ne peut pas, et pourquoi elle a échoué — **done**
+### 3.49 `net` — `K` dit quand elle ne peut pas, et les adresses se séparent par famille — **done**
 
 Fait le 2026-08-25. Deux défauts voisins, tous les deux dans le prolongement de
 §3.43 (le kill signale avec les droits de DevDesk) et de §3.48 (une touche sans
@@ -8944,6 +8944,40 @@ que `ESRCH` correspond bien à `os.ErrProcessDone` sous Unix.
 C'est aussi ce qui a fait écrire la règle en toutes lettres : **le header
 répond de ce que l'application peut tenter, le footer de ce que le système a
 répondu.**
+
+#### Et l'onglet Interfaces sépare IPv4 et IPv6
+
+Une colonne par famille, au lieu d'une colonne `Addresses` qui les mêlait sur
+une ligne. On lit une notation de haut en bas plutôt qu'un mélange de gauche à
+droite, et le filtre atteint les deux.
+
+**Le tri se fait dans `List`, pas dans la vue.** Chaque adresse y est encore un
+`net.IP`, donc la famille est un fait : `To4()` répond aussi pour une adresse
+IPv4-mappée (`::ffff:192.0.2.1`), ce qui est correct — c'est une adresse IPv4,
+quelle que soit la notation d'arrivée. Une vue qui redécouperait
+`AddressList()` analyserait un texte que ce paquet vient de produire, et devrait
+décider ce que veut dire une entrée illisible : une question qui n'existe que
+lorsqu'on a jeté le type. D'où `IPv4 []string` et `IPv6 []string` en place
+d'`Addresses`.
+
+Une famille sans adresse rend un tiret grisé et non une cellule vide : une
+machine sans IPv6 n'a pas d'adresse IPv6, ce qui est un fait sur elle, alors
+qu'une cellule blanche se lit comme une lecture qui a échoué. C'est la
+distinction que fait déjà la colonne MAC.
+
+**Les deux colonnes sont flexibles, et c'est ce qui empêche l'une de
+disparaître.** `datatable.shrink` reprend d'abord aux colonnes flexibles et
+toujours à la plus large, donc deux d'entre elles se nivellent l'une contre
+l'autre. Avec le flex sur IPv6 seule — c'était le premier jet — elle absorbait
+tout le déficit et se rendait **à largeur zéro, en-tête compris, dès une
+centaine de colonnes**, ce qui est un terminal ordinaire. Mesuré au rendu, pas
+déduit.
+
+En dessous d'environ 88 colonnes, les six colonnes fixes prennent tout et les
+deux colonnes d'adresses sont évincées. Cette falaise appartient à la table et
+non au découpage — la colonne `Addresses` unique avait la même — et elle est
+écrite plutôt que dissimulée : `MinWidth` est une demande et non un plancher, et
+en donner un au solveur changerait toutes les tables de l'application.
 
 ## 4. Existing plans
 
