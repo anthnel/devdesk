@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -362,5 +363,33 @@ func TestExpandPaths_AbsoluteUnchanged(t *testing.T) {
 	cfg.ExpandPaths("/home/user")
 	if slash(cfg.App.WorkspacesDir) != "/absolute/path" {
 		t.Errorf("absolute path should be unchanged, got %q", cfg.App.WorkspacesDir)
+	}
+}
+
+// A relative gitleaks_config means one thing to DevDesk and another inside the
+// scanner's container, and the file is mounted now — so the two readings would
+// disagree about which file the scan used. It is pinned at load (D56).
+func TestARelativeGitleaksConfigIsPinnedAtLoad(t *testing.T) {
+	cfg := &Config{Scan: ScanConfig{GitleaksConfig: "rules/gitleaks.toml"}}
+
+	cfg.ExpandPaths("/home/user")
+
+	if !filepath.IsAbs(cfg.Scan.GitleaksConfig) {
+		t.Errorf("a relative rules file was left relative: %q", cfg.Scan.GitleaksConfig)
+	}
+	if !strings.HasSuffix(slash(cfg.Scan.GitleaksConfig), "/rules/gitleaks.toml") {
+		t.Errorf("the path was resolved to something else entirely: %q", cfg.Scan.GitleaksConfig)
+	}
+}
+
+// An empty setting means "no rules file", and turning it into the working
+// directory would hand gitleaks a directory to parse as TOML.
+func TestAnEmptyGitleaksConfigStaysEmpty(t *testing.T) {
+	cfg := &Config{}
+
+	cfg.ExpandPaths("/home/user")
+
+	if cfg.Scan.GitleaksConfig != "" {
+		t.Errorf("an unset rules file became %q", cfg.Scan.GitleaksConfig)
 	}
 }

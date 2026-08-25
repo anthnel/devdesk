@@ -1628,6 +1628,30 @@ Two consequences worth keeping:
   `AddToGitleaksIgnore` would fabricate one and report success for a line
   nothing will ever match.
 
+**A gitleaks exit code says nothing on its own; the report is what separates a
+result from a failure** (§3.50, D56). Measured on v8.30.1: a clean repository
+exits **0** and writes `[]`, secrets found exit 1 **with** the report, and any
+fatal — a `--config` that is missing, or one that will not parse — exits 1 with
+**nothing** on stdout. `RunGitleaks` used to read that last case as a clean
+repository, on a comment describing behaviour gitleaks does not have, so a scan
+that read not one byte came back with `SecretsScanned` true and a green icon in
+`ws`. Do not reintroduce a tolerance keyed on the exit code alone: the failure
+carries gitleaks' own diagnostic, which is the only thing that can say which
+fatal it was.
+
+**A configured rules file is mounted, and the flag names the mount.**
+`gitleaksConfigMount = "/gitleaks.toml"` sits at the container root because that
+is the one place nothing else can be — the target is at `containerScanPath`, so
+no file of the repository lands beside it. `scan.gitleaks_config` is also made
+**absolute at load** (`config.ExpandPaths`): a relative path means DevDesk's
+working directory in binary mode and the container's in Docker mode, and with
+the file mounted those two readings would name different files.
+`checkGitleaksConfig` refuses an unreadable one before anything starts — not as
+a second guard against a bad configuration, but because `docker run -v` on a
+host path that does not exist **creates a directory** there rather than failing
+(measured on Docker Desktop 29.7.2). `scan.plumber_config` (§3.42) is the same
+setting for another tool and copies all four points.
+
 **`scan.Categorize` is the only thing that decides a finding's family.** There
 were two rules: `Result.CountFindings` switched on `Source` alone, the security
 view's tabs on `Source` plus `PkgName` plus `Match`. Three inputs separated them

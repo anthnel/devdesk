@@ -753,7 +753,30 @@ func (c *Config) ExpandPaths(homeDir string) {
 	c.Scan.CacheDir = expand(c.Scan.CacheDir)
 	c.Scan.TrivyPath = expand(c.Scan.TrivyPath)
 	c.Scan.GitleaksPath = expand(c.Scan.GitleaksPath)
-	c.Scan.GitleaksConfig = expand(c.Scan.GitleaksConfig)
+	c.Scan.GitleaksConfig = absolute(expand(c.Scan.GitleaksConfig))
+}
+
+// absolute pins a configured file path to one meaning.
+//
+// A relative gitleaks_config does not mean the same thing on both sides of the
+// Docker boundary — DevDesk's working directory in binary mode, the container's
+// in Docker mode — and the file is now mounted, so the two readings would
+// disagree about which file is scanned with. Resolving it here settles it
+// against DevDesk's own working directory, once, at load: the path that gets
+// mounted and the path the configuration view shows are then the same string.
+//
+// A path that cannot be resolved is left as it was rather than dropped:
+// RunGitleaks refuses an unreadable config with the reason, and that is a
+// better place to fail than a config file that silently loses a setting.
+func absolute(path string) string {
+	if path == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	return abs
 }
 
 // SaveContext sauvegarde la configuration dans un fichier de contexte spécifique
