@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "b8826cfcc39b",
+  "strategy": "manual-commit",
+  "branch": "shortcut-disabled",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".claude/plans/shortcuts-disabled-state.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b8/826cfcc39b/0/metadata.json",
+      "transcript": "/b8/826cfcc39b/0/full.jsonl",
+      "compact_transcript": "/b8/826cfcc39b/0/transcript.jsonl",
+      "content_hash": "/b8/826cfcc39b/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 304,
+    "cache_creation_tokens": 294443,
+    "cache_read_tokens": 36774721,
+    "output_tokens": 82480,
+    "api_call_count": 152
+  }
+}
