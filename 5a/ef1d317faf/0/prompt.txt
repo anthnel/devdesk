@@ -1,0 +1,17 @@
+regarde le backlog pour le dimensionnement des datatables de manière intelligent, est-ce qu'il y a des décisions à trancher. Tu m'as aussi donné cette précision :  Le plancher de largeur dans datatable — MinWidth est une demande, pas un plancher, donc sous ~88 colonnes les colonnes flexibles tombent à zéro. Ça touche toutes les tables, pas seulement Interfaces.
+
+---
+
+tranchons ensemble les points, pose moi les questions
+
+---
+
+certaines colonnes doivent toujours être affichées et la largeur est connue à l'avance, ex dans la vue sec, les colonnes cve, scanned, secret ont des largeurs fixes connues lors de la compilation. Puis il y a des colonnes qui peuvent prendre plus ou moins de place à l'écran. Certaines colonnes ne peuvent pas être tronquées ou supprimée mais d'autres oui, il faudrait donc pouvoir dire par vue quelles sont les colonnes qui doivent toujours être affichées et lesquelles ont une taille variable
+
+---
+
+tranchons
+
+---
+
+commit et merge
