@@ -620,7 +620,7 @@ execution sees a closure that registers under another name, twice, or not at all
 |---|---|
 | `context_list` | the contexts on this machine, and which one this process serves |
 | `context_get` | the served context's configuration — no field can carry a credential |
-| `workspaces_list` | the repositories under `workspaces_dir`, their git state and their scan state |
+| `workspaces_list` | the repositories under `workspaces_dir`, their git state and their scan state. It carried a `project_type` guessed from a signature file, with its own copy of the table; §3.46 removed the column that motivated it and this with it |
 | `registries_list` | the configured registries, and the members discovery last found |
 | `containers_list` | what the daemon holds, with the ports parsed |
 | `ports_list` | the TCP and UDP sockets open on this machine, and the process holding each |
@@ -1069,6 +1069,61 @@ The consequence to keep in mind: with the helper out of the loop, a context
 whose stored token is missing or under-scoped **fails** rather than falling back
 to a browser. That is the intended trade — a failed row naming git's reason
 beats a spinner that never resolves — but it makes the token the only way in.
+
+### The leftmost column of `ws` — `internal/ui/fileicon`
+
+A glyph naming what each row **is**: a git repository, a directory, or a file
+(§3.46). It replaced a Type column that showed a *project* type —
+`detectProjectType` looked for `go.mod` or `package.json` and answered "this is
+a Go project", which is a different question and was judged not worth a column.
+
+**The repository glyph is the one that earns the column.** Half the keys here
+act on `IsGitRepo` — `S`, `F`, `A`, `D`, `enter` — and Rule 130 shows or hides
+them accordingly, so the user watched the shortcuts change with nothing on the
+row saying why. Git Status betrays a repository only when it has a readable
+branch: a detached HEAD, an empty repository, one git refuses to read all
+rendered an empty cell and looked like any other directory. A directory holding
+*nested* repositories still reads as a plain directory — `S`, `F` and `A` act on
+it too, so a fourth glyph would be defensible.
+
+**The resolution rule is `internal/viewer/detect.go`'s**: the **basename is
+consulted before the extension**, because `Dockerfile` has none and
+`Dockerfile.dev` has `.dev`, which is in no table. `.gitlab-ci.yml` falls out of
+it for free. Nothing is sniffed from content.
+
+It is **not** the viewer's `Kind` table: a dozen Kinds pick a lexer, dozens of
+icons name a file, and several share a Kind — `.js`, `.ts`, `.py` and `.rs`
+would all be "text". Two questions about one entry, so two tables.
+
+**The glyphs live in the package, not in `theme/icons.go`**, and it is the one
+place this departs from the `ForgeIcon` precedent: there the glyph is in `theme`
+and the vocabulary in `internal/forge` because a domain package must not import
+the UI, whereas here both halves are UI and a table whose key and value sit in
+different files cannot be read one entry at a time. `theme` keeps what the
+application names — `IconDirectory`, `IconFile`, `IconGitBranch`.
+
+Four things worth knowing before touching the table:
+
+- **No colour**, against `eza`. A colour on every row informs no one, and it
+  would weaken the ones that signal something — severities, secrets, git status.
+- **No title, no `Less`, no `Search`.** It adds no text anyone could type, so
+  the filter stays on Name and Remote.
+- **Twenty glyphs were checked by eye**, one at a time, in a terminal: a wrong
+  codepoint breaks nothing and renders a tofu box, which no test can see. CSS
+  and HTML went in the wrong way round on the first pass — MDI's four
+  `language_*` glyphs are one contiguous alphabetical run, and that ordering is
+  what settles which is which.
+- **What has no certain glyph does not get an invented one.** `.kt`, `.scala`,
+  `.hs`, `.zig` and `.tf` fall to `IconCodeFile`.
+
+Three tests keep the table reachable without knowing anything about glyphs:
+`TestEveryExtensionKeyStartsWithADot` and `TestEveryTableKeyIsLowercase` catch
+the entries that could never match — `filepath.Ext` returns `.go` and the lookup
+lowercases first — and `TestNoGlyphIsEmptyOrCarriesStyling` forbids the ANSI
+escape Rule 122 bans from a cell.
+
+`.gitlab-ci.yml` is a **declared exception** in `vocabtest`: it is a filename,
+not vocabulary — the file is called that whatever forge a context targets.
 
 ### The workspaces sync
 

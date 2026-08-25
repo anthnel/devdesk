@@ -37,8 +37,6 @@ type workspaceRepo struct {
 	// documentation because that is the only form an agent reads (D35).
 	BehindIsStale bool `json:"behind_is_stale" jsonschema:"always true: behind is read from the local tracking ref and this server never fetches, so a repository that has not been synced since it was last opened can report 0 while being far behind"`
 
-	ProjectType string `json:"project_type,omitempty" jsonschema:"guessed from a signature file such as go.mod or package.json"`
-
 	Scanned   bool      `json:"scanned"`
 	ScannedAt time.Time `json:"scanned_at,omitempty"`
 	Critical  int       `json:"critical,omitempty"`
@@ -98,7 +96,6 @@ func listRepositories(root string, env *Env) []workspaceRepo {
 			Name:          filepath.Base(path),
 			Path:          path,
 			BehindIsStale: true,
-			ProjectType:   projectType(path),
 		}
 
 		// A repository git refuses to read is still a repository — it is
@@ -171,35 +168,4 @@ func walkRepos(dir string, depth int, showHidden bool, repos *[]string) {
 func isRepo(dir string) bool {
 	info, err := os.Stat(filepath.Join(dir, ".git"))
 	return err == nil && (info.IsDir() || info.Mode().IsRegular())
-}
-
-// projectSignatures is what the workspaces view guesses a project's language
-// from. It is duplicated rather than shared because it is a *guess shown to a
-// human*: the view can change what it looks for without that being a change to
-// this tool's answers, and vice versa.
-var projectSignatures = []struct {
-	file string
-	kind string
-}{
-	{"go.mod", "Go"},
-	{"Cargo.toml", "Rust"},
-	{"package.json", "Node"},
-	{"pyproject.toml", "Python"},
-	{"requirements.txt", "Python"},
-	{"pom.xml", "Java"},
-	{"build.gradle", "Java"},
-	{"Gemfile", "Ruby"},
-	{"composer.json", "PHP"},
-	{"mix.exs", "Elixir"},
-	{"Makefile", "Make"},
-	{"Dockerfile", "Docker"},
-}
-
-func projectType(path string) string {
-	for _, sig := range projectSignatures {
-		if _, err := os.Stat(filepath.Join(path, sig.file)); err == nil {
-			return sig.kind
-		}
-	}
-	return ""
 }

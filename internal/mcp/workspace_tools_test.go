@@ -100,9 +100,6 @@ func TestARepositoryCarriesItsGitStateAndItsScan(t *testing.T) {
 		t.Fatalf("listed %+v, want the one repository", out.Repositories)
 	}
 	got := out.Repositories[0]
-	if got.ProjectType != "Go" {
-		t.Errorf("project_type = %q, want Go", got.ProjectType)
-	}
 	// README.md, go.mod and untracked.txt: `git init` adds nothing, so every
 	// file the fixture wrote is untracked.
 	if got.Untracked != 3 {

@@ -11,9 +11,12 @@ import (
 // Column fixed widths for the workspace table.
 // colGitFixed: icon(1) + " "(1) + branch(~20) + up to 3 indicators × (icon+count+space)(4) = 28
 const (
+	// colIconFixed is the glyph plus its trailing space. Two cells, not one:
+	// a Nerd Font glyph renders at double width on some terminals and single
+	// on others, and one cell would clip it wherever it renders wide.
+	colIconFixed      = 2
 	colNameFixed      = 36
 	colGitFixed       = 28
-	colTypeFixed      = 4
 	colSensitiveFixed = 7
 	colCFixed         = 4
 	colHFixed         = 4
@@ -55,6 +58,14 @@ func workspaceColumns() []datatable.Column[workspaceRow] {
 	}
 	return []datatable.Column[workspaceRow]{
 		{
+			// No title: the column carries a glyph, and a header over it would
+			// name something the user reads at a glance anyway — eza does not
+			// print one either. It declares neither Less nor Search: it adds no
+			// text anyone could type, so the filter stays on Name and Remote.
+			Title: "", MinWidth: colIconFixed,
+			Cell: func(r workspaceRow) string { return entryIcon(r.Entry) },
+		},
+		{
 			Title: "Name", MinWidth: colNameFixed,
 			Cell:   func(r workspaceRow) string { return r.Entry.Name },
 			Search: func(r workspaceRow) string { return r.Entry.Name },
@@ -69,7 +80,6 @@ func workspaceColumns() []datatable.Column[workspaceRow] {
 			Cell:  func(r workspaceRow) string { return r.GitStatus },
 			Style: gitStatusStyle,
 		},
-		text("Type", colTypeFixed, func(r workspaceRow) string { return formatProjectType(r.Entry) }),
 		{
 			Title: "Secrets", MinWidth: colSensitiveFixed,
 			Cell:  func(r workspaceRow) string { return r.Sensitive.Text },

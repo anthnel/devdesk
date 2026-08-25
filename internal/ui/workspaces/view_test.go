@@ -80,7 +80,7 @@ func TestGitStatusCounters(t *testing.T) {
 	rows := m.table.Table().Rows()
 
 	// devdesk: 2 modified, 1 untracked, 3 unpushed.
-	dirty := rows[0][2]
+	dirty := rows[0][colGitStatus]
 	for _, want := range []string{"2", "1", "3"} {
 		if !strings.Contains(dirty, want) {
 			t.Errorf("the git status cell %q is missing the count %q", dirty, want)
@@ -88,7 +88,7 @@ func TestGitStatusCounters(t *testing.T) {
 	}
 
 	// clean-repo has nothing outstanding, so its cell must not invent counters.
-	if clean := rows[1][2]; strings.ContainsAny(clean, "123456789") {
+	if clean := rows[1][colGitStatus]; strings.ContainsAny(clean, "123456789") {
 		t.Errorf("a clean repo rendered counters: %q", clean)
 	}
 }
@@ -98,20 +98,56 @@ func TestNonRepoEntriesHaveNoGitStatus(t *testing.T) {
 
 	// clients (a plain directory) and notes.md (a file).
 	for _, idx := range []int{2, 4} {
-		if got := strings.TrimSpace(m.table.Table().Rows()[idx][2]); got != "" {
+		if got := strings.TrimSpace(m.table.Table().Rows()[idx][colGitStatus]); got != "" {
 			t.Errorf("row %d rendered a git status %q for a non-repo", idx, got)
 		}
 	}
 }
 
-func TestProjectTypeIsShown(t *testing.T) {
+// TestTheIconColumnNamesWhatEachRowIs replaced TestProjectTypeIsShown. The
+// column it replaced showed a *project* type — "this directory contains a
+// go.mod" — where this one says what the row itself is, which is the
+// distinction half the keys in this view act on.
+func TestTheIconColumnNamesWhatEachRowIs(t *testing.T) {
 	m := loadedModel(t)
+	rows := m.table.Table().Rows()
 
-	if got := strings.TrimSpace(m.table.Table().Rows()[0][3]); got == "" {
-		t.Error("the project type cell is empty for a Go repo")
+	repo := strings.TrimSpace(rows[0][colIcon])
+	dir := strings.TrimSpace(rows[2][colIcon])
+	file := strings.TrimSpace(rows[4][colIcon])
+
+	for name, got := range map[string]string{"repo": repo, "directory": dir, "file": file} {
+		if got == "" {
+			t.Errorf("the %s row has no glyph; the column would stop lining up", name)
+		}
 	}
-	if got := strings.TrimSpace(m.table.Table().Rows()[4][3]); got != "" {
-		t.Errorf("a file rendered a project type %q", got)
+	if repo == dir {
+		t.Error("a git repository and a plain directory share a glyph — half the keys " +
+			"in this view act on that difference and nothing else on the row says it")
+	}
+	if dir == file {
+		t.Error("a directory and a file share a glyph")
+	}
+}
+
+// TestAFileGetsTheGlyphOfItsKind checks the column actually consults the file
+// name rather than rendering one generic glyph for everything that is not a
+// directory.
+func TestAFileGetsTheGlyphOfItsKind(t *testing.T) {
+	if entryIcon(Entry{Name: "main.go"}) == entryIcon(Entry{Name: "data.bin"}) {
+		t.Error("a .go file and an unknown file share a glyph")
+	}
+	if entryIcon(Entry{Name: "notes.md"}) == entryIcon(Entry{Name: "run.sh"}) {
+		t.Error("a Markdown file and a shell script share a glyph")
+	}
+}
+
+// TestADirectoryIgnoresItsOwnName keeps the file table out of the directory
+// branch: a directory called `config.toml` is still a directory.
+func TestADirectoryIgnoresItsOwnName(t *testing.T) {
+	plain := entryIcon(Entry{Name: "src", IsDir: true})
+	if got := entryIcon(Entry{Name: "config.toml", IsDir: true}); got != plain {
+		t.Errorf("a directory named like a file got %q, want the directory glyph %q", got, plain)
 	}
 }
 

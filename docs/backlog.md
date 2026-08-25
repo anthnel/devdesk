@@ -8461,82 +8461,119 @@ Les cas les plus visibles : Remote dans `ws` (une URL longue à côté de colonn
 de comptage à un chiffre), Target dans l'inventaire `:sec`, et Image dans les
 conteneurs.
 
-### 3.46 `ws` — une icône par ligne, et la colonne Type disparaît
+### 3.46 `ws` — une icône par ligne, et la colonne Type disparaît — **done**
 
-À faire, sur le modèle de `eza` : une colonne d'icône à gauche du nom, dérivée
-du **nom du fichier**, et la colonne Type supprimée.
+Fait le 2026-08-24, sur le modèle d'`eza` : une colonne de glyphe à gauche du
+nom, et la colonne Type supprimée.
 
 ```
- bin   configs   deploy   internal            Dockerfile   go.sum    󰂺 README.md
- cmd   data      docs     docker-compose.yml  go.mod       mise.toml
+󰊢 devdesk            main ↑3
+󰉋 clients
+ go.mod
+󰍔 README.md
+ .gitlab-ci.yml
+󰆍 build.sh
 ```
 
-#### Ce qu'on remplace n'est pas ce qu'on ajoute
+#### Les quatre décisions, et ce qu'elles ont donné
 
-C'est le point à décider, et il est facile à manquer. La colonne Type
-d'aujourd'hui n'est pas un type de fichier : `detectProjectType` cherche une
-**signature** dans le répertoire — `go.mod`, `Cargo.toml`, `package.json`,
-`pom.xml` — et rend « ce répertoire est un projet Go ». L'icône `eza`, elle,
-dérive du **nom de l'entrée**. Sur une vue dont la quasi-totalité des lignes sont
-des répertoires, et qu'un répertoire n'a pas d'extension, remplacer l'une par
-l'autre **perd de l'information** sur presque toutes les lignes.
-
-Une colonne, deux règles selon le genre de la ligne, coûte le même espace et ne
-perd rien :
-
-| Ligne | Icône |
+| | Décidé |
 |---|---|
-| dépôt git ou répertoire **avec** une signature | l'icône du projet — `detectProjectType`, exactement ce que la colonne Type affiche déjà |
-| autre répertoire | `IconDirectory` |
-| fichier | par nom de base, puis par extension |
+| Que devient la colonne Type ? | **supprimée** — `detectProjectType`, `formatProjectType` et `Entry.ProjectType` avec |
+| Le dépôt git garde-t-il un glyphe ? | **oui, trois genres** : dépôt, répertoire, fichier |
+| L'icône est-elle colorée ? | **non** |
+| La colonne a-t-elle un en-tête ? | **non**, comme `eza` |
 
-C'est ce qui est recommandé ici. L'alternative — dossier ou fichier, rien de
-plus, comme demandé littéralement — est plus simple et supprime
-`detectProjectType` et `formatProjectType` en entier ; elle est défendable si on
-juge que le type de projet ne valait pas sa colonne. **À trancher.**
+**Ce qu'on remplace n'était pas ce qu'on ajoute**, et l'entrée d'origine s'y
+attardait : la colonne Type ne montrait pas un type de *fichier* mais un type de
+*projet* — `detectProjectType` cherchait `go.mod` ou `package.json` et répondait
+« ce répertoire est un projet Go ». La fonctionnalité a été jugée sans intérêt,
+donc elle part entière plutôt que d'être traduite.
 
-#### La table des icônes est déclarée, jamais devinée
+**Le troisième glyphe est celui qui justifie la colonne.** Un dépôt git et un
+répertoire ordinaire se distinguent maintenant à l'œil, ce qui n'était pas le
+cas : la colonne Git Status ne trahit un dépôt que s'il a une branche lisible,
+donc un HEAD détaché, un dépôt vide ou un dépôt que git refuse de lire
+affichaient une cellule vide et ressemblaient à n'importe quel répertoire. Or
+**la moitié des touches de la vue agissent sur `IsGitRepo`** — `S`, `F`, `A`,
+`D`, `enter` — et Rule 130 les fait apparaître ou disparaître en conséquence :
+l'utilisateur voyait l'aide changer sans que la ligne dise pourquoi.
 
-`internal/viewer/detect.go` porte déjà exactement cette structure et son
-raisonnement : `basenameKinds` consulté **avant** `extensionKinds`, parce que
-`Dockerfile` n'a pas d'extension et que `Dockerfile.dev` en a une qui n'est dans
-aucune table. `.gitlab-ci.yml` que demande la description est un nom de base, et
-tombe donc du bon côté sans rien changer à la règle.
+Un répertoire contenant des dépôts *imbriqués* se lit toujours comme un
+répertoire ordinaire. `S`, `F` et `A` agissent dessus aussi, donc un quatrième
+glyphe se défendrait ; trois est ce qui a été demandé, et la ligne n'avait de
+toute façon aucun autre moyen de le dire.
 
-Deux choses à ne pas faire :
+**Pas de couleur**, contre `eza` : la discipline de `datatable` est qu'une
+couleur présente partout n'informe de rien, et une colonne où chaque ligne porte
+une teinte affaiblirait celles qui signalent vraiment quelque chose — les
+sévérités, les secrets, le statut git.
 
-- **Réutiliser `viewer.Kind` comme clé d'icône.** Il en existe une dizaine, pour
-  décider d'un lexer ; il faut une cinquantaine d'icônes, dont beaucoup
-  partagent un `Kind` (`.js`, `.ts`, `.py`, `.rs` seraient tous « texte »). Ce
-  sont deux questions différentes sur la même entrée.
-- **Dupliquer la règle de résolution.** Le nom de base d'abord, l'extension
-  ensuite, et rien de deviné à partir du contenu : c'est écrit dans `detect.go`
-  et ça doit être la même phrase des deux côtés. La bonne forme est probablement
-  un petit paquet — `internal/ui/fileicon` — que `ws` consomme, avec sa table à
-  lui et la règle de résolution empruntée.
+#### `internal/ui/fileicon`
 
-#### Les contraintes de rendu, qui ne sont pas négociables
+La table est déclarée, jamais devinée, et la règle de résolution est celle
+d'`internal/viewer/detect.go` : **le nom de base est consulté avant
+l'extension**, parce que `Dockerfile` n'a pas d'extension et que `Dockerfile.dev`
+en a une qui n'est dans aucune table. `.gitlab-ci.yml` tombe du bon côté sans
+rien ajouter à la règle. Rien n'est reniflé dans le contenu.
 
-- **Rule 122** : `Cell` rend l'icône en texte brut, la couleur passe par
-  `Style`. Une icône colorée dans `Cell` serait mesurée en octets et coupée au
-  milieu de sa séquence.
-- **Rule 125** : une colonne d'icône est alignée à **gauche**, parce que la
-  largeur rendue d'une glyphe Nerd Font varie d'un terminal à l'autre.
-- **La largeur** : deux cellules, glyphe plus espace. Une seule suffit sur les
-  terminaux qui rendent la glyphe en simple largeur et coupe sur les autres.
-- **Pas de tri, pas de recherche** sur cette colonne : elle n'ajoute aucun texte
-  que l'utilisateur puisse taper. Le `Search` reste sur Name et Remote.
+Ce n'est **pas** la table `Kind` du viewer : il y a une douzaine de `Kind`, assez
+pour choisir un lexer, et des dizaines d'icônes dont plusieurs partagent un
+`Kind` — `.js`, `.ts`, `.py` et `.rs` seraient tous « texte ». Deux questions sur
+la même entrée, donc deux tables.
 
-#### Ce que ça coûte, et à qui
+**Les glyphes vivent dans le paquet et non dans `theme/icons.go`**, seul endroit
+où ce paquet s'écarte du précédent `ForgeIcon`. Là, le glyphe est dans `theme` et
+le vocabulaire dans `internal/forge` parce qu'un paquet de domaine ne doit pas
+importer l'UI ; ici les deux moitiés sont de l'UI, et une table dont la clé est
+dans un fichier et la valeur dans un autre ne se lit pas une entrée à la fois.
+`theme` garde les icônes que l'application nomme — `IconDirectory`, `IconFile`,
+`IconGitBranch` — et le paquet les emprunte pour ce qu'il ne sait pas nommer.
 
-Une police Nerd Font est **déjà** requise — toute l'application en dépend, et la
-colonne Type affiche déjà `IconGo` et `IconDocker`. Ce n'est donc pas une
-nouvelle exigence, seulement une plus visible : une ligne sur deux portera une
-glyphe au lieu d'une ligne sur dix.
+**Vingt glyphes ont été ajoutés et vérifiés à l'œil**, un par un, en les rendant
+dans un terminal : un codepoint faux ne casse rien, il affiche une tofu box, ce
+qu'aucun test ne peut voir. Deux enseignements de ce passage :
 
-L'espace est neutre : la colonne Type fait aujourd'hui `colTypeFixed` cellules,
-et la colonne d'icône en prendra deux au même endroit. Sur une vue à onze
-colonnes, c'est ce qui rend l'échange gratuit plutôt qu'un ajout.
+- **CSS et HTML étaient inversés** au premier jet. Les quatre `language_*` de
+  MDI forment une suite contiguë en ordre alphabétique — csharp, css3, html5,
+  javascript — et c'est cet ordre qui tranche, parce que les glyphes sont
+  indiscernables les uns des autres dans un diff. C'est écrit dans le code.
+- **Ce qui n'a pas de glyphe sûr n'en invente pas.** `.kt`, `.scala`, `.hs`,
+  `.zig`, `.tf` et le reste tombent sur `IconCodeFile` : « ceci est du code »
+  est moins que nommer le langage et beaucoup plus qu'une boîte vide.
+
+Trois tests tiennent la table honnête sans rien savoir des glyphes :
+`TestEveryExtensionKeyStartsWithADot` et `TestEveryTableKeyIsLowercase`
+attrapent les entrées **inatteignables** — `filepath.Ext` rend `.go` et la
+recherche minusculise, donc une clé `go` ou `README` ne matcherait jamais et le
+fichier retomberait en silence sur le glyphe générique — et
+`TestNoGlyphIsEmptyOrCarriesStyling` interdit la séquence ANSI que Rule 122
+proscrit dans une cellule.
+
+#### Deux choses trouvées en chemin
+
+**Le garde `vocabtest` a sauté sur `.gitlab-ci.yml`**, et il avait raison de
+poser la question. C'est un **nom de fichier**, pas du vocabulaire : le fichier
+s'appelle ainsi sur le disque quelle que soit la plateforme visée par le
+contexte, et un contexte GitHub qui contient un pipeline GitLab veut quand même
+le bon glyphe dessus. Exception déclarée avec sa raison, sur le modèle de
+`keymap.DeclaredExceptions()`.
+
+**`project_type` a été retiré de l'outil MCP `workspaces_list` aussi.** Il en
+avait sa **propre copie** — `projectSignatures` dans `internal/mcp` — donc
+supprimer la colonne ne l'aurait pas touché, et la duplication serait devenue un
+exemplaire unique qui survit à ce qui l'a motivé.
+
+#### Ce que ça coûte
+
+Une police Nerd Font était **déjà** requise et la colonne Type affichait déjà
+`IconGo` et `IconDocker` : ce n'est pas une exigence nouvelle, seulement plus
+visible. L'espace est neutre — la colonne Type faisait quatre cellules, l'icône
+en prend deux — et la vue reste à onze colonnes.
+
+Les tests lisant la table par index nomment désormais les trois qu'ils utilisent
+(`colIcon`, `colName`, `colGitStatus`) : une colonne ajoutée à gauche déplace
+trois constantes au lieu de chaque assertion.
 
 
 ### 3.47 La trace de route est supprimée, et `network.tool_image` avec — **done**

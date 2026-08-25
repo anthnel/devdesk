@@ -24,41 +24,12 @@ func isHidden(name string, showHidden bool) bool {
 
 // enrichEntry populates git and project type metadata for a directory entry
 func enrichEntry(entry *Entry, showHidden bool) {
-	entry.ProjectType = detectProjectType(entry.Path)
 	detectGitStatus(entry)
 	if entry.IsGitRepo {
 		return
 	}
 	// For non-git directories, find every nested git repo, however deep.
 	entry.SubRepoPaths = detectSubRepoPaths(entry.Path, showHidden)
-}
-
-// detectProjectType detects the project type by looking for signature files
-func detectProjectType(path string) string {
-	signatures := []struct {
-		file     string
-		projType string
-	}{
-		{"go.mod", "Go"},
-		{"Cargo.toml", "Rust"},
-		{"package.json", "Node"},
-		{"pyproject.toml", "Python"},
-		{"requirements.txt", "Python"},
-		{"pom.xml", "Java"},
-		{"build.gradle", "Java"},
-		{"Gemfile", "Ruby"},
-		{"composer.json", "PHP"},
-		{"mix.exs", "Elixir"},
-		{"Makefile", "Make"},
-		{"Dockerfile", "Docker"},
-	}
-
-	for _, sig := range signatures {
-		if _, err := os.Stat(filepath.Join(path, sig.file)); err == nil {
-			return sig.projType
-		}
-	}
-	return ""
 }
 
 // detectGitStatus populates git-related fields on the entry.

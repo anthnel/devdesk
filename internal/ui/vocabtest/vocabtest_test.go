@@ -51,6 +51,14 @@ var allowed = map[string]string{
 	// literals here are the *case labels* of the switch that resolves them —
 	// the one place a forge's name has to appear as text.
 	"internal/ui/theme/icons.go": "the ForgeIcon table",
+
+	// `.gitlab-ci.yml` is a *filename*, not vocabulary. The file is called that
+	// on disk whatever a context targets, so the icon table names it the way it
+	// names `Dockerfile` and `Cargo.toml` — and a GitHub-targeted context that
+	// happens to hold a GitLab pipeline file still wants the right glyph on it.
+	// This is a distinction the guard exists to make the reader confront, not
+	// one it exists to forbid.
+	"internal/ui/fileicon/fileicon.go": "filenames that happen to carry a forge's name",
 }
 
 // importPath recognises a Go import, which is a string literal like any other

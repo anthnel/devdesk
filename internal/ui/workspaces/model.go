@@ -116,9 +116,6 @@ type Entry struct {
 	GitUntracked int
 	GitUnpushed  int
 	GitUnpulled  int
-
-	// Project metadata
-	ProjectType string // "Go", "Node", "Python", "Rust", "Java", etc.
 }
 
 // New crée une nouvelle instance du modèle workspaces.
