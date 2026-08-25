@@ -93,16 +93,16 @@ func (m *Model) renderChecks() string {
 func checkColumns() []datatable.Column[netcheck.Check] {
 	return []datatable.Column[netcheck.Check]{
 		{
-			Title: "Check", MinWidth: 20,
+			Title: "Check", Sizing: datatable.SizingContent, MinWidth: 20,
 			Cell: func(c netcheck.Check) string { return c.Title },
 		},
 		{
-			Title: "Verdict", MinWidth: 9,
+			Title: "Verdict", Sizing: datatable.SizingFixed, MinWidth: 9,
 			Cell:  verdictCell,
 			Style: verdictStyle,
 		},
 		{
-			Title: "Observed", MinWidth: 20, Flex: 1,
+			Title: "Observed", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 1,
 			Cell: func(c netcheck.Check) string { return c.Summary },
 		},
 	}

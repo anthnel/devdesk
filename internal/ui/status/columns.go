@@ -11,13 +11,6 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// numMonitorColumns and numSSLColumns are what the Rule 116 sum is checked
-// against.
-const (
-	numMonitorColumns = 5
-	numSSLColumns     = 6
-)
-
 // columnName is the column the monitors table opens sorted by.
 const columnName = 0
 
@@ -26,24 +19,24 @@ const columnName = 0
 func monitorColumns() []datatable.Column[status.ComponentStatus] {
 	return []datatable.Column[status.ComponentStatus]{
 		{
-			Title: "Name", MinWidth: 16, Flex: 1,
+			Title: "Name", Sizing: datatable.SizingContent, MinWidth: 16, Flex: 1,
 			Cell:   func(c status.ComponentStatus) string { return c.Name },
 			Less:   func(a, b status.ComponentStatus) bool { return strings.ToLower(a.Name) < strings.ToLower(b.Name) },
 			Search: func(c status.ComponentStatus) string { return c.Name },
 		},
 		{
-			Title: "Target", MinWidth: 24, Flex: 2,
+			Title: "Target", Sizing: datatable.SizingContent, TruncateHead: true, MinWidth: 24, Flex: 2,
 			Cell:   func(c status.ComponentStatus) string { return c.Target },
 			Less:   func(a, b status.ComponentStatus) bool { return strings.ToLower(a.Target) < strings.ToLower(b.Target) },
 			Search: func(c status.ComponentStatus) string { return c.Target },
 		},
 		{
-			Title: "Status", MinWidth: 10,
+			Title: "Status", Sizing: datatable.SizingFixed, MinWidth: 10,
 			Cell:  monitorStatusCell,
 			Style: componentStatusStyle,
 		},
 		{
-			Title: "Type", MinWidth: 10,
+			Title: "Type", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 10,
 			Cell: monitorTypeCell,
 			Less: func(a, b status.ComponentStatus) bool {
 				return strings.ToLower(string(a.Type)) < strings.ToLower(string(b.Type))
@@ -51,7 +44,7 @@ func monitorColumns() []datatable.Column[status.ComponentStatus] {
 			Search: func(c status.ComponentStatus) string { return string(c.Type) },
 		},
 		{
-			Title: "Response", MinWidth: 12,
+			Title: "Response", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12,
 			Cell: func(c status.ComponentStatus) string {
 				if c.ResponseTime <= 0 {
 					return "-"
@@ -99,18 +92,18 @@ func monitorTypeCell(c status.ComponentStatus) string {
 func sslColumns() []datatable.Column[status.ComponentStatus] {
 	return []datatable.Column[status.ComponentStatus]{
 		{
-			Title: "Name", MinWidth: 16, Flex: 1,
+			Title: "Name", Sizing: datatable.SizingContent, MinWidth: 16, Flex: 1,
 			Cell:   func(c status.ComponentStatus) string { return c.Name },
 			Search: func(c status.ComponentStatus) string { return c.Name },
 		},
 		{
-			Title: "Host", MinWidth: 22, Flex: 2,
+			Title: "Host", Sizing: datatable.SizingContent, TruncateHead: true, MinWidth: 22, Flex: 2,
 			Cell:   func(c status.ComponentStatus) string { return c.Target },
 			Search: func(c status.ComponentStatus) string { return c.Target },
 		},
-		{Title: "Status", MinWidth: 12, Cell: formatSSLStatus, Style: componentStatusStyle},
+		{Title: "Status", Sizing: datatable.SizingFixed, MinWidth: 12, Cell: formatSSLStatus, Style: componentStatusStyle},
 		{
-			Title: "Days Left", MinWidth: 11,
+			Title: "Days Left", Sizing: datatable.SizingFixed, MinWidth: 11,
 			Cell: func(c status.ComponentStatus) string {
 				if c.SSLDaysLeft == nil {
 					return "-"
@@ -119,7 +112,7 @@ func sslColumns() []datatable.Column[status.ComponentStatus] {
 			},
 		},
 		{
-			Title: "Expires", MinWidth: 18,
+			Title: "Expires", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 18,
 			Cell: func(c status.ComponentStatus) string {
 				if c.SSLExpires == nil {
 					return "-"
@@ -128,7 +121,7 @@ func sslColumns() []datatable.Column[status.ComponentStatus] {
 			},
 		},
 		{
-			Title: "Issuer", MinWidth: 20, Flex: 1,
+			Title: "Issuer", Sizing: datatable.SizingContent, Optional: true, MinWidth: 20, Flex: 1,
 			Cell: func(c status.ComponentStatus) string {
 				if c.SSLIssuer == "" {
 					return "-"

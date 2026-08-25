@@ -1165,13 +1165,11 @@ func TestResizeFillsTheViewportWidth(t *testing.T) {
 	for _, width := range []int{60, 100, 140, 200} {
 		m := feed(t, newTestModel(t), tea.WindowSizeMsg{Width: width, Height: 40})
 
-		total := 0
-		for _, col := range m.containerTable.Table().Columns() {
-			total += col.Width
-		}
-		// terminal minus viewport borders minus two columns of padding per cell
-		if want := width - 2 - len(containerColumns())*2; total != want {
-			t.Errorf("at width %d the columns total %d, want %d so the selected row reaches the border", width, total, want)
+		// RenderedWidth rather than the declared columns plus two cells each: a
+		// column dropped for want of room renders nothing and hands its padding
+		// back, so that arithmetic asks for less than the line spans (D61).
+		if got, want := m.containerTable.RenderedWidth(), width-2; got != want {
+			t.Errorf("at width %d the line spans %d, want %d so the selected row reaches the border", width, got, want)
 		}
 	}
 }

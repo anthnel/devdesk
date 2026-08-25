@@ -60,6 +60,11 @@ func (m Model) handleDrillUp() (tea.Model, tea.Cmd) {
 // this view knows and it does not: which level the table is showing.
 func (m *Model) updateTableRows() {
 	m.table.SetItems(m.rowsFor(m.currentItems()))
+	// A drill-down is a different population, and a checkbox toggle widens the
+	// Type cell by two — both are user actions on a settled list, which is what
+	// Remeasure is for. datatable cannot tell either from a periodic reload:
+	// they all arrive through SetItems.
+	m.table.Remeasure()
 }
 
 // currentItems returns the children of the current drill-down group (or root nodes)

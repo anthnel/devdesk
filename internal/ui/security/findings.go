@@ -15,9 +15,6 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// numColumns is the number of columns in the findings table
-const numColumns = 4
-
 // findingColumns describes the findings table.
 //
 // The table opens on the order the scanner reported — `SortColumn: -1`, which
@@ -40,7 +37,7 @@ const numColumns = 4
 func findingColumns() []datatable.Column[scan.Finding] {
 	return []datatable.Column[scan.Finding]{
 		{
-			Title: "Severity", MinWidth: 10,
+			Title: "Severity", Sizing: datatable.SizingFixed, MinWidth: 10,
 			Cell: func(f scan.Finding) string { return string(f.Severity) },
 			// The same palette the selected row uses, so a severity reads the
 			// same colour whether or not the cursor is on it.
@@ -48,19 +45,19 @@ func findingColumns() []datatable.Column[scan.Finding] {
 			Less:  func(a, b scan.Finding) bool { return severityRank(a.Severity) < severityRank(b.Severity) },
 		},
 		{
-			Title: "ID", MinWidth: 18,
+			Title: "ID", Sizing: datatable.SizingContent, MinWidth: 18,
 			Cell:   func(f scan.Finding) string { return f.ID },
 			Less:   func(a, b scan.Finding) bool { return a.ID < b.ID },
 			Search: func(f scan.Finding) string { return f.ID },
 		},
 		{
-			Title: "Title", MinWidth: 20, Flex: 1,
+			Title: "Title", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 1,
 			Cell:   func(f scan.Finding) string { return f.Title },
 			Less:   func(a, b scan.Finding) bool { return a.Title < b.Title },
 			Search: func(f scan.Finding) string { return f.Title + " " + f.PkgName + " " + f.File },
 		},
 		{
-			Title: "Source", MinWidth: 14,
+			Title: "Source", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 14,
 			Cell:   sourceDisplay,
 			Less:   func(a, b scan.Finding) bool { return sourceDisplay(a) < sourceDisplay(b) },
 			Search: sourceDisplay,
@@ -121,8 +118,10 @@ func (m *Model) updateFindingsTable() {
 
 	m.findingsTable.SetItems(m.filterFindingsByTab())
 	// A change of tab or severity is a change of scope, not a shorter list, so
-	// the cursor goes back to the top. SetItems deliberately leaves it alone.
+	// the cursor goes back to the top and the columns are measured again.
+	// SetItems deliberately does neither on its own.
 	m.findingsTable.GotoTop()
+	m.findingsTable.Remeasure()
 }
 
 // tabCategory maps a tab to the finding category it shows.

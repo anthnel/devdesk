@@ -35,21 +35,79 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
+// Sizing is what decides a column's width: the number it declared, or the
+// content it holds. Every column states one — the zero value is refused by
+// TestEveryColumnDeclaresItsSizing rather than given a meaning, because a
+// default here would decide for twenty tables nobody had looked at (D12).
+type Sizing int
+
+const (
+	// SizingUnset is the zero value, and means nothing. See the test above.
+	SizingUnset Sizing = iota
+	// SizingFixed takes exactly the width declared. For a count, a state, an
+	// icon — anything whose size was known when the code was written.
+	SizingFixed
+	// SizingContent takes the width of its widest visible value, never below
+	// MinWidth and never above MaxWidth. For paths, URLs, addresses, image
+	// references: values whose length is a property of the data.
+	SizingContent
+)
+
 // Column describes one column and how to get its value out of an item.
 type Column[T any] struct {
 	Title string
-	// MinWidth is what the column asks for. It is a request, not a guarantee:
-	// when the terminal is too narrow for every request, the shortfall is
-	// shared out rather than each column defending its own floor.
+	// Sizing is the column's nature (see above). It has no default.
+	Sizing Sizing
+	// MinWidth is the width a SizingFixed column takes, and the floor a
+	// SizingContent column is never squeezed under.
+	//
+	// It is a floor now, not the request it used to be: the shortfall comes out
+	// of the content columns down to their MinWidth, and after that whole
+	// columns are removed rather than emptied one cell at a time (widths.go).
+	// The name stays MinWidth on a fixed column, where it *is* the width, for
+	// the reason §3.45 gives: Width would be false on a content column that
+	// grows past it, where MinWidth is merely redundant on a fixed one — a
+	// redundant name is bearable, a false one is not.
 	MinWidth int
-	// Flex is the column's share of the space left over. 0 keeps it at
-	// MinWidth; the leftover is split between the flexible ones by weight.
+	// MaxWidth caps a SizingContent column. 0 means no ceiling, and there is no
+	// global default: a ceiling chosen once would apply to columns nobody has
+	// looked at, and a full IPv6 address is 45 cells — so the first "reasonable"
+	// default re-truncates exactly what the measurement was for. Meaningless on
+	// SizingFixed, where MinWidth already is the width.
+	MaxWidth int
+	// Optional marks a column that may be dropped whole when the table does not
+	// fit, before any column that is not. Orthogonal to Sizing because all four
+	// combinations exist: the interface error counters have an exact width and
+	// are also the first thing worth losing.
+	Optional bool
+	// TruncateHead cuts the start of an over-long value rather than its end.
+	//
+	// A flag per column rather than a rule derived from Sizing, because the
+	// answer depends on the column and not on its nature: a URL, an image
+	// reference and a path share their prefix and are told apart by their end,
+	// while an address is identified by the network it starts with. It cannot
+	// be left to Cell either — Cell does not know the width it will be rendered
+	// at, and that is deliberate: it is what makes the value measurable.
+	TruncateHead bool
+	// Flex is the column's share of the space left over once every column has
+	// what it wants. 0 takes no part; the leftover is split between the
+	// flexible ones by weight.
+	//
+	// Flex says who receives the surplus, never who needs it — which is why it
+	// cannot decide widths on its own: the ports table gave Process 110 cells
+	// for "svchost.exe" at 200 columns while Peer Address stayed frozen at 26,
+	// cutting an IPv6 endpoint in half. That is what Sizing answers.
 	Flex int
 	// Cell returns the text for this column. Plain text only: it is measured
 	// and truncated before anything is applied to it, and runewidth counts an
 	// escape sequence's bytes as width — a styled string is cut mid-escape and
 	// bleeds over every row below it (Rule 122). Taking a string rather than a
 	// styled value is what makes that unexpressible here.
+	//
+	// It must be pure and cheap. The rendering calls it once per visible cell;
+	// the measurement calls it once per cell of every visible row, off screen
+	// included. Nothing can check that — it is an arbitrary closure — so it is
+	// stated here rather than tested.
 	Cell func(T) string
 	// Style colours the cell after it has been measured and truncated, which is
 	// the only order in which colour is safe (see render.go). Nil leaves the
@@ -143,6 +201,21 @@ type Model[T any] struct {
 	spinnerFrame string
 	spinnerIdx   int
 
+	// natural is the widest text each column produces over the visible rows,
+	// header included. rebuild refreshes it because it is already walking every
+	// cell there; it costs one lipgloss.Width per cell and nothing else.
+	natural []int
+	// measured is the copy the solver reads — natural as of the last
+	// measurement *moment*. The two are separate because the moment is the
+	// whole design: SetItems cannot tell a periodic refresh from a change of
+	// population (both arrive the same way), and remeasuring on every tick
+	// would make the columns dance on their own. See Remeasure.
+	measured []int
+	// measuredOnce records that a non-empty population has been measured. The
+	// first one measures itself: without that a table stays at its MinWidths
+	// for the life of the view, and nothing on screen says why.
+	measuredOnce bool
+
 	sortColumn int
 	sortDesc   bool
 	width      int
@@ -191,6 +264,34 @@ func New[T any](cfg Config[T]) Model[T] {
 func (m *Model[T]) SetItems(items []T) {
 	m.items = items
 	m.rebuild()
+	// The one measurement this package takes on its own initiative. Every other
+	// SetItems may be a two-second refresh, and a table that re-measured on
+	// those would reshuffle its own columns while the user reads it.
+	if !m.measuredOnce && len(m.visible) > 0 {
+		m.Remeasure()
+	}
+}
+
+// Remeasure re-reads the widest value in each column and lays the table out
+// again. Call it at the moments a *user* changed what the table holds — a tab
+// change, a drill-down, an explicit refresh — and never on a timer.
+//
+// This package cannot tell those apart on its own: a periodic reload and a
+// change of population both arrive through SetItems, so the view is the only
+// thing that knows. The cost of getting it wrong in the quiet direction is
+// stated rather than discovered: a value that grew between two measurements
+// stays truncated until the next one.
+func (m *Model[T]) Remeasure() {
+	m.measuredOnce = m.measuredOnce || len(m.visible) > 0
+	m.Resize(m.width, 0)
+}
+
+// promote makes the current measurement the one the solver reads. Resize is the
+// only caller: a resize is itself a measurement moment — the user just changed
+// how much room there is, and the content has not moved — and routing every
+// promotion through it is what keeps Remeasure to one line.
+func (m *Model[T]) promote() {
+	m.measured = append(m.measured[:0], m.natural...)
 }
 
 // Items returns everything held, filtered or not.
@@ -279,7 +380,8 @@ func (m *Model[T]) Blur() {
 // the per-cell padding are subtracted here so no caller has to remember to.
 func (m *Model[T]) Resize(width, height int) {
 	m.width = width
-	widths := solveWidths(m.cfg.Columns, availableFor(width, len(m.cfg.Columns)))
+	m.promote()
+	widths := solveWidths(m.cfg.Columns, width, m.measured)
 
 	cols := m.table.Columns()
 	for i := range cols {
@@ -388,6 +490,10 @@ func (m *Model[T]) Update(msg tea.Msg) tea.Cmd {
 		var cmd tea.Cmd
 		m.bar, cmd = m.bar.Update(msg)
 		m.rebuild()
+		// A search that keeps only short values has to give the room back, or
+		// the filter buys nothing visually. It is a user action on a settled
+		// population, which is exactly a measurement moment.
+		m.Remeasure()
 		return cmd
 	}
 
@@ -511,6 +617,7 @@ func (m *Model[T]) busyLabel(item T) (string, bool) {
 func (m *Model[T]) SetTokenActive(label string, active bool) {
 	m.bar.SetTokenActive(label, active)
 	m.rebuild()
+	m.Remeasure() // a toggle is a user action on a settled population
 }
 
 // IsTokenActive reports whether a toggle filter is on.
@@ -520,11 +627,27 @@ func (m *Model[T]) IsTokenActive(label string) bool { return m.bar.IsTokenActive
 func (m *Model[T]) rebuild() {
 	m.visible = m.sorted(m.filtered())
 
+	// The natural widths are taken here because the cells are already being
+	// built: the measurement is a lipgloss.Width per cell on a walk that
+	// happens anyway. Promoting them to the solver is a separate decision
+	// (see Remeasure) — this only keeps the answer current.
+	//
+	// The header counts. A content column narrower than its own title truncates
+	// the one cell that says what the column is, and "the width the content
+	// wants" plainly includes being able to name itself.
+	m.natural = make([]int, len(m.cfg.Columns))
+	for j, c := range m.cfg.Columns {
+		m.natural[j] = lipgloss.Width(c.Title)
+	}
+
 	rows := make([]table.Row, len(m.visible))
 	for i, item := range m.visible {
 		cells := make(table.Row, len(m.cfg.Columns))
 		for j, c := range m.cfg.Columns {
 			cells[j] = c.Cell(item)
+			if w := lipgloss.Width(cells[j]); w > m.natural[j] {
+				m.natural[j] = w
+			}
 		}
 		rows[i] = cells
 	}

@@ -495,21 +495,23 @@ func TestBothTablesFitTheWidth(t *testing.T) {
 		tables := []struct {
 			name    string
 			columns []table.Column
-			count   int
+			span    int
 		}{
-			{"monitors", m.monitorTable.Table().Columns(), numMonitorColumns},
-			{"certificates", m.sslTable.Table().Columns(), numSSLColumns},
+			{"monitors", m.monitorTable.Table().Columns(), m.monitorTable.RenderedWidth()},
+			{"certificates", m.sslTable.Table().Columns(), m.sslTable.RenderedWidth()},
 		}
 		for _, tc := range tables {
-			total := 0
 			for _, col := range tc.columns {
-				total += col.Width
 				if col.Width < 0 {
 					t.Errorf("%s at width %d: column %q is %d wide", tc.name, width, col.Title, col.Width)
 				}
 			}
-			if want := width - 2 - tc.count*2; total != want {
-				t.Errorf("%s at width %d: the columns total %d, want %d", tc.name, width, total, want)
+			// RenderedWidth rather than the declared columns plus two cells
+			// each: a column dropped for want of room renders nothing and hands
+			// its padding back, so that arithmetic asks for less than the line
+			// spans (D61).
+			if want := width - 2; tc.span != want {
+				t.Errorf("%s at width %d: the line spans %d, want %d", tc.name, width, tc.span, want)
 			}
 		}
 	}

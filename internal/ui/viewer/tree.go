@@ -43,12 +43,12 @@ const indentUnit = "  "
 func treeColumns() []datatable.Column[treeRow] {
 	return []datatable.Column[treeRow]{
 		{
-			Title: "Key", MinWidth: 20, Flex: 2,
+			Title: "Key", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 2,
 			Cell:  treeKeyCell,
 			Style: treeKeyStyle,
 		},
 		{
-			Title: "Value", MinWidth: 20, Flex: 3,
+			Title: "Value", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 3,
 			Cell:  func(r treeRow) string { return r.Node.Value },
 			Style: treeValueStyle,
 		},
@@ -109,6 +109,10 @@ func (m *Model) treeRows() []treeRow {
 // the cursor leaves it on the last row that still exists rather than nowhere.
 func (m *Model) rebuildTree() {
 	m.tree.SetItems(m.treeRows())
+	// Expanding a node puts deeper keys on screen, and the indentation is part
+	// of the cell — so the width the Key column wants changes with the
+	// expansion, and only the user moves that.
+	m.tree.Remeasure()
 }
 
 // toggleNode expands or collapses the selected node.

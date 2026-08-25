@@ -92,19 +92,19 @@ func newInterfacesModel() *InterfacesModel {
 // to copy.
 func interfaceColumns() []datatable.Column[netiface.Interface] {
 	name := datatable.Column[netiface.Interface]{
-		Title: "Interface", MinWidth: 16,
+		Title: "Interface", Sizing: datatable.SizingContent, MinWidth: 16,
 		Cell:   func(i netiface.Interface) string { return i.Name },
 		Search: func(i netiface.Interface) string { return i.Name },
 		Less:   func(a, b netiface.Interface) bool { return a.Name < b.Name },
 	}
 	state := datatable.Column[netiface.Interface]{
-		Title: "State", MinWidth: 7,
+		Title: "State", Sizing: datatable.SizingFixed, MinWidth: 7,
 		Cell:  func(i netiface.Interface) string { return i.State },
 		Style: interfaceStateStyle,
 		Less:  func(a, b netiface.Interface) bool { return a.State < b.State },
 	}
 	mtu := datatable.Column[netiface.Interface]{
-		Title: "MTU", MinWidth: 6,
+		Title: "MTU", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 6,
 		Cell: func(i netiface.Interface) string {
 			if !i.HasMTU() {
 				return "-"
@@ -120,7 +120,7 @@ func interfaceColumns() []datatable.Column[netiface.Interface] {
 		Less: func(a, b netiface.Interface) bool { return a.MTU < b.MTU },
 	}
 	mac := datatable.Column[netiface.Interface]{
-		Title: "MAC", MinWidth: 17,
+		Title: "MAC", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 17,
 		Cell:   macOrDash,
 		Search: func(i netiface.Interface) string { return i.MAC },
 		Style: func(i netiface.Interface) lipgloss.Style {
@@ -132,12 +132,16 @@ func interfaceColumns() []datatable.Column[netiface.Interface] {
 	}
 	rx := errorColumn("RX err", func(i netiface.Interface) *uint64 { return i.RxErrors })
 	tx := errorColumn("TX err", func(i netiface.Interface) *uint64 { return i.TxErrors })
-	// Both address columns are flexible, and that is what stops one of them
-	// disappearing. `shrink` reclaims a shortfall from the flexible columns
-	// first and always from the widest, so two of them are levelled against
-	// each other — with the flex on IPv6 alone it absorbed the whole shortfall
-	// and rendered at zero width from about 100 columns down, header included.
-	// IPv6 asks for more and grows faster because its notation is longer.
+	// Both address columns follow their content and both carry a flex weight.
+	// The flex is what levels them against each other when there is a shortfall
+	// — a table reclaims from the widest content column first, so with the flex
+	// on IPv6 alone it used to absorb the whole shortfall and render at zero
+	// width from about 100 columns down, header included. IPv6 asks for more
+	// and grows faster because its notation is longer.
+	//
+	// Squeezed to nothing is no longer one of the outcomes (§3.45): MinWidth is
+	// a floor, and what gives way past it is a whole column, MTU / MAC / the
+	// two counters first because they are the ones marked Optional here.
 	v4 := addressColumn("IPv4", minIPv4Width, 1, netiface.Interface.IPv4List)
 	v6 := addressColumn("IPv6", minIPv6Width, 2, netiface.Interface.IPv6List)
 
@@ -151,12 +155,13 @@ func interfaceColumns() []datatable.Column[netiface.Interface] {
 // machine that has one, and the solver gives it the slack when there is any
 // (Rule 116).
 //
-// Below about 88 columns the six fixed columns take everything and both
-// address columns are squeezed out. That cliff belongs to the table rather
-// than to the split — the single Addresses column this replaced had the same
-// one — and it is stated rather than pretended away: MinWidth is an ask, not a
-// floor, and giving the solver one would change every table in the
-// application.
+// The cliff §3.49 wrote down here is gone. It said that below about 88 columns
+// the six exact-width columns took everything and both address columns were
+// squeezed out — because MinWidth was an ask rather than a floor, and giving
+// the solver one would have changed every table in the application. §3.45
+// changed every table in the application. What gives way now is MTU, then MAC,
+// then the two counters: they declare Optional, so they are removed whole and
+// hand their width *and* their padding to the addresses.
 const (
 	minIPv4Width = 18
 	minIPv6Width = 22
@@ -174,7 +179,7 @@ const (
 // a question nobody asked in text.
 func addressColumn(title string, minWidth, flex int, list func(netiface.Interface) string) datatable.Column[netiface.Interface] {
 	return datatable.Column[netiface.Interface]{
-		Title: title, MinWidth: minWidth, Flex: flex,
+		Title: title, Sizing: datatable.SizingContent, MinWidth: minWidth, Flex: flex,
 		Cell: func(i netiface.Interface) string {
 			if s := list(i); s != "" {
 				return s
@@ -210,7 +215,7 @@ func macOrDash(i netiface.Interface) string {
 // absent reading is not a value worth spotting — a non-zero count is.
 func errorColumn(title string, get func(netiface.Interface) *uint64) datatable.Column[netiface.Interface] {
 	return datatable.Column[netiface.Interface]{
-		Title: title, MinWidth: 8,
+		Title: title, Sizing: datatable.SizingFixed, Optional: true, MinWidth: 8,
 		Cell: func(i netiface.Interface) string {
 			n := get(i)
 			if n == nil {
@@ -267,7 +272,13 @@ func (im *InterfacesModel) InEditMode() bool {
 func (im *InterfacesModel) resize(width, height int) {
 	im.width = width
 	im.height = height
-	im.table.Resize(max(width-2, 20), max(height, 3))
+	// The full viewport width, borders included: Resize subtracts them itself, so
+	// the `-2` this used to carry subtracted them twice and the selected row
+	// stopped two cells short of the right border at every width. The
+	// `max(..., 20)` went with it: a floor above what the terminal has makes the
+	// table wider than the viewport, which is the overflow Rule 116 is about, and
+	// a narrow terminal is now handled by dropping columns (§3.45).
+	im.table.Resize(width, max(height, 3))
 }
 
 func (im *InterfacesModel) update(msg tea.Msg) (*InterfacesModel, tea.Cmd) {

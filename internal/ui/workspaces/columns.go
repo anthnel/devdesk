@@ -15,7 +15,7 @@ const (
 	// a Nerd Font glyph renders at double width on some terminals and single
 	// on others, and one cell would clip it wherever it renders wide.
 	colIconFixed      = 2
-	colNameFixed      = 36
+	colNameMin        = 16
 	colGitFixed       = 28
 	colSensitiveFixed = 7
 	colCFixed         = 4
@@ -26,9 +26,6 @@ const (
 	colModFixed       = 15
 	colRemoteMin      = 10
 )
-
-// numColumns is the number of columns in the workspace table
-const numColumns = 11
 
 // workspaceRow is one line of the table: the entry, plus the six scan cells.
 // Those depend on the scan cache, on what is currently scanning and on the
@@ -54,7 +51,7 @@ type workspaceRow struct {
 // no one asked for. Name and Remote are what the filter has always matched.
 func workspaceColumns() []datatable.Column[workspaceRow] {
 	text := func(title string, width int, cell func(workspaceRow) string) datatable.Column[workspaceRow] {
-		return datatable.Column[workspaceRow]{Title: title, MinWidth: width, Cell: cell}
+		return datatable.Column[workspaceRow]{Title: title, Sizing: datatable.SizingFixed, Optional: true, MinWidth: width, Cell: cell}
 	}
 	return []datatable.Column[workspaceRow]{
 		{
@@ -62,26 +59,26 @@ func workspaceColumns() []datatable.Column[workspaceRow] {
 			// name something the user reads at a glance anyway — eza does not
 			// print one either. It declares neither Less nor Search: it adds no
 			// text anyone could type, so the filter stays on Name and Remote.
-			Title: "", MinWidth: colIconFixed,
+			Title: "", Sizing: datatable.SizingFixed, MinWidth: colIconFixed,
 			Cell: func(r workspaceRow) string { return entryIcon(r.Entry) },
 		},
 		{
-			Title: "Name", MinWidth: colNameFixed,
+			Title: "Name", Sizing: datatable.SizingContent, MinWidth: colNameMin,
 			Cell:   func(r workspaceRow) string { return r.Entry.Name },
 			Search: func(r workspaceRow) string { return r.Entry.Name },
 		},
 		{
-			Title: "Remote", MinWidth: colRemoteMin, Flex: 1,
+			Title: "Remote", Sizing: datatable.SizingContent, TruncateHead: true, MinWidth: colRemoteMin, Flex: 1,
 			Cell:   func(r workspaceRow) string { return r.Entry.GitRemote },
 			Search: func(r workspaceRow) string { return r.Entry.GitRemote },
 		},
 		{
-			Title: "Git Status", MinWidth: colGitFixed,
+			Title: "Git Status", Sizing: datatable.SizingFixed, MinWidth: colGitFixed,
 			Cell:  func(r workspaceRow) string { return r.GitStatus },
 			Style: gitStatusStyle,
 		},
 		{
-			Title: "Secrets", MinWidth: colSensitiveFixed,
+			Title: "Secrets", Sizing: datatable.SizingFixed, MinWidth: colSensitiveFixed,
 			Cell:  func(r workspaceRow) string { return r.Sensitive.Text },
 			Style: func(r workspaceRow) lipgloss.Style { return theme.SecretsStyle(r.Sensitive.State) },
 		},
@@ -104,7 +101,7 @@ func workspaceColumns() []datatable.Column[workspaceRow] {
 // colour is for.
 func count(title, severity string, width int, cell func(workspaceRow) string) datatable.Column[workspaceRow] {
 	return datatable.Column[workspaceRow]{
-		Title: title, MinWidth: width,
+		Title: title, Sizing: datatable.SizingFixed, MinWidth: width,
 		Cell: cell,
 		Style: func(r workspaceRow) lipgloss.Style {
 			switch cell(r) {

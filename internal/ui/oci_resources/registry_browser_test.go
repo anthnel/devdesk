@@ -866,16 +866,16 @@ func TestRegistryColumnsHoldTheWidthInvariant(t *testing.T) {
 	for _, width := range []int{40, 60, 80, 120, 200} {
 		m := feed(t, registriesTab(t), tea.WindowSizeMsg{Width: width, Height: 40})
 
-		total := 0
-		cols := m.registryTable.Table().Columns()
-		for i, col := range cols {
-			total += col.Width
+		for i, col := range m.registryTable.Table().Columns() {
 			if col.Width < 0 {
 				t.Errorf("at width %d column %d is %d cells wide", width, i, col.Width)
 			}
 		}
-		if want := width - 2 - len(cols)*2; total != want {
-			t.Errorf("at width %d the columns sum to %d, want %d", width, total, want)
+		// RenderedWidth rather than the declared columns plus two cells each: a
+		// column dropped for want of room renders nothing and hands its padding
+		// back, so that arithmetic asks for less than the line spans (D61).
+		if got, want := m.registryTable.RenderedWidth(), width-2; got != want {
+			t.Errorf("at width %d the line spans %d, want %d", width, got, want)
 		}
 	}
 }

@@ -167,7 +167,7 @@ const countColumnWidth = 6
 // a column — "CRIT" is an abbreviation, "CRITICAL" is the scanners' vocabulary.
 func countColumn(title, severity string, get func(scan.SeverityCounts) int) datatable.Column[scanTarget] {
 	return datatable.Column[scanTarget]{
-		Title: title, MinWidth: countColumnWidth,
+		Title: title, Sizing: datatable.SizingFixed, MinWidth: countColumnWidth,
 		Cell: func(t scanTarget) string {
 			if !t.Scanned {
 				return "-"
@@ -228,7 +228,8 @@ const secretsColumnWidth = 7
 func inventoryColumns() []datatable.Column[scanTarget] {
 	return []datatable.Column[scanTarget]{
 		{
-			Title: "Target", MinWidth: 24, Flex: 1,
+			Title: "Target", Sizing: datatable.SizingContent,
+			MinWidth: 24, MaxWidth: 60, Flex: 1, TruncateHead: true,
 			Cell: func(t scanTarget) string { return t.displayName() },
 			// The cache key, not the alias: an alias is a display name the user
 			// can rename, and sorting by it would move every row of a registry
@@ -243,7 +244,7 @@ func inventoryColumns() []datatable.Column[scanTarget] {
 			Search: func(t scanTarget) string { return t.Name + " " + t.Display },
 		},
 		{
-			Title: "Secrets", MinWidth: secretsColumnWidth,
+			Title: "Secrets", Sizing: datatable.SizingFixed, MinWidth: secretsColumnWidth,
 			Cell:  func(t scanTarget) string { return theme.SecretsIcon(t.secrets()) },
 			Style: func(t scanTarget) lipgloss.Style { return theme.SecretsStyle(t.secrets()) },
 		},
@@ -252,7 +253,7 @@ func inventoryColumns() []datatable.Column[scanTarget] {
 		countColumn("MED", "MEDIUM", func(c scan.SeverityCounts) int { return c.Medium }),
 		countColumn("LOW", "LOW", func(c scan.SeverityCounts) int { return c.Low }),
 		{
-			Title: "Scanned", MinWidth: 14,
+			Title: "Scanned", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 14,
 			Cell:  inventoryScannedCell,
 			Style: inventoryScannedStyle,
 			Less:  func(a, b scanTarget) bool { return a.ScannedAt.Before(b.ScannedAt) },

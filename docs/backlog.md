@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-24
+**Last Updated:** 2026-08-25
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11,7 +11,7 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Trois ouverts : D56, D59 et D61** — voir [§1.3](#13-open).
+**Deux ouverts : D56 et D59** — voir [§1.3](#13-open).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -41,7 +41,7 @@ members one way to browse them and another way to pull them; it is closed by
 what it existed for. D40, found the same day and on the same screen, was the
 thing §3.18 blocked on and had already been closed on its own.
 
-D1 through D60 are all fixed or, in D35's case, deliberately
+D1 through D61 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -53,6 +53,54 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D61 — la ligne sélectionnée s'arrêtait avant la bordure droite dès qu'une
+colonne tombait à zéro. Corrigé.** Mesuré au rendu le 2026-08-25, pas déduit,
+et fermé le même jour par
+[§3.45](#345-datatable--chaque-colonne-déclare-sa-nature-et-les-largeurs-suivent--done).
+
+`availableFor` soustrayait le padding de **toutes** les colonnes en amont du
+calcul ; `contentWidth` (`render.go`) ne le compte que pour celles dont la
+largeur est non nulle, et `headerLine` comme `rowLine` sautent les autres. Une
+colonne évincée emportait donc ses deux cellules sans les rendre à personne.
+
+| Table | Terminal | Intérieur | Ligne rendue, avant | Écart | Après |
+|---|---|---|---|---|---|
+| Interfaces | 80 | 78 | 74 | **4** | 78 |
+| Interfaces | 84 | 82 | 82 | 0 | 82 |
+| Ports | 88 | 86 | 84 | **2** | 86 |
+| Ports | 96 | 94 | 94 | 0 | 94 |
+
+L'écart valait exactement `2 × (nombre de colonnes à zéro)`, et il disparaissait
+dès qu'aucune ne l'était. Il touchait toute table dont les colonnes fixes
+saturent la largeur — Interfaces sous ~82 colonnes, Ports sous ~96 — donc pas
+seulement les deux mesurées.
+
+C'était Rule 116 en défaut : la règle existe pour que la ligne sélectionnée
+atteigne la bordure droite du viewport, et elle ne le faisait pas aux largeurs
+où une table évince. À ne pas confondre avec la falaise que décrivait
+[§3.49](#349-net--k-dit-quand-elle-ne-peut-pas-et-les-adresses-se-séparent-par-famille--done) :
+celle-là était le fait que `MinWidth` n'est pas un plancher, elle était
+délibérée et elle était écrite ; ici c'était la largeur *rendue* qui ne
+correspondait plus au viewport, ce qui n'a jamais été voulu. Les deux sont
+tombées ensemble, et pour la même raison : une colonne se retire entière, donc
+elle rend son padding.
+
+**Ce qui le tient maintenant est la forme de l'invariant, pas une ligne de
+code.** Il était énoncé sur la somme des largeurs, et cette somme était juste
+pendant que la ligne était courte. Il est énoncé sur la **portée rendue** —
+`datatable.RenderedWidth()`, qui est `contentWidth` sur la sortie du solveur —
+et c'est la seule forme qui sache faire la différence. Les onze tests de mise en
+page des vues sont passés à cette forme, et ils échouaient tous avec l'ancienne
+sur une mise en page correcte.
+
+Un second défaut a été trouvé en écrivant ce test-là : `InterfacesModel.resize`
+passait `max(width-2, 20)` à un `Resize` qui soustrait déjà les bordures, donc
+la ligne de cet onglet s'arrêtait **deux cellules avant la bordure à toutes les
+largeurs**, évincement ou pas. Le `max(…, 20)` était le même genre de garde : un
+plancher au-dessus de ce que le terminal offre rend la table plus large que le
+viewport, ce qui est exactement le débordement que Rule 116 interdit. Les deux
+sont partis.
 
 **D60 — le dashboard réclamait en permanence un outil réseau nommé « Net Diag »,
 alors que l'image est là. Corrigé.** Signalé le 2026-08-25, fermé le même jour.
@@ -1657,42 +1705,6 @@ and D11 each had one, and each failed the moment the fix landed, which is how
 the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
-
-**D61 — la ligne sélectionnée s'arrête avant la bordure droite dès qu'une
-colonne tombe à zéro. Ouvert.** Mesuré au rendu le 2026-08-25, pas déduit.
-
-`availableFor` soustrait le padding de **toutes** les colonnes en amont du
-calcul ; `contentWidth` (`render.go:76`) ne le compte que pour celles dont la
-largeur est non nulle, et `headerLine` comme `rowLine` sautent les autres. Une
-colonne évincée emporte donc ses deux cellules sans les rendre à personne.
-
-| Table | Terminal | Intérieur du viewport | Ligne rendue | Écart | Largeurs |
-|---|---|---|---|---|---|
-| Interfaces | 80 | 78 | 74 | **4** | `[16 7 6 17 0 0 8 8]` |
-| Interfaces | 84 | 82 | 82 | 0 | `[16 7 6 17 2 2 8 8]` |
-| Ports | 88 | 86 | 84 | **2** | `[7 10 25 25 7 0]` |
-| Ports | 96 | 94 | 94 | 0 | `[7 10 26 26 7 6]` |
-
-L'écart vaut exactement `2 × (nombre de colonnes à zéro)`, et il disparaît dès
-qu'aucune ne l'est. Il touche toute table dont les colonnes fixes saturent la
-largeur — Interfaces sous ~82 colonnes, Ports sous ~96 — donc pas seulement les
-deux mesurées.
-
-C'est Rule 116 en défaut : la règle existe pour que la ligne sélectionnée
-atteigne la bordure droite du viewport, et elle ne le fait pas aux largeurs où
-une table évince. À ne pas confondre avec la falaise décrite en
-[§3.49](#349-net--k-dit-quand-elle-ne-peut-pas-et-les-adresses-se-séparent-par-famille--done) :
-celle-là est le fait que `MinWidth` n'est pas un plancher, elle est délibérée et
-elle est écrite ; ici c'est la largeur *rendue* qui ne correspond plus au
-viewport, ce qui n'a jamais été voulu.
-
-Corrigé par le point 2 de
-[§3.45](#345-datatable--chaque-colonne-déclare-sa-nature-et-les-largeurs-suivent) :
-retirer une colonne rend son padding et le calcul reprend. Noté séparément parce
-que la correction tient dans `widths.go` et `render.go` seuls, sans rien de ce
-que §3.45 demande par ailleurs — et parce que c'est un défaut visible
-aujourd'hui, pas une amélioration.
-
 
 **D59 — un scan lancé sur une arborescence oublie certains dépôts, en
 silence. Moitié corrigée, moitié ouverte.** Signalé à l'usage, puis reproduit
@@ -8457,10 +8469,10 @@ route — et à une autre, côté réseau Docker, que personne n'avait comptée.
 qui a supprimé la première et renommé le réglage d'après la seconde.
 
 
-### 3.45 `datatable` — chaque colonne déclare sa nature, et les largeurs suivent
+### 3.45 `datatable` — chaque colonne déclare sa nature, et les largeurs suivent — **done**
 
-À faire. Tout ce qui suit a été tranché le 2026-08-25 : c'est ce qu'il faut
-écrire, plus un espace à explorer.
+Tranché puis fait le 2026-08-25. Ce qui suit est la décision, puis ce que
+l'écriture en a appris.
 
 L'entrée s'appelait « des largeurs de colonnes qui regardent le contenu », et
 c'était la moitié du sujet. Mesurer le contenu ne dit pas quoi faire quand il ne
@@ -8625,7 +8637,7 @@ par `lipgloss.Width` sur la sortie de `Cell`, avant tout style — la même
 inversion que `render.go`.
 
 **`Cell` devient officiellement pure et bon marché.** Le rendu l'appelle déjà
-une fois par cellule visible ; la mesure l'appellera une fois par cellule de
+une fois par cellule visible ; la mesure l'appelle une fois par cellule de
 *toutes* les lignes visibles, hors écran comprises. Rien ne peut le vérifier —
 c'est une closure arbitraire — donc c'est une phrase dans la doc du paquet, pas
 un test.
@@ -8643,7 +8655,7 @@ et les deux candidats sont pires que l'absence :
 
 `TestEveryColumnDeclaresItsSizing` nomme la table et la colonne, sur le modèle de
 `TestEveryFieldCarriesTheAccessorItsKindNeeds` de la vue configuration. Coût :
-les ~90 déclarations de colonnes sont regardées une fois, colonne par colonne.
+les 93 déclarations de colonnes ont été regardées une fois, colonne par colonne.
 
 #### Le nom du nombre, et ce qui n'a pas été renommé
 
@@ -8675,7 +8687,70 @@ Toutes les tables sont des `datatable` depuis §3.21, donc le gain est général
 Les cas les plus visibles : `Remote` dans `ws` (une URL longue à côté de colonnes
 de comptage à un chiffre), `Target` dans l'inventaire `:sec`, `Image` dans les
 conteneurs, et les deux colonnes d'adresses d'Interfaces, dont §3.49 a écrit la
-falaise plutôt que de la corriger. D61 disparaît avec le point 2.
+falaise plutôt que de la corriger. D61 tombe avec le point 2.
+
+#### Ce que l'implémentation a mesuré
+
+93 colonnes annotées dans 14 fichiers. Les largeurs, au rendu, sur les deux
+tables que D61 avait mesurées :
+
+| | avant | après |
+|---|---|---|
+| Ports, 146 colonnes | Peer Address **26**, Process **56** | Peer **40**, Process **43** |
+| Ports, 200 colonnes | Peer Address **26**, Process **110** | Peer **40**, Process **97** |
+| Interfaces, 80 colonnes | IPv4 **0**, IPv6 **0** — et MTU, MAC, les compteurs tous rendus | IPv4 **18**, IPv6 **29**, MTU/MAC/compteurs **retirés** |
+| Interfaces, 100 colonnes | IPv4 8, IPv6 8 | IPv4 **18**, IPv6 **22** |
+
+`[2606:2800:220:1:248:1893:25c8:1946]:443` fait 40 cellules ; c'est exactement
+ce que Peer Address reçoit dès qu'il y a la place, et le plafond n'a pas eu à
+être posé sur cette colonne — la mesure suffit. Et la portée rendue vaut
+`largeur − 2` à toutes les largeurs essayées, ce qui est la forme vérifiable de
+Rule 116 (voir D61).
+
+#### Quatre choses que l'écriture a apprises
+
+**`Resize` est un moment de mesure, et ça a supprimé la moitié du câblage.**
+L'entrée prévoyait de câbler `Remeasure()` dans chaque vue à chaque moment
+utile. Mais un redimensionnement *est* un de ces moments — l'utilisateur vient
+de changer la place disponible et le contenu n'a pas bougé — et plusieurs vues
+appellent déjà `Resize` juste après `SetItems` parce qu'elles recalculent leur
+hauteur. Promouvoir la mesure dans `Resize` couvre donc gratuitement les
+registries, les résultats de netdiag et les tags du browser. Il ne reste que
+**quatre** appels explicites : le drill-down de l'explorateur, le changement de
+répertoire de `ws`, le changement d'onglet de `:sec`, et le pliage de l'arbre du
+viewer. Les tables rafraîchies au tick — conteneurs, ports, interfaces, status —
+n'appellent pas `Resize`, donc elles ne remesurent pas, ce qui est précisément
+la propriété recherchée.
+
+**`refreshRows` de `ws` a dû être décroché de `setEntries`.** Les deux passaient
+par le même point, et l'un d'eux arrive plusieurs fois par seconde pendant qu'un
+scan tourne : la mesure aurait fait bouger les colonnes au rythme du spinner.
+C'est la distinction « même population redécorée » contre « nouvelle
+population », et elle n'était pas exprimée dans le code avant d'en avoir besoin.
+
+**Un plancher de un, pas de zéro.** `MinWidth` redevient un plancher, mais une
+colonne *gardée* ne peut pas descendre en dessous d'une cellule non plus — une
+colonne à zéro ne rend rien alors que son padding est déjà dépensé, ce qui est
+D61 mot pour mot. « Trop étroite pour servir » et « pas là » doivent rester deux
+états, et le second est un retrait. Conséquence visible : un `MinWidth` négatif
+est lu comme une cellule et non comme une offre de largeur aux voisines.
+
+**Cinq constantes sont mortes de leur belle mort.** `numColumns` (explorateur,
+`:sec`, `ws`), `numMonitorColumns` et `numSSLColumns` n'existaient que pour
+nourrir le `largeur − 2 − N×2` des tests de mise en page. Le nombre de colonnes
+déclarées ne décide plus du budget, donc elles n'avaient plus de lecteur —
+`golangci-lint` les a nommées avant qu'on y pense.
+
+#### Le test qui garde tout ça
+
+`TestEveryColumnDeclaresItsSizing` est un test **de source** : il parcourt
+`internal/ui`, trouve les littéraux `datatable.Column[…]` — y compris les
+éléments d'un `[]datatable.Column[T]{{…}, {…}}`, qui ne portent pas de type — et
+échoue en nommant fichier, ligne et titre de colonne. Il ne pouvait pas être un
+test d'exécution : les colonnes vivent dans quatorze instanciations d'un type
+générique, donc il n'y a aucune table unique à parcourir, et seule la source les
+voit toutes. Le précédent est `internal/ui/keymap`, qui lit les `switch` pour la
+même raison.
 
 ### 3.46 `ws` — une icône par ligne, et la colonne Type disparaît — **done**
 
@@ -9144,11 +9219,20 @@ tout le déficit et se rendait **à largeur zéro, en-tête compris, dès une
 centaine de colonnes**, ce qui est un terminal ordinaire. Mesuré au rendu, pas
 déduit.
 
-En dessous d'environ 88 colonnes, les six colonnes fixes prennent tout et les
-deux colonnes d'adresses sont évincées. Cette falaise appartient à la table et
-non au découpage — la colonne `Addresses` unique avait la même — et elle est
-écrite plutôt que dissimulée : `MinWidth` est une demande et non un plancher, et
-en donner un au solveur changerait toutes les tables de l'application.
+En dessous d'environ 88 colonnes, les six colonnes fixes prenaient tout et les
+deux colonnes d'adresses étaient évincées. Cette falaise appartenait à la table
+et non au découpage — la colonne `Addresses` unique avait la même — et elle a
+été écrite plutôt que dissimulée : `MinWidth` était une demande et non un
+plancher, et en donner un au solveur changerait toutes les tables de
+l'application.
+
+[§3.45](#345-datatable--chaque-colonne-déclare-sa-nature-et-les-largeurs-suivent--done)
+a changé toutes les tables de l'application. `MinWidth` est un plancher, et ce
+qui cède au-delà est une colonne entière : MTU, puis MAC, puis les deux
+compteurs, parce que ce sont elles qui déclarent `Optional` ici. À 80 colonnes
+les adresses reçoivent 18 et 29 cellules au lieu de zéro chacune. C'est le
+scénario qui a justifié le point 2 de §3.45, et c'était la bonne décision de
+l'écrire ici en attendant plutôt que de bricoler un plancher local.
 
 ## 4. Existing plans
 

@@ -342,3 +342,25 @@ func TestTheInterfacesLayoutFitsANarrowTerminal(t *testing.T) {
 		}
 	}
 }
+
+// D61, at the widths it was measured at. The rendered line used to come up 4
+// cells short of the viewport interior at 80 columns and 2 short at 88, because
+// a column squeezed to zero kept its two padding cells out of the budget while
+// rendering nothing. The gap was exactly two per column at zero, and it
+// disappeared as soon as none was.
+func TestTheInterfacesLineSpansTheViewportInterior(t *testing.T) {
+	for _, width := range []int{80, 84, 88, 100, 140, 200} {
+		m := feed(t, newTestModel(t), tea.WindowSizeMsg{Width: width, Height: 24})
+		m.activeTab = tabInterfaces
+		m = feed(t, m, ifaceDataMsg{interfaces: []netiface.Interface{{
+			Name: "Ethernet 2", State: netiface.StateUp, MTU: 1500,
+			MAC:  "aa:bb:cc:dd:ee:ff",
+			IPv4: []string{"192.168.1.21/24"},
+			IPv6: []string{"fe80::1c2d:3e4f:5a6b:7c8d/64"},
+		}}})
+
+		if got, want := m.interfacesModel.table.RenderedWidth(), width-2; got != want {
+			t.Errorf("at width %d the line spans %d, want %d", width, got, want)
+		}
+	}
+}

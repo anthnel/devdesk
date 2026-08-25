@@ -119,18 +119,18 @@ type tagRow struct {
 func tagColumns() []datatable.Column[tagRow] {
 	return []datatable.Column[tagRow]{
 		{
-			Title: "Registry", MinWidth: 20,
+			Title: "Registry", Sizing: datatable.SizingContent, MinWidth: 20,
 			Cell: func(r tagRow) string { return r.label },
 		},
 		{
-			Title: "Tag", MinWidth: 30, Flex: 1,
+			Title: "Tag", Sizing: datatable.SizingContent, MinWidth: 30, Flex: 1,
 			Cell: func(r tagRow) string { return r.tag.Tag },
 			Less: func(a, b tagRow) bool {
 				return strings.ToLower(a.tag.Tag) < strings.ToLower(b.tag.Tag)
 			},
 		},
 		{
-			Title: "Updated", MinWidth: 16,
+			Title: "Updated", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 16,
 			Cell: func(r tagRow) string {
 				if r.tag.UpdatedAt.IsZero() {
 					return "-"
@@ -153,7 +153,7 @@ func tagColumns() []datatable.Column[tagRow] {
 // nought findings and never looked at are different answers.
 func tagCVEColumn(title string, get func(cache.ImageScanEntry) int) datatable.Column[tagRow] {
 	return datatable.Column[tagRow]{
-		Title: title, MinWidth: 4,
+		Title: title, Sizing: datatable.SizingFixed, MinWidth: 4,
 		Cell: func(r tagRow) string {
 			switch {
 			case r.scanning:

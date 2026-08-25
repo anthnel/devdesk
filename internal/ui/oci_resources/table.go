@@ -60,7 +60,7 @@ func (r imageRow) secrets() theme.SecretsState {
 // what colour a count is.
 func cveColumn(title, severity string, get func(cache.ImageScanEntry) int) datatable.Column[imageRow] {
 	return datatable.Column[imageRow]{
-		Title: title, MinWidth: 4,
+		Title: title, Sizing: datatable.SizingFixed, MinWidth: 4,
 		Cell: func(r imageRow) string { return formatCVECount(get(r.Entry), r.Scanned) },
 		// A zero is dim, like an unscanned image: four coloured zeroes on a
 		// clean image would read as four findings.
@@ -107,11 +107,12 @@ func scannedCell(r imageRow) string {
 func imageColumns() []datatable.Column[imageRow] {
 	return []datatable.Column[imageRow]{
 		{
-			Title: "ID", MinWidth: 14,
+			Title: "ID", Sizing: datatable.SizingFixed, MinWidth: 14,
 			Cell: func(r imageRow) string { return shortID(r.Image.ID) },
 		},
 		{
-			Title: "Name", MinWidth: 20, Flex: 1,
+			Title: "Name", Sizing: datatable.SizingContent,
+			MinWidth: 20, MaxWidth: 48, Flex: 1, TruncateHead: true,
 			Cell: func(r imageRow) string { return r.DisplayName },
 			Less: func(a, b imageRow) bool { return strings.ToLower(a.RawName) < strings.ToLower(b.RawName) },
 			// Both names. The filter has always matched the repository and tag
@@ -121,17 +122,17 @@ func imageColumns() []datatable.Column[imageRow] {
 			Search: func(r imageRow) string { return r.DisplayName + " " + r.RawName },
 		},
 		{
-			Title: "Disk Usage", MinWidth: 12,
+			Title: "Disk Usage", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12,
 			Cell: func(r imageRow) string { return formatBytes(r.Image.UniqueSize) },
 			Less: func(a, b imageRow) bool { return a.Image.UniqueSize < b.Image.UniqueSize },
 		},
 		{
-			Title: "Content Size", MinWidth: 14,
+			Title: "Content Size", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 14,
 			Cell: func(r imageRow) string { return formatBytes(r.Image.Size) },
 			Less: func(a, b imageRow) bool { return a.Image.Size < b.Image.Size },
 		},
 		{
-			Title: "Secrets", MinWidth: secretsColumnWidth,
+			Title: "Secrets", Sizing: datatable.SizingFixed, MinWidth: secretsColumnWidth,
 			Cell:  func(r imageRow) string { return theme.SecretsIcon(r.secrets()) },
 			Style: func(r imageRow) lipgloss.Style { return theme.SecretsStyle(r.secrets()) },
 		},
@@ -140,7 +141,7 @@ func imageColumns() []datatable.Column[imageRow] {
 		cveColumn("M", "MEDIUM", func(e cache.ImageScanEntry) int { return e.Medium }),
 		cveColumn("L", "LOW", func(e cache.ImageScanEntry) int { return e.Low }),
 		{
-			Title: "Scanned", MinWidth: 14,
+			Title: "Scanned", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 14,
 			Cell:  scannedCell,
 			Style: scannedStyle,
 			Less:  func(a, b imageRow) bool { return a.Entry.ScannedAt.Before(b.Entry.ScannedAt) },
@@ -215,19 +216,19 @@ const (
 // rather than being wired to a bar this view's footer does not render.
 func networkColumns() []datatable.Column[docker.Network] {
 	return []datatable.Column[docker.Network]{
-		{Title: "ID", MinWidth: 14, Cell: func(n docker.Network) string { return shortID(n.ID) }},
-		{Title: "Name", MinWidth: 20, Flex: 1, Cell: func(n docker.Network) string { return n.Name }},
-		{Title: "Driver", MinWidth: 12, Cell: func(n docker.Network) string { return n.Driver }},
-		{Title: "Scope", MinWidth: 10, Cell: func(n docker.Network) string { return n.Scope }},
+		{Title: "ID", Sizing: datatable.SizingFixed, MinWidth: 14, Cell: func(n docker.Network) string { return shortID(n.ID) }},
+		{Title: "Name", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 1, Cell: func(n docker.Network) string { return n.Name }},
+		{Title: "Driver", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12, Cell: func(n docker.Network) string { return n.Driver }},
+		{Title: "Scope", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 10, Cell: func(n docker.Network) string { return n.Scope }},
 	}
 }
 
 // volumeColumns describes the Volumes tab.
 func volumeColumns() []datatable.Column[docker.Volume] {
 	return []datatable.Column[docker.Volume]{
-		{Title: "Name", MinWidth: 30, Cell: func(v docker.Volume) string { return v.Name }},
-		{Title: "Driver", MinWidth: 12, Cell: func(v docker.Volume) string { return v.Driver }},
-		{Title: "Mountpoint", MinWidth: 20, Flex: 1, Cell: func(v docker.Volume) string { return v.Mountpoint }},
+		{Title: "Name", Sizing: datatable.SizingContent, MinWidth: 20, Cell: func(v docker.Volume) string { return v.Name }},
+		{Title: "Driver", Sizing: datatable.SizingFixed, MinWidth: 12, Cell: func(v docker.Volume) string { return v.Driver }},
+		{Title: "Mountpoint", Sizing: datatable.SizingContent, Optional: true, TruncateHead: true, MinWidth: 20, Flex: 1, Cell: func(v docker.Volume) string { return v.Mountpoint }},
 	}
 }
 
@@ -270,12 +271,12 @@ const registryColumnLogged = 4
 // list is the order the config declares, which is the order the user wrote.
 func registryColumns() []datatable.Column[registryRow] {
 	return []datatable.Column[registryRow]{
-		{Title: "Alias", MinWidth: 16, Cell: func(r registryRow) string { return r.alias }},
-		{Title: "URL", MinWidth: 20, Flex: 1, Cell: func(r registryRow) string { return r.url }},
-		{Title: "Kind", MinWidth: 10, Cell: func(r registryRow) string { return r.kind }},
-		{Title: "Auth", MinWidth: 12, Cell: func(r registryRow) string { return r.auth }}, // holds "credentials"
-		{Title: "Logged", MinWidth: 8, Cell: func(r registryRow) string { return r.logged }},
-		{Title: "Members", MinWidth: 16, Cell: func(r registryRow) string { return r.members }}, // holds "12 · 30 days ago"
+		{Title: "Alias", Sizing: datatable.SizingContent, MinWidth: 16, Cell: func(r registryRow) string { return r.alias }},
+		{Title: "URL", Sizing: datatable.SizingContent, TruncateHead: true, MinWidth: 20, Flex: 1, Cell: func(r registryRow) string { return r.url }},
+		{Title: "Kind", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 10, Cell: func(r registryRow) string { return r.kind }},
+		{Title: "Auth", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12, Cell: func(r registryRow) string { return r.auth }}, // holds "credentials"
+		{Title: "Logged", Sizing: datatable.SizingFixed, MinWidth: 8, Cell: func(r registryRow) string { return r.logged }},
+		{Title: "Members", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 16, Cell: func(r registryRow) string { return r.members }}, // holds "12 · 30 days ago"
 	}
 }
 

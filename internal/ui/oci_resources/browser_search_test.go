@@ -1048,18 +1048,16 @@ func TestTagColumnsHoldTheWidthInvariant(t *testing.T) {
 		m := feed(t, resultsModel(t), tea.WindowSizeMsg{Width: width, Height: 40})
 		b := m.registryBrowser
 
-		total := 0
-		cols := b.tagTable.Table().Columns()
-		for i, col := range cols {
-			total += col.Width
+		for i, col := range b.tagTable.Table().Columns() {
 			if col.Width < 0 {
 				t.Errorf("at width %d column %d is %d cells wide", width, i, col.Width)
 			}
 		}
-		// The browser is handed the viewport content width, so what is left to
-		// share is that width less the per-cell padding.
-		if want := width - 2 - len(cols)*2; total != want {
-			t.Errorf("at width %d the columns sum to %d, want %d", width, total, want)
+		// RenderedWidth rather than the declared columns plus two cells each: a
+		// column dropped for want of room renders nothing and hands its padding
+		// back, so that arithmetic asks for less than the line spans (D61).
+		if got, want := b.tagTable.RenderedWidth(), width-2; got != want {
+			t.Errorf("at width %d the line spans %d, want %d", width, got, want)
 		}
 	}
 }

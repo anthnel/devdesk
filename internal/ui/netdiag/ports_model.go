@@ -168,15 +168,19 @@ type PortsModel struct {
 const portsColumnState = 1
 
 func portsColumns() []datatable.Column[ports.Socket] {
-	text := func(get func(ports.Socket) string) datatable.Column[ports.Socket] {
-		return datatable.Column[ports.Socket]{Cell: get, Search: get}
+	text := func(sizing datatable.Sizing, get func(ports.Socket) string) datatable.Column[ports.Socket] {
+		return datatable.Column[ports.Socket]{Sizing: sizing, Cell: get, Search: get}
 	}
-	proto := text(func(p ports.Socket) string { return p.Protocol })
-	state := text(func(p ports.Socket) string { return p.State })
-	local := text(func(p ports.Socket) string { return p.LocalAddr })
-	peer := text(func(p ports.Socket) string { return p.PeerAddr })
-	pid := text(func(p ports.Socket) string { return p.PID })
-	process := text(func(p ports.Socket) string { return p.Process })
+	// The two address columns follow their content, and that is the point of
+	// §3.45 in one table: they used to sit at a declared 26 whatever the
+	// terminal was, cutting "[2606:2800:220:1:248:1893:25c8:1946]:443" in half
+	// at 200 columns while Process took 110 cells for "svchost.exe".
+	proto := text(datatable.SizingFixed, func(p ports.Socket) string { return p.Protocol })
+	state := text(datatable.SizingFixed, func(p ports.Socket) string { return p.State })
+	local := text(datatable.SizingContent, func(p ports.Socket) string { return p.LocalAddr })
+	peer := text(datatable.SizingContent, func(p ports.Socket) string { return p.PeerAddr })
+	pid := text(datatable.SizingFixed, func(p ports.Socket) string { return p.PID })
+	process := text(datatable.SizingContent, func(p ports.Socket) string { return p.Process })
 
 	proto.Title, proto.MinWidth = "Proto", 6
 	state.Title, state.MinWidth = "State", 10

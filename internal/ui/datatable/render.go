@@ -65,6 +65,18 @@ func (m *Model[T]) View() string {
 	return strings.Join(lines, "\n")
 }
 
+// RenderedWidth is what the table's lines actually span. It equals the viewport
+// interior — the width passed to Resize, less its two borders — whenever
+// Rule 116 holds, and it is what a view's layout test should assert on.
+//
+// Summing the declared columns' widths and adding two per column is the
+// tempting version, and it is what every one of those tests did. It is wrong as
+// soon as a column is dropped for want of room: the dropped column renders
+// nothing and its padding goes back into the budget, so the formula asks for
+// less than the line spans and fails on a layout that is correct. That
+// disagreement was D61 seen from the other side.
+func (m *Model[T]) RenderedWidth() int { return contentWidth(m.table.Columns()) }
+
 // contentWidth is what the rendered lines span: every column plus the padding
 // bubbles adds around each. It equals the viewport width less its two borders
 // whenever Rule 116 holds, but it is measured rather than assumed so that a
@@ -86,7 +98,10 @@ func (m *Model[T]) headerLine(cols []table.Column) string {
 		if col.Width <= 0 {
 			continue
 		}
-		line.WriteString(m.styles.Header.Render(fit(col.Title, col.Width)))
+		// A header is cut at its end whatever the column asks for its values: a
+		// title is recognised by how it starts, and TruncateHead is a statement
+		// about the data.
+		line.WriteString(m.styles.Header.Render(fit(col.Title, col.Width, false)))
 	}
 	return line.String()
 }
@@ -109,7 +124,7 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 		if busy && i == m.cfg.StatusColumn {
 			text = m.spinnerFrame
 		}
-		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fit(text, cols[i].Width)))
+		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fit(text, cols[i].Width, c.TruncateHead)))
 	}
 	if selected {
 		return m.styles.Selected.Render(line.String())
@@ -121,9 +136,36 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 // sequence of its own — the caller styles what comes back. Doing it in that
 // order is the whole point of this file: runewidth counts an escape sequence's
 // bytes as width, so text has to be measured while it is still plain.
-func fit(text string, width int) string {
-	return lipgloss.NewStyle().Width(width).MaxWidth(width).Inline(true).
-		Render(runewidth.Truncate(text, width, truncationMarker))
+func fit(text string, width int, head bool) string {
+	cut := runewidth.Truncate(text, width, truncationMarker)
+	if head {
+		cut = truncateHead(text, width)
+	}
+	return lipgloss.NewStyle().Width(width).MaxWidth(width).Inline(true).Render(cut)
+}
+
+// truncateHead keeps the *end* of the text, for the columns that declare it
+// (Column.TruncateHead).
+//
+// A column of URLs, image references or paths shares its prefix on every row,
+// so cutting the tail renders three identical cells that identify nothing —
+// and it does so precisely when the column is squeezed to its floor, which is
+// when it is hardest to read. Keeping the end is what tells the rows apart.
+//
+// runewidth rather than runes throughout: a cell is measured in terminal cells,
+// and a CJK name counts two per rune.
+func truncateHead(text string, width int) string {
+	total := runewidth.StringWidth(text)
+	if total <= width || width <= 0 {
+		return text
+	}
+	marker := runewidth.StringWidth(truncationMarker)
+	if width <= marker {
+		// No room for the marker and anything after it. Saying "there is more"
+		// with no idea what beats a single arbitrary character.
+		return runewidth.Truncate(truncationMarker, width, "")
+	}
+	return runewidth.TruncateLeft(text, total-(width-marker), truncationMarker)
 }
 
 // cellStyle is the style one cell is rendered with.
