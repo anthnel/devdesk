@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -267,10 +268,10 @@ func TestSecretsAreReturnedMasked(t *testing.T) {
 	}
 }
 
-// Exit 1 with no report is how gitleaks says it found nothing worth writing —
-// a clean repository, not a failure.
+// A clean repository exits 0 and writes an empty report — measured on gitleaks
+// v8.30.1, and it is what makes the next test true.
 func TestACleanRepositoryIsNotAFailure(t *testing.T) {
-	answering(t, "", &exitError{Code: gitleaksSecretsFound})
+	answering(t, "[]", nil)
 
 	findings, err := RunGitleaks(context.Background(), "/repos", ToolSpec{Source: ToolSourceBinary}, false, "", nil)
 
@@ -279,6 +280,44 @@ func TestACleanRepositoryIsNotAFailure(t *testing.T) {
 	}
 	if len(findings) != 0 {
 		t.Errorf("findings = %+v, want none", findings)
+	}
+}
+
+// The one that was D56. Gitleaks exits 1 for two unrelated things — it found
+// secrets, and it died before scanning anything — and the report is what
+// separates them. This case was read as a clean repository, so a --config
+// gitleaks could not load came back as a green icon in ws for a directory
+// nobody had looked at.
+func TestAnExitWithNoReportIsAFailureRatherThanACleanRepository(t *testing.T) {
+	answering(t, "", &exitError{
+		Code:   gitleaksSecretsFound,
+		Stderr: "FTL unable to load gitleaks config, err: open /gitleaks.toml: no such file or directory",
+	})
+
+	findings, err := RunGitleaks(context.Background(), "/repos", ToolSpec{Source: ToolSourceBinary}, false, "", nil)
+
+	if err == nil {
+		t.Fatalf("a scan that read nothing was reported as clean: findings = %+v", findings)
+	}
+	// The tool's own diagnostic is the only thing that can say why: nothing on
+	// DevDesk's side knows whether the config was missing or would not parse.
+	if !strings.Contains(err.Error(), "unable to load gitleaks config") {
+		t.Errorf("the failure did not carry gitleaks' reason: %v", err)
+	}
+}
+
+// The guard is not there to catch a bad configuration — RunGitleaks reports
+// that with gitleaks' own words — but to stop docker creating a directory where
+// the file should have been (measured on Docker Desktop 29.7.2).
+func TestAnUnreadableConfigIsRefusedBeforeAnythingStarts(t *testing.T) {
+	r := answering(t, "[]", nil)
+
+	missing := filepath.Join(t.TempDir(), "gitleaks.toml")
+	if _, err := RunGitleaks(context.Background(), "/repos", ToolSpec{Source: ToolSourceDocker}, false, missing, nil); err == nil {
+		t.Fatal("a config that is not there was accepted")
+	}
+	if cmds := r.commands(); len(cmds) != 0 {
+		t.Errorf("the tool was started anyway: %v", cmds)
 	}
 }
 

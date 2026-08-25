@@ -3,6 +3,8 @@ package scan
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -528,6 +530,14 @@ func TestScanOptionsReachTheInvocation(t *testing.T) {
 		"trivy-secret": {stdout: `{"Results":[]}`},
 	})
 
+	// A real file: RunGitleaks refuses a rules file it cannot read before it
+	// starts anything, so that a wrong path does not have docker create a
+	// directory in its place (D56).
+	rules := filepath.Join(t.TempDir(), "rules.toml")
+	if err := os.WriteFile(rules, []byte("title = \"devdesk\"\n"), 0o600); err != nil {
+		t.Fatalf("writing the rules file: %v", err)
+	}
+
 	opts := ScanOptions{
 		EnableVuln:      true,
 		EnableSecret:    true,
@@ -535,7 +545,7 @@ func TestScanOptionsReachTheInvocation(t *testing.T) {
 		IgnoreUnfixed:   true,
 		IgnoreEOL:       true,
 		GitleaksHistory: true,
-		GitleaksConfig:  "/etc/gitleaks.toml",
+		GitleaksConfig:  rules,
 	}
 
 	if _, err := newScannerWithDeps(opts, everyTool()).
@@ -557,7 +567,7 @@ func TestScanOptionsReachTheInvocation(t *testing.T) {
 	if !strings.Contains(trivySecret, "--server https://trivy:4954") {
 		t.Errorf("the trivy secret invocation is missing the server:\n%s", trivySecret)
 	}
-	if !strings.Contains(gitleaks, "--config /etc/gitleaks.toml") {
+	if !strings.Contains(gitleaks, "--config "+rules) {
 		t.Errorf("the gitleaks config was not passed:\n%s", gitleaks)
 	}
 	if strings.Contains(gitleaks, "--no-git") {

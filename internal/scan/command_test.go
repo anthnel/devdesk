@@ -244,14 +244,50 @@ func TestHistoryIsOptedIntoByDroppingNoGit(t *testing.T) {
 }
 
 func TestACustomGitleaksConfigIsPassedThrough(t *testing.T) {
-	without := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceBinary}, false, "")
-	if strings.Contains(without, "--config") {
-		t.Errorf("a config flag appeared with none configured:\n%s", without)
+	for _, source := range []ToolSource{ToolSourceBinary, ToolSourceDocker} {
+		without := GetGitleaksCommand("/repos", ToolSpec{Source: source}, false, "")
+		if strings.Contains(without, "--config") {
+			t.Errorf("%s: a config flag appeared with none configured:\n%s", source, without)
+		}
 	}
 
-	with := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceBinary}, false, "/etc/gitleaks.toml")
-	if !strings.Contains(with, "--config /etc/gitleaks.toml") {
-		t.Errorf("the configured rules file was not passed:\n%s", with)
+	binary := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceBinary}, false, "/etc/gitleaks.toml")
+	if !strings.Contains(binary, "--config /etc/gitleaks.toml") {
+		t.Errorf("the configured rules file was not passed:\n%s", binary)
+	}
+}
+
+// D56: this test existed and exercised the binary mode only, and it checked
+// that the flag was **present** rather than that the path was **reachable** —
+// "--config /etc/gitleaks.toml" passes on both sides and means the same thing
+// on neither. In Docker mode the host path went straight into the container,
+// where the file is not, and gitleaks died before reading a byte.
+func TestGitleaksDockerModeMountsTheConfigAndPointsAtTheMount(t *testing.T) {
+	cmd := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceDocker}, false, "/home/me/rules.toml")
+
+	if !strings.Contains(cmd, "-v /home/me/rules.toml:"+gitleaksConfigMount+":ro") {
+		t.Errorf("the rules file is not mounted:\n%s", cmd)
+	}
+	if !strings.Contains(cmd, "--config "+gitleaksConfigMount) {
+		t.Errorf("gitleaks was pointed at the host path rather than the mount:\n%s", cmd)
+	}
+	if strings.Contains(cmd, "--config /home/me/rules.toml") {
+		t.Errorf("the host path reached the container:\n%s", cmd)
+	}
+
+	// Everything after the image name is gitleaks' own argv, so a -v placed
+	// there would be an argument to the scanner rather than to docker.
+	if strings.Index(cmd, "-v /home/me") > strings.Index(cmd, DefaultGitleaksImage) {
+		t.Errorf("the mount was declared after the image name:\n%s", cmd)
+	}
+}
+
+// The mount point has to be somewhere nothing else can be. The target lands at
+// /scan, so no file of the scanned repository shares the container root with
+// it — that is the whole reason the name is what it is.
+func TestTheConfigMountCannotCollideWithTheScannedTarget(t *testing.T) {
+	if strings.HasPrefix(gitleaksConfigMount, containerScanPath+"/") {
+		t.Errorf("the config is mounted inside the target: %q", gitleaksConfigMount)
 	}
 }
 

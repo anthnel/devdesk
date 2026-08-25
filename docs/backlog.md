@@ -11,7 +11,7 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Deux ouverts : D56 et D59** — voir [§1.3](#13-open).
+**Un seul ouvert : D59**, et à moitié — voir [§1.3](#13-open).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -30,10 +30,16 @@ la route dans le pipeline de Diagnostics — puis par
 [§3.47](#347-la-trace-de-route-est-supprimée-et-networktool_image-avec--done),
 qui a supprimé la trace de route et avec elle le dernier `--network host`.
 
-Il reste **D56**, et **D59** à moitié : un scan lancé sur une arborescence
-oubliait les dépôts situés plus bas que trois niveaux, et ceux derrière un lien
-symbolique, sans jamais dire combien il en écartait. La limite de profondeur est
-supprimée ; le lien symbolique reste ouvert.
+**D56** est fermé depuis le 2026-08-25 par
+[§3.50](#350-un-fichier-de-règles-gitleaks-est-monté-et-un-scan-qui-na-rien-lu-nest-plus-propre--done),
+et ce qu'il a coûté n'est pas ce qu'on croyait : le montage manquant n'était que
+la moitié, l'autre étant une tolérance écrite pour un comportement que gitleaks
+n'a pas.
+
+Il reste **D59**, à moitié : un scan lancé sur une arborescence oubliait les
+dépôts situés plus bas que trois niveaux, et ceux derrière un lien symbolique,
+sans jamais dire combien il en écartait. La limite de profondeur est supprimée ;
+le lien symbolique reste ouvert.
 
 D39, before them, was the registry browser addressing a group's
 members one way to browse them and another way to pull them; it is closed by
@@ -53,6 +59,44 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D56 — `scan.gitleaks_config` ne pouvait pas fonctionner en mode Docker, et
+son échec se lisait « aucun secret ». Corrigé.** Trouvé en écrivant
+[§3.42](#342-plumber--un-score-de-sécurité-de-pipeline-par-dépôt), qui a besoin
+exactement du même réglage, vérifié à l'exécution le 2026-08-24 et fermé le
+2026-08-25 par
+[§3.50](#350-un-fichier-de-règles-gitleaks-est-monté-et-un-scan-qui-na-rien-lu-nest-plus-propre--done).
+
+Le chemin hôte partait tel quel dans le conteneur, où le fichier n'était pas ;
+gitleaks mourait avant d'avoir lu un octet, sortait en `1` avec stdout vide, et
+`RunGitleaks` lisait ça comme « il a tourné et n'a rien trouvé ». Le dépôt
+ressortait avec `SecretsScanned` à `true`, un `SecretVerdict()` non nul valant
+`false`, et une icône verte dans `ws`.
+
+**Ce que la correction a appris, et qui change l'entrée.** Le montage manquant
+n'était que la moitié du défaut. L'autre moitié est la tolérance elle-même :
+elle a été écrite pour un comportement que gitleaks n'a pas. Mesuré sur
+v8.30.1 :
+
+| Situation | code | stdout |
+|---|---|---|
+| dépôt propre | **0** | `[]` |
+| secrets trouvés | 1 | le rapport |
+| `--config` introuvable **ou** illisible | 1 | **vide** |
+
+Un dépôt propre ne sort donc **jamais** en `1` avec un stdout vide : c'est le
+rapport qui sépare un résultat d'un échec, et la branche qui avalait le second
+n'avait aucun cas légitime. C'est ce qui rend la correction plus large que le
+montage — elle couvre le fichier absent, le TOML malformé, et tout fatal qui
+n'écrit pas de rapport, dans les **deux** modes.
+
+**Pourquoi les tests ne l'ont pas vu.** `TestACustomGitleaksConfigIsPassedThrough`
+n'exerçait que le mode binaire, là où ses trois voisins immédiats vérifiaient
+les deux ; et il vérifiait que le drapeau était **présent**, jamais que le
+chemin était **atteignable** — `--config /etc/gitleaks.toml` passe des deux
+côtés et ne veut dire la même chose dans aucun des deux.
+
+---
 
 **D61 — la ligne sélectionnée s'arrêtait avant la bordure droite dès qu'une
 colonne tombait à zéro. Corrigé.** Mesuré au rendu le 2026-08-25, pas déduit,
@@ -1816,93 +1860,6 @@ all nested git repos », ce qui était un mensonge et ne l'est plus.
   vaut pour la cause 2 exactement comme il valait pour la profondeur.
 
 ---
-
-**D56 — `scan.gitleaks_config` ne peut pas fonctionner en mode Docker, et son
-échec se lit « aucun secret ». Ouvert.** Trouvé en écrivant [§3.42](#342-plumber--un-score-de-sécurité-de-pipeline-par-dépôt),
-qui a besoin exactement du même réglage, et vérifié à l'exécution le 2026-08-24.
-
-`gitleaksArgs` monte la **cible** (`-v <cible>:/scan:ro`) puis ajoute
-`--config <chemin>` **après le nom de l'image**. Le chemin est donc résolu
-**dans le conteneur**, où le fichier n'est pas : le réglage est un chemin hôte,
-et `applyDefaults` en développe même le `~` (`config.go:731`). Rien ne le monte.
-
-Ce que `GetGitleaksCommand` construit :
-
-```
-docker run --rm -v C:\repos\devdesk:/scan:ro zricethezav/gitleaks detect \
-  --source /scan --gitleaks-ignore-path /scan --report-format json \
-  --report-path /dev/fd/1 --no-git --config C:\Users\anthoni\gitleaks.toml
-```
-
-et ce que ça rend, mesuré :
-
-```
-FTL unable to load gitleaks config, err: open C:\Users\...\gitleaks.toml:
-    no such file or directory
-exit = 1 ; stdout = 0 octet
-```
-
-**Le défaut n'est pas l'échec, c'est le code de sortie.** `1` est
-`gitleaksSecretsFound` — celui que `RunGitleaks` traite comme « il a tourné et
-n'a rien trouvé » **quand stdout est vide**, ce qui est exactement le cas ici
-(0 octet, mesuré en séparant les flux : la bannière et le `FTL` partent sur
-stderr). La chaîne complète :
-
-| Étape | Ce qui se passe |
-|---|---|
-| `RunGitleaks` | `exit 1` + stdout vide → `[]Finding{}, nil` |
-| l'étape secrets | se termine en `StageDone` |
-| `Result.SecretsScanned` | passe à `true` — une étape qui *réussit* l'écrit |
-| `Result.SecretVerdict()` | rend un `false` **non nul** : « on a regardé, c'est propre » |
-| la colonne Secrets de `ws` | icône verte |
-
-Un scan qui n'a **rien lu du tout** est présenté comme un dépôt propre. C'est
-D20 dans sa forme achevée : le champ inventé pour distinguer « personne n'a
-regardé » de « rien trouvé » est rempli par une étape qui n'a rien regardé.
-
-**Qui le rencontre.** `gitleaks_source: auto` retombe sur l'image dès qu'il n'y a
-pas de binaire — le cas courant, et celui de cette machine. Il suffit donc
-d'avoir renseigné un fichier de règles et de ne pas avoir installé gitleaks.
-
-**Pourquoi les tests ne l'ont pas vu.** `TestACustomGitleaksConfigIsPassedThrough`
-n'exerce que le mode **binaire**, là où ses trois voisins immédiats —
-`TestGitleaksReportsToStdout`, `TestTheIgnoreFileIsAlwaysPassed`,
-`TestGitleaksDockerModeMountsTheTargetReadOnly` — vérifient les deux. Et il
-vérifie que le drapeau est **présent**, jamais que le chemin est **atteignable** :
-`--config /etc/gitleaks.toml` passe des deux côtés, et ne veut dire la même
-chose dans aucun des deux.
-
-**Le correctif est mesuré, pas déduit.** Monter le fichier en lecture seule et
-pointer `--config` sur le point de montage :
-
-```
-docker run --rm -v <cible>:/scan:ro -v <config>:/gitleaks.toml:ro ... \
-  --config /gitleaks.toml
-```
-
-Avec ça, une règle que seul ce fichier définit se déclenche : un finding
-`devdesk-marker` sur stdout, 466 octets de JSON, relevé le 2026-08-24 sur un
-fixture écrit pour ça.
-
-Trois choses à décider en même temps, parce qu'aucune n'est réglée par le montage :
-
-1. **Un `--config` illisible doit être une erreur, pas un résultat vide**, dans
-   les deux modes. La garde de `RunGitleaks` ne regarde que le code de sortie,
-   et gitleaks émet `1` pour « j'ai trouvé » comme pour « je n'ai pas pu me
-   charger ». Le mode binaire a donc le même trou pour un chemin qui n'existe
-   pas : c'est le même programme, et c'est du reste ce que la mesure ci-dessus
-   montre — de son point de vue le fichier n'existait simplement pas.
-2. **Un chemin relatif n'a pas le même sens des deux côtés** — relatif au cwd de
-   DevDesk en binaire, à celui du conteneur en Docker. À rendre absolu au
-   chargement, ou à refuser.
-3. **Le nom du point de montage ne doit pas pouvoir entrer en collision** avec un
-   fichier du dépôt scanné : la cible est montée sur `/scan`, donc `/gitleaks.toml`
-   à la racine est libre, mais c'est à écrire quelque part plutôt qu'à supposer.
-
-Le même montage sera nécessaire pour `scan.plumber_config` (§3.42), qui est le
-même réglage pour un autre outil. Le corriger ici d'abord évite de l'écrire deux
-fois faux.
-
 
 ---
 
@@ -7964,7 +7921,7 @@ sont prises. Les chiffres sont en §3.43 ; en un mot :
 
 ### 3.42 `plumber` — un score de sécurité de pipeline, par dépôt
 
-À planifier — **la conception est tranchée, l'implémentation attend D56 et
+À planifier — **la conception est tranchée et le prérequis est levé ; restent
 trois mesures** (voir « Ce qui reste ouvert » en fin de section).
 [`getplumber/plumber`](https://github.com/getplumber/plumber) lit la
 configuration CI d'un dépôt — `.gitlab-ci.yml`, workflows GitHub Actions — la
@@ -8127,18 +8084,33 @@ et de Gitleaks, et `enable_ci_score` dans **Scanners** avec les quatre autres.
 La table de `fields.go` prend cinq lignes de plus, chacune avec son unique
 accesseur pointeur.
 
-#### Le fichier de configuration global — corriger D56 d'abord
+#### Le fichier de configuration global — le précédent est écrit
 
 « Global » veut dire : un fichier pour tous les dépôts du contexte, désigné par
 un chemin absolu, au lieu du `.plumber.yaml` que plumber cherche dans chaque
 dépôt. C'est mot pour mot ce que `scan.gitleaks_config` est déjà.
 
-**Et `scan.gitleaks_config` ne marche pas en mode Docker** : le chemin hôte part
-tel quel dans le conteneur, gitleaks ne le trouve pas, sort en `1` avec stdout
-vide, et DevDesk lit ça comme « aucun secret ». C'est **D56**, vérifié à
-l'exécution le 2026-08-24, avec le montage qui le corrige mesuré dans la foulée.
-Le corriger avant d'écrire `plumber_config`, sans quoi la même erreur est écrite
-deux fois — et la seconde fois en connaissance de cause.
+`scan.gitleaks_config` ne marchait pas en mode Docker — le chemin hôte partait
+tel quel dans le conteneur, gitleaks n'y trouvait rien, sortait en `1` avec
+stdout vide, et DevDesk lisait ça comme « aucun secret ». C'était **D56**, et
+[§3.50](#350-un-fichier-de-règles-gitleaks-est-monté-et-un-scan-qui-na-rien-lu-nest-plus-propre--done)
+l'a fermé le 2026-08-25 : le corriger d'abord évitait d'écrire la même erreur
+deux fois, la seconde en connaissance de cause.
+
+Ce qu'il laisse à copier, quatre points :
+
+| | |
+|---|---|
+| le point de montage | une constante du paquet, à la racine du conteneur, avec un test disant qu'elle n'est pas sous la cible montée |
+| le drapeau | `--config` désigne le montage, jamais le chemin hôte, et un test refuse que ce dernier atteigne le conteneur |
+| le chemin | rendu absolu au chargement : un relatif ne veut pas dire la même chose des deux côtés de la frontière |
+| l'échec | ce qui sépare un résultat d'un échec est **mesuré**, pas supposé — et pour plumber c'est `1` contre `2`, relevé plus haut |
+
+Le quatrième est celui que §3.50 n'avait pas prévu et qui a coûté le plus : la
+moitié de D56 n'était pas le montage manquant mais une tolérance sur le code de
+sortie, écrite pour un comportement que gitleaks n'a pas. Les codes de plumber
+sont relevés, ce qui met §3.42 du bon côté — à condition de ne pas y ajouter de
+tolérance non mesurée.
 
 #### La colonne dans `ws`
 
@@ -8243,8 +8215,7 @@ comportement dégradé sont relevés ci-dessus ; les quatre arbitrages de
 conception ont été pris le 2026-08-25 et sont écrits là où ils s'appliquent —
 `--branch`, le titre de la colonne, les deux causes du `?`, et où va le score.
 
-Restent trois inconnues, qui se mesurent et ne se décident pas, plus un
-prérequis :
+Restent trois inconnues, qui se mesurent et ne se décident pas :
 
 1. **Ce que l'image `getplumber/plumber` a besoin de voir**, et si `--config`
    accepte un chemin hors du dépôt — les deux décident du `-v`, et D56 dit
@@ -8257,14 +8228,16 @@ prérequis :
 3. **La licence de plumber** et le poids de l'image. Rien n'entre dans le
    binaire, mais c'est une dépendance de plus à installer ou à tirer.
 
-Et le prérequis, qui n'est pas une inconnue mais un défaut ouvert :
-**[D56](#13-open)**. `scan.gitleaks_config` ne peut pas fonctionner en mode
-Docker et son échec se lit « aucun secret » ; `scan.plumber_config` est le même
-réglage pour un autre outil, et le montage qui le corrige est le même. Trois
-décisions y sont attachées — un `--config` illisible doit être une erreur dans
-les **deux** modes, un chemin relatif n'a pas le même sens des deux côtés, et le
-nom du point de montage doit être écrit plutôt que supposé. Le corriger avant
-d'écrire `plumber_config`, sans quoi la même erreur est écrite deux fois.
+Le prérequis, lui, est levé : **D56 est corrigé** par
+[§3.50](#350-un-fichier-de-règles-gitleaks-est-monté-et-un-scan-qui-na-rien-lu-nest-plus-propre--done),
+qui laisse à `scan.plumber_config` un précédent complet à copier — un point de
+montage nommé dans le paquet, un drapeau qui désigne le montage, un chemin rendu
+absolu au chargement, et une règle disant ce qui sépare un résultat d'un échec.
+Il a aussi appris quelque chose qui vaut pour plumber : la moitié du défaut
+n'était pas le montage manquant mais une tolérance sur le code de sortie, écrite
+pour un comportement que l'outil n'a pas. Les codes de sortie de plumber sont
+relevés plus haut ; ils ont été **mesurés**, et c'est ce qui les rend
+utilisables.
 
 ### 3.43 L'onglet Ports lit la machine — `internal/ports` — **done**
 
@@ -9302,6 +9275,101 @@ compteurs, parce que ce sont elles qui déclarent `Optional` ici. À 80 colonnes
 les adresses reçoivent 18 et 29 cellules au lieu de zéro chacune. C'est le
 scénario qui a justifié le point 2 de §3.45, et c'était la bonne décision de
 l'écrire ici en attendant plutôt que de bricoler un plancher local.
+
+### 3.50 Un fichier de règles gitleaks est monté, et un scan qui n'a rien lu n'est plus « propre » — **done**
+
+Fait le 2026-08-25. C'est [D56](#11-fixed), et c'est le prérequis que
+[§3.42](#342-plumber--un-score-de-sécurité-de-pipeline-par-dépôt) s'était donné :
+`scan.plumber_config` est le même réglage pour un autre outil, donc le corriger
+ici évite de l'écrire deux fois faux.
+
+#### Ce que la mesure a changé au plan
+
+L'entrée D56 prévoyait deux choses : monter le fichier, et faire d'un `--config`
+illisible une erreur. La seconde s'est révélée plus large que prévu, parce que
+le comportement de gitleaks n'est pas celui que le code supposait. Relevé sur
+**v8.30.1**, image `zricethezav/gitleaks`, trois exécutions réelles :
+
+| Situation | code | stdout |
+|---|---|---|
+| dépôt propre | **0** | `[]`, 3 octets |
+| secrets trouvés | 1 | le rapport JSON |
+| `--config` introuvable | 1 | **0 octet** |
+| `--config` présent mais TOML invalide | 1 | **0 octet** |
+
+Le commentaire que `RunGitleaks` portait — « exit 1 with no report means it ran
+and found nothing » — décrit donc quelque chose que gitleaks ne fait pas. Un
+dépôt propre sort en `0` et écrit `[]` ; c'est le **rapport** qui sépare un
+résultat d'un échec, jamais le code de sortie seul. La branche qui avalait
+« exit 1, stdout vide » n'avait aucun cas légitime, et c'est elle qui
+transformait l'échec du `--config` en icône verte.
+
+Conséquence : la correction est plus large que le montage. Elle couvre le
+fichier absent, le TOML malformé, et n'importe quel fatal qui n'écrit pas de
+rapport — dans les **deux** modes, sans que DevDesk ait à lire le message de
+gitleaks pour deviner ce qui s'est passé. C'est ce qu'un `os.Stat` préalable
+n'aurait pas su faire : un fichier présent et illisible par gitleaks passe le
+stat.
+
+#### Les trois décisions que D56 attachait
+
+**1. Un `--config` illisible est une erreur, dans les deux modes.** Elle vient
+du point ci-dessus, et elle arrive avec la raison de gitleaks : `exitError`
+porte déjà son stderr, donc l'utilisateur lit *unable to load gitleaks config,
+err: While parsing config: toml: expected character =* plutôt qu'un « Failed ».
+C'est la seule chose qui puisse le dire — rien du côté DevDesk ne sait si le
+fichier manquait ou ne se parsait pas.
+
+**2. Un chemin relatif est fixé au chargement.** `ExpandPaths` le rend absolu
+contre le répertoire de travail de DevDesk. Un relatif ne veut pas dire la même
+chose des deux côtés de la frontière Docker, et maintenant que le fichier est
+monté les deux lectures ne désigneraient pas le même fichier. Le résoudre une
+fois, au chargement, fait que le chemin monté et le chemin affiché dans
+`:config` sont la même chaîne. Un chemin vide reste vide : le transformer en
+répertoire courant donnerait un répertoire à parser comme du TOML.
+
+**3. Le point de montage est écrit, pas supposé.** `gitleaksConfigMount =
+"/gitleaks.toml"`, à la racine du conteneur, parce que c'est le seul endroit où
+rien d'autre ne peut être : la cible est montée sur `/scan`, donc aucun fichier
+du dépôt scanné ne peut atterrir à côté, et la racine de l'image est un arbre
+Alpine ordinaire sans `/gitleaks.toml` (vérifié). Un test énonce l'invariant
+plutôt que la valeur : le montage n'est pas sous `containerScanPath`.
+
+#### Une quatrième garde, pour une raison qui n'est pas la détection
+
+`checkGitleaksConfig` refuse le fichier avant de démarrer quoi que ce soit, et
+ce n'est **pas** un second calcul de la question précédente : c'est un effet de
+bord de `docker run` qui est en jeu. Un `-v` sur un chemin hôte qui n'existe pas
+n'échoue pas — il **crée un répertoire** à cet endroit et le monte. Mesuré sur
+Docker Desktop 29.7.2 : un `ghost/nope.toml/` est apparu sur le disque, parent
+compris. Une faute de frappe dans `gitleaks_config` sèmerait donc des
+répertoires, une fois par scan.
+
+#### La mesure de bout en bout
+
+Une règle qui n'existe que dans le fichier monté se déclenche, avec la commande
+que DevDesk construit :
+
+```
+docker run --rm -v <cible>:/scan:ro -v <config>:/gitleaks.toml:ro \
+  zricethezav/gitleaks detect --source /scan --gitleaks-ignore-path /scan \
+  --report-format json --report-path /dev/fd/1 --no-git --config /gitleaks.toml
+```
+
+→ `exit 1`, 452 octets de JSON, un finding `devdesk-marker`. Avant la
+correction, la même intention donnait 0 octet et un dépôt réputé propre.
+
+Le `-v` est ajouté **avant le nom de l'image** — tout ce qui vient après est
+l'argv de gitleaks — et un test compare les deux positions dans la chaîne
+plutôt que de faire confiance à l'ordre des `append`.
+
+#### Ce que ça laisse pour §3.42
+
+`scan.plumber_config` a maintenant un précédent complet à copier : un point de
+montage nommé dans le paquet, un drapeau qui désigne le montage, un chemin rendu
+absolu au chargement, et une règle sur ce qui distingue un résultat d'un échec.
+Reste à mesurer ce que l'image `getplumber/plumber` a besoin de voir, ce qui est
+le point 1 de « Ce qui reste ouvert » de §3.42.
 
 ## 4. Existing plans
 
