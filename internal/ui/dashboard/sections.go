@@ -820,7 +820,21 @@ func renderNetworkSection(m Model, width int, t tier) []string {
 // dénominateur le ferait disparaître au lieu de le signaler.
 //
 // Elle doit rester en phase avec detectTools (model.go).
-var knownTools = []string{"Docker", "Trivy", "Gitleaks", "Net Diag", "Git"}
+// Les noms sont des constantes parce que les deux listes se sont déjà
+// désaccordées : §3.47 a renommé la sonde réseau en « Connectivity » dans
+// detectTools sans toucher à celle-ci, donc le dashboard réclamait « Net Diag »
+// en permanence — un outil absent de la détection est déclaré manquant — tout
+// en ne vérifiant jamais celui qu'il détectait. Deux littéraux pour un seul nom
+// ne peuvent que dériver ; une constante ne le peut pas.
+const (
+	toolDocker       = "Docker"
+	toolTrivy        = "Trivy"
+	toolGitleaks     = "Gitleaks"
+	toolConnectivity = "Connectivity"
+	toolGit          = "Git"
+)
+
+var knownTools = []string{toolDocker, toolTrivy, toolGitleaks, toolConnectivity, toolGit}
 
 // renderStorageSection answers one question — **où part la place** — in two
 // trees: the volume the workspaces live on, and what Docker holds on it.
