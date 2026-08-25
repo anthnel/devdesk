@@ -117,7 +117,12 @@ func (m Model) RenderFooter(width int) string {
 		parts = append(parts, m.renderTabBar(), theme.EmptyLineBg(width), m.renderInfoLine(width))
 		return strings.Join(parts, "\n")
 	}
-	return theme.EmptyLineBg(width) + "\n" + theme.EmptyLineBg(width)
+	// An empty listing, or one that failed to load, still gets its info line:
+	// Rule 124 budgets one whatever it holds, and this branch used to render a
+	// second blank line instead — so a footer message posted here was
+	// swallowed. That is exactly where a refusal lands (Y on an empty listing
+	// has nothing to copy), and a refusal nobody can read is worse than none.
+	return theme.EmptyLineBg(width) + "\n" + m.renderInfoLine(width)
 }
 
 // renderInfoLine is the footer's one line of state.
@@ -379,78 +384,39 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 	}
 
-	// Normal mode — determine selected entry state for dynamic shortcuts (Rule 130)
-	var selectedEntry *Entry
-	if entry, ok := m.selectedEntry(); ok {
-		selectedEntry = &entry
+	// Normal mode — every action of this mode is listed, in one order, and the
+	// ones that do not apply to the current row are greyed out (Rule 130).
+	//
+	// The key sequence is therefore the same on every row: this column is read
+	// out of the corner of the eye, and one that re-orders itself as the cursor
+	// moves cannot be. What varies is Disabled, plus enter's wording — it opens
+	// a file in the viewer and a scanned repository's findings, which are two
+	// actions that cannot both apply.
+	a := m.actions()
+
+	enterDescription := "Scan details"
+	if entry, ok := m.selectedEntry(); ok && !entry.IsDir {
+		enterDescription = "View file"
 	}
 
-	isGitRepo := selectedEntry != nil && selectedEntry.IsGitRepo
-	var hasScanResult bool
-	if isGitRepo {
-		_, hasScanResult = m.scanCache[selectedEntry.Path]
-	}
-	hasSubRepos := selectedEntry != nil && !isGitRepo && len(selectedEntry.SubRepoPaths) > 0
-
-	isFile := selectedEntry != nil && !selectedEntry.IsDir
-
-	shortcuts := []shortcut.Shortcut{
+	return []shortcut.Shortcut{
 		{Key: "←→", Description: "Open/Back"},
+		{Key: "enter", Description: enterDescription, Disabled: !a.Enter.Enabled()},
+		{Key: "T", Description: "Terminal"},
+		{Key: "O", Description: "IDE"},
+		{Key: "W", Description: "Browser", Disabled: !a.Web.Enabled()},
+		{Key: "S", Description: "Scan", Disabled: !a.Scan.Enabled()},
+		{Key: "F", Description: "Sync", Disabled: !a.Sync.Enabled()},
+		{Key: "A", Description: "Scan all", Disabled: !a.All.Enabled()},
+		{Key: "N", Description: "New directory"},
+		{Key: keymap.Copy, Description: "Copy path", Disabled: !a.Copy.Enabled()},
+		{Key: "M", Description: "Rename", Disabled: !a.Rename.Enabled()},
+		{Key: "D", Description: "Delete", Disabled: !a.Delete.Enabled()},
+		{Key: "ctrl+r", Description: "Refresh"},
+		{Key: "/", Description: "Search"},
+		{Key: "ctrl+p", Description: "Command"},
+		{Key: "?", Description: "Help"},
 	}
-
-	// enter carries two actions that cannot both apply: a file opens in the
-	// viewer, a scanned repository opens its findings.
-	switch {
-	case isFile:
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "View file"})
-	case hasScanResult:
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "Scan details"})
-	}
-
-	shortcuts = append(shortcuts,
-		shortcut.Shortcut{Key: "T", Description: "Terminal"},
-		shortcut.Shortcut{Key: "O", Description: "IDE"},
-	)
-
-	// W: only shown for git repos
-	if isGitRepo {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "W", Description: "Browser"})
-	}
-
-	// S and F: shown for git repos and directories with nested repos — both act
-	// on the same target, so they appear and disappear together.
-	if isGitRepo || hasSubRepos {
-		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "S", Description: "Scan"},
-			shortcut.Shortcut{Key: "F", Description: "Sync"},
-		)
-	}
-
-	shortcuts = append(shortcuts,
-		shortcut.Shortcut{Key: "A", Description: "Scan all"},
-	)
-
-	// N: hidden when a git repo is selected
-	if !isGitRepo {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "N", Description: "New directory"})
-	}
-
-	// Y: a row is required — it copies that row's path and has no fallback to
-	// the browsed directory (Rule 130).
-	if selectedEntry != nil {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: keymap.Copy, Description: "Copy path"})
-	}
-
-	shortcuts = append(shortcuts,
-		shortcut.Shortcut{Key: "M", Description: "Rename"},
-		shortcut.Shortcut{Key: "D", Description: "Delete"},
-		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
-		shortcut.Shortcut{Key: "/", Description: "Search"},
-		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
-		shortcut.Shortcut{Key: "?", Description: "Help"},
-	)
-
-	return shortcuts
 }
 
 func (m Model) GetTitle() string {

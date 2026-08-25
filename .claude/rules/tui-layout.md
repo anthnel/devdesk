@@ -246,37 +246,84 @@ return theme.EmptyLineBg(width) + "\n" + infoLine
 return tabBar + "\n" + theme.EmptyLineBg(width) + "\n" + infoLine
 ```
 
-### Rule 130 : Shortcuts must be dynamic
+### Rule 130 : un raccourci sans objet est grisé, pas supprimé
 
-**`GetShortcuts()` must reflect the current state of the view and selected item.**
+**`GetShortcuts()` reflète l'état courant de la vue et de la ligne
+sélectionnée. Ce qui varie est `Disabled`, pas la présence de l'entrée.**
 
-Shortcuts that apply only to specific entry types or states must be conditionally included:
-- Hidden when the action is not available (no entry selected, wrong type, missing precondition)
-- Updated description when the meaning changes based on context
+#### Mode contre état
 
-| Shortcut | Condition to show |
-|----------|-------------------|
-| `enter` (scan details) | Selected entry is a git repo **and** has cached scan results |
-| `ctrl+w` (browser) | Selected entry is a git repo |
-| `ctrl+s` (scan) | Selected entry is a git repo or a directory with nested git repos |
-| `ctrl+n` (new directory) | No git repo is selected |
+C'est la distinction qui décide entre les deux, et elle vaut pour toutes les
+vues :
+
+| | Ce qui change | Pourquoi |
+|---|---|---|
+| **Mode** — formulaire, confirmation, sélection | la **liste entière** est remplacée | ce n'est pas le même vocabulaire ; griser `enter → Create` pendant qu'on est dans une table afficherait la réunion de tous les modes |
+| **État** dans un mode — ligne sélectionnée, outil absent | l'entrée **reste**, `Disabled: true` | la colonne est lue du coin de l'œil, et une liste qui se réorganise sous le regard ne se lit plus |
+
+Deux causes de grisage, et deux seulement : l'état de la **ligne**
+sélectionnée, et une indisponibilité **globale** (un outil que la machine n'a
+pas). Une opération en cours n'en est pas une : elle change à chaque tick, la
+ligne le dit déjà avec son spinner, et une entrée qui clignote dit le contraire
+de ce que cette règle cherche.
+
+#### Le rendu
+
+`shortcut.Shortcut.Disabled` est le seul mécanisme ; il est implémenté une fois,
+dans `Shortcuts.ToStrings()`. La touche perd sa couleur et sa graisse
+(`theme.ShortcutKeyDisabledStyle`, alias de `ColorDim`), la description ne
+change pas — elle est déjà en `ColorDim`, donc la ligne devient un gris
+uniforme. `maxLenKey()` compte les entrées désactivées : l'alignement ne doit
+pas dépendre de ce qui est disponible, sinon la colonne bouge quand même.
+
+Une entrée grisée **garde le libellé de l'action qu'elle ferait** : un blanc
+dans une colonne dont toutes les autres lignes se lisent serait pire que le mot.
+
+#### Un seul calcul, deux lecteurs
+
+Le motif est calculé une fois et lu par les deux moitiés de la vue : le header
+pour griser, le handler pour refuser. Une raison vide veut dire disponible, donc
+le booléen et le motif ne peuvent pas diverger.
 
 ```go
-// Pattern: resolve selected entry, then build shortcuts conditionally
-var selectedEntry *Entry
-if len(m.entries) > 0 {
-    idx := m.table.Cursor()
-    if idx >= 0 && idx < len(m.entries) {
-        selectedEntry = &m.entries[idx]
-    }
-}
+// internal/ui/workspaces/availability.go — l'implémentation de référence
+type actionState struct{ Reason string }
+func (s actionState) Enabled() bool { return s.Reason == "" }
 
-isGitRepo := selectedEntry != nil && selectedEntry.IsGitRepo
+// GetShortcuts
+{Key: "S", Description: "Scan", Disabled: !a.Scan.Enabled()},
+
+// le handler
+case keymap.Scan:
+    return m.guard(a.Scan, m.startSecurityScan)
 ```
 
+**Le gris dit « pas maintenant », la touche pressée dit pourquoi.** Le header
+n'a pas la place de porter un motif ; le footer l'a, et c'est un `Warn` au sens
+de Rule 128 — l'action ne peut pas être honorée telle que demandée, rien n'a
+échoué. Le refus n'est jamais silencieux : c'est précisément ce que faisaient
+les `return m, nil` que cette règle remplace.
+
+**Ne pas savoir n'est pas savoir que non.** Une disponibilité qui arrive par un
+`Cmd` laisse l'action offerte tant que la réponse n'est pas là : griser pour
+dégriser trois frames plus tard se lit comme une panne.
+
+**Une touche qui s'applique quelle que soit la ligne n'entre pas dans le
+dispositif.** `N` crée un répertoire dans le répertoire parcouru — elle n'agit
+pas sur la sélection, donc la masquer disait « sans objet » d'une action qui
+marchait, et la griser le répéterait.
+
+#### État de la migration
+
+Seule `workspaces` est migrée (§3.48). Les autres vues masquent encore ; elles
+suivront, et `internal/ui/workspaces/availability.go` est la référence.
+
 Interdit :
-- ❌ Showing shortcuts for actions that cannot be performed in the current state
-- ❌ Static shortcut lists that ignore the selected item's type
+- ❌ Masquer une entrée parce que l'action ne s'applique pas à la ligne
+- ❌ Griser une touche qui agit quand même, ou en refuser une qui n'est pas grisée
+- ❌ Refuser en silence — un `return m, nil` sans motif au footer
+- ❌ Deux calculs pour une question : un pour l'affichage, un pour le handler
+- ❌ Une liste statique qui ignore le type de la ligne sélectionnée
 
 ### Rule 134 : Les raccourcis clavier appartiennent au header, jamais au viewport
 

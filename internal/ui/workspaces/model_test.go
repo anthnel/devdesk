@@ -648,17 +648,18 @@ func TestScanIsInertOnEntriesWithNothingToScan(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		cursor int
+		reason string
 	}{
-		{"a file", 4},
-		{"a directory with no repos", 3},
+		{"a file", 4, reasonNotARepo},
+		{"a directory with no repos", 3, reasonNoScanTarget},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m.table.SetCursor(tc.cursor)
 
-			_, cmd := step(t, m, testutil.Key(keymap.Scan))
+			next := refused(t, m, keymap.Scan, tc.reason)
 
-			if cmd != nil {
-				t.Errorf("a scan was issued for %s", tc.name)
+			if len(next.scanningPaths) != 0 {
+				t.Errorf("a scan was started for %s: %v", tc.name, next.scanningPaths)
 			}
 		})
 	}
@@ -852,18 +853,18 @@ func TestReturningFromATerminalReloads(t *testing.T) {
 	}
 }
 
-// The browser action needs a remote, so it must do nothing on a repo without
-// one rather than open a broken URL.
+// The browser action needs a remote, so a repository without one gets a greyed
+// W and, if the user presses it anyway, the reason. IsGitRepo alone used to
+// advertise it, and openInBrowser then returned in silence.
 func TestBrowserRequiresARemote(t *testing.T) {
 	m := feed(t, newTestModel(t), EntriesLoadedMsg{Entries: []Entry{
 		{Name: "local-only", Path: "/tmp/workspaces/local-only", IsDir: true, IsGitRepo: true},
 	}})
 
-	_, cmd := step(t, m, testutil.Key(keymap.Web))
-
-	if cmd != nil {
-		t.Error("ctrl+w opened a browser for a repo with no remote")
+	if !shortcutDisabled(m.GetShortcuts(), keymap.Web) {
+		t.Error("W is offered on a repo with no remote")
 	}
+	refused(t, m, keymap.Web, reasonNoRemote)
 }
 
 // ── Details ──────────────────────────────────────────────────────────────────
@@ -873,19 +874,13 @@ func TestEnterOpensDetailsOnlyForScannedRepos(t *testing.T) {
 	m := scannedModel(t)
 
 	m.table.SetCursor(1) // clean-repo, never scanned
-	_, cmd := step(t, m, testutil.Key("enter"))
-	if cmd != nil {
-		t.Error("enter opened details for a repo with no cached scan")
-	}
+	refused(t, m, "enter", reasonNothingToSee)
 
 	m.table.SetCursor(2) // a plain directory
-	_, cmd = step(t, m, testutil.Key("enter"))
-	if cmd != nil {
-		t.Error("enter opened details for a non-repo")
-	}
+	refused(t, m, "enter", reasonNothingToSee)
 
 	m.table.SetCursor(0) // devdesk, scanned
-	_, cmd = step(t, m, testutil.Key("enter"))
+	_, cmd := step(t, m, testutil.Key("enter"))
 	if cmd == nil {
 		t.Error("enter did not open details for a scanned repo")
 	}
@@ -937,8 +932,14 @@ func TestTheEnterShortcutNamesWhicheverActionApplies(t *testing.T) {
 	}
 
 	m.table.SetCursor(1) // clean-repo, never scanned
-	if got := shortcutFor(m, "enter"); got != "" {
-		t.Errorf("enter is advertised as %q on a repo with nothing to open", got)
+	if !shortcutDisabled(m.GetShortcuts(), "enter") {
+		t.Error("enter is offered on a repo with nothing to open")
+	}
+	// It keeps the wording of the action it would perform once there is a
+	// result: a greyed entry naming nothing would be a blank line in a column
+	// whose other rows all read.
+	if got := shortcutFor(m, "enter"); got != "Scan details" {
+		t.Errorf("the greyed enter reads %q, want \"Scan details\"", got)
 	}
 }
 

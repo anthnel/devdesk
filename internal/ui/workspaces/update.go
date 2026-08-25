@@ -15,7 +15,14 @@ import (
 
 // Init initialise le modèle
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.loadEntries(), loadScanCacheCmd(), m.spinner.Tick)
+	cmds := []tea.Cmd{m.loadEntries(), loadScanCacheCmd(), m.spinner.Tick}
+	// A view lent for a selection offers neither S nor A, so resolving the
+	// scanners for it would be three subprocesses spawned to answer a question
+	// nobody asks.
+	if m.mode == ModeNormal {
+		cmds = append(cmds, checkDepsCmd(m.config.Scan))
+	}
+	return tea.Batch(cmds...)
 }
 
 // InEditMode returns true if the view is in an edit mode (input, confirm, selection, or filter search)
@@ -40,6 +47,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
+
+	case DepsCheckedMsg:
+		deps := msg.Deps
+		m.deps = &deps
 
 	case EntriesLoadedMsg:
 		// A listing of somewhere the user has already left: two loads were in
@@ -221,20 +232,24 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSelectionKeyMsg(msg)
 	}
 
-	// Normal mode
+	// Normal mode. The actions the header greys out are refused here, from the
+	// same actionSet — one calculation, two readers, so a greyed key that still
+	// acts is not expressible.
+	a := m.actions()
+
 	switch msg.String() {
 	case "/":
 		return m, m.table.Update(msg)
 	case "enter":
-		return m.openScanDetails()
+		return m.guard(a.Enter, m.openScanDetails)
 	case "ctrl+r":
 		return m, m.loadEntries()
 	case keymap.New:
 		return m.startAdd()
 	case keymap.Rename:
-		return m.startRename()
+		return m.guard(a.Rename, m.startRename)
 	case keymap.Delete:
-		return m.startDelete()
+		return m.guard(a.Delete, m.startDelete)
 	// The "new window" variant is a setting, not a second key: the capability
 	// depends on the environment — the help already says it does not exist
 	// under WSL, and through SSH there is no window to open (§3.26).
@@ -243,15 +258,15 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keymap.IDE:
 		return m.openIDE()
 	case keymap.Web:
-		return m.openInBrowser()
+		return m.guard(a.Web, m.openInBrowser)
 	case keymap.Scan:
-		return m.startSecurityScan()
+		return m.guard(a.Scan, m.startSecurityScan)
 	case keymap.Fetch:
-		return m.startSync()
+		return m.guard(a.Sync, m.startSync)
 	case keymap.ScanAll:
-		return m.confirmScanAll()
+		return m.guard(a.All, m.confirmScanAll)
 	case keymap.Copy:
-		return m.copyPath()
+		return m.guard(a.Copy, m.copyPath)
 	case "left":
 		return m.navigateUp()
 	case "right":

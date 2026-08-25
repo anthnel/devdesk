@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,6 +116,24 @@ func scanAll(t *testing.T, m Model, purge bool) (Model, tea.Cmd) {
 		t.Fatal("A did not open the scan-all confirmation")
 	}
 	return step(t, m, sharedcomponents.OptionConfirmModalYesMsg{Option: purge})
+}
+
+// refused presses a key the header greys out and checks the view declined it,
+// naming why in the footer.
+//
+// It is the other half of shortcutDisabled. A greyed key that still acted would
+// pass one and fail the other, which is exactly the divergence the single
+// actionSet exists to make impossible.
+//
+// The Cmd Update returns is deliberately dropped: it is the footer's expiry
+// timer, and running it sleeps three real seconds (Rule 128).
+func refused(t *testing.T, m Model, key, wantReason string) Model {
+	t.Helper()
+	next, _ := step(t, m, testutil.Key(key))
+	if got := next.RenderFooter(200); !strings.Contains(got, wantReason) {
+		t.Errorf("%s was declined without saying why — footer:\n%s\nwant it to carry %q", key, got, wantReason)
+	}
+	return next
 }
 
 func step(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {

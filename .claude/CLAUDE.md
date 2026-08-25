@@ -368,6 +368,48 @@ another view's request and `:viewer` resolves to nothing, but it renders in the
 same viewport as the rest and fails in the same silence, so the contract has to
 reach it.
 
+### A shortcut that does not apply is greyed, not dropped
+
+`shortcut.Shortcut.Disabled` (§3.48). The entry keeps its place and the key
+loses its colour and its weight, so the column no longer re-orders itself as the
+cursor moves — which is what it is for: it is read out of the corner of the eye,
+and a list that rearranges under the gaze cannot be.
+
+**A mode still replaces the list.** A form has different keys from a table, so
+greying them would show the union of every mode. What is greyed is a *state*
+inside one mode: the selected row, or a tool the machine does not have. An
+operation in flight is neither — it changes every tick, the row's spinner
+already says so, and an entry that blinks says the opposite of the point.
+
+The mechanism lives in one place: `Shortcuts.ToStrings()` picks
+`theme.ShortcutKeyDisabledStyle` (an alias of `ColorDim`, assigned in
+`ApplyTheme` like the footer colours). The description is left alone — it is
+already dim, so a disabled line reads as one uniform grey. `maxLenKey()` counts
+the disabled entries, or the alignment would depend on availability and the
+column would move anyway.
+
+**One calculation, two readers.** `internal/ui/workspaces/availability.go` is the
+reference: an `actionSet` of `actionState{Reason string}`, empty meaning
+available. `GetShortcuts` reads it to grey, `m.guard` reads it to refuse — so a
+greyed key that still acts is not expressible, and the refusal cannot be
+silent. That silence is what it replaced: `openInBrowser` returned `m, nil` on a
+repository with no remote, and `W` was advertised anyway because the shortcut
+keyed on `IsGitRepo`.
+
+Two rules the entry earned:
+
+- **Not knowing is not knowing that not.** `scan.CheckDependencies` shells out,
+  so it runs in a `Cmd` (`DepsCheckedMsg`) and `S`/`A` stay lit until it lands.
+  Greying for three frames and un-greying reads as a fault — D20 at the scale of
+  a key.
+- **A key that applies whatever the row is stays out of the set.** `N` creates a
+  directory in the *browsed* directory, so hiding it on a repository said "does
+  not apply" about an action that worked; greying would repeat that, and
+  refusing would be a regression.
+
+Only `workspaces` is migrated. The others still hide, and Rule 130 says where
+the line falls.
+
 ### Multi-Context Configuration
 
 The app supports multiple configuration contexts (e.g., work, personal, client-A):
@@ -1078,9 +1120,10 @@ A glyph naming what each row **is**: a git repository, a directory, or a file
 a Go project", which is a different question and was judged not worth a column.
 
 **The repository glyph is the one that earns the column.** Half the keys here
-act on `IsGitRepo` — `S`, `F`, `A`, `D`, `enter` — and Rule 130 shows or hides
-them accordingly, so the user watched the shortcuts change with nothing on the
-row saying why. Git Status betrays a repository only when it has a readable
+act on `IsGitRepo` — `S`, `F`, `A`, `D`, `enter` — and Rule 130 greys them
+accordingly, so the user watches the shortcuts dim with nothing on the row
+saying why. They used to *disappear*, which was the same complaint one degree
+worse, and §3.48 is the other half of this fix. Git Status betrays a repository only when it has a readable
 branch: a detached HEAD, an empty repository, one git refuses to read all
 rendered an empty cell and looked like any other directory. A directory holding
 *nested* repositories still reads as a plain directory — `S`, `F` and `A` act on

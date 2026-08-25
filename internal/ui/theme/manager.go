@@ -293,6 +293,9 @@ func ApplyTheme(t *Theme) {
 	ColorFooterWarn = ColorSeverityMedium
 	ColorFooterError = ColorSeverityCritical
 
+	// A disabled shortcut's key (Rule 130), same kind of alias.
+	ColorShortcutDisabled = ColorDim
+
 	// Rafraîchir les styles qui dépendent des couleurs
 	RefreshStyles()
 }

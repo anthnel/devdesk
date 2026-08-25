@@ -5,7 +5,17 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/scan"
 )
+
+// DepsCheckedMsg carries where the scanners resolve from on this machine.
+//
+// It is asked once, from Init: the answer decides whether S and A are offered
+// at all, and it cannot be worked out in New or View because resolving a
+// scanner shells out (Rule 110).
+type DepsCheckedMsg struct {
+	Deps scan.DependencyStatus
+}
 
 // EntriesLoadedMsg is sent when entries are loaded.
 //

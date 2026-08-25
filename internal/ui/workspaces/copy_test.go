@@ -50,9 +50,7 @@ func TestCopyingWithoutARowDoesNothing(t *testing.T) {
 	if _, ok := m.copyTarget(); ok {
 		t.Error("an empty listing offered a copy target")
 	}
-	if _, cmd := step(t, m, testutil.Key(keymap.Copy)); cmd != nil {
-		t.Errorf("Y issued %T on an empty listing", testutil.Msg(cmd))
-	}
+	refused(t, m, keymap.Copy, reasonNoRow)
 }
 
 func TestCopyingIssuesTheWrite(t *testing.T) {
@@ -91,12 +89,16 @@ func TestBothCopyOutcomesReachTheFooter(t *testing.T) {
 	}
 }
 
-// Rule 130: the key is advertised only where it does something.
-func TestCopyIsAdvertisedOnlyWithARow(t *testing.T) {
-	if hasShortcut(newTestModel(t).GetShortcuts(), keymap.Copy) {
-		t.Error("Y is advertised on an empty listing, where it does nothing")
+// Rule 130: the key keeps its place and is greyed where it does nothing.
+func TestCopyIsGreyedWithoutARow(t *testing.T) {
+	empty := newTestModel(t).GetShortcuts()
+	if !hasShortcut(empty, keymap.Copy) {
+		t.Error("Y disappeared from an empty listing instead of being greyed")
 	}
-	if !hasShortcut(loadedModel(t).GetShortcuts(), keymap.Copy) {
-		t.Error("Y is not advertised on a row it can copy")
+	if !shortcutDisabled(empty, keymap.Copy) {
+		t.Error("Y is offered on an empty listing, where it does nothing")
+	}
+	if shortcutDisabled(loadedModel(t).GetShortcuts(), keymap.Copy) {
+		t.Error("Y is greyed on a row it can copy")
 	}
 }

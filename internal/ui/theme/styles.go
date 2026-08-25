@@ -39,6 +39,14 @@ var (
 				Foreground(ColorSecondary).
 				Bold(true)
 
+	// ShortcutKeyDisabledStyle : la touche d'un raccourci affiché mais sans
+	// objet ici (Rule 130). Elle perd la couleur *et* la graisse — l'une des
+	// deux seule laisserait un gris gras, qui se lit comme une emphase.
+	ShortcutKeyDisabledStyle = lipgloss.NewStyle().
+					Background(ColorBackground).
+					Foreground(ColorShortcutDisabled).
+					Bold(false)
+
 	ShortcutDescriptionStyle = lipgloss.NewStyle().
 					Background(ColorBackground).
 					Foreground(ColorDim).
@@ -536,6 +544,11 @@ func RefreshStyles() {
 		Background(ColorBackground).
 		Foreground(ColorSecondary).
 		Bold(true)
+
+	ShortcutKeyDisabledStyle = lipgloss.NewStyle().
+		Background(ColorBackground).
+		Foreground(ColorShortcutDisabled).
+		Bold(false)
 
 	ShortcutDescriptionStyle = lipgloss.NewStyle().
 		Background(ColorBackground).

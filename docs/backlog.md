@@ -8732,6 +8732,106 @@ latence, ou qu'un message d'erreur reniflé dans la langue de l'image. C'est
 l'arrangement `IPTABLES:` / `UNAVAILABLE:` de `RunFirewallRules`, que §3.44 avait
 supprimé avec le pare-feu.
 
+### 3.48 Un raccourci sans objet est grisé, pas supprimé — **done (workspaces)**
+
+Fait le 2026-08-25. Rule 130 disait de **masquer** l'entrée d'une action qui ne
+s'applique pas ; elle dit maintenant de la **griser**. Le mécanisme est écrit une
+fois, et une seule vue est migrée — `workspaces`, qui porte les deux causes et
+sert de référence aux suivantes.
+
+#### Ce qu'on achète
+
+La colonne de raccourcis ne se réorganise plus quand le curseur descend d'une
+ligne. C'est le seul argument, et il suffit : on la lit du coin de l'œil, et une
+liste qui bouge sous le regard ne se lit plus. Sur la vue `workspaces`, cinq
+entrées apparaissaient et disparaissaient — `enter`, `W`, `S`, `F`, `N`, `Y` —
+donc la colonne se recomposait à presque chaque déplacement.
+
+`TestTheShortcutColumnDoesNotMoveWithTheCursor` est la forme vérifiable de la
+phrase : sur chaque ligne du fixture, et sur une liste vide, la **suite des
+touches** doit être identique. Ce qui varie est `Disabled`, plus le libellé de
+`enter` — qui ouvre un fichier dans le viewer et les findings d'un dépôt scanné,
+deux actions qui ne peuvent pas s'appliquer ensemble.
+
+#### La ligne : mode contre état
+
+| | Ce qui change | Pourquoi |
+|---|---|---|
+| **Mode** — formulaire, confirmation, sélection | la liste entière | ce n'est pas le même vocabulaire ; griser `enter → Create` dans une table afficherait la réunion de tous les modes |
+| **État** dans un mode | l'entrée reste, grisée | la colonne ne doit pas bouger |
+
+Deux causes de grisage, et deux seulement : l'état de la **ligne**, et une
+indisponibilité **globale**. Une opération en cours n'en est pas une — elle
+change à chaque tick, le spinner de la ligne le dit déjà, et une entrée qui
+clignote dit le contraire du point.
+
+#### Un seul calcul, deux lecteurs
+
+`internal/ui/workspaces/availability.go`. Un `actionSet` de
+`actionState{Reason string}`, raison vide = disponible : un seul champ, donc le
+booléen et le motif ne peuvent pas diverger. `GetShortcuts` le lit pour griser,
+`m.guard` pour refuser. C'est la forme de `MatchRanges` du viewer — une seule
+réponse pour deux questions — et l'inverse de ce que `scan.Categorize` et
+`Result.SecretVerdict` ont eu chacun à défaire.
+
+Le motif n'est jamais dans le header : il n'y a pas la place, et une colonne de
+raisons se lirait moins bien qu'un gris. Il va au footer quand l'utilisateur
+appuie quand même, en `Warn` (Rule 128) : **le gris dit « pas maintenant », la
+touche pressée dit pourquoi.**
+
+`TestNoGreyedKeyEverActs` parcourt chaque touche sur chaque ligne du fixture et
+vérifie qu'une touche grisée ne change ni le mode, ni les scans en cours, ni le
+sync, ni n'ouvre de modale — avec un compteur qui refuse de passer si aucune
+touche grisée n'a été rencontrée, sinon la boucle passerait en ne testant rien.
+
+#### Les outils, et la règle qu'ils imposent
+
+`S` et `A` étaient offertes sans qu'on ait jamais regardé si un scanner
+existait : sans Trivy ni Gitleaks, le scan partait et produisait un rapport
+vide. `scan.CheckDependencies` lance des `exec.LookPath`, un `--version` par
+outil et un `docker images -q`, donc elle passe par un `Cmd` (`DepsCheckedMsg`)
+— jamais dans `New` ni dans `View` (Rule 110). Un seul scanner suffit.
+
+**Ne pas savoir n'est pas savoir que non.** `deps` est un pointeur : `nil` veut
+dire que personne n'a encore regardé, et `S`/`A` restent offertes jusqu'à ce que
+la réponse arrive. Griser trois frames pour dégriser ensuite se lit comme une
+panne — c'est D20 à l'échelle d'une touche, et c'est le `*bool` de
+`SecretVerdict` un écran plus loin.
+
+La vue prêtée pour une sélection ne lance pas la vérification : elle n'offre ni
+`S` ni `A`, donc ce serait trois sous-processus pour une question que personne
+ne pose.
+
+#### Deux défauts trouvés en chemin
+
+- **`W` était offerte sur un dépôt sans remote.** Le raccourci était conditionné
+  à `IsGitRepo` alors que `openInBrowser` exige `GitRemoteURL` et retournait
+  `m, nil` sinon. Le prédicat lit maintenant le remote, et l'appui dit pourquoi.
+- **Une liste vide n'affichait aucune ligne d'info.** `RenderFooter` rendait deux
+  lignes vides au lieu de la ligne d'info que Rule 124 budgète, donc tout message
+  de footer y était avalé — et c'est exactement là qu'un refus atterrit (`Y` sur
+  une liste vide n'a rien à copier). Un refus que personne ne peut lire est pire
+  que pas de refus.
+
+#### `N` reste allumée, et c'est le contre-exemple utile
+
+Rule 130 masquait `N` quand un dépôt git était sélectionné. Mais `N` crée un
+répertoire dans le répertoire **parcouru** — elle n'agit pas sur la sélection.
+Le masquage disait donc « sans objet » d'une action qui marchait ; la griser
+répéterait le mensonge, et la refuser serait une régression. Elle sort du
+dispositif.
+
+C'est la règle générale que l'entrée dégage : **le grisage décrit ce que
+l'action peut faire, pas ce qu'on préférerait que l'utilisateur ne fasse pas.**
+
+#### Ce qui reste
+
+Les dix autres vues masquent toujours. Les branches conditionnelles à reprendre,
+par ordre de volume : `oci_resources` 28, `viewer` 12, `netdiag` 11, `explorer`
+9, `security` 6, le reste ≤ 3. Chacune demande de trancher mode contre état, et
+les tests d'absence deviennent des tests de grisage — `shortcutDisabled` et
+`refused` sont les deux helpers à copier.
+
 
 ## 4. Existing plans
 

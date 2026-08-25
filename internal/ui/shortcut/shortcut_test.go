@@ -3,7 +3,20 @@ package shortcut
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
+
+// withTrueColor forces a colour profile for the run. Under go test lipgloss
+// detects no TTY, falls back to Ascii and strips every escape sequence, which
+// would make any assertion about styling pass whatever the code does.
+func withTrueColor(t *testing.T) {
+	t.Helper()
+	previous := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
+}
 
 func TestMaxLenKey(t *testing.T) {
 	tests := []struct {
@@ -96,6 +109,64 @@ func TestToStringsAlignsDescriptions(t *testing.T) {
 	}
 	if cols[0] != cols[1] {
 		t.Errorf("descriptions start at columns %d and %d, want them aligned", cols[0], cols[1])
+	}
+}
+
+// A disabled shortcut is still a line: the whole point is that nothing moves.
+func TestADisabledShortcutKeepsItsPlaceAndItsText(t *testing.T) {
+	in := Shortcuts{
+		{Key: "S", Description: "Scan", Disabled: true},
+		{Key: "F", Description: "Sync"},
+	}
+
+	got := in.ToStrings()
+
+	if len(got) != 2 {
+		t.Fatalf("ToStrings() returned %d lines, want 2", len(got))
+	}
+	if !strings.Contains(stripANSI(got[0]), "<S>") || !strings.Contains(got[0], "Scan") {
+		t.Errorf("the disabled line lost its key or its description: %q", stripANSI(got[0]))
+	}
+}
+
+// The key is what says "not now": it loses the colour and the weight an
+// available one carries. The description is ColorDim either way.
+func TestADisabledKeyIsStyledApartFromAnAvailableOne(t *testing.T) {
+	withTrueColor(t)
+
+	disabled := Shortcuts{{Key: "S", Description: "Scan", Disabled: true}}.ToStrings()[0]
+	available := Shortcuts{{Key: "S", Description: "Scan"}}.ToStrings()[0]
+
+	if disabled == available {
+		t.Fatal("a disabled shortcut renders exactly like an available one — nothing tells them apart")
+	}
+	if stripANSI(disabled) != stripANSI(available) {
+		t.Errorf("the two differ in text, not only in styling:\n disabled %q\navailable %q",
+			stripANSI(disabled), stripANSI(available))
+	}
+}
+
+// Alignment must not depend on what happens to be available: a column that
+// re-solves its width as the cursor moves is the thing Disabled exists to stop.
+func TestDisablingAShortcutDoesNotMoveTheOthers(t *testing.T) {
+	enabled := Shortcuts{
+		{Key: "q", Description: "Quit"},
+		{Key: "ctrl+shift+x", Description: "Extract"},
+	}
+	disabled := Shortcuts{
+		{Key: "q", Description: "Quit"},
+		{Key: "ctrl+shift+x", Description: "Extract", Disabled: true},
+	}
+
+	if got, want := disabled.maxLenKey(), enabled.maxLenKey(); got != want {
+		t.Errorf("maxLenKey() = %d with a disabled entry, want %d — the longest key still counts", got, want)
+	}
+
+	for i, line := range disabled.ToStrings() {
+		want := strings.Index(stripANSI(enabled.ToStrings()[i]), enabled[i].Description)
+		if got := strings.Index(stripANSI(line), disabled[i].Description); got != want {
+			t.Errorf("description %d starts at column %d, want %d", i, got, want)
+		}
 	}
 }
 
