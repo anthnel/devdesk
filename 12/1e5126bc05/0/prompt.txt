@@ -1,0 +1,1 @@
+dans le dashboard il me met qu'il manque le net diag tools alors que l'image busybox est bien présente
