@@ -534,7 +534,7 @@ func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
 	// toolFixtures ne déclare que trois outils, dont Gitleaks indisponible :
 	// les deux que la détection n'a pas rendus manquent tout autant, et c'est
 	// knownTools qui le dit.
-	if got := missingTools(m.tools); !slices.Equal(got, []string{"Gitleaks", "Net Diag", "Git"}) {
+	if got := missingTools(m.tools); !slices.Equal(got, []string{"Gitleaks", "Connectivity", "Git"}) {
 		t.Errorf("missingTools() = %v, want the undetected ones counted too", got)
 	}
 
@@ -542,7 +542,7 @@ func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
 	if !containsLine(lines, "Missing tools") {
 		t.Errorf("the Host box does not head its missing tools: %q", lines)
 	}
-	for _, want := range []string{"Gitleaks", "Net Diag"} {
+	for _, want := range []string{"Gitleaks", "Connectivity"} {
 		if !containsLine(lines, want+" ") {
 			t.Errorf("the Host box does not name %q among its missing tools: %q", want, lines)
 		}
@@ -726,4 +726,30 @@ func loadedOnly(t *testing.T) Model {
 	t.Helper()
 	m, _ := loadedModel(t)
 	return m
+}
+
+// knownTools est le dénominateur : un outil qui n'y figure pas n'est jamais
+// vérifié, et un nom qu'elle porte sans que detectTools le rende est déclaré
+// manquant en permanence. C'est exactement ce qui est arrivé — §3.47 a renommé
+// la sonde réseau « Connectivity » dans detectTools et laissé « Net Diag »
+// ici — et le commentaire « doit rester en phase » n'a rien empêché. Le test
+// exécute la détection : seule une exécution voit les deux listes ensemble.
+//
+// Il n'affirme rien sur la *disponibilité*, qui dépend de la machine ; les noms
+// n'en dépendent pas.
+func TestTheDetectedToolsAreExactlyTheKnownOnes(t *testing.T) {
+	m, _ := loadedModel(t)
+
+	msg, ok := m.detectTools()().(ToolsDetectedMsg)
+	if !ok {
+		t.Fatalf("detectTools returned %T, want ToolsDetectedMsg", m.detectTools()())
+	}
+
+	var got []string
+	for _, tool := range msg.Tools {
+		got = append(got, tool.Name)
+	}
+	if !slices.Equal(got, knownTools) {
+		t.Errorf("detectTools names %v, knownTools declares %v", got, knownTools)
+	}
 }

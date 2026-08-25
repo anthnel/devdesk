@@ -41,7 +41,7 @@ members one way to browse them and another way to pull them; it is closed by
 what it existed for. D40, found the same day and on the same screen, was the
 thing §3.18 blocked on and had already been closed on its own.
 
-D1 through D58 are all fixed or, in D35's case, deliberately
+D1 through D60 are all fixed or, in D35's case, deliberately
 downgraded to a stale reading with a way to refresh it. §1.1 records what each was and why the
 chosen fix was the right one — including the three that were answered by
 *removing* something rather than making it work: D8's write-only CRUD flags,
@@ -53,6 +53,51 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D60 — le dashboard réclamait en permanence un outil réseau nommé « Net Diag »,
+alors que l'image est là. Corrigé.** Signalé le 2026-08-25, fermé le même jour.
+
+La boîte Host liste ce qui manque, et elle le lit contre `knownTools` — pas
+contre ce que la détection a rendu, délibérément : « un outil que la détection
+ne rend plus est absent, et le compter hors du dénominateur le ferait
+disparaître au lieu de le signaler ». Le raisonnement est bon ; il suppose que
+les deux listes portent les mêmes noms.
+
+[§3.47](#347-la-trace-de-route-est-supprimée-et-networktool_image-avec--done) a
+renommé `network.tool_image` en `network.connectivity_image` et, avec lui, la
+sonde du dashboard : `detectTools` rend désormais un outil nommé
+`"Connectivity"`. `knownTools` est restée sur `"Net Diag"`. Les conséquences
+sont les deux moitiés du même défaut :
+
+| | |
+|---|---|
+| `"Net Diag"` figure au dénominateur et personne ne le détecte | déclaré manquant à chaque frame, `busybox` présent ou non |
+| `"Connectivity"` est détecté et ne figure pas au dénominateur | jamais vérifié : l'image peut manquer, rien ne le dit |
+
+Un utilisateur voit donc `Missing tools ├ Net Diag ✗` sur une machine où
+`docker image inspect busybox` répond — et la seule information que la ligne
+existait pour donner, elle, est perdue.
+
+**Le commentaire disait « Elle doit rester en phase avec detectTools ».** Il
+était juste et n'a rien empêché : c'est la forme du défaut, pas un oubli
+d'auteur. Deux littéraux pour un seul nom finissent par diverger, quel que soit
+le commentaire posé à côté.
+
+La correction est donc en deux temps, et le second est ce qui compte :
+
+- les cinq noms deviennent des **constantes** (`toolDocker`, `toolTrivy`,
+  `toolGitleaks`, `toolConnectivity`, `toolGit`), lues par `detectTools` et par
+  `knownTools`. Un renommage ne peut plus n'atteindre qu'une des deux ;
+- `TestTheDetectedToolsAreExactlyTheKnownOnes` **exécute** la détection et
+  compare les noms rendus à `knownTools`. Une constante ne protège pas d'un
+  outil ajouté d'un côté seulement, et seule une exécution voit les deux listes
+  ensemble. Le test n'affirme rien sur la *disponibilité*, qui dépend de la
+  machine ; les noms n'en dépendent pas.
+
+C'est la même leçon que `TestTheForgeVocabularyMatchesTheConfig` et
+`TestTheProviderVocabularyMatchesTheConfig` : deux vocabulaires que rien
+n'oppose l'un à l'autre dérivent, et le test est la seule chose qui puisse les
+tenir.
 
 **D57 — l'onglet Topology affichait le réseau de la VM Docker, pas celui de la
 machine. Corrigé** par

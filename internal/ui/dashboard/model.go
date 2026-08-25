@@ -529,30 +529,31 @@ func (m Model) detectTools() tea.Cmd {
 		var tools []shared.ToolInfo
 
 		// Docker
-		tools = append(tools, detectBinaryTool("Docker", "docker", "version", "--format", "{{.Client.Version}}"))
+		tools = append(tools, detectBinaryTool(toolDocker, "docker", "version", "--format", "{{.Client.Version}}"))
 
 		// Security tools via scan.CheckDependencies. The whole ScanConfig goes
 		// through: the configured tool paths and the per-tool source preference
 		// decide availability as much as the images do (D27).
 		deps := scan.CheckDependencies(cfg.Scan)
 		tools = append(tools, shared.ToolInfo{
-			Name:      "Trivy",
+			Name:      toolTrivy,
 			Available: deps.TrivyAvailable,
 			Version:   cleanVersion(deps.TrivyVersion),
 			Source:    string(deps.TrivySource),
 		})
 		tools = append(tools, shared.ToolInfo{
-			Name:      "Gitleaks",
+			Name:      toolGitleaks,
 			Available: deps.GitleaksAvailable,
 			Version:   cleanVersion(deps.GitleaksVersion),
 			Source:    string(deps.GitleaksSource),
 		})
 
-		// Network Diagnostics image
-		tools = append(tools, detectDockerImage("Connectivity", cfg.Network.ConnectivityImage))
+		// The OCI connectivity test image — la seule que l'application démarre
+		// encore (§3.47).
+		tools = append(tools, detectDockerImage(toolConnectivity, cfg.Network.ConnectivityImage))
 
 		// Git
-		tools = append(tools, detectBinaryTool("Git", "git", "--version"))
+		tools = append(tools, detectBinaryTool(toolGit, "git", "--version"))
 
 		return ToolsDetectedMsg{Tools: tools}
 	}
