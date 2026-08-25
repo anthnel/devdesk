@@ -2,6 +2,8 @@ package netdiag
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -13,9 +15,9 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
-// The ports tab polls `ss` inside a privileged container, so no test executes a
-// command. These drive the sub-model through the parent's Update, which is how
-// the app reaches it.
+// The ports tab reads the socket table in this process (§3.43), so no test
+// executes a command. These drive the sub-model through the parent's Update,
+// which is how the app reaches it.
 
 // portFixtures cover both protocols and both states, plus one entry with no PID
 // (kernel sockets have none) and one with a hostname rather than an address.
@@ -381,13 +383,96 @@ func TestKillIssuesACommandForAnEntryWithAPID(t *testing.T) {
 	}
 }
 
-func TestKillIsInertWithoutASelection(t *testing.T) {
+// Rule 130: K is greyed where there is nothing to signal, and pressing it
+// anyway says why rather than returning in silence.
+func TestKillIsGreyedWithoutASelection(t *testing.T) {
 	m := feed(t, newTestModel(t), testutil.Key("tab")) // no data yet
 
-	_, cmd := step(t, m, testutil.Key(keymap.Kill))
+	if !testutil.HasShortcut(m.GetShortcuts(), keymap.Kill) {
+		t.Fatal("K disappeared from an empty table instead of being greyed")
+	}
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.Kill) {
+		t.Error("K is offered with nothing selected")
+	}
 
-	if cmd != nil {
-		t.Error("K issued a command with nothing selected")
+	next, _ := step(t, m, testutil.Key(keymap.Kill))
+
+	if next.portsModel.confirmModal != nil {
+		t.Error("K opened the confirmation with nothing selected")
+	}
+	if got := next.portsModel.footer.Text(); !strings.Contains(got, reasonNoSocketRow) {
+		t.Errorf("footer = %q, want it to carry %q", got, reasonNoSocketRow)
+	}
+}
+
+// A socket the system declines to attribute carries no PID: List blanks a PID
+// of zero rather than printing it, so the row would otherwise look killable.
+func TestKillIsGreyedOnASocketWithNoPID(t *testing.T) {
+	m := feed(t, newTestModel(t), testutil.Key("tab"))
+	m = feed(t, m, portsDataMsg{ports: []ports.Socket{{
+		Protocol: "tcp", LocalAddr: "0.0.0.0:445", State: "LISTEN",
+	}}})
+
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.Kill) {
+		t.Error("K is offered on a socket the system attributed to no process")
+	}
+
+	next, _ := step(t, m, testutil.Key(keymap.Kill))
+
+	if next.portsModel.confirmModal != nil {
+		t.Error("K opened the confirmation for a socket with no PID")
+	}
+	if got := next.portsModel.footer.Text(); !strings.Contains(got, reasonNoPID) {
+		t.Errorf("footer = %q, want it to carry %q", got, reasonNoPID)
+	}
+}
+
+// A row the system did attribute stays killable, whatever the OS will make of
+// the signal — that is the attempt's answer, not the header's.
+func TestKillIsOfferedOnAnAttributedSocket(t *testing.T) {
+	if !testutil.ShortcutEnabled(portsModel(t).GetShortcuts(), keymap.Kill) {
+		t.Error("K is greyed on a socket with a PID")
+	}
+}
+
+// DevDesk signals with the rights it has (§3.43), so the refusal the user meets
+// most often is the operating system's. "Failed to kill PID N" made "access
+// denied" and "already gone" the same sentence, and gave no reason to suspect
+// the first.
+func TestAKillRefusedBySystemSaysSo(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"permission", fmt.Errorf("killing process 812: %w", os.ErrPermission), "Refused by the system"},
+		{"already gone", fmt.Errorf("killing process 812: %w", os.ErrProcessDone), "no longer running"},
+		{"anything else", errors.New("operation not permitted"), "check logs"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m, _ := step(t, portsModel(t), portsKillResultMsg{pid: "812", err: tt.err})
+
+			got := m.portsModel.footer.Text()
+			if !strings.Contains(got, tt.want) {
+				t.Errorf("footer = %q, want it to carry %q", got, tt.want)
+			}
+			if !strings.Contains(got, "812") {
+				t.Errorf("footer = %q, want it to name the PID", got)
+			}
+		})
+	}
+}
+
+// The platform error never reaches the screen: Windows returns it in the
+// machine's own language, which is the route stage's rule (§3.44).
+func TestTheOperatingSystemsOwnWordsNeverReachTheFooter(t *testing.T) {
+	m, _ := step(t, portsModel(t), portsKillResultMsg{
+		pid: "812",
+		err: fmt.Errorf("killing process 812: %w", errors.New("Zugriff verweigert")),
+	})
+
+	if strings.Contains(m.portsModel.footer.Text(), "Zugriff") {
+		t.Errorf("the platform error leaked into the footer: %q", m.portsModel.footer.Text())
 	}
 }
 
@@ -403,16 +488,6 @@ func TestKillResultReportsBothOutcomes(t *testing.T) {
 		}
 	})
 
-	t.Run("failure", func(t *testing.T) {
-		m, _ := step(t, portsModel(t), portsKillResultMsg{pid: "812", err: errors.New("operation not permitted")})
-
-		if !strings.Contains(m.portsModel.footer.Text(), "812") {
-			t.Errorf("footer = %q, want it to name the PID", m.portsModel.footer.Text())
-		}
-		if strings.Contains(m.portsModel.footer.Text(), "not permitted") {
-			t.Error("the raw error leaked into the footer")
-		}
-	})
 }
 
 // ── Navigation and rendering ─────────────────────────────────────────────────

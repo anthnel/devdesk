@@ -2051,6 +2051,28 @@ loopback and unspecified addresses are never asked at all.
 another user's process, or a service, now comes back refused by the operating
 system instead of succeeding against the wrong machine.
 
+**So the refusal has to be legible, and `K` has to say when it cannot even
+try** (§3.49). Two different questions, and only one of them is answerable
+before the keypress:
+
+- **No PID, no key.** A socket the system declines to attribute carries an empty
+  `PID`, and `K` is greyed on that row (Rule 130) — it used to be advertised
+  everywhere and warn only once pressed.
+- **Whether the OS will accept the signal is the attempt's answer**, never the
+  header's, so a row with a PID stays lit even when the kill is certain to be
+  refused. `killFailureMessage` classifies the failure with `errors.Is` through
+  the `%w` wrapping `Kill` applies: `os.ErrPermission` reads *Refused by the
+  system*, `os.ErrProcessDone` reads *no longer running*, anything else keeps
+  the generic line. `Failed to kill PID N` made those the same sentence.
+
+The platform error never reaches the screen — measured, PID 4 on this machine
+answers `OpenProcess: Accès refusé.`, in the machine's own language, which is
+the route stage's rule (§3.44). Also measured, and written down rather than
+discovered: **the "already gone" branch does not fire on Windows**, where a
+nonexistent PID fails `OpenProcess` with `ERROR_INVALID_PARAMETER` and maps to
+neither sentinel. Mapping that code would be a guess, and the row disappears on
+the next two-second refresh anyway.
+
 **Nothing in the application runs `--network host` any more** (§3.47). §3.33
 brought DNS, ICMP, TCP, TLS and HTTP into the process, §3.43 the socket table,
 §3.44 the interfaces, and §3.47 removed the route trace — the last one. That is
@@ -2112,6 +2134,26 @@ No new dependency: `net.Interfaces()` is the standard library and
 10 counter rows in 2,6 ms, and **0 of 10 interfaces without a matching counter
 row** — the names agree character for character, so there is no correspondence
 table to keep.
+
+**The addresses are split by family, one column each** (§3.49). The split
+happens in `List`, where each address is still a `net.IP` and the family is a
+fact — `To4()` answers for an IPv4-mapped address as well as for a plain one,
+which is right, it *is* an IPv4 address. A view splitting `AddressList()` again
+would be parsing text this package produced, and would have to decide what an
+unparseable entry means: a question that only exists once the type has been
+thrown away. Hence `IPv4 []string` and `IPv6 []string` rather than one
+`Addresses`.
+
+Two consequences in the view:
+
+- **Both columns are flexible.** `datatable.shrink` reclaims from the flexible
+  columns first and always from the widest, so two of them are levelled against
+  each other; with the flex on IPv6 alone it absorbed the whole shortfall and
+  rendered at **zero width, header included, from about 100 columns down**.
+- **Below about 88 columns both are squeezed out**, and that cliff is the
+  table's rather than the split's — the single Addresses column had the same
+  one. `MinWidth` is an ask, not a floor, and giving the solver one would change
+  every table in the application. Written down rather than pretended away.
 
 Three decisions, each with a test:
 

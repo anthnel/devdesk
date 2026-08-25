@@ -8,6 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -64,7 +65,9 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 			{Key: "z", Description: "Reset filters"},
 			{Key: "/", Description: "Search"},
 			{Key: "space", Description: "Pause/Resume"},
-			{Key: "K", Description: "Kill process"},
+			// A socket the system declines to attribute carries no PID, so
+			// there is nothing to signal (Rule 130).
+			{Key: keymap.Kill, Description: "Kill process", Disabled: !m.portsModel.killable().Enabled()},
 			{Key: "?", Description: "Help"},
 		}
 		return append(tabShortcuts, sc...)

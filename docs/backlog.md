@@ -8882,6 +8882,103 @@ et sortent donc du périmètre de cette entrée : `K`, `D`, `T`, `L`, `enter` de
 et se grisent de la même façon, mais c'est du grisage neuf, pas une migration.
 
 
+### 3.49 `net` — `K` dit quand elle ne peut pas, et les adresses se séparent par famille — **done**
+
+Fait le 2026-08-25. Deux défauts voisins, tous les deux dans le prolongement de
+§3.43 (le kill signale avec les droits de DevDesk) et de §3.48 (une touche sans
+objet est grisée). Ils étaient nommés « hors périmètre » à la fin de §3.48 ; les
+voici.
+
+#### Deux questions, et une seule a une réponse avant l'appui
+
+| | Réponse | Où |
+|---|---|---|
+| « y a-t-il un processus à signaler ? » | **oui, avant l'appui** — la socket porte un PID ou non | grisage (Rule 130) |
+| « le système va-t-il accepter le signal ? » | **non** — seul l'essai le dit | message d'échec |
+
+**Pas de PID, pas de touche.** `List` laisse `PID` vide quand le système
+n'attribue pas la socket — un PID de zéro n'est pas un processus, et une ligne
+affichant `0` aurait l'air tuable alors que 0 est un groupe de processus entier
+sous Unix. `K` est donc grisée sur ces lignes, et sur une table vide. Elle était
+annoncée partout et ne se plaignait qu'une fois pressée.
+
+**Une ligne avec un PID reste allumée même quand le refus est certain.** C'est
+la ligne de partage : le header dit ce que l'application peut *tenter*, pas ce
+que le système va accorder. Griser d'après une supposition de droits serait
+mentir dans l'autre sens — et sur Windows la seule façon de savoir est
+d'appeler `OpenProcess`, c'est-à-dire de faire l'essai.
+
+#### Le refus du système ne disait pas pourquoi
+
+`handleKillResult` journalisait `msg.err` puis affichait `Failed to kill PID
+1234` : l'erreur était jetée avant l'écran, donc « accès refusé » et « ce
+processus n'existe plus » devenaient la même phrase — et l'utilisateur n'avait
+aucune raison de soupçonner qu'il lui fallait des droits. C'est le cas le plus
+fréquent depuis §3.43, précisément parce que le kill ne part plus dans un
+conteneur privilégié.
+
+`killFailureMessage` classe avec `errors.Is` à travers le `%w` que `ports.Kill`
+applique déjà :
+
+| Sentinelle | Message |
+|---|---|
+| `os.ErrPermission` | `Refused by the system — DevDesk cannot signal PID N` |
+| `os.ErrProcessDone` | `PID N is no longer running` |
+| le reste | `Failed to kill PID N — check logs` |
+
+**L'erreur de la plateforme ne touche jamais l'écran.** Mesuré sur cette
+machine : PID 4 répond `OpenProcess: Accès refusé.` — en français. C'est la
+règle du stage `route` (§3.44) : une chaîne localisée va dans un fait ou dans un
+log, jamais dans une phrase que l'application compose.
+
+#### Ce que la mesure a corrigé dans le commentaire
+
+La branche « already gone » **ne se déclenche pas sous Windows**, et c'est
+mesuré plutôt que supposé : un PID inexistant échoue `OpenProcess` avec
+`ERROR_INVALID_PARAMETER`, qui ne correspond à aucune des deux sentinelles et
+tombe donc dans le message générique. Mapper ce code serait une supposition — un
+argument réellement invalide renvoie la même chose — et la ligne disparaît au
+rafraîchissement suivant, deux secondes plus tard. La branche est gardée parce
+que `ESRCH` correspond bien à `os.ErrProcessDone` sous Unix.
+
+C'est aussi ce qui a fait écrire la règle en toutes lettres : **le header
+répond de ce que l'application peut tenter, le footer de ce que le système a
+répondu.**
+
+#### Et l'onglet Interfaces sépare IPv4 et IPv6
+
+Une colonne par famille, au lieu d'une colonne `Addresses` qui les mêlait sur
+une ligne. On lit une notation de haut en bas plutôt qu'un mélange de gauche à
+droite, et le filtre atteint les deux.
+
+**Le tri se fait dans `List`, pas dans la vue.** Chaque adresse y est encore un
+`net.IP`, donc la famille est un fait : `To4()` répond aussi pour une adresse
+IPv4-mappée (`::ffff:192.0.2.1`), ce qui est correct — c'est une adresse IPv4,
+quelle que soit la notation d'arrivée. Une vue qui redécouperait
+`AddressList()` analyserait un texte que ce paquet vient de produire, et devrait
+décider ce que veut dire une entrée illisible : une question qui n'existe que
+lorsqu'on a jeté le type. D'où `IPv4 []string` et `IPv6 []string` en place
+d'`Addresses`.
+
+Une famille sans adresse rend un tiret grisé et non une cellule vide : une
+machine sans IPv6 n'a pas d'adresse IPv6, ce qui est un fait sur elle, alors
+qu'une cellule blanche se lit comme une lecture qui a échoué. C'est la
+distinction que fait déjà la colonne MAC.
+
+**Les deux colonnes sont flexibles, et c'est ce qui empêche l'une de
+disparaître.** `datatable.shrink` reprend d'abord aux colonnes flexibles et
+toujours à la plus large, donc deux d'entre elles se nivellent l'une contre
+l'autre. Avec le flex sur IPv6 seule — c'était le premier jet — elle absorbait
+tout le déficit et se rendait **à largeur zéro, en-tête compris, dès une
+centaine de colonnes**, ce qui est un terminal ordinaire. Mesuré au rendu, pas
+déduit.
+
+En dessous d'environ 88 colonnes, les six colonnes fixes prennent tout et les
+deux colonnes d'adresses sont évincées. Cette falaise appartient à la table et
+non au découpage — la colonne `Addresses` unique avait la même — et elle est
+écrite plutôt que dissimulée : `MinWidth` est une demande et non un plancher, et
+en donner un au solveur changerait toutes les tables de l'application.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

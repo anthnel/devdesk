@@ -322,6 +322,14 @@ les `return m, nil` que cette règle remplace.
 `Cmd` laisse l'action offerte tant que la réponse n'est pas là : griser pour
 dégriser trois frames plus tard se lit comme une panne.
 
+**Le header répond de ce que l'application peut *tenter*, le footer de ce que le
+système a répondu.** `K` dans `net`/Ports est grisée quand la socket ne porte
+pas de PID — il n'y a rien à signaler, et ça se sait avant l'appui. Elle reste
+allumée sur une ligne dont le kill sera refusé par l'OS : le savoir demanderait
+de faire l'essai, et griser d'après une supposition de droits mentirait dans
+l'autre sens. L'échec est alors classé et nommé (§3.49), jamais réduit à
+« Failed ».
+
 **Une touche qui s'applique quelle que soit la ligne n'entre pas dans le
 dispositif.** `N` crée un répertoire dans le répertoire parcouru — elle n'agit
 pas sur la sélection, donc la masquer disait « sans objet » d'une action qui

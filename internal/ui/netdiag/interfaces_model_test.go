@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/netiface"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -26,7 +27,7 @@ func counter(n uint64) *uint64 { return &n }
 func TestACounterNobodyReadIsADashAndNeverAZero(t *testing.T) {
 	m := interfacesModel(t, netiface.Interface{
 		Name: "Ethernet 2", State: netiface.StateUp, MTU: 1500,
-		MAC: "aa:bb:cc:dd:ee:ff", Addresses: []string{"192.168.1.21/24"},
+		MAC: "aa:bb:cc:dd:ee:ff", IPv4: []string{"192.168.1.21/24"}, IPv6: []string{"fe80::1c2d:3e4f:5a6b:7c8d/64"},
 	})
 
 	row := interfaceRowFor(t, m, "Ethernet 2")
@@ -57,7 +58,7 @@ func TestACounterThatWasReadShowsItsFigure(t *testing.T) {
 func TestAnMTUThePlatformDoesNotReportIsWithheld(t *testing.T) {
 	m := interfacesModel(t, netiface.Interface{
 		Name: "Loopback", State: netiface.StateLoop, MTU: -1,
-		Addresses: []string{"127.0.0.1/8"},
+		IPv4: []string{"127.0.0.1/8"},
 	})
 
 	if row := interfaceRowFor(t, m, "Loopback"); strings.Contains(row, "-1") {
@@ -219,5 +220,125 @@ func TestALoadGreysTheInterfaceKeysInsteadOfRemovingThem(t *testing.T) {
 	}
 	if !testutil.ShortcutEnabled(m.GetShortcuts(), "ctrl+r") {
 		t.Error("ctrl+r is greyed while loading; asking again is what still applies")
+	}
+}
+
+// ── The two address columns ──────────────────────────────────────────────────
+
+// The families get a column each, so a row is read down one notation rather
+// than across a mixed list.
+func TestTheAddressesAreSplitByFamily(t *testing.T) {
+	m := interfacesModel(t, netiface.Interface{
+		Name: "Ethernet 2", State: netiface.StateUp, MTU: 1500,
+		IPv4: []string{"192.168.1.21/24"},
+		IPv6: []string{"fe80::1c2d:3e4f:5a6b:7c8d/64"},
+	})
+
+	header := interfaceRowFor(t, m, "IPv4")
+	if !strings.Contains(header, "IPv6") {
+		t.Errorf("the header carries IPv4 but not IPv6: %q", header)
+	}
+
+	row := interfaceRowFor(t, m, "Ethernet 2")
+	v4 := strings.Index(row, "192.168.1.21")
+	v6 := strings.Index(row, "fe80:")
+	if v4 < 0 || v6 < 0 {
+		t.Fatalf("an address is missing from the row: %q", row)
+	}
+	if v4 > v6 {
+		t.Errorf("IPv6 is rendered before IPv4: %q", row)
+	}
+}
+
+// A machine with IPv4 only has no IPv6 address — a fact about it, not a reading
+// that failed — so the cell says so rather than going blank, as the MAC column
+// already does for a loopback.
+func TestAFamilyWithNoAddressIsADashAndNotABlank(t *testing.T) {
+	m := interfacesModel(t, netiface.Interface{
+		Name: "Ethernet 2", State: netiface.StateUp, MTU: 1500,
+		IPv4: []string{"192.168.1.21/24"},
+	})
+
+	row := interfaceRowFor(t, m, "Ethernet 2")
+	if !strings.Contains(row, "192.168.1.21") {
+		t.Fatalf("the IPv4 address is missing: %q", row)
+	}
+	// The IPv4 cell is filled, so any dash after it is the IPv6 one.
+	if tail := row[strings.Index(row, "192.168.1.21"):]; !strings.Contains(tail, "-") {
+		t.Errorf("the empty IPv6 cell rendered blank instead of a dash: %q", row)
+	}
+}
+
+// The filter reaches both columns: someone looking for an interface by address
+// does not know, or care, which family they are typing.
+func TestTheFilterMatchesEitherFamily(t *testing.T) {
+	items := []netiface.Interface{
+		{Name: "Ethernet 2", State: netiface.StateUp, IPv4: []string{"192.168.1.21/24"}},
+		{Name: "Wi-Fi", State: netiface.StateUp, IPv6: []string{"fe80::dead:beef/64"}},
+	}
+
+	for _, tt := range []struct{ query, want string }{
+		{"192.168", "Ethernet 2"},
+		{"dead:beef", "Wi-Fi"},
+	} {
+		t.Run(tt.query, func(t *testing.T) {
+			m := interfacesModel(t, items...)
+			m = feed(t, m, testutil.Key("/"))
+			for _, r := range tt.query {
+				m = feed(t, m, testutil.Key(string(r)))
+			}
+
+			visible := m.interfacesModel.table.Visible()
+			if len(visible) != 1 || visible[0].Name != tt.want {
+				t.Errorf("%q matched %v, want just %s", tt.query, visible, tt.want)
+			}
+		})
+	}
+}
+
+// Both address columns are flexible, so a shortfall is levelled between them
+// rather than emptying one: `shrink` always takes from the widest flexible
+// column, and with the flex on IPv6 alone it fell to zero width — header
+// included — from about 100 columns down, which is an ordinary terminal.
+//
+// 100 is the width this pins because it is the narrowest ordinary one. Below
+// about 88 the six fixed columns take everything and both address columns go;
+// that cliff is the table's, not this change's — the single Addresses column
+// it replaced had the same one — and it is written down rather than pretended
+// away.
+func TestBothAddressColumnsSurviveAnOrdinaryTerminal(t *testing.T) {
+	m := feed(t, newTestModel(t), tea.WindowSizeMsg{Width: 100, Height: 24})
+	m.activeTab = tabInterfaces
+	m = feed(t, m, ifaceDataMsg{interfaces: []netiface.Interface{{
+		Name: "Ethernet 2", State: netiface.StateUp, MTU: 1500,
+		MAC:  "aa:bb:cc:dd:ee:ff",
+		IPv4: []string{"192.168.1.21/24"},
+		IPv6: []string{"fe80::1c2d:3e4f:5a6b:7c8d/64"},
+	}}})
+
+	row := interfaceRowFor(t, m, "Ethernet 2")
+	for _, want := range []string{"192.1", "fe80:"} {
+		if !strings.Contains(row, want) {
+			t.Errorf("%q is not on the row at 100 columns — its column was squeezed out: %s", want, row)
+		}
+	}
+}
+
+// Rule 116: eight columns must still fit an 80-column terminal — truncated is
+// the acceptable outcome, overflowing is not.
+func TestTheInterfacesLayoutFitsANarrowTerminal(t *testing.T) {
+	m := feed(t, newTestModel(t), tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.activeTab = tabInterfaces
+	m = feed(t, m, ifaceDataMsg{interfaces: []netiface.Interface{{
+		Name: "Ethernet 2", State: netiface.StateUp, MTU: 1500,
+		MAC:  "aa:bb:cc:dd:ee:ff",
+		IPv4: []string{"192.168.1.21/24"},
+		IPv6: []string{"fe80::1c2d:3e4f:5a6b:7c8d/64"},
+	}}})
+
+	for i, line := range strings.Split(m.View(), "\n") {
+		if got := lipgloss.Width(line); got > 80 {
+			t.Errorf("line %d is %d cells wide, want at most 80:\n%s", i, got, line)
+		}
 	}
 }

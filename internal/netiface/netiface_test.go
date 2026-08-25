@@ -33,8 +33,37 @@ func TestThisMachineListsItsOwnInterfaces(t *testing.T) {
 	if loop == nil {
 		t.Fatalf("no loopback among %d interfaces", len(ifaces))
 	}
-	if len(loop.Addresses) == 0 {
+	if len(loop.IPv4) == 0 && len(loop.IPv6) == 0 {
 		t.Fatal("the loopback carries no address")
+	}
+	// 127.0.0.1 is IPv4 wherever this runs, so the split has to have filed it
+	// as one — reading the family off the rendered string is what this checks
+	// did not happen.
+	if len(loop.IPv4) == 0 {
+		t.Errorf("the loopback has no IPv4 address; IPv6 = %v", loop.IPv6)
+	}
+	for _, a := range loop.IPv6 {
+		if strings.Count(a, ".") == 3 {
+			t.Errorf("%q is filed under IPv6", a)
+		}
+	}
+}
+
+// The two lists are disjoint by construction: an address goes to exactly one of
+// them, so an interface never shows the same address twice on one row.
+func TestNoAddressIsFiledUnderBothFamilies(t *testing.T) {
+	ifaces, err := List(context.Background())
+	if err != nil {
+		t.Fatalf("listing interfaces: %v", err)
+	}
+	for _, i := range ifaces {
+		seen := map[string]bool{}
+		for _, a := range append(append([]string{}, i.IPv4...), i.IPv6...) {
+			if seen[a] {
+				t.Errorf("%s carries %q in both families", i.Name, a)
+			}
+			seen[a] = true
+		}
 	}
 }
 
