@@ -324,35 +324,40 @@ func TestFilterBarVisibilityFollowsTheState(t *testing.T) {
 // ── Shortcuts (Rule 130) ─────────────────────────────────────────────────────
 
 // This view has the most state-dependent shortcut list in the app: the backlog
-// documents which key appears when, and getting it wrong advertises actions
-// that silently do nothing.
+// documents which key applies when, and getting it wrong either advertises an
+// action that silently does nothing, or greys out one that works.
+//
+// The entry is always there — what changes is whether it is greyed.
 func TestShortcutsFollowTheSelectedEntry(t *testing.T) {
 	tests := []struct {
-		name    string
-		cursor  int
-		scanned bool
-		present []string
-		absent  []string
+		name     string
+		cursor   int
+		scanned  bool
+		enabled  []string
+		disabled []string
 	}{
 		{
 			name: "scanned git repo", cursor: 0, scanned: true,
-			present: []string{"enter", keymap.Web, keymap.Scan},
-			absent:  []string{keymap.New}, // creating inside a repo is not offered
+			enabled: []string{"enter", keymap.Web, keymap.Scan, keymap.Fetch, keymap.Copy},
 		},
 		{
 			name: "unscanned git repo", cursor: 1,
-			present: []string{keymap.Web, keymap.Scan},
-			absent:  []string{"enter", keymap.New}, // no cached result to open
+			enabled:  []string{keymap.Web, keymap.Scan, keymap.Fetch},
+			disabled: []string{"enter"}, // no cached result to open
 		},
 		{
 			name: "directory with nested repos", cursor: 2,
-			present: []string{keymap.Scan, keymap.New},
-			absent:  []string{"enter", keymap.Web},
+			enabled:  []string{keymap.Scan, keymap.Fetch},
+			disabled: []string{"enter", keymap.Web},
 		},
 		{
 			name: "plain directory", cursor: 3,
-			present: []string{keymap.New},
-			absent:  []string{"enter", keymap.Web, keymap.Scan},
+			disabled: []string{"enter", keymap.Web, keymap.Scan, keymap.Fetch},
+		},
+		{
+			name: "a file", cursor: 4,
+			enabled:  []string{"enter", keymap.Copy},
+			disabled: []string{keymap.Web, keymap.Scan, keymap.Fetch},
 		},
 	}
 
@@ -365,17 +370,48 @@ func TestShortcutsFollowTheSelectedEntry(t *testing.T) {
 			m.table.SetCursor(tc.cursor)
 
 			got := m.GetShortcuts()
-			for _, key := range tc.present {
+			for _, key := range append(append([]string{}, tc.enabled...), tc.disabled...) {
 				if !hasShortcut(got, key) {
-					t.Errorf("%q is not advertised for a %s", key, tc.name)
+					t.Errorf("%q is missing for a %s; an entry is greyed, never dropped", key, tc.name)
 				}
 			}
-			for _, key := range tc.absent {
-				if hasShortcut(got, key) {
-					t.Errorf("%q is advertised for a %s, where it does nothing", key, tc.name)
+			for _, key := range tc.enabled {
+				if shortcutDisabled(got, key) {
+					t.Errorf("%q is greyed for a %s, where it works", key, tc.name)
+				}
+			}
+			for _, key := range tc.disabled {
+				if !shortcutDisabled(got, key) {
+					t.Errorf("%q is offered for a %s, where it does nothing", key, tc.name)
 				}
 			}
 		})
+	}
+}
+
+// The whole point of greying rather than hiding: this column is read out of the
+// corner of the eye, and one that re-orders itself as the cursor moves cannot
+// be. Every row of the fixture advertises the same keys, in the same order.
+func TestTheShortcutColumnDoesNotMoveWithTheCursor(t *testing.T) {
+	m := scannedModel(t)
+
+	var want []string
+	for cursor := 0; cursor < len(entryFixtures()); cursor++ {
+		m.table.SetCursor(cursor)
+
+		got := shortcutKeys(m.GetShortcuts())
+		if cursor == 0 {
+			want = got
+			continue
+		}
+		if strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Errorf("row %d advertises\n%v\nwant the same keys as row 0\n%v", cursor, got, want)
+		}
+	}
+
+	// And with no row at all — an empty listing is still the normal mode.
+	if got := shortcutKeys(newTestModel(t).GetShortcuts()); strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("an empty listing advertises\n%v\nwant\n%v", got, want)
 	}
 }
 
@@ -436,6 +472,26 @@ func TestShortcutDescriptionsAreCapitalised(t *testing.T) {
 
 func hasShortcut(shortcuts shortcut.Shortcuts, key string) bool {
 	return shortcutDescription(shortcuts, key) != ""
+}
+
+// shortcutDisabled reports whether the key is advertised but greyed out. A key
+// that is missing altogether is not disabled — it is absent, which is a
+// different failure, so the two are asserted separately.
+func shortcutDisabled(shortcuts shortcut.Shortcuts, key string) bool {
+	for _, s := range shortcuts {
+		if s.Key == key {
+			return s.Disabled
+		}
+	}
+	return false
+}
+
+func shortcutKeys(shortcuts shortcut.Shortcuts) []string {
+	keys := make([]string, 0, len(shortcuts))
+	for _, s := range shortcuts {
+		keys = append(keys, s.Key)
+	}
+	return keys
 }
 
 func shortcutDescription(shortcuts shortcut.Shortcuts, key string) string {

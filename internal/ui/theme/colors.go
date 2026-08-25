@@ -106,6 +106,16 @@ var (
 	ColorFooterWarn  lipgloss.Color
 	ColorFooterError lipgloss.Color
 
+	// ColorShortcutDisabled is the key of a header shortcut that exists in this
+	// mode but does not apply right now (Rule 130).
+	//
+	// An alias assigned in ApplyTheme like the three above: no theme file gains
+	// a key. It aliases ColorDim, which is also the description's colour — so a
+	// disabled line reads as one uniform grey, and what separates it from an
+	// available one is the key losing its hue and its weight. A theme wanting a
+	// third grey declares it here without touching a single caller.
+	ColorShortcutDisabled lipgloss.Color
+
 	// Severity colors (background + foreground pairs)
 	ColorSeverityCritical   lipgloss.Color
 	ColorSeverityCriticalFg lipgloss.Color

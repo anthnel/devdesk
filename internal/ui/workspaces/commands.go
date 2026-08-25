@@ -19,6 +19,17 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
+// checkDepsCmd resolves the scanners once, off the Update goroutine.
+//
+// scan.CheckDependencies runs exec.LookPath, a --version per tool and a
+// docker images -q; none of that belongs in New or View (Rule 110). The
+// dashboard's detectTools is the same shape for the same reason.
+func checkDepsCmd(cfg config.ScanConfig) tea.Cmd {
+	return func() tea.Msg {
+		return DepsCheckedMsg{Deps: scan.CheckDependencies(cfg)}
+	}
+}
+
 // clearSyncSummaryCmd drops a finished sync's summary from the footer after the
 // same three seconds every other footer message gets (Rule 128).
 func clearSyncSummaryCmd() tea.Cmd {

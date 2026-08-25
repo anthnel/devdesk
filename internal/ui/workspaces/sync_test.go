@@ -54,18 +54,19 @@ func TestSyncDoesNothingWhereThereIsNoRepository(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		cursor int
+		reason string
 	}{
-		{"a directory holding no repositories", 3},
-		{"a file", 4},
+		{"a directory holding no repositories", 3, reasonNoScanTarget},
+		{"a file", 4, reasonNotARepo},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			m := loadedModel(t)
 			m.table.SetCursor(tt.cursor)
 
-			m, cmd := step(t, m, testutil.Key(keymap.Fetch))
+			next := refused(t, m, keymap.Fetch, tt.reason)
 
-			if cmd != nil || m.sync != nil {
-				t.Errorf("pressing s started a sync on %s", tt.name)
+			if next.sync != nil {
+				t.Errorf("pressing F started a sync on %s", tt.name)
 			}
 		})
 	}

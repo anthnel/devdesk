@@ -8,6 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -97,6 +98,17 @@ type Model struct {
 
 	// selectionMessage is displayed in the footer when in ModeSelecting
 	selectionMessage string
+
+	// deps is where the scanners resolve from on this machine, or nil while
+	// nobody has looked yet. A pointer because "not yet known" and "neither
+	// scanner is installed" are different answers, and a zero DependencyStatus
+	// says the second — the *bool of Result.SecretVerdict, one screen over.
+	//
+	// It is read by actions() to decide whether S and A apply at all, and it is
+	// filled by a Cmd: scan.CheckDependencies runs exec.LookPath, a --version
+	// and a docker images -q, none of which may happen in New or View
+	// (Rule 110).
+	deps *scan.DependencyStatus
 }
 
 // Entry represents a file system entry with enriched metadata
