@@ -120,14 +120,17 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	var shortcuts []shortcut.Shortcut
 
 	if m.structured() {
-		if m.display == displayTree {
-			shortcuts = append(shortcuts,
-				shortcut.Shortcut{Key: "←→", Description: "Collapse/Expand"},
-				shortcut.Shortcut{Key: "f", Description: "Show as text"},
-			)
-		} else {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "f", Description: "Show as tree"})
+		// ←→ collapses a node, which only the tree has — greyed in the text
+		// pane rather than dropped, for the same reason as w and / below.
+		inTree := m.display == displayTree
+		display := "Show as tree"
+		if inTree {
+			display = "Show as text"
 		}
+		shortcuts = append(shortcuts,
+			shortcut.Shortcut{Key: "←→", Description: "Collapse/Expand", Disabled: !inTree},
+			shortcut.Shortcut{Key: "f", Description: display},
+		)
 	}
 
 	// The same key, and the wording says which way it goes — "Show raw" on a
@@ -140,13 +143,20 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 	}
 
-	if m.display != displayTree {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "w", Description: "Toggle wrap"})
-		if m.isLog() {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "v", Description: "Verbosity"})
-		}
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "/", Description: "Search"})
+	// The tree is the same document seen another way, and `f` toggles between
+	// the two — so the text pane's keys are greyed there rather than dropped
+	// (Rule 130). Hiding them made three entries appear and disappear on every
+	// press of a key whose whole job is to switch back and forth.
+	//
+	// What depends on the *document* rather than on the display stays out of
+	// the list entirely: a Markdown file has no verbosity and never will, which
+	// is a different screen's worth of difference, not a "not now".
+	inTree := m.display == displayTree
+	shortcuts = append(shortcuts, shortcut.Shortcut{Key: "w", Description: "Toggle wrap", Disabled: inTree})
+	if m.isLog() {
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "v", Description: "Verbosity", Disabled: inTree})
 	}
+	shortcuts = append(shortcuts, shortcut.Shortcut{Key: "/", Description: "Search", Disabled: inTree})
 
 	shortcuts = append(shortcuts, shortcut.Shortcut{Key: "c", Description: "Toggle coloring"})
 

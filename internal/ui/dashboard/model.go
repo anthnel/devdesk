@@ -12,6 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/forge"
@@ -19,7 +20,9 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
 
 // Messages
@@ -171,6 +174,11 @@ type Model struct {
 
 	// Refresh
 	refreshInterval time.Duration
+
+	// footer is the one line of transient state below the viewport (Rule 128).
+	// The dashboard budgets an info line and left it permanently empty; a key
+	// the header greys out has to be able to say why it declined (Rule 130).
+	footer sharedcomponents.FooterMessage
 }
 
 // New creates a new dashboard model
@@ -272,6 +280,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.posture = msg.Posture
 	}
 
+	// The footer consumes the expiry addressed to it; a message posted without
+	// its timer being handled never clears (Rule 128).
+	m.footer.Handle(msg)
+
 	return m, nil
 }
 
@@ -284,16 +296,36 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleReload()
 	// The two deep links are the forge's: the paths differ per forge, and
 	// building them here with fmt.Sprintf was a forge shape written in a view.
+	// Both are greyed without a session (Rule 130) and both say so when pressed
+	// anyway — they used to fall through and do nothing at all.
 	case keymap.Requests:
-		if m.shared.Forge != nil {
-			return m, openURL(m.shared.Forge.ChangeRequestsURL())
+		if links := m.forgeLinks(); !links.Enabled() {
+			return m, m.footer.Warn(links.Reason)
 		}
+		return m, openURL(m.shared.Forge.ChangeRequestsURL())
 	case keymap.Issues:
-		if m.shared.Forge != nil && m.shared.IsAuthenticated {
-			return m, openURL(m.shared.Forge.AssignedIssuesURL(m.shared.CurrentUser))
+		if links := m.forgeLinks(); !links.Enabled() {
+			return m, m.footer.Warn(links.Reason)
 		}
+		return m, openURL(m.shared.Forge.AssignedIssuesURL(m.shared.CurrentUser))
 	}
 	return m, nil
+}
+
+// reasonNoSession is why the two deep links do not apply. It names the view
+// that fixes it rather than the state, because that is what the user does next.
+var reasonNoSession = "Not signed in — open :" + string(command.ViewGitAuth)
+
+// forgeLinks reports whether the forge deep links can be built.
+//
+// One state for both keys because it is one condition: a session. Reading
+// IsAuthenticated in one place and the backend pointer in another is how R came
+// to check less than I did — R opened a URL from a backend with no session.
+func (m Model) forgeLinks() shortcut.Availability {
+	if m.shared == nil || m.shared.Forge == nil || !m.shared.IsAuthenticated {
+		return shortcut.Unavailable(reasonNoSession)
+	}
+	return shortcut.Availability{}
 }
 
 // handleReload is what ctrl+r does: every section goes back to loading, and the

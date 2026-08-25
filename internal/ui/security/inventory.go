@@ -13,6 +13,7 @@ import (
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/registryalias"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -44,23 +45,57 @@ func (m Model) handleInventoryState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // openSelectedTarget loads the stored result for the row under the cursor.
 func (m Model) openSelectedTarget() (tea.Model, tea.Cmd) {
-	target, ok := m.inventory.Selected()
-	if !ok {
-		return m, nil
+	if open := m.canOpenTarget(); !open.Enabled() {
+		return m, m.footer.Warn(open.Reason)
 	}
-	if !target.Scanned {
-		return m, m.footer.Warn("No result yet for " + target.shortName())
-	}
+	target, _ := m.inventory.Selected()
 	return m, loadInventoryResultCmd(target)
+}
+
+// The three inventory actions, and why each does not apply. They are the one
+// place the header reads to grey and the handlers read to refuse (Rule 130).
+const (
+	reasonNoTarget   = "No target selected"
+	reasonEmptyList  = "Nothing has been scanned in this context yet"
+	reasonNotScanned = "No result yet — press S to scan it"
+)
+
+// canOpenTarget reports whether enter has findings to open.
+func (m Model) canOpenTarget() shortcut.Availability {
+	target, ok := m.inventory.Selected()
+	switch {
+	case !ok:
+		return shortcut.Unavailable(reasonNoTarget)
+	case !target.Scanned:
+		return shortcut.Unavailable(reasonNotScanned)
+	}
+	return shortcut.Availability{}
+}
+
+// canRescanSelected reports whether S has a row to act on.
+func (m Model) canRescanSelected() shortcut.Availability {
+	if _, ok := m.inventory.Selected(); !ok {
+		return shortcut.Unavailable(reasonNoTarget)
+	}
+	return shortcut.Availability{}
+}
+
+// canRescanAll reports whether A has anything to rescan. An empty inventory is
+// not a failure — it is a context nobody has scanned yet.
+func (m Model) canRescanAll() shortcut.Availability {
+	if len(m.inventory.Items()) == 0 {
+		return shortcut.Unavailable(reasonEmptyList)
+	}
+	return shortcut.Availability{}
 }
 
 // rescanSelected rescans the row under the cursor, overwriting its entry
 // (Rule 126: ctrl+s overwrites where ctrl+a purges).
 func (m Model) rescanSelected() (tea.Model, tea.Cmd) {
-	target, ok := m.inventory.Selected()
-	if !ok {
-		return m, nil
+	if rescan := m.canRescanSelected(); !rescan.Enabled() {
+		return m, m.footer.Warn(rescan.Reason)
 	}
+	target, _ := m.inventory.Selected()
 	if target.Scanning {
 		return m, m.footer.Warn("Scan already in progress")
 	}
@@ -89,8 +124,8 @@ func (m Model) spinnerTickIfIdle() tea.Cmd {
 // accident (§3.26). The destructive half is now a deliberate gesture, under the
 // eyes of whoever triggers it.
 func (m Model) confirmRescanAll() (tea.Model, tea.Cmd) {
-	if len(m.inventory.Items()) == 0 {
-		return m, nil
+	if all := m.canRescanAll(); !all.Enabled() {
+		return m, m.footer.Warn(all.Reason)
 	}
 	m.scanAllModal = sharedcomponents.NewOptionConfirmModal(
 		"Scan All",

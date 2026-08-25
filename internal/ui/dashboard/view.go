@@ -5,7 +5,9 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/status"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -257,9 +259,11 @@ func (m Model) showsTabBar() bool {
 // rien, et coûtait la seule ligne d'information de la vue.
 //
 // L'information reste rendue même vide : le routeur budgète sur
-// GetFooterHeight (Rule 124).
+// GetFooterHeight (Rule 124). C'est aussi ce qui porte le refus d'une touche
+// grisée (Rule 130) — la ligne existait déjà, elle était simplement toujours
+// vide.
 func (m Model) RenderFooter(width int) string {
-	info := theme.EmptyLineBg(width)
+	info := m.footer.View(width, sharedcomponents.Status{})
 
 	if !m.showsTabBar() {
 		return theme.EmptyLineBg(width) + "\n" + info
@@ -270,26 +274,24 @@ func (m Model) RenderFooter(width int) string {
 	return tabBar + "\n" + theme.EmptyLineBg(width) + "\n" + info
 }
 
-// GetShortcuts returns the keyboard shortcuts for the header
+// GetShortcuts returns the keyboard shortcuts for the header.
+//
+// Rule 130: the two deep links need a session and `tab` needs a second tab.
+// Neither is a different screen, so the entries stay where they are and are
+// greyed — the column is the same six lines at every width and either side of
+// a sign-in.
 func (m Model) GetShortcuts() shortcut.Shortcuts {
-	var shortcuts []shortcut.Shortcut
-	// Rule 130: at `wide` the Resources boxes are on screen and there is no
-	// second tab, so the key is not advertised.
-	if tabCountFor(layoutTier(m.width, m.height)) > 1 {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "tab", Description: "Switch tab"})
+	links := m.forgeLinks()
+	return []shortcut.Shortcut{
+		// At `wide` the Resources boxes are already on screen, so there is no
+		// second tab to switch to.
+		{Key: "tab", Description: "Switch tab", Disabled: !m.showsTabBar()},
+		{Key: "ctrl+r", Description: "Refresh"},
+		{Key: keymap.Requests, Description: "Open MRs", Disabled: !links.Enabled()},
+		{Key: keymap.Issues, Description: "Open issues", Disabled: !links.Enabled()},
+		{Key: "ctrl+p", Description: "Command"},
+		{Key: "?", Description: "Help"},
 	}
-	shortcuts = append(shortcuts, shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"})
-	if m.shared.IsAuthenticated {
-		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "R", Description: "Open MRs"},
-			shortcut.Shortcut{Key: "I", Description: "Open issues"},
-		)
-	}
-	shortcuts = append(shortcuts,
-		shortcut.Shortcut{Key: "ctrl+p", Description: "Command"},
-		shortcut.Shortcut{Key: "?", Description: "Help"},
-	)
-	return shortcuts
 }
 
 // GetTitle returns the view title

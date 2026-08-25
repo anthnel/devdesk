@@ -1,6 +1,10 @@
 package workspaces
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
+)
 
 // Ce que la ligne sélectionnée et la machine permettent, calculé une fois et lu
 // par les deux moitiés de la vue : GetShortcuts pour griser, les handlers pour
@@ -11,24 +15,17 @@ import tea "github.com/charmbracelet/bubbletea"
 // dire la même chose. Ici ce serait une touche grisée qui agit quand même — ou,
 // pire, une touche offerte dont l'action retourne en silence.
 
-// actionState : une raison vide veut dire disponible.
-//
-// Un seul champ, donc le booléen et le motif ne peuvent pas diverger. Le motif
-// n'est jamais affiché dans le header — il n'y a pas la place, et une colonne
-// de raisons se lirait moins bien qu'un gris — mais il est ce que le handler
-// pose au footer quand l'utilisateur appuie quand même : le gris dit « pas
-// maintenant », la touche pressée dit pourquoi.
-type actionState struct{ Reason string }
-
-// Enabled reports whether the action applies right now.
-func (s actionState) Enabled() bool { return s.Reason == "" }
+// Les états viennent de `shortcut.Availability` : le header et le handler
+// lisent le même champ, et il est partagé parce que toutes les vues en ont
+// besoin (§3.48).
+type actionState = shortcut.Availability
 
 // available is the zero-reason state, spelled out where it reads better than an
 // empty literal.
 var available = actionState{}
 
 // unavailable builds a refused state from the reason to show the user.
-func unavailable(reason string) actionState { return actionState{Reason: reason} }
+func unavailable(reason string) actionState { return shortcut.Unavailable(reason) }
 
 // actionSet is every row-or-machine dependent action of the normal mode.
 //
