@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "7181d6f8d3bf",
+  "strategy": "manual-commit",
+  "branch": "ports-kill-availability",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/netiface/netiface.go",
+    "internal/netiface/netiface_test.go",
+    "internal/ui/netdiag/interfaces_model.go",
+    "internal/ui/netdiag/interfaces_model_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/71/81d6f8d3bf/0/metadata.json",
+      "transcript": "/71/81d6f8d3bf/0/full.jsonl",
+      "compact_transcript": "/71/81d6f8d3bf/0/transcript.jsonl",
+      "content_hash": "/71/81d6f8d3bf/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 68,
+    "cache_creation_tokens": 37099,
+    "cache_read_tokens": 19258809,
+    "output_tokens": 22679,
+    "api_call_count": 34
+  }
+}
