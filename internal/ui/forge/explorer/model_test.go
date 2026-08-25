@@ -1149,16 +1149,18 @@ func TestOpenInBrowserFailureIsReportedAndCleared(t *testing.T) {
 	}
 }
 
-func TestOpenInBrowserWithoutAURLDoesNothing(t *testing.T) {
+// W on a node with no page is refused, and says so — it used to return in
+// silence while the key was simply missing from the header (Rule 130).
+func TestOpenInBrowserWithoutAURLIsRefusedAndSaysSo(t *testing.T) {
 	m := drilledModel(t)
 	for _, child := range m.currentGroupNode.Children {
 		child.WebURL = ""
 	}
 
-	_, cmd := step(t, m, testutil.Key(keymap.Web))
+	next, _ := step(t, m, testutil.Key(keymap.Web))
 
-	if cmd != nil {
-		t.Error("ctrl+w issued a command for a node with no web URL")
+	if got := next.footer.Text(); !strings.Contains(got, reasonNoWebURL) {
+		t.Errorf("footer = %q, want it to carry %q", got, reasonNoWebURL)
 	}
 }
 

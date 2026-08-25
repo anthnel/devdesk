@@ -35,6 +35,25 @@ type Shortcut struct {
 	Disabled bool
 }
 
+// Availability dit pourquoi une action ne s'applique pas, ou porte une raison
+// vide quand elle s'applique.
+//
+// Un seul champ, donc le booléen et le motif ne peuvent pas diverger — c'est le
+// point : la vue calcule la disponibilité une fois, le header la lit pour
+// griser et le handler la lit pour refuser. Deux calculs pour une question sont
+// ce que scan.Categorize et Result.SecretVerdict ont eu chacun à défaire.
+//
+// Le motif ne va jamais dans le header : il n'y a pas la place, et une colonne
+// de raisons se lirait moins bien qu'un gris. Il va au footer quand
+// l'utilisateur appuie quand même (Rule 128, Warn).
+type Availability struct{ Reason string }
+
+// Enabled reports whether the action applies right now.
+func (a Availability) Enabled() bool { return a.Reason == "" }
+
+// Unavailable builds a refused state from the reason to show the user.
+func Unavailable(reason string) Availability { return Availability{Reason: reason} }
+
 // maxLenKey mesure la plus longue touche, désactivées comprises.
 //
 // L'alignement ne doit pas dépendre de ce qui est disponible : sinon la colonne

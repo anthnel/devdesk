@@ -282,13 +282,15 @@ dans une colonne dont toutes les autres lignes se lisent serait pire que le mot.
 #### Un seul calcul, deux lecteurs
 
 Le motif est calculé une fois et lu par les deux moitiés de la vue : le header
-pour griser, le handler pour refuser. Une raison vide veut dire disponible, donc
-le booléen et le motif ne peuvent pas diverger.
+pour griser, le handler pour refuser. `shortcut.Availability` porte **un seul
+champ** — une raison vide veut dire disponible — donc le booléen et le motif ne
+peuvent pas diverger.
 
 ```go
-// internal/ui/workspaces/availability.go — l'implémentation de référence
-type actionState struct{ Reason string }
-func (s actionState) Enabled() bool { return s.Reason == "" }
+// shortcut.Availability, partagé par toutes les vues
+type Availability struct{ Reason string }
+func (a Availability) Enabled() bool { return a.Reason == "" }
+func Unavailable(reason string) Availability
 
 // GetShortcuts
 {Key: "S", Description: "Scan", Disabled: !a.Scan.Enabled()},
@@ -297,6 +299,18 @@ func (s actionState) Enabled() bool { return s.Reason == "" }
 case keymap.Scan:
     return m.guard(a.Scan, m.startSecurityScan)
 ```
+
+Les motifs sont des **constantes nommées** du paquet de la vue
+(`reasonNoScanner`, `reasonInsideGroup`, …) : le header, le footer et les tests
+les lisent au même endroit, donc aucun ne peut dériver sur la formulation.
+
+#### Une action se justifie, un contrôle non
+
+Le refus au footer vaut pour une **action** — le vocabulaire majuscule, `enter`,
+`→`. Pour une touche dont l'applicabilité est **structurelle** — `←→` sur un
+champ qui n'est pas à cycle, `space` sur ce qui n'est pas une case, `tab` quand
+il n'y a qu'un onglet — le grisage suffit : il n'y a rien à expliquer, et une
+ligne de footer à chaque flèche perdue dans un formulaire serait du bruit.
 
 **Le gris dit « pas maintenant », la touche pressée dit pourquoi.** Le header
 n'a pas la place de porter un motif ; le footer l'a, et c'est un `Warn` au sens
@@ -313,10 +327,24 @@ dispositif.** `N` crée un répertoire dans le répertoire parcouru — elle n'a
 pas sur la sélection, donc la masquer disait « sans objet » d'une action qui
 marchait, et la griser le répéterait.
 
-#### État de la migration
+#### Où passe la ligne, vue par vue
 
-Seule `workspaces` est migrée (§3.48). Les autres vues masquent encore ; elles
-suivront, et `internal/ui/workspaces/availability.go` est la référence.
+Toutes les vues sont migrées (§3.48). Ce qui reste masqué l'est parce que
+l'écran change :
+
+| Continue de remplacer la liste | Grisé |
+|---|---|
+| un mode : formulaire, confirmation, modale, sélection | la ligne sélectionnée : `enter`, `W`, `S`, `F`, `X`, `o`, `→` |
+| un onglet, un état de vue (inventaire / résultats / détails), une recherche qui a le clavier | un onglet à l'intérieur d'un même écran : `X` hors de l'onglet Secrets |
+| un écran déconnecté, un `docker pull` en cours | une indisponibilité globale : les scanners, une session |
+| le **kind d'un document** dans le viewer — un Markdown n'a pas de verbosité, et n'en aura jamais | un chargement en vol : le tableau est le même écran de part et d'autre |
+| | le champ focusé d'un formulaire : `←→`, `space`, `enter` |
+
+Les implémentations de référence sont `internal/ui/workspaces/availability.go`
+et `internal/ui/oci_resources/availability.go`. Les helpers de test sont
+`testutil.ShortcutDisabled`, `ShortcutEnabled`, `HasShortcut` et
+`ShortcutKeys` — le dernier sert au test que chaque vue doit avoir : **la suite
+des touches ne change pas d'un état à l'autre du même écran.**
 
 Interdit :
 - ❌ Masquer une entrée parce que l'action ne s'applique pas à la ligne

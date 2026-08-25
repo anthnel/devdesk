@@ -133,16 +133,24 @@ func TestEnterOnAPurgedRowSaysThereIsNothingToOpenYet(t *testing.T) {
 	}
 }
 
-// Rule 130 hides the row actions on an empty inventory, but the keys still
-// arrive — the router forwards every one of them.
-func TestRowActionsOnAnEmptyInventoryDoNothing(t *testing.T) {
-	for _, key := range []string{"enter", keymap.Scan, keymap.ScanAll} {
-		t.Run(key, func(t *testing.T) {
-			m, cmd := step(t, inventoryModel(t), testutil.Key(key))
+// Rule 130 greys the row actions on an empty inventory, and the keys still
+// arrive — the router forwards every one of them. Each is refused with a reason
+// rather than swallowed: a key that looks pressable and answers nothing is what
+// this replaced.
+func TestRowActionsOnAnEmptyInventoryAreRefusedWithAReason(t *testing.T) {
+	for _, tt := range []struct{ key, reason string }{
+		{"enter", reasonNoTarget},
+		{keymap.Scan, reasonNoTarget},
+		{keymap.ScanAll, reasonEmptyList},
+	} {
+		t.Run(tt.key, func(t *testing.T) {
+			m, _ := step(t, inventoryModel(t), testutil.Key(tt.key))
 
-			if m.state != StateInventory || m.footer.IsSet() || cmd != nil {
-				t.Errorf("%q on an empty inventory produced state %v, message %q, cmd %v",
-					key, m.state, m.footer.Text(), cmd != nil)
+			if m.state != StateInventory {
+				t.Errorf("%q left the inventory for state %v", tt.key, m.state)
+			}
+			if got := m.footer.Text(); !strings.Contains(got, tt.reason) {
+				t.Errorf("%q was declined with %q, want it to carry %q", tt.key, got, tt.reason)
 			}
 		})
 	}
@@ -327,21 +335,29 @@ func TestASecondRescanDoesNotStartASecondSpinnerChain(t *testing.T) {
 	}
 }
 
-// Rule 130: an empty inventory offers none of the per-row actions.
-func TestTheInventoryAdvertisesOnlyWhatTheSelectedRowCanDo(t *testing.T) {
+// Rule 130: an empty inventory greys the per-row actions, and advertises the
+// same keys in the same order as a full one — the first scan of a context used
+// to make four entries appear at once.
+func TestTheInventoryGreysWhatTheSelectedRowCannotDo(t *testing.T) {
 	empty := inventoryModel(t)
 	filled := inventoryModel(t, inventoryFixtures()...)
 
-	if has(empty.GetShortcuts(), "enter") || has(empty.GetShortcuts(), keymap.Scan) {
-		t.Errorf("an empty inventory advertises row actions: %v", empty.GetShortcuts())
+	emptyKeys := testutil.ShortcutKeys(empty.GetShortcuts())
+	filledKeys := testutil.ShortcutKeys(filled.GetShortcuts())
+	if strings.Join(emptyKeys, " ") != strings.Join(filledKeys, " ") {
+		t.Errorf("an empty inventory advertises %v, want the same keys as a full one %v", emptyKeys, filledKeys)
 	}
-	if !has(empty.GetShortcuts(), "ctrl+r") {
-		t.Error("an empty inventory cannot be refreshed")
-	}
+
 	for _, key := range []string{"enter", keymap.Scan, keymap.ScanAll, "/"} {
-		if !has(filled.GetShortcuts(), key) {
-			t.Errorf("%q is not advertised on a row that supports it", key)
+		if !testutil.ShortcutDisabled(empty.GetShortcuts(), key) {
+			t.Errorf("%q is offered on an empty inventory", key)
 		}
+		if !testutil.ShortcutEnabled(filled.GetShortcuts(), key) {
+			t.Errorf("%q is greyed on a row that supports it", key)
+		}
+	}
+	if !testutil.ShortcutEnabled(empty.GetShortcuts(), "ctrl+r") {
+		t.Error("an empty inventory cannot be refreshed")
 	}
 }
 

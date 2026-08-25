@@ -20,15 +20,6 @@ func (m Model) openLaunchForm() (tea.Model, tea.Cmd) {
 	return m, fetchImageExposedPortsCmd(name)
 }
 
-// isSelectedImageScanning returns true if the currently selected image is being scanned.
-func (m Model) isSelectedImageScanning() bool {
-	img := m.getSelectedImage()
-	if img == nil {
-		return false
-	}
-	return m.scanningImages[img.Name()]
-}
-
 // getSelectedImage returns the selected image or nil.
 //
 // The cursor is resolved against the very slice the rows were built from, so it

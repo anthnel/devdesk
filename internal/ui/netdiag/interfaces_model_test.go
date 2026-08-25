@@ -198,3 +198,26 @@ func interfaceRowFor(t *testing.T, m *Model, name string) string {
 	t.Fatalf("no row for %q in:\n%s", name, m.View())
 	return ""
 }
+
+// A read in flight greys the table's keys rather than removing them: the tab is
+// the same screen either side of a refresh, and a column that empties and
+// refills on every ctrl+r is the flicker Rule 130 is about.
+func TestALoadGreysTheInterfaceKeysInsteadOfRemovingThem(t *testing.T) {
+	m := interfacesModel(t)
+	settled := testutil.ShortcutKeys(m.GetShortcuts())
+
+	m.interfacesModel.loading = true
+
+	loading := testutil.ShortcutKeys(m.GetShortcuts())
+	if strings.Join(loading, " ") != strings.Join(settled, " ") {
+		t.Errorf("a load advertises %v, want the same keys as a settled tab %v", loading, settled)
+	}
+	for _, key := range []string{"/", "."} {
+		if !testutil.ShortcutDisabled(m.GetShortcuts(), key) {
+			t.Errorf("%q is offered while the interfaces are being read", key)
+		}
+	}
+	if !testutil.ShortcutEnabled(m.GetShortcuts(), "ctrl+r") {
+		t.Error("ctrl+r is greyed while loading; asking again is what still applies")
+	}
+}

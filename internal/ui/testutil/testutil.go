@@ -19,6 +19,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
 
 // FastTimers shortens a package-level timer for the length of the test.
@@ -194,4 +196,48 @@ func MsgOf[T tea.Msg](cmd tea.Cmd) (T, bool) {
 	}
 	var zero T
 	return zero, false
+}
+
+// ── Shortcuts (Rule 130) ─────────────────────────────────────────────────────
+
+// HasShortcut reports whether the key is advertised at all, greyed or not.
+func HasShortcut(shortcuts shortcut.Shortcuts, key string) bool {
+	_, ok := findShortcut(shortcuts, key)
+	return ok
+}
+
+// ShortcutDisabled reports whether the key is advertised but greyed out.
+//
+// A key that is missing altogether is **not** disabled — it is absent, which is
+// a different failure. Rule 130 says an entry is greyed, never dropped, so a
+// test that conflated the two would pass on the very regression it exists to
+// catch; assert HasShortcut alongside it.
+func ShortcutDisabled(shortcuts shortcut.Shortcuts, key string) bool {
+	s, ok := findShortcut(shortcuts, key)
+	return ok && s.Disabled
+}
+
+// ShortcutEnabled reports whether the key is advertised and acts.
+func ShortcutEnabled(shortcuts shortcut.Shortcuts, key string) bool {
+	s, ok := findShortcut(shortcuts, key)
+	return ok && !s.Disabled
+}
+
+// ShortcutKeys is the advertised keys in order — what a test compares across
+// states to check the column does not move.
+func ShortcutKeys(shortcuts shortcut.Shortcuts) []string {
+	keys := make([]string, 0, len(shortcuts))
+	for _, s := range shortcuts {
+		keys = append(keys, s.Key)
+	}
+	return keys
+}
+
+func findShortcut(shortcuts shortcut.Shortcuts, key string) (shortcut.Shortcut, bool) {
+	for _, s := range shortcuts {
+		if s.Key == key {
+			return s, true
+		}
+	}
+	return shortcut.Shortcut{}, false
 }

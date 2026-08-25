@@ -292,18 +292,23 @@ func TestCtrlRMarksEverySectionLoadingAgain(t *testing.T) {
 }
 
 // The browser shortcuts need a session: without a user there is no username to
-// build the issues URL from, so the key must do nothing rather than open a
-// broken link.
+// build the issues URL from, so the key is greyed and says why rather than
+// opening a broken link or falling through in silence (Rule 130).
 func TestBrowserShortcutsRequireASession(t *testing.T) {
 	m, _ := newTestModel(t) // not authenticated
 
-	_, cmd := step(t, m, testutil.Key(keymap.Issues))
-	if cmd != nil {
-		t.Error("i opened a URL without a signed-in user")
+	for _, key := range []string{keymap.Requests, keymap.Issues} {
+		if !testutil.ShortcutDisabled(m.GetShortcuts(), key) {
+			t.Errorf("%s is offered without a signed-in user", key)
+		}
+		next, _ := step(t, m, testutil.Key(key))
+		if got := plain(next.RenderFooter(200)); !strings.Contains(got, reasonNoSession) {
+			t.Errorf("%s was declined without saying why — footer:\n%s", key, got)
+		}
 	}
 
 	authenticated, _ := authenticatedModel(t)
-	_, cmd = step(t, authenticated, testutil.Key(keymap.Issues))
+	_, cmd := step(t, authenticated, testutil.Key(keymap.Issues))
 	if cmd == nil {
 		t.Error("i did nothing for a signed-in user")
 	}
@@ -679,10 +684,8 @@ func TestTheResourcesTabIsNotOfferedWhenItsBoxesAreOnScreen(t *testing.T) {
 		t.Errorf("tab moved to %v when there is only one tab", m.activeTab)
 	}
 
-	for _, s := range m.GetShortcuts() {
-		if s.Key == "tab" {
-			t.Error("tab is advertised where it does nothing")
-		}
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), "tab") {
+		t.Error("tab is offered where there is only one tab")
 	}
 }
 

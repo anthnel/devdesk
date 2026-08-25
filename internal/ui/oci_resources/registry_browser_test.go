@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -596,12 +597,25 @@ func TestTheGroupRefreshShortcutFollowsTheSelectedRow(t *testing.T) {
 }
 
 func hasShortcut(m Model, description string) bool {
+	_, ok := shortcutByDescription(m, description)
+	return ok
+}
+
+// shortcutGreyed reports whether the entry is advertised but disabled. A
+// missing entry is not greyed — it is absent, which Rule 130 forbids for a
+// state, so the two are asserted apart.
+func shortcutGreyed(m Model, description string) bool {
+	s, ok := shortcutByDescription(m, description)
+	return ok && s.Disabled
+}
+
+func shortcutByDescription(m Model, description string) (shortcut.Shortcut, bool) {
 	for _, s := range m.GetShortcuts() {
 		if s.Description == description {
-			return true
+			return s, true
 		}
 	}
-	return false
+	return shortcut.Shortcut{}, false
 }
 
 // ── Remembered selection (§3.8 step 6) ───────────────────────────────────────
@@ -776,24 +790,37 @@ func TestEnteringAGroupWithNoMembersSaysWhy(t *testing.T) {
 }
 
 // Inside a group the rows are cached members, not config entries — nothing on
-// them is editable, and offering the actions would be a lie (Rule 130).
-func TestInsideAGroupTheEntryActionsAreGone(t *testing.T) {
-	m := feed(t, registriesTab(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
-	m = feed(t, m, testutil.Key("right"))
+// them is editable, so the actions are greyed. A level of the same table is not
+// a different screen, so the column keeps its shape (Rule 130).
+func TestInsideAGroupTheEntryActionsAreGreyed(t *testing.T) {
+	top := feed(t, registriesTab(t), RegistryGroupCacheLoadedMsg{Entries: groupCacheFixture()})
+	m := feed(t, top, testutil.Key("right"))
 
-	for _, gone := range []string{"Edit registry", "Login", "Remove", "New registry"} {
-		if hasShortcut(m, gone) {
-			t.Errorf("%q is still offered on a discovered member", gone)
+	topKeys := testutil.ShortcutKeys(top.GetShortcuts())
+	insideKeys := testutil.ShortcutKeys(m.GetShortcuts())
+	if strings.Join(topKeys, " ") != strings.Join(insideKeys, " ") {
+		t.Errorf("inside a group the tab advertises %v, want the same keys as the list %v", insideKeys, topKeys)
+	}
+
+	for _, greyed := range []string{"Edit registry", "Log in or out", "Remove", "New registry", "Show members"} {
+		if !hasShortcut(m, greyed) {
+			t.Errorf("%q disappeared on a discovered member instead of being greyed", greyed)
+		} else if !shortcutGreyed(m, greyed) {
+			t.Errorf("%q is still offered on a discovered member", greyed)
 		}
 	}
-	if !hasShortcut(m, "Back to registries") {
-		t.Error("no way back is advertised")
+	if shortcutGreyed(m, "Back to registries") {
+		t.Error("the way back is greyed inside a group")
 	}
 
-	// And the actions themselves do nothing rather than acting on the wrong row.
-	m = feed(t, m, testutil.Key(keymap.Edit), testutil.Key(keymap.Delete), testutil.Key(keymap.New))
+	// And the actions themselves refuse, naming why rather than returning in
+	// silence — the header greys them from the same answer.
+	m = feed(t, m, testutil.Key(keymap.Edit))
 	if m.registryForm != nil || m.confirmModal != nil {
 		t.Error("an entry action fired on a discovered member")
+	}
+	if !strings.Contains(m.footer.Text(), reasonInsideGroup) {
+		t.Errorf("footer = %q, want it to carry %q", m.footer.Text(), reasonInsideGroup)
 	}
 }
 

@@ -36,13 +36,15 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 	}
 
 	if m.activeTab == tabInterfaces {
-		if m.interfacesModel.loading {
-			return tabShortcuts
-		}
+		// A read in flight greys the table's keys rather than removing them:
+		// the tab is the same screen either side of a refresh, and a column
+		// that empties and refills on every ctrl+r is the flicker Rule 130 is
+		// about. ctrl+r stays lit — asking again is exactly what still applies.
+		loading := m.interfacesModel.loading
 		return append(tabShortcuts, shortcut.Shortcuts{
 			{Key: "ctrl+r", Description: "Refresh"},
-			{Key: "/", Description: "Filter"},
-			{Key: ".", Description: "Sort"},
+			{Key: "/", Description: "Filter", Disabled: loading},
+			{Key: ".", Description: "Sort", Disabled: loading},
 			{Key: "?", Description: "Help"},
 		}...)
 	}

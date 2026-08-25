@@ -6,9 +6,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/anthnel/devdesk/internal/config"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -239,60 +239,57 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 					{Key: "enter/esc", Description: "Close filter"},
 				}
 			}
-			var shortcuts []shortcut.Shortcut
-			if m.registryBrowser.HasSelectedTagScanResults() {
-				shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "View CVE details"})
+			// enter is greyed on a tag nothing has scanned yet, rather than
+			// appearing and disappearing as the cursor runs down the list
+			// (Rule 130).
+			return []shortcut.Shortcut{
+				{Key: "enter", Description: "View CVE details",
+					Disabled: !m.registryBrowser.HasSelectedTagScanResults()},
+				{Key: keymap.Scan, Description: "Scan image"},
+				{Key: keymap.Get, Description: "Pull image"},
+				{Key: "r", Description: "Filter registry"},
+				{Key: "/", Description: "Filter"},
+				{Key: ".", Description: "Sort"},
+				{Key: "esc", Description: "Go back"},
 			}
-			shortcuts = append(shortcuts,
-				shortcut.Shortcut{Key: "S", Description: "Scan image"},
-				shortcut.Shortcut{Key: "G", Description: "Pull image"},
-				shortcut.Shortcut{Key: "r", Description: "Filter registry"},
-				shortcut.Shortcut{Key: "/", Description: "Filter"},
-				shortcut.Shortcut{Key: ".", Description: "Sort"},
-				shortcut.Shortcut{Key: "esc", Description: "Go back"},
-			)
-			return shortcuts
 		case browserStateStatus:
 			return nil // blocked during operation
 		default: // browserStateInput
-			var shortcuts []shortcut.Shortcut
-			if m.registryBrowser.focusedField == m.registryBrowser.brFieldSubmit() {
-				shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "Browse tags"})
+			// enter submits, so it is greyed until the submit button has the
+			// focus. A control, not an action: greying is the whole of it, and
+			// a footer line on every stray enter in a form would be noise.
+			return []shortcut.Shortcut{
+				{Key: "enter", Description: "Browse tags",
+					Disabled: m.registryBrowser.focusedField != m.registryBrowser.brFieldSubmit()},
+				{Key: "esc", Description: "Close browser"},
 			}
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "esc", Description: "Close browser"})
-			return shortcuts
 		}
 	}
 	if m.launchForm != nil {
 		lf := m.launchForm
-		var shortcuts []shortcut.Shortcut
 		isCheckbox := lf.isPortField(lf.focusedField) ||
 			lf.focusedField == lf.fieldOptionRemove() ||
 			lf.focusedField == lf.fieldOptionDetach() ||
 			lf.focusedField == lf.fieldOptionInteractive()
-		if isCheckbox {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "space", Description: "Toggle"})
-		} else if lf.focusedField == lf.fieldNetwork() {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "←→", Description: "Cycle network"})
-		} else if lf.focusedField == lf.fieldSubmit() {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "Launch"})
+		// The three controls a field can take, greyed rather than swapped: the
+		// column changed shape on every ↑↓, in a form where the cursor moves
+		// constantly (Rule 130).
+		return []shortcut.Shortcut{
+			{Key: "space", Description: "Toggle", Disabled: !isCheckbox},
+			{Key: "←→", Description: "Cycle network", Disabled: lf.focusedField != lf.fieldNetwork()},
+			{Key: "enter", Description: "Launch", Disabled: lf.focusedField != lf.fieldSubmit()},
+			{Key: "ctrl+y", Description: "Copy command"},
+			{Key: "esc", Description: "Cancel"},
 		}
-		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "ctrl+y", Description: "Copy command"},
-			shortcut.Shortcut{Key: "esc", Description: "Cancel"},
-		)
-		return shortcuts
 	}
 	if m.resourceForm != nil {
-		var shortcuts []shortcut.Shortcut
-		if m.resourceForm.kind == resourceFormNetwork && m.resourceForm.focusedField == 1 {
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "←→", Description: "Cycle driver"})
+		// Only a network has a driver to cycle, and only on its second field.
+		onDriver := m.resourceForm.kind == resourceFormNetwork && m.resourceForm.focusedField == 1
+		return []shortcut.Shortcut{
+			{Key: "←→", Description: "Cycle driver", Disabled: !onDriver},
+			{Key: "enter", Description: "Submit"},
+			{Key: "esc", Description: "Cancel"},
 		}
-		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "enter", Description: "Submit"},
-			shortcut.Shortcut{Key: "esc", Description: "Cancel"},
-		)
-		return shortcuts
 	}
 	if m.connectivityForm != nil {
 		cf := m.connectivityForm
@@ -302,18 +299,12 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				{Key: "esc", Description: "Back"},
 			}
 		}
-		var shortcuts []shortcut.Shortcut
-		switch cf.focusedField {
-		case cFieldTarget:
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "↑↓", Description: "Browse containers"})
-		case cFieldType:
-			shortcuts = append(shortcuts, shortcut.Shortcut{Key: "←→", Description: "Cycle type"})
+		return []shortcut.Shortcut{
+			{Key: "↑↓", Description: "Browse containers", Disabled: cf.focusedField != cFieldTarget},
+			{Key: "←→", Description: "Cycle type", Disabled: cf.focusedField != cFieldType},
+			{Key: "enter", Description: "Run test"},
+			{Key: "esc", Description: "Back"},
 		}
-		shortcuts = append(shortcuts,
-			shortcut.Shortcut{Key: "enter", Description: "Run test"},
-			shortcut.Shortcut{Key: "esc", Description: "Back"},
-		)
-		return shortcuts
 	}
 	if m.networkInspectForm != nil {
 		return []shortcut.Shortcut{
@@ -334,20 +325,19 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 	switch m.activeTab {
 	case tabImages:
-		base = append(base, shortcut.Shortcut{Key: "enter", Description: "Scan details"})
-		if m.isSelectedImageScanning() {
-			base = append(base, shortcut.Shortcut{Key: theme.IconRefresh, Description: "scanning..."})
-		} else {
-			base = append(base,
-				shortcut.Shortcut{Key: "N", Description: "Launch"},
-				shortcut.Shortcut{Key: "S", Description: "Scan"},
-				shortcut.Shortcut{Key: "D", Description: "Delete"},
-			)
-		}
+		// The three row actions are greyed while the selected image is being
+		// scanned, where they used to be replaced by a fake entry — a spinner
+		// and the word "scanning...", in the column that lists keys. The row's
+		// own Scanned cell already carries that spinner (Rule 139).
+		act := m.imageActions()
 		base = append(base,
-			shortcut.Shortcut{Key: "B", Description: "Browse registries"},
-			shortcut.Shortcut{Key: "A", Description: "Scan all"},
-			shortcut.Shortcut{Key: "P", Description: "Prune"},
+			shortcut.Shortcut{Key: "enter", Description: "Scan details", Disabled: !m.imageOpen().Enabled()},
+			shortcut.Shortcut{Key: keymap.New, Description: "Launch", Disabled: !act.Enabled()},
+			shortcut.Shortcut{Key: keymap.Scan, Description: "Scan", Disabled: !act.Enabled()},
+			shortcut.Shortcut{Key: keymap.Delete, Description: "Delete", Disabled: !act.Enabled()},
+			shortcut.Shortcut{Key: keymap.Browser, Description: "Browse registries"},
+			shortcut.Shortcut{Key: keymap.ScanAll, Description: "Scan all"},
+			shortcut.Shortcut{Key: keymap.Prune, Description: "Prune"},
 			shortcut.Shortcut{Key: ".", Description: "Sort"},
 			shortcut.Shortcut{Key: "/", Description: "Filter"},
 		)
@@ -366,27 +356,24 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		)
 	case tabRegistries:
 		// Inside a group the rows are cached members, not config entries: there
-		// is nothing to edit, log into or remove (Rule 130).
-		if m.registryGroupSlug != "" {
-			return append(base,
-				shortcut.Shortcut{Key: "←", Description: "Back to registries"},
-				shortcut.Shortcut{Key: "?", Description: "Help"},
-			)
+		// is nothing to edit, log into or remove. That is a level of the same
+		// table, not a different screen, so the four are greyed rather than
+		// replaced by a two-line column (Rule 130).
+		entry := m.registryEntryActions()
+		refresh := "Refresh"
+		if m.registryDrillIn().Enabled() {
+			refresh = "Refresh group members"
 		}
-		base = append(base,
-			shortcut.Shortcut{Key: "N", Description: "New registry"},
-			shortcut.Shortcut{Key: "E", Description: "Edit registry"},
-			shortcut.Shortcut{Key: "U", Description: "Log in or out"},
-			shortcut.Shortcut{Key: "D", Description: "Remove"},
+		return append(base,
+			shortcut.Shortcut{Key: keymap.New, Description: "New registry", Disabled: !m.registryCreate().Enabled()},
+			shortcut.Shortcut{Key: keymap.Edit, Description: "Edit registry", Disabled: !entry.Enabled()},
+			shortcut.Shortcut{Key: keymap.Auth, Description: "Log in or out", Disabled: !entry.Enabled()},
+			shortcut.Shortcut{Key: keymap.Delete, Description: "Remove", Disabled: !entry.Enabled()},
+			shortcut.Shortcut{Key: "→", Description: "Show members", Disabled: !m.registryDrillIn().Enabled()},
+			shortcut.Shortcut{Key: "←", Description: "Back to registries", Disabled: !m.registryDrillOut().Enabled()},
+			shortcut.Shortcut{Key: "ctrl+r", Description: refresh},
+			shortcut.Shortcut{Key: "?", Description: "Help"},
 		)
-		if reg := m.getSelectedRegistry(); reg != nil && reg.Kind == config.KindGroup {
-			// Rule 130: only offered on a row that has members.
-			base = append(base,
-				shortcut.Shortcut{Key: "→", Description: "Show members"},
-				shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh group members"},
-			)
-			return append(base, shortcut.Shortcut{Key: "?", Description: "Help"})
-		}
 	}
 
 	base = append(base,
