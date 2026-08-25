@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
@@ -638,18 +637,15 @@ func TestTheResourceTablesHoldTheWidthInvariant(t *testing.T) {
 	for _, width := range []int{60, 80, 100, 120, 180, 240} {
 		m := feed(t, newTestModel(t), tea.WindowSizeMsg{Width: width, Height: 30})
 
-		for name, cols := range map[string][]table.Column{
-			"networks": m.networkTable.Table().Columns(),
-			"volumes":  m.volumeTable.Table().Columns(),
+		// RenderedWidth rather than the declared columns plus two cells each: a
+		// column dropped for want of room renders nothing and hands its padding
+		// back, so that arithmetic asks for less than the line spans (D61).
+		for name, span := range map[string]int{
+			"networks": m.networkTable.RenderedWidth(),
+			"volumes":  m.volumeTable.RenderedWidth(),
 		} {
-			total := 0
-			for _, c := range cols {
-				total += c.Width
-			}
-			// viewport borders (2) + bubbles/table's per-cell padding (2 each)
-			want := width - 2 - len(cols)*2
-			if total != want {
-				t.Errorf("%s at width %d: the columns sum to %d, want %d", name, width, total, want)
+			if want := width - 2; span != want {
+				t.Errorf("%s at width %d: the line spans %d, want %d", name, width, span, want)
 			}
 		}
 	}

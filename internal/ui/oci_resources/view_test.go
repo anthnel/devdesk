@@ -229,13 +229,11 @@ func TestColumnsFitTheWidth(t *testing.T) {
 	for _, width := range []int{60, 80, 100, 140, 200} {
 		m := feed(t, loadedModel(t), testutil.Resize(width, 30))
 
-		total := 0
-		for _, col := range m.imageTable.Table().Columns() {
-			total += col.Width
-		}
-		want := width - 2 - len(m.imageTable.Table().Columns())*2
-		if total != want {
-			t.Errorf("at width %d the image columns total %d, want %d", width, total, want)
+		// RenderedWidth rather than the declared columns plus two cells each: a
+		// column dropped for want of room renders nothing and hands its padding
+		// back, so that arithmetic asks for less than the line spans (D61).
+		if got, want := m.imageTable.RenderedWidth(), width-2; got != want {
+			t.Errorf("at width %d the image line spans %d, want %d", width, got, want)
 		}
 		for _, col := range m.imageTable.Table().Columns() {
 			if col.Width < 0 {

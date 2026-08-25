@@ -7,41 +7,62 @@
 - Ligne sélectionnée avec ColorHighlight
 - Bordures cohérentes
 
-### Rule 116 : Calcul des largeurs de colonnes
+### Rule 116 : la ligne rendue occupe exactement l'intérieur du viewport
 
 **La ligne sélectionnée doit s'étendre jusqu'à la bordure droite du viewport.**
 
-`bubbles/table` applique `Padding(0, 1)` par cellule → +2 chars par colonne.
+Le calcul appartient à `internal/ui/datatable` et à lui seul. Une vue passe la
+**largeur complète du viewport, bordures comprises** — `Resize` en retire les
+bordures et le padding que `bubbles/table` ajoute par cellule (`Padding(0, 1)`,
+donc +2 par colonne rendue).
 
-```
-availableForContent = width - 2 (viewport borders) - numColumns × 2 (cell padding)
-```
-
-Pattern obligatoire :
 ```go
 func (m *Model) resize(width, height int) {
-    available := width - 2 - numCols*2
-
-    columns[0].Width = int(float64(available) * 0.20)
-    columns[1].Width = int(float64(available) * 0.30)
-    columns[2].Width = int(float64(available) * 0.25)
-    // Dernière colonne absorbe les erreurs d'arrondi
-    columns[3].Width = available - columns[0].Width - columns[1].Width - columns[2].Width
-
-    m.table.SetColumns(columns)
+    m.table.Resize(width, max(height-1, 1)) // pas de -2, pas de max(…, 20)
 }
 ```
 
-Pattern colonnes fixes + une flexible :
+Soustraire les bordures une seconde fois est le défaut le plus discret de la
+règle : la table est alors correcte à *toutes* les largeurs et se termine deux
+cellules trop tôt à toutes aussi. Un plancher local (`max(…, 20)`) est l'erreur
+symétrique — il rend la table plus large que le viewport quand le terminal est
+étroit, ce qui est précisément le débordement interdit.
+
+#### L'invariant s'énonce sur la portée **rendue**
+
 ```go
-fixedWidths := 10 + 18 + 14
-flexWidth   := max(m.width - fixedWidths - 2 - numCols*2, 20)
+// ✅ CORRECT
+if got, want := m.table.RenderedWidth(), width-2; got != want { … }
+
+// ❌ INTERDIT — faux dès qu'une colonne est retirée
+total := 0
+for _, col := range m.table.Table().Columns() { total += col.Width }
+if want := width - 2 - len(cols)*2; total != want { … }
 ```
 
+Une colonne retirée faute de place ne rend rien — ni en-tête, ni cellule, ni
+padding — et rend ses deux cellules au budget. La somme des colonnes déclarées
+plus deux chacune demande donc moins que ce que la ligne occupe, et échoue sur
+une mise en page correcte. C'est D61 vu de l'autre côté.
+
+#### Chaque colonne déclare sa nature (§3.45)
+
+`Sizing` n'a **pas** de valeur par défaut : `SizingFixed` (largeur exacte) ou
+`SizingContent` (la largeur du contenu, plancher `MinWidth`, plafond
+`MaxWidth`). `TestEveryColumnDeclaresItsSizing` parcourt les sources et échoue
+en nommant fichier, ligne et colonne.
+
+`MinWidth` est un **plancher**, pas une demande. Ce qui cède au-delà est une
+colonne **entière** : les `Optional` d'abord, la plus à droite en premier, puis
+les autres si besoin. Mieux vaut moins de colonnes justes que toutes fausses —
+tronquer une colonne de comptage rendrait `142` en `14…`, et rien à l'écran ne
+distingue les deux.
+
 Interdit :
-- ❌ `usableWidth := width` sans soustraire les bordures viewport
-- ❌ Colonnes en pourcentage sans ajouter le reste à la dernière
-- ❌ Oublier le cell padding (`numColumns × 2`)
+- ❌ Calculer des largeurs de colonnes dans une vue
+- ❌ Soustraire les bordures avant `Resize`, ou clamper la largeur passée
+- ❌ Vérifier Rule 116 en sommant les colonnes déclarées
+- ❌ Laisser une colonne sans `Sizing`
 - ❌ `Background()` sur `s.Cell` (masque `s.Selected.Background()`)
 
 ### Rule 122 : `Cell` mesure, `Style` colore — jamais l'inverse ⚠️

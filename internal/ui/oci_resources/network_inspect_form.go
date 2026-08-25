@@ -30,15 +30,15 @@ type NetworkInspectForm struct {
 func containerColumns() []datatable.Column[docker.NetworkContainer] {
 	return []datatable.Column[docker.NetworkContainer]{
 		{
-			Title: "Container", MinWidth: 20, Flex: 1,
+			Title: "Container", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 1,
 			Cell: func(c docker.NetworkContainer) string { return c.Name },
 		},
 		{
-			Title: "IPv4", MinWidth: 16,
+			Title: "IPv4", Sizing: datatable.SizingFixed, MinWidth: 16,
 			Cell: func(c docker.NetworkContainer) string { return c.IPv4 },
 		},
 		{
-			Title: "MAC Address", MinWidth: 20,
+			Title: "MAC Address", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 20,
 			Cell: func(c docker.NetworkContainer) string { return c.MacAddress },
 		},
 	}

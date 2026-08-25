@@ -26,18 +26,18 @@ func testConfig() Config[row] {
 		SortColumn: 0,
 		Columns: []Column[row]{
 			{
-				Title: "Name", MinWidth: 20, Flex: 1,
+				Title: "Name", Sizing: SizingContent, MinWidth: 20, Flex: 1,
 				Cell:   func(r row) string { return r.Name },
 				Less:   func(a, b row) bool { return a.Name < b.Name },
 				Search: func(r row) string { return r.Name },
 			},
 			{
-				Title: "Size", MinWidth: 10,
+				Title: "Size", Sizing: SizingFixed, MinWidth: 10,
 				Cell: func(r row) string { return strings.Repeat("#", r.Size) },
 				Less: func(a, b row) bool { return a.Size < b.Size },
 			},
 			{
-				Title: "State", MinWidth: 12,
+				Title: "State", Sizing: SizingFixed, MinWidth: 12,
 				Cell:   func(r row) string { return r.State },
 				Search: func(r row) string { return r.State },
 			},

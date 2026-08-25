@@ -17,15 +17,24 @@ func (m *Model) updateTableSize() {
 }
 
 // setEntries replaces the listing and rebuilds the decoration over it.
+//
+// A new listing is a new population, so the columns are measured again: this is
+// the directory changing under the user, not a refresh of the same one.
 func (m *Model) setEntries(entries []Entry) {
 	m.table.SetItems(m.rowsFor(entries))
+	m.table.Remeasure()
 }
 
 // refreshRows redecorates the entries the table already holds. Callers reach it
 // after a scan starts, finishes or arrives from the cache: the listing has not
 // changed, only what the six scan columns say about it.
+//
+// It deliberately does not go through setEntries any more. A spinner frame
+// arrives several times a second, and remeasuring on those would let the
+// columns shift while a scan runs — which is the one thing the measurement is
+// not allowed to cause.
 func (m *Model) refreshRows() {
-	m.setEntries(m.entries())
+	m.table.SetItems(m.rowsFor(m.entries()))
 }
 
 // entries returns the current directory listing, filter or no filter.

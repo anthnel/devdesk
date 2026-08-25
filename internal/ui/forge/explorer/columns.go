@@ -10,9 +10,6 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 )
 
-// numColumns is the number of columns in the explorer table
-const numColumns = 8
-
 // Column minimum widths. The table used to size every column as a ratio of the
 // available space, which reads as deliberate but is not: at 80 columns Type got
 // 5 and Created got 8, neither wide enough for its own header. Floors plus a
@@ -51,7 +48,7 @@ const columnType = 0
 func explorerColumns(v forge.Vocabulary) []datatable.Column[explorerRow] {
 	return []datatable.Column[explorerRow]{
 		{
-			Title: "Type", MinWidth: colTypeMin,
+			Title: "Type", Sizing: datatable.SizingFixed, MinWidth: colTypeMin,
 			Cell: func(r explorerRow) string {
 				if !r.selecting {
 					return nodeTypeLabel(v, r.node)
@@ -61,41 +58,41 @@ func explorerColumns(v forge.Vocabulary) []datatable.Column[explorerRow] {
 			Less: func(a, b explorerRow) bool { return string(a.node.Type) < string(b.node.Type) },
 		},
 		{
-			Title: "Name", MinWidth: colNameMin, Flex: 2,
+			Title: "Name", Sizing: datatable.SizingContent, MinWidth: colNameMin, Flex: 2,
 			Cell:   func(r explorerRow) string { return r.node.Name },
 			Less:   func(a, b explorerRow) bool { return strings.ToLower(a.node.Name) < strings.ToLower(b.node.Name) },
 			Search: func(r explorerRow) string { return r.node.Name },
 		},
 		{
-			Title: "Slug", MinWidth: colSlugMin, Flex: 1,
+			Title: "Slug", Sizing: datatable.SizingContent, Optional: true, MinWidth: colSlugMin, Flex: 1,
 			Cell: func(r explorerRow) string { return nodeSlug(r.node.FullPath) },
 			// The whole path, not the slug shown: a query naming a parent group
 			// has always matched, and the slug is a suffix of it anyway.
 			Search: func(r explorerRow) string { return r.node.FullPath },
 		},
 		{
-			Title: "Visibility", MinWidth: colVisibilityMin,
+			Title: "Visibility", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colVisibilityMin,
 			Cell: func(r explorerRow) string { return visibilityLabel(r.node) },
 			Less: func(a, b explorerRow) bool {
 				return strings.ToLower(a.node.Visibility) < strings.ToLower(b.node.Visibility)
 			},
 		},
 		{
-			Title: "Role", MinWidth: colRoleMin,
+			Title: "Role", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colRoleMin,
 			Cell: func(r explorerRow) string { return r.node.Role },
 		},
 		{
-			Title: "Created", MinWidth: colCreatedMin,
+			Title: "Created", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colCreatedMin,
 			Cell: func(r explorerRow) string { return timeAgo(r.node.CreatedAt) },
 			Less: func(a, b explorerRow) bool { return timeBefore(a.node.CreatedAt, b.node.CreatedAt) },
 		},
 		{
-			Title: "Activity", MinWidth: colActivityMin,
+			Title: "Activity", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colActivityMin,
 			Cell: func(r explorerRow) string { return timeAgo(r.node.LastActivityAt) },
 			Less: func(a, b explorerRow) bool { return timeBefore(a.node.LastActivityAt, b.node.LastActivityAt) },
 		},
 		{
-			Title: "CI", MinWidth: colCIMin,
+			Title: "CI", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colCIMin,
 			Cell:  func(r explorerRow) string { return pipelineStatusLabel(r.node) },
 			Style: func(r explorerRow) lipgloss.Style { return pipelineStatusStyle(r.node) },
 		},

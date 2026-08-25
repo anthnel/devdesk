@@ -222,15 +222,16 @@ func TestColumnsFitTheWidth(t *testing.T) {
 	for _, width := range []int{50, 80, 120, 200} {
 		m := feed(t, scannedModel(t), testutil.Resize(width, 30))
 
-		total := 0
 		for _, col := range m.findingsTable.Table().Columns() {
-			total += col.Width
 			if col.Width < 0 {
 				t.Errorf("at width %d, column %q is %d wide", width, col.Title, col.Width)
 			}
 		}
-		if want := width - 2 - numColumns*2; total != want {
-			t.Errorf("at width %d the columns total %d, want %d", width, total, want)
+		// RenderedWidth rather than the declared columns plus two cells each: a
+		// column dropped for want of room renders nothing and hands its padding
+		// back, so that arithmetic asks for less than the line spans (D61).
+		if got, want := m.findingsTable.RenderedWidth(), width-2; got != want {
+			t.Errorf("at width %d the line spans %d, want %d", width, got, want)
 		}
 	}
 

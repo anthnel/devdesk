@@ -154,24 +154,25 @@ func containerColumns() []datatable.Column[docker.Container] {
 
 	return []datatable.Column[docker.Container]{
 		{
-			Title: "", MinWidth: statusColumnWidth,
+			Title: "", Sizing: datatable.SizingFixed, MinWidth: statusColumnWidth,
 			Cell:  func(c docker.Container) string { return stateIcon(c.State) },
 			Style: containerStateStyle,
 		},
 		{
-			Title: "Name", MinWidth: 14, Flex: 2,
+			Title: "Name", Sizing: datatable.SizingContent, MinWidth: 14, Flex: 2,
 			Cell:   func(c docker.Container) string { return c.Name },
 			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Name) < strings.ToLower(b.Name) },
 			Search: func(c docker.Container) string { return c.Name },
 		},
 		{
-			Title: "Image", MinWidth: 20, Flex: 3,
+			Title: "Image", Sizing: datatable.SizingContent,
+			MinWidth: 20, MaxWidth: 44, Flex: 3, TruncateHead: true,
 			Cell:   func(c docker.Container) string { return c.Image },
 			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Image) < strings.ToLower(b.Image) },
 			Search: func(c docker.Container) string { return c.Image + " " + c.State },
 		},
 		{
-			Title: "CPU", MinWidth: 8,
+			Title: "CPU", Sizing: datatable.SizingFixed, MinWidth: 8,
 			Cell: func(c docker.Container) string {
 				if !running(c) {
 					return "-"
@@ -181,7 +182,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 			Less: func(a, b docker.Container) bool { return a.CPUPercent < b.CPUPercent },
 		},
 		{
-			Title: "Mem", MinWidth: 12,
+			Title: "Mem", Sizing: datatable.SizingFixed, MinWidth: 12,
 			Cell: func(c docker.Container) string {
 				if !running(c) {
 					return "-"
@@ -191,27 +192,27 @@ func containerColumns() []datatable.Column[docker.Container] {
 			Less: func(a, b docker.Container) bool { return a.MemPercent < b.MemPercent },
 		},
 		{
-			Title: "Net RX", MinWidth: 9,
+			Title: "Net RX", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 9,
 			Cell: transfer(netIO, func(c docker.Container) int64 { return c.NetRX }),
 			Less: byInt64(func(c docker.Container) int64 { return c.NetRX }),
 		},
 		{
-			Title: "Net TX", MinWidth: 9,
+			Title: "Net TX", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 9,
 			Cell: transfer(netIO, func(c docker.Container) int64 { return c.NetTX }),
 			Less: byInt64(func(c docker.Container) int64 { return c.NetTX }),
 		},
 		{
-			Title: "Block RX", MinWidth: 10,
+			Title: "Block RX", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 10,
 			Cell: transfer(blockIO, func(c docker.Container) int64 { return c.BlockRX }),
 			Less: byInt64(func(c docker.Container) int64 { return c.BlockRX }),
 		},
 		{
-			Title: "Block TX", MinWidth: 10,
+			Title: "Block TX", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 10,
 			Cell: transfer(blockIO, func(c docker.Container) int64 { return c.BlockTX }),
 			Less: byInt64(func(c docker.Container) int64 { return c.BlockTX }),
 		},
 		{
-			Title: "Ports", MinWidth: 16, Flex: 2,
+			Title: "Ports", Sizing: datatable.SizingContent, MinWidth: 16, Flex: 2,
 			Cell: portsCell,
 			// Search matches what is on screen, icons and all. Keeping the raw
 			// docker string here instead is the tempting version and the wrong
@@ -220,7 +221,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 			Search: portsCell,
 		},
 		{
-			Title: "Created", MinWidth: 12,
+			Title: "Created", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12,
 			Cell: func(c docker.Container) string { return relativeTime(c.CreatedAt) },
 			// CreatedAt is compared as the string docker printed, so a value
 			// that will not parse sorts after every timestamp rather than

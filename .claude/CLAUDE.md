@@ -2146,14 +2146,18 @@ thrown away. Hence `IPv4 []string` and `IPv6 []string` rather than one
 
 Two consequences in the view:
 
-- **Both columns are flexible.** `datatable.shrink` reclaims from the flexible
-  columns first and always from the widest, so two of them are levelled against
-  each other; with the flex on IPv6 alone it absorbed the whole shortfall and
-  rendered at **zero width, header included, from about 100 columns down**.
-- **Below about 88 columns both are squeezed out**, and that cliff is the
-  table's rather than the split's — the single Addresses column had the same
-  one. `MinWidth` is an ask, not a floor, and giving the solver one would change
-  every table in the application. Written down rather than pretended away.
+- **Both columns follow their content and both carry a flex weight.** The flex
+  is what levels them against each other when there is a shortfall — a table
+  reclaims from the widest content column first — and with the flex on IPv6
+  alone it absorbed the whole shortfall and rendered at **zero width, header
+  included, from about 100 columns down**.
+- **The cliff below 88 columns is gone** (§3.45). It was written down here
+  rather than fixed, because `MinWidth` was an ask and giving the solver a floor
+  would have changed every table in the application; §3.45 changed every table
+  in the application. What gives way now is MTU, then MAC, then the two
+  counters — the columns that declare `Optional` — and each is removed whole, so
+  it hands back its padding as well as its width. At 80 columns the addresses
+  get 18 and 29 cells instead of nothing.
 
 Three decisions, each with a test:
 
@@ -2347,7 +2351,13 @@ sort arrows, filter matching, cursor clamping and cursor-to-object resolution.
 ```go
 datatable.New(datatable.Config[T]{
     Columns: []datatable.Column[T]{{
-        Title: "Name", MinWidth: 20, Flex: 1,
+        Title:  "Name",
+        Sizing: datatable.SizingContent, // or SizingFixed — no default (§3.45)
+        MinWidth: 20,   // a floor now, and the exact width of a Fixed column
+        MaxWidth: 48,   // 0 = no ceiling; only meaningful on SizingContent
+        Optional: false, // true = droppable before any column that is not
+        TruncateHead: true, // cut the start, for values told apart by their end
+        Flex:   1,      // share of what is left once everyone has what it wants
         Cell:   func(x T) string { … },  // plain text — Rule 122 by construction
         Style:  func(x T) lipgloss.Style { … }, // nil = the table's own colours
         Less:   func(a, b T) bool { … }, // nil = not sortable
@@ -2358,6 +2368,99 @@ datatable.New(datatable.Config[T]{
     SelectedStyles: func(x T) table.Styles { … }, // e.g. TableStylesForSeverity
 })
 ```
+
+### Every column declares its nature (§3.45)
+
+`Sizing` has **no default**, and `TestEveryColumnDeclaresItsSizing` — a source
+test over `internal/ui`, on `internal/ui/keymap`'s model — fails naming file,
+line and column title. The zero value could have meant something and both
+candidates are worse than the absence: "fixed, never dropped" leaves no column
+droppable so the last resort decides everything, and "content, droppable" makes
+the identifying column of twenty tables removable by default. That is D12 under
+another name.
+
+| | `SizingFixed` | `SizingContent` |
+|---|---|---|
+| **not `Optional`** | `CRIT`, `Secrets`, `Scanned` | `Target`, `Interface`, `Name` |
+| **`Optional`** | `RX err`, `TX err`, `Kind` | `IPv6`, `Mountpoint`, `Remote` |
+
+`Fixed` + `Optional` is what ruled out a single three-valued enum: the interface
+error counters have an exact width *and* are the first thing worth losing.
+
+**The degradation, in order.** Content columns shrink towards their `MinWidth`,
+truncating; then whole columns are **removed**, the `Optional` ones first and
+always the rightmost, and the budget is solved again — a removed column hands
+back its two padding cells, which is what closes D61; then, when only columns
+nobody marked optional are left, they go too, still right to left. That last
+step makes the declaration a preference rather than a guarantee, deliberately:
+fewer columns that are right beats every column wrong, and truncating a fixed
+column instead renders `142` as `14…` with nothing on screen to say so.
+
+**A kept column never goes under one cell.** A column at zero renders nothing
+while its padding has already been spent — D61 word for word — so "too narrow to
+serve" and "not there" have to stay different states, and the second one is a
+removal.
+
+**`MinWidth` keeps its name on a `Fixed` column, where it *is* the width.**
+`Width` would be *false* on a content column that grows past it; `MinWidth` is
+merely redundant where the minimum happens to be the maximum. A redundant name
+is bearable, a false one is not.
+
+**`MaxWidth` has no default and `0` means no ceiling.** One chosen globally
+would apply to columns nobody has looked at, and a full IPv6 address is 45
+cells — so the first "reasonable" default re-truncates exactly what the
+measurement was for. It is set only where values are genuinely unbounded:
+`Image` in containers, `Name` in the images list, `Target` in the `:sec`
+inventory.
+
+**`TruncateHead` is per column, not derived from `Sizing`.** A URL, an image
+reference and a path share their prefix and are told apart by their end; an
+address is identified by the network it starts with. It cannot be left to `Cell`
+either — `Cell` does not know the width it will be rendered at, and that is what
+makes the value measurable.
+
+### When the measurement is taken
+
+`Cell` is called once per cell of every visible row, off screen included, so it
+is officially **pure and cheap**. Nothing can check that — it is an arbitrary
+closure — so it is a sentence in the package doc rather than a test.
+
+The hard half is *when*. `datatable` cannot tell a two-second refresh from a
+change of population: both arrive through `SetItems`. So:
+
+| | Measures again |
+|---|---|
+| the first non-empty population | yes — otherwise the table sits at its `MinWidth`s for the life of the view |
+| `Resize` | yes — the user just changed how much room there is, and the content has not moved |
+| a search edit, a token toggle | yes — a user action on a settled population |
+| every other `SetItems` | **no** |
+| `Remeasure()` | yes — the view saying the population changed for a reason |
+
+`Resize` being a measurement moment removed half the wiring the entry expected:
+several views already call `Resize` right after `SetItems` because they
+recompute their height, which covers registries, netdiag's results and the
+browser's tags for free. Four explicit `Remeasure()` calls are left — the
+explorer's drill-down, `ws`'s change of directory, `:sec`'s change of tab, and
+the viewer tree's fold. The tick-refreshed tables (containers, ports,
+interfaces, status) call no `Resize`, so they do not measure again, which is
+exactly the property wanted.
+
+`ws` had to detach `refreshRows` from `setEntries` for this: both went through
+one point and one of them arrives several times a second while a scan runs, so
+measuring there would have moved the columns at the spinner's rhythm.
+
+The cost is written down rather than discovered: a value that grew between two
+measurements stays truncated until the next one.
+
+### Rule 116 is stated on the rendered span
+
+`RenderedWidth()` is what the table's lines actually span, and it is what a
+view's layout test asserts on. Summing the declared columns and adding two each
+is the tempting version, it is what all eleven of those tests did, and it is
+wrong the moment a column is dropped: the dropped column renders nothing and its
+padding goes back into the budget, so the formula asks for less than the line
+spans and fails on a layout that is correct. That disagreement was D61 seen from
+the other side.
 
 `SortDesc` exists for count columns: ascending is their useless end, and cycling
 `.` past it on every open is not a default. A direction with no sortable column
@@ -2409,7 +2512,9 @@ Three things it guarantees that hand-wired tables did not:
   built once and kept; nothing replays the pipeline to resolve a cursor.
 - **Rule 116 holds at every width.** The solver distributes the shortfall across
   columns rather than clamping each one after the remainder is computed, which is
-  how several views overflowed on narrow terminals.
+  how several views overflowed on narrow terminals — and it removes a column
+  rather than emptying one, which is what makes the rendered line span the
+  viewport interior at every width (D61).
 - **The cursor is clamped in one place** — `SetItems`, both ends — and otherwise
   left where it was, so a periodic refresh keeps the scroll position. `GotoTop()`
   is explicit for views that do want a reset.

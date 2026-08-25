@@ -99,18 +99,18 @@ func newCloneList(target string, run *cloneRun) *cloneList {
 func cloneColumns() []datatable.Column[cloneRow] {
 	return []datatable.Column[cloneRow]{
 		{
-			Title: "Repository", MinWidth: colClonePathMin, Flex: 2,
+			Title: "Repository", Sizing: datatable.SizingContent, MinWidth: colClonePathMin, Flex: 2, TruncateHead: true,
 			Cell:   func(r cloneRow) string { return r.path },
 			Less:   func(a, b cloneRow) bool { return strings.ToLower(a.path) < strings.ToLower(b.path) },
 			Search: func(r cloneRow) string { return r.path },
 		},
 		{
-			Title: "Detail", MinWidth: colCloneDetailMin, Flex: 1,
+			Title: "Detail", Sizing: datatable.SizingContent, Optional: true, MinWidth: colCloneDetailMin, Flex: 1,
 			Cell:   func(r cloneRow) string { return r.detail },
 			Search: func(r cloneRow) string { return r.detail },
 		},
 		{
-			Title: "Status", MinWidth: colCloneStatusMin,
+			Title: "Status", Sizing: datatable.SizingFixed, MinWidth: colCloneStatusMin,
 			Cell:  func(r cloneRow) string { return cloneStatusLabel(r) },
 			Style: cloneStatusStyle,
 			Less:  func(a, b cloneRow) bool { return a.state < b.state },
