@@ -1,0 +1,13 @@
+/plan je voudrais pouvoir désactiver certains shortcuts dans le header quand la fonctionnalité n'est pas disponible, au lieu de cacher l'entrée je préfère l'afficher et mettre la couleur du shortcut en dim, les shortcuts ne bougent donc pas mais ils peuvent être disable. Par exemple si le scan d'un répertoire n'est pas possible (manque les tools, ou pas un répertoire git, etc.)
+
+---
+
+tout a fait un changement de mode change la liste. Grisé ou pas doit être utilisé au sein d'une même vue en fonction de la ligne sélectionnée ou parce que de manière globale un outil n'est pas disponible. Je suppose que le header est un seul objet et qu'il est instancié une seule fois par vue. Le mécanisme pour les shortcuts doit donc être implémenté une seule fois et ensuite configuré pour chaque vue
+
+---
+
+oui
+
+---
+
+très bien migre les autres vues
