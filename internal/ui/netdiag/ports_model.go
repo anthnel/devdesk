@@ -2,8 +2,10 @@ package netdiag
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -340,9 +343,43 @@ func (pm *PortsModel) handleKillResult(msg portsKillResultMsg) (*PortsModel, tea
 	pm.table.ClearBusy(msg.pid)
 	if msg.err != nil {
 		log.Printf("ERROR [netdiag/ports] ports.Kill pid=%s: %v", msg.pid, msg.err)
-		return pm, pm.footer.Error(fmt.Sprintf("Failed to kill PID %s", msg.pid))
+		return pm, pm.footer.Error(killFailureMessage(msg.pid, msg.err))
 	}
 	return pm, pm.footer.Info(fmt.Sprintf("Process %s terminated", msg.pid))
+}
+
+// killFailureMessage says why the signal did not land.
+//
+// DevDesk signals with the rights it has (§3.43), so the refusal the user meets
+// most often is the operating system's — another user's process, a service, one
+// Windows protects. "Failed to kill PID 1234" gave them no reason to suspect
+// that, and made "access denied" and "already gone" the same sentence.
+//
+// The platform error itself never reaches the screen: it comes back in the
+// machine's own language — measured here, PID 4 answers `OpenProcess: Accès
+// refusé.` — which is the route stage's rule (§3.44). errors.Is reads through
+// the %w wrapping ports.Kill applies, and both sentinels are the standard
+// library's.
+//
+// The permission branch was measured on Windows: killing PID 4 (System) gives
+// ERROR_ACCESS_DENIED, which syscall.Errno maps onto os.ErrPermission. EPERM
+// maps the same way on Unix.
+//
+// **The "already gone" branch does not fire on Windows**, and that is measured
+// too: a PID that does not exist fails OpenProcess with
+// ERROR_INVALID_PARAMETER, which maps to neither sentinel, so it falls to the
+// generic message. Mapping that code would be a guess — it is what an invalid
+// argument returns as well — and the row disappears on the next two-second
+// refresh anyway. The branch is kept because ESRCH does map to
+// os.ErrProcessDone on Unix.
+func killFailureMessage(pid string, err error) string {
+	switch {
+	case errors.Is(err, os.ErrPermission):
+		return fmt.Sprintf("Refused by the system — DevDesk cannot signal PID %s", pid)
+	case errors.Is(err, os.ErrProcessDone):
+		return fmt.Sprintf("PID %s is no longer running", pid)
+	}
+	return fmt.Sprintf("Failed to kill PID %s — check logs", pid)
 }
 
 func (pm *PortsModel) handleKey(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
@@ -411,13 +448,10 @@ func (pm *PortsModel) handleKeyNormal(msg tea.KeyMsg) (*PortsModel, tea.Cmd) {
 // had no confirmation at all, while deleting a container — recreatable from its
 // image — had one (§3.26).
 func (pm *PortsModel) confirmKill() (*PortsModel, tea.Cmd) {
-	entry, ok := pm.table.Selected()
-	if !ok {
-		return pm, nil
+	if k := pm.killable(); !k.Enabled() {
+		return pm, pm.footer.Warn(k.Reason)
 	}
-	if entry.PID == "" {
-		return pm, pm.footer.Warn("No PID available for this entry")
-	}
+	entry, _ := pm.table.Selected()
 	if pm.table.IsBusy(entry.PID) {
 		return pm, pm.footer.Warn("Already killing PID " + entry.PID)
 	}
@@ -427,6 +461,31 @@ func (pm *PortsModel) confirmKill() (*PortsModel, tea.Cmd) {
 			entry.Process, entry.PID),
 	)
 	return pm, nil
+}
+
+// Why K does not apply, written once so the header, the footer and the tests
+// cannot drift apart on the wording (Rule 129 — English US).
+const (
+	reasonNoSocketRow = "No socket selected"
+	reasonNoPID       = "The system did not say which process holds this socket"
+)
+
+// killable reports whether K has a process to signal (Rule 130).
+//
+// A socket the system declines to attribute carries no PID — `List` blanks a
+// PID of zero rather than printing it, because process 0 is a whole process
+// group on Unix and a row reading "0" would look killable. That is the state
+// this greys; whether the operating system will *accept* the signal is a
+// different question, and one only the attempt can answer.
+func (pm *PortsModel) killable() shortcut.Availability {
+	entry, ok := pm.table.Selected()
+	switch {
+	case !ok:
+		return shortcut.Unavailable(reasonNoSocketRow)
+	case entry.PID == "":
+		return shortcut.Unavailable(reasonNoPID)
+	}
+	return shortcut.Availability{}
 }
 
 // killSelected sends the signal, once confirmed.

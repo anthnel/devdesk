@@ -2051,6 +2051,28 @@ loopback and unspecified addresses are never asked at all.
 another user's process, or a service, now comes back refused by the operating
 system instead of succeeding against the wrong machine.
 
+**So the refusal has to be legible, and `K` has to say when it cannot even
+try** (§3.49). Two different questions, and only one of them is answerable
+before the keypress:
+
+- **No PID, no key.** A socket the system declines to attribute carries an empty
+  `PID`, and `K` is greyed on that row (Rule 130) — it used to be advertised
+  everywhere and warn only once pressed.
+- **Whether the OS will accept the signal is the attempt's answer**, never the
+  header's, so a row with a PID stays lit even when the kill is certain to be
+  refused. `killFailureMessage` classifies the failure with `errors.Is` through
+  the `%w` wrapping `Kill` applies: `os.ErrPermission` reads *Refused by the
+  system*, `os.ErrProcessDone` reads *no longer running*, anything else keeps
+  the generic line. `Failed to kill PID N` made those the same sentence.
+
+The platform error never reaches the screen — measured, PID 4 on this machine
+answers `OpenProcess: Accès refusé.`, in the machine's own language, which is
+the route stage's rule (§3.44). Also measured, and written down rather than
+discovered: **the "already gone" branch does not fire on Windows**, where a
+nonexistent PID fails `OpenProcess` with `ERROR_INVALID_PARAMETER` and maps to
+neither sentinel. Mapping that code would be a guess, and the row disappears on
+the next two-second refresh anyway.
+
 **Nothing in the application runs `--network host` any more** (§3.47). §3.33
 brought DNS, ICMP, TCP, TLS and HTTP into the process, §3.43 the socket table,
 §3.44 the interfaces, and §3.47 removed the route trace — the last one. That is

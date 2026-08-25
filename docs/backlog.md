@@ -8882,6 +8882,69 @@ et sortent donc du périmètre de cette entrée : `K`, `D`, `T`, `L`, `enter` de
 et se grisent de la même façon, mais c'est du grisage neuf, pas une migration.
 
 
+### 3.49 `net`/Ports — `K` dit quand elle ne peut pas, et pourquoi elle a échoué — **done**
+
+Fait le 2026-08-25. Deux défauts voisins, tous les deux dans le prolongement de
+§3.43 (le kill signale avec les droits de DevDesk) et de §3.48 (une touche sans
+objet est grisée). Ils étaient nommés « hors périmètre » à la fin de §3.48 ; les
+voici.
+
+#### Deux questions, et une seule a une réponse avant l'appui
+
+| | Réponse | Où |
+|---|---|---|
+| « y a-t-il un processus à signaler ? » | **oui, avant l'appui** — la socket porte un PID ou non | grisage (Rule 130) |
+| « le système va-t-il accepter le signal ? » | **non** — seul l'essai le dit | message d'échec |
+
+**Pas de PID, pas de touche.** `List` laisse `PID` vide quand le système
+n'attribue pas la socket — un PID de zéro n'est pas un processus, et une ligne
+affichant `0` aurait l'air tuable alors que 0 est un groupe de processus entier
+sous Unix. `K` est donc grisée sur ces lignes, et sur une table vide. Elle était
+annoncée partout et ne se plaignait qu'une fois pressée.
+
+**Une ligne avec un PID reste allumée même quand le refus est certain.** C'est
+la ligne de partage : le header dit ce que l'application peut *tenter*, pas ce
+que le système va accorder. Griser d'après une supposition de droits serait
+mentir dans l'autre sens — et sur Windows la seule façon de savoir est
+d'appeler `OpenProcess`, c'est-à-dire de faire l'essai.
+
+#### Le refus du système ne disait pas pourquoi
+
+`handleKillResult` journalisait `msg.err` puis affichait `Failed to kill PID
+1234` : l'erreur était jetée avant l'écran, donc « accès refusé » et « ce
+processus n'existe plus » devenaient la même phrase — et l'utilisateur n'avait
+aucune raison de soupçonner qu'il lui fallait des droits. C'est le cas le plus
+fréquent depuis §3.43, précisément parce que le kill ne part plus dans un
+conteneur privilégié.
+
+`killFailureMessage` classe avec `errors.Is` à travers le `%w` que `ports.Kill`
+applique déjà :
+
+| Sentinelle | Message |
+|---|---|
+| `os.ErrPermission` | `Refused by the system — DevDesk cannot signal PID N` |
+| `os.ErrProcessDone` | `PID N is no longer running` |
+| le reste | `Failed to kill PID N — check logs` |
+
+**L'erreur de la plateforme ne touche jamais l'écran.** Mesuré sur cette
+machine : PID 4 répond `OpenProcess: Accès refusé.` — en français. C'est la
+règle du stage `route` (§3.44) : une chaîne localisée va dans un fait ou dans un
+log, jamais dans une phrase que l'application compose.
+
+#### Ce que la mesure a corrigé dans le commentaire
+
+La branche « already gone » **ne se déclenche pas sous Windows**, et c'est
+mesuré plutôt que supposé : un PID inexistant échoue `OpenProcess` avec
+`ERROR_INVALID_PARAMETER`, qui ne correspond à aucune des deux sentinelles et
+tombe donc dans le message générique. Mapper ce code serait une supposition — un
+argument réellement invalide renvoie la même chose — et la ligne disparaît au
+rafraîchissement suivant, deux secondes plus tard. La branche est gardée parce
+que `ESRCH` correspond bien à `os.ErrProcessDone` sous Unix.
+
+C'est aussi ce qui a fait écrire la règle en toutes lettres : **le header
+répond de ce que l'application peut tenter, le footer de ce que le système a
+répondu.**
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:
