@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "121e5126bc05",
+  "strategy": "manual-commit",
+  "branch": "fix/dashboard-connectivity-tool-name",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/dashboard/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/12/1e5126bc05/0/metadata.json",
+      "transcript": "/12/1e5126bc05/0/full.jsonl",
+      "compact_transcript": "/12/1e5126bc05/0/transcript.jsonl",
+      "content_hash": "/12/1e5126bc05/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 156072,
+    "cache_read_tokens": 4004077,
+    "output_tokens": 8889,
+    "api_call_count": 25
+  }
+}
