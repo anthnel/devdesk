@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "65de5714c117",
+  "strategy": "manual-commit",
+  "branch": "d56-gitleaks-config",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/config/config.go",
+    "internal/config/context_test.go",
+    "internal/scan/command_test.go",
+    "internal/scan/execute_test.go",
+    "internal/scan/gitleaks.go",
+    "internal/scan/scan_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/65/de5714c117/0/metadata.json",
+      "transcript": "/65/de5714c117/0/full.jsonl",
+      "compact_transcript": "/65/de5714c117/0/transcript.jsonl",
+      "content_hash": "/65/de5714c117/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 136,
+    "cache_creation_tokens": 84625,
+    "cache_read_tokens": 18027633,
+    "output_tokens": 42072,
+    "api_call_count": 68
+  }
+}
