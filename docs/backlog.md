@@ -11,7 +11,7 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Deux ouverts : D56 et D59** — voir [§1.3](#13-open).
+**Trois ouverts : D56, D59 et D61** — voir [§1.3](#13-open).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -1657,6 +1657,42 @@ and D11 each had one, and each failed the moment the fix landed, which is how
 the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
+
+**D61 — la ligne sélectionnée s'arrête avant la bordure droite dès qu'une
+colonne tombe à zéro. Ouvert.** Mesuré au rendu le 2026-08-25, pas déduit.
+
+`availableFor` soustrait le padding de **toutes** les colonnes en amont du
+calcul ; `contentWidth` (`render.go:76`) ne le compte que pour celles dont la
+largeur est non nulle, et `headerLine` comme `rowLine` sautent les autres. Une
+colonne évincée emporte donc ses deux cellules sans les rendre à personne.
+
+| Table | Terminal | Intérieur du viewport | Ligne rendue | Écart | Largeurs |
+|---|---|---|---|---|---|
+| Interfaces | 80 | 78 | 74 | **4** | `[16 7 6 17 0 0 8 8]` |
+| Interfaces | 84 | 82 | 82 | 0 | `[16 7 6 17 2 2 8 8]` |
+| Ports | 88 | 86 | 84 | **2** | `[7 10 25 25 7 0]` |
+| Ports | 96 | 94 | 94 | 0 | `[7 10 26 26 7 6]` |
+
+L'écart vaut exactement `2 × (nombre de colonnes à zéro)`, et il disparaît dès
+qu'aucune ne l'est. Il touche toute table dont les colonnes fixes saturent la
+largeur — Interfaces sous ~82 colonnes, Ports sous ~96 — donc pas seulement les
+deux mesurées.
+
+C'est Rule 116 en défaut : la règle existe pour que la ligne sélectionnée
+atteigne la bordure droite du viewport, et elle ne le fait pas aux largeurs où
+une table évince. À ne pas confondre avec la falaise décrite en
+[§3.49](#349-net--k-dit-quand-elle-ne-peut-pas-et-les-adresses-se-séparent-par-famille--done) :
+celle-là est le fait que `MinWidth` n'est pas un plancher, elle est délibérée et
+elle est écrite ; ici c'est la largeur *rendue* qui ne correspond plus au
+viewport, ce qui n'a jamais été voulu.
+
+Corrigé par le point 2 de
+[§3.45](#345-datatable--chaque-colonne-déclare-sa-nature-et-les-largeurs-suivent) :
+retirer une colonne rend son padding et le calcul reprend. Noté séparément parce
+que la correction tient dans `widths.go` et `render.go` seuls, sans rien de ce
+que §3.45 demande par ailleurs — et parce que c'est un défaut visible
+aujourd'hui, pas une amélioration.
+
 
 **D59 — un scan lancé sur une arborescence oublie certains dépôts, en
 silence. Moitié corrigée, moitié ouverte.** Signalé à l'usage, puis reproduit
@@ -8421,90 +8457,225 @@ route — et à une autre, côté réseau Docker, que personne n'avait comptée.
 qui a supprimé la première et renommé le réglage d'après la seconde.
 
 
-### 3.45 `datatable` — des largeurs de colonnes qui regardent le contenu
+### 3.45 `datatable` — chaque colonne déclare sa nature, et les largeurs suivent
 
-À faire. Aujourd'hui une colonne demande sa `MinWidth` et rien d'autre, et tout
-l'espace en trop va aux colonnes `Flex`. Le résultat est visible sur l'onglet
-Ports, à 160 colonnes :
+À faire. Tout ce qui suit a été tranché le 2026-08-25 : c'est ce qu'il faut
+écrire, plus un espace à explorer.
 
-| Colonne | `MinWidth` | `Flex` | Obtenu | Contenu réel |
-|---|---|---|---|---|
-| Proto | 6 | — | 6 | `tcp` |
-| State | 10 | — | 10 | `LISTEN` |
-| Local Address | 26 | — | 26 | `[fe80::1%12]:445` |
-| Peer Address | 26 | — | **26** | `[2606:2800:220:1:248:1893:25c8:1946]:443` — **tronqué** |
-| PID | 7 | — | 7 | `27564` |
-| Process | 10 | **1** | **71** | `svchost.exe` |
+L'entrée s'appelait « des largeurs de colonnes qui regardent le contenu », et
+c'était la moitié du sujet. Mesurer le contenu ne dit pas quoi faire quand il ne
+rentre pas, et c'est là que sont les défauts.
 
-Les six `MinWidth` font 85 cellules, plus 12 de padding : 97 sur 146
-disponibles. Les **49 restantes vont intégralement à Process**, qui n'en a
-besoin d'aucune, pendant que Peer Address coupe une adresse qu'on est justement
-en train de lire. `Flex` dit *qui* reçoit le surplus, jamais *qui en a besoin*.
+#### Ce qu'une colonne ne sait pas dire
 
-#### La règle demandée
+`Column` porte `MinWidth` et `Flex`, et ces deux nombres répondent pour quatre
+questions distinctes :
 
-Mesurer ce que les cellules contiennent, et :
+| Le fait | Exemple | Ce qui le porte aujourd'hui |
+|---|---|---|
+| la largeur est connue à la compilation | `CRIT` fait 6, `Secrets` 7 | `MinWidth`, comme si c'était une demande |
+| la largeur dépend du contenu | `Target`, `Peer Address`, `Remote` | `MinWidth` + `Flex`, sans jamais regarder le contenu |
+| la colonne peut disparaître | `IPv6`, `Rx Err` | rien — `shrink` vide ce qui est flexible, dans l'ordre où ça se trouve |
+| la colonne ne peut pas être tronquée | un compte, une icône | rien — `142` s'affiche `14…` |
 
-1. si tout tient à l'écran, **tout afficher** ;
-2. sinon, ne tronquer **que** les colonnes qui l'exigent.
+Le dernier est le plus grave et le moins visible : une abréviation se voit, un
+chiffre faux non.
 
-`MinWidth` garde son sens de plancher ; ce qui apparaît est un plafond implicite
-— la plus large valeur affichée. `Flex` cesse d'être le distributeur du surplus
-et redevient ce qu'il aurait dû être : le départage quand il reste de la place
-*après* que tout le monde est servi.
+#### La mesure
 
-#### Ce qui rend ça possible, et qu'il faut dire
+`solveWidths` sur les colonnes réelles de l'onglet Ports :
 
-**`Cell` rend du texte brut** (Rule 122). C'est précisément ce qui permet de le
+| largeur du terminal | Proto | State | Local Address | Peer Address | PID | Process |
+|---|---|---|---|---|---|---|
+| 100 | 7 | 10 | 26 | 26 | 7 | 10 |
+| 146 | 7 | 10 | 26 | 26 | 7 | **56** |
+| 200 | 7 | 10 | 26 | 26 | 7 | **110** |
+
+À 200 colonnes, Process reçoit 110 cellules pour `svchost.exe` pendant que Peer
+Address reste figée à 26 et coupe `[2606:2800:220:1:248:1893:25c8:1946]:443`.
+`Flex` dit *qui* reçoit le surplus, jamais *qui en a besoin*.
+
+#### Ce que la colonne déclare
+
+Deux champs, orthogonaux parce que les quatre combinaisons existent dans
+l'application :
+
+```go
+type Sizing int
+
+const (
+	SizingUnset   Sizing = iota // refusé par un test — voir plus bas
+	SizingFixed                 // la largeur est celle déclarée, exactement
+	SizingContent               // min(contenu mesuré, MaxWidth), plancher MinWidth
+)
+
+type Column[T any] struct {
+	…
+	Sizing       Sizing
+	Optional     bool // peut disparaître quand la table ne rentre pas
+	MaxWidth     int  // 0 = pas de plafond ; n'a de sens que sur SizingContent
+	TruncateHead bool // tronquer le début plutôt que la fin
+}
+```
+
+| | `Fixed` | `Content` |
+|---|---|---|
+| **non `Optional`** | `CRIT`, `Secrets`, `Scanned` | `Target`, `Interface`, `Name` |
+| **`Optional`** | `Rx Err`, `Tx Err` | `IPv6`, `Peer Address`, `Remote` |
+
+**`Fixed` + `Optional` est ce qui a écarté un enum unique à trois valeurs**
+(`Fixed` / `Essential` / `Optional`). Les compteurs d'erreurs d'Interfaces ont
+une largeur exacte *et* sont ce qu'on lâche en premier : à 100 colonnes, les
+lâcher rend 20 cellules aux deux colonnes d'adresses, qui en ont 10 chacune.
+Une seule valeur par colonne ne sait pas le dire.
+
+**`MaxWidth` n'a pas de défaut**, et `0` veut dire pas de plafond. Un défaut
+global choisi une fois s'appliquerait à des colonnes dont personne n'a regardé
+le contenu — et une adresse IPv6 complète fait 45 cellules, donc le premier
+défaut « raisonnable » qui vient à l'esprit retronque ce qu'on vient de
+corriger. Il est posé explicitement sur les seules colonnes qui portent des
+valeurs sans borne : `Remote` dans `ws`, `Target` dans `:sec`, `Image` dans les
+conteneurs.
+
+**`TruncateHead` est un drapeau par colonne, et le défaut est la queue**
+(`fit` d'aujourd'hui). Le sens dépend de la colonne et non du `Sizing`, ce qui
+est exactement ce qui interdit d'en faire une règle : une URL veut sa fin, une
+adresse IP veut son début.
+
+```
+Remote, TruncateHead        Remote, en queue          IPv4, en queue (défaut)
+…group/sub/project.git      https://gitlab.com/…      192.168.1.…
+…group/autre-projet.git     https://gitlab.com/…      192.168.4.…
+```
+
+Trois lignes identiques n'identifient rien, et c'est ce que la troncature en
+queue donne sur une URL serrée à son `MinWidth` — c'est-à-dire précisément quand
+la colonne est la plus difficile à lire. Tronquer toutes les colonnes `Content`
+en tête corrigerait les URL, les références d'image et les chemins d'un coup, et
+casserait les adresses : le préfixe dit de quel réseau il s'agit, et c'est lui
+qui disparaîtrait.
+
+Le laisser à la vue, dans `Cell`, n'est pas possible : `Cell` ne connaît pas la
+largeur à laquelle elle sera rendue, et c'est délibéré — c'est ce qui rend la
+mesure possible.
+
+#### `MinWidth` redevient un vrai plancher, et `Optional` est ce qui le permet
+
+C'est le cœur de l'entrée. Aujourd'hui `MinWidth` est une demande : `takeFrom`
+retire une cellule à la fois à la plus large sans jamais s'arrêter, donc une
+colonne descend à zéro et disparaît. Lui donner un plancher **sans
+échappatoire** ferait déborder la table dès que la somme des planchers dépasse
+la largeur disponible — Rule 116 en défaut pour de bon, et une règle de plus à
+inventer sur place.
+
+`Optional` est l'échappatoire. L'ordre de dégradation :
+
+1. les colonnes `Content` rétrécissent vers leur `MinWidth`, en tronquant ;
+2. puis les colonnes `Optional` sont **retirées**, la plus à droite d'abord, et
+   le calcul reprend — retirer une colonne rend aussi ses deux cellules de
+   padding, ce qui est D61 ;
+3. dernier recours, quand il ne reste que des colonnes non `Optional` qui ne
+   rentrent pas : les retirer quand même, toujours de droite à gauche.
+
+**Le point 3 fait de la déclaration une préférence et non une garantie, et c'est
+délibéré** : mieux vaut moins de colonnes justes que toutes fausses. L'ordre des
+colonnes est déjà un ordre d'importance dans les tables mesurées, donc droite à
+gauche dégrade dans le bon sens —
+
+```
+Target  Secrets  CRIT  HIGH  MED  LOW  Scanned
+Target  Secrets  CRIT  HIGH  MED  LOW
+Target  Secrets  CRIT
+Target
+```
+
+— et ce qui reste est exact à chaque étape. L'alternative, tronquer les colonnes
+fixes en dernier recours, garde toutes les colonnes et rend `142` en `14…` : la
+table dit alors quelque chose de faux au lieu de dire moins, et rien à l'écran
+ne distingue les deux.
+
+#### Quand mesurer, et sur quoi
+
+**Toutes les lignes visibles.** Les lignes filtrées, à l'écran ou non. Une
+recherche qui ne garde que des adresses courtes doit rendre la place, sinon le
+filtre ne sert à rien visuellement ; et mesurer les seules lignes à l'écran
+ferait bouger les colonnes à chaque flèche — la danse qu'on cherche à éviter,
+déclenchée par la touche la plus utilisée. 197 lignes × 6 colonnes sur Ports.
+
+**Aux moments visibles seulement**, jamais sur un tick périodique :
+redimensionnement, changement de filtre ou de jeton, changement d'onglet,
+drill-down, `ctrl+r`. Le coût est écrit plutôt que découvert : une adresse plus
+longue apparue entre deux recalculs reste tronquée jusqu'au suivant. Le cliquet
+— élargir sans jamais rétrécir — est plus agréable, mais il faut alors décider
+ce qui le remet à zéro, et le tri comme le filtre sont chacun une réponse
+défendable ; c'est trois questions de plus pour un confort.
+
+**`datatable` ne peut pas distinguer un tick d'un changement de population** :
+les deux arrivent par `SetItems`. C'est donc la vue qui le dit — `SetItems` ne
+remesure jamais, `Remeasure()` est explicite. Une exception, et une seule : le
+premier remplissage non vide remesure de lui-même, sinon les largeurs restent à
+`MinWidth` pour la vie de la vue et rien à l'écran ne le dit.
+
+#### Le contrat sur `Cell`, et le seul test qui compte
+
+`Cell` rend du texte brut (Rule 122), et c'est précisément ce qui permet de le
 mesurer : une cellule portant déjà sa couleur mesurerait ses octets
-d'échappement, ce qui est le défaut que Rule 122 existe pour rendre
-inexprimable. La mesure passe donc par `lipgloss.Width` sur la sortie de `Cell`,
-avant tout style — la même inversion que `render.go`.
+d'échappement, ce que Rule 122 existe pour rendre inexprimable. La mesure passe
+par `lipgloss.Width` sur la sortie de `Cell`, avant tout style — la même
+inversion que `render.go`.
 
-#### Ce qu'il faut trancher, et c'est le vrai sujet
+**`Cell` devient officiellement pure et bon marché.** Le rendu l'appelle déjà
+une fois par cellule visible ; la mesure l'appellera une fois par cellule de
+*toutes* les lignes visibles, hors écran comprises. Rien ne peut le vérifier —
+c'est une closure arbitraire — donc c'est une phrase dans la doc du paquet, pas
+un test.
 
-**Sur quelles lignes mesurer.** Les lignes **visibles** (filtrées), pas
-`m.items` : une recherche qui ne garde que des adresses courtes doit rendre la
-place, sinon le filtre ne sert à rien visuellement.
+Ce qui *est* vérifiable, et doit l'être : **aucune colonne ne laisse son
+`Sizing` à `SizingUnset`**. La valeur zéro ne veut rien dire de raisonnable ici,
+et les deux candidats sont pires que l'absence :
 
-**Quand recalculer.** À chaque `SetItems`, donc **toutes les deux secondes** sur
-l'onglet Ports. C'est là qu'est le piège : des largeurs qui suivent le contenu
-font *danser* les colonnes à chaque rafraîchissement dès qu'une connexion
-apparaît ou disparaît. Un tableau qui se réorganise sous les yeux est pire que
-la troncature qu'il corrige. Trois sorties possibles, à décider avant d'écrire
-quoi que ce soit :
+- « fixe, non évinçable » ne change rien tant qu'une table n'est pas annotée,
+  mais plus aucune colonne n'est évinçable au départ — le dernier recours décide
+  tout, et le comportement actuel disparaît sans être remplacé ;
+- « content, évinçable » est plus proche d'aujourd'hui, mais rend `Target`
+  retirable par défaut, dans les vingt tables à la fois. C'est D12 sous un autre
+  nom : un zéro qui ment sur ce que personne n'a déclaré.
 
-- **cliquet** — une colonne s'élargit mais ne rétrécit jamais tant que la table
-  est à l'écran, et repart de zéro sur `ctrl+r` ou un changement de filtre ;
-- **hystérésis** — on ne bouge que si l'écart dépasse quelques cellules ;
-- **recalcul aux seuls moments visibles** — redimensionnement, changement de
-  filtre, changement d'onglet — et jamais sur un tick périodique.
+`TestEveryColumnDeclaresItsSizing` nomme la table et la colonne, sur le modèle de
+`TestEveryFieldCarriesTheAccessorItsKindNeeds` de la vue configuration. Coût :
+les ~90 déclarations de colonnes sont regardées une fois, colonne par colonne.
 
-La troisième est la plus simple et la plus prévisible ; le cliquet est le plus
-agréable et le plus dur à tester.
+#### Le nom du nombre, et ce qui n'a pas été renommé
 
-**Le coût.** 197 lignes × 6 colonnes = ~1 200 appels à `Cell` et à
-`lipgloss.Width` par recalcul. Négligeable en absolu, mais `Cell` est une
-closure arbitraire et rien ne garantit aujourd'hui qu'elle est bon marché — le
-contrat « `Cell` est pur et pas cher » deviendrait une exigence à écrire dans la
-doc du paquet, puisque le rendu l'appellerait déjà une fois par cellule visible
-et la mesure une fois par cellule **de toutes** les lignes visibles, y compris
-celles hors écran.
+`MinWidth` reste `MinWidth`, y compris sur une colonne `Fixed` où il *est* la
+largeur. Le renommer en `Width` ne coûtait rien — les 93 déclarations sont de
+toute façon toutes touchées par l'annotation — donc seule la lisibilité décidait,
+et l'asymétrie penche dans l'autre sens que ça en avait l'air :
 
-**Un plafond dur reste nécessaire.** Une colonne Remote portant une URL de 200
-caractères ne doit pas réclamer 200 cellules et affamer tout le reste : la
-demande est `min(contenu, MaxWidth)`, avec un `MaxWidth` optionnel par colonne
-et un défaut raisonnable.
+| | `Width: 26` | `MinWidth: 26` |
+|---|---|---|
+| une colonne `Content` rendue à 46 | **faux** | vrai |
+| une colonne `Fixed` rendue à 6 | vrai | vrai, et redondant |
 
-Rien de tout ça ne change `shrink` : quand ça ne rentre pas, la règle actuelle —
-le déficit sort des colonnes flexibles avant les fixes — reste la bonne.
+`Width` mentirait sur une colonne qui dépasse ce nombre dès qu'il y a de la
+place ; `MinWidth` n'est que redondant là où le minimum se trouve être aussi le
+maximum. Un nom redondant se supporte, un nom faux non. Deux champs exclusifs
+(`Width` pour `Fixed`, `MinWidth` pour `Content`) ont été écartés pour la raison
+habituelle : quatre champs de largeur sur une `Column`, et une structure qui en
+porte deux invite à remplir les deux.
 
-#### Ce que ça corrigerait ailleurs
+Une chose qui ne change pas non plus : `askFor` réserve `largeur(titre) + 2` à
+toute colonne triable, `Fixed` comprise. Une largeur exacte plus étroite que son
+propre en-tête trié perd la flèche ; c'est un défaut de déclaration, pas un cas
+à gérer.
+
+#### Ce que ça corrige ailleurs
 
 Toutes les tables sont des `datatable` depuis §3.21, donc le gain est général.
-Les cas les plus visibles : Remote dans `ws` (une URL longue à côté de colonnes
-de comptage à un chiffre), Target dans l'inventaire `:sec`, et Image dans les
-conteneurs.
+Les cas les plus visibles : `Remote` dans `ws` (une URL longue à côté de colonnes
+de comptage à un chiffre), `Target` dans l'inventaire `:sec`, `Image` dans les
+conteneurs, et les deux colonnes d'adresses d'Interfaces, dont §3.49 a écrit la
+falaise plutôt que de la corriger. D61 disparaît avec le point 2.
 
 ### 3.46 `ws` — une icône par ligne, et la colonne Type disparaît — **done**
 
