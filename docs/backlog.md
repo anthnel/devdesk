@@ -7964,7 +7964,9 @@ sont prises. Les chiffres sont en §3.43 ; en un mot :
 
 ### 3.42 `plumber` — un score de sécurité de pipeline, par dépôt
 
-À planifier. [`getplumber/plumber`](https://github.com/getplumber/plumber) lit la
+À planifier — **la conception est tranchée, l'implémentation attend D56 et
+trois mesures** (voir « Ce qui reste ouvert » en fin de section).
+[`getplumber/plumber`](https://github.com/getplumber/plumber) lit la
 configuration CI d'un dépôt — `.gitlab-ci.yml`, workflows GitHub Actions — la
 passe dans un moteur de politiques Rego, et en tire un **Plumber Score** : une
 lettre de A à E, des points sur 100, et les findings qui l'expliquent.
@@ -8003,9 +8005,17 @@ fichiers, pas de réseau — et côté GitLab, pas du tout. Cinq conséquences :
    de sévérité font déjà entre « jamais scanné » et « ne peut pas l'être ».
 3. **Sur GitLab, le score décrit une branche du serveur, pas le HEAD local.**
    `--branch` existe, mais la branche courante n'est peut-être pas poussée.
-   À trancher : la passer et accepter l'échec, ou assumer la branche par défaut
-   et **le dire à l'écran**, comme `renderTraceHeader` dit que la route est celle
-   du conteneur. Sur GitHub la question ne se pose pas — c'est l'arbre de travail.
+   **Tranché le 2026-08-25 : on passe la branche courante et on accepte
+   l'échec.** L'alternative — assumer la branche par défaut — mettrait dans la
+   colonne une lettre qui décrit autre chose que ce que l'utilisateur regarde,
+   et il faudrait alors le dire à l'écran, comme `renderTraceHeader` disait que
+   la route était celle du conteneur. Or c'est précisément cette phrase-là qui a
+   fini par ne plus suffire : §3.47 a supprimé la trace parce qu'un résultat
+   juste sur une autre machine reste faux ici. Un score juste sur une autre
+   branche est la même chose. Une branche non poussée doit donc rendre le même
+   « personne n'a regardé » qu'un dépôt non scannable — par quel code de sortie,
+   c'est à mesurer avec le point 2 de « Ce qui reste ouvert ». Sur GitHub la
+   question ne se pose pas — c'est l'arbre de travail.
 4. **Il ne s'applique pas aux images**, comme Gitleaks. La colonne n'existe que
    dans `ws`, et l'onglet est vide sur un résultat d'image.
 5. **Le mode Docker n'a pas le même besoin selon le chemin.** GitHub exige que le
@@ -8132,22 +8142,47 @@ deux fois — et la seconde fois en connaissance de cause.
 
 #### La colonne dans `ws`
 
-La table a onze colonnes et 120 cellules de largeurs fixes ; avec le minimum de
-`Remote`, le padding et les bordures elle demande déjà ~156 colonnes de
-terminal. **C'est le titre qui coûte**, pas la valeur : `CI Score` fait huit
-cellules pour afficher une lettre. Les quatre colonnes de sévérité s'appellent
-`C H M L` pour cette raison exacte. Proposition — titre `CI`, largeur 4, valeur
-la lettre seule ; les points sont dans l'onglet, où il y a la place. À trancher,
-parce que la demande dit « CI Score ».
+**Tranché le 2026-08-25 : titre `CI`, `SizingFixed`, largeur 4, valeur la
+lettre seule.** Les points sont dans l'onglet, où il y a la place. La demande
+disait « CI Score », et c'est le titre qui coûte, pas la valeur : huit cellules
+pour afficher une lettre. Les quatre colonnes de sévérité s'appellent `C H M L`
+pour cette raison exacte, et une cinquième colonne de comptage à côté d'elles
+hérite de leur convention plutôt que d'en ouvrir une deuxième.
+
+**La prémisse chiffrée de cet arbitrage a changé depuis
+[§3.45](#345-datatable--chaque-colonne-déclare-sa-nature-et-les-largeurs-suivent--done)**,
+et il faut le noter plutôt que de laisser le chiffre dater. « Onze colonnes,
+120 cellules fixes, ~156 colonnes de terminal demandées » décrivait une table
+qui débordait ; `MinWidth` est maintenant un plancher et une douzième colonne
+dégrade en **retirant** des colonnes entières au lieu de déborder. L'argument
+survit donc affaibli — quatre cellules valent toujours mieux que huit — mais il
+ne repose plus sur un dépassement de largeur. Ce qui le porte désormais, c'est
+la convention `C H M L`.
+
+Une conséquence à décider en même temps que la colonne : **`CI` ne déclare pas
+`Optional`**, comme les quatre colonnes de sévérité et pour la même raison. Sur
+les onze colonnes actuelles, deux seulement sont `Optional` — `Scanned` et
+`Modified` — et ce sont celles qui cèdent en premier quand la place manque. Une
+colonne de verdict qui disparaîtrait sur un terminal étroit rendrait « pas de
+score » et « pas de place » indiscernables, ce qui est le défaut que les quatre
+états de la cellule existent pour éviter.
 
 Quatre états, un de plus que les colonnes voisines :
 
 | Cellule | Sens |
 |---|---|
 | `A`…`E` | un score, d'un run complet |
-| `?` | run **dégradé** (`dataCollectionDegraded`) ou `ciMissing` — à distinguer, ou pas, mais pas à confondre avec une lettre |
+| `?` | run **dégradé** (`dataCollectionDegraded`) **ou** `ciMissing` |
 | `-` | jamais scanné |
-| *(vide)* | ne peut pas l'être — pas un dépôt, pas de remote, remote étranger |
+| *(vide)* | ne peut pas l'être — pas un dépôt, pas de remote, remote étranger, branche non poussée |
+
+**Tranché le 2026-08-25 : les deux causes du `?` ne sont pas distinguées dans la
+cellule.** Quatre cellules n'ont pas à porter une distinction que l'écran d'à
+côté porte : l'onglet dit laquelle des deux, et en toutes lettres. Ce que la
+colonne doit garantir, c'est que ni l'une ni l'autre ne se confonde avec une
+lettre — le JSON écrit `"score": "E"` sur un run dégradé dont la CLI dit
+pourtant *the score is withheld*, et reprendre cette lettre serait D56 sur un
+autre outil.
 
 `WorkspaceScanEntry` gagne donc `CIScore *string` et non `string` : `nil` veut
 dire que personne n'a regardé, ce qui est exactement l'argument de
@@ -8170,13 +8205,32 @@ ce qui avait produit des findings comptés dans le header et absents de tout
 onglet.
 
 **Un score n'est pas un finding**, et c'est ce qui distingue cet onglet des
-quatre autres. La lettre, les points et l'état dégradé doivent apparaître
-quelque part : soit dans le header, qui porte aujourd'hui `Context` et `Findings`
-et rend exactement sept lignes en jetant le reste **en silence**, soit en tête de
-l'onglet, au-dessus de la table. À trancher. Sur `Result`, la forme à suivre est
-celle des secrets : `CIScanned bool` écrit par une étape qui **réussit**, et une
-seule fonction qui décide du verdict — deux calculs de la même question sont ce
-que `SecretVerdict()` a eu à défaire.
+quatre autres. Les issues sont les lignes de la table ; la lettre, les points et
+l'état dégradé décrivent le **run** et n'ont donc aucune ligne où aller.
+
+**Tranché le 2026-08-25 : une ligne de tête dans l'onglet CI, au-dessus de la
+table** — un libellé `Score`, `theme.IconChevronRight`, puis `C · 61/100` ou
+`withheld — branch protection could not be fetched` (Rule 120 : le séparateur est
+le chevron, jamais `:`). Le header a été
+écarté pour deux raisons. La raison d'un run dégradé est une **phrase**
+(`degradedReasons`), et `buildInfoLines` aligne des valeurs courtes sur sept
+lignes en jetant le reste **en silence** — c'est déjà ce qui a fait tomber cinq
+champs de cette vue. Et un champ de header s'affiche sur les cinq onglets : un
+fait sur une étape pendant qu'on lit les findings d'une autre.
+
+L'hybride — la lettre au header, la raison dans l'onglet — a été écarté aussi :
+c'est un même fait à deux endroits, et le prix en est écrit deux fois dans ce
+backlog (§3.9 pour le thème, §3.12 pour `SecretVerdict`).
+
+La lettre apparaît donc à deux échelles et une seule fois chacune : la colonne
+`CI` de `ws` pour la vue d'ensemble, la ligne de tête pour le détail. Le libellé de
+l'onglet porte le **nombre d'issues** comme ses quatre voisins — `CI (7)`, pas
+`CI (E)` : une lettre à la place d'un compte romprait la seule colonne que la
+barre d'onglets tient (`view.go:143`).
+
+Sur `Result`, la forme à suivre est celle des secrets : `CIScanned bool` écrit
+par une étape qui **réussit**, et une seule fonction qui décide du verdict —
+deux calculs de la même question sont ce que `SecretVerdict()` a eu à défaire.
 
 Les `<contrôle>Result` qui passent ne sont pas des findings et ne vont dans aucun
 onglet ; ils sont pourtant ce qui donne son sens au score. Les ignorer d'abord,
@@ -8185,17 +8239,32 @@ et le noter.
 #### Ce qui reste ouvert
 
 Le schéma JSON, le vocabulaire de sévérité, la commande de version et le
-comportement dégradé sont relevés ci-dessus. Restent :
+comportement dégradé sont relevés ci-dessus ; les quatre arbitrages de
+conception ont été pris le 2026-08-25 et sont écrits là où ils s'appliquent —
+`--branch`, le titre de la colonne, les deux causes du `?`, et où va le score.
+
+Restent trois inconnues, qui se mesurent et ne se décident pas, plus un
+prérequis :
 
 1. **Ce que l'image `getplumber/plumber` a besoin de voir**, et si `--config`
    accepte un chemin hors du dépôt — les deux décident du `-v`, et D56 dit
    pourquoi ça ne se devine pas.
-2. **Le comportement sur un token GitLab sans droits**, qui doit se distinguer
-   d'un mauvais score jusque dans la cellule. `2` est censé le dire ; à vérifier
-   qu'il le dit toujours.
+2. **Le comportement sur un token GitLab sans droits, et sur une branche que le
+   serveur ne connaît pas** — les deux doivent se distinguer d'un mauvais score
+   jusque dans la cellule, et la seconde est la contrepartie directe de
+   l'arbitrage sur `--branch`. `2` est censé le dire ; à vérifier qu'il le dit
+   dans les deux cas.
 3. **La licence de plumber** et le poids de l'image. Rien n'entre dans le
    binaire, mais c'est une dépendance de plus à installer ou à tirer.
-4. **Le titre de la colonne** (`CI` contre `CI Score`), et où va le score.
+
+Et le prérequis, qui n'est pas une inconnue mais un défaut ouvert :
+**[D56](#13-open)**. `scan.gitleaks_config` ne peut pas fonctionner en mode
+Docker et son échec se lit « aucun secret » ; `scan.plumber_config` est le même
+réglage pour un autre outil, et le montage qui le corrige est le même. Trois
+décisions y sont attachées — un `--config` illisible doit être une erreur dans
+les **deux** modes, un chemin relatif n'a pas le même sens des deux côtés, et le
+nom du point de montage doit être écrit plutôt que supposé. Le corriger avant
+d'écrire `plumber_config`, sans quoi la même erreur est écrite deux fois.
 
 ### 3.43 L'onglet Ports lit la machine — `internal/ports` — **done**
 
