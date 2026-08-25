@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "06bd34f0a191",
+  "strategy": "manual-commit",
+  "branch": "shortcut-disabled-views",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/configuration/shortcuts_test.go",
+    "internal/ui/configuration/view.go",
+    "internal/ui/dashboard/dashboard_test.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/view.go",
+    "internal/ui/dashboard/view_test.go",
+    "internal/ui/forge/explorer/model_test.go",
+    "internal/ui/forge/explorer/update.go",
+    "internal/ui/forge/explorer/view.go",
+    "internal/ui/forge/explorer/view_test.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/interfaces_model_test.go",
+    "internal/ui/oci_resources/availability.go",
+    "internal/ui/oci_resources/images.go",
+    "internal/ui/oci_resources/keys.go",
+    "internal/ui/oci_resources/registries.go",
+    "internal/ui/oci_resources/registry_browser_test.go",
+    "internal/ui/oci_resources/shortcuts_test.go",
+    "internal/ui/oci_resources/view.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/header_test.go",
+    "internal/ui/security/inventory.go",
+    "internal/ui/security/inventory_test.go",
+    "internal/ui/security/model_test.go",
+    "internal/ui/shortcut/shortcut.go",
+    "internal/ui/testutil/testutil.go",
+    "internal/ui/viewer/shortcuts_test.go",
+    "internal/ui/viewer/view.go",
+    "internal/ui/workspaces/availability.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/06/bd34f0a191/0/metadata.json",
+      "transcript": "/06/bd34f0a191/0/full.jsonl",
+      "compact_transcript": "/06/bd34f0a191/0/transcript.jsonl",
+      "content_hash": "/06/bd34f0a191/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 228,
+    "cache_creation_tokens": 133334,
+    "cache_read_tokens": 44891656,
+    "output_tokens": 71620,
+    "api_call_count": 114
+  }
+}
