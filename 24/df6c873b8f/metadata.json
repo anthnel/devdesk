@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "24df6c873b8f",
+  "strategy": "manual-commit",
+  "branch": "plumber-plan",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/24/df6c873b8f/0/metadata.json",
+      "transcript": "/24/df6c873b8f/0/full.jsonl",
+      "compact_transcript": "/24/df6c873b8f/0/transcript.jsonl",
+      "content_hash": "/24/df6c873b8f/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 15406,
+    "cache_read_tokens": 3188254,
+    "output_tokens": 13818,
+    "api_call_count": 9
+  }
+}
