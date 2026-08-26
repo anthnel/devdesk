@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-25
+**Last Updated:** 2026-08-26
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -1858,8 +1858,6 @@ all nested git repos », ce qui était un mensonge et ne l'est plus.
   dépôts écartés, et le dépôt *bare* non reconnu. Le second est le plus
   important des trois : c'est ce qui décide qu'un manque se voit ou non, et il
   vaut pour la cause 2 exactement comme il valait pour la profondeur.
-
----
 
 ---
 
@@ -7921,8 +7919,10 @@ sont prises. Les chiffres sont en §3.43 ; en un mot :
 
 ### 3.42 `plumber` — un score de sécurité de pipeline, par dépôt
 
-À planifier — **la conception est tranchée et le prérequis est levé ; restent
-trois mesures** (voir « Ce qui reste ouvert » en fin de section).
+À planifier — **la conception est tranchée, le prérequis est levé et les trois
+mesures sont prises** (2026-08-25 ; voir « Ce qui reste ouvert » en fin de
+section). Il reste **une décision**, que les mesures ont fait apparaître : le
+chemin GitHub réclame un jeton, et d'où DevDesk le prendrait n'est pas réglé.
 [`getplumber/plumber`](https://github.com/getplumber/plumber) lit la
 configuration CI d'un dépôt — `.gitlab-ci.yml`, workflows GitHub Actions — la
 passe dans un moteur de politiques Rego, et en tire un **Plumber Score** : une
@@ -7938,6 +7938,14 @@ et sur une exécution réelle** — pas sur la documentation, qui diffère de la
 sur au moins deux points (elle annonce un code de sortie `3` qui n'existe pas, et
 ne dit pas que le chemin GitHub est local).
 
+> **Ces deux reproches étaient les miens, et ils étaient faux.** Le 2026-08-25 a
+> repris la mesure avec l'image et sans les identifiants de cette machine : le
+> code `3` existe, et le chemin GitHub interroge l'API. Les deux corrections
+> sont écrites ci-dessous, à leur place, plutôt qu'en note — mais le paragraphe
+> reste, parce que ce qu'il illustre vaut mieux que ce qu'il affirmait : une
+> mesure prise dans un environnement qu'on n'a pas inventorié mesure
+> l'environnement autant que l'outil.
+
 #### Deux chemins, et un seul interroge la forge
 
 C'est le fait qui gouverne tout le reste, et il n'est écrit que dans
@@ -7945,11 +7953,33 @@ C'est le fait qui gouverne tout le reste, et il n'est écrit que dans
 
 | Chemin | Déclenché par | Ce qu'il lit | Token |
 |---|---|---|---|
-| **GitLab** | remote GitLab, ou `--gitlab-url` + `--project` | l'**API** : configuration CI, réglages du projet, protection de branche | `GITLAB_TOKEN` **requis** |
-| **GitHub** | origin GitHub, sans `--gitlab-url`/`--project` | les fichiers **locaux** `.github/workflows` uniquement (Rego) | aucun |
+| **GitLab** | remote GitLab, ou `--gitlab-url` + `--project` | l'**API** : configuration CI, réglages du projet, protection de branche | `GITLAB_TOKEN` **requis**, sinon exit 2 |
+| **GitHub** | origin GitHub, sans `--gitlab-url`/`--project` | les fichiers locaux `.github/workflows` **et** l'API pour la protection de branche | `GH_TOKEN` / `GITHUB_TOKEN` / `gh auth`, sinon **dégradé** |
 
-Donc côté GitHub, plumber se comporte comme Trivy et Gitleaks — un chemin, des
-fichiers, pas de réseau — et côté GitLab, pas du tout. Cinq conséquences :
+**Le chemin GitHub n'est pas hors ligne, et c'est la correction la plus lourde
+de cette section.** Mesuré le 2026-08-25 : sans identifiants, plumber écrit
+`GitHub auth: none — running in degraded mode (workflow-content controls only)`,
+signale `GitHub branch-protection fetch failed; branchMustBeProtected will see
+zero branches`, **retient le score** et sort en **3**.
+
+L'affirmation inverse tenait à un détail de cette machine : `gh` y est
+authentifié, et plumber le lit (`GitHub auth: gh CLI (~/.config/gh)`). Retirer
+`gh` du `PATH` — même binaire 0.4.40, même dépôt, même seconde — fait passer la
+sortie de `1` à `3`. C'est la même erreur de méthode que D55 et D57, à une
+échelle plus petite : on mesurait l'environnement en croyant mesurer l'outil.
+
+**Conséquence pour DevDesk : `?` devient le cas ordinaire, pas le cas limite.**
+Un conteneur n'a ni `gh` ni token, donc en mode Docker *tout* dépôt GitHub
+ressort dégradé tant que DevDesk ne passe pas de token. La décision du
+2026-08-25 — la cellule ne distingue pas les deux causes du `?`, c'est l'onglet
+qui le dit — n'en est pas invalidée, mais elle porte beaucoup plus qu'elle n'en
+avait l'air : ce sera l'état le plus fréquent de la colonne. À trancher avec
+elle : DevDesk passe-t-il un jeton GitHub sur ce chemin, et si oui, d'où —
+`forge.type: github` en fournit un, mais un dépôt GitHub cloné dans un contexte
+GitLab n'en a aucun, et c'est exactement le cas que la règle de §3.17 refuse de
+servir.
+
+Cinq conséquences :
 
 1. **Le token n'est nécessaire que sur GitLab**, et alors la règle de §3.17
    s'applique telle quelle : `internal/git.tokenForRemote` compare l'hôte du
@@ -7997,24 +8027,57 @@ fichiers, pas de réseau — et côté GitLab, pas du tout. Cinq conséquences :
 | `--controls` / `--skip-controls` | — | restreindre les contrôles joués |
 | `--ci-config-path` | auto | chemin du fichier CI |
 
-Codes de sortie, **trois et pas quatre** : `0` porte tenue, `1` porte non tenue,
-`2` erreur d'exécution (configuration, réseau, token manquant). `--fail-warnings`
-sort en `2`, pas en `3` comme le dit le README.
+Codes de sortie, **quatre**, remesurés le 2026-08-25 sur le binaire 0.4.40 et
+sur les images 0.4.40 et 0.4.42, à chaque fois par une exécution réelle :
+
+| Code | Sens | Mesuré sur |
+|---|---|---|
+| `0` | porte tenue | — |
+| `1` | porte non tenue : un score existe et il est sous le seuil | dépôt GitHub avec `gh` authentifié, 1 critique |
+| `2` | erreur d'exécution | `GITLAB_TOKEN` absent ; jeton GitLab invalide (401) ; `--config` introuvable ; `--config` de version inconnue ; dépôt non détecté |
+| `3` | **score retenu** : l'analyse a tourné sur des données incomplètes | dépôt GitHub sans identifiants |
+
+**Le `3` existe, contrairement à ce que cette section a affirmé jusqu'ici.** La
+première mesure ne l'avait jamais vu parce qu'aucune exécution n'avait dégradé —
+voir le chemin GitHub ci-dessus. C'est le code le plus important des quatre pour
+DevDesk : il correspond exactement à l'état `?` de la colonne, et il évite d'avoir
+à lire `dataCollectionDegraded` dans le JSON pour le savoir.
 
 **`1` est le cas courant** — le défaut de `--min-points` est 100, donc le moindre
 finding le déclenche. Comme pour Gitleaks, un code non nul n'est pas un échec ;
-mais ici la séparation est propre et il faut s'en servir : `1` veut dire « il a
-répondu », `2` veut dire « il n'a pas répondu ». Les confondre mettrait un échec
-dans la colonne comme s'il était un verdict — ce qui est exactement D56, un
-étage plus bas.
+et ici la séparation est propre, ce qui est précisément ce que D56 n'avait pas :
 
-**Trois drapeaux ne doivent jamais être exposés dans la configuration.**
-`--score-push` publie la posture du dépôt sur un service hébergé
-(`score.getplumber.io`), `--platform` y pousse les **résultats complets**, et
-`--score-endpoint` choisit la destination. Ce ne sont pas des options de scan,
-c'est une divulgation sortante. Que `--score-push` soit un no-op hors CI ne
-change rien à l'argument : l'absence du champ est la garantie, et c'est la forme
-qu'ont déjà les trois garanties de secret de §3.38.
+| Code | Cellule |
+|---|---|
+| `0`, `1` | la lettre — il a répondu |
+| `3` | `?` — il a répondu qu'il ne pouvait pas conclure |
+| `2` | vide — il n'a pas répondu |
+
+Les confondre mettrait un échec dans la colonne comme s'il était un verdict, ce
+qui est D56 un étage plus haut. La différence avec gitleaks est que plumber
+**dit** laquelle des trois situations c'est, sans qu'on ait à deviner d'après la
+présence d'un rapport.
+
+**Cinq drapeaux ne doivent jamais être exposés dans la configuration**, et ce
+ne sont pas des options de scan : ce sont des écritures sortantes.
+
+| Drapeau | Ce qu'il envoie, et où |
+|---|---|
+| `--score-push` | la posture du dépôt, au service hébergé `score.getplumber.io` |
+| `--score-endpoint` | choisit cette destination |
+| `--badge` | **écrit sur le projet** : crée ou met à jour un badge de score |
+| `--mr-comment` | **écrit sur le projet** : poste ou met à jour un commentaire de merge request |
+| `--platform` | y poussait les résultats complets — **il n'apparaît plus** dans l'aide de 0.4.40 ni de 0.4.42 |
+
+Les deux du milieu ont été relevés le 2026-08-25 dans `analyze --help` ; ils
+manquaient à cette liste, et ils sont pires que `--score-push` : celui-ci publie
+un score, ceux-là modifient le dépôt de quelqu'un. Que `--score-push` soit un
+no-op hors CI ne change rien à l'argument : l'absence du champ est la garantie,
+et c'est la forme qu'ont déjà les trois garanties de secret de §3.38.
+
+`--platform` a disparu de l'aide, ce qui n'est pas une raison de le retirer de
+la liste — un drapeau non documenté peut rester accepté, et la liste est une
+liste de ce qu'on n'écrit pas.
 
 #### Le JSON, relevé sur une exécution
 
@@ -8210,34 +8273,68 @@ et le noter.
 
 #### Ce qui reste ouvert
 
-Le schéma JSON, le vocabulaire de sévérité, la commande de version et le
-comportement dégradé sont relevés ci-dessus ; les quatre arbitrages de
-conception ont été pris le 2026-08-25 et sont écrits là où ils s'appliquent —
-`--branch`, le titre de la colonne, les deux causes du `?`, et où va le score.
-
-Restent trois inconnues, qui se mesurent et ne se décident pas :
-
-1. **Ce que l'image `getplumber/plumber` a besoin de voir**, et si `--config`
-   accepte un chemin hors du dépôt — les deux décident du `-v`, et D56 dit
-   pourquoi ça ne se devine pas.
-2. **Le comportement sur un token GitLab sans droits, et sur une branche que le
-   serveur ne connaît pas** — les deux doivent se distinguer d'un mauvais score
-   jusque dans la cellule, et la seconde est la contrepartie directe de
-   l'arbitrage sur `--branch`. `2` est censé le dire ; à vérifier qu'il le dit
-   dans les deux cas.
-3. **La licence de plumber** et le poids de l'image. Rien n'entre dans le
-   binaire, mais c'est une dépendance de plus à installer ou à tirer.
-
-Le prérequis, lui, est levé : **D56 est corrigé** par
+Les quatre arbitrages de conception ont été pris le 2026-08-25 et sont écrits là
+où ils s'appliquent — `--branch`, le titre de la colonne, les deux causes du
+`?`, et où va le score. Le prérequis est levé : **D56 est corrigé** par
 [§3.50](#350-un-fichier-de-règles-gitleaks-est-monté-et-un-scan-qui-na-rien-lu-nest-plus-propre--done),
 qui laisse à `scan.plumber_config` un précédent complet à copier — un point de
 montage nommé dans le paquet, un drapeau qui désigne le montage, un chemin rendu
 absolu au chargement, et une règle disant ce qui sépare un résultat d'un échec.
-Il a aussi appris quelque chose qui vaut pour plumber : la moitié du défaut
-n'était pas le montage manquant mais une tolérance sur le code de sortie, écrite
-pour un comportement que l'outil n'a pas. Les codes de sortie de plumber sont
-relevés plus haut ; ils ont été **mesurés**, et c'est ce qui les rend
-utilisables.
+
+Les trois mesures ont été prises le 2026-08-25. Elles ont répondu, et deux
+d'entre elles ont corrigé la section.
+
+#### 1. Ce que l'image a besoin de voir
+
+Relevé sur `getplumber/plumber` 0.4.40 et 0.4.42, exécutions réelles :
+
+| | |
+|---|---|
+| **`analyze` ne prend pas de chemin** | il travaille sur le répertoire courant. Le montage doit donc être le **répertoire de travail** : `-w /scan`, pas un argument positionnel — `analyze /scan` est refusé |
+| **le dépôt monté ne suffit pas** | l'image tourne en `uid 65532`, donc git refuse : `fatal: detected dubious ownership in repository at '/scan'`, et plumber répond *could not determine the provider: not in a git repository* |
+| **la levée** | `-e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/scan`. Par l'environnement, donc compatible avec un montage en lecture seule et avec un utilisateur non root — `--user` ne l'est pas sous Windows |
+| **`--config` accepte un chemin hors du dépôt** | vérifié des deux côtés : en binaire sur un fichier d'un autre répertoire, et dans le conteneur sur un fichier monté séparément. Le montage de §3.50 s'applique donc tel quel |
+| **git est dans l'image** | `/usr/bin/git` ; la racine ne contient que `/plumber`, le binaire — un point de montage nommé `/plumber.yaml` est libre, `/plumber` ne l'est pas |
+
+**Et un `--config` fautif est bruyant, ce qui est la différence avec gitleaks.**
+Fichier absent : `Error: configuration file not found`, exit 2. Version
+inconnue : `Error: configuration error: unsupported config version`, exit 2. Le
+mode d'échec de D56 — un outil qui meurt sans le dire et dont le silence se lit
+comme un résultat propre — n'est donc pas reproductible ici. La garde de §3.50
+reste néanmoins nécessaire pour l'autre raison, celle qui n'a rien à voir avec
+la détection : un `-v` sur un chemin hôte absent **crée un répertoire**.
+
+#### 2. Ce que fait un échec d'authentification, et une branche inconnue
+
+| Situation | Code | Ce que plumber dit |
+|---|---|---|
+| GitLab, `GITLAB_TOKEN` absent | **2** | `GITLAB_TOKEN environment variable is required for GitLab analysis` |
+| GitLab, jeton invalide | **2** | l'erreur porte le `401 Unauthorized` de l'API |
+| GitHub, sans identifiants | **3** | mode dégradé, score retenu |
+| `--branch` inconnue, chemin **GitHub** | **1** | rien : le drapeau est sans effet sur ce chemin, qui lit l'arbre de travail |
+
+Le dernier confirme l'arbitrage du 2026-08-25 sur `--branch` du côté où il ne
+coûte rien : passer la branche courante sur un dépôt GitHub est inoffensif.
+
+**Ce qui n'a pas pu être mesuré, et pourquoi :** un jeton GitLab *valide mais
+sans droits* sur le projet. Aucun contexte de cette machine n'a d'instance
+GitLab configurée, donc il n'y avait pas de jeton à sous-doter. Un `401` tombe
+sur `2` ; un `403` devrait faire de même, puisque les deux remontent par le même
+chemin d'erreur de l'API — mais c'est une déduction, pas une mesure, et la
+section vient de montrer deux fois ce que valent les déductions ici. À reprendre
+quand un contexte GitLab existera.
+
+#### 3. La licence et le poids
+
+| | |
+|---|---|
+| Licence | **MPL-2.0** (dépôt et label `org.opencontainers.image.licenses` de l'image concordent) |
+| Image | **89,8 Mo**, `getplumber/plumber:latest` — entre busybox (6,81 Mo) et netshoot (874 Mo) |
+| Entrypoint | `/plumber`, `WorkingDir` `/`, `User` `plumber` (uid 65532) |
+| Amont | actif — 783 étoiles, un commit le jour de la mesure ; 0.4.42 est sortie pendant qu'on écrivait cette section |
+
+Rien n'entre dans le binaire DevDesk : c'est une image à tirer ou un binaire à
+installer, comme Trivy et Gitleaks.
 
 ### 3.43 L'onglet Ports lit la machine — `internal/ports` — **done**
 
