@@ -7921,8 +7921,8 @@ sont prises. Les chiffres sont en §3.43 ; en un mot :
 
 À planifier — **la conception est tranchée, le prérequis est levé et les trois
 mesures sont prises** (2026-08-25 ; voir « Ce qui reste ouvert » en fin de
-section). Il reste **une décision**, que les mesures ont fait apparaître : le
-chemin GitHub réclame un jeton, et d'où DevDesk le prendrait n'est pas réglé.
+section). Le plan d'implémentation est dans
+[`.claude/plans/plumber-ci-score.md`](../.claude/plans/plumber-ci-score.md).
 [`getplumber/plumber`](https://github.com/getplumber/plumber) lit la
 configuration CI d'un dépôt — `.gitlab-ci.yml`, workflows GitHub Actions — la
 passe dans un moteur de politiques Rego, et en tire un **Plumber Score** : une
@@ -7968,16 +7968,35 @@ authentifié, et plumber le lit (`GitHub auth: gh CLI (~/.config/gh)`). Retirer
 sortie de `1` à `3`. C'est la même erreur de méthode que D55 et D57, à une
 échelle plus petite : on mesurait l'environnement en croyant mesurer l'outil.
 
-**Conséquence pour DevDesk : `?` devient le cas ordinaire, pas le cas limite.**
-Un conteneur n'a ni `gh` ni token, donc en mode Docker *tout* dépôt GitHub
-ressort dégradé tant que DevDesk ne passe pas de token. La décision du
-2026-08-25 — la cellule ne distingue pas les deux causes du `?`, c'est l'onglet
-qui le dit — n'en est pas invalidée, mais elle porte beaucoup plus qu'elle n'en
-avait l'air : ce sera l'état le plus fréquent de la colonne. À trancher avec
-elle : DevDesk passe-t-il un jeton GitHub sur ce chemin, et si oui, d'où —
-`forge.type: github` en fournit un, mais un dépôt GitHub cloné dans un contexte
-GitLab n'en a aucun, et c'est exactement le cas que la règle de §3.17 refuse de
-servir.
+**Conséquence pour DevDesk**, si DevDesk ne passe pas de jeton : un conteneur
+n'a ni `gh` ni token, donc *tout* dépôt GitHub ressortirait dégradé, et le `?`
+deviendrait l'état ordinaire de la colonne plutôt que son cas limite.
+
+**Tranché le 2026-08-26 : le contexte décide de la cible, et il fournit le
+jeton.** Un contexte cible une forge et une seule (§3.6), donc :
+
+- contexte **GitHub** → seuls les dépôts dont le remote est celui de
+  `forge.url` sont scannés par plumber ; contexte **GitLab**, pareil de leur
+  côté ;
+- le jeton est celui de la session du contexte, et il ne part que vers l'hôte
+  configuré. C'est **mot pour mot `internal/git.tokenForRemote`** (§3.17), qui
+  compare l'hôte du remote à celui de `forge.url` et ne rend rien sinon — écrit
+  pour empêcher qu'un jeton personnel parte vers le Gitea d'un client, et qui
+  répond ici à la même question ;
+- un dépôt d'une autre forge n'est donc **pas scanné sans jeton**, il n'est
+  **pas scannable** : cellule vide. C'est la décision 2 ci-dessus, généralisée
+  de « pas de remote, remote étranger » à « pas la forge de ce contexte ».
+
+Deux conséquences, et les deux vont dans le bon sens :
+
+- **Le `?` redevient l'exception.** Avec un jeton, le chemin GitHub tourne
+  complet — exit 0 ou 1, une lettre. Le dégradé ne reste que pour un jeton
+  absent, expiré ou sous-doté, ce qui est bien un accident et non le régime
+  normal.
+- **`--provider` est déclaré, jamais deviné.** Le contexte dit quelle forge
+  c'est, donc DevDesk le passe explicitement au lieu de laisser plumber renifler
+  le remote — sur le précédent du `provider` des registries et du `forge.type`
+  lui-même.
 
 Cinq conséquences :
 
@@ -8295,6 +8314,38 @@ Relevé sur `getplumber/plumber` 0.4.40 et 0.4.42, exécutions réelles :
 | **la levée** | `-e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/scan`. Par l'environnement, donc compatible avec un montage en lecture seule et avec un utilisateur non root — `--user` ne l'est pas sous Windows |
 | **`--config` accepte un chemin hors du dépôt** | vérifié des deux côtés : en binaire sur un fichier d'un autre répertoire, et dans le conteneur sur un fichier monté séparément. Le montage de §3.50 s'applique donc tel quel |
 | **git est dans l'image** | `/usr/bin/git` ; la racine ne contient que `/plumber`, le binaire — un point de montage nommé `/plumber.yaml` est libre, `/plumber` ne l'est pas |
+
+**Le chemin GitHub a deux modes, et le choix entre eux n'est pas neutre.**
+Mesuré le 2026-08-26, en cherchant si `--provider` dispensait du bricolage
+`safe.directory` — il n'en dispense pas, mais le message d'erreur en a révélé un
+second : *« GitHub local scan needs a git repository (run inside a clone), or
+pass `--project owner/repo` for a remote scan »*.
+
+| Mode | Ce que le conteneur exige | Ce qui est noté |
+|---|---|---|
+| **local** | le dépôt monté sur le répertoire de travail, git utilisable (donc `safe.directory`), **et** un jeton pour la protection de branche | l'arbre de travail, plus l'API |
+| **distant** (`--project owner/repo`) | **rien qu'un jeton** — ni montage, ni git, ni `-w` | la branche par défaut **du serveur** |
+
+Le mode distant a été vérifié avec un jeton : exit 1, score complet, conteneur
+nu. Il rendrait le mode Docker trivial et donnerait au chemin GitHub la forme du
+chemin GitLab.
+
+**Mais il change ce que la colonne veut dire**, et c'est ce qui doit décider :
+
+- le mode **local** note ce qui est sur le disque — ce que l'utilisateur
+  regarde, éditions non commitées comprises. C'est ce que font déjà Trivy et
+  Gitleaks dans cette vue, et `ws` est une liste de copies de travail : une
+  cellule qui parlerait du serveur serait la seule de la ligne à parler d'autre
+  chose ;
+- le mode **distant** note ce qui est publié. Il donne à GitHub le problème de
+  branche que la conséquence 3 réserve à GitLab — l'arbitrage « on passe la
+  branche courante et on accepte l'échec » deviendrait alors la règle des deux
+  forges, ce qui simplifie d'un côté et ment un peu plus de l'autre.
+
+Recommandation : **local**, pour la cohérence de la ligne, le montage et le
+`safe.directory` étant mesurés et bon marché. Le distant reste le repli naturel
+pour un dépôt dont le clone local est illisible. **À trancher avant l'étape 3 du
+plan.**
 
 **Et un `--config` fautif est bruyant, ce qui est la différence avec gitleaks.**
 Fichier absent : `Error: configuration file not found`, exit 2. Version
