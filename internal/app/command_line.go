@@ -142,7 +142,7 @@ func (a *App) createView(view command.ViewType) {
 	case command.ViewWorkspaces:
 		a.views[view] = workspaces.New(a.config, a.sharedState.Secrets.Storage)
 	case command.ViewSecurity:
-		a.views[view] = security.New(a.config)
+		a.views[view] = security.New(a.config, a.sharedState.Secrets.Storage)
 	case command.ViewContainers:
 		a.views[view] = containers.New(a.config)
 	case command.ViewOCIResources:

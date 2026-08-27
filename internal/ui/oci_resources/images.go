@@ -65,7 +65,7 @@ func (m Model) scanSelectedImage() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn("Scan already in progress")
 	}
 	m.scanning = true
-	return m, batchScanCmd([]imageScanJob{{Name: name, Target: img.ScanTarget()}}, scan.OptionsFromConfig(m.config.Scan))
+	return m, batchScanCmd([]imageScanJob{{Name: name, Target: img.ScanTarget()}}, scan.OptionsFromConfig(m.config))
 }
 
 // scanAllUnscanned triggers batch scanning of all unscanned images using config defaults
@@ -114,7 +114,7 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn("All images are already scanned")
 	}
 	m.scanning = true
-	return m, batchScanCmd(jobs, scan.OptionsFromConfig(m.config.Scan))
+	return m, batchScanCmd(jobs, scan.OptionsFromConfig(m.config))
 }
 
 // requestScanAll launches a batch scan for all images with the configured options.
@@ -138,7 +138,7 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.scanning = true
-	return m, tea.Batch(deleteScanCacheCmd(cacheKeys), batchScanCmd(jobs, scan.OptionsFromConfig(m.config.Scan)))
+	return m, tea.Batch(deleteScanCacheCmd(cacheKeys), batchScanCmd(jobs, scan.OptionsFromConfig(m.config)))
 }
 
 // handleImageScanStarting marks an image as currently scanning and refreshes the table.
@@ -187,5 +187,5 @@ func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
 	}
 	m.scanning = true
 	job := imageScanJob{Name: msg.ImageName, Target: msg.ImageName}
-	return m, batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config.Scan))
+	return m, batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config))
 }

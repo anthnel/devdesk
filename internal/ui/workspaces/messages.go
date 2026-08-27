@@ -94,6 +94,10 @@ type WorkspaceScanCompleteMsg struct {
 	// tri-état que porte l'entrée de cache, transporté tel quel plutôt
 	// qu'aplati en chemin.
 	Sensitive *bool
+	// CIScore is the pipeline grade, nil when nobody graded it — carried whole
+	// like Sensitive above, and for the same reason: flattening a tri-state on
+	// the way is how a "nobody looked" becomes a "nothing found".
+	CIScore   *string
 	ScannedAt time.Time
 	Error     error
 }

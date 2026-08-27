@@ -11,7 +11,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
-	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/viewer"
@@ -20,7 +19,7 @@ import (
 // startSecurityScan launches a security scan on the selected entry using saved options.
 // For git repos, scans the single repo. For directories with sub-repos, scans all sub-repos in parallel.
 func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
-	opts := scan.OptionsFromConfig(m.config.Scan)
+	opts := m.scanOptions()
 
 	if len(m.table.Items()) == 0 {
 		// Fallback: scan the current directory path
@@ -113,7 +112,7 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 	if len(unscanned) == 0 {
 		return m, nil
 	}
-	return m, batchScanCmd(unscanned, scan.OptionsFromConfig(m.config.Scan))
+	return m, batchScanCmd(unscanned, m.scanOptions())
 }
 
 // requestScanAll triggers batch scanning of all git repos visible in the current view,
@@ -134,7 +133,7 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 	for _, path := range paths {
 		delete(m.scanCache, path)
 	}
-	return m, tea.Batch(deleteScanCacheCmd(paths), batchScanCmd(paths, scan.OptionsFromConfig(m.config.Scan)))
+	return m, tea.Batch(deleteScanCacheCmd(paths), batchScanCmd(paths, m.scanOptions()))
 }
 
 // collectAllRepoPaths returns all git repo paths visible in the current view,
@@ -167,6 +166,7 @@ func (m Model) handleWorkspaceScanComplete(msg WorkspaceScanCompleteMsg) (tea.Mo
 		Medium:    msg.Medium,
 		Low:       msg.Low,
 		Sensitive: msg.Sensitive,
+		CIScore:   msg.CIScore,
 		ScannedAt: msg.ScannedAt,
 	}
 	m.refreshRows()
@@ -418,6 +418,6 @@ func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
 	delete(m.scanCache, msg.TargetPath)
 	return m, tea.Batch(
 		deleteScanCacheCmd([]string{msg.TargetPath}),
-		batchScanCmd([]string{msg.TargetPath}, scan.OptionsFromConfig(m.config.Scan)),
+		batchScanCmd([]string{msg.TargetPath}, m.scanOptions()),
 	)
 }

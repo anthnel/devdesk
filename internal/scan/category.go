@@ -25,6 +25,7 @@ const (
 	SourceTrivyLicense   = "trivy-license"   // licences
 	SourceTrivyMisconfig = "trivy-misconfig" // misconfigurations IaC
 	SourceGitleaks       = "gitleaks"        // secrets détectés par Gitleaks
+	SourcePlumber        = "plumber"         // score de sécurité de pipeline (§3.42)
 )
 
 // Category est la famille à laquelle un finding appartient : un onglet de la
@@ -36,6 +37,7 @@ const (
 	CategorySecret
 	CategoryLicense
 	CategoryMisconfiguration
+	CategoryCIScore
 )
 
 // Categorize retourne la famille d'un finding.
@@ -50,6 +52,8 @@ func Categorize(f Finding) Category {
 		return CategoryLicense
 	case SourceTrivyMisconfig:
 		return CategoryMisconfiguration
+	case SourcePlumber:
+		return CategoryCIScore
 	default:
 		return CategoryVulnerability
 	}

@@ -190,6 +190,7 @@ func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, sem chan struct{}) t
 				Medium:    result.Counts.Medium,
 				Low:       result.Counts.Low,
 				Sensitive: sensitive,
+				CIScore:   result.CIVerdict(),
 				ScannedAt: result.EndTime,
 			}
 
@@ -211,6 +212,7 @@ func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, sem chan struct{}) t
 				Medium:    entry.Medium,
 				Low:       entry.Low,
 				Sensitive: sensitive,
+				CIScore:   entry.CIScore,
 				ScannedAt: entry.ScannedAt,
 			}
 		},
@@ -239,4 +241,16 @@ func copyPathCmd(path string) tea.Cmd {
 	return func() tea.Msg {
 		return PathCopiedMsg{Path: path, Error: clipboard.WriteAll(path)}
 	}
+}
+
+// scanOptions is the one place this view assembles scan options, so the token
+// loader cannot be forgotten at one of the four call sites that start a scan.
+//
+// The loader is shared across the whole batch and reads the store once
+// (tokenLoader is a sync.Once closure); which repositories actually receive the
+// token is decided per target, by the forge-host rule in internal/scan.
+func (m Model) scanOptions() scan.ScanOptions {
+	opts := scan.OptionsFromConfig(m.config)
+	opts.LoadForgeToken = tokenLoader(m.secrets, m.config.Forge.URL)
+	return opts
 }

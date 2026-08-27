@@ -1,0 +1,1061 @@
+{
+  "projectPath": "anthnel/devdesk",
+  "projectId": 0,
+  "defaultBranch": "",
+  "ciConfigSource": "local",
+  "ciValid": true,
+  "ciMissing": false,
+  "pipelineOriginMetrics": {
+    "jobTotal": 1,
+    "originAction": 0,
+    "originActionTrustedExempt": 2,
+    "originActionUnpinned": 0,
+    "originReusableWorkflow": 0,
+    "originReusableWorkflowSecretsInherit": 0,
+    "originTotal": 0,
+    "workflowsTotal": 1
+  },
+  "pipelineImageMetrics": {
+    "total": 0
+  },
+  "minPoints": 100,
+  "passed": false,
+  "plumberScore": {
+    "profileId": "scoring-v3",
+    "counts": {
+      "critical": 0,
+      "high": 1,
+      "medium": 1,
+      "low": 0
+    },
+    "rawPoints": 79,
+    "rawPointsUnclamped": 79,
+    "finalPoints": 79,
+    "score": "B",
+    "criticalMalusApplied": false,
+    "losses": [
+      {
+        "severity": "high",
+        "count": 1,
+        "cappedLoss": 15
+      },
+      {
+        "severity": "medium",
+        "count": 1,
+        "cappedLoss": 6
+      }
+    ],
+    "codeLosses": [
+      {
+        "code": "ISSUE-411",
+        "severity": "high",
+        "count": 1,
+        "weight": 15,
+        "cap": 60,
+        "uncappedLoss": 15,
+        "cappedLoss": 15
+      },
+      {
+        "code": "ISSUE-801",
+        "severity": "medium",
+        "count": 1,
+        "weight": 6,
+        "cap": 20,
+        "uncappedLoss": 6,
+        "cappedLoss": 6
+      }
+    ]
+  },
+  "actionPinningResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "actionsMustBePinnedByCommitSha",
+    "issues": [],
+    "metrics": {
+      "actionRefsExempt": 2,
+      "actionRefsTotal": 0,
+      "actionRefsUnpinned": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "archivedActionsResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "actionsMustNotBeArchived",
+    "issues": [],
+    "metrics": {
+      "actionRefsArchived": 0,
+      "actionRefsTotal": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "authorizedActionSourcesResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "githubActionMustComeFromAuthorizedSources",
+    "issues": [],
+    "metrics": {
+      "actionRefsTotal": 2,
+      "actionRefsUnauthorized": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "branchProtectionResult": {
+    "controlName": "branchMustBeProtected",
+    "data": [],
+    "enabled": true,
+    "metrics": {
+      "branches": 0,
+      "branchesToProtect": 0,
+      "nonCompliantBranches": 0,
+      "projectsCorrectlyProtected": 0,
+      "totalProtectedBranches": 0,
+      "unprotectedBranches": 0
+    },
+    "status": "error",
+    "version": "0.2.0"
+  },
+  "cachePoisoningResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "releaseWorkflowsMustNotRestoreUntrustedCache",
+    "issues": [],
+    "metrics": {
+      "unscopedCacheRestoreFound": 0,
+      "workflowsScanned": 1
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "dangerousTriggersResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "workflowMustNotUseDangerousTriggers",
+    "issues": [],
+    "metrics": {
+      "workflowsScanned": 1,
+      "workflowsWithDangerousTrigger": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "debugTraceResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "pipelineMustNotEnableDebugTrace",
+    "issues": [],
+    "metrics": {
+      "forbiddenFound": 0,
+      "totalVariablesChecked": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "dockerInDockerResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "pipelineMustNotUseDockerInDocker",
+    "issues": [],
+    "metrics": {
+      "dindServicesFound": 0,
+      "insecureDaemonFound": 0,
+      "totalJobsChecked": 1
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "excessivePermissionsResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "workflowMustNotGrantPermissionsWriteAll",
+    "issues": [],
+    "metrics": {
+      "jobsTotal": 1,
+      "jobsWithWriteAll": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "githubEnvInjectionResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "workflowMustNotWriteUntrustedContentToGitHubEnv",
+    "issues": [],
+    "metrics": {
+      "githubEnvInjectionsFound": 0,
+      "scriptLinesChecked": 1,
+      "workflowsScanned": 1
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "imageForbiddenTagsResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "containerImageMustNotUseForbiddenTags",
+    "issues": [],
+    "metrics": {
+      "ciInvalid": 0,
+      "ciMissing": 0,
+      "notPinnedByDigest": 0,
+      "pinnedByDigest": 0,
+      "total": 0,
+      "usingForbiddenTags": 0
+    },
+    "mustBePinnedByDigest": true,
+    "skipped": false,
+    "status": "passed",
+    "version": "0.4.0"
+  },
+  "impostorCommitResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "actionRefsMustExistUpstream",
+    "issues": [],
+    "metrics": {
+      "actionRefsAbsentUpstream": 0,
+      "actionRefsTotal": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "knownVulnerableActionsResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "actionsMustNotCarryKnownCVEs",
+    "issues": [],
+    "metrics": {
+      "actionRefsTotal": 0,
+      "actionRefsVulnerable": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "mutableRemoteExecResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "actionsMustNotExecuteMutableRemoteCode",
+    "issues": [],
+    "metrics": {
+      "actionRefsTotal": 0,
+      "actionsWithMutableRemoteExec": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "overprovisionedSecretsResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "workflowMustNotExportEntireSecretsContext",
+    "issues": [],
+    "metrics": {
+      "secretsContextExportsFound": 0,
+      "workflowsScanned": 1
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "permissionsResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "workflowsMustDeclarePermissions",
+    "issues": [
+      {
+        "code": "ISSUE-801",
+        "docUrl": "https://getplumber.io/docs/cli/issues/ISSUE-801",
+        "fingerprint": "7829849e04dade30",
+        "identity": {
+          "fields": [
+            {
+              "key": "code",
+              "value": "ISSUE-801"
+            },
+            {
+              "key": "file",
+              "value": ".github/workflows/ci.yml"
+            },
+            {
+              "key": "job",
+              "value": "ci/build"
+            }
+          ],
+          "subjectFromMessage": false,
+          "version": 4
+        },
+        "job": "ci/build",
+        "url": "/repo\\.github\\workflows\\ci.yml:4"
+      }
+    ],
+    "metrics": {
+      "workflowsMissingPermissions": 1,
+      "workflowsTotal": 1
+    },
+    "skipped": false,
+    "status": "failed",
+    "version": "0.1.0"
+  },
+  "pullRequestTargetHeadCheckoutResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "pullRequestTargetMustNotCheckoutHead",
+    "issues": [],
+    "metrics": {
+      "headCheckoutsUnderPrTarget": 0,
+      "workflowsScanned": 1
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "refConfusionResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "externalRefsMustNotCollide",
+    "issues": [],
+    "metrics": {
+      "actionRefsAmbiguous": 0,
+      "actionRefsTotal": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "requiredActionsResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "workflowMustIncludeRequiredActions",
+    "issues": [],
+    "metrics": {
+      "anySatisfiedGroup": false,
+      "satisfiedGroups": 0,
+      "totalGroups": 0
+    },
+    "requirementGroups": [],
+    "skipped": true,
+    "status": "skipped",
+    "version": "0.1.0"
+  },
+  "reusableSecretsResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "reusableWorkflowsMustNotInheritSecrets",
+    "issues": [],
+    "metrics": {
+      "reusableCalls": 0,
+      "reusableCallsSecretsInherit": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "securityJobsWeakenedResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "securityJobsMustNotBeWeakened",
+    "issues": [],
+    "metrics": {
+      "securityJobsFound": 0,
+      "weakenedJobs": 0
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "templateInjectionResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "workflowMustNotInjectUserInputInScripts",
+    "issues": [],
+    "metrics": {
+      "scriptLinesChecked": 1,
+      "templateInjectionsFound": 0,
+      "workflowsScanned": 1
+    },
+    "skipped": false,
+    "status": "passed",
+    "version": "0.1.0"
+  },
+  "unverifiedScriptsResult": {
+    "ciMissing": false,
+    "ciValid": true,
+    "controlName": "pipelineMustNotExecuteUnverifiedScripts",
+    "issues": [
+      {
+        "code": "ISSUE-411",
+        "docUrl": "https://getplumber.io/docs/cli/issues/ISSUE-411",
+        "fingerprint": "4e6600cbad6e5951",
+        "identity": {
+          "fields": [
+            {
+              "key": "code",
+              "value": "ISSUE-411"
+            },
+            {
+              "key": "file",
+              "value": ".github/workflows/ci.yml"
+            },
+            {
+              "key": "job",
+              "value": "ci/build"
+            },
+            {
+              "key": "scriptLine",
+              "value": "curl -s https://example.com/i.sh | bash"
+            }
+          ],
+          "subjectFromMessage": false,
+          "version": 4
+        },
+        "job": "ci/build",
+        "scriptLine": "curl -s https://example.com/i.sh | bash",
+        "url": "/repo\\.github\\workflows\\ci.yml:4"
+      }
+    ],
+    "metrics": {
+      "jobsChecked": 1,
+      "totalScriptLinesChecked": 1,
+      "unverifiedScriptsFound": 1
+    },
+    "skipped": false,
+    "status": "failed",
+    "version": "0.1.0"
+  },
+  "dataCollectionDegraded": true,
+  "degradedReasons": [
+    "branch protection could not be fetched; branch controls were not evaluated"
+  ],
+  "headCommitSha": "a96daa04a4e920a5f2c184401e8e57498b1a7454",
+  "plumberConfig": {
+    "effectivePolicy": {
+      "github": {
+        "controls": {
+          "actionRefsMustExistUpstream": {
+            "enabled": true
+          },
+          "actionsMustBePinnedByCommitSha": {
+            "enabled": true,
+            "trustedOwners": [
+              "actions",
+              "github"
+            ]
+          },
+          "actionsMustNotBeArchived": {
+            "enabled": true
+          },
+          "actionsMustNotCarryKnownCVEs": {
+            "enabled": true
+          },
+          "actionsMustNotExecuteMutableRemoteCode": {
+            "enabled": true
+          },
+          "branchMustBeProtected": {
+            "allowForcePush": false,
+            "codeOwnerApprovalRequired": false,
+            "defaultMustBeProtected": true,
+            "enabled": true,
+            "namePatterns": [
+              "main",
+              "master",
+              "release/*",
+              "production",
+              "dev"
+            ]
+          },
+          "containerImageMustNotUseForbiddenTags": {
+            "containerImagesMustBePinnedByDigest": true,
+            "enabled": true,
+            "tags": [
+              "latest",
+              "dev",
+              "development",
+              "staging",
+              "main",
+              "master"
+            ]
+          },
+          "externalRefsMustNotCollide": {
+            "enabled": true
+          },
+          "githubActionMustComeFromAuthorizedSources": {
+            "enabled": true,
+            "minimumStars": 20000,
+            "trustGithubOfficialActions": true,
+            "trustSameOrgActions": true,
+            "trustedGithubActions": [
+              "aws-actions/*",
+              "google-github-actions/*",
+              "googleapis/*",
+              "Azure/*",
+              "cloudflare/*",
+              "hashicorp/*",
+              "pulumi/*",
+              "digitalocean/*",
+              "ibm/*",
+              "oracle-actions/*",
+              "canonical/*",
+              "fastly/*",
+              "docker/*",
+              "gradle/*",
+              "goreleaser/*",
+              "bazel-contrib/*",
+              "jfrog/*",
+              "dagger/*",
+              "buildkite/*",
+              "CircleCI-Public/*",
+              "earthly/*",
+              "pypa/*",
+              "ruby/*",
+              "denoland/*",
+              "oven-sh/*",
+              "astral-sh/*",
+              "golangci/*",
+              "dart-lang/*",
+              "erlef/*",
+              "haskell-actions/*",
+              "julia-actions/*",
+              "ocaml/*",
+              "conda-incubator/*",
+              "r-lib/*",
+              "sbt/*",
+              "VirtusLab/*",
+              "gleam-lang/*",
+              "getplumber/*",
+              "step-security/*",
+              "ossf/*",
+              "sigstore/*",
+              "slsa-framework/*",
+              "aquasecurity/*",
+              "anchore/*",
+              "snyk/*",
+              "SonarSource/*",
+              "trufflesecurity/*",
+              "gitleaks/*",
+              "chainguard-dev/*",
+              "GitGuardian/*",
+              "bridgecrewio/*",
+              "zaproxy/*",
+              "Checkmarx/*",
+              "veracode/*",
+              "tenable/*",
+              "semgrep/*",
+              "in-toto/*",
+              "sonatype/*",
+              "sonatype-nexus-community/*",
+              "checkmarx-ts/*",
+              "Qualys/*",
+              "orcasecurity/*",
+              "oxsecurity/*",
+              "codecov/*",
+              "getsentry/*",
+              "DataDog/*",
+              "cypress-io/*",
+              "JetBrains/*",
+              "microsoft/*",
+              "atlassian/*",
+              "Shopify/*",
+              "netlify/*",
+              "planetscale/*",
+              "supabase/*",
+              "expo/*",
+              "grafana/*",
+              "honeycombio/*",
+              "newrelic/*",
+              "saucelabs/*",
+              "mongodb/*",
+              "adobe/*",
+              "facebook/*",
+              "helm/*",
+              "kubernetes-sigs/*",
+              "opentofu/*",
+              "ansible/*",
+              "ansible-community/*",
+              "pnpm/*",
+              "anthropics/*",
+              "openai/*",
+              "slackapi/*",
+              "google/*",
+              "golang/*",
+              "dependabot/*",
+              "rubygems/*",
+              "apple-actions/*",
+              "redhat-actions/*",
+              "graalvm/*",
+              "arduino/*",
+              "msys2/*",
+              "android-actions/*",
+              "changesets/*",
+              "tauri-apps/*",
+              "biomejs/*",
+              "bufbuild/*",
+              "reviewdog/*",
+              "hadolint/*",
+              "gittools/*",
+              "fsfe/*",
+              "cachix/*",
+              "nix-community/*",
+              "DeterminateSystems/*",
+              "1Password/*",
+              "tailscale/*",
+              "octokit/*",
+              "NuGet/*",
+              "depot/*",
+              "chromaui/*",
+              "signpath/*",
+              "rust-lang/*",
+              "apache/*",
+              "Homebrew/*",
+              "PyO3/*",
+              "EmbarkStudios/*",
+              "bytecodealliance/*",
+              "emscripten-core/*",
+              "devcontainers/*",
+              "renovatebot/*",
+              "prefix-dev/*",
+              "scientific-python/*",
+              "browserstack/*",
+              "digicert/*",
+              "zizmorcore/*",
+              "go-task/*",
+              "namespacelabs/*",
+              "voidzero-dev/*",
+              "crowdin/*",
+              "linear/*",
+              "qltysh/*",
+              "flatpak/*",
+              "peter-evans/*",
+              "azure/*",
+              "sonarsource/*",
+              "datadog/*",
+              "jetbrains/*",
+              "shopify/*",
+              "gitguardian/*",
+              "checkmarx/*",
+              "qualys/*",
+              "circleci-public/*",
+              "virtuslab/*",
+              "nuget/*",
+              "determinatesystems/*",
+              "1password/*",
+              "apple-Actions/*",
+              "embarkstudios/*",
+              "pyo3/*",
+              "homebrew/*"
+            ]
+          },
+          "pipelineMustNotEnableDebugTrace": {
+            "enabled": true,
+            "forbiddenVariables": [
+              "ACTIONS_STEP_DEBUG",
+              "ACTIONS_RUNNER_DEBUG"
+            ]
+          },
+          "pipelineMustNotExecuteUnverifiedScripts": {
+            "enabled": true,
+            "trustedUrls": []
+          },
+          "pipelineMustNotUseDockerInDocker": {
+            "detectInsecureDaemon": true,
+            "enabled": true
+          },
+          "pullRequestTargetMustNotCheckoutHead": {
+            "enabled": true
+          },
+          "releaseWorkflowsMustNotRestoreUntrustedCache": {
+            "allowedJobs": [],
+            "cacheActions": [
+              {
+                "action": "actions/cache",
+                "mode": "always"
+              },
+              {
+                "action": "actions/cache/restore",
+                "mode": "always"
+              },
+              {
+                "action": "Swatinem/rust-cache",
+                "mode": "always"
+              },
+              {
+                "action": "actions/setup-go",
+                "disableInput": "cache",
+                "disableValue": false,
+                "mode": "default"
+              },
+              {
+                "action": "gradle/actions/setup-gradle",
+                "disableInput": "cache-disabled",
+                "disableValue": true,
+                "mode": "default"
+              },
+              {
+                "action": "actions/setup-node",
+                "enableInput": "cache",
+                "mode": "opt-in"
+              },
+              {
+                "action": "actions/setup-python",
+                "enableInput": "cache",
+                "mode": "opt-in"
+              },
+              {
+                "action": "actions/setup-java",
+                "enableInput": "cache",
+                "mode": "opt-in"
+              },
+              {
+                "action": "pnpm/action-setup",
+                "enableInput": "cache",
+                "mode": "opt-in"
+              },
+              {
+                "action": "docker/build-push-action",
+                "enableContains": "type=gha",
+                "enableInput": "cache-from",
+                "mode": "opt-in"
+              }
+            ],
+            "enabled": true,
+            "publishActions": [
+              "pypa/gh-action-pypi-publish",
+              "JS-DevTools/npm-publish",
+              "gradle/publish-plugin",
+              "softprops/action-gh-release",
+              "ncipollo/release-action",
+              "goreleaser/goreleaser-action",
+              "crazy-max/ghaction-docker-buildx",
+              "changesets/action"
+            ],
+            "publishScriptExcludePatterns": [
+              "(?i)--dry-run",
+              "(?i)publishToMavenLocal"
+            ],
+            "publishScriptPatterns": [
+              "(?i)(npm|pnpm|yarn|bun)\\s+publish",
+              "(?i)cargo\\s+publish",
+              "(?i)twine\\s+upload",
+              "(?i)poetry\\s+publish",
+              "(?i)gh\\s+release\\s+create",
+              "(?i)goreleaser\\s+release",
+              "(?i)semantic-release",
+              "(?i)gradlew?\\b[^\\n]*\\bpublish",
+              "(?i)\\bmvnw?\\b[^\\n]*\\bdeploy\\b",
+              "(?i)dotnet\\s+nuget\\s+push",
+              "(?i)gem\\s+push",
+              "(?i)docker\\s+push"
+            ]
+          },
+          "reusableWorkflowsMustNotInheritSecrets": {
+            "enabled": true
+          },
+          "securityJobsMustNotBeWeakened": {
+            "allowFailureMustBeFalse": {
+              "enabled": true
+            },
+            "enabled": true,
+            "rulesMustNotBeRedefined": {
+              "enabled": true
+            },
+            "securityJobPatterns": [
+              "*codeql*",
+              "*dependency-review*",
+              "*trufflehog*",
+              "*gitleaks*",
+              "*osv-scanner*",
+              "*semgrep*",
+              "*trivy*",
+              "*snyk*",
+              "*-sast",
+              "*-sast-*",
+              "*-scan",
+              "*scan*",
+              "*-security",
+              "*-security-*",
+              "*-audit",
+              "*-audit-*",
+              "*secret*detect*",
+              "*detect*secret*"
+            ],
+            "whenMustNotBeManual": {
+              "enabled": true
+            }
+          },
+          "workflowMustIncludeRequiredActions": {
+            "enabled": false,
+            "requiredGroups": []
+          },
+          "workflowMustNotExportEntireSecretsContext": {
+            "enabled": true
+          },
+          "workflowMustNotGrantPermissionsWriteAll": {
+            "enabled": true
+          },
+          "workflowMustNotInjectUserInputInScripts": {
+            "enabled": true
+          },
+          "workflowMustNotUseDangerousTriggers": {
+            "enabled": true
+          },
+          "workflowMustNotWriteUntrustedContentToGitHubEnv": {
+            "enabled": true
+          },
+          "workflowsMustDeclarePermissions": {
+            "enabled": true
+          }
+        }
+      },
+      "gitlab": {
+        "controls": {
+          "branchMustBeProtected": {
+            "allowForcePush": false,
+            "codeOwnerApprovalRequired": false,
+            "defaultMustBeProtected": true,
+            "enabled": true,
+            "minMergeAccessLevel": 30,
+            "minPushAccessLevel": 40,
+            "namePatterns": [
+              "main",
+              "master",
+              "release/*",
+              "production",
+              "dev"
+            ]
+          },
+          "containerImageMustComeFromAuthorizedSources": {
+            "enabled": true,
+            "trustDockerHubOfficialImages": true,
+            "trustedUrls": [
+              "docker.io/library/*",
+              "docker.io/docker:*",
+              "docker.io/getplumber/plumber:*",
+              "docker.io/getplumber/plumber@sha256:*",
+              "getplumber/plumber:*",
+              "$CI_REGISTRY_IMAGE:*",
+              "$CI_REGISTRY_IMAGE/*",
+              "$CI_REGISTRY/*",
+              "${CI_REGISTRY}/*",
+              "${CI_REGISTRY_IMAGE}:*",
+              "${CI_REGISTRY_IMAGE}/*",
+              "${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/*",
+              "registry.gitlab.com/security-products/*",
+              "registry.gitlab.com/gitlab-org/*",
+              "registry.gitlab.com/pipeline-components/*",
+              "docker.io/node:*",
+              "docker.io/python:*",
+              "docker.io/golang:*",
+              "docker.io/rust:*",
+              "docker.io/alpine:*",
+              "docker.io/ubuntu:*",
+              "docker.io/debian:*",
+              "docker.io/curlimages/*",
+              "docker.io/alpine/*",
+              "docker.io/golangci/*",
+              "docker.io/koalaman/*",
+              "docker.io/hadolint/*",
+              "docker.io/semgrep/*",
+              "docker.io/sonarsource/*",
+              "docker.io/aquasec/*",
+              "docker.io/cypress/*",
+              "docker.io/gittools/*",
+              "docker.io/renovate/*",
+              "docker.io/gitlab/*",
+              "docker.io/lycheeverse/*",
+              "docker.io/hugomods/*",
+              "docker.io/fsfe/*",
+              "docker.io/hashicorp/*",
+              "docker.io/cimg/*",
+              "docker.io/circleci/*",
+              "docker.io/amazon/*",
+              "docker.io/google/*",
+              "docker.io/nvidia/*",
+              "docker.io/bitnami/*",
+              "docker.io/intel/*",
+              "docker.io/rocm/*",
+              "docker.io/redhat/*",
+              "docker.io/opensuse/*",
+              "docker.io/gentoo/*",
+              "docker.io/nixos/*",
+              "docker.io/rustlang/*",
+              "docker.io/amd64/*",
+              "docker.io/arm32v6/*",
+              "docker.io/arm32v7/*",
+              "docker.io/arm64v8/*",
+              "docker.io/i386/*",
+              "docker.io/ppc64le/*",
+              "docker.io/riscv64/*",
+              "docker.io/s390x/*",
+              "docker.io/continuumio/*",
+              "docker.io/oven/*",
+              "docker.io/snapcore/*",
+              "docker.io/bufbuild/*",
+              "docker.io/getsentry/*",
+              "docker.io/zricethezav/*",
+              "docker.io/pandoc/*",
+              "docker.io/bats/*",
+              "docker.io/davidanson/*",
+              "docker.io/jdkato/*",
+              "mcr.microsoft.com/dotnet/*",
+              "mcr.microsoft.com/playwright/*",
+              "mcr.microsoft.com/playwright:*",
+              "mcr.microsoft.com/powershell:*",
+              "quay.io/buildah/*",
+              "quay.io/podman/*",
+              "quay.io/containers/*",
+              "quay.io/centos/*",
+              "quay.io/pypa/*",
+              "quay.io/gnome_infrastructure/*",
+              "ghcr.io/astral-sh/*",
+              "ghcr.io/renovatebot/*",
+              "ghcr.io/containerbase/*",
+              "ghcr.io/canonical/*",
+              "ghcr.io/graalvm/*",
+              "ghcr.io/terraform-linters/*",
+              "ghcr.io/prefix-dev/*",
+              "ghcr.io/cirruslabs/*",
+              "ghcr.io/streetsidesoftware/*",
+              "ghcr.io/igorshubovych/*",
+              "ghcr.io/tcort/*",
+              "gcr.io/kaniko-project/*",
+              "gcr.io/go-containerregistry/*",
+              "gcr.io/google.com/cloudsdktool/*",
+              "gcr.io/oss-fuzz-base/*",
+              "nvcr.io/nvidia/*",
+              "registry.suse.com/*",
+              "registry.fedoraproject.org/*",
+              "registry.hub.docker.com/library/*",
+              "library/*",
+              "redhat/*",
+              "opensuse/*"
+            ]
+          },
+          "containerImageMustNotUseForbiddenTags": {
+            "containerImagesMustBePinnedByDigest": true,
+            "enabled": true,
+            "tags": [
+              "latest",
+              "dev",
+              "development",
+              "staging",
+              "main",
+              "master"
+            ]
+          },
+          "externalRefsMustNotCollide": {
+            "enabled": true
+          },
+          "includesMustBeUpToDate": {
+            "enabled": true
+          },
+          "includesMustNotUseForbiddenVersions": {
+            "defaultBranchIsForbiddenVersion": false,
+            "enabled": true,
+            "forbiddenVersions": [
+              "latest",
+              "~latest",
+              "main",
+              "master",
+              "HEAD"
+            ]
+          },
+          "pipelineMustIncludeComponent": {
+            "enabled": false,
+            "requiredGroups": []
+          },
+          "pipelineMustIncludeTemplate": {
+            "enabled": false,
+            "requiredGroups": []
+          },
+          "pipelineMustNotEnableDebugTrace": {
+            "enabled": true,
+            "forbiddenVariables": [
+              "CI_DEBUG_TRACE",
+              "CI_DEBUG_SERVICES"
+            ]
+          },
+          "pipelineMustNotExecuteUnverifiedScripts": {
+            "enabled": true,
+            "trustedUrls": []
+          },
+          "pipelineMustNotIncludeHardcodedJobs": {
+            "enabled": false
+          },
+          "pipelineMustNotOverrideJobVariables": {
+            "enabled": true,
+            "variables": [
+              "SECURE_ANALYZERS_PREFIX",
+              "SAST_DISABLED",
+              "SAST_EXCLUDED_PATHS",
+              "SAST_EXCLUDED_ANALYZERS",
+              "SECRET_DETECTION_DISABLED",
+              "SECRET_DETECTION_EXCLUDED_PATHS",
+              "CONTAINER_SCANNING_DISABLED",
+              "DAST_DISABLED",
+              "DEPENDENCY_SCANNING_DISABLED",
+              "LICENSE_SCANNING_DISABLED"
+            ]
+          },
+          "pipelineMustNotUseDockerInDocker": {
+            "detectInsecureDaemon": true,
+            "enabled": true
+          },
+          "pipelineMustNotUseUnsafeVariableExpansion": {
+            "allowedPatterns": [],
+            "dangerousVariables": [
+              "CI_MERGE_REQUEST_TITLE",
+              "CI_MERGE_REQUEST_DESCRIPTION",
+              "CI_COMMIT_MESSAGE",
+              "CI_COMMIT_TITLE",
+              "CI_COMMIT_TAG_MESSAGE",
+              "CI_COMMIT_REF_NAME",
+              "CI_COMMIT_REF_SLUG",
+              "CI_COMMIT_BRANCH",
+              "CI_MERGE_REQUEST_SOURCE_BRANCH_NAME",
+              "CI_EXTERNAL_PULL_REQUEST_SOURCE_BRANCH_NAME"
+            ],
+            "enabled": true
+          },
+          "securityJobsMustNotBeWeakened": {
+            "allowFailureMustBeFalse": {
+              "enabled": false
+            },
+            "enabled": true,
+            "rulesMustNotBeRedefined": {
+              "enabled": true
+            },
+            "securityJobPatterns": [
+              "*-sast",
+              "secret_detection",
+              "container_scanning",
+              "*_dependency_scanning",
+              "gemnasium-*",
+              "dast",
+              "dast_*",
+              "license_scanning"
+            ],
+            "whenMustNotBeManual": {
+              "enabled": true
+            }
+          }
+        }
+      },
+      "version": "2.0"
+    },
+    "hash": "sha256:dff67071056792cb19abe8fe57cd1a8865924980347e9c2c62ba32a4c6497bac",
+    "source": "built-in default"
+  }
+}

@@ -35,7 +35,7 @@ func columnIndex(t *testing.T, cols []table.Column, title string) int {
 // messages those commands return and assert on the rows.
 
 func TestSecOpensOnTheInventoryRatherThanAForm(t *testing.T) {
-	m := New(testConfig())
+	m := New(testConfig(), nil)
 
 	if m.state != StateInventory {
 		t.Errorf("state = %v on open, want the inventory", m.state)
@@ -433,8 +433,8 @@ func TestInitLoadsTheInventory(t *testing.T) {
 		name  string
 		model Model
 	}{
-		{"opened on the inventory", New(testConfig())},
-		{"opened on a result", NewWithPreloadedResult(testConfig(), resultFixture())},
+		{"opened on the inventory", New(testConfig(), nil)},
+		{"opened on a result", NewWithPreloadedResult(testConfig(), nil, resultFixture())},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, ok := testutil.MsgOf[InventoryLoadedMsg](tc.model.Init()); !ok {

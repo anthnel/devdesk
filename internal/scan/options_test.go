@@ -30,7 +30,7 @@ func TestEveryConfiguredOptionReachesTheScanner(t *testing.T) {
 		cfgValue.FieldByName(name).Set(distinctValue(name, cfgValue.FieldByName(name).Type()))
 	}
 
-	got := reflect.ValueOf(OptionsFromConfig(cfg))
+	got := reflect.ValueOf(OptionsFromConfig(&config.Config{Scan: cfg}))
 
 	for _, name := range shared {
 		want := distinctValue(name, cfgValue.FieldByName(name).Type()).Interface()
@@ -44,7 +44,7 @@ func TestEveryConfiguredOptionReachesTheScanner(t *testing.T) {
 // zero config must produce zero options, so a default that only exists in the
 // builder cannot hide a config field nobody set.
 func TestOptionsFromConfigCarriesNothingItWasNotGiven(t *testing.T) {
-	opts := OptionsFromConfig(config.ScanConfig{})
+	opts := OptionsFromConfig(&config.Config{})
 
 	if opts.EnableVuln || opts.EnableSecret || opts.EnableMisconfig || opts.EnableLicense {
 		t.Errorf("an empty config produced enabled scanners: %+v", opts)

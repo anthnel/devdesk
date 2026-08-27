@@ -284,6 +284,7 @@ func storeRescan(job inventoryScanJob, result *scan.Result) {
 			Critical: result.Counts.Critical, High: result.Counts.High,
 			Medium: result.Counts.Medium, Low: result.Counts.Low,
 			Sensitive: result.SecretVerdict(),
+			CIScore:   result.CIVerdict(),
 			ScannedAt: result.EndTime,
 		})
 	}

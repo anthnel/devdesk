@@ -105,7 +105,7 @@ sources, `TestEveryFieldCarriesTheAccessorItsKindNeeds` et
   *disponible* comme la version *installée* est le genre de chose que personne
   ne remarque pendant des mois.
 
-### PR 2 — l'outil tourne, le cache retient
+### PR 2 — l'outil tourne, le cache retient — **fait le 2026-08-27**
 
 **`internal/scan/plumber.go`** — le constructeur d'arguments, sur le patron de
 `gitleaks.go` :
@@ -161,7 +161,51 @@ existant décode en `nil`, ce qui est la vérité sur lui.
 **Tests** : les quatre codes de sortie, la jointure sévérité, le montage et sa
 position relative au nom de l'image, le refus d'un dépôt d'une autre forge, et
 qu'aucun des cinq drapeaux sortants n'apparaisse jamais dans la commande
-construite.
+construite. Les fixtures sont **deux exécutions réelles** de plumber 0.4.40 sur
+un même dépôt, ne différant que par la présence d'un jeton GitHub ; leurs
+chemins sont neutralisés, rien d'autre n'est retouché.
+
+**Le choix est pris : mode local.** La colonne parle du disque comme les autres
+cellules de la ligne, et `--branch` reste sans effet sur ce chemin, ce qui laisse
+l'arbitrage du 2026-08-25 à GitLab seul.
+
+**Ce que l'écriture a appris :**
+
+- **Par cible, pas par lot.** Un lot de scans porte des dépôts aux remotes et
+  aux branches différents, donc un seul jeu d'options pour tout le lot noterait
+  la mauvaise chose — ou noterait un dépôt d'une autre forge, ce que la règle
+  existe pour empêcher. `Scanner.ciOptions` lit le remote de *ce* dépôt et
+  refuse ; `ciOptionsFor` est la règle nue, testable sans dépôt sur disque.
+- **`OptionsFromConfig` prend le `*config.Config` entier**, plus seulement sa
+  section `scan` : la forge décide si un dépôt est noté, et ce n'est pas un
+  réglage de scan. Douze sites d'appel, mécaniques.
+- **Le JSON sort par deux routes, et c'est mesuré.** Dans un conteneur
+  `--output /dev/stdout` marche ; le binaire natif Windows n'y écrit **rien**.
+  Le mode binaire écrit donc dans un fichier temporaire qu'on lit et qu'on
+  supprime. `--print=false` est ce qui garde stdout parsable.
+- **Le run dégradé note *mieux* que le run complet.** §3.42 disait « le JSON
+  continue d'écrire `"score": "E"` ». C'est pire : sur les deux fixtures, le run
+  dégradé lit **B/79** là où le complet lit **E/30**, parce qu'un contrôle qui
+  n'a pas tourné n'a rien trouvé. Reprendre la lettre flatterait un dépôt
+  précisément quand on en sait le moins.
+- **`partialControls` est un troisième état, plus faible que le retenu.** Un
+  jeton *valide mais sous-doté* ne fait pas retenir le score : il désactive un
+  contrôle, l'inscrit dans `partialControls`, et note quand même (exit 1). C'est
+  la réponse GitHub à la moitié de la mesure 2 qu'on ne pouvait pas faire côté
+  GitLab. La cellule affiche donc la lettre, qui peut être optimiste — à écrire
+  quelque part en PR 3.
+- **`toolCmd` gagne `Env`**, pour qu'un jeton n'aille jamais dans argv, qui est
+  lisible depuis la liste des processus. `String()` ne le rend jamais : la
+  commande est journalisée et affichée.
+- **`git.SameHost` a déménagé.** La comparaison d'hôte vivait dans
+  `internal/ui/workspaces`, où le sync décide si le jeton part ; un paquet de
+  domaine ne peut pas importer une vue, et deux copies d'une comparaison d'hôte
+  est la façon dont un dépôt finit par être digne de confiance pour une
+  fonctionnalité et pas pour l'autre.
+- **La vue security reçoit le magasin de secrets.** Sans lui, un rescan lancé
+  depuis `:sec` n'aurait pas de jeton et rendrait `?` là où le même rescan lancé
+  depuis `ws` rend une lettre : deux écrans notant un même dépôt différemment,
+  ce que §3.11 et §3.12 ont chacun eu à défaire.
 
 ### PR 3 — les deux écrans
 
