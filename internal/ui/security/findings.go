@@ -7,12 +7,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 )
 
 // findingColumns describes the findings table.
@@ -239,6 +241,9 @@ const (
 	reasonNoFinding    = "No finding selected"
 	reasonNotASecret   = ".gitleaksignore only holds secrets — open the Secrets tab"
 	reasonNotGitleaks  = "Only Gitleaks findings can be added to .gitleaksignore"
+	reasonNotCITab     = "The resolved pipeline belongs to the CI tab"
+	reasonNotARepo     = "An image has no pipeline"
+	reasonNoResolution = "This forge does not resolve a pipeline server-side"
 	reasonNothingToSee = "No finding to open"
 )
 
@@ -256,6 +261,58 @@ func (m Model) canOpenFinding() shortcut.Availability {
 // does not have — fabricating one would report success for a line nothing will
 // ever match. The tab is checked first because it is the coarser answer: on
 // the CVE tab the key means nothing at all, whatever the row.
+// openPipelineKey opens the pipeline the forge resolves for this repository.
+//
+// It is a **declared exception** to the uppercase vocabulary
+// (keymap.DeclaredExceptions), on the precedent of `c` in oci/network-inspect
+// and for the reason written there: the action exists on one sub-screen, and
+// burning one of the three remaining free capitals for it would cost more than
+// it returns.
+//
+// `o` and not `p`: `o` already means "open what this screen points at" in this
+// view's details state, where it opens a finding's reference. One verb, two
+// screens, and the shortcut column is replaced by the mode either way.
+const openPipelineKey = "o"
+
+// canOpenPipeline decides whether the resolved pipeline can be fetched.
+//
+// The tab is checked first for canExclude's reason — it is the coarser answer,
+// and off the CI tab the key means nothing whatever the row. The shape is
+// checked before anything is read: a GitHub context cannot answer this at all,
+// and finding that out after a keystroke and a git call would be worse than
+// saying so in the column.
+func (m Model) canOpenPipeline() shortcut.Availability {
+	switch {
+	case m.activeTab != TabCIScore:
+		return shortcut.Unavailable(reasonNotCITab)
+	case m.result == nil || m.result.TargetType != scan.TargetDirectory:
+		return shortcut.Unavailable(reasonNotARepo)
+	case !forge.ShapeFor(m.config.Forge.Type).MergedCIConfig:
+		return shortcut.Unavailable(reasonNoResolution)
+	}
+	return shortcut.Availability{}
+}
+
+// openResolvedPipeline hands the document to the router, which opens the
+// viewer on it. The fetch is the source's, so it runs on the viewer's own Cmd
+// (Rule 110) and its failures are reported where the document would have been.
+func (m Model) openResolvedPipeline() (tea.Model, tea.Cmd) {
+	// The refusal is never silent (Rule 130), and it is a Warn rather than an
+	// Error: nothing failed, the key does not apply as asked (Rule 128). The
+	// reason is the one canOpenPipeline computed, so the footer and the greyed
+	// entry cannot be about different things.
+	if a := m.canOpenPipeline(); !a.Enabled() {
+		return m, m.footer.Warn(a.Reason)
+	}
+	source := pipelineSource{
+		RepoPath: m.result.Target,
+		Label:    shortenHome(m.result.Target),
+		Forge:    m.config.Forge,
+		Secrets:  m.secrets,
+	}
+	return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
+}
+
 func (m Model) canExclude() shortcut.Availability {
 	if m.activeTab != TabSecrets {
 		return shortcut.Unavailable(reasonNotASecret)
@@ -318,6 +375,8 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.toggleSeverity(msg.String())
 	case keymap.Exclude:
 		return m.handleIgnoreSecret()
+	case openPipelineKey:
+		return m.openResolvedPipeline()
 	}
 	// `.` is the sort again, and the search and the severity tokens are the
 	// table's (Rule 136).

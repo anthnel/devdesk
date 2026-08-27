@@ -16,6 +16,7 @@ package gitlab
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"sync"
@@ -184,3 +185,35 @@ func deletionPath(path string, id int64) string {
 // would be an unrelated behaviour change inside a refactor that promises none —
 // not because 500 ms is known to be the right number.
 const propagationDelay = 500 * time.Millisecond
+
+// MergedCIConfig is the pipeline as GitLab resolves it: every `include` and
+// every component expanded server-side, which is what a plumber finding is
+// actually about (§3.42).
+//
+// The lint endpoint is the only thing that answers this. Its result carries the
+// resolved document and the transitive include graph, and neither is derivable
+// from the repository alone — a single `include:` in a fifteen-line file
+// resolves to fifteen includes and twenty-one jobs on a measured example.
+//
+// A configuration the server refuses is **not** an error here: the document is
+// what the user came to read, and a lint failure is often precisely why. The
+// errors go to the log, the YAML comes back if there is one, and an empty
+// document is the one case that fails — there is nothing to show.
+func (f *Forge) MergedCIConfig(ctx context.Context, repoID, ref string) (string, error) {
+	opts := &gitlabclient.ProjectLintOptions{}
+	if ref != "" {
+		opts.Ref = gitlabclient.Ptr(ref)
+	}
+	result, _, err := f.client.Validate.ProjectLint(repoID, opts, gitlabclient.WithContext(ctx))
+	if err != nil {
+		return "", fmt.Errorf("resolve CI configuration for %s: %w", repoID, err)
+	}
+	if !result.Valid {
+		log.Printf("WARN [forge/gitlab] %s: the resolved CI configuration is invalid: %s",
+			repoID, strings.Join(result.Errors, "; "))
+	}
+	if result.MergedYaml == "" {
+		return "", fmt.Errorf("resolve CI configuration for %s: the server returned no document", repoID)
+	}
+	return result.MergedYaml, nil
+}

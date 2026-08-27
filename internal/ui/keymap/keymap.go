@@ -245,6 +245,16 @@ var exceptions = []Exception{
 			"que ça ne rapporte.",
 	},
 	{
+		Key:     "o",
+		Surface: "security/results/ci-tab",
+		Why: "Ouvrir le pipeline résolu par le forge. Même raison que `c` : " +
+			"l'action n'existe que sur un onglet, et brûler une des trois " +
+			"dernières majuscules libres pour ça coûterait plus que ça ne " +
+			"rapporte. `o` plutôt qu'une autre lettre parce qu'il veut déjà " +
+			"dire « ouvrir ce que cet écran désigne » dans l'état détail de " +
+			"la même vue, où il ouvre la référence d'un finding.",
+	},
+	{
 		Key:     "ctrl+y",
 		Surface: "oci/launch-form",
 		Why: "Copier la commande docker run. Même raison, et ctrl+y ne heurte " +

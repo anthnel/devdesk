@@ -25,6 +25,8 @@ var shapes = map[string]Shape{
 		MaxNamespaceDepth: 0,
 		Visibilities:      []string{"private", "internal", "public"},
 		PermanentDelete:   true,
+		// The lint endpoint returns the resolved configuration.
+		MergedCIConfig: true,
 	},
 	config.ForgeGitHub: {
 		Name: config.ForgeGitHub,
@@ -36,6 +38,9 @@ var shapes = map[string]Shape{
 		// GitHub deletes at once and has no grace period, so there is nothing
 		// for a "permanent" checkbox to mean.
 		PermanentDelete: false,
+		// A workflow's `uses:` is resolved by the runner at execution time;
+		// there is no endpoint that hands back an expanded workflow.
+		MergedCIConfig: false,
 	},
 }
 

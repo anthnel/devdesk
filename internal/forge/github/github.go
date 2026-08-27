@@ -22,6 +22,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -149,4 +150,18 @@ func (f *Forge) webBase() string {
 		return "https://github.com"
 	}
 	return f.baseURL
+}
+
+// MergedCIConfig is refused: GitHub has no equivalent.
+//
+// A workflow's `uses:` is resolved by the runner when the job starts, so there
+// is no endpoint that hands back an expanded workflow — and answering with the
+// raw `.github/workflows/*.yml` would report a distinction the platform does
+// not make, which is the argument that already refuses CreateNamespace and a
+// permanent delete here.
+//
+// Shape().MergedCIConfig is false, so a caller that gates on the shape never
+// reaches this. It exists for the one that forgot.
+func (f *Forge) MergedCIConfig(_ context.Context, _, _ string) (string, error) {
+	return "", errors.New("GitHub resolves a workflow's `uses:` when the runner starts it, so there is no resolved configuration to fetch")
 }

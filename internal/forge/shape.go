@@ -37,6 +37,17 @@ type Shape struct {
 	// has no equivalent, so the confirmation's "permanent" checkbox is
 	// meaningless there and must be out of reach rather than ignored.
 	PermanentDelete bool
+
+	// MergedCIConfig says the forge can resolve a repository's CI
+	// configuration server-side and hand back the result — every `include` and
+	// every component expanded, as the pipeline would actually run.
+	//
+	// GitLab does it through its lint endpoint. GitHub has no equivalent: a
+	// workflow's `uses:` is resolved by the runner at execution time and there
+	// is nothing to ask for, so the capability is declared false rather than
+	// implemented as something adjacent (the InitialCommit precedent — refuse
+	// what the platform cannot express).
+	MergedCIConfig bool
 }
 
 // CanNestUnder reports whether a namespace may be created under a parent that
