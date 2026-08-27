@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "f2a31909e04b",
+  "strategy": "manual-commit",
+  "branch": "docs/352-ci-column-colour",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/forge/detect.go",
+    "internal/forge/forge.go",
+    "internal/forge/forge_test.go",
+    "internal/forge/github/github.go",
+    "internal/forge/gitlab/gitlab.go",
+    "internal/forge/shape.go",
+    "internal/ui/keymap/keymap.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/header_test.go",
+    "internal/ui/security/pipeline_source.go",
+    "internal/ui/security/pipeline_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f2/a31909e04b/0/metadata.json",
+      "transcript": "/f2/a31909e04b/0/full.jsonl",
+      "compact_transcript": "/f2/a31909e04b/0/transcript.jsonl",
+      "content_hash": "/f2/a31909e04b/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 98,
+    "cache_creation_tokens": 43077,
+    "cache_read_tokens": 18979383,
+    "output_tokens": 27712,
+    "api_call_count": 49
+  }
+}

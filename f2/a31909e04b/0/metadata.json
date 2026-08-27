@@ -1,0 +1,63 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "f2a31909e04b",
+  "session_id": "425e6457-0be2-4cc8-a539-3ec2a028071b",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-27T14:12:52.297405914Z",
+  "branch": "docs/352-ci-column-colour",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/forge/detect.go",
+    "internal/forge/forge.go",
+    "internal/forge/forge_test.go",
+    "internal/forge/github/github.go",
+    "internal/forge/gitlab/gitlab.go",
+    "internal/forge/shape.go",
+    "internal/ui/keymap/keymap.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/header_test.go",
+    "internal/ui/security/pipeline_source.go",
+    "internal/ui/security/pipeline_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "2299848c3c18",
+  "checkpoint_transcript_start": 992,
+  "transcript_lines_at_start": 992,
+  "compact_transcript_start": 204,
+  "token_usage": {
+    "input_tokens": 98,
+    "cache_creation_tokens": 43077,
+    "cache_read_tokens": 18979383,
+    "output_tokens": 27712,
+    "api_call_count": 49
+  },
+  "session_metrics": {
+    "turn_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-27T14:12:52.168163884Z",
+    "agent_lines": 394,
+    "agent_removed": 6,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 394,
+    "total_lines_changed": 400,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 73,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 73
+      }
+    }
+  ]
+}
