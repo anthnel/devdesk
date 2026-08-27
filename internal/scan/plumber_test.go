@@ -1,8 +1,10 @@
 package scan
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,7 +34,7 @@ func TestACompleteRunCarriesItsLetterAndItsIssues(t *testing.T) {
 	}
 
 	if report.Score != "E" || report.Points != 30 {
-		t.Errorf("score = %q/%d, want E/30", report.Score, report.Points)
+		t.Errorf("score = %q/%v, want E/30", report.Score, report.Points)
 	}
 	if report.Withheld {
 		t.Error("a complete run was reported as withheld")
@@ -454,5 +456,59 @@ func TestTheOtherTwoScannersStillRunWhereTheyDid(t *testing.T) {
 	}
 	if cmd.Dir != "" {
 		t.Errorf("trivy gained a working directory: %q", cmd.Dir)
+	}
+}
+
+// A score is a weighted sum, so a whole number is the exception. Both fixtures
+// happened to be whole, which is why an int decoded them and the first
+// repository with a fractional score failed the entire stage with
+// `cannot unmarshal number 25.698320532936123 into Go struct field
+// plumberScore.finalPoints of type int`.
+func TestAFractionalScoreIsNotAParseFailure(t *testing.T) {
+	report, err := parsePlumberOutput([]byte(`{
+		"plumberScore": {
+			"score": "D",
+			"finalPoints": 25.698320532936123,
+			"codeLosses": [{"code": "ISSUE-411", "severity": "high"}]
+		},
+		"someResult": {
+			"controlName": "aControl",
+			"issues": [{"code": "ISSUE-411"}]
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("a fractional score failed to parse: %v", err)
+	}
+	if report.Score != "D" {
+		t.Errorf("Score = %q, want D", report.Score)
+	}
+	if report.Points < 25.6 || report.Points > 25.7 {
+		t.Errorf("Points = %v, want the fractional value it was given", report.Points)
+	}
+	if len(report.Findings) != 1 || report.Findings[0].Severity != SeverityHigh {
+		t.Errorf("findings = %+v, want the one issue with its severity", report.Findings)
+	}
+}
+
+// The views do not print a tool's stderr any more, so this package has to log
+// it: it used to append to Result.Errors and log nothing, which made the screen
+// the only copy of the reason.
+func TestEveryStageFailureIsLogged(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	result := &Result{}
+	recordStageError(result, "plumber", errors.New("--project is required"))
+
+	if len(result.Errors) != 1 || !strings.Contains(result.Errors[0], "plumber: ") {
+		t.Errorf("Errors = %v, want the stage named", result.Errors)
+	}
+	logged := buf.String()
+	if !strings.Contains(logged, "plumber") || !strings.Contains(logged, "--project is required") {
+		t.Errorf("the reason is not in the log: %q", logged)
+	}
+	if !strings.Contains(logged, "ERROR") {
+		t.Errorf("the log line is not marked as an error: %q", logged)
 	}
 }

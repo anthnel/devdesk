@@ -1713,16 +1713,20 @@ DevDesk had been launched from and answered
 about a repository nobody had asked it to look at. Trivy and Gitleaks take their
 target in argv and set nothing there.
 
-**A stage that fails does not hide what the others found.** The results view
-replaced the whole table with the warnings panel whenever `Result.Errors` was
-non-empty, on the stated grounds that a failed scan has no partial results to
-browse. That held while an error meant nothing had run; it stopped holding the
-day a stage could fail beside three that succeeded, and a plumber failure then
-took every CVE and every secret down with it. The panel now replaces the table
-only when `TotalFindings() == 0`, and otherwise sits above it — on every tab,
-because the failure is about the scan rather than about the tab being read.
-`showsResultTabs` follows the same rule, or the tab bar would vanish from a
-screen that has tabs worth using.
+**A stage that fails goes to the log, not to the screen** (Rule 128). The
+results view rendered a warnings panel that replaced the whole table whenever
+`Result.Errors` was non-empty, so a plumber failure took every CVE and every
+secret down with it; folding it to a banner above the table only moved the
+problem to all five tabs at once. There is no panel any more — the table is what
+the results state shows, always — and the footer carries a **status** naming the
+failed stages and saying to check the logs. A status rather than a message
+because it is a state of the result: a message expires after three seconds, and
+the user would be left with a result that looks complete.
+
+`internal/scan.recordStageError` is what makes that honest. Every stage used to
+append to `Result.Errors` and log **nothing**, so the only copy of the reason was
+on screen, in the panel that hid the findings. It now logs at the point it
+records, at all six sites.
 
 Two smaller things it needed: `toolCmd` gained an `Env` so the token reaches
 plumber through the environment rather than argv, which is readable from the
