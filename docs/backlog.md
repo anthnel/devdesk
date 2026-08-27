@@ -9843,7 +9843,10 @@ visible, c'est ce qui permet de router un finding vers le dépôt qui peut
 réellement le traiter — et de voir qu'une même faute comptée sur vingt dépôts
 consommateurs n'est qu'**une** faute.
 
-### 3.52 La colonne CI se colore sur les cinq lettres, en gras
+### 3.52 La colonne CI se colore, et migre vers `:sec` — **done**
+
+Fait le 2026-08-27. Trois changements, demandés ensemble : les couleurs, le
+retrait de la ligne de score, et la colonne dans l'inventaire.
 
 Demandé le 2026-08-27. La correspondance voulue :
 
@@ -9923,6 +9926,66 @@ restent grises, c'est ce qui donne son sens au vert.
 (Rule 122). Et le fond : `SeverityTextStyle` pose déjà `Background(ColorBackground)`,
 donc le style du vert doit le poser aussi, ou la cellule dépouille de son fond
 tout ce qui la suit sur la ligne (Rule 115).
+
+#### Ce qui a été construit, et les deux changements qui se sont ajoutés
+
+**1. Les styles sont ceux de cette colonne, pas ceux d'une sévérité.**
+`CIScoreStyle` construit son style au lieu d'emprunter `SeverityTextStyle`, et
+`ciGradeStyle` porte la table des cinq lettres. Le piège annoncé était réel :
+`SeverityTextStyle` ne met `Bold` que sur CRITICAL et HIGH, donc un `C` emprunté
+rendrait plus léger qu'un `D` pour une raison qui appartient à une table de CVE.
+Une lettre que l'outil ajouterait plus tard reçoit la graisse et **aucune
+couleur** — le vert nominal est une affirmation, et l'attribuer à une note que
+personne n'a définie serait une supposition.
+
+**2. La ligne de score disparaît de l'onglet CI.** Elle coûtait deux lignes à
+cet onglet — la ligne et son blanc — à chaque ouverture, pour énoncer une lettre
+que l'inventaire porte désormais par cible. Un onglet qui montre moins de
+résultats que ses quatre voisins, et une mise en page qui saute à chaque
+bascule, ne valaient pas une valeur déjà présente sur l'écran précédent.
+`resultsHeadLines`, `ciScoreHeadLines` et `renderCIScoreLine` sont supprimés ;
+`TestEveryTabGivesTheTableTheSameHeight` fixe ce qu'on y gagne.
+
+**3. `:sec` gagne la colonne**, sous les quatre règles de `ws` : présente
+seulement si le réglage l'est, jamais `Optional`, jamais triable — `datatable`
+réserve `largeur(titre)+2` à la flèche d'une colonne triable, ce qui coûterait
+six cellules au lieu de quatre dans la table la plus serrée de l'application —
+et les trois absences distinguées par l'état.
+
+**Ce que la migration a demandé de décider.** Une ligne de l'inventaire vient du
+cache, qui ne stocke que la lettre ; or la distinction entre « jamais scanné »
+(`-`) et « pas gradable d'ici » (cellule vide) tient au **remote**, que le cache
+ne porte pas. Trois options, et une seule est honnête :
+
+| | |
+|---|---|
+| lire le remote au chargement | un `git remote get-url` par ligne de dépôt, dans un `Cmd` — **retenu** |
+| rendre `?` faute de mieux | ferait dire « score retenu » de chaque dépôt d'un autre forge : D20 |
+| ajouter un champ au cache | une entrée existante décoderait en `false`, c'est-à-dire un mensonge |
+
+Le coût est borné par `ciForgeURL`, qui rend la chaîne vide quand la colonne est
+éteinte : **une colonne que personne n'affiche ne paie pas d'appel git**. Et un
+remote illisible n'est pas gradable — ce n'est pas un repli mais la bonne
+réponse : plumber n'aurait pas résolu de projet non plus.
+
+`InventoryScanFinishedMsg` porte la lettre pour la raison exacte qui lui fait
+porter le verdict de secrets : sans elle, une ligne rescannée garderait la note
+de son scan précédent à côté de compteurs tout neufs, jusqu'au prochain
+`ctrl+r`.
+
+#### Ce qui a été mis à jour avec le code
+
+Comme l'entrée l'exigeait, pour que le dépôt ne garde pas des textes affirmant
+le contraire de son code : le commentaire de `CIScoreStyle`,
+`TestOnlyTheBadGradesAreColoured` — remplacé par
+`TestTheFiveGradesAreColouredAndBold`, `TestABadGradeIsNeverTheNominalColour` et
+`TestAnUnknownGradeClaimsNoColour` —, la discipline de couleur de Rule 122, et
+la section CI de `.claude/CLAUDE.md`.
+
+La ligne de Rule 122 n'est pas supprimée mais **assortie de son exception, avec
+son critère** : une colonne où l'absence de couleur est *déjà prise* par des
+absences grises. Ce n'est pas « c'est important » — si les absences d'une
+colonne se distinguaient déjà, le vert y redeviendrait du bruit.
 
 ## 4. Existing plans
 

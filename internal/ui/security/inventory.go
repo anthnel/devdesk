@@ -42,7 +42,7 @@ func (m Model) handleInventoryState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keymap.ScanAll:
 		return m.confirmRescanAll()
 	case "ctrl+r":
-		return m, loadInventoryCmd()
+		return m, loadInventoryCmd(m.ciForgeURL())
 	}
 	return m, m.inventory.Update(msg)
 }
@@ -203,7 +203,7 @@ func (m *Model) markScanning(names []string, purge bool) {
 // workspaces list while this view sat on a result.
 func (m Model) goHome() (tea.Model, tea.Cmd) {
 	m.state = StateInventory
-	return m, loadInventoryCmd()
+	return m, loadInventoryCmd(m.ciForgeURL())
 }
 
 // handleInventoryLoaded installs the targets read from the caches.
@@ -257,6 +257,7 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 				t.Scanned = true
 				t.Counts = msg.Counts
 				t.Sensitive = msg.Sensitive
+				t.CIScore = msg.CIScore
 				t.ScannedAt = msg.ScannedAt
 			}
 		}

@@ -127,6 +127,16 @@ Une couleur qui apparaît partout n'informe de rien :
   défaut, **pas** de vert ;
 - la couleur est réservée à ce qui mérite d'être repéré sans lire.
 
+**L'exception, et ce qui la définit : une colonne où l'absence de couleur est
+déjà prise.** La colonne `CI` a trois absences — jamais scanné, non gradable,
+score retenu — et les trois rendent en `DimStyle`. Un `A` en couleur de texte
+ordinaire ne s'y distingue d'un `-` gris que par une nuance, sur quatre
+cellules. Le vert y sépare donc **une note d'une absence**, pas deux valeurs
+nominales l'une de l'autre : c'est ce que la règle ci-dessus interdit ailleurs,
+et ce qu'elle demande ici. Le critère est celui-là et pas « c'est important » —
+si les absences d'une colonne se distinguaient déjà, le vert redeviendrait du
+bruit.
+
 Checklist :
 - [ ] Aucun `style.Render(...)` dans ce que retourne `Cell`
 - [ ] Icônes de statut en texte brut : `theme.IconError + " error"`

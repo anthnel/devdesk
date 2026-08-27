@@ -15,6 +15,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/git"
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
@@ -42,6 +43,10 @@ type InventoryScanFinishedMsg struct {
 	// précédent jusqu'au prochain ctrl+r, en affichant par ailleurs des
 	// compteurs tout frais.
 	Sensitive *bool
+	// CIScore is the pipeline grade, carried for Sensitive's reason exactly: a
+	// rescanned row would otherwise keep the letter of its previous scan until
+	// the next ctrl+r, beside counters that are brand new.
+	CIScore   *string
 	ScannedAt time.Time
 	Err       error
 }
@@ -64,7 +69,10 @@ type inventoryScanJob struct {
 // and a `docker rmi` or an `rm -rf` outside DevDesk is not observed at all. One
 // rule at the load covers the four, where four cascades would each have to be
 // remembered.
-func loadInventoryCmd() tea.Cmd {
+// forgeURL is this context's forge, and it is empty when the CI column is off:
+// resolving gradeability costs one `git remote get-url` per repository row, and
+// a column nobody is showing must not pay for it.
+func loadInventoryCmd(forgeURL string) tea.Cmd {
 	return func() tea.Msg {
 		contextName := config.CurrentContextName()
 		targets := make([]scanTarget, 0)
@@ -102,8 +110,10 @@ func loadInventoryCmd() tea.Cmd {
 						Critical: entry.Critical, High: entry.High,
 						Medium: entry.Medium, Low: entry.Low,
 					},
-					Sensitive: entry.Sensitive,
-					ScannedAt: entry.ScannedAt,
+					Sensitive:   entry.Sensitive,
+					CIScore:     entry.CIScore,
+					CIGradeable: gradeable(path, forgeURL),
+					ScannedAt:   entry.ScannedAt,
 				})
 			}
 		}
@@ -117,6 +127,28 @@ func loadInventoryCmd() tea.Cmd {
 		})
 		return InventoryLoadedMsg{Targets: targets}
 	}
+}
+
+// gradeable says whether plumber would grade this repository from this context.
+//
+// It is §3.42's rule, asked of a cache entry rather than of a workspaces row: a
+// context targets one forge and holds one token, so a repository of any other
+// host is not ungraded but ungradeable — an empty cell, never a dash. The
+// distinction has to survive the trip through the cache, which stores only the
+// letter.
+//
+// A remote that cannot be read is not gradeable. That is the honest answer and
+// not a fallback: a repository with no origin is one plumber could not resolve
+// a project for either.
+func gradeable(repoPath, forgeURL string) bool {
+	if forgeURL == "" {
+		return false
+	}
+	remote, err := git.RemoteURL(repoPath)
+	if err != nil {
+		return false
+	}
+	return git.SameHost(remote, forgeURL)
 }
 
 // listImages is docker.ListImages, indirected for the tests and for nothing
@@ -256,7 +288,8 @@ func rescanOneCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan struct{}
 		storeRescan(job, result)
 		return InventoryScanFinishedMsg{
 			Name: job.Name, Counts: result.Counts,
-			Sensitive: result.SecretVerdict(), ScannedAt: result.EndTime,
+			Sensitive: result.SecretVerdict(), CIScore: result.CIVerdict(),
+			ScannedAt: result.EndTime,
 		}
 	}
 }

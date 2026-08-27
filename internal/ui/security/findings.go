@@ -333,13 +333,10 @@ func (m Model) toggleSeverity(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// resizeFindings lays the findings table out, leaving room for the score line
-// when the CI tab is what will be drawn.
-//
-// The table therefore loses two rows on that tab and gets them back on the
-// others. It is a visible change on tab switch, and the right one: the content
-// genuinely differs, and the alternative — reserving the two lines on all five
-// tabs — would spend them on four screens that have nothing to put there.
+// resizeFindings lays the findings table out. Every tab gets the whole height:
+// the CI tab used to give two rows to a score line above the table, and losing
+// two findings on one tab out of five — for a letter the inventory already
+// carries per target — was not worth the jump on every tab switch.
 func (m *Model) resizeFindings() {
-	m.findingsTable.Resize(m.width, max(m.height-m.resultsHeadLines(), 5))
+	m.findingsTable.Resize(m.width, max(m.height, 5))
 }

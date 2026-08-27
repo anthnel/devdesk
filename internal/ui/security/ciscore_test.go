@@ -31,81 +31,40 @@ func ciModel(t *testing.T, result *scan.Result) Model {
 		tea.WindowSizeMsg{Width: 160, Height: 30})
 }
 
-// The grade is not a finding, so it has no row: it goes above the table, on its
-// own tab.
-func TestTheScoreLineStatesTheGradeOnTheCITab(t *testing.T) {
+// The grade has no line of its own any more. It cost the CI tab two of its
+// rows to state a letter the inventory's CI column already carries per target,
+// and it was the only tab that showed fewer findings than its neighbours.
+func TestTheCITabShowsNoScoreLine(t *testing.T) {
 	m := ciModel(t, ciResult(func(r *scan.Result) {
 		r.CIScanned, r.CIScore, r.CIPoints = true, "C", 61
 	}))
-
-	line := plain(m.renderCIScoreLine(160))
-	if !strings.Contains(line, "C") || !strings.Contains(line, "61.0/100") {
-		t.Errorf("the score line does not carry the grade: %q", line)
-	}
-	// Rule 120: the separator is the chevron, never a colon.
-	if strings.Contains(line, "Score:") {
-		t.Errorf("the score line uses a colon: %q", line)
-	}
-}
-
-// The one that matters. plumber writes a letter on a withheld run and it
-// flatters — a control that did not run found nothing — so the line says why
-// instead of quoting it.
-func TestAWithheldRunSaysWhyRatherThanShowingALetter(t *testing.T) {
-	m := ciModel(t, ciResult(func(r *scan.Result) {
-		r.CIScanned, r.CIWithheld = true, true
-		r.CIReasons = []string{"branch protection could not be fetched"}
-	}))
-
-	line := plain(m.renderCIScoreLine(160))
-	if !strings.Contains(line, "withheld") {
-		t.Errorf("a withheld run does not say so: %q", line)
-	}
-	if !strings.Contains(line, "branch protection could not be fetched") {
-		t.Errorf("the reason is missing: %q", line)
-	}
-}
-
-// A repository with no pipeline has not scored badly; it has nothing to score.
-func TestARepositoryWithNoPipelineSaysSoRatherThanScoringZero(t *testing.T) {
-	m := ciModel(t, ciResult(func(r *scan.Result) {
-		r.CIScanned, r.CIMissing = true, true
-	}))
-
-	line := plain(m.renderCIScoreLine(160))
-	if !strings.Contains(line, "no pipeline") {
-		t.Errorf("a repository with no CI does not say so: %q", line)
-	}
-	if strings.Contains(line, "/100") {
-		t.Errorf("a points figure appeared for a repository with no pipeline: %q", line)
-	}
-}
-
-func TestAResultNothingGradedSaysNotGraded(t *testing.T) {
-	line := plain(ciModel(t, ciResult(nil)).renderCIScoreLine(160))
-
-	if !strings.Contains(line, "not graded") {
-		t.Errorf("an ungraded result does not say so: %q", line)
-	}
-}
-
-// The line is on the CI tab and nowhere else: a fact about one stage while the
-// other four are being read is what Rule 134 argues against, one layer down.
-func TestTheScoreLineAppearsOnTheCITabAlone(t *testing.T) {
-	m := ciModel(t, ciResult(func(r *scan.Result) {
-		r.CIScanned, r.CIScore, r.CIPoints = true, "C", 61
-	}))
-
-	for _, tab := range []int{TabCVE, TabSecrets, TabLicense, TabMisconfig} {
-		m.switchTab(tab)
-		if strings.Contains(plain(m.renderResultsView()), "61.0/100") {
-			t.Errorf("tab %d shows the CI score", tab)
-		}
-	}
 
 	m.switchTab(TabCIScore)
-	if !strings.Contains(plain(m.renderResultsView()), "61.0/100") {
-		t.Error("the CI tab does not show the score")
+	view := plain(m.renderResultsView())
+	for _, forbidden := range []string{"61.0/100", "Score"} {
+		if strings.Contains(view, forbidden) {
+			t.Errorf("the CI tab still carries %q", forbidden)
+		}
+	}
+}
+
+// The five tabs get the same table height. The CI tab used to lose two rows,
+// so the layout jumped on every switch onto it and back.
+func TestEveryTabGivesTheTableTheSameHeight(t *testing.T) {
+	m := ciModel(t, ciResult(func(r *scan.Result) {
+		r.CIScanned, r.CIScore, r.CIPoints = true, "C", 61
+	}))
+
+	m.switchTab(TabCVE)
+	m.resizeFindings()
+	want := m.findingsTable.Table().Height()
+
+	for _, tab := range []int{TabSecrets, TabLicense, TabMisconfig, TabCIScore} {
+		m.switchTab(tab)
+		m.resizeFindings()
+		if got := m.findingsTable.Table().Height(); got != want {
+			t.Errorf("tab %d gives the table %d rows, want %d", tab, got, want)
+		}
 	}
 }
 
