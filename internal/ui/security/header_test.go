@@ -66,7 +66,7 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		{
 			name:    "the details",
 			open:    func(t *testing.T) Model { return detailsModel(t) },
-			enabled: []string{"esc/⌫", keymap.Web},
+			enabled: []string{"esc", keymap.Web},
 			absent:  []string{"tab", "ctrl+r"},
 		},
 	}
@@ -242,7 +242,7 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 	for _, m := range states {
 		for _, s := range m.GetShortcuts() {
 			key := strings.ToLower(s.Key)
-			if key == "←→" || key == "esc/⌫" {
+			if key == "←→" || key == "esc" {
 				continue // documented as separate arrow and esc entries
 			}
 			for _, part := range strings.Split(key, "/") {

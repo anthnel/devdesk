@@ -23,7 +23,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		// three, so `o` is greyed rather than dropped (Rule 130).
 		f := m.selectedFinding
 		return []shortcut.Shortcut{
-			{Key: "esc/⌫", Description: "Back"},
+			{Key: "esc", Description: "Back"},
 			// keymap.Web, which is what handleDetailsState binds. It read
 			// "o" and nothing answered it: the key advertised did nothing and
 			// the key that worked was never shown — Rule 130's hazard seen

@@ -9632,7 +9632,7 @@ absolu au chargement, et une règle sur ce qui distingue un résultat d'un éche
 Reste à mesurer ce que l'image `getplumber/plumber` a besoin de voir, ce qui est
 le point 1 de « Ce qui reste ouvert » de §3.42.
 
-### 3.51 Le YAML fusionné dans le viewer, et un finding plumber qui sait où il pointe
+### 3.51 Le YAML fusionné dans le viewer, et un finding plumber qui sait où il pointe — **fait, autrement que prévu**
 
 Deux moitiés séparables, nées de la même mesure : **plumber n'analyse pas le
 `.gitlab-ci.yml` du dépôt, il analyse ce que GitLab en fait**, et rien dans
@@ -9833,6 +9833,83 @@ lecture — le `MkdirAll` des constructeurs **et** celui des `Load*`, qui créai
 répertoire d'un résultat absent. Aucun outil MCP n'a besoin de ce cache-ci, mais
 le constructeur ne doit pas écrire sur un chemin de lecture, ou il faudra une
 seconde `readonly.go`.
+
+#### Ce qui a été construit, et les trois choses que la mesure a démenties
+
+Fait le 2026-08-27. `:sec` → un dépôt → `enter` → onglet CI → **`o`**. Le
+document arrive en YAML coloré et cherchable, avec les findings écrits dedans.
+Trois points du plan ci-dessus n'ont pas survécu au contact du réel, et chacun a
+été démenti par une mesure plutôt que par un avis.
+
+**1. La touche n'est pas une majuscule libre.** Le plan disait « une lettre de
+`keymap.Free()` ». `o` est une **dérogation déclarée**
+(`keymap.exceptions`, surface `security/results/ci-tab`), sur le précédent de
+`c` et pour la raison écrite là-bas : l'action n'existe que sur un onglet, et
+brûler une des trois dernières majuscules libres pour ça coûte plus que ça ne
+rapporte. `o` plutôt qu'une autre lettre parce qu'elle veut **déjà** dire
+« ouvrir ce que cet écran désigne » dans l'état détail de la même vue.
+
+**2. Il n'y a pas de gouttière : les findings sont écrits en commentaires
+YAML**, sur la ligne de définition du job.
+
+```yaml
+skopeo-check-image-update:  # plumber: ISSUE-411 (HIGH)
+```
+
+C'est mieux à trois titres, et ça n'a rien coûté au viewer : le commentaire
+voyage avec la ligne quel que soit le repli — donc `docLine` et `wrapTokens` ne
+sont pas touchés —, le lexer YAML le colore déjà, et `/ISSUE-411` le trouve.
+Les numéros de ligne, que le plan supposait nécessaires, deviennent un confort
+plutôt qu'un prérequis : le finding est *sur* la ligne.
+
+**3. `scriptLine` n'est pas une ancre**, alors que c'est ce qui avait rendu la
+moitié 2 crédible. Deux mesures sur un pipeline résolu réel :
+
+| | |
+|---|---|
+| la même ligne de script | **douze occurrences** dans un document — le `before_script` est inliné dans chaque job qui le référence, donc un match texte ne désigne aucun job |
+| où elles tombent | dans des **scalaires de bloc**, où un `#` n'est pas un commentaire mais du texte de script — annoter là réécrirait le pipeline au lieu de le décrire |
+
+Une clé de job, elle, est un mapping de premier niveau, unique, et un
+commentaire y est un commentaire. `scriptLine` est parsé et **affiché dans la
+vue détail**, ce qui est sa vraie valeur : sans lui, un ISSUE-411 nomme un job
+de quarante lignes sans dire laquelle.
+
+#### Deux corrections à ce que cette section a affirmé
+
+**« GitLab résout les jobs cachés et les supprime du fusionné » est faux.** Il
+les **quote** : toute clé commençant par un point ressort comme `".job":`, et
+sur le document mesuré **6 des 13 clés de premier niveau** le sont. L'erreur
+vient d'un grep cherchant un début de ligne non quoté, et `jobKeyOf` la
+répétait — il renvoyait le nom guillemets compris, qui ne correspond à aucun job
+que plumber nomme. Le symptôme est le pire de sa catégorie : **une
+non-correspondance de nom se manifeste comme une absence d'annotation, jamais
+comme une erreur**, donc elle passe deux relectures et tous les tests sur
+fixture. C'est la vérification de bout en bout sur le vrai document qui l'a
+attrapée.
+
+**Un résultat déjà sur disque n'a pas de champ `Job`.** Il est né avec cette
+section ; chaque scan antérieur porte le job dans sa `Description` et nulle part
+ailleurs. Un lecteur qui ne regarderait que le champ ne trouverait rien sur
+**tous** les scans existants, et « rescanne chaque cible » n'est pas un
+correctif qu'un utilisateur devine. `jobOf` lit le champ puis retombe sur la
+description — sûr parce que la chaîne est la nôtre, écrite par `plumberFinding`
+comme `"job: " + issue.Job` : on relit sa propre sortie, on ne devine pas celle
+d'un outil.
+
+#### Ce qui n'a pas été construit
+
+- **La remontée au fichier amont** (niveau 2 de la moitié 2) : suivre
+  `includes[].blob` jusqu'à la ligne du composant. La mécanique est mesurée et
+  reste valable — c'est la seule partie du plan qui tienne telle quelle.
+- **Le cache**, décrit ci-dessus. Rien n'est mis en cache : chaque `o` redemande
+  le document au forge.
+- **Les numéros de ligne du viewer**, renvoyés à une PR à eux : c'est une
+  fonctionnalité du viewer entier, elle touche chaque document et le repli, où
+  une ligne de continuation ne doit pas être renumérotée.
+- **Les findings sans ancre** — projet, includes — n'apparaissent pas dans le
+  document, par décision : l'onglet CI les liste, et sur `notes-backend` c'est
+  la totalité des six.
 
 #### Ce que ça vaut au-delà de l'ergonomie
 
