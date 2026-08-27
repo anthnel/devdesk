@@ -9765,6 +9765,75 @@ chemin s'en extraient par la forme d'URL `/-/blob/<sha>/<path>`, puis le contenu
 se lit par `repository/files/<path>/raw?ref=<sha>`. C'est de la chirurgie sur une
 URL, et c'est la seule source ; un test doit fixer la forme attendue.
 
+#### Le cache — deux, pas un, et un seul a une péremption
+
+Demandé le 2026-08-27 : garder le document construit, pour le réutiliser d'un
+finding à l'autre et d'une session à l'autre sans rescan. C'est juste, et ça se
+sépare en deux caches dont les propriétés n'ont rien à voir.
+
+| | ce qu'il garde | clé | péremption |
+|---|---|---|---|
+| **documents amont** | le contenu d'un fichier d'include **à un SHA** | (projet, chemin, sha) | **aucune** |
+| **YAML fusionné** | le document résolu | (hôte, projet, branche) | réelle, et **non décidable hors ligne** |
+
+**Le premier est gratuit, et c'est celui qui sert la demande.** Un blob à un SHA
+est immuable par construction, donc l'entrée n'a pas d'âge, pas de
+rafraîchissement, pas de bouton. C'est exactement le cache qui répond à « les
+autres findings » : un second finding dans le même composant tape dedans sans un
+appel réseau. Et `includes[].blob` *porte* le SHA — il n'y a rien à deviner.
+
+**Le second porte un piège qu'il faut écrire plutôt que découvrir : le fusionné
+peut changer sans que le dépôt bouge.** `totem-web` inclut avec `ref: "1"`, un
+ref mutable ; le template derrière (SHA `fe477132…`) peut avancer sans un seul
+commit chez l'utilisateur. Une clé sur le HEAD du dépôt consommateur est donc
+insuffisante, et la fraîcheur ne se vérifie qu'en **redemandant au serveur** —
+ce que le cache existe pour éviter.
+
+Conséquence : **c'est un cache à âge visible, pas un cache à invalidation.**
+Le précédent est dans le paquet — la colonne Members de l'onglet Registries
+affiche `count · TimeAgo(discovered_at)` pour cette raison exacte : *un cache
+dont l'âge n'est pas visible a l'air courant quoi qu'il contienne*. Même
+traitement ici, et `ctrl+r` redemande.
+
+**Une invalidation partielle est gratuite, et son asymétrie doit être écrite.**
+La réponse du lint porte un `context_sha` par entrée, et celui de l'entrée
+racine est le HEAD que **le serveur** a pour cette branche. Le comparer au HEAD
+local ne coûte aucun réseau :
+
+- différent ⇒ **le document est périmé**, on redemande ;
+- égal ⇒ **on ne sait rien**, à cause du ref mutable ci-dessus.
+
+Écrire cette asymétrie noir sur blanc est la moitié du travail : sans elle, le
+prochain lecteur la prendra pour une invalidation et croira le cache sûr.
+
+**La portée suit la règle de §3.39, et la règle donne la réponse.** Ce qui
+décide est de savoir si la **clé** est par contexte. Un document fusionné est
+identifié par (hôte, chemin de projet, branche) — pas par le chemin du clone
+local, pas par le contexte. Deux contextes visant le même GitLab et le même
+projet regardent le même document. Donc **non scopé**, comme `ImageScanCache`.
+Et c'est la clé sur l'identité *distante* plutôt que sur le chemin local qui
+fait que deux clones du même projet partagent une entrée — ce qu'une clé sur le
+chemin manquerait.
+
+**Le document doit être au moins aussi frais que le finding.** Un finding vient
+d'un scan à T1, une entrée de cache de T0. Si T0 < T1, le job a pu bouger et la
+ligne sur laquelle on saute n'est pas celle que le finding visait. L'entrée
+enregistre donc le jeu de SHA dont elle est issue, et le saut doit savoir dire
+« ce document est antérieur au scan » plutôt que de sauter en silence. Sans ça
+c'est la forme de D35 : une lecture périmée présentée comme courante.
+
+**Taille et forme.** 120 Ko pour un document, mesuré. Donc l'index d'un côté et
+les documents en fichiers adressés par contenu de l'autre — la forme des deux
+caches de scan (`workspace-results/<sha256>.json`), pas un blob dans l'index. Un
+plafond sur le modèle de `scan.max_cached_reports: 50`.
+
+**Le piège de §3.38 est disponible ici aussi** : `internal/cache/readonly.go`
+existe parce que trois écritures se cachaient derrière ce qui ressemblait à une
+lecture — le `MkdirAll` des constructeurs **et** celui des `Load*`, qui créait le
+répertoire d'un résultat absent. Aucun outil MCP n'a besoin de ce cache-ci, mais
+le constructeur ne doit pas écrire sur un chemin de lecture, ou il faudra une
+seconde `readonly.go`.
+
 #### Ce que ça vaut au-delà de l'ergonomie
 
 Le score d'un dépôt applicatif est surtout celui de ses templates : les six
