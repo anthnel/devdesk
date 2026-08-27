@@ -69,6 +69,15 @@ type plumberIssue struct {
 	Job        string `json:"job"`
 	BranchName string `json:"branchName"`
 	Type       string `json:"type"`
+	// ScriptLine is the offending line itself, verbatim, on the controls that
+	// read a script. It is the only thing plumber emits that points *inside* a
+	// job, and it was being dropped: an ISSUE-411 arrived naming a job of forty
+	// lines with nothing saying which one raised it.
+	//
+	// `identity` restates it — with code, file and job — for the fingerprint,
+	// and is deliberately not parsed: two readings of one fact are how they
+	// come to disagree.
+	ScriptLine string `json:"scriptLine"`
 }
 
 // parsePlumberOutput turns one report into a PlumberReport.
@@ -181,6 +190,8 @@ func plumberFinding(issue plumberIssue, controlName string, severity map[string]
 		Line:        line,
 		Fingerprint: issue.Fingerprint,
 		Resolution:  "plumber explain " + issue.Code,
+		Job:         issue.Job,
+		ScriptLine:  issue.ScriptLine,
 	}
 	if issue.DocURL != "" {
 		f.References = []string{issue.DocURL}

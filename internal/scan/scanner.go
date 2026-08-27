@@ -110,6 +110,25 @@ type Finding struct {
 	Resolution  string        `json:"resolution,omitempty"`  // Recommended fix steps
 	References  []string      `json:"references,omitempty"`  // Links to advisories or documentation
 	FixCommand  string        `json:"fix_command,omitempty"` // Suggested command to run
+	// Job and ScriptLine are where a CI finding sits inside the pipeline
+	// (§3.42). plumber grades the configuration GitLab derives from the
+	// repository — includes and components resolved server-side — so a finding
+	// is about a job the repository very often does not contain, and its own
+	// file link points at the `include:` entry that brought it in rather than
+	// at the offending line.
+	//
+	// These two are the anchors that survive that: the job the control was
+	// looking at, and, on the controls that read a script, the offending line
+	// verbatim. Both are empty on the controls that are about the project
+	// rather than the pipeline — branch protection, approval rules — and on
+	// those about an include, which name nothing at all.
+	//
+	// ScriptLine is not a secret and must not become one: it is the pipeline's
+	// own source, already visible to anyone who can read the repository. The
+	// MCP `finding` type declares its fields one by one, so nothing here
+	// reaches it without being added there deliberately.
+	Job        string `json:"job,omitempty"`
+	ScriptLine string `json:"script_line,omitempty"`
 }
 
 // SeverityCounts holds counts by severity level

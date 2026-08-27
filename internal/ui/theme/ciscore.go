@@ -69,24 +69,52 @@ func CIScoreCell(state CIScoreState, score *string) string {
 	}
 }
 
-// CIScoreStyle colours the grade.
+// CIScoreStyle colours the grade: green for A and B, then the three severity
+// colours for C, D and E, all five in bold.
 //
-// The colour is spent on what is worth spotting without reading: D and E. A is
-// the nominal state and keeps the ordinary text colour — a green A on every
-// well-configured repository would inform no one and would weaken the two that
-// do (Rule 122's colour discipline). Everything that is not a grade is dim.
+// **It builds its own style rather than borrowing SeverityTextStyle.** The
+// colours are shared because they are the application's vocabulary for "how bad
+// is this"; the weight is not. SeverityTextStyle sets Bold on CRITICAL and HIGH
+// only, so a borrowed C would render lighter than a D for a reason that belongs
+// to a CVE table — and adding Bold there to even it out would embolden every
+// MEDIUM finding in the application. Two things that have no reason to move
+// together must not share a style.
+//
+// The colour is what separates a grade from an absence, which is why A and B
+// are green here and would not be in a severity column. This column has three
+// absences — `-` never scanned, an empty cell for a repository this context
+// cannot grade, `?` for a withheld run — and all three render dim. Uncoloured
+// is therefore already taken: a plain `A` differs from a grey `-` by a shade,
+// in four cells. Green does not say "well done", it says *this is a grade* as
+// against *there is none*.
 func CIScoreStyle(state CIScoreState, score *string) lipgloss.Style {
 	if state != CIScoreGraded || score == nil {
 		return DimStyle
 	}
-	switch *score {
+	return ciGradeStyle(*score)
+}
+
+// ciGradeStyle maps one letter onto its colour.
+//
+// A letter the tool may add later gets the weight and no colour of its own,
+// rather than falling through to green: the nominal colour is a claim about the
+// grade, and claiming it for a letter nobody has defined is the kind of
+// confident guess this package avoids everywhere else. The table fills in
+// ColorText for a style that names no foreground.
+func ciGradeStyle(letter string) lipgloss.Style {
+	// Rule 115: a style that names a colour must name a background too, or the
+	// cell strips the app background from everything to its right.
+	base := lipgloss.NewStyle().Background(ColorBackground).Bold(true)
+	switch letter {
 	case "E":
-		return SeverityTextStyle("CRITICAL")
+		return base.Foreground(ColorSeverityCritical)
 	case "D":
-		return SeverityTextStyle("HIGH")
+		return base.Foreground(ColorSeverityHigh)
 	case "C":
-		return SeverityTextStyle("MEDIUM")
-	default: // A, B — nominal, and anything the tool may add later
-		return lipgloss.NewStyle()
+		return base.Foreground(ColorSeverityMedium)
+	case "A", "B":
+		return base.Foreground(ColorOK)
+	default:
+		return base
 	}
 }

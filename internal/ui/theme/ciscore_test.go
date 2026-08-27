@@ -1,6 +1,10 @@
 package theme
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 func score(s string) *string { return &s }
 
@@ -47,19 +51,58 @@ func TestNotYetAndNeverAreDifferentCells(t *testing.T) {
 	}
 }
 
-// The colour is spent on what is worth spotting without reading. A green A on
-// every well-configured repository would inform no one and would weaken D and
-// E, which is Rule 122's colour discipline.
-func TestOnlyTheBadGradesAreColoured(t *testing.T) {
-	plain := CIScoreStyle(CIScoreGraded, score("A"))
-	if plain.GetForeground() != CIScoreStyle(CIScoreGraded, score("B")).GetForeground() {
+// The colour separates a grade from an absence. This column has three absences,
+// all dim, so uncoloured is already taken: a plain A would differ from a grey
+// dash by a shade, in four cells. Green does not say "well done", it says
+// *this is a grade*.
+func TestTheFiveGradesAreColouredAndBold(t *testing.T) {
+	want := map[string]lipgloss.TerminalColor{
+		"A": ColorOK,
+		"B": ColorOK,
+		"C": ColorSeverityMedium,
+		"D": ColorSeverityHigh,
+		"E": ColorSeverityCritical,
+	}
+	for letter, colour := range want {
+		got := CIScoreStyle(CIScoreGraded, score(letter))
+		if got.GetForeground() != colour {
+			t.Errorf("%s is %v, want %v", letter, got.GetForeground(), colour)
+		}
+		if !got.GetBold() {
+			t.Errorf("%s is not bold", letter)
+		}
+		// Rule 115: naming a foreground without a background strips the app
+		// background from the rest of the line.
+		if got.GetBackground() != ColorBackground {
+			t.Errorf("%s does not carry the app background", letter)
+		}
+	}
+}
+
+// The three bad grades stay told apart from the two nominal ones, which is what
+// the colour was originally spent on and is not given up by colouring A and B.
+func TestABadGradeIsNeverTheNominalColour(t *testing.T) {
+	nominal := CIScoreStyle(CIScoreGraded, score("A")).GetForeground()
+	if got := CIScoreStyle(CIScoreGraded, score("B")).GetForeground(); got != nominal {
 		t.Error("A and B are coloured differently; both are nominal")
 	}
-
 	for _, letter := range []string{"C", "D", "E"} {
-		if CIScoreStyle(CIScoreGraded, score(letter)).GetForeground() == plain.GetForeground() {
+		if CIScoreStyle(CIScoreGraded, score(letter)).GetForeground() == nominal {
 			t.Errorf("%s is not coloured apart from the nominal grades", letter)
 		}
+	}
+}
+
+// A letter nobody has defined gets the weight and no colour of its own: the
+// nominal green is a claim about the grade, and claiming it for an unknown
+// letter would be a confident guess.
+func TestAnUnknownGradeClaimsNoColour(t *testing.T) {
+	got := CIScoreStyle(CIScoreGraded, score("F"))
+	if got.GetForeground() == ColorOK {
+		t.Error("an unknown letter is rendered as nominal")
+	}
+	if !got.GetBold() {
+		t.Error("an unknown letter is not bold")
 	}
 }
 

@@ -157,6 +157,9 @@ func (f *stubForge) CloneURL(repo Repository, method CloneMethod) string {
 	return "https://example.test/" + repo.Path + ".git"
 }
 
+func (f *stubForge) MergedCIConfig(context.Context, string, string) (string, error) {
+	return "stages: [build]\n", nil
+}
 func (f *stubForge) ChangeRequestsURL() string { return "https://example.test/mrs" }
 func (f *stubForge) AssignedIssuesURL(u User) string {
 	return "https://example.test/issues/" + u.Username

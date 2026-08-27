@@ -65,7 +65,7 @@ func existingRepo(t *testing.T, name string) string {
 
 func loadedTargets(t *testing.T) []scanTarget {
 	t.Helper()
-	msg, ok := testutil.MsgOf[InventoryLoadedMsg](loadInventoryCmd())
+	msg, ok := testutil.MsgOf[InventoryLoadedMsg](loadInventoryCmd(""))
 	if !ok {
 		t.Fatal("loadInventoryCmd() produced no inventory")
 	}

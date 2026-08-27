@@ -125,6 +125,20 @@ type Forge interface {
 	// They are on the backend because the paths differ per forge and the views
 	// used to build them with fmt.Sprintf against the configured URL — which is
 	// a forge shape written in a view.
+	// MergedCIConfig is the CI configuration the forge derives from the
+	// repository: every include and component resolved, as the pipeline would
+	// run. repoID addresses the repository the way the backend does, ref names
+	// the branch — empty means the default one.
+	//
+	// It is the server's answer and not a local expansion, deliberately:
+	// resolving includes here would mean re-implementing the forge's own CI
+	// engine, and being wrong somewhere without knowing where.
+	//
+	// A backend whose Shape says MergedCIConfig is false returns an error
+	// naming the reason. Callers gate on the shape rather than on the error —
+	// the error is what a caller that forgot gets, not the way to ask.
+	MergedCIConfig(ctx context.Context, repoID, ref string) (string, error)
+
 	ChangeRequestsURL() string
 	AssignedIssuesURL(user User) string
 }

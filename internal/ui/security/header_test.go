@@ -66,7 +66,7 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		{
 			name:    "the details",
 			open:    func(t *testing.T) Model { return detailsModel(t) },
-			enabled: []string{"esc/⌫", "o"},
+			enabled: []string{"esc", keymap.Web},
 			absent:  []string{"tab", "ctrl+r"},
 		},
 	}
@@ -102,10 +102,10 @@ func TestOpenReferenceShortcutNeedsAReference(t *testing.T) {
 	// The second CVE in the fixtures carries no references.
 	m := feed(t, scannedModel(t), testutil.Key("down"), testutil.Key("enter"))
 
-	if !testutil.HasShortcut(m.GetShortcuts(), "o") {
-		t.Fatal("'o' disappeared for a finding with no reference instead of being greyed")
+	if !testutil.HasShortcut(m.GetShortcuts(), keymap.Web) {
+		t.Fatal("the reference key disappeared for a finding with no reference instead of being greyed")
 	}
-	if !testutil.ShortcutDisabled(m.GetShortcuts(), "o") {
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.Web) {
 		t.Error("'o' is offered for a finding with no reference")
 	}
 }
@@ -242,7 +242,7 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 	for _, m := range states {
 		for _, s := range m.GetShortcuts() {
 			key := strings.ToLower(s.Key)
-			if key == "←→" || key == "esc/⌫" {
+			if key == "←→" || key == "esc" {
 				continue // documented as separate arrow and esc entries
 			}
 			for _, part := range strings.Split(key, "/") {

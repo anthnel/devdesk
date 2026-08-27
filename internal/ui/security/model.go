@@ -115,11 +115,23 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		config:        cfg,
 		secrets:       secrets,
 		state:         StateInventory,
-		inventory:     newInventoryTable(),
+		inventory:     newInventoryTable(cfg.Scan.EnableCIScore),
 		spinner:       s,
 		findingsTable: t,
 	}
 }
+
+// ciForgeURL is the forge a repository must belong to for the CI column to be
+// able to grade it — and the empty string when the column is off, which is what
+// spares the loader a git call per row.
+func ciForgeURL(cfg *config.Config) string {
+	if cfg == nil || !cfg.Scan.EnableCIScore {
+		return ""
+	}
+	return cfg.Forge.URL
+}
+
+func (m Model) ciForgeURL() string { return ciForgeURL(m.config) }
 
 // severityTokens are the four cumulative severity filters (Rule 136).
 //
@@ -174,7 +186,7 @@ func (m Model) Init() tea.Cmd {
 		// Loaded whatever the opening state: a view opened on a result returns
 		// to the inventory on ctrl+r, and reading two small files is cheaper
 		// than the branch that would decide not to.
-		loadInventoryCmd(),
+		loadInventoryCmd(m.ciForgeURL()),
 	)
 }
 

@@ -11,11 +11,15 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Deux ouverts : D59 et D62** — voir [§1.3](#13-open). D59 n'est ouvert qu'à
+**Trois ouverts : D59, D62 et D63** — voir [§1.3](#13-open). D59 n'est ouvert qu'à
 moitié ; **D62** est entier, et c'est celui qui se voit le moins : un chemin
 saisi dans la vue configuration et quitté sans bouger le curseur n'est jamais
 écrit, et le champ continue de l'afficher au retour. L'écran et le fichier
-divergent sans que rien ne le dise.
+divergent sans que rien ne le dise. **D63** est de la même famille, un cran plus
+haut : une touche annoncée qui n'agit pas. Ses deux instances connues sont
+corrigées, mais rien n'empêche la troisième — et la raison est structurelle, la
+touche annoncée étant une chaîne d'affichage sans relation mécanique avec la
+touche liée.
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -1832,6 +1836,53 @@ attend.
 
 **Contournement en attendant :** taper la valeur, puis `↓` (ou `tab`) avant de
 quitter.
+
+---
+
+**D63 — une touche annoncée qui n'agit pas. Deux instances corrigées, la
+famille reste ouverte.** Trouvées le 2026-08-27 en câblant `o` sur l'onglet CI,
+l'une par lecture du code, l'autre par l'utilisateur.
+
+Rule 130 interdit **une touche grisée qui agit quand même**, et
+`shortcut.Availability` rend ça inexprimable : un seul champ, deux lecteurs.
+Rien ne garde le sens inverse — **une touche affichée qui n'agit pas** — et la
+vue security en portait deux, dans le même état :
+
+| Annoncé | Ce que le handler lie |
+|---|---|
+| `{Key: "o", Description: "Open ref"}` | `case keymap.Web:` c'est-à-dire `W` |
+| `{Key: "esc/⌫", Description: "Back"}` | `case "esc":` seul — le commentaire dit d'ailleurs « backspace **was** an alias » |
+
+Dans les deux cas la touche affichée ne faisait rien, et celle qui marchait
+n'était jamais montrée. Les deux sont corrigées.
+
+**Pourquoi aucun test ne les a vues, et pourquoi un test naïf n'y arriverait pas
+non plus.** Les tests existants épinglaient *les deux moitiés de la
+contradiction séparément* : `TestShortcutsFollowTheState` affirmait que la
+colonne dit `o`, `TestScanDetailsOpensTheReference` pressait `keymap.Web` — les
+deux passaient, rien ne les rapprochait.
+
+Et la raison de fond est structurelle : **la touche annoncée est une chaîne
+d'affichage, la touche liée est un nom de touche bubbletea**, et il n'existe
+aucune relation mécanique entre les deux. `↑↓` se lie par `case "up"`, `←→` par
+`case "left"`, `esc/⌫` par `case "esc"`. Un test qui comparerait naïvement les
+`{Key: …}` aux `case …:` produit surtout du bruit — vérifié : un relevé grossier
+sur `internal/ui` sort 52 candidats dont l'écrasante majorité sont des libellés
+d'aide (`Context`, `Images`, `Disk Usage`) ou des glyphes de navigation. Le
+chiffre n'est donc pas 52 ; il est inconnu, et c'est le problème.
+
+**Ce qui fermerait la famille**, et c'est une entrée de travail à part entière :
+faire porter à `shortcut.Shortcut.Key` **la constante `keymap`** partout où il
+en existe une — la vue security le fait déjà pour `keymap.Exclude` et
+`keymap.Web` — puis un test source qui, pour chaque `Shortcut` dont la `Key` est
+une constante du vocabulaire, exige un `case` sur **la même constante** dans le
+paquet. Ça ne couvre pas `↑↓` ni `esc`, et ce n'est pas grave : ces touches-là
+sont universelles et Rule 138 les exclut déjà de l'affichage. Ce qui dérive,
+c'est le vocabulaire majuscule et les dérogations déclarées — exactement ce que
+la constante nomme.
+
+C'est le pendant de `internal/ui/keymap`, qui vérifie qu'aucune vue ne *lie* une
+touche hors vocabulaire, sans jamais vérifier qu'elle *annonce* ce qu'elle lie.
 
 ---
 
@@ -9632,7 +9683,7 @@ absolu au chargement, et une règle sur ce qui distingue un résultat d'un éche
 Reste à mesurer ce que l'image `getplumber/plumber` a besoin de voir, ce qui est
 le point 1 de « Ce qui reste ouvert » de §3.42.
 
-### 3.51 Le YAML fusionné dans le viewer, et un finding plumber qui sait où il pointe
+### 3.51 Le YAML fusionné dans le viewer, et un finding plumber qui sait où il pointe — **fait, autrement que prévu**
 
 Deux moitiés séparables, nées de la même mesure : **plumber n'analyse pas le
 `.gitlab-ci.yml` du dépôt, il analyse ce que GitLab en fait**, et rien dans
@@ -9834,6 +9885,83 @@ répertoire d'un résultat absent. Aucun outil MCP n'a besoin de ce cache-ci, ma
 le constructeur ne doit pas écrire sur un chemin de lecture, ou il faudra une
 seconde `readonly.go`.
 
+#### Ce qui a été construit, et les trois choses que la mesure a démenties
+
+Fait le 2026-08-27. `:sec` → un dépôt → `enter` → onglet CI → **`o`**. Le
+document arrive en YAML coloré et cherchable, avec les findings écrits dedans.
+Trois points du plan ci-dessus n'ont pas survécu au contact du réel, et chacun a
+été démenti par une mesure plutôt que par un avis.
+
+**1. La touche n'est pas une majuscule libre.** Le plan disait « une lettre de
+`keymap.Free()` ». `o` est une **dérogation déclarée**
+(`keymap.exceptions`, surface `security/results/ci-tab`), sur le précédent de
+`c` et pour la raison écrite là-bas : l'action n'existe que sur un onglet, et
+brûler une des trois dernières majuscules libres pour ça coûte plus que ça ne
+rapporte. `o` plutôt qu'une autre lettre parce qu'elle veut **déjà** dire
+« ouvrir ce que cet écran désigne » dans l'état détail de la même vue.
+
+**2. Il n'y a pas de gouttière : les findings sont écrits en commentaires
+YAML**, sur la ligne de définition du job.
+
+```yaml
+skopeo-check-image-update:  # plumber: ISSUE-411 (HIGH)
+```
+
+C'est mieux à trois titres, et ça n'a rien coûté au viewer : le commentaire
+voyage avec la ligne quel que soit le repli — donc `docLine` et `wrapTokens` ne
+sont pas touchés —, le lexer YAML le colore déjà, et `/ISSUE-411` le trouve.
+Les numéros de ligne, que le plan supposait nécessaires, deviennent un confort
+plutôt qu'un prérequis : le finding est *sur* la ligne.
+
+**3. `scriptLine` n'est pas une ancre**, alors que c'est ce qui avait rendu la
+moitié 2 crédible. Deux mesures sur un pipeline résolu réel :
+
+| | |
+|---|---|
+| la même ligne de script | **douze occurrences** dans un document — le `before_script` est inliné dans chaque job qui le référence, donc un match texte ne désigne aucun job |
+| où elles tombent | dans des **scalaires de bloc**, où un `#` n'est pas un commentaire mais du texte de script — annoter là réécrirait le pipeline au lieu de le décrire |
+
+Une clé de job, elle, est un mapping de premier niveau, unique, et un
+commentaire y est un commentaire. `scriptLine` est parsé et **affiché dans la
+vue détail**, ce qui est sa vraie valeur : sans lui, un ISSUE-411 nomme un job
+de quarante lignes sans dire laquelle.
+
+#### Deux corrections à ce que cette section a affirmé
+
+**« GitLab résout les jobs cachés et les supprime du fusionné » est faux.** Il
+les **quote** : toute clé commençant par un point ressort comme `".job":`, et
+sur le document mesuré **6 des 13 clés de premier niveau** le sont. L'erreur
+vient d'un grep cherchant un début de ligne non quoté, et `jobKeyOf` la
+répétait — il renvoyait le nom guillemets compris, qui ne correspond à aucun job
+que plumber nomme. Le symptôme est le pire de sa catégorie : **une
+non-correspondance de nom se manifeste comme une absence d'annotation, jamais
+comme une erreur**, donc elle passe deux relectures et tous les tests sur
+fixture. C'est la vérification de bout en bout sur le vrai document qui l'a
+attrapée.
+
+**Un résultat déjà sur disque n'a pas de champ `Job`.** Il est né avec cette
+section ; chaque scan antérieur porte le job dans sa `Description` et nulle part
+ailleurs. Un lecteur qui ne regarderait que le champ ne trouverait rien sur
+**tous** les scans existants, et « rescanne chaque cible » n'est pas un
+correctif qu'un utilisateur devine. `jobOf` lit le champ puis retombe sur la
+description — sûr parce que la chaîne est la nôtre, écrite par `plumberFinding`
+comme `"job: " + issue.Job` : on relit sa propre sortie, on ne devine pas celle
+d'un outil.
+
+#### Ce qui n'a pas été construit
+
+- **La remontée au fichier amont** (niveau 2 de la moitié 2) : suivre
+  `includes[].blob` jusqu'à la ligne du composant. La mécanique est mesurée et
+  reste valable — c'est la seule partie du plan qui tienne telle quelle.
+- **Le cache**, décrit ci-dessus. Rien n'est mis en cache : chaque `o` redemande
+  le document au forge.
+- **Les numéros de ligne du viewer**, renvoyés à une PR à eux : c'est une
+  fonctionnalité du viewer entier, elle touche chaque document et le repli, où
+  une ligne de continuation ne doit pas être renumérotée.
+- **Les findings sans ancre** — projet, includes — n'apparaissent pas dans le
+  document, par décision : l'onglet CI les liste, et sur `notes-backend` c'est
+  la totalité des six.
+
 #### Ce que ça vaut au-delà de l'ergonomie
 
 Le score d'un dépôt applicatif est surtout celui de ses templates : les six
@@ -9842,6 +9970,150 @@ au-dessus, qu'aucune de ses équipes ne peut corriger. Rendre la provenance
 visible, c'est ce qui permet de router un finding vers le dépôt qui peut
 réellement le traiter — et de voir qu'une même faute comptée sur vingt dépôts
 consommateurs n'est qu'**une** faute.
+
+### 3.52 La colonne CI se colore, et migre vers `:sec` — **done**
+
+Fait le 2026-08-27. Trois changements, demandés ensemble : les couleurs, le
+retrait de la ligne de score, et la colonne dans l'inventaire.
+
+Demandé le 2026-08-27. La correspondance voulue :
+
+| Lettre | Couleur | Alias |
+|---|---|---|
+| **A**, **B** | vert | `ColorOK` — le vert des icônes de statut (Rule 121) |
+| **C** | orange | `ColorSeverityMedium` |
+| **D** | rouge clair | `ColorSeverityHigh` |
+| **E** | rouge foncé | `ColorSeverityCritical` |
+
+Les cinq en **gras**.
+
+#### Ce qui existe déjà, et ce qui change réellement
+
+`CIScoreStyle` (`internal/ui/theme/ciscore.go`) fait **déjà** trois cinquièmes du
+travail : `C`, `D` et `E` passent par `SeverityTextStyle("MEDIUM" | "HIGH" |
+"CRITICAL")`, donc les trois teintes demandées sont déjà les bonnes. Il reste
+deux changements :
+
+1. **A et B prennent le vert** — aujourd'hui ils rendent en couleur de texte
+   ordinaire, délibérément (voir ci-dessous).
+2. **Le gras s'applique aux cinq** — `SeverityTextStyle` met `Bold(true)` sur
+   CRITICAL et HIGH **seulement**, donc `C` n'est pas en gras et `A`/`B` non
+   plus.
+
+**Le gras ne se prend pas dans `SeverityTextStyle`.** Y ajouter `Bold` pour
+MEDIUM mettrait en gras **chaque finding MEDIUM de l'application** — la table
+des résultats, l'inventaire de `:sec`, tout ce qui affiche une sévérité.
+`CIScoreStyle` applique donc `.Bold(true)` sur le style qu'elle retourne, et ne
+touche pas la fonction partagée. C'est le même raisonnement que Rule 122 sur
+`Cell` et `Style` : la couleur appartient à la colonne, pas au vocabulaire
+qu'elle emprunte.
+
+#### Ce que ça renverse, et l'argument qui le justifie
+
+Il faut le dire franchement : le code porte aujourd'hui la décision **inverse**,
+et elle est écrite trois fois — dans le commentaire de `CIScoreStyle`, dans
+`TestOnlyTheBadGradesAreColoured`, et dans la discipline de couleur de Rule 122
+(« l'état nominal et majoritaire → couleur de texte par défaut, **pas** de
+vert »). L'argument d'origine était qu'un A vert sur chaque dépôt bien configuré
+n'informe personne et affaiblit D et E.
+
+**Cet argument ne tient pas dans cette colonne-ci, et c'est ce qui justifie le
+changement.** Une colonne de sévérité n'a qu'un axe ; la colonne CI a **quatre
+états**, dont trois sont des absences (`-` jamais scanné, cellule vide non
+gradable, `?` score retenu) — et les trois rendent en `DimStyle`. L'absence de
+couleur y est donc **déjà prise** par les absences. Un `A` en couleur de texte
+ordinaire se distingue d'un `-` en gris par une nuance, sur une cellule de
+quatre caractères. Le vert ne dit pas « bravo » : il dit **« ceci est une note »**
+par opposition à « il n'y en a pas », ce qui est exactement la distinction que
+la colonne existe pour porter et la seule que le rendu actuel fait mal.
+
+Le gras va dans le même sens : il sépare une note d'une absence avant même que
+la teinte soit lue.
+
+#### Ce qu'il faut mettre à jour dans le même commit
+
+Sans ça, le dépôt garderait des textes affirmant le contraire de son code :
+
+- le commentaire de `CIScoreStyle`, qui explique pourquoi A n'est pas coloré ;
+- **`TestOnlyTheBadGradesAreColoured`** — il passe encore mécaniquement (A et B
+  restent identiques entre eux, C/D/E restent distincts d'eux), mais son nom et
+  son commentaire affirment l'inverse de l'intention. Le renommer et lui faire
+  vérifier la correspondance demandée : cinq lettres, cinq styles, A = B, et
+  chacun des cinq en gras ;
+- la ligne « pas de vert » de la **discipline de couleur de Rule 122**
+  (`.claude/rules/tui-tables.md`), qui doit nommer cette colonne comme le cas où
+  la couleur sépare une valeur d'une absence plutôt que deux valeurs entre
+  elles.
+
+`TestEveryAbsenceIsDim` n'est pas touché et doit le rester : les trois absences
+restent grises, c'est ce qui donne son sens au vert.
+
+#### Ce que ça ne touche pas
+
+`CIScoreCell` — la cellule reste du texte brut, sans séquence d'échappement
+(Rule 122). Et le fond : `SeverityTextStyle` pose déjà `Background(ColorBackground)`,
+donc le style du vert doit le poser aussi, ou la cellule dépouille de son fond
+tout ce qui la suit sur la ligne (Rule 115).
+
+#### Ce qui a été construit, et les deux changements qui se sont ajoutés
+
+**1. Les styles sont ceux de cette colonne, pas ceux d'une sévérité.**
+`CIScoreStyle` construit son style au lieu d'emprunter `SeverityTextStyle`, et
+`ciGradeStyle` porte la table des cinq lettres. Le piège annoncé était réel :
+`SeverityTextStyle` ne met `Bold` que sur CRITICAL et HIGH, donc un `C` emprunté
+rendrait plus léger qu'un `D` pour une raison qui appartient à une table de CVE.
+Une lettre que l'outil ajouterait plus tard reçoit la graisse et **aucune
+couleur** — le vert nominal est une affirmation, et l'attribuer à une note que
+personne n'a définie serait une supposition.
+
+**2. La ligne de score disparaît de l'onglet CI.** Elle coûtait deux lignes à
+cet onglet — la ligne et son blanc — à chaque ouverture, pour énoncer une lettre
+que l'inventaire porte désormais par cible. Un onglet qui montre moins de
+résultats que ses quatre voisins, et une mise en page qui saute à chaque
+bascule, ne valaient pas une valeur déjà présente sur l'écran précédent.
+`resultsHeadLines`, `ciScoreHeadLines` et `renderCIScoreLine` sont supprimés ;
+`TestEveryTabGivesTheTableTheSameHeight` fixe ce qu'on y gagne.
+
+**3. `:sec` gagne la colonne**, sous les quatre règles de `ws` : présente
+seulement si le réglage l'est, jamais `Optional`, jamais triable — `datatable`
+réserve `largeur(titre)+2` à la flèche d'une colonne triable, ce qui coûterait
+six cellules au lieu de quatre dans la table la plus serrée de l'application —
+et les trois absences distinguées par l'état.
+
+**Ce que la migration a demandé de décider.** Une ligne de l'inventaire vient du
+cache, qui ne stocke que la lettre ; or la distinction entre « jamais scanné »
+(`-`) et « pas gradable d'ici » (cellule vide) tient au **remote**, que le cache
+ne porte pas. Trois options, et une seule est honnête :
+
+| | |
+|---|---|
+| lire le remote au chargement | un `git remote get-url` par ligne de dépôt, dans un `Cmd` — **retenu** |
+| rendre `?` faute de mieux | ferait dire « score retenu » de chaque dépôt d'un autre forge : D20 |
+| ajouter un champ au cache | une entrée existante décoderait en `false`, c'est-à-dire un mensonge |
+
+Le coût est borné par `ciForgeURL`, qui rend la chaîne vide quand la colonne est
+éteinte : **une colonne que personne n'affiche ne paie pas d'appel git**. Et un
+remote illisible n'est pas gradable — ce n'est pas un repli mais la bonne
+réponse : plumber n'aurait pas résolu de projet non plus.
+
+`InventoryScanFinishedMsg` porte la lettre pour la raison exacte qui lui fait
+porter le verdict de secrets : sans elle, une ligne rescannée garderait la note
+de son scan précédent à côté de compteurs tout neufs, jusqu'au prochain
+`ctrl+r`.
+
+#### Ce qui a été mis à jour avec le code
+
+Comme l'entrée l'exigeait, pour que le dépôt ne garde pas des textes affirmant
+le contraire de son code : le commentaire de `CIScoreStyle`,
+`TestOnlyTheBadGradesAreColoured` — remplacé par
+`TestTheFiveGradesAreColouredAndBold`, `TestABadGradeIsNeverTheNominalColour` et
+`TestAnUnknownGradeClaimsNoColour` —, la discipline de couleur de Rule 122, et
+la section CI de `.claude/CLAUDE.md`.
+
+La ligne de Rule 122 n'est pas supprimée mais **assortie de son exception, avec
+son critère** : une colonne où l'absence de couleur est *déjà prise* par des
+absences grises. Ce n'est pas « c'est important » — si les absences d'une
+colonne se distinguaient déjà, le vert y redeviendrait du bruit.
 
 ## 4. Existing plans
 

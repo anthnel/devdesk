@@ -43,7 +43,18 @@ type scanTarget struct {
 	// Sensitive is the secret verdict as the cache holds it: nil quand aucune
 	// étape n'a cherché, ce qui n'est pas la même chose que n'avoir rien trouvé.
 	Sensitive *bool
-	ScannedAt time.Time
+	// CIScore and CIGradeable are the pipeline grade as the cache holds it, and
+	// whether this context could grade the target at all. They are stored
+	// rather than the finished verdict for Sensitive's reason: the verdict is
+	// one calculation, in theme, and a row that carried it would be a second
+	// place able to disagree with the workspaces list.
+	//
+	// CIGradeable is decided at load, not per frame: it needs the repository's
+	// remote, which is a git call. An image is never gradeable — it has no
+	// pipeline — so its zero value is already the truth.
+	CIScore     *string
+	CIGradeable bool
+	ScannedAt   time.Time
 	// Scanned is false between a ctrl+a purge and the scan that replaces it.
 	// The target is still known — it is the counts that are not.
 	Scanned  bool
@@ -103,6 +114,13 @@ func (t scanTarget) shortName() string {
 // non plus : ses compteurs affichent `-`, et l'icône dit la même chose.
 func (t scanTarget) secrets() theme.SecretsState {
 	return theme.SecretsVerdict(t.Sensitive, t.Scanned)
+}
+
+// ci is the row's grade verdict, computed the way the workspaces list computes
+// it — same function, same three absences. A purged row has no grade either:
+// its counters print "-" and so does this column.
+func (t scanTarget) ci() theme.CIScoreState {
+	return theme.CIScoreVerdict(t.CIScore, t.Scanned, t.CIGradeable)
 }
 
 // labelFor names a target the way the table does, for the messages that have
@@ -224,9 +242,32 @@ func inventoryScannedCell(t scanTarget) string {
 // `Target` les paierait à 80 colonnes.
 const secretsColumnWidth = 7
 
+// ciColumnWidth is four cells for one letter: the title is what costs, not the
+// value. Same width as the workspaces list gives it.
+const ciColumnWidth = 4
+
+// ciColumn is the pipeline grade, and it exists only when scan.enable_ci_score
+// is on — off, it would be four cells of nothing on every row.
+//
+// It does not declare Optional, for the reason the workspaces column does not:
+// its states already include two absences that mean different things, and a
+// column that vanished on a narrow terminal would add a third that looks like
+// them.
+//
+// It does not sort either. datatable reserves width(title)+2 for a sortable
+// column's arrow, which would cost this one six cells instead of four — in the
+// narrowest table in the application, where Target pays for it at 80 columns.
+func ciColumn() datatable.Column[scanTarget] {
+	return datatable.Column[scanTarget]{
+		Title: "CI", Sizing: datatable.SizingFixed, MinWidth: ciColumnWidth,
+		Cell:  func(t scanTarget) string { return theme.CIScoreCell(t.ci(), t.CIScore) },
+		Style: func(t scanTarget) lipgloss.Style { return theme.CIScoreStyle(t.ci(), t.CIScore) },
+	}
+}
+
 // inventoryColumns describes the inventory table.
-func inventoryColumns() []datatable.Column[scanTarget] {
-	return []datatable.Column[scanTarget]{
+func inventoryColumns(withCI bool) []datatable.Column[scanTarget] {
+	cols := []datatable.Column[scanTarget]{
 		{
 			Title: "Target", Sizing: datatable.SizingContent,
 			MinWidth: 24, MaxWidth: 60, Flex: 1, TruncateHead: true,
@@ -252,19 +293,26 @@ func inventoryColumns() []datatable.Column[scanTarget] {
 		countColumn("HIGH", "HIGH", func(c scan.SeverityCounts) int { return c.High }),
 		countColumn("MED", "MEDIUM", func(c scan.SeverityCounts) int { return c.Medium }),
 		countColumn("LOW", "LOW", func(c scan.SeverityCounts) int { return c.Low }),
-		{
-			Title: "Scanned", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 14,
-			Cell:  inventoryScannedCell,
-			Style: inventoryScannedStyle,
-			Less:  func(a, b scanTarget) bool { return a.ScannedAt.Before(b.ScannedAt) },
-		},
 	}
+	if withCI {
+		// Beside the four severity counters, before Scanned — where a reader
+		// looks for what a scan concluded, and the placement the workspaces
+		// list uses. Inserting here also leaves CRIT at inventoryColumnCritical,
+		// which is what the table opens sorted by.
+		cols = append(cols, ciColumn())
+	}
+	return append(cols, datatable.Column[scanTarget]{
+		Title: "Scanned", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 14,
+		Cell:  inventoryScannedCell,
+		Style: inventoryScannedStyle,
+		Less:  func(a, b scanTarget) bool { return a.ScannedAt.Before(b.ScannedAt) },
+	})
 }
 
 // newInventoryTable builds the inventory table.
-func newInventoryTable() datatable.Model[scanTarget] {
+func newInventoryTable(withCI bool) datatable.Model[scanTarget] {
 	return datatable.New(datatable.Config[scanTarget]{
-		Columns:    inventoryColumns(),
+		Columns:    inventoryColumns(withCI),
 		SortColumn: inventoryColumnCritical,
 		SortDesc:   true,
 	})

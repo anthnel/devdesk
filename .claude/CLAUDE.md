@@ -1699,11 +1699,32 @@ absences:
   `ws` did for secrets and had to undo.
 - **A directory shows nothing.** Counts add up across nested repositories;
   letters do not — the worst of three grades is the grade of nothing.
-- **The grade goes above the table, on the CI tab alone.** It is not a finding,
-  so it has no row; the header would show it on all five tabs, and a withheld
-  run's reason is a sentence that `buildInfoLines` cannot carry. The table
-  therefore loses two rows on that tab, which is the honest trade — reserving
-  them on all five spends them on four screens with nothing to put there.
+- **The grade has no line of its own, and the five tabs are the same height.**
+  It had one above the table on the CI tab, which cost that tab two of its rows
+  on every open to state a letter the `:sec` inventory now carries per target,
+  in its own `CI` column. One tab showing fewer findings than its four
+  neighbours — and a layout that jumped on every switch onto it — was not worth
+  a value already on the previous screen.
+
+**The `:sec` inventory carries the same column**, under the same four rules: on
+only when the setting is, never `Optional`, never sorted, and the three absences
+told apart by the state. An image is never gradeable — it has no pipeline — so
+its zero value is already the truth, while a repository needs its remote, which
+is a `git remote get-url` per row at load. That call is what `ciForgeURL`
+suppresses when the column is off: a column nobody is showing must not pay for
+it.
+
+**A grade is coloured on all five letters, in bold** — A and B green
+(`ColorOK`), then the severity colours for C, D and E. `CIScoreStyle` builds its
+own style rather than borrowing `SeverityTextStyle`: the colours are the
+application's vocabulary, the weight is not, and `SeverityTextStyle` sets `Bold`
+on CRITICAL and HIGH alone — so a borrowed C would render lighter than a D for a
+reason belonging to a CVE table, and fixing that there would embolden every
+MEDIUM finding in the application. Colouring the nominal grades is the documented
+exception to Rule 122's colour discipline, and it earns it: this column's three
+absences are all dim, so uncoloured is already taken. A letter the tool may add
+later gets the weight and no colour — the nominal green is a claim, and claiming
+it for an unknown grade would be a guess.
 
 **`plumber analyze` takes no path argument: it works on the current directory.**
 So `toolCmd` carries a `Dir` and the binary path sets it to the repository; the

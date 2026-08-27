@@ -122,7 +122,7 @@ func TestTheTargetColumnSearchesBothNames(t *testing.T) {
 	target, _ := m.inventory.Selected()
 
 	idx := columnIndex(t, m.inventory.Table().Columns(), "Target")
-	search := inventoryColumns()[idx].Search
+	search := inventoryColumns(false)[idx].Search
 	if search == nil {
 		t.Fatal("the Target column declares no Search, so '/' matches nothing")
 	}

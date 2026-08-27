@@ -23,8 +23,12 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		// three, so `o` is greyed rather than dropped (Rule 130).
 		f := m.selectedFinding
 		return []shortcut.Shortcut{
-			{Key: "esc/⌫", Description: "Back"},
-			{Key: "o", Description: "Open ref", Disabled: f == nil || len(f.References) == 0},
+			{Key: "esc", Description: "Back"},
+			// keymap.Web, which is what handleDetailsState binds. It read
+			// "o" and nothing answered it: the key advertised did nothing and
+			// the key that worked was never shown — Rule 130's hazard seen
+			// from the other side.
+			{Key: keymap.Web, Description: "Open ref", Disabled: f == nil || len(f.References) == 0},
 			{Key: "ctrl+p", Description: "Command"},
 		}
 	}
@@ -58,6 +62,7 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 		{Key: "/", Description: "Search"},
 		{Key: ".", Description: "Sort"},
 		{Key: keymap.Exclude, Description: "Exclude", Disabled: !m.canExclude().Enabled()},
+		{Key: openPipelineKey, Description: "Open resolved pipeline", Disabled: !m.canOpenPipeline().Enabled()},
 		{Key: "ctrl+r", Description: "New scan"},
 		{Key: "ctrl+p", Description: "Command"},
 		{Key: "?", Description: "Help"},
@@ -167,7 +172,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: ".", Description: "Cycle the sort column — the findings table opens on the order the scanner reported, and the cycle leads back to it"},
 			{Key: "enter", Description: "Open the details of the selected finding (results)"},
 			{Key: "X", Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab, Gitleaks findings only)"},
-			{Key: "o", Description: "Open first reference URL in the default browser (detail view)"},
+			{Key: keymap.Web, Description: "Open first reference URL in the default browser (detail view)"},
+			{Key: openPipelineKey, Description: "Open the pipeline the forge resolves for this repository — every include and component expanded (CI tab)"},
 			{Key: "tab / shift+tab", Description: "Switch tabs in results (CVE, Secrets, Licenses, Misconfig)"},
 			{Key: "c / h / m / l", Description: "Filter by severity — cumulative, so c and h together show CRITICAL and HIGH"},
 			{Key: "ctrl+r", Description: "Back to the inventory (results)"},

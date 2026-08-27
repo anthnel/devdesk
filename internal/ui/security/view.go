@@ -56,60 +56,12 @@ func (m Model) renderResultsView() string {
 	// point it records one, which it did not do before. The only copy of the
 	// reason used to be on screen.
 	//
-	// The grade is not a finding either, so it has no row — but it belongs to
-	// one tab: the header would show it on all five, and a withheld run's
-	// reason is a sentence, which buildInfoLines cannot carry (it aligns short
-	// values on seven lines and drops the eighth in silence).
-	if m.activeTab == TabCIScore {
-		return strings.Join([]string{
-			m.renderCIScoreLine(m.width),
-			theme.EmptyLineBg(m.width),
-			m.findingsTable.View(),
-		}, "\n")
-	}
+	// The grade had a line of its own above the table on the CI tab, and it is
+	// gone: it cost that tab two of its rows — the line and its blank — on
+	// every open, to state a letter the inventory's own CI column carries per
+	// target. A tab that shows fewer findings than its four neighbours, for a
+	// value already on the previous screen, is not a trade worth making.
 	return m.findingsTable.View()
-}
-
-// resultsHeadLines is what the head above the table costs it: the score line
-// and its blank, on the CI tab alone.
-func (m Model) resultsHeadLines() int {
-	if m.result != nil && m.activeTab == TabCIScore {
-		return ciScoreHeadLines
-	}
-	return 0
-}
-
-// ciScoreHeadLines is what the head costs the table on the CI tab: the line and
-// the blank under it.
-const ciScoreHeadLines = 2
-
-// renderCIScoreLine states the grade, or why there is none.
-//
-// Rule 120's separator, never a colon. The letter is deliberately absent on a
-// withheld run: plumber writes one anyway and it flatters — a control that did
-// not run found nothing — so what is printed is the reason instead.
-func (m Model) renderCIScoreLine(width int) string {
-	label := theme.KeyStyle.Render(theme.Bg("Score " + theme.IconChevronRight + " "))
-
-	switch {
-	case m.result == nil || !m.result.CIScanned:
-		return theme.BgLine(theme.Bg("  ")+label+theme.DimStyle.Render("not graded"), width)
-	case m.result.CIMissing:
-		return theme.BgLine(theme.Bg("  ")+label+theme.DimStyle.Render("no pipeline in this repository"), width)
-	case m.result.CIWithheld:
-		reason := "the analysis ran on incomplete data"
-		if len(m.result.CIReasons) > 0 {
-			reason = strings.Join(m.result.CIReasons, "; ")
-		}
-		return theme.BgLine(theme.Bg("  ")+label+theme.DimStyle.Render("withheld — "+reason), width)
-	default:
-		grade := theme.CIScoreStyle(theme.CIScoreGraded, &m.result.CIScore).
-			// One decimal, like plumber's own banner: the score is a weighted
-			// sum and rounding it to a whole number would round away the
-			// difference between two repositories.
-			Render(fmt.Sprintf("%s · %.1f/100", m.result.CIScore, m.result.CIPoints))
-		return theme.BgLine(theme.Bg("  ")+label+grade, width)
-	}
 }
 
 // GetFooterHeight returns the footer height for this view (Rule 124).
