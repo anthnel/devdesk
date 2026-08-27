@@ -1,0 +1,77 @@
+regarde le backlog pour le dimensionnement des datatables de manière intelligent, est-ce qu'il y a des décisions à trancher. Tu m'as aussi donné cette précision :  Le plancher de largeur dans datatable — MinWidth est une demande, pas un plancher, donc sous ~88 colonnes les colonnes flexibles tombent à zéro. Ça touche toutes les tables, pas seulement Interfaces.
+
+---
+
+tranchons ensemble les points, pose moi les questions
+
+---
+
+certaines colonnes doivent toujours être affichées et la largeur est connue à l'avance, ex dans la vue sec, les colonnes cve, scanned, secret ont des largeurs fixes connues lors de la compilation. Puis il y a des colonnes qui peuvent prendre plus ou moins de place à l'écran. Certaines colonnes ne peuvent pas être tronquées ou supprimée mais d'autres oui, il faudrait donc pouvoir dire par vue quelles sont les colonnes qui doivent toujours être affichées et lesquelles ont une taille variable
+
+---
+
+tranchons
+
+---
+
+commit et merge
+
+---
+
+implémente 3.45 et D61
+
+---
+
+oui et merge
+
+---
+
+est ce que tout les points sont tranchés pour intégrer getplumber
+
+---
+
+passer la branche courante et accepter l'échec; CI ; que veux tu dire par ou va le score ?
+
+---
+
+je pensais mettre la lettre dans la colonne ci . et pour le détail des problème on fait enter et on a un nouveau tab qui a le détail de plumber
+
+---
+
+go
+
+---
+
+continue
+
+---
+
+merge
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+qu'est-ce qu'il reste à faire ? Si le contexte est github seuls les repos github sont scannés avec plumber. Si le contexte est gitlab seul les repo gitlab sont scannés avec plumber. Comme pour Trivy et Gitleaks il faut ajouter une section dans la config (scan) entre autre une option (case à cocher) CI
+
+---
+
+oui
+
+---
+
+oui
+
+---
+
+continue
+
+---
+
+oui merge et enchaine
