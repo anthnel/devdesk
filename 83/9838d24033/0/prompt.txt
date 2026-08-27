@@ -1,0 +1,5 @@
+j'ai fait un scan du répertoire /home/anthoni/projects/workspace-dev/devsecops/examples/applications/kubernetes/notes-mvp/notes-backend, j'ai précisé un fichier de config plumber dans le context dev mais c'est comme si le scan plumber n'en tenait pas compte
+
+---
+
+ajoute au backlog
