@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "deac5f31d870",
+  "strategy": "manual-commit",
+  "branch": "docs/351-merged-ci-yaml",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/de/ac5f31d870/0/metadata.json",
+      "transcript": "/de/ac5f31d870/0/full.jsonl",
+      "compact_transcript": "/de/ac5f31d870/0/transcript.jsonl",
+      "content_hash": "/de/ac5f31d870/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 110,
+    "cache_creation_tokens": 61176,
+    "cache_read_tokens": 11498922,
+    "output_tokens": 39830,
+    "api_call_count": 55
+  }
+}
