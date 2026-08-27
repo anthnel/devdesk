@@ -40,20 +40,26 @@ func (m Model) renderResultsView() string {
 		return "No results"
 	}
 
-	// Warnings replace the table and hide the tab bar (no partial results to browse)
+	// A stage that failed is **not** rendered here. It goes to the log, and the
+	// footer says to look there (Rule 128).
 	//
-	// The status message used to be repeated here, under the panel. The footer
-	// already carries it, and a message printed twice is a message the two
-	// copies can disagree about (Rule 134's reasoning, one layer down).
-	if len(m.result.Errors) > 0 {
-		return m.renderWarningsPanel()
-	}
-
-	// The grade is not a finding, so it has no row. It goes above the table on
-	// its own tab and nowhere else: the header would show it on all five, which
-	// is a fact about one stage while the other four are being read — and its
-	// withheld reason is a sentence, which buildInfoLines cannot carry (it
-	// aligns short values on seven lines and drops the eighth in silence).
+	// It used to be a panel that replaced the whole table whenever
+	// Result.Errors was non-empty, on the stated grounds that a failed scan has
+	// no partial results to browse. That held while an error meant nothing had
+	// run; it stopped holding the day a stage could fail beside three that
+	// succeeded, and a plumber failure then took every CVE and every secret
+	// down with it. Folding it to a banner above the table only moved the
+	// problem — five tabs, permanently, for a message read once — and a tool's
+	// stderr reformatted for a viewport is what a log is for.
+	//
+	// Nothing is lost by it: internal/scan logs every stage failure at the
+	// point it records one, which it did not do before. The only copy of the
+	// reason used to be on screen.
+	//
+	// The grade is not a finding either, so it has no row — but it belongs to
+	// one tab: the header would show it on all five, and a withheld run's
+	// reason is a sentence, which buildInfoLines cannot carry (it aligns short
+	// values on seven lines and drops the eighth in silence).
 	if m.activeTab == TabCIScore {
 		return strings.Join([]string{
 			m.renderCIScoreLine(m.width),
@@ -62,6 +68,15 @@ func (m Model) renderResultsView() string {
 		}, "\n")
 	}
 	return m.findingsTable.View()
+}
+
+// resultsHeadLines is what the head above the table costs it: the score line
+// and its blank, on the CI tab alone.
+func (m Model) resultsHeadLines() int {
+	if m.result != nil && m.activeTab == TabCIScore {
+		return ciScoreHeadLines
+	}
+	return 0
 }
 
 // ciScoreHeadLines is what the head costs the table on the CI tab: the line and
@@ -89,7 +104,10 @@ func (m Model) renderCIScoreLine(width int) string {
 		return theme.BgLine(theme.Bg("  ")+label+theme.DimStyle.Render("withheld — "+reason), width)
 	default:
 		grade := theme.CIScoreStyle(theme.CIScoreGraded, &m.result.CIScore).
-			Render(fmt.Sprintf("%s · %d/100", m.result.CIScore, m.result.CIPoints))
+			// One decimal, like plumber's own banner: the score is a weighted
+			// sum and rounding it to a whole number would round away the
+			// difference between two repositories.
+			Render(fmt.Sprintf("%s · %.1f/100", m.result.CIScore, m.result.CIPoints))
 		return theme.BgLine(theme.Bg("  ")+label+grade, width)
 	}
 }
@@ -166,16 +184,52 @@ func (m Model) activeFilterBar() *sharedcomponents.FilterBar {
 	return bar
 }
 
-// showsResultTabs reports whether the findings tab bar is on screen. Warnings
-// replace the table and hide the tabs — there are no partial results to browse.
+// showsResultTabs reports whether the findings tab bar is on screen.
+//
+// A failed stage no longer takes it away, because nothing replaces the table
+// any more: the tabs are what the results state is browsed with, and an empty
+// one is an honest answer — the footer says which stage failed and where to
+// read why.
 func (m Model) showsResultTabs() bool {
-	return m.state == StateResults && m.result != nil && len(m.result.Errors) == 0
+	return m.state == StateResults && m.result != nil
 }
 
 // renderInfoLine is the footer's message line, always rendered even when empty
 // (Rule 124). The message expires on its own after three seconds (Rule 128).
 func (m Model) renderInfoLine(width int) string {
-	return m.footer.View(width, sharedcomponents.Status{})
+	return m.footer.View(width, m.status())
+}
+
+// status is what the footer says when no message is in flight.
+//
+// A stage that failed is a **state** of the result rather than an event: it is
+// true for as long as the result is on screen, and a message would expire after
+// three seconds — the distinction Rule 128 draws between the two. It carries
+// the error level, because that is what happened, and it names the stages so
+// the log can be searched for them.
+func (m Model) status() sharedcomponents.Status {
+	if m.state != StateResults || m.result == nil || len(m.result.Errors) == 0 {
+		return sharedcomponents.Status{}
+	}
+	return sharedcomponents.Status{
+		Text:  failedStages(m.result.Errors) + " — check logs",
+		Level: sharedcomponents.LevelError,
+	}
+}
+
+// failedStages names what failed, reading the "<stage>: <reason>" that
+// scan.recordStageError writes. The reason stays in the log: a footer is one
+// line, and a tool's stderr is not.
+func failedStages(errs []string) string {
+	stages := make([]string, 0, len(errs))
+	for _, e := range errs {
+		stage := e
+		if idx := strings.Index(e, ": "); idx != -1 {
+			stage = e[:idx]
+		}
+		stages = append(stages, stage)
+	}
+	return strings.Join(stages, ", ") + " failed"
 }
 
 // renderTabs renders the tab bar

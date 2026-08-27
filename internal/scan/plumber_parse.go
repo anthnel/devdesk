@@ -27,8 +27,14 @@ type plumberDoc struct {
 }
 
 type plumberScore struct {
-	Score       string            `json:"score"`
-	FinalPoints int               `json:"finalPoints"`
+	Score string `json:"score"`
+	// FinalPoints is a **float**, and the fixtures hid it: both happened to
+	// score a whole number, so an int decoded them and the first repository
+	// with a fractional score failed the whole stage with
+	// `cannot unmarshal number 25.698320532936123 into Go struct field
+	// plumberScore.finalPoints of type int`. plumber's own banner prints one
+	// decimal, which is what gave it away in hindsight.
+	FinalPoints float64           `json:"finalPoints"`
 	CodeLosses  []plumberCodeLoss `json:"codeLosses"`
 	Counts      map[string]int    `json:"counts"`
 	Losses      []json.RawMessage `json:"losses"`

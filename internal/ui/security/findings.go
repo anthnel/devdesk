@@ -341,9 +341,5 @@ func (m Model) toggleSeverity(key string) (tea.Model, tea.Cmd) {
 // genuinely differs, and the alternative — reserving the two lines on all five
 // tabs — would spend them on four screens that have nothing to put there.
 func (m *Model) resizeFindings() {
-	height := max(m.height, 5)
-	if m.activeTab == TabCIScore {
-		height = max(height-ciScoreHeadLines, 5)
-	}
-	m.findingsTable.Resize(m.width, height)
+	m.findingsTable.Resize(m.width, max(m.height-m.resultsHeadLines(), 5))
 }

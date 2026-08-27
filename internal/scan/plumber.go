@@ -111,7 +111,9 @@ func plumberArgs(target string, tool ToolSpec, opts PlumberOptions, outPath stri
 		return toolCmd{Name: "docker", Args: append(args, options...)}
 	}
 
-	return toolCmd{Name: plumberBinary(tool), Args: options}
+	// Dir, not an argument: `analyze` works on the current directory and takes
+	// no path. The container gets the same thing through -w.
+	return toolCmd{Name: plumberBinary(tool), Args: options, Dir: target}
 }
 
 // plumberTokenEnv passes the context's token to a containerised plumber.
@@ -160,8 +162,9 @@ const (
 type PlumberReport struct {
 	// Score is the letter, empty when it was withheld.
 	Score string
-	// Points is finalPoints out of 100.
-	Points int
+	// Points is finalPoints out of 100, and it is a float: a score is a
+	// weighted sum, so a whole number is the exception rather than the shape.
+	Points float64
 	// Withheld reports a run that could not conclude — exit 3, and
 	// dataCollectionDegraded in the JSON. Its letter must never be shown: a
 	// degraded run of the fixture reads B/79 where the complete run reads E/30,

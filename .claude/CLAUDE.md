@@ -1705,6 +1705,29 @@ absences:
   therefore loses two rows on that tab, which is the honest trade — reserving
   them on all five spends them on four screens with nothing to put there.
 
+**`plumber analyze` takes no path argument: it works on the current directory.**
+So `toolCmd` carries a `Dir` and the binary path sets it to the repository; the
+container gets the same thing through `-w`. Without it the tool ran wherever
+DevDesk had been launched from and answered
+*--project is required (could not auto-detect from git remote)* — a failure
+about a repository nobody had asked it to look at. Trivy and Gitleaks take their
+target in argv and set nothing there.
+
+**A stage that fails goes to the log, not to the screen** (Rule 128). The
+results view rendered a warnings panel that replaced the whole table whenever
+`Result.Errors` was non-empty, so a plumber failure took every CVE and every
+secret down with it; folding it to a banner above the table only moved the
+problem to all five tabs at once. There is no panel any more — the table is what
+the results state shows, always — and the footer carries a **status** naming the
+failed stages and saying to check the logs. A status rather than a message
+because it is a state of the result: a message expires after three seconds, and
+the user would be left with a result that looks complete.
+
+`internal/scan.recordStageError` is what makes that honest. Every stage used to
+append to `Result.Errors` and log **nothing**, so the only copy of the reason was
+on screen, in the panel that hid the findings. It now logs at the point it
+records, at all six sites.
+
 Two smaller things it needed: `toolCmd` gained an `Env` so the token reaches
 plumber through the environment rather than argv, which is readable from the
 process list; and the security view gained the secret store, because a rescan

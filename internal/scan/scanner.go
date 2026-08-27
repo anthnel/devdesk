@@ -154,8 +154,8 @@ type Result struct {
 	// run reads B/79 where the complete run reads E/30, because a control that
 	// did not run found nothing.
 	CIScore string `json:"ci_score,omitempty"`
-	// CIPoints is finalPoints out of 100.
-	CIPoints int `json:"ci_points,omitempty"`
+	// CIPoints is finalPoints out of 100, a float — see PlumberReport.Points.
+	CIPoints float64 `json:"ci_points,omitempty"`
 	// CIWithheld is a run that could not conclude, and CIReasons is what it
 	// could not collect. Together they are the `?` of the CI column.
 	CIWithheld bool     `json:"ci_withheld,omitempty"`
@@ -178,6 +178,19 @@ func (r *Result) CIVerdict() *string {
 	}
 	score := r.CIScore
 	return &score
+}
+
+// recordStageError puts a stage's failure where it can be found.
+//
+// The result carries it for the caches and the callers; the **log** carries the
+// detail, because the views do not print a tool's stderr any more — Rule 128's
+// arrangement, which this package was not part of: a stage that failed appended
+// to result.Errors and logged nothing, so the only copy of the reason was on
+// screen, in a panel that replaced the findings. The footer now says to look in
+// the log, and this is what makes that true.
+func recordStageError(result *Result, stage string, err error) {
+	log.Printf("ERROR [scan/%s] stage failed: %v", stage, err)
+	result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", stage, err))
 }
 
 // CountFindings aggregates findings into separate counters by category and
@@ -452,7 +465,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("trivy vuln: %v", err))
+				recordStageError(result, "trivy vuln", err)
 				notify(ProgressUpdate{Stage: "vuln", Label: "Vulnerabilities", Status: StageError, Detail: err.Error()})
 			} else {
 				result.Findings = append(result.Findings, findings...)
@@ -475,7 +488,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("trivy license: %v", err))
+				recordStageError(result, "trivy license", err)
 				notify(ProgressUpdate{Stage: "license", Label: "Licenses", Status: StageError})
 			} else {
 				result.Findings = append(result.Findings, findings...)
@@ -502,7 +515,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("plumber: %v", err))
+				recordStageError(result, "plumber", err)
 				notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageError, Detail: err.Error()})
 				return nil
 			}
@@ -533,7 +546,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("trivy misconfig: %v", err))
+				recordStageError(result, "trivy misconfig", err)
 				notify(ProgressUpdate{Stage: "misconfig", Label: "Misconfigurations", Status: StageError})
 			} else {
 				result.Findings = append(result.Findings, findings...)
@@ -556,7 +569,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("gitleaks: %v", err))
+				recordStageError(result, "gitleaks", err)
 				notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageError})
 			} else {
 				result.Findings = append(result.Findings, findings...)
@@ -585,7 +598,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("trivy secret: %v", err))
+				recordStageError(result, "trivy secret", err)
 				notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageError})
 			} else {
 				result.Findings = append(result.Findings, findings...)

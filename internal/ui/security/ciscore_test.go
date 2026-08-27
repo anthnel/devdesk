@@ -39,7 +39,7 @@ func TestTheScoreLineStatesTheGradeOnTheCITab(t *testing.T) {
 	}))
 
 	line := plain(m.renderCIScoreLine(160))
-	if !strings.Contains(line, "C") || !strings.Contains(line, "61/100") {
+	if !strings.Contains(line, "C") || !strings.Contains(line, "61.0/100") {
 		t.Errorf("the score line does not carry the grade: %q", line)
 	}
 	// Rule 120: the separator is the chevron, never a colon.
@@ -98,13 +98,13 @@ func TestTheScoreLineAppearsOnTheCITabAlone(t *testing.T) {
 
 	for _, tab := range []int{TabCVE, TabSecrets, TabLicense, TabMisconfig} {
 		m.switchTab(tab)
-		if strings.Contains(plain(m.renderResultsView()), "61/100") {
+		if strings.Contains(plain(m.renderResultsView()), "61.0/100") {
 			t.Errorf("tab %d shows the CI score", tab)
 		}
 	}
 
 	m.switchTab(TabCIScore)
-	if !strings.Contains(plain(m.renderResultsView()), "61/100") {
+	if !strings.Contains(plain(m.renderResultsView()), "61.0/100") {
 		t.Error("the CI tab does not show the score")
 	}
 }
