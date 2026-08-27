@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "76576dd93378",
+  "strategy": "manual-commit",
+  "branch": "plumber-run",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/app/command_line.go",
+    "internal/app/scan_details.go",
+    "internal/cache/workspace_scan.go",
+    "internal/git/remote.go",
+    "internal/scan/category.go",
+    "internal/scan/options.go",
+    "internal/scan/options_test.go",
+    "internal/scan/plumber.go",
+    "internal/scan/plumber_parse.go",
+    "internal/scan/plumber_target.go",
+    "internal/scan/plumber_test.go",
+    "internal/scan/run.go",
+    "internal/scan/scanner.go",
+    "internal/scan/testdata/plumber_complete.json",
+    "internal/scan/testdata/plumber_withheld.json",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/images.go",
+    "internal/ui/security/inventory.go",
+    "internal/ui/security/inventory_alias_test.go",
+    "internal/ui/security/inventory_commands.go",
+    "internal/ui/security/inventory_test.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/model_test.go",
+    "internal/ui/security/security_test.go",
+    "internal/ui/security/view_test.go",
+    "internal/ui/security/warnings_test.go",
+    "internal/ui/workspaces/actions.go",
+    "internal/ui/workspaces/commands.go",
+    "internal/ui/workspaces/entry.go",
+    "internal/ui/workspaces/messages.go",
+    "internal/ui/workspaces/sync.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/76/576dd93378/0/metadata.json",
+      "transcript": "/76/576dd93378/0/full.jsonl",
+      "compact_transcript": "/76/576dd93378/0/transcript.jsonl",
+      "content_hash": "/76/576dd93378/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 156,
+    "cache_creation_tokens": 100497,
+    "cache_read_tokens": 36443208,
+    "output_tokens": 55382,
+    "api_call_count": 78
+  }
+}
