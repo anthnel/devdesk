@@ -49,7 +49,49 @@ func (m Model) renderResultsView() string {
 		return m.renderWarningsPanel()
 	}
 
+	// The grade is not a finding, so it has no row. It goes above the table on
+	// its own tab and nowhere else: the header would show it on all five, which
+	// is a fact about one stage while the other four are being read — and its
+	// withheld reason is a sentence, which buildInfoLines cannot carry (it
+	// aligns short values on seven lines and drops the eighth in silence).
+	if m.activeTab == TabCIScore {
+		return strings.Join([]string{
+			m.renderCIScoreLine(m.width),
+			theme.EmptyLineBg(m.width),
+			m.findingsTable.View(),
+		}, "\n")
+	}
 	return m.findingsTable.View()
+}
+
+// ciScoreHeadLines is what the head costs the table on the CI tab: the line and
+// the blank under it.
+const ciScoreHeadLines = 2
+
+// renderCIScoreLine states the grade, or why there is none.
+//
+// Rule 120's separator, never a colon. The letter is deliberately absent on a
+// withheld run: plumber writes one anyway and it flatters — a control that did
+// not run found nothing — so what is printed is the reason instead.
+func (m Model) renderCIScoreLine(width int) string {
+	label := theme.KeyStyle.Render(theme.Bg("Score " + theme.IconChevronRight + " "))
+
+	switch {
+	case m.result == nil || !m.result.CIScanned:
+		return theme.BgLine(theme.Bg("  ")+label+theme.DimStyle.Render("not graded"), width)
+	case m.result.CIMissing:
+		return theme.BgLine(theme.Bg("  ")+label+theme.DimStyle.Render("no pipeline in this repository"), width)
+	case m.result.CIWithheld:
+		reason := "the analysis ran on incomplete data"
+		if len(m.result.CIReasons) > 0 {
+			reason = strings.Join(m.result.CIReasons, "; ")
+		}
+		return theme.BgLine(theme.Bg("  ")+label+theme.DimStyle.Render("withheld — "+reason), width)
+	default:
+		grade := theme.CIScoreStyle(theme.CIScoreGraded, &m.result.CIScore).
+			Render(fmt.Sprintf("%s · %d/100", m.result.CIScore, m.result.CIPoints))
+		return theme.BgLine(theme.Bg("  ")+label+grade, width)
+	}
 }
 
 // GetFooterHeight returns the footer height for this view (Rule 124).
@@ -138,12 +180,16 @@ func (m Model) renderInfoLine(width int) string {
 
 // renderTabs renders the tab bar
 func (m Model) renderTabs() string {
-	cve, secrets, licenses, misconfigs := m.countFindingsByTab()
+	cve, secrets, licenses, misconfigs, ci := m.countFindingsByTab()
 
 	return theme.RenderTabs([]theme.TabItem{
 		{Label: fmt.Sprintf("CVE (%d)", cve)},
 		{Label: fmt.Sprintf("Secrets (%d)", secrets)},
 		{Label: fmt.Sprintf("Licenses (%d)", licenses)},
 		{Label: fmt.Sprintf("Misconfig (%d)", misconfigs)},
+		// The count, like its four neighbours — not the letter. A letter in a
+		// column of counts would break the only thing the tab bar keeps
+		// aligned, and the grade already has a line of its own below.
+		{Label: fmt.Sprintf("CI (%d)", ci)},
 	}, m.activeTab)
 }

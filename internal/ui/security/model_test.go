@@ -62,7 +62,7 @@ func TestEachTabShowsItsOwnFindings(t *testing.T) {
 func TestTabCountsMatchTheTabs(t *testing.T) {
 	m := scannedModel(t)
 
-	cve, secrets, licences, misconfigs := m.countFindingsByTab()
+	cve, secrets, licences, misconfigs, _ := m.countFindingsByTab()
 
 	if cve != 2 || secrets != 1 || licences != 1 || misconfigs != 1 {
 		t.Errorf("counts = %d/%d/%d/%d, want 2/1/1/1", cve, secrets, licences, misconfigs)
@@ -76,7 +76,7 @@ func TestTabKeysAndCycling(t *testing.T) {
 	// bindings, and a single view's exception is what §3.26 dismantles.
 	for _, key := range []string{"1", "2", "3", "4"} {
 		if got := feed(t, m, testutil.Key(key)).activeTab; got != TabCVE {
-			t.Errorf("%q selected tab %d; the numeric jumps are gone, tab reaches all four", key, got)
+			t.Errorf("%q selected tab %d; the numeric jumps are gone, tab reaches them all", key, got)
 		}
 	}
 
@@ -90,10 +90,19 @@ func TestTabKeysAndCycling(t *testing.T) {
 		t.Errorf("shift+tab moved to %d, want back to the first", m.activeTab)
 	}
 
-	// Cycling wraps rather than stopping at the last tab.
-	m = feed(t, m, testutil.Keys("tab", "tab", "tab", "tab")...)
+	// Cycling wraps rather than stopping at the last tab, and it visits every
+	// one on the way — which is what makes the fifth reachable at all, the
+	// numeric jumps being gone.
+	seen := map[int]bool{m.activeTab: true}
+	for range tabCount {
+		m = feed(t, m, testutil.Key("tab"))
+		seen[m.activeTab] = true
+	}
 	if m.activeTab != TabCVE {
 		t.Errorf("a full cycle ended on tab %d", m.activeTab)
+	}
+	if len(seen) != tabCount {
+		t.Errorf("a full cycle visited %d tabs, want %d", len(seen), tabCount)
 	}
 }
 
@@ -515,7 +524,7 @@ func TestTheTabCountsAgreeWithTheResultCounters(t *testing.T) {
 	result.CountFindings()
 
 	m := Model{result: result}
-	cve, secrets, licenses, misconfigs := m.countFindingsByTab()
+	cve, secrets, licenses, misconfigs, ci := m.countFindingsByTab()
 
 	vulns := result.Counts.Critical + result.Counts.High + result.Counts.Medium +
 		result.Counts.Low + result.Counts.Unknown
@@ -531,9 +540,12 @@ func TestTheTabCountsAgreeWithTheResultCounters(t *testing.T) {
 	if misconfigs != result.MisconfigCount {
 		t.Errorf("the Misconfig tab shows %d, MisconfigCount is %d", misconfigs, result.MisconfigCount)
 	}
+	if ci != result.CIIssueCount {
+		t.Errorf("the CI tab shows %d, CIIssueCount is %d", ci, result.CIIssueCount)
+	}
 	// Every finding is reachable through some tab; one visible in none of them
 	// is the failure the two rules produced.
-	if total := cve + secrets + licenses + misconfigs; total != len(result.Findings) {
+	if total := cve + secrets + licenses + misconfigs + ci; total != len(result.Findings) {
 		t.Errorf("%d findings across the tabs, %d in the result — some are in no tab",
 			total, len(result.Findings))
 	}

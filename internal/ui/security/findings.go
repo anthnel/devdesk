@@ -103,6 +103,8 @@ const (
 	TabSecrets   = 1
 	TabLicense   = 2
 	TabMisconfig = 3
+	TabCIScore   = 4
+	tabCount     = 5
 )
 
 // updateFindingsTable populates the findings table based on active tab and filters.
@@ -135,6 +137,7 @@ var tabCategory = map[int]scan.Category{
 	TabSecrets:   scan.CategorySecret,
 	TabLicense:   scan.CategoryLicense,
 	TabMisconfig: scan.CategoryMisconfiguration,
+	TabCIScore:   scan.CategoryCIScore,
 }
 
 // filterFindingsByTab returns findings filtered by the active tab
@@ -180,9 +183,9 @@ func sourceDisplay(f scan.Finding) string {
 
 // countFindingsByTab returns the count of findings for each tab. These are the
 // numbers on the tab labels, and scan.Result's counters are the same ones.
-func (m *Model) countFindingsByTab() (cve, secrets, licenses, misconfigs int) {
+func (m *Model) countFindingsByTab() (cve, secrets, licenses, misconfigs, ci int) {
 	if m.result == nil {
-		return 0, 0, 0, 0
+		return 0, 0, 0, 0, 0
 	}
 
 	for _, f := range m.result.Findings {
@@ -195,14 +198,19 @@ func (m *Model) countFindingsByTab() (cve, secrets, licenses, misconfigs int) {
 			licenses++
 		case scan.CategoryMisconfiguration:
 			misconfigs++
+		case scan.CategoryCIScore:
+			ci++
 		}
 	}
-	return cve, secrets, licenses, misconfigs
+	return cve, secrets, licenses, misconfigs, ci
 }
 
 // switchTab switches to the given tab index and refreshes the table
 func (m *Model) switchTab(tab int) {
 	m.activeTab = tab
+	// The CI tab carries a score line above the table, so the height changes
+	// with the tab and not only with the window.
+	m.resizeFindings()
 	m.footer.Clear()
 	m.updateFindingsTable()
 }
@@ -298,10 +306,10 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.activeTab = TabCVE
 		return m.goHome()
 	case "tab":
-		m.switchTab((m.activeTab + 1) % 4)
+		m.switchTab((m.activeTab + 1) % tabCount)
 		return m, nil
 	case "shift+tab":
-		m.switchTab((m.activeTab + 3) % 4)
+		m.switchTab((m.activeTab + tabCount - 1) % tabCount)
 		return m, nil
 	// 1-4 jumped straight to a tab. They were the application's only numeric
 	// bindings, and an exception in a single view is precisely what §3.26
@@ -323,4 +331,19 @@ func (m Model) toggleSeverity(key string) (tea.Model, tea.Cmd) {
 	m.findingsTable.SetTokenActive(label, !m.findingsTable.IsTokenActive(label))
 	m.findingsTable.GotoTop()
 	return m, nil
+}
+
+// resizeFindings lays the findings table out, leaving room for the score line
+// when the CI tab is what will be drawn.
+//
+// The table therefore loses two rows on that tab and gets them back on the
+// others. It is a visible change on tab switch, and the right one: the content
+// genuinely differs, and the alternative — reserving the two lines on all five
+// tabs — would spend them on four screens that have nothing to put there.
+func (m *Model) resizeFindings() {
+	height := max(m.height, 5)
+	if m.activeTab == TabCIScore {
+		height = max(height-ciScoreHeadLines, 5)
+	}
+	m.findingsTable.Resize(m.width, height)
 }
