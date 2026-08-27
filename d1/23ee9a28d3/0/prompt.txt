@@ -1,0 +1,9 @@
+/plan ajoute la possibilité d'afficher le numéro de ligne dans le viewer. Un shortcut pour montrer/cacher et un shortcut pour aller directement à une ligne. ajoute aussi une option pour la recherche/filtre, case sensitive ou pas. Cette option doit être appliquée lors du filtre (/)
+
+---
+
+oui
+
+---
+
+continue
