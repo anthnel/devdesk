@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "9d6b4cb2a90e",
+  "strategy": "manual-commit",
+  "branch": "docs/352-ci-column-colour",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/security/ciscore_test.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/inventory.go",
+    "internal/ui/security/inventory_alias_test.go",
+    "internal/ui/security/inventory_cache_test.go",
+    "internal/ui/security/inventory_ci_test.go",
+    "internal/ui/security/inventory_commands.go",
+    "internal/ui/security/inventory_table.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/view.go",
+    "internal/ui/theme/ciscore.go",
+    "internal/ui/theme/ciscore_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9d/6b4cb2a90e/0/metadata.json",
+      "transcript": "/9d/6b4cb2a90e/0/full.jsonl",
+      "compact_transcript": "/9d/6b4cb2a90e/0/transcript.jsonl",
+      "content_hash": "/9d/6b4cb2a90e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 98,
+    "cache_creation_tokens": 60798,
+    "cache_read_tokens": 15129665,
+    "output_tokens": 31537,
+    "api_call_count": 49
+  }
+}
