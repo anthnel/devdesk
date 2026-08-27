@@ -1,0 +1,9 @@
+⚠ .claude\CLAUDE.md is over the 150.0k-char limit (165.5k chars)
+
+---
+
+comment régler ce problème : ⚠ .claude\CLAUDE.md is over the 150.0k-char limit (165.5k chars)
+
+---
+
+oui
