@@ -60,10 +60,11 @@ func findingsByJob(findings []scan.Finding) map[string][]string {
 	}
 	grouped := make(map[string][]entry)
 	for _, f := range findings {
-		if f.Source != scan.SourcePlumber || f.Job == "" {
+		job := jobOf(f)
+		if f.Source != scan.SourcePlumber || job == "" {
 			continue
 		}
-		grouped[f.Job] = append(grouped[f.Job], entry{
+		grouped[job] = append(grouped[job], entry{
 			label: fmt.Sprintf("%s (%s)", f.ID, f.Severity),
 			rank:  severityRank(f.Severity),
 			code:  f.ID,
@@ -93,6 +94,33 @@ func findingsByJob(findings []scan.Finding) map[string][]string {
 		out[job] = labels
 	}
 	return out
+}
+
+// descriptionJobPrefix is how plumberFinding wrote a job before Finding.Job
+// existed. It is DevDesk's own format, not plumber's — the tool emits a field.
+const descriptionJobPrefix = "job: "
+
+// jobOf is the job a finding is about, read from a stored result of any age.
+//
+// Every result written before Finding.Job existed carries the job in its
+// Description and nowhere else, so a reader that only looked at the field would
+// find nothing on every scan already on disk — and the document would come back
+// with no comment in it and nothing saying why. That is an absence read as an
+// emptiness, and rescanning every target is not a fix a user can be expected to
+// discover.
+//
+// Reading Description back is safe because the string is DevDesk's: it was
+// written as "job: " + issue.Job by this repository, so this parses its own
+// output rather than guessing at a tool's. A description that is not a job —
+// "branch: main", a bare type — has no prefix and yields nothing.
+func jobOf(f scan.Finding) string {
+	if f.Job != "" {
+		return f.Job
+	}
+	if rest, ok := strings.CutPrefix(f.Description, descriptionJobPrefix); ok {
+		return strings.TrimSpace(rest)
+	}
+	return ""
 }
 
 // jobKeyOf returns the job a line defines, and whether it defines one.

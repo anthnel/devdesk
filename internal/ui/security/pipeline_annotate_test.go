@@ -142,3 +142,45 @@ func TestOnlyCIFindingsAreWrittenIn(t *testing.T) {
 		t.Error("a Trivy finding was written into the pipeline")
 	}
 }
+
+// Every result already on disk predates Finding.Job and carries the job in its
+// description. A reader that only looked at the field would come back with an
+// empty document and nothing saying why.
+func TestAStoredResultFromBeforeTheFieldStillAnchors(t *testing.T) {
+	old := scan.Finding{
+		ID: "ISSUE-411", Severity: scan.SeverityHigh, Source: scan.SourcePlumber,
+		Description: "job: build",
+	}
+
+	got := annotatePipeline(resolvedFixture, []scan.Finding{old})
+	if !strings.Contains(got, "build:  # plumber: ISSUE-411 (HIGH)") {
+		t.Errorf("a result written before the field carries no comment:\n%s", got)
+	}
+}
+
+// The field wins when both are there: it is the tool's answer, the description
+// is a sentence built from it.
+func TestTheFieldWinsOverTheDescription(t *testing.T) {
+	f := scan.Finding{
+		ID: "ISSUE-411", Severity: scan.SeverityHigh, Source: scan.SourcePlumber,
+		Job: "build", Description: "job: test",
+	}
+
+	got := annotatePipeline(resolvedFixture, []scan.Finding{f})
+	if !strings.Contains(got, "build:  # plumber:") || strings.Contains(got, "test:  # plumber:") {
+		t.Errorf("the description was preferred to the field:\n%s", got)
+	}
+}
+
+// A description that is not a job anchors nothing.
+func TestANonJobDescriptionAnchorsNothing(t *testing.T) {
+	for _, desc := range []string{"branch: main", "unprotected", ""} {
+		f := scan.Finding{
+			ID: "ISSUE-501", Severity: scan.SeverityCritical,
+			Source: scan.SourcePlumber, Description: desc,
+		}
+		if got := annotatePipeline(resolvedFixture, []scan.Finding{f}); got != resolvedFixture {
+			t.Errorf("description %q altered the document", desc)
+		}
+	}
+}
