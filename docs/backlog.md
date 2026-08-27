@@ -8490,6 +8490,16 @@ quand un contexte GitLab existera.
 Rien n'entre dans le binaire DevDesk : c'est une image à tirer ou un binaire à
 installer, comme Trivy et Gitleaks.
 
+#### 4. Ce qu'un finding ne dit pas encore — suite en §3.51
+
+Mesuré à l'usage le 2026-08-27 : plumber n'analyse pas le `.gitlab-ci.yml` du
+dépôt mais la configuration que **GitLab** en dérive, includes et composants
+résolus transitivement côté serveur. Un finding porte donc sur un job que le
+dépôt ne contient pas, et son lien `#L<n>` renvoie à l'entrée `include:`
+responsable plutôt qu'à la ligne fautive. Ce que DevDesk peut en faire — montrer
+le document fusionné, et remonter au fichier amont à son SHA — est
+[§3.51](#351-le-yaml-fusionné-dans-le-viewer-et-un-finding-plumber-qui-sait-où-il-pointe).
+
 ### 3.43 L'onglet Ports lit la machine — `internal/ports` — **done**
 
 Fait le 2026-08-24. C'est l'option 1 de §3.41, prise pour la raison que D55 a
@@ -9621,6 +9631,148 @@ montage nommé dans le paquet, un drapeau qui désigne le montage, un chemin ren
 absolu au chargement, et une règle sur ce qui distingue un résultat d'un échec.
 Reste à mesurer ce que l'image `getplumber/plumber` a besoin de voir, ce qui est
 le point 1 de « Ce qui reste ouvert » de §3.42.
+
+### 3.51 Le YAML fusionné dans le viewer, et un finding plumber qui sait où il pointe
+
+Deux moitiés séparables, nées de la même mesure : **plumber n'analyse pas le
+`.gitlab-ci.yml` du dépôt, il analyse ce que GitLab en fait**, et rien dans
+DevDesk ne montre ce que c'est.
+
+Relevé sur `devsecops/examples/.../notes-mvp/notes-backend`, dont le fichier
+déclare **un seul** `include` :
+
+| | fichier local | configuration résolue |
+|---|---|---|
+| includes | 1 | **15** (7 fichiers de template, 8 composants) |
+| jobs | 3 | **21** |
+| images | 0 | **9** |
+| YAML | 15 lignes | **120 Ko**, 2 756 lignes |
+
+L'expansion est transitive et c'est **le serveur** qui la fait. Un utilisateur
+qui lit un finding plumber lit donc le verdict d'un document qu'il n'a jamais
+vu, et qui n'existe nulle part sur sa machine.
+
+#### Moitié 1 — afficher le fusionné
+
+**La destination est le viewer, pas un écran de plus.** `internal/viewer` a déjà
+trois producteurs (`ws` sur un fichier, `containers` sur `enter` et sur `L`) ;
+celui-ci est le quatrième. `KindYAML` est déclaré, coloré, cherchable — il n'y a
+rien à construire pour l'affichage, seulement une `Source`, sur le modèle
+d'`inspectSource`.
+
+Sept décisions, chacune reprise d'une règle qui existe déjà :
+
+- **Le document est demandé au forge du contexte, et à lui seul.** C'est la règle
+  de §3.17 et §3.42 : `git.SameHost` d'abord, `LoadForgeToken` seulement une fois
+  l'hôte reconnu — un dépôt d'un autre hôte ne fait pas atteindre le magasin de
+  secrets. Sans session, la touche est grisée avec un motif (Rule 130).
+- **C'est la configuration d'une *branche côté serveur*, pas du working tree.**
+  La branche courante est passée comme `Scanner.ciOptions` le fait, et **le
+  header doit le dire** : un template modifié localement et non poussé n'est pas
+  dans ce document, et rien d'autre à l'écran ne le distingue d'une expansion
+  locale. C'est D35 sous une autre forme — une lecture juste dont la fraîcheur
+  n'est pas celle qu'on croit.
+- **GitHub n'a pas d'équivalent, et ça se déclare.** Il n'y a pas d'expansion
+  côté serveur pour les `uses:` ; la branche GitHub de plumber lit
+  `.github/workflows` en local. C'est une différence de *ce que la plateforme
+  peut promettre*, donc elle appartient à `forge.Shape` — précédent
+  `Shape.PermanentDelete` —, pas à une condition écrite dans la vue.
+- **Rien n'est écrit sur disque.** Le viewer prend une `Source`, donc les octets
+  restent en mémoire. Le fichier temporaire supprimé par §3.25 ne revient pas.
+- **La lecture est réseau, donc un `Cmd`**, annulable, avec le spinner au footer
+  et la table qui reste (Rule 139) — 120 Ko sur une instance interne, mais le
+  chiffre n'est pas garanti.
+- **La touche vient de `keymap.Free()`** — `J`, `Q`, `Z` — et
+  `TestFreeLettersAreActuallyFree` se met à jour dans le même commit. Une action
+  ne s'invente pas une touche (§3.26).
+- **Le graphe d'includes vaut le document.** `includes[]` est ce qui explique
+  *pourquoi* le fusionné contient 21 jobs, et ça ne rentre pas dans un document
+  YAML. Reste à trancher : un second affichage, ou des lignes de commentaire
+  synthétisées en tête du document. La seconde option ment sur le contenu — le
+  fusionné ne les contient pas — donc la première est probablement la bonne.
+
+#### Moitié 2 — cibler la ligne signalée
+
+C'est la demande qui a motivé l'entrée, et elle part d'une gêne réelle. Relevé
+sur `additional-services/image-import/totem-web`, dont le `.gitlab-ci.yml` fait
+**8 lignes** :
+
+```
+HIGH ISSUE-411  pipelineMustNotExecuteUnverifiedScripts
+job:  .skopeo-check-image-update-base
+File: …/totem-web/-/blob/825403b0…/.gitlab-ci.yml#L4
+```
+
+L4 est la dernière ligne de l'entrée `include:`. Le job n'est pas dans ce
+fichier — il est **deux niveaux plus bas**, dans le composant
+`skopeo/check-image-update@2.5`, tiré par `docker-image-external-build`. Le
+`#L4` est donc un *renvoi vers l'include responsable*, pas une localisation ; et
+rien à l'écran ne dit que c'en est un, ce qui est le vrai défaut.
+
+**Ce n'est pas un bug de plumber.** L'API renvoie deux choses sans lien : le
+graphe (`includes[]`) et le texte (`merged_yaml`). Il n'y a **aucune provenance
+par ligne**, donc pointer l'include est le maximum disponible depuis le dépôt
+qu'on lui a demandé.
+
+**Mais `includes[]` porte de quoi retrouver la ligne, et c'est mesuré.** Chaque
+entrée porte un `blob` **épinglé sur un SHA** et nommant le fichier exact :
+
+```json
+{ "type": "component",
+  "location": "…/components/skopeo/check-image-update@2.5",
+  "blob": "…/components/skopeo/-/blob/0576cd05…/templates/check-image-update/template.yml",
+  "raw": null,
+  "context_project": "devsecops/pipelines/templates/docker/docker-image-external-build" }
+```
+
+En récupérant ce fichier **à ce SHA** et en y cherchant la clé du job, on obtient
+la localisation exacte. Vérifié de bout en bout :
+
+| | |
+|---|---|
+| fichier amont au SHA épinglé | 224 lignes |
+| `.skopeo-check-image-update-base:` | **L208** |
+| le motif qui a déclenché ISSUE-411 | **L106** et **L115** |
+
+soit le permalien que le finding aurait dû porter :
+`…/components/skopeo/-/blob/0576cd05…/templates/check-image-update/template.yml#L208`.
+
+**Deux niveaux de précision, et il faut les distinguer plutôt que promettre le
+second :**
+
+1. **Toujours** — ouvrir le fusionné positionné sur le job. Le nom du job est
+   une clé exacte du document, et le viewer sait déjà filtrer et surligner
+   (`MatchRanges`, §3.29). Les lignes fautives *sont* là, sous les yeux.
+2. **Quand le job est défini textuellement dans un include** — remonter au
+   fichier amont, à son SHA, à sa ligne. Un aller-retour API par entrée du
+   graphe, à la demande, pour **un** finding : 4 appels sur `totem-web`, 15 sur
+   `notes-backend`. Jamais pour tous les findings d'un scan.
+
+**Le cas 2 échoue légitimement**, et il doit alors retomber sur le cas 1 en le
+disant : un job dont le nom est construit (`$[[ inputs.job-name ]]`), assemblé
+par `extends` ou par `!reference`, n'apparaît littéralement dans aucun include.
+Un « introuvable » silencieux ferait croire que le job vient de nulle part.
+
+**Ce qu'on ne tente pas** : reconstruire une correspondance ligne → origine sur
+tout le document. Il faudrait refaire l'expansion — résoudre chaque include,
+appliquer `extends`, `!reference` et les `inputs` — c'est réimplémenter le moteur
+CI de GitLab, et le résultat serait faux quelque part sans qu'on sache où. Le
+serveur donne déjà la bonne réponse ; on ne va pas en fabriquer une seconde.
+
+**Une fragilité à écrire dans le code plutôt qu'à découvrir** : pour un
+composant, `raw` est **null** — seul `blob` renseigne. Le projet, le SHA et le
+chemin s'en extraient par la forme d'URL `/-/blob/<sha>/<path>`, puis le contenu
+se lit par `repository/files/<path>/raw?ref=<sha>`. C'est de la chirurgie sur une
+URL, et c'est la seule source ; un test doit fixer la forme attendue.
+
+#### Ce que ça vaut au-delà de l'ergonomie
+
+Le score d'un dépôt applicatif est surtout celui de ses templates : les six
+`ISSUE-403` de `notes-backend` visent des composants situés deux à trois niveaux
+au-dessus, qu'aucune de ses équipes ne peut corriger. Rendre la provenance
+visible, c'est ce qui permet de router un finding vers le dépôt qui peut
+réellement le traiter — et de voir qu'une même faute comptée sur vingt dépôts
+consommateurs n'est qu'**une** faute.
 
 ## 4. Existing plans
 
