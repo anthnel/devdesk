@@ -1,0 +1,54 @@
+j'ai fait un scan du répertoire /home/anthoni/projects/workspace-dev/devsecops/examples/applications/kubernetes/notes-mvp/notes-backend, j'ai précisé un fichier de config plumber dans le context dev mais c'est comme si le scan plumber n'en tenait pas compte
+
+---
+
+ajoute au backlog
+
+---
+
+merge le backlog et on ne fait rien pour l'instant
+
+---
+
+comment plumber traite les fichiers gitlab-ci qui incluent des templates et des composants
+
+---
+
+est-ce qu'il y a moyen d'afficher le yaml fusionné
+
+---
+
+regarde cette issue plumber, il référence la L4 mais ce n'est pas très précis : ┌─ 󰒃 Security Scanner (~/projects/workspace-dev/devsecops/examples/additional-services/image-import/totem-web) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                                                                                                                                                                                                            │
+│ HIGH ISSUE-411                                                                                                                                                                                                                                                             │
+│                                                                                                                                                                                                                                                                            │
+│ Title:                                                                                                                                                                                                                                                                     │
+│ ISSUE-411: pipelineMustNotExecuteUnverifiedScripts                                                                                                                                                                                                                         │
+│                                                                                                                                                                                                                                                                            │
+│ Description:                                                                                                                                                                                                                                                               │
+│ job: .skopeo-check-image-update-base                                                                                                                                                                                                                                       │
+│                                                                                                                                                                                                                                                                            │
+│ Source: plumber                                                                                                                                                                                                                                                            │
+│ File: https://pic-git.spw.dev.wallonie.be/devsecops/examples/additional-services/image-import/totem-web/-/blob/825403b0e89096ae6771f2bfd3c0a606fb0b538a/.gitlab-ci.yml#L4                                                                                                  │
+│                                                                                                                                                                                                                                                                            │
+│ Remediation:                                                                                                                                                                                                                                                               │
+│ plumber explain ISSUE-411                                                                                                                                                                                                                                                  │
+│                                                                                                                                                                                                                                                                            │
+│ References:                                                                                                                                                                                                                                                                │
+│   https://getplumber.io/docs/cli/issues/ISSUE-411
+
+---
+
+Pouvoir afficher le yaml fusionné depuis devdesk serait un vrai plus, c'est une fonctionnalité qu'on va implémenté, ajoute la au backlog. Mais ça aurait été vraiment bien de pouvoir cibler les lignes problématiques (celles signalées par plumber)
+
+---
+
+une optimisation serait de mettre le fichier construit en cache, ça permettrait de le réutiliser pour les autres findings mais aussi quand on revient par après sans avoir fait de rescan.
+
+---
+
+oui ne merge pas directement
+
+---
+
+ajoute aussi au backlog qu'il faut colorer la colonne CI : A, B -> vert, C -> orange (comme cve medium), D -> rouge clair (cve high), E -> rouge foncé (cve critical). Police en gras.
