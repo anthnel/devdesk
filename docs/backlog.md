@@ -11,11 +11,15 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Deux ouverts : D59 et D62** — voir [§1.3](#13-open). D59 n'est ouvert qu'à
+**Trois ouverts : D59, D62 et D63** — voir [§1.3](#13-open). D59 n'est ouvert qu'à
 moitié ; **D62** est entier, et c'est celui qui se voit le moins : un chemin
 saisi dans la vue configuration et quitté sans bouger le curseur n'est jamais
 écrit, et le champ continue de l'afficher au retour. L'écran et le fichier
-divergent sans que rien ne le dise.
+divergent sans que rien ne le dise. **D63** est de la même famille, un cran plus
+haut : une touche annoncée qui n'agit pas. Ses deux instances connues sont
+corrigées, mais rien n'empêche la troisième — et la raison est structurelle, la
+touche annoncée étant une chaîne d'affichage sans relation mécanique avec la
+touche liée.
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -1832,6 +1836,53 @@ attend.
 
 **Contournement en attendant :** taper la valeur, puis `↓` (ou `tab`) avant de
 quitter.
+
+---
+
+**D63 — une touche annoncée qui n'agit pas. Deux instances corrigées, la
+famille reste ouverte.** Trouvées le 2026-08-27 en câblant `o` sur l'onglet CI,
+l'une par lecture du code, l'autre par l'utilisateur.
+
+Rule 130 interdit **une touche grisée qui agit quand même**, et
+`shortcut.Availability` rend ça inexprimable : un seul champ, deux lecteurs.
+Rien ne garde le sens inverse — **une touche affichée qui n'agit pas** — et la
+vue security en portait deux, dans le même état :
+
+| Annoncé | Ce que le handler lie |
+|---|---|
+| `{Key: "o", Description: "Open ref"}` | `case keymap.Web:` c'est-à-dire `W` |
+| `{Key: "esc/⌫", Description: "Back"}` | `case "esc":` seul — le commentaire dit d'ailleurs « backspace **was** an alias » |
+
+Dans les deux cas la touche affichée ne faisait rien, et celle qui marchait
+n'était jamais montrée. Les deux sont corrigées.
+
+**Pourquoi aucun test ne les a vues, et pourquoi un test naïf n'y arriverait pas
+non plus.** Les tests existants épinglaient *les deux moitiés de la
+contradiction séparément* : `TestShortcutsFollowTheState` affirmait que la
+colonne dit `o`, `TestScanDetailsOpensTheReference` pressait `keymap.Web` — les
+deux passaient, rien ne les rapprochait.
+
+Et la raison de fond est structurelle : **la touche annoncée est une chaîne
+d'affichage, la touche liée est un nom de touche bubbletea**, et il n'existe
+aucune relation mécanique entre les deux. `↑↓` se lie par `case "up"`, `←→` par
+`case "left"`, `esc/⌫` par `case "esc"`. Un test qui comparerait naïvement les
+`{Key: …}` aux `case …:` produit surtout du bruit — vérifié : un relevé grossier
+sur `internal/ui` sort 52 candidats dont l'écrasante majorité sont des libellés
+d'aide (`Context`, `Images`, `Disk Usage`) ou des glyphes de navigation. Le
+chiffre n'est donc pas 52 ; il est inconnu, et c'est le problème.
+
+**Ce qui fermerait la famille**, et c'est une entrée de travail à part entière :
+faire porter à `shortcut.Shortcut.Key` **la constante `keymap`** partout où il
+en existe une — la vue security le fait déjà pour `keymap.Exclude` et
+`keymap.Web` — puis un test source qui, pour chaque `Shortcut` dont la `Key` est
+une constante du vocabulaire, exige un `case` sur **la même constante** dans le
+paquet. Ça ne couvre pas `↑↓` ni `esc`, et ce n'est pas grave : ces touches-là
+sont universelles et Rule 138 les exclut déjà de l'affichage. Ce qui dérive,
+c'est le vocabulaire majuscule et les dérogations déclarées — exactement ce que
+la constante nomme.
+
+C'est le pendant de `internal/ui/keymap`, qui vérifie qu'aucune vue ne *lie* une
+touche hors vocabulaire, sans jamais vérifier qu'elle *annonce* ce qu'elle lie.
 
 ---
 
