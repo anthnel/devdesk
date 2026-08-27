@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-26
+**Last Updated:** 2026-08-27
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -62,7 +62,7 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 **D56 — `scan.gitleaks_config` ne pouvait pas fonctionner en mode Docker, et
 son échec se lisait « aucun secret ». Corrigé.** Trouvé en écrivant
-[§3.42](#342-plumber--un-score-de-sécurité-de-pipeline-par-dépôt), qui a besoin
+[§3.42](#342-plumber--un-score-de-sécurité-de-pipeline-par-dépôt--done), qui a besoin
 exactement du même réglage, vérifié à l'exécution le 2026-08-24 et fermé le
 2026-08-25 par
 [§3.50](#350-un-fichier-de-règles-gitleaks-est-monté-et-un-scan-qui-na-rien-lu-nest-plus-propre--done).
@@ -7917,12 +7917,30 @@ sont prises. Les chiffres sont en §3.43 ; en un mot :
    redouté n'a donc pas lieu : la colonne Process est remplie pour tous les
    processus de la machine.
 
-### 3.42 `plumber` — un score de sécurité de pipeline, par dépôt
+### 3.42 `plumber` — un score de sécurité de pipeline, par dépôt — **done**
 
-À planifier — **la conception est tranchée, le prérequis est levé et les trois
-mesures sont prises** (2026-08-25 ; voir « Ce qui reste ouvert » en fin de
-section). Le plan d'implémentation est dans
+Fait le 2026-08-27, en trois PR, après quatre arbitrages de conception le
+2026-08-25 et 2026-08-26 et trois mesures. Le journal d'implémentation — ce que
+chaque PR a appris, y compris ce que le plan n'avait pas vu — est dans
 [`.claude/plans/plumber-ci-score.md`](../.claude/plans/plumber-ci-score.md).
+
+| PR | Ce qui est entré |
+|---|---|
+| 1 | le réglage : `enable_ci_score`, les quatre `plumber_*`, `PlumberSpec`, la case **CI**, un groupe **Plumber**, et plumber dans la boîte Host |
+| 2 | l'outil tourne : la commande, le parsing avec la jointure `code → severity`, la règle de cible, `Result.CIVerdict()`, `WorkspaceScanEntry.CIScore *string` |
+| 3 | les deux écrans : la colonne `CI` dans `ws`, le cinquième onglet, la ligne de tête |
+
+**Ce qui reste, et ne bloque rien** : un jeton GitLab *valide mais sous-doté*
+n'a pas pu être mesuré, faute d'instance GitLab configurée sur cette machine. Un
+`401` tombe sur `2` ; un `403` devrait suivre, mais la section a montré deux
+fois ce que valent les déductions ici. Le pendant GitHub a été mesuré au
+passage et va dans l'autre sens : un jeton sous-doté ne fait **pas** retenir le
+score, il désactive un contrôle, l'inscrit dans `partialControls`, et note quand
+même — la lettre peut donc être optimiste sans que rien ne le dise.
+
+Ce qui suit est la décision et ce que les mesures en ont fait.
+
+[`getplumber/plumber`](https://github.com/getplumber/plumber) lit la
 [`getplumber/plumber`](https://github.com/getplumber/plumber) lit la
 configuration CI d'un dépôt — `.gitlab-ci.yml`, workflows GitHub Actions — la
 passe dans un moteur de politiques Rego, et en tire un **Plumber Score** : une
@@ -9427,7 +9445,7 @@ l'écrire ici en attendant plutôt que de bricoler un plancher local.
 ### 3.50 Un fichier de règles gitleaks est monté, et un scan qui n'a rien lu n'est plus « propre » — **done**
 
 Fait le 2026-08-25. C'est [D56](#11-fixed), et c'est le prérequis que
-[§3.42](#342-plumber--un-score-de-sécurité-de-pipeline-par-dépôt) s'était donné :
+[§3.42](#342-plumber--un-score-de-sécurité-de-pipeline-par-dépôt--done) s'était donné :
 `scan.plumber_config` est le même réglage pour un autre outil, donc le corriger
 ici évite de l'écrire deux fois faux.
 
