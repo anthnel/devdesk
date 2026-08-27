@@ -24,14 +24,18 @@ type ToolSpec struct {
 	Image string
 }
 
-// TrivySpec and GitleaksSpec are how a resolved DependencyStatus is handed to
-// the command builders.
+// TrivySpec, GitleaksSpec and PlumberSpec are how a resolved DependencyStatus
+// is handed to the command builders.
 func (d DependencyStatus) TrivySpec() ToolSpec {
 	return ToolSpec{Source: d.TrivySource, Binary: d.TrivyBinary, Image: d.TrivyImage}
 }
 
 func (d DependencyStatus) GitleaksSpec() ToolSpec {
 	return ToolSpec{Source: d.GitleaksSource, Binary: d.GitleaksBinary, Image: d.GitleaksImage}
+}
+
+func (d DependencyStatus) PlumberSpec() ToolSpec {
+	return ToolSpec{Source: d.PlumberSource, Binary: d.PlumberBinary, Image: d.PlumberImage}
 }
 
 // toolResolution is what detection worked out for one scanner.

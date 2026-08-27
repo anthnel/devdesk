@@ -579,6 +579,12 @@ func (m Model) detectTools() tea.Cmd {
 			Version:   cleanVersion(deps.GitleaksVersion),
 			Source:    string(deps.GitleaksSource),
 		})
+		tools = append(tools, shared.ToolInfo{
+			Name:      toolPlumber,
+			Available: deps.PlumberAvailable,
+			Version:   cleanVersion(deps.PlumberVersion),
+			Source:    string(deps.PlumberSource),
+		})
 
 		// The OCI connectivity test image — la seule que l'application démarre
 		// encore (§3.47).

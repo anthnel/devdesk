@@ -144,3 +144,72 @@ func TestNothingInstalledIsReportedAsUnavailable(t *testing.T) {
 			deps.TrivyAvailable, deps.GitleaksAvailable)
 	}
 }
+
+// ── plumber ──────────────────────────────────────────────────────────────────
+
+// The three preferences behave for plumber exactly as they do for the other
+// two: resolveTool is shared, so what is worth checking is that plumber is
+// wired to it rather than resolved by a copy of it.
+func TestPlumberIsResolvedLikeTheOtherTwo(t *testing.T) {
+	t.Run("a configured path is what gets run", func(t *testing.T) {
+		installTools(t, "plumber version 0.4.40")
+		custom := installToolAt(t, t.TempDir(), "plumber")
+
+		deps := CheckDependencies(config.ScanConfig{PlumberPath: custom})
+
+		if !deps.PlumberAvailable || deps.PlumberBinary != custom {
+			t.Errorf("plumber: available=%v binary=%q, want the configured path %q",
+				deps.PlumberAvailable, deps.PlumberBinary, custom)
+		}
+	})
+
+	t.Run("binary does not fall back to docker", func(t *testing.T) {
+		installTools(t, "present", "docker") // docker and its image, but no plumber
+
+		deps := CheckDependencies(config.ScanConfig{PlumberSource: config.ToolSourceBinary})
+
+		if deps.PlumberAvailable {
+			t.Errorf("plumber reported available (source %q) with source=binary and no binary",
+				deps.PlumberSource)
+		}
+	})
+
+	t.Run("image beats a binary on the path", func(t *testing.T) {
+		installTools(t, "present", "plumber", "docker")
+
+		deps := CheckDependencies(config.ScanConfig{PlumberSource: config.ToolSourceImage})
+
+		if deps.PlumberSource != ToolSourceDocker || !deps.PlumberAvailable {
+			t.Errorf("PlumberSource = %q available = %v, want docker and available",
+				deps.PlumberSource, deps.PlumberAvailable)
+		}
+	})
+}
+
+// The spec is what a command builder will be handed, and PR 2 depends on it
+// carrying all three pieces — the pair (source, image) is what left trivy_path
+// unread for so long (D27).
+func TestThePlumberSpecCarriesWhatItWasResolvedWith(t *testing.T) {
+	deps := DependencyStatus{
+		PlumberSource: ToolSourceBinary,
+		PlumberBinary: "/opt/plumber",
+		PlumberImage:  "mirror.example/plumber:0.4.40",
+	}
+
+	spec := deps.PlumberSpec()
+
+	if spec.Source != ToolSourceBinary || spec.Binary != "/opt/plumber" ||
+		spec.Image != "mirror.example/plumber:0.4.40" {
+		t.Errorf("PlumberSpec() = %+v, want every field carried through", spec)
+	}
+}
+
+// An unset image resolves to the default rather than to the empty string, or
+// the docker invocation would name no image at all.
+func TestAnUnsetPlumberImageResolvesToTheDefault(t *testing.T) {
+	installTools(t, "")
+
+	if got := CheckDependencies(config.ScanConfig{}).PlumberImage; got != DefaultPlumberImage {
+		t.Errorf("PlumberImage = %q, want %q", got, DefaultPlumberImage)
+	}
+}

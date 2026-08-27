@@ -532,9 +532,9 @@ func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
 	m, _ := loadedModel(t)
 
 	// toolFixtures ne déclare que trois outils, dont Gitleaks indisponible :
-	// les deux que la détection n'a pas rendus manquent tout autant, et c'est
+	// les trois que la détection n'a pas rendus manquent tout autant, et c'est
 	// knownTools qui le dit.
-	if got := missingTools(m.tools); !slices.Equal(got, []string{"Gitleaks", "Connectivity", "Git"}) {
+	if got := missingTools(m.tools); !slices.Equal(got, []string{"Gitleaks", "Plumber", "Connectivity", "Git"}) {
 		t.Errorf("missingTools() = %v, want the undetected ones counted too", got)
 	}
 

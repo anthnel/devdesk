@@ -537,7 +537,7 @@ cannot disagree about which setting they mean.
 
 Fields inside a tab are grouped under a heading with a Nerd Font icon
 (`SubTitleStyle`, the same treatment the security form used): `scan` separates
-**Scanners**, **Trivy**, **Gitleaks** and **Limits**. `group()` stamps the
+**Scanners**, **Trivy**, **Gitleaks**, **Plumber** and **Limits**. `group()` stamps the
 heading onto a contiguous run rather than each field carrying its own, so a run
 cannot be split by a typo and render its heading twice —
 `TestEachTabRendersItsGroupHeadingsOnceInOrder` pins that.
@@ -1584,8 +1584,8 @@ a log to find out why a key did nothing.
 
 ### Security Scanning
 
-**Where a scanner runs from is configured, not guessed.** `scan.trivy_source`
-and `scan.gitleaks_source` take `auto | binary | image`:
+**Where a scanner runs from is configured, not guessed.** `scan.trivy_source`,
+`scan.gitleaks_source` and `scan.plumber_source` take `auto | binary | image`:
 
 | Value | Resolution |
 |---|---|
@@ -1593,8 +1593,9 @@ and `scan.gitleaks_source` take `auto | binary | image`:
 | `binary` | `trivy_path` when set, else the name on `PATH` — **fails rather than falling back to Docker** |
 | `image` | `trivy_image`, even when a binary is installed |
 
-`scan.CheckDependencies(cfg.Scan)` resolves both tools and fills
-`DependencyStatus`; `deps.TrivySpec()` / `GitleaksSpec()` hand a `ToolSpec`
+`scan.CheckDependencies(cfg.Scan)` resolves the three tools and fills
+`DependencyStatus`; `deps.TrivySpec()` / `GitleaksSpec()` / `PlumberSpec()`
+hand a `ToolSpec`
 (source + binary + image) to the command builders. `ToolSpec` replaced the
 `(source ToolSource, image string)` pair those builders used to take — the pair
 had nowhere to carry a configured path, which is why `trivy_path` sat unread

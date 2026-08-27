@@ -393,3 +393,69 @@ func TestAnEmptyGitleaksConfigStaysEmpty(t *testing.T) {
 		t.Errorf("an unset rules file became %q", cfg.Scan.GitleaksConfig)
 	}
 }
+
+// plumber_config is mounted into a container like gitleaks_config since §3.50,
+// so it needs the same pinning: a relative path means DevDesk's working
+// directory in binary mode and the container's in Docker mode.
+func TestARelativePlumberConfigIsPinnedAtLoad(t *testing.T) {
+	cfg := &Config{Scan: ScanConfig{PlumberConfig: "rules/plumber.yaml"}}
+
+	cfg.ExpandPaths("/home/user")
+
+	if !filepath.IsAbs(cfg.Scan.PlumberConfig) {
+		t.Errorf("a relative rules file was left relative: %q", cfg.Scan.PlumberConfig)
+	}
+	if !strings.HasSuffix(slash(cfg.Scan.PlumberConfig), "/rules/plumber.yaml") {
+		t.Errorf("the path was resolved to something else entirely: %q", cfg.Scan.PlumberConfig)
+	}
+}
+
+// enable_ci_score is off by default, and it must stay out of the "all four
+// disabled means never configured" test: that test exists for files written
+// before those four booleans, and this key is newer than all of them. Folding
+// it in would make a config that asks for CI alone silently gain vuln and
+// secret.
+func TestAskingForCIAloneDoesNotTurnTheOtherScannersOn(t *testing.T) {
+	setupTmpHome(t)
+
+	cfg := Default()
+	cfg.Scan.EnableVuln = false
+	cfg.Scan.EnableSecret = false
+	cfg.Scan.EnableCIScore = true
+	if err := Save(cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := LoadContext("default")
+	if err != nil {
+		t.Fatalf("LoadContext: %v", err)
+	}
+	if !loaded.Scan.EnableCIScore {
+		t.Error("enable_ci_score did not survive the round trip")
+	}
+	if loaded.Scan.EnableVuln || loaded.Scan.EnableSecret {
+		t.Errorf("vuln=%v secret=%v, want both left off — asking for CI alone is a choice",
+			loaded.Scan.EnableVuln, loaded.Scan.EnableSecret)
+	}
+
+}
+
+// A file written before plumber existed must load with the source defaulted to
+// auto, exactly as trivy_source and gitleaks_source do.
+func TestAConfigWithoutAPlumberSectionDefaultsToAuto(t *testing.T) {
+	setupTmpHome(t)
+
+	cfg := Default()
+	cfg.Scan.PlumberSource = ""
+	if err := Save(cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := LoadContext("default")
+	if err != nil {
+		t.Fatalf("LoadContext: %v", err)
+	}
+	if loaded.Scan.PlumberSource != ToolSourceAuto {
+		t.Errorf("PlumberSource = %q, want %q", loaded.Scan.PlumberSource, ToolSourceAuto)
+	}
+}
