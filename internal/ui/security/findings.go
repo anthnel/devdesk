@@ -309,6 +309,7 @@ func (m Model) openResolvedPipeline() (tea.Model, tea.Cmd) {
 		Label:    shortenHome(m.result.Target),
 		Forge:    m.config.Forge,
 		Secrets:  m.secrets,
+		Findings: m.result.Findings,
 	}
 	return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
 }

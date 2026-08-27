@@ -11,6 +11,7 @@ import (
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/forge/session"
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/viewer"
 )
 
@@ -34,6 +35,10 @@ type pipelineSource struct {
 	Label    string
 	Forge    config.ForgeConfig
 	Secrets  credentials.Storage
+	// Findings are this scan's CI findings, written into the document as YAML
+	// comments on the jobs they are about. The document is opened from the CI
+	// tab, so showing where those findings sit is what it is opened for.
+	Findings []scan.Finding
 }
 
 func (s pipelineSource) Name() string { return "pipeline · " + s.Label }
@@ -75,7 +80,7 @@ func (s pipelineSource) Load() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []byte(merged), nil
+	return []byte(annotatePipeline(merged, s.Findings)), nil
 }
 
 // loadToken reads the context's forge token. The document is the repository's
