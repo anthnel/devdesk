@@ -51,8 +51,9 @@ func followTickCmd(every time.Duration, gen int) tea.Cmd {
 // defaultFollowInterval is the floor a source with no sensible answer falls to.
 const defaultFollowInterval = 2 * time.Second
 
-// InEditMode keeps command mode out while the search field has the keyboard.
-func (m Model) InEditMode() bool { return m.bar.InEditMode() }
+// InEditMode keeps command mode out while a field has the keyboard: the search
+// box, or the go-to-line prompt.
+func (m Model) InEditMode() bool { return m.bar.InEditMode() || m.gotoActive }
 
 // FilterBarVisible tells the router to close the viewport border into the bar
 // (Rule 136).
@@ -60,7 +61,11 @@ func (m Model) FilterBarVisible() bool {
 	// Every display but the tree is text, and the search belongs to all of
 	// them: a rendered Markdown is searched on what it shows, which is the only
 	// answer that agrees with the screen.
-	return m.bar.IsVisible() && m.display != displayTree
+	//
+	// The go-to-line prompt takes the same slot, so it closes the border the
+	// same way — and the footer stands at the same height whether the prompt
+	// opened over an active search or over nothing.
+	return (m.bar.IsVisible() || m.gotoActive) && m.display != displayTree
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -158,6 +163,12 @@ func (m Model) handlePagerExit(msg PagerExitMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// The prompt is a mode: it claims every key before the pane sees one, the
+	// way a confirmation modal does, so a digit cannot also scroll and `esc`
+	// closes the prompt rather than leaving the viewer.
+	if m.gotoActive {
+		return m.handleGotoKey(msg)
+	}
 	if m.bar.InEditMode() {
 		var cmd tea.Cmd
 		m.bar, cmd = m.bar.Update(msg)
@@ -225,6 +236,14 @@ func (m Model) handleTextKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "/":
 		return m, m.bar.ActivateSearch()
+	case "s":
+		m.toggleCaseSensitive()
+		return m, nil
+	case "n":
+		m.toggleLineNumbers()
+		return m, nil
+	case "g":
+		return m, m.activateGoto()
 	case "w":
 		m.wrap = !m.wrap
 		m.rebuildText()

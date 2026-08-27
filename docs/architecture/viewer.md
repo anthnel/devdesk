@@ -256,6 +256,71 @@ The consequences, each with a test:
   exists for. Byte offsets, not runes: a token holds a string. And when
   `strings.ToLower` changes a string's length in bytes (`İ`), the search falls
   back to a case-sensitive one rather than pointing beside the match.
+- **The case is a parameter of that same call** (`s`, §3.53), never a second
+  reading in the view. It decides which lines survive *and* which spans are
+  highlighted, so a filter consulting the flag on its own would be exactly the
+  second calculation the rule above exists to prevent. It re-filters the query
+  already in force rather than clearing it: comparing the two readings is the
+  whole reason to press the key. The `İ` guard belongs to the folding branch
+  alone — the sensitive one never folds, so it has nothing to be exact about.
+
+**The bar carries what is filtering, and the two tokens are built together.**
+`syncFilterTokens` emits the verbosity token and the `Aa` token in one pass
+rather than each toggle setting its own: the bar disappears when nothing is
+active (Rule 136), so what has to be right is *which tokens exist at all*, and
+that is one question with one answer.
+
+**Line numbers are the document's, and the gutter is not text** (§3.53). `n`
+draws them, `docLine.Num` carries them, posted once in `buildLines`. Four things
+follow, each with a test:
+
+- **A filtered pane does not renumber.** The numbers keep gaps where a search or
+  a verbosity dropped lines — that is the only reading that lets a line be quoted
+  by its number, and it is what the gutter is for.
+- **The gutter is not searchable, by construction.** It never enters
+  `docLine.Plain`, so `MatchRanges` cannot see it. The cheap implementation —
+  prefix, then filter — would pass every other test of the feature.
+- **The gutter comes off the width before the wrap**, not after. `wrapTokens`
+  counts runes and knows nothing about what is put in front of a segment, so
+  wrapping at the full width and prefixing afterwards pushes every row past the
+  right margin by exactly the gutter — on every line, which reads as a border
+  fault rather than as a gutter one.
+- **A wrapped line numbers its first row only.** A number says where a source
+  line *begins*; repeating it would claim the document holds several lines
+  bearing the same one. Dim, like every other value that is on every row.
+
+**`g` goes to a line, and refuses twice rather than doing something adjacent.**
+The prompt is a **mode**: it claims every key before the pane sees one, the way a
+confirmation modal does, so a digit cannot also scroll and `esc` closes it rather
+than leaving the viewer. `rowOfLine`, rebuilt with the pane, is the only thing
+that knows where a document line landed — a row is not a line once a filter has
+dropped some and a wrap has split others — and it holds the **first** row of a
+wrapped line, so a jump never lands inside one.
+
+| The number | What happens |
+|---|---|
+| empty | nothing, in silence — a change of mind, not a mistake |
+| past the end | `Document has N lines` |
+| hidden by the filter | `Line N is hidden by the filter`, and **nothing moves** |
+| on screen | that line goes to the top of the pane, as `less` does |
+
+The hidden case is the one worth keeping written down: scrolling to the nearest
+visible line would report success while putting a different number under the
+cursor, which is D20's shape — an absence rendered as something else. The user
+can lift the filter, or not.
+
+**The prompt takes the filter bar's slot, exclusively.** Both are one line inside
+`components.BarFrame` — extracted from `FilterBar.View()`, so the rectangle that
+closes the viewport has one implementation — and `GetFooterHeight` answers 2
+either way. That is what stops the pane resizing under the reader when the prompt
+opens over an active search. `InEditMode` and `FilterBarVisible` both count it.
+
+**`g` was a retired vim alias, and it came back with a different meaning.**
+§3.26 removed `g`/`G` as aliases of `home`/`end`; here the letter opens a prompt
+and the jump takes an **argument**, which is precisely what `home` and `end` do
+not cover. So it leaves `keymap_test.go`'s `retiredAliases`, with its reason
+written there — the shape of `H` returning to `free` in §3.47, taken the other
+way round. `j` and `k` stay retired: they are `down` and `up` under another name.
 
 Three key collisions were resolved rather than accepted: follow moved `f` →
 `F` (`ctrl+r` and `F` read as *reload once* / *keep reloading*); `h`/`l` are

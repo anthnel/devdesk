@@ -10115,6 +10115,135 @@ son critère** : une colonne où l'absence de couleur est *déjà prise* par des
 absences grises. Ce n'est pas « c'est important » — si les absences d'une
 colonne se distinguaient déjà, le vert y redeviendrait du bruit.
 
+### 3.53 Le viewer numérote ses lignes, va à l'une d'elles, et sait compter la casse — **done**
+
+Fait le 2026-08-27. Trois demandes d'un coup, toutes dans le demi-écran texte :
+`n` affiche les numéros de ligne, `g` va à l'une d'elles, `s` décide si la
+recherche `/` tient compte de la casse. Aucune ne touche l'arbre, où les trois
+sont grisées (Rule 130).
+
+#### Les numéros sont ceux du document, et c'est tout l'intérêt
+
+`docLine` porte un `Num`, posé une seule fois dans `buildLines`. Tout ce qui
+suit travaille sur une tranche **filtrée** — une recherche, une verbosité — donc
+un index dans ce qui est à l'écran serait un autre nombre, et précisément celui
+qu'il ne faut pas montrer : une gouttière qui se renumérote sous un filtre est
+pire que pas de gouttière du tout, parce qu'elle a l'air de répondre.
+
+Quatre propriétés, chacune avec son test :
+
+- **La gouttière n'est pas cherchable**, par construction : elle n'entre jamais
+  dans `docLine.Plain`, donc `MatchRanges` ne la voit pas. C'est ce que
+  l'implémentation naïve — préfixer, puis filtrer — casserait en passant tous les
+  autres tests de la fonctionnalité. D'où le test qui cherche `2` et n'attend
+  aucune ligne.
+- **Elle sort de la largeur *avant* l'enroulement.** `wrapTokens` compte des
+  runes et ne sait rien de ce qu'on met devant un segment : enrouler à la
+  largeur pleine puis préfixer pousse **chaque** rangée au-delà de la marge, de
+  la largeur exacte de la gouttière. Sur toutes les lignes à la fois, donc ça se
+  lit comme un défaut de bordure et pas comme un défaut de gouttière.
+- **Une ligne enroulée numérote sa première rangée seulement.** Un numéro dit où
+  une ligne source *commence* ; le répéter affirmerait que le document contient
+  plusieurs lignes portant le même.
+- **En `DimStyle`**, comme toute valeur présente sur chaque rangée : une couleur
+  qui apparaît partout n'informe de rien, et celle-ci concurrencerait les niveaux
+  de log et les surbrillances de recherche, qui sont ce que l'œil cherche.
+
+#### `g` refuse deux fois plutôt que de faire quelque chose d'adjacent
+
+Le prompt est un **mode** : il prend toute touche avant que le panneau n'en voie
+une, comme une modale de confirmation. Sans ça un chiffre défilerait *en plus*
+d'être saisi, et `esc` quitterait la vue en laissant le champ focusé.
+
+`rowOfLine`, reconstruit avec le panneau, est la seule chose qui sait où une
+ligne du document a atterri : une rangée n'est pas une ligne dès qu'un filtre en
+a supprimé et qu'un enroulement en a coupé. Elle retient la **première** rangée
+d'une ligne enroulée, donc un saut ne tombe jamais au milieu de l'une.
+
+| Le numéro | Ce qui se passe |
+|---|---|
+| vide | rien, en silence — c'est un changement d'avis, pas une erreur |
+| au-delà de la fin | `Document has N lines` |
+| masqué par le filtre | `Line N is hidden by the filter`, et **rien ne bouge** |
+| à l'écran | cette ligne passe en haut du panneau, comme le fait `less` |
+
+Le cas masqué est celui qui valait d'être écrit. Sauter à la plus proche visible
+aurait annoncé une réussite tout en mettant un **autre** numéro sous le curseur :
+c'est la forme de D20 — une absence rendue comme autre chose. L'utilisateur lève
+le filtre, ou pas.
+
+Le champ refuse tout ce qui n'est pas un chiffre (`textinput.Validate`), donc la
+soumission n'a que deux échecs à expliquer au lieu de trois — et le troisième
+aurait été le seul que l'utilisateur pouvait être empêché de créer.
+
+#### `s` est un paramètre du calcul, pas une seconde lecture
+
+`MatchRanges(text, query, caseSensitive)`. La casse décide **quelles lignes
+survivent** *et* **quels fragments sont surlignés** : un filtre qui aurait
+consulté le drapeau de son côté serait exactement le second calcul que cette
+fonction existe pour empêcher — ce que `scan.Categorize` et
+`Result.SecretVerdict` ont chacun dû défaire, avec le même symptôme les deux
+fois.
+
+La garde `İ` — `strings.ToLower` peut changer la longueur en octets, donc un
+décalage dans la copie pliée nomme un autre octet de l'original — appartient
+désormais à la branche qui plie, et à elle seule : la branche sensible ne plie
+pas, elle n'a rien à rendre exact.
+
+**La bascule re-filtre la requête déjà posée** plutôt que de la vider : comparer
+les deux lectures est ce pour quoi on appuie sur la touche, et retaper en ferait
+une corvée. Le jeton `Aa` n'apparaît que quand elle est allumée (Rule 136) :
+l'état de repos — insensible — reste sans barre.
+
+`syncVerbosityToken` devient `syncFilterTokens` et construit la liste entière :
+la barre disparaît quand rien n'est actif, donc ce qui doit être juste est
+*quels jetons existent*, une question à une réponse.
+
+#### Le créneau du footer, et `components.BarFrame`
+
+Le prompt occupe le créneau de la barre de filtre, exclusivement. Les deux sont
+une ligne dans le même rectangle, extrait de `FilterBar.View()` en
+`components.BarFrame(width, inner)` — deux implémentations du cadre seraient
+libres de diverger sur l'endroit où sont les coins. `GetFooterHeight` répond 2
+dans les deux cas : c'est ce qui empêche le panneau de se redimensionner sous le
+lecteur quand le prompt s'ouvre par-dessus une recherche active.
+
+#### `g` était un alias vim retiré, et elle revient avec un autre sens
+
+§3.26 a supprimé `g`/`G` comme alias de `home`/`end`. Ce que la règle interdit
+est la lettre **à la place** d'une touche structurelle ; ici elle ouvre un prompt
+et le saut prend un **argument**, ce que `home` et `end` ne savent pas exprimer.
+Elle sort donc de `retiredAliases` dans `keymap_test.go`, avec sa raison écrite
+là : une lettre qui reprend un sens quitte la liste de celles qui n'en ont plus,
+sinon la liste ment. C'est `H` revenue dans `free` en §3.47, pris dans l'autre
+sens. `j` et `k` y restent — elles ne sont que `down` et `up` sous un autre nom.
+
+Le choix de `g` est celui de l'utilisateur, contre la proposition d'une
+majuscule libre (`J`). Le coût était connu d'avance et il est celui-là :
+l'amendement du test, et les trois textes qui affirmaient que `g` avait disparu
+de l'application.
+
+#### Ce qui a été trouvé en passant
+
+`TestScrollKeys` appuyait sur `g` puis `G` en attendant qu'il ne se passe rien
+— les deux n'ont jamais été liées, donc le test vérifiait que le panneau était
+déjà en haut. Il presse `home` et `end`, qui sont les touches que la vue lie
+réellement.
+
+Et, hors sujet mais bloquant : `internal/command/doc_test.go` lisait la liste des
+commandes dans `.claude/CLAUDE.md`, d'où l'architecture est partie avec (#141).
+Les deux tests échouaient sur `main` en disant de les repointer, ce qui est
+exactement ce qu'ils devaient faire — le fichier lu est une donnée du test, pas
+une propriété du parser. Ils lisent `docs/architecture/app-shell.md`.
+
+#### Ce qui a été mis à jour avec le code
+
+`docs/architecture/viewer.md` (la recherche, la gouttière, le saut, le créneau),
+`docs/architecture/app-shell.md` (le retour de `g`), Rule 111 (les minuscules du
+viewer, les trois touches, et la clause `g`/`G`), Rule 136 (`BarFrame`, et un
+seul occupant du créneau), et `GetHelpContent` — les trois touches et une
+section « Line numbers, and going to one ».
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

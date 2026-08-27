@@ -5,7 +5,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -193,13 +192,6 @@ func (fb *FilterBar) Update(msg tea.Msg) (FilterBar, tea.Cmd) {
 // Line 1 (content): │  / cursor...   [tcp] · [LISTEN]  │
 // Line 2 (bottom):  └──────────────────────────────────┘
 func (fb *FilterBar) View() string {
-	w := fb.width
-	if w == 0 {
-		w = 80
-	}
-
-	borderStyle := lipgloss.NewStyle().Foreground(theme.ColorViewportBorder).Background(theme.ColorBackground)
-
 	var right string
 	if len(fb.tokens) > 0 {
 		var activeTokens []string
@@ -224,10 +216,5 @@ func (fb *FilterBar) View() string {
 		}
 	}
 
-	inner := theme.Bg(" ") + left + theme.Bg(right)
-	// w-2 to leave room for │ on each side
-	paddedInner := theme.PadWithBg(inner, w-2)
-	contentLine := borderStyle.Render("│") + paddedInner + borderStyle.Render("│")
-	bottomBorder := borderStyle.Render("└" + strings.Repeat("─", w-2) + "┘")
-	return contentLine + "\n" + bottomBorder
+	return BarFrame(fb.width, theme.Bg(" ")+left+theme.Bg(right))
 }

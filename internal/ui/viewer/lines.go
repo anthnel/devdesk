@@ -20,6 +20,13 @@ type docLine struct {
 	Tokens []viewer.Token
 	Plain  string
 	Level  viewer.Level
+
+	// Num is this line's place in the document, counting from 1, and it is
+	// carried rather than derived. Everything downstream works on a *filtered*
+	// slice — a search, a verbosity — so an index into what is on screen would
+	// be a different number, and the one the gutter must not show: a line
+	// number that renumbered itself under a filter would be worse than none.
+	Num int
 }
 
 // buildLines splits a document into styled-per-line spans.
@@ -52,6 +59,7 @@ func buildLines(doc viewer.Document, highlight, rendered bool) []docLine {
 	// same split of the same text — ParseLog and splitTokenLines both cut on
 	// "\n" — so they line up index for index.
 	for i := range lines {
+		lines[i].Num = i + 1
 		if i < len(doc.Lines) {
 			lines[i].Level = doc.Lines[i].Level
 		}

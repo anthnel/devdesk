@@ -125,6 +125,15 @@ package doc so it does not have to be rediscovered.
 `bubbles/viewport`'s own default `KeyMap` in the help overlay, which was
 scrolling on letters behind the application's back.
 
+**`g` came back in the viewer, and it is not an exception** (§3.53). What the
+rule forbids is a letter standing *in place of* a structural key; there it opens
+a prompt, and the jump takes an **argument** — which is exactly what `home` and
+`end` cannot express. So it leaves `keymap_test.go`'s `retiredAliases` with its
+reason written beside it: a letter that regains a meaning leaves the list of
+those that have none, or the list lies. That is `H` returning to `free` in §3.47,
+taken the other way round. `j` and `k` stay retired — they are `down` and `up`
+under another name.
+
 **Free letters are declared too** (`J Q Z`). A new action takes one of them;
 it does not invent a key, and `TestFreeLettersAreActuallyFree` stops the list
 going stale.

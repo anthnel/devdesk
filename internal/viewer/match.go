@@ -12,7 +12,8 @@ type Range struct {
 	End   int
 }
 
-// MatchRanges is every place query occurs in text, case-insensitively.
+// MatchRanges is every place query occurs in text, folding case unless
+// caseSensitive says not to.
 //
 // It is the *only* thing that decides a search matched, and it answers where at
 // the same time. Nothing else may re-derive it: the filter that hides
@@ -22,22 +23,31 @@ type Range struct {
 // scan.Categorize and Result.SecretVerdict each had to undo, and the symptom was
 // the same both times — something counted in one place and absent from the other.
 //
+// The case is a parameter for that same reason. It decides which lines survive
+// *and* which spans are highlighted, so a caller that filtered on its own reading
+// of the flag would be exactly the second calculation this function exists to
+// prevent.
+//
 // The ranges come back in order and never overlap, which is what lets MarkMatches
 // walk the tokens once.
-func MatchRanges(text, query string) []Range {
+func MatchRanges(text, query string, caseSensitive bool) []Range {
 	if text == "" || query == "" {
 		return nil
 	}
 
-	haystack, needle := strings.ToLower(text), strings.ToLower(query)
+	haystack, needle := text, query
+	if !caseSensitive {
+		haystack, needle = strings.ToLower(text), strings.ToLower(query)
 
-	// The exactness guard. strings.ToLower can change a string's length in bytes
-	// — 'İ' folds to two runes — and an offset into the folded text then names a
-	// different byte of the original, so the highlight would land beside the
-	// match. When the lengths disagree the search falls back to a case-sensitive
-	// one: fewer matches, but every one of them in the right place.
-	if len(haystack) != len(text) || len(needle) != len(query) {
-		haystack, needle = text, query
+		// The exactness guard, and it belongs to this branch alone.
+		// strings.ToLower can change a string's length in bytes — 'İ' folds to
+		// two runes — and an offset into the folded text then names a different
+		// byte of the original, so the highlight would land beside the match.
+		// When the lengths disagree the search falls back to a case-sensitive
+		// one: fewer matches, but every one of them in the right place.
+		if len(haystack) != len(text) || len(needle) != len(query) {
+			haystack, needle = text, query
+		}
 	}
 
 	var ranges []Range

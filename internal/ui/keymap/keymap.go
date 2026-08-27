@@ -198,7 +198,7 @@ type Surface struct {
 // c'est le défaut, et c'est ce qui fait que la liste doit être tenue.
 var localToggles = []Surface{
 	{"containers", "ui/containers/", []string{"r", "p", "s", "t", "z"}},
-	{"viewer", "ui/viewer/", []string{"f", "c", "w", "v", "t"}},
+	{"viewer", "ui/viewer/", []string{"f", "c", "w", "v", "t", "n", "g", "s"}},
 	{"netdiag/ports", "ui/netdiag/ports_model.go", []string{"t", "u", "l", "e", "n", "z"}},
 	{"netdiag/checks", "ui/netdiag/", []string{"p"}},
 	{"oci/browser", "ui/oci_resources/browser_", []string{"r"}},

@@ -7,30 +7,37 @@ import (
 
 func TestMatchRangesFindsEveryOccurrence(t *testing.T) {
 	cases := []struct {
-		name  string
-		text  string
-		query string
-		want  []Range
+		name      string
+		text      string
+		query     string
+		sensitive bool
+		want      []Range
 	}{
-		{"none", "hello world", "zzz", nil},
-		{"one", "hello world", "world", []Range{{6, 11}}},
-		{"twice", "port 80, port 443", "port", []Range{{0, 4}, {9, 13}}},
-		{"case insensitive", "ERROR and error", "Error", []Range{{0, 5}, {10, 15}}},
-		{"empty query", "hello", "", nil},
-		{"empty text", "", "hello", nil},
-		{"whole line", "abc", "abc", []Range{{0, 3}}},
+		{"none", "hello world", "zzz", false, nil},
+		{"one", "hello world", "world", false, []Range{{6, 11}}},
+		{"twice", "port 80, port 443", "port", false, []Range{{0, 4}, {9, 13}}},
+		{"case insensitive", "ERROR and error", "Error", false, []Range{{0, 5}, {10, 15}}},
+		{"empty query", "hello", "", false, nil},
+		{"empty text", "", "hello", false, nil},
+		{"whole line", "abc", "abc", false, []Range{{0, 3}}},
+
+		// The `s` toggle. The same text and the same query, and the only thing
+		// that changed is which of the two occurrences is one.
+		{"case sensitive keeps one", "ERROR and error", "error", true, []Range{{10, 15}}},
+		{"case sensitive keeps none", "ERROR and Error", "error", true, nil},
+		{"case sensitive is exact", "Trivy trivy", "Trivy", true, []Range{{0, 5}}},
 
 		// Non-overlapping: the search advances past what it just found, so "aa" in
 		// "aaa" is one match, not two. Overlapping ranges would break the single
 		// walk MarkMatches does over the tokens.
-		{"no overlap", "aaa", "aa", []Range{{0, 2}}},
+		{"no overlap", "aaa", "aa", false, []Range{{0, 2}}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := MatchRanges(tc.text, tc.query)
+			got := MatchRanges(tc.text, tc.query, tc.sensitive)
 			if len(got) != len(tc.want) {
-				t.Fatalf("MatchRanges(%q, %q) = %v, want %v", tc.text, tc.query, got, tc.want)
+				t.Fatalf("MatchRanges(%q, %q, %v) = %v, want %v", tc.text, tc.query, tc.sensitive, got, tc.want)
 			}
 			for i := range got {
 				if got[i] != tc.want[i] {
@@ -55,12 +62,17 @@ func TestMatchRangesNameTheOriginalText(t *testing.T) {
 
 	for _, text := range cases {
 		for _, query := range []string{"o", "l", "İ", "テ"} {
-			for _, r := range MatchRanges(text, query) {
-				if r.Start < 0 || r.End > len(text) || r.Start >= r.End {
-					t.Fatalf("MatchRanges(%q, %q) returned %v, out of the text's bounds", text, query, r)
-				}
-				if !strings.EqualFold(text[r.Start:r.End], query) {
-					t.Errorf("MatchRanges(%q, %q) points at %q", text, query, text[r.Start:r.End])
+			// Both modes: the sensitive one never folds, so it cannot fall foul
+			// of the length guard — which is exactly why it must be checked too,
+			// or the guard's absence on that path goes unnoticed.
+			for _, sensitive := range []bool{false, true} {
+				for _, r := range MatchRanges(text, query, sensitive) {
+					if r.Start < 0 || r.End > len(text) || r.Start >= r.End {
+						t.Fatalf("MatchRanges(%q, %q, %v) returned %v, out of the text's bounds", text, query, sensitive, r)
+					}
+					if !strings.EqualFold(text[r.Start:r.End], query) {
+						t.Errorf("MatchRanges(%q, %q, %v) points at %q", text, query, sensitive, text[r.Start:r.End])
+					}
 				}
 			}
 		}
@@ -87,7 +99,7 @@ func TestMarkingReproducesTheInputExactly(t *testing.T) {
 	text := whole.String()
 
 	for _, query := range []string{"name", "n", `"name"`, `me": "ng`, "{", "}", "zzz", ""} {
-		marked := MarkMatches(tokens, MatchRanges(text, query))
+		marked := MarkMatches(tokens, MatchRanges(text, query, false))
 
 		var rebuilt strings.Builder
 		for _, token := range marked {
@@ -109,7 +121,7 @@ func TestAMatchSpanningTwoTokensIsMarkedInBoth(t *testing.T) {
 		{Class: ClassString, Text: "dk"},
 	}
 
-	marked := MarkMatches(tokens, MatchRanges("name: dk", "me: d"))
+	marked := MarkMatches(tokens, MatchRanges("name: dk", "me: d", false))
 
 	var matched []string
 	for _, token := range marked {
@@ -142,7 +154,7 @@ func TestMarkingKeepsEachRunsClass(t *testing.T) {
 		{Class: ClassString, Text: "ile"},
 	}
 
-	got := MarkMatches(tokens, MatchRanges("hostname=hostile", "host"))
+	got := MarkMatches(tokens, MatchRanges("hostname=hostile", "host", false))
 	if len(got) != len(want) {
 		t.Fatalf("the line was cut into %d runs, want %d: %v", len(got), len(want), got)
 	}
