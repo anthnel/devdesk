@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "b9fc865e3e9b",
+  "strategy": "manual-commit",
+  "branch": "docs/split-claude-md",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/architecture/configuration.md",
+    "docs/architecture/forge.md",
+    "docs/architecture/mcp.md",
+    "docs/architecture/network.md",
+    "docs/architecture/registries.md",
+    "docs/architecture/scanning.md",
+    "docs/architecture/ui-components.md",
+    "docs/architecture/viewer.md",
+    "docs/architecture/workspaces.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b9/fc865e3e9b/0/metadata.json",
+      "transcript": "/b9/fc865e3e9b/0/full.jsonl",
+      "compact_transcript": "/b9/fc865e3e9b/0/transcript.jsonl",
+      "content_hash": "/b9/fc865e3e9b/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 180109,
+    "cache_read_tokens": 2543763,
+    "output_tokens": 11634,
+    "api_call_count": 16
+  }
+}
