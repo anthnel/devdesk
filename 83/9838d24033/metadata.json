@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "839838d24033",
+  "strategy": "manual-commit",
+  "branch": "docs/d62-config-field-lost",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/83/9838d24033/0/metadata.json",
+      "transcript": "/83/9838d24033/0/full.jsonl",
+      "compact_transcript": "/83/9838d24033/0/transcript.jsonl",
+      "content_hash": "/83/9838d24033/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 64,
+    "cache_creation_tokens": 158748,
+    "cache_read_tokens": 4979188,
+    "output_tokens": 12058,
+    "api_call_count": 32
+  }
+}
