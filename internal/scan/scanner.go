@@ -209,6 +209,11 @@ type DependencyStatus struct {
 	GitleaksVersion   string
 	GitleaksBinary    string // Executable to run when GitleaksSource is binary
 	GitleaksImage     string // Docker image used for Gitleaks
+	PlumberAvailable  bool
+	PlumberSource     ToolSource
+	PlumberVersion    string
+	PlumberBinary     string // Executable to run when PlumberSource is binary
+	PlumberImage      string // Docker image used for plumber
 	DockerAvailable   bool
 }
 
@@ -216,6 +221,7 @@ type DependencyStatus struct {
 const (
 	DefaultTrivyImage    = "aquasec/trivy"
 	DefaultGitleaksImage = "zricethezav/gitleaks"
+	DefaultPlumberImage  = "getplumber/plumber"
 )
 
 // CheckDependencies works out where each scanner runs from, for one context's
@@ -235,12 +241,18 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 	if gitleaksImage == "" {
 		gitleaksImage = DefaultGitleaksImage
 	}
+	plumberImage := c.PlumberImage
+	if plumberImage == "" {
+		plumberImage = DefaultPlumberImage
+	}
 
 	status := DependencyStatus{
 		TrivySource:    ToolSourceNone,
 		TrivyImage:     trivyImage,
 		GitleaksSource: ToolSourceNone,
 		GitleaksImage:  gitleaksImage,
+		PlumberSource:  ToolSourceNone,
+		PlumberImage:   plumberImage,
 	}
 
 	if path, err := exec.LookPath("docker"); err == nil && path != "" {
@@ -258,6 +270,17 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 	status.GitleaksSource = gitleaks.Source
 	status.GitleaksBinary = gitleaks.Binary
 	status.GitleaksVersion = gitleaks.Version
+
+	// `plumber version` writes the installed version to stdout and an upgrade
+	// notice — "plumber v0.4.44 is available (you have 0.4.40)" — to stderr.
+	// toolVersion reads stdout only, so the two cannot be confused; measured
+	// rather than assumed, because reporting the available version as the
+	// installed one is the kind of thing nobody notices for months.
+	plumber := resolveTool(c.PlumberSource, c.PlumberPath, "plumber", plumberImage, status.DockerAvailable, "version")
+	status.PlumberAvailable = plumber.Available
+	status.PlumberSource = plumber.Source
+	status.PlumberBinary = plumber.Binary
+	status.PlumberVersion = plumber.Version
 
 	return status
 }

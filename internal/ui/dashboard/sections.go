@@ -830,11 +830,12 @@ const (
 	toolDocker       = "Docker"
 	toolTrivy        = "Trivy"
 	toolGitleaks     = "Gitleaks"
+	toolPlumber      = "Plumber"
 	toolConnectivity = "Connectivity"
 	toolGit          = "Git"
 )
 
-var knownTools = []string{toolDocker, toolTrivy, toolGitleaks, toolConnectivity, toolGit}
+var knownTools = []string{toolDocker, toolTrivy, toolGitleaks, toolPlumber, toolConnectivity, toolGit}
 
 // renderStorageSection answers one question — **où part la place** — in two
 // trees: the volume the workspaces live on, and what Docker holds on it.

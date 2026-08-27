@@ -305,6 +305,9 @@ type ScanConfig struct {
 	GitleaksSource     string `yaml:"gitleaks_source"`      // auto | binary | image
 	GitleaksPath       string `yaml:"gitleaks_path"`        // Chemin custom vers gitleaks (optionnel)
 	GitleaksImage      string `yaml:"gitleaks_image"`       // Image Docker gitleaks (défaut: zricethezav/gitleaks)
+	PlumberSource      string `yaml:"plumber_source"`       // auto | binary | image
+	PlumberPath        string `yaml:"plumber_path"`         // Chemin custom vers plumber (optionnel)
+	PlumberImage       string `yaml:"plumber_image"`        // Image Docker plumber (défaut: getplumber/plumber)
 	CacheDir           string `yaml:"cache_dir"`            // Cache des rapports
 	MaxCachedReports   int    `yaml:"max_cached_reports"`   // Nombre max de rapports conservés
 	Timeout            int    `yaml:"timeout"`              // Timeout en secondes
@@ -319,6 +322,21 @@ type ScanConfig struct {
 	IgnoreEOL       bool   `yaml:"ignore_eol"`
 	GitleaksHistory bool   `yaml:"gitleaks_history"`
 	GitleaksConfig  string `yaml:"gitleaks_config"`
+
+	// EnableCIScore runs plumber over the repository's CI configuration.
+	//
+	// The "all disabled means never configured" migration reads it and never
+	// writes it. Reading it, because "the four off and CI on" is a deliberate
+	// configuration that must not have vuln and secret forced back on; never
+	// writing it, because this key is newer than the four and an absent
+	// enable_ci_score means the user has not asked for it, not that the file
+	// predates the question.
+	EnableCIScore bool `yaml:"enable_ci_score"`
+	// PlumberConfig is the rules file for every repository of the context, in
+	// place of the .plumber.yaml plumber looks for in each one. Made absolute at
+	// load for §3.50's reason: a relative path means DevDesk's working directory
+	// in binary mode and the container's in Docker mode.
+	PlumberConfig string `yaml:"plumber_config"`
 }
 
 // StatusConfig contient la configuration pour le monitoring
@@ -459,6 +477,9 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Scan.GitleaksSource == "" {
 		cfg.Scan.GitleaksSource = ToolSourceAuto
 	}
+	if cfg.Scan.PlumberSource == "" {
+		cfg.Scan.PlumberSource = ToolSourceAuto
+	}
 
 	// The two renames run before the defaults below, oldest first, and that
 	// order is the whole of it: yaml.Unmarshal is not strict here, so an
@@ -502,7 +523,15 @@ func applyDefaults(cfg *Config) error {
 	// Backward compat: configs created before the scan-option booleans were introduced
 	// will have all of them at Go's zero value (false). Treat "all disabled" as
 	// "never configured" and apply sensible defaults so scans work out of the box.
-	if !cfg.Scan.EnableVuln && !cfg.Scan.EnableSecret && !cfg.Scan.EnableMisconfig && !cfg.Scan.EnableLicense {
+	//
+	// EnableCIScore is read here but never written below, and the asymmetry is
+	// the point. It is newer than the four, so a file that predates them has it
+	// false too and the migration still fires; but "the four off and CI on" is a
+	// deliberate configuration — the user asked for CI alone — and forcing vuln
+	// and secret back on would overwrite it on every load. Leaving it out of the
+	// condition is what a test caught.
+	if !cfg.Scan.EnableVuln && !cfg.Scan.EnableSecret && !cfg.Scan.EnableMisconfig &&
+		!cfg.Scan.EnableLicense && !cfg.Scan.EnableCIScore {
 		cfg.Scan.EnableVuln = true
 		cfg.Scan.EnableSecret = true
 	}
@@ -547,6 +576,8 @@ func Default() *Config {
 			TrivyPath:          "", // Auto-detect in PATH
 			GitleaksSource:     ToolSourceAuto,
 			GitleaksPath:       "", // Auto-detect in PATH
+			PlumberSource:      ToolSourceAuto,
+			PlumberPath:        "", // Auto-detect in PATH
 			CacheDir:           filepath.Join(homeDir, ".devdesk", "cache", "scans"),
 			MaxCachedReports:   50,
 			Timeout:            300, // 5 minutes
@@ -754,6 +785,7 @@ func (c *Config) ExpandPaths(homeDir string) {
 	c.Scan.TrivyPath = expand(c.Scan.TrivyPath)
 	c.Scan.GitleaksPath = expand(c.Scan.GitleaksPath)
 	c.Scan.GitleaksConfig = absolute(expand(c.Scan.GitleaksConfig))
+	c.Scan.PlumberConfig = absolute(expand(c.Scan.PlumberConfig))
 }
 
 // absolute pins a configured file path to one meaning.

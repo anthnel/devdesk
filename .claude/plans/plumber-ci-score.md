@@ -44,7 +44,7 @@ quand un contexte GitLab existera, et à traiter d'ici là comme un `2`.
 
 Chacune se teste seule et la première ne casse rien si la suite attend.
 
-### PR 1 — le réglage, visible et inerte
+### PR 1 — le réglage, visible et inerte — **fait le 2026-08-27**
 
 **`internal/config`**
 
@@ -83,6 +83,27 @@ lignes dans `fields.go`, chacune avec son unique accesseur pointeur.
 **Tests** : le round-trip YAML, l'absolutisation, la résolution des trois
 sources, `TestEveryFieldCarriesTheAccessorItsKindNeeds` et
 `TestNoTwoFieldsAddressTheSameSetting` couvrent le reste tout seuls.
+
+**Ce que l'écriture a ajouté au plan :**
+
+- **Le dashboard nomme plumber.** `knownTools` et `detectTools` gagnent
+  `toolPlumber` : si l'utilisateur coche CI et que plumber n'est pas installé,
+  la boîte Host est le seul endroit qui le dira avant le premier scan. Les deux
+  listes sont tenues par des constantes depuis D60, qui est exactement le défaut
+  qu'un ajout à une seule des deux recrée.
+- **Un test a trouvé une régression que le plan n'avait pas vue.** La compat
+  « tout désactivé veut dire jamais configuré » forçait `enable_vuln` et
+  `enable_secret` à `true` — donc cocher **CI seul** et décocher les quatre
+  autres se faisait écraser à chaque chargement. `EnableCIScore` entre donc dans
+  la **condition** sans jamais entrer dans ce qui est **écrit** : un fichier
+  antérieur aux quatre booléens l'a à `false` lui aussi, donc la migration part
+  encore, mais « les quatre éteints et CI allumé » est une configuration
+  délibérée et cesse d'être réécrite.
+- **La notice de mise à jour de `plumber version` part sur stderr**, la version
+  installée sur stdout. `toolVersion` lit stdout seul, donc les deux ne peuvent
+  pas être confondues — mesuré plutôt que supposé, parce qu'afficher la version
+  *disponible* comme la version *installée* est le genre de chose que personne
+  ne remarque pendant des mois.
 
 ### PR 2 — l'outil tourne, le cache retient
 
