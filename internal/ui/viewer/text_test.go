@@ -24,9 +24,12 @@ const mixedLog = `2026-01-01 [INFO] started
 func TestScrollKeys(t *testing.T) {
 	m := logModel(t, strings.Repeat("line\n", 200))
 
-	m = feed(t, m, testutil.Key("g"))
+	// `home` and `end`, not `g` and `G`. No bare letter is navigation (§3.26),
+	// and since §3.53 `g` opens the go-to-line prompt — which this test used to
+	// press before scrolling, and would now be typing into.
+	m = feed(t, m, testutil.Key("home"))
 	if m.textViewport.YOffset != 0 {
-		t.Errorf("YOffset = %d after g, want the top", m.textViewport.YOffset)
+		t.Errorf("YOffset = %d after home, want the top", m.textViewport.YOffset)
 	}
 
 	m = feed(t, m, testutil.Key("down"))
@@ -44,7 +47,7 @@ func TestScrollKeys(t *testing.T) {
 		t.Error("pgdown did not scroll")
 	}
 
-	m = feed(t, m, testutil.Key("G"))
+	m = feed(t, m, testutil.Key("end"))
 	atBottom := m.textViewport.YOffset
 	m = feed(t, m, testutil.Key("pgup"))
 	if m.textViewport.YOffset >= atBottom {

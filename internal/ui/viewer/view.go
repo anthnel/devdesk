@@ -34,14 +34,29 @@ func (m Model) View() string {
 
 // GetFooterHeight is Rule 124's budget: an empty line and an info line, plus the
 // filter bar when it is showing.
+//
+// The go-to-line prompt shares that slot with the filter bar and the two never
+// hold it at once, so the height is the same whichever is there — which is what
+// keeps the pane from resizing under the reader when the prompt opens over an
+// active search.
 func (m Model) GetFooterHeight() int {
-	return 2 + m.bar.ExtraHeight()
+	return 2 + m.barHeight()
 }
 
-// RenderFooter draws the filter bar and the one line of state.
+func (m Model) barHeight() int {
+	if m.gotoActive {
+		return 2
+	}
+	return m.bar.ExtraHeight()
+}
+
+// RenderFooter draws the bar and the one line of state.
 func (m Model) RenderFooter(width int) string {
 	var parts []string
-	if m.bar.IsVisible() {
+	switch {
+	case m.gotoActive:
+		parts = append(parts, m.renderGotoBar(width))
+	case m.bar.IsVisible():
 		parts = append(parts, m.bar.View())
 	}
 	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, m.status()))
@@ -156,7 +171,19 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	if m.isLog() {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "v", Description: "Verbosity", Disabled: inTree})
 	}
-	shortcuts = append(shortcuts, shortcut.Shortcut{Key: "/", Description: "Search", Disabled: inTree})
+	shortcuts = append(shortcuts,
+		shortcut.Shortcut{Key: "/", Description: "Search", Disabled: inTree},
+		// Beside the search it modifies, and greyed with it: the case is a
+		// property of the `/` filter, and a document has one whether or not a
+		// query is running — so it is offered before one is typed, the way `w`
+		// is offered before there is anything to wrap.
+		shortcut.Shortcut{Key: "s", Description: "Toggle case", Disabled: inTree},
+		// The gutter and the jump belong to the text pane for the same reason as
+		// the wrap: the tree has rows, not lines, and a line number there would
+		// name nothing.
+		shortcut.Shortcut{Key: "n", Description: "Toggle line numbers", Disabled: inTree},
+		shortcut.Shortcut{Key: "g", Description: "Go to line", Disabled: inTree},
+	)
 
 	shortcuts = append(shortcuts, shortcut.Shortcut{Key: "c", Description: "Toggle coloring"})
 
@@ -203,6 +230,9 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "w", Description: "Soft-wrap long lines (text)"},
 			{Key: "v", Description: "Cycle the minimum log level shown (logs)"},
 			{Key: "/", Description: "Search the text — matching lines only, occurrences highlighted"},
+			{Key: "s", Description: "Search with the case, or without it (text)"},
+			{Key: "n", Description: "Show or hide line numbers (text)"},
+			{Key: "g", Description: "Go to a line by its number (text)"},
 			{Key: "t", Description: "Show or hide timestamps (container logs)"},
 			{Key: "ctrl+r", Description: "Reload from the source"},
 			{Key: "F", Description: "Follow live output — re-reads the log every 2s in this pane, and keeps the view pinned to the bottom. Press F again to stop (container logs)"},
@@ -245,7 +275,22 @@ func (m Model) GetHelpContent() help.Content {
 				Body: "/ searches the text. Lines with no match are hidden and the header counts what is left, so " +
 					"a search reads as a filter — and every occurrence in the lines that remain is highlighted, which " +
 					"is what says where the match is in a long line. The highlight is not syntax coloring: it stays " +
-					"on with c off, it survives soft wrap, and in a log the line keeps its level color around it.",
+					"on with c off, it survives soft wrap, and in a log the line keeps its level color around it. " +
+					"s decides whether the case counts. It is off by default, so ERROR and error are the same " +
+					"search; turn it on and the bar shows Aa. It applies to the search already running, without " +
+					"retyping it, which is what makes the two readings comparable.",
+			},
+			{
+				Title: "Line numbers, and going to one",
+				Body: "n shows the line numbers, in a gutter down the left. They are the document's own numbers " +
+					"and not a count of what is on screen: under a search or a verbosity filter they stay as they " +
+					"are, with gaps where the hidden lines were — which is the only reading that lets a line be " +
+					"quoted by its number. A soft-wrapped line numbers its first row and leaves the rest blank, " +
+					"because a number says where a line begins. " +
+					"g asks for a number and goes there, putting that line at the top of the pane. A number past " +
+					"the end of the document is refused, and so is one the filter is hiding: it says which, and " +
+					"nothing moves — jumping somewhere else while showing a number that is not the one you asked " +
+					"for would be worse than not jumping at all.",
 			},
 			{
 				Title: "Log verbosity",

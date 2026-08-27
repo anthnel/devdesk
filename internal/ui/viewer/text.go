@@ -1,6 +1,8 @@
 package viewer
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -19,38 +21,52 @@ func (m *Model) rebuildText() {
 	query := strings.TrimSpace(m.bar.SearchQuery())
 	isLog := m.doc.Kind == viewer.KindLog
 
+	// The gutter comes off the width before anything is wrapped. wrapTokens
+	// counts runes and knows nothing about what is put in front of a segment, so
+	// wrapping at the full width and prefixing afterwards would push every line
+	// past the right margin, by exactly the gutter, on every row.
+	gutter := m.gutterWidth()
+	textWidth := max(width-gutter, 0)
+
 	var out []string
 	m.matchedLines = 0
+	m.rowOfLine = make(map[int]int, len(m.lines))
 
 	for _, line := range m.lines {
 		if isLog && !line.Level.Passes(m.minLevel) {
 			continue
 		}
 
-		// One rule decides both that a line matches and where. The filter *is*
-		// the absence of an occurrence, so "a line the search kept carries at
-		// least one highlight" holds by construction — two calculations for one
-		// question is what scan.Categorize and SecretVerdict each had to undo.
+		// One rule decides both that a line matches and where — and, since `s`,
+		// in which case. The filter *is* the absence of an occurrence, so "a
+		// line the search kept carries at least one highlight" holds by
+		// construction — two calculations for one question is what
+		// scan.Categorize and SecretVerdict each had to undo.
 		var ranges []viewer.Range
 		if query != "" {
-			if ranges = viewer.MatchRanges(line.Plain, query); len(ranges) == 0 {
+			if ranges = viewer.MatchRanges(line.Plain, query, m.caseSensitive); len(ranges) == 0 {
 				continue
 			}
 		}
 		m.matchedLines++
 
+		// Where this line starts, recorded before its segments are appended: `g`
+		// lands on the first row of a wrapped line, never inside one.
+		m.rowOfLine[line.Num] = len(out)
+
 		// Marking comes after the filter, so it only ever runs on the lines that
 		// are about to be drawn. With no ranges it returns the slice untouched.
 		tokens := viewer.MarkMatches(line.Tokens, ranges)
 		segments := [][]viewer.Token{tokens}
-		if m.wrap && width > 0 {
-			segments = wrapTokens(tokens, width)
+		if m.wrap && textWidth > 0 {
+			segments = wrapTokens(tokens, textWidth)
 		}
-		for _, segment := range segments {
+		for i, segment := range segments {
 			// Padded to the full width: lipgloss inherits no background
 			// (Rule 115), so a line shorter than the pane would show the
 			// terminal's own from its last character to the right margin.
-			out = append(out, theme.PadWithBg(renderSegment(segment, line.Level, isLog), width))
+			body := renderSegment(segment, line.Level, isLog)
+			out = append(out, theme.PadWithBg(m.renderGutter(line.Num, i == 0)+body, width))
 		}
 	}
 
@@ -59,6 +75,36 @@ func (m *Model) rebuildText() {
 	}
 
 	m.textViewport.SetContent(strings.Join(out, "\n"))
+}
+
+// gutterWidth is what the numbers cost, the space that separates them from the
+// text included. Zero when the gutter is off, so every calculation downstream is
+// the same expression either way.
+func (m Model) gutterWidth() int {
+	if !m.showLineNumbers || len(m.lines) == 0 {
+		return 0
+	}
+	return len(strconv.Itoa(len(m.lines))) + 1
+}
+
+// renderGutter draws one line's number, right-aligned, or the blank that holds
+// its place.
+//
+// A wrapped line's continuation rows carry the blank rather than repeating the
+// number: a number marks where a source line *begins*, and repeating it would
+// claim the document holds several lines bearing the same one.
+func (m Model) renderGutter(num int, first bool) string {
+	width := m.gutterWidth()
+	if width == 0 {
+		return ""
+	}
+	if !first {
+		return theme.Bg(strings.Repeat(" ", width))
+	}
+	// Dim, and dim on purpose: the gutter is on every row, so a colour here
+	// would inform no one while competing with the log levels and the search
+	// highlights, which are what the eye is actually looking for.
+	return theme.DimStyle.Render(fmt.Sprintf("%*d ", width-1, num))
 }
 
 // emptyTextMessage says why the pane is empty, which is never obvious: an empty
@@ -104,19 +150,32 @@ func (m *Model) cycleVerbosity() {
 		}
 	}
 	m.minLevel = next
-	m.syncVerbosityToken()
+	m.syncFilterTokens()
 	m.rebuildText()
 }
 
-// syncVerbosityToken keeps the filter bar's token showing the level in force.
+// caseToken is what `s` shows in the bar. "Aa" rather than a word because it is
+// the one thing on that line the eye is not meant to read — it is a state, and
+// the editors this borrows from have made the glyph mean it.
+const caseToken = "Aa"
+
+// syncFilterTokens keeps the filter bar showing the filters in force: the
+// verbosity, and the case.
 //
-// The label carries the value, so SetTokens is given the active flag explicitly:
-// it preserves an active state by matching labels, and "≥ warn" is not the label
-// "≥ info" was.
-func (m *Model) syncVerbosityToken() {
-	if m.doc.Kind != viewer.KindLog || m.minLevel == viewer.LevelUnknown {
-		m.bar.SetTokens(nil)
-		return
+// The labels carry their values, so SetTokens is given the active flag
+// explicitly: it preserves an active state by matching labels, and "≥ warn" is
+// not the label "≥ info" was.
+//
+// The list is rebuilt whole rather than each toggle setting its own — the bar
+// disappears when nothing is active (Rule 136), so what must be right is which
+// tokens exist at all, and that is one question with one answer.
+func (m *Model) syncFilterTokens() {
+	var tokens []components.FilterToken
+	if m.doc.Kind == viewer.KindLog && m.minLevel != viewer.LevelUnknown {
+		tokens = append(tokens, components.FilterToken{Label: minLevelLabel(m.minLevel), Active: true})
 	}
-	m.bar.SetTokens([]components.FilterToken{{Label: minLevelLabel(m.minLevel), Active: true}})
+	if m.caseSensitive {
+		tokens = append(tokens, components.FilterToken{Label: caseToken, Active: true})
+	}
+	m.bar.SetTokens(tokens)
 }

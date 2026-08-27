@@ -27,6 +27,15 @@ le `KeyMap` par défaut de `bubbles/viewport`. Une lettre appartient au
 vocabulaire d'actions — `internal/ui/keymap`, où la règle est déclarée et
 opposée au code par `TestNoBareLetterIsNavigation`.
 
+**`g` est revenue dans le viewer, et ce n'est pas une entorse** (§3.53) : elle y
+ouvre un prompt, et le saut prend un **argument** — ce que `home` et `end` ne
+couvrent pas et ne couvriront jamais. Ce que la règle interdit est la lettre *à
+la place* d'une touche structurelle, pas la lettre qui fait ce qu'aucune ne
+fait. Elle est donc sortie de `retiredAliases`, sa raison écrite là ; `j` et `k`
+y restent, elles ne sont que `down` et `up` sous un autre nom. Une lettre qui
+reprend un sens quitte la liste de celles qui n'en ont plus, sinon la liste ment
+— c'est §3.47 pour `H`, pris dans l'autre sens.
+
 Ce qu'on achète n'est pas de la place (le gain se concentrait sur `l`, qui
 portait quatre sens) mais une règle vérifiable : garder `j`/`k` laisserait une
 exception, et ce sont les exceptions qui ont produit les 16 collisions du
@@ -76,8 +85,9 @@ paie une fois.
     ensemble ; il n'y a pas de jeton `all`, ce serait un cinquième état à
     sélectionner à côté de quatre vrais. C'est la différence avec netdiag/Ports,
     où rien d'actif veut dire « pas d'avis » et montre tout.
-  - `f` `c` `w` `v` `t` (viewer) : affichage, coloration, retour à la ligne,
-    verbosité, horodatage.
+  - `f` `c` `w` `v` `t` `n` `g` `s` (viewer) : affichage, coloration, retour à
+    la ligne, verbosité, horodatage, numéros de ligne, aller à une ligne,
+    sensibilité à la casse de la recherche.
   - `t` `u` `l` `e` `n` `z` (netdiag/Ports) : filtres de protocole et d'état.
   - `r` (browser OCI) : registry affiché.
   - `c` `h` `m` `l` (security) : sévérités, **cumulatives** — `c`+`h` demande
@@ -114,6 +124,25 @@ paie une fois.
     qui dit *où* dans une ligne longue. La surbrillance ne dépend pas de `c` (une
     occurrence n'est pas de la coloration syntaxique), survit à `w`, et dans un log
     le niveau garde le reste de la ligne.
+  - `s`: La casse compte, ou non. Éteinte par défaut, jeton `Aa` dans la barre
+    quand elle est allumée (Rule 136). Elle s'applique à la requête **déjà
+    posée**, sans la retaper : comparer les deux lectures est ce pour quoi on
+    appuie. C'est un paramètre du seul calcul qui décide du filtre *et* de la
+    surbrillance — une seconde lecture du drapeau ne pourrait être qu'un moyen
+    de les faire diverger.
+  - `n`: Numéros de ligne, dans une gouttière à gauche. Ce sont ceux du
+    **document** : sous un filtre ils gardent leurs trous, ce qui est la seule
+    lecture permettant de citer une ligne par son numéro. Une ligne enroulée
+    numérote sa première rangée et laisse les autres vides. La gouttière n'entre
+    pas dans le texte cherché, et elle est retirée de la largeur *avant*
+    l'enroulement.
+  - `g`: Aller à une ligne. Le prompt est un **mode** — il prend toute touche
+    avant le panneau, donc un chiffre ne défile pas aussi et `esc` le ferme au
+    lieu de quitter la vue — et il occupe le créneau de la barre de filtre, donc
+    la hauteur du footer ne change pas. Un numéro hors bornes est refusé en le
+    disant ; une ligne masquée par le filtre aussi, **et rien ne bouge** :
+    sauter ailleurs en affichant un autre numéro serait faire quelque chose
+    d'adjacent en silence.
   - `ctrl+r` / `F`: Relire une fois / relire en boucle. `F` est une **bascule**,
     et le suivi se fait **dans le viewport** — le document suivi reste collé en
     bas. Il ouvrait `docker logs -f` par `tea.ExecProcess`, dont on ne sort que

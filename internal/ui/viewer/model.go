@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -52,6 +53,14 @@ type Model struct {
 	highlight bool
 	wrap      bool
 	minLevel  viewer.Level
+	// showLineNumbers draws the gutter. Off by default: it spends width on
+	// every line of the pane to answer a question most readings never ask.
+	showLineNumbers bool
+	// caseSensitive is the mode the `/` filter runs in. Nothing reads it but
+	// the one call to viewer.MatchRanges, which answers both which lines
+	// survive and which spans are highlighted — a second reading of this flag
+	// could only be a way for those two to disagree.
+	caseSensitive bool
 	// showTimestamps is tracked here rather than asked of the source:
 	// WithTimestamps returns a new source instead of mutating one, so nothing is
 	// shared with a command already in flight (Rule 110), and there is therefore
@@ -82,6 +91,19 @@ type Model struct {
 	bar          components.FilterBar
 	matchedLines int
 
+	// rowOfLine is where each document line landed in the rendered pane, by
+	// line number. It is the only thing that knows: a row is not a line once a
+	// filter has dropped some and a wrap has split others, and `g` needs the
+	// answer after both. Rebuilt with the pane, so it never describes an older
+	// one.
+	rowOfLine map[int]int
+
+	// The go-to-line prompt. It takes the filter bar's slot for as long as it
+	// is open — see RenderFooter — so the footer's height does not change when
+	// it opens over an active search.
+	gotoInput  textinput.Model
+	gotoActive bool
+
 	// OriginView is where esc returns to. The router sets it from whatever view
 	// asked for the document.
 	OriginView command.ViewType
@@ -100,6 +122,13 @@ func New(cfg *config.Config) Model {
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
 
+	gi := textinput.New()
+	theme.StyleTextInput(&gi)
+	// A line number and nothing else: the field refuses anything but digits, so
+	// the parse below it cannot be handed something it has to explain.
+	gi.CharLimit = gotoDigitLimit
+	gi.Validate = digitsOnly
+
 	return Model{
 		spinner:      s,
 		config:       cfg,
@@ -108,6 +137,8 @@ func New(cfg *config.Config) Model {
 		tree:         datatable.New(datatable.Config[treeRow]{Columns: treeColumns(), SortColumn: -1}),
 		textViewport: viewport.New(0, 0),
 		bar:          components.NewFilterBar(),
+		gotoInput:    gi,
+		rowOfLine:    make(map[int]int),
 		display:      displayText,
 	}
 }
@@ -197,7 +228,7 @@ func (m *Model) applyDocument(doc viewer.Document) tea.Cmd {
 	if !m.isLog() {
 		m.minLevel = viewer.LevelUnknown
 	}
-	m.syncVerbosityToken()
+	m.syncFilterTokens()
 
 	m.rebuildTree()
 	m.tree.GotoTop()
@@ -230,6 +261,24 @@ func (m *Model) toggleHighlight() {
 	m.highlight = !m.highlight
 	m.lines = buildLines(m.doc, m.highlight, m.display == displayRendered)
 	m.rebuildTree()
+	m.rebuildText()
+}
+
+// toggleLineNumbers is `n`. The spans are untouched — the gutter is not a token
+// and never enters the text a search is run against — so only the pane is
+// rendered again.
+func (m *Model) toggleLineNumbers() {
+	m.showLineNumbers = !m.showLineNumbers
+	m.rebuildText()
+}
+
+// toggleCaseSensitive is `s`. It re-filters the query already in force rather
+// than asking for it again: the mode is a property of the search, not of the
+// typing, and a toggle that cleared the query would make comparing the two
+// readings — the whole reason to press it — a matter of retyping.
+func (m *Model) toggleCaseSensitive() {
+	m.caseSensitive = !m.caseSensitive
+	m.syncFilterTokens()
 	m.rebuildText()
 }
 

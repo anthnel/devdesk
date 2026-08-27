@@ -311,6 +311,14 @@ fb.SetTokenActive("tcp", !fb.IsTokenActive("tcp"))
 #### Rules
 
 - ✅ Use `components.FilterBar` — never re-implement the filter bar locally
+- ✅ Le cadre lui-même est `components.BarFrame(width, inner)` : c'est ce que
+  `FilterBar.View()` appelle, et la seule voie pour ce qui partage ce créneau
+  sans être un filtre — le prompt d'aller-à-la-ligne du viewer (§3.53). Deux
+  implémentations du rectangle seraient libres de diverger sur l'endroit où sont
+  les coins.
+- ✅ Un seul occupant du créneau à la fois, et la hauteur ne dépend pas duquel —
+  sinon le panneau se redimensionne sous le lecteur quand l'un s'ouvre par-dessus
+  l'autre.
 - ✅ `filterBar.ExtraHeight()` must be added to `GetFooterHeight()` return value
 - ✅ `filterBar.View()` must be prepended in `RenderFooter()` when `filterBar.IsVisible()`
 - ✅ `filterBar.InEditMode()` must propagate via the view's `InEditMode()` method

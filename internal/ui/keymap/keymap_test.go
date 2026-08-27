@@ -48,7 +48,15 @@ var navigationKeys = map[string]bool{
 // `h`, `l` et `f` n'y sont pas : ils survivent comme bascules locales (sévérité
 // HIGH et LOW dans security, protocole dans netdiag, format dans le viewer).
 // C'est la clause qui les trahit, pas la lettre — voir TestNoBareLetterIsNavigation.
-var retiredAliases = map[string]bool{"j": true, "k": true, "g": true}
+//
+// `g` en est sortie avec §3.53, et la raison est celle qui a fait revenir `H`
+// dans `free` en §3.47, prise dans l'autre sens : une lettre qui reprend un
+// sens quitte la liste de celles qui n'en ont plus, sinon la liste ment. Ce
+// qu'elle veut dire dans le viewer n'est pas ce que §3.26 lui a retiré — elle
+// ouvre un prompt, et le saut prend un **argument**, ce que `home` et `end` ne
+// couvrent pas et ne couvriront jamais. `j` et `k` restent retirées : elles ne
+// sont que `down` et `up` sous un autre nom.
+var retiredAliases = map[string]bool{"j": true, "k": true}
 
 func TestEveryActionIsOneUppercaseLetter(t *testing.T) {
 	for key, meaning := range actions {
