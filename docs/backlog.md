@@ -9843,6 +9843,87 @@ visible, c'est ce qui permet de router un finding vers le dépôt qui peut
 réellement le traiter — et de voir qu'une même faute comptée sur vingt dépôts
 consommateurs n'est qu'**une** faute.
 
+### 3.52 La colonne CI se colore sur les cinq lettres, en gras
+
+Demandé le 2026-08-27. La correspondance voulue :
+
+| Lettre | Couleur | Alias |
+|---|---|---|
+| **A**, **B** | vert | `ColorOK` — le vert des icônes de statut (Rule 121) |
+| **C** | orange | `ColorSeverityMedium` |
+| **D** | rouge clair | `ColorSeverityHigh` |
+| **E** | rouge foncé | `ColorSeverityCritical` |
+
+Les cinq en **gras**.
+
+#### Ce qui existe déjà, et ce qui change réellement
+
+`CIScoreStyle` (`internal/ui/theme/ciscore.go`) fait **déjà** trois cinquièmes du
+travail : `C`, `D` et `E` passent par `SeverityTextStyle("MEDIUM" | "HIGH" |
+"CRITICAL")`, donc les trois teintes demandées sont déjà les bonnes. Il reste
+deux changements :
+
+1. **A et B prennent le vert** — aujourd'hui ils rendent en couleur de texte
+   ordinaire, délibérément (voir ci-dessous).
+2. **Le gras s'applique aux cinq** — `SeverityTextStyle` met `Bold(true)` sur
+   CRITICAL et HIGH **seulement**, donc `C` n'est pas en gras et `A`/`B` non
+   plus.
+
+**Le gras ne se prend pas dans `SeverityTextStyle`.** Y ajouter `Bold` pour
+MEDIUM mettrait en gras **chaque finding MEDIUM de l'application** — la table
+des résultats, l'inventaire de `:sec`, tout ce qui affiche une sévérité.
+`CIScoreStyle` applique donc `.Bold(true)` sur le style qu'elle retourne, et ne
+touche pas la fonction partagée. C'est le même raisonnement que Rule 122 sur
+`Cell` et `Style` : la couleur appartient à la colonne, pas au vocabulaire
+qu'elle emprunte.
+
+#### Ce que ça renverse, et l'argument qui le justifie
+
+Il faut le dire franchement : le code porte aujourd'hui la décision **inverse**,
+et elle est écrite trois fois — dans le commentaire de `CIScoreStyle`, dans
+`TestOnlyTheBadGradesAreColoured`, et dans la discipline de couleur de Rule 122
+(« l'état nominal et majoritaire → couleur de texte par défaut, **pas** de
+vert »). L'argument d'origine était qu'un A vert sur chaque dépôt bien configuré
+n'informe personne et affaiblit D et E.
+
+**Cet argument ne tient pas dans cette colonne-ci, et c'est ce qui justifie le
+changement.** Une colonne de sévérité n'a qu'un axe ; la colonne CI a **quatre
+états**, dont trois sont des absences (`-` jamais scanné, cellule vide non
+gradable, `?` score retenu) — et les trois rendent en `DimStyle`. L'absence de
+couleur y est donc **déjà prise** par les absences. Un `A` en couleur de texte
+ordinaire se distingue d'un `-` en gris par une nuance, sur une cellule de
+quatre caractères. Le vert ne dit pas « bravo » : il dit **« ceci est une note »**
+par opposition à « il n'y en a pas », ce qui est exactement la distinction que
+la colonne existe pour porter et la seule que le rendu actuel fait mal.
+
+Le gras va dans le même sens : il sépare une note d'une absence avant même que
+la teinte soit lue.
+
+#### Ce qu'il faut mettre à jour dans le même commit
+
+Sans ça, le dépôt garderait des textes affirmant le contraire de son code :
+
+- le commentaire de `CIScoreStyle`, qui explique pourquoi A n'est pas coloré ;
+- **`TestOnlyTheBadGradesAreColoured`** — il passe encore mécaniquement (A et B
+  restent identiques entre eux, C/D/E restent distincts d'eux), mais son nom et
+  son commentaire affirment l'inverse de l'intention. Le renommer et lui faire
+  vérifier la correspondance demandée : cinq lettres, cinq styles, A = B, et
+  chacun des cinq en gras ;
+- la ligne « pas de vert » de la **discipline de couleur de Rule 122**
+  (`.claude/rules/tui-tables.md`), qui doit nommer cette colonne comme le cas où
+  la couleur sépare une valeur d'une absence plutôt que deux valeurs entre
+  elles.
+
+`TestEveryAbsenceIsDim` n'est pas touché et doit le rester : les trois absences
+restent grises, c'est ce qui donne son sens au vert.
+
+#### Ce que ça ne touche pas
+
+`CIScoreCell` — la cellule reste du texte brut, sans séquence d'échappement
+(Rule 122). Et le fond : `SeverityTextStyle` pose déjà `Background(ColorBackground)`,
+donc le style du vert doit le poser aussi, ou la cellule dépouille de son fond
+tout ce qui la suit sur la ligne (Rule 115).
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:
