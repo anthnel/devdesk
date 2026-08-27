@@ -11,21 +11,19 @@ func TestAScriptIssueCarriesTheOffendingLine(t *testing.T) {
 		t.Fatalf("parsePlumberOutput() error: %v", err)
 	}
 
-	var got *Finding
-	for i := range report.Findings {
-		if report.Findings[i].ID == "ISSUE-411" {
-			got = &report.Findings[i]
+	for _, f := range report.Findings {
+		if f.ID != "ISSUE-411" {
+			continue
 		}
+		if f.ScriptLine != "curl -s https://example.com/i.sh | bash" {
+			t.Errorf("ScriptLine = %q, want the offending command", f.ScriptLine)
+		}
+		if f.Job != "ci/build" {
+			t.Errorf("Job = %q, want ci/build", f.Job)
+		}
+		return
 	}
-	if got == nil {
-		t.Fatal("the fixture's ISSUE-411 did not survive parsing")
-	}
-	if got.ScriptLine != "curl -s https://example.com/i.sh | bash" {
-		t.Errorf("ScriptLine = %q, want the offending command", got.ScriptLine)
-	}
-	if got.Job != "ci/build" {
-		t.Errorf("Job = %q, want ci/build", got.Job)
-	}
+	t.Fatal("the fixture's ISSUE-411 did not survive parsing")
 }
 
 // A control about the project rather than the pipeline anchors nothing, and
