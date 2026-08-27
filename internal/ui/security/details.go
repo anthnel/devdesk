@@ -120,6 +120,15 @@ func (m Model) buildDetailsContent() string {
 		b.WriteString(theme.SubTitleStyle.Render("Match: ") + textStyle.Render(f.Match) + "\n")
 	}
 
+	// The offending line of a CI finding, wrapped: it is a shell command and
+	// can be long. It is the only thing plumber says about *where inside a job*
+	// a control fired — the File above names the `include:` entry that brought
+	// the job in, which is the include responsible rather than the fault.
+	if f.ScriptLine != "" {
+		b.WriteString(theme.SubTitleStyle.Render("Script:") + "\n")
+		b.WriteString(wrapStyle.Render(f.ScriptLine) + "\n")
+	}
+
 	// Remediation section
 	if f.Resolution != "" || f.FixCommand != "" {
 		b.WriteString("\n")
