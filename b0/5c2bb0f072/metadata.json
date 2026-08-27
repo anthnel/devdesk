@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "b05c2bb0f072",
+  "strategy": "manual-commit",
+  "branch": "docs/352-ci-column-colour",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/scan/plumber_parse_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b0/5c2bb0f072/0/metadata.json",
+      "transcript": "/b0/5c2bb0f072/0/full.jsonl",
+      "compact_transcript": "/b0/5c2bb0f072/0/transcript.jsonl",
+      "content_hash": "/b0/5c2bb0f072/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 2102,
+    "cache_read_tokens": 1068797,
+    "output_tokens": 1376,
+    "api_call_count": 3
+  }
+}
