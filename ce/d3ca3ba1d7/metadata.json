@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "ced3ca3ba1d7",
+  "strategy": "manual-commit",
+  "branch": "plumber-fixes",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/scan/plumber.go",
+    "internal/scan/plumber_parse.go",
+    "internal/scan/plumber_test.go",
+    "internal/scan/scanner.go",
+    "internal/ui/security/ciscore_test.go",
+    "internal/ui/security/errors_test.go",
+    "internal/ui/security/view.go",
+    "internal/ui/security/warnings.go",
+    "internal/ui/security/warnings_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ce/d3ca3ba1d7/0/metadata.json",
+      "transcript": "/ce/d3ca3ba1d7/0/full.jsonl",
+      "compact_transcript": "/ce/d3ca3ba1d7/0/transcript.jsonl",
+      "content_hash": "/ce/d3ca3ba1d7/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 58,
+    "cache_creation_tokens": 38142,
+    "cache_read_tokens": 18402250,
+    "output_tokens": 22337,
+    "api_call_count": 29
+  }
+}
