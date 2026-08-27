@@ -40,28 +40,60 @@ func (m Model) renderResultsView() string {
 		return "No results"
 	}
 
-	// Warnings replace the table and hide the tab bar (no partial results to browse)
+	// Warnings replace the table only when there is nothing to browse.
+	//
+	// They used to replace it whenever there were any, on the stated grounds of
+	// "no partial results to browse". That was true while an error meant the
+	// scan had produced nothing; it stopped being true the day a stage could
+	// fail beside three that succeeded. A plumber failure then hid every CVE
+	// and every secret the same scan had found — findings that exist and are
+	// invisible, which is the worst way for a result to be wrong.
 	//
 	// The status message used to be repeated here, under the panel. The footer
 	// already carries it, and a message printed twice is a message the two
 	// copies can disagree about (Rule 134's reasoning, one layer down).
-	if len(m.result.Errors) > 0 {
+	if len(m.result.Errors) > 0 && m.result.TotalFindings() == 0 {
 		return m.renderWarningsPanel()
 	}
 
-	// The grade is not a finding, so it has no row. It goes above the table on
-	// its own tab and nowhere else: the header would show it on all five, which
-	// is a fact about one stage while the other four are being read — and its
-	// withheld reason is a sentence, which buildInfoLines cannot carry (it
-	// aligns short values on seven lines and drops the eighth in silence).
-	if m.activeTab == TabCIScore {
-		return strings.Join([]string{
-			m.renderCIScoreLine(m.width),
-			theme.EmptyLineBg(m.width),
-			m.findingsTable.View(),
-		}, "\n")
+	// What goes above the table. The warnings when a stage failed beside others
+	// that did not — that is about the scan rather than about the tab being
+	// read, so it shows on all five. The grade is not a finding either, so it
+	// has no row, but it belongs to one tab: the header would show it on all
+	// five, and a withheld run's reason is a sentence, which buildInfoLines
+	// cannot carry (it aligns short values on seven lines and drops the eighth
+	// in silence).
+	var head []string
+	if len(m.result.Errors) > 0 {
+		head = append(head, m.renderWarningsPanel(), theme.EmptyLineBg(m.width))
 	}
-	return m.findingsTable.View()
+	if m.activeTab == TabCIScore {
+		head = append(head, m.renderCIScoreLine(m.width), theme.EmptyLineBg(m.width))
+	}
+	if len(head) == 0 {
+		return m.findingsTable.View()
+	}
+	return strings.Join(append(head, m.findingsTable.View()), "\n")
+}
+
+// resultsHeadLines is what the head above the table costs it.
+//
+// The warnings part is measured from the rendered text rather than counted by
+// hand: the panel wraps, so its height depends on the terminal width and on how
+// much the tool had to say. A constant would be right at one width and wrong at
+// every other.
+func (m Model) resultsHeadLines() int {
+	if m.result == nil {
+		return 0
+	}
+	lines := 0
+	if len(m.result.Errors) > 0 && m.result.TotalFindings() > 0 {
+		lines += strings.Count(m.renderWarningsPanel(), "\n") + 1
+	}
+	if m.activeTab == TabCIScore {
+		lines += ciScoreHeadLines
+	}
+	return lines
 }
 
 // ciScoreHeadLines is what the head costs the table on the CI tab: the line and
@@ -166,10 +198,14 @@ func (m Model) activeFilterBar() *sharedcomponents.FilterBar {
 	return bar
 }
 
-// showsResultTabs reports whether the findings tab bar is on screen. Warnings
-// replace the table and hide the tabs — there are no partial results to browse.
+// showsResultTabs reports whether the findings tab bar is on screen.
+//
+// It follows the table: hidden when the warnings have replaced it — there is
+// nothing to browse and the tabs would suggest otherwise — and shown as soon as
+// some stage produced findings, failure or no failure.
 func (m Model) showsResultTabs() bool {
-	return m.state == StateResults && m.result != nil && len(m.result.Errors) == 0
+	return m.state == StateResults && m.result != nil &&
+		(len(m.result.Errors) == 0 || m.result.TotalFindings() > 0)
 }
 
 // renderInfoLine is the footer's message line, always rendered even when empty

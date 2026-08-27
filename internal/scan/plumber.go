@@ -111,7 +111,9 @@ func plumberArgs(target string, tool ToolSpec, opts PlumberOptions, outPath stri
 		return toolCmd{Name: "docker", Args: append(args, options...)}
 	}
 
-	return toolCmd{Name: plumberBinary(tool), Args: options}
+	// Dir, not an argument: `analyze` works on the current directory and takes
+	// no path. The container gets the same thing through -w.
+	return toolCmd{Name: plumberBinary(tool), Args: options, Dir: target}
 }
 
 // plumberTokenEnv passes the context's token to a containerised plumber.

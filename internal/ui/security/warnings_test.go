@@ -162,10 +162,12 @@ func TestSplitLogLine(t *testing.T) {
 
 // ── The panel ────────────────────────────────────────────────────────────────
 
-// Warnings replace the table rather than sitting above it: a scan that failed
-// has no partial findings worth browsing, and the tab bar would suggest it did.
-func TestWarningsReplaceTheTable(t *testing.T) {
+// Warnings replace the table only when the scan produced nothing: then there is
+// no partial result to browse, and the tab bar would suggest there was.
+func TestWarningsReplaceTheTableWhenThereIsNothingToBrowse(t *testing.T) {
 	result := resultFixture()
+	result.Findings = nil
+	result.CountFindings()
 	result.Errors = []string{"trivy vuln: trivy failed: 2026-08-01T10:00:00Z\tFATAL\trun error: image not found"}
 
 	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), testutil.Resize(160, 30))
@@ -180,8 +182,35 @@ func TestWarningsReplaceTheTable(t *testing.T) {
 	if !strings.Contains(view, "trivy vuln") {
 		t.Error("the panel does not name the scanner that failed")
 	}
-	if strings.Contains(view, "CVE-2026-0001") {
-		t.Error("the findings table is rendered behind the warnings")
+	if m.showsResultTabs() {
+		t.Error("the tab bar is shown for a scan that found nothing")
+	}
+}
+
+// The one the user reported. A stage that fails beside three that succeed used
+// to hide every finding the scan had made — a plumber failure took the CVEs and
+// the secrets down with it. Findings that exist and are invisible is the worst
+// way for a result to be wrong.
+func TestAFailedStageDoesNotHideWhatTheOthersFound(t *testing.T) {
+	result := resultFixture()
+	result.Errors = []string{
+		"plumber: plumber failed: exit status 2: Error: --project is required (could not auto-detect from git remote)",
+	}
+
+	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), testutil.Resize(160, 30))
+
+	view := m.View()
+	if !strings.Contains(view, "CVE-2026-0001") {
+		t.Errorf("the findings are hidden by a failure that is not about them:\n%s", view)
+	}
+	if !strings.Contains(view, "Scan Warnings") {
+		t.Error("the failure is not reported at all")
+	}
+	if !strings.Contains(view, "--project is required") {
+		t.Error("the tool's own reason is lost")
+	}
+	if !m.showsResultTabs() {
+		t.Error("the tab bar is hidden although there are findings to browse")
 	}
 }
 
@@ -189,6 +218,8 @@ func TestWarningsReplaceTheTable(t *testing.T) {
 // lines rather than three.
 func TestWarningsShrinkTheFooter(t *testing.T) {
 	result := resultFixture()
+	result.Findings = nil
+	result.CountFindings()
 	result.Errors = []string{"trivy: failed"}
 	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), testutil.Resize(160, 30))
 

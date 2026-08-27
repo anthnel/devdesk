@@ -28,6 +28,16 @@ type toolCmd struct {
 	//
 	// String() never renders it: the invocation is logged and shown in the UI.
 	Env []string
+
+	// Dir is the working directory the tool runs in, when it has one.
+	//
+	// It exists for plumber, whose `analyze` takes **no path argument**: it
+	// works on the current directory. Without this the tool ran in whatever
+	// directory DevDesk was launched from and reported
+	// `--project is required (could not auto-detect from git remote)` — a
+	// failure about a repository nobody had asked it to look at. Trivy and
+	// Gitleaks take their target in argv and set nothing here.
+	Dir string
 }
 
 // String renders the invocation as a shell command line, for logs and for the
@@ -36,7 +46,14 @@ func (c toolCmd) String() string {
 	if c.Name == "" {
 		return ""
 	}
-	return strings.Join(append([]string{c.Name}, c.Args...), " ")
+	line := strings.Join(append([]string{c.Name}, c.Args...), " ")
+	// The directory is part of what the command means when the tool takes no
+	// path: a logged invocation that cannot be re-run says less than it looks
+	// like it does.
+	if c.Dir != "" {
+		return "cd " + c.Dir + " && " + line
+	}
+	return line
 }
 
 // exitError reports a tool that ran and exited non-zero. The code matters:
@@ -76,6 +93,7 @@ type cliRunner struct{}
 func (cliRunner) Run(ctx context.Context, tc toolCmd, progressFn func(string)) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, tc.Name, tc.Args...) //nolint:gosec // name is one of trivy/gitleaks/plumber/docker
 	cmd.Env = tc.Env                                     // nil inherits this process's environment, which is the default
+	cmd.Dir = tc.Dir                                     // empty runs in DevDesk's own working directory
 
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
