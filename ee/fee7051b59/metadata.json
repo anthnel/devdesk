@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "eefee7051b59",
+  "strategy": "manual-commit",
+  "branch": "docs/352-ci-column-colour",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/scan/plumber_parse.go",
+    "internal/scan/plumber_parse_test.go",
+    "internal/scan/scanner.go",
+    "internal/ui/security/details.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ee/fee7051b59/0/metadata.json",
+      "transcript": "/ee/fee7051b59/0/full.jsonl",
+      "compact_transcript": "/ee/fee7051b59/0/transcript.jsonl",
+      "content_hash": "/ee/fee7051b59/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 21273,
+    "cache_read_tokens": 6577648,
+    "output_tokens": 12185,
+    "api_call_count": 19
+  }
+}
