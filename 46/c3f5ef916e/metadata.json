@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "46c3f5ef916e",
+  "strategy": "manual-commit",
+  "branch": "docs/352-ci-column-colour",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/security/pipeline_annotate.go",
+    "internal/ui/security/pipeline_annotate_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/46/c3f5ef916e/0/metadata.json",
+      "transcript": "/46/c3f5ef916e/0/full.jsonl",
+      "compact_transcript": "/46/c3f5ef916e/0/transcript.jsonl",
+      "content_hash": "/46/c3f5ef916e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 6669,
+    "cache_read_tokens": 2162739,
+    "output_tokens": 5789,
+    "api_call_count": 5
+  }
+}
