@@ -13,6 +13,10 @@ import (
 const resolvedFixture = `stages:
 - build
 - test
+".hidden-base":
+  image: alpine
+".scripts": |
+  set -e
 build:
   image: alpine
   script:
@@ -46,16 +50,41 @@ func TestAFindingIsWrittenOnItsJobLine(t *testing.T) {
 	}
 }
 
-// GitLab resolves hidden jobs away, so a finding about one names something the
-// document does not contain. Inventing a line for it would be worse than
-// leaving it to the CI tab.
-func TestAJobTheDocumentDoesNotContainIsNotAnnotated(t *testing.T) {
+// GitLab quotes every key that starts with a dot, so a hidden job comes back as
+// `".job":` — six of the thirteen top-level keys on a measured document. The
+// quotes are not part of the name, and returning the quoted form would match no
+// job plumber ever names: no annotation at all, and nothing saying why.
+func TestAQuotedHiddenJobIsAnnotated(t *testing.T) {
 	got := annotatePipeline(resolvedFixture, []scan.Finding{
 		ciFinding("ISSUE-411", ".hidden-base", scan.SeverityHigh),
 	})
 
+	if !strings.Contains(got, `".hidden-base":  # plumber: ISSUE-411 (HIGH)`) {
+		t.Errorf("a quoted hidden job carries no comment:\n%s", got)
+	}
+}
+
+// A job the document genuinely does not contain anchors nothing.
+func TestAJobTheDocumentDoesNotContainIsNotAnnotated(t *testing.T) {
+	got := annotatePipeline(resolvedFixture, []scan.Finding{
+		ciFinding("ISSUE-411", "absent-from-this-pipeline", scan.SeverityHigh),
+	})
+
 	if got != resolvedFixture {
 		t.Errorf("the document changed for a job it does not contain:\n%s", got)
+	}
+}
+
+// A key that carries a value on its own line is not a job: a job is always a
+// mapping, so its key line ends at the colon. Appending after a block scalar
+// indicator or a folded string is at best lucky.
+func TestAKeyCarryingAValueIsNotAJob(t *testing.T) {
+	got := annotatePipeline(resolvedFixture, []scan.Finding{
+		ciFinding("ISSUE-411", ".scripts", scan.SeverityHigh),
+	})
+
+	if got != resolvedFixture {
+		t.Errorf("a key with a value was annotated:\n%s", got)
 	}
 }
 

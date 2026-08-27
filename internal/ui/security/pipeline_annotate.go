@@ -125,21 +125,39 @@ func jobOf(f scan.Finding) string {
 
 // jobKeyOf returns the job a line defines, and whether it defines one.
 //
-// Column 0 and nothing else: an indented `key:` belongs to a job rather than
-// naming one, and a line inside a block scalar can look like anything at all.
+// Three things it has to get right, all measured on a resolved pipeline:
+//
+//   - **Column 0 and nothing else.** An indented `key:` belongs to a job rather
+//     than naming one, and a line inside a block scalar can look like anything.
+//   - **A key may be quoted, and the quotes are not part of the name.** GitLab
+//     quotes every key that starts with a dot, so all the hidden jobs come back
+//     as `".job-base":` — six of the thirteen top-level keys on the measured
+//     document. Returning the quoted form matches no job plumber ever names,
+//     which is a mismatch that shows up as no annotation at all rather than as
+//     an error.
+//   - **The line must define a mapping, not carry a value.** A job is always a
+//     mapping, so its key line ends at the colon. Requiring that keeps the
+//     comment off the value lines — a block scalar indicator, a folded string —
+//     where appending is either wrong or merely lucky.
 func jobKeyOf(line string) (string, bool) {
 	if line == "" || line[0] == ' ' || line[0] == '\t' || line[0] == '#' || line[0] == '-' {
 		return "", false
 	}
-	idx := strings.Index(line, ":")
-	if idx <= 0 {
+
+	if q := line[0]; q == '"' || q == '\'' {
+		end := strings.IndexByte(line[1:], q)
+		if end == -1 {
+			return "", false
+		}
+		if line[end+2:] != ":" {
+			return "", false
+		}
+		return line[1 : end+1], true
+	}
+
+	key, rest, found := strings.Cut(line, ":")
+	if !found || key == "" || rest != "" {
 		return "", false
 	}
-	// A key line ends at the colon, or continues with a value. Either way what
-	// follows the colon must not start a new token on the same column.
-	rest := line[idx+1:]
-	if rest != "" && !strings.HasPrefix(rest, " ") {
-		return "", false
-	}
-	return line[:idx], true
+	return key, true
 }
