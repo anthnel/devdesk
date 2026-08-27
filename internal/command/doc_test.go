@@ -21,9 +21,14 @@ import (
 // survécu à D16/D17 parce que les deux tests d'alors ne regardaient que le
 // code.
 
-// docPath est le chemin de CLAUDE.md depuis ce paquet.
+// docPath est le chemin, depuis ce paquet, du fichier qui porte la liste.
+//
+// C'était `.claude/CLAUDE.md` jusqu'à ce que l'architecture parte dans
+// `docs/architecture/`. Le test a échoué en disant de le repointer, ce qui est
+// exactement ce qu'il devait faire : le fichier lu est une donnée du test, et
+// pas une propriété du parser.
 func docPath() string {
-	return filepath.Join("..", "..", ".claude", "CLAUDE.md")
+	return filepath.Join("..", "..", "docs", "architecture", "app-shell.md")
 }
 
 // docListIntro est la ligne qui ouvre la liste. Les puces qui suivent, jusqu'à
