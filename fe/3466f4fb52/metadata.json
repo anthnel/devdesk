@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "fe3466f4fb52",
+  "strategy": "manual-commit",
+  "branch": "docs/351-cache",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/fe/3466f4fb52/0/metadata.json",
+      "transcript": "/fe/3466f4fb52/0/full.jsonl",
+      "compact_transcript": "/fe/3466f4fb52/0/transcript.jsonl",
+      "content_hash": "/fe/3466f4fb52/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 7562,
+    "cache_read_tokens": 999484,
+    "output_tokens": 6968,
+    "api_call_count": 4
+  }
+}
