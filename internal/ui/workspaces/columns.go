@@ -25,6 +25,11 @@ const (
 	colScannedFixed   = 14
 	colModFixed       = 15
 	colRemoteMin      = 10
+	// colCIFixed is four cells for one letter. The title is what costs: "CI
+	// Score" is eight to show an A, which is exactly why the four severity
+	// columns are called C H M L. A fifth counting column beside them inherits
+	// their convention rather than opening a second one.
+	colCIFixed = 4
 )
 
 // workspaceRow is one line of the table: the entry, plus the six scan cells.
@@ -39,6 +44,7 @@ type workspaceRow struct {
 	// spinner elsewhere in the row would be showing the state being replaced.
 	GitStatus string
 	Sensitive secretsCell
+	CI        ciCell
 	Critical  string
 	High      string
 	Medium    string
@@ -49,11 +55,37 @@ type workspaceRow struct {
 // workspaceColumns describes the workspaces table. Nothing sorts: the order is
 // the directory's, and `.` stays inert rather than being wired to a comparator
 // no one asked for. Name and Remote are what the filter has always matched.
-func workspaceColumns() []datatable.Column[workspaceRow] {
+// ciColumn is the CI grade. It exists only when scan.enable_ci_score is on:
+// off, it would be four cells of nothing on every row for the life of the view,
+// which says less than no column at all. The setting is read at construction
+// and the router drops this view on a save, so the column follows.
+//
+// It does **not** declare Optional. Its four states include two absences that
+// mean different things, and a column that disappeared when the terminal got
+// narrow would add a third — "not shown" — indistinguishable from the other
+// two. Fewer columns that are right beats every column wrong (§3.45), and this
+// one is a verdict rather than a detail.
+func ciColumn() datatable.Column[workspaceRow] {
+	return datatable.Column[workspaceRow]{
+		Title: "CI", Sizing: datatable.SizingFixed, MinWidth: colCIFixed,
+		Cell:  func(r workspaceRow) string { return theme.CIScoreCell(r.CI.State, r.CI.Score) },
+		Style: func(r workspaceRow) lipgloss.Style { return theme.CIScoreStyle(r.CI.State, r.CI.Score) },
+	}
+}
+
+// ciCell is what the column prints and what decides its colour, kept apart so
+// the colour is never read back off the rendered string — which is what the
+// Secrets column used to do and what had to be undone.
+type ciCell struct {
+	State theme.CIScoreState
+	Score *string
+}
+
+func workspaceColumns(withCI bool) []datatable.Column[workspaceRow] {
 	text := func(title string, width int, cell func(workspaceRow) string) datatable.Column[workspaceRow] {
 		return datatable.Column[workspaceRow]{Title: title, Sizing: datatable.SizingFixed, Optional: true, MinWidth: width, Cell: cell}
 	}
-	return []datatable.Column[workspaceRow]{
+	cols := []datatable.Column[workspaceRow]{
 		{
 			// No title: the column carries a glyph, and a header over it would
 			// name something the user reads at a glance anyway — eza does not
@@ -89,6 +121,12 @@ func workspaceColumns() []datatable.Column[workspaceRow] {
 		text("Scanned", colScannedFixed, func(r workspaceRow) string { return r.Scanned }),
 		text("Modified", colModFixed, func(r workspaceRow) string { return timeAgo(r.Entry.ModTime) }),
 	}
+	if withCI {
+		// Beside the four severity counters, which is where a reader looks for
+		// what a scan concluded — not at the end, past Scanned and Modified.
+		cols = append(cols[:len(cols)-2], append([]datatable.Column[workspaceRow]{ciColumn()}, cols[len(cols)-2:]...)...)
+	}
+	return cols
 }
 
 // count builds one of the four severity columns. The cell is already formatted
@@ -151,6 +189,7 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 			Entry:     entry,
 			GitStatus: gitStatus,
 			Sensitive: sensitive,
+			CI:        m.ciCellFor(entry),
 			Critical:  c,
 			High:      h,
 			Medium:    med,

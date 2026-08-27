@@ -207,7 +207,7 @@ l'arbitrage du 2026-08-25 à GitLab seul.
   depuis `ws` rend une lettre : deux écrans notant un même dépôt différemment,
   ce que §3.11 et §3.12 ont chacun eu à défaire.
 
-### PR 3 — les deux écrans
+### PR 3 — les deux écrans — **fait le 2026-08-27**
 
 **`ws`** — la colonne `CI`. Quatre états : `A`…`E`, `?`, `-` (jamais scanné),
 vide (pas scannable). La couleur passe par `Style`, jamais par `Cell`
@@ -225,10 +225,32 @@ Les `<contrôle>Result` qui **passent** ne sont pas des findings et ne vont dans
 aucun onglet ; ils sont pourtant ce qui donne son sens au score. Les ignorer
 d'abord, et le noter.
 
-**Tests** : les quatre états de la cellule, la ligne de tête dans ses deux
-formes, `TestEveryFindingIsCountedExactlyOnce` et
-`TestTheTabCountsAgreeWithTheResultCounters` qui existent déjà et doivent
-continuer de passer avec un cinquième onglet.
+**Tests** : les quatre états de la cellule, la ligne de tête dans ses **quatre**
+formes (notée, retenue, sans pipeline, jamais notée), et les tests de comptage
+qui existaient déjà, étendus au cinquième onglet.
+
+**Ce que l'écriture a appris :**
+
+- **La colonne suit le réglage.** `enable_ci_score` étant à `false` par défaut,
+  la garder visible donnerait quatre cellules vides sur chaque ligne pour la vie
+  de la vue. Elle est construite depuis `cfg.Scan.EnableCIScore`, et le routeur
+  jette la vue à chaque sauvegarde, donc elle suit.
+- **Elle ne déclare pas `Optional`.** Ses quatre états comportent deux absences
+  qui ne veulent pas dire la même chose ; une colonne qui disparaît sur un
+  terminal étroit en ajouterait une troisième, indiscernable des deux autres.
+- **Un répertoire n'est pas noté.** Les compteurs de sévérité s'agrègent sur les
+  dépôts imbriqués parce que des comptes s'additionnent ; des lettres non — le
+  pire de trois notes n'est la note de rien, et une moyenne est de l'arithmétique
+  sur une échelle qui n'en a pas.
+- **`GitRemoteURL`, pas `GitRemote`.** Le second est le chemin d'affichage que
+  montre la colonne Remote (`anthnel/devdesk`), sans hôte : la règle le lisait et
+  déclarait tout dépôt non notable. Trouvé par un test, pas à la relecture.
+- **La table perd deux lignes sur l'onglet CI**, et les retrouve sur les autres.
+  C'est visible au changement d'onglet et c'est le bon compromis : réserver les
+  deux lignes sur les cinq onglets les dépenserait sur quatre écrans qui n'ont
+  rien à y mettre.
+- **Le libellé de l'onglet porte le compte, pas la lettre** — la barre d'onglets
+  n'aligne qu'une chose, et la note a sa ligne juste en dessous.
 
 ---
 

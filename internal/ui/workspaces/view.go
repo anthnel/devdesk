@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/git"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/fileicon"
 	"github.com/anthnel/devdesk/internal/ui/help"
@@ -307,6 +308,36 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 		scanned
 }
 
+// ciCellFor is the CI grade of one row.
+//
+// **Only a repository is graded.** A directory aggregates its sub-repositories
+// for the severity counters, because counts add up; letters do not — the worst
+// of three grades is not the grade of anything, and an average is arithmetic on
+// a scale that has none. So a directory shows nothing rather than a number
+// nobody could act on.
+//
+// A repository whose remote is not this context's forge is *unavailable* rather
+// than *never scanned*: a dash means "not yet", and this one never will be from
+// here (§3.42). The two absences are told apart by the state, never by the
+// printed cell.
+func (m *Model) ciCellFor(entry Entry) ciCell {
+	if !entry.IsGitRepo {
+		return ciCell{State: theme.CIScoreUnavailable}
+	}
+	// GitRemoteURL, not GitRemote: the latter is the display path the Remote
+	// column shows (`anthnel/devdesk`), which carries no host at all — a test
+	// caught it reading every repository as ungradeable.
+	gradeable := git.SameHost(entry.GitRemoteURL, m.config.Forge.URL)
+	scanEntry, scanned := m.scanCache[entry.Path]
+	if !scanned {
+		return ciCell{State: theme.CIScoreVerdict(nil, false, gradeable)}
+	}
+	return ciCell{
+		State: theme.CIScoreVerdict(scanEntry.CIScore, true, gradeable),
+		Score: scanEntry.CIScore,
+	}
+}
+
 // secretsCell is the Secrets column's two halves: what it prints, and the
 // verdict that colours it.
 //
@@ -484,6 +515,10 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Open in Browser",
 				Body:  "Press W on a git repo to open its remote URL in the default web browser. The Remote column shows the path (without the server hostname); W opens the full URL.",
+			},
+			{
+				Title: "CI Score",
+				Body:  "With scan.enable_ci_score on, a CI column shows the grade plumber gave the repository's pipeline configuration: A to E. It is graded only when its remote is this context's forge — a repository hosted elsewhere shows an empty cell rather than a dash, because a dash means \"not scanned yet\" and this one never will be from here. A dash is a repository nobody has scanned; a question mark is a run that could not collect everything, and the CI tab of the results says which. A directory shows nothing: counts add up across nested repositories, letters do not.",
 			},
 			{
 				Title: "Security Scan",

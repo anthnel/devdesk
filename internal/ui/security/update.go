@@ -52,7 +52,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// internally, so m.height goes through as it is. Rows no longer depend
 		// on the width — bubbles truncates each cell to its own column — so
 		// there is nothing to rebuild here.
-		m.findingsTable.Resize(m.width, max(m.height, 5))
+		m.resizeFindings()
 		m.inventory.Resize(m.width, max(m.height, 5))
 		// Update details viewport size and refresh content
 		m.detailsViewport.Width = msg.Width

@@ -1682,6 +1682,29 @@ twice wrong from:
   `SecretVerdict()`'s model — nil when nobody graded, and a withheld run counts
   as nobody.
 
+**The two screens.** `ws` gains a `CI` column — title `CI`, four cells, the
+letter alone — and the results view a fifth tab, `CI (n)`, carrying the issue
+count like its four neighbours. Four rules, and three of them are about the
+absences:
+
+- **The column exists only when `scan.enable_ci_score` is on.** Off by default,
+  it would otherwise be four cells of nothing on every row for the life of the
+  view. It does **not** declare `Optional`: its states already include two
+  absences that differ, and a column that vanished on a narrow terminal would add
+  a third that looks like them.
+- **A dash is "not yet", an empty cell is "never, not from here".** A repository
+  whose remote is not this context's forge cannot be graded, so it shows nothing;
+  one nobody has scanned shows `-`. `theme.CIScoreVerdict` is the one place that
+  decides, from the **state** and never from the rendered string — which is what
+  `ws` did for secrets and had to undo.
+- **A directory shows nothing.** Counts add up across nested repositories;
+  letters do not — the worst of three grades is the grade of nothing.
+- **The grade goes above the table, on the CI tab alone.** It is not a finding,
+  so it has no row; the header would show it on all five tabs, and a withheld
+  run's reason is a sentence that `buildInfoLines` cannot carry. The table
+  therefore loses two rows on that tab, which is the honest trade — reserving
+  them on all five spends them on four screens with nothing to put there.
+
 Two smaller things it needed: `toolCmd` gained an `Env` so the token reaches
 plumber through the environment rather than argv, which is readable from the
 process list; and the security view gained the secret store, because a rescan
