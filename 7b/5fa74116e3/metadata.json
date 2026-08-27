@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "7b5fa74116e3",
+  "strategy": "manual-commit",
+  "branch": "docs/352-ci-column-colour",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/security/header.go",
+    "internal/ui/security/header_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7b/5fa74116e3/0/metadata.json",
+      "transcript": "/7b/5fa74116e3/0/full.jsonl",
+      "compact_transcript": "/7b/5fa74116e3/0/transcript.jsonl",
+      "content_hash": "/7b/5fa74116e3/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 14263,
+    "cache_read_tokens": 4417206,
+    "output_tokens": 6159,
+    "api_call_count": 10
+  }
+}
