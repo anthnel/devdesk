@@ -52,7 +52,7 @@ func (a *App) handleWorkspaceScanResultLoaded(msg WorkspaceScanResultLoadedMsg) 
 		return a.rescanInOrigin(command.ViewWorkspaces, workspaces.ScanRequestMsg{TargetPath: msg.RepoPath})
 	}
 	return a, a.openSecurityView(
-		security.NewWithPreloadedResult(a.config, msg.Result),
+		security.NewWithPreloadedResult(a.config, a.sharedState.Secrets.Storage, msg.Result),
 		command.ViewWorkspaces,
 	)
 }
@@ -65,7 +65,7 @@ func (a *App) handleImageScanResultLoaded(msg ImageScanResultLoadedMsg) (tea.Mod
 		return a.rescanInOrigin(command.ViewOCIResources, ociresources.ScanRequestMsg{ImageName: msg.ImageName})
 	}
 	return a, a.openSecurityView(
-		security.NewWithPreloadedResult(a.config, msg.Result),
+		security.NewWithPreloadedResult(a.config, a.sharedState.Secrets.Storage, msg.Result),
 		command.ViewOCIResources,
 	)
 }

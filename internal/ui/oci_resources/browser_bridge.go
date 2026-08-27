@@ -89,7 +89,7 @@ func (m Model) handleRegistryTagDirectScan(msg RegistryTagDirectScanMsg) (tea.Mo
 		return m, m.footer.Warn("Scan already in progress")
 	}
 	job := imageScanJob{Name: msg.ImageName, Target: msg.ImageName}
-	return m, batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config.Scan))
+	return m, batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config))
 }
 
 // unscannedCount returns the number of images not yet scanned

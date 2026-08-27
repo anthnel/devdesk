@@ -34,7 +34,7 @@ func aliasedConfig() *config.Config {
 
 func aliasedModel(t *testing.T, targets ...scanTarget) Model {
 	t.Helper()
-	m := feed(t, New(aliasedConfig()), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, New(aliasedConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 	return feed(t, m, InventoryLoadedMsg{Targets: targets})
 }
 
@@ -139,7 +139,7 @@ func TestTheTargetColumnSearchesBothNames(t *testing.T) {
 // one field for both would name a directory that does not exist.
 func TestTheTitleShowsTheAliasAndTheKeyStaysWhole(t *testing.T) {
 	result := &scan.Result{Target: aliasedRef, TargetType: scan.TargetImage}
-	m := NewWithPreloadedResult(aliasedConfig(), result)
+	m := NewWithPreloadedResult(aliasedConfig(), nil, result)
 
 	if !strings.Contains(m.GetTitle(), "nx/agent-base:1.0") {
 		t.Errorf("GetTitle() = %q, want the alias", m.GetTitle())
@@ -152,7 +152,7 @@ func TestTheTitleShowsTheAliasAndTheKeyStaysWhole(t *testing.T) {
 // A repository result folds its home directory in the title, as the rows do.
 func TestARepositoryResultTitleFoldsTheHomeDirectory(t *testing.T) {
 	result := &scan.Result{Target: "/srv/ws/devdesk", TargetType: scan.TargetDirectory}
-	m := NewWithPreloadedResult(aliasedConfig(), result)
+	m := NewWithPreloadedResult(aliasedConfig(), nil, result)
 
 	if !strings.Contains(m.GetTitle(), "/srv/ws/devdesk") {
 		t.Errorf("GetTitle() = %q, want the repository path", m.GetTitle())

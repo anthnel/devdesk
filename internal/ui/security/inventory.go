@@ -2,13 +2,17 @@ package security
 
 import (
 	"fmt"
+	"log"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/forge/session"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -102,7 +106,7 @@ func (m Model) rescanSelected() (tea.Model, tea.Cmd) {
 	tick := m.spinnerTickIfIdle()
 	m.markScanning([]string{target.Name}, false)
 	job := inventoryScanJob{Kind: target.Kind, Name: target.Name}
-	return m, tea.Batch(tick, rescanCmd([]inventoryScanJob{job}, scan.OptionsFromConfig(m.config.Scan)))
+	return m, tea.Batch(tick, rescanCmd([]inventoryScanJob{job}, m.scanOptions()))
 }
 
 // spinnerTickIfIdle restarts the spinner chain, unless something is already
@@ -163,7 +167,7 @@ func (m Model) rescanAll(purge bool) (tea.Model, tea.Cmd) {
 	if purge {
 		cmds = append(cmds, purgeInventoryCmd(jobs))
 	}
-	cmds = append(cmds, rescanCmd(jobs, scan.OptionsFromConfig(m.config.Scan)))
+	cmds = append(cmds, rescanCmd(jobs, m.scanOptions()))
 	return m, tea.Batch(cmds...)
 }
 
@@ -324,4 +328,35 @@ func (m Model) renderEmptyInventory() string {
 	// strings.Join rather than lipgloss.JoinVertical, which inserts bare spaces
 	// the application background does not reach (Rule 115).
 	return lipgloss.NewStyle().Background(theme.ColorBackground).Render(strings.Join(lines, "\n"))
+}
+
+// scanOptions is the one place this view assembles scan options, so the forge
+// token loader cannot be forgotten at either of the two sites that rescan.
+func (m Model) scanOptions() scan.ScanOptions {
+	opts := scan.OptionsFromConfig(m.config)
+	opts.LoadForgeToken = forgeTokenLoader(m.secrets, m.config.Forge.URL)
+	return opts
+}
+
+// forgeTokenLoader loads the context's forge token once, on the scan goroutine.
+// A store or a URL that is not there yields no token rather than an error: a
+// scan without one still runs, and plumber says so itself by withholding the
+// score.
+func forgeTokenLoader(storage credentials.Storage, forgeURL string) func() string {
+	if storage == nil || forgeURL == "" {
+		return func() string { return "" }
+	}
+	var once sync.Once
+	var token string
+	return func() string {
+		once.Do(func() {
+			loaded, err := session.NewAuth(storage).LoadCredentials(forgeURL)
+			if err != nil {
+				log.Printf("ERROR [security/inventory] loading the forge token: %v", err)
+				return
+			}
+			token = loaded
+		})
+		return token
+	}
 }

@@ -2,7 +2,6 @@ package workspaces
 
 import (
 	"log"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -226,18 +225,8 @@ func (m *Model) applyGitStatus(repoPath string, status Entry) {
 // hand it to a third party over the wire. So the host has to match, and a
 // repository elsewhere fetches anonymously or fails saying so.
 func tokenForRemote(remoteURL, gitlabURL string, load func() string) string {
-	host := hostOf(normalizeRemoteURL(remoteURL))
-	if host == "" || !strings.EqualFold(host, hostOf(gitlabURL)) {
+	if !git.SameHost(remoteURL, gitlabURL) {
 		return ""
 	}
 	return load()
-}
-
-// hostOf returns a URL's host, lowercased and without a port.
-func hostOf(rawURL string) string {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return ""
-	}
-	return strings.ToLower(parsed.Hostname())
 }

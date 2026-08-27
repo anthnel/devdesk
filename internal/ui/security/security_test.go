@@ -106,7 +106,7 @@ func resultFixture() *scan.Result {
 // inventoryModel returns a laid-out model on the inventory, holding targets.
 func inventoryModel(t *testing.T, targets ...scanTarget) Model {
 	t.Helper()
-	m := feed(t, New(testConfig()), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 	return feed(t, m, InventoryLoadedMsg{Targets: targets})
 }
 
@@ -134,7 +134,7 @@ func inventoryFixtures() []scanTarget {
 // more — that was the form's path.
 func scannedModel(t *testing.T) Model {
 	t.Helper()
-	return feed(t, NewWithPreloadedResult(testConfig(), resultFixture()),
+	return feed(t, NewWithPreloadedResult(testConfig(), nil, resultFixture()),
 		tea.WindowSizeMsg{Width: 160, Height: 30})
 }
 

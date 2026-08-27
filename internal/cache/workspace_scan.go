@@ -31,7 +31,17 @@ type WorkspaceScanEntry struct {
 	// Ce que le pointeur ajoute est le cas qui manquait : une étape secrets
 	// coupée par l'option ou par un outil absent rendait `false`, c'est-à-dire
 	// « propre », d'un scan qui n'avait pas regardé.
-	Sensitive *bool     `json:"sensitive,omitempty"`
+	Sensitive *bool `json:"sensitive,omitempty"`
+	// CIScore is the pipeline grade, written by scan.Result.CIVerdict(), and it
+	// is a pointer for exactly Sensitive's reason: nil means nobody graded this
+	// repository — the option is off, plumber is absent, the repository is not
+	// this context's forge, or the run was withheld. A letter is a claim, and
+	// an empty string in its place would be a fifth state nothing means.
+	//
+	// The field has never been written, so an existing cache file decodes to
+	// nil, which is the truth about it. ImageScanEntry gains nothing: an image
+	// has no pipeline.
+	CIScore   *string   `json:"ci_score,omitempty"`
 	ScannedAt time.Time `json:"scanned_at"`
 }
 

@@ -38,7 +38,7 @@ func TestResultsViewWithNoFindings(t *testing.T) {
 	result := resultFixture()
 	result.Findings = nil
 
-	m := feed(t, NewWithPreloadedResult(testConfig(), result), testutil.Resize(160, 30))
+	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), testutil.Resize(160, 30))
 
 	if view := m.View(); strings.Contains(view, "Scan Warnings") {
 		t.Errorf("a clean scan is presented as a failure:\n%s", view)

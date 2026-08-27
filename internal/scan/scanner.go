@@ -68,6 +68,26 @@ type ScanOptions struct {
 	IgnoreEOL       bool   // Trivy: ignore end-of-life package vulnerabilities (--ignore-status end_of_life)
 	GitleaksHistory bool   // Gitleaks: scan git history (omit --no-git)
 	GitleaksConfig  string // Gitleaks: custom config file path
+
+	// EnableCIScore runs plumber over the repository's CI configuration.
+	EnableCIScore bool
+	// PlumberSource, PlumberPath, PlumberImage, PlumberConfig mirror the other
+	// two tools.
+	PlumberSource string
+	PlumberPath   string
+	PlumberImage  string
+	PlumberConfig string
+
+	// Forge is the platform this context targets, and it is what decides
+	// whether a repository is graded at all: a GitHub context grades its GitHub
+	// repositories and nothing else (§3.42). The scan resolves that per target
+	// rather than per batch, because one batch holds repositories with
+	// different remotes.
+	Forge config.ForgeConfig
+	// LoadForgeToken is called only for a repository whose remote is the
+	// configured forge, so one of another host never reaches the secret store.
+	// It runs on a scan goroutine, like the clone's tokenLoader.
+	LoadForgeToken func() string
 	// OnProgress is an optional callback invoked at each stage transition.
 	// It is called from scan goroutines; implementations must be thread-safe.
 	OnProgress func(ProgressUpdate)
@@ -119,8 +139,45 @@ type Result struct {
 	SecretsScanned bool      `json:"secrets_scanned"`
 	LicenseCount   int       `json:"license_count"`   // Total license issues found
 	MisconfigCount int       `json:"misconfig_count"` // Total misconfigurations found
+	CIIssueCount   int       `json:"ci_issue_count"`  // Total CI-configuration issues found
 	Findings       []Finding `json:"findings"`
 	Errors         []string  `json:"errors,omitempty"`
+
+	// CIScanned tells "this pipeline was graded" apart from "no one looked",
+	// exactly as SecretsScanned does one field up: the stage can fail to run
+	// four ways — the option is off, plumber is absent, the repository is not
+	// this context's forge, or the run errored — and in all four a letter would
+	// be a claim nobody made.
+	CIScanned bool `json:"ci_scanned"`
+	// CIScore is the letter, and it is **empty on a withheld run**. plumber
+	// writes one anyway, and it flatters: on the reference fixture the degraded
+	// run reads B/79 where the complete run reads E/30, because a control that
+	// did not run found nothing.
+	CIScore string `json:"ci_score,omitempty"`
+	// CIPoints is finalPoints out of 100.
+	CIPoints int `json:"ci_points,omitempty"`
+	// CIWithheld is a run that could not conclude, and CIReasons is what it
+	// could not collect. Together they are the `?` of the CI column.
+	CIWithheld bool     `json:"ci_withheld,omitempty"`
+	CIReasons  []string `json:"ci_reasons,omitempty"`
+	// CIMissing is a repository with no pipeline at all, which is not a bad
+	// score — it is the absence of the thing being scored.
+	CIMissing bool `json:"ci_missing,omitempty"`
+}
+
+// CIVerdict is what this scan can say about the pipeline's grade, for the cache
+// and the column: nil when nothing graded it, the letter otherwise.
+//
+// It is the only calculation of the verdict, on SecretVerdict's model and for
+// its reason — there were two of those, written the same way, and both became
+// wrong on the same day (§3.12). A withheld run answers nil rather than its
+// letter: nobody concluded, so nobody may be quoted.
+func (r *Result) CIVerdict() *string {
+	if !r.CIScanned || r.CIWithheld || r.CIScore == "" {
+		return nil
+	}
+	score := r.CIScore
+	return &score
 }
 
 // CountFindings aggregates findings into separate counters by category and
@@ -135,6 +192,7 @@ func (r *Result) CountFindings() {
 	r.SecretCount = 0
 	r.LicenseCount = 0
 	r.MisconfigCount = 0
+	r.CIIssueCount = 0
 	for _, f := range r.Findings {
 		switch Categorize(f) {
 		case CategorySecret:
@@ -143,6 +201,8 @@ func (r *Result) CountFindings() {
 			r.LicenseCount++
 		case CategoryMisconfiguration:
 			r.MisconfigCount++
+		case CategoryCIScore:
+			r.CIIssueCount++
 		case CategoryVulnerability:
 			r.countBySeverity(f.Severity)
 		}
@@ -185,7 +245,7 @@ func (r *Result) SecretVerdict() *bool {
 // TotalFindings returns the total number of findings across all types
 func (r *Result) TotalFindings() int {
 	return r.Counts.Critical + r.Counts.High + r.Counts.Medium + r.Counts.Low + r.Counts.Unknown +
-		r.SecretCount + r.LicenseCount + r.MisconfigCount
+		r.SecretCount + r.LicenseCount + r.MisconfigCount + r.CIIssueCount
 }
 
 // ToolSource indicates how a tool is available
@@ -421,6 +481,43 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 				result.Findings = append(result.Findings, findings...)
 				notify(ProgressUpdate{Stage: "license", Label: "Licenses", Status: StageDone})
 			}
+			return nil
+		})
+	}
+
+	// CI configuration score (plumber, directories only). An image has no
+	// pipeline, so there is nothing to grade and the tab is empty on one.
+	//
+	// The target decides, not the batch: ciOptions reads this repository's own
+	// remote and refuses one that is not this context's forge.
+	if ciOpts, ok := s.ciOptions(target, targetType); ok {
+		opts := ciOpts
+		eg.Go(func() error {
+			notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageRunning})
+			progressFn := func(detail string) {
+				notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageRunning, Detail: detail})
+			}
+			log.Printf("Running: %s", GetPlumberCommand(target, s.deps.PlumberSpec(), opts))
+			report, err := RunPlumber(egCtx, target, s.deps.PlumberSpec(), opts, progressFn)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("plumber: %v", err))
+				notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageError, Detail: err.Error()})
+				return nil
+			}
+			// CIScanned is written by a stage that succeeds, exactly as
+			// SecretsScanned is — a withheld run counts as having looked, which
+			// is why it is set here and Withheld is carried beside it rather
+			// than instead of it.
+			result.CIScanned = true
+			result.CIScore = report.Score
+			result.CIPoints = report.Points
+			result.CIWithheld = report.Withheld
+			result.CIReasons = report.Reasons
+			result.CIMissing = report.CIMissing
+			result.Findings = append(result.Findings, report.Findings...)
+			notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageDone})
 			return nil
 		})
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -30,8 +31,11 @@ const (
 // Model represents the security scanner view
 type Model struct {
 	config *config.Config
-	width  int
-	height int
+	// secrets is the context's store, used only to load the forge token for a
+	// CI scan. Nothing else here reads a credential.
+	secrets credentials.Storage
+	width   int
+	height  int
 
 	state  ViewState
 	result *scan.Result
@@ -89,7 +93,12 @@ type Model struct {
 }
 
 // New creates a new security scanner view, on the inventory.
-func New(cfg *config.Config) Model {
+// New builds the view. The secret store comes in at construction, like
+// workspaces': the CI stage needs the context's forge token, and a rescan
+// started here must produce the same grade as the same rescan started from ws —
+// two screens grading one repository differently is the shape §3.11 and §3.12
+// each had to undo.
+func New(cfg *config.Config, secrets credentials.Storage) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
@@ -104,6 +113,7 @@ func New(cfg *config.Config) Model {
 
 	return Model{
 		config:        cfg,
+		secrets:       secrets,
 		state:         StateInventory,
 		inventory:     newInventoryTable(),
 		spinner:       s,
@@ -143,8 +153,8 @@ func matchesSeverity(f scan.Finding, active map[string]bool) bool {
 
 // NewWithPreloadedResult creates a security view showing a stored scan result.
 // Used to display cached results without re-scanning (Rule 126).
-func NewWithPreloadedResult(cfg *config.Config, result *scan.Result) Model {
-	m := New(cfg)
+func NewWithPreloadedResult(cfg *config.Config, secrets credentials.Storage, result *scan.Result) Model {
+	m := New(cfg, secrets)
 	m.state = StateResults
 	m.result = result
 	m.targetPath = result.Target

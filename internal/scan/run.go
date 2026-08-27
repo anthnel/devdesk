@@ -21,6 +21,13 @@ import (
 type toolCmd struct {
 	Name string
 	Args []string
+	// Env is the child's whole environment when it is not nil, os.Environ()
+	// plus what the caller added. It exists so a credential can reach a tool
+	// without going through argv, which is readable from the process list —
+	// the arrangement the clone already uses for http.extraHeader (§3.16).
+	//
+	// String() never renders it: the invocation is logged and shown in the UI.
+	Env []string
 }
 
 // String renders the invocation as a shell command line, for logs and for the
@@ -67,7 +74,8 @@ type commandRunner interface {
 type cliRunner struct{}
 
 func (cliRunner) Run(ctx context.Context, tc toolCmd, progressFn func(string)) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, tc.Name, tc.Args...) //nolint:gosec // name is one of trivy/gitleaks/docker
+	cmd := exec.CommandContext(ctx, tc.Name, tc.Args...) //nolint:gosec // name is one of trivy/gitleaks/plumber/docker
+	cmd.Env = tc.Env                                     // nil inherits this process's environment, which is the default
 
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout

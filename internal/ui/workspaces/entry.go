@@ -89,35 +89,10 @@ func extractRemotePath(rawURL string) string {
 	return rawURL
 }
 
-// normalizeRemoteURL converts any git remote URL to a plain HTTPS URL suitable for a browser.
-// Examples:
-//
-//	"git@gitlab.com:group/project.git"            → "https://gitlab.com/group/project"
-//	"https://token@gitlab.com/group/project.git"  → "https://gitlab.com/group/project"
+// normalizeRemoteURL delegates to internal/git, which owns the rule since
+// §3.42 needed the same host comparison from a domain package.
 func normalizeRemoteURL(rawURL string) string {
-	// SCP-like syntax: git@host:path
-	if idx := strings.Index(rawURL, ":"); idx != -1 && !strings.Contains(rawURL[:idx], "/") {
-		after := rawURL[idx+1:]
-		if !strings.HasPrefix(after, "//") {
-			host := rawURL[:idx]
-			if at := strings.Index(host, "@"); at != -1 {
-				host = host[at+1:]
-			}
-			return "https://" + host + "/" + strings.TrimSuffix(after, ".git")
-		}
-	}
-	// URL syntax: strip credentials and .git suffix
-	if idx := strings.Index(rawURL, "://"); idx != -1 {
-		scheme := rawURL[:idx]
-		rest := rawURL[idx+3:]
-		if at := strings.Index(rest, "@"); at != -1 {
-			if slash := strings.Index(rest, "/"); slash == -1 || at < slash {
-				rest = rest[at+1:]
-			}
-		}
-		return scheme + "://" + strings.TrimSuffix(rest, ".git")
-	}
-	return rawURL
+	return git.NormalizeRemoteURL(rawURL)
 }
 
 // detectSubRepoPaths returns the git repositories under basePath, at any depth.

@@ -21,7 +21,7 @@ import (
 func TestNewWithPreloadedResultOpensOnTheResults(t *testing.T) {
 	result := resultFixture()
 
-	m := feed(t, NewWithPreloadedResult(testConfig(), result), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), tea.WindowSizeMsg{Width: 160, Height: 30})
 
 	if m.state != StateResults {
 		t.Errorf("state = %v, want StateResults", m.state)
@@ -224,7 +224,7 @@ func TestEnterOpensTheDetailsOfTheHighlightedFinding(t *testing.T) {
 func TestEnterOnAnEmptyTabDoesNothing(t *testing.T) {
 	result := resultFixture()
 	result.Findings = nil
-	m := feed(t, NewWithPreloadedResult(testConfig(), result),
+	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result),
 		tea.WindowSizeMsg{Width: 160, Height: 30}, testutil.Key("enter"))
 
 	if m.state != StateResults {
@@ -488,7 +488,7 @@ func TestTheSecretsTabShowsGitleaksAndTrivyAlike(t *testing.T) {
 	})
 	result.CountFindings()
 
-	m := feed(t, NewWithPreloadedResult(testConfig(), result), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m.switchTab(TabSecrets)
 
 	sources := map[string]bool{}
@@ -567,7 +567,7 @@ func TestIgnoringIsOfferedForGitleaksFindingsOnly(t *testing.T) {
 		Source: scan.SourceTrivySecret, File: "app/.env", Line: 3,
 	})
 	result.CountFindings()
-	m := feed(t, NewWithPreloadedResult(testConfig(), result), tea.WindowSizeMsg{Width: 160, Height: 30})
+	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), tea.WindowSizeMsg{Width: 160, Height: 30})
 	m.switchTab(TabSecrets)
 
 	// The fixtures put the Gitleaks finding first.

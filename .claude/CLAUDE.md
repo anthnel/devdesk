@@ -1653,6 +1653,50 @@ host path that does not exist **creates a directory** there rather than failing
 (measured on Docker Desktop 29.7.2). `scan.plumber_config` (§3.42) is the same
 setting for another tool and copies all four points.
 
+**The CI score — plumber, and only this context's forge** (§3.42). `plumber`
+grades a repository's CI configuration: a letter A–E, points out of 100, and the
+issues that explain them. Five rules hold it together, each measured on 0.4.40
+and 0.4.42 rather than read out of the documentation, which this section was
+twice wrong from:
+
+- **A context targets one forge, so it grades that forge's repositories and no
+  others.** A repository of another host is not scanned anonymously — it is not
+  scannable, and the cell is empty. That is §3.17's rule (`git.SameHost`, which
+  moved out of `internal/ui/workspaces` so a domain package could ask it too),
+  and `LoadForgeToken` is called only once the host has matched, so a foreign
+  repository never reaches the secret store.
+- **It is resolved per target, never per batch.** One batch holds repositories
+  with different remotes and different branches; `Scanner.ciOptions` reads *this*
+  repository's own remote. `OptionsFromConfig` therefore takes the whole
+  `*config.Config`, because which forge a context targets is not a scan setting.
+- **`--provider` is declared from the configuration, never sniffed.** And a
+  GitHub context never passes `--gitlab-url`: that flag is part of how plumber
+  decides to take the GitLab path at all.
+- **The exit code says which of three things happened**, and the report is not
+  consulted to guess: `0`/`1` a grade, `3` a **withheld** score, `2` a failure.
+  Only `2` fails the stage.
+- **The letter of a withheld run is never quoted.** plumber writes one anyway,
+  and it flatters: on the two committed fixtures the degraded run reads **B/79**
+  where the complete run reads **E/30**, because a control that did not run found
+  nothing. `Result.CIVerdict()` is the one place that decides, on
+  `SecretVerdict()`'s model — nil when nobody graded, and a withheld run counts
+  as nobody.
+
+Two smaller things it needed: `toolCmd` gained an `Env` so the token reaches
+plumber through the environment rather than argv, which is readable from the
+process list; and the security view gained the secret store, because a rescan
+from `:sec` must grade what the same rescan from `ws` grades.
+
+`--score` is not optional: an issue carries no severity of its own, it lives in
+`plumberScore.codeLosses[]` indexed by `code`, so without it every finding would
+be UNKNOWN. `--print=false` is what keeps stdout parseable. The JSON leaves by
+two routes and the asymmetry is measured: `--output /dev/stdout` works in a
+container and writes **nothing** from a native Windows binary, which therefore
+writes to a temp file. A containerised plumber also needs `safe.directory`
+through the environment, or git refuses the mount as dubious ownership (the image
+runs as uid 65532) and plumber answers *not in a git repository*; `--provider`
+alone does not lift it.
+
 **`scan.Categorize` is the only thing that decides a finding's family.** There
 were two rules: `Result.CountFindings` switched on `Source` alone, the security
 view's tabs on `Source` plus `PkgName` plus `Match`. Three inputs separated them
