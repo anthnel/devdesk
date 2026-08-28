@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "66cc72f546f9",
+  "strategy": "manual-commit",
+  "branch": "fix/open-defects",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/architecture/configuration.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/command_line.go",
+    "internal/app/context.go",
+    "internal/app/leave_test.go",
+    "internal/ui/configuration/leave_test.go",
+    "internal/ui/configuration/model.go",
+    "internal/ui/configuration/update.go",
+    "internal/ui/configuration/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/66/cc72f546f9/0/metadata.json",
+      "transcript": "/66/cc72f546f9/0/full.jsonl",
+      "compact_transcript": "/66/cc72f546f9/0/transcript.jsonl",
+      "content_hash": "/66/cc72f546f9/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 102,
+    "cache_creation_tokens": 215347,
+    "cache_read_tokens": 8430937,
+    "output_tokens": 32076,
+    "api_call_count": 51
+  }
+}
