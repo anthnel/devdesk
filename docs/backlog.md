@@ -11,15 +11,16 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Trois ouverts : D59, D62 et D63** — voir [§1.3](#13-open). D59 n'est ouvert qu'à
-moitié ; **D62** est entier, et c'est celui qui se voit le moins : un chemin
-saisi dans la vue configuration et quitté sans bouger le curseur n'est jamais
-écrit, et le champ continue de l'afficher au retour. L'écran et le fichier
-divergent sans que rien ne le dise. **D63** est de la même famille, un cran plus
-haut : une touche annoncée qui n'agit pas. Ses deux instances connues sont
-corrigées, mais rien n'empêche la troisième — et la raison est structurelle, la
-touche annoncée étant une chaîne d'affichage sans relation mécanique avec la
-touche liée.
+**Deux ouverts : D59 et D63** — voir [§1.3](#13-open). D59 n'est ouvert qu'à
+moitié. **D63** est une famille plutôt qu'un défaut : une touche annoncée qui
+n'agit pas. Ses deux instances connues sont corrigées, mais rien n'empêche la
+troisième — et la raison est structurelle, la touche annoncée étant une chaîne
+d'affichage sans relation mécanique avec la touche liée.
+
+**D62 est fermé le 2026-08-28** — voir [§1.1](#11-fixed). C'était celui qui se
+voyait le moins : un chemin saisi dans la vue configuration et quitté sans
+bouger le curseur n'était jamais écrit, et le champ continuait de l'afficher au
+retour, donc l'écran et le fichier divergeaient sans que rien ne le dise.
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -49,10 +50,11 @@ dépôts situés plus bas que trois niveaux, et ceux derrière un lien symboliqu
 sans jamais dire combien il en écartait. La limite de profondeur est supprimée ;
 le lien symbolique reste ouvert.
 
-Et **D62**, ouvert le 2026-08-27, qui n'a rien à voir avec les précédents : il
-est dans la vue configuration, pas dans ce qu'elle configure. Trouvé en
-cherchant pourquoi `scan.plumber_config` semblait ignoré par plumber — il ne
-l'était pas, il n'avait jamais été écrit.
+**D62** n'avait rien à voir avec les précédents : il était dans la vue
+configuration, pas dans ce qu'elle configure. Trouvé en cherchant pourquoi
+`scan.plumber_config` semblait ignoré par plumber — il ne l'était pas, il
+n'avait jamais été écrit. Le routeur a gagné le point de sortie qu'il n'avait
+pas (`LeavingView`), et `esc` fait enfin quelque chose.
 
 D39, before them, was the registry browser addressing a group's
 members one way to browse them and another way to pull them; it is closed by
@@ -72,6 +74,101 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D62 — un champ texte de la vue configuration quitté sans bouger le curseur
+n'était jamais écrit, et l'écran continuait d'afficher la valeur saisie.
+Corrigé.** Signalé à l'usage le 2026-08-27, reproduit sur le log et le fichier
+de contexte le jour même, fermé le 2026-08-28.
+
+Saisi : `scan.plumber_config`. Ce qu'en disait le fichier après coup :
+
+```
+~/.devdesk/config-dev.yaml:199    plumber_config: ""
+```
+
+et les trois runs qui ont suivi, aucun ne portait `--config`.
+
+**La cause tenait en une ligne : rien ne committait le champ focusé quand la vue
+était quittée.** `commitFocused()` n'était appelé que depuis `switchTab` et
+`moveField`, donc un champ texte n'était appliqué et persisté que par `tab`,
+`shift+tab`, `↑` ou `↓`. Le log dit exactement ça :
+
+```
+14:10:22 Switching to view: configuration
+14:10:44 Switching to view: workspaces        ← ctrl+p, sans avoir bougé le curseur
+```
+
+et le fichier est resté daté de 14:07.
+
+**Ce qui le rendait durable plutôt que passager, et c'était le vrai défaut.**
+Les vues sont mises en cache par le routeur et `configuration.Init()` ne fait
+rien : au retour dans `:cfg`, `focusedField` et `m.input` étaient tels qu'ils
+étaient, donc **le champ affichait toujours le chemin saisi pendant que le
+fichier tenait l'ancienne valeur**. Rien à l'écran ne distinguait une valeur
+écrite d'une valeur seulement tapée, et c'est ce qui a fait chercher le défaut
+du côté du scan : la vue confirmait le réglage à chaque visite.
+
+Ce n'était pas propre à plumber. Tout `kindText` et tout `kindInteger` des six
+onglets était concerné, et le pire cas était `forge.url` — le commit porte
+`saved{forgeChanged: true}` et le message qui dit de se reconnecter, donc le
+quitter sans committer laissait une session ouverte contre une adresse que
+l'utilisateur croyait avoir changée, sans le message.
+
+#### Le choix qui restait à faire, et ce qui l'a tranché
+
+L'entrée laissait deux réponses ouvertes pour un refus sur le chemin de sortie —
+`commitFocused` peut refuser, et un refus n'a plus de curseur où retomber
+puisque la vue s'en va :
+
+1. le routeur gagne un point « cette vue est quittée » et un refus **annule le
+   changement de vue** ;
+2. le champ est committé à la sortie et un refus **abandonne la saisie** en le
+   disant au footer.
+
+**La 1, et pour une raison technique plutôt que par préférence : la 2 ne peut
+pas dire ce qu'elle fait.** Le footer appartient à la vue (Rule 128), et la vue
+est précisément ce qui quitte l'écran — le message expliquant la valeur
+abandonnée partirait avec elle. Une réponse indicible est la même silence d'un
+étage plus bas, c'est-à-dire ce défaut-ci.
+
+#### Ce qui a été fait
+
+**`app.LeavingView`**, une cinquième interface optionnelle du routeur :
+`Leave() (tea.Model, tea.Cmd, bool)`. `switchView` l'appelle avant de changer de
+vue, `switchContext` avant de changer de contexte — le second parce qu'il
+reconstruit toutes les vues contre un autre fichier, donc une saisie non
+committée y serait perdue *et* perdue contre la mauvaise config. Un `false`
+annule le changement et **transmet le `Cmd` de la vue** à sa place, donc le refus
+n'est pas silencieux. Réentrer dans la vue déjà à l'écran ne commit rien : `:cfg`
+depuis `:cfg` n'est pas une sauvegarde.
+
+La configuration est la seule vue qui l'implémente, et c'est normal — c'est la
+seule qui garde une valeur dans un widget plutôt que dans son modèle jusqu'à ce
+qu'une touche bouge le curseur.
+
+**`esc` commit sans bouger.** Elle tombait dans la branche « tout le reste
+appartient à l'input » et allait au `textinput`, qui l'ignore : la seule touche
+qu'on essaie pour « fermer » un champ ne faisait rien du tout. Elle re-bind
+l'input ensuite, donc `007` dans un champ entier devient le `7` réellement
+stocké — distinguer une valeur écrite d'une valeur tapée est l'autre moitié de
+ce qui rendait le défaut durable.
+
+`esc` est annoncée bien que Rule 138 la range parmi les touches évidentes,
+parce que ce qu'elle fait ici ne l'est pas ; et elle est **grisée là où elle ne
+ferait rien** (Rule 130). `settlesOnBlur` est cette question, et c'est exactement
+l'ensemble sur lequel `commitFocused` agit : texte, entier, `Forge` et
+`Secret backend`. Une case et un champ à cycle ordinaire ont déjà écrit au
+moment où le curseur pourrait partir — griser et ne rien faire coïncident, ce
+qui est la forme que Rule 130 demande.
+
+Neuf tests : les quatre du côté vue (`Leave` écrit, `Leave` porte les
+conséquences de `forge.url`, un refus refuse de partir, `esc` écrit sans bouger,
+`esc` montre ce qui est stocké, et le grisage par champ) et six du côté routeur,
+dont **`TestAViewWithoutTheInterfaceIsLeftUntouched`** — le repli silencieux est
+le comportement de toutes les autres vues et il mérite d'être tenu, c'est la
+leçon de `TestEveryViewSuppliesItsHeaderAndHelp`.
+
+---
 
 **D56 — `scan.gitleaks_config` ne pouvait pas fonctionner en mode Docker, et
 son échec se lisait « aucun secret ». Corrigé.** Trouvé en écrivant
@@ -1762,82 +1859,6 @@ and D11 each had one, and each failed the moment the fix landed, which is how
 the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
-
-**D62 — un champ texte de la vue configuration quitté sans bouger le curseur
-n'est jamais écrit, et l'écran continue d'afficher la valeur saisie.** Signalé à
-l'usage le 2026-08-27, reproduit sur le log et le fichier de contexte le jour
-même.
-
-Saisi : `scan.plumber_config`. Ce qu'en dit le fichier après coup :
-
-```
-~/.devdesk/config-dev.yaml:199    plumber_config: ""
-```
-
-et les trois runs qui ont suivi, aucun ne porte `--config` :
-
-```
-14:01:28 … plumber analyze --score --print=false --output <report> --provider gitlab --branch main --gitlab-url …
-14:08:28 … (idem)
-14:10:58 … (idem)
-```
-
-**La cause tient en une ligne : rien ne commit le champ focusé quand la vue est
-quittée.** `commitFocused()` n'est appelé que depuis `switchTab` et `moveField`
-(`internal/ui/configuration/update.go:80` et `:93`), donc un champ texte n'est
-appliqué et persisté que par `tab`, `shift+tab`, `↑` ou `↓`. Le log dit
-exactement ça :
-
-```
-14:10:22 Switching to view: configuration
-14:10:44 Switching to view: workspaces        ← ctrl+p, sans avoir bougé le curseur
-```
-
-et le fichier est resté daté de 14:07.
-
-**Ce qui le rend durable plutôt que passager, et c'est le vrai défaut.** Les vues
-sont mises en cache par le routeur (`switchView`, lazy loading) et
-`configuration.Init()` ne fait rien : au retour dans `:cfg`, `focusedField` et
-`m.input` sont tels qu'ils étaient, donc **le champ affiche toujours le chemin
-saisi pendant que le fichier tient l'ancienne valeur**. Les deux divergent aussi
-longtemps qu'on ne bouge pas le curseur, et rien à l'écran ne distingue une
-valeur écrite d'une valeur seulement tapée. C'est ce qui a fait chercher le
-défaut du côté du scan : la vue confirmait le réglage à chaque visite.
-
-**`esc` ne rattrape rien non plus.** `handleKey` ne le traite pas ; il tombe dans
-la branche « tout le reste appartient à l'input » et va au `textinput`, qui
-l'ignore. La seule touche qu'on essaie pour « fermer » un champ ne fait donc
-rien du tout — ni commit, ni sortie.
-
-**Ce n'est pas propre à plumber.** Tout `kindText` et tout `kindInteger` des six
-onglets est concerné : `trivy_server`, `gitleaks_config`, `workspaces_dir`, les
-trois limites, les chemins de binaires. Le pire cas est `forge.url` — le commit
-porte `saved{forgeChanged: true}` et le message qui dit de se reconnecter, donc
-le quitter sans committer laisse une session ouverte contre une adresse que
-l'utilisateur croit avoir changée, sans le message.
-
-**Ce que la correction doit trancher.** `commitFocused` peut **refuser**
-(`ok=false`) : un entier illisible ou une adresse Trivy malformée garde le
-curseur sur le champ (Rule 128 — la valeur refusée n'est pas écrite). Un refus
-sur le chemin de sortie n'a plus de curseur où retomber, puisque la vue s'en va.
-Il y a donc une décision à prendre, pas seulement un appel à ajouter :
-
-- soit le routeur gagne un point « cette vue est quittée » — il n'en a aucun
-  aujourd'hui, `switchView` ne prévient personne — et un refus **annule le
-  changement de vue**, ce qui répond à Rule 128 mais fait qu'un `:ws` reste sans
-  effet ;
-- soit le champ est committé à la sortie et un refus **abandonne la saisie** en
-  le disant au footer, ce qui laisse partir mais ne perd plus rien en silence.
-
-La première est la plus cohérente avec le reste de la vue ; la seconde est la
-seule qui ne peut pas retenir l'utilisateur dans un écran. Dans les deux cas
-`esc` doit committer et sortir, ce qui est le geste que le défaut a montré qu'on
-attend.
-
-**Contournement en attendant :** taper la valeur, puis `↓` (ou `tab`) avant de
-quitter.
-
----
 
 **D63 — une touche annoncée qui n'agit pas. Deux instances corrigées, la
 famille reste ouverte.** Trouvées le 2026-08-27 en câblant `o` sur l'onglet CI,

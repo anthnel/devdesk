@@ -30,6 +30,22 @@ type FormView interface {
 	InEditMode() bool
 }
 
+// LeavingView is implemented by a view that holds an edit the user has not
+// settled yet, and that would otherwise be lost when the router switches away.
+//
+// The router had no such point at all: switchView told nobody, so the
+// configuration view's focused text field was written only by ↑↓ or tab. A path
+// typed and abandoned with ctrl+p went nowhere, and the cached view kept showing
+// it (§1.3 D62).
+//
+// Leave returns the settled view, whatever the settling has to say, and whether
+// it may happen. A refusal cancels the switch — the alternative, letting the
+// user go and reporting the abandoned value in the footer, cannot report
+// anything: the footer belongs to the view, and the view is what leaves.
+type LeavingView interface {
+	Leave() (tea.Model, tea.Cmd, bool)
+}
+
 // FilterBarView is implemented by views that have a visible filter bar.
 // When the filter bar is visible, the viewport bottom border corners are
 // replaced with T-junction chars (├/┤) to form a closed rectangle.

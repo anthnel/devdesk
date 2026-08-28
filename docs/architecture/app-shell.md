@@ -99,6 +99,19 @@ live in `internal/ui/keymap`.
 
 **Important:** The `FormView` interface (`InEditMode()`) prevents command mode activation when forms are active. Views with active forms must implement this interface.
 
+**`LeavingView` is the point the router did not have.** `switchView` told
+nobody it was switching, so a view holding an edit in a widget rather than in
+its model lost it without a word — §1.3 D62, in the configuration form.
+`Leave() (tea.Model, tea.Cmd, bool)` returns the settled view, whatever it wants
+to say, and whether it may be left; `false` cancels the switch and passes the
+view's own `Cmd` on in place of it. `switchContext` calls it too, since it
+rebuilds every view against a different file.
+
+The interface is optional and probed for silently, like the other four — the
+configuration view is the only one that implements it, and every other view is
+left without ceremony. Re-entering the view already on screen settles nothing:
+`:cfg` from `:cfg` is not a save.
+
 ## The keyboard — `internal/ui/keymap`
 
 **Four namespaces, and the whole point is that a test can check them.** The

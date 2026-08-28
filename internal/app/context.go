@@ -41,8 +41,16 @@ type ContextListMsg struct {
 	Current  string
 }
 
-// switchContext handles context switching with auto-creation
+// switchContext handles context switching with auto-creation.
+//
+// It settles the current view first, for the reason switchView does: a context
+// switch rebuilds every view against a different file, so an uncommitted edit
+// would be dropped — and dropped against the config it was *not* meant for.
 func (a *App) switchContext(contextName string) tea.Cmd {
+	if cmd, ok := a.settleCurrentView(); !ok {
+		return cmd
+	}
+
 	return func() tea.Msg {
 		log.Printf("Context switch requested: %s", contextName)
 

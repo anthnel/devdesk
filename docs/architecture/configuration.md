@@ -136,6 +136,35 @@ the focus indicator, so the view must not add a second.
 malformed Trivy address is reported (Rule 128) and *not* written — coercing to
 zero is how `trivy_server: ":"` reached a config file in the first place.
 
+**"On blur" includes leaving the view, and that is what D62 was.** `commitFocused`
+was reached from `switchTab` and `moveField` only, so `↑↓` and `tab` wrote and
+nothing else did: a path typed and then abandoned with `ctrl+p` was never
+applied. The router caches this view and `Init()` does nothing, so coming back
+to `:cfg` showed the typed value while the file held the old one — the screen
+confirmed the setting on every visit, which is what sent the search for the
+defect into the scanner instead.
+
+Two things close it:
+
+- **`Leave()`**, the view's half of `app.LeavingView`. The router calls it
+  before `switchView` and before `switchContext`, and a refusal **cancels the
+  switch**. That is not a preference between the two options the backlog left
+  open: the footer belongs to the view, so letting the user go and reporting the
+  abandoned value there would post the message onto the screen that is leaving.
+  The other answer cannot be *said*, and an unsayable answer is the same silence
+  one layer down.
+- **`esc` commits without moving.** It used to fall through to the input, which
+  ignores it — the one gesture a user tries to close a field was the one that
+  settled nothing. It re-binds the input afterwards, so `007` in an integer
+  field becomes the `7` that was actually stored: telling a written value from a
+  merely typed one is the other half of what made the defect durable.
+
+`esc` is announced although Rule 138 calls the key obvious, because what it does
+here is not, and it is greyed on the fields where it would do nothing —
+`settlesOnBlur` is that question, and it is exactly the set `commitFocused` acts
+on: text, integer, `Forge` and `Secret backend`. A checkbox and an ordinary
+cycle field have already written by the time the cursor could leave.
+
 Two settings are special-cased, matched by label:
 
 - **Theme** applies as it is cycled, not on blur — otherwise the user chooses
