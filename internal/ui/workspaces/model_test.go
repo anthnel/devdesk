@@ -1120,14 +1120,14 @@ func TestDetectSubRepoPaths(t *testing.T) {
 		{"hidden files on", true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := detectSubRepoPaths(root, tc.showHidden)
+			got := detectSubRepos(root, tc.showHidden).Repos
 
 			found := map[string]bool{}
 			for _, p := range got {
 				found[p] = true
 			}
 			if !found[shallow] || !found[nested] {
-				t.Errorf("detectSubRepoPaths = %v, want both %q and %q", got, shallow, nested)
+				t.Errorf("detectSubRepos = %v, want both %q and %q", got, shallow, nested)
 			}
 			if found[filepath.Join(shallow, "vendor", "inner")] {
 				t.Error("a repo nested inside another repo was reported")
@@ -1149,9 +1149,9 @@ func TestARepositoryIsFoundHoweverDeepItSits(t *testing.T) {
 		t.Fatalf("creating the deep repo: %v", err)
 	}
 
-	got := detectSubRepoPaths(root, false)
+	got := detectSubRepos(root, false).Repos
 	if len(got) != 1 || got[0] != deep {
-		t.Errorf("detectSubRepoPaths = %v, want the repository eight levels down (%q)", got, deep)
+		t.Errorf("detectSubRepos = %v, want the repository eight levels down (%q)", got, deep)
 	}
 }
 
@@ -1169,15 +1169,22 @@ func TestTheWalkStopsAtEveryRepositoryItFinds(t *testing.T) {
 		t.Fatalf("creating the outer repo: %v", err)
 	}
 
-	got := detectSubRepoPaths(root, false)
+	got := detectSubRepos(root, false).Repos
 	if len(got) != 1 || got[0] != repo {
-		t.Errorf("detectSubRepoPaths = %v, want only the outer repository %q", got, repo)
+		t.Errorf("detectSubRepos = %v, want only the outer repository %q", got, repo)
 	}
 }
 
-func TestDetectSubRepoPathsOnAMissingDirectory(t *testing.T) {
-	if got := detectSubRepoPaths(filepath.Join(t.TempDir(), "nope"), false); len(got) != 0 {
-		t.Errorf("detectSubRepoPaths = %v on a missing directory, want nothing", got)
+// A missing directory finds nothing and counts as one place it could not look:
+// the caller is entitled to know the answer is "I could not tell" rather than
+// "there are none".
+func TestDetectSubReposOnAMissingDirectory(t *testing.T) {
+	got := detectSubRepos(filepath.Join(t.TempDir(), "nope"), false)
+	if len(got.Repos) != 0 {
+		t.Errorf("detectSubRepos = %v on a missing directory, want nothing", got.Repos)
+	}
+	if got.Skipped != 1 {
+		t.Errorf("Skipped = %d on a missing directory, want 1", got.Skipped)
 	}
 }
 

@@ -80,22 +80,53 @@ under it, anything else does nothing. Two actions with one targeting rule is one
 thing to learn; the shortcuts appear and disappear together for the same reason.
 
 **"Nested under it" means at any depth**, and it did not until D59 was fixed:
-`detectSubRepoPaths` carried a literal `3`, so a repository at
-`monorepos/client/2026/api` was invisible to `S`, `F` and `A` while the
-directory holding it browsed normally — and nothing on screen said a limit had
-been applied. What bounds the walk is that **it stops at every repository it
-finds**, so a repository's own `node_modules` is never entered; that prune was
-always the one doing the work, and the depth limit was covering for nothing.
-Measured before removing it: unbounded is as fast or faster over `~/projects`,
-and 283 ms against 37 ms over the Go module cache — tens of thousands of
-directories with no repository anywhere to prune it, which is the worst case and
-runs in a `Cmd`.
+the walk carried a literal `3`, so a repository at `monorepos/client/2026/api`
+was invisible to `S`, `F` and `A` while the directory holding it browsed
+normally — and nothing on screen said a limit had been applied. What bounds the
+walk is that **it stops at every repository it finds**, so a repository's own
+`node_modules` is never entered; that prune was always the one doing the work,
+and the depth limit was covering for nothing.
 
-The other half of D59 is still open: the walk filters on `DirEntry.IsDir()`,
-which reports on a symlink rather than on its target, so a repository behind one
-is not found — and the same filter in `table.go` lists the link as a *file*.
-Whoever fixes that needs a cycle guard, which the depth limit used to provide by
-accident.
+**It also means behind a link.** `DirEntry.IsDir()` reports on the link rather
+than on its target, so a junction to a directory full of repositories said
+`false` and the whole subtree was invisible — while the same filter in
+`table.go` listed the link as a *file*, neither browsable nor scannable, with
+nothing saying why. `leadsToDir` answers for both, and answers by `os.Stat`
+because a Windows junction is `ModeIrregular` in one Go release and
+`ModeSymlink` in another. A plain file costs no syscall, which is what keeps it
+affordable on a tree with no links in it.
+
+**The cycle guard is `os.SameFile`, and that is not a preference.**
+`filepath.EvalSymlinks` does **not** resolve a junction — it hands back the
+link's own path — so a resolved-path guard sees two names for one directory and
+never fires; measured here, `os.Readlink` answers for a junction and
+`EvalSymlinks` does not. `mayFollow` asks two questions, and only a link pays
+for either: is the target on the path we came by (a loop), and has it been
+entered through another link already (a duplicate — the same repositories under
+a second name, and a second scan of each). The climb goes to the filesystem
+root rather than to the base, because a link *above* the base drags the base
+back in with it.
+
+**A repository is recognised from the directory's own listing** (`holdsRepo`),
+not from `os.Stat`. `.git` catches a working tree and a worktree alike; a
+*bare* repository has `HEAD`, `objects` and `refs` at the root and was missed
+entirely, which is a scan target quietly dropped. Three names instead of one
+means three failed stats per directory on the worst case, and that measured
+334 ms against the old walk's 75 ms over the Go module cache — reading them out
+of the `ReadDir` that was happening anyway costs nothing, and brings the whole
+walk to **65 ms while finding strictly more**. The price is one `ReadDir` on a
+repository's own root, which is where the walk stops.
+
+**A gap is counted, and the count is what makes it visible.** `subRepoScan`
+carries `Skipped` beside `Repos`: a `ReadDir` that fails is logged and counted
+instead of swallowed, and the number reaches the screen two ways —
+`warnSkipped` posts a `Warn` when a scan or a sync runs on a tree that was only
+partly read, and `reasonUnread` replaces the refusal for a directory where
+*nothing* was found. "No repository nested under it" is a claim the walk is not
+entitled to make when it could not look everywhere: not knowing is not knowing
+there are none (Rule 130). A batch sync carries it on `syncRun.unreadable`
+rather than as a footer message, because the run's line is the one that outlives
+the three-second timer.
 There is deliberately no sync-all: at the root the user syncs each top-level
 directory, and a second key for it is not worth `Shift+S`'s collision with
 Rule 111's sort menu.

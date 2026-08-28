@@ -98,11 +98,19 @@ func (m Model) loadEntries() tea.Cmd {
 				continue
 			}
 
+			path := filepath.Join(targetDir, dirEntry.Name())
 			entry := Entry{
 				Name:    dirEntry.Name(),
-				Path:    filepath.Join(targetDir, dirEntry.Name()),
+				Path:    path,
 				ModTime: info.ModTime(),
-				IsDir:   dirEntry.IsDir(),
+				// leadsToDir rather than dirEntry.IsDir(): a junction or a
+				// symbolic link to a directory rendered as a file, so the row
+				// was neither browsable nor scannable while the tree behind it
+				// was perfectly ordinary (§1.3 D59). The listing and the
+				// nested-repo walk have to answer this the same way, for the
+				// reason isHidden is shared — two rules would let a directory
+				// be an invisible row and a live scan target at once.
+				IsDir: leadsToDir(dirEntry, path),
 			}
 
 			// Enrich directory entries with git and project type info

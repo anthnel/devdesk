@@ -61,6 +61,9 @@ func (m Model) startSync() (tea.Model, tea.Cmd) {
 		targets = entry.SubRepoPaths
 	}
 	if len(targets) == 0 {
+		// Unreachable through F: actions() refuses a directory with no nested
+		// repository before the key gets here, and it is that refusal which
+		// carries the "I could not read part of the tree" wording (Rule 130).
 		return m, nil
 	}
 
@@ -74,7 +77,7 @@ func (m Model) startSync() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(busyMessage)
 	}
 
-	m.sync = &syncRun{total: len(toSync)}
+	m.sync = &syncRun{total: len(toSync), unreadable: entry.SubRepoSkipped}
 	return m, batchSyncCmd(toSync, m.syncSpec())
 }
 
@@ -118,6 +121,14 @@ type syncRun struct {
 	upToDate int
 	skipped  int
 	failed   int
+
+	// unreadable is not a sync outcome. It counts the directories the *walk*
+	// could not read before the batch started, so a repository under one of
+	// them was never a target at all. It rides on the run rather than going to
+	// the footer as a Warn because the run's line is the one that survives the
+	// three-second timer — and because "12 repositories synced" is a different
+	// claim from "12 repositories synced, and I could not look in 3 places".
+	unreadable int
 
 	// firstSkipped and firstFailed name one repository each. The footer is one
 	// line, so it names one and counts the rest; the log has them all.
@@ -176,6 +187,9 @@ func (m Model) syncStatusLine() string {
 	}
 	if m.sync.failed > 0 {
 		parts = append(parts, strconv.Itoa(m.sync.failed)+" failed ("+m.sync.firstFailed+") — check logs")
+	}
+	if m.sync.unreadable > 0 {
+		parts = append(parts, plural(m.sync.unreadable, "directory", "directories")+" unreadable — check logs")
 	}
 	if len(parts) == 0 {
 		return "Nothing to sync"

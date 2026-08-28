@@ -11,16 +11,19 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Deux ouverts : D59 et D63** — voir [§1.3](#13-open). D59 n'est ouvert qu'à
-moitié. **D63** est une famille plutôt qu'un défaut : une touche annoncée qui
-n'agit pas. Ses deux instances connues sont corrigées, mais rien n'empêche la
-troisième — et la raison est structurelle, la touche annoncée étant une chaîne
-d'affichage sans relation mécanique avec la touche liée.
+**Un seul ouvert : D63** — voir [§1.3](#13-open), et c'est une famille plutôt
+qu'un défaut : une touche annoncée qui n'agit pas. Ses deux instances connues
+sont corrigées, mais rien n'empêche la troisième — et la raison est
+structurelle, la touche annoncée étant une chaîne d'affichage sans relation
+mécanique avec la touche liée.
 
-**D62 est fermé le 2026-08-28** — voir [§1.1](#11-fixed). C'était celui qui se
-voyait le moins : un chemin saisi dans la vue configuration et quitté sans
-bouger le curseur n'était jamais écrit, et le champ continuait de l'afficher au
-retour, donc l'écran et le fichier divergeaient sans que rien ne le dise.
+**D59 et D62 sont fermés le 2026-08-28** — voir [§1.1](#11-fixed). D62 était
+celui qui se voyait le moins : un chemin saisi dans la vue configuration et
+quitté sans bouger le curseur n'était jamais écrit, et le champ continuait de
+l'afficher au retour, donc l'écran et le fichier divergeaient sans que rien ne
+le dise. D59 était sa moitié restante : les dépôts derrière un lien, la garde de
+cycle qu'ils impliquent, et les trois aggravants qui décidaient qu'un manque se
+voie ou non.
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -45,10 +48,12 @@ et ce qu'il a coûté n'est pas ce qu'on croyait : le montage manquant n'était 
 la moitié, l'autre étant une tolérance écrite pour un comportement que gitleaks
 n'a pas.
 
-Il reste **D59**, à moitié : un scan lancé sur une arborescence oubliait les
-dépôts situés plus bas que trois niveaux, et ceux derrière un lien symbolique,
-sans jamais dire combien il en écartait. La limite de profondeur est supprimée ;
-le lien symbolique reste ouvert.
+**D59** était le plus ancien des trois : un scan lancé sur une arborescence
+oubliait les dépôts situés plus bas que trois niveaux, et ceux derrière un lien
+symbolique, sans jamais dire combien il en écartait. La garde de cycle qu'il
+fallait pour suivre les liens ne pouvait pas passer par les chemins résolus —
+`filepath.EvalSymlinks` ne résout pas une jonction Windows — donc elle passe par
+`os.SameFile`.
 
 **D62** n'avait rien à voir avec les précédents : il était dans la vue
 configuration, pas dans ce qu'elle configure. Trouvé en cherchant pourquoi
@@ -74,6 +79,123 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D59 — un scan lancé sur une arborescence oubliait certains dépôts, en
+silence. Fermé.** Signalé à l'usage, reproduit sur fixture le 2026-08-24, la
+profondeur corrigée le jour même et le reste le 2026-08-28.
+
+`S` sur un répertoire non-git scanne `entry.SubRepoPaths`, que le walk remplit.
+**Deux causes, mesurées, indépendantes l'une de l'autre**, plus trois aggravants
+de la même famille — chacun décidant qu'un manque se voit ou non.
+
+**1. La profondeur était limitée à 3, et ce n'était écrit nulle part.** Un
+`monorepos/client/2026/api/.git` était invisible pour `S`, `F` et `A` alors que
+le répertoire, lui, se parcourait normalement à la main. C'est le « parfois » du
+rapport : ça dépendait de la profondeur à laquelle les dépôts se trouvaient.
+
+**La limite est partie, sans rien pour la remplacer**, parce que la question
+était mal posée : ce qui borne le walk est qu'**il s'arrête à chaque dépôt qu'il
+trouve**, donc le `node_modules` d'un dépôt n'est jamais parcouru. Cette coupe
+faisait déjà tout le travail. Aucune liste d'exclusions par nom n'a été ajoutée :
+ce serait réintroduire l'omission silencieuse que ce défaut *est*, et
+`node_modules` peut contenir un dépôt — npm installe depuis git.
+
+**2. Un lien symbolique ou une jonction vers un répertoire était ignoré.**
+`e.IsDir()` vient de `os.ReadDir` et ne suit pas le lien :
+
+```
+entry a         IsDir=true   type=d---------  statIsDir=true
+entry linked    IsDir=false  type=?---------  statIsDir=true   ← ignorée
+```
+
+`leadsToDir` répond pour le walk **et** pour `table.go`, qui affichait le lien
+comme un fichier — ni parcourable, ni scannable, sans que rien ne dise pourquoi.
+Le test est « pas un fichier ordinaire » plutôt que « est un lien symbolique »,
+et c'est délibéré : Go rapporte une jonction Windows en `ModeSymlink` ou en
+`ModeIrregular` selon la version, et `os.Stat` répond pareil dans les deux cas.
+Un fichier ordinaire ne coûte aucun appel système.
+
+#### La garde de cycle, et pourquoi elle n'est pas un chemin résolu
+
+L'entrée annonçait « en suivant les inodes ou les chemins résolus ». **Les
+chemins résolus ne marchent pas**, et c'est le seul endroit où la correction a
+dû s'écarter du plan. Mesuré ici, sur une jonction :
+
+| Appel | Réponse |
+|---|---|
+| `os.Readlink` | la cible |
+| `filepath.EvalSymlinks` | **le lien lui-même** |
+| `os.SameFile` | `true` |
+
+Une garde par chemin résolu voit donc deux noms pour un même répertoire et ne se
+déclenche jamais — vérifié : la première version de la correction a bouclé
+jusqu'à ce que Windows refuse le chemin devenu trop long, ce qui *ressemble* à
+une terminaison. Et la jonction est précisément ce contre quoi le défaut a été
+rapporté.
+
+`mayFollow` pose donc deux questions par `os.SameFile`, et **seul un lien les
+paie** :
+
+- **la cible est-elle sur le chemin par lequel on est venu** — c'est la boucle.
+  Tous les répertoires traversés sont des préfixes du chemin du lien, donc la
+  chaîne se reconstruit sans rien mémoriser ; la remontée va jusqu'à la racine
+  du système de fichiers et non jusqu'à la base, parce qu'un lien *au-dessus* de
+  la base y ramène la base ;
+- **a-t-elle déjà été entrée par un autre lien** — ce n'est pas une boucle mais
+  un doublon : les mêmes dépôts sous un second nom, donc un second scan de
+  chacun.
+
+#### Les trois aggravants
+
+**Le `os.ReadDir` avalé** est logué et **compté**. `subRepoScan` porte `Skipped`
+à côté de `Repos`, et c'est le plus important des trois : c'est ce qui décide
+qu'un manque se voit.
+
+**Le compte atteint l'écran par deux chemins**, et ils répondent à deux
+situations différentes :
+
+| Situation | Ce qui le dit |
+|---|---|
+| des dépôts ont été trouvés, l'action tourne | `warnSkipped` pose un `Warn` (Rule 128) — rien n'a échoué, la demande ne peut pas être honorée en entier |
+| aucun dépôt trouvé, l'action est refusée | `reasonUnread` remplace `reasonNoScanTarget` |
+
+Le second est le vrai correctif : « Not a git repository, and no repository
+nested under it » est une **affirmation** que le walk n'a pas le droit de faire
+quand il n'a pas pu tout lire. Ne pas savoir n'est pas savoir que non — c'est
+Rule 130 dans son propre vocabulaire. C'est aussi la seule raison qui porte un
+nombre, donc une fonction plutôt qu'une constante ; les autres disent la même
+chose à chaque fois.
+
+Un sync en lot le porte sur `syncRun.unreadable` et non comme message de footer :
+la ligne du run est celle qui survit à la minuterie de trois secondes, et c'est
+déjà là que le reste du bilan est rendu.
+
+**Le dépôt *bare* n'était pas reconnu** — `HEAD`, `objects` et `refs` sont à la
+racine, et il porte de l'historique, donc c'est une cible de scan comme une
+autre. `holdsRepo` est la règle, et elle est lue dans **le listing du
+répertoire** plutôt que demandée à `os.Stat`. Ce n'est pas un détail :
+
+| Walk sur le cache de modules Go (le pire cas) | Temps |
+|---|---|
+| ancien walk, un `os.Stat(.git)` par répertoire | 75 ms |
+| trois noms, trois `os.Stat` échoués par répertoire | **334 ms** |
+| trois noms lus dans le `ReadDir` déjà fait | **65 ms** |
+
+Le nouveau walk est donc **plus rapide que l'ancien tout en trouvant strictement
+plus**. Le prix est un `ReadDir` sur la racine d'un dépôt, et un dépôt est
+précisément là où le walk s'arrête.
+
+Quatorze tests, dont trois qui n'auraient pas tourné sur la machine du rapport :
+`os.Symlink` réclame `SeCreateSymbolicLinkPrivilege` sous Windows, qu'une
+session ordinaire n'a pas — mais `mklink /J` n'en réclame aucun, et une jonction
+est ce qu'il y avait dans le rapport. `linkDir` fait donc une jonction sous
+Windows et un lien symbolique ailleurs, plutôt que de sauter sur la seule
+plateforme qui compte ici.
+
+`TestALinkPointingAtAnAncestorDoesNotLoop` est celui qui n'« échoue » pas sans
+la garde : il ne rend pas la main.
+
+---
 
 **D62 — un champ texte de la vue configuration quitté sans bouger le curseur
 n'était jamais écrit, et l'écran continuait d'afficher la valeur saisie.
@@ -1904,117 +2026,6 @@ la constante nomme.
 
 C'est le pendant de `internal/ui/keymap`, qui vérifie qu'aucune vue ne *lie* une
 touche hors vocabulaire, sans jamais vérifier qu'elle *annonce* ce qu'elle lie.
-
----
-
-**D59 — un scan lancé sur une arborescence oublie certains dépôts, en
-silence. Moitié corrigée, moitié ouverte.** Signalé à l'usage, puis reproduit
-sur fixture le 2026-08-24.
-
-> **La limite de profondeur est supprimée** le 2026-08-24 — il n'y en a plus, et
-> le walk trouve un dépôt à n'importe quelle profondeur. **La cause 2, le lien
-> symbolique, reste ouverte.** Ce qui suit décrit le défaut tel qu'il a été
-> trouvé ; la correction et ce qui la borne désormais sont en fin d'entrée.
-
-`S` sur un répertoire non-git scanne `entry.SubRepoPaths`, que
-`detectSubRepoPaths` remplit par `walkSubRepos`. **Deux causes, mesurées,
-indépendantes l'une de l'autre.**
-
-**1. La profondeur est limitée à 3, et ce n'est écrit nulle part.**
-`enrichEntry` appelle `detectSubRepoPaths(entry.Path, 3, showHidden)`, littéral
-dans le code, et `walkSubRepos` abandonne dès `depth > maxDepth`. Sur une
-arborescence portant un dépôt à chaque niveau :
-
-```
-root/shallow-repo/.git            → trouvé
-root/a/b/mid-repo/.git            → trouvé
-root/a/b/c/d/deep-repo/.git       → PAS trouvé
-```
-
-Un `monorepos/client/2026/api/.git` est donc invisible pour `S`, `F` et `A`
-alors que le répertoire, lui, se parcourt normalement à la main. C'est très
-probablement le « parfois » du rapport : ça dépend de la profondeur à laquelle
-les dépôts se trouvent, ce que rien à l'écran ne laisse deviner.
-
-**2. Un lien symbolique ou une jonction vers un répertoire est ignoré.**
-`walkSubRepos` filtre sur `e.IsDir()`, qui vient de `os.ReadDir` et ne suit pas
-le lien. Relevé sur la même fixture, avec une jonction Windows :
-
-```
-entry a         IsDir=true   type=d---------  statIsDir=true
-entry linked    IsDir=false  type=?---------  statIsDir=true   ← ignorée
-```
-
-`os.Stat` dit `true`, `DirEntry.IsDir()` dit `false`, et c'est la seconde qui
-décide. Tout ce qui est derrière le lien est invisible. Le même filtre est dans
-`table.go`, donc la **liste** affiche le lien comme un fichier : ni parcourable,
-ni scannable, sans que rien ne dise pourquoi.
-
-**Trois aggravants**, chacun de la même famille :
-
-- **`os.ReadDir` en échec est avalé** : `walkSubRepos` fait `return` sans un
-  `log.Printf`. Un répertoire refusé en lecture ne contribue rien et ne se
-  signale pas.
-- **Rien ne compte ce qui a été écarté.** Le footer annonce le nombre de dépôts
-  qui *vont* être scannés ; il n'existe aucun nombre pour ceux qui n'ont pas été
-  trouvés, donc l'utilisateur n'a aucun moyen de savoir qu'il en manque. C'est ce
-  qui rend le défaut silencieux plutôt que gênant.
-- **Un dépôt *bare* n'est pas reconnu** : le test est `os.Stat(dir/.git)`, ce qui
-  attrape bien un worktree (où `.git` est un fichier) mais pas un dépôt nu, dont
-  `HEAD`, `objects` et `refs` sont à la racine.
-
-#### Ce qui a été corrigé, et ce qui borne la marche à la place
-
-**La limite est partie, sans rien pour la remplacer, et c'était le bon choix
-parce que la question était mal posée.** L'entrée d'origine disait que la
-profondeur bornait la descente dans `.venv` et `node_modules`, en reprenant le
-commentaire d'`isHidden`. C'est faux, et la mesure le montre : ce qui borne le
-walk est qu'**il s'arrête à chaque dépôt qu'il trouve**, donc le `node_modules`
-d'un dépôt n'est jamais parcouru. Cette coupe faisait déjà tout le travail ; la
-limite de profondeur ne couvrait rien.
-
-Mesuré avant de la retirer :
-
-| Arborescence | avec limite 3 | sans limite |
-|---|---|---|
-| `~/projects` (4 répertoires, 19 dépôts) | 10 ms | **≤ 2 ms** — mêmes dépôts |
-| cache de modules Go (des dizaines de milliers de répertoires, **aucun** dépôt pour élaguer) | 37 ms | **283 ms** |
-
-Le premier cas est le cas réel et il est plus *rapide* sans limite : les dépôts
-sont peu profonds, donc les deux s'arrêtent aux mêmes endroits et la version
-bornée paie en plus sa comptabilité. Le second est le pire cas absolu — un
-`workspaces_dir` pointé sur quelque chose qui n'est pas un espace de travail —
-et 283 ms dans un `Cmd`, hors du chemin d'`Update`, est le prix de ne pas perdre
-de dépôts.
-
-Aucune liste d'exclusions par nom n'a été ajoutée : ce serait réintroduire
-l'omission silencieuse que ce défaut *est*. `node_modules` peut contenir un
-dépôt — npm installe depuis git — et un outil qui décide seul de ne pas le
-regarder répète l'erreur sous un autre nom.
-
-**Il n'y a pas de risque de cycle**, et c'est ce qui rend la suppression sûre
-plutôt que téméraire : le walk ne suit pas les liens, précisément parce que la
-cause 2 n'est pas corrigée. Les deux moitiés sont donc liées dans un sens qu'il
-faut connaître — **qui corrigera la cause 2 devra ajouter la garde de cycle que
-la limite de profondeur fournissait par accident**, en suivant les inodes ou les
-chemins résolus.
-
-`TestARepositoryIsFoundHoweverDeepItSits` place un dépôt huit niveaux plus bas ;
-`TestTheWalkStopsAtEveryRepositoryItFinds` fixe la coupe qui fait le travail, de
-sorte qu'une future exclusion par nom ne puisse pas être justifiée par « sinon on
-descend dans node_modules ». Le premier échoue si la limite revient.
-
-L'aide de la vue devient exacte sans être touchée : elle disait déjà « S scans
-all nested git repos », ce qui était un mensonge et ne l'est plus.
-
-#### Ce qui reste ouvert
-
-- **La cause 2**, le lien symbolique — avec la garde de cycle qu'elle implique,
-  et la ligne de la liste qui affiche un lien comme un fichier.
-- **Les trois aggravants** : le `os.ReadDir` avalé, l'absence de compte des
-  dépôts écartés, et le dépôt *bare* non reconnu. Le second est le plus
-  important des trois : c'est ce qui décide qu'un manque se voit ou non, et il
-  vaut pour la cause 2 exactement comme il valait pour la profondeur.
 
 ---
 
