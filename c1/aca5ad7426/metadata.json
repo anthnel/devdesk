@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "c1aca5ad7426",
+  "strategy": "manual-commit",
+  "branch": "certs-four-states",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/status/certificate.go",
+    "internal/status/certificate_test.go",
+    "internal/status/ssl_checker.go",
+    "internal/ui/dashboard/dashboard_test.go",
+    "internal/ui/dashboard/posture_test.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/status/columns.go",
+    "internal/ui/status/view.go",
+    "internal/ui/status/view_test.go",
+    "internal/ui/theme/styles.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c1/aca5ad7426/0/metadata.json",
+      "transcript": "/c1/aca5ad7426/0/full.jsonl",
+      "compact_transcript": "/c1/aca5ad7426/0/transcript.jsonl",
+      "content_hash": "/c1/aca5ad7426/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 158,
+    "cache_creation_tokens": 202559,
+    "cache_read_tokens": 13627121,
+    "output_tokens": 52000,
+    "api_call_count": 79
+  }
+}
