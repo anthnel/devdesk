@@ -16,7 +16,6 @@
     "internal/ui/security/header.go",
     "internal/ui/status/view.go",
     "internal/ui/viewer/view.go",
-    "internal/ui/workspaces/bench_test.go",
     "internal/ui/workspaces/view.go"
   ],
   "sessions": [
@@ -29,10 +28,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 68,
-    "cache_creation_tokens": 49300,
-    "cache_read_tokens": 11289277,
-    "output_tokens": 30097,
-    "api_call_count": 34
+    "input_tokens": 2,
+    "cache_creation_tokens": 1238,
+    "cache_read_tokens": 358085,
+    "output_tokens": 800,
+    "api_call_count": 1
   }
 }
