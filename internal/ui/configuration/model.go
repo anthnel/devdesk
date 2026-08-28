@@ -151,6 +151,18 @@ func (f field) takesText() bool {
 // focus indicator on a row no key acts upon says the opposite.
 func (f field) focusable() bool { return f.Kind != kindStatic }
 
+// settlesOnBlur reports whether leaving a field has any effect on it, which is
+// the one question esc answers here (Rule 130).
+//
+// A checkbox and an ordinary cycle field write as they are pressed, so there is
+// nothing left to settle. The three that do not are a text field — the input
+// holds the value until it is applied — and the forge and the secret backend,
+// which are deliberately settled on the way out rather than on every ←→, so
+// that cycling past a value does not close the session or ask three times.
+func (m Model) settlesOnBlur(f field) bool {
+	return f.takesText() || f.Label == forgeLabel || f.Label == secretBackendLabel
+}
+
 // isDisabled reports whether a scan option is unavailable because a Trivy
 // server is configured. The protocol does not support these three, so they are
 // forced off rather than silently ignored.

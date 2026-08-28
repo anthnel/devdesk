@@ -344,15 +344,15 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	case tabNetworks:
 		base = append(base,
 			shortcut.Shortcut{Key: "enter", Description: "Inspect"},
-			shortcut.Shortcut{Key: "N", Description: "New network"},
-			shortcut.Shortcut{Key: "D", Description: "Remove"},
-			shortcut.Shortcut{Key: "P", Description: "Prune"},
+			shortcut.Shortcut{Key: keymap.New, Description: "New network"},
+			shortcut.Shortcut{Key: keymap.Delete, Description: "Remove"},
+			shortcut.Shortcut{Key: keymap.Prune, Description: "Prune"},
 		)
 	case tabVolumes:
 		base = append(base,
-			shortcut.Shortcut{Key: "N", Description: "New volume"},
-			shortcut.Shortcut{Key: "D", Description: "Remove"},
-			shortcut.Shortcut{Key: "P", Description: "Prune"},
+			shortcut.Shortcut{Key: keymap.New, Description: "New volume"},
+			shortcut.Shortcut{Key: keymap.Delete, Description: "Remove"},
+			shortcut.Shortcut{Key: keymap.Prune, Description: "Prune"},
 		)
 	case tabRegistries:
 		// Inside a group the rows are cached members, not config entries: there
@@ -496,8 +496,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "S (Images)", Description: "Launch a scan for the selected image"},
 			{Key: "A (Images)", Description: "Scan every image. The confirmation carries a checkbox to purge the cached results first — unchecked, only what has never been scanned is scanned"},
 			{Key: "A (Images)", Description: "Scan all unscanned images using config defaults"},
-			{Key: "D", Description: "Delete the selected resource (with confirmation)"},
-			{Key: "P", Description: "Prune unused resources (with confirmation)"},
+			{Key: keymap.Delete, Description: "Delete the selected resource (with confirmation)"},
+			{Key: keymap.Prune, Description: "Prune unused resources (with confirmation)"},
 			{Key: "enter (Networks)", Description: "Inspect the selected network — shows connected containers with IP and MAC addresses"},
 			{Key: "c (Network Inspect)", Description: "Open a connectivity test form for the selected container (runs from an ephemeral network-multitool container)"},
 			{Key: "N (Networks)", Description: "Create a new network"},

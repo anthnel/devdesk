@@ -107,6 +107,12 @@ func (a *App) resetSelectionModeFor(view command.ViewType) {
 
 // switchView change la vue courante
 func (a *App) switchView(view command.ViewType) tea.Cmd {
+	if view != a.currentView {
+		if cmd, ok := a.settleCurrentView(); !ok {
+			return cmd
+		}
+	}
+
 	// Lazy loading des vues
 	if _, exists := a.views[view]; !exists {
 		a.createView(view)
@@ -122,6 +128,29 @@ func (a *App) switchView(view command.ViewType) tea.Cmd {
 
 	// Init() + un WindowSizeMsg pour forcer le redimensionnement
 	return tea.Batch(newView.Init(), a.requestResize())
+}
+
+// settleCurrentView gives the view being left the chance to write down what it
+// holds, and lets it refuse to be left.
+//
+// A view that does not implement LeavingView is left without ceremony, which is
+// every view but one: the configuration form is the only screen that keeps a
+// value in a widget rather than in the model until a key moves the cursor.
+//
+// Returning false keeps the current view *and* whatever it wants to say about
+// why — the caller passes that Cmd on rather than the switch it did not make.
+func (a *App) settleCurrentView() (tea.Cmd, bool) {
+	current, exists := a.views[a.currentView]
+	if !exists {
+		return nil, true
+	}
+	leaver, implements := current.(LeavingView)
+	if !implements {
+		return nil, true
+	}
+	settled, cmd, ok := leaver.Leave()
+	a.views[a.currentView] = settled
+	return cmd, ok
 }
 
 // createView crée une vue (lazy loading)

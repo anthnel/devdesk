@@ -59,6 +59,16 @@ const (
 	reasonNoScanner    = "No scanner available — install Trivy or Gitleaks, or check scan settings"
 )
 
+// reasonUnread is the one refusal that carries a number, and it is a function
+// rather than a constant for that reason alone: how many places the walk could
+// not look is the whole difference between "there are none" and "I could not
+// tell". The other reasons are constants because they say the same thing every
+// time (Rule 130).
+func reasonUnread(skipped int) string {
+	return "No repository found, and " + plural(skipped, "directory", "directories") +
+		" could not be read — check logs"
+}
+
 // actions works out what applies to the current row on the current machine.
 func (m Model) actions() actionSet {
 	entry, hasRow := m.selectedEntry()
@@ -115,10 +125,19 @@ func (m Model) actions() actionSet {
 		a.Web = unavailable(reasonNotARepo)
 		// S and F share one targeting rule: a directory acts on the
 		// repositories nested under it, at any depth.
-		if len(entry.SubRepoPaths) > 0 {
+		switch {
+		case len(entry.SubRepoPaths) > 0:
 			a.Sync = available
 			a.Scan = m.scannerState()
-		} else {
+		case entry.SubRepoSkipped > 0:
+			// Not knowing is not knowing there are none. "No repository nested
+			// under it" is a claim the walk is not entitled to make when it
+			// could not read part of the tree, and saying it anyway is what
+			// made D59 silent rather than merely annoying.
+			why := reasonUnread(entry.SubRepoSkipped)
+			a.Sync = unavailable(why)
+			a.Scan = unavailable(why)
+		default:
 			a.Sync = unavailable(reasonNoScanTarget)
 			a.Scan = unavailable(reasonNoScanTarget)
 		}

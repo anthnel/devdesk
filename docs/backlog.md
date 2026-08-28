@@ -11,15 +11,9 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Trois ouverts : D59, D62 et D63** — voir [§1.3](#13-open). D59 n'est ouvert qu'à
-moitié ; **D62** est entier, et c'est celui qui se voit le moins : un chemin
-saisi dans la vue configuration et quitté sans bouger le curseur n'est jamais
-écrit, et le champ continue de l'afficher au retour. L'écran et le fichier
-divergent sans que rien ne le dise. **D63** est de la même famille, un cran plus
-haut : une touche annoncée qui n'agit pas. Ses deux instances connues sont
-corrigées, mais rien n'empêche la troisième — et la raison est structurelle, la
-touche annoncée étant une chaîne d'affichage sans relation mécanique avec la
-touche liée.
+**Rien d'ouvert.** D59, D62 et D63 sont fermés le 2026-08-28, et
+[§1.3](#13-open) est vide pour la première fois depuis D12. Tout ce qui suit est
+en [§1.1](#11-fixed).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -44,15 +38,26 @@ et ce qu'il a coûté n'est pas ce qu'on croyait : le montage manquant n'était 
 la moitié, l'autre étant une tolérance écrite pour un comportement que gitleaks
 n'a pas.
 
-Il reste **D59**, à moitié : un scan lancé sur une arborescence oubliait les
-dépôts situés plus bas que trois niveaux, et ceux derrière un lien symbolique,
-sans jamais dire combien il en écartait. La limite de profondeur est supprimée ;
-le lien symbolique reste ouvert.
+**D59** était le plus ancien des trois : un scan lancé sur une arborescence
+oubliait les dépôts situés plus bas que trois niveaux, et ceux derrière un lien
+symbolique, sans jamais dire combien il en écartait. La garde de cycle qu'il
+fallait pour suivre les liens ne pouvait pas passer par les chemins résolus —
+`filepath.EvalSymlinks` ne résout pas une jonction Windows — donc elle passe par
+`os.SameFile`.
 
-Et **D62**, ouvert le 2026-08-27, qui n'a rien à voir avec les précédents : il
-est dans la vue configuration, pas dans ce qu'elle configure. Trouvé en
-cherchant pourquoi `scan.plumber_config` semblait ignoré par plumber — il ne
-l'était pas, il n'avait jamais été écrit.
+**D62** n'avait rien à voir avec les précédents : il était dans la vue
+configuration, pas dans ce qu'elle configure. Trouvé en cherchant pourquoi
+`scan.plumber_config` semblait ignoré par plumber — il ne l'était pas, il
+n'avait jamais été écrit. Le routeur a gagné le point de sortie qu'il n'avait
+pas (`LeavingView`), et `esc` fait enfin quelque chose.
+
+**D63** était une famille plutôt qu'un défaut : une touche annoncée qui n'agit
+pas. Ce qui la ferme est d'avoir **créé la relation qui manquait** entre les
+deux moitiés — une action s'annonce désormais par la constante que le handler
+teste, jamais par sa lettre — et trois tests de source refusent le reste. Le
+chiffre que l'entrée disait « inconnu, et c'est le problème » est maintenant
+zéro pour ce qui est vérifiable, et déclaré hors de portée pour ce qui ne l'est
+pas.
 
 D39, before them, was the registry browser addressing a group's
 members one way to browse them and another way to pull them; it is closed by
@@ -72,6 +77,294 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D63 — une touche annoncée qui n'agit pas. Fermé, la famille avec.** Les deux
+instances trouvées le 2026-08-27 en câblant `o` sur l'onglet CI, l'une par
+lecture du code, l'autre par l'utilisateur ; la garde posée le 2026-08-28.
+
+Rule 130 interdit **une touche grisée qui agit quand même**, et
+`shortcut.Availability` rend ça inexprimable : un seul champ, deux lecteurs.
+Rien ne gardait le sens inverse — **une touche affichée qui n'agit pas** — et la
+vue security en portait deux, dans le même état :
+
+| Annoncé | Ce que le handler liait |
+|---|---|
+| `{Key: "o", Description: "Open ref"}` | `case keymap.Web:` c'est-à-dire `W` |
+| `{Key: "esc/⌫", Description: "Back"}` | `case "esc":` seul — le commentaire disait d'ailleurs « backspace **was** an alias » |
+
+Dans les deux cas la touche affichée ne faisait rien, et celle qui marchait
+n'était jamais montrée.
+
+**Pourquoi aucun test ne les a vues, et pourquoi un test naïf n'y arriverait pas
+non plus.** Les tests existants épinglaient *les deux moitiés de la
+contradiction séparément* : `TestShortcutsFollowTheState` affirmait que la
+colonne dit `o`, `TestScanDetailsOpensTheReference` pressait `keymap.Web` — les
+deux passaient, rien ne les rapprochait.
+
+Et la raison de fond est structurelle : **la touche annoncée est une chaîne
+d'affichage, la touche liée est un nom de touche bubbletea**, et il n'existe
+aucune relation mécanique entre les deux. `↑↓` se lie par `case "up"`, `esc/⌫`
+par `case "esc"`. Un relevé grossier sur `internal/ui` sortait 52 candidats dont
+l'écrasante majorité étaient des libellés d'aide (`Context`, `Images`,
+`Disk Usage`).
+
+#### Ce qui la ferme : créer la relation là où elle peut exister
+
+C'est ce que l'entrée annonçait, et c'est ce qui a été fait. **Une action
+s'annonce par sa constante**, jamais par sa lettre — 56 `{Key: "S"}` sont
+devenus `{Key: keymap.Scan}` dans neuf vues, `GetShortcuts` et `GetHelpContent`
+confondus, puisqu'une aide qui ment ment autant qu'une colonne.
+
+Trois tests dans `announced_test.go`, à côté de ceux de §3.26 :
+
+| Test | Ce qu'il refuse |
+|---|---|
+| `TestNoAnnouncementSpellsAnActionOutInFull` | `{Key: "S"}` — c'est la moitié qui rend les deux autres possibles : `"S"` est une chaîne comme un libellé d'aide, `keymap.Scan` est le token du handler |
+| `TestEveryAnnouncedActionIsBoundInItsPackage` | une vue qui affiche `S Scan` sans que rien dans son paquet ne réponde `keymap.Scan` |
+| `TestEveryAnnouncedToggleIsBoundInItsPackage` | la moitié minuscule, qui n'a pas de constante mais reste **une lettre** — donc la comparaison y est exacte plutôt que bruyante. C'est celui qui attrape l'instance rapportée |
+
+**Une annonce se reconnaît à porter `Key` *et* `Description`**, pas à son nom de
+type : `shortcut.Shortcut` et `help.KeyBinding` ont la paire tous les deux, un
+élément dans un littéral de slice n'a pas de type à lire, et
+`shortcut.HeaderInfo` — la seule autre chose qui a un `Key` — porte `Value` à la
+place. Une `Key` écrite comme constante de paquet est résolue, ce qui rend
+vérifiable le correctif appliqué à la main pour `o` (`openPipelineKey`) plutôt
+que seulement soigné.
+
+Les trois échouent sur les formes exactes du défaut, vérifié en les
+réintroduisant une par une.
+
+#### Ce qui n'est pas couvert, et pourquoi c'est le bon découpage
+
+`↑↓`, `enter/esc`, `tab / shift+tab` sont des chaînes d'affichage sans
+contrepartie à comparer. Rule 138 en tient déjà l'essentiel hors de l'écran, et
+deviner là rendrait les 52 candidats — le chiffre que cette entrée citait comme
+« inconnu, et c'est le problème » est désormais **zéro pour ce qui est
+vérifiable, et hors de portée pour le reste** ; ce n'est pas la même chose que
+de l'ignorer.
+
+La granularité est le **paquet**, pas l'état de la vue : une touche liée dans un
+onglet et annoncée dans un autre passe. Le savoir demanderait de piloter la vue,
+ce qui est l'alternative que §3.28 a déjà pesée et écartée. Ce que ces tests
+attrapent est la touche liée *nulle part* — ce qu'étaient les deux instances.
+
+C'est le pendant de `internal/ui/keymap`, qui vérifiait qu'aucune vue ne *lie*
+une touche hors vocabulaire sans jamais vérifier qu'elle *annonce* ce qu'elle
+lie.
+
+---
+
+**D59 — un scan lancé sur une arborescence oubliait certains dépôts, en
+silence. Fermé.** Signalé à l'usage, reproduit sur fixture le 2026-08-24, la
+profondeur corrigée le jour même et le reste le 2026-08-28.
+
+`S` sur un répertoire non-git scanne `entry.SubRepoPaths`, que le walk remplit.
+**Deux causes, mesurées, indépendantes l'une de l'autre**, plus trois aggravants
+de la même famille — chacun décidant qu'un manque se voit ou non.
+
+**1. La profondeur était limitée à 3, et ce n'était écrit nulle part.** Un
+`monorepos/client/2026/api/.git` était invisible pour `S`, `F` et `A` alors que
+le répertoire, lui, se parcourait normalement à la main. C'est le « parfois » du
+rapport : ça dépendait de la profondeur à laquelle les dépôts se trouvaient.
+
+**La limite est partie, sans rien pour la remplacer**, parce que la question
+était mal posée : ce qui borne le walk est qu'**il s'arrête à chaque dépôt qu'il
+trouve**, donc le `node_modules` d'un dépôt n'est jamais parcouru. Cette coupe
+faisait déjà tout le travail. Aucune liste d'exclusions par nom n'a été ajoutée :
+ce serait réintroduire l'omission silencieuse que ce défaut *est*, et
+`node_modules` peut contenir un dépôt — npm installe depuis git.
+
+**2. Un lien symbolique ou une jonction vers un répertoire était ignoré.**
+`e.IsDir()` vient de `os.ReadDir` et ne suit pas le lien :
+
+```
+entry a         IsDir=true   type=d---------  statIsDir=true
+entry linked    IsDir=false  type=?---------  statIsDir=true   ← ignorée
+```
+
+`leadsToDir` répond pour le walk **et** pour `table.go`, qui affichait le lien
+comme un fichier — ni parcourable, ni scannable, sans que rien ne dise pourquoi.
+Le test est « pas un fichier ordinaire » plutôt que « est un lien symbolique »,
+et c'est délibéré : Go rapporte une jonction Windows en `ModeSymlink` ou en
+`ModeIrregular` selon la version, et `os.Stat` répond pareil dans les deux cas.
+Un fichier ordinaire ne coûte aucun appel système.
+
+#### La garde de cycle, et pourquoi elle n'est pas un chemin résolu
+
+L'entrée annonçait « en suivant les inodes ou les chemins résolus ». **Les
+chemins résolus ne marchent pas**, et c'est le seul endroit où la correction a
+dû s'écarter du plan. Mesuré ici, sur une jonction :
+
+| Appel | Réponse |
+|---|---|
+| `os.Readlink` | la cible |
+| `filepath.EvalSymlinks` | **le lien lui-même** |
+| `os.SameFile` | `true` |
+
+Une garde par chemin résolu voit donc deux noms pour un même répertoire et ne se
+déclenche jamais — vérifié : la première version de la correction a bouclé
+jusqu'à ce que Windows refuse le chemin devenu trop long, ce qui *ressemble* à
+une terminaison. Et la jonction est précisément ce contre quoi le défaut a été
+rapporté.
+
+`mayFollow` pose donc deux questions par `os.SameFile`, et **seul un lien les
+paie** :
+
+- **la cible est-elle sur le chemin par lequel on est venu** — c'est la boucle.
+  Tous les répertoires traversés sont des préfixes du chemin du lien, donc la
+  chaîne se reconstruit sans rien mémoriser ; la remontée va jusqu'à la racine
+  du système de fichiers et non jusqu'à la base, parce qu'un lien *au-dessus* de
+  la base y ramène la base ;
+- **a-t-elle déjà été entrée par un autre lien** — ce n'est pas une boucle mais
+  un doublon : les mêmes dépôts sous un second nom, donc un second scan de
+  chacun.
+
+#### Les trois aggravants
+
+**Le `os.ReadDir` avalé** est logué et **compté**. `subRepoScan` porte `Skipped`
+à côté de `Repos`, et c'est le plus important des trois : c'est ce qui décide
+qu'un manque se voit.
+
+**Le compte atteint l'écran par deux chemins**, et ils répondent à deux
+situations différentes :
+
+| Situation | Ce qui le dit |
+|---|---|
+| des dépôts ont été trouvés, l'action tourne | `warnSkipped` pose un `Warn` (Rule 128) — rien n'a échoué, la demande ne peut pas être honorée en entier |
+| aucun dépôt trouvé, l'action est refusée | `reasonUnread` remplace `reasonNoScanTarget` |
+
+Le second est le vrai correctif : « Not a git repository, and no repository
+nested under it » est une **affirmation** que le walk n'a pas le droit de faire
+quand il n'a pas pu tout lire. Ne pas savoir n'est pas savoir que non — c'est
+Rule 130 dans son propre vocabulaire. C'est aussi la seule raison qui porte un
+nombre, donc une fonction plutôt qu'une constante ; les autres disent la même
+chose à chaque fois.
+
+Un sync en lot le porte sur `syncRun.unreadable` et non comme message de footer :
+la ligne du run est celle qui survit à la minuterie de trois secondes, et c'est
+déjà là que le reste du bilan est rendu.
+
+**Le dépôt *bare* n'était pas reconnu** — `HEAD`, `objects` et `refs` sont à la
+racine, et il porte de l'historique, donc c'est une cible de scan comme une
+autre. `holdsRepo` est la règle, et elle est lue dans **le listing du
+répertoire** plutôt que demandée à `os.Stat`. Ce n'est pas un détail :
+
+| Walk sur le cache de modules Go (le pire cas) | Temps |
+|---|---|
+| ancien walk, un `os.Stat(.git)` par répertoire | 75 ms |
+| trois noms, trois `os.Stat` échoués par répertoire | **334 ms** |
+| trois noms lus dans le `ReadDir` déjà fait | **65 ms** |
+
+Le nouveau walk est donc **plus rapide que l'ancien tout en trouvant strictement
+plus**. Le prix est un `ReadDir` sur la racine d'un dépôt, et un dépôt est
+précisément là où le walk s'arrête.
+
+Quatorze tests, dont trois qui n'auraient pas tourné sur la machine du rapport :
+`os.Symlink` réclame `SeCreateSymbolicLinkPrivilege` sous Windows, qu'une
+session ordinaire n'a pas — mais `mklink /J` n'en réclame aucun, et une jonction
+est ce qu'il y avait dans le rapport. `linkDir` fait donc une jonction sous
+Windows et un lien symbolique ailleurs, plutôt que de sauter sur la seule
+plateforme qui compte ici.
+
+`TestALinkPointingAtAnAncestorDoesNotLoop` est celui qui n'« échoue » pas sans
+la garde : il ne rend pas la main.
+
+---
+
+**D62 — un champ texte de la vue configuration quitté sans bouger le curseur
+n'était jamais écrit, et l'écran continuait d'afficher la valeur saisie.
+Corrigé.** Signalé à l'usage le 2026-08-27, reproduit sur le log et le fichier
+de contexte le jour même, fermé le 2026-08-28.
+
+Saisi : `scan.plumber_config`. Ce qu'en disait le fichier après coup :
+
+```
+~/.devdesk/config-dev.yaml:199    plumber_config: ""
+```
+
+et les trois runs qui ont suivi, aucun ne portait `--config`.
+
+**La cause tenait en une ligne : rien ne committait le champ focusé quand la vue
+était quittée.** `commitFocused()` n'était appelé que depuis `switchTab` et
+`moveField`, donc un champ texte n'était appliqué et persisté que par `tab`,
+`shift+tab`, `↑` ou `↓`. Le log dit exactement ça :
+
+```
+14:10:22 Switching to view: configuration
+14:10:44 Switching to view: workspaces        ← ctrl+p, sans avoir bougé le curseur
+```
+
+et le fichier est resté daté de 14:07.
+
+**Ce qui le rendait durable plutôt que passager, et c'était le vrai défaut.**
+Les vues sont mises en cache par le routeur et `configuration.Init()` ne fait
+rien : au retour dans `:cfg`, `focusedField` et `m.input` étaient tels qu'ils
+étaient, donc **le champ affichait toujours le chemin saisi pendant que le
+fichier tenait l'ancienne valeur**. Rien à l'écran ne distinguait une valeur
+écrite d'une valeur seulement tapée, et c'est ce qui a fait chercher le défaut
+du côté du scan : la vue confirmait le réglage à chaque visite.
+
+Ce n'était pas propre à plumber. Tout `kindText` et tout `kindInteger` des six
+onglets était concerné, et le pire cas était `forge.url` — le commit porte
+`saved{forgeChanged: true}` et le message qui dit de se reconnecter, donc le
+quitter sans committer laissait une session ouverte contre une adresse que
+l'utilisateur croyait avoir changée, sans le message.
+
+#### Le choix qui restait à faire, et ce qui l'a tranché
+
+L'entrée laissait deux réponses ouvertes pour un refus sur le chemin de sortie —
+`commitFocused` peut refuser, et un refus n'a plus de curseur où retomber
+puisque la vue s'en va :
+
+1. le routeur gagne un point « cette vue est quittée » et un refus **annule le
+   changement de vue** ;
+2. le champ est committé à la sortie et un refus **abandonne la saisie** en le
+   disant au footer.
+
+**La 1, et pour une raison technique plutôt que par préférence : la 2 ne peut
+pas dire ce qu'elle fait.** Le footer appartient à la vue (Rule 128), et la vue
+est précisément ce qui quitte l'écran — le message expliquant la valeur
+abandonnée partirait avec elle. Une réponse indicible est la même silence d'un
+étage plus bas, c'est-à-dire ce défaut-ci.
+
+#### Ce qui a été fait
+
+**`app.LeavingView`**, une cinquième interface optionnelle du routeur :
+`Leave() (tea.Model, tea.Cmd, bool)`. `switchView` l'appelle avant de changer de
+vue, `switchContext` avant de changer de contexte — le second parce qu'il
+reconstruit toutes les vues contre un autre fichier, donc une saisie non
+committée y serait perdue *et* perdue contre la mauvaise config. Un `false`
+annule le changement et **transmet le `Cmd` de la vue** à sa place, donc le refus
+n'est pas silencieux. Réentrer dans la vue déjà à l'écran ne commit rien : `:cfg`
+depuis `:cfg` n'est pas une sauvegarde.
+
+La configuration est la seule vue qui l'implémente, et c'est normal — c'est la
+seule qui garde une valeur dans un widget plutôt que dans son modèle jusqu'à ce
+qu'une touche bouge le curseur.
+
+**`esc` commit sans bouger.** Elle tombait dans la branche « tout le reste
+appartient à l'input » et allait au `textinput`, qui l'ignore : la seule touche
+qu'on essaie pour « fermer » un champ ne faisait rien du tout. Elle re-bind
+l'input ensuite, donc `007` dans un champ entier devient le `7` réellement
+stocké — distinguer une valeur écrite d'une valeur tapée est l'autre moitié de
+ce qui rendait le défaut durable.
+
+`esc` est annoncée bien que Rule 138 la range parmi les touches évidentes,
+parce que ce qu'elle fait ici ne l'est pas ; et elle est **grisée là où elle ne
+ferait rien** (Rule 130). `settlesOnBlur` est cette question, et c'est exactement
+l'ensemble sur lequel `commitFocused` agit : texte, entier, `Forge` et
+`Secret backend`. Une case et un champ à cycle ordinaire ont déjà écrit au
+moment où le curseur pourrait partir — griser et ne rien faire coïncident, ce
+qui est la forme que Rule 130 demande.
+
+Neuf tests : les quatre du côté vue (`Leave` écrit, `Leave` porte les
+conséquences de `forge.url`, un refus refuse de partir, `esc` écrit sans bouger,
+`esc` montre ce qui est stocké, et le grisage par champ) et six du côté routeur,
+dont **`TestAViewWithoutTheInterfaceIsLeftUntouched`** — le repli silencieux est
+le comportement de toutes les autres vues et il mérite d'être tenu, c'est la
+leçon de `TestEveryViewSuppliesItsHeaderAndHelp`.
+
+---
 
 **D56 — `scan.gitleaks_config` ne pouvait pas fonctionner en mode Docker, et
 son échec se lisait « aucun secret ». Corrigé.** Trouvé en écrivant
@@ -1763,253 +2056,20 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
-**D62 — un champ texte de la vue configuration quitté sans bouger le curseur
-n'est jamais écrit, et l'écran continue d'afficher la valeur saisie.** Signalé à
-l'usage le 2026-08-27, reproduit sur le log et le fichier de contexte le jour
-même.
+**Rien.** D59, D62 et D63 sont partis le 2026-08-28 et cette section est vide
+pour la première fois depuis D12 — ce qui suit est de l'histoire, pas du travail
+en attente.
 
-Saisi : `scan.plumber_config`. Ce qu'en dit le fichier après coup :
+Ce qui reste sous cette rubrique est **D35**, qui n'est ni ouvert ni fermé : une
+lecture périmée avec un moyen de la rafraîchir. Elle est gardée ici parce que
+c'est une décision plutôt qu'un correctif, et les entrées qui la suivent disent
+ce que les défauts précédents étaient et par quoi ils ont été fermés.
 
-```
-~/.devdesk/config-dev.yaml:199    plumber_config: ""
-```
-
-et les trois runs qui ont suivi, aucun ne porte `--config` :
-
-```
-14:01:28 … plumber analyze --score --print=false --output <report> --provider gitlab --branch main --gitlab-url …
-14:08:28 … (idem)
-14:10:58 … (idem)
-```
-
-**La cause tient en une ligne : rien ne commit le champ focusé quand la vue est
-quittée.** `commitFocused()` n'est appelé que depuis `switchTab` et `moveField`
-(`internal/ui/configuration/update.go:80` et `:93`), donc un champ texte n'est
-appliqué et persisté que par `tab`, `shift+tab`, `↑` ou `↓`. Le log dit
-exactement ça :
-
-```
-14:10:22 Switching to view: configuration
-14:10:44 Switching to view: workspaces        ← ctrl+p, sans avoir bougé le curseur
-```
-
-et le fichier est resté daté de 14:07.
-
-**Ce qui le rend durable plutôt que passager, et c'est le vrai défaut.** Les vues
-sont mises en cache par le routeur (`switchView`, lazy loading) et
-`configuration.Init()` ne fait rien : au retour dans `:cfg`, `focusedField` et
-`m.input` sont tels qu'ils étaient, donc **le champ affiche toujours le chemin
-saisi pendant que le fichier tient l'ancienne valeur**. Les deux divergent aussi
-longtemps qu'on ne bouge pas le curseur, et rien à l'écran ne distingue une
-valeur écrite d'une valeur seulement tapée. C'est ce qui a fait chercher le
-défaut du côté du scan : la vue confirmait le réglage à chaque visite.
-
-**`esc` ne rattrape rien non plus.** `handleKey` ne le traite pas ; il tombe dans
-la branche « tout le reste appartient à l'input » et va au `textinput`, qui
-l'ignore. La seule touche qu'on essaie pour « fermer » un champ ne fait donc
-rien du tout — ni commit, ni sortie.
-
-**Ce n'est pas propre à plumber.** Tout `kindText` et tout `kindInteger` des six
-onglets est concerné : `trivy_server`, `gitleaks_config`, `workspaces_dir`, les
-trois limites, les chemins de binaires. Le pire cas est `forge.url` — le commit
-porte `saved{forgeChanged: true}` et le message qui dit de se reconnecter, donc
-le quitter sans committer laisse une session ouverte contre une adresse que
-l'utilisateur croit avoir changée, sans le message.
-
-**Ce que la correction doit trancher.** `commitFocused` peut **refuser**
-(`ok=false`) : un entier illisible ou une adresse Trivy malformée garde le
-curseur sur le champ (Rule 128 — la valeur refusée n'est pas écrite). Un refus
-sur le chemin de sortie n'a plus de curseur où retomber, puisque la vue s'en va.
-Il y a donc une décision à prendre, pas seulement un appel à ajouter :
-
-- soit le routeur gagne un point « cette vue est quittée » — il n'en a aucun
-  aujourd'hui, `switchView` ne prévient personne — et un refus **annule le
-  changement de vue**, ce qui répond à Rule 128 mais fait qu'un `:ws` reste sans
-  effet ;
-- soit le champ est committé à la sortie et un refus **abandonne la saisie** en
-  le disant au footer, ce qui laisse partir mais ne perd plus rien en silence.
-
-La première est la plus cohérente avec le reste de la vue ; la seconde est la
-seule qui ne peut pas retenir l'utilisateur dans un écran. Dans les deux cas
-`esc` doit committer et sortir, ce qui est le geste que le défaut a montré qu'on
-attend.
-
-**Contournement en attendant :** taper la valeur, puis `↓` (ou `tab`) avant de
-quitter.
-
----
-
-**D63 — une touche annoncée qui n'agit pas. Deux instances corrigées, la
-famille reste ouverte.** Trouvées le 2026-08-27 en câblant `o` sur l'onglet CI,
-l'une par lecture du code, l'autre par l'utilisateur.
-
-Rule 130 interdit **une touche grisée qui agit quand même**, et
-`shortcut.Availability` rend ça inexprimable : un seul champ, deux lecteurs.
-Rien ne garde le sens inverse — **une touche affichée qui n'agit pas** — et la
-vue security en portait deux, dans le même état :
-
-| Annoncé | Ce que le handler lie |
-|---|---|
-| `{Key: "o", Description: "Open ref"}` | `case keymap.Web:` c'est-à-dire `W` |
-| `{Key: "esc/⌫", Description: "Back"}` | `case "esc":` seul — le commentaire dit d'ailleurs « backspace **was** an alias » |
-
-Dans les deux cas la touche affichée ne faisait rien, et celle qui marchait
-n'était jamais montrée. Les deux sont corrigées.
-
-**Pourquoi aucun test ne les a vues, et pourquoi un test naïf n'y arriverait pas
-non plus.** Les tests existants épinglaient *les deux moitiés de la
-contradiction séparément* : `TestShortcutsFollowTheState` affirmait que la
-colonne dit `o`, `TestScanDetailsOpensTheReference` pressait `keymap.Web` — les
-deux passaient, rien ne les rapprochait.
-
-Et la raison de fond est structurelle : **la touche annoncée est une chaîne
-d'affichage, la touche liée est un nom de touche bubbletea**, et il n'existe
-aucune relation mécanique entre les deux. `↑↓` se lie par `case "up"`, `←→` par
-`case "left"`, `esc/⌫` par `case "esc"`. Un test qui comparerait naïvement les
-`{Key: …}` aux `case …:` produit surtout du bruit — vérifié : un relevé grossier
-sur `internal/ui` sort 52 candidats dont l'écrasante majorité sont des libellés
-d'aide (`Context`, `Images`, `Disk Usage`) ou des glyphes de navigation. Le
-chiffre n'est donc pas 52 ; il est inconnu, et c'est le problème.
-
-**Ce qui fermerait la famille**, et c'est une entrée de travail à part entière :
-faire porter à `shortcut.Shortcut.Key` **la constante `keymap`** partout où il
-en existe une — la vue security le fait déjà pour `keymap.Exclude` et
-`keymap.Web` — puis un test source qui, pour chaque `Shortcut` dont la `Key` est
-une constante du vocabulaire, exige un `case` sur **la même constante** dans le
-paquet. Ça ne couvre pas `↑↓` ni `esc`, et ce n'est pas grave : ces touches-là
-sont universelles et Rule 138 les exclut déjà de l'affichage. Ce qui dérive,
-c'est le vocabulaire majuscule et les dérogations déclarées — exactement ce que
-la constante nomme.
-
-C'est le pendant de `internal/ui/keymap`, qui vérifie qu'aucune vue ne *lie* une
-touche hors vocabulaire, sans jamais vérifier qu'elle *annonce* ce qu'elle lie.
-
----
-
-**D59 — un scan lancé sur une arborescence oublie certains dépôts, en
-silence. Moitié corrigée, moitié ouverte.** Signalé à l'usage, puis reproduit
-sur fixture le 2026-08-24.
-
-> **La limite de profondeur est supprimée** le 2026-08-24 — il n'y en a plus, et
-> le walk trouve un dépôt à n'importe quelle profondeur. **La cause 2, le lien
-> symbolique, reste ouverte.** Ce qui suit décrit le défaut tel qu'il a été
-> trouvé ; la correction et ce qui la borne désormais sont en fin d'entrée.
-
-`S` sur un répertoire non-git scanne `entry.SubRepoPaths`, que
-`detectSubRepoPaths` remplit par `walkSubRepos`. **Deux causes, mesurées,
-indépendantes l'une de l'autre.**
-
-**1. La profondeur est limitée à 3, et ce n'est écrit nulle part.**
-`enrichEntry` appelle `detectSubRepoPaths(entry.Path, 3, showHidden)`, littéral
-dans le code, et `walkSubRepos` abandonne dès `depth > maxDepth`. Sur une
-arborescence portant un dépôt à chaque niveau :
-
-```
-root/shallow-repo/.git            → trouvé
-root/a/b/mid-repo/.git            → trouvé
-root/a/b/c/d/deep-repo/.git       → PAS trouvé
-```
-
-Un `monorepos/client/2026/api/.git` est donc invisible pour `S`, `F` et `A`
-alors que le répertoire, lui, se parcourt normalement à la main. C'est très
-probablement le « parfois » du rapport : ça dépend de la profondeur à laquelle
-les dépôts se trouvent, ce que rien à l'écran ne laisse deviner.
-
-**2. Un lien symbolique ou une jonction vers un répertoire est ignoré.**
-`walkSubRepos` filtre sur `e.IsDir()`, qui vient de `os.ReadDir` et ne suit pas
-le lien. Relevé sur la même fixture, avec une jonction Windows :
-
-```
-entry a         IsDir=true   type=d---------  statIsDir=true
-entry linked    IsDir=false  type=?---------  statIsDir=true   ← ignorée
-```
-
-`os.Stat` dit `true`, `DirEntry.IsDir()` dit `false`, et c'est la seconde qui
-décide. Tout ce qui est derrière le lien est invisible. Le même filtre est dans
-`table.go`, donc la **liste** affiche le lien comme un fichier : ni parcourable,
-ni scannable, sans que rien ne dise pourquoi.
-
-**Trois aggravants**, chacun de la même famille :
-
-- **`os.ReadDir` en échec est avalé** : `walkSubRepos` fait `return` sans un
-  `log.Printf`. Un répertoire refusé en lecture ne contribue rien et ne se
-  signale pas.
-- **Rien ne compte ce qui a été écarté.** Le footer annonce le nombre de dépôts
-  qui *vont* être scannés ; il n'existe aucun nombre pour ceux qui n'ont pas été
-  trouvés, donc l'utilisateur n'a aucun moyen de savoir qu'il en manque. C'est ce
-  qui rend le défaut silencieux plutôt que gênant.
-- **Un dépôt *bare* n'est pas reconnu** : le test est `os.Stat(dir/.git)`, ce qui
-  attrape bien un worktree (où `.git` est un fichier) mais pas un dépôt nu, dont
-  `HEAD`, `objects` et `refs` sont à la racine.
-
-#### Ce qui a été corrigé, et ce qui borne la marche à la place
-
-**La limite est partie, sans rien pour la remplacer, et c'était le bon choix
-parce que la question était mal posée.** L'entrée d'origine disait que la
-profondeur bornait la descente dans `.venv` et `node_modules`, en reprenant le
-commentaire d'`isHidden`. C'est faux, et la mesure le montre : ce qui borne le
-walk est qu'**il s'arrête à chaque dépôt qu'il trouve**, donc le `node_modules`
-d'un dépôt n'est jamais parcouru. Cette coupe faisait déjà tout le travail ; la
-limite de profondeur ne couvrait rien.
-
-Mesuré avant de la retirer :
-
-| Arborescence | avec limite 3 | sans limite |
-|---|---|---|
-| `~/projects` (4 répertoires, 19 dépôts) | 10 ms | **≤ 2 ms** — mêmes dépôts |
-| cache de modules Go (des dizaines de milliers de répertoires, **aucun** dépôt pour élaguer) | 37 ms | **283 ms** |
-
-Le premier cas est le cas réel et il est plus *rapide* sans limite : les dépôts
-sont peu profonds, donc les deux s'arrêtent aux mêmes endroits et la version
-bornée paie en plus sa comptabilité. Le second est le pire cas absolu — un
-`workspaces_dir` pointé sur quelque chose qui n'est pas un espace de travail —
-et 283 ms dans un `Cmd`, hors du chemin d'`Update`, est le prix de ne pas perdre
-de dépôts.
-
-Aucune liste d'exclusions par nom n'a été ajoutée : ce serait réintroduire
-l'omission silencieuse que ce défaut *est*. `node_modules` peut contenir un
-dépôt — npm installe depuis git — et un outil qui décide seul de ne pas le
-regarder répète l'erreur sous un autre nom.
-
-**Il n'y a pas de risque de cycle**, et c'est ce qui rend la suppression sûre
-plutôt que téméraire : le walk ne suit pas les liens, précisément parce que la
-cause 2 n'est pas corrigée. Les deux moitiés sont donc liées dans un sens qu'il
-faut connaître — **qui corrigera la cause 2 devra ajouter la garde de cycle que
-la limite de profondeur fournissait par accident**, en suivant les inodes ou les
-chemins résolus.
-
-`TestARepositoryIsFoundHoweverDeepItSits` place un dépôt huit niveaux plus bas ;
-`TestTheWalkStopsAtEveryRepositoryItFinds` fixe la coupe qui fait le travail, de
-sorte qu'une future exclusion par nom ne puisse pas être justifiée par « sinon on
-descend dans node_modules ». Le premier échoue si la limite revient.
-
-L'aide de la vue devient exacte sans être touchée : elle disait déjà « S scans
-all nested git repos », ce qui était un mensonge et ne l'est plus.
-
-#### Ce qui reste ouvert
-
-- **La cause 2**, le lien symbolique — avec la garde de cycle qu'elle implique,
-  et la ligne de la liste qui affiche un lien comme un fichier.
-- **Les trois aggravants** : le `os.ReadDir` avalé, l'absence de compte des
-  dépôts écartés, et le dépôt *bare* non reconnu. Le second est le plus
-  important des trois : c'est ce qui décide qu'un manque se voit ou non, et il
-  vaut pour la cause 2 exactement comme il valait pour la profondeur.
-
----
-
-D39 was the last one before it, and §3.18 closed it on 2026-08-23 — see
-§1.1 for what it was and what the fix cost on the screens around it. D40, which
-it needed closed with it, had already been fixed on its own. D52, trouvé en
-écrivant §3.6 étape 1, a été corrigé à l'étape 3. D21 and D36 closed everything
-that preceded them. All of them are in §1.1.
-
-What remains below is **D35**, which is not open and not closed: a stale reading
-with a way to refresh it, kept here because that is a decision rather than a
-fix.
-
-D12, D13 and D14 were all fixed by §3.8 — see "The three defects it closed"
-there for what each turned out to be. D14's inverted test failed the moment the
-fix landed, which is what the pattern is for, and has been turned around.
+D39, avant eux, était le navigateur de registries adressant les membres d'un
+groupe d'une façon pour les parcourir et d'une autre pour les tirer ; il est
+fermé par [§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix).
+D12, D13 et D14 ont tous été fermés par §3.8. D21 et D36 ont fermé tout ce qui
+les précédait. Tous sont en §1.1.
 
 **D35 — the "unpulled" count is only as fresh as the last fetch. Mitigated by
 §3.17, not closed.** `detectGitStatus` computes it with

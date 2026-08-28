@@ -121,13 +121,18 @@ type Entry struct {
 	// Git metadata (populated only for git repos)
 	IsGitRepo    bool
 	SubRepoPaths []string // git repos nested within this directory (if !IsGitRepo)
-	GitBranch    string
-	GitRemote    string // remote path without server URL (e.g. "group/project")
-	GitRemoteURL string // full remote URL normalized for browser opening
-	GitModified  int
-	GitUntracked int
-	GitUnpushed  int
-	GitUnpulled  int
+	// SubRepoSkipped counts the directories the walk could not read or resolve.
+	// Without it the footer could say how many repositories were about to be
+	// scanned and nothing at all about how many it had failed to look for,
+	// which is what made D59 silent rather than merely annoying.
+	SubRepoSkipped int
+	GitBranch      string
+	GitRemote      string // remote path without server URL (e.g. "group/project")
+	GitRemoteURL   string // full remote URL normalized for browser opening
+	GitModified    int
+	GitUntracked   int
+	GitUnpushed    int
+	GitUnpulled    int
 }
 
 // New crée une nouvelle instance du modèle workspaces.

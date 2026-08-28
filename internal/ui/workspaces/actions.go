@@ -69,7 +69,37 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 	for _, path := range toScan {
 		delete(m.scanCache, path)
 	}
-	return m, tea.Batch(deleteScanCacheCmd(toScan), batchScanCmd(toScan, opts))
+	return m, tea.Batch(deleteScanCacheCmd(toScan), batchScanCmd(toScan, opts), m.warnSkipped(entry.SubRepoSkipped))
+}
+
+// warnSkipped says how much of the tree the walk behind this action could not
+// look at, and says nothing when it could.
+//
+// A Warn rather than an Error (Rule 128): nothing failed, the request simply
+// cannot be honoured in full. That number is what turns D59 from silent into
+// merely annoying — the footer could say how many repositories were about to be
+// scanned and nothing at all about how many it had failed to look for, so a
+// missing repository was indistinguishable from a tree that has none.
+//
+// Silence when skipped is zero is the point: a line on every scan is a line
+// nobody reads by the third one.
+func (m *Model) warnSkipped(skipped int) tea.Cmd {
+	if skipped == 0 {
+		return nil
+	}
+	return m.footer.Warn(plural(skipped, "directory", "directories") +
+		" could not be read — some repositories were missed")
+}
+
+// skippedInView totals what every walk in the current listing had to leave out.
+// A and ctrl+a act on the view rather than on a row, so the number they answer
+// for is the view's.
+func (m Model) skippedInView() int {
+	total := 0
+	for _, entry := range m.entries() {
+		total += entry.SubRepoSkipped
+	}
+	return total
 }
 
 // confirmScanAll asks before scanning everything, and the purge is the modal's
@@ -112,7 +142,7 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 	if len(unscanned) == 0 {
 		return m, nil
 	}
-	return m, batchScanCmd(unscanned, m.scanOptions())
+	return m, tea.Batch(batchScanCmd(unscanned, m.scanOptions()), m.warnSkipped(m.skippedInView()))
 }
 
 // requestScanAll triggers batch scanning of all git repos visible in the current view,
@@ -133,7 +163,7 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 	for _, path := range paths {
 		delete(m.scanCache, path)
 	}
-	return m, tea.Batch(deleteScanCacheCmd(paths), batchScanCmd(paths, m.scanOptions()))
+	return m, tea.Batch(deleteScanCacheCmd(paths), batchScanCmd(paths, m.scanOptions()), m.warnSkipped(m.skippedInView()))
 }
 
 // collectAllRepoPaths returns all git repo paths visible in the current view,

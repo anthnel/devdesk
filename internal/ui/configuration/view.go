@@ -173,6 +173,10 @@ func (m Model) RenderFooter(width int) string {
 //
 // `↑↓` is never greyed because it always moves; only its wording changes, since
 // a cycle or a checkbox has already persisted by the time the cursor leaves.
+//
+// `esc` is announced although Rule 138 calls the key obvious, because what it
+// does here is not: it saves without moving. It is greyed on exactly the fields
+// where it would do nothing — the ones that have already written.
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	field := m.current()
 
@@ -185,6 +189,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "↑↓", Description: move},
 		{Key: "←→", Description: "Change value", Disabled: field.Kind != kindCycle},
 		{Key: "space", Description: "Toggle", Disabled: field.Kind != kindToggle},
+		{Key: "esc", Description: "Save this field", Disabled: !m.settlesOnBlur(field)},
 		{Key: "?", Description: "Open help"},
 	}
 }
@@ -193,13 +198,16 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 func (m Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title: "Configuration",
-		Description: "Every scalar setting in the current context. Changes are written to " +
-			"the context's config file as you make them — there is no save step.",
+		Description: "Every scalar setting in the current context. A checkbox and a closed-list " +
+			"value are written as you press them; a typed value is written when you leave the " +
+			"field — with ↑↓, tab, esc, or by leaving the view. A value the file refuses keeps " +
+			"the cursor where it is, and says why.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "tab", Description: "Next section"},
 			{Key: "↑↓", Description: "Move between settings"},
 			{Key: "←→", Description: "Change a closed-list value"},
 			{Key: "space", Description: "Toggle a checkbox"},
+			{Key: "esc", Description: "Save the focused field without moving off it"},
 			{Key: "ctrl+p", Description: "Open the command line"},
 		},
 		Sections: []help.Section{

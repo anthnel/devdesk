@@ -61,6 +61,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.cycleField(1)
 	case " ":
 		return m.toggleField()
+	case "esc":
+		return m.commitField()
 	}
 
 	// Anything else belongs to the input when a text field has focus. Nothing
@@ -126,6 +128,53 @@ func (m Model) settleFocus(idx, step int) int {
 		idx = (idx + step + len(fields)) % len(fields)
 	}
 	return idx
+}
+
+// commitField writes the focused field without moving the cursor.
+//
+// esc is the key one reaches for to "close" a field, and it did nothing at all
+// — neither commit, nor exit. It fell through to the input, which ignores it,
+// so the only gesture a user tries to settle a value was the one gesture that
+// settled nothing (§1.3 D62).
+//
+// It re-binds the input afterwards, so a value the field normalised on the way
+// in is what stays on screen: distinguishing a written value from a merely
+// typed one is the other half of what made that defect durable.
+//
+// On a checkbox or an ordinary cycle field this is a no-op, which is why
+// GetShortcuts greys it there (Rule 130) — those have already persisted by the
+// time the cursor could leave.
+func (m Model) commitField() (tea.Model, tea.Cmd) {
+	m, cmd, ok := m.commitFocused()
+	if !ok {
+		return m, cmd
+	}
+	m.bindInput()
+	return m, cmd
+}
+
+// Leave settles the focused field before the router switches away, and refuses
+// to be left when the value is not acceptable.
+//
+// Nothing committed a text field on the way out: commitFocused was reached only
+// from switchTab and moveField, so a path typed and abandoned with ctrl+p was
+// never written. Worse than lost — the router caches this view and Init() does
+// nothing, so returning to :cfg showed the typed value while the file held the
+// old one, with nothing on screen to tell them apart. That is what sent the
+// search for the defect into the scanner (§1.3 D62).
+//
+// A refused value keeps the screen (ok=false), for the reason moveField already
+// does: the config must not quietly hold something other than what is displayed.
+// It is also the only answer that can be *said*. The footer belongs to this
+// view, so a message explaining an abandoned value would leave the screen with
+// the view that posted it — which is the same silence, one layer down.
+func (m Model) Leave() (tea.Model, tea.Cmd, bool) {
+	m, cmd, ok := m.commitFocused()
+	if !ok {
+		return m, cmd, false
+	}
+	m.bindInput()
+	return m, cmd, true
 }
 
 // commitFocused writes the focused field back to the config and persists.

@@ -320,8 +320,8 @@ func (m Model) GetHelpContent() help.Content {
 		KeyBindings: []help.KeyBinding{
 			{Key: "tab", Description: "Switch between the Overview and Resources tabs"},
 			{Key: "ctrl+r", Description: "Refresh all dashboard data"},
-			{Key: "R", Description: "Open assigned merge requests in browser (requires authentication)"},
-			{Key: "I", Description: "Open assigned issues in browser (requires authentication)"},
+			{Key: keymap.Requests, Description: "Open assigned merge requests in browser (requires authentication)"},
+			{Key: keymap.Issues, Description: "Open assigned issues in browser (requires authentication)"},
 			{Key: "ctrl+p", Description: "Open command mode to navigate to other views"},
 			{Key: "?", Description: "Show this help"},
 		},

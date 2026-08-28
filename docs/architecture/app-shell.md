@@ -99,10 +99,23 @@ live in `internal/ui/keymap`.
 
 **Important:** The `FormView` interface (`InEditMode()`) prevents command mode activation when forms are active. Views with active forms must implement this interface.
 
+**`LeavingView` is the point the router did not have.** `switchView` told
+nobody it was switching, so a view holding an edit in a widget rather than in
+its model lost it without a word — §1.3 D62, in the configuration form.
+`Leave() (tea.Model, tea.Cmd, bool)` returns the settled view, whatever it wants
+to say, and whether it may be left; `false` cancels the switch and passes the
+view's own `Cmd` on in place of it. `switchContext` calls it too, since it
+rebuilds every view against a different file.
+
+The interface is optional and probed for silently, like the other four — the
+configuration view is the only one that implements it, and every other view is
+left without ceremony. Re-entering the view already on screen settles nothing:
+`:cfg` from `:cfg` is not a save.
+
 ## The keyboard — `internal/ui/keymap`
 
 **Four namespaces, and the whole point is that a test can check them.** The
-package declares the vocabulary; three tests parse every `.go` under
+package declares the vocabulary; the tests parse every `.go` under
 `internal/app` and `internal/ui`, find the switches that decide keys, and fail
 naming file, line and rule. A convention nothing verifies is what produced the
 16 collisions §3.26 relieved.
@@ -133,6 +146,38 @@ reason written beside it: a letter that regains a meaning leaves the list of
 those that have none, or the list lies. That is `H` returning to `free` in §3.47,
 taken the other way round. `j` and `k` stay retired — they are `down` and `up`
 under another name.
+
+**A key is announced by the token that binds it** (§1.3 D63). `keymap_test.go`
+checked that no view *binds* a key outside the vocabulary and never that a view
+*announces* what it binds — and the security view showed `o Open ref` while its
+handler read `case keymap.Web:`, and `esc/⌫ Back` while it answered `esc` alone.
+Both keys were dead on arrival, and the ones that worked were never advertised.
+
+Nothing mechanical relates the two halves: **the announced key is a display
+string and the bound key is a bubbletea key name.** `↑↓` binds as `case "up"`,
+`esc/⌫` as `case "esc"`. So the relation is *created* where it can be — an
+action is announced as `keymap.Scan`, never as `"S"` — and three tests in
+`announced_test.go` hold it:
+
+| | |
+|---|---|
+| `TestNoAnnouncementSpellsAnActionOutInFull` | the half that makes the others possible: `"S"` is a string like any help label, `keymap.Scan` is the handler's own token |
+| `TestEveryAnnouncedActionIsBoundInItsPackage` | a view showing `S Scan` answers `keymap.Scan` somewhere in the same package |
+| `TestEveryAnnouncedToggleIsBoundInItsPackage` | the lowercase half, which has no constant but is still one letter — this is the one that catches the reported `o` |
+
+An announcement is recognised by carrying **both** `Key` and `Description`,
+rather than by its type name: `shortcut.Shortcut` and `help.KeyBinding` both
+have the pair, an element inside a slice literal has no type to read, and
+`shortcut.HeaderInfo` — the other thing with a `Key` — has `Value` instead. A
+`Key` written as a package constant is resolved, which is how the hand fix for
+`o` (`openPipelineKey`) becomes checkable rather than merely tidy.
+
+Two limits, both deliberate. `↑↓`, `enter/esc`, `tab / shift+tab` are display
+strings with no counterpart to compare against — a test that guessed would
+report the 52 help labels the naive version does, and Rule 138 keeps most of
+them off the screen anyway. And the granularity is the **package**, not the
+view's state: a key bound in one tab and announced in another passes. What these
+catch is the key bound *nowhere*, which is what both instances were.
 
 **Free letters are declared too** (`J Q Z`). A new action takes one of them;
 it does not invent a key, and `TestFreeLettersAreActuallyFree` stops the list
