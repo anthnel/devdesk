@@ -11,6 +11,8 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 func (m Model) InEditMode() bool {
@@ -33,9 +35,9 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 	// vue principale status
 	return []shortcut.Shortcut{
-		{Key: "N", Description: "New monitor"},
-		{Key: "E", Description: "Edit monitor"},
-		{Key: "D", Description: "Delete monitor"},
+		{Key: keymap.New, Description: "New monitor"},
+		{Key: keymap.Edit, Description: "Edit monitor"},
+		{Key: keymap.Delete, Description: "Delete monitor"},
 		{Key: "ctrl+r", Description: "Refresh"},
 		{Key: "tab", Description: "Switch tab"},
 		{Key: ".", Description: "Sort"},
@@ -204,9 +206,9 @@ func (m Model) GetHelpContent() help.Content {
 		Title:       "Status Monitor",
 		Description: "This view monitors the status of your services in real time. Checks are performed automatically at regular intervals. Two tabs display service monitors (HTTP, ICMP, DNS) and SSL certificates respectively.",
 		KeyBindings: []help.KeyBinding{
-			{Key: "N", Description: "Add a new monitor"},
-			{Key: "E", Description: "Edit the selected monitor"},
-			{Key: "D", Description: "Delete the selected monitor (with confirmation)"},
+			{Key: keymap.New, Description: "Add a new monitor"},
+			{Key: keymap.Edit, Description: "Edit the selected monitor"},
+			{Key: keymap.Delete, Description: "Delete the selected monitor (with confirmation)"},
 			{Key: "ctrl+r", Description: "Force an immediate refresh"},
 			{Key: "tab/shift+tab", Description: "Switch between Service Monitors and SSL Certificates tabs"},
 			{Key: "↑/k", Description: "Move selection up"},

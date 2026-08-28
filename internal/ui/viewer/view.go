@@ -202,7 +202,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 	}
 	if _, ok := m.pageable(); ok {
-		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "V", Description: "Open in system pager"})
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: keymap.Pager, Description: "Open in system pager"})
 	}
 
 	return append(shortcuts,
@@ -235,8 +235,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "g", Description: "Go to a line by its number (text)"},
 			{Key: "t", Description: "Show or hide timestamps (container logs)"},
 			{Key: "ctrl+r", Description: "Reload from the source"},
-			{Key: "F", Description: "Follow live output — re-reads the log every 2s in this pane, and keeps the view pinned to the bottom. Press F again to stop (container logs)"},
-			{Key: "V", Description: "Open in the system pager, which streams rather than polls. Leave it with 'q' (container logs)"},
+			{Key: keymap.Fetch, Description: "Follow live output — re-reads the log every 2s in this pane, and keeps the view pinned to the bottom. Press F again to stop (container logs)"},
+			{Key: keymap.Pager, Description: "Open in the system pager, which streams rather than polls. Leave it with 'q' (container logs)"},
 			{Key: "esc", Description: "Return to the view the document was opened from"},
 			{Key: "?", Description: "Show this help"},
 		},

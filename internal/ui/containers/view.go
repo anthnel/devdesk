@@ -10,6 +10,8 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // InEditMode returns true when a modal or the filter is active
@@ -130,12 +132,12 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 	}
 	return []shortcut.Shortcut{
-		{Key: "K", Description: "Stop or restart"},
+		{Key: keymap.Kill, Description: "Stop or restart"},
 		{Key: "space", Description: "Pause/Resume"},
-		{Key: "P", Description: "Prune"},
-		{Key: "D", Description: "Delete"},
-		{Key: "T", Description: "Shell"},
-		{Key: "L", Description: "Logs"},
+		{Key: keymap.Prune, Description: "Prune"},
+		{Key: keymap.Delete, Description: "Delete"},
+		{Key: keymap.Terminal, Description: "Shell"},
+		{Key: keymap.Logs, Description: "Logs"},
 		{Key: "enter", Description: "Inspect"},
 		{Key: "r", Description: "Toggle running"},
 		{Key: "p", Description: "Toggle paused"},
@@ -203,12 +205,12 @@ func (m Model) GetHelpContent() help.Content {
 		Title:       "Docker Containers",
 		Description: "This view lists and manages Docker containers. It displays real-time metrics (CPU, Memory, Network RX/TX) and supports filtering, sorting, lifecycle actions, and interactive shell access.",
 		KeyBindings: []help.KeyBinding{
-			{Key: "K", Description: "Ask whether to stop or restart the selected container"},
+			{Key: keymap.Kill, Description: "Ask whether to stop or restart the selected container"},
 			{Key: "Space", Description: "Toggle pause: pause a running container, or resume a paused one"},
-			{Key: "P", Description: "Prune: remove all stopped containers (with confirmation)"},
-			{Key: "D", Description: "Delete the selected container (with confirmation)"},
-			{Key: "T", Description: "Open an interactive shell (bash if available, sh otherwise) in the selected container. In place or in a new window, per app.terminal_new_window (running only)"},
-			{Key: "L", Description: "Open the container's logs in the viewer (Esc returns here)"},
+			{Key: keymap.Prune, Description: "Prune: remove all stopped containers (with confirmation)"},
+			{Key: keymap.Delete, Description: "Delete the selected container (with confirmation)"},
+			{Key: keymap.Terminal, Description: "Open an interactive shell (bash if available, sh otherwise) in the selected container. In place or in a new window, per app.terminal_new_window (running only)"},
+			{Key: keymap.Logs, Description: "Open the container's logs in the viewer (Esc returns here)"},
 			{Key: "enter", Description: "Open 'docker inspect' in the viewer, as a navigable JSON tree (Esc returns here)"},
 			{Key: "r", Description: "Filter: running containers"},
 			{Key: "p", Description: "Filter: paused containers"},

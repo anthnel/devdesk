@@ -248,7 +248,7 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "z", Description: "Reset all active filters (Ports tab)"},
 			{Key: "/", Description: "Search ports by address, process or PID (Ports tab)"},
 			{Key: "space (Ports)", Description: "Pause / resume auto-refresh (Ports tab)"},
-			{Key: "K", Description: "Send SIGKILL to the selected process, after confirmation (Ports tab)"},
+			{Key: keymap.Kill, Description: "Send SIGKILL to the selected process, after confirmation (Ports tab)"},
 			// Interfaces tab
 			{Key: "/", Description: "Search interfaces by name, MAC or address (Interfaces tab)"},
 			{Key: ".", Description: "Cycle the sort column (Interfaces tab)"},

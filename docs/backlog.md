@@ -11,19 +11,9 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Un seul ouvert : D63** — voir [§1.3](#13-open), et c'est une famille plutôt
-qu'un défaut : une touche annoncée qui n'agit pas. Ses deux instances connues
-sont corrigées, mais rien n'empêche la troisième — et la raison est
-structurelle, la touche annoncée étant une chaîne d'affichage sans relation
-mécanique avec la touche liée.
-
-**D59 et D62 sont fermés le 2026-08-28** — voir [§1.1](#11-fixed). D62 était
-celui qui se voyait le moins : un chemin saisi dans la vue configuration et
-quitté sans bouger le curseur n'était jamais écrit, et le champ continuait de
-l'afficher au retour, donc l'écran et le fichier divergeaient sans que rien ne
-le dise. D59 était sa moitié restante : les dépôts derrière un lien, la garde de
-cycle qu'ils impliquent, et les trois aggravants qui décidaient qu'un manque se
-voie ou non.
+**Rien d'ouvert.** D59, D62 et D63 sont fermés le 2026-08-28, et
+[§1.3](#13-open) est vide pour la première fois depuis D12. Tout ce qui suit est
+en [§1.1](#11-fixed).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -61,6 +51,14 @@ configuration, pas dans ce qu'elle configure. Trouvé en cherchant pourquoi
 n'avait jamais été écrit. Le routeur a gagné le point de sortie qu'il n'avait
 pas (`LeavingView`), et `esc` fait enfin quelque chose.
 
+**D63** était une famille plutôt qu'un défaut : une touche annoncée qui n'agit
+pas. Ce qui la ferme est d'avoir **créé la relation qui manquait** entre les
+deux moitiés — une action s'annonce désormais par la constante que le handler
+teste, jamais par sa lettre — et trois tests de source refusent le reste. Le
+chiffre que l'entrée disait « inconnu, et c'est le problème » est maintenant
+zéro pour ce qui est vérifiable, et déclaré hors de portée pour ce qui ne l'est
+pas.
+
 D39, before them, was the registry browser addressing a group's
 members one way to browse them and another way to pull them; it is closed by
 [§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix), which is
@@ -79,6 +77,82 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D63 — une touche annoncée qui n'agit pas. Fermé, la famille avec.** Les deux
+instances trouvées le 2026-08-27 en câblant `o` sur l'onglet CI, l'une par
+lecture du code, l'autre par l'utilisateur ; la garde posée le 2026-08-28.
+
+Rule 130 interdit **une touche grisée qui agit quand même**, et
+`shortcut.Availability` rend ça inexprimable : un seul champ, deux lecteurs.
+Rien ne gardait le sens inverse — **une touche affichée qui n'agit pas** — et la
+vue security en portait deux, dans le même état :
+
+| Annoncé | Ce que le handler liait |
+|---|---|
+| `{Key: "o", Description: "Open ref"}` | `case keymap.Web:` c'est-à-dire `W` |
+| `{Key: "esc/⌫", Description: "Back"}` | `case "esc":` seul — le commentaire disait d'ailleurs « backspace **was** an alias » |
+
+Dans les deux cas la touche affichée ne faisait rien, et celle qui marchait
+n'était jamais montrée.
+
+**Pourquoi aucun test ne les a vues, et pourquoi un test naïf n'y arriverait pas
+non plus.** Les tests existants épinglaient *les deux moitiés de la
+contradiction séparément* : `TestShortcutsFollowTheState` affirmait que la
+colonne dit `o`, `TestScanDetailsOpensTheReference` pressait `keymap.Web` — les
+deux passaient, rien ne les rapprochait.
+
+Et la raison de fond est structurelle : **la touche annoncée est une chaîne
+d'affichage, la touche liée est un nom de touche bubbletea**, et il n'existe
+aucune relation mécanique entre les deux. `↑↓` se lie par `case "up"`, `esc/⌫`
+par `case "esc"`. Un relevé grossier sur `internal/ui` sortait 52 candidats dont
+l'écrasante majorité étaient des libellés d'aide (`Context`, `Images`,
+`Disk Usage`).
+
+#### Ce qui la ferme : créer la relation là où elle peut exister
+
+C'est ce que l'entrée annonçait, et c'est ce qui a été fait. **Une action
+s'annonce par sa constante**, jamais par sa lettre — 56 `{Key: "S"}` sont
+devenus `{Key: keymap.Scan}` dans neuf vues, `GetShortcuts` et `GetHelpContent`
+confondus, puisqu'une aide qui ment ment autant qu'une colonne.
+
+Trois tests dans `announced_test.go`, à côté de ceux de §3.26 :
+
+| Test | Ce qu'il refuse |
+|---|---|
+| `TestNoAnnouncementSpellsAnActionOutInFull` | `{Key: "S"}` — c'est la moitié qui rend les deux autres possibles : `"S"` est une chaîne comme un libellé d'aide, `keymap.Scan` est le token du handler |
+| `TestEveryAnnouncedActionIsBoundInItsPackage` | une vue qui affiche `S Scan` sans que rien dans son paquet ne réponde `keymap.Scan` |
+| `TestEveryAnnouncedToggleIsBoundInItsPackage` | la moitié minuscule, qui n'a pas de constante mais reste **une lettre** — donc la comparaison y est exacte plutôt que bruyante. C'est celui qui attrape l'instance rapportée |
+
+**Une annonce se reconnaît à porter `Key` *et* `Description`**, pas à son nom de
+type : `shortcut.Shortcut` et `help.KeyBinding` ont la paire tous les deux, un
+élément dans un littéral de slice n'a pas de type à lire, et
+`shortcut.HeaderInfo` — la seule autre chose qui a un `Key` — porte `Value` à la
+place. Une `Key` écrite comme constante de paquet est résolue, ce qui rend
+vérifiable le correctif appliqué à la main pour `o` (`openPipelineKey`) plutôt
+que seulement soigné.
+
+Les trois échouent sur les formes exactes du défaut, vérifié en les
+réintroduisant une par une.
+
+#### Ce qui n'est pas couvert, et pourquoi c'est le bon découpage
+
+`↑↓`, `enter/esc`, `tab / shift+tab` sont des chaînes d'affichage sans
+contrepartie à comparer. Rule 138 en tient déjà l'essentiel hors de l'écran, et
+deviner là rendrait les 52 candidats — le chiffre que cette entrée citait comme
+« inconnu, et c'est le problème » est désormais **zéro pour ce qui est
+vérifiable, et hors de portée pour le reste** ; ce n'est pas la même chose que
+de l'ignorer.
+
+La granularité est le **paquet**, pas l'état de la vue : une touche liée dans un
+onglet et annoncée dans un autre passe. Le savoir demanderait de piloter la vue,
+ce qui est l'alternative que §3.28 a déjà pesée et écartée. Ce que ces tests
+attrapent est la touche liée *nulle part* — ce qu'étaient les deux instances.
+
+C'est le pendant de `internal/ui/keymap`, qui vérifiait qu'aucune vue ne *lie*
+une touche hors vocabulaire sans jamais vérifier qu'elle *annonce* ce qu'elle
+lie.
+
+---
 
 **D59 — un scan lancé sur une arborescence oubliait certains dépôts, en
 silence. Fermé.** Signalé à l'usage, reproduit sur fixture le 2026-08-24, la
@@ -1982,66 +2056,20 @@ the stale test and the stale backlog entry got found together.
 
 ### 1.3 Open
 
-**D63 — une touche annoncée qui n'agit pas. Deux instances corrigées, la
-famille reste ouverte.** Trouvées le 2026-08-27 en câblant `o` sur l'onglet CI,
-l'une par lecture du code, l'autre par l'utilisateur.
+**Rien.** D59, D62 et D63 sont partis le 2026-08-28 et cette section est vide
+pour la première fois depuis D12 — ce qui suit est de l'histoire, pas du travail
+en attente.
 
-Rule 130 interdit **une touche grisée qui agit quand même**, et
-`shortcut.Availability` rend ça inexprimable : un seul champ, deux lecteurs.
-Rien ne garde le sens inverse — **une touche affichée qui n'agit pas** — et la
-vue security en portait deux, dans le même état :
+Ce qui reste sous cette rubrique est **D35**, qui n'est ni ouvert ni fermé : une
+lecture périmée avec un moyen de la rafraîchir. Elle est gardée ici parce que
+c'est une décision plutôt qu'un correctif, et les entrées qui la suivent disent
+ce que les défauts précédents étaient et par quoi ils ont été fermés.
 
-| Annoncé | Ce que le handler lie |
-|---|---|
-| `{Key: "o", Description: "Open ref"}` | `case keymap.Web:` c'est-à-dire `W` |
-| `{Key: "esc/⌫", Description: "Back"}` | `case "esc":` seul — le commentaire dit d'ailleurs « backspace **was** an alias » |
-
-Dans les deux cas la touche affichée ne faisait rien, et celle qui marchait
-n'était jamais montrée. Les deux sont corrigées.
-
-**Pourquoi aucun test ne les a vues, et pourquoi un test naïf n'y arriverait pas
-non plus.** Les tests existants épinglaient *les deux moitiés de la
-contradiction séparément* : `TestShortcutsFollowTheState` affirmait que la
-colonne dit `o`, `TestScanDetailsOpensTheReference` pressait `keymap.Web` — les
-deux passaient, rien ne les rapprochait.
-
-Et la raison de fond est structurelle : **la touche annoncée est une chaîne
-d'affichage, la touche liée est un nom de touche bubbletea**, et il n'existe
-aucune relation mécanique entre les deux. `↑↓` se lie par `case "up"`, `←→` par
-`case "left"`, `esc/⌫` par `case "esc"`. Un test qui comparerait naïvement les
-`{Key: …}` aux `case …:` produit surtout du bruit — vérifié : un relevé grossier
-sur `internal/ui` sort 52 candidats dont l'écrasante majorité sont des libellés
-d'aide (`Context`, `Images`, `Disk Usage`) ou des glyphes de navigation. Le
-chiffre n'est donc pas 52 ; il est inconnu, et c'est le problème.
-
-**Ce qui fermerait la famille**, et c'est une entrée de travail à part entière :
-faire porter à `shortcut.Shortcut.Key` **la constante `keymap`** partout où il
-en existe une — la vue security le fait déjà pour `keymap.Exclude` et
-`keymap.Web` — puis un test source qui, pour chaque `Shortcut` dont la `Key` est
-une constante du vocabulaire, exige un `case` sur **la même constante** dans le
-paquet. Ça ne couvre pas `↑↓` ni `esc`, et ce n'est pas grave : ces touches-là
-sont universelles et Rule 138 les exclut déjà de l'affichage. Ce qui dérive,
-c'est le vocabulaire majuscule et les dérogations déclarées — exactement ce que
-la constante nomme.
-
-C'est le pendant de `internal/ui/keymap`, qui vérifie qu'aucune vue ne *lie* une
-touche hors vocabulaire, sans jamais vérifier qu'elle *annonce* ce qu'elle lie.
-
----
-
-D39 was the last one before it, and §3.18 closed it on 2026-08-23 — see
-§1.1 for what it was and what the fix cost on the screens around it. D40, which
-it needed closed with it, had already been fixed on its own. D52, trouvé en
-écrivant §3.6 étape 1, a été corrigé à l'étape 3. D21 and D36 closed everything
-that preceded them. All of them are in §1.1.
-
-What remains below is **D35**, which is not open and not closed: a stale reading
-with a way to refresh it, kept here because that is a decision rather than a
-fix.
-
-D12, D13 and D14 were all fixed by §3.8 — see "The three defects it closed"
-there for what each turned out to be. D14's inverted test failed the moment the
-fix landed, which is what the pattern is for, and has been turned around.
+D39, avant eux, était le navigateur de registries adressant les membres d'un
+groupe d'une façon pour les parcourir et d'une autre pour les tirer ; il est
+fermé par [§3.18](#318-a-registry-member-is-an-address-not-a-url--repo_prefix).
+D12, D13 et D14 ont tous été fermés par §3.8. D21 et D36 ont fermé tout ce qui
+les précédait. Tous sont en §1.1.
 
 **D35 — the "unpulled" count is only as fresh as the last fetch. Mitigated by
 §3.17, not closed.** `detectGitStatus` computes it with
