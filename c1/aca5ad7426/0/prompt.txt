@@ -1,0 +1,9 @@
+dans la vue dashboard bloc health, le status pour les certs ne sont pas correct, je m'attendrais à valid, expired, error, to renew
+
+---
+
+oui merge les deux worktree
+
+---
+
+Faire passer formatSSLStatus par CertStateOf est une ligne si tu veux l'uniformiser. => fais le avant de merger
