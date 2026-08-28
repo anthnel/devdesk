@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "9bd046546c82",
+  "session_id": "b4aae55d-1164-47ff-845e-1338845c246e",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-28T20:34:15.8228218Z",
+  "branch": "fix/open-defects",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/workspaces.md",
+    "docs/backlog.md",
+    "internal/ui/workspaces/actions.go",
+    "internal/ui/workspaces/availability.go",
+    "internal/ui/workspaces/bench_test.go",
+    "internal/ui/workspaces/entry.go",
+    "internal/ui/workspaces/model.go",
+    "internal/ui/workspaces/model_test.go",
+    "internal/ui/workspaces/subrepos_test.go",
+    "internal/ui/workspaces/sync.go",
+    "internal/ui/workspaces/table.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "fccca28b90c0",
+  "checkpoint_transcript_start": 356,
+  "transcript_lines_at_start": 356,
+  "compact_transcript_start": 53,
+  "token_usage": {
+    "input_tokens": 118,
+    "cache_creation_tokens": 93438,
+    "cache_read_tokens": 15685790,
+    "output_tokens": 62336,
+    "api_call_count": 59
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-28T20:34:15.7665415Z",
+    "agent_lines": 800,
+    "agent_removed": 192,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 800,
+    "total_lines_changed": 992,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

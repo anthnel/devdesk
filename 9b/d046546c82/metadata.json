@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "9bd046546c82",
+  "strategy": "manual-commit",
+  "branch": "fix/open-defects",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/workspaces.md",
+    "docs/backlog.md",
+    "internal/ui/workspaces/actions.go",
+    "internal/ui/workspaces/availability.go",
+    "internal/ui/workspaces/bench_test.go",
+    "internal/ui/workspaces/entry.go",
+    "internal/ui/workspaces/model.go",
+    "internal/ui/workspaces/model_test.go",
+    "internal/ui/workspaces/subrepos_test.go",
+    "internal/ui/workspaces/sync.go",
+    "internal/ui/workspaces/table.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9b/d046546c82/0/metadata.json",
+      "transcript": "/9b/d046546c82/0/full.jsonl",
+      "compact_transcript": "/9b/d046546c82/0/transcript.jsonl",
+      "content_hash": "/9b/d046546c82/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 118,
+    "cache_creation_tokens": 93438,
+    "cache_read_tokens": 15685790,
+    "output_tokens": 62336,
+    "api_call_count": 59
+  }
+}
