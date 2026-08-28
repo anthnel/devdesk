@@ -231,24 +231,18 @@ func (m Model) GetHelpContent() help.Content {
 	}
 }
 
-// formatSSLStatus formate le statut pour les certificats SSL
+// formatSSLStatus names a certificate's state, and it does not go through
+// StatusType.
+//
+// Elle le faisait, et c'est ce qui a valu D64 à la boîte Health : SSLChecker
+// rend `ERROR` pour un certificat périmé comme pour un qui expire dans six
+// jours, donc l'icône était la même pour les deux. La colonne `Days Left`
+// d'à côté séparait ce que celle-ci collait — mais elle demandait de lire deux
+// cellules pour un fait qui en tient dans une.
+//
+// Le texte reste brut : la couleur est le `Style` de la colonne (Rule 122).
 func formatSSLStatus(comp status.ComponentStatus) string {
-	switch comp.Status {
-	case "OK":
-		// return theme.StatusOKStyle.Render("✓ OK")
-		return theme.IconOK
-	case "WARNING":
-		// warningStyle := lipgloss.NewStyle().Foreground(theme.ColorWarn).Bold(true)
-		return theme.IconWarning
-	case "ERROR":
-		// return theme.StatusErrorStyle.Render("✗ ERROR")
-		return theme.IconError
-	case "DOWN":
-		// return theme.StatusDownStyle.Render("✗ DOWN")
-		return theme.IconError
-	default:
-		return string(comp.Status)
-	}
+	return theme.CertStateIcon(string(status.CertStateOf(comp)))
 }
 
 // matchesQuery reports whether a component survives the text filter. Name,

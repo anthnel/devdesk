@@ -79,6 +79,16 @@ func componentStatusStyle(c status.ComponentStatus) lipgloss.Style {
 	return theme.StatusStyle(string(c.Status))
 }
 
+// certStatusStyle is the same for the Certificates tab, on the certificate
+// vocabulary its icon now speaks (status.CertState). Elle ne peut pas être
+// componentStatusStyle : `to renew` n'a pas de StatusType à donner à
+// theme.StatusStyle, et un certificat périmé y prendrait la couleur de celui
+// qu'on n'a pas pu lire — la couleur cesserait de séparer ce que l'icône vient
+// de séparer.
+func certStatusStyle(c status.ComponentStatus) lipgloss.Style {
+	return theme.CertStateStyle(string(status.CertStateOf(c)))
+}
+
 // monitorTypeCell names the check kind, or says so when the config did not.
 func monitorTypeCell(c status.ComponentStatus) string {
 	if c.Type == "" {
@@ -101,7 +111,7 @@ func sslColumns() []datatable.Column[status.ComponentStatus] {
 			Cell:   func(c status.ComponentStatus) string { return c.Target },
 			Search: func(c status.ComponentStatus) string { return c.Target },
 		},
-		{Title: "Status", Sizing: datatable.SizingFixed, MinWidth: 12, Cell: formatSSLStatus, Style: componentStatusStyle},
+		{Title: "Status", Sizing: datatable.SizingFixed, MinWidth: 12, Cell: formatSSLStatus, Style: certStatusStyle},
 		{
 			Title: "Days Left", Sizing: datatable.SizingFixed, MinWidth: 11,
 			Cell: func(c status.ComponentStatus) string {

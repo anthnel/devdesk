@@ -15,6 +15,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ── Header and metadata ──────────────────────────────────────────────────────
@@ -376,6 +377,11 @@ func TestUnknownComponentTypeRendersAsUnknown(t *testing.T) {
 
 // An unrecognised status must still render its own name rather than an empty
 // cell, so an unexpected checker result stays visible.
+//
+// **Le certificat n'en est plus : sa cellule ne lit plus StatusType du tout.**
+// Elle lit `SSLDaysLeft`, dont l'absence veut dire « rien n'a pu être lu » quel
+// que soit le statut porté à côté — et c'est ce qu'elle doit dire ici, plutôt
+// que de recopier un mot que la colonne d'à côté n'explique pas.
 func TestUnknownStatusFallsBackToItsName(t *testing.T) {
 	m := newTestModel(t)
 	m = feed(t, m, CheckCompleteMsg{
@@ -389,24 +395,47 @@ func TestUnknownStatusFallsBackToItsName(t *testing.T) {
 	if got := m.monitorTable.Table().Rows()[0][2]; got != "PENDING" {
 		t.Errorf("status cell = %q, want the raw status name", got)
 	}
-	if got := m.sslTable.Table().Rows()[0][2]; got != "PENDING" {
-		t.Errorf("ssl status cell = %q, want the raw status name", got)
+	if got, want := m.sslTable.Table().Rows()[0][2], theme.CertStateIcon(string(status.CertError)); got != want {
+		t.Errorf("ssl status cell = %q, want the unread glyph %q", got, want)
 	}
 }
 
+// La colonne sépare désormais les quatre états d'un certificat, et c'est le
+// point : `ERROR` recouvrait aussi bien un certificat périmé qu'un qui expire
+// dans six jours, donc l'icône était la même pour les deux (D64).
 func TestFormatSSLStatusCoversEveryState(t *testing.T) {
+	days := func(n int) *int { return &n }
+	cases := []struct {
+		name string
+		comp status.ComponentStatus
+		want status.CertState
+	}{
+		{"valide", status.ComponentStatus{Status: status.StatusOK, SSLDaysLeft: days(200)}, status.CertValid},
+		{"à renouveler", status.ComponentStatus{Status: status.StatusError, SSLDaysLeft: days(6)}, status.CertToRenew},
+		{"périmé", status.ComponentStatus{Status: status.StatusError, SSLDaysLeft: days(-1)}, status.CertExpired},
+		{"illisible", status.ComponentStatus{Status: status.StatusDown}, status.CertError},
+	}
+
 	seen := map[string]bool{}
-	for _, state := range []status.StatusType{status.StatusOK, status.StatusWarning, status.StatusError, status.StatusDown} {
-		got := formatSSLStatus(status.ComponentStatus{Status: state})
+	for _, c := range cases {
+		got := formatSSLStatus(c.comp)
 		if got == "" {
-			t.Errorf("formatSSLStatus(%q) returned an empty cell", state)
+			t.Errorf("formatSSLStatus(%s) returned an empty cell", c.name)
+		}
+		if want := theme.CertStateIcon(string(c.want)); got != want {
+			t.Errorf("formatSSLStatus(%s) = %q, want the %q glyph %q", c.name, got, c.want, want)
 		}
 		seen[got] = true
 	}
-	// OK, WARNING and ERROR/DOWN must be distinguishable; ERROR and DOWN share
-	// an icon deliberately.
-	if len(seen) != 3 {
-		t.Errorf("formatSSLStatus produced %d distinct icons, want 3", len(seen))
+	if len(seen) != len(cases) {
+		t.Errorf("formatSSLStatus produced %d distinct icons for %d states", len(seen), len(cases))
+	}
+
+	// Rule 122 : la cellule est mesurée, donc elle ne porte pas sa couleur —
+	// c'est certStatusStyle qui la donne, et elle doit séparer ce que l'icône
+	// vient de séparer.
+	if certStatusStyle(cases[1].comp).GetForeground() == certStatusStyle(cases[2].comp).GetForeground() {
+		t.Error("a certificate to renew and an expired one read the same colour")
 	}
 }
 

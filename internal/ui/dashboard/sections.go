@@ -272,7 +272,7 @@ func renderHealthSection(m Model, width int, t tier) []string {
 	monitors, certs := unknownValue(), unknownValue()
 	if !m.loadingServices {
 		monitors = statusSummary(m.filterComponents(false))
-		certs = statusSummary(m.filterComponents(true))
+		certs = certSummary(m.filterComponents(true))
 	}
 	expiry := nearestExpiry(m.filterComponents(true), m.loadingServices, true)
 
@@ -312,7 +312,7 @@ func healthColumns(m Model) (left, right []string) {
 	unscannedRepos, reposMeasured := m.unscannedRepositories()
 
 	monitors := append([]string{theme.Bg("Monitors")},
-		statusBranches(m.filterComponents(false), m.loadingServices, "")...)
+		statusBranches(m.filterComponents(false), m.loadingServices)...)
 
 	// L'échéance pend de Certs plutôt que de flotter au-dessus : c'est un fait
 	// sur les certificats, et il n'a de sens que là. Le nom du certificat est
@@ -324,7 +324,7 @@ func healthColumns(m Model) (left, right []string) {
 	// `Images` et les deux arbres du bas se liraient en escalier.
 	certs := m.filterComponents(true)
 	certTree := append([]string{theme.Bg("Certs")},
-		statusBranches(certs, m.loadingServices, nearestExpiry(certs, m.loadingServices, false))...)
+		certBranches(certs, m.loadingServices, nearestExpiry(certs, m.loadingServices, false))...)
 
 	top := max(len(monitors), len(certTree))
 	left = append(padRuns(monitors, top), treeGap(), theme.Bg("Repositories"))
@@ -336,57 +336,110 @@ func healthColumns(m Model) (left, right []string) {
 	return left, right
 }
 
-// statusBranches renders one node per state, plus an optional trailing node.
-// Les trois états sont toujours là, y compris à zéro : une branche absente se
-// lit comme un état qu'on ne surveille pas, et c'est l'inverse de ce qu'un zéro
-// veut dire.
-// `expiry` est vide pour les moniteurs, qui n'ont pas d'échéance ; quand il est
-// là il devient le dernier nœud, et l'arbre gagne une ligne. Les deux colonnes
-// n'ont donc pas la même hauteur, et c'est sideBySide qui l'absorbe.
-func statusBranches(components []status.ComponentStatus, loading bool, expiry string) []string {
+// statusBranches renders one node per monitor state. Les trois états sont
+// toujours là, y compris à zéro : une branche absente se lit comme un état
+// qu'on ne surveille pas, et c'est l'inverse de ce qu'un zéro veut dire.
+//
+// Les certificats ne passent plus par ici — voir certBranches, et
+// status.CertState pour ce qui les sépare.
+func statusBranches(components []status.ComponentStatus, loading bool) []string {
 	nodes := func(up, down, errValue string) []string {
-		out := []string{
+		return []string{
 			narrowBranch(false, "up", up),
 			narrowBranch(false, "down", down),
-			narrowBranch(expiry == "", "error", errValue),
+			narrowBranch(true, "error", errValue),
 		}
-		if expiry != "" {
-			out = append(out, narrowBranch(true, "expiry", expiry))
-		}
-		return out
 	}
 
 	switch {
 	case loading:
 		return nodes(unknownValue(), unknownValue(), unknownValue())
 	case len(components) == 0:
-		// Rien à surveiller : un seul nœud le dit, et les lignes vides gardent
-		// la hauteur — une boîte qui rétrécit décale toute sa rangée.
-		out := []string{narrowBranch(true, "configured", theme.DimStyle.Render("none"))}
-		for range len(nodes("", "", "")) - 1 {
-			out = append(out, theme.Bg(""))
-		}
-		return out
+		return nothingConfigured(len(nodes("", "", "")))
 	default:
 		ok, down, errCount := countStatuses(components)
 		return nodes(
 			countValue(ok)+theme.Bg("  ")+theme.StatusOKStyle.Render(theme.IconOK),
-			failureCount(down, theme.IconError, theme.StatusDownStyle),
-			failureCount(errCount, theme.IconWarning, theme.StatusErrorStyle),
+			alertCount(down, theme.IconError, theme.StatusDownStyle),
+			alertCount(errCount, theme.IconWarning, theme.StatusErrorStyle),
 		)
 	}
 }
 
-// failureCount renders one failing state's tally. Le glyphe est celui de l'état
-// — croix pour DOWN, alerte pour ERROR, le vocabulaire de :status — y compris à
-// zéro : une coche sur la ligne « down » disait « tout va bien » à l'endroit
-// même où l'on cherche combien sont tombés, et c'est l'état de la ligne qu'une
-// icône nomme, pas son compte.
+// certBranches renders one node per certificate state, then the nearest
+// expiry.
+//
+// **Le vocabulaire n'est pas celui des moniteurs, et c'était le défaut.** Un
+// certificat rendu sous `up` / `down` / `error` mettait dans la même case un
+// certificat périmé, un qui expire la semaine prochaine et un qu'on n'a pas pu
+// lire — SSLChecker donnant `ERROR` aux trois — pendant que `up` nommait
+// « joignable » ce qui veut dire « valide ». Les quatre états de
+// status.CertState les séparent, et la seule ligne qui appelle une action —
+// `to renew` — cesse d'être noyée dans les deux autres.
+//
+// L'échéance reste un nœud à elle : `to renew` dit combien, elle dit quand, et
+// deux chiffres sur une ligne demandent de retenir lequel est lequel (c'est ce
+// que postureBranches a déjà tranché).
+func certBranches(certs []status.ComponentStatus, loading bool, expiry string) []string {
+	nodes := func(valid, toRenew, expired, errValue string) []string {
+		return []string{
+			narrowBranch(false, "valid", valid),
+			narrowBranch(false, "to renew", toRenew),
+			narrowBranch(false, "expired", expired),
+			narrowBranch(false, "error", errValue),
+			narrowBranch(true, "expiry", expiry),
+		}
+	}
+
+	switch {
+	case loading:
+		return nodes(unknownValue(), unknownValue(), unknownValue(), unknownValue())
+	case len(certs) == 0:
+		return nothingConfigured(len(nodes("", "", "", "")))
+	default:
+		valid, toRenew, expired, errored := status.CertCounts(certs)
+		return nodes(
+			countValue(valid)+theme.Bg("  ")+certGlyph(status.CertValid),
+			certAlert(toRenew, status.CertToRenew),
+			certAlert(expired, status.CertExpired),
+			certAlert(errored, status.CertError),
+		)
+	}
+}
+
+// certGlyph and certAlert read one state's glyph and colour from the theme
+// rather than naming them here: `:status` rend la même colonne, et deux tables
+// de correspondance finiraient par diverger sur la seule qui compte — celle qui
+// sépare `expired` de `error`.
+func certGlyph(state status.CertState) string {
+	return theme.CertStateStyle(string(state)).Render(theme.CertStateIcon(string(state)))
+}
+
+func certAlert(n int, state status.CertState) string {
+	return alertCount(n, theme.CertStateIcon(string(state)), theme.CertStateStyle(string(state)))
+}
+
+// nothingConfigured says a tree watches nothing, and keeps the height it would
+// have had — une boîte qui rétrécit décale toute sa rangée.
+func nothingConfigured(height int) []string {
+	out := []string{narrowBranch(true, "configured", theme.DimStyle.Render("none"))}
+	for range height - 1 {
+		out = append(out, theme.Bg(""))
+	}
+	return out
+}
+
+// alertCount renders one non-nominal state's tally. Le glyphe est celui de
+// l'état — croix pour DOWN, alerte pour ERROR, sablier pour un renouvellement
+// qui vient, le vocabulaire de :status — y compris à zéro : une coche sur la
+// ligne « down » disait « tout va bien » à l'endroit même où l'on cherche
+// combien sont tombés, et c'est l'état de la ligne qu'une icône nomme, pas son
+// compte.
 //
 // C'est la couleur qui porte le compte : éteinte à zéro, parce qu'une croix
 // rouge sur « 0 down » apprend la couleur au lecteur au lieu de l'alerter.
 // L'icône reste à droite du chiffre, comme partout ailleurs.
-func failureCount(n int, glyph string, style lipgloss.Style) string {
+func alertCount(n int, glyph string, style lipgloss.Style) string {
 	if n == 0 {
 		return countValue(0) + theme.Bg("  ") + theme.DimStyle.Render(glyph)
 	}
@@ -475,8 +528,14 @@ func scanAge(side postureSide) string {
 	return theme.Bg(theme.TimeAgo(side.Oldest))
 }
 
-// nearestExpiry renders the certificate that runs out first — la seule des N
-// dates qui demande une décision.
+// nearestExpiry renders the deadline that comes first — la seule des N dates
+// qui demande une décision.
+//
+// **Elle ne regarde que ce qui court encore.** Un certificat déjà périmé n'a
+// plus de compte à rebours, et le rendre en « -2 days » demandait au lecteur de
+// traduire un nombre négatif en un fait que le nœud `expired` énonce déjà. Rien
+// devant, donc, se lit `-` : c'est ce que la ligne a toujours voulu dire quand
+// elle n'a pas de date à donner.
 //
 // `named` est faux dans une colonne partagée : une demi-boîte ne tient pas
 // « 58 days  registry.example.com », et c'est le nombre de jours qui décide de
@@ -491,7 +550,11 @@ func nearestExpiry(certs []status.ComponentStatus, loading, named bool) string {
 
 	var soonest *status.ComponentStatus
 	for i, c := range certs {
-		if c.SSLDaysLeft == nil {
+		switch status.CertStateOf(c) {
+		case status.CertValid, status.CertToRenew:
+		default:
+			// Périmé ou illisible : les deux ont leur nœud, et ni l'un ni
+			// l'autre n'a d'échéance à venir.
 			continue
 		}
 		if soonest == nil || *c.SSLDaysLeft < *soonest.SSLDaysLeft {
@@ -499,14 +562,12 @@ func nearestExpiry(certs []status.ComponentStatus, loading, named bool) string {
 		}
 	}
 	if soonest == nil {
-		// Des certificats surveillés dont aucun n'a pu être lu : c'est une
-		// absence de mesure, pas une échéance lointaine.
 		return unknownValue()
 	}
 
 	days := *soonest.SSLDaysLeft
 	value := theme.Bg(fmt.Sprintf("%d days", days))
-	if days <= expirySoonDays {
+	if days <= status.CertRenewWindowDays {
 		value = theme.StatusErrorStyle.Render(fmt.Sprintf("%d days", days))
 	}
 	if !named {
@@ -514,9 +575,6 @@ func nearestExpiry(certs []status.ComponentStatus, loading, named bool) string {
 	}
 	return value + theme.DimStyle.Render("  "+soonest.Name)
 }
-
-// expirySoonDays is where a certificate stops being a date and becomes a task.
-const expirySoonDays = 30
 
 // chartsPerBox is what a chart-bearing box holds — CPU and RAM, RX and TX. Les
 // trois boîtes à graphes tiennent la même rangée, donc la hauteur libre se
@@ -1014,13 +1072,47 @@ func statusSummary(components []status.ComponentStatus) string {
 	}
 	ok, down, errCount := countStatuses(components)
 	out := theme.Bg(fmt.Sprintf("%d ", ok)) + theme.StatusOKStyle.Render(theme.IconOK)
-	if down > 0 {
-		out += theme.Bg(fmt.Sprintf("  %d ", down)) + theme.StatusDownStyle.Render(theme.IconError)
+	out += tally(down, theme.IconError, theme.StatusDownStyle)
+	out += tally(errCount, theme.IconWarning, theme.StatusErrorStyle)
+	return out
+}
+
+// certSummary is the same line for certificates, on their own four states
+// (status.CertState). Elle n'a de place que pour des glyphes — les mots sont
+// dans l'arbre du palier `wide`, qui est la seule moitié de boîte assez large
+// pour eux — mais les quatre en ont un distinct, ce qui est précisément ce qui
+// manquait : périmé et à renouveler partageaient l'alerte de « error ».
+//
+// Le sablier est le seul orange : c'est le seul état qui demande une action et
+// laisse le temps de la prendre.
+func certSummary(certs []status.ComponentStatus) string {
+	if len(certs) == 0 {
+		return theme.DimStyle.Render("none configured")
 	}
-	if errCount > 0 {
-		out += theme.Bg(fmt.Sprintf("  %d ", errCount)) + theme.StatusErrorStyle.Render(theme.IconWarning)
+	valid, toRenew, expired, errored := status.CertCounts(certs)
+	out := theme.Bg(fmt.Sprintf("%d ", valid)) + certGlyph(status.CertValid)
+	for _, c := range []struct {
+		n     int
+		state status.CertState
+	}{
+		{toRenew, status.CertToRenew},
+		{expired, status.CertExpired},
+		{errored, status.CertError},
+	} {
+		out += tally(c.n, theme.CertStateIcon(string(c.state)), theme.CertStateStyle(string(c.state)))
 	}
 	return out
+}
+
+// tally appends one non-nominal state to a summary line, and nothing at all
+// when it is empty. Le résumé tient sur une ligne partagée avec son libellé :
+// un « 0 » par état la remplirait de ce qui ne s'est pas produit, là où
+// l'arbre — qui a une ligne par état — les garde tous.
+func tally(n int, glyph string, style lipgloss.Style) string {
+	if n == 0 {
+		return ""
+	}
+	return theme.Bg(fmt.Sprintf("  %d ", n)) + style.Render(glyph)
 }
 
 // truncatePath keeps a path's tail, which is the half that identifies it.

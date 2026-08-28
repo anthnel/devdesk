@@ -77,10 +77,12 @@ func componentFixtures() []status.ComponentStatus {
 		{Name: "web", Type: status.TypeHTTPS, Status: status.StatusOK},
 		{Name: "api", Type: status.TypeHTTP, Status: status.StatusDown},
 		{Name: "dns", Type: status.TypeDNS, Status: status.StatusWarning},
-		{Name: "cert-ok", Type: status.TypeSSL, Status: status.StatusOK},
-		{Name: "cert-expired", Type: status.TypeSSL, Status: status.StatusDown},
+		{Name: "cert-ok", Type: status.TypeSSL, Status: status.StatusOK, SSLDaysLeft: intPtr(200)},
+		{Name: "cert-expired", Type: status.TypeSSL, Status: status.StatusError, SSLDaysLeft: intPtr(-3)},
 	}
 }
+
+func intPtr(n int) *int { return &n }
 
 func toolFixtures() []shared.ToolInfo {
 	return []shared.ToolInfo{

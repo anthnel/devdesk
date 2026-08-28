@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-27
+**Last Updated:** 2026-08-28
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11,9 +11,10 @@ rather than carried over.
 
 ## 1. Known defects
 
-**Rien d'ouvert.** D59, D62 et D63 sont fermés le 2026-08-28, et
-[§1.3](#13-open) est vide pour la première fois depuis D12. Tout ce qui suit est
-en [§1.1](#11-fixed).
+**Rien d'ouvert.** D59, D62 et D63 sont fermés le 2026-08-28, et **D64** — la
+boîte Health rendant les certificats dans le vocabulaire des moniteurs, signalé
+et corrigé le même jour — avec eux. [§1.3](#13-open) est vide pour la première
+fois depuis D12, et tout ce qui suit est en [§1.1](#11-fixed).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -77,6 +78,58 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D64 — la boîte Health rendait les certificats dans le vocabulaire des
+moniteurs, et y perdait l'état qui demande une action. Corrigé.** Signalé à
+l'usage le 2026-08-28, corrigé le même jour.
+
+L'arbre `Certs` portait `up` / `down` / `error`, les trois nœuds de `Monitors`,
+alimentés par le même `countStatuses`. Deux choses en sortaient fausses :
+
+| Ce qui est vrai du certificat | Ce que SSLChecker rend | Où il atterrissait |
+|---|---|---|
+| valide, loin de l'échéance | `OK` | `up` |
+| expire dans 30 jours ou moins | `WARNING` | `error` |
+| expire dans moins de 7 jours | `ERROR` | `error` |
+| **périmé** | `ERROR` | `error` |
+| hôte injoignable, chaîne vide, cible absente | `DOWN` / `ERROR` | `down` / `error` |
+
+Le nœud `error` recevait donc trois faits qui ne se règlent pas de la même
+façon — un service déjà cassé, un renouvellement qu'il est encore temps de
+faire, et une mesure qui n'a pas eu lieu — et `up` nommait « joignable » ce qui
+veut dire « valide ». **L'état sur lequel on décide quelque chose était le seul
+à n'avoir jamais de ligne à lui.**
+
+**La cause n'est pas le rendu, c'est `StatusType`.** Elle a quatre valeurs pour
+tout le monde et n'en garde que trois utiles ici ; un certificat en a quatre à
+dire. `status.CertState` les dérive de `SSLDaysLeft` — dont l'absence est
+exactement le cas « rien n'a pu être lu » — et l'arbre en rend une par nœud :
+`valid`, `to renew`, `expired`, `error`. Le seuil de renouvellement est la
+constante que SSLChecker utilisait déjà, désormais nommée
+(`status.CertRenewWindowDays`) : deux seuils qui divergent feraient dire
+`to renew` au dashboard de ce que `:status` affiche encore en vert.
+
+**Trouvé en corrigeant, et de la même famille :** le nœud `expiry` prenait le
+minimum de *tous* les jours restants, négatifs compris, donc un certificat
+périmé depuis deux jours s'y lisait `-2 days`. Il ne regarde plus que ce qui
+court encore ; rien devant se lit `-`, et le compte des périmés est au nœud
+au-dessus.
+
+**`:status` avait le même défaut, en plus discret.** Son onglet Certificates
+rendait `formatSSLStatus` depuis `StatusType` : un certificat périmé et un qui
+expire dans six jours y portaient la même icône, et la colonne `Days Left`
+d'à côté était le seul moyen de les séparer — deux cellules à lire pour un fait
+qui en tient dans une. Elle passe par `CertStateOf`, et sa couleur par
+`certStatusStyle` plutôt que par `componentStatusStyle` : `to renew` n'a pas de
+`StatusType` à donner à `theme.StatusStyle`, et un certificat périmé y prendrait
+la couleur de celui qu'on n'a pas pu lire.
+
+Le glyphe et la couleur de chaque état sont dans le thème
+(`theme.CertStateIcon`, `theme.CertStateStyle`), appelés par les deux vues :
+deux tables de correspondance finiraient par diverger sur la seule qui compte,
+celle qui sépare `expired` de `error`.
+
+---
 
 **D63 — une touche annoncée qui n'agit pas. Fermé, la famille avec.** Les deux
 instances trouvées le 2026-08-27 en câblant `o` sur l'onglet CI, l'une par
