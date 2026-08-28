@@ -99,7 +99,7 @@ func (s *SSLChecker) Check(ctx context.Context, component config.ComponentConfig
 	} else if daysLeft < 7 {
 		result.Status = StatusError
 		result.Error = fmt.Sprintf("expires in %d days", daysLeft)
-	} else if daysLeft <= 30 {
+	} else if daysLeft <= CertRenewWindowDays {
 		result.Status = StatusWarning
 		result.Error = fmt.Sprintf("expires in %d days", daysLeft)
 	} else {

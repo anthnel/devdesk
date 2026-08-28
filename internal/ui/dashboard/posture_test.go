@@ -162,6 +162,32 @@ func TestUnreadableCertificatesReadUnknownRatherThanFar(t *testing.T) {
 	}
 }
 
+// Un certificat déjà périmé n'a plus de compte à rebours : le nœud `expired`
+// le dit, et « -2 days » demandait de traduire un nombre négatif.
+func TestAnExpiredCertificateIsNotTheNearestExpiry(t *testing.T) {
+	certs := []status.ComponentStatus{
+		certWithDays("gone", -2),
+		certWithDays("soon", 9),
+	}
+
+	got := stripANSI(nearestExpiry(certs, false, true))
+	if !strings.Contains(got, "9 days") {
+		t.Errorf("nearestExpiry = %q, want the 9-day certificate", got)
+	}
+	if strings.Contains(got, "-") {
+		t.Errorf("nearestExpiry = %q — a passed date is not a deadline", got)
+	}
+}
+
+// Et quand rien ne court plus, la ligne n'a pas de date à donner.
+func TestNothingAheadIsNotADeadline(t *testing.T) {
+	certs := []status.ComponentStatus{certWithDays("gone", -2)}
+
+	if got := stripANSI(nearestExpiry(certs, false, true)); got != "-" {
+		t.Errorf("nearestExpiry = %q with every certificate expired, want %q", got, "-")
+	}
+}
+
 func TestNoCertificateConfiguredIsNotAnExpiry(t *testing.T) {
 	if got := stripANSI(nearestExpiry(nil, false, true)); !strings.Contains(got, "none configured") {
 		t.Errorf("nearestExpiry = %q with no SSL monitor", got)
@@ -349,6 +375,86 @@ func TestTheExpiryHangsFromTheCertificates(t *testing.T) {
 	}
 }
 
+// ── Certificate states ───────────────────────────────────────────────────────
+
+// Le vocabulaire des moniteurs ne dit pas ce qu'un certificat est. `up` nommait
+// « joignable » ce qui veut dire « valide », et `error` recevait aussi bien le
+// périmé que celui qui expire la semaine prochaine.
+func TestTheCertificateTreeSpeaksOfCertificates(t *testing.T) {
+	m := healthModel(t, []status.ComponentStatus{
+		{Name: "web", Type: status.TypeHTTPS, Status: status.StatusOK},
+		certWithDays("google.com", 58),
+	})
+	_, certs := healthColumns(m)
+
+	for _, label := range []string{"valid", "to renew", "expired", "error", "expiry"} {
+		if nodeUnder(certs, "Certs", label) == "" {
+			t.Errorf("the Certs tree has no %q node", label)
+		}
+	}
+	for _, label := range []string{"up", "down"} {
+		if got := nodeUnder(certs, "Certs", label); got != "" {
+			t.Errorf("the Certs tree kept the monitor node %q: %q", label, got)
+		}
+	}
+
+	// Les moniteurs gardent le leur, et n'empruntent pas l'inverse.
+	monitors, _ := healthColumns(m)
+	for _, label := range []string{"up", "down", "error"} {
+		if nodeUnder(monitors, "Monitors", label) == "" {
+			t.Errorf("the Monitors tree lost its %q node", label)
+		}
+	}
+	for _, label := range []string{"valid", "to renew", "expired"} {
+		if got := nodeUnder(monitors, "Monitors", label); got != "" {
+			t.Errorf("the Monitors tree grew the certificate node %q: %q", label, got)
+		}
+	}
+}
+
+// Le défaut, compté : trois certificats que `up` / `down` / `error` mettait
+// dans deux cases se répartissent maintenant sur trois.
+func TestAnExpiredCertificateIsNotCountedAsAReadFailure(t *testing.T) {
+	m := healthModel(t, []status.ComponentStatus{
+		certWithDays("far", 300),
+		certWithDays("soon", 9),
+		certWithDays("gone", -2),
+		{Name: "unreachable", Type: status.TypeSSL, Status: status.StatusDown},
+	})
+	_, certs := healthColumns(m)
+
+	for _, c := range []struct{ label, want string }{
+		{"valid", "1"},
+		{"to renew", "1"},
+		{"expired", "1"},
+		{"error", "1"},
+	} {
+		got := stripANSI(nodeUnder(certs, "Certs", c.label))
+		if !strings.Contains(got, c.want) {
+			t.Errorf("the %q node reads %q, want a count of %s", c.label, got, c.want)
+		}
+	}
+}
+
+// Chaque état a son glyphe, y compris à zéro : sans ça `expired` et `error`
+// portaient la même alerte et redevenaient une seule ligne lue en deux.
+func TestEachCertificateStateCarriesItsOwnGlyph(t *testing.T) {
+	m := healthModel(t, []status.ComponentStatus{certWithDays("google.com", 58)})
+	_, certs := healthColumns(m)
+
+	for _, c := range []struct{ label, want string }{
+		{"valid", theme.IconOK},
+		{"to renew", theme.IconHourglass},
+		{"expired", theme.IconError},
+		{"error", theme.IconWarning},
+	} {
+		line := nodeUnder(certs, "Certs", c.label)
+		if !strings.Contains(line, c.want) {
+			t.Errorf("the %q node reads %q, want it to carry its own icon", c.label, line)
+		}
+	}
+}
+
 // ── Monitor and certificate icons ────────────────────────────────────────────
 
 // L'icône nomme l'état de la ligne, pas son compte : une coche sur « down »
@@ -378,14 +484,14 @@ func TestTheDownAndErrorNodesKeepTheirOwnIconAtZero(t *testing.T) {
 // Et le glyphe ne change pas quand le compte passe à un : seule la couleur le
 // fait, ce que stripANSI efface — d'où la comparaison sur les deux états.
 func TestAFailingNodeKeepsTheGlyphItHadAtZero(t *testing.T) {
-	quiet := stripANSI(failureCount(0, theme.IconError, theme.StatusDownStyle))
-	failing := stripANSI(failureCount(3, theme.IconError, theme.StatusDownStyle))
+	quiet := stripANSI(alertCount(0, theme.IconError, theme.StatusDownStyle))
+	failing := stripANSI(alertCount(3, theme.IconError, theme.StatusDownStyle))
 
 	if !strings.HasSuffix(quiet, theme.IconError) || !strings.HasSuffix(failing, theme.IconError) {
 		t.Errorf("the glyph changed with the count: %q then %q", quiet, failing)
 	}
 	if !strings.HasPrefix(failing, "3") {
-		t.Errorf("failureCount(3) = %q, want the count first and the icon on its right", failing)
+		t.Errorf("alertCount(3) = %q, want the count first and the icon on its right", failing)
 	}
 }
 

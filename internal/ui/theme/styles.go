@@ -289,6 +289,48 @@ func TableStylesForState(state string) table.Styles {
 	return s
 }
 
+// CertStateStyle colours a certificate state (status.CertState, passed as its
+// string like StatusStyle and SeverityTextStyle take theirs — le thème ne
+// connaît pas les paquets de domaine).
+//
+// Elle est séparée de StatusStyle parce que les deux vocabulaires ne se
+// recouvrent pas : `to renew` n'a aucun StatusType à lui, et `expired` en
+// partage un avec `error`. C'est exactement ce que la boîte Health confondait.
+//
+// L'orange n'est porté que par `to renew` : c'est le seul état qui demande une
+// action et laisse le temps de la prendre.
+func CertStateStyle(state string) lipgloss.Style {
+	switch state {
+	case "valid":
+		return StatusOKStyle
+	case "to renew":
+		return StatusWarningStyle
+	case "expired", "error":
+		return StatusErrorStyle
+	default:
+		return lipgloss.NewStyle().Background(ColorBackground)
+	}
+}
+
+// CertStateIcon is the glyph that names a certificate state. Les quatre en ont
+// un distinct — c'est ce qui manquait quand `expired` et `error` partageaient
+// l'alerte — et le sablier dit d'un renouvellement qu'il vient, là où la croix
+// dirait qu'il est trop tard.
+func CertStateIcon(state string) string {
+	switch state {
+	case "valid":
+		return IconOK
+	case "to renew":
+		return IconHourglass
+	case "expired":
+		return IconError
+	case "error":
+		return IconWarning
+	default:
+		return IconWarning
+	}
+}
+
 // SeverityTextStyle returns the text style for a CVE severity, drawn from the
 // same palette TableStylesForSeverity uses for the selected row. Callers pass
 // the severity uppercased, as the scanners report it.
