@@ -76,6 +76,21 @@ var (
 	IconPHP    = "\ue73d" //  nf-dev-php
 	IconElixir = "\ue62d" //  nf-seti-elixir
 
+	// Explorer glyphs. They are deliberately none of the workspaces set —
+	// IconGitBranch, IconDirectory and the fileicon table — because the two
+	// views list different things: ws lists what is on disk, exp lists what the
+	// forge holds, and a row that looked the same in both would claim they are
+	// the same object.
+	//
+	// The visibility trio is GitLab's and GitHub's own: a globe for what anyone
+	// can read, a shield for what a signed-in user can, a lock for neither. The
+	// lock is IconLock, already here — a fourth name for one codepoint is how a
+	// glyph table stops being one.
+	IconNamespace          = "\U000F0849" // 󰡉 nf-md-account_group
+	IconRepository         = "\uf401"     //  nf-oct-repo
+	IconVisibilityPublic   = "\U000F01E7" // 󰇧 nf-md-earth
+	IconVisibilityInternal = "\U000F0498" // 󰒘 nf-md-shield
+
 	IconNetwork = "\U000F06F3" // 󰛳 nf-md-network
 	IconVolume  = "\U000F01BC" // 󰆼 nf-md-database
 )

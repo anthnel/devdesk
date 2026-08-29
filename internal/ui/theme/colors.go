@@ -116,6 +116,22 @@ var (
 	// third grey declares it here without touching a single caller.
 	ColorShortcutDisabled lipgloss.Color
 
+	// Icon colours, one per role rather than one per glyph (iconcolors.go).
+	//
+	// A glyph is a value, not a name: a table keyed on U+F0849 says nothing about
+	// what it is for, and the next reader cannot tell a wrong entry from a right
+	// one. A role can be argued about, which is the whole point of a palette.
+	//
+	// They follow the severity block's shape rather than the syntax block's: a
+	// theme file may override each of them, because these are the one part of the
+	// palette a user is likely to have an opinion about — an icon is the first
+	// thing seen on a row.
+	ColorIconNamespace   lipgloss.Color
+	ColorIconRepository  lipgloss.Color
+	ColorIconVisPublic   lipgloss.Color
+	ColorIconVisInternal lipgloss.Color
+	ColorIconVisPrivate  lipgloss.Color
+
 	// Severity colors (background + foreground pairs)
 	ColorSeverityCritical   lipgloss.Color
 	ColorSeverityCriticalFg lipgloss.Color

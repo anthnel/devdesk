@@ -10534,6 +10534,100 @@ dans Rule 125.
 60 → 58) : ce qu'elle mesure est désormais le nom seul, donc garder les
 anciennes bornes lui aurait rendu la largeur du glyphe en plus de la sienne.
 
+### 3.56 L'explorer passe aux icônes, et le thème apprend à les colorer — **done**
+
+Fait le 2026-08-29. Demandé ainsi : « la colonne type doit être remplacée par une
+icone […] les icones de la vue exp doivent être différente de la vue ws. La
+colonne visibilité doit contenir une icone […] Réordonne les colonnes […]
+Enrichit le theme pour permettre de préciser des couleurs différentes pour les
+différentes icones ». Puis, après le plan : « enlève le filtre sur visibility et
+garde le titre actuel ».
+
+#### Ce que la table faisait
+
+Huit colonnes ouvertes par `Type`, treize cellules pour écrire « Group » ou
+« Organization » sur chaque ligne — et un mot que le compte personnel de GitHub
+rendait faux, ce que `forge.md` documentait comme une aspérité assumée.
+`Visibility` en dépensait douze pour un mot de sept, et `CI` fermait la marche,
+loin de `Role` qui est la seule autre chose que la forge dise du dépôt.
+
+#### Ce qu'elle fait
+
+`icône · Name · Slug · Visibility · Role · CI · Created · Activity`.
+
+La première colonne suit Rule 125 : sans titre, deux cellules, ni comparateur ni
+clé de recherche. Les onze cellules rendues vont à `Name` et `Slug`, les deux
+colonnes qui identifient une ligne.
+
+`Visibility` garde son mot entier au-dessus d'un glyphe, et **perd son tri**.
+C'est le tri qui payait la différence : `askFor` réserve deux cellules de flèche
+sur toute colonne triable, triée ou non, donc la colonne descend de douze à dix
+— la largeur exacte de son propre en-tête — sans que le lecteur ait à décoder un
+titre abrégé. Public avant private, ou l'inverse ? Trois valeurs dans un ordre
+que personne ne reconnaîtrait ne font pas un tri.
+
+Une visibilité inconnue rend une cellule **vide**. Le champ est celui du
+backend ; une forge qui gagnerait une quatrième valeur afficherait sinon l'une
+des trois existantes — une réponse fausse là où rien est une réponse vraie.
+
+#### La case à cocher
+
+`Type` portait la case du mode clone. Rule 125 fige la colonne d'icône à deux
+cellules, donc la case **remplace** le glyphe au lieu de se poser à côté.
+
+Ce qui rend le partage honnête est la couleur : `iconStyle` peint le kind dans
+les deux modes, donc une ligne cochée dit encore groupe ou dépôt — par la teinte
+plutôt que par la forme. C'est la seule raison pour laquelle les rôles de
+couleur d'icône existent, et pas de la décoration.
+
+#### Le tri d'ouverture
+
+`SortColumn` pointait sur `Type`, qui n'existe plus et ne pourrait pas trier de
+toute façon. Il passe à `-1`, l'ordre de la forge — et **ce n'est pas un
+changement de comportement** : `loadChildren` empile les namespaces puis les
+dépôts, et le tri par type ascendant qu'il remplace est l'identité sur cette
+liste. Ce qui est gagné est que `.` a désormais « pas de tri » comme arrêt, donc
+l'ordre de la forge redevient atteignable après qu'on s'en est éloigné. Un tri
+par type ne pouvait pas l'exprimer.
+
+#### Le thème
+
+Cinq rôles (`theme.IconRole`), cinq couleurs sémantiques, cinq clés de thème
+surchargeables, `IconColor` et `IconStyle` dans `theme/iconcolors.go`.
+
+**La clé est un rôle et non un glyphe**, et c'est le seul point de conception à
+retenir : une table `U+F0849 → ColorSecondary` ne se relit pas — rien sur la
+ligne ne dit si l'entrée est juste, donc une erreur y est indiscernable d'un
+choix. Un rôle se discute. C'est la forme qu'ont déjà `SeverityTextStyle`,
+`CIScoreStyle` et `ForgeIcon`.
+
+Elles sont surchargeables par un fichier de thème, contrairement aux couleurs de
+syntaxe qui sont des alias fermés : une icône est la première chose vue sur une
+ligne, donc c'est la partie de la palette sur laquelle un utilisateur a le plus
+de chances d'avoir un avis.
+
+Les défauts portent chacun un argument. Public est vert parce que c'est l'état
+qui mérite d'être repéré sans lire ; internal prend la teinte d'avertissement,
+restreint sans être fermé ; **private est gris** parce que c'est la majorité — et
+une couleur que toutes les lignes portent n'informe de rien (Rule 122), qui est
+l'argument des compteurs de sévérité pour leurs zéros.
+
+#### Les glyphes
+
+`nf-md-account_group`, `nf-oct-repo`, `nf-md-earth`, `nf-md-shield`, plus
+`IconLock` qui existait. Aucun n'est de l'ensemble `ws` — `ws` liste ce qui est
+sur le disque, `exp` ce que la forge détient, et une ligne identique dans les
+deux prétendrait qu'il s'agit du même objet. `TestTheExplorerGlyphsAreNotTheWorkspaceOnes`
+le vérifie.
+
+#### Ce que la vocabulaire devient
+
+Les mots de la forge quittent la table avec `Type`. Ils ne sont pas perdus : ils
+passent dans la légende **Row Icons** de l'aide, seul appelant restant de
+`nodeTypeLabel`. L'aspérité de `forge.md` — le compte personnel qui se dit
+« Organization » — n'est donc plus répétée sur chaque ligne ; elle tient en une
+phrase, à un endroit où une phrase a la place d'être juste.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:
