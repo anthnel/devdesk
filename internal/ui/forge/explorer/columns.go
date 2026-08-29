@@ -1,13 +1,13 @@
 package explorer
 
 import (
-	"github.com/anthnel/devdesk/internal/forge"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // Column minimum widths. The table used to size every column as a ratio of the
@@ -15,47 +15,63 @@ import (
 // 5 and Created got 8, neither wide enough for its own header. Floors plus a
 // flexible Name and Slug say what actually matters when space is short.
 //
-// Type is wider than "Project" needs because the clone selection prefixes it
-// with a checkbox, and a Nerd Font glyph does not always render as narrow as
-// runewidth counts it.
+// colVisibilityMin is the width of the word "Visibility" and nothing more. The
+// cell below it is one glyph, so the header is all the column costs — and there
+// is no sort arrow to make room for any more, because the column no longer
+// sorts (see below).
 const (
-	colTypeMin       = 13
 	colNameMin       = 20
 	colSlugMin       = 16
-	colVisibilityMin = 12
+	colVisibilityMin = 10
 	colRoleMin       = 12
 	colCreatedMin    = 12
 	colActivityMin   = 12
 	colCIMin         = 6
 )
 
-// columnName is the column the explorer opens sorted by.
-const columnType = 0
+// Column indices the view and its tests name rather than count. Only the two
+// that are referred to by position are declared: the rest are read by title,
+// which is what stops a reorder from silently moving an assertion.
+const (
+	columnName    = 1
+	columnCreated = 6
+)
 
-// explorerColumns describes the explorer table. Slug, Role and CI do not sort:
-// a slug orders the same as the name beside it, and neither a role nor a
-// pipeline icon has an order anyone would recognise.
+// explorerColumns describes the explorer table, in the order it renders:
+// icon, Name, Slug, Visibility, Role, CI, Created, Activity.
 //
-// The clone selection's checkbox rides on the Type cell rather than taking a
-// column of its own: a column would cost four cells on every screen to say
-// nothing on all but one of them, and at 80 columns the explorer has none to
-// spare. Type is the left-most column, so the box still sits where a checkbox
-// belongs.
-// v is the forge's wording. It is a parameter rather than something the cells
-// reach for, because datatable builds its columns once in New and they close
-// over nothing (§2) — and it is safe to capture because the router drops and
-// rebuilds every view when the config is saved, so it cannot go stale.
-func explorerColumns(v forge.Vocabulary) []datatable.Column[explorerRow] {
+// **CI sits beside Role rather than at the end**, which is where a reader looks
+// for what the forge says about a repository — the same argument that put the
+// workspaces CI grade beside the severity counters instead of past Modified.
+//
+// Only Name, Created and Activity sort. A slug orders the same as the name
+// beside it; a role has no order anyone would recognise; and neither has a
+// visibility — is public before private, or after? Three values in an order
+// nobody would agree on are not a sort, and dropping the comparator is what
+// lets the header be the whole width of the column: askFor reserves two cells
+// for an arrow on every sortable column, sorted or not.
+//
+// It takes no vocabulary any more. The forge's own words — Group/Project or
+// Organization/Repository — left the table with the Type column, and the glyph
+// that replaced it belongs to no forge. They are not lost: nodeTypeLabel still
+// resolves them for the help legend, which is where a sentence has room to be
+// right about a personal account.
+//
+// The clone selection's checkbox rides on the **icon** cell (row.go:iconCell):
+// a column of its own would cost four cells on every screen to say nothing on
+// all but one of them, and at 80 columns the explorer has none to spare. What
+// makes the sharing honest is the colour — iconStyle paints the node's kind
+// whether the glyph is a checkbox or not.
+func explorerColumns() []datatable.Column[explorerRow] {
 	return []datatable.Column[explorerRow]{
 		{
-			Title: "Type", Sizing: datatable.SizingFixed, MinWidth: colTypeMin,
-			Cell: func(r explorerRow) string {
-				if !r.selecting {
-					return nodeTypeLabel(v, r.node)
-				}
-				return checkboxIcon(r.check) + " " + nodeTypeLabel(v, r.node)
-			},
-			Less: func(a, b explorerRow) bool { return string(a.node.Type) < string(b.node.Type) },
+			// No title: the column carries a glyph, and a header over it would
+			// name something read at a glance anyway. It declares neither Less
+			// nor Search — it adds no text anyone could type, so the filter
+			// stays on Name and Slug (Rule 125).
+			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
+			Cell:  iconCell,
+			Style: iconStyle,
 		},
 		{
 			Title: "Name", Sizing: datatable.SizingContent, MinWidth: colNameMin, Flex: 2,
@@ -71,15 +87,21 @@ func explorerColumns(v forge.Vocabulary) []datatable.Column[explorerRow] {
 			Search: func(r explorerRow) string { return r.node.FullPath },
 		},
 		{
+			// A glyph under the whole word. The word is what makes the three
+			// glyphs decodable without a legend, and it costs nothing extra:
+			// the header is the column's width either way.
 			Title: "Visibility", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colVisibilityMin,
-			Cell: func(r explorerRow) string { return visibilityLabel(r.node) },
-			Less: func(a, b explorerRow) bool {
-				return strings.ToLower(a.node.Visibility) < strings.ToLower(b.node.Visibility)
-			},
+			Cell:  func(r explorerRow) string { return visibilityIcon(r.node) },
+			Style: func(r explorerRow) lipgloss.Style { return theme.IconStyle(visibilityRole(r.node)) },
 		},
 		{
 			Title: "Role", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colRoleMin,
 			Cell: func(r explorerRow) string { return r.node.Role },
+		},
+		{
+			Title: "CI", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colCIMin,
+			Cell:  func(r explorerRow) string { return pipelineStatusLabel(r.node) },
+			Style: func(r explorerRow) lipgloss.Style { return pipelineStatusStyle(r.node) },
 		},
 		{
 			Title: "Created", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colCreatedMin,
@@ -90,11 +112,6 @@ func explorerColumns(v forge.Vocabulary) []datatable.Column[explorerRow] {
 			Title: "Activity", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colActivityMin,
 			Cell: func(r explorerRow) string { return timeAgo(r.node.LastActivityAt) },
 			Less: func(a, b explorerRow) bool { return timeBefore(a.node.LastActivityAt, b.node.LastActivityAt) },
-		},
-		{
-			Title: "CI", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colCIMin,
-			Cell:  func(r explorerRow) string { return pipelineStatusLabel(r.node) },
-			Style: func(r explorerRow) lipgloss.Style { return pipelineStatusStyle(r.node) },
 		},
 	}
 }

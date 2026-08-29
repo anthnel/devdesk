@@ -19,7 +19,7 @@ import (
 
 // ── Construction and loading ─────────────────────────────────────────────────
 
-func TestNewStartsEmptyAndSorted(t *testing.T) {
+func TestNewStartsEmptyAndInTheForgesOwnOrder(t *testing.T) {
 	m := New(testConfig(), &shared.State{})
 
 	if len(m.nodes) != 0 {
@@ -28,8 +28,8 @@ func TestNewStartsEmptyAndSorted(t *testing.T) {
 	if m.mode != ModeNormal {
 		t.Errorf("mode = %v on a new model, want ModeNormal", m.mode)
 	}
-	if column, desc := m.table.SortState(); column != columnType || desc {
-		t.Errorf("sort = (column %d, desc=%v), want Type ascending", column, desc)
+	if column, desc := m.table.SortState(); column != -1 || desc {
+		t.Errorf("sort = (column %d, desc=%v), want the forge's own order", column, desc)
 	}
 	if m.firstLoadDone {
 		t.Error("firstLoadDone is true before any load")
@@ -213,25 +213,30 @@ func TestSortCyclesDirectionThenColumn(t *testing.T) {
 	m := loadedModel(t)
 
 	m = feed(t, m, testutil.Key("."))
-	if column, desc := m.table.SortState(); column != columnType || !desc {
-		t.Errorf("after one '.', sort = (column %d, desc=%v), want the same column descending", column, desc)
+	if column, desc := m.table.SortState(); column != columnName || desc {
+		t.Errorf("after one '.', sort = (column %d, desc=%v), want Name ascending", column, desc)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if column, desc := m.table.SortState(); column != columnType+1 || desc {
-		t.Errorf("after two '.', sort = (column %d, desc=%v), want Name ascending", column, desc)
+	if column, desc := m.table.SortState(); column != columnName || !desc {
+		t.Errorf("after two '.', sort = (column %d, desc=%v), want the same column descending", column, desc)
 	}
 }
 
-func TestSortCycleWrapsBackToTheFirstColumn(t *testing.T) {
+// The cycle comes back to no sort at all, which is the state the table opens
+// in — so the forge's own order is reachable again after `.` has moved away
+// from it. That is what SortColumn: -1 buys and what a sort by node type could
+// never express.
+func TestSortCycleComesBackToTheForgesOwnOrder(t *testing.T) {
 	m := loadedModel(t)
-	// Type, Name, Visibility, Created and Activity sort; Slug, Role and CI do not.
-	const sortable = 5
-	for range sortable * 2 {
+	// Name, Created and Activity sort; the icon column, Slug, Visibility, Role
+	// and CI do not.
+	const sortable = 3
+	for range sortable*2 + 1 {
 		m = feed(t, m, testutil.Key("."))
 	}
 
-	if column, desc := m.table.SortState(); column != columnType || desc {
+	if column, desc := m.table.SortState(); column != -1 || desc {
 		t.Errorf("sort = (column %d, desc=%v) after a full cycle, want the starting state", column, desc)
 	}
 }
@@ -239,7 +244,7 @@ func TestSortCycleWrapsBackToTheFirstColumn(t *testing.T) {
 func TestSortReordersTheRows(t *testing.T) {
 	m := drilledModel(t)
 
-	byName := feed(t, m, testutil.Keys(".", ".")...) // type desc, then name asc
+	byName := feed(t, m, testutil.Key(".")) // the first sortable column is Name
 	if got := rowNames(byName.table.Table().Rows()); !equal(got, []string{"api", "legacy", "sub"}) {
 		t.Errorf("sorted by name ascending = %v", got)
 	}
@@ -254,21 +259,28 @@ func TestSortReordersTheRows(t *testing.T) {
 func TestSortIndicatorFollowsTheActiveColumn(t *testing.T) {
 	m := loadedModel(t)
 
-	if got := m.table.Table().Columns()[0].Title; !strings.Contains(got, "▲") {
-		t.Errorf("Type header = %q, want an ascending arrow", got)
+	for i, col := range m.table.Table().Columns() {
+		if strings.ContainsAny(col.Title, "▲▼") {
+			t.Errorf("column %d header = %q on open, want no arrow at all", i, col.Title)
+		}
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := m.table.Table().Columns()[0].Title; !strings.Contains(got, "▼") {
-		t.Errorf("Type header = %q after reversing, want a descending arrow", got)
+	if got := m.table.Table().Columns()[columnName].Title; !strings.Contains(got, "▲") {
+		t.Errorf("Name header = %q, want an ascending arrow", got)
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	if got := m.table.Table().Columns()[0].Title; strings.ContainsAny(got, "▲▼") {
-		t.Errorf("Type header = %q once the sort moved to Name, want no arrow", got)
+	if got := m.table.Table().Columns()[columnName].Title; !strings.Contains(got, "▼") {
+		t.Errorf("Name header = %q after reversing, want a descending arrow", got)
 	}
-	if got := m.table.Table().Columns()[1].Title; !strings.Contains(got, "▲") {
-		t.Errorf("Name header = %q, want the arrow to have moved here", got)
+
+	m = feed(t, m, testutil.Key("."))
+	if got := m.table.Table().Columns()[columnName].Title; strings.ContainsAny(got, "▲▼") {
+		t.Errorf("Name header = %q once the sort moved on, want no arrow", got)
+	}
+	if got := m.table.Table().Columns()[columnCreated].Title; !strings.Contains(got, "▲") {
+		t.Errorf("Created header = %q, want the arrow to have moved here", got)
 	}
 }
 
@@ -277,7 +289,7 @@ func TestSortHandlesMissingDates(t *testing.T) {
 	m := loadedModel(t)
 	m.nodes[1].CreatedAt = nil
 
-	m = feed(t, m, testutil.Keys(".", ".", ".", ".", ".", ".")...) // to Created ascending
+	m = feed(t, m, testutil.Keys(".", ".", ".")...) // Name asc, Name desc, Created asc
 
 	if got := rowNames(m.table.Table().Rows()); got[0] != "beta" {
 		t.Errorf("rows sorted by creation date = %v, want the undated node first", got)
@@ -595,7 +607,7 @@ func TestPendingSelectionLandsOnAVisibleNode(t *testing.T) {
 // nothing clamps the mistake away: the lookup walked the raw list and landed on
 // whichever resource happened to share the index.
 func TestPendingSelectionUsesTheRowOrderNotTheRawList(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Keys(".", ".")...) // sort by name ascending
+	m := feed(t, drilledModel(t), testutil.Key(".")) // sort by name ascending
 
 	if got := rowNames(m.table.Table().Rows()); !equal(got, []string{"api", "legacy", "sub"}) {
 		t.Fatalf("rows = %v, want them sorted by name", got)

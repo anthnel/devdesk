@@ -1,7 +1,6 @@
 package explorer
 
 import (
-	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -100,8 +99,13 @@ func New(cfg *config.Config, sharedState *shared.State) Model {
 		mode:      ModeNormal,
 		selection: newCloneSelection(),
 		table: datatable.New(datatable.Config[explorerRow]{
-			Columns:    explorerColumns(forge.VocabularyFor(cfg.Forge.Type)),
-			SortColumn: columnType,
+			Columns: explorerColumns(),
+			// The forge's own order: loadChildren stacks the namespaces, then
+			// the repositories. It used to be a sort by node type, which on
+			// that list is the identity — so the opening screen is unchanged,
+			// and what is gained is that `.` now has "no sort" as a stop, so
+			// the forge's order is reachable again after cycling away from it.
+			SortColumn: -1,
 		}),
 		spinner: s,
 	}

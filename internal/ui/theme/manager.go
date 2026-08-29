@@ -66,6 +66,13 @@ type Theme struct {
 	SeverityLowFg      string `json:"severity_low_fg,omitempty"`
 	SeverityInfo       string `json:"severity_info,omitempty"`
 	SeverityInfoFg     string `json:"severity_info_fg,omitempty"`
+
+	// Icon colours (optional, fall back to the semantic palette)
+	IconNamespace   string `json:"icon_namespace,omitempty"`
+	IconRepository  string `json:"icon_repository,omitempty"`
+	IconVisPublic   string `json:"icon_vis_public,omitempty"`
+	IconVisInternal string `json:"icon_vis_internal,omitempty"`
+	IconVisPrivate  string `json:"icon_vis_private,omitempty"`
 }
 
 // DefaultTheme retourne le thème par défaut (Catppuccin Mocha)
@@ -292,6 +299,22 @@ func ApplyTheme(t *Theme) {
 	ColorFooterInfo = ColorText
 	ColorFooterWarn = ColorSeverityMedium
 	ColorFooterError = ColorSeverityCritical
+
+	// Icon colours (iconcolors.go). Assigned here like every other alias, and
+	// through applyColor so a theme file can name its own.
+	//
+	// The defaults carry an argument each. A namespace takes the structural
+	// colour the headers and tabs already use, and a repository the leaf colour
+	// beside it. Public is green because it is the state worth spotting without
+	// reading; internal is the warning hue because it is restricted without being
+	// closed; and private is **dim** because it is the majority — a colour every
+	// row carries informs of nothing (Rule 122), which is the same argument the
+	// severity counters make for their zeroes.
+	ColorIconNamespace = applyColor(t.IconNamespace, ColorSecondary)
+	ColorIconRepository = applyColor(t.IconRepository, ColorPrimary)
+	ColorIconVisPublic = applyColor(t.IconVisPublic, ColorOK)
+	ColorIconVisInternal = applyColor(t.IconVisInternal, ColorWarn)
+	ColorIconVisPrivate = applyColor(t.IconVisPrivate, ColorDim)
 
 	// A disabled shortcut's key (Rule 130), same kind of alias.
 	ColorShortcutDisabled = ColorDim

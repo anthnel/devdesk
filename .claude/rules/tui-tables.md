@@ -193,6 +193,39 @@ dépense sa largeur pour ce qui n'est pas le nom, et un `SizingContent` mesure
 alors le glyphe avec — donc la colonne la plus disputée de la table réserve
 deux cellules pour une icône, à toutes les largeurs.
 
+#### La couleur d'une icône passe par un **rôle**, jamais par le glyphe
+
+Rule 122 vaut ici comme ailleurs : `Cell` rend le glyphe nu, `Style` le colore.
+Ce que Rule 125 ajoute est **d'où vient la couleur** — de `theme.IconStyle(role)`,
+et d'un rôle déclaré dans `theme/iconcolors.go`.
+
+```go
+// ✅ CORRECT — la vue nomme un sens, le thème répond une couleur
+Cell:  func(r row) string { return nodeKindIcon(r.node) },
+Style: func(r row) lipgloss.Style { return theme.IconStyle(nodeKindRole(r.node)) },
+
+// ❌ INTERDIT — la vue décide de la teinte
+Style: func(r row) lipgloss.Style {
+    return lipgloss.NewStyle().Foreground(theme.ColorSecondary)
+},
+```
+
+**Un codepoint n'est pas un nom.** Une table `U+F0849 → ColorSecondary` ne se
+relit pas : rien sur la ligne ne dit si l'entrée est juste, donc une erreur y est
+indiscernable d'un choix. Un rôle se discute, et c'est pour ça qu'il est la clé.
+
+Les cinq rôles sont surchargeables par un fichier de thème
+(`icon_namespace`, `icon_repository`, `icon_vis_*`) — contrairement aux couleurs
+de syntaxe, qui sont des alias fermés : une icône est la première chose vue sur
+une ligne, donc c'est la partie de la palette sur laquelle un utilisateur a le
+plus de chances d'avoir un avis.
+
+**Sous le curseur la couleur disparaît**, comme celle de toute colonne colorée :
+la ligne sélectionnée est rendue entière par `styles.Selected` (Rule 122). Une
+colonne d'icône ne peut donc pas être le *seul* porteur d'une information —
+c'est pourquoi le kind de l'explorer reste lisible autrement (le glyphe hors
+sélection, la position dans l'arbre dedans).
+
 Les trois tables concernées sont `ws`, `containers` et l'inventaire `:sec`, et
 elles déclarent la même constante. `TestAnIconColumnIsUntitledAndTwoCellsWide`
 (`internal/ui/datatable`) parcourt les sources et refuse une colonne sans titre
@@ -206,6 +239,8 @@ Interdit :
 - ❌ Un titre au-dessus d'une colonne de glyphes
 - ❌ Une largeur locale (`colIconFixed`, `statusColumnWidth`, un `2` littéral) au lieu de `datatable.IconColumnWidth`
 - ❌ Un glyphe préfixé dans la cellule d'une colonne de texte
+- ❌ Une couleur d'icône choisie dans la vue au lieu d'un rôle de `theme.IconStyle`
+- ❌ Une table de couleurs indexée par le glyphe plutôt que par le sens
 
 ### Rule 139 : Le chargement d'une table s'affiche dans le footer
 
