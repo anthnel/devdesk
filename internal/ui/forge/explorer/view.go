@@ -238,6 +238,65 @@ func (m Model) forgeIcon() string {
 	return theme.ForgeIcon(m.config.Forge.Type)
 }
 
+// nodeKindIcon is the glyph the first column carries: a namespace or a
+// repository.
+//
+// It says in one cell what the Type column used to say in thirteen, and it says
+// it in no forge's words — which is the one thing lost and the one thing gained.
+// Lost: a GitHub user no longer reads "Organization" on the row. Gained: the
+// personal account's row no longer *claims* to be one (see docs/architecture/
+// forge.md), and the vocabulary moved to the help legend, where nodeTypeLabel
+// still resolves it and where a sentence has room to be right.
+func nodeKindIcon(node *TreeNode) string {
+	if node.Type == NodeTypeGroup {
+		return theme.IconNamespace
+	}
+	return theme.IconRepository
+}
+
+// nodeKindRole is the same distinction as a colour, and it is what keeps the
+// kind readable in the clone selection: there the glyph becomes a checkbox, so
+// the hue is all that is left to say group or repository.
+func nodeKindRole(node *TreeNode) theme.IconRole {
+	if node.Type == NodeTypeGroup {
+		return theme.IconRoleNamespace
+	}
+	return theme.IconRoleRepository
+}
+
+// visibilityIcon is GitLab's and GitHub's own alphabet: a globe for what anyone
+// can read, a shield for what a signed-in user can, a lock for neither.
+//
+// An unknown visibility renders **nothing** rather than a placeholder glyph. The
+// field is the backend's, and a forge that grows a fourth value would otherwise
+// show one of the three existing ones — a wrong answer where an empty cell is a
+// true one.
+func visibilityIcon(node *TreeNode) string {
+	switch node.Visibility {
+	case "public":
+		return theme.IconVisibilityPublic
+	case "internal":
+		return theme.IconVisibilityInternal
+	case "private":
+		return theme.IconLock
+	}
+	return ""
+}
+
+// visibilityRole colours the glyph above. An unknown visibility has no role, so
+// IconStyle falls back to plain text — which is what an empty cell should be.
+func visibilityRole(node *TreeNode) theme.IconRole {
+	switch node.Visibility {
+	case "public":
+		return theme.IconRoleVisPublic
+	case "internal":
+		return theme.IconRoleVisInternal
+	case "private":
+		return theme.IconRoleVisPrivate
+	}
+	return ""
+}
+
 // visibilityLabel returns the visibility label for a tree node
 func visibilityLabel(node *TreeNode) string {
 	switch node.Visibility {
@@ -496,7 +555,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: keymap.Web, Description: "Open the selected group or project in the default web browser"},
 			{Key: keymap.New, Description: "Create a new group or project under the current context. Use ←→ to select the type."},
 			{Key: keymap.Delete, Description: "Delete the selected group or project"},
-			{Key: ".", Description: "Cycle sort column (Type → Name → Visibility → Created → Activity)"},
+			{Key: ".", Description: "Cycle sort column (Name → Created → Activity, then back to the forge's own order)"},
 			{Key: "/", Description: "Filter the current level by name or path"},
 			{Key: "Ctrl+R", Description: "Refresh the explorer"},
 			{Key: "ctrl+p", Description: "Open command mode"},
@@ -520,6 +579,17 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Creating Groups and Projects",
 				Body:  "Press N to open the creation form. Use ←→ on the Type field to switch between Group and Project. The form uses the current group as parent. Project templates are loaded automatically from the OCI registry if configured.",
+			},
+			{
+				Title: "Row Icons",
+				Body: "The first column says what the row is, and the Visibility column who can read it:\n" +
+					"  " + theme.IconNamespace + "  " + v.Namespace + "\n" +
+					"  " + theme.IconRepository + "  " + v.Repository + "\n" +
+					"  " + theme.IconVisibilityPublic + "  " + visibilityLabel(&TreeNode{Visibility: "public"}) + " — anyone can read it\n" +
+					"  " + theme.IconVisibilityInternal + "  " + visibilityLabel(&TreeNode{Visibility: "internal"}) + " — any signed-in user can (" + v.Name + " only where the concept exists)\n" +
+					"  " + theme.IconLock + "  " + visibilityLabel(&TreeNode{Visibility: "private"}) + " — members only\n" +
+					"In clone selection mode the first column shows the checkbox instead; its colour still says " +
+					strings.ToLower(v.Namespace) + " or " + strings.ToLower(v.Repository) + ".",
 			},
 			{
 				Title: "CI Column Legend",

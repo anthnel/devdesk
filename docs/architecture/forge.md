@@ -93,12 +93,18 @@ The configured URL is the **web** host. On Enterprise the API lives under
 user to `https://git.acme.test/api/v3/acme/api` when they asked to open a
 repository in a browser.
 
-**One rough edge, left rough and written down.** The explorer's Type column
-reads the vocabulary, so the personal account's row says "Organization". GitHub
-calls the union "Owner", but taking that word into `Vocabulary.Namespace` would
-make the configuration read "Default parent owner", which is worse — and a third
-node kind would reintroduce the sum type the two-types decision exists to avoid.
-One inaccurate cell beats either.
+**One rough edge, and §3.56 moved it rather than fixing it.** The explorer's
+Type column read the vocabulary, so the personal account's row said
+"Organization". GitHub calls the union "Owner", but taking that word into
+`Vocabulary.Namespace` would make the configuration read "Default parent owner",
+which is worse — and a third node kind would reintroduce the sum type the
+two-types decision exists to avoid.
+
+The column is a glyph now, and a glyph belongs to no forge, so the table no
+longer makes the claim at all. The words moved to the help's **Row Icons**
+legend, where a sentence has room to be right — which is the whole reason
+`nodeTypeLabel` survives the column that used to be its only caller. The rough
+edge is still there, in the legend; it is simply not repeated on every row.
 
 Cost: **+0.55 MB** on the binary (24.4 → 25.0).
 
@@ -218,6 +224,35 @@ that switch and printed their own names too.
 The view's `default:` branch survives both. It is unreachable for a backend that
 keeps the promise, and it is what a backend that breaks it should hit — a
 truncated word is a bad answer, and no answer at all is worse.
+## The explorer table (§3.56)
+
+Eight columns, in this order: **icon, Name, Slug, Visibility, Role, CI, Created,
+Activity**. Two of them are glyphs.
+
+The **first** carries the node kind and follows Rule 125 — untitled, two cells,
+no comparator, no search key. It replaced a thirteen-cell `Type` column printing
+"Group" or "Organization", and the eleven cells it returns go to Name and Slug,
+the two columns that identify a row.
+
+**Visibility** is a glyph under its own whole word: a globe for public, a shield
+for internal, a lock for private, and an **empty cell** for anything else — a
+forge that grows a fourth value must not be shown one of the three that exist.
+The word stays because it is what makes the three decodable without a legend,
+and it costs nothing: the column is exactly ten cells, the width of its own
+header. That is affordable only because the column **stopped sorting** — every
+sortable column reserves two cells for an arrow, sorted or not
+(`datatable/widths.go:askFor`), and three visibilities in an order nobody would
+agree on were never a sort worth the width.
+
+The glyphs are deliberately none of the workspaces set. `ws` lists what is on
+disk and `exp` lists what the forge holds; a row that looked the same in both
+would claim they are the same object.
+
+**The table opens unsorted** (`SortColumn: -1`), which is not a change of
+behaviour: `loadChildren` stacks namespaces then repositories, and the sort by
+node type it replaced is the identity on that list. What is gained is that `.`
+now has "no sort" as a stop, so the forge's own order is reachable again after
+cycling away from it — a sort by type could never express that.
 
 ## The explorer clone
 
@@ -234,7 +269,7 @@ failed. Updating an existing clone is §3.17's `sync`, in workspaces.
 
 | Mode | Screen | Keys |
 |---|---|---|
-| `ModeSelecting` | the tree, with a checkbox on the Type cell | `space` ticks, `←→` drill, `enter` confirms, `esc` cancels |
+| `ModeSelecting` | the tree, with a checkbox in the icon column | `space` ticks, `←→` drill, `enter` confirms, `esc` cancels |
 | `ModeCloning` | a flat list, one row per repository | `esc` cancels, then closes |
 
 **The selection is roots plus exclusions, never a list of repositories**
@@ -258,9 +293,16 @@ the selection spans levels the table has never shown. `RenderCheckboxTri` styles
 its output and so cannot go in a cell; `checkboxIcon` is the glyph without it
 (Rule 122).
 
-The checkbox **rides on the Type cell** rather than taking a column of its own.
+The checkbox **rides on the icon cell** rather than taking a column of its own.
 A column would cost four cells on every screen to say nothing on all but one of
 them, and at 80 columns the explorer has none to spare.
+
+Since §3.56 that cell is two wide (Rule 125), so the checkbox and the kind glyph
+cannot sit side by side — the box replaces the glyph. **What keeps the sharing
+honest is the colour**: `iconStyle` paints `theme.IconRoleNamespace` or
+`theme.IconRoleRepository` in both modes, so a ticked row still says group or
+repository by hue. That is the one thing the icon-colour roles were added for,
+and it is why they are not decoration.
 
 **Two cancellation scopes, and the distinction is the point** (`pipeline.go`).
 `cloneRun.cancel` is a `context.CancelFunc` covering **discovery only** — HTTP

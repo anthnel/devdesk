@@ -1,6 +1,10 @@
 package explorer
 
-import "github.com/anthnel/devdesk/internal/ui/theme"
+import (
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/anthnel/devdesk/internal/ui/theme"
+)
 
 // explorerRow is a node plus what the view knows about it and the node does not:
 // whether it is ticked for cloning.
@@ -12,8 +16,8 @@ import "github.com/anthnel/devdesk/internal/ui/theme"
 type explorerRow struct {
 	node *TreeNode
 	// selecting says whether the checkbox is shown at all. Outside the clone
-	// selection mode the Type cell prints the label alone, so a check state left
-	// over from a previous selection cannot appear.
+	// selection mode the icon column prints the kind glyph alone, so a check
+	// state left over from a previous selection cannot appear.
 	selecting bool
 	check     theme.CheckState
 }
@@ -32,6 +36,31 @@ func checkboxIcon(state theme.CheckState) string {
 	default:
 		return theme.IconCheckbox
 	}
+}
+
+// iconCell is the first column: the checkbox while a clone selection is open,
+// the kind glyph otherwise.
+//
+// One column for two things, because Rule 125 fixes an icon column at two
+// cells and a checkbox beside a glyph needs four. What makes the sharing work
+// is that the colour does not switch with the shape: iconStyle paints the kind
+// in both modes, so a ticked row still says group or repository — by hue rather
+// than by glyph, which is the whole reason the theme grew icon roles.
+func iconCell(r explorerRow) string {
+	if r.selecting {
+		return checkboxIcon(r.check)
+	}
+	return nodeKindIcon(r.node)
+}
+
+// iconStyle colours the cell above by the node's kind, in both modes.
+//
+// Under the cursor it has no effect: datatable hands the selected row whole to
+// styles.Selected, and a colour inside it would close with a reset that takes
+// the selection background with it (Rule 122). That is the behaviour of every
+// coloured column in the application, not an exception here.
+func iconStyle(r explorerRow) lipgloss.Style {
+	return theme.IconStyle(nodeKindRole(r.node))
 }
 
 // selectedNode returns the node under the cursor, which is what every action

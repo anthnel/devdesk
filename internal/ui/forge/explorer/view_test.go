@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -69,7 +70,10 @@ func TestViewShowsTheLoadError(t *testing.T) {
 func TestViewShowsTheRows(t *testing.T) {
 	view := drilledModel(t).View()
 
-	for _, want := range []string{"sub", "api", "legacy", "Group", "Project"} {
+	// The kind is a glyph now, not the forge's word: the Type column became the
+	// untitled icon column (§3.56). The words survive in the help legend, which
+	// TestTheHelpNamesTheRowGlyphs checks.
+	for _, want := range []string{"sub", "api", "legacy", theme.IconNamespace, theme.IconRepository} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the table does not show %q:\n%s", want, view)
 		}
@@ -556,10 +560,182 @@ func TestAGitHubContextSpeaksGitHub(t *testing.T) {
 	}
 }
 
-// The guard D66 did not have: every status a backend may report must reach a
-// glyph. A value missing from pipelineStatusLabel's switch falls through to its
-// default and prints its own name, truncated to the six cells the CI column
-// has — which is how `in_progress` reached the screen as `in_pr…`.
+// ── §3.56 : the icon columns ─────────────────────────────────────────────────
+
+// The first column carries the kind, and the two kinds are two glyphs.
+func TestTheFirstColumnSaysWhatTheRowIs(t *testing.T) {
+	group := explorerRow{node: &TreeNode{Type: NodeTypeGroup}}
+	project := explorerRow{node: &TreeNode{Type: NodeTypeProject}}
+
+	if got := iconCell(group); got != theme.IconNamespace {
+		t.Errorf("iconCell(group) = %q, want the namespace glyph", got)
+	}
+	if got := iconCell(project); got != theme.IconRepository {
+		t.Errorf("iconCell(project) = %q, want the repository glyph", got)
+	}
+}
+
+// None of the explorer's glyphs is one the workspaces view uses. The two lists
+// answer different questions — what the forge holds, what is on disk — and a
+// row that looked the same in both would claim they are the same object.
+func TestTheExplorerGlyphsAreNotTheWorkspaceOnes(t *testing.T) {
+	ws := []string{theme.IconGitBranch, theme.IconDirectory, theme.IconDirectoryOpen, theme.IconFile}
+	for _, mine := range []string{theme.IconNamespace, theme.IconRepository} {
+		for _, theirs := range ws {
+			if mine == theirs {
+				t.Errorf("the explorer and workspaces share the glyph %q", mine)
+			}
+		}
+	}
+}
+
+// In the clone selection the glyph becomes a checkbox — Rule 125 fixes the
+// column at two cells, so the two cannot sit side by side.
+func TestTheSelectionReplacesTheGlyphWithACheckbox(t *testing.T) {
+	row := explorerRow{node: &TreeNode{Type: NodeTypeProject}, selecting: true, check: theme.CheckAll}
+
+	if got := iconCell(row); got != theme.IconChecked {
+		t.Errorf("iconCell(ticked) = %q, want the ticked box", got)
+	}
+}
+
+// …and the colour still says which kind it is, which is what makes sharing the
+// column honest rather than lossy.
+func TestTheKindSurvivesTheSelectionAsAColour(t *testing.T) {
+	group := explorerRow{node: &TreeNode{Type: NodeTypeGroup}, selecting: true}
+	project := explorerRow{node: &TreeNode{Type: NodeTypeProject}, selecting: true}
+
+	if iconCell(group) != iconCell(project) {
+		t.Fatal("the two kinds show different boxes — this test is about the colour")
+	}
+	if iconStyle(group).GetForeground() == iconStyle(project).GetForeground() {
+		t.Error("a ticked group and a ticked project are the same colour — the kind is lost")
+	}
+}
+
+// Rule 122: what a Cell returns is measured, so it must carry no escape.
+func TestTheIconCellsCarryNoEscapeSequence(t *testing.T) {
+	rows := []explorerRow{
+		{node: &TreeNode{Type: NodeTypeGroup, Visibility: "public"}},
+		{node: &TreeNode{Type: NodeTypeProject, Visibility: "private"}, selecting: true, check: theme.CheckSome},
+	}
+	for _, row := range rows {
+		if strings.Contains(iconCell(row), "\x1b") {
+			t.Errorf("iconCell carries an escape sequence: %q", iconCell(row))
+		}
+		if strings.Contains(visibilityIcon(row.node), "\x1b") {
+			t.Errorf("visibilityIcon carries an escape sequence: %q", visibilityIcon(row.node))
+		}
+	}
+}
+
+// The three visibilities are three glyphs, and anything else is an empty cell —
+// a placeholder would be a wrong answer where nothing is a true one.
+func TestVisibilityIsAGlyphOrNothing(t *testing.T) {
+	want := map[string]string{
+		"public":   theme.IconVisibilityPublic,
+		"internal": theme.IconVisibilityInternal,
+		"private":  theme.IconLock,
+		"":         "",
+		"nonsense": "",
+	}
+	for visibility, glyph := range want {
+		if got := visibilityIcon(&TreeNode{Visibility: visibility}); got != glyph {
+			t.Errorf("visibilityIcon(%q) = %q, want %q", visibility, got, glyph)
+		}
+	}
+	if got := visibilityRole(&TreeNode{Visibility: "nonsense"}); got != "" {
+		t.Errorf("visibilityRole(nonsense) = %q, want no role", got)
+	}
+}
+
+// The order the user asked for, read off the declaration rather than off a
+// rendered row: a header can be truncated, a declaration cannot.
+func TestTheColumnsAreInTheDeclaredOrder(t *testing.T) {
+	want := []string{"", "Name", "Slug", "Visibility", "Role", "CI", "Created", "Activity"}
+
+	cols := explorerColumns()
+	if len(cols) != len(want) {
+		t.Fatalf("the table has %d columns, want %d", len(cols), len(want))
+	}
+	for i, title := range want {
+		if cols[i].Title != title {
+			t.Errorf("column %d is %q, want %q", i, cols[i].Title, title)
+		}
+	}
+}
+
+// Rule 125: the icon column is untitled, two cells, and adds nothing to the
+// filter or the sort. The width is checked by datatable's own source walk; what
+// is checked here is that this table's first column is the one it walks.
+func TestTheIconColumnAddsNoTextAndNoOrder(t *testing.T) {
+	icon := explorerColumns()[0]
+
+	if icon.Title != "" {
+		t.Errorf("the icon column is titled %q", icon.Title)
+	}
+	if icon.MinWidth != datatable.IconColumnWidth {
+		t.Errorf("the icon column is %d cells wide, want %d", icon.MinWidth, datatable.IconColumnWidth)
+	}
+	if icon.Less != nil {
+		t.Error("the icon column declares a comparator")
+	}
+	if icon.Search != nil {
+		t.Error("the icon column declares a search key")
+	}
+}
+
+// Visibility lost its comparator with §3.56, and the header is what it costs.
+// Three values in an order nobody would agree on are not a sort; dropping it is
+// what lets the whole word fit in ten cells instead of twelve.
+func TestVisibilityShowsTheWordAndDoesNotSort(t *testing.T) {
+	for _, col := range explorerColumns() {
+		if col.Title != "Visibility" {
+			continue
+		}
+		if col.Less != nil {
+			t.Error("the Visibility column sorts again — the header no longer fits")
+		}
+		if col.MinWidth != lipgloss.Width("Visibility") {
+			t.Errorf("the Visibility column is %d cells, want the width of its own header", col.MinWidth)
+		}
+		return
+	}
+	t.Fatal("no column titled Visibility")
+}
+
+// Rule 114: the forge's words left the table with the Type column, so the help
+// is where they now live. A legend naming neither glyph would leave a GitHub
+// user with no way to learn what the row icons mean.
+func TestTheHelpNamesTheRowGlyphs(t *testing.T) {
+	m := newTestModel(t)
+
+	var legend string
+	for _, section := range m.GetHelpContent().Sections {
+		if section.Title == "Row Icons" {
+			legend = section.Body
+		}
+	}
+	if legend == "" {
+		t.Fatal("the help has no Row Icons section")
+	}
+	for _, want := range []string{
+		theme.IconNamespace, theme.IconRepository,
+		theme.IconVisibilityPublic, theme.IconVisibilityInternal, theme.IconLock,
+		"Group", "Project", "Public", "Internal", "Private",
+	} {
+		if !strings.Contains(legend, want) {
+			t.Errorf("the Row Icons legend does not mention %q:\n%s", want, legend)
+		}
+	}
+}
+
+// ── D66 : every status a backend may report reaches a glyph ──────────────────
+
+// The guard D66 did not have. A value missing from pipelineStatusLabel's switch
+// falls through to its default and prints its own name, truncated to the six
+// cells the CI column has — which is how `in_progress` reached the screen as
+// `in_pr…`.
 //
 // It walks forge.CIStatuses() rather than a list written here, so a status
 // added to the interface fails this test until the view has an answer for it.
