@@ -3,7 +3,7 @@
   "checkpoint_id": "6f034e238643",
   "strategy": "manual-commit",
   "branch": "fix/scan-forced-return",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     ".claude/plans/jobs-registry.plan.md"
   ],
@@ -13,6 +13,13 @@
       "transcript": "/6f/034e238643/0/full.jsonl",
       "compact_transcript": "/6f/034e238643/0/transcript.jsonl",
       "content_hash": "/6f/034e238643/0/content_hash.txt",
+      "prompt": ""
+    },
+    {
+      "metadata": "/6f/034e238643/1/metadata.json",
+      "transcript": "/6f/034e238643/1/full.jsonl",
+      "compact_transcript": "/6f/034e238643/1/transcript.jsonl",
+      "content_hash": "/6f/034e238643/1/content_hash.txt",
       "prompt": ""
     }
   ],
