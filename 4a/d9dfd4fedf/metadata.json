@@ -3,14 +3,38 @@
   "checkpoint_id": "4ad9dfd4fedf",
   "strategy": "manual-commit",
   "branch": "feat/clone-registry",
-  "checkpoints_count": 1,
-  "files_touched": null,
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/architecture/forge.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/jobs.go",
+    "internal/app/jobs_test.go",
+    "internal/jobs/jobs.go",
+    "internal/jobs/message.go",
+    "internal/jobs/open_test.go",
+    "internal/jobs/registry.go",
+    "internal/ui/forge/explorer/clone.go",
+    "internal/ui/forge/explorer/clone_jobs.go",
+    "internal/ui/forge/explorer/clone_list.go",
+    "internal/ui/forge/explorer/model_test.go",
+    "internal/ui/forge/explorer/update.go",
+    "internal/ui/forge/explorer/view.go"
+  ],
   "sessions": [
     {
       "metadata": "/4a/d9dfd4fedf/0/metadata.json",
       "transcript": "/4a/d9dfd4fedf/0/full.jsonl",
       "compact_transcript": "/4a/d9dfd4fedf/0/transcript.jsonl",
       "content_hash": "/4a/d9dfd4fedf/0/content_hash.txt",
+      "prompt": ""
+    },
+    {
+      "metadata": "/4a/d9dfd4fedf/1/metadata.json",
+      "transcript": "/4a/d9dfd4fedf/1/full.jsonl",
+      "compact_transcript": "/4a/d9dfd4fedf/1/transcript.jsonl",
+      "content_hash": "/4a/d9dfd4fedf/1/content_hash.txt",
       "prompt": ""
     }
   ],
