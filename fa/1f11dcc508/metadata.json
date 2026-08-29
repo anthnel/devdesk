@@ -3,7 +3,7 @@
   "checkpoint_id": "fa1f11dcc508",
   "strategy": "manual-commit",
   "branch": "sec-inventory-loading",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "docs/architecture/scanning.md",
     "docs/backlog.md",
@@ -20,6 +20,13 @@
       "transcript": "/fa/1f11dcc508/0/full.jsonl",
       "compact_transcript": "/fa/1f11dcc508/0/transcript.jsonl",
       "content_hash": "/fa/1f11dcc508/0/content_hash.txt",
+      "prompt": ""
+    },
+    {
+      "metadata": "/fa/1f11dcc508/1/metadata.json",
+      "transcript": "/fa/1f11dcc508/1/full.jsonl",
+      "compact_transcript": "/fa/1f11dcc508/1/transcript.jsonl",
+      "content_hash": "/fa/1f11dcc508/1/content_hash.txt",
       "prompt": ""
     }
   ],
