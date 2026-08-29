@@ -330,6 +330,7 @@ func TestLongRunningWorkReportsWithoutTakingTheScreen(t *testing.T) {
 		{"delete finished", workspaces.EntryDeletedMsg{Path: "/repos/devdesk"}, command.ViewWorkspaces},
 		{"image scan starting", ociresources.ImageScanStartingMsg{}, command.ViewOCIResources},
 		{"image scan finished", ociresources.ImageScanFinishedMsg{}, command.ViewOCIResources},
+		{"inventory scan starting", security.InventoryScanStartingMsg{}, command.ViewSecurity},
 		{"inventory scan finished", security.InventoryScanFinishedMsg{}, command.ViewSecurity},
 	}
 

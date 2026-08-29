@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/jobs"
+
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
 
@@ -43,13 +45,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScanRequestMsg:
 		return m.handleScanRequest(msg)
 
+	case jobs.ChangedMsg:
+		return m.handleJobsChanged(msg)
+
 	case spinner.TickMsg:
 		var cmds []tea.Cmd
 		// The tables' frames turn while anything is running on a row, which is
 		// not the same condition as the view's own spinner: the lists are
 		// loaded and on screen while an image is removed.
 		busy := m.advanceBusySpinners()
-		if busy || m.loading || m.scanning || m.loadingNets || m.loadingVols || m.loadingRegs {
+		if busy || m.loading || m.loadingNets || m.loadingVols || m.loadingRegs {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			m.spinnerFrameIdx = (m.spinnerFrameIdx + 1) % len(spinner.Dot.Frames)

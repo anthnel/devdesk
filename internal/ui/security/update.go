@@ -7,6 +7,8 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/jobs"
+
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
@@ -92,6 +94,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case InventoryScanFinishedMsg:
 		return m.handleInventoryScanFinished(msg)
 
+	case InventoryScanStartingMsg:
+		// The row is already spinning: the router recorded the transition
+		// before handing the message on, and the snapshot rebuilt the rows.
+		return m, nil
+
+	case jobs.ChangedMsg:
+		return m.handleJobsChanged(msg)
+
 	case spinner.TickMsg:
 		return m.handleSpinnerTick(msg)
 	}
@@ -100,12 +110,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleSpinnerTick advances the spinner while a rescan is running.
+// handleSpinnerTick advances the spinner while the caches are being read.
 //
-// The frame is a table cell rather than a scanning screen, and one that never
-// advances reads as a hung scan. The rows carry it, so they are restamped — but
-// only while something is running, since SetItems re-filters and re-sorts and
-// there is no reason to do that sixty times a second for a settled table.
+// It animates a *load* and nothing else now. A scan's frame comes from the
+// registry, which holds the one chain for the whole application (D5), and the
+// rows are restamped when its snapshot arrives — see handleJobsChanged.
 func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 	if !m.spinnerAlive() {
 		return m, nil
@@ -117,11 +126,6 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 	// theme.SpinnerStyle() and restyling it would nest one sequence in another
 	// (Rule 128).
 	m.footer.SetSpinnerFrame(m.spinner.View())
-	// The rows are only restamped while something is running: SetItems
-	// re-filters and re-sorts, and a load has no row to stamp anyway.
-	if m.inventoryScanning() {
-		m.setInventory(m.inventory.Items())
-	}
 	return m, cmd
 }
 

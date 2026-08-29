@@ -51,6 +51,14 @@ type InventoryScanFinishedMsg struct {
 	Err       error
 }
 
+// InventoryScanStartingMsg reports that one rescan has a worker and is under
+// way. It did not exist: rescanCmd emitted only a finished message, so a target
+// went from queued straight to done and there was nothing to say which of the
+// batch was actually running (D10).
+type InventoryScanStartingMsg struct {
+	Name string
+}
+
 // inventoryScanJob is one target to rescan.
 type inventoryScanJob struct {
 	Kind targetKind
@@ -263,8 +271,21 @@ func rescanCmd(jobs []inventoryScanJob, opts scan.ScanOptions) tea.Cmd {
 // rescanOneCmd rescans a single target and writes the result through to both
 // the counts cache and the stored result, so the row and `enter` agree.
 func rescanOneCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan struct{}) tea.Cmd {
+	return tea.Sequence(
+		// The starting message waits for its turn in the pool, which is what
+		// moves the target from queued to running. Emitted before the wait,
+		// every target in a batch would report itself running the instant the
+		// batch was dispatched.
+		func() tea.Msg {
+			sem <- struct{}{}
+			return InventoryScanStartingMsg{Name: job.Name}
+		},
+		rescanOneBodyCmd(job, opts, sem),
+	)
+}
+
+func rescanOneBodyCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan struct{}) tea.Cmd {
 	return func() tea.Msg {
-		sem <- struct{}{}
 		defer func() { <-sem }()
 
 		targetType := scan.TargetImage

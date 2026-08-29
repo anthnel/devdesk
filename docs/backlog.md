@@ -10837,7 +10837,7 @@ dépend d'aucun des autres.
 | 1 — le retour forcé | **fait**, [D67](#11-fixed) |
 | 2 — `internal/jobs`, la diffusion, la chaîne de tick | **fait** |
 | 3 — `ws` branché (le compteur au footer, le spinner en colonne) | **fait** |
-| 4 — `:sec` et `oci` branchés | à faire |
+| 4 — `:sec` et `oci` branchés | **fait** |
 | 5 — l'estampe de contexte (`D` à ouvrir) | à faire |
 | 6 — la vue `:jobs` | à faire |
 | 7 — le clone rebranché | à faire |
@@ -10875,6 +10875,33 @@ Trois points tranchés en écrivant, au-delà de ce que le plan fixait :
   l'émettait *avant* le sémaphore, donc les douze dépôts d'un lot se déclaraient
   running à l'instant du dispatch : douze spinners pour quatre workers. Sans ce
   correctif D6 aurait été décoratif.
+
+Le poste 4 branche les deux dernières comptabilités de scan. `:sec` y gagne le
+plus : `scanTarget.Scanning` était un drapeau que la vue posait et effaçait
+elle-même, et `handleInventoryLoaded` devait le reporter à la main à chaque
+rechargement — le cache ne dit rien d'un scan qui n'a pas fini d'y écrire, donc
+un rafraîchissement en cours de rescan effaçait le spinner et laissait la ligne
+pour réglée. **La réconciliation disparaît au lieu d'être corrigée** : il n'y a
+plus rien à reporter quand l'état n'a jamais été là.
+
+Et le marqueur devient vrai pour un scan lancé **ailleurs**, ce qui est la
+seconde moitié de la demande 2 : l'inventaire liste exactement ce que `ws` et
+l'onglet Images scannent, donc un rescan lancé depuis l'un des deux est le même
+travail sur la même entrée de cache — et cette vue n'avait aucun moyen de le
+savoir.
+
+Deux écarts au plan, tous deux du même genre :
+
+- **`spinnerFrameIdx` reste** dans `:sec` et dans `oci`. Le plan disait de le
+  retirer ; il sert aussi à animer un **chargement** — la lecture des caches,
+  la liste des images, une action `docker` sur une ligne — et un chargement
+  n'est pas un job. Ce qui est passé au registre est la frame des cellules de
+  *scan*, ce qui était l'objet de D5. `spinnerAlive` de `:sec` ne répond donc
+  plus que du chargement : y garder le rescan aurait été une seconde chaîne à
+  côté de celle du routeur.
+- **Le compteur au dashboard est reporté au poste 6.** Le plan le listait ici,
+  mais il n'a pas d'emplacement décidé, et la vue `:jobs` est ce qui lui donne
+  son sens (« 2 jobs running » ne mène nulle part sans elle).
 
 Deux points tranchés en écrivant le paquet (poste 2), au-delà de ce que le plan
 fixait :

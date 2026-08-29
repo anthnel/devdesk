@@ -152,7 +152,11 @@ func imageColumns() []datatable.Column[imageRow] {
 // imageRows decorates the image list with the scan state the table shows.
 func (m *Model) imageRows() []imageRow {
 	aliases := registryalias.From(m.registries)
-	frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
+	// The scan frame comes from the registry, which holds the one chain that
+	// animates work (D5). spinnerFrameIdx below is local, and it animates
+	// loading — a load is not a job.
+	frame := m.jobFrame
+	scanning := m.scanningNames()
 
 	rows := make([]imageRow, 0, len(m.images))
 	for _, img := range m.images {
@@ -164,7 +168,7 @@ func (m *Model) imageRows() []imageRow {
 			RawName:      raw,
 			Entry:        entry,
 			Scanned:      scanned,
-			Scanning:     m.scanningImages[raw],
+			Scanning:     scanning[raw],
 			Failed:       m.failedScans[raw],
 			SpinnerFrame: frame,
 		})

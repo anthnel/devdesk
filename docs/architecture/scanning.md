@@ -454,3 +454,47 @@ run with secrets off writes anyway.
 
 Cache invalidation: `S` (single) overwrites; `A` (all) rescans, and purges the cache first when its checkbox is ticked.
 
+
+
+## Who knows a scan is running — `internal/jobs`
+
+**One bookkeeping, and it is not the view's** (§3.58). Three of them ran in
+parallel before: `workspaces` kept a map of paths, `oci_resources` a map of
+image names, and the `:sec` inventory a flag per row. Each knew only what *its*
+view had launched, so the same repository could be scanned twice — once from
+`ws`, once from `:sec` — with both runs writing the same cache entry and neither
+guard seeing the other.
+
+Every view now reads the same snapshot, broadcast by the router in
+`jobs.ChangedMsg`, and asks it the same question:
+
+| View | Reads |
+|---|---|
+| `ws` | `scanning(path)` — and `busy()` folds sync and delete in beside it |
+| `oci` | `scanningImage(name)`, `anyScanRunning()` |
+| `:sec` | `scanningTarget(name)`, `inventoryScanning()` |
+
+The consequence worth stating plainly: **a scan started in one view marks the
+row in every other view that lists the same target.** The `:sec` inventory lists
+exactly what the other two scan, so this is not a corner case — it is the normal
+reading.
+
+`:sec` gained the most. `scanTarget.Scanning` was a flag the view set and
+cleared, and `handleInventoryLoaded` carried it across every reload by hand: the
+caches say nothing about a scan that has not finished writing to them, so a
+refresh landing mid-rescan cleared the spinner and left the row looking settled.
+That reconciliation is *gone* rather than fixed — the flag is derived in
+`setInventory`, so a reload has nothing to preserve.
+
+**A load is not a job.** Both views keep their own `spinner.Model` and frame
+index, and both keep animating with them: reading the caches, fetching the image
+list, a `docker` action on a row. What moved to the router's single chain (D5)
+is the frame the *scan* cells carry. `:sec`'s `spinnerAlive` therefore answers
+for the load alone — keeping the rescan in it would be a second chain beside the
+router's, which is the failure D5 removed.
+
+**`rescanCmd` had no starting message** — only a finished one — so a target went
+from queued straight to done and nothing said which of a batch was actually
+running. `InventoryScanStartingMsg` exists for that (D10), and like the others
+it is emitted *after* the worker pool hands out a slot, which is what makes
+`queued` and `running` mean different things.

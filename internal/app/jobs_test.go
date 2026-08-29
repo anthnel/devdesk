@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
@@ -393,5 +394,58 @@ func TestAMessageForUnregisteredWorkIsStillRouted(t *testing.T) {
 	}
 	if _, ok := receivedOf[workspaces.WorkspaceScanCompleteMsg](ws); !ok {
 		t.Error("the message was dropped because the registry did not recognise it")
+	}
+}
+
+// The point of one bookkeeping: a scan started in one view is visible to every
+// other that lists the same target. The three per-view maps could not do this,
+// so `ws` and `:sec` both offered to scan a repository the other was already
+// scanning, and the two wrote the same cache entry.
+func TestOneScanIsVisibleToEveryViewThatListsItsTarget(t *testing.T) {
+	ws := &fakeView{}
+	sec := &fakeView{}
+	oci := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewWorkspaces] = ws
+	a.views[command.ViewSecurity] = sec
+	a.views[command.ViewOCIResources] = oci
+
+	a.Update(jobs.StartMsg{
+		Run: jobs.NewRun(jobs.KindScan, command.ViewSecurity, "", "inventory", "/repos/devdesk"),
+	})
+	a.Update(security.InventoryScanStartingMsg{Name: "/repos/devdesk"})
+
+	for name, view := range map[string]*fakeView{"ws": ws, "security": sec, "oci": oci} {
+		snapshot := lastJobs(t, view)
+		if len(snapshot.Runs) != 1 {
+			t.Fatalf("%s sees %d runs, want 1", name, len(snapshot.Runs))
+		}
+		if got := snapshot.Runs[0].Items[0].State; got != jobs.ItemRunning {
+			t.Errorf("%s sees the repository as %q, want running", name, got)
+		}
+	}
+}
+
+// D10: rescanCmd had no starting message, so its targets would have jumped from
+// queued to done. The router applying one is what makes the distinction real.
+func TestAnInventoryRescanReportsThatItStarted(t *testing.T) {
+	a := router(t, &fakeView{})
+	a.views[command.ViewSecurity] = &fakeView{}
+
+	a.Update(jobs.StartMsg{
+		Run: jobs.NewRun(jobs.KindScan, command.ViewSecurity, "", "inventory", "nexus/api:1.4"),
+	})
+	if got := a.jobs.Snapshot()[0].State(); got != jobs.RunQueued {
+		t.Errorf("state = %q, want it queued before anything started", got)
+	}
+
+	a.Update(security.InventoryScanStartingMsg{Name: "nexus/api:1.4"})
+	if got := a.jobs.Snapshot()[0].State(); got != jobs.RunRunning {
+		t.Errorf("state = %q, want it running", got)
+	}
+
+	a.Update(security.InventoryScanFinishedMsg{Name: "nexus/api:1.4"})
+	if got := a.jobs.Snapshot()[0].State(); got != jobs.RunDone {
+		t.Errorf("state = %q, want it done", got)
 	}
 }

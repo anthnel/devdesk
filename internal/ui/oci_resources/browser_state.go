@@ -49,13 +49,13 @@ func (b *RegistryBrowser) SetMultiTagsMeta(entryKey string, meta map[string]time
 	}
 }
 
-// SetTagScanning marks or clears the in-progress scan state for an image tag.
-func (b *RegistryBrowser) SetTagScanning(imageName string, scanning bool) {
-	if scanning {
-		b.scanningTags[imageName] = true
-	} else {
-		delete(b.scanningTags, imageName)
-	}
+// SetTagScanningSet replaces the in-progress scans the tag rows decorate.
+//
+// A set rather than one name at a time: the source is the registry snapshot,
+// which says what is running rather than what changed, and reconciling a whole
+// answer against per-name edits is how the two drift.
+func (b *RegistryBrowser) SetTagScanningSet(scanning map[string]bool) {
+	b.scanningTags = scanning
 	if b.state == browserStateTags {
 		b.rebuildTagTable()
 	}

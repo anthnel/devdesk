@@ -371,16 +371,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.routeWork(command.ViewWorkspaces, msg)
 
 	case ociresources.ImageScanStartingMsg:
-		return a.routeToView(command.ViewOCIResources, msg)
+		return a.routeWork(command.ViewOCIResources, msg)
 
 	case ociresources.ImageScanFinishedMsg:
-		return a.routeToView(command.ViewOCIResources, msg)
+		return a.routeWork(command.ViewOCIResources, msg)
+
+	case security.InventoryScanStartingMsg:
+		return a.routeWork(command.ViewSecurity, msg)
 
 	case security.InventoryScanFinishedMsg:
-		// The inventory marks its row as scanning and a reload deliberately
-		// keeps that marker, so a lost completion leaves it spinning for the
-		// life of the view.
-		return a.routeToView(command.ViewSecurity, msg)
+		return a.routeWork(command.ViewSecurity, msg)
 
 	// ── Scan results ─────────────────────────────────────────────────────
 	case workspaces.ScanDetailsRequestMsg:

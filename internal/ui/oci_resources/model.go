@@ -8,6 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -29,15 +30,22 @@ type Model struct {
 	config    *config.Config
 	activeTab ociTab
 	// Images tab
-	images          []docker.Image
-	scanCache       map[string]cache.ImageScanEntry
-	scanningImages  map[string]bool
+	images    []docker.Image
+	scanCache map[string]cache.ImageScanEntry
+	// jobs is the router snapshot of everything running anywhere, and jobFrame
+	// the spinner frame that goes with it — bare, because it lands in a table
+	// cell (Rule 122). It replaced a scanningImages map and the `scanning`
+	// bool derived from it, both of which knew only what this view launched.
+	//
+	// spinnerFrameIdx below stays: it animates *loading*, and a load is not a
+	// job. See jobs.go.
+	jobs            []jobs.Run
+	jobFrame        string
 	failedScans     map[string]bool
 	spinnerFrameIdx int
 	imageTable      datatable.Model[imageRow]
 	spinner         spinner.Model
 	loading         bool
-	scanning        bool
 	// Networks tab
 
 	networkTable datatable.Model[docker.Network]
@@ -397,7 +405,6 @@ func New(cfg *config.Config) Model {
 		config:              cfg,
 		activeTab:           tabImages,
 		scanCache:           make(map[string]cache.ImageScanEntry),
-		scanningImages:      make(map[string]bool),
 		failedScans:         make(map[string]bool),
 		spinner:             s,
 		imageTable:          it,

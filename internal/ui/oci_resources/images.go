@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
@@ -61,11 +62,13 @@ func (m Model) scanSelectedImage() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	name := img.Name()
-	if m.scanningImages[name] {
+	if m.scanningImage(name) {
 		return m, m.footer.Warn("Scan already in progress")
 	}
-	m.scanning = true
-	return m, batchScanCmd([]imageScanJob{{Name: name, Target: img.ScanTarget()}}, scan.OptionsFromConfig(m.config))
+	return m, jobs.Start(
+		m.scanRun([]string{name}),
+		batchScanCmd([]imageScanJob{{Name: name, Target: img.ScanTarget()}}, scan.OptionsFromConfig(m.config)),
+	)
 }
 
 // scanAllUnscanned triggers batch scanning of all unscanned images using config defaults
@@ -76,7 +79,7 @@ func (m Model) scanSelectedImage() (tea.Model, tea.Cmd) {
 // which one purged the cache — the closest this application came to losing data
 // by accident (§3.26). The destructive half is a deliberate gesture now.
 func (m Model) confirmScanAll() (tea.Model, tea.Cmd) {
-	if m.scanning {
+	if m.anyScanRunning() {
 		return m, m.footer.Warn("A scan is already running")
 	}
 	m.scanAllModal = sharedcomponents.NewOptionConfirmModal(
@@ -97,68 +100,67 @@ func (m Model) scanAll(purge bool) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
-	if m.scanning {
+	if m.anyScanRunning() {
 		return m, nil
 	}
-	var jobs []imageScanJob
+	var queue []imageScanJob
 	for _, img := range m.images {
 		if img.Repository == "<none>" {
 			continue
 		}
 		name := img.Name()
 		if _, ok := m.scanCache[name]; !ok {
-			jobs = append(jobs, imageScanJob{Name: name, Target: img.ScanTarget()})
+			queue = append(queue, imageScanJob{Name: name, Target: img.ScanTarget()})
 		}
 	}
-	if len(jobs) == 0 {
+	if len(queue) == 0 {
 		return m, m.footer.Warn("All images are already scanned")
 	}
-	m.scanning = true
-	return m, batchScanCmd(jobs, scan.OptionsFromConfig(m.config))
+	return m, jobs.Start(
+		m.scanRun(jobNames(queue)),
+		batchScanCmd(queue, scan.OptionsFromConfig(m.config)),
+	)
 }
 
 // requestScanAll launches a batch scan for all images with the configured options.
 // Rule 126: purges the in-memory and disk cache before scanning.
 func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
-	if m.scanning {
+	if m.anyScanRunning() {
 		return m, nil
 	}
-	var jobs []imageScanJob
+	var queue []imageScanJob
 	var cacheKeys []string
 	for _, img := range m.images {
 		if img.Repository == "<none>" {
 			continue
 		}
 		name := img.Name()
-		jobs = append(jobs, imageScanJob{Name: name, Target: img.ScanTarget()})
+		queue = append(queue, imageScanJob{Name: name, Target: img.ScanTarget()})
 		cacheKeys = append(cacheKeys, name)
 		delete(m.scanCache, name)
 	}
-	if len(jobs) == 0 {
+	if len(queue) == 0 {
 		return m, nil
 	}
-	m.scanning = true
-	return m, tea.Batch(deleteScanCacheCmd(cacheKeys), batchScanCmd(jobs, scan.OptionsFromConfig(m.config)))
+	return m, tea.Batch(
+		deleteScanCacheCmd(cacheKeys),
+		jobs.Start(m.scanRun(cacheKeys), batchScanCmd(queue, scan.OptionsFromConfig(m.config))),
+	)
 }
 
-// handleImageScanStarting marks an image as currently scanning and refreshes the table.
-func (m Model) handleImageScanStarting(msg ImageScanStartingMsg) (tea.Model, tea.Cmd) {
-	wasScanning := len(m.scanningImages) > 0
-	m.scanningImages[msg.ImageName] = true
+// handleImageScanStarting drops whatever the footer still said about the last
+// attempt.
+//
+// The row is already spinning: the router recorded the transition before handing
+// the message on, and the snapshot that carried it rebuilt the table. There is
+// no chain to restart either — the router holds the only one (D5).
+func (m Model) handleImageScanStarting(_ ImageScanStartingMsg) (tea.Model, tea.Cmd) {
 	m.footer.Clear()
-	m.updateImageTable()
-	if m.registryBrowser != nil {
-		m.registryBrowser.SetTagScanning(msg.ImageName, true)
-	}
-	if !wasScanning {
-		return m, m.spinner.Tick
-	}
 	return m, nil
 }
 
 // handleImageScanFinished updates scan results for a completed image scan.
 func (m Model) handleImageScanFinished(msg ImageScanFinishedMsg) (tea.Model, tea.Cmd) {
-	delete(m.scanningImages, msg.ImageName)
 	if msg.Err != nil {
 		m.failedScans[msg.ImageName] = true
 	} else {
@@ -166,10 +168,8 @@ func (m Model) handleImageScanFinished(msg ImageScanFinishedMsg) (tea.Model, tea
 		m.scanCache[msg.ImageName] = msg.Entry
 		m.footer.Clear()
 	}
-	m.scanning = len(m.scanningImages) > 0
 	m.updateImageTable()
 	if m.registryBrowser != nil {
-		m.registryBrowser.SetTagScanning(msg.ImageName, false)
 		m.registryBrowser.SetScanCache(m.scanCache)
 	}
 	return m, nil
@@ -182,10 +182,21 @@ func (m Model) handleImageScanFinished(msg ImageScanFinishedMsg) (tea.Model, tea
 // here, next to the cache it writes. The name is both the cache key and the
 // scan target, as it is for an image typed rather than picked.
 func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
-	if msg.ImageName == "" || m.scanningImages[msg.ImageName] {
+	if msg.ImageName == "" || m.scanningImage(msg.ImageName) {
 		return m, nil
 	}
-	m.scanning = true
 	job := imageScanJob{Name: msg.ImageName, Target: msg.ImageName}
-	return m, batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config))
+	return m, jobs.Start(
+		m.scanRun([]string{msg.ImageName}),
+		batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config)),
+	)
+}
+
+// jobNames is the target list of a queue of scan jobs, in order.
+func jobNames(queue []imageScanJob) []string {
+	out := make([]string, 0, len(queue))
+	for _, job := range queue {
+		out = append(out, job.Name)
+	}
+	return out
 }
