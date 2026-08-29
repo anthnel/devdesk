@@ -99,6 +99,18 @@ func monitorTypeCell(c status.ComponentStatus) string {
 
 // sslColumns describes the Certificates tab. Nothing sorts: the tab has never
 // offered `.`, and an expiry table read in config order is what the user wrote.
+//
+// **L'ordre groupe les colonnes par nature.** Les trois qui suivent leur
+// contenu — Name, Host, Issuer — sont à gauche et se partagent le surplus ;
+// les trois de largeur fixe sont packées à droite, où un glyphe et deux dates
+// occupent exactement ce qu'ils déclarent. `Issuer` était en queue, après deux
+// dates, donc la seule colonne extensible de la moitié droite tirait la ligne
+// vers un côté que rien n'y obligeait.
+//
+// Conséquence voulue sur la dégradation : `drop` retire la colonne Optional la
+// plus à droite d'abord, ce qui est maintenant `Expires` et non `Issuer`. Les
+// deux disent la même échéance, l'une en absolu et l'autre en relatif, et
+// `Days Left` reste — donc c'est la redondante qui part la première.
 func sslColumns() []datatable.Column[status.ComponentStatus] {
 	return []datatable.Column[status.ComponentStatus]{
 		{
@@ -110,6 +122,15 @@ func sslColumns() []datatable.Column[status.ComponentStatus] {
 			Title: "Host", Sizing: datatable.SizingContent, TruncateHead: true, MinWidth: 22, Flex: 2,
 			Cell:   func(c status.ComponentStatus) string { return c.Target },
 			Search: func(c status.ComponentStatus) string { return c.Target },
+		},
+		{
+			Title: "Issuer", Sizing: datatable.SizingContent, Optional: true, MinWidth: 20, Flex: 1,
+			Cell: func(c status.ComponentStatus) string {
+				if c.SSLIssuer == "" {
+					return "-"
+				}
+				return c.SSLIssuer
+			},
 		},
 		{Title: "Status", Sizing: datatable.SizingFixed, MinWidth: 12, Cell: formatSSLStatus, Style: certStatusStyle},
 		{
@@ -128,15 +149,6 @@ func sslColumns() []datatable.Column[status.ComponentStatus] {
 					return "-"
 				}
 				return c.SSLExpires.Format("2006-01-02 15:04")
-			},
-		},
-		{
-			Title: "Issuer", Sizing: datatable.SizingContent, Optional: true, MinWidth: 20, Flex: 1,
-			Cell: func(c status.ComponentStatus) string {
-				if c.SSLIssuer == "" {
-					return "-"
-				}
-				return c.SSLIssuer
 			},
 		},
 	}

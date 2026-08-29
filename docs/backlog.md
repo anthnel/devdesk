@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-28
+**Last Updated:** 2026-08-29
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -10356,6 +10356,65 @@ une propriété du parser. Ils lisent `docs/architecture/app-shell.md`.
 viewer, les trois touches, et la clause `g`/`G`), Rule 136 (`BarFrame`, et un
 seul occupant du créneau), et `GetHelpContent` — les trois touches et une
 section « Line numbers, and going to one ».
+
+### 3.54 L'onglet Certificates range ses colonnes par nature — **done**
+
+Fait le 2026-08-29. Signalé ainsi : « status monitor certificates, les colonnes
+ne prennent pas en largeur tout l'espace disponible alors que services monitor
+oui ». L'ordre demandé est **Name, Host, Issuer, Status, Days Left, Expires**.
+
+#### Ce que la plainte décrivait, et ce qu'elle ne décrivait pas
+
+Mesuré avant de toucher quoi que ce soit : `RenderedWidth()` vaut l'intérieur du
+viewport à **toutes** les largeurs, de 40 à 250 colonnes, pour les deux tables.
+Rule 116 tenait ; rien ne s'arrêtait avant la bordure. Ce qui se voyait n'était
+donc pas de l'espace perdu à droite mais de l'espace mal **réparti** : à 120
+colonnes, Services donnait 76 des 108 utiles à ses deux colonnes d'identité,
+Certificates seulement 45 sur 106 — parce que `Status` en réserve 12 pour un
+glyphe, `Days Left` 11 pour un en-tête que ses valeurs (« 42 », « -3 », « - »)
+n'approchent jamais, et que `Issuer`, la seule colonne extensible de la moitié
+droite, tirait la ligne du mauvais côté.
+
+Nommer la cause a compté : « les colonnes ne prennent pas toute la largeur » et
+« la largeur va aux mauvaises colonnes » se corrigent différemment, et la
+première aurait mené à chercher un défaut de calcul qui n'existe pas.
+
+#### L'ordre groupe par nature
+
+Les trois colonnes qui suivent leur contenu — `Name`, `Host`, `Issuer` — sont
+maintenant à gauche et se partagent le surplus entre elles ; les trois de
+largeur fixe sont packées à droite, où un glyphe et deux valeurs courtes
+occupent exactement ce qu'elles déclarent. Aucune largeur, aucun `Flex`, aucun
+`MinWidth` n'a bougé : c'est un réordonnancement, et rien d'autre.
+
+Le gain est celui-là, mesuré à 120 colonnes : `Issuer` cesse d'être coincée
+derrière deux champs fixes, et la lecture va de l'identité vers l'échéance au
+lieu d'alterner.
+
+#### La dégradation change d'ordre, et c'est voulu
+
+`drop` retire la colonne `Optional` la plus à droite d'abord. Elle était
+`Issuer` ; elle est maintenant `Expires`. C'est le bon sens de la perte :
+`Expires` et `Days Left` disent la même échéance, l'une en absolu et l'autre en
+relatif, et `Days Left` reste — donc c'est la redondante qui part la première,
+et l'émetteur du certificat survit à l'étroitesse.
+
+Relevé après coup, colonnes rendues :
+
+| Largeur | Colonnes présentes |
+|---|---|
+| 60 | Name, Host, Status |
+| 80 | Name, Host, Status, Days Left |
+| 100 | + Issuer |
+| 120 et au-delà | les six |
+
+#### Les tests ne comptent plus les cellules
+
+Trois tests de `internal/ui/status/view_test.go` lisaient leurs cellules par
+indice, ce qui est une seconde déclaration de l'ordre — et celle qui pourrit en
+silence : un réordonnancement les aurait laissés verts en comparant les
+mauvaises colonnes. Ils passent par `sslCell(t, row, "Issuer")`, qui résout le
+titre dans `sslColumns()` et échoue en le nommant si la colonne disparaît.
 
 ## 4. Existing plans
 
