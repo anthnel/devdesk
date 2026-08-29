@@ -3,6 +3,7 @@ package workspaces
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
 
@@ -65,7 +66,7 @@ const (
 // tell". The other reasons are constants because they say the same thing every
 // time (Rule 130).
 func reasonUnread(skipped int) string {
-	return "No repository found, and " + plural(skipped, "directory", "directories") +
+	return "No repository found, and " + sharedcomponents.Plural(skipped, "directory", "directories") +
 		" could not be read — check logs"
 }
 

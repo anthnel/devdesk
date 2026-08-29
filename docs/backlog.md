@@ -10926,7 +10926,7 @@ dépend d'aucun des autres.
 | 3 — `ws` branché (le compteur au footer, le spinner en colonne) | **fait** |
 | 4 — `:sec` et `oci` branchés | **fait** |
 | 5 — l'estampe de contexte | **fait**, [D68](#11-fixed) |
-| 6 — la vue `:jobs` | à faire |
+| 6 — la vue `:jobs` | **fait** |
 | 7 — le clone rebranché | à faire |
 | 8 — l'annulation | à faire |
 
@@ -10984,6 +10984,35 @@ n'était pas quelque chose qu'on faisait. `jobs.StartMsg.Work` devient un
 constructeur `func(contextName string) tea.Cmd` que le routeur appelle avec le
 nom qu'il vient d'estamper, ce qui fait du `Run.Context` de D8 autre chose qu'un
 champ d'affichage : c'est maintenant **le** nom, celui que le travail utilise.
+
+Le poste 6 livre la vue. Elle ne possède rien : elle ne lance aucun travail, ne
+tient aucune minuterie et ne va rien chercher — ses lignes *sont* l'instantané.
+C'est ce qui la rend possible du tout, et c'est aussi ce qui décide de son
+vocabulaire : il n'y a pas de `ctrl+r`, parce qu'il n'y a aucune opération
+derrière qui pourrait être indisponible.
+
+Deux décisions valent d'être écrites, parce qu'aucune n'était dans le plan :
+
+- **La première colonne est l'état, pas le kind.** Le plan disait l'icône du
+  kind ; une liste de jobs se parcourt pour trouver celui qui a échoué et celui
+  qui tourne encore, donc le glyphe répond à la question avec laquelle on
+  arrive, et c'est aussi la colonne où va le spinner — la forme de la table des
+  conteneurs. Le kind garde sa colonne de texte, qui porte l'état dans son
+  `Search` : `/failed` et `/scan` marchent tous deux, et la colonne de glyphes
+  reste hors du filtre (Rule 125).
+- **Pas de rôle d'icône par kind.** Rule 125 demande une couleur venue d'un
+  rôle, mais les rôles existent pour les icônes qui nomment un *objet* — un
+  namespace, un dépôt, une image — là où la palette doit pouvoir les séparer.
+  Un état a déjà une couleur, et cinq rôles de plus donneraient à un thème cinq
+  façons de rendre `failed` non rouge. La table des conteneurs colore déjà son
+  glyphe d'état par les styles sémantiques ; c'est le précédent, et il tient.
+
+Le compteur du dashboard, reporté du poste 4, arrive avec elle — c'est la vue
+`:jobs` qui lui donne son sens. Il est la **seule** ligne que le dashboard peut
+dire honnêtement : il ne lance rien, donc il ne passe aucune origine et obtient
+toujours la forme dégradée de D9. La phrase est partagée
+(`components.JobsStatusLine`) avec le footer de `ws` : deux copies d'un renoncement
+délibéré seraient chacune libres de renoncer différemment.
 
 Deux écarts au plan, tous deux du même genre :
 

@@ -9,10 +9,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/forge"
 	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
@@ -762,4 +764,56 @@ func stripANSI(s string) string {
 		}
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// §3.58, poste 6: the dashboard is the screen a user is most likely to be
+// looking at while a batch runs somewhere else — which is the situation D67
+// made possible. It launches none of it, so what it says is D9's degraded form:
+// the count, and where to look.
+func TestTheFooterCountsWorkStartedElsewhere(t *testing.T) {
+	m := feed(t, New(testConfig(), &shared.State{}), jobs.ChangedMsg{
+		Runs: []jobs.Run{
+			running(command.ViewWorkspaces, jobs.KindScan, "~/work"),
+			running(command.ViewSecurity, jobs.KindScan, "inventory"),
+		},
+		RenderedFrame: "*",
+	})
+
+	status := m.status()
+	if want := "2 jobs running — :jobs for details"; status.Text != want {
+		t.Errorf("the footer says %q, want %q", status.Text, want)
+	}
+	if !status.Spinner {
+		t.Error("the count carries no spinner")
+	}
+	if !strings.Contains(m.RenderFooter(180), "jobs running") {
+		t.Error("the rendered footer does not carry the line")
+	}
+}
+
+// The dashboard never gets the detailed "Scanning — 3/12" form, whatever is
+// running: it passes no origin because it owns no run, and naming a batch it
+// did not start would claim it did.
+func TestTheDashboardNeverClaimsARun(t *testing.T) {
+	m := feed(t, New(testConfig(), &shared.State{}), jobs.ChangedMsg{
+		Runs: []jobs.Run{running(command.ViewWorkspaces, jobs.KindScan, "~/work")},
+	})
+
+	if got := m.status().Text; strings.Contains(got, "Scanning") {
+		t.Errorf("the footer says %q, want the count rather than the batch", got)
+	}
+}
+
+func TestTheFooterIsSilentWithNothingRunning(t *testing.T) {
+	m := feed(t, New(testConfig(), &shared.State{}), jobs.ChangedMsg{})
+	if got := m.status().Text; got != "" {
+		t.Errorf("the footer says %q with nothing running", got)
+	}
+}
+
+// running builds a run with one target under way.
+func running(origin command.ViewType, kind jobs.Kind, label string) jobs.Run {
+	r := jobs.NewRun(kind, origin, "", label, label+"/target")
+	r.Items[0].State = jobs.ItemRunning
+	return r
 }

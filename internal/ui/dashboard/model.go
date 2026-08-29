@@ -16,6 +16,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/shared"
@@ -179,6 +180,12 @@ type Model struct {
 	// The dashboard budgets an info line and left it permanently empty; a key
 	// the header greys out has to be able to say why it declined (Rule 130).
 	footer sharedcomponents.FooterMessage
+
+	// jobs is the router's snapshot of what is running. The dashboard starts
+	// none of it and shows only the count — it is the one screen a user is
+	// likely to be looking at while a batch runs somewhere else, which is
+	// exactly the case D67 made possible and D9 has to answer for.
+	jobs []jobs.Run
 }
 
 // New creates a new dashboard model
@@ -235,6 +242,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
+
+	case jobs.ChangedMsg:
+		m.jobs = msg.Runs
+		m.footer.SetSpinnerFrame(msg.RenderedFrame)
+		return m, nil
 
 	case StatusCheckMsg:
 		return m.handleStatusCheck(msg)

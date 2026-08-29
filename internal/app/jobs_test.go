@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/jobsview"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
@@ -71,7 +72,7 @@ func TestASnapshotReachesEveryHeldView(t *testing.T) {
 // escape sequence as width and is truncated inside it, which then bleeds down
 // every row below.
 func TestTheBroadcastFrameIsBareAndItsRenderingIsNot(t *testing.T) {
-	withTrueColor(t)
+	testutil.TrueColor(t)
 
 	view := &fakeView{}
 	a := router(t, view)
@@ -455,5 +456,27 @@ func TestAnInventoryRescanReportsThatItStarted(t *testing.T) {
 	a.Update(security.InventoryScanFinishedMsg{Name: "nexus/api:1.4"})
 	if got := a.jobs.Snapshot()[0].State(); got != jobs.RunDone {
 		t.Errorf("state = %q, want it done", got)
+	}
+}
+
+// The jobs view is built lazily like every other, so it was there for none of
+// what already started. switchView hands it the snapshot on the way in — a real
+// view rather than a fakeView here, because what is being checked is that it
+// has rows to show, not that a message arrived.
+func TestTheJobsViewArrivesHoldingWhatIsAlreadyRunning(t *testing.T) {
+	a := router(t, &fakeView{})
+	a.jobs.Start(scanRun(a.currentContext, "/repos/a", "/repos/b"))
+
+	testutil.Msgs(a.switchView(command.ViewJobs))
+	// switchView asks for a layout by returning a Cmd; nothing feeds the
+	// router's own messages back in a test, so the size is handed over here.
+	a.resize(a.width, a.height)
+
+	view, ok := a.views[command.ViewJobs].(jobsview.Model)
+	if !ok {
+		t.Fatalf("the jobs view is a %T", a.views[command.ViewJobs])
+	}
+	if body := view.View(); !strings.Contains(body, "~/work") {
+		t.Errorf("the jobs view opened empty while a run was going: %s", body)
 	}
 }

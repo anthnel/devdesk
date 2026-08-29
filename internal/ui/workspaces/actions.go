@@ -92,7 +92,7 @@ func (m *Model) warnSkipped(skipped int) tea.Cmd {
 	if skipped == 0 {
 		return nil
 	}
-	return m.footer.Warn(plural(skipped, "directory", "directories") +
+	return m.footer.Warn(sharedcomponents.Plural(skipped, "directory", "directories") +
 		" could not be read — some repositories were missed")
 }
 

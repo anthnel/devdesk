@@ -26,6 +26,12 @@ const (
 	ViewNetdiag       ViewType = "netdiag"
 	ViewConfiguration ViewType = "configuration"
 
+	// ViewJobs lists what is running and what has run this session. It is
+	// typed like any other view rather than reached by an uppercase key: the
+	// uppercase vocabulary is for actions *within* a view, and changing view
+	// goes through `:` (Rule 111).
+	ViewJobs ViewType = "jobs"
+
 	// ViewViewer is opened by the router on another view's request — a file in
 	// workspaces, an inspect or a log in containers — and never by name. It is
 	// deliberately absent from viewNames: `:viewer` would open a pane saying
@@ -88,6 +94,8 @@ var viewNames = map[string]ViewType{
 	"configuration": ViewConfiguration,
 	"config":        ViewConfiguration,
 	"cfg":           ViewConfiguration,
+	"jobs":          ViewJobs,
+	"j":             ViewJobs,
 }
 
 // legacyNames are spellings that still resolve but are never suggested.

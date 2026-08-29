@@ -65,7 +65,7 @@ func TestAMissingViewSaysSo(t *testing.T) {
 // A view with no title still gets its border line, or the viewport loses its
 // top edge.
 func TestTheTitleLineIsDrawnWithoutATitle(t *testing.T) {
-	withTrueColor(t)
+	testutil.TrueColor(t)
 	titled := router(t, &fakeView{title: "Workspaces", footerHeight: 2}).View()
 	untitled := router(t, &bareView{}).View()
 
@@ -147,7 +147,7 @@ func TestHelpIsRenderedBeforeTheLists(t *testing.T) {
 // filter bar, so the two form one closed rectangle instead of two stacked
 // boxes.
 func TestTheFilterBarClosesTheRectangle(t *testing.T) {
-	withTrueColor(t)
+	testutil.TrueColor(t)
 	plain := router(t, &fakeView{footerHeight: 2, footer: "info"}).View()
 	filtering := router(t, &fakeView{footerHeight: 3, footer: "filter", filterBar: true}).View()
 

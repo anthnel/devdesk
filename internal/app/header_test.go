@@ -5,21 +5,10 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
-
-// withTrueColor forces a colour profile for the run. Under go test lipgloss
-// detects no TTY, falls back to Ascii and strips every escape sequence, which
-// would make any assertion about styling pass whatever the code does.
-func withTrueColor(t *testing.T) {
-	t.Helper()
-	previous := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
-}
 
 func manyShortcuts(n int) shortcut.Shortcuts {
 	out := make(shortcut.Shortcuts, 0, n)
@@ -92,7 +81,7 @@ func TestEveryHeaderRowFillsTheWidth(t *testing.T) {
 // leak its colour onto everything rendered after it, which is the corruption
 // Rule 122 is about.
 func TestClippingTheShortcutBlockLeavesTheStylingIntact(t *testing.T) {
-	withTrueColor(t)
+	testutil.TrueColor(t)
 
 	rendered := renderHeaderContent(
 		[]shortcut.HeaderInfo{{Key: "Context", Value: "default"}},
@@ -165,7 +154,7 @@ func TestInfoLinesPadOutToTheHeaderHeight(t *testing.T) {
 
 // The logo is centred in the seven rows: one blank above, one below.
 func TestTheLogoIsVerticallyCentred(t *testing.T) {
-	withTrueColor(t)
+	testutil.TrueColor(t)
 	lines := buildLogoLines(logoWidth)
 
 	if strings.Contains(lines[0], "_") {

@@ -62,6 +62,28 @@ func (k Kind) Cancellable() bool {
 	return k == KindScan || k == KindPull
 }
 
+// Verb is what a kind is called while it runs — present participle, English US
+// (Rule 129). It lives here rather than in a view because two now say it: the
+// footer of the view that launched the run, and the `:jobs` list.
+//
+// A kind that reaches the default is a kind added without answering this, which
+// is what walking Kinds() in a test catches.
+func (k Kind) Verb() string {
+	switch k {
+	case KindScan:
+		return "Scanning"
+	case KindSync:
+		return "Syncing"
+	case KindClone:
+		return "Cloning"
+	case KindPull:
+		return "Pulling"
+	case KindDelete:
+		return "Deleting"
+	}
+	return "Working"
+}
+
 // ItemState is where one target stands.
 //
 // queued and running are distinguished on purpose (D6): the semaphore already
