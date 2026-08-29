@@ -32,6 +32,7 @@ App (Router)
     ├── oci-resources   - OCI resource list, scan, launch containers, network inspection
     ├── netdiag         - Network diagnostics (Docker-based tools) + real-time port monitor
     ├── configuration   - Every scalar setting in the current context
+    ├── jobs            - Long-running work: runs, then their targets
     └── viewer          - One document, read-only (router-only: no `:viewer`)
 ```
 
@@ -48,6 +49,7 @@ Press `ctrl+p` to enter command mode, then type:
 - `oci-resources` or `oci` - Switch to OCI resources view
 - `netdiag` or `net` - Switch to network diagnostics view
 - `configuration`, `config` or `cfg` - Switch to the configuration view
+- `jobs` or `j` - Switch to the jobs view: what is running, and what ran this session
 - `context <name>` or `ctx <name>` - Switch configuration context
 - `context list` - Show available contexts
 - `quit` - Exit application
@@ -454,6 +456,55 @@ This is what removes the four hand-stamped frames, and with them the failure
 each of them could produce: a chain that died on the first idle tick with
 nothing able to restart it, leaving the spinner frozen on the frame it died at.
 
+
+### The `:jobs` view — `internal/ui/jobsview`
+
+The reader's side of the registry, and it owns nothing: it starts no work, holds
+no timer and fetches nothing. Its rows are the snapshot, so there is nothing to
+refresh — `ctrl+r` is absent rather than greyed, because there is no operation
+behind it to be unavailable.
+
+Two levels (D2): the runs, and `→` on one of them for its targets. A level
+rather than a pair of tabs — the second table is *about* a row of the first, so
+it is reached the way every drill-down in the application is (Rule 111), and the
+trail is a breadcrumb below the table (Rule 123).
+
+| | Columns |
+|---|---|
+| runs | state glyph (untitled, `IconColumnWidth`), Kind, Label, Progress, State, Started |
+| targets | state glyph, Target, State, Detail |
+
+**The first column is the state, not the kind**, and it is also where the
+spinner goes — the containers table's shape. A jobs list is scanned to find the
+run that failed and the one still going, so the glyph answers the question the
+reader arrived with; the Kind column says in a word what sort of work it was,
+and carries the state in its `Search` so `/failed` and `/scan` both work while
+the glyph column stays out of the filter (Rule 125).
+
+A state glyph colours by the semantic status styles rather than by a
+`theme.IconStyle` role. Roles exist for icons naming an *object* — a namespace, a
+repository, an image — where the palette should be able to tell them apart; a
+state already has a colour, and five new roles would give a theme five ways to
+make `failed` not red.
+
+**The frame rides on the row.** `runRow`/`itemRow` wrap the model value with the
+frame, because the columns are built once and close over nothing — the same
+reason `oci_resources` has `imageRow`. It is the router's frame, taken bare from
+`jobs.ChangedMsg`: using `datatable`'s own `AdvanceSpinner` here would be a
+second chain beside the one D5 exists to keep single.
+
+**The context is passed, not read.** `jobsview.New(cfg, contextName)` takes the
+name from the router, for D68's reason one screen over: the router is what knows
+which context is current. The view filters the snapshot on it (`FilterContext`),
+so a switch hides runs rather than dropping them — and the router rebuilds every
+view on a switch anyway, so the cached name cannot go stale.
+
+**The dashboard gained the counter** the same way, and it is the one screen that
+always gets D9's degraded form: it launches nothing, so it passes no origin, and
+`2 jobs running — :jobs for details` is the whole of what it can honestly say.
+The sentence itself is `components.JobsStatusLine`, shared with the workspaces
+footer — two copies of a deliberate surrender would each have been free to
+surrender differently.
 
 ## Bubble Tea Message Flow
 

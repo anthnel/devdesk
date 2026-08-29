@@ -263,7 +263,7 @@ func (m Model) showsTabBar() bool {
 // grisée (Rule 130) — la ligne existait déjà, elle était simplement toujours
 // vide.
 func (m Model) RenderFooter(width int) string {
-	info := m.footer.View(width, sharedcomponents.Status{})
+	info := m.footer.View(width, m.status())
 
 	if !m.showsTabBar() {
 		return theme.EmptyLineBg(width) + "\n" + info
@@ -272,6 +272,21 @@ func (m Model) RenderFooter(width int) string {
 	tabs := []theme.TabItem{{Label: "Overview"}, {Label: "Resources"}}
 	tabBar := theme.PadWithBg(theme.Bg(" ")+theme.RenderTabs(tabs, int(m.activeTab)), width)
 	return tabBar + "\n" + theme.EmptyLineBg(width) + "\n" + info
+}
+
+// status is the line the dashboard derives on every frame (Rule 128).
+//
+// The dashboard launches nothing, so it passes no origin and always gets D9's
+// degraded form — "2 jobs running — :jobs for details". That is not a
+// limitation here but the right sentence: it is the screen a user is most
+// likely to be watching while a batch runs somewhere else, and what it can
+// honestly say is how much is going and where to look.
+func (m Model) status() sharedcomponents.Status {
+	line := sharedcomponents.JobsStatusLine(m.jobs, "")
+	if line == "" {
+		return sharedcomponents.Status{}
+	}
+	return sharedcomponents.Status{Text: line, Spinner: true}
 }
 
 // GetShortcuts returns the keyboard shortcuts for the header.

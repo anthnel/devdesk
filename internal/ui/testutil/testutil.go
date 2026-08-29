@@ -19,6 +19,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
@@ -240,4 +242,21 @@ func findShortcut(shortcuts shortcut.Shortcuts, key string) (shortcut.Shortcut, 
 		}
 	}
 	return shortcut.Shortcut{}, false
+}
+
+// TrueColor forces a colour profile for the length of a test.
+//
+// Under `go test` lipgloss detects no TTY, falls back to the Ascii profile and
+// strips every escape sequence — so an assertion about styling passes whatever
+// the code does. Any test checking that something is or is not styled has to
+// call this first, and Rule 122's tests are exactly that: a cell that must
+// carry no escape proves nothing in a profile that emits none.
+func TrueColor(t interface {
+	Helper()
+	Cleanup(func())
+}) {
+	t.Helper()
+	previous := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(previous) })
 }

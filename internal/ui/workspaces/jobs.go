@@ -9,6 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/git"
 	"github.com/anthnel/devdesk/internal/jobs"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
 
 // This view's knowledge of what is running is a snapshot the router hands it,
@@ -110,89 +111,12 @@ func (m Model) deleting(path string) bool { return m.workingKind(jobs.KindDelete
 
 // ── The footer line (D9) ─────────────────────────────────────────────────────
 
-// jobsStatusLine is what the footer says while work runs.
-//
-// It is derived every frame rather than posted as a message, and Rule 128 says
-// why: a batch outlives the three seconds a footer message gets, so a line set
-// on the first repository would vanish while the tenth was still going.
-//
-// Three forms, and the third is a deliberate surrender:
-//
-//	Scanning — 3/12                     one kind, started here
-//	Scanning — 3/12 · Syncing — 1/4      two kinds, both started here
-//	3 jobs running — :jobs for details   anything else
-//
-// The degraded form is what a footer can honestly say about work it does not
-// own. One line cannot carry four batches launched from three views, and a line
-// that showed only the part it recognised would be worse than one that admits
-// there is more.
+// jobsStatusLine is what the footer says while work runs. The three forms and
+// the reason for the third live with the shared implementation
+// (components.JobsStatusLine) — the dashboard says the same sentence now, and
+// two copies of a surrender would each be free to surrender differently.
 func (m Model) jobsStatusLine() string {
-	live := m.liveRuns()
-	if len(live) == 0 {
-		return ""
-	}
-
-	mine := make([]jobs.Run, 0, len(live))
-	for _, run := range live {
-		if run.Origin == command.ViewWorkspaces {
-			mine = append(mine, run)
-		}
-	}
-
-	// Anything started elsewhere, or more than one batch of a kind, and the
-	// detailed line stops being able to tell the truth.
-	if len(mine) != len(live) || !oneRunPerKind(mine) {
-		return plural(len(live), "job", "jobs") + " running — :jobs for details"
-	}
-
-	parts := make([]string, 0, len(mine))
-	for _, kind := range jobs.Kinds() {
-		for _, run := range mine {
-			if run.Kind == kind {
-				parts = append(parts, kindVerb(kind)+" — "+
-					strconv.Itoa(run.Done())+"/"+strconv.Itoa(run.Total()))
-			}
-		}
-	}
-	return strings.Join(parts, " · ")
-}
-
-// oneRunPerKind reports whether no two runs share a kind. Two scans at once are
-// two counters, and "Scanning — 3/12 · Scanning — 1/2" reads as a bug.
-func oneRunPerKind(runs []jobs.Run) bool {
-	seen := make(map[jobs.Kind]bool, len(runs))
-	for _, run := range runs {
-		if seen[run.Kind] {
-			return false
-		}
-		seen[run.Kind] = true
-	}
-	return true
-}
-
-// kindVerb is what the footer calls a kind while it runs. Present participle,
-// English US (Rule 129).
-func kindVerb(kind jobs.Kind) string {
-	switch kind {
-	case jobs.KindScan:
-		return "Scanning"
-	case jobs.KindSync:
-		return "Syncing"
-	case jobs.KindDelete:
-		return "Deleting"
-	case jobs.KindClone:
-		return "Cloning"
-	case jobs.KindPull:
-		return "Pulling"
-	}
-	return "Working"
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return strconv.Itoa(n) + " " + many
+	return sharedcomponents.JobsStatusLine(m.jobs, command.ViewWorkspaces)
 }
 
 // ── What each message tells the registry (jobs.Reporter) ─────────────────────
@@ -301,7 +225,7 @@ func (m Model) syncSummary(run jobs.Run) string {
 
 	var parts []string
 	if updated > 0 {
-		parts = append(parts, plural(updated, "repository", "repositories")+" updated")
+		parts = append(parts, sharedcomponents.Plural(updated, "repository", "repositories")+" updated")
 	}
 	if upToDate > 0 {
 		parts = append(parts, strconv.Itoa(upToDate)+" up to date")
@@ -313,7 +237,7 @@ func (m Model) syncSummary(run jobs.Run) string {
 		parts = append(parts, strconv.Itoa(failed)+" failed ("+firstFailed+") — check logs")
 	}
 	if m.syncUnreadable > 0 {
-		parts = append(parts, plural(m.syncUnreadable, "directory", "directories")+" unreadable — check logs")
+		parts = append(parts, sharedcomponents.Plural(m.syncUnreadable, "directory", "directories")+" unreadable — check logs")
 	}
 	if len(parts) == 0 {
 		return "Nothing to sync"

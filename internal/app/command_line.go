@@ -11,6 +11,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/dashboard"
 	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
+	"github.com/anthnel/devdesk/internal/ui/jobsview"
 	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
@@ -183,6 +184,8 @@ func (a *App) createView(view command.ViewType) {
 		a.views[view] = netdiag.New(a.config)
 	case command.ViewConfiguration:
 		a.views[view] = configuration.New(a.config)
+	case command.ViewJobs:
+		a.views[view] = jobsview.New(a.config, a.currentContext)
 	case command.ViewViewer:
 		// Empty: the viewer is normally installed with its source by
 		// handleViewerOpenRequest, and this case exists so the router can build
