@@ -328,18 +328,36 @@ func TestTableCellsCarryNoANSISequences(t *testing.T) {
 	}
 }
 
+// sslCell reads a cell by the title of its column. Un indice écrit ici serait
+// une seconde déclaration de l'ordre des colonnes, et c'est celle qui pourrit
+// en silence : le réordonnancement de §3.54 aurait fait passer ces tests en
+// comparant les mauvaises cellules si les noms n'y étaient pas.
+func sslCell(t *testing.T, row []string, title string) string {
+	t.Helper()
+	for i, col := range sslColumns() {
+		if col.Title == title {
+			if i >= len(row) {
+				t.Fatalf("column %q is declared at %d but the row has %d cells", title, i, len(row))
+			}
+			return row[i]
+		}
+	}
+	t.Fatalf("no column titled %q on the Certificates tab", title)
+	return ""
+}
+
 func TestUpdateTableFormatsCertificateCells(t *testing.T) {
 	m := loadedModel(t)
 
 	row := m.sslTable.Table().Rows()[0]
-	if row[3] != "42" {
-		t.Errorf("days-left cell = %q, want \"42\"", row[3])
-	}
-	if row[4] != "2026-12-01 10:30" {
-		t.Errorf("expiry cell = %q, want the formatted date", row[4])
-	}
-	if row[5] != "Let's Encrypt" {
-		t.Errorf("issuer cell = %q, want the issuer", row[5])
+	for _, c := range []struct{ title, want string }{
+		{"Days Left", "42"},
+		{"Expires", "2026-12-01 10:30"},
+		{"Issuer", "Let's Encrypt"},
+	} {
+		if got := sslCell(t, row, c.title); got != c.want {
+			t.Errorf("%s cell = %q, want %q", c.title, got, c.want)
+		}
 	}
 }
 
@@ -354,9 +372,9 @@ func TestCertificateCellsFallBackWhenDetailsAreMissing(t *testing.T) {
 	})
 
 	row := m.sslTable.Table().Rows()[0]
-	for i, cell := range map[int]string{3: "-", 4: "-", 5: "-"} {
-		if row[i] != cell {
-			t.Errorf("cell %d = %q, want %q for a certificate with no details", i, row[i], cell)
+	for _, title := range []string{"Issuer", "Days Left", "Expires"} {
+		if got := sslCell(t, row, title); got != "-" {
+			t.Errorf("%s cell = %q, want %q for a certificate with no details", title, got, "-")
 		}
 	}
 }
@@ -395,7 +413,7 @@ func TestUnknownStatusFallsBackToItsName(t *testing.T) {
 	if got := m.monitorTable.Table().Rows()[0][2]; got != "PENDING" {
 		t.Errorf("status cell = %q, want the raw status name", got)
 	}
-	if got, want := m.sslTable.Table().Rows()[0][2], theme.CertStateIcon(string(status.CertError)); got != want {
+	if got, want := sslCell(t, m.sslTable.Table().Rows()[0], "Status"), theme.CertStateIcon(string(status.CertError)); got != want {
 		t.Errorf("ssl status cell = %q, want the unread glyph %q", got, want)
 	}
 }
