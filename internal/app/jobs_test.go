@@ -4,9 +4,12 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 
 // scanRun is a run of the shape every launch site will build at poste 3.
@@ -15,17 +18,17 @@ func scanRun(contextName string, targets ...string) jobs.Run {
 }
 
 // jobsSeen returns every snapshot a view was handed, newest last.
-func jobsSeen(v *fakeView) []JobsChangedMsg {
-	var out []JobsChangedMsg
+func jobsSeen(v *fakeView) []jobs.ChangedMsg {
+	var out []jobs.ChangedMsg
 	for _, msg := range v.received {
-		if typed, ok := msg.(JobsChangedMsg); ok {
+		if typed, ok := msg.(jobs.ChangedMsg); ok {
 			out = append(out, typed)
 		}
 	}
 	return out
 }
 
-func lastJobs(t *testing.T, v *fakeView) JobsChangedMsg {
+func lastJobs(t *testing.T, v *fakeView) jobs.ChangedMsg {
 	t.Helper()
 	seen := jobsSeen(v)
 	if len(seen) == 0 {
@@ -82,12 +85,11 @@ func TestTheBroadcastFrameIsBareAndItsRenderingIsNot(t *testing.T) {
 	if strings.Contains(snapshot.Frame, "\x1b") {
 		t.Errorf("Frame = %q carries an escape sequence; Rule 122 wants a cell measurable", snapshot.Frame)
 	}
-	if rendered := snapshot.RenderedFrame(); !strings.Contains(rendered, "\x1b") {
-		t.Errorf("RenderedFrame = %q, want the styled frame a footer takes (Rule 128)", rendered)
+	if !strings.Contains(snapshot.RenderedFrame, "\x1b") {
+		t.Errorf("RenderedFrame = %q, want the styled frame a footer takes (Rule 128)", snapshot.RenderedFrame)
 	}
-	empty := JobsChangedMsg{}
-	if got, want := empty.RenderedFrame(), ""; got != want {
-		t.Errorf("an empty frame rendered as %q, want %q", got, want)
+	if !strings.Contains(snapshot.RenderedFrame, snapshot.Frame) {
+		t.Errorf("RenderedFrame = %q does not carry Frame = %q", snapshot.RenderedFrame, snapshot.Frame)
 	}
 }
 
@@ -300,5 +302,96 @@ func TestAViewCannotWriteThroughItsSnapshot(t *testing.T) {
 
 	if got, want := a.jobs.Running(), 1; got != want {
 		t.Errorf("Running = %d, want %d — a view wrote through its snapshot", got, want)
+	}
+}
+
+// The full round trip, which is what nothing tested before the registry: a view
+// asks for a run, the router admits it, and the view's own progress messages
+// move its items — without either side holding a JobID.
+func TestAViewsWorkIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
+	ws := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewWorkspaces] = ws
+	a.currentContext = "prod"
+
+	testutil.FastTimers(t, &jobSpinnerInterval)
+
+	worked := false
+	_, cmd := a.Update(jobs.StartMsg{
+		Run:  jobs.NewRun(jobs.KindScan, command.ViewWorkspaces, "", "~/work", "/repos/a", "/repos/b"),
+		Work: func() tea.Msg { worked = true; return nil },
+	})
+
+	// The work rides on the message rather than being batched beside it, so it
+	// cannot outrun the registration — and a test can read what was launched
+	// without launching it, which a tea.Sequence at the launch site would deny.
+	testutil.Msgs(cmd)
+	if !worked {
+		t.Error("the run was registered but its work never went out")
+	}
+
+	snapshot := a.jobs.Snapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("the registry holds %d runs, want 1", len(snapshot))
+	}
+	if got, want := snapshot[0].Context, "prod"; got != want {
+		t.Errorf("Context = %q, want %q — the router stamps it, not the view", got, want)
+	}
+	if got := snapshot[0].State(); got != jobs.RunQueued {
+		t.Errorf("state = %q, want every target queued at registration (D6)", got)
+	}
+
+	// One repository starts, and the row it belongs to is running while the
+	// other is still queued.
+	a.Update(workspaces.WorkspaceScanStartingMsg{RepoPath: "/repos/a"})
+	run := a.jobs.Snapshot()[0]
+	if got := run.Items[0].State; got != jobs.ItemRunning {
+		t.Errorf("the started repository is %q, want running", got)
+	}
+	if got := run.Items[1].State; got != jobs.ItemQueued {
+		t.Errorf("the waiting repository is %q, want it still queued", got)
+	}
+
+	// It finishes; the other fails. The run settles as failed, and the reason
+	// is the view's own wording, not a raw error.
+	a.Update(workspaces.WorkspaceScanCompleteMsg{RepoPath: "/repos/a"})
+	a.Update(workspaces.WorkspaceScanCompleteMsg{RepoPath: "/repos/b", Error: errNotOnDisk})
+
+	run = a.jobs.Snapshot()[0]
+	if got := run.State(); got != jobs.RunFailed {
+		t.Errorf("state = %q, want %q", got, jobs.RunFailed)
+	}
+	if got := run.Items[1].Detail; got == "" || strings.Contains(got, "no such file") {
+		t.Errorf("Detail = %q, want the view's short wording rather than the raw error", got)
+	}
+	if got := a.jobs.Running(); got != 0 {
+		t.Errorf("Running = %d, want 0", got)
+	}
+
+	// And the view saw every one of them: the registry does not swallow what it
+	// applies.
+	if _, ok := receivedOf[workspaces.WorkspaceScanStartingMsg](ws); !ok {
+		t.Error("the starting message never reached the view")
+	}
+	if _, ok := receivedOf[workspaces.WorkspaceScanCompleteMsg](ws); !ok {
+		t.Error("the completion never reached the view")
+	}
+}
+
+// A progress message for work nobody registered is routed all the same. The
+// registry declines it rather than inventing a run, and the view still gets to
+// act on it.
+func TestAMessageForUnregisteredWorkIsStillRouted(t *testing.T) {
+	ws := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewWorkspaces] = ws
+
+	a.Update(workspaces.WorkspaceScanCompleteMsg{RepoPath: "/repos/never-registered"})
+
+	if got := a.jobs.Len(); got != 0 {
+		t.Errorf("the registry invented %d runs for work it was never told about", got)
+	}
+	if _, ok := receivedOf[workspaces.WorkspaceScanCompleteMsg](ws); !ok {
+		t.Error("the message was dropped because the registry did not recognise it")
 	}
 }

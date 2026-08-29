@@ -84,6 +84,64 @@ func (r *Registry) Advance(id JobID, target string, state ItemState, detail stri
 	return false
 }
 
+// Transition is what a progress message says about one target.
+//
+// It exists so the router can apply a message without knowing the vocabulary of
+// the view that sent it. A sync that was refused because the tree is dirty is a
+// skip with a reason; only the workspaces package knows that, and it says so by
+// answering this — see Reporter.
+type Transition struct {
+	Kind   Kind
+	Target string
+	State  ItemState
+	Detail string
+}
+
+// Reporter is implemented by a message that reports on registered work.
+//
+// The alternative was a switch in the router mapping every view's outcome
+// vocabulary onto item states, which puts each view's semantics in a file that
+// belongs to none of them, and grows by one branch per view.
+type Reporter interface {
+	Transition() Transition
+}
+
+// Apply routes a transition to the run it belongs to. It reports whether one
+// was found, which is how the router knows there is something new to broadcast.
+func (r *Registry) Apply(t Transition) bool {
+	id, ok := r.FindItem(t.Kind, t.Target)
+	if !ok {
+		return false
+	}
+	return r.Advance(id, t.Target, t.State, t.Detail)
+}
+
+// FindItem names the run a transition belongs to.
+//
+// The launch sites do not carry a JobID in their messages, and deliberately:
+// a view would have to hold one, which means holding registry state — the thing
+// D1 keeps out of the views — and it would have to hold it before the registry
+// had allocated it. The router looks the run up instead, from what the message
+// already says: the kind is decided by which message arrived, and the target is
+// in it.
+//
+// The oldest unsettled run wins. Two live runs of one kind cannot hold the same
+// target — that is what the busy() guards prevent, and they are answered from
+// this registry now, so the exclusion is enforced rather than hoped for.
+func (r *Registry) FindItem(kind Kind, target string) (JobID, bool) {
+	for _, run := range r.runs {
+		if run.Kind != kind || run.Finished() {
+			continue
+		}
+		for i := range run.Items {
+			if run.Items[i].Target == target && !run.Items[i].State.Terminal() {
+				return run.ID, true
+			}
+		}
+	}
+	return 0, false
+}
+
 // Attach stores the cancel function of an item that has just started.
 //
 // It is separate from Advance because the two do not arrive together: the

@@ -9,6 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -184,10 +186,41 @@ func TestScanningRepoShowsProgress(t *testing.T) {
 	m := loadedModel(t)
 	before := m.table.Table().Rows()[0][9]
 
-	m = feed(t, m, WorkspaceScanStartingMsg{RepoPath: "/tmp/workspaces/devdesk"})
+	m = running(t, m, jobs.KindScan, "/tmp/workspaces/devdesk")
 
 	if got := m.table.Table().Rows()[0][9]; got == before {
 		t.Errorf("the Scanned cell is unchanged (%q) while a scan is running", got)
+	}
+}
+
+// A directory spins as soon as one repository under it is in flight, and stops
+// counting while it does.
+//
+// It used to print "3/12" during a batch, incremented once per repository — a
+// progress counter in a six-cell column, in the same cell that otherwise says
+// how much of the tree has ever been scanned. The two readings were
+// indistinguishable, so the number meant "nine left to go" or "nine nobody has
+// scanned" depending on something the cell did not say. The batch reports in
+// the footer now (D9), and N/M means settled coverage and nothing else.
+func TestADirectorySpinsRatherThanCountingWhileItsReposScan(t *testing.T) {
+	m := feed(t, newTestModel(t), ScanCacheLoadedMsg{Cache: map[string]cache.WorkspaceScanEntry{
+		"/tmp/workspaces/clients/a": {RepoPath: "/tmp/workspaces/clients/a"},
+	}})
+	m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
+
+	// Settled: one of the two nested repositories has been scanned.
+	if got := m.table.Items()[2].Scanned; !strings.Contains(got, "1/2") {
+		t.Errorf("Scanned = %q with nothing running, want the settled coverage", got)
+	}
+
+	m = running(t, m, jobs.KindScan, "/tmp/workspaces/clients/b")
+
+	got := m.table.Items()[2].Scanned
+	if !strings.Contains(got, "scanning") {
+		t.Errorf("Scanned = %q while a nested repository scans, want the spinner", got)
+	}
+	if strings.Contains(got, "/") {
+		t.Errorf("Scanned = %q still counts during a batch; the count belongs in the footer", got)
 	}
 }
 

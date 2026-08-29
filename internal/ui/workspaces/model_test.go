@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -617,7 +617,7 @@ func TestScanOneRepoPurgesItsCacheEntry(t *testing.T) {
 func TestScanRefusesToStartTwice(t *testing.T) {
 	m := scannedModel(t)
 	m.table.SetCursor(0)
-	m.scanningPaths["/tmp/workspaces/devdesk"] = true
+	m = running(t, m, jobs.KindScan, "/tmp/workspaces/devdesk")
 
 	m, cmd := step(t, m, testutil.Key(keymap.Scan))
 
@@ -656,11 +656,9 @@ func TestScanIsInertOnEntriesWithNothingToScan(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m.table.SetCursor(tc.cursor)
 
-			next := refused(t, m, keymap.Scan, tc.reason)
-
-			if len(next.scanningPaths) != 0 {
-				t.Errorf("a scan was started for %s: %v", tc.name, next.scanningPaths)
-			}
+			// refused() checks both halves: the footer names the reason,
+			// and no run was registered.
+			refused(t, m, keymap.Scan, tc.reason)
 		})
 	}
 }
@@ -722,20 +720,29 @@ func TestScanAllIsInertWithNoRepos(t *testing.T) {
 	}
 }
 
+// What is running is the registry answer now, so this view half of the
+// lifecycle is the two things it still owns: the row spins while the snapshot
+// says the repository is in flight, and the result lands in the cache.
+//
+// The marker itself is asserted where it lives — internal/app, where a Starting
+// message becomes a transition.
 func TestScanLifecycle(t *testing.T) {
-	m := loadedModel(t)
+	m := running(t, loadedModel(t), jobs.KindScan, "/tmp/workspaces/devdesk")
 
-	m = feed(t, m, WorkspaceScanStartingMsg{RepoPath: "/tmp/workspaces/devdesk"})
-	if !m.scanningPaths["/tmp/workspaces/devdesk"] {
-		t.Error("the repo was not marked as scanning")
+	if !m.scanning("/tmp/workspaces/devdesk") {
+		t.Error("the repo does not read as scanning")
+	}
+	if got := m.table.Items()[0].Scanned; !strings.Contains(got, "scanning") {
+		t.Errorf("Scanned = %q, want the row spinning", got)
 	}
 
+	m = withJobs(t, m, settledRun(jobs.KindScan, jobs.ItemDone, "", "/tmp/workspaces/devdesk"))
 	m = feed(t, m, WorkspaceScanCompleteMsg{
 		RepoPath: "/tmp/workspaces/devdesk",
 		Critical: 1, High: 2, Medium: 3, Low: 4, Sensitive: secretsFound(),
 	})
-	if m.scanningPaths["/tmp/workspaces/devdesk"] {
-		t.Error("the repo is still marked as scanning after the result arrived")
+	if m.scanning("/tmp/workspaces/devdesk") {
+		t.Error("the repo still reads as scanning after the result arrived")
 	}
 	entry, ok := m.scanCache["/tmp/workspaces/devdesk"]
 	if !ok {
@@ -755,36 +762,36 @@ func TestScanLifecycle(t *testing.T) {
 // this view without bringing it up, so the only thing standing between a scan
 // and a row still marked as scanning is this reload not clearing it.
 func TestAReloadKeepsWorkThatIsStillRunning(t *testing.T) {
-	m := feed(t, loadedModel(t),
-		WorkspaceScanStartingMsg{RepoPath: "/tmp/workspaces/devdesk"},
-		WorkspaceSyncStartingMsg{RepoPath: "/tmp/workspaces/clean-repo"},
+	m := withJobs(t, loadedModel(t),
+		runningRun(jobs.KindScan, "/tmp/workspaces/devdesk"),
+		runningRun(jobs.KindSync, "/tmp/workspaces/clean-repo"),
 	)
 
 	// What re-entering the view does: Init loads the directory afresh.
 	m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
 
-	if !m.scanningPaths["/tmp/workspaces/devdesk"] {
+	if !m.scanning("/tmp/workspaces/devdesk") {
 		t.Error("the reload dropped a scan that is still running")
 	}
-	if !m.syncingPaths["/tmp/workspaces/clean-repo"] {
+	if !m.syncing("/tmp/workspaces/clean-repo") {
 		t.Error("the reload dropped a sync that is still running")
 	}
-	if !m.anyBusy() {
+	if !m.anyWorking() {
 		t.Error("the view reports itself idle while two operations are in flight")
+	}
+	if got := m.table.Items()[0].Scanned; !strings.Contains(got, "scanning") {
+		t.Errorf("Scanned = %q after the reload, want the row still spinning", got)
 	}
 
 	// And the result still lands on the row it belongs to.
 	m = feed(t, m, WorkspaceScanCompleteMsg{RepoPath: "/tmp/workspaces/devdesk", High: 2})
-	if m.scanningPaths["/tmp/workspaces/devdesk"] {
-		t.Error("the completion did not clear the marker after a reload")
-	}
 	if entry, ok := m.scanCache["/tmp/workspaces/devdesk"]; !ok || entry.High != 2 {
 		t.Errorf("cached entry = %+v, want the counts reported after the reload", entry)
 	}
 }
 
 func TestFailedScanSurfacesAShortMessage(t *testing.T) {
-	m := feed(t, loadedModel(t), WorkspaceScanStartingMsg{RepoPath: "/tmp/workspaces/devdesk"})
+	m := running(t, loadedModel(t), jobs.KindScan, "/tmp/workspaces/devdesk")
 
 	m, cmd := step(t, m, WorkspaceScanCompleteMsg{
 		RepoPath: "/tmp/workspaces/devdesk",
@@ -796,9 +803,6 @@ func TestFailedScanSurfacesAShortMessage(t *testing.T) {
 	}
 	if strings.Contains(m.footer.Text(), "exit status") {
 		t.Errorf("footer = %q leaks the raw error; Rule 128 wants a short message plus a log", m.footer.Text())
-	}
-	if m.scanningPaths["/tmp/workspaces/devdesk"] {
-		t.Error("a failed scan left the repo marked as scanning forever")
 	}
 	if _, cached := m.scanCache["/tmp/workspaces/devdesk"]; cached {
 		t.Error("a failed scan cached a result")
@@ -816,23 +820,6 @@ func TestTheFooterClearsOnItsOwnExpiry(t *testing.T) {
 
 	if m.footer.IsSet() {
 		t.Errorf("footer = %q after its expiry", m.footer.Text())
-	}
-}
-
-// The spinner animates the Scanned column while scans are in flight, and stops
-// once they are done.
-func TestSpinnerTicksOnlyWhileScanning(t *testing.T) {
-	m := loadedModel(t)
-
-	_, cmd := step(t, m, spinner.TickMsg{})
-	if cmd != nil {
-		t.Error("the spinner ran with no scan in flight")
-	}
-
-	m = feed(t, m, WorkspaceScanStartingMsg{RepoPath: "/tmp/workspaces/devdesk"})
-	_, cmd = step(t, m, spinner.TickMsg{})
-	if cmd == nil {
-		t.Error("the spinner stopped while a scan was running")
 	}
 }
 
@@ -1329,8 +1316,7 @@ func TestAnEmptyScanRequestDoesNothing(t *testing.T) {
 
 // Rule 128: asking while one is already running says so rather than queueing.
 func TestAScanRequestForARunningScanIsRefused(t *testing.T) {
-	m := scannedModel(t)
-	m.scanningPaths["/tmp/workspaces/devdesk"] = true
+	m := running(t, scannedModel(t), jobs.KindScan, "/tmp/workspaces/devdesk")
 
 	next, cmd := step(t, m, ScanRequestMsg{TargetPath: "/tmp/workspaces/devdesk"})
 
@@ -1360,19 +1346,15 @@ func confirmDeleteOf(t *testing.T, m Model, idx int) (Model, tea.Cmd) {
 	return step(t, m, sharedcomponents.ConfirmModalYesMsg{})
 }
 
-func TestAConfirmedDeleteMarksThePathBusy(t *testing.T) {
-	m, cmd := confirmDeleteOf(t, loadedModel(t), 3) // empty-dir
+func TestAConfirmedDeleteRegistersARun(t *testing.T) {
+	_, cmd := confirmDeleteOf(t, loadedModel(t), 3) // empty-dir
 
-	if !m.deletingPaths["/tmp/workspaces/empty-dir"] {
-		t.Error("the confirmed delete left the path unmarked")
-	}
-	if cmd == nil {
-		t.Error("confirming issued no delete")
-	}
+	wantRun(t, cmd, jobs.KindDelete, "/tmp/workspaces/empty-dir")
 }
 
 func TestADeletingRowSpinsInTheGitStatusColumn(t *testing.T) {
 	m, _ := confirmDeleteOf(t, loadedModel(t), 0) // devdesk, a git repo
+	m = running(t, m, jobs.KindDelete, devdeskPath)
 
 	row := m.table.Items()[0]
 	if !strings.Contains(row.GitStatus, "deleting") {
@@ -1388,6 +1370,7 @@ func TestADeletingRowSpinsInTheGitStatusColumn(t *testing.T) {
 // fails on a path the first one has already taken away.
 func TestASecondDeleteIsRefusedWhileTheFirstRuns(t *testing.T) {
 	m, _ := confirmDeleteOf(t, loadedModel(t), 3)
+	m = running(t, m, jobs.KindDelete, "/tmp/workspaces/empty-dir")
 
 	next, cmd := step(t, m, testutil.Key(keymap.Delete))
 
@@ -1406,11 +1389,11 @@ func TestADeleteConfirmedOnANowSyncingPathIsRefused(t *testing.T) {
 	m.table.SetCursor(0)
 	m, _ = step(t, m, testutil.Key(keymap.Delete))
 
-	m = feed(t, m, WorkspaceSyncStartingMsg{RepoPath: devdeskPath})
+	m = running(t, m, jobs.KindSync, devdeskPath)
 	m, cmd := step(t, m, sharedcomponents.ConfirmModalYesMsg{})
 
-	if m.deletingPaths[devdeskPath] {
-		t.Error("a repository being synced was marked for deletion")
+	if run, started := startedRun(cmd); started {
+		t.Errorf("a repository being synced was registered for a %s", run.Kind)
 	}
 	if m.footer.Text() != busyMessage || cmd == nil {
 		t.Errorf("footer = %q, want the busy warning", m.footer.Text())
@@ -1432,11 +1415,15 @@ func TestADeleteClearsItsMarkerOnEitherOutcome(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			m, _ := confirmDeleteOf(t, loadedModel(t), 0)
+			m = running(t, m, jobs.KindDelete, devdeskPath)
 
+			// The router settles the item before handing the message on; the
+			// snapshot that follows is what clears the row.
+			m = withJobs(t, m, settledRun(jobs.KindDelete, jobs.ItemDone, "", devdeskPath))
 			m = feed(t, m, tc.msg)
 
-			if m.deletingPaths[devdeskPath] {
-				t.Error("the marker survived the completion")
+			if m.deleting(devdeskPath) {
+				t.Error("the row still reads as deleting after the completion")
 			}
 		})
 	}
@@ -1446,8 +1433,7 @@ func TestADeleteClearsItsMarkerOnEitherOutcome(t *testing.T) {
 func TestADeletingPathIsRefusedByScanAndSync(t *testing.T) {
 	for _, key := range []string{keymap.Scan, keymap.Fetch} {
 		t.Run(key, func(t *testing.T) {
-			m := loadedModel(t)
-			m.deletingPaths[devdeskPath] = true
+			m := running(t, loadedModel(t), jobs.KindDelete, devdeskPath)
 			m.table.SetCursor(0)
 
 			next, cmd := step(t, m, testutil.Key(key))
@@ -1456,21 +1442,5 @@ func TestADeletingPathIsRefusedByScanAndSync(t *testing.T) {
 				t.Errorf("footer = %q, want the busy warning", next.footer.Text())
 			}
 		})
-	}
-}
-
-// The spinner has to keep being scheduled, or the frame freezes and reads as a
-// hang — which is what a delete looks like anyway.
-func TestADeleteKeepsTheSpinnerTurning(t *testing.T) {
-	m, _ := confirmDeleteOf(t, loadedModel(t), 3)
-
-	before := m.spinnerFrameIdx
-	next, cmd := step(t, m, spinner.TickMsg{})
-
-	if next.spinnerFrameIdx == before {
-		t.Error("the spinner frame did not advance during a delete")
-	}
-	if cmd == nil {
-		t.Error("the tick chain stopped during a delete")
 	}
 }

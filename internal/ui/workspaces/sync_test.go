@@ -8,10 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -28,12 +27,7 @@ func TestSyncTargetsTheRepositoryUnderTheCursor(t *testing.T) {
 
 	m, cmd := step(t, m, testutil.Key(keymap.Fetch))
 
-	if cmd == nil {
-		t.Fatal("pressing s on a git repository started nothing")
-	}
-	if m.sync == nil || m.sync.total != 1 {
-		t.Fatalf("sync run = %+v, want one repository queued", m.sync)
-	}
+	wantRun(t, cmd, jobs.KindSync, devdeskPath)
 }
 
 func TestSyncOnAPlainDirectoryTakesEveryRepositoryUnderIt(t *testing.T) {
@@ -42,12 +36,7 @@ func TestSyncOnAPlainDirectoryTakesEveryRepositoryUnderIt(t *testing.T) {
 
 	m, cmd := step(t, m, testutil.Key(keymap.Fetch))
 
-	if cmd == nil {
-		t.Fatal("pressing s on a directory of repositories started nothing")
-	}
-	if m.sync == nil || m.sync.total != 2 {
-		t.Fatalf("sync run = %+v, want both nested repositories queued", m.sync)
-	}
+	wantRun(t, cmd, jobs.KindSync, "/tmp/workspaces/clients/a", "/tmp/workspaces/clients/b")
 }
 
 func TestSyncDoesNothingWhereThereIsNoRepository(t *testing.T) {
@@ -63,11 +52,9 @@ func TestSyncDoesNothingWhereThereIsNoRepository(t *testing.T) {
 			m := loadedModel(t)
 			m.table.SetCursor(tt.cursor)
 
-			next := refused(t, m, keymap.Fetch, tt.reason)
-
-			if next.sync != nil {
-				t.Errorf("pressing F started a sync on %s", tt.name)
-			}
+			// refused() checks both halves: the footer names the reason, and
+			// no run was registered.
+			refused(t, m, keymap.Fetch, tt.reason)
 		})
 	}
 }
@@ -79,14 +66,13 @@ func TestSyncDoesNothingWhereThereIsNoRepository(t *testing.T) {
 // one of them was ever guarded before.
 func TestAScanAndASyncNeverShareARepository(t *testing.T) {
 	t.Run("sync refuses a repository being scanned", func(t *testing.T) {
-		m := loadedModel(t)
+		m := running(t, loadedModel(t), jobs.KindScan, devdeskPath)
 		m.table.SetCursor(0)
-		m.scanningPaths[devdeskPath] = true
 
 		m, cmd := step(t, m, testutil.Key(keymap.Fetch))
 
-		if m.sync != nil {
-			t.Error("a sync started on a repository already being scanned")
+		if run, started := startedRun(cmd); started {
+			t.Errorf("a %s started on a repository already being scanned", run.Kind)
 		}
 		if m.footer.Text() != busyMessage || cmd == nil {
 			t.Errorf("footer = %q with cmd == nil: %v", m.footer.Text(), cmd == nil)
@@ -94,9 +80,8 @@ func TestAScanAndASyncNeverShareARepository(t *testing.T) {
 	})
 
 	t.Run("scan refuses a repository being synced", func(t *testing.T) {
-		m := loadedModel(t)
+		m := running(t, loadedModel(t), jobs.KindSync, devdeskPath)
 		m.table.SetCursor(0)
-		m.syncingPaths[devdeskPath] = true
 
 		m, cmd := step(t, m, testutil.Key(keymap.Scan))
 
@@ -110,8 +95,7 @@ func TestAScanAndASyncNeverShareARepository(t *testing.T) {
 // of the purge too, or its counts are blanked with nothing on the way to
 // replace them.
 func TestScanAllLeavesASyncingRepositorysCacheAlone(t *testing.T) {
-	m := scannedModel(t)
-	m.syncingPaths[devdeskPath] = true
+	m := running(t, scannedModel(t), jobs.KindSync, devdeskPath)
 
 	m, _ = step(t, m, testutil.Key(keymap.ScanAll))
 
@@ -123,7 +107,7 @@ func TestScanAllLeavesASyncingRepositorysCacheAlone(t *testing.T) {
 // ── What the row shows ───────────────────────────────────────────────────────
 
 func TestASyncingRowSpinsInTheGitStatusColumn(t *testing.T) {
-	m := feed(t, loadedModel(t), WorkspaceSyncStartingMsg{RepoPath: devdeskPath})
+	m := running(t, loadedModel(t), jobs.KindSync, devdeskPath)
 
 	row := m.table.Items()[0]
 	if !strings.Contains(row.GitStatus, "syncing") {
@@ -161,42 +145,52 @@ func TestAFinishedSyncReplacesTheRowsGitCounts(t *testing.T) {
 	if entry.Name != "devdesk" || entry.ModTime.IsZero() {
 		t.Errorf("the listing's own fields were overwritten: %+v", entry)
 	}
-	if m.syncingPaths[devdeskPath] {
-		t.Error("the row is still marked as syncing")
+	if m.syncing(devdeskPath) {
+		t.Error("the row still reads as syncing")
 	}
 }
 
 // A repository that was navigated away from mid-sync has no row to refresh. The
-// run's counters still apply — they are about the batch, not the screen.
+// batch still settles — the run is about the batch, not about what is on screen.
 func TestACompletionForARowThatIsGoneStillCounts(t *testing.T) {
-	m := loadedModel(t)
-	m.sync = &syncRun{total: 1}
+	gone := "/tmp/workspaces/vanished"
+	m := running(t, loadedModel(t), jobs.KindSync, gone)
 
-	m = feed(t, m, WorkspaceSyncCompleteMsg{RepoPath: "/tmp/workspaces/vanished", Outcome: git.SyncUpdated})
+	m = withJobs(t, m, settledRun(jobs.KindSync, jobs.ItemDone, syncDetailUpdated, gone))
+	m = feed(t, m, WorkspaceSyncCompleteMsg{RepoPath: gone, Outcome: git.SyncUpdated})
 
-	if m.sync == nil || m.sync.updated != 1 {
-		t.Errorf("sync run = %+v, want the completion counted", m.sync)
+	if got := m.footer.Text(); !strings.Contains(got, "1 repository updated") {
+		t.Errorf("footer = %q, want the batch summed up", got)
 	}
 }
 
 // ── The footer ───────────────────────────────────────────────────────────────
 
+// The progress line is derived from the snapshot every frame; the summary is a
+// footer message posted when the batch settles. Rule 128 draws the line: a
+// batch outlives the three seconds a message gets, so progress cannot be one —
+// and an outcome is an event, which is exactly what a message is for.
 func TestTheFooterCountsASyncWhileItRunsAndSumsItUpAfter(t *testing.T) {
-	m := loadedModel(t)
-	m.sync = &syncRun{total: 3}
+	targets := []string{devdeskPath, "/tmp/workspaces/clean-repo", "/tmp/workspaces/clients/a"}
 
-	m = feed(t, m, WorkspaceSyncCompleteMsg{RepoPath: devdeskPath, Outcome: git.SyncUpdated})
-	if got := m.RenderFooter(160); !strings.Contains(got, "1/3") {
+	run := jobs.NewRun(jobs.KindSync, command.ViewWorkspaces, "default", "~/work", targets...)
+	run.Items[0].State = jobs.ItemDone
+	run.Items[0].Detail = syncDetailUpdated
+	run.Items[1].State = jobs.ItemRunning
+	m := withJobs(t, loadedModel(t), run)
+
+	if got := m.RenderFooter(160); !strings.Contains(got, "Syncing — 1/3") {
 		t.Errorf("the footer does not show the progress:\n%s", got)
 	}
 
-	m = feed(t, m,
-		WorkspaceSyncCompleteMsg{RepoPath: "/tmp/workspaces/clean-repo", Outcome: git.SyncUpToDate},
-		WorkspaceSyncCompleteMsg{
-			RepoPath: "/tmp/workspaces/clients/a",
-			Outcome:  git.SyncSkipped, Reason: "uncommitted changes",
-		},
-	)
+	run.Items[1].State = jobs.ItemDone
+	run.Items[2].State = jobs.ItemSkipped
+	run.Items[2].Detail = "uncommitted changes"
+	m = withJobs(t, m, run)
+	m = feed(t, m, WorkspaceSyncCompleteMsg{
+		RepoPath: "/tmp/workspaces/clients/a",
+		Outcome:  git.SyncSkipped, Reason: "uncommitted changes",
+	})
 
 	footer := m.RenderFooter(160)
 	for _, want := range []string{"1 repository updated", "1 up to date", "1 skipped", "a: uncommitted changes"} {
@@ -209,88 +203,46 @@ func TestTheFooterCountsASyncWhileItRunsAndSumsItUpAfter(t *testing.T) {
 // A failure is a failure, not a skip: the difference is whether the repository
 // is in the state its owner left it in, or whether DevDesk could not find out.
 func TestAFailedSyncIsNamedAndPointsAtTheLog(t *testing.T) {
-	m := loadedModel(t)
-	m.sync = &syncRun{total: 1}
+	m := running(t, loadedModel(t), jobs.KindSync, devdeskPath)
 
+	m = withJobs(t, m, settledRun(jobs.KindSync, jobs.ItemFailed, "sync failed — check logs", devdeskPath))
 	m = feed(t, m, WorkspaceSyncCompleteMsg{RepoPath: devdeskPath, Error: errors.New("fatal: could not read from remote")})
 
 	footer := m.RenderFooter(160)
 	if !strings.Contains(footer, "1 failed") || !strings.Contains(footer, "devdesk") {
 		t.Errorf("the failure is not named in the footer:\n%s", footer)
 	}
-	if m.sync.skipped != 0 {
+	if strings.Contains(footer, "skipped") {
 		t.Error("a failure was counted as a skip")
 	}
 }
 
-// The summary's timer must not wipe a sync started inside its three seconds.
-func TestTheSummaryTimerOnlyDropsASettledRun(t *testing.T) {
-	m := loadedModel(t)
-	m.sync = &syncRun{total: 1, done: 1, updated: 1}
+// D9: a footer that cannot tell the truth in detail says so rather than showing
+// the part it recognises. Work started elsewhere is the case that matters —
+// this view has no way to name a batch it did not launch.
+func TestTheFooterDegradesForWorkItDoesNotOwn(t *testing.T) {
+	fromElsewhere := jobs.NewRun(jobs.KindScan, command.ViewSecurity, "default", "images", devdeskPath)
+	fromElsewhere.Items[0].State = jobs.ItemRunning
+	m := withJobs(t, loadedModel(t), fromElsewhere)
 
-	m = feed(t, m, clearSyncSummaryMsg{})
-	if m.sync != nil {
-		t.Error("a finished run's summary outlived its timer")
-	}
-
-	m.sync = &syncRun{total: 4, done: 1}
-	m = feed(t, m, clearSyncSummaryMsg{})
-	if m.sync == nil {
-		t.Error("a running sync was cleared by the previous run's timer")
+	if got := m.RenderFooter(160); !strings.Contains(got, ":jobs for details") {
+		t.Errorf("the footer claims to describe work it does not own:\n%s", got)
 	}
 }
 
-// The spinner has to keep ticking for a sync, not only for a scan.
-func TestTheSpinnerKeepsTickingForASyncWithNoScan(t *testing.T) {
-	m := feed(t, loadedModel(t), WorkspaceSyncStartingMsg{RepoPath: devdeskPath})
+// Two kinds launched here still get their own counters: it is one line, and it
+// can carry both without guessing.
+func TestTheFooterCarriesTwoKindsAtOnce(t *testing.T) {
+	m := withJobs(t, loadedModel(t),
+		runningRun(jobs.KindScan, devdeskPath),
+		runningRun(jobs.KindSync, "/tmp/workspaces/clean-repo"),
+	)
 
-	_, cmd := step(t, m, m.spinner.Tick())
-
-	if cmd == nil {
-		t.Error("the spinner stopped, so a syncing row would freeze mid-frame")
-	}
-}
-
-// The chain the view starts at Init dies on its first tick, because the handler
-// stops scheduling once nothing is running. Whatever starts next has to bring
-// it back — and exactly once, or the frames advance at twice the rate.
-//
-// This was already broken for scans: the frozen frame read as a marker rather
-// than a stalled animation, which is why nobody noticed.
-func TestTheFirstScanOrSyncRestartsTheSpinnerChain(t *testing.T) {
-	for _, tt := range []struct {
-		name          string
-		first, second tea.Msg
-	}{
-		{
-			"scan",
-			WorkspaceScanStartingMsg{RepoPath: devdeskPath},
-			WorkspaceScanStartingMsg{RepoPath: "/tmp/workspaces/clean-repo"},
-		},
-		{
-			"sync",
-			WorkspaceSyncStartingMsg{RepoPath: devdeskPath},
-			WorkspaceSyncStartingMsg{RepoPath: "/tmp/workspaces/clean-repo"},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			m := loadedModel(t)
-
-			// Init's chain, arriving with nothing running: it stops here.
-			m, cmd := step(t, m, spinner.TickMsg{ID: m.spinner.ID()})
-			if cmd != nil {
-				t.Fatal("the spinner kept ticking with nothing running")
-			}
-
-			m, cmd = step(t, m, tt.first)
-			if cmd == nil {
-				t.Error("the chain was not restarted, so the row's frame never advances")
-			}
-
-			if _, cmd = step(t, m, tt.second); cmd != nil {
-				t.Error("a second chain was started beside the live one")
-			}
-		})
+	footer := m.RenderFooter(160)
+	for _, want := range []string{"Scanning — 0/1", "Syncing — 0/1"} {
+		if !strings.Contains(footer, want) {
+			t.Errorf("the footer is missing %q:\n%s", want, footer)
+		}
 	}
 }
 

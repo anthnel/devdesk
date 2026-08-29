@@ -11,45 +11,55 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// JobsChangedMsg carries what the registry holds to every view that might show
-// it. It is the whole of the broadcast (D1): a view keeps its own copy of a
-// snapshot rather than reading a pointer the router writes, so nothing is read
-// from View() while something else is writing it.
-//
-// It is sent on two occasions, and they are different in nature: a transition —
-// something actually happened — and a spinner tick, where only Frame moved. The
-// receiver does not have to tell them apart, which is why there is one message
-// and not two.
-type JobsChangedMsg struct {
-	// Runs is a copy, oldest first, every context included. Filtering on the
-	// current one is the view's business (D8, jobs.FilterContext).
-	Runs []jobs.Run
-
-	// Frame is the current spinner frame, **bare** — no escape sequence.
-	// Rule 122: a table cell is measured before it is styled, so a styled frame
-	// of seven visible cells measures twenty-eight and is truncated inside its
-	// own escape, which then bleeds down the rest of the table. A footer wants
-	// it the other way round; RenderedFrame is that.
-	Frame string
-}
-
-// RenderedFrame is Frame with the spinner style applied, for a footer.
-//
-// Rule 128 asks for the *rendered* spinner in FooterMessage.SetSpinnerFrame,
-// because measurement there goes through lipgloss.Width, which ignores escapes.
-// The styling lives here rather than in each view so the two readings of the
-// same frame cannot drift.
-func (m JobsChangedMsg) RenderedFrame() string {
-	if m.Frame == "" {
-		return ""
+// changedMsg is the snapshot the router broadcasts. It fills both readings of
+// the frame — bare for a table cell (Rule 122), styled for a footer
+// (Rule 128) — so the two cannot drift and internal/jobs needs to know nothing
+// about styling.
+func (a *App) changedMsg() jobs.ChangedMsg {
+	frame := a.jobFrame()
+	return jobs.ChangedMsg{
+		Runs:          a.jobs.Snapshot(),
+		Frame:         frame,
+		RenderedFrame: theme.SpinnerStyle().Render(frame),
 	}
-	return theme.SpinnerStyle().Render(m.Frame)
 }
 
-// Running counts the runs in the snapshot that have not settled. It saves every
-// receiver the same three lines.
-func (m JobsChangedMsg) Running() int {
-	return len(jobs.Unfinished(m.Runs))
+// handleStartJobs admits a run a view built and asks the registry for it.
+//
+// The context is stamped here rather than by the view: the router is what knows
+// which context is current, and a view reading it back from the configuration
+// would be reading it again — which is the shape of the defect the stamp exists
+// to close (a batch outliving a switch and writing into the new context's
+// cache).
+func (a *App) handleStartJobs(msg jobs.StartMsg) (tea.Model, tea.Cmd) {
+	run := msg.Run
+	run.Context = a.currentContext
+	a.jobs.Start(run)
+	// The work goes out after the registration, which is the whole reason it
+	// travels on the message: a transition naming a run the registry has not
+	// admitted yet is refused, and the row would spin for the life of the view.
+	return a, tea.Batch(a.jobsChanged(), msg.Work)
+}
+
+// routeWork applies a progress message to the registry and hands it to the view
+// that owns it.
+//
+// The registry is written **before** the view sees the message, so the view is
+// reading a current snapshot when it handles it — which is what lets it ask
+// "has my batch finished?" rather than counting alongside.
+//
+// A message that reports on work nobody registered is still routed: the view
+// has its own reasons to see it, and Apply already returned false rather than
+// inventing a run for it.
+func (a *App) routeWork(target command.ViewType, msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	if reporter, ok := msg.(jobs.Reporter); ok {
+		if a.jobs.Apply(reporter.Transition()) {
+			cmds = append(cmds, a.jobsChanged())
+		}
+	}
+	_, cmd := a.routeToView(target, msg)
+	return a, tea.Batch(append(cmds, cmd)...)
 }
 
 // jobTickMsg advances the one spinner frame the whole application shares.
@@ -111,7 +121,7 @@ func (a *App) jobsChanged() tea.Cmd {
 // be given it (Rule 124). Only the view on screen can change the height, so one
 // check covers the loop.
 func (a *App) broadcastJobs() tea.Cmd {
-	msg := JobsChangedMsg{Runs: a.jobs.Snapshot(), Frame: a.jobFrame()}
+	msg := a.changedMsg()
 
 	cmds := make([]tea.Cmd, 0, len(a.views))
 	for name, view := range a.views {
@@ -136,7 +146,7 @@ func (a *App) sendJobsTo(target command.ViewType) tea.Cmd {
 	if !ok {
 		return nil
 	}
-	updated, cmd := view.Update(JobsChangedMsg{Runs: a.jobs.Snapshot(), Frame: a.jobFrame()})
+	updated, cmd := view.Update(a.changedMsg())
 	a.views[target] = updated
 	return cmd
 }

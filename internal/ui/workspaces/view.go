@@ -133,7 +133,7 @@ func (m Model) RenderFooter(width int) string {
 // first repository started would clear while the tenth was still fetching. An
 // error still wins over it — it is the thing that needs answering.
 func (m Model) renderInfoLine(width int) string {
-	return m.footer.View(width, sharedcomponents.Status{Text: m.syncStatusLine()})
+	return m.footer.View(width, sharedcomponents.Status{Text: m.jobsStatusLine(), Spinner: m.anyWorking()})
 }
 
 // renderTabBar renders the breadcrumb tab bar at the bottom of the viewport
@@ -255,7 +255,7 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 	unscanned := secretsCell{Text: dash}
 
 	if entry.IsGitRepo {
-		if m.scanningPaths[entry.Path] {
+		if m.scanning(entry.Path) {
 			return none, dash, dash, dash, dash, frame + " scanning"
 		}
 		scanEntry, ok := m.scanCache[entry.Path]
@@ -283,7 +283,7 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 	// Count how many sub-repos are currently scanning
 	scanningCount := 0
 	for _, repoPath := range entry.SubRepoPaths {
-		if m.scanningPaths[repoPath] {
+		if m.scanning(repoPath) {
 			scanningCount++
 		}
 	}
@@ -295,10 +295,22 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 		}
 	}
 
-	if len(scannedEntries) == 0 && scanningCount == 0 {
+	if scanningCount == 0 && len(scannedEntries) == 0 {
 		return unscanned, empty, empty, empty, empty, dash
 	}
-	if len(scannedEntries) == 0 && scanningCount > 0 {
+	// A directory with a scan running under it spins, and stops counting.
+	//
+	// It used to print "3/12" while the batch ran, incremented once per
+	// repository — a counter in a six-cell column, at the far right of a row
+	// the user is not looking at, for a batch whose progress belongs in the
+	// footer. Worse, it was the same cell that says how much of the tree has
+	// *ever* been scanned, so the two readings were indistinguishable: 3/12
+	// meant "nine left to go" or "nine nobody has scanned", depending on
+	// something the cell did not say.
+	//
+	// Now N/M means one thing — settled coverage — and the batch reports in the
+	// footer, where a batch belongs (D9).
+	if scanningCount > 0 {
 		return none, dash, dash, dash, dash, frame + " scanning"
 	}
 

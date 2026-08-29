@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -287,14 +288,23 @@ func TestADirectoryItCouldNotReadRefusesWithTheRightReason(t *testing.T) {
 	}
 }
 
-// The count rides on the run rather than going to the footer as a Warn: the
-// run's line is the one that survives the three-second timer, and it is where
-// the rest of the batch's outcome is already reported.
+// The count rides on the summary rather than going to the footer as a Warn: it
+// is where the rest of the batch outcome is already reported, and "12
+// repositories synced" is a different claim from "12 synced, and I could not
+// look in 3 places".
+//
+// It is not an item of the run: a repository under an unreadable directory was
+// never a target, so there is nothing for the registry to hold. The view
+// remembers the number until the summary is written.
 func TestTheSyncSummaryReportsWhatItCouldNotRead(t *testing.T) {
 	m := newTestModel(t)
-	m.sync = &syncRun{total: 1, done: 1, upToDate: 1, unreadable: 2}
+	m.syncUnreadable = 2
+	run := settledRun(jobs.KindSync, jobs.ItemDone, "", "/tmp/workspaces/devdesk")
 
-	if got := m.syncStatusLine(); !strings.Contains(got, "2 directories unreadable") {
-		t.Errorf("syncStatusLine = %q, want the unreadable count", got)
+	if got := m.syncSummary(run); !strings.Contains(got, "2 directories unreadable") {
+		t.Errorf("syncSummary = %q, want the unreadable count", got)
+	}
+	if got := m.syncSummary(run); !strings.Contains(got, "1 up to date") {
+		t.Errorf("syncSummary = %q, want the repository that had nothing to do", got)
 	}
 }

@@ -12,7 +12,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -31,6 +33,11 @@ func secretsFound() *bool { v := true; return &v }
 
 func TestMain(m *testing.M) {
 	log.SetOutput(io.Discard)
+	// Reading a Cmd runs it, and most of this view's carry a footer expiry —
+	// three real seconds each (Rule 128). Nothing here asserts on that
+	// duration; the test that does is TestAMessageGetsThreeSeconds, in the
+	// package that owns it.
+	sharedcomponents.FooterMsgDuration = time.Millisecond
 	code := m.Run()
 	log.SetOutput(os.Stderr)
 	os.Exit(code)
@@ -129,11 +136,51 @@ func scanAll(t *testing.T, m Model, purge bool) (Model, tea.Cmd) {
 // timer, and running it sleeps three real seconds (Rule 128).
 func refused(t *testing.T, m Model, key, wantReason string) Model {
 	t.Helper()
-	next, _ := step(t, m, testutil.Key(key))
+	next, cmd := step(t, m, testutil.Key(key))
 	if got := next.RenderFooter(200); !strings.Contains(got, wantReason) {
 		t.Errorf("%s was declined without saying why — footer:\n%s\nwant it to carry %q", key, got, wantReason)
 	}
+	if run, started := startedRun(cmd); started {
+		t.Errorf("%s was declined and registered a %s run anyway: %+v", key, run.Kind, run.Items)
+	}
 	return next
+}
+
+// startedRun returns the run a command asks the router to register, if it asks
+// for one. It is how a test says "no work was launched" now that launching is a
+// message rather than a write into the model.
+func startedRun(cmd tea.Cmd) (jobs.Run, bool) {
+	msg, ok := testutil.MsgOf[jobs.StartMsg](cmd)
+	if !ok {
+		return jobs.Run{}, false
+	}
+	return msg.Run, true
+}
+
+// wantRun fails unless the command registers a run of the given kind over
+// exactly these targets, every one of them queued.
+func wantRun(t *testing.T, cmd tea.Cmd, kind jobs.Kind, targets ...string) jobs.Run {
+	t.Helper()
+	run, started := startedRun(cmd)
+	if !started {
+		t.Fatalf("no run was registered, want a %s over %v", kind, targets)
+	}
+	if run.Kind != kind {
+		t.Errorf("run kind = %q, want %q", run.Kind, kind)
+	}
+	got := make([]string, 0, len(run.Items))
+	for _, item := range run.Items {
+		got = append(got, item.Target)
+	}
+	if strings.Join(got, "|") != strings.Join(targets, "|") {
+		t.Errorf("run targets = %v, want %v", got, targets)
+	}
+	for _, item := range run.Items {
+		if item.State != jobs.ItemQueued {
+			t.Errorf("%s starts as %q, want every target queued (D6)", item.Target, item.State)
+		}
+	}
+	return run
 }
 
 func step(t *testing.T, m Model, msg tea.Msg) (Model, tea.Cmd) {
@@ -165,4 +212,41 @@ func rowNames(rows []table.Row) []string {
 		names = append(names, row[colName])
 	}
 	return names
+}
+
+// ── Putting work in flight, the way the router does ──────────────────────────
+//
+// The view holds no bookkeeping of its own any more: what is running arrives in
+// a jobs.ChangedMsg. These helpers build one, so a test says "a scan is running
+// on this repository" in the same words the application uses.
+
+// withJobs feeds the model a snapshot, as the router's broadcast would.
+func withJobs(t *testing.T, m Model, runs ...jobs.Run) Model {
+	t.Helper()
+	return feed(t, m, jobs.ChangedMsg{Runs: runs, Frame: "*", RenderedFrame: "*"})
+}
+
+// runningRun builds a run of one kind with every target already running.
+func runningRun(kind jobs.Kind, targets ...string) jobs.Run {
+	run := jobs.NewRun(kind, command.ViewWorkspaces, "default", "~/work", targets...)
+	for i := range run.Items {
+		run.Items[i].State = jobs.ItemRunning
+	}
+	return run
+}
+
+// running puts the given targets in flight under one kind.
+func running(t *testing.T, m Model, kind jobs.Kind, targets ...string) Model {
+	t.Helper()
+	return withJobs(t, m, runningRun(kind, targets...))
+}
+
+// settledRun builds a run whose items all carry the given state and detail.
+func settledRun(kind jobs.Kind, state jobs.ItemState, detail string, targets ...string) jobs.Run {
+	run := jobs.NewRun(kind, command.ViewWorkspaces, "default", "~/work", targets...)
+	for i := range run.Items {
+		run.Items[i].State = state
+		run.Items[i].Detail = detail
+	}
+	return run
 }
