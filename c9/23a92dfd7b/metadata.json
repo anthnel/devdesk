@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "c923a92dfd7b",
+  "strategy": "manual-commit",
+  "branch": "feat/jobs-cancel",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/c9/23a92dfd7b/0/metadata.json",
+      "transcript": "/c9/23a92dfd7b/0/full.jsonl",
+      "compact_transcript": "/c9/23a92dfd7b/0/transcript.jsonl",
+      "content_hash": "/c9/23a92dfd7b/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1202,
+    "cache_creation_tokens": 1785284,
+    "cache_read_tokens": 194356190,
+    "output_tokens": 497417,
+    "api_call_count": 603
+  }
+}
