@@ -1,0 +1,21 @@
+continue
+
+---
+
+continue
+
+---
+
+Réordonne les colonnes de monitor certificates : Name, Host, Issuer, Status, Days Left, Expires
+
+---
+
+merge
+
+---
+
+merge
+
+---
+
+quand j'entre dans la vue sec il m'affiche qu'aucun scan n'a été fait, puis il m'affiche la liste des scans. Le datatable devrait être vide au lancement (ne pas contenir de texte), le footer doit afficher que le chargement est en cours, si aucun résultat le texte peut être affiché seulement à ce moment là
