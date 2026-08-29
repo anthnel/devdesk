@@ -3,14 +3,35 @@
   "checkpoint_id": "95565beb7346",
   "strategy": "manual-commit",
   "branch": "fix/scan-context-stamp",
-  "checkpoints_count": 1,
-  "files_touched": null,
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/architecture/scanning.md",
+    "docs/backlog.md",
+    "internal/app/jobs.go",
+    "internal/app/jobs_test.go",
+    "internal/jobs/message.go",
+    "internal/ui/security/inventory.go",
+    "internal/ui/security/inventory_cache_test.go",
+    "internal/ui/security/inventory_commands.go",
+    "internal/ui/workspaces/actions.go",
+    "internal/ui/workspaces/commands.go",
+    "internal/ui/workspaces/scan_context_test.go",
+    "internal/ui/workspaces/workspaces_test.go"
+  ],
   "sessions": [
     {
       "metadata": "/95/565beb7346/0/metadata.json",
       "transcript": "/95/565beb7346/0/full.jsonl",
       "compact_transcript": "/95/565beb7346/0/transcript.jsonl",
       "content_hash": "/95/565beb7346/0/content_hash.txt",
+      "prompt": ""
+    },
+    {
+      "metadata": "/95/565beb7346/1/metadata.json",
+      "transcript": "/95/565beb7346/1/full.jsonl",
+      "compact_transcript": "/95/565beb7346/1/transcript.jsonl",
+      "content_hash": "/95/565beb7346/1/content_hash.txt",
       "prompt": ""
     }
   ],
