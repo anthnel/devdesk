@@ -3,7 +3,7 @@
   "checkpoint_id": "51db7eb3b1cb",
   "strategy": "manual-commit",
   "branch": "icon-colours-ws-sec",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "docs/architecture/scanning.md",
     "docs/architecture/workspaces.md",
@@ -24,6 +24,13 @@
       "transcript": "/51/db7eb3b1cb/0/full.jsonl",
       "compact_transcript": "/51/db7eb3b1cb/0/transcript.jsonl",
       "content_hash": "/51/db7eb3b1cb/0/content_hash.txt",
+      "prompt": ""
+    },
+    {
+      "metadata": "/51/db7eb3b1cb/1/metadata.json",
+      "transcript": "/51/db7eb3b1cb/1/full.jsonl",
+      "compact_transcript": "/51/db7eb3b1cb/1/transcript.jsonl",
+      "content_hash": "/51/db7eb3b1cb/1/content_hash.txt",
       "prompt": ""
     }
   ],
