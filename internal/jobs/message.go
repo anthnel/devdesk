@@ -1,6 +1,10 @@
 package jobs
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"context"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 // StartMsg asks the router to register a run and then dispatch the work that
 // fills it.
@@ -28,11 +32,45 @@ type StartMsg struct {
 	// It is never nil for a run with work: Start passes a builder that ignores
 	// the name, so a launch site that has no use for it reads as it did.
 	Work func(contextName string) tea.Cmd
+
+	// Cancel stops the run's queue, and is nil for the kinds that have nothing
+	// to stop. It travels here rather than arriving later like an item's cancel
+	// because a progressive run owns its context from the launch: the pipeline
+	// is started in Update, so the function exists before the run is admitted.
+	Cancel context.CancelFunc
 }
 
 // Start builds the message for work that does not depend on the context.
 func Start(run Run, work tea.Cmd) tea.Cmd {
 	return StartInContext(run, func(string) tea.Cmd { return work })
+}
+
+// StartCancellable builds the message for a run whose queue can be stopped —
+// today the clone, whose pipeline is launched from Update and hands back its
+// context there and then.
+func StartCancellable(run Run, work tea.Cmd, cancel context.CancelFunc) tea.Cmd {
+	return func() tea.Msg {
+		return StartMsg{
+			Run:    run,
+			Work:   func(string) tea.Cmd { return work },
+			Cancel: cancel,
+		}
+	}
+}
+
+// CancelOpenMsg asks the router to stop the open run of a kind (D3, D7).
+//
+// A kind rather than an identifier: a progressive run belongs to a screen that
+// owns the display while it goes, so there is one at a time and the view can
+// name it without holding a JobID — which is the registry state D1 keeps out of
+// views.
+type CancelOpenMsg struct {
+	Kind Kind
+}
+
+// CancelOpen builds the message.
+func CancelOpen(kind Kind) tea.Cmd {
+	return func() tea.Msg { return CancelOpenMsg{Kind: kind} }
 }
 
 // StartInContext builds the message for work that writes into a context-scoped

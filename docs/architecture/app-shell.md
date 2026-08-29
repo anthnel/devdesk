@@ -430,6 +430,30 @@ name** — a scan's counts, and the purge that clears them for it. What must not
 what *shows* the current context: a load (`loadScanCacheCmd`, `loadInventoryCmd`)
 and a title both mean "current" by definition, and reading it is right there.
 
+#### An open run — the one whose targets arrive as it goes
+
+Every launch site knows its full target list when it dispatches, which is what
+makes "8 waiting" sayable (D10). The clone does not: the walk that discovers
+repositories *is* the slow part, so a run that waited for the list would show
+nothing for the minutes that matter.
+
+`NewOpenRun` registers a run with no targets, and three methods carry it:
+
+| | |
+|---|---|
+| `Discover(kind, target, state, detail)` | appends a target, or advances one already there — the walk reports a group it could not list, and that path may also turn up as a repository |
+| `Seal(kind)` | says the walk has found everything it is going to |
+| `CancelOpen(kind)` | stops it, and seals — what would have closed the run is what was stopped |
+
+An open run is **never finished**, whatever its items say. `Transition.Discover`
+is how a message asks for the first; `jobs.Sealer` is a second interface for the
+second, because a closed channel names no target.
+
+All three name a **kind** rather than an identifier: a progressive run belongs
+to a screen that owns the display while it goes, so there is one per kind at a
+time and a view can name it without holding a `JobID` — the registry state D1
+keeps out of views.
+
 ### The broadcast, and the one spinner chain
 
 Views never hold a pointer to the registry. The router hands them a snapshot in

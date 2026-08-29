@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
@@ -57,6 +58,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case CloneRunFinishedMsg:
 		return m.handleCloneRunFinished()
+
+	case jobs.ChangedMsg:
+		return m.handleJobsChanged(msg)
 
 	case components.CreationFormSubmitMsg:
 		return m.handleCreationSubmit(msg)
@@ -195,12 +199,15 @@ func (m Model) handleCloningKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, m.clone.table.Update(msg)
 }
 
-// handleSpinnerTick advances the one spinner the view owns. It drives both the
-// loading indicator and the rows of a clone in flight, so it keeps ticking as
-// long as either is live — dropping it while cloning freezes every row's
-// spinner and makes a running clone look stuck.
+// handleSpinnerTick advances the spinner the view owns, which is now the
+// **load** and nothing else.
+//
+// It used to drive the clone rows as well, and that was the fourth hand-stamped
+// chain D5 removed: the rows take the router's frame from the broadcast now, so
+// a clone keeps turning whether or not this view is on screen — and cannot
+// freeze on frame zero if this chain dies.
 func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
-	if !m.loading && (m.clone == nil || m.clone.finished) {
+	if !m.loading {
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -208,9 +215,6 @@ func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
 	// The load is reported in the footer, so the frame has to reach it — a
 	// spinner stuck on frame zero reads as a hang.
 	m.footer.SetSpinnerFrame(m.spinner.View())
-	if m.clone != nil && !m.clone.finished {
-		m.clone.advance()
-	}
 	return m, cmd
 }
 

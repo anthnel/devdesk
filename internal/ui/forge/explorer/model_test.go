@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -943,51 +945,145 @@ func TestDrillingStillWorksWhileSelecting(t *testing.T) {
 
 // ── Clone run ────────────────────────────────────────────────────────────────
 
-// cloningModel puts the view in ModeCloning with a run nothing feeds, so the
-// list can be driven event by event.
+// The clone screen renders a run it does not own (D3), so these tests drive a
+// real registry beside the view and hand back its snapshot — which is exactly
+// what the router does: apply the transition, then broadcast (routeWork,
+// jobsChanged). Asserting on the view alone would now assert on nothing.
+
+// cloneHarness is the router, reduced to the two things this screen needs from
+// it: a registry to apply events to, and a broadcast to hand back.
+type cloneHarness struct {
+	t   *testing.T
+	reg *jobs.Registry
+	m   Model
+}
+
+// cloningModel is the view in ModeCloning, for the tests that only need the
+// screen (its shortcuts, its rendering) and not the run behind it.
 func cloningModel(t *testing.T) Model {
+	t.Helper()
+	return cloning(t).m
+}
+
+// cloning puts the view in ModeCloning with an open clone run registered, so
+// the list can be driven event by event.
+func cloning(t *testing.T) *cloneHarness {
 	t.Helper()
 	m := feed(t, drilledModel(t), testutil.Key(keymap.Clone), testutil.Key(" "))
 	m.mode = ModeCloning
-	m.clone = newCloneList("/ws", &cloneRun{events: make(chan cloneEvent), cancel: func() {}})
-	return m
+	m.clone = newCloneList("/ws", make(chan cloneEvent))
+
+	h := &cloneHarness{t: t, reg: jobs.New(), m: m}
+	h.reg.Start(jobs.NewOpenRun(jobs.KindClone, command.ViewGitExplorer, "", "/ws"))
+	h.broadcast()
+	return h
+}
+
+// emit routes messages the way the router does and broadcasts after each.
+func (h *cloneHarness) emit(msgs ...tea.Msg) {
+	h.t.Helper()
+	for _, msg := range msgs {
+		if reporter, ok := msg.(jobs.Reporter); ok {
+			h.reg.Apply(reporter.Transition())
+		}
+		if sealer, ok := msg.(jobs.Sealer); ok {
+			h.reg.Seal(sealer.Seal())
+		}
+		// The command is dropped, deliberately: handleCloneEvent re-issues the
+		// blocking read on the pipeline channel, and running it here would wait
+		// forever on a channel no test feeds.
+		h.m, _ = step(h.t, h.m, msg)
+		h.broadcast()
+	}
+}
+
+// key presses a key and routes whatever it asked the router for.
+func (h *cloneHarness) key(name string) {
+	h.t.Helper()
+	var cmd tea.Cmd
+	h.m, cmd = step(h.t, h.m, testutil.Key(name))
+	h.route(cmd)
+	h.broadcast()
+}
+
+// route handles the one router message this screen sends.
+func (h *cloneHarness) route(cmd tea.Cmd) {
+	h.t.Helper()
+	for _, msg := range testutil.Msgs(cmd) {
+		if cancel, ok := msg.(jobs.CancelOpenMsg); ok {
+			h.reg.CancelOpen(cancel.Kind)
+		}
+	}
+}
+
+func (h *cloneHarness) broadcast() {
+	h.t.Helper()
+	h.m = feed(h.t, h.m, jobs.ChangedMsg{Runs: h.reg.Snapshot(), Frame: "*"})
+}
+
+// run is this screen's run as the registry holds it.
+func (h *cloneHarness) run() jobs.Run {
+	h.t.Helper()
+	run, ok := cloneRunFrom(h.reg.Snapshot())
+	if !ok {
+		h.t.Fatal("no clone run was registered")
+	}
+	return run
+}
+
+func (h *cloneHarness) item(i int) jobs.Item {
+	h.t.Helper()
+	run := h.run()
+	if i >= len(run.Items) {
+		h.t.Fatalf("the run holds %d targets, wanted index %d", len(run.Items), i)
+	}
+	return run.Items[i]
+}
+
+func found(path string) CloneEventMsg {
+	return CloneEventMsg{event: cloneEvent{kind: cloneFound, path: path}}
+}
+
+func began(path string) CloneEventMsg {
+	return CloneEventMsg{event: cloneEvent{kind: cloneBegan, path: path}}
 }
 
 func TestAFoundRepositoryBecomesARowStraightAway(t *testing.T) {
-	m := feed(t, cloningModel(t), CloneEventMsg{event: cloneEvent{kind: cloneFound, path: "alpha/api"}})
+	h := cloning(t)
+	h.emit(found("alpha/api"))
 
-	rows := m.clone.table.Table().Rows()
+	rows := h.m.clone.table.Table().Rows()
 	if len(rows) != 1 || rows[0][colCloneRepository] != "alpha/api" {
 		t.Fatalf("rows = %v, want the repository as soon as it was found", rows)
 	}
-	if found, _, _, _ := m.clone.counts(); found != 1 {
-		t.Errorf("found = %d, want 1", found)
+	if got, _, _, _ := h.m.clone.counts(); got != 1 {
+		t.Errorf("found = %d, want 1", got)
 	}
 }
 
+// The five states of the old cloneState are jobs.ItemState now, one for one.
 func TestARowWalksThroughItsStates(t *testing.T) {
 	tests := []struct {
 		name  string
 		event cloneEvent
-		want  cloneState
+		want  jobs.ItemState
 	}{
-		{"cloned", cloneEvent{kind: cloneEnded, path: "alpha/api"}, cloneCloned},
-		{"already there", cloneEvent{kind: cloneEnded, path: "alpha/api", skipped: true}, cloneAlreadyThere},
-		{"failed", cloneEvent{kind: cloneEnded, path: "alpha/api", err: errors.New("boom")}, cloneFailed},
+		{"cloned", cloneEvent{kind: cloneEnded, path: "alpha/api"}, jobs.ItemDone},
+		{"already there", cloneEvent{kind: cloneEnded, path: "alpha/api", skipped: true}, jobs.ItemSkipped},
+		{"failed", cloneEvent{kind: cloneEnded, path: "alpha/api", err: errors.New("boom")}, jobs.ItemFailed},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := feed(t, cloningModel(t),
-				CloneEventMsg{event: cloneEvent{kind: cloneFound, path: "alpha/api"}},
-				CloneEventMsg{event: cloneEvent{kind: cloneBegan, path: "alpha/api"}})
+			h := cloning(t)
+			h.emit(found("alpha/api"), began("alpha/api"))
 
-			if m.clone.rows[0].state != cloneRunning {
-				t.Fatalf("state = %v after began, want cloneRunning", m.clone.rows[0].state)
+			if got := h.item(0).State; got != jobs.ItemRunning {
+				t.Fatalf("state = %v after began, want running", got)
 			}
 
-			m = feed(t, m, CloneEventMsg{event: tt.event})
-			if got := m.clone.rows[0].state; got != tt.want {
+			h.emit(CloneEventMsg{event: tt.event})
+			if got := h.item(0).State; got != tt.want {
 				t.Errorf("state = %v, want %v", got, tt.want)
 			}
 		})
@@ -998,28 +1094,49 @@ func TestARowWalksThroughItsStates(t *testing.T) {
 // repository's error would attribute it to one repository out of however many
 // were never discovered.
 func TestAFailedWalkGetsItsOwnRow(t *testing.T) {
-	m := feed(t, cloningModel(t), CloneEventMsg{
+	h := cloning(t)
+	h.emit(CloneEventMsg{
 		event: cloneEvent{kind: cloneWalkFailed, path: "alpha/sub", err: errors.New("403")},
 	})
 
-	rows := m.clone.rows
-	if len(rows) != 1 || rows[0].path != "alpha/sub" || rows[0].state != cloneFailed {
-		t.Fatalf("rows = %+v, want the group as a failed row", rows)
+	run := h.run()
+	if len(run.Items) != 1 || run.Items[0].Target != "alpha/sub" || run.Items[0].State != jobs.ItemFailed {
+		t.Fatalf("items = %+v, want the group as a failed row", run.Items)
 	}
-	if !strings.Contains(rows[0].detail, "403") {
-		t.Errorf("detail = %q, want the API error", rows[0].detail)
+	if !strings.Contains(run.Items[0].Detail, "403") {
+		t.Errorf("detail = %q, want the API error", run.Items[0].Detail)
+	}
+}
+
+// The run is not finished until the walk is sealed, whatever its rows say: a
+// walk that has found three repositories and cloned all three is still going.
+func TestARunIsNotFinishedUntilTheWalkIsSealed(t *testing.T) {
+	h := cloning(t)
+	h.emit(found("alpha/api"), began("alpha/api"),
+		CloneEventMsg{event: cloneEvent{kind: cloneEnded, path: "alpha/api"}})
+
+	if h.m.clone.finished() {
+		t.Error("the run settled while the walk was still going")
+	}
+
+	h.emit(CloneRunFinishedMsg{})
+	if !h.m.clone.finished() {
+		t.Error("the sealed run did not settle")
 	}
 }
 
 // Decision 13 discards the list, and a failed clone wrote nothing — so the
 // failures have to be said while the view is still alive.
 func TestTheFailuresAreReportedWhenTheRunEnds(t *testing.T) {
-	m := feed(t, cloningModel(t),
+	h := cloning(t)
+	h.emit(found("alpha/api"), began("alpha/api"),
 		CloneEventMsg{event: cloneEvent{kind: cloneEnded, path: "alpha/api", err: errors.New("boom")}})
 
-	m, cmd := step(t, m, CloneRunFinishedMsg{})
+	h.reg.Seal(jobs.KindClone)
+	h.broadcast()
+	m, cmd := step(t, h.m, CloneRunFinishedMsg{})
 
-	if !m.clone.finished {
+	if !m.clone.finished() {
 		t.Error("the run was not marked finished")
 	}
 	if !strings.Contains(m.footer.Text(), "alpha/api") {
@@ -1033,52 +1150,88 @@ func TestTheFailuresAreReportedWhenTheRunEnds(t *testing.T) {
 // Esc cancels, and cancelling is not instant: the running clones are awaited
 // rather than killed, because killing one leaves half a repository on disk.
 func TestEscCancelsWithoutClosingTheList(t *testing.T) {
+	h := cloning(t)
 	cancelled := false
-	m := cloningModel(t)
-	m.clone.run = &cloneRun{events: make(chan cloneEvent), cancel: func() { cancelled = true }}
-	m = feed(t, m, CloneEventMsg{event: cloneEvent{kind: cloneFound, path: "alpha/api"}},
-		CloneEventMsg{event: cloneEvent{kind: cloneBegan, path: "alpha/api"}})
+	h.reg.AttachRun(h.run().ID, func() { cancelled = true })
+	h.emit(found("alpha/api"), began("alpha/api"))
 
-	m = feed(t, m, testutil.Key("esc"))
+	h.key("esc")
 
 	if !cancelled {
 		t.Error("esc did not cancel the run")
 	}
-	if m.mode != ModeCloning || m.clone == nil {
-		t.Fatalf("esc closed the list while a clone was still running (mode=%v)", m.mode)
+	if h.m.mode != ModeCloning || h.m.clone == nil {
+		t.Fatalf("esc closed the list while a clone was still running (mode=%v)", h.m.mode)
 	}
-	if !strings.Contains(m.cloneStatusLine(), "Cancelling") {
-		t.Errorf("the status line does not say it is cancelling: %q", m.cloneStatusLine())
+	if !strings.Contains(h.m.cloneStatusLine(), "Cancelling") {
+		t.Errorf("the status line does not say it is cancelling: %q", h.m.cloneStatusLine())
+	}
+}
+
+// The registry is what records the cancellation, so `:jobs` can tell "you
+// stopped it" from "it finished". A view calling the pipeline's cancel behind
+// the registry's back would leave the record claiming the run ended on its own.
+func TestACancelledRunReadsCancelledRatherThanDone(t *testing.T) {
+	h := cloning(t)
+	h.emit(found("alpha/api"))
+
+	h.key("esc")
+
+	if got := h.run().State(); got != jobs.RunCancelled {
+		t.Errorf("state = %q, want %q", got, jobs.RunCancelled)
 	}
 }
 
 // A second esc must not force. Forcing means killing a git clone mid-write,
 // which is the partial directory decision 12 exists to avoid.
 func TestASecondEscDoesNotForce(t *testing.T) {
+	h := cloning(t)
 	calls := 0
-	m := cloningModel(t)
-	m.clone.run = &cloneRun{events: make(chan cloneEvent), cancel: func() { calls++ }}
+	h.reg.AttachRun(h.run().ID, func() { calls++ })
+	// A clone in flight, so the run does not settle the moment it is
+	// cancelled: an empty cancelled run is over, and esc would rightly close
+	// it — which is not what this test is about.
+	h.emit(found("alpha/api"), began("alpha/api"))
 
-	m = feed(t, m, testutil.Key("esc"), testutil.Key("esc"), testutil.Key("esc"))
+	h.key("esc")
+	h.key("esc")
+	h.key("esc")
 
 	if calls != 1 {
 		t.Errorf("cancel was called %d times, want once", calls)
 	}
-	if m.mode != ModeCloning {
-		t.Errorf("mode = %v, want the list to stay until the run ends", m.mode)
+	if h.m.mode != ModeCloning {
+		t.Errorf("mode = %v, want the list to stay until the run ends", h.m.mode)
 	}
 }
 
 func TestEscClosesTheListOnceTheRunHasEnded(t *testing.T) {
-	m := feed(t, cloningModel(t), CloneRunFinishedMsg{})
+	h := cloning(t)
+	h.emit(CloneRunFinishedMsg{})
 
-	m = feed(t, m, testutil.Key("esc"))
+	h.key("esc")
 
-	if m.mode != ModeNormal || m.clone != nil {
-		t.Errorf("esc left mode=%v list=%v after the run ended", m.mode, m.clone)
+	if h.m.mode != ModeNormal || h.m.clone != nil {
+		t.Errorf("esc left mode=%v list=%v after the run ended", h.m.mode, h.m.clone)
 	}
-	if !m.selection.isEmpty() {
+	if !h.m.selection.isEmpty() {
 		t.Error("closing the list kept the selection")
+	}
+}
+
+// D5: the rows take the router's frame, not a chain of this view's. A clone
+// keeps turning while the user is looking at another screen, and cannot freeze
+// on frame zero because this view stopped ticking.
+func TestARunningRowCarriesTheRoutersFrame(t *testing.T) {
+	h := cloning(t)
+	h.emit(found("alpha/api"), began("alpha/api"))
+
+	rows := h.m.clone.table.Table().Rows()
+	if len(rows) != 1 {
+		t.Fatalf("rows = %v, want one", rows)
+	}
+	if !strings.HasPrefix(rows[0][colCloneStatus], "*") {
+		t.Errorf("status = %q, want it to start with the frame the router broadcast", rows[0][colCloneStatus])
 	}
 }
 

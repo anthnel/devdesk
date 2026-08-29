@@ -353,6 +353,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case jobs.StartMsg:
 		return a.handleStartJobs(msg)
 
+	case jobs.CancelOpenMsg:
+		return a.handleCancelOpen(msg)
+
+	// The clone reports through the registry like everything else now (D3).
+	// Its run is *open*: the walk that discovers repositories is the slow part,
+	// so targets arrive as they are found and CloneRunFinishedMsg seals the run
+	// rather than merely closing a screen.
+	case explorer.CloneEventMsg:
+		return a.routeWork(command.ViewGitExplorer, msg)
+
+	case explorer.CloneRunFinishedMsg:
+		return a.routeWork(command.ViewGitExplorer, msg)
+
 	case workspaces.WorkspaceScanStartingMsg:
 		return a.routeWork(command.ViewWorkspaces, msg)
 

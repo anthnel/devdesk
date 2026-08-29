@@ -7,7 +7,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/jobs"
 )
 
 // The clone flow, end to end (§3.16):
@@ -98,9 +100,23 @@ func (m Model) handleCloneDestinationSelected(msg CloneDestinationSelectedMsg) (
 	})
 
 	m.mode = ModeCloning
-	m.clone = newCloneList(msg.Path, run)
+	m.clone = newCloneList(msg.Path, run.events)
 	m.clone.table.Resize(m.width, max(m.height-1, 1))
-	return m, tea.Batch(m.spinner.Tick, waitForCloneEvent(run.events))
+	// An **open** run: the walk that finds repositories is itself the slow
+	// part, so there is no target list to register (D3). The cancel travels
+	// with it because the pipeline was started here, in Update — which is also
+	// what makes `esc` reach the registry rather than the channel behind its
+	// back.
+	return m, tea.Batch(
+		jobs.StartCancellable(m.cloneJobRun(msg.Path), waitForCloneEvent(run.events), run.cancel),
+		m.spinner.Tick,
+	)
+}
+
+// cloneRun describes the batch to the registry. The destination names it: it is
+// what a human recognises a clone by, and the roots are already in the rows.
+func (m Model) cloneJobRun(target string) jobs.Run {
+	return jobs.NewOpenRun(jobs.KindClone, command.ViewGitExplorer, "", target)
 }
 
 // rootNodes resolves the ticked paths to the nodes the walk starts from, in a
@@ -116,7 +132,11 @@ func (m Model) rootNodes() []*TreeNode {
 	return nodes
 }
 
-// handleCloneEvent folds one pipeline event in and waits for the next.
+// handleCloneEvent logs what deserves logging and waits for the next event.
+//
+// It no longer folds anything in: the router applied the event to the registry
+// before handing it here, and the rows arrive in the broadcast that follows
+// (D1). What is left is the log and the re-issued read.
 func (m Model) handleCloneEvent(msg CloneEventMsg) (tea.Model, tea.Cmd) {
 	if m.clone == nil {
 		return m, nil
@@ -127,21 +147,36 @@ func (m Model) handleCloneEvent(msg CloneEventMsg) (tea.Model, tea.Cmd) {
 	if msg.event.kind == cloneWalkFailed {
 		log.Printf("ERROR [explorer] discover %s: %v", msg.event.path, msg.event.err)
 	}
-	m.clone.apply(msg.event)
-	return m, waitForCloneEvent(m.clone.run.events)
+	return m, waitForCloneEvent(m.clone.events)
 }
 
-// handleCloneRunFinished is the closed channel: every clone has returned.
+// handleCloneRunFinished is the closed channel: the walk is over and every
+// clone has returned. The router has sealed the run by the time this runs.
 func (m Model) handleCloneRunFinished() (tea.Model, tea.Cmd) {
 	if m.clone == nil {
 		return m, nil
 	}
-	m.clone.finished = true
 
 	// Decision 13 keeps only what workspaces can show, and a failed clone wrote
 	// nothing. Naming the failures now is the only record there will be.
 	if failed := m.clone.failures(); len(failed) > 0 {
 		return m, m.footer.Error(failureSummary(failed))
+	}
+	return m, nil
+}
+
+// handleJobsChanged takes the router's snapshot.
+//
+// The clone screen is the only part of this view that reads it, and it reads
+// only its own run: the explorer lists what a forge holds, not what is being
+// done to it, so a scan running in `ws` has nothing to say to a tree of groups.
+func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
+	m.footer.SetSpinnerFrame(msg.RenderedFrame)
+	if m.clone == nil {
+		return m, nil
+	}
+	if run, ok := cloneRunFrom(msg.Runs); ok {
+		m.clone.setRun(run, msg.Frame)
 	}
 	return m, nil
 }
@@ -173,16 +208,19 @@ func (m Model) handleCloneEsc() (tea.Model, tea.Cmd) {
 		m.mode = ModeNormal
 		return m, nil
 	}
-	if m.clone.finished {
+	if m.clone.finished() {
 		return m.handleCloneClose()
 	}
 	if m.clone.cancelling {
 		return m, nil
 	}
 
+	// The registry stops the run: it holds the cancel, and it is what marks the
+	// run cancelled so `:jobs` says "cancelled" rather than "done". Calling the
+	// pipeline's cancel from here would stop the walk behind the registry's
+	// back, and leave the record claiming the run finished on its own.
 	m.clone.cancelling = true
-	m.clone.run.cancel()
-	return m, nil
+	return m, jobs.CancelOpen(jobs.KindClone)
 }
 
 // handleCloneClose discards the list and returns to the tree.
@@ -205,7 +243,7 @@ func (m Model) cloneStatusLine() string {
 
 	var b strings.Builder
 	switch {
-	case m.clone.finished:
+	case m.clone.finished():
 		b.WriteString("Done — ")
 	case m.clone.cancelling:
 		b.WriteString("Cancelling — " + plural(m.clone.running(), "clone") + " finishing · ")

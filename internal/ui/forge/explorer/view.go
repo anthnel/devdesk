@@ -489,7 +489,7 @@ func (m Model) browsable() shortcut.Availability {
 func (m Model) cloningShortcuts() shortcut.Shortcuts {
 	esc := shortcut.Shortcut{Key: "esc", Description: "Cancel"}
 	switch {
-	case m.clone == nil || m.clone.finished:
+	case m.clone == nil || m.clone.finished():
 		esc.Description = "Close"
 	case m.clone.cancelling:
 		esc.Description = "Waiting for the running clones"

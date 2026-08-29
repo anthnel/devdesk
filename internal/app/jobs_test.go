@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	"github.com/anthnel/devdesk/internal/ui/jobsview"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -479,4 +480,114 @@ func TestTheJobsViewArrivesHoldingWhatIsAlreadyRunning(t *testing.T) {
 	if body := view.View(); !strings.Contains(body, "~/work") {
 		t.Errorf("the jobs view opened empty while a run was going: %s", body)
 	}
+}
+
+// ── The clone (D3) ───────────────────────────────────────────────────────────
+//
+// The pipeline's event carries an unexported shape — only the explorer has any
+// use for it — so what a test can build here is the run, the seal and the
+// cancel. How each event moves an item is the explorer's own test, which drives
+// a real registry the way this router does.
+
+// A clone run is **open**: the walk that finds repositories is the slow part,
+// so there is no target list at launch. It is broadcast and counted running all
+// the same, which is what keeps the spinner chain alive while the walk goes.
+func TestAnOpenCloneRunIsBroadcastAndCountedRunning(t *testing.T) {
+	ws := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewWorkspaces] = ws
+
+	a.Update(jobs.StartMsg{
+		Run: jobs.NewOpenRun(jobs.KindClone, command.ViewGitExplorer, "", "/ws"),
+	})
+
+	run := a.jobs.Snapshot()[0]
+	if run.Total() != 0 {
+		t.Fatalf("the run opened with %d targets, want none", run.Total())
+	}
+	if run.Finished() {
+		t.Error("an open run with nothing in it settled — its walk has not started")
+	}
+	// D3 in one line: a view that has nothing to do with the explorer is handed
+	// the clone, because `:jobs` shows the same run the explorer is rendering.
+	snapshot := lastJobs(t, ws)
+	if len(snapshot.Runs) != 1 || snapshot.Runs[0].Kind != jobs.KindClone {
+		t.Fatalf("the workspaces view was handed %+v, want the clone run", snapshot.Runs)
+	}
+	if snapshot.Running() != 1 {
+		t.Errorf("Running = %d, want the clone counted", snapshot.Running())
+	}
+}
+
+// The closed channel seals the run — a second interface, jobs.Sealer, because
+// the message that carries it names no target.
+func TestTheClosedChannelSealsTheCloneRun(t *testing.T) {
+	a := router(t, &fakeView{})
+	a.views[command.ViewGitExplorer] = &fakeView{}
+
+	a.Update(jobs.StartMsg{
+		Run: jobs.NewOpenRun(jobs.KindClone, command.ViewGitExplorer, "", "/ws"),
+	})
+	if got := a.jobs.Snapshot()[0].State(); got == jobs.RunDone {
+		t.Fatal("the run settled before its walk was sealed")
+	}
+
+	a.Update(explorer.CloneRunFinishedMsg{})
+
+	if got := a.jobs.Snapshot()[0].State(); got != jobs.RunDone {
+		t.Errorf("state = %q after the channel closed, want done", got)
+	}
+}
+
+// A pipeline event is routed to the explorer rather than to the view on screen,
+// like every other progress message: a clone runs for minutes, and dragging the
+// user back to watch it was the whole of D67.
+func TestAPipelineEventGoesToTheExplorerAndNotToTheScreen(t *testing.T) {
+	dashboard := &fakeView{}
+	exp := &fakeView{}
+	a := router(t, dashboard)
+	a.views[command.ViewGitExplorer] = exp
+
+	a.Update(explorer.CloneEventMsg{})
+
+	if !received[explorer.CloneEventMsg](exp) {
+		t.Error("the explorer was not handed its own pipeline event")
+	}
+	if received[explorer.CloneEventMsg](dashboard) {
+		t.Error("the view on screen was handed a clone event that is none of its business")
+	}
+	if a.currentView != command.ViewDashboard {
+		t.Errorf("the current view moved to %q on a clone event", a.currentView)
+	}
+}
+
+// The cancel arrives with the run rather than later, because a progressive run
+// owns its context from the launch — and CancelOpenMsg is what a view sends to
+// stop the one it is looking at without holding a JobID (D1).
+func TestCancelOpenStopsTheRunTheViewIsLookingAt(t *testing.T) {
+	a := router(t, &fakeView{})
+	stopped := false
+
+	a.Update(jobs.StartMsg{
+		Run:    jobs.NewOpenRun(jobs.KindClone, command.ViewGitExplorer, "", "/ws"),
+		Cancel: func() { stopped = true },
+	})
+	a.Update(jobs.CancelOpenMsg{Kind: jobs.KindClone})
+
+	if !stopped {
+		t.Error("the run's cancel was never called")
+	}
+	if got := a.jobs.Snapshot()[0].State(); got != jobs.RunCancelled {
+		t.Errorf("state = %q, want cancelled — the record has to tell that from done", got)
+	}
+}
+
+// received reports whether a view was handed a message of this type.
+func received[T any](v *fakeView) bool {
+	for _, msg := range v.received {
+		if _, ok := msg.(T); ok {
+			return true
+		}
+	}
+	return false
 }
