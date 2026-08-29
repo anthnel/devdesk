@@ -31,6 +31,12 @@ func (a *App) changedMsg() jobs.ChangedMsg {
 // would be reading it again — which is the shape of the defect the stamp exists
 // to close (a batch outliving a switch and writing into the new context's
 // cache).
+//
+// The stamp is then handed to the work, which is the half that was missing
+// (D68): a run carrying the right name while its commands re-read the current
+// one told `:jobs` the truth and wrote the cache anyway. Building the work here
+// means the name is read once, in Update, and every command of the batch shares
+// the string — a switch three repositories later cannot reach it.
 func (a *App) handleStartJobs(msg jobs.StartMsg) (tea.Model, tea.Cmd) {
 	run := msg.Run
 	run.Context = a.currentContext
@@ -38,7 +44,11 @@ func (a *App) handleStartJobs(msg jobs.StartMsg) (tea.Model, tea.Cmd) {
 	// The work goes out after the registration, which is the whole reason it
 	// travels on the message: a transition naming a run the registry has not
 	// admitted yet is refused, and the row would spin for the life of the view.
-	return a, tea.Batch(a.jobsChanged(), msg.Work)
+	cmds := []tea.Cmd{a.jobsChanged()}
+	if msg.Work != nil {
+		cmds = append(cmds, msg.Work(run.Context))
+	}
+	return a, tea.Batch(cmds...)
 }
 
 // routeWork applies a progress message to the registry and hands it to the view

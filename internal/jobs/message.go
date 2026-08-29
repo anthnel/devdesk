@@ -16,12 +16,30 @@ import tea "github.com/charmbracelet/bubbletea"
 // leaves the work runnable only by the router, so a test can read what was
 // launched without launching it.
 type StartMsg struct {
-	Run  Run
-	Work tea.Cmd
+	Run Run
+
+	// Work is a builder rather than a command because the context is stamped
+	// by the router, one step after the view has described the run (D8). Work
+	// that writes into a context-scoped cache needs that name, and reading it
+	// back from the configuration inside the command is the defect the stamp
+	// exists to close: a batch outliving a context switch wrote its last
+	// results into the cache of the context it had switched to.
+	//
+	// It is never nil for a run with work: Start passes a builder that ignores
+	// the name, so a launch site that has no use for it reads as it did.
+	Work func(contextName string) tea.Cmd
 }
 
-// Start builds the message. It exists so a launch site reads as one call.
+// Start builds the message for work that does not depend on the context.
 func Start(run Run, work tea.Cmd) tea.Cmd {
+	return StartInContext(run, func(string) tea.Cmd { return work })
+}
+
+// StartInContext builds the message for work that writes into a context-scoped
+// cache. The builder is called once, in Update, with the name the router
+// stamped on the run — so every command it returns carries that name however
+// long the batch runs.
+func StartInContext(run Run, work func(contextName string) tea.Cmd) tea.Cmd {
 	return func() tea.Msg { return StartMsg{Run: run, Work: work} }
 }
 

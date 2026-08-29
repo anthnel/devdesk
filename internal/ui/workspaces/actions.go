@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/viewer"
@@ -35,10 +36,7 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 			return m, m.footer.Warn(busyMessage)
 		}
 		delete(m.scanCache, targetPath)
-		return m, tea.Batch(
-			deleteScanCacheCmd([]string{targetPath}),
-			jobs.Start(m.scanRun([]string{targetPath}), batchScanCmd([]string{targetPath}, opts)),
-		)
+		return m, purgeAndScan(m.scanRun([]string{targetPath}), []string{targetPath}, opts)
 	}
 
 	entry, ok := m.selectedEntry()
@@ -51,10 +49,7 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 			return m, m.footer.Warn(busyMessage)
 		}
 		delete(m.scanCache, entry.Path)
-		return m, tea.Batch(
-			deleteScanCacheCmd([]string{entry.Path}),
-			jobs.Start(m.scanRun([]string{entry.Path}), batchScanCmd([]string{entry.Path}, opts)),
-		)
+		return m, purgeAndScan(m.scanRun([]string{entry.Path}), []string{entry.Path}, opts)
 	}
 
 	// Non-git directory: scan all non-scanning nested git repos in parallel
@@ -77,8 +72,7 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 		delete(m.scanCache, path)
 	}
 	return m, tea.Batch(
-		deleteScanCacheCmd(toScan),
-		jobs.Start(m.scanRun(toScan), batchScanCmd(toScan, opts)),
+		purgeAndScan(m.scanRun(toScan), toScan, opts),
 		m.warnSkipped(entry.SubRepoSkipped),
 	)
 }
@@ -154,7 +148,9 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, tea.Batch(
-		jobs.Start(m.scanRun(unscanned), batchScanCmd(unscanned, m.scanOptions())),
+		jobs.StartInContext(m.scanRun(unscanned), func(contextName string) tea.Cmd {
+			return batchScanCmd(unscanned, m.scanOptions(), contextName)
+		}),
 		m.warnSkipped(m.skippedInView()),
 	)
 }
@@ -178,8 +174,7 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 		delete(m.scanCache, path)
 	}
 	return m, tea.Batch(
-		deleteScanCacheCmd(paths),
-		jobs.Start(m.scanRun(paths), batchScanCmd(paths, m.scanOptions())),
+		purgeAndScan(m.scanRun(paths), paths, m.scanOptions()),
 		m.warnSkipped(m.skippedInView()),
 	)
 }
@@ -464,8 +459,21 @@ func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
 	}
 	delete(m.scanCache, msg.TargetPath)
 	targets := []string{msg.TargetPath}
-	return m, tea.Batch(
-		deleteScanCacheCmd(targets),
-		jobs.Start(m.scanRun(targets), batchScanCmd(targets, m.scanOptions())),
-	)
+	return m, purgeAndScan(m.scanRun(targets), targets, m.scanOptions())
+}
+
+// purgeAndScan is the launch every ctrl+s and ctrl+a path shares: the disk
+// entries go, the run is registered, and the scan that replaces them starts.
+//
+// The three travel together because they must reach the same cache. The purge
+// used to sit beside the run in a tea.Batch, reading the current context on its
+// own goroutine, which left one command of a launch answering to a name the
+// other two did not share (D68).
+func purgeAndScan(run jobs.Run, paths []string, opts scan.ScanOptions) tea.Cmd {
+	return jobs.StartInContext(run, func(contextName string) tea.Cmd {
+		return tea.Batch(
+			deleteScanCacheCmd(paths, contextName),
+			batchScanCmd(paths, opts, contextName),
+		)
+	})
 }

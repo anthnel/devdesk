@@ -17,7 +17,10 @@ et corrigé le même jour — avec eux. **D65**, l'inventaire `:sec` affirmant
 « Nothing scanned yet » avant d'avoir lu ses caches, a été signalé et fermé le
 2026-08-29, et **D66** — la colonne CI rendant les mots de GitHub au lieu de
 ceux de l'interface — le même jour. **D67** — un scan de `ws` reprenant l'écran
-à chaque dépôt terminé — est signalé et fermé le même jour encore.
+à chaque dépôt terminé — est signalé et fermé le même jour encore, et **D68** —
+un scan survivant à un changement de contexte et écrivant ses résultats dans le
+cache du nouveau — avec lui. Les deux se lisent ensemble : D67 est ce qui rend
+ordinaire de changer de vue pendant un scan, donc ce qui rend D68 atteignable.
 [§1.3](#13-open) est vide pour la première fois depuis D12, et tout ce qui suit
 est en [§1.1](#11-fixed).
 
@@ -83,6 +86,90 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D68 — un scan qui survivait à un changement de contexte écrivait ses résultats
+dans le cache du *nouveau* contexte. Corrigé.** Trouvé en écrivant le registre
+de travaux, corrigé le 2026-08-29.
+
+Le nom du contexte était lu **dans le Cmd**, à la fin du scan :
+
+```go
+// avant — dans scanOneRepoCmd, après le retour de Trivy
+wc, cErr := cache.NewWorkspaceScanCache(config.CurrentContextName())
+```
+
+Le cache des dépôts est scopé par contexte, et à raison : deux contextes
+pointent légitimement vers des racines de workspaces différentes
+(`internal/cache/scan_context_test.go`). Un `A` sur douze dépôts tourne des
+minutes ; changer de contexte pendant ce temps est une chose ordinaire à faire
+précisément parce que le scan tourne en fond — c'est ce que le poste 1 vient de
+rendre possible. Les résultats qui atterrissaient ensuite étaient écrits sous le
+contexte affiché à l'instant où Trivy a rendu la main.
+
+**Le dommage est silencieux et double.** Le contexte de lancement perd des
+comptes qu'il a demandés — la ligne reste à `-` et se rescanne indéfiniment. Le
+contexte d'arrivée en gagne qu'il n'a pas demandés, sur des chemins qui peuvent
+ne rien vouloir dire chez lui. Rien ne le signale : les deux écritures
+réussissent.
+
+Trois écrivains partageaient le défaut, et le troisième aggravait le premier :
+
+| Écrivain | Ce qu'il écrivait |
+|---|---|
+| `scanOneRepoCmd` (`ws`) | les comptes d'un dépôt scanné |
+| `storeRescan` (`:sec`) | les comptes d'un dépôt rescanné depuis l'inventaire |
+| `deleteScanCacheCmd` (`ws`) | la purge de `ctrl+a`, sur sa **propre** goroutine |
+
+Le dernier est le plus vicieux : la purge et le scan qui la remplace partaient
+dans le même `tea.Batch`, chacun lisant le contexte pour lui-même. Rien ne
+garantissait qu'ils lisent le même — la purge pouvait vider un contexte pendant
+que le scan remplissait l'autre.
+
+#### Ce qui corrige
+
+`Run.Context` existait déjà : le routeur l'estampe au lancement (D8, poste 2).
+Ce qui manquait est qu'il n'allait nulle part — la course était enregistrée sous
+le bon nom pendant que son travail en lisait un autre. `jobs.StartMsg.Work`
+devient donc un **constructeur** :
+
+```go
+Work func(contextName string) tea.Cmd
+```
+
+Le routeur l'appelle dans `Update`, avec le nom qu'il vient d'estamper. Le nom
+est lu **une fois**, et chaque commande du lot partage la chaîne — un changement
+trois dépôts plus tard ne peut plus l'atteindre. `jobs.Start` reste pour le
+travail qui n'en dépend pas, et un site de lancement qui n'a pas besoin du nom
+se lit comme avant.
+
+Ce que ça donne aux sites de lancement : `purgeAndScan` dans `ws`, et un seul
+constructeur dans `:sec`, où la purge et le rescan partent ensemble. **La purge
+ne peut plus viser un autre contexte que le scan qui la remplace** — non pas
+parce qu'on y a fait attention, mais parce qu'ils n'ont plus qu'un seul nom
+entre eux.
+
+#### Ce qui n'est délibérément pas corrigé
+
+Trois lectures de `CurrentContextName()` restent dans les vues, et elles sont
+justes :
+
+| Lecture | Pourquoi elle est juste |
+|---|---|
+| `loadScanCacheCmd`, `loadInventoryCmd` | un **chargement** montre le contexte courant, par définition |
+| l'en-tête de `:sec`, le titre de la configuration | ils *nomment* le contexte courant |
+
+La distinction est celle-là et pas « dans un Cmd ou pas » : ce qui doit porter
+l'estampe est ce qui **écrit** un résultat que quelqu'un a demandé sous un nom.
+
+Le cache des **images** n'est pas concerné : il n'est pas scopé, et ne pas
+l'être est délibéré (§3.39) — sa clé est une référence Docker locale, qui répond
+de la machine et non d'un contexte. Les résultats complets ne le sont pas non
+plus, dans les deux cas : ils sont adressés par chemin ou par nom d'image.
+
+Les deux tests de régression construisent la situation exacte — écrire sous
+`launched-in` pendant que le contexte courant est `switched-to` — et vérifient
+les **deux** moitiés : le contexte de lancement a l'entrée, celui d'arrivée n'a
+rien. Les deux échouent sur l'ancien code.
 
 **D67 — un scan de `ws` ramenait la vue `ws` à chaque dépôt terminé, rendant
 l'application inutilisable pendant tout le lot. Corrigé.** Signalé à l'usage le
@@ -10838,7 +10925,7 @@ dépend d'aucun des autres.
 | 2 — `internal/jobs`, la diffusion, la chaîne de tick | **fait** |
 | 3 — `ws` branché (le compteur au footer, le spinner en colonne) | **fait** |
 | 4 — `:sec` et `oci` branchés | **fait** |
-| 5 — l'estampe de contexte (`D` à ouvrir) | à faire |
+| 5 — l'estampe de contexte | **fait**, [D68](#11-fixed) |
 | 6 — la vue `:jobs` | à faire |
 | 7 — le clone rebranché | à faire |
 | 8 — l'annulation | à faire |
@@ -10889,6 +10976,14 @@ seconde moitié de la demande 2 : l'inventaire liste exactement ce que `ws` et
 l'onglet Images scannent, donc un rescan lancé depuis l'un des deux est le même
 travail sur la même entrée de cache — et cette vue n'avait aucun moyen de le
 savoir.
+
+Le poste 5 ferme [D68](#11-fixed), qui n'existait pas comme demande : il a été
+trouvé en écrivant le registre, et c'est le poste 1 qui l'a rendu atteignable —
+tant que le scan ramenait l'écran à `ws`, changer de contexte pendant un lot
+n'était pas quelque chose qu'on faisait. `jobs.StartMsg.Work` devient un
+constructeur `func(contextName string) tea.Cmd` que le routeur appelle avec le
+nom qu'il vient d'estamper, ce qui fait du `Run.Context` de D8 autre chose qu'un
+champ d'affichage : c'est maintenant **le** nom, celui que le travail utilise.
 
 Deux écarts au plan, tous deux du même genre :
 

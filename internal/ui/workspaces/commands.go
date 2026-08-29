@@ -136,9 +136,14 @@ func loadScanCacheCmd() tea.Cmd {
 }
 
 // deleteScanCacheCmd removes the given repo paths from the disk cache (Rule 126: scan all purges cache)
-func deleteScanCacheCmd(paths []string) tea.Cmd {
+//
+// contextName is the one the run was stamped with, not the one current when
+// this runs: the purge and the rescan that replaces it must reach the same
+// cache, and there is no reason for a purge to be the one command in the batch
+// that reads the name again.
+func deleteScanCacheCmd(paths []string, contextName string) tea.Cmd {
 	return func() tea.Msg {
-		c, err := cache.NewWorkspaceScanCache(config.CurrentContextName())
+		c, err := cache.NewWorkspaceScanCache(contextName)
 		if err != nil {
 			return nil
 		}
@@ -151,7 +156,12 @@ func deleteScanCacheCmd(paths []string) tea.Cmd {
 
 // scanOneRepoCmd scans a single git repo directory, using a semaphore to limit concurrency.
 // It emits WorkspaceScanStartingMsg before scanning and WorkspaceScanCompleteMsg after.
-func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, sem chan struct{}) tea.Cmd {
+//
+// contextName travels with the command rather than being read at the end of the
+// scan (D68). A batch of twelve repositories runs for minutes; the context can
+// change twice in that time, and the result of a repository belongs to the
+// context it was launched in whatever the user is looking at when it lands.
+func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, contextName string, sem chan struct{}) tea.Cmd {
 	return tea.Sequence(
 		// Queued until a worker is free, and only then running — see the note
 		// in syncOneRepoCmd.
@@ -194,12 +204,7 @@ func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, sem chan struct{}) t
 				ScannedAt: result.EndTime,
 			}
 
-			wc, cErr := cache.NewWorkspaceScanCache(config.CurrentContextName())
-			if cErr != nil {
-				log.Printf("ERROR [workspaces] open cache: %v", cErr)
-			} else if sErr := wc.Set(repoPath, entry); sErr != nil {
-				log.Printf("ERROR [workspaces] cache set %s: %v", repoPath, sErr)
-			}
+			storeWorkspaceScan(contextName, repoPath, entry)
 
 			if sErr := cache.SaveWorkspaceScanResult(repoPath, result); sErr != nil {
 				log.Printf("ERROR [workspaces] save full result %s: %v", repoPath, sErr)
@@ -219,9 +224,27 @@ func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, sem chan struct{}) t
 	)
 }
 
+// storeWorkspaceScan writes one finished scan into the counts cache of the
+// context the run was launched in.
+//
+// The full result beside it is not scoped at all — it is addressed by path, and
+// a scan of /repos/devdesk is the same scan whichever context asked for it. The
+// counts are scoped because two contexts legitimately point at different
+// workspace roots (see internal/cache/scan_context_test.go).
+func storeWorkspaceScan(contextName, repoPath string, entry cache.WorkspaceScanEntry) {
+	wc, err := cache.NewWorkspaceScanCache(contextName)
+	if err != nil {
+		log.Printf("ERROR [workspaces] open cache: %v", err)
+		return
+	}
+	if err := wc.Set(repoPath, entry); err != nil {
+		log.Printf("ERROR [workspaces] cache set %s: %v", repoPath, err)
+	}
+}
+
 // batchScanCmd scans all provided repo paths in parallel using a worker pool
 // of runtime.NumCPU()/2 workers (minimum 1).
-func batchScanCmd(repoPaths []string, opts scan.ScanOptions) tea.Cmd {
+func batchScanCmd(repoPaths []string, opts scan.ScanOptions, contextName string) tea.Cmd {
 	numWorkers := runtime.NumCPU() / 2
 	if numWorkers < 1 {
 		numWorkers = 1
@@ -230,7 +253,7 @@ func batchScanCmd(repoPaths []string, opts scan.ScanOptions) tea.Cmd {
 
 	cmds := make([]tea.Cmd, len(repoPaths))
 	for i, path := range repoPaths {
-		cmds[i] = scanOneRepoCmd(path, opts, sem)
+		cmds[i] = scanOneRepoCmd(path, opts, contextName, sem)
 	}
 	return tea.Batch(cmds...)
 }

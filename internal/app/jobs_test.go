@@ -317,17 +317,19 @@ func TestAViewsWorkIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 
 	testutil.FastTimers(t, &jobSpinnerInterval)
 
-	worked := false
+	worked := ""
 	_, cmd := a.Update(jobs.StartMsg{
-		Run:  jobs.NewRun(jobs.KindScan, command.ViewWorkspaces, "", "~/work", "/repos/a", "/repos/b"),
-		Work: func() tea.Msg { worked = true; return nil },
+		Run: jobs.NewRun(jobs.KindScan, command.ViewWorkspaces, "", "~/work", "/repos/a", "/repos/b"),
+		Work: func(contextName string) tea.Cmd {
+			return func() tea.Msg { worked = contextName; return nil }
+		},
 	})
 
 	// The work rides on the message rather than being batched beside it, so it
 	// cannot outrun the registration — and a test can read what was launched
 	// without launching it, which a tea.Sequence at the launch site would deny.
 	testutil.Msgs(cmd)
-	if !worked {
+	if worked == "" {
 		t.Error("the run was registered but its work never went out")
 	}
 
@@ -337,6 +339,12 @@ func TestAViewsWorkIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	}
 	if got, want := snapshot[0].Context, "prod"; got != want {
 		t.Errorf("Context = %q, want %q — the router stamps it, not the view", got, want)
+	}
+	// D68: the stamp is handed to the work, not only recorded on the run. A
+	// command reading the context back for itself is what let a batch outlive a
+	// switch and write into the cache of the context it had switched to.
+	if worked != "prod" {
+		t.Errorf("the work was built for context %q, want the one stamped on the run", worked)
 	}
 	if got := snapshot[0].State(); got != jobs.RunQueued {
 		t.Errorf("state = %q, want every target queued at registration (D6)", got)

@@ -233,12 +233,11 @@ func loadInventoryResultCmd(target scanTarget) tea.Cmd {
 
 // purgeInventoryCmd removes the cached entries and stored results for the given
 // targets. Rule 126: ctrl+a purges before rescanning, where ctrl+s overwrites.
-func purgeInventoryCmd(jobs []inventoryScanJob) tea.Cmd {
+func purgeInventoryCmd(jobs []inventoryScanJob, contextName string) tea.Cmd {
 	if len(jobs) == 0 {
 		return nil
 	}
 	return func() tea.Msg {
-		contextName := config.CurrentContextName()
 		imageCache, imageErr := cache.NewImageScanCache()
 		repoCache, repoErr := cache.NewWorkspaceScanCache(contextName)
 		for _, job := range jobs {
@@ -259,18 +258,22 @@ func purgeInventoryCmd(jobs []inventoryScanJob) tea.Cmd {
 
 // rescanCmd scans every job through a worker pool of NumCPU/2, the size the
 // images and workspaces lists already use.
-func rescanCmd(jobs []inventoryScanJob, opts scan.ScanOptions) tea.Cmd {
+//
+// contextName is the one the run was stamped with at launch, carried down to
+// storeRescan (D68). A rescan of twenty targets outlives a context switch
+// easily, and a repository's counts belong to the context that asked for them.
+func rescanCmd(jobs []inventoryScanJob, opts scan.ScanOptions, contextName string) tea.Cmd {
 	sem := make(chan struct{}, max(runtime.NumCPU()/2, 1))
 	cmds := make([]tea.Cmd, len(jobs))
 	for i, job := range jobs {
-		cmds[i] = rescanOneCmd(job, opts, sem)
+		cmds[i] = rescanOneCmd(job, opts, contextName, sem)
 	}
 	return tea.Batch(cmds...)
 }
 
 // rescanOneCmd rescans a single target and writes the result through to both
 // the counts cache and the stored result, so the row and `enter` agree.
-func rescanOneCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan struct{}) tea.Cmd {
+func rescanOneCmd(job inventoryScanJob, opts scan.ScanOptions, contextName string, sem chan struct{}) tea.Cmd {
 	return tea.Sequence(
 		// The starting message waits for its turn in the pool, which is what
 		// moves the target from queued to running. Emitted before the wait,
@@ -280,11 +283,11 @@ func rescanOneCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan struct{}
 			sem <- struct{}{}
 			return InventoryScanStartingMsg{Name: job.Name}
 		},
-		rescanOneBodyCmd(job, opts, sem),
+		rescanOneBodyCmd(job, opts, contextName, sem),
 	)
 }
 
-func rescanOneBodyCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan struct{}) tea.Cmd {
+func rescanOneBodyCmd(job inventoryScanJob, opts scan.ScanOptions, contextName string, sem chan struct{}) tea.Cmd {
 	return func() tea.Msg {
 		defer func() { <-sem }()
 
@@ -306,7 +309,7 @@ func rescanOneBodyCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan stru
 			return InventoryScanFinishedMsg{Name: job.Name, Err: errors.New(combined)}
 		}
 
-		storeRescan(job, result)
+		storeRescan(job, result, contextName)
 		return InventoryScanFinishedMsg{
 			Name: job.Name, Counts: result.Counts,
 			Sensitive: result.SecretVerdict(), CIScore: result.CIVerdict(),
@@ -316,8 +319,12 @@ func rescanOneBodyCmd(job inventoryScanJob, opts scan.ScanOptions, sem chan stru
 }
 
 // storeRescan writes a finished rescan to the cache its kind belongs to.
-func storeRescan(job inventoryScanJob, result *scan.Result) {
-	contextName := config.CurrentContextName()
+//
+// contextName is passed rather than read here: an image cache is not scoped at
+// all (§3.39 — its key is a local Docker reference, which answers for the
+// machine), so only the repository branch uses it, and that branch must reach
+// the context the scan was launched in.
+func storeRescan(job inventoryScanJob, result *scan.Result, contextName string) {
 	if job.Kind == kindImage {
 		if c, err := cache.NewImageScanCache(); err == nil {
 			_ = c.Set(job.Name, cache.ImageScanEntry{
