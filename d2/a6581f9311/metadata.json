@@ -3,7 +3,7 @@
   "checkpoint_id": "d2a6581f9311",
   "strategy": "manual-commit",
   "branch": "fix/scan-forced-return",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "docs/architecture/app-shell.md",
     "docs/backlog.md",
@@ -18,6 +18,13 @@
       "transcript": "/d2/a6581f9311/0/full.jsonl",
       "compact_transcript": "/d2/a6581f9311/0/transcript.jsonl",
       "content_hash": "/d2/a6581f9311/0/content_hash.txt",
+      "prompt": ""
+    },
+    {
+      "metadata": "/d2/a6581f9311/1/metadata.json",
+      "transcript": "/d2/a6581f9311/1/full.jsonl",
+      "compact_transcript": "/d2/a6581f9311/1/transcript.jsonl",
+      "content_hash": "/d2/a6581f9311/1/content_hash.txt",
       "prompt": ""
     }
   ],
