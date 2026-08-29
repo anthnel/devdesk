@@ -1,0 +1,61 @@
+ne code rien, je veux réfléchir sur le scanning. Actuellement quand je lance un scan dans ws, la colonne scanned a un increment par dossier. Si je vais sur dashboard pendant un scan, le tui reviens sur ws me forçant à attendre la fin du scan sur cette vue alors que ça peu prendre longtemps. Je voudrais pouvoir changer de vue pendant que des scans sont en cours. Ce pourrait aussi être intéressant de voir dans une vue les taches de scan en cours de traitement. de plus dans la vue ws, quand un scan est en cours je pense qu'il serait mieux d'avoir une icone dans la colonne scanned qui dit qu'un scan est en cours (spinner ou autre) et que l'incrément par dossier soit afficher dans le footer, comme quand on clone.
+
+---
+
+je suis d'accord avec ta proposition, est-ce qu'il y a des points à trancher
+
+---
+
+1. ok pour diffusion plus propre. 2. tout travail long + vue jobs dédiées. 5 on pourrait dire que des jobs sont en cours, voir la vue jobs pour plus de détail; 6  prévoir l'annulation
+
+---
+
+F. Tu as bien compris. A. deux niveaux comme proposé ; B. troisième ; D le temps de la session
+
+---
+
+écris le plan détaillé dans .claude/plans/
+
+---
+
+démarre le point 1 de .claude/plans/jobs-registry.plan.md
+
+---
+
+enchaine poste 2
+
+---
+
+enchaine
+
+---
+
+continue$
+
+---
+
+enchaine
+
+---
+
+continue
+
+---
+
+merge
+
+---
+
+enchaine le poste 5
+
+---
+
+continue
+
+---
+
+merge et continue
+
+---
+
+merge et continue
