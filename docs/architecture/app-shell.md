@@ -345,6 +345,37 @@ Key messages in `internal/app/messages.go`:
 - `SelectionRequestMsg` / `SelectionResultMsg` — selection mode (e.g., workspaces opened from security view to pick a repo)
 - `ImageScanResultLoadedMsg` / `WorkspaceScanResultLoadedMsg` — cached results ready
 
+### Long-running work reports without taking the screen
+
+A scan, a sync or a delete outlives the moment the user spends looking at the
+view that started it. Its progress messages are therefore addressed **by name**
+to that view — `routeToView(target, msg)` in `app.go` — and never to the view on
+screen, and routing one never changes `currentView`.
+
+Three properties, and each is load-bearing:
+
+| | |
+|---|---|
+| The owning view is updated | it holds the row's marker, its footer state and its cache write; a message dropped because the user walked away leaves the row marked busy for the life of the view |
+| The active view is *not* | it would act on progress that is not its own |
+| `currentView` is untouched | `handleWorkspaceScanComplete` used to set it on every finished repository, so a batch of twelve made every other view unusable until the last one landed (D67) |
+
+The router does not re-measure the layout on these, unlike
+`forwardToActiveView`: a view the user is not looking at cannot change the
+footer's shape on screen, and it is measured on its way back in — `switchView`
+asks for a resize.
+
+**What this does not cover, yet.** A view's `spinner.Tick` chain stops when the
+view leaves the screen, so its spinner does not advance while it is away; it
+restarts from `Init` on return. Each view also keeps its own bookkeeping of what
+is in flight, so none of them can see what another started on the same target.
+Both are the job of the jobs registry (backlog §3.58), which makes the router
+hold one tick chain and one answer to "what is running?".
+
+Making the marker survive re-entry is what makes the routing safe: `setEntries`
+deliberately does not touch `scanningPaths`, so the reload `Init` triggers on
+the way back in leaves in-flight work alone.
+
 
 ## Bubble Tea Message Flow
 

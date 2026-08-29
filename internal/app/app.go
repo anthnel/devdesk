@@ -329,10 +329,41 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ForgeAutoLoginMsg:
 		return a.handleAutoLoginResult(msg)
 
-	// ── Scans ────────────────────────────────────────────────────────────
-	case workspaces.WorkspaceScanCompleteMsg:
-		return a.handleWorkspaceScanComplete(msg)
+	// ── Long-running work ────────────────────────────────────────────────
+	// Every message below reports on work already under way, and each is routed
+	// to the view that started it rather than to the one on screen. None of
+	// them changes the current view: a scan can run for minutes, and dragging
+	// the user back to watch it was the whole of D67.
+	case workspaces.WorkspaceScanStartingMsg:
+		return a.routeToView(command.ViewWorkspaces, msg)
 
+	case workspaces.WorkspaceScanCompleteMsg:
+		return a.routeToView(command.ViewWorkspaces, msg)
+
+	case workspaces.WorkspaceSyncStartingMsg:
+		return a.routeToView(command.ViewWorkspaces, msg)
+
+	case workspaces.WorkspaceSyncCompleteMsg:
+		return a.routeToView(command.ViewWorkspaces, msg)
+
+	case workspaces.EntryDeletedMsg:
+		// A delete is confirmed in a modal and then runs on its own; the marker
+		// it sets is cleared here or not at all.
+		return a.routeToView(command.ViewWorkspaces, msg)
+
+	case ociresources.ImageScanStartingMsg:
+		return a.routeToView(command.ViewOCIResources, msg)
+
+	case ociresources.ImageScanFinishedMsg:
+		return a.routeToView(command.ViewOCIResources, msg)
+
+	case security.InventoryScanFinishedMsg:
+		// The inventory marks its row as scanning and a reload deliberately
+		// keeps that marker, so a lost completion leaves it spinning for the
+		// life of the view.
+		return a.routeToView(command.ViewSecurity, msg)
+
+	// ── Scan results ─────────────────────────────────────────────────────
 	case workspaces.ScanDetailsRequestMsg:
 		return a.handleWorkspaceScanDetails(msg)
 
@@ -344,20 +375,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ImageScanResultLoadedMsg:
 		return a.handleImageScanResultLoaded(msg)
-
-	case ociresources.ImageScanStartingMsg:
-		// Scan progress belongs to the OCI view wherever the user has gone.
-		return a.routeToOCIImagesView(msg)
-
-	case ociresources.ImageScanFinishedMsg:
-		return a.routeToOCIImagesView(msg)
-
-	case security.InventoryScanFinishedMsg:
-		// A rescan started from the inventory belongs to it wherever the user
-		// has gone. Forwarded rather than dropped: the row is marked as
-		// scanning, and a reload deliberately keeps that marker, so a lost
-		// completion leaves it spinning for the life of the view.
-		return a.routeToSecurityView(msg)
 
 	// ── Selection mode ───────────────────────────────────────────────────
 	// Only the explorer borrows a view now, and only the workspaces one: the
@@ -390,19 +407,21 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// handleWorkspaceScanComplete updates the workspaces view with its results and
-// brings them up — unless the user is in the security view. Switching there
-// would route the security scan's own completion to the wrong view and leave
-// its spinner running forever.
-func (a *App) handleWorkspaceScanComplete(msg workspaces.WorkspaceScanCompleteMsg) (tea.Model, tea.Cmd) {
-	view, ok := a.views[command.ViewWorkspaces]
+// routeToView hands a message to a named view whether or not it is on screen,
+// without changing which view is. Work started in a view has to finish there:
+// its progress markers, its spinner and its cache write all live in its model,
+// so a message dropped because the user walked away leaves a row marked busy
+// for the life of the view.
+//
+// It does not re-measure the layout the way forwardToActiveView does — a view
+// the user is not looking at cannot change the footer's shape on screen, and
+// it is measured on its way back in (switchView asks for a resize).
+func (a *App) routeToView(target command.ViewType, msg tea.Msg) (tea.Model, tea.Cmd) {
+	view, ok := a.views[target]
 	if !ok {
 		return a, nil
 	}
 	updatedView, cmd := view.Update(msg)
-	a.views[command.ViewWorkspaces] = updatedView
-	if a.currentView != command.ViewSecurity {
-		a.currentView = command.ViewWorkspaces
-	}
+	a.views[target] = updatedView
 	return a, cmd
 }

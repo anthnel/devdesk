@@ -308,35 +308,97 @@ func TestScanProgressReachesTheOCIViewFromAnotherView(t *testing.T) {
 	}
 }
 
-// Documented race: a background workspace scan finishing must not drag the user
-// out of the security view, or the security scan's own completion is routed to
-// the wrong view and its spinner never stops.
-func TestAWorkspaceScanDoesNotStealTheSecurityView(t *testing.T) {
-	ws := &fakeView{}
-	a := router(t, &fakeView{})
-	a.views[command.ViewWorkspaces] = ws
-	a.views[command.ViewSecurity] = &fakeView{}
-	a.currentView = command.ViewSecurity
-
-	a.Update(workspaces.WorkspaceScanCompleteMsg{})
-
-	if a.currentView != command.ViewSecurity {
-		t.Errorf("the view switched to %s while a security scan was on screen", a.currentView)
+// D67: a workspace scan reports from wherever the user has gone, and never
+// takes the screen back. It used to switch to the workspaces view on every
+// completed repository, so a batch of a dozen made every other view unusable
+// until the last one landed — which is exactly the length of time one wants to
+// spend elsewhere.
+//
+// The message still reaches the workspaces view: it holds the row's marker and
+// writes the scan cache, so a completion dropped because the user walked away
+// leaves the row spinning for the life of the view.
+func TestLongRunningWorkReportsWithoutTakingTheScreen(t *testing.T) {
+	messages := []struct {
+		name   string
+		msg    tea.Msg
+		target command.ViewType
+	}{
+		{"scan starting", workspaces.WorkspaceScanStartingMsg{RepoPath: "/repos/devdesk"}, command.ViewWorkspaces},
+		{"scan complete", workspaces.WorkspaceScanCompleteMsg{RepoPath: "/repos/devdesk"}, command.ViewWorkspaces},
+		{"sync starting", workspaces.WorkspaceSyncStartingMsg{RepoPath: "/repos/devdesk"}, command.ViewWorkspaces},
+		{"sync complete", workspaces.WorkspaceSyncCompleteMsg{RepoPath: "/repos/devdesk"}, command.ViewWorkspaces},
+		{"delete finished", workspaces.EntryDeletedMsg{Path: "/repos/devdesk"}, command.ViewWorkspaces},
+		{"image scan starting", ociresources.ImageScanStartingMsg{}, command.ViewOCIResources},
+		{"image scan finished", ociresources.ImageScanFinishedMsg{}, command.ViewOCIResources},
+		{"inventory scan finished", security.InventoryScanFinishedMsg{}, command.ViewSecurity},
 	}
-	if _, ok := receivedOf[workspaces.WorkspaceScanCompleteMsg](ws); !ok {
-		t.Error("the workspaces view was not updated with its scan result")
+
+	// Every view the user could be on while the work runs, the one that started
+	// it included: a second scan finishing must not pull them off the security
+	// view either, which was the one case the old guard covered.
+	for _, onScreen := range []command.ViewType{
+		command.ViewDashboard,
+		command.ViewSecurity,
+		command.ViewWorkspaces,
+		command.ViewOCIResources,
+	} {
+		for _, tc := range messages {
+			t.Run(tc.name+" from "+string(onScreen), func(t *testing.T) {
+				owner := &fakeView{}
+				a := router(t, &fakeView{})
+				a.views[command.ViewWorkspaces] = &fakeView{}
+				a.views[command.ViewSecurity] = &fakeView{}
+				a.views[command.ViewOCIResources] = &fakeView{}
+				a.views[tc.target] = owner
+				if onScreen != tc.target {
+					a.views[onScreen] = &fakeView{}
+				} else {
+					a.views[onScreen] = owner
+				}
+				a.currentView = onScreen
+
+				a.Update(tc.msg)
+
+				if a.currentView != onScreen {
+					t.Errorf("the view switched to %s, want it left on %s", a.currentView, onScreen)
+				}
+				if len(owner.received) == 0 {
+					t.Errorf("%s never reached the %s view", tc.name, tc.target)
+				}
+			})
+		}
 	}
 }
 
-// From anywhere else, the same message does bring the results up.
-func TestAWorkspaceScanSwitchesToTheWorkspacesView(t *testing.T) {
+// The owning view is addressed by name, so a message reaches it even when the
+// user is looking at something else — and is not also handed to what is on
+// screen, which would make an unrelated view act on another's progress.
+func TestWorkStaysWithTheViewThatStartedIt(t *testing.T) {
+	ws := &fakeView{}
+	dashboard := &fakeView{}
+	a := router(t, dashboard)
+	a.views[command.ViewWorkspaces] = ws
+
+	a.Update(workspaces.WorkspaceScanCompleteMsg{RepoPath: "/repos/devdesk"})
+
+	if _, ok := receivedOf[workspaces.WorkspaceScanCompleteMsg](ws); !ok {
+		t.Error("the workspaces view was not updated with its scan result")
+	}
+	if _, ok := receivedOf[workspaces.WorkspaceScanCompleteMsg](dashboard); ok {
+		t.Error("the scan result was also delivered to the active view")
+	}
+}
+
+// A view the router does not hold is not a crash: the message is dropped and
+// the current view is left where it was.
+func TestRoutingToAMissingViewIsSilent(t *testing.T) {
 	a := router(t, &fakeView{})
-	a.views[command.ViewWorkspaces] = &fakeView{}
+	delete(a.views, command.ViewWorkspaces)
 
-	a.Update(workspaces.WorkspaceScanCompleteMsg{})
+	a.Update(workspaces.WorkspaceScanCompleteMsg{RepoPath: "/repos/devdesk"})
 
-	if a.currentView != command.ViewWorkspaces {
-		t.Errorf("current view = %s, want the workspaces view showing the result", a.currentView)
+	if a.currentView != command.ViewDashboard {
+		t.Errorf("current view = %s, want the dashboard", a.currentView)
 	}
 }
 
