@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "61b1398c7a3e",
+  "strategy": "manual-commit",
+  "branch": "feat/jobs-registry",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/command_line.go",
+    "internal/app/context.go",
+    "internal/app/harness_test.go",
+    "internal/app/jobs.go",
+    "internal/app/jobs_test.go",
+    "internal/jobs/jobs.go",
+    "internal/jobs/jobs_test.go",
+    "internal/jobs/registry.go",
+    "internal/jobs/registry_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/61/b1398c7a3e/0/metadata.json",
+      "transcript": "/61/b1398c7a3e/0/full.jsonl",
+      "compact_transcript": "/61/b1398c7a3e/0/transcript.jsonl",
+      "content_hash": "/61/b1398c7a3e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 102,
+    "cache_creation_tokens": 100463,
+    "cache_read_tokens": 12037078,
+    "output_tokens": 59764,
+    "api_call_count": 51
+  }
+}
