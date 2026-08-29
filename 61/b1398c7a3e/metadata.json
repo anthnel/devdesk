@@ -3,7 +3,7 @@
   "checkpoint_id": "61b1398c7a3e",
   "strategy": "manual-commit",
   "branch": "feat/jobs-registry",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "docs/architecture/app-shell.md",
     "docs/backlog.md",
@@ -24,6 +24,13 @@
       "transcript": "/61/b1398c7a3e/0/full.jsonl",
       "compact_transcript": "/61/b1398c7a3e/0/transcript.jsonl",
       "content_hash": "/61/b1398c7a3e/0/content_hash.txt",
+      "prompt": ""
+    },
+    {
+      "metadata": "/61/b1398c7a3e/1/metadata.json",
+      "transcript": "/61/b1398c7a3e/1/full.jsonl",
+      "compact_transcript": "/61/b1398c7a3e/1/transcript.jsonl",
+      "content_hash": "/61/b1398c7a3e/1/content_hash.txt",
       "prompt": ""
     }
   ],
