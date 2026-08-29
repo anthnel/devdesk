@@ -207,7 +207,7 @@ func (f *Forge) repositories(ctx context.Context, repos []*gh.Repository, login 
 		}
 		if login != "" {
 			converted.Role = roleName(repo.GetPermissions())
-			converted.CIStatus = f.lastWorkflowConclusion(ctx, repo.GetOwner().GetLogin(), repo.GetName())
+			converted.CIStatus = f.lastWorkflowStatus(ctx, repo.GetOwner().GetLogin(), repo.GetName())
 		}
 		out = append(out, converted)
 	}
@@ -273,13 +273,21 @@ func (f *Forge) orgRole(ctx context.Context, org, login string) string {
 	return "Member"
 }
 
-// lastWorkflowConclusion is the most recent Actions run's outcome, in the same
-// words the GitLab backend reports.
+// lastWorkflowStatus is the most recent Actions run, translated into the
+// vocabulary forge.CIStatus* declares.
 //
 // A run still in flight has no conclusion, so its *status* is used instead —
 // otherwise a repository whose build is running would read as having no CI at
-// all.
-func (f *Forge) lastWorkflowConclusion(ctx context.Context, owner, repo string) string {
+// all. The two are different alphabets, which is why ciStatusOf takes both and
+// not one string.
+//
+// It was called lastWorkflowConclusion and claimed to return "the same words
+// the GitLab backend reports". It never did (D66): only `success` and `skipped`
+// happen to be spelled the same, so `failure` reached the CI column as raw text
+// truncated to `failu…` and coloured orange by the view's default branch — a
+// broken build rendered as a warning, which is the one thing that column exists
+// to prevent.
+func (f *Forge) lastWorkflowStatus(ctx context.Context, owner, repo string) string {
 	runs, _, err := f.client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo,
 		&gh.ListWorkflowRunsOptions{ListOptions: gh.ListOptions{PerPage: 1, Page: 1}})
 	if err != nil || runs == nil || len(runs.WorkflowRuns) == 0 {
@@ -287,10 +295,59 @@ func (f *Forge) lastWorkflowConclusion(ctx context.Context, owner, repo string) 
 	}
 
 	run := runs.WorkflowRuns[0]
-	if conclusion := run.GetConclusion(); conclusion != "" {
-		return conclusion
+	return ciStatusOf(run.GetConclusion(), run.GetStatus())
+}
+
+// ciStatusOf translates one Actions run onto forge's vocabulary.
+//
+// The conclusion is read first and the status only when there is none: a
+// completed run carries both, and its `completed` status says nothing a reader
+// wants — which is precisely why `completed` appears in neither table below.
+//
+// **An unrecognised value returns the empty string**, not itself. That is what
+// forge.Repository.CIStatus documents for a value the backend has no equivalent
+// for, and it is the difference between an empty cell and six characters of
+// GitHub's internal spelling. Returning the raw word was the defect.
+func ciStatusOf(conclusion, status string) string {
+	if conclusion != "" {
+		return ciConclusions[conclusion]
 	}
-	return run.GetStatus()
+	return ciRunStates[status]
+}
+
+// ciConclusions maps a finished run. Four of GitHub's nine outcomes have no
+// counterpart and are folded rather than dropped, each on its own argument:
+//
+//   - `timed_out` and `startup_failure` are **failures**. GitLab has no separate
+//     status for either — a job it kills on timeout ends `failed` — so folding
+//     them is reporting what GitLab would have reported, not losing detail.
+//   - `action_required` is a run waiting for someone to approve it, which is
+//     exactly what GitLab calls `manual`.
+//   - `neutral` and `stale` are the grey outcomes: ran without a verdict, and
+//     superseded before finishing. GitHub renders both the way it renders
+//     `skipped`, and `skipped` is the only grey this vocabulary has.
+var ciConclusions = map[string]string{
+	"success":         forge.CIStatusSuccess,
+	"failure":         forge.CIStatusFailed,
+	"timed_out":       forge.CIStatusFailed,
+	"startup_failure": forge.CIStatusFailed,
+	"cancelled":       forge.CIStatusCanceled, // GitHub spells it with two l's
+	"action_required": forge.CIStatusManual,
+	"skipped":         forge.CIStatusSkipped,
+	"neutral":         forge.CIStatusSkipped,
+	"stale":           forge.CIStatusSkipped,
+}
+
+// ciRunStates maps a run that has not finished. GitLab separates `pending` from
+// `created`, `preparing` and `waiting_for_resource`; GitHub's four pre-run
+// states all mean the same thing to a reader — it has not started — so they
+// collapse onto the one word the CI column already draws a clock for.
+var ciRunStates = map[string]string{
+	"in_progress": forge.CIStatusRunning,
+	"queued":      forge.CIStatusPending,
+	"requested":   forge.CIStatusPending,
+	"waiting":     forge.CIStatusPending,
+	"pending":     forge.CIStatusPending,
 }
 
 // splitPath cuts an owner/repo identifier.

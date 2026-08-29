@@ -15,8 +15,9 @@ rather than carried over.
 boîte Health rendant les certificats dans le vocabulaire des moniteurs, signalé
 et corrigé le même jour — avec eux. **D65**, l'inventaire `:sec` affirmant
 « Nothing scanned yet » avant d'avoir lu ses caches, a été signalé et fermé le
-2026-08-29. [§1.3](#13-open) est vide pour la première fois depuis D12, et tout
-ce qui suit est en [§1.1](#11-fixed).
+2026-08-29, et **D66** — la colonne CI rendant les mots de GitHub au lieu de
+ceux de l'interface — le même jour. [§1.3](#13-open) est vide pour la première
+fois depuis D12, et tout ce qui suit est en [§1.1](#11-fixed).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -80,6 +81,67 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D66 — la colonne CI d'un contexte GitHub affichait `in_pr…`, et un build cassé
+en orange. Corrigé.** Signalé à l'usage le 2026-08-29 sur le dépôt `devdesk`
+lui-même, corrigé le même jour.
+
+`Repository.CIStatus` documente un vocabulaire — « success », « failed »,
+« running »… — et `lastWorkflowConclusion` affirmait en commentaire le rendre
+« in the same words the GitLab backend reports ». Il rendait ceux de GitHub. Sur
+les neuf issues qu'Actions produit, **deux seulement** s'écrivent pareil :
+
+| GitHub | Ce que la colonne faisait |
+|---|---|
+| `success`, `skipped` | ✅ correct, par coïncidence orthographique |
+| `failure` | `failu…` **en orange** |
+| `cancelled` | `cance…` (GitHub met deux `l`) |
+| `in_progress` | `in_pr…` — ce que l'utilisateur a vu |
+| `queued`, `timed_out`, `neutral`, `action_required`, `stale` | brut, tronqué à six cellules |
+
+**Le pire n'est pas la troncature, c'est la couleur.** `pipelineStatusStyle`
+peint son `default:` en `StatusWarningStyle` : un build cassé se lisait comme
+une mise en garde, dans la seule colonne qui existe pour qu'un build cassé se
+voie. Le rouge n'était atteint que par le mot `failed`, que GitHub n'écrit
+jamais.
+
+#### Pourquoi rien ne l'a vu
+
+Le contrat n'était qu'un commentaire, et **deux tests figeaient le défaut comme
+intention** : `TestARunningWorkflowReportsItsStatus` affirmait
+`CIStatus == "in_progress"` — le mot de GitHub, pris pour celui de
+l'interface — et `TestPipelineStatusLabels` portait la ligne
+`{"scheduled", "scheduled"}, // unknown statuses fall through verbatim`.
+
+#### Le correctif
+
+Le vocabulaire devient une liste (`internal/forge/cistatus.go`) plutôt qu'une
+phrase : onze constantes et `CIStatuses()`, faite pour être parcourue par un
+test. Le backend GitHub traduit dessus (`ciStatusOf`), et **une valeur inconnue
+rend la chaîne vide** — ce que `Repository.CIStatus` documentait déjà pour un
+backend sans équivalent, et la différence entre une cellule vide et six
+caractères de l'orthographe interne d'une plateforme.
+
+Quatre issues GitHub n'ont pas de correspondant et sont repliées, chacune sur
+son argument : `timed_out` et `startup_failure` sur `failed` (GitLab tue un job
+en dépassement de temps en `failed`, donc c'est ce que GitLab aurait rapporté) ;
+`action_required` sur `manual` ; `neutral` et `stale` sur `skipped`, le seul
+gris que ce vocabulaire possède.
+
+#### Le second défaut, trouvé en écrivant le garde
+
+En parcourant `CIStatuses()` depuis la vue, `created` et `scheduled` — deux
+statuts que **GitLab** produit — tombaient eux aussi dans le `default:` et
+imprimaient leur propre nom. Le défaut n'était donc pas propre à GitHub : il
+était propre à un contrat que personne ne pouvait vérifier. Les deux rejoignent
+les trois autres façons qu'a un pipeline de n'avoir pas démarré.
+
+Les deux tests qui manquaient : `TestTheBackendOnlyEmitsDeclaredStatuses`
+refuse une sortie que `CIStatuses()` ne déclare pas ;
+`TestEveryDeclaredCIStatusHasAnIcon` refuse un statut dont la vue n'a pas de
+glyphe. Le `default:` de la vue survit aux deux — il est inatteignable pour un
+backend qui tient sa promesse, et c'est ce que doit heurter un backend qui ne la
+tient pas.
 
 **D65 — l'inventaire `:sec` affirmait « Nothing scanned yet » avant d'avoir lu
 les caches, puis affichait la liste. Corrigé.** Signalé à l'usage le

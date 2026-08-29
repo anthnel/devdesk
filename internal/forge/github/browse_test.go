@@ -240,7 +240,7 @@ func TestADecoratedListingResolvesTheUserOnce(t *testing.T) {
 	if got := children.Repositories[0].Role; got != "Maintainer" {
 		t.Errorf("role = %q, want Maintainer — `maintain` is the permission the fake grants", got)
 	}
-	if got := children.Repositories[0].CIStatus; got != "success" {
+	if got := children.Repositories[0].CIStatus; got != forge.CIStatusSuccess {
 		t.Errorf("CI status = %q, want the last run's conclusion", got)
 	}
 }
@@ -271,6 +271,9 @@ func TestPermissionFlagsBecomeAWord(t *testing.T) {
 // TestARunningWorkflowReportsItsStatus — a run in flight has no conclusion, and
 // falling through to "" would make a repository whose build is running read as
 // having no CI at all.
+//
+// It used to assert the raw "in_progress", which is how D66 stayed invisible:
+// the test pinned GitHub's own word as if it were the interface's.
 func TestARunningWorkflowReportsItsStatus(t *testing.T) {
 	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -290,8 +293,8 @@ func TestARunningWorkflowReportsItsStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Children() error = %v", err)
 	}
-	if got := children.Repositories[0].CIStatus; got != "in_progress" {
-		t.Errorf("CI status = %q, want the run's status when it has no conclusion", got)
+	if got := children.Repositories[0].CIStatus; got != forge.CIStatusRunning {
+		t.Errorf("CI status = %q, want %q — the run's status, translated", got, forge.CIStatusRunning)
 	}
 }
 
@@ -394,5 +397,103 @@ func childrenHandler(w http.ResponseWriter, r *http.Request) {
 		]`)
 	default:
 		_, _ = w.Write([]byte(`[{"login":"acme","name":"Acme"}]`))
+	}
+}
+
+// ── D66 : GitHub's words are not the interface's ─────────────────────────────
+
+// Every value GitHub Actions can report, and what it becomes. The table is the
+// documentation: a mapping argued in a comment and unchecked is what let
+// `failure` reach the CI column as `failu…` for the life of the GitHub backend.
+func TestEveryActionsOutcomeBecomesADeclaredStatus(t *testing.T) {
+	for _, tc := range []struct {
+		conclusion, status, want string
+	}{
+		// Conclusions — a finished run carries `completed` as its status, which
+		// is why the status half of every one of these is ignored.
+		{"success", "completed", forge.CIStatusSuccess},
+		{"failure", "completed", forge.CIStatusFailed},
+		{"timed_out", "completed", forge.CIStatusFailed},
+		{"startup_failure", "completed", forge.CIStatusFailed},
+		{"cancelled", "completed", forge.CIStatusCanceled},
+		{"action_required", "completed", forge.CIStatusManual},
+		{"skipped", "completed", forge.CIStatusSkipped},
+		{"neutral", "completed", forge.CIStatusSkipped},
+		{"stale", "completed", forge.CIStatusSkipped},
+
+		// Run states — read only when there is no conclusion yet.
+		{"", "in_progress", forge.CIStatusRunning},
+		{"", "queued", forge.CIStatusPending},
+		{"", "requested", forge.CIStatusPending},
+		{"", "waiting", forge.CIStatusPending},
+		{"", "pending", forge.CIStatusPending},
+
+		// Nothing to say. An empty cell, never GitHub's own spelling.
+		{"", "", ""},
+		{"", "completed", ""},
+		{"", "a_status_github_has_not_invented_yet", ""},
+		{"a_conclusion_github_has_not_invented_yet", "completed", ""},
+	} {
+		if got := ciStatusOf(tc.conclusion, tc.status); got != tc.want {
+			t.Errorf("ciStatusOf(%q, %q) = %q, want %q", tc.conclusion, tc.status, got, tc.want)
+		}
+	}
+}
+
+// The conclusion wins over the status, and this is why the mapper takes both:
+// a completed run carries `completed` in one field and the verdict in the
+// other, so reading either alone loses half the answer.
+func TestAConclusionOutranksTheRunState(t *testing.T) {
+	if got := ciStatusOf("failure", "completed"); got != forge.CIStatusFailed {
+		t.Errorf("ciStatusOf(failure, completed) = %q, want %q", got, forge.CIStatusFailed)
+	}
+	if got := ciStatusOf("", "in_progress"); got != forge.CIStatusRunning {
+		t.Errorf("a run with no conclusion should fall back to its status, got %q", got)
+	}
+}
+
+// Nothing this backend emits may be a word the interface has not declared. That
+// is the whole of D66 stated as an invariant: the previous code passed GitHub's
+// vocabulary through untouched, and no test could see it because no test knew
+// what the vocabulary was.
+func TestTheBackendOnlyEmitsDeclaredStatuses(t *testing.T) {
+	declared := map[string]bool{}
+	for _, status := range forge.CIStatuses() {
+		declared[status] = true
+	}
+
+	for _, table := range []map[string]string{ciConclusions, ciRunStates} {
+		for from, to := range table {
+			if !declared[to] {
+				t.Errorf("%q maps to %q, which forge.CIStatuses() does not declare", from, to)
+			}
+		}
+	}
+}
+
+// A failed build must not read as a warning. This is the symptom the user saw
+// in the other direction — an unmapped value reaching the view — and the reason
+// the fix belongs here rather than in a wider switch upstream.
+func TestAFailedRunIsReportedAsFailed(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/api/v3/user"):
+			_, _ = w.Write([]byte(`{"login":"ada","name":"Ada"}`))
+		case strings.Contains(r.URL.Path, "/actions/runs"):
+			_, _ = w.Write([]byte(`{"total_count":1,"workflow_runs":[{"id":1,"status":"completed","conclusion":"failure"}]}`))
+		case strings.Contains(r.URL.Path, "/memberships/"):
+			_, _ = w.Write([]byte(`{"role":"member"}`))
+		default:
+			_, _ = w.Write([]byte(`[{"name":"api","full_name":"acme/api","owner":{"login":"acme"},"permissions":{"push":true}}]`))
+		}
+	})
+
+	children, err := fake.forge(t).Children(context.Background(), "acme",
+		forge.BrowseOptions{IncludeArchived: true, Decorated: true})
+	if err != nil {
+		t.Fatalf("Children() error = %v", err)
+	}
+	if got := children.Repositories[0].CIStatus; got != forge.CIStatusFailed {
+		t.Errorf("CI status = %q, want %q — GitHub says \"failure\"", got, forge.CIStatusFailed)
 	}
 }

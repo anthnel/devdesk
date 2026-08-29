@@ -176,6 +176,54 @@ icon, its URL example and two field labels; and `CreationForm`'s two resource
 types.
 
 
+## The CI status vocabulary (D66)
+
+`Repository.CIStatus` is a **closed set of words, and it is GitLab's**:
+`created`, `waiting_for_resource`, `preparing`, `pending`, `running`,
+`success`, `failed`, `canceled`, `skipped`, `manual`, `scheduled`. They are
+declared in `internal/forge/cistatus.go` and listed by `CIStatuses()`.
+
+The choice is historical rather than principled — GitLab was the only backend
+when the field was added, so its own word went straight into the explorer's CI
+column. Keeping it is still right: eleven values against GitHub's nine, and it
+separates "queued" from "not started", so translating GitHub onto it loses less
+than the reverse would.
+
+**A promise that only a comment made was not kept.** `lastWorkflowConclusion`
+claimed to return "the same words the GitLab backend reports" and returned
+GitHub's: of the nine outcomes Actions can produce, only `success` and `skipped`
+happen to be spelled the same. `failure`, `cancelled` and `in_progress` reached
+the CI column as raw text truncated to its six cells — `failu…`, `cance…`,
+`in_pr…` — and, worse, coloured by `pipelineStatusStyle`'s default branch, which
+is the **warning** style. A broken build read as a caution, in the one column
+that exists to make a broken build obvious.
+
+Four GitHub outcomes have no counterpart and are folded rather than dropped,
+each on its own argument:
+
+| GitHub | becomes | why |
+|---|---|---|
+| `timed_out`, `startup_failure` | `failed` | GitLab kills a timed-out job as `failed`; folding reports what GitLab would have |
+| `action_required` | `manual` | a run waiting for an approval is exactly what GitLab calls manual |
+| `neutral`, `stale` | `skipped` | GitHub renders both the way it renders skipped, and skipped is the only grey this set has |
+| `queued`, `requested`, `waiting`, `pending` | `pending` | GitLab's four pre-run states differ to a scheduler, not to a reader |
+
+**An unrecognised value becomes the empty string, never itself.** That is what
+`Repository.CIStatus` documents for a value a backend has no equivalent for, and
+it is the difference between an empty cell and six characters of a platform's
+internal spelling.
+
+**Two tests hold the contract, and neither existed before.**
+`TestTheBackendOnlyEmitsDeclaredStatuses` walks the GitHub mapping tables and
+refuses an output `CIStatuses()` does not declare;
+`TestEveryDeclaredCIStatusHasAnIcon` walks the same list from the view and
+refuses a status `pipelineStatusLabel` has no glyph for. The second is what
+found the GitLab half of the defect: `created` and `scheduled` were missing from
+that switch and printed their own names too.
+
+The view's `default:` branch survives both. It is unreachable for a backend that
+keeps the promise, and it is what a backend that breaks it should hit — a
+truncated word is a bad answer, and no answer at all is worse.
 ## The explorer table (§3.56)
 
 Eight columns, in this order: **icon, Name, Slug, Visibility, Role, CI, Created,

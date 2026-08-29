@@ -311,25 +311,40 @@ func visibilityLabel(node *TreeNode) string {
 	}
 }
 
-// pipelineStatusLabel returns a status icon for the last CI pipeline
+// pipelineStatusLabel returns a status icon for the last CI pipeline.
+//
+// Every value forge.CIStatuses() declares has a case here, and
+// TestEveryDeclaredCIStatusHasAnIcon walks that list to prove it. The default
+// branch is therefore unreachable for a backend that keeps its promise — it
+// stays because a backend that breaks it should still render *something*, and
+// because that is how D66 was found: `created` and `scheduled` were missing
+// from this switch, so a GitLab pipeline in either state printed its own name
+// truncated to six cells.
+//
+// It switches on the constants rather than on literals so the two lists cannot
+// drift again in silence: a renamed status stops compiling here.
 func pipelineStatusLabel(node *TreeNode) string {
 	if node.Type != NodeTypeProject || node.PipelineStatus == "" {
 		return ""
 	}
 	switch node.PipelineStatus {
-	case "success":
+	case forge.CIStatusSuccess:
 		return theme.IconOK
-	case "failed":
+	case forge.CIStatusFailed:
 		return theme.IconError
-	case "running":
+	case forge.CIStatusRunning:
 		return theme.IconRunning
-	case "pending", "waiting_for_resource", "preparing":
+	// The five ways a pipeline can have not started yet. They share one glyph
+	// because the difference between them is the scheduler's business, not the
+	// reader's: all five answer "nothing has run".
+	case forge.CIStatusPending, forge.CIStatusWaitingForResource, forge.CIStatusPreparing,
+		forge.CIStatusCreated, forge.CIStatusScheduled:
 		return theme.IconPending
-	case "canceled":
+	case forge.CIStatusCanceled:
 		return theme.IconCanceled
-	case "skipped":
+	case forge.CIStatusSkipped:
 		return theme.IconSkipped
-	case "manual":
+	case forge.CIStatusManual:
 		return theme.IconManual
 	default:
 		return node.PipelineStatus

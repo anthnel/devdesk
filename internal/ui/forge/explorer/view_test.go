@@ -454,8 +454,15 @@ func TestPipelineStatusLabels(t *testing.T) {
 		{"canceled", theme.IconCanceled},
 		{"skipped", theme.IconSkipped},
 		{"manual", theme.IconManual},
-		{"scheduled", "scheduled"}, // unknown statuses fall through verbatim
+		// `created` and `scheduled` are GitLab's, and they used to fall through
+		// verbatim — this line asserted the defect (D66). They join the four
+		// other ways a pipeline has not started yet.
+		{"created", theme.IconPending},
+		{"scheduled", theme.IconPending},
 		{"", ""},
+		// A backend that breaks the contract still renders something, which is
+		// the only reason the default branch survives.
+		{"not_a_status", "not_a_status"},
 	}
 
 	for _, tt := range tests {
@@ -719,6 +726,58 @@ func TestTheHelpNamesTheRowGlyphs(t *testing.T) {
 	} {
 		if !strings.Contains(legend, want) {
 			t.Errorf("the Row Icons legend does not mention %q:\n%s", want, legend)
+		}
+	}
+}
+
+// ── D66 : every status a backend may report reaches a glyph ──────────────────
+
+// The guard D66 did not have. A value missing from pipelineStatusLabel's switch
+// falls through to its default and prints its own name, truncated to the six
+// cells the CI column has — which is how `in_progress` reached the screen as
+// `in_pr…`.
+//
+// It walks forge.CIStatuses() rather than a list written here, so a status
+// added to the interface fails this test until the view has an answer for it.
+func TestEveryDeclaredCIStatusHasAnIcon(t *testing.T) {
+	for _, status := range forge.CIStatuses() {
+		node := &TreeNode{Type: NodeTypeProject, PipelineStatus: status}
+		got := pipelineStatusLabel(node)
+
+		if got == status {
+			t.Errorf("status %q falls through to the default branch and prints itself", status)
+		}
+		if got == "" {
+			t.Errorf("status %q renders an empty cell, which means no pipeline at all", status)
+		}
+		if lipgloss.Width(got) > 2 {
+			t.Errorf("status %q renders %q, which is wider than a glyph", status, got)
+		}
+	}
+}
+
+// Rule 122: the CI cell is measured before it is styled, so it carries no
+// escape sequence — the colour is pipelineStatusStyle's job.
+func TestTheCIStatusCellsCarryNoEscapeSequence(t *testing.T) {
+	for _, status := range forge.CIStatuses() {
+		cell := pipelineStatusLabel(&TreeNode{Type: NodeTypeProject, PipelineStatus: status})
+		if strings.Contains(cell, "\x1b") {
+			t.Errorf("the CI cell for %q carries an escape sequence: %q", status, cell)
+		}
+	}
+}
+
+// A failed pipeline is red, and nothing else in the vocabulary is. This is the
+// half of D66 that made it worth fixing rather than tidying: a GitHub `failure`
+// used to reach the default branch and be painted with the *warning* style, so
+// a broken build looked like a caution.
+func TestOnlyAFailedPipelineIsRed(t *testing.T) {
+	for _, status := range forge.CIStatuses() {
+		style := pipelineStatusStyle(&TreeNode{Type: NodeTypeProject, PipelineStatus: status})
+		isError := style.GetForeground() == theme.StatusErrorStyle.GetForeground()
+
+		if want := status == forge.CIStatusFailed; isError != want {
+			t.Errorf("status %q renders red=%v, want %v", status, isError, want)
 		}
 	}
 }
