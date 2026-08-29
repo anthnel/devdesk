@@ -28,11 +28,11 @@ func TestAScanningImageGreysItsRowActionsInsteadOfReplacingThem(t *testing.T) {
 	settled := testutil.ShortcutKeys(idle.GetShortcuts())
 
 	m := loadedModel(t)
-	m.scanningImages[selectedImageName(t, m)] = true
+	m = scanning(t, m, selectedImageName(t, m))
 
-	scanning := testutil.ShortcutKeys(m.GetShortcuts())
-	if strings.Join(scanning, " ") != strings.Join(settled, " ") {
-		t.Errorf("a scanning row advertises %v, want the same keys as an idle one %v", scanning, settled)
+	keys := testutil.ShortcutKeys(m.GetShortcuts())
+	if strings.Join(keys, " ") != strings.Join(settled, " ") {
+		t.Errorf("a scanning row advertises %v, want the same keys as an idle one %v", keys, settled)
 	}
 
 	for _, key := range []string{keymap.New, keymap.Scan, keymap.Delete} {
@@ -57,7 +57,7 @@ func TestARowActionOnAScanningImageSaysWhyItDeclined(t *testing.T) {
 	for _, key := range []string{keymap.New, keymap.Scan, keymap.Delete} {
 		t.Run(key, func(t *testing.T) {
 			m := loadedModel(t)
-			m.scanningImages[selectedImageName(t, m)] = true
+			m = scanning(t, m, selectedImageName(t, m))
 
 			next, _ := step(t, m, testutil.Key(key))
 
@@ -80,7 +80,7 @@ func TestARowActionOnAScanningImageSaysWhyItDeclined(t *testing.T) {
 // step with theme/icons.go.
 func TestNoShortcutAdvertisesAGlyphAsAKey(t *testing.T) {
 	m := loadedModel(t)
-	m.scanningImages[selectedImageName(t, m)] = true
+	m = scanning(t, m, selectedImageName(t, m))
 
 	for _, s := range m.GetShortcuts() {
 		for _, r := range s.Key {

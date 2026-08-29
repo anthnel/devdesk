@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/spinner"
-
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -33,6 +31,12 @@ func TestAScanningRowCarriesNoEscapeSequence(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := tc.run(t, inventoryModel(t, verdictFixtures()...))
+			// The router marks the rows; here the snapshot stands in for it.
+			names := make([]string, 0, len(m.inventory.Items()))
+			for _, target := range m.inventory.Items() {
+				names = append(names, target.Name)
+			}
+			m = scanning(t, m, names...)
 
 			var scanning int
 			for _, row := range m.inventory.Table().Rows() {
@@ -60,10 +64,11 @@ func TestAScanningRowCarriesNoEscapeSequence(t *testing.T) {
 // freezes it even while the chain keeps ticking.
 func TestTheScanSpinnerAdvancesOnTheRows(t *testing.T) {
 	m := inventoryModel(t, verdictFixtures()...)
-	m, _ = step(t, m, testutil.Key(keymap.Scan))
+	run := scanningRun(m.inventory.Items()[0].Name)
+	m = withFrame(t, m, "one", run)
 
 	first := scanningCell(t, m)
-	m = feed(t, m, spinner.TickMsg{})
+	m = withFrame(t, m, "two", run)
 
 	if second := scanningCell(t, m); second == first {
 		t.Errorf("the frame stayed at %q across a tick, so the row reads as hung", first)

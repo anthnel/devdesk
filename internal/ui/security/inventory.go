@@ -6,13 +6,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/forge/session"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -100,13 +100,14 @@ func (m Model) rescanSelected() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(rescan.Reason)
 	}
 	target, _ := m.inventory.Selected()
-	if target.Scanning {
+	if m.scanningTarget(target.Name) {
 		return m, m.footer.Warn("Scan already in progress")
 	}
-	tick := m.spinnerTickIfIdle()
-	m.markScanning([]string{target.Name}, false)
 	job := inventoryScanJob{Kind: target.Kind, Name: target.Name}
-	return m, tea.Batch(tick, rescanCmd([]inventoryScanJob{job}, m.scanOptions()))
+	return m, jobs.Start(
+		m.scanRun([]string{target.Name}),
+		rescanCmd([]inventoryScanJob{job}, m.scanOptions()),
+	)
 }
 
 // spinnerTickIfIdle restarts the spinner chain, unless something is already
@@ -120,13 +121,13 @@ func (m Model) spinnerTickIfIdle() tea.Cmd {
 	return m.spinner.Tick
 }
 
-// spinnerAlive is the one predicate deciding whether the frames keep coming:
-// handleSpinnerTick reads it to schedule the next one, spinnerTickIfIdle to
-// refuse starting a second chain. Two conditions answer it — a rescan stamping
-// rows, and a load spinning in the footer — and asking them separately in the
-// two places is what would let one restart a chain the other is running.
+// spinnerAlive decides whether this view's own frames keep coming.
+//
+// One condition answers it now: a load. A rescan used to be the other, and
+// keeping it here would be a second chain beside the router's — which is the
+// failure D5 removed, not one to reintroduce a view at a time.
 func (m Model) spinnerAlive() bool {
-	return m.inventoryLoading || m.inventoryScanning()
+	return m.inventoryLoading
 }
 
 // reloadInventory re-reads the caches and says so in the footer.
@@ -175,26 +176,33 @@ func (m Model) rescanAll(purge bool) (tea.Model, tea.Cmd) {
 	if len(targets) == 0 {
 		return m, nil
 	}
-	jobs := make([]inventoryScanJob, 0, len(targets))
+	queue := make([]inventoryScanJob, 0, len(targets))
 	names := make([]string, 0, len(targets))
 	for _, t := range targets {
-		jobs = append(jobs, inventoryScanJob{Kind: t.Kind, Name: t.Name})
+		queue = append(queue, inventoryScanJob{Kind: t.Kind, Name: t.Name})
 		names = append(names, t.Name)
 	}
-	tick := m.spinnerTickIfIdle()
-	m.markScanning(names, purge)
-	cmds := []tea.Cmd{tick}
+	// The purge is a local edit: it blanks the counts a scan is about to
+	// replace, so a purged row prints "-" rather than a number nobody should
+	// read. What is *running* is the registry's business, and no longer this
+	// function's.
 	if purge {
-		cmds = append(cmds, purgeInventoryCmd(jobs))
+		m.purgeCounts(names)
 	}
-	cmds = append(cmds, rescanCmd(jobs, m.scanOptions()))
+	var cmds []tea.Cmd
+	if purge {
+		cmds = append(cmds, purgeInventoryCmd(queue))
+	}
+	cmds = append(cmds, jobs.Start(m.scanRun(names), rescanCmd(queue, m.scanOptions())))
 	return m, tea.Batch(cmds...)
 }
 
-// markScanning flags the named rows as scanning. purge also clears their counts,
-// which is what makes a purged row print "-" rather than the number a scan is
-// about to replace.
-func (m *Model) markScanning(names []string, purge bool) {
+// purgeCounts blanks the counts of the named rows, which is what makes a purged
+// row print "-" rather than the number a scan is about to replace.
+//
+// It no longer sets a scanning flag: that is derived from the registry now, and
+// a second writer would be a second answer to the same question.
+func (m *Model) purgeCounts(names []string) {
 	wanted := make(map[string]bool, len(names))
 	for _, n := range names {
 		wanted[n] = true
@@ -203,12 +211,9 @@ func (m *Model) markScanning(names []string, purge bool) {
 	updated := make([]scanTarget, len(targets))
 	for i, t := range targets {
 		if wanted[t.Name] {
-			t.Scanning = true
 			t.Failed = false
-			if purge {
-				t.Scanned = false
-				t.Counts = scan.SeverityCounts{}
-			}
+			t.Scanned = false
+			t.Counts = scan.SeverityCounts{}
 		}
 		updated[i] = t
 	}
@@ -228,23 +233,14 @@ func (m Model) goHome() (tea.Model, tea.Cmd) {
 
 // handleInventoryLoaded installs the targets read from the caches.
 //
-// Rows currently being rescanned keep their in-flight state: the cache says
-// nothing about a scan that has not finished writing to it, so a refresh landing
-// mid-rescan would otherwise clear the spinner and leave the row looking settled.
+// It used to carry the in-flight rows across by hand — the cache says nothing
+// about a scan that has not finished writing to it, so a refresh landing
+// mid-rescan cleared the spinner and left the row looking settled. That
+// reconciliation is gone rather than fixed: what is running is derived from the
+// registry in setInventory, so there is nothing here to preserve.
 func (m Model) handleInventoryLoaded(msg InventoryLoadedMsg) (tea.Model, tea.Cmd) {
-	inFlight := make(map[string]bool)
-	for _, t := range m.inventory.Items() {
-		if t.Scanning {
-			inFlight[t.Name] = true
-		}
-	}
-	targets := make([]scanTarget, len(msg.Targets))
-	for i, t := range msg.Targets {
-		t.Scanning = inFlight[t.Name]
-		targets[i] = t
-	}
 	m.inventoryLoading = false
-	m.setInventory(targets)
+	m.setInventory(msg.Targets)
 	return m, nil
 }
 
@@ -272,7 +268,6 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 	updated := make([]scanTarget, len(targets))
 	for i, t := range targets {
 		if t.Name == msg.Name {
-			t.Scanning = false
 			t.Failed = msg.Err != nil
 			if msg.Err == nil {
 				t.Scanned = true
@@ -302,7 +297,11 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 // visible sign it was running. oci_resources and workspaces already stamp the
 // bare frame; this was the one that did not.
 func (m *Model) setInventory(targets []scanTarget) {
-	frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
+	// The frame comes from the registry, which holds the one chain that
+	// animates work (D5). spinnerFrameIdx is this view's own and animates the
+	// *load* of the caches, which is not a job.
+	frame := m.jobFrame
+	scanning := m.scanningTargets()
 	// The alias is stamped here for the same reason as the frame, and it is the
 	// only place that can: the rows come from a Cmd, which must not read the
 	// model, and the Target column is built once in New with nothing to reach.
@@ -310,6 +309,7 @@ func (m *Model) setInventory(targets []scanTarget) {
 	stamped := make([]scanTarget, len(targets))
 	for i, t := range targets {
 		t.SpinnerFrame = frame
+		t.Scanning = scanning[t.Name]
 		if t.Kind == kindImage {
 			t.Display = docker.ApplyAliases(t.Name, aliases)
 		}
@@ -318,11 +318,15 @@ func (m *Model) setInventory(targets []scanTarget) {
 	m.inventory.SetItems(stamped)
 }
 
-// inventoryScanning reports whether any row is being rescanned, which is what
-// keeps the spinner ticking outside StateScanning.
+// inventoryScanning reports whether any row is being rescanned.
+//
+// It answers from the registry, so it is true for a scan started in `ws` or on
+// the images tab as well: the inventory lists exactly what those two scan, and
+// a rescan launched there is the same work on the same cache entry.
 func (m Model) inventoryScanning() bool {
+	scanning := m.scanningTargets()
 	for _, t := range m.inventory.Items() {
-		if t.Scanning {
+		if scanning[t.Name] {
 			return true
 		}
 	}

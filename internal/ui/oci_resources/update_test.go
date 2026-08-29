@@ -8,8 +8,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -211,37 +213,55 @@ func TestSearchModeSwallowsViewShortcuts(t *testing.T) {
 // ── Images: scanning ─────────────────────────────────────────────────────────
 
 // A scan in flight marks its row, so the user can tell a stale count from one
-// being recomputed.
+// being recomputed. The mark comes from the registry snapshot now, so this is
+// the view's half: it reads the snapshot, and it caches the result.
 func TestScanProgressMarksTheRow(t *testing.T) {
-	m := feed(t, loadedModel(t), ImageScanStartingMsg{ImageName: "web:v3"})
+	m := scanning(t, loadedModel(t), "web:v3")
 
-	if !m.scanningImages["web:v3"] {
-		t.Error("the image is not marked as scanning")
+	if !m.scanningImage("web:v3") {
+		t.Error("the image does not read as scanning")
 	}
 
+	m = withJobs(t, m, settledScanRun("web:v3"))
 	m = feed(t, m, ImageScanFinishedMsg{
 		ImageName: "web:v3",
 		Entry:     cache.ImageScanEntry{Critical: 1, ScannedAt: at(3)},
 	})
 
-	if m.scanningImages["web:v3"] {
-		t.Error("the image is still marked as scanning after it finished")
+	if m.scanningImage("web:v3") {
+		t.Error("the image still reads as scanning after it finished")
 	}
 	if got := m.scanCache["web:v3"]; got.Critical != 1 {
 		t.Errorf("the cache entry = %+v, want the scan result", got)
 	}
 }
 
+// The registry is one bookkeeping, so a scan started in another view marks the
+// row here. The two would otherwise write the same cache entry — which is what
+// the per-view map allowed.
+func TestAScanStartedElsewhereMarksTheRow(t *testing.T) {
+	fromSecurity := jobs.NewRun(jobs.KindScan, command.ViewSecurity, "default", "inventory", "web:v3")
+	fromSecurity.Items[0].State = jobs.ItemRunning
+
+	m := withJobs(t, loadedModel(t), fromSecurity)
+
+	if !m.scanningImage("web:v3") {
+		t.Error("a scan started from the security view is invisible here")
+	}
+	if !m.anyScanRunning() {
+		t.Error("the view reports itself idle while a scan runs on one of its images")
+	}
+}
+
 // A failed scan is distinct from an unscanned one: the row says the scan was
 // tried and did not work, rather than silently staying blank.
 func TestAFailedScanIsRemembered(t *testing.T) {
-	m := feed(t, loadedModel(t),
-		ImageScanStartingMsg{ImageName: "web:v3"},
-		ImageScanFinishedMsg{ImageName: "web:v3", Err: errors.New("trivy: exit status 1")},
-	)
+	m := scanning(t, loadedModel(t), "web:v3")
+	m = withJobs(t, m, settledScanRun("web:v3"))
+	m = feed(t, m, ImageScanFinishedMsg{ImageName: "web:v3", Err: errors.New("trivy: exit status 1")})
 
-	if m.scanningImages["web:v3"] {
-		t.Error("a failed scan left the row marked as scanning")
+	if m.scanningImage("web:v3") {
+		t.Error("a failed scan left the row reading as scanning")
 	}
 	if !m.failedScans["web:v3"] {
 		t.Error("the failure was not recorded")
@@ -252,19 +272,22 @@ func TestAFailedScanIsRemembered(t *testing.T) {
 }
 
 // Rule 126: A with the purge unchecked scans only what has never been scanned,
-// so pressing it twice does not redo work. The command it returns runs Trivy, so
-// the assertion is on the flag it sets — and on the branch where there is
-// nothing left to do.
+// so pressing it twice does not redo work. The assertion is on the run it asks
+// the router to register — reading the command runs it, and what it registers is
+// exactly the list.
 func TestScanAllUnscannedSkipsWhatIsCached(t *testing.T) {
 	m := loadedModel(t)
 
-	m, cmd := scanAll(t, m, false)
+	_, cmd := scanAll(t, m, false)
 
-	if !m.scanning {
-		t.Error("'A' did not start a batch scan while two images were unscanned")
+	run := wantScanRun(t, cmd)
+	if len(run.Items) == 0 {
+		t.Error("'A' did not queue anything while images were unscanned")
 	}
-	if cmd == nil {
-		t.Error("'A' issued no command")
+	for _, item := range run.Items {
+		if item.State != jobs.ItemQueued {
+			t.Errorf("%s starts as %q, want every target queued (D6)", item.Target, item.State)
+		}
 	}
 }
 
@@ -277,10 +300,10 @@ func TestScanAllUnscannedWithNothingLeft(t *testing.T) {
 		"web:v3": {ScannedAt: at(3)}, "orphan": {ScannedAt: at(4)},
 	}
 
-	m, _ = scanAll(t, m, false)
+	m, cmd := scanAll(t, m, false)
 
-	if m.scanning {
-		t.Error("'A' started a batch scan with nothing left to scan")
+	if _, started := startedScanRun(cmd); started {
+		t.Error("'A' registered a batch with nothing left to scan")
 	}
 	if !m.footer.IsSet() {
 		t.Error("'A' said nothing when there was nothing to do")
@@ -292,8 +315,7 @@ func TestScanAllIgnoredWhileABatchRuns(t *testing.T) {
 	// This test drains the Cmd, and the footer timer inside it really sleeps.
 	testutil.FastTimers(t, &sharedcomponents.FooterMsgDuration)
 
-	m := loadedModel(t)
-	m.scanning = true
+	m := scanning(t, loadedModel(t), "web:v3")
 
 	m, cmd := step(t, m, testutil.Key(keymap.ScanAll))
 
@@ -318,8 +340,8 @@ func TestScanAllPurgesTheCacheFirst(t *testing.T) {
 	if len(m.scanCache) != 0 {
 		t.Errorf("the in-memory cache still holds %v", m.scanCache)
 	}
-	if cmd == nil {
-		t.Error("the purging scan issued no commands")
+	if run := wantScanRun(t, cmd); len(run.Items) == 0 {
+		t.Error("the purging scan queued nothing")
 	}
 }
 
@@ -328,10 +350,10 @@ func TestDecliningTheScanAllConfirmationDoesNothing(t *testing.T) {
 	m := loadedModel(t)
 
 	m, _ = step(t, m, testutil.Key(keymap.ScanAll))
-	m, cmd := step(t, m, sharedcomponents.OptionConfirmModalNoMsg{})
+	_, cmd := step(t, m, sharedcomponents.OptionConfirmModalNoMsg{})
 
-	if m.scanning {
-		t.Error("declining still started a scan")
+	if _, started := startedScanRun(cmd); started {
+		t.Error("declining still registered a scan")
 	}
 	if cmd != nil {
 		t.Errorf("declining issued %T", testutil.Msg(cmd))
@@ -357,7 +379,7 @@ func TestEnterAsksForTheCachedDetails(t *testing.T) {
 // An image being scanned has no stable state to act on, so the destructive and
 // configuring keys are inert until it finishes.
 func TestKeysAreInertWhileTheSelectedImageScans(t *testing.T) {
-	m := feed(t, loadedModel(t), ImageScanStartingMsg{ImageName: "api:v1"})
+	m := scanning(t, loadedModel(t), "api:v1")
 
 	for _, key := range []string{keymap.New, keymap.Delete, keymap.Scan} {
 		next := feed(t, m, testutil.Key(key))
@@ -707,17 +729,11 @@ func TestSlashDoesNothingOnTheResourceTabs(t *testing.T) {
 // the row is still in the list, and the scan that replaces it belongs here, next
 // to the cache it writes. The name is both the cache key and the scan target.
 func TestAScanRequestRescansTheNamedImage(t *testing.T) {
-	next, cmd := step(t, loadedModel(t), ScanRequestMsg{ImageName: "web:v3"})
+	_, cmd := step(t, loadedModel(t), ScanRequestMsg{ImageName: "web:v3"})
 
-	if !next.scanning {
-		t.Error("the view does not report a scan running")
-	}
-	starting, ok := testutil.MsgOf[ImageScanStartingMsg](cmd)
-	if !ok {
-		t.Fatal("the request started no scan")
-	}
-	if starting.ImageName != "web:v3" {
-		t.Errorf("scanning %q, want the requested image", starting.ImageName)
+	run := wantScanRun(t, cmd)
+	if len(run.Items) != 1 || run.Items[0].Target != "web:v3" {
+		t.Errorf("run targets = %+v, want the requested image alone", run.Items)
 	}
 }
 
@@ -731,7 +747,7 @@ func TestAnEmptyImageScanRequestDoesNothing(t *testing.T) {
 // queued, as ctrl+s on the row is.
 func TestAScanRequestForARunningImageScanIsRefused(t *testing.T) {
 	m := loadedModel(t)
-	m.scanningImages["web:v3"] = true
+	m = scanning(t, m, "web:v3")
 
 	if _, cmd := step(t, m, ScanRequestMsg{ImageName: "web:v3"}); cmd != nil {
 		t.Error("a duplicate request started a second scan")

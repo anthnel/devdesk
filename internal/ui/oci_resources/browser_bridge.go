@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/scan"
 )
@@ -85,11 +86,14 @@ func (m Model) handleRegistryPullComplete(msg RegistryPullCompleteMsg) (tea.Mode
 
 // handleRegistryTagDirectScan starts a direct remote Trivy scan without pulling the image.
 func (m Model) handleRegistryTagDirectScan(msg RegistryTagDirectScanMsg) (tea.Model, tea.Cmd) {
-	if m.scanningImages[msg.ImageName] {
+	if m.scanningImage(msg.ImageName) {
 		return m, m.footer.Warn("Scan already in progress")
 	}
 	job := imageScanJob{Name: msg.ImageName, Target: msg.ImageName}
-	return m, batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config))
+	return m, jobs.Start(
+		m.scanRun([]string{msg.ImageName}),
+		batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config)),
+	)
 }
 
 // unscannedCount returns the number of images not yet scanned

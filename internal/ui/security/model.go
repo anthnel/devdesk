@@ -8,6 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -50,6 +51,13 @@ type Model struct {
 	// table cell carries no escape sequence (Rule 122).
 	spinner         spinner.Model
 	spinnerFrameIdx int
+
+	// jobs is the router snapshot of everything running anywhere, and jobFrame
+	// the spinner frame that goes with it — bare, because it lands in a table
+	// cell (Rule 122). See jobs.go: scanTarget.Scanning is derived from it, so
+	// there is no in-flight state here to carry across a reload.
+	jobs     []jobs.Run
+	jobFrame string
 
 	// inventoryLoading is true while loadInventoryCmd is in flight. It exists
 	// because an empty table and a table that has not answered yet look the

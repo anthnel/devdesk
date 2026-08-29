@@ -737,7 +737,7 @@ func TestTagRowsCarryNoEscapeSequences(t *testing.T) {
 	b.SetScanCache(map[string]cache.ImageScanEntry{
 		b.selectedImageName(): {Critical: 3, High: 2, Medium: 1, ScannedAt: at(1)},
 	})
-	b.SetTagScanning("registry.example.com/api:v2", true)
+	b.SetTagScanningSet(map[string]bool{"registry.example.com/api:v2": true})
 
 	for _, row := range b.tagTable.Table().Rows() {
 		for col, cell := range row {
@@ -760,12 +760,12 @@ func TestTheSeverityColumnsShowCachedCountsAndScanProgress(t *testing.T) {
 		t.Errorf("severity cells = %v, want the cached counts", got[3:])
 	}
 
-	b.SetTagScanning(scanned, true)
+	b.SetTagScanningSet(map[string]bool{scanned: true})
 	if got := rowFor(t, b, scanned); got[3] == "3" {
 		t.Errorf("severity cells = %v, want the scan in progress to replace the counts", got[3:])
 	}
 
-	b.SetTagScanning(scanned, false)
+	b.SetTagScanningSet(nil)
 	if got := rowFor(t, b, scanned); got[3] != "3" {
 		t.Errorf("severity cells = %v, want the counts back once the scan finished", got[3:])
 	}

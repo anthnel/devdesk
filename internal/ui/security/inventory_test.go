@@ -10,6 +10,8 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -208,8 +210,11 @@ func TestEscFromAResultReturnsToTheInventoryAndReloadsIt(t *testing.T) {
 func TestRescanningOneRowMarksOnlyThatRow(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 
-	m, _ = step(t, m, testutil.Key(keymap.Scan))
+	m, cmd := step(t, m, testutil.Key(keymap.Scan))
 
+	wantScanRun(t, cmd, "nexus/api:1.4")
+
+	m = scanning(t, m, "nexus/api:1.4")
 	for _, target := range m.inventory.Items() {
 		wantScanning := target.Name == "nexus/api:1.4"
 		if target.Scanning != wantScanning {
@@ -227,7 +232,9 @@ func TestRescanningOneRowMarksOnlyThatRow(t *testing.T) {
 func TestRescanningAllPurgesTheCountsButKeepsTheTargets(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 
-	m, _ = scanAll(t, m, true)
+	m, cmd := scanAll(t, m, true)
+	wantScanRun(t, cmd, "nexus/api:1.4", "/home/dev/workspaces/devdesk")
+	m = scanning(t, m, "nexus/api:1.4", "/home/dev/workspaces/devdesk")
 
 	if len(m.inventory.Items()) != 2 {
 		t.Fatalf("%d rows after ctrl+a, want both targets kept", len(m.inventory.Items()))
@@ -261,8 +268,14 @@ func TestAPurgedRowPrintsNoCountRatherThanZero(t *testing.T) {
 func TestAFinishedRescanUpdatesItsRowAlone(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 	m, _ = scanAll(t, m, true)
+	m = scanning(t, m, "nexus/api:1.4", "/home/dev/workspaces/devdesk")
 	scannedAt := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 
+	// One target settles; the other is still running. The router applies the
+	// transition before handing the message on, so the snapshot comes first.
+	half := scanningRun("nexus/api:1.4", "/home/dev/workspaces/devdesk")
+	half.Items[0].State = jobs.ItemDone
+	m = withJobs(t, m, half)
 	m = feed(t, m, InventoryScanFinishedMsg{
 		Name:      "nexus/api:1.4",
 		Counts:    scan.SeverityCounts{Critical: 7},
@@ -287,8 +300,9 @@ func TestAFinishedRescanUpdatesItsRowAlone(t *testing.T) {
 
 func TestAFailedRescanMarksTheRowAndSaysSo(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
-	m, _ = step(t, m, testutil.Key(keymap.Scan))
+	m = scanning(t, m, "nexus/api:1.4")
 
+	m = withJobs(t, m, settledScanRun("nexus/api:1.4"))
 	m, cmd := step(t, m, InventoryScanFinishedMsg{Name: "nexus/api:1.4", Err: errors.New("no such image")})
 
 	target := m.inventory.Items()[0]
@@ -311,9 +325,12 @@ func TestAFailedRescanMarksTheRowAndSaysSo(t *testing.T) {
 // A reload landing mid-rescan must not clear the spinner: the cache says nothing
 // about a scan that has not finished writing to it, so the row would look
 // settled while its scan is still running.
+//
+// It used to be carried across by hand in handleInventoryLoaded. It is now
+// structural — the flag is derived from the registry in setInventory, so a
+// reload has nothing to clear — and that is what this pins.
 func TestAReloadDoesNotSettleARowStillBeingScanned(t *testing.T) {
-	m := inventoryModel(t, inventoryFixtures()...)
-	m, _ = step(t, m, testutil.Key(keymap.Scan))
+	m := scanning(t, inventoryModel(t, inventoryFixtures()...), "nexus/api:1.4")
 
 	m = feed(t, m, InventoryLoadedMsg{Targets: inventoryFixtures()})
 
@@ -324,16 +341,22 @@ func TestAReloadDoesNotSettleARowStillBeingScanned(t *testing.T) {
 	}
 }
 
-// Two concurrent chains make the frames advance at twice the rate.
-func TestASecondRescanDoesNotStartASecondSpinnerChain(t *testing.T) {
-	m := inventoryModel(t, inventoryFixtures()...)
+// The inventory lists exactly what `ws` and the images tab scan, so a rescan
+// launched from either of them is the same work on the same cache entry. The
+// per-view flag could not see it; the registry can.
+func TestAScanStartedElsewhereMarksTheInventoryRow(t *testing.T) {
+	fromWorkspaces := jobs.NewRun(jobs.KindScan, command.ViewWorkspaces, "default", "~/work", "/home/dev/workspaces/devdesk")
+	fromWorkspaces.Items[0].State = jobs.ItemRunning
 
-	if m.spinnerTickIfIdle() == nil {
-		t.Fatal("nothing is scanning, so the first rescan must start the spinner")
+	m := withJobs(t, inventoryModel(t, inventoryFixtures()...), fromWorkspaces)
+
+	if !m.inventoryScanning() {
+		t.Error("the inventory reports itself idle while one of its targets is being scanned")
 	}
-	m, _ = step(t, m, testutil.Key(keymap.Scan))
-	if m.spinnerTickIfIdle() != nil {
-		t.Error("a rescan was already running, so a second must not start another chain")
+	for _, target := range m.inventory.Items() {
+		if target.Name == "/home/dev/workspaces/devdesk" && !target.Scanning {
+			t.Error("a scan started from the workspaces view is invisible in the inventory")
+		}
 	}
 }
 
@@ -449,27 +472,26 @@ func TestInitLoadsTheInventory(t *testing.T) {
 // The spinner only advances while a rescan is running: SetItems re-filters and
 // re-sorts, and there is no reason to do that sixty times a second for a table
 // with nothing running.
-func TestTheSpinnerAdvancesOnlyWhileARescanRuns(t *testing.T) {
+// The scan frame comes from the router now, which holds the one chain for the
+// whole application (D5). The rows carry it, so a snapshot that moves the frame
+// has to restamp them — one that did not would freeze the spinner while the
+// chain kept ticking.
+func TestASnapshotRestampsTheScanningRowsWithItsFrame(t *testing.T) {
 	settled := inventoryModel(t, inventoryFixtures()...)
 	if _, cmd := step(t, settled, spinner.TickMsg{}); cmd != nil {
-		t.Error("a settled inventory scheduled another spinner frame")
+		t.Error("a settled inventory scheduled another spinner frame of its own")
 	}
 
-	scanning, _ := step(t, settled, testutil.Key(keymap.Scan))
-	before := scanning.spinner.View()
+	run := scanningRun("nexus/api:1.4")
+	m := withFrame(t, settled, "one", run)
+	m = withFrame(t, m, "two", run)
 
-	next, cmd := step(t, scanning, spinner.TickMsg{ID: scanning.spinner.ID()})
-
-	if cmd == nil {
-		t.Error("a running rescan did not schedule the next frame")
-	}
-	if next.spinner.View() == before {
-		t.Error("the frame did not advance, so the row reads as a hung scan")
-	}
-	// The rows carry the frame, so they have to be restamped with it.
-	for _, target := range next.inventory.Items() {
-		if target.Scanning && target.SpinnerFrame != next.spinner.View() {
-			t.Errorf("the scanning row still carries %q, want the new frame", target.SpinnerFrame)
+	for _, target := range m.inventory.Items() {
+		if target.Name != "nexus/api:1.4" {
+			continue
+		}
+		if target.SpinnerFrame != "two" {
+			t.Errorf("the scanning row carries %q, want the frame the snapshot brought", target.SpinnerFrame)
 		}
 	}
 }

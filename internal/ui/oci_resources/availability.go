@@ -32,7 +32,7 @@ func (m Model) imageActions() shortcut.Availability {
 	switch {
 	case img == nil:
 		return shortcut.Unavailable(reasonNoImage)
-	case m.scanningImages[img.Name()]:
+	case m.scanningImage(img.Name()):
 		return shortcut.Unavailable(reasonImageScanned)
 	}
 	return shortcut.Availability{}
