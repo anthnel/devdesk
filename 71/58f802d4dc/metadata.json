@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "7158f802d4dc",
+  "strategy": "manual-commit",
+  "branch": "feat/jobs-workspaces",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/workspaces.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/jobs.go",
+    "internal/app/jobs_test.go",
+    "internal/jobs/message.go",
+    "internal/jobs/registry.go",
+    "internal/ui/workspaces/actions.go",
+    "internal/ui/workspaces/availability_test.go",
+    "internal/ui/workspaces/columns.go",
+    "internal/ui/workspaces/commands.go",
+    "internal/ui/workspaces/jobs.go",
+    "internal/ui/workspaces/messages.go",
+    "internal/ui/workspaces/model.go",
+    "internal/ui/workspaces/model_test.go",
+    "internal/ui/workspaces/subrepos_test.go",
+    "internal/ui/workspaces/sync.go",
+    "internal/ui/workspaces/sync_test.go",
+    "internal/ui/workspaces/update.go",
+    "internal/ui/workspaces/view.go",
+    "internal/ui/workspaces/view_test.go",
+    "internal/ui/workspaces/workspaces_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/71/58f802d4dc/0/metadata.json",
+      "transcript": "/71/58f802d4dc/0/full.jsonl",
+      "compact_transcript": "/71/58f802d4dc/0/transcript.jsonl",
+      "content_hash": "/71/58f802d4dc/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 178,
+    "cache_creation_tokens": 141513,
+    "cache_read_tokens": 32320032,
+    "output_tokens": 81999,
+    "api_call_count": 89
+  }
+}
