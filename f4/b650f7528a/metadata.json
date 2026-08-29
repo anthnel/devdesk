@@ -3,7 +3,7 @@
   "checkpoint_id": "f4b650f7528a",
   "strategy": "manual-commit",
   "branch": "github-ci-vocabulary",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "docs/architecture/forge.md",
     "docs/backlog.md",
@@ -25,6 +25,13 @@
       "transcript": "/f4/b650f7528a/0/full.jsonl",
       "compact_transcript": "/f4/b650f7528a/0/transcript.jsonl",
       "content_hash": "/f4/b650f7528a/0/content_hash.txt",
+      "prompt": ""
+    },
+    {
+      "metadata": "/f4/b650f7528a/1/metadata.json",
+      "transcript": "/f4/b650f7528a/1/full.jsonl",
+      "compact_transcript": "/f4/b650f7528a/1/transcript.jsonl",
+      "content_hash": "/f4/b650f7528a/1/content_hash.txt",
       "prompt": ""
     }
   ],
