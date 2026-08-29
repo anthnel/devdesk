@@ -1,0 +1,25 @@
+continue
+
+---
+
+continue
+
+---
+
+Réordonne les colonnes de monitor certificates : Name, Host, Issuer, Status, Days Left, Expires
+
+---
+
+merge
+
+---
+
+merge
+
+---
+
+quand j'entre dans la vue sec il m'affiche qu'aucun scan n'a été fait, puis il m'affiche la liste des scans. Le datatable devrait être vide au lancement (ne pas contenir de texte), le footer doit afficher que le chargement est en cours, si aucun résultat le texte peut être affiché seulement à ce moment là
+
+---
+
+dans le même worktree aligne la vue sec avec la vue ws pour l'emplacement de l'icone, dans la vue ws l'icone est en première colonne sur deux caractères, il y a donc un espacement entre l'icone et la première colonne de texte. Il n'y a pas de titre sur la colonne d'icone. Applique ce pattern à la vue sec et c'est de cette manière qu'il faut afficher les datatables avec icones en première colonne
