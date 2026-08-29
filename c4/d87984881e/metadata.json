@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "c4d87984881e",
+  "strategy": "manual-commit",
+  "branch": "feat/jobs-sec-oci",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/scanning.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/jobs_test.go",
+    "internal/app/router_test.go",
+    "internal/ui/oci_resources/availability.go",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/browser_search_test.go",
+    "internal/ui/oci_resources/browser_state.go",
+    "internal/ui/oci_resources/images.go",
+    "internal/ui/oci_resources/jobs.go",
+    "internal/ui/oci_resources/jobs_test.go",
+    "internal/ui/oci_resources/model.go",
+    "internal/ui/oci_resources/shortcuts_test.go",
+    "internal/ui/oci_resources/table.go",
+    "internal/ui/oci_resources/update.go",
+    "internal/ui/oci_resources/update_test.go",
+    "internal/ui/security/inventory.go",
+    "internal/ui/security/inventory_commands.go",
+    "internal/ui/security/inventory_test.go",
+    "internal/ui/security/jobs.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/rule122_test.go",
+    "internal/ui/security/security_jobs_test.go",
+    "internal/ui/security/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c4/d87984881e/0/metadata.json",
+      "transcript": "/c4/d87984881e/0/full.jsonl",
+      "compact_transcript": "/c4/d87984881e/0/transcript.jsonl",
+      "content_hash": "/c4/d87984881e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 120,
+    "cache_creation_tokens": 83740,
+    "cache_read_tokens": 28316111,
+    "output_tokens": 46441,
+    "api_call_count": 60
+  }
+}
