@@ -1,7 +1,6 @@
 package workspaces
 
 import (
-	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -166,7 +165,7 @@ func gitStatusStyle(r workspaceRow) lipgloss.Style {
 
 // rowsFor decorates the entries with the scan state the table shows.
 func (m *Model) rowsFor(entries []Entry) []workspaceRow {
-	frame := spinner.Dot.Frames[m.spinnerFrameIdx%len(spinner.Dot.Frames)]
+	frame := m.jobFrame
 
 	rows := make([]workspaceRow, 0, len(entries))
 	for _, entry := range entries {
@@ -177,9 +176,9 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 		// cell for the same reason the sync does, and with less to lose: a
 		// directory on its way out has no git status left to announce.
 		switch {
-		case m.deletingPaths[entry.Path]:
+		case m.deleting(entry.Path):
 			gitStatus = frame + " deleting"
-		case m.syncingPaths[entry.Path]:
+		case m.syncing(entry.Path):
 			gitStatus = frame + " syncing"
 		}
 		rows = append(rows, workspaceRow{

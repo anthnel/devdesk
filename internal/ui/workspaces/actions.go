@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/viewer"
@@ -34,7 +35,10 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 			return m, m.footer.Warn(busyMessage)
 		}
 		delete(m.scanCache, targetPath)
-		return m, tea.Batch(deleteScanCacheCmd([]string{targetPath}), batchScanCmd([]string{targetPath}, opts))
+		return m, tea.Batch(
+			deleteScanCacheCmd([]string{targetPath}),
+			jobs.Start(m.scanRun([]string{targetPath}), batchScanCmd([]string{targetPath}, opts)),
+		)
 	}
 
 	entry, ok := m.selectedEntry()
@@ -47,7 +51,10 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 			return m, m.footer.Warn(busyMessage)
 		}
 		delete(m.scanCache, entry.Path)
-		return m, tea.Batch(deleteScanCacheCmd([]string{entry.Path}), batchScanCmd([]string{entry.Path}, opts))
+		return m, tea.Batch(
+			deleteScanCacheCmd([]string{entry.Path}),
+			jobs.Start(m.scanRun([]string{entry.Path}), batchScanCmd([]string{entry.Path}, opts)),
+		)
 	}
 
 	// Non-git directory: scan all non-scanning nested git repos in parallel
@@ -69,7 +76,11 @@ func (m Model) startSecurityScan() (tea.Model, tea.Cmd) {
 	for _, path := range toScan {
 		delete(m.scanCache, path)
 	}
-	return m, tea.Batch(deleteScanCacheCmd(toScan), batchScanCmd(toScan, opts), m.warnSkipped(entry.SubRepoSkipped))
+	return m, tea.Batch(
+		deleteScanCacheCmd(toScan),
+		jobs.Start(m.scanRun(toScan), batchScanCmd(toScan, opts)),
+		m.warnSkipped(entry.SubRepoSkipped),
+	)
 }
 
 // warnSkipped says how much of the tree the walk behind this action could not
@@ -142,7 +153,10 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 	if len(unscanned) == 0 {
 		return m, nil
 	}
-	return m, tea.Batch(batchScanCmd(unscanned, m.scanOptions()), m.warnSkipped(m.skippedInView()))
+	return m, tea.Batch(
+		jobs.Start(m.scanRun(unscanned), batchScanCmd(unscanned, m.scanOptions())),
+		m.warnSkipped(m.skippedInView()),
+	)
 }
 
 // requestScanAll triggers batch scanning of all git repos visible in the current view,
@@ -163,7 +177,11 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 	for _, path := range paths {
 		delete(m.scanCache, path)
 	}
-	return m, tea.Batch(deleteScanCacheCmd(paths), batchScanCmd(paths, m.scanOptions()), m.warnSkipped(m.skippedInView()))
+	return m, tea.Batch(
+		deleteScanCacheCmd(paths),
+		jobs.Start(m.scanRun(paths), batchScanCmd(paths, m.scanOptions())),
+		m.warnSkipped(m.skippedInView()),
+	)
 }
 
 // collectAllRepoPaths returns all git repo paths visible in the current view,
@@ -182,7 +200,6 @@ func (m Model) collectAllRepoPaths() []string {
 
 // handleWorkspaceScanComplete processes the result of a completed workspace scan (Rule 128).
 func (m Model) handleWorkspaceScanComplete(msg WorkspaceScanCompleteMsg) (tea.Model, tea.Cmd) {
-	delete(m.scanningPaths, msg.RepoPath)
 	if msg.Error != nil {
 		log.Printf("ERROR [workspaces] scan complete %s: %v", msg.RepoPath, msg.Error)
 		m.refreshRows()
@@ -446,8 +463,9 @@ func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(busyMessage)
 	}
 	delete(m.scanCache, msg.TargetPath)
+	targets := []string{msg.TargetPath}
 	return m, tea.Batch(
-		deleteScanCacheCmd([]string{msg.TargetPath}),
-		batchScanCmd([]string{msg.TargetPath}, m.scanOptions()),
+		deleteScanCacheCmd(targets),
+		jobs.Start(m.scanRun(targets), batchScanCmd(targets, m.scanOptions())),
 	)
 }

@@ -10836,7 +10836,7 @@ dépend d'aucun des autres.
 |---|---|
 | 1 — le retour forcé | **fait**, [D67](#11-fixed) |
 | 2 — `internal/jobs`, la diffusion, la chaîne de tick | **fait** |
-| 3 — `ws` branché (le compteur au footer, le spinner en colonne) | à faire |
+| 3 — `ws` branché (le compteur au footer, le spinner en colonne) | **fait** |
 | 4 — `:sec` et `oci` branchés | à faire |
 | 5 — l'estampe de contexte (`D` à ouvrir) | à faire |
 | 6 — la vue `:jobs` | à faire |
@@ -10850,7 +10850,34 @@ le changement de contexte, qui doit dire aux vues reconstruites ce qui tourne
 encore. Le modèle et la mécanique du routeur sont décrits dans
 [`app-shell.md`](architecture/app-shell.md).
 
-Deux points tranchés en écrivant le paquet, au-delà de ce que le plan fixait :
+Ce que le poste 3 a livré, et qui est la demande d'origine : `ws` lit le
+registre au lieu de tenir trois maps de chemins. `busy()` voit donc enfin ce
+qu'une autre vue a lancé sur le même dépôt — c'était le défaut de fond, pas une
+conséquence. La ligne **répertoire** de la colonne Scanned tourne au lieu de
+compter, et le compteur passe au footer sous les trois formes de D9. La
+`spinner.Model` de `ws`, son `spinnerFrameIdx`, son handler `spinner.TickMsg` et
+le `syncRun` disparaissent.
+
+Trois points tranchés en écrivant, au-delà de ce que le plan fixait :
+
+- **`jobs.StartMsg` porte le travail** (`Work tea.Cmd`) au lieu d'être batché à
+  côté de lui. L'ordre compte — une transition qui nomme un run non encore admis
+  est refusée, et un `tea.Batch` n'en donne aucun — et un `tea.Sequence` à chaque
+  site de lancement rendait le lancement **inlisible en test** : lire le `Cmd`
+  l'exécute, donc une assertion « quel run a été enregistré ? » lançait les scans
+  pour de vrai. Le routeur est le séquenceur ; c'est une chose à faire juste au
+  lieu de six.
+- **`jobs.Reporter`** : chaque message de progression répond sa propre
+  transition. La correspondance « un sync refusé pour arbre sale est un *skip*,
+  et la raison vaut d'être gardée » est du vocabulaire de `workspaces` ; un
+  routeur qui la connaîtrait grossirait d'une branche par vue.
+- **Le message de départ attend son tour dans le pool.** `scanOneRepoCmd`
+  l'émettait *avant* le sémaphore, donc les douze dépôts d'un lot se déclaraient
+  running à l'instant du dispatch : douze spinners pour quatre workers. Sans ce
+  correctif D6 aurait été décoratif.
+
+Deux points tranchés en écrivant le paquet (poste 2), au-delà de ce que le plan
+fixait :
 
 - **`RunCancelled` existe.** Le plan ne dérivait l'état d'un run que de ses
   items, et un run annulé s'y lisait `done` une fois ses items retombés — une

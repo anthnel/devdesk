@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,14 +27,6 @@ func checkDepsCmd(cfg config.ScanConfig) tea.Cmd {
 	return func() tea.Msg {
 		return DepsCheckedMsg{Deps: scan.CheckDependencies(cfg)}
 	}
-}
-
-// clearSyncSummaryCmd drops a finished sync's summary from the footer after the
-// same three seconds every other footer message gets (Rule 128).
-func clearSyncSummaryCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return clearSyncSummaryMsg{}
-	})
 }
 
 // syncSpec is what a batch of syncs needs from the model, copied out before the
@@ -75,9 +66,16 @@ func tokenLoader(storage credentials.Storage, gitlabURL string) func() string {
 // syncOneRepoCmd syncs a single repository, bounded by the batch's semaphore.
 func syncOneRepoCmd(repoPath string, spec syncSpec, sem chan struct{}) tea.Cmd {
 	return tea.Sequence(
-		func() tea.Msg { return WorkspaceSyncStartingMsg{RepoPath: repoPath} },
+		// The starting message waits for its turn in the pool, and that is the
+		// point: it is what moves the item from queued to running. Emitted
+		// before the wait — as it was — every repository in the batch reported
+		// itself running the instant the batch was dispatched, so a twelve-repo
+		// sync showed twelve spinners for four workers (D6).
 		func() tea.Msg {
 			sem <- struct{}{}
+			return WorkspaceSyncStartingMsg{RepoPath: repoPath}
+		},
+		func() tea.Msg {
 			defer func() { <-sem }()
 
 			msg := WorkspaceSyncCompleteMsg{RepoPath: repoPath}
@@ -155,11 +153,13 @@ func deleteScanCacheCmd(paths []string) tea.Cmd {
 // It emits WorkspaceScanStartingMsg before scanning and WorkspaceScanCompleteMsg after.
 func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, sem chan struct{}) tea.Cmd {
 	return tea.Sequence(
+		// Queued until a worker is free, and only then running — see the note
+		// in syncOneRepoCmd.
 		func() tea.Msg {
+			sem <- struct{}{}
 			return WorkspaceScanStartingMsg{RepoPath: repoPath}
 		},
 		func() tea.Msg {
-			sem <- struct{}{}
 			defer func() { <-sem }()
 
 			scanner := scan.NewScanner(opts)

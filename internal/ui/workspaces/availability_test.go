@@ -57,11 +57,9 @@ func TestScanningWithoutAScannerIsRefusedAndSaysSo(t *testing.T) {
 	m := feed(t, loadedModel(t), DepsCheckedMsg{Deps: scan.DependencyStatus{}})
 	m.table.SetCursor(0) // devdesk, a git repo
 
-	next := refused(t, m, keymap.Scan, reasonNoScanner)
-
-	if len(next.scanningPaths) != 0 {
-		t.Errorf("a scan was started with no scanner installed: %v", next.scanningPaths)
-	}
+	// refused() checks both halves: the footer says why, and no run was
+	// registered.
+	refused(t, m, keymap.Scan, reasonNoScanner)
 }
 
 // A carries the same guard, and its confirmation must not even open: asking a
@@ -100,17 +98,16 @@ func TestNoGreyedKeyEverActs(t *testing.T) {
 			greyed++
 
 			before := m
-			next, _ := step(t, m, testutil.Key(key))
+			next, cmd := step(t, m, testutil.Key(key))
+			run, started := startedRun(cmd)
 
 			switch {
 			case next.mode != before.mode:
 				t.Errorf("row %d: greyed %s changed the mode to %v", cursor, key, next.mode)
 			case next.scanAllModal != nil:
 				t.Errorf("row %d: greyed %s opened the scan-all modal", cursor, key)
-			case len(next.scanningPaths) != 0:
-				t.Errorf("row %d: greyed %s started a scan", cursor, key)
-			case next.sync != nil:
-				t.Errorf("row %d: greyed %s started a sync", cursor, key)
+			case started:
+				t.Errorf("row %d: greyed %s started a %s run", cursor, key, run.Kind)
 			}
 		}
 	}

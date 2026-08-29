@@ -120,9 +120,6 @@ type WorkspaceSyncCompleteMsg struct {
 	Error  error
 }
 
-// clearSyncSummaryMsg is sent after a delay to drop a finished sync's summary.
-type clearSyncSummaryMsg struct{}
-
 // ScanDetailsRequestMsg is sent when the user wants to view scan details for a repo
 type ScanDetailsRequestMsg struct {
 	RepoPath string

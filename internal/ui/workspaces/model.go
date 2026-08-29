@@ -3,15 +3,13 @@ package workspaces
 import (
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ViewMode represents the current mode of the view
@@ -63,30 +61,26 @@ type Model struct {
 	// indexed stopped being the list on screen (D24).
 	pendingEntry *Entry
 
-	// Spinner for scanning animation
-	spinner         spinner.Model
-	spinnerFrameIdx int
-
 	// Scan cache: keyed by absolute repo path
 	scanCache map[string]cache.WorkspaceScanEntry
 
-	// Paths currently being scanned (keyed by absolute path)
-	scanningPaths map[string]bool
+	// jobs is the router's snapshot of everything running anywhere, and
+	// jobFrame the spinner frame that goes with it — bare, because it lands in
+	// a table cell (Rule 122). Together they replaced three maps of paths, a
+	// spinner.Model, a hand-stamped frame index and the syncRun that counted a
+	// batch alongside them.
+	//
+	// The three maps knew only what this view had started, which is why a scan
+	// launched on the same repository from `:sec` slipped past busy(). See
+	// jobs.go.
+	jobs     []jobs.Run
+	jobFrame string
 
-	// Paths currently being synced (keyed by absolute path). Separate from
-	// scanningPaths because the two are mutually exclusive per repository, and
-	// knowing which one holds it is what lets the view say so.
-	syncingPaths map[string]bool
-
-	// Paths currently being deleted (keyed by absolute path). A third map for
-	// the same reason the first two are separate: the view says which
-	// operation holds the row, and a delete is the one the user must not
-	// re-issue — os.RemoveAll on an already-removed path fails, and reporting
-	// that failure would deny a deletion that in fact succeeded.
-	deletingPaths map[string]bool
-	// sync is the batch in flight, or the summary of the last one until it is
-	// cleared. Nil when neither.
-	sync *syncRun
+	// syncUnreadable counts the directories the walk behind the current sync
+	// could not read. It is not a sync outcome — a repository under one of them
+	// was never a target — so it has no item in the run, and it is remembered
+	// here until the summary is written.
+	syncUnreadable int
 
 	// secrets is the context's secret store, the one the router resolved. A
 	// sync fetches, and a fetch against the configured GitLab needs the token —
@@ -140,10 +134,6 @@ type Entry struct {
 // secrets may be nil for a view that will never sync — the borrowed selection
 // mode is the one such case — and a nil store simply means no token is offered.
 func New(cfg *config.Config, secrets credentials.Storage) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = theme.SpinnerStyle()
-
 	return Model{
 		config:  cfg,
 		secrets: secrets,
@@ -153,11 +143,7 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		}),
 		mode:          ModeNormal,
 		pendingCursor: -1,
-		spinner:       s,
 		scanCache:     make(map[string]cache.WorkspaceScanEntry),
-		scanningPaths: make(map[string]bool),
-		syncingPaths:  make(map[string]bool),
-		deletingPaths: make(map[string]bool),
 	}
 }
 

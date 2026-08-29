@@ -96,9 +96,16 @@ The clone opens a list because its rows do not exist yet — discovery invents
 them. Here every repository is already a row the user is looking at, so a second
 list would print the same names twice. Sync decorates instead: the spinner goes
 in the Git Status cell, exactly as a scan's goes in Scanned, and the counts tell
-the truth again when it lands. The progress and the summary are one footer line
-rendered from the run (`syncStatusLine`) rather than assigned to `footerInfo` —
-a batch outlives the three seconds a footer message gets (Rule 128).
+the truth again when it lands.
+
+**Progress and summary are two different things, and Rule 128 separates them.**
+Progress is a *state* — `jobsStatusLine` derives it from the registry snapshot
+every frame, because a batch outlives the three seconds a footer message gets,
+so a line posted on the first repository would vanish while the tenth was still
+fetching. The summary is an *event*, so it is an ordinary footer message posted
+when the run settles, with the timer every message gets. They shared one
+function while both came from the same `syncRun` struct; once progress came from
+the registry they stopped needing to be the same thing.
 
 **The target follows `S`'s rule rather than adding a selection mode**: a
 git repository syncs itself, a plain directory syncs every repository nested
@@ -150,9 +157,12 @@ instead of swallowed, and the number reaches the screen two ways —
 partly read, and `reasonUnread` replaces the refusal for a directory where
 *nothing* was found. "No repository nested under it" is a claim the walk is not
 entitled to make when it could not look everywhere: not knowing is not knowing
-there are none (Rule 130). A batch sync carries it on `syncRun.unreadable`
-rather than as a footer message, because the run's line is the one that outlives
-the three-second timer.
+there are none (Rule 130). A batch sync carries it on `Model.syncUnreadable`
+until its summary is written, rather than as a footer message of its own: "12
+repositories synced" is a different claim from "12 synced, and I could not look
+in 3 places". It is deliberately **not** an item of the run — a repository under
+an unreadable directory was never a target, so there is nothing for the registry
+to hold.
 There is deliberately no sync-all: at the root the user syncs each top-level
 directory, and a second key for it is not worth `Shift+S`'s collision with
 Rule 111's sort menu.
@@ -186,9 +196,15 @@ being deleted.** A scan reads the working tree while a fast-forward rewrites
 it; the visible result is a report describing a tree that no longer exists. A
 delete takes the tree away from under either of them. `Model.busy` is the one
 predicate all three consult — `A`'s purge included, or a syncing row's counts
-are blanked with nothing on the way to replace them — and `deletingPaths` is
-the third map beside `scanningPaths` and `syncingPaths`, kept separate for the
-same reason: the view says *which* operation holds the row.
+are blanked with nothing on the way to replace them.
+
+**It answers from the jobs registry now** (§3.58, `internal/jobs`), which is what
+makes the guard true rather than merely local. It used to read three maps of
+paths this view maintained, and those knew only what *this view* had launched: a
+scan started on the same repository from `:sec` walked straight past it, and the
+two wrote the same cache entry. `scanning`, `syncing` and `deleting`
+(`workspaces/jobs.go`) replace the three maps one for one and read the snapshot
+the router broadcasts.
 
 **`D` is guarded twice, and the second time is not redundant.** `startDelete`
 refuses before the confirmation opens, because asking a question and then
@@ -216,3 +232,33 @@ on a command's goroutine, not in `Update` — same reasoning as the clone
 pipeline's. `gitlab.pull.parallel_jobs` bounds both: one number meaning "how many
 git network operations at once" beats two the user has to keep in step.
 
+
+
+## What the Scanned column means, and what the footer says
+
+`N/M` on a directory row is **settled coverage**: how many of the repositories
+nested under it have a cached scan result. It is not progress.
+
+It used to be both. During a batch the cell counted up, one repository at a
+time, so `3/12` meant "nine still to go" or "nine nobody has ever scanned"
+depending on something the cell did not say — in six cells, at the far right of
+a row the user is not looking at. A directory with a scan running under it now
+spins and stops counting, and the batch reports in the footer, where a batch
+belongs.
+
+The footer line has three forms (D9), and the third is a deliberate surrender:
+
+```
+Scanning — 3/12                      one kind, started here
+Scanning — 3/12 · Syncing — 1/4      two kinds, both started here
+3 jobs running — :jobs for details   mixed, or started elsewhere
+```
+
+One line cannot carry four batches launched from three views, and a line showing
+only the part it recognised would be worse than one that admits there is more.
+
+**`queued` and `running` are not the same thing here either.** `scanOneRepoCmd`
+emitted its starting message *before* waiting on the worker pool, so every
+repository in a batch reported itself running the instant the batch was
+dispatched: twelve spinners for four workers. The message now waits for its turn
+in the pool, which is what moves the item from queued to running.

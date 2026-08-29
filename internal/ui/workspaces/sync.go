@@ -2,12 +2,11 @@ package workspaces
 
 import (
 	"log"
-	"strconv"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/jobs"
 )
 
 // The sync flow (§3.17), the counterpart of the explorer's clone.
@@ -37,16 +36,13 @@ const busyMessage = "Already busy — a scan, sync or delete is running here"
 // longer exists. A delete is worse on both counts — it takes the tree away
 // from under either of them, and re-issuing it fails on a path that is already
 // gone. Whichever started first keeps the repository.
+//
+// It answers from the registry now, so it sees work started **anywhere**: the
+// three maps it used to read knew only what this view had launched, which let a
+// scan started from `:sec` through the guard and had the two write the same
+// cache entry.
 func (m Model) busy(path string) bool {
-	return m.scanningPaths[path] || m.syncingPaths[path] || m.deletingPaths[path]
-}
-
-// anyBusy reports whether any operation is running at all. It is what decides
-// whether the spinner chain keeps going, and it is one function rather than
-// the predicate written out at each site — a fourth map would otherwise have
-// to be remembered in three places.
-func (m Model) anyBusy() bool {
-	return len(m.scanningPaths) > 0 || len(m.syncingPaths) > 0 || len(m.deletingPaths) > 0
+	return m.working(path)
 }
 
 // startSync syncs the row under the cursor, or everything beneath it.
@@ -77,8 +73,8 @@ func (m Model) startSync() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(busyMessage)
 	}
 
-	m.sync = &syncRun{total: len(toSync), unreadable: entry.SubRepoSkipped}
-	return m, batchSyncCmd(toSync, m.syncSpec())
+	m.syncUnreadable = entry.SubRepoSkipped
+	return m, jobs.Start(m.syncRun(toSync), batchSyncCmd(toSync, m.syncSpec()))
 }
 
 // syncSpec is everything a sync needs from the model, read out up front so the
@@ -92,116 +88,48 @@ func (m Model) syncSpec() syncSpec {
 }
 
 // handleWorkspaceSyncComplete folds one repository's result in (Rule 128).
+//
+// The registry has already recorded the transition by the time this runs — the
+// router applies it before handing the message on — so the run read here is
+// current, and the counting this function used to do is gone with the syncRun
+// that held it.
 func (m Model) handleWorkspaceSyncComplete(msg WorkspaceSyncCompleteMsg) (tea.Model, tea.Cmd) {
-	delete(m.syncingPaths, msg.RepoPath)
-
 	// The listing may have been reloaded or navigated away from while the sync
-	// ran. The run's counters still apply either way — they are about the
-	// batch, not about what is on screen.
+	// ran. Re-reading the row still applies either way — it is about the
+	// repository, not about what is on screen.
 	m.applyGitStatus(msg.RepoPath, msg.Status)
 
-	if m.sync != nil {
-		m.sync.record(msg)
-	}
 	if msg.Error != nil {
 		log.Printf("ERROR [workspaces] sync %s: %v", msg.RepoPath, msg.Error)
 	}
 
-	if m.sync != nil && m.sync.finished() {
-		return m, clearSyncSummaryCmd()
+	// The summary is an event, not a state, so it is a footer message with the
+	// three seconds Rule 128 gives one — unlike the progress line, which is
+	// derived every frame because a batch outlives that timer. They shared a
+	// function while both came from the same struct; they no longer do.
+	run, ok := m.settledSyncRun(msg.RepoPath)
+	if !ok {
+		return m, nil
 	}
-	return m, nil
+	summary := m.syncSummary(run)
+	m.syncUnreadable = 0
+	return m, m.footer.Info(summary)
 }
 
-// syncRun is one batch in flight, and the summary that outlives it.
-type syncRun struct {
-	total    int
-	done     int
-	updated  int
-	upToDate int
-	skipped  int
-	failed   int
-
-	// unreadable is not a sync outcome. It counts the directories the *walk*
-	// could not read before the batch started, so a repository under one of
-	// them was never a target at all. It rides on the run rather than going to
-	// the footer as a Warn because the run's line is the one that survives the
-	// three-second timer — and because "12 repositories synced" is a different
-	// claim from "12 repositories synced, and I could not look in 3 places".
-	unreadable int
-
-	// firstSkipped and firstFailed name one repository each. The footer is one
-	// line, so it names one and counts the rest; the log has them all.
-	firstSkipped       string
-	firstSkippedReason string
-	firstFailed        string
-}
-
-func (r *syncRun) finished() bool { return r.done >= r.total }
-
-func (r *syncRun) record(msg WorkspaceSyncCompleteMsg) {
-	r.done++
-	switch {
-	case msg.Error != nil:
-		r.failed++
-		if r.firstFailed == "" {
-			r.firstFailed = pathBaseName(msg.RepoPath)
+// settledSyncRun returns the sync run holding a repository, if that run has
+// just finished. A batch reports once, on its last repository.
+func (m Model) settledSyncRun(repoPath string) (jobs.Run, bool) {
+	for _, run := range m.jobs {
+		if run.Kind != jobs.KindSync || !run.Finished() {
+			continue
 		}
-	case msg.Outcome == git.SyncUpdated:
-		r.updated++
-	case msg.Outcome == git.SyncSkipped:
-		r.skipped++
-		if r.firstSkipped == "" {
-			r.firstSkipped = pathBaseName(msg.RepoPath)
-			r.firstSkippedReason = msg.Reason
+		for _, item := range run.Items {
+			if item.Target == repoPath {
+				return run, true
+			}
 		}
-	default:
-		r.upToDate++
 	}
-}
-
-// syncStatusLine is what the footer says while a batch runs, and after it.
-//
-// It is rendered from the run rather than assigned to footerInfo because a
-// batch outlives the three-second timer that clears footer messages: a progress
-// line set on the first repository would vanish while the tenth was still
-// fetching (Rule 128).
-func (m Model) syncStatusLine() string {
-	if m.sync == nil {
-		return ""
-	}
-	if !m.sync.finished() {
-		return "Syncing — " + strconv.Itoa(m.sync.done) + "/" + strconv.Itoa(m.sync.total)
-	}
-
-	var parts []string
-	if m.sync.updated > 0 {
-		parts = append(parts, plural(m.sync.updated, "repository", "repositories")+" updated")
-	}
-	if m.sync.upToDate > 0 {
-		parts = append(parts, strconv.Itoa(m.sync.upToDate)+" up to date")
-	}
-	if m.sync.skipped > 0 {
-		parts = append(parts, strconv.Itoa(m.sync.skipped)+" skipped ("+
-			m.sync.firstSkipped+": "+m.sync.firstSkippedReason+")")
-	}
-	if m.sync.failed > 0 {
-		parts = append(parts, strconv.Itoa(m.sync.failed)+" failed ("+m.sync.firstFailed+") — check logs")
-	}
-	if m.sync.unreadable > 0 {
-		parts = append(parts, plural(m.sync.unreadable, "directory", "directories")+" unreadable — check logs")
-	}
-	if len(parts) == 0 {
-		return "Nothing to sync"
-	}
-	return strings.Join(parts, " · ")
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return strconv.Itoa(n) + " " + many
+	return jobs.Run{}, false
 }
 
 // applyGitStatus copies a repository's re-read git fields onto the row that

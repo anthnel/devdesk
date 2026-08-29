@@ -350,22 +350,25 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// to the view that started it rather than to the one on screen. None of
 	// them changes the current view: a scan can run for minutes, and dragging
 	// the user back to watch it was the whole of D67.
+	case jobs.StartMsg:
+		return a.handleStartJobs(msg)
+
 	case workspaces.WorkspaceScanStartingMsg:
-		return a.routeToView(command.ViewWorkspaces, msg)
+		return a.routeWork(command.ViewWorkspaces, msg)
 
 	case workspaces.WorkspaceScanCompleteMsg:
-		return a.routeToView(command.ViewWorkspaces, msg)
+		return a.routeWork(command.ViewWorkspaces, msg)
 
 	case workspaces.WorkspaceSyncStartingMsg:
-		return a.routeToView(command.ViewWorkspaces, msg)
+		return a.routeWork(command.ViewWorkspaces, msg)
 
 	case workspaces.WorkspaceSyncCompleteMsg:
-		return a.routeToView(command.ViewWorkspaces, msg)
+		return a.routeWork(command.ViewWorkspaces, msg)
 
 	case workspaces.EntryDeletedMsg:
 		// A delete is confirmed in a modal and then runs on its own; the marker
 		// it sets is cleared here or not at all.
-		return a.routeToView(command.ViewWorkspaces, msg)
+		return a.routeWork(command.ViewWorkspaces, msg)
 
 	case ociresources.ImageScanStartingMsg:
 		return a.routeToView(command.ViewOCIResources, msg)

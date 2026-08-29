@@ -6,16 +6,16 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // Init initialise le modèle
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.loadEntries(), loadScanCacheCmd(), m.spinner.Tick}
+	cmds := []tea.Cmd{m.loadEntries(), loadScanCacheCmd()}
 	// A view lent for a selection offers neither S nor A, so resolving the
 	// scanners for it would be three subprocesses spawned to answer a question
 	// nobody asks.
@@ -133,14 +133,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PathCopiedMsg:
 		return m.handlePathCopied(msg)
 
-	case spinner.TickMsg:
-		if m.anyBusy() {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			m.spinnerFrameIdx = (m.spinnerFrameIdx + 1) % len(spinner.Dot.Frames)
-			m.refreshRows()
-			return m, cmd
-		}
+	case jobs.ChangedMsg:
+		return m.handleJobsChanged(msg)
 
 	case ScanCacheLoadedMsg:
 		if msg.Cache != nil {
@@ -153,32 +147,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleScanRequest(msg)
 
 	case WorkspaceScanStartingMsg:
-		tick := m.spinnerTickIfIdle()
-		m.scanningPaths[msg.RepoPath] = true
+		// The row is already spinning: the router recorded the transition
+		// before handing the message on, and the snapshot that carried it
+		// rebuilt the rows. All that is left is to drop whatever the footer
+		// still said about the previous attempt.
 		m.footer.Clear()
-		m.refreshRows()
-		return m, tick
+		return m, nil
 
 	case WorkspaceScanCompleteMsg:
 		return m.handleWorkspaceScanComplete(msg)
 
 	case WorkspaceSyncStartingMsg:
-		tick := m.spinnerTickIfIdle()
-		m.syncingPaths[msg.RepoPath] = true
 		m.footer.Clear()
-		m.refreshRows()
-		return m, tick
+		return m, nil
 
 	case WorkspaceSyncCompleteMsg:
 		return m.handleWorkspaceSyncComplete(msg)
-
-	case clearSyncSummaryMsg:
-		// Only a settled run is dropped: a second sync started inside the three
-		// seconds must not have its progress wiped by the first one's timer.
-		if m.sync != nil && m.sync.finished() {
-			m.sync = nil
-		}
-		return m, nil
 
 	}
 
@@ -292,28 +276,6 @@ func (m Model) handlePathCopied(msg PathCopiedMsg) (tea.Model, tea.Cmd) {
 		return m, m.footer.Error("Failed to copy the path — check logs")
 	}
 	return m, m.footer.Info("Full path copied to the clipboard")
-}
-
-// spinnerTickIfIdle restarts the spinner chain when nothing was keeping it
-// alive, and is why both Starting handlers read it *before* recording their
-// path.
-//
-// The TickMsg handler stops scheduling the next tick once nothing is running —
-// there is no reason to rebuild the rows sixty times a second for a settled
-// table — so the chain Init started dies on its first tick. Nothing brought it
-// back, and a scan's spinner has therefore been frozen on frame zero since it
-// was written: it looked like a marker rather than an animation, so it never
-// read as broken. Starting a second chain alongside a live one is the opposite
-// mistake, and makes the frames advance at twice the rate.
-//
-// One window is left, and deliberately: an action started before Init's first
-// tick has arrived doubles the chain until the view is closed. It is the
-// spinner's own frame interval wide, and the cost is a spinner that spins fast.
-func (m Model) spinnerTickIfIdle() tea.Cmd {
-	if m.anyBusy() {
-		return nil
-	}
-	return m.spinner.Tick
 }
 
 // tabCount returns the total number of tabs (home + navigation stack entries + current)
@@ -526,11 +488,8 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(busyMessage)
 	}
 
-	tick := m.spinnerTickIfIdle()
-	m.deletingPaths[path] = true
 	m.footer.Clear()
-	m.refreshRows()
-	return m, tea.Batch(tick, m.deleteEntry(path))
+	return m, jobs.Start(m.deleteRun(path), m.deleteEntry(path))
 }
 
 // handleWorkspaceCreated handles the result of workspace creation
@@ -544,10 +503,10 @@ func (m Model) handleWorkspaceCreated(msg WorkspaceCreatedMsg) (tea.Model, tea.C
 
 // handleEntryDeleted handles the result of entry deletion
 func (m Model) handleEntryDeleted(msg EntryDeletedMsg) (tea.Model, tea.Cmd) {
-	// Cleared on every outcome, failures included: a marker left behind holds
-	// the path against every other action for the life of the view.
-	delete(m.deletingPaths, msg.Path)
-
+	// The marker is the registry's now, and it is cleared on every outcome —
+	// failures included — by the transition the router applied before this ran.
+	// One left behind would hold the path against every other action for the
+	// life of the view.
 	if msg.Error != nil {
 		log.Printf("ERROR [workspaces] delete %s: %v", msg.Path, msg.Error)
 		m.error = msg.Error.Error()
