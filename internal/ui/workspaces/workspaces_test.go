@@ -38,7 +38,22 @@ func TestMain(m *testing.M) {
 	// duration; the test that does is TestAMessageGetsThreeSeconds, in the
 	// package that owns it.
 	sharedcomponents.FooterMsgDuration = time.Millisecond
+
+	// The context tests write to the real scan cache and set the current
+	// context, both of which live under the home directory. Redirecting it for
+	// the package is what keeps a test from rewriting the developer's
+	// ~/.devdesk — the same reason internal/ui/security does it.
+	home, err := os.MkdirTemp("", "devdesk-workspaces-test")
+	if err != nil {
+		log.SetOutput(os.Stderr)
+		panic(err)
+	}
+	_ = os.Setenv("HOME", home)
+	_ = os.Setenv("USERPROFILE", home)
+
 	code := m.Run()
+
+	_ = os.RemoveAll(home)
 	log.SetOutput(os.Stderr)
 	os.Exit(code)
 }

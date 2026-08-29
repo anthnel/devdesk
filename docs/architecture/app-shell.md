@@ -399,13 +399,39 @@ that screen the only honest one.
 Runs live for the session, capped at the last `MaxFinishedRuns` settled ones; a
 run still going is never pruned. Each is stamped with the context it started in,
 and views **filter** (`jobs.FilterContext`) rather than the registry purging on a
-switch — purging would contradict keeping them for the session, and the stamp is
-also what stops a batch outliving a switch from writing into the wrong cache.
+switch — purging would contradict keeping them for the session.
+
+#### The stamp is what the work runs under
+
+A launch is two things and the router sequences them: it admits the run, then it
+*builds* the work with the name it just stamped.
+
+```go
+type StartMsg struct {
+	Run  Run
+	Work func(contextName string) tea.Cmd
+}
+```
+
+`Work` is a builder rather than a command because of D68. Stamping the run alone
+left the registry telling the truth while every command of the batch read
+`config.CurrentContextName()` for itself, minutes later — so a scan launched in
+one context and finished in another wrote its counts into the cache of the
+context the user had switched **to**. The builder is called once, in `Update`, so
+the name is read once and every command of the launch shares the string.
+
+`jobs.Start` remains for work that does not depend on the context; a launch site
+with no use for the name reads exactly as it did.
+
+What must carry the stamp is what **writes a result someone asked for under a
+name** — a scan's counts, and the purge that clears them for it. What must not is
+what *shows* the current context: a load (`loadScanCacheCmd`, `loadInventoryCmd`)
+and a title both mean "current" by definition, and reading it is right there.
 
 ### The broadcast, and the one spinner chain
 
 Views never hold a pointer to the registry. The router hands them a snapshot in
-`JobsChangedMsg`, so nothing is read from `View()` while something else writes
+`jobs.ChangedMsg`, so nothing is read from `View()` while something else writes
 it, and a view holding a snapshot cannot write back — every mutation goes
 through the one owner.
 

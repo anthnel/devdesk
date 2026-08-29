@@ -424,8 +424,28 @@ at all: they are content-addressed by image name, with no context anywhere. The
 index and the blobs disagreed, and the index was the one that was wrong.
 
 So `NewImageScanCache()` takes no context — a parameter that has to be ignored
-is worse than none — while `NewWorkspaceScanCache(config.CurrentContextName())`
-keeps its own.
+is worse than none — while `NewWorkspaceScanCache(contextName)` keeps its own.
+
+**Which name, and when it is read** (D68). A scan's writer takes the context it
+was *launched* in, handed down from `jobs.Run.Context`; it does not read the
+current one. A batch of twelve repositories runs for minutes and a context
+switch during it is ordinary — that is what a background scan is for — so a
+writer reading `config.CurrentContextName()` when Trivy returned put the counts
+under whichever context happened to be on screen. Both halves of that are
+silent: the launching context loses results it asked for and rescans forever,
+and the arriving one gains results for paths that may mean nothing there.
+
+Three writers shared it — `scanOneRepoCmd`, `storeRescan`, and
+`deleteScanCacheCmd`, the purge half of `ctrl+a`. The purge was the worst of the
+three: it travelled in the same `tea.Batch` as the scan replacing it, each
+reading the name on its own goroutine, with nothing making them agree. They now
+travel in one builder (`purgeAndScan` in `ws`), so there is one name between
+them rather than two that happen to match.
+
+Reading the current context is still right for a **load** —
+`loadScanCacheCmd`, `loadInventoryCmd` — and for anything that *names* the
+context. The line is not "inside a `Cmd`"; it is whether the code writes a
+result someone asked for under a name.
 
 `internal/cache/scan_file.go` owns the scoped shape
 (`{version, contexts: {name: {key: entry}}}`): the workspace cache writes it, and

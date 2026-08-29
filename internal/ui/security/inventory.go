@@ -104,9 +104,12 @@ func (m Model) rescanSelected() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn("Scan already in progress")
 	}
 	job := inventoryScanJob{Kind: target.Kind, Name: target.Name}
-	return m, jobs.Start(
+	opts := m.scanOptions()
+	return m, jobs.StartInContext(
 		m.scanRun([]string{target.Name}),
-		rescanCmd([]inventoryScanJob{job}, m.scanOptions()),
+		func(contextName string) tea.Cmd {
+			return rescanCmd([]inventoryScanJob{job}, opts, contextName)
+		},
 	)
 }
 
@@ -189,12 +192,20 @@ func (m Model) rescanAll(purge bool) (tea.Model, tea.Cmd) {
 	if purge {
 		m.purgeCounts(names)
 	}
-	var cmds []tea.Cmd
-	if purge {
-		cmds = append(cmds, purgeInventoryCmd(queue))
-	}
-	cmds = append(cmds, jobs.Start(m.scanRun(names), rescanCmd(queue, m.scanOptions())))
-	return m, tea.Batch(cmds...)
+	// The purge and the rescan travel in one builder: they write to the same
+	// context-scoped cache, and a purge reading the current context on its own
+	// goroutine could blank one context's counts while the scan filled
+	// another's (D68).
+	opts := m.scanOptions()
+	return m, jobs.StartInContext(m.scanRun(names), func(contextName string) tea.Cmd {
+		if !purge {
+			return rescanCmd(queue, opts, contextName)
+		}
+		return tea.Batch(
+			purgeInventoryCmd(queue, contextName),
+			rescanCmd(queue, opts, contextName),
+		)
+	})
 }
 
 // purgeCounts blanks the counts of the named rows, which is what makes a purged

@@ -172,7 +172,7 @@ func TestPurgingRemovesTheEntryAndItsStoredResult(t *testing.T) {
 		t.Fatalf("save the full result: %v", err)
 	}
 
-	testutil.Msgs(purgeInventoryCmd([]inventoryScanJob{{Kind: kindRepo, Name: "/srv/purge-me"}}))
+	testutil.Msgs(purgeInventoryCmd([]inventoryScanJob{{Kind: kindRepo, Name: "/srv/purge-me"}}, contextName))
 
 	repos.Reload()
 	if entry := repos.Get("/srv/purge-me"); entry != nil {
@@ -212,9 +212,10 @@ func TestAStoredRescanIsReadableByBothTheRowAndEnter(t *testing.T) {
 			result.Counts = scan.SeverityCounts{Critical: 2, High: 1}
 			job := inventoryScanJob{Kind: tc.kind, Name: tc.exists(t, tc.name)}
 
-			storeRescan(job, result)
+			contextName := config.CurrentContextName()
+			storeRescan(job, result, contextName)
 			t.Cleanup(func() {
-				testutil.Msgs(purgeInventoryCmd([]inventoryScanJob{job}))
+				testutil.Msgs(purgeInventoryCmd([]inventoryScanJob{job}, contextName))
 			})
 
 			entry := findTarget(t, loadedTargets(t), job.Name)
@@ -229,5 +230,47 @@ func TestAStoredRescanIsReadableByBothTheRowAndEnter(t *testing.T) {
 				t.Errorf("%d findings stored, want %d", len(stored.Findings), len(result.Findings))
 			}
 		})
+	}
+}
+
+// D68: a rescan of twenty targets outlives a context switch easily. The counts
+// of a repository belong to the context that asked for them — the image cache
+// is not scoped at all (§3.39), so only this branch can land in the wrong file.
+//
+// storeRescan is driven directly: the launch site returns a jobs.StartMsg whose
+// builder the router calls, and running what the builder returns would run
+// Trivy.
+func TestARescanLandsInTheContextItWasLaunchedIn(t *testing.T) {
+	repoPath := existingRepo(t, "stamped-repo")
+	job := inventoryScanJob{Kind: kindRepo, Name: repoPath}
+	result := resultFixture()
+	result.Counts = scan.SeverityCounts{Critical: 7}
+
+	// Restored when the test ends: the current context is a file under the home
+	// directory, shared by every test in the package — and one of them asserts
+	// on the title that names it.
+	before := config.CurrentContextName()
+	if err := config.SetCurrentContext("switched-to"); err != nil {
+		t.Fatalf("switch the context mid-rescan: %v", err)
+	}
+	t.Cleanup(func() { _ = config.SetCurrentContext(before) })
+	storeRescan(job, result, "launched-in")
+	t.Cleanup(func() {
+		testutil.Msgs(purgeInventoryCmd([]inventoryScanJob{job}, "launched-in"))
+	})
+
+	launching, err := cache.NewWorkspaceScanCache("launched-in")
+	if err != nil {
+		t.Fatalf("open the launching context's cache: %v", err)
+	}
+	if got := launching.Get(repoPath); got == nil || got.Critical != 7 {
+		t.Errorf("the launching context holds %+v, want the rescan it asked for", got)
+	}
+	other, err := cache.NewWorkspaceScanCache("switched-to")
+	if err != nil {
+		t.Fatalf("open the other context's cache: %v", err)
+	}
+	if got := other.Get(repoPath); got != nil {
+		t.Errorf("the context switched to during the rescan holds %+v, want nothing", got)
 	}
 }
