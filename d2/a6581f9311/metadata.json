@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "d2a6581f9311",
+  "strategy": "manual-commit",
+  "branch": "fix/scan-forced-return",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/app-shell.md",
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/router_test.go",
+    "internal/app/scan_details.go",
+    "internal/ui/workspaces/model_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d2/a6581f9311/0/metadata.json",
+      "transcript": "/d2/a6581f9311/0/full.jsonl",
+      "compact_transcript": "/d2/a6581f9311/0/transcript.jsonl",
+      "content_hash": "/d2/a6581f9311/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 869,
+    "cache_read_tokens": 174223,
+    "output_tokens": 1305,
+    "api_call_count": 1
+  }
+}
