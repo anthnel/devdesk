@@ -10927,7 +10927,7 @@ dépend d'aucun des autres.
 | 4 — `:sec` et `oci` branchés | **fait** |
 | 5 — l'estampe de contexte | **fait**, [D68](#11-fixed) |
 | 6 — la vue `:jobs` | **fait** |
-| 7 — le clone rebranché | à faire |
+| 7 — le clone rebranché | **fait** |
 | 8 — l'annulation | à faire |
 
 Le poste 2 est délibérément **inerte** : le registre existe, le routeur le
@@ -11013,6 +11013,45 @@ dire honnêtement : il ne lance rien, donc il ne passe aucune origine et obtient
 toujours la forme dégradée de D9. La phrase est partagée
 (`components.JobsStatusLine`) avec le footer de `ws` : deux copies d'un renoncement
 délibéré seraient chacune libres de renoncer différemment.
+
+Le poste 7 rebranche le clone (D3), et c'est celui qui a demandé le plus au
+paquet. `cloneList` tenait cinq états, une tranche de lignes, un index par
+chemin et sa propre frame de spinner : la cinquième comptabilité, celle que le
+plan désignait comme le prototype à généraliser. Elle *rend* le run maintenant,
+et n'en possède rien — les lignes sont `Run.Items`, la frame est celle du
+routeur, « terminé » est `Run.Finished()`.
+
+**Le clone est le seul run *ouvert*.** Tous les autres sites de lancement
+connaissent leur liste complète au moment de dispatcher, ce qui est ce qui rend
+« 8 en attente » énonçable (D10) ; la marche du clone *est* ce qui les trouve.
+`NewOpenRun` enregistre donc un run sans cible, `Discover` en ajoute une à
+chaque trouvaille, et **un run ouvert n'est jamais terminé** quoi que disent ses
+items : une marche qui a trouvé trois dépôts et cloné les trois n'a pas fini, et
+la régler là arrêterait le spinner et imprimerait un résumé que le dépôt suivant
+dément. `CloneRunFinishedMsg` la scelle, par `jobs.Sealer` — une seconde
+interface parce qu'un canal fermé ne nomme aucune cible.
+
+Deux choses qui n'étaient pas prévues et qu'il fallait faire ici :
+
+- **`esc` passe par le registre** (`jobs.CancelOpenMsg`). Appeler le `cancel` du
+  pipeline directement arrêterait la marche dans le dos du registre et
+  laisserait `:jobs` affirmer que le run s'est terminé tout seul — exactement la
+  distinction pour laquelle `Run.cancelled` existe. C'est un morceau du poste 8
+  qui arrive tôt, et le laisser dehors aurait fait mentir la vue livrée au
+  poste 6.
+- **Annuler scelle.** Ce qui aurait fermé le run est précisément ce qu'on vient
+  d'arrêter ; le laisser ouvert le garderait non réglé pour toute la session,
+  chaîne de spinner comprise, sans plus rien qui puisse le clore.
+
+Le message nomme un **kind** et non un identifiant : un run progressif
+appartient à un écran qui possède l'affichage tant qu'il tourne, donc il y en a
+un à la fois et la vue peut le désigner sans tenir de `JobID` — l'état de
+registre que D1 garde hors des vues.
+
+Les tests de l'explorer conduisent maintenant un vrai registre à côté de la vue
+et lui rendent son instantané, ce qui est exactement ce que fait le routeur. Ce
+n'est pas un contournement : l'écran ne détient plus l'état, donc un test qui
+n'assertait que sur la vue n'assertait plus sur rien.
 
 Deux écarts au plan, tous deux du même genre :
 

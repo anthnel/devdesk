@@ -95,6 +95,12 @@ type Transition struct {
 	Target string
 	State  ItemState
 	Detail string
+
+	// Discover says the target has no row yet and belongs to the open run of
+	// this kind (D3). Only a kind whose targets arrive progressively sets it —
+	// the clone, whose walk is what finds them — and for every other kind it
+	// stays false because the full list was known at launch.
+	Discover bool
 }
 
 // Reporter is implemented by a message that reports on registered work.
@@ -106,14 +112,95 @@ type Reporter interface {
 	Transition() Transition
 }
 
+// Sealer is implemented by the message that says a kind's open run has found
+// everything it is going to (D3).
+//
+// It is a second interface rather than a field on Transition because sealing
+// names no target: the message that carries it is the closed event channel, and
+// there is nothing for it to be about.
+type Sealer interface {
+	Seal() Kind
+}
+
 // Apply routes a transition to the run it belongs to. It reports whether one
 // was found, which is how the router knows there is something new to broadcast.
 func (r *Registry) Apply(t Transition) bool {
+	if t.Discover {
+		return r.Discover(t.Kind, t.Target, t.State, t.Detail)
+	}
 	id, ok := r.FindItem(t.Kind, t.Target)
 	if !ok {
 		return false
 	}
 	return r.Advance(id, t.Target, t.State, t.Detail)
+}
+
+// Discover adds a target to the open run of a kind (D3).
+//
+// A target already there is advanced instead of duplicated: the walk reports a
+// group it could not list as a target of its own, and that path may also have
+// been found as a repository. One row, whichever arrives first.
+func (r *Registry) Discover(kind Kind, target string, state ItemState, detail string) bool {
+	run := r.openRun(kind)
+	if run == nil {
+		return false
+	}
+	for i := range run.Items {
+		if run.Items[i].Target == target {
+			run.Items[i].State = state
+			run.Items[i].Detail = detail
+			r.settle(run)
+			return true
+		}
+	}
+	run.Items = append(run.Items, Item{Target: target, State: state, Detail: detail})
+	r.settle(run)
+	return true
+}
+
+// Seal says the open run of a kind has discovered everything it is going to.
+//
+// Until it is called the run is unsettled whatever its items say, which is the
+// point: a walk that has found three repositories and cloned all three is not
+// done. Sealing is what lets the run finish, stamp EndedAt and let the spinner
+// chain die.
+func (r *Registry) Seal(kind Kind) bool {
+	run := r.openRun(kind)
+	if run == nil {
+		return false
+	}
+	run.open = false
+	r.settle(run)
+	return true
+}
+
+// CancelOpen stops the open run of a kind.
+//
+// It exists because a progressive run is the one case a view can name without
+// a target: there is exactly one open run per kind at a time — the screen that
+// owns it is exclusive while it goes — so "the clone I am looking at" resolves
+// without the view holding a JobID, which is the thing D1 keeps out of views.
+func (r *Registry) CancelOpen(kind Kind) bool {
+	run := r.openRun(kind)
+	if run == nil {
+		return false
+	}
+	return r.Cancel(run.ID)
+}
+
+// openRun is the run of a kind that is still discovering, if there is one.
+//
+// At most one can exist: an open run belongs to a screen that owns the display
+// while it goes, so a second could only be started by leaving that screen —
+// which closes the first. The newest wins if that invariant is ever broken, so
+// the answer is the run a user is looking at rather than one they have left.
+func (r *Registry) openRun(kind Kind) *Run {
+	for i := len(r.runs) - 1; i >= 0; i-- {
+		if r.runs[i].Kind == kind && r.runs[i].open {
+			return r.runs[i]
+		}
+	}
+	return nil
 }
 
 // FindItem names the run a transition belongs to.
@@ -187,6 +274,10 @@ func (r *Registry) Cancel(id JobID) bool {
 	}
 
 	run.cancelled = true
+	// A cancelled walk finds nothing more, so the run is sealed here: leaving
+	// it open would keep it unsettled for the life of the session, spinner
+	// chain and all, with nothing left that could ever close it.
+	run.open = false
 	if run.cancel != nil {
 		run.cancel()
 		run.cancel = nil

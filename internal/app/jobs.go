@@ -40,7 +40,10 @@ func (a *App) changedMsg() jobs.ChangedMsg {
 func (a *App) handleStartJobs(msg jobs.StartMsg) (tea.Model, tea.Cmd) {
 	run := msg.Run
 	run.Context = a.currentContext
-	a.jobs.Start(run)
+	id := a.jobs.Start(run)
+	if msg.Cancel != nil {
+		a.jobs.AttachRun(id, msg.Cancel)
+	}
 	// The work goes out after the registration, which is the whole reason it
 	// travels on the message: a transition naming a run the registry has not
 	// admitted yet is refused, and the row would spin for the life of the view.
@@ -68,8 +71,28 @@ func (a *App) routeWork(target command.ViewType, msg tea.Msg) (tea.Model, tea.Cm
 			cmds = append(cmds, a.jobsChanged())
 		}
 	}
+	// A sealer says a progressive run has found everything it is going to
+	// (D3). It is a second interface because sealing names no target — the
+	// message carrying it is a closed channel, and there is nothing for it to
+	// be about.
+	if sealer, ok := msg.(jobs.Sealer); ok {
+		if a.jobs.Seal(sealer.Seal()) {
+			cmds = append(cmds, a.jobsChanged())
+		}
+	}
 	_, cmd := a.routeToView(target, msg)
 	return a, tea.Batch(append(cmds, cmd)...)
+}
+
+// handleCancelOpen stops the open run of a kind and tells every view.
+//
+// The view that asked is updated by the broadcast like any other, so it does
+// not have to keep its own idea of "cancelling" in step with the registry's.
+func (a *App) handleCancelOpen(msg jobs.CancelOpenMsg) (tea.Model, tea.Cmd) {
+	if !a.jobs.CancelOpen(msg.Kind) {
+		return a, nil
+	}
+	return a, a.jobsChanged()
 }
 
 // jobTickMsg advances the one spinner frame the whole application shares.

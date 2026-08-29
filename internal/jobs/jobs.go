@@ -175,6 +175,17 @@ type Run struct {
 	// user is looking for.
 	cancelled bool
 
+	// open says the target list is still being discovered (D3). An open run is
+	// never finished, however its items stand: a clone whose walk has found
+	// three repositories and cloned all three is not done — the walk is still
+	// going, and settling it there would stop the spinner chain and print a
+	// summary the next repository contradicts.
+	//
+	// Every other kind knows its full list when it is admitted, which is what
+	// makes "8 waiting" sayable at all (D10). The clone is the exception
+	// because its walk *is* the work that finds them.
+	open bool
+
 	// cancel stops the run's queue. Cleared by Snapshot, like Item.cancel.
 	cancel context.CancelFunc
 }
@@ -194,6 +205,25 @@ func NewRun(kind Kind, origin command.ViewType, contextName, label string, targe
 		Items:   items,
 	}
 }
+
+// NewOpenRun builds a run whose targets are not known yet.
+//
+// It is the clone's shape and only the clone's: the walk that discovers
+// repositories is itself the slow part, so a run that waited for the full list
+// would show nothing for the minutes that matter. Targets arrive through
+// Registry.Discover, and Registry.Seal says there will be no more.
+func NewOpenRun(kind Kind, origin command.ViewType, contextName, label string) Run {
+	return Run{
+		Kind:    kind,
+		Origin:  origin,
+		Context: contextName,
+		Label:   label,
+		open:    true,
+	}
+}
+
+// Open reports whether the run is still discovering its targets.
+func (r Run) Open() bool { return r.open }
 
 // WithDisplay names how one target should be printed. It is separate from
 // NewRun because only some kinds have one — an image reference goes through a
@@ -229,7 +259,8 @@ func (r Run) State() RunState {
 		}
 	}
 
-	if terminal < len(r.Items) {
+	// An open run is unsettled whatever its items say: more of them are coming.
+	if r.open || terminal < len(r.Items) {
 		if running > 0 || terminal > 0 {
 			return RunRunning
 		}
@@ -246,9 +277,10 @@ func (r Run) State() RunState {
 	}
 }
 
-// Finished reports whether every item has settled. An empty run is finished:
-// there is nothing left for it to do, and reporting it as running would leave
-// the spinner chain alive forever.
+// Finished reports whether every item has settled. An empty *sealed* run is
+// finished: there is nothing left for it to do, and reporting it as running
+// would leave the spinner chain alive forever. An empty *open* one is not — it
+// has found nothing yet, which is where every clone starts.
 func (r Run) Finished() bool {
 	state := r.State()
 	return state != RunRunning && state != RunQueued

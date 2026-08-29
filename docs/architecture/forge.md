@@ -267,6 +267,10 @@ untouched, so the explorer never needs to know what a dirty working tree is and
 the per-row states collapse to five — queued, cloning, cloned, already there,
 failed. Updating an existing clone is §3.17's `sync`, in workspaces.
 
+Those five states are where `jobs.ItemState` came from, and since §3.58 they
+*are* it: this screen is the item level of a clone run (D3), rendering a record
+the router owns rather than keeping one of its own.
+
 | Mode | Screen | Keys |
 |---|---|---|
 | `ModeSelecting` | the tree, with a checkbox in the icon column | `space` ticks, `←→` drill, `enter` confirms, `esc` cancels |
@@ -304,6 +308,36 @@ honest is the colour**: `iconStyle` paints `theme.IconRoleNamespace` or
 repository by hue. That is the one thing the icon-colour roles were added for,
 and it is why they are not decoration.
 
+### The clone is a run of the registry (§3.58, D3)
+
+`cloneList` used to hold five states, a slice of rows, an index keyed on the
+path and a spinner frame of its own. That was the fifth bookkeeping beside the
+four `internal/jobs` replaced — and the one the plan named as the prototype to
+generalise, because it was already a jobs view for a single kind.
+
+It renders the run now, and owns none of it:
+
+| | |
+|---|---|
+| the rows | `jobs.Run.Items`, from the snapshot the router broadcasts |
+| the frame | the router's one chain (D5), taken bare — a table cell is measured before it is styled (Rule 122) |
+| "finished" | `Run.Finished()`, not a flag this screen sets |
+| the mapping | `CloneEventMsg.Transition()` — the clone's own vocabulary, in the clone's package, which is what `jobs.Reporter` exists for |
+
+**A clone run is *open***, and it is the only kind that is. Every other launch
+site knows its full target list when it dispatches, which is what makes "8
+waiting" sayable (D10); the clone's walk *is* what finds them, so
+`jobs.NewOpenRun` registers a run with none and `Registry.Discover` adds each as
+the walk turns it up. An open run is **never finished** whatever its items say —
+a walk that has found three repositories and cloned all three is still going,
+and settling it there would stop the spinner and print a summary the next
+repository contradicts. `CloneRunFinishedMsg` seals it, through `jobs.Sealer`: a
+second interface because a closed channel names no target.
+
+What this buys is the thing D3 asked for: **`:jobs` shows the same clone the
+explorer is rendering**, without either copy being authoritative and without the
+explorer having to be on screen for its rows to keep moving.
+
 **Two cancellation scopes, and the distinction is the point** (`pipeline.go`).
 `cloneRun.cancel` is a `context.CancelFunc` covering **discovery only** — HTTP
 reads, which cancel safely. A `git clone` is never interrupted: a context that
@@ -311,6 +345,18 @@ kills one leaves half a repository on disk, which is exactly what this avoids.
 So `esc` cancels the walk and the scheduler stops issuing work, the running
 clones are awaited, and the footer says `Cancelling — 3 clones finishing`. A
 second `esc` must not force.
+
+`esc` goes **through the registry** (`jobs.CancelOpenMsg`), which holds the
+cancel function from the launch. Calling the pipeline's own would stop the walk
+behind the record's back and leave `:jobs` claiming the run finished on its
+own — the distinction `Run.cancelled` exists to keep. Cancelling also seals:
+the walk that would have closed the run is precisely what was stopped, so
+leaving it open would keep it unsettled for the life of the session.
+
+The message names a **kind**, not an identifier. A progressive run belongs to a
+screen that owns the display while it goes, so there is one open clone at a
+time and the view can name it without holding a `JobID` — the registry state D1
+keeps out of views.
 
 `cloneWalkFailed` is a kind of its own: a group that cannot be listed gets a
 failed row naming the **group**, because the repositories under it were never
