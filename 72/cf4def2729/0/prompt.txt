@@ -1,0 +1,45 @@
+continue
+
+---
+
+continue
+
+---
+
+Réordonne les colonnes de monitor certificates : Name, Host, Issuer, Status, Days Left, Expires
+
+---
+
+merge
+
+---
+
+merge
+
+---
+
+quand j'entre dans la vue sec il m'affiche qu'aucun scan n'a été fait, puis il m'affiche la liste des scans. Le datatable devrait être vide au lancement (ne pas contenir de texte), le footer doit afficher que le chargement est en cours, si aucun résultat le texte peut être affiché seulement à ce moment là
+
+---
+
+dans le même worktree aligne la vue sec avec la vue ws pour l'emplacement de l'icone, dans la vue ws l'icone est en première colonne sur deux caractères, il y a donc un espacement entre l'icone et la première colonne de texte. Il n'y a pas de titre sur la colonne d'icone. Applique ce pattern à la vue sec et c'est de cette manière qu'il faut afficher les datatables avec icones en première colonne
+
+---
+
+merge
+
+---
+
+/plan retravaille la vue explorer, la colonne type doit être remplacée par une icone (icone de groupe, icone de projet), les icones de la vue exp doivent être différente de la vue ws. La colonne visibilité doit contenir une icone (public, privée, internal pour gitlab, public, privé pour github). Réordonne les colonnes Icone (pas de titre), Name, Slug Visibility, Role, CI, Created, Activity. Enrichit le theme pour permettre de préciser des couleurs différentes pour les différentes icones.
+
+---
+
+enlève le filtre sur visibility et garde le titre actuel. go
+
+---
+
+dans le context github le projet devdesk à le statut CI "in_pr…" qu'est-ce que c'est
+
+---
+
+oui corrige le backend github
