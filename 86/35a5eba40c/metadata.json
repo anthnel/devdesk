@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "8635a5eba40c",
+  "strategy": "manual-commit",
+  "branch": "sec-inventory-loading",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/scanning.md",
+    "docs/backlog.md",
+    "internal/ui/security/inventory.go",
+    "internal/ui/security/inventory_test.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/update.go",
+    "internal/ui/security/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/86/35a5eba40c/0/metadata.json",
+      "transcript": "/86/35a5eba40c/0/full.jsonl",
+      "compact_transcript": "/86/35a5eba40c/0/transcript.jsonl",
+      "content_hash": "/86/35a5eba40c/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 180904,
+    "cache_read_tokens": 5519792,
+    "output_tokens": 17207,
+    "api_call_count": 35
+  }
+}
