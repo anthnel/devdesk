@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "51db7eb3b1cb",
+  "strategy": "manual-commit",
+  "branch": "icon-colours-ws-sec",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/scanning.md",
+    "docs/architecture/workspaces.md",
+    "docs/backlog.md",
+    "internal/ui/security/inventory_table.go",
+    "internal/ui/security/inventory_test.go",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/iconcolors.go",
+    "internal/ui/theme/iconcolors_test.go",
+    "internal/ui/theme/manager.go",
+    "internal/ui/workspaces/columns.go",
+    "internal/ui/workspaces/view.go",
+    "internal/ui/workspaces/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/51/db7eb3b1cb/0/metadata.json",
+      "transcript": "/51/db7eb3b1cb/0/full.jsonl",
+      "compact_transcript": "/51/db7eb3b1cb/0/transcript.jsonl",
+      "content_hash": "/51/db7eb3b1cb/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 23700,
+    "cache_read_tokens": 7047649,
+    "output_tokens": 17563,
+    "api_call_count": 22
+  }
+}
