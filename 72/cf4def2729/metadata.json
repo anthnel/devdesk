@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "72cf4def2729",
+  "strategy": "manual-commit",
+  "branch": "github-ci-vocabulary",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/forge.md",
+    "docs/backlog.md",
+    "internal/forge/cistatus.go",
+    "internal/forge/github/browse.go",
+    "internal/forge/github/browse_test.go",
+    "internal/ui/forge/explorer/view.go",
+    "internal/ui/forge/explorer/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/72/cf4def2729/0/metadata.json",
+      "transcript": "/72/cf4def2729/0/full.jsonl",
+      "compact_transcript": "/72/cf4def2729/0/transcript.jsonl",
+      "content_hash": "/72/cf4def2729/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 62,
+    "cache_creation_tokens": 32800,
+    "cache_read_tokens": 8331710,
+    "output_tokens": 22696,
+    "api_call_count": 31
+  }
+}
