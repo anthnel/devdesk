@@ -1,0 +1,77 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "339f86c8d57e",
+  "session_id": "4ff0cc11-6330-4966-8fb9-7ac02a5f0de5",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-29T10:26:44.2699237Z",
+  "branch": "explorer-icon-columns",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".claude/plans/explorer-icon-columns.plan.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "bd8745f957af",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 598,
+    "cache_creation_tokens": 1344493,
+    "cache_read_tokens": 55097835,
+    "output_tokens": 191092,
+    "api_call_count": 302
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-08-29T09:58:48.1434747Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "fe5854f91457",
+      "timestamp": "2026-08-29T09:58:48.1434747Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-08-29T10:26:44.1669995Z",
+    "agent_lines": 4,
+    "agent_removed": 0,
+    "human_added": 757,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 761,
+    "total_lines_changed": 838,
+    "agent_percentage": 0.47732696897374705,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 821,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/explorer-icon-columns.plan.md": 210,
+        ".claude/plans/viewer-line-numbers-goto-case.plan.md": 125,
+        ".claude/settings.local.json": 486
+      }
+    }
+  ]
+}
