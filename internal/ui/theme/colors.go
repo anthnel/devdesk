@@ -131,6 +131,9 @@ var (
 	ColorIconVisPublic   lipgloss.Color
 	ColorIconVisInternal lipgloss.Color
 	ColorIconVisPrivate  lipgloss.Color
+	ColorIconDirectory   lipgloss.Color
+	ColorIconFile        lipgloss.Color
+	ColorIconImage       lipgloss.Color
 
 	// Severity colors (background + foreground pairs)
 	ColorSeverityCritical   lipgloss.Color

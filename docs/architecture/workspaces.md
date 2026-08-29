@@ -38,8 +38,23 @@ application names — `IconDirectory`, `IconFile`, `IconGitBranch`.
 
 Four things worth knowing before touching the table:
 
-- **No colour**, against `eza`. A colour on every row informs no one, and it
+- **Colour, but three of them and not twenty** (§3.57). This reverses a
+  decision, so the old one is worth stating: the column shipped uncoloured
+  *against* `eza`, on the grounds that a colour on every row informs no one and
   would weaken the ones that signal something — severities, secrets, git status.
+
+  What changed is the granularity, not the appetite. `eza`'s colour tracks the
+  **file type**, which is what that argument was about: `.go` against `.rs`
+  changes nothing a reader can act on. This one tracks the **action set** —
+  repository, directory, file — and it is the same three-way split
+  `availability.go` already makes when it greys `S`, `F` and `W`. The colour
+  says what the shortcut column is about to say, one glance earlier, which was
+  the complaint the glyph itself was added for.
+
+  The old note is not wrong about the cost: every row does now carry a hue. It
+  is paid down by keeping the file class **dim** — the row nothing applies to
+  is the one that recedes — so what the eye still catches first is a severity
+  count or a dirty git status, not the leftmost cell.
 - **No title, no `Less`, no `Search`.** It adds no text anyone could type, so
   the filter stays on Name and Remote.
 - **Twenty glyphs were checked by eye**, one at a time, in a terminal: a wrong
@@ -49,6 +64,17 @@ Four things worth knowing before touching the table:
   what settles which is which.
 - **What has no certain glyph does not get an invented one.** `.kt`, `.scala`,
   `.hs`, `.zig` and `.tf` fall to `IconCodeFile`.
+
+**The colour comes from a role, never from a glyph** (`theme.IconStyle`).
+`entryIconRole` answers `IconRoleRepository`, `IconRoleDirectory` or
+`IconRoleFile`, and the theme answers the hue — so `fileicon` itself stays a
+pure name-to-glyph table with no opinion about colour, which is what lets the
+twenty entries keep being read one line at a time.
+
+A git repository here takes the **same role** the explorer paints a forge
+repository with, and the `:sec` inventory a scanned one: one object listed by
+three views, one colour. That is what a role is for, and it is not something a
+per-view palette could have guaranteed.
 
 Three tests keep the table reachable without knowing anything about glyphs:
 `TestEveryExtensionKeyStartsWithADot` and `TestEveryTableKeyIsLowercase` catch

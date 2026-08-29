@@ -27,6 +27,15 @@ const (
 	IconRoleVisPublic   IconRole = "vis-public"
 	IconRoleVisInternal IconRole = "vis-internal"
 	IconRoleVisPrivate  IconRole = "vis-private"
+
+	// What the workspaces and :sec listings hold. IconRoleRepository above is
+	// reused for a git repository on disk rather than duplicated: a repository
+	// is a repository, and one colour for it across three views is the point of
+	// a role — the explorer's is remote and these are local, which is a
+	// difference of location, not of kind.
+	IconRoleDirectory IconRole = "directory"
+	IconRoleFile      IconRole = "file"
+	IconRoleImage     IconRole = "image"
 )
 
 // IconColor is the colour a role is painted in.
@@ -48,6 +57,12 @@ func IconColor(role IconRole) lipgloss.Color {
 		return ColorIconVisInternal
 	case IconRoleVisPrivate:
 		return ColorIconVisPrivate
+	case IconRoleDirectory:
+		return ColorIconDirectory
+	case IconRoleFile:
+		return ColorIconFile
+	case IconRoleImage:
+		return ColorIconImage
 	}
 	return ColorText
 }

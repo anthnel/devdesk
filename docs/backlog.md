@@ -10690,6 +10690,55 @@ passent dans la légende **Row Icons** de l'aide, seul appelant restant de
 « Organization » — n'est donc plus répétée sur chaque ligne ; elle tient en une
 phrase, à un endroit où une phrase a la place d'être juste.
 
+### 3.57 `ws` et `:sec` colorent leur colonne d'icône — **done**
+
+Fait le 2026-08-29. Demandé ainsi : « mets aussi en place la coloration des
+icones (première colonne) dans ws et sec ». Suite directe de
+[§3.56](#356-lexplorer-passe-aux-icônes-et-le-thème-apprend-à-les-colorer--done),
+qui a construit le mécanisme et ne l'a câblé que dans l'explorer.
+
+#### Trois rôles de plus
+
+`IconRoleDirectory`, `IconRoleFile`, `IconRoleImage` — et `IconRoleRepository`
+est **réutilisé**, pas dupliqué : un dépôt git est le même objet dans `ws`, dans
+`:sec` et dans l'explorer, où il est simplement distant. Les trois vues n'en
+affichent d'ailleurs pas le même glyphe, ce qui est précisément l'argument pour
+que la clé soit un sens et non un codepoint.
+
+| Rôle | Couleur | L'argument |
+|---|---|---|
+| `directory` | `ColorSecondary` | la couleur du namespace : les deux sont *ce qui contient* des dépôts, sur une forge et sur un disque. Deux rôles et non un alias, pour qu'un thème puisse les séparer |
+| `file` | `ColorDim` | la ligne à laquelle rien ne s'applique — `W`, `S` et `F` y sont grisés (Rule 130) — donc le gris redit ce que la colonne de raccourcis dit déjà |
+| `image` | `ColorHighlight` | pas un troisième violet : `Primary` et `Secondary` sont un mauve et un lavande à un cran l'un de l'autre, et la première colonne de `:sec` a exactement deux valeurs — le seul endroit où elles se toucheraient sans rien d'autre pour les séparer |
+
+#### La granularité est celle de l'action
+
+`ws` se colore en **trois** classes, pas une par langage. C'est la même
+tripartition que fait déjà `availability.go` : un dépôt se scanne, se
+synchronise et s'ouvre sur sa forge ; un répertoire s'entre ; un fichier se lit.
+`.go` contre `.rs` ne change aucun raccourci de la ligne, donc une teinte par
+type de fichier serait de la décoration.
+
+#### Ce que ça renverse
+
+`docs/architecture/workspaces.md` documentait le contraire : « **No colour**,
+against `eza`. A colour on every row informs no one, and it would weaken the
+ones that signal something ». La note est réécrite plutôt que supprimée — elle
+avait raison sur `eza`, dont la couleur suit le *type de fichier*, et c'est
+exactement ce qui n'est pas fait ici.
+
+Le coût qu'elle annonçait reste réel : chaque ligne porte désormais une teinte.
+Il est amorti en gardant la classe fichier **en gris** — la ligne à laquelle
+rien ne s'applique est celle qui recule — pour que ce que l'œil attrape en
+premier reste un compteur de sévérité ou un git status sale, et non la cellule
+la plus à gauche.
+
+#### Ce qui n'a pas été fait
+
+Une couleur par langage dans `fileicon` (le comportement d'`eza` et de `lsd`).
+Ce serait environ vingt-cinq rôles pour distinguer des lignes qui offrent les
+mêmes actions ; à demander explicitement si le rendu final le réclame.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:
