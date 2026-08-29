@@ -11,10 +11,6 @@ import (
 // Column fixed widths for the workspace table.
 // colGitFixed: icon(1) + " "(1) + branch(~20) + up to 3 indicators × (icon+count+space)(4) = 28
 const (
-	// colIconFixed is the glyph plus its trailing space. Two cells, not one:
-	// a Nerd Font glyph renders at double width on some terminals and single
-	// on others, and one cell would clip it wherever it renders wide.
-	colIconFixed      = 2
 	colNameMin        = 16
 	colGitFixed       = 28
 	colSensitiveFixed = 7
@@ -91,7 +87,7 @@ func workspaceColumns(withCI bool) []datatable.Column[workspaceRow] {
 			// name something the user reads at a glance anyway — eza does not
 			// print one either. It declares neither Less nor Search: it adds no
 			// text anyone could type, so the filter stays on Name and Remote.
-			Title: "", Sizing: datatable.SizingFixed, MinWidth: colIconFixed,
+			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
 			Cell: func(r workspaceRow) string { return entryIcon(r.Entry) },
 		},
 		{

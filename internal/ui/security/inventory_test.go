@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // columnIndex resolves a column by its header rather than by its position, so a
@@ -65,10 +66,10 @@ func TestARepositoryRowFoldsTheHomeDirectory(t *testing.T) {
 	t.Setenv("HOME", "/home/dev")
 	t.Setenv("USERPROFILE", "/home/dev")
 
-	name := target.displayName()
+	name := target.shortName()
 
 	if !strings.Contains(name, "~") || strings.Contains(name, "/home/dev/") {
-		t.Errorf("displayName() = %q, want the home directory folded to ~", name)
+		t.Errorf("shortName() = %q, want the home directory folded to ~", name)
 	}
 }
 
@@ -521,5 +522,27 @@ func TestTheSpinnerKeepsTickingWhileTheInventoryLoads(t *testing.T) {
 	got := updated.(Model)
 	if frame := strings.TrimSpace(got.spinner.View()); !strings.Contains(got.RenderFooter(160), frame) {
 		t.Errorf("the footer does not render the spinner frame %q:\n%s", frame, got.RenderFooter(160))
+	}
+}
+
+// Le glyphe est une colonne, pas un préfixe — le motif de la vue ws, et celui
+// que toute table à icône en première colonne suit (Rule 125). Collé dans
+// Target, il dépensait la largeur de la colonne identifiante pour ce qui n'est
+// pas le nom, et la mesure de contenu comptait le glyphe avec.
+func TestTheKindGlyphIsItsOwnColumn(t *testing.T) {
+	m := inventoryModel(t, inventoryFixtures()...)
+
+	cols := m.inventory.Table().Columns()
+	if cols[0].Title != "" {
+		t.Errorf("the first column is titled %q, want the untitled glyph column", cols[0].Title)
+	}
+
+	row := m.inventory.Table().Rows()[0]
+	if strings.TrimSpace(row[0]) == "" {
+		t.Error("the glyph column renders nothing")
+	}
+	target := row[columnIndex(t, cols, "Target")]
+	if strings.Contains(target, theme.IconDocker) || strings.Contains(target, theme.IconWorkspace) {
+		t.Errorf("Target cell = %q still carries the kind glyph", target)
 	}
 }

@@ -10476,6 +10476,64 @@ silence : un réordonnancement les aurait laissés verts en comparant les
 mauvaises colonnes. Ils passent par `sslCell(t, row, "Issuer")`, qui résout le
 titre dans `sslColumns()` et échoue en le nommant si la colonne disparaît.
 
+### 3.55 Une icône en première colonne est une colonne — **done**
+
+Fait le 2026-08-29. Demandé ainsi : « dans la vue ws l'icone est en première
+colonne sur deux caractères […] il n'y a pas de titre sur la colonne d'icone.
+Applique ce pattern à la vue sec et c'est de cette manière qu'il faut afficher
+les datatables avec icones en première colonne ».
+
+#### Ce que l'inventaire faisait
+
+`displayName()` rendait `theme.IconDocker + " " + shortName()` **à l'intérieur**
+de la cellule Target. Le glyphe était donc dans la colonne identifiante, et la
+colonne identifiante est en `SizingContent` : elle mesurait le glyphe avec le
+nom, et réservait deux cellules pour lui à toutes les largeurs — dans la table
+la plus étroite de l'application, celle dont le commentaire de `displayName`
+disait déjà que la place manquait.
+
+`displayName` et `shortName` devenaient alors identiques une fois le glyphe
+retiré — les deux branches ne différaient que par l'icône — donc la première a
+disparu plutôt que d'être vidée.
+
+#### Le motif, et où il était déjà
+
+`ws` et `containers` le faisaient déjà : une colonne sans titre, `SizingFixed`,
+sans `Less` ni `Search`. Trois tables, trois constantes locales, et deux valeurs
+différentes — `colIconFixed = 2` côté workspaces, `statusColumnWidth = 3` côté
+containers. L'écart ne se voit pas sur un écran : il se voit quand on passe de
+`ws` à `ct`, où le même glyphe est une cellule plus loin du nom.
+
+`datatable.IconColumnWidth` est maintenant la seule déclaration, et les trois
+tables la lisent. `containers` a donc perdu une cellule, ce qui n'était le choix
+de personne — le 3 n'était justifié nulle part.
+
+| | |
+|---|---|
+| Titre | vide |
+| Largeur | `datatable.IconColumnWidth` (2) : le glyphe, plus une cellule pour ne pas toucher le texte |
+| `Sizing` | `SizingFixed` |
+| `Less` / `Search` | aucun — pas de texte à taper, et un comparateur coûterait deux cellules de flèche |
+
+#### Ce que le test attrape, et ce qu'il laisse à la revue
+
+`TestAnIconColumnIsUntitledAndTwoCellsWide` (`internal/ui/datatable`) parcourt
+les sources et refuse une colonne sans titre qui déclare une largeur à elle.
+C'est la moitié invisible du problème : trois tables chacune correcte seule et
+différentes côte à côte.
+
+L'autre moitié — une icône collée dans une cellule de texte — n'est pas
+détectable dans la source : rien n'y distingue `IconDocker + " " + name` d'un
+nom qui commencerait par un glyphe. Elle reste une question de revue, écrite
+dans Rule 125.
+
+#### Conséquences
+
+`inventoryColumnCritical` passe de 2 à 3, la colonne insérée étant en tête.
+`Target` perd deux cellules sur ses deux bornes (`MinWidth` 24 → 22, `MaxWidth`
+60 → 58) : ce qu'elle mesure est désormais le nom seul, donc garder les
+anciennes bornes lui aurait rendu la largeur du glyphe en plus de la sienne.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:

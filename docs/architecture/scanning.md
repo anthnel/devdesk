@@ -323,6 +323,13 @@ alias is a display name the user can rename, so sorting by it would move every
 row of a registry the day they do, while a column showing one name and matching
 only the other reads as a bug.
 
+**The kind glyph is a column of its own**, untitled and `datatable.IconColumnWidth`
+wide, ahead of Target — the workspaces and containers shape, and what Rule 125
+now requires of every icon-first table. It used to be `IconDocker + " " + name`
+inside the Target cell, which spent two cells of the most disputed column in
+the narrowest table on something that is not the name, and made a `SizingContent`
+column measure the glyph along with it.
+
 **The inventory runs its own scans.** With the options in the config there is
 nothing to carry to whoever would run one — which is the only reason the
 cross-view delegation exists. It writes to the same two caches, so a rescan here

@@ -48,6 +48,18 @@ const borderWidth = 2
 // cellPadding is what bubbles/table adds per column — Padding(0, 1).
 const cellPadding = 2
 
+// IconColumnWidth is the width of a first column that carries a glyph and
+// nothing else: the glyph, plus one cell so it never touches the text beside
+// it. Two, not one — a Nerd Font glyph renders at double width on some
+// terminals and single on others, and one cell would clip it wherever it
+// renders wide.
+//
+// It is exported because it is the same column in three tables, and a magic 2
+// repeated in three packages is a number three places are free to disagree
+// about. TestAnIconColumnIsUntitledAndTwoCellsWide reads the sources for the
+// ones that do.
+const IconColumnWidth = 2
+
 // availableFor returns the width the columns have to share, given the full
 // viewport width and the number of columns that will actually be rendered.
 // Negative when the terminal cannot even hold the borders and the padding,
