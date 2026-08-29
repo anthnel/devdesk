@@ -126,8 +126,11 @@ func (a *App) switchView(view command.ViewType) tea.Cmd {
 	}
 	log.Printf("Switching to view: %s, calling Init()", view)
 
-	// Init() + un WindowSizeMsg pour forcer le redimensionnement
-	return tea.Batch(newView.Init(), a.requestResize())
+	// Init() + un WindowSizeMsg pour forcer le redimensionnement, et
+	// l'instantané des travaux en cours : la vue a été tenue au courant tant
+	// qu'elle existait, mais une vue construite à l'instant n'était là pour
+	// rien de ce qui a déjà commencé.
+	return tea.Batch(newView.Init(), a.requestResize(), a.sendJobsTo(view))
 }
 
 // settleCurrentView gives the view being left the chance to write down what it

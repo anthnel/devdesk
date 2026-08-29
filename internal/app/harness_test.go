@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -171,6 +172,7 @@ func routerAt(t *testing.T, view tea.Model, width, height int) *App {
 		},
 		commandInput:     newCommandInput(),
 		completionEngine: command.NewCompletionEngine(),
+		jobs:             jobs.New(),
 		width:            width,
 		height:           height,
 	}

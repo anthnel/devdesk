@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/forge/auth"
@@ -84,6 +85,15 @@ type App struct {
 
 	// Selection mode (cross-view browsing)
 	selectionReturnView command.ViewType // View to return to after selection
+
+	// Long-running work. The registry is the one bookkeeping of what is
+	// running (internal/jobs); the router owns it, and owns the single spinner
+	// chain that animates it (D5). Views read a snapshot carried in
+	// JobsChangedMsg — see jobs.go.
+	jobs        *jobs.Registry
+	jobFrameIdx int
+	jobTickSeq  int
+	jobTicking  bool
 
 	// Dimensions
 	width            int
@@ -171,6 +181,7 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 		currentView:      defaultView(cfg),
 		views:            make(map[command.ViewType]tea.Model),
 		sharedState:      sharedState,
+		jobs:             jobs.New(),
 		commandInput:     newCommandInput(),
 		completionEngine: command.NewCompletionEngine(),
 		width:            width,
@@ -330,6 +341,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleAutoLoginResult(msg)
 
 	// ── Long-running work ────────────────────────────────────────────────
+	// The shared spinner frame. One chain for the whole application, held by
+	// the router (D5) — see jobs.go.
+	case jobTickMsg:
+		return a.handleJobTick(msg)
+
 	// Every message below reports on work already under way, and each is routed
 	// to the view that started it rather than to the one on screen. None of
 	// them changes the current view: a scan can run for minutes, and dragging

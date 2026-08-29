@@ -10830,6 +10830,39 @@ vue de jobs, pour un run et un seul type.
 Huit postes, dont [D67](#11-fixed) était le premier — livré seul parce qu'il ne
 dépend d'aucun des autres.
 
+#### État
+
+| Poste | |
+|---|---|
+| 1 — le retour forcé | **fait**, [D67](#11-fixed) |
+| 2 — `internal/jobs`, la diffusion, la chaîne de tick | **fait** |
+| 3 — `ws` branché (le compteur au footer, le spinner en colonne) | à faire |
+| 4 — `:sec` et `oci` branchés | à faire |
+| 5 — l'estampe de contexte (`D` à ouvrir) | à faire |
+| 6 — la vue `:jobs` | à faire |
+| 7 — le clone rebranché | à faire |
+| 8 — l'annulation | à faire |
+
+Le poste 2 est délibérément **inerte** : le registre existe, le routeur le
+détient et diffuse, et rien ne l'alimente. C'est ce qui le rend vérifiable seul —
+les vues continuent exactement comme avant, et le seul appelant en production est
+le changement de contexte, qui doit dire aux vues reconstruites ce qui tourne
+encore. Le modèle et la mécanique du routeur sont décrits dans
+[`app-shell.md`](architecture/app-shell.md).
+
+Deux points tranchés en écrivant le paquet, au-delà de ce que le plan fixait :
+
+- **`RunCancelled` existe.** Le plan ne dérivait l'état d'un run que de ses
+  items, et un run annulé s'y lisait `done` une fois ses items retombés — une
+  vue de jobs incapable de distinguer « terminé » de « tu l'as arrêté » perd
+  précisément le fait qu'on vient y chercher. C'est un booléen, et la
+  précédence est écrite : annulé prime sur échoué, parce que les items d'un scan
+  annulé échouent *à cause* de l'annulation.
+- **`Kind.Cancellable()` est dans le paquet**, pas dans la vue. C'est la table
+  de D7, et un kind ajouté sans réponse répondrait « non » par défaut — la
+  réponse prudente, donc celle que rien ne signalerait. Le test parcourt
+  `Kinds()` et refuse un kind absent de la table.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. Two are outstanding:
