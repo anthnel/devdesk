@@ -454,6 +454,37 @@ to a screen that owns the display while it goes, so there is one per kind at a
 time and a view can name it without holding a `JobID` — the registry state D1
 keeps out of views.
 
+#### Stopping work — the two halves of D7
+
+They are not the same question, and the key is offered on each independently:
+
+| | What it does | Offered when |
+|---|---|---|
+| `K` on a **run** (`Cancel`) | the queue stops — nothing further starts, whatever the kind; queued targets become `skipped: cancelled` | `Run.Stoppable()` |
+| `K` on a **target** (`CancelItem`) | that one piece of work is cut | `Run.ItemStoppable(item)` — i.e. `Kind.Cancellable()` |
+
+`Run.Stoppable()` is the question about *this run*, not about its kind, and the
+delete is the case it exists for: one item, in flight, of a kind that must never
+be cut. `!Finished()` would offer the key and then refuse it, which is exactly
+the silent refusal Rule 130 removes.
+
+**A running target is asked to stop, never declared stopped.** It reports its
+own outcome when it gets there; settling it here would race the message that
+says how it actually ended. A *queued* one is skipped outright — it will not
+run, and leaving it queued would keep the run reading as running forever.
+
+**The cancel travels on the transition that says the work started**
+(`Transition.Cancel`). The context is created inside the `Cmd`, so it reaches
+`Update` in that very message and the registry stores it in the same step that
+marks the item running. Two steps would leave a window where the row spins and
+the key does nothing — which is why `Attach` was folded into `Advance` and
+removed.
+
+`CancelMsg` and `CancelItemMsg` name a `JobID`, where `CancelOpenMsg` names a
+kind. The difference is which view is asking: a launch site cannot hold an
+identifier — it would have to before the registry allocated one — but `:jobs`
+reads it off the row it is rendering.
+
 ### The broadcast, and the one spinner chain
 
 Views never hold a pointer to the registry. The router hands them a snapshot in
@@ -522,6 +553,11 @@ name from the router, for D68's reason one screen over: the router is what knows
 which context is current. The view filters the snapshot on it (`FilterContext`),
 so a switch hides runs rather than dropping them — and the router rebuilds every
 view on a switch anyway, so the cached name cannot go stale.
+
+`K` is state-aware at both levels (Rule 130) and greyed with a **named** reason:
+"This run has already finished", "A delete cannot be stopped once it has
+started". The refusal is never silent — pressing a greyed key says why in the
+footer.
 
 **The dashboard gained the counter** the same way, and it is the one screen that
 always gets D9's degraded form: it launches nothing, so it passes no origin, and

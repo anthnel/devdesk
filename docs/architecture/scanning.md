@@ -518,3 +518,40 @@ from queued straight to done and nothing said which of a batch was actually
 running. `InventoryScanStartingMsg` exists for that (D10), and like the others
 it is emitted *after* the worker pool hands out a slot, which is what makes
 `queued` and `running` mean different things.
+
+
+## A scan can be stopped — `K` in `:jobs` (D7)
+
+`scanner.Scan` has always taken a context and `internal/scan` has always run its
+tools through `exec.CommandContext`, so cancelling one kills the Trivy and
+Gitleaks processes it started. What was missing until §3.58 poste 8 is that
+every launch site passed `context.Background()`, so there was nothing to cancel.
+
+The three of them now create a cancellable context **in the Cmd** and put the
+function on the message that says the scan started:
+
+| | |
+|---|---|
+| `ws` | `scanOneRepoCmd` → `WorkspaceScanStartingMsg.Cancel` |
+| `:sec` | `rescanOneCmd` → `InventoryScanStartingMsg.Cancel` |
+| `oci` | `scanOneImageCmd` → `ImageScanStartingMsg.Cancel` |
+
+It rides on that message and not on one of its own because the two are a single
+event: the registry stores the function in the same `Update` that marks the item
+running (`Transition.Cancel`), so there is no window where the row spins and `K`
+does nothing.
+
+Each body also `defer cancel()`s, whether the scan was cut or ran to the end —
+the registry drops its own copy when the item settles, and a context nobody
+releases holds what it closes over for the session.
+
+**A cancelled scan reports itself failed**, through the ordinary path: the
+context dies, `RunTrivy` returns the error, and `WorkspaceScanCompleteMsg`
+carries it. The registry is not told twice, which is the point of asking rather
+than declaring.
+
+`scanOneImageCmd` also had the defect poste 3 fixed in `ws` and poste 4 in
+`:sec`, and it is fixed here for the same reason: the starting message was
+emitted **before** the semaphore, so every image in a batch reported itself
+running the instant the batch was dispatched — twelve rows spinning on four
+workers. D6 is decorative without that ordering.

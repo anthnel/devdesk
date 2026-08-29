@@ -16,6 +16,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -413,5 +414,132 @@ func TestNoCellCarriesAnEscapeSequence(t *testing.T) {
 				t.Errorf("target column %q returns a styled cell for a %s target", col.Title, state)
 			}
 		}
+	}
+}
+
+// ── Stopping work (D7, poste 8) ──────────────────────────────────────────────
+
+// kindRun builds a run of a given kind, which is what the two halves of D7 turn
+// on: the queue stops whatever the kind, one target in flight only where
+// cutting leaves nothing behind.
+func kindRun(id jobs.JobID, kind jobs.Kind, states ...jobs.ItemState) jobs.Run {
+	targets := make([]string, len(states))
+	for i := range states {
+		targets[i] = "target" + string(rune('a'+i))
+	}
+	r := jobs.NewRun(kind, command.ViewWorkspaces, testContext, "~/work", targets...)
+	for i, state := range states {
+		r.Items[i].State = state
+	}
+	r.ID = id
+	r.StartedAt = startedAt
+	return r
+}
+
+func TestStopIsOfferedOnARunThatHasSomethingLeftToStop(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		run  jobs.Run
+		want bool
+	}{
+		{"a scan in flight", kindRun(1, jobs.KindScan, jobs.ItemRunning), true},
+		{"a scan already done", kindRun(1, jobs.KindScan, jobs.ItemDone), false},
+		// The case the availability exists for: one item, in flight, of a kind
+		// that must never be cut. `!Finished()` would offer the key and then
+		// refuse it, which is the silent refusal Rule 130 removes.
+		{"a delete in flight", kindRun(1, jobs.KindDelete, jobs.ItemRunning), false},
+		{"a sync with a queue left", kindRun(1, jobs.KindSync, jobs.ItemRunning, jobs.ItemQueued), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := withRuns(t, tc.run)
+			if got := testutil.ShortcutEnabled(m.GetShortcuts(), keymap.Kill); got != tc.want {
+				t.Errorf("K enabled = %v, want %v", got, tc.want)
+			}
+			if !testutil.HasShortcut(m.GetShortcuts(), keymap.Kill) {
+				t.Error("K was dropped rather than greyed (Rule 130)")
+			}
+		})
+	}
+}
+
+// Inside a run the question is narrower, and it is the kind that answers it.
+func TestStopOnATargetIsOfferedOnlyWhereCuttingLeavesNothingBehind(t *testing.T) {
+	for _, tc := range []struct {
+		kind jobs.Kind
+		want bool
+	}{
+		{jobs.KindScan, true},
+		{jobs.KindClone, false},
+		{jobs.KindSync, false},
+	} {
+		t.Run(string(tc.kind), func(t *testing.T) {
+			m := withRuns(t, kindRun(1, tc.kind, jobs.ItemRunning))
+			m, _ = step(t, m, testutil.Key("right"))
+
+			if got := testutil.ShortcutEnabled(m.GetShortcuts(), keymap.Kill); got != tc.want {
+				t.Errorf("K enabled = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// A settled target is never stoppable, whatever the kind.
+func TestStopIsGreyedOnASettledTarget(t *testing.T) {
+	m := withRuns(t, kindRun(1, jobs.KindScan, jobs.ItemDone))
+	m, _ = step(t, m, testutil.Key("right"))
+
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.Kill) {
+		t.Error("K is offered on a target that has already finished")
+	}
+}
+
+// Rule 130: what the header greys, the handler refuses — and it says why.
+func TestStoppingWhatCannotBeStoppedIsRefusedWithItsReason(t *testing.T) {
+	m := withRuns(t, kindRun(1, jobs.KindDelete, jobs.ItemRunning))
+
+	m, cmd := step(t, m, testutil.Key(keymap.Kill))
+
+	if cmd == nil {
+		t.Fatal("the refusal was silent — Rule 130 forbids a bare return")
+	}
+	if _, asked := testutil.MsgOf[jobs.CancelMsg](cmd); asked {
+		t.Error("a run that cannot be stopped was asked to stop anyway")
+	}
+	if !m.footer.IsSet() {
+		t.Error("nothing was posted to the footer")
+	}
+	if !strings.Contains(m.footer.Text(), "delete") {
+		t.Errorf("footer = %q, want the kind named — a greyed key has to say why", m.footer.Text())
+	}
+}
+
+// The view asks; the router acts. What it holds is the identifier it read off
+// the row it is rendering, not a pointer to the registry (D1).
+func TestStopAsksTheRouterToCancelTheSelectedRun(t *testing.T) {
+	m := withRuns(t, kindRun(7, jobs.KindScan, jobs.ItemRunning))
+
+	_, cmd := step(t, m, testutil.Key(keymap.Kill))
+
+	msg, ok := testutil.MsgOf[jobs.CancelMsg](cmd)
+	if !ok {
+		t.Fatal("K asked the router for nothing")
+	}
+	if msg.ID != 7 {
+		t.Errorf("ID = %d, want the run under the cursor", msg.ID)
+	}
+}
+
+func TestStopInsideARunNamesTheTarget(t *testing.T) {
+	m := withRuns(t, kindRun(7, jobs.KindScan, jobs.ItemRunning, jobs.ItemQueued))
+	m, _ = step(t, m, testutil.Key("right"))
+
+	_, cmd := step(t, m, testutil.Key(keymap.Kill))
+
+	msg, ok := testutil.MsgOf[jobs.CancelItemMsg](cmd)
+	if !ok {
+		t.Fatal("K inside a run asked the router for nothing")
+	}
+	if msg.ID != 7 || msg.Target != "targeta" {
+		t.Errorf("message = %+v, want the run and the target under the cursor", msg)
 	}
 }

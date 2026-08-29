@@ -91,16 +91,30 @@ type imageScanJob struct {
 // scanOneImageCmd scans a single image, using a semaphore to limit concurrency.
 // It emits ImageScanStartingMsg before scanning and ImageScanFinishedMsg after.
 func scanOneImageCmd(job imageScanJob, opts scan.ScanOptions, sem chan struct{}) tea.Cmd {
+	// The context the scan runs under, so `K` can stop it (D7). It travels on
+	// the starting message, which is the same Update that marks the item
+	// running — two steps would leave a window where the row is running and
+	// cannot be stopped.
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return tea.Sequence(
-		func() tea.Msg {
-			return ImageScanStartingMsg{ImageName: job.Name}
-		},
+		// The starting message waits for its turn in the pool, which is what
+		// makes queued and running mean different things (D6). Emitted before
+		// the wait — as it was — every image in a batch reported itself running
+		// the instant the batch was dispatched, so twelve rows spun on four
+		// workers.
 		func() tea.Msg {
 			sem <- struct{}{}
+			return ImageScanStartingMsg{ImageName: job.Name, Cancel: cancel}
+		},
+		func() tea.Msg {
 			defer func() { <-sem }()
+			// Releases the context whether the scan was cancelled or ran to the
+			// end; the registry drops its copy when the item settles.
+			defer cancel()
 
 			scanner := scan.NewScanner(opts)
-			result, err := scanner.Scan(context.Background(), job.Target, scan.TargetImage)
+			result, err := scanner.Scan(ctx, job.Target, scan.TargetImage)
 			if err != nil {
 				log.Printf("ERROR: Scan failed for %s: %v", job.Name, err)
 				return ImageScanFinishedMsg{ImageName: job.Name, Err: err}

@@ -65,6 +65,16 @@ func (r *Registry) Start(run Run) JobID {
 // work it never registered, and the visible symptom would be a row that spins
 // for the life of the view — the failure this package exists to remove.
 func (r *Registry) Advance(id JobID, target string, state ItemState, detail string) bool {
+	return r.advance(id, target, state, detail, nil)
+}
+
+// advance is Advance with the cancel function a starting transition carries.
+//
+// It arrives here and not through a call of its own because the two are one
+// event: the context is created inside the Cmd, so the function reaches Update
+// in the very message that says the item started. Two calls would leave a
+// window where the item is running and cannot be stopped.
+func (r *Registry) advance(id JobID, target string, state ItemState, detail string, cancel context.CancelFunc) bool {
 	run := r.run(id)
 	if run == nil {
 		return false
@@ -75,8 +85,11 @@ func (r *Registry) Advance(id JobID, target string, state ItemState, detail stri
 		}
 		run.Items[i].State = state
 		run.Items[i].Detail = detail
-		if state.Terminal() {
+		switch {
+		case state.Terminal():
 			run.Items[i].cancel = nil
+		case cancel != nil:
+			run.Items[i].cancel = cancel
 		}
 		r.settle(run)
 		return true
@@ -95,6 +108,14 @@ type Transition struct {
 	Target string
 	State  ItemState
 	Detail string
+
+	// Cancel stops the work this transition reports as started, and is nil for
+	// every other transition and for the kinds that cannot be cut (D7).
+	//
+	// It travels on the transition rather than through a call of its own
+	// because the two are one event: the context is created inside the Cmd, so
+	// the function reaches Update in the message that says the item started.
+	Cancel context.CancelFunc
 
 	// Discover says the target has no row yet and belongs to the open run of
 	// this kind (D3). Only a kind whose targets arrive progressively sets it —
@@ -132,7 +153,7 @@ func (r *Registry) Apply(t Transition) bool {
 	if !ok {
 		return false
 	}
-	return r.Advance(id, t.Target, t.State, t.Detail)
+	return r.advance(id, t.Target, t.State, t.Detail, t.Cancel)
 }
 
 // Discover adds a target to the open run of a kind (D3).
@@ -229,25 +250,6 @@ func (r *Registry) FindItem(kind Kind, target string) (JobID, bool) {
 	return 0, false
 }
 
-// Attach stores the cancel function of an item that has just started.
-//
-// It is separate from Advance because the two do not arrive together: the
-// context is created inside the Cmd, so the function reaches Update in the
-// message that says the item started, and only the kinds that can be cancelled
-// send one (D7).
-func (r *Registry) Attach(id JobID, target string, cancel context.CancelFunc) {
-	run := r.run(id)
-	if run == nil {
-		return
-	}
-	for i := range run.Items {
-		if run.Items[i].Target == target {
-			run.Items[i].cancel = cancel
-			return
-		}
-	}
-}
-
 // AttachRun stores the cancel function that stops the run's queue, as opposed
 // to one item's work.
 func (r *Registry) AttachRun(id JobID, cancel context.CancelFunc) {
@@ -301,6 +303,39 @@ func (r *Registry) Cancel(id JobID) bool {
 
 	r.settle(run)
 	return true
+}
+
+// CancelItem stops one target of a run, leaving the rest going.
+//
+// It is the narrow half of D7: the run-level Cancel stops the queue whatever
+// the kind, and this cuts a single piece of work — which is only offered where
+// cutting leaves nothing behind. The caller decides that (Run.ItemStoppable);
+// this refuses only what it cannot do.
+//
+// A queued target is skipped outright, because it will not run. A running one
+// is *asked* to stop and left running: it reports its own outcome when it gets
+// there, and claiming it settled here would race the message that says how it
+// actually ended — the same reason Cancel gives.
+func (r *Registry) CancelItem(id JobID, target string) bool {
+	run := r.run(id)
+	if run == nil || run.Finished() {
+		return false
+	}
+	for i := range run.Items {
+		if run.Items[i].Target != target || run.Items[i].State.Terminal() {
+			continue
+		}
+		if run.Items[i].State == ItemQueued {
+			run.Items[i].State = ItemSkipped
+			run.Items[i].Detail = "cancelled"
+		} else if run.Items[i].cancel != nil {
+			run.Items[i].cancel()
+			run.Items[i].cancel = nil
+		}
+		r.settle(run)
+		return true
+	}
+	return false
 }
 
 // Snapshot returns a copy of every run, oldest first.

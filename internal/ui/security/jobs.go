@@ -59,7 +59,7 @@ func (m Model) scanningTargets() map[string]bool {
 // ── What each message tells the registry (jobs.Reporter) ─────────────────────
 
 func (m InventoryScanStartingMsg) Transition() jobs.Transition {
-	return jobs.Transition{Kind: jobs.KindScan, Target: m.Name, State: jobs.ItemRunning}
+	return jobs.Transition{Kind: jobs.KindScan, Target: m.Name, State: jobs.ItemRunning, Cancel: m.Cancel}
 }
 
 func (m InventoryScanFinishedMsg) Transition() jobs.Transition {

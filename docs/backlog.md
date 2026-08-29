@@ -220,7 +220,7 @@ seule chose entre un scan et une ligne marquée pour toujours.
 **Ce que ce correctif ne fait pas** : la chaîne `spinner.Tick` de `ws` s'arrête
 quand la vue quitte l'écran, donc son spinner ne tourne pas en son absence — il
 repart au retour, par `Init`. C'est sans conséquence visible (personne ne
-regarde) et c'est le [§3.58](#358-un-registre-de-travaux-et-la-vue-jobs--planifié) qui le
+regarde) et c'est le [§3.58](#358-un-registre-de-travaux-et-la-vue-jobs--done) qui le
 règle proprement, en faisant tenir **une** chaîne par le routeur. Le compteur
 par dossier et la vue `jobs` demandés en même temps y sont aussi : ce défaut-ci
 est livré seul parce qu'il l'est.
@@ -10886,7 +10886,7 @@ Une couleur par langage dans `fileicon` (le comportement d'`eza` et de `lsd`).
 Ce serait environ vingt-cinq rôles pour distinguer des lignes qui offrent les
 mêmes actions ; à demander explicitement si le rendu final le réclame.
 
-### 3.58 Un registre de travaux, et la vue `jobs` — **planifié**
+### 3.58 Un registre de travaux, et la vue `jobs` — **done**
 
 Plan détaillé : [`jobs-registry.plan.md`](../.claude/plans/jobs-registry.plan.md).
 
@@ -10915,7 +10915,9 @@ L'écran de clone de l'explorer est le prototype à généraliser : c'est déjà
 vue de jobs, pour un run et un seul type.
 
 Huit postes, dont [D67](#11-fixed) était le premier — livré seul parce qu'il ne
-dépend d'aucun des autres.
+dépend d'aucun des autres. **Les huit sont livrés** (2026-08-29), et deux
+défauts ont été trouvés en chemin plutôt que signalés à l'usage :
+[D67](#11-fixed) et [D68](#11-fixed).
 
 #### État
 
@@ -10928,7 +10930,7 @@ dépend d'aucun des autres.
 | 5 — l'estampe de contexte | **fait**, [D68](#11-fixed) |
 | 6 — la vue `:jobs` | **fait** |
 | 7 — le clone rebranché | **fait** |
-| 8 — l'annulation | à faire |
+| 8 — l'annulation | **fait** |
 
 Le poste 2 est délibérément **inerte** : le registre existe, le routeur le
 détient et diffuse, et rien ne l'alimente. C'est ce qui le rend vérifiable seul —
@@ -11052,6 +11054,31 @@ Les tests de l'explorer conduisent maintenant un vrai registre à côté de la v
 et lui rendent son instantané, ce qui est exactement ce que fait le routeur. Ce
 n'est pas un contournement : l'écran ne détient plus l'état, donc un test qui
 n'assertait que sur la vue n'assertait plus sur rien.
+
+Le poste 8 ferme la série avec `K`. Le plan annonçait « il ne reste que la
+touche, le garde et les tests », en s'appuyant sur le fait que le
+`context.CancelFunc` était en place depuis le poste 2. **Il ne l'était pas** :
+`Registry.Attach` existait et n'avait aucun appelant, et les trois sites de scan
+passaient `context.Background()`. `K` sur une cible en vol n'aurait donc rien
+coupé — une touche qui ment, ce qui est pire que pas de touche.
+
+Les trois sites créent maintenant un contexte annulable **dans le Cmd** et
+posent la fonction sur le message qui dit que le scan a démarré. Elle voyage sur
+ce message et pas sur un appel à part parce que les deux sont un seul événement :
+le registre la range dans le même `Update` qui marque l'item running
+(`Transition.Cancel`), donc il n'existe pas de fenêtre où la ligne tourne et où
+la touche ne fait rien. `Attach` disparaît, fondu dans `Advance`.
+
+`Run.Stoppable()` est la question posée sur **ce run** et non sur son kind, et
+le delete est le cas pour lequel elle existe : un item, en vol, d'un kind qu'on
+ne doit jamais couper. `!Finished()` offrirait la touche puis la refuserait —
+exactement le refus silencieux que Rule 130 supprime.
+
+Un défaut trouvé au passage et corrigé ici : `scanOneImageCmd` émettait son
+message de départ **avant** le sémaphore, donc chaque image d'un lot se déclarait
+running à l'instant du dispatch — douze lignes qui tournent sur quatre workers.
+C'est le défaut que le poste 3 avait corrigé dans `ws` et le poste 4 dans
+`:sec` ; l'onglet Images l'avait gardé, et D6 est décoratif sans cet ordre.
 
 Deux écarts au plan, tous deux du même genre :
 

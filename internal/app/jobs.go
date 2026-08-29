@@ -95,6 +95,32 @@ func (a *App) handleCancelOpen(msg jobs.CancelOpenMsg) (tea.Model, tea.Cmd) {
 	return a, a.jobsChanged()
 }
 
+// handleCancel stops a run named by identifier, and handleCancelItem one of its
+// targets (D7).
+//
+// The identifier comes from the snapshot the asking view is rendering, which is
+// what makes it addressable at all: a launch site could not hold one — it would
+// have to before the registry allocated it — but `:jobs` reads it off the row
+// the cursor is on.
+//
+// A refusal is silent here, and it is not a swallowed error: the view asked
+// only because its own guard said it could (Rule 130), so a false answer means
+// the run settled between the keypress and this handler. There is nothing to
+// tell the user that the next broadcast will not say better.
+func (a *App) handleCancel(msg jobs.CancelMsg) (tea.Model, tea.Cmd) {
+	if !a.jobs.Cancel(msg.ID) {
+		return a, nil
+	}
+	return a, a.jobsChanged()
+}
+
+func (a *App) handleCancelItem(msg jobs.CancelItemMsg) (tea.Model, tea.Cmd) {
+	if !a.jobs.CancelItem(msg.ID, msg.Target) {
+		return a, nil
+	}
+	return a, a.jobsChanged()
+}
+
 // jobTickMsg advances the one spinner frame the whole application shares.
 //
 // It is the router's own message type rather than a spinner.TickMsg on purpose.
