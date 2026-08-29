@@ -310,6 +310,44 @@ func (r Run) Done() int {
 	return n
 }
 
+// Stoppable reports whether asking this run to stop would change anything.
+//
+// It is D7 read as a question about *this* run rather than about its kind,
+// which is what a view needs to decide whether to offer the key (Rule 130):
+//
+//   - a settled run has nothing left to stop;
+//   - a kind whose work can be cut always has something — whatever is in flight;
+//   - a run still discovering has its walk to stop, even with nothing queued;
+//   - anything else can still have its queue stopped, if there is a queue.
+//
+// A delete falls through all four while it runs: one item, in flight, of a kind
+// that must never be cut. That is the case the key is greyed for, and it is the
+// reason this is a method rather than `!Finished()`.
+func (r Run) Stoppable() bool {
+	switch {
+	case r.Finished():
+		return false
+	case r.Kind.Cancellable(), r.open:
+		return true
+	}
+	for _, item := range r.Items {
+		if item.State == ItemQueued {
+			return true
+		}
+	}
+	return false
+}
+
+// ItemStoppable reports whether one target can be stopped on its own.
+//
+// Narrower than Stoppable on purpose: stopping the run stops its queue whatever
+// the kind, but cutting one target in flight is only offered where cutting
+// leaves nothing behind (Kind.Cancellable). A half-written clone is the case
+// that decides it.
+func (r Run) ItemStoppable(item Item) bool {
+	return !item.State.Terminal() && r.Kind.Cancellable()
+}
+
 // Counts returns how many items sit in each state, for a view that wants to say
 // more than "3/12".
 func (r Run) Counts() map[ItemState]int {

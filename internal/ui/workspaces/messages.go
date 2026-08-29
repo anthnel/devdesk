@@ -1,6 +1,8 @@
 package workspaces
 
 import (
+	"context"
+
 	"time"
 
 	"github.com/anthnel/devdesk/internal/cache"
@@ -81,6 +83,13 @@ type SelectionCancelledMsg struct{}
 // WorkspaceScanStartingMsg is sent when a workspace scan begins for a repo path
 type WorkspaceScanStartingMsg struct {
 	RepoPath string
+
+	// Cancel stops the scan, and is what makes `K` on this row mean anything
+	// (D7). It rides on the starting message because the context is created
+	// inside the Cmd: the registry stores it in the same Update that marks the
+	// item running, so there is no window where the row is running and cannot
+	// be stopped.
+	Cancel context.CancelFunc
 }
 
 // WorkspaceScanCompleteMsg is sent by the security view when a workspace scan finishes

@@ -199,9 +199,8 @@ func TestASnapshotIsACopy(t *testing.T) {
 func TestASnapshotCannotCancelAnything(t *testing.T) {
 	r := at(noon)
 	id := r.Start(run("a"))
-	r.Advance(id, "a", ItemRunning, "")
 	r.AttachRun(id, func() {})
-	r.Attach(id, "a", func() {})
+	r.Apply(Transition{Kind: KindScan, Target: "a", State: ItemRunning, Cancel: func() {}})
 
 	snapshot := r.Snapshot()[0]
 
@@ -220,11 +219,10 @@ func TestCancelStopsTheQueueAndCallsWhatItWasGiven(t *testing.T) {
 	r := at(noon)
 	id := r.Start(NewRun(KindScan, command.ViewWorkspaces, "default", "~/work", "a", "b", "c"))
 	r.Advance(id, "a", ItemDone, "")
-	r.Advance(id, "b", ItemRunning, "")
 
 	runCancelled, itemCancelled := false, false
 	r.AttachRun(id, func() { runCancelled = true })
-	r.Attach(id, "b", func() { itemCancelled = true })
+	r.Apply(Transition{Kind: KindScan, Target: "b", State: ItemRunning, Cancel: func() { itemCancelled = true }})
 
 	if !r.Cancel(id) {
 		t.Fatal("the run refused to be cancelled")
@@ -291,10 +289,9 @@ func TestCancellingASettledRunDoesNothing(t *testing.T) {
 func TestASettledItemDropsItsCancelFunction(t *testing.T) {
 	r := at(noon)
 	id := r.Start(run("a"))
-	r.Advance(id, "a", ItemRunning, "")
 
 	_, cancel := context.WithCancel(context.Background())
-	r.Attach(id, "a", cancel)
+	r.Apply(Transition{Kind: KindScan, Target: "a", State: ItemRunning, Cancel: cancel})
 	r.Advance(id, "a", ItemDone, "")
 
 	if r.run(id).Items[0].cancel != nil {

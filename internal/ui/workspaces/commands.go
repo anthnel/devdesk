@@ -162,18 +162,28 @@ func deleteScanCacheCmd(paths []string, contextName string) tea.Cmd {
 // change twice in that time, and the result of a repository belongs to the
 // context it was launched in whatever the user is looking at when it lands.
 func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, contextName string, sem chan struct{}) tea.Cmd {
+	// The context the scan runs under, so `K` can stop it (D7). It is created
+	// here rather than inside the body because it has to travel on the starting
+	// message: the registry stores it in the same Update that marks the item
+	// running, and two steps would leave a window where the row is running and
+	// cannot be stopped.
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return tea.Sequence(
 		// Queued until a worker is free, and only then running — see the note
 		// in syncOneRepoCmd.
 		func() tea.Msg {
 			sem <- struct{}{}
-			return WorkspaceScanStartingMsg{RepoPath: repoPath}
+			return WorkspaceScanStartingMsg{RepoPath: repoPath, Cancel: cancel}
 		},
 		func() tea.Msg {
 			defer func() { <-sem }()
+			// Releases the context whether the scan was cancelled or ran to the
+			// end; the registry drops its copy when the item settles.
+			defer cancel()
 
 			scanner := scan.NewScanner(opts)
-			result, err := scanner.Scan(context.Background(), repoPath, scan.TargetDirectory)
+			result, err := scanner.Scan(ctx, repoPath, scan.TargetDirectory)
 			if err != nil {
 				log.Printf("ERROR [workspaces] scan %s: %v", repoPath, err)
 				return WorkspaceScanCompleteMsg{

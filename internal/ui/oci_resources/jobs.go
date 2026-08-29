@@ -93,7 +93,7 @@ func (m Model) anyScanRunning() bool { return len(m.scanningNames()) > 0 }
 // ── What each message tells the registry (jobs.Reporter) ─────────────────────
 
 func (m ImageScanStartingMsg) Transition() jobs.Transition {
-	return jobs.Transition{Kind: jobs.KindScan, Target: m.ImageName, State: jobs.ItemRunning}
+	return jobs.Transition{Kind: jobs.KindScan, Target: m.ImageName, State: jobs.ItemRunning, Cancel: m.Cancel}
 }
 
 func (m ImageScanFinishedMsg) Transition() jobs.Transition {

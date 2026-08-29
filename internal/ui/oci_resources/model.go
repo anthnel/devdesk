@@ -1,6 +1,8 @@
 package ociresources
 
 import (
+	"context"
+
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -104,6 +106,13 @@ type Model struct {
 // ImageScanStartingMsg signals that scanning is starting for a single image
 type ImageScanStartingMsg struct {
 	ImageName string
+
+	// Cancel stops the scan, and is what makes `K` on this row mean anything
+	// (D7). It rides on the starting message because the context is created
+	// inside the Cmd: the registry stores it in the same Update that marks the
+	// item running, so there is no window where the row is running and cannot
+	// be stopped.
+	Cancel context.CancelFunc
 }
 
 // ImageScanFinishedMsg signals that scanning has completed for a single image

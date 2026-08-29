@@ -591,3 +591,85 @@ func received[T any](v *fakeView) bool {
 	}
 	return false
 }
+
+// ── Stopping work (D7, poste 8) ──────────────────────────────────────────────
+
+// The whole path a scan takes, end to end: the launch site creates the context
+// inside its Cmd, the starting message carries the cancel, the registry stores
+// it on the item it marks running, and `K` cuts it.
+//
+// It is one test rather than three because the failure it guards against is the
+// seam between them: a cancel stored one Update after the item went running
+// leaves a window where the row spins and the key does nothing.
+func TestAScansCancelTravelsOnTheMessageThatSaysItStarted(t *testing.T) {
+	a := router(t, &fakeView{})
+	a.views[command.ViewWorkspaces] = &fakeView{}
+
+	stopped := false
+	a.Update(jobs.StartMsg{Run: scanRun(a.currentContext, "/repos/a")})
+	a.Update(workspaces.WorkspaceScanStartingMsg{
+		RepoPath: "/repos/a",
+		Cancel:   func() { stopped = true },
+	})
+
+	id := a.jobs.Snapshot()[0].ID
+	a.Update(jobs.CancelItemMsg{ID: id, Target: "/repos/a"})
+
+	if !stopped {
+		t.Error("K did not reach the context the scan runs under")
+	}
+	// Asked to stop, not declared stopped: the scan reports its own outcome.
+	if got := a.jobs.Snapshot()[0].Items[0].State; got != jobs.ItemRunning {
+		t.Errorf("state = %q, want it left running until the scan says otherwise", got)
+	}
+}
+
+// Stopping a run stops its queue whatever the kind, and the record says it was
+// stopped rather than that it finished.
+func TestCancelMsgStopsTheRunAndBroadcasts(t *testing.T) {
+	ws := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewWorkspaces] = ws
+
+	a.Update(jobs.StartMsg{Run: scanRun(a.currentContext, "/repos/a", "/repos/b")})
+	id := a.jobs.Snapshot()[0].ID
+
+	a.Update(jobs.CancelMsg{ID: id})
+
+	run := a.jobs.Snapshot()[0]
+	if got := run.State(); got != jobs.RunCancelled {
+		t.Errorf("state = %q, want cancelled — `:jobs` has to tell that from done", got)
+	}
+	for _, item := range run.Items {
+		if item.State != jobs.ItemSkipped || item.Detail != "cancelled" {
+			t.Errorf("queued target = %+v, want it skipped with its reason", item)
+		}
+	}
+	if snapshot := lastJobs(t, ws); snapshot.Running() != 0 {
+		t.Errorf("the views were handed %d running, want none", snapshot.Running())
+	}
+}
+
+// A cancel for work the registry has settled is not an error and not a
+// swallowed one either: the view asked because its own guard said it could, so
+// a false answer means the run settled between the keypress and the handler.
+func TestCancellingSettledWorkChangesNothing(t *testing.T) {
+	a := router(t, &fakeView{})
+	a.views[command.ViewWorkspaces] = &fakeView{}
+
+	a.Update(jobs.StartMsg{Run: scanRun(a.currentContext, "/repos/a")})
+	id := a.jobs.Snapshot()[0].ID
+	a.Update(workspaces.WorkspaceScanCompleteMsg{RepoPath: "/repos/a"})
+
+	before := a.jobs.Snapshot()[0]
+	a.Update(jobs.CancelMsg{ID: id})
+	a.Update(jobs.CancelItemMsg{ID: id, Target: "/repos/a"})
+
+	after := a.jobs.Snapshot()[0]
+	if after.State() != before.State() {
+		t.Errorf("state moved from %q to %q on a settled run", before.State(), after.State())
+	}
+	if after.Cancelled() {
+		t.Error("a run that had already finished was marked cancelled")
+	}
+}

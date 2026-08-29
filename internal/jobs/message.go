@@ -73,6 +73,32 @@ func CancelOpen(kind Kind) tea.Cmd {
 	return func() tea.Msg { return CancelOpenMsg{Kind: kind} }
 }
 
+// CancelMsg asks the router to stop a run by identifier (D7).
+//
+// An identifier here, where CancelOpenMsg names a kind, and the difference is
+// which view is asking. A launch site cannot hold a JobID — it would have to
+// before the registry allocated one — but `:jobs` reads the identifier out of
+// the snapshot it is already rendering, which is the run the cursor is on.
+type CancelMsg struct {
+	ID JobID
+}
+
+// Cancel builds the message.
+func Cancel(id JobID) tea.Cmd {
+	return func() tea.Msg { return CancelMsg{ID: id} }
+}
+
+// CancelItemMsg asks the router to stop one target of a run.
+type CancelItemMsg struct {
+	ID     JobID
+	Target string
+}
+
+// CancelItem builds the message.
+func CancelItem(id JobID, target string) tea.Cmd {
+	return func() tea.Msg { return CancelItemMsg{ID: id, Target: target} }
+}
+
 // StartInContext builds the message for work that writes into a context-scoped
 // cache. The builder is called once, in Update, with the name the router
 // stamped on the run — so every command it returns carries that name however

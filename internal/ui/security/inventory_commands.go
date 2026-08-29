@@ -57,6 +57,13 @@ type InventoryScanFinishedMsg struct {
 // batch was actually running (D10).
 type InventoryScanStartingMsg struct {
 	Name string
+
+	// Cancel stops the scan, and is what makes `K` on this row mean anything
+	// (D7). It rides on the starting message because the context is created
+	// inside the Cmd: the registry stores it in the same Update that marks the
+	// item running, so there is no window where the row is running and cannot
+	// be stopped.
+	Cancel context.CancelFunc
 }
 
 // inventoryScanJob is one target to rescan.
@@ -274,6 +281,12 @@ func rescanCmd(jobs []inventoryScanJob, opts scan.ScanOptions, contextName strin
 // rescanOneCmd rescans a single target and writes the result through to both
 // the counts cache and the stored result, so the row and `enter` agree.
 func rescanOneCmd(job inventoryScanJob, opts scan.ScanOptions, contextName string, sem chan struct{}) tea.Cmd {
+	// The context the rescan runs under, so `K` can stop it (D7). It travels on
+	// the starting message, which is the same Update that marks the item
+	// running — two steps would leave a window where the row is running and
+	// cannot be stopped.
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return tea.Sequence(
 		// The starting message waits for its turn in the pool, which is what
 		// moves the target from queued to running. Emitted before the wait,
@@ -281,21 +294,24 @@ func rescanOneCmd(job inventoryScanJob, opts scan.ScanOptions, contextName strin
 		// batch was dispatched.
 		func() tea.Msg {
 			sem <- struct{}{}
-			return InventoryScanStartingMsg{Name: job.Name}
+			return InventoryScanStartingMsg{Name: job.Name, Cancel: cancel}
 		},
-		rescanOneBodyCmd(job, opts, contextName, sem),
+		rescanOneBodyCmd(ctx, cancel, job, opts, contextName, sem),
 	)
 }
 
-func rescanOneBodyCmd(job inventoryScanJob, opts scan.ScanOptions, contextName string, sem chan struct{}) tea.Cmd {
+func rescanOneBodyCmd(ctx context.Context, cancel context.CancelFunc, job inventoryScanJob, opts scan.ScanOptions, contextName string, sem chan struct{}) tea.Cmd {
 	return func() tea.Msg {
 		defer func() { <-sem }()
+		// Releases the context whether the scan was cancelled or ran to the
+		// end; the registry drops its copy when the item settles.
+		defer cancel()
 
 		targetType := scan.TargetImage
 		if job.Kind == kindRepo {
 			targetType = scan.TargetDirectory
 		}
-		result, err := scan.NewScanner(opts).Scan(context.Background(), job.Name, targetType)
+		result, err := scan.NewScanner(opts).Scan(ctx, job.Name, targetType)
 		if err != nil {
 			log.Printf("ERROR [security/inventory] rescan %s: %v", job.Name, err)
 			return InventoryScanFinishedMsg{Name: job.Name, Err: err}

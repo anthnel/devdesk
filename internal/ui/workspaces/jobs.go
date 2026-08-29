@@ -132,7 +132,12 @@ func (m Model) jobsStatusLine() string {
 const syncDetailUpdated = "updated"
 
 func (m WorkspaceScanStartingMsg) Transition() jobs.Transition {
-	return jobs.Transition{Kind: jobs.KindScan, Target: m.RepoPath, State: jobs.ItemRunning}
+	// The cancel goes with the state that says the work started, which is the
+	// only moment there is anything to stop (D7).
+	return jobs.Transition{
+		Kind: jobs.KindScan, Target: m.RepoPath,
+		State: jobs.ItemRunning, Cancel: m.Cancel,
+	}
 }
 
 func (m WorkspaceScanCompleteMsg) Transition() jobs.Transition {

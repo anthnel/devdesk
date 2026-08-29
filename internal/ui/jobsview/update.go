@@ -5,6 +5,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // Init returns nothing.
@@ -109,6 +110,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "left", "esc":
 		return m.closeItems()
 
+	case keymap.Kill:
+		return m.stopSelected()
+
 	case ".":
 		return m.cycleSort()
 
@@ -129,6 +133,24 @@ func (m Model) forwardToTable(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.itemTable.Update(msg)
 	}
 	return m, m.runTable.Update(msg)
+}
+
+// stopSelected asks the router to stop what the cursor is on: the run at the
+// top level, one target inside a run.
+//
+// It asks rather than acts, like every other write to the registry: the router
+// owns it, and a view holding a pointer to it is the thing D1 keeps out. What
+// the view holds is the identifier, read off the row it is rendering.
+func (m Model) stopSelected() (tea.Model, tea.Cmd) {
+	if stop := m.availability().Stop; !stop.Enabled() {
+		return m, m.footer.Warn(stop.Reason)
+	}
+	if m.level == levelItems {
+		row, _ := m.itemTable.Selected()
+		return m, jobs.CancelItem(m.openRun, row.Item.Target)
+	}
+	row, _ := m.runTable.Selected()
+	return m, jobs.Cancel(row.Run.ID)
 }
 
 // cycleSort moves the runs table on to its next sortable column.

@@ -7,6 +7,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -44,6 +45,7 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	a := m.availability()
 	return []shortcut.Shortcut{
+		{Key: keymap.Kill, Description: "Stop", Disabled: !a.Stop.Enabled()},
 		{Key: "→", Description: "Open targets", Disabled: !a.Open.Enabled()},
 		{Key: "esc", Description: "Go back", Disabled: !a.Close.Enabled()},
 		{Key: ".", Description: "Sort", Disabled: !a.Sort.Enabled()},
@@ -157,6 +159,7 @@ func (m Model) GetHelpContent() help.Content {
 			"A run is one batch started in one go from one view; press → to see the targets it holds. " +
 			"This view starts nothing and owns nothing — it reads the same record every other view reads.",
 		KeyBindings: []help.KeyBinding{
+			{Key: keymap.Kill, Description: "Stop the selected run, or the selected target inside one"},
 			{Key: "→", Description: "Open the selected run and list its targets"},
 			{Key: "esc", Description: "Go back to the list of runs"},
 			{Key: ".", Description: "Cycle the sort column (runs only). Each press toggles asc/desc, then moves to the next column"},
@@ -189,6 +192,12 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "What is listed",
 				Body: "Runs of the current context only. A run is stamped with the context it started in and kept for the session, so switching context hides them rather than dropping them — switching back brings them back.\n\n" +
 					"The last 20 settled runs are kept. A run still going is never dropped, however many have settled.",
+			},
+			{
+				Title: "Stopping work",
+				Body: "'" + keymap.Kill + "' on a run stops its queue: nothing further starts, whatever the kind. Targets still waiting are marked skipped, and the ones already running report their own outcome when they get there — a run that was stopped reads 'cancelled' rather than 'done', which is the distinction the list exists to keep.\n\n" +
+					"'" + keymap.Kill + "' on a single target is offered only where cutting the work leaves nothing behind: a scan and an image pull can be cut, a clone cannot — a half-written repository on disk is worse than one that finished. A sync waits out the fetch in flight, and a delete is never cut at all.\n\n" +
+					"The key is greyed when there is nothing to stop, and pressing it then says why in the footer rather than doing nothing.",
 			},
 			{
 				Title: "Where the rows come from",
