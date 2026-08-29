@@ -365,16 +365,68 @@ The router does not re-measure the layout on these, unlike
 footer's shape on screen, and it is measured on its way back in — `switchView`
 asks for a resize.
 
-**What this does not cover, yet.** A view's `spinner.Tick` chain stops when the
-view leaves the screen, so its spinner does not advance while it is away; it
-restarts from `Init` on return. Each view also keeps its own bookkeeping of what
-is in flight, so none of them can see what another started on the same target.
-Both are the job of the jobs registry (backlog §3.58), which makes the router
-hold one tick chain and one answer to "what is running?".
-
 Making the marker survive re-entry is what makes the routing safe: `setEntries`
 deliberately does not touch `scanningPaths`, so the reload `Init` triggers on
 the way back in leaves in-flight work alone.
+
+### The jobs registry — `internal/jobs`
+
+One bookkeeping of everything long-running, owned by the router
+(`App.jobs`). Before it there were four, and none could see the others:
+`workspaces` kept three maps of paths, `oci_resources` a map of image names, the
+security inventory a flag per row, and the clone screen five states per
+repository. A scan started from `:sec` was therefore invisible to the `busy()`
+guard in `ws`, and the two wrote the same cache entry.
+
+Two levels: a **`Run`** is one batch started in one go from one view, and holds
+an **`Item`** per target. `RunState` is *derived* from the items and never
+stored — a field would be a second answer to a question the items already
+answer, and the two drift the first time a transition is missed.
+
+| | |
+|---|---|
+| `Start(run)` | admits a batch, from `Update` and never from a `Cmd` (Rule 110). Every launch site knows its full target list when it dispatches, which is what makes "8 waiting" sayable |
+| `Advance(id, target, state, detail)` | one item moves. Returns false for work nobody registered, rather than swallowing it |
+| `Attach` / `AttachRun` | store a `context.CancelFunc`; it arrives in the message that says the item started, because the context is created inside the `Cmd` |
+| `Cancel(id)` | stops the queue always; cuts work in flight only where that leaves nothing behind (`Kind.Cancellable`) |
+| `Snapshot()` | a **copy**, cancel functions cleared |
+| `Running()` | runs that have not settled |
+
+`queued` and `running` are kept apart: the semaphore already knows the
+difference and the clone screen already shows it, so collapsing them would make
+that screen the only honest one.
+
+Runs live for the session, capped at the last `MaxFinishedRuns` settled ones; a
+run still going is never pruned. Each is stamped with the context it started in,
+and views **filter** (`jobs.FilterContext`) rather than the registry purging on a
+switch — purging would contradict keeping them for the session, and the stamp is
+also what stops a batch outliving a switch from writing into the wrong cache.
+
+### The broadcast, and the one spinner chain
+
+Views never hold a pointer to the registry. The router hands them a snapshot in
+`JobsChangedMsg`, so nothing is read from `View()` while something else writes
+it, and a view holding a snapshot cannot write back — every mutation goes
+through the one owner.
+
+`broadcastJobs` updates **every held view**, on screen or not, so coming back to
+one shows what happened while it was away without it having to ask; the layout
+is re-measured once at the end, since only the view on screen can change the
+footer's height. `sendJobsTo` covers the remaining case: a view built lazily on
+the way in was there for none of it, so `switchView` hands it the snapshot.
+
+There is **one** spinner chain for the whole application, the router's
+(`jobTickMsg`, `ensureJobTick`, `handleJobTick`). It is alive exactly while
+`Running() > 0` and stops by not being renewed; a chain is identified by a
+sequence number, so a tick from one already replaced is dropped and a second
+chain is impossible rather than merely unlikely. The frame travels in the
+message **bare** — Rule 122, because a view puts it in a table cell, which is
+measured before it is styled — and `RenderedFrame()` is the styled reading a
+footer takes (Rule 128).
+
+This is what removes the four hand-stamped frames, and with them the failure
+each of them could produce: a chain that died on the first idle tick with
+nothing able to restart it, leaving the spinner frozen on the frame it died at.
 
 
 ## Bubble Tea Message Flow
