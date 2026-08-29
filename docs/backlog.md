@@ -16,8 +16,10 @@ boîte Health rendant les certificats dans le vocabulaire des moniteurs, signal�
 et corrigé le même jour — avec eux. **D65**, l'inventaire `:sec` affirmant
 « Nothing scanned yet » avant d'avoir lu ses caches, a été signalé et fermé le
 2026-08-29, et **D66** — la colonne CI rendant les mots de GitHub au lieu de
-ceux de l'interface — le même jour. [§1.3](#13-open) est vide pour la première
-fois depuis D12, et tout ce qui suit est en [§1.1](#11-fixed).
+ceux de l'interface — le même jour. **D67** — un scan de `ws` reprenant l'écran
+à chaque dépôt terminé — est signalé et fermé le même jour encore.
+[§1.3](#13-open) est vide pour la première fois depuis D12, et tout ce qui suit
+est en [§1.1](#11-fixed).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -81,6 +83,64 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D67 — un scan de `ws` ramenait la vue `ws` à chaque dépôt terminé, rendant
+l'application inutilisable pendant tout le lot. Corrigé.** Signalé à l'usage le
+2026-08-29, corrigé le même jour.
+
+`handleWorkspaceScanComplete` posait `a.currentView = command.ViewWorkspaces` à
+chaque `WorkspaceScanCompleteMsg`. Un `A` sur une arborescence de douze dépôts
+émet douze messages étalés sur la durée du lot : partir au dashboard rendait la
+main à `ws` au dépôt suivant, et ainsi de suite jusqu'au dernier. **Plus le scan
+est long, plus longtemps l'utilisateur est retenu sur la vue qu'il regarde
+justement parce qu'elle n'a rien de neuf à montrer.**
+
+Le garde `if a.currentView != command.ViewSecurity` en dit l'histoire : la vue
+security a été exemptée quand le vol lui a coûté un spinner bloqué (son propre
+scan se terminait dans la mauvaise vue). L'exemption traitait le symptôme dans
+la seule vue où il avait été observé, alors que le défaut était le vol lui-même.
+
+#### Deux conséquences que le vol masquait
+
+Elles étaient là depuis le début et invisibles, précisément parce que `ws` était
+toujours ramenée à l'écran :
+
+| Message | Ce qu'il devenait hors de `ws` |
+|---|---|
+| `WorkspaceScanStartingMsg` | absent du switch du routeur : servi par `forwardToActiveView`, donc **remis à la vue courante** et perdu |
+| `WorkspaceSyncStartingMsg` / `CompleteMsg` | idem — un sync fini ailleurs laissait `syncingPaths` marqué et le `syncRun` sans sa ligne |
+| `EntryDeletedMsg` | idem — un delete est confirmé dans une modale puis tourne seul, et son marqueur n'est levé que là |
+
+Un dépôt marqué occupé et jamais démarqué tient sa ligne contre toute autre
+action pour la vie de la vue, ce que `busy()` refuse avec le bon message pour la
+mauvaise raison.
+
+#### Le correctif
+
+`routeToView(target, msg)` remplace les deux helpers qui faisaient déjà cela
+pour `oci` et `:sec` (`routeToOCIImagesView`, `routeToSecurityView`) : le
+message est remis à la vue **qui a lancé le travail**, sans toucher à
+`currentView`. Le switch du routeur regroupe les huit messages de travail long
+sous un même en-tête, et la vue security n'a plus besoin d'exemption — plus
+personne ne lui prend l'écran.
+
+Ce qui rend le correctif sûr est que `setEntries` ne touche pas
+`scanningPaths` : le rechargement que provoque le retour dans la vue
+(`Init` → `EntriesLoadedMsg`) laisse en place ce qui tourne encore.
+`TestAReloadKeepsWorkThatIsStillRunning` le fige, parce que c'est désormais la
+seule chose entre un scan et une ligne marquée pour toujours.
+
+**Ce que ce correctif ne fait pas** : la chaîne `spinner.Tick` de `ws` s'arrête
+quand la vue quitte l'écran, donc son spinner ne tourne pas en son absence — il
+repart au retour, par `Init`. C'est sans conséquence visible (personne ne
+regarde) et c'est le [§3.58](#358-un-registre-de-travaux-et-la-vue-jobs--planifié) qui le
+règle proprement, en faisant tenir **une** chaîne par le routeur. Le compteur
+par dossier et la vue `jobs` demandés en même temps y sont aussi : ce défaut-ci
+est livré seul parce qu'il l'est.
+
+`TestLongRunningWorkReportsWithoutTakingTheScreen` parcourt les huit messages
+depuis les quatre vues concernées — trente-deux cas dont le seul énoncé est
+« l'écran ne bouge pas, et le message arrive quand même ».
 
 **D66 — la colonne CI d'un contexte GitHub affichait `in_pr…`, et un build cassé
 en orange. Corrigé.** Signalé à l'usage le 2026-08-29 sur le dépôt `devdesk`
@@ -10738,6 +10798,37 @@ la plus à gauche.
 Une couleur par langage dans `fileicon` (le comportement d'`eza` et de `lsd`).
 Ce serait environ vingt-cinq rôles pour distinguer des lignes qui offrent les
 mêmes actions ; à demander explicitement si le rendu final le réclame.
+
+### 3.58 Un registre de travaux, et la vue `jobs` — **planifié**
+
+Plan détaillé : [`jobs-registry.plan.md`](../.claude/plans/jobs-registry.plan.md).
+
+Quatre comptabilités parallèles suivent aujourd'hui le travail en cours —
+`workspaces.scanningPaths` / `syncingPaths` / `deletingPaths`,
+`oci_resources.scanningImages`, le marqueur `Scanning` de l'inventaire `:sec`,
+et les cinq états de l'écran de clone — et **aucune ne voit les autres**. Le
+`busy()` de `ws` ne sait donc pas qu'un scan a été lancé sur le même dépôt
+depuis `:sec`, et les deux écrivent la même entrée de cache. Chacune tient en
+plus sa propre frame de spinner.
+
+Le registre (`internal/jobs`) est un modèle à deux niveaux — des *runs* qui
+portent des *items* — détenu par le routeur et diffusé par message plutôt que
+partagé par pointeur. Il fait tenir **une** chaîne `spinner.Tick`, donne à
+chaque vue une réponse commune à « qu'est-ce qui tourne ? », et rend possible
+ce que D67 ne fait pas :
+
+- le compteur par dossier de `ws` descend au footer, la colonne ne portant plus
+  qu'un spinner — le `N/M` ne dit alors plus que la couverture **stabilisée** ;
+- une vue `:jobs` liste les travaux en cours, tous types confondus ;
+- l'annulation devient possible là où le type de travail la permet ;
+- l'estampe de contexte au lancement corrige un batch qui traverse un
+  changement de contexte et écrit dans le cache du nouveau.
+
+L'écran de clone de l'explorer est le prototype à généraliser : c'est déjà une
+vue de jobs, pour un run et un seul type.
+
+Huit postes, dont [D67](#11-fixed) était le premier — livré seul parce qu'il ne
+dépend d'aucun des autres.
 
 ## 4. Existing plans
 

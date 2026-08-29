@@ -746,6 +746,43 @@ func TestScanLifecycle(t *testing.T) {
 	}
 }
 
+// D67: work started here keeps running while the user is somewhere else, so
+// the markers have to survive the reload that coming back triggers — Init
+// re-reads the directory, and its EntriesLoadedMsg lands on a model that still
+// holds repositories in flight.
+//
+// It is what makes the routing fix safe: the router now forwards progress to
+// this view without bringing it up, so the only thing standing between a scan
+// and a row still marked as scanning is this reload not clearing it.
+func TestAReloadKeepsWorkThatIsStillRunning(t *testing.T) {
+	m := feed(t, loadedModel(t),
+		WorkspaceScanStartingMsg{RepoPath: "/tmp/workspaces/devdesk"},
+		WorkspaceSyncStartingMsg{RepoPath: "/tmp/workspaces/clean-repo"},
+	)
+
+	// What re-entering the view does: Init loads the directory afresh.
+	m = feed(t, m, EntriesLoadedMsg{Entries: entryFixtures()})
+
+	if !m.scanningPaths["/tmp/workspaces/devdesk"] {
+		t.Error("the reload dropped a scan that is still running")
+	}
+	if !m.syncingPaths["/tmp/workspaces/clean-repo"] {
+		t.Error("the reload dropped a sync that is still running")
+	}
+	if !m.anyBusy() {
+		t.Error("the view reports itself idle while two operations are in flight")
+	}
+
+	// And the result still lands on the row it belongs to.
+	m = feed(t, m, WorkspaceScanCompleteMsg{RepoPath: "/tmp/workspaces/devdesk", High: 2})
+	if m.scanningPaths["/tmp/workspaces/devdesk"] {
+		t.Error("the completion did not clear the marker after a reload")
+	}
+	if entry, ok := m.scanCache["/tmp/workspaces/devdesk"]; !ok || entry.High != 2 {
+		t.Errorf("cached entry = %+v, want the counts reported after the reload", entry)
+	}
+}
+
 func TestFailedScanSurfacesAShortMessage(t *testing.T) {
 	m := feed(t, loadedModel(t), WorkspaceScanStartingMsg{RepoPath: "/tmp/workspaces/devdesk"})
 

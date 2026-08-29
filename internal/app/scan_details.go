@@ -94,32 +94,6 @@ func (a *App) openSecurityView(view security.Model, origin command.ViewType) tea
 	return tea.Batch(view.Init(), a.requestResize())
 }
 
-// routeToSecurityView forwards a message to the security view even when it is
-// not on screen, for the same reason as routeToOCIImagesView below: a scan
-// started there has to finish there.
-func (a *App) routeToSecurityView(msg tea.Msg) (tea.Model, tea.Cmd) {
-	view, ok := a.views[command.ViewSecurity]
-	if !ok {
-		return a, nil
-	}
-	updatedView, cmd := view.Update(msg)
-	a.views[command.ViewSecurity] = updatedView
-	return a, cmd
-}
-
-// routeToOCIImagesView forwards a message to the OCI view even when it is not
-// on screen, so a scan started there keeps progressing while the user is
-// elsewhere.
-func (a *App) routeToOCIImagesView(msg tea.Msg) (tea.Model, tea.Cmd) {
-	view, ok := a.views[command.ViewOCIResources]
-	if !ok {
-		return a, nil
-	}
-	updatedView, cmd := view.Update(msg)
-	a.views[command.ViewOCIResources] = updatedView
-	return a, cmd
-}
-
 // handleLaunchScan is gone with the form. It carried the options the form had
 // collected back to the view that would run the scan; the options come from the
 // configuration view now, so there is nothing to carry — rescanInOrigin names a
