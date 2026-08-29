@@ -117,11 +117,14 @@ const (
 	columnCreated = columnImage + 8
 )
 
-// statusColumnWidth is the state glyph and nothing else. It carries no title —
-// the icons say what they are — and it must not sort: `datatable` reserves two
-// cells beyond MinWidth for any column with a comparator, to hold its arrow,
-// which is expensive for a glyph.
-const statusColumnWidth = 3
+// The state glyph column carries no title — the icons say what they are — and
+// it must not sort: `datatable` reserves two cells beyond MinWidth for any
+// column with a comparator, to hold its arrow, which is expensive for a glyph.
+//
+// Its width is datatable.IconColumnWidth, like the workspaces and inventory
+// glyph columns. It declared 3 of its own, which put one more cell between the
+// glyph and the name here than in the other two tables — a gap nothing chose,
+// visible only when the three screens are compared.
 
 // containerColumns describes the containers table.
 //
@@ -154,7 +157,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 
 	return []datatable.Column[docker.Container]{
 		{
-			Title: "", Sizing: datatable.SizingFixed, MinWidth: statusColumnWidth,
+			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
 			Cell:  func(c docker.Container) string { return stateIcon(c.State) },
 			Style: containerStateStyle,
 		},

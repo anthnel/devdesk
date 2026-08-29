@@ -13,8 +13,10 @@ rather than carried over.
 
 **Rien d'ouvert.** D59, D62 et D63 sont fermés le 2026-08-28, et **D64** — la
 boîte Health rendant les certificats dans le vocabulaire des moniteurs, signalé
-et corrigé le même jour — avec eux. [§1.3](#13-open) est vide pour la première
-fois depuis D12, et tout ce qui suit est en [§1.1](#11-fixed).
+et corrigé le même jour — avec eux. **D65**, l'inventaire `:sec` affirmant
+« Nothing scanned yet » avant d'avoir lu ses caches, a été signalé et fermé le
+2026-08-29. [§1.3](#13-open) est vide pour la première fois depuis D12, et tout
+ce qui suit est en [§1.1](#11-fixed).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -78,6 +80,64 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D65 — l'inventaire `:sec` affirmait « Nothing scanned yet » avant d'avoir lu
+les caches, puis affichait la liste. Corrigé.** Signalé à l'usage le
+2026-08-29, corrigé le même jour.
+
+Le message n'était pas faux par accident : il était affirmé sur une question
+non encore posée. `renderInventoryView` branchait sur `len(Items()) == 0`, et
+une table vide recouvre deux faits opposés — « les deux caches ont répondu,
+il n'y a rien » et « `loadInventoryCmd` est encore en vol ». La vue n'avait
+aucun moyen de les distinguer parce que rien dans le modèle ne portait la
+différence.
+
+C'est Rule 139 dans l'autre sens. La règle dit deux choses, et seule la
+première était tenue ici :
+
+| La règle | L'inventaire `:sec` |
+|---|---|
+| le corps ne se remplace pas par un spinner | ✅ tenu — il n'y en avait pas |
+| le message vide est **conditionné à la fin du chargement** | ❌ absent |
+| le chargement se dit au footer, avec un spinner | ❌ absent |
+
+**Le correctif est un champ, pas un rendu.** `inventoryLoading` est vrai dès la
+construction — `Init` charge inconditionnellement, donc un modèle qui naîtrait
+en « pas de chargement » rendrait le message le temps d'une frame avant même
+que le premier `Cmd` ne parte — et faux quand `InventoryLoadedMsg` arrive.
+`renderInventoryView` garde alors la table à l'écran, en-tête et colonnes
+compris, et `status()` renvoie `Loading scan inventory...` avec spinner.
+
+#### La chaîne du spinner s'arrêtait avant d'avoir servi
+
+Trouvé en écrivant le test, pas à la lecture. `handleSpinnerTick` retournait
+`m, nil` dès que rien n'était en cours de scan : le `Tick` émis par `Init`
+mourait au premier passage, donc un spinner de chargement serait resté sur la
+frame zéro — ce qui se lit comme un blocage, exactement ce que Rule 139 dit
+d'éviter.
+
+Les deux conditions sont maintenant une seule fonction, `spinnerAlive()` —
+`inventoryLoading || inventoryScanning()`. Elle est lue aux deux endroits qui
+décident de la chaîne : `handleSpinnerTick` pour programmer la suivante,
+`spinnerTickIfIdle` pour refuser d'en démarrer une seconde. Les poser
+séparément est précisément ce qui ferait tourner les frames à double vitesse
+quand un rescan démarre pendant un chargement.
+
+`reloadInventory` prend son tick **avant** de lever le drapeau, pour la même
+raison : `spinnerTickIfIdle` lit `spinnerAlive`, donc lever d'abord lui ferait
+répondre « déjà en route » à propos de la chaîne que ce rechargement essaie de
+démarrer.
+
+#### Pourquoi aucun test ne l'avait vu
+
+`inventoryModel`, l'assembleur de tous les tests de la vue, nourrit un
+`InventoryLoadedMsg` avant de rendre quoi que ce soit. Il produisait donc
+toujours un modèle ayant déjà chargé, et l'état signalé n'existait dans aucune
+fixture. `TestNothingScannedYetWaitsForTheCachesToAnswer` part de `New` et de
+la seule `WindowSizeMsg`, ce qui est ce que le routeur fait à l'ouverture ;
+`TestTheEmptyMessageAppearsOnceTheCachesAnswer` tient l'autre moitié, sans
+quoi une vue qui ne quitterait jamais le chargement passerait le premier.
+
 
 **D64 — la boîte Health rendait les certificats dans le vocabulaire des
 moniteurs, et y perdait l'état qui demande une action. Corrigé.** Signalé à
@@ -10415,6 +10475,64 @@ indice, ce qui est une seconde déclaration de l'ordre — et celle qui pourrit 
 silence : un réordonnancement les aurait laissés verts en comparant les
 mauvaises colonnes. Ils passent par `sslCell(t, row, "Issuer")`, qui résout le
 titre dans `sslColumns()` et échoue en le nommant si la colonne disparaît.
+
+### 3.55 Une icône en première colonne est une colonne — **done**
+
+Fait le 2026-08-29. Demandé ainsi : « dans la vue ws l'icone est en première
+colonne sur deux caractères […] il n'y a pas de titre sur la colonne d'icone.
+Applique ce pattern à la vue sec et c'est de cette manière qu'il faut afficher
+les datatables avec icones en première colonne ».
+
+#### Ce que l'inventaire faisait
+
+`displayName()` rendait `theme.IconDocker + " " + shortName()` **à l'intérieur**
+de la cellule Target. Le glyphe était donc dans la colonne identifiante, et la
+colonne identifiante est en `SizingContent` : elle mesurait le glyphe avec le
+nom, et réservait deux cellules pour lui à toutes les largeurs — dans la table
+la plus étroite de l'application, celle dont le commentaire de `displayName`
+disait déjà que la place manquait.
+
+`displayName` et `shortName` devenaient alors identiques une fois le glyphe
+retiré — les deux branches ne différaient que par l'icône — donc la première a
+disparu plutôt que d'être vidée.
+
+#### Le motif, et où il était déjà
+
+`ws` et `containers` le faisaient déjà : une colonne sans titre, `SizingFixed`,
+sans `Less` ni `Search`. Trois tables, trois constantes locales, et deux valeurs
+différentes — `colIconFixed = 2` côté workspaces, `statusColumnWidth = 3` côté
+containers. L'écart ne se voit pas sur un écran : il se voit quand on passe de
+`ws` à `ct`, où le même glyphe est une cellule plus loin du nom.
+
+`datatable.IconColumnWidth` est maintenant la seule déclaration, et les trois
+tables la lisent. `containers` a donc perdu une cellule, ce qui n'était le choix
+de personne — le 3 n'était justifié nulle part.
+
+| | |
+|---|---|
+| Titre | vide |
+| Largeur | `datatable.IconColumnWidth` (2) : le glyphe, plus une cellule pour ne pas toucher le texte |
+| `Sizing` | `SizingFixed` |
+| `Less` / `Search` | aucun — pas de texte à taper, et un comparateur coûterait deux cellules de flèche |
+
+#### Ce que le test attrape, et ce qu'il laisse à la revue
+
+`TestAnIconColumnIsUntitledAndTwoCellsWide` (`internal/ui/datatable`) parcourt
+les sources et refuse une colonne sans titre qui déclare une largeur à elle.
+C'est la moitié invisible du problème : trois tables chacune correcte seule et
+différentes côte à côte.
+
+L'autre moitié — une icône collée dans une cellule de texte — n'est pas
+détectable dans la source : rien n'y distingue `IconDocker + " " + name` d'un
+nom qui commencerait par un glyphe. Elle reste une question de revue, écrite
+dans Rule 125.
+
+#### Conséquences
+
+`inventoryColumnCritical` passe de 2 à 3, la colonne insérée étant en tête.
+`Target` perd deux cellules sur ses deux bornes (`MinWidth` 24 → 22, `MaxWidth`
+60 → 58) : ce qu'elle mesure est désormais le nom seul, donc garder les
+anciennes bornes lui aurait rendu la largeur du glyphe en plus de la sienne.
 
 ## 4. Existing plans
 

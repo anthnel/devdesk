@@ -323,6 +323,13 @@ alias is a display name the user can rename, so sorting by it would move every
 row of a registry the day they do, while a column showing one name and matching
 only the other reads as a bug.
 
+**The kind glyph is a column of its own**, untitled and `datatable.IconColumnWidth`
+wide, ahead of Target — the workspaces and containers shape, and what Rule 125
+now requires of every icon-first table. It used to be `IconDocker + " " + name`
+inside the Target cell, which spent two cells of the most disputed column in
+the narrowest table on something that is not the name, and made a `SizingContent`
+column measure the glyph along with it.
+
 **The inventory runs its own scans.** With the options in the config there is
 nothing to carry to whoever would run one — which is the only reason the
 cross-view delegation exists. It writes to the same two caches, so a rescan here
@@ -363,6 +370,18 @@ Three invariants, each with a test that fails without it:
   is** (`app.routeToSecurityView`), the same reason `routeToOCIImagesView`
   exists. Everything else is forwarded to the active view only, and a lost
   completion leaves a row spinning for the life of the view.
+- **"Nothing scanned yet" waits for the caches to answer** (`inventoryLoading`,
+  D65). An empty table covers two opposite facts — both caches replied and there
+  is nothing, or `loadInventoryCmd` is still in flight — and branching on
+  `len(Items()) == 0` alone asserts the first about the second. The table stays
+  on screen while it loads and the footer carries the spinner (Rule 139).
+
+`spinnerAlive()` — `inventoryLoading || inventoryScanning()` — is the single
+predicate deciding whether frames keep coming. `handleSpinnerTick` reads it to
+schedule the next one, `spinnerTickIfIdle` to refuse starting a second chain
+alongside a live one; asking the two conditions separately in the two places is
+what would double the frame rate when a rescan starts during a load. For the
+same reason `reloadInventory` takes its tick *before* raising the flag.
 
 `esc` and `ctrl+r` return to the inventory, or to the list the results were
 opened from when `OriginView` is set.

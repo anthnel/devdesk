@@ -79,11 +79,24 @@ type scanTarget struct {
 // entre Target et CRIT. Une valeur périmée ne trie pas mal, elle ne trie plus du
 // tout — `datatable` laisse tomber une direction qui ne désigne aucune colonne
 // triable, et Secrets n'en est pas une.
-const inventoryColumnCritical = 2
+const inventoryColumnCritical = 3
 
-// displayName is what the Target column shows: the image reference with its
+// kindIcon is what the glyph column shows: which of the two caches the row came
+// from. It is a column of its own rather than a prefix inside Target, the way
+// the workspaces and containers tables do it — an icon glued into a text cell
+// spends the identifying column's width on something that is not the name, and
+// a column that measures the name has to measure the glyph too.
+func (t scanTarget) kindIcon() string {
+	if t.Kind == kindImage {
+		return theme.IconDocker
+	}
+	return theme.IconWorkspace
+}
+
+// shortName is what the Target column shows: the image reference with its
 // registry prefix folded to the configured alias, or the repository path with
-// the home directory folded back to "~".
+// the home directory folded back to "~". It is also what the title and the
+// footer messages name the target.
 //
 // Both foldings answer the same pressure — this is the narrowest table in the
 // application, and what a `nexus.example.com/docker-hosted/` prefix pushes out
@@ -91,15 +104,6 @@ const inventoryColumnCritical = 2
 // rule: the cache key stays the value everything else uses, so folding here
 // cannot reach a loader, a scanner, or the directory a .gitleaksignore is
 // written into.
-func (t scanTarget) displayName() string {
-	if t.Kind == kindImage {
-		return theme.IconDocker + " " + t.shortName()
-	}
-	return theme.IconWorkspace + " " + shortenHome(t.Name)
-}
-
-// shortName is the target without its icon: what the title and the footer
-// messages name it, where an icon would be noise.
 func (t scanTarget) shortName() string {
 	if t.Kind == kindRepo {
 		return shortenHome(t.Name)
@@ -269,9 +273,19 @@ func ciColumn() datatable.Column[scanTarget] {
 func inventoryColumns(withCI bool) []datatable.Column[scanTarget] {
 	cols := []datatable.Column[scanTarget]{
 		{
+			// No title: the column carries a glyph, and a header over it would
+			// name something read at a glance anyway. It declares neither Less
+			// nor Search — it adds no text anyone could type, so the filter
+			// stays on the target's two names.
+			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
+			Cell: func(t scanTarget) string { return t.kindIcon() },
+		},
+		{
+			// Two cells narrower than before on both bounds: the glyph and its
+			// space left the cell, so what is measured here is the name alone.
 			Title: "Target", Sizing: datatable.SizingContent,
-			MinWidth: 24, MaxWidth: 60, Flex: 1, TruncateHead: true,
-			Cell: func(t scanTarget) string { return t.displayName() },
+			MinWidth: 22, MaxWidth: 58, Flex: 1, TruncateHead: true,
+			Cell: func(t scanTarget) string { return t.shortName() },
 			// The cache key, not the alias: an alias is a display name the user
 			// can rename, and sorting by it would move every row of a registry
 			// the day they do.
@@ -297,7 +311,7 @@ func inventoryColumns(withCI bool) []datatable.Column[scanTarget] {
 	if withCI {
 		// Beside the four severity counters, before Scanned — where a reader
 		// looks for what a scan concluded, and the placement the workspaces
-		// list uses. Inserting here also leaves CRIT at inventoryColumnCritical,
+		// list uses. Appending here also leaves CRIT at inventoryColumnCritical,
 		// which is what the table opens sorted by.
 		cols = append(cols, ciColumn())
 	}

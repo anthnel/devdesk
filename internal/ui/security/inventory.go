@@ -42,7 +42,7 @@ func (m Model) handleInventoryState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keymap.ScanAll:
 		return m.confirmRescanAll()
 	case "ctrl+r":
-		return m, loadInventoryCmd(m.ciForgeURL())
+		return m.reloadInventory()
 	}
 	return m, m.inventory.Update(msg)
 }
@@ -114,10 +114,30 @@ func (m Model) rescanSelected() (tea.Model, tea.Cmd) {
 // so a rescan has to start it again — and starting a second chain alongside a
 // live one makes the frames advance at twice the rate.
 func (m Model) spinnerTickIfIdle() tea.Cmd {
-	if m.inventoryScanning() {
+	if m.spinnerAlive() {
 		return nil
 	}
 	return m.spinner.Tick
+}
+
+// spinnerAlive is the one predicate deciding whether the frames keep coming:
+// handleSpinnerTick reads it to schedule the next one, spinnerTickIfIdle to
+// refuse starting a second chain. Two conditions answer it — a rescan stamping
+// rows, and a load spinning in the footer — and asking them separately in the
+// two places is what would let one restart a chain the other is running.
+func (m Model) spinnerAlive() bool {
+	return m.inventoryLoading || m.inventoryScanning()
+}
+
+// reloadInventory re-reads the caches and says so in the footer.
+//
+// The tick is taken **before** the flag flips: spinnerTickIfIdle reads
+// spinnerAlive, so setting the flag first would make it answer "already
+// running" about the chain this reload is trying to start.
+func (m Model) reloadInventory() (tea.Model, tea.Cmd) {
+	tick := m.spinnerTickIfIdle()
+	m.inventoryLoading = true
+	return m, tea.Batch(tick, loadInventoryCmd(m.ciForgeURL()))
 }
 
 // confirmRescanAll asks before rescanning everything, and the purge is the
@@ -203,7 +223,7 @@ func (m *Model) markScanning(names []string, purge bool) {
 // workspaces list while this view sat on a result.
 func (m Model) goHome() (tea.Model, tea.Cmd) {
 	m.state = StateInventory
-	return m, loadInventoryCmd(m.ciForgeURL())
+	return m.reloadInventory()
 }
 
 // handleInventoryLoaded installs the targets read from the caches.
@@ -223,6 +243,7 @@ func (m Model) handleInventoryLoaded(msg InventoryLoadedMsg) (tea.Model, tea.Cmd
 		t.Scanning = inFlight[t.Name]
 		targets[i] = t
 	}
+	m.inventoryLoading = false
 	m.setInventory(targets)
 	return m, nil
 }
@@ -309,8 +330,12 @@ func (m Model) inventoryScanning() bool {
 }
 
 // renderInventoryView renders the table, or says why there is nothing in it.
+// renderInventoryView keeps the table on screen while the caches are read
+// (Rule 139). The empty message is conditioned on the load being over, because
+// before that the view does not know whether anything was scanned — and saying
+// so anyway is what made "Nothing scanned yet" flash before the list.
 func (m Model) renderInventoryView() string {
-	if len(m.inventory.Items()) == 0 {
+	if !m.inventoryLoading && len(m.inventory.Items()) == 0 {
 		return m.renderEmptyInventory()
 	}
 	return m.inventory.View()

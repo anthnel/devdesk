@@ -157,9 +157,55 @@ Les icônes Nerd Font ont une largeur variable selon le terminal. L'alignement �
 | Icône + texte court | **Gauche** |
 | Texte alphanumérique | Gauche (défaut) |
 
+#### Une icône en première colonne **est** une colonne
+
+Quand la première colonne d'un `datatable` porte un glyphe, elle est une
+colonne à part entière — pas un préfixe collé dans la cellule de texte voisine.
+
+| | |
+|---|---|
+| Titre | **vide**. Le glyphe se lit d'un coup d'œil ; un en-tête nommerait ce qui n'a pas besoin de l'être, et `eza` n'en met pas non plus. |
+| Largeur | `datatable.IconColumnWidth` (2) : le glyphe, plus une cellule pour qu'il ne touche pas le texte. Deux et non une — un glyphe Nerd Font rend en double largeur sur certains terminaux, et une seule cellule le tronquerait là. |
+| `Sizing` | `SizingFixed`. Rien à mesurer. |
+| `Less` / `Search` | **aucun**. Elle n'ajoute aucun texte que quelqu'un puisse taper, donc le filtre reste sur les colonnes de noms ; et un comparateur coûterait deux cellules de plus pour loger sa flèche de tri. |
+
+```go
+// ✅ CORRECT — le glyphe a sa colonne
+{
+    Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
+    Cell: func(r row) string { return r.icon() },
+},
+{
+    Title: "Name", Sizing: datatable.SizingContent, MinWidth: 16,
+    Cell:   func(r row) string { return r.Name },
+    Search: func(r row) string { return r.Name },
+},
+
+// ❌ INTERDIT — le glyphe collé dans la colonne identifiante
+{
+    Title: "Name", Sizing: datatable.SizingContent, MinWidth: 18,
+    Cell: func(r row) string { return theme.IconDocker + " " + r.Name },
+},
+```
+
+**Ce que le collage coûte**, et c'est ce qui décide : la colonne identifiante
+dépense sa largeur pour ce qui n'est pas le nom, et un `SizingContent` mesure
+alors le glyphe avec — donc la colonne la plus disputée de la table réserve
+deux cellules pour une icône, à toutes les largeurs.
+
+Les trois tables concernées sont `ws`, `containers` et l'inventaire `:sec`, et
+elles déclarent la même constante. `TestAnIconColumnIsUntitledAndTwoCellsWide`
+(`internal/ui/datatable`) parcourt les sources et refuse une colonne sans titre
+qui invente sa largeur. Il ne voit pas l'autre moitié — une icône collée dans
+une cellule de texte est indiscernable d'un nom qui commence par un glyphe —
+qui reste une question de revue.
+
 Interdit :
 - ❌ `.Align(lipgloss.Center)` sur une colonne d'icônes
 - ❌ `.Align(lipgloss.Right)` sur une colonne d'icônes
+- ❌ Un titre au-dessus d'une colonne de glyphes
+- ❌ Une largeur locale (`colIconFixed`, `statusColumnWidth`, un `2` littéral) au lieu de `datatable.IconColumnWidth`
+- ❌ Un glyphe préfixé dans la cellule d'une colonne de texte
 
 ### Rule 139 : Le chargement d'une table s'affiche dans le footer
 
