@@ -223,6 +223,28 @@ func entryIcon(entry Entry) string {
 	}
 }
 
+// entryIconRole colours the glyph above, and it splits the listing exactly
+// where the row's *actions* split (availability.go): a repository can be
+// scanned, synced and opened on its forge; a directory can be entered; a file
+// can be read and nothing else.
+//
+// It is deliberately three roles and not one per file type. A per-language
+// tint is what eza does, and it would be decoration here: what changes between
+// two rows of this table is which shortcuts are lit, and `.go` versus `.rs`
+// changes none of them. The colour says what the row *is for*.
+func entryIconRole(entry Entry) theme.IconRole {
+	switch {
+	case entry.IsGitRepo:
+		// The same role the explorer paints a forge repository with. One
+		// colour for a repository across the three views that list one.
+		return theme.IconRoleRepository
+	case entry.IsDir:
+		return theme.IconRoleDirectory
+	default:
+		return theme.IconRoleFile
+	}
+}
+
 // formatScanColumns returns the SENSITIVE, C, H, M, L, SCANNED column values for an entry.
 // For git repos: looks up the scan cache directly.
 // For directories: aggregates sub-repo scan entries.

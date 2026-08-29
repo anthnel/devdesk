@@ -93,6 +93,16 @@ func (t scanTarget) kindIcon() string {
 	return theme.IconWorkspace
 }
 
+// kindIconRole colours the glyph above. The repository shares the explorer's
+// and the workspaces' role rather than declaring a third: the same object is
+// listed by three views, and one colour for it is what a role is for.
+func (t scanTarget) kindIconRole() theme.IconRole {
+	if t.Kind == kindImage {
+		return theme.IconRoleImage
+	}
+	return theme.IconRoleRepository
+}
+
 // shortName is what the Target column shows: the image reference with its
 // registry prefix folded to the configured alias, or the repository path with
 // the home directory folded back to "~". It is also what the title and the
@@ -278,7 +288,8 @@ func inventoryColumns(withCI bool) []datatable.Column[scanTarget] {
 			// nor Search — it adds no text anyone could type, so the filter
 			// stays on the target's two names.
 			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
-			Cell: func(t scanTarget) string { return t.kindIcon() },
+			Cell:  func(t scanTarget) string { return t.kindIcon() },
+			Style: func(t scanTarget) lipgloss.Style { return theme.IconStyle(t.kindIconRole()) },
 		},
 		{
 			// Two cells narrower than before on both bounds: the glyph and its

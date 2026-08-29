@@ -73,6 +73,9 @@ type Theme struct {
 	IconVisPublic   string `json:"icon_vis_public,omitempty"`
 	IconVisInternal string `json:"icon_vis_internal,omitempty"`
 	IconVisPrivate  string `json:"icon_vis_private,omitempty"`
+	IconDirectory   string `json:"icon_directory,omitempty"`
+	IconFile        string `json:"icon_file,omitempty"`
+	IconImage       string `json:"icon_image,omitempty"`
 }
 
 // DefaultTheme retourne le thème par défaut (Catppuccin Mocha)
@@ -315,6 +318,24 @@ func ApplyTheme(t *Theme) {
 	ColorIconVisPublic = applyColor(t.IconVisPublic, ColorOK)
 	ColorIconVisInternal = applyColor(t.IconVisInternal, ColorWarn)
 	ColorIconVisPrivate = applyColor(t.IconVisPrivate, ColorDim)
+
+	// The workspaces and :sec listings. A directory takes the namespace's
+	// colour and the argument is the same shape: both are the thing that
+	// *holds* repositories, on a forge and on a disk. They are two roles rather
+	// than one alias so a theme can separate them; the default says they are
+	// the same idea.
+	ColorIconDirectory = applyColor(t.IconDirectory, ColorSecondary)
+
+	// A loose file in a workspaces listing is the row nothing applies to — W, S
+	// and F are all greyed for it (Rule 130, availability.go). Dim is what the
+	// shortcut column already says about that row, said once more.
+	ColorIconFile = applyColor(t.IconFile, ColorDim)
+
+	// An image takes the highlight rather than a third purple: Primary and
+	// Secondary are a mauve and a lavender one notch apart, and the :sec
+	// inventory's first column has exactly two values — the one place where the
+	// two would sit on adjacent rows with nothing else to separate them.
+	ColorIconImage = applyColor(t.IconImage, ColorHighlight)
 
 	// A disabled shortcut's key (Rule 130), same kind of alias.
 	ColorShortcutDisabled = ColorDim

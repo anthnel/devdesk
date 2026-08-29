@@ -546,3 +546,39 @@ func TestTheKindGlyphIsItsOwnColumn(t *testing.T) {
 		t.Errorf("Target cell = %q still carries the kind glyph", target)
 	}
 }
+
+// The two things this inventory holds are two colours. The glyphs differ too,
+// so the colour is reinforcement — but a column with exactly two values is
+// where two hues a notch apart would be read as one.
+func TestTheInventoryTellsAnImageFromARepositoryByColour(t *testing.T) {
+	image := scanTarget{Kind: kindImage, Name: "nginx:latest"}
+	repo := scanTarget{Kind: kindRepo, Name: "/home/ada/api"}
+
+	if got := image.kindIconRole(); got != theme.IconRoleImage {
+		t.Errorf("an image has role %q, want the image role", got)
+	}
+	if got := repo.kindIconRole(); got != theme.IconRoleRepository {
+		t.Errorf("a repository has role %q, want the repository role", got)
+	}
+	if theme.IconColor(image.kindIconRole()) == theme.IconColor(repo.kindIconRole()) {
+		t.Error("the two kinds are painted the same colour")
+	}
+}
+
+// The repository here, in workspaces and in the explorer are one role — the
+// same object listed by three views.
+func TestTheInventoryRepositoryTakesTheSharedRole(t *testing.T) {
+	role := scanTarget{Kind: kindRepo}.kindIconRole()
+	if theme.IconColor(role) != theme.ColorIconRepository {
+		t.Error("a scanned repository is not painted the repository colour")
+	}
+}
+
+// Rule 122: the colour is the column's Style, never the cell's text.
+func TestTheKindGlyphCarriesNoEscapeSequence(t *testing.T) {
+	for _, target := range []scanTarget{{Kind: kindImage}, {Kind: kindRepo}} {
+		if strings.Contains(target.kindIcon(), "\x1b") {
+			t.Errorf("kindIcon carries an escape sequence: %q", target.kindIcon())
+		}
+	}
+}

@@ -330,6 +330,16 @@ inside the Target cell, which spent two cells of the most disputed column in
 the narrowest table on something that is not the name, and made a `SizingContent`
 column measure the glyph along with it.
 
+**And it is coloured by role** (§3.57): `IconRoleImage` against
+`IconRoleRepository`, through `theme.IconStyle`. The repository takes the same
+role `ws` and the explorer use — one object listed by three views, one colour.
+
+An image takes the **highlight** rather than a third purple, and that is a
+decision about this table specifically: `ColorPrimary` and `ColorSecondary` are
+a mauve and a lavender one notch apart, and this column has exactly two values,
+so it is the one place where they would sit on adjacent rows with nothing else
+to separate them.
+
 **The inventory runs its own scans.** With the options in the config there is
 nothing to carry to whoever would run one — which is the only reason the
 cross-view delegation exists. It writes to the same two caches, so a rescan here

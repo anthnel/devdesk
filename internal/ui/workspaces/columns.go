@@ -88,7 +88,8 @@ func workspaceColumns(withCI bool) []datatable.Column[workspaceRow] {
 			// print one either. It declares neither Less nor Search: it adds no
 			// text anyone could type, so the filter stays on Name and Remote.
 			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
-			Cell: func(r workspaceRow) string { return entryIcon(r.Entry) },
+			Cell:  func(r workspaceRow) string { return entryIcon(r.Entry) },
+			Style: func(r workspaceRow) lipgloss.Style { return theme.IconStyle(entryIconRole(r.Entry)) },
 		},
 		{
 			Title: "Name", Sizing: datatable.SizingContent, MinWidth: colNameMin,

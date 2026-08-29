@@ -220,6 +220,25 @@ de syntaxe, qui sont des alias fermés : une icône est la première chose vue s
 une ligne, donc c'est la partie de la palette sur laquelle un utilisateur a le
 plus de chances d'avoir un avis.
 
+**Les trois tables à icône déclarent toutes un `Style`** — `ws`, `:sec` et
+l'explorer — et une quatrième qui n'en déclarerait pas serait la seule colonne
+d'icône monochrome de l'application. Un rôle qui manque se voit : la cellule
+retombe sur `ColorText` (voir `IconColor`), donc l'oubli rend du texte ordinaire
+plutôt que rien.
+
+**Un même objet garde sa couleur d'une vue à l'autre.** Un dépôt git est
+`IconRoleRepository` dans `ws`, dans `:sec` et dans l'explorer — le rôle est
+partagé, pas dupliqué. C'est la propriété pour laquelle la clé est un sens et
+non un glyphe : les trois vues n'affichent d'ailleurs pas le même glyphe pour
+lui.
+
+**La granularité est celle de l'action, pas celle du type.** `ws` colore en
+trois classes — dépôt, répertoire, fichier — qui sont exactement les trois
+branches de `availability.go`, et **non** une teinte par langage à la manière
+d'`eza` : `.go` contre `.rs` ne change aucun raccourci de la ligne, donc la
+couleur ne dirait rien. Une colonne d'icône se colore par ce que la ligne
+permet de faire.
+
 **Sous le curseur la couleur disparaît**, comme celle de toute colonne colorée :
 la ligne sélectionnée est rendue entière par `styles.Selected` (Rule 122). Une
 colonne d'icône ne peut donc pas être le *seul* porteur d'une information —
@@ -241,6 +260,8 @@ Interdit :
 - ❌ Un glyphe préfixé dans la cellule d'une colonne de texte
 - ❌ Une couleur d'icône choisie dans la vue au lieu d'un rôle de `theme.IconStyle`
 - ❌ Une table de couleurs indexée par le glyphe plutôt que par le sens
+- ❌ Une colonne d'icône sans `Style`, alors que les trois autres en ont un
+- ❌ Un rôle par type de fichier là où la ligne offre les mêmes actions
 
 ### Rule 139 : Le chargement d'une table s'affiche dans le footer
 

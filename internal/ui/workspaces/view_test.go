@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ── View states ──────────────────────────────────────────────────────────────
@@ -560,5 +561,45 @@ func TestHelpDocumentsTheAdvertisedShortcuts(t *testing.T) {
 		if !documented[s.Key] {
 			t.Errorf("shortcut %q is advertised in the header but absent from the help", s.Key)
 		}
+	}
+}
+
+// The icon's colour splits the listing where its *actions* split: a repository
+// can be scanned, synced and opened on its forge; a directory can be entered; a
+// file can be read and nothing else (availability.go).
+func TestTheIconColourFollowsWhatTheRowCanDo(t *testing.T) {
+	repo := Entry{Name: "api", IsDir: true, IsGitRepo: true}
+	dir := Entry{Name: "src", IsDir: true}
+	file := Entry{Name: "notes.md"}
+
+	if got := entryIconRole(repo); got != theme.IconRoleRepository {
+		t.Errorf("a git repository has role %q, want the repository role", got)
+	}
+	if got := entryIconRole(dir); got != theme.IconRoleDirectory {
+		t.Errorf("a plain directory has role %q, want the directory role", got)
+	}
+	if got := entryIconRole(file); got != theme.IconRoleFile {
+		t.Errorf("a file has role %q, want the file role", got)
+	}
+}
+
+// A repository is a repository whatever lists it: this row and the explorer's
+// take the same role, so a theme cannot tint them apart by accident.
+func TestAWorkspaceRepositoryTakesTheExplorersRole(t *testing.T) {
+	role := entryIconRole(Entry{Name: "api", IsDir: true, IsGitRepo: true})
+	if theme.IconColor(role) != theme.ColorIconRepository {
+		t.Error("a workspace repository is not painted the repository colour")
+	}
+}
+
+// Two files of different types share a colour, and that is the decision rather
+// than an oversight: a per-language tint is decoration here, because `.go`
+// versus `.rs` changes none of the row's shortcuts.
+func TestFileTypesShareOneColour(t *testing.T) {
+	if entryIcon(Entry{Name: "main.go"}) == entryIcon(Entry{Name: "lib.rs"}) {
+		t.Fatal("the two glyphs are equal — this test is about their colour")
+	}
+	if entryIconRole(Entry{Name: "main.go"}) != entryIconRole(Entry{Name: "lib.rs"}) {
+		t.Error("two file types take different roles — the split is meant to be by action, not by language")
 	}
 }

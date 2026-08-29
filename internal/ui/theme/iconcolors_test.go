@@ -13,6 +13,7 @@ func TestEveryIconRoleHasAColour(t *testing.T) {
 	roles := []IconRole{
 		IconRoleNamespace, IconRoleRepository,
 		IconRoleVisPublic, IconRoleVisInternal, IconRoleVisPrivate,
+		IconRoleDirectory, IconRoleFile, IconRoleImage,
 	}
 	seen := map[IconRole]bool{}
 	for _, role := range roles {
@@ -82,5 +83,35 @@ func TestIconStyleCarriesOnlyTheForeground(t *testing.T) {
 	}
 	if got := style.GetBackground(); got != (lipgloss.NoColor{}) {
 		t.Errorf("IconStyle sets a background (%v) — datatable already paints one", got)
+	}
+}
+
+// The workspaces listing splits three ways, and the three must be three
+// colours: the glyphs differ too, so the colour is reinforcement — but two
+// classes sharing a hue would make the reinforcement say the wrong thing.
+func TestTheThreeWorkspaceKindsAreThreeColours(t *testing.T) {
+	repo, dir, file := IconColor(IconRoleRepository), IconColor(IconRoleDirectory), IconColor(IconRoleFile)
+	if repo == dir || repo == file || dir == file {
+		t.Errorf("workspace icon colours collide: repo=%v dir=%v file=%v", repo, dir, file)
+	}
+}
+
+// The :sec inventory's first column has exactly two values, so they must not
+// sit a notch apart — which is why an image takes the highlight rather than a
+// third purple.
+func TestAnImageAndARepositoryAreToldApart(t *testing.T) {
+	if IconColor(IconRoleImage) == IconColor(IconRoleRepository) {
+		t.Error("an image and a repository share a colour in the :sec inventory")
+	}
+}
+
+// A repository is one colour across the three views that list one. This is the
+// property a role exists for: the explorer's is remote and the other two are
+// local, which is a difference of location and not of kind.
+func TestARepositoryIsOneColourEverywhere(t *testing.T) {
+	// One role, so this cannot fail by accident — it fails the day someone
+	// splits it into a local and a remote role without meaning to.
+	if IconColor(IconRoleRepository) != ColorIconRepository {
+		t.Error("the repository role no longer resolves to the repository colour")
 	}
 }
