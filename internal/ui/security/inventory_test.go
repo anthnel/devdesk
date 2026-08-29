@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
+	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -469,5 +470,56 @@ func TestTheSpinnerAdvancesOnlyWhileARescanRuns(t *testing.T) {
 		if target.Scanning && target.SpinnerFrame != next.spinner.View() {
 			t.Errorf("the scanning row still carries %q, want the new frame", target.SpinnerFrame)
 		}
+	}
+}
+
+// D65 : l'inventaire affichait « Nothing scanned yet » puis la liste. Le message
+// est une affirmation sur ce que les caches contiennent, et la vue ne l'a pas
+// encore lue — Rule 139 : la table reste à l'écran, le footer dit qu'on charge,
+// et le message n'est vrai qu'une fois la réponse arrivée.
+func TestNothingScannedYetWaitsForTheCachesToAnswer(t *testing.T) {
+	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
+
+	if got := m.View(); strings.Contains(got, "Nothing scanned yet") {
+		t.Errorf("the inventory claims nothing was scanned before reading the caches:\n%s", got)
+	}
+	if got := m.View(); !strings.Contains(got, "Target") {
+		t.Errorf("the table left the screen while loading, Rule 139 keeps it:\n%s", got)
+	}
+	if got := m.RenderFooter(160); !strings.Contains(got, "Loading scan inventory") {
+		t.Errorf("the footer does not say the inventory is loading:\n%s", got)
+	}
+}
+
+// Et l'inverse : la réponse arrivée, le message redevient vrai et le footer se
+// tait. Sans cette moitié, une vue qui ne quitterait jamais l'état de chargement
+// passerait le test précédent.
+func TestTheEmptyMessageAppearsOnceTheCachesAnswer(t *testing.T) {
+	m := inventoryModel(t)
+
+	if got := m.View(); !strings.Contains(got, "Nothing scanned yet") {
+		t.Errorf("the loaded, empty inventory says nothing about where scans come from:\n%s", got)
+	}
+	if got := m.RenderFooter(160); strings.Contains(got, "Loading scan inventory") {
+		t.Errorf("the footer still says loading after the caches answered:\n%s", got)
+	}
+}
+
+// La chaîne du spinner s'arrêtait dès que rien n'était en cours de scan, donc un
+// spinner de chargement serait resté sur la frame zéro — ce qui se lit comme un
+// blocage (Rule 139).
+func TestTheSpinnerKeepsTickingWhileTheInventoryLoads(t *testing.T) {
+	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
+
+	if m.inventoryScanning() {
+		t.Fatal("the fixture is meant to be loading, not scanning")
+	}
+	updated, cmd := m.handleSpinnerTick(spinner.TickMsg{})
+	if cmd == nil {
+		t.Error("the spinner chain stopped while the inventory was still loading")
+	}
+	got := updated.(Model)
+	if frame := strings.TrimSpace(got.spinner.View()); !strings.Contains(got.RenderFooter(160), frame) {
+		t.Errorf("the footer does not render the spinner frame %q:\n%s", frame, got.RenderFooter(160))
 	}
 }

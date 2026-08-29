@@ -363,6 +363,18 @@ Three invariants, each with a test that fails without it:
   is** (`app.routeToSecurityView`), the same reason `routeToOCIImagesView`
   exists. Everything else is forwarded to the active view only, and a lost
   completion leaves a row spinning for the life of the view.
+- **"Nothing scanned yet" waits for the caches to answer** (`inventoryLoading`,
+  D65). An empty table covers two opposite facts — both caches replied and there
+  is nothing, or `loadInventoryCmd` is still in flight — and branching on
+  `len(Items()) == 0` alone asserts the first about the second. The table stays
+  on screen while it loads and the footer carries the spinner (Rule 139).
+
+`spinnerAlive()` — `inventoryLoading || inventoryScanning()` — is the single
+predicate deciding whether frames keep coming. `handleSpinnerTick` reads it to
+schedule the next one, `spinnerTickIfIdle` to refuse starting a second chain
+alongside a live one; asking the two conditions separately in the two places is
+what would double the frame rate when a rescan starts during a load. For the
+same reason `reloadInventory` takes its tick *before* raising the flag.
 
 `esc` and `ctrl+r` return to the inventory, or to the list the results were
 opened from when `OriginView` is set.

@@ -160,6 +160,12 @@ func (m Model) renderInfoLine(width int) string {
 // the error level, because that is what happened, and it names the stages so
 // the log can be searched for them.
 func (m Model) status() sharedcomponents.Status {
+	// A load in flight is a state too, and the only one the inventory has: the
+	// table is on screen and empty, so without this line nothing distinguishes
+	// "still reading the caches" from "nothing has ever been scanned".
+	if m.state == StateInventory && m.inventoryLoading {
+		return sharedcomponents.Status{Text: "Loading scan inventory...", Spinner: true}
+	}
 	if m.state != StateResults || m.result == nil || len(m.result.Errors) == 0 {
 		return sharedcomponents.Status{}
 	}

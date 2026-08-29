@@ -13,8 +13,10 @@ rather than carried over.
 
 **Rien d'ouvert.** D59, D62 et D63 sont fermés le 2026-08-28, et **D64** — la
 boîte Health rendant les certificats dans le vocabulaire des moniteurs, signalé
-et corrigé le même jour — avec eux. [§1.3](#13-open) est vide pour la première
-fois depuis D12, et tout ce qui suit est en [§1.1](#11-fixed).
+et corrigé le même jour — avec eux. **D65**, l'inventaire `:sec` affirmant
+« Nothing scanned yet » avant d'avoir lu ses caches, a été signalé et fermé le
+2026-08-29. [§1.3](#13-open) est vide pour la première fois depuis D12, et tout
+ce qui suit est en [§1.1](#11-fixed).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -78,6 +80,64 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D65 — l'inventaire `:sec` affirmait « Nothing scanned yet » avant d'avoir lu
+les caches, puis affichait la liste. Corrigé.** Signalé à l'usage le
+2026-08-29, corrigé le même jour.
+
+Le message n'était pas faux par accident : il était affirmé sur une question
+non encore posée. `renderInventoryView` branchait sur `len(Items()) == 0`, et
+une table vide recouvre deux faits opposés — « les deux caches ont répondu,
+il n'y a rien » et « `loadInventoryCmd` est encore en vol ». La vue n'avait
+aucun moyen de les distinguer parce que rien dans le modèle ne portait la
+différence.
+
+C'est Rule 139 dans l'autre sens. La règle dit deux choses, et seule la
+première était tenue ici :
+
+| La règle | L'inventaire `:sec` |
+|---|---|
+| le corps ne se remplace pas par un spinner | ✅ tenu — il n'y en avait pas |
+| le message vide est **conditionné à la fin du chargement** | ❌ absent |
+| le chargement se dit au footer, avec un spinner | ❌ absent |
+
+**Le correctif est un champ, pas un rendu.** `inventoryLoading` est vrai dès la
+construction — `Init` charge inconditionnellement, donc un modèle qui naîtrait
+en « pas de chargement » rendrait le message le temps d'une frame avant même
+que le premier `Cmd` ne parte — et faux quand `InventoryLoadedMsg` arrive.
+`renderInventoryView` garde alors la table à l'écran, en-tête et colonnes
+compris, et `status()` renvoie `Loading scan inventory...` avec spinner.
+
+#### La chaîne du spinner s'arrêtait avant d'avoir servi
+
+Trouvé en écrivant le test, pas à la lecture. `handleSpinnerTick` retournait
+`m, nil` dès que rien n'était en cours de scan : le `Tick` émis par `Init`
+mourait au premier passage, donc un spinner de chargement serait resté sur la
+frame zéro — ce qui se lit comme un blocage, exactement ce que Rule 139 dit
+d'éviter.
+
+Les deux conditions sont maintenant une seule fonction, `spinnerAlive()` —
+`inventoryLoading || inventoryScanning()`. Elle est lue aux deux endroits qui
+décident de la chaîne : `handleSpinnerTick` pour programmer la suivante,
+`spinnerTickIfIdle` pour refuser d'en démarrer une seconde. Les poser
+séparément est précisément ce qui ferait tourner les frames à double vitesse
+quand un rescan démarre pendant un chargement.
+
+`reloadInventory` prend son tick **avant** de lever le drapeau, pour la même
+raison : `spinnerTickIfIdle` lit `spinnerAlive`, donc lever d'abord lui ferait
+répondre « déjà en route » à propos de la chaîne que ce rechargement essaie de
+démarrer.
+
+#### Pourquoi aucun test ne l'avait vu
+
+`inventoryModel`, l'assembleur de tous les tests de la vue, nourrit un
+`InventoryLoadedMsg` avant de rendre quoi que ce soit. Il produisait donc
+toujours un modèle ayant déjà chargé, et l'état signalé n'existait dans aucune
+fixture. `TestNothingScannedYetWaitsForTheCachesToAnswer` part de `New` et de
+la seule `WindowSizeMsg`, ce qui est ce que le routeur fait à l'ouverture ;
+`TestTheEmptyMessageAppearsOnceTheCachesAnswer` tient l'autre moitié, sans
+quoi une vue qui ne quitterait jamais le chargement passerait le premier.
+
 
 **D64 — la boîte Health rendait les certificats dans le vocabulaire des
 moniteurs, et y perdait l'état qui demande une action. Corrigé.** Signalé à

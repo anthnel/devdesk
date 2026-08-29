@@ -51,6 +51,16 @@ type Model struct {
 	spinner         spinner.Model
 	spinnerFrameIdx int
 
+	// inventoryLoading is true while loadInventoryCmd is in flight. It exists
+	// because an empty table and a table that has not answered yet look the
+	// same, and they mean opposite things: "Nothing scanned yet" asserted
+	// before the caches were read is a claim the view cannot make, and the one
+	// the user saw flash by before the list appeared.
+	//
+	// It also keeps the spinner chain alive, which is why it is read by
+	// spinnerAlive rather than only by the renderer.
+	inventoryLoading bool
+
 	// targetPath is what the result on screen is about — an image reference or a
 	// repository path. It is the directory .gitleaksignore is written into, so
 	// it is the key and never a display form.
@@ -112,12 +122,16 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 	})
 
 	return Model{
-		config:        cfg,
-		secrets:       secrets,
-		state:         StateInventory,
-		inventory:     newInventoryTable(cfg.Scan.EnableCIScore),
-		spinner:       s,
-		findingsTable: t,
+		config:    cfg,
+		secrets:   secrets,
+		state:     StateInventory,
+		inventory: newInventoryTable(cfg.Scan.EnableCIScore),
+		// True from construction, because Init loads unconditionally: a view
+		// that starts saying "not loading" would render the empty message for
+		// the frame before the first Cmd runs.
+		inventoryLoading: true,
+		spinner:          s,
+		findingsTable:    t,
 	}
 }
 

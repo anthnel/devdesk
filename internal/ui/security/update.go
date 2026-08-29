@@ -107,13 +107,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // only while something is running, since SetItems re-filters and re-sorts and
 // there is no reason to do that sixty times a second for a settled table.
 func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
-	if !m.inventoryScanning() {
+	if !m.spinnerAlive() {
 		return m, nil
 	}
 	var cmd tea.Cmd
 	m.spinner, cmd = m.spinner.Update(msg)
 	m.spinnerFrameIdx++
-	m.setInventory(m.inventory.Items())
+	// The footer renders the frame, not a raw one: the spinner already carries
+	// theme.SpinnerStyle() and restyling it would nest one sequence in another
+	// (Rule 128).
+	m.footer.SetSpinnerFrame(m.spinner.View())
+	// The rows are only restamped while something is running: SetItems
+	// re-filters and re-sorts, and a load has no row to stamp anyway.
+	if m.inventoryScanning() {
+		m.setInventory(m.inventory.Items())
+	}
 	return m, cmd
 }
 
