@@ -3,7 +3,7 @@
   "checkpoint_id": "ccc388c10902",
   "strategy": "manual-commit",
   "branch": "status-ssl-widths",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "docs/backlog.md",
     "internal/ui/status/columns.go",
@@ -16,13 +16,20 @@
       "compact_transcript": "/cc/c388c10902/0/transcript.jsonl",
       "content_hash": "/cc/c388c10902/0/content_hash.txt",
       "prompt": ""
+    },
+    {
+      "metadata": "/cc/c388c10902/1/metadata.json",
+      "transcript": "/cc/c388c10902/1/full.jsonl",
+      "compact_transcript": "/cc/c388c10902/1/transcript.jsonl",
+      "content_hash": "/cc/c388c10902/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 278,
-    "cache_creation_tokens": 900635,
-    "cache_read_tokens": 25061698,
-    "output_tokens": 83447,
-    "api_call_count": 142
+    "input_tokens": 316,
+    "cache_creation_tokens": 927691,
+    "cache_read_tokens": 29874741,
+    "output_tokens": 98224,
+    "api_call_count": 161
   }
 }
