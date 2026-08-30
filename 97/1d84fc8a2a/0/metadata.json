@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "971d84fc8a2a",
+  "session_id": "c7239d08-cc4a-4a66-89c5-35316eb3ca96",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-30T14:23:54.1836044Z",
+  "branch": "docs/sandbox-host-relay-commands",
+  "checkpoints_count": 5,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "ad151f8cacb2",
+  "checkpoint_transcript_start": 893,
+  "transcript_lines_at_start": 893,
+  "compact_transcript_start": 145,
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 503,
+    "cache_read_tokens": 277060,
+    "output_tokens": 372,
+    "api_call_count": 1
+  },
+  "session_metrics": {
+    "turn_count": 5
+  }
+}
