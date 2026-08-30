@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	"github.com/anthnel/devdesk/internal/ui/jobsview"
+	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
@@ -386,6 +387,72 @@ func TestAViewsWorkIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	}
 	if _, ok := receivedOf[workspaces.WorkspaceScanCompleteMsg](ws); !ok {
 		t.Error("the completion never reached the view")
+	}
+}
+
+// The same round trip for a pull (§3.60), and it is here rather than in the
+// OCI view's own tests because the defect it pins was the router's: the two
+// messages implemented jobs.Reporter — the compile-time assertion in
+// oci_resources/jobs.go proved that much — but nothing dispatched them through
+// routeWork, so Transition() was never called. The run stayed queued for the
+// life of the session and the row spun forever.
+func TestAPullIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
+	oci := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewOCIResources] = oci
+
+	testutil.FastTimers(t, &jobSpinnerInterval)
+
+	const image = "dhi/debian-base:trixie"
+	a.Update(jobs.StartMsg{
+		Run:  jobs.NewRun(jobs.KindPull, command.ViewOCIResources, "", "images", image),
+		Work: func(string) tea.Cmd { return nil },
+	})
+
+	if got := a.jobs.Snapshot()[0].State(); got != jobs.RunQueued {
+		t.Fatalf("state = %q, want the pull queued at registration", got)
+	}
+
+	a.Update(ociresources.RegistryPullStartingMsg{ImageName: image})
+	if got := a.jobs.Snapshot()[0].Items[0].State; got != jobs.ItemRunning {
+		t.Errorf("the started pull is %q, want running — the router never applied its transition", got)
+	}
+
+	a.Update(ociresources.RegistryPullCompleteMsg{ImageName: image})
+	run := a.jobs.Snapshot()[0]
+	if got := run.State(); got != jobs.RunDone {
+		t.Errorf("state = %q, want %q once the pull reported back", got, jobs.RunDone)
+	}
+	if got := a.jobs.Running(); got != 0 {
+		t.Errorf("Running = %d, want 0 — the row would keep spinning", got)
+	}
+	if _, ok := receivedOf[ociresources.RegistryPullCompleteMsg](oci); !ok {
+		t.Error("the completion never reached the view, which refreshes the image list on it")
+	}
+}
+
+// A pull that fails settles the run as failed, with the view's own wording
+// rather than whatever the docker CLI wrote to stderr.
+func TestAFailedPullSettlesTheRun(t *testing.T) {
+	a := router(t, &fakeView{})
+	a.views[command.ViewOCIResources] = &fakeView{}
+
+	testutil.FastTimers(t, &jobSpinnerInterval)
+
+	const image = "dhi/debian-base:nope"
+	a.Update(jobs.StartMsg{
+		Run:  jobs.NewRun(jobs.KindPull, command.ViewOCIResources, "", "images", image),
+		Work: func(string) tea.Cmd { return nil },
+	})
+	a.Update(ociresources.RegistryPullStartingMsg{ImageName: image})
+	a.Update(ociresources.RegistryPullCompleteMsg{ImageName: image, Err: errNotOnDisk})
+
+	run := a.jobs.Snapshot()[0]
+	if got := run.State(); got != jobs.RunFailed {
+		t.Errorf("state = %q, want %q", got, jobs.RunFailed)
+	}
+	if got := run.Items[0].Detail; got == "" || strings.Contains(got, "no such file") {
+		t.Errorf("Detail = %q, want the view's short wording rather than the raw error", got)
 	}
 }
 

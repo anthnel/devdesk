@@ -79,24 +79,9 @@ func (b *RegistryBrowser) SetScanCache(sc map[string]cache.ImageScanEntry) {
 	}
 }
 
-// SetOperationError returns to tags state (error shown in model footer).
-func (b *RegistryBrowser) SetOperationError(_ string) {
-	b.state = browserStateTags
-	b.imageName = ""
-	b.operation = ""
-}
-
-// SetOperationSuccess clears the operation and returns to the tags screen.
-func (b *RegistryBrowser) SetOperationSuccess() {
-	b.state = browserStateTags
-	b.imageName = ""
-	b.operation = ""
-}
-
-// OperationImageName returns the image currently being operated on.
-func (b *RegistryBrowser) OperationImageName() string {
-	return b.imageName
-}
+// SetOperationError, SetOperationSuccess and OperationImageName went with the
+// status screen (§3.60): the browser is closed by the time a pull answers, and
+// the answer goes to the footer and the Images list.
 
 // selectedImageName returns the full image reference for the focused table row.
 func (b *RegistryBrowser) selectedImageName() string {

@@ -1,6 +1,7 @@
 package ociresources
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -608,59 +610,61 @@ func TestARegistryWithNoAliasIsLabelledByItsURL(t *testing.T) {
 
 // ── Acting on a tag ──────────────────────────────────────────────────────────
 
-func TestPullingATagShowsTheOperation(t *testing.T) {
-	m := resultsModel(t)
-	b := m.registryBrowser
+// §3.60: asking for a pull leaves the browser for the Images tab, which is
+// where the row spins and where the image lands. The browser's own status
+// screen is gone — it took over the one screen from which neither the progress
+// nor the result could be seen.
+func TestPullingATagLandsInTheImagesTab(t *testing.T) {
+	m := pullRequested(t, resultsModel(t))
 
-	m = feed(t, m, testutil.Key(keymap.Get))
-
-	if b.state != browserStateStatus {
-		t.Fatalf("state = %d, want the status screen", b.state)
+	if m.registryBrowser != nil {
+		t.Error("the browser is still open after asking for a pull")
 	}
-	if b.OperationImageName() == "" {
-		t.Error("the pull did not record which image it is pulling")
-	}
-	if !strings.Contains(b.View(), "Pulling") {
-		t.Error("the status screen does not say what it is doing")
+	if m.activeTab != tabImages {
+		t.Errorf("activeTab = %d, want the Images tab the pull will show up in", m.activeTab)
 	}
 }
 
-// The status screen owns no keys: the pull is not cancellable, and a key that
-// changed the state under it would leave the answer arriving into the wrong
-// screen.
-func TestNoKeyActsWhileAPullRuns(t *testing.T) {
-	m := resultsModel(t)
-	b := m.registryBrowser
-	m = feed(t, m, testutil.Key(keymap.Get))
+// pullRequested presses G and delivers the request it emits, which is what the
+// runtime does with the command and what feed alone does not.
+func pullRequested(t *testing.T, m Model) Model {
+	t.Helper()
+	_, cmd := step(t, m, testutil.Key(keymap.Get))
+	msg, ok := testutil.MsgOf[RegistryPullRequestedMsg](cmd)
+	if !ok {
+		t.Fatal("G asked for no pull")
+	}
+	return feed(t, m, msg)
+}
 
-	feed(t, m, testutil.Key("esc"), testutil.Key(keymap.Get), testutil.Key("."))
+// The completion no longer depends on the browser: it is closed by then, and an
+// early return on a nil one would skip the refresh that makes the image appear.
+func TestAFinishedPullRefreshesTheImagesWithTheBrowserClosed(t *testing.T) {
+	m := pullRequested(t, resultsModel(t))
+	if m.registryBrowser != nil {
+		t.Fatal("the browser should have closed on the request")
+	}
 
-	if b.state != browserStateStatus {
-		t.Errorf("state = %d, want the pull still showing", b.state)
+	_, cmd := step(t, m, RegistryPullCompleteMsg{ImageName: "registry.example.com/api:v1"})
+
+	if cmd == nil {
+		t.Fatal("the completion produced no command, so the list is never refreshed")
 	}
 }
 
-func TestAFinishedPullReturnsToTheTags(t *testing.T) {
-	m := resultsModel(t)
-	b := m.registryBrowser
-	m = feed(t, m, testutil.Key(keymap.Get))
+// A failed pull says so in the footer rather than on a screen that no longer
+// exists.
+func TestAFailedPullReportsToTheFooter(t *testing.T) {
+	testutil.FastTimers(t, &sharedcomponents.FooterMsgDuration)
+	m := pullRequested(t, resultsModel(t))
 
-	b.SetOperationSuccess()
+	m, _ = step(t, m, RegistryPullCompleteMsg{
+		ImageName: "registry.example.com/api:v1",
+		Err:       errors.New("manifest unknown"),
+	})
 
-	if b.state != browserStateTags || b.OperationImageName() != "" {
-		t.Errorf("state = %d, image = %q, want the results screen back", b.state, b.OperationImageName())
-	}
-}
-
-func TestAFailedPullAlsoReturnsToTheTags(t *testing.T) {
-	m := resultsModel(t)
-	b := m.registryBrowser
-	m = feed(t, m, testutil.Key(keymap.Get))
-
-	b.SetOperationError("manifest unknown")
-
-	if b.state != browserStateTags {
-		t.Errorf("state = %d, want the results screen back so the user can retry", b.state)
+	if !m.footer.IsSet() {
+		t.Error("a failed pull said nothing")
 	}
 }
 

@@ -271,6 +271,143 @@ func TestAFailedScanIsRemembered(t *testing.T) {
 	}
 }
 
+// ── Images: pulling ──────────────────────────────────────────────────────────
+
+// A pull in flight for an image already listed locally marks its existing
+// row — no second row appears for the same name.
+func TestPullingAnExistingImageMarksItsRow(t *testing.T) {
+	m := pulling(t, loadedModel(t), "web:v3")
+
+	var matches int
+	for _, row := range m.imageTable.Items() {
+		if row.RawName != "web:v3" {
+			continue
+		}
+		matches++
+		if !row.Pulling {
+			t.Error("the existing row does not read as pulling")
+		}
+		if row.Image.ID == "" {
+			t.Error("the existing row lost its image identity")
+		}
+	}
+	if matches != 1 {
+		t.Errorf("found %d rows for web:v3, want exactly one", matches)
+	}
+}
+
+// The common case when browsing a registry is pulling an image never seen
+// locally before — the table gets a placeholder row rather than staying
+// silent until the pull completes.
+func TestPullingANewImageAddsAPlaceholderRow(t *testing.T) {
+	m := pulling(t, loadedModel(t), "registry.example.com/new:v1")
+
+	var found *imageRow
+	for i, row := range m.imageTable.Items() {
+		if row.RawName == "registry.example.com/new:v1" {
+			found = &m.imageTable.Items()[i]
+		}
+	}
+	if found == nil {
+		t.Fatal("no placeholder row appeared for the image being pulled")
+	}
+	if !found.Pulling {
+		t.Error("the placeholder row does not read as pulling")
+	}
+	if found.Image.ID != "" {
+		t.Error("the placeholder row should carry no local image identity yet")
+	}
+}
+
+// A pull settling — however it settles — drops the row's Pulling mark.
+func TestAFinishedPullStopsMarkingTheRow(t *testing.T) {
+	m := pulling(t, loadedModel(t), "web:v3")
+	m = withJobs(t, m, settledPullRun("web:v3"))
+
+	for _, row := range m.imageTable.Items() {
+		if row.RawName == "web:v3" && row.Pulling {
+			t.Error("the row still reads as pulling once the job settled")
+		}
+	}
+}
+
+// G asks the parent model to admit the pull as a job — the browser no longer
+// calls docker.PullImage itself, it just opens its own status screen.
+func TestGAsksTheParentToStartAPullJob(t *testing.T) {
+	m := resultsModel(t)
+
+	_, cmd := step(t, m, testutil.Key(keymap.Get))
+
+	msg, ok := testutil.MsgOf[RegistryPullRequestedMsg](cmd)
+	if !ok {
+		t.Fatal("G did not ask for a pull")
+	}
+	if want := m.registryBrowser.selectedImageName(); msg.ImageName != want {
+		t.Errorf("ImageName = %q, want the selected tag %q", msg.ImageName, want)
+	}
+}
+
+// RegistryPullRequestedMsg is what admits the pull as a job — jobs.Start with
+// a run of the right kind and target.
+func TestPullRequestStartsAJob(t *testing.T) {
+	m := loadedModel(t)
+
+	_, cmd := step(t, m, RegistryPullRequestedMsg{ImageName: "registry.example.com/new:v1"})
+
+	run, started := startedPullRun(cmd)
+	if !started {
+		t.Fatal("no pull run was registered")
+	}
+	if run.Kind != jobs.KindPull {
+		t.Errorf("run kind = %q, want %q", run.Kind, jobs.KindPull)
+	}
+	if len(run.Items) != 1 || run.Items[0].Target != "registry.example.com/new:v1" {
+		t.Errorf("run.Items = %+v, want one item for the requested image", run.Items)
+	}
+
+	// The work the run carries has to actually report, or the item never
+	// leaves the state it was admitted in — which is the whole of the queued
+	// row that would not stop spinning.
+	installFakeDocker(t, fakeScript{})
+	work, _ := testutil.MsgOf[jobs.StartMsg](cmd)
+	msgs := testutil.Msgs(work.Work("default"))
+	if len(msgs) == 0 {
+		t.Fatal("the run was registered but its work produced nothing")
+	}
+	start, ok := msgs[0].(RegistryPullStartingMsg)
+	if !ok {
+		t.Fatalf("msgs[0] = %#v, want the pull announcing itself", msgs[0])
+	}
+	if start.ImageName != "registry.example.com/new:v1" {
+		t.Errorf("ImageName = %q, want the requested image", start.ImageName)
+	}
+	if got := start.Transition().State; got != jobs.ItemRunning {
+		t.Errorf("the starting transition is %q, want running", got)
+	}
+}
+
+// A second pull request for the same image while one is already running is
+// refused rather than started twice.
+func TestPullAlreadyInProgressIsRefused(t *testing.T) {
+	// This test drains the Cmd, and the footer timer inside it really sleeps.
+	testutil.FastTimers(t, &sharedcomponents.FooterMsgDuration)
+	m := pulling(t, loadedModel(t), "web:v3")
+
+	_, cmd := step(t, m, RegistryPullRequestedMsg{ImageName: "web:v3"})
+
+	// Run the command once and read everything out of it: tea.Tick drains its
+	// timer on the first execution, so a second one would block forever.
+	msgs := testutil.Msgs(cmd)
+	for _, msg := range msgs {
+		if _, started := msg.(jobs.StartMsg); started {
+			t.Error("a second pull of the same image was registered")
+		}
+	}
+	if len(msgs) == 0 {
+		t.Error("the refusal set a footer message with no timer to clear it")
+	}
+}
+
 // Rule 126: A with the purge unchecked scans only what has never been scanned,
 // so pressing it twice does not redo work. The assertion is on the run it asks
 // the router to register — reading the command runs it, and what it registers is

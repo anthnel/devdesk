@@ -49,8 +49,6 @@ func (b *RegistryBrowser) View() string {
 	switch b.state {
 	case browserStateTags:
 		return b.viewTags()
-	case browserStateStatus:
-		return b.viewStatus()
 	default:
 		return b.viewInput()
 	}
@@ -142,14 +140,6 @@ func (b *RegistryBrowser) FilterBarView(width int) string {
 	return contentLine + "\n" + bottomBorder
 }
 
-func (b *RegistryBrowser) viewStatus() string {
-	var label string
-	switch b.operation {
-	case "pull":
-		label = "Pulling " + b.imageName + "..."
-	default:
-		label = "Working..."
-	}
-	return theme.EmptyLineBg(b.width) + "\n" +
-		theme.SpinnerMessage(b.spinner.View(), label)
-}
+// viewStatus is gone with browserStateStatus (§3.60). It was a
+// theme.SpinnerMessage filling the panel — the shape Rule 139 keeps out of a
+// table body — and what it announced is now a row in the Images tab.

@@ -407,6 +407,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ociresources.ImageScanFinishedMsg:
 		return a.routeWork(command.ViewOCIResources, msg)
 
+	// A pull is work like the rest (§3.60). It reached the OCI view through
+	// the default forward before, which delivered it only while that view was
+	// the active one — so walking away mid-pull dropped the completion and left
+	// the row spinning, on top of the registry never hearing about the run.
+	case ociresources.RegistryPullStartingMsg:
+		return a.routeWork(command.ViewOCIResources, msg)
+
+	case ociresources.RegistryPullCompleteMsg:
+		return a.routeWork(command.ViewOCIResources, msg)
+
 	case security.InventoryScanStartingMsg:
 		return a.routeWork(command.ViewSecurity, msg)
 

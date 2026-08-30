@@ -90,6 +90,48 @@ func (m Model) scanningNames() map[string]bool {
 // is the point: the two would write the same cache entries.
 func (m Model) anyScanRunning() bool { return len(m.scanningNames()) > 0 }
 
+// pullRun builds the run behind a registry-browser pull.
+func (m Model) pullRun(name string) jobs.Run {
+	run := jobs.NewRun(jobs.KindPull, command.ViewOCIResources, "", "images", name)
+	aliases := registryalias.From(m.registries)
+	if display := docker.ApplyAliases(name, aliases); display != name {
+		run = run.WithDisplay(name, display)
+	}
+	return run
+}
+
+// pullingImage reports whether a pull for name is queued or running.
+func (m Model) pullingImage(name string) bool {
+	for _, run := range jobs.Unfinished(m.jobs) {
+		if run.Kind != jobs.KindPull {
+			continue
+		}
+		for _, item := range run.Items {
+			if item.Target == name && !item.State.Terminal() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// pullingNames lists every image with a pull in flight, for imageRows —
+// which is what shows a placeholder row for an image not pulled before.
+func (m Model) pullingNames() map[string]bool {
+	out := make(map[string]bool)
+	for _, run := range jobs.Unfinished(m.jobs) {
+		if run.Kind != jobs.KindPull {
+			continue
+		}
+		for _, item := range run.Items {
+			if !item.State.Terminal() {
+				out[item.Target] = true
+			}
+		}
+	}
+	return out
+}
+
 // ── What each message tells the registry (jobs.Reporter) ─────────────────────
 
 func (m ImageScanStartingMsg) Transition() jobs.Transition {
@@ -105,9 +147,24 @@ func (m ImageScanFinishedMsg) Transition() jobs.Transition {
 	return t
 }
 
-// Compile-time proof that both progress messages can be applied. One added
+func (m RegistryPullStartingMsg) Transition() jobs.Transition {
+	return jobs.Transition{Kind: jobs.KindPull, Target: m.ImageName, State: jobs.ItemRunning, Cancel: m.Cancel}
+}
+
+func (m RegistryPullCompleteMsg) Transition() jobs.Transition {
+	t := jobs.Transition{Kind: jobs.KindPull, Target: m.ImageName, State: jobs.ItemDone}
+	if m.Err != nil {
+		t.State = jobs.ItemFailed
+		t.Detail = "pull failed — check logs"
+	}
+	return t
+}
+
+// Compile-time proof that every progress message can be applied. One added
 // without a transition would leave its row spinning for the life of the view.
 var (
 	_ jobs.Reporter = ImageScanStartingMsg{}
 	_ jobs.Reporter = ImageScanFinishedMsg{}
+	_ jobs.Reporter = RegistryPullStartingMsg{}
+	_ jobs.Reporter = RegistryPullCompleteMsg{}
 )

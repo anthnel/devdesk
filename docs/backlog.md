@@ -11225,6 +11225,104 @@ dé-envoie pas, et un projet dont le template est à moitié appliqué est un é
 que la forge détient. Le test qui parcourt `Kinds()` a refusé le kind tant que
 la table D7 ne l'avait pas.
 
+### 3.60 `G` tire une image comme un travail, et la table le montre — **done**
+
+`G` dans le browser de registres était la dernière action de cette vue à ne pas
+passer par le registre. Elle appelait `docker.PullImage` derrière son propre
+écran de statut, donc le pull n'existait que là : invisible dans `:jobs`,
+absent de la chaîne de spinner, et — ce qui se voyait le plus — la table Images
+ne disait rien pendant qu'une image se téléchargeait. Le scan direct
+(`ctrl+s`), juste à côté dans le même écran, passait par `jobs.Start` depuis
+§3.58.
+
+`KindPull` était déclaré depuis §3.58 — son verbe, sa réponse à `Cancellable()`
+dans la table D7 — et n'était **utilisé nulle part**. C'était le seul kind dans
+ce cas ; le test qui parcourt `Kinds()` vérifiait un vocabulaire dont un mot ne
+servait à rien.
+
+Le browser n'appelle donc plus Docker lui-même : il émet
+`RegistryPullRequestedMsg`, exactement comme `requestDirectScan` émet sa
+demande de scan, et le parent l'admet.
+
+**`G` ferme le browser et pose l'utilisateur dans l'onglet Images**, et l'écran
+de statut du browser est supprimé avec ce qui le portait — `browserStateStatus`,
+`operation`, `imageName`, `viewStatus`, `SetOperationSuccess/Error`,
+`OperationImageName`. Il prenait tout le panneau pour un `theme.SpinnerMessage`
+(la forme que Rule 139 tient hors d'un corps de table) et il le faisait sur le
+seul écran d'où ni la progression ni le résultat ne se voient : l'image tirée
+apparaît dans la liste des images, pas dans la liste des tags. La ligne qui
+tourne dans Images dit strictement plus, et à l'endroit où on la cherche.
+
+Le changement de vue a lieu **une fois, sur la touche qui le demande** — ce
+n'est pas un message de travail qui déplace l'écran dans le dos de
+l'utilisateur, ce que D67 interdit. La distinction est celle-là : répondre à
+une action, ou reprendre l'écran pendant qu'on est ailleurs.
+
+Conséquence à ne pas manquer : `handleRegistryPullComplete` commençait par
+`if m.registryBrowser == nil { return m, nil }`. Le browser étant désormais
+fermé bien avant la réponse, cette garde aurait avalé le `fetchImages()` qui
+fait apparaître l'image — le pull aurait « marché » sans que rien n'arrive à
+l'écran avant le tick de dix secondes.
+
+**La ligne arrive à l'écran quand la requête part.** Un pull lancé depuis le
+browser vise presque toujours une image qui n'est *pas* locale — c'est la
+raison même de parcourir un registre — donc décorer « la ligne » ne décorait
+rien dans le cas courant. `imageRows` synthétise une ligne pour tout nom en vol
+absent de `m.images`, le spinner dans la colonne ID (Rule 122 : `Cell` rend le
+texte, `Style` le colore). Elle est remplacée par la vraie quand
+`fetchImages()` répond, ce que `handleRegistryPullComplete` déclenchait déjà.
+
+| | |
+|---|---|
+| La clé retombe sur le **nom** | `Image.ID` est vide sur un placeholder, donc deux pulls simultanés partageraient une clé vide et `datatable` n'en verrait qu'un |
+| L'état vient du **registre**, jamais d'un drapeau | `pullingNames()` est recalculé à chaque `jobs.ChangedMsg`, donc rien à remettre à zéro et rien qui puisse rester allumé — c'est ce que §3.58 a acheté |
+| Le placeholder ne porte **aucune** donnée d'image | taille, scan, secrets : le pull n'en connaît encore rien, et inventer un `-` par colonne se lirait comme une réponse |
+
+#### Implémenter `jobs.Reporter` ne suffit pas : il faut être **routé**
+
+Les deux messages implémentaient `Transition()`, et
+`var _ jobs.Reporter = RegistryPullStartingMsg{}` le prouvait à la
+compilation — mais rien ne les dispatchait par `routeWork`, la liste explicite
+de `internal/app/app.go`. `Transition()` n'était donc jamais appelé : le run
+restait `queued` pour la vie de la session, et la ligne tournait sans fin.
+
+L'assertion de compilation prouve qu'un message **sait** rapporter, jamais
+qu'il rapporte. C'est le trou que `TestAPullIsRegisteredAndAdvancedByItsOwnMessages`
+ferme, dans `internal/app` et non dans la vue : le défaut était celui du
+routeur.
+
+Au passage, `RegistryPullCompleteMsg` n'atteignait la vue que par le
+`default: forwardToActiveView` — donc seulement tant que la vue OCI était à
+l'écran. Quitter l'onglet pendant un pull perdait la complétion, et avec elle
+le `fetchImages()` qui fait apparaître l'image. `routeWork` passe par
+`routeToView`, qui livre que la vue soit affichée ou non.
+
+#### `K` devait couper pour de bon
+
+`Kind.Cancellable()` répond `true` pour `pull` depuis §3.58 — « a docker pull
+resumes by layer ». Enregistrer le pull sans lui donner de contexte annulable
+rendait donc `K` **offerte et non grisée** dans `:jobs`, `CancelItem` ne
+trouvant aucun `cancel` à appeler, ne faisant rien, et retournant quand même
+`true` : le refus silencieux que Rule 130 existe pour supprimer, en pire —
+l'action prétendait avoir réussi.
+
+`dockerCmd` gagne donc un `Ctx`, honoré par `exec.CommandContext` quand il est
+posé, et `PullImageContext` est le seul appel mutant du paquet à en prendre un.
+Un `Ctx` nil construit exactement la commande d'avant, ce qui est ce qui garde
+le changement additif : une suppression qui en porterait un offrirait une coupe
+que D7 interdit, et `TestOtherMutationsCarryNoContext` le vérifie.
+
+Le contexte voyage sur le message de départ, comme celui du scan et pour la
+même raison : il est créé dans le `Cmd`, donc le registre le range dans l'Update
+même qui marque l'item running — en deux temps il y aurait une fenêtre où la
+ligne tourne sans pouvoir être arrêtée.
+
+Un pull coupé se règle en `ItemFailed`, comme un scan coupé : le message de fin
+porte l'erreur du processus tué et ne sait pas la distinguer d'un échec réseau.
+C'est le comportement du scan depuis §3.58 ; les séparer demanderait que
+l'annulation soit lisible dans l'erreur, ce qu'aucun des deux ne fait
+aujourd'hui.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

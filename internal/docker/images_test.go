@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"context"
 	"slices"
 	"testing"
 )
@@ -179,6 +180,52 @@ func TestRemoveImageForceFlag(t *testing.T) {
 				t.Errorf("args = %v, want %v", s.lastArgs(), tt.wantArgs)
 			}
 		})
+	}
+}
+
+// The pull is the one mutating call that carries a context: `K` is offered on
+// it in `:jobs`, and a nil one there would make that key a silent no-op.
+func TestPullCarriesACancellableContext(t *testing.T) {
+	s := stub(t, &stubRunner{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := PullImageContext(ctx, "api:v1"); err != nil {
+		t.Fatalf("PullImageContext() error = %v", err)
+	}
+
+	call := s.calls[len(s.calls)-1]
+	if !slices.Equal(call.Args, []string{"pull", "api:v1"}) {
+		t.Errorf("args = %v, want the pull of the named image", call.Args)
+	}
+	if call.Ctx == nil {
+		t.Error("the pull reached the runner with no context, so K could not stop it")
+	}
+}
+
+// PullImage keeps its signature for callers with nothing to cancel, and still
+// goes through the same path.
+func TestPullImageStillPulls(t *testing.T) {
+	s := stub(t, &stubRunner{})
+
+	if err := PullImage("api:v1"); err != nil {
+		t.Fatalf("PullImage() error = %v", err)
+	}
+	if !slices.Equal(s.lastArgs(), []string{"pull", "api:v1"}) {
+		t.Errorf("args = %v, want the pull of the named image", s.lastArgs())
+	}
+}
+
+// Everything else keeps building the command it built before — a context on a
+// delete would offer a stop that must never be honoured (D7).
+func TestOtherMutationsCarryNoContext(t *testing.T) {
+	s := stub(t, &stubRunner{})
+
+	if err := RemoveImage("abc", false); err != nil {
+		t.Fatalf("RemoveImage() error = %v", err)
+	}
+	if call := s.calls[len(s.calls)-1]; call.Ctx != nil {
+		t.Error("a removal carries a context, so something could ask to cut it")
 	}
 }
 

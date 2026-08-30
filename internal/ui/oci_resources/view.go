@@ -265,8 +265,6 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 				{Key: ".", Description: "Sort"},
 				{Key: "esc", Description: "Go back"},
 			}
-		case browserStateStatus:
-			return nil // blocked during operation
 		default: // browserStateInput
 			// enter submits, so it is greyed until the submit button has the
 			// focus. A control, not an action: greying is the whole of it, and
