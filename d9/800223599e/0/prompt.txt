@@ -11,3 +11,7 @@ oui continue
 ---
 
 le dashboard m'affiche 3 crit pour les workspaces mais je ne les vois pas ni dans ws ni dans sec
+
+---
+
+est-ce qu'il est possible de gérer le problème des images
