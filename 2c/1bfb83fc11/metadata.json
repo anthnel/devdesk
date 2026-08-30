@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "2c1bfb83fc11",
+  "strategy": "manual-commit",
+  "branch": "fix/posture-reconciles-gone-repos",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/2c/1bfb83fc11/0/metadata.json",
+      "transcript": "/2c/1bfb83fc11/0/full.jsonl",
+      "compact_transcript": "/2c/1bfb83fc11/0/transcript.jsonl",
+      "content_hash": "/2c/1bfb83fc11/0/content_hash.txt",
+      "prompt": "/2c/1bfb83fc11/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 76,
+    "cache_creation_tokens": 131613,
+    "cache_read_tokens": 5472625,
+    "output_tokens": 21792,
+    "api_call_count": 38
+  }
+}
