@@ -41,3 +41,7 @@ Veux-tu que je fasse un second passage pour vérifier les 28 restants avant supp
 ---
 
 supprime ce qui est confirmé et les 28 de mai
+
+---
+
+commit
