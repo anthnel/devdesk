@@ -364,6 +364,26 @@ func TestPullRequestStartsAJob(t *testing.T) {
 	if len(run.Items) != 1 || run.Items[0].Target != "registry.example.com/new:v1" {
 		t.Errorf("run.Items = %+v, want one item for the requested image", run.Items)
 	}
+
+	// The work the run carries has to actually report, or the item never
+	// leaves the state it was admitted in — which is the whole of the queued
+	// row that would not stop spinning.
+	installFakeDocker(t, fakeScript{})
+	work, _ := testutil.MsgOf[jobs.StartMsg](cmd)
+	msgs := testutil.Msgs(work.Work("default"))
+	if len(msgs) == 0 {
+		t.Fatal("the run was registered but its work produced nothing")
+	}
+	start, ok := msgs[0].(RegistryPullStartingMsg)
+	if !ok {
+		t.Fatalf("msgs[0] = %#v, want the pull announcing itself", msgs[0])
+	}
+	if start.ImageName != "registry.example.com/new:v1" {
+		t.Errorf("ImageName = %q, want the requested image", start.ImageName)
+	}
+	if got := start.Transition().State; got != jobs.ItemRunning {
+		t.Errorf("the starting transition is %q, want running", got)
+	}
 }
 
 // A second pull request for the same image while one is already running is

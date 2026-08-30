@@ -20,10 +20,12 @@ type browserState int
 // every key — esc included — while up to one 8-second detection per configured
 // registry ran (D13). Members now come from config plus the group cache, so
 // there is nothing to resolve and the form renders at once, offline included.
+// browserStateStatus is gone too (§3.60). It was the spinner the browser showed
+// while a pull ran, and a pull is a job now: the row spins in the Images tab,
+// which is where asking for one leaves the user.
 const (
-	browserStateInput  browserState = iota // search form
-	browserStateTags                       // results table
-	browserStateStatus                     // spinner during pull
+	browserStateInput browserState = iota // search form
+	browserStateTags                      // results table
 )
 
 // browserRegistryEntry is one selectable registry in the browser form.
@@ -217,10 +219,9 @@ type RegistryBrowser struct {
 	filterInput  textinput.Model
 	filterActive bool
 
-	// Status screen (pull operation)
-	spinner   spinner.Model
-	operation string
-	imageName string
+	// spinner animates the tag scans and the searches in flight. It no longer
+	// has a status screen to drive: the pull took its own with it (§3.60).
+	spinner spinner.Model
 
 	state browserState
 }

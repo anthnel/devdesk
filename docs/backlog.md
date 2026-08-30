@@ -11240,13 +11240,29 @@ dans la table D7 — et n'était **utilisé nulle part**. C'était le seul kind 
 ce cas ; le test qui parcourt `Kinds()` vérifiait un vocabulaire dont un mot ne
 servait à rien.
 
-**Le browser garde son écran de statut, et ce n'est pas une redondance.** Il
-anime un *chargement* — l'écran où l'utilisateur se trouve pendant qu'il
-attend — là où le registre suit un *travail*, que le reste de l'application
-regarde. C'est la distinction que `internal/ui/oci_resources/jobs.go` pose déjà
-pour le `spinner.Model` local de la vue. Le browser n'appelle donc plus Docker
-lui-même : il émet `RegistryPullRequestedMsg`, exactement comme
-`requestDirectScan` émet sa demande de scan, et le parent l'admet.
+Le browser n'appelle donc plus Docker lui-même : il émet
+`RegistryPullRequestedMsg`, exactement comme `requestDirectScan` émet sa
+demande de scan, et le parent l'admet.
+
+**`G` ferme le browser et pose l'utilisateur dans l'onglet Images**, et l'écran
+de statut du browser est supprimé avec ce qui le portait — `browserStateStatus`,
+`operation`, `imageName`, `viewStatus`, `SetOperationSuccess/Error`,
+`OperationImageName`. Il prenait tout le panneau pour un `theme.SpinnerMessage`
+(la forme que Rule 139 tient hors d'un corps de table) et il le faisait sur le
+seul écran d'où ni la progression ni le résultat ne se voient : l'image tirée
+apparaît dans la liste des images, pas dans la liste des tags. La ligne qui
+tourne dans Images dit strictement plus, et à l'endroit où on la cherche.
+
+Le changement de vue a lieu **une fois, sur la touche qui le demande** — ce
+n'est pas un message de travail qui déplace l'écran dans le dos de
+l'utilisateur, ce que D67 interdit. La distinction est celle-là : répondre à
+une action, ou reprendre l'écran pendant qu'on est ailleurs.
+
+Conséquence à ne pas manquer : `handleRegistryPullComplete` commençait par
+`if m.registryBrowser == nil { return m, nil }`. Le browser étant désormais
+fermé bien avant la réponse, cette garde aurait avalé le `fetchImages()` qui
+fait apparaître l'image — le pull aurait « marché » sans que rien n'arrive à
+l'écran avant le tick de dix secondes.
 
 **La ligne arrive à l'écran quand la requête part.** Un pull lancé depuis le
 browser vise presque toujours une image qui n'est *pas* locale — c'est la

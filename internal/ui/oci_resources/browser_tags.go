@@ -113,21 +113,20 @@ func (b *RegistryBrowser) registryFilterLabel() string {
 	return b.registryFilter.entryKey
 }
 
-// pullSelectedTag opens the browser's own status screen — its local loading
-// state, not the job — and asks the parent to admit the pull as one
-// (RegistryPullRequestedMsg), mirroring requestDirectScan below.
+// pullSelectedTag asks the parent to admit the pull as a job, mirroring
+// requestDirectScan below.
+//
+// It holds no state of its own for it any more (§3.60). The browser used to
+// take over the screen with a spinner of its own until the pull answered,
+// which said less than the Images tab now does — the row is there, spinning,
+// next to every other image — and said it on the one screen from which the
+// result could not be seen.
 func (b *RegistryBrowser) pullSelectedTag() (*RegistryBrowser, tea.Cmd) {
 	name := b.selectedImageName()
 	if name == "" {
 		return b, nil
 	}
-	b.imageName = name
-	b.operation = "pull"
-	b.state = browserStateStatus
-	return b, tea.Batch(
-		b.spinner.Tick,
-		func() tea.Msg { return RegistryPullRequestedMsg{ImageName: name} },
-	)
+	return b, func() tea.Msg { return RegistryPullRequestedMsg{ImageName: name} }
 }
 
 // requestDirectScan emits RegistryTagDirectScanMsg for a remote Trivy scan (no pull).

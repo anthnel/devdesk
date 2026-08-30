@@ -70,26 +70,42 @@ func (m Model) handleMultiRegistryTagsMeta(msg MultiRegistryTagsMetaMsg) (tea.Mo
 	return m, nil
 }
 
-// handleRegistryPullRequested admits a browser pull as a job, mirroring
-// handleRegistryTagDirectScan below.
+// handleRegistryPullRequested admits a browser pull as a job and puts the user
+// where they can watch it: the Images tab, browser closed (§3.60).
+//
+// A pull is asked for from the browser and answered in the Images list, and
+// leaving the user on the browser's own spinner meant the one screen that could
+// not show either the progress or the result. The switch happens here, once, on
+// the keypress that asked for it — it is not a work message dragging the screen
+// around behind the user's back, which is what D67 forbids.
 func (m Model) handleRegistryPullRequested(msg RegistryPullRequestedMsg) (tea.Model, tea.Cmd) {
 	if m.pullingImage(msg.ImageName) {
 		return m, m.footer.Warn("Pull already in progress")
 	}
-	return m, jobs.Start(m.pullRun(msg.ImageName), pullOneImageCmd(msg.ImageName))
+	start := jobs.Start(m.pullRun(msg.ImageName), pullOneImageCmd(msg.ImageName))
+
+	// closeMultiRegistryBrowser carries the deselection the next visit reopens
+	// on, so the browser is closed through it rather than by hand.
+	closed, closeCmd := m.closeMultiRegistryBrowser()
+	next, ok := closed.(Model)
+	if !ok {
+		return closed, tea.Batch(closeCmd, start)
+	}
+	next.activeTab = tabImages
+	next.updateImageTable()
+	return next, tea.Batch(closeCmd, start)
 }
 
-// handleRegistryPullComplete processes the result of a pull from the browser.
+// handleRegistryPullComplete processes the result of a pull.
+//
+// It does not depend on the browser any more: the pull outlives it now that
+// asking for one closes it, and a completion that returned early on a nil
+// browser would skip the refresh that makes the pulled image appear.
 func (m Model) handleRegistryPullComplete(msg RegistryPullCompleteMsg) (tea.Model, tea.Cmd) {
-	if m.registryBrowser == nil {
-		return m, nil
-	}
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] pull %s: %v", msg.ImageName, msg.Err)
-		m.registryBrowser.SetOperationError("")
 		return m, m.footer.Error("Pull failed — check logs")
 	}
-	m.registryBrowser.SetOperationSuccess()
 	return m, tea.Batch(fetchImages(), m.footer.Info("Image pulled: "+msg.ImageName))
 }
 

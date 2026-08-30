@@ -30,7 +30,7 @@ func (b *RegistryBrowser) Update(msg tea.Msg) (*RegistryBrowser, tea.Cmd) {
 	case tea.KeyMsg:
 		return b.handleKeyMsg(msg)
 	case spinner.TickMsg:
-		if b.state == browserStateStatus || len(b.scanningTags) > 0 || b.pendingSearches > 0 {
+		if len(b.scanningTags) > 0 || b.pendingSearches > 0 {
 			var cmd tea.Cmd
 			b.spinner, cmd = b.spinner.Update(msg)
 			if b.state == browserStateTags && len(b.scanningTags) > 0 {
@@ -68,8 +68,6 @@ func (b *RegistryBrowser) handleKeyMsg(msg tea.KeyMsg) (*RegistryBrowser, tea.Cm
 		return b.handleInputKeyMsg(msg)
 	case browserStateTags:
 		return b.handleTagsKeyMsg(msg)
-	case browserStateStatus:
-		return b, nil
 	}
 	return b, nil
 }
