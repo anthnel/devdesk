@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "31507246e516",
+  "strategy": "manual-commit",
+  "branch": "feat/oci-pull-job",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/browser_keys.go",
+    "internal/ui/oci_resources/browser_search_test.go",
+    "internal/ui/oci_resources/browser_state.go",
+    "internal/ui/oci_resources/browser_tags.go",
+    "internal/ui/oci_resources/browser_view.go",
+    "internal/ui/oci_resources/registry_browser.go",
+    "internal/ui/oci_resources/update_test.go",
+    "internal/ui/oci_resources/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/31/507246e516/0/metadata.json",
+      "transcript": "/31/507246e516/0/full.jsonl",
+      "compact_transcript": "/31/507246e516/0/transcript.jsonl",
+      "content_hash": "/31/507246e516/0/content_hash.txt",
+      "prompt": "/31/507246e516/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 39037,
+    "cache_read_tokens": 13996315,
+    "output_tokens": 24099,
+    "api_call_count": 42,
+    "subagent_tokens": {
+      "input_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "output_tokens": 0,
+      "api_call_count": 0
+    }
+  }
+}

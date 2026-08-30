@@ -1,0 +1,151 @@
+est-ce que des fichiers plan ou des entrées dans le backlog doivent être nettoyées
+
+---
+
+<task-notification>
+<task-id>a2903a459208e3bb6</task-id>
+<tool-use-id>toolu_01N3qniNDMkMfUuKVu7xShDT</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/591876b0-aba3-48d3-93dc-8b7f19cd86c7/tasks/a2903a459208e3bb6.output</output-file>
+<status>completed</status>
+<summary>Agent "Audit stale plans and backlog entries" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Oui, les deux ont besoin d'un nettoyage.
+
+**docs/backlog.md**
+- §1 (défauts) et §1.3 (Open) sont déjà propres — vide depuis D69 (2026-08-30), rien à faire là.
+- **§4 "Existing plans" est périmé.** Il dit "Two are outstanding": `platform_compatibility_improvements.md` et `dashboard-resources-plan.md`. Mais `dashboard-resources-plan.md` est lié depuis §3.19, qui est marqué **done**. Il ne reste donc réellement qu'un seul plan ouvert : `platform_compatibility_improvements.md` (jamais référencé ailleurs comme fait).
+
+**`.claude/plans/` — sûrs à supprimer (vérifiés, référencés "done" dans le backlog ou auto-déclarés complets) :**
+- `dashboard-resources-plan.md` (§3.19)
+- `configuration-view-plan.md` (self-déclaré "Status: complete", le seul point "outstanding" renvoie à §3.14 qui est done)
+- `jobs-registry.plan.md` (§3.58)
+- `footer-messages-unification.md` (§3.30)
+- `mcp-server-plan.md` (§3.38)
+- `netdiag-checks-and-verdicts.md` (§3.33)
+- `plumber-ci-score.md` (§3.42)
+- `secrets-column-and-datatable-foreground.md` (§3.20)
+- `viewer-markdown-dockerfile-shell.md` (§3.32)
+- `document-viewer.md` (§3.25)
+- `datatable-row-status-and-busy.md` (§3.22)
+- `explorer-icon-columns.plan.md` (§3.56)
+- `config-network-section.plan.md` (§3.34)
+
+**Probablement obsolètes aussi (dates de mai, sujets qui recoupent des §3.x "done"), mais non vérifiés individuellement** : les ~28 autres fichiers (netdiag_*, oci_*, security_*, workspace_*, keymap.plan.md, shortcuts-disabled-state.md, terminal_integration_plan.md, etc.) — tous datés du 20/26/31 mai sauf `keymap.plan.md` et `shortcuts-disabled-state.md` (août), et tous correspondent par sujet à des entrées §3.x déjà closes. Je ne les ai pas lus un par un.
+
+**Reste clairement à garder** : `platform_compatibility_improvements.md` — le seul plan non couvert par une entrée "done" du backlog.
+
+Veux-tu que je fasse un second passage pour vérifier les 28 restants avant suppression, ou que je supprime déjà les 13 confirmés + corrige §4 ?</result>
+<usage><subagent_tokens>119379</subagent_tokens><tool_uses>10</tool_uses><duration_ms>74069</duration_ms></usage>
+</task-notification>
+
+---
+
+supprime ce qui est confirmé et les 28 de mai
+
+---
+
+commit
+
+---
+
+/plan sur la vue oci, quand on browse les registres il est possible de faire un pull de l'image (G). Cette action devrait initier un job. Et dans la vue oci/images il devrait y avoir un spinner sur l'image en train d'être pullée
+
+---
+
+<task-notification>
+<task-id>a189121c42271db13</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/591876b0-aba3-48d3-93dc-8b7f19cd86c7/tasks/a189121c42271db13.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore jobs registry system" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Confirmed: `KindPull` exists in `internal/jobs` (jobs.go:33, verb "Pulling" at jobs.go:82, `Cancellable()` true at jobs.go:64) but is never registered anywhere yet — it was declared for exactly this feature but never wired up. Now I have everything needed for the report.
+
+## Report
+
+**1. `internal/jobs` core API** (`internal/jobs/jobs.go`, `registry.go`, `message.go`)
+
+- `Kind` enum already includes `KindPull` (jobs.go:33, Verb "Pulling" jobs.go:82, `Cancellable()==true` jobs.go:64) — declared but unused anywhere in the codebase today (only referenced in jobs' own tests).
+- `Run` = one batch (`jobs.NewRun(kind, origin command.ViewType, contextName, label string, targets ...string) Run`, jobs.go:199) or `jobs.NewOpenRun(...)` (jobs.go:219) when targets aren't known upfront (clone only).
+- `Item` = one target: `Target`, `Display`, `State jobs.ItemState` (`ItemQueued/Running/Done/Skipped/Failed`), `Detail string`, private `cancel context.CancelFunc` (jobs.go:130-147).
+- Registry (`registry.go`): `Start(run Run) JobID` admits a run (registry.go:47); `Apply(t Transition) bool` routes a progress message via the `Reporter` interface (registry.go:148); `Registry.FindItem(kind, target)` and `Registry.Cancel/CancelItem/CancelOpen` (registry.go:204-339); `Snapshot() []Run` for broadcast (registry.go:347).
+- Messages (`message.go`): `jobs.Start(run, workCmd) tea.Cmd` / `jobs.StartCancellable(run, workCmd, cancel) tea.Cmd` emit `StartMsg`; a view's message implements `Transition() jobs.Transition` (the `Reporter` interface, registry.go:132) to report state; `ChangedMsg{Runs, Frame, RenderedFrame}` (message.go:122) is the broadcast every view receives.
+- Query "is target X running kind Y": pattern used everywhere is a local helper over `jobs.Unfinished(m.jobs)` filtering `run.Kind == KindX` and item `!State.Terminal()` — see `oci_resources/jobs.go:57` `scanningImage(name)`.
+
+**2. Clone integration (§3.58 poste 7)** — `internal/ui/forge/explorer/clone.go`, `clone_jobs.go`, `clone_list.go`
+
+End-to-end: `handleCloneDestinationSelected` (clone.go:84) builds an **open** run via `m.cloneJobRun(target)` → `jobs.NewOpenRun(jobs.KindClone, command.ViewGitExplorer, "", target)` (clone.go:125), then returns `jobs.StartCancellable(run, waitForCloneEvent(run.events), run.cancel)` (clone.go:117). Router's `handleStartJobs` (app/jobs.go:40) admits it via `a.jobs.Start(run)` and dispatches the work Cmd. Progress arrives as `CloneEventMsg`, which implements `Transition()` (clone_jobs.go:15) mapping clone-pipeline events to `jobs.ItemQueued/Running/Done/Skipped/Failed` with `Discover:true` for newly-found repos. `CloneRunFinishedMsg` implements `Seal() jobs.Kind` (clone_jobs.go:46). Router's `routeWork` (app/jobs.go:67) applies the transition/seal to the registry *before* forwarding to the view, then `jobsChanged()` broadcasts `jobs.ChangedMsg` to all views and (re)starts the shared tick. `handleJobsChanged` (clone.go:183) stores `m.jobs`/`m.jobFrame`, and if a clone list is open, `cloneRunFrom(msg.Runs)` (clone_list.go:225) picks the run and `l.setRun(run, frame)` (clone_list.go:167) stamps the shared frame onto `ItemRunning` rows only (`cloneRow.frame`), rendered as `frame + " cloning"` in `cloneStatusLabel` (clone_list.go:132). Cancel: `esc` → `jobs.CancelOpen(jobs.KindClone)` (clone.go:238).
+
+**3. Security scans** (`security/jobs.go`) and **OCI image scans** (`oci_resources/jobs.go`) — the closer precedent for pull. Both use plain (non-open) `jobs.NewRun(jobs.KindScan, origin, "", label, names...)` (oci_resources/jobs.go:42, called from `scanSelectedImage` in images.go:68). `ImageScanStartingMsg`/`ImageScanFinishedMsg` implement `Transition()` (jobs.go:95-106) and are routed via `app.go:404-408`. `handleJobsChanged` (oci_resources/jobs.go:26) rebuilds `m.updateImageTable()` and pushes `scanningNames()` into the registry browser. Row-level flag: `scanningImage(name)` (jobs.go:57) queries `jobs.Unfinished(m.jobs)` for `KindScan` items matching the image name — this is the exact pattern to copy for `scanningPull(name)`/`KindPull`.
+
+**4. `K` / stop-a-run** — Registry-side machinery (`Cancel`, `CancelItem`, `Run.Stoppable`, `Run.ItemStoppable`, `Kind.Cancellable`) is fully generic and already true for `KindPull`. But the **key binding itself is not free**: today `keymap.Kill` ("K") is only wired in `internal/ui/jobsview/update.go:113` (`stopSelected`, using `jobs.CancelItem(m.openRun, target)`) and a couple of unrelated views (containers, netdiag). Neither `oci_resources/images.go` nor `browser_tags.go`/`browser_keys.go` bind K to `jobs.CancelItem`/`jobs.Cancel` today — adding row-level stop for pull needs new key-handling code in oci_resources, though the registry logic (`Cancellable`, `CancelItem`) needs no changes.
+
+**5. `:jobs` view / shared spinner** — Registering via `jobs.Start`/`StartCancellable` automatically shows up in `:jobs` (`jobsview/update.go` reads `msg.Runs` from the same `ChangedMsg` broadcast, no extra wiring) and automatically drives the shared spinner: `app/jobs.go:215` `ensureJobTick()` starts the one tick chain whenever `a.jobs.Running() &gt; 0`, and `broadcastJobs()` (app/jobs.go:182) pushes `ChangedMsg` to *every* held view each tick. Views just need to store `msg.Frame`/`msg.Runs` in their own `handleJobsChanged`, and rebuild their row cache (`updateImageTable`, `refreshRows`, etc.) — that per-view wiring is what does need to be added, not the spinner chain itself.
+
+**6. `internal/ui/oci_resources` images view structure**
+
+- `internal/ui/oci_resources/table.go`: `imageRow` struct (table.go:27-36) has `Image docker.Image`, `DisplayName`, `RawName`, `Entry cache.ImageScanEntry`, `Scanned`, `Scanning bool`, `Failed`, `SpinnerFrame string` — i.e. there is already a `Scanning` flag analogous to `tagRow.scanning`, driven by `m.scanningNames()` inside `imageRows()` (table.go:159,171). `updateImageTable()` (table.go:206) calls `m.imageTable.SetItems(m.imageRows())`. `imageColumns()` (table.go:107) has no "pulling"/status column beyond the existing "Scanned" column — a pull indicator would need either reusing that pattern (add `Pulling bool` to `imageRow`, decorate a cell) or piggy-backing on the existing scan-style column.
+- Refresh mechanism: `fetchImages()` (commands.go:35) calls `docker.ListImages()`, returning `ImagesListMsg`; it's invoked on a 10s poll (`tickCmd`/`RefreshTickMsg`, commands.go:25-32) and explicitly after actions, e.g. `handleRegistryPullComplete` (browser_bridge.go:74-85) already does `tea.Batch(fetchImages(), m.footer.Info(...))` after a successful pull today. So a freshly-pulled image does appear after refresh — no extra plumbing needed there, but note: **a brand-new image tag has no row until that `fetchImages()` result lands**, so a pull-spinner on an "images row" only works for a name/tag already present in `m.images` at the time `G` is pressed; a wholly new tag would need a synthesized placeholder row or would simply appear un-spun once the list refreshes.
+- Entry points to wire: `browser_tags.go:116` `pullSelectedTag()` (sets `b.operation="pull"`, `b.state = browserStateStatus`, calls `pullRegistryImageCmd(name)`) and `commands.go:574` `pullRegistryImageCmd(imageName) tea.Cmd` (calls `docker.PullImage`, returns `RegistryPullCompleteMsg{ImageName, Err}` — commands.go:576, model.go:275-276). This message is *not* currently a `jobs.Reporter`/routed via `routeWork`; it's handled directly by `handleRegistryPullComplete` (browser_bridge.go:74) via the normal `update.go:182` case, since `docker.PullImage` (internal/docker/images.go:227) is a single synchronous call with no starting/finished pair yet — a "starting" transition would need to be introduced (mirroring `ImageScanStartingMsg`/`Cancel`) to get the `ItemRunning` state jobs.Cancellable() needs.</result>
+<usage><subagent_tokens>83455</subagent_tokens><tool_uses>28</tool_uses><duration_ms>94014</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a1f926f28ddfb5247</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/591876b0-aba3-48d3-93dc-8b7f19cd86c7/tasks/a1f926f28ddfb5247.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore OCI images view rendering" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Now I have everything needed for a thorough report.
+
+## Report: Images table pull-spinner investigation
+
+**1. Model/row definition**
+
+- `Model` (top-level struct): `internal/ui/oci_resources/model.go:31-102`. Images-tab fields: `images []docker.Image` (35), `imageTable datatable.Model[imageRow]` (48), `jobs []jobs.Run` / `jobFrame string` (44-45), `scanCache`, `failedScans`.
+- Row type `imageRow`: `internal/ui/oci_resources/table.go:27-36` — `Image docker.Image`, `DisplayName`, `RawName`, `Entry cache.ImageScanEntry`, `Scanned/Scanning/Failed bool`, `SpinnerFrame string`. All `Cell` funcs return plain strings (Rule 122), e.g. `scannedCell` (table.go:92-102) returns `r.SpinnerFrame + "scanning"`; color comes from `Style` funcs like `scannedStyle` (table.go:79-88). `imageColumns()` at table.go:107-150; `imageColumnID = 0` is reserved as the row's status/busy cell (table.go:41-43, comment 368-375 in model.go).
+
+**2. Refresh mechanism**
+
+- `fetchImages()` Cmd: `internal/ui/oci_resources/commands.go:35-40`, calls `docker.ListImages()`, returns `ImagesListMsg{Images, Err}` (model.go:129-132).
+- Triggers: on view `Init()` (update.go:20), and every 10s via `tickCmd()`/`RefreshTickMsg` (`commands.go:25-31`, handled at `update.go:77-78`, which re-fires `fetchImages()`).
+- Result handled by `handleImagesList` (`results.go:70-80`), which sets `m.images` and calls `m.updateImageTable()`.
+- `updateImageTable()` (table.go:206-209) rebuilds rows via `imageRows()` (table.go:153-177) and calls `imageTable.SetItems`.
+
+**3. Existing per-row busy/spinner concepts (two distinct mechanisms, both usable as templates)**
+
+- **Delete busy marker** (closest template): `datatable.Model[T]` has built-in `MarkBusy(key, label)`/`ClearBusy(key)`/`IsBusy(key)` (`internal/ui/datatable/datatable.go:556-583`) plus `AdvanceSpinner()`/`BusyLabels()` (600-605, 588-598). "Busy wins over state" is baked into the table's own render (`busyLabel`, datatable.go:607-614) — no per-column Style wiring needed in the view. Used for image delete: `results.go:24` `m.imageTable.MarkBusy(img.ID, "Removing "+name)`, cleared at `results.go:96` `m.imageTable.ClearBusy(msg.ID)`. Frame advance happens in `busy.go:31-37` `advanceBusySpinners()`, called from the `spinner.TickMsg` case in `update.go:56`.
+- **Scan spinner** (job-registry driven, matches what you cited from browser_view.go's pattern): `imageRow.Scanning`/`SpinnerFrame` are set in `imageRows()` (table.go:159,171,173) from `m.scanningNames()` (`jobs.go:73-86`) and `m.jobFrame` (set in `handleJobsChanged`, `jobs.go:26-38`, driven by the central `internal/jobs` registry's `jobs.ChangedMsg`, handled at `update.go:48-49`). `ImageScanStartingMsg`/`ImageScanFinishedMsg` implement `jobs.Reporter` via `Transition()` (`jobs.go:95-106`), fed through `jobs.Start(run, cmd)` (e.g. `images.go:68-71`). Note `jobs.KindPull` already exists in `internal/jobs/jobs.go:33` (`Verb()`→"Pulling", `Cancellable()`→true at line 64) but is **currently unused anywhere** — the registry-browser pull does not go through `jobs.Start`/the router at all.
+
+**4. How a pulled image becomes visible**
+
+No explicit refresh-on-pull-complete hook exists structurally distinct from the generic mechanism — it's explicit but simple: `handleRegistryPullComplete` (`browser_bridge.go:74-85`) on success calls `m.registryBrowser.SetOperationSuccess()` then returns `tea.Batch(fetchImages(), m.footer.Info("Image pulled: "+msg.ImageName))` (line 84). So the table is refreshed immediately on pull completion (not waiting for the 10s tick), by explicitly invoking `fetchImages()`.
+
+**5. Browser → parent message path**
+
+- `RegistryPullCompleteMsg{ImageName, Err}` (model.go:276-279) is emitted by `pullRegistryImageCmd(imageName)` (`commands.go:574-579`) after `docker.PullImage`.
+- The pull is launched from `RegistryBrowser.pullSelectedTag()` (`browser_tags.go:116-128`), invoked on key `keymap.Get` ("G") inside `browser_keys.go:214-215`. This is browser-local state: sets `b.imageName`, `b.operation = "pull"`, `b.state = browserStateStatus`, returns `tea.Batch(b.spinner.Tick, pullRegistryImageCmd(name))` — no `jobs.Start`, no marker on `Model.imageTable`.
+- The parent's `Update()` routes `RegistryPullCompleteMsg` directly (not through the browser sub-update) at `update.go:182` → `handleRegistryPullComplete` (`browser_bridge.go:74-85`), which is exactly where `Model.imageTable` and `Model.images` live, so this is the natural interception point.
+- **Gap for the planned feature**: there's currently no message fired at *pull start* that reaches the parent `Model` (only completion does, via `RegistryPullCompleteMsg`). To mark a row "pulling" while the pull runs, `pullSelectedTag()` (browser_tags.go:116) would need to also emit something the parent's `Update()` switch (`update.go`) can catch before/alongside entering `browserStateStatus`, e.g. a new `RegistryPullStartingMsg{ImageName}` propagated up (mirroring `ImageScanStartingMsg`), since currently only the browser's *own* status screen shows pull progress — the parent Images table has no visibility into an in-flight pull at all.
+- Caveat: `imageTable`'s `Key` is `img.ID` (model.go:367), but a freshly-requested pull has no local image/ID yet — if the target image name doesn't already exist as a local row (e.g. new tag), `MarkBusy`-by-ID can't target it until after `fetchImages()` returns. A name-keyed marker (parallel structure to `m.failedScans map[string]bool`, keyed on image name/`RawName`) would be needed rather than reusing `imageTable.MarkBusy(id, ...)` directly, unless the image is already present locally (e.g. re-pulling an existing tag).</result>
+<usage><subagent_tokens>58943</subagent_tokens><tool_uses>26</tool_uses><duration_ms>86747</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bd95j7uj6</task-id>
+<summary>Monitor event: "Wait for the backgrounded go test run to finish"</summary>
+<event>[Monitor timed out — re-arm if needed.]</event>
+</task-notification>
+
+---
+
+continue
+
+---
+
+l'image pullée reste en queued dans les jobs et pulling dans oci images :  ⣽  pulling      dhi/debian-base:trixie-debian13-dev
