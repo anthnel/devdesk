@@ -243,6 +243,23 @@ git worktree prune -v                  # drop the unreachable admin entry
 git push origin <sha>:refs/heads/<branch>
 ```
 
+**A worktree created from inside the sandbox registers a Linux path the
+host's git can't resolve — even under `.worktrees/`.** `.worktrees/` shares
+*files* between host and sandbox, but each side's git still writes its own
+`.git/worktrees/<name>/gitdir` pointer, and the sandbox's git records a Linux
+path (`/c/Users/...`). The host's `git worktree remove` on that same
+directory then fails with `fatal: '<path>' is not a working tree` — Windows
+git cannot resolve the pointer left behind. The costlier part: a plain `git
+worktree prune` run on the host right after that failure deregisters the
+worktree **silently** — git treats an unresolvable pointer as a worktree
+that's gone — while leaving alone any sibling worktree whose path it *can*
+read. If the branch was already merged the content is safe either way, but a
+host-run `prune` while an agent is still working inside a sandbox-created
+worktree would deregister that worktree out from under it, mid-task, with
+nothing on either side raising a warning. The rule this implies: **whoever
+creates a worktree removes it** — do not `git worktree remove` or `prune`
+from the other side of the host/sandbox split.
+
 **A follow-up commit on the same branch, after the first one already got
 squash-merged, will conflict on a plain `git merge`** — squashing rewrites
 history, so `git merge origin/main` computes the wrong common ancestor
