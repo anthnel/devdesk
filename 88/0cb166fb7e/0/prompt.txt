@@ -3,3 +3,7 @@ quand je crée un nouveau projet dans la vue ge, le datatable devient vide penda
 ---
 
 avant de passer à l'implémentation, comme il y a un appel réseau et donc que ça peut prendre un certain temps, est-ce qu'il ne faudrait pas lier la création/suppression à un jobs
+
+---
+
+oui continue
