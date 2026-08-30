@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -675,5 +678,57 @@ func TestStorageDoesNotRepeatTheWorkspacesPath(t *testing.T) {
 				t.Errorf("the Storage box repeats the path the Code box carries: %q", stripANSI(line))
 			}
 		}
+	}
+}
+
+// Un dépôt supprimé après son scan laisse son entrée dans le cache, et rien ne
+// l'en retire. `ws` ne le liste pas — il liste le disque — et `:sec` l'écarte à
+// la lecture ; le dashboard le comptait. Ses CRITICAL n'étaient donc visibles
+// que sur le seul écran d'où l'on ne peut pas aller les voir.
+func TestThePostureDropsARepositoryThatIsGone(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	here := filepath.Join(home, "still-there")
+	if err := os.MkdirAll(here, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gone := filepath.Join(home, "deleted-since")
+
+	c, err := cache.NewWorkspaceScanCache("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, critical := range map[string]int{here: 1, gone: 3} {
+		if err := c.Set(path, cache.WorkspaceScanEntry{
+			RepoPath: path, Critical: critical, ScannedAt: day(1),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	p := readPosture("default")
+
+	if p.Repositories.Targets != 1 {
+		t.Errorf("Targets = %d, want 1 — the deleted repository is still counted",
+			p.Repositories.Targets)
+	}
+	if p.Repositories.Critical != 1 {
+		t.Errorf("Critical = %d, want 1 — the dashboard is reporting %d CRITICAL that no view can show",
+			p.Repositories.Critical, p.Repositories.Critical-1)
+	}
+}
+
+// L'absence doit être *certaine*. Un chemin illisible — un partage lent, un
+// droit manquant — n'est pas une suppression, et l'écarter ferait disparaître
+// du compteur des dépôts bien présents.
+func TestThePostureKeepsARepositoryItCannotStat(t *testing.T) {
+	if cache.RepositoryGone(filepath.Join(t.TempDir(), "no-such-dir", "child")) != true {
+		t.Error("a definite absence was not reported as one")
+	}
+	dir := t.TempDir()
+	if cache.RepositoryGone(dir) {
+		t.Error("a directory that exists was reported gone")
 	}
 }

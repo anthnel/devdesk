@@ -61,6 +61,18 @@ func (p posture) Total() postureSide {
 
 // readPosture sums both caches for one context. Un cache illisible n'est pas
 // une posture vide : il rend Read=false, donc `-` et non `0`.
+//
+// Les dépôts disparus sont écartés, et c'est la même règle que l'inventaire
+// applique à la même lecture (cache.RepositoryGone). Sans elle le dashboard
+// comptait les CRITICAL de dépôts supprimés depuis leur scan : `ws` ne les
+// listait pas — il liste le disque — et `:sec` les écartait déjà, donc le seul
+// écran à les annoncer était le seul où l'on ne pouvait pas aller voir. Un
+// compteur qu'aucune vue ne sait détailler n'est pas un compteur, c'est une
+// impasse.
+//
+// Les images gardent l'entrée d'une image supprimée pour une raison qui tient
+// encore : le savoir demande d'énumérer le démon, et cette fonction ne lit que
+// des fichiers de cache. `os.Stat` sur un chemin n'est pas cet appel-là.
 func readPosture(context string) posture {
 	images, errImages := cache.NewImageScanCache()
 	workspaces, errWorkspaces := cache.NewWorkspaceScanCache(context)
@@ -73,7 +85,10 @@ func readPosture(context string) posture {
 	for _, entry := range images.GetAll() {
 		p.Images.add(entry.Critical, entry.Sensitive, entry.ScannedAt)
 	}
-	for _, entry := range workspaces.GetAll() {
+	for path, entry := range workspaces.GetAll() {
+		if cache.RepositoryGone(path) {
+			continue
+		}
 		p.Repositories.add(entry.Critical, entry.Sensitive, entry.ScannedAt)
 	}
 	return p
@@ -150,6 +165,12 @@ func (m Model) unscannedTotal() (int, bool) {
 // cache garde l'entrée d'une image supprimée depuis, donc la différence peut
 // passer sous zéro — et « il en reste moins que zéro à scanner » n'est pas une
 // phrase. Le plancher dit ce qu'il faut en retenir : plus rien à scanner.
+//
+// Le plancher ne sert plus que du côté des images. Les dépôts disparus sont
+// écartés à la lecture, donc `Targets` ne dépasse plus l'inventaire — et ce
+// n'était pas seulement une soustraction négative rattrapée : un dépôt supprimé
+// compensait exactement un dépôt jamais scanné, et la boîte annonçait `0
+// unscanned` d'un ensemble où il en restait un.
 func uncovered(inventory, scanned int) int {
 	return max(inventory-scanned, 0)
 }

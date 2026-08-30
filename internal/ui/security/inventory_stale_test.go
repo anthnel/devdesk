@@ -52,7 +52,7 @@ func TestAnEmptyListingDropsEveryImage(t *testing.T) {
 func TestARepositoryThatIsGoneIsDropped(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "deleted-repo")
 
-	if !isGone(missing) {
+	if !cache.RepositoryGone(missing) {
 		t.Errorf("%q does not exist and was not reported gone", missing)
 	}
 }
@@ -60,7 +60,7 @@ func TestARepositoryThatIsGoneIsDropped(t *testing.T) {
 func TestAnExistingRepositoryIsKept(t *testing.T) {
 	dir := t.TempDir()
 
-	if isGone(dir) {
+	if cache.RepositoryGone(dir) {
 		t.Errorf("%q exists and was reported gone", dir)
 	}
 }
@@ -83,7 +83,7 @@ func TestAPathThatCannotBeReadIsKept(t *testing.T) {
 		t.Skip("this platform reports a path under a file as absent")
 	}
 
-	if isGone(under) {
+	if cache.RepositoryGone(under) {
 		t.Errorf("%q could not be read and was reported gone", under)
 	}
 }
