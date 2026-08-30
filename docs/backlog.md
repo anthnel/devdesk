@@ -11262,6 +11262,25 @@ texte, `Style` le colore). Elle est remplacée par la vraie quand
 | L'état vient du **registre**, jamais d'un drapeau | `pullingNames()` est recalculé à chaque `jobs.ChangedMsg`, donc rien à remettre à zéro et rien qui puisse rester allumé — c'est ce que §3.58 a acheté |
 | Le placeholder ne porte **aucune** donnée d'image | taille, scan, secrets : le pull n'en connaît encore rien, et inventer un `-` par colonne se lirait comme une réponse |
 
+#### Implémenter `jobs.Reporter` ne suffit pas : il faut être **routé**
+
+Les deux messages implémentaient `Transition()`, et
+`var _ jobs.Reporter = RegistryPullStartingMsg{}` le prouvait à la
+compilation — mais rien ne les dispatchait par `routeWork`, la liste explicite
+de `internal/app/app.go`. `Transition()` n'était donc jamais appelé : le run
+restait `queued` pour la vie de la session, et la ligne tournait sans fin.
+
+L'assertion de compilation prouve qu'un message **sait** rapporter, jamais
+qu'il rapporte. C'est le trou que `TestAPullIsRegisteredAndAdvancedByItsOwnMessages`
+ferme, dans `internal/app` et non dans la vue : le défaut était celui du
+routeur.
+
+Au passage, `RegistryPullCompleteMsg` n'atteignait la vue que par le
+`default: forwardToActiveView` — donc seulement tant que la vue OCI était à
+l'écran. Quitter l'onglet pendant un pull perdait la complétion, et avec elle
+le `fetchImages()` qui fait apparaître l'image. `routeWork` passe par
+`routeToView`, qui livre que la vue soit affichée ou non.
+
 #### `K` devait couper pour de bon
 
 `Kind.Cancellable()` répond `true` pour `pull` depuis §3.58 — « a docker pull
