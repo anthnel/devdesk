@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "43e838676da4",
+  "strategy": "manual-commit",
+  "branch": "feat/oci-pull-job",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/docker/exec.go",
+    "internal/docker/images.go",
+    "internal/docker/images_test.go",
+    "internal/ui/oci_resources/browser_bridge.go",
+    "internal/ui/oci_resources/browser_tags.go",
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/oci_resources/commands_test.go",
+    "internal/ui/oci_resources/jobs.go",
+    "internal/ui/oci_resources/jobs_test.go",
+    "internal/ui/oci_resources/model.go",
+    "internal/ui/oci_resources/table.go",
+    "internal/ui/oci_resources/update.go",
+    "internal/ui/oci_resources/update_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/43/e838676da4/0/metadata.json",
+      "transcript": "/43/e838676da4/0/full.jsonl",
+      "compact_transcript": "/43/e838676da4/0/transcript.jsonl",
+      "content_hash": "/43/e838676da4/0/content_hash.txt",
+      "prompt": "/43/e838676da4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 296,
+    "cache_creation_tokens": 909404,
+    "cache_read_tokens": 35167057,
+    "output_tokens": 107450,
+    "api_call_count": 148,
+    "subagent_tokens": {
+      "input_tokens": 54,
+      "cache_creation_tokens": 133863,
+      "cache_read_tokens": 1216449,
+      "output_tokens": 15930,
+      "api_call_count": 27
+    }
+  }
+}
