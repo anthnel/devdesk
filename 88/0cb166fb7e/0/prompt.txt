@@ -1,0 +1,5 @@
+quand je crée un nouveau projet dans la vue ge, le datatable devient vide pendant la création, dans le footer rien ne me dit que la création est en cours. Au niveau expérience utilisateur je pense qu'il serait mieux d'ajouter la ligne dans le datatable à la demande de création avec un spinner qui s'exécute en première colonne, puis quand c'est bon la ligne entière s'affiche avec la bonne icone, tant que le spinner tourne on ne peut rien faire sur cette ligne
+
+---
+
+avant de passer à l'implémentation, comme il y a un appel réseau et donc que ça peut prendre un certain temps, est-ce qu'il ne faudrait pas lier la création/suppression à un jobs
