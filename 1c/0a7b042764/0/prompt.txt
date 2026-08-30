@@ -145,3 +145,7 @@ No explicit refresh-on-pull-complete hook exists structurally distinct from the 
 ---
 
 continue
+
+---
+
+l'image pullée reste en queued dans les jobs et pulling dans oci images :  ⣽  pulling      dhi/debian-base:trixie-debian13-dev
