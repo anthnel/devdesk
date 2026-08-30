@@ -5717,8 +5717,8 @@ makes it the honest thing to show.
 
 ### 3.19 The dashboard stops reflowing, and gains resource charts — **done**
 
-Supersedes §3.5. Full plan, with what each phase cost:
-[`dashboard-resources-plan.md`](../.claude/plans/dashboard-resources-plan.md).
+Supersedes §3.5. The implementation plan (`dashboard-resources-plan.md`) has
+been removed from `.claude/plans/` now that the work is shipped.
 
 Two things, and they turn out to be one. The view fills in as its data lands,
 and it has no live resource metrics.
@@ -11227,9 +11227,11 @@ la table D7 ne l'avait pas.
 
 ## 4. Existing plans
 
-Detailed plans live in `.claude/plans/`. Two are outstanding:
+Detailed plans live in `.claude/plans/`. One is outstanding:
 
 - [`platform_compatibility_improvements.md`](../.claude/plans/platform_compatibility_improvements.md)
   — Docker-layer platform portability. Referenced from the old `todo.md`.
-- [`dashboard-resources-plan.md`](../.claude/plans/dashboard-resources-plan.md)
-  — §3.19, the dashboard skeleton and resource charts.
+
+Plans for shipped work are removed from `.claude/plans/` once their feature
+lands and the corresponding §3.x entry above is marked **done** — the backlog
+entry is the lasting record, not the plan file.
