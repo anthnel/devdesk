@@ -203,6 +203,16 @@ func listLocalImages() ([]imageOut, error) {
 	return out, nil
 }
 
+// listImages is docker.ListImages, indirected for the tests and nothing else —
+// production never reassigns it. A test cannot pull an image, so without the
+// seam the projection could only be asserted against whatever the developer's
+// daemon happens to hold.
+//
+// It stayed when the reconciliation left for docker.ImageNames: images_list
+// projects the whole Image — size, age, container count — and a set of names
+// answers none of that.
+var listImages = docker.ListImages
+
 // listDockerContainers is docker.ListContainers, indirected for the tests for
 // the reason listImages is: a test cannot start a container, and without the
 // seam the projection could only be asserted against whatever the developer's

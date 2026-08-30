@@ -16,6 +16,21 @@ import "os"
 // found counting the CRITICALs of repositories that the inventory had already
 // dropped — the same cache read twice with two different answers.
 
+// ImageGone says a cached image entry no longer has an image behind it.
+//
+// `known` is docker.ImageNames' second return, and the guard the whole design
+// rests on: an enumeration that failed keeps everything, one that succeeded
+// keeps what it listed. Without it a stopped daemon would read as a mass
+// deletion — and on the dashboard, where nothing is listed row by row, that
+// reads as `0 CRITICAL`, which is the one wrong answer nobody would question.
+func ImageGone(name string, present map[string]struct{}, known bool) bool {
+	if !known {
+		return false
+	}
+	_, ok := present[name]
+	return !ok
+}
+
 // RepositoryGone says a repository path has been removed, and only that.
 //
 // os.IsNotExist and nothing else: a permission error, or a share that answers
