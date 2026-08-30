@@ -1,0 +1,43 @@
+est-ce que des fichiers plan ou des entrées dans le backlog doivent être nettoyées
+
+---
+
+<task-notification>
+<task-id>a2903a459208e3bb6</task-id>
+<tool-use-id>toolu_01N3qniNDMkMfUuKVu7xShDT</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/591876b0-aba3-48d3-93dc-8b7f19cd86c7/tasks/a2903a459208e3bb6.output</output-file>
+<status>completed</status>
+<summary>Agent "Audit stale plans and backlog entries" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Oui, les deux ont besoin d'un nettoyage.
+
+**docs/backlog.md**
+- §1 (défauts) et §1.3 (Open) sont déjà propres — vide depuis D69 (2026-08-30), rien à faire là.
+- **§4 "Existing plans" est périmé.** Il dit "Two are outstanding": `platform_compatibility_improvements.md` et `dashboard-resources-plan.md`. Mais `dashboard-resources-plan.md` est lié depuis §3.19, qui est marqué **done**. Il ne reste donc réellement qu'un seul plan ouvert : `platform_compatibility_improvements.md` (jamais référencé ailleurs comme fait).
+
+**`.claude/plans/` — sûrs à supprimer (vérifiés, référencés "done" dans le backlog ou auto-déclarés complets) :**
+- `dashboard-resources-plan.md` (§3.19)
+- `configuration-view-plan.md` (self-déclaré "Status: complete", le seul point "outstanding" renvoie à §3.14 qui est done)
+- `jobs-registry.plan.md` (§3.58)
+- `footer-messages-unification.md` (§3.30)
+- `mcp-server-plan.md` (§3.38)
+- `netdiag-checks-and-verdicts.md` (§3.33)
+- `plumber-ci-score.md` (§3.42)
+- `secrets-column-and-datatable-foreground.md` (§3.20)
+- `viewer-markdown-dockerfile-shell.md` (§3.32)
+- `document-viewer.md` (§3.25)
+- `datatable-row-status-and-busy.md` (§3.22)
+- `explorer-icon-columns.plan.md` (§3.56)
+- `config-network-section.plan.md` (§3.34)
+
+**Probablement obsolètes aussi (dates de mai, sujets qui recoupent des §3.x "done"), mais non vérifiés individuellement** : les ~28 autres fichiers (netdiag_*, oci_*, security_*, workspace_*, keymap.plan.md, shortcuts-disabled-state.md, terminal_integration_plan.md, etc.) — tous datés du 20/26/31 mai sauf `keymap.plan.md` et `shortcuts-disabled-state.md` (août), et tous correspondent par sujet à des entrées §3.x déjà closes. Je ne les ai pas lus un par un.
+
+**Reste clairement à garder** : `platform_compatibility_improvements.md` — le seul plan non couvert par une entrée "done" du backlog.
+
+Veux-tu que je fasse un second passage pour vérifier les 28 restants avant suppression, ou que je supprime déjà les 13 confirmés + corrige §4 ?</result>
+<usage><subagent_tokens>119379</subagent_tokens><tool_uses>10</tool_uses><duration_ms>74069</duration_ms></usage>
+</task-notification>
+
+---
+
+supprime ce qui est confirmé et les 28 de mai

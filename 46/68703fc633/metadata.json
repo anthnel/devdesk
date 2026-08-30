@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "4668703fc633",
+  "strategy": "manual-commit",
+  "branch": "chore/cleanup-stale-plans",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/46/68703fc633/0/metadata.json",
+      "transcript": "/46/68703fc633/0/full.jsonl",
+      "compact_transcript": "/46/68703fc633/0/transcript.jsonl",
+      "content_hash": "/46/68703fc633/0/content_hash.txt",
+      "prompt": "/46/68703fc633/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 88397,
+    "cache_read_tokens": 2497822,
+    "output_tokens": 13950,
+    "api_call_count": 22,
+    "subagent_tokens": {
+      "input_tokens": 24,
+      "cache_creation_tokens": 17348,
+      "cache_read_tokens": 1333870,
+      "output_tokens": 7187,
+      "api_call_count": 12
+    }
+  }
+}
