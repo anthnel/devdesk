@@ -181,6 +181,63 @@ deliberately.
 second and third merges land on the same anchor. The resolution is always to
 keep both sides — they are independent entries, not competing edits.
 
+### Landing a sandbox-made commit (host-relay)
+
+A Docker Sandbox (`sbx`) has no `entire://` auth of its own — `ENTIRE_TOKEN`
+via `sbx secret set-custom` doesn't work (`git-remote-entire` parses the
+JWT's claims locally, before any network call, but the secret proxy only
+substitutes the real token on the wire — the sandbox process itself only
+ever sees an unparseable placeholder), and an interactive `entire login`
+inside the sandbox trades that for a persistent, harder-to-reason-about
+credential sitting in a less-trusted place. So the sandbox edits and commits
+locally only; the host does every `origin` operation — fetch, push, PR,
+merge. `git pull`/`git fetch` run *inside* the sandbox will fail with `no
+auth context for cluster ...` — that's expected, not a setup bug; don't
+`entire login` there to fix it (see `~/projects/github/anthnel/sbx-kits/entire/README.md`
+for the full rationale).
+
+A direct-mode sandbox mounts this exact repo directory, so its commits land
+straight in the shared `.git` — the host sees them immediately, no transfer
+needed. But `git worktree add -b <branch> ../devdesk-<branch> ...` run
+*inside* the sandbox creates that sibling path **outside** the single
+mounted directory, so it lands in the sandbox's own private container
+layer — invisible to the host (`git worktree list` shows it `prunable`).
+The commit object itself is still in the shared `.git/objects` though, so
+nothing is actually lost:
+
+```bash
+# From the host, once the sandbox reports "done and committed":
+git worktree list                      # confirm the sibling worktree, prunable, HEAD sha
+git cat-file -t <sha>                  # confirm the commit is really in this .git (it is)
+git worktree prune -v                  # drop the stale, unreachable admin entry
+
+git push origin <sha>:refs/heads/<branch>
+gh pr create -R anthnel/devdesk --base main --head <branch> \
+  --title "<subject line>" --body "$(git show -s --format=%b <sha>)"
+gh pr merge -R anthnel/devdesk <n> --squash --delete-branch
+git fetch origin main && git merge --ff-only origin/main   # may need a retry, see above
+```
+
+**A follow-up commit on the same branch, after the first one already got
+squash-merged, will conflict on a plain `git merge`** — squashing rewrites
+history, so `git merge origin/main` computes the wrong common ancestor
+(the branch's *own* pre-squash parent) and re-diffs files that already
+landed, even when nothing actually conflicts in substance. Don't hand-edit
+through that; cherry-pick the new commit straight onto current `origin/main`
+instead — its real parent already matches what's on `main`, so it applies
+clean:
+
+```bash
+git worktree add -b <tmp-branch> ../devdesk-<tmp-branch> <new-sha>
+cd ../devdesk-<tmp-branch>
+git reset --hard origin/main
+git cherry-pick <new-sha>              # clean apply — verify before trusting this
+go build ./... && go test ./<touched-packages>/...
+git push origin HEAD:refs/heads/<new-branch-name>
+# gh pr create / gh pr merge as above, then from the main checkout:
+git worktree remove ../devdesk-<tmp-branch>
+```
+
 ### Remotes
 
 | Remote | URL | Use |
