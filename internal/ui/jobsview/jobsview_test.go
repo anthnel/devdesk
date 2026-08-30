@@ -289,22 +289,41 @@ func TestOpeningAnEmptyRunIsRefusedWithItsReason(t *testing.T) {
 
 // ── The footer, and the empty screens ────────────────────────────────────────
 
-// Rule 139: a table view never renders a loading body. This one cannot even be
-// loading — it fetches nothing — so what its body says when empty is the whole
-// of the question, and the two emptinesses are different sentences.
-func TestAnEmptySessionAndAnEmptyFilterSayDifferentThings(t *testing.T) {
-	if body := newModel(t).View(); !strings.Contains(body, "Nothing has run") {
-		t.Errorf("an empty session renders %q", body)
+// Rule 139: a table view never renders a loading body, and it never renders a
+// message body either — an empty table stays a table (header, no rows), and
+// what it is empty *of* is the header's job (GetHeaderInfo), not the body's.
+func TestAnEmptySessionRendersTheTableNotAMessage(t *testing.T) {
+	m := newModel(t)
+	if body := m.View(); body != m.runTable.View() {
+		t.Errorf("an empty session's body is %q, want the plain table view", body)
+	}
+	if _, _, ok := findHeaderInfo(m, "Runs"); !ok {
+		t.Fatal("GetHeaderInfo has no Runs count")
+	}
+	if _, value, _ := findHeaderInfo(m, "Runs"); value != "0" {
+		t.Errorf("GetHeaderInfo Runs = %q, want \"0\"", value)
 	}
 
-	m := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemDone))
-	m, _ = step(t, m, testutil.Key("/"))
+	m2 := withRuns(t, run(1, jobs.KindScan, "~/work", jobs.ItemDone))
+	m2, _ = step(t, m2, testutil.Key("/"))
 	for _, msg := range testutil.Type("nothing-matches-this") {
-		m, _ = step(t, m, msg)
+		m2, _ = step(t, m2, msg)
 	}
-	if body := m.View(); !strings.Contains(body, "filter") {
-		t.Errorf("a filter hiding every row renders %q, want it to say so", body)
+	if body := m2.View(); body != m2.runTable.View() {
+		t.Errorf("a filter hiding every row renders %q, want the plain table view", body)
 	}
+	if _, value, _ := findHeaderInfo(m2, "Runs"); value != "1" {
+		t.Errorf("GetHeaderInfo Runs = %q, want the unfiltered total \"1\"", value)
+	}
+}
+
+func findHeaderInfo(m Model, key string) (foundKey, value string, ok bool) {
+	for _, info := range m.GetHeaderInfo(testContext) {
+		if info.Key == key {
+			return info.Key, info.Value, true
+		}
+	}
+	return "", "", false
 }
 
 func TestTheFooterCountsWhatIsRunning(t *testing.T) {

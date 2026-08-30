@@ -98,12 +98,9 @@ func (b *RegistryBrowser) renderInputField(label, value string, fieldIdx int) st
 }
 
 // viewTags renders the tag table. The search says so in the footer, with a
-// spinner (LoadingLabel), so the table keeps its place here and "No tags found"
-// waits until there is nothing left in flight to find them.
+// spinner (LoadingLabel), and an empty table stays a table (Rule 139) — the
+// count lives in GetHeaderInfo's "Tags" field.
 func (b *RegistryBrowser) viewTags() string {
-	if len(b.tagTable.Visible()) == 0 && b.pendingSearches == 0 {
-		return theme.DimStyle.Render("  No tags found")
-	}
 	return b.tagTable.View()
 }
 

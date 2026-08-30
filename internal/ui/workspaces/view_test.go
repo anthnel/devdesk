@@ -29,21 +29,38 @@ func TestViewRendersTheTable(t *testing.T) {
 	}
 }
 
-// The two empty states say different things: nothing configured at the root,
-// versus a directory that happens to be empty.
+// Rule 139: an empty table stays a table (header, no rows) — it does not
+// replace its body with a message. What the two empty states used to say in
+// the body — nothing configured at the root, versus a directory that happens
+// to be empty — is now the header's Directory and Items fields.
 func TestViewDistinguishesTheTwoEmptyStates(t *testing.T) {
 	root := feed(t, newTestModel(t), EntriesLoadedMsg{Entries: nil})
-	if !strings.Contains(root.View(), "No workspaces found") {
-		t.Errorf("the root empty state does not say so:\n%s", root.View())
+	if root.View() != root.renderTable() {
+		t.Errorf("the root empty state does not render the plain table:\n%s", root.View())
+	}
+	if _, value, _ := findHeaderInfo(root, "Items"); value != "0" {
+		t.Errorf("GetHeaderInfo Items = %q, want \"0\"", value)
 	}
 
 	nested := loadedModel(t)
 	nested.table.SetCursor(3)
 	nested = feed(t, nested, testutil.Key("right"))
 	nested = feed(t, nested, EntriesLoadedMsg{Path: nested.currentPath})
-	if !strings.Contains(nested.View(), "Empty directory") {
-		t.Errorf("the nested empty state does not say so:\n%s", nested.View())
+	if nested.View() != nested.renderTable() {
+		t.Errorf("the nested empty state does not render the plain table:\n%s", nested.View())
 	}
+	if _, value, _ := findHeaderInfo(nested, "Directory"); value == "" || value == "~" {
+		t.Errorf("GetHeaderInfo Directory = %q, want the nested directory named", value)
+	}
+}
+
+func findHeaderInfo(m Model, key string) (foundKey, value string, ok bool) {
+	for _, info := range m.GetHeaderInfo("") {
+		if info.Key == key {
+			return info.Key, info.Value, true
+		}
+	}
+	return "", "", false
 }
 
 func TestViewRendersTheError(t *testing.T) {
@@ -553,8 +570,8 @@ func TestGetTitleAndIcon(t *testing.T) {
 func TestGetHeaderInfoCarriesTheContext(t *testing.T) {
 	info := loadedModel(t).GetHeaderInfo("work")
 
-	if len(info) != 1 || info[0].Key != "Context" || info[0].Value != "work" {
-		t.Errorf("GetHeaderInfo() = %+v, want the active context", info)
+	if len(info) == 0 || info[0].Key != "Context" || info[0].Value != "work" {
+		t.Errorf("GetHeaderInfo() = %+v, want the active context first", info)
 	}
 }
 

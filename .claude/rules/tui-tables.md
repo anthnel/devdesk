@@ -263,26 +263,35 @@ Interdit :
 - ❌ Une colonne d'icône sans `Style`, alors que les trois autres en ont un
 - ❌ Un rôle par type de fichier là où la ligne offre les mêmes actions
 
-### Rule 139 : Le chargement d'une table s'affiche dans le footer
+### Rule 139 : Le corps d'un `datatable` ne se remplace jamais — ni par un spinner, ni par un message
 
-**Quand un `datatable` charge ses données, la table reste à l'écran** et le
-chargement est rendu par `components.Status{Text: "...", Spinner: true}` dans le
-footer (Rule 128). Le corps ne se remplace jamais par un spinner.
+**Un `datatable` reste un tableau, quoi qu'il contienne.** Qu'il charge ses
+données, qu'il soit vide parce que rien n'a encore tourné, ou vide parce qu'un
+filtre ne retient plus rien, le corps rendu est toujours `m.table.View()` —
+en-tête compris, sans ligne. `datatable.View()` le fait déjà tout seul : une
+table à zéro élément rend son en-tête et remplit le reste en fond d'écran
+(`internal/ui/datatable/render.go`). Rien dans une vue n'a donc besoin de
+détecter ce cas.
 
-**Pourquoi.** Un corps qui se substitue au tableau perd son en-tête et ses
-colonnes le temps de chaque `ctrl+r`, puis les retrouve : la mise en page saute
-à chaque rafraîchissement, et le tableau vide qui reste dit exactement la même
-chose sans bouger.
+Ce qu'un corps aurait dit à la place — le chargement, le compte de lignes, un
+verdict — est **l'affaire du footer et du header**, jamais du corps :
+
+- le chargement est un `components.Status{Text: "...", Spinner: true}` dans le
+  footer (Rule 128) ;
+- le compte de lignes, ou ce qui en tient lieu (un verdict, un total), est un
+  champ de `GetHeaderInfo` (`shortcut.HeaderInfo{Key: "Images", Value: "0"}`) —
+  c'est lui, pas le corps, qui répond à « qu'est-ce que je regarde ».
+
+**Pourquoi.** Un corps qui se substitue au tableau — par un spinner ou par un
+texte — perd son en-tête et ses colonnes le temps que la condition tienne, puis
+les retrouve : la mise en page saute à chaque rafraîchissement, à chaque
+`ctrl+r`, à chaque frappe dans le filtre. Le header et le footer, eux, ont une
+hauteur fixe (Rule 124) : ce qu'ils affichent change sans jamais déplacer le
+tableau.
 
 ```go
-// ✅ CORRECT — la table reste, le footer parle
+// ✅ CORRECT — le corps est toujours la table ; le footer et le header parlent
 func (m Model) renderImagesView() string {
-    if _, loading := m.loadingLabel(); loading {
-        return m.imageTable.View()
-    }
-    if len(m.imageTable.Visible()) == 0 && !m.imageTable.FilterBar().IsVisible() {
-        return theme.DimStyle.Render("No images found")
-    }
     return m.imageTable.View()
 }
 
@@ -293,15 +302,22 @@ func (m Model) status() sharedcomponents.Status {
     return sharedcomponents.Status{Text: m.actionLine()}
 }
 
+func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
+    return []shortcut.HeaderInfo{
+        {Key: "Images", Value: fmt.Sprintf("%d", len(m.imageTable.Visible())), Style: theme.HeaderValueStyle},
+    }
+}
+
 // ❌ INTERDIT — le corps se remplace par un spinner
 if m.loading && len(m.images) == 0 {
     return theme.SpinnerMessage(m.spinner.View(), "Loading images...")
 }
-```
 
-**Le message vide est conditionné à la fin du chargement.** Sans cette garde, la
-table annonce l'absence de ce qu'elle est en train de chercher — ce que les
-onglets Networks et Volumes faisaient à la première frame.
+// ❌ INTERDIT — le corps se remplace par un message, vide ou filtré
+if len(m.imageTable.Visible()) == 0 {
+    return theme.DimStyle.Render("No images found")
+}
+```
 
 La frame du spinner est poussée depuis le handler `spinner.TickMsg` :
 `m.footer.SetSpinnerFrame(m.spinner.View())`. Sans cet appel le spinner reste sur
@@ -310,6 +326,15 @@ la frame zéro, ce qui se lit comme un blocage.
 `TestNoTableViewRendersALoadingBody` (`internal/ui/components`) refuse un
 `theme.SpinnerMessage` dans les vues à table. Un écran d'opération sans table
 derrière (un `docker pull` en cours) est une exception **déclarée dans le test**.
+
+**Exception déclarée : un écran d'accueil, pas un message d'état.** L'inventaire
+de `:sec` vide (`internal/ui/security/inventory.go`, `renderEmptyInventory`)
+remplace le corps par un paragraphe qui explique *d'où viennent* les scans — ce
+n'est pas « 0 lignes », c'est un onboarding de première utilisation, avec plus
+de contenu qu'un champ de header ne peut porter. Le distinguo : un message qui
+tient dans `GetHeaderInfo` (un compte, un statut) y va ; un texte qui explique
+un flux applicatif entier reste une exception explicite, comme celle déjà
+prévue pour le chargement.
 
 ### Rule 136 : Filter Bar for Tables
 

@@ -132,9 +132,9 @@ func TestAFetchThatNeverSucceededSaysSoRatherThanDatingNothing(t *testing.T) {
 	if !strings.Contains(status, "could not be read") {
 		t.Fatalf("status = %q", status)
 	}
-	// And the body must not claim the host has no open ports.
-	if body := m.portsModel.view(); strings.Contains(body, "No active ports found") {
-		t.Error("the empty state claims there are no ports when none could be read")
+	// And the body — a plain table (Rule 139) — must not claim anything at all.
+	if body := m.portsModel.view(); body != m.portsModel.table.View() {
+		t.Errorf("the body is %q, want the plain table view", body)
 	}
 }
 
@@ -540,15 +540,21 @@ func TestFilterChangeResetsTheCursor(t *testing.T) {
 	}
 }
 
+// Rule 139: whatever the ports table holds, its body is the table alone —
+// header and rows, never a message. The row count is a header field
+// (summaryLine) instead.
 func TestPortsViewStates(t *testing.T) {
 	loading := feed(t, newTestModel(t), testutil.Key("tab"))
-	if !strings.Contains(loading.View(), "Loading ports") {
-		t.Error("the ports tab does not report the first fetch")
+	if body := loading.portsModel.view(); body != loading.portsModel.table.View() {
+		t.Errorf("the body before the first fetch is %q, want the plain table view", body)
 	}
 
 	empty := feed(t, loading, portsDataMsg{ports: []ports.Socket{}})
-	if !strings.Contains(empty.View(), "No active ports found") {
-		t.Error("the ports tab does not report an empty result")
+	if body := empty.portsModel.view(); body != empty.portsModel.table.View() {
+		t.Errorf("an empty result renders %q, want the plain table view", body)
+	}
+	if got := empty.portsModel.summaryLine(); got != "0" {
+		t.Errorf("summaryLine() = %q, want \"0\"", got)
 	}
 
 	loaded := portsModel(t)

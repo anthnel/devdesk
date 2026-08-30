@@ -59,11 +59,14 @@ func (m Model) GetIcon() string {
 	return ""
 }
 
-// GetHeaderInfo returns the key-value info for the header
+// GetHeaderInfo returns the key-value info for the header. The component
+// count lives here rather than in the body (Rule 139): an empty table stays a
+// table, header and no rows.
 func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	return []shortcut.HeaderInfo{
 		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},
 		{Key: "Refresh", Value: fmt.Sprintf("%ds", int(m.refreshInterval.Seconds())), Style: theme.HeaderValueStyle},
+		{Key: "Components", Value: fmt.Sprintf("%d", len(m.components)), Style: theme.HeaderValueStyle},
 	}
 }
 
@@ -87,16 +90,10 @@ func (m Model) View() string {
 	}
 
 	// Content - HAUTEUR DYNAMIQUE qui remplit exactement l'espace disponible
-	var innerContent string
 	if m.error != "" {
-		innerContent = m.renderError()
-	} else if len(m.components) == 0 && !m.firstCheck {
-		innerContent = m.renderEmpty()
-	} else {
-		innerContent = m.renderTable()
+		return m.renderError()
 	}
-
-	return innerContent
+	return m.renderTable()
 }
 
 func (m Model) renderError() string {
@@ -106,20 +103,6 @@ func (m Model) renderError() string {
 		Padding(2, 4).
 		Foreground(theme.ColorError).
 		Render(msg)
-}
-
-// renderEmpty is what shows when there is nothing to list.
-//
-// The check says so in the footer, with a spinner, and the body stays empty:
-// the load belongs to one line, and the invitation to add a monitor would
-// otherwise be replaced by it on every refresh.
-func (m Model) renderEmpty() string {
-	if m.checking {
-		return ""
-	}
-	return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
-		theme.DimStyle.Render("No components configured. Press [ctrl+n] to add a monitor."),
-	)
 }
 
 // status is what the view derives on every frame. The check has no timer: it

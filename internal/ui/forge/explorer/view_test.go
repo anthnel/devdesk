@@ -38,8 +38,8 @@ func TestViewWithoutAClientPointsAtTheAuthView(t *testing.T) {
 }
 
 // Before the first load completes the footer reports it, rather than the body
-// saying "No groups found" — which would be a lie while the request is in
-// flight. The load belongs to the footer alone, so the tree keeps its place.
+// saying anything. The load belongs to the footer alone, and an empty table
+// stays a table (Rule 139) — header, no rows, with the count in GetHeaderInfo.
 func TestTheLoadIsReportedInTheFooterUntilTheFirstLoadLands(t *testing.T) {
 	m := newTestModel(t)
 
@@ -49,13 +49,16 @@ func TestTheLoadIsReportedInTheFooterUntilTheFirstLoadLands(t *testing.T) {
 	if view := m.View(); strings.Contains(view, "Loading GitLab groups") {
 		t.Errorf("the body reports the load; it belongs in the footer alone:\n%s", view)
 	}
-	if view := m.View(); strings.Contains(view, "No groups found") {
-		t.Errorf("the body says there is nothing while the load is in flight:\n%s", view)
+	if view, table := m.View(), m.renderTable(); view != table {
+		t.Errorf("the body before the first load is %q, want the plain table view", view)
 	}
 
 	empty := feed(t, m, RootGroupsLoadedMsg{})
-	if view := empty.View(); !strings.Contains(view, "No groups found") {
-		t.Errorf("an empty result does not show the empty state:\n%s", view)
+	if view, table := empty.View(), empty.renderTable(); view != table {
+		t.Errorf("an empty result is %q, want the plain table view", view)
+	}
+	if info := empty.GetHeaderInfo("work"); len(info) == 0 || info[len(info)-1].Value != "0" {
+		t.Errorf("GetHeaderInfo() = %+v, want the group count at 0", info)
 	}
 }
 
@@ -236,14 +239,14 @@ func TestHeaderInfoCarriesTheContextAndUser(t *testing.T) {
 	m := loadedModel(t)
 
 	info := m.GetHeaderInfo("work")
-	if len(info) != 1 || info[0].Value != "work" {
-		t.Errorf("GetHeaderInfo() = %+v with no user, want the context alone", info)
+	if len(info) != 2 || info[0].Value != "work" {
+		t.Errorf("GetHeaderInfo() = %+v with no user, want the context and the row count", info)
 	}
 
 	m.shared.CurrentUser = newUser("anthnel")
 	info = m.GetHeaderInfo("work")
-	if len(info) != 2 || info[1].Value != "@anthnel" {
-		t.Errorf("GetHeaderInfo() = %+v, want the context and the @username", info)
+	if len(info) != 3 || info[1].Value != "@anthnel" {
+		t.Errorf("GetHeaderInfo() = %+v, want the context, the @username and the row count", info)
 	}
 }
 

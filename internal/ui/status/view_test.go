@@ -40,8 +40,8 @@ func TestGetHeaderInfoReportsContextAndInterval(t *testing.T) {
 
 	info := m.GetHeaderInfo("work")
 
-	if len(info) != 2 {
-		t.Fatalf("GetHeaderInfo() returned %d entries, want 2", len(info))
+	if len(info) != 3 {
+		t.Fatalf("GetHeaderInfo() returned %d entries, want 3", len(info))
 	}
 	if info[0].Key != "Context" || info[0].Value != "work" {
 		t.Errorf("first entry = %q/%q, want Context/work", info[0].Key, info[0].Value)
@@ -137,18 +137,22 @@ func TestViewRendersTheError(t *testing.T) {
 	}
 }
 
+// Rule 139: an empty table stays a table (header, no rows), before and after
+// the first check completes — the count lives in GetHeaderInfo's
+// "Components" field, never in the body.
 func TestViewRendersTheEmptyStateOnlyAfterTheFirstCheck(t *testing.T) {
 	m := newTestModel(t)
 
-	// Before any result the view shows the table rather than claiming there is
-	// nothing configured.
-	if strings.Contains(m.View(), "No components configured") {
-		t.Error("View() claimed there are no monitors before the first check completed")
+	if view, table := m.View(), m.renderTable(); view != table {
+		t.Errorf("View() before the first check is %q, want the plain table view", view)
 	}
 
 	m = feed(t, m, CheckCompleteMsg{Components: nil, Timestamp: time.Now()})
-	if !strings.Contains(m.View(), "No components configured") {
-		t.Error("View() does not show the empty state after a check returned nothing")
+	if view, table := m.View(), m.renderTable(); view != table {
+		t.Errorf("View() after an empty check is %q, want the plain table view", view)
+	}
+	if info := m.GetHeaderInfo(""); info[len(info)-1].Value != "0" {
+		t.Errorf("GetHeaderInfo() = %+v, want Components = 0", info)
 	}
 }
 

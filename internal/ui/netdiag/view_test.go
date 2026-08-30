@@ -86,14 +86,21 @@ func TestTheEmptyMessageWaitsForTheRunToFinish(t *testing.T) {
 	}
 }
 
+// Rule 139: filtering every row away leaves the table on screen (header, no
+// rows) rather than a body message — the Verdict header field already says
+// "every check came back clean" once there is a run to summarise.
 func TestFilteringToNothingSaysWhy(t *testing.T) {
 	m := deliver(t, runningModel(t, "example.com"),
 		check(netcheck.CheckResolve, netcheck.OK, "resolves"),
 		check(netcheck.CheckTCP, netcheck.OK, "open"))
 	m = feed(t, m, testutil.Key("p"))
 
-	if !strings.Contains(m.View(), "every check came back clean") {
-		t.Errorf("an empty problems view says nothing useful:\n%s", m.View())
+	if view, table := m.View(), m.checksTable.View(); view != table {
+		t.Errorf("an empty problems view is %q, want the plain table view", view)
+	}
+	info := m.GetHeaderInfo("")
+	if len(info) == 0 || info[len(info)-1].Key != "Verdict" || info[len(info)-1].Value != netcheck.OK.String() {
+		t.Errorf("GetHeaderInfo() = %+v, want the OK verdict", info)
 	}
 }
 

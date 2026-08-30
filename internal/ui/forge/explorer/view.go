@@ -61,15 +61,9 @@ func (m Model) View() string {
 	}
 
 	// The load says so in the footer, with a spinner, and the tree stays on
-	// screen. "Nothing here" is therefore conditional on the load being over,
-	// or the view would announce the absence of what it is still fetching.
-	if len(m.nodes) == 0 {
-		if m.loadingTree() {
-			return ""
-		}
-		return contentStyle.Render(renderEmpty(m.vocab()))
-	}
-
+	// screen (Rule 139): whether it is loading, genuinely empty, or filtered
+	// down to nothing, the body is the table alone — the row count is a header
+	// field instead.
 	return m.renderTable()
 }
 
@@ -391,11 +385,6 @@ func renderError(err string) string {
 	return style.Render(fmt.Sprintf("%s Error: %s", theme.IconError, err))
 }
 
-func renderEmpty(v forge.Vocabulary) string {
-	lower := strings.ToLower(v.Namespaces)
-	return theme.HelpStyle.Render("No " + lower + " found\n\nYou may not have access to any " + v.Name + " " + lower + ".")
-}
-
 // timeAgo formats a time pointer as a compact relative string (Rule 127).
 func timeAgo(t *time.Time) string {
 	if t == nil {
@@ -533,6 +522,13 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	// otherwise put a bare "@" in the header.
 	if m.shared.CurrentUser.Username != "" {
 		info = append(info, shortcut.HeaderInfo{Key: "User", Value: "@" + m.shared.CurrentUser.Username, Style: theme.HeaderValueStyle})
+	}
+	if m.shared.IsAuthenticated && m.error == "" {
+		info = append(info, shortcut.HeaderInfo{
+			Key:   m.vocab().Namespaces,
+			Value: fmt.Sprintf("%d", len(m.nodes)),
+			Style: theme.HeaderValueStyle,
+		})
 	}
 	return info
 }
