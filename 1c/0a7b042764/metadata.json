@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "1c0a7b042764",
+  "strategy": "manual-commit",
+  "branch": "feat/oci-pull-job",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/app/app.go",
+    "internal/app/jobs_test.go",
+    "internal/app/router_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1c/0a7b042764/0/metadata.json",
+      "transcript": "/1c/0a7b042764/0/full.jsonl",
+      "compact_transcript": "/1c/0a7b042764/0/transcript.jsonl",
+      "content_hash": "/1c/0a7b042764/0/content_hash.txt",
+      "prompt": "/1c/0a7b042764/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 26561,
+    "cache_read_tokens": 6529054,
+    "output_tokens": 10961,
+    "api_call_count": 22,
+    "subagent_tokens": {
+      "input_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "output_tokens": 0,
+      "api_call_count": 0
+    }
+  }
+}
