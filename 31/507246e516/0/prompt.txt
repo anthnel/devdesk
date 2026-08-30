@@ -149,3 +149,7 @@ continue
 ---
 
 l'image pullée reste en queued dans les jobs et pulling dans oci images :  ⣽  pulling      dhi/debian-base:trixie-debian13-dev
+
+---
+
+ça ne marche toujours pas, de plus quand on fait un pull on devrait attérir automatiquement dans la vue oci/image
