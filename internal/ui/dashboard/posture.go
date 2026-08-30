@@ -70,11 +70,15 @@ func (p posture) Total() postureSide {
 // compteur qu'aucune vue ne sait détailler n'est pas un compteur, c'est une
 // impasse.
 //
-// Les images gardent l'entrée d'une image supprimée pour une raison qui tient
-// encore : le savoir demande d'énumérer le démon, et cette fonction ne lit que
-// des fichiers de cache. `os.Stat` sur un chemin n'est pas cet appel-là.
-func readPosture(context string) posture {
-	images, errImages := cache.NewImageScanCache()
+// Les images le sont aussi, et c'est ce qui explique la signature. L'énumération
+// du démon est faite par le Cmd et passée ici (Rule 110 : le Cmd fait l'I/O), là
+// où `os.Stat` reste dedans : lire un chemin est de la même nature que lire les
+// deux fichiers de cache, interroger un service qui peut être arrêté ne l'est
+// pas. `known` porte cette différence — un démon éteint garde toutes les
+// entrées, sans quoi la boîte Images afficherait `0 CRITICAL`, c'est-à-dire la
+// seule mauvaise réponse que personne n'irait vérifier.
+func readPosture(context string, images map[string]struct{}, imagesKnown bool) posture {
+	imageCache, errImages := cache.NewImageScanCache()
 	workspaces, errWorkspaces := cache.NewWorkspaceScanCache(context)
 	if errImages != nil || errWorkspaces != nil {
 		log.Printf("ERROR [dashboard] reading the scan caches: %v / %v", errImages, errWorkspaces)
@@ -82,7 +86,10 @@ func readPosture(context string) posture {
 	}
 
 	p := posture{Read: true}
-	for _, entry := range images.GetAll() {
+	for name, entry := range imageCache.GetAll() {
+		if cache.ImageGone(name, images, imagesKnown) {
+			continue
+		}
 		p.Images.add(entry.Critical, entry.Sensitive, entry.ScannedAt)
 	}
 	for path, entry := range workspaces.GetAll() {
@@ -166,11 +173,15 @@ func (m Model) unscannedTotal() (int, bool) {
 // passer sous zéro — et « il en reste moins que zéro à scanner » n'est pas une
 // phrase. Le plancher dit ce qu'il faut en retenir : plus rien à scanner.
 //
-// Le plancher ne sert plus que du côté des images. Les dépôts disparus sont
-// écartés à la lecture, donc `Targets` ne dépasse plus l'inventaire — et ce
-// n'était pas seulement une soustraction négative rattrapée : un dépôt supprimé
-// compensait exactement un dépôt jamais scanné, et la boîte annonçait `0
-// unscanned` d'un ensemble où il en restait un.
+// Les deux familles écartent maintenant ce qui a disparu, donc `Targets` ne
+// dépasse plus l'inventaire dans le cas ordinaire — et ce n'était pas seulement
+// une soustraction négative rattrapée : une cible supprimée compensait
+// exactement une cible jamais scannée, et la boîte annonçait `0 unscanned` d'un
+// ensemble où il en restait.
+//
+// Le plancher reste, défensif : `docker system df` et `docker image ls` ne
+// comptent pas exactement le même ensemble (intermédiaires, dangling), donc
+// l'inventaire et les entrées réconciliées peuvent se croiser d'une unité.
 func uncovered(inventory, scanned int) int {
 	return max(inventory-scanned, 0)
 }

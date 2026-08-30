@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -69,15 +68,13 @@ func inventory(contextName string) []scanTarget {
 	targets := make([]scanTarget, 0)
 	now := time.Now()
 
-	images, imagesKnown := localImages()
+	images, imagesKnown := docker.ImageNames()
 	if entries, err := cache.ReadImageScanEntries(); err != nil {
 		log.Printf("ERROR [mcp/scan] read image scan cache: %v", err)
 	} else {
 		for name, entry := range entries {
-			if imagesKnown {
-				if _, ok := images[name]; !ok {
-					continue
-				}
+			if cache.ImageGone(name, images, imagesKnown) {
+				continue
 			}
 			targets = append(targets, target("image", name, entry.Critical, entry.High,
 				entry.Medium, entry.Low, entry.Sensitive, entry.ScannedAt, now))
@@ -88,7 +85,7 @@ func inventory(contextName string) []scanTarget {
 		log.Printf("ERROR [mcp/scan] read workspace scan cache: %v", err)
 	} else {
 		for path, entry := range entries {
-			if isGone(path) {
+			if cache.RepositoryGone(path) {
 				continue
 			}
 			targets = append(targets, target("repository", path, entry.Critical, entry.High,
@@ -121,35 +118,9 @@ func target(kind, name string, critical, high, medium, low int, sensitive *bool,
 	return t
 }
 
-// listImages is docker.ListImages, indirected for the tests and nothing else —
-// production never reassigns it. A test cannot pull an image, and without the
-// seam the reconciliation could only be asserted by checking that a fixture is
-// absent, which it would pass for the wrong reason. Same seam, same reason, as
-// the security view's.
-var listImages = docker.ListImages
-
-// localImages names the images on this machine, and says whether it could find
-// out. The second return is the whole point — see inventory.
-func localImages() (map[string]struct{}, bool) {
-	list, err := listImages()
-	if err != nil {
-		log.Printf("INFO [mcp/scan] image list unavailable, keeping every cached image: %v", err)
-		return nil, false
-	}
-	names := make(map[string]struct{}, len(list))
-	for _, img := range list {
-		names[img.Name()] = struct{}{}
-	}
-	return names, true
-}
-
-// isGone says a repository path has been removed, and only that. A permission
-// error, or a share answering slowly, means the path could not be *read*, which
-// is a different claim.
-func isGone(path string) bool {
-	_, err := os.Stat(path)
-	return err != nil && os.IsNotExist(err)
-}
+// The seam and the two predicates are shared now — docker.ImageNames,
+// cache.ImageGone, cache.RepositoryGone. This package held the second copy of
+// each; the third reader had none, which is D69.
 
 // ── scan_result ─────────────────────────────────────────────────────────────
 

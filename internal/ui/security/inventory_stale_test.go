@@ -1,7 +1,6 @@
 package security
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,7 +18,7 @@ import (
 func TestAnImageStillPulledIsKept(t *testing.T) {
 	images := map[string]struct{}{"nginx:1.27": {}}
 
-	if !stillPulled("nginx:1.27", images, true) {
+	if cache.ImageGone("nginx:1.27", images, true) {
 		t.Error("an image the daemon lists was dropped")
 	}
 }
@@ -27,7 +26,7 @@ func TestAnImageStillPulledIsKept(t *testing.T) {
 func TestAnImageThatIsGoneIsDropped(t *testing.T) {
 	images := map[string]struct{}{"nginx:1.27": {}}
 
-	if stillPulled("vsc-discours-f6f52be:latest", images, true) {
+	if !cache.ImageGone("vsc-discours-f6f52be:latest", images, true) {
 		t.Error("an image the daemon does not list survived the reconciliation")
 	}
 }
@@ -36,7 +35,7 @@ func TestAnImageThatIsGoneIsDropped(t *testing.T) {
 // gone" are the same silence, and reading the first as the second would empty
 // the inventory of every image the moment the daemon stops.
 func TestNothingIsDroppedWhenTheImagesCannotBeListed(t *testing.T) {
-	if !stillPulled("anything:1.0", nil, false) {
+	if cache.ImageGone("anything:1.0", nil, false) {
 		t.Error("a failed enumeration dropped an image, so a stopped daemon reads as a deletion")
 	}
 }
@@ -44,7 +43,7 @@ func TestNothingIsDroppedWhenTheImagesCannotBeListed(t *testing.T) {
 // An empty listing is an answer, not a failure: a machine with no images has no
 // image targets.
 func TestAnEmptyListingDropsEveryImage(t *testing.T) {
-	if stillPulled("nginx:1.27", map[string]struct{}{}, true) {
+	if !cache.ImageGone("nginx:1.27", map[string]struct{}{}, true) {
 		t.Error("an image survived a listing that succeeded and named nothing")
 	}
 }
@@ -131,9 +130,9 @@ func TestAStoppedDaemonHidesNothing(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = images.Delete(scanned) })
 
-	previous := listImages
-	listImages = func() ([]docker.Image, error) { return nil, errors.New("docker daemon is not running") }
-	t.Cleanup(func() { listImages = previous })
+	previous := docker.ImageNames
+	docker.ImageNames = func() (map[string]struct{}, bool) { return nil, false }
+	t.Cleanup(func() { docker.ImageNames = previous })
 
 	found := false
 	for _, target := range loadedTargets(t) {

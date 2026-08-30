@@ -354,33 +354,47 @@ are dropped from `InventoryLoadedMsg`.
 
 Two things it deliberately does not do:
 
-- **It never reads a failure as an absence.** `localImages` returns a second
-  value saying whether it could find out, and a failed enumeration keeps every
-  image — a stopped daemon would otherwise empty the inventory.
-  `cache.RepositoryGone` tests `os.IsNotExist` and nothing else, so a permission
-  error or an unmounted share keeps the row.
+- **It never reads a failure as an absence.** `docker.ImageNames` returns a
+  second value saying whether it could find out, and a failed enumeration keeps
+  every image — a stopped daemon would otherwise empty the inventory, and on the
+  dashboard, where nothing is listed row by row, it would read as `0 CRITICAL`:
+  the one wrong answer nobody would question. `cache.RepositoryGone` tests
+  `os.IsNotExist` and nothing else, so a permission error or an unmounted share
+  keeps the row.
 - **It hides, it does not delete.** The entry and its stored result stay on
   disk: a transient answer must not destroy a scan nobody asked to purge. `A`
   only rescans the rows that are there, so a hidden entry costs nothing while it
   waits.
 
-`listImages` is a package var only because of this — a test cannot pull an image,
-and the cache round trips would otherwise be reduced to asserting a fixture is
-absent, which they would pass for the wrong reason.
+**The rule belongs to the caches, not to any one reader.** There are three, and
+`:sec` was only the loudest: `internal/mcp`'s `scan_inventory` had its own copy
+of all of it, and the dashboard's `readPosture` — which sums the same two files
+to fill the Repositories and Images trees — had none. So the dashboard counted
+what the other two dropped. A repository deleted after its scan kept
+contributing its CRITICALs to a box no other view could corroborate: `ws` lists
+the disk and never showed it, `:sec` had already dropped it, and the one screen
+announcing the number was the one you cannot drill into (D69).
 
-**The rule belongs to the caches, not to the inventory.** `:sec` is not their
-only reader: the dashboard's `readPosture` sums the same two files to fill the
-Repositories and Images trees. It did not reconcile, so a repository deleted
-after its scan kept contributing its CRITICALs to a box that no other view
-could corroborate — `ws` lists the disk and never showed it, `:sec` had already
-dropped it, and the one screen announcing the number was the one you cannot
-drill into. The predicate therefore lives in `internal/cache`
-(`RepositoryGone`), with the entries it judges, and both readers call it.
+One home each, and the split is by what the thing needs:
 
-The image half of the posture is knowingly left alone. Reconciling it means
-enumerating the daemon, and `readPosture` reads two files and nothing else; an
-`os.Stat` on a path is not that call. A `docker rmi` after a scan still leaves
-its CRITICALs in the Images tree.
+| | Where | Why there |
+|---|---|---|
+| `RepositoryGone(path)` | `internal/cache` | pure; `os.Stat` and `os.IsNotExist`, nothing else |
+| `ImageGone(name, present, known)` | `internal/cache` | pure; the caller supplies the enumeration, so the cache stays daemon-free |
+| `docker.ImageNames()` | `internal/docker` | the daemon call, and the `(nil, false)` answer that keeps everything |
+
+`docker.ImageNames` is a package **var**, and that is the test seam all three
+packages were each declaring for themselves: a test cannot pull an image, so
+without it a reconciliation could only be asserted by checking that a fixture
+happens to be absent, which it would pass for the wrong reason. `internal/mcp`
+keeps a separate `listImages` seam because `images_list` projects the whole
+`Image` — size, age, container count — and a set of names answers none of that.
+
+The posture reconciles both families, and the asymmetry in *where* is
+deliberate: `os.Stat` runs inside `readPosture`, because reading a path is the
+same kind of act as reading the two cache files, while the daemon call is made
+by the Cmd and passed in (Rule 110). That is also what makes `readPosture`
+testable without touching the seam.
 
 Three invariants, each with a test that fails without it:
 

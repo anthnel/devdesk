@@ -89,7 +89,7 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
-**D69 — le dashboard comptait les CRITICAL de dépôts supprimés, que ni `ws` ni
+**D69 — le dashboard comptait les CRITICAL de cibles supprimées, que ni `ws` ni
 `:sec` ne pouvaient montrer. Corrigé.** Signalé et fermé le 2026-08-30.
 
 Le rapport tenait en une phrase : « le dashboard m'affiche 3 crit pour les
@@ -116,11 +116,29 @@ dashboard ne détaille rien ; il envoie vers `:sec`, qui montrait quatre
 CRITICAL de moins sans rien pouvoir en dire. Un compteur qu'aucune vue ne sait
 détailler n'est pas un compteur.
 
-Le prédicat déménage donc en `internal/cache` (`RepositoryGone`), auprès des
-entrées qu'il juge, et les deux lecteurs l'appellent — au lieu d'une règle qui
-appartenait à celui des deux qui l'avait écrite en premier. `os.IsNotExist` et
-rien d'autre : un partage lent ou un droit manquant n'est pas une suppression,
-et écarter là-dessus ferait disparaître du compteur des dépôts bien présents.
+**Et il y a un troisième lecteur.** `internal/mcp` (`scan_inventory`) tenait sa
+propre copie de toute la règle — la couture `listImages`, le `localImages`, le
+`isGone` — avec des commentaires qui se répondaient d'un fichier à l'autre. La
+règle était donc écrite deux fois, et absente à l'endroit où elle manquait. Ce
+n'est pas une coïncidence : une règle recopiée est une règle que le lecteur
+suivant ne trouve pas.
+
+Chacune a une maison, et le partage suit ce dont la chose a besoin :
+
+| | Où | Pourquoi |
+|---|---|---|
+| `RepositoryGone(path)` | `internal/cache` | pure — `os.Stat`, `os.IsNotExist`, rien d'autre |
+| `ImageGone(name, present, known)` | `internal/cache` | pure — l'appelant fournit l'énumération, le cache ignore le démon |
+| `docker.ImageNames()` | `internal/docker` | l'appel au démon, et le `(nil, false)` qui garde tout |
+
+`os.IsNotExist` et rien d'autre : un partage lent ou un droit manquant n'est pas
+une suppression, et écarter là-dessus ferait disparaître du compteur des dépôts
+bien présents.
+
+`docker.ImageNames` est un **var**, et c'est la couture de test que les trois
+paquets déclaraient chacun pour soi. `internal/mcp` garde la sienne
+(`listImages`) parce qu'`images_list` projette l'`Image` entière — taille, âge,
+conteneurs — ce qu'un ensemble de noms ne dit pas.
 
 Effet de bord, et il va dans le bon sens : `unscanned` était faux aussi. Un
 dépôt supprimé compensait exactement un dépôt jamais scanné dans
@@ -128,11 +146,19 @@ dépôt supprimé compensait exactement un dépôt jamais scanné dans
 ensemble où il en restait à scanner. Le plancher à zéro ne sert plus que du côté
 des images.
 
-**Ce qui n'est pas corrigé, et pourquoi.** La moitié « images » a exactement le
-même défaut : un `docker rmi` après un scan laisse ses CRITICAL dans l'arbre
-Images. Le savoir demande d'énumérer le démon, et `readPosture` ne lit que deux
-fichiers — `os.Stat` sur un chemin n'est pas cet appel-là. C'est une décision de
-conception à prendre, pas un oubli.
+**La moitié « images » est corrigée avec elle.** Un `docker rmi` après un scan
+laissait ses CRITICAL dans l'arbre Images de la même façon. Ce qui restait à
+trancher était l'appel au démon : `readPosture` ne lisait que des fichiers.
+L'asymétrie retenue est celle de Rule 110 — l'énumération est faite par le Cmd
+et passée en paramètre, `os.Stat` reste dedans. Lire un chemin est de la même
+nature que lire les deux fichiers de cache ; interroger un service qui peut être
+arrêté ne l'est pas. Cela coûte un `docker image ls` par tour lent, sur
+l'horloge qui fait déjà un `docker system df`, et cela rend `readPosture`
+testable sans toucher à la couture.
+
+Le garde compte double ici. Un démon éteint garde toutes les entrées : sans lui
+la boîte Images afficherait `0 CRITICAL`, et sur un écran qui ne liste rien
+ligne par ligne, c'est la seule mauvaise réponse que personne n'irait vérifier.
 
 **D68 — un scan qui survivait à un changement de contexte écrivait ses résultats
 dans le cache du *nouveau* contexte. Corrigé.** Trouvé en écrivant le registre

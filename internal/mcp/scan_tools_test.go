@@ -378,19 +378,34 @@ func existingDir(t *testing.T) string {
 
 // stubImages replaces the docker seam with an enumeration that succeeds, naming
 // exactly these images. stubImagesUnavailable replaces it with one that fails.
+// Les deux coutures, parce que les deux outils ne demandent pas la même chose :
+// scan_inventory réconcilie sur un ensemble de noms (docker.ImageNames),
+// images_list projette l'Image entière — taille, âge, conteneurs (listImages).
+// Les laisser diverger ferait passer un test pour la mauvaise raison.
 func stubImages(t *testing.T, names ...string) {
 	t.Helper()
+	present := make(map[string]struct{}, len(names))
 	images := make([]docker.Image, 0, len(names))
 	for _, name := range names {
+		present[name] = struct{}{}
 		repo, tag, _ := strings.Cut(name, ":")
 		images = append(images, docker.Image{Repository: repo, Tag: tag})
 	}
+	swapImageNames(t, func() (map[string]struct{}, bool) { return present, true })
 	swapListImages(t, func() ([]docker.Image, error) { return images, nil })
 }
 
 func stubImagesUnavailable(t *testing.T) {
 	t.Helper()
+	swapImageNames(t, func() (map[string]struct{}, bool) { return nil, false })
 	swapListImages(t, func() ([]docker.Image, error) { return nil, os.ErrNotExist })
+}
+
+func swapImageNames(t *testing.T, fn func() (map[string]struct{}, bool)) {
+	t.Helper()
+	previous := docker.ImageNames
+	docker.ImageNames = fn
+	t.Cleanup(func() { docker.ImageNames = previous })
 }
 
 func swapListImages(t *testing.T, fn func() ([]docker.Image, error)) {
