@@ -260,6 +260,56 @@ nothing on either side raising a warning. The rule this implies: **whoever
 creates a worktree removes it** — do not `git worktree remove` or `prune`
 from the other side of the host/sandbox split.
 
+#### Développer dans la sandbox, tester depuis l'hôte
+
+C'est le mode normal, et le partage tombe bien : **le git est ce dont l'hôte
+n'a pas besoin dans le worktree, le build est ce dont la sandbox n'a pas
+besoin.** Mesuré dans un worktree dont le pointeur porte un chemin Linux,
+depuis l'hôte :
+
+| Depuis l'hôte, dans `.worktrees/<branche>/` | Résultat |
+|---|---|
+| n'importe quelle commande `git` | `fatal: not a git repository: (NULL)` |
+| `go build ./...` | exit 0 |
+| `go test ./internal/command/` | `ok … 0.239s` |
+| `go build .` (avec stamping buildvcs) | exit 0 |
+| `mise run build` | OK |
+
+La casse est donc **entièrement** du côté git, pas seulement sur
+`worktree remove` : Go n'a pas besoin du VCS, et `-buildvcs=auto` se dégrade
+en silence plutôt que d'échouer quand il ne répond pas. Le checkout principal
+n'est jamais affecté.
+
+La répartition qui en découle :
+
+1. **La sandbox crée le worktree** — c'est elle qui committera dedans, donc
+   c'est elle qui doit garder un git fonctionnel.
+2. **La sandbox édite et committe.** Tout le git se passe là.
+3. **L'hôte construit, teste et lance l'application** dans ce même répertoire,
+   les fichiers étant partagés par le montage. Aucune commande git ici — le
+   `fatal` ci-dessus est attendu, il ne signale pas un dépôt cassé.
+4. **Pour lire le diff depuis l'hôte, passer par le checkout principal** : les
+   refs et `.git/objects` sont partagés, donc il voit tout ce que la sandbox a
+   committé — `git log --oneline main..<branche>`, `git diff main...<branche>`.
+5. **L'hôte pousse et merge depuis le checkout principal**, jamais depuis le
+   worktree — c'est le host-relay ci-dessus.
+6. **La sandbox retire son worktree.** Si elle n'existe plus, l'hôte peut
+   supprimer les *fichiers* (ils sont dans le montage, contrairement au cas
+   frère ci-dessus) puis `git worktree prune` — mais seulement quand aucune
+   sandbox n'a de worktree vivant.
+
+**Tester depuis l'hôte n'est pas un pis-aller.** DevDesk a besoin d'un vrai
+terminal, du socket Docker de l'hôte, du gestionnaire de secrets de l'hôte
+(`internal/credentials`), de `~/.devdesk/` et de binder des ports : rien de
+tout cela n'est représentatif dans la sandbox. Ce que la sandbox fait mieux,
+c'est écrire du code.
+
+**Le sens inverse est interdit** : l'hôte ne crée pas le worktree pour que la
+sandbox y travaille. Par symétrie, le `C:/Users/...` qu'écrit git Windows
+n'est pas résolvable sous Linux — la sandbox perdrait le git, dont elle a
+besoin pour committer. (Cette direction-là n'a pas été testée ; c'est le même
+mécanisme lu à l'envers.)
+
 **A follow-up commit on the same branch, after the first one already got
 squash-merged, will conflict on a plain `git merge`** — squashing rewrites
 history, so `git merge origin/main` computes the wrong common ancestor
