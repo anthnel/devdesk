@@ -133,3 +133,15 @@ No explicit refresh-on-pull-complete hook exists structurally distinct from the 
 - Caveat: `imageTable`'s `Key` is `img.ID` (model.go:367), but a freshly-requested pull has no local image/ID yet — if the target image name doesn't already exist as a local row (e.g. new tag), `MarkBusy`-by-ID can't target it until after `fetchImages()` returns. A name-keyed marker (parallel structure to `m.failedScans map[string]bool`, keyed on image name/`RawName`) would be needed rather than reusing `imageTable.MarkBusy(id, ...)` directly, unless the image is already present locally (e.g. re-pulling an existing tag).</result>
 <usage><subagent_tokens>58943</subagent_tokens><tool_uses>26</tool_uses><duration_ms>86747</duration_ms></usage>
 </task-notification>
+
+---
+
+<task-notification>
+<task-id>bd95j7uj6</task-id>
+<summary>Monitor event: "Wait for the backgrounded go test run to finish"</summary>
+<event>[Monitor timed out — re-arm if needed.]</event>
+</task-notification>
+
+---
+
+continue
