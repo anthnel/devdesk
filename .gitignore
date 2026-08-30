@@ -22,6 +22,13 @@ go.work
 # Dependency directories
 vendor/
 
+# Git worktrees. They live inside the repository so that a direct-mode sandbox,
+# which mounts this directory only, shares their files with the host — a sibling
+# path would put them in the container's private layer. The leading dot keeps
+# them out of `go build ./...` and `go test ./...`, which skip directories
+# beginning with "." or "_". See .claude/CLAUDE.md.
+.worktrees/
+
 # Build artifacts
 build/
 target/

@@ -61,23 +61,43 @@ mise run install      # Install to $GOPATH/bin
 ## Work starts in a new worktree
 
 **Any task that will produce a commit begins with its own worktree**, cut from
-the current `main`, outside the repository directory:
+the current `main`, **under `.worktrees/` inside the repository**:
 
 ```bash
 git fetch origin main
-git worktree add -b <branch> ../devdesk-<branch> origin/main
-cd ../devdesk-<branch>
+git worktree add -b <branch> .worktrees/<branch> origin/main
+cd .worktrees/<branch>
 ```
 
 Answering a question, reading code, running the app — none of that needs one.
 Editing does.
 
-**Outside the repository, not under it.** A worktree placed at `.worktrees/x`
-would be a second copy of every package inside the module root: `go build ./...`
-and `go test ./...` would walk into it, compile it, and report failures from a
-tree nobody is looking at. Siblings of the checkout (`../devdesk-<branch>`) keep
-the module root holding one copy of the code, which is why they are not merely a
-tidier choice.
+**Under the repository, not beside it.** This reverses what this file said until
+now, and the reason it gave was wrong. It claimed a worktree at `.worktrees/x`
+would be compiled by `go build ./...` and `go test ./...`. It would not: the go
+tool skips every directory whose name begins with `.` or `_`, so `.worktrees/`
+is invisible to `./...`. Verified rather than assumed — a package of deliberately
+invalid Go placed under `.worktrees/` builds clean and `go list ./...` does not
+name it. The old argument holds for `worktrees/` without the dot, which is
+presumably where it came from.
+
+What decides it is the **sandbox mount**, and it cost a full debugging session to
+find. A direct-mode sandbox mounts *this directory only*. A sibling worktree at
+`../devdesk-<branch>` is therefore outside the mount, so its **files** are written
+into the container's private layer and never reach the host — while `.git` is
+inside the mount and stays shared. Refs agree, files diverge, and nothing warns:
+the branch tip moves, the host's copy of those files does not, and `git status`
+on the host reports the *stale* content as uncommitted modifications. An agent
+and the person testing its work end up compiling different code while both
+believe they are on the same branch. Under `.worktrees/`, host and sandbox see
+one filesystem.
+
+Two effects worth knowing, neither blocking:
+
+- `.worktrees/` is in `.gitignore`; a worktree there is not a change to the tree.
+- Claude Code discovers the nested `.claude/` of each worktree, so its skills and
+  rules appear a second time, prefixed by the worktree path. Harmless, and the
+  price of the directory being inside the repo.
 
 **What isolates, and what does not.** git refuses to check out one branch in two
 worktrees, so two agents cannot land on the same branch by accident — that is the
@@ -95,13 +115,13 @@ whole protection, and it is worth knowing what it does *not* cover:
 **`entire graph` indexes per directory.** A fresh worktree has no index, so the
 first `entire graph search` there pays a full build (~5 s on this repo, measured)
 and the symbol ids it returns are namespaced by the directory name
-(`local/devdesk-<branch>:Go:…`). Nothing breaks; do not be surprised by the
-first search being slow or by ids that do not match another worktree's.
+(`local/<branch>:Go:…`). Nothing breaks; do not be surprised by the first search
+being slow or by ids that do not match another worktree's.
 
 **Clean up when the PR is merged**, from the main checkout:
 
 ```bash
-git worktree remove ../devdesk-<branch>
+git worktree remove .worktrees/<branch>
 git worktree list          # what is still out there
 git worktree prune         # after a directory was deleted by hand
 ```
@@ -146,13 +166,13 @@ to GitHub. `entire review` (labs) runs a multi-agent review against the current
 branch and is a pre-merge step, not a substitute for the PR.
 
 ```bash
-git worktree add -b <branch> ../devdesk-<branch> origin/main   # work happens here
+git worktree add -b <branch> .worktrees/<branch> origin/main   # work happens here
 git push -u origin <branch>                     # via the mirror — forwarded to GitHub
 gh pr create -R anthnel/devdesk --base main --head <branch>
 gh pr merge -R anthnel/devdesk <n> --squash --delete-branch
 # then, from the main checkout:
 git fetch origin main && git merge --ff-only origin/main   # may need a retry, see below
-git worktree remove ../devdesk-<branch>
+git worktree remove .worktrees/<branch>
 ```
 
 **`-R anthnel/devdesk` is not optional.** `gh` infers the repository from a
@@ -196,26 +216,31 @@ auth context for cluster ...` — that's expected, not a setup bug; don't
 `entire login` there to fix it (see `~/projects/github/anthnel/sbx-kits/entire/README.md`
 for the full rationale).
 
-A direct-mode sandbox mounts this exact repo directory, so its commits land
-straight in the shared `.git` — the host sees them immediately, no transfer
-needed. But `git worktree add -b <branch> ../devdesk-<branch> ...` run
-*inside* the sandbox creates that sibling path **outside** the single
-mounted directory, so it lands in the sandbox's own private container
-layer — invisible to the host (`git worktree list` shows it `prunable`).
-The commit object itself is still in the shared `.git/objects` though, so
-nothing is actually lost:
+A direct-mode sandbox mounts this exact repo directory, so both the commits and
+the working files land where the host sees them — provided the worktree is under
+`.worktrees/`, which is why that is the rule. There is nothing to transfer; the
+host only has to push, because the sandbox has no `entire://` auth:
 
 ```bash
 # From the host, once the sandbox reports "done and committed":
-git worktree list                      # confirm the sibling worktree, prunable, HEAD sha
-git cat-file -t <sha>                  # confirm the commit is really in this .git (it is)
-git worktree prune -v                  # drop the stale, unreachable admin entry
-
-git push origin <sha>:refs/heads/<branch>
-gh pr create -R anthnel/devdesk --base main --head <branch> \
-  --title "<subject line>" --body "$(git show -s --format=%b <sha>)"
+git push origin <branch>
+gh pr create -R anthnel/devdesk --base main --head <branch> --fill
 gh pr merge -R anthnel/devdesk <n> --squash --delete-branch
 git fetch origin main && git merge --ff-only origin/main   # may need a retry, see above
+git worktree remove .worktrees/<branch>
+```
+
+**If a worktree was made at the old sibling path** (`../devdesk-<branch>`), the
+host cannot see its files and `git worktree list` shows it `prunable`. The
+commits are still in the shared `.git/objects`, so nothing is lost — but the
+host's copy of those files is stale, and `git status` there reports that stale
+content as uncommitted modifications, which reads as if work were pending when
+the opposite is true. Recover by taking the branch tip:
+
+```bash
+git stash push -m "stale files from a sandbox sibling worktree"   # reversible
+git worktree prune -v                  # drop the unreachable admin entry
+git push origin <sha>:refs/heads/<branch>
 ```
 
 **A follow-up commit on the same branch, after the first one already got
@@ -228,14 +253,14 @@ instead — its real parent already matches what's on `main`, so it applies
 clean:
 
 ```bash
-git worktree add -b <tmp-branch> ../devdesk-<tmp-branch> <new-sha>
-cd ../devdesk-<tmp-branch>
+git worktree add -b <tmp-branch> .worktrees/<tmp-branch> <new-sha>
+cd .worktrees/<tmp-branch>
 git reset --hard origin/main
 git cherry-pick <new-sha>              # clean apply — verify before trusting this
 go build ./... && go test ./<touched-packages>/...
 git push origin HEAD:refs/heads/<new-branch-name>
 # gh pr create / gh pr merge as above, then from the main checkout:
-git worktree remove ../devdesk-<tmp-branch>
+git worktree remove .worktrees/<tmp-branch>
 ```
 
 ### Remotes
