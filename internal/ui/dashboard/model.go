@@ -670,7 +670,12 @@ func (m Model) measureWorkspaceSize() tea.Cmd {
 func (m Model) fetchPosture() tea.Cmd {
 	context := config.CurrentContextName()
 	return func() tea.Msg {
-		return PostureMsg{Posture: readPosture(context)}
+		// L'énumération des images est faite ici et non dans readPosture : c'est
+		// le seul appel au démon de la lecture, et un Cmd est l'endroit de
+		// l'I/O. Elle coûte un `docker image ls` par tour lent, sur la même
+		// horloge que le `docker system df` de fetchOCIStats.
+		images, known := docker.ImageNames()
+		return PostureMsg{Posture: readPosture(context, images, known)}
 	}
 }
 

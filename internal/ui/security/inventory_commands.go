@@ -90,13 +90,13 @@ func loadInventoryCmd(forgeURL string) tea.Cmd {
 	return func() tea.Msg {
 		contextName := config.CurrentContextName()
 		targets := make([]scanTarget, 0)
-		images, imagesKnown := localImages()
+		images, imagesKnown := docker.ImageNames()
 
 		if c, err := cache.NewImageScanCache(); err != nil {
 			log.Printf("ERROR [security/inventory] open image scan cache: %v", err)
 		} else {
 			for name, entry := range c.GetAll() {
-				if !stillPulled(name, images, imagesKnown) {
+				if cache.ImageGone(name, images, imagesKnown) {
 					continue
 				}
 				targets = append(targets, scanTarget{
@@ -165,51 +165,11 @@ func gradeable(repoPath, forgeURL string) bool {
 	return git.SameHost(remote, forgeURL)
 }
 
-// listImages is docker.ListImages, indirected for the tests and for nothing
-// else — production never reassigns it.
-//
-// The seam exists because the reconciliation below makes the loader depend on
-// what the daemon holds, and a test cannot pull an image to satisfy it. The
-// round trips through the real cache files would otherwise be reduced to
-// asserting that a fixture is absent, which they would pass for the wrong
-// reason.
-var listImages = docker.ListImages
-
-// localImages names the images present on this machine, and says whether it
-// could find out.
-//
-// The second return is the whole point. "Docker is not running" and "the image
-// is gone" are the same silence from a caller's side, and reading the first as
-// the second would empty the inventory of every image the moment the daemon
-// stops. A failed enumeration keeps every entry instead: showing a target that
-// no longer exists is a stale row, hiding one that does is a lie.
-func localImages() (map[string]struct{}, bool) {
-	list, err := listImages()
-	if err != nil {
-		log.Printf("INFO [security/inventory] image list unavailable, keeping every cached image: %v", err)
-		return nil, false
-	}
-	names := make(map[string]struct{}, len(list))
-	for _, img := range list {
-		names[img.Name()] = struct{}{}
-	}
-	return names, true
-}
-
-// stillPulled says whether a cached image entry still has an image behind it.
-// It is a function of its own so a test can put the two answers to it without a
-// daemon: an enumeration that failed keeps everything, one that succeeded keeps
-// what it listed.
-func stillPulled(name string, images map[string]struct{}, known bool) bool {
-	if !known {
-		return true
-	}
-	_, ok := images[name]
-	return ok
-}
-
-// isGone moved to cache.RepositoryGone: the dashboard's posture reads the same
-// cache and has to reach the same answer, and it is in another package.
+// listImages, localImages, stillPulled and isGone all moved: the rule was
+// written out here, in internal/mcp and — by its absence — in the dashboard's
+// posture, which is how the dashboard came to count what this loader drops
+// (D69). The enumeration and its test seam are docker.ImageNames; the two
+// predicates are cache.ImageGone and cache.RepositoryGone.
 // loadInventoryResultCmd reads back the full result stored for one target
 // (Rule 126: opening a scanned row reads the cache, it never scans).
 func loadInventoryResultCmd(target scanTarget) tea.Cmd {

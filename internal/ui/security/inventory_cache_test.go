@@ -3,7 +3,6 @@ package security
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -36,19 +35,13 @@ func findTarget(t *testing.T, targets []scanTarget, name string) scanTarget {
 // the wrong reason.
 func pulled(t *testing.T, names ...string) {
 	t.Helper()
-	previous := listImages
-	listImages = func() ([]docker.Image, error) {
-		images := make([]docker.Image, 0, len(names))
-		for _, name := range names {
-			repo, tag, found := strings.Cut(name, ":")
-			if !found {
-				tag = ""
-			}
-			images = append(images, docker.Image{Repository: repo, Tag: tag})
-		}
-		return images, nil
+	previous := docker.ImageNames
+	present := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		present[name] = struct{}{}
 	}
-	t.Cleanup(func() { listImages = previous })
+	docker.ImageNames = func() (map[string]struct{}, bool) { return present, true }
+	t.Cleanup(func() { docker.ImageNames = previous })
 }
 
 // existingRepo is a real directory, because the loader now drops a repository

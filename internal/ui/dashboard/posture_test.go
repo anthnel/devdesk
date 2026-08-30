@@ -708,7 +708,7 @@ func TestThePostureDropsARepositoryThatIsGone(t *testing.T) {
 		}
 	}
 
-	p := readPosture("default")
+	p := readPosture("default", nil, false)
 
 	if p.Repositories.Targets != 1 {
 		t.Errorf("Targets = %d, want 1 — the deleted repository is still counted",
@@ -730,5 +730,55 @@ func TestThePostureKeepsARepositoryItCannotStat(t *testing.T) {
 	dir := t.TempDir()
 	if cache.RepositoryGone(dir) {
 		t.Error("a directory that exists was reported gone")
+	}
+}
+
+// La moitié « images » du même défaut : un `docker rmi` après un scan laissait
+// ses CRITICAL dans l'arbre Images, et `:sec` ne les montrait déjà plus.
+func TestThePostureDropsAnImageThatIsGone(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	c, err := cache.NewImageScanCache()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, critical := range map[string]int{"nginx:1.27": 1, "removed:latest": 3} {
+		if err := c.Set(name, cache.ImageScanEntry{Critical: critical, ScannedAt: day(1)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	p := readPosture("default", map[string]struct{}{"nginx:1.27": {}}, true)
+
+	if p.Images.Targets != 1 || p.Images.Critical != 1 {
+		t.Errorf("Images = %d targets / %d critical, want 1 / 1 — an image the daemon no longer lists is still counted",
+			p.Images.Targets, p.Images.Critical)
+	}
+}
+
+// Le garde sur lequel tout repose. « Docker est arrêté » et « l'image a été
+// supprimée » sont le même silence, et lire le premier comme le second ferait
+// afficher `0 CRITICAL` à la boîte Images — la seule mauvaise réponse que
+// personne n'irait vérifier.
+func TestADaemonThatCannotBeReachedKeepsEveryImageInThePosture(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	c, err := cache.NewImageScanCache()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Set("nginx:1.27", cache.ImageScanEntry{Critical: 4, ScannedAt: day(1)}); err != nil {
+		t.Fatal(err)
+	}
+
+	p := readPosture("default", nil, false)
+
+	if p.Images.Targets != 1 || p.Images.Critical != 4 {
+		t.Errorf("Images = %d targets / %d critical, want 1 / 4 — a stopped daemon read as a deletion",
+			p.Images.Targets, p.Images.Critical)
 	}
 }
