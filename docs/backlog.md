@@ -21,8 +21,10 @@ ceux de l'interface — le même jour. **D67** — un scan de `ws` reprenant l'�
 un scan survivant à un changement de contexte et écrivant ses résultats dans le
 cache du nouveau — avec lui. Les deux se lisent ensemble : D67 est ce qui rend
 ordinaire de changer de vue pendant un scan, donc ce qui rend D68 atteignable.
-[§1.3](#13-open) est vide pour la première fois depuis D12, et tout ce qui suit
-est en [§1.1](#11-fixed).
+**D69** — le dashboard comptant les CRITICAL de dépôts supprimés depuis leur
+scan, que ni `ws` ni `:sec` ne pouvaient montrer — est signalé et fermé le
+2026-08-30. [§1.3](#13-open) est vide pour la première fois depuis D12, et tout
+ce qui suit est en [§1.1](#11-fixed).
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -86,6 +88,51 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D69 — le dashboard comptait les CRITICAL de dépôts supprimés, que ni `ws` ni
+`:sec` ne pouvaient montrer. Corrigé.** Signalé et fermé le 2026-08-30.
+
+Le rapport tenait en une phrase : « le dashboard m'affiche 3 crit pour les
+workspaces mais je ne les vois pas ni dans `ws` ni dans `sec` ». Les trois
+écrans lisent le même fichier — `~/.devdesk/cache/workspace-scans.json` — et
+deux d'entre eux écartaient ce que le troisième additionnait.
+
+Un cache de scan survit à ce qu'il décrit. Un `rm -rf` fait hors de
+l'application n'est observé par personne, et rien ne retire l'entrée : elle
+nomme un chemin qui n'existe plus, pour toujours. `:sec` le savait et
+réconciliait à la lecture (`isGone`) ; `ws` ne listait de toute façon que le
+disque. `readPosture`, cinquième lecteur des deux mêmes caches, sommait tout.
+
+```go
+// avant — readPosture
+for _, entry := range workspaces.GetAll() {
+    p.Repositories.add(entry.Critical, entry.Sensitive, entry.ScannedAt)
+}
+```
+
+Ce qui rend le défaut coûteux n'est pas l'écart de trois : c'est **le seul
+écran à annoncer le nombre était le seul où l'on ne peut pas aller voir**. Le
+dashboard ne détaille rien ; il envoie vers `:sec`, qui montrait quatre
+CRITICAL de moins sans rien pouvoir en dire. Un compteur qu'aucune vue ne sait
+détailler n'est pas un compteur.
+
+Le prédicat déménage donc en `internal/cache` (`RepositoryGone`), auprès des
+entrées qu'il juge, et les deux lecteurs l'appellent — au lieu d'une règle qui
+appartenait à celui des deux qui l'avait écrite en premier. `os.IsNotExist` et
+rien d'autre : un partage lent ou un droit manquant n'est pas une suppression,
+et écarter là-dessus ferait disparaître du compteur des dépôts bien présents.
+
+Effet de bord, et il va dans le bon sens : `unscanned` était faux aussi. Un
+dépôt supprimé compensait exactement un dépôt jamais scanné dans
+`uncovered(inventaire, Targets)`, donc la boîte annonçait `0 unscanned` d'un
+ensemble où il en restait à scanner. Le plancher à zéro ne sert plus que du côté
+des images.
+
+**Ce qui n'est pas corrigé, et pourquoi.** La moitié « images » a exactement le
+même défaut : un `docker rmi` après un scan laisse ses CRITICAL dans l'arbre
+Images. Le savoir demande d'énumérer le démon, et `readPosture` ne lit que deux
+fichiers — `os.Stat` sur un chemin n'est pas cet appel-là. C'est une décision de
+conception à prendre, pas un oubli.
 
 **D68 — un scan qui survivait à un changement de contexte écrivait ses résultats
 dans le cache du *nouveau* contexte. Corrigé.** Trouvé en écrivant le registre

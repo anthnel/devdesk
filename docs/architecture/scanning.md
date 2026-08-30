@@ -356,9 +356,9 @@ Two things it deliberately does not do:
 
 - **It never reads a failure as an absence.** `localImages` returns a second
   value saying whether it could find out, and a failed enumeration keeps every
-  image — a stopped daemon would otherwise empty the inventory. `isGone` tests
-  `os.IsNotExist` and nothing else, so a permission error or an unmounted share
-  keeps the row.
+  image — a stopped daemon would otherwise empty the inventory.
+  `cache.RepositoryGone` tests `os.IsNotExist` and nothing else, so a permission
+  error or an unmounted share keeps the row.
 - **It hides, it does not delete.** The entry and its stored result stay on
   disk: a transient answer must not destroy a scan nobody asked to purge. `A`
   only rescans the rows that are there, so a hidden entry costs nothing while it
@@ -367,6 +367,20 @@ Two things it deliberately does not do:
 `listImages` is a package var only because of this — a test cannot pull an image,
 and the cache round trips would otherwise be reduced to asserting a fixture is
 absent, which they would pass for the wrong reason.
+
+**The rule belongs to the caches, not to the inventory.** `:sec` is not their
+only reader: the dashboard's `readPosture` sums the same two files to fill the
+Repositories and Images trees. It did not reconcile, so a repository deleted
+after its scan kept contributing its CRITICALs to a box that no other view
+could corroborate — `ws` lists the disk and never showed it, `:sec` had already
+dropped it, and the one screen announcing the number was the one you cannot
+drill into. The predicate therefore lives in `internal/cache`
+(`RepositoryGone`), with the entries it judges, and both readers call it.
+
+The image half of the posture is knowingly left alone. Reconciling it means
+enumerating the daemon, and `readPosture` reads two files and nothing else; an
+`os.Stat` on a path is not that call. A `docker rmi` after a scan still leaves
+its CRITICALs in the Images tree.
 
 Three invariants, each with a test that fails without it:
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log"
-	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -116,7 +115,7 @@ func loadInventoryCmd(forgeURL string) tea.Cmd {
 			log.Printf("ERROR [security/inventory] open workspace scan cache: %v", err)
 		} else {
 			for path, entry := range c.GetAll() {
-				if isGone(path) {
+				if cache.RepositoryGone(path) {
 					continue
 				}
 				targets = append(targets, scanTarget{
@@ -209,16 +208,8 @@ func stillPulled(name string, images map[string]struct{}, known bool) bool {
 	return ok
 }
 
-// isGone says a repository path has been removed, and only that.
-//
-// os.IsNotExist and nothing else: a permission error, or a share that answers
-// slowly, means the path could not be *read*, which is not the same claim. The
-// entry survives anything but a definite absence.
-func isGone(path string) bool {
-	_, err := os.Stat(path)
-	return err != nil && os.IsNotExist(err)
-}
-
+// isGone moved to cache.RepositoryGone: the dashboard's posture reads the same
+// cache and has to reach the same answer, and it is in another package.
 // loadInventoryResultCmd reads back the full result stored for one target
 // (Rule 126: opening a scanned row reads the cache, it never scans).
 func loadInventoryResultCmd(target scanTarget) tea.Cmd {
