@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -77,12 +78,20 @@ type Model struct {
 	// Delete mode state
 	deleteConfirmModal *components.OptionConfirmModal
 	deleteTargetNode   *TreeNode
+	// jobs is the router's last snapshot of the registry, and jobFrame the
+	// spinner frame that goes with it — bare, because it lands in a table cell
+	// and a cell is measured before it is styled (Rule 122).
+	//
+	// The frame comes from the broadcast rather than from this view's own
+	// spinner because that chain stops when the tree settles: a create started
+	// on a loaded tree would sit on frame zero, which reads as a hang. It is
+	// the same reason the clone rows take it (D5).
+	jobs     []jobs.Run
+	jobFrame string
+
 	// Transient footer messages, both cleared by the same 3s timer (Rule 128).
 	// footer is the one line of transient state below the viewport (Rule 128).
 	footer components.FooterMessage
-
-	// Path to select after refresh (for newly created items)
-	pendingSelectPath string
 }
 
 // New crée une nouvelle instance du modèle explorer

@@ -31,6 +31,7 @@ const (
 	KindSync   Kind = "sync"
 	KindClone  Kind = "clone"
 	KindPull   Kind = "pull"
+	KindCreate Kind = "create"
 	KindDelete Kind = "delete"
 )
 
@@ -38,7 +39,7 @@ const (
 // It exists to be walked by a test: a kind without an icon or without a verb
 // is a hole that only shows up on the screen that needed it.
 func Kinds() []Kind {
-	return []Kind{KindScan, KindSync, KindClone, KindPull, KindDelete}
+	return []Kind{KindScan, KindSync, KindClone, KindPull, KindCreate, KindDelete}
 }
 
 // Cancellable reports whether stopping a run of this kind leaves the machine in
@@ -53,6 +54,7 @@ func Kinds() []Kind {
 //	pull    yes  a docker pull resumes by layer
 //	sync    no   the queue stops, a fast-forward in flight is waited out
 //	clone   no   a cut git clone leaves half a repository on disk
+//	create  no   a request already sent cannot be un-sent
 //	delete  no   half deleted is worse than deleted
 //
 // A run whose kind answers no still accepts Cancel: the queue stopping is worth
@@ -78,6 +80,8 @@ func (k Kind) Verb() string {
 		return "Cloning"
 	case KindPull:
 		return "Pulling"
+	case KindCreate:
+		return "Creating"
 	case KindDelete:
 		return "Deleting"
 	}
@@ -322,7 +326,8 @@ func (r Run) Done() int {
 //
 // A delete falls through all four while it runs: one item, in flight, of a kind
 // that must never be cut. That is the case the key is greyed for, and it is the
-// reason this is a method rather than `!Finished()`.
+// reason this is a method rather than `!Finished()`. A create answers the same
+// way and for the same reason.
 func (r Run) Stoppable() bool {
 	switch {
 	case r.Finished():

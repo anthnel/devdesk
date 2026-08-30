@@ -511,46 +511,197 @@ func TestCancellingCreationReturnsToNormal(t *testing.T) {
 	}
 }
 
-// A created resource is selected after the refresh, so the user sees what they
-// just made instead of having to hunt for it.
-func TestCreationSchedulesASelection(t *testing.T) {
-	m := feed(t, loadedModel(t), GroupCreatedMsg{Namespace: newGroup(7, "alpha/new")})
+// The row goes on screen when the request goes out, and settles in place when
+// the forge answers. The tree is never emptied — which is what a refresh used
+// to do for the whole of a network call.
+func TestCreationPutsThePlaceholderRowOnScreenAndSettlesIt(t *testing.T) {
+	m := loadedModel(t)
+	before := len(m.table.Visible())
 
-	if m.pendingSelectPath != "alpha/new" {
-		t.Errorf("pendingSelectPath = %q after creating a group", m.pendingSelectPath)
+	m, cmd := step(t, m, components.CreationFormSubmitMsg{FormType: components.FormTypeGroup, Name: "new"})
+
+	run, started := startedRun(cmd)
+	if !started {
+		t.Fatal("submitting registered no run")
 	}
-	if !m.loading {
-		t.Error("creating a group did not trigger a refresh")
+	if run.Kind != jobs.KindCreate {
+		t.Errorf("run kind = %q, want %q", run.Kind, jobs.KindCreate)
 	}
-}
+	if got := len(m.table.Visible()); got != before+1 {
+		t.Fatalf("visible rows = %d, want the placeholder to make it %d", got, before+1)
+	}
+	placeholder := m.table.Visible()[before].node
+	if !placeholder.Creating || placeholder.FullPath != "new" {
+		t.Errorf("placeholder = %+v, want a creating node at %q", placeholder, "new")
+	}
 
-func TestCreationFailureIsReported(t *testing.T) {
-	m := feed(t, loadedModel(t), GroupCreatedMsg{Error: errors.New("name has already been taken")})
+	m = feed(t, m, GroupCreatedMsg{Namespace: newGroup(7, "alpha/new"), Target: "new"})
 
-	if !strings.Contains(m.error, "already been taken") {
-		t.Errorf("error = %q, want the API message", m.error)
+	if got := len(m.table.Visible()); got != before+1 {
+		t.Errorf("visible rows = %d after settling, want the placeholder replaced not duplicated", got)
+	}
+	settled := m.table.Visible()[before].node
+	if settled.Creating {
+		t.Error("the row is still marked as being created")
+	}
+	if settled.FullPath != "alpha/new" || settled.ID != "7" {
+		t.Errorf("settled node = %+v, want the one the forge answered with", settled)
 	}
 	if m.loading {
-		t.Error("a failed creation triggered a refresh")
+		t.Error("settling a creation triggered a refresh")
+	}
+	// The property the four removed TestPendingSelection* tests protected: the
+	// user is left on what they just made.
+	if node, ok := m.selectedNode(); !ok || node.FullPath != "alpha/new" {
+		t.Errorf("cursor is on %+v, want the created group", node)
 	}
 }
 
-// A project whose template failed still exists, so the refresh must happen and
-// the message has to say both things.
-func TestProjectCreatedWithAFailedTemplateStillRefreshes(t *testing.T) {
-	m := feed(t, loadedModel(t), ProjectCreatedMsg{
+// A failed creation takes its row away again and says so in the footer. Not in
+// m.error: that replaces the tree with an error screen, which is the one place
+// the row's disappearance cannot be seen.
+func TestCreationFailureRemovesTheRowAndReportsInTheFooter(t *testing.T) {
+	m := loadedModel(t)
+	before := len(m.table.Visible())
+
+	m, _ = step(t, m, components.CreationFormSubmitMsg{FormType: components.FormTypeGroup, Name: "new"})
+	m = feed(t, m, GroupCreatedMsg{Target: "new", Error: errors.New("name has already been taken")})
+
+	if got := len(m.table.Visible()); got != before {
+		t.Errorf("visible rows = %d, want the placeholder gone (%d)", got, before)
+	}
+	if m.error != "" {
+		t.Errorf("error = %q, want the tree left alone", m.error)
+	}
+	if m.footer.Level() != components.LevelError {
+		t.Errorf("footer level = %v, want an error", m.footer.Level())
+	}
+	if !strings.Contains(m.footer.Text(), "new") {
+		t.Errorf("footer = %q, want it to name what failed", m.footer.Text())
+	}
+}
+
+// A project whose template failed still exists, so the row settles; only the
+// message differs, and it is a warning rather than an error — nothing failed
+// that the user asked for first.
+func TestProjectCreatedWithAFailedTemplateStillSettles(t *testing.T) {
+	m := loadedModel(t)
+	m, _ = step(t, m, components.CreationFormSubmitMsg{FormType: components.FormTypeProject, Name: "svc"})
+
+	m = feed(t, m, ProjectCreatedMsg{
 		Repository:    newProject(9, "alpha/svc"),
+		Target:        "svc",
 		TemplateError: errors.New("download template: 404"),
 	})
 
-	if !m.loading {
-		t.Error("a template failure suppressed the refresh of a project that was created")
+	node, ok := m.selectedNode()
+	if !ok || node.FullPath != "alpha/svc" || node.Creating {
+		t.Errorf("selected node = %+v, want the settled project", node)
 	}
-	if !strings.Contains(m.error, "template failed") {
-		t.Errorf("error = %q, want it to say the project exists but the template did not apply", m.error)
+	if m.loading {
+		t.Error("a template failure triggered a refresh")
 	}
-	if m.pendingSelectPath != "alpha/svc" {
-		t.Errorf("pendingSelectPath = %q, want the created project", m.pendingSelectPath)
+	if m.footer.Level() != components.LevelWarning {
+		t.Errorf("footer level = %v, want a warning", m.footer.Level())
+	}
+	if !strings.Contains(m.footer.Text(), "template") {
+		t.Errorf("footer = %q, want it to name the template", m.footer.Text())
+	}
+}
+
+// The spinner on a working row comes from the broadcast, not from this view's
+// own chain — that one stops when the tree settles, so a frame taken from it
+// would freeze on frame zero for the whole of the call.
+func TestAWorkingRowTakesItsFrameFromTheBroadcast(t *testing.T) {
+	m := loadedModel(t)
+	m, _ = step(t, m, components.CreationFormSubmitMsg{FormType: components.FormTypeGroup, Name: "new"})
+
+	m = feed(t, m, jobs.ChangedMsg{
+		Runs:  []jobs.Run{createRun("new", "new")},
+		Frame: "⣾",
+	})
+
+	row, ok := rowFor(m, "new")
+	if !ok {
+		t.Fatal("the placeholder row is gone")
+	}
+	if row.frame != "⣾" {
+		t.Errorf("row frame = %q, want the broadcast's", row.frame)
+	}
+	if got := iconCell(row); got != "⣾" {
+		t.Errorf("icon cell = %q, want the spinner", got)
+	}
+}
+
+// A reload replaces the level wholesale, and a create in flight has nothing yet
+// to be replaced by. Dropped, its row would vanish mid-request while the
+// registry went on tracking the run.
+func TestARefreshKeepsACreationInFlightOnScreen(t *testing.T) {
+	m := loadedModel(t)
+	m, _ = step(t, m, components.CreationFormSubmitMsg{FormType: components.FormTypeGroup, Name: "new"})
+
+	m, _ = step(t, m, testutil.Key("ctrl+r"))
+	if _, ok := rowFor(m, "new"); !ok {
+		t.Fatal("ctrl+r took the in-flight row off screen")
+	}
+
+	m = feed(t, m, RootGroupsLoadedMsg{Nodes: rootFixtures()})
+	if _, ok := rowFor(m, "new"); !ok {
+		t.Fatal("the reload dropped the in-flight row")
+	}
+
+	// And it still settles onto the row the refresh carried over.
+	m = feed(t, m, GroupCreatedMsg{Namespace: newGroup(7, "alpha/new"), Target: "new"})
+	if _, ok := rowFor(m, "new"); ok {
+		t.Error("the placeholder outlived the answer")
+	}
+	if _, ok := rowFor(m, "alpha/new"); !ok {
+		t.Error("the created group is not on screen after settling")
+	}
+}
+
+// Rule 130 forbids greying a key that acts anyway: N is greyed while the level
+// loads, and the parent ID it reads is not there yet either.
+func TestCreatingIsRefusedWhileTheLevelLoads(t *testing.T) {
+	m := newTestModel(t)
+	m.loading = true
+
+	m, cmd := step(t, m, testutil.Key(keymap.New))
+
+	if m.mode == ModeLoadingTemplates || m.creationForm != nil {
+		t.Error("N opened the creation form while the level was still loading")
+	}
+	if cmd == nil || m.footer.Text() != reasonStillLoading {
+		t.Errorf("footer = %q, want %q", m.footer.Text(), reasonStillLoading)
+	}
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.New) {
+		t.Error("N is not greyed while loading")
+	}
+}
+
+// Rule 130: a row the forge has not confirmed offers nothing that needs an
+// identifier, and pressing the key anyway says why.
+func TestAPlaceholderRowRefusesTheActionsThatNeedAnIdentifier(t *testing.T) {
+	m := loadedModel(t)
+	m, _ = step(t, m, components.CreationFormSubmitMsg{FormType: components.FormTypeGroup, Name: "new"})
+	m.table.SetCursor(len(m.table.Visible()) - 1)
+
+	if node, _ := m.selectedNode(); !node.Creating {
+		t.Fatal("the cursor is not on the placeholder")
+	}
+	if m.actionable().Enabled() {
+		t.Error("a placeholder row reports itself as actionable")
+	}
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), keymap.Delete) {
+		t.Error("D is not greyed on a row that does not exist yet")
+	}
+
+	m, _ = step(t, m, testutil.Key(keymap.Delete))
+	if m.deleteConfirmModal != nil {
+		t.Error("D opened a confirmation on a row that does not exist yet")
+	}
+	if m.footer.Text() != reasonNotCreatedYet {
+		t.Errorf("footer = %q, want %q", m.footer.Text(), reasonNotCreatedYet)
 	}
 }
 
@@ -587,81 +738,17 @@ func TestCreationSubmitWithoutAClientReports(t *testing.T) {
 }
 
 // ── Selecting a freshly created resource ─────────────────────────────────────
-
-// After the refresh, a resource created at the current level is selected
-// directly.
-func TestPendingSelectionLandsOnAVisibleNode(t *testing.T) {
-	m := newTestModel(t)
-	m.pendingSelectPath = "gamma"
-
-	m = feed(t, m, RootGroupsLoadedMsg{Nodes: rootFixtures()})
-
-	if m.pendingSelectPath != "" {
-		t.Errorf("pendingSelectPath = %q, want it consumed", m.pendingSelectPath)
-	}
-	if got := m.table.Cursor(); got != 2 {
-		t.Errorf("cursor = %d, want the created group at row 2", got)
-	}
-}
-
-// The cursor indexes the rows, not the level's raw child list. Under a
-// non-default sort those are two different orderings — and both in range, so
-// nothing clamps the mistake away: the lookup walked the raw list and landed on
-// whichever resource happened to share the index.
-func TestPendingSelectionUsesTheRowOrderNotTheRawList(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key(".")) // sort by name ascending
-
-	if got := rowNames(m.table.Table().Rows()); !equal(got, []string{"api", "legacy", "sub"}) {
-		t.Fatalf("rows = %v, want them sorted by name", got)
-	}
-
-	next, _ := m.expandToPath("alpha/legacy") // raw index 2, row 1
-	m = next.(Model)
-
-	if got := rowNames(m.table.Table().Rows())[m.table.Cursor()]; got != "legacy" {
-		t.Errorf("cursor is on %q, want legacy", got)
-	}
-}
-
-// A resource created inside a group needs the tree drilled into first.
-func TestPendingSelectionDrillsTowardsTheTarget(t *testing.T) {
-	m := newTestModel(t)
-	m.pendingSelectPath = "alpha/api"
-
-	m, cmd := step(t, m, RootGroupsLoadedMsg{Nodes: rootFixtures()})
-
-	if m.currentGroupNode == nil || m.currentGroupNode.Name != "alpha" {
-		t.Fatalf("currentGroupNode = %v, want it to have drilled into alpha", m.currentGroupNode)
-	}
-	if cmd == nil {
-		t.Fatal("drilling toward the target issued no load")
-	}
-
-	alpha := m.nodes[0]
-	m = feed(t, m, ChildrenLoadedMsg{ParentNode: alpha, Children: childFixtures(alpha)})
-	if m.pendingSelectPath != "" {
-		t.Errorf("pendingSelectPath = %q once the children arrived", m.pendingSelectPath)
-	}
-	if got := rowNames(m.table.Table().Rows())[m.table.Cursor()]; got != "api" {
-		t.Errorf("cursor is on %q, want the created project", got)
-	}
-}
-
-// A path that no longer exists must not leave the view chasing it on every
-// subsequent load.
-func TestPendingSelectionGivesUpOnAMissingPath(t *testing.T) {
-	m := newTestModel(t)
-	m.pendingSelectPath = "nowhere/at/all"
-
-	m = feed(t, m, RootGroupsLoadedMsg{Nodes: rootFixtures()})
-
-	if m.pendingSelectPath != "" {
-		t.Errorf("pendingSelectPath = %q, want it abandoned", m.pendingSelectPath)
-	}
-	if m.currentGroupNode != nil {
-		t.Errorf("chasing a missing path drilled into %v", m.currentGroupNode)
-	}
-}
+//
+// The four TestPendingSelection* tests went with pendingSelectPath and
+// expandToPath (§3.59). They covered finding a created resource again after the
+// refresh that used to follow a creation — including the drill down to a node
+// several levels deep, and the row-order lookup that a non-default sort broke.
+// There is no refresh now: the row is put at the level the user made it and
+// settles in place, so the cursor never loses it.
+//
+// What replaces them is TestCreationPutsThePlaceholderRowOnScreenAndSettlesIt,
+// which asserts the property those four were protecting — after a creation the
+// cursor is on the created thing — against the mechanism that now provides it.
 
 // ── Layout ───────────────────────────────────────────────────────────────────
 

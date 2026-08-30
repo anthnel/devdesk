@@ -1,8 +1,6 @@
 package explorer
 
 import (
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -11,6 +9,12 @@ func (m Model) handleDrillDown() (tea.Model, tea.Cmd) {
 	node, ok := m.selectedNode()
 	if !ok || node.Type != NodeTypeGroup {
 		return m, nil
+	}
+	// A placeholder has no identifier, so listing its children would ask the
+	// forge about the empty string — which is a different question, not an
+	// error the backend would refuse.
+	if node.Creating {
+		return m, m.footer.Warn(reasonNotCreatedYet)
 	}
 
 	// Save cursor position before navigating down
@@ -81,30 +85,30 @@ func (m Model) currentItems() []*TreeNode {
 // handleRefresh handles r key
 func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	m.loading = true
-	m.nodes = []*TreeNode{}
+	// The placeholders survive the wipe: a create in flight is not something
+	// the refresh can re-read, so dropping it here would take its row away
+	// while its request was still out (see carryOverCreating).
+	m.nodes = carryOverCreating(m.nodes, nil)
 	m.currentGroupNode = nil
 	m.navigationStack = nil
 	m.cursorStack = nil
 	m.activeTabIndex = 0
-	m.table.SetItems(nil)
+	// The rows the placeholders need, not nil: a create in flight keeps its
+	// line through the refresh, and SetItems(nil) would blank it for the length
+	// of the reload.
+	m.updateTableRows()
 	return m, tea.Batch(m.spinner.Tick, m.loadRootGroups())
 }
 
 // handleChildrenLoaded handles ChildrenLoadedMsg
 func (m Model) handleChildrenLoaded(msg ChildrenLoadedMsg) (tea.Model, tea.Cmd) {
-	msg.ParentNode.Children = msg.Children
+	msg.ParentNode.Children = carryOverCreating(msg.ParentNode.Children, msg.Children)
 	msg.ParentNode.Expanded = true
 	msg.ParentNode.Loading = false
 	m.loading = false
 
 	m.updateTableRows()
 	m.table.GotoTop()
-
-	// Continue expanding if there's a pending path
-	if m.pendingSelectPath != "" {
-		return m.expandToPath(m.pendingSelectPath)
-	}
-
 	return m, nil
 }
 
@@ -119,38 +123,8 @@ func (m Model) handleLoadError(msg LoadErrorMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// expandToPath navigates to and selects a node at the given path after refresh
-func (m Model) expandToPath(targetPath string) (tea.Model, tea.Cmd) {
-	// Check if the target is on screen. The rows, not currentItems(): under a
-	// filter or a non-default sort those are two different orderings, and the
-	// cursor indexes the one being shown.
-	for i, row := range m.table.Visible() {
-		if row.node.FullPath == targetPath {
-			m.table.SetCursor(i)
-			m.pendingSelectPath = ""
-			return m, nil
-		}
-	}
-
-	// Find an ancestor that needs to be drilled into
-	for _, node := range m.currentItems() {
-		if node.Type == NodeTypeGroup && strings.HasPrefix(targetPath, node.FullPath+"/") {
-			// Drill into this group
-			m.navigationStack = append(m.navigationStack, m.currentGroupNode)
-			m.currentGroupNode = node
-
-			if node.Children == nil {
-				node.Loading = true
-				m.updateTableRows()
-				return m, m.loadChildren(node)
-			}
-			node.Expanded = true
-			m.updateTableRows()
-			return m.expandToPath(targetPath)
-		}
-	}
-
-	// Could not find path - clear pending and stay where we are
-	m.pendingSelectPath = ""
-	return m, nil
-}
+// expandToPath went with pendingSelectPath (§3.59). It existed to find a
+// freshly created resource again after the refresh that followed a creation:
+// the node could be several levels down, so the tree was re-listed and then
+// drilled back into. There is no refresh any more — the row is put where the
+// user made it and settles in place — so there is nothing to chase.

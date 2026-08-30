@@ -3,6 +3,7 @@ package explorer
 import (
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -30,12 +31,26 @@ func TestConfirmedDeleteHitsTheRightEndpoint(t *testing.T) {
 
 			next, cmd := m.handleDeleteConfirmed(false)
 
-			msg, ok := testutil.MsgOf[DeleteCompleteMsg](cmd)
+			run, started := startedRun(cmd)
+			if !started {
+				t.Fatalf("confirming produced %T, want a registered run", testutil.Msg(cmd))
+			}
+			if run.Kind != jobs.KindDelete {
+				t.Errorf("run kind = %q, want %q", run.Kind, jobs.KindDelete)
+			}
+			if len(run.Items) != 1 || run.Items[0].Target != tt.node.FullPath {
+				t.Errorf("run items = %+v, want the node's path", run.Items)
+			}
+
+			msg, ok := runWork(t, cmd).(DeleteCompleteMsg)
 			if !ok {
-				t.Fatalf("confirming produced %T", testutil.Msg(cmd))
+				t.Fatal("the delete work produced no DeleteCompleteMsg")
 			}
 			if msg.Error != nil {
 				t.Errorf("delete reported %v", msg.Error)
+			}
+			if msg.Target != tt.node.FullPath {
+				t.Errorf("DeleteCompleteMsg target = %q, want %q", msg.Target, tt.node.FullPath)
 			}
 			if msg.DeletedNode != tt.node {
 				t.Error("DeleteCompleteMsg does not name the node that was deleted")
@@ -58,7 +73,10 @@ func TestConfirmedDeleteReportsAFailure(t *testing.T) {
 
 	_, cmd := m.handleDeleteConfirmed(false)
 
-	msg, _ := testutil.MsgOf[DeleteCompleteMsg](cmd)
+	msg, ok := runWork(t, cmd).(DeleteCompleteMsg)
+	if !ok {
+		t.Fatal("the delete work produced no DeleteCompleteMsg")
+	}
 	if msg.Error == nil {
 		t.Error("a failing delete reported no error")
 	}
@@ -98,7 +116,7 @@ func TestPermanentDeleteIsPassedThrough(t *testing.T) {
 	m.deleteTargetNode = &TreeNode{ID: "42", FullPath: "infra/tools", Type: NodeTypeGroup}
 
 	_, cmd := m.handleDeleteConfirmed(true)
-	testutil.Msg(cmd)
+	runWork(t, cmd)
 
 	// The permanent path deletes twice: schedule, then purge under the renamed
 	// -deletion_scheduled-<id> path.

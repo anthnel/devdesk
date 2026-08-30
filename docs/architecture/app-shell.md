@@ -398,6 +398,16 @@ answer, and the two drift the first time a transition is missed.
 difference and the clone screen already shows it, so collapsing them would make
 that screen the only honest one.
 
+**A kind is not reserved for batches.** `create` and `delete` in the explorer
+are single-item runs against a forge, and they are registered for the three
+things the registry gives that a local flag does not: the spinner frame comes
+from the broadcast rather than from a view's own chain — the explorer's stops on
+`!m.loading`, so a frame taken from it would freeze the moment the tree settled;
+the `busy()` guard sees work started anywhere; and `Run.Context` is stamped at
+launch, so a create that outlives a context switch cannot write into the tree it
+switched to. What decides is whether the work is a network call the user has to
+be told about, not how many targets it has.
+
 Runs live for the session, capped at the last `MaxFinishedRuns` settled ones; a
 run still going is never pruned. Each is stamped with the context it started in,
 and views **filter** (`jobs.FilterContext`) rather than the registry purging on a
@@ -466,7 +476,9 @@ They are not the same question, and the key is offered on each independently:
 `Run.Stoppable()` is the question about *this run*, not about its kind, and the
 delete is the case it exists for: one item, in flight, of a kind that must never
 be cut. `!Finished()` would offer the key and then refuse it, which is exactly
-the silent refusal Rule 130 removes.
+the silent refusal Rule 130 removes. The **create** answers the same way and for
+a related reason — a request already sent cannot be un-sent, and a project whose
+template is half applied is a state the forge holds, not one we can roll back.
 
 **A running target is asked to stop, never declared stopped.** It reports its
 own outcome when it gets there; settling it here would race the message that

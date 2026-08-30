@@ -229,6 +229,7 @@ func TestEveryKindAnswersWhetherItCanBeCancelled(t *testing.T) {
 		KindPull:   true,
 		KindSync:   false,
 		KindClone:  false,
+		KindCreate: false,
 		KindDelete: false,
 	}
 

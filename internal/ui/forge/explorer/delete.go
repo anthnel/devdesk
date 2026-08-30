@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
 
@@ -16,6 +17,11 @@ func (m Model) handleDeleteStart() (tea.Model, tea.Cmd) {
 	node, ok := m.selectedNode()
 	if !ok {
 		return m, nil
+	}
+	// Rule 130: the key is greyed for both of these, and pressing it anyway
+	// says which one it is rather than doing nothing.
+	if act := m.actionable(); !act.Enabled() {
+		return m, m.footer.Warn(act.Reason)
 	}
 
 	m.deleteTargetNode = node
@@ -66,15 +72,24 @@ func (m Model) handleDeleteConfirmed(permanentlyRemove bool) (tea.Model, tea.Cmd
 	nodeType := node.Type
 	id, path := node.ID, node.FullPath
 
-	return m, func() tea.Msg {
+	if m.busy(path) {
+		return m, m.footer.Warn(busyMessage)
+	}
+
+	work := func() tea.Msg {
 		var err error
 		if nodeType == NodeTypeGroup {
 			err = backend.DeleteNamespace(context.Background(), forge.Namespace{ID: id, Path: path}, permanentlyRemove)
 		} else {
 			err = backend.DeleteRepository(context.Background(), forge.Repository{ID: id, Path: path}, permanentlyRemove)
 		}
-		return DeleteCompleteMsg{Error: err, DeletedNode: node}
+		return DeleteCompleteMsg{Error: err, Target: path, DeletedNode: node}
 	}
+	// The row keeps its place and takes the spinner while the forge works — the
+	// same treatment a create gets, and for the same reason: a delete is a
+	// network call, and a row that vanished before the answer came would be
+	// claiming something that has not happened yet.
+	return m, jobs.Start(deleteRun(path, node.Name), work)
 }
 
 // handleDeleteComplete handles DeleteCompleteMsg
