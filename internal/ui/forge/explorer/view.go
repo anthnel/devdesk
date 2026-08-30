@@ -442,11 +442,12 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	// vanishes and comes back on every ctrl+r is the flicker Rule 130 is about.
 	loading := m.loading
 	browse := m.browsable()
+	act := m.actionable()
 
 	return []shortcut.Shortcut{
 		{Key: "←→", Description: "Open/Back", Disabled: loading},
 		{Key: keymap.New, Description: "New", Disabled: loading},
-		{Key: keymap.Delete, Description: "Delete", Disabled: loading},
+		{Key: keymap.Delete, Description: "Delete", Disabled: loading || !act.Enabled()},
 		{Key: keymap.Clone, Description: "Clone", Disabled: loading},
 		{Key: keymap.Web, Description: "Browser", Disabled: loading || !browse.Enabled()},
 		{Key: ".", Description: "Sort", Disabled: loading},
@@ -459,6 +460,37 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 // reasonNoWebURL is why W does not apply. The row exists, it simply has no page.
 const reasonNoWebURL = "This entry has no web page to open"
+
+// reasonNotCreatedYet is why an action does not apply to a row the forge has
+// not confirmed. It is a different sentence from busyMessage on purpose: that
+// one says "wait, something is running", this one says "there is nothing there
+// to act on yet" — and the second is what a placeholder row means.
+const reasonNotCreatedYet = "This entry is still being created"
+
+// reasonStillLoading is why an action that needs the level does not apply while
+// the level is being fetched.
+const reasonStillLoading = "Still loading — wait for the list"
+
+// actionable reports whether the selected row is one the forge can be asked
+// about: a real node, and not one already held by work in flight.
+//
+// A placeholder carries no identifier, so every action addressing one would
+// send an empty ID — which the backend answers for some other object, or for
+// none. Greying is Rule 130's answer, and the reason is named so the footer can
+// say it when the key is pressed anyway.
+func (m Model) actionable() shortcut.Availability {
+	node, ok := m.selectedNode()
+	if !ok {
+		return shortcut.Unavailable(reasonNotCreatedYet)
+	}
+	if node.Creating {
+		return shortcut.Unavailable(reasonNotCreatedYet)
+	}
+	if m.busy(node.FullPath) {
+		return shortcut.Unavailable(busyMessage)
+	}
+	return shortcut.Availability{}
+}
 
 // browsable reports whether W can open the selected row.
 //
@@ -574,13 +606,24 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Creating Groups and Projects",
-				Body:  "Press N to open the creation form. Use ←→ on the Type field to switch between Group and Project. The form uses the current group as parent. Project templates are loaded automatically from the OCI registry if configured.",
+				Body: "Press N to open the creation form. Use ←→ on the Type field to switch between Group and Project. " +
+					"The form uses the current group as parent. Project templates are loaded automatically from the OCI registry if configured.\n" +
+					"Submitting puts the row on screen straight away, with a spinner in place of its icon while the forge works. " +
+					"The row is inert until it settles — it has no identifier yet, so the actions that need one are greyed. " +
+					"When the forge answers, the row becomes the real entry and the cursor is left on it; if the creation fails, the row goes away and the footer says so.",
+			},
+			{
+				Title: "Deleting",
+				Body: "Press D to delete the selected group or project, then confirm. The row keeps its place and takes a spinner while the forge works, " +
+					"and disappears only once the deletion is confirmed — a row that vanished first would be claiming something that had not happened yet.\n" +
+					"Both creating and deleting are listed in the :jobs view while they run.",
 			},
 			{
 				Title: "Row Icons",
 				Body: "The first column says what the row is, and the Visibility column who can read it:\n" +
 					"  " + theme.IconNamespace + "  " + v.Namespace + "\n" +
 					"  " + theme.IconRepository + "  " + v.Repository + "\n" +
+					"  (spinner)  the forge is being asked to create or delete this row\n" +
 					"  " + theme.IconVisibilityPublic + "  " + visibilityLabel(&TreeNode{Visibility: "public"}) + " — anyone can read it\n" +
 					"  " + theme.IconVisibilityInternal + "  " + visibilityLabel(&TreeNode{Visibility: "internal"}) + " — any signed-in user can (" + v.Name + " only where the concept exists)\n" +
 					"  " + theme.IconLock + "  " + visibilityLabel(&TreeNode{Visibility: "private"}) + " — members only\n" +

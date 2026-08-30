@@ -372,6 +372,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case explorer.CloneRunFinishedMsg:
 		return a.routeWork(command.ViewGitExplorer, msg)
 
+	// Creating and deleting on a forge are network calls, and the tree used to
+	// blank itself for the whole of one. They report like the clone now, so the
+	// row spins where the user asked for it and `:jobs` can see the work.
+	case explorer.GroupCreatedMsg:
+		return a.routeWork(command.ViewGitExplorer, msg)
+
+	case explorer.ProjectCreatedMsg:
+		return a.routeWork(command.ViewGitExplorer, msg)
+
+	case explorer.DeleteCompleteMsg:
+		return a.routeWork(command.ViewGitExplorer, msg)
+
 	case workspaces.WorkspaceScanStartingMsg:
 		return a.routeWork(command.ViewWorkspaces, msg)
 

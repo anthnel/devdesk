@@ -33,6 +33,16 @@ type TreeNode struct {
 	Parent   *TreeNode
 	Depth    int // Depth in tree (for rendering)
 
+	// Creating marks a node the user has asked for and the forge has not
+	// confirmed: it is on screen so the request is visible where it was made,
+	// but it carries no ID, no WebURL and no role — nothing a real node has.
+	//
+	// The spinner on its row does *not* come from this flag: it comes from the
+	// registry, keyed on FullPath like every other running target. What the
+	// flag answers is the narrower question of whether the node is real yet,
+	// which is what refuses the actions that need an identifier.
+	Creating bool
+
 	// Metadata for flat table display
 	Visibility string // "private", "internal", "public"
 	// Role is already humanised — "Owner", "Maintainer", … — because the

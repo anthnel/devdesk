@@ -30,14 +30,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RootGroupsLoadedMsg:
 		m.loading = false
 		m.firstLoadDone = true
-		m.nodes = msg.Nodes
+		m.nodes = carryOverCreating(m.nodes, msg.Nodes)
 		m.error = ""
 		m.updateTableRows()
 		m.table.GotoTop()
-		// If there's a pending selection, expand path to it
-		if m.pendingSelectPath != "" {
-			return m.expandToPath(m.pendingSelectPath)
-		}
 
 	case ChildrenLoadedMsg:
 		return m.handleChildrenLoaded(msg)

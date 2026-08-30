@@ -20,6 +20,11 @@ type explorerRow struct {
 	// state left over from a previous selection cannot appear.
 	selecting bool
 	check     theme.CheckState
+	// frame is the registry's spinner frame, set only while the forge is being
+	// asked something about this row. Text rather than a rendered spinner
+	// because a table cell must carry no escape sequence (Rule 122) — the same
+	// reason cloneRow holds one.
+	frame string
 }
 
 // checkboxIcon is RenderCheckboxTri's glyph without its styling.
@@ -38,15 +43,23 @@ func checkboxIcon(state theme.CheckState) string {
 	}
 }
 
-// iconCell is the first column: the checkbox while a clone selection is open,
-// the kind glyph otherwise.
+// iconCell is the first column: the spinner while the forge is being asked
+// something about the row, the checkbox while a clone selection is open, the
+// kind glyph otherwise.
 //
-// One column for two things, because Rule 125 fixes an icon column at two
+// One column for three things, because Rule 125 fixes an icon column at two
 // cells and a checkbox beside a glyph needs four. What makes the sharing work
 // is that the colour does not switch with the shape: iconStyle paints the kind
-// in both modes, so a ticked row still says group or repository — by hue rather
+// in all three, so a ticked row still says group or repository — by hue rather
 // than by glyph, which is the whole reason the theme grew icon roles.
+//
+// The spinner wins over the checkbox because the two cannot both be true: a row
+// held by a create or a delete is refused by the selection toggle, so a ticked
+// row is never a working one.
 func iconCell(r explorerRow) string {
+	if r.frame != "" {
+		return r.frame
+	}
 	if r.selecting {
 		return checkboxIcon(r.check)
 	}
@@ -85,6 +98,12 @@ func (m Model) rowsFor(nodes []*TreeNode) []explorerRow {
 		rows[i] = explorerRow{node: node, selecting: selecting}
 		if selecting {
 			rows[i].check = m.selection.state(node.FullPath)
+		}
+		// The frame is read here rather than in the cell for the same reason
+		// the check state is: the table holds a settled value, and the cell
+		// closes over nothing.
+		if m.busy(node.FullPath) {
+			rows[i].frame = m.jobFrame
 		}
 	}
 	return rows

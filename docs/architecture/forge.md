@@ -254,6 +254,37 @@ node type it replaced is the identity on that list. What is gained is that `.`
 now has "no sort" as a stop, so the forge's own order is reachable again after
 cycling away from it — a sort by type could never express that.
 
+## Creating and deleting — the row is the progress
+
+`N` and `D` are network calls, and the tree used to answer neither of them while
+one was in flight. A create ran `handleRefresh()` on the way out: the table was
+emptied and re-listed from scratch, so for the whole of the round trip the user
+saw a blank body and a footer with nothing in it — and then the thing they had
+asked for, with no thread connecting the two.
+
+**The row goes on screen when the request goes out.** `insertCreatingNode` puts
+a `TreeNode{Creating: true}` at the level being browsed, keyed on the path
+predicted from the parent and the slug; the spinner rides in the icon column
+(`iconCell`), where the kind glyph will be. When the forge answers,
+`settleCreating` swaps the placeholder for the real node **in place** — no
+refresh, because the forge has just said what it made and re-listing the tree to
+learn it would empty the table a second time. A failure takes the row away again
+and says so in the footer.
+
+Three things follow, and each is the reason for a piece of the shape:
+
+| | |
+|---|---|
+| The path is a **prediction** | the row needs a key before there is an answer. The forge is free to differ, so `Target` travels on the message — it is the only thing that can still find the row that was put on screen |
+| The spinner comes from the **broadcast** | this view's own chain stops on `!m.loading` (`handleSpinnerTick`), so a frame taken from it would freeze on frame zero the moment the tree settled. It is D5's argument, reached from the other side |
+| The row is **inert** while it spins | `actionable()` refuses it, `GetShortcuts` greys `D`, and pressing the key says which of the two reasons applies (Rule 130). A placeholder carries no identifier, so an action addressing one would send an empty ID |
+
+Both are `jobs` runs (`KindCreate`, `KindDelete`) rather than a local flag — see
+the jobs registry in [`app-shell.md`](app-shell.md) for why a single-item run
+still earns one. The delete keeps its row and takes the same spinner: a row that
+vanished before the answer came would be claiming something that has not
+happened yet.
+
 ## The explorer clone
 
 `C` in the explorer opens a **selection mode** over the same tree, and `enter`

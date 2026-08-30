@@ -5,9 +5,14 @@ import (
 	"github.com/anthnel/devdesk/internal/oci"
 )
 
-// DeleteCompleteMsg is sent when a delete operation completes
+// DeleteCompleteMsg is sent when a delete operation completes.
+//
+// Target is the path the run was registered under, and it is carried rather
+// than read back off DeletedNode: a transition has to name its item even when
+// the node is gone, and the two would be free to disagree.
 type DeleteCompleteMsg struct {
 	Error       error
+	Target      string
 	DeletedNode *TreeNode
 }
 
@@ -16,15 +21,23 @@ type RootGroupsLoadedMsg struct {
 	Nodes []*TreeNode
 }
 
-// GroupCreatedMsg est envoyé quand un groupe est créé
+// GroupCreatedMsg est envoyé quand un groupe est créé.
+//
+// Target is the path the placeholder row and the run were both keyed on — the
+// one this view predicted from the parent and the slug. The forge is free to
+// answer with a different path, which is why the prediction has to travel: it
+// is the only thing that can still find the row that was put on screen.
 type GroupCreatedMsg struct {
 	Namespace forge.Namespace
+	Target    string
 	Error     error
 }
 
-// ProjectCreatedMsg est envoyé quand un projet est créé
+// ProjectCreatedMsg est envoyé quand un projet est créé. See GroupCreatedMsg
+// for why Target is carried.
 type ProjectCreatedMsg struct {
 	Repository    forge.Repository
+	Target        string
 	Error         error
 	TemplateError error // Non-nil if template application failed (project still exists)
 }

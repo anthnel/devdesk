@@ -46,6 +46,12 @@ func (m Model) handleSelectionToggle() (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	// A row the forge has not confirmed cannot be cloned — there is nothing at
+	// that path yet — and refusing it here is what lets the icon column give
+	// the spinner priority over the checkbox without the two ever competing.
+	if act := m.actionable(); !act.Enabled() {
+		return m, m.footer.Warn(act.Reason)
+	}
 
 	m.selection.toggle(node.FullPath)
 	if m.selection.isRoot(node.FullPath) {
@@ -167,17 +173,26 @@ func (m Model) handleCloneRunFinished() (tea.Model, tea.Cmd) {
 
 // handleJobsChanged takes the router's snapshot.
 //
-// The clone screen is the only part of this view that reads it, and it reads
-// only its own run: the explorer lists what a forge holds, not what is being
-// done to it, so a scan running in `ws` has nothing to say to a tree of groups.
+// Two screens read it now. The clone list reads its own run, and the tree reads
+// the creates and deletes running against the rows it is showing — liveRuns is
+// what keeps a scan in `ws` from spinning a row here, rather than this handler
+// declining to keep the snapshot at all.
+//
+// It is the only writer of the two fields, and there is nothing to reconcile:
+// the snapshot replaces what was held rather than being merged into it.
 func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
+	m.jobs = msg.Runs
+	m.jobFrame = msg.Frame
 	m.footer.SetSpinnerFrame(msg.RenderedFrame)
-	if m.clone == nil {
+
+	if m.clone != nil {
+		if run, ok := cloneRunFrom(msg.Runs); ok {
+			m.clone.setRun(run, msg.Frame)
+		}
 		return m, nil
 	}
-	if run, ok := cloneRunFrom(msg.Runs); ok {
-		m.clone.setRun(run, msg.Frame)
-	}
+	// The frame moved, so the rows carrying it have to be rebuilt.
+	m.updateTableRows()
 	return m, nil
 }
 

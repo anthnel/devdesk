@@ -16,8 +16,10 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
 	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // The state machine is driven by messages: groups, children, templates and
@@ -186,4 +188,41 @@ func withTrueColor(t *testing.T) {
 // creationSubmit builds the form result the create commands read.
 func creationSubmit(name string) components.CreationFormSubmitMsg {
 	return components.CreationFormSubmitMsg{Name: name, Description: "", Visibility: "private"}
+}
+
+// startedRun returns the run a command asks the router to register, if it asks
+// for one. Creating and deleting are registry work now, so a launch site
+// returns a jobs.StartMsg rather than the API command itself.
+func startedRun(cmd tea.Cmd) (jobs.Run, bool) {
+	msg, ok := testutil.MsgOf[jobs.StartMsg](cmd)
+	if !ok {
+		return jobs.Run{}, false
+	}
+	return msg.Run, true
+}
+
+// runWork executes the work a jobs.StartMsg carries, which is what the router
+// does one step after admitting the run. It is how a test reaches the API call
+// that used to be the command itself.
+func runWork(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	msg, ok := testutil.MsgOf[jobs.StartMsg](cmd)
+	if !ok {
+		t.Fatalf("no run was registered, got %T", testutil.Msg(cmd))
+	}
+	if msg.Work == nil {
+		t.Fatal("the registered run carries no work")
+	}
+	return testutil.Msg(msg.Work(""))
+}
+
+// rowFor returns the visible row for a path, which is what a test asserting on
+// a cell needs — the node alone does not carry the decoration.
+func rowFor(m Model, path string) (explorerRow, bool) {
+	for _, row := range m.table.Visible() {
+		if row.node.FullPath == path {
+			return row, true
+		}
+	}
+	return explorerRow{}, false
 }

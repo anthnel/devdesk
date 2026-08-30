@@ -287,7 +287,7 @@ func TestCreateGroupSlugsTheName(t *testing.T) {
 	backend, _ := gitlabforge.New(server.URL, "t")
 	m := New(testConfig(), &shared.State{Forge: backend, IsAuthenticated: true})
 
-	msg, ok := testutil.MsgOf[GroupCreatedMsg](m.createGroup(creationSubmit("My New Group")))
+	msg, ok := testutil.MsgOf[GroupCreatedMsg](m.createGroup(creationSubmit("My New Group"), "my-new-group"))
 
 	if !ok {
 		t.Fatal("createGroup() produced no GroupCreatedMsg")
@@ -303,7 +303,7 @@ func TestCreateGroupSlugsTheName(t *testing.T) {
 func TestCreateGroupReportsAFailure(t *testing.T) {
 	m := serverModel(t, newFakeGitLab(t, nil))
 
-	msg, _ := testutil.MsgOf[GroupCreatedMsg](m.createGroup(creationSubmit("x")))
+	msg, _ := testutil.MsgOf[GroupCreatedMsg](m.createGroup(creationSubmit("x"), "x"))
 
 	if msg.Error == nil {
 		t.Error("createGroup() reported no error against a failing API")
@@ -316,7 +316,7 @@ func TestCreateProjectWithoutATemplate(t *testing.T) {
 	f := newFakeGitLab(t, map[string]string{"/api/v4/projects": `{"id":9,"path_with_namespace":"infra/svc"}`})
 	m := serverModel(t, f)
 
-	msg, ok := testutil.MsgOf[ProjectCreatedMsg](m.createProject(creationSubmit("svc")))
+	msg, ok := testutil.MsgOf[ProjectCreatedMsg](m.createProject(creationSubmit("svc"), "svc"))
 
 	if !ok {
 		t.Fatal("createProject() produced no ProjectCreatedMsg")
@@ -332,7 +332,7 @@ func TestCreateProjectWithoutATemplate(t *testing.T) {
 func TestCreateProjectReportsAFailure(t *testing.T) {
 	m := serverModel(t, newFakeGitLab(t, nil))
 
-	msg, _ := testutil.MsgOf[ProjectCreatedMsg](m.createProject(creationSubmit("svc")))
+	msg, _ := testutil.MsgOf[ProjectCreatedMsg](m.createProject(creationSubmit("svc"), "svc"))
 
 	if msg.Error == nil {
 		t.Error("createProject() reported no error against a failing API")

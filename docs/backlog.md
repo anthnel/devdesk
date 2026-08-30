@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-29
+**Last Updated:** 2026-08-30
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11106,6 +11106,51 @@ fixait :
   de D7, et un kind ajouté sans réponse répondrait « non » par défaut — la
   réponse prudente, donc celle que rien ne signalerait. Le test parcourt
   `Kinds()` et refuse un kind absent de la table.
+
+### 3.59 Créer et supprimer sont du travail, pas une attente — **done**
+
+`N` et `D` dans l'explorer sont des appels réseau, et l'arbre ne répondait à
+aucun des deux pendant qu'il durait. La création appelait `handleRefresh()` en
+sortant : la table se vidait et se relistait entièrement, donc pendant tout
+l'aller-retour l'utilisateur voyait un corps blanc et un footer muet — puis la
+chose demandée, sans rien qui relie les deux.
+
+**La ligne arrive à l'écran quand la requête part.** `insertCreatingNode` pose
+un `TreeNode{Creating: true}` au niveau parcouru, clé sur le chemin *prédit*
+depuis le parent et le slug ; le spinner occupe la colonne d'icône, là où sera
+le glyphe de kind. Quand la forge répond, `settleCreating` remplace le
+placeholder par le vrai nœud **sur place** — pas de refresh : la forge vient de
+dire ce qu'elle a fait, et relister l'arbre pour l'apprendre viderait la table
+une seconde fois. Un échec retire la ligne et le dit au footer.
+
+Les deux passent par le registre (`KindCreate`, `KindDelete`) plutôt que par un
+drapeau local, et **ce n'est pas parce qu'un run à un item en vaudrait la
+peine** — c'est pour trois choses qu'un drapeau ne donne pas :
+
+- la frame vient du **broadcast**. La chaîne de spinner de cette vue s'arrête
+  sur `!m.loading` (`handleSpinnerTick`), donc une frame prise dessus gèlerait
+  sur la frame zéro dès l'arbre stabilisé — c'est l'argument de D5, atteint par
+  l'autre bout ;
+- `busy()` répond depuis le registre, donc il voit le travail lancé **ailleurs** ;
+- `Run.Context` est estampillé au lancement, donc une création qui survit à un
+  changement de contexte ne recharge plus l'arbre de celui d'après. C'est la
+  famille de [D68](#11-fixed), refermée là où elle restait ouverte.
+
+Ce que le registre ne donne pas, et qu'il a fallu écrire : la ligne optimiste
+elle-même. Le registre suit le travail, il ne pose pas de nœud dans l'arbre.
+
+Trois conséquences, chacune la raison d'une pièce de la forme :
+
+| | |
+|---|---|
+| Le chemin est une **prédiction** | la ligne a besoin d'une clé avant qu'il y ait une réponse. La forge est libre d'en renvoyer une autre, donc `Target` voyage sur le message — c'est la seule chose qui puisse encore retrouver la ligne posée |
+| La ligne est **inerte** tant qu'elle tourne | `actionable()` la refuse, `GetShortcuts` grise `D`, et la touche pressée dit laquelle des deux raisons s'applique (Rule 130). Un placeholder ne porte pas d'identifiant, donc une action le visant enverrait un ID vide |
+| L'échec va au **footer**, pas à `m.error` | `m.error` remplace l'arbre par un écran d'erreur — le seul endroit d'où la disparition de la ligne ne se voit pas (Rule 128) |
+
+`KindCreate` répond `false` à `Cancellable()` : une requête déjà partie ne se
+dé-envoie pas, et un projet dont le template est à moitié appliqué est un état
+que la forge détient. Le test qui parcourt `Kinds()` a refusé le kind tant que
+la table D7 ne l'avait pas.
 
 ## 4. Existing plans
 

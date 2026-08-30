@@ -152,7 +152,7 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Runs",
 				Body: "State (first, untitled): a spinner while the run is queued or going, " +
 					theme.IconOK + " done, " + theme.IconError + " failed, " + theme.IconCanceled + " cancelled.\n" +
-					"Kind: what the run does — scan, sync, clone, pull, delete.\n" +
+					"Kind: what the run does — scan, sync, clone, pull, create, delete.\n" +
 					"Label: what the batch was launched on — the directory, the registry, the repository.\n" +
 					"Progress: targets settled over targets held. A target that was skipped or that failed has settled: progress reports on what is left to wait for, not on what succeeded.\n" +
 					"State: queued, running, done, failed or cancelled. A run is failed as soon as one of its targets is, and cancelled beats failed — a run stopped on purpose reads cancelled even though its targets failed because of it.\n" +
