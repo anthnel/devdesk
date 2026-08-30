@@ -7,3 +7,7 @@ avant de passer à l'implémentation, comme il y a un appel réseau et donc que 
 ---
 
 oui continue
+
+---
+
+le dashboard m'affiche 3 crit pour les workspaces mais je ne les vois pas ni dans ws ni dans sec
