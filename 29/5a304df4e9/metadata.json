@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "295a304df4e9",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 12,
+  "files_touched": [
+    ".gitignore",
+    "LICENCE",
+    "project-context.md",
+    "themes/catppuccin-frappe.json",
+    "themes/catppuccin-latte.json",
+    "themes/catppuccin-macchiato.json",
+    "themes/catppuccin-mocha.json",
+    "themes/one-dark.json",
+    "themes/tokyo-night.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/29/5a304df4e9/0/metadata.json",
+      "transcript": "/29/5a304df4e9/0/full.jsonl",
+      "compact_transcript": "/29/5a304df4e9/0/transcript.jsonl",
+      "content_hash": "/29/5a304df4e9/0/content_hash.txt",
+      "prompt": "/29/5a304df4e9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 98,
+    "cache_creation_tokens": 170768,
+    "cache_read_tokens": 6182090,
+    "output_tokens": 28471,
+    "api_call_count": 49
+  }
+}

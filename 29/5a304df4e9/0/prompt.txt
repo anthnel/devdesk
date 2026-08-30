@@ -1,0 +1,41 @@
+mise est dispo .
+
+---
+
+est-ce que mise est dispo
+
+---
+
+qu'est-ce qu'il reste dans le backlog
+
+---
+
+est-ce que tu utilises .entire\graph-agent.md
+
+---
+
+regarde mes @themes
+
+---
+
+j'ai ajouté des icones et des couleurs, est-ce que tous les themes sont à jour
+
+---
+
+regarde le theme par défaut dans le code go
+
+---
+
+non c'est bon, par contre dans la vue sec, l'icone des image oci en première colonne utilise une teinte orange, les autres vues ws, ge, utilise primary et secondary color
+
+---
+
+aligne
+
+---
+
+parcours les fichiers themes pour voir si des nuances de couleurs n'ont pas été oubliées
+
+---
+
+corrige 1 et 2
