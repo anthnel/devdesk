@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "2dd78fd206b4",
+  "strategy": "manual-commit",
+  "branch": "docs/sandbox-dev-host-test",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/2d/d78fd206b4/0/metadata.json",
+      "transcript": "/2d/d78fd206b4/0/full.jsonl",
+      "compact_transcript": "/2d/d78fd206b4/0/transcript.jsonl",
+      "content_hash": "/2d/d78fd206b4/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 34,
+    "cache_creation_tokens": 206660,
+    "cache_read_tokens": 2627017,
+    "output_tokens": 10518,
+    "api_call_count": 17
+  }
+}
