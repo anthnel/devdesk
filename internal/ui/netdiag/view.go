@@ -71,18 +71,11 @@ func (m *Model) renderTextInputField(label string, input textinput.Model, fieldI
 	return theme.KeyStyle.Render(prefix+label+" "+theme.IconChevronRight+" ") + input.View()
 }
 
-// renderChecks draws the results table. The empty message is conditional on the
-// run being over, or the table announces the absence of what it is fetching
-// (Rule 139).
+// renderChecks draws the results table. An empty table — the run produced
+// none, or the "problems" filter hid every one because they all passed —
+// stays a table (Rule 139): its header and no rows. The Verdict header field
+// already answers "did everything pass?" once there is a run to summarise.
 func (m *Model) renderChecks() string {
-	if m.state == StateResults && len(m.checksTable.Visible()) == 0 {
-		if m.filterBar.IsTokenActive(problemsToken) && len(m.results.All()) > 0 {
-			return theme.DimStyle.Render("Nothing to report — every check came back clean")
-		}
-		if !m.filterBar.IsVisible() {
-			return theme.DimStyle.Render("No checks")
-		}
-	}
 	return m.checksTable.View()
 }
 

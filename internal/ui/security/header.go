@@ -5,7 +5,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -93,9 +92,7 @@ func (m Model) inventoryShortcuts() shortcut.Shortcuts {
 func (m Model) GetTitle() string {
 	base := theme.IconSecurity + " Security Scanner"
 	if m.state == StateInventory {
-		// The context is named because the caches are scoped to one: two
-		// contexts hold different inventories, and their rows look identical.
-		return base + " " + theme.IconChevronRight + " Inventory · " + config.CurrentContextName()
+		return base + " " + theme.IconChevronRight + " Inventory"
 	}
 	// The label, not the key: the title is the one place the target is read
 	// rather than used, and a registry prefix is what pushes the image's own

@@ -110,6 +110,9 @@ func (m Model) formStatus() sharedcomponents.Status {
 			return sharedcomponents.Status{Text: text, Spinner: true}
 		}
 	}
+	if m.networkInspectForm != nil && m.networkInspectForm.loading {
+		return sharedcomponents.Status{Text: "Loading containers...", Spinner: true}
+	}
 	return sharedcomponents.Status{}
 }
 
@@ -193,6 +196,16 @@ func (m Model) GetIcon() string {
 
 // GetHeaderInfo returns the key-value info for the header
 func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
+	if m.registryBrowser != nil && m.registryBrowser.state == browserStateTags {
+		return []shortcut.HeaderInfo{
+			{Key: "Tags", Value: fmt.Sprintf("%d", len(m.registryBrowser.tagTable.Items())), Style: theme.HeaderValueStyle},
+		}
+	}
+	if m.networkInspectForm != nil {
+		return []shortcut.HeaderInfo{
+			{Key: "Containers", Value: fmt.Sprintf("%d", len(m.networkInspectForm.containers)), Style: theme.HeaderValueStyle},
+		}
+	}
 	switch m.activeTab {
 	case tabNetworks:
 		return []shortcut.HeaderInfo{
@@ -436,13 +449,9 @@ func (m Model) renderNormalView() string {
 	}
 }
 
-// renderRegistriesView renders the registries table
+// renderRegistriesView renders the registries table. An empty table stays a
+// table (Rule 139) — the count lives in GetHeaderInfo's "Registries" field.
 func (m Model) renderRegistriesView() string {
-	if len(m.registries) == 0 {
-		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
-			theme.DimStyle.Render("No registries configured — press 'n' to add one"),
-		)
-	}
 	return m.registryTable.View()
 }
 
@@ -450,37 +459,20 @@ func (m Model) renderRegistriesView() string {
 //
 // The load says so in the footer, with a spinner, and the table stays on
 // screen: a body that swapped itself for a spinner lost its header and its
-// columns for the length of every refresh. The empty state is therefore
-// conditional on the load being over, or the tab would announce the absence of
-// what it is in the middle of fetching.
+// columns for the length of every refresh. An empty table — loaded and
+// genuinely empty, or filtered down to nothing — stays a table too (Rule 139):
+// its header and no rows, with the count in GetHeaderInfo's "Images" field.
 func (m Model) renderImagesView() string {
-	if _, loading := m.loadingLabel(); loading {
-		return m.imageTable.View()
-	}
-	if len(m.imageTable.Visible()) == 0 && !m.imageTable.FilterBar().IsVisible() {
-		return theme.DimStyle.Render("No images found")
-	}
-	// Always render the table when a filter is active so the filter bar stays at the bottom
 	return m.imageTable.View()
 }
 
-// renderNetworksView renders the networks table
+// renderNetworksView renders the networks table (Rule 139: no body message).
 func (m Model) renderNetworksView() string {
-	if _, loading := m.loadingLabel(); !loading && len(m.networkTable.Items()) == 0 {
-		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
-			theme.DimStyle.Render("No networks found"),
-		)
-	}
 	return m.networkTable.View()
 }
 
-// renderVolumesView renders the volumes table
+// renderVolumesView renders the volumes table (Rule 139: no body message).
 func (m Model) renderVolumesView() string {
-	if _, loading := m.loadingLabel(); !loading && len(m.volumeTable.Items()) == 0 {
-		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1).Render(
-			theme.DimStyle.Render("No volumes found"),
-		)
-	}
 	return m.volumeTable.View()
 }
 

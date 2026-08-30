@@ -508,28 +508,15 @@ func (pm *PortsModel) killSelected() (*PortsModel, tea.Cmd) {
 	return pm, tea.Batch(killProcessCmd(entry.PID), portsSpinnerCmd())
 }
 
+// view renders the table. An empty table stays a table (Rule 139) — its
+// header and no rows — whether it is genuinely empty, filtered down to
+// nothing, still loading, or stale: those are a footer status (statusLine) and
+// a header count, never body text.
 func (pm *PortsModel) view() string {
-	w := max(pm.width-2, 30)
-	var lines []string
+	return pm.table.View()
+}
 
-	// Table or empty state. When a filter is active, always render the table —
-	// an empty result with no explanation reads as "no ports" rather than as
-	// "your filter matched none".
-	if len(pm.table.Visible()) == 0 && !pm.table.FilterBar().IsVisible() {
-		lines = append(lines, theme.EmptyLineBg(w))
-		msg := "No active ports found"
-		switch {
-		case pm.stale:
-			// The status line already dates the failure; the body must not
-			// claim the host has no open ports when nothing could be read.
-			msg = "No ports could be read"
-		case pm.table.Items() == nil:
-			msg = "Loading ports..."
-		}
-		lines = append(lines, theme.PadWithBg(theme.Bg("  ")+theme.DimStyle.Render(msg), w))
-	} else {
-		lines = append(lines, pm.table.View())
-	}
-
-	return strings.Join(lines, "\n")
+// summaryLine counts what is on screen, for the header (Rule 139).
+func (pm *PortsModel) summaryLine() string {
+	return fmt.Sprintf("%d", len(pm.table.Items()))
 }

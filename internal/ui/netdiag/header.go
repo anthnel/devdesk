@@ -128,6 +128,13 @@ func (m *Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 			Style: theme.HeaderValueStyle,
 		})
 	}
+	if m.activeTab == tabPorts {
+		return append(info, shortcut.HeaderInfo{
+			Key:   "Ports",
+			Value: m.portsModel.summaryLine(),
+			Style: theme.HeaderValueStyle,
+		})
+	}
 	if m.activeTab != tabDiagnostics || m.state == StateInput {
 		return info
 	}

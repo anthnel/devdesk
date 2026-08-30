@@ -172,31 +172,11 @@ func (m Model) View() string {
 // The load says so in the footer, with a spinner, and the table stays on
 // screen: a body that swapped itself for a spinner lost its header and its
 // columns for the length of every ctrl+r, then got them back — a jump in the
-// layout on every refresh.
-//
-// "No containers found" is therefore conditional on the load being over, or the
-// table would announce the absence of what it is in the middle of fetching.
+// layout on every refresh. An empty table — Docker has none, or the state
+// tokens hide them all — stays a table too (Rule 139): its header and no rows,
+// with the count in GetHeaderInfo's "Containers" field.
 func (m Model) renderNormalView() string {
-	loading := m.loading && len(m.containerTable.Items()) == 0
-	if !loading && len(m.containerTable.Visible()) == 0 {
-		return theme.DimStyle.Render(m.emptyLabel())
-	}
 	return m.containerTable.View()
-}
-
-// emptyLabel separates "docker has none" from "the filter hides them all".
-//
-// The check on the filter bar's visibility used to stand for the second, and
-// stopped meaning anything the day the view opened with a token on: the bar is
-// visible from the first frame, so an empty table would have rendered nothing
-// at all. What answers the question is whether the list holds rows the filter
-// is keeping off screen — and it is exactly on a machine whose containers are
-// all stopped that the user needs telling which of the two they are looking at.
-func (m Model) emptyLabel() string {
-	if len(m.containerTable.Items()) > 0 {
-		return "No containers match the current filter"
-	}
-	return "No containers found"
 }
 
 // GetHelpContent returns help content for the containers view (Rule 114)

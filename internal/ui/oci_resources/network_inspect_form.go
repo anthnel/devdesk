@@ -94,22 +94,12 @@ func (f *NetworkInspectForm) resize(width, height int) {
 	f.table.Resize(width+2, max(height-viewportOverhead, 3))
 }
 
-// View renders the network inspect form in the viewport (Rule 112).
+// View renders the network inspect form in the viewport (Rule 112). An empty
+// table stays a table (Rule 139) — its header and no rows — whether it is
+// still loading or genuinely has no connected containers; the count belongs
+// in the header (GetHeaderInfo's "Containers" field), not the body.
 func (f *NetworkInspectForm) View() string {
 	w := f.width
-	lines := []string{theme.EmptyLineBg(w)} // Rule 131: top padding
-
-	if f.loading {
-		lines = append(lines,
-			theme.PadWithBg(theme.DimStyle.Render("  Loading containers..."), w),
-		)
-	} else if len(f.containers) == 0 {
-		lines = append(lines,
-			theme.PadWithBg(theme.DimStyle.Render("  No containers connected to this network."), w),
-		)
-	} else {
-		lines = append(lines, f.table.View())
-	}
-
+	lines := []string{theme.EmptyLineBg(w), f.table.View()} // Rule 131: top padding
 	return strings.Join(lines, "\n")
 }

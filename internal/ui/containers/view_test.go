@@ -187,20 +187,25 @@ func TestTheLoadIsReportedInTheFooterOnlyBeforeTheFirstList(t *testing.T) {
 	}
 }
 
-// A table in the middle of fetching must not announce that it found nothing.
+// Rule 139: an empty table stays a table (header, no rows) whether it is
+// still loading, genuinely empty, or filtered down to nothing — the count
+// lives in GetHeaderInfo's "Containers" field, never in the body.
 func TestTheEmptyStateWaitsForTheLoadToFinish(t *testing.T) {
 	m := newTestModel(t) // loading, no containers yet
 
-	if strings.Contains(m.View(), "No containers found") {
-		t.Error("the body says the list is empty while it is still loading")
+	if view, table := m.View(), m.containerTable.View(); view != table {
+		t.Errorf("the body while loading is %q, want the plain table view", view)
 	}
 }
 
 func TestViewShowsTheEmptyState(t *testing.T) {
 	m := feed(t, newTestModel(t), ContainersListMsg{Containers: nil})
 
-	if !strings.Contains(m.View(), "No containers found") {
-		t.Error("View() does not report an empty list")
+	if view, table := m.View(), m.containerTable.View(); view != table {
+		t.Errorf("View() = %q, want the plain table view", view)
+	}
+	if info := m.GetHeaderInfo(""); len(info) == 0 || info[0].Value != "0" {
+		t.Errorf("GetHeaderInfo() = %+v, want Containers = 0", info)
 	}
 }
 
@@ -210,8 +215,8 @@ func TestViewKeepsTheTableWhenAFilterMatchesNothing(t *testing.T) {
 	m := feed(t, loadedModel(t), testutil.Key("/"))
 	m = feed(t, m, testutil.Type("nomatch")...)
 
-	if strings.Contains(m.View(), "No containers found") {
-		t.Error("View() replaced the table with the empty state while a filter was active")
+	if view, table := m.View(), m.containerTable.View(); view != table {
+		t.Errorf("View() = %q, want the plain table view while a filter was active", view)
 	}
 }
 

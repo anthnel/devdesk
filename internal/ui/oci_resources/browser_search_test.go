@@ -813,15 +813,19 @@ func TestATagWithNoAliasIsLabelledByItsRegistry(t *testing.T) {
 	}
 }
 
-// A search that matched nothing has to say so, rather than showing an empty
-// table that looks like it is still loading.
+// A search that matched nothing stays a table (Rule 139) — its header and no
+// rows — with the count named in GetHeaderInfo rather than in the body.
 func TestAnEmptyResultSaysSo(t *testing.T) {
 	m := browsingModel(t)
 	b := m.registryBrowser
 	b.state = browserStateTags
 
-	if !strings.Contains(b.View(), "No tags found") {
-		t.Error("an empty result screen does not say it is empty")
+	if b.View() != b.tagTable.View() {
+		t.Errorf("an empty result renders %q, want the plain table view", b.View())
+	}
+	info := m.GetHeaderInfo("")
+	if len(info) != 1 || info[0].Key != "Tags" || info[0].Value != "0" {
+		t.Errorf("GetHeaderInfo() = %+v, want Tags = 0", info)
 	}
 
 	// The search says so in the footer, never in the body: the tag table keeps
@@ -832,9 +836,6 @@ func TestAnEmptyResultSaysSo(t *testing.T) {
 	}
 	if label, ok := b.LoadingLabel(); !ok || !strings.Contains(label, "Searching registries") {
 		t.Errorf("LoadingLabel() = %q, %v; want the footer to be told about the search", label, ok)
-	}
-	if strings.Contains(b.View(), "No tags found") {
-		t.Error("the body says there are no tags while a search is in flight")
 	}
 }
 

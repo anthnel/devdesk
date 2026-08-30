@@ -352,13 +352,11 @@ func (im *InterfacesModel) staleLabel() string {
 	return "The network interfaces could not be read — interfaces as of " + theme.TimeAgo(im.lastOK)
 }
 
-// view renders the table. The body is never replaced by a spinner (Rule 139):
-// the table keeps its header and its columns while it refreshes, and the load
-// is a footer status.
+// view renders the table. The body is never replaced by a spinner or a message
+// (Rule 139): the table keeps its header and its columns while it refreshes or
+// when it is empty, and the load and the row count are a footer status and a
+// header field (summaryLine) respectively.
 func (im *InterfacesModel) view() string {
-	if len(im.table.Visible()) == 0 && !im.loading && !im.table.FilterBar().IsVisible() {
-		return theme.DimStyle.Render("No network interfaces found")
-	}
 	return im.table.View()
 }
 

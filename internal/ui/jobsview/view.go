@@ -119,36 +119,15 @@ func (m Model) status() sharedcomponents.Status {
 // View renders the table of the level on screen.
 //
 // There is no loading branch: this view fetches nothing, so it is never between
-// a request and an answer. What it can be is empty, and the two emptinesses are
-// told apart — a session that has run nothing, and a filter that is hiding what
-// it has.
+// a request and an answer. A table with nothing to show still renders its
+// header and no rows (datatable.View() does this on its own) — the count that
+// says why (zero runs, or a filter matching none of them) lives in the header
+// (GetHeaderInfo), not in the body.
 func (m Model) View() string {
 	if m.level == levelItems {
-		if len(m.itemTable.Visible()) == 0 {
-			return theme.DimStyle.Render(emptyLabel(len(m.itemTable.Items()), "target"))
-		}
 		return m.itemTable.View()
 	}
-	if len(m.runTable.Visible()) == 0 {
-		return theme.DimStyle.Render(emptyLabel(len(m.runTable.Items()), "job"))
-	}
 	return m.runTable.View()
-}
-
-// emptyLabel separates "there are none" from "the filter hides them all".
-//
-// The check is on the rows the filter is keeping off screen, not on whether the
-// bar is visible: the bar can be up with an empty query, and on a session that
-// has genuinely run nothing the reader needs to be told which of the two they
-// are looking at.
-func emptyLabel(total int, noun string) string {
-	if total > 0 {
-		return "No " + noun + " matches the current filter"
-	}
-	if noun == "job" {
-		return "Nothing has run in this context yet"
-	}
-	return "This run has no targets"
 }
 
 // GetHelpContent returns the help for `?` (Rule 114).

@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -388,11 +389,17 @@ func TestTheInventoryGreysWhatTheSelectedRowCannotDo(t *testing.T) {
 
 // The caches are per context, so two contexts hold different inventories whose
 // rows look identical. The title is what tells them apart.
-func TestTheInventoryTitleNamesItsContext(t *testing.T) {
-	title := inventoryModel(t).GetTitle()
+// The context is named once, in the header (GetHeaderInfo) — the title must
+// not repeat it.
+func TestTheInventoryTitleDoesNotRepeatTheContext(t *testing.T) {
+	m := inventoryModel(t)
+	title := m.GetTitle()
 
-	if !strings.Contains(title, "Inventory") || !strings.Contains(title, "default") {
-		t.Errorf("GetTitle() = %q, want the inventory and its context named", title)
+	if !strings.Contains(title, "Inventory") {
+		t.Errorf("GetTitle() = %q, want the inventory named", title)
+	}
+	if strings.Contains(title, config.CurrentContextName()) {
+		t.Errorf("GetTitle() = %q, the context is already shown in the header", title)
 	}
 }
 

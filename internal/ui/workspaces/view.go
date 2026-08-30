@@ -3,6 +3,7 @@ package workspaces
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,13 +74,6 @@ func (m Model) View() string {
 	if m.error != "" {
 		errorStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError)
 		return contentStyle.Render(errorStyle.Render(theme.IconError + " Error: " + m.error))
-	}
-
-	if len(m.table.Items()) == 0 {
-		if m.currentPath == "" {
-			return contentStyle.Render(theme.HelpStyle.Render("\nNo workspaces found\n"))
-		}
-		return contentStyle.Render(theme.HelpStyle.Render("\nEmpty directory\n"))
 	}
 
 	return m.renderTable()
@@ -492,10 +486,18 @@ func (m Model) GetIcon() string {
 	return ""
 }
 
-// GetHeaderInfo returns the key-value info for the header
+// GetHeaderInfo returns the key-value info for the header: the context, the
+// browsed directory, and the row count — what an empty table used to say in
+// its own body (Rule 139) lives here instead.
 func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
+	dir := "~"
+	if m.currentPath != "" {
+		dir = pathBaseName(m.currentPath)
+	}
 	return []shortcut.HeaderInfo{
 		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},
+		{Key: "Directory", Value: dir, Style: theme.HeaderValueStyle},
+		{Key: "Items", Value: strconv.Itoa(len(m.table.Items())), Style: theme.HeaderValueStyle},
 	}
 }
 
