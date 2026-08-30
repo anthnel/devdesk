@@ -179,6 +179,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MultiRegistryTagsMetaMsg:
 		return m.handleMultiRegistryTagsMeta(msg)
 
+	case RegistryPullRequestedMsg:
+		return m.handleRegistryPullRequested(msg)
+
+	case RegistryPullStartingMsg:
+		// No handler of its own: the row is already spinning once the router
+		// has recorded the transition and rebuilt the table (same reasoning
+		// as handleImageScanStarting).
+		return m, nil
+
 	case RegistryPullCompleteMsg:
 		return m.handleRegistryPullComplete(msg)
 

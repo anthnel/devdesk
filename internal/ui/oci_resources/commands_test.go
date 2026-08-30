@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // The commands are thin: they call into internal/docker or internal/cache and
@@ -114,7 +115,23 @@ func TestPruneImagesCarriesTheReclaimReport(t *testing.T) {
 func TestPullReportsTheImageItWasAskedFor(t *testing.T) {
 	installFakeDocker(t, fakeScript{})
 
-	msg := run(t, pullRegistryImageCmd("registry.example.com/api:v1")).(RegistryPullCompleteMsg)
+	msgs := testutil.Msgs(pullOneImageCmd("registry.example.com/api:v1"))
+	if len(msgs) != 2 {
+		t.Fatalf("got %d messages, want a start and a finish", len(msgs))
+	}
+	start, ok := msgs[0].(RegistryPullStartingMsg)
+	if !ok || start.ImageName != "registry.example.com/api:v1" {
+		t.Fatalf("msgs[0] = %#v, want the pull announcing itself first", msgs[0])
+	}
+	// Without it `:jobs` offers K on the row — KindPull answers true to
+	// Cancellable — and cancelling would silently do nothing.
+	if start.Cancel == nil {
+		t.Error("the pull started with no cancel, so K could not stop it")
+	}
+	msg, ok := msgs[1].(RegistryPullCompleteMsg)
+	if !ok {
+		t.Fatalf("msgs[1] = %#v, want RegistryPullCompleteMsg", msgs[1])
+	}
 
 	if msg.ImageName != "registry.example.com/api:v1" {
 		t.Errorf("ImageName = %q, want the reference that was pulled", msg.ImageName)
@@ -129,7 +146,11 @@ func TestPullCarriesTheFailure(t *testing.T) {
 		"docker pull": {Stderr: "manifest unknown", Exit: 1},
 	})
 
-	msg := run(t, pullRegistryImageCmd("registry.example.com/api:nope")).(RegistryPullCompleteMsg)
+	msgs := testutil.Msgs(pullOneImageCmd("registry.example.com/api:nope"))
+	msg, ok := msgs[len(msgs)-1].(RegistryPullCompleteMsg)
+	if !ok {
+		t.Fatalf("last message = %#v, want RegistryPullCompleteMsg", msgs[len(msgs)-1])
+	}
 
 	if msg.Err == nil {
 		t.Fatal("a failed pull was reported as a success")

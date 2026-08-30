@@ -70,6 +70,15 @@ func (m Model) handleMultiRegistryTagsMeta(msg MultiRegistryTagsMetaMsg) (tea.Mo
 	return m, nil
 }
 
+// handleRegistryPullRequested admits a browser pull as a job, mirroring
+// handleRegistryTagDirectScan below.
+func (m Model) handleRegistryPullRequested(msg RegistryPullRequestedMsg) (tea.Model, tea.Cmd) {
+	if m.pullingImage(msg.ImageName) {
+		return m, m.footer.Warn("Pull already in progress")
+	}
+	return m, jobs.Start(m.pullRun(msg.ImageName), pullOneImageCmd(msg.ImageName))
+}
+
 // handleRegistryPullComplete processes the result of a pull from the browser.
 func (m Model) handleRegistryPullComplete(msg RegistryPullCompleteMsg) (tea.Model, tea.Cmd) {
 	if m.registryBrowser == nil {

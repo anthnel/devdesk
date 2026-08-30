@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"context"
 	"strconv"
 	"strings"
 )
@@ -225,10 +226,19 @@ func PruneImages() (string, error) {
 
 // PullImage pulls a Docker image from a registry.
 func PullImage(imageName string) error {
+	return PullImageContext(context.Background(), imageName)
+}
+
+// PullImageContext pulls a Docker image, stopping when ctx is cancelled.
+//
+// It is the one mutating call in this package that takes a context: a pull is
+// the only one long enough for `K` to be offered on it, and cutting it leaves
+// nothing behind — Docker resumes a pull by layer (jobs.KindPull.Cancellable).
+func PullImageContext(ctx context.Context, imageName string) error {
 	if err := requireDocker(); err != nil {
 		return err
 	}
-	return mutate("docker pull", "pull", imageName)
+	return mutateContext(ctx, "docker pull", "pull", imageName)
 }
 
 // GetImageExposedPorts returns the container port specs declared by EXPOSE in an image.

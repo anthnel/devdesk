@@ -113,6 +113,9 @@ func (b *RegistryBrowser) registryFilterLabel() string {
 	return b.registryFilter.entryKey
 }
 
+// pullSelectedTag opens the browser's own status screen — its local loading
+// state, not the job — and asks the parent to admit the pull as one
+// (RegistryPullRequestedMsg), mirroring requestDirectScan below.
 func (b *RegistryBrowser) pullSelectedTag() (*RegistryBrowser, tea.Cmd) {
 	name := b.selectedImageName()
 	if name == "" {
@@ -123,7 +126,7 @@ func (b *RegistryBrowser) pullSelectedTag() (*RegistryBrowser, tea.Cmd) {
 	b.state = browserStateStatus
 	return b, tea.Batch(
 		b.spinner.Tick,
-		pullRegistryImageCmd(name),
+		func() tea.Msg { return RegistryPullRequestedMsg{ImageName: name} },
 	)
 }
 

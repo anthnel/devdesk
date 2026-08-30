@@ -278,6 +278,23 @@ type RegistryPullCompleteMsg struct {
 	Err       error
 }
 
+// RegistryPullRequestedMsg asks the parent model to launch a pull as a job.
+// The browser emits this instead of calling docker.PullImage itself, so the
+// pull is admitted through jobs.Start like the direct scan already is.
+type RegistryPullRequestedMsg struct{ ImageName string }
+
+// RegistryPullStartingMsg signals that a pull has been admitted and is running.
+type RegistryPullStartingMsg struct {
+	ImageName string
+
+	// Cancel stops the pull, and is what makes `K` on this row mean anything
+	// (D7) — cutting one leaves nothing behind, Docker resuming a pull by
+	// layer. It rides on the starting message for the same reason the scan's
+	// does: the context is created inside the Cmd, and the registry stores it
+	// in the same Update that marks the item running.
+	Cancel context.CancelFunc
+}
+
 // RegistryTagDirectScanMsg requests a direct remote scan of a registry image tag (no pull).
 type RegistryTagDirectScanMsg struct {
 	ImageName string
@@ -364,7 +381,15 @@ func New(cfg *config.Config) Model {
 	it := datatable.New(datatable.Config[imageRow]{
 		Columns:    imageColumns(),
 		SortColumn: imageColumnName,
-		Key:        func(r imageRow) string { return r.Image.ID },
+		// A pulling placeholder row carries no Image yet, so its ID is empty —
+		// falling back to the name keeps two concurrent pulls from colliding
+		// on the same key.
+		Key: func(r imageRow) string {
+			if r.Image.ID == "" {
+				return "pull:" + r.RawName
+			}
+			return r.Image.ID
+		},
 		// The ID cell, not a column of its own. §3.16 settled that argument for
 		// the clone checkbox: a column costs cells on every screen to say
 		// nothing on all but one row, and at 80 columns this view has none to

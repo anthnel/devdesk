@@ -25,13 +25,17 @@ import (
 // the sort honest: the C column orders by the same number it prints, where the
 // old comparator looked the entry up a second time.
 type imageRow struct {
-	Image        docker.Image
-	DisplayName  string
-	RawName      string
-	Entry        cache.ImageScanEntry
-	Scanned      bool
-	Scanning     bool
-	Failed       bool
+	Image       docker.Image
+	DisplayName string
+	RawName     string
+	Entry       cache.ImageScanEntry
+	Scanned     bool
+	Scanning    bool
+	Failed      bool
+	// Pulling is true for the duration of a docker pull, whether the image
+	// was already local (an existing row spins) or not (a placeholder row is
+	// synthesized — Image stays zero-valued until fetchImages() replaces it).
+	Pulling      bool
 	SpinnerFrame string
 }
 
@@ -108,7 +112,20 @@ func imageColumns() []datatable.Column[imageRow] {
 	return []datatable.Column[imageRow]{
 		{
 			Title: "ID", Sizing: datatable.SizingFixed, MinWidth: 14,
-			Cell: func(r imageRow) string { return shortID(r.Image.ID) },
+			Cell: func(r imageRow) string {
+				if r.Pulling {
+					return r.SpinnerFrame + " pulling"
+				}
+				return shortID(r.Image.ID)
+			},
+			Style: func(r imageRow) lipgloss.Style {
+				if r.Pulling {
+					// In progress, no verdict yet — same treatment scannedStyle
+					// gives Scanning.
+					return theme.DimStyle
+				}
+				return lipgloss.NewStyle()
+			},
 		},
 		{
 			Title: "Name", Sizing: datatable.SizingContent,
@@ -149,7 +166,8 @@ func imageColumns() []datatable.Column[imageRow] {
 	}
 }
 
-// imageRows decorates the image list with the scan state the table shows.
+// imageRows decorates the image list with the scan state the table shows,
+// plus a placeholder row for any pull in flight whose image is not local yet.
 func (m *Model) imageRows() []imageRow {
 	aliases := registryalias.From(m.registries)
 	// The scan frame comes from the registry, which holds the one chain that
@@ -157,10 +175,13 @@ func (m *Model) imageRows() []imageRow {
 	// loading — a load is not a job.
 	frame := m.jobFrame
 	scanning := m.scanningNames()
+	pulling := m.pullingNames()
 
+	seen := make(map[string]bool, len(m.images))
 	rows := make([]imageRow, 0, len(m.images))
 	for _, img := range m.images {
 		raw := img.Name()
+		seen[raw] = true
 		entry, scanned := m.scanCache[raw]
 		rows = append(rows, imageRow{
 			Image:        img,
@@ -170,6 +191,21 @@ func (m *Model) imageRows() []imageRow {
 			Scanned:      scanned,
 			Scanning:     scanning[raw],
 			Failed:       m.failedScans[raw],
+			Pulling:      pulling[raw],
+			SpinnerFrame: frame,
+		})
+	}
+	// An image pulled for the first time has no local row to spin yet — this
+	// is the common case when pulling from the registry browser, so it gets
+	// a placeholder rather than staying invisible until the pull completes.
+	for name := range pulling {
+		if seen[name] {
+			continue
+		}
+		rows = append(rows, imageRow{
+			DisplayName:  docker.ApplyAliases(name, aliases),
+			RawName:      name,
+			Pulling:      true,
 			SpinnerFrame: frame,
 		})
 	}

@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -19,6 +20,11 @@ type dockerCmd struct {
 	Combined bool
 	// Helper runs `docker-credential-<Helper>` instead of `docker`.
 	Helper string
+	// Ctx kills the process when it is cancelled. Nil for the invocations
+	// nobody can stop — which is all of them but the pull, the one long call
+	// this package makes that `K` is offered on (jobs.KindPull.Cancellable).
+	// A nil Ctx builds exactly the command it built before.
+	Ctx context.Context
 }
 
 // dockerRunner is the seam every CLI invocation in this package passes through.
@@ -56,6 +62,9 @@ func (cliRunner) Run(dc dockerCmd) ([]byte, error) {
 		name = "docker-credential-" + dc.Helper
 	}
 	cmd := exec.Command(name, dc.Args...) //nolint:gosec // helper name comes from ~/.docker/config.json
+	if dc.Ctx != nil {
+		cmd = exec.CommandContext(dc.Ctx, name, dc.Args...) //nolint:gosec // same argument as above
+	}
 	if dc.Stdin != "" {
 		cmd.Stdin = strings.NewReader(dc.Stdin)
 	}
@@ -103,8 +112,23 @@ func errWithOutput(label string, output []byte) error {
 
 // mutate runs a docker subcommand whose output only matters on failure, and
 // wraps that output in an error prefixed with label (e.g. "docker stop failed").
+//
+// It leaves Ctx at its zero value: nothing stops these, which is D7's answer
+// for every mutating call but the pull.
 func mutate(label string, args ...string) error {
-	output, err := dockerCombined(args...)
+	output, err := runner.Run(dockerCmd{Args: args, Combined: true})
+	return mutationError(label, output, err)
+}
+
+// mutateContext is mutate for the one call that can be stopped.
+func mutateContext(ctx context.Context, label string, args ...string) error {
+	output, err := runner.Run(dockerCmd{Args: args, Combined: true, Ctx: ctx})
+	return mutationError(label, output, err)
+}
+
+// mutationError turns a captured invocation into the error both mutators
+// report, using Docker's own diagnostic.
+func mutationError(label string, output []byte, err error) error {
 	if err != nil {
 		return fmt.Errorf("%s failed: %s", label, strings.TrimSpace(string(output)))
 	}

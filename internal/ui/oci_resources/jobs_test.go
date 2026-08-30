@@ -71,3 +71,36 @@ func wantScanRun(t *testing.T, cmd tea.Cmd) jobs.Run {
 	}
 	return run
 }
+
+// pullingRun builds a pull run with every image already running.
+func pullingRun(names ...string) jobs.Run {
+	run := jobs.NewRun(jobs.KindPull, command.ViewOCIResources, "default", "images", names...)
+	for i := range run.Items {
+		run.Items[i].State = jobs.ItemRunning
+	}
+	return run
+}
+
+// pulling puts the given images' pulls in flight.
+func pulling(t *testing.T, m Model, names ...string) Model {
+	t.Helper()
+	return withJobs(t, m, pullingRun(names...))
+}
+
+// startedPullRun is startedScanRun's counterpart for pull.
+func startedPullRun(cmd tea.Cmd) (jobs.Run, bool) {
+	msg, ok := testutil.MsgOf[jobs.StartMsg](cmd)
+	if !ok {
+		return jobs.Run{}, false
+	}
+	return msg.Run, true
+}
+
+// settledPullRun is the same run with every image finished.
+func settledPullRun(names ...string) jobs.Run {
+	run := jobs.NewRun(jobs.KindPull, command.ViewOCIResources, "default", "images", names...)
+	for i := range run.Items {
+		run.Items[i].State = jobs.ItemDone
+	}
+	return run
+}
