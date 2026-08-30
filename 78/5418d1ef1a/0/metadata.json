@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.10.2",
+  "checkpoint_id": "785418d1ef1a",
+  "session_id": "c7239d08-cc4a-4a66-89c5-35316eb3ca96",
+  "strategy": "manual-commit",
+  "created_at": "2026-08-30T14:23:40.7267144Z",
+  "branch": "docs/sandbox-host-relay-commands",
+  "checkpoints_count": 5,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "ad151f8cacb2",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 252,
+    "cache_creation_tokens": 467462,
+    "cache_read_tokens": 23570078,
+    "output_tokens": 87669,
+    "api_call_count": 126
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 71,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 57,
+        ".claude/settings.json": 11,
+        ".claude/settings.local.json": 3
+      }
+    }
+  ]
+}
