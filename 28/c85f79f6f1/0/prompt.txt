@@ -1,0 +1,13 @@
+donne moi la palette de couleur du profil windows terminal dark+
+
+---
+
+intègre cette palette dans le fichier @themes/dark-plus.json
+
+---
+
+est-ce que tu connais d'autres palettes avec un style pro
+
+---
+
+génère Nord, Solarized Dark/Light, GitHub Dark/Light
