@@ -1,0 +1,5 @@
+ok pour les deux, écris le plan d'implémentation, ne crée pas de pr pour l'instant
+
+---
+
+commence l'implémentation
