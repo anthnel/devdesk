@@ -11329,7 +11329,7 @@ C'est le comportement du scan depuis §3.58 ; les séparer demanderait que
 l'annulation soit lisible dans l'erreur, ce qu'aucun des deux ne fait
 aujourd'hui.
 
-### 3.61 Le serveur MCP passe dans le TUI, en HTTP, et il agit
+### 3.61 Le serveur MCP passe dans le TUI, en HTTP, et il agit — **done**
 
 §3.38 est renversée sur trois axes. Ce n'est pas une extension : trois de ses
 décisions tombent, et une quatrième est sauvée autrement.
@@ -11589,8 +11589,9 @@ et l'onglet de configuration passe de deux scalaires à trois plus une action
 
 #### Le plan
 
-[`.claude/plans/mcp-server-in-tui.plan.md`](../.claude/plans/mcp-server-in-tui.plan.md),
-en sept phases et trois lots. Ce que la préparation a établi et que cette entrée
+Le plan était [`.claude/plans/mcp-server-in-tui.plan.md`], sept phases en trois
+lots ; il a été retiré à la livraison, cette entrée étant le compte rendu qui
+dure. Ce que la préparation a établi et que cette entrée
 ne pouvait pas savoir : `jobs.StartMsg` est le **point de passage unique** où un
 run est admis et son identifiant alloué (`handleStartJobs`, `internal/app/jobs.go`).
 Un outil d'action n'a donc aucun run à construire — il envoie une requête, la
@@ -11600,7 +11601,93 @@ corrélation voyage sur le run, à la manière du stamp de contexte de D68 : un
 cycle `Update` où une touche s'intercale, et l'agent recevrait l'identifiant du
 scan que l'utilisateur venait de lancer à la main.
 
-#### Questions ouvertes
+#### Ce que la réalisation a changé à l'énoncé
+
+Fait le 2026-09-05, en cinq commits. **Neuf décisions ont dû être prises contre
+ce qui est écrit plus haut ou dans le plan**, et chacune parce que l'énoncé se
+contredisait, nommait quelque chose de déjà pris, ou demandait au SDK ce qu'il
+ne garantit pas.
+
+**Le point de non-retour a été franchi d'abord.** Un agent en sandbox `sbx`
+atteint bien `http://host.docker.internal:7777` une fois
+`sbx policy allow network "localhost:7777"` passée sur l'hôte, avec le serveur
+lié à `127.0.0.1`. C'était l'hypothèse dont dépendait le choix du bind et le seul
+motif de l'entrée ; tout le reste a été écrit après l'avoir vue répondre.
+
+**Les phases 3 et 4 ont fusionné, et la frontière a bougé pour une raison.** La
+boucle d'invocation seule n'a pas d'appelant : la tester demanderait de
+l'échafaudage de test dans du code de production. `jobs_list` et `jobs_get` sont
+son premier consommateur, et ils sont en **lecture**, donc le mécanisme a été
+validé avant qu'aucune action n'existe.
+
+**La map de corrélation n'existe pas pour une réponse immédiate.** Le plan la
+prévoyait en phase 3 ; une réponse rendue dans l'`Update` qui reçoit la demande
+n'en a pas besoin — le canal bufferisé à un suffit, et il est collecté quand les
+deux côtés lâchent. Elle est arrivée avec les actions, où la réponse est
+différée d'un cycle. La déclarer plus tôt aurait été ce que §3.60 reprochait à
+`KindPull` : un mot du vocabulaire que rien n'emploie.
+
+**`Run.Origin` était déjà pris** — c'est la vue qui a démarré le run, ce dont
+`:jobs` a besoin pour renvoyer l'utilisateur au bon écran. Le champ de
+corrélation s'appelle `Invocation`.
+
+**`jobs.WithInvocation` est un décorateur, pas un quatrième constructeur.**
+`Start`, `StartInContext` et `StartCancellable` varient déjà sur deux axes ; une
+variante portant l'invocation de chacun en ferait six. La vue emballe la
+commande qu'elle rendait déjà, au seul endroit qui sait qui a demandé.
+
+**La notification MCP au changement de contexte a été abandonnée**, et remplacée
+par mieux. `ServerSession.Log` du SDK ne part que si le client a posé un niveau
+de log : c'est une garantie qui tient quand elle veut. Le redémarrage du serveur
+sur bascule **coupe les sessions ouvertes**, ce qu'aucun client ne peut rater —
+il perd sa session et réinitialise plutôt que de se mettre silencieusement à
+lire un autre contexte. C'est `Close` et non `Shutdown` : une requête en vol
+appartient au contexte qu'on quitte.
+
+**`clone_start` n'est pas livré.** `C` ouvre une sélection que l'utilisateur
+construit en parcourant l'arbre de la forge, puis un second écran pour la
+destination ; `handleCloneDestinationSelected` la résout par `rootNodes()` et
+`m.selection`, l'état d'un arbre que quelqu'un a parcouru. Un agent n'a rien de
+tout ça. L'exposer demande un chemin de résolution sans arbre — un chemin de
+groupe vers un ensemble de nœuds — ce qui est une fonctionnalité à spécifier.
+La règle du vocabulaire tient ; ce vers quoi elle pointe n'existe pas encore.
+
+**`jobs_cancel` a été corrigé contre sa première version**, qui refusait un
+clone au motif que `Kind.Cancellable()` dit non. C'était lire la table D7 de
+§3.58 de travers : **la file s'arrête toujours**, et seul le travail déjà en vol
+n'est coupé que là où le couper ne laisse rien derrière. Le seul refus est un
+run déjà réglé.
+
+**Deux choses ont dû être ajoutées ailleurs**, et ni l'une ni l'autre n'était
+prévue :
+
+- `components.PostFooterMsg`. Le routeur n'a pas de footer — `RenderFooter` est
+  celui de la vue active — donc l'échec de bind n'avait aucun chemin vers
+  l'écran. Toutes les vues offrent déjà les messages non traités à
+  `FooterMessage.Handle`, donc une diffusion suffit ; elle porte son propre ID
+  parce que la minuterie est celle de l'émetteur.
+- `kindSecret` dans la vue configuration. Une ligne statique en clair aurait été
+  le seul endroit de l'application montrant un secret non masqué — le token de
+  forge et le mot de passe de registry posent tous deux `EchoPassword`.
+
+**Le tampon de contexte était aux trois quarts déjà là** : `workspaces_list`,
+`registries_list` et `scan_inventory` portaient déjà `context`. Ce qui manquait
+était `scan_result` et les réponses nouvelles. Le test qui tient la règle trouve
+les réponses **là où elles sont rendues** — le deuxième résultat d'un handler
+dont le premier est `*sdk.CallToolResult` — et non par leur nom : une première
+version filtrait sur le suffixe `Out` et réclamait le champ à `socketOut` et
+`containerOut`, qui sont des lignes *dans* une réponse.
+
+**Un refus de plus que prévu, et il est structurel** : un store de secrets qui
+ne persiste pas empêche le serveur de démarrer. `credentials.Select` retombe sur
+la mémoire quand aucun store hôte ne répond, donc un token serait régénéré à
+chaque lancement — cassant la configuration de l'agent une fois par session, en
+silence, avec la panne attribuée à l'agent.
+
+#### Ce qui reste ouvert
+
+Les quatre questions ci-dessous n'ont pas bougé, plus une cinquième que la
+réalisation a créée : **`clone_start`**, ci-dessus.
 
 1. **Docker natif Linux.** `host.docker.internal` n'y atteint pas le loopback
    de l'hôte ; il faudrait binder la gateway du bridge, ce qui expose le
