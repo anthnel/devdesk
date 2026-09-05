@@ -1,0 +1,5 @@
+je veux discuter sur le serveur mcp, est-ce que le serveur ne pourrait pas être actif lorsque le client dk est en cours d'exécution, une url avec port serait dans la config et la config préciserait si le serveur mcp doit être démarré ou éteint
+
+---
+
+le serveur mcp doit être joignable depuis localhost ou un agent qui tourne dans une sandbox. Il ne doit pas être exposé sur le lan. Le serveur mcp ne devrait pas être en lecture seule, il doit pouvoir démarrer un clone, un scan ou tout ce que devdesk permet de faire. Le serveur mcp expose le context courant de dk en cours d'exécution.
