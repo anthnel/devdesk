@@ -11587,6 +11587,19 @@ et l'onglet de configuration passe de deux scalaires à trois plus une action
 - **Le `Match` d'un finding de secret** — inchangé, et c'est une propriété du
   schéma, pas un filtre.
 
+#### Le plan
+
+[`.claude/plans/mcp-server-in-tui.plan.md`](../.claude/plans/mcp-server-in-tui.plan.md),
+en sept phases et trois lots. Ce que la préparation a établi et que cette entrée
+ne pouvait pas savoir : `jobs.StartMsg` est le **point de passage unique** où un
+run est admis et son identifiant alloué (`handleStartJobs`, `internal/app/jobs.go`).
+Un outil d'action n'a donc aucun run à construire — il envoie une requête, la
+vue la bâtit comme pour une touche, et le routeur rend l'identifiant. La
+corrélation voyage sur le run, à la manière du stamp de contexte de D68 : un
+`pendingInvoke` consommé par le prochain `StartMsg` aurait une fenêtre d'un
+cycle `Update` où une touche s'intercale, et l'agent recevrait l'identifiant du
+scan que l'utilisateur venait de lancer à la main.
+
 #### Questions ouvertes
 
 1. **Docker natif Linux.** `host.docker.internal` n'y atteint pas le loopback
