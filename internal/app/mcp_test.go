@@ -1,18 +1,39 @@
 package app
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/shared"
 )
+
+// persistingStore is a Selection that keeps secrets in this process while
+// claiming a backend that survives it. The claim is what is under test
+// elsewhere in the file — ResolveToken refuses a store that does not persist —
+// so a real keyring is not needed to exercise everything around it, and a test
+// that reached for the developer's own keyring would be one every worktree
+// shares.
+func persistingStore() credentials.Selection {
+	return credentials.Selection{
+		Storage: credentials.NewMemoryStorage(),
+		Backend: credentials.BackendKeyring,
+		Detail:  "under test",
+	}
+}
 
 // startMCP runs the command the router issues at startup and returns what it
 // reported. The command opens a listener, so every test that gets one closes it.
 func startMCP(t *testing.T, cfg *config.Config) MCPServerStartedMsg {
 	t.Helper()
 
-	a := &App{config: cfg, currentContext: "test"}
+	a := &App{
+		config:         cfg,
+		currentContext: "test",
+		sharedState:    &shared.State{Secrets: persistingStore()},
+	}
 	msg, ok := a.startMCPCmd()().(MCPServerStartedMsg)
 	if !ok {
 		t.Fatalf("startMCPCmd returned %T, want MCPServerStartedMsg", msg)
@@ -110,5 +131,52 @@ func TestAContextWithoutAListenAddressBindsTheDefault(t *testing.T) {
 	}
 	if msg.Addr != config.DefaultMCPListen {
 		t.Errorf("Addr = %q, want the default %q", msg.Addr, config.DefaultMCPListen)
+	}
+}
+
+// A port that answers without a token is what the whole step exists to prevent.
+// stdio needed no authentication because the process *was* the user; a loopback
+// port that clones and scans is reachable by every process on the machine.
+func TestAServedContextRefusesARequestWithoutTheToken(t *testing.T) {
+	msg := startMCP(t, enabledConfig())
+	if msg.Err != nil {
+		t.Fatalf("enabled context did not serve: %v", msg.Err)
+	}
+
+	res, err := http.Post("http://"+msg.Addr+"/", "application/json", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatalf("POST without a token: %v", err)
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Errorf("an unauthenticated request got %d, want %d", res.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+// A store that does not survive the session would hand out a new token every
+// launch, breaking the agent's configuration once per session and silently —
+// and the failure would be read as the agent's, never as the store's. So the
+// server does not start at all, and says why.
+func TestAStoreThatDoesNotPersistStopsTheBind(t *testing.T) {
+	a := &App{
+		config:         enabledConfig(),
+		currentContext: "test",
+		sharedState:    &shared.State{Secrets: credentials.SessionOnly("no keyring under test")},
+	}
+
+	msg, ok := a.startMCPCmd()().(MCPServerStartedMsg)
+	if !ok {
+		t.Fatalf("startMCPCmd returned %T, want MCPServerStartedMsg", msg)
+	}
+	if msg.Server != nil {
+		_ = msg.Server.Close()
+		t.Fatal("a session-only secret store still bound a listener")
+	}
+	if msg.Err == nil {
+		t.Fatal("a session-only secret store served without saying so")
+	}
+	if !strings.Contains(msg.Err.Error(), "survives the session") {
+		t.Errorf("the refusal does not say what is missing: %v", msg.Err)
 	}
 }

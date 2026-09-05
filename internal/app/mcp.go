@@ -24,6 +24,11 @@ type MCPServerStartedMsg struct {
 	Err    error
 }
 
+// startMCPCmd is a method so it reads the router's config, context and secret
+// store; those three are copied into the closure rather than read from the
+// receiver inside it, because a Cmd runs on its own goroutine and the receiver
+// is the model (Rule 110).
+
 // startMCPCmd serves this context over MCP, or explains why it does not.
 //
 // Nothing is attempted when the context has not enabled it: the refusal is
@@ -38,6 +43,7 @@ type MCPServerStartedMsg struct {
 func (a *App) startMCPCmd() tea.Cmd {
 	cfg := a.config
 	contextName := a.currentContext
+	secrets := a.sharedState.Secrets
 
 	return func() tea.Msg {
 		if !cfg.MCP.Enabled {
@@ -49,10 +55,19 @@ func (a *App) startMCPCmd() tea.Cmd {
 			addr = config.DefaultMCPListen
 		}
 
+		// Before the listener, not after: a port that answers without a token
+		// is what this whole step exists to prevent, and binding first would
+		// open one for the width of the failure path.
+		token, err := mcpserver.ResolveToken(secrets)
+		if err != nil {
+			return MCPServerStartedMsg{Err: err}
+		}
+
 		handler, err := mcpserver.Handler(&mcpserver.Env{Config: cfg, Context: contextName})
 		if err != nil {
 			return MCPServerStartedMsg{Err: err}
 		}
+		handler = mcpserver.Authorize(handler, token)
 
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {

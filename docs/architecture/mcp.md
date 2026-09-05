@@ -41,6 +41,32 @@ configurability: on native Linux Docker that path does not work and the bridge
 gateway would have to be bound instead. An empty value is the default, never
 "listen nowhere" — the zero value of a string must not read as a choice.
 
+**A bearer token is not optional here.** §3.38 needed none: stdio has no
+authentication because the process *is* the user. A loopback port that clones
+and scans is reachable by every process on the machine — an npm `postinstall`,
+an editor extension — and the sandbox's network policy protects the sandbox, not
+the host from itself. So `Authorize` refuses anything without the right bearer
+before the body is read, in constant time: on the loopback an attacker gets
+unlimited attempts with no network jitter to hide a timing difference, which is
+the case where that actually matters.
+
+The token lives in the secret store (`internal/credentials`) under
+`devdesk://mcp`, never in a file DevDesk owns — §3.9's rule, and a server token
+is exactly the secret that would otherwise land in `config.yaml` "because it is
+only a local one". The keyring namespaces the account by context, so two
+contexts do not share one.
+
+**It is not carried on `Env`**, and that is deliberate: `Env` is handed to every
+tool's register closure, and a token reachable from there finds its way into an
+answer eventually. Authorization is the transport's business and stays at the
+transport.
+
+**A store that does not persist stops the server from starting**, and says so.
+`credentials.Select` falls back to memory when no host store answers, so it is a
+real path — and a token regenerated every launch would break the agent's
+configuration once per session, silently, with the failure read as the agent's
+rather than as the store's.
+
 **The server is the router's**, started from `Init()` by a `Cmd` (opening a
 listener is I/O) and reported back on `MCPServerStartedMsg` — a running server,
 the address it *actually* bound, or the reason there is none. `mcp.enabled:
