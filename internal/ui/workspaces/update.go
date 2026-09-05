@@ -146,6 +146,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScanRequestMsg:
 		return m.handleScanRequest(msg)
 
+	// An agent asks the way a key does (§3.61) — see mcp.go.
+	case ScanRequestedMsg:
+		return m.handleScanRequested(msg)
+
+	case SyncRequestedMsg:
+		return m.handleSyncRequested(msg)
+
 	case WorkspaceScanStartingMsg:
 		// The row is already spinning: the router recorded the transition
 		// before handing the message on, and the snapshot that carried it

@@ -36,6 +36,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 
+	// An agent asks the way a key does (§3.61) — see mcp.go.
+	case ImageScanRequestedMsg:
+		return m.handleImageScanRequested(msg)
+
+	case ImagePullRequestedMsg:
+		return m.handleImagePullRequested(msg)
+
 	case ImageScanStartingMsg:
 		return m.handleImageScanStarting(msg)
 

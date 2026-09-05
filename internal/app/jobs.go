@@ -44,6 +44,9 @@ func (a *App) handleStartJobs(msg jobs.StartMsg) (tea.Model, tea.Cmd) {
 	if msg.Cancel != nil {
 		a.jobs.AttachRun(id, msg.Cancel)
 	}
+	// The identifier exists here and nowhere else, which is why an MCP call
+	// waiting for one is answered from this handler (§3.61).
+	a.settleInvocation(msg.Invocation, id, nil)
 	// The work goes out after the registration, which is the whole reason it
 	// travels on the message: a transition naming a run the registry has not
 	// admitted yet is refused, and the row would spin for the life of the view.

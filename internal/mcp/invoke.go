@@ -31,6 +31,36 @@ type Dispatcher interface {
 	// on the copies it hands out — so a caller cannot stop a job behind the
 	// router's back, here any more than in a view.
 	Jobs(ctx context.Context) ([]jobs.Run, error)
+
+	// Start asks the session to do what a key would do, and returns the
+	// identifier of the run it registered.
+	//
+	// The session builds the run, exactly as it does for a keypress: the view
+	// is the only place that knows how to turn "scan these paths" into targets,
+	// options and a cache to purge, and duplicating that here would undo what
+	// §3.58 spent an entry unifying. What comes back is the identifier, because
+	// the work outlives the call — jobs_get is how it is followed.
+	//
+	// A refusal is an error carrying the view's own reason, the same sentence
+	// the header greys a shortcut with.
+	Start(ctx context.Context, act Action) (jobs.JobID, error)
+
+	// Cancel stops a run. What stopping means differs by kind, and it is
+	// §3.58's table that says so, not this: the queue always stops, and work
+	// already in flight is cut only where cutting leaves nothing behind — a
+	// scan and a pull do, a clone in progress is waited out.
+	Cancel(ctx context.Context, id jobs.JobID) error
+}
+
+// Action is one thing an action tool asks the session to do.
+//
+// Tool is the name from the declared table, and it is what the session routes
+// on: every action names its view in its own name (workspace_, image_), so
+// there is no discriminator argument for an agent to fill in and no scope to
+// get wrong.
+type Action struct {
+	Tool    string
+	Targets []string
 }
 
 // ErrNoSession is what a tool answers when it was built without a link to a

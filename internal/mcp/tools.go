@@ -87,6 +87,31 @@ func tools() []toolDef {
 			register:    registerJobsGet,
 		},
 		{
+			Name:        "workspace_scan_start",
+			Description: "Scan repositories for vulnerabilities, secrets, licences and misconfiguration, with this context's scan settings. It returns a job id at once and the scan runs on: jobs_get follows it, scan_result reads the findings once it has finished. It never purges what is already cached; nothing is deleted.",
+			register:    registerWorkspaceScanStart,
+		},
+		{
+			Name:        "workspace_sync_start",
+			Description: "Fast-forward repositories that are behind their remote. It returns a job id at once. A repository with local changes that would be overwritten is left alone rather than forced, and nothing is ever reset or discarded.",
+			register:    registerWorkspaceSyncStart,
+		},
+		{
+			Name:        "image_scan_start",
+			Description: "Scan container images for vulnerabilities, secrets, licences and misconfiguration, with this context's scan settings. It returns a job id at once; scan_result reads the findings once it has finished. It never purges what is already cached.",
+			register:    registerImageScanStart,
+		},
+		{
+			Name:        "image_pull_start",
+			Description: "Pull an image onto this machine. It returns a job id at once and the download runs on, resumable by layer, so jobs_cancel can stop it. It adds an image and removes none.",
+			register:    registerImagePullStart,
+		},
+		{
+			Name:        "jobs_cancel",
+			Description: "Stop a run. The queue always stops, so nothing further starts; work already in flight is cut only where cutting it leaves nothing behind — a scan and a pull stop cleanly, while a clone in progress is waited out because a cut one leaves half a repository on disk. A run that has already settled is refused rather than reported as stopped.",
+			register:    registerJobsCancel,
+		},
+		{
 			Name:        "scan_result",
 			Description: "Read the findings of one stored scan, filtered by severity and category and returned one page at a time. The matched string of a secret finding is never included.",
 			register:    registerScanResult,

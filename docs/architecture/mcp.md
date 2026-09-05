@@ -119,6 +119,11 @@ execution sees a closure that registers under another name, twice, or not at all
 | `net_check` | the `internal/netcheck` pipeline: eleven checks, each with a verdict and what to do |
 | `jobs_list` | the work this session has started, and what each run is doing right now |
 | `jobs_get` | one run target by target, with the reason any of them failed |
+| `workspace_scan_start` | `S`/`A` on `ws`, headless — returns a job id |
+| `workspace_sync_start` | `F` on `ws`, headless |
+| `image_scan_start` | `S`/`A` on the Images tab, headless |
+| `image_pull_start` | `G`, headless |
+| `jobs_cancel` | `K` on a **run**, never on a container |
 
 **`jobs_list` and `jobs_get` are the only tools that do not read the disk**, and
 they are the reason the server is inside the TUI rather than beside it. A scan
@@ -155,6 +160,73 @@ implementation on each side.
 `Snapshot` clears the cancel functions on the copies it hands out, so what
 leaves cannot stop a job behind the router's back — the same asymmetry a view
 gets (D1 of §3.58), and the reason nothing has to be filtered on top.
+
+## The action tier
+
+§3.38 refused one outright: an agent that picks the wrong row meets no modal,
+and there was nobody to raise one. §3.61 reverses that, **and not by bringing
+the modal back** — a confirmation raised by a tool call would block the agent on
+an event the user is not looking at, in a window they may not have open. The
+class of action that would have needed one is simply not registered, which is
+the shape of every other guarantee here. An action never registered cannot be
+wrongly confirmed.
+
+So nothing deletes, prunes, kills or stops a container. Nothing creates or
+renames either — **their only undo is a delete that is not exposed**, and an
+action made irreversible by removing its inverse is worse than a destructive one
+owned up to.
+
+**The selection rule is the keyboard vocabulary**: an action tool is the
+headless form of an entry in `internal/ui/keymap` that keeps a meaning without a
+screen. `mcpActionKeys` names the key beside each tool and
+`TestEveryActionToolMapsToADeclaredKey` opposes the two, so a tool invented with
+no key behind it fails rather than accumulates;
+`TestNoDestructiveActionIsRouted` holds the excluded list.
+
+**`clone_start` is missing, and it is not an oversight.** `C` opens a selection
+the user builds by walking the forge tree, then a second screen for the
+destination; `handleCloneDestinationSelected` resolves it through `rootNodes()`
+and `m.selection`, both of which are the state of a tree somebody browsed. An
+agent has none of that. Exposing the tool needs a headless resolution path — a
+group path to a node set, without the tree — which is a feature to specify, not
+plumbing. The vocabulary rule stands; what it maps to does not exist yet.
+
+### How an action gets across
+
+A reading call is answered inside the Update that receives it. An action is not:
+the router hands the request to a view, the view returns a `Cmd`, and the run is
+registered one Update later in `handleStartJobs`. Something has to hold the
+caller's channel in between — `pendingInvocations`, mutated from Update alone.
+
+**The correlation is carried by the run, not matched by time.** `jobs.StartMsg`
+gained an `Invocation`, and `jobs.WithInvocation` stamps it onto the command a
+view was already returning — a decorator rather than a fourth constructor, since
+`Start`, `StartInContext` and `StartCancellable` already differ along two axes.
+A router that instead remembered "an invocation is in flight" and gave its id to
+the next `StartMsg` would have a window one Update cycle wide, in which a
+keypress fits: the agent would be handed the identifier of the scan the user
+just started by hand. `TestAKeyboardLaunchAnswersNobody` is that bug, written
+down.
+
+**The view does the work, not the router.** It resolves the targets against what
+it lists, consults the same `Availability` the header greys the shortcut with,
+and either starts or refuses with that same sentence (`jobs.RefusedMsg`). One
+calculation, three readers now: the header, the footer, and the tool's error. A
+path the view does not list is refused rather than passed to git — an agent typo
+should not become a scan of somewhere else on the disk.
+
+The target view is built on demand: views are lazy, and an agent asking for a
+scan before anyone has opened `ws` is the ordinary case.
+
+**Neither `A` variant purges.** The purging one is behind a modal with a
+checkbox because it is the closest this application comes to losing data by
+accident (§3.26); a tool call has no modal, so it gets the non-destructive half.
+
+**`jobs_cancel` decides nothing of its own.** `Registry.Cancel` answers, and
+what stopping *means* is D7 of §3.58: the queue always stops, and work in flight
+is cut only where cutting leaves nothing behind. The one refusal here is a run
+that has already settled — reporting a cancellation that did nothing would be
+worse than saying so.
 
 **Three secrecy guarantees, and each is the absence of a field rather than a
 filter.**

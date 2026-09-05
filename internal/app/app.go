@@ -105,8 +105,12 @@ type App struct {
 	program     *tea.Program
 	mcpDispatch mcpDispatcher
 	mcpServer   *http.Server
-	mcpAddr     string
-	mcpErr      error
+	// pendingInvocations holds the reply channel of every action call waiting
+	// for the identifier of the run it asked for. Mutated from Update alone,
+	// like everything else here.
+	pendingInvocations map[invocationID]chan mcpStartReply
+	mcpAddr            string
+	mcpErr             error
 
 	// Dimensions
 	width            int
@@ -350,6 +354,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case mcpJobsRequestMsg:
 		return a.handleMCPJobsRequest(msg)
+
+	case mcpStartRequestMsg:
+		return a.handleMCPStartRequest(msg)
+
+	case mcpCancelRequestMsg:
+		return a.handleMCPCancelRequest(msg)
+
+	case jobs.RefusedMsg:
+		return a.handleMCPRefused(msg)
 
 	case ContextSwitchCompleteMsg:
 		return a.handleContextSwitchComplete(msg)

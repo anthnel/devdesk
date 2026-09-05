@@ -18,13 +18,32 @@ import (
 type fakeSession struct {
 	runs []jobs.Run
 	err  error
+
+	// started records what an action tool asked for, and startedID is what it
+	// gets back.
+	started   []Action
+	startedID jobs.JobID
+	startErr  error
+
+	cancelled []jobs.JobID
+	cancelErr error
 }
 
-func (f fakeSession) Jobs(context.Context) ([]jobs.Run, error) { return f.runs, f.err }
+func (f *fakeSession) Jobs(context.Context) ([]jobs.Run, error) { return f.runs, f.err }
+
+func (f *fakeSession) Start(_ context.Context, act Action) (jobs.JobID, error) {
+	f.started = append(f.started, act)
+	return f.startedID, f.startErr
+}
+
+func (f *fakeSession) Cancel(_ context.Context, id jobs.JobID) error {
+	f.cancelled = append(f.cancelled, id)
+	return f.cancelErr
+}
 
 func sessionEnv(runs []jobs.Run) *Env {
 	env := testEnv(nil)
-	env.Dispatch = fakeSession{runs: runs}
+	env.Dispatch = &fakeSession{runs: runs}
 	return env
 }
 
