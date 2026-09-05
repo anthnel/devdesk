@@ -188,9 +188,8 @@ func (f field) Apply(c *config.Config, raw string) error {
 // platform the context targets, not after the section key: `forge:` is what the
 // file says, and no user calls it that.
 //
-// contextName is here for one row: the command that serves this context over
-// MCP. It is the context's name and not the config's, because the config does
-// not carry it — the same reason configPath is passed.
+// contextName is the name of the context being edited; the config does not
+// carry it, which is the same reason configPath is passed.
 func sections(themes, views []string, configPath, contextName, forgeType string, v forge.Vocabulary) []section {
 	return []section{
 		{Title: "app", Fields: slices.Concat(
@@ -328,20 +327,24 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 			),
 		)},
 
-		// One toggle, and a tab of its own for it. Every other tab is named
-		// after the section it writes, and `mcp:` is a section — putting its
-		// one scalar under `app` would be the only setting in the view whose
-		// tab does not say where it lands (§3.34's argument for renaming
-		// `docker:`). `expose` is a list, so it stays in the file, where the
-		// monitors and the registries also stay.
+		// A tab of its own for two scalars. Every other tab is named after the
+		// section it writes, and `mcp:` is a section — putting them under `app`
+		// would be the only settings in the view whose tab does not say where
+		// they land (§3.34's argument for renaming `docker:`). `expose` is a
+		// list, so it stays in the file, where the monitors and the registries
+		// also stay.
+		//
+		// There was a third row here, a static one reading
+		// `dk mcp --context <name>`: what to point a client at, because a
+		// setting whose effect needs a command nobody has been told about reads
+		// as broken. §3.61 deleted the subcommand, and with it the row's reason
+		// — over HTTP there is no command, the address *is* the answer, and it
+		// is the editable field right below.
 		{Title: "mcp", Fields: group("Server", theme.IconServer,
 			toggle("Enabled", func(c *config.Config) *bool { return &c.MCP.Enabled },
-				"Lets an MCP client read this context; nothing is written back"),
-			// What to point a client at, once the toggle is on. A setting whose
-			// effect needs a command nobody has been told about is a setting
-			// that reads as broken.
-			static("Command", "dk mcp --context "+contextName,
-				"Read-only over stdio; mcp.expose in the file narrows the tools"),
+				"Serves this context to an MCP client over HTTP, while dk runs"),
+			text("Listen", func(c *config.Config) *string { return &c.MCP.Listen },
+				"Loopback — a sandboxed agent reaches it at host.docker.internal"),
 		)},
 
 		{Title: "status", Fields: group("Monitoring", theme.IconRefresh,

@@ -365,7 +365,7 @@ touching, and update it in the same commit as the code.
 | [`scanning.md`](../docs/architecture/scanning.md) | Trivy, Gitleaks, plumber, `scan.Categorize`, the `:sec` inventory, the two scan caches |
 | [`registries.md`](../docs/architecture/registries.md) | the registry/group model and the discovered-members cache |
 | [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci`, the netdiag view, `internal/ports`, `internal/netiface` |
-| [`mcp.md`](../docs/architecture/mcp.md) | the read-only MCP server and `dk mcp` |
+| [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage` and `internal/ui/datatable` |
 
 ### Status Monitoring System

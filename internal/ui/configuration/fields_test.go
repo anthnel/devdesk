@@ -393,10 +393,13 @@ func TestTheMCPTabTogglesTheServer(t *testing.T) {
 	}
 }
 
-// A setting whose effect needs a command nobody has been told about reads as
-// broken. The row names the context this DevDesk is in, because that is the one
-// a client has to be pointed at.
-func TestTheMCPTabNamesTheCommandThatServesThisContext(t *testing.T) {
+// A setting whose effect needs an address nobody has been told about reads as
+// broken. It used to be a static row naming `dk mcp --context <name>`; §3.61
+// deleted the subcommand, so the address is the answer and it is editable.
+//
+// The tab must also carry no trace of the subcommand: a row still naming it
+// would be instructions for a binary that no longer has that argument.
+func TestTheMCPTabOffersTheAddressAndNoSubcommand(t *testing.T) {
 	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab))
 
 	var mcp *section
@@ -409,13 +412,25 @@ func TestTheMCPTabNamesTheCommandThatServesThisContext(t *testing.T) {
 		t.Fatal("no mcp tab")
 	}
 
-	var found string
-	for _, f := range mcp.Fields {
-		if f.Kind == kindStatic {
-			found = f.Value(config.Default())
+	cfg := config.Default()
+	var listen *field
+	for i := range mcp.Fields {
+		f := &mcp.Fields[i]
+		if strings.Contains(f.Value(cfg), "dk mcp") || strings.Contains(f.hint, "dk mcp") {
+			t.Errorf("the mcp tab still names the `dk mcp` subcommand, which no longer exists: %q", f.Label)
+		}
+		if f.Kind == kindText {
+			listen = f
 		}
 	}
-	if !strings.Contains(found, "dk mcp") || !strings.Contains(found, "work") {
-		t.Errorf("the command row reads %q, want it to name `dk mcp` and the served context", found)
+
+	if listen == nil {
+		t.Fatal("the mcp tab offers no address to point a client at")
+	}
+	if listen.str(cfg) != &cfg.MCP.Listen {
+		t.Error("the address field does not address mcp.listen")
+	}
+	if listen.Value(cfg) != config.DefaultMCPListen {
+		t.Errorf("the address reads %q, want the default %q", listen.Value(cfg), config.DefaultMCPListen)
 	}
 }

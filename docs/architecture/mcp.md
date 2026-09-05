@@ -1,35 +1,65 @@
-# The MCP server — `internal/mcp` + `dk mcp`
+# The MCP server — `internal/mcp`, served by the TUI
 
 > DevDesk architecture notes. Referenced from `.claude/CLAUDE.md`;
 > read this file when working on the code it describes.
 
-## The MCP server — `internal/mcp` + `dk mcp`
+## The MCP server — `internal/mcp`, served by the TUI
 
-What DevDesk knows, served over the Model Context Protocol, on stdio, **read
-only** (§3.38). The direction is the point: §3.10 had DevDesk assemble a payload,
-pseudonymise it and send it to a model; here DevDesk exposes what it knows and
-the agent comes to read it. That deleted half a feature — the client, the
-pseudonymiser, the confirmation panel, the streaming — because a protocol exists
-for it.
+What DevDesk knows, served over the Model Context Protocol, in **Streamable
+HTTP, from the running TUI's own process** (§3.61). The direction is the point:
+§3.10 had DevDesk assemble a payload, pseudonymise it and send it to a model;
+here DevDesk exposes what it knows and the agent comes to read it. That deleted
+half a feature — the client, the pseudonymiser, the confirmation panel, the
+streaming — because a protocol exists for it.
 
-```bash
-dk mcp                      # serves the current context
-dk mcp --context work       # serves that one, for the life of the process
+```yaml
+mcp:
+  enabled: false          # per context; nothing turns it on as a side effect
+  listen: 127.0.0.1:7777  # loopback, and empty means this default
+  expose: []              # allow-list of tool names; empty means all
 ```
 
-`main()` dispatches on the first argument **before anything else**, and the
-ordering is load-bearing: everything on the TUI path writes to stdout, and in
-stdio MCP **stdout is the protocol channel**. One warning printed before the
-server starts makes the client report a JSON parse error that names nothing.
-Diagnostics go to stderr, the refusal included.
-`TestNothingInThisPackageWritesToStdout` parses the package and
-`TestTheMCPBranchIsTakenBeforeAnythingPrints` reads `main.go`, so neither is a
-convention.
+**It was a subcommand, `dk mcp`, on stdio** (§3.38), because Bubble Tea owns
+stdin and stdout in full and there is no room for a second protocol in one
+process. That was right, and it left one thing out: **an agent running in a
+container cannot execute the host binary at all.** It was §3.38's own open
+question 1 and it became the only case anyone had. So the transport is HTTP, the
+TUI is what serves it, and stdio is gone rather than kept beside it — with the
+whole ordering constraint that used to head `main()`, and the two tests that
+guarded it (`TestNothingInThisPackageWritesToStdout`,
+`TestTheMCPBranchIsTakenBeforeAnythingPrints`). Their entire reason was that in
+stdio *stdout is the channel*; over HTTP the two do not share one, so keeping
+them would leave tests that read as constraints still in force.
 
-**Nothing is written, anywhere.** `~/.devdesk/` has no lock, so a server that
-writes nothing can run while the TUI runs without anyone having to think about
-it. That took more than the entry anticipated: three write paths sit on what
-looks like a read, and `internal/cache/readonly.go` avoids all three —
+**Loopback is both the most closed bind available and the one that works.** On
+Docker Desktop a container reaching `host.docker.internal` arrives at the host's
+loopback, so a sandboxed agent is served without the LAN ever being offered the
+port — and the sandbox's own network policy is a second lock, since the port has
+to be allowed there by name (`sbx policy allow network "localhost:7777"`).
+`listen` is a setting rather than a literal for one reason, and it is not
+configurability: on native Linux Docker that path does not work and the bridge
+gateway would have to be bound instead. An empty value is the default, never
+"listen nowhere" — the zero value of a string must not read as a choice.
+
+**The server is the router's**, started from `Init()` by a `Cmd` (opening a
+listener is I/O) and reported back on `MCPServerStartedMsg` — a running server,
+the address it *actually* bound, or the reason there is none. `mcp.enabled:
+false` is one of those reasons and not the absence of one, because "off" and
+"could not bind" look identical from outside and only one of them is a problem.
+`main()` hands the router the `*tea.Program` between `tea.NewProgram` and
+`p.Run()`: the one window where writing a field of the model races with nothing.
+
+**There is still no lock, for a different reason.** `~/.devdesk/` has none, and
+§3.38 bought the absence of the question with read-only tools. Serving from the
+TUI keeps it a different way — the server is not a second writer. It lives in the
+one process whose `Update()` is already the only thing allowed to write, so the
+guarantee moves from *the server does not write* to *the server writes through
+the same door as the keyboard*. What follows is a hard rule for the package:
+**nothing in `internal/mcp` ever touches the router's model.** The model is in
+the same process, which is exactly why reading it would be the data race
+Rule 110 exists to forbid. Reads go to disk and to the daemon as they always
+did, and `internal/cache/readonly.go` is unchanged — three write paths sit on
+what looks like a read, and it avoids all three —
 
 | Write | Where it hid |
 |---|---|
@@ -110,12 +140,21 @@ from a tool argument: a caller that could override them could make the server
 hammer a host or hang on one. The context passed to the probes is the client's,
 so cancelling the call stops them.
 
-**`io.EOF` is not a failure**: it is how a stdio server ends. The sentinel is
-compared rather than the message, because the SDK's own `ErrServerClosing` lives
-in an `internal` package.
+**`http.ErrServerClosed` is not a failure**: it is what `Shutdown` produces, so
+it is the ordinary end of a session. Anything else happened to a server the user
+believed was up, and the log is the only place left to say so — a footer message
+lasts three seconds and this can arrive an hour in.
 
 SDK: `github.com/modelcontextprotocol/go-sdk` v1.7.0, chosen for its v1
 compatibility guarantee and because the table of supported spec revisions is
 declared by the SDK rather than tracked by hand. Cost: **+2,99 MB** on the binary
-(24.98 → 27.97).
+(24.98 → 27.97). The move to HTTP added no dependency: `NewStreamableHTTPHandler`
+was already in that version.
+
+**The in-memory transport is not the transport.** `TestTheServerRegistersExactlyTheDeclaredTools`
+drives a real client over `NewInMemoryTransports`, which proves what the server
+registers and says nothing about what survives a socket.
+`TestTheDeclaredToolsSurviveTheHTTPTransport` makes the same assertion over
+`httptest` — deliberately the same, so that when one of them fails the pair says
+which half broke.
 
