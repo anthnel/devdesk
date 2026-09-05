@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "1084b484b7a6",
+  "strategy": "manual-commit",
+  "branch": "mcp-server-in-tui",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/10/84b484b7a6/0/metadata.json",
+      "transcript": "/10/84b484b7a6/0/full.jsonl",
+      "compact_transcript": "/10/84b484b7a6/0/transcript.jsonl",
+      "content_hash": "/10/84b484b7a6/0/content_hash.txt",
+      "prompt": "/10/84b484b7a6/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 117398,
+    "cache_read_tokens": 2317869,
+    "output_tokens": 36640,
+    "api_call_count": 21
+  }
+}
