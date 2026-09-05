@@ -1,0 +1,21 @@
+ok pour les deux, écris le plan d'implémentation, ne crée pas de pr pour l'instant
+
+---
+
+commence l'implémentation
+
+---
+
+agent@claude-devdesk:/c/Users/anthoni/projects/entire/anthnel/devdesk$ curl -sS -X POST http://host.docker.internal:7777/ \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}'
+event: message
+data: {"jsonrpc":"2.0","id":1,"result":{"capabilities":{"logging":{},"tools":{"listChanged":true}},"protocolVersion":"2025-06-18","serverInfo":{"name":"devdesk","version":"1"}}}
+
+---
+
+oui, continue avec la phase 3
+
+---
+
+enchaine toutes les phases jusqu'au bout sauf si tu as un point bloquant
