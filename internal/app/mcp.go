@@ -8,8 +8,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	mcpserver "github.com/anthnel/devdesk/internal/mcp"
+	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/configuration"
 )
 
 // MCPServerStartedMsg reports what became of the attempt to serve MCP.
@@ -22,6 +25,11 @@ type MCPServerStartedMsg struct {
 	Addr   string
 	Server *http.Server
 	Err    error
+	// Token is the bearer an agent has to present. It is carried here so the
+	// configuration view can show it — the one screen where somebody goes
+	// looking for it — and it lives in the secret store, never in a file
+	// DevDesk writes (§3.9).
+	Token string
 }
 
 // startMCPCmd is a method so it reads the router's config, context and secret
@@ -91,7 +99,7 @@ func (a *App) startMCPCmd() tea.Cmd {
 			}
 		}()
 
-		return MCPServerStartedMsg{Addr: ln.Addr().String(), Server: srv}
+		return MCPServerStartedMsg{Addr: ln.Addr().String(), Server: srv, Token: token}
 	}
 }
 
@@ -119,6 +127,7 @@ func (a *App) restartMCPCmd() tea.Cmd {
 	a.mcpServer = nil
 	a.mcpAddr = ""
 	a.mcpErr = nil
+	a.mcpToken = ""
 
 	start := a.startMCPCmd()
 	if srv == nil {
@@ -148,11 +157,42 @@ func (a *App) handleMCPServerStarted(msg MCPServerStartedMsg) (tea.Model, tea.Cm
 	a.mcpServer = msg.Server
 	a.mcpAddr = msg.Addr
 	a.mcpErr = msg.Err
+	a.mcpToken = msg.Token
+
+	// The configuration view shows all three, and it is built lazily — so drop
+	// the cached one and let it be rebuilt with what is now true. The precedent
+	// is useSecrets rebuilding the auth view when the store is resolved.
+	delete(a.views, command.ViewConfiguration)
 
 	if msg.Err != nil {
 		log.Printf("MCP server not serving context %q: %v", a.currentContext, msg.Err)
-		return a, nil
+		// Only when the context asked for a server. Nothing was attempted
+		// otherwise, so there is nothing to report, and a message announcing
+		// the failure of a server nobody asked for reads as a fault (§3.61).
+		//
+		// Rule 128 calls this an Error and not a Warn: the bind was refused,
+		// which is the system saying no, not an action that cannot be honoured
+		// as asked. The commonest cause is a second `dk` already holding the
+		// port — the TUI keeps running without a server, because losing the
+		// application over a taken port would be out of all proportion.
+		if !a.config.MCP.Enabled {
+			return a, nil
+		}
+		return a, components.PostFooter(components.LevelError, "MCP server not started — "+msg.Err.Error())
 	}
 	log.Printf("MCP server for context %q listening on %s", a.currentContext, msg.Addr)
 	return a, nil
+}
+
+// mcpFacts is what the configuration view shows about the server: where it
+// listens, the bearer an agent needs, or why there is nothing.
+//
+// The refusal is rendered rather than the error value, because "the setting is
+// off" is one of the answers and reads as a state, not a fault.
+func (a *App) mcpFacts() configuration.MCPFacts {
+	facts := configuration.MCPFacts{Addr: a.mcpAddr, Token: a.mcpToken}
+	if a.mcpErr != nil && a.config.MCP.Enabled {
+		facts.Reason = a.mcpErr.Error()
+	}
+	return facts
 }

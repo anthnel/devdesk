@@ -1,13 +1,18 @@
 package app
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	mcpserver "github.com/anthnel/devdesk/internal/mcp"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
 // persistingStore is a Selection that keeps secrets in this process while
@@ -182,5 +187,83 @@ func TestAStoreThatDoesNotPersistStopsTheBind(t *testing.T) {
 	}
 	if !strings.Contains(msg.Err.Error(), "survives the session") {
 		t.Errorf("the refusal does not say what is missing: %v", msg.Err)
+	}
+}
+
+// The router has no footer of its own — RenderFooter is the active view's — so
+// the one thing it has to say reaches the screen as a broadcast every view's
+// FooterMessage already consumes.
+//
+// Rule 128 calls this an Error and not a Warn: the bind was refused, which is
+// the system saying no.
+func TestAFailedBindIsReportedOnScreen(t *testing.T) {
+	cfg := enabledConfig()
+	cfg.MCP.Listen = "127.0.0.1:0"
+
+	a := router(t, &bareView{})
+	a.config = cfg
+
+	_, cmd := a.handleMCPServerStarted(MCPServerStartedMsg{Err: errors.New("address already in use")})
+	if cmd == nil {
+		t.Fatal("a failed bind said nothing to the user")
+	}
+
+	post, ok := testutil.MsgOf[components.PostFooterMsg](cmd)
+	if !ok {
+		t.Fatal("the failure did not reach a footer")
+	}
+	if post.Level != components.LevelError {
+		t.Errorf("level = %v, want LevelError — the system refused the bind", post.Level)
+	}
+	if !strings.Contains(post.Text, "address already in use") {
+		t.Errorf("the message does not say why: %q", post.Text)
+	}
+}
+
+// Nothing was attempted when the context did not ask for a server, so there is
+// nothing to report — and a message announcing the failure of a server nobody
+// asked for reads as a fault.
+func TestADisabledContextSaysNothingOnScreen(t *testing.T) {
+	a := router(t, &bareView{})
+	a.config = config.Default()
+
+	_, cmd := a.handleMCPServerStarted(MCPServerStartedMsg{Err: mcpserver.Refused("default")})
+	if cmd != nil {
+		t.Error("a context that never asked for a server still reported one failing")
+	}
+}
+
+// The configuration view is built lazily and shows all three facts, so it has
+// to be rebuilt when they change — the precedent is useSecrets rebuilding the
+// auth view once the store is resolved.
+func TestTheConfigurationViewIsRebuiltWhenTheServerReports(t *testing.T) {
+	a := router(t, &bareView{})
+	a.createView(command.ViewConfiguration)
+	if _, ok := a.views[command.ViewConfiguration]; !ok {
+		t.Fatal("the configuration view was not built; this test cannot say anything")
+	}
+
+	a.handleMCPServerStarted(MCPServerStartedMsg{Addr: "127.0.0.1:7777", Token: "t"})
+
+	if _, ok := a.views[command.ViewConfiguration]; ok {
+		t.Error("the configuration view was kept, so it still shows what was true before the server started")
+	}
+}
+
+// The refusal shown on that screen is a rendered state, not an error value, and
+// "the setting is off" is one of the answers rather than a fault.
+func TestTheFactsShownOnScreenHideARefusalNobodyAskedFor(t *testing.T) {
+	a := router(t, &bareView{})
+	a.config = config.Default()
+	a.mcpErr = mcpserver.Refused("default")
+
+	if reason := a.mcpFacts().Reason; reason != "" {
+		t.Errorf("Reason = %q for a context that never asked for a server, want it empty", reason)
+	}
+
+	a.config = enabledConfig()
+	a.mcpErr = errors.New("address already in use")
+	if reason := a.mcpFacts().Reason; reason == "" {
+		t.Error("a real failure was not shown on the configuration screen")
 	}
 }

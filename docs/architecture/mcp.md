@@ -161,6 +161,42 @@ implementation on each side.
 leaves cannot stop a job behind the router's back — the same asymmetry a view
 gets (D1 of §3.58), and the reason nothing has to be filtered on top.
 
+## What the user sees
+
+**The router has no footer of its own** — `RenderFooter` is the active view's
+(`internal/app/view.go`) — so `components.PostFooterMsg` is how it says the one
+thing it has to. Every view already offers unhandled messages to
+`FooterMessage.Handle`, so a broadcast lands wherever the user is without any
+view knowing what it is about. It carries its own ID because the timer is the
+sender's: `PostFooter` builds both, so Rule 128's "a message set without its
+timer never clears" holds here too.
+
+A failed bind is an **`Error`** at Rule 128's level — the system refused, which
+is not an action that cannot be honoured as asked — and it is posted **only when
+the context asked for a server**. Nothing was attempted otherwise, and
+announcing the failure of a server nobody asked for reads as a fault. The
+commonest cause is a second `dk` already holding the port; the TUI keeps running
+without a server, because losing the application over a taken port would be out
+of all proportion.
+
+**The `mcp` tab shows what became of the two settings.** A `State` row —
+serving on an address, not started and why, or not enabled for this context;
+the three are kept distinct because collapsing the first two would make a taken
+port look like a setting nobody turned on. And a `Token` row, masked until
+`space`.
+
+`kindSecret` exists for that row, and the alternative was a plain static one. It
+was refused because every other secret here is masked — the forge token and the
+registry password both set `EchoPassword` — and one screen showing one in clear
+would be the exception nobody remembers making. The mask is a fixed width rather
+than one dot per character: the length of a token is not something to publish
+either. The row is focusable where `kindStatic` is not, because revealing is an
+act, and `space` is the only key that toggles anything in a form (Rule 135).
+
+The view is built lazily and holds these facts, so the router drops the cached
+one when the server reports — the precedent is `useSecrets` rebuilding the auth
+view once the store is resolved.
+
 ## The served context is the session's, and what pays for it
 
 §3.38 fixed the context at process start, for a reason that has not stopped

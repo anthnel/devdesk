@@ -26,6 +26,16 @@ const (
 	// form rather than in the header because it belongs beside the other paths,
 	// and the header has seven lines to spend on what changes.
 	kindStatic
+	// kindSecret is a fact the user has to copy out but nobody should have on
+	// screen by default: today the MCP server's bearer token. It is focusable
+	// where kindStatic is not, because revealing it is an act — `space`, the
+	// only key that toggles anything in a form (Rule 135).
+	//
+	// The alternative was a plain static row. It was refused because every
+	// other secret in this application is masked — the forge token and the
+	// registry password both set EchoPassword — and one screen showing one in
+	// clear would be the exception nobody remembers making.
+	kindSecret
 )
 
 // field is one editable setting.
@@ -100,6 +110,26 @@ func static(label, value, hint string) field {
 	return field{Label: label, Kind: kindStatic, fact: value, hint: hint}
 }
 
+func secret(label, value, hint string) field {
+	return field{Label: label, Kind: kindSecret, fact: value, hint: hint}
+}
+
+// mcpState is the sentence the State row shows.
+//
+// The three cases are distinct on purpose: "not enabled" is a choice, "not
+// started" is a failure, and an address is neither. Collapsing the first two
+// into "off" would make a taken port look like a setting nobody turned on.
+func mcpState(mcp MCPFacts) string {
+	switch {
+	case mcp.Addr != "":
+		return "serving on http://" + mcp.Addr
+	case mcp.Reason != "":
+		return "not started — " + mcp.Reason
+	default:
+		return "not enabled for this context"
+	}
+}
+
 // ── reading and writing ─────────────────────────────────────────────────────
 
 // Value renders the setting as the text the field edits.
@@ -109,7 +139,7 @@ func (f field) Value(c *config.Config) string {
 		return strconv.Itoa(*f.num(c))
 	case kindToggle:
 		return strconv.FormatBool(*f.flag(c))
-	case kindStatic:
+	case kindStatic, kindSecret:
 		return f.fact
 	default:
 		return *f.str(c)
@@ -190,7 +220,7 @@ func (f field) Apply(c *config.Config, raw string) error {
 //
 // contextName is the name of the context being edited; the config does not
 // carry it, which is the same reason configPath is passed.
-func sections(themes, views []string, configPath, contextName, forgeType string, v forge.Vocabulary) []section {
+func sections(themes, views []string, configPath, contextName, forgeType string, v forge.Vocabulary, mcp MCPFacts) []section {
 	return []section{
 		{Title: "app", Fields: slices.Concat(
 			group("Appearance", theme.IconDashboard,
@@ -345,6 +375,13 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 				"Serves this context to an MCP client over HTTP, while dk runs"),
 			text("Listen", func(c *config.Config) *string { return &c.MCP.Listen },
 				"Loopback — a sandboxed agent reaches it at host.docker.internal"),
+			// What became of the two settings above. A setting whose effect
+			// cannot be seen anywhere reads as broken, and this is the one
+			// screen where somebody looks for it.
+			static("State", mcpState(mcp),
+				"Restart or switch context to apply a change to the two settings above"),
+			secret("Token", mcp.Token,
+				"space reveals it — paste it into your agent's MCP config as a bearer token"),
 		)},
 
 		{Title: "status", Fields: group("Monitoring", theme.IconRefresh,

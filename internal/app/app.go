@@ -105,6 +105,7 @@ type App struct {
 	program     *tea.Program
 	mcpDispatch mcpDispatcher
 	mcpServer   *http.Server
+	mcpToken    string
 	// pendingInvocations holds the reply channel of every action call waiting
 	// for the identifier of the run it asked for. Mutated from Update alone,
 	// like everything else here.

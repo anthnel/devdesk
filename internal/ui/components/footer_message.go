@@ -104,6 +104,41 @@ var footerMsgSeq atomic.Uint64
 // wiped at t+3s by its predecessor's timer.
 type ClearFooterMsg struct{ ID uint64 }
 
+// PostFooterMsg puts a message in whichever footer is on screen.
+//
+// It exists for the router, which has none of its own: RenderFooter is the
+// active view's (internal/app/view.go), and the one thing the router has to say
+// — that the MCP server did not start (§3.61) — belongs on screen at startup,
+// not in a log. Every view already offers unhandled messages to Handle, so a
+// broadcast lands wherever the user is without any view knowing what it is
+// about.
+//
+// It carries its own ID because the timer is the sender's: PostFooter builds
+// both, so the rule that a message set without its timer never clears holds
+// here too (Rule 128).
+type PostFooterMsg struct {
+	ID    uint64
+	Level Level
+	Text  string
+}
+
+// PostFooter builds the broadcast and the timer that expires it.
+//
+// For the router. A view has its own footer and calls Info, Warn or Error on
+// it — going through here would be a second way to do what a field already
+// does, and the message would be adopted by whatever view is active rather than
+// by the one that meant it.
+func PostFooter(level Level, text string) tea.Cmd {
+	if text == "" {
+		return nil
+	}
+	id := footerMsgSeq.Add(1)
+	return tea.Batch(
+		func() tea.Msg { return PostFooterMsg{ID: id, Level: level, Text: text} },
+		tea.Tick(FooterMsgDuration, func(time.Time) tea.Msg { return ClearFooterMsg{ID: id} }),
+	)
+}
+
 // FooterMessage holds the current message, its level and its identity.
 type FooterMessage struct {
 	text         string
@@ -141,19 +176,29 @@ func (f *FooterMessage) Clear() {
 	f.id = 0
 }
 
-// Handle consumes a ClearFooterMsg addressed to the current message and reports
-// whether it did. A stale ID is dropped, and so is one belonging to another
-// view: both leave the message on screen for the time it was given.
+// Handle consumes what the component owns and reports whether it did: a
+// ClearFooterMsg addressed to the current message, and a PostFooterMsg from the
+// router. A stale expiry is dropped, and so is one belonging to another view:
+// both leave the message on screen for the time it was given.
 func (f *FooterMessage) Handle(msg tea.Msg) bool {
-	expiry, ok := msg.(ClearFooterMsg)
-	if !ok {
-		return false
+	switch msg := msg.(type) {
+	case PostFooterMsg:
+		// Adopted whole, ID included: the timer that will expire it was built
+		// with that ID by the sender, and re-numbering it here would leave a
+		// message nothing ever clears.
+		f.text = msg.Text
+		f.level = msg.Level
+		f.id = msg.ID
+		return true
+
+	case ClearFooterMsg:
+		if f.id == 0 || msg.ID != f.id {
+			return false
+		}
+		f.Clear()
+		return true
 	}
-	if f.id == 0 || expiry.ID != f.id {
-		return false
-	}
-	f.Clear()
-	return true
+	return false
 }
 
 // SetSpinnerFrame stores the frame a loading Status renders with. Call it from

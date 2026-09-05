@@ -47,7 +47,7 @@ func (m Model) adoptForge(forgeType string) Model {
 		m.config.Forge.DefaultVisibility = shape.DefaultVisibility()
 	}
 
-	m.sections = sections(m.themes, command.ViewNames(), m.configPath, m.context, forgeType, forge.VocabularyFor(forgeType))
+	m.sections = sections(m.themes, command.ViewNames(), m.configPath, m.context, forgeType, forge.VocabularyFor(forgeType), m.mcp)
 	return m
 }
 

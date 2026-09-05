@@ -429,3 +429,22 @@ back on the default order.
 `Focus` and `Blur` carry the styles with them (Rule 118), so a tab switch does
 not touch `SetStyles`.
 
+
+## `PostFooterMsg` — the router's one line
+
+`FooterMessage` belongs to a view, and a view calls `Info`, `Warn` or `Error` on
+its own. The router has no footer at all: `RenderFooter` is the active view's.
+`components.PostFooter` is the one door for the one thing the router has to say
+— that the MCP server did not start (§3.61) — and it works because every view
+already offers unhandled messages to `Handle`, so the broadcast lands wherever
+the user is without any view knowing what it is about.
+
+It carries its own ID, unlike a message a view sets: `PostFooter` builds the
+message **and** the timer that expires it, so Rule 128's "a message set without
+its timer never clears" holds. `Handle` adopts the ID whole rather than
+re-numbering it, or the timer already in flight would name a message that no
+longer exists.
+
+A view must not use it. Going through here would be a second way to do what a
+field already does, and the message would be adopted by whatever view is active
+rather than by the one that meant it.
