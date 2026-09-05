@@ -16,6 +16,10 @@ import (
 // so a real keyring is not needed to exercise everything around it, and a test
 // that reached for the developer's own keyring would be one every worktree
 // shares.
+func testSharedState() *shared.State {
+	return &shared.State{Secrets: persistingStore()}
+}
+
 func persistingStore() credentials.Selection {
 	return credentials.Selection{
 		Storage: credentials.NewMemoryStorage(),
@@ -32,7 +36,7 @@ func startMCP(t *testing.T, cfg *config.Config) MCPServerStartedMsg {
 	a := &App{
 		config:         cfg,
 		currentContext: "test",
-		sharedState:    &shared.State{Secrets: persistingStore()},
+		sharedState:    testSharedState(),
 	}
 	msg, ok := a.startMCPCmd()().(MCPServerStartedMsg)
 	if !ok {

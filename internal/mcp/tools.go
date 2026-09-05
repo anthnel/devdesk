@@ -77,6 +77,16 @@ func tools() []toolDef {
 			register:    registerScanInventory,
 		},
 		{
+			Name:        "jobs_list",
+			Description: "List the work this DevDesk session has started — scans, clones, syncs, pulls — with what each is doing right now. This is the one thing the disk cannot answer: a finished scan is in the cache, a running one exists only in the session. Runs do not survive a restart.",
+			register:    registerJobsList,
+		},
+		{
+			Name:        "jobs_get",
+			Description: "Read one run of work in full, target by target, with the state of each and why any of them failed. It says which DevDesk context the run was launched in, which is not necessarily the one on screen now.",
+			register:    registerJobsGet,
+		},
+		{
 			Name:        "scan_result",
 			Description: "Read the findings of one stored scan, filtered by severity and category and returned one page at a time. The matched string of a secret finding is never included.",
 			register:    registerScanResult,

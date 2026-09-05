@@ -44,6 +44,7 @@ func (a *App) startMCPCmd() tea.Cmd {
 	cfg := a.config
 	contextName := a.currentContext
 	secrets := a.sharedState.Secrets
+	dispatch := a.mcpDispatch
 
 	return func() tea.Msg {
 		if !cfg.MCP.Enabled {
@@ -63,7 +64,11 @@ func (a *App) startMCPCmd() tea.Cmd {
 			return MCPServerStartedMsg{Err: err}
 		}
 
-		handler, err := mcpserver.Handler(&mcpserver.Env{Config: cfg, Context: contextName})
+		handler, err := mcpserver.Handler(&mcpserver.Env{
+			Config:   cfg,
+			Context:  contextName,
+			Dispatch: dispatch,
+		})
 		if err != nil {
 			return MCPServerStartedMsg{Err: err}
 		}

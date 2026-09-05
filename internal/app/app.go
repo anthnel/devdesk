@@ -102,10 +102,11 @@ type App struct {
 	// the attempt to serve: a running server, the address it actually bound, or
 	// the reason there is none. `mcp.enabled: false` is one of those reasons
 	// rather than the absence of one.
-	program   *tea.Program
-	mcpServer *http.Server
-	mcpAddr   string
-	mcpErr    error
+	program     *tea.Program
+	mcpDispatch mcpDispatcher
+	mcpServer   *http.Server
+	mcpAddr     string
+	mcpErr      error
 
 	// Dimensions
 	width            int
@@ -231,7 +232,10 @@ func defaultView(cfg *config.Config) command.ViewType {
 // window where writing a field of the model is safe outside Update: the loop
 // has not started, so there is nothing to race with. Anything that needs the
 // program later reads it; nothing writes it again.
-func (a *App) AttachProgram(p *tea.Program) { a.program = p }
+func (a *App) AttachProgram(p *tea.Program) {
+	a.program = p
+	a.mcpDispatch = mcpDispatcher{program: p}
+}
 
 // Init initialise l'application
 func (a *App) Init() tea.Cmd {
@@ -343,6 +347,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case MCPServerStartedMsg:
 		return a.handleMCPServerStarted(msg)
+
+	case mcpJobsRequestMsg:
+		return a.handleMCPJobsRequest(msg)
 
 	case ContextSwitchCompleteMsg:
 		return a.handleContextSwitchComplete(msg)

@@ -68,6 +68,16 @@ const (
 type Env struct {
 	Config  *config.Config
 	Context string
+
+	// Dispatch is how the few tools that need the live session reach it — the
+	// work in flight, which lives in the router's model and nowhere else. Nil
+	// is refused by the tools that need it (ErrNoSession) rather than panicked
+	// on, and startMCPCmd always sets it.
+	//
+	// The token is deliberately *not* here beside it: Env is handed to every
+	// tool's register closure, and a secret reachable from there finds its way
+	// into an answer eventually. A dispatcher is a door, not a secret.
+	Dispatch Dispatcher
 }
 
 // newServer builds the server and registers the exposed tools. It is separate

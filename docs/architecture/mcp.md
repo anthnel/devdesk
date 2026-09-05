@@ -117,6 +117,44 @@ execution sees a closure that registers under another name, twice, or not at all
 | `scan_inventory` | every target this context has scanned, reconciled against what still exists |
 | `scan_result` | one scan's findings, filtered by severity and category, paginated |
 | `net_check` | the `internal/netcheck` pipeline: eleven checks, each with a verdict and what to do |
+| `jobs_list` | the work this session has started, and what each run is doing right now |
+| `jobs_get` | one run target by target, with the reason any of them failed |
+
+**`jobs_list` and `jobs_get` are the only tools that do not read the disk**, and
+they are the reason the server is inside the TUI rather than beside it. A scan
+that has finished is in the scan cache; a scan that is *running* exists only in
+`jobs.Registry`, in the router's model, for the life of the session (D8 of
+§3.58). A headless process cannot answer "is it still going".
+
+They cross through `mcp.Dispatcher`, which `internal/app` implements over
+`tea.Program.Send`:
+
+```
+tool handler  →  p.Send(mcpJobsRequestMsg{reply})
+                   ↓
+                 Update()  — reads the registry, writes the channel
+                   ↓
+tool handler  ←  reply
+```
+
+**The reply channel is buffered to one, and that is load-bearing.** An agent
+that hangs up while its message is still queued leaves nobody reading, and an
+unbuffered send from `Update()` would stop the whole TUI — every keypress, every
+spinner frame — on a client that has gone. With a buffer of one the send always
+completes and the channel is collected when both sides let go, so there is no
+registry of pending calls to keep and nothing to leak.
+`TestUpdateNeverBlocksOnAnAbandonedReply` is what holds that.
+
+The dispatcher is a value holding the program, not a method on `*App`:
+it is called from a goroutine that is not `Update`'s, so it must be unable to
+reach a field of the model even by accident. And the interface is **typed per
+question** rather than generic over a payload — an `Invoke(name, args any)`
+would put a type assertion at both ends of every call and buy nothing, with one
+implementation on each side.
+
+`Snapshot` clears the cancel functions on the copies it hands out, so what
+leaves cannot stop a job behind the router's back — the same asymmetry a view
+gets (D1 of §3.58), and the reason nothing has to be filtered on top.
 
 **Three secrecy guarantees, and each is the absence of a field rather than a
 filter.**
