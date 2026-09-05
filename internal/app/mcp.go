@@ -95,6 +95,48 @@ func (a *App) startMCPCmd() tea.Cmd {
 	}
 }
 
+// restartMCPCmd serves the context now on screen, and stops serving the one that
+// was (§3.61).
+//
+// The server is built around one Env — a config and a context name captured
+// when it starts — so a switch that left it running would keep answering for
+// the context nobody is in any more. Rebuilding is not a nicety here; not doing
+// it is the bug.
+//
+// **The restart drops the open MCP sessions, and that is the guarantee, not a
+// side effect.** §3.38 fixed the context at process start precisely so it could
+// not change underneath an agent mid-conversation; §3.61 gives that up, and
+// what replaces it is this — a client does not silently start reading another
+// context, it loses its session and re-initialises. The alternative on offer
+// was a notification, and the SDK only delivers one if the client has set a log
+// level, which is a guarantee that holds when it feels like it.
+//
+// Switching to a context with `mcp.enabled: false` therefore stops the server:
+// the setting is per context, and a server outliving the context that allowed
+// it would be the one way to serve a context that said no.
+func (a *App) restartMCPCmd() tea.Cmd {
+	srv := a.mcpServer
+	a.mcpServer = nil
+	a.mcpAddr = ""
+	a.mcpErr = nil
+
+	start := a.startMCPCmd()
+	if srv == nil {
+		return start
+	}
+	return tea.Sequence(
+		func() tea.Msg {
+			// Close rather than Shutdown: an agent's request in flight belongs
+			// to the context being left, and letting it finish would answer for
+			// that context after the user has moved on — which is the thing
+			// this restart exists to prevent.
+			_ = srv.Close()
+			return nil
+		},
+		start,
+	)
+}
+
 // handleMCPServerStarted stores the running server, or records why there is
 // none.
 //

@@ -187,7 +187,7 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 	// did not stop: a run is stamped with the context it was started in and
 	// kept for the session (D8), so a switch changes which runs are relevant,
 	// never whether they exist. Telling the new views is the whole of it.
-	return a, tea.Batch(a.requestResize(), initCmd, a.jobsChanged())
+	return a, tea.Batch(a.requestResize(), initCmd, a.jobsChanged(), a.restartMCPCmd())
 }
 
 // handleContextList opens the picker with the cursor on the context in use, so

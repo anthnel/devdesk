@@ -161,6 +161,42 @@ implementation on each side.
 leaves cannot stop a job behind the router's back — the same asymmetry a view
 gets (D1 of §3.58), and the reason nothing has to be filtered on top.
 
+## The served context is the session's, and what pays for it
+
+§3.38 fixed the context at process start, for a reason that has not stopped
+being true: a server following the current context changes what it answers
+underneath an agent mid-conversation. §3.61 gives that up — there is no separate
+process to fix it in — and two things pay for it.
+
+**A switch restarts the server, which drops the open sessions.** That is the
+guarantee, not a side effect: a client does not silently begin reading another
+context, it loses its session and re-initialises. `Close` rather than
+`Shutdown`, deliberately — a request in flight belongs to the context being
+left, and letting it finish would answer for that context after the user has
+moved on. The rebuild is also not optional: the server is built around one `Env`
+captured at start, so one left running would keep answering for a context nobody
+is in. Switching to a context with `mcp.enabled: false` therefore stops the
+server, the setting being per context.
+
+The alternative on offer was a notification, and the SDK delivers
+`ServerSession.Log` only once the client has set a log level — a guarantee that
+holds when it feels like it.
+
+**Every answer whose content depends on the context says which one served it.**
+`TestEveryContextDependentAnswerSaysWhichContextServedIt` finds the answers
+where they are returned — the second result of a handler whose first is
+`*sdk.CallToolResult` — rather than by their name, so a row type inside an
+answer is not asked to repeat it. The exceptions are declared with their reason,
+in the spirit of `keymap.DeclaredExceptions()`: an answer about the machine is
+the same answer whatever context is on screen, and stamping it would say the
+opposite.
+
+`jobs_list` carries both — the context that served the answer, and each run's
+own. They differ, and the difference matters: runs are kept for the session
+rather than per context (D8 of §3.58), so a job started in one and still going
+after a switch says so, and an agent does not read its result against the
+context now on screen.
+
 ## The action tier
 
 §3.38 refused one outright: an agent that picks the wrong row meets no modal,

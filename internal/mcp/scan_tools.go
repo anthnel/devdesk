@@ -158,6 +158,7 @@ type scanResultIn struct {
 }
 
 type scanResultOut struct {
+	Context        string    `json:"context" jsonschema:"the DevDesk context that served this answer"`
 	Target         string    `json:"target"`
 	ScannedAt      time.Time `json:"scanned_at"`
 	Critical       int       `json:"critical"`
@@ -192,7 +193,7 @@ func registerScanResult(s *sdk.Server, env *Env) {
 			return nil, scanResultOut{}, fmt.Errorf("no stored scan for %q in context %q — scan_inventory lists what there is, and a target it does not list has either never been scanned or no longer exists", name, env.Context)
 		}
 
-		return nil, project(result, in), nil
+		return nil, project(env.Context, result, in), nil
 	})
 }
 
@@ -211,8 +212,9 @@ func storedResult(target string) (*scan.Result, error) {
 
 // project turns a stored result into what leaves the process: the summary, the
 // findings the filters kept, and one page of them.
-func project(result *scan.Result, in scanResultIn) scanResultOut {
+func project(contextName string, result *scan.Result, in scanResultIn) scanResultOut {
 	out := scanResultOut{
+		Context:        contextName,
 		Target:         result.Target,
 		ScannedAt:      result.EndTime,
 		Critical:       result.Counts.Critical,

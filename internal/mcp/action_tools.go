@@ -30,7 +30,8 @@ import (
 // pull is cut short.
 
 type actionOut struct {
-	JobID int `json:"job_id" jsonschema:"the run this started; jobs_get follows it and jobs_cancel can stop it while it lasts"`
+	Context string `json:"context" jsonschema:"the DevDesk context this ran in"`
+	JobID   int    `json:"job_id" jsonschema:"the run this started; jobs_get follows it and jobs_cancel can stop it while it lasts"`
 }
 
 type workspaceScanIn struct {
@@ -54,7 +55,8 @@ type jobsCancelIn struct {
 }
 
 type jobsCancelOut struct {
-	Stopped bool `json:"stopped"`
+	Context string `json:"context" jsonschema:"the DevDesk context that served this answer"`
+	Stopped bool   `json:"stopped"`
 }
 
 func registerWorkspaceScanStart(s *sdk.Server, env *Env) {
@@ -104,7 +106,7 @@ func registerJobsCancel(s *sdk.Server, env *Env) {
 		if err := env.Dispatch.Cancel(ctx, jobs.JobID(in.JobID)); err != nil {
 			return nil, jobsCancelOut{}, err
 		}
-		return nil, jobsCancelOut{Stopped: true}, nil
+		return nil, jobsCancelOut{Context: env.Context, Stopped: true}, nil
 	})
 }
 
@@ -122,5 +124,5 @@ func startAction(ctx context.Context, env *Env, act Action) (*sdk.CallToolResult
 	if err != nil {
 		return nil, actionOut{}, fmt.Errorf("%s: %w", act.Tool, err)
 	}
-	return nil, actionOut{JobID: int(id)}, nil
+	return nil, actionOut{Context: env.Context, JobID: int(id)}, nil
 }

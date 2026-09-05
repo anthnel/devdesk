@@ -66,7 +66,11 @@ type jobsListIn struct {
 }
 
 type jobsListOut struct {
-	Jobs []jobOut `json:"jobs"`
+	// The context that served this answer. Runs are kept for the session
+	// rather than per context (D8 of §3.58), so this is not a filter — each
+	// job carries its own, which is the one that says what it was about.
+	Context string   `json:"context" jsonschema:"the DevDesk context on screen when this answered; a job's own context is the one that says what it was about"`
+	Jobs    []jobOut `json:"jobs"`
 }
 
 type jobsGetIn struct {
@@ -74,7 +78,8 @@ type jobsGetIn struct {
 }
 
 type jobsGetOut struct {
-	Job jobOut `json:"job"`
+	Context string `json:"context" jsonschema:"the DevDesk context that served this answer"`
+	Job     jobOut `json:"job"`
 }
 
 func registerJobsList(s *sdk.Server, env *Env) {
@@ -94,7 +99,7 @@ func registerJobsList(s *sdk.Server, env *Env) {
 			}
 			out = append(out, summarise(run))
 		}
-		return nil, jobsListOut{Jobs: out}, nil
+		return nil, jobsListOut{Context: env.Context, Jobs: out}, nil
 	})
 }
 
@@ -122,7 +127,7 @@ func registerJobsGet(s *sdk.Server, env *Env) {
 					Detail:  item.Detail,
 				})
 			}
-			return nil, jobsGetOut{Job: job}, nil
+			return nil, jobsGetOut{Context: env.Context, Job: job}, nil
 		}
 
 		// An id nobody knows is an error, not an empty job. Runs live for the
