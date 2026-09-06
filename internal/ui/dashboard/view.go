@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/version"
 )
 
 // View renders the dashboard as a grid of titled boxes. Il n'y a pas de cadre
@@ -319,10 +320,16 @@ func (m Model) GetIcon() string {
 	return ""
 }
 
-// GetHeaderInfo returns the key-value info for the header
+// GetHeaderInfo returns the key-value info for the header.
+//
+// La version est ici et sur aucun autre écran : le dashboard est la vue
+// d'accueil, donc la seule où l'information se lit sans avoir été cherchée. La
+// répéter partout coûterait une colonne de header à chaque vue pour une valeur
+// qui ne change jamais en cours de session ; `:about` la détaille.
 func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	return []shortcut.HeaderInfo{
 		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},
+		{Key: "Version", Value: version.Get().Short(), Style: theme.HeaderValueStyle},
 	}
 }
 

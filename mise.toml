@@ -16,8 +16,18 @@ description = "Build the binary to bin/dk"
 # explicit path — "Cannot run a document in the middle of a pipeline". Only
 # `mise run run` uses this binary today, and it goes through bash, which is why
 # nothing has complained. Empty on every other platform.
+#
+# Seule la version passe par -ldflags. Le commit et la date viennent des
+# métadonnées que `-buildvcs=auto` embarque tout seul, et que
+# `internal/version` lit en repli : les poser ici aussi serait une seconde
+# source pour une réponse que le compilateur donne déjà. `git describe` sans
+# `--always` échoue tant qu'aucun tag n'existe, et c'est voulu — un SHA promu
+# au rang de numéro de version est pire que "dev".
 shell = "bash -c"
-run = 'go build -o "bin/dk$(go env GOEXE)" .'
+run = '''
+version=$(git describe --tags --dirty 2>/dev/null || echo dev)
+go build -ldflags "-X github.com/anthnel/devdesk/internal/version.version=$version" -o "bin/dk$(go env GOEXE)" .
+'''
 
 [tasks.run]
 description = "Build and run the application"
@@ -103,7 +113,8 @@ description = "Install the dk binary to $GOPATH/bin"
 shell = "bash -c"
 run = """
 target="$(go env GOPATH)/bin/dk$(go env GOEXE)"
-go build -o "$target" .
+version=$(git describe --tags --dirty 2>/dev/null || echo dev)
+go build -ldflags "-X github.com/anthnel/devdesk/internal/version.version=$version" -o "$target" .
 echo "installed $target"
 echo "run it as 'dk' once $(dirname "$target") is on PATH"
 """
