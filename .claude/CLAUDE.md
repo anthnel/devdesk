@@ -339,6 +339,34 @@ conventional commits depuis le dernier tag, décide la version et écrit le
 construit alors les six binaires (linux, darwin, windows × amd64, arm64) et les
 attache à cette Release.
 
+#### Le flux, en clair — accumuler puis releaser quand on veut
+
+Les deux acteurs : `release-please` **propose** (il n'écrit jamais lui-même
+directement sur `main` que via sa propre PR), `goreleaser` **construit**, et il
+ne se déclenche que quand cette PR est mergée. Chronologie concrète :
+
+1. Un `fix:` ou un `feat:` est mergé sur `main` (une PR de travail normale,
+   voir plus haut). Le code est livré tout de suite. release-please voit ce
+   commit et **crée ou met à jour** — jamais deux PR en parallèle — la PR
+   "chore(main): release x.y.z" avec le changelog correspondant ; cette PR ne
+   touche que `CHANGELOG.md` et `.release-please-manifest.json`.
+2. On répète l'étape 1 autant de fois qu'on veut — plusieurs fixes, une ou
+   plusieurs features, sur des jours ou des semaines. Chaque merge fait
+   grossir la même PR de release (le numéro de version peut monter, un
+   `feat:` bump le minor) sans qu'aucun tag ne soit posé et sans qu'aucun
+   binaire ne soit publié.
+3. Quand le moment est jugé bon — et seulement à ce moment — on merge la PR de
+   release elle-même. C'est ce merge précis, et lui seul, qui pose le tag,
+   crée la GitHub Release et réveille goreleaser.
+
+| Action | Effet |
+|---|---|
+| Merger un `fix:`/`feat:` sur `main` | Code livré immédiatement ; la PR de release se met à jour en arrière-plan ; rien n'est publié |
+| Merger la PR de release | **Seul déclencheur de publication** — tag, Release, binaires |
+
+Publier n'est donc jamais un acte par commit : c'est un acte volontaire, décidé
+en mergeant une PR qui existe déjà et qu'on peut laisser grossir indéfiniment.
+
 ```bash
 # rien à lancer : la PR de release s'ouvre et se met à jour toute seule
 gh pr list -R anthnel/devdesk --label "autorelease: pending"
