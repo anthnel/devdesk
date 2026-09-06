@@ -1,0 +1,1 @@
+il y a un bug dans ge, avec la forge github, quand on supprime un dépot ou un groupe l'option immediate deletion ne fonctionne pas et n'a pas de sens pour la forge github, cette option ne devrait pas être affichée

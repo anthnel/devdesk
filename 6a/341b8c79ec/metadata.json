@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "6a341b8c79ec",
+  "strategy": "manual-commit",
+  "branch": "fix/github-delete-no-immediate-option",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/components/option_confirm_modal.go",
+    "internal/ui/components/option_confirm_modal_test.go",
+    "internal/ui/forge/explorer/delete.go",
+    "internal/ui/forge/explorer/delete_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/6a/341b8c79ec/0/metadata.json",
+      "transcript": "/6a/341b8c79ec/0/full.jsonl",
+      "compact_transcript": "/6a/341b8c79ec/0/transcript.jsonl",
+      "content_hash": "/6a/341b8c79ec/0/content_hash.txt",
+      "prompt": "/6a/341b8c79ec/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 100,
+    "cache_creation_tokens": 168977,
+    "cache_read_tokens": 6778395,
+    "output_tokens": 18520,
+    "api_call_count": 50
+  }
+}
