@@ -3,3 +3,86 @@ fait la pr pour mcp-server-in-tui
 ---
 
 merge
+
+---
+
+pr et merge feat/trivy-use-server-checkbox
+
+---
+
+pr et merge remove-oci-connectivity-test
+
+---
+
+ajoute les modifications dans .claude dans git et pr, merge
+
+---
+
+pr et merge de chore/rm-stale-plans
+
+---
+
+pr et merge feat/version-and-about
+
+---
+
+Le fix (déjà commité, sans release) :
+git push origin fix/github-delete-no-immediate-option
+gh pr create -R anthnel/devdesk --base main --head fix/github-delete-no-immediate-option --fill
+gh pr merge -R anthnel/devdesk <n> --squash --delete-branch
+
+La doc du flux de release :
+git push origin docs/release-flow-explainer
+gh pr create -R anthnel/devdesk --base main --head docs/release-flow-explainer --fill
+gh pr merge -R anthnel/devdesk <n> --squash --delete-branch
+
+Puis, comme toujours après un merge :
+git fetch origin main && git merge --ff-only origin/main
+git worktree remove .worktrees/fix/github-delete-no-immediate-option
+git worktree remove .worktrees/docs/release-flow-explainer
+
+Ne touche pas à la PR chore(main): release ... — c'est celle-là, et elle seule, qu'il ne faut pas merger tant que tu ne veux pas publier.
+
+---
+
+regarde les branches qui peuvent être mergées, pas de release
+
+---
+
+[Image #2] comment configurer pages dans github
+
+---
+
+il propose GitHub Pages Jekyll ou Static HTML
+
+---
+
+Run actions/upload-pages-artifact@v3
+
+      
+    
+Archive artifact
+0s
+Run echo ::group::Archive artifact
+    echo ::group::Archive artifact
+    tar \
+      --dereference --hard-dereference \
+      --directory "$INPUT_PATH" \
+      -cvf "$RUNNER_TEMP/artifact.tar" \
+      --exclude=.git \
+      --exclude=.github \
+      .
+    echo ::endgroup::
+    shell: /usr/bin/sh -e {0}
+    env:
+      MISE_LOG_LEVEL: info
+      MISE_GITHUB_TOKEN: ***
+      MISE_TRUSTED_CONFIG_PATHS: /home/runner/work/devdesk/devdesk
+      MISE_YES: 1
+      GOBIN: /home/runner/.local/share/mise/installs/go/1.25.14/bin
+      GOROOT: /home/runner/.local/share/mise/installs/go/1.25.14
+      INPUT_PATH: docs-site/site
+Archive artifact
+    tar: docs-site/site: Cannot open: No such file or directory
+    tar: Error is not recoverable: exiting now
+    Error: Process completed with exit code 2.
