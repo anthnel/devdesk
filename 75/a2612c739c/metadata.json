@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "75a2612c739c",
+  "strategy": "manual-commit",
+  "branch": "remove-oci-connectivity-test",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/configuration.md",
+    "docs/architecture/network.md",
+    "internal/config/config.go",
+    "internal/config/network_test.go",
+    "internal/docker/networks.go",
+    "internal/docker/networks_test.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/fields_test.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/dashboard/view_test.go",
+    "internal/ui/keymap/keymap.go",
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/netdiag_test.go",
+    "internal/ui/oci_resources/commands.go",
+    "internal/ui/oci_resources/commands_test.go",
+    "internal/ui/oci_resources/connectivity_form.go",
+    "internal/ui/oci_resources/connectivity_form_test.go",
+    "internal/ui/oci_resources/keys.go",
+    "internal/ui/oci_resources/layout.go",
+    "internal/ui/oci_resources/model.go",
+    "internal/ui/oci_resources/resources.go",
+    "internal/ui/oci_resources/update.go",
+    "internal/ui/oci_resources/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/75/a2612c739c/0/metadata.json",
+      "transcript": "/75/a2612c739c/0/full.jsonl",
+      "compact_transcript": "/75/a2612c739c/0/transcript.jsonl",
+      "content_hash": "/75/a2612c739c/0/content_hash.txt",
+      "prompt": "/75/a2612c739c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 228,
+    "cache_creation_tokens": 233543,
+    "cache_read_tokens": 24695895,
+    "output_tokens": 45534,
+    "api_call_count": 114,
+    "subagent_tokens": {
+      "input_tokens": 70,
+      "cache_creation_tokens": 273569,
+      "cache_read_tokens": 4514036,
+      "output_tokens": 19324,
+      "api_call_count": 35
+    }
+  }
+}

@@ -1,0 +1,65 @@
+/plan je veux enlever la fonctionnalité de test de connectivité entre deux conteneur, l'option "Connectivity test image " doit être supprimée ainsi que le code
+
+---
+
+<task-notification>
+<task-id>af348a71453aa58f5</task-id>
+<tool-use-id>toolu_01JgUvwG1gKbQgmGjcaWyDJD</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/af348a71453aa58f5.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore Connectivity test image config option" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No sample/example YAML config files exist in the repo (the `docs/CODEMAPS/*.md` hits are auto-generated codemap docs, not authoritative examples). All findings are now complete.
+
+## Report
+
+**1. Config struct definition** — `internal/config/config.go`
+
+- `NetworkConfig.ConnectivityImage` (line 131): `yaml:"connectivity_image"` — this is the **live, user-facing field**. Default: `DefaultConnectivityImage = "busybox"` (line 165, set in `Default()` at line 641).
+- `NetworkConfig.ToolImage` (line 136): `yaml:"tool_image,omitempty"` — this is a **retired/migration-only field**, documented in its own comment (lines 133-135) as "the retired spelling of ConnectivityImage, migrated at load and then cleared." It is never set by `Default()` and is always forced back to `""` by `applyDefaults()` (lines 543-554, `internal/config/config.go`) after any value it held is copied into `ConnectivityImage`.
+- There's also `DockerConfig.NetworkToolImage` (line 177, `yaml:"network_tool_image,omitempty"`) — the oldest spelling, same retire-on-load pattern. Migration chain: `docker.network_tool_image` → `network.tool_image` → `network.connectivity_image`.
+
+**2. Every read/write of `ToolImage`** (repo-wide grep):
+- `internal/config/config.go:544,545,549,551,553` — migration logic only (writes/clears it).
+- `internal/config/network_test.go:30` — asserts it's cleared after migration.
+- `internal/ui/netdiag/netdiag_test.go:30` — test helper sets it (see caveat below).
+- `internal/ui/oci_resources/keys.go:70` — **the one production read**: `m.config.Network.ToolImage` is passed as `diagnosticImage` into `newConnectivityTestForm(...)`.
+
+**Important bug-shaped finding**: since `applyDefaults` always zeroes `Network.ToolImage` back to `""` (it only ever holds a transient migration value), `keys.go:70` is reading a field that is **always empty in real runtime configs**. `ConnectivityTestForm.diagnosticImage` has no fallback default (`connectivity_form.go:44,61,76`, used at line 278 in `runDiagnosticContainerCmd`), so the connectivity test currently runs `docker run --network &lt;id&gt; ""` — likely broken already, independent of your removal plan. The netdiag test at `netdiag_test.go:30` masks this in tests by setting the deprecated field directly rather than `ConnectivityImage`. Worth flagging to whoever owns this even though you're removing the feature — good to know `keys.go:70` should really have read `m.config.Network.ConnectivityImage`.
+
+**3. Configuration UI** — `internal/ui/configuration/fields.go:340-360` (network tab):
+```go
+{Title: "network", Fields: slices.Concat(
+    group("Tools", theme.IconNetwork,
+        text("Connectivity test image", func(c *config.Config) *string { return &amp;c.Network.ConnectivityImage },
+            "Needs ping, nc and wget — the OCI connectivity test runs it"),
+    ),
+    group("Checks", theme.IconHourglass, /* CheckTimeout, PingCount, PortsRefreshInterval */),
+    group("Certificates", theme.IconCertificate, /* CertExpiryWarnDays */),
+)},
+```
+- Exact label: **"Connectivity test image"**, at `internal/ui/configuration/fields.go:342` (addresses `c.Network.ConnectivityImage`, not `ToolImage`).
+- It is the **sole field in its own group ("Tools")**, line 341-344, inside the shared `network` tab/struct. The `Checks` and `Certificates` groups on the same tab are separate struct fields (`CheckTimeout`, `PingCount`, `PortsRefreshInterval`, `CertExpiryWarnDays`) used by the unrelated netdiag view — removing the "Tools" group removes the whole group cleanly without touching those.
+- Test: `internal/ui/configuration/fields_test.go:369-371` asserts the field is wired to `&amp;cfg.Network.ConnectivityImage`.
+
+**4. Migration logic and docs**:
+- Migration lives in `applyDefaults()`, `internal/config/config.go:538-557` (three-link chain, oldest-first).
+- `docs/architecture/network.md:207-221` explicitly documents: *"network.connectivity_image (was tool_image) is what the OCI connectivity test runs... it is the only container DevDesk still starts."*
+- `docs/architecture/configuration.md:62-63` also documents the migration chain.
+- `internal/ui/netdiag/header.go:333-335` (in-app help text) explicitly states: *"One image setting is left, network.connectivity_image, and the netdiag view does not use it: it belongs to the OCI connectivity test."* — strong confirmation of exclusivity.
+- No sample/example YAML config files exist in the repo; only `docs/CODEMAPS/dependencies.md:66` and `docs/CODEMAPS/data.md:73` mention `network_tool_image` — these are auto-generated codemap docs, not authoritative samples.
+- `docs/backlog.md` has extensive historical entries (§3.47, lines ~9699+) documenting the prior rename from `tool_image` to `connectivity_image` — useful context but not code to change.
+
+**5. Tests referencing `ToolImage` / the label**:
+- `internal/config/network_test.go` — `TestTheImageSurvivesBothRenames`, `TestTheNewestKeyWins`, `TestTheNetworkSettingsDefault`, `TestAStatedNetworkSettingIsKept` (all migration/default tests for `Network.ConnectivityImage`/`ToolImage`/`Docker.NetworkToolImage`).
+- `internal/ui/configuration/fields_test.go:369-371` — asserts the "Connectivity test image" label wiring.
+- `internal/ui/netdiag/netdiag_test.go:28-32` and `internal/ui/netdiag/model_test.go`, `view_test.go` — a shared `testConfig()` helper sets `cfg.Network.ToolImage = "nicolaka/netshoot"`, but netdiag itself never reads this field (per header.go's own comment) — it looks like leftover/incidental test setup, not a real dependency.
+- `internal/ui/oci_resources/connectivity_form_test.go:28,231` — passes a literal `"netshoot"` string directly to `newConnectivityTestForm`, not through config — these tests don't touch the config field at all.
+
+**6. Verdict on sharing**: `ToolImage`/`ConnectivityImage` is **exclusively used by the OCI connectivity-test feature** — no other diagnostic tool depends on it. The only two runtime consumers are:
+- `internal/ui/oci_resources/keys.go:70` — feeds the connectivity test form itself.
+- `internal/ui/dashboard/model.go:603` — `detectDockerImage(toolConnectivity, cfg.Network.ConnectivityImage)`, a dashboard "Tools" row (`sections.go:892,896`) that reports whether this same image is present locally. This is monitoring/reporting on the connectivity-test feature's own dependency, not an independent consumer — its comment even says "The OCI connectivity test image — la seule que l'application démarre encore." This dashboard row should be removed alongside the feature.
+
+Safe to delete: `NetworkConfig.ConnectivityImage` and `NetworkConfig.ToolImage` fields, the `Docker.NetworkToolImage`→`Network.ToolImage`→`Network.ConnectivityImage` migration block in `applyDefaults`, the "Connectivity test image" field/group in `fields.go`, its assertion in `fields_test.go`, the dashboard `toolConnectivity` row in `dashboard/model.go`/`sections.go`, and the config-level tests in `network_test.go` that only exist for this chain (`TestTheImageSurvivesBothRenames`, `TestTheNewestKeyWins` — verify no other field shares these tests before deleting wholesale).</result>
+<usage><subagent_tokens>121705</subagent_tokens><tool_uses>19</tool_uses><duration_ms>128099</duration_ms></usage>
+</task-notification>
