@@ -146,15 +146,29 @@ This is enforced by the mirror, not by GitHub, and **Entire does not document it
 The only branch restriction Entire states is that `entire/unmirrored/*` is never
 forwarded. Treat the rejection as observed behaviour, not as a specified one.
 
-What rules GitHub out is that branch protection is *unavailable* on this
-repository: it is private on a free personal plan, so both endpoints answer
-`403 Upgrade to GitHub Pro or make this repository public` —
-`/repos/anthnel/devdesk/branches/main/protection` and `/repos/anthnel/devdesk/rulesets`
-alike. Do not cite `gh api repos/anthnel/devdesk/branches/main` reporting
-`"protected": false` as the proof: that field only ever reflects legacy branch
-protection, so it reads `false` under a ruleset too, and on this plan it would
-read `false` whatever the configuration. The 403 is the evidence; the `false` is
-not.
+**The repository is public since 2026-09-06**, which is what makes GitHub-side
+enforcement possible at all: a private repo on a free personal plan answers
+`403 Upgrade to GitHub Pro or make this repository public` on both
+`/repos/anthnel/devdesk/branches/main/protection` and
+`/repos/anthnel/devdesk/rulesets` — that was the prior state, and it is not a
+description to trust going forward if the repo ever goes private again. Do not
+cite `gh api repos/anthnel/devdesk/branches/main` reporting `"protected":
+false` as proof of anything either way: that field only ever reflects legacy
+branch protection, so it reads `false` under a ruleset too, and it read `false`
+on the free-private plan whatever the configuration. Query
+`/repos/anthnel/devdesk/rulesets` itself (or `gh ruleset check main`) for the
+real answer.
+
+A ruleset named `main-protection` (id `22399372`) now targets `refs/heads/main`
+only — deliberately not `entire/checkpoints/v1`, which receives automatic
+pushes from the Entire hook and would break if rule-gated. It requires a pull
+request (0 approving reviews — solo maintainer, the PR is a record not a review
+gate) with the `Lint and build` and `Test` checks from `ci.yml` passing,
+blocks force-pushes and branch deletion, and grants no bypass. This closes the
+gap the mirror alone left open: the Entire mirror's rejection of a direct push
+to `main` was, until now, the *only* protection — a second remote pointing
+straight at GitHub would have sailed through (see the warning against adding
+one, below). Now GitHub itself refuses that push too.
 
 Every other branch, including `entire/checkpoints/v1`, pushes through the mirror
 and is forwarded to GitHub.
@@ -188,13 +202,12 @@ says `MERGED` while `git rev-parse origin/main` still points at the commit befor
 it. Re-run the fetch a moment later; `gh` is what to trust in the meantime,
 because it talks to GitHub directly and needs no remote.
 
-**Do not add a second remote pointing at GitHub to work around that.** It would
-be the one path that defeats the only protection there is: `main` cannot be
-protected on GitHub here (see the 403 above), so the mirror's refusal is the
-whole of it, and `git push github main` would simply succeed. A direct push also
-bypasses the mirror, and with it the Entire hook that records checkpoints and
-sessions — which is not visible until much later. `origin` is the only remote,
-deliberately.
+**Do not add a second remote pointing at GitHub to work around that.** The
+`main-protection` ruleset (above) would now refuse a direct `git push github
+main` too, so it is no longer the *only* defeat of the only protection — but a
+direct push still bypasses the mirror, and with it the Entire hook that
+records checkpoints and sessions, which is not visible until much later.
+`origin` is the only remote, deliberately.
 
 **Merging several branches cut from the same commit conflicts in
 `docs/backlog.md`.** Every fix inserts its entry at the top of §1.1, so the
