@@ -64,23 +64,13 @@ one explorer, and both adapt to whichever it is — a `gitlab-` prefix would hav
 to be typed as `github-` half the time for the same view. Their packages live
 under `internal/ui/forge/`, which is what the import line says too.
 
-**Ten spellings still parse and none of them is suggested.** `gitlab-auth`,
-`gla`, `github-auth`, `gha` and their explorer counterparts, plus the older
-`explorer` / `exp`, resolve through `legacyNames`. Keeping them parseable is
-deliberately permissive — there is one authentication view, so `gla` typed out
-of habit should go there rather than fail. Keeping them *unsuggested* is what
-makes the new names the ones a user learns, because the completion list is the
-only place most people read a command.
-
-The GitHub spellings were never accepted before and are there for the same
-reason as the GitLab ones: someone whose context targets GitHub will guess `gha`
-before `ga`, and being right is worth more than being consistent about what used
-to exist.
-
-**The filtering happens in completion, not in parsing.** That split is the whole
-of it — it makes a rename feel like a rename rather than a removal — and it is
-the client §3.6 step 0 deferred the mechanism for, rather than building it with
-an empty exception list.
+**The ten forge-prefixed spellings — `gitlab-auth`, `gla`, `github-auth`, `gha`
+and their explorer counterparts, plus the older `explorer` / `exp` — no longer
+parse at all.** They lived in a `legacyNames` table for a transition period
+after §3.6 renamed the views, resolving without being suggested so muscle
+memory would not break outright. That table has been removed: one spelling per
+view, no exceptions, and `git-auth`/`ga`, `git-explorer`/`ge` are the only ones
+a client gets.
 
 **There is no `:theme` command.** The theme is a setting, so the configuration
 view owns it — the picker wrote `app.theme` behind the settings form's back,

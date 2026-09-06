@@ -31,7 +31,7 @@ func TestNewCompletionEngine(t *testing.T) {
 }
 
 // The catalogue and the parser used to be two hand-kept lists, and had drifted:
-// `gitlab-explorer`, `workspaces`, `security` and `net` all worked when typed in
+// `git-explorer`, `workspaces`, `security` and `net` all worked when typed in
 // full but could not be completed (§1.3 D17). They are one list now, and these
 // two tests are what keeps them one.
 
@@ -62,24 +62,6 @@ func TestEverythingSuggestedCanBeRun(t *testing.T) {
 
 // everyCommandName is every spelling the parser accepts, views and actions
 // alike.
-// TestALegacyNameParsesWithoutBeingSuggested is the distinction §3.6 step 0
-// went looking for a client for, and this is it: the forge-prefixed names still
-// work — punishing muscle memory buys nothing — but the completion list is the
-// only place most people read a command, so it shows the new ones alone.
-func TestALegacyNameParsesWithoutBeingSuggested(t *testing.T) {
-	engine := NewCompletionEngine()
-
-	for name, want := range legacyNames {
-		if got := ParseCommand(name); got.Type != CommandView || got.View != want {
-			t.Errorf("%q parses to %+v, want the %q view", name, got, want)
-		}
-		for _, s := range engine.GetSuggestions(name) {
-			if s.Text == name {
-				t.Errorf("%q is suggested; retired spellings parse without being offered", name)
-			}
-		}
-	}
-}
 
 // TestTheNewNamesAreTheSuggestedOnes is the other half: a rename nobody is told
 // about is a removal with extra steps.
@@ -99,19 +81,7 @@ func TestTheNewNamesAreTheSuggestedOnes(t *testing.T) {
 	}
 }
 
-// TestNoLegacyNameShadowsACurrentOne — the two tables are searched in order,
-// and a spelling in both would resolve to the current one while looking like it
-// resolved to the legacy one. Better to know they are disjoint.
-func TestNoLegacyNameShadowsACurrentOne(t *testing.T) {
-	for name := range legacyNames {
-		if _, clash := viewNames[name]; clash {
-			t.Errorf("%q is in both tables", name)
-		}
-	}
-}
-
-// everyCommandName is every spelling completion is expected to offer. The
-// retired ones are deliberately absent — see TestALegacyNameParsesWithoutBeingSuggested.
+// everyCommandName is every spelling completion is expected to offer.
 func everyCommandName() []string {
 	names := make([]string, 0, len(viewNames)+len(actionNames)+len(actionAliases))
 	for name := range viewNames {
@@ -148,7 +118,7 @@ func TestGetSuggestions_PrefixMatch(t *testing.T) {
 		{"st", []string{"status"}},
 		{"ga", []string{"ga"}},         // Exact match on alias
 		{"git-", []string{"git-auth"}}, // Prefix match on full command
-		{"gla", []string{}},            // Retired: parses, never suggested
+		{"gla", []string{}},            // Retired spelling: no longer parses, no suggestions
 		{"gitlab", []string{}},         // Same, in full
 		{"q", []string{"q", "quit"}},
 		{"xyz", []string{}}, // no match

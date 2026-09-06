@@ -57,12 +57,28 @@ func TestParseCommand_Theme(t *testing.T) {
 	}
 }
 
+// TestRetiredSpellingsNoLongerParse — the forge-prefixed names §3.6 replaced
+// (gitlab-auth/gla, gitlab-explorer/gle, github-auth/gha, github-explorer/ghe,
+// explorer/exp) used to keep resolving as a legacy fallback. That fallback is
+// gone: one spelling per view, no exceptions.
+func TestRetiredSpellingsNoLongerParse(t *testing.T) {
+	for _, name := range []string{
+		"gitlab-auth", "gla", "github-auth", "gha",
+		"gitlab-explorer", "gle", "github-explorer", "ghe",
+		"explorer", "exp",
+	} {
+		if got := ParseCommand(name).Type; got != CommandUnknown {
+			t.Errorf("ParseCommand(%q).Type = %v, want CommandUnknown", name, got)
+		}
+	}
+}
+
 func TestGetAliases(t *testing.T) {
 	aliases := GetAliases()
 
-	// Vérifier que gle est dans les alias
+	// Vérifier que s est dans les alias
 	if aliases["s"] != "status" {
-		t.Errorf("GetAliases() should include gle -> gitlab-explorer, got: %s", aliases["gle"])
+		t.Errorf("GetAliases() should include s -> status, got: %s", aliases["s"])
 	}
 }
 
