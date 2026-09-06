@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "7ef59725519c",
+  "strategy": "manual-commit",
+  "branch": "feat/trivy-use-server-checkbox",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/CODEMAPS/data.md",
+    "internal/config/config.go",
+    "internal/scan/options.go",
+    "internal/scan/options_test.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/fields_test.go",
+    "internal/ui/configuration/model.go",
+    "internal/ui/configuration/model_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7e/f59725519c/0/metadata.json",
+      "transcript": "/7e/f59725519c/0/full.jsonl",
+      "compact_transcript": "/7e/f59725519c/0/transcript.jsonl",
+      "content_hash": "/7e/f59725519c/0/content_hash.txt",
+      "prompt": "/7e/f59725519c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 100,
+    "cache_creation_tokens": 128393,
+    "cache_read_tokens": 6652240,
+    "output_tokens": 16357,
+    "api_call_count": 50
+  }
+}

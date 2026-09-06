@@ -1,0 +1,1 @@
+dans la config trivy, il y a l'option trivy_server, je veux ajouter un checkbox qui dit "use trivy server", ce n'est plus l'alimentation du champ trivy_server qui fait qu'on utilise le serveur trivy mais bien la checkbox sélectionnée.
