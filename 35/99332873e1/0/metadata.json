@@ -1,0 +1,282 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "3599332873e1",
+  "session_id": "8343543d-068d-49c2-9494-2d5058356a19",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T18:46:20.1685539Z",
+  "branch": "docs/fix-project-context",
+  "checkpoints_count": 1,
+  "save_step_count": 6,
+  "files_touched": [
+    "project-context.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "4dd9a634dc4b",
+  "checkpoint_transcript_start": 1327,
+  "transcript_lines_at_start": 1327,
+  "compact_transcript_start": 192,
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 443017,
+    "cache_read_tokens": 3564686,
+    "output_tokens": 5628,
+    "api_call_count": 10
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01T2UfaCAJ4GdUMAz3V36Bsj",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "code-review"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "31c9f78b0b65",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1041,
+        "end": 1042,
+        "entry_ids": [
+          "93cab4cd-0d48-4611-9092-3788345797b8"
+        ],
+        "tool_use_id": "toolu_01T2UfaCAJ4GdUMAz3V36Bsj"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01T2UfaCAJ4GdUMAz3V36Bsj"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: code-review",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T18:46:19.9833916Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 149,
+    "human_removed": 35,
+    "total_committed": 0,
+    "total_lines_changed": 184,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 868,
+      "user_lines_removed": 865,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 869,
+      "user_lines_removed": 865,
+      "agent_lines_added": 1083,
+      "agent_lines_removed": 160,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 1487,
+      "user_lines_removed": 448,
+      "agent_lines_added": 1523,
+      "agent_lines_removed": 577,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs-site/docs/explanation/app-shell.md": 148,
+        "docs-site/docs/explanation/configuration.md": 66,
+        "docs-site/docs/explanation/forge.md": 91,
+        "docs-site/docs/explanation/registries.md": 141,
+        "docs-site/docs/explanation/scanning.md": 267,
+        "docs-site/docs/explanation/ui-components.md": 131,
+        "docs-site/docs/explanation/viewer.md": 110,
+        "docs-site/docs/explanation/workspaces.md": 81
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 676,
+      "user_lines_removed": 448,
+      "agent_lines_added": 2558,
+      "agent_lines_removed": 577,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs-site/docs/explanation/network.md": 224
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 452,
+      "user_lines_removed": 448,
+      "agent_lines_added": 2885,
+      "agent_lines_removed": 577,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 452,
+      "user_lines_removed": 448,
+      "agent_lines_added": 417,
+      "agent_lines_removed": 417,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 869,
+      "user_lines_removed": 865,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      }
+    }
+  ]
+}
