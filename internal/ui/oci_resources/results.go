@@ -71,11 +71,20 @@ func (m Model) handleImagesList(msg ImagesListMsg) (tea.Model, tea.Cmd) {
 	m.loading = false
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] list: %v", msg.Err)
-		return m, m.footer.Error("Failed to load images — check logs")
+		// Whatever an agent asked for while this was loading is refused with
+		// the daemon's reason rather than left waiting (§3.61).
+		return m, tea.Batch(
+			m.footer.Error("Failed to load images — check logs"),
+			m.refusePendingRequests("Cannot list images: "+msg.Err.Error()),
+		)
 	}
 	m.footer.Clear()
 	m.images = msg.Images
+	m.listed = true
 	m.updateImageTable()
+	if cmd := m.drainPendingRequests(); cmd != nil {
+		return m, cmd
+	}
 	return m, nil
 }
 

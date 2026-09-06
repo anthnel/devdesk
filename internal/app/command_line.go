@@ -183,7 +183,7 @@ func (a *App) createView(view command.ViewType) {
 	case command.ViewNetdiag:
 		a.views[view] = netdiag.New(a.config)
 	case command.ViewConfiguration:
-		a.views[view] = configuration.New(a.config)
+		a.views[view] = configuration.New(a.config, a.mcpFacts())
 	case command.ViewJobs:
 		a.views[view] = jobsview.New(a.config, a.currentContext)
 	case command.ViewViewer:

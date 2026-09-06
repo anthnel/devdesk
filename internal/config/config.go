@@ -34,11 +34,27 @@ type Config struct {
 	GitLab GitLabConfig `yaml:"gitlab,omitempty"`
 }
 
-// MCPConfig governs the read-only MCP server, `dk mcp` (§3.38).
+// MCPConfig governs the MCP server the TUI serves over HTTP (§3.61).
+//
+// It was a read-only stdio subcommand, `dk mcp` (§3.38). Three of that entry's
+// decisions were reversed together: an agent running in a container cannot
+// execute the host binary, which was §3.38's own open question 1 and became the
+// only case anyone had.
 //
 // Enabled is false by default and that is the whole safety story: turning it on
-// is the moment the user decides an agent may read this context. Nothing
+// is the moment the user decides an agent may reach this context. Nothing
 // migrates it, and nothing turns it on as a side effect.
+//
+// **What it means widened with §3.61, and nothing re-asks.** Under §3.38 it
+// meant a read-only server on stdio, started by the client, with no listener at
+// all; it now opens a loopback port and — `expose` being empty by default —
+// serves the action tier as well. A context that said yes to the first is not
+// asked again about the second, and a file written before §3.61 is recognisable
+// (it carries no `listen`), so a narrower default was available and was
+// deliberately not taken: the setting has always meant "an agent may reach this
+// context", the widening is the entry's whole subject, and a migration would be
+// ceremony around a decision its only user had just made. It is written here
+// rather than left for someone to discover.
 //
 // There is no setting for the `Match` of a secret finding, and its absence is
 // the guarantee. The entry proposed `redact_secret_matches: true` while also
@@ -49,9 +65,9 @@ type Config struct {
 // nowhere to carry the string, which is the guarantee `context_get` already
 // gets by construction (§3.9).
 type MCPConfig struct {
-	// Enabled decides whether `dk mcp` will serve at all. It refuses on stderr
-	// naming this setting and the context, because activating it in the wrong
-	// context is otherwise an hour of silence.
+	// Enabled decides whether the TUI serves at all. The refusal names this
+	// setting and the context, because activating it in the wrong one is
+	// otherwise an hour spent looking at a server that will not start.
 	Enabled bool `yaml:"enabled"`
 
 	// Expose is an **allow-list** of tool names; empty means every declared
@@ -59,7 +75,32 @@ type MCPConfig struct {
 	// direction: a tool never registered cannot fail to be excluded, whereas a
 	// deny-list is one forgotten line away from exposing what arrives next.
 	Expose []string `yaml:"expose,omitempty"`
+
+	// Listen is the address the server binds, and it is a loopback address
+	// because that is both the most closed bind available and the one that
+	// works: on Docker Desktop a container reaching `host.docker.internal`
+	// arrives at the host's loopback, so a sandboxed agent is served without
+	// the LAN ever being offered the port. The sandbox's own network policy is
+	// a second lock — the port has to be allowed there by name.
+	//
+	// It is a setting rather than a literal for one reason, and it is not
+	// configurability: on native Linux Docker `host.docker.internal` does not
+	// reach the host's loopback, and the bridge gateway would have to be bound
+	// instead. That case does not exist here and is not handled — but a literal
+	// would have to be rewritten, where a setting has to be documented.
+	//
+	// An empty value means the default, never "listen nowhere": the zero value
+	// of a string cannot be allowed to read as a choice, which is the shape of
+	// D12. applyDefaults fills it.
+	Listen string `yaml:"listen,omitempty"`
 }
+
+// DefaultMCPListen is where the server binds when the context does not say.
+//
+// Loopback, and a port high enough to be out of the way. It is named rather
+// than inlined because applyDefaults and Default both need it, and a second
+// literal is how the two drift.
+const DefaultMCPListen = "127.0.0.1:7777"
 
 // NetworkConfig holds what the netdiag view runs on, plus the one image
 // DevDesk still starts a container from.
@@ -469,6 +510,13 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Scan.MaxConcurrentScans == 0 {
 		cfg.Scan.MaxConcurrentScans = 3
 	}
+	// An address the file does not carry is the default, never "nowhere":
+	// a bind that silently does not happen would look exactly like a server
+	// that is off, and `mcp.enabled` is what answers that question.
+	if cfg.MCP.Listen == "" {
+		cfg.MCP.Listen = DefaultMCPListen
+	}
+
 	// Auto is the historical resolution, so a config that predates the setting
 	// keeps behaving exactly as it did.
 	if cfg.Scan.TrivySource == "" {
@@ -584,6 +632,9 @@ func Default() *Config {
 			MaxConcurrentScans: 3,
 			EnableVuln:         true,
 			EnableSecret:       true,
+		},
+		MCP: MCPConfig{
+			Listen: DefaultMCPListen,
 		},
 		Network: NetworkConfig{
 			ConnectivityImage:    DefaultConnectivityImage,

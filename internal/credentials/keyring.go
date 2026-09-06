@@ -63,7 +63,7 @@ func (k *KeyringStorage) Save(url, secret string) error {
 func (k *KeyringStorage) Load(url string) (string, error) {
 	secret, err := keyring.Get(keyringService, k.account(url))
 	if errors.Is(err, keyring.ErrNotFound) {
-		return "", fmt.Errorf("no credentials found for %s (context: %s)", url, k.context)
+		return "", fmt.Errorf("%w for %s (context: %s)", ErrNotFound, url, k.context)
 	}
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", KeyringName(), err)

@@ -344,6 +344,12 @@ func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	// The footer owns its expiry and, since §3.61, the router's broadcast too.
+	// This view declared a FooterMessage and never offered it a message, so its
+	// own messages never cleared and a PostFooterMsg — the one thing the router
+	// has to say — landed nowhere when this was the screen on show.
+	m.footer.Handle(msg)
+
 	return m, nil
 }
 

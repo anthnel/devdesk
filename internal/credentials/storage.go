@@ -4,9 +4,17 @@
 package credentials
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 )
+
+// ErrNotFound says a store holds nothing under that key. Every Load wraps it,
+// and the distinction is not pedantry: a caller that cannot tell "never stored"
+// from "the store would not answer" will mint a replacement over a secret that
+// is still there, because a locked keyring and an empty one look the same. It
+// is what internal/mcp.ResolveToken checks before generating a bearer token.
+var ErrNotFound = errors.New("no credentials found")
 
 // Storage interface pour stocker/récupérer les credentials
 type Storage interface {
@@ -47,7 +55,7 @@ func (m *MemoryStorage) Load(url string) (string, error) {
 	defer m.mu.RUnlock()
 	token, ok := m.creds[url]
 	if !ok {
-		return "", fmt.Errorf("no credentials found for %s", url)
+		return "", fmt.Errorf("%w for %s", ErrNotFound, url)
 	}
 	return token, nil
 }

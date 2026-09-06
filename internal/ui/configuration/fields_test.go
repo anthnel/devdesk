@@ -13,7 +13,7 @@ import (
 func allFields(t *testing.T) []field {
 	t.Helper()
 	var out []field
-	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames(), "/home/u/.devdesk/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab)) {
+	for _, s := range sections([]string{"default", "mocha"}, command.ViewNames(), "/home/u/.devdesk/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{}) {
 		out = append(out, s.Fields...)
 	}
 	return out
@@ -320,7 +320,7 @@ func TestTheConfigFileRowIsReadOnly(t *testing.T) {
 // without renaming the key would have left the one tab about to grow as the
 // only one whose name says nothing about where its values land.
 func TestEveryTabIsNamedAfterTheSectionItWrites(t *testing.T) {
-	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab))
+	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{})
 
 	want := []string{"app", "gitlab", "scan", "network", "mcp", "status"}
 	got := make([]string, 0, len(all))
@@ -393,11 +393,14 @@ func TestTheMCPTabTogglesTheServer(t *testing.T) {
 	}
 }
 
-// A setting whose effect needs a command nobody has been told about reads as
-// broken. The row names the context this DevDesk is in, because that is the one
-// a client has to be pointed at.
-func TestTheMCPTabNamesTheCommandThatServesThisContext(t *testing.T) {
-	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab))
+// A setting whose effect needs an address nobody has been told about reads as
+// broken. It used to be a static row naming `dk mcp --context <name>`; §3.61
+// deleted the subcommand, so the address is the answer and it is editable.
+//
+// The tab must also carry no trace of the subcommand: a row still naming it
+// would be instructions for a binary that no longer has that argument.
+func TestTheMCPTabOffersTheAddressAndNoSubcommand(t *testing.T) {
+	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{})
 
 	var mcp *section
 	for i := range all {
@@ -409,13 +412,84 @@ func TestTheMCPTabNamesTheCommandThatServesThisContext(t *testing.T) {
 		t.Fatal("no mcp tab")
 	}
 
-	var found string
-	for _, f := range mcp.Fields {
-		if f.Kind == kindStatic {
-			found = f.Value(config.Default())
+	cfg := config.Default()
+	var listen *field
+	for i := range mcp.Fields {
+		f := &mcp.Fields[i]
+		if strings.Contains(f.Value(cfg), "dk mcp") || strings.Contains(f.hint, "dk mcp") {
+			t.Errorf("the mcp tab still names the `dk mcp` subcommand, which no longer exists: %q", f.Label)
+		}
+		if f.Kind == kindText {
+			listen = f
 		}
 	}
-	if !strings.Contains(found, "dk mcp") || !strings.Contains(found, "work") {
-		t.Errorf("the command row reads %q, want it to name `dk mcp` and the served context", found)
+
+	if listen == nil {
+		t.Fatal("the mcp tab offers no address to point a client at")
+	}
+	if listen.str(cfg) != &cfg.MCP.Listen {
+		t.Error("the address field does not address mcp.listen")
+	}
+	if listen.Value(cfg) != config.DefaultMCPListen {
+		t.Errorf("the address reads %q, want the default %q", listen.Value(cfg), config.DefaultMCPListen)
+	}
+}
+
+// The MCP token is the one value on this screen somebody has to copy out, and
+// the one that must not be on screen by default: every other secret in this
+// application is masked as it is typed (the forge token, the registry
+// password), and one screen showing one in clear would be the exception nobody
+// remembers making.
+func TestTheMCPTokenIsMaskedUntilItIsRevealed(t *testing.T) {
+	m := New(config.Default(), MCPFacts{Addr: "127.0.0.1:7777", Token: "s3cr3t-token"})
+
+	// From the model, not from allFields: the value is what the router handed
+	// this view, and a field table built with empty facts carries none.
+	var f field
+	for _, sec := range m.sections {
+		for _, candidate := range sec.Fields {
+			if candidate.Label == "Token" {
+				f = candidate
+			}
+		}
+	}
+	if f.Label == "" {
+		t.Fatal("no Token row in the mcp tab")
+	}
+	if f.Kind != kindSecret {
+		t.Fatalf("the Token row is kind %v, want kindSecret", f.Kind)
+	}
+	if !f.focusable() {
+		t.Error("the Token row cannot be focused, so space can never reveal it")
+	}
+
+	rendered := m.renderField(f, true)
+	if strings.Contains(rendered, "s3cr3t-token") {
+		t.Error("the token is on screen before anyone asked for it")
+	}
+
+	m.shown[f.Label] = true
+	if !strings.Contains(m.renderField(f, true), "s3cr3t-token") {
+		t.Error("revealing the row did not show the token")
+	}
+}
+
+// The three states are distinct on purpose: "not enabled" is a choice, "not
+// started" is a failure, and an address is neither. Collapsing the first two
+// would make a taken port look like a setting nobody turned on.
+func TestTheMCPStateRowTellsTheThreeCasesApart(t *testing.T) {
+	for name, tc := range map[string]struct {
+		facts MCPFacts
+		want  string
+	}{
+		"serving":     {MCPFacts{Addr: "127.0.0.1:7777"}, "127.0.0.1:7777"},
+		"failed":      {MCPFacts{Reason: "address already in use"}, "address already in use"},
+		"not enabled": {MCPFacts{}, "not enabled"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := mcpState(tc.facts); !strings.Contains(got, tc.want) {
+				t.Errorf("mcpState = %q, want it to mention %q", got, tc.want)
+			}
+		})
 	}
 }

@@ -98,6 +98,24 @@ func (m Model) renderField(f field, focused bool) string {
 		return theme.Bg(prefix) + theme.DimStyle.Render(f.Value(m.config))
 	}
 
+	// A secret is masked until `space`, like the forge token and the registry
+	// password are masked as they are typed. The mask is a fixed width rather
+	// than one dot per character: the length of a token is not something to
+	// publish either.
+	if f.Kind == kindSecret {
+		value := maskedSecret
+		if m.revealed(f) {
+			value = f.Value(m.config)
+		}
+		if value == "" {
+			value = "—"
+		}
+		if focused {
+			return theme.KeyStyle.Render(prefix) + theme.Bg(value)
+		}
+		return theme.Bg(prefix) + theme.DimStyle.Render(value)
+	}
+
 	if focused {
 		if f.Kind == kindCycle {
 			return theme.KeyStyle.Render(prefix) + theme.Bg(f.Value(m.config))
@@ -106,6 +124,10 @@ func (m Model) renderField(f field, focused bool) string {
 	}
 	return theme.Bg(prefix) + theme.Bg(f.Value(m.config))
 }
+
+// maskedSecret is what a secret row shows until `space`. Its width says nothing
+// about the value's.
+const maskedSecret = "••••••••••••"
 
 // fieldHead is everything before the chevron: the label, plus the select icon a
 // closed-list field carries (Rule 132's ordering).
@@ -206,7 +228,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "tab", Description: "Next section"},
 			{Key: "↑↓", Description: "Move between settings"},
 			{Key: "←→", Description: "Change a closed-list value"},
-			{Key: "space", Description: "Toggle a checkbox"},
+			{Key: "space", Description: "Toggle a checkbox, or reveal the MCP token"},
 			{Key: "esc", Description: "Save the focused field without moving off it"},
 			{Key: "ctrl+p", Description: "Open the command line"},
 		},
@@ -226,6 +248,19 @@ func (m Model) GetHelpContent() help.Content {
 				Body: "auto    the binary when there is one, the Docker image otherwise\n" +
 					"binary  the configured path, else the name on PATH — fails if absent\n" +
 					"image   the Docker image, even when a binary is installed",
+			},
+			{
+				Title: "MCP server",
+				Body: "It runs inside dk, over HTTP, and only while dk runs. Enable it here,\n" +
+					"then point your agent at http://<listen>/ with the token as a bearer:\n" +
+					"space reveals it on the Token row. It is stored in the secret backend,\n" +
+					"never in a file — so put it in your agent's own config, not in a\n" +
+					"committed .mcp.json, where it would reach the remote on the first push.\n" +
+					"\n" +
+					"The address is a loopback one and should stay that way: an agent in a\n" +
+					"container reaches it at host.docker.internal, and the LAN never can.\n" +
+					"Switching context restarts the server, which drops any open session —\n" +
+					"that is deliberate, so no agent quietly starts reading another context.",
 			},
 			{
 				Title: "Secret backend",

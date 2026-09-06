@@ -65,6 +65,16 @@ type Model struct {
 	themes     []string
 	configPath string
 
+	// mcp is what the router knows about the MCP server — where it listens, its
+	// token, or why there is none. It is passed in rather than read here
+	// because only the router has it, and the view is rebuilt when it changes.
+	mcp MCPFacts
+
+	// shown holds the secret rows the user has revealed, keyed by label: the
+	// field table is rebuilt on every save, so an index would point elsewhere
+	// afterwards.
+	shown map[string]bool
+
 	// backendOnFocus is what app.secret_backend held when the field took focus.
 	// Changing it is confirmed on the way out rather than on every ←/→, and this
 	// is what "No" restores.
@@ -79,7 +89,19 @@ type Model struct {
 }
 
 // New builds the view for the configuration currently loaded.
-func New(cfg *config.Config) Model {
+// MCPFacts is what the configuration view shows about the MCP server.
+//
+// Three states and they are all worth saying: an address means it is serving,
+// a reason means it is not and why, and neither means the context has not asked
+// for one. Nothing here is editable — `mcp.enabled` and `mcp.listen` are the
+// settings; this is what became of them.
+type MCPFacts struct {
+	Addr   string
+	Token  string
+	Reason string
+}
+
+func New(cfg *config.Config, mcp MCPFacts) Model {
 	themes, err := theme.ListThemes()
 	if err != nil || len(themes) == 0 {
 		// A theme directory that cannot be read still leaves the built-in one, so
@@ -104,10 +126,12 @@ func New(cfg *config.Config) Model {
 	m := Model{
 		config:       cfg,
 		context:      context,
-		sections:     sections(themes, command.ViewNames(), configPath, context, cfg.Forge.Type, forge.VocabularyFor(cfg.Forge.Type)),
+		sections:     sections(themes, command.ViewNames(), configPath, context, cfg.Forge.Type, forge.VocabularyFor(cfg.Forge.Type), mcp),
 		input:        in,
 		themes:       themes,
 		configPath:   configPath,
+		mcp:          mcp,
+		shown:        map[string]bool{},
 		forgeOnFocus: cfg.Forge.Type,
 	}
 	m.bindInput()
@@ -150,6 +174,11 @@ func (f field) takesText() bool {
 // one that answers no: there is nothing to type, cycle or toggle on it, and a
 // focus indicator on a row no key acts upon says the opposite.
 func (f field) focusable() bool { return f.Kind != kindStatic }
+
+// revealed reports whether the secret on the focused row is currently shown.
+// The set is keyed by label because the field table is rebuilt whenever the
+// configuration is saved, and an index would then point somewhere else.
+func (m Model) revealed(f field) bool { return m.shown[f.Label] }
 
 // settlesOnBlur reports whether leaving a field has any effect on it, which is
 // the one question esc answers here (Rule 130).

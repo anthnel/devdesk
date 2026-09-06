@@ -265,6 +265,18 @@ func (m Model) cycleField(step int) (tea.Model, tea.Cmd) {
 // toggleField flips a checkbox. Space is the only key that may (Rule 135).
 func (m Model) toggleField() (tea.Model, tea.Cmd) {
 	f := m.current()
+
+	// A secret row is shown or hidden, and nothing is written: `space` is the
+	// only key that toggles anything in a form (Rule 135), and revealing is a
+	// toggle like any other.
+	if f.Kind == kindSecret {
+		if f.Value(m.config) == "" {
+			return m, m.footer.Warn("There is no token — the MCP server is not running for this context")
+		}
+		m.shown[f.Label] = !m.shown[f.Label]
+		return m, nil
+	}
+
 	if f.Kind != kindToggle {
 		return m, nil
 	}

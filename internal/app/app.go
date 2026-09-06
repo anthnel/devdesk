@@ -2,6 +2,7 @@ package app
 
 import (
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -94,6 +95,26 @@ type App struct {
 	jobFrameIdx int
 	jobTickSeq  int
 	jobTicking  bool
+
+	// The MCP server, which lives in this process (§3.61). program is the
+	// handle a request needs to reach Update() — set once by AttachProgram,
+	// before the loop starts — and the three fields below are what became of
+	// the attempt to serve: a running server, the address it actually bound, or
+	// the reason there is none. `mcp.enabled: false` is one of those reasons
+	// rather than the absence of one.
+	program     *tea.Program
+	mcpDispatch mcpDispatcher
+	mcpServer   *http.Server
+	mcpToken    string
+	// mcpEpoch numbers the starts, so a report from one the session has moved
+	// past is recognised and its listener closed rather than stored.
+	mcpEpoch uint64
+	// pendingInvocations holds the reply channel of every action call waiting
+	// for the identifier of the run it asked for. Mutated from Update alone,
+	// like everything else here.
+	pendingInvocations map[invocationID]chan mcpStartReply
+	mcpAddr            string
+	mcpErr             error
 
 	// Dimensions
 	width            int
@@ -212,10 +233,22 @@ func defaultView(cfg *config.Config) command.ViewType {
 	return parsed
 }
 
+// AttachProgram gives the router the handle an MCP request needs to reach
+// Update().
+//
+// It is called by main() between tea.NewProgram and p.Run(), which is the only
+// window where writing a field of the model is safe outside Update: the loop
+// has not started, so there is nothing to race with. Anything that needs the
+// program later reads it; nothing writes it again.
+func (a *App) AttachProgram(p *tea.Program) {
+	a.program = p
+	a.mcpDispatch = mcpDispatcher{program: p}
+}
+
 // Init initialise l'application
 func (a *App) Init() tea.Cmd {
 	// Note: resize() est déjà appelé dans newWithSize() pour initialiser les dimensions
-	cmds := []tea.Cmd{a.tryAutoLogin()}
+	cmds := []tea.Cmd{a.tryAutoLogin(), a.startMCPCmd()}
 
 	if view, ok := a.views[a.currentView]; ok {
 		cmds = append(cmds, view.Init())
@@ -319,6 +352,21 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// ── Contexts and themes ──────────────────────────────────────────────
 	case configuration.ConfigSavedMsg:
 		return a.handleConfigSaved(msg)
+
+	case MCPServerStartedMsg:
+		return a.handleMCPServerStarted(msg)
+
+	case mcpJobsRequestMsg:
+		return a.handleMCPJobsRequest(msg)
+
+	case mcpStartRequestMsg:
+		return a.handleMCPStartRequest(msg)
+
+	case mcpCancelRequestMsg:
+		return a.handleMCPCancelRequest(msg)
+
+	case jobs.RefusedMsg:
+		return a.handleMCPRefused(msg)
 
 	case ContextSwitchCompleteMsg:
 		return a.handleContextSwitchComplete(msg)

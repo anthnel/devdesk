@@ -8017,6 +8017,12 @@ déclare son image *pullée* pour que son absence ne puisse venir que du context
 
 ### 3.38 Un serveur MCP en lecture seule — le modèle vient à DevDesk — **done**
 
+> **§3.61 renverse trois de ses décisions** — le transport, la lecture seule et
+> le contexte fixé au démarrage — et supprime `dk mcp`. Ce qui suit reste le
+> compte rendu de ce qui a été livré le 2026-08-23, et les raisons qui n'ont pas
+> bougé (le `Match` d'un secret, `container_logs`, l'allow-list) y sont écrites
+> une seule fois.
+
 **§3.10 partait dans l'autre sens : DevDesk assemblait un payload, le
 pseudonymisait, le montrait, l'envoyait à un endpoint qu'il fallait configurer,
 et affichait la réponse en streaming.** Le sens s'inverse. DevDesk **expose ce
@@ -8898,6 +8904,20 @@ deux calculs de la même question sont ce que `SecretVerdict()` a eu à défaire
 Les `<contrôle>Result` qui passent ne sont pas des findings et ne vont dans aucun
 onglet ; ils sont pourtant ce qui donne son sens au score. Les ignorer d'abord,
 et le noter.
+
+**Ce que `mcp.enabled: true` veut dire a changé, et rien ne le redemande.**
+Sous §3.38 le réglage disait « un serveur en lecture seule, sur stdio, lancé par
+le client, sans aucun port » ; il dit maintenant « un port sur le loopback, et
+le palier d'action avec, `expose` étant vide par défaut ». Un contexte qui avait
+dit oui au premier n'est pas réinterrogé sur le second — et il serait
+reconnaissable, un fichier écrit avant §3.61 ne portant pas de `listen`.
+
+Le défaut plus étroit était donc disponible et n'a pas été pris, délibérément :
+le réglage a toujours voulu dire « un agent peut atteindre ce contexte »,
+l'élargissement est le sujet même de l'entrée, et une migration serait de la
+cérémonie autour d'une décision que son seul utilisateur venait de prendre.
+C'est écrit ici et dans le commentaire de `MCPConfig` plutôt que laissé à
+découvrir.
 
 #### Ce qui reste ouvert
 
@@ -11322,6 +11342,382 @@ porte l'erreur du processus tué et ne sait pas la distinguer d'un échec résea
 C'est le comportement du scan depuis §3.58 ; les séparer demanderait que
 l'annulation soit lisible dans l'erreur, ce qu'aucun des deux ne fait
 aujourd'hui.
+
+### 3.61 Le serveur MCP passe dans le TUI, en HTTP, et il agit — **done**
+
+§3.38 est renversée sur trois axes. Ce n'est pas une extension : trois de ses
+décisions tombent, et une quatrième est sauvée autrement.
+
+| §3.38 | Ce qui la fait tomber |
+|---|---|
+| stdio, pas de HTTP en v1 | **un agent en conteneur ne peut pas exécuter le binaire hôte.** C'était la question ouverte 1 de §3.38 ; c'est devenu le cas d'usage principal — l'agent tourne dans une sandbox `sbx`, et stdio n'y arrive pas |
+| lecture seule, aucun tier `act` | un agent qui sait ce qui a été scanné mais ne peut pas lancer le scan fait faire à l'utilisateur le geste qu'il vient de lui décrire |
+| un contexte par process, fixé au démarrage | il n'y a plus de process à part : le serveur est celui de la session ouverte, donc son contexte est celui de l'écran |
+| « la lecture seule achète l'absence de verrou » | **sauvée autrement**, et mieux — voir plus bas |
+| « un agent qui se trompe rencontre une modale ; ici il n'y a personne » | **rendue sans objet**, pas levée — voir plus bas |
+
+#### Les décisions
+
+| # | | |
+|---|---|---|
+| 1 | Transport | **Streamable HTTP**, servi par le process du TUI. `NewStreamableHTTPHandler` existe dans le SDK déjà présent (v1.7.0, `mcp/streamable.go`) |
+| 2 | Écoute | `mcp.listen`, défaut `127.0.0.1:7777`. Le LAN est exclu **par construction** |
+| 3 | Activation | `mcp.enabled: false` par défaut — inchangé, c'est le bon modèle |
+| 4 | Portée | le **contexte courant de la session**, qui change quand l'utilisateur en change |
+| 5 | Écriture | oui : cloner, scanner, synchroniser, tirer. **Aucune action destructrice**, pas même derrière une confirmation |
+| 6 | Autorisation | `mcp.expose` reste l'allow-list unique, plus un bearer token tiré du store de secrets |
+| 7 | Contrat | toute action rend un `job_id` immédiatement ; l'agent interroge `jobs_get` |
+| 8 | stdio | **supprimé**, avec la sous-commande `dk mcp` |
+
+#### Le loopback suffit, sandbox comprise
+
+Il n'y a pas d'arbitrage à faire entre « joignable depuis la sandbox » et « pas
+sur le LAN ». Sur Docker Desktop — l'hôte est Windows — `host.docker.internal`
+depuis un conteneur atteint les services liés au **loopback de l'hôte** : la VM
+proxifie. Donc `127.0.0.1` est à la fois le bind le plus fermé possible et
+celui qui marche.
+
+Et il y a un second verrou, gratuit : la **network policy de `sbx`**. Le port
+doit être autorisé explicitement (`sbx policy allow network "localhost:7777"`),
+faute de quoi la requête est refusée en 403 avec son motif. Une sandbox n'a
+donc pas accès au serveur parce qu'elle est une sandbox, mais parce que
+quelqu'un l'a dit.
+
+`listen` est un réglage plutôt qu'un `127.0.0.1` en dur pour une seule raison,
+et elle n'est pas la configurabilité : sur un Docker natif Linux
+`host.docker.internal` ne suffit pas, il faudrait binder la gateway du bridge.
+Ce cas n'existe pas ici et n'est pas traité — mais un littéral dans le code
+demanderait de le réécrire, un réglage demandera de le documenter.
+
+**`url` serait un champ de client.** Le serveur choisit une adresse d'écoute ;
+c'est l'agent qui a une URL. Nommer le réglage `url` ferait croire que DevDesk
+sait où on le joint, ce qui est faux dès qu'un conteneur passe par
+`host.docker.internal`.
+
+#### Un seul écrivain, donc toujours pas de verrou
+
+C'était l'objection sérieuse. `~/.devdesk/` n'a aucun verrou et rien n'avertit
+quand deux écrivains se croisent : c'est ce que la lecture seule de §3.38
+achetait. Écrire depuis un **second process** le reperdrait entièrement.
+
+Un serveur **hébergé par le TUI** ne crée pas de second écrivain. Il y a un
+process, une boucle `Update()`, et c'est déjà la seule chose qui a le droit
+d'écrire (Rule 110). La garantie change de forme sans se dégrader : elle passe
+de « le serveur n'écrit pas » à « le serveur écrit par le même chemin que le
+clavier ».
+
+La contrainte qui en découle est stricte : **le handler HTTP ne touche jamais
+le modèle.** Il fait exactement ce que fait une touche.
+
+```
+handler HTTP  →  p.Send(mcp.InvokeMsg{ID, Tool, Args, Reply})
+                   ↓
+                 Update()  — jobs.Start, puis dispatche les Cmds
+                   ↓
+                 Update()  — à la complétion, écrit dans Reply
+                   ↓
+handler HTTP  ←  répond
+```
+
+`tea.Program.Send()` est la seule porte légale ; `main.go` a déjà le `p`. Ce
+qui manque est la corrélation `ID → chan`, une map **possédée par le routeur et
+mutée depuis `Update()` seul**. L'annulation de la requête HTTP doit libérer le
+handler *et* retirer l'entrée, sinon un agent qui coupe fuit une goroutine et
+une case de map par appel.
+
+**`jobs.Registry` reste non concurrent, et il ne faut pas y toucher.** Son
+commentaire dit pourquoi (`registry.go`) : un mutex dirait qu'un `Cmd` peut
+l'écrire, et c'est précisément ce qui doit rester faux. Cette architecture le
+respecte — le serveur n'est pas un écrivain de plus, c'est une source de
+messages de plus.
+
+**Les outils de lecture ne changent pas de chemin.** Ils continuent de passer
+par `internal/cache/readonly.go` et par le daemon, comme aujourd'hui. Lire le
+modèle serait tentant — il est là — et ce serait la data race que Rule 110
+existe pour interdire. Le bénéfice est nul par-dessus le marché : §3.38 a
+vérifié que tout ce qu'ils répondent est sur disque ou ailleurs. `readonly.go`
+survit intact, avec sa propriété la plus utile : **un outil de lecture ne peut
+rien décider.**
+
+#### Les jobs sont le contrat, pas un détail d'implémentation
+
+Cloner, scanner, synchroniser, tirer sont **déjà** des jobs — `jobs.Kind` les
+nomme depuis §3.58. Donc un outil d'action ne rend pas un résultat, il rend un
+identifiant :
+
+| Outil | Rend |
+|---|---|
+| `clone_start`, `scan_start`, `scan_all_start`, `sync_start`, `pull_start` | `{job_id}`, tout de suite |
+| `jobs_list`, `jobs_get` | l'état, l'avancement, le verdict |
+| `jobs_cancel` | et `Kind.Cancellable()` répond déjà pour lui |
+
+`jobs_cancel` n'a **aucune règle à inventer** : la table D7 de §3.58 dit qu'un
+scan et un pull se coupent proprement, qu'un clone, une synchro, une création
+et une suppression non. Un refus vient de cette table, écrite une fois, et pas
+d'un jugement porté ici sur ce qu'un agent a le droit d'arrêter.
+
+C'est ça qui justifie le couplage au TUI, et c'est le seul argument qui le
+justifie : `jobs.Registry` est le seul état que le disque ne porte pas. Un
+serveur headless ne peut pas répondre « le scan tourne encore ».
+
+#### La surface d'action se déduit, elle ne s'invente pas
+
+DevDesk a déjà l'inventaire exhaustif de ce qu'il sait faire : le vocabulaire
+majuscule de `internal/ui/keymap`, tenu par
+`TestNoViewBindsAnUndeclaredUppercaseKey`. La règle de sélection s'écrit donc
+en une phrase — **un outil par entrée du vocabulaire qui garde un sens sans
+écran** — et un test peut parcourir les deux tables plutôt que réviser une
+liste.
+
+| Retenu | |
+|---|---|
+| `C` `S` `A` `F` `G` | cloner, scanner, scanner tout, se remettre à jour, tirer |
+| `K` | mais sur un **job**, pas sur un conteneur — voir ci-dessous |
+
+| Écarté | Pourquoi |
+|---|---|
+| `D` `P` `K`(conteneur) | destructrices — décision 5 |
+| `N` `M` | créer et renommer ne sont pas destructifs, mais **leur seul défaire est `D`**, qui n'est pas exposée. Une action irréversible parce qu'on a retiré son inverse est pire qu'une action destructrice assumée |
+| `T` `O` `W` `V` `L` `B` `R` `I` | ouvrent un process interactif ou un écran sur le bureau de quelqu'un. Un agent n'en fait rien |
+| `U` | login/logout touche au store de secrets (§3.9) |
+| `X` `Y` | exclure un finding écrit dans la configuration (décision : pas en v1) ; copier un chemin vise le presse-papier de l'hôte, sans objet ici |
+
+#### Aucune action destructrice — et pourquoi la modale ne revient pas
+
+§3.38 refusait le tier `act` avec une phrase : *« un agent qui se trompe de
+ligne dans le TUI rencontre une modale ; ici il n'y a personne. »* Le TUI
+tournant désormais par définition, il **y a** quelqu'un, et l'objection semble
+levée. Elle ne l'est pas : elle est rendue sans objet, ce qui vaut mieux.
+
+Une modale de confirmation ouverte par un appel MCP bloquerait l'agent sur un
+événement que l'utilisateur ne regarde peut-être pas — il est dans son éditeur,
+pas dans DevDesk. L'appel pend une heure, ou le client abandonne et l'agent
+conclut que DevDesk ne répond pas. On aurait échangé une action dangereuse
+contre un dialogue invisible.
+
+Donc **la classe d'actions qui avait besoin d'une modale n'est pas exposée**.
+C'est la même forme que les trois garanties de §3.38 : `contextGetOut` n'a pas
+de champ pour un secret, `finding` n'a pas de `Match`, `expose` est une
+allow-list. Une action jamais enregistrée ne peut pas être mal confirmée.
+`mcp.expose` reste donc la seule autorisation, et il n'y a **pas** de
+`mcp.allow_writes` — ce serait un second booléen disant à peu près la même
+chose que le premier.
+
+#### Le contexte courant, et ce qu'il faut ajouter pour que ce soit tenable
+
+§3.38 refusait de suivre le contexte courant, et son motif reste vrai : *ça
+change ce que le serveur répond sous l'agent, en pleine conversation.* La
+décision 4 l'accepte, à deux conditions :
+
+1. **Chaque réponse porte le nom du contexte qui l'a servie.** Un agent qui
+   compare deux réponses voit le changement au lieu de le subir.
+2. **Une notification MCP au changement de contexte.** Le protocole a des
+   notifications serveur→client ; c'est sa réponse native, et elle vaut mieux
+   qu'un champ que l'agent peut ne pas relire.
+
+Un job lancé dans le contexte A pendant que l'utilisateur bascule sur B
+continue dans A — il a ses paramètres. `jobs_get` doit donc dire dans quel
+contexte le job tourne, faute de quoi l'agent lit un résultat en croyant qu'il
+parle de B.
+
+Corollaire de la décision 4 : basculer vers un contexte où `mcp.enabled` est
+faux **arrête** le serveur, et l'inverse le démarre. Le réglage est par
+contexte ; il serait incohérent que le serveur survive au contexte qui
+l'autorisait.
+
+#### Le token, et le réglage qu'il ne faut pas écrire
+
+Un serveur en lecture qui fuit une liste de dépôts est ennuyeux. Un serveur qui
+**clone et scanne** sur le loopback est atteignable par n'importe quel process
+local — un `postinstall` npm, une extension d'éditeur. La policy `sbx` protège
+la sandbox ; elle ne protège pas l'hôte de lui-même. Le bearer token n'est donc
+pas une option.
+
+Et il heurte une règle du dépôt : **aucun secret que DevDesk détient n'est
+écrit dans un fichier que DevDesk possède** (§3.9).
+
+| | |
+|---|---|
+| dans `config.yaml` | ❌ exactement ce que §3.9 a supprimé |
+| **dans le store de secrets** (`internal/credentials`), révélé à la demande dans la vue configuration pour être collé dans la config de l'agent | ✅ retenu |
+| éphémère par session | cohérent avec le cycle de vie, mais il faudrait le recoller à chaque lancement — inutilisable |
+| aucun | défendable pour un serveur en lecture, plus du tout ici |
+
+**Si `credentials.Select()` retombe sur `MemoryStorage`, le serveur refuse de
+démarrer** et le dit. Un token qui ne survit pas au redémarrage casserait la
+configuration de l'agent en silence, une fois par session : la panne serait
+attribuée à l'agent, jamais au store. C'est la forme de `mcp.Refused()`, qui
+nomme le réglage *et* le contexte pour la même raison.
+
+Ce que DevDesk ne peut pas empêcher, et qu'il faut donc écrire : un token collé
+dans un `.mcp.json` committé part sur GitHub au premier push. Il va dans la
+configuration **utilisateur** de l'agent.
+
+#### Un second `dk` : le footer le dit, et seulement s'il y avait quelque chose à lancer
+
+Deux sessions ouvertes — deux worktrees, deux contextes — et la seconde échoue
+au bind. Elle **continue sans serveur** et pose un message de footer : perdre le
+TUI parce qu'un port est pris serait disproportionné.
+
+Au sens de Rule 128 c'est un **`Error`** : le système a refusé une opération.
+Pas un `Warn` — rien ici n'est « ne peut pas être honoré tel que demandé », le
+bind a échoué.
+
+Et il n'est posé **que si `mcp.enabled` est vrai dans ce contexte**. Sinon rien
+n'a été tenté, donc il n'y a rien à signaler ; un message annonçant l'échec
+d'un serveur que personne n'a demandé se lirait comme une panne.
+
+#### Ce que le renversement supprime
+
+- la sous-commande `dk mcp`, son `flag.FlagSet`, son `--context` et la dizaine
+  de lignes en tête de `main()` ;
+- `mcp.Refused()` sous sa forme actuelle — le refus n'a plus de stderr où
+  aller, il devient le message de footer ci-dessus ;
+- `TestTheMCPBranchIsTakenBeforeAnythingPrints`, qui gardait un ordre
+  d'instructions qui n'existe plus ;
+- `TestNothingInThisPackageWritesToStdout`, **et c'est le point à ne pas
+  manquer** : sa raison entière était que dans stdio *stdout est le canal*.
+  Sans stdio, écrire sur stdout ne corrompt plus rien. Le garder laisserait un
+  test qui se lit comme une contrainte encore vraie, ce qui est pire que pas de
+  test — quelqu'un le lira comme une propriété du paquet.
+
+Ajouté en face : le handler HTTP, la map de corrélation, le token, `mcp.listen`,
+et l'onglet de configuration passe de deux scalaires à trois plus une action
+« révéler le token ».
+
+#### Non retenu
+
+- **Toute action destructrice** — supprimer, purger, arrêter, tuer un
+  conteneur. Ni exposée, ni derrière une confirmation, ni derrière un réglage.
+- **Créer et renommer**, parce que leur seul défaire est une action
+  destructrice.
+- **L'écriture de configuration** — monitors, registries, bascule de contexte.
+  Pas en v1.
+- **stdio**, et avec lui la possibilité de répondre quand `dk` n'est pas lancé.
+  C'est le coût assumé de la décision 4 : DevDesk conduit, l'agent est passager.
+- **Tout bind hors du loopback**, y compris `0.0.0.0` derrière un réglage.
+- **`container_logs`** — inchangé depuis §3.10 et §3.38 : les logs portent des
+  variables d'environnement et des DSN de façon routinière.
+- **Le `Match` d'un finding de secret** — inchangé, et c'est une propriété du
+  schéma, pas un filtre.
+
+#### Le plan
+
+Le plan était [`.claude/plans/mcp-server-in-tui.plan.md`], sept phases en trois
+lots ; il a été retiré à la livraison, cette entrée étant le compte rendu qui
+dure. Ce que la préparation a établi et que cette entrée
+ne pouvait pas savoir : `jobs.StartMsg` est le **point de passage unique** où un
+run est admis et son identifiant alloué (`handleStartJobs`, `internal/app/jobs.go`).
+Un outil d'action n'a donc aucun run à construire — il envoie une requête, la
+vue la bâtit comme pour une touche, et le routeur rend l'identifiant. La
+corrélation voyage sur le run, à la manière du stamp de contexte de D68 : un
+`pendingInvoke` consommé par le prochain `StartMsg` aurait une fenêtre d'un
+cycle `Update` où une touche s'intercale, et l'agent recevrait l'identifiant du
+scan que l'utilisateur venait de lancer à la main.
+
+#### Ce que la réalisation a changé à l'énoncé
+
+Fait le 2026-09-05, en cinq commits. **Neuf décisions ont dû être prises contre
+ce qui est écrit plus haut ou dans le plan**, et chacune parce que l'énoncé se
+contredisait, nommait quelque chose de déjà pris, ou demandait au SDK ce qu'il
+ne garantit pas.
+
+**Le point de non-retour a été franchi d'abord.** Un agent en sandbox `sbx`
+atteint bien `http://host.docker.internal:7777` une fois
+`sbx policy allow network "localhost:7777"` passée sur l'hôte, avec le serveur
+lié à `127.0.0.1`. C'était l'hypothèse dont dépendait le choix du bind et le seul
+motif de l'entrée ; tout le reste a été écrit après l'avoir vue répondre.
+
+**Les phases 3 et 4 ont fusionné, et la frontière a bougé pour une raison.** La
+boucle d'invocation seule n'a pas d'appelant : la tester demanderait de
+l'échafaudage de test dans du code de production. `jobs_list` et `jobs_get` sont
+son premier consommateur, et ils sont en **lecture**, donc le mécanisme a été
+validé avant qu'aucune action n'existe.
+
+**La map de corrélation n'existe pas pour une réponse immédiate.** Le plan la
+prévoyait en phase 3 ; une réponse rendue dans l'`Update` qui reçoit la demande
+n'en a pas besoin — le canal bufferisé à un suffit, et il est collecté quand les
+deux côtés lâchent. Elle est arrivée avec les actions, où la réponse est
+différée d'un cycle. La déclarer plus tôt aurait été ce que §3.60 reprochait à
+`KindPull` : un mot du vocabulaire que rien n'emploie.
+
+**`Run.Origin` était déjà pris** — c'est la vue qui a démarré le run, ce dont
+`:jobs` a besoin pour renvoyer l'utilisateur au bon écran. Le champ de
+corrélation s'appelle `Invocation`.
+
+**`jobs.WithInvocation` est un décorateur, pas un quatrième constructeur.**
+`Start`, `StartInContext` et `StartCancellable` varient déjà sur deux axes ; une
+variante portant l'invocation de chacun en ferait six. La vue emballe la
+commande qu'elle rendait déjà, au seul endroit qui sait qui a demandé.
+
+**La notification MCP au changement de contexte a été abandonnée**, et remplacée
+par mieux. `ServerSession.Log` du SDK ne part que si le client a posé un niveau
+de log : c'est une garantie qui tient quand elle veut. Le redémarrage du serveur
+sur bascule **coupe les sessions ouvertes**, ce qu'aucun client ne peut rater —
+il perd sa session et réinitialise plutôt que de se mettre silencieusement à
+lire un autre contexte. C'est `Close` et non `Shutdown` : une requête en vol
+appartient au contexte qu'on quitte.
+
+**`clone_start` n'est pas livré.** `C` ouvre une sélection que l'utilisateur
+construit en parcourant l'arbre de la forge, puis un second écran pour la
+destination ; `handleCloneDestinationSelected` la résout par `rootNodes()` et
+`m.selection`, l'état d'un arbre que quelqu'un a parcouru. Un agent n'a rien de
+tout ça. L'exposer demande un chemin de résolution sans arbre — un chemin de
+groupe vers un ensemble de nœuds — ce qui est une fonctionnalité à spécifier.
+La règle du vocabulaire tient ; ce vers quoi elle pointe n'existe pas encore.
+
+**`jobs_cancel` a été corrigé contre sa première version**, qui refusait un
+clone au motif que `Kind.Cancellable()` dit non. C'était lire la table D7 de
+§3.58 de travers : **la file s'arrête toujours**, et seul le travail déjà en vol
+n'est coupé que là où le couper ne laisse rien derrière. Le seul refus est un
+run déjà réglé.
+
+**Deux choses ont dû être ajoutées ailleurs**, et ni l'une ni l'autre n'était
+prévue :
+
+- `components.PostFooterMsg`. Le routeur n'a pas de footer — `RenderFooter` est
+  celui de la vue active — donc l'échec de bind n'avait aucun chemin vers
+  l'écran. Toutes les vues offrent déjà les messages non traités à
+  `FooterMessage.Handle`, donc une diffusion suffit ; elle porte son propre ID
+  parce que la minuterie est celle de l'émetteur.
+- `kindSecret` dans la vue configuration. Une ligne statique en clair aurait été
+  le seul endroit de l'application montrant un secret non masqué — le token de
+  forge et le mot de passe de registry posent tous deux `EchoPassword`.
+
+**Le tampon de contexte était aux trois quarts déjà là** : `workspaces_list`,
+`registries_list` et `scan_inventory` portaient déjà `context`. Ce qui manquait
+était `scan_result` et les réponses nouvelles. Le test qui tient la règle trouve
+les réponses **là où elles sont rendues** — le deuxième résultat d'un handler
+dont le premier est `*sdk.CallToolResult` — et non par leur nom : une première
+version filtrait sur le suffixe `Out` et réclamait le champ à `socketOut` et
+`containerOut`, qui sont des lignes *dans* une réponse.
+
+**Un refus de plus que prévu, et il est structurel** : un store de secrets qui
+ne persiste pas empêche le serveur de démarrer. `credentials.Select` retombe sur
+la mémoire quand aucun store hôte ne répond, donc un token serait régénéré à
+chaque lancement — cassant la configuration de l'agent une fois par session, en
+silence, avec la panne attribuée à l'agent.
+
+#### Ce qui reste ouvert
+
+Les quatre questions ci-dessous n'ont pas bougé, plus une cinquième que la
+réalisation a créée : **`clone_start`**, ci-dessus.
+
+1. **Docker natif Linux.** `host.docker.internal` n'y atteint pas le loopback
+   de l'hôte ; il faudrait binder la gateway du bridge, ce qui expose le
+   serveur à tous les conteneurs de la machine et pas seulement à la sandbox. À
+   traiter quand le cas existera, pas avant.
+2. **Resources et prompts MCP.** La question ouverte 2 de §3.38 est intacte :
+   un résultat de scan est adressable et immuable, donc naturellement une
+   *resource*. Un `job_id` l'est aussi, et une resource qui change est
+   exactement ce à quoi servent les notifications.
+3. **Quitter `dk` avec un job en vol lancé par un agent.** Le TUI demande-t-il
+   confirmation ? L'agent perd sa réponse dans tous les cas, mais un clone coupé
+   laisse un demi-dépôt sur le disque — c'est pour ça que `Kind.Cancellable()`
+   répond non.
+4. **La rotation du token.** Un bouton dans la vue configuration invalide la
+   configuration de l'agent sans que rien ne le lui dise. Peut-être n'y a-t-il
+   rien de mieux à faire que de l'écrire.
 
 ## 4. Existing plans
 

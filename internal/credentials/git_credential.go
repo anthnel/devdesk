@@ -77,7 +77,7 @@ func (g *GitCredentialStorage) Load(urlStr string) (string, error) {
 	if token, ok := parsePassword(output); ok {
 		return token, nil
 	}
-	return "", fmt.Errorf("no credentials found for %s (context: %s)", urlStr, g.context)
+	return "", fmt.Errorf("%w for %s (context: %s)", ErrNotFound, urlStr, g.context)
 }
 
 // Delete supprime un token de git credential

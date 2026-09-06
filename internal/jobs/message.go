@@ -38,6 +38,68 @@ type StartMsg struct {
 	// because a progressive run owns its context from the launch: the pipeline
 	// is started in Update, so the function exists before the run is admitted.
 	Cancel context.CancelFunc
+
+	// Invocation names the MCP call that asked for this run, and is empty when
+	// a person pressed a key (§3.61).
+	//
+	// It travels on the message rather than being matched by time: a router
+	// that remembered "an invocation is in flight" and gave its identifier to
+	// the next StartMsg would have a window of one Update cycle, in which a
+	// keypress can land — and the agent would be handed the identifier of the
+	// scan the user just started by hand. It is the shape of Run.Context: a
+	// fact carried by what it is about, decided once.
+	Invocation string
+}
+
+// WithInvocation stamps the run a jobs.Start* command is about to register with
+// the call that asked for it.
+//
+// A decorator rather than a fourth constructor: Start, StartInContext and
+// StartCancellable already differ along two axes, and an invocation-carrying
+// variant of each would be six. A view's MCP handler wraps the command it was
+// already returning, at the one place that knows who asked.
+//
+// An empty invocation returns the command untouched, so a keyboard launch pays
+// nothing and reads as it did.
+func WithInvocation(invocation string, cmd tea.Cmd) tea.Cmd {
+	if invocation == "" || cmd == nil {
+		return cmd
+	}
+	return func() tea.Msg {
+		msg := cmd()
+		start, ok := msg.(StartMsg)
+		if !ok {
+			return msg
+		}
+		start.Invocation = invocation
+		return start
+	}
+}
+
+// RefusedMsg says an invocation will not produce a run, and why.
+//
+// It is the sibling of StartMsg and lives beside it for that reason: between
+// them they are everything an invocation can come to. A keypress needs no such
+// message — the view puts the same sentence in its footer (Rule 130) — which is
+// why Refuse returns nil for an empty invocation rather than a message nobody
+// would route.
+//
+// Reason is the view's own Availability.Reason, so the sentence an agent reads
+// is the one the header greys with and the footer prints. One calculation,
+// three readers.
+type RefusedMsg struct {
+	Invocation string
+	Reason     string
+}
+
+// Refuse builds the message, or nothing at all for a keyboard launch.
+func Refuse(invocation, reason string) tea.Cmd {
+	if invocation == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		return RefusedMsg{Invocation: invocation, Reason: reason}
+	}
 }
 
 // Start builds the message for work that does not depend on the context.
