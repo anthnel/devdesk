@@ -11819,10 +11819,12 @@ GitHub → mirror, que le CLAUDE.md documente pour `main`, couvre
 GitHub : `git fetch origin --tags` le ramène. Rien n'oblige donc à poser un tag
 à la main, et `git describe` reste juste en local.
 
-Un dernier point n'est pas dans les fichiers et le sera oublié : *Settings →
-Actions → Allow GitHub Actions to create and approve pull requests* doit être
-coché. Aucun workflow ne peut se donner ce droit, et le premier run échoue sur
-la PR qu'il ne peut pas ouvrir avec un message qui ne dit pas que c'est ça.
+Un dernier point n'est pas dans les fichiers et serait oublié : *Settings →
+Actions → Allow GitHub Actions to create and approve pull requests*. Aucun
+workflow ne peut se donner ce droit, et le premier run échoue sur la PR qu'il ne
+peut pas ouvrir avec un message qui ne dit pas que c'est ça. Il est **déjà
+actif** — vérifié plutôt que supposé, par
+`gh api repos/anthnel/devdesk/actions/permissions/workflow`.
 
 **Les 180 commits de `main` sont conventional, sans exception** — vérifié plutôt
 que supposé, et c'est la seule condition d'entrée de l'outil. Le squash-merge y

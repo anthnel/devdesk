@@ -367,7 +367,11 @@ GitHub Actions, donc il naît sur GitHub et non via le mirror — mais
 **Un réglage de dépôt qu'aucun workflow ne peut se donner** : *Settings →
 Actions → Allow GitHub Actions to create and approve pull requests*. Sans lui le
 premier run échoue sur la PR qu'il ne peut pas ouvrir, et le message ne dit pas
-que c'est ça.
+que c'est ça. **Déjà actif ici** — `gh api repos/anthnel/devdesk/actions/permissions/workflow`
+répond `can_approve_pull_request_reviews: true`, vérifié le 2026-09-06. Le même
+appel montre `default_workflow_permissions: read`, ce qui n'est pas un problème :
+c'est le défaut quand un workflow ne dit rien, et `release.yml` déclare les
+siennes.
 
 **La version du binaire vient des `-ldflags`**, pas d'un fichier committé
 (§3.62). `release-please` sait écrire dans un fichier Go (`versionFile`) et on
