@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "64aee81e52cd",
+  "strategy": "manual-commit",
+  "branch": "docs/release-flow-explainer",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/64/aee81e52cd/0/metadata.json",
+      "transcript": "/64/aee81e52cd/0/full.jsonl",
+      "compact_transcript": "/64/aee81e52cd/0/transcript.jsonl",
+      "content_hash": "/64/aee81e52cd/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 46884,
+    "cache_read_tokens": 1956534,
+    "output_tokens": 7549,
+    "api_call_count": 11
+  }
+}
