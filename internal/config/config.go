@@ -342,7 +342,8 @@ type ScanConfig struct {
 	TrivySource        string `yaml:"trivy_source"`         // auto | binary | image
 	TrivyPath          string `yaml:"trivy_path"`           // Chemin custom vers trivy (optionnel)
 	TrivyImage         string `yaml:"trivy_image"`          // Image Docker trivy (défaut: aquasec/trivy)
-	TrivyServer        string `yaml:"trivy_server"`         // URL du serveur Trivy (optionnel, mode client-serveur)
+	UseTrivyServer     bool   `yaml:"use_trivy_server"`     // Active le mode client-serveur ; trivy_server est ignoré si faux
+	TrivyServer        string `yaml:"trivy_server"`         // URL du serveur Trivy (mode client-serveur)
 	GitleaksSource     string `yaml:"gitleaks_source"`      // auto | binary | image
 	GitleaksPath       string `yaml:"gitleaks_path"`        // Chemin custom vers gitleaks (optionnel)
 	GitleaksImage      string `yaml:"gitleaks_image"`       // Image Docker gitleaks (défaut: zricethezav/gitleaks)

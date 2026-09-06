@@ -53,7 +53,8 @@ registry:
 
 scan:
   trivy_image: "aquasec/trivy:0.52.1"
-  trivy_server: ""                 # Optional: use server mode
+  use_trivy_server: false          # The checkbox that actually turns on server mode
+  trivy_server: ""                 # Address used only when use_trivy_server is true
   gitleaks_image: "zricethezav/gitleaks:v13.3.0"
   cache_dir: "~/.devdesk/cache"
   max_cached_reports: 50

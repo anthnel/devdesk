@@ -200,7 +200,7 @@ func (m Model) isDisabled(f field) bool {
 }
 
 func (m Model) serverMode() bool {
-	return m.config.Scan.TrivyServer != ""
+	return m.config.Scan.UseTrivyServer
 }
 
 // vocab is the wording of the forge this context targets, resolved from the

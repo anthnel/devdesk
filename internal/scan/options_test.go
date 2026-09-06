@@ -29,6 +29,11 @@ func TestEveryConfiguredOptionReachesTheScanner(t *testing.T) {
 	for _, name := range shared {
 		cfgValue.FieldByName(name).Set(distinctValue(name, cfgValue.FieldByName(name).Type()))
 	}
+	// UseTrivyServer is not shared with ScanOptions — it only gates whether
+	// TrivyServer reaches OptionsFromConfig at all — so it is not covered by
+	// the walk above and has to be opened by hand for TrivyServer's value to
+	// carry through.
+	cfg.UseTrivyServer = true
 
 	got := reflect.ValueOf(OptionsFromConfig(&config.Config{Scan: cfg}))
 
@@ -54,6 +59,22 @@ func TestOptionsFromConfigCarriesNothingItWasNotGiven(t *testing.T) {
 	}
 	if opts.OnProgress != nil {
 		t.Error("OptionsFromConfig set OnProgress; the caller owns it")
+	}
+}
+
+// TestTrivyServerIsGatedByItsCheckbox pins the point of UseTrivyServer: an
+// address left in the config from a previous session must not put a scan into
+// client-server mode on its own — only the checkbox does.
+func TestTrivyServerIsGatedByItsCheckbox(t *testing.T) {
+	cfg := &config.Config{Scan: config.ScanConfig{TrivyServer: "https://trivy:4954"}}
+
+	if got := OptionsFromConfig(cfg).TrivyServer; got != "" {
+		t.Errorf("TrivyServer = %q with the checkbox off, want empty", got)
+	}
+
+	cfg.Scan.UseTrivyServer = true
+	if got := OptionsFromConfig(cfg).TrivyServer; got != "https://trivy:4954" {
+		t.Errorf("TrivyServer = %q with the checkbox on, want the configured address", got)
 	}
 }
 

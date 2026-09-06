@@ -18,6 +18,13 @@ import "github.com/anthnel/devdesk/internal/config"
 // repository is graded at all (§3.42), and that is not a scan setting.
 func OptionsFromConfig(cfg *config.Config) ScanOptions {
 	c := cfg.Scan
+	// The address is kept in the config even when the checkbox is off, so
+	// switching it back on does not lose what was typed — but a scan must not
+	// see it until the checkbox says client-server mode is wanted.
+	trivyServer := ""
+	if c.UseTrivyServer {
+		trivyServer = c.TrivyServer
+	}
 	return ScanOptions{
 		EnableCIScore:   c.EnableCIScore,
 		PlumberSource:   c.PlumberSource,
@@ -35,7 +42,7 @@ func OptionsFromConfig(cfg *config.Config) ScanOptions {
 		GitleaksSource:  c.GitleaksSource,
 		GitleaksPath:    c.GitleaksPath,
 		GitleaksImage:   c.GitleaksImage,
-		TrivyServer:     c.TrivyServer,
+		TrivyServer:     trivyServer,
 		IgnoreUnfixed:   c.IgnoreUnfixed,
 		IgnoreEOL:       c.IgnoreEOL,
 		GitleaksHistory: c.GitleaksHistory,
