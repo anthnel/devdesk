@@ -1,0 +1,82 @@
+site_name: DevDesk
+site_description: A terminal-based DevSecOps workstation
+site_url: https://anthnel.github.io/devdesk/
+repo_url: https://github.com/anthnel/devdesk
+repo_name: anthnel/devdesk
+edit_uri: edit/main/docs-site/docs/
+
+theme:
+  name: material
+  icon:
+    logo: material/console
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Tutorial:
+      - Your first session: tutorial/first-session.md
+  - How-to guides:
+      - Install DevDesk: how-to/install.md
+      - Configure a context: how-to/configure-a-context.md
+      - Switch forge backend (GitLab/GitHub): how-to/switch-forge-backend.md
+      - Run a security scan: how-to/run-a-security-scan.md
+      - Enable the MCP server: how-to/enable-the-mcp-server.md
+  - Reference:
+      - Commands: reference/commands.md
+      - Keybindings: reference/keybindings.md
+      - Configuration: reference/configuration.md
+      - Project structure: reference/project-structure.md
+  - Explanation:
+      - Overview: explanation/index.md
+      - App Shell & Router: explanation/app-shell.md
+      - Forge (GitLab / GitHub): explanation/forge.md
+      - Configuration & Contexts: explanation/configuration.md
+      - Workspaces: explanation/workspaces.md
+      - Viewer: explanation/viewer.md
+      - Security Scanning: explanation/scanning.md
+      - Registries: explanation/registries.md
+      - Network: explanation/network.md
+      - MCP Server: explanation/mcp.md
+      - UI Components: explanation/ui-components.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md

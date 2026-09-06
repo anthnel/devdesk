@@ -110,45 +110,10 @@ var viewNames = map[string]ViewType{
 	"version": ViewAbout,
 }
 
-// legacyNames are spellings that still resolve but are never suggested.
-//
-// They are the forge-prefixed names §3.6 replaced. Keeping them parseable is
-// deliberately permissive: there is one authentication view, so `gla` typed out
-// of habit should go there rather than fail, and punishing muscle memory buys
-// nothing. Keeping them *unsuggested* is what makes the new names the ones a
-// user learns — the completion list is the only place most people read them.
-//
-// The GitHub spellings were never accepted before and are here for the same
-// reason as the GitLab ones: someone whose context targets GitHub will guess
-// `gha` before `ga`, and being right is worth more than being consistent about
-// what used to exist.
-//
-// **The filtering happens in completion, not in parsing.** That split is what
-// makes the rename feel like a rename rather than a removal.
-var legacyNames = map[string]ViewType{
-	"gitlab-auth":     ViewGitAuth,
-	"gla":             ViewGitAuth,
-	"github-auth":     ViewGitAuth,
-	"gha":             ViewGitAuth,
-	"gitlab-explorer": ViewGitExplorer,
-	"gle":             ViewGitExplorer,
-	"github-explorer": ViewGitExplorer,
-	"ghe":             ViewGitExplorer,
-
-	// `explorer` and `exp` predate the prefix question entirely. They are
-	// retired for the same reason: one short form per view, and `ge` is the one
-	// that pairs with `ga`.
-	"explorer": ViewGitExplorer,
-	"exp":      ViewGitExplorer,
-}
-
-// resolveView looks a spelling up in both tables. Parsing sees them as one;
-// only completion tells them apart.
+// resolveView looks a spelling up in viewNames, the single source for both
+// parsing and completion.
 func resolveView(name string) (ViewType, bool) {
-	if view, ok := viewNames[name]; ok {
-		return view, true
-	}
-	view, ok := legacyNames[name]
+	view, ok := viewNames[name]
 	return view, ok
 }
 
@@ -211,9 +176,6 @@ func Parse(input string) (ViewType, error) {
 
 // GetAliases retourne chaque alias avec le nom complet qu'il abrège, vues et
 // commandes d'action confondues.
-//
-// legacyNames is deliberately absent: this feeds completion, and a spelling
-// that parses without being suggested is exactly what those are.
 func GetAliases() map[string]string {
 	aliases := make(map[string]string, len(viewNames)+len(actionAliases))
 	for name, view := range viewNames {

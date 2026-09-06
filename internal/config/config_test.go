@@ -99,7 +99,7 @@ func TestSaveAndLoad(t *testing.T) {
 	testCfg := &Config{
 		App: AppConfig{
 			Theme:         "light",
-			DefaultView:   "gitlab-auth",
+			DefaultView:   "git-auth",
 			WorkspacesDir: "/test/workspaces",
 		},
 		Status: StatusConfig{
@@ -143,8 +143,8 @@ func TestSaveAndLoad(t *testing.T) {
 	if loadedCfg.App.Theme != "light" {
 		t.Errorf("Expected theme 'light', got '%s'", loadedCfg.App.Theme)
 	}
-	if loadedCfg.App.DefaultView != "gitlab-auth" {
-		t.Errorf("Expected default view 'gitlab-auth', got '%s'", loadedCfg.App.DefaultView)
+	if loadedCfg.App.DefaultView != "git-auth" {
+		t.Errorf("Expected default view 'git-auth', got '%s'", loadedCfg.App.DefaultView)
 	}
 	if loadedCfg.Status.RefreshInterval != 20 {
 		t.Errorf("Expected refresh interval 20, got %d", loadedCfg.Status.RefreshInterval)
