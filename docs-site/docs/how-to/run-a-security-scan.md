@@ -8,15 +8,20 @@ From **Workspaces** (`:ws`), select a repository and press:
 
 | Key | Effect |
 |---|---|
-| `S` / `ctrl+s` | Scan this repository. If it was already scanned, this rescans it and overwrites the cached result. |
-| `A` | Scan every repository that has never been scanned. Already-scanned ones are left alone. |
-| `ctrl+a` | Purge the scan cache entirely and rescan everything, including repositories scanned earlier. |
+| `S` | Scan this repository. If it was already scanned, this rescans it and overwrites the cached result. |
+| `A` | Scan every repository below the cursor. Opens a confirmation with a **"Purge cached results first"** checkbox — unchecked, only what has never been scanned runs; checked, everything is purged and rescanned, including repositories scanned earlier. |
+
+The checkbox exists because a bare `A` and a modifier-only variant used to
+differ silently in whether they purged the cache — the closest this
+application came to losing scan history by accident. The destructive half
+is now a deliberate, visible choice in the confirmation itself, not a
+different key.
 
 A scan runs as a background job — check `:jobs` to see it in flight, or just keep navigating.
 
 ## Scan an OCI image
 
-The same three keys work from **OCI Resources** (`:oci`): `S`/`ctrl+s` to (re)scan the selected image, `A` for every unscanned image, `ctrl+a` to purge and rescan all.
+The same two keys work from **OCI Resources** (`:oci`): `S` to (re)scan the selected image, `A` for the same all/unscanned choice via its confirmation.
 
 ## Read the results
 
@@ -24,7 +29,7 @@ Open **Security** (`:sec`) once a scan finishes. Findings are grouped by severit
 
 ## Why results might be stale
 
-The cache is keyed by repository/image, not by commit — a scan result stays valid until you rescan, even if the underlying code has changed since. If you want to be sure you're looking at current findings, `S`/`ctrl+s` before reading `:sec`.
+The cache is keyed by repository/image, not by commit — a scan result stays valid until you rescan, even if the underlying code has changed since. If you want to be sure you're looking at current findings, press `S` before reading `:sec`.
 
 Deleted repositories and images drop out of the Security view and the dashboard's counts automatically; a cached result for something that no longer exists is never shown as current.
 

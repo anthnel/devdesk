@@ -152,7 +152,13 @@ depends = ["fmt", "vet", "lint", "test"]
 
 [tasks.docs-serve]
 description = "Preview the documentation site locally"
-run = "mkdocs serve -f docs-site/mkdocs.yml"
+shell = "bash -c"
+# Same changelog staging step as docs-build — without it, mkdocs.yml's nav
+# points at a changelog.md that doesn't exist yet on a fresh checkout.
+run = """
+cp CHANGELOG.md docs-site/docs/changelog.md
+mkdocs serve -f docs-site/mkdocs.yml
+"""
 
 [tasks.docs-build]
 description = "Build the static documentation site into docs-site/site"

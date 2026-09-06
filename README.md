@@ -90,21 +90,20 @@ you are looking for the exact parsing rules.
 | `← / →`            | Go back / drill down        |
 | `Enter`            | Select / confirm            |
 | `Esc`              | Cancel / go back            |
-| `ctrl+s`           | Scan selected item          |
-| `ctrl+d`           | Delete selected item        |
-| `ctrl+r`           | Reload / refresh            |
-| `ctrl+n`           | Create new resource         |
-| `E`                | Edit selected resource      |
+| `ctrl+p`           | Open the command palette    |
+| `ctrl+r`           | Refresh — nothing else      |
 | `.`                | Cycle sort column           |
 | `/`                | Filter                      |
 | `?`                | In-app help                 |
 | `q`                | Quit                        |
 
-The full resource-action vocabulary (`N` create, `D` delete, `S` scan, `T`
-terminal, `L` logs, …) is uppercase and identical across views — see
-`.claude/rules/tui-layout.md` (Rule 111) for the complete table. Lowercase
-letters are always local filters/toggles, never actions, and vim-style
-`hjkl` navigation aliases do not exist.
+Resource actions (`N` create, `S` scan, `D` delete, `E` edit, `T` terminal,
+`L` logs, …) are a single **uppercase** letter, identical across every
+view — see `.claude/rules/tui-layout.md` (Rule 111) for the complete table.
+There is no `ctrl+`-prefixed alternative for any of them: only three `Ctrl`
+combinations exist in the whole app (`ctrl+c`, `ctrl+r`, `ctrl+p`).
+Lowercase letters are always local filters/toggles, never actions, and
+vim-style `hjkl` navigation aliases do not exist.
 
 ## Configuration
 
@@ -146,12 +145,21 @@ keyring or git credential helper — never in the config file. See
 
 ### Themes
 
-Twelve themes ship in `themes/`: `catppuccin-mocha`, `catppuccin-latte`,
+The built-in `default` theme needs no setup. Twelve more ship as JSON files
+in `themes/` in this repository — `catppuccin-mocha`, `catppuccin-latte`,
 `catppuccin-frappe`, `catppuccin-macchiato`, `tokyo-night`, `one-dark`,
 `dark-plus` (Windows Terminal Dark+), `nord`, `solarized-dark`,
-`solarized-light`, `github-dark`, `github-light` — plus the built-in
-`default`. Cycle through them from the `:config` view, or set `app.theme`
-directly.
+`solarized-light`, `github-dark`, `github-light` — but DevDesk only looks
+for theme files in `~/.devdesk/themes/`, so copy the ones you want there
+first:
+
+```bash
+mkdir -p ~/.devdesk/themes
+cp themes/*.json ~/.devdesk/themes/
+```
+
+Once copied, they appear in the `:config` view's theme cycle (`←/→`), or
+set `app.theme` directly to a theme's file name without `.json`.
 
 ### MCP server
 

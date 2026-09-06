@@ -38,7 +38,7 @@ press `Enter` — or just type `ws`, its short alias.
 ```
 
 The **Workspaces** view lists the git repositories under
-`app.workspaces_dir` (`~/projects` by default — see
+`app.workspaces_dir` (`~/workspaces` by default — see
 [Configure a context](../how-to/configure-a-context.md) to change it). If
 the list is empty, that directory has no git repositories yet; clone one
 with `git clone` in a separate terminal, or use `git-explorer` once you have
@@ -47,9 +47,8 @@ or skip straight to a scan if you already have a local clone).
 
 ## 4. Run a scan
 
-With a repository selected in Workspaces, press `S` (uppercase — `ctrl+s`
-also works and rescans a single item). DevDesk runs
-[Trivy](https://trivy.dev/) (CVEs, secrets, misconfiguration) and
+With a repository selected in Workspaces, press `S` (uppercase). DevDesk
+runs [Trivy](https://trivy.dev/) (CVEs, secrets, misconfiguration) and
 [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets) against it in the
 background.
 

@@ -7,7 +7,7 @@ default — an absent key is not an error, `config.Default()` fills it in.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `theme` | string | `default` | Theme name — a bundled file in `themes/`, or `default`/`dark`/`light` for the built-in |
+| `theme` | string | `default` | `""`, `default`, or `dark` all mean the built-in theme; any other name loads `~/.devdesk/themes/<name>.json` — copy the bundled files from `themes/` in the repository there first, DevDesk does not install them automatically |
 | `log_file` | string | | Path to the log file |
 | `default_view` | string | `dashboard` | View opened at startup |
 | `workspaces_dir` | string | `~/workspaces` | Scanned by Workspaces; default clone target for the forge explorer |
