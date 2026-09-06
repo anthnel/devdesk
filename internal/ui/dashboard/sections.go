@@ -877,23 +877,19 @@ func renderNetworkSection(m Model, width int, t tier) []string {
 // outil que la détection ne rend plus est absent, et le compter hors du
 // dénominateur le ferait disparaître au lieu de le signaler.
 //
-// Elle doit rester en phase avec detectTools (model.go).
-// Les noms sont des constantes parce que les deux listes se sont déjà
-// désaccordées : §3.47 a renommé la sonde réseau en « Connectivity » dans
-// detectTools sans toucher à celle-ci, donc le dashboard réclamait « Net Diag »
-// en permanence — un outil absent de la détection est déclaré manquant — tout
-// en ne vérifiant jamais celui qu'il détectait. Deux littéraux pour un seul nom
-// ne peuvent que dériver ; une constante ne le peut pas.
+// Elle doit rester en phase avec detectTools (model.go). Les noms sont des
+// constantes parce que les deux listes ont déjà divergé une fois (§3.47) :
+// deux littéraux pour un seul nom ne peuvent que dériver ; une constante ne
+// le peut pas.
 const (
-	toolDocker       = "Docker"
-	toolTrivy        = "Trivy"
-	toolGitleaks     = "Gitleaks"
-	toolPlumber      = "Plumber"
-	toolConnectivity = "Connectivity"
-	toolGit          = "Git"
+	toolDocker   = "Docker"
+	toolTrivy    = "Trivy"
+	toolGitleaks = "Gitleaks"
+	toolPlumber  = "Plumber"
+	toolGit      = "Git"
 )
 
-var knownTools = []string{toolDocker, toolTrivy, toolGitleaks, toolPlumber, toolConnectivity, toolGit}
+var knownTools = []string{toolDocker, toolTrivy, toolGitleaks, toolPlumber, toolGit}
 
 // renderStorageSection answers one question — **où part la place** — in two
 // trees: the volume the workspaces live on, and what Docker holds on it.

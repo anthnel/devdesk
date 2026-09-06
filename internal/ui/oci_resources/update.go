@@ -159,9 +159,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case NetworkInspectLoadedMsg:
 		return m.handleNetworkInspectLoaded(msg)
 
-	case DiagnosticTestCompleteMsg:
-		return m.handleDiagnosticTestComplete(msg)
-
 	case RegistryFormCancelMsg:
 		m.registryForm = nil
 		return m, nil
@@ -247,11 +244,6 @@ func (m Model) delegateUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.registryForm, cmd = m.registryForm.Update(msg)
 		return m, cmd
 	}
-	if m.connectivityForm != nil {
-		var cmd tea.Cmd
-		m.connectivityForm, cmd = m.connectivityForm.Update(msg)
-		return m, cmd
-	}
 	if m.networkInspectForm != nil {
 		var cmd tea.Cmd
 		m.networkInspectForm, cmd = m.networkInspectForm.Update(msg)
@@ -306,11 +298,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.registryForm, cmd = m.registryForm.Update(msg)
 		return m, cmd
 	}
-	// Priority 3: connectivity form (full viewport)
-	if m.connectivityForm != nil {
-		return m.handleConnectivityFormKeyMsg(msg)
-	}
-	// Priority 3.5: network inspect overlay
+	// Priority 3: network inspect overlay
 	if m.networkInspectForm != nil {
 		return m.handleNetworkInspectKeyMsg(msg)
 	}

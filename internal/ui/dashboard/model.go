@@ -598,10 +598,6 @@ func (m Model) detectTools() tea.Cmd {
 			Source:    string(deps.PlumberSource),
 		})
 
-		// The OCI connectivity test image — la seule que l'application démarre
-		// encore (§3.47).
-		tools = append(tools, detectDockerImage(toolConnectivity, cfg.Network.ConnectivityImage))
-
 		// Git
 		tools = append(tools, detectBinaryTool(toolGit, "git", "--version"))
 
@@ -741,16 +737,6 @@ func computeGlobalStatus(components []status.ComponentStatus) shared.ServiceGlob
 // InEditMode returns false - dashboard has no edit modes
 func (m Model) InEditMode() bool {
 	return false
-}
-
-// detectDockerImage checks if a Docker image is available locally
-func detectDockerImage(name, image string) shared.ToolInfo {
-	tool := shared.ToolInfo{Name: name, Version: image, Source: "image"}
-	cmd := exec.Command("docker", "image", "inspect", "--format", "{{.Id}}", image)
-	if err := cmd.Run(); err == nil {
-		tool.Available = true
-	}
-	return tool
 }
 
 // detectBinaryTool checks if a binary is available and gets its version

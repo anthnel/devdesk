@@ -52,22 +52,12 @@ The legacy secret migration is unaffected and the order is worth knowing:
 construction, before anything can save, so a plaintext `gitlab.token` reaches
 the store before the rename can rewrite the file without it.
 
-**`network:` was `docker:`, and the image key has been renamed twice since.**
-The one key `docker:` held was never a Docker setting, and the four other tabs of
-the configuration view are each named after the section they write. Then the
-setting itself lost its readers one by one — `ss` to §3.43, `ip`/`iptables` to
-§3.44, `traceroute` to §3.47 — until only the OCI connectivity test was left, so
-it is now named after it.
-
-The chain is `docker.network_tool_image` → `network.tool_image` →
-`network.connectivity_image`, and a file may sit at **any point** on it. Both
-renames run in `applyDefaults` **before** the defaults, oldest first, each
-clearing its key so it leaves the file on the next save (the precedent is
-`RegistryItem.AuthEnabled`). The order is the whole of it: `yaml.Unmarshal` is
-not strict here, so an un-migrated block is dropped in silence and a user
-pointing at their own mirror would find the probe pulling from Docker Hub.
-`TestTheImageSurvivesBothRenames` and `TestTheNewestKeyWins` are what make that
-checkable rather than commented.
+**`network:` was `docker:`.** The one key `docker:` held was never a Docker
+setting, and the four other tabs of the configuration view are each named
+after the section they write. That key — the image the OCI connectivity test
+ran — has since been removed along with the feature itself; `NetworkConfig`
+now holds only the netdiag dials (`CheckTimeout`, `PingCount`,
+`CertExpiryWarnDays`, `PortsRefreshInterval`).
 
 **No secret goes in this file.** `GitLabConfig` has no `Token` and
 `RegistryConfig` has no `Password`; both live in the host secret store (see

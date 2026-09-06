@@ -93,11 +93,12 @@ paie une fois.
   - `c` `h` `m` `l` (security) : sévérités, **cumulatives** — `c`+`h` demande
     « CRITICAL **ou** HIGH », ce qu'un seuil ne sait pas exprimer.
 
-- **Deux exceptions, déclarées** dans `keymap.DeclaredExceptions()` : `c` (test
-  de connectivité, inspection réseau OCI) et `ctrl+y` (copier la commande
-  `docker run`). Brûler une majuscule globale pour une action présente dans un
-  seul sous-écran coûterait plus que ça ne rapporte. Elles sont écrites comme
-  exceptions pour que le prochain relevé ne les prenne pas pour des dérives.
+- **Deux exceptions, déclarées** dans `keymap.DeclaredExceptions()` : `o`
+  (ouvrir le pipeline résolu par le forge, security/results/ci-tab) et
+  `ctrl+y` (copier la commande `docker run`). Brûler une majuscule globale
+  pour une action présente dans un seul sous-écran coûterait plus que ça ne
+  rapporte. Elles sont écrites comme exceptions pour que le prochain relevé
+  ne les prenne pas pour des dérives.
 
 - **Une modale est un quatrième espace**, disjoint par le *mode* et non par la
   casse : elle réclame toute touche avant que la vue ne la voie, donc son
@@ -398,7 +399,7 @@ Le header affiche déjà tous les raccourcis via `GetShortcuts()` (Rule 130). Du
 
 | Interdit (dans viewport) | Correct (dans header) |
 |--------------------------|----------------------|
-| `[↑↓/jk] navigate  [c] connectivity test  [esc] close` | `GetShortcuts()` retourne `{Key: "↑↓/jk", Description: "Navigate"}`, etc. |
+| `[↑↓/jk] navigate  [c] filter  [esc] close` | `GetShortcuts()` retourne `{Key: "↑↓/jk", Description: "Navigate"}`, etc. |
 | `[↑↓/jk] scroll  [g/G] top/bottom  [enter] new test` | `GetShortcuts()` état results retourne les raccourcis de scroll |
 | `Press Enter to confirm` en bas d'un formulaire | `GetShortcuts()` retourne `{Key: "enter", Description: "Confirm"}` |
 

@@ -238,13 +238,6 @@ type Exception struct {
 // dérive, et le prochain relevé la « corrigerait ».
 var exceptions = []Exception{
 	{
-		Key:     "c",
-		Surface: "oci/network-inspect",
-		Why: "Connectivity test. Brûler une majuscule globale pour une action " +
-			"présente dans un seul sous-écran à faible densité coûterait plus " +
-			"que ça ne rapporte.",
-	},
-	{
 		Key:     "o",
 		Surface: "security/results/ci-tab",
 		Why: "Ouvrir le pipeline résolu par le forge. Même raison que `c` : " +

@@ -92,7 +92,6 @@ type Model struct {
 	launchForm         *LaunchForm
 	resourceForm       *ResourceCreateForm
 	networkInspectForm *NetworkInspectForm
-	connectivityForm   *ConnectivityTestForm
 	// pruning names what a prune is working on, empty when none is. A prune
 	// acts on no row — marking every row would say something false — so it gets
 	// a footer line of its own instead.
@@ -186,12 +185,6 @@ type NetworkInspectLoadedMsg struct {
 	NetworkName string
 	Containers  []docker.NetworkContainer
 	Err         error
-}
-
-// DiagnosticTestCompleteMsg contains the result of a connectivity test
-type DiagnosticTestCompleteMsg struct {
-	Output string
-	Err    error
 }
 
 // Messages — Networks

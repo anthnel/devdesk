@@ -203,25 +203,12 @@ keeping because they are the shape of the decision, not of this feature:
 has just released is redeclared free, or it stays reserved for something that no
 longer exists.
 
-**One image setting is left, and it is named after its one reader.**
-`network.connectivity_image` (was `tool_image`) is what the **OCI connectivity
-test** runs — `:oci` → Networks → `enter` → `c` — inside a Docker network the
-user picked, never on the host. That is correct by construction: "can this
-container reach that one on this bridge" has no answer from a host process, and
-it is the only container DevDesk still starts.
-
-It must carry `ping`, `nc` and `wget`. The default is **busybox, 6,81 MB**,
-against `nicolaka/netshoot`'s **874 MB** — a factor of 128. `curl` became `wget
--S -O-`, which is in *both* images and produces the same status line and headers
-(measured side by side), so it is one command rather than a conditional fallback.
-
-**The migration chain has three links** — `docker.network_tool_image` →
-`network.tool_image` → `network.connectivity_image` — and a file may sit at any
-point on it. Both renames run before the defaults, oldest first, each clearing
-its key once carried over. The order is the whole of it: `yaml.Unmarshal` is not
-strict here, so an un-migrated block is dropped in silence and the image reverts
-to the default with nothing on screen saying so. Only the *default* changed — a
-config already naming netshoot is not rewritten.
+The OCI connectivity test — the last container DevDesk started from a
+network-inspect overlay, and with it `network.connectivity_image` and its
+three-link migration chain (`docker.network_tool_image` →
+`network.tool_image` → `network.connectivity_image`) — has been removed. The
+network-inspect overlay itself (`:oci` → Networks → `enter`) stays; only the
+`c` key it used to offer, and everything behind it, is gone.
 
 ## The interfaces — `internal/netiface`
 

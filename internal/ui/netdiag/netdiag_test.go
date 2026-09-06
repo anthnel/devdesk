@@ -26,9 +26,7 @@ func TestMain(m *testing.M) {
 }
 
 func testConfig() *config.Config {
-	cfg := config.Default()
-	cfg.Network.ToolImage = "nicolaka/netshoot"
-	return cfg
+	return config.Default()
 }
 
 // newTestModel returns a laid-out model on the diagnostics tab.

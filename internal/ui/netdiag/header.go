@@ -329,10 +329,7 @@ func (m *Model) GetHelpContent() help.Content {
 					"are not the same network. It was removed rather than kept with a caveat.\n\n" +
 					"What replaced it, for the question people actually asked: the Local route " +
 					"check names the interface and source address your traffic to this target " +
-					"leaves by. That is the split-tunnel answer, read from this machine.\n\n" +
-					"One image setting is left, network.connectivity_image, and the netdiag view " +
-					"does not use it: it belongs to the OCI connectivity test, which runs ping, nc " +
-					"or wget inside a Docker network you pick. busybox covers all three in 6,81 MB.",
+					"leaves by. That is the split-tunnel answer, read from this machine.",
 			},
 		},
 	}

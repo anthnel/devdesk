@@ -58,35 +58,9 @@ func (m Model) handleNetworkInspectKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.networkInspectForm = nil
 		return m, nil
-	case "c":
-		sel := m.networkInspectForm.SelectedContainer()
-		containerName := ""
-		if sel != nil {
-			containerName = sel.Name
-		}
-		m.connectivityForm = newConnectivityTestForm(
-			containerName,
-			m.networkInspectForm.networkID,
-			m.config.Network.ToolImage,
-			m.networkInspectForm.containers,
-			m.width-2,
-			m.height,
-		)
-		return m, nil
 	}
 	var cmd tea.Cmd
 	m.networkInspectForm, cmd = m.networkInspectForm.Update(msg)
-	return m, cmd
-}
-
-// handleConnectivityFormKeyMsg handles keys when the connectivity test form is open.
-func (m Model) handleConnectivityFormKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.String() == "esc" {
-		m.connectivityForm = nil
-		return m, nil
-	}
-	var cmd tea.Cmd
-	m.connectivityForm, cmd = m.connectivityForm.Update(msg)
 	return m, cmd
 }
 

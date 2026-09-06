@@ -338,10 +338,6 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 		)},
 
 		{Title: "network", Fields: slices.Concat(
-			group("Tools", theme.IconNetwork,
-				text("Connectivity test image", func(c *config.Config) *string { return &c.Network.ConnectivityImage },
-					"Needs ping, nc and wget — the OCI connectivity test runs it"),
-			),
 			group("Checks", theme.IconHourglass,
 				// One timeout rather than five. netcheck held 5 s for DNS and
 				// the dial, 8 s for TLS and HTTP and 4 s for the ping, and

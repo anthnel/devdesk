@@ -28,10 +28,6 @@ func (m *Model) resize(width, height int) {
 	if m.networkInspectForm != nil {
 		m.networkInspectForm.resize(width-2, height)
 	}
-	if m.connectivityForm != nil {
-		m.connectivityForm.width = width - 2
-		m.connectivityForm.height = height
-	}
 	if m.registryBrowser != nil {
 		m.registryBrowser.SetSize(width-2, height)
 	}

@@ -534,7 +534,7 @@ func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
 	// toolFixtures ne déclare que trois outils, dont Gitleaks indisponible :
 	// les trois que la détection n'a pas rendus manquent tout autant, et c'est
 	// knownTools qui le dit.
-	if got := missingTools(m.tools); !slices.Equal(got, []string{"Gitleaks", "Plumber", "Connectivity", "Git"}) {
+	if got := missingTools(m.tools); !slices.Equal(got, []string{"Gitleaks", "Plumber", "Git"}) {
 		t.Errorf("missingTools() = %v, want the undetected ones counted too", got)
 	}
 
@@ -542,7 +542,7 @@ func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
 	if !containsLine(lines, "Missing tools") {
 		t.Errorf("the Host box does not head its missing tools: %q", lines)
 	}
-	for _, want := range []string{"Gitleaks", "Connectivity"} {
+	for _, want := range []string{"Gitleaks", "Plumber"} {
 		if !containsLine(lines, want+" ") {
 			t.Errorf("the Host box does not name %q among its missing tools: %q", want, lines)
 		}

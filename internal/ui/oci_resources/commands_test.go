@@ -310,38 +310,6 @@ func TestInspectNetworkStillNamesTheNetworkWhenItFails(t *testing.T) {
 	}
 }
 
-// A connectivity test that fails is not a test that produced nothing: the
-// output is the answer — "100% packet loss" is the diagnostic.
-func TestADiagnosticKeepsItsOutputWhenTheCommandFails(t *testing.T) {
-	installFakeDocker(t, fakeScript{
-		"docker run": {Stdout: "PING api: 3 packets transmitted, 0 received, 100% packet loss\n", Exit: 1},
-	})
-
-	msg := run(t, runDiagnosticContainerCmd("net22222", "netshoot", []string{"ping", "-c", "3", "api"})).(DiagnosticTestCompleteMsg)
-
-	if msg.Err == nil {
-		t.Fatal("a non-zero exit was reported as a successful test")
-	}
-	if !strings.Contains(msg.Output, "100% packet loss") {
-		t.Errorf("Output = %q, want the tool's own report kept", msg.Output)
-	}
-}
-
-func TestADiagnosticThatSucceedsCarriesItsOutput(t *testing.T) {
-	installFakeDocker(t, fakeScript{
-		"docker run": {Stdout: "3 packets transmitted, 3 received\n"},
-	})
-
-	msg := run(t, runDiagnosticContainerCmd("net22222", "netshoot", []string{"ping", "api"})).(DiagnosticTestCompleteMsg)
-
-	if msg.Err != nil {
-		t.Fatalf("Err = %v", msg.Err)
-	}
-	if !strings.Contains(msg.Output, "3 received") {
-		t.Errorf("Output = %q", msg.Output)
-	}
-}
-
 // ── Container launch ─────────────────────────────────────────────────────────
 
 func TestExposedPortsAreReturnedAgainstTheImageTheyCameFrom(t *testing.T) {
