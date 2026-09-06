@@ -1,0 +1,115 @@
+crée une nouvelle règle, tous les messages de commits doivent être en anglais et les commentaires dans le code doivent également être en anglais
+
+---
+
+/plan réécris les commentaires français en anglais
+
+---
+
+<task-notification>
+<task-id>a75a33a1bdf86405c</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/a75a33a1bdf86405c.output</output-file>
+<status>completed</status>
+<summary>Agent "Find all French comments in Go code" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## French Comments in devdesk — Reconnaissance Report
+
+**Method:** ripgrep across all tracked `.go` files (no `vendor/`, `.worktrees/`, `node_modules` present in this repo). Two passes: (1) accented characters (`é è à ç ê ë î ô û ù â`) inside `//` comment lines, and (2) a broader pass adding unambiguous French function words (`des, une, sont, doit, doivent, cette, retourne, ...`), with ambiguous English/French homographs (`plus`, `part`, `comme`) deliberately excluded after they produced false positives. Both passes were spot-checked against string literals.
+
+### Top-line numbers
+- **119 files** contain at least one genuine French `//` comment line.
+- **~2,030 French comment lines** total (1,659 of those carry an accented character; the remaining ~370 are accent-free French sentences/words caught only by the word-list pass, e.g. `main.go`'s `// Charger la configuration`).
+- **Style note:** this codebase uses essentially **zero `/* */` block comments** (only 1 `/*` occurrence repo-wide) and **no `cmd/` directory at all** — everything lives under `internal/` plus a thin `main.go`. All French text is in `//` line comments (including multi-line `//` doc blocks).
+
+### False positives checked
+- Spot-checked accented-char hits inside string literals (test-table descriptions like `"loin de l'échéance"` in `internal/status/certificate_test.go`, and `Why:` UI-copy strings in `internal/ui/keymap/keymap.go:243-254`) — these are **real French text but NOT comments** (they're French strings shown/used at runtime or as test fixtures), correctly excluded from the comment count since they don't start with/contain a `//` prefix on those lines.
+- The initial broad word-list pass falsely flagged ~75 extra files via `plus`/`part`/`comme` matching ordinary English comments (e.g. "the part", "plus the startup report"); removing those words dropped the false-positive set to 3 files, all of which were verified as genuinely containing a real (if short) French comment line elsewhere in the file (`internal/ui/forge/explorer/view.go:18` `// View rend la vue`, `internal/ui/security/header.go:158`, `internal/ui/components/creation_form.go:206`).
+
+### Directory concentration
+`internal/ui/` dominates overwhelmingly: **72 of 119 files** and **~1,528 of ~2,030 lines** (roughly 75% of both). Distant next tiers: `internal/metrics` (88 lines/5 files), `internal/app` (85/10), `internal/status` (70/8), `internal/command` (55/5), `internal/scan` (50/3), `internal/config` (48/1). Smaller tails in `internal/cache`, `internal/docker`, `internal/version`, `internal/credentials`, `main.go`, `internal/mcp`, `internal/shared`.
+
+### Tests vs non-test files
+French comments are **not** confined to production code — they show up in tests too:
+- **32 of 119 files (27%)** are `_test.go` files, contributing **596 of ~2,030 lines (~29%)**.
+- Non-test: 87 files, ~1,434 lines.
+- Test files often carry the *rationale* for a test in French prose (e.g. `internal/command/doc_test.go`, `internal/ui/dashboard/posture_test.go`, `internal/ui/keymap/keymap_test.go`), same bilingual style as production code — not a different pattern, just as prevalent.
+
+### Dense vs scattered
+Two distinct patterns observed:
+- **Dense, contiguous doc-block style** (whole package/function doc comment fully in French, with headers): `internal/ui/keymap/keymap.go` lines 1-~30 (`// Package keymap déclare le vocabulaire clavier...`, includes a French `# Trois espaces de noms disjoints` sub-heading) — this is the closest thing to a "pure French" block in the repo.
+- **Scattered/interleaved style (the dominant pattern)**: English doc sentence(s) immediately followed by a French rationale sentence within the *same* comment block, repeated per function/type across a file — e.g. `internal/ui/dashboard/sections.go` (largest file by count, 275 lines, 1,142 total lines, ~397 comment lines) mixes English function docs with French "why" sentences function-by-function rather than being one big French block.
+
+### Top 15 files by French comment line count
+
+| # | File | French lines |
+|---|------|---|
+| 1 | internal/ui/dashboard/sections.go | 275 |
+| 2 | internal/ui/dashboard/posture_test.go | 99 |
+| 3 | internal/ui/keymap/keymap.go | 87 |
+| 4 | internal/ui/keymap/keymap_test.go | 65 |
+| 5 | internal/ui/dashboard/view_test.go | 64 |
+| 6 | internal/ui/dashboard/model.go | 63 |
+| 7 | internal/ui/dashboard/posture.go | 59 |
+| 8 | internal/ui/dashboard/view.go | 53 |
+| 9 | internal/ui/dashboard/layout.go | 49 |
+| 10 | internal/config/config.go | 48 |
+| 11 | internal/ui/components/option_confirm_modal.go | 41 |
+| 12 | internal/ui/theme/initrender_test.go | 33 |
+| 13 | internal/ui/dashboard/dashboard_test.go | 33 |
+| 14 | internal/ui/theme/styles.go | 30 |
+| 15 | internal/ui/dashboard/chart_test.go | 30 (tie with internal/command/doc_test.go) |
+
+Note `internal/ui/dashboard/*` alone accounts for 5 of the top 9 files — this package is by far the epicenter.
+
+### Full 119-file list (by directory, since &gt;40)
+Given the count exceeds ~40 files, here is the complete file set grouped by package (counts = French comment lines):
+
+**internal/ui/dashboard** (9 files, ~692 lines): sections.go 275, posture_test.go 99, model.go 63, posture.go 59, view.go 53, layout.go 49, dashboard_test.go 33, chart_test.go 30, chart.go 15, secrets_test.go 12
+
+**internal/ui/keymap** (3 files, ~178 lines): keymap.go 87, keymap_test.go 65, announced_test.go 26
+
+**internal/ui/theme** (8 files, ~124 lines): initrender_test.go 33, styles.go 30, manager.go 18, box.go 13, secrets.go 12, manager_test.go 3, text.go 1, colors.go 1
+
+**internal/ui/components** (4 files, ~63 lines): option_confirm_modal.go 41, choice_modal.go 19, confirm_modal.go 7, creation_form.go 1
+
+**internal/ui/status** (6 files, ~52 lines): columns.go 14, view_test.go 13, model.go 10, update.go 9, commands.go 6, view.go 4, update_test.go (~1)
+
+**internal/ui/forge/{auth,explorer}** (9 files, ~55 lines): model.go 16, update.go 14, tree.go 9, view.go 8, messages.go 6, view_test.go, model_test.go, clone.go, columns.go, row.go, selection.go, selection_test.go, api.go 4, update.go 1 (small counts each)
+
+**internal/ui/security** (8 files, ~35 lines): inventory_table.go 12, inventory_test.go 11, header.go, secrets_column_test.go 5, inventory_commands.go 2, pipeline_annotate.go/_test.go, model_test.go, security_test.go, view_test.go (mostly 1-3 each)
+
+**internal/ui/datatable** (5 files, ~30+ lines): foreground_test.go 16, render.go 9, datatable.go, datatable_test.go, widths.go/_test.go
+
+**internal/ui/about** (3 files): about_test.go 13, model.go 11, view.go 7
+
+**internal/ui/workspaces** (10 files, ~30 lines): view.go 7, availability.go 7, messages.go 5, entry.go, sync.go, table.go, commands.go 3, update.go 2, model.go 2, columns.go 1, entry_test.go/model_test.go/subrepos_test.go/sync_test.go/workspaces_test.go (1 each)
+
+**internal/ui/oci_resources** (12 files, ~35 lines): secrets_column_test.go 8, table.go 5, ociresources_test.go 5, view_test.go 3, availability.go 3, commands.go 2, browser_bridge.go, browser_keys.go, browser_prefix_test.go, browser_search_test.go, browser_state.go, browser_tags.go, faketool_test.go, forms_test.go, launch_form.go, model.go, registry_browser.go, registry_browser_test.go, update_test.go (mostly 1)
+
+**internal/ui/help, shortcut, registryalias, netdiag, containers, vocabtest, viewer** (~9 files, ~35 lines): shortcut.go 16, registryalias/alias.go 14, help/help.go 8, netdiag/ports_model.go 2, containers/model.go 1, vocabtest_test.go 4, viewer/lineno_test.go, tree.go, view.go
+
+**internal/app** (10 files, ~85 lines): app.go 18, command_line.go 12, messages.go 10, view_contract_test.go 7, forge.go 6, app_header.go 5, context.go 3, view.go 2, help_overlay.go 2, keys.go 1, plus mcp.go (word-only match)
+
+**internal/status** (8 files, 70 lines): certificate.go 18, http_checker.go 10, checker.go 8, dns_checker.go 8, icmp_checker.go 7, certificate_test.go 5, types.go 4, ssl_checker.go 3
+
+**internal/metrics** (5 files, 88 lines): metrics.go 24/28, tree_test.go 14, tree.go 14, host.go 13, metrics_test.go 8
+
+**internal/command** (5 files, 55 lines): doc_test.go 22/30, completion.go 16, parser.go 8, parser_test.go 2, completion_test.go 1
+
+**internal/scan** (5 files incl. word-only matches, ~50 lines): category.go 19, verdict_test.go 15, scanner.go 10, category_test.go, plumber_parse.go/target.go/test.go, run.go, parse_test.go
+
+**internal/cache** (4 files, 29 lines): verdict_test.go 12, workspace_scan.go 7, image_scan.go 5, cache_test.go 3
+
+**internal/docker** (4 files, 28 lines): system.go 11, system_test.go 10, parse.go 2, containers.go 2
+
+**internal/version** (2 files, 25 lines): version.go 17/25, version_test.go 5
+
+**internal/credentials** (2 files, 10 lines): storage.go 5, git_credential.go 3, git_credential_test.go
+
+**Single-file dirs**: main.go 6/8, internal/config/config.go 41/48, internal/shared/state.go 2, internal/mcp/{scan_tools_test.go, docker_tools.go, netcheck_tools.go, scan_tools.go, context_tools_test.go} 3-4 lines each, internal/jobs/{jobs.go, open_test.go}, internal/forge/{github,gitlab}/browse_test.go, internal/netcheck/{env.go, fake_test.go, stage_route.go}, internal/ports/resolve_test.go, internal/viewer/json.go
+
+### Bottom line for planning
+Since ~75% of the volume sits in `internal/ui/` (dashboard, keymap, theme being the heaviest), any translation/cleanup effort should prioritize: `internal/ui/dashboard/*` (9 files, ~692 lines — the single biggest chunk), `internal/ui/keymap/keymap.go` (dense standalone doc block, good candidate for full-file rewrite), and `internal/config/config.go` (single-file, 48 lines). The remaining 100+ files each carry only a handful of scattered French rationale sentences interleaved with English, which is a different (more tedious, line-by-line) kind of cleanup than the two dense files above.</result>
+<usage><subagent_tokens>39634</subagent_tokens><tool_uses>19</tool_uses><duration_ms>183257</duration_ms></usage>
+</task-notification>

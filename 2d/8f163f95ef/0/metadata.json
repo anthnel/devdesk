@@ -1,0 +1,133 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "2d8f163f95ef",
+  "session_id": "e7979a90-6646-40bc-99da-eb5ea1a4c52e",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T19:29:40.8146163Z",
+  "branch": "chore/translate-french-comments-to-english",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "c5d0e589f99f",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 52,
+    "cache_creation_tokens": 109008,
+    "cache_read_tokens": 3145595,
+    "output_tokens": 21869,
+    "api_call_count": 26,
+    "subagent_tokens": {
+      "input_tokens": 40,
+      "cache_creation_tokens": 37054,
+      "cache_read_tokens": 460135,
+      "output_tokens": 14868,
+      "api_call_count": 20
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-09-06T19:16:58.3321374Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "54c3d6e3930f",
+      "timestamp": "2026-09-06T19:16:58.3321374Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 914,
+      "user_lines_removed": 866,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 2,
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 194,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 1,
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 798,
+      "user_lines_removed": 737,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 31,
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 49,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 17,
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 6,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      }
+    }
+  ]
+}
