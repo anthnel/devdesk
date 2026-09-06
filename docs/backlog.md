@@ -11719,7 +11719,7 @@ réalisation a créée : **`clone_start`**, ci-dessus.
    configuration de l'agent sans que rien ne le lui dise. Peut-être n'y a-t-il
    rien de mieux à faire que de l'écrire.
 
-### 3.62 Le binaire sait ce qu'il est, et `:about` le dit — **étape 1 faite**
+### 3.62 Le binaire sait ce qu'il est, `:about` le dit, et les releases se publient seules — **done**
 
 Jusqu'ici `dk` ne savait rien de lui-même : aucun tag dans le dépôt, aucune
 variable de version, aucun `-ldflags`. Un rapport de bug ne pouvait nommer la
@@ -11781,28 +11781,53 @@ vocabulaire de forge — la valeur ne dépend d'aucun contexte et ne changerait 
 si l'utilisateur configurait GitLab. C'est une adresse, au même titre que le
 chemin de `~/.devdesk`.
 
-#### Étape 2 — la publication, **ouverte**
+#### Étape 2 — la publication
 
-L'outil retenu est **release-please** plutôt que semantic-release, et la raison
-tient à une règle de ce dépôt : release-please ouvre une **PR de release** que
-le merge transforme en tag et en Release, là où semantic-release pousse
-directement sur `main`. Le CLAUDE.md interdit ce push — le mirror Entire le
-rejette, et c'est la seule protection qui existe puisque GitHub ne peut pas en
-offrir sur ce plan. Le coût est un merge manuel par release ; c'est le prix
-normal de la règle.
+**release-please plutôt que semantic-release, et la raison n'est pas une
+préférence.** Les deux lisent les mêmes conventional commits et décident la même
+version ; ce qui les sépare est par où la version arrive sur `main` :
+semantic-release **pousse le tag directement**, release-please ouvre une **PR de
+release** que le merge transforme en tag et en Release. Ce dépôt interdit le
+push direct sur `main` — le mirror Entire le rejette, et ce refus est la seule
+protection qui existe puisque la branch protection est indisponible sur ce plan.
+semantic-release ouvrirait donc une seconde voie vers `main`, précisément celle
+que la règle ferme. Le coût est un merge de plus par release.
 
-`goreleaser` construit ensuite les binaires sur le tag. La cross-compilation est
-triviale ici parce que le projet est cgo-free (`go-keyring` sans cgo) : une
-seule machine `ubuntu-latest` couvre linux, darwin et windows en amd64 et arm64.
+`goreleaser` construit ensuite les six cibles sur le tag et les attache à la
+Release. La cross-compilation est triviale parce que le projet est **cgo-free**
+(`go-keyring` parle à wincred, Keychain et Secret Service sans lui) : une seule
+machine `ubuntu-latest` couvre linux, darwin et windows en amd64 et arm64, en
+28 s mesurées. `CGO_ENABLED=0` est posé explicitement plutôt que laissé au
+défaut de cross-compilation — une dépendance qui se mettrait à en avoir besoin
+fait alors échouer la release au lieu de produire un build linux seul.
 
-**Ce qui reste à vérifier avant de câbler quoi que ce soit** : le tag est posé
-par GitHub Actions, donc il naît sur GitHub et non via le mirror. La réplication
-GitHub → mirror existe — le CLAUDE.md la documente déjà pour `main`, un
-squash-merge fait par `gh` mettant une minute ou deux à redescendre — mais rien
-ne dit qu'elle couvre `refs/tags/*`. Si elle ne le fait pas, la chaîne fonctionne
-quand même (tout se passe sur GitHub, et goreleaser lit le checkout de GitHub) ;
-ce qui casse est côté poste de développement, où `git describe` resterait
-aveugle aux tags.
+**Le partage des rôles est écrit dans les deux configurations** : release-please
+décide la version et possède le CHANGELOG, goreleaser possède les artefacts et
+rien d'autre. D'où `release.mode: append` et `changelog.disable: true` — l'un ou
+l'autre laissé à son défaut ferait écrire à goreleaser un second jeu de notes
+par-dessus celles avec lesquelles la PR a été relue.
+
+`.Tag` et non `.Version` dans les `-ldflags` : goreleaser retire le `v` initial
+du second, là où `mise run build` estampille ce que rend `git describe`, qui le
+garde. Un binaire de release et un binaire local doivent épeler leur version de
+la même façon.
+
+**L'inconnue de la chaîne est levée.** Le tag est posé par GitHub Actions, donc
+il naît sur GitHub et non via le mirror ; restait à savoir si la réplication
+GitHub → mirror, que le CLAUDE.md documente pour `main`, couvre
+`refs/tags/*`. Vérifié le 2026-09-06 en posant `v0.0.0-mirror-test` par l'API
+GitHub : `git fetch origin --tags` le ramène. Rien n'oblige donc à poser un tag
+à la main, et `git describe` reste juste en local.
+
+Un dernier point n'est pas dans les fichiers et le sera oublié : *Settings →
+Actions → Allow GitHub Actions to create and approve pull requests* doit être
+coché. Aucun workflow ne peut se donner ce droit, et le premier run échoue sur
+la PR qu'il ne peut pas ouvrir avec un message qui ne dit pas que c'est ça.
+
+**Les 180 commits de `main` sont conventional, sans exception** — vérifié plutôt
+que supposé, et c'est la seule condition d'entrée de l'outil. Le squash-merge y
+est pour beaucoup : le titre de la PR devient le sujet du commit, donc c'est
+lui, et lui seul, qui doit être conforme.
 
 ---
 

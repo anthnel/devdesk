@@ -8,6 +8,10 @@ go = "1.25"
 # Pinned so CI and every machine lint against the same rules. Without a pin, two
 # golangci-lint versions disagree on what Rule 305 considers a clean run.
 golangci-lint = "2.12.2"
+# Pinned for the same reason, and it matters more here: goreleaser's own
+# configuration schema changes between minor versions, so an unpinned tool
+# would fail on `version: 2` syntax that was valid when it was written.
+goreleaser = "2.18.0"
 
 [tasks.build]
 description = "Build the binary to bin/dk"
@@ -118,6 +122,24 @@ go build -ldflags "-X github.com/anthnel/devdesk/internal/version.version=$versi
 echo "installed $target"
 echo "run it as 'dk' once $(dirname "$target") is on PATH"
 """
+
+[tasks.release-check]
+description = "Validate .goreleaser.yaml without building anything"
+run = "goreleaser check"
+
+[tasks.release]
+description = "Build the release artifacts and attach them to the GitHub Release (CI only)"
+# Needs GITHUB_TOKEN and a tag; it is the release workflow's build step, and
+# running it by hand would publish. `release-snapshot` is the local equivalent.
+run = "goreleaser release --clean"
+
+[tasks.release-snapshot]
+description = "Build the release artifacts locally, publishing nothing"
+# `--snapshot` is what makes this runnable without a tag: goreleaser invents a
+# version rather than refusing. It is the only way to find out that a build
+# target is broken before a tag has been pushed, which is the point at which
+# the mistake is expensive.
+run = "goreleaser release --snapshot --clean"
 
 [tasks.check]
 description = "Run fmt, vet, lint and tests (pre-commit checklist)"
