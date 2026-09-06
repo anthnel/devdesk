@@ -1,0 +1,279 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "5c718dc90a50",
+  "session_id": "8343543d-068d-49c2-9494-2d5058356a19",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T16:39:47.1625015Z",
+  "branch": "docs/diataxis-site-and-readme",
+  "checkpoints_count": 6,
+  "save_step_count": 6,
+  "files_touched": [
+    "README.md",
+    "docs-site/docs/how-to/run-a-security-scan.md",
+    "docs-site/docs/reference/configuration.md",
+    "docs-site/docs/tutorial/first-session.md",
+    "mise.toml"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "31c9f78b0b65",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 356,
+    "cache_creation_tokens": 342751,
+    "cache_read_tokens": 41741148,
+    "output_tokens": 108477,
+    "api_call_count": 178,
+    "subagent_tokens": {
+      "input_tokens": 128,
+      "cache_creation_tokens": 407799,
+      "cache_read_tokens": 11611991,
+      "output_tokens": 81566,
+      "api_call_count": 64
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01T2UfaCAJ4GdUMAz3V36Bsj",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "code-review"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "31c9f78b0b65",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 1041,
+        "end": 1042,
+        "entry_ids": [
+          "93cab4cd-0d48-4611-9092-3788345797b8"
+        ],
+        "tool_use_id": "toolu_01T2UfaCAJ4GdUMAz3V36Bsj"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01T2UfaCAJ4GdUMAz3V36Bsj"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: code-review",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T16:39:46.8922329Z",
+    "agent_lines": 233,
+    "agent_removed": 61,
+    "human_added": 135,
+    "human_modified": 16,
+    "human_removed": 0,
+    "total_committed": 384,
+    "total_lines_changed": 445,
+    "agent_percentage": 66.06741573033707,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 868,
+      "user_lines_removed": 865,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 869,
+      "user_lines_removed": 865,
+      "agent_lines_added": 1083,
+      "agent_lines_removed": 160,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        "LICENCE": 200,
+        "project-context.md": 46,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 1487,
+      "user_lines_removed": 448,
+      "agent_lines_added": 1523,
+      "agent_lines_removed": 577,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs-site/docs/explanation/app-shell.md": 148,
+        "docs-site/docs/explanation/configuration.md": 66,
+        "docs-site/docs/explanation/forge.md": 91,
+        "docs-site/docs/explanation/registries.md": 141,
+        "docs-site/docs/explanation/scanning.md": 267,
+        "docs-site/docs/explanation/ui-components.md": 131,
+        "docs-site/docs/explanation/viewer.md": 110,
+        "docs-site/docs/explanation/workspaces.md": 81
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 676,
+      "user_lines_removed": 448,
+      "agent_lines_added": 2558,
+      "agent_lines_removed": 577,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs-site/docs/explanation/network.md": 224
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 452,
+      "user_lines_removed": 448,
+      "agent_lines_added": 2885,
+      "agent_lines_removed": 577,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 452,
+      "user_lines_removed": 448,
+      "agent_lines_added": 417,
+      "agent_lines_removed": 417,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 452,
+      "user_lines_removed": 448,
+      "agent_lines_added": 417,
+      "agent_lines_removed": 417,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/code-editing.md": 57,
+        ".claude/rules/code-quality.md": 151,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-theme.md": 137
+      }
+    }
+  ]
+}
