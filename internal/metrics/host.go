@@ -14,18 +14,18 @@ import (
 // SampleHost reads the host once and returns the reading plus the cumulative
 // counters the *next* call must be given.
 //
-// **La moyenne de charge n'est lue nulle part, sur aucune plateforme.** Sur
-// Windows `load.Avg()` retourne `{0, 0, 0}` avec `err == nil` : elle n'échoue
-// pas, elle produit un nombre indiscernable d'une donnée, et un zéro se lit
-// comme « la machine est au repos ». Une métrique présente sur deux
-// plateformes sur trois est pire qu'une métrique absente partout, parce que son
-// absence ne se voit pas.
+// **Load average is not read anywhere, on any platform.** On
+// Windows `load.Avg()` returns `{0, 0, 0}` with `err == nil`: it does not
+// fail, it produces a number indistinguishable from real data, and a zero
+// reads as "the machine is idle". A metric present on two platforms out of
+// three is worse than a metric absent everywhere, because its absence does
+// not show.
 func SampleHost(prev Counters) (HostSample, Counters) {
 	s := HostSample{Taken: time.Now()}
 
-	// cpu.Percent(0, …) calcule depuis l'appel précédent au lieu de bloquer
-	// pendant l'intervalle — un cpu.Percent(500ms) coûterait 501 ms à chaque
-	// tick de l'horloge rapide.
+	// cpu.Percent(0, …) computes from the previous call instead of blocking
+	// for the interval — a cpu.Percent(500ms) would cost 501 ms on every
+	// tick of the fast clock.
 	if pct, err := cpu.Percent(0, false); err == nil && len(pct) > 0 {
 		s.CPUPercent = pct[0]
 		s.OK = true
@@ -51,14 +51,14 @@ func SampleHost(prev Counters) (HostSample, Counters) {
 	return s, next
 }
 
-// coreCount reports the logical core count, read once. Ce n'est pas une mesure
-// qui bouge, et cpu.Counts fait un appel système : le compter à chaque
-// échantillon serait le seul coût qui grandit avec la fréquence de l'horloge
-// rapide sans rien apprendre.
+// coreCount reports the logical core count, read once. This is not a value
+// that changes, and cpu.Counts makes a system call: counting it on every
+// sample would be the one cost that grows with the fast clock's frequency
+// without learning anything.
 //
-// Le memo est immuable et vit dans le package, pas dans le modèle : la Rule 110
-// interdit à un Cmd de modifier l'état *du modèle*, et une valeur constante
-// calculée une fois n'en est pas.
+// The memo is immutable and lives in the package, not in the model: Rule 110
+// forbids a Cmd from modifying the *model's* state, and a constant value
+// computed once is not that.
 var coreCount = sync.OnceValue(func() int {
 	n, err := cpu.Counts(true)
 	if err != nil {
@@ -80,9 +80,9 @@ func readNetCounters(at time.Time) Counters {
 	return Counters{RX: stats[0].BytesRecv, TX: stats[0].BytesSent, At: at, Valid: true}
 }
 
-// Disk reports free space on the filesystem holding path. Mesuré à 1 ms, contre
-// plusieurs secondes pour un `du -sh` de l'arborescence : la question utile est
-// « combien reste-t-il », pas « combien pèse cet arbre ».
+// Disk reports free space on the filesystem holding path. Measured at 1 ms,
+// against several seconds for a `du -sh` of the tree: the useful question is
+// "how much is left", not "how heavy is this tree".
 func Disk(path string) DiskUsage {
 	usage, err := disk.Usage(path)
 	if err != nil || usage == nil {

@@ -1,43 +1,46 @@
 package status
 
 // CertState is what a monitored certificate is, as opposed to what a service
-// is. Un service est joignable ou non ; un certificat a une date, donc il a un
-// état de plus — celui où il est encore valide et demande déjà une action.
+// is. A service is reachable or it is not; a certificate has a date, so it
+// has one more state — the one where it is still valid and already demands
+// action.
 //
-// C'est pour ça que les certificats ne peuvent pas emprunter le vocabulaire
-// des moniteurs. `up` / `down` / `error` collait ensemble trois faits qui ne
-// se règlent pas de la même façon : un certificat périmé (le service est déjà
-// cassé), un certificat à renouveler (il ne l'est pas encore, et c'est le seul
-// moment où l'on peut agir), et un certificat qu'on n'a pas pu lire (on ne
-// sait rien). Le troisième est le seul qui soit vraiment une erreur.
+// That is why certificates cannot borrow the monitors' vocabulary.
+// `up` / `down` / `error` lumped together three facts that are not handled
+// the same way: an expired certificate (the service is already broken), a
+// certificate due for renewal (it is not broken yet, and this is the only
+// moment where action can be taken), and a certificate that could not be
+// read (nothing is known). The third is the only one that is truly an
+// error.
 type CertState string
 
 const (
-	// CertValid — lu, et loin de son échéance.
+	// CertValid — read, and far from its expiry.
 	CertValid CertState = "valid"
-	// CertToRenew — lu, encore valide, et dans la fenêtre de renouvellement.
+	// CertToRenew — read, still valid, and inside the renewal window.
 	CertToRenew CertState = "to renew"
-	// CertExpired — lu, et sa date est passée.
+	// CertExpired — read, and its date has passed.
 	CertExpired CertState = "expired"
-	// CertError — pas lu du tout : hôte injoignable, poignée de main refusée,
-	// chaîne vide, cible non configurée. C'est une absence de mesure, et non
-	// un verdict sur le certificat.
+	// CertError — not read at all: unreachable host, refused handshake,
+	// empty chain, target not configured. This is an absence of a
+	// measurement, not a verdict on the certificate.
 	CertError CertState = "error"
 )
 
 // CertRenewWindowDays is where a certificate stops being a date and becomes a
-// task. Il vaut la fenêtre `WARNING` de SSLChecker : les deux répondent à la
-// même question, et deux seuils qui divergent feraient dire `to renew` au
-// dashboard de ce que `:status` affiche encore en vert.
+// task. It matches SSLChecker's `WARNING` window: the two answer the same
+// question, and two diverging thresholds would make the dashboard say
+// `to renew` about something `:status` still shows in green.
 const CertRenewWindowDays = 30
 
 // CertStateOf classifies one monitored certificate.
 //
-// Elle se décide sur `SSLDaysLeft` et non sur `Status`, parce que `StatusType`
-// n'a pas quatre valeurs à donner : SSLChecker rend `ERROR` aussi bien pour un
-// certificat périmé que pour un qui expire dans six jours, et `DOWN` pour un
-// hôte injoignable. Le nombre de jours, lui, distingue les trois — et son
-// absence est exactement le cas où rien n'a pu être lu.
+// It is decided from `SSLDaysLeft` and not from `Status`, because
+// `StatusType` does not have four values to give: SSLChecker returns
+// `ERROR` both for an expired certificate and for one expiring in six days,
+// and `DOWN` for an unreachable host. The number of days, on the other
+// hand, distinguishes the three — and its absence is exactly the case where
+// nothing could be read.
 func CertStateOf(c ComponentStatus) CertState {
 	if c.SSLDaysLeft == nil {
 		return CertError

@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config représente la configuration complète de l'application
+// Config represents the application's complete configuration
 type Config struct {
 	App      AppConfig      `yaml:"app"`
 	Status   StatusConfig   `yaml:"status"`
@@ -131,7 +131,7 @@ const (
 	DefaultPortsRefreshInterval = 2
 )
 
-// AppConfig contient les paramètres globaux de l'app
+// AppConfig holds the app's global settings
 type AppConfig struct {
 	Theme           string `yaml:"theme"`
 	LogFile         string `yaml:"log_file"`
@@ -168,9 +168,9 @@ type AppConfig struct {
 // ForgeConfig is the code-hosting platform this context targets — exactly one,
 // never two (§3.6).
 //
-// Le token n'est pas ici : il vit dans le gestionnaire de secrets de l'hôte
-// (§3.9). Un `token:` laissé par une version antérieure est déplacé dans le
-// store puis retiré du fichier — voir secrets.go.
+// The token is not here: it lives in the host's secret manager
+// (§3.9). A `token:` left by an earlier version is moved into the
+// store and then removed from the file — see secrets.go.
 type ForgeConfig struct {
 	// Type names the backend: "gitlab" or "github". It is **declared, never
 	// sniffed** — the registry `provider` field is the precedent (§3.8), and
@@ -187,7 +187,7 @@ type ForgeConfig struct {
 	Pull               ForgePullConfig `yaml:"pull"`
 }
 
-// ForgePullConfig contient la configuration pour la synchronisation
+// ForgePullConfig holds the configuration for synchronization
 type ForgePullConfig struct {
 	ParallelJobs    int  `yaml:"parallel_jobs"`
 	IncludeArchived bool `yaml:"include_archived"`
@@ -264,9 +264,9 @@ type RegistryItem struct {
 	ManagementURL string `yaml:"management_url,omitempty"`
 }
 
-// RegistryConfig contient la configuration du registre OCI
+// RegistryConfig holds the OCI registry configuration
 //
-// Comme pour GitLabConfig, le mot de passe n'est pas ici (§3.9).
+// As with GitLabConfig, the password is not here (§3.9).
 type RegistryConfig struct {
 	URL                 string         `yaml:"url,omitempty"`
 	Username            string         `yaml:"username,omitempty"`
@@ -291,25 +291,25 @@ const (
 	ToolSourceImage = "image"
 )
 
-// ScanConfig contient la configuration pour les scans de sécurité
+// ScanConfig holds the configuration for security scans
 type ScanConfig struct {
 	TrivySource        string `yaml:"trivy_source"`         // auto | binary | image
-	TrivyPath          string `yaml:"trivy_path"`           // Chemin custom vers trivy (optionnel)
-	TrivyImage         string `yaml:"trivy_image"`          // Image Docker trivy (défaut: aquasec/trivy)
-	UseTrivyServer     bool   `yaml:"use_trivy_server"`     // Active le mode client-serveur ; trivy_server est ignoré si faux
-	TrivyServer        string `yaml:"trivy_server"`         // URL du serveur Trivy (mode client-serveur)
+	TrivyPath          string `yaml:"trivy_path"`           // Custom path to trivy (optional)
+	TrivyImage         string `yaml:"trivy_image"`          // Docker image for trivy (default: aquasec/trivy)
+	UseTrivyServer     bool   `yaml:"use_trivy_server"`     // Enables client-server mode; trivy_server is ignored if false
+	TrivyServer        string `yaml:"trivy_server"`         // Trivy server URL (client-server mode)
 	GitleaksSource     string `yaml:"gitleaks_source"`      // auto | binary | image
-	GitleaksPath       string `yaml:"gitleaks_path"`        // Chemin custom vers gitleaks (optionnel)
-	GitleaksImage      string `yaml:"gitleaks_image"`       // Image Docker gitleaks (défaut: zricethezav/gitleaks)
+	GitleaksPath       string `yaml:"gitleaks_path"`        // Custom path to gitleaks (optional)
+	GitleaksImage      string `yaml:"gitleaks_image"`       // Docker image for gitleaks (default: zricethezav/gitleaks)
 	PlumberSource      string `yaml:"plumber_source"`       // auto | binary | image
-	PlumberPath        string `yaml:"plumber_path"`         // Chemin custom vers plumber (optionnel)
-	PlumberImage       string `yaml:"plumber_image"`        // Image Docker plumber (défaut: getplumber/plumber)
-	CacheDir           string `yaml:"cache_dir"`            // Cache des rapports
-	MaxCachedReports   int    `yaml:"max_cached_reports"`   // Nombre max de rapports conservés
-	Timeout            int    `yaml:"timeout"`              // Timeout en secondes
-	MaxConcurrentScans int    `yaml:"max_concurrent_scans"` // Nombre max de scans parallèles
+	PlumberPath        string `yaml:"plumber_path"`         // Custom path to plumber (optional)
+	PlumberImage       string `yaml:"plumber_image"`        // Docker image for plumber (default: getplumber/plumber)
+	CacheDir           string `yaml:"cache_dir"`            // Report cache
+	MaxCachedReports   int    `yaml:"max_cached_reports"`   // Max number of reports kept
+	Timeout            int    `yaml:"timeout"`              // Timeout in seconds
+	MaxConcurrentScans int    `yaml:"max_concurrent_scans"` // Max number of parallel scans
 
-	// Scan options (persistées depuis la vue security)
+	// Scan options (persisted from the security view)
 	EnableVuln      bool   `yaml:"enable_vuln"`
 	EnableSecret    bool   `yaml:"enable_secret"`
 	EnableMisconfig bool   `yaml:"enable_misconfig"`
@@ -335,7 +335,7 @@ type ScanConfig struct {
 	PlumberConfig string `yaml:"plumber_config"`
 }
 
-// StatusConfig contient la configuration pour le monitoring
+// StatusConfig holds the configuration for monitoring
 type StatusConfig struct {
 	RefreshInterval int               `yaml:"refresh_interval"`
 	Timeout         int               `yaml:"timeout"` // in seconds
@@ -343,24 +343,24 @@ type StatusConfig struct {
 	Components      []ComponentConfig `yaml:"components"`
 }
 
-// ComponentConfig représente un composant à monitorer
+// ComponentConfig represents a component to monitor
 type ComponentConfig struct {
 	Name    string `yaml:"name"`
 	Type    string `yaml:"type"`              // http, https, icmp, dns
-	Target  string `yaml:"target"`            // URL, IP, ou hostname
-	Timeout int    `yaml:"timeout,omitempty"` // En secondes
+	Target  string `yaml:"target"`            // URL, IP, or hostname
+	Timeout int    `yaml:"timeout,omitempty"` // In seconds
 
 	// Legacy support
 	URL string `yaml:"url,omitempty"` // Deprecated, use Target
 
 	// ICMP specific
-	Count int `yaml:"count,omitempty"` // Nombre de pings
+	Count int `yaml:"count,omitempty"` // Number of pings
 
 	// DNS specific
-	Nameserver string `yaml:"nameserver,omitempty"` // Serveur DNS custom
+	Nameserver string `yaml:"nameserver,omitempty"` // Custom DNS server
 }
 
-// Load charge la configuration depuis le contexte actuel
+// Load loads the configuration from the current context
 func Load() (*Config, error) {
 	ctx, err := GetCurrentContext()
 	if err != nil {
@@ -370,20 +370,20 @@ func Load() (*Config, error) {
 
 	cfg, err := LoadContext(ctx)
 	if err != nil {
-		// Si le fichier n'existe pas, retourner config par défaut
+		// If the file does not exist, return the default config
 		if os.IsNotExist(err) || strings.Contains(err.Error(), "does not exist") {
 			return Default(), nil
 		}
-		// Sinon (parsing error, permission error, etc.), propager l'erreur
+		// Otherwise (parsing error, permission error, etc.), propagate the error
 		return nil, err
 	}
 
 	return cfg, nil
 }
 
-// applyDefaults applique les valeurs par défaut à une configuration.
-// Retourne une erreur quand le fichier ne peut pas être normalisé — aujourd'hui
-// uniquement pour les registres (slug dupliqué, groupe parent absent).
+// applyDefaults applies the default values to a configuration.
+// Returns an error when the file cannot be normalized — today
+// only for registries (duplicate slug, missing parent group).
 func applyDefaults(cfg *Config) error {
 	homeDir, _ := os.UserHomeDir()
 
@@ -518,7 +518,7 @@ func applyDefaults(cfg *Config) error {
 	return normalizeRegistries(cfg.Registry.Registries)
 }
 
-// Default retourne la configuration par défaut
+// Default returns the default configuration
 func Default() *Config {
 	homeDir, _ := os.UserHomeDir()
 	return &Config{
@@ -574,7 +574,7 @@ func Default() *Config {
 	}
 }
 
-// ConfigDir retourne le répertoire de configuration
+// ConfigDir returns the configuration directory
 func ConfigDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -583,7 +583,7 @@ func ConfigDir() (string, error) {
 	return filepath.Join(homeDir, ".devdesk"), nil
 }
 
-// EnsureConfigDir crée le répertoire de configuration s'il n'existe pas
+// EnsureConfigDir creates the configuration directory if it does not exist
 func EnsureConfigDir() error {
 	dir, err := ConfigDir()
 	if err != nil {
@@ -593,7 +593,7 @@ func EnsureConfigDir() error {
 	return os.MkdirAll(dir, 0755)
 }
 
-// Save sauvegarde la configuration dans le fichier du contexte actuel
+// Save saves the configuration to the current context's file
 func Save(cfg *Config) error {
 	ctx, err := GetCurrentContext()
 	if err != nil {
@@ -606,8 +606,8 @@ func Save(cfg *Config) error {
 
 // Context Management Functions
 
-// GetCurrentContext lit le nom du contexte actuel depuis .current-context
-// Retourne "default" si le fichier n'existe pas ou est vide
+// GetCurrentContext reads the current context name from .current-context
+// Returns "default" if the file does not exist or is empty
 func GetCurrentContext() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -616,7 +616,7 @@ func GetCurrentContext() (string, error) {
 
 	contextFile := filepath.Join(homeDir, ".devdesk", ".current-context")
 
-	// Si le fichier n'existe pas, retourner "default"
+	// If the file does not exist, return "default"
 	if _, err := os.Stat(contextFile); os.IsNotExist(err) {
 		return "default", nil
 	}
@@ -649,7 +649,7 @@ func CurrentContextName() string {
 	return ctx
 }
 
-// SetCurrentContext écrit le nom du contexte dans .current-context
+// SetCurrentContext writes the context name to .current-context
 func SetCurrentContext(name string) error {
 	if err := ValidateContextName(name); err != nil {
 		return err
@@ -662,7 +662,7 @@ func SetCurrentContext(name string) error {
 
 	contextFile := filepath.Join(homeDir, ".devdesk", ".current-context")
 
-	// Assurer que le répertoire existe
+	// Ensure the directory exists
 	if err := EnsureConfigDir(); err != nil {
 		return err
 	}
@@ -670,9 +670,9 @@ func SetCurrentContext(name string) error {
 	return os.WriteFile(contextFile, []byte(name), 0600)
 }
 
-// ListContexts découvre les contextes disponibles en listant les fichiers config-*.yaml
-// Retourne une slice de noms de contextes (sans préfixe "config-" ni suffixe ".yaml")
-// Inclut toujours "default" si config.yaml existe
+// ListContexts discovers the available contexts by listing config-*.yaml files
+// Returns a slice of context names (without the "config-" prefix or ".yaml" suffix)
+// Always includes "default" if config.yaml exists
 func ListContexts() ([]string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -682,13 +682,13 @@ func ListContexts() ([]string, error) {
 	configDir := filepath.Join(homeDir, ".devdesk")
 	contexts := []string{}
 
-	// Vérifier le contexte default
+	// Check the default context
 	defaultPath := filepath.Join(configDir, "config.yaml")
 	if _, err := os.Stat(defaultPath); err == nil {
 		contexts = append(contexts, "default")
 	}
 
-	// Glob pour les contextes nommés
+	// Glob for named contexts
 	pattern := filepath.Join(configDir, "config-*.yaml")
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
@@ -696,7 +696,7 @@ func ListContexts() ([]string, error) {
 	}
 
 	for _, match := range matches {
-		// Extraire le nom: config-{name}.yaml → {name}
+		// Extract the name: config-{name}.yaml -> {name}
 		basename := filepath.Base(match)
 		name := strings.TrimPrefix(basename, "config-")
 		name = strings.TrimSuffix(name, ".yaml")
@@ -706,9 +706,9 @@ func ListContexts() ([]string, error) {
 	return contexts, nil
 }
 
-// LoadContext charge la configuration pour un contexte spécifique
-// contextName = "default" → config.yaml
-// contextName = "dev" → config-dev.yaml
+// LoadContext loads the configuration for a specific context
+// contextName = "default" -> config.yaml
+// contextName = "dev" -> config-dev.yaml
 func LoadContext(contextName string) (*Config, error) {
 	if err := ValidateContextName(contextName); err != nil {
 		return nil, err
@@ -719,12 +719,12 @@ func LoadContext(contextName string) (*Config, error) {
 		return nil, err
 	}
 
-	// Vérifier si le fichier existe
+	// Check whether the file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("context '%s' does not exist (no file at %s)", contextName, configPath)
 	}
 
-	// Lire et parser YAML
+	// Read and parse YAML
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
@@ -735,12 +735,12 @@ func LoadContext(contextName string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse context '%s': %w", contextName, err)
 	}
 
-	// Appliquer les valeurs par défaut
+	// Apply the default values
 	if err := applyDefaults(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid context '%s': %w", contextName, err)
 	}
 
-	// Étendre les chemins (tildes)
+	// Expand paths (tildes)
 	if home, err := os.UserHomeDir(); err == nil {
 		cfg.ExpandPaths(home)
 	}
@@ -748,7 +748,7 @@ func LoadContext(contextName string) (*Config, error) {
 	return &cfg, nil
 }
 
-// ExpandPaths étend les tildes (~) dans les chemins de configuration
+// ExpandPaths expands tildes (~) in configuration paths
 func (c *Config) ExpandPaths(homeDir string) {
 	expand := func(path string) string {
 		if strings.HasPrefix(path, "~/") {
@@ -790,7 +790,7 @@ func absolute(path string) string {
 	return abs
 }
 
-// SaveContext sauvegarde la configuration dans un fichier de contexte spécifique
+// SaveContext saves the configuration to a specific context file
 func SaveContext(cfg *Config, contextName string) error {
 	if err := ValidateContextName(contextName); err != nil {
 		return err
@@ -801,22 +801,22 @@ func SaveContext(cfg *Config, contextName string) error {
 		return err
 	}
 
-	// Assurer que le répertoire existe
+	// Ensure the directory exists
 	if err := EnsureConfigDir(); err != nil {
 		return err
 	}
 
-	// Marshaller en YAML
+	// Marshal to YAML
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
 	}
 
-	// Écrire le fichier
+	// Write the file
 	return os.WriteFile(configPath, data, 0600)
 }
 
-// ContextExists vérifie si un fichier de configuration de contexte existe
+// ContextExists checks whether a context configuration file exists
 func ContextExists(contextName string) (bool, error) {
 	if err := ValidateContextName(contextName); err != nil {
 		return false, err
@@ -838,9 +838,9 @@ func ContextExists(contextName string) (bool, error) {
 	return true, nil
 }
 
-// GetContextPath retourne le chemin du fichier pour un contexte
-// "default" → ~/.devdesk/config.yaml
-// "dev" → ~/.devdesk/config-dev.yaml
+// GetContextPath returns the file path for a context
+// "default" -> ~/.devdesk/config.yaml
+// "dev" -> ~/.devdesk/config-dev.yaml
 func GetContextPath(contextName string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -859,14 +859,14 @@ func GetContextPath(contextName string) (string, error) {
 	return filepath.Join(configDir, filename), nil
 }
 
-// ValidateContextName valide le format du nom de contexte
-// Doit être "default" ou correspondre à ^[a-z0-9-]+$
+// ValidateContextName validates the format of the context name
+// Must be "default" or match ^[a-z0-9-]+$
 func ValidateContextName(name string) error {
 	if name == "default" {
 		return nil
 	}
 
-	// Pattern: lettres minuscules, chiffres, tirets
+	// Pattern: lowercase letters, digits, hyphens
 	matched, err := regexp.MatchString("^[a-z0-9-]+$", name)
 	if err != nil {
 		return err
@@ -879,14 +879,14 @@ func ValidateContextName(name string) error {
 	return nil
 }
 
-// CreateContext crée un nouveau contexte avec une configuration par défaut
-// Monitors vides, GitLab URL vide, autres valeurs par défaut
+// CreateContext creates a new context with a default configuration
+// Empty monitors, empty GitLab URL, other values default
 func CreateContext(contextName string) error {
 	if err := ValidateContextName(contextName); err != nil {
 		return err
 	}
 
-	// Vérifier si existe déjà
+	// Check whether it already exists
 	exists, err := ContextExists(contextName)
 	if err != nil {
 		return err
@@ -895,13 +895,13 @@ func CreateContext(contextName string) error {
 		return fmt.Errorf("context '%s' already exists", contextName)
 	}
 
-	// Créer config avec defaults
+	// Create config with defaults
 	cfg := Default()
 
-	// Vider monitors et forge pour nouveau contexte
+	// Clear monitors and forge for the new context
 	cfg.Status.Components = []ComponentConfig{}
 	cfg.Forge.URL = ""
 
-	// Sauvegarder
+	// Save
 	return SaveContext(cfg, contextName)
 }

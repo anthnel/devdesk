@@ -20,8 +20,8 @@ func day(n int) time.Time {
 	return time.Now().Add(-time.Duration(n) * 24 * time.Hour)
 }
 
-// Un cache vide et un cache jamais lu affichent le même zéro si rien ne les
-// distingue, et l'un des deux serait un mensonge.
+// An empty cache and a never-read cache display the same zero if nothing
+// distinguishes them, and one of the two would be a lie.
 func TestAnUnreadPostureIsNotAnEmptyOne(t *testing.T) {
 	m, _ := authenticatedModel(t)
 
@@ -40,9 +40,9 @@ func TestAnUnreadPostureIsNotAnEmptyOne(t *testing.T) {
 	}
 }
 
-// Les deux familles sont comptées séparément — une CRITICAL dans une image se
-// règle en changeant de tag, dans un dépôt en changeant du code — et Total() ne
-// les recombine que pour les paliers trop étroits pour deux arbres.
+// The two families are counted separately — a CRITICAL in an image is fixed
+// by changing tag, in a repository by changing code — and Total() only
+// recombines them for the tiers too narrow for two trees.
 func TestThePostureKeepsTheTwoFamiliesApart(t *testing.T) {
 	var p posture
 	p.Read = true
@@ -69,7 +69,7 @@ func TestThePostureKeepsTheTwoFamiliesApart(t *testing.T) {
 	}
 }
 
-// Une famille vide ne doit pas devenir le scan le plus ancien de l'autre.
+// An empty family must not become the other one's oldest scan.
 func TestAnEmptyFamilyDoesNotAgeTheTotal(t *testing.T) {
 	var p posture
 	p.Read = true
@@ -80,9 +80,9 @@ func TestAnEmptyFamilyDoesNotAgeTheTotal(t *testing.T) {
 	}
 }
 
-// Une entrée sans horodatage ne doit pas rajeunir la posture : le zéro d'un
-// time.Time est antérieur à tout, et ferait lire « jamais scanné » à un
-// inventaire qui l'est.
+// An entry with no timestamp must not make the posture younger: the zero
+// value of a time.Time predates everything, and would make an inventory read
+// "never scanned" when it isn't.
 func TestAnUndatedEntryDoesNotBecomeTheOldestScan(t *testing.T) {
 	var side postureSide
 	side.add(0, nil, day(2))
@@ -98,10 +98,10 @@ func TestAnUndatedEntryDoesNotBecomeTheOldestScan(t *testing.T) {
 
 // ── Path truncation ──────────────────────────────────────────────────────────
 
-// Trouvé en revue : la troncature découpait des octets, donc sur un chemin
-// accentué — `C:\Users\José\dépôts`, ce qu'un Windows français produit à chaque
-// `Téléchargements` — la coupe tombait au milieu d'un caractère et rendait de
-// l'UTF-8 invalide, qui s'affiche en losange noir.
+// Found in review: the truncation was cutting bytes, so on an accented
+// path — `C:\Users\José\dépôts`, which a French Windows produces on every
+// `Téléchargements` — the cut landed in the middle of a character and
+// produced invalid UTF-8, which renders as a black diamond.
 func TestTruncatingAPathNeverCutsARune(t *testing.T) {
 	paths := []string{
 		`C:\Users\José\dépôts\été\projet`,
@@ -122,7 +122,7 @@ func TestTruncatingAPathNeverCutsARune(t *testing.T) {
 	}
 }
 
-// La queue est ce qui identifie un chemin : c'est elle qu'on garde.
+// The tail is what identifies a path: that's what gets kept.
 func TestTruncatingAPathKeepsItsTail(t *testing.T) {
 	got := truncatePath(`C:\Users\anthoni\workspaces\devdesk`, 20)
 
@@ -153,8 +153,8 @@ func TestTheNearestExpiryIsTheOneShown(t *testing.T) {
 	}
 }
 
-// Des certificats surveillés dont aucun n'a pu être lu, c'est une absence de
-// mesure — pas une échéance lointaine.
+// Monitored certificates none of which could be read is a missing
+// measurement — not a distant deadline.
 func TestUnreadableCertificatesReadUnknownRatherThanFar(t *testing.T) {
 	certs := []status.ComponentStatus{
 		{Name: "unreachable", Type: status.TypeSSL, Status: status.StatusDown},
@@ -165,8 +165,8 @@ func TestUnreadableCertificatesReadUnknownRatherThanFar(t *testing.T) {
 	}
 }
 
-// Un certificat déjà périmé n'a plus de compte à rebours : le nœud `expired`
-// le dit, et « -2 days » demandait de traduire un nombre négatif.
+// A certificate already expired has no countdown left: the `expired` node
+// says so, and "-2 days" would have required translating a negative number.
 func TestAnExpiredCertificateIsNotTheNearestExpiry(t *testing.T) {
 	certs := []status.ComponentStatus{
 		certWithDays("gone", -2),
@@ -182,7 +182,7 @@ func TestAnExpiredCertificateIsNotTheNearestExpiry(t *testing.T) {
 	}
 }
 
-// Et quand rien ne court plus, la ligne n'a pas de date à donner.
+// And when nothing is running anymore, the line has no date to give.
 func TestNothingAheadIsNotADeadline(t *testing.T) {
 	certs := []status.ComponentStatus{certWithDays("gone", -2)}
 
@@ -209,8 +209,8 @@ func valueColumn(t *testing.T, line, value string) int {
 	return lipgloss.Width(line[:i])
 }
 
-// treeStemWidth is written rather than measured, parce qu'une constante ne peut
-// pas appeler lipgloss.Width. C'est ici qu'elle est confrontée au rendu.
+// treeStemWidth is written rather than measured, because a constant cannot
+// call lipgloss.Width. This is where it gets checked against the rendering.
 func TestTheTreeStemIsAsWideAsItIsDeclared(t *testing.T) {
 	for name, stem := range map[string]string{"branch": theme.IconTreeBranch, "end": theme.IconTreeEnd} {
 		if got := lipgloss.Width(stem); got != treeStemWidth {
@@ -219,9 +219,9 @@ func TestTheTreeStemIsAsWideAsItIsDeclared(t *testing.T) {
 	}
 }
 
-// Une ligne de premier niveau qui porte une valeur s'aligne sur les nœuds qui
-// l'entourent : sinon la boîte affiche deux colonnes de valeurs pour une seule
-// liste de faits, et l'œil ne peut plus balayer une colonne.
+// A top-level line that carries a value lines up with the nodes around it:
+// otherwise the box displays two value columns for a single list of facts,
+// and the eye can no longer scan one column.
 func TestATopLevelRowLinesUpWithTheTreeAroundIt(t *testing.T) {
 	const marker = "58 days"
 
@@ -233,14 +233,14 @@ func TestATopLevelRowLinesUpWithTheTreeAroundIt(t *testing.T) {
 	}
 }
 
-// Le garde-fou général : un libellé plus long que la colonne ne casse pas
-// l'alignement de sa seule ligne, il ouvre une **seconde colonne de valeurs**
-// dans la boîte. C'est arrivé en ajoutant `issues assigned`, quinze cellules
-// contre douze, et rien ne l'aurait dit.
+// The general safeguard: a label longer than the column does not break the
+// alignment of just its own line, it opens a **second value column** in the
+// box. This happened when adding `issues assigned`, fifteen cells against
+// twelve, and nothing would have caught it.
 //
-// La vérification ne connaît aucun libellé : sur un nœud aligné, la cellule qui
-// précède la valeur est toujours du remplissage. Un libellé qui déborde y met un
-// de ses propres caractères.
+// The check knows no label: on an aligned node, the cell before the value is
+// always padding. A label that overflows puts one of its own characters
+// there instead.
 func TestEveryTreeNodeAlignsItsValue(t *testing.T) {
 	m, _ := loadedModel(t)
 	m = feed(t, m, PostureMsg{Posture: posture{Read: true}})
@@ -248,9 +248,9 @@ func TestEveryTreeNodeAlignsItsValue(t *testing.T) {
 	healthLeft, healthRight := healthColumns(m)
 	dockerLeft, dockerRight := dockerColumns(m, "4 total")
 
-	// Les colonnes sont vérifiées **avant** leur assemblage : une fois collées,
-	// les nœuds des deux arbres partagent une ligne, et la colonne de droite
-	// commence là où la gauche finit — pas sur une position connue d'avance.
+	// The columns are checked **before** being assembled: once joined, the
+	// nodes of both trees share a line, and the right column starts where
+	// the left one ends — not at a position known in advance.
 	runs := []struct {
 		name   string
 		column int
@@ -271,7 +271,7 @@ func TestEveryTreeNodeAlignsItsValue(t *testing.T) {
 			if !strings.HasPrefix(plain, theme.IconTreeBranch) && !strings.HasPrefix(plain, theme.IconTreeEnd) {
 				continue
 			}
-			// Un nœud sans valeur n'a rien à aligner.
+			// A node with no value has nothing to align.
 			if lipgloss.Width(plain) <= run.column {
 				continue
 			}
@@ -283,10 +283,10 @@ func TestEveryTreeNodeAlignsItsValue(t *testing.T) {
 	}
 }
 
-// Les deux colonnes de Health portent chacune deux arbres, et les seconds
-// doivent commencer sur la même ligne : l'échéance donne un nœud de plus aux
-// certificats, donc sans rattrapage `Repositories` démarrerait une ligne
-// au-dessus de `Images` et les deux arbres du bas se liraient en escalier.
+// Both Health columns each carry two trees, and the second ones must start
+// on the same line: the expiry gives the certificates one more node, so
+// without a catch-up `Repositories` would start a line above `Images` and
+// the two bottom trees would read like a staircase.
 func TestBothHealthColumnsStartTheirSecondTreeTogether(t *testing.T) {
 	m := healthModel(t, []status.ComponentStatus{
 		{Name: "web", Type: status.TypeHTTPS, Status: status.StatusOK},
@@ -309,24 +309,24 @@ func TestBothHealthColumnsStartTheirSecondTreeTogether(t *testing.T) {
 	}
 }
 
-// Une valeur qui remplit sa moitié ne doit pas toucher la colonne d'à côté :
-// collées, le nombre et le coude du premier nœud se lisent ensemble.
+// A value that fills its half must not touch the column next to it: joined
+// together, the number and the first node's elbow read as one.
 func TestTwoColumnsKeepAGutter(t *testing.T) {
 	out := sideBySide([]string{strings.Repeat("x", 100)}, []string{"R"}, 40)
 	if len(out) != 1 {
 		t.Fatalf("sideBySide returned %d lines for one row", len(out))
 	}
 
-	// Deux cellules est le minimum écrit ici plutôt que repris de la constante :
-	// un test qui la relit passerait aussi bien avec zéro.
+	// Two cells is the minimum written here rather than taken from the
+	// constant: a test that reads it back would pass just as well with zero.
 	got := stripANSI(out[0])
 	if gap := strings.Index(got, "R") - strings.LastIndex(got, "x") - 1; gap < 2 {
 		t.Errorf("a left column that fills its half leaves a %d-cell gutter: %q", gap, got)
 	}
 }
 
-// Et la contrepartie : une colonne assemblée fait exactement la largeur de la
-// boîte, sinon la boîte d'à côté se décale (Rule 116).
+// And the counterpart: an assembled column is exactly the box's width,
+// otherwise the box next to it shifts (Rule 116).
 func TestASplitBoxFillsItsWidthExactly(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -345,9 +345,9 @@ func TestASplitBoxFillsItsWidthExactly(t *testing.T) {
 	}
 }
 
-// L'échéance pend de Certs : c'est un fait sur les certificats, et flottant
-// au-dessus des arbres elle ne disait pas de quoi elle parlait. Elle en est
-// aussi le dernier nœud, donc le coude change de ligne.
+// The expiry hangs from Certs: it's a fact about the certificates, and
+// floating above the trees it didn't say what it was about. It's also its
+// last node, so the elbow moves to a different line.
 func TestTheExpiryHangsFromTheCertificates(t *testing.T) {
 	m := healthModel(t, []status.ComponentStatus{
 		{Name: "web", Type: status.TypeHTTPS, Status: status.StatusOK},
@@ -362,8 +362,8 @@ func TestTheExpiryHangsFromTheCertificates(t *testing.T) {
 	if !strings.HasPrefix(expiry, theme.IconTreeEnd) {
 		t.Errorf("the expiry node reads %q, want it to close the Certs run", expiry)
 	}
-	// Le nom du certificat est tombé avec la demi-boîte : :status possède la
-	// liste nommée, et « 58 days  google.com » n'y tient pas.
+	// The certificate's name dropped along with the half-width box: :status
+	// owns the named list, and "58 days  google.com" doesn't fit here.
 	if strings.Contains(expiry, "google.com") {
 		t.Errorf("the expiry node reads %q — a half-width column cannot hold the name", expiry)
 	}
@@ -371,7 +371,7 @@ func TestTheExpiryHangsFromTheCertificates(t *testing.T) {
 		t.Errorf("the error node reads %q — it no longer ends the run", err)
 	}
 
-	// Les moniteurs n'ont pas d'échéance, donc pas de nœud.
+	// Monitors have no expiry, hence no node.
 	monitors, _ := healthColumns(m)
 	if got := nodeUnder(monitors, "Monitors", "expiry"); got != "" {
 		t.Errorf("the Monitors tree grew an expiry node: %q", got)
@@ -380,9 +380,9 @@ func TestTheExpiryHangsFromTheCertificates(t *testing.T) {
 
 // ── Certificate states ───────────────────────────────────────────────────────
 
-// Le vocabulaire des moniteurs ne dit pas ce qu'un certificat est. `up` nommait
-// « joignable » ce qui veut dire « valide », et `error` recevait aussi bien le
-// périmé que celui qui expire la semaine prochaine.
+// The monitors' vocabulary does not say what a certificate is. `up` named
+// "reachable" which means "valid", and `error` received both the expired one
+// and the one expiring next week.
 func TestTheCertificateTreeSpeaksOfCertificates(t *testing.T) {
 	m := healthModel(t, []status.ComponentStatus{
 		{Name: "web", Type: status.TypeHTTPS, Status: status.StatusOK},
@@ -401,7 +401,7 @@ func TestTheCertificateTreeSpeaksOfCertificates(t *testing.T) {
 		}
 	}
 
-	// Les moniteurs gardent le leur, et n'empruntent pas l'inverse.
+	// Monitors keep their own, and don't borrow the other way around.
 	monitors, _ := healthColumns(m)
 	for _, label := range []string{"up", "down", "error"} {
 		if nodeUnder(monitors, "Monitors", label) == "" {
@@ -415,8 +415,8 @@ func TestTheCertificateTreeSpeaksOfCertificates(t *testing.T) {
 	}
 }
 
-// Le défaut, compté : trois certificats que `up` / `down` / `error` mettait
-// dans deux cases se répartissent maintenant sur trois.
+// The bug, counted: three certificates that `up` / `down` / `error` put
+// into two buckets are now split across three.
 func TestAnExpiredCertificateIsNotCountedAsAReadFailure(t *testing.T) {
 	m := healthModel(t, []status.ComponentStatus{
 		certWithDays("far", 300),
@@ -439,8 +439,9 @@ func TestAnExpiredCertificateIsNotCountedAsAReadFailure(t *testing.T) {
 	}
 }
 
-// Chaque état a son glyphe, y compris à zéro : sans ça `expired` et `error`
-// portaient la même alerte et redevenaient une seule ligne lue en deux.
+// Each state carries its own glyph, including at zero: without that,
+// `expired` and `error` carried the same alert and became one line read as
+// two.
 func TestEachCertificateStateCarriesItsOwnGlyph(t *testing.T) {
 	m := healthModel(t, []status.ComponentStatus{certWithDays("google.com", 58)})
 	_, certs := healthColumns(m)
@@ -460,9 +461,10 @@ func TestEachCertificateStateCarriesItsOwnGlyph(t *testing.T) {
 
 // ── Monitor and certificate icons ────────────────────────────────────────────
 
-// L'icône nomme l'état de la ligne, pas son compte : une coche sur « down »
-// disait « tout va bien » à l'endroit même où l'on cherche combien sont tombés.
-// Le vocabulaire est celui de :status — croix pour DOWN, alerte pour ERROR.
+// The icon names the line's state, not its count: a check mark on "down"
+// said "everything is fine" right where one is looking for how many are
+// down. The vocabulary is :status's own — a cross for DOWN, an alert for
+// ERROR.
 func TestTheDownAndErrorNodesKeepTheirOwnIconAtZero(t *testing.T) {
 	m := healthModel(t, []status.ComponentStatus{
 		{Name: "web", Type: status.TypeHTTPS, Status: status.StatusOK},
@@ -484,8 +486,8 @@ func TestTheDownAndErrorNodesKeepTheirOwnIconAtZero(t *testing.T) {
 	}
 }
 
-// Et le glyphe ne change pas quand le compte passe à un : seule la couleur le
-// fait, ce que stripANSI efface — d'où la comparaison sur les deux états.
+// And the glyph does not change when the count goes to one: only the color
+// does, which stripANSI erases — hence the comparison across both states.
 func TestAFailingNodeKeepsTheGlyphItHadAtZero(t *testing.T) {
 	quiet := stripANSI(alertCount(0, theme.IconError, theme.StatusDownStyle))
 	failing := stripANSI(alertCount(3, theme.IconError, theme.StatusDownStyle))
@@ -500,9 +502,8 @@ func TestAFailingNodeKeepsTheGlyphItHadAtZero(t *testing.T) {
 
 // ── Coverage ─────────────────────────────────────────────────────────────────
 
-// Ce que la boîte compte désormais à la place des HIGH : les cibles sur
-// lesquelles elle ne dit rien. C'est le seul de ses chiffres sur lequel on
-// décide quelque chose — lancer un scan.
+// What the box now counts instead of HIGH: the targets it says nothing
+// about. It's the only one of its figures that's actionable — run a scan.
 func TestTheHealthBoxCountsWhatHasNeverBeenScanned(t *testing.T) {
 	m, _ := loadedModel(t) // eight images, six workspaces
 	var p posture
@@ -529,8 +530,8 @@ func TestTheHealthBoxCountsWhatHasNeverBeenScanned(t *testing.T) {
 	}
 }
 
-// Un inventaire pas encore chargé ne rend pas zéro : « rien à scanner » est
-// exactement le contraire de « on ne sait pas encore ».
+// An inventory not yet loaded does not yield zero: "nothing to scan" is
+// exactly the opposite of "we don't know yet".
 func TestAnUnreadInventoryLeavesTheCoverageUnknown(t *testing.T) {
 	m, _ := authenticatedModel(t) // nothing loaded yet
 	m = feed(t, m, PostureMsg{Posture: posture{Read: true}})
@@ -547,17 +548,17 @@ func TestAnUnreadInventoryLeavesTheCoverageUnknown(t *testing.T) {
 	}
 }
 
-// Le cache garde l'entrée d'une image supprimée depuis, donc la différence peut
-// passer sous zéro. Le plancher dit ce qu'il faut en retenir : plus rien à
-// scanner — jamais un nombre négatif.
+// The cache keeps the entry of an image deleted since, so the difference
+// can go below zero. The floor says what should be taken away from it:
+// nothing left to scan — never a negative number.
 func TestACacheAheadOfTheInventoryReportsNothingLeft(t *testing.T) {
 	if got := uncovered(2, 9); got != 0 {
 		t.Errorf("uncovered(2, 9) = %d, want 0", got)
 	}
 }
 
-// Une seule moitié manquante suffit à rendre le total non mesuré : la somme
-// d'un nombre et d'une inconnue est une inconnue.
+// A single missing half is enough to make the total unmeasured: the sum of
+// a number and an unknown is an unknown.
 func TestAHalfMeasuredTotalIsNotMeasured(t *testing.T) {
 	m, _ := loadedModel(t)
 	m = feed(t, m, PostureMsg{Posture: posture{Read: true}})
@@ -575,10 +576,10 @@ func healthModel(t *testing.T, components []status.ComponentStatus) Model {
 	return feed(t, m, StatusCheckMsg{Result: status.MonitorResult{Components: components, Timestamp: time.Now()}})
 }
 
-// runUnder returns the contiguous run of nodes a heading opens, stripped. Elle
-// s'arrête au premier non-nœud : une boîte porte plusieurs arbres, les deux de
-// posture portent les mêmes libellés, et balayer toute la boîte rendrait
-// toujours le premier.
+// runUnder returns the contiguous run of nodes a heading opens, stripped. It
+// stops at the first non-node: a box carries several trees, both of
+// posture's trees carry the same labels, and scanning the whole box would
+// always return the first one.
 func runUnder(lines []string, heading string) []string {
 	for i, line := range lines {
 		if stripANSI(line) != heading {
@@ -609,7 +610,7 @@ func nodeUnder(lines []string, heading, label string) string {
 
 // ── Storage ──────────────────────────────────────────────────────────────────
 
-// Docker en place et rien à récupérer n'est pas Docker absent.
+// Docker present with nothing to reclaim is not Docker absent.
 func TestNothingToReclaimIsNotAnAbsentDocker(t *testing.T) {
 	m, _ := loadedModel(t) // its OCI stats carry no reclaimable figure
 
@@ -624,9 +625,9 @@ func TestNothingToReclaimIsNotAnAbsentDocker(t *testing.T) {
 	}
 }
 
-// La boîte détaille `docker system df` en entier. La vue en parsait les quatre
-// colonnes et n'en lisait qu'une : le récupérable. Les trois autres étaient
-// mesurées, rangées, et jetées.
+// The box breaks down `docker system df` in full. The view used to parse
+// its four columns and only read one: the reclaimable one. The other three
+// were measured, stored, and thrown away.
 func TestStorageBreaksDownWhatDockerHolds(t *testing.T) {
 	lines := renderStorageSection(loadedOnly(t), 60, tierStandard)
 
@@ -638,9 +639,9 @@ func TestStorageBreaksDownWhatDockerHolds(t *testing.T) {
 	}
 }
 
-// Le volume dit ses trois chiffres, et l'occupation porte le pourcentage à côté
-// des octets : c'est le pourcentage qui dit s'il faut agir, les octets de
-// combien.
+// The volume gives its three figures, and usage carries the percentage
+// beside the bytes: the percentage says whether to act, the bytes say how
+// much.
 func TestStorageReportsTheVolume(t *testing.T) {
 	lines := renderStorageSection(loadedOnly(t), 60, tierStandard)
 
@@ -649,16 +650,16 @@ func TestStorageReportsTheVolume(t *testing.T) {
 			t.Errorf("the %q node reads %q, want %q", label, got, want)
 		}
 	}
-	// Entre parenthèses : `290.0 GB  58%` se lit comme deux faits côte à côte,
-	// `290.0 GB (58%)` comme une mesure et sa part.
+	// In parentheses: `290.0 GB  58%` reads as two facts side by side,
+	// `290.0 GB (58%)` as one measurement and its share.
 	if got := nodeUnder(lines, "Volume", "used"); !strings.Contains(got, "(58%)") {
 		t.Errorf("the used node reads %q, want the percentage bracketed beside the bytes", got)
 	}
 }
 
-// Le cache de build est la quatrième ligne de `docker system df`, et celle qui
-// répond le plus souvent à « où est passé le disque ». Elle entrait déjà dans la
-// somme du récupérable ; sa taille propre était jetée.
+// The build cache is `docker system df`'s fourth line, and the one that
+// most often answers "where did the disk go". It already fed into the
+// reclaimable total; its own size was thrown away.
 func TestStorageNamesTheBuildCache(t *testing.T) {
 	m := feed(t, loadedOnly(t), OCIStatsMsg{Stats: shared.OCIStats{
 		Available: true, ImagesCount: 8, ImagesSize: "1.2GB", BuildCacheSize: "9.7GB",
@@ -669,8 +670,9 @@ func TestStorageNamesTheBuildCache(t *testing.T) {
 	}
 }
 
-// Le chemin des workspaces appartient à la boîte Code, qui le porte sous l'arbre
-// qui en parle. Répété ici il occupait la première ligne pour ne rien ajouter.
+// The workspaces path belongs to the Code box, which carries it under the
+// tree that talks about it. Repeated here it took up the first line to add
+// nothing.
 func TestStorageDoesNotRepeatTheWorkspacesPath(t *testing.T) {
 	for _, tr := range []tier{tierStandard, tierWide} {
 		for _, line := range renderStorageSection(loadedOnly(t), 60, tr) {
@@ -681,10 +683,11 @@ func TestStorageDoesNotRepeatTheWorkspacesPath(t *testing.T) {
 	}
 }
 
-// Un dépôt supprimé après son scan laisse son entrée dans le cache, et rien ne
-// l'en retire. `ws` ne le liste pas — il liste le disque — et `:sec` l'écarte à
-// la lecture ; le dashboard le comptait. Ses CRITICAL n'étaient donc visibles
-// que sur le seul écran d'où l'on ne peut pas aller les voir.
+// A repository deleted after its scan leaves its entry in the cache, and
+// nothing removes it. `ws` doesn't list it — it lists the disk — and `:sec`
+// discards it on read; the dashboard was counting it. Its CRITICALs were
+// therefore only visible on the one screen from which you cannot go look at
+// them.
 func TestThePostureDropsARepositoryThatIsGone(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -720,9 +723,9 @@ func TestThePostureDropsARepositoryThatIsGone(t *testing.T) {
 	}
 }
 
-// L'absence doit être *certaine*. Un chemin illisible — un partage lent, un
-// droit manquant — n'est pas une suppression, et l'écarter ferait disparaître
-// du compteur des dépôts bien présents.
+// The absence must be *certain*. An unreadable path — a slow share, a
+// missing permission — is not a deletion, and discarding it would make
+// perfectly present repositories vanish from the count.
 func TestThePostureKeepsARepositoryItCannotStat(t *testing.T) {
 	if cache.RepositoryGone(filepath.Join(t.TempDir(), "no-such-dir", "child")) != true {
 		t.Error("a definite absence was not reported as one")
@@ -733,8 +736,8 @@ func TestThePostureKeepsARepositoryItCannotStat(t *testing.T) {
 	}
 }
 
-// La moitié « images » du même défaut : un `docker rmi` après un scan laissait
-// ses CRITICAL dans l'arbre Images, et `:sec` ne les montrait déjà plus.
+// The "images" half of the same bug: a `docker rmi` after a scan left its
+// CRITICALs in the Images tree, and `:sec` already no longer showed them.
 func TestThePostureDropsAnImageThatIsGone(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -758,10 +761,10 @@ func TestThePostureDropsAnImageThatIsGone(t *testing.T) {
 	}
 }
 
-// Le garde sur lequel tout repose. « Docker est arrêté » et « l'image a été
-// supprimée » sont le même silence, et lire le premier comme le second ferait
-// afficher `0 CRITICAL` à la boîte Images — la seule mauvaise réponse que
-// personne n'irait vérifier.
+// The guard everything rests on. "Docker is stopped" and "the image was
+// deleted" are the same silence, and reading the first as the second would
+// make the Images box display `0 CRITICAL` — the one wrong answer nobody
+// would go check.
 func TestADaemonThatCannotBeReachedKeepsEveryImageInThePosture(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

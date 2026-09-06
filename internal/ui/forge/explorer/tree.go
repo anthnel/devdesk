@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// NodeType représente le type de nœud dans l'arbre
+// NodeType represents the node type in the tree
 type NodeType string
 
 const (
@@ -13,16 +13,16 @@ const (
 	NodeTypeProject NodeType = "project"
 )
 
-// TreeNode représente un nœud dans l'arbre de la forge.
+// TreeNode represents a node in the forge's tree.
 //
-// Il survit à l'abstraction (§3.6) parce que ce qu'il porte en plus est de
-// l'état de vue — développé, en cours de chargement, parent, profondeur — dont
-// une forge n'a pas d'avis. Ce qu'il ne porte plus est ce que la forge décide :
-// l'identifiant est opaque et le rôle est déjà un mot.
+// It survives the abstraction (§3.6) because what it carries beyond that is
+// view state — expanded, currently loading, parent, depth — on which a forge
+// has no opinion. What it no longer carries is what the forge decides: the
+// identifier is opaque and the role is already a word.
 type TreeNode struct {
-	// ID adresse le nœud auprès du backend et ne veut rien dire ici. C'était un
-	// int64 — l'identifiant numérique de GitLab — que quatre sites convertissaient
-	// en int pour le repasser au SDK.
+	// ID addresses the node with the backend and means nothing here. It used
+	// to be an int64 — GitLab's numeric identifier — that four call sites
+	// converted to int to hand it back to the SDK.
 	ID       string
 	Name     string
 	FullPath string
@@ -57,12 +57,12 @@ type TreeNode struct {
 	WebURL            string     // Full HTTPS URL for opening in browser
 }
 
-// IsExpandable retourne vrai si le nœud peut être étendu
+// IsExpandable returns true if the node can be expanded
 func (n *TreeNode) IsExpandable() bool {
 	return n.Type == NodeTypeGroup
 }
 
-// Toggle expande ou contracte le nœud
+// Toggle expands or collapses the node
 func (n *TreeNode) Toggle() {
 	if n.IsExpandable() {
 		n.Expanded = !n.Expanded

@@ -1,45 +1,46 @@
-// Package keymap déclare le vocabulaire clavier de l'application.
+// Package keymap declares the application's keyboard vocabulary.
 //
-// Il ne lit aucune touche et ne dépend pas de bubbletea : c'est une liste de
-// chaînes, et son seul rôle est d'être la référence contre laquelle les tests
-// opposent le code (keymap_test.go). Sans cette référence, la cohérence des
-// touches est une convention que rien ne vérifie — ce qui est exactement l'état
-// que §3.26 a relevé : 184 liaisons, 16 collisions.
+// It does not read any key and does not depend on bubbletea: it is a list of
+// strings, and its only role is to be the reference the tests check the code
+// against (keymap_test.go). Without this reference, key consistency is a
+// convention that nothing verifies — which is exactly the state §3.26 found:
+// 184 bindings, 16 collisions.
 //
-// # Trois espaces de noms disjoints
+// # Three disjoint namespaces
 //
-//   - Une MAJUSCULE est une action, et son sens est global à l'application.
-//     `D` supprime, dans toutes les vues, quoi que « supprimer » veuille dire
-//     là où on se trouve.
-//   - Une minuscule est un filtre ou une bascule d'affichage. Elle ne modifie
-//     rien, donc son sens peut être local et deux vues peuvent employer la même
-//     lettre sans se contredire.
-//   - Le reste (flèches, esc, enter, tab, space, `/`, `.`, `?`, `:`) est
-//     structurel et ne change jamais.
+//   - An UPPERCASE letter is an action, and its meaning is global to the
+//     application. `D` deletes, in every view, whatever "delete" means
+//     wherever you are.
+//   - A lowercase letter is a filter or a display toggle. It changes
+//     nothing, so its meaning can be local and two views can use the same
+//     letter without contradicting each other.
+//   - Everything else (arrows, esc, enter, tab, space, `/`, `.`, `?`, `:`) is
+//     structural and never changes.
 //
-// # Pourquoi Shift porte les actions
+// # Why Shift carries the actions
 //
-// Ce n'est pas un goût, c'est le budget réel d'un terminal :
+// This isn't a matter of taste, it's the real budget of a terminal:
 //
-//	Ctrl+lettre  : n'encode que l'ASCII 0x40-0x5F, et le tty en confisque
-//	               quatre (ctrl+i = TAB, ctrl+m = Entrée, ctrl+j = LF,
-//	               ctrl+h = Backspace). ctrl+a et ctrl+b sont les préfixes de
-//	               screen et tmux, ctrl+c/ctrl+d sont SIGINT et EOF,
-//	               ctrl+s/ctrl+q le contrôle de flux.        → ~14 restantes
-//	Alt+touche   : Option n'est pas Meta sur macOS tant que l'utilisateur ne
-//	               l'active pas ; l'application ne reçoit rien.        → 0
-//	Ctrl+Shift   : le code de contrôle écrase la casse — ctrl+a et ctrl+shift+a
-//	               émettent tous deux 0x01. Les distinguer exige le protocole
-//	               clavier Kitty ou modifyOtherKeys, que bubbletea v1.3.10
-//	               n'active pas (c'est WithKeyboardEnhancements() en v2). Et
-//	               même alors l'émulateur se sert d'abord : ctrl+shift+c/v/t/w/n
-//	               sont copier, coller, onglet, fermer, fenêtre.       → 0
-//	Shift+lettre : aucune contrainte. Passe sur tout émulateur, toute
-//	               plateforme, à travers SSH et tmux.                  → 26
+//	Ctrl+letter  : only encodes ASCII 0x40-0x5F, and the tty confiscates
+//	               four of them (ctrl+i = TAB, ctrl+m = Enter, ctrl+j = LF,
+//	               ctrl+h = Backspace). ctrl+a and ctrl+b are screen's and
+//	               tmux's prefixes, ctrl+c/ctrl+d are SIGINT and EOF,
+//	               ctrl+s/ctrl+q are flow control.           → ~14 left
+//	Alt+key      : Option is not Meta on macOS unless the user enables it;
+//	               the application receives nothing.                → 0
+//	Ctrl+Shift   : the control code erases case — ctrl+a and ctrl+shift+a
+//	               both emit 0x01. Telling them apart requires the Kitty
+//	               keyboard protocol or modifyOtherKeys, which bubbletea
+//	               v1.3.10 does not enable (that's WithKeyboardEnhancements()
+//	               in v2). And even then the emulator claims them first:
+//	               ctrl+shift+c/v/t/w/n are copy, paste, tab, close, window.
+//	                                                                  → 0
+//	Shift+letter : no constraint. Works on every emulator, every platform,
+//	               through SSH and tmux.                             → 26
 //
-// Shift+lettre EST une combinaison à deux touches : deux doigts, aucun départ
-// accidentel. Elle porte le vocabulaire non par défaut, mais parce que les deux
-// autres familles sont amputées ou inutilisables.
+// Shift+letter IS a two-key combination: two fingers, no accidental firing.
+// It carries the vocabulary not by default, but because the two other
+// families are crippled or unusable.
 package keymap
 
 import (
@@ -48,51 +49,52 @@ import (
 	"strings"
 )
 
-// Les 23 actions. Une quarantaine d'actions existaient pour 26 lettres : la
-// règle ne tient qu'après fusion des synonymes (Kill = arrêter et tuer,
-// Delete = supprimer et retirer, Terminal = terminal et shell) et parce que les
-// bascules d'affichage sortent du compte.
+// The 23 actions. About forty actions used to exist for 26 letters: the
+// rule only holds after merging synonyms (Kill = stop and kill,
+// Delete = delete and remove, Terminal = terminal and shell) and because
+// display toggles are excluded from the count.
 const (
-	New      = "N" // Créer une ressource depuis ce contexte
-	Edit     = "E" // Éditer la ressource sélectionnée
-	Delete   = "D" // Supprimer la ressource sélectionnée
-	Rename   = "M" // Renommer (mv)
-	Scan     = "S" // Scanner la cible sélectionnée
-	ScanAll  = "A" // Scanner tout (modale : case « purger le cache d'abord »)
-	Fetch    = "F" // Se remettre au niveau de la source : fetch + fast-forward, ou suivre un flux
-	Clone    = "C" // Entrer en sélection de clone
-	Terminal = "T" // Ouvrir un terminal ou un shell
-	IDE      = "O" // Ouvrir dans l'IDE configuré
-	Web      = "W" // Ouvrir une URL dans le navigateur
-	Logs     = "L" // Ouvrir les logs
-	Pager    = "V" // Ouvrir dans le pager système
-	Kill     = "K" // Arrêter, tuer (modale : Stop / Restart, ou SIGKILL)
-	Prune    = "P" // Supprimer les ressources inutilisées
-	Browser  = "B" // Ouvrir le navigateur multi-registries
-	Get      = "G" // Pull (get) l'image ou le tag
-	Auth     = "U" // Login / logout registry — bascule sur l'état de la ligne
-	Exclude  = "X" // Exclure — ajouter à .gitleaksignore
-	Requests = "R" // Ouvrir les merge requests · PR
-	Issues   = "I" // Ouvrir les issues
-	// Copy est `Y` — yank. La lettre était libre bien qu'une modale l'emploie
-	// pour « Yes » : une modale réclame toute touche avant que la vue ne la
-	// voie, donc les deux ne sont jamais joignables en même temps.
-	Copy = "Y" // Copier le chemin de la sélection dans le presse-papier
+	New      = "N" // Create a resource from this context
+	Edit     = "E" // Edit the selected resource
+	Delete   = "D" // Delete the selected resource
+	Rename   = "M" // Rename (mv)
+	Scan     = "S" // Scan the selected target
+	ScanAll  = "A" // Scan everything (modal: "purge the cache first" checkbox)
+	Fetch    = "F" // Catch up with the source: fetch + fast-forward, or follow a stream
+	Clone    = "C" // Enter clone selection
+	Terminal = "T" // Open a terminal or shell
+	IDE      = "O" // Open in the configured IDE
+	Web      = "W" // Open a URL in the browser
+	Logs     = "L" // Open the logs
+	Pager    = "V" // Open in the system pager
+	Kill     = "K" // Stop, kill (modal: Stop / Restart, or SIGKILL)
+	Prune    = "P" // Remove unused resources
+	Browser  = "B" // Open the multi-registry browser
+	Get      = "G" // Pull (get) the image or tag
+	Auth     = "U" // Login / logout of the registry — toggles based on the row's state
+	Exclude  = "X" // Exclude — add to .gitleaksignore
+	Requests = "R" // Open merge requests · PRs
+	Issues   = "I" // Open issues
+	// Copy is `Y` — yank. The letter was free even though a modal uses it
+	// for "Yes": a modal claims every key before the view sees it, so the
+	// two are never reachable at the same time.
+	Copy = "Y" // Copy the selection's path to the clipboard
 )
 
-// CommandMode ouvre la ligne de commande, depuis n'importe où — y compris
-// depuis un champ texte focusé.
+// CommandMode opens the command line, from anywhere — including from a
+// focused text field.
 //
-// ctrl+p, et pas ctrl+: : ":" vaut 0x3A, hors de la plage 0x40-0x5F que Ctrl
-// encode, donc "ctrl+:" n'atteint jamais l'application. Le repli était alt+:,
-// qui a le défaut inverse : sur Terminal.app et iTerm2, Option+Shift+; émet un
-// caractère littéral et la touche n'arrive pas non plus. ctrl+p est libre dans
-// toute l'application, n'est aucun caractère de contrôle du tty, n'est le
-// préfixe d'aucun multiplexeur, et son sens est déjà appris — palette.
+// ctrl+p, and not ctrl+: : ":" is 0x3A, outside the 0x40-0x5F range Ctrl
+// encodes, so "ctrl+:" never reaches the application. The fallback was
+// alt+:, which has the opposite flaw: on Terminal.app and iTerm2,
+// Option+Shift+; emits a literal character and the key doesn't arrive
+// either. ctrl+p is free throughout the application, is not a tty control
+// character, is not the prefix of any multiplexer, and its meaning is
+// already learned — command palette.
 const CommandMode = "ctrl+p"
 
-// actions associe chaque touche d'action à son sens. C'est la table que les
-// tests opposent au code ; le tableau de §3.26 en est la forme lisible.
+// actions maps each action key to its meaning. This is the table the tests
+// check the code against; the table in §3.26 is its readable form.
 var actions = map[string]string{
 	New:      "Create a resource from this context",
 	Edit:     "Edit the selected resource",
@@ -118,84 +120,85 @@ var actions = map[string]string{
 	Copy:     "Copy the selection's path to the clipboard",
 }
 
-// Actions rend une copie de la table touche → sens.
+// Actions returns a copy of the key → meaning table.
 func Actions() map[string]string {
 	out := make(map[string]string, len(actions))
 	maps.Copy(out, actions)
 	return out
 }
 
-// IsAction dit si une touche appartient au vocabulaire d'actions.
+// IsAction reports whether a key belongs to the action vocabulary.
 func IsAction(key string) bool {
 	_, ok := actions[key]
 	return ok
 }
 
-// modalKeys sont les raccourcis d'une modale de confirmation.
+// modalKeys are the shortcuts of a confirmation modal.
 //
-// C'est un quatrième espace de noms, et il est disjoint des trois autres par le
-// mode plutôt que par la casse : une modale réclame toute touche avant que la
-// vue ne la voie (priorité 1 dans chaque handleKeyMsg), donc `N` n'y peut pas
-// vouloir dire « créer » — la vue en dessous ne reçoit rien. C'est le même
-// argument que pour InEditMode.
+// This is a fourth namespace, and it is disjoint from the other three by
+// mode rather than by case: a modal claims every key before the view sees
+// it (priority 1 in every handleKeyMsg), so `N` cannot mean "create" there
+// — the view underneath receives nothing. Same argument as for InEditMode.
 //
-// Ils sont déclarés ici parce que le relevé de §3.26 ne les avait pas vus, et
-// qu'une majuscule liée sans déclaration est indistinguable d'une dérive.
+// They are declared here because the §3.26 survey had not seen them, and
+// an uppercase letter bound without a declaration is indistinguishable
+// from drift.
 var modalKeys = map[string]string{
 	"y": "Yes", "Y": "Yes",
 	"n": "No", "N": "No",
 }
 
-// ModalKeys rend les raccourcis de modale.
+// ModalKeys returns the modal shortcuts.
 func ModalKeys() map[string]string {
 	out := make(map[string]string, len(modalKeys))
 	maps.Copy(out, modalKeys)
 	return out
 }
 
-// IsModalKey dit si une touche est un raccourci de modale.
+// IsModalKey reports whether a key is a modal shortcut.
 func IsModalKey(key string) bool {
 	_, ok := modalKeys[key]
 	return ok
 }
 
-// free liste les majuscules qu'aucune action n'occupe. Elles sont déclarées
-// plutôt que laissées à déduire : le prochain ajout doit savoir où piocher sans
-// refaire le relevé, et une action qui s'installe ailleurs qu'ici est un
-// doublon qui s'ignore.
-// H est revenue ici avec §3.47 : elle traçait la route, et la trace a été
-// supprimée parce qu'elle répondait pour la VM Docker et non pour la machine
-// (D57). Une lettre qu'une action vient de libérer se redéclare libre, sinon
-// elle reste réservée à un usage qui n'existe plus.
+// free lists the uppercase letters no action occupies. They are declared
+// rather than left to be inferred: the next addition must know where to
+// pick from without redoing the survey, and an action that settles
+// somewhere other than here is a duplicate that goes unnoticed.
+// H came back here with §3.47: it used to trace the route, and the trace
+// was removed because it answered for the Docker VM rather than for the
+// machine (D57). A letter an action has just freed up is re-declared
+// free, otherwise it stays reserved for a use that no longer exists.
 var free = []string{"H", "J", "Q", "Z"}
 
-// Free rend les majuscules encore disponibles, triées.
+// Free returns the still-available uppercase letters, sorted.
 func Free() []string {
 	out := append([]string(nil), free...)
 	sort.Strings(out)
 	return out
 }
 
-// Surface est un écran, ses fichiers, et les minuscules qu'il emploie.
+// Surface is a screen, its files, and the lowercase letters it uses.
 //
-// Path est ce qui rattache un fichier à sa surface, et il est là pour que la
-// déclaration soit vérifiable : sans lui, « ces lettres sont locales à cette
-// vue » se contrôle en réunissant toutes les listes, et `l` déclaré pour
-// netdiag excuserait `l` dans les registries. La correspondance se fait sur le
-// préfixe le plus long, donc netdiag/ports peut restreindre netdiag.
+// Path is what ties a file to its surface, and it is there so the
+// declaration is checkable: without it, "these letters are local to this
+// view" is verified by merging every list, and `l` declared for netdiag
+// would excuse `l` in the registries. Matching is done on the longest
+// prefix, so netdiag/ports can narrow down netdiag.
 type Surface struct {
 	Name string
 	Path string
 	Keys []string
 }
 
-// localToggles recense les minuscules employées comme bascules d'affichage ou
-// de filtre. Elles ne modifient rien, donc leur sens est local et la même
-// lettre peut servir deux fois sans se contredire — `l` est le protocole dans
-// netdiag et la sévérité LOW dans security.
+// localToggles inventories the lowercase letters used as display or filter
+// toggles. They change nothing, so their meaning is local and the same
+// letter can serve twice without contradiction — `l` is the protocol in
+// netdiag and the LOW severity in security.
 //
-// Un fichier qui ne correspond à aucune surface n'a droit à aucune minuscule :
-// c'est le défaut, et c'est ce qui fait que la liste doit être tenue.
+// A file that matches no surface is entitled to no lowercase letter at
+// all: that is the default, and it is what makes the list worth keeping
+// up to date.
 var localToggles = []Surface{
 	{"containers", "ui/containers/", []string{"r", "p", "s", "t", "z"}},
 	{"viewer", "ui/viewer/", []string{"f", "c", "w", "v", "t", "n", "g", "s"}},
@@ -205,13 +208,13 @@ var localToggles = []Surface{
 	{"security/findings", "ui/security/", []string{"c", "h", "m", "l"}},
 }
 
-// LocalToggles rend les surfaces déclarées.
+// LocalToggles returns the declared surfaces.
 func LocalToggles() []Surface {
 	return append([]Surface(nil), localToggles...)
 }
 
-// SurfaceFor rattache un chemin de fichier à sa surface, par préfixe le plus
-// long. Le second retour dit si une surface a été trouvée.
+// SurfaceFor ties a file path to its surface, by longest prefix. The
+// second return says whether a surface was found.
 func SurfaceFor(path string) (Surface, bool) {
 	var best Surface
 	found := false
@@ -226,16 +229,16 @@ func SurfaceFor(path string) (Surface, bool) {
 	return best, found
 }
 
-// Exception est une touche qui déroge au vocabulaire, avec sa raison.
+// Exception is a key that deviates from the vocabulary, with its reason.
 type Exception struct {
 	Key     string
 	Surface string
 	Why     string
 }
 
-// exceptions sont les deux dérogations assumées. Elles sont écrites ici parce
-// que §3.26 l'exige : une exception non déclarée est indistinguable d'une
-// dérive, et le prochain relevé la « corrigerait ».
+// exceptions are the two accepted deviations. They are written here
+// because §3.26 requires it: an undeclared exception is indistinguishable
+// from drift, and the next survey would "fix" it.
 var exceptions = []Exception{
 	{
 		Key:     "o",
@@ -255,12 +258,12 @@ var exceptions = []Exception{
 	},
 }
 
-// DeclaredExceptions rend les dérogations déclarées.
+// DeclaredExceptions returns the declared exceptions.
 func DeclaredExceptions() []Exception {
 	return append([]Exception(nil), exceptions...)
 }
 
-// IsException dit si une touche est une dérogation déclarée sur une surface.
+// IsException reports whether a key is a declared exception on a surface.
 func IsException(key string) bool {
 	for _, e := range exceptions {
 		if e.Key == key {

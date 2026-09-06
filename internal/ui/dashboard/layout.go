@@ -2,11 +2,11 @@ package dashboard
 
 import "github.com/anthnel/devdesk/internal/ui/theme"
 
-// tier is the dashboard's layout palier. Un terminal ne sait pas qu'il est 4K :
-// il connaît des colonnes et des lignes, et deux tailles de police sur un même
-// écran font deux terminaux. Le palier se calcule donc sur tea.WindowSizeMsg,
-// et sur les deux dimensions séparément — la largeur décide du nombre de
-// colonnes, la hauteur de ce qui tient.
+// tier is the dashboard's layout tier. A terminal doesn't know it's 4K: it
+// knows columns and rows, and two font sizes on the same screen make two
+// terminals. The tier is therefore computed from tea.WindowSizeMsg, and on
+// both dimensions separately — width decides the number of columns, height
+// decides what fits.
 type tier int
 
 const (
@@ -15,40 +15,40 @@ const (
 	tierWide
 )
 
-// Palier thresholds. Below `standard` the dashboard stacks; at `wide` it opens
+// Tier thresholds. Below `standard` the dashboard stacks; at `wide` it opens
 // a third column, because two columns of a 240-cell terminal give 118-cell
 // boxes to write "MRs 3 assigned" in.
 //
-// **Le nombre de colonnes ne dépend que de la largeur, et c'est un test qui
-// l'a imposé.** Réduire les colonnes quand le terminal raccourcit est à
-// l'envers : moins de colonnes veut dire plus de boîtes empilées, donc *plus*
-// de hauteur nécessaire. À douze lignes de contenu, une grille 2×2 en perd six
-// et une colonne unique en perd vingt-quatre. La hauteur ne gouverne donc que
-// `wide`, dont les graphes braille sont réellement plus hauts.
+// **The number of columns depends only on width, and a test enforced that.**
+// Reducing the columns when the terminal gets shorter is backwards: fewer
+// columns means more stacked boxes, hence *more* height needed. At twelve
+// lines of content, a 2×2 grid loses six of them and a single column loses
+// twenty-four. Height therefore only governs `wide`, whose braille charts are
+// genuinely taller.
 //
-// La hauteur est en lignes de *contenu*, pas en lignes de terminal : la vue
-// reçoit ce que le routeur lui laisse — header 9, ligne de titre 1, footer 3.
+// Height is in *content* lines, not terminal lines: the view receives what
+// the router leaves it — header 9, title line 1, footer 3.
 const (
 	standardMinWidth = 100
 	wideMinWidth     = 180
-	// La grille à trois colonnes empile trois rangées et ses boîtes portent des
-	// arbres : son squelette — sans une seule courbe — fait une quarantaine de
-	// lignes. En dessous, deux colonnes en perdent bien moins, ce que
-	// TestTheChosenPalierLosesTheFewestLines vérifie à chaque hauteur.
+	// The three-column grid stacks three rows and its boxes carry trees: its
+	// skeleton — without a single curve — comes to about forty lines. Below
+	// that, two columns lose far fewer, which
+	// TestTheChosenPalierLosesTheFewestLines checks at every height.
 	wideMinHeight = 42
 )
 
 // gridHeight is what a two-row grid of boxes needs, in content lines.
 //
-// **Le viewport du routeur ne défile pas** : rien ne lui transmet de touche, il
-// coupe. Un layout trop haut ne fait donc pas apparaître une barre de
-// défilement, il perd des lignes en silence — ce que §3.19 corrige par
-// ailleurs. En dessous de gridHeight() aucun layout ne tient, et le palier ne
-// choisit plus le meilleur mais le moins mauvais.
-// Elle est **mesurée**, pas calculée : une constante décrivant la hauteur des
-// boîtes se démode à la première ligne ajoutée, et c'est arrivé trois fois en
-// deux jours — l'échéance de certificat, les arbres, la ligne vide sous chaque
-// graphe.
+// **The router's viewport does not scroll**: nothing forwards a key to it, it
+// just cuts off. A layout that's too tall therefore does not bring up a
+// scrollbar, it silently loses lines — which §3.19 fixes elsewhere. Below
+// gridHeight() no layout fits, and the tier no longer picks the best one but
+// the least bad one.
+// It is **measured**, not computed: a constant describing box height goes
+// stale the moment a line is added, and that happened three times in two
+// days — the certificate deadline, the trees, the blank line under each
+// chart.
 func (m Model) gridHeight(t tier) int {
 	columns := m.columnsFor(t)
 	total := leadingBlank
@@ -63,33 +63,33 @@ const leadingBlank = 1
 
 // trailingBlank is the empty line every box keeps under its last fact.
 //
-// Elle est ajoutée à la hauteur de la **rangée**, pas au rendu de chaque
-// section : padTo remplit ensuite jusqu'à cette hauteur, donc la boîte la plus
-// haute de la rangée en reçoit exactement une et les autres davantage. Une
-// ligne ajoutée par chaque render() aurait le même effet visuel sur la boîte la
-// plus haute et une de trop partout ailleurs.
+// It is added to the **row's** height, not to each section's rendering:
+// padTo then fills up to that height, so the tallest box in the row gets
+// exactly one and the others get more. A line added by each render() would
+// have the same visual effect on the tallest box and one too many everywhere
+// else.
 //
-// Sans elle, la dernière valeur de la boîte la plus haute touche sa bordure
-// basse — et c'est précisément la boîte que l'œil lit en premier.
+// Without it, the tallest box's last value touches its bottom border — and
+// that's precisely the box the eye reads first.
 const trailingBlank = 1
 
-// Box geometry. Les boîtes empilées ne sont pas séparées par une ligne vide :
-// leurs bordures s'en chargent, et à 30 lignes le budget est exactement de
-// deux boîtes (2 × (6 + 2) = 16).
+// Box geometry. Stacked boxes are not separated by a blank line: their
+// borders take care of that, and at 30 lines the budget is exactly two boxes
+// (2 × (6 + 2) = 16).
 //
-// nominalInnerHeight ne sert qu'à exprimer les seuils de palier : la hauteur
-// réelle d'une boîte est *dérivée des sections à l'écran* (voir innerHeight
-// dans view.go), donc une section qui grandit ne peut pas être tronquée par une
-// constante que personne n'a pensé à suivre.
+// nominalInnerHeight only serves to express the tier thresholds: a box's
+// actual height is *derived from the sections on screen* (see innerHeight in
+// view.go), so a section that grows cannot be truncated by a constant that
+// nobody thought to keep in sync.
 const (
 	nominalInnerHeight = 6
 	columnGap          = 1
 	sidePadding        = 1
 )
 
-// layoutTier is the only thing that decides a palier. Aucun renderer ne calcule
-// le sien : deux règles de palier, et les boîtes d'une même grille cessent de
-// s'accorder sur leur hauteur.
+// layoutTier is the only thing that decides a tier. No renderer computes its
+// own: two tier rules, and the boxes of the same grid stop agreeing on their
+// height.
 func layoutTier(width, height int) tier {
 	switch {
 	case width >= wideMinWidth && height >= wideMinHeight:
@@ -113,18 +113,18 @@ func (t tier) columns() int {
 	}
 }
 
-// tabCountFor returns how many tabs the palier offers. À `wide`, la troisième
-// colonne porte déjà les boîtes de Resources : proposer l'onglet en plus
-// afficherait deux fois les mêmes trois boîtes, ce qui est précisément la
-// duplication qu'un onglet est censé éviter.
+// tabCountFor returns how many tabs the tier offers. At `wide`, the third
+// column already carries the Resources boxes: offering the tab as well would
+// display the same three boxes twice, which is exactly the duplication a tab
+// is supposed to avoid.
 //
-// Il n'y a donc pas de barre d'onglets à `wide` : un seul onglet n'est pas un
-// choix, et la barre dirait « vous êtes ici », ce que l'écran dit déjà.
+// So there is no tab bar at `wide`: a single tab is not a choice, and the bar
+// would say "you are here", which the screen already says.
 //
-// Ça demande que `App.resize` itère : il interroge la vue sur la hauteur de son
-// footer avant de lui communiquer sa nouvelle taille, donc une barre qui
-// apparaît avec le palier répondrait d'après la taille précédente. Deux passes
-// suffisent, et la seconde interroge une vue qui connaît sa taille.
+// This requires `App.resize` to iterate: it asks the view for its footer's
+// height before handing it its new size, so a bar that appears with the tier
+// would answer based on the previous size. Two passes are enough, and the
+// second queries a view that knows its size.
 func tabCountFor(t tier) int {
 	if t == tierWide {
 		return 1

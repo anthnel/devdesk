@@ -16,7 +16,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/status/components"
 )
 
-// Init démarre l'application
+// Init starts the application
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick,
@@ -25,7 +25,7 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
-// Update gère les messages et met à jour l'état
+// Update handles messages and updates the state
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
@@ -56,7 +56,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleConfirmDelete()
 
 	case sharedcomponents.ConfirmModalNoMsg:
-		// Annulation de suppression
+		// Cancel deletion
 		m.confirmModal = nil
 
 	case ComponentSavedMsg:
@@ -66,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleComponentDeleted(msg)
 	}
 
-	// Mettre à jour la table active si pas en mode formulaire/confirmation
+	// Update the active table if not in form/confirmation mode
 	if m.componentForm == nil && m.confirmModal == nil {
 		cmds = append(cmds, m.getCurrentTable().Update(msg))
 	}
@@ -76,12 +76,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleTick processes tick messages for auto-refresh timing
 func (m Model) handleTick() (tea.Model, tea.Cmd) {
-	// Rafraîchir la table pour mettre à jour "Last Check"
+	// Refresh the table to update "Last Check"
 	if len(m.components) > 0 {
 		m.updateTable()
 	}
 
-	// Vérifier si on doit faire un check
+	// Check whether a check is due
 	if m.autoRefresh && !m.checking && time.Now().After(m.nextCheck) {
 		m.checking = true
 		return m, tea.Batch(
@@ -106,7 +106,7 @@ func (m Model) handleCheckComplete(msg CheckCompleteMsg) (tea.Model, tea.Cmd) {
 		m.logComponentErrors(msg.Components)
 		m.updateTable()
 		m.error = ""
-		// Recalculer les hauteurs des tables maintenant qu'elles ont des données
+		// Recalculate the tables' heights now that they have data
 		m.resize(m.width, m.height)
 	}
 
@@ -164,7 +164,7 @@ func (m Model) handleComponentDeleted(msg ComponentDeletedMsg) (tea.Model, tea.C
 	return m.reloadConfigAndCheck()
 }
 
-// resize ajuste les dimensions des tables en fonction de la taille du terminal
+// resize adjusts the tables' dimensions based on the terminal size
 func (m *Model) resize(width, height int) {
 	m.width = width
 	m.height = height
@@ -214,7 +214,7 @@ func (m *Model) getSelectedComponentIndex() int {
 }
 
 func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Filter bar search mode - prioritaire
+	// Filter bar search mode - takes priority
 	if m.filterBar.InEditMode() {
 		var cmd tea.Cmd
 		m.filterBar, cmd = m.filterBar.Update(msg)
@@ -223,21 +223,21 @@ func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Mode formulaire - prioritaire
+	// Form mode - takes priority
 	if m.componentForm != nil {
 		var cmd tea.Cmd
 		m.componentForm, cmd = m.componentForm.Update(msg)
 		return m, cmd
 	}
 
-	// Mode confirmation - prioritaire
+	// Confirmation mode - takes priority
 	if m.confirmModal != nil {
 		var cmd tea.Cmd
 		m.confirmModal, cmd = m.confirmModal.Update(msg)
 		return m, cmd
 	}
 
-	// Mode normal - déléguer selon le type de commande
+	// Normal mode - delegate based on the command type
 	switch msg.String() {
 	case "/":
 		return m, m.filterBar.ActivateSearch()
@@ -316,11 +316,11 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case keymap.New:
-		// Nouveau composant
+		// New component
 		m.componentForm = components.NewComponentForm(nil)
 
 	case keymap.Edit:
-		// Éditer le composant sélectionné
+		// Edit the selected component
 		if len(m.components) > 0 {
 			idx := m.getSelectedComponentIndex()
 			if idx >= 0 && idx < len(m.config.Status.Components) {
@@ -330,7 +330,7 @@ func (m Model) handleMonitorOperations(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case keymap.Delete:
-		// Supprimer le composant sélectionné
+		// Delete the selected component
 		if len(m.components) > 0 {
 			idx := m.getSelectedComponentIndex()
 			if idx >= 0 && idx < len(m.config.Status.Components) {

@@ -10,15 +10,15 @@ import (
 // title on the top border. It returns len(lines)+2 lines: the titled top
 // border, one line per content line, and the bottom border.
 //
-// Le contenu est séparé des bordures latérales par une colonne d'espace de
-// chaque côté (BoxPadding), donc la largeur utile est BoxContentWidth(width).
-// Le padding est **horizontal seulement** : une ligne vide en haut et en bas
-// coûterait quatre lignes par rangée de boîtes, et à 30 lignes de terminal le
-// budget en vaut exactement deux.
+// The content is separated from the side borders by one column of space on
+// each side (BoxPadding), so the usable width is BoxContentWidth(width). The
+// padding is **horizontal only**: a blank line at top and bottom would cost
+// four lines per row of boxes, and on a 30-line terminal the budget is worth
+// exactly two.
 //
-// Chaque ligne porte un fond explicite (Rule 115) et fait exactement `width`
-// cellules (Rule 116) : le contenu est paddé, et tronqué s'il déborde — un
-// cadre dont une ligne dépasse casse toutes les colonnes à sa droite.
+// Each line carries an explicit background (Rule 115) and is exactly `width`
+// cells wide (Rule 116): the content is padded, and truncated if it
+// overflows — a frame whose line overflows breaks every column to its right.
 func RenderTitledBox(title string, lines []string, width int) []string {
 	if width < minBoxWidth {
 		width = minBoxWidth
@@ -47,18 +47,18 @@ func RenderTitledBox(title string, lines []string, width int) []string {
 
 // BoxPadding is the space between a box's side borders and its content, per
 // side. BoxTopPadding is the blank line between the titled border and the first
-// content line — le titre est *sur* la bordure, donc sans elle la première
-// ligne se lit comme une continuation du titre.
+// content line — the title sits *on* the border, so without it the first
+// line would read as a continuation of the title.
 //
-// Il n'y a pas de padding bas : le titre n'est qu'en haut, et une ligne de plus
-// coûterait deux lignes par rangée de boîtes sur un budget qui en compte 17.
+// There is no bottom padding: the title is only at the top, and one more
+// line would cost two lines per row of boxes on a budget that counts 17.
 const (
 	BoxPadding    = 1
 	BoxTopPadding = 1
 )
 
 // BoxChrome is what a box costs in lines beyond its content: two borders and
-// the top padding. Les vues qui budgètent une hauteur comptent avec.
+// the top padding. Views that budget a height account for it.
 const BoxChrome = 2 + BoxTopPadding
 
 // BoxContentWidth returns the usable width inside a box of the given total
@@ -68,8 +68,9 @@ func BoxContentWidth(width int) int {
 }
 
 // RenderTitledRule draws a titled horizontal rule with no corners, of exactly
-// `width` cells. C'est le titre d'une vue sans cadre : GetTitle() garde un
-// lecteur là où RenderBorderTitle dessinerait le haut d'une boîte inexistante.
+// `width` cells. This is the title of a view without a frame: GetTitle()
+// keeps a reader oriented where RenderBorderTitle would draw the top of a
+// box that doesn't exist.
 func RenderTitledRule(title string, width int) string {
 	borderStyle := lipgloss.NewStyle().
 		Foreground(ColorViewportBorder).
@@ -80,7 +81,7 @@ func RenderTitledRule(title string, width int) string {
 		Bold(true)
 
 	rendered := titleStyle.Render(title)
-	// " " + title + " " puis le remplissage jusqu'à width.
+	// " " + title + " " then the fill up to width.
 	used := 1 + lipgloss.Width(rendered) + 1
 	fill := max(width-used, 0)
 	return Bg(" ") + rendered + Bg(" ") +
@@ -91,10 +92,10 @@ func RenderTitledRule(title string, width int) string {
 // character between them.
 const minBoxWidth = 3
 
-// Truncate cuts a line to at most `width` cells. lipgloss.MaxWidth coupe en
-// tenant compte des séquences ANSI : couper à la main baverait à l'intérieur
-// d'un échappement et sur toutes les lignes suivantes (Rule 122). Toute vue qui
-// assemble des colonnes doit passer par elle plutôt que par un slice.
+// Truncate cuts a line to at most `width` cells. lipgloss.MaxWidth cuts while
+// accounting for ANSI sequences: cutting by hand would bleed into an escape
+// sequence and onto every line that follows (Rule 122). Any view that
+// assembles columns must go through it rather than through a slice.
 func Truncate(line string, width int) string {
 	if lipgloss.Width(line) <= width {
 		return line

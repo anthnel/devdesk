@@ -8,43 +8,44 @@ import (
 	"testing"
 )
 
-// Le vocabulaire des commandes est déjà tenu par deux tests qui opposent le
-// parser à la complétion (TestEverythingThatParsesCanBeCompleted et son
-// symétrique). Il leur manque le troisième bord : ce que la documentation
-// annonce. Ces deux tests le ferment, sur le modèle d'internal/ui/keymap, qui
-// oppose de la même façon un vocabulaire déclaré aux sources.
+// The command vocabulary is already held by two tests that pit the parser
+// against completion (TestEverythingThatParsesCanBeCompleted and its
+// symmetric counterpart). They are missing the third edge: what the
+// documentation claims. These two tests close that gap, on the model of
+// internal/ui/keymap, which opposes a declared vocabulary to the sources
+// the same way.
 //
-// Ce n'est pas théorique. `.claude/CLAUDE.md` a annoncé « `containers` or `c` »
-// depuis le commit initial, alors que `c` a toujours résolu vers `context` —
-// D16 était exactement ce défaut dans l'autre sens (`:netdiag` documenté,
-// refusé par le parser), et il avait été trouvé par un test. Celui-ci a
-// survécu à D16/D17 parce que les deux tests d'alors ne regardaient que le
+// This is not theoretical. `.claude/CLAUDE.md` advertised "`containers` or `c`"
+// since the initial commit, while `c` has always resolved to `context` —
+// D16 was exactly this defect in the other direction (`:netdiag` documented,
+// refused by the parser), and it had been found by a test. This one
+// survived D16/D17 because the two tests back then only looked at the
 // code.
 
-// docPath est le chemin, depuis ce paquet, du fichier qui porte la liste.
+// docPath is the path, from this package, of the file that carries the list.
 //
-// C'était `.claude/CLAUDE.md` jusqu'à ce que l'architecture parte dans
-// `docs/architecture/`. Le test a échoué en disant de le repointer, ce qui est
-// exactement ce qu'il devait faire : le fichier lu est une donnée du test, et
-// pas une propriété du parser.
+// It used to be `.claude/CLAUDE.md` until the architecture notes moved into
+// `docs/architecture/`. The test failed telling us to repoint it, which is
+// exactly what it was supposed to do: the file read is a piece of test
+// data, not a property of the parser.
 func docPath() string {
 	return filepath.Join("..", "..", "docs", "architecture", "app-shell.md")
 }
 
-// docListIntro est la ligne qui ouvre la liste. Les puces qui suivent, jusqu'à
-// la première ligne vide, sont les commandes documentées.
+// docListIntro is the line that opens the list. The bullets that follow,
+// up to the first blank line, are the documented commands.
 const docListIntro = "Press `ctrl+p` to enter command mode, then type:"
 
 var backticked = regexp.MustCompile("`([^`]+)`")
 
-// documentedCommand est une puce de la liste : toutes les orthographes qu'elle
-// annonce, et la ligne entière pour que l'échec soit lisible.
+// documentedCommand is one bullet of the list: every spelling it claims,
+// and the whole line so the failure message is readable.
 type documentedCommand struct {
 	spellings []string
 	line      string
 }
 
-// readDocumentedCommands lit les puces de la liste de CLAUDE.md.
+// readDocumentedCommands reads the bullets of the list in CLAUDE.md.
 func readDocumentedCommands(t *testing.T) []documentedCommand {
 	t.Helper()
 
@@ -88,17 +89,17 @@ func readDocumentedCommands(t *testing.T) []documentedCommand {
 	return out
 }
 
-// bare enlève l'argument d'exemple d'une orthographe documentée : `context
-// <name>` et `context list` nomment tous deux la commande `context`.
+// bare strips the example argument from a documented spelling: `context
+// <name>` and `context list` both name the `context` command.
 func bare(spelling string) string {
 	head, _, _ := strings.Cut(spelling, " ")
 	return head
 }
 
-// TestEveryDocumentedCommandParsesToWhatItClaims oppose CLAUDE.md au parser :
-// chaque orthographe annoncée doit être acceptée, et toutes celles d'une même
-// puce doivent mener au même endroit — c'est la puce qui affirme qu'elles sont
-// synonymes.
+// TestEveryDocumentedCommandParsesToWhatItClaims pits CLAUDE.md against the
+// parser: every advertised spelling must be accepted, and all the spellings
+// under the same bullet must lead to the same place — it is the bullet that
+// claims they are synonyms.
 func TestEveryDocumentedCommandParsesToWhatItClaims(t *testing.T) {
 	for _, doc := range readDocumentedCommands(t) {
 		first := ParseCommand(bare(doc.spellings[0]))
@@ -121,13 +122,13 @@ func TestEveryDocumentedCommandParsesToWhatItClaims(t *testing.T) {
 	}
 }
 
-// TestEveryTypeableViewIsDocumented ferme le sens inverse, celui de D16 : une
-// vue qu'on peut atteindre au clavier et que la documentation ne nomme pas est
-// une vue que personne ne trouvera.
+// TestEveryTypeableViewIsDocumented closes the reverse direction, D16's: a
+// view that can be reached from the keyboard and that the documentation
+// does not name is a view nobody will find.
 //
-// Seuls les noms complets sont exigés. Les alias sont un choix éditorial — la
-// liste en montre un ou deux par vue et n'a pas à les porter tous — alors qu'un
-// nom complet manquant est une vue absente de la documentation.
+// Only full names are required. Aliases are an editorial choice — the list
+// shows one or two per view and does not have to carry them all — whereas a
+// missing full name is a view absent from the documentation.
 func TestEveryTypeableViewIsDocumented(t *testing.T) {
 	documented := map[string]bool{}
 	for _, doc := range readDocumentedCommands(t) {

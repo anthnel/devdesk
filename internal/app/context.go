@@ -15,11 +15,11 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// ContextSwitchCompleteMsg signale le succès du switch de contexte
+// ContextSwitchCompleteMsg reports the success of a context switch
 type ContextSwitchCompleteMsg struct {
 	ContextName string
 	Config      *config.Config
-	Created     bool // true si le contexte a été créé automatiquement
+	Created     bool // true if the context was created automatically
 	Forge       forge.Forge
 	GitLabUser  forge.User
 
@@ -30,12 +30,12 @@ type ContextSwitchCompleteMsg struct {
 	Notices []string
 }
 
-// ContextSwitchErrorMsg signale une erreur lors du switch
+// ContextSwitchErrorMsg reports an error during the switch
 type ContextSwitchErrorMsg struct {
 	Error error
 }
 
-// ContextListMsg contient la liste des contextes disponibles
+// ContextListMsg holds the list of available contexts
 type ContextListMsg struct {
 	Contexts []string
 	Current  string
@@ -199,7 +199,7 @@ func (a *App) handleContextList(msg ContextListMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// handleContextListKeyMsg gère les touches clavier dans l'overlay de sélection de contexte
+// handleContextListKeyMsg handles key presses in the context selection overlay
 func (a *App) handleContextListKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
@@ -217,7 +217,7 @@ func (a *App) handleContextListKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// renderContextListOverlay affiche un overlay avec la liste des contextes
+// renderContextListOverlay renders an overlay with the list of contexts
 func (a *App) renderContextListOverlay() string {
 	return renderPickerOverlay("Select Context", a.contextList, a.currentContext, a.contextSelectedIdx)
 }

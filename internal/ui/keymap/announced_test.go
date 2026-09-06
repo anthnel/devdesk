@@ -12,40 +12,40 @@ import (
 	"testing"
 )
 
-// D63 — une touche annoncée qui n'agit pas.
+// D63 — an announced key that does nothing.
 //
-// Rule 130 interdit une touche *grisée* qui agit quand même, et
-// shortcut.Availability rend ça inexprimable : un seul champ, deux lecteurs.
-// Rien ne gardait le sens inverse, et la vue security en portait deux instances
-// dans le même état — `{Key: "o"}` annoncée pendant que le handler lisait
-// `case keymap.Web:`, et `{Key: "esc/⌫"}` pendant qu'il ne lisait que `case
-// "esc":`. Dans les deux cas la touche affichée ne faisait rien, et celle qui
-// marchait n'était jamais montrée.
+// Rule 130 forbids a *greyed-out* key that acts anyway, and
+// shortcut.Availability makes that inexpressible: one field, two readers.
+// Nothing guarded against the opposite sense, and the security view carried
+// two instances of it in the same state — `{Key: "o"}` announced while the
+// handler read `case keymap.Web:`, and `{Key: "esc/⌫"}` while it only read
+// `case "esc":`. In both cases the displayed key did nothing, and the one
+// that worked was never shown.
 //
-// Aucun test ne pouvait les voir, et la raison est structurelle : **la touche
-// annoncée est une chaîne d'affichage, la touche liée est un nom de touche
-// bubbletea**, et il n'existe aucune relation mécanique entre les deux. `↑↓` se
-// lie par `case "up"`, `esc/⌫` par `case "esc"`. Un test qui rapprocherait
-// naïvement les `{Key: …}` des `case …:` produirait surtout du bruit — un relevé
-// grossier sort 52 candidats dont l'écrasante majorité sont des libellés d'aide
-// (`Context`, `Images`, `Disk Usage`).
+// No test could see them, and the reason is structural: **the announced
+// key is a display string, the bound key is a bubbletea key name**, and
+// there is no mechanical relation between the two. `↑↓` is bound via
+// `case "up"`, `esc/⌫` via `case "esc"`. A test that naively matched
+// `{Key: …}` against `case …:` would mostly produce noise — a crude survey
+// turns up 52 candidates, the overwhelming majority of which are help
+// labels (`Context`, `Images`, `Disk Usage`).
 //
-// Ce qui ferme la famille est donc de **créer** la relation là où elle peut
-// exister : une touche du vocabulaire s'annonce par le même token que le
-// handler teste. C'est ce que la correction de l'instance `o` avait déjà fait à
-// la main avec `openPipelineKey`, et ces trois tests en font une contrainte de
-// build plutôt qu'une bonne pratique.
+// What closes the family is therefore to **create** the relation where it
+// can exist: a key from the vocabulary is announced by the same token the
+// handler tests. This is what the fix for the `o` instance had already
+// done by hand with `openPipelineKey`, and these three tests turn that
+// into a build constraint rather than a good practice.
 //
-// Ce qui n'est pas couvert, et délibérément : `↑↓`, `esc/⌫`, `enter/esc`,
-// `tab / shift+tab`. Ce sont des chaînes d'affichage sans relation mécanique
-// avec quoi que ce soit, et Rule 138 en tient déjà la plupart hors de l'écran.
-// Deviner là produirait les 52 candidats.
+// What is not covered, and deliberately so: `↑↓`, `esc/⌫`, `enter/esc`,
+// `tab / shift+tab`. These are display strings with no mechanical relation
+// to anything, and Rule 138 already keeps most of them off the screen.
+// Guessing there would produce the 52 candidates.
 //
-// La granularité est le **paquet**, pas l'état de la vue. Une touche liée dans
-// un onglet et annoncée dans un autre passe donc, et c'est le prix d'un scan de
-// source : savoir dans quel état une clause s'applique demanderait de piloter la
-// vue. Ce que ces tests attrapent est la touche liée *nulle part*, qui est ce
-// qu'étaient les deux instances rapportées.
+// The granularity is the **package**, not the view's state. A key bound in
+// one tab and announced in another therefore passes, and that is the price
+// of a source scan: knowing in which state a clause applies would require
+// driving the view. What these tests catch is the key bound *nowhere*,
+// which is what the two reported instances were.
 
 // TestNoAnnouncementSpellsAnActionOutInFull is the half that makes the other
 // two possible: a Key written "S" is a string like any other, and nothing can
@@ -114,7 +114,7 @@ func TestEveryAnnouncedToggleIsBoundInItsPackage(t *testing.T) {
 	}
 }
 
-// --- scan de source ---
+// --- source scan ---
 
 // announcement is one `{Key: …, Description: …}` found in the sources.
 //

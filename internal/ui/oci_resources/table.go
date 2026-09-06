@@ -47,12 +47,12 @@ const (
 )
 
 // secretsColumnWidth is the Secrets column, at the width the workspaces list
-// gives it. Elle ne trie pas, comme là-bas : `datatable` réserve deux cellules
-// de plus à une colonne triable pour sa flèche, ce qui est cher pour un glyphe.
+// gives it. It does not sort, same as there: `datatable` reserves two extra
+// cells for a sortable column's arrow, which is expensive for a glyph.
 const secretsColumnWidth = 7
 
-// secrets is the row's verdict — inconnu tant que l'image n'a pas été scannée,
-// et inconnu aussi pour un scan qui n'a pas eu d'étape secrets.
+// secrets is the row's verdict — unknown as long as the image has not been
+// scanned, and also unknown for a scan that had no secrets stage.
 func (r imageRow) secrets() theme.SecretsState {
 	return theme.SecretsVerdict(r.Entry.Sensitive, r.Scanned)
 }
@@ -87,7 +87,7 @@ func scannedStyle(r imageRow) lipgloss.Style {
 	case r.Scanning, !r.Scanned:
 		return theme.DimStyle
 	}
-	// Aucune opinion : c'est la table qui pose la couleur de texte du thème.
+	// No opinion here: the table sets the theme's text color.
 	return lipgloss.NewStyle()
 }
 

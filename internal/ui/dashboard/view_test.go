@@ -43,8 +43,8 @@ func TestViewRendersEveryBox(t *testing.T) {
 	}
 }
 
-// Chaque boîte est encadrée, et le cadre extérieur a disparu : la vue déclare
-// Frameless(), donc le routeur ne dessine ni bordure ni coins autour d'elle.
+// Each box is framed, and the outer frame is gone: the view declares
+// Frameless(), so the router draws no border or corners around it.
 func TestTheViewDeclaresItselfFrameless(t *testing.T) {
 	if !loadedOnly(t).Frameless() {
 		t.Error("the dashboard draws its own boxes and must not be framed a second time")
@@ -69,9 +69,9 @@ func TestViewRowsAreUniformWidth(t *testing.T) {
 	}
 }
 
-// Toute boîte garde une ligne vide sous son dernier fait. La hauteur d'une
-// rangée est celle de sa boîte la plus haute, donc c'est **elle** qui touchait
-// sa bordure basse — et c'est celle que l'œil lit en premier.
+// Every box keeps a blank line under its last fact. A row's height is that
+// of its tallest box, so it's **that one** whose last value would touch its
+// bottom border — and it's the one the eye reads first.
 func TestEveryBoxEndsOnABlankLine(t *testing.T) {
 	base, _ := loadedModel(t)
 
@@ -87,8 +87,8 @@ func TestEveryBoxEndsOnABlankLine(t *testing.T) {
 			for i, s := range col {
 				content := padTo(s.render(m, width, at), inner[i], theme.BoxContentWidth(width))
 				box := theme.RenderTitledBox(s.title, content, width)
-				// La dernière ligne est la bordure basse ; celle d'avant est la
-				// dernière ligne de contenu.
+				// The last line is the bottom border; the one before it is the
+				// last content line.
 				last := strings.Trim(stripANSI(box[len(box)-2]), "│ ")
 				if last != "" {
 					t.Errorf("%s: box %q ends on %q rather than a blank line", tc.name, s.title, last)
@@ -119,9 +119,9 @@ func TestTheCodeBoxShowsTheSessionAndCounts(t *testing.T) {
 	}
 }
 
-// À `wide`, la boîte devient deux arbres, et la séparation est celle de §3.16 :
-// la forge d'un côté, le disque de l'autre. Aucun fait ne flotte plus au-dessus
-// d'un arbre auquel il n'appartient pas.
+// At `wide`, the box becomes two trees, and the split is §3.16's: the forge
+// on one side, the disk on the other. No fact floats above a tree it
+// doesn't belong to anymore.
 func TestTheCodeBoxIsTwoTreesAtWide(t *testing.T) {
 	lines := renderCodeSection(loadedOnly(t), 60, tierWide)
 
@@ -143,8 +143,8 @@ func TestTheCodeBoxIsTwoTreesAtWide(t *testing.T) {
 			if nodeUnder(lines, heading, label) == "" {
 				t.Errorf("%s has no %q node: %v", heading, label, run)
 			}
-			// Tous les enfants au même niveau : un seul coude, et c'est le
-			// dernier. Sans lui, deux arbres qui se suivent se lisent comme un.
+			// All the children at the same level: only one elbow, and it's the
+			// last one. Without it, two trees in a row read as one.
 			isLast := i == len(labels)-1
 			if got := strings.HasPrefix(run[i], theme.IconTreeEnd); got != isLast {
 				t.Errorf("%s's %q node ends the run: %v, want %v", heading, label, got, isLast)
@@ -153,9 +153,9 @@ func TestTheCodeBoxIsTwoTreesAtWide(t *testing.T) {
 	}
 }
 
-// Le chiffre qui pend du chemin est ce que l'arborescence occupe, **pas** le
-// remplissage du volume : c'est celui sur lequel on peut agir. La boîte Host
-// garde la place libre, qui est l'autre question.
+// The figure hanging off the path is what the tree occupies, **not** the
+// volume's fill level: that's the one you can act on. The Host box keeps
+// the free space, which is the other question.
 func TestTheWorkspacesTreeReportsWhatItOccupies(t *testing.T) {
 	m := loadedOnly(t) // a 12 GiB tree on a volume that is 58 % full
 	got := nodeUnder(renderCodeSection(m, 60, tierWide), "Workspaces", "disk")
@@ -170,8 +170,8 @@ func TestTheWorkspacesTreeReportsWhatItOccupies(t *testing.T) {
 	}
 }
 
-// Un dossier refusé fait sous-estimer le total, et un total sous-estimé sans
-// mention se lit comme une mesure.
+// A directory that denies access makes the total an underestimate, and an
+// underestimated total with no mention reads as a measurement.
 func TestAPartialWalkSaysSo(t *testing.T) {
 	m := feed(t, loadedOnly(t), WorkspaceSizeMsg{Size: metrics.TreeSize{Bytes: 3 << 30, Partial: true, OK: true}})
 
@@ -180,8 +180,8 @@ func TestAPartialWalkSaysSo(t *testing.T) {
 	}
 }
 
-// Une arborescence pas encore parcourue rend `-`, pas un zéro : zéro octet
-// serait une mesure, et le squelette de la boîte ne bouge pas.
+// A tree not yet walked yields `-`, not a zero: zero bytes would be a
+// measurement, and the box's skeleton does not move.
 func TestAnUnmeasuredTreeLeavesTheDiskNodeUnknown(t *testing.T) {
 	m, _ := authenticatedModel(t)
 	if got := nodeUnder(renderCodeSection(m, 60, tierWide), "Workspaces", "disk"); !strings.HasSuffix(got, "-") {
@@ -189,9 +189,9 @@ func TestAnUnmeasuredTreeLeavesTheDiskNodeUnknown(t *testing.T) {
 	}
 }
 
-// Le parcours est le seul appel du dashboard qui peut durer plus longtemps que
-// l'intervalle qui le déclenche. Un second tour ne doit donc pas en lancer un
-// deuxième — et doit le relancer une fois le premier revenu.
+// The walk is the only dashboard call that can last longer than the
+// interval that triggers it. A second round must therefore not start a
+// second one — and must restart it once the first has come back.
 func TestOnlyOneWorkspaceWalkRunsAtATime(t *testing.T) {
 	m, _ := newTestModel(t) // New() raises the flag, Init() issues the walk
 
@@ -216,8 +216,8 @@ func TestOnlyOneWorkspaceWalkRunsAtATime(t *testing.T) {
 	}
 }
 
-// Signing out changes the values, never the labels: le squelette reste, et
-// c'est ce qui distingue "pas mesuré" de "cassé".
+// Signing out changes the values, never the labels: the skeleton stays,
+// and that's what tells "not measured" apart from "broken".
 func TestSignedOutKeepsTheCodeBoxLabels(t *testing.T) {
 	m, _ := newTestModel(t)
 
@@ -295,9 +295,9 @@ func TestTheHealthBoxCountsMonitorsAndCertificates(t *testing.T) {
 	}
 }
 
-// La boîte Docker (VM) répond à « combien il y en a », la boîte Storage à
-// « combien de place ». Les deux chiffres étaient dans les deux boîtes, sous
-// deux formes différentes.
+// The Docker (VM) box answers "how many are there", the Storage box "how
+// much space". Both figures used to be in both boxes, in two different
+// forms.
 func TestTheDockerBoxCountsWithoutSizing(t *testing.T) {
 	out := plain(loadedOnly(t).View())
 
@@ -315,10 +315,10 @@ func TestTheDockerBoxCountsWithoutSizing(t *testing.T) {
 	}
 }
 
-// Les trois inventaires pendent d'une racine : trois lignes de premier niveau
-// se lisaient comme trois sujets, alors que ce sont des objets d'un même
-// daemon. Networks en fait partie et n'était pas compté — `docker system df`
-// l'ignore, faute d'octets à déclarer.
+// The three inventories hang from one root: three top-level lines used to
+// read as three subjects, when they are objects of the same daemon.
+// Networks is one of them and wasn't counted — `docker system df` ignores
+// it, for lack of bytes to report.
 func TestTheDockerBoxGroupsItsResourcesUnderOneRoot(t *testing.T) {
 	for _, at := range []tier{tierStandard, tierWide} {
 		lines := renderDockerSection(loadedOnly(t), 90, at)
@@ -387,14 +387,15 @@ func TestTheHostBoxShowsTheSample(t *testing.T) {
 	}
 }
 
-// Un échantillon sans débit affiche `-`, pas `0` : le premier relevé d'un
-// compteur cumulatif n'a rien à soustraire, et zéro serait une mesure.
+// A sample with no rate displays `-`, not `0`: a cumulative counter's
+// first reading has nothing to subtract from, and zero would be a
+// measurement.
 func TestThroughputWithoutARateReadsUnknownRatherThanZero(t *testing.T) {
 	m, _ := loadedModel(t) // its sample carries no rate
 	lines := renderNetworkSection(m, 40, tierStandard)
 
-	// Les lignes sont repérées par leur libellé, pas par leur position : un
-	// graphe s'intercale entre RX et TX selon le palier.
+	// The lines are found by their label, not their position: a chart slots
+	// in between RX and TX depending on the tier.
 	for _, label := range []string{"RX", "TX"} {
 		got := lineStartingWith(lines, label)
 		if got == "" {
@@ -425,9 +426,9 @@ func lineStartingWith(lines []string, label string) string {
 	return ""
 }
 
-// Le modèle garde l'historique, pas le graphe : ntcharts.Resize rééchelonne son
-// propre ring buffer, donc un changement de palier tronquerait l'historique au
-// moment précis où la fenêtre s'agrandit pour en montrer plus.
+// The model keeps the history, not the chart: ntcharts.Resize rescales its
+// own ring buffer, so a tier change would truncate the history at the exact
+// moment the window grows to show more of it.
 func TestTheModelKeepsTheSampleHistoryBounded(t *testing.T) {
 	m, _ := loadedModel(t)
 	before := len(m.samples)
@@ -448,8 +449,8 @@ func TestTheModelKeepsTheSampleHistoryBounded(t *testing.T) {
 	}
 }
 
-// Chaque horloge se réarme elle-même, sinon elle s'arrête au premier tick — et
-// une horloge morte laisse des valeurs figées qui ressemblent à des valeurs.
+// Each clock rearms itself, otherwise it stops after one tick — and a dead
+// clock leaves stuck values that look like real ones.
 func TestEachClockRearmsItself(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -469,7 +470,7 @@ func TestEachClockRearmsItself(t *testing.T) {
 	}
 }
 
-// Docker absent et Docker pas encore lu ne sont pas la même chose.
+// Docker absent and Docker not yet read are not the same thing.
 func TestTheDockerAggregateTellsUnreadFromUnavailable(t *testing.T) {
 	m, _ := authenticatedModel(t)
 
@@ -526,14 +527,15 @@ func TestTabSwitchesBetweenOverviewAndResources(t *testing.T) {
 	}
 }
 
-// La boîte Host ne compte plus les outils, elle nomme ceux qui manquent : « 4
-// of 5 available » posait la question qu'il ne répondait pas — lequel installer.
+// The Host box no longer counts the tools, it names the ones missing: "4
+// of 5 available" raised the question it didn't answer — which one to
+// install.
 func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
 	m, _ := loadedModel(t)
 
-	// toolFixtures ne déclare que trois outils, dont Gitleaks indisponible :
-	// les trois que la détection n'a pas rendus manquent tout autant, et c'est
-	// knownTools qui le dit.
+	// toolFixtures only declares three tools, one of them Gitleaks
+	// unavailable: the three that detection didn't return are missing just
+	// the same, and knownTools is what says so.
 	if got := missingTools(m.tools); !slices.Equal(got, []string{"Gitleaks", "Plumber", "Git"}) {
 		t.Errorf("missingTools() = %v, want the undetected ones counted too", got)
 	}
@@ -547,14 +549,15 @@ func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
 			t.Errorf("the Host box does not name %q among its missing tools: %q", want, lines)
 		}
 	}
-	// Les outils présents n'ont rien à dire : les nommer noierait les autres.
+	// The tools that are present have nothing to say: naming them would
+	// drown out the others.
 	if containsLine(lines, "Trivy") {
 		t.Errorf("the Host box names an available tool: %q", lines)
 	}
 }
 
-// Et la contrepartie : une machine complètement outillée tient sur une ligne,
-// sinon la boîte dépense cinq lignes à dire cinq fois « oui ».
+// And the counterpart: a fully equipped machine fits on one line,
+// otherwise the box spends five lines saying "yes" five times.
 func TestAFullyEquippedMachineSaysSoInOneLine(t *testing.T) {
 	m, _ := loadedModel(t)
 	var all []shared.ToolInfo
@@ -572,9 +575,9 @@ func TestAFullyEquippedMachineSaysSoInOneLine(t *testing.T) {
 	}
 }
 
-// Il n'y a **pas** de ligne « Updated » dans le footer. Les trois horloges du
-// dashboard tournent à la seconde, aux cinq secondes et à la trentaine : l'âge
-// répondait `now` en permanence, donc une ligne qui ne change jamais.
+// There is **no** "Updated" line in the footer. The dashboard's three
+// clocks run at the second, the five-second, and the thirty-second mark:
+// the age permanently answered `now`, hence a line that never changes.
 func TestTheFooterDoesNotDateWhatIsAlwaysFresh(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -591,8 +594,8 @@ func TestTheFooterCarriesTheTabBar(t *testing.T) {
 	}
 }
 
-// Un seul onglet n'est pas un choix : la barre coûterait une ligne pour dire
-// « vous êtes ici », ce que l'écran dit déjà.
+// A single tab is not a choice: the bar would cost a line to say "you are
+// here", which the screen already says.
 func TestOneTabMeansNoTabBar(t *testing.T) {
 	m, _ := loadedModel(t)
 	m = feed(t, m, tea.WindowSizeMsg{Width: 240, Height: 45}) // tierWide
@@ -605,8 +608,8 @@ func TestOneTabMeansNoTabBar(t *testing.T) {
 	}
 }
 
-// La hauteur promise et la hauteur rendue doivent coïncider à chaque palier :
-// le routeur budgète le viewport sur la promesse.
+// The promised height and the rendered height must match at every tier:
+// the router budgets the viewport on the promise.
 func TestTheFooterHeightMatchesAtEveryPalier(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -689,9 +692,10 @@ func TestGetHeaderInfoCarriesTheContext(t *testing.T) {
 	}
 }
 
-// Le dashboard est la vue d'accueil, donc la seule qui annonce la version sans
-// qu'on l'ait demandée. Un binaire qui ne sait pas d'où il vient répond "dev"
-// plutôt que rien : un champ vide se lirait comme un défaut d'affichage.
+// The dashboard is the landing view, so the only one that announces the
+// version without being asked. A binary that doesn't know where it came
+// from answers "dev" rather than nothing: an empty field would read as a
+// display bug.
 func TestGetHeaderInfoNamesTheBuild(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -749,15 +753,15 @@ func loadedOnly(t *testing.T) Model {
 	return m
 }
 
-// knownTools est le dénominateur : un outil qui n'y figure pas n'est jamais
-// vérifié, et un nom qu'elle porte sans que detectTools le rende est déclaré
-// manquant en permanence. C'est exactement ce qui est arrivé — §3.47 a renommé
-// la sonde réseau « Connectivity » dans detectTools et laissé « Net Diag »
-// ici — et le commentaire « doit rester en phase » n'a rien empêché. Le test
-// exécute la détection : seule une exécution voit les deux listes ensemble.
+// knownTools is the denominator: a tool not listed there is never checked,
+// and a name it carries that detectTools never returns is declared missing
+// permanently. That's exactly what happened — §3.47 renamed the network
+// probe "Connectivity" in detectTools and left "Net Diag" here — and the
+// comment "must stay in sync" prevented nothing. The test runs the
+// detection: only a run sees both lists together.
 //
-// Il n'affirme rien sur la *disponibilité*, qui dépend de la machine ; les noms
-// n'en dépendent pas.
+// It asserts nothing about *availability*, which depends on the machine;
+// the names do not.
 func TestTheDetectedToolsAreExactlyTheKnownOnes(t *testing.T) {
 	m, _ := loadedModel(t)
 

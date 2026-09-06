@@ -13,13 +13,13 @@ import (
 )
 
 func (m Model) InEditMode() bool {
-	// En mode édition seulement si un textinput a le focus
-	// et que l'utilisateur n'est pas en train d'authentifier
-	// Si authentifié, on n'est plus en mode édition
+	// In edit mode only if a textinput has focus
+	// and the user is not currently authenticating
+	// If authenticated, we are no longer in edit mode
 	if m.authenticated || m.authenticating {
 		return false
 	}
-	// En mode édition si on est sur un des champs de texte
+	// In edit mode if we're on one of the text fields
 	return m.currentField == fieldToken
 }
 
@@ -71,7 +71,7 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	}
 }
 
-// GetHelpContent retourne le contenu d'aide de la vue GitLab Auth
+// GetHelpContent returns the help content for the GitLab Auth view
 func (m Model) GetHelpContent() help.Content {
 	v := m.vocab()
 	return help.Content{
@@ -103,7 +103,7 @@ func (m Model) GetHelpContent() help.Content {
 	}
 }
 
-// View rend la vue
+// View renders the view
 func (m *Model) View() string {
 	var sections []string
 
@@ -112,12 +112,12 @@ func (m *Model) View() string {
 		sections = append(sections, m.renderSuccess())
 	}
 
-	// Warning (non-bloquant, ex: échec sauvegarde credentials)
+	// Warning (non-blocking, e.g. credentials save failure)
 	if m.warning != "" {
 		sections = append(sections, m.renderWarning())
 	}
 
-	// Ce que la migration hors du fichier de config a fait, le cas échéant
+	// What the migration off the config file did, if anything
 	if len(m.notices) > 0 {
 		sections = append(sections, m.renderNotices())
 	}
@@ -136,13 +136,13 @@ func (m *Model) View() string {
 func (m *Model) renderForm() string {
 	var b strings.Builder
 
-	// Spinner si en cours d'authentification
+	// Spinner if authentication is in progress
 	if m.authenticating {
 		b.WriteString(theme.SpinnerMessage(m.spinner.View(), "Authenticating...") + "\n\n")
 		return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1, 2).Render(b.String())
 	}
 
-	// Si authentifié, afficher la vue "Logged in"
+	// If authenticated, show the "Logged in" view
 	if m.authenticated {
 		return m.renderLoggedInView()
 	}
@@ -159,9 +159,9 @@ func (m *Model) renderForm() string {
 	b.WriteString(labelStyle.Render("Personal Access Token") + "\n")
 	b.WriteString(m.tokenInput.View() + "\n\n")
 
-	// Destination du token. Ce n'est pas un choix — c'est le seul chemin — mais
-	// l'utilisateur doit pouvoir lire où part son secret, et surtout constater
-	// quand rien n'est enregistré (§3.9).
+	// Token destination. It isn't a choice — it's the only path — but the
+	// user must be able to read where their secret is going, and above all
+	// notice when nothing is being saved (§3.9).
 	b.WriteString(m.renderSecretDestination() + "\n\n")
 
 	// Button
@@ -196,7 +196,7 @@ func (m *Model) renderNotices() string {
 func (m *Model) renderLoggedInView() string {
 	var b strings.Builder
 
-	// Afficher les infos de l'utilisateur
+	// Show the user's info
 	b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText).Bold(true).Render("Authenticated as: "))
 	b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorPrimary).Bold(true).Render(m.user.Username))
 	if m.user.Name != "" {
@@ -204,14 +204,14 @@ func (m *Model) renderLoggedInView() string {
 	}
 	b.WriteString("\n")
 
-	// Afficher l'URL de la forge
+	// Show the forge's URL
 	if m.config != nil && m.config.Forge.URL != "" {
 		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText).Bold(true).Render(m.vocab().Name + " URL: "))
 		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorPrimary).Bold(true).Render(m.config.Forge.URL) + "\n")
 	}
 	b.WriteString("\n")
 
-	// Bouton Logout
+	// Logout button
 	b.WriteString(theme.RenderButton("Logout", m.currentField == fieldToken, "danger"))
 
 	return lipgloss.NewStyle().Background(theme.ColorBackground).Padding(1, 2).Render(b.String())

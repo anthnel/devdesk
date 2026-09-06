@@ -9,13 +9,13 @@ import (
 	"github.com/prometheus-community/pro-bing"
 )
 
-// ICMPChecker vérifie la connectivité via ICMP (ping)
+// ICMPChecker checks connectivity via ICMP (ping)
 type ICMPChecker struct {
 	timeout time.Duration
 	count   int
 }
 
-// NewICMPChecker crée un nouveau checker ICMP
+// NewICMPChecker creates a new ICMP checker
 func NewICMPChecker(timeout time.Duration, count int) *ICMPChecker {
 	return &ICMPChecker{
 		timeout: timeout,
@@ -23,7 +23,7 @@ func NewICMPChecker(timeout time.Duration, count int) *ICMPChecker {
 	}
 }
 
-// Check vérifie un host via ICMP ping
+// Check checks a host via ICMP ping
 func (i *ICMPChecker) Check(ctx context.Context, component config.ComponentConfig) ComponentStatus {
 	result := ComponentStatus{
 		Name:      component.Name,
@@ -38,7 +38,7 @@ func (i *ICMPChecker) Check(ctx context.Context, component config.ComponentConfi
 		return result
 	}
 
-	// Créer le pinger
+	// Create the pinger
 	pinger, err := probing.NewPinger(component.Target)
 	if err != nil {
 		result.Status = StatusError
@@ -49,9 +49,9 @@ func (i *ICMPChecker) Check(ctx context.Context, component config.ComponentConfi
 	// Configuration
 	pinger.Count = i.count
 	pinger.Timeout = i.timeout
-	pinger.SetPrivileged(false) // Mode unprivileged (pas besoin de sudo)
+	pinger.SetPrivileged(false) // Unprivileged mode (no sudo needed)
 
-	// Exécuter le ping
+	// Run the ping
 	start := time.Now()
 	err = pinger.Run()
 	elapsed := time.Since(start)
@@ -62,10 +62,10 @@ func (i *ICMPChecker) Check(ctx context.Context, component config.ComponentConfi
 		return result
 	}
 
-	// Récupérer les statistiques
+	// Retrieve the statistics
 	stats := pinger.Statistics()
 
-	// Vérifier la perte de paquets
+	// Check for packet loss
 	if stats.PacketsRecv == 0 {
 		result.Status = StatusDown
 		result.Error = fmt.Sprintf("100%% packet loss (%d/%d)", stats.PacketsRecv, stats.PacketsSent)
@@ -73,11 +73,11 @@ func (i *ICMPChecker) Check(ctx context.Context, component config.ComponentConfi
 		return result
 	}
 
-	// Calculer le RTT moyen
+	// Compute the average RTT
 	result.ResponseTime = stats.AvgRtt
 	result.Status = StatusOK
 
-	// Si perte de paquets partielle, noter en warning
+	// If there is partial packet loss, note it as a warning
 	if stats.PacketLoss > 0 {
 		result.Error = fmt.Sprintf("%.0f%% packet loss", stats.PacketLoss)
 	}

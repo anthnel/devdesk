@@ -23,14 +23,14 @@ type WorkspaceScanEntry struct {
 	Medium   int    `json:"medium"`
 	Low      int    `json:"low"`
 	// Sensitive is the secret verdict — same three values as on ImageScanEntry,
-	// écrites par le même `scan.Result.SecretVerdict()`.
+	// written by the same `scan.Result.SecretVerdict()`.
 	//
-	// Le passage du booléen au pointeur ne perd rien : l'ancien champ s'écrivait
-	// **toujours** (`json:"sensitive"`, sans omitempty), donc un fichier écrit
-	// par une version précédente décode en pointeur non nul, verdict compris.
-	// Ce que le pointeur ajoute est le cas qui manquait : une étape secrets
-	// coupée par l'option ou par un outil absent rendait `false`, c'est-à-dire
-	// « propre », d'un scan qui n'avait pas regardé.
+	// The move from boolean to pointer loses nothing: the old field was
+	// **always** written (`json:"sensitive"`, without omitempty), so a file
+	// written by a previous version decodes to a non-nil pointer, verdict
+	// included. What the pointer adds is the case that was missing: a
+	// secrets stage cut off by the option or by a missing tool used to
+	// render `false`, i.e. "clean", for a scan that had not looked.
 	Sensitive *bool `json:"sensitive,omitempty"`
 	// CIScore is the pipeline grade, written by scan.Result.CIVerdict(), and it
 	// is a pointer for exactly Sensitive's reason: nil means nobody graded this

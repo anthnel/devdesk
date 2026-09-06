@@ -150,11 +150,11 @@ type Result struct {
 	Counts      SeverityCounts `json:"counts"`       // CVE counts by severity
 	SecretCount int            `json:"secret_count"` // Total secrets found (gitleaks + trivy)
 	// SecretsScanned tells "no secret was found" apart from "no one looked".
-	// Une étape secrets peut ne pas avoir tourné pour trois raisons — option
-	// coupée, outil absent, étape en erreur — et dans les trois cas un compteur
-	// à zéro dirait « cette cible est propre » d'un scan qui n'a rien regardé.
-	// C'est le même principe que missingToolErrors ci-dessous (§1.3 D20), porté
-	// jusqu'à ce que les vues affichent.
+	// A secrets stage can fail to run for three reasons — the option is off,
+	// the tool is missing, the stage errored — and in all three cases a
+	// counter stuck at zero would say "this target is clean" about a scan
+	// that never looked at it. It is the same principle as missingToolErrors
+	// below (§1.3 D20), carried through to what the views display.
 	SecretsScanned bool      `json:"secrets_scanned"`
 	LicenseCount   int       `json:"license_count"`   // Total license issues found
 	MisconfigCount int       `json:"misconfig_count"` // Total misconfigurations found
@@ -261,11 +261,11 @@ func (r *Result) countBySeverity(severity SeverityLevel) {
 // columns that show a verdict rather than a count: nil when no stage looked,
 // false when one looked and found nothing, true when one found something.
 //
-// Elle est le seul calcul du verdict de l'application. Il y en avait deux, tous
-// deux écrits « une finding dont Source vaut gitleaks », et tous deux devenus
-// faux le jour où Trivy s'est mis à trouver des secrets lui aussi : un dépôt
-// dont c'étaient les seuls se lisait propre. SecretCount vient de Categorize,
-// qui est le seul classeur (§3.11).
+// It is the only verdict calculation in the application. There used to be
+// two, both written as "a finding whose Source is gitleaks", and both became
+// wrong the day Trivy started finding secrets too: a repo whose only secrets
+// were Trivy's read as clean. SecretCount comes from Categorize, which is
+// the only classifier (§3.11).
 func (r *Result) SecretVerdict() *bool {
 	if !r.SecretsScanned {
 		return nil
@@ -592,8 +592,8 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 				notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageError})
 			} else {
 				result.Findings = append(result.Findings, findings...)
-				// Une étape qui aboutit est ce qui rend le verdict connu ;
-				// celle qui échoue ne dit rien, et surtout pas « propre ».
+				// A stage that succeeds is what makes the verdict known;
+				// one that fails says nothing, and certainly not "clean".
 				result.SecretsScanned = true
 				notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageDone})
 			}

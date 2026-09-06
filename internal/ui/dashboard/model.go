@@ -50,9 +50,9 @@ type OCIStatsMsg struct {
 
 // WorkspaceStatsMsg contains the workspace count.
 //
-// Il portait aussi la taille de l'arborescence, mesurée par `du -sh`. Le champ
-// est retiré avec son producteur : un champ que plus personne ne remplit se lit
-// comme une donnée qu'on a oublié d'afficher.
+// It used to also carry the tree's size, measured by `du -sh`. The field is
+// removed along with its producer: a field nobody fills anymore reads like
+// data someone forgot to display.
 type WorkspaceStatsMsg struct {
 	Count int
 }
@@ -65,10 +65,11 @@ type ToolsDetectedMsg struct {
 // RefreshTickMsg triggers a periodic refresh
 type RefreshTickMsg time.Time
 
-// Trois horloges, et c'est le coût mesuré qui les sépare : un échantillon
-// gopsutil coûte ≈ 5 ms, `docker stats --no-stream` ≈ 2 s, et le tour lent
-// (GitLab, `system df`, workspaces, outils) ≈ 600 ms plus le réseau. Une seule
-// horloge pour les trois ferait attendre l'appel bon marché derrière le cher.
+// Three clocks, and it's the measured cost that separates them: a gopsutil
+// sample costs ≈ 5 ms, `docker stats --no-stream` ≈ 2 s, and the slow round
+// (GitLab, `system df`, workspaces, tools) ≈ 600 ms plus the network. A single
+// clock for all three would make the cheap call wait behind the expensive
+// one.
 const (
 	hostTickInterval   = time.Second
 	dockerTickInterval = 5 * time.Second
@@ -78,8 +79,8 @@ const (
 type HostTickMsg time.Time
 
 // HostSampleMsg carries a host reading and the cumulative counters the next
-// sample must be measured against — l'état du débit voyage avec le message
-// plutôt que d'être modifié dans un Cmd (Rule 110).
+// sample must be measured against — the throughput state travels with the
+// message rather than being modified in a Cmd (Rule 110).
 type HostSampleMsg struct {
 	Sample   metrics.HostSample
 	Counters metrics.Counters
@@ -108,10 +109,10 @@ type PostureMsg struct {
 	Posture posture
 }
 
-// dashboardTab identifies the tab on screen. Un onglet n'existe que pour un
-// contenu qui n'a pas de vue à lui : `Resources` en est un parce qu'il n'y a
-// pas de :host et que :containers montre un conteneur, pas la machine. Un
-// onglet Health réimprimerait les lignes que :status et :sec possèdent déjà.
+// dashboardTab identifies the tab on screen. A tab only exists for content
+// that has no view of its own: `Resources` is one because there is no :host
+// and :containers shows a container, not the machine. A Health tab would
+// reprint the lines that :status and :sec already own.
 type dashboardTab int
 
 const (
@@ -128,9 +129,9 @@ type Model struct {
 	height    int
 	activeTab dashboardTab
 
-	// chartLines is measured by View() on a copy of the model — voir
-	// fitCharts. Il n'est jamais écrit par Update() : ce n'est pas un état,
-	// c'est un résultat de mise en page qui ne survit pas à la frame.
+	// chartLines is measured by View() on a copy of the model — see
+	// fitCharts. It is never written by Update(): it is not state, it is a
+	// layout result that does not survive the frame.
 	chartLines int
 
 	// Data
@@ -143,10 +144,10 @@ type Model struct {
 	workspaceCount    int
 
 	// Host and Docker samples. `samples` is the history the charts read in
-	// phase 3: elle appartient au modèle et non au graphe, parce que
-	// ntcharts.Resize rééchelonne son propre ring buffer — un changement de
-	// palier tronquerait l'historique au moment où l'utilisateur agrandit la
-	// fenêtre pour en voir davantage.
+	// phase 3: it belongs to the model and not to the chart, because
+	// ntcharts.Resize rescales its own ring buffer — a tier change would
+	// truncate the history right when the user resizes the window to see
+	// more of it.
 	host             metrics.HostSample
 	netCounters      metrics.Counters
 	samples          []metrics.HostSample
@@ -166,11 +167,11 @@ type Model struct {
 	loadingWorkspaces bool
 	loadingTools      bool
 
-	// measuringSize is not a loading flag: il **exclut** un second parcours
-	// tant que le premier n'a pas répondu. C'est le seul appel du dashboard
-	// dont la durée grandit avec les données de l'utilisateur, donc le seul qui
-	// puisse déborder de son intervalle — et deux parcours concurrents
-	// doubleraient l'I/O pour un chiffre déjà en route.
+	// measuringSize is not a loading flag: it **excludes** a second walk as
+	// long as the first one hasn't answered. It's the only dashboard call
+	// whose duration grows with the user's data, so the only one that can
+	// overrun its interval — and two concurrent walks would double the I/O
+	// for a figure already on its way.
 	measuringSize bool
 
 	// Refresh
@@ -200,8 +201,9 @@ func New(cfg *config.Config, state *shared.State) Model {
 		loadingOCI:        true,
 		loadingWorkspaces: true,
 		loadingTools:      true,
-		// Init() lance le parcours : le drapeau est donc levé dès la
-		// construction, sinon le premier tick lent en lancerait un second.
+		// Init() starts the walk: the flag is therefore raised right at
+		// construction, otherwise the first slow tick would start a second
+		// one.
 		measuringSize:   true,
 		refreshInterval: time.Duration(cfg.Status.RefreshInterval) * time.Second,
 	}
@@ -233,9 +235,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// Un terminal qui s'agrandit jusqu'à `wide` met les boîtes de Resources
-		// à l'écran et retire l'onglet : y rester laisserait la vue sur un
-		// onglet qui n'existe plus.
+		// A terminal that grows up to `wide` puts the Resources boxes on
+		// screen and removes the tab: staying on it would leave the view on a
+		// tab that no longer exists.
 		if m.activeTab >= dashboardTab(tabCountFor(layoutTier(m.width, m.height))) {
 			m.activeTab = tabOverview
 		}
@@ -353,11 +355,11 @@ func (m Model) handleReload() (tea.Model, tea.Cmd) {
 }
 
 // alsoMeasuringSize adds the workspaces walk to a round, **unless one is still
-// running**. Il n'est pas dans refreshAll pour cette seule raison : c'est le
-// seul appel qui peut durer plus longtemps que l'intervalle qui le déclenche,
-// et un tour lent n'a aucune façon de le savoir.
+// running**. It is not in refreshAll for this one reason: it's the only call
+// that can last longer than the interval that triggers it, and a slow round
+// has no way of knowing that.
 //
-// Le drapeau est levé ici, dans Update(), jamais dans le Cmd (Rule 110).
+// The flag is raised here, in Update(), never in the Cmd (Rule 110).
 func (m Model) alsoMeasuringSize(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if m.measuringSize {
 		return m, cmd
@@ -366,8 +368,8 @@ func (m Model) alsoMeasuringSize(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmd, m.measureWorkspaceSize())
 }
 
-// cycleTab moves to the next or previous tab the current palier offers. À
-// `wide` il n'y en a qu'un, et la touche ne fait donc rien.
+// cycleTab moves to the next or previous tab the current tier offers. At
+// `wide` there is only one, so the key does nothing.
 func (m Model) cycleTab(forward bool) Model {
 	n := dashboardTab(tabCountFor(layoutTier(m.width, m.height)))
 	if n < 2 {
@@ -381,19 +383,19 @@ func (m Model) cycleTab(forward bool) Model {
 	return m
 }
 
-// maxSamples bounds the history the charts read. À 1 échantillon par seconde,
-// 240 couvrent quatre minutes — plus que les 200 qu'un graphe braille de 100
-// cellules peut montrer, donc un élargissement de fenêtre a de quoi se remplir.
+// maxSamples bounds the history the charts read. At 1 sample per second, 240
+// cover four minutes — more than the 200 a 100-cell braille chart can show,
+// so widening the window has something to fill it with.
 const maxSamples = 240
 
 // handleHostSample records a reading and the counters the next one is measured
-// against. Le Push appartient à Update(), jamais à un Cmd (Rule 110).
+// against. The Push belongs to Update(), never to a Cmd (Rule 110).
 func (m Model) handleHostSample(msg HostSampleMsg) (tea.Model, tea.Cmd) {
 	m.host = msg.Sample
 	m.netCounters = msg.Counters
 
-	// Un échantillon sans débit est gardé quand même : ses valeurs CPU et
-	// mémoire sont mesurées, c'est le seul débit qui manque.
+	// A sample with no throughput is kept anyway: its CPU and memory values
+	// are measured, it's only the throughput that's missing.
 	m.samples = append(m.samples, msg.Sample)
 	if len(m.samples) > maxSamples {
 		m.samples = m.samples[len(m.samples)-maxSamples:]
@@ -401,9 +403,9 @@ func (m Model) handleHostSample(msg HostSampleMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleDockerMetrics records the container aggregate and its history. Une
-// mesure ratée n'entre pas dans l'historique : un zéro y ressemblerait à un
-// creux d'activité au lieu d'une absence de mesure.
+// handleDockerMetrics records the container aggregate and its history. A
+// failed reading does not enter the history: a zero there would look like a
+// dip in activity instead of a missing measurement.
 func (m Model) handleDockerMetrics(msg DockerMetricsMsg) (tea.Model, tea.Cmd) {
 	m.dockerAgg = msg.Aggregate
 	m.dockerRead = true
@@ -538,10 +540,10 @@ func (m Model) fetchOCIStats() tea.Cmd {
 	}
 }
 
-// fetchWorkspaceStats counts the workspaces — un `os.ReadDir` d'un seul niveau.
-// La taille de l'arborescence est mesurée à part, par measureWorkspaceSize :
-// elle parcourt tout, donc elle a sa propre garde contre le recouvrement, que
-// ce compte-ci n'a aucune raison de payer.
+// fetchWorkspaceStats counts the workspaces — a single-level `os.ReadDir`.
+// The tree's size is measured separately, by measureWorkspaceSize: it walks
+// everything, so it has its own guard against overlap, which this count has
+// no reason to pay for.
 func (m Model) fetchWorkspaceStats() tea.Cmd {
 	dir := expandHome(m.config.App.WorkspacesDir)
 	return func() tea.Msg {
@@ -605,8 +607,8 @@ func (m Model) detectTools() tea.Cmd {
 	}
 }
 
-// sampleHost reads the host. Les compteurs précédents sont *copiés* dans le
-// Cmd et les nouveaux reviennent par message : rien de partagé n'est modifié.
+// sampleHost reads the host. The previous counters are *copied* into the
+// Cmd and the new ones come back via message: nothing shared is modified.
 func (m Model) sampleHost() tea.Cmd {
 	prev := m.netCounters
 	return func() tea.Msg {
@@ -621,8 +623,8 @@ func (m Model) scheduleHostTick() tea.Cmd {
 	})
 }
 
-// fetchDockerMetrics runs `docker stats`, which costs about two seconds — d'où
-// son horloge propre.
+// fetchDockerMetrics runs `docker stats`, which costs about two seconds —
+// hence its own clock.
 func (m Model) fetchDockerMetrics() tea.Cmd {
 	return func() tea.Msg {
 		return DockerMetricsMsg{Aggregate: docker.FetchAggregateMetrics()}
@@ -635,10 +637,9 @@ func (m Model) scheduleDockerTick() tea.Cmd {
 	})
 }
 
-// fetchDiskUsage reads free space on the workspaces volume — 1 ms, contre
-// plusieurs secondes pour un `du -sh` dont le coût grandit avec les données de
-// l'utilisateur. Elle reste sur l'horloge lente : la place libre ne bouge pas
-// en une seconde.
+// fetchDiskUsage reads free space on the workspaces volume — 1 ms, against
+// several seconds for a `du -sh` whose cost grows with the user's data. It
+// stays on the slow clock: free space doesn't move in one second.
 func (m Model) fetchDiskUsage() tea.Cmd {
 	dir := expandHome(m.config.App.WorkspacesDir)
 	return func() tea.Msg {
@@ -646,13 +647,14 @@ func (m Model) fetchDiskUsage() tea.Cmd {
 	}
 }
 
-// measureWorkspaceSize walks the workspaces tree. Le chemin est **copié** dans
-// le Cmd, comme partout ailleurs (Rule 110).
+// measureWorkspaceSize walks the workspaces tree. The path is **copied**
+// into the Cmd, like everywhere else (Rule 110).
 //
-// C'est le `du -sh` que §3.19 avait retiré, remis délibérément et à sa place :
-// il ne tourne plus à chaque rafraîchissement du dashboard mais une fois par
-// tour lent, et jamais pendant qu'un autre tourne (voir alsoMeasuringSize). La
-// question qu'il répond — combien ces dépôts coûtent — n'a pas d'autre source.
+// This is the `du -sh` that §3.19 had removed, deliberately brought back and
+// in its place: it no longer runs on every dashboard refresh but once per
+// slow round, and never while another one is running (see
+// alsoMeasuringSize). The question it answers — how much these repos cost —
+// has no other source.
 func (m Model) measureWorkspaceSize() tea.Cmd {
 	dir := expandHome(m.config.App.WorkspacesDir)
 	return func() tea.Msg {
@@ -660,16 +662,16 @@ func (m Model) measureWorkspaceSize() tea.Cmd {
 	}
 }
 
-// fetchPosture reads the two scan caches. Il **ne lance aucun scan** (Rule 126) :
-// c'est ce qui relie le dashboard à l'inventaire de §3.11 pour le prix d'une
-// lecture de fichier.
+// fetchPosture reads the two scan caches. It **runs no scan at all** (Rule
+// 126): this is what connects the dashboard to §3.11's inventory for the
+// price of a file read.
 func (m Model) fetchPosture() tea.Cmd {
 	context := config.CurrentContextName()
 	return func() tea.Msg {
-		// L'énumération des images est faite ici et non dans readPosture : c'est
-		// le seul appel au démon de la lecture, et un Cmd est l'endroit de
-		// l'I/O. Elle coûte un `docker image ls` par tour lent, sur la même
-		// horloge que le `docker system df` de fetchOCIStats.
+		// Enumerating the images is done here and not in readPosture: it's the
+		// only daemon call in the read, and a Cmd is where I/O belongs. It
+		// costs one `docker image ls` per slow round, on the same clock as
+		// fetchOCIStats' `docker system df`.
 		images, known := docker.ImageNames()
 		return PostureMsg{Posture: readPosture(context, images, known)}
 	}
@@ -685,9 +687,9 @@ func (m Model) scheduleRefresh() tea.Cmd {
 	})
 }
 
-// refreshAll runs the slow clock's work. Il ne réarme que son horloge : les
-// deux autres ont la leur, et un tour lent qui les relance ferait deux chaînes
-// de ticks pour la même horloge, donc des échantillons deux fois plus rapides.
+// refreshAll runs the slow clock's work. It only rearms its own clock: the
+// other two have theirs, and a slow round that restarted them would make two
+// tick chains for the same clock, hence samples twice as fast.
 func (m Model) refreshAll() tea.Cmd {
 	return tea.Batch(
 		m.checkServices(),
@@ -702,7 +704,7 @@ func (m Model) refreshAll() tea.Cmd {
 }
 
 // refreshNow is what ctrl+r does: the slow round plus one immediate reading
-// from each of the other two clocks, **sans réarmer** leurs ticks.
+// from each of the other two clocks, **without rearming** their ticks.
 func (m Model) refreshNow() tea.Cmd {
 	return tea.Batch(
 		m.refreshAll(),

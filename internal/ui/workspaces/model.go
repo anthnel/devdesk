@@ -26,7 +26,7 @@ const (
 	ModeConfirmingScanAll // A asked to scan everything; the modal carries the purge option
 )
 
-// Model représente le modèle de la vue Workspaces
+// Model represents the Workspaces view's model
 type Model struct {
 	config *config.Config
 	width  int
@@ -137,7 +137,7 @@ type Entry struct {
 	GitUnpulled    int
 }
 
-// New crée une nouvelle instance du modèle workspaces.
+// New creates a new instance of the workspaces model.
 //
 // secrets may be nil for a view that will never sync — the borrowed selection
 // mode is the one such case — and a nil store simply means no token is offered.

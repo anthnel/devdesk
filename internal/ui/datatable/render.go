@@ -190,19 +190,20 @@ func truncateHead(text string, width int) string {
 //     had written `Foreground(theme.ColorText)` into a Style of their own to get
 //     it back, which is the shape a missing default takes.
 //
-// **Il ne peut pas être mis sur `styles.Cell`, et c'est ce qui décide où il
-// va.** Les cellules sont rendues puis la ligne entière est passée à
-// `styles.Selected` : une couleur de cellule y ouvre une séquence dont le reset
-// referme le surlignage au milieu de la ligne. C'est le défaut de la Rule 122,
-// et la seule parade est de décider la couleur par cellule, ici, où l'on sait si
-// la ligne est sélectionnée.
-// La ligne occupée, elle, ne consulte pas non plus `Style` : ce qu'elle dit,
-// c'est qu'un ordre est en cours, et une couleur par sévérité ou par état par
-// dessus dirait le contraire. Le glyphe du spinner garde `ColorHighlight`, le
-// reste passe en `DimStyle` — l'état affiché est en train de cesser d'être vrai.
+// **It cannot be put on `styles.Cell`, and that is what decides where it
+// goes.** Cells are rendered and then the whole row is passed to
+// `styles.Selected`: a cell color there opens a sequence whose reset closes
+// the highlight in the middle of the row. That is Rule 122's defect, and the
+// only way around it is to decide the color per cell, here, where we know
+// whether the row is selected.
+// The busy row, for its part, does not consult `Style` either: what it says
+// is that an operation is in progress, and a color by severity or by state
+// on top of that would say the opposite. The spinner's glyph keeps
+// `ColorHighlight`, the rest goes to `DimStyle` — the displayed state is in
+// the process of ceasing to be true.
 func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) lipgloss.Style {
 	if selected {
-		// Ni fond ni texte ici : ils masqueraient ceux de styles.Selected.
+		// Neither background nor text here: they would hide those of styles.Selected.
 		return m.styles.Cell
 	}
 	if busy {

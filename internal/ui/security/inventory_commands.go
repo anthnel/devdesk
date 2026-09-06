@@ -38,9 +38,9 @@ type InventoryScanFinishedMsg struct {
 	Name   string
 	Counts scan.SeverityCounts
 	// Sensitive is the secret verdict, carried for the same reason as the
-	// counts: sans lui la ligne rescannée garderait l'icône de son scan
-	// précédent jusqu'au prochain ctrl+r, en affichant par ailleurs des
-	// compteurs tout frais.
+	// counts: without it, the rescanned row would keep the icon of its
+	// previous scan until the next ctrl+r, while otherwise showing brand-new
+	// counters.
 	Sensitive *bool
 	// CIScore is the pipeline grade, carried for Sensitive's reason exactly: a
 	// rescanned row would otherwise keep the letter of its previous scan until

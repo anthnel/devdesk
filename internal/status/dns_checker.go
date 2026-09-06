@@ -9,13 +9,13 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 )
 
-// DNSChecker vérifie la résolution DNS
+// DNSChecker checks DNS resolution
 type DNSChecker struct {
 	timeout    time.Duration
 	nameserver string
 }
 
-// NewDNSChecker crée un nouveau checker DNS
+// NewDNSChecker creates a new DNS checker
 func NewDNSChecker(timeout time.Duration, nameserver string) *DNSChecker {
 	return &DNSChecker{
 		timeout:    timeout,
@@ -23,7 +23,7 @@ func NewDNSChecker(timeout time.Duration, nameserver string) *DNSChecker {
 	}
 }
 
-// Check vérifie la résolution DNS d'un hostname
+// Check checks the DNS resolution of a hostname
 func (d *DNSChecker) Check(ctx context.Context, component config.ComponentConfig) ComponentStatus {
 	result := ComponentStatus{
 		Name:      component.Name,
@@ -38,10 +38,10 @@ func (d *DNSChecker) Check(ctx context.Context, component config.ComponentConfig
 		return result
 	}
 
-	// Créer un resolver avec timeout
+	// Create a resolver with a timeout
 	resolver := &net.Resolver{}
 
-	// Si un nameserver spécifique est configuré
+	// If a specific nameserver is configured
 	if d.nameserver != "" {
 		resolver = &net.Resolver{
 			PreferGo: true,
@@ -54,11 +54,11 @@ func (d *DNSChecker) Check(ctx context.Context, component config.ComponentConfig
 		}
 	}
 
-	// Créer un contexte avec timeout
+	// Create a context with a timeout
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, d.timeout)
 	defer cancel()
 
-	// Mesurer le temps de résolution
+	// Measure the resolution time
 	start := time.Now()
 	addrs, err := resolver.LookupHost(ctxWithTimeout, component.Target)
 	result.ResponseTime = time.Since(start)
@@ -76,7 +76,7 @@ func (d *DNSChecker) Check(ctx context.Context, component config.ComponentConfig
 	}
 
 	result.Status = StatusOK
-	// Optionnel: stocker le nombre d'adresses résolues dans Error comme info
+	// Optional: store the number of resolved addresses in Error as info
 	if len(addrs) > 1 {
 		result.Error = fmt.Sprintf("%d addresses", len(addrs))
 	}

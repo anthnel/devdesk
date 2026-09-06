@@ -20,32 +20,34 @@ type Shortcuts []Shortcut
 type Shortcut struct {
 	Key         string
 	Description string
-	// Disabled : l'action existe dans ce mode, mais elle ne s'applique pas à
-	// l'état courant — la ligne sélectionnée n'est pas la bonne, ou l'outil
-	// qu'elle réclame est absent de la machine.
+	// Disabled: the action exists in this mode, but does not apply to the
+	// current state — the selected row is not the right one, or the tool it
+	// requires is absent from the machine.
 	//
-	// L'entrée reste affichée, à sa place, la touche en gris. La masquer ferait
-	// bouger toutes les autres à chaque déplacement du curseur, ce qui est
-	// précisément ce que cette colonne ne doit pas faire : on la lit du coin de
-	// l'œil, et une liste qui se réorganise sous le regard ne se lit plus.
+	// The entry stays displayed, in its place, the key grayed out. Hiding it
+	// would move every other entry each time the cursor moves, which is
+	// exactly what this column must not do: it is read from the corner of
+	// the eye, and a list that reorganizes under the gaze can no longer be
+	// read.
 	//
-	// Un changement de *mode* reste un changement de liste : un formulaire n'a
-	// pas les mêmes touches qu'une table, et les griser afficherait la réunion
-	// de tous les modes.
+	// A change of *mode* remains a change of list: a form does not have the
+	// same keys as a table, and graying them out would show the union of
+	// every mode.
 	Disabled bool
 }
 
-// Availability dit pourquoi une action ne s'applique pas, ou porte une raison
-// vide quand elle s'applique.
+// Availability says why an action does not apply, or carries an empty
+// reason when it does.
 //
-// Un seul champ, donc le booléen et le motif ne peuvent pas diverger — c'est le
-// point : la vue calcule la disponibilité une fois, le header la lit pour
-// griser et le handler la lit pour refuser. Deux calculs pour une question sont
-// ce que scan.Categorize et Result.SecretVerdict ont eu chacun à défaire.
+// A single field, so the boolean and the reason cannot diverge — that is
+// the point: the view computes availability once, the header reads it to
+// gray out and the handler reads it to refuse. Two computations for one
+// question are what scan.Categorize and Result.SecretVerdict each had to
+// undo.
 //
-// Le motif ne va jamais dans le header : il n'y a pas la place, et une colonne
-// de raisons se lirait moins bien qu'un gris. Il va au footer quand
-// l'utilisateur appuie quand même (Rule 128, Warn).
+// The reason never goes into the header: there is no room for it, and a
+// column of reasons would read worse than a gray-out. It goes to the footer
+// when the user presses the key anyway (Rule 128, Warn).
 type Availability struct{ Reason string }
 
 // Enabled reports whether the action applies right now.
@@ -54,10 +56,10 @@ func (a Availability) Enabled() bool { return a.Reason == "" }
 // Unavailable builds a refused state from the reason to show the user.
 func Unavailable(reason string) Availability { return Availability{Reason: reason} }
 
-// maxLenKey mesure la plus longue touche, désactivées comprises.
+// maxLenKey measures the longest key, disabled ones included.
 //
-// L'alignement ne doit pas dépendre de ce qui est disponible : sinon la colonne
-// se décale au moment même où l'on cherche à ce qu'elle ne bouge pas.
+// The alignment must not depend on what is available: otherwise the column
+// shifts at the very moment it is meant to hold still.
 func (s Shortcuts) maxLenKey() int {
 	max := 0
 	for _, shortcut := range s {
@@ -70,14 +72,14 @@ func (s Shortcuts) maxLenKey() int {
 }
 
 func (s Shortcuts) ToStrings() []string {
-	maxKeyLen := s.maxLenKey() + 2 // ajoute l'espace des chevrons
+	maxKeyLen := s.maxLenKey() + 2 // adds room for the angle brackets
 	var result []string
 	for _, shortcut := range s {
 		key := "<" + shortcut.Key + ">"
 		padLen := (maxKeyLen + 1) - utf8.RuneCountInString(key)
 		pad := theme.AppBackgroundStyle.Render(strings.Repeat(" ", padLen))
-		// Seule la touche change : la description est déjà en ColorDim, donc le
-		// discriminant est la touche, qui perd sa couleur et sa graisse.
+		// Only the key changes: the description is already in ColorDim, so the
+		// discriminant is the key, which loses its color and its weight.
 		keyStyle := theme.ShortcutKeyStyle
 		if shortcut.Disabled {
 			keyStyle = theme.ShortcutKeyDisabledStyle

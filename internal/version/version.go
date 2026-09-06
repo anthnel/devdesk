@@ -1,18 +1,17 @@
 // Package version reports which build of DevDesk is running.
 //
-// Trois sources répondent à la question, et elles ne se valent pas :
+// Three sources answer the question, and they are not equally trustworthy:
 //
-//  1. les `-ldflags` posés au build — ce que goreleaser fait en release et ce
-//     que `mise run build` fait en local ;
-//  2. les métadonnées VCS que le compilateur embarque tout seul
-//     (`-buildvcs=auto`), qui donnent le commit mais jamais un numéro de
-//     version ;
-//  3. la version de module d'un `go install pkg@version`, que Go inscrit dans
-//     `Main.Version` et que rien d'autre ne connaît.
+//  1. the `-ldflags` set at build time — what goreleaser does on release and
+//     what `mise run build` does locally;
+//  2. the VCS metadata the compiler embeds on its own (`-buildvcs=auto`),
+//     which gives the commit but never a version number;
+//  3. the module version of a `go install pkg@version`, which Go records in
+//     `Main.Version` and which nothing else knows about.
 //
-// Get les consulte dans cet ordre. Un binaire construit hors de tout dépôt et
-// sans drapeau ne répond donc pas « v0.0.0 » — il répond "dev", parce que ne
-// pas savoir et prétendre à une version sont deux choses différentes.
+// Get consults them in that order. A binary built outside any repo and
+// without a flag therefore does not answer "v0.0.0" — it answers "dev",
+// because not knowing and claiming a version are two different things.
 package version
 
 import (
@@ -21,8 +20,8 @@ import (
 	"strings"
 )
 
-// Posés par -ldflags -X. Les laisser vides plutôt que de leur donner une fausse
-// valeur est ce qui permet à Get de savoir qu'il doit chercher ailleurs.
+// Set by -ldflags -X. Leaving them empty rather than giving them a false
+// value is what lets Get know it must look elsewhere.
 var (
 	version = "dev"
 	commit  = ""
@@ -85,16 +84,16 @@ func Get() Info {
 	return info
 }
 
-// fillFromBuildInfo complète ce que les ldflags n'ont pas dit.
+// fillFromBuildInfo fills in what the ldflags did not say.
 //
-// Rien n'y écrase une valeur posée au build : un `-X` est une affirmation
-// délibérée, les métadonnées VCS sont un défaut. C'est aussi ce qui rend la
-// fonction sûre là où le VCS ne répond pas — un worktree créé côté sandbox, où
-// `-buildvcs=auto` se dégrade en silence plutôt que d'échouer.
+// Nothing here overwrites a value set at build time: a `-X` is a deliberate
+// assertion, the VCS metadata is a fallback. That is also what makes the
+// function safe where the VCS does not answer — a worktree created on the
+// sandbox side, where `-buildvcs=auto` degrades silently instead of failing.
 func (i *Info) fillFromBuildInfo(build *debug.BuildInfo) {
-	// `go install pkg@v0.2.0` inscrit la version du module ici, et c'est le
-	// seul cas où elle existe sans ldflags. "(devel)" est ce que Go rend pour
-	// un build local, ce qui ne nomme rien de plus que DevVersion.
+	// `go install pkg@v0.2.0` records the module version here, and it is the
+	// only case where it exists without ldflags. "(devel)" is what Go returns
+	// for a local build, which names nothing more than DevVersion.
 	if i.Version == DevVersion && build.Main.Version != "" && build.Main.Version != "(devel)" {
 		i.Version = build.Main.Version
 	}
@@ -115,7 +114,7 @@ func (i *Info) fillFromBuildInfo(build *debug.BuildInfo) {
 	}
 }
 
-// shortSHA abrège un SHA complet à sept caractères, la longueur que git rend.
+// shortSHA shortens a full SHA to seven characters, the length git renders.
 func shortSHA(sha string) string {
 	sha = strings.TrimSpace(sha)
 	if len(sha) > 7 {

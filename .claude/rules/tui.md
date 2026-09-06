@@ -1,25 +1,25 @@
-# TUI — Index des règles
+# TUI — Rule index
 
-Les règles TUI sont réparties dans 5 fichiers thématiques :
+TUI rules are split across 5 topic files:
 
-| Fichier | Règles | Contenu |
+| File | Rules | Content |
 |---------|--------|---------|
-| [`tui-layout.md`](tui-layout.md) | 101, 107, 108, 111, 112, 123, 124, 130, 134, 137, 138 | Layout général, keybindings, viewport, tabs, shortcuts header, format descriptions, shortcuts obviousness |
-| [`tui-theme.md`](tui-theme.md) | 102, 105, 115, 117, 118, 119, 127, 129 | Couleurs, background lipgloss, helpers `theme.*`, langue |
-| [`tui-forms.md`](tui-forms.md) | 103, 104, 113, 114, 120, 121, 131, 132, 133, 135 | Formulaires, modales, focus, icônes de statut, cycle de valeurs, WrappedInput, assignation des touches |
-| [`tui-tables.md`](tui-tables.md) | 106, 116, 122, 125, 136, 139 | Tables, largeurs de colonnes, cellules texte brut + couleur par `Style`, filter bar, corps jamais remplacé (spinner ou message) |
-| [`tui-behavior.md`](tui-behavior.md) | 109, 110, 126, 128 | Bubble Tea (Cmd/Update), cache de scan, messages footer (trois niveaux, un composant) |
+| [`tui-layout.md`](tui-layout.md) | 101, 107, 108, 111, 112, 123, 124, 130, 134, 137, 138 | General layout, keybindings, viewport, tabs, shortcuts header, format descriptions, shortcuts obviousness |
+| [`tui-theme.md`](tui-theme.md) | 102, 105, 115, 117, 118, 119, 127, 129 | Colors, lipgloss background, `theme.*` helpers, language |
+| [`tui-forms.md`](tui-forms.md) | 103, 104, 113, 114, 120, 121, 131, 132, 133, 135 | Forms, modals, focus, status icons, value cycling, WrappedInput, key assignment |
+| [`tui-tables.md`](tui-tables.md) | 106, 116, 122, 125, 136, 139 | Tables, column widths, plain-text cells + color via `Style`, filter bar, body never replaced (spinner or message) |
+| [`tui-behavior.md`](tui-behavior.md) | 109, 110, 126, 128 | Bubble Tea (Cmd/Update), scan cache, footer messages (three levels, one component) |
 
-## Règles critiques (résumé)
+## Critical rules (summary)
 
-**Rule 110** — Ne JAMAIS modifier le modèle dans un `Cmd` → race condition. Seul `Update()` modifie le modèle.
+**Rule 110** — NEVER modify the model inside a `Cmd` → race condition. Only `Update()` modifies the model.
 
-**Rule 122** — `Cell` retourne du texte brut (il est mesuré), la couleur passe par `Style`. Un `style.Render(...)` dans `Cell` est tronqué au milieu de sa séquence et bave sur toutes les lignes suivantes.
+**Rule 122** — `Cell` returns plain text (it gets measured), color goes through `Style`. A `style.Render(...)` inside `Cell` gets truncated in the middle of its escape sequence and bleeds onto every following row.
 
-**Rule 128** — Un message de footer passe par `components.FooterMessage` : trois niveaux (info neutre, warning orange, erreur rouge), toujours centrés, une seule implémentation. Le chargement d'une table s'affiche dans le footer avec un spinner, jamais dans le corps.
+**Rule 128** — A footer message goes through `components.FooterMessage`: three levels (neutral info, orange warning, red error), always centered, a single implementation. A table's loading state is shown in the footer with a spinner, never in the body.
 
-**Rule 139** — Le corps d'un `datatable` est toujours `m.table.View()`, jamais un spinner ni un message : une table vide (chargement, rien à lister, filtre sans résultat) reste une table — en-tête, pas de ligne. Le compte va dans `GetHeaderInfo`, le statut dans le footer.
+**Rule 139** — A `datatable`'s body is always `m.table.View()`, never a spinner or a message: an empty table (loading, nothing to list, a filter with no results) stays a table — a header, no rows. The count goes in `GetHeaderInfo`, the status in the footer.
 
-**Rule 129** — Tout texte UI et tous les logs en **English US**.
+**Rule 129** — All UI text and all logs in **English US**.
 
-**Rule 133** — `bubbles/textarea` est interdit. Utiliser `components.WrappedInput` pour tout champ texte multi-lignes.
+**Rule 133** — `bubbles/textarea` is forbidden. Use `components.WrappedInput` for any multi-line text field.

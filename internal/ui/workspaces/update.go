@@ -13,7 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
-// Init initialise le modèle
+// Init initializes the model
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.loadEntries(), loadScanCacheCmd()}
 	// A view lent for a selection offers neither S nor A, so resolving the
@@ -35,7 +35,7 @@ func (m Model) FilterBarVisible() bool {
 	return m.table.FilterBar().IsVisible() && m.mode == ModeNormal && len(m.table.Items()) > 0 && m.error == ""
 }
 
-// Update gère les messages
+// Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 

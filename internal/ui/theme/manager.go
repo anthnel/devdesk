@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Theme représente un thème de couleurs pour l'application
+// Theme represents a color theme for the application
 type Theme struct {
 	Name string `json:"name"`
 
@@ -78,7 +78,7 @@ type Theme struct {
 	IconImage       string `json:"icon_image,omitempty"`
 }
 
-// DefaultTheme retourne le thème par défaut (Catppuccin Mocha)
+// DefaultTheme returns the default theme (Catppuccin Mocha)
 func DefaultTheme() *Theme {
 	return &Theme{
 		Name:               "default",
@@ -125,7 +125,7 @@ func DefaultTheme() *Theme {
 	}
 }
 
-// ThemeDir retourne le répertoire des thèmes (~/.devdesk/themes/)
+// ThemeDir returns the themes directory (~/.devdesk/themes/)
 func ThemeDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -134,8 +134,8 @@ func ThemeDir() (string, error) {
 	return filepath.Join(homeDir, ".devdesk", "themes"), nil
 }
 
-// LoadTheme charge un thème depuis un fichier JSON
-// Si name est vide, "dark" ou "default", retourne le thème par défaut intégré
+// LoadTheme loads a theme from a JSON file.
+// If name is empty, "dark" or "default", returns the built-in default theme
 func LoadTheme(name string) (*Theme, error) {
 	if name == "" || name == "dark" || name == "default" {
 		return DefaultTheme(), nil
@@ -157,7 +157,7 @@ func LoadTheme(name string) (*Theme, error) {
 		return nil, fmt.Errorf("failed to parse theme '%s': %w", name, err)
 	}
 
-	// Assurer que le nom est défini
+	// Ensure the name is set
 	if t.Name == "" {
 		t.Name = name
 	}
@@ -165,19 +165,19 @@ func LoadTheme(name string) (*Theme, error) {
 	return &t, nil
 }
 
-// ListThemes retourne la liste des thèmes disponibles
-// Inclut toujours "default" (thème intégré) + les fichiers JSON du répertoire themes
+// ListThemes returns the list of available themes.
+// Always includes "default" (built-in theme) + the JSON files in the themes directory
 func ListThemes() ([]string, error) {
 	themes := []string{"default"}
 
 	dir, err := ThemeDir()
 	if err != nil {
-		return themes, nil // Retourner au moins "dark"
+		return themes, nil // Return at least "dark"
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return themes, nil // Répertoire n'existe pas encore
+		return themes, nil // Directory doesn't exist yet
 	}
 
 	for _, entry := range entries {
@@ -186,7 +186,7 @@ func ListThemes() ([]string, error) {
 		}
 		name := entry.Name()
 		if themeName, ok := strings.CutSuffix(name, ".json"); ok {
-			// Éviter le doublon avec le thème intégré
+			// Avoid duplicating the built-in theme
 			if themeName == "default" {
 				continue
 			}
@@ -205,10 +205,10 @@ func applyColor(hex string, fallback lipgloss.Color) lipgloss.Color {
 	return lipgloss.Color(hex)
 }
 
-// ApplyTheme applique un thème en mettant à jour les variables de couleur globales
-// puis en rafraîchissant tous les styles
+// ApplyTheme applies a theme by updating the global color variables
+// then refreshing all styles
 func ApplyTheme(t *Theme) {
-	// Mettre à jour les couleurs sémantiques globales
+	// Update the global semantic colors
 	ColorOK = lipgloss.Color(t.ColorOK)
 	ColorError = lipgloss.Color(t.ColorError)
 	ColorWarn = lipgloss.Color(t.ColorWarn)
@@ -223,7 +223,7 @@ func ApplyTheme(t *Theme) {
 	ColorBlack = lipgloss.Color(t.ColorBlack)
 	ColorBackground = applyColor(t.ColorBackground, ColorBackground)
 
-	// Appliquer les couleurs par composant (fallback sur couleurs sémantiques)
+	// Apply per-component colors (falling back to semantic colors)
 	ColorTitleFg = applyColor(t.TitleFg, ColorPrimary)
 	ColorAppTitleFg = applyColor(t.AppTitleFg, ColorPrimary)
 	ColorSubTitleFg = applyColor(t.SubTitleFg, ColorSecondary)
@@ -245,10 +245,10 @@ func ApplyTheme(t *Theme) {
 	ColorCmdLineFg = applyColor(t.CmdLineFg, ColorHighlight)
 	ColorCmdLineBg = applyColor(t.CmdLineBg, ColorCmdLineBg)
 
-	// Le fond d'un graphe est celui de la ligne de commande : c'est la surface
-	// « un cran plus claire » que chaque thème définit déjà, donc un graphe se
-	// détache du reste de sa boîte sans qu'aucun thème ait à déclarer une
-	// couleur de plus.
+	// A chart's background is that of the command line: it's the surface
+	// "one shade lighter" that every theme already defines, so a chart
+	// stands out from the rest of its box without any theme having to
+	// declare one more color.
 	ColorChartBg = ColorCmdLineBg
 	ColorCmdLineInactiveFg = applyColor(t.CmdLineInactiveFg, ColorDim)
 
@@ -340,9 +340,9 @@ func ApplyTheme(t *Theme) {
 	// A disabled shortcut's key (Rule 130), same kind of alias.
 	ColorShortcutDisabled = ColorDim
 
-	// Rafraîchir les styles qui dépendent des couleurs
+	// Refresh the styles that depend on the colors
 	RefreshStyles()
 }
 
-// CurrentThemeName stocke le nom du thème actuellement appliqué
+// CurrentThemeName stores the name of the currently applied theme
 var CurrentThemeName = "default"

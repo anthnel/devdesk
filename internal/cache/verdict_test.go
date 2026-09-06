@@ -6,14 +6,14 @@ import (
 	"testing"
 )
 
-// Le verdict « secrets » est passé du booléen au pointeur, et ce fichier tient
-// les deux bouts de ce que ça change sur des fichiers déjà écrits : ce qui doit
-// survivre survit, et ce qui n'a jamais été écrit se lit « inconnu » plutôt que
-// « propre ».
+// The "secrets" verdict moved from a boolean to a pointer, and this file
+// holds both ends of what that changes for files already written: what must
+// survive does survive, and what was never written reads as "unknown"
+// rather than "clean".
 
-// writeRaw writes a cache file verbatim, pour décrire un fichier tel qu'une
-// version précédente l'a laissé — ce qu'un round-trip par la structure actuelle
-// ne saurait pas produire.
+// writeRaw writes a cache file verbatim, to describe a file the way a
+// previous version left it — something a round-trip through the current
+// struct could not produce.
 func writeRaw(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
@@ -21,9 +21,9 @@ func writeRaw(t *testing.T, path, content string) {
 	}
 }
 
-// L'ancien champ s'écrivait toujours — `json:"sensitive"`, sans omitempty —
-// donc les deux verdicts qu'une version précédente a pu enregistrer se relisent
-// tels quels. C'est ce qui rend la migration gratuite : il n'y en a pas.
+// The old field was always written — `json:"sensitive"`, without omitempty —
+// so both verdicts a previous version could have recorded read back
+// unchanged. That is what makes the migration free: there isn't one.
 func TestALegacyWorkspaceVerdictSurvivesTheChangeOfType(t *testing.T) {
 	tests := []struct {
 		name string
@@ -56,10 +56,10 @@ func TestALegacyWorkspaceVerdictSurvivesTheChangeOfType(t *testing.T) {
 	}
 }
 
-// Une entrée d'image écrite avant que le scan d'image ait une étape secrets n'a
-// pas de clé du tout. Elle doit se lire « personne n'a cherché » : un false
-// serait une icône verte apposée à un scan qui n'a rien regardé, ce qui est le
-// seul mensonge que ce champ pouvait produire.
+// An image entry written before the image scan had a secrets stage has no
+// key at all. It must read as "nobody looked": a false would be a green
+// icon slapped on a scan that never looked, which is the one lie this field
+// could tell.
 func TestAnImageEntryWrittenBeforeTheSecretStageHasNoVerdict(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "image-scans.json")
 	writeRaw(t, path, `{"version":1,"contexts":{"work":{"api:v1":{
@@ -78,7 +78,7 @@ func TestAnImageEntryWrittenBeforeTheSecretStageHasNoVerdict(t *testing.T) {
 	}
 }
 
-// Le verdict fait l'aller-retour par le fichier, dans ses trois valeurs.
+// The verdict round-trips through the file, in all three of its values.
 func TestTheThreeVerdictsSurviveARoundTrip(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -97,8 +97,8 @@ func TestTheThreeVerdictsSurviveARoundTrip(t *testing.T) {
 				t.Fatalf("Set: %v", err)
 			}
 
-			// Relu depuis le fichier, pas depuis la mémoire de l'instance qui
-			// vient de l'écrire : c'est la sérialisation qui est en cause.
+			// Re-read from the file, not from the memory of the instance that
+			// just wrote it: it is the serialization that is under test.
 			got := openImageCache(t, path).Get("api:v1")
 
 			if got == nil {

@@ -7,18 +7,17 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
 
-// Ce que la ligne sélectionnée et la machine permettent, calculé une fois et lu
-// par les deux moitiés de la vue : GetShortcuts pour griser, les handlers pour
-// refuser.
+// What the selected row and the machine allow, computed once and read by both
+// halves of the view: GetShortcuts to gray out, the handlers to refuse.
 //
-// Le défaut évité est celui que scan.Categorize et Result.SecretVerdict ont eu
-// chacun à défaire : deux règles pour une question, qui finissent par ne plus
-// dire la même chose. Ici ce serait une touche grisée qui agit quand même — ou,
-// pire, une touche offerte dont l'action retourne en silence.
+// The defect avoided is the one scan.Categorize and Result.SecretVerdict each
+// had to undo: two rules for one question, which eventually stop agreeing.
+// Here that would be a grayed-out key that acts anyway — or, worse, an
+// offered key whose action returns silently.
 
-// Les états viennent de `shortcut.Availability` : le header et le handler
-// lisent le même champ, et il est partagé parce que toutes les vues en ont
-// besoin (§3.48).
+// The states come from `shortcut.Availability`: the header and the handler
+// read the same field, and it is shared because every view needs it
+// (§3.48).
 type actionState = shortcut.Availability
 
 // available is the zero-reason state, spelled out where it reads better than an

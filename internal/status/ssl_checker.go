@@ -11,19 +11,19 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 )
 
-// SSLChecker vérifie les certificats SSL/TLS
+// SSLChecker checks SSL/TLS certificates
 type SSLChecker struct {
 	timeout time.Duration
 }
 
-// NewSSLChecker crée un nouveau SSLChecker
+// NewSSLChecker creates a new SSLChecker
 func NewSSLChecker(timeout time.Duration) *SSLChecker {
 	return &SSLChecker{
 		timeout: timeout,
 	}
 }
 
-// Check vérifie le certificat SSL d'un hôte
+// Check checks a host's SSL certificate
 func (s *SSLChecker) Check(ctx context.Context, component config.ComponentConfig) ComponentStatus {
 	result := ComponentStatus{
 		Name:      component.Name,

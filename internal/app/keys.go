@@ -25,7 +25,7 @@ const commandModeKey = keymap.CommandMode
 
 // handleKeyMsg processes keyboard input
 func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Si un overlay est affiché, gérer la navigation
+	// If an overlay is displayed, handle its navigation
 	if a.showHelp {
 		return a.handleHelpKeyMsg(msg)
 	}

@@ -25,7 +25,7 @@ import (
 // datatable's TestTheWorkspacesLayoutFitsANarrowTerminal was written against.
 // The widths are in columns.go now and the arithmetic is the solver's.
 
-// View rend la vue
+// View renders the view
 func (m Model) View() string {
 	// Mode input - show input form overlay
 	if m.mode == ModeAdding && m.input != nil {
@@ -322,8 +322,9 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 	totalCount := len(entry.SubRepoPaths)
 	scanned = theme.IconDirectory + " " + fmt.Sprintf("%d/%d", scannedCount, totalCount)
 
-	// Le répertoire ne porte que les dépôts scannés : ceux qui ne le sont pas
-	// entrent dans le verdict par le compte ci-dessous, pas par un verdict à eux.
+	// The directory only carries the scanned repositories: the ones that are
+	// not enter the verdict through the count below, not through a verdict
+	// of their own.
 	if scannedCount < totalCount {
 		verdicts = append(verdicts, theme.SecretsUnknown)
 	}
@@ -369,25 +370,25 @@ func (m *Model) ciCellFor(entry Entry) ciCell {
 // secretsCell is the Secrets column's two halves: what it prints, and the
 // verdict that colours it.
 //
-// Les deux ne se déduisent pas l'un de l'autre. Le texte a des cas que le
-// verdict n'a pas — un tiret pour un dépôt jamais scanné, rien du tout pour un
-// fichier, rien non plus pendant un scan — et ces trois-là se colorent pareil,
-// en dim, parce qu'ils disent tous « pas de verdict ».
+// The two are not derived from one another. The text has cases the verdict
+// does not — a dash for a repository never scanned, nothing at all for a
+// file, nothing either during a scan — and those three color the same way,
+// dim, because they all say "no verdict".
 type secretsCell struct {
 	Text  string
 	State theme.SecretsState
 }
 
-// secretsFor is the cell of a target that has a verdict. Texte brut (Rule 122) :
-// la couleur passe par Style.
+// secretsFor is the cell of a target that has a verdict. Plain text
+// (Rule 122): the color goes through Style.
 func secretsFor(state theme.SecretsState) secretsCell {
 	return secretsCell{Text: theme.SecretsIcon(state), State: state}
 }
 
 // foldSecrets is the verdict a directory row carries for the repositories under
-// it. Un secret trouvé l'emporte sur tout ; un dépôt que personne n'a regardé
-// l'emporte sur « propre », parce qu'un parent ne peut pas être plus sûr que ce
-// qu'on ignore de ses enfants.
+// it. A found secret outranks everything; a repository nobody looked at
+// outranks "clean", because a parent cannot be more certain than what is
+// unknown about its children.
 func foldSecrets(states []theme.SecretsState) theme.SecretsState {
 	out := theme.SecretsClean
 	if len(states) == 0 {
@@ -501,7 +502,7 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	}
 }
 
-// GetHelpContent retourne le contenu d'aide de la vue Workspaces
+// GetHelpContent returns the Workspaces view's help content
 func (m Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title:       "Workspaces",

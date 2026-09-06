@@ -56,21 +56,21 @@ func arrowOnlyScroll() viewport.KeyMap {
 	}
 }
 
-// handleHelpKeyMsg gère les touches clavier dans l'overlay d'aide
+// handleHelpKeyMsg handles key presses in the help overlay
 func (a *App) handleHelpKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q", "?":
 		a.showHelp = false
 		return a, nil
 	default:
-		// Déléguer au viewport pour le scroll (↑↓ / PgUp / PgDn)
+		// Delegate to the viewport for scrolling (up/down / PgUp / PgDn)
 		var cmd tea.Cmd
 		a.helpViewport, cmd = a.helpViewport.Update(msg)
 		return a, cmd
 	}
 }
 
-// renderHelpOverlay affiche un overlay avec l'aide de la vue courante
+// renderHelpOverlay renders an overlay with the current view's help
 func (a *App) renderHelpOverlay() string {
 	return theme.OverlayBoxStyle().Render(a.helpViewport.View() + "\n")
 }

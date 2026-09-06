@@ -5,10 +5,10 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
 
-// Ce que la ligne sélectionnée permet, calculé une fois et lu par les deux
-// moitiés de la vue : GetShortcuts pour griser, les handlers pour refuser
-// (Rule 130). Deux calculs pour une question finissent par ne plus dire la
-// même chose, et le symptôme est une touche grisée qui agit quand même.
+// What the selected row allows, computed once and read by both halves of
+// the view: GetShortcuts to gray out, the handlers to refuse (Rule 130).
+// Two computations for one question eventually stop agreeing, and the
+// symptom is a grayed-out key that acts anyway.
 
 // The reasons, written once so the header, the footer and the tests cannot
 // drift apart on the wording (Rule 129 — English US).

@@ -39,9 +39,9 @@ var (
 				Foreground(ColorSecondary).
 				Bold(true)
 
-	// ShortcutKeyDisabledStyle : la touche d'un raccourci affiché mais sans
-	// objet ici (Rule 130). Elle perd la couleur *et* la graisse — l'une des
-	// deux seule laisserait un gris gras, qui se lit comme une emphase.
+	// ShortcutKeyDisabledStyle: the key of a shortcut that is shown but has
+	// no purpose here (Rule 130). It loses the color *and* the boldness —
+	// either alone would leave a bold gray, which reads as emphasis.
 	ShortcutKeyDisabledStyle = lipgloss.NewStyle().
 					Background(ColorBackground).
 					Foreground(ColorShortcutDisabled).
@@ -141,7 +141,7 @@ var (
 				Background(ColorBackground).
 				Foreground(ColorPrimary)
 
-	// AppBackgroundStyle applique le fond global de l'application
+	// AppBackgroundStyle applies the app's global background
 	AppBackgroundStyle = lipgloss.NewStyle().
 				Background(ColorBackground)
 )
@@ -219,7 +219,7 @@ func SpinnerMessage(spinnerView, text string) string {
 
 // Helper functions for dynamic styles
 
-// ResponseTimeStyle retourne le style selon le temps de réponse
+// ResponseTimeStyle returns the style based on the response time
 func ResponseTimeStyle(ms int64) lipgloss.Style {
 	base := lipgloss.NewStyle().Background(ColorBackground).Bold(false)
 	if ms < 100 {
@@ -230,7 +230,7 @@ func ResponseTimeStyle(ms int64) lipgloss.Style {
 	return base.Foreground(ColorError).SetString(IconError)
 }
 
-// StatusStyle retourne le style selon le type de status
+// StatusStyle returns the style based on the status type
 func StatusStyle(status string) lipgloss.Style {
 	switch status {
 	case "OK":
@@ -246,7 +246,7 @@ func StatusStyle(status string) lipgloss.Style {
 	}
 }
 
-// DefaultTableStyles retourne les styles par défaut pour toutes les tables de l'application
+// DefaultTableStyles returns the default styles for all tables in the application
 func DefaultTableStyles() table.Styles {
 	s := table.DefaultStyles()
 
@@ -290,15 +290,15 @@ func TableStylesForState(state string) table.Styles {
 }
 
 // CertStateStyle colours a certificate state (status.CertState, passed as its
-// string like StatusStyle and SeverityTextStyle take theirs — le thème ne
-// connaît pas les paquets de domaine).
+// string like StatusStyle and SeverityTextStyle take theirs — the theme
+// package doesn't know about domain packages).
 //
-// Elle est séparée de StatusStyle parce que les deux vocabulaires ne se
-// recouvrent pas : `to renew` n'a aucun StatusType à lui, et `expired` en
-// partage un avec `error`. C'est exactement ce que la boîte Health confondait.
+// It is kept separate from StatusStyle because the two vocabularies don't
+// overlap: `to renew` has no StatusType of its own, and `expired` shares one
+// with `error`. That is exactly what the Health box used to conflate.
 //
-// L'orange n'est porté que par `to renew` : c'est le seul état qui demande une
-// action et laisse le temps de la prendre.
+// Orange is carried only by `to renew`: it's the only state that demands an
+// action and still leaves time to take it.
 func CertStateStyle(state string) lipgloss.Style {
 	switch state {
 	case "valid":
@@ -312,10 +312,10 @@ func CertStateStyle(state string) lipgloss.Style {
 	}
 }
 
-// CertStateIcon is the glyph that names a certificate state. Les quatre en ont
-// un distinct — c'est ce qui manquait quand `expired` et `error` partageaient
-// l'alerte — et le sablier dit d'un renouvellement qu'il vient, là où la croix
-// dirait qu'il est trop tard.
+// CertStateIcon is the glyph that names a certificate state. All four have a
+// distinct one — that's what was missing when `expired` and `error` shared
+// the alert icon — and the hourglass says a renewal is coming, where the
+// cross would say it's already too late.
 func CertStateIcon(state string) string {
 	switch state {
 	case "valid":
@@ -384,7 +384,7 @@ func TableStylesForSeverity(severity string) table.Styles {
 	return s
 }
 
-// BlurredTableStyles retourne les styles pour une table qui n'a pas le focus
+// BlurredTableStyles returns the styles for a table that doesn't have focus
 func BlurredTableStyles() table.Styles {
 	s := table.DefaultStyles()
 
@@ -403,7 +403,7 @@ func BlurredTableStyles() table.Styles {
 
 // Button styles
 
-// ButtonStyle retourne un style de bouton selon l'état (focus ou non)
+// ButtonStyle returns a button style based on its state (focused or not)
 func ButtonStyle(focused bool, variant string) lipgloss.Style {
 	style := lipgloss.NewStyle().
 		Padding(0, 2)
@@ -435,12 +435,12 @@ func ButtonStyle(focused bool, variant string) lipgloss.Style {
 	}
 }
 
-// RenderButton retourne le rendu d'un bouton avec le texte donné
+// RenderButton returns the rendered button with the given text
 func RenderButton(text string, focused bool, variant string) string {
 	return ButtonStyle(focused, variant).Render(text)
 }
 
-// RenderCheckbox retourne le rendu d'une checkbox
+// RenderCheckbox returns the rendered checkbox
 func RenderCheckbox(checked bool, label string, focused bool) string {
 	box := IconCheckbox
 	if checked {
@@ -490,11 +490,11 @@ func RenderCheckboxDisabled(label string) string {
 	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorDim).Render("  " + text)
 }
 
-// Il n'y a plus de RenderRadioButton. Ses deux seuls appelants étaient le choix
-// de destination du token dans la vue d'authentification, et ce choix a disparu
-// avec le passage au gestionnaire de secrets de l'hôte (§3.9). Pour un ensemble
-// fermé de valeurs, le contrôle est le champ à cycle ←→ (Rule 132) ;
-// RenderCheckbox reste pour les booléens indépendants.
+// RenderRadioButton no longer exists. Its only two callers were the token
+// destination choice in the authentication view, and that choice disappeared
+// with the move to the host secret manager (§3.9). For a closed set of
+// values, the control is the ←→ cycle field (Rule 132); RenderCheckbox
+// remains for independent booleans.
 
 // Tab styles — exported so views can use them directly (Rule 123)
 var (
@@ -508,12 +508,12 @@ var (
 				Background(ColorTabInactiveBg)
 )
 
-// TabItem représente un onglet avec son label
+// TabItem represents a tab with its label
 type TabItem struct {
 	Label string
 }
 
-// RenderTabs génère une barre de tabs uniforme
+// RenderTabs generates a uniform tab bar
 func RenderTabs(tabs []TabItem, activeIdx int) string {
 	var result string
 	for i, t := range tabs {
@@ -531,7 +531,7 @@ func RenderTabs(tabs []TabItem, activeIdx int) string {
 	return result
 }
 
-// RenderBorderTitle construit une ligne de bordure supérieure avec un titre incrusté.
+// RenderBorderTitle builds a top border line with an embedded title.
 // Format: ┌─ Title ───────────────────┐
 func RenderBorderTitle(title string, width int) string {
 	border := lipgloss.NormalBorder()
@@ -555,8 +555,8 @@ func RenderBorderTitle(title string, width int) string {
 	return left + renderedTitle + right + fill + corner
 }
 
-// RefreshStyles reconstruit tous les styles globaux à partir des couleurs actuelles.
-// Doit être appelé après chaque changement de thème via ApplyTheme.
+// RefreshStyles rebuilds all global styles from the current colors.
+// Must be called after every theme change via ApplyTheme.
 func RefreshStyles() {
 	HeaderStyle = lipgloss.NewStyle().
 		Background(ColorBackground).

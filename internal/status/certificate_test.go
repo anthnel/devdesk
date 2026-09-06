@@ -4,9 +4,9 @@ import "testing"
 
 func days(n int) *int { return &n }
 
-// Les quatre états existent parce que StatusType n'en a que trois à donner, et
-// qu'elle en met déjà deux dans la même case : SSLChecker rend `ERROR` pour un
-// certificat périmé comme pour un qui expire dans six jours.
+// The four states exist because StatusType only has three to give, and it
+// already puts two of them in the same bucket: SSLChecker returns `ERROR`
+// both for an expired certificate and for one expiring in six days.
 func TestCertStateOfSeparatesWhatStatusTypeCollapses(t *testing.T) {
 	cases := []struct {
 		name string
@@ -32,8 +32,9 @@ func TestCertStateOfSeparatesWhatStatusTypeCollapses(t *testing.T) {
 	}
 }
 
-// Un certificat périmé et un certificat illisible sont deux faits différents,
-// et c'est de les compter ensemble que la boîte Health se plaignait.
+// An expired certificate and an unreadable certificate are two different
+// facts, and it was counting them together that the Health box complained
+// about.
 func TestCertCountsKeepsExpiredApartFromUnreadable(t *testing.T) {
 	valid, toRenew, expired, errored := CertCounts([]ComponentStatus{
 		{SSLDaysLeft: days(200)},

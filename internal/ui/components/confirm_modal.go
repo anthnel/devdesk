@@ -9,7 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// ConfirmModal est une boîte de dialogue de confirmation
+// ConfirmModal is a confirmation dialog box
 type ConfirmModal struct {
 	title   string
 	message string
@@ -18,22 +18,22 @@ type ConfirmModal struct {
 	height  int
 }
 
-// NewConfirmModal crée une nouvelle modal de confirmation
+// NewConfirmModal creates a new confirmation modal
 func NewConfirmModal(title, message string) *ConfirmModal {
 	return &ConfirmModal{
 		title:   title,
 		message: message,
-		focused: false, // Default sur "No" pour éviter les suppressions accidentelles
+		focused: false, // Defaults to "No" to avoid accidental deletions
 	}
 }
 
-// ConfirmModalYesMsg est envoyé quand l'utilisateur confirme
+// ConfirmModalYesMsg is sent when the user confirms
 type ConfirmModalYesMsg struct{}
 
-// ConfirmModalNoMsg est envoyé quand l'utilisateur annule
+// ConfirmModalNoMsg is sent when the user cancels
 type ConfirmModalNoMsg struct{}
 
-// Update met à jour la modal
+// Update updates the modal
 func (m *ConfirmModal) Update(msg tea.Msg) (*ConfirmModal, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -43,12 +43,12 @@ func (m *ConfirmModal) Update(msg tea.Msg) (*ConfirmModal, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "left", "right":
-			// Toggle entre Yes et No (Rule 135 — Tab exclusivement pour les onglets)
+			// Toggle between Yes and No (Rule 135 — Tab exclusively for tabs)
 			m.focused = !m.focused
 			return m, nil
 
 		case "enter", " ":
-			// Confirmer la sélection
+			// Confirm the selection
 			if m.focused {
 				return m, func() tea.Msg {
 					return ConfirmModalYesMsg{}
@@ -60,13 +60,13 @@ func (m *ConfirmModal) Update(msg tea.Msg) (*ConfirmModal, tea.Cmd) {
 			}
 
 		case "y", "Y":
-			// Raccourci pour Yes
+			// Shortcut for Yes
 			return m, func() tea.Msg {
 				return ConfirmModalYesMsg{}
 			}
 
 		case "n", "N", "esc":
-			// Raccourci pour No
+			// Shortcut for No
 			return m, func() tea.Msg {
 				return ConfirmModalNoMsg{}
 			}
@@ -76,11 +76,11 @@ func (m *ConfirmModal) Update(msg tea.Msg) (*ConfirmModal, tea.Cmd) {
 	return m, nil
 }
 
-// View affiche la modal
+// View renders the modal
 func (m *ConfirmModal) View() string {
 	var b strings.Builder
 
-	// Titre
+	// Title
 	b.WriteString(theme.TitleStyle.Render(m.title))
 	b.WriteString("\n\n")
 
@@ -88,7 +88,7 @@ func (m *ConfirmModal) View() string {
 	b.WriteString(m.message)
 	b.WriteString("\n\n")
 
-	// Boutons
+	// Buttons
 	yes := theme.RenderButton("Yes", m.focused, "danger")
 	no := theme.RenderButton("No", !m.focused, "primary")
 

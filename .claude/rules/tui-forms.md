@@ -1,150 +1,150 @@
-# TUI — Formulaires & Focus
+# TUI — Forms & Focus
 
-### Rule 103 : Navigation standardisée dans les formulaires
+### Rule 103 : Standardized form navigation
 
-- `↑ / ↓` pour naviguer entre les champs d'un formulaire
-- Un indicateur visuel (`theme.IconCircleSmall`) doit montrer l'élément focusé
-- `Enter` pour valider les boutons d'action uniquement (voir Rule 135)
+- `↑ / ↓` to navigate between a form's fields
+- A visual indicator (`theme.IconCircleSmall`) must show the focused element
+- `Enter` to validate action buttons only (see Rule 135)
 
-### Rule 104 : Structure des fenêtres modales
+### Rule 104 : Modal window structure
 
-- Bordure arrondie (NormalBorder) avec couleur appropriée au contexte
-- Titre en haut utilisant `theme.TitleStyle`
-- Message au centre
-- Boutons en bas avec espacement cohérent
-- Instructions d'aide avec `theme.HelpStyle` tout en bas
-- Choix sécuritaire par défaut (ex: "No" pour les confirmations de suppression)
+- Rounded border (NormalBorder) with color appropriate to the context
+- Title at the top using `theme.TitleStyle`
+- Message in the center
+- Buttons at the bottom with consistent spacing
+- Help instructions with `theme.HelpStyle` at the very bottom
+- Safe choice by default (e.g. "No" for delete confirmations)
 
-### Rule 113 : Espacement des champs de formulaire
+### Rule 113 : Form field spacing
 
-| Layout | Séparateur après le champ |
+| Layout | Separator after the field |
 |--------|--------------------------|
-| **Multi-ligne** : libellé ↵ contenu | `\n\n` (ligne vide) |
-| **Mono-ligne** : libellé + contenu sur la même ligne | `\n` |
-| **Checkboxes** | `\n` entre elles, `\n\n` après le groupe |
+| **Multi-line**: label ↵ content | `\n\n` (blank line) |
+| **Single-line**: label + content on the same line | `\n` |
+| **Checkboxes** | `\n` between them, `\n\n` after the group |
 
-Les fonctions `renderField()` ne doivent **PAS** inclure le séparateur final.
+`renderField()` functions must **NOT** include the trailing separator.
 
-### Rule 114 : Système d'aide intégré (`?`)
+### Rule 114 : Built-in help system (`?`)
 
-**Chaque vue implémente `help.Provider` via `GetHelpContent()`, toujours en anglais.**
+**Every view implements `help.Provider` via `GetHelpContent()`, always in English.**
 
-Obligations :
-- Mise à jour obligatoire dans le même commit quand une fonctionnalité / keybinding change
-- Toute nouvelle vue doit implémenter `help.Provider` avec un contenu complet
+Obligations:
+- Mandatory update in the same commit whenever a feature / keybinding changes
+- Every new view must implement `help.Provider` with complete content
 
-Contenu attendu : `Title`, `Description`, `KeyBindings`, `Sections`
+Expected content: `Title`, `Description`, `KeyBindings`, `Sections`
 
-Fichiers :
-- `internal/ui/help/help.go` — composant et interface `Provider`
-- `internal/ui/*/view.go` ou `model.go` — implémentation par vue
+Files:
+- `internal/ui/help/help.go` — component and `Provider` interface
+- `internal/ui/*/view.go` or `model.go` — per-view implementation
 
-### Rule 120 : Indicateur de focus et rendu des champs de formulaire
+### Rule 120 : Focus indicator and form field rendering
 
-**Indentation : 2 caractères.** Quand focusé, `theme.IconCircleSmall` se place à la colonne 0.
+**Indentation: 2 characters.** When focused, `theme.IconCircleSmall` sits at column 0.
 
-| État | Préfixe |
+| State | Prefix |
 |------|---------|
-| Focusé | `IconCircleSmall + " "` → `● Label` |
-| Non focusé | `"  "` (2 espaces) → `  Label` |
+| Focused | `IconCircleSmall + " "` → `● Label` |
+| Not focused | `"  "` (2 spaces) → `  Label` |
 
-`theme.IconCircleSmall` (`\ueb8a`) ne contient PAS d'espace — toujours ajouter `" "` après.
+`theme.IconCircleSmall` (`\ueb8a`) does NOT contain a space — always add `" "` after it.
 
-**Séparateur label/valeur** : `theme.IconChevronRight` (`\uf054`) + `" "`. **Pas de `:`**.
+**Label/value separator**: `theme.IconChevronRight` (`\uf054`) + `" "`. **No `:`**.
 
-**Espace avant le chevron obligatoire** : il doit toujours y avoir un espace entre le texte du label et `IconChevronRight`.
+**A space before the chevron is mandatory**: there must always be a space between the label text and `IconChevronRight`.
 
 ```go
-// ✅ Mono-ligne focusé
+// ✅ Single-line, focused
 theme.KeyStyle.Render(theme.IconCircleSmall + " Server " + theme.IconChevronRight + " ") + input.View()
 
 // ✅ Multi-ligne
 theme.KeyStyle.Render(theme.IconCircleSmall + " Name " + theme.IconChevronRight) + "\n"
 theme.Bg("  ") + input.View()
 
-// ❌ INTERDIT — pas d'espace avant le chevron
+// ❌ WRONG — no space before the chevron
 theme.KeyStyle.Render(theme.IconCircleSmall + " Name" + theme.IconChevronRight) + "\n"
 theme.KeyStyle.Render("▸ Server: ") + input.View()
 ```
 
-**Listes de sélection** : `IconCircleSmall` pour l'item sélectionné, `"  "` pour les autres.
+**Selection lists**: `IconCircleSmall` for the selected item, `"  "` for the others.
 
-**Couleur de focus** : `theme.ColorHighlight` pour tous les types de champs.
+**Focus color**: `theme.ColorHighlight` for all field types.
 
-**Cursor TextInput** : configurer via `theme.StyleTextInput(&myInput)` (met `Prompt = ""`).
+**TextInput cursor**: configure via `theme.StyleTextInput(&myInput)` (sets `Prompt = ""`).
 
-**Checkboxes** : via `theme.RenderCheckbox()`.
+**Checkboxes**: via `theme.RenderCheckbox()`.
 
-**Il n'y a pas de radio buttons.** Pour un ensemble fermé de valeurs, le contrôle
-est le champ à cycle `←→` (Rule 132) — quel que soit le nombre de valeurs, y
-compris deux. `theme.RenderRadioButton()` a été supprimé avec ses deux derniers
-appelants (§3.9 du backlog) ; le recréer localement est interdit.
+**There are no radio buttons.** For a closed set of values, the control is
+the `←→` cycle field (Rule 132) — regardless of how many values there are,
+even two. `theme.RenderRadioButton()` was removed along with its last two
+callers (§3.9 of the backlog); recreating it locally is forbidden.
 
-Interdit :
-- ❌ `▸` comme indicateur de focus (utiliser `theme.IconCircleSmall`)
-- ❌ `:` comme séparateur label/valeur (utiliser `theme.IconChevronRight`)
-- ❌ `ColorPrimary` pour les éléments focusés (utiliser `ColorHighlight`)
-- ❌ Recréer `RenderCheckbox` localement
-- ❌ Réintroduire des radio buttons, sous quelque forme que ce soit
+Forbidden:
+- ❌ `▸` as a focus indicator (use `theme.IconCircleSmall`)
+- ❌ `:` as the label/value separator (use `theme.IconChevronRight`)
+- ❌ `ColorPrimary` for focused elements (use `ColorHighlight`)
+- ❌ Recreating `RenderCheckbox` locally
+- ❌ Reintroducing radio buttons, in any form
 
-### Rule 131 : Padding haut des formulaires dans le viewport
+### Rule 131 : Top padding for forms in the viewport
 
-**Tout formulaire affiché dans le viewport principal doit commencer par exactement une ligne vide (padding de 1 ligne en haut).**
+**Every form displayed in the main viewport must begin with exactly one blank line (1-line top padding).**
 
 ```go
-// ✅ CORRECT — une seule ligne vide
+// ✅ CORRECT — a single blank line
 func (f *Form) View() string {
     return theme.EmptyLineBg(f.width) + "\n" +
         f.renderFields()
 }
 
-// ❌ INTERDIT — deux lignes vides (EmptyLineBg + "\n\n")
+// ❌ WRONG — two blank lines (EmptyLineBg + "\n\n")
 func (f *Form) View() string {
     return theme.EmptyLineBg(f.width) + "\n\n" + f.renderFields()
 }
 
-// ❌ INTERDIT — formulaire collé au bord supérieur du viewport
+// ❌ WRONG — form stuck to the viewport's top edge
 func (f *Form) View() string {
     return f.renderFields()
 }
 ```
 
-Ne s'applique pas aux modales (positionnées par `lipgloss.Place`).
+Does not apply to modals (positioned via `lipgloss.Place`).
 
-### Rule 132 : Champs à liste fermée (cycle de valeurs)
+### Rule 132 : Closed-list fields (value cycling)
 
-**Tout champ dont la valeur appartient à un ensemble fini doit utiliser le pattern cycle ←→.**
+**Any field whose value belongs to a finite set must use the ←→ cycle pattern.**
 
-C'est le **seul** contrôle admis pour un ensemble fermé. Les radio buttons ne
-sont pas une alternative pour deux ou trois valeurs : ils n'existent plus dans
-l'application (Rule 120). Les checkboxes restent pour les booléens indépendants,
-ce qui est autre chose qu'un choix exclusif.
+It is the **only** control allowed for a closed set. Radio buttons are not
+an alternative for two or three values: they no longer exist in the
+application (Rule 120). Checkboxes remain for independent booleans, which is
+a different thing from an exclusive choice.
 
-#### Visuel
+#### Visual
 
 ```
-  Visibility  󰅂 private        ← non focusé
-● Visibility  󰅂 internal       ← focusé (KeyStyle)
+  Visibility  󰅂 private        ← not focused
+● Visibility  󰅂 internal       ← focused (KeyStyle)
 ```
 
-Structure de la ligne :
+Line structure:
 
-| Partie | Valeur |
+| Part | Value |
 |--------|--------|
-| Indicateur de focus | `theme.IconCircleSmall + " "` (focusé) ou `"  "` (non focusé) |
-| Label | texte du champ, ex. `"Visibility"` |
-| Icône de sélection | `" " + theme.IconSelect + " "` |
-| Séparateur | `theme.IconChevronRight + " "` |
-| Valeur courante | texte brut avec `ColorText` |
+| Focus indicator | `theme.IconCircleSmall + " "` (focused) or `"  "` (not focused) |
+| Label | field text, e.g. `"Visibility"` |
+| Selection icon | `" " + theme.IconSelect + " "` |
+| Separator | `theme.IconChevronRight + " "` |
+| Current value | plain text with `ColorText` |
 
 #### Navigation
 
-- `←` / `→` : passer à la valeur précédente / suivante (cycling)
-- `Tab` / `Shift+Tab` : naviguer vers le champ précédent / suivant
+- `←` / `→`: move to the previous / next value (cycling)
+- `Tab` / `Shift+Tab`: navigate to the previous / next field
 
-Ne pas utiliser `Enter` pour cycler — `Enter` confirme le formulaire ou avance au champ suivant.
+Do not use `Enter` to cycle — `Enter` confirms the form or advances to the next field.
 
-#### Implémentation de référence
+#### Reference implementation
 
 ```go
 // Rendu
@@ -157,7 +157,7 @@ func (f *Form) renderCycleField(label string, options []string, idx int, fieldId
     return theme.Bg("  "+selectLabel+theme.IconChevronRight+" ") + value
 }
 
-// Gestion des touches
+// Key handling
 case "left":
     if f.focusedField == fieldIdx {
         f.idx = (f.idx - 1 + len(f.options)) % len(f.options)
@@ -168,143 +168,143 @@ case "right":
     }
 ```
 
-Interdit :
-- ❌ Utiliser `Enter` pour cycler les valeurs
-- ❌ Ouvrir une liste déroulante pour 2–4 valeurs (réserver aux longues listes, cf. `renderTemplateList`)
-- ❌ Hardcoder la couleur de la valeur (utiliser `ColorText`)
-- ❌ Utiliser des radio buttons pour un ensemble fermé (Rule 120)
+Forbidden:
+- ❌ Using `Enter` to cycle values
+- ❌ Opening a dropdown list for 2–4 values (reserve that for long lists, cf. `renderTemplateList`)
+- ❌ Hardcoding the value's color (use `ColorText`)
+- ❌ Using radio buttons for a closed set (Rule 120)
 
-### Rule 121 : Iconographie circulaire pour les statuts
+### Rule 121 : Circular iconography for statuses
 
-Les indicateurs de statut dans les tableaux et listes doivent utiliser les icônes circulaires :
+Status indicators in tables and lists must use circular icons:
 
-| État | Icône |
+| State | Icon |
 |------|-------|
-| Succès / OK | `theme.IconOK` (`\uf058`) |
-| Erreur / Échec | `theme.IconError` (`\uf057`) |
-| Avertissement | `theme.IconWarning` (`\uf071`) |
+| Success / OK | `theme.IconOK` (`\uf058`) |
+| Error / Failure | `theme.IconError` (`\uf057`) |
+| Warning | `theme.IconWarning` (`\uf071`) |
 
-Applicable aux : résultats de scans, statuts pipeline, indicateurs UP/DOWN.
-Non applicable aux : icônes de type d'objet (dossiers, fichiers, logo GitLab).
+Applies to: scan results, pipeline statuses, UP/DOWN indicators.
+Does not apply to: object-type icons (folders, files, GitLab logo).
 
-### Rule 133 : Champs texte multi-lignes — `WrappedInput` obligatoire
+### Rule 133 : Multi-line text fields — `WrappedInput` mandatory
 
-**`bubbles/textarea` est interdit.** Son background interne n'est pas contrôlable par lipgloss et produit des artefacts visuels (gutter `┃`, fond terminal entre les lignes).
+**`bubbles/textarea` is forbidden.** Its internal background is not controllable by lipgloss and produces visual artifacts (a `┃` gutter, terminal background between lines).
 
-Utiliser **`components.WrappedInput`** (`internal/ui/components/wrapped_input.go`) pour tout champ texte qui doit s'afficher sur plusieurs lignes.
+Use **`components.WrappedInput`** (`internal/ui/components/wrapped_input.go`) for any text field that must display across multiple lines.
 
 #### API
 
 ```go
-// Création
+// Creation
 field := components.NewWrappedInput(wrapWidth, charLimit, "placeholder text")
 
-// Redimensionnement — appeler dans le handler tea.WindowSizeMsg
+// Resizing — call inside the tea.WindowSizeMsg handler
 field.SetDisplayWidth(terminalWidth)
 
 // Focus / Blur
-field.Focus()   // appelé dans updateFocus()
-field.Blur()    // appelé dans updateFocus()
+field.Focus()   // called from updateFocus()
+field.Blur()    // called from updateFocus()
 
 // Dans Update() — passer les messages clavier quand le champ a le focus
 field, cmd = field.Update(msg)
 
-// Dans View() — retourne le bloc de contenu multi-lignes, prêt à concaténer
+// In View() — returns the multi-line content block, ready to concatenate
 return labelStr + "\n" + field.View()
 
-// Récupération de la valeur à la soumission
+// Retrieving the value on submit
 value := field.Value()
 ```
 
-#### Paramètre `wrapWidth`
+#### `wrapWidth` parameter
 
-`wrapWidth` est le nombre de **runes** par ligne visuelle avant retour à la ligne (word-wrap au dernier espace, hard-break si aucun espace).
+`wrapWidth` is the number of **runes** per visual line before wrapping (word-wrap at the last space, hard-break if there is no space).
 
-| Contexte | Valeur recommandée |
+| Context | Recommended value |
 |----------|--------------------|
-| Description GitLab (groupe/projet) | `80` |
-| Champ notes court | `60` |
-| Champ texte long | `100` |
+| GitLab description (group/project) | `80` |
+| Short notes field | `60` |
+| Long text field | `100` |
 
 ```go
 // ✅ CORRECT
 const descWrapWidth = 80
 descInput := components.NewWrappedInput(descWrapWidth, 250, "description (optional)")
 
-// ❌ INTERDIT
+// ❌ WRONG
 descInput := textarea.New()
 ```
 
-#### Comportement
+#### Behavior
 
-- Champ vide + focusé → curseur bloc seul affiché
-- Champ vide + non focusé → placeholder en `ColorDim`
-- Champ rempli → texte word-wrappé, chaque ligne paddée avec `theme.PadWithBg` jusqu'à `displayWidth`
-- Curseur bloc inversé (`ColorText` bg / `ColorBackground` fg) à la position exacte du caret
+- Empty field + focused → only the block cursor is shown
+- Empty field + not focused → placeholder in `ColorDim`
+- Filled field → word-wrapped text, each line padded with `theme.PadWithBg` up to `displayWidth`
+- Inverted block cursor (`ColorText` bg / `ColorBackground` fg) at the exact caret position
 
-Interdit :
-- ❌ `bubbles/textarea` dans n'importe quelle vue
-- ❌ Recréer localement la logique de word-wrap ou de curseur
-- ❌ Oublier d'appeler `SetDisplayWidth` dans le handler `tea.WindowSizeMsg`
+Forbidden:
+- ❌ `bubbles/textarea` in any view
+- ❌ Recreating the word-wrap or cursor logic locally
+- ❌ Forgetting to call `SetDisplayWidth` in the `tea.WindowSizeMsg` handler
 
-### Rule 135 : Assignation stricte des touches clavier dans les formulaires ⚠️
+### Rule 135 : Strict keybinding assignment in forms ⚠️
 
-**Chaque touche a un rôle unique et non-ambigu.** Ces règles s'appliquent à tous les formulaires de l'application sans exception.
+**Every key has a single, unambiguous role.** These rules apply to every form in the application without exception.
 
-| Touche | Rôle exclusif |
+| Key | Exclusive role |
 |--------|---------------|
-| `↑ / ↓` | Naviguer entre les champs d'un formulaire |
-| `Tab / Shift+Tab` | Switcher entre les onglets (tabs) **uniquement** — jamais pour la navigation entre champs |
-| `Space` | Toggler une checkbox — **seule** touche autorisée pour ce rôle |
-| `Enter` | Valider un bouton d'action ou déclencher une action spécifique — **jamais** pour toggler une checkbox |
-| `← / →` | Changer de niveau dans un tableau (drill-down/up) **et** cycler les valeurs d'un champ à liste fermée |
-| `Esc` | Annuler / fermer / revenir au niveau parent |
+| `↑ / ↓` | Navigate between a form's fields |
+| `Tab / Shift+Tab` | Switch between tabs **only** — never for navigation between fields |
+| `Space` | Toggle a checkbox — the **only** key allowed for this role |
+| `Enter` | Validate an action button or trigger a specific action — **never** to toggle a checkbox |
+| `← / →` | Change level in a table (drill-down/up) **and** cycle the values of a closed-list field |
+| `Esc` | Cancel / close / return to the parent level |
 
-#### Règles détaillées
+#### Detailed rules
 
-**`Tab / Shift+Tab` — tabs uniquement**
-- Réservé au switch entre onglets (`bubbles/table` breadcrumb, result tabs, etc.)
-- Ne doit **jamais** servir à avancer/reculer entre champs de formulaire
-- Si une vue n'a pas d'onglets, `Tab` ne doit rien faire (ou être ignoré)
+**`Tab / Shift+Tab` — tabs only**
+- Reserved for switching between tabs (`bubbles/table` breadcrumb, result tabs, etc.)
+- Must **never** be used to move forward/backward between form fields
+- If a view has no tabs, `Tab` must do nothing (or be ignored)
 
-**`↑ / ↓` — navigation entre champs**
-- Seules touches pour déplacer le focus d'un champ à l'autre dans un formulaire
-- Dans une liste/table hors formulaire : déplacement ligne par ligne (Rule 111)
+**`↑ / ↓` — navigation between fields**
+- The only keys to move focus from one field to another in a form
+- In a list/table outside a form: row-by-row movement (Rule 111)
 
 **`Space` — toggle checkbox**
-- Seule touche valide pour cocher/décocher une checkbox
-- `Enter` sur une checkbox doit être ignoré ou avancer au champ suivant, jamais toggler
+- The only valid key to check/uncheck a checkbox
+- `Enter` on a checkbox must be ignored or advance to the next field, never toggle it
 
 **`Enter` — validation / action**
-- Valide le bouton actuellement focusé
-- Déclenche une action contextuelle (ex : lancer un scan, ouvrir un détail)
-- Ne doit **pas** toggler une checkbox
+- Validates the currently focused button
+- Triggers a contextual action (e.g. launch a scan, open a detail view)
+- Must **not** toggle a checkbox
 
-**`← / →` — navigation tableau et cycle de valeurs**
-- Dans un tableau : `←` remonte d'un niveau (drill up), `→` descend d'un niveau (drill down)
-- Sur un champ à liste fermée (cycle field) : `←` valeur précédente, `→` valeur suivante (Rule 132)
-- Ne doit **pas** déplacer le focus entre champs de formulaire
+**`← / →` — table navigation and value cycling**
+- In a table: `←` moves up a level (drill up), `→` moves down a level (drill down)
+- On a closed-list field (cycle field): `←` previous value, `→` next value (Rule 132)
+- Must **not** move focus between form fields
 
-#### Violations courantes à éviter
+#### Common violations to avoid
 
 ```go
-// ❌ INTERDIT — Tab pour naviguer entre champs
+// ❌ WRONG — Tab to navigate between fields
 case "tab":
     m.focusedField = (m.focusedField + 1) % fieldCount
 
-// ❌ INTERDIT — Enter pour toggler une checkbox
+// ❌ WRONG — Enter to toggle a checkbox
 case "enter":
     if m.focusedField == fieldMyCheckbox {
         m.myCheckbox = !m.myCheckbox
     }
 
-// ✅ CORRECT — Space pour toggler
+// ✅ CORRECT — Space to toggle
 case " ":
     if m.focusedField == fieldMyCheckbox {
         m.myCheckbox = !m.myCheckbox
     }
 
-// ✅ CORRECT — ↑/↓ pour naviguer entre champs
+// ✅ CORRECT — ↑/↓ to navigate between fields
 case "up":
     m.focusedField = max(m.focusedField-1, 0)
 case "down":

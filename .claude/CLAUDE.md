@@ -273,55 +273,55 @@ nothing on either side raising a warning. The rule this implies: **whoever
 creates a worktree removes it** — do not `git worktree remove` or `prune`
 from the other side of the host/sandbox split.
 
-#### Développer dans la sandbox, tester depuis l'hôte
+#### Developing in the sandbox, testing from the host
 
-C'est le mode normal, et le partage tombe bien : **le git est ce dont l'hôte
-n'a pas besoin dans le worktree, le build est ce dont la sandbox n'a pas
-besoin.** Mesuré dans un worktree dont le pointeur porte un chemin Linux,
-depuis l'hôte :
+This is the normal mode, and the split works out well: **git is what the
+host does not need in the worktree, the build is what the sandbox does not
+need.** Measured in a worktree whose pointer carries a Linux path, from the
+host:
 
-| Depuis l'hôte, dans `.worktrees/<branche>/` | Résultat |
+| From the host, in `.worktrees/<branch>/` | Result |
 |---|---|
-| n'importe quelle commande `git` | `fatal: not a git repository: (NULL)` |
+| any `git` command | `fatal: not a git repository: (NULL)` |
 | `go build ./...` | exit 0 |
 | `go test ./internal/command/` | `ok … 0.239s` |
-| `go build .` (avec stamping buildvcs) | exit 0 |
+| `go build .` (with buildvcs stamping) | exit 0 |
 | `mise run build` | OK |
 
-La casse est donc **entièrement** du côté git, pas seulement sur
-`worktree remove` : Go n'a pas besoin du VCS, et `-buildvcs=auto` se dégrade
-en silence plutôt que d'échouer quand il ne répond pas. Le checkout principal
-n'est jamais affecté.
+The breakage is therefore **entirely** on the git side, not just on
+`worktree remove`: Go does not need the VCS, and `-buildvcs=auto` degrades
+silently rather than failing when it gets no answer. The main checkout is
+never affected.
 
-La répartition qui en découle :
+The resulting split of responsibilities:
 
-1. **La sandbox crée le worktree** — c'est elle qui committera dedans, donc
-   c'est elle qui doit garder un git fonctionnel.
-2. **La sandbox édite et committe.** Tout le git se passe là.
-3. **L'hôte construit, teste et lance l'application** dans ce même répertoire,
-   les fichiers étant partagés par le montage. Aucune commande git ici — le
-   `fatal` ci-dessus est attendu, il ne signale pas un dépôt cassé.
-4. **Pour lire le diff depuis l'hôte, passer par le checkout principal** : les
-   refs et `.git/objects` sont partagés, donc il voit tout ce que la sandbox a
-   committé — `git log --oneline main..<branche>`, `git diff main...<branche>`.
-5. **L'hôte pousse et merge depuis le checkout principal**, jamais depuis le
-   worktree — c'est le host-relay ci-dessus.
-6. **La sandbox retire son worktree.** Si elle n'existe plus, l'hôte peut
-   supprimer les *fichiers* (ils sont dans le montage, contrairement au cas
-   frère ci-dessus) puis `git worktree prune` — mais seulement quand aucune
-   sandbox n'a de worktree vivant.
+1. **The sandbox creates the worktree** — it is the one that will commit
+   into it, so it is the one that must keep a working git.
+2. **The sandbox edits and commits.** All the git activity happens there.
+3. **The host builds, tests, and runs the application** in that same
+   directory, since the files are shared through the mount. No git command
+   here — the `fatal` above is expected, it does not signal a broken repo.
+4. **To read the diff from the host, go through the main checkout**: the
+   refs and `.git/objects` are shared, so it sees everything the sandbox
+   committed — `git log --oneline main..<branch>`, `git diff main...<branch>`.
+5. **The host pushes and merges from the main checkout**, never from the
+   worktree — that is the host-relay above.
+6. **The sandbox removes its worktree.** If it no longer exists, the host can
+   delete the *files* (they are inside the mount, unlike the sibling case
+   above) then `git worktree prune` — but only once no sandbox still has a
+   live worktree.
 
-**Tester depuis l'hôte n'est pas un pis-aller.** DevDesk a besoin d'un vrai
-terminal, du socket Docker de l'hôte, du gestionnaire de secrets de l'hôte
-(`internal/credentials`), de `~/.devdesk/` et de binder des ports : rien de
-tout cela n'est représentatif dans la sandbox. Ce que la sandbox fait mieux,
-c'est écrire du code.
+**Testing from the host is not a workaround.** DevDesk needs a real
+terminal, the host's Docker socket, the host's secret manager
+(`internal/credentials`), `~/.devdesk/`, and binding ports: none of that is
+representative inside the sandbox. What the sandbox does better is write
+code.
 
-**Le sens inverse est interdit** : l'hôte ne crée pas le worktree pour que la
-sandbox y travaille. Par symétrie, le `C:/Users/...` qu'écrit git Windows
-n'est pas résolvable sous Linux — la sandbox perdrait le git, dont elle a
-besoin pour committer. (Cette direction-là n'a pas été testée ; c'est le même
-mécanisme lu à l'envers.)
+**The reverse direction is forbidden**: the host does not create the
+worktree for the sandbox to work in. By symmetry, the `C:/Users/...` path
+Windows git writes is not resolvable under Linux — the sandbox would lose
+the git it needs to commit. (This direction has not been tested; it is the
+same mechanism read backwards.)
 
 **A follow-up commit on the same branch, after the first one already got
 squash-merged, will conflict on a plain `git merge`** — squashing rewrites
@@ -343,92 +343,94 @@ git push origin HEAD:refs/heads/<new-branch-name>
 git worktree remove .worktrees/<tmp-branch>
 ```
 
-### Publier une version — release-please, puis goreleaser
+### Publishing a release — release-please, then goreleaser
 
-**Une release se fait en deux merges, et c'est le point.** `release-please`
-surveille `main` et tient ouverte une **pull request de release** : il lit les
-conventional commits depuis le dernier tag, décide la version et écrit le
-`CHANGELOG.md`. Merger cette PR crée le tag et la GitHub Release ; `goreleaser`
-construit alors les six binaires (linux, darwin, windows × amd64, arm64) et les
-attache à cette Release.
+**A release takes two merges, and that is the point.** `release-please`
+watches `main` and keeps a **release pull request** open: it reads the
+conventional commits since the last tag, decides the version, and writes
+`CHANGELOG.md`. Merging that PR creates the tag and the GitHub Release;
+`goreleaser` then builds the six binaries (linux, darwin, windows × amd64,
+arm64) and attaches them to that Release.
 
-#### Le flux, en clair — accumuler puis releaser quand on veut
+#### The flow, plainly — accumulate, then release whenever you want
 
-Les deux acteurs : `release-please` **propose** (il n'écrit jamais lui-même
-directement sur `main` que via sa propre PR), `goreleaser` **construit**, et il
-ne se déclenche que quand cette PR est mergée. Chronologie concrète :
+The two actors: `release-please` **proposes** (it never writes directly to
+`main` except through its own PR), `goreleaser` **builds**, and it only
+triggers once that PR is merged. Concrete timeline:
 
-1. Un `fix:` ou un `feat:` est mergé sur `main` (une PR de travail normale,
-   voir plus haut). Le code est livré tout de suite. release-please voit ce
-   commit et **crée ou met à jour** — jamais deux PR en parallèle — la PR
-   "chore(main): release x.y.z" avec le changelog correspondant ; cette PR ne
-   touche que `CHANGELOG.md` et `.release-please-manifest.json`.
-2. On répète l'étape 1 autant de fois qu'on veut — plusieurs fixes, une ou
-   plusieurs features, sur des jours ou des semaines. Chaque merge fait
-   grossir la même PR de release (le numéro de version peut monter, un
-   `feat:` bump le minor) sans qu'aucun tag ne soit posé et sans qu'aucun
-   binaire ne soit publié.
-3. Quand le moment est jugé bon — et seulement à ce moment — on merge la PR de
-   release elle-même. C'est ce merge précis, et lui seul, qui pose le tag,
-   crée la GitHub Release et réveille goreleaser.
+1. A `fix:` or a `feat:` is merged onto `main` (a normal work PR, see
+   above). The code ships right away. release-please sees that commit and
+   **creates or updates** — never two PRs in parallel — the
+   "chore(main): release x.y.z" PR with the corresponding changelog; that PR
+   only touches `CHANGELOG.md` and `.release-please-manifest.json`.
+2. Step 1 repeats as many times as wanted — several fixes, one or several
+   features, over days or weeks. Each merge grows the same release PR (the
+   version number can climb, a `feat:` bumps the minor) without any tag
+   being set and without any binary being published.
+3. When the moment is judged right — and only then — the release PR itself
+   gets merged. That specific merge, and only that one, sets the tag,
+   creates the GitHub Release, and wakes up goreleaser.
 
-| Action | Effet |
+| Action | Effect |
 |---|---|
-| Merger un `fix:`/`feat:` sur `main` | Code livré immédiatement ; la PR de release se met à jour en arrière-plan ; rien n'est publié |
-| Merger la PR de release | **Seul déclencheur de publication** — tag, Release, binaires |
+| Merge a `fix:`/`feat:` onto `main` | Code shipped immediately; the release PR updates in the background; nothing is published |
+| Merge the release PR | **Sole trigger for publishing** — tag, Release, binaries |
 
-Publier n'est donc jamais un acte par commit : c'est un acte volontaire, décidé
-en mergeant une PR qui existe déjà et qu'on peut laisser grossir indéfiniment.
+Publishing is therefore never a per-commit act: it is a deliberate act,
+decided by merging a PR that already exists and that can be left to grow
+indefinitely.
 
 ```bash
-# rien à lancer : la PR de release s'ouvre et se met à jour toute seule
+# nothing to run: the release PR opens and updates itself on its own
 gh pr list -R anthnel/devdesk --label "autorelease: pending"
-gh pr merge -R anthnel/devdesk <n> --squash   # ← c'est ce merge qui publie
+gh pr merge -R anthnel/devdesk <n> --squash   # ← this merge is what publishes
 ```
 
-**Pourquoi pas semantic-release**, qui ferait la même chose en un seul merge :
-il pousse le tag directement sur `main`, et ce dépôt l'interdit — le mirror
-Entire rejette ce push, et ce refus est la *seule* protection que `main` ait,
-puisque la branch protection est indisponible sur ce plan (le 403 plus haut). Un
-merge de plus par release est le prix de cette règle.
+**Why not semantic-release**, which would achieve the same thing in a single
+merge: it pushes the tag directly to `main`, and this repository forbids
+that — the Entire mirror rejects that push, and this refusal is the *only*
+protection `main` has, since branch protection is unavailable on this plan
+(the 403 above). One extra merge per release is the price of that rule.
 
-**Le mirror réplique les tags, vérifié le 2026-09-06.** Le tag est posé par
-GitHub Actions, donc il naît sur GitHub et non via le mirror — mais
-`git fetch origin --tags` le ramène, comme il ramène un squash-merge fait par
-`gh`. C'était la seule inconnue de la chaîne, et elle est levée : rien n'oblige
-à poser un tag à la main.
+**The mirror replicates tags, verified on 2026-09-06.** The tag is set by
+GitHub Actions, so it is born on GitHub and not via the mirror — but
+`git fetch origin --tags` brings it back, just as it brings back a
+squash-merge done by `gh`. That was the only unknown in the chain, and it is
+now resolved: nothing forces setting a tag by hand.
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `release-please-config.json` | le type (`go`), les sections du CHANGELOG |
-| `.release-please-manifest.json` | la version courante — **écrite par le robot**, jamais à la main |
-| `.goreleaser.yaml` | les six cibles, les `-ldflags`, `mode: append` |
-| `.github/workflows/release.yml` | les deux jobs, enchaînés par `release_created` |
+| `release-please-config.json` | the type (`go`), the CHANGELOG sections |
+| `.release-please-manifest.json` | the current version — **written by the bot**, never by hand |
+| `.goreleaser.yaml` | the six targets, the `-ldflags`, `mode: append` |
+| `.github/workflows/release.yml` | the two jobs, chained by `release_created` |
 
-**Un réglage de dépôt qu'aucun workflow ne peut se donner** : *Settings →
-Actions → Allow GitHub Actions to create and approve pull requests*. Sans lui le
-premier run échoue sur la PR qu'il ne peut pas ouvrir, et le message ne dit pas
-que c'est ça. **Déjà actif ici** — `gh api repos/anthnel/devdesk/actions/permissions/workflow`
-répond `can_approve_pull_request_reviews: true`, vérifié le 2026-09-06. Le même
-appel montre `default_workflow_permissions: read`, ce qui n'est pas un problème :
-c'est le défaut quand un workflow ne dit rien, et `release.yml` déclare les
-siennes.
+**A repository setting no workflow can grant itself**: *Settings →
+Actions → Allow GitHub Actions to create and approve pull requests*. Without
+it, the first run fails on the PR it cannot open, and the message does not
+say that is why. **Already active here** —
+`gh api repos/anthnel/devdesk/actions/permissions/workflow` answers
+`can_approve_pull_request_reviews: true`, verified on 2026-09-06. The same
+call shows `default_workflow_permissions: read`, which is not a problem:
+that is the default when a workflow states nothing, and `release.yml`
+declares its own.
 
-**La version du binaire vient des `-ldflags`**, pas d'un fichier committé
-(§3.62). `release-please` sait écrire dans un fichier Go (`versionFile`) et on
-ne s'en sert pas : ce serait une seconde source de vérité pour une réponse que
-le build donne déjà, et un binaire de dev afficherait alors le numéro de la
-dernière release plutôt que `dev`.
+**The binary's version comes from `-ldflags`**, not from a committed file
+(§3.62). `release-please` knows how to write into a Go file (`versionFile`)
+and it is not used for that: it would be a second source of truth for an
+answer the build already gives, and a dev binary would then show the number
+of the last release instead of `dev`.
 
-**Avant de pousser un changement à la chaîne**, `mise run release-check` valide
-la configuration et `mise run release-snapshot` construit les six cibles sans
-rien publier — c'est le seul moyen de découvrir qu'une cible est cassée avant
-qu'un tag ne soit posé.
+**Before pushing a change to the chain**, `mise run release-check` validates
+the configuration and `mise run release-snapshot` builds the six targets
+without publishing anything — it is the only way to discover a broken target
+before a tag is set.
 
-**La première release listera toute l'histoire** (66 `feat:` et 50 `fix:` au
-2026-09-06). C'est voulu — un premier CHANGELOG vide serait pire — et la PR est
-éditable avant le merge. Pour partir à `1.0.0` plutôt qu'à `0.1.0`, un
-`"release-as": "1.0.0"` ponctuel dans la config, retiré ensuite.
+**The first release will list the whole history** (66 `feat:` and 50 `fix:`
+as of 2026-09-06). This is deliberate — an empty first CHANGELOG would be
+worse — and the PR is editable before the merge. To start at `1.0.0` rather
+than `0.1.0`, a one-off `"release-as": "1.0.0"` in the config, removed
+afterward.
 
 ### Remotes
 

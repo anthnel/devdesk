@@ -13,10 +13,10 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// Champs du formulaire, dans l'ordre de navigation.
+// Form fields, in navigation order.
 //
-// Il n'y a plus de champ de choix entre deux destinations : le token va dans le
-// gestionnaire de secrets de l'hôte, et nulle part ailleurs (§3.9).
+// There is no longer a choice field between two destinations: the token goes
+// into the host's secret manager, and nowhere else (§3.9).
 const (
 	fieldToken = iota
 	fieldSubmit
@@ -24,7 +24,7 @@ const (
 	lastField = fieldSubmit
 )
 
-// Model représente la vue d'authentification GitLab
+// Model represents the GitLab authentication view
 type Model struct {
 	config *config.Config
 	// There is no URL input. forge.url is configuration and the configuration
@@ -41,7 +41,7 @@ type Model struct {
 
 	currentField int
 
-	authenticated bool // True si l'utilisateur est authentifié
+	authenticated bool // True if the user is authenticated
 	// user is the signed-in user, zero when there is none — m.authenticated is
 	// the flag, and a second way to ask is how the two came to disagree.
 	user forge.User
@@ -50,7 +50,7 @@ type Model struct {
 	spinner        spinner.Model
 	error          string
 	success        string
-	warning        string // Warning non-bloquant (ex: échec sauvegarde credentials)
+	warning        string // Non-blocking warning (e.g. credentials save failure)
 
 	width  int
 	height int
@@ -65,9 +65,9 @@ func forgeTypeOf(cfg *config.Config) string {
 	return cfg.Forge.Type
 }
 
-// New crée une nouvelle vue d'authentification
+// New creates a new authentication view
 func New(cfg *config.Config, secrets credentials.Selection, notices []string) *Model {
-	// Créer les inputs
+	// Create the inputs
 	tokenInput := textinput.New()
 	// The example token is the forge's. It was a GitLab literal here, and it
 	// escaped vocabtest because `glpat-` names no forge — the guard looks for
@@ -85,7 +85,7 @@ func New(cfg *config.Config, secrets credentials.Selection, notices []string) *M
 	sp.Spinner = spinner.Dot
 	sp.Style = theme.SpinnerStyle()
 
-	// Focus sur le premier champ
+	// Focus on the first field
 	tokenInput.Focus()
 
 	return &Model{
@@ -101,20 +101,20 @@ func New(cfg *config.Config, secrets credentials.Selection, notices []string) *M
 	}
 }
 
-// Init initialise le modèle
+// Init initializes the model
 func (m *Model) Init() tea.Cmd {
-	// Essayer de charger les credentials sauvegardés
+	// Try to load saved credentials
 	return tea.Batch(
 		textinput.Blink,
 		m.loadSavedCredentials(),
 	)
 }
 
-// loadSavedCredentials récupère le token depuis le store de secrets.
+// loadSavedCredentials retrieves the token from the secrets store.
 //
-// Il n'y a qu'une source : la configuration ne contient plus de token, et une
-// version antérieure qui en aurait laissé un s'est fait migrer au démarrage
-// (credentials.MigrateLegacySecrets).
+// There is only one source: the configuration no longer contains a token,
+// and an earlier version that might have left one behind was migrated at
+// startup (credentials.MigrateLegacySecrets).
 func (m *Model) loadSavedCredentials() tea.Cmd {
 	url := m.config.Forge.URL
 	storage := m.secrets.Storage
@@ -140,13 +140,13 @@ func (m *Model) loadSavedCredentials() tea.Cmd {
 	}
 }
 
-// CredentialsLoadedMsg contient les credentials chargés
+// CredentialsLoadedMsg carries the loaded credentials
 type CredentialsLoadedMsg struct {
 	URL   string
 	Token string
 }
 
-// SetAuth configure l'authentification depuis l'extérieur (auto-login global)
+// SetAuth configures authentication from the outside (global auto-login)
 func (m *Model) SetAuth(_ forge.Forge, user forge.User) {
 	m.authenticating = false
 	m.authenticated = true
@@ -155,22 +155,22 @@ func (m *Model) SetAuth(_ forge.Forge, user forge.User) {
 	m.success = "✓ Already authenticated as " + user.Username
 }
 
-// Messages pour l'authentification
+// Messages for authentication
 
-// AuthStartMsg indique le début de l'authentification
+// AuthStartMsg signals the start of authentication
 type AuthStartMsg struct{}
 
-// AuthResultMsg contient le résultat de l'authentification
+// AuthResultMsg carries the result of authentication
 type AuthResultMsg struct {
 	Forge       forge.Forge
 	User        forge.User
 	Error       error
-	SaveWarning string // Warning si la sauvegarde du secret a échoué
+	SaveWarning string // Warning if saving the secret failed
 
 	// ConfigToSave carries the URL — and only the URL. The token goes to the
 	// secret store; nothing about it is written to the configuration file.
 	ConfigToSave *config.Config
 }
 
-// LogoutCompleteMsg signale que le logout est terminé
+// LogoutCompleteMsg signals that logout is complete
 type LogoutCompleteMsg struct{}

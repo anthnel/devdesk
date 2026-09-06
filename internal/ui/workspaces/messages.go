@@ -30,7 +30,7 @@ type EntriesLoadedMsg struct {
 	Entries []Entry
 }
 
-// LoadErrorMsg est envoyé en cas d'erreur. Path carries the same stamp, for the
+// LoadErrorMsg is sent on error. Path carries the same stamp, for the
 // same reason: an error about a directory nobody is looking at any more must
 // not be reported over the one on screen.
 type LoadErrorMsg struct {
@@ -38,7 +38,7 @@ type LoadErrorMsg struct {
 	Error error
 }
 
-// WorkspaceCreatedMsg est envoyé quand un workspace est créé
+// WorkspaceCreatedMsg is sent when a workspace is created
 type WorkspaceCreatedMsg struct {
 	Path  string
 	Error error
@@ -57,7 +57,7 @@ type EntryRenamedMsg struct {
 	Error   error
 }
 
-// IDEOpenedMsg est envoyé quand l'IDE est ouvert
+// IDEOpenedMsg is sent when the IDE has been opened
 type IDEOpenedMsg struct {
 	Error error
 }
@@ -99,9 +99,9 @@ type WorkspaceScanCompleteMsg struct {
 	High     int
 	Medium   int
 	Low      int
-	// Sensitive is the secret verdict, nil when no stage looked — le même
-	// tri-état que porte l'entrée de cache, transporté tel quel plutôt
-	// qu'aplati en chemin.
+	// Sensitive is the secret verdict, nil when no stage looked — the same
+	// tri-state the cache entry carries, passed through as-is rather than
+	// flattened along the way.
 	Sensitive *bool
 	// CIScore is the pipeline grade, nil when nobody graded it — carried whole
 	// like Sensitive above, and for the same reason: flattening a tri-state on

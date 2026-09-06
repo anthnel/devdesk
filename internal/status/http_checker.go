@@ -9,13 +9,13 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 )
 
-// HTTPChecker vérifie les endpoints HTTP/HTTPS
+// HTTPChecker checks HTTP/HTTPS endpoints
 type HTTPChecker struct {
 	client  *http.Client
 	timeout time.Duration
 }
 
-// NewHTTPChecker crée un nouveau checker HTTP/HTTPS
+// NewHTTPChecker creates a new HTTP/HTTPS checker
 func NewHTTPChecker(timeout time.Duration) *HTTPChecker {
 	return &HTTPChecker{
 		client: &http.Client{
@@ -31,7 +31,7 @@ func NewHTTPChecker(timeout time.Duration) *HTTPChecker {
 	}
 }
 
-// Check vérifie un endpoint HTTP/HTTPS
+// Check checks an HTTP/HTTPS endpoint
 func (h *HTTPChecker) Check(ctx context.Context, component config.ComponentConfig) ComponentStatus {
 	result := ComponentStatus{
 		Name:      component.Name,
@@ -46,10 +46,10 @@ func (h *HTTPChecker) Check(ctx context.Context, component config.ComponentConfi
 		return result
 	}
 
-	// Construire l'URL complète avec le protocole selon le type
+	// Build the full URL with the protocol based on the type
 	url := buildURL(component.Type, component.Target)
 
-	// Créer la requête
+	// Create the request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		result.Status = StatusError
@@ -59,7 +59,7 @@ func (h *HTTPChecker) Check(ctx context.Context, component config.ComponentConfi
 
 	req.Header.Set("User-Agent", "dso-tui/1.0")
 
-	// Mesurer le temps de réponse
+	// Measure the response time
 	start := time.Now()
 	resp, err := h.client.Do(req)
 	result.ResponseTime = time.Since(start)
@@ -71,7 +71,7 @@ func (h *HTTPChecker) Check(ctx context.Context, component config.ComponentConfi
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Classifier selon le code HTTP
+	// Classify based on the HTTP code
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		result.Status = StatusOK
 	} else {
@@ -82,10 +82,10 @@ func (h *HTTPChecker) Check(ctx context.Context, component config.ComponentConfi
 	return result
 }
 
-// buildURL construit l'URL complète avec le protocole selon le type
-// Si le target contient déjà un protocole, il est retourné tel quel
+// buildURL builds the full URL with the protocol based on the type
+// If the target already contains a protocol, it is returned as-is
 func buildURL(compType, target string) string {
-	// Si l'URL commence déjà par http:// ou https://, la retourner telle quelle
+	// If the URL already starts with http:// or https://, return it as-is
 	if len(target) >= 8 && target[:8] == "https://" {
 		return target
 	}
@@ -93,14 +93,14 @@ func buildURL(compType, target string) string {
 		return target
 	}
 
-	// Sinon, ajouter le protocole selon le type
+	// Otherwise, add the protocol based on the type
 	switch compType {
 	case "http":
 		return "http://" + target
 	case "https":
 		return "https://" + target
 	default:
-		// Par défaut, utiliser https
+		// Default to https
 		return "https://" + target
 	}
 }

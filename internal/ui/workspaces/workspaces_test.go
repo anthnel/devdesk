@@ -20,8 +20,8 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
-// secretsFound writes the "a secret was found" verdict. Le verdict est un
-// pointeur parce qu'il en a trois : nil dit que personne n'a cherché.
+// secretsFound writes the "a secret was found" verdict. The verdict is a
+// pointer because it has three states: nil says nobody looked.
 func secretsFound() *bool { v := true; return &v }
 
 // Loading entries walks the filesystem and shells out to git; scanning runs

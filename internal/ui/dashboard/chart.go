@@ -10,25 +10,24 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// Ce fichier est le seul à connaître ntcharts. La vue ne le touche jamais
-// directement, et surtout ne choisit jamais entre Draw() et DrawColumnsOnly()
-// sur un site d'appel.
+// This file is the only one that knows about ntcharts. The view never touches
+// it directly, and above all never chooses between Draw() and DrawColumnsOnly()
+// at a call site.
 
 // brailleFrom is the height at which a sparkline switches from blocks to
-// braille: en dessous de trois lignes, le braille n'a pas de quoi montrer sa
-// résolution verticale et rend une bouillie de points.
+// braille: below three lines, braille has no room to show its vertical
+// resolution and renders a mush of dots.
 const brailleFrom = 3
 
 // renderChart draws a series as a sparkline of exactly `height` lines, each
 // exactly `width` cells.
 //
-// Le graphe ne garde **aucun** historique : il est reconstruit à chaque frame à
-// partir des échantillons du modèle. C'est ce qui rend la Rule 110 vraie par
-// construction — il n'y a pas de Push à placer au bon endroit — et ce qui règle
-// le problème du rééchelonnage : ntcharts.Resize rééchelonne son propre ring
-// buffer, donc un changement de palier tronquerait un historique qu'il
-// posséderait. Ici c'est le modèle qui le possède, et le graphe n'en est qu'une
-// lecture.
+// The chart keeps **no** history at all: it is rebuilt every frame from the
+// model's samples. That's what makes Rule 110 true by construction — there is
+// no Push to place at the right spot — and it's what settles the rescaling
+// problem: ntcharts.Resize rescales its own ring buffer, so a threshold change
+// would truncate a history it owned. Here it's the model that owns it, and the
+// chart is only a reading of it.
 func renderChart(values []float64, width, height int, maxValue float64) []string {
 	if width < 1 || height < 1 {
 		return nil
@@ -38,16 +37,16 @@ func renderChart(values []float64, width, height int, maxValue float64) []string
 	}
 
 	opts := []sparkline.Option{
-		// Draw() habille toute la toile, donc le fond du graphe remplit aussi
-		// les creux. DrawColumnsOnly() ne colore que les colonnes et laisse le
-		// fond natif du terminal traverser les trous — précisément ce que la
-		// Rule 115 interdit.
+		// Draw() dresses the whole canvas, so the chart background also fills
+		// the gaps. DrawColumnsOnly() only colors the columns and lets the
+		// terminal's native background show through the holes — exactly what
+		// Rule 115 forbids.
 		sparkline.WithStyle(chartStyle()),
 	}
 	if maxValue > 0 {
-		// Échelle fixe pour un pourcentage : sans elle, une machine au repos
-		// affiche un graphe aussi haut qu'une machine saturée, parce que
-		// l'échelle suit le maximum observé.
+		// Fixed scale for a percentage: without it, an idle machine displays a
+		// chart as tall as a saturated machine, because the scale follows the
+		// observed maximum.
 		opts = append(opts, sparkline.WithMaxValue(maxValue), sparkline.WithNoAutoMaxValue())
 	}
 
@@ -69,9 +68,10 @@ func renderChart(values []float64, width, height int, maxValue float64) []string
 	return lines[:height]
 }
 
-// chartStyle is the one place the chart surface is decided. Le fond est un cran
-// plus clair que celui de l'application : sans lui, un graphe creux est
-// indiscernable d'une boîte vide, et rien ne dit où finit la zone réservée.
+// chartStyle is the one place the chart surface is decided. The background is
+// one notch lighter than the application's: without it, an empty chart is
+// indistinguishable from an empty box, and nothing says where the reserved
+// area ends.
 func chartStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Foreground(theme.ColorPrimary).
@@ -79,8 +79,8 @@ func chartStyle() lipgloss.Style {
 }
 
 // padChart pads a rendered chart line to width **with the chart's own
-// background**, not the application's: theme.PadWithBg finirait la ligne sur le
-// fond sombre et la zone du graphe se terminerait avant sa bordure.
+// background**, not the application's: theme.PadWithBg would end the line on
+// the dark background and the chart area would end before its border.
 func padChart(line string, width int) string {
 	missing := width - lipgloss.Width(line)
 	if missing <= 0 {
@@ -94,8 +94,8 @@ func chartBlank(width int) string {
 	return chartStyle().Render(strings.Repeat(" ", max(width, 0)))
 }
 
-// trimToWidth keeps the newest samples the canvas can show. Un graphe braille
-// tient deux échantillons par cellule, un graphe en blocs un seul.
+// trimToWidth keeps the newest samples the canvas can show. A braille chart
+// holds two samples per cell, a block chart only one.
 func trimToWidth(values []float64, width, height int) []float64 {
 	capacity := width
 	if height >= brailleFrom {
@@ -107,9 +107,9 @@ func trimToWidth(values []float64, width, height int) []float64 {
 	return values
 }
 
-// blankLines returns `height` lines of empty chart surface — ce qu'affiche un
-// graphe sans données, plutôt qu'une ligne plate qui se lirait comme une mesure
-// à zéro. La zone reste visible : elle dit qu'un graphe est attendu là.
+// blankLines returns `height` lines of empty chart surface — what a chart with
+// no data displays, rather than a flat line that would read as a zero
+// measurement. The area stays visible: it says a chart is expected there.
 func blankLines(width, height int) []string {
 	lines := make([]string, height)
 	for i := range lines {

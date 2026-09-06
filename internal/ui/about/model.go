@@ -1,12 +1,12 @@
 // Package about is the `:about` screen — what this build of DevDesk is, and
 // where it keeps its files.
 //
-// Ce que la vue montre est délibérément **le binaire, pas la machine**. Les
-// versions de Trivy, de gitleaks ou de Docker sont de l'état de
-// l'environnement : elles changent sans que DevDesk soit reconstruit, elles
-// demandent d'aller les chercher, et le dashboard les affiche déjà. Ici rien
-// n'est mesuré — tout est connu au démarrage — ce qui est aussi la raison pour
-// laquelle l'écran n'offre pas de rafraîchissement : il n'y a rien à relire.
+// What the view shows is deliberately **the binary, not the machine**. The
+// versions of Trivy, gitleaks or Docker are environment state: they change
+// without DevDesk being rebuilt, they require going to fetch them, and the
+// dashboard already shows them. Nothing here is measured — everything is
+// known at startup — which is also why the screen offers no refresh: there
+// is nothing to reload.
 package about
 
 import (
@@ -78,9 +78,9 @@ func commitField(info version.Info) string {
 
 // buildDate renders an RFC 3339 stamp as a readable UTC minute.
 //
-// La chaîne brute est rendue telle quelle si elle ne parse pas : elle vient
-// d'un `-ldflags` que rien ne valide, donc la refuser afficherait "unknown"
-// pour une information qui est là.
+// The raw string is rendered as-is if it fails to parse: it comes from a
+// `-ldflags` that nothing validates, so refusing it would display "unknown"
+// for information that is actually there.
 func buildDate(raw string) string {
 	if raw == "" || raw == version.Unknown {
 		return version.Unknown
@@ -94,9 +94,9 @@ func buildDate(raw string) string {
 
 // paths lists the directories DevDesk reads and writes.
 //
-// Un chemin que l'application ne sait pas résoudre est rendu "unknown" plutôt
-// qu'omis : la ligne absente laisserait croire que le fichier n'existe pas,
-// alors que ce qui a échoué est la question du répertoire personnel.
+// A path the application cannot resolve is rendered "unknown" rather than
+// omitted: the missing line would suggest the file does not exist, when
+// what actually failed is resolving the home directory.
 func paths(cfg *config.Config) []field {
 	dir, err := config.ConfigDir()
 	if err != nil {
@@ -130,10 +130,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
-	// Le composant consomme l'expiration qui lui est adressée (Rule 128). Cet
-	// écran ne pose aucun message lui-même ; il en reçoit par la diffusion du
-	// routeur (components.PostFooterMsg), qui est la seule voie qu'a le routeur
-	// vers un footer.
+	// The component consumes the expiration addressed to it (Rule 128). This
+	// screen never posts a message itself; it receives one through the
+	// router's broadcast (components.PostFooterMsg), which is the only way
+	// the router has into a footer.
 	m.footer.Handle(msg)
 	return m, nil
 }

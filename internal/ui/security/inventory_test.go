@@ -21,9 +21,9 @@ import (
 )
 
 // columnIndex resolves a column by its header rather than by its position, so a
-// column inserted elsewhere moves an assertion instead of breaking it. La
-// comparaison est exacte, la flèche de tri retirée : un préfixe ferait répondre
-// une colonne voisine dont le titre commence pareil.
+// column inserted elsewhere moves an assertion instead of breaking it. The
+// comparison is exact, with the sort arrow stripped: a prefix match would let
+// a neighboring column whose title starts the same way answer instead.
 func columnIndex(t *testing.T, cols []table.Column, title string) int {
 	t.Helper()
 	for i, col := range cols {
@@ -503,10 +503,10 @@ func TestASnapshotRestampsTheScanningRowsWithItsFrame(t *testing.T) {
 	}
 }
 
-// D65 : l'inventaire affichait « Nothing scanned yet » puis la liste. Le message
-// est une affirmation sur ce que les caches contiennent, et la vue ne l'a pas
-// encore lue — Rule 139 : la table reste à l'écran, le footer dit qu'on charge,
-// et le message n'est vrai qu'une fois la réponse arrivée.
+// D65: the inventory used to show "Nothing scanned yet" and then the list.
+// The message is a claim about what the caches contain, and the view hadn't
+// read them yet — Rule 139: the table stays on screen, the footer says it's
+// loading, and the message is only true once the answer has arrived.
 func TestNothingScannedYetWaitsForTheCachesToAnswer(t *testing.T) {
 	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 
@@ -521,9 +521,9 @@ func TestNothingScannedYetWaitsForTheCachesToAnswer(t *testing.T) {
 	}
 }
 
-// Et l'inverse : la réponse arrivée, le message redevient vrai et le footer se
-// tait. Sans cette moitié, une vue qui ne quitterait jamais l'état de chargement
-// passerait le test précédent.
+// And the reverse: once the answer has arrived, the message becomes true
+// again and the footer falls silent. Without this half, a view that never
+// left the loading state would pass the previous test.
 func TestTheEmptyMessageAppearsOnceTheCachesAnswer(t *testing.T) {
 	m := inventoryModel(t)
 
@@ -535,9 +535,9 @@ func TestTheEmptyMessageAppearsOnceTheCachesAnswer(t *testing.T) {
 	}
 }
 
-// La chaîne du spinner s'arrêtait dès que rien n'était en cours de scan, donc un
-// spinner de chargement serait resté sur la frame zéro — ce qui se lit comme un
-// blocage (Rule 139).
+// The spinner chain used to stop as soon as nothing was being scanned, so a
+// loading spinner would have stayed on frame zero — which reads as a hang
+// (Rule 139).
 func TestTheSpinnerKeepsTickingWhileTheInventoryLoads(t *testing.T) {
 	m := feed(t, New(testConfig(), nil), tea.WindowSizeMsg{Width: 160, Height: 30})
 
@@ -554,10 +554,11 @@ func TestTheSpinnerKeepsTickingWhileTheInventoryLoads(t *testing.T) {
 	}
 }
 
-// Le glyphe est une colonne, pas un préfixe — le motif de la vue ws, et celui
-// que toute table à icône en première colonne suit (Rule 125). Collé dans
-// Target, il dépensait la largeur de la colonne identifiante pour ce qui n'est
-// pas le nom, et la mesure de contenu comptait le glyphe avec.
+// The glyph is a column, not a prefix — the pattern the ws view follows, and
+// the one every table with an icon in its first column follows (Rule 125).
+// Glued into Target, it was spending the identifying column's width on
+// something that isn't the name, and the content measurement counted the
+// glyph along with it.
 func TestTheKindGlyphIsItsOwnColumn(t *testing.T) {
 	m := inventoryModel(t, inventoryFixtures()...)
 

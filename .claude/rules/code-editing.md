@@ -1,13 +1,13 @@
-## Instructions pour l'édition de code
+## Code editing instructions
 
-### Rule 201 : Le code doit être propre, concis, bien structuré pour être maintenable
+### Rule 201 : Code must be clean, concise, and well-structured to stay maintainable
 
-#### Extraction de fonctions dans Update()
-- **Limite stricte**: Si un case dans `Update(msg tea.Msg)` dépasse **5 lignes**, extraire dans une fonction séparée
-- **Nommage**: `handle[MessageType]` (ex: `handleContextSwitch()`, `handleKeyPress()`)
-- **Pattern**: La fonction doit retourner `(tea.Model, tea.Cmd)`
+#### Extracting functions from Update()
+- **Strict limit**: If a case in `Update(msg tea.Msg)` exceeds **5 lines**, extract it into a separate function
+- **Naming**: `handle[MessageType]` (e.g. `handleContextSwitch()`, `handleKeyPress()`)
+- **Pattern**: The function must return `(tea.Model, tea.Cmd)`
 
-**Avant (mauvais):**
+**Before (bad):**
 ```go
 case ContextSwitchCompleteMsg:
     a.config = msg.Config
@@ -18,12 +18,12 @@ case ContextSwitchCompleteMsg:
     }
 ```
 
-**Après (bon):**
+**After (good):**
 ```go
 case ContextSwitchCompleteMsg:
     return a.handleContextSwitch(msg)
 
-// Plus bas dans le fichier
+// Further down in the file
 func (a *App) handleContextSwitch(msg ContextSwitchCompleteMsg) (tea.Model, tea.Cmd) {
     a.config = msg.Config
     a.currentContext = msg.ContextName
@@ -34,25 +34,25 @@ func (a *App) handleContextSwitch(msg ContextSwitchCompleteMsg) (tea.Model, tea.
 }
 ```
 
-#### Réutilisation de code
-- **Zero duplication**: Si un bloc de code apparaît 2+ fois, créer une fonction
-- **Modules**: Regrouper les fonctions liées (ex: tout le context switching dans un même fichier)
-- **Constantes**: Extraire les valeurs magiques dans des constantes nommées
+#### Code reuse
+- **Zero duplication**: If a block of code appears 2+ times, create a function
+- **Modules**: Group related functions together (e.g. all context switching in a single file)
+- **Constants**: Extract magic values into named constants
 
-#### Gestion d'erreurs
-- **Pattern Bubble Tea**: Erreurs = messages (ex: `ContextSwitchErrorMsg`)
-- **Toujours logger** en mode DEBUG: `log.Printf("ERROR: %v", err)`
-- **Ne jamais ignorer**: Si erreur non-critique, documenter pourquoi
+#### Error handling
+- **Bubble Tea pattern**: Errors = messages (e.g. `ContextSwitchErrorMsg`)
+- **Always log** in DEBUG mode: `log.Printf("ERROR: %v", err)`
+- **Never ignore**: If the error is non-critical, document why
 
-#### Commentaires
-- **Obligatoires pour**:
-  - Fonctions publiques (exported)
-  - Logique métier complexe
-  - Workarounds ou décisions non-évidentes
+#### Comments
+- **Mandatory for**:
+  - Exported (public) functions
+  - Complex business logic
+  - Workarounds or non-obvious decisions
 - **Format**: `// functionName does X and returns Y`
-- **Éviter**: Commentaires qui répètent le code
+- **Avoid**: Comments that repeat the code
 
-#### Complexité
-- **Maximum 3 niveaux d'indentation** dans une fonction
-- **Fonctions > 50 lignes**: refactorer en fonctions plus petites
-- **Switch > 10 cases**: envisager un pattern table-driven
+#### Complexity
+- **Maximum 3 levels of indentation** in a function
+- **Functions > 50 lines**: refactor into smaller functions
+- **Switch > 10 cases**: consider a table-driven pattern

@@ -13,20 +13,20 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 )
 
-// ForgeAutoLoginMsg signale le résultat de l'auto-login
+// ForgeAutoLoginMsg reports the result of the auto-login
 type ForgeAutoLoginMsg struct {
 	Forge forge.Forge
 	User  forge.User
 	Error error
 }
 
-// tryAutoLogin tente de se connecter automatiquement à GitLab avec les credentials sauvegardés
+// tryAutoLogin attempts to automatically log in to GitLab with saved credentials
 func (a *App) tryAutoLogin() tea.Cmd {
 	url := a.config.Forge.URL
 	forgeType := a.config.Forge.Type
 	storage := a.sharedState.Secrets.Storage
 
-	// Si pas d'URL configurée, pas d'auto-login
+	// No auto-login if no URL is configured
 	if url == "" {
 		return nil
 	}
@@ -34,8 +34,8 @@ func (a *App) tryAutoLogin() tea.Cmd {
 	return func() tea.Msg {
 		auth := session.NewAuth(storage)
 
-		// Le token vient du store et de nulle part ailleurs : il n'est plus
-		// écrit en clair dans la configuration (§3.9).
+		// The token comes from the store and nowhere else: it is no longer
+		// written in plaintext in the configuration (§3.9).
 		token, err := auth.LoadCredentials(url)
 		if err != nil || token == "" {
 			return ForgeAutoLoginMsg{}
@@ -68,7 +68,7 @@ func (a *App) handleAutoLoginResult(msg ForgeAutoLoginMsg) (tea.Model, tea.Cmd) 
 // populate the shared state before the view sees it.
 func (a *App) handleAuthResult(msg auth.AuthResultMsg) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
-		// L'erreur est déjà gérée par la vue, juste transmettre le message
+		// The error is already handled by the view, just forward the message
 		return a, a.forwardToActiveView(msg)
 	}
 
@@ -83,7 +83,7 @@ func (a *App) handleAuthResult(msg auth.AuthResultMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Transmettre le message à la vue pour mise à jour de l'UI
+	// Forward the message to the view to update the UI
 	return a, a.forwardToActiveView(msg)
 }
 

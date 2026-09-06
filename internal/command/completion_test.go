@@ -10,7 +10,7 @@ func TestNewCompletionEngine(t *testing.T) {
 		t.Error("Expected commands to be initialized")
 	}
 
-	// Vérifier qu'on a au moins les commandes de base
+	// Verify that we have at least the base commands
 	hasStatus := false
 	hasQuit := false
 	for _, cmd := range engine.commands {

@@ -3,16 +3,16 @@ package theme
 import "github.com/charmbracelet/lipgloss"
 
 // SecretsState is what a scan can say about secrets, and it has three values
-// rather than two. « Rien trouvé » et « personne n'a cherché » se ressemblent
-// beaucoup et ne veulent pas dire du tout la même chose : une étape secrets peut
-// être coupée par l'option, par un outil absent, ou avoir échoué, et un scan
-// d'image n'en avait aucune avant §3.11. Un booléen rendrait l'icône verte dans
-// tous ces cas.
+// rather than two. "Nothing found" and "nobody looked" look a lot alike and
+// don't mean the same thing at all: a secrets step can be cut by the option,
+// by a missing tool, or have failed, and an image scan didn't even have one
+// before §3.11. A boolean would render the icon green in all of these cases.
 //
-// Le rendu est ici parce que trois vues l'affichent — workspaces, oci/images et
-// l'inventaire de sécurité — et qu'il n'y a qu'une iconographie. La vue
-// workspaces décidait sa couleur en comparant la chaîne d'icône déjà rendue, ce
-// qu'un renommage d'icône aurait cassé en silence.
+// The rendering lives here because three views display it — workspaces,
+// oci/images and the security inventory — and there is only one iconography.
+// The workspaces view used to decide its color by comparing the
+// already-rendered icon string, which a rename of the icon would have broken
+// silently.
 type SecretsState int
 
 const (
@@ -23,8 +23,8 @@ const (
 
 // SecretsVerdict maps a cached verdict onto the three states.
 //
-// `scanned` est l'état de la cible elle-même : une cible jamais scannée n'a pas
-// de verdict, quel que soit ce que porte l'entrée de cache — il n'y en a pas.
+// `scanned` is the target's own state: a target that was never scanned has
+// no verdict, whatever the cache entry might carry — there is no entry.
 func SecretsVerdict(sensitive *bool, scanned bool) SecretsState {
 	if !scanned || sensitive == nil {
 		return SecretsUnknown
@@ -35,8 +35,8 @@ func SecretsVerdict(sensitive *bool, scanned bool) SecretsState {
 	return SecretsClean
 }
 
-// SecretsIcon is what the cell prints. Texte brut, sans séquence ANSI : c'est
-// SecretsStyle qui colore, et l'inverse serait la Rule 122.
+// SecretsIcon is what the cell prints. Plain text, no ANSI sequence: it's
+// SecretsStyle that colors it, and the reverse would violate Rule 122.
 func SecretsIcon(state SecretsState) string {
 	switch state {
 	case SecretsFound:
@@ -48,9 +48,9 @@ func SecretsIcon(state SecretsState) string {
 	}
 }
 
-// SecretsStyle colours the verdict. C'est la seule colonne de ces tables qui
-// rapporte un constat plutôt qu'un décompte, et un dépôt qui porte un secret est
-// ce qui mérite d'être vu avant les compteurs.
+// SecretsStyle colours the verdict. This is the only column of these tables
+// that reports a finding rather than a count, and a repo carrying a secret
+// is what deserves to be seen before the counters.
 func SecretsStyle(state SecretsState) lipgloss.Style {
 	switch state {
 	case SecretsFound:

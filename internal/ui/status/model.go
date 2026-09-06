@@ -19,18 +19,18 @@ const (
 	TabCertificates = 1
 )
 
-// Model représente l'état de la vue status
+// Model represents the state of the status view
 type Model struct {
 	// Configuration
 	config          *config.Config
 	refreshInterval time.Duration
 
-	// État du monitoring
+	// Monitoring state
 	components []status.ComponentStatus
 	lastCheck  time.Time
 	nextCheck  time.Time
 
-	// Flags d'état
+	// State flags
 	//
 	// autoRefresh comes from status.auto_refresh and has no other writer: the
 	// setting belongs to the configuration view, and this view had a `space`
@@ -52,25 +52,25 @@ type Model struct {
 	sslTable     datatable.Model[status.ComponentStatus]
 	activeTab    int // TabMonitors or TabCertificates
 
-	// Composants Bubbles
+	// Bubbles components
 	spinner       spinner.Model
 	componentForm *components.ComponentForm
 	confirmModal  *sharedcomponents.ConfirmModal
 
 	// CRUD modes
-	selectedIdx int // Index du composant sélectionné pour edit/delete
+	selectedIdx int // Index of the component selected for edit/delete
 
 	// filterBar provides text search for the active table (Rule 136)
 	filterBar sharedcomponents.FilterBar
 
-	// Dimensions du terminal
+	// Terminal dimensions
 	width  int
 	height int
 }
 
-// New crée un nouveau model
+// New creates a new model
 func New(cfg *config.Config) Model {
-	// Spinner pour le chargement
+	// Spinner for loading
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
@@ -103,26 +103,26 @@ func New(cfg *config.Config) Model {
 
 // Messages Bubble Tea
 
-// TickMsg - Tick toutes les secondes pour mettre à jour le countdown
+// TickMsg - Ticks every second to update the countdown
 type TickMsg time.Time
 
-// CheckStartedMsg - Un check vient de démarrer
+// CheckStartedMsg - A check has just started
 type CheckStartedMsg struct{}
 
-// CheckCompleteMsg - Résultat d'un check de tous les composants
+// CheckCompleteMsg - Result of a check of all components
 type CheckCompleteMsg struct {
 	Components []status.ComponentStatus
 	Timestamp  time.Time
 	Err        error
 }
 
-// ComponentSavedMsg - Un composant a été sauvegardé
+// ComponentSavedMsg - A component has been saved
 type ComponentSavedMsg struct {
 	Success bool
 	Error   error
 }
 
-// ComponentDeletedMsg - Un composant a été supprimé
+// ComponentDeletedMsg - A component has been deleted
 type ComponentDeletedMsg struct {
 	Success bool
 	Error   error

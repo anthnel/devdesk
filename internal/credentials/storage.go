@@ -16,7 +16,7 @@ import (
 // is what internal/mcp.ResolveToken checks before generating a bearer token.
 var ErrNotFound = errors.New("no credentials found")
 
-// Storage interface pour stocker/récupérer les credentials
+// Storage interface for storing/retrieving credentials
 type Storage interface {
 	Save(url, token string) error
 	Load(url string) (token string, err error)
@@ -34,14 +34,14 @@ type MemoryStorage struct {
 	creds map[string]string
 }
 
-// NewMemoryStorage crée un nouveau MemoryStorage
+// NewMemoryStorage creates a new MemoryStorage
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
 		creds: make(map[string]string),
 	}
 }
 
-// Save sauvegarde un token en mémoire
+// Save stores a token in memory
 func (m *MemoryStorage) Save(url, token string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -49,7 +49,7 @@ func (m *MemoryStorage) Save(url, token string) error {
 	return nil
 }
 
-// Load charge un token depuis la mémoire
+// Load loads a token from memory
 func (m *MemoryStorage) Load(url string) (string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -60,7 +60,7 @@ func (m *MemoryStorage) Load(url string) (string, error) {
 	return token, nil
 }
 
-// Delete supprime un token de la mémoire
+// Delete removes a token from memory
 func (m *MemoryStorage) Delete(url string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

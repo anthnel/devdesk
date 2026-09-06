@@ -7,13 +7,13 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// La colonne Secrets de l'onglet Images. Trivy lit les couches d'une image, ce
-// que Gitleaks ne sait pas faire : c'est ce qui donne un verdict à une image, et
-// il n'était affiché nulle part.
+// The Secrets column of the Images tab. Trivy reads an image's layers, which
+// Gitleaks cannot do: that is what gives an image a verdict, and it was not
+// displayed anywhere.
 
-// Les trois états sont distincts à l'écran. Deux d'entre eux se ressemblent
-// dangereusement — « regardée, rien trouvé » et « personne n'a regardé » — et
-// c'est précisément la paire qu'un booléen confondait.
+// The three states are distinct on screen. Two of them look dangerously
+// alike — "looked, found nothing" and "nobody looked" — and that is
+// precisely the pair a boolean used to conflate.
 func TestTheSecretsColumnTellsTheThreeVerdictsApart(t *testing.T) {
 	m := loadedModel(t)
 
@@ -49,8 +49,8 @@ func TestTheSecretsColumnTellsTheThreeVerdictsApart(t *testing.T) {
 	}
 }
 
-// Rule 122 : la cellule est mesurée avant d'être habillée, donc elle ne porte
-// aucune séquence. La couleur du verdict passe par Style.
+// Rule 122: the cell is measured before it is styled, so it carries no
+// escape sequence. The verdict's color goes through Style.
 func TestTheSecretsCellIsPlainAndItsColourComesFromStyle(t *testing.T) {
 	row := imageRow{Scanned: true, Entry: cache.ImageScanEntry{Sensitive: secretsFound()}}
 
@@ -67,8 +67,8 @@ func TestTheSecretsCellIsPlainAndItsColourComesFromStyle(t *testing.T) {
 	}
 }
 
-// columnIndexOfSecrets finds the column in the freshly-built list, sans passer
-// par une table : la position est ce qui bouge quand on en insère une.
+// columnIndexOfSecrets finds the column in the freshly-built list, without
+// going through a table: the position is what shifts when one is inserted.
 func columnIndexOfSecrets(t *testing.T) int {
 	t.Helper()
 	for i, col := range imageColumns() {

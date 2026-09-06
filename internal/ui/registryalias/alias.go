@@ -1,18 +1,17 @@
-// Package registryalias adapte la liste de registries configurée en
-// substitutions d'affichage pour `docker.ApplyAliases`.
+// Package registryalias adapts the configured registry list into the display
+// substitutions expected by `docker.ApplyAliases`.
 //
-// # Pourquoi un paquet plutôt qu'une fonction dans l'un des deux
+// # Why a package rather than a function in either of the two
 //
-// `internal/docker` ne connaît pas `internal/config`, et c'est délibéré : c'est
-// le pilote de la CLI Docker, et `docker.RegistryAlias` est son type propre pour
-// cette raison — un pilote qui apprend le schéma d'un fichier YAML ne peut plus
-// être appelé sans lui. L'inverse est pire : `config` décrit ce que
-// l'utilisateur écrit, et n'a aucune raison de dépendre de la façon dont Docker
-// nomme les choses.
+// `internal/docker` does not know `internal/config`, and that is deliberate:
+// it is the Docker CLI driver, and `docker.RegistryAlias` is its own type for
+// that reason — a driver that learns a YAML file's schema can no longer be
+// called without it. The reverse is worse: `config` describes what the user
+// writes, and has no reason to depend on how Docker names things.
 //
-// L'adaptateur va donc au-dessus des deux. Il est ici parce que ses deux
-// appelants sont des vues — l'onglet Images d'`:oci` et l'inventaire de `:sec`,
-// qui affichent la même image et doivent l'écrire pareil.
+// The adapter therefore sits above both. It lives here because its two
+// callers are views — `:oci`'s Images tab and `:sec`'s inventory — which
+// display the same image and must write it the same way.
 package registryalias
 
 import (
@@ -20,16 +19,18 @@ import (
 	"github.com/anthnel/devdesk/internal/docker"
 )
 
-// From rend les substitutions déclarées par la configuration.
+// From renders the substitutions declared by the configuration.
 //
-// L'ordre de déclaration est préservé, et ce n'est pas cosmétique :
-// `docker.ApplyAliases` retient le **premier** préfixe qui matche, donc c'est
-// lui qui départage deux registries dont l'un préfixe l'autre
-// (`nexus.example.com` et `nexus.example.com/docker-hosted`). Trier ou
-// dédupliquer ici changerait le nom affiché sans que rien ne le dise.
+// The declaration order is preserved, and that is not cosmetic:
+// `docker.ApplyAliases` keeps the **first** prefix that matches, so that is
+// what settles the tie between two registries where one prefixes the other
+// (`nexus.example.com` and `nexus.example.com/docker-hosted`). Sorting or
+// deduplicating here would change the displayed name without anything
+// saying so.
 //
-// Une entrée sans alias, ou sans URL, ne substitue rien : elle est écartée
-// plutôt que portée avec une chaîne vide, qui ferait matcher tout nom d'image.
+// An entry with no alias, or no URL, substitutes nothing: it is dropped
+// rather than carried with an empty string, which would match every image
+// name.
 func From(items []config.RegistryItem) []docker.RegistryAlias {
 	aliases := make([]docker.RegistryAlias, 0, len(items))
 	for _, item := range items {

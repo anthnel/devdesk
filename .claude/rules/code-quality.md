@@ -1,84 +1,84 @@
-## Règles de qualité de code et vérifications proactives
+## Code quality rules and proactive checks
 
-### Rule 301 : Vérification systématique de la qualité du code avant commit
+### Rule 301 : Systematic code quality check before commit
 
-**OBLIGATOIRE** : Avant de créer un commit, TOUJOURS effectuer les vérifications suivantes:
+**MANDATORY**: Before creating a commit, ALWAYS perform the following checks:
 
-#### 1. Linter Go (golangci-lint)
+#### 1. Go linter (golangci-lint)
 ```bash
 golangci-lint run
 ```
 
-**Actions requises:**
-- ✅ Corriger TOUS les warnings et erreurs
-- ✅ Vérifier spécifiquement les warnings de dépréciation (SA1019)
-- ✅ Ne JAMAIS ignorer les warnings sans justification documentée
+**Required actions:**
+- ✅ Fix ALL warnings and errors
+- ✅ Specifically check deprecation warnings (SA1019)
+- ✅ NEVER ignore warnings without documented justification
 
 #### 2. Tests
 ```bash
 go test ./...
 ```
 
-**Actions requises:**
-- ✅ Vérifier que tous les tests passent
-- ✅ Si des tests échouent, les corriger AVANT le commit
+**Required actions:**
+- ✅ Verify that all tests pass
+- ✅ If tests fail, fix them BEFORE the commit
 
 #### 3. Build
 ```bash
 go build
 ```
 
-**Actions requises:**
-- ✅ Vérifier que le build réussit sans erreurs
-- ✅ Tester l'application si des changements fonctionnels ont été faits
+**Required actions:**
+- ✅ Verify that the build succeeds without errors
+- ✅ Test the application if functional changes were made
 
-#### 4. Dépendances deprecated
+#### 4. Deprecated dependencies
 
-**Détection:**
-- Vérifier les warnings golangci-lint SA1019
-- Chercher dans go.mod les packages marqués comme deprecated
+**Detection:**
+- Check golangci-lint SA1019 warnings
+- Look in go.mod for packages marked as deprecated
 
 **Action:**
-- Remplacer IMMÉDIATEMENT par une alternative maintenue
-- Documenter le remplacement dans le message de commit
-- Mettre à jour la documentation (.claude/CLAUDE.md)
+- Replace IMMEDIATELY with a maintained alternative
+- Document the replacement in the commit message
+- Update the documentation (.claude/CLAUDE.md)
 
-**Exemples de remplacements courants:**
+**Examples of common replacements:**
 - `github.com/go-ping/ping` → `github.com/prometheus-community/pro-bing`
 
-### Rule 302 : Vérification IDE diagnostics
+### Rule 302 : IDE diagnostics check
 
-**OBLIGATOIRE** : Avant chaque commit, vérifier les diagnostics de l'IDE:
+**MANDATORY**: Before each commit, check the IDE diagnostics:
 
 ```
-Utiliser mcp__ide__getDiagnostics pour vérifier:
-- Erreurs de compilation
-- Paramètres non utilisés
-- Imports non utilisés
-- Autres warnings
+Use mcp__ide__getDiagnostics to check:
+- Compilation errors
+- Unused parameters
+- Unused imports
+- Other warnings
 ```
 
-**Actions requises:**
-- ✅ Corriger ou justifier tous les diagnostics
-- ✅ Ne pas ignorer les "unused parameter" sans raison
+**Required actions:**
+- ✅ Fix or justify every diagnostic
+- ✅ Do not ignore "unused parameter" without a reason
 
-### Rule 303 : go.mod et dépendances
+### Rule 303 : go.mod and dependencies
 
-**Après tout changement de dépendance:**
+**After any dependency change:**
 
 ```bash
 go mod tidy
 go mod verify
 ```
 
-**Actions requises:**
-- ✅ Vérifier que go.mod est à jour
-- ✅ Vérifier que go.sum est cohérent
-- ✅ Documenter les nouvelles dépendances dans .claude/CLAUDE.md
+**Required actions:**
+- ✅ Verify that go.mod is up to date
+- ✅ Verify that go.sum is consistent
+- ✅ Document new dependencies in .claude/CLAUDE.md
 
-### Rule 304 : Message de commit qualité
+### Rule 304 : Quality commit message
 
-**Format obligatoire pour les corrections de qualité — en anglais (voir Rule 307):**
+**Mandatory format for quality fixes — in English (see Rule 307):**
 
 ```
 type: short description
@@ -91,89 +91,87 @@ Detailed description explaining:
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
-**Types de commit pour qualité:**
-- `fix:` - Correction de bug détecté par linter
-- `chore:` - Remplacement de dépendance deprecated
-- `refactor:` - Amélioration de qualité du code
+**Commit types for quality:**
+- `fix:` - Bug fix detected by linter
+- `chore:` - Deprecated dependency replacement
+- `refactor:` - Code quality improvement
 
-### Rule 305 : Checklist pré-commit OBLIGATOIRE
+### Rule 305 : MANDATORY pre-commit checklist
 
-**Avant CHAQUE commit, vérifier:**
+**Before EVERY commit, check:**
 
 - [ ] `golangci-lint run` → 0 warnings
 - [ ] `go test ./...` → PASS
 - [ ] `go build` → SUCCESS
-- [ ] `mcp__ide__getDiagnostics` → Aucune erreur critique
-- [ ] `go.mod` à jour (si dépendances modifiées)
-- [ ] Documentation mise à jour (si API changée)
-- [ ] Tests ajoutés (si nouvelle fonctionnalité)
+- [ ] `mcp__ide__getDiagnostics` → No critical error
+- [ ] `go.mod` up to date (if dependencies changed)
+- [ ] Documentation updated (if API changed)
+- [ ] Tests added (if new feature)
 
-**Si UNE SEULE de ces vérifications échoue:**
-- ❌ NE PAS créer le commit
-- ✅ Corriger d'abord
-- ✅ Recommencer la checklist
+**If EVEN ONE of these checks fails:**
+- ❌ DO NOT create the commit
+- ✅ Fix it first
+- ✅ Restart the checklist
 
-### Rule 306 : Proactivité OBLIGATOIRE
+### Rule 306 : MANDATORY proactivity
 
-**Claude Code DOIT:**
-- ✅ Vérifier le linter SANS que l'utilisateur le demande
-- ✅ Proposer des corrections AVANT le commit
-- ✅ Signaler les dépendances deprecated DÈS leur détection
-- ✅ Documenter tous les changements de qualité
+**Claude Code MUST:**
+- ✅ Check the linter WITHOUT the user asking
+- ✅ Propose fixes BEFORE the commit
+- ✅ Flag deprecated dependencies AS SOON AS they are detected
+- ✅ Document all quality changes
 
-**Claude Code NE DOIT JAMAIS:**
-- ❌ Attendre que l'utilisateur signale un warning
-- ❌ Créer un commit avec des warnings non résolus
-- ❌ Ignorer les problèmes de dépendances
-- ❌ Oublier de mettre à jour la documentation
+**Claude Code MUST NEVER:**
+- ❌ Wait for the user to flag a warning
+- ❌ Create a commit with unresolved warnings
+- ❌ Ignore dependency issues
+- ❌ Forget to update the documentation
 
-### Exemples de workflow correct
+### Correct workflow examples
 
-**Exemple 1 - Commit de feature:**
+**Example 1 - Feature commit:**
 ```
-1. Écriture du code
-2. go build → vérifier compilation
-3. golangci-lint run → corriger warnings
-4. go test ./... → vérifier tests
-5. mcp__ide__getDiagnostics → vérifier IDE
-6. git commit avec message détaillé
+1. Write the code
+2. go build → verify compilation
+3. golangci-lint run → fix warnings
+4. go test ./... → verify tests
+5. mcp__ide__getDiagnostics → check the IDE
+6. git commit with a detailed message
 ```
 
-**Exemple 2 - Détection de deprecated:**
+**Example 2 - Detecting a deprecated dependency:**
 ```
-1. golangci-lint détecte SA1019
-2. Rechercher l'alternative recommandée
-3. Remplacer l'import et le code
+1. golangci-lint detects SA1019
+2. Look up the recommended alternative
+3. Replace the import and the code
 4. go mod tidy
-5. Tester que tout fonctionne
-6. Mettre à jour .claude/CLAUDE.md
-7. git commit avec explication du remplacement
+5. Test that everything works
+6. Update .claude/CLAUDE.md
+7. git commit explaining the replacement
 ```
 
-### Rule 307 : Commits et commentaires de code — anglais uniquement
+### Rule 307 : Commits and code comments — English only
 
-**Tout message de commit git et tout commentaire dans le code doivent être
-rédigés en anglais**, quelle que soit la langue utilisée pour échanger avec
-l'utilisateur.
+**Every git commit message and every comment in the code must be written
+in English**, regardless of the language used to converse with the user.
 
-| Élément | Langue |
+| Element | Language |
 |---------|--------|
-| Message de commit (titre + corps) | ✅ English only |
-| Commentaire de code (`//`, `/* */`, docstring) | ✅ English only |
-| Réponses à l'utilisateur dans la conversation | Langue de l'utilisateur (voir mémoire `feedback-langue-francais`) |
-| UI et logs (Rule 129) | English US uniquement — déjà couvert, inchangé |
+| Commit message (title + body) | ✅ English only |
+| Code comment (`//`, `/* */`, docstring) | ✅ English only |
+| Replies to the user in the conversation | The user's language (see memory `feedback-langue-francais`) |
+| UI and logs (Rule 129) | English US only — already covered, unchanged |
 
-Ceci **remplace** la tolérance précédente listée dans `.claude/CLAUDE.md` sous
-« Code Conventions » (« Comments: French or English both accepted ») : les
-commentaires en français existants ne sont pas à réécrire en masse, mais tout
-nouveau commentaire et toute modification de commentaire existant doivent être
-en anglais.
+This **replaces** the earlier tolerance listed in `.claude/CLAUDE.md` under
+"Code Conventions" ("Comments: French or English both accepted"): existing
+French comments are not to be rewritten wholesale, but any new comment and
+any edit to an existing comment must be in English.
 
 ```
 // ✅ CORRECT
 // retry with backoff because the API rate-limits bursts above 10 req/s
 
-// ❌ INTERDIT
+// ❌ WRONG (a French comment, which Rule 307 forbids)
 // on relance avec un backoff car l'API limite les rafales au-delà de 10 req/s
 ```
 
@@ -187,8 +185,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 ❌ fix: corrige le calcul de largeur de colonne
 ```
 
-Interdit :
-- ❌ Un message de commit rédigé en français, même partiellement
-- ❌ Un nouveau commentaire de code en français
-- ❌ Confondre cette règle avec la langue de la conversation, qui reste celle
-  de l'utilisateur
+Forbidden:
+- ❌ A commit message written in French, even partially
+- ❌ A new code comment in French
+- ❌ Confusing this rule with the language of the conversation, which
+  remains the user's
