@@ -15,7 +15,7 @@ const (
 )
 
 func TestNewDeleteConfirmModalDefaultsToNo(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete project", "This cannot be undone")
+	m := NewDeleteConfirmModal("Delete project", "This cannot be undone", true)
 
 	if m.focused != focusNo {
 		t.Errorf("focus = %d on a new modal, want %d (No)", m.focused, focusNo)
@@ -39,7 +39,7 @@ func TestNewDeleteConfirmModalLockedPreChecksImmediateDeletion(t *testing.T) {
 // Rule 135: ↑/↓ are the only field navigation, and they cycle so every control
 // stays reachable in one direction.
 func TestDeleteConfirmModalVerticalNavigationCycles(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?") // starts on No
+	m := NewDeleteConfirmModal("Delete", "Sure?", true) // starts on No
 
 	m, _ = m.Update(testutil.Key("down"))
 	if m.focused != focusCheckbox {
@@ -63,7 +63,7 @@ func TestDeleteConfirmModalVerticalNavigationCycles(t *testing.T) {
 // Rule 135 reserves tab for switching tabs. The modal has none, so it does
 // nothing here — it used to cycle the focus, which is what ↑/↓ now do.
 func TestDeleteConfirmModalIgnoresTab(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?")
+	m := NewDeleteConfirmModal("Delete", "Sure?", true)
 	before := m.focused
 
 	for _, key := range []string{"tab", "shift+tab"} {
@@ -79,7 +79,7 @@ func TestDeleteConfirmModalIgnoresTab(t *testing.T) {
 // Y/N cannot collide with the action vocabulary).
 func TestDeleteConfirmModalVimKeysDoNotMoveTheFocus(t *testing.T) {
 	for _, key := range []string{"k", "j", "h", "l"} {
-		m := NewDeleteConfirmModal("Delete", "Sure?")
+		m := NewDeleteConfirmModal("Delete", "Sure?", true)
 		before := m.focused
 
 		m, _ = m.Update(testutil.Key(key))
@@ -90,7 +90,7 @@ func TestDeleteConfirmModalVimKeysDoNotMoveTheFocus(t *testing.T) {
 }
 
 func TestDeleteConfirmModalHorizontalMovesBetweenButtonsOnly(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?")
+	m := NewDeleteConfirmModal("Delete", "Sure?", true)
 
 	m, _ = m.Update(testutil.Key("left"))
 	if m.focused != focusYes {
@@ -110,7 +110,7 @@ func TestDeleteConfirmModalHorizontalMovesBetweenButtonsOnly(t *testing.T) {
 }
 
 func TestDeleteConfirmModalSpaceTogglesCheckboxWhenFocused(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?")
+	m := NewDeleteConfirmModal("Delete", "Sure?", true)
 	m.focused = focusCheckbox
 
 	m, cmd := m.Update(testutil.Key(" "))
@@ -139,7 +139,7 @@ func TestDeleteConfirmModalConfirmCarriesCheckboxState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewDeleteConfirmModal("Delete", "Sure?")
+			m := NewDeleteConfirmModal("Delete", "Sure?", true)
 			m.option = tt.permanent
 			m.focused = focusYes
 
@@ -156,7 +156,7 @@ func TestDeleteConfirmModalConfirmCarriesCheckboxState(t *testing.T) {
 }
 
 func TestDeleteConfirmModalEnterOnNoCancels(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?") // focus starts on No
+	m := NewDeleteConfirmModal("Delete", "Sure?", true) // focus starts on No
 
 	_, cmd := m.Update(testutil.Key("enter"))
 	if _, ok := testutil.MsgOf[OptionConfirmModalNoMsg](cmd); !ok {
@@ -165,7 +165,7 @@ func TestDeleteConfirmModalEnterOnNoCancels(t *testing.T) {
 }
 
 func TestDeleteConfirmModalEnterOnCheckboxTogglesInsteadOfConfirming(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?")
+	m := NewDeleteConfirmModal("Delete", "Sure?", true)
 	m.focused = focusCheckbox
 
 	m, cmd := m.Update(testutil.Key("enter"))
@@ -179,7 +179,7 @@ func TestDeleteConfirmModalEnterOnCheckboxTogglesInsteadOfConfirming(t *testing.
 
 func TestDeleteConfirmModalLetterShortcuts(t *testing.T) {
 	t.Run("y confirms regardless of focus", func(t *testing.T) {
-		m := NewDeleteConfirmModal("Delete", "Sure?")
+		m := NewDeleteConfirmModal("Delete", "Sure?", true)
 		m.option = true
 
 		_, cmd := m.Update(testutil.Key("y"))
@@ -194,7 +194,7 @@ func TestDeleteConfirmModalLetterShortcuts(t *testing.T) {
 
 	for _, key := range []string{"n", "N", "esc"} {
 		t.Run(key+" cancels", func(t *testing.T) {
-			m := NewDeleteConfirmModal("Delete", "Sure?")
+			m := NewDeleteConfirmModal("Delete", "Sure?", true)
 			m.focused = focusYes
 
 			_, cmd := m.Update(testutil.Key(key))
@@ -259,7 +259,7 @@ func TestDeleteConfirmModalPermanentConfirmsAsImmediate(t *testing.T) {
 }
 
 func TestDeleteConfirmModalStoresWindowSize(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete", "Sure?")
+	m := NewDeleteConfirmModal("Delete", "Sure?", true)
 
 	m, _ = m.Update(testutil.Resize(100, 30))
 	if m.width != 100 || m.height != 30 {
@@ -267,8 +267,57 @@ func TestDeleteConfirmModalStoresWindowSize(t *testing.T) {
 	}
 }
 
+// A backend whose Shape says PermanentDelete is false (GitHub) always deletes
+// at once: there is no grace period for the checkbox to bypass, so it must be
+// out of reach rather than shown disabled.
+func TestDeleteConfirmModalWithoutImmediateOptionHidesCheckbox(t *testing.T) {
+	m := NewDeleteConfirmModal("Delete repository", "This cannot be undone", false)
+
+	if m.focused != focusNo {
+		t.Errorf("focus = %d on a new modal, want %d (No)", m.focused, focusNo)
+	}
+
+	view := m.View()
+	if strings.Contains(view, immediateDeletionLabel) {
+		t.Error("the immediate-deletion checkbox is rendered when the backend never offers a grace period")
+	}
+	for _, want := range []string{"Delete repository", "This cannot be undone", "Yes", "No"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("View() does not contain %q", want)
+		}
+	}
+}
+
+// Navigation must never land on an absent checkbox.
+func TestDeleteConfirmModalWithoutImmediateOptionSkipsCheckboxWhenNavigating(t *testing.T) {
+	m := NewDeleteConfirmModal("Delete repository", "This cannot be undone", false) // starts on No
+
+	for i, want := range []int{focusYes, focusNo, focusYes, focusNo} {
+		m, _ = m.Update(testutil.Key("down"))
+		if m.focused != want {
+			t.Fatalf("down #%d landed on %d, want %d", i+1, m.focused, want)
+		}
+	}
+}
+
+// Even a stray space/enter on the (nonexistent) checkbox slot must not toggle
+// an option the caller never offered.
+func TestDeleteConfirmModalWithoutImmediateOptionConfirmsAsNonPermanent(t *testing.T) {
+	m := NewDeleteConfirmModal("Delete repository", "This cannot be undone", false)
+	m.focused = focusYes
+
+	_, cmd := m.Update(testutil.Key("enter"))
+	msg, ok := testutil.MsgOf[OptionConfirmModalYesMsg](cmd)
+	if !ok {
+		t.Fatalf("enter on Yes did not emit OptionConfirmModalYesMsg, got %T", testutil.Msg(cmd))
+	}
+	if msg.Option {
+		t.Error("Option = true, but the backend never offered an immediate-deletion choice")
+	}
+}
+
 func TestDeleteConfirmModalViewShowsWarningOnlyWhenChecked(t *testing.T) {
-	m := NewDeleteConfirmModal("Delete project", "This cannot be undone")
+	m := NewDeleteConfirmModal("Delete project", "This cannot be undone", true)
 
 	if strings.Contains(m.View(), "irreversible") {
 		t.Error("the irreversibility warning shows while immediate deletion is unchecked")

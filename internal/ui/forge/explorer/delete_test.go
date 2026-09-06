@@ -1,8 +1,12 @@
 package explorer
 
 import (
+	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
+	githubforge "github.com/anthnel/devdesk/internal/forge/github"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -122,6 +126,28 @@ func TestPermanentDeleteIsPassedThrough(t *testing.T) {
 	// -deletion_scheduled-<id> path.
 	if len(f.paths()) < 2 {
 		t.Fatalf("requests = %v, want the two-step permanent delete", f.paths())
+	}
+}
+
+// GitHub deletes at once and has no grace period (forge.Shape.PermanentDelete
+// is false there), so the confirmation must not offer a checkbox that would be
+// meaningless — see NewDeleteConfirmModal.
+func TestDeleteStartOffersNoImmediateOptionOnGitHub(t *testing.T) {
+	backend, err := githubforge.New("", "test-token")
+	if err != nil {
+		t.Fatalf("githubforge.New() error = %v", err)
+	}
+	m := feed(t, New(testConfig(), &shared.State{Forge: backend, IsAuthenticated: true}),
+		tea.WindowSizeMsg{Width: 160, Height: 30},
+		RootGroupsLoadedMsg{Nodes: rootFixtures()},
+	)
+
+	m = feed(t, m, testutil.Key(keymap.Delete))
+	if m.deleteConfirmModal == nil {
+		t.Fatal("ctrl+d opened no confirmation")
+	}
+	if strings.Contains(m.deleteConfirmModal.View(), "Immediate deletion") {
+		t.Error("the immediate-deletion checkbox is offered on a GitHub-backed forge")
 	}
 }
 

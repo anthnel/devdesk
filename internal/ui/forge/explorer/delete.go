@@ -44,7 +44,8 @@ func (m Model) handleDeleteStart() (tea.Model, tea.Cmd) {
 		message = fmt.Sprintf("Are you sure you want to delete the project '%s'?\n\nThis will delete the project and all its data\n(code, issues, merge requests, etc.).", node.Name)
 	}
 
-	m.deleteConfirmModal = components.NewDeleteConfirmModal(title, message)
+	offerImmediate := m.shared.Forge != nil && m.shared.Forge.Shape().PermanentDelete
+	m.deleteConfirmModal = components.NewDeleteConfirmModal(title, message, offerImmediate)
 	return m, nil
 }
 

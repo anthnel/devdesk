@@ -27,6 +27,7 @@ type OptionConfirmModal struct {
 	optionLabel   string
 	optionWarning string // affiché quand la case est cochée ; vide = rien à dire
 	locked        bool   // Si true, la checkbox n'est ni modifiable ni focusable
+	hidden        bool   // Si true, la checkbox n'est même pas rendue : l'option n'a pas de sens ici
 	width         int
 	height        int
 }
@@ -49,9 +50,17 @@ func NewOptionConfirmModal(title, message, optionLabel string) *OptionConfirmMod
 	}
 }
 
-// NewDeleteConfirmModal crée une nouvelle modal de confirmation de suppression
-func NewDeleteConfirmModal(title, message string) *OptionConfirmModal {
+// NewDeleteConfirmModal crée une nouvelle modal de confirmation de suppression.
+// offerImmediate vient de forge.Shape.PermanentDelete : sur un backend qui
+// supprime toujours tout de suite (GitHub), il n'y a pas de délai de grâce à
+// contourner, donc la case n'a rien à signifier et n'est pas rendue du tout —
+// pas grisée, absente, comme le dit ce champ du Shape.
+func NewDeleteConfirmModal(title, message string, offerImmediate bool) *OptionConfirmModal {
 	m := NewOptionConfirmModal(title, message, immediateDeletionLabel)
+	if !offerImmediate {
+		m.hidden = true
+		return m
+	}
 	m.optionWarning = immediateDeletionWarning
 	return m
 }
@@ -59,17 +68,18 @@ func NewDeleteConfirmModal(title, message string) *OptionConfirmModal {
 // NewDeleteConfirmModalLocked crée une modal avec la case "immediate deletion" pré-cochée et non modifiable.
 // À utiliser quand le projet est déjà marqué pour suppression — seule la suppression permanente est possible.
 func NewDeleteConfirmModalLocked(title, message string) *OptionConfirmModal {
-	m := NewDeleteConfirmModal(title, message)
+	m := NewDeleteConfirmModal(title, message, true)
 	m.option = true
 	m.locked = true
 	return m
 }
 
 // minFocus retourne le premier élément atteignable au clavier. La checkbox est
-// exclue quand elle est verrouillée : un contrôle focusable qui ignore toute
-// touche est plus déroutant qu'un contrôle absent.
+// exclue quand elle est verrouillée ou absente : un contrôle focusable qui
+// ignore toute touche, ou qui n'existe pas, est plus déroutant qu'un contrôle
+// simplement hors de portée.
 func (m *OptionConfirmModal) minFocus() int {
-	if m.locked {
+	if m.locked || m.hidden {
 		return 1
 	}
 	return 0
@@ -154,9 +164,10 @@ func (m *OptionConfirmModal) cycleFocus(step int) int {
 	return min + ((m.focused-min+step)%span+span)%span
 }
 
-// toggleCheckbox inverse la case "immediate deletion", sauf si elle est verrouillée.
+// toggleCheckbox inverse la case "immediate deletion", sauf si elle est
+// verrouillée ou absente.
 func (m *OptionConfirmModal) toggleCheckbox() {
-	if m.locked {
+	if m.locked || m.hidden {
 		return
 	}
 	m.option = !m.option
@@ -195,37 +206,40 @@ func (m *OptionConfirmModal) View() string {
 	b.WriteString(m.message)
 	b.WriteString("\n\n")
 
-	// Checkbox pour suppression immédiate
-	checkboxStyle := lipgloss.NewStyle().Background(theme.ColorBackground)
-	switch {
-	case m.locked:
-		// Verrouillée : atténuée, pour signaler qu'elle n'est pas actionnable.
-		checkboxStyle = checkboxStyle.Foreground(theme.ColorDim)
-	case m.focused == 0:
-		checkboxStyle = checkboxStyle.Bold(true).Foreground(theme.ColorHighlight)
-	}
+	// Checkbox pour suppression immédiate — absente quand l'option n'a pas de
+	// sens sur ce backend (m.hidden), pas seulement grisée.
+	if !m.hidden {
+		checkboxStyle := lipgloss.NewStyle().Background(theme.ColorBackground)
+		switch {
+		case m.locked:
+			// Verrouillée : atténuée, pour signaler qu'elle n'est pas actionnable.
+			checkboxStyle = checkboxStyle.Foreground(theme.ColorDim)
+		case m.focused == 0:
+			checkboxStyle = checkboxStyle.Bold(true).Foreground(theme.ColorHighlight)
+		}
 
-	checkbox := theme.IconCheckbox
-	if m.option {
-		checkbox = theme.IconChecked
-	}
+		checkbox := theme.IconCheckbox
+		if m.option {
+			checkbox = theme.IconChecked
+		}
 
-	indicator := "  "
-	if m.focused == 0 {
-		indicator = theme.IconCircleSmall + " "
-	}
+		indicator := "  "
+		if m.focused == 0 {
+			indicator = theme.IconCircleSmall + " "
+		}
 
-	checkboxLabel := " " + m.optionLabel
-	checkboxLine := checkboxStyle.Render(indicator + checkbox + checkboxLabel)
-	b.WriteString(checkboxLine)
+		checkboxLabel := " " + m.optionLabel
+		checkboxLine := checkboxStyle.Render(indicator + checkbox + checkboxLabel)
+		b.WriteString(checkboxLine)
 
-	// Warning quand la case est cochée, si l'appelant en a un à donner.
-	if m.option && m.optionWarning != "" {
-		b.WriteString("\n")
-		warningStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorHighlight).Italic(true)
-		b.WriteString(warningStyle.Render("  " + theme.IconWarning + " " + m.optionWarning))
+		// Warning quand la case est cochée, si l'appelant en a un à donner.
+		if m.option && m.optionWarning != "" {
+			b.WriteString("\n")
+			warningStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorHighlight).Italic(true)
+			b.WriteString(warningStyle.Render("  " + theme.IconWarning + " " + m.optionWarning))
+		}
+		b.WriteString("\n\n")
 	}
-	b.WriteString("\n\n")
 
 	// Boutons
 	yes := theme.RenderButton("Yes", m.focused == 1, "danger")
