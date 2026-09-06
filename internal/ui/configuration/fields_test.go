@@ -365,10 +365,6 @@ func TestTheNetworkTabEditsEveryNetdiagDial(t *testing.T) {
 			t.Errorf("%q admits %d; a zero dial is what netcheck has to normalize away", label, f.min)
 		}
 	}
-
-	if f := fieldNamed(t, "Connectivity test image"); f.str(cfg) != &cfg.Network.ConnectivityImage {
-		t.Error("the connectivity image no longer addresses network.connectivity_image")
-	}
 }
 
 // The MCP server is off by default and turning it on is the moment the user

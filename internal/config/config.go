@@ -20,12 +20,6 @@ type Config struct {
 	Network  NetworkConfig  `yaml:"network"`
 	MCP      MCPConfig      `yaml:"mcp"`
 
-	// Docker is what `network:` replaced. Read once at load, migrated into
-	// Network and cleared, so the key disappears from the file on the next save.
-	//
-	// Deprecated: use Network.
-	Docker DockerConfig `yaml:"docker,omitempty"`
-
 	// GitLab is what `forge:` replaced. Same treatment as Docker above, and for
 	// the same reason: a context targets one forge, so the section is named
 	// after the role rather than after the one implementation there was.
@@ -102,39 +96,8 @@ type MCPConfig struct {
 // literal is how the two drift.
 const DefaultMCPListen = "127.0.0.1:7777"
 
-// NetworkConfig holds what the netdiag view runs on, plus the one image
-// DevDesk still starts a container from.
-//
-// It was `docker:`, and it held one image — which was never a Docker setting.
-// Every other scalar here was a constant in internal/netcheck, whose own
-// comment said they became settings when somebody asked for them.
+// NetworkConfig holds what the netdiag view runs on.
 type NetworkConfig struct {
-	// ConnectivityImage is the image the OCI connectivity test runs, and it is
-	// the last image DevDesk starts a container from.
-	//
-	// It must carry ping, nc and wget. busybox has all three in 6,81 MB, which
-	// is why it is the default; it was nicolaka/netshoot, 874 MB, a factor of
-	// 128 (§3.47).
-	//
-	// It was `tool_image`, and the name said nothing because the setting served
-	// two unrelated things. The others left one by one: ss when the Ports tab
-	// read the socket table in-process (internal/ports, §3.43), ip and iptables
-	// when the Topology tab became the Interfaces tab (§3.44), traceroute when
-	// the route trace was removed (§3.47). What is left has one reader, so it is
-	// named after it.
-	//
-	// The container it starts runs `--network <networkID>` — a Docker network
-	// the user picked — never `--network host`. That distinction is the whole
-	// reason this survived: "can this container reach that one on this bridge"
-	// has no answer from a host process, whereas everything asked about *this
-	// machine* was answering for the Docker Desktop VM (D55, D57).
-	ConnectivityImage string `yaml:"connectivity_image"`
-
-	// ToolImage is the retired spelling of ConnectivityImage, migrated at load
-	// and then cleared so the key leaves the file on the next save — the
-	// precedent is RegistryItem.AuthEnabled.
-	ToolImage string `yaml:"tool_image,omitempty"`
-
 	// CheckTimeout is how long one probe waits for an answer, in seconds.
 	//
 	// One setting rather than five: netcheck held 5 s for DNS and the dial, 8 s
@@ -162,20 +125,11 @@ type NetworkConfig struct {
 // behaves exactly as it did — except CheckTimeout, which is the old maximum
 // rather than any one of the five values it replaces.
 const (
-	DefaultConnectivityImage    = "busybox"
 	DefaultCheckTimeout         = 8
 	DefaultPingCount            = 3
 	DefaultCertExpiryWarnDays   = 30
 	DefaultPortsRefreshInterval = 2
 )
-
-// DockerConfig is the shape of the `docker:` block that `network:` replaced.
-// It exists to be migrated; nothing reads it after applyDefaults.
-//
-// Deprecated: use NetworkConfig.
-type DockerConfig struct {
-	NetworkToolImage string `yaml:"network_tool_image,omitempty"`
-}
 
 // AppConfig contient les paramètres globaux de l'app
 type AppConfig struct {
@@ -530,32 +484,6 @@ func applyDefaults(cfg *Config) error {
 		cfg.Scan.PlumberSource = ToolSourceAuto
 	}
 
-	// The two renames run before the defaults below, oldest first, and that
-	// order is the whole of it: yaml.Unmarshal is not strict here, so an
-	// un-migrated block is dropped in silence and the image reverts to the
-	// default with nothing on screen saying it moved — a user pointing at their
-	// own mirror would find the probe pulling from Docker Hub. Each is cleared
-	// once carried over, so the key leaves the file on the next save; the
-	// precedent is RegistryItem.AuthEnabled.
-	//
-	// The chain is `docker.network_tool_image` -> `network.tool_image` ->
-	// `network.connectivity_image`, and a config may sit at any point on it.
-	if cfg.Docker.NetworkToolImage != "" {
-		if cfg.Network.ToolImage == "" {
-			cfg.Network.ToolImage = cfg.Docker.NetworkToolImage
-		}
-		cfg.Docker.NetworkToolImage = ""
-	}
-	if cfg.Network.ToolImage != "" {
-		if cfg.Network.ConnectivityImage == "" {
-			cfg.Network.ConnectivityImage = cfg.Network.ToolImage
-		}
-		cfg.Network.ToolImage = ""
-	}
-
-	if cfg.Network.ConnectivityImage == "" {
-		cfg.Network.ConnectivityImage = DefaultConnectivityImage
-	}
 	if cfg.Network.CheckTimeout == 0 {
 		cfg.Network.CheckTimeout = DefaultCheckTimeout
 	}
@@ -638,7 +566,6 @@ func Default() *Config {
 			Listen: DefaultMCPListen,
 		},
 		Network: NetworkConfig{
-			ConnectivityImage:    DefaultConnectivityImage,
 			CheckTimeout:         DefaultCheckTimeout,
 			PingCount:            DefaultPingCount,
 			CertExpiryWarnDays:   DefaultCertExpiryWarnDays,

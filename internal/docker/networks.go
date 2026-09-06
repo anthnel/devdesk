@@ -124,18 +124,3 @@ func parseNetworkInspect(output []byte) ([]NetworkContainer, error) {
 	})
 	return containers, nil
 }
-
-// RunDiagnosticContainer runs a command in an ephemeral container attached to a Docker network.
-// The image must include ping, curl, and nc (netcat). Container is removed after execution (--rm).
-func RunDiagnosticContainer(networkID, image string, command []string) (string, error) {
-	if err := requireDocker(); err != nil {
-		return "", err
-	}
-	args := append([]string{"run", "--rm", "--network", networkID, image}, command...)
-	output, err := dockerCombined(args...)
-	out := strings.TrimSpace(string(output))
-	if err != nil {
-		return out, wrapErr("diagnostic command", err)
-	}
-	return out, nil
-}

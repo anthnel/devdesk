@@ -290,14 +290,6 @@ func inspectNetworkCmd(networkID, networkName string) tea.Cmd {
 	}
 }
 
-// runDiagnosticContainerCmd runs a connectivity test in an ephemeral network-multitool container
-func runDiagnosticContainerCmd(networkID, image string, command []string) tea.Cmd {
-	return func() tea.Msg {
-		output, err := docker.RunDiagnosticContainer(networkID, image, command)
-		return DiagnosticTestCompleteMsg{Output: output, Err: err}
-	}
-}
-
 // loadLaunchOptionsCmd loads cached launch options for an image from disk.
 func loadLaunchOptionsCmd(imageKey string) tea.Cmd {
 	return func() tea.Msg {

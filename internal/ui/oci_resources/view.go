@@ -20,7 +20,7 @@ func (m Model) FilterBarVisible() bool {
 	}
 	return m.activeTab == tabImages && m.imageTable.FilterBar().IsVisible() &&
 		m.launchForm == nil && m.resourceForm == nil && m.registryForm == nil &&
-		m.connectivityForm == nil && m.networkInspectForm == nil
+		m.networkInspectForm == nil
 }
 
 // modalView renders whichever modal is open, or "" when none is.
@@ -37,7 +37,7 @@ func (m Model) modalView() string {
 // InEditMode returns true when a form, modal or filter is active
 func (m Model) InEditMode() bool {
 	return m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
-		m.networkInspectForm != nil || m.connectivityForm != nil ||
+		m.networkInspectForm != nil ||
 		m.confirmModal != nil || m.scanAllModal != nil ||
 		(m.activeTab == tabImages && m.imageTable.InEditMode()) ||
 		m.registryBrowser != nil
@@ -57,7 +57,7 @@ func (m Model) GetFooterHeight() int {
 		filterExtra = m.imageTable.FilterBar().ExtraHeight()
 	}
 	if m.launchForm == nil && m.resourceForm == nil && m.registryForm == nil &&
-		m.connectivityForm == nil && m.networkInspectForm == nil {
+		m.networkInspectForm == nil {
 		crumbExtra := 0
 		if m.registryGroupSlug != "" {
 			crumbExtra = 1 // the drill-down breadcrumb
@@ -70,7 +70,7 @@ func (m Model) GetFooterHeight() int {
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
 	if m.registryBrowser != nil || m.launchForm != nil || m.resourceForm != nil || m.registryForm != nil ||
-		m.connectivityForm != nil || m.networkInspectForm != nil {
+		m.networkInspectForm != nil {
 		// No tab bar or filter bar in form mode — empty line + info line
 		infoLine := m.footer.View(width, m.formStatus())
 		if m.registryBrowser != nil && m.registryBrowser.FilterIsVisible() {
@@ -179,9 +179,6 @@ func (m Model) GetTitle() string {
 	}
 	if m.registryForm != nil {
 		return base + " " + theme.IconChevronRight + " " + m.registryForm.GetTitle()
-	}
-	if m.connectivityForm != nil {
-		return base + " " + theme.IconChevronRight + " Connectivity Test"
 	}
 	if m.networkInspectForm != nil {
 		return base + " " + theme.IconChevronRight + " Network Inspect"
@@ -302,24 +299,8 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			{Key: "esc", Description: "Cancel"},
 		}
 	}
-	if m.connectivityForm != nil {
-		cf := m.connectivityForm
-		if cf.state == connectivityStateResults {
-			return []shortcut.Shortcut{
-				{Key: "enter", Description: "New test"},
-				{Key: "esc", Description: "Back"},
-			}
-		}
-		return []shortcut.Shortcut{
-			{Key: "↑↓", Description: "Browse containers", Disabled: cf.focusedField != cFieldTarget},
-			{Key: "←→", Description: "Cycle type", Disabled: cf.focusedField != cFieldType},
-			{Key: "enter", Description: "Run test"},
-			{Key: "esc", Description: "Back"},
-		}
-	}
 	if m.networkInspectForm != nil {
 		return []shortcut.Shortcut{
-			{Key: "c", Description: "Connectivity test"},
 			{Key: "esc", Description: "Close"},
 		}
 	}
@@ -412,11 +393,7 @@ func (m Model) View() string {
 	if m.registryForm != nil {
 		return m.registryForm.View()
 	}
-	// Priority 4: connectivity test form (viewport)
-	if m.connectivityForm != nil {
-		return m.connectivityForm.View()
-	}
-	// Priority 5: whichever modal is open (centered)
+	// Priority 4: whichever modal is open (centered)
 	if modal := m.modalView(); modal != "" {
 		return lipgloss.Place(
 			m.width, m.height,
@@ -425,11 +402,11 @@ func (m Model) View() string {
 			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
 		)
 	}
-	// Priority 6: network inspect form (viewport)
+	// Priority 5: network inspect form (viewport)
 	if m.networkInspectForm != nil {
 		return m.networkInspectForm.View()
 	}
-	// Priority 7: normal view by active tab
+	// Priority 6: normal view by active tab
 	return m.renderNormalView()
 }
 
@@ -489,7 +466,6 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: keymap.Delete, Description: "Delete the selected resource (with confirmation)"},
 			{Key: keymap.Prune, Description: "Prune unused resources (with confirmation)"},
 			{Key: "enter (Networks)", Description: "Inspect the selected network — shows connected containers with IP and MAC addresses"},
-			{Key: "c (Network Inspect)", Description: "Open a connectivity test form for the selected container (runs from an ephemeral network-multitool container)"},
 			{Key: "N (Networks)", Description: "Create a new network"},
 			{Key: "N (Volumes)", Description: "Create a new volume"},
 			{Key: "N (Registries)", Description: "Add a registry"},
@@ -522,7 +498,6 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Networks Tab",
 				Body: "Lists Docker networks (ID, Name, Driver, Scope). Press Enter to inspect the selected network and see connected containers. " +
-					"From the inspect overlay, press 'c' to open a connectivity test form that runs ping, curl, or nc from an ephemeral wbitt/network-multitool container. " +
 					"Press N to create a new network, D to remove the selected one, P to prune all unused networks.",
 			},
 			{

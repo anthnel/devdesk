@@ -24,14 +24,6 @@ func (m Model) handleNetworkInspectLoaded(msg NetworkInspectLoadedMsg) (tea.Mode
 	return m, nil
 }
 
-// handleDiagnosticTestComplete processes the result of a connectivity test.
-func (m Model) handleDiagnosticTestComplete(msg DiagnosticTestCompleteMsg) (tea.Model, tea.Cmd) {
-	if m.connectivityForm != nil {
-		m.connectivityForm.SetResult(msg.Output, msg.Err)
-	}
-	return m, nil
-}
-
 // openNetworkInspect opens the network inspect overlay for the selected network.
 func (m Model) openNetworkInspect() (tea.Model, tea.Cmd) {
 	net := m.getSelectedNetwork()
