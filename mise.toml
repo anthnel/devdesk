@@ -12,11 +12,15 @@ golangci-lint = "2.12.2"
 # configuration schema changes between minor versions, so an unpinned tool
 # would fail on `version: 2` syntax that was valid when it was written.
 goreleaser = "2.18.0"
-# Pinned for the same reason as the two above; it builds the docs-site/
-# published to GitHub Pages. The `pipx:` backend installs it into its own
-# isolated venv rather than the project's Python, so it does not conflict with
-# anything else on PATH.
-"pipx:mkdocs-material" = "9.6.14"
+# Pinned for the same reason as the two above. Used by docs-serve/docs-build
+# to run mkdocs-material without installing it as a mise tool: mkdocs-material
+# is a theme/plugin package, not an app — it exposes no console-script entry
+# point of its own (only its dependency `mkdocs` does), so `pipx:mkdocs-material`
+# fails on every platform with "No executables are provided by package
+# `mkdocs-material`". `uv tool run --with` sidesteps this by running `mkdocs`
+# (which has an entry point) in an ephemeral environment with mkdocs-material
+# injected alongside it.
+uv = "0.12.10"
 
 [tasks.build]
 description = "Build the binary to bin/dk"
@@ -157,7 +161,7 @@ shell = "bash -c"
 # points at a changelog.md that doesn't exist yet on a fresh checkout.
 run = """
 cp CHANGELOG.md docs-site/docs/changelog.md
-mkdocs serve -f docs-site/mkdocs.yml
+uv tool run --with mkdocs-material==9.6.14 mkdocs serve -f docs-site/mkdocs.yml
 """
 
 [tasks.docs-build]
@@ -167,5 +171,5 @@ shell = "bash -c"
 # way locally and in CI, on every OS mise supports.
 run = """
 cp CHANGELOG.md docs-site/docs/changelog.md
-mkdocs build -f docs-site/mkdocs.yml --site-dir docs-site/site
+uv tool run --with mkdocs-material==9.6.14 mkdocs build -f docs-site/mkdocs.yml --site-dir docs-site/site
 """
