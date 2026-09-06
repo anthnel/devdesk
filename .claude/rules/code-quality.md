@@ -78,15 +78,15 @@ go mod verify
 
 ### Rule 304 : Message de commit qualité
 
-**Format obligatoire pour les corrections de qualité:**
+**Format obligatoire pour les corrections de qualité — en anglais (voir Rule 307):**
 
 ```
-type: description courte
+type: short description
 
-Description détaillée expliquant:
-- Ce qui a été détecté (warning, erreur, etc.)
-- Pourquoi c'était un problème
-- Comment c'est résolu
+Detailed description explaining:
+- What was detected (warning, error, etc.)
+- Why it was a problem
+- How it was resolved
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
@@ -149,3 +149,46 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 6. Mettre à jour .claude/CLAUDE.md
 7. git commit avec explication du remplacement
 ```
+
+### Rule 307 : Commits et commentaires de code — anglais uniquement
+
+**Tout message de commit git et tout commentaire dans le code doivent être
+rédigés en anglais**, quelle que soit la langue utilisée pour échanger avec
+l'utilisateur.
+
+| Élément | Langue |
+|---------|--------|
+| Message de commit (titre + corps) | ✅ English only |
+| Commentaire de code (`//`, `/* */`, docstring) | ✅ English only |
+| Réponses à l'utilisateur dans la conversation | Langue de l'utilisateur (voir mémoire `feedback-langue-francais`) |
+| UI et logs (Rule 129) | English US uniquement — déjà couvert, inchangé |
+
+Ceci **remplace** la tolérance précédente listée dans `.claude/CLAUDE.md` sous
+« Code Conventions » (« Comments: French or English both accepted ») : les
+commentaires en français existants ne sont pas à réécrire en masse, mais tout
+nouveau commentaire et toute modification de commentaire existant doivent être
+en anglais.
+
+```
+// ✅ CORRECT
+// retry with backoff because the API rate-limits bursts above 10 req/s
+
+// ❌ INTERDIT
+// on relance avec un backoff car l'API limite les rafales au-delà de 10 req/s
+```
+
+```
+✅ fix: correct table width calculation when a column is dropped
+
+Bordures étaient soustraites deux fois, ce qui tronquait la dernière colonne.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+
+❌ fix: corrige le calcul de largeur de colonne
+```
+
+Interdit :
+- ❌ Un message de commit rédigé en français, même partiellement
+- ❌ Un nouveau commentaire de code en français
+- ❌ Confondre cette règle avec la langue de la conversation, qui reste celle
+  de l'utilisateur

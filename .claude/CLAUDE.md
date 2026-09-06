@@ -543,7 +543,8 @@ Key libraries (see `go.mod`):
 
 ## Code Conventions
 
-- Comments: French or English both accepted
+- Comments: **English only** (Rule 307) — existing French comments are not rewritten wholesale, but any new or edited comment is in English
+- Commit messages: **English only** (Rule 307)
 - UI text and logs: **English US only** (Rule 129)
 - Bubbletea models define their own message types
 - Use `theme` package for consistent styling (`internal/ui/theme/`)
