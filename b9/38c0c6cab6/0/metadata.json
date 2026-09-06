@@ -1,0 +1,107 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "b938c0c6cab6",
+  "session_id": "859bd9c5-2d48-4cae-9f95-0d2386c22e34",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T19:19:44.8482742Z",
+  "branch": "docs/rulesets-now-available",
+  "checkpoints_count": 2,
+  "save_step_count": 2,
+  "files_touched": [
+    ".worktrees/fix-docs-build-site-dir-doubling/mise.toml",
+    "docs/CODEMAPS/data.md",
+    "internal/config/config.go",
+    "internal/scan/options.go",
+    "internal/scan/options_test.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/fields_test.go",
+    "internal/ui/configuration/model.go",
+    "internal/ui/configuration/model_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "35716ef4efa5",
+  "checkpoint_transcript_start": 1095,
+  "transcript_lines_at_start": 1095,
+  "compact_transcript_start": 177,
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 9326,
+    "cache_read_tokens": 5427018,
+    "output_tokens": 5035,
+    "api_call_count": 14
+  },
+  "session_metrics": {
+    "turn_count": 13
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T19:19:44.77616Z",
+    "agent_lines": 140,
+    "agent_removed": 39,
+    "human_added": 0,
+    "human_modified": 1,
+    "human_removed": 93,
+    "total_committed": 140,
+    "total_lines_changed": 273,
+    "agent_percentage": 65.56776556776556,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 87,
+      "user_lines_removed": 12,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/agents/entire-search.md": 26,
+        ".claude/settings.local.json": 3,
+        "docs/CODEMAPS/data.md": 2,
+        "internal/config/config.go": 2,
+        "internal/scan/options.go": 8,
+        "internal/scan/options_test.go": 21,
+        "internal/ui/configuration/fields.go": 3,
+        "internal/ui/configuration/fields_test.go": 2,
+        "internal/ui/configuration/model.go": 1,
+        "internal/ui/configuration/model_test.go": 19
+      },
+      "user_removed_per_file": {
+        "docs/CODEMAPS/data.md": 1,
+        "internal/config/config.go": 1,
+        "internal/scan/options.go": 1,
+        "internal/ui/configuration/fields.go": 1,
+        "internal/ui/configuration/fields_test.go": 2,
+        "internal/ui/configuration/model.go": 1,
+        "internal/ui/configuration/model_test.go": 5
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 4,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 288,
+      "user_lines_removed": 153,
+      "agent_lines_added": 1,
+      "agent_lines_removed": 88,
+      "user_added_per_file": {
+        ".claude/CLAUDE.md": 90,
+        ".claude/rules/code-quality.md": 194,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/CLAUDE.md": 2,
+        ".claude/rules/code-quality.md": 151
+      }
+    }
+  ]
+}
