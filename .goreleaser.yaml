@@ -1,0 +1,70 @@
+# goreleaser builds the binaries for a tag and attaches them to the GitHub
+# Release that release-please has already created.
+#
+# The division of labour is deliberate: release-please decides the version and
+# owns the CHANGELOG, goreleaser owns the artifacts and nothing else. That is
+# why `release.mode` is `append` and `changelog` is disabled — either of them
+# left at its default would have goreleaser write a second set of release notes
+# over the ones the release PR was reviewed with.
+version: 2
+
+project_name: dk
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: dk
+    binary: dk
+    main: .
+    # DevDesk is cgo-free on purpose — go-keyring talks to wincred, Keychain
+    # and Secret Service without it — which is what lets one ubuntu runner
+    # produce all six targets. Setting this explicitly rather than relying on
+    # the cross-compilation default means a dependency that quietly needs cgo
+    # fails the release instead of producing a linux-only build.
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      # `.Tag` and not `.Version`: goreleaser strips the leading "v" from the
+      # latter, and `mise run build` stamps what `git describe` returns, which
+      # keeps it. A release binary and a local one should spell their version
+      # the same way.
+      - -X github.com/anthnel/devdesk/internal/version.version={{ .Tag }}
+      - -X github.com/anthnel/devdesk/internal/version.commit={{ .ShortCommit }}
+      - -X github.com/anthnel/devdesk/internal/version.date={{ .Date }}
+
+archives:
+  - id: dk
+    ids:
+      - dk
+    name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: checksums.txt
+
+# release-please writes the CHANGELOG from the conventional commits, and the
+# release PR is where it is reviewed. A second, differently-grouped list
+# generated here would contradict it.
+changelog:
+  disable: true
+
+release:
+  # The Release already exists — release-please created it when its PR was
+  # merged. `append` adds the artifacts to it; `replace` would discard the
+  # notes that came with it.
+  mode: append

@@ -59,6 +59,14 @@ var allowed = map[string]string{
 	// This is a distinction the guard exists to make the reader confront, not
 	// one it exists to forbid.
 	"internal/ui/fileicon/fileicon.go": "filenames that happen to carry a forge's name",
+
+	// L'écran About nomme le dépôt de DevDesk lui-même. Ce n'est pas du
+	// vocabulaire de forge : la valeur ne dépend d'aucun contexte et ne
+	// changerait pas si l'utilisateur configurait GitLab — c'est une adresse,
+	// au même titre que le chemin de `~/.devdesk`. La distinction est celle que
+	// fait déjà l'entrée fileicon : ce que la garde cherche est un *mot* qui
+	// devrait suivre la forge active.
+	"internal/ui/about/model.go": "the address of this project's own repository",
 }
 
 // importPath recognises a Go import, which is a string literal like any other

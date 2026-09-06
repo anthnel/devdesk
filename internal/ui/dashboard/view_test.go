@@ -684,8 +684,26 @@ func TestGetHeaderInfoCarriesTheContext(t *testing.T) {
 	m, _ := loadedModel(t)
 
 	info := m.GetHeaderInfo("work")
-	if len(info) != 1 || info[0].Key != "Context" || info[0].Value != "work" {
-		t.Errorf("GetHeaderInfo() = %+v, want the active context", info)
+	if len(info) != 2 || info[0].Key != "Context" || info[0].Value != "work" {
+		t.Errorf("GetHeaderInfo() = %+v, want the active context first", info)
+	}
+}
+
+// Le dashboard est la vue d'accueil, donc la seule qui annonce la version sans
+// qu'on l'ait demandée. Un binaire qui ne sait pas d'où il vient répond "dev"
+// plutôt que rien : un champ vide se lirait comme un défaut d'affichage.
+func TestGetHeaderInfoNamesTheBuild(t *testing.T) {
+	m, _ := loadedModel(t)
+
+	info := m.GetHeaderInfo("work")
+	if len(info) != 2 {
+		t.Fatalf("GetHeaderInfo() = %+v, want two fields", info)
+	}
+	if info[1].Key != "Version" {
+		t.Errorf("second field is %q, want Version", info[1].Key)
+	}
+	if info[1].Value == "" {
+		t.Error("the version field is empty")
 	}
 }
 

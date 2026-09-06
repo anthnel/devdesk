@@ -330,6 +330,65 @@ git push origin HEAD:refs/heads/<new-branch-name>
 git worktree remove .worktrees/<tmp-branch>
 ```
 
+### Publier une version — release-please, puis goreleaser
+
+**Une release se fait en deux merges, et c'est le point.** `release-please`
+surveille `main` et tient ouverte une **pull request de release** : il lit les
+conventional commits depuis le dernier tag, décide la version et écrit le
+`CHANGELOG.md`. Merger cette PR crée le tag et la GitHub Release ; `goreleaser`
+construit alors les six binaires (linux, darwin, windows × amd64, arm64) et les
+attache à cette Release.
+
+```bash
+# rien à lancer : la PR de release s'ouvre et se met à jour toute seule
+gh pr list -R anthnel/devdesk --label "autorelease: pending"
+gh pr merge -R anthnel/devdesk <n> --squash   # ← c'est ce merge qui publie
+```
+
+**Pourquoi pas semantic-release**, qui ferait la même chose en un seul merge :
+il pousse le tag directement sur `main`, et ce dépôt l'interdit — le mirror
+Entire rejette ce push, et ce refus est la *seule* protection que `main` ait,
+puisque la branch protection est indisponible sur ce plan (le 403 plus haut). Un
+merge de plus par release est le prix de cette règle.
+
+**Le mirror réplique les tags, vérifié le 2026-09-06.** Le tag est posé par
+GitHub Actions, donc il naît sur GitHub et non via le mirror — mais
+`git fetch origin --tags` le ramène, comme il ramène un squash-merge fait par
+`gh`. C'était la seule inconnue de la chaîne, et elle est levée : rien n'oblige
+à poser un tag à la main.
+
+| Fichier | Rôle |
+|---|---|
+| `release-please-config.json` | le type (`go`), les sections du CHANGELOG |
+| `.release-please-manifest.json` | la version courante — **écrite par le robot**, jamais à la main |
+| `.goreleaser.yaml` | les six cibles, les `-ldflags`, `mode: append` |
+| `.github/workflows/release.yml` | les deux jobs, enchaînés par `release_created` |
+
+**Un réglage de dépôt qu'aucun workflow ne peut se donner** : *Settings →
+Actions → Allow GitHub Actions to create and approve pull requests*. Sans lui le
+premier run échoue sur la PR qu'il ne peut pas ouvrir, et le message ne dit pas
+que c'est ça. **Déjà actif ici** — `gh api repos/anthnel/devdesk/actions/permissions/workflow`
+répond `can_approve_pull_request_reviews: true`, vérifié le 2026-09-06. Le même
+appel montre `default_workflow_permissions: read`, ce qui n'est pas un problème :
+c'est le défaut quand un workflow ne dit rien, et `release.yml` déclare les
+siennes.
+
+**La version du binaire vient des `-ldflags`**, pas d'un fichier committé
+(§3.62). `release-please` sait écrire dans un fichier Go (`versionFile`) et on
+ne s'en sert pas : ce serait une seconde source de vérité pour une réponse que
+le build donne déjà, et un binaire de dev afficherait alors le numéro de la
+dernière release plutôt que `dev`.
+
+**Avant de pousser un changement à la chaîne**, `mise run release-check` valide
+la configuration et `mise run release-snapshot` construit les six cibles sans
+rien publier — c'est le seul moyen de découvrir qu'une cible est cassée avant
+qu'un tag ne soit posé.
+
+**La première release listera toute l'histoire** (66 `feat:` et 50 `fix:` au
+2026-09-06). C'est voulu — un premier CHANGELOG vide serait pire — et la PR est
+éditable avant le merge. Pour partir à `1.0.0` plutôt qu'à `0.1.0`, un
+`"release-as": "1.0.0"` ponctuel dans la config, retiré ensuite.
+
 ### Remotes
 
 | Remote | URL | Use |

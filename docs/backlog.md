@@ -11719,6 +11719,120 @@ réalisation a créée : **`clone_start`**, ci-dessus.
    configuration de l'agent sans que rien ne le lui dise. Peut-être n'y a-t-il
    rien de mieux à faire que de l'écrire.
 
+### 3.62 Le binaire sait ce qu'il est, `:about` le dit, et les releases se publient seules — **done**
+
+Jusqu'ici `dk` ne savait rien de lui-même : aucun tag dans le dépôt, aucune
+variable de version, aucun `-ldflags`. Un rapport de bug ne pouvait nommer la
+build qu'il décrivait, et rien à l'écran ne disait d'où venait le binaire.
+
+#### `internal/version` — trois sources, un ordre
+
+La question « quelle version tourne » a trois réponses possibles, et elles ne se
+valent pas :
+
+| Source | Donne | Quand |
+|---|---|---|
+| `-ldflags -X` | la version | goreleaser en release, `mise run build` en local |
+| métadonnées VCS (`-buildvcs=auto`) | le commit, la date, l'état modifié | tout build fait dans un dépôt |
+| `Main.Version` de `debug.BuildInfo` | la version | `go install pkg@v0.2.0`, et là seulement |
+
+`Get()` les consulte dans cet ordre et **rien n'écrase jamais un `-X`** : un
+drapeau est une affirmation délibérée, les métadonnées un défaut. Le test qui
+tient cet invariant est celui qui vaut la peine — sans lui, un binaire de
+release construit depuis un tag annoncerait le commit du build plutôt que la
+version demandée, ce qui est précisément l'erreur que la chaîne existe pour
+éviter.
+
+**Un binaire qui ne sait pas répond `dev`, pas `v0.0.0`.** C'est la même
+distinction que `unknown` pour le commit : ne pas savoir et prétendre à une
+valeur sont deux choses différentes, et un numéro inventé est ce qu'on citerait
+dans un rapport de bug en croyant dire quelque chose.
+
+**Seule la version passe par `-ldflags`.** Le commit et la date, le compilateur
+les embarque déjà ; les poser aussi ferait deux sources pour une réponse. Et
+`git describe` est appelé **sans `--always`** : sans tag il échoue et le repli
+est `dev`, là où `--always` promeut un SHA au rang de numéro de version.
+
+#### `:about` — le binaire, pas la machine
+
+La vue est une **vue** et non une touche majuscule, pour la raison que `:jobs`
+est une vue : le vocabulaire majuscule agit sur une ressource *dans* un écran,
+et celle-ci est un écran (Rule 111). Pas d'alias d'une lettre non plus — `a`
+vaut mieux que cet écran, qu'on ouvre une fois pour lire une version.
+
+**Ce qu'elle montre est le binaire, pas l'environnement.** Les versions de
+Trivy, gitleaks, plumber et Docker sont sur le dashboard et y restent : elles
+décrivent la machine, elles changent sans que DevDesk soit reconstruit, et il
+faut aller les chercher. Ici rien n'est mesuré — tout est connu au démarrage —
+et **c'est ce qui justifie l'absence de `ctrl+r`** : une touche qui ne pourrait
+jamais devenir disponible n'est pas une touche grisée, c'est une touche qui
+n'appartient pas à la vue (Rule 130).
+
+La version est aussi dans le header du **dashboard**, et d'aucun autre écran :
+c'est la vue d'accueil, donc la seule où l'information se lit sans avoir été
+cherchée. La répéter partout coûterait une colonne de header par vue pour une
+valeur qui ne change jamais en cours de session.
+
+Deux gardes de source ont eu leur mot à dire, et les deux avaient raison :
+`TestEveryTypeableViewIsDocumented` a refusé la vue tant que `app-shell.md` ne
+la nommait pas, et `TestNoViewNamesAForge` a refusé l'URL du dépôt. La seconde
+est une exception déclarée : `https://github.com/anthnel/devdesk` n'est pas du
+vocabulaire de forge — la valeur ne dépend d'aucun contexte et ne changerait pas
+si l'utilisateur configurait GitLab. C'est une adresse, au même titre que le
+chemin de `~/.devdesk`.
+
+#### Étape 2 — la publication
+
+**release-please plutôt que semantic-release, et la raison n'est pas une
+préférence.** Les deux lisent les mêmes conventional commits et décident la même
+version ; ce qui les sépare est par où la version arrive sur `main` :
+semantic-release **pousse le tag directement**, release-please ouvre une **PR de
+release** que le merge transforme en tag et en Release. Ce dépôt interdit le
+push direct sur `main` — le mirror Entire le rejette, et ce refus est la seule
+protection qui existe puisque la branch protection est indisponible sur ce plan.
+semantic-release ouvrirait donc une seconde voie vers `main`, précisément celle
+que la règle ferme. Le coût est un merge de plus par release.
+
+`goreleaser` construit ensuite les six cibles sur le tag et les attache à la
+Release. La cross-compilation est triviale parce que le projet est **cgo-free**
+(`go-keyring` parle à wincred, Keychain et Secret Service sans lui) : une seule
+machine `ubuntu-latest` couvre linux, darwin et windows en amd64 et arm64, en
+28 s mesurées. `CGO_ENABLED=0` est posé explicitement plutôt que laissé au
+défaut de cross-compilation — une dépendance qui se mettrait à en avoir besoin
+fait alors échouer la release au lieu de produire un build linux seul.
+
+**Le partage des rôles est écrit dans les deux configurations** : release-please
+décide la version et possède le CHANGELOG, goreleaser possède les artefacts et
+rien d'autre. D'où `release.mode: append` et `changelog.disable: true` — l'un ou
+l'autre laissé à son défaut ferait écrire à goreleaser un second jeu de notes
+par-dessus celles avec lesquelles la PR a été relue.
+
+`.Tag` et non `.Version` dans les `-ldflags` : goreleaser retire le `v` initial
+du second, là où `mise run build` estampille ce que rend `git describe`, qui le
+garde. Un binaire de release et un binaire local doivent épeler leur version de
+la même façon.
+
+**L'inconnue de la chaîne est levée.** Le tag est posé par GitHub Actions, donc
+il naît sur GitHub et non via le mirror ; restait à savoir si la réplication
+GitHub → mirror, que le CLAUDE.md documente pour `main`, couvre
+`refs/tags/*`. Vérifié le 2026-09-06 en posant `v0.0.0-mirror-test` par l'API
+GitHub : `git fetch origin --tags` le ramène. Rien n'oblige donc à poser un tag
+à la main, et `git describe` reste juste en local.
+
+Un dernier point n'est pas dans les fichiers et serait oublié : *Settings →
+Actions → Allow GitHub Actions to create and approve pull requests*. Aucun
+workflow ne peut se donner ce droit, et le premier run échoue sur la PR qu'il ne
+peut pas ouvrir avec un message qui ne dit pas que c'est ça. Il est **déjà
+actif** — vérifié plutôt que supposé, par
+`gh api repos/anthnel/devdesk/actions/permissions/workflow`.
+
+**Les 180 commits de `main` sont conventional, sans exception** — vérifié plutôt
+que supposé, et c'est la seule condition d'entrée de l'outil. Le squash-merge y
+est pour beaucoup : le titre de la PR devient le sujet du commit, donc c'est
+lui, et lui seul, qui doit être conforme.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

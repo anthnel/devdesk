@@ -1,0 +1,65 @@
+# Releasing happens in two merges, not one.
+#
+# release-please watches `main` and keeps a release pull request open: it reads
+# the conventional commits since the last tag, decides the next version and
+# writes the CHANGELOG. Merging that PR is what creates the tag and the GitHub
+# Release; goreleaser then builds the binaries and attaches them to it.
+#
+# The PR is the point. semantic-release would push the tag straight to `main`,
+# and this repository forbids a direct push there — the Entire mirror rejects
+# it, and that refusal is the only protection `main` has, since branch
+# protection is unavailable on this plan. A release that arrives as a reviewed
+# PR costs one extra merge and keeps that rule intact.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# `contents: write` creates the tag and the Release; `pull-requests: write`
+# opens and updates the release PR. The latter also requires "Allow GitHub
+# Actions to create and approve pull requests" under Settings → Actions, which
+# is a repository setting no workflow can grant itself — without it the first
+# run fails on the PR it cannot open.
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Prepare the release PR
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  goreleaser:
+    name: Build and attach the binaries
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The tag release-please just created, and the whole history with it:
+          # goreleaser reads tags to work out what it is building, and a shallow
+          # clone has none.
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4
+      # Through a mise task for the reason ci.yml gives: a raw command here
+      # would be a second spelling of the release build, free to drift from the
+      # one anybody can run locally with `mise run release-snapshot`.
+      - run: mise run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

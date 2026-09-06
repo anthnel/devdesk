@@ -33,6 +33,7 @@ App (Router)
     ├── netdiag         - Network diagnostics (Docker-based tools) + real-time port monitor
     ├── configuration   - Every scalar setting in the current context
     ├── jobs            - Long-running work: runs, then their targets
+    ├── about           - Which build is running, and where it keeps its files
     └── viewer          - One document, read-only (router-only: no `:viewer`)
 ```
 
@@ -50,6 +51,7 @@ Press `ctrl+p` to enter command mode, then type:
 - `netdiag` or `net` - Switch to network diagnostics view
 - `configuration`, `config` or `cfg` - Switch to the configuration view
 - `jobs` or `j` - Switch to the jobs view: what is running, and what ran this session
+- `about` or `version` - Which build is running: version, commit, build date, and where the config, cache and log live
 - `context <name>` or `ctx <name>` - Switch configuration context
 - `context list` - Show available contexts
 - `quit` - Exit application

@@ -32,6 +32,14 @@ const (
 	// goes through `:` (Rule 111).
 	ViewJobs ViewType = "jobs"
 
+	// ViewAbout says which build is running and where it keeps its files. It is
+	// a view rather than an uppercase key for the reason ViewJobs is: the
+	// uppercase vocabulary acts on a resource *within* a screen, and this one
+	// is a screen. It is also why it is not an overlay like `?` — the help
+	// answers "what can I press here", which is a different question and one
+	// that every view answers for itself.
+	ViewAbout ViewType = "about"
+
 	// ViewViewer is opened by the router on another view's request — a file in
 	// workspaces, an inspect or a log in containers — and never by name. It is
 	// deliberately absent from viewNames: `:viewer` would open a pane saying
@@ -96,6 +104,10 @@ var viewNames = map[string]ViewType{
 	"cfg":           ViewConfiguration,
 	"jobs":          ViewJobs,
 	"j":             ViewJobs,
+	"about":         ViewAbout,
+	// No one-letter alias: `a` is worth more than this view, which is opened
+	// once to read a version and not returned to.
+	"version": ViewAbout,
 }
 
 // legacyNames are spellings that still resolve but are never suggested.

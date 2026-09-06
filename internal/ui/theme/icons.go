@@ -40,6 +40,7 @@ var (
 	IconCircle                = "\U000F09DE" // 󰧞 nf-md-circle_medium
 	IconSelect                = "\uf516"     //  nf-oct-single_selectc
 	IconCertificate           = "\uf23e"     //  nf-fa-expeditedssl
+	IconInfo                  = "\U000F02FD" // 󰋽 nf-md-information_outline
 	IconGitlab                = "\uf296"     //  nf-fa-gitlab
 	IconGithub                = "\uf09b"     //  nf-fa-github
 	IconWorkspace             = IconDirectoryOpen
