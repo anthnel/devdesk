@@ -177,8 +177,8 @@ func TestTheTrivyServerFieldRefusesAnAddressTrivyCannotParse(t *testing.T) {
 	}
 }
 
-// Clearing a field has to be possible: an empty Trivy server is how the user
-// leaves client-server mode.
+// Clearing a field has to be possible even though leaving client-server mode
+// is now the checkbox's job, not the address's.
 func TestClearingTheTrivyServerIsAllowed(t *testing.T) {
 	cfg := config.Default()
 	cfg.Scan.TrivyServer = "https://trivy:4954"

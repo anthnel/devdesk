@@ -157,7 +157,21 @@ func TestARefusedValueKeepsTheCursorOnItsField(t *testing.T) {
 
 // A Trivy server address disables the two options its protocol cannot serve.
 // A real constraint, carried over from the security form this view replaces.
-func TestAServerAddressForcesOffTheOptionsItCannotServe(t *testing.T) {
+func TestTheCheckboxAloneForcesOffTheOptionsItCannotServe(t *testing.T) {
+	m := focusOn(t, newModel(t), "Use Trivy server")
+	m.config.Scan.EnableMisconfig = true
+	m.config.Scan.EnableLicense = true
+
+	m = feed(t, m, testutil.Key(" "))
+
+	if m.config.Scan.EnableMisconfig || m.config.Scan.EnableLicense {
+		t.Errorf("server mode left incompatible options on: %+v", m.config.Scan)
+	}
+}
+
+// Filling in the address alone must not turn client-server mode on — only the
+// checkbox does.
+func TestAnAddressWithoutTheCheckboxLeavesServerModeOff(t *testing.T) {
 	m := focusOn(t, newModel(t), "Trivy server")
 	m.config.Scan.EnableMisconfig = true
 	m.config.Scan.EnableLicense = true
@@ -165,14 +179,14 @@ func TestAServerAddressForcesOffTheOptionsItCannotServe(t *testing.T) {
 
 	m = feed(t, m, testutil.Key("down"))
 
-	if m.config.Scan.EnableMisconfig || m.config.Scan.EnableLicense {
-		t.Errorf("server mode left incompatible options on: %+v", m.config.Scan)
+	if !m.config.Scan.EnableMisconfig || !m.config.Scan.EnableLicense {
+		t.Errorf("an address alone locked options that only the checkbox should: %+v", m.config.Scan)
 	}
 }
 
 func TestADisabledOptionCannotBeToggledAndSaysWhy(t *testing.T) {
 	m := newModel(t)
-	m.config.Scan.TrivyServer = "https://trivy:4954"
+	m.config.Scan.UseTrivyServer = true
 	m = focusOn(t, m, "Misconfiguration")
 
 	m = feed(t, m, testutil.Key(" "))
@@ -398,7 +412,7 @@ func TestEachTabRendersItsGroupHeadingsOnceInOrder(t *testing.T) {
 // options two cells right of the rest of their group.
 func TestEveryCheckboxStartsOnTheSameColumn(t *testing.T) {
 	m := newModel(t)
-	m.config.Scan.TrivyServer = "localhost:4954" // locks Misconfiguration and Licenses
+	m.config.Scan.UseTrivyServer = true // locks Misconfiguration and Licenses
 
 	for tab := range m.sections {
 		m.activeTab = tab
