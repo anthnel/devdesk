@@ -8905,6 +8905,20 @@ Les `<contrôle>Result` qui passent ne sont pas des findings et ne vont dans auc
 onglet ; ils sont pourtant ce qui donne son sens au score. Les ignorer d'abord,
 et le noter.
 
+**Ce que `mcp.enabled: true` veut dire a changé, et rien ne le redemande.**
+Sous §3.38 le réglage disait « un serveur en lecture seule, sur stdio, lancé par
+le client, sans aucun port » ; il dit maintenant « un port sur le loopback, et
+le palier d'action avec, `expose` étant vide par défaut ». Un contexte qui avait
+dit oui au premier n'est pas réinterrogé sur le second — et il serait
+reconnaissable, un fichier écrit avant §3.61 ne portant pas de `listen`.
+
+Le défaut plus étroit était donc disponible et n'a pas été pris, délibérément :
+le réglage a toujours voulu dire « un agent peut atteindre ce contexte »,
+l'élargissement est le sujet même de l'entrée, et une migration serait de la
+cérémonie autour d'une décision que son seul utilisateur venait de prendre.
+C'est écrit ici et dans le commentaire de `MCPConfig` plutôt que laissé à
+découvrir.
+
 #### Ce qui reste ouvert
 
 Les quatre arbitrages de conception ont été pris le 2026-08-25 et sont écrits là

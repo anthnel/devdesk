@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -40,15 +41,24 @@ func ResolveToken(sel credentials.Selection) (string, error) {
 		return "", fmt.Errorf("the MCP server needs a secret store that survives the session, and there is none: %s", sel.Detail)
 	}
 
-	if token, err := sel.Storage.Load(TokenURL); err == nil && token != "" {
+	token, err := sel.Storage.Load(TokenURL)
+	switch {
+	case err == nil && token != "":
 		return token, nil
+	case err != nil && !errors.Is(err, credentials.ErrNotFound):
+		// A store that would not answer is not a store with nothing in it, and
+		// minting here would write a new token over one that is still there —
+		// permanently, and for a locked keyring or a D-Bus hiccup. That is the
+		// silent breakage this function's first paragraph refuses to allow, so
+		// the only safe move is to say the store did not answer.
+		return "", fmt.Errorf("cannot read the MCP token from %s: %w", sel.Backend, err)
 	}
 
 	raw := make([]byte, tokenBytes)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("generate an MCP token: %w", err)
 	}
-	token := base64.RawURLEncoding.EncodeToString(raw)
+	token = base64.RawURLEncoding.EncodeToString(raw)
 
 	if err := sel.Storage.Save(TokenURL, token); err != nil {
 		return "", fmt.Errorf("store the MCP token: %w", err)
@@ -77,8 +87,12 @@ func Authorize(next http.Handler, token string) http.Handler {
 	want := []byte(token)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if !ok || subtle.ConstantTimeCompare([]byte(got), want) != 1 {
+		// The scheme is matched case-insensitively because RFC 7235 says it is
+		// case-insensitive; a client that sends `bearer` would otherwise get a
+		// 401 that reads as a wrong token and sends its owner looking in the
+		// keyring. The credential itself is compared byte for byte.
+		scheme, got, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+		if !ok || !strings.EqualFold(scheme, "Bearer") || subtle.ConstantTimeCompare([]byte(got), want) != 1 {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return

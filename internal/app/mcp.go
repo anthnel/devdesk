@@ -22,6 +22,13 @@ import (
 // not what the setting asked for — so a port chosen by the OS would be reported
 // truthfully; Err is why there is nothing listening.
 type MCPServerStartedMsg struct {
+	// Epoch is which start this reports. A switch made while an earlier start
+	// is still in flight — ResolveToken can block on a locked keyring, or on a
+	// two-second `git config` read — would otherwise have the old start's
+	// message land afterwards and store its server, leaving a listener still
+	// answering for the context nobody is in while the new one fails to bind.
+	// That is exactly the guarantee the restart exists to give.
+	Epoch  uint64
 	Addr   string
 	Server *http.Server
 	Err    error
@@ -49,6 +56,9 @@ type MCPServerStartedMsg struct {
 // starting message: the thing is created where the I/O happens and stored by
 // the one place allowed to store it.
 func (a *App) startMCPCmd() tea.Cmd {
+	a.mcpEpoch++
+	epoch := a.mcpEpoch
+
 	cfg := a.config
 	contextName := a.currentContext
 	secrets := a.sharedState.Secrets
@@ -56,7 +66,7 @@ func (a *App) startMCPCmd() tea.Cmd {
 
 	return func() tea.Msg {
 		if !cfg.MCP.Enabled {
-			return MCPServerStartedMsg{Err: mcpserver.Refused(contextName)}
+			return MCPServerStartedMsg{Epoch: epoch, Err: mcpserver.Refused(contextName)}
 		}
 
 		addr := cfg.MCP.Listen
@@ -69,7 +79,7 @@ func (a *App) startMCPCmd() tea.Cmd {
 		// open one for the width of the failure path.
 		token, err := mcpserver.ResolveToken(secrets)
 		if err != nil {
-			return MCPServerStartedMsg{Err: err}
+			return MCPServerStartedMsg{Epoch: epoch, Err: err}
 		}
 
 		handler, err := mcpserver.Handler(&mcpserver.Env{
@@ -78,13 +88,13 @@ func (a *App) startMCPCmd() tea.Cmd {
 			Dispatch: dispatch,
 		})
 		if err != nil {
-			return MCPServerStartedMsg{Err: err}
+			return MCPServerStartedMsg{Epoch: epoch, Err: err}
 		}
 		handler = mcpserver.Authorize(handler, token)
 
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
-			return MCPServerStartedMsg{Err: err}
+			return MCPServerStartedMsg{Epoch: epoch, Err: err}
 		}
 
 		srv := &http.Server{Handler: handler}
@@ -99,7 +109,7 @@ func (a *App) startMCPCmd() tea.Cmd {
 			}
 		}()
 
-		return MCPServerStartedMsg{Addr: ln.Addr().String(), Server: srv, Token: token}
+		return MCPServerStartedMsg{Epoch: epoch, Addr: ln.Addr().String(), Server: srv, Token: token}
 	}
 }
 
@@ -154,6 +164,18 @@ func (a *App) restartMCPCmd() tea.Cmd {
 // the error, and "the setting is off" is one of the answers rather than the
 // absence of one.
 func (a *App) handleMCPServerStarted(msg MCPServerStartedMsg) (tea.Model, tea.Cmd) {
+	// A report from a start the session has moved past. Its listener, if it got
+	// one, is closed here rather than stored: storing it would leave a server
+	// answering for a context nobody is in, and dropping it silently would leak
+	// the port the current context is trying to bind.
+	if msg.Epoch != a.mcpEpoch {
+		if msg.Server != nil {
+			log.Printf("MCP server for a superseded context closed on arrival (epoch %d, now %d)", msg.Epoch, a.mcpEpoch)
+			_ = msg.Server.Close()
+		}
+		return a, nil
+	}
+
 	a.mcpServer = msg.Server
 	a.mcpAddr = msg.Addr
 	a.mcpErr = msg.Err
@@ -162,7 +184,21 @@ func (a *App) handleMCPServerStarted(msg MCPServerStartedMsg) (tea.Model, tea.Cm
 	// The configuration view shows all three, and it is built lazily — so drop
 	// the cached one and let it be rebuilt with what is now true. The precedent
 	// is useSecrets rebuilding the auth view when the store is resolved.
-	delete(a.views, command.ViewConfiguration)
+	//
+	// Rebuilt at once when it is the screen the user is on, and not merely
+	// dropped: renderBody falls back to "View not found: configuration" for a
+	// currentView with no entry, and keys.go routes nothing to it — the user
+	// would sit on a dead screen until they retyped `:config`. Reachable two
+	// ways: `app.default_view: configuration` plus the startup report, which
+	// fires even when the server is off, and a context switch made while
+	// sitting in that view.
+	if _, cached := a.views[command.ViewConfiguration]; cached {
+		delete(a.views, command.ViewConfiguration)
+		if a.currentView == command.ViewConfiguration {
+			a.createView(command.ViewConfiguration)
+			a.resize(a.width, a.height)
+		}
+	}
 
 	if msg.Err != nil {
 		log.Printf("MCP server not serving context %q: %v", a.currentContext, msg.Err)

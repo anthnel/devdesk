@@ -106,6 +106,9 @@ type App struct {
 	mcpDispatch mcpDispatcher
 	mcpServer   *http.Server
 	mcpToken    string
+	// mcpEpoch numbers the starts, so a report from one the session has moved
+	// past is recognised and its listener closed rather than stored.
+	mcpEpoch uint64
 	// pendingInvocations holds the reply channel of every action call waiting
 	// for the identifier of the run it asked for. Mutated from Update alone,
 	// like everything else here.

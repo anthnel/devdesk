@@ -171,6 +171,13 @@ view knowing what it is about. It carries its own ID because the timer is the
 sender's: `PostFooter` builds both, so Rule 128's "a message set without its
 timer never clears" holds here too.
 
+It lands only where a view holds a `FooterMessage`. `internal/ui/forge/auth`
+renders a footer but declares none, and the router switches to it whenever a
+context has no forge credentials — so a broadcast posted just then reaches
+nobody. That gap is survivable only because the same state is on the `mcp` tab
+of the configuration view, which holds it for as long as it is true rather than
+for three seconds.
+
 A failed bind is an **`Error`** at Rule 128's level — the system refused, which
 is not an action that cannot be honoured as asked — and it is posted **only when
 the context asked for a server**. Nothing was attempted otherwise, and
@@ -203,6 +210,14 @@ view once the store is resolved.
 being true: a server following the current context changes what it answers
 underneath an agent mid-conversation. §3.61 gives that up — there is no separate
 process to fix it in — and two things pay for it.
+
+**A start that the session has moved past is closed on arrival, not stored.**
+`ResolveToken` can block — a locked keyring, a two-second `git config` read — so
+a switch made while an earlier start is still in flight would have the old
+message land afterwards and store its server, leaving a listener answering for
+the context nobody is in while the new one fails to bind with `address already
+in use`. Exactly the guarantee the restart exists to give. `MCPServerStartedMsg`
+therefore carries the epoch of the start it reports.
 
 **A switch restarts the server, which drops the open sessions.** That is the
 guarantee, not a side effect: a client does not silently begin reading another
@@ -279,6 +294,19 @@ the next `StartMsg` would have a window one Update cycle wide, in which a
 keypress fits: the agent would be handed the identifier of the scan the user
 just started by hand. `TestAKeyboardLaunchAnswersNobody` is that bug, written
 down.
+
+**A request that arrives before the view has read anything waits.** The router
+builds the view on demand, and building it is not filling it: `workspaces.New`
+returns an empty model and the entries only come from `loadEntries()`, which
+`Init()` dispatches asynchronously. A request served against that empty model
+resolved no path and refused with "No git repository in this context's
+workspaces directory" — a statement about the disk the view was in no position
+to make — and it recurred after every context switch, since `reinitializeViews`
+drops every view and only Inits the current one. So the view holds the request
+until its listing lands, then replays it **as a message**, which is what makes a
+request that waited take exactly the path one that did not takes. A listing that
+fails refuses what waited for it, with the reason: an agent left hanging would
+otherwise time out against a log it cannot read.
 
 **The view does the work, not the router.** It resolves the targets against what
 it lists, consults the same `Availability` the header greys the shortcut with,

@@ -40,6 +40,9 @@ type SyncRequestedMsg struct {
 // application comes to losing data by accident (§3.26). A tool call has no
 // modal, so it gets the non-destructive half.
 func (m Model) handleScanRequested(msg ScanRequestedMsg) (tea.Model, tea.Cmd) {
+	if cmd, waiting := m.deferUntilLoaded(msg); waiting {
+		return m, cmd
+	}
 	if state := m.scannerState(); !state.Enabled() {
 		return m, jobs.Refuse(msg.Invocation, state.Reason)
 	}
@@ -71,6 +74,10 @@ func (m Model) handleScanRequested(msg ScanRequestedMsg) (tea.Model, tea.Cmd) {
 
 // handleSyncRequested is `F` reached from an agent.
 func (m Model) handleSyncRequested(msg SyncRequestedMsg) (tea.Model, tea.Cmd) {
+	if cmd, waiting := m.deferUntilLoaded(msg); waiting {
+		return m, cmd
+	}
+
 	targets := msg.Paths
 	if len(targets) == 0 {
 		targets = m.collectAllRepoPaths()
@@ -122,4 +129,78 @@ func syncNothingToDo(targets []string) string {
 		return "No git repository in this context's workspaces directory"
 	}
 	return busyMessage
+}
+
+// deferUntilLoaded holds a request that arrived before this view had read the
+// directory, and asks for the read.
+//
+// The router builds the view on demand — an agent asking for a scan before
+// anyone has opened `ws` is the ordinary case — but building it is not filling
+// it: `workspaces.New` returns an empty model and the entries only arrive from
+// `loadEntries()`, which `Init()` dispatches asynchronously. A request served
+// against that empty model resolves no path and refuses with "No git repository
+// in this context's workspaces directory", which is a lie about the disk. It
+// recurs after every context switch, since reinitializeViews drops every view
+// and only Inits the current one.
+//
+// Waiting is right rather than reading the disk here: the answer an agent gets
+// then comes from the same listing the screen shows, which is the whole reason
+// the view resolves the targets and not the router.
+//
+// Nothing expires the queue. A load either lands or reports an error, and both
+// drain it — see handleEntriesLoaded and handleLoadFailed; a request that
+// outlived its caller settles into a channel nobody reads, which is what the
+// buffer is for.
+func (m *Model) deferUntilLoaded(msg tea.Msg) (tea.Cmd, bool) {
+	if m.listingPath != "" {
+		return nil, false
+	}
+	m.pendingRequests = append(m.pendingRequests, msg)
+	// One load however many requests queue behind it: a second would race the
+	// first and the loser is dropped by the currentPath guard, taking nothing
+	// with it but a directory read.
+	if len(m.pendingRequests) > 1 {
+		return nil, true
+	}
+	return m.loadEntries(), true
+}
+
+// drainPendingRequests re-emits what waited for the listing.
+//
+// They go back through Update as messages rather than being handled here, so a
+// request that waited takes exactly the path a request that did not takes.
+func (m *Model) drainPendingRequests() tea.Cmd {
+	if len(m.pendingRequests) == 0 {
+		return nil
+	}
+	queued := m.pendingRequests
+	m.pendingRequests = nil
+
+	cmds := make([]tea.Cmd, 0, len(queued))
+	for _, msg := range queued {
+		cmds = append(cmds, func() tea.Msg { return msg })
+	}
+	return tea.Batch(cmds...)
+}
+
+// refusePendingRequests answers everything that waited for a listing that
+// failed. An agent left waiting on a directory that cannot be read would hang
+// until its own timeout, and the reason would be in a log it cannot see.
+func (m *Model) refusePendingRequests(reason string) tea.Cmd {
+	if len(m.pendingRequests) == 0 {
+		return nil
+	}
+	queued := m.pendingRequests
+	m.pendingRequests = nil
+
+	cmds := make([]tea.Cmd, 0, len(queued))
+	for _, msg := range queued {
+		switch req := msg.(type) {
+		case ScanRequestedMsg:
+			cmds = append(cmds, jobs.Refuse(req.Invocation, reason))
+		case SyncRequestedMsg:
+			cmds = append(cmds, jobs.Refuse(req.Invocation, reason))
+		}
+	}
+	return tea.Batch(cmds...)
 }

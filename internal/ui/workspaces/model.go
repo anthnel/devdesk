@@ -3,6 +3,8 @@ package workspaces
 import (
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
@@ -63,6 +65,12 @@ type Model struct {
 
 	// Scan cache: keyed by absolute repo path
 	scanCache map[string]cache.WorkspaceScanEntry
+
+	// pendingRequests holds what an agent asked for before this view had read
+	// the directory (§3.61). Building a view is not filling it, and a request
+	// served against an empty model would refuse with a sentence about the disk
+	// that is not true of it.
+	pendingRequests []tea.Msg
 
 	// jobs is the router's snapshot of everything running anywhere, and
 	// jobFrame the spinner frame that goes with it — bare, because it lands in

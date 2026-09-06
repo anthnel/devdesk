@@ -1,6 +1,8 @@
 package ociresources
 
 import (
+	tea "github.com/charmbracelet/bubbletea"
+
 	"context"
 
 	"time"
@@ -32,8 +34,14 @@ type Model struct {
 	config    *config.Config
 	activeTab ociTab
 	// Images tab
-	images    []docker.Image
-	scanCache map[string]cache.ImageScanEntry
+	images []docker.Image
+	// listed says the daemon has answered at least once — empty is then a real
+	// answer rather than "not asked yet", which is what an agent's request has
+	// to be able to tell apart (§3.61).
+	listed bool
+	// pendingRequests holds what an agent asked for before that answer came.
+	pendingRequests []tea.Msg
+	scanCache       map[string]cache.ImageScanEntry
 	// jobs is the router snapshot of everything running anywhere, and jobFrame
 	// the spinner frame that goes with it — bare, because it lands in a table
 	// cell (Rule 122). It replaced a scanningImages map and the `scanning`

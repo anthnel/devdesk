@@ -45,6 +45,17 @@ type Config struct {
 // is the moment the user decides an agent may reach this context. Nothing
 // migrates it, and nothing turns it on as a side effect.
 //
+// **What it means widened with §3.61, and nothing re-asks.** Under §3.38 it
+// meant a read-only server on stdio, started by the client, with no listener at
+// all; it now opens a loopback port and — `expose` being empty by default —
+// serves the action tier as well. A context that said yes to the first is not
+// asked again about the second, and a file written before §3.61 is recognisable
+// (it carries no `listen`), so a narrower default was available and was
+// deliberately not taken: the setting has always meant "an agent may reach this
+// context", the widening is the entry's whole subject, and a migration would be
+// ceremony around a decision its only user had just made. It is written here
+// rather than left for someone to discover.
+//
 // There is no setting for the `Match` of a secret finding, and its absence is
 // the guarantee. The entry proposed `redact_secret_matches: true` while also
 // classing the string itself as never exposed — a setting whose other value is

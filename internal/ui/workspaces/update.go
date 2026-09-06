@@ -67,12 +67,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.table.SetCursor(m.pendingCursor)
 			m.pendingCursor = -1
 		}
+		// Anything an agent asked for before this view had read the directory
+		// waited for exactly this (§3.61) — see deferUntilLoaded.
+		if cmd := m.drainPendingRequests(); cmd != nil {
+			return m, cmd
+		}
 
 	case LoadErrorMsg:
 		if msg.Path != m.currentPath {
 			return m, nil
 		}
 		m.error = msg.Error.Error()
+		if cmd := m.refusePendingRequests("Cannot read " + msg.Path + ": " + msg.Error.Error()); cmd != nil {
+			return m, cmd
+		}
 
 	case WorkspaceInputSubmitMsg:
 		return m.handleInputSubmit(msg)

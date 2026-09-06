@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -13,7 +14,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
+	mcpserver "github.com/anthnel/devdesk/internal/mcp"
 )
 
 // Everything else in this package calls the handlers directly, on the test's
@@ -29,13 +32,28 @@ import (
 // here that can fail for the right reason.
 func TestTheServerAndTheLoopRunSideBySide(t *testing.T) {
 	a := router(t, &bareView{})
-	a.config = enabledConfig()
-	a.sharedState.Secrets = persistingStore()
+	// The server is stood up here rather than through startMCPCmd, and the
+	// context leaves `mcp.enabled` false, so the program's own Init starts
+	// nothing: two listeners would trip the epoch guard, which closes the
+	// superseded one — correctly, but it would be testing that instead of this.
+	// What is under test is the dispatcher and Update running side by side.
+	a.config = config.Default()
 
 	// WithoutRenderer keeps the terminal out of it; WithInput(nil) stops Bubble
 	// Tea reading stdin, which under `go test` is closed and would quit at once.
 	p := tea.NewProgram(a, tea.WithoutRenderer(), tea.WithInput(nil))
 	a.AttachProgram(p)
+
+	handler, err := mcpserver.Handler(&mcpserver.Env{
+		Config:   a.config,
+		Context:  "test",
+		Dispatch: a.mcpDispatch,
+	})
+	if err != nil {
+		t.Fatalf("Handler: %v", err)
+	}
+	srv := httptest.NewServer(mcpserver.Authorize(handler, "the-token"))
+	t.Cleanup(srv.Close)
 
 	loop := make(chan struct{})
 	go func() {
@@ -49,15 +67,7 @@ func TestTheServerAndTheLoopRunSideBySide(t *testing.T) {
 		<-loop
 	})
 
-	// Start the server the way Init does, and wait for it to report.
-	msg, ok := a.startMCPCmd()().(MCPServerStartedMsg)
-	if !ok || msg.Err != nil {
-		t.Fatalf("startMCPCmd: %+v", msg)
-	}
-	t.Cleanup(func() { _ = msg.Server.Close() })
-	p.Send(msg)
-
-	endpoint := "http://" + msg.Addr + "/"
+	endpoint := srv.URL + "/"
 	client := &http.Client{Timeout: 10 * time.Second}
 
 	var wg sync.WaitGroup
@@ -69,7 +79,7 @@ func TestTheServerAndTheLoopRunSideBySide(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for range 10 {
-				if err := callJobsList(client, endpoint, msg.Token); err != nil {
+				if err := callJobsList(client, endpoint, "the-token"); err != nil {
 					t.Errorf("jobs_list over HTTP: %v", err)
 					return
 				}
