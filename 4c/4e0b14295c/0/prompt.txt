@@ -1,0 +1,65 @@
+ok pour les deux, écris le plan d'implémentation, ne crée pas de pr pour l'instant
+
+---
+
+commence l'implémentation
+
+---
+
+agent@claude-devdesk:/c/Users/anthoni/projects/entire/anthnel/devdesk$ curl -sS -X POST http://host.docker.internal:7777/ \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}'
+event: message
+data: {"jsonrpc":"2.0","id":1,"result":{"capabilities":{"logging":{},"tools":{"listChanged":true}},"protocolVersion":"2025-06-18","serverInfo":{"name":"devdesk","version":"1"}}}
+
+---
+
+oui, continue avec la phase 3
+
+---
+
+enchaine toutes les phases jusqu'au bout sauf si tu as un point bloquant
+
+---
+
+normalement le compilateur c a été installé, fais le test et code review
+
+---
+
+<task-notification>
+<task-id>ab39d9e5b00e581f3</task-id>
+<tool-use-id>toolu_01QjSBnKYabkAMyMAXrGbDyA</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/ab39d9e5b00e581f3.output</output-file>
+<status>completed</status>
+<summary>Agent "/code-review high" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No `ReportFindings` tool is available in this session, so the findings are reported directly below.
+
+## Review of `mcp-server-in-tui` (44 files, MCP server moved from `dk mcp` stdio into the TUI over HTTP)
+
+The design is coherent and the test coverage is unusually good. Build, `go vet` and `go test` on the touched packages all pass. Seven issues found, ordered by severity.
+
+**`internal/app/invoke.go:199` — HIGH. An MCP action on a view nobody has opened always refuses.**
+`handleMCPStartRequest` calls `a.createView(target)` but never `view.Init()` — unlike every other creation site (`switchView` at `command_line.go:119`+`:134`, `reinitializeViews`, `scan_details.go:94`). `workspaces.New` builds an empty model; the repository list only arrives from `loadEntries()` inside `Init()`. So `handleScanRequested`/`handleSyncRequested` see `collectAllRepoPaths() == nil` and refuse: with no paths → `"No git repository in this context's workspaces directory"`, with paths → `"No repository at /x — workspaces_list is what this context knows about"` (verified by driving `handleMCPStartRequest` directly). Same for `image_scan_start` against an empty `m.images`. This contradicts the handler's own comment ("an agent asking for a scan before anyone has opened `ws` is the ordinary case rather than an error"), and it recurs after every context switch, since `reinitializeViews` drops all views and only Inits the current one. `TestAnActionBuildsItsViewIfNobodyHasOpenedIt` only asserts the view exists, not that the action succeeds. Note that Init is async, so simply calling it here is not sufficient — the request needs to wait for the load, or resolve targets from disk.
+
+**`internal/app/mcp.go:165` — MEDIUM/HIGH. Deleting the configuration view can strand the user on a dead screen.**
+`handleMCPServerStarted` unconditionally does `delete(a.views, command.ViewConfiguration)`, and nothing recreates it. If that view is the current one, `renderBody` (`view.go:44`) falls back to `"View not found: configuration"` and `keys.go:74` routes no keys to it — the user is stuck until they retype `:config`. Two reachable paths: `app.default_view: configuration` (a valid value — `parser.go:94`) plus the startup `startMCPCmd`, which fires `MCPServerStartedMsg` even when `mcp.enabled` is false; and a context switch made while sitting in the configuration view. Guard with `if a.currentView != command.ViewConfiguration`, or re-`createView` after the delete.
+
+**`internal/app/mcp.go:157` — MEDIUM. A late `MCPServerStartedMsg` from the previous context resurrects a stale server.**
+`restartMCPCmd` clears `a.mcpServer` and only closes what was already stored. If a context switch happens while an earlier `startMCPCmd` is still in flight (`ResolveToken` can block on a locked Secret Service or a 2 s `git credential` call), the old start's message arrives afterwards and `handleMCPServerStarted` writes its server into `a.mcpServer` — leaving a listener that still answers for the abandoned context, while the new context's bind fails with `address already in use`. Exactly the guarantee the restart exists to provide. An epoch/generation counter stamped on the message and checked here would close it.
+
+**`internal/mcp/token.go:43` — MEDIUM. Any keyring read error silently rotates the bearer token.**
+`if token, err := sel.Storage.Load(TokenURL); err == nil &amp;&amp; token != ""` treats every error as "no token yet", then mints a new one and `Save`s over the old. `KeyringStorage.Load` (`internal/credentials/keyring.go:63`) returns an error both for `ErrNotFound` *and* for a real backend failure, and the two are indistinguishable to the caller. A transient failure (locked keyring, D-Bus hiccup) therefore overwrites a working token permanently — precisely the "breaks the agent's configuration once per session, silently" failure the function's own doc says it refuses to allow. Only mint when the miss is a genuine not-found.
+
+**`internal/app/mcp.go:181` — LOW. The bind-failure footer message is dropped on two views.**
+`components.PostFooter` relies on the active view calling `footer.Handle`. `internal/ui/auth` and `internal/ui/status` do not. `handleContextSwitchComplete` sets `a.currentView = command.ViewGitAuth` whenever the new context has no forge credentials, and then calls `restartMCPCmd` — so a failed bind after that switch is invisible to the user, and only reaches the log.
+
+**`internal/mcp/token.go:80` — LOW. The bearer scheme is matched case-sensitively.**
+`strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")` rejects `bearer &lt;token&gt;`, which RFC 7235 makes equally valid. A client that lowercases the scheme gets an opaque 401 that looks like a wrong token. Compare the scheme with `strings.EqualFold` on the first field.
+
+**`internal/config/config.go` (`MCPConfig`) — LOW. Existing `mcp.enabled: true` contexts silently gain a port and an action tier.**
+Under §3.38 that flag meant "read-only, stdio, no listener". After this change the same unmodified config opens a TCP listener on `127.0.0.1:7777` and, with `expose` empty (the documented default meaning "every declared tool"), exposes `workspace_scan_start`, `workspace_sync_start`, `image_scan_start`, `image_pull_start` and `jobs_cancel`. There is no migration and no re-consent, and the config comment still claims "turning it on is the moment the user decides" — but the user who turned it on decided something narrower. Worth confirming this is intended rather than an oversight; a one-time notice, or defaulting `expose` to the read tier for pre-existing files, would close it.
+
+Non-issues checked and cleared: `pendingInvocations` is settled on both the `StartMsg` and `RefusedMsg` paths and on the unrouted-tool path; reply channels are buffered so `Update` never blocks; `kindSecret` never reaches `field.Apply`/`Cycle` (both guard on `Kind`), so the nil `str` accessor cannot be dereferenced; the keyring namespaces the token per context as documented; `restartMCPCmd`'s `tea.Sequence` closes the listener before rebinding; and `a.config`/`a.sharedState.Secrets` are both updated before `restartMCPCmd` reads them.</result>
+<usage><subagent_tokens>209772</subagent_tokens><tool_uses>52</tool_uses><duration_ms>440043</duration_ms></usage>
+</task-notification>
