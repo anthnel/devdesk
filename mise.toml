@@ -169,7 +169,10 @@ description = "Build the static documentation site into docs-site/site"
 shell = "bash -c"
 # CHANGELOG.md is copied in rather than symlinked so the build works the same
 # way locally and in CI, on every OS mise supports.
+# --site-dir is resolved relative to the config file (-f), not the cwd: passing
+# "docs-site/site" here built into docs-site/docs-site/site instead, so
+# actions/upload-pages-artifact found nothing at docs-site/site in CI.
 run = """
 cp CHANGELOG.md docs-site/docs/changelog.md
-uv tool run --with mkdocs-material==9.6.14 mkdocs build -f docs-site/mkdocs.yml --site-dir docs-site/site
+uv tool run --with mkdocs-material==9.6.14 mkdocs build -f docs-site/mkdocs.yml --site-dir site
 """
