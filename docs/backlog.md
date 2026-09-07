@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-30
+**Last Updated:** 2026-09-07
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -11830,6 +11830,162 @@ actif** — vérifié plutôt que supposé, par
 que supposé, et c'est la seule condition d'entrée de l'outil. Le squash-merge y
 est pour beaucoup : le titre de la PR devient le sujet du commit, donc c'est
 lui, et lui seul, qui doit être conforme.
+
+---
+
+### 3.63 Les sous-réseaux qui se recouvrent — Docker contre la machine
+
+`docker compose up` crée un bridge dont le sous-réseau recouvre celui du VPN, et
+le VPN meurt. Docker ne prévient pas, DevDesk non plus, et le diagnostic se fait
+à la main en lisant deux tables qui sont déjà toutes les deux dans
+l'application.
+
+#### Ce qui est déjà là — vérifié le 2026-09-07
+
+- `netiface.Interface` porte `IPv4` et `IPv6` **en notation CIDR**
+  (`internal/netiface/netiface.go:44`), donc les préfixes directement attachés
+  de chaque adaptateur, lus nativement sur les trois plateformes (§3.44).
+- `docker network inspect` est **déjà exécuté** (`internal/docker/networks.go:87`)
+  mais seule la map `Containers` est lue : `networkInspectResult`
+  (`networks.go:82`) n'a qu'un champ, et le bloc `IPAM.Config` qui porte le
+  sous-réseau est jeté au parsing.
+  La donnée est à un champ de struct, pas à une intégration.
+- `net/netip` fournit `Prefix.Overlaps` dans la bibliothèque standard. La
+  comparaison elle-même ne coûte rien.
+
+#### La limite, et elle doit être dite dans la vue plutôt que découverte
+
+**DevDesk n'a pas de table de routage.** §3.44 ne l'a pas traduite, elle l'a
+supprimée — la question de la route est partie dans le pipeline Diagnostics, où
+elle est posée *à propos d'une cible*. Ce qui est comparable est donc l'ensemble
+des préfixes **directement attachés** : cela couvre un VPN qui s'attribue une
+adresse dans la plage qu'il protège, et cela rate celui qui se contente d'y
+pousser des routes.
+
+`go-netroute` est déjà une dépendance directe et répond « par où sort *cette*
+destination », une destination à la fois (`Env.Route`, `netcheck/env.go:138`).
+Ce n'est pas une énumération de la table, et il n'y en a pas de portable. Une
+sonde par destination est donc le **complément** honnête de la comparaison de
+préfixes, pas son remplacement.
+
+#### Non tranché
+
+- **Où ça vit.** L'onglet Interfaces tient le côté machine, la vue OCI tient les
+  réseaux Docker. Le recouvrement n'appartient franchement ni à l'un ni à
+  l'autre, et un troisième écran pour une table coûte plus qu'il ne rapporte.
+  Probablement une section de l'onglet Interfaces, parce que c'est là que le
+  côté machine est déjà.
+- **Quel verdict.** Deux réseaux peuvent se recouvrir sans que rien ne casse
+  tant qu'aucun trafic ne veut les deux. `Warn` est défendable ; `Fail` crierait
+  au loup sur un `docker0` que personne ne route.
+- **Un recouvrement entre deux réseaux Docker** mérite-t-il d'être signalé, ou
+  seulement Docker-contre-machine. Le premier est l'affaire de Docker, qui le
+  tolère.
+
+---
+
+### 3.64 Ce qu'un conteneur expose, et que personne ne scanne
+
+Trivy note l'image, plumber note le pipeline, gitleaks note le dépôt. **Personne
+ne note le conteneur qui tourne.** Publier sur `0.0.0.0` plutôt que sur
+`127.0.0.1`, `--network host`, `--privileged`, une capability ajoutée, le socket
+Docker monté : tout cela se décide au `run`, et rien n'en est visible pour un
+scanner qui lit une image.
+
+#### Ce qui est déjà là
+
+`docker.ListContainers` existe, la donnée vient de `docker inspect`, et
+`scan.Finding` (`internal/scan/scanner.go:97`) est le type à produire — il porte
+déjà `Severity`, `Resolution`, `References` et `FixCommand`, qui est exactement
+ce qu'un constat de ce genre a à dire.
+
+#### Le vrai travail n'est pas la liste des contrôles, c'est où la réponse atterrit
+
+Deux frictions, vérifiées le 2026-09-07 :
+
+- `scan.Categorize` (`internal/scan/category.go:47`) commute sur `f.Source` et
+  **retombe sur `CategoryVulnerability`** par défaut. Une source qui oublie de se
+  déclarer atterrit silencieusement dans l'onglet des CVE, ce qui est le genre
+  de défaut que ce dépôt classe en §1.1.
+- L'inventaire de `:sec` est indexé sur des **images et des dépôts**, lus depuis
+  les deux caches de scan. Un **conteneur** n'est ni l'un ni l'autre : il n'y a
+  pas de ligne où le constat puisse se poser.
+
+#### Non tranché
+
+Un conteneur est-il un troisième type de ligne d'inventaire, ou les constats
+s'attachent-ils à l'image qu'il exécute ? La seconde réponse est moins chère et
+perd précisément ce que le contrôle cherche : deux conteneurs de la même image
+démarrés différemment n'ont pas la même exposition, et c'est tout le sujet.
+
+---
+
+### 3.65 Les en-têtes de sécurité, et ce que le handshake accepterait
+
+#### Ce que le pipeline regarde aujourd'hui — vérifié le 2026-09-07
+
+`runHTTP` émet un **HEAD** (`env.Head`) et lit exactement deux choses : le statut
+et l'en-tête `Server` (`internal/netcheck/stage_http.go:22`). Rien ne regarde
+HSTS, CSP, `X-Content-Type-Options`, les drapeaux des cookies, ni si `http://`
+redirige vers `https://`.
+
+L'étage TLS couvre déjà la chaîne, le nom d'hôte, l'expiration et la version
+**négociée** (`stage_tls.go:217`). Ce qu'il ne couvre pas est ce que le serveur
+*accepterait* : un point d'entrée qui négocie TLS 1.3 avec DevDesk peut très
+bien accepter 1.0 de quelqu'un d'autre.
+
+#### Deux coûts différents, et c'est ce qui doit les séparer
+
+Les en-têtes sont **gratuits** : la requête est déjà faite, il n'y a qu'à lire ce
+qu'elle a rapporté. Le balayage des versions coûte **N handshakes**, un par
+version testée, avec un `tls.Config` restreint à chaque fois — un profil de coût
+que n'a aucun autre contrôle du pipeline, où chacun ouvre une connexion. Les
+mettre dans le même contrôle ferait payer le second à qui ne demandait que le
+premier.
+
+#### Où ça va
+
+L'onglet Certificates de `status` (`TabCertificates`, colonnes en
+`internal/ui/status/columns.go:100`) montre déjà émetteur, statut, jours
+restants et expiration pour chaque composant surveillé. C'est l'écran qui pose
+déjà la question « quelle est la posture TLS de ce que je surveille », donc les
+en-têtes s'y rangent plutôt que dans un onglet de plus.
+
+#### Prérequis, partagé avec §3.66
+
+`Check` porte de la prose, pas de la donnée. `HTTPResult` devrait porter le jeu
+d'en-têtes, et `Check.Facts` est la forme qui existe déjà pour l'exposer.
+
+---
+
+### 3.66 « C'est lent » — où, exactement
+
+`net/http/httptrace` sépare DNS / connexion / handshake TLS / TTFB / total pour
+une requête, avec la bibliothèque standard seule.
+
+#### Le chiffre existe déjà, et il est jeté — vérifié le 2026-09-07
+
+`Check` **n'a pas de champ de durée** (`internal/netcheck/netcheck.go:119`). Le
+seul temps affiché aujourd'hui est de la prose dans `Summary` — « Port 443
+accepted the connection in 12 ms » — alors que `Env.DialTCP` retourne une vraie
+`time.Duration` (`env.go:130`) que l'étage formate puis oublie. Un nombre que le
+pipeline tient déjà ne peut donc être ni tracé, ni comparé entre deux exécutions,
+ni trié.
+
+Le correctif qui débloque tout est petit, et c'est **le même que celui dont
+§3.65 a besoin** : `Check` porte une durée, et `Summary` continue de la dire en
+prose pour qui lit. Deux consommateurs pour un seul changement.
+
+`ntcharts` est déjà une dépendance directe (§3.19), donc l'historique ne coûte
+aucune dépendance.
+
+#### Non tranché
+
+Garder un historique, ou pas. Une latence réduite à sa dernière mesure répond à
+« est-ce lent maintenant » ; une série répond à « est-ce que ça se dégrade »,
+qui est la question utile et la seule qui demande de persister quelque chose.
+Les moniteurs de `status` tournent déjà sur une horloge, donc les échantillons
+existent — rien ne les garde.
 
 ---
 
