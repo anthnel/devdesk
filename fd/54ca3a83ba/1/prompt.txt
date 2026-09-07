@@ -1,0 +1,1 @@
+analyse la possibilité de pouvoir choisir le moteur de conteneurisation docker|podman pour ajouter une nouvelle entrée au backlog
