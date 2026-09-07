@@ -9,27 +9,28 @@ import (
 
 // Size walks a directory and adds up what its files occupy.
 //
-// **C'est le seul appel du package dont le coût grandit avec les données de
-// l'utilisateur** : il lit chaque entrée de chaque dossier. Il tourne donc sur
-// l'horloge lente, sur la goroutine d'un Cmd, et jamais deux à la fois — voir
-// Model.measuringSize, qui est là pour ça et pour rien d'autre.
+// **This is the one call in the package whose cost grows with the user's
+// data**: it reads every entry of every directory. So it runs on the slow
+// clock, on a Cmd's goroutine, and never two at once — see
+// Model.measuringSize, which exists for that and nothing else.
 //
-// Les liens symboliques ne sont pas suivis : WalkDir lit le lien et non sa
-// cible, ce qui évite d'un même geste les cycles et le double comptage d'un
-// dossier déjà dans l'arbre.
+// Symlinks are not followed: WalkDir reads the link itself, not its
+// target, which avoids both cycles and double-counting a directory already
+// in the tree in one move.
 //
-// Rien n'est exclu du parcours, `.git` compris : un dépôt cloné coûte son
-// historique autant que son arbre de travail, et c'est souvent l'historique qui
-// pèse. La question posée est « combien ce dossier prend », pas « combien de
-// code il contient ».
+// Nothing is excluded from the walk, `.git` included: a cloned repository
+// costs its history as much as its working tree, and it is often the
+// history that weighs the most. The question asked is "how much does this
+// directory take", not "how much code does it contain".
 func Size(path string) TreeSize {
 	out := TreeSize{Path: path}
 	if path == "" {
 		return out
 	}
 
-	// La racine est vérifiée à part : sans ça, un chemin illisible rend une
-	// mesure « réussie » à zéro octet, ce qui se lit comme un dossier vide.
+	// The root is checked separately: without this, an unreadable path
+	// would yield a "successful" measurement of zero bytes, which reads as
+	// an empty directory.
 	if _, err := os.Stat(path); err != nil {
 		log.Printf("ERROR [metrics/tree] stat %q: %v", path, err)
 		return out
@@ -37,20 +38,20 @@ func Size(path string) TreeSize {
 
 	err := filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// Un dossier refusé ou disparu en cours de route n'arrête pas la
-			// mesure : il la rend partielle.
+			// A directory refused or gone partway through does not stop the
+			// measurement: it makes it partial.
 			out.Partial = true
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
 			}
 			return nil
 		}
-		// Seuls les fichiers réguliers portent des octets. Un dossier renvoie nil
-		// pour que le parcours y descende ; un lien symbolique, lui, ne doit pas
-		// compter pour autant : ce que WalkDir mesure sur un lien est la longueur
-		// du chemin qu'il désigne, donc la taille de l'arbre bougerait au gré
-		// d'un renommage ailleurs. Sa cible n'est pas comptée non plus — c'est
-		// tout l'objet de ne pas le suivre.
+		// Only regular files carry bytes. A directory returns nil so the walk
+		// descends into it; a symlink, on the other hand, must not count
+		// either way: what WalkDir measures on a link is the length of the
+		// path it designates, so the tree's size would move with a rename
+		// elsewhere. Its target is not counted either — that is the whole
+		// point of not following it.
 		if !d.Type().IsRegular() {
 			return nil
 		}

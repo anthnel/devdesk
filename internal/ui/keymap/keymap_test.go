@@ -12,22 +12,23 @@ import (
 	"testing"
 )
 
-// Le vocabulaire n'a d'intérêt que s'il est opposé au code. Ces tests le font :
-// ils parcourent les sources des vues et vérifient que ce qu'elles lient est
-// bien ce que ce paquet déclare. Un scan de source est fragile, et c'est
-// assumé — c'est le prix du contrôle, et internal/command a déjà ce type de
-// test de contrat (TestEveryViewSuppliesItsHeaderAndHelp).
+// The vocabulary only matters if it is checked against the code. These
+// tests do that: they scan the views' sources and verify that what they
+// bind is indeed what this package declares. A source scan is fragile, and
+// that is accepted — it is the price of the check, and internal/command
+// already has this kind of contract test
+// (TestEveryViewSuppliesItsHeaderAndHelp).
 
-// scannedTrees sont les arbres où vivent les liaisons clavier.
+// scannedTrees are the trees where key bindings live.
 var scannedTrees = []string{
 	filepath.Join("..", "..", "app"),
 	filepath.Join("..", ".."),
 }
 
-// structuralKeys sont les touches qui ne changent jamais de sens. Leur présence
-// dans un switch est ce qui permet de reconnaître un switch de touches sans
-// se fier au nom de la variable testée : un switch sur runtime.GOOS ou sur une
-// sévérité n'en contient aucune.
+// structuralKeys are the keys whose meaning never changes. Their presence
+// in a switch is what lets one recognize a key switch without relying on
+// the name of the tested variable: a switch on runtime.GOOS or on a
+// severity contains none of them.
 var structuralKeys = map[string]bool{
 	"esc": true, "enter": true, "tab": true, "shift+tab": true,
 	"up": true, "down": true, "left": true, "right": true,
@@ -35,27 +36,29 @@ var structuralKeys = map[string]bool{
 	" ": true, "/": true, "?": true,
 }
 
-// navigationKeys sont celles dont un alias lettré serait de la navigation.
+// navigationKeys are the ones whose lettered alias would be navigation.
 var navigationKeys = map[string]bool{
 	"up": true, "down": true, "left": true, "right": true,
 	"pgup": true, "pgdown": true, "home": true, "end": true,
 }
 
-// retiredAliases n'ont plus aucun sens survivant dans l'application : ni action
-// (ce sont des minuscules), ni bascule déclarée. Les rencontrer dans un switch
-// de touches ne peut être qu'un reliquat vim.
+// retiredAliases have no surviving meaning in the application: neither an
+// action (they are lowercase) nor a declared toggle. Encountering them in
+// a key switch can only be a vim leftover.
 //
-// `h`, `l` et `f` n'y sont pas : ils survivent comme bascules locales (sévérité
-// HIGH et LOW dans security, protocole dans netdiag, format dans le viewer).
-// C'est la clause qui les trahit, pas la lettre — voir TestNoBareLetterIsNavigation.
+// `h`, `l` and `f` are not in it: they survive as local toggles (HIGH and
+// LOW severity in security, protocol in netdiag, format in the viewer).
+// It's the clause that gives them away, not the letter — see
+// TestNoBareLetterIsNavigation.
 //
-// `g` en est sortie avec §3.53, et la raison est celle qui a fait revenir `H`
-// dans `free` en §3.47, prise dans l'autre sens : une lettre qui reprend un
-// sens quitte la liste de celles qui n'en ont plus, sinon la liste ment. Ce
-// qu'elle veut dire dans le viewer n'est pas ce que §3.26 lui a retiré — elle
-// ouvre un prompt, et le saut prend un **argument**, ce que `home` et `end` ne
-// couvrent pas et ne couvriront jamais. `j` et `k` restent retirées : elles ne
-// sont que `down` et `up` sous un autre nom.
+// `g` left this list with §3.53, and the reason is the one that brought
+// `H` back into `free` in §3.47, taken the other way round: a letter that
+// regains a meaning leaves the list of those that no longer have one,
+// otherwise the list would lie. What it means in the viewer is not what
+// §3.26 took away from it — it opens a prompt, and the jump takes an
+// **argument**, which `home` and `end` do not and never will cover. `j`
+// and `k` remain retired: they are only `down` and `up` under another
+// name.
 var retiredAliases = map[string]bool{"j": true, "k": true}
 
 func TestEveryActionIsOneUppercaseLetter(t *testing.T) {
@@ -70,9 +73,9 @@ func TestEveryActionIsOneUppercaseLetter(t *testing.T) {
 	}
 }
 
-// TestFreeLettersAreActuallyFree empêche la liste des disponibles de mentir.
-// Elle existe pour que le prochain ajout n'ait pas à refaire le relevé, donc
-// une entrée périmée est pire que pas de liste du tout.
+// TestFreeLettersAreActuallyFree keeps the list of available letters from
+// lying. It exists so the next addition doesn't have to redo the survey,
+// so a stale entry is worse than no list at all.
 func TestFreeLettersAreActuallyFree(t *testing.T) {
 	for _, key := range Free() {
 		if IsAction(key) {
@@ -85,9 +88,9 @@ func TestFreeLettersAreActuallyFree(t *testing.T) {
 	}
 }
 
-// TestNoLocalToggleShadowsAnAction vérifie que les deux espaces de noms restent
-// disjoints. Ils le sont par la casse, mais une bascule déclarée en majuscule
-// par inadvertance les recollerait sans bruit.
+// TestNoLocalToggleShadowsAnAction verifies that the two namespaces stay
+// disjoint. They are disjoint by case, but a toggle declared in uppercase
+// by mistake would silently merge them back together.
 func TestNoLocalToggleShadowsAnAction(t *testing.T) {
 	for _, surface := range localToggles {
 		for _, key := range surface.Keys {
@@ -99,9 +102,9 @@ func TestNoLocalToggleShadowsAnAction(t *testing.T) {
 	}
 }
 
-// TestNoViewBindsAnUndeclaredUppercaseKey est le test central : toute majuscule
-// liée dans une vue doit venir du vocabulaire. C'est lui qui transforme « les
-// touches devraient être cohérentes » en quelque chose qui échoue au build.
+// TestNoViewBindsAnUndeclaredUppercaseKey is the central test: any uppercase
+// letter bound in a view must come from the vocabulary. It's this test that
+// turns "keys should be consistent" into something that fails the build.
 func TestNoViewBindsAnUndeclaredUppercaseKey(t *testing.T) {
 	for _, clause := range keySwitchClauses(t) {
 		for _, key := range clause.keys {
@@ -111,8 +114,8 @@ func TestNoViewBindsAnUndeclaredUppercaseKey(t *testing.T) {
 			if IsAction(key) {
 				continue
 			}
-			// Une modale est un mode : elle réclame toute touche avant que la
-			// vue ne la voie, donc son Y/N ne peut heurter aucune action.
+			// A modal is a mode: it claims every key before the view sees
+			// it, so its Y/N cannot collide with any action.
 			if IsModalKey(key) && clause.isModal {
 				continue
 			}
@@ -125,14 +128,14 @@ func TestNoViewBindsAnUndeclaredUppercaseKey(t *testing.T) {
 	}
 }
 
-// TestNoBareLetterIsNavigation est la règle achetée par la suppression des
-// alias vim, et la seule chose qu'elle achète.
+// TestNoBareLetterIsNavigation is the rule bought by removing the vim
+// aliases, and the only thing it buys.
 //
-// Deux formes la violent. Un alias — une lettre dans la même clause qu'une
-// touche de navigation, `case "up", "k"` — et un reliquat isolé, `case "j"`.
-// La première est ce qui rendait la règle invérifiable ; garder j/k seuls
-// laisserait une exception, et ce sont les exceptions qui ont produit l'état
-// que §3.26 a relevé.
+// Two forms violate it. An alias — a letter in the same clause as a
+// navigation key, `case "up", "k"` — and an isolated leftover, `case "j"`.
+// The first is what made the rule unverifiable; keeping j/k alone would
+// leave an exception, and it is exceptions that produced the state §3.26
+// found.
 func TestNoBareLetterIsNavigation(t *testing.T) {
 	for _, clause := range keySwitchClauses(t) {
 		hasNavigation := false
@@ -159,11 +162,10 @@ func TestNoBareLetterIsNavigation(t *testing.T) {
 	}
 }
 
-// TestOnlyThreeCtrlCombinationsSurvive : le budget Ctrl est de ~14 touches et
-// chacune traîne une contrainte (préfixe de multiplexeur, contrôle de flux,
-// caractère du tty). §3.26 n'en garde que trois, et toute action qui se
-// réinstallerait derrière Ctrl reprendrait une place que Shift donne
-// gratuitement.
+// TestOnlyThreeCtrlCombinationsSurvive: the Ctrl budget is ~14 keys and
+// each one drags a constraint (multiplexer prefix, flow control, tty
+// character). §3.26 keeps only three, and any action that resettled
+// behind Ctrl would retake a spot Shift gives for free.
 func TestOnlyThreeCtrlCombinationsSurvive(t *testing.T) {
 	survivors := map[string]string{
 		"ctrl+c": "SIGINT — quitter",
@@ -189,12 +191,12 @@ func TestOnlyThreeCtrlCombinationsSurvive(t *testing.T) {
 	}
 }
 
-// TestEveryLowercaseBindingIsDeclared : une minuscule ne modifie rien, donc son
-// sens peut être local — mais « local » doit vouloir dire déclaré, sinon c'est
-// juste « non relevé », qui est l'état d'où l'on vient.
+// TestEveryLowercaseBindingIsDeclared: a lowercase letter changes nothing,
+// so its meaning can be local — but "local" must mean declared, otherwise
+// it's just "not surveyed", which is the state we're coming from.
 func TestEveryLowercaseBindingIsDeclared(t *testing.T) {
-	// Ce qui vaut partout : les raccourcis de modale, les dérogations déclarées,
-	// et `q` — que le routeur possède et qu'aucune vue ne lie.
+	// What holds everywhere: modal shortcuts, declared exceptions, and
+	// `q` — which the router owns and no view binds.
 	everywhere := map[string]bool{"q": true}
 	for key := range modalKeys {
 		everywhere[key] = true
@@ -226,10 +228,10 @@ func TestEveryLowercaseBindingIsDeclared(t *testing.T) {
 	}
 }
 
-// TestTheCommandModeKeyIsReachable garde la raison du choix avec le choix.
-// alt+: était juste aussi, jusqu'à ce qu'on découvre qu'elle n'atteignait pas
-// macOS ; ce qui manquait n'était pas un test mais la liste de ce qu'il fallait
-// écarter.
+// TestTheCommandModeKeyIsReachable keeps the reason for the choice with
+// the choice. alt+: was just as valid, until it turned out it didn't
+// reach macOS; what was missing wasn't a test but the list of what needed
+// to be ruled out.
 func TestTheCommandModeKeyIsReachable(t *testing.T) {
 	forbidden := map[string]string{
 		"ctrl+:": "\":\" is 0x3A, outside the 0x40-0x5F range Ctrl encodes",
@@ -250,24 +252,24 @@ func TestTheCommandModeKeyIsReachable(t *testing.T) {
 	}
 }
 
-// --- scan de source ---
+// --- source scan ---
 
 type caseClause struct {
 	where string
 	keys  []string
-	// isModal marque une clause appartenant à un switch de modale, reconnu à ce
-	// qu'il lie y et n en minuscules. Une modale est un mode, pas une vue :
-	// elle prend la main avant que la vue ne voie quoi que ce soit.
+	// isModal marks a clause belonging to a modal's switch, recognized by
+	// the fact that it binds y and n in lowercase. A modal is a mode, not
+	// a view: it takes over before the view sees anything.
 	isModal bool
 }
 
-// keySwitchClauses rend toutes les clauses de switch de touches des vues.
+// keySwitchClauses returns every key-switch clause from the views.
 //
-// Un switch est reconnu comme portant sur des touches quand l'une de ses
-// clauses cite une touche structurelle ou une combinaison ctrl+/alt+. C'est
-// plus sûr que de se fier au nom de l'expression testée : msg.String() n'est
-// pas la seule forme, et un switch sur runtime.GOOS ou sur une sévérité ne
-// contient aucune de ces chaînes.
+// A switch is recognized as being about keys when one of its clauses
+// cites a structural key or a ctrl+/alt+ combination. This is safer than
+// relying on the name of the tested expression: msg.String() is not the
+// only form, and a switch on runtime.GOOS or on a severity contains none
+// of these strings.
 func keySwitchClauses(t *testing.T) []caseClause {
 	t.Helper()
 
@@ -282,7 +284,7 @@ func keySwitchClauses(t *testing.T) []caseClause {
 			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 				return nil
 			}
-			// Ce paquet-ci déclare le vocabulaire ; il le cite forcément.
+			// This package declares the vocabulary; it necessarily cites it.
 			if strings.Contains(filepath.ToSlash(path), "internal/ui/keymap/") {
 				return nil
 			}
@@ -372,8 +374,8 @@ func isKeySwitch(clauses []caseClause) bool {
 	return false
 }
 
-// isModalSwitch reconnaît le switch d'une modale de confirmation à ce qu'il lie
-// y et n en minuscules — ce qu'aucune vue ne fait.
+// isModalSwitch recognizes a confirmation modal's switch by the fact that
+// it binds y and n in lowercase — which no view does.
 func isModalSwitch(clauses []caseClause) bool {
 	var yes, no bool
 	for _, clause := range clauses {

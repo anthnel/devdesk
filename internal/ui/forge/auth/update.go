@@ -10,13 +10,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// ForgeAuthSuccessMsg est le message d'authentification réussie (venant de app.go)
+// ForgeAuthSuccessMsg is the successful authentication message (coming from app.go)
 type ForgeAuthSuccessMsg struct {
 	Forge forge.Forge
 	User  forge.User
 }
 
-// Update gère les mises à jour
+// Update handles updates
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -54,7 +54,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleKeyMsg traite les entrées clavier
+// handleKeyMsg handles keyboard input
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.authenticating {
 		return m, nil
@@ -77,7 +77,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// handleEnterKey traite la touche Enter selon le champ actif
+// handleEnterKey handles the Enter key based on the active field
 func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 	if m.authenticated {
 		return m, m.logout()
@@ -90,7 +90,7 @@ func (m *Model) handleEnterKey() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(m.spinner.Tick, m.authenticate())
 }
 
-// handleInputUpdate transmet les messages aux inputs actifs
+// handleInputUpdate forwards messages to the active inputs
 func (m *Model) handleInputUpdate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	if m.currentField == fieldToken {
@@ -99,7 +99,7 @@ func (m *Model) handleInputUpdate(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// handleAuthResult traite le résultat d'authentification
+// handleAuthResult handles the authentication result
 func (m *Model) handleAuthResult(msg AuthResultMsg) (tea.Model, tea.Cmd) {
 	log.Printf("AUTH: AuthResultMsg received (Error: %v, User: %q)", msg.Error, msg.User.Username)
 	m.authenticating = false
@@ -121,7 +121,7 @@ func (m *Model) handleAuthResult(msg AuthResultMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleCredentialsLoaded traite les credentials chargés depuis le storage
+// handleCredentialsLoaded handles the credentials loaded from storage
 func (m *Model) handleCredentialsLoaded(msg CredentialsLoadedMsg) (tea.Model, tea.Cmd) {
 	log.Printf("AUTH: CredentialsLoadedMsg received (URL: %s, Token: %v)", msg.URL, msg.Token != "")
 	if msg.URL != "" && msg.Token != "" {
@@ -134,7 +134,7 @@ func (m *Model) handleCredentialsLoaded(msg CredentialsLoadedMsg) (tea.Model, te
 	return m, nil
 }
 
-// handleGitLabAuthSuccess traite l'authentification réussie venant de app.go
+// handleGitLabAuthSuccess handles the successful authentication coming from app.go
 func (m *Model) handleGitLabAuthSuccess(msg ForgeAuthSuccessMsg) (tea.Model, tea.Cmd) {
 	m.authenticating = false
 	m.authenticated = true
@@ -145,7 +145,7 @@ func (m *Model) handleGitLabAuthSuccess(msg ForgeAuthSuccessMsg) (tea.Model, tea
 	return m, nil
 }
 
-// handleLogoutComplete réinitialise l'état après logout
+// handleLogoutComplete resets the state after logout
 func (m *Model) handleLogoutComplete() (tea.Model, tea.Cmd) {
 	m.authenticated = false
 	m.user = forge.User{}
@@ -158,7 +158,7 @@ func (m *Model) handleLogoutComplete() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// nextField passe au champ suivant
+// nextField moves to the next field
 func (m *Model) nextField() {
 	m.currentField++
 	if m.currentField > lastField {
@@ -168,7 +168,7 @@ func (m *Model) nextField() {
 	m.updateFocus()
 }
 
-// prevField passe au champ précédent
+// prevField moves to the previous field
 func (m *Model) prevField() {
 	m.currentField--
 	if m.currentField < fieldToken {
@@ -178,7 +178,7 @@ func (m *Model) prevField() {
 	m.updateFocus()
 }
 
-// updateFocus met à jour le focus des champs
+// updateFocus updates the fields' focus
 func (m *Model) updateFocus() {
 	if m.currentField == fieldToken {
 		m.tokenInput.Focus()
@@ -187,7 +187,7 @@ func (m *Model) updateFocus() {
 	m.tokenInput.Blur() // fieldSubmit is a button, not an input
 }
 
-// authenticate lance l'authentification
+// authenticate starts authentication
 func (m *Model) authenticate() tea.Cmd {
 	url := m.config.Forge.URL
 	token := m.tokenInput.Value()
@@ -201,17 +201,17 @@ func (m *Model) authenticate() tea.Cmd {
 		return nil
 	}
 
-	// Copier les données nécessaires AVANT la goroutine (Rule 110)
+	// Copy the necessary data BEFORE the goroutine (Rule 110)
 	storage := m.secrets.Storage
 	config := m.config
 	forgeType := m.config.Forge.Type
 
-	// Commande asynchrone
+	// Asynchronous command
 	return func() tea.Msg {
-		// Créer l'auth
+		// Create the auth
 		auth := session.NewAuth(storage)
 
-		// Il n'y a plus de choix : le token part vers le store, toujours.
+		// There is no longer a choice: the token always goes to the store.
 		result, err := auth.Authenticate(context.Background(), forgeType, url, token)
 		if err != nil {
 			return AuthResultMsg{Error: err}
@@ -230,21 +230,21 @@ func (m *Model) authenticate() tea.Cmd {
 	}
 }
 
-// logout déconnecte l'utilisateur
+// logout signs the user out
 func (m *Model) logout() tea.Cmd {
 	url := m.config.Forge.URL
 	storage := m.secrets.Storage
 
-	// Commande asynchrone
+	// Asynchronous command
 	return func() tea.Msg {
-		// Créer l'auth
+		// Create the auth
 		auth := session.NewAuth(storage)
 
-		// Supprimer les credentials du storage
-		_ = auth.Logout(url) // Ignorer l'erreur, on déconnecte quand même
+		// Remove the credentials from storage
+		_ = auth.Logout(url) // Ignore the error, we log out anyway
 
-		// NE PAS modifier m.config ici (Rule 110) - le faire dans Update()
-		// Retourner le message de logout complet
+		// Do NOT modify m.config here (Rule 110) - do it in Update()
+		// Return the logout-complete message
 		return LogoutCompleteMsg{}
 	}
 }

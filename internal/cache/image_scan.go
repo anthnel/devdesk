@@ -21,13 +21,13 @@ type ImageScanEntry struct {
 	Medium   int    `json:"medium"`
 	Low      int    `json:"low"`
 	// Sensitive is the secret verdict, and it is a pointer because it has three
-	// values: absent quand personne n'a cherché, false quand une étape a cherché
-	// sans rien trouver, true sinon. C'est `scan.Result.SecretVerdict()` qui
-	// l'écrit.
+	// values: absent when nobody looked, false when a stage looked and found
+	// nothing, true otherwise. It is `scan.Result.SecretVerdict()` that writes
+	// it.
 	//
-	// Une image n'avait aucun champ de secrets jusqu'ici, donc **toute entrée
-	// déjà sur le disque décode à nil** — ce qui est la vérité : elle a été
-	// écrite par un scan d'image qui n'avait pas d'étape secrets du tout.
+	// An image had no secrets field at all until now, so **every entry already
+	// on disk decodes to nil** — which is the truth: it was written by an
+	// image scan that had no secrets stage whatsoever.
 	Sensitive *bool     `json:"sensitive,omitempty"`
 	ScannedAt time.Time `json:"scanned_at"`
 }

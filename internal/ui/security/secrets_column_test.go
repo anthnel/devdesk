@@ -13,8 +13,8 @@ import (
 func secretsFound() *bool { v := true; return &v }
 func secretsClean() *bool { v := false; return &v }
 
-// verdictFixtures covers the four rows the column has to tell apart — les deux
-// familles, et les trois verdicts.
+// verdictFixtures covers the four rows the column has to tell apart — the two
+// families, and the three verdicts.
 func verdictFixtures() []scanTarget {
 	at := time.Date(2026, 8, 1, 8, 0, 0, 0, time.UTC)
 	return []scanTarget{
@@ -60,8 +60,8 @@ func TestTheInventoryTellsTheThreeVerdictsApart(t *testing.T) {
 	}
 }
 
-// cellFor resolves a row by a fragment of its Target cell, qui porte une icône
-// de type et un chemin replié sur "~".
+// cellFor resolves a row by a fragment of its Target cell, which carries a
+// type icon and a path folded to "~".
 func cellFor(rows map[string]string, fragment string) (string, bool) {
 	for target, cell := range rows {
 		if strings.Contains(target, fragment) {
@@ -71,9 +71,9 @@ func cellFor(rows map[string]string, fragment string) (string, bool) {
 	return "", false
 }
 
-// Une ligne purgée par A (case « purge » cochée) n'a plus de compteurs — elle affiche `-` — et elle
-// n'a pas davantage de verdict : celui qu'elle portait décrit un scan que la
-// purge vient d'effacer.
+// A row purged by A (with the "purge" checkbox checked) no longer has
+// counters — it shows `-` — and it has no verdict either: the one it carried
+// described a scan the purge has just erased.
 func TestAPurgedRowHasNoVerdictEither(t *testing.T) {
 	m := inventoryModel(t, verdictFixtures()...)
 
@@ -88,9 +88,9 @@ func TestAPurgedRowHasNoVerdictEither(t *testing.T) {
 	}
 }
 
-// Le verdict voyage avec le rescan. Sans lui sur le message, la ligne
-// afficherait l'icône de son scan précédent à côté de compteurs tout frais,
-// jusqu'au prochain ctrl+r.
+// The verdict travels with the rescan. Without it on the message, the row
+// would show the icon of its previous scan beside brand-new counters, until
+// the next ctrl+r.
 func TestAFinishedRescanBringsBackItsVerdict(t *testing.T) {
 	m := inventoryModel(t, verdictFixtures()...)
 	m, _ = scanAll(t, m, true)

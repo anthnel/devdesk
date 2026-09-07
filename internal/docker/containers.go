@@ -210,8 +210,8 @@ func FetchCapacity() (Capacity, error) {
 // FetchAggregateMetrics reports what the running containers are using, as a
 // share of what the daemon has.
 //
-// `docker stats --no-stream` coûte environ deux secondes, mesuré : c'est ce qui
-// lui vaut une horloge à lui plutôt qu'un tour dans le rafraîchissement rapide.
+// `docker stats --no-stream` costs about two seconds, measured: that is what
+// earns it its own clock rather than a turn in the fast refresh.
 //
 // A capacity it cannot read makes the whole thing unavailable rather than a
 // number on an unstated scale. That is the choice this function exists to make:

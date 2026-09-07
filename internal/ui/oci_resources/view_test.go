@@ -14,10 +14,11 @@ import (
 
 // columnIndex resolves a column by its header rather than by its position, so a
 // column inserted elsewhere in the table moves an assertion instead of breaking
-// it — ce qui vient d'arriver à celle-ci quand Secrets s'est intercalée.
+// it — which is exactly what just happened to this one when Secrets got
+// inserted.
 //
-// La comparaison est exacte, la flèche de tri retirée : un préfixe ferait
-// répondre « Content Size » à une recherche de la colonne « C ».
+// The comparison is exact, the sort arrow stripped: a prefix match would make
+// "Content Size" answer a search for the "C" column.
 func columnIndex(t *testing.T, cols []table.Column, title string) int {
 	t.Helper()
 	for i, col := range cols {

@@ -28,17 +28,17 @@ func TestFetchOCIStatsParsesEachResourceType(t *testing.T) {
 	if got.VolumesCount != 7 || got.VolumesSize != "400MB" {
 		t.Errorf("volumes = %d/%q, want 7/\"400MB\"", got.VolumesCount, got.VolumesSize)
 	}
-	// Le cache de build entrait dans la somme du récupérable, mais sa taille
-	// propre était jetée — or c'est elle qui répond le plus souvent à « où est
-	// passé le disque ».
+	// The build cache used to feed into the reclaimable sum, but its own size
+	// was thrown away — yet it is the one that most often answers "where did
+	// the disk go".
 	if got.BuildCacheSize != "2GB" {
 		t.Errorf("BuildCacheSize = %q, want %q", got.BuildCacheSize, "2GB")
 	}
 }
 
-// `docker system df` n'a pas de ligne pour les réseaux : ils ne portent pas
-// d'octets, donc le rapport disque les ignore. Le compte vient d'un second
-// appel, et une liste qui échoue ne doit pas emporter les tailles avec elle.
+// `docker system df` has no row for networks: they carry no bytes, so the
+// disk report ignores them. The count comes from a second call, and a
+// failing list must not take the sizes down with it.
 func TestFetchOCIStatsCountsTheNetworksSeparately(t *testing.T) {
 	stub(t, &stubRunner{output: map[string][]byte{
 		"system":  []byte("Images\t12\t1.5GB\n"),
@@ -65,9 +65,9 @@ func TestAFailingNetworkListStillLeavesTheSizes(t *testing.T) {
 	}
 }
 
-// Le reclaimable est sommé sur les trois familles, et le pourcentage que Docker
-// accole à chaque taille est relatif à sa propre famille : il ne survivrait pas
-// à l'addition, donc il est écarté.
+// The reclaimable figure is summed across the three families, and the
+// percentage Docker attaches to each size is relative to its own family: it
+// would not survive the addition, so it is discarded.
 func TestFetchOCIStatsSumsTheReclaimableSpace(t *testing.T) {
 	stubOutput(t, "system",
 		"Images\t12\t1.5GB\t1.2GB (80%)\n"+
@@ -75,14 +75,14 @@ func TestFetchOCIStatsSumsTheReclaimableSpace(t *testing.T) {
 			"Local Volumes\t7\t400MB\t0B (0%)\n"+
 			"Build Cache\t20\t2GB\t2GB (100%)\n")
 
-	// 1.2GB + 250MB + 0 + 2GB, en unités décimales comme docker system df.
+	// 1.2GB + 250MB + 0 + 2GB, in decimal units like docker system df.
 	if got := FetchOCIStats().Reclaimable; got != "3.5GB" {
 		t.Errorf("Reclaimable = %q, want %q", got, "3.5GB")
 	}
 }
 
-// Un daemon qui ne rend pas la colonne — un format plus ancien — ne doit pas
-// produire un "0B" qui se lirait comme « rien à récupérer ».
+// A daemon that does not render the column — an older format — must not
+// produce a "0B" that would read as "nothing to reclaim".
 func TestAMissingReclaimableColumnIsNotZero(t *testing.T) {
 	stubOutput(t, "system", "Images\t12\t1.5GB\nContainers\t3\t250MB\n")
 

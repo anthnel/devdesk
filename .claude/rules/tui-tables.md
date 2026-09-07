@@ -1,90 +1,91 @@
 # TUI — Tables
 
-### Rule 106 : Standardisation des tables
+### Rule 106 : Table standardization
 
-- Utiliser `theme.DefaultTableStyles()` pour toutes les tables
-- Headers en bold avec ColorSecondary (voir Rule 118)
-- Ligne sélectionnée avec ColorHighlight
-- Bordures cohérentes
+- Use `theme.DefaultTableStyles()` for all tables
+- Bold headers with ColorSecondary (see Rule 118)
+- Selected row with ColorHighlight
+- Consistent borders
 
-### Rule 116 : la ligne rendue occupe exactement l'intérieur du viewport
+### Rule 116 : the rendered row occupies exactly the inside of the viewport
 
-**La ligne sélectionnée doit s'étendre jusqu'à la bordure droite du viewport.**
+**The selected row must extend all the way to the viewport's right border.**
 
-Le calcul appartient à `internal/ui/datatable` et à lui seul. Une vue passe la
-**largeur complète du viewport, bordures comprises** — `Resize` en retire les
-bordures et le padding que `bubbles/table` ajoute par cellule (`Padding(0, 1)`,
-donc +2 par colonne rendue).
+The calculation belongs to `internal/ui/datatable`, and to it alone. A view
+passes the **full viewport width, borders included** — `Resize` strips out
+the borders and the padding `bubbles/table` adds per cell (`Padding(0, 1)`,
+i.e. +2 per rendered column).
 
 ```go
 func (m *Model) resize(width, height int) {
-    m.table.Resize(width, max(height-1, 1)) // pas de -2, pas de max(…, 20)
+    m.table.Resize(width, max(height-1, 1)) // no -2, no max(…, 20)
 }
 ```
 
-Soustraire les bordures une seconde fois est le défaut le plus discret de la
-règle : la table est alors correcte à *toutes* les largeurs et se termine deux
-cellules trop tôt à toutes aussi. Un plancher local (`max(…, 20)`) est l'erreur
-symétrique — il rend la table plus large que le viewport quand le terminal est
-étroit, ce qui est précisément le débordement interdit.
+Subtracting the borders a second time is the rule's most discreet defect:
+the table is then correct at *every* width and also ends two cells too soon
+at every one of them. A local floor (`max(…, 20)`) is the mirror-image
+mistake — it makes the table wider than the viewport when the terminal is
+narrow, which is exactly the forbidden overflow.
 
-#### L'invariant s'énonce sur la portée **rendue**
+#### The invariant is stated over the **rendered** extent
 
 ```go
 // ✅ CORRECT
 if got, want := m.table.RenderedWidth(), width-2; got != want { … }
 
-// ❌ INTERDIT — faux dès qu'une colonne est retirée
+// ❌ WRONG — wrong as soon as a column is dropped
 total := 0
 for _, col := range m.table.Table().Columns() { total += col.Width }
 if want := width - 2 - len(cols)*2; total != want { … }
 ```
 
-Une colonne retirée faute de place ne rend rien — ni en-tête, ni cellule, ni
-padding — et rend ses deux cellules au budget. La somme des colonnes déclarées
-plus deux chacune demande donc moins que ce que la ligne occupe, et échoue sur
-une mise en page correcte. C'est D61 vu de l'autre côté.
+A column dropped for lack of room renders nothing — no header, no cell, no
+padding — and its two cells go back into the budget. The sum of the declared
+columns plus two each therefore asks for less than what the row occupies,
+and fails on an otherwise correct layout. This is D61 seen from the other
+side.
 
-#### Chaque colonne déclare sa nature (§3.45)
+#### Every column declares its nature (§3.45)
 
-`Sizing` n'a **pas** de valeur par défaut : `SizingFixed` (largeur exacte) ou
-`SizingContent` (la largeur du contenu, plancher `MinWidth`, plafond
-`MaxWidth`). `TestEveryColumnDeclaresItsSizing` parcourt les sources et échoue
-en nommant fichier, ligne et colonne.
+`Sizing` has **no** default value: `SizingFixed` (exact width) or
+`SizingContent` (content width, floored at `MinWidth`, capped at
+`MaxWidth`). `TestEveryColumnDeclaresItsSizing` scans the sources and fails,
+naming the file, line, and column.
 
-`MinWidth` est un **plancher**, pas une demande. Ce qui cède au-delà est une
-colonne **entière** : les `Optional` d'abord, la plus à droite en premier, puis
-les autres si besoin. Mieux vaut moins de colonnes justes que toutes fausses —
-tronquer une colonne de comptage rendrait `142` en `14…`, et rien à l'écran ne
-distingue les deux.
+`MinWidth` is a **floor**, not a request. What gives way beyond that is an
+**entire** column: `Optional` ones first, rightmost first, then the others
+if needed. Fewer correct columns beat all of them being wrong — truncating a
+count column would render `142` as `14…`, and nothing on screen tells the
+two apart.
 
-Interdit :
-- ❌ Calculer des largeurs de colonnes dans une vue
-- ❌ Soustraire les bordures avant `Resize`, ou clamper la largeur passée
-- ❌ Vérifier Rule 116 en sommant les colonnes déclarées
-- ❌ Laisser une colonne sans `Sizing`
-- ❌ `Background()` sur `s.Cell` (masque `s.Selected.Background()`)
+Forbidden:
+- ❌ Computing column widths inside a view
+- ❌ Subtracting the borders before `Resize`, or clamping the width passed in
+- ❌ Checking Rule 116 by summing the declared columns
+- ❌ Leaving a column without a `Sizing`
+- ❌ `Background()` on `s.Cell` (masks `s.Selected.Background()`)
 
-### Rule 122 : `Cell` mesure, `Style` colore — jamais l'inverse ⚠️
+### Rule 122 : `Cell` measures, `Style` colors — never the reverse ⚠️
 
-**`Cell` retourne du texte brut, sans séquence ANSI. La couleur passe par `Style`,
-et par rien d'autre.**
+**`Cell` returns plain text, with no ANSI sequence. Color goes through
+`Style`, and through nothing else.**
 
-**Pourquoi.** Une cellule est mesurée et tronquée *avant* d'être habillée, et la
-mesure passe par `runewidth`, qui compte les octets d'une séquence d'échappement
-comme de la largeur. Une chaîne de 7 cellules visibles portant une couleur mesure
-28 : elle est donc tronquée dans une colonne deux fois assez large, et la coupe
-tombe *à l'intérieur* de l'échappement — `"\x1b[38;2;166;2…"`. La séquence non
-terminée bave ensuite sur toutes les lignes suivantes.
+**Why.** A cell is measured and truncated *before* it is dressed up, and the
+measurement goes through `runewidth`, which counts an escape sequence's
+bytes as width. A string of 7 visible cells carrying a color measures 28: it
+therefore gets truncated in a column that is twice wide enough, and the cut
+falls *inside* the escape sequence — `"\x1b[38;2;166;2…"`. The unterminated
+sequence then bleeds onto every following row.
 
-C'est une limitation de `bubbles/table`, pas de Bubble Tea ni de lipgloss, et
-elle est inchangée dans `bubbles v1.0.0`. `internal/ui/datatable` rend donc ses
-propres lignes (`render.go`) : le texte est mesuré tant qu'il est brut, la
-couleur est appliquée après. **L'interdit porte donc sur `Cell`, pas sur la
-couleur.**
+This is a limitation of `bubbles/table`, not of Bubble Tea or lipgloss, and
+it is unchanged in `bubbles v1.0.0`. `internal/ui/datatable` therefore
+renders its own rows (`render.go`): the text is measured while still plain,
+color is applied afterward. **The prohibition therefore targets `Cell`, not
+color.**
 
 ```go
-// ✅ CORRECT — le texte est mesurable, la couleur est décidée à part
+// ✅ CORRECT — the text is measurable, the color is decided separately
 {
     Title: "Severity", MinWidth: 10,
     Cell:  func(f scan.Finding) string { return string(f.Severity) },
@@ -93,7 +94,7 @@ couleur.**
     },
 }
 
-// ❌ INTERDIT — la couleur entre dans ce qui sera mesuré
+// ❌ WRONG — color becomes part of what gets measured
 {
     Cell: func(f scan.Finding) string {
         return theme.SeverityTextStyle(string(f.Severity)).Render(string(f.Severity))
@@ -101,76 +102,77 @@ couleur.**
 }
 ```
 
-#### Ligne sélectionnée
+#### Selected row
 
-**`Style` n'est pas consulté pour la ligne sous le curseur.** Elle est passée
-entière à `styles.Selected`, et une couleur à l'intérieur se referme par un
-reset qui emporte le fond de sélection pour tout le reste de la ligne : le
-surlignage s'arrêterait au milieu. Le surlignage répond à « où suis-je », et
-aucune couleur de colonne ne vaut de le perdre. Une colonne ne peut pas demander
-l'inverse.
+**`Style` is not consulted for the row under the cursor.** It is handed
+whole to `styles.Selected`, and a color inside it closes with a reset that
+carries away the selection background for the rest of the row: the
+highlight would stop halfway through. Highlighting answers "where am I,"
+and no column color is worth losing that. A column cannot ask for the
+reverse.
 
-#### Fond
+#### Background
 
-lipgloss n'hérite pas d'un fond (Rule 115), et le style du viewport ne couvre
-que les cellules qui n'émettent rien. `render.go` donne donc un fond explicite à
-**chaque** cellule d'une ligne non sélectionnée, colorée ou non — sinon une
-seule cellule colorée dépouillerait de son fond tout ce qui la suit. Une colonne
-qui ne déclare qu'un `Foreground` reçoit `ColorBackground` automatiquement.
+lipgloss does not inherit a background (Rule 115), and the viewport's style
+only covers cells that emit nothing. `render.go` therefore gives an explicit
+background to **every** cell of an unselected row, colored or not —
+otherwise a single colored cell would strip the background off everything
+that follows it. A column that declares only a `Foreground` automatically
+receives `ColorBackground`.
 
-#### Discipline de couleur
+#### Color discipline
 
-Une couleur qui apparaît partout n'informe de rien :
+A color that appears everywhere tells you nothing:
 
-- un compteur à `0`, un `-`, une valeur absente → `theme.DimStyle` ;
-- l'état nominal et majoritaire (un conteneur `running`) → couleur de texte par
-  défaut, **pas** de vert ;
-- la couleur est réservée à ce qui mérite d'être repéré sans lire.
+- a counter at `0`, a `-`, a missing value → `theme.DimStyle`;
+- the nominal, majority state (a `running` container) → the default text
+  color, **not** green;
+- color is reserved for what deserves to be spotted without reading.
 
-**L'exception, et ce qui la définit : une colonne où l'absence de couleur est
-déjà prise.** La colonne `CI` a trois absences — jamais scanné, non gradable,
-score retenu — et les trois rendent en `DimStyle`. Un `A` en couleur de texte
-ordinaire ne s'y distingue d'un `-` gris que par une nuance, sur quatre
-cellules. Le vert y sépare donc **une note d'une absence**, pas deux valeurs
-nominales l'une de l'autre : c'est ce que la règle ci-dessus interdit ailleurs,
-et ce qu'elle demande ici. Le critère est celui-là et pas « c'est important » —
-si les absences d'une colonne se distinguaient déjà, le vert redeviendrait du
-bruit.
+**The exception, and what defines it: a column where the absence of color
+is already taken.** The `CI` column has three absences — never scanned, not
+gradable, score withheld — and all three render in `DimStyle`. An `A` in
+ordinary text color is distinguishable from a grey `-` only by a shade,
+across four cells. Green there separates **a grade from an absence**, not
+two nominal values from each other: that is exactly what the rule above
+forbids elsewhere, and exactly what it requires here. That is the
+criterion, and not "it's important" — if a column's absences were already
+distinguishable, green would go back to being noise.
 
-Checklist :
-- [ ] Aucun `style.Render(...)` dans ce que retourne `Cell`
-- [ ] Icônes de statut en texte brut : `theme.IconError + " error"`
-- [ ] Spinners en texte brut : `frame + " scanning"`
-- [ ] Couleur par cellule via `Style`, jamais via `Cell`
-- [ ] Couleur de la ligne sélectionnée via `SelectedStyles` / `TableStylesForState/Severity()`
-- [ ] Les zéros et les placeholders sont `DimStyle`, pas colorés
+Checklist:
+- [ ] No `style.Render(...)` inside what `Cell` returns
+- [ ] Status icons as plain text: `theme.IconError + " error"`
+- [ ] Spinners as plain text: `frame + " scanning"`
+- [ ] Per-cell color via `Style`, never via `Cell`
+- [ ] Selected-row color via `SelectedStyles` / `TableStylesForState/Severity()`
+- [ ] Zeros and placeholders are `DimStyle`, not colored
 
-### Rule 125 : Alignement des colonnes d'icônes
+### Rule 125 : Icon column alignment
 
-**Toute colonne d'icône (ou icône + texte court) doit être alignée à gauche.**
+**Any icon column (or icon + short text) must be left-aligned.**
 
-Les icônes Nerd Font ont une largeur variable selon le terminal. L'alignement à gauche est le seul qui garantit un rendu cohérent.
+Nerd Font icons have variable width depending on the terminal. Left alignment is the only one that guarantees consistent rendering.
 
-| Type de contenu | Alignement |
+| Content type | Alignment |
 |-----------------|------------|
-| Icône seule | **Gauche** |
-| Icône + texte court | **Gauche** |
-| Texte alphanumérique | Gauche (défaut) |
+| Icon alone | **Left** |
+| Icon + short text | **Left** |
+| Alphanumeric text | Left (default) |
 
-#### Une icône en première colonne **est** une colonne
+#### An icon in the first column **is** a column
 
-Quand la première colonne d'un `datatable` porte un glyphe, elle est une
-colonne à part entière — pas un préfixe collé dans la cellule de texte voisine.
+When a `datatable`'s first column carries a glyph, it is a column in its own
+right — not a prefix stuck onto the neighboring text cell.
 
 | | |
 |---|---|
-| Titre | **vide**. Le glyphe se lit d'un coup d'œil ; un en-tête nommerait ce qui n'a pas besoin de l'être, et `eza` n'en met pas non plus. |
-| Largeur | `datatable.IconColumnWidth` (2) : le glyphe, plus une cellule pour qu'il ne touche pas le texte. Deux et non une — un glyphe Nerd Font rend en double largeur sur certains terminaux, et une seule cellule le tronquerait là. |
-| `Sizing` | `SizingFixed`. Rien à mesurer. |
-| `Less` / `Search` | **aucun**. Elle n'ajoute aucun texte que quelqu'un puisse taper, donc le filtre reste sur les colonnes de noms ; et un comparateur coûterait deux cellules de plus pour loger sa flèche de tri. |
+| Title | **empty**. The glyph reads in a glance; a header would be naming something that does not need naming, and `eza` does not put one there either. |
+| Width | `datatable.IconColumnWidth` (2): the glyph, plus one cell so it does not touch the text. Two, not one — a Nerd Font glyph renders double-width on some terminals, and a single cell would truncate it there. |
+| `Sizing` | `SizingFixed`. Nothing to measure. |
+| `Less` / `Search` | **none**. It adds no text anyone could type, so filtering stays on the name columns; and a comparator would cost two more cells to fit its sort arrow. |
 
 ```go
-// ✅ CORRECT — le glyphe a sa colonne
+// ✅ CORRECT — the glyph has its own column
 {
     Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
     Cell: func(r row) string { return r.icon() },
@@ -181,116 +183,115 @@ colonne à part entière — pas un préfixe collé dans la cellule de texte voi
     Search: func(r row) string { return r.Name },
 },
 
-// ❌ INTERDIT — le glyphe collé dans la colonne identifiante
+// ❌ WRONG — the glyph stuck into the identifying column
 {
     Title: "Name", Sizing: datatable.SizingContent, MinWidth: 18,
     Cell: func(r row) string { return theme.IconDocker + " " + r.Name },
 },
 ```
 
-**Ce que le collage coûte**, et c'est ce qui décide : la colonne identifiante
-dépense sa largeur pour ce qui n'est pas le nom, et un `SizingContent` mesure
-alors le glyphe avec — donc la colonne la plus disputée de la table réserve
-deux cellules pour une icône, à toutes les largeurs.
+**What sticking it in costs**, and this is what settles it: the identifying
+column spends its width on something that is not the name, and a
+`SizingContent` then measures the glyph along with it — so the table's most
+contested column reserves two cells for an icon, at every width.
 
-#### La couleur d'une icône passe par un **rôle**, jamais par le glyphe
+#### An icon's color goes through a **role**, never through the glyph
 
-Rule 122 vaut ici comme ailleurs : `Cell` rend le glyphe nu, `Style` le colore.
-Ce que Rule 125 ajoute est **d'où vient la couleur** — de `theme.IconStyle(role)`,
-et d'un rôle déclaré dans `theme/iconcolors.go`.
+Rule 122 applies here as everywhere: `Cell` renders the bare glyph, `Style`
+colors it. What Rule 125 adds is **where the color comes from** —
+`theme.IconStyle(role)`, and a role declared in `theme/iconcolors.go`.
 
 ```go
-// ✅ CORRECT — la vue nomme un sens, le thème répond une couleur
+// ✅ CORRECT — the view names a meaning, the theme answers with a color
 Cell:  func(r row) string { return nodeKindIcon(r.node) },
 Style: func(r row) lipgloss.Style { return theme.IconStyle(nodeKindRole(r.node)) },
 
-// ❌ INTERDIT — la vue décide de la teinte
+// ❌ WRONG — the view decides the hue
 Style: func(r row) lipgloss.Style {
     return lipgloss.NewStyle().Foreground(theme.ColorSecondary)
 },
 ```
 
-**Un codepoint n'est pas un nom.** Une table `U+F0849 → ColorSecondary` ne se
-relit pas : rien sur la ligne ne dit si l'entrée est juste, donc une erreur y est
-indiscernable d'un choix. Un rôle se discute, et c'est pour ça qu'il est la clé.
+**A codepoint is not a name.** A table of `U+F0849 → ColorSecondary` cannot
+be reviewed: nothing on the line says whether the entry is correct, so an
+error there is indistinguishable from a deliberate choice. A role can be
+discussed, which is why it is the key.
 
-Les cinq rôles sont surchargeables par un fichier de thème
-(`icon_namespace`, `icon_repository`, `icon_vis_*`) — contrairement aux couleurs
-de syntaxe, qui sont des alias fermés : une icône est la première chose vue sur
-une ligne, donc c'est la partie de la palette sur laquelle un utilisateur a le
-plus de chances d'avoir un avis.
+The five roles are overridable via a theme file (`icon_namespace`,
+`icon_repository`, `icon_vis_*`) — unlike syntax colors, which are closed
+aliases: an icon is the first thing seen on a row, so it is the part of the
+palette a user is most likely to have an opinion about.
 
-**Les trois tables à icône déclarent toutes un `Style`** — `ws`, `:sec` et
-l'explorer — et une quatrième qui n'en déclarerait pas serait la seule colonne
-d'icône monochrome de l'application. Un rôle qui manque se voit : la cellule
-retombe sur `ColorText` (voir `IconColor`), donc l'oubli rend du texte ordinaire
-plutôt que rien.
+**All three icon tables declare a `Style`** — `ws`, `:sec`, and the
+explorer — and a fourth that did not declare one would be the application's
+only monochrome icon column. A missing role shows: the cell falls back to
+`ColorText` (see `IconColor`), so an oversight renders ordinary text rather
+than nothing.
 
-**Un même objet garde sa couleur d'une vue à l'autre.** Un dépôt git est
-`IconRoleRepository` dans `ws`, dans `:sec` et dans l'explorer — le rôle est
-partagé, pas dupliqué. C'est la propriété pour laquelle la clé est un sens et
-non un glyphe : les trois vues n'affichent d'ailleurs pas le même glyphe pour
-lui.
+**The same object keeps its color from one view to another.** A git repo is
+`IconRoleRepository` in `ws`, in `:sec`, and in the explorer — the role is
+shared, not duplicated. This is the property for which the key is a meaning
+rather than a glyph: the three views do not even show the same glyph for it.
 
-**La granularité est celle de l'action, pas celle du type.** `ws` colore en
-trois classes — dépôt, répertoire, fichier — qui sont exactement les trois
-branches de `availability.go`, et **non** une teinte par langage à la manière
-d'`eza` : `.go` contre `.rs` ne change aucun raccourci de la ligne, donc la
-couleur ne dirait rien. Une colonne d'icône se colore par ce que la ligne
-permet de faire.
+**The granularity is that of the action, not that of the type.** `ws`
+colors in three classes — repo, directory, file — which are exactly the
+three branches of `availability.go`, and **not** a shade per language the
+way `eza` does: `.go` versus `.rs` changes no shortcut on the row, so the
+color would say nothing. An icon column is colored by what the row lets you
+do.
 
-**Sous le curseur la couleur disparaît**, comme celle de toute colonne colorée :
-la ligne sélectionnée est rendue entière par `styles.Selected` (Rule 122). Une
-colonne d'icône ne peut donc pas être le *seul* porteur d'une information —
-c'est pourquoi le kind de l'explorer reste lisible autrement (le glyphe hors
-sélection, la position dans l'arbre dedans).
+**The color disappears under the cursor**, like that of any colored column:
+the selected row is rendered whole by `styles.Selected` (Rule 122). An icon
+column therefore cannot be the *only* carrier of a piece of information —
+which is why the explorer's kind stays readable another way (the glyph
+outside selection, the position in the tree inside it).
 
-Les trois tables concernées sont `ws`, `containers` et l'inventaire `:sec`, et
-elles déclarent la même constante. `TestAnIconColumnIsUntitledAndTwoCellsWide`
-(`internal/ui/datatable`) parcourt les sources et refuse une colonne sans titre
-qui invente sa largeur. Il ne voit pas l'autre moitié — une icône collée dans
-une cellule de texte est indiscernable d'un nom qui commence par un glyphe —
-qui reste une question de revue.
+The three tables concerned are `ws`, `containers`, and the `:sec` inventory,
+and they declare the same constant. `TestAnIconColumnIsUntitledAndTwoCellsWide`
+(`internal/ui/datatable`) scans the sources and rejects a titleless column
+that invents its own width. It does not see the other half — a glyph stuck
+into a text cell is indistinguishable from a name that starts with a
+glyph — which stays a matter for review.
 
-Interdit :
-- ❌ `.Align(lipgloss.Center)` sur une colonne d'icônes
-- ❌ `.Align(lipgloss.Right)` sur une colonne d'icônes
-- ❌ Un titre au-dessus d'une colonne de glyphes
-- ❌ Une largeur locale (`colIconFixed`, `statusColumnWidth`, un `2` littéral) au lieu de `datatable.IconColumnWidth`
-- ❌ Un glyphe préfixé dans la cellule d'une colonne de texte
-- ❌ Une couleur d'icône choisie dans la vue au lieu d'un rôle de `theme.IconStyle`
-- ❌ Une table de couleurs indexée par le glyphe plutôt que par le sens
-- ❌ Une colonne d'icône sans `Style`, alors que les trois autres en ont un
-- ❌ Un rôle par type de fichier là où la ligne offre les mêmes actions
+Forbidden:
+- ❌ `.Align(lipgloss.Center)` on an icon column
+- ❌ `.Align(lipgloss.Right)` on an icon column
+- ❌ A title above a glyph column
+- ❌ A local width (`colIconFixed`, `statusColumnWidth`, a literal `2`) instead of `datatable.IconColumnWidth`
+- ❌ A glyph prefixed inside a text column's cell
+- ❌ An icon color chosen in the view instead of a `theme.IconStyle` role
+- ❌ A color table indexed by the glyph rather than by meaning
+- ❌ An icon column with no `Style`, while the other three have one
+- ❌ A role per file type where the row offers the same actions
 
-### Rule 139 : Le corps d'un `datatable` ne se remplace jamais — ni par un spinner, ni par un message
+### Rule 139 : A `datatable`'s body is never replaced — not by a spinner, not by a message
 
-**Un `datatable` reste un tableau, quoi qu'il contienne.** Qu'il charge ses
-données, qu'il soit vide parce que rien n'a encore tourné, ou vide parce qu'un
-filtre ne retient plus rien, le corps rendu est toujours `m.table.View()` —
-en-tête compris, sans ligne. `datatable.View()` le fait déjà tout seul : une
-table à zéro élément rend son en-tête et remplit le reste en fond d'écran
-(`internal/ui/datatable/render.go`). Rien dans une vue n'a donc besoin de
-détecter ce cas.
+**A `datatable` stays a table, whatever it contains.** Whether it is
+loading its data, empty because nothing has run yet, or empty because a
+filter no longer matches anything, the rendered body is always
+`m.table.View()` — header included, no rows. `datatable.View()` already
+does this on its own: a zero-element table renders its header and fills
+the rest with the background (`internal/ui/datatable/render.go`). Nothing
+in a view therefore needs to detect this case.
 
-Ce qu'un corps aurait dit à la place — le chargement, le compte de lignes, un
-verdict — est **l'affaire du footer et du header**, jamais du corps :
+What a body would have said instead — loading, the row count, a verdict —
+is **the footer's and header's business**, never the body's:
 
-- le chargement est un `components.Status{Text: "...", Spinner: true}` dans le
-  footer (Rule 128) ;
-- le compte de lignes, ou ce qui en tient lieu (un verdict, un total), est un
-  champ de `GetHeaderInfo` (`shortcut.HeaderInfo{Key: "Images", Value: "0"}`) —
-  c'est lui, pas le corps, qui répond à « qu'est-ce que je regarde ».
+- loading is a `components.Status{Text: "...", Spinner: true}` in the
+  footer (Rule 128);
+- the row count, or whatever stands in for it (a verdict, a total), is a
+  field of `GetHeaderInfo` (`shortcut.HeaderInfo{Key: "Images", Value: "0"}`) —
+  it, not the body, answers "what am I looking at."
 
-**Pourquoi.** Un corps qui se substitue au tableau — par un spinner ou par un
-texte — perd son en-tête et ses colonnes le temps que la condition tienne, puis
-les retrouve : la mise en page saute à chaque rafraîchissement, à chaque
-`ctrl+r`, à chaque frappe dans le filtre. Le header et le footer, eux, ont une
-hauteur fixe (Rule 124) : ce qu'ils affichent change sans jamais déplacer le
-tableau.
+**Why.** A body that substitutes itself for the table — with a spinner or
+with text — loses its header and its columns for as long as the condition
+holds, then regains them: the layout jumps on every refresh, every
+`ctrl+r`, every keystroke in the filter. The header and the footer, on the
+other hand, have a fixed height (Rule 124): what they display changes
+without ever moving the table.
 
 ```go
-// ✅ CORRECT — le corps est toujours la table ; le footer et le header parlent
+// ✅ CORRECT — the body is always the table; the footer and header speak
 func (m Model) renderImagesView() string {
     return m.imageTable.View()
 }
@@ -308,33 +309,34 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
     }
 }
 
-// ❌ INTERDIT — le corps se remplace par un spinner
+// ❌ WRONG — the body replaces itself with a spinner
 if m.loading && len(m.images) == 0 {
     return theme.SpinnerMessage(m.spinner.View(), "Loading images...")
 }
 
-// ❌ INTERDIT — le corps se remplace par un message, vide ou filtré
+// ❌ WRONG — the body replaces itself with a message, empty or filtered
 if len(m.imageTable.Visible()) == 0 {
     return theme.DimStyle.Render("No images found")
 }
 ```
 
-La frame du spinner est poussée depuis le handler `spinner.TickMsg` :
-`m.footer.SetSpinnerFrame(m.spinner.View())`. Sans cet appel le spinner reste sur
-la frame zéro, ce qui se lit comme un blocage.
+The spinner's frame is pushed from the `spinner.TickMsg` handler:
+`m.footer.SetSpinnerFrame(m.spinner.View())`. Without this call the spinner
+stays on frame zero, which reads as a hang.
 
-`TestNoTableViewRendersALoadingBody` (`internal/ui/components`) refuse un
-`theme.SpinnerMessage` dans les vues à table. Un écran d'opération sans table
-derrière (un `docker pull` en cours) est une exception **déclarée dans le test**.
+`TestNoTableViewRendersALoadingBody` (`internal/ui/components`) rejects a
+`theme.SpinnerMessage` in table views. An operation screen with no table
+behind it (a `docker pull` in progress) is an exception **declared in the
+test**.
 
-**Exception déclarée : un écran d'accueil, pas un message d'état.** L'inventaire
-de `:sec` vide (`internal/ui/security/inventory.go`, `renderEmptyInventory`)
-remplace le corps par un paragraphe qui explique *d'où viennent* les scans — ce
-n'est pas « 0 lignes », c'est un onboarding de première utilisation, avec plus
-de contenu qu'un champ de header ne peut porter. Le distinguo : un message qui
-tient dans `GetHeaderInfo` (un compte, un statut) y va ; un texte qui explique
-un flux applicatif entier reste une exception explicite, comme celle déjà
-prévue pour le chargement.
+**Declared exception: a welcome screen, not a status message.** The empty
+`:sec` inventory (`internal/ui/security/inventory.go`, `renderEmptyInventory`)
+replaces the body with a paragraph that explains *where scans come from* —
+this is not "0 rows," it is first-use onboarding, with more content than a
+header field can carry. The distinction: a message that fits in
+`GetHeaderInfo` (a count, a status) goes there; text that explains an
+entire application flow stays an explicit exception, like the one already
+provided for loading.
 
 ### Rule 136 : Filter Bar for Tables
 
@@ -438,14 +440,14 @@ fb.SetTokenActive("tcp", !fb.IsTokenActive("tcp"))
 #### Rules
 
 - ✅ Use `components.FilterBar` — never re-implement the filter bar locally
-- ✅ Le cadre lui-même est `components.BarFrame(width, inner)` : c'est ce que
-  `FilterBar.View()` appelle, et la seule voie pour ce qui partage ce créneau
-  sans être un filtre — le prompt d'aller-à-la-ligne du viewer (§3.53). Deux
-  implémentations du rectangle seraient libres de diverger sur l'endroit où sont
-  les coins.
-- ✅ Un seul occupant du créneau à la fois, et la hauteur ne dépend pas duquel —
-  sinon le panneau se redimensionne sous le lecteur quand l'un s'ouvre par-dessus
-  l'autre.
+- ✅ The frame itself is `components.BarFrame(width, inner)`: that is what
+  `FilterBar.View()` calls, and the only path for whatever shares this slot
+  without being a filter — the viewer's go-to-line prompt (§3.53). Two
+  implementations of the rectangle would be free to diverge on where the
+  corners sit.
+- ✅ Only one occupant of the slot at a time, and the height does not depend
+  on which one — otherwise the panel resizes under the reader whenever one
+  opens on top of the other.
 - ✅ `filterBar.ExtraHeight()` must be added to `GetFooterHeight()` return value
 - ✅ `filterBar.View()` must be prepended in `RenderFooter()` when `filterBar.IsVisible()`
 - ✅ `filterBar.InEditMode()` must propagate via the view's `InEditMode()` method

@@ -203,8 +203,8 @@ func (f *CreationForm) handleKeyMsg(msg tea.KeyMsg) (*CreationForm, tea.Cmd) {
 				f.resourceType = (f.resourceType + 1) % len(f.resourceLabels)
 			}
 			f.formType = formTypeFromResourceType(f.resourceType)
-			// Pas de clamp du focus ici : cette branche n'est atteinte qu'avec
-			// focusedField == 0, et maxField() ne descend jamais sous 4.
+			// No focus clamp here: this branch is only reached with
+			// focusedField == 0, and maxField() never drops below 4.
 			return f, nil
 		}
 		// Field 3: cycle visibility

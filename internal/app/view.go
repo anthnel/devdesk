@@ -8,8 +8,8 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// View rend l'interface : header, ligne de titre, viewport, footer (Rule 124).
-// Un overlay ouvert remplace le tout.
+// View renders the interface: header, title line, viewport, footer (Rule 124).
+// An open overlay replaces the whole thing.
 func (a *App) View() string {
 	if overlay := a.activeOverlay(); overlay != "" {
 		return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, overlay,
@@ -46,7 +46,7 @@ func (a *App) renderBody() string {
 		content = view.View()
 	}
 
-	innerWidth := a.viewport.Width - 2 // -2 pour les bordures
+	innerWidth := a.viewport.Width - 2 // -2 for the borders
 	if a.frameless() {
 		innerWidth = a.viewport.Width
 	}
@@ -69,8 +69,8 @@ func (a *App) renderBody() string {
 }
 
 // renderTitleLine draws the viewport's top border carrying the view's title —
-// or, for a frameless view, a titled rule with no corners: GetTitle() garde un
-// lecteur là où une bordure haute dessinerait le haut d'une boîte inexistante.
+// or, for a frameless view, a titled rule with no corners: GetTitle() keeps a
+// reader oriented where a top border would draw the top of a nonexistent box.
 func (a *App) renderTitleLine() string {
 	title := ""
 	if view, ok := a.views[a.currentView]; ok {
@@ -85,7 +85,7 @@ func (a *App) renderTitleLine() string {
 }
 
 // frameless reports whether the active view draws its own frames (see
-// FramelessView). Le défaut est encadré.
+// FramelessView). The default is framed.
 func (a *App) frameless() bool {
 	view, ok := a.views[a.currentView]
 	if !ok {

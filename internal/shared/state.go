@@ -30,7 +30,8 @@ type OCIStats struct {
 	// most often answers "where did the disk go".
 	BuildCacheSize string
 	// Reclaimable is what a prune would give back, summed over the three
-	// families. Il vient du même appel que le reste et était jeté.
+	// families. It comes from the same call as the rest and used to be
+	// discarded.
 	Reclaimable string
 }
 
@@ -52,7 +53,7 @@ const (
 	ServiceStatusUnknown  ServiceGlobalStatus = "unknown"
 )
 
-// State contient l'état partagé entre toutes les vues
+// State holds the state shared between all views
 type State struct {
 	// Secrets is where this context's secrets live, resolved once by the
 	// router. Views read from it; only the auth view writes. SecretNotices is

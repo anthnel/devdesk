@@ -25,7 +25,7 @@ func (m Model) FilterBarVisible() bool {
 }
 
 func (m Model) GetShortcuts() shortcut.Shortcuts {
-	// vue edition/ajout composant
+	// component edit/add view
 	if m.componentForm != nil {
 		return []shortcut.Shortcut{
 			{Key: "esc", Description: "Cancel"},
@@ -33,7 +33,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 	}
 
-	// vue principale status
+	// main status view
 	return []shortcut.Shortcut{
 		{Key: keymap.New, Description: "New monitor"},
 		{Key: keymap.Edit, Description: "Edit monitor"},
@@ -70,14 +70,14 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	}
 }
 
-// View rend la vue
+// View renders the view
 func (m Model) View() string {
-	// Mode formulaire - overlay
+	// Form mode - overlay
 	if m.componentForm != nil {
 		return m.componentForm.View()
 	}
 
-	// Mode confirmation - overlay
+	// Confirmation mode - overlay
 	if m.confirmModal != nil {
 		return lipgloss.Place(
 			m.width,
@@ -89,7 +89,7 @@ func (m Model) View() string {
 		)
 	}
 
-	// Content - HAUTEUR DYNAMIQUE qui remplit exactement l'espace disponible
+	// Content - DYNAMIC HEIGHT that fills exactly the available space
 	if m.error != "" {
 		return m.renderError()
 	}
@@ -183,7 +183,7 @@ func (m *Model) updateTable() {
 	m.applyTabFocus()
 }
 
-// GetHelpContent retourne le contenu d'aide de la vue Status
+// GetHelpContent returns the help content for the Status view
 func (m Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title:       "Status Monitor",
@@ -217,13 +217,13 @@ func (m Model) GetHelpContent() help.Content {
 // formatSSLStatus names a certificate's state, and it does not go through
 // StatusType.
 //
-// Elle le faisait, et c'est ce qui a valu D64 à la boîte Health : SSLChecker
-// rend `ERROR` pour un certificat périmé comme pour un qui expire dans six
-// jours, donc l'icône était la même pour les deux. La colonne `Days Left`
-// d'à côté séparait ce que celle-ci collait — mais elle demandait de lire deux
-// cellules pour un fait qui en tient dans une.
+// It used to, and that is what earned the Health box D64: SSLChecker
+// renders `ERROR` for an expired certificate just as for one expiring in six
+// days, so the icon was the same for both. The `Days Left` column beside it
+// separated what this one glued together — but it required reading two
+// cells for a fact that fits in one.
 //
-// Le texte reste brut : la couleur est le `Style` de la colonne (Rule 122).
+// The text stays plain: the color is the column's `Style` (Rule 122).
 func formatSSLStatus(comp status.ComponentStatus) string {
 	return theme.CertStateIcon(string(status.CertStateOf(comp)))
 }

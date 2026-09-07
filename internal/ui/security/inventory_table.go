@@ -40,8 +40,8 @@ type scanTarget struct {
 	Kind   targetKind
 	Name   string // the cache key: "repo:tag", or the absolute repository path
 	Counts scan.SeverityCounts
-	// Sensitive is the secret verdict as the cache holds it: nil quand aucune
-	// étape n'a cherché, ce qui n'est pas la même chose que n'avoir rien trouvé.
+	// Sensitive is the secret verdict as the cache holds it: nil when no step
+	// has looked, which is not the same thing as having found nothing.
 	Sensitive *bool
 	// CIScore and CIGradeable are the pipeline grade as the cache holds it, and
 	// whether this context could grade the target at all. They are stored
@@ -75,10 +75,10 @@ type scanTarget struct {
 // descending: the target with the most critical findings is the one the view
 // exists to surface.
 //
-// C'est un indice, donc il suit l'ordre des colonnes : Secrets s'est intercalée
-// entre Target et CRIT. Une valeur périmée ne trie pas mal, elle ne trie plus du
-// tout — `datatable` laisse tomber une direction qui ne désigne aucune colonne
-// triable, et Secrets n'en est pas une.
+// This is an index, so it follows the column order: Secrets slotted in
+// between Target and CRIT. A stale value doesn't sort wrong, it doesn't sort
+// at all anymore — `datatable` drops a direction that names no sortable
+// column, and Secrets isn't one.
 const inventoryColumnCritical = 3
 
 // kindIcon is what the glyph column shows: which of the two caches the row came
@@ -124,8 +124,8 @@ func (t scanTarget) shortName() string {
 	return t.Name
 }
 
-// secrets is the row's verdict. Une ligne purgée par ctrl+a n'a plus de verdict
-// non plus : ses compteurs affichent `-`, et l'icône dit la même chose.
+// secrets is the row's verdict. A row purged by ctrl+a no longer has a
+// verdict either: its counters show `-`, and the icon says the same thing.
 func (t scanTarget) secrets() theme.SecretsState {
 	return theme.SecretsVerdict(t.Sensitive, t.Scanned)
 }
@@ -229,7 +229,7 @@ func inventoryScannedStyle(t scanTarget) lipgloss.Style {
 	case t.Scanning, !t.Scanned:
 		return theme.DimStyle
 	}
-	// Aucune opinion : c'est la table qui pose la couleur de texte du thème.
+	// No opinion here: it's the table that sets the theme's text color.
 	return lipgloss.NewStyle()
 }
 
@@ -249,11 +249,11 @@ func inventoryScannedCell(t scanTarget) string {
 }
 
 // secretsColumnWidth is the Secrets column, held to the width the workspaces
-// list gives it. Elle ne trie pas, et c'est délibéré alors que toutes ses
-// voisines trient : `datatable` réserve `largeur(titre) + 2` à une colonne
-// triable pour sa flèche, donc un tri coûterait neuf cellules à une colonne qui
-// n'affiche qu'un glyphe — dans la table la plus serrée de l'application, où
-// `Target` les paierait à 80 colonnes.
+// list gives it. It doesn't sort, and that's deliberate while all its
+// neighbors do: `datatable` reserves `title width + 2` for a sortable
+// column's arrow, so sorting would cost nine cells to a column that only
+// shows a glyph — in the tightest table in the application, where `Target`
+// would pay for it at 80 columns.
 const secretsColumnWidth = 7
 
 // ciColumnWidth is four cells for one letter: the title is what costs, not the

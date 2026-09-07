@@ -13,10 +13,10 @@ import (
 	"github.com/anthnel/devdesk/internal/version"
 )
 
-// View renders the dashboard as a grid of titled boxes. Il n'y a pas de cadre
-// extérieur : toutes les autres vues encadrent un objet (une table, un
-// formulaire), le dashboard est fait de groupes hétérogènes qu'un cadre unique
-// n'aiderait pas à lire.
+// View renders the dashboard as a grid of titled boxes. There is no outer
+// frame: every other view frames one object (a table, a form), the
+// dashboard is made of heterogeneous groups that a single frame wouldn't
+// help read.
 func (m Model) View() string {
 	t := layoutTier(m.width, m.height)
 	colWidth := t.columnWidth(m.width)
@@ -38,9 +38,9 @@ func (m Model) View() string {
 	gap := theme.EmptyLineBg(columnGap)
 	blank := theme.EmptyLineBg(colWidth)
 
-	// Une ligne vide sépare la règle de titre de la première rangée : sans
-	// elle, la bordure haute des boîtes touche celle du titre et les deux se
-	// lisent comme un cadre unique.
+	// A blank line separates the title rule from the first row: without it,
+	// the boxes' top border touches the title's and the two read as a single
+	// frame.
 	lines := make([]string, 0, height+1)
 	lines = append(lines, theme.EmptyLineBg(m.width))
 	for i := range height {
@@ -61,9 +61,9 @@ func (m Model) View() string {
 	return strings.Join(lines, "\n")
 }
 
-// columnsFor distributes the active tab's sections over the palier's columns.
-// À `wide`, la troisième colonne porte le contenu de l'onglet Resources : le
-// palier décide où se trouve un fait, jamais s'il existe.
+// columnsFor distributes the active tab's sections over the tier's columns.
+// At `wide`, the third column carries the Resources tab's content: the tier
+// decides where a fact is, never whether it exists.
 func (m Model) columnsFor(t tier) [][]section {
 	overview, resources := overviewSections(m.forgeType()), resourceSections()
 
@@ -71,11 +71,11 @@ func (m Model) columnsFor(t tier) [][]section {
 		return distribute(resources, t.columns())
 	}
 	if t.columns() == 3 {
-		// À trois colonnes, la disposition est explicite plutôt que découpée en
-		// parts égales : **les trois boîtes à graphes tiennent la première
-		// rangée**. Elles ont la même hauteur — deux courbes chacune — et une
-		// rangée est cadrée sur sa boîte la plus haute, donc les mélanger avec
-		// les boîtes de texte laisserait du vide dans les deux rangées.
+		// At three columns, the layout is explicit rather than split into equal
+		// shares: **the three chart boxes fill the first row**. They share the
+		// same height — two curves each — and a row is framed on its tallest
+		// box, so mixing them with the text boxes would leave gaps in both
+		// rows.
 		code, health, host, dockerBox := overview[0], overview[1], overview[2], overview[3]
 		network, storage := resources[0], resources[1]
 		return [][]section{
@@ -104,14 +104,14 @@ func distribute(sections []section, cols int) [][]section {
 
 // fitCharts measures how many lines a chart can take.
 //
-// La grille est rendue une première fois **sans aucune courbe** : ce qui reste
-// entre ce squelette et la hauteur disponible est exactement ce que les courbes
-// peuvent occuper. Elles vivent toutes dans la même rangée et il y en a deux par
-// boîte, d'où le partage en deux.
+// The grid is rendered once **with no curve at all**: what's left between
+// this skeleton and the available height is exactly what the curves can
+// occupy. They all live in the same row and there are two per box, hence
+// the split in two.
 //
-// Mesurer plutôt que déduire est ce qui rend le calcul insensible aux boîtes :
-// Health a gagné huit lignes en devenant un arbre, et aucune constante n'a eu
-// à être mise à jour.
+// Measuring rather than deriving is what makes the calculation insensitive
+// to the boxes: Health gained eight lines by becoming a tree, and no
+// constant had to be updated.
 func (m Model) fitCharts(columns [][]section, width int, t tier) int {
 	if t != tierWide {
 		return 1
@@ -124,10 +124,10 @@ func (m Model) fitCharts(columns [][]section, width int, t tier) int {
 		used += height + theme.BoxChrome
 	}
 
-	// Le plancher est **une** ligne, pas trois : une courbe braille a besoin de
-	// trois lignes pour valoir mieux qu'un sparkline, mais forcer trois lignes
-	// quand il n'y en a que deux fait déborder la grille — et ce qui déborde
-	// est perdu, pas repoussé. Une courbe basse vaut mieux qu'une ligne coupée.
+	// The floor is **one** line, not three: a braille curve needs three lines
+	// to be worth more than a sparkline, but forcing three lines when there
+	// are only two available overflows the grid — and what overflows is
+	// lost, not pushed down. A short curve beats a cut-off line.
 	free := (m.height - used) / chartsPerBox
 	return min(max(free, 1), maxChartHeight)
 }
@@ -142,17 +142,17 @@ func (m Model) chartHeightAt(t tier) int {
 // innerHeight is the content height every box on screen fills, borders
 // excluded: the tallest section of the frame.
 //
-// Elle est **dérivée des sections**, pas déclarée par le palier. Une constante
-// pourrait tronquer une section qui grandit — un graphe ajouté en phase 3, une
-// ligne ajoutée à Health en phase 4 — et la troncature ne se voit pas : la
-// boîte reste bien formée, elle perd juste sa dernière ligne. Ce qui reste
-// figé, et c'est le contrat de la phase 1, c'est qu'une section rende le même
-// nombre de lignes quel que soit l'état de ses données.
-// Elle est calculée **par rangée**, pas pour la grille entière : les boîtes de
-// texte tiennent en six lignes et les boîtes à graphes en vingt, donc une
-// hauteur unique laisserait treize lignes vides dans Health parce que Host, deux
-// colonnes plus loin, porte deux courbes. Les rangées restent alignées entre
-// elles, ce qu'une hauteur par boîte perdrait.
+// It is **derived from the sections**, not declared by the tier. A constant
+// could truncate a section that grows — a chart added in phase 3, a line
+// added to Health in phase 4 — and the truncation doesn't show: the box
+// stays well-formed, it just loses its last line. What stays fixed, and
+// that's phase 1's contract, is that a section renders the same number of
+// lines whatever the state of its data.
+// It is computed **per row**, not for the whole grid: text boxes fit in six
+// lines and chart boxes in twenty, so a single height would leave thirteen
+// blank lines in Health because Host, two columns over, carries two curves.
+// The rows stay aligned with each other, which a per-box height would
+// lose.
 func (m Model) innerHeights(columns [][]section, width int, t tier) []int {
 	rows := 0
 	for _, col := range columns {
@@ -173,8 +173,9 @@ func (m Model) innerHeights(columns [][]section, width int, t tier) []int {
 	return heights
 }
 
-// renderColumn stacks a column's boxes. Aucune ligne vide entre elles : leurs
-// bordures séparent déjà, et à 30 lignes le budget vaut exactement deux boîtes.
+// renderColumn stacks a column's boxes. No blank line between them: their
+// borders already separate them, and at 30 lines the budget is exactly two
+// boxes.
 func (m Model) renderColumn(sections []section, width int, inner []int, t tier) []string {
 	var lines []string
 	for i, s := range sections {
@@ -188,9 +189,9 @@ func (m Model) renderColumn(sections []section, width int, inner []int, t tier) 
 	return lines
 }
 
-// padTo fills a section's content out to the frame's box height. Il ne tronque
-// pas : innerHeight est calculée sur ces mêmes sections, donc une ligne perdue
-// ici serait un bug de calcul, pas un débordement à absorber.
+// padTo fills a section's content out to the frame's box height. It does
+// not truncate: innerHeight is computed on these same sections, so a line
+// lost here would be a calculation bug, not an overflow to absorb.
 func padTo(content []string, height, innerWidth int) []string {
 	out := make([]string, 0, height)
 	out = append(out, content...)
@@ -229,8 +230,9 @@ func countStatuses(components []status.ComponentStatus) (ok, down, errCount int)
 
 // HeaderView interface
 
-// Frameless tells the router to draw no viewport border for this view. Le
-// dashboard est la seule vue qui n'encadre pas un objet unique — voir View().
+// Frameless tells the router to draw no viewport border for this view. The
+// dashboard is the only view that doesn't frame a single object — see
+// View().
 func (m Model) Frameless() bool {
 	return true
 }
@@ -244,25 +246,26 @@ func (m Model) GetFooterHeight() int {
 	return 2
 }
 
-// showsTabBar reports whether a tab bar is worth a line. Un seul onglet n'est
-// pas un choix : la barre dirait « vous êtes ici », ce que l'écran dit déjà.
+// showsTabBar reports whether a tab bar is worth a line. A single tab is
+// not a choice: the bar would say "you are here", which the screen already
+// says.
 func (m Model) showsTabBar() bool {
 	return tabCountFor(layoutTier(m.width, m.height)) > 1
 }
 
 // RenderFooter draws the tab bar (Rule 124).
 //
-// **Il n'y a pas de ligne « Updated »**, et son absence est un choix. Elle
-// existait pour dater des valeurs figées à `-`, mais les trois horloges du
-// dashboard tournent à la seconde, aux cinq secondes et à la trentaine : le
-// plus vieux fait à l'écran n'a jamais une minute, et TimeAgo répondait donc
-// `now` en permanence. Une ligne dont la valeur ne change jamais n'informe de
-// rien, et coûtait la seule ligne d'information de la vue.
+// **There is no "Updated" line**, and its absence is a choice. It used to
+// exist to date values stuck at `-`, but the dashboard's three clocks run
+// at the second, the five-second, and the thirty-second mark: the oldest
+// fact on screen is never a minute old, so TimeAgo permanently answered
+// `now`. A line whose value never changes tells nothing, and it was costing
+// the view's only info line.
 //
-// L'information reste rendue même vide : le routeur budgète sur
-// GetFooterHeight (Rule 124). C'est aussi ce qui porte le refus d'une touche
-// grisée (Rule 130) — la ligne existait déjà, elle était simplement toujours
-// vide.
+// The info line is still rendered even empty: the router budgets on
+// GetFooterHeight (Rule 124). It's also what carries the refusal of a
+// greyed key (Rule 130) — the line already existed, it was just always
+// empty.
 func (m Model) RenderFooter(width int) string {
 	info := m.footer.View(width, m.status())
 
@@ -322,10 +325,11 @@ func (m Model) GetIcon() string {
 
 // GetHeaderInfo returns the key-value info for the header.
 //
-// La version est ici et sur aucun autre écran : le dashboard est la vue
-// d'accueil, donc la seule où l'information se lit sans avoir été cherchée. La
-// répéter partout coûterait une colonne de header à chaque vue pour une valeur
-// qui ne change jamais en cours de session ; `:about` la détaille.
+// The version is here and on no other screen: the dashboard is the landing
+// view, so the only one where the information is read without having been
+// sought. Repeating it everywhere would cost a header column on every view
+// for a value that never changes during a session; `:about` breaks it
+// down.
 func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	return []shortcut.HeaderInfo{
 		{Key: "Context", Value: context, Style: theme.HeaderValueStyle},

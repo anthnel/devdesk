@@ -1,137 +1,137 @@
-# TUI — Thème, Couleurs & Background
+# TUI — Theme, Colors & Background
 
-### Rule 102 : Gestion centralisée des couleurs et styles
+### Rule 102 : Centralized management of colors and styles
 
-- Toutes les couleurs doivent être définies dans `internal/ui/theme/colors.go`
-- Ne jamais hardcoder de couleurs directement dans les vues
-- Les styles réutilisables doivent être définis dans `internal/ui/theme/styles.go`
-- Utiliser les constantes du package theme (ColorPrimary, ColorError, etc.)
+- All colors must be defined in `internal/ui/theme/colors.go`
+- Never hardcode colors directly in views
+- Reusable styles must be defined in `internal/ui/theme/styles.go`
+- Use the theme package's constants (ColorPrimary, ColorError, etc.)
 
-### Rule 105 : Format des messages d'aide
+### Rule 105 : Help message format
 
-- Format standard : `[touche] action  [touche] action`
-- Affichés avec `theme.HelpStyle` (italique + ColorDim)
-- Touches entre crochets `[]`
-- Séparés par au moins 2 espaces
+- Standard format: `[key] action  [key] action`
+- Displayed with `theme.HelpStyle` (italic + ColorDim)
+- Keys in square brackets `[]`
+- Separated by at least 2 spaces
 
-### Rule 115 : Gestion du background uniforme (lipgloss)
+### Rule 115 : Uniform background handling (lipgloss)
 
-**lipgloss ne propage PAS le background d'un parent vers ses enfants.**
+**lipgloss does NOT propagate a parent's background to its children.**
 
-`JoinHorizontal`/`JoinVertical` insèrent des espaces "nus" qui affichent le fond natif du terminal.
+`JoinHorizontal`/`JoinVertical` insert "bare" spaces that show the terminal's native background.
 
-| Interdit | Alternative |
+| Forbidden | Alternative |
 |----------|-------------|
-| `lipgloss.JoinHorizontal` pour assembler des blocs | Construire chaque ligne manuellement avec `PadWithBg()` |
-| `lipgloss.JoinVertical` pour empiler des lignes | `strings.Join(lines, "\n")` avec chaque ligne paddée |
-| `strings.Repeat("\n", n)` pour les lignes vides | `theme.EmptyLineBg(width)` |
-| `lipgloss.NewStyle().Render(text)` sans background | `.Background(ColorBackground)` obligatoire |
-| Couleur hex hardcodée | Variables globales (`ColorBackground`, `ColorDim`, etc.) |
+| `lipgloss.JoinHorizontal` to assemble blocks | Build each line manually with `PadWithBg()` |
+| `lipgloss.JoinVertical` to stack lines | `strings.Join(lines, "\n")` with each line padded |
+| `strings.Repeat("\n", n)` for blank lines | `theme.EmptyLineBg(width)` |
+| `lipgloss.NewStyle().Render(text)` with no background | `.Background(ColorBackground)` mandatory |
+| Hardcoded hex color | Global variables (`ColorBackground`, `ColorDim`, etc.) |
 
-`JoinHorizontal`/`JoinVertical` acceptables **uniquement** si le résultat est wrappé dans un style `.Background(ColorBackground).Width(w)`.
+`JoinHorizontal`/`JoinVertical` are acceptable **only** if the result is wrapped in a `.Background(ColorBackground).Width(w)` style.
 
-`lipgloss.Place` → toujours utiliser `WithWhitespaceBackground(theme.ColorBackground)`.
+`lipgloss.Place` → always use `WithWhitespaceBackground(theme.ColorBackground)`.
 
-### Rule 117 : Helpers centralisés du package `theme`
+### Rule 117 : Centralized helpers of the `theme` package
 
-**Ne jamais recréer `bg()`, `padWithBg()`, `bgWrap()` localement.**
+**Never recreate `bg()`, `padWithBg()`, `bgWrap()` locally.**
 
-| Fonction | Usage |
+| Function | Usage |
 |----------|-------|
-| `theme.Bg(s)` | Texte plain avec background app |
-| `theme.PadWithBg(content, width)` | Pad jusqu'à `width` avec background |
-| `theme.BgLine(s, width)` | Texte + background + pad jusqu'à `width` |
-| `theme.BgWrap(s, width)` | Background + pad sur chaque ligne (multi-ligne) |
-| `theme.EmptyLineBg(width)` | Ligne vide remplie de background |
-| `theme.OverlayBoxStyle()` | Style standard pour les modales overlay |
+| `theme.Bg(s)` | Plain text with the app background |
+| `theme.PadWithBg(content, width)` | Pad up to `width` with background |
+| `theme.BgLine(s, width)` | Text + background + pad up to `width` |
+| `theme.BgWrap(s, width)` | Background + pad on each line (multi-line) |
+| `theme.EmptyLineBg(width)` | Blank line filled with background |
+| `theme.OverlayBoxStyle()` | Standard style for overlay modals |
 
-- **Texte inline** → `theme.Bg("texte")`
-- **Ligne complète** → `theme.BgLine("texte", width)`
-- **Paragraphe multi-ligne** → `theme.BgWrap(text, width)`
-- **Ligne vide** → `theme.EmptyLineBg(width)`
+- **Inline text** → `theme.Bg("text")`
+- **Full line** → `theme.BgLine("text", width)`
+- **Multi-line paragraph** → `theme.BgWrap(text, width)`
+- **Blank line** → `theme.EmptyLineBg(width)`
 - **Modal overlay** → `theme.OverlayBoxStyle().Render(content)`
 
-### Rule 118 : Uniformisation des couleurs de tableaux et tabs
+### Rule 118 : Standardizing table and tab colors
 
-| Élément | Foreground | Background |
+| Element | Foreground | Background |
 |---------|-----------|------------|
-| Header de table | `ColorSecondary` | — |
-| Ligne sélectionnée (normal) | `ColorBlack` | `ColorSecondary` |
-| Ligne sélectionnée (erreur) | `ColorBlack` | `ColorError` |
-| Tab actif | `ColorBlack` | `ColorSecondary` |
-| Tab inactif | `ColorDim` | `ColorCommandLineBg` |
+| Table header | `ColorSecondary` | — |
+| Selected row (normal) | `ColorBlack` | `ColorSecondary` |
+| Selected row (error) | `ColorBlack` | `ColorError` |
+| Active tab | `ColorBlack` | `ColorSecondary` |
+| Inactive tab | `ColorDim` | `ColorCommandLineBg` |
 
-Fonctions centralisées obligatoires :
-- `theme.DefaultTableStyles()` — style de base
-- `theme.TableStylesForState(state)` — `"normal"` ou `"error"`
+Mandatory centralized functions:
+- `theme.DefaultTableStyles()` — base style
+- `theme.TableStylesForState(state)` — `"normal"` or `"error"`
 - `theme.TableStylesForSeverity(severity)` — `"CRITICAL"`, `"HIGH"`, `"MEDIUM"`, `"LOW"`, `"UNKNOWN"`
 
-Interdit :
-- ❌ Styles de sélection définis localement dans les vues
-- ❌ `ColorPrimary` pour les tabs actifs ou headers (utiliser `ColorSecondary`)
+Forbidden:
+- ❌ Selection styles defined locally in views
+- ❌ `ColorPrimary` for active tabs or headers (use `ColorSecondary`)
 
-### Rule 119 : Aucune couleur hex en dur en dehors de `colors.go`
+### Rule 119 : No hardcoded hex color outside `colors.go`
 
-**`lipgloss.Color("#...")` ne doit apparaître QUE dans `internal/ui/theme/colors.go`.**
+**`lipgloss.Color("#...")` must appear ONLY in `internal/ui/theme/colors.go`.**
 
-Architecture en 3 niveaux :
+3-level architecture:
 
-| Niveau | Fichier | Rôle |
+| Level | File | Role |
 |--------|---------|------|
-| **1. Palette de base** | `colors.go` lignes 6-32 | Couleurs hex brutes (Catppuccin) |
-| **2. Couleurs sémantiques** | `colors.go` lignes 34+ | Alias par usage, référencent la palette |
-| **3. Styles** | `styles.go`, vues | Styles lipgloss utilisant les couleurs sémantiques |
+| **1. Base palette** | `colors.go` lines 6-32 | Raw hex colors (Catppuccin) |
+| **2. Semantic colors** | `colors.go` lines 34+ | Aliases by usage, referencing the palette |
+| **3. Styles** | `styles.go`, views | lipgloss styles using the semantic colors |
 
-Si une couleur hex est nécessaire sans équivalent sémantique :
-1. Ajouter dans la palette de base (`colors.go`, section hex)
-2. Créer un alias sémantique qui référence la palette
+If a hex color is needed with no semantic equivalent:
+1. Add it to the base palette (`colors.go`, hex section)
+2. Create a semantic alias that references the palette
 
 ```go
 // ✅ CORRECT
 var ColorMaroon = lipgloss.Color("#eba0ac")  // dans palette de base
-ColorSeverityHigh = ColorMaroon              // dans section sémantique
+ColorSeverityHigh = ColorMaroon              // in the semantic section
 
-// ❌ INTERDIT
-ColorSeverityHigh = lipgloss.Color("#eba0ac")  // hex en dur dans sémantique
+// ❌ WRONG
+ColorSeverityHigh = lipgloss.Color("#eba0ac")  // hardcoded hex in the semantic section
 ```
 
-Les fallbacks de `manager.go` → référencer `colors.go`, jamais des hex.
+`manager.go`'s fallbacks → reference `colors.go`, never hex values.
 
-### Rule 127 : Temps relatif — `theme.TimeAgo`
+### Rule 127 : Relative time — `theme.TimeAgo`
 
-**Toutes les vues affichant un temps relatif doivent utiliser `theme.TimeAgo(t time.Time) string`** (`internal/ui/theme/timeago.go`).
+**Every view displaying a relative time must use `theme.TimeAgo(t time.Time) string`** (`internal/ui/theme/timeago.go`).
 
-| Durée | Sortie |
+| Duration | Output |
 |-------|--------|
 | < 1 min | `"now"` |
-| < 1 heure | `"59 min ago"` |
+| < 1 hour | `"59 min ago"` |
 | < 24 h | `"23 hr ago"` |
-| < 30 jours | `"30 days ago"` |
-| < 12 mois | `"11 mo ago"` |
+| < 30 days | `"30 days ago"` |
+| < 12 months | `"11 mo ago"` |
 | else | `"99 yr ago"` |
-| zéro | `""` |
+| zero | `""` |
 
-Interdit : implémentations locales, formats longs, compact sans espace.
+Forbidden: local implementations, long formats, compact with no space.
 
-### Rule 129 : Langue de l'interface et des logs — English US uniquement
+### Rule 129 : Interface and log language — English US only
 
-**Tout texte UI et tous les logs doivent être en anglais américain.**
+**All UI text and all logs must be in American English.**
 
-| Catégorie | Règle |
+| Category | Rule |
 |-----------|-------|
-| Labels, titres, messages UI | ✅ English US |
-| Messages d'erreur (footer) | ✅ English US |
-| Aide (`GetHelpContent`, `GetShortcuts`) | ✅ English US |
-| Valeurs de cellules, messages vides | ✅ English US |
+| Labels, titles, UI messages | ✅ English US |
+| Error messages (footer) | ✅ English US |
+| Help (`GetHelpContent`, `GetShortcuts`) | ✅ English US |
+| Cell values, empty messages | ✅ English US |
 | Logs (`log.Printf`) | ✅ English US |
-| Commentaires de code | ✅ Français ou anglais acceptés |
+| Code comments | ✅ English only (Rule 307) |
 
 ```go
 // ✅ CORRECT
 theme.SpinnerMessage(m.spinner.View(), "Loading workspaces...")
 m.footerError = "Failed to refresh — check logs"
 
-// ❌ INTERDIT
+// ❌ WRONG
 theme.SpinnerMessage(m.spinner.View(), "Chargement des workspaces...")
 m.footerError = "Échec du rafraîchissement — voir les logs"
 ```

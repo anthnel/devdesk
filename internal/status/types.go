@@ -2,7 +2,7 @@ package status
 
 import "time"
 
-// ComponentType représente le type de check
+// ComponentType represents the check type
 type ComponentType string
 
 const (
@@ -13,7 +13,7 @@ const (
 	TypeSSL   ComponentType = "ssl"
 )
 
-// StatusType représente les états possibles
+// StatusType represents the possible states
 type StatusType string
 
 const (
@@ -23,7 +23,7 @@ const (
 	StatusWarning StatusType = "WARNING"
 )
 
-// ComponentStatus représente l'état d'un composant
+// ComponentStatus represents a component's state
 type ComponentStatus struct {
 	Name         string
 	Type         ComponentType
@@ -39,7 +39,7 @@ type ComponentStatus struct {
 	SSLIssuer   string     // Issuer CommonName
 }
 
-// String retourne une représentation textuelle du status
+// String returns a textual representation of the status
 func (s StatusType) String() string {
 	return string(s)
 }

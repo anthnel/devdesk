@@ -13,7 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
-// Update gère les messages
+// Update handles the messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:

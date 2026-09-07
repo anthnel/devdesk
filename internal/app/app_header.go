@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// HeaderView est l'interface que chaque vue doit implémenter pour fournir les données du header
+// HeaderView is the interface each view must implement to provide the header data
 type HeaderView interface {
 	GetShortcuts() shortcut.Shortcuts
 	GetTitle() string
@@ -25,17 +25,17 @@ type FooterView interface {
 }
 
 // FramelessView is implemented by a view that draws its own frames and wants
-// none around it. Le défaut — encadré — est le comportement sûr : une vue qui
-// n'implémente pas ça est encadrée comme toutes les autres, contrairement à
-// HeaderView dont la moitié manquante rend un titre vide en silence.
+// none around it. The default — framed — is the safe behavior: a view that
+// does not implement this is framed like all the others, unlike HeaderView
+// whose missing half silently renders an empty title.
 //
-// Une seule vue l'implémente (le dashboard), et c'est délibéré : toutes les
-// autres encadrent un objet unique — une table, un formulaire.
+// Only one view implements it (the dashboard), and that is deliberate: every
+// other view frames a single object — a table, a form.
 type FramelessView interface {
 	Frameless() bool
 }
 
-// headerMinHeight est la hauteur fixe du header (sans la ligne de commande).
+// headerMinHeight is the fixed header height (without the command line).
 const headerMinHeight = 7
 
 // ASCII logo for the header

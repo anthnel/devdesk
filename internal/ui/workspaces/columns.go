@@ -159,7 +159,7 @@ func gitStatusStyle(r workspaceRow) lipgloss.Style {
 	case r.Entry.GitModified > 0 || r.Entry.GitUntracked > 0:
 		return theme.StatusWarningStyle
 	}
-	// Aucune opinion : c'est la table qui pose la couleur de texte du thème.
+	// No opinion here: the table sets the theme's text color.
 	return lipgloss.NewStyle()
 }
 

@@ -15,7 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// View rend la vue
+// View renders the view
 func (m Model) View() string {
 	// Priority 1: Forms (full viewport replacement - Rule 112)
 	if m.creationForm != nil {
@@ -565,7 +565,7 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	return info
 }
 
-// GetHelpContent retourne le contenu d'aide de la vue GitLab Explorer
+// GetHelpContent returns the help content for the GitLab Explorer view
 func (m Model) GetHelpContent() help.Content {
 	v := m.vocab()
 	return help.Content{

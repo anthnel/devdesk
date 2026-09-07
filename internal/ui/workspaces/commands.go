@@ -197,10 +197,10 @@ func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, contextName string, 
 				log.Printf("ERROR [workspaces] scan errors for %s: %s", repoPath, combined)
 			}
 
-			// Le verdict vient du scan et de nulle part ailleurs : la boucle
-			// « une finding dont Source vaut gitleaks » qui était ici ne voyait
-			// pas les secrets trouvés par Trivy, et ne savait pas dire qu'aucune
-			// étape n'avait cherché.
+			// The verdict comes from the scan and from nowhere else: the loop
+			// looking for "a finding whose Source is gitleaks" that used to
+			// be here missed the secrets found by Trivy, and could not tell
+			// that no stage had looked at all.
 			sensitive := result.SecretVerdict()
 
 			entry := cache.WorkspaceScanEntry{

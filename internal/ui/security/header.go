@@ -155,7 +155,7 @@ func (m Model) headerCount() (key, value string, ok bool) {
 	return "", "", false
 }
 
-// GetHelpContent retourne le contenu d'aide de la vue Security
+// GetHelpContent returns the help content for the Security view
 func (m Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title:       "Security Scanner",

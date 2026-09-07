@@ -8,19 +8,19 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Section représente une section du contenu d'aide
+// Section represents a section of the help content
 type Section struct {
 	Title string
 	Body  string
 }
 
-// KeyBinding représente un raccourci clavier documenté
+// KeyBinding represents a documented keyboard shortcut
 type KeyBinding struct {
 	Key         string
 	Description string
 }
 
-// Content représente le contenu d'aide d'une vue
+// Content represents a view's help content
 type Content struct {
 	Title       string
 	Description string
@@ -28,22 +28,22 @@ type Content struct {
 	Sections    []Section
 }
 
-// Provider est l'interface que les vues doivent implémenter pour fournir de l'aide
+// Provider is the interface views must implement to provide help
 type Provider interface {
 	GetHelpContent() Content
 }
 
-// Render produit le texte formaté de l'aide pour affichage dans un viewport
+// Render produces the formatted help text for display in a viewport
 func Render(c Content, width int) string {
 	var b strings.Builder
 
-	// Largeur utile (sans padding/bordure de la modale)
+	// Usable width (without the modal's padding/border)
 	innerWidth := width - 6
 	if innerWidth < 40 {
 		innerWidth = 40
 	}
 
-	// Titre
+	// Title
 	b.WriteString(theme.TitleStyle.Width(innerWidth).Render(c.Title))
 	b.WriteString("\n\n")
 
@@ -53,7 +53,7 @@ func Render(c Content, width int) string {
 		b.WriteString("\n")
 	}
 
-	// Raccourcis clavier
+	// Keyboard shortcuts
 	if len(c.KeyBindings) > 0 {
 		b.WriteString("\n")
 		b.WriteString(theme.SubTitleStyle.Width(innerWidth).Render("Keyboard Shortcuts"))
@@ -61,7 +61,7 @@ func Render(c Content, width int) string {
 		b.WriteString(renderKeyBindings(c.KeyBindings, innerWidth))
 	}
 
-	// Sections supplémentaires
+	// Additional sections
 	for _, section := range c.Sections {
 		b.WriteString("\n")
 		b.WriteString(theme.SubTitleStyle.Width(innerWidth).Render(section.Title))
@@ -73,9 +73,9 @@ func Render(c Content, width int) string {
 	return b.String()
 }
 
-// renderKeyBindings affiche les raccourcis clavier alignés et paddés à targetWidth
+// renderKeyBindings renders the keyboard shortcuts aligned and padded to targetWidth
 func renderKeyBindings(bindings []KeyBinding, targetWidth int) string {
-	// Calculer la largeur max des clés
+	// Compute the max width of the keys
 	maxKeyLen := 0
 	for _, kb := range bindings {
 		current := utf8.RuneCountInString(kb.Key)
@@ -99,7 +99,7 @@ func renderKeyBindings(bindings []KeyBinding, targetWidth int) string {
 	return b.String()
 }
 
-// wordWrap coupe le texte aux limites de mots pour respecter la largeur
+// wordWrap breaks the text at word boundaries to respect the width
 func wordWrap(text string, width int) string {
 	if width <= 0 {
 		return text

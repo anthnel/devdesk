@@ -55,7 +55,7 @@ type FilterBarView interface {
 	FilterBarVisible() bool
 }
 
-// App est le modèle principal avec routeur multi-vues
+// App is the main model, with a multi-view router
 type App struct {
 	config         *config.Config
 	currentContext string
@@ -73,7 +73,7 @@ type App struct {
 	completionEngine      *command.CompletionEngine
 	completionSuggestions []command.Suggestion
 	completionIndex       int    // Position Tab cycling
-	completionInput       string // Détection changement
+	completionInput       string // Change detection
 
 	// Context list overlay
 	showContextList    bool
@@ -123,7 +123,7 @@ type App struct {
 }
 
 func newCommandInput() textinput.Model {
-	// Créer l'input pour le mode commande
+	// Create the input for command mode
 	cmdInput := textinput.New()
 	cmdInput.Prompt = "❯"
 	cmdInput.SetSuggestions([]string{"status", "workspaces"})
@@ -155,7 +155,7 @@ func framelessViewportStyle() lipgloss.Style {
 		Foreground(theme.ColorText)
 }
 
-// New crée une nouvelle App, dimensionnée sur le terminal courant.
+// New creates a new App, sized to the current terminal.
 func New(cfg *config.Config) *App {
 	width, height, err := term.GetSize(os.Stdout.Fd())
 	if err != nil {
@@ -189,8 +189,8 @@ func (a *App) useSecrets(sel credentials.Selection) {
 func newWithSize(cfg *config.Config, width, height int) *App {
 	currentContext, _ := config.GetCurrentContext()
 
-	// Un store est toujours présent : les vues n'ont jamais à tester le nil.
-	// New() remplace celui-ci par le backend réel via useSecrets.
+	// A store is always present: views never have to test for nil.
+	// New() replaces this one with the real backend via useSecrets.
 	sharedState := &shared.State{
 		Secrets: credentials.SessionOnly("no secret store has been resolved yet"),
 	}
@@ -209,12 +209,12 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 		height:           height,
 	}
 
-	// Les autres vues sont créées à la demande (lazy loading).
+	// Other views are created on demand (lazy loading).
 	app.createView(command.ViewDashboard)
 	app.createView(command.ViewStatus)
 	app.createView(app.currentView)
 
-	// Calcule la hauteur disponible et propage aux vues.
+	// Computes the available height and propagates it to the views.
 	app.resize(width, height)
 
 	return app
@@ -245,9 +245,9 @@ func (a *App) AttachProgram(p *tea.Program) {
 	a.mcpDispatch = mcpDispatcher{program: p}
 }
 
-// Init initialise l'application
+// Init initializes the application
 func (a *App) Init() tea.Cmd {
-	// Note: resize() est déjà appelé dans newWithSize() pour initialiser les dimensions
+	// Note: resize() is already called in newWithSize() to initialize the dimensions
 	cmds := []tea.Cmd{a.tryAutoLogin(), a.startMCPCmd()}
 
 	if view, ok := a.views[a.currentView]; ok {
@@ -266,12 +266,12 @@ func (a *App) requestResize() tea.Cmd {
 	}
 }
 
-// resize lays out the window. Il **itère**, et c'est nécessaire : la hauteur du
-// footer est demandée à la vue (Rule 124), mais une vue dont le footer dépend
-// de sa taille — le dashboard cache sa ligne d'onglets quand il n'en reste
-// qu'un — répond d'après la taille qu'elle avait *avant*. Une seule passe la
-// laisserait donc décalée d'une ligne jusqu'au redimensionnement suivant.
-// Deux passes suffisent : la seconde interroge une vue qui connaît sa taille.
+// resize lays out the window. It **iterates**, and that is necessary: the
+// footer height is asked of the view (Rule 124), but a view whose footer
+// depends on its own size — the dashboard hides its tab line once only one
+// remains — answers based on the size it had *before*. A single pass would
+// therefore leave it off by one line until the next resize.
+// Two passes are enough: the second queries a view that now knows its size.
 func (a *App) resize(width, height int) {
 	a.width = width
 	a.height = height
@@ -285,8 +285,8 @@ func (a *App) resize(width, height int) {
 }
 
 // layoutOnce sizes the viewport against the active view's footer and hands the
-// view its content height. Il retourne true quand la hauteur du footer a changé
-// en cours de route, c'est-à-dire quand une seconde passe dit autre chose.
+// view its content height. It returns true when the footer height changed
+// along the way, i.e. when a second pass says something different.
 func (a *App) layoutOnce(width, height int) (changed bool) {
 	// Rule 124: footer height is deducted from the viewport (tabs + optional info line)
 	footerHeight := a.getFooterHeight()
@@ -297,9 +297,9 @@ func (a *App) layoutOnce(width, height int) (changed bool) {
 	a.viewport.Width = width
 	a.viewport.Height = availableHeight - 1 // -1 for the custom title border line
 
-	// Propager à la vue active. Le viewport a 1 bordure (bottom only), la vue
-	// doit connaître la hauteur intérieure. Une vue sans cadre n'en a aucune et
-	// récupère la ligne.
+	// Propagate to the active view. The viewport has 1 border (bottom only),
+	// the view must know the inner height. A frameless view has none and
+	// reclaims the line.
 	viewportBorderHeight := 1
 	a.viewport.Style = viewportStyle()
 	if a.frameless() {

@@ -378,10 +378,10 @@ func existingDir(t *testing.T) string {
 
 // stubImages replaces the docker seam with an enumeration that succeeds, naming
 // exactly these images. stubImagesUnavailable replaces it with one that fails.
-// Les deux coutures, parce que les deux outils ne demandent pas la même chose :
-// scan_inventory réconcilie sur un ensemble de noms (docker.ImageNames),
-// images_list projette l'Image entière — taille, âge, conteneurs (listImages).
-// Les laisser diverger ferait passer un test pour la mauvaise raison.
+// Both seams, because the two tools do not ask for the same thing:
+// scan_inventory reconciles on a set of names (docker.ImageNames),
+// images_list projects the whole Image — size, age, containers (listImages).
+// Letting them diverge would make a test pass for the wrong reason.
 func stubImages(t *testing.T, names ...string) {
 	t.Helper()
 	present := make(map[string]struct{}, len(names))

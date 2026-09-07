@@ -46,9 +46,9 @@ func TestTheBodyNamesWhereFilesLive(t *testing.T) {
 	}
 }
 
-// Une valeur absente doit se lire comme absente. Un blanc à la place se lirait
-// comme un défaut d'affichage, ce que Rule 122 nomme la discipline de couleur :
-// le gris est réservé à ce qui n'est pas là.
+// A missing value must read as missing. A blank in its place would read as a
+// display glitch, which is what Rule 122 calls the color discipline: gray is
+// reserved for what is not there.
 func TestAMissingValueReadsAsUnknown(t *testing.T) {
 	rendered := renderField(field{Label: "Commit", Value: ""}, 7)
 
@@ -64,8 +64,8 @@ func TestADirtyBuildSaysSo(t *testing.T) {
 	if got := commitField(version.Info{Commit: "a1b2c3d"}); got != "a1b2c3d" {
 		t.Errorf("commitField() = %q, want the bare commit", got)
 	}
-	// Marquer "unknown (modified)" nommerait un état d'un arbre qu'on n'a pas su
-	// identifier — deux affirmations dont une seule est vraie.
+	// Marking "unknown (modified)" would name a state of a tree we failed to
+	// identify — two claims when only one is true.
 	if got := commitField(version.Info{Commit: version.Unknown, Dirty: true}); got != version.Unknown {
 		t.Errorf("commitField() = %q, want an unknown commit left alone", got)
 	}
@@ -91,8 +91,8 @@ func TestBuildDate(t *testing.T) {
 	}
 }
 
-// Le corps remplit toujours la hauteur du viewport, sinon le fond du terminal
-// apparaît sous la dernière ligne (Rule 115).
+// The body always fills the viewport height, otherwise the terminal's
+// background shows below the last line (Rule 115).
 func TestViewFillsTheViewport(t *testing.T) {
 	for _, height := range []int{3, 12, 40} {
 		m := sized(t, height)
@@ -123,9 +123,9 @@ func TestScrollingStopsAtBothEnds(t *testing.T) {
 	}
 }
 
-// Un corps plus court que le viewport n'a rien à faire défiler, et surtout pas
-// vers un offset négatif — la fenêtre de View commencerait avant la première
-// ligne.
+// A body shorter than the viewport has nothing to scroll, and especially not
+// toward a negative offset — the View window would then start before the
+// first line.
 func TestATallTerminalHasNothingToScroll(t *testing.T) {
 	m := sized(t, 100)
 
@@ -156,9 +156,10 @@ func TestFooterHeightMatchesWhatRenderFooterEmits(t *testing.T) {
 	}
 }
 
-// Rule 130: la suite des touches ne change pas d'un état à l'autre du même
-// écran. Ici il n'y a qu'un état, et c'est ce que le test fixe — une future
-// branche qui offrirait une touche de plus une fois défilée le casserait.
+// Rule 130: the set of keys does not change from one state to another of the
+// same screen. Here there is only one state, and that is what this test
+// pins down — a future branch offering an extra key once scrolled would
+// break it.
 func TestTheShortcutsDoNotDependOnTheScrollPosition(t *testing.T) {
 	m := sized(t, 5)
 	before := testutil.ShortcutKeys(m.GetShortcuts())
@@ -169,8 +170,8 @@ func TestTheShortcutsDoNotDependOnTheScrollPosition(t *testing.T) {
 	}
 }
 
-// Il n'y a rien à relire sur cet écran, donc `ctrl+r` n'est pas une touche de
-// cette vue — ni offerte, ni grisée (Rule 130).
+// There is nothing to reload on this screen, so `ctrl+r` is not a key of
+// this view — neither offered, nor grayed out (Rule 130).
 func TestRefreshIsNotOffered(t *testing.T) {
 	if testutil.HasShortcut(sized(t, 20).GetShortcuts(), "ctrl+r") {
 		t.Error("ctrl+r is advertised on a screen that fetches nothing")
@@ -227,8 +228,8 @@ func TestTheHeaderNamesTheBuild(t *testing.T) {
 	}
 }
 
-// Rien sur cet écran ne prend du texte, donc `:` et les autres touches globales
-// atteignent toujours le routeur.
+// Nothing on this screen takes text, so `:` and the other global keys always
+// reach the router.
 func TestTheScreenNeverHoldsTheKeyboard(t *testing.T) {
 	if sized(t, 20).InEditMode() {
 		t.Error("InEditMode() is true on a screen with no field")

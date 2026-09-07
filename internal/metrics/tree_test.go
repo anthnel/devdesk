@@ -18,9 +18,10 @@ func write(t *testing.T, path string, n int) {
 	}
 }
 
-// La somme porte sur toute la profondeur, et `.git` en fait partie : un dépôt
-// cloné coûte son historique autant que son arbre de travail, et c'est souvent
-// l'historique qui pèse. La question est « combien ce dossier prend ».
+// The sum covers the whole depth, and `.git` is part of it: a cloned
+// repository costs its history as much as its working tree, and it is
+// often the history that weighs the most. The question is "how much does
+// this directory take".
 func TestSizeAddsUpTheWholeTreeIncludingGit(t *testing.T) {
 	root := t.TempDir()
 	write(t, filepath.Join(root, "readme.md"), 100)
@@ -49,9 +50,9 @@ func TestAnEmptyTreeIsMeasuredAtZero(t *testing.T) {
 	}
 }
 
-// Un chemin illisible ne rend pas une mesure « réussie » à zéro octet : ça se
-// lirait comme un dossier vide, et c'est ce que la vérification de la racine
-// dans Size existe pour éviter.
+// An unreadable path does not yield a "successful" measurement of zero
+// bytes: that would read as an empty directory, and that is what the root
+// check in Size exists to avoid.
 func TestAMissingPathIsNotAnEmptyTree(t *testing.T) {
 	for _, path := range []string{filepath.Join(t.TempDir(), "nope"), ""} {
 		if got := Size(path); got.OK {
@@ -60,21 +61,21 @@ func TestAMissingPathIsNotAnEmptyTree(t *testing.T) {
 	}
 }
 
-// Un lien symbolique ne compte pour rien, et c'est deux choses plutôt qu'une.
-// Sa cible n'est pas suivie — elle serait comptée deux fois si elle est déjà
-// dans l'arbre, et un cycle ne terminerait jamais. Mais son entrée à lui ne
-// compte pas non plus : WalkDir en rend la longueur du chemin désigné, donc la
-// taille de l'arbre bougerait au gré d'un renommage ailleurs. C'est la seconde
-// moitié qui manquait, et elle ne pouvait pas se voir sous Windows, où ce test
-// se saute.
+// A symlink counts for nothing, and that is two things rather than one.
+// Its target is not followed — it would be counted twice if already in the
+// tree, and a cycle would never terminate. But its own entry does not
+// count either: WalkDir reports the length of the path it designates, so
+// the tree's size would move with a rename elsewhere. That is the second
+// half that was missing, and it could not show under Windows, where this
+// test is skipped.
 func TestSizeDoesNotFollowSymlinks(t *testing.T) {
 	root := t.TempDir()
 	write(t, filepath.Join(root, "data", "big.bin"), 5000)
 
 	if err := os.Symlink(filepath.Join(root, "data"), filepath.Join(root, "link")); err != nil {
 		if runtime.GOOS == "windows" {
-			// Créer un lien demande un privilège que le compte de test n'a pas
-			// forcément sous Windows.
+			// Creating a link needs a privilege the test account may not have
+			// under Windows.
 			t.Skipf("symlinks unavailable: %v", err)
 		}
 		t.Fatalf("creating the symlink: %v", err)

@@ -27,9 +27,9 @@ func (m Model) GetIcon() string { return "" }
 
 // GetHeaderInfo says which build is running.
 //
-// C'est la même valeur que la première ligne du corps, et c'est délibéré : le
-// header est ce qu'on lit sans faire défiler, et cette vue est précisément
-// celle qu'on ouvre pour cette réponse.
+// This is the same value as the body's first line, and that is deliberate:
+// the header is what you read without scrolling, and this view is exactly
+// the one you open for that answer.
 func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 	return []shortcut.HeaderInfo{
 		{Key: "Version", Value: version.Get().Short(), Style: theme.HeaderValueStyle},
@@ -88,10 +88,10 @@ func (m Model) View() string {
 
 // lines renders the body once, as rows ready to be padded.
 //
-// Le corps est recalculé à chaque appel plutôt que mémorisé dans le modèle : il
-// ne dépend que de `m.sections`, qui ne change jamais après New, et une copie
-// mémorisée serait un second état à tenir cohérent pour une quinzaine de lignes
-// de texte.
+// The body is recomputed on every call rather than cached in the model: it
+// only depends on `m.sections`, which never changes after New, and a cached
+// copy would be a second state to keep consistent for a dozen or so lines
+// of text.
 func (m Model) lines() []string {
 	width := m.labelWidth()
 
@@ -111,9 +111,9 @@ func (m Model) lines() []string {
 // renderField renders one label/value row, the value aligned on the widest
 // label of the screen so the two columns read as columns.
 //
-// La valeur absente est en `DimStyle` et les autres en texte ordinaire : c'est
-// la discipline de couleur de Rule 122 — ce qui est gris est ce qui n'est pas
-// là, et rien d'autre sur cet écran ne mérite d'être repéré sans lire.
+// The missing value is in `DimStyle` and the others in ordinary text: that
+// is Rule 122's color discipline — what is gray is what is not there, and
+// nothing else on this screen deserves to stand out without reading it.
 func renderField(f field, labelWidth int) string {
 	label := f.Label + strings.Repeat(" ", labelWidth-len(f.Label)+labelGap)
 

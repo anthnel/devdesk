@@ -7,79 +7,79 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
-// Messages inter-vues
+// Cross-view messages
 
-// SwitchViewMsg demande un changement de vue
+// SwitchViewMsg requests a view change
 type SwitchViewMsg struct {
 	View command.ViewType
 }
 
-// ForgeAuthSuccessMsg indique une authentification réussie
+// ForgeAuthSuccessMsg indicates a successful authentication
 type ForgeAuthSuccessMsg struct {
 	Client *gitlabclient.Client
 	User   *gitlabclient.User
 }
 
-// GitLabAuthFailedMsg indique un échec d'authentification
+// GitLabAuthFailedMsg indicates an authentication failure
 type GitLabAuthFailedMsg struct {
 	Error error
 }
 
-// GitLabLogoutMsg demande une déconnexion
+// GitLabLogoutMsg requests a logout
 type GitLabLogoutMsg struct{}
 
-// GroupsLoadedMsg contient les groupes chargés
+// GroupsLoadedMsg holds the loaded groups
 type GroupsLoadedMsg struct {
 	Groups []*gitlabclient.Group
 }
 
-// GroupCreatedMsg indique qu'un groupe a été créé
+// GroupCreatedMsg indicates that a group was created
 type GroupCreatedMsg struct {
 	Group *gitlabclient.Group
 }
 
-// GroupDeletedMsg indique qu'un groupe a été supprimé
+// GroupDeletedMsg indicates that a group was deleted
 type GroupDeletedMsg struct {
 	ID int
 }
 
-// ProjectsLoadedMsg contient les projets chargés
+// ProjectsLoadedMsg holds the loaded projects
 type ProjectsLoadedMsg struct {
 	Projects []*gitlabclient.Project
 }
 
-// ProjectCreatedMsg indique qu'un projet a été créé
+// ProjectCreatedMsg indicates that a project was created
 type ProjectCreatedMsg struct {
 	Project *gitlabclient.Project
 }
 
-// ProjectDeletedMsg indique qu'un projet a été supprimé
+// ProjectDeletedMsg indicates that a project was deleted
 type ProjectDeletedMsg struct {
 	ID int
 }
 
-// PullStartedMsg indique le début d'une synchronisation
+// PullStartedMsg indicates the start of a synchronization
 type PullStartedMsg struct{}
 
-// PullProgressMsg contient la progression de la synchro
+// PullProgressMsg holds the sync's progress
 type PullProgressMsg struct {
 	Current int
 	Total   int
 	Status  map[int]string
 }
 
-// PullCompletedMsg indique la fin de la synchronisation
+// PullCompletedMsg indicates the end of the synchronization
 type PullCompletedMsg struct {
 	Stats PullStats
 }
 
-// PullErrorMsg indique une erreur lors de la synchro
+// PullErrorMsg indicates an error during the sync
 type PullErrorMsg struct {
 	ProjectID int
 	Error     error
 }
 
-// PullStats contient les statistiques de synchronisation
+// PullStats holds the synchronization statistics
 type PullStats struct {
 	Cloned  int
 	Updated int

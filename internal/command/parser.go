@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// ViewType représente le type de vue
+// ViewType represents the view type
 type ViewType string
 
 const (
@@ -53,7 +53,7 @@ const (
 // AllViewNames — but nothing a user can type resolves to one.
 var routerViews = []ViewType{ViewViewer}
 
-// CommandType représente le type de commande
+// CommandType represents the command type
 type CommandType string
 
 const (
@@ -63,11 +63,11 @@ const (
 	CommandUnknown CommandType = "unknown"
 )
 
-// Command représente une commande parsée
+// Command represents a parsed command
 type Command struct {
 	Type CommandType
-	View ViewType // Pour les commandes view
-	Args []string // Pour les commandes context
+	View ViewType // For view commands
+	Args []string // For context commands
 }
 
 // viewNames maps every accepted spelling to the view it names. The key equal to
@@ -138,7 +138,7 @@ func normalize(input string) string {
 	return strings.ToLower(strings.TrimPrefix(strings.TrimSpace(input), ":"))
 }
 
-// ParseCommand analyse une commande et retourne un Command structuré
+// ParseCommand parses a command and returns a structured Command
 func ParseCommand(input string) Command {
 	parts := strings.Fields(normalize(input))
 	if len(parts) == 0 {
@@ -164,9 +164,9 @@ func ParseCommand(input string) Command {
 	return Command{Type: CommandUnknown}
 }
 
-// Parse résout un nom de vue seul, sans les commandes d'action. C'est la forme
-// utilisée pour lire `default_view` en configuration.
-// Retourne une vue vide, sans erreur, quand le nom n'est pas reconnu.
+// Parse resolves a view name alone, without action commands. This is the form
+// used to read `default_view` in configuration.
+// Returns an empty view, without error, when the name is not recognized.
 func Parse(input string) (ViewType, error) {
 	if view, ok := resolveView(normalize(input)); ok {
 		return view, nil
@@ -174,8 +174,8 @@ func Parse(input string) (ViewType, error) {
 	return "", nil
 }
 
-// GetAliases retourne chaque alias avec le nom complet qu'il abrège, vues et
-// commandes d'action confondues.
+// GetAliases returns every alias with the full name it abbreviates, views and
+// action commands combined.
 func GetAliases() map[string]string {
 	aliases := make(map[string]string, len(viewNames)+len(actionAliases))
 	for name, view := range viewNames {
@@ -187,8 +187,8 @@ func GetAliases() map[string]string {
 	return aliases
 }
 
-// FullNames retourne le nom complet de chaque commande — une vue ou une action
-// — sans les alias. C'est ce que la complétion propose en premier.
+// FullNames returns the full name of each command — a view or an action —
+// without the aliases. This is what completion offers first.
 // ViewNames lists the canonical view names, sorted.
 //
 // FullNames() is not the same list: it also carries the action commands

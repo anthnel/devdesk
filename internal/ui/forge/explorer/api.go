@@ -72,7 +72,7 @@ func discoverChildren(ctx context.Context, backend forge.Forge, parent *TreeNode
 	return nodes, nil
 }
 
-// loadRootGroups charge les groupes racine, décorés.
+// loadRootGroups loads the root groups, decorated.
 func (m Model) loadRootGroups() tea.Cmd {
 	backend := m.shared.Forge
 
@@ -90,12 +90,12 @@ func (m Model) loadRootGroups() tea.Cmd {
 	}
 }
 
-// loadChildren charge les sous-groupes et projets d'un groupe, décorés : la vue
-// affiche le rôle et le statut CI en colonnes.
+// loadChildren loads the subgroups and projects of a group, decorated: the
+// view shows the role and CI status as columns.
 //
-// Elle liste les dépôts archivés — l'explorer montre ce qui est là.
-// `forge.pull.include_archived` ne concerne que le clone, et c'est
-// discoverChildren qui le lit.
+// It lists archived repositories — the explorer shows what's there.
+// `forge.pull.include_archived` only concerns cloning, and it's
+// discoverChildren that reads it.
 func (m Model) loadChildren(parentNode *TreeNode) tea.Cmd {
 	backend := m.shared.Forge
 

@@ -9,25 +9,24 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// backgroundOnlyStyle declares a background and nothing else, ce qu'une colonne
-// a le droit de faire.
+// backgroundOnlyStyle declares a background and nothing else, which a column
+// is entitled to do.
 func backgroundOnlyStyle(row) lipgloss.Style {
 	return lipgloss.NewStyle().Background(theme.ColorBackground)
 }
 
-// La couleur du **texte** d'une cellule, qui manquait.
+// The **text** color of a cell, which was missing.
 //
-// Ni `theme.DefaultTableStyles()` ni les styles de bubbles ne posent de
-// foreground sur `Cell` : une colonne qui ne déclare pas de `Style` sortait donc
-// dans la couleur par défaut du terminal, sur laquelle le thème n'a aucune
-// prise. Quatre vues avaient réécrit `Foreground(theme.ColorText)` dans un
-// `Style` à elles pour la récupérer, ce qui est la forme que prend un défaut
-// manquant.
+// Neither `theme.DefaultTableStyles()` nor bubbles' styles set a foreground
+// on `Cell`: a column that declares no `Style` therefore rendered in the
+// terminal's default color, over which the theme has no control. Four views
+// had rewritten `Foreground(theme.ColorText)` in a `Style` of their own to
+// recover it, which is the shape a missing default takes.
 
-// Une colonne sans Style prend la couleur de texte du thème.
+// A column with no Style takes the theme's text color.
 func TestACellWithNoStyleCarriesTheThemeForeground(t *testing.T) {
 	withTrueColor(t)
-	m := loaded(t) // aucune colonne ne déclare de Style
+	m := loaded(t) // no column declares a Style
 
 	unselected := rowLines(&m)[1]
 
@@ -36,13 +35,13 @@ func TestACellWithNoStyleCarriesTheThemeForeground(t *testing.T) {
 	}
 }
 
-// Chaque segment **qui porte du texte** ouvre les deux couleurs.
+// Every segment **that carries text** opens both colors.
 //
-// Le fond est exigé de tous les segments par le test voisin, parce qu'il se voit
-// sur une espace ; le texte ne se voit que là où il y a un caractère, et lipgloss
-// sort le padding d'une cellule en segments de sa seule couleur de fond. Exiger
-// un foreground sur une espace serait exiger une séquence qui ne change rien à
-// l'écran.
+// The background is required of every segment by the neighboring test,
+// because it shows on a space; text only shows where there is a character,
+// and lipgloss emits a cell's padding as segments carrying only its
+// background color. Requiring a foreground on a space would require a
+// sequence that changes nothing on screen.
 func TestEveryRunThatShowsTextCarriesTheThemeForeground(t *testing.T) {
 	withTrueColor(t)
 	m := loaded(t)
@@ -68,8 +67,8 @@ func TestEveryRunThatShowsTextCarriesTheThemeForeground(t *testing.T) {
 	}
 }
 
-// Une colonne qui ne déclare qu'un fond reçoit le texte du thème — le symétrique
-// exact de TestAColumnThatDeclaresNoBackgroundGetsTheAppOne.
+// A column that declares only a background receives the theme's text — the
+// exact symmetric case of TestAColumnThatDeclaresNoBackgroundGetsTheAppOne.
 func TestAColumnThatDeclaresNoForegroundGetsTheThemeOne(t *testing.T) {
 	withTrueColor(t)
 
@@ -84,14 +83,14 @@ func TestAColumnThatDeclaresNoForegroundGetsTheThemeOne(t *testing.T) {
 	}
 }
 
-// **Et c'est ce qui interdit de poser la couleur sur `styles.Cell`.** Les
-// cellules sont rendues, puis la ligne entière est passée à `styles.Selected` :
-// une couleur de cellule y ouvrirait une séquence dont le reset referme le
-// surlignage au milieu de la ligne. Le surlignage répond à « où suis-je », et
-// aucune couleur de colonne ne vaut de le perdre.
+// **And this is what forbids putting the color on `styles.Cell`.** Cells are
+// rendered, then the whole row is passed to `styles.Selected`: a cell color
+// there would open a sequence whose reset would close the highlight in the
+// middle of the row. The highlight answers "where am I", and no column
+// color is worth losing it.
 func TestTheSelectedRowKeepsItsHighlightWhole(t *testing.T) {
 	withTrueColor(t)
-	m := colouredTable(t) // la colonne State est colorée, et la ligne 0 est sous le curseur
+	m := colouredTable(t) // the State column is colored, and row 0 is under the cursor
 
 	selected := rowLines(&m)[0]
 
@@ -104,8 +103,8 @@ func TestTheSelectedRowKeepsItsHighlightWhole(t *testing.T) {
 	if !strings.Contains(selected, background(theme.ColorTableSelectedBg)) {
 		t.Errorf("the selected row does not carry the selection background: %q", selected)
 	}
-	// Un seul reset, tout à la fin : c'est ce que « le surlignage entier » veut
-	// dire, et ce qu'un foreground par cellule casserait.
+	// Only one reset, right at the end: that is what "the whole highlight"
+	// means, and what a per-cell foreground would break.
 	if n := strings.Count(selected, "\x1b[0m"); n != 1 {
 		t.Errorf("the selected row closes %d times, want one reset at its end", n)
 	}

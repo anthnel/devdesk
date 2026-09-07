@@ -101,17 +101,18 @@ func volumeFixtures() []docker.Volume {
 	}
 }
 
-// secretsFound and secretsClean write the two known verdicts; le troisième
-// s'écrit nil, et c'est ce que porte un scan qui n'a pas cherché.
+// secretsFound and secretsClean write the two known verdicts; the third
+// writes as nil, and that is what a scan that never looked carries.
 func secretsFound() *bool { v := true; return &v }
 func secretsClean() *bool { v := false; return &v }
 
 // scanCacheFixture covers the three states a row can be in: scanned clean,
 // scanned with findings, and never scanned (absent from the map).
 //
-// Le verdict « secrets » a trois valeurs qui ne se recoupent pas avec celles-là :
-// api:v1 en porte un, cache:v2 a été regardée sans qu'on en trouve, et orphan a
-// été scannée par une version sans étape secrets — donc scannée, sans verdict.
+// The "secrets" verdict has three values that do not overlap with those:
+// api:v1 carries one, cache:v2 was looked at and nothing was found, and
+// orphan was scanned by a version with no secrets stage — so scanned, with
+// no verdict.
 func scanCacheFixture() map[string]cache.ImageScanEntry {
 	return map[string]cache.ImageScanEntry{
 		"api:v1":   {Critical: 2, High: 3, Medium: 4, Low: 5, Sensitive: secretsFound(), ScannedAt: at(1)},

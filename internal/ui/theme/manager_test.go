@@ -48,10 +48,10 @@ func TestLoadTheme_Empty(t *testing.T) {
 }
 
 func TestLoadTheme_FromFile(t *testing.T) {
-	// Créer un répertoire temporaire pour les thèmes
+	// Create a temporary directory for the themes
 	tmpDir := t.TempDir()
 
-	// Créer un thème JSON de test
+	// Create a test JSON theme
 	testTheme := Theme{
 		Name:           "test-light",
 		ColorOK:        "#00ff00",
@@ -77,7 +77,7 @@ func TestLoadTheme_FromFile(t *testing.T) {
 		t.Fatalf("WriteFile error: %v", err)
 	}
 
-	// Charger directement en lisant le fichier (simuler LoadTheme)
+	// Load directly by reading the file (simulating LoadTheme)
 	loadedData, err := os.ReadFile(themePath)
 	if err != nil {
 		t.Fatalf("ReadFile error: %v", err)
@@ -97,11 +97,11 @@ func TestLoadTheme_FromFile(t *testing.T) {
 }
 
 func TestApplyTheme(t *testing.T) {
-	// Sauvegarder les couleurs originales
+	// Save the original colors
 	origPrimary := ColorPrimary
 	origOK := ColorOK
 
-	// Appliquer un thème custom
+	// Apply a custom theme
 	custom := &Theme{
 		Name:           "custom",
 		ColorOK:        "#11aa11",
@@ -126,7 +126,7 @@ func TestApplyTheme(t *testing.T) {
 		t.Errorf("After ApplyTheme, ColorOK = %q, want %q", string(ColorOK), "#11aa11")
 	}
 
-	// Restaurer
+	// Restore
 	ApplyTheme(DefaultTheme())
 	if string(ColorPrimary) != string(origPrimary) {
 		t.Errorf("After restore, ColorPrimary = %q, want %q", string(ColorPrimary), string(origPrimary))
@@ -142,7 +142,7 @@ func TestListThemes(t *testing.T) {
 		t.Fatalf("ListThemes() error: %v", err)
 	}
 
-	// Doit toujours contenir "default"
+	// Must always contain "default"
 	found := false
 	for _, name := range themes {
 		if name == "default" {

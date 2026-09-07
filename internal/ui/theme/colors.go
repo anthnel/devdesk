@@ -51,8 +51,8 @@ var (
 
 	ColorViewportBorder lipgloss.Color
 
-	// ColorChartBg is the surface a chart is drawn on: un cran plus clair que
-	// le fond de l'application, pour que le cadre réservé au graphe se voie.
+	// ColorChartBg is the surface a chart is drawn on: one shade lighter than
+	// the app background, so the frame reserved for the graph is visible.
 	ColorChartBg lipgloss.Color
 
 	ColorHeaderKey lipgloss.Color

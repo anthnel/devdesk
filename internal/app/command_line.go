@@ -21,24 +21,24 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 
-// handleCommandMode gère le mode commande
+// handleCommandMode handles command mode
 func (a *App) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		return a, a.closeCommandLine()
 
 	case tea.KeyTab:
-		// Cycle à travers les suggestions
+		// Cycle through the suggestions
 		return a.handleCompletionCycle()
 
 	case tea.KeyEnter:
 		return a.runCommand()
 
 	default:
-		// Mettre à jour l'input
+		// Update the input
 		var cmd tea.Cmd
 		a.commandInput, cmd = a.commandInput.Update(msg)
-		// Mettre à jour les suggestions après chaque frappe
+		// Update the suggestions after each keystroke
 		a.updateCompletions()
 		return a, cmd
 	}
@@ -80,14 +80,14 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 		a.commandInput.Blur()
 		a.resetCompletion()
 		if len(cmd.Args) > 0 {
-			// Créer/switch vers un contexte nommé
+			// Create/switch to a named context
 			return a, a.switchContext(cmd.Args[0])
 		}
-		// Pas d'args → ouvrir la modale interactive
+		// No args -> open the interactive modal
 		return a, a.listContexts()
 
 	case command.CommandUnknown:
-		// Commande invalide - rester en mode commande
+		// Invalid command - stay in command mode
 		return a, nil
 	}
 
@@ -107,7 +107,7 @@ func (a *App) resetSelectionModeFor(view command.ViewType) {
 	}
 }
 
-// switchView change la vue courante
+// switchView changes the current view
 func (a *App) switchView(view command.ViewType) tea.Cmd {
 	if view != a.currentView {
 		if cmd, ok := a.settleCurrentView(); !ok {
@@ -115,7 +115,7 @@ func (a *App) switchView(view command.ViewType) tea.Cmd {
 		}
 	}
 
-	// Lazy loading des vues
+	// Lazy loading of views
 	if _, exists := a.views[view]; !exists {
 		a.createView(view)
 	}
@@ -128,10 +128,10 @@ func (a *App) switchView(view command.ViewType) tea.Cmd {
 	}
 	log.Printf("Switching to view: %s, calling Init()", view)
 
-	// Init() + un WindowSizeMsg pour forcer le redimensionnement, et
-	// l'instantané des travaux en cours : la vue a été tenue au courant tant
-	// qu'elle existait, mais une vue construite à l'instant n'était là pour
-	// rien de ce qui a déjà commencé.
+	// Init() + a WindowSizeMsg to force the resize, plus the snapshot of
+	// work in progress: the view was kept up to date for as long as it
+	// existed, but a view built just now was not there for anything that had
+	// already started.
 	return tea.Batch(newView.Init(), a.requestResize(), a.sendJobsTo(view))
 }
 
@@ -158,7 +158,7 @@ func (a *App) settleCurrentView() (tea.Cmd, bool) {
 	return cmd, ok
 }
 
-// createView crée une vue (lazy loading)
+// createView creates a view (lazy loading)
 func (a *App) createView(view command.ViewType) {
 	if _, exists := a.views[view]; exists && view != command.ViewGitAuth {
 		return
@@ -210,11 +210,11 @@ func (a *App) newAuthView() tea.Model {
 	return authView
 }
 
-// updateCompletions met à jour les suggestions basées sur l'input actuel
+// updateCompletions updates the suggestions based on the current input
 func (a *App) updateCompletions() {
 	input := a.commandInput.Value()
 
-	// Reset index si input change
+	// Reset index if input changes
 	if input != a.completionInput {
 		a.completionIndex = 0
 		a.completionInput = input
@@ -223,18 +223,18 @@ func (a *App) updateCompletions() {
 	a.completionSuggestions = a.completionEngine.GetSuggestions(input)
 }
 
-// handleCompletionCycle cycle à travers les suggestions (Tab répété)
+// handleCompletionCycle cycles through the suggestions (repeated Tab)
 func (a *App) handleCompletionCycle() (tea.Model, tea.Cmd) {
 	if len(a.completionSuggestions) == 0 {
 		return a, nil
 	}
 
-	// Increment avec wrap-around
+	// Increment with wrap-around
 	a.completionIndex = (a.completionIndex + 1) % len(a.completionSuggestions)
 	return a, nil
 }
 
-// resetCompletion nettoie l'état de complétion
+// resetCompletion clears the completion state
 func (a *App) resetCompletion() {
 	a.completionSuggestions = nil
 	a.completionIndex = 0

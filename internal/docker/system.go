@@ -16,22 +16,22 @@ type OCIStats struct {
 	VolumesSize     string
 
 	// NetworksCount does **not** come from `docker system df`, which has no row
-	// for networks: they hold no bytes, so the disk report ignores them. Il est
-	// compté par un `docker network ls` séparé, et c'est le seul chiffre de
-	// cette structure qui coûte un second appel.
+	// for networks: they hold no bytes, so the disk report ignores them. It is
+	// counted by a separate `docker network ls`, and it is the only figure in
+	// this struct that costs a second call.
 	NetworksCount int
 
 	// BuildCacheSize is the fourth row `docker system df` prints, and the one
-	// that answers "where did the disk go" most often — un cache de build
-	// atteint couramment des dizaines de gigaoctets. Il entrait déjà dans la
-	// somme du récupérable ; seule sa taille propre était jetée.
+	// that answers "where did the disk go" most often — a build cache commonly
+	// reaches tens of gigabytes. It was already part of the reclaimable sum;
+	// only its own size used to be discarded.
 	BuildCacheSize string
 
 	// Reclaimable is what `docker system df` already reports and this package
-	// used to drop on the floor: la place qu'un prune rendrait, sommée sur les
-	// trois familles. Docker la donne sous forme "12.3GB (45%)" — seule la
-	// taille est gardée, le pourcentage est relatif à sa propre famille et
-	// n'aurait pas de sens une fois additionné.
+	// used to drop on the floor: the space a prune would free, summed across
+	// the three families. Docker gives it as "12.3GB (45%)" — only the size
+	// is kept, the percentage is relative to its own family and would make no
+	// sense once added up.
 	Reclaimable string
 }
 
@@ -60,8 +60,8 @@ func FetchOCIStats() OCIStats {
 		count, _ := strconv.Atoi(parts[1])
 		size := parts[2]
 		if len(parts) >= 4 {
-			// "12.3GB (45%)" — le pourcentage est relatif à sa propre famille
-			// et ne survivrait pas à une addition.
+			// "12.3GB (45%)" — the percentage is relative to its own family
+			// and would not survive an addition.
 			reclaimable += parseSize(strings.TrimSpace(strings.Split(parts[3], "(")[0]))
 		}
 
@@ -84,8 +84,8 @@ func FetchOCIStats() OCIStats {
 		stats.Reclaimable = formatSize(reclaimable)
 	}
 
-	// Une liste qui échoue laisse le compte à zéro plutôt que de faire échouer
-	// tout l'appel : les tailles viennent d'être lues et valent d'être rendues.
+	// A list that fails leaves the count at zero rather than failing the
+	// whole call: the sizes were just read and are worth returning.
 	if networks, err := ListNetworks(); err == nil {
 		stats.NetworksCount = len(networks)
 	}

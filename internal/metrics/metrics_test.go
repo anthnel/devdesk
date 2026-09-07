@@ -10,16 +10,16 @@ import (
 	"time"
 )
 
-// Le calcul des débits est pur : pas de Docker, pas de réseau, pas de terminal.
-// C'est aussi l'endroit où une réponse fausse se voit le moins à l'écran — un
-// débit plausible et faux ressemble à un débit.
+// Rate computation is pure: no Docker, no network, no terminal.
+// It is also the place where a wrong answer shows the least on screen — a
+// plausible but wrong rate looks just like a rate.
 
 func at(seconds int) time.Time {
 	return time.Date(2026, 8, 14, 12, 0, seconds, 0, time.UTC)
 }
 
-// TestTheFirstSampleHasNoRate — net.IOCounters est cumulatif, donc le premier
-// relevé n'a rien à soustraire. La vue doit afficher `-`, pas `0`.
+// TestTheFirstSampleHasNoRate — net.IOCounters is cumulative, so the first
+// reading has nothing to subtract from. The view must display `-`, not `0`.
 func TestTheFirstSampleHasNoRate(t *testing.T) {
 	cur := Counters{RX: 1000, TX: 500, At: at(1), Valid: true}
 
@@ -41,9 +41,9 @@ func TestARateIsBytesPerSecond(t *testing.T) {
 	}
 }
 
-// TestARateSurvivesACounterReset — une interface réinitialisée fait reculer le
-// compteur. Rendre la soustraction telle quelle donnerait un débit négatif ;
-// l'échantillon est abandonné.
+// TestARateSurvivesACounterReset — a reset interface makes the counter go
+// backward. Doing the subtraction as-is would give a negative rate; the
+// sample is dropped instead.
 func TestARateSurvivesACounterReset(t *testing.T) {
 	prev := Counters{RX: 9000, TX: 9000, At: at(0), Valid: true}
 	reset := Counters{RX: 12, TX: 8, At: at(1), Valid: true}
@@ -78,11 +78,11 @@ func TestAnUnreadableCounterYieldsNoRate(t *testing.T) {
 
 // TestLoadAverageIsDisplayedNowhere pins the Windows trap: load.Avg() returns
 // {0, 0, 0} with a nil error there, so it does not fail — it produces a number
-// that reads as "idle". Ce test existe pour que personne ne la rajoute au
-// motif qu'elle « marche sous Linux ».
-// Il porte sur les *imports*, pas sur le texte : les commentaires qui
-// expliquent pourquoi la charge moyenne est écartée doivent pouvoir la nommer.
-// Un grep interdirait sa propre justification.
+// that reads as "idle". This test exists so nobody adds it back on the
+// grounds that it "works on Linux".
+// It checks the *imports*, not the text: the comments that explain why load
+// average is excluded need to be able to name it.
+// A grep would forbid its own justification.
 func TestLoadAverageIsDisplayedNowhere(t *testing.T) {
 	const banned = "gopsutil/v4/load"
 

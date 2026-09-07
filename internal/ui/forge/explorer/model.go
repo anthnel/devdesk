@@ -30,7 +30,7 @@ const (
 	ModeConfirmingDelete
 )
 
-// Model représente le modèle de la vue GitLab Explorer
+// Model represents the model of the GitLab Explorer view
 type Model struct {
 	config *config.Config
 	shared *shared.State
@@ -94,7 +94,7 @@ type Model struct {
 	footer components.FooterMessage
 }
 
-// New crée une nouvelle instance du modèle explorer
+// New creates a new instance of the explorer model
 func New(cfg *config.Config, sharedState *shared.State) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -120,9 +120,9 @@ func New(cfg *config.Config, sharedState *shared.State) Model {
 	}
 }
 
-// Init initialise le modèle
+// Init initializes the model
 func (m Model) Init() tea.Cmd {
-	// Charger les groupes racine au démarrage
+	// Load the root groups at startup
 	if m.shared.IsAuthenticated {
 		m.loading = true
 		return tea.Batch(m.spinner.Tick, m.loadRootGroups())

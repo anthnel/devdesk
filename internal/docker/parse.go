@@ -39,8 +39,8 @@ func parsePair(cell string) (left, right int64) {
 }
 
 // formatSize is parseSize's inverse, in Docker's own decimal units rather than
-// binary ones: le chiffre est destiné à être comparé avec la sortie de
-// `docker system df`, où 1 GB vaut 10⁹ octets.
+// binary ones: the figure is meant to be compared against the output of
+// `docker system df`, where 1 GB equals 10⁹ bytes.
 func formatSize(bytes int64) string {
 	switch {
 	case bytes >= 1e9:

@@ -408,7 +408,7 @@ func TestDetectBinaryToolReportsAPresentBinary(t *testing.T) {
 
 // ── Layout ───────────────────────────────────────────────────────────────────
 
-// tierCases covers one terminal size per palier.
+// tierCases covers one terminal size per tier.
 var tierCases = []struct {
 	name    string
 	width   int
@@ -448,8 +448,8 @@ func TestTheColumnWidthHasAFloor(t *testing.T) {
 
 // TestEverySectionKeepsItsHeightWhateverItsState is the rule §3.19 phase 1
 // exists for: a section declares its height and fills it, so a value landing in
-// one column can never move another. Sans lui, la première section ajoutée
-// ensuite réintroduit le reflow.
+// one column can never move another. Without it, the next section added
+// would reintroduce the reflow.
 func TestEverySectionKeepsItsHeightWhateverItsState(t *testing.T) {
 	unknown, _ := newTestModel(t)  // nothing has landed yet
 	loaded, _ := loadedModel(t)    // every result message absorbed
@@ -457,11 +457,11 @@ func TestEverySectionKeepsItsHeightWhateverItsState(t *testing.T) {
 
 	states := map[string]Model{"unknown": unknown, "loaded": loaded, "unavailable": unavailable}
 
-	// Le bloc des outils est l'exception, et elle est délibérée : sa hauteur
-	// suit l'inventaire de la machine (voir toolsBlock), pas l'arrivée d'un
-	// résultat. Les trois états partagent donc le même inventaire, ce qui laisse
-	// le test attraper tout le reste — c'est-à-dire tout ce qui bouge d'un
-	// rafraîchissement à l'autre.
+	// The tools block is the exception, and it's deliberate: its height
+	// follows the machine's inventory (see toolsBlock), not a result's
+	// arrival. The three states therefore share the same inventory, which
+	// leaves the test to catch everything else — i.e. everything that moves
+	// from one refresh to another.
 	for name, m := range states {
 		states[name] = feed(t, m, ToolsDetectedMsg{Tools: toolFixtures()})
 	}
@@ -485,10 +485,10 @@ func TestEverySectionKeepsItsHeightWhateverItsState(t *testing.T) {
 	}
 }
 
-// TestABoxNeverTruncatesItsSection — la hauteur d'une boîte est dérivée des
-// sections à l'écran, pas d'une constante. Une constante trop basse ne se voit
-// pas : la boîte reste bien formée, elle perd sa dernière ligne. C'est le
-// piège qui attend la phase 3, quand un graphe rendra une section plus haute.
+// TestABoxNeverTruncatesItsSection — a box's height is derived from the
+// sections on screen, not from a constant. A constant that's too low doesn't
+// show: the box stays well-formed, it just loses its last line. That's the
+// trap waiting in phase 3, when a chart makes a section taller.
 func TestABoxNeverTruncatesItsSection(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -515,11 +515,11 @@ func TestABoxNeverTruncatesItsSection(t *testing.T) {
 	}
 }
 
-// TestTheGridRowsLineUp — à nombre de boîtes égal, deux colonnes doivent faire
-// exactement la même hauteur : une boîte plus haute que sa voisine décale la
-// rangée suivante, et ça se lit comme un bug de rendu plutôt que comme un
-// choix. (À `wide`, la troisième colonne porte une boîte de plus et dépasse
-// délibérément.)
+// TestTheGridRowsLineUp — with an equal number of boxes, two columns must
+// come to exactly the same height: a box taller than its neighbor shifts the
+// next row, and that reads as a rendering bug rather than a choice. (At
+// `wide`, the third column carries one more box and deliberately runs
+// over.)
 func TestTheGridRowsLineUp(t *testing.T) {
 	m, _ := loadedModel(t)
 	columns := m.columnsFor(tierStandard)
@@ -563,10 +563,10 @@ func TestAnUnmeasuredValueIsNotZero(t *testing.T) {
 // rows: header (9), title line (1), footer with a tab bar (3).
 const routerOverhead = 9 + 1 + 3
 
-// TestTheOverviewFitsAtTheHeightItNeeds — le viewport du routeur **ne défile
-// pas** : rien ne lui transmet de touche, donc ce qui dépasse est perdu en
-// silence, pas repoussé sous une barre de défilement. La hauteur de la grille
-// est donc une promesse, et gridHeight() est ce qu'elle vaut.
+// TestTheOverviewFitsAtTheHeightItNeeds — the router's viewport **does not
+// scroll**: nothing forwards a key to it, so whatever overflows is silently
+// lost, not pushed under a scrollbar. The grid's height is therefore a
+// promise, and gridHeight() is what it's worth.
 func TestTheOverviewFitsAtTheHeightItNeeds(t *testing.T) {
 	m, _ := loadedModel(t)
 	m = feed(t, m, tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -581,11 +581,11 @@ func TestTheOverviewFitsAtTheHeightItNeeds(t *testing.T) {
 		need, need+routerOverhead)
 }
 
-// TestTheChosenPalierLosesTheFewestLines — en dessous de gridHeight() aucun
-// layout ne tient, et le palier n'a plus à choisir le meilleur mais le moins
-// mauvais : une grille 2×2 amputée d'une ligne bat une colonne de quatre boîtes
-// amputée de dix-neuf. C'est cette règle-là qui justifie que
-// standardMinHeight soit *sous* gridHeight(), et non un oubli.
+// TestTheChosenPalierLosesTheFewestLines — below gridHeight() no layout
+// fits, and the tier no longer has to pick the best one but the least bad
+// one: a 2×2 grid missing one line beats a column of four boxes missing
+// nineteen. This is the rule that justifies standardMinHeight being *below*
+// gridHeight(), and not an oversight.
 func TestTheChosenPalierLosesTheFewestLines(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -605,7 +605,7 @@ func TestTheChosenPalierLosesTheFewestLines(t *testing.T) {
 	}
 }
 
-// overflowAt reports how many lines a palier's grid would lose at a height.
+// overflowAt reports how many lines a tier's grid would lose at a height.
 func overflowAt(t *testing.T, m Model, width, height int, at tier) int {
 	t.Helper()
 
@@ -621,10 +621,10 @@ func overflowAt(t *testing.T, m Model, width, height int, at tier) int {
 	return max(tallest-height, 0)
 }
 
-// TestNoFactIsUnreachableAtAnyPalier — le palier décide où est un fait, jamais
-// s'il existe. A section that shows at `wide` shows at `compact` too, inline or
-// behind a tab: a fact that vanishes on a small terminal is indistinguishable
-// from a bug.
+// TestNoFactIsUnreachableAtAnyPalier — the tier decides where a fact is,
+// never whether it exists. A section that shows at `wide` shows at `compact`
+// too, inline or behind a tab: a fact that vanishes on a small terminal is
+// indistinguishable from a bug.
 func TestNoFactIsUnreachableAtAnyPalier(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -647,10 +647,11 @@ func TestNoFactIsUnreachableAtAnyPalier(t *testing.T) {
 	}
 }
 
-// TestNoBoxIsReachableFromTwoTabs — un onglet existe pour ce qui n'a pas de vue
-// à lui *et* qui n'est pas déjà à l'écran. À `wide`, la troisième colonne porte
-// les boîtes de Resources : offrir l'onglet en plus donne les mêmes trois
-// boîtes à deux endroits, ce qu'un onglet est censé éviter.
+// TestNoBoxIsReachableFromTwoTabs — a tab exists for content that has no
+// view of its own *and* that is not already on screen. At `wide`, the third
+// column carries the Resources boxes: offering the tab as well would give
+// the same three boxes in two places, which is exactly what a tab is
+// supposed to avoid.
 func TestNoBoxIsReachableFromTwoTabs(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -672,9 +673,9 @@ func TestNoBoxIsReachableFromTwoTabs(t *testing.T) {
 	}
 }
 
-// TestTheResourcesTabIsNotOfferedWhenItsBoxesAreOnScreen — et il ne suffit pas
-// de ne pas le proposer : la touche ne doit rien faire et le raccourci ne doit
-// pas être annoncé (Rule 130).
+// TestTheResourcesTabIsNotOfferedWhenItsBoxesAreOnScreen — and it's not
+// enough not to offer it: the key must do nothing and the shortcut must not
+// be advertised (Rule 130).
 func TestTheResourcesTabIsNotOfferedWhenItsBoxesAreOnScreen(t *testing.T) {
 	m, _ := loadedModel(t)
 	m = feed(t, m, tea.WindowSizeMsg{Width: 240, Height: 45}) // tierWide
@@ -708,8 +709,8 @@ func TestGrowingIntoWideLeavesTheResourcesTab(t *testing.T) {
 	}
 }
 
-// TestEveryRenderedLineIsExactlyTheViewWidth — Rule 116. Une seule ligne trop
-// longue décale tout ce qui est à sa droite.
+// TestEveryRenderedLineIsExactlyTheViewWidth — Rule 116. A single line
+// that's too long shifts everything to its right.
 func TestEveryRenderedLineIsExactlyTheViewWidth(t *testing.T) {
 	m, _ := loadedModel(t)
 

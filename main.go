@@ -34,12 +34,12 @@ func main() {
 }
 
 func runTUI() {
-	// Forcer TrueColor si Windows Terminal est détecté (WSL ne propage pas COLORTERM)
+	// Force TrueColor if Windows Terminal is detected (WSL does not propagate COLORTERM)
 	if os.Getenv("WT_SESSION") != "" && os.Getenv("COLORTERM") == "" {
 		_ = os.Setenv("COLORTERM", "truecolor")
 	}
 
-	// Charger la configuration
+	// Load the configuration
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Printf("Error loading config: %v\n", err)
@@ -47,12 +47,12 @@ func runTUI() {
 		cfg = config.Default()
 	}
 
-	// Créer le répertoire de config s'il n'existe pas
+	// Create the config directory if it does not exist
 	if err := config.EnsureConfigDir(); err != nil {
 		fmt.Printf("Warning: Could not create config directory: %v\n", err)
 	}
 
-	// Toujours activer le logging dans un fichier pour éviter de polluer l'interface TUI
+	// Always enable logging to a file to avoid polluting the TUI interface
 	logFile, err := tea.LogToFile(cfg.App.LogFile, "debug")
 	if err != nil {
 		fmt.Printf("Warning: Could not create log file: %v\n", err)
@@ -64,7 +64,7 @@ func runTUI() {
 		log.Printf("DEBUG mode: %v", len(os.Getenv("DEBUG")) > 0)
 	}
 
-	// Charger et appliquer le thème sauvegardé
+	// Load and apply the saved theme
 	if cfg.App.Theme != "" && cfg.App.Theme != "dark" {
 		t, err := theme.LoadTheme(cfg.App.Theme)
 		if err != nil {
@@ -76,15 +76,15 @@ func runTUI() {
 		}
 	}
 
-	// Créer l'application avec le router
+	// Create the application with the router
 	m := app.New(cfg)
 
-	// Options du programme Bubble Tea
+	// Bubble Tea program options
 	opts := []tea.ProgramOption{
-		tea.WithAltScreen(), // Mode plein écran
+		tea.WithAltScreen(), // Full-screen mode
 	}
 
-	// Lancer le programme Bubble Tea
+	// Start the Bubble Tea program
 	p := tea.NewProgram(m, opts...)
 
 	// The router needs the handle before the loop starts: an MCP request

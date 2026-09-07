@@ -9,9 +9,9 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
-// secretsFound and secretsClean write the two known verdicts. Le troisième est
-// nil, et il s'écrit tout seul : c'est ce que porte une entrée dont personne n'a
-// cherché les secrets.
+// secretsFound and secretsClean write the two known verdicts. The third is
+// nil, and it writes itself: it is what an entry carries when nobody has
+// looked for secrets.
 func secretsFound() *bool { v := true; return &v }
 func secretsClean() *bool { v := false; return &v }
 

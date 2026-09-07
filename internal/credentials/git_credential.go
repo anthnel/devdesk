@@ -25,13 +25,13 @@ const (
 	credentialWaitDelay = 500 * time.Millisecond
 )
 
-// GitCredentialStorage stocke les credentials via git credential manager
+// GitCredentialStorage stores credentials via git credential manager
 type GitCredentialStorage struct {
-	context string // Contexte DevDesk pour isoler les credentials
+	context string // DevDesk context, to isolate credentials
 }
 
-// NewGitCredentialStorageWithContext crée un GitCredentialStorage context-aware
-// Chaque contexte aura ses propres credentials isolés
+// NewGitCredentialStorageWithContext creates a context-aware GitCredentialStorage.
+// Each context gets its own isolated credentials.
 func NewGitCredentialStorageWithContext(context string) *GitCredentialStorage {
 	if context == "" {
 		context = "default"
@@ -54,7 +54,7 @@ func (g *GitCredentialStorage) describe(urlStr string) (string, error) {
 		u.Scheme, u.Host, g.context, credentialUsername), nil
 }
 
-// Save sauvegarde un token via git credential
+// Save stores a token via git credential
 func (g *GitCredentialStorage) Save(urlStr, token string) error {
 	desc, err := g.describe(urlStr)
 	if err != nil {
@@ -64,7 +64,7 @@ func (g *GitCredentialStorage) Save(urlStr, token string) error {
 	return err
 }
 
-// Load charge un token depuis git credential
+// Load loads a token from git credential
 func (g *GitCredentialStorage) Load(urlStr string) (string, error) {
 	desc, err := g.describe(urlStr)
 	if err != nil {
@@ -80,7 +80,7 @@ func (g *GitCredentialStorage) Load(urlStr string) (string, error) {
 	return "", fmt.Errorf("%w for %s (context: %s)", ErrNotFound, urlStr, g.context)
 }
 
-// Delete supprime un token de git credential
+// Delete removes a token from git credential
 func (g *GitCredentialStorage) Delete(urlStr string) error {
 	desc, err := g.describe(urlStr)
 	if err != nil {
@@ -122,8 +122,8 @@ func runCredential(op, description string) (string, error) {
 	cmd.Stderr = &stderr
 	cmd.WaitDelay = credentialWaitDelay
 	cmd.Env = append(cmd.Environ(),
-		"GIT_TERMINAL_PROMPT=0", // Désactive les prompts interactifs
-		"GCM_INTERACTIVE=never", // Git Credential Manager en mode non-interactif
+		"GIT_TERMINAL_PROMPT=0", // Disables interactive prompts
+		"GCM_INTERACTIVE=never", // Git Credential Manager in non-interactive mode
 	)
 
 	err := cmd.Run()

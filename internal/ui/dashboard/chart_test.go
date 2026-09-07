@@ -24,9 +24,9 @@ func rampTo(n int) []float64 {
 	return out
 }
 
-// TestAChartLineIsExactlyTheColumnWidth — Rule 116. Une seule ligne trop longue
-// décale toute la colonne d'à côté, et une trop courte laisse passer le fond
-// natif du terminal.
+// TestAChartLineIsExactlyTheColumnWidth — Rule 116. A single line that's too
+// long shifts the whole column next to it, and one that's too short lets the
+// terminal's native background show through.
 func TestAChartLineIsExactlyTheColumnWidth(t *testing.T) {
 	for _, width := range []int{20, 40, 78, 118} {
 		for _, height := range []int{1, 3, 4} {
@@ -44,20 +44,21 @@ func TestAChartLineIsExactlyTheColumnWidth(t *testing.T) {
 	}
 }
 
-// TestEveryChartCellCarriesABackground — Rule 115, et c'est le piège
-// DrawColumnsOnly : elle ne colore que les colonnes et laisse le fond du
-// terminal traverser les creux. Draw() et DrawBraille() habillent toute la
-// toile.
+// TestEveryChartCellCarriesABackground — Rule 115, and this is the
+// DrawColumnsOnly trap: it only colors the columns and lets the terminal's
+// background show through the gaps. Draw() and DrawBraille() dress the whole
+// canvas.
 //
-// Le profil de couleur est forcé le temps du test : sous `go test` il n'y a pas
-// de TTY, donc lipgloss dégrade en Ascii et supprime *tout* le style — un test
-// qui chercherait des séquences sans ça passerait avec DrawColumnsOnly aussi.
+// The color profile is forced for the duration of the test: under `go test`
+// there is no TTY, so lipgloss degrades to Ascii and strips *all* styling — a
+// test looking for escape sequences without this would pass with
+// DrawColumnsOnly too.
 func TestEveryChartCellCarriesABackground(t *testing.T) {
 	restore := lipgloss.ColorProfile()
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	t.Cleanup(func() { lipgloss.SetColorProfile(restore) })
 
-	// Une série creuse : beaucoup de zéros, donc beaucoup de creux à remplir.
+	// A sparse series: lots of zeros, so lots of gaps to fill.
 	sparse := make([]float64, 40)
 	for i := range sparse {
 		if i%8 == 0 {
@@ -71,8 +72,8 @@ func TestEveryChartCellCarriesABackground(t *testing.T) {
 				t.Errorf("line %d of a %d-high chart carries no styling, so its cells show the terminal's own background: %q",
 					i, height, line)
 			}
-			// Ce qui suit la dernière séquence doit être vide : du texte nu
-			// après elle est du fond natif qui traverse.
+			// What follows the last escape sequence must be empty: bare text
+			// after it is the native background showing through.
 			if tail := line[strings.LastIndex(line, "m")+1:]; tail != "" {
 				t.Errorf("line %d of a %d-high chart ends with %q, outside any styling", i, height, tail)
 			}
@@ -80,9 +81,9 @@ func TestEveryChartCellCarriesABackground(t *testing.T) {
 	}
 }
 
-// Et l'autre bout du même invariant : le choix entre Draw et DrawColumnsOnly ne
-// doit exister sur aucun site d'appel. Il porte sur les *appels*, pas sur le
-// texte, pour que le commentaire qui explique le piège puisse le nommer.
+// And the other end of the same invariant: the choice between Draw and
+// DrawColumnsOnly must not exist at any call site. It checks the *calls*, not
+// the text, so that the comment explaining the trap can name it.
 func TestNothingCallsDrawColumnsOnly(t *testing.T) {
 	fset := token.NewFileSet()
 	entries, err := os.ReadDir(".")
@@ -109,10 +110,10 @@ func TestNothingCallsDrawColumnsOnly(t *testing.T) {
 	}
 }
 
-// TestAChartIsRebuiltFromTheModelRatherThanKeptByTheWidget — la Rule 110 par
-// construction : il n'y a pas de Push à placer, parce que le graphe ne garde
-// rien. Deux rendus successifs du même modèle sont identiques, et un rendu ne
-// modifie pas le modèle.
+// TestAChartIsRebuiltFromTheModelRatherThanKeptByTheWidget — Rule 110 by
+// construction: there is no Push to place, because the chart keeps nothing.
+// Two successive renderings of the same model are identical, and a rendering
+// does not modify the model.
 func TestAChartIsRebuiltFromTheModelRatherThanKeptByTheWidget(t *testing.T) {
 	m, _ := loadedModel(t)
 	for i := range 50 {
@@ -131,8 +132,8 @@ func TestAChartIsRebuiltFromTheModelRatherThanKeptByTheWidget(t *testing.T) {
 	}
 }
 
-// Un graphe sans données ne trace pas une ligne plate : une ligne plate à zéro
-// se lit comme une mesure, or il n'y en a pas eu.
+// A chart with no data does not draw a flat line: a flat line at zero reads
+// as a measurement, and there was none.
 func TestAnEmptySeriesDrawsNothing(t *testing.T) {
 	for _, line := range renderChart(nil, 30, 3, 100) {
 		if strings.TrimSpace(stripANSI(line)) != "" {
@@ -141,8 +142,8 @@ func TestAnEmptySeriesDrawsNothing(t *testing.T) {
 	}
 }
 
-// Le palier décide de la hauteur du graphe, et à `standard` il ne fait pas
-// grandir la boîte : l'overview y tient au ras.
+// The tier decides the chart's height, and at `standard` it does not grow the
+// box: the overview fits flush there.
 func TestAChartDoesNotGrowTheBoxAtStandard(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -151,9 +152,9 @@ func TestAChartDoesNotGrowTheBoxAtStandard(t *testing.T) {
 	}
 	standard := len(renderHostSection(m, 60, tierStandard))
 
-	// À `wide`, la hauteur des courbes est mesurée par View() et rangée dans
-	// chartLines ; sans elle le rendu est le squelette sans courbe, qui est
-	// justement ce que fitCharts mesure.
+	// At `wide`, the curves' height is measured by View() and stored in
+	// chartLines; without it the rendering is the skeleton with no curve,
+	// which is exactly what fitCharts measures.
 	measured := m
 	measured.chartLines = 6
 	if wide := len(renderHostSection(measured, 60, tierWide)); wide <= standard {
@@ -161,9 +162,9 @@ func TestAChartDoesNotGrowTheBoxAtStandard(t *testing.T) {
 	}
 }
 
-// TestTheBareGridLeavesRoomForItsCharts — fitCharts rend la grille sans courbe,
-// constate ce qui reste et le partage. Le résultat doit tenir : c'est tout
-// l'intérêt de mesurer plutôt que de déduire de constantes.
+// TestTheBareGridLeavesRoomForItsCharts — fitCharts renders the grid with no
+// curve, observes what's left, and divides it up. The result must fit: that's
+// the whole point of measuring rather than deriving from constants.
 func TestTheBareGridLeavesRoomForItsCharts(t *testing.T) {
 	m, _ := loadedModel(t)
 
@@ -181,8 +182,8 @@ func TestTheBareGridLeavesRoomForItsCharts(t *testing.T) {
 	}
 }
 
-// Le graphe est tracé sur la largeur utile de la boîte, padding compris : un
-// graphe large de la boîte entière déborderait de deux cellules.
+// The chart is drawn over the box's usable width, padding included: a chart
+// as wide as the whole box would overflow by two cells.
 func TestTheChartFitsInsideTheBoxPadding(t *testing.T) {
 	m, _ := loadedModel(t)
 	const boxWidth = 60

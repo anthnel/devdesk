@@ -9,29 +9,29 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// ChoiceModal demande « laquelle de ces actions, ou aucune ».
+// ChoiceModal asks "which of these actions, or none".
 //
-// ConfirmModal pose une question fermée et OptionConfirmModal une question
-// fermée assortie d'une variante ; ni l'une ni l'autre ne sait proposer deux
-// actions distinctes. §3.26 en a besoin pour `K` : arrêter et redémarrer sont
-// deux gestes, pas un geste et son modificateur — un redémarrage est un arrêt
-// suivi d'un démarrage, et présenter le second comme une case à cocher du
-// premier ferait d'un choix exclusif une bascule (Rule 132).
+// ConfirmModal poses a closed question and OptionConfirmModal a closed
+// question paired with a variant; neither one can offer two distinct
+// actions. §3.26 needs this for `K`: stop and restart are two gestures, not
+// one gesture and its modifier — a restart is a stop followed by a start,
+// and presenting the second as a checkbox of the first would turn an
+// exclusive choice into a toggle (Rule 132).
 //
-// Annuler est le choix par défaut, comme « No » ailleurs (Rule 104) : ces deux
-// actions coupent les connexions en cours.
+// Cancel is the default choice, like "No" elsewhere (Rule 104): both of
+// these actions cut ongoing connections.
 type ChoiceModal struct {
 	title   string
 	message string
 	choices []string
-	// focused indexe choices, et vaut len(choices) sur Cancel — qui est donc
-	// toujours le dernier bouton, sans avoir à être dans la liste.
+	// focused indexes choices, and equals len(choices) on Cancel — which is
+	// therefore always the last button, without needing to be in the list.
 	focused int
 	width   int
 	height  int
 }
 
-// NewChoiceModal crée une modale à N actions plus Cancel, focus sur Cancel.
+// NewChoiceModal creates a modal with N actions plus Cancel, focused on Cancel.
 func NewChoiceModal(title, message string, choices ...string) *ChoiceModal {
 	return &ChoiceModal{
 		title:   title,
@@ -41,18 +41,18 @@ func NewChoiceModal(title, message string, choices ...string) *ChoiceModal {
 	}
 }
 
-// ChoiceModalPickedMsg est envoyé quand l'utilisateur choisit une action.
-// Index et Label désignent la même chose : l'index pour router, le libellé pour
-// journaliser sans avoir à retraduire.
+// ChoiceModalPickedMsg is sent when the user picks an action.
+// Index and Label refer to the same thing: the index for routing, the label
+// for logging without having to re-translate it.
 type ChoiceModalPickedMsg struct {
 	Index int
 	Label string
 }
 
-// ChoiceModalCancelledMsg est envoyé quand l'utilisateur renonce.
+// ChoiceModalCancelledMsg is sent when the user gives up.
 type ChoiceModalCancelledMsg struct{}
 
-// Update met à jour la modal.
+// Update updates the modal.
 func (m *ChoiceModal) Update(msg tea.Msg) (*ChoiceModal, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -61,9 +61,9 @@ func (m *ChoiceModal) Update(msg tea.Msg) (*ChoiceModal, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		// ←/→ entre boutons (Rule 135 — Tab est réservé aux onglets). Le
-		// parcours est borné plutôt que cyclique : Cancel doit rester le bout
-		// de la course, sinon une pression de trop ramène sur une action.
+		// ←/→ between buttons (Rule 135 — Tab is reserved for tabs). The
+		// traversal is bounded rather than cyclic: Cancel must stay the end
+		// of the run, otherwise one extra press would loop back onto an action.
 		case "left":
 			m.focused = max(m.focused-1, 0)
 			return m, nil
@@ -83,7 +83,7 @@ func (m *ChoiceModal) Update(msg tea.Msg) (*ChoiceModal, tea.Cmd) {
 	return m, nil
 }
 
-// pick rend la commande correspondant au bouton focusé.
+// pick returns the command matching the focused button.
 func (m *ChoiceModal) pick() tea.Cmd {
 	if m.focused >= len(m.choices) {
 		return cancelChoice
@@ -94,7 +94,7 @@ func (m *ChoiceModal) pick() tea.Cmd {
 
 func cancelChoice() tea.Msg { return ChoiceModalCancelledMsg{} }
 
-// View affiche la modal.
+// View renders the modal.
 func (m *ChoiceModal) View() string {
 	var b strings.Builder
 
@@ -103,8 +103,8 @@ func (m *ChoiceModal) View() string {
 	b.WriteString(m.message)
 	b.WriteString("\n\n")
 
-	// Les actions sont en "danger" et Cancel en "primary", la même répartition
-	// que Yes/No : c'est le bouton sûr qui porte la couleur calme.
+	// The actions are "danger" and Cancel is "primary", the same split as
+	// Yes/No: it's the safe button that carries the calm color.
 	buttons := make([]string, 0, len(m.choices)+1)
 	for i, choice := range m.choices {
 		buttons = append(buttons, theme.RenderButton(choice, m.focused == i, "danger"))

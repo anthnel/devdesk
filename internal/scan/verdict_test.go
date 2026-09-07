@@ -5,12 +5,13 @@ import (
 	"testing"
 )
 
-// Le verdict a trois valeurs, et c'est le fond de ce fichier : « rien trouvé »
-// et « personne n'a cherché » se ressemblent beaucoup et ne se règlent pas de la
-// même façon. Les caches et les colonnes qui affichent une icône lisent
-// SecretVerdict, et rien d'autre ne calcule ce verdict dans l'application.
+// The verdict has three values, and that is the substance of this file:
+// "nothing found" and "nobody looked" look a lot alike and are not resolved
+// the same way. Caches and the columns that render an icon read
+// SecretVerdict, and nothing else computes this verdict anywhere in the
+// application.
 
-// verdictOf renders a verdict for a failure message: nil n'a pas de %v lisible.
+// verdictOf renders a verdict for a failure message: nil has no readable %v.
 func verdictOf(v *bool) string {
 	switch {
 	case v == nil:
@@ -21,10 +22,10 @@ func verdictOf(v *bool) string {
 	return "clean"
 }
 
-// Un secret trouvé par Trivy seul est un secret. Les deux calculs que
-// SecretVerdict remplace cherchaient « une finding dont Source vaut gitleaks » —
-// or Gitleaks ne sait pas lire une image, donc tout secret d'image était invisible,
-// et un dépôt dont Trivy trouvait les seuls secrets se lisait propre.
+// A secret found by Trivy alone is a secret. The two calculations that
+// SecretVerdict replaces both looked for "a finding whose Source is
+// gitleaks" — but Gitleaks cannot read an image, so any image secret was
+// invisible, and a repo whose only secrets Trivy found read as clean.
 func TestASecretFoundByTrivyAloneIsAVerdict(t *testing.T) {
 	byStage(t, map[string]stageReply{
 		"vuln":         {stdout: `{"Results":[]}`},
@@ -45,8 +46,8 @@ func TestASecretFoundByTrivyAloneIsAVerdict(t *testing.T) {
 	}
 }
 
-// Avoir cherché et n'avoir rien trouvé est un verdict, et c'est le seul cas où
-// l'icône verte est méritée.
+// Having looked and found nothing is a verdict, and it is the only case
+// where the green icon is earned.
 func TestAStageThatLookedAndFoundNothingSaysSo(t *testing.T) {
 	byStage(t, map[string]stageReply{
 		"vuln":         {stdout: `{"Results":[]}`},
@@ -68,9 +69,9 @@ func TestAStageThatLookedAndFoundNothingSaysSo(t *testing.T) {
 	}
 }
 
-// Les trois façons de ne pas avoir cherché rendent le même « je ne sais pas ».
-// C'est le cas que le booléen ne savait pas dire : il rendait false, c'est-à-dire
-// « propre », d'une cible que personne n'a regardée.
+// The three ways of not having looked all render the same "I don't know".
+// This is the case the boolean could not express: it rendered false, i.e.
+// "clean", for a target nobody had looked at.
 func TestNothingLookedMeansNoVerdict(t *testing.T) {
 	noSecretStage := everyStage()
 	noSecretStage.EnableSecret = false
@@ -96,16 +97,16 @@ func TestNothingLookedMeansNoVerdict(t *testing.T) {
 			},
 		},
 		{
-			// Ni Gitleaks ni Trivy : aucune étape secrets ne démarre, et le scan
-			// le signale par ailleurs dans Errors (D20).
+			// Neither Gitleaks nor Trivy: no secrets stage starts, and the scan
+			// reports it elsewhere in Errors (D20).
 			name:    "neither tool is installed",
 			opts:    everyStage(),
 			deps:    noSecretTool,
 			replies: map[string]stageReply{},
 		},
 		{
-			// L'étape a tourné et a échoué. Elle n'a rien trouvé, ce qui ne veut
-			// pas dire qu'il n'y avait rien.
+			// The stage ran and failed. It found nothing, which does not mean
+			// there was nothing.
 			name: "both secret stages failed",
 			opts: everyStage(),
 			deps: everyTool(),
@@ -136,8 +137,8 @@ func TestNothingLookedMeansNoVerdict(t *testing.T) {
 	}
 }
 
-// Une étape secrets sur deux suffit : Gitleaks lit l'historique git, Trivy le
-// contenu, et l'une comme l'autre est un regard porté sur la cible.
+// One of the two secrets stages is enough: Gitleaks reads the git history,
+// Trivy the content, and either one counts as a look at the target.
 func TestOneSecretStageIsEnoughToDecide(t *testing.T) {
 	deps := everyTool()
 	deps.GitleaksAvailable = false

@@ -1,35 +1,35 @@
 package scan
 
-// Où va un finding : une seule définition, pour tout le monde.
+// Where a finding goes: one single definition, for everyone.
 //
-// Il y en avait deux, qui ne disaient pas la même chose. `CountFindings`
-// classait sur `Source` seul et envoyait tout le reste vers les compteurs de
-// sévérité ; la vue security classait sur `Source` plus `PkgName` plus `Match`.
-// Trois entrées les séparaient — un finding trivy sans `PkgName`, une source
-// inconnue, un finding trivy portant un `Match` — et chacune produisait un
-// finding compté dans la barre CVE du header mais absent de tout onglet, donc
-// invisible dans la table. Même famille que D24, D25 et D26 : deux copies d'une
-// règle, une seule mise à jour.
+// There used to be two, which did not say the same thing. `CountFindings`
+// classified on `Source` alone and sent everything else to the severity
+// counters; the security view classified on `Source` plus `PkgName` plus
+// `Match`. Three entries told them apart — a trivy finding with no
+// `PkgName`, an unknown source, a trivy finding carrying a `Match` — and
+// each produced a finding counted in the header's CVE bar but absent from
+// every tab, so invisible in the table. Same family as D24, D25 and D26:
+// two copies of one rule, one place to update.
 //
-// La classification se fait maintenant sur la source et rien d'autre, ce qui
-// demandait que les secrets Trivy en aient une à eux (`trivy-secret`) au lieu
-// d'être reconnus à la présence d'un `Match`.
+// Classification is now done on the source and nothing else, which required
+// giving Trivy secrets their own source (`trivy-secret`) instead of being
+// recognized by the presence of a `Match`.
 
-// Les sources qu'un scanner peut produire. Une source absente de cette liste
-// est un défaut de programmation, pas une entrée utilisateur : `Categorize`
-// la classe en vulnérabilité, ce qui la laisse visible dans l'onglet CVE plutôt
-// que de la faire disparaître.
+// The sources a scanner can produce. A source missing from this list is a
+// programming defect, not user input: `Categorize` classifies it as a
+// vulnerability, which keeps it visible in the CVE tab rather than making it
+// disappear.
 const (
-	SourceTrivy          = "trivy"           // vulnérabilités
-	SourceTrivySecret    = "trivy-secret"    // secrets détectés par Trivy
-	SourceTrivyLicense   = "trivy-license"   // licences
-	SourceTrivyMisconfig = "trivy-misconfig" // misconfigurations IaC
-	SourceGitleaks       = "gitleaks"        // secrets détectés par Gitleaks
-	SourcePlumber        = "plumber"         // score de sécurité de pipeline (§3.42)
+	SourceTrivy          = "trivy"           // vulnerabilities
+	SourceTrivySecret    = "trivy-secret"    // secrets detected by Trivy
+	SourceTrivyLicense   = "trivy-license"   // licenses
+	SourceTrivyMisconfig = "trivy-misconfig" // IaC misconfigurations
+	SourceGitleaks       = "gitleaks"        // secrets detected by Gitleaks
+	SourcePlumber        = "plumber"         // pipeline security score (§3.42)
 )
 
-// Category est la famille à laquelle un finding appartient : un onglet de la
-// vue des résultats, et un compteur de `Result`.
+// Category is the family a finding belongs to: a tab in the results view,
+// and a counter on `Result`.
 type Category int
 
 const (
@@ -40,10 +40,10 @@ const (
 	CategoryCIScore
 )
 
-// Categorize retourne la famille d'un finding.
+// Categorize returns the family a finding belongs to.
 //
-// C'est la seule fonction qui décide, et `Result.CountFindings` comme les
-// onglets de la vue security passent par elle.
+// It is the only function that decides, and `Result.CountFindings` as well
+// as the security view's tabs go through it.
 func Categorize(f Finding) Category {
 	switch f.Source {
 	case SourceGitleaks, SourceTrivySecret:

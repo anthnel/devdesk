@@ -11,34 +11,34 @@ import (
 	"testing"
 )
 
-// scannedTrees sont les arbres où un rendu prématuré pourrait se glisser :
-// tout `internal/`, plus le `main` du dépôt.
+// scannedTrees are the trees where a premature render could sneak in: every
+// `internal/`, plus the repo's `main`.
 var scannedTrees = []string{
 	filepath.Join("..", "..", ".."),
 }
 
-// TestNoPackageLevelVarRendersAString interdit qu'une variable de paquet soit
-// initialisée par un rendu.
+// TestNoPackageLevelVarRendersAString forbids a package-level variable from
+// being initialized by a render.
 //
-// Deux choses cassent quand ça arrive, et la seconde a coûté cher :
+// Two things break when that happens, and the second one was costly:
 //
-//  1. L'initialisation d'un paquet précède `ApplyTheme`, donc la chaîne est
-//     figée sur les couleurs du thème par défaut et ne suit plus aucun
-//     changement de thème. C'est le piège déjà documenté sur `ColorChartBg`
-//     dans `ApplyTheme`.
+//  1. A package's initialization runs before `ApplyTheme`, so the string is
+//     frozen on the default theme's colors and never follows any theme
+//     change afterward. This is the trap already documented on
+//     `ColorChartBg` in `ApplyTheme`.
 //
-//  2. Surtout : le premier rendu déclenche le `sync.Once` par lequel lipgloss
-//     mémorise **définitivement** le profil de couleur du terminal
-//     (`Renderer.ColorProfile`). Le profil se trouvait donc calculé pendant
-//     l'init des paquets, c'est-à-dire avant la ligne de `main()` qui pose
-//     `COLORTERM=truecolor` là où WSL ne l'a pas propagé. Tout le TUI
-//     retombait en ANSI256, où le fond de chaque thème est quantifié sur la
-//     palette 256 : `#1e1e2e` (default, mocha) devient le noir 232 et
-//     `#24273a` (macchiato) le bleu marine 17. Le fond ne « respectait pas le
-//     thème » parce qu'il n'en recevait jamais la couleur exacte.
+//  2. More importantly: the first render triggers the `sync.Once` by which
+//     lipgloss **permanently** memorizes the terminal's color profile
+//     (`Renderer.ColorProfile`). The profile therefore ended up computed
+//     during package init, i.e. before the line in `main()` that sets
+//     `COLORTERM=truecolor` where WSL hasn't propagated it. The whole TUI
+//     fell back to ANSI256, where each theme's background is quantized onto
+//     the 256 palette: `#1e1e2e` (default, mocha) becomes black 232 and
+//     `#24273a` (macchiato) becomes navy blue 17. The background didn't
+//     "respect the theme" because it never received its exact color.
 //
-// La correction est toujours la même et elle est gratuite : une fonction
-// plutôt qu'une `var`, pour que le premier rendu ait lieu dans `View()`.
+// The fix is always the same, and it's free: a function rather than a
+// `var`, so that the first render happens inside `View()`.
 func TestNoPackageLevelVarRendersAString(t *testing.T) {
 	for _, decl := range packageLevelVarInits(t) {
 		ast.Inspect(decl.value, func(n ast.Node) bool {
@@ -58,12 +58,12 @@ func TestNoPackageLevelVarRendersAString(t *testing.T) {
 	}
 }
 
-// renderingCall reconnaît un appel qui produit une chaîne stylée, donc qui
-// résout une couleur. Deux formes suffisent à les couvrir toutes :
-// `<style>.Render(...)`, et n'importe quelle fonction du paquet theme — ses
+// renderingCall recognizes a call that produces a styled string, and thus
+// resolves a color. Two forms are enough to cover them all:
+// `<style>.Render(...)`, and any function of the theme package — its
 // helpers (`Bg`, `BgLine`, `PadWithBg`, `EmptyLineBg`, `RenderCheckbox`…)
-// rendent tous. Les *valeurs* du paquet (`theme.ColorText`, `theme.IconOK`) ne
-// sont pas des appels et restent permises.
+// all render. The package's *values* (`theme.ColorText`, `theme.IconOK`) are
+// not calls and remain allowed.
 func renderingCall(call *ast.CallExpr) (string, bool) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
@@ -84,10 +84,9 @@ type varInit struct {
 	value ast.Expr
 }
 
-// packageLevelVarInits rend toutes les expressions d'initialisation des
-// variables déclarées au niveau d'un paquet. Les déclarations à l'intérieur
-// d'une fonction sont hors sujet : elles s'exécutent quand la fonction est
-// appelée, pas à l'init.
+// packageLevelVarInits returns every initialization expression of variables
+// declared at package level. Declarations inside a function are out of
+// scope: they run when the function is called, not at init.
 func packageLevelVarInits(t *testing.T) []varInit {
 	t.Helper()
 
@@ -95,9 +94,10 @@ func packageLevelVarInits(t *testing.T) []varInit {
 	var inits []varInit
 
 	for _, tree := range scannedTrees {
-		// La racine est résolue en absolu avant le parcours : `filepath.WalkDir`
-		// visite l'entrée de départ elle-même, et le `..` d'un chemin relatif se
-		// ferait alors prendre pour un répertoire caché par le filtre ci-dessous.
+		// The root is resolved to an absolute path before the walk:
+		// `filepath.WalkDir` visits the starting entry itself, and the `..`
+		// of a relative path would then get mistaken for a hidden directory
+		// by the filter below.
 		root, err := filepath.Abs(tree)
 		if err != nil {
 			t.Fatalf("abs %s: %v", tree, err)
@@ -107,7 +107,7 @@ func packageLevelVarInits(t *testing.T) []varInit {
 				return err
 			}
 			if d.IsDir() {
-				// Ni les dépendances, ni le git, ni les caches de build.
+				// Not the dependencies, not git, not the build caches.
 				name := d.Name()
 				if path != root && (strings.HasPrefix(name, ".") || name == "vendor" || name == "bin") {
 					return fs.SkipDir

@@ -8,24 +8,24 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 )
 
-// CheckerInterface définit l'interface pour tous les types de checkers
+// CheckerInterface defines the interface for every checker type
 type CheckerInterface interface {
 	Check(ctx context.Context, component config.ComponentConfig) ComponentStatus
 }
 
-// Checker orchestre la vérification de tous les composants
+// Checker orchestrates checking all the components
 type Checker struct {
 	timeout time.Duration
 }
 
-// NewChecker crée un nouveau checker
+// NewChecker creates a new checker
 func NewChecker(timeout time.Duration) *Checker {
 	return &Checker{
 		timeout: timeout,
 	}
 }
 
-// CheckAll vérifie tous les composants en parallèle
+// CheckAll checks all the components in parallel
 func (c *Checker) CheckAll(ctx context.Context, components []config.ComponentConfig) []ComponentStatus {
 	results := make([]ComponentStatus, len(components))
 	var wg sync.WaitGroup
@@ -42,24 +42,24 @@ func (c *Checker) CheckAll(ctx context.Context, components []config.ComponentCon
 	return results
 }
 
-// CheckOne vérifie un composant selon son type
+// CheckOne checks a component according to its type
 func (c *Checker) CheckOne(ctx context.Context, component config.ComponentConfig) ComponentStatus {
-	// Déterminer le type de checker à utiliser
+	// Determine which checker type to use
 	var checker CheckerInterface
 
 	compType := component.Type
-	// Legacy support: si URL est défini mais pas Type, déduire le type
+	// Legacy support: if URL is set but not Type, infer the type
 	if compType == "" && component.URL != "" {
 		if len(component.URL) > 8 && component.URL[:8] == "https://" {
 			compType = "https"
 		} else if len(component.URL) > 7 && component.URL[:7] == "http://" {
 			compType = "http"
 		}
-		// Utiliser Target = URL pour legacy
+		// Use Target = URL for legacy
 		if component.Target == "" {
 			component.Target = component.URL
 		}
-		// Mettre à jour le type pour que les checkers puissent l'utiliser
+		// Update the type so the checkers can use it
 		component.Type = compType
 	}
 
@@ -98,7 +98,7 @@ func (c *Checker) CheckOne(ctx context.Context, component config.ComponentConfig
 		checker = NewSSLChecker(timeout)
 
 	default:
-		// Type inconnu
+		// Unknown type
 		return ComponentStatus{
 			Name:      component.Name,
 			Type:      ComponentType(compType),

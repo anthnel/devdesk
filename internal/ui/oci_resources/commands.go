@@ -133,9 +133,9 @@ func scanOneImageCmd(job imageScanJob, opts scan.ScanOptions, sem chan struct{})
 				High:     result.Counts.High,
 				Medium:   result.Counts.Medium,
 				Low:      result.Counts.Low,
-				// Trivy lit les couches d'une image, ce que Gitleaks ne sait pas
-				// faire : c'est ce qui donne une étape secrets à un scan d'image,
-				// et donc un verdict à enregistrer.
+				// Trivy reads an image's layers, which Gitleaks cannot do: that is
+				// what gives an image scan a secrets stage, and therefore a
+				// verdict to record.
 				Sensitive: result.SecretVerdict(),
 				ScannedAt: result.EndTime,
 			}

@@ -54,9 +54,9 @@ func TestEveryViewSuppliesItsHeaderAndHelp(t *testing.T) {
 	}
 }
 
-// Le cadre du viewport appartient au routeur, et une vue qui s'en passe doit
-// dessiner les siens. Une seule le fait — le dashboard, qui est la seule vue à
-// ne pas encadrer un objet unique. Ce test tient l'exception à une exception.
+// The viewport's frame belongs to the router, and a view that opts out must
+// draw its own. Only one does — the dashboard, which is the only view that
+// does not frame a single object. This test holds the exception to one.
 func TestOnlyTheDashboardIsFrameless(t *testing.T) {
 	for _, name := range command.AllViewNames() {
 		view := command.ViewType(name)
@@ -72,11 +72,11 @@ func TestOnlyTheDashboardIsFrameless(t *testing.T) {
 	}
 }
 
-// Une vue dont la hauteur de footer dépend de sa propre taille — le dashboard
-// cache sa barre d'onglets quand il n'en reste qu'un — ne peut pas répondre
-// juste à la première question du routeur, qui arrive avant qu'elle connaisse
-// sa nouvelle taille. resize() itère pour ça, et ce test l'épingle : sans la
-// seconde passe, le viewport reste décalé d'une ligne jusqu'au resize suivant.
+// A view whose footer height depends on its own size — the dashboard hides
+// its tab bar once only one is left — cannot answer correctly to the
+// router's first question, which arrives before it knows its new size.
+// resize() iterates for this, and this test pins it down: without the
+// second pass, the viewport stays off by one line until the next resize.
 func TestResizeConvergesOnAFooterThatDependsOnTheSize(t *testing.T) {
 	app := newWithSize(testConfig(), 120, 40)
 	app.createView(command.ViewType("dashboard"))

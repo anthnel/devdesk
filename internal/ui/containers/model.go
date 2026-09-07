@@ -249,7 +249,7 @@ func containerStateStyle(c docker.Container) lipgloss.Style {
 	case "created", "restarting":
 		return lipgloss.NewStyle().Foreground(theme.ColorHighlight)
 	default:
-		// Aucune opinion : c'est la table qui pose la couleur de texte du thème.
+		// No opinion here: the table sets the theme's text color.
 		return lipgloss.NewStyle()
 	}
 }

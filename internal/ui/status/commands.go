@@ -10,24 +10,24 @@ import (
 	"github.com/anthnel/devdesk/internal/status"
 )
 
-// tickCmd retourne une commande qui tick toutes les secondes
+// tickCmd returns a command that ticks every second
 func tickCmd() tea.Cmd {
 	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 		return TickMsg(t)
 	})
 }
 
-// checkComponents lance la vérification de tous les composants (async)
+// checkComponents launches the check of all components (async)
 func checkComponents(cfg *config.Config) tea.Cmd {
 	return func() tea.Msg {
-		// Créer le checker
+		// Create the checker
 		checker := status.NewChecker(time.Duration(cfg.Status.Timeout))
 
-		// Lancer les vérifications
+		// Launch the checks
 		ctx := context.Background()
 		results := checker.CheckAll(ctx, cfg.Status.Components)
 
-		// Retourner les résultats
+		// Return the results
 		return CheckCompleteMsg{
 			Components: results,
 			Timestamp:  time.Now(),
@@ -36,10 +36,10 @@ func checkComponents(cfg *config.Config) tea.Cmd {
 	}
 }
 
-// saveComponent sauvegarde la config (Rule 110: ne modifie PAS la config, juste I/O)
+// saveComponent saves the config (Rule 110: does NOT modify the config, I/O only)
 func saveComponent(cfg *config.Config) tea.Cmd {
 	return func() tea.Msg {
-		// Sauvegarder la config (I/O uniquement, pas de modification du modèle)
+		// Save the config (I/O only, no model modification)
 		err := config.Save(cfg)
 		return ComponentSavedMsg{
 			Success: err == nil,
@@ -48,10 +48,10 @@ func saveComponent(cfg *config.Config) tea.Cmd {
 	}
 }
 
-// deleteComponent sauvegarde la config (Rule 110: ne modifie PAS la config, juste I/O)
+// deleteComponent saves the config (Rule 110: does NOT modify the config, I/O only)
 func deleteComponent(cfg *config.Config) tea.Cmd {
 	return func() tea.Msg {
-		// Sauvegarder la config (I/O uniquement, pas de modification du modèle)
+		// Save the config (I/O only, no model modification)
 		err := config.Save(cfg)
 		return ComponentDeletedMsg{
 			Success: err == nil,

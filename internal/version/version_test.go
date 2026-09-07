@@ -35,9 +35,9 @@ func TestReleased(t *testing.T) {
 	}
 }
 
-// Un `-X` est une affirmation délibérée, les métadonnées VCS un défaut. Si le
-// second écrasait le premier, un binaire de release construit depuis un tag
-// annoncerait le commit du build plutôt que la version demandée.
+// A `-X` is a deliberate assertion, the VCS metadata a fallback. If the
+// latter overwrote the former, a release binary built from a tag would
+// announce the build's commit rather than the requested version.
 func TestBuildInfoNeverOverwritesALdflag(t *testing.T) {
 	info := Info{Version: "v0.2.0", Commit: "deadbee", Date: "2026-01-01T00:00:00Z"}
 	info.fillFromBuildInfo(&debug.BuildInfo{
@@ -97,8 +97,8 @@ func TestAModuleVersionAnswersForGoInstall(t *testing.T) {
 	}
 }
 
-// Un champ vide serait rendu tel quel dans l'écran About, où une valeur absente
-// doit se lire comme absente plutôt que comme un blanc.
+// An empty field would be rendered as-is in the About screen, where a missing
+// value must read as missing rather than as a blank.
 func TestGetLeavesNoFieldEmpty(t *testing.T) {
 	info := Get()
 

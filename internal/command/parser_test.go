@@ -5,7 +5,7 @@ import (
 )
 
 func TestParse_AllValidCommands(t *testing.T) {
-	// Vérifier que toutes les commandes valides fonctionnent
+	// Verify that all valid commands work
 	tests := []struct {
 		name     string
 		input    string
@@ -76,7 +76,7 @@ func TestRetiredSpellingsNoLongerParse(t *testing.T) {
 func TestGetAliases(t *testing.T) {
 	aliases := GetAliases()
 
-	// Vérifier que s est dans les alias
+	// Verify that s is among the aliases
 	if aliases["s"] != "status" {
 		t.Errorf("GetAliases() should include s -> status, got: %s", aliases["s"])
 	}

@@ -80,11 +80,11 @@ func componentStatusStyle(c status.ComponentStatus) lipgloss.Style {
 }
 
 // certStatusStyle is the same for the Certificates tab, on the certificate
-// vocabulary its icon now speaks (status.CertState). Elle ne peut pas être
-// componentStatusStyle : `to renew` n'a pas de StatusType à donner à
-// theme.StatusStyle, et un certificat périmé y prendrait la couleur de celui
-// qu'on n'a pas pu lire — la couleur cesserait de séparer ce que l'icône vient
-// de séparer.
+// vocabulary its icon now speaks (status.CertState). It cannot be
+// componentStatusStyle: `to renew` has no StatusType to give
+// theme.StatusStyle, and an expired certificate would there take on the
+// color of one that couldn't be read — the color would stop separating what
+// the icon has just separated.
 func certStatusStyle(c status.ComponentStatus) lipgloss.Style {
 	return theme.CertStateStyle(string(status.CertStateOf(c)))
 }
@@ -100,17 +100,17 @@ func monitorTypeCell(c status.ComponentStatus) string {
 // sslColumns describes the Certificates tab. Nothing sorts: the tab has never
 // offered `.`, and an expiry table read in config order is what the user wrote.
 //
-// **L'ordre groupe les colonnes par nature.** Les trois qui suivent leur
-// contenu — Name, Host, Issuer — sont à gauche et se partagent le surplus ;
-// les trois de largeur fixe sont packées à droite, où un glyphe et deux dates
-// occupent exactement ce qu'ils déclarent. `Issuer` était en queue, après deux
-// dates, donc la seule colonne extensible de la moitié droite tirait la ligne
-// vers un côté que rien n'y obligeait.
+// **The order groups columns by nature.** The three that follow their
+// content — Name, Host, Issuer — are on the left and share the surplus; the
+// three fixed-width ones are packed on the right, where a glyph and two
+// dates take up exactly what they declare. `Issuer` used to be at the tail,
+// after two dates, so the only extensible column of the right half was
+// pulling the row toward a side nothing required of it.
 //
-// Conséquence voulue sur la dégradation : `drop` retire la colonne Optional la
-// plus à droite d'abord, ce qui est maintenant `Expires` et non `Issuer`. Les
-// deux disent la même échéance, l'une en absolu et l'autre en relatif, et
-// `Days Left` reste — donc c'est la redondante qui part la première.
+// Intended consequence on degradation: `drop` removes the rightmost
+// Optional column first, which is now `Expires` rather than `Issuer`. Both
+// state the same deadline, one absolute and the other relative, and
+// `Days Left` stays — so it's the redundant one that leaves first.
 func sslColumns() []datatable.Column[status.ComponentStatus] {
 	return []datatable.Column[status.ComponentStatus]{
 		{

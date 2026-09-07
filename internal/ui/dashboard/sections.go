@@ -14,15 +14,15 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// section is one titled box of the dashboard. Les sections sont déclarées dans
-// une table plutôt qu'en autant de méthodes render*Section : c'est ce qui rend
-// la règle « une section déclare sa hauteur et la remplit » vérifiable pour
-// toutes d'un coup (§3.19 phase 1).
+// section is one titled box of the dashboard. Sections are declared in a
+// table rather than as that many render*Section methods: that's what makes
+// the rule "a section declares its height and fills it" checkable for all
+// of them at once (§3.19 phase 1).
 type section struct {
 	title string
-	// render returns the box's content lines. Il en retourne le *même nombre*
-	// quel que soit l'état des données — c'est le contrat que
-	// TestEverySectionKeepsItsHeightWhateverItsState vérifie.
+	// render returns the box's content lines. It returns the *same count* of
+	// them whatever the state of the data — that's the contract
+	// TestEverySectionKeepsItsHeightWhateverItsState checks.
 	render func(m Model, width int, t tier) []string
 }
 
@@ -32,10 +32,10 @@ const labelWidth = 11
 // overviewSections returns the four boxes of the Overview tab, in reading
 // order: the two text boxes first, then the two that carry a chart.
 //
-// Le regroupement est par question posée, pas par source de données — d'où
-// deux fusions : workspaces rejoint GitLab (l'explorer crée, workspaces
-// réconcilie : un seul sujet vu des deux bouts) et les outils rejoignent Host
-// (ce sont les binaires de cette machine, mesurés par la même sonde).
+// The grouping is by question asked, not by data source — hence two
+// merges: workspaces joins GitLab (the explorer creates, workspaces
+// reconciles: one subject seen from both ends) and the tools join Host
+// (they are this machine's binaries, measured by the same probe).
 func overviewSections(forgeType string) []section {
 	return []section{
 		{title: theme.ForgeIcon(forgeType) + " Code", render: renderCodeSection},
@@ -45,9 +45,9 @@ func overviewSections(forgeType string) []section {
 	}
 }
 
-// resourceSections returns the boxes of the Resources tab — inline in the third
-// column at `wide`. Elles n'existent que parce qu'aucune vue ne les montre :
-// il n'y a pas de :host, et :containers montre un conteneur, pas la machine.
+// resourceSections returns the boxes of the Resources tab — inline in the
+// third column at `wide`. They exist only because no view shows them: there
+// is no :host, and :containers shows a container, not the machine.
 func resourceSections() []section {
 	return []section{
 		{title: theme.IconArrowDown + " Network", render: renderNetworkSection},
@@ -57,7 +57,7 @@ func resourceSections() []section {
 
 // hostLabel names the measurement point rather than the machine. gopsutil reads
 // the OS dk runs on, while docker stats reads inside the Docker Desktop VM:
-// les deux sont vrais et ne s'additionnent pas.
+// both are true and they do not add up.
 func hostLabel() string {
 	switch runtime.GOOS {
 	case "windows":
@@ -71,9 +71,9 @@ func hostLabel() string {
 
 func renderCodeSection(m Model, width int, t tier) []string {
 	v := m.vocab()
-	// L'icône suit la valeur : la colonne des valeurs commence alors au même
-	// endroit sur toutes les lignes, ce qu'une icône en tête décale d'un cran
-	// sur les seules lignes qui en portent une.
+	// The icon follows the value: the value column then starts at the same
+	// place on every line, which an icon up front would shift by one cell
+	// only on the lines that carry one.
 	sessionLine := theme.DimStyle.Render("not connected") + theme.Bg("  ") + theme.DimStyle.Render(theme.IconError)
 	if m.shared.IsAuthenticated {
 		sessionLine = theme.PrimaryColorStyle.Bold(true).Render(m.shared.CurrentUser.Username) +
@@ -103,19 +103,19 @@ func renderCodeSection(m Model, width int, t tier) []string {
 		}
 	}
 
-	// À `wide`, la boîte devient deux arbres, et la séparation est celle des
-	// deux moitiés de §3.16 : l'explorer crée ce qui n'existe pas — la forge —
-	// et workspaces réconcilie ce qui existe — le disque. Chacune a sa question,
-	// donc chacune a sa racine, et les faits de la forge cessent de flotter
-	// au-dessus d'un arbre auquel ils n'appartiennent pas.
+	// At `wide`, the box becomes two trees, and the split is §3.16's two
+	// halves: the explorer creates what doesn't exist — the forge — and
+	// workspaces reconciles what does — the disk. Each has its own question,
+	// so each has its own root, and the forge's facts stop floating above a
+	// tree they don't belong to.
 	//
-	// Les compteurs y deviennent des branches : « 0 assigned  0 to review » sur
-	// une ligne demande de relire la phrase pour savoir lequel est lequel, deux
-	// nœuds le disent en les alignant.
-	// Le qualificatif est dans le libellé, pas dans la valeur : « issues 0
-	// assigned » et « MR assigned  0 » disaient la même chose de deux façons,
-	// et la colonne des valeurs ne portait alors pas partout la même sorte de
-	// chose. Les trois compteurs se lisent maintenant en colonne.
+	// The counters become branches there: "0 assigned  0 to review" on one
+	// line requires rereading the sentence to know which is which, two
+	// nodes say it by lining them up.
+	// The qualifier is in the label, not in the value: "issues 0 assigned"
+	// and "MR assigned  0" said the same thing two different ways, and the
+	// value column then didn't carry the same kind of thing everywhere. The
+	// three counters now read in a column.
 	pathWidth := theme.BoxContentWidth(width) - treeValueColumn
 	return []string{
 		theme.Bg(v.Name),
@@ -132,51 +132,53 @@ func renderCodeSection(m Model, width int, t tier) []string {
 	}
 }
 
-// treeGap separates two trees stacked in one box. Le coude du dernier nœud dit
-// où un arbre finit, mais pas qu'un autre commence : sans cette ligne les deux
-// racines se lisent comme deux nœuds de plus.
+// treeGap separates two trees stacked in one box. The last node's elbow
+// says where one tree ends, but not that another begins: without this
+// line, the two roots read as two more nodes.
 func treeGap() string { return theme.Bg("") }
 
 // treeSize renders what the workspaces occupy.
 //
-// **C'est la taille de l'arborescence, pas le remplissage du volume.** Ce que
-// ces dépôts coûtent est ce sur quoi on peut agir — en supprimer un rend la
-// place — là où le volume mélange les workspaces à tout le reste de la machine.
-// La boîte Host garde la place libre, qui est l'autre question.
+// **This is the tree's size, not the volume's fill level.** What these
+// repositories cost is what you can act on — deleting one frees the space —
+// whereas the volume mixes the workspaces in with the rest of the machine.
+// The Host box keeps the free space, which is the other question.
 //
-// Elle se paie : c'est le seul chiffre du dashboard dont la mesure parcourt
-// l'arborescence entière. Voir metrics.Size et Model.measuringSize.
+// It comes at a cost: it's the only dashboard figure whose measurement
+// walks the entire tree. See metrics.Size and Model.measuringSize.
 func treeSize(size metrics.TreeSize) string {
 	if !size.OK {
 		return unknownValue()
 	}
 	out := theme.Bg(humanBytes(size.Bytes))
 	if size.Partial {
-		// Un dossier refusé fait sous-estimer le total, et un total
-		// sous-estimé sans mention se lit comme une mesure.
+		// A directory that denies access makes the total an underestimate,
+		// and an underestimated total with no mention reads as a
+		// measurement.
 		out += theme.DimStyle.Render("  partial")
 	}
 	return out
 }
 
-// forgeHost strips the scheme off the configured forge URL: c'est l'hôte qui
-// identifie l'instance, et `https://` le dit de toutes.
+// forgeHost strips the scheme off the configured forge URL: it's the host
+// that identifies the instance, and `https://` is true of all of them.
 func forgeHost(rawURL string) string {
 	host := strings.TrimPrefix(strings.TrimPrefix(rawURL, "https://"), "http://")
 	return strings.TrimSuffix(host, "/")
 }
 
-// treeLabelWidth aligns the values of a tree's nodes, indent included. Il est
-// dimensionné sur le plus long libellé de l'application — `issues assigned`,
-// quinze cellules — parce qu'un libellé qui déborde ne casse pas l'alignement de
-// sa seule ligne : il ouvre une seconde colonne de valeurs dans la boîte.
-// TestEveryTreeNodeAlignsItsValue le vérifie sur toutes les sections.
+// treeLabelWidth aligns the values of a tree's nodes, indent included. It
+// is sized on the application's longest label — `issues assigned`, fifteen
+// cells — because a label that overflows doesn't just break the alignment
+// of its own line: it opens a second value column in the box.
+// TestEveryTreeNodeAlignsItsValue checks it against every section.
 const treeLabelWidth = 17
 
-// treeStemWidth is what IconTreeBranch and IconTreeEnd occupy: two box-drawing
-// characters and the space after them. Il est écrit plutôt que mesuré parce
-// qu'une constante ne peut pas appeler lipgloss.Width, et
-// TestATreeRowLinesUpWithItsBranches le vérifie contre le rendu réel.
+// treeStemWidth is what IconTreeBranch and IconTreeEnd occupy: two
+// box-drawing characters and the space after them. It is written rather
+// than measured because a constant cannot call lipgloss.Width, and
+// TestATreeRowLinesUpWithItsBranches checks it against the actual
+// rendering.
 const treeStemWidth = 3
 
 // treeValueColumn is where a tree node's value begins.
@@ -185,18 +187,17 @@ const treeValueColumn = treeStemWidth + treeLabelWidth - 1
 // narrowTreeLabelWidth is the same column inside a **split** box, where each
 // tree gets half the width.
 //
-// Elle est dimensionnée sur `reclaimable`, onze cellules, le plus long libellé
-// des trois boîtes concernées. La colonne large y coûterait trois cellules de
-// valeur de plus, sur les onze que laisse une demi-boîte au palier `wide` le
-// plus étroit (180 colonnes) — de quoi tronquer `3 days ago`.
+// It is sized on `reclaimable`, eleven cells, the longest label of the
+// three boxes concerned. The wide column would cost three more value cells
+// there, out of the eleven a half-box leaves at the narrowest `wide` tier
+// (180 columns) — enough to truncate `3 days ago`.
 const (
 	narrowTreeLabelWidth  = 14
 	narrowTreeValueColumn = treeStemWidth + narrowTreeLabelWidth - 1
 )
 
 // branch renders one node of a tree. `last` picks the corner, so the run of
-// nodes has a visible end — sans lui, deux arbres qui se suivent se lisent
-// comme un seul.
+// nodes has a visible end — without it, two trees in a row read as one.
 func branch(last bool, label, value string) string {
 	return branchAt(treeLabelWidth, last, label, value)
 }
@@ -221,24 +222,24 @@ func branchAt(column int, last bool, label, value string) string {
 
 // sideBySide lays two runs of lines out as two columns of one box.
 //
-// La coupe est au milieu, et chaque moitié est **tronquée** plutôt que laissée
-// déborder : une ligne trop longue à gauche décalerait toute la colonne de
-// droite, et une ligne trop longue à droite déborderait de la boîte, ce que
-// RenderTitledBox couperait de toute façon — mais après avoir cassé
-// l'alignement (Rule 116).
+// The cut is in the middle, and each half is **truncated** rather than let
+// to overflow: a line too long on the left would shift the whole right
+// column, and a line too long on the right would overflow the box, which
+// RenderTitledBox would cut anyway — but after breaking the alignment (Rule
+// 116).
 //
-// L'assemblage est fait ligne à ligne avec PadWithBg et jamais par
-// lipgloss.JoinHorizontal, qui insère des espaces nus laissant passer le fond
-// natif du terminal (Rule 115).
+// The assembly is done line by line with PadWithBg and never with
+// lipgloss.JoinHorizontal, which inserts bare spaces that let the
+// terminal's native background show through (Rule 115).
 func sideBySide(left, right []string, width int) []string {
 	half := max(width/2, 1)
 	out := make([]string, max(len(left), len(right)))
 	for i := range out {
 		var l, r string
 		if i < len(left) {
-			// La gouttière est retirée de la colonne de gauche, pas ajoutée à
-			// droite : sans elle, une valeur qui remplit sa moitié touche le
-			// coude du premier nœud d'à côté et les deux se lisent ensemble.
+			// The gutter is subtracted from the left column, not added to the
+			// right: without it, a value that fills its half touches the
+			// elbow of the first node next to it and the two read as one.
 			l = theme.Truncate(left[i], half-columnGutter)
 		}
 		if i < len(right) {
@@ -252,8 +253,9 @@ func sideBySide(left, right []string, width int) []string {
 // columnGutter is the blank kept between two columns of one box.
 const columnGutter = 2
 
-// padRuns lengthens a run with blank lines. Le padding est **vide de contenu**,
-// pas paddé en largeur : sideBySide pose le fond de la ligne entière (Rule 115).
+// padRuns lengthens a run with blank lines. The padding is **empty of
+// content**, not padded to width: sideBySide lays down the whole line's
+// background (Rule 115).
 func padRuns(run []string, height int) []string {
 	out := make([]string, 0, max(height, len(run)))
 	out = append(out, run...)
@@ -276,9 +278,9 @@ func renderHealthSection(m Model, width int, t tier) []string {
 	}
 	expiry := nearestExpiry(m.filterComponents(true), m.loadingServices, true)
 
-	// Six lignes, et pas sept : la ligne vide qui séparait la supervision de la
-	// sécurité a payé l'échéance de certificat. Une septième ligne ici ferait
-	// déborder l'overview entier.
+	// Six lines, not seven: the blank line that used to separate monitoring
+	// from security paid for the certificate expiry. A seventh line here
+	// would overflow the whole overview.
 	total := m.posture.Total()
 	scanned, critical, oldest := unknownValue(), unknownValue(), unknownValue()
 	if m.posture.Read {
@@ -300,13 +302,13 @@ func renderHealthSection(m Model, width int, t tier) []string {
 
 // healthColumns splits the box in two, and the split is by **subject rather
 // than by kind**: supervision on the left with the repositories it watches over,
-// certificates on the right with the images. Les quatre arbres tenaient en
-// colonne à dix-neuf lignes, ce qui faisait de Health la plus haute boîte de sa
-// rangée et rognait d'autant les courbes des trois autres.
+// certificates on the right with the images. The four trees used to fit in one
+// column at nineteen lines, which made Health the tallest box in its row and
+// cropped the other three boxes' curves by that much.
 //
-// Elles sont rendues séparément de leur assemblage : c'est ce qui permet de les
-// vérifier une par une, une fois collées les nœuds des deux arbres partagent une
-// ligne.
+// They are rendered separately from their assembly: that's what lets them
+// be checked one by one, since once joined the nodes of both trees share a
+// line.
 func healthColumns(m Model) (left, right []string) {
 	unscannedImages, imagesMeasured := m.unscannedImages()
 	unscannedRepos, reposMeasured := m.unscannedRepositories()
@@ -314,14 +316,15 @@ func healthColumns(m Model) (left, right []string) {
 	monitors := append([]string{theme.Bg("Monitors")},
 		statusBranches(m.filterComponents(false), m.loadingServices)...)
 
-	// L'échéance pend de Certs plutôt que de flotter au-dessus : c'est un fait
-	// sur les certificats, et il n'a de sens que là. Le nom du certificat est
-	// tombé avec le passage en deux colonnes — la demi-boîte ne le tient pas —
-	// et c'est :status qui possède la liste nommée.
+	// The expiry hangs from Certs rather than floating above: it's a fact
+	// about the certificates, and it only makes sense there. The
+	// certificate's name dropped along with the split into two columns —
+	// the half-width box doesn't hold it — and it's :status that owns the
+	// named list.
 	//
-	// Ce nœud de plus est aussi ce qui décale les deux colonnes : sans le
-	// rattrapage ci-dessous, `Repositories` démarrerait une ligne au-dessus de
-	// `Images` et les deux arbres du bas se liraient en escalier.
+	// This extra node is also what shifts the two columns: without the
+	// catch-up below, `Repositories` would start a line above `Images` and
+	// the two bottom trees would read like a staircase.
 	certs := m.filterComponents(true)
 	certTree := append([]string{theme.Bg("Certs")},
 		certBranches(certs, m.loadingServices, nearestExpiry(certs, m.loadingServices, false))...)
@@ -336,12 +339,12 @@ func healthColumns(m Model) (left, right []string) {
 	return left, right
 }
 
-// statusBranches renders one node per monitor state. Les trois états sont
-// toujours là, y compris à zéro : une branche absente se lit comme un état
-// qu'on ne surveille pas, et c'est l'inverse de ce qu'un zéro veut dire.
+// statusBranches renders one node per monitor state. All three states are
+// always there, including at zero: a missing branch reads as a state that
+// isn't monitored, which is the opposite of what a zero means.
 //
-// Les certificats ne passent plus par ici — voir certBranches, et
-// status.CertState pour ce qui les sépare.
+// Certificates no longer go through here — see certBranches, and
+// status.CertState for what tells them apart.
 func statusBranches(components []status.ComponentStatus, loading bool) []string {
 	nodes := func(up, down, errValue string) []string {
 		return []string{
@@ -369,17 +372,17 @@ func statusBranches(components []status.ComponentStatus, loading bool) []string 
 // certBranches renders one node per certificate state, then the nearest
 // expiry.
 //
-// **Le vocabulaire n'est pas celui des moniteurs, et c'était le défaut.** Un
-// certificat rendu sous `up` / `down` / `error` mettait dans la même case un
-// certificat périmé, un qui expire la semaine prochaine et un qu'on n'a pas pu
-// lire — SSLChecker donnant `ERROR` aux trois — pendant que `up` nommait
-// « joignable » ce qui veut dire « valide ». Les quatre états de
-// status.CertState les séparent, et la seule ligne qui appelle une action —
-// `to renew` — cesse d'être noyée dans les deux autres.
+// **The vocabulary is not the monitors', and that was the bug.** A
+// certificate rendered under `up` / `down` / `error` put an expired
+// certificate, one expiring next week, and one that couldn't be read —
+// SSLChecker gives `ERROR` to all three — into the same bucket, while `up`
+// named "reachable" which means "valid". The four states of
+// status.CertState tell them apart, and the one line that calls for action —
+// `to renew` — stops being drowned in the other two.
 //
-// L'échéance reste un nœud à elle : `to renew` dit combien, elle dit quand, et
-// deux chiffres sur une ligne demandent de retenir lequel est lequel (c'est ce
-// que postureBranches a déjà tranché).
+// The expiry stays its own node: `to renew` says how many, it says when,
+// and two figures on one line require remembering which is which (that's
+// what postureBranches already settled).
 func certBranches(certs []status.ComponentStatus, loading bool, expiry string) []string {
 	nodes := func(valid, toRenew, expired, errValue string) []string {
 		return []string{
@@ -408,9 +411,9 @@ func certBranches(certs []status.ComponentStatus, loading bool, expiry string) [
 }
 
 // certGlyph and certAlert read one state's glyph and colour from the theme
-// rather than naming them here: `:status` rend la même colonne, et deux tables
-// de correspondance finiraient par diverger sur la seule qui compte — celle qui
-// sépare `expired` de `error`.
+// rather than naming them here: `:status` renders the same column, and two
+// lookup tables would eventually diverge on the one that matters — the one
+// that tells `expired` apart from `error`.
 func certGlyph(state status.CertState) string {
 	return theme.CertStateStyle(string(state)).Render(theme.CertStateIcon(string(state)))
 }
@@ -419,8 +422,8 @@ func certAlert(n int, state status.CertState) string {
 	return alertCount(n, theme.CertStateIcon(string(state)), theme.CertStateStyle(string(state)))
 }
 
-// nothingConfigured says a tree watches nothing, and keeps the height it would
-// have had — une boîte qui rétrécit décale toute sa rangée.
+// nothingConfigured says a tree watches nothing, and keeps the height it
+// would have had — a box that shrinks shifts its entire row.
 func nothingConfigured(height int) []string {
 	out := []string{narrowBranch(true, "configured", theme.DimStyle.Render("none"))}
 	for range height - 1 {
@@ -429,16 +432,16 @@ func nothingConfigured(height int) []string {
 	return out
 }
 
-// alertCount renders one non-nominal state's tally. Le glyphe est celui de
-// l'état — croix pour DOWN, alerte pour ERROR, sablier pour un renouvellement
-// qui vient, le vocabulaire de :status — y compris à zéro : une coche sur la
-// ligne « down » disait « tout va bien » à l'endroit même où l'on cherche
-// combien sont tombés, et c'est l'état de la ligne qu'une icône nomme, pas son
-// compte.
+// alertCount renders one non-nominal state's tally. The glyph is the
+// state's own — a cross for DOWN, an alert for ERROR, an hourglass for a
+// coming renewal, :status's vocabulary — including at zero: a check mark on
+// the "down" line said "everything is fine" right where one is looking for
+// how many are down, and it's the line's state an icon names, not its
+// count.
 //
-// C'est la couleur qui porte le compte : éteinte à zéro, parce qu'une croix
-// rouge sur « 0 down » apprend la couleur au lecteur au lieu de l'alerter.
-// L'icône reste à droite du chiffre, comme partout ailleurs.
+// It's the color that carries the count: dimmed at zero, because a red
+// cross on "0 down" teaches the reader the color instead of alerting them.
+// The icon stays to the right of the number, as everywhere else.
 func alertCount(n int, glyph string, style lipgloss.Style) string {
 	if n == 0 {
 		return countValue(0) + theme.Bg("  ") + theme.DimStyle.Render(glyph)
@@ -448,14 +451,14 @@ func alertCount(n int, glyph string, style lipgloss.Style) string {
 
 // postureBranches renders one family's tally, one figure per node.
 //
-// Chaque chiffre a sa branche plutôt que de partager une ligne : deux nombres
-// côte à côte demandent de retenir lequel est lequel, et c'est précisément le
-// chiffre qu'on lit en diagonale.
+// Each figure gets its own branch rather than sharing a line: two numbers
+// side by side require remembering which is which, and that's exactly the
+// figure read in a hurry.
 //
-// `unscanned` a pris la place des HIGH parce qu'il se décide : il nomme les
-// cibles sur lesquelles la boîte entière ne dit rien, et la réponse est de
-// lancer un scan. Un HIGH de plus ne changeait aucune décision que la CRITICAL
-// au-dessus n'avait déjà prise.
+// `unscanned` took HIGH's place because it's actionable: it names the
+// targets the whole box says nothing about, and the answer is to run a
+// scan. One more HIGH changed no decision the CRITICAL above hadn't already
+// made.
 func postureBranches(p posture, side postureSide, unscanned int, measured bool) []string {
 	if !p.Read {
 		return []string{
@@ -477,16 +480,16 @@ func postureBranches(p posture, side postureSide, unscanned int, measured bool) 
 
 // secretsValue renders how many targets carry a secret.
 //
-// Ce sont des cibles et non des secrets : deux dépôts sont deux décisions,
-// quarante fuites dans le même n'en font qu'une, et c'est l'inventaire (:sec)
-// qui détaille.
+// These are targets and not secrets: two repositories are two decisions,
+// forty leaks in the same one are only one, and it's the inventory (:sec)
+// that breaks it down.
 //
-// `-` quand aucun verdict n'est connu, ce qui n'est pas une précaution
-// théorique : `scan.enable_secret` coupée, un outil absent, ou des entrées
-// écrites avant que le scan d'image ait une étape secrets — dans les trois cas
-// un `0` dirait « aucune cible n'en porte » de cibles que personne n'a
-// regardées. Un verdict connu sur une partie seulement suffit à afficher le
-// compte : il est alors un plancher, et un plancher non nul se décide.
+// `-` when no verdict at all is known, which is not a theoretical
+// precaution: `scan.enable_secret` turned off, a missing tool, or entries
+// written before the image scan had a secrets step — in all three cases a
+// `0` would say "no target carries any" for targets nobody has looked at. A
+// verdict known on only part of the set is enough to display the count: it's
+// then a floor, and a nonzero floor is actionable.
 func secretsValue(side postureSide) string {
 	if side.SecretsKnown == 0 {
 		return unknownValue()
@@ -494,9 +497,9 @@ func secretsValue(side postureSide) string {
 	return severityCount(side.Secrets)
 }
 
-// unscannedValue renders a coverage gap. Il ne prend pas le rouge de
-// severityCount : une cible jamais scannée n'a pas de CRITICAL, elle a une
-// inconnue, et les deux ne se règlent pas de la même façon.
+// unscannedValue renders a coverage gap. It does not take severityCount's
+// red: a never-scanned target has no CRITICAL, it has an unknown, and the
+// two are not fixed the same way.
 func unscannedValue(n int, measured bool) string {
 	if !measured {
 		return unknownValue()
@@ -504,8 +507,8 @@ func unscannedValue(n int, measured bool) string {
 	return countValue(n)
 }
 
-// severityCount colours a finding count only when there is one to find. Un zéro
-// en rouge apprend la couleur au lecteur au lieu de l'alerter.
+// severityCount colours a finding count only when there is one to find. A
+// zero in red teaches the reader the color instead of alerting them.
 func severityCount(n int) string {
 	if n == 0 {
 		return theme.DimStyle.Render("0")
@@ -513,11 +516,11 @@ func severityCount(n int) string {
 	return theme.StatusErrorStyle.Render(fmt.Sprintf("%d", n))
 }
 
-// scanAge renders how stale the oldest scan is. Un compteur de CRITICAL vieux
-// de trois semaines compte sur du code qui n'existe plus.
-// `never` plutôt que « nothing scanned » : sous un nœud appelé `oldest` la
-// phrase longue répète le libellé, et une demi-boîte au palier `wide` le plus
-// étroit ne tient que onze cellules de valeur.
+// scanAge renders how stale the oldest scan is. A CRITICAL count three
+// weeks old is counting code that no longer exists.
+// `never` rather than "nothing scanned": under a node called `oldest` the
+// long sentence repeats the label, and a half-width box at the narrowest
+// `wide` tier only holds eleven value cells.
 func scanAge(side postureSide) string {
 	if side.Targets == 0 {
 		return theme.DimStyle.Render("never")
@@ -528,18 +531,18 @@ func scanAge(side postureSide) string {
 	return theme.Bg(theme.TimeAgo(side.Oldest))
 }
 
-// nearestExpiry renders the deadline that comes first — la seule des N dates
-// qui demande une décision.
+// nearestExpiry renders the deadline that comes first — the only one of
+// the N dates that calls for a decision.
 //
-// **Elle ne regarde que ce qui court encore.** Un certificat déjà périmé n'a
-// plus de compte à rebours, et le rendre en « -2 days » demandait au lecteur de
-// traduire un nombre négatif en un fait que le nœud `expired` énonce déjà. Rien
-// devant, donc, se lit `-` : c'est ce que la ligne a toujours voulu dire quand
-// elle n'a pas de date à donner.
+// **It only looks at what is still running.** A certificate already expired
+// has no countdown left, and rendering it as "-2 days" required the reader
+// to translate a negative number into a fact the `expired` node already
+// states. Nothing ahead, then, reads `-`: that's what the line has always
+// meant when it has no date to give.
 //
-// `named` est faux dans une colonne partagée : une demi-boîte ne tient pas
-// « 58 days  registry.example.com », et c'est le nombre de jours qui décide de
-// quelque chose. La liste nommée appartient à :status, qui la possède déjà.
+// `named` is false in a shared column: a half-width box does not hold "58
+// days  registry.example.com", and it's the number of days that's
+// actionable. The named list belongs to :status, which already owns it.
 func nearestExpiry(certs []status.ComponentStatus, loading, named bool) string {
 	if loading {
 		return unknownValue()
@@ -553,8 +556,8 @@ func nearestExpiry(certs []status.ComponentStatus, loading, named bool) string {
 		switch status.CertStateOf(c) {
 		case status.CertValid, status.CertToRenew:
 		default:
-			// Périmé ou illisible : les deux ont leur nœud, et ni l'un ni
-			// l'autre n'a d'échéance à venir.
+			// Expired or unreadable: both have their node, and neither has an
+			// expiry still ahead.
 			continue
 		}
 		if soonest == nil || *c.SSLDaysLeft < *soonest.SSLDaysLeft {
@@ -576,14 +579,14 @@ func nearestExpiry(certs []status.ComponentStatus, loading, named bool) string {
 	return value + theme.DimStyle.Render("  "+soonest.Name)
 }
 
-// chartsPerBox is what a chart-bearing box holds — CPU and RAM, RX and TX. Les
-// trois boîtes à graphes tiennent la même rangée, donc la hauteur libre se
-// partage entre les deux courbes d'une seule d'entre elles.
+// chartsPerBox is what a chart-bearing box holds — CPU and RAM, RX and TX.
+// The three chart-bearing boxes share the same row, so the free height is
+// split between the two curves of just one of them.
 const chartsPerBox = 2
 
-// Bornes : en dessous de 3 lignes le braille n'a pas de quoi montrer sa
-// résolution verticale, et au-delà de 12 un graphe de pourcentage n'apprend
-// plus rien de la hauteur qu'il prend.
+// Bounds: below 3 lines braille has no room to show its vertical
+// resolution, and beyond 12 a percentage chart tells nothing more for the
+// height it takes.
 const (
 	minBrailleHeight = 3
 	maxChartHeight   = 12
@@ -591,14 +594,14 @@ const (
 
 // chartHeight is how many lines a chart gets.
 //
-// À `standard` elle vaut 1 : la grille y tient tout juste, donc un graphe prend
-// la place d'une ligne vide au lieu de s'ajouter.
+// At `standard` it's 1: the grid barely fits there, so a chart takes the
+// place of a blank line rather than adding to it.
 //
-// À `wide` elle est **mesurée**, pas déduite de constantes : View() rend
-// d'abord la grille sans aucune courbe, constate ce qui reste, et repasse le
-// résultat par `chartLines`. Des constantes décrivant la hauteur des textes
-// étaient justes le jour où elles ont été écrites et fausses dès qu'une boîte a
-// gagné une ligne — ce qui est arrivé à Health le jour même.
+// At `wide` it is **measured**, not derived from constants: View() first
+// renders the grid with no curve at all, observes what's left, and passes
+// the result back through `chartLines`. Constants describing the text
+// boxes' height were right the day they were written and wrong the moment
+// a box gained a line — which happened to Health the very same day.
 func (m Model) chartHeight(t tier) int {
 	if t != tierWide {
 		return 1
@@ -610,50 +613,52 @@ func (m Model) chartHeight(t tier) int {
 }
 
 func renderHostSection(m Model, width int, t tier) []string {
-	// La moyenne de charge n'est affichée nulle part : sur Windows elle
-	// retourne {0,0,0} avec err=nil, donc une valeur indiscernable d'une
-	// donnée, et un zéro se lit comme « au repos ».
+	// The load average is displayed nowhere: on Windows it returns
+	// {0,0,0} with err=nil, hence a value indistinguishable from real data,
+	// and a zero reads as "idle".
 	cpu, ram := unknownValue(), unknownValue()
 	if m.host.OK {
-		// Le pourcentage porte ce qui le rend lisible : 40 % sur quatre cœurs
-		// et 40 % sur trente-deux ne décrivent pas la même machine, et 92 %
-		// de mémoire ne dit pas s'il reste deux gigaoctets ou deux cents.
+		// The percentage carries what makes it readable: 40% on four cores
+		// and 40% on thirty-two don't describe the same machine, and 92% of
+		// memory doesn't say whether two gigabytes are left or two
+		// hundred.
 		cpu = percentValue(m.host.CPUPercent) + coreSuffix(m.host.Cores)
 		ram = percentValue(m.host.MemPercent) +
 			theme.DimStyle.Render("  "+humanBytes(m.host.MemUsed)+" of "+humanBytes(m.host.MemTotal))
 	}
 
-	// CPU puis sa courbe, RAM puis la sienne : les trois boîtes à graphes
-	// suivent le même ordre, donc leurs courbes tombent sur les mêmes lignes
-	// d'une colonne à l'autre. C'est ce qui les rend comparables d'un coup
-	// d'œil, et une ligne de détail intercalée le défaisait.
+	// CPU then its curve, RAM then its own: the three chart-bearing boxes
+	// follow the same order, so their curves land on the same lines from
+	// one column to another. That's what makes them comparable at a
+	// glance, and an inserted detail line undid it.
 	lines := []string{row("CPU", cpu)}
 	lines = append(lines, chartOf(m, width, t, func(s metrics.HostSample) float64 { return s.CPUPercent }, 100)...)
 	lines = append(lines, row("RAM", ram))
 	lines = append(lines, chartOf(m, width, t, func(s metrics.HostSample) float64 { return s.MemPercent }, 100)...)
 
-	// Il n'y a **pas** de ligne Disk ici : la place libre était le premier fait
-	// de la boîte Storage, mot pour mot. Cette boîte mesure ce que le processeur
-	// et la mémoire font *maintenant* ; le disque ne bouge pas à la seconde et
-	// appartient à celle qui le détaille.
+	// There is **no** Disk line here: free space was Storage's first fact,
+	// word for word. This box measures what the CPU and memory do *right
+	// now*; the disk doesn't move by the second and belongs to the box
+	// that breaks it down.
 	return append(lines, toolsBlock(m)...)
 }
 
 // toolsBlock says whether this machine can do the work, and names what it
 // cannot.
 //
-// Un compteur — « 4 of 5 available » — pose la question qu'il ne répond pas :
-// lequel manque, et donc quoi installer. La liste complète, elle, coûte cinq
-// lignes pour dire cinq fois « oui » sur une machine correctement outillée.
-// D'où les deux formes : une ligne quand tout est là, un nœud par manquant
-// sinon. C'est le seul bloc du dashboard dont la hauteur suit ses données, et
-// il peut se le permettre — un outil installé ne se désinstalle pas entre deux
-// rafraîchissements, là où un compte change à chaque tour.
+// A counter — "4 of 5 available" — raises the question it doesn't answer:
+// which one is missing, and hence what to install. The full list, on the
+// other hand, costs five lines to say "yes" five times on a properly
+// equipped machine. Hence the two forms: one line when everything is there,
+// one node per missing tool otherwise. It's the only dashboard block whose
+// height follows its data, and it can afford to — an installed tool doesn't
+// get uninstalled between two refreshes, whereas a count changes every
+// round.
 //
-// Les manquants se lisent contre knownTools et non contre ce qui a été
-// détecté : un outil absent de la détection est absent tout court, et un
-// dénominateur qui rétrécit avec elle rendrait « tout est là » d'une machine
-// qui a perdu une sonde.
+// The missing ones are read against knownTools and not against what was
+// detected: a tool absent from detection is simply absent, and a
+// denominator that shrinks along with it would render "everything is
+// there" for a machine that lost a probe.
 func toolsBlock(m Model) []string {
 	if m.loadingTools {
 		return []string{row("Tools", unknownValue())}
@@ -664,9 +669,9 @@ func toolsBlock(m Model) []string {
 		return []string{row("Tools", theme.Bg("all available  ")+theme.StatusOKStyle.Render(theme.IconOK))}
 	}
 
-	// Les noms gardent leur casse déclarée là où les autres nœuds sont en
-	// minuscules : `running` et `images` sont des mots, `Gitleaks` est ce qu'il
-	// faut taper pour l'installer.
+	// The names keep their declared case where the other nodes are
+	// lowercase: `running` and `images` are words, `Gitleaks` is what needs
+	// to be typed to install it.
 	lines := []string{theme.Bg("Missing tools")}
 	for i, name := range missing {
 		lines = append(lines, narrowBranch(i == len(missing)-1, name,
@@ -704,17 +709,17 @@ func coreSuffix(cores int) string {
 	return theme.DimStyle.Render(fmt.Sprintf("  %d%s", cores, unit))
 }
 
-// chartOf renders one host series at the palier's chart height. Les
-// pourcentages sont tracés sur une échelle fixe de 0 à 100 : sans elle, une
-// machine au repos rend un graphe aussi haut qu'une machine saturée, parce que
-// l'échelle suivrait le maximum observé.
+// chartOf renders one host series at the tier's chart height. Percentages
+// are drawn on a fixed 0-to-100 scale: without it, an idle machine renders
+// a chart as tall as a saturated machine, because the scale would follow
+// the observed maximum.
 func chartOf(m Model, width int, t tier, pick func(metrics.HostSample) float64, maxValue float64) []string {
 	return chartBlock(m, series(m.samples, pick), width, t, maxValue)
 }
 
-// chartBlock is a chart followed by one empty line. Le fond du graphe est plus
-// clair que celui de la boîte, donc sans cette ligne la zone touche la valeur
-// qui la suit et les deux se lisent comme un seul bloc.
+// chartBlock is a chart followed by one empty line. The chart's background
+// is lighter than the box's, so without this line the area touches the
+// value that follows it and the two read as a single block.
 func chartBlock(m Model, values []float64, width int, t tier, maxValue float64) []string {
 	lines := renderChart(values, theme.BoxContentWidth(width), m.chartHeight(t), maxValue)
 	return append(lines, theme.Bg(""))
@@ -728,25 +733,26 @@ func renderDockerSection(m Model, width int, t tier) []string {
 		d := m.dockerStats
 		containers = countValue(d.Running+d.Stopped+d.Paused) + theme.Bg(" total")
 		if t != tierWide {
-			// Sans l'arbre, le total seul ne dit pas combien tournent.
+			// Without the tree, the total alone doesn't say how many are
+			// running.
 			containers += theme.Bg("  ") + countValue(d.Running) + theme.Bg(" running")
 		}
 	}
 
-	// Les **comptes** seulement : les tailles sont dans la boîte Storage, qui
-	// répond à « combien de place » là où celle-ci répond à « combien il y en
-	// a ». Elles étaient dans les deux, sous deux formes différentes.
+	// The **counts** only: the sizes are in the Storage box, which answers
+	// "how much space" where this one answers "how many are there". They
+	// used to be in both, in two different forms.
 
-	// CPU et RAM d'abord, dans le même ordre que Host et Network : les trois
-	// boîtes à graphes se lisent alors sur les mêmes lignes, et les courbes se
-	// comparent sans chercher laquelle est laquelle. Les comptes suivent.
+	// CPU and RAM first, in the same order as Host and Network: the three
+	// chart-bearing boxes then read on the same lines, and the curves
+	// compare without hunting for which is which. The counts follow.
 	//
-	// `docker stats` tourne sur son horloge propre (≈ 2 s par appel mesuré).
-	// Les deux parts sont ramenées à ce que le daemon possède, donc elles vont
-	// de 0 à 100 comme celles de Host — c'est ce que la mise en page promet en
-	// les posant sur les mêmes lignes. Le suffixe dit contre quoi : `docker
-	// info` compte les cœurs de la VM sous Windows et macOS, pas ceux de la
-	// machine, donc ce n'est pas forcément le chiffre de la boîte Host.
+	// `docker stats` runs on its own clock (≈ 2 s per call, measured). Both
+	// shares are scaled to what the daemon holds, so they run from 0 to 100
+	// like Host's — that's what the layout promises by putting them on the
+	// same lines. The suffix says against what: `docker info` counts the
+	// VM's cores on Windows and macOS, not the machine's, so it's not
+	// necessarily the Host box's figure.
 	lines := []string{row("CPU", dockerPercent(m,
 		func(a docker.Aggregate) float64 { return a.CPUPercent }, coreSuffix(m.dockerAgg.Cores)))}
 	lines = append(lines, chartBlock(m, m.dockerSamples, width, t, 100)...)
@@ -755,24 +761,25 @@ func renderDockerSection(m Model, width int, t tier) []string {
 	lines = append(lines, chartBlock(m, m.dockerMemSamples, width, t, 100)...)
 
 	if t != tierWide {
-		// Sans la seconde colonne, les deux arbres s'empilent : les conteneurs
-		// se réduisent alors à leur ligne de tête, qui porte déjà le compte des
-		// actifs, et l'inventaire garde sa racine — c'est elle qui dit que les
-		// trois chiffres suivants parlent tous de la même chose.
+		// Without the second column, the two trees stack: the containers
+		// then shrink down to their heading line, which already carries the
+		// running count, and the inventory keeps its root — it's the root
+		// that says the following three figures are all about the same
+		// thing.
 		return append(append(lines, rowAt(narrowTreeValueColumn, "Containers", containers)),
 			resourceTree(m)...)
 	}
 
-	// Sous les courbes, deux colonnes : l'arbre des conteneurs à gauche,
-	// l'inventaire à droite. Ils font quatre lignes chacun, donc la boîte se
-	// remplit sans qu'aucune moitié attende l'autre.
+	// Under the curves, two columns: the container tree on the left, the
+	// inventory on the right. They each come to four lines, so the box
+	// fills up without either half waiting on the other.
 	left, right := dockerColumns(m, containers)
 	return append(lines, sideBySide(left, right, theme.BoxContentWidth(width))...)
 }
 
-// dockerColumns builds the two runs the Docker box ends on. Un nœud par état :
-// « 9 total  2 running » laisse le lecteur soustraire pour savoir combien
-// dorment, et ne dit rien des conteneurs en pause.
+// dockerColumns builds the two runs the Docker box ends on. One node per
+// state: "9 total  2 running" leaves the reader to subtract to know how
+// many are asleep, and says nothing about paused containers.
 func dockerColumns(m Model, containers string) (left, right []string) {
 	left = []string{
 		rowAt(narrowTreeValueColumn, "Containers", containers),
@@ -783,14 +790,14 @@ func dockerColumns(m Model, containers string) (left, right []string) {
 	return left, resourceTree(m)
 }
 
-// resourceTree lists what the daemon holds besides its containers. Les trois
-// comptes pendent d'une racine plutôt que de flotter côte à côte : ce sont des
-// objets du même daemon, et les aligner sous un mot dit lequel, là où trois
-// lignes de premier niveau se lisaient comme trois sujets.
+// resourceTree lists what the daemon holds besides its containers. The
+// three counts hang from one root rather than floating side by side: they
+// are objects of the same daemon, and aligning them under one word says
+// which, where three top-level lines used to read as three subjects.
 //
-// Networks y entre pour la même raison qu'images et volumes en font partie :
-// c'est une ressource que :oci gère et que le dashboard ne comptait pas — la
-// seule des trois que `docker system df` ignore, faute d'octets à déclarer.
+// Networks is included for the same reason images and volumes are: it's a
+// resource :oci manages that the dashboard wasn't counting — the only one
+// of the three `docker system df` ignores, for lack of bytes to report.
 func resourceTree(m Model) []string {
 	return []string{
 		theme.Bg("Resources"),
@@ -849,9 +856,9 @@ func dockerPercent(m Model, pick func(docker.Aggregate) float64, suffix string) 
 }
 
 func renderNetworkSection(m Model, width int, t tier) []string {
-	// net.IOCounters est cumulatif : le premier échantillon n'a rien à
-	// soustraire, et une interface réinitialisée fait reculer le compteur. Dans
-	// les deux cas il n'y a pas de débit — `-`, pas `0`.
+	// net.IOCounters is cumulative: the first sample has nothing to
+	// subtract from, and a reset interface makes the counter go backwards.
+	// In both cases there is no throughput — `-`, not `0`.
 	rx, tx := unknownValue(), unknownValue()
 	if m.host.HasRate {
 		rx = theme.Bg(humanBytes(uint64(m.host.NetRXPerSec))) + theme.DimStyle.Render("/s")
@@ -863,8 +870,8 @@ func renderNetworkSection(m Model, width int, t tier) []string {
 		samples = countValue(n) + theme.DimStyle.Render(" samples")
 	}
 
-	// Le débit n'a pas de plafond connu : l'échelle reste automatique, contre
-	// une échelle fixe de 0 à 100 pour un pourcentage.
+	// Throughput has no known ceiling: the scale stays automatic, against a
+	// fixed 0-to-100 scale for a percentage.
 	lines := []string{row("RX", rx)}
 	lines = append(lines, chartOf(m, width, t, func(s metrics.HostSample) float64 { return s.NetRXPerSec }, 0)...)
 	lines = append(lines, row("TX", tx))
@@ -873,14 +880,13 @@ func renderNetworkSection(m Model, width int, t tier) []string {
 }
 
 // knownTools names the tools DevDesk detects, in the order detectTools builds
-// them. C'est **elle** qui décide ce qui manque, jamais la liste détectée : un
-// outil que la détection ne rend plus est absent, et le compter hors du
-// dénominateur le ferait disparaître au lieu de le signaler.
+// them. It's **this list** that decides what's missing, never the detected
+// one: a tool detection no longer returns is simply absent, and counting it
+// out of the denominator would make it disappear instead of flagging it.
 //
-// Elle doit rester en phase avec detectTools (model.go). Les noms sont des
-// constantes parce que les deux listes ont déjà divergé une fois (§3.47) :
-// deux littéraux pour un seul nom ne peuvent que dériver ; une constante ne
-// le peut pas.
+// It must stay in sync with detectTools (model.go). The names are constants
+// because the two lists have already diverged once (§3.47): two literals
+// for a single name can only drift apart; a constant cannot.
 const (
 	toolDocker   = "Docker"
 	toolTrivy    = "Trivy"
@@ -891,17 +897,18 @@ const (
 
 var knownTools = []string{toolDocker, toolTrivy, toolGitleaks, toolPlumber, toolGit}
 
-// renderStorageSection answers one question — **où part la place** — in two
-// trees: the volume the workspaces live on, and what Docker holds on it.
+// renderStorageSection answers one question — **where does the space go**
+// — in two trees: the volume the workspaces live on, and what Docker holds
+// on it.
 //
-// Le chemin des workspaces n'y est plus : la boîte Code le porte déjà, sous
-// l'arbre qui en parle. Répété ici il occupait la première ligne pour ne rien
-// ajouter.
+// The workspaces path is no longer here: the Code box already carries it,
+// under the tree that talks about it. Repeated here it took up the first
+// line to add nothing.
 //
-// Les tailles Docker viennent de `system df`, dont la vue ne lisait jusqu'ici
-// que le récupérable — les trois autres colonnes étaient analysées et jetées.
-// La boîte Docker (VM) garde les comptes, celle-ci prend les octets : c'était
-// dans les deux, sous deux formes.
+// The Docker sizes come from `system df`, of which the view used to only
+// read the reclaimable figure — the other three columns were parsed and
+// thrown away. The Docker (VM) box keeps the counts, this one takes the
+// bytes: it used to be in both, in two forms.
 func renderStorageSection(m Model, _ int, _ tier) []string {
 	volume := []string{
 		theme.Bg("Volume"),
@@ -919,9 +926,9 @@ func renderStorageSection(m Model, _ int, _ tier) []string {
 		narrowBranch(true, "reclaimable", reclaimable(m)),
 	}
 
-	// Les deux arbres s'**empilent**, à tous les paliers : ils font dix lignes
-	// à eux deux, ce qui est la hauteur de leurs voisines de rangée, et les
-	// mettre côte à côte laisserait la moitié basse de la boîte vide.
+	// The two trees **stack**, at every tier: they come to ten lines
+	// together, which is the height of their row neighbors, and putting
+	// them side by side would leave the bottom half of the box empty.
 	return append(append(volume, treeGap()), dockerTree...)
 }
 
@@ -933,10 +940,10 @@ func diskField(m Model, pick func(metrics.DiskUsage) string) string {
 	return theme.Bg(pick(m.wsDisk))
 }
 
-// diskUsedField carries the percentage next to the bytes: c'est le pourcentage
-// qui dit s'il faut faire quelque chose, et les octets de combien. Les
-// parenthèses disent lequel des deux est la mesure : `290 GB  86 %` se lit
-// comme deux faits côte à côte, `290 GB (86 %)` comme un seul.
+// diskUsedField carries the percentage next to the bytes: it's the
+// percentage that says whether to act, and the bytes say how much. The
+// parentheses say which of the two is the measurement: `290 GB  86 %`
+// reads as two facts side by side, `290 GB (86 %)` as one.
 func diskUsedField(m Model) string {
 	if !m.wsDisk.OK {
 		return unknownValue()
@@ -960,8 +967,8 @@ func ociSize(m Model, pick func(shared.OCIStats) string) string {
 	}
 }
 
-// reclaimable is the one figure of the box that names an action. Docker en
-// place et rien à récupérer n'est pas Docker absent.
+// reclaimable is the one figure of the box that names an action. Docker
+// present with nothing to reclaim is not Docker absent.
 func reclaimable(m Model) string {
 	switch {
 	case m.loadingOCI:
@@ -975,42 +982,42 @@ func reclaimable(m Model) string {
 	}
 }
 
-// Value states (§3.19). Trois états, pas deux : `-` n'est pas `0`, et une
-// source indisponible garde ses libellés au lieu de les remplacer.
+// Value states (§3.19). Three states, not two: `-` is not `0`, and an
+// unavailable source keeps its labels instead of replacing them.
 //
-// Ce sont des fonctions, et pas des `var`, pour deux raisons dont la seconde
-// touchait toute l'application :
+// These are functions, not `var`s, for two reasons, the second of which
+// affected the whole application:
 //
-//   - un `Render()` au niveau du paquet s'exécute à l'init, donc avant que
-//     `ApplyTheme` n'ait chargé le thème du contexte : les deux chaînes
-//     restaient figées sur les couleurs du thème par défaut. C'est le même
-//     piège que celui déjà documenté sur `ColorChartBg` dans `ApplyTheme`.
-//   - surtout, ce premier rendu déclenche le `sync.Once` par lequel lipgloss
-//     mémorise le profil de couleur du terminal, **définitivement**. Il était
-//     donc calculé pendant l'init des paquets, c'est-à-dire avant la ligne de
-//     `main()` qui pose `COLORTERM=truecolor` quand WSL ne l'a pas propagé.
-//     Tout le TUI retombait en ANSI256, où le fond de chaque thème est
-//     quantifié sur la palette 256 : `#1e1e2e` (default, mocha) devient le
-//     noir 232 et `#24273a` (macchiato) le bleu marine 17. Le fond ne
-//     « respectait pas le thème » parce qu'il n'en recevait jamais la couleur
-//     exacte.
+//   - a package-level `Render()` runs at init, hence before `ApplyTheme` has
+//     loaded the context's theme: both strings stayed frozen on the default
+//     theme's colors. It's the same trap already documented on
+//     `ColorChartBg` in `ApplyTheme`.
+//   - more importantly, this first render triggers the `sync.Once` by which
+//     lipgloss memorizes the terminal's color profile, **permanently**. It
+//     was therefore computed during package init, i.e. before the line in
+//     `main()` that sets `COLORTERM=truecolor` when WSL hasn't propagated
+//     it. The whole TUI then fell back to ANSI256, where each theme's
+//     background is quantized onto the 256 palette: `#1e1e2e` (default,
+//     mocha) becomes black 232 and `#24273a` (macchiato) becomes navy blue
+//     17. The background wasn't "respecting the theme" because it never
+//     received its exact color.
 //
-// Rendre à la demande suffit à corriger les deux : le premier rendu a alors
-// lieu dans `View()`, longtemps après `main()`.
+// Rendering on demand is enough to fix both: the first render then happens
+// in `View()`, long after `main()`.
 func unknownValue() string     { return theme.DimStyle.Render("-") }
 func unavailableValue() string { return theme.DimStyle.Render("n/a") }
 
-// row renders one "label  value" line, aligned on labelWidth. Un libellé aussi
-// long que la colonne garde quand même son espace : sans lui, "Docker root" et
-// sa valeur se touchent et se lisent comme un seul mot.
+// row renders one "label  value" line, aligned on labelWidth. A label as
+// long as the column still keeps its space: without it, "Docker root" and
+// its value would touch and read as a single word.
 func row(label, value string) string {
 	return rowAt(labelWidth, label, value)
 }
 
-// rowAt is the same line on a chosen value column — ce dont une boîte à arbres
-// a besoin : ses nœuds alignent leurs valeurs sur treeValueColumn, et une ligne
-// de premier niveau qui garde labelWidth ouvrirait une seconde colonne de
-// valeurs dans la même boîte.
+// rowAt is the same line on a chosen value column — what a tree-bearing
+// box needs: its nodes line up their values on treeValueColumn, and a
+// top-level line that kept labelWidth would open a second value column in
+// the same box.
 func rowAt(column int, label, value string) string {
 	width := max(column, len(label)+1)
 	return theme.Bg(label+strings.Repeat(" ", width-len(label))) + value
@@ -1039,9 +1046,10 @@ func countValue(n int) string {
 	return theme.DimStyle.Render("0")
 }
 
-// percentValue renders a measured percentage. Il n'est jamais coloré par
-// seuil : un seuil est un réglage, il vivrait dans la vue configuration, et une
-// couleur inventée ici dirait « attention » sans que personne l'ait demandé.
+// percentValue renders a measured percentage. It is never colored by
+// threshold: a threshold is a setting, it would live in the configuration
+// view, and a color invented here would say "watch out" without anyone
+// having asked for it.
 func percentValue(pct float64) string {
 	return theme.Bg(fmt.Sprintf("%.0f", pct)) + theme.DimStyle.Render(" %")
 }
@@ -1074,13 +1082,13 @@ func statusSummary(components []status.ComponentStatus) string {
 }
 
 // certSummary is the same line for certificates, on their own four states
-// (status.CertState). Elle n'a de place que pour des glyphes — les mots sont
-// dans l'arbre du palier `wide`, qui est la seule moitié de boîte assez large
-// pour eux — mais les quatre en ont un distinct, ce qui est précisément ce qui
-// manquait : périmé et à renouveler partageaient l'alerte de « error ».
+// (status.CertState). It only has room for glyphs — the words are in the
+// `wide`-tier tree, which is the only half-box wide enough for them — but
+// all four get a distinct one, which is exactly what was missing: expired
+// and to-renew used to share "error"'s alert.
 //
-// Le sablier est le seul orange : c'est le seul état qui demande une action et
-// laisse le temps de la prendre.
+// The hourglass is the only orange one: it's the only state that calls for
+// action and still leaves time to take it.
 func certSummary(certs []status.ComponentStatus) string {
 	if len(certs) == 0 {
 		return theme.DimStyle.Render("none configured")
@@ -1101,9 +1109,9 @@ func certSummary(certs []status.ComponentStatus) string {
 }
 
 // tally appends one non-nominal state to a summary line, and nothing at all
-// when it is empty. Le résumé tient sur une ligne partagée avec son libellé :
-// un « 0 » par état la remplirait de ce qui ne s'est pas produit, là où
-// l'arbre — qui a une ligne par état — les garde tous.
+// when it is empty. The summary fits on one line shared with its label: a
+// "0" per state would fill it with what didn't happen, whereas the tree —
+// which has one line per state — keeps them all.
 func tally(n int, glyph string, style lipgloss.Style) string {
 	if n == 0 {
 		return ""
@@ -1113,17 +1121,17 @@ func tally(n int, glyph string, style lipgloss.Style) string {
 
 // truncatePath keeps a path's tail, which is the half that identifies it.
 //
-// Elle compte en **cellules et en runes**, pas en octets : `len(path)` mesure
-// des octets, donc sur `C:\Users\José\dépôts` la coupe tombait au milieu d'un
-// caractère accentué et rendait de l'UTF-8 invalide (`…\xa9\projet`). Un
-// Windows français en produit à chaque `Téléchargements`.
+// It counts in **cells and runes**, not bytes: `len(path)` measures
+// bytes, so on `C:\Users\José\dépôts` the cut landed in the middle of an
+// accented character and produced invalid UTF-8 (`…\xa9\projet`). A French
+// Windows produces one on every `Téléchargements`.
 func truncatePath(path string, width int) string {
 	if width < 4 || lipgloss.Width(path) <= width {
 		return path
 	}
 
 	runes := []rune(path)
-	kept := countKept(runes, width-1) // l'ellipse occupe une cellule
+	kept := countKept(runes, width-1) // the ellipsis occupies one cell
 	return "…" + string(runes[len(runes)-kept:])
 }
 

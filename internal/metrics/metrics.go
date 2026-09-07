@@ -1,11 +1,11 @@
-// Package metrics samples the machine DevDesk runs on. Il possède
-// l'échantillonnage et le calcul des débits ; l'affichage appartient à la vue.
+// Package metrics samples the machine DevDesk runs on. It owns
+// the sampling and the rate computation; display belongs to the view.
 //
-// Rien ici ne garde d'état : un débit se calcule entre deux relevés cumulatifs,
-// et le relevé précédent **voyage avec le message** plutôt que d'être stocké
-// dans le package. Un `Cmd` Bubble Tea ne doit modifier aucun état partagé
-// (Rule 110), et deux échantillonnages qui se chevauchent sur un état de
-// package produiraient un débit calculé contre le mauvais instant.
+// Nothing here keeps state: a rate is computed between two cumulative
+// readings, and the previous reading **travels with the message** rather
+// than being stored in the package. A Bubble Tea `Cmd` must not modify any
+// shared state (Rule 110), and two samplings overlapping on package state
+// would produce a rate computed against the wrong instant.
 package metrics
 
 import "time"
@@ -16,9 +16,9 @@ type HostSample struct {
 
 	CPUPercent float64
 	// Cores is the logical core count, which a percentage needs to be read:
-	// 40 % sur quatre cœurs et 40 % sur trente-deux ne décrivent pas la même
-	// machine. Il ne change pas d'un échantillon à l'autre et n'est compté
-	// qu'une fois.
+	// 40% on four cores and 40% on thirty-two do not describe the same
+	// machine. It does not change from one sample to the next and is
+	// counted only once.
 	Cores      int
 	MemPercent float64
 	MemUsed    uint64
@@ -26,7 +26,7 @@ type HostSample struct {
 
 	// NetRXPerSec and NetTXPerSec are bytes per second, and mean nothing unless
 	// HasRate is true: net.IOCounters is cumulative, so the first reading after
-	// a start has nothing to subtract from. La vue affiche `-`, pas `0`.
+	// a start has nothing to subtract from. The view displays `-`, not `0`.
 	NetRXPerSec float64
 	NetTXPerSec float64
 	HasRate     bool
@@ -35,8 +35,8 @@ type HostSample struct {
 	OK bool
 }
 
-// Counters is the cumulative network reading a rate is measured against. Elle
-// est rendue avec l'échantillon et repassée au suivant.
+// Counters is the cumulative network reading a rate is measured against. It
+// is returned with the sample and passed back in for the next one.
 type Counters struct {
 	RX    uint64
 	TX    uint64
@@ -46,15 +46,15 @@ type Counters struct {
 
 // rate returns the per-second deltas between two cumulative readings.
 //
-// Il refuse trois situations plutôt que d'inventer un nombre :
-//   - pas de relevé précédent — le premier échantillon n'a pas de débit ;
-//   - un compteur qui recule — une interface réinitialisée, un rollover : la
-//     soustraction donnerait un débit négatif, qui n'existe pas ;
-//   - un intervalle nul ou négatif — une division par zéro, ou une horloge qui
-//     a reculé.
+// It refuses three situations rather than inventing a number:
+//   - no previous reading — the first sample has no rate;
+//   - a counter that goes backward — a reset interface, a rollover: the
+//     subtraction would give a negative rate, which does not exist;
+//   - a zero or negative interval — a division by zero, or a clock that
+//     went backward.
 //
-// Dans les trois cas l'échantillon est *abandonné*, pas rendu à zéro : zéro est
-// une mesure, et celle-ci n'a pas eu lieu.
+// In all three cases the sample is *dropped*, not rendered as zero: zero is
+// a measurement, and this one did not happen.
 func rate(prev, cur Counters) (rx, tx float64, ok bool) {
 	if !prev.Valid || !cur.Valid {
 		return 0, 0, false
@@ -71,10 +71,10 @@ func rate(prev, cur Counters) (rx, tx float64, ok bool) {
 
 // DiskUsage is one filesystem's occupancy.
 //
-// `Used` est repris tel quel du système plutôt que calculé en `Total - Free` :
-// sur ext4 les blocs réservés à root ne sont ni libres ni utilisés, donc les
-// deux ne sont pas égaux, et un octet affiché à côté d'un pourcentage doit
-// venir du même comptage que lui.
+// `Used` is taken as-is from the system rather than computed as
+// `Total - Free`: on ext4 the blocks reserved for root are neither free nor
+// used, so the two are not equal, and a byte count displayed next to a
+// percentage must come from the same accounting as it.
 type DiskUsage struct {
 	Path        string
 	Free        uint64
@@ -84,15 +84,15 @@ type DiskUsage struct {
 	OK          bool
 }
 
-// TreeSize is how much disk one directory tree occupies — ce que les dépôts
-// clonés coûtent, et non le remplissage du volume qui les porte. C'est celle
-// des deux sur laquelle on peut agir.
+// TreeSize is how much disk one directory tree occupies — what cloned
+// repositories cost, not the fill level of the volume that carries them.
+// It is the one of the two that can be acted on.
 type TreeSize struct {
 	Path  string
 	Bytes uint64
-	// Partial is true when part of the tree could not be read. Un dossier
-	// refusé fait sous-estimer le total, et un total sous-estimé sans mention
-	// se lit comme une mesure.
+	// Partial is true when part of the tree could not be read. A refused
+	// directory makes the total an underestimate, and an underestimated
+	// total without a mention of it reads as an exact measurement.
 	Partial bool
 	OK      bool
 }

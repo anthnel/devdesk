@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// Le nœud `secrets` des deux arbres de Health. Il compte des **cibles** et non
-// des secrets : deux dépôts sont deux décisions, quarante fuites dans le même
-// n'en font qu'une, et c'est :sec qui détaille.
+// The `secrets` node of Health's two trees. It counts **targets** and not
+// secrets: two repositories are two decisions, forty leaks in the same one
+// are only one, and it's :sec that breaks it down.
 
 func secretsFound() *bool { v := true; return &v }
 func secretsClean() *bool { v := false; return &v }
@@ -41,10 +41,10 @@ func TestTheHealthBoxCountsTheTargetsThatCarryASecret(t *testing.T) {
 	}
 }
 
-// Le cas que le booléen ne savait pas dire. `scan.enable_secret` coupée, un
-// outil absent, ou des entrées écrites avant que le scan d'image ait une étape
-// secrets : dans les trois cas le cache ne porte aucun verdict, et `0` se
-// lirait « aucune cible n'en porte » de cibles que personne n'a regardées.
+// The case the boolean couldn't say. `scan.enable_secret` turned off, a
+// missing tool, or entries written before the image scan had a secrets
+// step: in all three cases the cache carries no verdict, and `0` would read
+// "no target carries any" for targets nobody has looked at.
 func TestAnInventoryWithNoVerdictAtAllPrintsNoCount(t *testing.T) {
 	m, _ := loadedModel(t)
 	m = feed(t, m, PostureMsg{Posture: postureWith(
@@ -73,9 +73,9 @@ func TestAnInventoryWithNoVerdictAtAllPrintsNoCount(t *testing.T) {
 	}
 }
 
-// Un verdict connu sur une partie seulement suffit à afficher le compte : il est
-// alors un plancher, et un plancher non nul se décide. C'est ce qui distingue
-// « on ne sait rien » de « on sait déjà qu'il y en a un ».
+// A verdict known on only part of the set is enough to display the count:
+// it's then a floor, and a nonzero floor is actionable. That's what tells
+// apart "we know nothing" from "we already know there is at least one".
 func TestAPartiallyKnownInventoryStillReportsWhatItKnows(t *testing.T) {
 	m, _ := loadedModel(t)
 	m = feed(t, m, PostureMsg{Posture: postureWith(
@@ -91,8 +91,8 @@ func TestAPartiallyKnownInventoryStillReportsWhatItKnows(t *testing.T) {
 	}
 }
 
-// Une cible sans verdict n'entre dans aucun des deux décomptes : ni porteuse,
-// ni innocentée.
+// A target with no verdict enters neither count: neither carrying, nor
+// cleared.
 func TestATargetWithoutAVerdictCountsNeitherWay(t *testing.T) {
 	var side postureSide
 	side.add(0, secretsFound(), day(1))
@@ -110,8 +110,8 @@ func TestATargetWithoutAVerdictCountsNeitherWay(t *testing.T) {
 	}
 }
 
-// Total() sert les paliers trop étroits pour deux arbres ; il doit sommer les
-// deux moitiés du verdict comme il somme les CRITICAL.
+// Total() serves the tiers too narrow for two trees; it must sum both
+// halves of the verdict just as it sums the CRITICALs.
 func TestTheTotalFoldsBothFamiliesVerdicts(t *testing.T) {
 	p := postureWith([]*bool{secretsFound(), nil}, []*bool{secretsFound(), secretsClean()})
 

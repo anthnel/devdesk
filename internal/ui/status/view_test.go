@@ -332,10 +332,10 @@ func TestTableCellsCarryNoANSISequences(t *testing.T) {
 	}
 }
 
-// sslCell reads a cell by the title of its column. Un indice écrit ici serait
-// une seconde déclaration de l'ordre des colonnes, et c'est celle qui pourrit
-// en silence : le réordonnancement de §3.54 aurait fait passer ces tests en
-// comparant les mauvaises cellules si les noms n'y étaient pas.
+// sslCell reads a cell by the title of its column. An index written here
+// would be a second declaration of the column order, and it's the kind that
+// rots silently: the reordering of §3.54 would have made these tests pass
+// while comparing the wrong cells if the names weren't there.
 func sslCell(t *testing.T, row []string, title string) string {
 	t.Helper()
 	for i, col := range sslColumns() {
@@ -400,10 +400,10 @@ func TestUnknownComponentTypeRendersAsUnknown(t *testing.T) {
 // An unrecognised status must still render its own name rather than an empty
 // cell, so an unexpected checker result stays visible.
 //
-// **Le certificat n'en est plus : sa cellule ne lit plus StatusType du tout.**
-// Elle lit `SSLDaysLeft`, dont l'absence veut dire « rien n'a pu être lu » quel
-// que soit le statut porté à côté — et c'est ce qu'elle doit dire ici, plutôt
-// que de recopier un mot que la colonne d'à côté n'explique pas.
+// **The certificate is no longer one: its cell no longer reads StatusType at
+// all.** It reads `SSLDaysLeft`, whose absence means "nothing could be read"
+// whatever the status carried alongside it — and that's what it should say
+// here, rather than echoing a word that the adjacent column doesn't explain.
 func TestUnknownStatusFallsBackToItsName(t *testing.T) {
 	m := newTestModel(t)
 	m = feed(t, m, CheckCompleteMsg{
@@ -422,9 +422,9 @@ func TestUnknownStatusFallsBackToItsName(t *testing.T) {
 	}
 }
 
-// La colonne sépare désormais les quatre états d'un certificat, et c'est le
-// point : `ERROR` recouvrait aussi bien un certificat périmé qu'un qui expire
-// dans six jours, donc l'icône était la même pour les deux (D64).
+// The column now separates a certificate's four states, and that's the
+// point: `ERROR` used to cover both an expired certificate and one expiring
+// in six days, so the icon was the same for both (D64).
 func TestFormatSSLStatusCoversEveryState(t *testing.T) {
 	days := func(n int) *int { return &n }
 	cases := []struct {
@@ -453,9 +453,9 @@ func TestFormatSSLStatusCoversEveryState(t *testing.T) {
 		t.Errorf("formatSSLStatus produced %d distinct icons for %d states", len(seen), len(cases))
 	}
 
-	// Rule 122 : la cellule est mesurée, donc elle ne porte pas sa couleur —
-	// c'est certStatusStyle qui la donne, et elle doit séparer ce que l'icône
-	// vient de séparer.
+	// Rule 122: the cell is measured, so it doesn't carry its own color —
+	// it's certStatusStyle that provides it, and it must separate what the
+	// icon has just separated.
 	if certStatusStyle(cases[1].comp).GetForeground() == certStatusStyle(cases[2].comp).GetForeground() {
 		t.Error("a certificate to renew and an expired one read the same colour")
 	}

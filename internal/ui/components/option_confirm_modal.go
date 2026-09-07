@@ -9,52 +9,52 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// OptionConfirmModal est une confirmation portant une case à cocher : « fais-le,
-// et fais-le de cette façon-là ».
+// OptionConfirmModal is a confirmation carrying a checkbox: "do it, and do
+// it this particular way".
 //
-// Elle servait la seule suppression, d'où son ancien nom. §3.26 lui donne un
-// second emploi — la purge du cache avant un scan complet — et c'est le même
-// besoin : deux actions que seul un modificateur distinguait, dont rien dans la
-// forme ne disait laquelle était destructrice. Ici la variante destructrice est
-// un geste délibéré, sous les yeux de celui qui la déclenche.
+// It used to serve deletion alone, hence its former name. §3.26 gives it a
+// second use — purging the cache before a full scan — and it's the same
+// need: two actions distinguished only by a modifier, with nothing in the
+// form saying which one was destructive. Here the destructive variant is a
+// deliberate gesture, under the eyes of whoever triggers it.
 type OptionConfirmModal struct {
 	title   string
 	message string
 	focused int // 0 = checkbox, 1 = Yes, 2 = No
-	// option est la case, et son sens appartient à l'appelant : suppression
-	// immédiate ici, purge du cache là.
+	// option is the checkbox, and its meaning belongs to the caller:
+	// immediate deletion here, cache purge there.
 	option        bool
 	optionLabel   string
-	optionWarning string // affiché quand la case est cochée ; vide = rien à dire
-	locked        bool   // Si true, la checkbox n'est ni modifiable ni focusable
-	hidden        bool   // Si true, la checkbox n'est même pas rendue : l'option n'a pas de sens ici
+	optionWarning string // shown when the box is checked; empty = nothing to say
+	locked        bool   // If true, the checkbox is neither editable nor focusable
+	hidden        bool   // If true, the checkbox isn't even rendered: the option has no meaning here
 	width         int
 	height        int
 }
 
-// immediateDeletionLabel est l'option de la suppression, et la raison pour
-// laquelle cette modale existe.
+// immediateDeletionLabel is the deletion option, and the reason this modal
+// exists.
 const (
 	immediateDeletionLabel   = "Immediate deletion (no grace period)"
 	immediateDeletionWarning = "This action is irreversible!"
 )
 
-// NewOptionConfirmModal crée une confirmation avec une case à cocher nommée.
-// Sans warning : une option qui n'est pas destructrice n'en mérite pas.
+// NewOptionConfirmModal creates a confirmation with a named checkbox.
+// No warning: an option that isn't destructive doesn't deserve one.
 func NewOptionConfirmModal(title, message, optionLabel string) *OptionConfirmModal {
 	return &OptionConfirmModal{
 		title:       title,
 		message:     message,
-		focused:     2, // Default sur "No"
+		focused:     2, // Defaults to "No"
 		optionLabel: optionLabel,
 	}
 }
 
-// NewDeleteConfirmModal crée une nouvelle modal de confirmation de suppression.
-// offerImmediate vient de forge.Shape.PermanentDelete : sur un backend qui
-// supprime toujours tout de suite (GitHub), il n'y a pas de délai de grâce à
-// contourner, donc la case n'a rien à signifier et n'est pas rendue du tout —
-// pas grisée, absente, comme le dit ce champ du Shape.
+// NewDeleteConfirmModal creates a new deletion confirmation modal.
+// offerImmediate comes from forge.Shape.PermanentDelete: on a backend that
+// always deletes immediately (GitHub), there is no grace period to bypass,
+// so the checkbox has nothing to signify and isn't rendered at all — not
+// greyed out, absent, as that field of the Shape says.
 func NewDeleteConfirmModal(title, message string, offerImmediate bool) *OptionConfirmModal {
 	m := NewOptionConfirmModal(title, message, immediateDeletionLabel)
 	if !offerImmediate {
@@ -65,8 +65,8 @@ func NewDeleteConfirmModal(title, message string, offerImmediate bool) *OptionCo
 	return m
 }
 
-// NewDeleteConfirmModalLocked crée une modal avec la case "immediate deletion" pré-cochée et non modifiable.
-// À utiliser quand le projet est déjà marqué pour suppression — seule la suppression permanente est possible.
+// NewDeleteConfirmModalLocked creates a modal with the "immediate deletion" checkbox pre-checked and non-editable.
+// Use it when the project is already marked for deletion — only permanent deletion is possible.
 func NewDeleteConfirmModalLocked(title, message string) *OptionConfirmModal {
 	m := NewDeleteConfirmModal(title, message, true)
 	m.option = true
@@ -74,10 +74,10 @@ func NewDeleteConfirmModalLocked(title, message string) *OptionConfirmModal {
 	return m
 }
 
-// minFocus retourne le premier élément atteignable au clavier. La checkbox est
-// exclue quand elle est verrouillée ou absente : un contrôle focusable qui
-// ignore toute touche, ou qui n'existe pas, est plus déroutant qu'un contrôle
-// simplement hors de portée.
+// minFocus returns the first element reachable by keyboard. The checkbox is
+// excluded when it is locked or absent: a focusable control that ignores
+// every keystroke, or that doesn't exist, is more confusing than a control
+// that is simply out of reach.
 func (m *OptionConfirmModal) minFocus() int {
 	if m.locked || m.hidden {
 		return 1
@@ -85,16 +85,16 @@ func (m *OptionConfirmModal) minFocus() int {
 	return 0
 }
 
-// OptionConfirmModalYesMsg est envoyé quand l'utilisateur confirme. Option porte
-// l'état de la case, dont le sens appartient à celui qui a ouvert la modale.
+// OptionConfirmModalYesMsg is sent when the user confirms. Option carries
+// the checkbox's state, whose meaning belongs to whoever opened the modal.
 type OptionConfirmModalYesMsg struct {
 	Option bool
 }
 
-// OptionConfirmModalNoMsg est envoyé quand l'utilisateur annule
+// OptionConfirmModalNoMsg is sent when the user cancels
 type OptionConfirmModalNoMsg struct{}
 
-// Update met à jour la modal
+// Update updates the modal
 func (m *OptionConfirmModal) Update(msg tea.Msg) (*OptionConfirmModal, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -115,21 +115,21 @@ func (m *OptionConfirmModal) Update(msg tea.Msg) (*OptionConfirmModal, tea.Cmd) 
 			return m, nil
 
 		case "left":
-			// Si sur les boutons, aller vers Yes
+			// If on the buttons, move to Yes
 			if m.focused == 2 {
 				m.focused = 1
 			}
 			return m, nil
 
 		case "right":
-			// Si sur les boutons, aller vers No
+			// If on the buttons, move to No
 			if m.focused == 1 {
 				m.focused = 2
 			}
 			return m, nil
 
 		case " ":
-			// Toggle checkbox si focus dessus, sinon confirmer la sélection
+			// Toggle the checkbox if it has focus, otherwise confirm the selection
 			if m.focused == 0 {
 				m.toggleCheckbox()
 				return m, nil
@@ -140,13 +140,13 @@ func (m *OptionConfirmModal) Update(msg tea.Msg) (*OptionConfirmModal, tea.Cmd) 
 			return m.handleConfirm()
 
 		case "y", "Y":
-			// Raccourci pour Yes
+			// Shortcut for Yes
 			return m, func() tea.Msg {
 				return OptionConfirmModalYesMsg{Option: m.option}
 			}
 
 		case "n", "N", "esc":
-			// Raccourci pour No
+			// Shortcut for No
 			return m, func() tea.Msg {
 				return OptionConfirmModalNoMsg{}
 			}
@@ -156,16 +156,16 @@ func (m *OptionConfirmModal) Update(msg tea.Msg) (*OptionConfirmModal, tea.Cmd) 
 	return m, nil
 }
 
-// cycleFocus fait tourner le focus dans le sens donné, en sautant les éléments
-// exclus par minFocus().
+// cycleFocus rotates focus in the given direction, skipping the elements
+// excluded by minFocus().
 func (m *OptionConfirmModal) cycleFocus(step int) int {
 	min := m.minFocus()
 	span := 3 - min
 	return min + ((m.focused-min+step)%span+span)%span
 }
 
-// toggleCheckbox inverse la case "immediate deletion", sauf si elle est
-// verrouillée ou absente.
+// toggleCheckbox flips the "immediate deletion" checkbox, unless it is
+// locked or absent.
 func (m *OptionConfirmModal) toggleCheckbox() {
 	if m.locked || m.hidden {
 		return
@@ -173,7 +173,7 @@ func (m *OptionConfirmModal) toggleCheckbox() {
 	m.option = !m.option
 }
 
-// handleConfirm gère la confirmation selon l'élément sélectionné
+// handleConfirm handles confirmation based on the selected element
 func (m *OptionConfirmModal) handleConfirm() (*OptionConfirmModal, tea.Cmd) {
 	switch m.focused {
 	case 0:
@@ -194,11 +194,11 @@ func (m *OptionConfirmModal) handleConfirm() (*OptionConfirmModal, tea.Cmd) {
 	return m, nil
 }
 
-// View affiche la modal
+// View renders the modal
 func (m *OptionConfirmModal) View() string {
 	var b strings.Builder
 
-	// Titre
+	// Title
 	b.WriteString(theme.TitleStyle.Render(m.title))
 	b.WriteString("\n\n")
 
@@ -206,13 +206,13 @@ func (m *OptionConfirmModal) View() string {
 	b.WriteString(m.message)
 	b.WriteString("\n\n")
 
-	// Checkbox pour suppression immédiate — absente quand l'option n'a pas de
-	// sens sur ce backend (m.hidden), pas seulement grisée.
+	// Checkbox for immediate deletion — absent when the option has no
+	// meaning on this backend (m.hidden), not merely greyed out.
 	if !m.hidden {
 		checkboxStyle := lipgloss.NewStyle().Background(theme.ColorBackground)
 		switch {
 		case m.locked:
-			// Verrouillée : atténuée, pour signaler qu'elle n'est pas actionnable.
+			// Locked: dimmed, to signal that it isn't actionable.
 			checkboxStyle = checkboxStyle.Foreground(theme.ColorDim)
 		case m.focused == 0:
 			checkboxStyle = checkboxStyle.Bold(true).Foreground(theme.ColorHighlight)
@@ -232,7 +232,7 @@ func (m *OptionConfirmModal) View() string {
 		checkboxLine := checkboxStyle.Render(indicator + checkbox + checkboxLabel)
 		b.WriteString(checkboxLine)
 
-		// Warning quand la case est cochée, si l'appelant en a un à donner.
+		// Warning when the box is checked, if the caller has one to give.
 		if m.option && m.optionWarning != "" {
 			b.WriteString("\n")
 			warningStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorHighlight).Italic(true)
@@ -241,7 +241,7 @@ func (m *OptionConfirmModal) View() string {
 		b.WriteString("\n\n")
 	}
 
-	// Boutons
+	// Buttons
 	yes := theme.RenderButton("Yes", m.focused == 1, "danger")
 	no := theme.RenderButton("No", m.focused == 2, "primary")
 
