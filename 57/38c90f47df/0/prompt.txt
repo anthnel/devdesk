@@ -1,0 +1,361 @@
+<task-notification>
+<task-id>ac596143fe04dd412</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/ac596143fe04dd412.output</output-file>
+<status>failed</status>
+<summary>Agent "Translate French comments — datatable/workspaces/oci_resources/viewer UI" failed: Agent terminated early due to an API error: You've hit your session limit · resets 8pm (UTC) (error type rate_limit, HTTP 429, request id req_011CenkD2zinvm5rsAy9ig8S, model sent to the API: claude-sonnet-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>That's the literal OS error quote — correctly left untouched. netdiag has no French comments to translate.</result>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>aea1285c8e8ffcca4</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/aea1285c8e8ffcca4.output</output-file>
+<status>failed</status>
+<summary>Agent "Translate French comments — dashboard package" failed: Agent terminated early due to an API error: You've hit your session limit · resets 8pm (UTC) (error type rate_limit, HTTP 429, request id req_011CenkD36vBtg1frTwfLHq8, model sent to the API: claude-sonnet-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Now let me translate posture_test.go.</result>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a33ffa9e84c34d9e5</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/a33ffa9e84c34d9e5.output</output-file>
+<status>failed</status>
+<summary>Agent "Translate French comments — theme/components/forge/security/status UI" failed: Agent terminated early due to an API error: You've hit your session limit · resets 8pm (UTC) (error type rate_limit, HTTP 429, request id req_011CenkD7jid8rcBikswztpQ, model sent to the API: claude-sonnet-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Now I have enough to translate all styles.go French comments.</result>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a32fd9f2cc23685e3</task-id>
+<tool-use-id>toolu_0165n89GoCZDXEBm85iG5GKK</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/a32fd9f2cc23685e3.output</output-file>
+<status>failed</status>
+<summary>Agent "Translate French comments — scan/cache/docker/forge/mcp/netcheck etc" failed: Agent terminated early due to an API error: You've hit your session limit · resets 8pm (UTC) (error type rate_limit, HTTP 429, request id req_011CenkDT269q7FoVSqR7Xqt, model sent to the API: claude-sonnet-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Now internal/version/version_test.go.</result>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a9a969bb5a2e3aee1</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/a9a969bb5a2e3aee1.output</output-file>
+<status>failed</status>
+<summary>Agent "Translate French comments — keymap package" failed: Agent terminated early due to an API error: You've hit your session limit · resets 8pm (UTC) (error type rate_limit, HTTP 429, request id req_011CenkDX2gvT3SUTP31jDZc, model sent to the API: claude-sonnet-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Good — only the out-of-scope `Why:` string literals remain, as intended. Now onto keymap_test.go.</result>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>af8e899b24ed29830</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/af8e899b24ed29830.output</output-file>
+<status>failed</status>
+<summary>Agent "Translate French comments — app/config/status/metrics/command" failed: Agent terminated early due to an API error: You've hit your session limit · resets 8pm (UTC) (error type rate_limit, HTTP 429, request id req_011CenkDZAvcqtyGGqyeVoQF, model sent to the API: claude-sonnet-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Now parser.go.</result>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a8a83ace8b07a3831</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/a8a83ace8b07a3831.output</output-file>
+<status>failed</status>
+<summary>Agent "Translate French prose in coding-convention rule docs" failed: Agent terminated early due to an API error: You've hit your session limit · resets 8pm (UTC) (error type rate_limit, HTTP 429, request id req_011CenkEZSpqL86VbYSZadXX, model sent to the API: claude-sonnet-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Now I'll translate CLAUDE.md's French sections. Let me apply the edits.</result>
+</task-notification>
+
+---
+
+continue
+
+---
+
+continue
+
+---
+
+<task-notification>
+<task-id>a9a969bb5a2e3aee1</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/a9a969bb5a2e3aee1.output</output-file>
+<status>completed</status>
+<summary>Agent "Translate French comments — keymap package" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All three files are fully translated. Final report:
+
+**Files modified** (all in `internal/ui/keymap/`):
+- `keymap.go` — 235 lines changed (package doc-comment block + inline comments)
+- `keymap_test.go` — 140 lines changed
+- `announced_test.go` — 60 lines changed
+
+**Package doc-comment heading**: `# Trois espaces de noms disjoints` → `# Three disjoint namespaces` (the second heading, `# Pourquoi Shift porte les actions`, became `# Why Shift carries the actions`).
+
+**Left untouched, as instructed** (string literals, not `//` comments):
+- `internal/ui/keymap/keymap.go` lines 246-251 and 256-257 — the two `Why:` field values in the `exceptions` slice.
+- `internal/ui/keymap/keymap_test.go` line 172 — `"rafraîchir, et rien d'autre"`, a value in the `survivors` map literal inside `TestOnlyThreeCtrlCombinationsSurvive` (its sibling entries `"SIGINT — quitter"` and `"la ligne de commande"` on the surrounding lines are the same kind of literal and were likewise left alone).
+
+**Verification**: no build/test run requested to be centralized, but I did a bounded sanity check — `gofmt -l` reports no formatting issues and `go build ./...` succeeds for the package.
+
+**Uncertain spots** (none blocking, just flagging judgment calls):
+- `keymap.go` line 91, "son sens est déjà appris — palette" → translated as "its meaning is already learned — command palette" (added "command" for clarity in English; the French left it implicit).
+- `keymap.go` line 22, "Ce n'est pas un goût" → rendered as "This isn't a matter of taste" (slightly expanded from literal "not a taste").
+- Everything else translates fairly literally with rule numbers (§3.26, §3.47, §3.53, D57, D63) and code identifiers preserved byte-identical.
+
+A final grep for accented French characters across all three files confirms only the excluded string literals remain.</result>
+<usage><subagent_tokens>157570</subagent_tokens><tool_uses>29</tool_uses><duration_ms>138954</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>ac596143fe04dd412</task-id>
+<tool-use-id>toolu_01QtsNUVtdcxHsnvQuk1JW5c</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/ac596143fe04dd412.output</output-file>
+<status>completed</status>
+<summary>Agent "Translate French comments — datatable/workspaces/oci_resources/viewer UI" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All 23 files verified with no remaining French comment text (confirmed via both accented-character grep and broad French-stopword grep across all 10 target directories).
+
+## Summary
+
+Translated French `//` comments to English across the scoped directories. `internal/ui/netdiag` and `internal/ui/viewer` had no French comments to translate (only a literal French OS error-message quote in `netdiag/ports_model.go:363-364`, which was correctly left untouched — it documents an actual localized Windows error string, not French prose).
+
+**Files modified, with French-line counts:**
+
+- `internal/ui/about/about_test.go` — 13 lines (7 blocks)
+- `internal/ui/about/model.go` — 11 lines
+- `internal/ui/about/view.go` — 7 lines
+- `internal/ui/containers/model.go` — 1 line
+- `internal/ui/datatable/foreground_test.go` — 16 lines
+- `internal/ui/datatable/render.go` — 9 lines
+- `internal/ui/help/help.go` — 8 lines (plus several unaccented French one-liners in the same file: "Titre", "Description", "Raccourcis clavier", "Sections supplémentaires")
+- `internal/ui/oci_resources/availability.go` — 3 lines
+- `internal/ui/oci_resources/commands.go` — 3 lines
+- `internal/ui/oci_resources/ociresources_test.go` — 5 lines
+- `internal/ui/oci_resources/secrets_column_test.go` — 8 lines
+- `internal/ui/oci_resources/table.go` — 5 lines
+- `internal/ui/oci_resources/view_test.go` — 3 lines
+- `internal/ui/registryalias/alias.go` — 14 lines (whole package doc comment)
+- `internal/ui/shortcut/shortcut.go` — 16 lines
+- `internal/ui/workspaces/availability.go` — 7 lines
+- `internal/ui/workspaces/columns.go` — 1 line
+- `internal/ui/workspaces/commands.go` — 4 lines
+- `internal/ui/workspaces/messages.go` — 5 lines (plus 3 short unaccented lines: "est envoyé...")
+- `internal/ui/workspaces/model.go` — 2 lines
+- `internal/ui/workspaces/update.go` — 2 lines
+- `internal/ui/workspaces/view.go` — 9 lines (7 accented + 2 unaccented one-liners found in a broader sweep: "View rend la vue", "GetHelpContent retourne...")
+- `internal/ui/workspaces/workspaces_test.go` — 1 line
+
+No files needed uncertain/ambiguous judgment calls — all translations preserved Rule/§ references byte-identical (e.g., Rule 128, Rule 122, §3.44, §3.48) and technical meaning. Only comment text was touched; no code, string literals, or `//go:` directives were modified, and no `gofmt` was run.</result>
+<usage><subagent_tokens>156319</subagent_tokens><tool_uses>39</tool_uses><duration_ms>197324</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a32fd9f2cc23685e3</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/a32fd9f2cc23685e3.output</output-file>
+<status>completed</status>
+<summary>Agent "Translate French comments — scan/cache/docker/forge/mcp/netcheck etc" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No formatting drift introduced (as expected, since only comment text changed, no reindentation).
+
+## Summary
+
+Translated French `//` comments to English across the assigned scope. Files modified with French-comment-block counts:
+
+- `internal/scan/verdict_test.go` — 7 blocks
+- `internal/scan/scanner.go` — 3 blocks
+- `internal/scan/category.go` — 3 blocks (including inline `const` comments)
+- `internal/cache/image_scan.go` — 1 block
+- `internal/cache/cache_test.go` — 1 block
+- `internal/cache/verdict_test.go` — 5 blocks
+- `internal/cache/workspace_scan.go` — 1 block
+- `internal/version/version.go` — 5 blocks
+- `internal/version/version_test.go` — 2 blocks
+- `internal/docker/containers.go` — 1 block
+- `internal/docker/parse.go` — 1 block
+- `internal/docker/system.go` — 4 blocks
+- `internal/docker/system_test.go` — 5 blocks
+- `internal/mcp/scan_tools_test.go` — 1 block
+- `internal/credentials/git_credential.go` — 6 comments (struct/func doc comments + two inline env-var comments)
+- `internal/credentials/storage.go` — 5 comments
+- `internal/shared/state.go` — 2 comments
+- `main.go` — 8 comments
+
+Directories/files checked with **no** French comments found (skipped): `internal/jobs/*.go`, `internal/forge/github/*.go`, `internal/forge/gitlab/*.go`, `internal/netcheck/*.go`, `internal/ports/*.go`, `internal/viewer/json.go`.
+
+Method: two full greps over every file in scope — one for accented characters inside `//` lines, one for common unaccented French function words inside `//` lines — then manual verification/translation file by file, re-run at the end to confirm zero hits remain in scope.
+
+Nothing was uncertain enough to flag — all §/Rule/D-number cross-references (e.g. `§3.11`, `§3.39`, `D20`, `D24-D26`, `§1.3`) were preserved byte-identical, and mixed English/French blocks (e.g. `internal/cache/cache_test.go`, `internal/mcp/scan_tools_test.go`) were merged into single coherent English comments. No code, string literals, struct tags, or `//go:` directives were touched. `gofmt -l` reports no formatting drift. No build/test run per instructions — verification happens centrally.
+
+Note: while working, I observed (via system notifications, not my own action) that other files outside my scope — `.claude/CLAUDE.md`, `.claude/rules/tui.md`, `.claude/rules/code-editing.md`, `.claude/rules/code-quality.md` — were being translated concurrently by other work in this same worktree. I did not touch those; flagging in case it's relevant to reconciling the overall branch.</result>
+<usage><subagent_tokens>269680</subagent_tokens><tool_uses>44</tool_uses><duration_ms>225550</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>af8e899b24ed29830</task-id>
+<tool-use-id>toolu_01UHdpZd17JVDdt3L6TfZVq4</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/af8e899b24ed29830.output</output-file>
+<status>completed</status>
+<summary>Agent "Translate French comments — app/config/status/metrics/command" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All French comments across the five target directories have been translated to English. Final verification confirms no accented-French or French-keyword comment lines remain in any of the 29 files touched.
+
+**Files modified** (with approximate French comment lines translated, counted via removed diff lines):
+
+- `internal/app/app.go` (22)
+- `internal/app/app_header.go` (8)
+- `internal/app/command_line.go` (20)
+- `internal/app/context.go` (7)
+- `internal/app/forge.go` (8)
+- `internal/app/help_overlay.go` (4)
+- `internal/app/keys.go` (2)
+- `internal/app/messages.go` (17)
+- `internal/app/view.go` (7)
+- `internal/app/view_contract_test.go` (9)
+- `internal/command/completion.go` (21)
+- `internal/command/completion_test.go` (2)
+- `internal/command/doc_test.go` (33)
+- `internal/command/parser.go` (14)
+- `internal/command/parser_test.go` (3)
+- `internal/config/config.go` (76)
+- `internal/metrics/host.go` (20)
+- `internal/metrics/metrics.go` (32)
+- `internal/metrics/metrics_test.go` (14)
+- `internal/metrics/tree.go` (22)
+- `internal/metrics/tree_test.go` (16)
+- `internal/status/certificate.go` (23)
+- `internal/status/certificate_test.go` (6)
+- `internal/status/checker.go` (11)
+- `internal/status/dns_checker.go` (9)
+- `internal/status/http_checker.go` (13)
+- `internal/status/icmp_checker.go` (11)
+- `internal/status/ssl_checker.go` (4)
+- `internal/status/types.go` (5)
+
+All other `.go` files in the five directories (e.g. `internal/config/forge.go`, `registries.go`, `secrets.go`, most of `internal/app`'s remaining files, `internal/status/monitor.go`, `checkers_test.go`) had no French comments and were left untouched.
+
+Notes on judgment calls, none of which I was truly unsure about, but worth flagging:
+- In `internal/status/certificate_test.go`, the French test-case names (e.g. `"loin de l'échéance"`, `"périmé"`) are **string literals**, not comments — per the rules I left them untouched even though they read as French, and only translated the two genuine `//` comments in that file.
+- Struct-tag trailing comments in `internal/config/config.go` (e.g. `// Image Docker trivy (défaut: aquasec/trivy)`) were translated in place without touching the tag alignment beyond what the text length naturally required; gofmt was not run, per instructions.
+- Mixed English/French comment blocks (common in `internal/app` and `internal/metrics`) were merged into single coherent English comments, preserving all Rule/§ references byte-identical (e.g. `Rule 110`, `Rule 124`, `§3.9`).
+
+I did not run `go build`/`go test` per instructions — verification happens centrally.</result>
+<usage><subagent_tokens>328660</subagent_tokens><tool_uses>37</tool_uses><duration_ms>296010</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>aea1285c8e8ffcca4</task-id>
+<tool-use-id>toolu_019VurpXK9TuMLqqm2yttw6d</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/aea1285c8e8ffcca4.output</output-file>
+<status>completed</status>
+<summary>Agent "Translate French comments — dashboard package" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All 11 files are now fully translated. Build check passed cleanly (ran as a quick sanity check, no errors).
+
+## Summary
+
+**Files modified (all 11 in the assignment), with translated French comment blocks per file:**
+
+| File | Blocks translated |
+|---|---|
+| `internal/ui/dashboard/chart.go` | 9 |
+| `internal/ui/dashboard/chart_test.go` | 10 |
+| `internal/ui/dashboard/dashboard_test.go` | 13 |
+| `internal/ui/dashboard/layout.go` | 9 |
+| `internal/ui/dashboard/model.go` | 21 |
+| `internal/ui/dashboard/posture.go` | 12 |
+| `internal/ui/dashboard/posture_test.go` | 33 |
+| `internal/ui/dashboard/secrets_test.go` | 5 |
+| `internal/ui/dashboard/sections.go` | ~70 (largest file, was ~275 French comment lines per the task description) |
+| `internal/ui/dashboard/view.go` | 13 |
+| `internal/ui/dashboard/view_test.go` | 24 |
+
+Total: roughly 220 distinct French comment blocks translated across the package (`git diff --stat` shows 869 insertions / 846 deletions across the 11 files, all comment-only diffs).
+
+**Verification performed:**
+- Grepped every file for accented characters and common French function/connector words inside `//` comments — zero remain except inside example file-path literals (`C:\Users\José\dépôts\...`, `Téléchargements`) in `posture_test.go` and `sections.go`, which are illustrative Windows path fragments quoted as data, not French prose, and were correctly left untouched.
+- `go build ./internal/ui/dashboard/...` compiles clean, confirming no code/string was accidentally altered.
+
+**Nothing I was unsure how to translate** — all Rule/§ cross-references (e.g. "Rule 116", "Rule 110", "§3.19", "§3.47", "D52", "D67") were preserved byte-identical, and mixed English/French comment blocks were merged into single coherent English comments per the task's instructions.</result>
+<usage><subagent_tokens>362615</subagent_tokens><tool_uses>24</tool_uses><duration_ms>372200</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a33ffa9e84c34d9e5</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/cc2599eb-f17a-4204-af6e-dc2fd5930929/tasks/a33ffa9e84c34d9e5.output</output-file>
+<status>completed</status>
+<summary>Agent "Translate French comments — theme/components/forge/security/status UI" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All clean. The task is complete for the full scope.
+
+## Summary
+
+Translated all French `//` comments to English across the six target directories in the worktree at `/c/Users/anthoni/projects/entire/anthnel/devdesk/.worktrees/chore/translate-french-comments-to-english`. Verified with both an accented-character grep and an unaccented French-word grep across every file in scope — no French comment text remains (one harmless false positive: `internal/ui/theme/text.go` line 13 uses `"é"` as an example character in an English sentence about rune width, not a French comment).
+
+**Files modified, with French comment-block counts (roughly matching translated occurrences):**
+
+- `internal/ui/theme/box.go` — 6 blocks
+- `internal/ui/theme/colors.go` — 1
+- `internal/ui/theme/initrender_test.go` — 6 blocks (~25 lines)
+- `internal/ui/theme/manager.go` — 14
+- `internal/ui/theme/manager_test.go` — 7
+- `internal/ui/theme/secrets.go` — 4 blocks
+- `internal/ui/theme/styles.go` — 15 blocks (~30 lines, matches recon estimate)
+- `internal/ui/components/choice_modal.go` — 9 blocks (~19 lines, matches recon)
+- `internal/ui/components/confirm_modal.go` — 13
+- `internal/ui/components/creation_form.go` — 1
+- `internal/ui/components/option_confirm_modal.go` — 24 blocks (~34 lines, matches recon)
+- `internal/ui/status/columns.go` — 2 large blocks (~14 lines, matches recon)
+- `internal/ui/status/commands.go` — 7
+- `internal/ui/status/model.go` — 9
+- `internal/ui/status/update.go` — 12
+- `internal/ui/status/view.go` — 5 blocks
+- `internal/ui/status/view_test.go` — 4 blocks
+- `internal/ui/forge/auth/model.go` — 15
+- `internal/ui/forge/auth/update.go` — 15
+- `internal/ui/forge/auth/view.go` — 11
+- `internal/ui/forge/explorer/api.go` — 2 blocks
+- `internal/ui/forge/explorer/messages.go` — 6
+- `internal/ui/forge/explorer/model.go` — 4
+- `internal/ui/forge/explorer/tree.go` — 5 blocks (matches recon of ~16 lines)
+- `internal/ui/forge/explorer/update.go` — 1
+- `internal/ui/forge/explorer/view.go` — 2
+- `internal/ui/security/header.go` — 1
+- `internal/ui/security/inventory_commands.go` — 1 block
+- `internal/ui/security/inventory_table.go` — 4 blocks (matches recon ~12 lines)
+- `internal/ui/security/inventory_test.go` — 5 blocks
+- `internal/ui/security/secrets_column_test.go` — 4 blocks
+
+Every other `*.go` file in the six directories was checked and had zero French comments (skipped, per instructions).
+
+**Method:** every file was matched against an accented-character regex and a supplementary unaccented French-word regex restricted to `//` comment lines; both passes are now empty across the whole scope. Rule/§ cross-references (e.g. "Rule 122", "Rule 128", "§3.9", "§3.26", "D64", "D65") were preserved byte-identical. Only comment text was touched — string literals inside `t.Errorf`/`t.Fatal` calls that happened to contain French (e.g. in `internal/ui/theme/initrender_test.go`) were deliberately left untouched per the rules.
+
+**No lines were unclear or ambiguous enough to flag** — all translations preserved the original technical meaning; nothing was reformatted beyond what the translated text required, and `gofmt` was not run.</result>
+<usage><subagent_tokens>238451</subagent_tokens><tool_uses>65</tool_uses><duration_ms>424359</duration_ms></usage>
+</task-notification>
