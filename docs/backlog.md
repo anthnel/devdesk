@@ -8372,12 +8372,32 @@ rapporte différemment selon la plateforme, donc à vérifier avant de décider.
 sa raison écrite ; c'est une décision à revisiter, pas un défaut à corriger — le
 statut de D35.
 
-### 3.41 Se passer de `netshoot` — ce qui se réécrit en Go, et ce qu'on abandonne — **analysé, suite en §3.43**
+### 3.41 Se passer de `netshoot` — ce qui se réécrit en Go, et ce qu'on abandonne — **done**
 
-L'analyse est faite et **l'option 1 a été prise** : §3.43 a sorti l'onglet Ports
-et `K` de l'image, qui ne sert plus qu'à la trace de route et à l'onglet
-Topology. Ce qui suit reste l'énoncé d'origine ; les deux mesures qu'il demandait
-sont rapportées en §3.43, et l'une des deux a décidé de l'implémentation.
+**Fermée : il n'y a plus d'image du tout.** L'analyse proposait trois options
+pour la trace de route ; c'est la **2** qui a été prise — l'abandonner — et
+§3.47 l'a exécutée en emportant `network.tool_image` avec elle. Vérifié dans le
+code le 2026-09-07 : plus un `RunTraceroute`, plus une mention de `netshoot`,
+plus de réglage d'image, et `H` est revenue dans les lettres libres
+(`internal/ui/keymap/keymap.go:172`).
+
+Le chemin a donc été : §3.43 pour l'onglet Ports et `K`, §3.44 pour l'onglet
+Topology, §3.47 pour la trace de route. La dépendance à un conteneur privilégié
+pour des fonctions qui ne sont pas Docker n'existe plus.
+
+**Cette entrée est restée périmée un moment**, et c'est le défaut à retenir
+plutôt que le sujet : son titre annonçait « suite en §3.43 » et son dernier
+paragraphe disait qu'il restait les options 2 et 3 à trancher, alors que §3.47
+avait déjà tranché. Une entrée dont la conclusion vit dans une *autre* entrée ne
+se met pas à jour toute seule — un relevé de l'état ouvert du backlog l'a listée
+comme du travail en attente, ce qu'elle n'était plus. Quand une décision est
+exécutée ailleurs, c'est l'entrée qui la posait qui doit le dire.
+
+Un résidu, sans conséquence : `internal/netcheck/env.go:38` cite encore « the
+traceroute hop limit » comme exemple d'un réglage porté par la vue netdiag. Le
+réglage n'existe plus — un `grep` sur `HopLimit`/`max_hops` ne rend rien.
+
+Ce qui suit est l'énoncé d'origine, gardé pour ce qu'il a mesuré.
 
 L'image `nicolaka/netshoot` (`network.tool_image`) était la dernière dépendance
 de DevDesk à un conteneur pour des fonctions qui ne sont pas Docker. La question
@@ -8487,8 +8507,11 @@ provisoire :
 
 L'option 1 est probablement la bonne première étape, parce qu'elle ne demande de
 renoncer à rien et qu'elle isole la question restante. — *C'est ce qui a été
-fait. Une fois §3.44 passée, il ne reste que la trace de route, donc les options
-2 et 3 sont tout ce qu'il restera à trancher.*
+fait, puis la question isolée a été tranchée par l'option 2 : §3.47 a supprimé la
+trace de route et `network.tool_image`. L'option 3 — un traceroute en Go — n'a
+pas été retenue, pour la raison écrite dans `netcheck/env.go` : elle demande un
+socket ICMP brut, donc l'élévation sous Windows et `CAP_NET_RAW` sous Linux,
+et « DevDesk must not need root ».*
 
 #### Ce que ça retirerait aussi
 
