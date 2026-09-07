@@ -12089,6 +12089,94 @@ binaire, et remplacer une dépendance légère par une lourde des deux côtés.
 
 ---
 
+### 3.68 Où est vraiment le mot de passe — le magasin d'identifiants se dit
+
+DevDesk lit un mot de passe de registry dans un fichier dont il ne contrôle pas
+la protection, et n'en dit rien. L'information qui manque n'est pas à calculer :
+elle est déjà sous la main de la fonction qui la jette.
+
+#### Pourquoi ce n'est pas une violation de §3.9
+
+`RegistryLogin` (`internal/docker/registry.go:68`) n'écrit aucun secret : il
+appelle `docker login --password-stdin` et laisse Docker écrire son propre
+magasin. La seule écriture que DevDesk fait dans `~/.docker/config.json` est une
+**suppression** — `removeFromDockerConfig` (`registry.go:118`), après
+`docker logout`, parce que logout laisse des clés alias derrière lui.
+
+La règle de §3.9 dit qu'aucun secret que DevDesk détient n'est écrit dans un
+fichier que **DevDesk** possède, et elle tient : ce fichier est celui de Docker.
+Ce que §3.9 n'a pas eu à trancher, et qui est le sujet ici, c'est ce qui se passe
+quand DevDesk **relit** ce fichier.
+
+#### Ce que la relecture trouve — vérifié le 2026-09-07
+
+`GetStoredCreds` (`registry.go:165`) est appelé à trois endroits d'`oci_resources`
+(`commands.go:702`, `commands.go:720`, `browser_keys.go:130`) pour parler aux API
+HTTP des registries — recherche de tags, découverte de groupe Nexus — qui ne
+passent pas par la CLI. Il essaie dans l'ordre le helper par registry
+(`credHelpers`), le helper global (`credsStore`), puis **le champ `auth` en
+base64**, que `decodeAuth` (`registry.go:204`) redécoupe en `user:password`.
+
+base64 est un encodage, pas un chiffrement. Sur une machine dont le Docker n'a ni
+`credHelpers` ni `credsStore` — le cas courant sous Linux sans
+`docker-credential-pass` ni `-secretservice` — le mot de passe du registry est en
+clair dans un fichier, et rien à l'écran ne le dit.
+
+C'est la posture de **Docker**, pas celle de DevDesk : il ne l'a pas mise là et
+ne peut pas la corriger sans réimplémenter `docker login`. Ce qui reste à sa
+portée est de la **dire**.
+
+#### L'information est déjà là, et elle est jetée deux fois
+
+`IsRegistryLoggedIn` (`registry.go:85`) désérialise `auths` en
+`map[string]json.RawMessage` et ne regarde que **l'existence** de la clé. Or
+c'est son contenu qui répond : `docker login` adossé à un `credsStore` écrit une
+entrée **vide** et met le secret dans le helper ; sans helper il écrit
+`{"auth": "<base64>"}`. Distinguer les deux ne demande donc aucun appel
+supplémentaire — c'est un champ de plus dans une structure que la fonction
+désérialise déjà.
+
+**Ce comportement de docker est à vérifier contre un vrai `docker login` avant
+d'écrire quoi que ce soit** : il décide de tout le reste, et il est ici supposé
+plutôt que mesuré.
+
+La chaîne jette l'information une seconde fois, et c'est le vrai coût de
+l'entrée : `checkRegistryLoginStatusCmd` (`commands.go:261`) réduit chaque
+registry à un `bool`, `RegistryLoginStatusMsg.Status` est une `map[string]bool`,
+et `loggedCell` (`table.go:359`) rend `IconOK` ou `IconError`. Il faut élargir le
+type sur toute la chaîne.
+
+#### La forme : la colonne existante, pas une colonne de plus
+
+**Pas une colonne « Store ».** Sous Docker Desktop elle afficherait `desktop` sur
+toutes les lignes, et une colonne qui ne varie jamais n'informe de rien — c'est
+la discipline que Rule 122 impose aux couleurs, appliquée à une colonne.
+
+`Logged` (`table.go:318`) continue de répondre « suis-je connecté », et le dit
+**différemment** quand le secret est en clair : `IconOK` pour un identifiant tenu
+par un helper, une variante d'avertissement pour un identifiant inline. Une seule
+colonne, aucune largeur de plus, et le signal n'apparaît que quand il y a quelque
+chose à voir.
+
+À ne pas confondre avec la colonne `Auth` voisine (`table.go:317`), qui porte
+l'`AuthMode` de la configuration : ce que l'utilisateur a *demandé*, pas où le
+secret *est*.
+
+#### Non retenu
+
+**En faire un finding `:sec`.** L'inventaire de `:sec` est indexé sur des images
+et des dépôts (§3.64) ; la posture d'un magasin d'identifiants n'est ni l'un ni
+l'autre, et lui inventer une ligne coûterait plus que la nuance de couleur
+ci-dessus.
+
+**Recopier l'identifiant dans le keyring de DevDesk.** Ce serait se connecter
+deux fois — une pour que `docker pull` marche, une pour DevDesk — et faire tenir
+à DevDesk un second exemplaire d'un secret que Docker a déjà. §3.8 a tranché
+l'héritage dans l'autre sens : `docker login` est la source, et il est indexé par
+hôte.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
