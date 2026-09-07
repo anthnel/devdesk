@@ -12283,12 +12283,105 @@ pas une.
   Une remise à zéro sur une touche coûterait une lettre du vocabulaire (Rule
   111) pour une action que le redémarrage de la vue rend déjà.
 
-#### La forme
+#### La forme — et la place est là, contrairement à ce que cette entrée disait
 
-Sur les lignes `RX` et `TX` existantes — `RX  1.2 MB/s · 340 MB` — et non en
-deux lignes de plus : une section déclare sa hauteur et doit la remplir
-(`sections.go:17`, §3.19 phase 1), donc une ligne ajoutée se paie sur les
-voisines.
+Cette section recommandait de poser les totaux **sur** les lignes `RX` et `TX`
+plutôt qu'en lignes supplémentaires, au motif qu'une section déclare sa hauteur
+et doit la remplir (`sections.go:17`, §3.19 phase 1). Le raisonnement est juste ;
+la prémisse était fausse, et elle n'avait pas été mesurée.
+
+**Relevé au tier `wide`, courbes à 6 lignes** — les trois boîtes à courbes
+partagent la première rangée (`view.go:75`), et une rangée se cadre sur sa plus
+haute :
+
+| Boîte | Lignes |
+|---|---|
+| Host | 20 |
+| Docker (VM) | 20 |
+| **Network** | **16** |
+
+La hauteur des courbes est uniforme sur la rangée — `fitCharts` mesure ce que
+laisse la *plus haute* des ossatures, puis `chartsPerBox` la partage en deux —
+donc les quatre lignes qui manquent à Network ne deviennent pas de la courbe :
+elles sont **remplies de blanc**. C'est aussi ce qui corrige une affirmation
+faite en supprimant `History` : la ligne libérée n'est pas revenue aux courbes,
+elle a fait une quatrième ligne vide.
+
+Il y a donc de la place, et les deux formes redeviennent ouvertes : le total sur
+la ligne du débit (`RX  1.2 MB/s · 340 MB`), ou sa propre ligne. La première
+reste préférable — elle met le volume à côté de la vitesse dont il est
+l'intégrale — mais ce n'est plus la contrainte de hauteur qui l'impose, c'est la
+lecture. Les lignes libres, elles, ont un candidat qui leur est propre : §3.70.
+
+---
+
+### 3.70 Les quatre lignes libres de la boîte Network — erreurs et paquets
+
+La boîte Network est la plus courte des trois de sa rangée, de quatre lignes
+(relevé en §3.69). Elles sont remplies de blanc. La question n'est pas de les
+occuper — une boîte a le droit d'être courte — mais de savoir s'il existe un
+fait réseau que le dashboard devrait dire et ne dit pas.
+
+#### Ce que DevDesk jette déjà — vérifié le 2026-09-07
+
+`net.IOCounters` rend **onze** champs (`gopsutil/v4@v4.26.7/net/net.go:14`) et
+`readNetCounters` en lit **deux** (`internal/metrics/host.go:80`) :
+
+| Lu | Jeté au parsing |
+|---|---|
+| `BytesRecv`, `BytesSent` | `PacketsRecv`, `PacketsSent`, `Errin`, `Errout`, `Dropin`, `Dropout`, `Fifoin`, `Fifoout` |
+
+Le coût d'affichage est donc **nul en appels système** : c'est le même relevé,
+déjà fait une fois par seconde. Exactement la situation du bloc `IPAM` de §3.63,
+et la raison pour laquelle l'entrée vaut d'être écrite plutôt que classée sans
+suite.
+
+#### Trois pièges, et ils décident de la forme plus que du contenu
+
+**1. Ces compteurs sont cumulatifs depuis le boot**, comme les octets. Afficher
+`1 247 erreurs` parlerait surtout d'un incident d'il y a trois semaines. Ce qui
+informe est un taux, ou un delta depuis une référence — donc la mécanique de
+§3.69, et le même recul de compteur à traiter (`rate()`, `metrics.go:62`). Les
+deux entrées partagent ce prérequis : c'est un argument pour les faire ensemble.
+
+**2. Sur une machine saine, c'est `0` en permanence.** Une valeur qui ne varie
+jamais n'informe de rien — la discipline de couleur de Rule 122, appliquée à une
+ligne. Mais **la faire disparaître à zéro est pire** : la hauteur de la boîte
+sauterait à chaque tick. `toolsBlock` est le seul bloc du dashboard dont la
+hauteur suit ses données, et son commentaire dit précisément pourquoi il « peut
+se le permettre » (`sections.go:653`) — un outil ne se désinstalle pas entre deux
+rafraîchissements. Une erreur réseau, si. Donc : ligne toujours rendue, `DimStyle`
+à zéro, colorée seulement quand il se passe quelque chose.
+
+**3. `Dropout` vaut toujours `0` sur macOS et BSD**, documenté comme tel par
+gopsutil (`net.go:23`). Un zéro qui n'a pas été mesuré, affiché comme un zéro
+mesuré, est D58 — le défaut que `netiface.Interface` a déjà corrigé en portant
+`RxErrors` et `TxErrors` en `*uint64`, `nil` quand le compteur n'a pas pu être lu
+(`internal/netiface/netiface.go:47`). La même précaution s'impose ici, et elle
+suggère de retenir les erreurs plutôt que les drops.
+
+#### Ce n'est pas un doublon de l'onglet Interfaces
+
+`netiface` porte déjà `RxErrors`/`TxErrors`, **par interface**, dans l'onglet
+Interfaces de `net`. Le dashboard dirait l'**agrégat**, sur l'écran qu'on regarde
+sans naviguer. La distinction est celle que ce dépôt fait déjà entre un agrégat
+et son détail ; elle doit être énoncée dans les deux écrans plutôt que laissée à
+déduire, faute de quoi les deux nombres se contrediront un jour sans que rien ne
+dise qu'ils ne comptent pas la même chose.
+
+#### Non tranché
+
+- **Erreurs, drops, ou paquets par seconde.** Les trois tiennent dans les quatre
+  lignes. Les paquets/s sont le plus souvent utiles (ils disent la *nature* du
+  trafic à débit égal), les erreurs le plus souvent nulles, les drops le moins
+  portables. L'ordre de préférence n'est pas établi.
+- **Une ligne ou deux.** Une ligne combinée (`err 0 · drop 0`) laisse trois
+  lignes libres ; deux lignes séparées se lisent mieux et n'en laissent que deux.
+  À décider avec ce que §3.69 prend.
+- **Faut-il occuper les quatre.** Une boîte plus courte que sa voisine n'est pas
+  un défaut, et remplir par principe est la façon la plus sûre d'ajouter du
+  bruit. Si aucun des trois candidats ne convainc, la bonne réponse reste le
+  blanc.
 
 ---
 
