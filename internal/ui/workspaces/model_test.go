@@ -930,8 +930,8 @@ func TestEnterOnAFileAsksForTheViewer(t *testing.T) {
 	if !ok {
 		t.Fatalf("the request carried a %T, want a FileSource", msg.Source)
 	}
-	if source.Path != "/tmp/workspaces/notes.md" {
-		t.Errorf("Path = %q, want the selected file", source.Path)
+	if source.Path() != "/tmp/workspaces/notes.md" {
+		t.Errorf("Path = %q, want the selected file", source.Path())
 	}
 	// KindAuto: a file browser does not know what it is opening, so the
 	// extension and then the content decide.

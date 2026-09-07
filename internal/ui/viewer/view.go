@@ -187,6 +187,11 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 
 	shortcuts = append(shortcuts, shortcut.Shortcut{Key: "c", Description: "Toggle coloring"})
 
+	shortcuts = append(shortcuts, shortcut.Shortcut{Key: keymap.Copy, Description: "Copy content to the clipboard"})
+	if _, ok := m.pathed(); ok {
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: keymap.IDE, Description: "Open in the configured IDE"})
+	}
+
 	if _, ok := m.timestamps(); ok {
 		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "t", Description: "Toggle timestamps"})
 	}
@@ -227,6 +232,8 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "←/h", Description: "Collapse the selected node (tree)"},
 			{Key: "f", Description: "Switch between the derived view — tree, or rendered Markdown — and the source"},
 			{Key: "c", Description: "Turn syntax coloring on or off"},
+			{Key: keymap.Copy, Description: "Copy the document's content to the clipboard"},
+			{Key: keymap.IDE, Description: "Open the file in the configured IDE (files only)"},
 			{Key: "w", Description: "Soft-wrap long lines (text)"},
 			{Key: "v", Description: "Cycle the minimum log level shown (logs)"},
 			{Key: "/", Description: "Search the text — matching lines only, occurrences highlighted"},
@@ -304,6 +311,13 @@ func (m Model) GetHelpContent() help.Content {
 				Body: "ctrl+r re-reads the document from where it came from — the file on disk, or docker. For " +
 					"container logs, ctrl+f follows live output and e opens the system pager; both suspend the TUI " +
 					"until you leave them, and the document is re-read on the way back.",
+			},
+			{
+				Title: "Copying and editing",
+				Body: "Y copies the document's own text to the clipboard — the source, not what f currently " +
+					"renders, so a rendered Markdown still copies its markers. O hands the file to the configured " +
+					"IDE (app.ide_command); it only appears for a document backed by a real file on disk, so an " +
+					"inspect or a container log does not offer it.",
 			},
 			{
 				Title: "What will not open",

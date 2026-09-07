@@ -78,7 +78,7 @@ const (
 	// Copy is `Y` — yank. The letter was free even though a modal uses it
 	// for "Yes": a modal claims every key before the view sees it, so the
 	// two are never reachable at the same time.
-	Copy = "Y" // Copy the selection's path to the clipboard
+	Copy = "Y" // Copy the obvious thing to the clipboard — a path, or a document's content
 )
 
 // CommandMode opens the command line, from anywhere — including from a
@@ -117,7 +117,7 @@ var actions = map[string]string{
 	Exclude:  "Exclude — add to .gitleaksignore",
 	Requests: "Open merge requests · PRs",
 	Issues:   "Open issues",
-	Copy:     "Copy the selection's path to the clipboard",
+	Copy:     "Copy the obvious thing to the clipboard",
 }
 
 // Actions returns a copy of the key → meaning table.
