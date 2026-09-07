@@ -3,7 +3,7 @@
   "checkpoint_id": "c42edf2458e0",
   "strategy": "manual-commit",
   "branch": "fix/about-top-padding",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "internal/ui/about/about_test.go",
     "internal/ui/about/view.go"
@@ -15,13 +15,20 @@
       "compact_transcript": "/c4/2edf2458e0/0/transcript.jsonl",
       "content_hash": "/c4/2edf2458e0/0/content_hash.txt",
       "prompt": "/c4/2edf2458e0/0/prompt.txt"
+    },
+    {
+      "metadata": "/c4/2edf2458e0/1/metadata.json",
+      "transcript": "/c4/2edf2458e0/1/full.jsonl",
+      "compact_transcript": "/c4/2edf2458e0/1/transcript.jsonl",
+      "content_hash": "/c4/2edf2458e0/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 0,
-    "cache_creation_tokens": 0,
-    "cache_read_tokens": 0,
-    "output_tokens": 0,
-    "api_call_count": 0
+    "input_tokens": 36,
+    "cache_creation_tokens": 63375,
+    "cache_read_tokens": 6223238,
+    "output_tokens": 8948,
+    "api_call_count": 18
   }
 }
