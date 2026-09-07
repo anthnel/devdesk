@@ -2,8 +2,10 @@ package viewer
 
 import (
 	"log"
+	"os/exec"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -85,6 +87,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case followTickMsg:
 		return m.handleFollowTick(msg)
+
+	case ContentCopiedMsg:
+		return m.handleContentCopied(msg)
+
+	case IDEOpenedMsg:
+		return m.handleIDEOpened(msg)
 
 	case spinner.TickMsg:
 		// The chain stops when nothing is loading, and Init/reload restart it.
@@ -187,6 +195,10 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "ctrl+r":
 		return m.reload()
+	case keymap.Copy:
+		return m.copyContent()
+	case keymap.IDE:
+		return m.openInIDE()
 	}
 
 	if m.display == displayTree {
@@ -303,6 +315,11 @@ func (m Model) pageable() (viewer.Pageable, bool) {
 	return src, ok
 }
 
+func (m Model) pathed() (viewer.Pathed, bool) {
+	src, ok := m.source.(viewer.Pathed)
+	return src, ok
+}
+
 // timestampsOn tracks the toggle rather than asking the source, which holds it
 // but cannot be interrogated through the interface — WithTimestamps returns a
 // new source rather than mutating one, so nothing is shared with a command
@@ -390,4 +407,50 @@ func (m Model) openPager() (tea.Model, tea.Cmd) {
 	return m, tea.ExecProcess(src.PagerCmd(), func(err error) tea.Msg {
 		return PagerExitMsg{Err: err}
 	})
+}
+
+// copyContent puts the document's own text on the clipboard — the source, not
+// what `f` currently renders: a rendered Markdown has its markers taken out,
+// and pasting that instead of the file itself would be the wrong text under
+// the right key.
+func (m Model) copyContent() (tea.Model, tea.Cmd) {
+	if !m.hasDocument() {
+		return m, nil
+	}
+	text := m.doc.Text
+	return m, func() tea.Msg {
+		return ContentCopiedMsg{Err: clipboard.WriteAll(text)}
+	}
+}
+
+func (m Model) handleContentCopied(msg ContentCopiedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		log.Printf("ERROR [viewer] copy content: %v", msg.Err)
+		return m, m.footer.Error("Failed to copy content — check logs")
+	}
+	return m, m.footer.Info("Content copied to the clipboard")
+}
+
+// openInIDE hands the document's path to the configured IDE. It unlocks only
+// for a source backed by a real file (Pathed): an inspect or a container log
+// has nothing on disk an editor could open.
+func (m Model) openInIDE() (tea.Model, tea.Cmd) {
+	src, ok := m.pathed()
+	if !ok {
+		return m, nil
+	}
+	ideCmd := m.config.App.IDECommand
+	path := src.Path()
+	return m, func() tea.Msg {
+		cmd := exec.Command(ideCmd, path)
+		return IDEOpenedMsg{Err: cmd.Start()}
+	}
+}
+
+func (m Model) handleIDEOpened(msg IDEOpenedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		log.Printf("ERROR [viewer] open IDE: %v", msg.Err)
+		return m, m.footer.Error("Failed to open in the IDE — check logs")
+	}
+	return m, nil
 }

@@ -72,22 +72,33 @@ type Pageable interface {
 	PagerCmd() *exec.Cmd
 }
 
+// Pathed is a source backed by a real file on disk. It unlocks `O`, handing
+// the path to the configured IDE — an inspect or a container log has nothing
+// on disk an editor could open, so FileSource is the only implementer.
+type Pathed interface {
+	Source
+	Path() string
+}
+
 // FileSource reads a file from disk. It is the workspaces view's source, and
 // the only one in this package: the others know docker, and this package must
 // not.
 type FileSource struct {
-	Path string
+	path string
 }
 
 // NewFileSource builds a source for a path on disk.
 func NewFileSource(path string) FileSource {
-	return FileSource{Path: path}
+	return FileSource{path: path}
 }
 
-func (s FileSource) Name() string { return filepath.Base(s.Path) }
+func (s FileSource) Name() string { return filepath.Base(s.path) }
 
 // Kind is KindAuto: a file browser does not know what it is opening, so the
 // extension and then the content decide.
 func (s FileSource) Kind() Kind { return KindAuto }
 
-func (s FileSource) Load() ([]byte, error) { return ReadFile(s.Path) }
+func (s FileSource) Load() ([]byte, error) { return ReadFile(s.path) }
+
+// Path satisfies Pathed.
+func (s FileSource) Path() string { return s.path }

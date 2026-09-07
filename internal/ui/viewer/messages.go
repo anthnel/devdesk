@@ -36,3 +36,15 @@ type BackToOriginMsg struct {
 type PagerExitMsg struct {
 	Err error
 }
+
+// ContentCopiedMsg reports the result of copying the document's text to the
+// system clipboard (`Y`).
+type ContentCopiedMsg struct {
+	Err error
+}
+
+// IDEOpenedMsg reports the result of handing the document's path to the
+// configured IDE (`O`).
+type IDEOpenedMsg struct {
+	Err error
+}
