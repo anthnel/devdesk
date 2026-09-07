@@ -1,0 +1,5 @@
+dans le viewer je voudrais ajouter deux fonctionnalités : 1. copier le contenu du fichier ouvert dans le presse papier avec "Y". 2. Permettre d'ouvir le fichier dans l'editeur externe avec "O".
+
+---
+
+crée un worktree et commit ça
