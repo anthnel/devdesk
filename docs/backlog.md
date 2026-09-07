@@ -11989,6 +11989,106 @@ existent — rien ne les garde.
 
 ---
 
+### 3.67 Choisir le moteur de conteneurisation — `docker` ou `podman`
+
+Un seam existe déjà, trois lignes portent le nom du binaire, et quatre zones le
+contournent. Les sous-commandes se recouvrent ; ce qui ne se recouvre pas est le
+fichier d'authentification, le socket, et le format de sortie — et c'est le
+dernier qui échoue en silence.
+
+#### Ce qui rend l'idée bon marché — vérifié le 2026-09-07
+
+`internal/docker` fait déjà passer **toute** invocation par un seul point,
+`cliRunner` (`internal/docker/exec.go:48`), construit pour la couverture de
+tests (§2, phase 5). Le nom du binaire y est écrit **trois fois** : dans
+`LookPath` (`exec.go:51`), dans `Build` (`exec.go:56`) et dans `Run`. Un champ
+sur le runner, lu depuis la configuration, et le paquet entier change de moteur.
+
+Les sous-commandes se recouvrent aussi : `ps -a`, `image ls|inspect|prune`,
+`network ls|inspect|create|rm|prune`, `volume ls|rm|prune`, `container prune`,
+`system df`, `stats --no-stream`, `info --format` et `run --rm` existent toutes
+sous podman avec la même syntaxe — c'est l'objectif déclaré de sa CLI.
+
+#### Ce qui n'est pas un renommage — quatre frictions
+
+**1. `~/.docker/config.json` est lu *et écrit* directement**, pas à travers la
+CLI. `dockerConfigPath()` (`internal/docker/registry.go:45`) code le chemin en
+dur, `readDockerConfig` (`registry.go:54`) le désérialise, et
+`removeFromDockerConfig` fait un `os.WriteFile` dessus (`registry.go:157`) —
+parce que `docker logout` laisse des clés alias derrière lui. Podman écrit
+`${XDG_RUNTIME_DIR}/containers/auth.json`, sinon `~/.config/containers/auth.json` :
+même forme, autre emplacement. Le protocole des helpers est partagé, mais c'est
+ce fichier-là qui nomme le helper, et `Run` préfixe `docker-credential-`
+(`exec.go:64`).
+
+**2. Le montage du socket, pour les scanners en conteneur.**
+`dockerSocketMount = "/var/run/docker.sock:/var/run/docker.sock:ro"`
+(`internal/scan/trivy_args.go:20`) n'est ajouté que quand la cible est une
+**image** et que trivy tourne en conteneur. Podman rootless n'a pas ce socket :
+l'équivalent est `$XDG_RUNTIME_DIR/podman/podman.sock`, et il n'existe que si
+`podman system service` tourne. C'est le seul chemin qui **casse** au lieu de se
+déplacer, et il ne se répare pas en changeant un nom.
+
+**3. `internal/scan` ne passe pas par le seam.** Six sites écrivent `"docker"` en
+dur : `trivy_args.go:182`, `gitleaks.go:93`, `plumber.go:111`,
+`tool_source.go:128`, et la détection elle-même — `scanner.go:350` (`LookPath`)
+puis `scanner.go:382` (`docker images -q`). Plus gênant que des littéraux :
+`ToolSourceDocker` est une **valeur** de `ToolSource` (`scanner.go:289`), donc le
+nom du moteur est gravé dans un type que le cache de scan et l'UI lisent tous les
+deux.
+
+**4. Le shell interactif non plus.** `internal/ui/containers/update.go` appelle
+`docker exec` à trois endroits (`:367`, `:390`, `:405`), dont un passé à
+`tea.ExecProcess`. Et le tableau des outils du dashboard détecte littéralement
+`"docker"` (`internal/ui/dashboard/model.go:578`).
+
+#### Le vrai risque est le `--format`, et il est silencieux
+
+Dix appels demandent des gabarits Go —
+`{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.CreatedAt}}\t{{.Ports}}`
+pour `ps` (`internal/docker/containers.go:47`), et autant pour `image ls`,
+`image inspect`, `system df`, `volume ls`, `network ls`, `stats` et `info`.
+`parse.go` redécoupe le résultat sur les tabulations.
+
+Podman implémente `--format`, mais l'égalité des **champs** n'est garantie nulle
+part, et `{{.Ports}}` comme `{{.CreatedAt}}` sont les candidats les plus
+probables à diverger. Une divergence ne produit pas une erreur : elle produit des
+**lignes fausses** — une colonne décalée, une date vide, un port qui manque.
+C'est exactement la classe de défaut que ce dépôt collectionne (D24, D25, D57) :
+une vue qui répond à côté sans le dire.
+
+**À mesurer avant de planifier**, et c'est la seule chose qui décide de la taille
+du chantier : les dix gabarits, un par un, contre un vrai podman. S'ils
+coïncident, l'entrée est petite ; s'ils divergent, il faut une table de gabarits
+par moteur, et ce n'est plus le même travail. Aucune mesure n'a été prise — la
+machine de développement n'a pas podman.
+
+#### Où va le réglage
+
+`app.container_engine`, à côté de `ide_command` et `terminal_command` : la
+section `app` tient déjà les outils externes que l'application pilote. **Pas**
+dans `network`, qui ne porte que les réglages de `netcheck` malgré son ancien nom
+`docker:` (migration documentée dans `docs/architecture/configuration.md`).
+
+`auto` par défaut — `docker` s'il est sur le PATH, sinon `podman` — plutôt que
+`docker` en dur. C'est ce que fait déjà `app.secret_backend` (§3.9), et ça évite
+de demander un réglage à qui n'a installé qu'un seul des deux.
+
+#### Non retenu
+
+**Ne rien faire, parce que `podman-docker` existe.** Le paquet installe un
+`docker` qui est podman, et sur cette base l'essentiel fonctionne déjà — sauf les
+deux frictions qui ne sont pas des noms de binaire : le fichier
+d'authentification et le socket. C'est un argument pour réduire le périmètre,
+pas pour le supprimer.
+
+**Passer au SDK plutôt qu'à la CLI.** Le paquet parle à la CLI, ce qui « garde la
+dépendance légère » (`exec.go:33`), et podman expose une API compatible Docker.
+Mais ce serait réécrire les dix parsings pour résoudre un problème de nom de
+binaire, et remplacer une dépendance légère par une lourde des deux côtés.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
