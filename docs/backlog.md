@@ -12207,21 +12207,35 @@ La section Network répond « à quelle vitesse ça circule maintenant » et jam
 qu'on se pose devant un forfait, un `docker pull` qui traîne ou un tunnel qu'on
 soupçonne.
 
-#### Ce que `History` compte, parce que ce n'est pas ce qu'on croit
+#### La ligne `History` a été supprimée, et c'est ce qui a lancé cette entrée
 
-`row("History", samples)` (`internal/ui/dashboard/sections.go:879`) compte
+La section se terminait sur `History  240 samples`. Le nombre comptait
 `m.samples`, l'historique qui alimente les deux courbes juste au-dessus : un
 relevé par seconde (`hostTickInterval`, `model.go:74`), plafonné à
 `maxSamples = 240` (`model.go:389`), soit quatre minutes de fenêtre glissante.
 
-Deux choses que le nombre ne dit pas, et qui le rendent facile à mal lire :
+Deux choses que le nombre ne disait pas, et qui le rendaient trompeur sous un
+titre *Network* :
 
 - La tranche est **partagée** — un `HostSample` porte CPU, mémoire et les deux
-  débits, et les courbes CPU et mémoire lisent la même. Ce n'est pas un
+  débits, et les courbes CPU et mémoire lisent la même. Ce n'était pas un
   compteur réseau.
 - Un échantillon **sans débit est conservé quand même** (`model.go:399`) : son
-  CPU et sa mémoire sont mesurés, seul le débit manque. `N` mesure donc
+  CPU et sa mémoire sont mesurés, seul le débit manque. `N` mesurait donc
   l'ancienneté du dashboard, pas la quantité de données réseau relevées.
+
+Ce qu'elle aurait pu dire d'utile — que la fenêtre n'est pas encore pleine — la
+courbe le dit déjà seule : **une série partielle est dessinée alignée à
+droite**, donc le blanc à sa gauche *est* l'historique qui manque. Mesuré plutôt
+que supposé, en rendant une série de 8 points et une de 60 dans le même
+`renderChart`. C'est ce relevé qui a retiré le seul argument en faveur du
+maintien de la ligne.
+
+Au tier `wide` la hauteur des courbes est **mesurée** sur ce qui reste
+(`chartHeight`, `sections.go:605`), donc la ligne libérée revient aux courbes
+sans qu'aucune constante ne bouge.
+
+Le besoin d'un volume, lui, reste entier — c'est le reste de cette entrée.
 
 #### Le cumul est déjà là — la source est cumulative
 

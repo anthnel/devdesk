@@ -865,18 +865,21 @@ func renderNetworkSection(m Model, width int, t tier) []string {
 		tx = theme.Bg(humanBytes(uint64(m.host.NetTXPerSec))) + theme.DimStyle.Render("/s")
 	}
 
-	samples := unknownValue()
-	if n := len(m.samples); n > 0 {
-		samples = countValue(n) + theme.DimStyle.Render(" samples")
-	}
-
 	// Throughput has no known ceiling: the scale stays automatic, against a
 	// fixed 0-to-100 scale for a percentage.
+	//
+	// There is no sample count here. It used to close the box — "240 samples"
+	// — and it answered a question about the chart's plumbing while reading as
+	// a network measurement, in a box titled Network: `m.samples` is the shared
+	// host history that also feeds the CPU and RAM curves, and a sample whose
+	// throughput is missing is kept in it anyway. What it might have said —
+	// that the window is not full yet — the curve already says on its own: a
+	// partial series is drawn right-aligned, so the blank on its left *is* the
+	// history it does not have.
 	lines := []string{row("RX", rx)}
 	lines = append(lines, chartOf(m, width, t, func(s metrics.HostSample) float64 { return s.NetRXPerSec }, 0)...)
 	lines = append(lines, row("TX", tx))
-	lines = append(lines, chartOf(m, width, t, func(s metrics.HostSample) float64 { return s.NetTXPerSec }, 0)...)
-	return append(lines, row("History", samples))
+	return append(lines, chartOf(m, width, t, func(s metrics.HostSample) float64 { return s.NetTXPerSec }, 0)...)
 }
 
 // knownTools names the tools DevDesk detects, in the order detectTools builds
