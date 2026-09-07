@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-08-30
+**Last Updated:** 2026-09-07
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -8372,12 +8372,32 @@ rapporte différemment selon la plateforme, donc à vérifier avant de décider.
 sa raison écrite ; c'est une décision à revisiter, pas un défaut à corriger — le
 statut de D35.
 
-### 3.41 Se passer de `netshoot` — ce qui se réécrit en Go, et ce qu'on abandonne — **analysé, suite en §3.43**
+### 3.41 Se passer de `netshoot` — ce qui se réécrit en Go, et ce qu'on abandonne — **done**
 
-L'analyse est faite et **l'option 1 a été prise** : §3.43 a sorti l'onglet Ports
-et `K` de l'image, qui ne sert plus qu'à la trace de route et à l'onglet
-Topology. Ce qui suit reste l'énoncé d'origine ; les deux mesures qu'il demandait
-sont rapportées en §3.43, et l'une des deux a décidé de l'implémentation.
+**Fermée : il n'y a plus d'image du tout.** L'analyse proposait trois options
+pour la trace de route ; c'est la **2** qui a été prise — l'abandonner — et
+§3.47 l'a exécutée en emportant `network.tool_image` avec elle. Vérifié dans le
+code le 2026-09-07 : plus un `RunTraceroute`, plus une mention de `netshoot`,
+plus de réglage d'image, et `H` est revenue dans les lettres libres
+(`internal/ui/keymap/keymap.go:172`).
+
+Le chemin a donc été : §3.43 pour l'onglet Ports et `K`, §3.44 pour l'onglet
+Topology, §3.47 pour la trace de route. La dépendance à un conteneur privilégié
+pour des fonctions qui ne sont pas Docker n'existe plus.
+
+**Cette entrée est restée périmée un moment**, et c'est le défaut à retenir
+plutôt que le sujet : son titre annonçait « suite en §3.43 » et son dernier
+paragraphe disait qu'il restait les options 2 et 3 à trancher, alors que §3.47
+avait déjà tranché. Une entrée dont la conclusion vit dans une *autre* entrée ne
+se met pas à jour toute seule — un relevé de l'état ouvert du backlog l'a listée
+comme du travail en attente, ce qu'elle n'était plus. Quand une décision est
+exécutée ailleurs, c'est l'entrée qui la posait qui doit le dire.
+
+Un résidu, sans conséquence : `internal/netcheck/env.go:38` cite encore « the
+traceroute hop limit » comme exemple d'un réglage porté par la vue netdiag. Le
+réglage n'existe plus — un `grep` sur `HopLimit`/`max_hops` ne rend rien.
+
+Ce qui suit est l'énoncé d'origine, gardé pour ce qu'il a mesuré.
 
 L'image `nicolaka/netshoot` (`network.tool_image`) était la dernière dépendance
 de DevDesk à un conteneur pour des fonctions qui ne sont pas Docker. La question
@@ -8487,8 +8507,11 @@ provisoire :
 
 L'option 1 est probablement la bonne première étape, parce qu'elle ne demande de
 renoncer à rien et qu'elle isole la question restante. — *C'est ce qui a été
-fait. Une fois §3.44 passée, il ne reste que la trace de route, donc les options
-2 et 3 sont tout ce qu'il restera à trancher.*
+fait, puis la question isolée a été tranchée par l'option 2 : §3.47 a supprimé la
+trace de route et `network.tool_image`. L'option 3 — un traceroute en Go — n'a
+pas été retenue, pour la raison écrite dans `netcheck/env.go` : elle demande un
+socket ICMP brut, donc l'élévation sous Windows et `CAP_NET_RAW` sous Linux,
+et « DevDesk must not need root ».*
 
 #### Ce que ça retirerait aussi
 
@@ -11830,6 +11853,350 @@ actif** — vérifié plutôt que supposé, par
 que supposé, et c'est la seule condition d'entrée de l'outil. Le squash-merge y
 est pour beaucoup : le titre de la PR devient le sujet du commit, donc c'est
 lui, et lui seul, qui doit être conforme.
+
+---
+
+### 3.63 Les sous-réseaux qui se recouvrent — Docker contre la machine
+
+`docker compose up` crée un bridge dont le sous-réseau recouvre celui du VPN, et
+le VPN meurt. Docker ne prévient pas, DevDesk non plus, et le diagnostic se fait
+à la main en lisant deux tables qui sont déjà toutes les deux dans
+l'application.
+
+#### Ce qui est déjà là — vérifié le 2026-09-07
+
+- `netiface.Interface` porte `IPv4` et `IPv6` **en notation CIDR**
+  (`internal/netiface/netiface.go:44`), donc les préfixes directement attachés
+  de chaque adaptateur, lus nativement sur les trois plateformes (§3.44).
+- `docker network inspect` est **déjà exécuté** (`internal/docker/networks.go:87`)
+  mais seule la map `Containers` est lue : `networkInspectResult`
+  (`networks.go:82`) n'a qu'un champ, et le bloc `IPAM.Config` qui porte le
+  sous-réseau est jeté au parsing.
+  La donnée est à un champ de struct, pas à une intégration.
+- `net/netip` fournit `Prefix.Overlaps` dans la bibliothèque standard. La
+  comparaison elle-même ne coûte rien.
+
+#### La limite, et elle doit être dite dans la vue plutôt que découverte
+
+**DevDesk n'a pas de table de routage.** §3.44 ne l'a pas traduite, elle l'a
+supprimée — la question de la route est partie dans le pipeline Diagnostics, où
+elle est posée *à propos d'une cible*. Ce qui est comparable est donc l'ensemble
+des préfixes **directement attachés** : cela couvre un VPN qui s'attribue une
+adresse dans la plage qu'il protège, et cela rate celui qui se contente d'y
+pousser des routes.
+
+`go-netroute` est déjà une dépendance directe et répond « par où sort *cette*
+destination », une destination à la fois (`Env.Route`, `netcheck/env.go:138`).
+Ce n'est pas une énumération de la table, et il n'y en a pas de portable. Une
+sonde par destination est donc le **complément** honnête de la comparaison de
+préfixes, pas son remplacement.
+
+#### Non tranché
+
+- **Où ça vit.** L'onglet Interfaces tient le côté machine, la vue OCI tient les
+  réseaux Docker. Le recouvrement n'appartient franchement ni à l'un ni à
+  l'autre, et un troisième écran pour une table coûte plus qu'il ne rapporte.
+  Probablement une section de l'onglet Interfaces, parce que c'est là que le
+  côté machine est déjà.
+- **Quel verdict.** Deux réseaux peuvent se recouvrir sans que rien ne casse
+  tant qu'aucun trafic ne veut les deux. `Warn` est défendable ; `Fail` crierait
+  au loup sur un `docker0` que personne ne route.
+- **Un recouvrement entre deux réseaux Docker** mérite-t-il d'être signalé, ou
+  seulement Docker-contre-machine. Le premier est l'affaire de Docker, qui le
+  tolère.
+
+---
+
+### 3.64 Ce qu'un conteneur expose, et que personne ne scanne
+
+Trivy note l'image, plumber note le pipeline, gitleaks note le dépôt. **Personne
+ne note le conteneur qui tourne.** Publier sur `0.0.0.0` plutôt que sur
+`127.0.0.1`, `--network host`, `--privileged`, une capability ajoutée, le socket
+Docker monté : tout cela se décide au `run`, et rien n'en est visible pour un
+scanner qui lit une image.
+
+#### Ce qui est déjà là
+
+`docker.ListContainers` existe, la donnée vient de `docker inspect`, et
+`scan.Finding` (`internal/scan/scanner.go:97`) est le type à produire — il porte
+déjà `Severity`, `Resolution`, `References` et `FixCommand`, qui est exactement
+ce qu'un constat de ce genre a à dire.
+
+#### Le vrai travail n'est pas la liste des contrôles, c'est où la réponse atterrit
+
+Deux frictions, vérifiées le 2026-09-07 :
+
+- `scan.Categorize` (`internal/scan/category.go:47`) commute sur `f.Source` et
+  **retombe sur `CategoryVulnerability`** par défaut. Une source qui oublie de se
+  déclarer atterrit silencieusement dans l'onglet des CVE, ce qui est le genre
+  de défaut que ce dépôt classe en §1.1.
+- L'inventaire de `:sec` est indexé sur des **images et des dépôts**, lus depuis
+  les deux caches de scan. Un **conteneur** n'est ni l'un ni l'autre : il n'y a
+  pas de ligne où le constat puisse se poser.
+
+#### Non tranché
+
+Un conteneur est-il un troisième type de ligne d'inventaire, ou les constats
+s'attachent-ils à l'image qu'il exécute ? La seconde réponse est moins chère et
+perd précisément ce que le contrôle cherche : deux conteneurs de la même image
+démarrés différemment n'ont pas la même exposition, et c'est tout le sujet.
+
+---
+
+### 3.65 Les en-têtes de sécurité, et ce que le handshake accepterait
+
+#### Ce que le pipeline regarde aujourd'hui — vérifié le 2026-09-07
+
+`runHTTP` émet un **HEAD** (`env.Head`) et lit exactement deux choses : le statut
+et l'en-tête `Server` (`internal/netcheck/stage_http.go:22`). Rien ne regarde
+HSTS, CSP, `X-Content-Type-Options`, les drapeaux des cookies, ni si `http://`
+redirige vers `https://`.
+
+L'étage TLS couvre déjà la chaîne, le nom d'hôte, l'expiration et la version
+**négociée** (`stage_tls.go:217`). Ce qu'il ne couvre pas est ce que le serveur
+*accepterait* : un point d'entrée qui négocie TLS 1.3 avec DevDesk peut très
+bien accepter 1.0 de quelqu'un d'autre.
+
+#### Deux coûts différents, et c'est ce qui doit les séparer
+
+Les en-têtes sont **gratuits** : la requête est déjà faite, il n'y a qu'à lire ce
+qu'elle a rapporté. Le balayage des versions coûte **N handshakes**, un par
+version testée, avec un `tls.Config` restreint à chaque fois — un profil de coût
+que n'a aucun autre contrôle du pipeline, où chacun ouvre une connexion. Les
+mettre dans le même contrôle ferait payer le second à qui ne demandait que le
+premier.
+
+#### Où ça va
+
+L'onglet Certificates de `status` (`TabCertificates`, colonnes en
+`internal/ui/status/columns.go:100`) montre déjà émetteur, statut, jours
+restants et expiration pour chaque composant surveillé. C'est l'écran qui pose
+déjà la question « quelle est la posture TLS de ce que je surveille », donc les
+en-têtes s'y rangent plutôt que dans un onglet de plus.
+
+#### Prérequis, partagé avec §3.66
+
+`Check` porte de la prose, pas de la donnée. `HTTPResult` devrait porter le jeu
+d'en-têtes, et `Check.Facts` est la forme qui existe déjà pour l'exposer.
+
+---
+
+### 3.66 « C'est lent » — où, exactement
+
+`net/http/httptrace` sépare DNS / connexion / handshake TLS / TTFB / total pour
+une requête, avec la bibliothèque standard seule.
+
+#### Le chiffre existe déjà, et il est jeté — vérifié le 2026-09-07
+
+`Check` **n'a pas de champ de durée** (`internal/netcheck/netcheck.go:119`). Le
+seul temps affiché aujourd'hui est de la prose dans `Summary` — « Port 443
+accepted the connection in 12 ms » — alors que `Env.DialTCP` retourne une vraie
+`time.Duration` (`env.go:130`) que l'étage formate puis oublie. Un nombre que le
+pipeline tient déjà ne peut donc être ni tracé, ni comparé entre deux exécutions,
+ni trié.
+
+Le correctif qui débloque tout est petit, et c'est **le même que celui dont
+§3.65 a besoin** : `Check` porte une durée, et `Summary` continue de la dire en
+prose pour qui lit. Deux consommateurs pour un seul changement.
+
+`ntcharts` est déjà une dépendance directe (§3.19), donc l'historique ne coûte
+aucune dépendance.
+
+#### Non tranché
+
+Garder un historique, ou pas. Une latence réduite à sa dernière mesure répond à
+« est-ce lent maintenant » ; une série répond à « est-ce que ça se dégrade »,
+qui est la question utile et la seule qui demande de persister quelque chose.
+Les moniteurs de `status` tournent déjà sur une horloge, donc les échantillons
+existent — rien ne les garde.
+
+---
+
+### 3.67 Choisir le moteur de conteneurisation — `docker` ou `podman`
+
+Un seam existe déjà, trois lignes portent le nom du binaire, et quatre zones le
+contournent. Les sous-commandes se recouvrent ; ce qui ne se recouvre pas est le
+fichier d'authentification, le socket, et le format de sortie — et c'est le
+dernier qui échoue en silence.
+
+#### Ce qui rend l'idée bon marché — vérifié le 2026-09-07
+
+`internal/docker` fait déjà passer **toute** invocation par un seul point,
+`cliRunner` (`internal/docker/exec.go:48`), construit pour la couverture de
+tests (§2, phase 5). Le nom du binaire y est écrit **trois fois** : dans
+`LookPath` (`exec.go:51`), dans `Build` (`exec.go:56`) et dans `Run`. Un champ
+sur le runner, lu depuis la configuration, et le paquet entier change de moteur.
+
+Les sous-commandes se recouvrent aussi : `ps -a`, `image ls|inspect|prune`,
+`network ls|inspect|create|rm|prune`, `volume ls|rm|prune`, `container prune`,
+`system df`, `stats --no-stream`, `info --format` et `run --rm` existent toutes
+sous podman avec la même syntaxe — c'est l'objectif déclaré de sa CLI.
+
+#### Ce qui n'est pas un renommage — quatre frictions
+
+**1. `~/.docker/config.json` est lu *et écrit* directement**, pas à travers la
+CLI. `dockerConfigPath()` (`internal/docker/registry.go:45`) code le chemin en
+dur, `readDockerConfig` (`registry.go:54`) le désérialise, et
+`removeFromDockerConfig` fait un `os.WriteFile` dessus (`registry.go:157`) —
+parce que `docker logout` laisse des clés alias derrière lui. Podman écrit
+`${XDG_RUNTIME_DIR}/containers/auth.json`, sinon `~/.config/containers/auth.json` :
+même forme, autre emplacement. Le protocole des helpers est partagé, mais c'est
+ce fichier-là qui nomme le helper, et `Run` préfixe `docker-credential-`
+(`exec.go:64`).
+
+**2. Le montage du socket, pour les scanners en conteneur.**
+`dockerSocketMount = "/var/run/docker.sock:/var/run/docker.sock:ro"`
+(`internal/scan/trivy_args.go:20`) n'est ajouté que quand la cible est une
+**image** et que trivy tourne en conteneur. Podman rootless n'a pas ce socket :
+l'équivalent est `$XDG_RUNTIME_DIR/podman/podman.sock`, et il n'existe que si
+`podman system service` tourne. C'est le seul chemin qui **casse** au lieu de se
+déplacer, et il ne se répare pas en changeant un nom.
+
+**3. `internal/scan` ne passe pas par le seam.** Six sites écrivent `"docker"` en
+dur : `trivy_args.go:182`, `gitleaks.go:93`, `plumber.go:111`,
+`tool_source.go:128`, et la détection elle-même — `scanner.go:350` (`LookPath`)
+puis `scanner.go:382` (`docker images -q`). Plus gênant que des littéraux :
+`ToolSourceDocker` est une **valeur** de `ToolSource` (`scanner.go:289`), donc le
+nom du moteur est gravé dans un type que le cache de scan et l'UI lisent tous les
+deux.
+
+**4. Le shell interactif non plus.** `internal/ui/containers/update.go` appelle
+`docker exec` à trois endroits (`:367`, `:390`, `:405`), dont un passé à
+`tea.ExecProcess`. Et le tableau des outils du dashboard détecte littéralement
+`"docker"` (`internal/ui/dashboard/model.go:578`).
+
+#### Le vrai risque est le `--format`, et il est silencieux
+
+Dix appels demandent des gabarits Go —
+`{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.CreatedAt}}\t{{.Ports}}`
+pour `ps` (`internal/docker/containers.go:47`), et autant pour `image ls`,
+`image inspect`, `system df`, `volume ls`, `network ls`, `stats` et `info`.
+`parse.go` redécoupe le résultat sur les tabulations.
+
+Podman implémente `--format`, mais l'égalité des **champs** n'est garantie nulle
+part, et `{{.Ports}}` comme `{{.CreatedAt}}` sont les candidats les plus
+probables à diverger. Une divergence ne produit pas une erreur : elle produit des
+**lignes fausses** — une colonne décalée, une date vide, un port qui manque.
+C'est exactement la classe de défaut que ce dépôt collectionne (D24, D25, D57) :
+une vue qui répond à côté sans le dire.
+
+**À mesurer avant de planifier**, et c'est la seule chose qui décide de la taille
+du chantier : les dix gabarits, un par un, contre un vrai podman. S'ils
+coïncident, l'entrée est petite ; s'ils divergent, il faut une table de gabarits
+par moteur, et ce n'est plus le même travail. Aucune mesure n'a été prise — la
+machine de développement n'a pas podman.
+
+#### Où va le réglage
+
+`app.container_engine`, à côté de `ide_command` et `terminal_command` : la
+section `app` tient déjà les outils externes que l'application pilote. **Pas**
+dans `network`, qui ne porte que les réglages de `netcheck` malgré son ancien nom
+`docker:` (migration documentée dans `docs/architecture/configuration.md`).
+
+`auto` par défaut — `docker` s'il est sur le PATH, sinon `podman` — plutôt que
+`docker` en dur. C'est ce que fait déjà `app.secret_backend` (§3.9), et ça évite
+de demander un réglage à qui n'a installé qu'un seul des deux.
+
+#### Non retenu
+
+**Ne rien faire, parce que `podman-docker` existe.** Le paquet installe un
+`docker` qui est podman, et sur cette base l'essentiel fonctionne déjà — sauf les
+deux frictions qui ne sont pas des noms de binaire : le fichier
+d'authentification et le socket. C'est un argument pour réduire le périmètre,
+pas pour le supprimer.
+
+**Passer au SDK plutôt qu'à la CLI.** Le paquet parle à la CLI, ce qui « garde la
+dépendance légère » (`exec.go:33`), et podman expose une API compatible Docker.
+Mais ce serait réécrire les dix parsings pour résoudre un problème de nom de
+binaire, et remplacer une dépendance légère par une lourde des deux côtés.
+
+---
+
+### 3.68 Où est vraiment le mot de passe — le magasin d'identifiants se dit
+
+DevDesk lit un mot de passe de registry dans un fichier dont il ne contrôle pas
+la protection, et n'en dit rien. L'information qui manque n'est pas à calculer :
+elle est déjà sous la main de la fonction qui la jette.
+
+#### Pourquoi ce n'est pas une violation de §3.9
+
+`RegistryLogin` (`internal/docker/registry.go:68`) n'écrit aucun secret : il
+appelle `docker login --password-stdin` et laisse Docker écrire son propre
+magasin. La seule écriture que DevDesk fait dans `~/.docker/config.json` est une
+**suppression** — `removeFromDockerConfig` (`registry.go:118`), après
+`docker logout`, parce que logout laisse des clés alias derrière lui.
+
+La règle de §3.9 dit qu'aucun secret que DevDesk détient n'est écrit dans un
+fichier que **DevDesk** possède, et elle tient : ce fichier est celui de Docker.
+Ce que §3.9 n'a pas eu à trancher, et qui est le sujet ici, c'est ce qui se passe
+quand DevDesk **relit** ce fichier.
+
+#### Ce que la relecture trouve — vérifié le 2026-09-07
+
+`GetStoredCreds` (`registry.go:165`) est appelé à trois endroits d'`oci_resources`
+(`commands.go:702`, `commands.go:720`, `browser_keys.go:130`) pour parler aux API
+HTTP des registries — recherche de tags, découverte de groupe Nexus — qui ne
+passent pas par la CLI. Il essaie dans l'ordre le helper par registry
+(`credHelpers`), le helper global (`credsStore`), puis **le champ `auth` en
+base64**, que `decodeAuth` (`registry.go:204`) redécoupe en `user:password`.
+
+base64 est un encodage, pas un chiffrement. Sur une machine dont le Docker n'a ni
+`credHelpers` ni `credsStore` — le cas courant sous Linux sans
+`docker-credential-pass` ni `-secretservice` — le mot de passe du registry est en
+clair dans un fichier, et rien à l'écran ne le dit.
+
+C'est la posture de **Docker**, pas celle de DevDesk : il ne l'a pas mise là et
+ne peut pas la corriger sans réimplémenter `docker login`. Ce qui reste à sa
+portée est de la **dire**.
+
+#### L'information est déjà là, et elle est jetée deux fois
+
+`IsRegistryLoggedIn` (`registry.go:85`) désérialise `auths` en
+`map[string]json.RawMessage` et ne regarde que **l'existence** de la clé. Or
+c'est son contenu qui répond : `docker login` adossé à un `credsStore` écrit une
+entrée **vide** et met le secret dans le helper ; sans helper il écrit
+`{"auth": "<base64>"}`. Distinguer les deux ne demande donc aucun appel
+supplémentaire — c'est un champ de plus dans une structure que la fonction
+désérialise déjà.
+
+**Ce comportement de docker est à vérifier contre un vrai `docker login` avant
+d'écrire quoi que ce soit** : il décide de tout le reste, et il est ici supposé
+plutôt que mesuré.
+
+La chaîne jette l'information une seconde fois, et c'est le vrai coût de
+l'entrée : `checkRegistryLoginStatusCmd` (`commands.go:261`) réduit chaque
+registry à un `bool`, `RegistryLoginStatusMsg.Status` est une `map[string]bool`,
+et `loggedCell` (`table.go:359`) rend `IconOK` ou `IconError`. Il faut élargir le
+type sur toute la chaîne.
+
+#### La forme : la colonne existante, pas une colonne de plus
+
+**Pas une colonne « Store ».** Sous Docker Desktop elle afficherait `desktop` sur
+toutes les lignes, et une colonne qui ne varie jamais n'informe de rien — c'est
+la discipline que Rule 122 impose aux couleurs, appliquée à une colonne.
+
+`Logged` (`table.go:318`) continue de répondre « suis-je connecté », et le dit
+**différemment** quand le secret est en clair : `IconOK` pour un identifiant tenu
+par un helper, une variante d'avertissement pour un identifiant inline. Une seule
+colonne, aucune largeur de plus, et le signal n'apparaît que quand il y a quelque
+chose à voir.
+
+À ne pas confondre avec la colonne `Auth` voisine (`table.go:317`), qui porte
+l'`AuthMode` de la configuration : ce que l'utilisateur a *demandé*, pas où le
+secret *est*.
+
+#### Non retenu
+
+**En faire un finding `:sec`.** L'inventaire de `:sec` est indexé sur des images
+et des dépôts (§3.64) ; la posture d'un magasin d'identifiants n'est ni l'un ni
+l'autre, et lui inventer une ligne coûterait plus que la nuance de couleur
+ci-dessus.
+
+**Recopier l'identifiant dans le keyring de DevDesk.** Ce serait se connecter
+deux fois — une pour que `docker pull` marche, une pour DevDesk — et faire tenir
+à DevDesk un second exemplaire d'un secret que Docker a déjà. §3.8 a tranché
+l'héritage dans l'autre sens : `docker login` est la source, et il est indexé par
+hôte.
 
 ---
 
