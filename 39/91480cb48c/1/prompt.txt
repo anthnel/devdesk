@@ -1,0 +1,13 @@
+analyse la possibilité de pouvoir choisir le moteur de conteneurisation docker|podman pour ajouter une nouvelle entrée au backlog
+
+---
+
+on utilise  ~/.docker/config.json ? je pensais que les données sensible allait dans un secret manager
+
+---
+
+oui, ajoute-la au backlog
+
+---
+
+je pense que §3.41 — le traceroute (H) tourne encore via le conteneur netshoot privilégié n'est plus d'actualité, il n'y a plus d'image et abandonne cette fonctionnalité
