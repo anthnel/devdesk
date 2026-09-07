@@ -1,0 +1,9 @@
+plusieurs lignes sont disponibles sous le graphique réseau dans la vue dashboard, est-ce qu'on ne pourrait pas afficher des informations utiles comme les erreurs réseau
+
+---
+
+oui ajoute l'entrée
+
+---
+
+oui fais les deux
