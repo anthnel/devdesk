@@ -1,0 +1,13 @@
+plusieurs lignes sont disponibles sous le graphique réseau dans la vue dashboard, est-ce qu'on ne pourrait pas afficher des informations utiles comme les erreurs réseau
+
+---
+
+oui ajoute l'entrée
+
+---
+
+oui fais les deux
+
+---
+
+question, dans la vue container, est-ce qu'il serait possible d'ajouter une gauge pour cpu et mem. Je pense à une gauge qui se remplit de gauche à droite avec une couleur qui va du vert au rouge en passant par l'orange en fonction de l'utilisation de la ressource.

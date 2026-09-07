@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "abc0caa4885b",
+  "strategy": "manual-commit",
+  "branch": "fix/drop-network-history",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/ab/c0caa4885b/0/metadata.json",
+      "transcript": "/ab/c0caa4885b/0/full.jsonl",
+      "compact_transcript": "/ab/c0caa4885b/0/transcript.jsonl",
+      "content_hash": "/ab/c0caa4885b/0/content_hash.txt",
+      "prompt": "/ab/c0caa4885b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 14223,
+    "cache_read_tokens": 5035988,
+    "output_tokens": 13067,
+    "api_call_count": 11
+  }
+}
