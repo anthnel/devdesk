@@ -12200,6 +12200,84 @@ hôte.
 
 ---
 
+### 3.69 Le dashboard dit un débit, pas un volume
+
+La section Network répond « à quelle vitesse ça circule maintenant » et jamais
+« combien est passé ». Les deux questions se posent, et la seconde est celle
+qu'on se pose devant un forfait, un `docker pull` qui traîne ou un tunnel qu'on
+soupçonne.
+
+#### Ce que `History` compte, parce que ce n'est pas ce qu'on croit
+
+`row("History", samples)` (`internal/ui/dashboard/sections.go:879`) compte
+`m.samples`, l'historique qui alimente les deux courbes juste au-dessus : un
+relevé par seconde (`hostTickInterval`, `model.go:74`), plafonné à
+`maxSamples = 240` (`model.go:389`), soit quatre minutes de fenêtre glissante.
+
+Deux choses que le nombre ne dit pas, et qui le rendent facile à mal lire :
+
+- La tranche est **partagée** — un `HostSample` porte CPU, mémoire et les deux
+  débits, et les courbes CPU et mémoire lisent la même. Ce n'est pas un
+  compteur réseau.
+- Un échantillon **sans débit est conservé quand même** (`model.go:399`) : son
+  CPU et sa mémoire sont mesurés, seul le débit manque. `N` mesure donc
+  l'ancienneté du dashboard, pas la quantité de données réseau relevées.
+
+#### Le cumul est déjà là — la source est cumulative
+
+`net.IOCounters(false)` (`internal/metrics/host.go:73`) rend `BytesRecv` et
+`BytesSent` **depuis le boot**. DevDesk les lit déjà dans `metrics.Counters`
+(`metrics.go:40`) et garde le dernier relevé dans `m.netCounters`
+(`model.go:152`) ; le débit affiché *est* la soustraction de deux relevés
+consécutifs (`rate()`, `metrics.go:58`).
+
+Un total sur fenêtre est donc une soustraction de plus, contre une **référence
+mémorisée** au lieu du relevé précédent : `cur.RX - baseline.RX`, exact à
+l'octet, la fenêtre se nommant depuis `cur.At.Sub(baseline.At)`. Une struct de
+plus dans le modèle.
+
+**Ne pas sommer les débits de `m.samples`.** Ce serait ré-intégrer des nombres
+obtenus par division — l'erreur s'accumule — et le total serait plafonné aux
+quatre minutes du ring. La soustraction de référence n'a aucun des deux défauts.
+
+#### Le piège qui décide de la conception, et il est déjà écrit
+
+`rate()` renvoie `ok=false` quand `cur.RX < prev.RX` (`metrics.go:62`) : le
+compteur est reparti en arrière — interface redémarrée, VM relancée. Pour un
+débit, cela ne coûte qu'un point manquant, et §1.1 a déjà tranché que l'absence
+s'affiche `-` et non `0`.
+
+Pour un **cumul**, le même recul invalide la référence, et soustraire quand même
+sur des `uint64` produit un underflow : une valeur astronomique affichée comme
+un fait, pas comme une erreur. C'est le défaut le plus coûteux possible ici,
+parce qu'il ne ressemble pas à une panne.
+
+L'accumulateur doit donc détecter le recul et **choisir** : redémarrer la
+fenêtre en le disant, ou reporter le total d'avant et se recaler sur la nouvelle
+référence. C'est la seule vraie décision de l'entrée ; l'arithmétique n'en est
+pas une.
+
+#### Deux réserves à énoncer plutôt qu'à découvrir
+
+- `net.IOCounters(false)` **agrège toutes les interfaces**, loopback compris sur
+  certaines plateformes. Le débit actuel porte déjà ce défaut, mais un total
+  étiqueté « téléchargé » le rend plus trompeur qu'une vitesse instantanée : il
+  invite à le comparer à un forfait.
+- **Quelle fenêtre.** « Depuis le lancement de DevDesk » est la plus honnête et
+  se marie avec la ligne `History` déjà présente. Une fenêtre glissante véritable
+  serait bornée aux quatre minutes du ring, ce qui n'est pas la question posée.
+  Une remise à zéro sur une touche coûterait une lettre du vocabulaire (Rule
+  111) pour une action que le redémarrage de la vue rend déjà.
+
+#### La forme
+
+Sur les lignes `RX` et `TX` existantes — `RX  1.2 MB/s · 340 MB` — et non en
+deux lignes de plus : une section déclare sa hauteur et doit la remplir
+(`sections.go:17`, §3.19 phase 1), donc une ligne ajoutée se paie sur les
+voisines.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
