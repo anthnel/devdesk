@@ -92,10 +92,17 @@ func (m Model) View() string {
 // only depends on `m.sections`, which never changes after New, and a cached
 // copy would be a second state to keep consistent for a dozen or so lines
 // of text.
+//
+// It opens on a blank line, which is Rule 131's one-line top padding applied
+// to a body that is not a form: content welded to the viewport's border reads
+// as clipped. The blank belongs to the body rather than to View, so it scrolls
+// away with everything else — a padding rendered outside the window would cost
+// a row for the whole read, and the three places that reason about the body's
+// height all count `lines()`.
 func (m Model) lines() []string {
 	width := m.labelWidth()
 
-	var out []string
+	out := []string{""}
 	for i, sec := range m.sections {
 		if i > 0 {
 			out = append(out, "")
