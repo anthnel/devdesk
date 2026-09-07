@@ -387,6 +387,20 @@ func TestTheHostBoxShowsTheSample(t *testing.T) {
 	}
 }
 
+// The Network box says nothing about the sample history. That row counted
+// `m.samples`, which is the host history shared with the CPU and RAM curves
+// and keeps samples whose throughput is missing — so under a Network title it
+// read as a network measurement and was not one.
+func TestTheNetworkBoxDoesNotCountSamples(t *testing.T) {
+	m, _ := loadedModel(t)
+
+	for _, line := range renderNetworkSection(m, 40, tierStandard) {
+		if strings.Contains(line, "History") || strings.Contains(line, "samples") {
+			t.Errorf("the Network box carries %q — the sample count is chart plumbing, not a network fact", line)
+		}
+	}
+}
+
 // A sample with no rate displays `-`, not `0`: a cumulative counter's
 // first reading has nothing to subtract from, and zero would be a
 // measurement.
