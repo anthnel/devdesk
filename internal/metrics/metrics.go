@@ -38,10 +38,15 @@ type HostSample struct {
 // Counters is the cumulative network reading a rate is measured against. It
 // is returned with the sample and passed back in for the next one.
 type Counters struct {
-	RX    uint64
-	TX    uint64
-	At    time.Time
-	Valid bool
+	RX uint64
+	TX uint64
+	// RXErrors and TXErrors are read from the same net.IOCounters call as RX
+	// and TX, so they reset with it — a counter rollback that invalidates the
+	// bytes invalidates these too.
+	RXErrors uint64
+	TXErrors uint64
+	At       time.Time
+	Valid    bool
 }
 
 // rate returns the per-second deltas between two cumulative readings.
@@ -67,6 +72,65 @@ func rate(prev, cur Counters) (rx, tx float64, ok bool) {
 		return 0, 0, false
 	}
 	return float64(cur.RX-prev.RX) / elapsed, float64(cur.TX-prev.TX) / elapsed, true
+}
+
+// NetWindow tracks bytes and errors since it started watching — since DevDesk
+// launched, not since boot: net.IOCounters is cumulative from boot, and a
+// total framed that way would read as an old incident rather than what
+// happened during this session.
+//
+// Baseline is the reference the current, unbroken run of readings is measured
+// against. Carried is what earlier runs — ended by a counter that went
+// backward, an interface or the machine restarting — had already reached: the
+// window re-bases onto the reset rather than losing that history to it.
+type NetWindow struct {
+	Baseline Counters
+	Carried  Counters
+}
+
+// Advance folds one more valid reading into the window. prev is the counters
+// from the tick before cur; it is only consulted when a reset is detected, to
+// know how far the window that just ended had gotten.
+//
+// A prev or window with no usable baseline starts (or restarts) the window at
+// cur rather than risk comparing against a zero value that was never
+// measured.
+func (w NetWindow) Advance(prev, cur Counters) NetWindow {
+	if !cur.Valid {
+		return w
+	}
+	if !w.Baseline.Valid || !prev.Valid {
+		return NetWindow{Baseline: cur, Carried: w.Carried}
+	}
+	if cur.RX < w.Baseline.RX || cur.TX < w.Baseline.TX {
+		return NetWindow{
+			Baseline: cur,
+			Carried: Counters{
+				RX:       w.Carried.RX + (prev.RX - w.Baseline.RX),
+				TX:       w.Carried.TX + (prev.TX - w.Baseline.TX),
+				RXErrors: w.Carried.RXErrors + (prev.RXErrors - w.Baseline.RXErrors),
+				TXErrors: w.Carried.TXErrors + (prev.TXErrors - w.Baseline.TXErrors),
+			},
+		}
+	}
+	return w
+}
+
+// Totals reports bytes and errors since the window started watching, valid
+// once a baseline has been captured. cur is the latest reading; it is not
+// stored on NetWindow because Advance already folded it into Baseline or
+// left it out as invalid.
+func (w NetWindow) Totals(cur Counters) Counters {
+	if !w.Baseline.Valid || !cur.Valid {
+		return Counters{}
+	}
+	return Counters{
+		RX:       w.Carried.RX + (cur.RX - w.Baseline.RX),
+		TX:       w.Carried.TX + (cur.TX - w.Baseline.TX),
+		RXErrors: w.Carried.RXErrors + (cur.RXErrors - w.Baseline.RXErrors),
+		TXErrors: w.Carried.TXErrors + (cur.TXErrors - w.Baseline.TXErrors),
+		Valid:    true,
+	}
 }
 
 // DiskUsage is one filesystem's occupancy.

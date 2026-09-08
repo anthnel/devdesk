@@ -148,8 +148,12 @@ type Model struct {
 	// ntcharts.Resize rescales its own ring buffer — a tier change would
 	// truncate the history right when the user resizes the window to see
 	// more of it.
-	host             metrics.HostSample
-	netCounters      metrics.Counters
+	host        metrics.HostSample
+	netCounters metrics.Counters
+	// netWindow accumulates bytes and errors since it started watching
+	// (§3.69, §3.70) — a separate figure from the instantaneous rate above,
+	// carried across an interface reset rather than reset to zero with it.
+	netWindow        metrics.NetWindow
 	samples          []metrics.HostSample
 	dockerAgg        docker.Aggregate
 	dockerSamples    []float64
@@ -391,8 +395,10 @@ const maxSamples = 240
 // handleHostSample records a reading and the counters the next one is measured
 // against. The Push belongs to Update(), never to a Cmd (Rule 110).
 func (m Model) handleHostSample(msg HostSampleMsg) (tea.Model, tea.Cmd) {
+	prevCounters := m.netCounters
 	m.host = msg.Sample
 	m.netCounters = msg.Counters
+	m.netWindow = m.netWindow.Advance(prevCounters, msg.Counters)
 
 	// A sample with no throughput is kept anyway: its CPU and memory values
 	// are measured, it's only the throughput that's missing.
