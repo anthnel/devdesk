@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "ad7c383bfdfe",
+  "strategy": "manual-commit",
+  "branch": "feat/container-gauges",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/ad/7c383bfdfe/0/metadata.json",
+      "transcript": "/ad/7c383bfdfe/0/full.jsonl",
+      "compact_transcript": "/ad/7c383bfdfe/0/transcript.jsonl",
+      "content_hash": "/ad/7c383bfdfe/0/content_hash.txt",
+      "prompt": "/ad/7c383bfdfe/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 118,
+    "cache_creation_tokens": 75467,
+    "cache_read_tokens": 27701972,
+    "output_tokens": 42148,
+    "api_call_count": 59
+  }
+}
