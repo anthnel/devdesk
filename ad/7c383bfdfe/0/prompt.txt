@@ -26,3 +26,11 @@ enlève les crochets et utilise "░" pour le remplissage
 ---
 
 dans cette jauge ⣿⡇░░░░ les caractères ░ doivent toujours la même couleur, essaie la couleur comme les LOW CVE
+
+---
+
+vérifie s'il n'y a pas de librairie en go pour les graphiques jauge
+
+---
+
+un dernier test, au lieu de remplir avec le caractère "⣿" je voudrais que tous les caractères soient "░" et ce sont les caractères colorés qui montre l'utilisation, tu peux étendre les colonnes à 10 ou plus de caractères si nécessaire. Quand la cellule est vide on utilise le caractère ░ avec la couleur LOW CVE, puis on colore les couleurs en fonction du pourcentage d'utilisation, est-ce possible ?
