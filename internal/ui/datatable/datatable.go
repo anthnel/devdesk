@@ -80,6 +80,22 @@ type Column[T any] struct {
 	// combinations exist: the interface error counters have an exact width and
 	// are also the first thing worth losing.
 	Optional bool
+	// DropFirst moves an Optional column to the head of the queue: it goes
+	// before every other Optional one, wherever it sits on screen. Meaningless
+	// without Optional, which is the flag that decides whether a column may go
+	// at all.
+	//
+	// It exists because drop() reads the column order as an order of
+	// importance, and that is true of every column whose place is chosen by
+	// what it *is*. A gauge's place is chosen by what it *illustrates* — it has
+	// to sit beside the number it draws, in the middle of the table, or it
+	// stops being read as that number's picture (§3.71). Left to position
+	// alone, the containers table would shed its I/O counters to keep two bars
+	// that are the most expendable thing on the row.
+	//
+	// A bool rather than a rank: two tiers is what the case needs, and an int
+	// would invite every table to number its columns against each other.
+	DropFirst bool
 	// TruncateHead cuts the start of an over-long value rather than its end.
 	//
 	// A flag per column rather than a rule derived from Sizing, because the

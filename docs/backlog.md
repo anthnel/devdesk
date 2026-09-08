@@ -12385,7 +12385,7 @@ dise qu'ils ne comptent pas la même chose.
 
 ---
 
-### 3.71 `containers` — une jauge pour repérer un pic sans lire
+### 3.71 `containers` — une jauge pour repérer un pic sans lire — **done**
 
 Les colonnes `CPU` et `Mem` donnent un nombre juste, qu'il faut lire ligne par
 ligne. Une barre qui se remplit répond à « est-ce que quelque chose chauffe » en
@@ -12474,6 +12474,67 @@ Trois issues, aucune évidente :
 - Ni `theme` ni `components` ne rendent de jauge. Le helper est à créer, et il a
   deux clients dès le premier jour — d'où sa place dans `theme` plutôt que dans
   la vue.
+
+#### Ce qui a été fait
+
+`theme.Gauge(pct, width)` rend une barre en texte brut, `theme.LoadTextStyle(pct)`
+lui donne sa couleur, et `containers` déclare **deux colonnes** de plus —
+`gaugeColumn` dans `model.go` — au lieu d'allonger les cellules `CPU` et `Mem`.
+Deux colonnes plutôt qu'un couple nombre-plus-barre parce que c'est la seule
+forme qui puisse tomber : une barre fondue dans la cellule du nombre survivrait
+à tout ce que la table peut perdre.
+
+**Le glyphe de remplissage est du braille, et c'est une mesure, pas un goût.**
+`runewidth` a été interrogé sur les vingt-huit candidats : **tout** le bloc Block
+Elements est *ambigu* — `█`, `▓`, `▇`, et les blocs partiels `▏▎▍▌` — donc large
+de 2 sous une locale est-asiatique, ce qui ferait déborder la ligne et casserait
+Rule 116. Le braille (`⣿`, `⡇`) mesure 1 dans les deux conditions, et c'est déjà
+l'alphabet des courbes du dashboard. `░` s'en tire aussi — c'est le seul glyphe
+de la famille bloc qui ne soit pas ambigu — et sert de piste.
+`TestTheFillGlyphsAreNotAmbiguousWidth` refuse un retour en arrière, et
+`TestAGaugeIsExactlyAsWideAsItAsksFor` mesure la barre sous les deux locales, à
+toutes les valeurs de -50 à 150 %.
+
+Résolution : **une demi-cellule**, soit douze pas sur six. Un conteneur à 0,1 %
+rend une piste **vide** et non un sliver de politesse — une demi-cellule sur six
+*vaut* 8 %, et la majorité des lignes sont au repos.
+
+**Le CPU sature à un cœur, et le titre de la colonne le dit** : l'en-tête est
+`1 core`, celui de la jauge mémoire est `Limit`. C'était le choix laissé ouvert
+plus haut, et le nommer coûte zéro cellule — la colonne fait six de large de
+toute façon. La mise à l'échelle sur `NCPU` a été écartée pour deux raisons : elle
+demanderait un `docker info` par rafraîchissement dans une vue qui n'en fait pas,
+et surtout elle mettrait **deux échelles dans une cellule** — une barre à 25 %
+à côté d'un nombre à 398 % — ce qui est exactement D46. Le nombre reste
+l'unique porteur de l'ampleur au-delà d'un cœur, comme l'entrée l'avait prévu.
+
+**L'ordre de chute : issue 3.** `datatable.Column` gagne `DropFirst`, un bool
+qui promeut une colonne `Optional` en tête de file quelle que soit sa position.
+`drop()` lit l'ordre des colonnes comme un ordre d'importance, ce qui est vrai
+de toute colonne dont la place est choisie par ce qu'elle **est**, et faux d'une
+jauge, dont la place est choisie par ce qu'elle **illustre**. Les issues 1 et 2
+échangeaient chacune une moitié de l'entrée contre l'autre ; celle-ci ne troque
+rien, et l'extension tient en une boucle sur deux prédicats.
+
+**Le prix de l'issue 3, mesuré : les jauges n'apparaissent qu'à partir de 154
+colonnes.** La table `containers` demande 162 cellules pour ses treize colonnes
+(2 + 14 + 20 + 8 + 6 + 12 + 6 + 9 + 9 + 10 + 10 + 16 + 12, plus deux de padding
+par colonne et deux de bordure). En dessous, `drop` prend les `DropFirst` en
+premier — la mémoire à 162, le CPU à 154, la plus à droite d'abord — donc sur un
+terminal de 120 ou 140 colonnes les deux barres sont simplement absentes, et
+c'est **exactement** ce qui a été demandé : « pas primordiales » veut dire qu'un
+compteur d'I/O passe avant. Relevé plutôt que supposé, parce que c'est le genre
+de fait qui se découvre autrement en se demandant pourquoi une fonctionnalité ne
+s'affiche jamais. Si l'arbitrage devait changer, la manœuvre la moins chère
+n'est pas d'élargir la jauge mais de retirer `DropFirst` : les barres
+survivraient alors jusqu'aux compteurs d'I/O, vers 140.
+
+**Trois seuils, deux couleurs.** `LoadWarnPercent` (75) et
+`LoadCriticalPercent` (90), en alias de `ColorSeverityMedium` et
+`ColorSeverityCritical` — le même alphabet que les niveaux du footer (Rule 128).
+En dessous, la couleur de texte ordinaire : pas de vert, conformément à
+Rule 122, et une barre colorée sur chaque ligne serait le bruit que la règle
+écarte.
 
 ---
 

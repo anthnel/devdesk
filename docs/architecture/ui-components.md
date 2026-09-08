@@ -150,6 +150,17 @@ step makes the declaration a preference rather than a guarantee, deliberately:
 fewer columns that are right beats every column wrong, and truncating a fixed
 column instead renders `142` as `14…` with nothing on screen to say so.
 
+**`DropFirst` is the one exception to "always the rightmost" (§3.71).** An
+`Optional` column carrying it goes before every other `Optional` one, wherever
+it sits. Right-to-left works because a table's column order *is* an order of
+importance — true of every column whose place is chosen by what it **is**, and
+false for one whose place is chosen by what it **illustrates**. The containers
+gauges have to sit beside the numbers they draw, in the middle of the row; left
+to position alone they would outlive the four I/O counters to their right, which
+is backwards for the most expendable thing on the line. It is a bool and not a
+rank: two tiers is what the case needs, and an int would invite every table to
+number its columns against each other.
+
 **A kept column never goes under one cell.** A column at zero renders nothing
 while its padding has already been spent — D61 word for word — so "too narrow to
 serve" and "not there" have to stay different states, and the second one is a

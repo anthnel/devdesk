@@ -138,19 +138,81 @@ func TestOnlyRunningContainersShowMetrics(t *testing.T) {
 		byName[row[columnName]] = row
 	}
 
-	// The metrics start after the status, name and image columns.
-	const columnCPU = columnImage + 1
+	// The metrics start after the status, name and image columns: CPU, its
+	// gauge, Mem, its gauge, then the four I/O counters.
+	const (
+		columnCPU      = columnImage + 1
+		columnCPUGauge = columnCPU + 1
+		columnMem      = columnCPU + 2
+		columnMemGauge = columnCPU + 3
+		columnLastIO   = columnCPU + 7
+	)
 	if got := byName["web"][columnCPU]; got != "12.5%" {
 		t.Errorf("web CPU cell = %q, want \"12.5%%\"", got)
 	}
-	if got := byName["web"][columnCPU+1]; got != "150M/8G" {
+	if got := byName["web"][columnMem]; got != "150M/8G" {
 		t.Errorf("web memory cell = %q, want \"150M/8G\"", got)
 	}
 	for _, name := range []string{"api", "cache", "zombie"} {
-		for col := columnCPU; col <= columnCPU+5; col++ {
+		for col := columnCPU; col <= columnLastIO; col++ {
 			if got := byName[name][col]; got != "-" {
 				t.Errorf("%s column %d = %q, want \"-\" for a non-running container", name, col, got)
 			}
+		}
+	}
+}
+
+// The gauges draw the two percentages beside them, at the scale their header
+// names: one core for the CPU, the container's own limit for the memory. A
+// stopped container has neither, and renders the same "-" as every other
+// metric column rather than an empty bar — an empty bar is a measurement.
+func TestTheGaugesDrawTheMetricsBesideThem(t *testing.T) {
+	m := rawModel(t)
+	m = feed(t, m, ContainersListMsg{Containers: []docker.Container{
+		{ID: "1", Name: "idle", State: "running", CPUPercent: 0.4, MemPercent: 0.2},
+		{ID: "2", Name: "busy", State: "running", CPUPercent: 50, MemPercent: 95},
+		// Two full cores: the bar saturates and only the number says so.
+		{ID: "3", Name: "greedy", State: "running", CPUPercent: 200, MemPercent: 100},
+		{ID: "4", Name: "stopped", State: "exited", CPUPercent: 80, MemPercent: 80},
+	}})
+	m = feed(t, m, testutil.Key("z")) // show every state, not just the running ones
+
+	const (
+		columnCPUGauge = columnImage + 2
+		columnMemGauge = columnImage + 4
+	)
+	want := map[string][2]string{
+		"idle":    {"░░░░░░", "░░░░░░"},
+		"busy":    {"⣿⣿⣿░░░", "⣿⣿⣿⣿⣿⡇"},
+		"greedy":  {"⣿⣿⣿⣿⣿⣿", "⣿⣿⣿⣿⣿⣿"},
+		"stopped": {"-", "-"},
+	}
+	for _, row := range tableRows(m) {
+		expected, ok := want[row[columnName]]
+		if !ok {
+			t.Fatalf("unexpected row %q", row[columnName])
+		}
+		if got := row[columnCPUGauge]; got != expected[0] {
+			t.Errorf("%s CPU gauge = %q, want %q", row[columnName], got, expected[0])
+		}
+		if got := row[columnMemGauge]; got != expected[1] {
+			t.Errorf("%s memory gauge = %q, want %q", row[columnName], got, expected[1])
+		}
+	}
+}
+
+// A gauge is the first thing to go when the table runs out of room, whatever
+// its position — it illustrates a number that stays behind (§3.71).
+func TestTheGaugesAreTheFirstColumnsDropped(t *testing.T) {
+	columns := containerColumns()
+
+	for i, col := range columns {
+		gauge := col.Title == "1 core" || col.Title == "Limit"
+		if gauge && (!col.Optional || !col.DropFirst) {
+			t.Errorf("column %d (%q) is a gauge but is not Optional+DropFirst", i, col.Title)
+		}
+		if !gauge && col.DropFirst {
+			t.Errorf("column %d (%q) is not a gauge and should not be DropFirst", i, col.Title)
 		}
 	}
 }
@@ -309,9 +371,10 @@ func TestCycleSortWalksDirectionThenColumn(t *testing.T) {
 	}
 
 	// Each sortable column is visited ascending then descending, so a full
-	// cycle returns to the start. Two columns do not sort: the status glyph and
-	// Ports.
-	sortable := len(containerColumns()) - 2
+	// cycle returns to the start. Four columns do not sort: the status glyph,
+	// Ports, and the two gauges — a bar sorts by the number it draws, and that
+	// number's own column already offers it.
+	sortable := len(containerColumns()) - 4
 	for range sortable*2 - 2 {
 		m = feed(t, m, testutil.Key("."))
 	}
@@ -331,11 +394,11 @@ func TestEachColumnOrdersByItsOwnValue(t *testing.T) {
 		{"name descending", columnName, true, []string{"zombie", "web", "cache", "api"}},
 		{"image ascending", columnImage, false, []string{"zombie", "api", "web", "cache"}},
 		{"cpu descending", columnImage + 1, true, []string{"api", "web", "cache", "zombie"}},
-		{"mem descending", columnImage + 2, true, []string{"web", "cache", "zombie", "api"}},
-		{"net rx descending", columnImage + 3, true, []string{"web", "cache", "zombie", "api"}},
-		{"net tx descending", columnImage + 4, true, []string{"web", "cache", "zombie", "api"}},
-		{"block rx descending", columnImage + 5, true, []string{"web", "cache", "zombie", "api"}},
-		{"block tx descending", columnImage + 6, true, []string{"web", "cache", "zombie", "api"}},
+		{"mem descending", columnImage + 3, true, []string{"web", "cache", "zombie", "api"}},
+		{"net rx descending", columnImage + 5, true, []string{"web", "cache", "zombie", "api"}},
+		{"net tx descending", columnImage + 6, true, []string{"web", "cache", "zombie", "api"}},
+		{"block rx descending", columnImage + 7, true, []string{"web", "cache", "zombie", "api"}},
+		{"block tx descending", columnImage + 8, true, []string{"web", "cache", "zombie", "api"}},
 		// CreatedAt is compared as a string, so an unparseable value sorts
 		// after every ISO timestamp rather than being treated as unknown.
 		{"created ascending", columnCreated, false, []string{"cache", "api", "web", "zombie"}},

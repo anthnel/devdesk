@@ -211,8 +211,10 @@ func (m Model) GetHelpContent() help.Content {
 				Body: "Status (first, untitled): the container state — " + theme.IconCaretRight + " running, " + theme.IconSmallPause + " paused, " + theme.IconSmallSquare + " exited, " + theme.IconCaretUp + " created/restarting, " + theme.IconBan + " dead. A spinner replaces it while an action is running on that container.\n" +
 					"Name: Container name.\n" +
 					"Image: Docker image.\n" +
-					"CPU: CPU usage percentage.\n" +
+					"CPU: CPU usage percentage, as 'docker stats' counts it — relative to one core, so a container busy on two cores reads 200%.\n" +
+					"1 core: the CPU percentage as a bar, full at one core. It saturates above that, which is why the number stays beside it. Ordinary text below 75%, orange from there, red from 90%.\n" +
 					"Mem: Memory usage as compact label (e.g. '150M/8G').\n" +
+					"Limit: how full that label is — the share of the limit docker reports for the container, which is the daemon's total when the container declares none. Same three colors.\n" +
 					"Net RX: Cumulative network bytes received since container start (e.g. '1.2kB', '3.4MB').\n" +
 					"Net TX: Cumulative network bytes transmitted since container start.\n" +
 					"Block RX: Cumulative block device bytes read since container start.\n" +
@@ -221,7 +223,8 @@ func (m Model) GetHelpContent() help.Content {
 					theme.IconNetwork + " every interface, " + theme.IconHome + " this machine only, " +
 					theme.IconServer + " one named address, " + theme.IconLock + " declared by the image but published by nobody. " +
 					"A protocol is named only when it is not tcp. The two lines docker prints for a dual-stack publication are one entry here, and the container-side port is left out — press enter for the full mapping.\n" +
-					"Created: Relative timestamp when the container was created.",
+					"Created: Relative timestamp when the container was created.\n" +
+					"On a narrow terminal the two gauges are the first columns to go, before the I/O counters: they draw a number that stays on screen without them. They also lose their color on the selected row, like every colored column.",
 			},
 			{
 				Title: "Running Actions",

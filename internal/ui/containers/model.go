@@ -113,8 +113,8 @@ const (
 // offsets are right up until the order changes and then wrong in silence.
 // TestTheNamedColumnsAreWhereTheirNamesSay is what keeps these honest.
 const (
-	columnPorts   = columnImage + 7
-	columnCreated = columnImage + 8
+	columnPorts   = columnImage + 9
+	columnCreated = columnImage + 10
 )
 
 // The state glyph column carries no title — the icons say what they are — and
@@ -184,6 +184,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 			},
 			Less: func(a, b docker.Container) bool { return a.CPUPercent < b.CPUPercent },
 		},
+		gaugeColumn("1 core", func(c docker.Container) float64 { return c.CPUPercent }),
 		{
 			Title: "Mem", Sizing: datatable.SizingFixed, MinWidth: 12,
 			Cell: func(c docker.Container) string {
@@ -194,6 +195,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 			},
 			Less: func(a, b docker.Container) bool { return a.MemPercent < b.MemPercent },
 		},
+		gaugeColumn("Limit", func(c docker.Container) float64 { return c.MemPercent }),
 		{
 			Title: "Net RX", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 9,
 			Cell: transfer(netIO, func(c docker.Container) int64 { return c.NetRX }),
@@ -230,6 +232,40 @@ func containerColumns() []datatable.Column[docker.Container] {
 			// that will not parse sorts after every timestamp rather than
 			// silently becoming the zero time and leading the list.
 			Less: func(a, b docker.Container) bool { return a.CreatedAt < b.CreatedAt },
+		},
+	}
+}
+
+// gauge is what the two bar columns share: everything except which percentage
+// they read and what its full scale is called.
+//
+// Both are Optional *and* DropFirst. Optional because a bar is never the only
+// carrier of what it shows — the number it sits beside survives it, and
+// survives the selected row too, where Style is not consulted at all
+// (Rule 122). DropFirst because a gauge sits where the number it illustrates
+// is, in the middle of the table: left to position alone it would outlive the
+// I/O counters to its right, which is the opposite of what a decoration
+// deserves (§3.71).
+//
+// It carries no Less and no Search. A comparator would duplicate the sort the
+// number column already offers, and cost two more cells to fit its arrow; a
+// bar is not text anyone can type.
+func gaugeColumn(scale string, pct func(docker.Container) float64) datatable.Column[docker.Container] {
+	return datatable.Column[docker.Container]{
+		Title: scale, Sizing: datatable.SizingFixed, MinWidth: theme.GaugeWidth,
+		Optional: true, DropFirst: true,
+		Cell: func(c docker.Container) string {
+			if c.State != "running" {
+				return "-"
+			}
+			return theme.Gauge(pct(c), theme.GaugeWidth)
+		},
+		Style: func(c docker.Container) lipgloss.Style {
+			if c.State != "running" {
+				// A placeholder is dim, like every other "-" in this table.
+				return theme.DimStyle
+			}
+			return theme.LoadTextStyle(pct(c))
 		},
 	}
 }
