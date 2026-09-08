@@ -442,11 +442,16 @@ func nothingConfigured(height int) []string {
 // It's the color that carries the count: dimmed at zero, because a red
 // cross on "0 down" teaches the reader the color instead of alerting them.
 // The icon stays to the right of the number, as everywhere else.
+//
+// The number and the icon share **the same** style — the caller's, not a
+// fixed red: a certificate `to renew` is a warning (orange), not a finding
+// (severityCount's red), and a number colored one way next to an icon
+// colored another says the same fact twice in two different colors.
 func alertCount(n int, glyph string, style lipgloss.Style) string {
 	if n == 0 {
 		return countValue(0) + theme.Bg("  ") + theme.DimStyle.Render(glyph)
 	}
-	return severityCount(n) + theme.Bg("  ") + style.Render(glyph)
+	return style.Render(fmt.Sprintf("%d", n)) + theme.Bg("  ") + style.Render(glyph)
 }
 
 // postureBranches renders one family's tally, one figure per node.
@@ -499,12 +504,15 @@ func secretsValue(side postureSide) string {
 
 // unscannedValue renders a coverage gap. It does not take severityCount's
 // red: a never-scanned target has no CRITICAL, it has an unknown, and the
-// two are not fixed the same way.
+// two are not fixed the same way. Nor does it take countValue's purple — a
+// gap in coverage is an attention signal like `to renew`, not a neutral
+// tally like `scanned`: warnCount keeps purple reserved for facts that
+// carry no risk of their own.
 func unscannedValue(n int, measured bool) string {
 	if !measured {
 		return unknownValue()
 	}
-	return countValue(n)
+	return warnCount(n)
 }
 
 // severityCount colours a finding count only when there is one to find. A
@@ -514,6 +522,16 @@ func severityCount(n int) string {
 		return theme.DimStyle.Render("0")
 	}
 	return theme.StatusErrorStyle.Render(fmt.Sprintf("%d", n))
+}
+
+// warnCount is severityCount's orange counterpart, for a number that
+// deserves attention but is not itself a security finding — a coverage gap,
+// something approaching rather than something wrong.
+func warnCount(n int) string {
+	if n == 0 {
+		return theme.DimStyle.Render("0")
+	}
+	return theme.StatusWarningStyle.Render(fmt.Sprintf("%d", n))
 }
 
 // scanAge renders how stale the oldest scan is. A CRITICAL count three
@@ -568,10 +586,14 @@ func nearestExpiry(certs []status.ComponentStatus, loading, named bool) string {
 		return unknownValue()
 	}
 
+	// The threshold is exactly CertStateOf's "to renew" one — soonest is
+	// never CertExpired here (excluded above) — so this is warning-orange,
+	// the same color the `to renew` node already renders it in: an expiry
+	// close enough to act on is not yet the red of an actual failure.
 	days := *soonest.SSLDaysLeft
 	value := theme.Bg(fmt.Sprintf("%d days", days))
 	if days <= status.CertRenewWindowDays {
-		value = theme.StatusErrorStyle.Render(fmt.Sprintf("%d days", days))
+		value = theme.StatusWarningStyle.Render(fmt.Sprintf("%d days", days))
 	}
 	if !named {
 		return value
