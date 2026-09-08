@@ -1,0 +1,28 @@
+l'image busybox:musl est disponible comment je peux simuler de la charge
+
+---
+
+donne moi les commandes en powershell
+
+---
+
+ça ne rend pas bien les jauges, est-ce qu'on peut plutot avoir une bordure et le background vide, ensuite utilise un caractère ⣿ pour le remplissage, utilise la couleur vert en dessous de 75%
+
+---
+
+il n'y a pas de caractère nerdfont qui peuvent faire mieux que ça : ┌─  Containers ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│     Name ▲                                      Image                                                                 CPU       1 core    Mem           Limit     Net RX     Net TX     Block RX    Block TX    Ports                                         Created      │
+│ 󰍟   gauge-cpu2                                  busybox:musl                                                          195.5%    [⣿⣿⣿⣿⣿⣿]  796K/15G      [      ]  1.1kB      126B       0B          0B                                                        3 min ago    │
+│ 󰍟   gauge-cpu25                                 busybox:musl                                                          24.9%     [⣿⡇    ]  340K/15G      [      ]  1.2kB      126B       0B          0B                                                        3 min ago    │
+│ 󰍟   gauge-cpu80                                 busybox:musl                                                          79.1%     [⣿⣿⣿⣿⡇ ]  340K/15G      [      ]  1.2kB      126B       0B          0B                                                        3 min ago    │
+│ 󰍟   gauge-mem                                   busybox:musl                                                          0.0%      [      ]  231M/256M     [⣿⣿⣿⣿⣿⡇]  914B       126B       0B          0B                                                        3 min ago    │
+│ 󰍟   local-registry                              registry:2                                                            0.0%      [      ]  6M/15G        [      ]  2.6kB      126B       16.4MB      0B          󰛳 5000                                        3 mo ago     │
+│ 󰍟   nginx                                       dhi.io/nginx:1.31-debian13                                            0.0%      [      ]  13M/15G       [      ]  1.6kB      126B       115.0kB     4.1kB       󰛳 8080                                        17 min ago   │
+
+---
+
+enlève les crochets et utilise "░" pour le remplissage
+
+---
+
+dans cette jauge ⣿⡇░░░░ les caractères ░ doivent toujours la même couleur, essaie la couleur comme les LOW CVE
