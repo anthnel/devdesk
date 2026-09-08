@@ -56,10 +56,20 @@
 | Element | Foreground | Background |
 |---------|-----------|------------|
 | Table header | `ColorSecondary` | — |
-| Selected row (normal) | `ColorBlack` | `ColorSecondary` |
+| Selected row (normal) | **each column's own** | `ColorSeverityLow`, bold |
 | Selected row (error) | `ColorBlack` | `ColorError` |
 | Active tab | `ColorBlack` | `ColorSecondary` |
 | Inactive tab | `ColorDim` | `ColorCommandLineBg` |
+
+**Selected row (normal) is experimental** (§3.72 in the backlog). It used to
+be one flat `ColorBlack` on `ColorSecondary`, dropping every column's own
+colour — see Rule 122's "Selected row" section for why that used to be
+mandatory and why it no longer is for this one variant: every cell now
+repaints `ColorSeverityLow` and bold **itself**, which is what makes keeping
+the per-cell foreground safe instead of a return of the defect. `error`,
+`busy` (`TableStylesForState`) and severity (`TableStylesForSeverity`) are
+untouched — a solid background there still means "this whole row is in that
+state," which per-cell colour would fight.
 
 Mandatory centralized functions:
 - `theme.DefaultTableStyles()` — base style

@@ -129,9 +129,12 @@ type Column[T any] struct {
 	// the only order in which colour is safe (see render.go). Nil leaves the
 	// cell in the table's own colours.
 	//
-	// It is not consulted for the selected row: that row is handed to
-	// styles.Selected whole, and a colour inside it would end the highlight
-	// mid-row. A column cannot ask for that back.
+	// On a row a view has coloured whole via SelectedStyles (error, busy, a CVE
+	// severity), it is not consulted: that row is handed to styles.Selected
+	// whole, and a colour inside it would end the highlight mid-row. On the
+	// plain "normal" selection it *is* consulted — see render.go's cellStyle,
+	// which repaints the shared background on every cell instead of once on an
+	// outer wrap, so per-cell colour and the highlight no longer fight.
 	Style func(T) lipgloss.Style
 	// Cut and TailStyle split a cell into two coloured runs instead of Style's
 	// one: Style colours the first Cut(item) cells of the *finished* text —
@@ -149,9 +152,12 @@ type Column[T any] struct {
 	// bare integer, is cheaper to reason about than a slice of spans that only
 	// ever holds two elements.
 	//
-	// Neither is consulted for the selected row, for the same reason Style is
-	// not: a colour that ends before the row does closes the selection
-	// highlight in the middle of it.
+	// Neither is consulted for the selected row, on either of Style's two
+	// treatments there: a two-run cell would still need its own reset between
+	// the runs, which a state-coloured row cannot afford, and the plain
+	// "normal" selection would have to colour the gauge's track its own
+	// background too — not worth a second mechanism for the one caller this
+	// has.
 	Cut       func(T) int
 	TailStyle func(T) lipgloss.Style
 	// Less sorts by this column. Nil means the column cannot be sorted by, and
@@ -223,6 +229,12 @@ type Model[T any] struct {
 	// package's now (render.go) and bubbles keeps its copy unexported, so the
 	// styles have to be kept on this side to be readable at render time.
 	styles table.Styles
+	// preserveColumnColors is true when styles.Selected is the plain "normal"
+	// look (ColorSeverityLow) rather than a view's own error/busy/severity
+	// override. Computed once in applyStyles, read per cell in cellStyle: it
+	// is what tells the two selected-row treatments apart without render.go
+	// having to know what a severity or a busy row is.
+	preserveColumnColors bool
 	// offset is the first visible row — the scroll window bubbles kept in its
 	// viewport. clampOffset owns it.
 	offset int
@@ -738,6 +750,10 @@ func (m *Model[T]) applyStyles() {
 			styles.Selected = theme.TableStylesForState("busy").Selected
 		}
 	}
+	// The background is the signal: only the plain "normal" look carries
+	// ColorSeverityLow, so this is true exactly when no view-level state or
+	// busy override took over the row — see cellStyle for what it changes.
+	m.preserveColumnColors = styles.Selected.GetBackground() == theme.ColorSeverityLow
 	// Pin the selected row to the full content width. Column widths are counted
 	// in cells, and a Nerd Font icon does not always render as wide as it
 	// counts, so the highlight otherwise stops short of the right border by

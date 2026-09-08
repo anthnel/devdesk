@@ -91,12 +91,19 @@ func TestASplitCellLeavesNoGapAtTheBoundary(t *testing.T) {
 	}
 }
 
-// Neither colour reaches the selected row, for the exact reason a single
-// Style does not (Rule 122): a colour that ends before the row does would
-// close the selection highlight in the middle of it.
+// The split never reaches the selected row, whichever selection style is in
+// play: Cut/TailStyle's two-run mechanism costs its own reset between the
+// runs, which neither treatment can afford (see the Cut/TailStyle doc
+// comment in datatable.go).
+//
+// The two treatments differ on the *single*-run fallback, though. A state
+// coloured selection (SelectedStyles) still drops it — the row is handed to
+// styles.Selected whole. The plain "normal" selection keeps it: the whole
+// cell collapses to Style's fill colour, composited with the shared
+// background rather than the two-tone split.
 func TestNeitherSplitColourReachesTheSelectedRow(t *testing.T) {
 	withTrueColor(t)
-	m := splitTable(t)
+	m := errorStyledTable(t, splitConfig)
 
 	selected := rowLines(&m)[0] // row 0 is under the cursor on a fresh table
 	if strings.Contains(selected, foreground(theme.ColorOK)) {
@@ -105,8 +112,26 @@ func TestNeitherSplitColourReachesTheSelectedRow(t *testing.T) {
 	if strings.Contains(selected, foreground(theme.ColorSeverityLow)) {
 		t.Error("the track colour reached the selected row")
 	}
-	if !strings.Contains(selected, background(theme.ColorTableSelectedBg)) {
-		t.Errorf("the selected row does not carry the selection background: %q", selected)
+	if !strings.Contains(selected, background(theme.ColorError)) {
+		t.Errorf("the selected row does not carry the error selection background: %q", selected)
+	}
+}
+
+// The plain "normal" selection collapses a split cell to its Style colour
+// alone — never TailStyle's — composited with the new selection background.
+func TestTheDefaultSelectionCollapsesASplitCellToItsFillColour(t *testing.T) {
+	withTrueColor(t)
+	m := splitTable(t) // no SelectedStyles — the plain, default path
+
+	selected := rowLines(&m)[0] // row 0 is under the cursor on a fresh table
+	if !strings.Contains(selected, foreground(theme.ColorOK)) {
+		t.Errorf("the selected row lost the split cell's fill colour: %q", selected)
+	}
+	if strings.Contains(selected, foreground(theme.ColorSeverityLow)) {
+		t.Error("the track colour reached the selected row — Cut/TailStyle must stay unconsulted there")
+	}
+	if !strings.Contains(selected, background(theme.ColorSeverityLow)) {
+		t.Errorf("the selected row does not carry the new selection background: %q", selected)
 	}
 }
 

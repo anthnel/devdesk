@@ -12708,6 +12708,56 @@ attendue a bien été vue — pas seulement qu'aucune ligne inattendue ne l'a é
 
 ---
 
+### 3.72 Sélection « normale » — fond low-CVE, gras, couleurs de colonnes conservées — **expérimental**
+
+Demande directe : essayer un autre thème pour la ligne sélectionnée d'un
+`datatable` — `ColorSeverityLow` en fond, gras, et garder les couleurs de
+colonnes comme sur une ligne non sélectionnée. Ce que Rule 122 documentait
+jusqu'ici comme une contrainte technique (« `Style` n'est jamais consulté sur
+la ligne sélectionnée ») ne l'était qu'à moitié : c'est le fait de renvoyer
+**une seule** couleur pour toute la ligne (`styles.Selected.Render(joined)`)
+qui casse — un reset ANSI niché ferme aussi le fond de l'enveloppant. La
+correction est de peindre le fond et le gras **sur chaque cellule lue
+elle-même**, exactement comme `render.go` le fait déjà pour la ligne non
+sélectionnée (Rule 115) — un reset entre deux cellules ne découvre alors
+jamais que le même fond, aussitôt repeint par la suivante.
+
+**Portée limitée à la sélection « normale ».** Les variantes qu'une vue
+choisit elle-même — `TableStylesForState("error"/"busy")`,
+`TableStylesForSeverity` — gardent leur fond plein inchangé : une ligne
+`exited` en rouge ou une CVE CRITICAL colorée disent « toute cette ligne est
+dans cet état », ce que des couleurs par cellule contrediraient. Le
+mécanisme : `datatable.Model` porte un nouveau `preserveColumnColors bool`,
+recalculé dans `applyStyles()` en comparant le fond résolu à
+`ColorSeverityLow` — vrai seulement quand rien (ni `SelectedStyles`, ni le
+surclassement busy) n'a repris la main sur la ligne. `cellStyle` le lit pour
+choisir entre l'ancien traitement (cellule incolore, tout au wrapper) et le
+nouveau (couleur de colonne + fond partagé, par cellule).
+
+`Cut`/`TailStyle` (les jauges de charge, §3.71) restent non consultés sur
+**toute** ligne sélectionnée, dans les deux cas : le découpage en deux
+teintes coûte son propre reset entre les deux, que ni l'un ni l'autre
+traitement ne peut se permettre. La sélection « normale » retombe sur la
+seule couleur de `Style` (le remplissage), jamais sur `TailStyle` (le rail).
+
+#### Deux réserves à énoncer plutôt qu'à découvrir
+
+- **`ColorTableSelectedFg`/`ColorTableSelectedBg` n'ont plus aucun lecteur.**
+  Seul `DefaultTableStyles()` les consommait ; les variantes error/busy/
+  severity utilisent leurs propres couleurs. Elles restent déclarées
+  (`colors.go`, `manager.go`) et lisibles depuis un fichier de thème
+  (`TableSelectedFg`/`Bg`) — un thème qui les définit n'aura simplement plus
+  d'effet sur la sélection normale. Non retiré tant que l'expérience n'est
+  pas confirmée ; à retirer proprement si elle l'est.
+- **`ColorSeverityLow` sert déjà de couleur de rail aux jauges de charge**
+  (`theme.GaugeTrackStyle()`, §3.71) — c'est la même teinte, choisie ici pour
+  la même raison (la plus calme de la palette). Pas de collision directe : le
+  rail n'apparaît jamais sur une ligne sélectionnée (`Cut`/`TailStyle`
+  ci-dessus), donc la coïncidence ne se voit jamais côte à côte sur la même
+  ligne — mais elle mérite d'être connue si la palette change un jour.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

@@ -131,12 +131,23 @@ mid-row.
 
 #### Selected row
 
-**`Style` is not consulted for the row under the cursor.** It is handed
-whole to `styles.Selected`, and a color inside it closes with a reset that
-carries away the selection background for the rest of the row: the
-highlight would stop halfway through. Highlighting answers "where am I,"
-and no column color is worth losing that. A column cannot ask for the
-reverse.
+**`Style` is not consulted for a row a view has coloured whole** — error,
+busy, a CVE severity, via `SelectedStyles` or the busy override. It is
+handed to `styles.Selected` instead, and a color inside it closes with a
+reset that carries away that solid background for the rest of the row: the
+highlight would stop halfway through. That row answers "what state is this
+in," and no column color is worth losing it.
+
+**The plain "normal" selection is the exception (§3.72, experimental).**
+`Style` *is* consulted there — `cellStyle` composites it with
+`ColorSeverityLow` and bold **on every cell itself**, rather than dropping it
+for one outer wrap. That sidesteps the defect above instead of reproducing
+it: a cell's own reset only ever uncovers the *same* background the next
+cell immediately repaints, so nothing but that background is ever exposed
+between two cells. `Cut`/`TailStyle`'s two-run split still costs a reset
+between its own runs that neither treatment can afford, so it stays
+unconsulted on every selected row regardless — the "normal" selection falls
+back to `Style`'s single fill colour there, never the two-tone split.
 
 #### Background
 

@@ -83,14 +83,16 @@ func TestAColumnThatDeclaresNoForegroundGetsTheThemeOne(t *testing.T) {
 	}
 }
 
-// **And this is what forbids putting the color on `styles.Cell`.** Cells are
-// rendered, then the whole row is passed to `styles.Selected`: a cell color
-// there would open a sequence whose reset would close the highlight in the
-// middle of the row. The highlight answers "where am I", and no column
-// color is worth losing it.
-func TestTheSelectedRowKeepsItsHighlightWhole(t *testing.T) {
+// **And this is what forbids putting the color on `styles.Cell`, for a row a
+// view has coloured whole.** Cells are rendered, then the row is passed to
+// `styles.Selected`: a cell color there would open a sequence whose reset
+// would close the highlight in the middle of the row. The plain "normal"
+// selection is the exception — see TestTheDefaultSelectionKeepsTheColumnColours
+// in render_test.go — because there every cell repaints the same background
+// itself instead of relying on one outer wrap.
+func TestAStateColouredSelectionKeepsItsHighlightWhole(t *testing.T) {
 	withTrueColor(t)
-	m := colouredTable(t) // the State column is colored, and row 0 is under the cursor
+	m := errorStyledTable(t, colouredConfig) // the State column is colored, and row 0 is under the cursor
 
 	selected := rowLines(&m)[0]
 
@@ -100,8 +102,8 @@ func TestTheSelectedRowKeepsItsHighlightWhole(t *testing.T) {
 	if strings.Contains(selected, foreground(theme.ColorError)) || strings.Contains(selected, foreground(theme.ColorOK)) {
 		t.Error("a column colour reached the selected row; styles.Selected must own it whole")
 	}
-	if !strings.Contains(selected, background(theme.ColorTableSelectedBg)) {
-		t.Errorf("the selected row does not carry the selection background: %q", selected)
+	if !strings.Contains(selected, background(theme.ColorError)) {
+		t.Errorf("the selected row does not carry the error selection background: %q", selected)
 	}
 	// Only one reset, right at the end: that is what "the whole highlight"
 	// means, and what a per-cell foreground would break.
