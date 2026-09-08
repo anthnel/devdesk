@@ -35,20 +35,20 @@ func TestGaugeFillsInProportion(t *testing.T) {
 		pct  float64
 		want string
 	}{
-		// An idle container renders an empty track, not a token sliver: half a
+		// An idle container renders an empty frame, not a token sliver: half a
 		// cell out of six is 8%, and drawing one for 0.1% would overstate it on
 		// every row of a table where idle is the majority state.
-		{"zero", 0, "░░░░░░"},
-		{"idle", 0.4, "░░░░░░"},
-		{"a quarter", 25, "⣿⡇░░░░"},
-		{"a half", 50, "⣿⣿⣿░░░"},
-		{"three quarters", 75, "⣿⣿⣿⣿⡇░"},
-		{"full", 100, "⣿⣿⣿⣿⣿⣿"},
+		{"zero", 0, "[      ]"},
+		{"idle", 0.4, "[      ]"},
+		{"a quarter", 25, "[⣿⡇    ]"},
+		{"a half", 50, "[⣿⣿⣿   ]"},
+		{"three quarters", 75, "[⣿⣿⣿⣿⡇ ]"},
+		{"full", 100, "[⣿⣿⣿⣿⣿⣿]"},
 		// Saturation is indistinguishable from full — the number beside the
 		// gauge is what tells 200% from 100%.
-		{"two busy cores", 200, "⣿⣿⣿⣿⣿⣿"},
+		{"two busy cores", 200, "[⣿⣿⣿⣿⣿⣿]"},
 		// A negative or unreadable value is not a full bar.
-		{"negative", -10, "░░░░░░"},
+		{"negative", -10, "[      ]"},
 	}
 
 	for _, tc := range tests {
@@ -58,26 +58,32 @@ func TestGaugeFillsInProportion(t *testing.T) {
 	}
 }
 
-// A width of zero renders nothing rather than panicking on a negative repeat
-// count: a column narrow enough to have been dropped still calls Cell during
-// measurement.
-func TestGaugeSurvivesAnEmptyWidth(t *testing.T) {
+// A width with no room for a bar inside its frame renders blanks rather than
+// panicking on a negative repeat count: a column narrow enough to have been
+// dropped still calls Cell while the widths are being measured.
+func TestGaugeSurvivesAWidthTooNarrowToFrame(t *testing.T) {
 	for _, width := range []int{0, -1} {
 		if got := Gauge(50, width); got != "" {
 			t.Errorf("Gauge(50, %d) = %q, want the empty string", width, got)
 		}
 	}
+	for width, want := range map[int]string{1: " ", 2: "  "} {
+		if got := Gauge(50, width); got != want {
+			t.Errorf("Gauge(50, %d) = %q, want %q — no room for a bar between the brackets", width, got, want)
+		}
+	}
 }
 
-// Rule 122's colour discipline: the majority state carries no colour of its
-// own, and nothing here is ever green.
-func TestOnlyALoadedGaugeIsColoured(t *testing.T) {
+// Three levels, and green is the declared exception to Rule 122's colour
+// discipline: in a framed bar the fill has to be told from the frame, which is
+// the one thing an uncoloured bar cannot do (see LoadTextStyle).
+func TestAGaugeTakesItsColourFromItsLevel(t *testing.T) {
 	tests := []struct {
 		pct  float64
 		want lipgloss.Color
 	}{
-		{0, ColorText},
-		{LoadWarnPercent - 0.1, ColorText},
+		{0, ColorOK},
+		{LoadWarnPercent - 0.1, ColorOK},
 		{LoadWarnPercent, ColorSeverityMedium},
 		{LoadCriticalPercent - 0.1, ColorSeverityMedium},
 		{LoadCriticalPercent, ColorSeverityCritical},
@@ -99,6 +105,13 @@ func TestTheFillGlyphsAreNotAmbiguousWidth(t *testing.T) {
 		for _, r := range glyph {
 			if runewidth.IsAmbiguousWidth(r) {
 				t.Errorf("gauge glyph %q (U+%04X) is East Asian ambiguous: it renders double-width on some terminals and breaks Rule 116", string(r), r)
+			}
+		}
+	}
+	for _, glyph := range []string{gaugeOpen, gaugeClose} {
+		for _, r := range glyph {
+			if r > 127 {
+				t.Errorf("gauge frame glyph %q (U+%04X) is not ASCII: the box-drawing candidates are all ambiguous-width", string(r), r)
 			}
 		}
 	}

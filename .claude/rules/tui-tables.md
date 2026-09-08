@@ -139,6 +139,16 @@ forbids elsewhere, and exactly what it requires here. That is the
 criterion, and not "it's important" — if a column's absences were already
 distinguishable, green would go back to being noise.
 
+**The second declared exception: a framed gauge (§3.71).** The `containers`
+load bars are green below 75%, orange, then red. The same criterion applies for
+a different reason — inside a frame, a bar left in the ordinary text color has
+the color of the number, the name and the image beside it, so the *fill* stops
+being distinguishable from the *frame*. The green is not saying "this container
+is fine"; it is saying where the ink is, which is the one thing a bar exists to
+say. Accepted cost, stated rather than discovered: most containers idle near
+zero, so most rows carry a sliver of green — a sliver inside a frame reads as a
+level, where a whole green cell would read as a status.
+
 Checklist:
 - [ ] No `style.Render(...)` inside what `Cell` returns
 - [ ] Status icons as plain text: `theme.IconError + " error"`

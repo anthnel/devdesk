@@ -12413,6 +12413,10 @@ barre verte sur chaque ligne en permanence est exactement le bruit que la règle
 est déjà prise », ce qui n'est pas le cas ici — un conteneur arrêté rend `-`,
 déjà distinguable d'une barre vide.
 
+*Renversé à l'implémentation, voir « La révision » plus bas : le cadre `[ ]` a
+changé la prémisse — dans un cadre, l'absence de couleur **est** prise, parce
+qu'une barre non colorée ne se distingue plus de son propre cadre.*
+
 Donc : couleur de texte ordinaire jusqu'à un seuil, puis orange, puis rouge. La
 longueur porte la valeur, la couleur ne sert qu'à ce qui mérite d'être repéré
 sans lire. Les seuils et leurs styles vont dans `theme`, sur le modèle de
@@ -12489,8 +12493,8 @@ forme qui puisse tomber : une barre fondue dans la cellule du nombre survivrait
 Elements est *ambigu* — `█`, `▓`, `▇`, et les blocs partiels `▏▎▍▌` — donc large
 de 2 sous une locale est-asiatique, ce qui ferait déborder la ligne et casserait
 Rule 116. Le braille (`⣿`, `⡇`) mesure 1 dans les deux conditions, et c'est déjà
-l'alphabet des courbes du dashboard. `░` s'en tire aussi — c'est le seul glyphe
-de la famille bloc qui ne soit pas ambigu — et sert de piste.
+l'alphabet des courbes du dashboard. Les crochets du cadre sont en ASCII pour la
+même raison : `▏▕` et `│` sont ambigus eux aussi.
 `TestTheFillGlyphsAreNotAmbiguousWidth` refuse un retour en arrière, et
 `TestAGaugeIsExactlyAsWideAsItAsksFor` mesure la barre sous les deux locales, à
 toutes les valeurs de -50 à 150 %.
@@ -12516,11 +12520,11 @@ jauge, dont la place est choisie par ce qu'elle **illustre**. Les issues 1 et 2
 échangeaient chacune une moitié de l'entrée contre l'autre ; celle-ci ne troque
 rien, et l'extension tient en une boucle sur deux prédicats.
 
-**Le prix de l'issue 3, mesuré : les jauges n'apparaissent qu'à partir de 154
-colonnes.** La table `containers` demande 162 cellules pour ses treize colonnes
-(2 + 14 + 20 + 8 + 6 + 12 + 6 + 9 + 9 + 10 + 10 + 16 + 12, plus deux de padding
+**Le prix de l'issue 3, mesuré : les jauges n'apparaissent qu'à partir de 156
+colonnes.** La table `containers` demande 166 cellules pour ses treize colonnes
+(2 + 14 + 20 + 8 + 8 + 12 + 8 + 9 + 9 + 10 + 10 + 16 + 12, plus deux de padding
 par colonne et deux de bordure). En dessous, `drop` prend les `DropFirst` en
-premier — la mémoire à 162, le CPU à 154, la plus à droite d'abord — donc sur un
+premier — la mémoire à 166, le CPU à 156, la plus à droite d'abord — donc sur un
 terminal de 120 ou 140 colonnes les deux barres sont simplement absentes, et
 c'est **exactement** ce qui a été demandé : « pas primordiales » veut dire qu'un
 compteur d'I/O passe avant. Relevé plutôt que supposé, parce que c'est le genre
@@ -12529,12 +12533,38 @@ s'affiche jamais. Si l'arbitrage devait changer, la manœuvre la moins chère
 n'est pas d'élargir la jauge mais de retirer `DropFirst` : les barres
 survivraient alors jusqu'aux compteurs d'I/O, vers 140.
 
-**Trois seuils, deux couleurs.** `LoadWarnPercent` (75) et
+**Trois seuils, trois couleurs.** `LoadWarnPercent` (75) et
 `LoadCriticalPercent` (90), en alias de `ColorSeverityMedium` et
 `ColorSeverityCritical` — le même alphabet que les niveaux du footer (Rule 128).
-En dessous, la couleur de texte ordinaire : pas de vert, conformément à
-Rule 122, et une barre colorée sur chaque ligne serait le bruit que la règle
-écarte.
+En dessous, `ColorOK`, le vert — voir la révision ci-dessous, qui explique
+pourquoi ce n'est pas la violation de Rule 122 que la première version avait
+écartée.
+
+#### La révision, après l'avoir vue à l'écran
+
+La première version rendait la piste en `░` et laissait le remplissage en
+couleur de texte ordinaire sous 75 %. Les deux ont été changés en regardant le
+résultat, et les deux changements n'en font qu'un.
+
+**Une piste en `░` se lit comme un second remplissage.** Une barre à moitié
+pleine de points et à moitié pleine d'ombre est *deux textures*, pas une
+longueur : l'œil doit décider laquelle compte. Le cadre `[ ]` répond à la même
+question — où la barre s'arrête — sans rien mettre dedans. C'est ce que `htop`
+fait depuis toujours avec `[|||   ]`, et le vide redevient du vide.
+
+**Et c'est ce cadre qui rend le vert défendable.** Rule 122 refuse une couleur
+sur l'état nominal et majoritaire, avec une exception déclarée : « une colonne
+où l'absence de couleur est déjà prise ». Elle l'est ici, et pas pour la raison
+habituelle — dans un cadre, une barre non colorée a la couleur du nombre, du nom
+et de l'image d'à côté, donc le remplissage cesse de se distinguer du cadre. Le
+vert ne dit pas « ce conteneur va bien », il dit **où est l'encre**, ce qui est
+la seule chose qu'une barre existe pour dire. C'est le vert que `ColorOK` donne
+déjà aux notes CI, l'exception que la règle porte depuis §3.52.
+
+Le coût est énoncé plutôt que découvert : la plupart des conteneurs veillent près
+de zéro, donc la plupart des lignes portent un filet de vert. C'est accepté — un
+filet dans un cadre se lit comme un **niveau**, là où une cellule entièrement
+verte se lirait comme un **état**.
 
 ---
 

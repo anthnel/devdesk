@@ -30,23 +30,51 @@ import (
 const (
 	gaugeFull  = "⣿" // eight dots: a whole cell
 	gaugeHalf  = "⡇" // the left column of dots: half a cell
-	gaugeEmpty = "░" // the track, and the only non-braille glyph — it measures 1 in both conditions too
+	gaugeEmpty = " " // the unfilled track: the cell's own background, nothing drawn on it
 )
 
-// GaugeWidth is the width of a gauge column, in cells.
+// The frame, and why it is ASCII.
 //
-// Six, which buys twelve steps at half-cell resolution — enough to tell a
-// quarter from a third at a glance, which is all a bar is for. The number it
-// sits beside carries the precision.
-const GaugeWidth = 6
+// A shaded track (`░`) was the first attempt and it reads as a *second* fill:
+// at a glance a bar half full of dots and half full of shade is two textures
+// rather than one length. A frame answers the same need — where does the bar
+// end — without competing with what it contains, which is what htop's
+// `[|||   ]` has always done.
+//
+// `[` and `]` rather than `▏▕` or `│`: the box-drawing candidates are East
+// Asian ambiguous, like every Block Elements glyph (see above), and would take
+// two cells on the terminals this whole file exists to survive.
+const (
+	gaugeOpen  = "["
+	gaugeClose = "]"
+)
 
-// Load thresholds, in percent. Below the first, a gauge takes the ordinary
-// text colour.
+// GaugeWidth is the width of a gauge column, in cells, frame included.
 //
-// Rule 122 decides these rather than taste: the nominal, majority state gets
-// no colour of its own, and most containers idle near zero. A bar coloured on
-// every row would put a colour on the whole table and a signal on none of it —
-// which is also why nothing here is ever green.
+// Eight: the two brackets, plus six cells of bar — twelve steps at half-cell
+// resolution, enough to tell a quarter from a third at a glance, which is all
+// a bar is for. The number it sits beside carries the precision.
+const GaugeWidth = 8
+
+// gaugeFrameWidth is what the frame costs out of the width it is given.
+const gaugeFrameWidth = 2
+
+// Load thresholds, in percent: green, then orange, then red.
+//
+// Green under the first threshold is a **declared exception** to Rule 122's
+// colour discipline, decided after seeing the first version on screen. The
+// rule's own criterion is "a column where the absence of colour is already
+// taken", and it is: a gauge is a *frame that is partly filled*, so an
+// uncoloured bar is not a nominal state — it is a bar whose fill is the same
+// colour as the number, the name and the image beside it, and the eye stops
+// separating the fill from the frame. What green marks here is not "this
+// container is fine", it is **where the ink is**, which is the one thing a bar
+// exists to say. It is the same green `ColorOK` gives the CI grades, the
+// exception the rule already carries.
+//
+// The cost is stated rather than discovered: most containers idle near zero,
+// so most rows carry a green sliver. That is accepted — a sliver of green in a
+// frame reads as a *level*, where a whole green cell would read as a *status*.
 const (
 	// LoadWarnPercent is where a gauge stops being ordinary: filling up, and
 	// worth noticing.
@@ -56,7 +84,12 @@ const (
 	LoadCriticalPercent = 90
 )
 
-// Gauge renders pct of full as a bar of width cells, as plain text.
+// Gauge renders pct of full as a framed bar of width cells, as plain text.
+//
+// width counts the frame: `Gauge(50, 8)` is `[⣿⣿⣿   ]`. A width with no room
+// for a bar inside its brackets renders blanks instead — a column that narrow
+// has been dropped, and Cell is still called while the widths are being
+// measured.
 //
 // pct is clamped: anything at or above 100 fills the bar. Saturation is
 // therefore indistinguishable from exactly full, which is deliberate and is
@@ -72,6 +105,10 @@ func Gauge(pct float64, width int) string {
 	if width <= 0 {
 		return ""
 	}
+	bar := width - gaugeFrameWidth
+	if bar < 1 {
+		return strings.Repeat(gaugeEmpty, width)
+	}
 	switch {
 	case math.IsNaN(pct), pct < 0:
 		pct = 0
@@ -79,24 +116,26 @@ func Gauge(pct float64, width int) string {
 		pct = 100
 	}
 
-	halves := int(math.Round(pct / 100 * float64(width*2)))
+	halves := int(math.Round(pct / 100 * float64(bar*2)))
 	full, half := halves/2, halves%2
 
 	var b strings.Builder
+	b.WriteString(gaugeOpen)
 	b.WriteString(strings.Repeat(gaugeFull, full))
 	if half > 0 {
 		b.WriteString(gaugeHalf)
 		full++
 	}
-	b.WriteString(strings.Repeat(gaugeEmpty, width-full))
+	b.WriteString(strings.Repeat(gaugeEmpty, bar-full))
+	b.WriteString(gaugeClose)
 	return b.String()
 }
 
-// LoadTextStyle is the colour a gauge takes at pct: ordinary text, then
-// orange, then red. It follows SeverityTextStyle's shape — the view names a
-// value, the theme answers with a colour — and it aliases the severity palette
-// for the same reason the footer levels do (Rule 128): one alphabet across the
-// application, so a full gauge reads like a CRITICAL finding.
+// LoadTextStyle is the colour a gauge takes at pct: green, then orange, then
+// red. It follows SeverityTextStyle's shape — the view names a value, the theme
+// answers with a colour — and it aliases the severity palette for the same
+// reason the footer levels do (Rule 128): one alphabet across the application,
+// so a full gauge reads like a CRITICAL finding.
 //
 // It is a function rather than a package-level style because the thresholds
 // are the whole of it; a var per level would leave the switch in the view,
@@ -109,6 +148,6 @@ func LoadTextStyle(pct float64) lipgloss.Style {
 	case pct >= LoadWarnPercent:
 		return base.Foreground(ColorSeverityMedium)
 	default:
-		return base.Foreground(ColorText)
+		return base.Foreground(ColorOK)
 	}
 }

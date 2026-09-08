@@ -212,7 +212,7 @@ func (m Model) GetHelpContent() help.Content {
 					"Name: Container name.\n" +
 					"Image: Docker image.\n" +
 					"CPU: CPU usage percentage, as 'docker stats' counts it — relative to one core, so a container busy on two cores reads 200%.\n" +
-					"1 core: the CPU percentage as a bar, full at one core. It saturates above that, which is why the number stays beside it. Ordinary text below 75%, orange from there, red from 90%.\n" +
+					"1 core: the CPU percentage as a bar, full at one core. It saturates above that, which is why the number stays beside it. Green below 75%, orange from there, red from 90%.\n" +
 					"Mem: Memory usage as compact label (e.g. '150M/8G').\n" +
 					"Limit: how full that label is — the share of the limit docker reports for the container, which is the daemon's total when the container declares none. Same three colors.\n" +
 					"Net RX: Cumulative network bytes received since container start (e.g. '1.2kB', '3.4MB').\n" +
