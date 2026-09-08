@@ -80,6 +80,22 @@ type Column[T any] struct {
 	// combinations exist: the interface error counters have an exact width and
 	// are also the first thing worth losing.
 	Optional bool
+	// DropFirst moves an Optional column to the head of the queue: it goes
+	// before every other Optional one, wherever it sits on screen. Meaningless
+	// without Optional, which is the flag that decides whether a column may go
+	// at all.
+	//
+	// It exists because drop() reads the column order as an order of
+	// importance, and that is true of every column whose place is chosen by
+	// what it *is*. A gauge's place is chosen by what it *illustrates* — it has
+	// to sit beside the number it draws, in the middle of the table, or it
+	// stops being read as that number's picture (§3.71). Left to position
+	// alone, the containers table would shed its I/O counters to keep two bars
+	// that are the most expendable thing on the row.
+	//
+	// A bool rather than a rank: two tiers is what the case needs, and an int
+	// would invite every table to number its columns against each other.
+	DropFirst bool
 	// TruncateHead cuts the start of an over-long value rather than its end.
 	//
 	// A flag per column rather than a rule derived from Sizing, because the
@@ -117,6 +133,27 @@ type Column[T any] struct {
 	// styles.Selected whole, and a colour inside it would end the highlight
 	// mid-row. A column cannot ask for that back.
 	Style func(T) lipgloss.Style
+	// Cut and TailStyle split a cell into two coloured runs instead of Style's
+	// one: Style colours the first Cut(item) cells of the *finished* text —
+	// already measured, truncated and padded to the column's width — and
+	// TailStyle colours the rest. Both nil (the ordinary case, every column but
+	// the containers load gauges) leaves Style covering the whole cell as
+	// before.
+	//
+	// This is not the gradient Rule 122 forbids: nothing styled is ever
+	// measured. Cut reads a plain, already-final string — the split happens
+	// after truncation, at the same point Style already does its colouring —
+	// so it is the same "measure first, colour after" order applied twice
+	// instead of once, not an exception to it. It stays two runs rather than an
+	// arbitrary list: one caller has needed it since it was added, and Cut, a
+	// bare integer, is cheaper to reason about than a slice of spans that only
+	// ever holds two elements.
+	//
+	// Neither is consulted for the selected row, for the same reason Style is
+	// not: a colour that ends before the row does closes the selection
+	// highlight in the middle of it.
+	Cut       func(T) int
+	TailStyle func(T) lipgloss.Style
 	// Less sorts by this column. Nil means the column cannot be sorted by, and
 	// `.` skips it.
 	Less func(a, b T) bool

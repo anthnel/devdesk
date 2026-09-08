@@ -150,6 +150,17 @@ step makes the declaration a preference rather than a guarantee, deliberately:
 fewer columns that are right beats every column wrong, and truncating a fixed
 column instead renders `142` as `14…` with nothing on screen to say so.
 
+**`DropFirst` is the one exception to "always the rightmost" (§3.71).** An
+`Optional` column carrying it goes before every other `Optional` one, wherever
+it sits. Right-to-left works because a table's column order *is* an order of
+importance — true of every column whose place is chosen by what it **is**, and
+false for one whose place is chosen by what it **illustrates**. The containers
+gauges have to sit beside the numbers they draw, in the middle of the row; left
+to position alone they would outlive the four I/O counters to their right, which
+is backwards for the most expendable thing on the line. It is a bool and not a
+rank: two tiers is what the case needs, and an int would invite every table to
+number its columns against each other.
+
 **A kept column never goes under one cell.** A column at zero renders nothing
 while its padding has already been spent — D61 word for word — so "too narrow to
 serve" and "not there" have to stay different states, and the second one is a
@@ -259,6 +270,18 @@ A colour that appears on every row informs no one: a zero count, a `-` and a
 never-scanned target are `DimStyle`, the nominal majority state (a `running`
 container) keeps the default text colour, and the colour is spent on what is
 worth spotting without reading.
+
+**`Cut` and `TailStyle` give a cell two colours instead of one, and still measure
+before colouring.** They exist for one caller — the containers load gauges
+(§3.71): the fill takes `Style`, the track takes `TailStyle`, and `Cut` says
+where the first stops, in cells, of the *already-fitted* text. This is not the
+gradient Rule 122 forbids — nothing styled is ever measured, `Cut` reads a
+plain string exactly as `Style` does — it is the same "measure first, colour
+after" order applied to two runs instead of one. `splitCellRun` pads each run's
+own outer edge with a literal space rather than `Style`'s `Padding(0, 1)`,
+because two independent `Padding` calls would open a two-cell gap where the
+runs meet. Neither `Cut` nor `TailStyle` is consulted on the selected row, for
+the same reason `Style` is not.
 
 Three things it guarantees that hand-wired tables did not:
 

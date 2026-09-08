@@ -210,22 +210,38 @@ func measureOf(measured []int, i int) int {
 	return 0
 }
 
-// drop removes one column from the kept set: the rightmost Optional one, and
-// only when there is none, the rightmost of all.
+// drop removes one column from the kept set: the rightmost DropFirst one, else
+// the rightmost Optional one, and only when there is neither, the rightmost of
+// all.
 //
 // Right to left because the column order is already an order of importance in
 // every table here — the identifying column is first — so degrading from the
-// right sheds the least. The first column is never dropped: a table with no
-// columns at all is not a narrower table, it is a blank one.
+// right sheds the least. DropFirst is the exception a gauge needs: its place on
+// screen says which number it illustrates, not how much it is worth (§3.71).
+// The first column is never dropped: a table with no columns at all is not a
+// narrower table, it is a blank one.
 func drop[T any](columns []Column[T], kept []int) []int {
 	at := len(kept) - 1
-	for i := len(kept) - 1; i > 0; i-- {
-		if columns[kept[i]].Optional {
+	for _, wanted := range []func(Column[T]) bool{
+		func(c Column[T]) bool { return c.Optional && c.DropFirst },
+		func(c Column[T]) bool { return c.Optional },
+	} {
+		if i, ok := rightmost(columns, kept, wanted); ok {
 			at = i
 			break
 		}
 	}
 	return append(kept[:at:at], kept[at+1:]...)
+}
+
+// rightmost finds the last kept column matching want, never the first one.
+func rightmost[T any](columns []Column[T], kept []int, want func(Column[T]) bool) (int, bool) {
+	for i := len(kept) - 1; i > 0; i-- {
+		if want(columns[kept[i]]) {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // grow hands the surplus to the flexible columns by weight, giving the last one

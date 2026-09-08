@@ -245,6 +245,46 @@ func TestTheOptionalColumnsGoFirst(t *testing.T) {
 	}
 }
 
+// A DropFirst column goes before every other Optional one, however far left it
+// sits. That is the whole of §3.71's third option: a gauge sits beside the
+// number it draws, in the middle of the table, and its position therefore says
+// nothing about what it is worth.
+func TestADropFirstColumnGoesBeforeTheOptionalOnesToItsRight(t *testing.T) {
+	dropFirst := func(c Column[string]) Column[string] {
+		c.Optional, c.DropFirst = true, true
+		return c
+	}
+	columns := []Column[string]{content(20, 1), dropFirst(fixed(6)), optional(fixed(9)), fixed(12)}
+
+	widths := solveWidths(columns, 50, nil)
+
+	if widths[1] != 0 {
+		t.Fatalf("widths = %v, want the DropFirst column dropped first", widths)
+	}
+	if widths[2] != 9 {
+		t.Errorf("widths = %v, want the plain optional column kept — it goes second, not first", widths)
+	}
+}
+
+// And once it is gone the ordinary right-to-left order resumes: DropFirst
+// promotes a column in the queue, it does not exempt the others.
+func TestOnceTheDropFirstColumnsAreGoneTheOrdinaryOrderResumes(t *testing.T) {
+	dropFirst := func(c Column[string]) Column[string] {
+		c.Optional, c.DropFirst = true, true
+		return c
+	}
+	columns := []Column[string]{content(20, 1), dropFirst(fixed(6)), optional(fixed(9)), optional(fixed(9))}
+
+	widths := solveWidths(columns, 40, nil)
+
+	if widths[1] != 0 || widths[3] != 0 {
+		t.Fatalf("widths = %v, want the DropFirst column then the rightmost optional one dropped", widths)
+	}
+	if widths[2] != 9 {
+		t.Errorf("widths = %v, want the middle optional column still there", widths)
+	}
+}
+
 // Removing a column hands its two padding cells back to the others. Without
 // that the rendered line is two cells short per dropped column, which is D61.
 func TestARemovedColumnHandsBackItsPadding(t *testing.T) {

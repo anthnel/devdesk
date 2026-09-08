@@ -138,19 +138,159 @@ func TestOnlyRunningContainersShowMetrics(t *testing.T) {
 		byName[row[columnName]] = row
 	}
 
-	// The metrics start after the status, name and image columns.
-	const columnCPU = columnImage + 1
+	// The metrics start after the status, name and image columns: CPU, its
+	// gauge, Mem, its gauge, then the four I/O counters.
+	const (
+		columnCPU      = columnImage + 1
+		columnCPUGauge = columnCPU + 1
+		columnMem      = columnCPU + 2
+		columnMemGauge = columnCPU + 3
+		columnLastIO   = columnCPU + 7
+	)
 	if got := byName["web"][columnCPU]; got != "12.5%" {
 		t.Errorf("web CPU cell = %q, want \"12.5%%\"", got)
 	}
-	if got := byName["web"][columnCPU+1]; got != "150M/8G" {
+	if got := byName["web"][columnMem]; got != "150M/8G" {
 		t.Errorf("web memory cell = %q, want \"150M/8G\"", got)
 	}
 	for _, name := range []string{"api", "cache", "zombie"} {
-		for col := columnCPU; col <= columnCPU+5; col++ {
+		for col := columnCPU; col <= columnLastIO; col++ {
 			if got := byName[name][col]; got != "-" {
 				t.Errorf("%s column %d = %q, want \"-\" for a non-running container", name, col, got)
 			}
+		}
+	}
+}
+
+// A stopped container has no gauge, and renders the same "-" as every other
+// metric column rather than an empty bar — an empty bar is a measurement. A
+// running one's cell is the same glyph whatever its load: with a single
+// character, the value lives in colour alone (see the two tests below), not
+// in Cell's plain text.
+func TestOnlyAStoppedContainerRendersAPlaceholderGauge(t *testing.T) {
+	// rawModel already turns every state filter on (allStates); pressing "z"
+	// here would clear them back to the running-only default and silently
+	// drop "stopped" from tableRows, which is exactly the flaw this test
+	// exists to catch — a loop over what tableRows returns cannot notice a
+	// row that never arrived.
+	m := rawModel(t)
+	m = feed(t, m, ContainersListMsg{Containers: []docker.Container{
+		{ID: "1", Name: "idle", State: "running", CPUPercent: 0.4, MemPercent: 0.2},
+		{ID: "2", Name: "stopped", State: "exited", CPUPercent: 80, MemPercent: 80},
+	}})
+
+	const (
+		columnCPUGauge = columnImage + 2
+		columnMemGauge = columnImage + 4
+	)
+	want := map[string][2]string{
+		"idle":    {theme.Gauge(theme.GaugeWidth), theme.Gauge(theme.GaugeWidth)},
+		"stopped": {"-", "-"},
+	}
+	seen := map[string]bool{}
+	for _, row := range tableRows(m) {
+		expected, ok := want[row[columnName]]
+		if !ok {
+			t.Fatalf("unexpected row %q", row[columnName])
+		}
+		seen[row[columnName]] = true
+		if got := row[columnCPUGauge]; got != expected[0] {
+			t.Errorf("%s CPU gauge = %q, want %q", row[columnName], got, expected[0])
+		}
+		if got := row[columnMemGauge]; got != expected[1] {
+			t.Errorf("%s memory gauge = %q, want %q", row[columnName], got, expected[1])
+		}
+	}
+	for name := range want {
+		if !seen[name] {
+			t.Errorf("%q never appeared in the table — a filter hid it, or the fixture never arrived", name)
+		}
+	}
+}
+
+// Each level's colour shows up somewhere in the rendered table — green for an
+// idle container, orange and red once a level crosses its threshold — and a
+// stopped container's placeholder is dim rather than any load colour.
+func TestTheGaugesColorReflectsTheLoadLevel(t *testing.T) {
+	withTrueColor(t)
+	m := rawModel(t)
+	m = feed(t, m, ContainersListMsg{Containers: []docker.Container{
+		// Sorts alphabetically first, so it absorbs the cursor: Style is not
+		// consulted on the selected row (Rule 122), and only one of five rows
+		// can be under it. Without a spare row, whichever of the four checked
+		// below happened to sort first would show no colour at all.
+		{ID: "0", Name: "aaa-filler", State: "running", CPUPercent: 10, MemPercent: 10},
+		{ID: "1", Name: "idle", State: "running", CPUPercent: 10, MemPercent: 10},
+		{ID: "2", Name: "warn", State: "running", CPUPercent: 80, MemPercent: 10},
+		// Two full cores: the fill saturates and only the number says 200%.
+		{ID: "3", Name: "crit", State: "running", CPUPercent: 200, MemPercent: 10},
+		{ID: "4", Name: "stopped", State: "exited", CPUPercent: 80, MemPercent: 80},
+	}})
+	// No "z" here either — rawModel's allStates already shows every state;
+	// pressing it would clear that back to running-only and hide "stopped".
+	if got := rowNames(tableRows(m)); len(got) != 5 {
+		t.Fatalf("table holds %v, want all five fixtures visible", got)
+	}
+	view := m.containerTable.View()
+
+	ok := ansiPrefix(theme.LoadTextStyle(10).Render("x"))
+	warn := ansiPrefix(theme.LoadTextStyle(theme.LoadWarnPercent).Render("x"))
+	crit := ansiPrefix(theme.LoadTextStyle(theme.LoadCriticalPercent).Render("x"))
+	dim := ansiPrefix(theme.DimStyle.Render("x"))
+
+	for name, prefix := range map[string]string{
+		"green (idle, below the warn threshold)": ok,
+		"orange (warn, at 80%)":                  warn,
+		"red (crit, saturated at 200%)":          crit,
+		"dim (the stopped placeholder)":          dim,
+	} {
+		if prefix == "" {
+			t.Fatalf("%s renders no escape sequence; the colour profile is not forced", name)
+		}
+		if !strings.Contains(view, prefix) {
+			t.Errorf("no cell carries the %s colour", name)
+		}
+	}
+}
+
+// The track keeps its own colour whatever the fill's is: an idle container's
+// mostly-track bar and a busy one's mostly-fill bar both show the track in
+// theme.GaugeTrackStyle, not in whatever LoadTextStyle the row's own level
+// happens to pick.
+func TestTheGaugeTrackKeepsItsOwnColourRegardlessOfLoad(t *testing.T) {
+	withTrueColor(t)
+	track := ansiPrefix(theme.GaugeTrackStyle().Render("x"))
+	if track == "" {
+		t.Fatal("the track style renders no escape sequence; the colour profile is not forced")
+	}
+
+	m := loadedModel(t) // cursor on api; web (12.5% CPU) is not selected
+	view := m.containerTable.View()
+
+	if !strings.Contains(view, track) {
+		t.Error("no cell in the table carries the track colour, on a table that has a running container")
+	}
+
+	// The fill's colour must appear too, and separately: this is not one run
+	// coloured uniformly, it is two.
+	fill := ansiPrefix(theme.LoadTextStyle(12.5).Render("x"))
+	if !strings.Contains(view, fill) {
+		t.Error("web's fill colour is missing — the CPU gauge rendered as one uniform run")
+	}
+}
+
+// A gauge is the first thing to go when the table runs out of room, whatever
+// its position — it illustrates a number that stays behind (§3.71).
+func TestTheGaugesAreTheFirstColumnsDropped(t *testing.T) {
+	columns := containerColumns()
+
+	for i, col := range columns {
+		gauge := col.Title == "1 core" || col.Title == "Limit"
+		if gauge && (!col.Optional || !col.DropFirst) {
+			t.Errorf("column %d (%q) is a gauge but is not Optional+DropFirst", i, col.Title)
+		}
+		if !gauge && col.DropFirst {
+			t.Errorf("column %d (%q) is not a gauge and should not be DropFirst", i, col.Title)
 		}
 	}
 }
@@ -309,9 +449,10 @@ func TestCycleSortWalksDirectionThenColumn(t *testing.T) {
 	}
 
 	// Each sortable column is visited ascending then descending, so a full
-	// cycle returns to the start. Two columns do not sort: the status glyph and
-	// Ports.
-	sortable := len(containerColumns()) - 2
+	// cycle returns to the start. Four columns do not sort: the status glyph,
+	// Ports, and the two gauges — a bar sorts by the number it draws, and that
+	// number's own column already offers it.
+	sortable := len(containerColumns()) - 4
 	for range sortable*2 - 2 {
 		m = feed(t, m, testutil.Key("."))
 	}
@@ -331,11 +472,11 @@ func TestEachColumnOrdersByItsOwnValue(t *testing.T) {
 		{"name descending", columnName, true, []string{"zombie", "web", "cache", "api"}},
 		{"image ascending", columnImage, false, []string{"zombie", "api", "web", "cache"}},
 		{"cpu descending", columnImage + 1, true, []string{"api", "web", "cache", "zombie"}},
-		{"mem descending", columnImage + 2, true, []string{"web", "cache", "zombie", "api"}},
-		{"net rx descending", columnImage + 3, true, []string{"web", "cache", "zombie", "api"}},
-		{"net tx descending", columnImage + 4, true, []string{"web", "cache", "zombie", "api"}},
-		{"block rx descending", columnImage + 5, true, []string{"web", "cache", "zombie", "api"}},
-		{"block tx descending", columnImage + 6, true, []string{"web", "cache", "zombie", "api"}},
+		{"mem descending", columnImage + 3, true, []string{"web", "cache", "zombie", "api"}},
+		{"net rx descending", columnImage + 5, true, []string{"web", "cache", "zombie", "api"}},
+		{"net tx descending", columnImage + 6, true, []string{"web", "cache", "zombie", "api"}},
+		{"block rx descending", columnImage + 7, true, []string{"web", "cache", "zombie", "api"}},
+		{"block tx descending", columnImage + 8, true, []string{"web", "cache", "zombie", "api"}},
 		// CreatedAt is compared as a string, so an unparseable value sorts
 		// after every ISO timestamp rather than being treated as unknown.
 		{"created ascending", columnCreated, false, []string{"cache", "api", "web", "zombie"}},

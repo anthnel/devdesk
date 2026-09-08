@@ -113,8 +113,8 @@ const (
 // offsets are right up until the order changes and then wrong in silence.
 // TestTheNamedColumnsAreWhereTheirNamesSay is what keeps these honest.
 const (
-	columnPorts   = columnImage + 7
-	columnCreated = columnImage + 8
+	columnPorts   = columnImage + 9
+	columnCreated = columnImage + 10
 )
 
 // The state glyph column carries no title — the icons say what they are — and
@@ -184,6 +184,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 			},
 			Less: func(a, b docker.Container) bool { return a.CPUPercent < b.CPUPercent },
 		},
+		gaugeColumn("1 core", func(c docker.Container) float64 { return c.CPUPercent }),
 		{
 			Title: "Mem", Sizing: datatable.SizingFixed, MinWidth: 12,
 			Cell: func(c docker.Container) string {
@@ -194,6 +195,7 @@ func containerColumns() []datatable.Column[docker.Container] {
 			},
 			Less: func(a, b docker.Container) bool { return a.MemPercent < b.MemPercent },
 		},
+		gaugeColumn("Limit", func(c docker.Container) float64 { return c.MemPercent }),
 		{
 			Title: "Net RX", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 9,
 			Cell: transfer(netIO, func(c docker.Container) int64 { return c.NetRX }),
@@ -230,6 +232,64 @@ func containerColumns() []datatable.Column[docker.Container] {
 			// that will not parse sorts after every timestamp rather than
 			// silently becoming the zero time and leading the list.
 			Less: func(a, b docker.Container) bool { return a.CreatedAt < b.CreatedAt },
+		},
+	}
+}
+
+// gauge is what the two bar columns share: everything except which percentage
+// they read and what its full scale is called.
+//
+// Both are Optional *and* DropFirst. Optional because a bar is never the only
+// carrier of what it shows — the number it sits beside survives it, and
+// survives the selected row too, where neither Style nor TailStyle is
+// consulted at all (Rule 122). DropFirst because a gauge sits where the number
+// it illustrates is, in the middle of the table: left to position alone it
+// would outlive the I/O counters to its right, which is the opposite of what a
+// decoration deserves (§3.71).
+//
+// Cut and TailStyle split the cell into its two tones — the fill by load,
+// the track fixed — which is what lets the empty portion of an idle
+// container's bar stay the same colour as a busy one's, rather than
+// inheriting whatever the fill's own colour happens to be that row.
+//
+// Every cell is the same glyph (theme.Gauge), so on the selected row — where
+// neither colour is consulted, see above — the bar renders as one uniform
+// block and says nothing on its own. The number beside it is what survives
+// there; that trade is why the number is never dropped even at the narrowest
+// width the table allows.
+//
+// It carries no Less and no Search. A comparator would duplicate the sort the
+// number column already offers, and cost two more cells to fit its arrow; a
+// bar is not text anyone can type.
+func gaugeColumn(scale string, pct func(docker.Container) float64) datatable.Column[docker.Container] {
+	return datatable.Column[docker.Container]{
+		Title: scale, Sizing: datatable.SizingFixed, MinWidth: theme.GaugeWidth,
+		Optional: true, DropFirst: true,
+		Cell: func(c docker.Container) string {
+			if c.State != "running" {
+				return "-"
+			}
+			return theme.Gauge(theme.GaugeWidth)
+		},
+		Style: func(c docker.Container) lipgloss.Style {
+			if c.State != "running" {
+				// A placeholder is dim, like every other "-" in this table.
+				return theme.DimStyle
+			}
+			return theme.LoadTextStyle(pct(c))
+		},
+		Cut: func(c docker.Container) int {
+			if c.State != "running" {
+				// The whole "-" belongs to TailStyle: 0 fill cells.
+				return 0
+			}
+			return theme.GaugeFillWidth(pct(c), theme.GaugeWidth)
+		},
+		TailStyle: func(c docker.Container) lipgloss.Style {
+			if c.State != "running" {
+				return theme.DimStyle
+			}
+			return theme.GaugeTrackStyle()
 		},
 	}
 }

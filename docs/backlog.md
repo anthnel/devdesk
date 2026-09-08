@@ -12385,7 +12385,7 @@ dise qu'ils ne comptent pas la même chose.
 
 ---
 
-### 3.71 `containers` — une jauge pour repérer un pic sans lire
+### 3.71 `containers` — une jauge pour repérer un pic sans lire — **done**
 
 Les colonnes `CPU` et `Mem` donnent un nombre juste, qu'il faut lire ligne par
 ligne. Une barre qui se remplit répond à « est-ce que quelque chose chauffe » en
@@ -12405,13 +12405,19 @@ refermée bave sur toutes les lignes suivantes — Rule 122, et la raison d'êtr
 Ce qui se fait : `Cell` rend la barre en texte brut, `Style` lui donne **une**
 couleur choisie par la valeur. Le découpage est celui que la règle impose.
 
-**Et le vert saute.** Rule 122 nomme l'état nominal et majoritaire — *un
-conteneur qui tourne* est son exemple — et lui assigne la couleur de texte
-ordinaire, **pas du vert**. La plupart des conteneurs veillent près de zéro : une
-barre verte sur chaque ligne en permanence est exactement le bruit que la règle
-écarte. Son exception déclarée (la colonne CI) vaut « quand l'absence de couleur
-est déjà prise », ce qui n'est pas le cas ici — un conteneur arrêté rend `-`,
-déjà distinguable d'une barre vide.
+**Et le vert saute — première lecture, revenue en jeu à l'écran.** Rule 122
+nomme l'état nominal et majoritaire — *un conteneur qui tourne* est son
+exemple — et lui assigne la couleur de texte ordinaire, **pas du vert**. La
+plupart des conteneurs veillent près de zéro : une barre verte sur chaque ligne
+en permanence est exactement le bruit que la règle écarte. Son exception
+déclarée (la colonne CI) vaut « quand l'absence de couleur est déjà prise », ce
+qui n'est pas le cas ici — la piste (`░`) et le remplissage (`⣿`) sont deux
+glyphes différents, donc une barre non colorée reste lisible.
+
+*Le vert a quand même fini par être gardé, pour une autre raison — voir « Le
+vert, la seconde fois » plus bas : un essai à l'écran a fait passer un cadre
+puis l'a défait, et le vert a survécu aux deux, au motif de Rule 128 plutôt
+que de celui-ci.*
 
 Donc : couleur de texte ordinaire jusqu'à un seuil, puis orange, puis rouge. La
 longueur porte la valeur, la couleur ne sert qu'à ce qui mérite d'être repéré
@@ -12474,6 +12480,200 @@ Trois issues, aucune évidente :
 - Ni `theme` ni `components` ne rendent de jauge. Le helper est à créer, et il a
   deux clients dès le premier jour — d'où sa place dans `theme` plutôt que dans
   la vue.
+
+#### Ce qui a été fait
+
+`theme.Gauge(pct, width)` rend une barre en texte brut, `theme.LoadTextStyle(pct)`
+lui donne sa couleur, et `containers` déclare **deux colonnes** de plus —
+`gaugeColumn` dans `model.go` — au lieu d'allonger les cellules `CPU` et `Mem`.
+Deux colonnes plutôt qu'un couple nombre-plus-barre parce que c'est la seule
+forme qui puisse tomber : une barre fondue dans la cellule du nombre survivrait
+à tout ce que la table peut perdre.
+
+**Le glyphe de remplissage est du braille, et c'est une mesure, pas un goût.**
+`runewidth` a été interrogé sur les vingt-huit candidats : **tout** le bloc Block
+Elements est *ambigu* — `█`, `▓`, `▇`, et les blocs partiels `▏▎▍▌` — donc large
+de 2 sous une locale est-asiatique, ce qui ferait déborder la ligne et casserait
+Rule 116. Le braille (`⣿`, `⡇`) mesure 1 dans les deux conditions, et c'est déjà
+l'alphabet des courbes du dashboard ; `░` s'en tire aussi, et sert de piste.
+`TestTheFillGlyphsAreNotAmbiguousWidth` refuse un retour en arrière, et
+`TestAGaugeIsExactlyAsWideAsItAsksFor` mesure la barre sous les deux locales, à
+toutes les valeurs de -50 à 150 %.
+
+Résolution : **une demi-cellule**, soit douze pas sur six. Un conteneur à 0,1 %
+rend une piste **vide** et non un sliver de politesse — une demi-cellule sur six
+*vaut* 8 %, et la majorité des lignes sont au repos.
+
+**Le CPU sature à un cœur, et le titre de la colonne le dit** : l'en-tête est
+`1 core`, celui de la jauge mémoire est `Limit`. C'était le choix laissé ouvert
+plus haut, et le nommer coûte zéro cellule — la colonne fait six de large de
+toute façon. La mise à l'échelle sur `NCPU` a été écartée pour deux raisons : elle
+demanderait un `docker info` par rafraîchissement dans une vue qui n'en fait pas,
+et surtout elle mettrait **deux échelles dans une cellule** — une barre à 25 %
+à côté d'un nombre à 398 % — ce qui est exactement D46. Le nombre reste
+l'unique porteur de l'ampleur au-delà d'un cœur, comme l'entrée l'avait prévu.
+
+**L'ordre de chute : issue 3.** `datatable.Column` gagne `DropFirst`, un bool
+qui promeut une colonne `Optional` en tête de file quelle que soit sa position.
+`drop()` lit l'ordre des colonnes comme un ordre d'importance, ce qui est vrai
+de toute colonne dont la place est choisie par ce qu'elle **est**, et faux d'une
+jauge, dont la place est choisie par ce qu'elle **illustre**. Les issues 1 et 2
+échangeaient chacune une moitié de l'entrée contre l'autre ; celle-ci ne troque
+rien, et l'extension tient en une boucle sur deux prédicats.
+
+**Le prix de l'issue 3, mesuré : les jauges n'apparaissent qu'à partir de 154
+colonnes.** La table `containers` demande 162 cellules pour ses treize colonnes
+(2 + 14 + 20 + 8 + 6 + 12 + 6 + 9 + 9 + 10 + 10 + 16 + 12, plus deux de padding
+par colonne et deux de bordure). En dessous, `drop` prend les `DropFirst` en
+premier — la mémoire à 162, le CPU à 154, la plus à droite d'abord — donc sur un
+terminal de 120 ou 140 colonnes les deux barres sont simplement absentes, et
+c'est **exactement** ce qui a été demandé : « pas primordiales » veut dire qu'un
+compteur d'I/O passe avant. Relevé plutôt que supposé, parce que c'est le genre
+de fait qui se découvre autrement en se demandant pourquoi une fonctionnalité ne
+s'affiche jamais. Si l'arbitrage devait changer, la manœuvre la moins chère
+n'est pas d'élargir la jauge mais de retirer `DropFirst` : les barres
+survivraient alors jusqu'aux compteurs d'I/O, vers 140.
+
+**Trois seuils, trois couleurs.** `LoadWarnPercent` (75) et
+`LoadCriticalPercent` (90), en alias de `ColorSeverityMedium` et
+`ColorSeverityCritical` — le même alphabet que les niveaux du footer (Rule 128).
+En dessous, `ColorOK`, le vert — voir « Le vert, la seconde fois » ci-dessous
+pour la raison qui a fini par tenir.
+
+#### Deux allers-retours à l'écran, avant que la forme ne se fixe
+
+Deux révisions, faites en regardant le résultat plutôt qu'en le supposant, et
+qui se défont l'une l'autre sur un point tout en s'accordant sur l'autre.
+
+**D'abord un cadre, en repérant que `░` seul se lit comme deux remplissages.**
+Une barre à moitié pleine de points et à moitié pleine d'ombre demandait à
+l'œil de choisir laquelle des deux textures compte. La première réponse a été
+un cadre ASCII — `[⣿⣿⣿   ]`, ce que `htop` fait depuis toujours avec
+`[|||   ]` — avec une piste vide entre les crochets, et le vert en dessous de
+75 % pour la raison inverse : dans un cadre, une barre non colorée a la couleur
+du nombre et du nom voisins, donc le remplissage cesse de se distinguer du
+cadre lui-même, ce qui *est* l'exception que Rule 122 réserve à « une colonne
+où l'absence de couleur est déjà prise ».
+
+**Puis le cadre a été retiré, et la piste `░` réintroduite.** À l'usage,
+aucun terminal essayé ne rendait le cadre proprement, et la piste `░` s'est
+révélée lisible dès qu'elle est mise à côté d'un remplissage braille plutôt que
+d'un vide : les deux glyphes ne se confondent pas, contrairement à ce que la
+première lecture de la contrainte avait supposé. La forme finale est donc celle
+d'avant le cadre — `⣿⡇░░░░`, sans bordure — et `gaugeEmpty` reprend la valeur
+`░`, elle aussi non ambiguë (mesurée : largeur 1 dans les deux locales, comme le
+braille).
+
+#### Le vert, la seconde fois
+
+Le cadre parti, l'argument qui l'avait justifié (« l'absence de couleur n'est
+plus prise ») disparaît avec lui : `░` et `⣿` sont deux glyphes différents, donc
+une barre non colorée resterait lisible, et c'est la lecture initiale de la
+règle qui redevient exacte. Le vert a néanmoins été **gardé**, sur un autre
+fondement : celui que Rule 128 donne aux niveaux du footer — un seul alphabet
+de sévérité dans toute l'application, pour qu'une jauge presque pleine se lise
+comme une CVE CRITICAL sans qu'il faille lire le nombre à côté. Ce n'est plus
+l'exception « absence de couleur déjà prise » de Rule 122 ; c'est une seconde
+exception, déclarée pour sa propre raison plutôt que reconduite pour celle qui
+ne tient plus. `.claude/rules/tui-tables.md` la documente sous ce nom.
+
+Le coût reste le même qu'à la première lecture, et reste accepté : la plupart
+des conteneurs veillent près de zéro, donc la plupart des lignes portent un
+filet de vert.
+
+#### Troisième révision : la piste change de couleur avec le niveau, et ne devrait pas
+
+Une fois le vert et `░` en place, un défaut restait : `Style` colore **toute**
+la cellule d'un bloc, glyphes de remplissage et de piste confondus. Un
+conteneur à 92 % rendait donc une piste `░` **orange**, une piste au repos une
+piste `░` en couleur de texte ordinaire — la piste changeait de teinte avec le
+niveau, alors qu'elle ne mesure jamais rien : elle est *toujours* la partie
+vide.
+
+**Séparer les deux teintes dans une seule cellule est exactement le dégradé
+que Rule 122 déclare impossible** — au sens littéral de « `Cell` ne doit
+retourner aucune séquence ANSI ». Mais la raison réelle du dégradé impossible
+tient à *quand* la mesure a lieu, pas au nombre de couleurs : `runewidth`
+mesure `Cell()` avant que `Style` ne colore quoi que ce soit, donc une
+séquence ANSI insérée *dans* `Cell()` est comptée comme de la largeur et
+tronquée au mauvais endroit. Rien n'empêche en revanche de colorer la
+cellule **déjà mesurée et remplie** (le texte que `fit()` produit) en deux
+morceaux plutôt qu'un — c'est le même ordre « mesurer d'abord, colorer
+ensuite » que `Style` applique déjà, répété une fois de plus.
+
+`internal/ui/datatable` gagne donc deux champs, `Column.Cut(item) int` et
+`Column.TailStyle(item) lipgloss.Style` : `Style` colore les `Cut(item)`
+premières cellules du texte déjà mesuré, `TailStyle` colore le reste. Les deux
+sont à `nil` sur toutes les colonnes sauf les deux jauges — c'est le chemin à
+une seule teinte, inchangé. Le point d'accord entre les deux morceaux est géré
+par un remplissage à la main (une espace littérale de chaque côté extérieur)
+plutôt que par `Style.Padding(0, 1)` sur chacun séparément, qui ouvrirait deux
+cellules de trou au milieu de la barre.
+
+`theme.GaugeFillWidth(pct, width)` donne la coupure : le même calcul que
+`Gauge()`, partagé plutôt que dupliqué, pour que le bord de la couleur ne
+puisse jamais s'écarter d'une cellule du bord du glyphe. `theme.GaugeTrackStyle()`
+donne la couleur fixe de la piste — un alias de `ColorSeverityLow`, choisi
+plutôt que `DimStyle` parce que `DimStyle` est, partout ailleurs dans
+l'application, le mot pour *absent* (un `-`, un zéro, un champ vide), et la
+piste n'est pas absente : elle est mesurée et basse, ce qu'une couleur de
+sévérité dit et un gris ne dit pas.
+
+**Et c'est une troisième exception à Rule 122, distincte de celle du vert.**
+Le vert du remplissage n'apparaît que sur une poignée de cellules, et
+seulement au-delà d'un seuil. La couleur de la piste, elle, apparaît sur
+**toutes** les lignes, y compris les plus creuses — l'exact contraire de « une
+couleur qui apparaît partout ne dit rien », que cette règle énonce en premier.
+Elle est acceptée quand même, sur demande, pour que l'absence de charge ait
+toujours le même visage plutôt que d'emprunter la couleur du niveau à côté
+d'elle. `.claude/rules/tui-tables.md` documente les deux exceptions côte à
+côte plutôt que de les fondre en une seule, parce qu'elles ne répondent pas au
+même besoin et ne partagent pas la même justification.
+
+#### Quatrième révision : un seul glyphe, et c'est la couleur seule qui montre l'usage
+
+Demande suivante : que `⣿`/`⡇` disparaissent, que **tout** soit `░`, et que ce
+soit la couleur, seule, qui dise quelle cellule est remplie. Le mécanisme à
+deux teintes de la révision précédente n'a **pas eu besoin de changer** — c'est
+lui qui rend la demande triviale à honorer : `Cut`/`TailStyle` savaient déjà
+colorer deux morceaux d'un texte identique de part en part.
+
+**Ce qui change tient en une ligne.** `theme.Gauge` ne prend plus de
+pourcentage : il n'en a plus besoin, puisque le texte qu'il rend ne dépend
+plus de la valeur — `strings.Repeat("░", width)`, toujours. Toute la charge
+utile passe par `theme.GaugeFillWidth(pct, width)`, qui dit à `Cut` où
+s'arrête la première teinte ; il n'y a plus de résolution demi-cellule à
+préserver puisqu'il n'y a plus de glyphe de demi-cellule (`⡇`) — l'arrondi se
+fait à la cellule entière, `math.Round(pct/100*width)`.
+
+**La largeur monte de 6 à 10.** Un seul glyphe perd la résolution que la
+demi-cellule braille donnait gratuitement — six cellules à deux pas chacune
+faisaient douze paliers (~8,3 %) ; six cellules à un seul pas n'en feraient que
+six (~16,7 %). Dix cellules à un pas retrouvent une précision proche de
+l'ancienne (10 %) sans dépendre d'un glyphe à moitié rempli. La demande
+autorisait explicitement d'élargir « à 10 ou plus si nécessaire » ; 10 est
+apparu suffisant.
+
+**Un coût explicite, plus qu'avec les deux glyphes : la ligne sélectionnée
+perd toute information de forme.** `Style` n'est jamais consulté sous le
+curseur (Rule 122) — c'était déjà vrai avant, mais avec `⣿`/`⡇` contre `░` la
+**longueur** du texte brut restait lisible même sans couleur : une jauge
+sélectionnée à 90 % avait encore neuf glyphes pleins sur dix. Avec un seul
+glyphe partout, la ligne sélectionnée rend un bloc `░░░░░░░░░░` uniforme qui ne
+dit plus rien par lui-même. Le nombre à côté (`92.0%`) reste la seule chose qui
+survit à la sélection — ce qu'il faisait déjà, et ce vers quoi l'entière
+duplication jauge/nombre pointait depuis le début (« deuxième raison de garder
+le nombre », plus haut).
+
+**Un défaut latent trouvé en écrivant les tests de cette révision.** Deux des
+tests couvrant les jauges pressaient `z` après avoir chargé une nouvelle liste
+de conteneurs sur un modèle où `rawModel` avait déjà allumé les quatre filtres
+d'état — `z` les éteint et retombe sur « running seulement », masquant les
+conteneurs arrêtés. Le test bouclait sur les lignes *présentes* dans la table
+et ne remarquait jamais qu'une ligne attendue n'était simplement jamais
+arrivée. Corrigé en retirant le `z` de trop et en ajoutant, dans le test qui
+vérifie le glyphe de remplacement, une vérification explicite que chaque ligne
+attendue a bien été vue — pas seulement qu'aucune ligne inattendue ne l'a été.
 
 ---
 

@@ -102,6 +102,33 @@ color.**
 }
 ```
 
+#### Two colors in one cell — `Cut` and `TailStyle`
+
+**A cell can have two runs instead of one, and the measure-first order still
+holds.** `Column.Cut(item) int` and `Column.TailStyle(item) lipgloss.Style`
+exist for a single caller — the containers load gauges (§3.71) — so `Style`
+colors the first `Cut(item)` cells of the text and `TailStyle` colors the
+rest. This is not the gradient the top of this rule forbids: `Cut` reads the
+*already-fitted* plain text, after truncation and padding, at the exact point
+`Style` already colors from — nothing styled is ever measured, it is the same
+order applied to two runs. Nil on both (every column but the two gauges)
+keeps the one-run path.
+
+```go
+// ✅ CORRECT — two colors, both decided after Cell's text is final
+{
+    Title: "1 core", Sizing: SizingFixed, MinWidth: theme.GaugeWidth,
+    Cell:      func(c docker.Container) string { return theme.Gauge(theme.GaugeWidth) },
+    Style:     func(c docker.Container) lipgloss.Style { return theme.LoadTextStyle(c.CPUPercent) },
+    Cut:       func(c docker.Container) int { return theme.GaugeFillWidth(c.CPUPercent, theme.GaugeWidth) },
+    TailStyle: func(c docker.Container) lipgloss.Style { return theme.GaugeTrackStyle() },
+}
+```
+
+Neither is consulted on the selected row, for the same reason `Style` is not
+(below) — a color that ends before the row does still closes the highlight
+mid-row.
+
 #### Selected row
 
 **`Style` is not consulted for the row under the cursor.** It is handed
@@ -138,6 +165,31 @@ two nominal values from each other: that is exactly what the rule above
 forbids elsewhere, and exactly what it requires here. That is the
 criterion, and not "it's important" — if a column's absences were already
 distinguishable, green would go back to being noise.
+
+**The second and third declared exceptions: the containers load gauges
+(§3.71).** Every cell of a gauge is the *same* glyph (`░`) — filled and empty
+alike — so unlike every other colored column in this application, color here
+is not a spotlight on top of text that already says something. It is the
+**only** thing that says anything at all: with one glyph, a cell reads as
+filled or empty exclusively by which color it carries.
+
+- The *fill* is green below 75%, orange, then red, on Rule 128's ground:
+  one alphabet of severity across the application, so a nearly-full gauge
+  reads like a CRITICAL finding without reading the number beside it.
+- The *track* — `theme.GaugeTrackStyle()`, aliasing `ColorSeverityLow` — is
+  fixed, whatever the fill's own level is. Without it, an idle row's `░` and
+  a critical row's `░` would carry whatever color `Style` had picked for
+  that row's *fill*, which would read as the level bleeding into cells that
+  were never filled.
+
+This is close to the CI column's own criterion (an idle gauge, entirely
+track-colored, *is* what "no load" looks like) but reaches further: the CI
+column's colors sit on top of letters that already read on their own; a
+gauge's don't. Removing the color here does not fall back to plain text
+that still says something — it falls back to a row of identical `░`.
+Accepted cost, stated rather than discovered: most containers idle near zero,
+so most rows carry a short green sliver in a track-colored field, both present
+at once (`Cut`/`TailStyle`, above).
 
 Checklist:
 - [ ] No `style.Render(...)` inside what `Cell` returns
