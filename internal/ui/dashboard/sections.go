@@ -860,9 +860,19 @@ func renderNetworkSection(m Model, width int, t tier) []string {
 	// subtract from, and a reset interface makes the counter go backwards.
 	// In both cases there is no throughput — `-`, not `0`.
 	rx, tx := unknownValue(), unknownValue()
+	totals := m.netWindow.Totals(m.netCounters)
 	if m.host.HasRate {
+		// The cumulative total rides on the same line as the rate it is the
+		// integral of (§3.69): "1.2 MB/s · 340 MB". It is folded into the
+		// same condition as the rate rather than shown on its own — on the
+		// very first tick the total is trivially zero, and showing it a
+		// beat later, once there is also a rate to put it beside, says more.
 		rx = theme.Bg(humanBytes(uint64(m.host.NetRXPerSec))) + theme.DimStyle.Render("/s")
 		tx = theme.Bg(humanBytes(uint64(m.host.NetTXPerSec))) + theme.DimStyle.Render("/s")
+		if totals.Valid {
+			rx += netTotalSuffix(totals.RX)
+			tx += netTotalSuffix(totals.TX)
+		}
 	}
 
 	// Throughput has no known ceiling: the scale stays automatic, against a
@@ -879,7 +889,38 @@ func renderNetworkSection(m Model, width int, t tier) []string {
 	lines := []string{row("RX", rx)}
 	lines = append(lines, chartOf(m, width, t, func(s metrics.HostSample) float64 { return s.NetRXPerSec }, 0)...)
 	lines = append(lines, row("TX", tx))
-	return append(lines, chartOf(m, width, t, func(s metrics.HostSample) float64 { return s.NetTXPerSec }, 0)...)
+	lines = append(lines, chartOf(m, width, t, func(s metrics.HostSample) float64 { return s.NetTXPerSec }, 0)...)
+
+	// RX/TX errors (§3.70): the same window as the totals above, aggregated
+	// across every interface — the Interfaces tab (`netdiag`) has the
+	// per-interface breakdown of the same field, since boot rather than
+	// since this window; the two are not meant to agree.
+	//
+	// Always rendered, dim at zero: a machine that never errors stays
+	// silent, but a line that vanishes at zero would jump the box's height
+	// on every tick a value crosses back to it.
+	lines = append(lines, row("RX err", errorCountValue(totals, totals.RXErrors)))
+	return append(lines, row("TX err", errorCountValue(totals, totals.TXErrors)))
+}
+
+// netTotalSuffix appends a cumulative total after a rate — the dot marks it
+// as supplementary, dim like the rate's own "/s" unit.
+func netTotalSuffix(total uint64) string {
+	return theme.DimStyle.Render(" · ") + theme.DimStyle.Render(humanBytes(total))
+}
+
+// errorCountValue renders one error counter from the network window: unknown
+// before a baseline exists, dim at zero, and warning-colored otherwise — the
+// same color `netdiag`'s per-interface error columns use, so the two screens
+// read as the same kind of fact at two granularities.
+func errorCountValue(totals metrics.Counters, n uint64) string {
+	if !totals.Valid {
+		return unknownValue()
+	}
+	if n > 0 {
+		return theme.StatusWarningStyle.Render(fmt.Sprintf("%d", n))
+	}
+	return theme.DimStyle.Render("0")
 }
 
 // knownTools names the tools DevDesk detects, in the order detectTools builds

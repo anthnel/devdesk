@@ -68,7 +68,7 @@ var coreCount = sync.OnceValue(func() int {
 	return n
 })
 
-// readNetCounters sums every interface's cumulative byte counters.
+// readNetCounters sums every interface's cumulative byte and error counters.
 func readNetCounters(at time.Time) Counters {
 	stats, err := net.IOCounters(false)
 	if err != nil || len(stats) == 0 {
@@ -77,7 +77,11 @@ func readNetCounters(at time.Time) Counters {
 		}
 		return Counters{At: at}
 	}
-	return Counters{RX: stats[0].BytesRecv, TX: stats[0].BytesSent, At: at, Valid: true}
+	return Counters{
+		RX: stats[0].BytesRecv, TX: stats[0].BytesSent,
+		RXErrors: stats[0].Errin, TXErrors: stats[0].Errout,
+		At: at, Valid: true,
+	}
 }
 
 // Disk reports free space on the filesystem holding path. Measured at 1 ms,

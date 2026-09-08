@@ -429,6 +429,68 @@ func TestThroughputWithoutARateReadsUnknownRatherThanZero(t *testing.T) {
 	}
 }
 
+// A cumulative total (§3.69) rides on the same line as the rate it is the
+// integral of, once there is one to sit beside: the very first reading has
+// nothing to compare against yet, so the total only shows up from the second
+// sample on.
+func TestNetworkBoxShowsACumulativeTotalNextToTheRate(t *testing.T) {
+	m, _ := loadedModel(t) // its sample carries no counters at all
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m = feed(t, m, HostSampleMsg{
+		Sample:   metrics.HostSample{OK: true},
+		Counters: metrics.Counters{RX: 1000, TX: 500, At: base, Valid: true},
+	})
+	m = feed(t, m, HostSampleMsg{
+		Sample:   metrics.HostSample{OK: true, HasRate: true, NetRXPerSec: 100, NetTXPerSec: 50},
+		Counters: metrics.Counters{RX: 5000, TX: 1500, At: base.Add(10 * time.Second), Valid: true},
+	})
+
+	rx := lineStartingWith(renderNetworkSection(m, 40, tierStandard), "RX")
+	if !strings.Contains(rx, "·") {
+		t.Fatalf("the RX row carries no cumulative total: %q", rx)
+	}
+	if want := humanBytes(4000); !strings.Contains(rx, want) {
+		t.Errorf("RX row = %q, want it to contain %q (5000-1000 bytes since the baseline)", rx, want)
+	}
+}
+
+// The two error rows (§3.70) are always rendered — unknown before a baseline
+// exists, and a plain zero once one does, never hidden: a row that vanished
+// at zero would jump the box's height on every tick a value crosses back to
+// it (the same reasoning as toolsBlock's opposite exception).
+func TestNetworkBoxErrorRowsAreAlwaysPresent(t *testing.T) {
+	m, _ := loadedModel(t) // no counters yet — no baseline
+
+	for _, label := range []string{"RX err", "TX err"} {
+		got := lineStartingWith(renderNetworkSection(m, 40, tierStandard), label)
+		if got == "" {
+			t.Fatalf("the Network box has no %q row: %q", label, renderNetworkSection(m, 40, tierStandard))
+		}
+		if !strings.HasSuffix(got, "-") {
+			t.Errorf("%q before a baseline exists should read \"-\", got %q", label, got)
+		}
+	}
+
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	m = feed(t, m, HostSampleMsg{
+		Sample:   metrics.HostSample{OK: true},
+		Counters: metrics.Counters{RX: 1000, TX: 500, RXErrors: 5, TXErrors: 0, At: base, Valid: true},
+	})
+	m = feed(t, m, HostSampleMsg{
+		Sample:   metrics.HostSample{OK: true},
+		Counters: metrics.Counters{RX: 1000, TX: 500, RXErrors: 7, TXErrors: 0, At: base.Add(time.Second), Valid: true},
+	})
+
+	lines := renderNetworkSection(m, 40, tierStandard)
+	if got := lineStartingWith(lines, "RX err"); !strings.HasSuffix(got, "2") {
+		t.Errorf("RX err = %q, want it to end in 2 (7-5 errors since the baseline)", got)
+	}
+	if got := lineStartingWith(lines, "TX err"); !strings.HasSuffix(got, "0") {
+		t.Errorf("TX err = %q, want it to end in 0, shown dim rather than hidden", got)
+	}
+}
+
 // lineStartingWith returns the first line whose visible text starts with the
 // label, or "" when there is none.
 func lineStartingWith(lines []string, label string) string {

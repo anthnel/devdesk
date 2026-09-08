@@ -76,6 +76,91 @@ func TestAnUnreadableCounterYieldsNoRate(t *testing.T) {
 	}
 }
 
+// TestNetWindowNeedsABaselineFirst — a window that has never seen a valid
+// reading has nothing to compare against, and Totals must say so rather than
+// reporting a zero that was never measured.
+func TestNetWindowNeedsABaselineFirst(t *testing.T) {
+	var w NetWindow
+
+	if totals := w.Totals(Counters{RX: 1000, Valid: true}); totals.Valid {
+		t.Error("Totals answered before the window ever saw a valid reading")
+	}
+}
+
+// TestNetWindowTotalsBytesSinceTheBaseline is the exact-to-the-byte case the
+// backlog asks for: no reset, so Totals is a plain subtraction against the
+// first reading Advance ever saw.
+func TestNetWindowTotalsBytesSinceTheBaseline(t *testing.T) {
+	var w NetWindow
+	first := Counters{RX: 1000, TX: 500, RXErrors: 1, TXErrors: 0, At: at(0), Valid: true}
+	w = w.Advance(Counters{}, first)
+
+	cur := Counters{RX: 4000, TX: 1500, RXErrors: 3, TXErrors: 2, At: at(10), Valid: true}
+	w = w.Advance(first, cur)
+
+	totals := w.Totals(cur)
+	if !totals.Valid {
+		t.Fatal("a window with a baseline reported invalid totals")
+	}
+	if totals.RX != 3000 || totals.TX != 1000 {
+		t.Errorf("bytes = %d RX / %d TX, want 3000 / 1000", totals.RX, totals.TX)
+	}
+	if totals.RXErrors != 2 || totals.TXErrors != 2 {
+		t.Errorf("errors = %d RX / %d TX, want 2 / 2", totals.RXErrors, totals.TXErrors)
+	}
+}
+
+// TestNetWindowSurvivesACounterReset — an interface or the machine restarts
+// mid-session. The total already reached must be carried forward, not lost
+// to a re-based window that starts over from zero.
+func TestNetWindowSurvivesACounterReset(t *testing.T) {
+	var w NetWindow
+	first := Counters{RX: 1000, RXErrors: 5, At: at(0), Valid: true}
+	w = w.Advance(Counters{}, first)
+
+	beforeReset := Counters{RX: 5000, RXErrors: 9, At: at(10), Valid: true}
+	w = w.Advance(first, beforeReset)
+
+	// The interface resets: the new reading is smaller than the baseline.
+	afterReset := Counters{RX: 200, RXErrors: 1, At: at(11), Valid: true}
+	w = w.Advance(beforeReset, afterReset)
+
+	if !w.Baseline.Valid || w.Baseline.RX != afterReset.RX {
+		t.Fatalf("baseline did not re-base onto the post-reset reading: %+v", w.Baseline)
+	}
+
+	totals := w.Totals(afterReset)
+	// Carried = beforeReset - firstBaseline = 5000 - 1000 = 4000, plus 0 more
+	// since the new baseline equals the current reading.
+	if totals.RX != 4000 {
+		t.Errorf("RX total after a reset = %d, want 4000 (carried, not lost)", totals.RX)
+	}
+	if totals.RXErrors != 4 {
+		t.Errorf("RX errors after a reset = %d, want 4 (carried, not lost)", totals.RXErrors)
+	}
+
+	further := Counters{RX: 700, RXErrors: 1, At: at(12), Valid: true}
+	w = w.Advance(afterReset, further)
+	totals = w.Totals(further)
+	if totals.RX != 4500 {
+		t.Errorf("RX total after further traffic post-reset = %d, want 4500", totals.RX)
+	}
+}
+
+// TestNetWindowIgnoresAnInvalidReading — a tick where the host could not be
+// read must not silently re-base the window onto a zeroed Counters, which
+// would read as every byte since launch having vanished.
+func TestNetWindowIgnoresAnInvalidReading(t *testing.T) {
+	var w NetWindow
+	first := Counters{RX: 1000, At: at(0), Valid: true}
+	w = w.Advance(Counters{}, first)
+
+	w2 := w.Advance(first, Counters{At: at(1)}) // Valid: false
+	if w2 != w {
+		t.Errorf("an invalid reading changed the window: %+v -> %+v", w, w2)
+	}
+}
+
 // TestLoadAverageIsDisplayedNowhere pins the Windows trap: load.Avg() returns
 // {0, 0, 0} with a nil error there, so it does not fail — it produces a number
 // that reads as "idle". This test exists so nobody adds it back on the

@@ -12200,7 +12200,7 @@ hôte.
 
 ---
 
-### 3.69 Le dashboard dit un débit, pas un volume
+### 3.69 Le dashboard dit un débit, pas un volume — **done**
 
 La section Network répond « à quelle vitesse ça circule maintenant » et jamais
 « combien est passé ». Les deux questions se posent, et la seconde est celle
@@ -12313,9 +12313,25 @@ reste préférable — elle met le volume à côté de la vitesse dont il est
 l'intégrale — mais ce n'est plus la contrainte de hauteur qui l'impose, c'est la
 lecture. Les lignes libres, elles, ont un candidat qui leur est propre : §3.70.
 
+#### Fait
+
+Implémenté sur la ligne du débit, comme préféré ci-dessus, et seulement une
+fois qu'il y a un débit à côté duquel le poser — la toute première lecture
+n'a rien d'autre à dire qu'un total trivialement nul, donc `RX`/`TX` restent
+`-` jusqu'à la deuxième. `metrics.NetWindow` (`internal/metrics/metrics.go`)
+porte le mécanisme : `Baseline` est la première lecture valide vue, `Carried`
+ce qu'une fenêtre précédente avait déjà atteint avant un recul de compteur.
+`Advance` détecte le recul (RX ou TX plus petit que `Baseline`) et re-base la
+fenêtre dessus en reportant `Carried` — la seconde des deux issues décrites
+plus haut, silencieuse plutôt que « fenêtre redémarrée » : rien à dire de
+plus qu'une soustraction exacte à l'octet dans le cas courant. `Totals`
+répond `Valid: false` tant qu'aucune ligne de base n'existe, ce qui donne le
+`-` avant mesure au lieu d'un zéro inventé. Le mécanisme sert aussi §3.70
+juste en dessous, sur les mêmes compteurs.
+
 ---
 
-### 3.70 Les quatre lignes libres de la boîte Network — erreurs et paquets
+### 3.70 Les quatre lignes libres de la boîte Network — erreurs et paquets — **done**
 
 La boîte Network est la plus courte des trois de sa rangée, de quatre lignes
 (relevé en §3.69). Elles sont remplies de blanc. La question n'est pas de les
@@ -12382,6 +12398,21 @@ dise qu'ils ne comptent pas la même chose.
   un défaut, et remplir par principe est la façon la plus sûre d'ajouter du
   bruit. Si aucun des trois candidats ne convainc, la bonne réponse reste le
   blanc.
+
+#### Fait
+
+Erreurs, deux lignes (`RX err`, `TX err`), et non les quatre — le blanc
+restant est accepté plutôt que rempli par principe, conformément à la
+troisième réserve ci-dessus. Le choix des erreurs plutôt que des drops suit
+directement le piège 3 : `Errin`/`Errout` n'ont pas le défaut documenté de
+`Dropout` sur macOS/BSD. La fenêtre est celle de §3.69 (depuis que DevDesk
+regarde, pas depuis le boot), ce qui répond au piège 1 sans mécanique
+séparée — `NetWindow.Totals` porte les deux compteurs à la fois. Ligne
+toujours rendue, `DimStyle` à zéro, `theme.StatusWarningStyle` sinon — la
+même couleur que la colonne `RX err`/`TX err` de l'onglet Interfaces
+(`internal/ui/netdiag/interfaces_model.go`), dont le commentaire renvoie
+maintenant ici pour dire que les deux nombres ne comptent pas la même chose
+(agrégé + fenêtré vs. par interface + depuis le boot).
 
 ---
 

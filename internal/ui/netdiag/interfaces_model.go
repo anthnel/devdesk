@@ -213,6 +213,12 @@ func macOrDash(i netiface.Interface) string {
 // own, and a zero written because nobody looked reads as an interface with no
 // errors. So nil prints "-" and never "0", and the dash is dim because an
 // absent reading is not a value worth spotting — a non-zero count is.
+//
+// This is the raw counter, since boot, per interface. The dashboard's
+// Network box (§3.70) shows the same field aggregated across every
+// interface and windowed since DevDesk started watching, not since boot —
+// the two numbers are not meant to agree, and neither is a rollup of the
+// other.
 func errorColumn(title string, get func(netiface.Interface) *uint64) datatable.Column[netiface.Interface] {
 	return datatable.Column[netiface.Interface]{
 		Title: title, Sizing: datatable.SizingFixed, Optional: true, MinWidth: 8,
