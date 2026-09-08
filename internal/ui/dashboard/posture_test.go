@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,6 +151,19 @@ func TestTheNearestExpiryIsTheOneShown(t *testing.T) {
 	got := stripANSI(nearestExpiry(certs, false, true))
 	if !strings.Contains(got, "9 days") || !strings.Contains(got, "soon") {
 		t.Errorf("nearestExpiry = %q, want the 9-day certificate named", got)
+	}
+}
+
+// Within the renew window the days-left figure matches the `to renew` node's
+// own color — orange, not red: it's the same certificate and the same
+// not-yet-urgent state, told once rather than in two colors on two lines.
+func TestExpiryWithinTheRenewWindowIsWarningColored(t *testing.T) {
+	certs := []status.ComponentStatus{certWithDays("soon", status.CertRenewWindowDays)}
+
+	got := nearestExpiry(certs, false, false)
+	want := theme.StatusWarningStyle.Render(fmt.Sprintf("%d days", status.CertRenewWindowDays))
+	if got != want {
+		t.Errorf("nearestExpiry = %q, want %q — warning orange, matching \"to renew\"", got, want)
 	}
 }
 
@@ -500,7 +514,29 @@ func TestAFailingNodeKeepsTheGlyphItHadAtZero(t *testing.T) {
 	}
 }
 
+// The count and the icon must carry the same color — the bug this pins was a
+// certificate "to renew" reading a red count next to its own orange
+// hourglass, one state told in two colors on the same line.
+func TestAlertCountAndItsIconShareOneColor(t *testing.T) {
+	got := alertCount(1, theme.IconHourglass, theme.StatusWarningStyle)
+	want := theme.StatusWarningStyle.Render("1") + theme.Bg("  ") + theme.StatusWarningStyle.Render(theme.IconHourglass)
+	if got != want {
+		t.Errorf("alertCount = %q, want %q — number and icon must share one style", got, want)
+	}
+}
+
 // ── Coverage ─────────────────────────────────────────────────────────────────
+
+// A coverage gap is an attention signal, like a certificate to renew — not a
+// finding (severityCount's red) and not a neutral tally (countValue's
+// purple, which `scanned` keeps).
+func TestUnscannedValueIsWarningColoredRatherThanNeutral(t *testing.T) {
+	got := unscannedValue(4, true)
+	want := theme.StatusWarningStyle.Render("4")
+	if got != want {
+		t.Errorf("unscannedValue(4) = %q, want %q", got, want)
+	}
+}
 
 // What the box now counts instead of HIGH: the targets it says nothing
 // about. It's the only one of its figures that's actionable — run a scan.
