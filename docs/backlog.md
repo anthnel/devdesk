@@ -12405,17 +12405,19 @@ refermée bave sur toutes les lignes suivantes — Rule 122, et la raison d'êtr
 Ce qui se fait : `Cell` rend la barre en texte brut, `Style` lui donne **une**
 couleur choisie par la valeur. Le découpage est celui que la règle impose.
 
-**Et le vert saute.** Rule 122 nomme l'état nominal et majoritaire — *un
-conteneur qui tourne* est son exemple — et lui assigne la couleur de texte
-ordinaire, **pas du vert**. La plupart des conteneurs veillent près de zéro : une
-barre verte sur chaque ligne en permanence est exactement le bruit que la règle
-écarte. Son exception déclarée (la colonne CI) vaut « quand l'absence de couleur
-est déjà prise », ce qui n'est pas le cas ici — un conteneur arrêté rend `-`,
-déjà distinguable d'une barre vide.
+**Et le vert saute — première lecture, revenue en jeu à l'écran.** Rule 122
+nomme l'état nominal et majoritaire — *un conteneur qui tourne* est son
+exemple — et lui assigne la couleur de texte ordinaire, **pas du vert**. La
+plupart des conteneurs veillent près de zéro : une barre verte sur chaque ligne
+en permanence est exactement le bruit que la règle écarte. Son exception
+déclarée (la colonne CI) vaut « quand l'absence de couleur est déjà prise », ce
+qui n'est pas le cas ici — la piste (`░`) et le remplissage (`⣿`) sont deux
+glyphes différents, donc une barre non colorée reste lisible.
 
-*Renversé à l'implémentation, voir « La révision » plus bas : le cadre `[ ]` a
-changé la prémisse — dans un cadre, l'absence de couleur **est** prise, parce
-qu'une barre non colorée ne se distingue plus de son propre cadre.*
+*Le vert a quand même fini par être gardé, pour une autre raison — voir « Le
+vert, la seconde fois » plus bas : un essai à l'écran a fait passer un cadre
+puis l'a défait, et le vert a survécu aux deux, au motif de Rule 128 plutôt
+que de celui-ci.*
 
 Donc : couleur de texte ordinaire jusqu'à un seuil, puis orange, puis rouge. La
 longueur porte la valeur, la couleur ne sert qu'à ce qui mérite d'être repéré
@@ -12493,8 +12495,7 @@ forme qui puisse tomber : une barre fondue dans la cellule du nombre survivrait
 Elements est *ambigu* — `█`, `▓`, `▇`, et les blocs partiels `▏▎▍▌` — donc large
 de 2 sous une locale est-asiatique, ce qui ferait déborder la ligne et casserait
 Rule 116. Le braille (`⣿`, `⡇`) mesure 1 dans les deux conditions, et c'est déjà
-l'alphabet des courbes du dashboard. Les crochets du cadre sont en ASCII pour la
-même raison : `▏▕` et `│` sont ambigus eux aussi.
+l'alphabet des courbes du dashboard ; `░` s'en tire aussi, et sert de piste.
 `TestTheFillGlyphsAreNotAmbiguousWidth` refuse un retour en arrière, et
 `TestAGaugeIsExactlyAsWideAsItAsksFor` mesure la barre sous les deux locales, à
 toutes les valeurs de -50 à 150 %.
@@ -12520,11 +12521,11 @@ jauge, dont la place est choisie par ce qu'elle **illustre**. Les issues 1 et 2
 échangeaient chacune une moitié de l'entrée contre l'autre ; celle-ci ne troque
 rien, et l'extension tient en une boucle sur deux prédicats.
 
-**Le prix de l'issue 3, mesuré : les jauges n'apparaissent qu'à partir de 156
-colonnes.** La table `containers` demande 166 cellules pour ses treize colonnes
-(2 + 14 + 20 + 8 + 8 + 12 + 8 + 9 + 9 + 10 + 10 + 16 + 12, plus deux de padding
+**Le prix de l'issue 3, mesuré : les jauges n'apparaissent qu'à partir de 154
+colonnes.** La table `containers` demande 162 cellules pour ses treize colonnes
+(2 + 14 + 20 + 8 + 6 + 12 + 6 + 9 + 9 + 10 + 10 + 16 + 12, plus deux de padding
 par colonne et deux de bordure). En dessous, `drop` prend les `DropFirst` en
-premier — la mémoire à 166, le CPU à 156, la plus à droite d'abord — donc sur un
+premier — la mémoire à 162, le CPU à 154, la plus à droite d'abord — donc sur un
 terminal de 120 ou 140 colonnes les deux barres sont simplement absentes, et
 c'est **exactement** ce qui a été demandé : « pas primordiales » veut dire qu'un
 compteur d'I/O passe avant. Relevé plutôt que supposé, parce que c'est le genre
@@ -12536,35 +12537,49 @@ survivraient alors jusqu'aux compteurs d'I/O, vers 140.
 **Trois seuils, trois couleurs.** `LoadWarnPercent` (75) et
 `LoadCriticalPercent` (90), en alias de `ColorSeverityMedium` et
 `ColorSeverityCritical` — le même alphabet que les niveaux du footer (Rule 128).
-En dessous, `ColorOK`, le vert — voir la révision ci-dessous, qui explique
-pourquoi ce n'est pas la violation de Rule 122 que la première version avait
-écartée.
+En dessous, `ColorOK`, le vert — voir « Le vert, la seconde fois » ci-dessous
+pour la raison qui a fini par tenir.
 
-#### La révision, après l'avoir vue à l'écran
+#### Deux allers-retours à l'écran, avant que la forme ne se fixe
 
-La première version rendait la piste en `░` et laissait le remplissage en
-couleur de texte ordinaire sous 75 %. Les deux ont été changés en regardant le
-résultat, et les deux changements n'en font qu'un.
+Deux révisions, faites en regardant le résultat plutôt qu'en le supposant, et
+qui se défont l'une l'autre sur un point tout en s'accordant sur l'autre.
 
-**Une piste en `░` se lit comme un second remplissage.** Une barre à moitié
-pleine de points et à moitié pleine d'ombre est *deux textures*, pas une
-longueur : l'œil doit décider laquelle compte. Le cadre `[ ]` répond à la même
-question — où la barre s'arrête — sans rien mettre dedans. C'est ce que `htop`
-fait depuis toujours avec `[|||   ]`, et le vide redevient du vide.
+**D'abord un cadre, en repérant que `░` seul se lit comme deux remplissages.**
+Une barre à moitié pleine de points et à moitié pleine d'ombre demandait à
+l'œil de choisir laquelle des deux textures compte. La première réponse a été
+un cadre ASCII — `[⣿⣿⣿   ]`, ce que `htop` fait depuis toujours avec
+`[|||   ]` — avec une piste vide entre les crochets, et le vert en dessous de
+75 % pour la raison inverse : dans un cadre, une barre non colorée a la couleur
+du nombre et du nom voisins, donc le remplissage cesse de se distinguer du
+cadre lui-même, ce qui *est* l'exception que Rule 122 réserve à « une colonne
+où l'absence de couleur est déjà prise ».
 
-**Et c'est ce cadre qui rend le vert défendable.** Rule 122 refuse une couleur
-sur l'état nominal et majoritaire, avec une exception déclarée : « une colonne
-où l'absence de couleur est déjà prise ». Elle l'est ici, et pas pour la raison
-habituelle — dans un cadre, une barre non colorée a la couleur du nombre, du nom
-et de l'image d'à côté, donc le remplissage cesse de se distinguer du cadre. Le
-vert ne dit pas « ce conteneur va bien », il dit **où est l'encre**, ce qui est
-la seule chose qu'une barre existe pour dire. C'est le vert que `ColorOK` donne
-déjà aux notes CI, l'exception que la règle porte depuis §3.52.
+**Puis le cadre a été retiré, et la piste `░` réintroduite.** À l'usage,
+aucun terminal essayé ne rendait le cadre proprement, et la piste `░` s'est
+révélée lisible dès qu'elle est mise à côté d'un remplissage braille plutôt que
+d'un vide : les deux glyphes ne se confondent pas, contrairement à ce que la
+première lecture de la contrainte avait supposé. La forme finale est donc celle
+d'avant le cadre — `⣿⡇░░░░`, sans bordure — et `gaugeEmpty` reprend la valeur
+`░`, elle aussi non ambiguë (mesurée : largeur 1 dans les deux locales, comme le
+braille).
 
-Le coût est énoncé plutôt que découvert : la plupart des conteneurs veillent près
-de zéro, donc la plupart des lignes portent un filet de vert. C'est accepté — un
-filet dans un cadre se lit comme un **niveau**, là où une cellule entièrement
-verte se lirait comme un **état**.
+#### Le vert, la seconde fois
+
+Le cadre parti, l'argument qui l'avait justifié (« l'absence de couleur n'est
+plus prise ») disparaît avec lui : `░` et `⣿` sont deux glyphes différents, donc
+une barre non colorée resterait lisible, et c'est la lecture initiale de la
+règle qui redevient exacte. Le vert a néanmoins été **gardé**, sur un autre
+fondement : celui que Rule 128 donne aux niveaux du footer — un seul alphabet
+de sévérité dans toute l'application, pour qu'une jauge presque pleine se lise
+comme une CVE CRITICAL sans qu'il faille lire le nombre à côté. Ce n'est plus
+l'exception « absence de couleur déjà prise » de Rule 122 ; c'est une seconde
+exception, déclarée pour sa propre raison plutôt que reconduite pour celle qui
+ne tient plus. `.claude/rules/tui-tables.md` la documente sous ce nom.
+
+Le coût reste le même qu'à la première lecture, et reste accepté : la plupart
+des conteneurs veillent près de zéro, donc la plupart des lignes portent un
+filet de vert.
 
 ---
 

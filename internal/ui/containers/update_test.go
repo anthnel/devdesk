@@ -182,9 +182,9 @@ func TestTheGaugesDrawTheMetricsBesideThem(t *testing.T) {
 		columnMemGauge = columnImage + 4
 	)
 	want := map[string][2]string{
-		"idle":    {"[      ]", "[      ]"},
-		"busy":    {"[⣿⣿⣿   ]", "[⣿⣿⣿⣿⣿⡇]"},
-		"greedy":  {"[⣿⣿⣿⣿⣿⣿]", "[⣿⣿⣿⣿⣿⣿]"},
+		"idle":    {"░░░░░░", "░░░░░░"},
+		"busy":    {"⣿⣿⣿░░░", "⣿⣿⣿⣿⣿⡇"},
+		"greedy":  {"⣿⣿⣿⣿⣿⣿", "⣿⣿⣿⣿⣿⣿"},
 		"stopped": {"-", "-"},
 	}
 	for _, row := range tableRows(m) {

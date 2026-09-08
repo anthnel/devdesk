@@ -16,65 +16,49 @@ import (
 // and the cut lands mid-sequence and bleeds over every row below. So the
 // length carries the value, and LoadTextStyle gives the whole cell one colour.
 
-// The fill glyphs, pinned by measurement rather than by taste.
+// The glyphs, pinned by measurement rather than by taste.
 //
 // Every glyph in the Block Elements range — `█`, `▓`, `▇`, and the partial
 // blocks `▏▎▍▌` — is East Asian *ambiguous*: runewidth measures it 1 here and
 // 2 under an East Asian locale, so a terminal that renders it double-width
 // makes the row overflow its column and breaks Rule 116. Measured, not
-// assumed: `▓` and `▉` come back ambiguous, `░` does not.
+// assumed: `▓` and `▉` come back ambiguous, `░` does not — it is a Block
+// Elements glyph too, and the one exception in the family.
 //
-// Braille is the one family that measures 1 in both conditions, and it is
-// already the alphabet the dashboard draws its curves in — so the gauge is in
-// the same visual family as the charts rather than in one of its own.
+// Braille is the one other family that measures 1 in both conditions, and it
+// is already the alphabet the dashboard draws its curves in — so the gauge's
+// fill is in the same visual family as the charts rather than in one of its
+// own. The track is `░` rather than a blank cell: a bar with nothing behind
+// the fill reads as a value that has not been measured yet (the same blank a
+// dropped column or an unmeasured cell would leave), where `░` reads as a
+// value that has been measured and found low.
 const (
 	gaugeFull  = "⣿" // eight dots: a whole cell
 	gaugeHalf  = "⡇" // the left column of dots: half a cell
-	gaugeEmpty = " " // the unfilled track: the cell's own background, nothing drawn on it
+	gaugeEmpty = "░" // the track: measured, not assumed, to be non-ambiguous too
 )
 
-// The frame, and why it is ASCII.
+// GaugeWidth is the width of a gauge column, in cells.
 //
-// A shaded track (`░`) was the first attempt and it reads as a *second* fill:
-// at a glance a bar half full of dots and half full of shade is two textures
-// rather than one length. A frame answers the same need — where does the bar
-// end — without competing with what it contains, which is what htop's
-// `[|||   ]` has always done.
-//
-// `[` and `]` rather than `▏▕` or `│`: the box-drawing candidates are East
-// Asian ambiguous, like every Block Elements glyph (see above), and would take
-// two cells on the terminals this whole file exists to survive.
-const (
-	gaugeOpen  = "["
-	gaugeClose = "]"
-)
-
-// GaugeWidth is the width of a gauge column, in cells, frame included.
-//
-// Eight: the two brackets, plus six cells of bar — twelve steps at half-cell
-// resolution, enough to tell a quarter from a third at a glance, which is all
-// a bar is for. The number it sits beside carries the precision.
-const GaugeWidth = 8
-
-// gaugeFrameWidth is what the frame costs out of the width it is given.
-const gaugeFrameWidth = 2
+// Six, which buys twelve steps at half-cell resolution — enough to tell a
+// quarter from a third at a glance, which is all a bar is for. The number it
+// sits beside carries the precision.
+const GaugeWidth = 6
 
 // Load thresholds, in percent: green, then orange, then red.
 //
 // Green under the first threshold is a **declared exception** to Rule 122's
-// colour discipline, decided after seeing the first version on screen. The
-// rule's own criterion is "a column where the absence of colour is already
-// taken", and it is: a gauge is a *frame that is partly filled*, so an
-// uncoloured bar is not a nominal state — it is a bar whose fill is the same
-// colour as the number, the name and the image beside it, and the eye stops
-// separating the fill from the frame. What green marks here is not "this
-// container is fine", it is **where the ink is**, which is the one thing a bar
-// exists to say. It is the same green `ColorOK` gives the CI grades, the
-// exception the rule already carries.
+// colour discipline. The rule's own criterion is "a column where the absence
+// of colour is already taken" — the CI grades' reason — and here the glyph
+// already tells a full cell from an empty one, so the exception is not made on
+// that ground. It is made on the ground Rule 128 uses for the footer levels:
+// one alphabet of severity across the application, so a nearly-full gauge
+// reads like a CRITICAL finding without having to read the number beside it.
+// It is the same green `ColorOK` gives the CI grades.
 //
 // The cost is stated rather than discovered: most containers idle near zero,
-// so most rows carry a green sliver. That is accepted — a sliver of green in a
-// frame reads as a *level*, where a whole green cell would read as a *status*.
+// so most rows carry a short green sliver rather than the ordinary text
+// colour Rule 122 would otherwise assign the majority state.
 const (
 	// LoadWarnPercent is where a gauge stops being ordinary: filling up, and
 	// worth noticing.
@@ -84,12 +68,7 @@ const (
 	LoadCriticalPercent = 90
 )
 
-// Gauge renders pct of full as a framed bar of width cells, as plain text.
-//
-// width counts the frame: `Gauge(50, 8)` is `[⣿⣿⣿   ]`. A width with no room
-// for a bar inside its brackets renders blanks instead — a column that narrow
-// has been dropped, and Cell is still called while the widths are being
-// measured.
+// Gauge renders pct of full as a bar of width cells, as plain text.
 //
 // pct is clamped: anything at or above 100 fills the bar. Saturation is
 // therefore indistinguishable from exactly full, which is deliberate and is
@@ -105,10 +84,6 @@ func Gauge(pct float64, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	bar := width - gaugeFrameWidth
-	if bar < 1 {
-		return strings.Repeat(gaugeEmpty, width)
-	}
 	switch {
 	case math.IsNaN(pct), pct < 0:
 		pct = 0
@@ -116,18 +91,16 @@ func Gauge(pct float64, width int) string {
 		pct = 100
 	}
 
-	halves := int(math.Round(pct / 100 * float64(bar*2)))
+	halves := int(math.Round(pct / 100 * float64(width*2)))
 	full, half := halves/2, halves%2
 
 	var b strings.Builder
-	b.WriteString(gaugeOpen)
 	b.WriteString(strings.Repeat(gaugeFull, full))
 	if half > 0 {
 		b.WriteString(gaugeHalf)
 		full++
 	}
-	b.WriteString(strings.Repeat(gaugeEmpty, bar-full))
-	b.WriteString(gaugeClose)
+	b.WriteString(strings.Repeat(gaugeEmpty, width-full))
 	return b.String()
 }
 
