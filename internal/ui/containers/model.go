@@ -252,6 +252,12 @@ func containerColumns() []datatable.Column[docker.Container] {
 // container's bar stay the same colour as a busy one's, rather than
 // inheriting whatever the fill's own colour happens to be that row.
 //
+// Every cell is the same glyph (theme.Gauge), so on the selected row — where
+// neither colour is consulted, see above — the bar renders as one uniform
+// block and says nothing on its own. The number beside it is what survives
+// there; that trade is why the number is never dropped even at the narrowest
+// width the table allows.
+//
 // It carries no Less and no Search. A comparator would duplicate the sort the
 // number column already offers, and cost two more cells to fit its arrow; a
 // bar is not text anyone can type.
@@ -263,7 +269,7 @@ func gaugeColumn(scale string, pct func(docker.Container) float64) datatable.Col
 			if c.State != "running" {
 				return "-"
 			}
-			return theme.Gauge(pct(c), theme.GaugeWidth)
+			return theme.Gauge(theme.GaugeWidth)
 		},
 		Style: func(c docker.Container) lipgloss.Style {
 			if c.State != "running" {

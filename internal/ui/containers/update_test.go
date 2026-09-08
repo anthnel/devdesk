@@ -162,41 +162,93 @@ func TestOnlyRunningContainersShowMetrics(t *testing.T) {
 	}
 }
 
-// The gauges draw the two percentages beside them, at the scale their header
-// names: one core for the CPU, the container's own limit for the memory. A
-// stopped container has neither, and renders the same "-" as every other
-// metric column rather than an empty bar — an empty bar is a measurement.
-func TestTheGaugesDrawTheMetricsBesideThem(t *testing.T) {
+// A stopped container has no gauge, and renders the same "-" as every other
+// metric column rather than an empty bar — an empty bar is a measurement. A
+// running one's cell is the same glyph whatever its load: with a single
+// character, the value lives in colour alone (see the two tests below), not
+// in Cell's plain text.
+func TestOnlyAStoppedContainerRendersAPlaceholderGauge(t *testing.T) {
+	// rawModel already turns every state filter on (allStates); pressing "z"
+	// here would clear them back to the running-only default and silently
+	// drop "stopped" from tableRows, which is exactly the flaw this test
+	// exists to catch — a loop over what tableRows returns cannot notice a
+	// row that never arrived.
 	m := rawModel(t)
 	m = feed(t, m, ContainersListMsg{Containers: []docker.Container{
 		{ID: "1", Name: "idle", State: "running", CPUPercent: 0.4, MemPercent: 0.2},
-		{ID: "2", Name: "busy", State: "running", CPUPercent: 50, MemPercent: 95},
-		// Two full cores: the bar saturates and only the number says so.
-		{ID: "3", Name: "greedy", State: "running", CPUPercent: 200, MemPercent: 100},
-		{ID: "4", Name: "stopped", State: "exited", CPUPercent: 80, MemPercent: 80},
+		{ID: "2", Name: "stopped", State: "exited", CPUPercent: 80, MemPercent: 80},
 	}})
-	m = feed(t, m, testutil.Key("z")) // show every state, not just the running ones
 
 	const (
 		columnCPUGauge = columnImage + 2
 		columnMemGauge = columnImage + 4
 	)
 	want := map[string][2]string{
-		"idle":    {"░░░░░░", "░░░░░░"},
-		"busy":    {"⣿⣿⣿░░░", "⣿⣿⣿⣿⣿⡇"},
-		"greedy":  {"⣿⣿⣿⣿⣿⣿", "⣿⣿⣿⣿⣿⣿"},
+		"idle":    {theme.Gauge(theme.GaugeWidth), theme.Gauge(theme.GaugeWidth)},
 		"stopped": {"-", "-"},
 	}
+	seen := map[string]bool{}
 	for _, row := range tableRows(m) {
 		expected, ok := want[row[columnName]]
 		if !ok {
 			t.Fatalf("unexpected row %q", row[columnName])
 		}
+		seen[row[columnName]] = true
 		if got := row[columnCPUGauge]; got != expected[0] {
 			t.Errorf("%s CPU gauge = %q, want %q", row[columnName], got, expected[0])
 		}
 		if got := row[columnMemGauge]; got != expected[1] {
 			t.Errorf("%s memory gauge = %q, want %q", row[columnName], got, expected[1])
+		}
+	}
+	for name := range want {
+		if !seen[name] {
+			t.Errorf("%q never appeared in the table — a filter hid it, or the fixture never arrived", name)
+		}
+	}
+}
+
+// Each level's colour shows up somewhere in the rendered table — green for an
+// idle container, orange and red once a level crosses its threshold — and a
+// stopped container's placeholder is dim rather than any load colour.
+func TestTheGaugesColorReflectsTheLoadLevel(t *testing.T) {
+	withTrueColor(t)
+	m := rawModel(t)
+	m = feed(t, m, ContainersListMsg{Containers: []docker.Container{
+		// Sorts alphabetically first, so it absorbs the cursor: Style is not
+		// consulted on the selected row (Rule 122), and only one of five rows
+		// can be under it. Without a spare row, whichever of the four checked
+		// below happened to sort first would show no colour at all.
+		{ID: "0", Name: "aaa-filler", State: "running", CPUPercent: 10, MemPercent: 10},
+		{ID: "1", Name: "idle", State: "running", CPUPercent: 10, MemPercent: 10},
+		{ID: "2", Name: "warn", State: "running", CPUPercent: 80, MemPercent: 10},
+		// Two full cores: the fill saturates and only the number says 200%.
+		{ID: "3", Name: "crit", State: "running", CPUPercent: 200, MemPercent: 10},
+		{ID: "4", Name: "stopped", State: "exited", CPUPercent: 80, MemPercent: 80},
+	}})
+	// No "z" here either — rawModel's allStates already shows every state;
+	// pressing it would clear that back to running-only and hide "stopped".
+	if got := rowNames(tableRows(m)); len(got) != 5 {
+		t.Fatalf("table holds %v, want all five fixtures visible", got)
+	}
+	view := m.containerTable.View()
+
+	ok := ansiPrefix(theme.LoadTextStyle(10).Render("x"))
+	warn := ansiPrefix(theme.LoadTextStyle(theme.LoadWarnPercent).Render("x"))
+	crit := ansiPrefix(theme.LoadTextStyle(theme.LoadCriticalPercent).Render("x"))
+	dim := ansiPrefix(theme.DimStyle.Render("x"))
+
+	for name, prefix := range map[string]string{
+		"green (idle, below the warn threshold)": ok,
+		"orange (warn, at 80%)":                  warn,
+		"red (crit, saturated at 200%)":          crit,
+		"dim (the stopped placeholder)":          dim,
+	} {
+		if prefix == "" {
+			t.Fatalf("%s renders no escape sequence; the colour profile is not forced", name)
+		}
+		if !strings.Contains(view, prefix) {
+			t.Errorf("no cell carries the %s colour", name)
 		}
 	}
 }
