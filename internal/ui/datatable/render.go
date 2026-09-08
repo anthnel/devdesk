@@ -124,7 +124,12 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 		if busy && i == m.cfg.StatusColumn {
 			text = m.spinnerFrame
 		}
-		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fit(text, cols[i].Width, c.TruncateHead)))
+		fitted := fit(text, cols[i].Width, c.TruncateHead)
+		if !selected && !busy && c.TailStyle != nil {
+			line.WriteString(m.splitCellRun(c, item, fitted))
+			continue
+		}
+		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fitted))
 	}
 	if selected {
 		return m.styles.Selected.Render(line.String())
@@ -217,6 +222,48 @@ func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) l
 		return m.styles.Cell.Foreground(theme.ColorText).Background(theme.ColorBackground)
 	}
 	style := c.Style(item).Padding(0, 1)
+	if _, unset := style.GetForeground().(lipgloss.NoColor); unset {
+		style = style.Foreground(theme.ColorText)
+	}
+	if _, unset := style.GetBackground().(lipgloss.NoColor); unset {
+		style = style.Background(theme.ColorBackground)
+	}
+	return style
+}
+
+// splitCellRun renders a two-colour cell: c.Style covers the first c.Cut(item)
+// cells of the already-fitted text, c.TailStyle the rest. Both runs get the
+// column's usual 1-cell padding on their own outer edge — literal padding
+// characters rather than lipgloss's Padding property, so the two renders don't
+// each add their own pair and open a two-cell gap at the run boundary.
+//
+// fitted is exactly cols[i].Width runes (fit() guarantees it), so slicing by
+// rune index is safe: every glyph a caller uses here — braille, ASCII, the
+// truncation marker — is single-width, which callers are expected to keep
+// true rather than this function verifying it.
+func (m *Model[T]) splitCellRun(c Column[T], item T, fitted string) string {
+	runes := []rune(fitted)
+	cut := c.Cut(item)
+	switch {
+	case cut < 0:
+		cut = 0
+	case cut > len(runes):
+		cut = len(runes)
+	}
+	head := " " + string(runes[:cut])
+	tail := string(runes[cut:]) + " "
+	return m.runStyle(c.Style, item).Render(head) + m.runStyle(c.TailStyle, item).Render(tail)
+}
+
+// runStyle applies the same foreground/background defaulting cellStyle gives
+// a single-run cell, minus the Padding — splitCellRun already pads with
+// literal characters — so a two-run cell is indistinguishable from a one-run
+// one everywhere but the run boundary.
+func (m *Model[T]) runStyle(styleFn func(T) lipgloss.Style, item T) lipgloss.Style {
+	var style lipgloss.Style
+	if styleFn != nil {
+		style = styleFn(item)
+	}
 	if _, unset := style.GetForeground().(lipgloss.NoColor); unset {
 		style = style.Foreground(theme.ColorText)
 	}

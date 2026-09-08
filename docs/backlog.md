@@ -12581,6 +12581,55 @@ Le coût reste le même qu'à la première lecture, et reste accepté : la plupa
 des conteneurs veillent près de zéro, donc la plupart des lignes portent un
 filet de vert.
 
+#### Troisième révision : la piste change de couleur avec le niveau, et ne devrait pas
+
+Une fois le vert et `░` en place, un défaut restait : `Style` colore **toute**
+la cellule d'un bloc, glyphes de remplissage et de piste confondus. Un
+conteneur à 92 % rendait donc une piste `░` **orange**, une piste au repos une
+piste `░` en couleur de texte ordinaire — la piste changeait de teinte avec le
+niveau, alors qu'elle ne mesure jamais rien : elle est *toujours* la partie
+vide.
+
+**Séparer les deux teintes dans une seule cellule est exactement le dégradé
+que Rule 122 déclare impossible** — au sens littéral de « `Cell` ne doit
+retourner aucune séquence ANSI ». Mais la raison réelle du dégradé impossible
+tient à *quand* la mesure a lieu, pas au nombre de couleurs : `runewidth`
+mesure `Cell()` avant que `Style` ne colore quoi que ce soit, donc une
+séquence ANSI insérée *dans* `Cell()` est comptée comme de la largeur et
+tronquée au mauvais endroit. Rien n'empêche en revanche de colorer la
+cellule **déjà mesurée et remplie** (le texte que `fit()` produit) en deux
+morceaux plutôt qu'un — c'est le même ordre « mesurer d'abord, colorer
+ensuite » que `Style` applique déjà, répété une fois de plus.
+
+`internal/ui/datatable` gagne donc deux champs, `Column.Cut(item) int` et
+`Column.TailStyle(item) lipgloss.Style` : `Style` colore les `Cut(item)`
+premières cellules du texte déjà mesuré, `TailStyle` colore le reste. Les deux
+sont à `nil` sur toutes les colonnes sauf les deux jauges — c'est le chemin à
+une seule teinte, inchangé. Le point d'accord entre les deux morceaux est géré
+par un remplissage à la main (une espace littérale de chaque côté extérieur)
+plutôt que par `Style.Padding(0, 1)` sur chacun séparément, qui ouvrirait deux
+cellules de trou au milieu de la barre.
+
+`theme.GaugeFillWidth(pct, width)` donne la coupure : le même calcul que
+`Gauge()`, partagé plutôt que dupliqué, pour que le bord de la couleur ne
+puisse jamais s'écarter d'une cellule du bord du glyphe. `theme.GaugeTrackStyle()`
+donne la couleur fixe de la piste — un alias de `ColorSeverityLow`, choisi
+plutôt que `DimStyle` parce que `DimStyle` est, partout ailleurs dans
+l'application, le mot pour *absent* (un `-`, un zéro, un champ vide), et la
+piste n'est pas absente : elle est mesurée et basse, ce qu'une couleur de
+sévérité dit et un gris ne dit pas.
+
+**Et c'est une troisième exception à Rule 122, distincte de celle du vert.**
+Le vert du remplissage n'apparaît que sur une poignée de cellules, et
+seulement au-delà d'un seuil. La couleur de la piste, elle, apparaît sur
+**toutes** les lignes, y compris les plus creuses — l'exact contraire de « une
+couleur qui apparaît partout ne dit rien », que cette règle énonce en premier.
+Elle est acceptée quand même, sur demande, pour que l'absence de charge ait
+toujours le même visage plutôt que d'emprunter la couleur du niveau à côté
+d'elle. `.claude/rules/tui-tables.md` documente les deux exceptions côte à
+côte plutôt que de les fondre en une seule, parce qu'elles ne répondent pas au
+même besoin et ne partagent pas la même justification.
+
 ---
 
 ## 4. Existing plans

@@ -201,6 +201,32 @@ func TestTheGaugesDrawTheMetricsBesideThem(t *testing.T) {
 	}
 }
 
+// The track keeps its own colour whatever the fill's is: an idle container's
+// mostly-track bar and a busy one's mostly-fill bar both show the track in
+// theme.GaugeTrackStyle, not in whatever LoadTextStyle the row's own level
+// happens to pick.
+func TestTheGaugeTrackKeepsItsOwnColourRegardlessOfLoad(t *testing.T) {
+	withTrueColor(t)
+	track := ansiPrefix(theme.GaugeTrackStyle().Render("x"))
+	if track == "" {
+		t.Fatal("the track style renders no escape sequence; the colour profile is not forced")
+	}
+
+	m := loadedModel(t) // cursor on api; web (12.5% CPU) is not selected
+	view := m.containerTable.View()
+
+	if !strings.Contains(view, track) {
+		t.Error("no cell in the table carries the track colour, on a table that has a running container")
+	}
+
+	// The fill's colour must appear too, and separately: this is not one run
+	// coloured uniformly, it is two.
+	fill := ansiPrefix(theme.LoadTextStyle(12.5).Render("x"))
+	if !strings.Contains(view, fill) {
+		t.Error("web's fill colour is missing — the CPU gauge rendered as one uniform run")
+	}
+}
+
 // A gauge is the first thing to go when the table runs out of room, whatever
 // its position — it illustrates a number that stays behind (§3.71).
 func TestTheGaugesAreTheFirstColumnsDropped(t *testing.T) {

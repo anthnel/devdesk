@@ -241,11 +241,16 @@ func containerColumns() []datatable.Column[docker.Container] {
 //
 // Both are Optional *and* DropFirst. Optional because a bar is never the only
 // carrier of what it shows — the number it sits beside survives it, and
-// survives the selected row too, where Style is not consulted at all
-// (Rule 122). DropFirst because a gauge sits where the number it illustrates
-// is, in the middle of the table: left to position alone it would outlive the
-// I/O counters to its right, which is the opposite of what a decoration
-// deserves (§3.71).
+// survives the selected row too, where neither Style nor TailStyle is
+// consulted at all (Rule 122). DropFirst because a gauge sits where the number
+// it illustrates is, in the middle of the table: left to position alone it
+// would outlive the I/O counters to its right, which is the opposite of what a
+// decoration deserves (§3.71).
+//
+// Cut and TailStyle split the cell into its two tones — the fill by load,
+// the track fixed — which is what lets the empty portion of an idle
+// container's bar stay the same colour as a busy one's, rather than
+// inheriting whatever the fill's own colour happens to be that row.
 //
 // It carries no Less and no Search. A comparator would duplicate the sort the
 // number column already offers, and cost two more cells to fit its arrow; a
@@ -266,6 +271,19 @@ func gaugeColumn(scale string, pct func(docker.Container) float64) datatable.Col
 				return theme.DimStyle
 			}
 			return theme.LoadTextStyle(pct(c))
+		},
+		Cut: func(c docker.Container) int {
+			if c.State != "running" {
+				// The whole "-" belongs to TailStyle: 0 fill cells.
+				return 0
+			}
+			return theme.GaugeFillWidth(pct(c), theme.GaugeWidth)
+		},
+		TailStyle: func(c docker.Container) lipgloss.Style {
+			if c.State != "running" {
+				return theme.DimStyle
+			}
+			return theme.GaugeTrackStyle()
 		},
 	}
 }

@@ -102,6 +102,33 @@ color.**
 }
 ```
 
+#### Two colors in one cell — `Cut` and `TailStyle`
+
+**A cell can have two runs instead of one, and the measure-first order still
+holds.** `Column.Cut(item) int` and `Column.TailStyle(item) lipgloss.Style`
+exist for a single caller — the containers load gauges (§3.71) — so `Style`
+colors the first `Cut(item)` cells of the text and `TailStyle` colors the
+rest. This is not the gradient the top of this rule forbids: `Cut` reads the
+*already-fitted* plain text, after truncation and padding, at the exact point
+`Style` already colors from — nothing styled is ever measured, it is the same
+order applied to two runs. Nil on both (every column but the two gauges)
+keeps the one-run path.
+
+```go
+// ✅ CORRECT — two colors, both decided after Cell's text is final
+{
+    Title: "1 core", Sizing: SizingFixed, MinWidth: theme.GaugeWidth,
+    Cell:      func(c docker.Container) string { return theme.Gauge(c.CPUPercent, theme.GaugeWidth) },
+    Style:     func(c docker.Container) lipgloss.Style { return theme.LoadTextStyle(c.CPUPercent) },
+    Cut:       func(c docker.Container) int { return theme.GaugeFillWidth(c.CPUPercent, theme.GaugeWidth) },
+    TailStyle: func(c docker.Container) lipgloss.Style { return theme.GaugeTrackStyle() },
+}
+```
+
+Neither is consulted on the selected row, for the same reason `Style` is not
+(below) — a color that ends before the row does still closes the highlight
+mid-row.
+
 #### Selected row
 
 **`Style` is not consulted for the row under the cursor.** It is handed
@@ -139,17 +166,29 @@ forbids elsewhere, and exactly what it requires here. That is the
 criterion, and not "it's important" — if a column's absences were already
 distinguishable, green would go back to being noise.
 
-**The second declared exception does not fit the criterion above, and is
-declared anyway: the containers load gauges (§3.71).** The bars are green
-below 75%, orange, then red. Unlike the CI column, the fill and the track are
-already two different glyphs (`⣿` against `░`), so an uncoloured gauge would
-stay legible — the criterion this rule states does not actually require green
-here, and an earlier framed design that did need it (an uncoloured fill was
-indistinguishable from its own frame) was tried and dropped. The green is kept
-regardless, on Rule 128's ground instead: one alphabet of severity across the
-application, so a nearly-full gauge reads like a CRITICAL finding without
-reading the number beside it. Accepted cost, stated rather than discovered:
-most containers idle near zero, so most rows carry a short green sliver.
+**The second and third declared exceptions do not fit the criterion above, and
+are declared anyway: the containers load gauges (§3.71).**
+
+- The *fill* is green below 75%, orange, then red — on Rule 128's ground
+  rather than this rule's: one alphabet of severity across the application, so
+  a nearly-full gauge reads like a CRITICAL finding without reading the number
+  beside it. Unlike the CI column, the fill and the track are already two
+  different glyphs (`⣿` against `░`), so nothing here actually needed a color
+  to tell them apart — an earlier framed design that did need one (an
+  uncolored fill was indistinguishable from its own frame) was tried and
+  dropped once the frame was.
+- The *track* — `theme.GaugeTrackStyle()`, aliasing `ColorSeverityLow` — is
+  colored on **every** row, including the fully idle ones where it is nearly
+  the whole cell: exactly the case this rule's opening line says tells no one
+  anything. It is colored anyway, on request, so that the empty portion of a
+  bar keeps one fixed appearance regardless of what the fill's own level is —
+  without it, an idle row's `░` and a critical row's `░` inherited whichever
+  color `Style` picked for that row, which read as the level bleeding into
+  cells that were not measuring anything.
+
+Accepted cost, stated rather than discovered: most containers idle near zero,
+so most rows carry a short green sliver in a track-colored field, both present
+at once (`Cut`/`TailStyle`, above).
 
 Checklist:
 - [ ] No `style.Render(...)` inside what `Cell` returns

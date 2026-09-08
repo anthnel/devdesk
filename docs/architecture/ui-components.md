@@ -271,6 +271,18 @@ never-scanned target are `DimStyle`, the nominal majority state (a `running`
 container) keeps the default text colour, and the colour is spent on what is
 worth spotting without reading.
 
+**`Cut` and `TailStyle` give a cell two colours instead of one, and still measure
+before colouring.** They exist for one caller — the containers load gauges
+(§3.71): the fill takes `Style`, the track takes `TailStyle`, and `Cut` says
+where the first stops, in cells, of the *already-fitted* text. This is not the
+gradient Rule 122 forbids — nothing styled is ever measured, `Cut` reads a
+plain string exactly as `Style` does — it is the same "measure first, colour
+after" order applied to two runs instead of one. `splitCellRun` pads each run's
+own outer edge with a literal space rather than `Style`'s `Padding(0, 1)`,
+because two independent `Padding` calls would open a two-cell gap where the
+runs meet. Neither `Cut` nor `TailStyle` is consulted on the selected row, for
+the same reason `Style` is not.
+
 Three things it guarantees that hand-wired tables did not:
 
 - **`Selected()` cannot disagree with the screen.** The filtered, sorted slice is

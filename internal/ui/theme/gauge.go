@@ -10,11 +10,13 @@ import (
 // A load gauge: a bar that answers "is something hot" without reading a
 // number (§3.71).
 //
-// It renders plain text and nothing else. Rule 122 is why: a gradient along
-// the bar — green cells then orange ones inside the same cell — would need
+// It renders plain text and nothing else. Rule 122 is why: a gradient inside
+// a single glyph — green fading into orange one column at a time — would need
 // ANSI sequences inside what Cell returns, runewidth counts those as width,
 // and the cut lands mid-sequence and bleeds over every row below. So the
-// length carries the value, and LoadTextStyle gives the whole cell one colour.
+// length carries the value. Colour is still two-toned — the fill by
+// LoadTextStyle, the track by GaugeTrackStyle — but that split happens after
+// measurement, through datatable.Column.Cut, never inside Cell's own string.
 
 // The glyphs, pinned by measurement rather than by taste.
 //
@@ -68,30 +70,37 @@ const (
 	LoadCriticalPercent = 90
 )
 
-// Gauge renders pct of full as a bar of width cells, as plain text.
+// gaugeHalves converts pct into the number of half-cells filled, out of
+// width*2 — the one computation Gauge and GaugeFillWidth both need, kept in
+// one place so the two never learn to disagree about where the bar's fill
+// ends.
 //
-// pct is clamped: anything at or above 100 fills the bar. Saturation is
+// pct is clamped here: anything at or above 100 fills the bar. Saturation is
 // therefore indistinguishable from exactly full, which is deliberate and is
 // the reason a gauge never replaces the number beside it — `docker stats`
 // counts CPU against one core, so two busy cores read 200% and only the
 // number tells the two apart (§3.71).
-//
-// Rounding is honest in the other direction too: a container at 0.1% renders
-// an empty track rather than a token sliver. Half a cell out of six *is* 8%,
-// so drawing one for a value near zero would overstate it on every idle row —
-// and idle is what most rows are.
-func Gauge(pct float64, width int) string {
-	if width <= 0 {
-		return ""
-	}
+func gaugeHalves(pct float64, width int) int {
 	switch {
 	case math.IsNaN(pct), pct < 0:
 		pct = 0
 	case pct > 100:
 		pct = 100
 	}
+	return int(math.Round(pct / 100 * float64(width*2)))
+}
 
-	halves := int(math.Round(pct / 100 * float64(width*2)))
+// Gauge renders pct of full as a bar of width cells, as plain text.
+//
+// Rounding is honest at the low end too: a container at 0.1% renders an empty
+// track rather than a token sliver. Half a cell out of six *is* 8%, so drawing
+// one for a value near zero would overstate it on every idle row — and idle is
+// what most rows are.
+func Gauge(pct float64, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	halves := gaugeHalves(pct, width)
 	full, half := halves/2, halves%2
 
 	var b strings.Builder
@@ -104,11 +113,32 @@ func Gauge(pct float64, width int) string {
 	return b.String()
 }
 
-// LoadTextStyle is the colour a gauge takes at pct: green, then orange, then
-// red. It follows SeverityTextStyle's shape — the view names a value, the theme
-// answers with a colour — and it aliases the severity palette for the same
-// reason the footer levels do (Rule 128): one alphabet across the application,
-// so a full gauge reads like a CRITICAL finding.
+// GaugeFillWidth reports how many of Gauge's width cells are fill (`⣿`/`⡇`)
+// rather than track (`░`) — the boundary a caller needs to colour the two
+// differently, since Style covers a whole datatable cell in one piece
+// (Rule 122) and a two-toned gauge needs `datatable.Column.Cut` to say where
+// the first tone stops.
+//
+// It must compute the exact same split Gauge does, and does so by sharing
+// gaugeHalves rather than re-deriving it: a rounding rule that drifted between
+// the two would put the colour boundary one cell away from the glyph one.
+func GaugeFillWidth(pct float64, width int) int {
+	if width <= 0 {
+		return 0
+	}
+	halves := gaugeHalves(pct, width)
+	full, half := halves/2, halves%2
+	if half > 0 {
+		full++
+	}
+	return full
+}
+
+// LoadTextStyle is the colour a gauge's *fill* takes at pct: green, then
+// orange, then red. It follows SeverityTextStyle's shape — the view names a
+// value, the theme answers with a colour — and it aliases the severity palette
+// for the same reason the footer levels do (Rule 128): one alphabet across the
+// application, so a full gauge reads like a CRITICAL finding.
 //
 // It is a function rather than a package-level style because the thresholds
 // are the whole of it; a var per level would leave the switch in the view,
@@ -123,4 +153,15 @@ func LoadTextStyle(pct float64) lipgloss.Style {
 	default:
 		return base.Foreground(ColorOK)
 	}
+}
+
+// GaugeTrackStyle is the colour a gauge's *track* takes — fixed, unlike the
+// fill: the empty cells say nothing about the level, so nothing about their
+// colour should either. It aliases `ColorSeverityLow`, the mutest tone the
+// severity palette already carries, rather than `DimStyle`: `DimStyle` is
+// this application's word for *absent* (a `-`, a zero, a placeholder), and the
+// track is not absent — it is measured and low, which a severity colour says
+// and a grey does not.
+func GaugeTrackStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorSeverityLow)
 }
