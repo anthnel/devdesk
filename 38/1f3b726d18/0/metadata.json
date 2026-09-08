@@ -1,0 +1,63 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "381f3b726d18",
+  "session_id": "144a6536-c177-4689-9a25-a14a35ed400e",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-08T19:50:27.2292293Z",
+  "branch": "fix/health-box-color-consistency",
+  "checkpoints_count": 5,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "55986fb5fd39",
+  "checkpoint_transcript_start": 569,
+  "transcript_lines_at_start": 569,
+  "compact_transcript_start": 83,
+  "token_usage": {
+    "input_tokens": 96,
+    "cache_creation_tokens": 101889,
+    "cache_read_tokens": 15561457,
+    "output_tokens": 31008,
+    "api_call_count": 48
+  },
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 478,
+      "user_lines_removed": 474,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200,
+        "themes/catppuccin-frappe.json": 43,
+        "themes/catppuccin-latte.json": 42,
+        "themes/catppuccin-macchiato.json": 43,
+        "themes/catppuccin-mocha.json": 43
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
