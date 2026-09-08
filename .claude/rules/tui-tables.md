@@ -118,7 +118,7 @@ keeps the one-run path.
 // ✅ CORRECT — two colors, both decided after Cell's text is final
 {
     Title: "1 core", Sizing: SizingFixed, MinWidth: theme.GaugeWidth,
-    Cell:      func(c docker.Container) string { return theme.Gauge(c.CPUPercent, theme.GaugeWidth) },
+    Cell:      func(c docker.Container) string { return theme.Gauge(theme.GaugeWidth) },
     Style:     func(c docker.Container) lipgloss.Style { return theme.LoadTextStyle(c.CPUPercent) },
     Cut:       func(c docker.Container) int { return theme.GaugeFillWidth(c.CPUPercent, theme.GaugeWidth) },
     TailStyle: func(c docker.Container) lipgloss.Style { return theme.GaugeTrackStyle() },
@@ -166,26 +166,27 @@ forbids elsewhere, and exactly what it requires here. That is the
 criterion, and not "it's important" — if a column's absences were already
 distinguishable, green would go back to being noise.
 
-**The second and third declared exceptions do not fit the criterion above, and
-are declared anyway: the containers load gauges (§3.71).**
+**The second and third declared exceptions: the containers load gauges
+(§3.71).** Every cell of a gauge is the *same* glyph (`░`) — filled and empty
+alike — so unlike every other colored column in this application, color here
+is not a spotlight on top of text that already says something. It is the
+**only** thing that says anything at all: with one glyph, a cell reads as
+filled or empty exclusively by which color it carries.
 
-- The *fill* is green below 75%, orange, then red — on Rule 128's ground
-  rather than this rule's: one alphabet of severity across the application, so
-  a nearly-full gauge reads like a CRITICAL finding without reading the number
-  beside it. Unlike the CI column, the fill and the track are already two
-  different glyphs (`⣿` against `░`), so nothing here actually needed a color
-  to tell them apart — an earlier framed design that did need one (an
-  uncolored fill was indistinguishable from its own frame) was tried and
-  dropped once the frame was.
+- The *fill* is green below 75%, orange, then red, on Rule 128's ground:
+  one alphabet of severity across the application, so a nearly-full gauge
+  reads like a CRITICAL finding without reading the number beside it.
 - The *track* — `theme.GaugeTrackStyle()`, aliasing `ColorSeverityLow` — is
-  colored on **every** row, including the fully idle ones where it is nearly
-  the whole cell: exactly the case this rule's opening line says tells no one
-  anything. It is colored anyway, on request, so that the empty portion of a
-  bar keeps one fixed appearance regardless of what the fill's own level is —
-  without it, an idle row's `░` and a critical row's `░` inherited whichever
-  color `Style` picked for that row, which read as the level bleeding into
-  cells that were not measuring anything.
+  fixed, whatever the fill's own level is. Without it, an idle row's `░` and
+  a critical row's `░` would carry whatever color `Style` had picked for
+  that row's *fill*, which would read as the level bleeding into cells that
+  were never filled.
 
+This is close to the CI column's own criterion (an idle gauge, entirely
+track-colored, *is* what "no load" looks like) but reaches further: the CI
+column's colors sit on top of letters that already read on their own; a
+gauge's don't. Removing the color here does not fall back to plain text
+that still says something — it falls back to a row of identical `░`.
 Accepted cost, stated rather than discovered: most containers idle near zero,
 so most rows carry a short green sliver in a track-colored field, both present
 at once (`Cut`/`TailStyle`, above).

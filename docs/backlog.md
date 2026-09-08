@@ -12630,6 +12630,51 @@ d'elle. `.claude/rules/tui-tables.md` documente les deux exceptions côte à
 côte plutôt que de les fondre en une seule, parce qu'elles ne répondent pas au
 même besoin et ne partagent pas la même justification.
 
+#### Quatrième révision : un seul glyphe, et c'est la couleur seule qui montre l'usage
+
+Demande suivante : que `⣿`/`⡇` disparaissent, que **tout** soit `░`, et que ce
+soit la couleur, seule, qui dise quelle cellule est remplie. Le mécanisme à
+deux teintes de la révision précédente n'a **pas eu besoin de changer** — c'est
+lui qui rend la demande triviale à honorer : `Cut`/`TailStyle` savaient déjà
+colorer deux morceaux d'un texte identique de part en part.
+
+**Ce qui change tient en une ligne.** `theme.Gauge` ne prend plus de
+pourcentage : il n'en a plus besoin, puisque le texte qu'il rend ne dépend
+plus de la valeur — `strings.Repeat("░", width)`, toujours. Toute la charge
+utile passe par `theme.GaugeFillWidth(pct, width)`, qui dit à `Cut` où
+s'arrête la première teinte ; il n'y a plus de résolution demi-cellule à
+préserver puisqu'il n'y a plus de glyphe de demi-cellule (`⡇`) — l'arrondi se
+fait à la cellule entière, `math.Round(pct/100*width)`.
+
+**La largeur monte de 6 à 10.** Un seul glyphe perd la résolution que la
+demi-cellule braille donnait gratuitement — six cellules à deux pas chacune
+faisaient douze paliers (~8,3 %) ; six cellules à un seul pas n'en feraient que
+six (~16,7 %). Dix cellules à un pas retrouvent une précision proche de
+l'ancienne (10 %) sans dépendre d'un glyphe à moitié rempli. La demande
+autorisait explicitement d'élargir « à 10 ou plus si nécessaire » ; 10 est
+apparu suffisant.
+
+**Un coût explicite, plus qu'avec les deux glyphes : la ligne sélectionnée
+perd toute information de forme.** `Style` n'est jamais consulté sous le
+curseur (Rule 122) — c'était déjà vrai avant, mais avec `⣿`/`⡇` contre `░` la
+**longueur** du texte brut restait lisible même sans couleur : une jauge
+sélectionnée à 90 % avait encore neuf glyphes pleins sur dix. Avec un seul
+glyphe partout, la ligne sélectionnée rend un bloc `░░░░░░░░░░` uniforme qui ne
+dit plus rien par lui-même. Le nombre à côté (`92.0%`) reste la seule chose qui
+survit à la sélection — ce qu'il faisait déjà, et ce vers quoi l'entière
+duplication jauge/nombre pointait depuis le début (« deuxième raison de garder
+le nombre », plus haut).
+
+**Un défaut latent trouvé en écrivant les tests de cette révision.** Deux des
+tests couvrant les jauges pressaient `z` après avoir chargé une nouvelle liste
+de conteneurs sur un modèle où `rawModel` avait déjà allumé les quatre filtres
+d'état — `z` les éteint et retombe sur « running seulement », masquant les
+conteneurs arrêtés. Le test bouclait sur les lignes *présentes* dans la table
+et ne remarquait jamais qu'une ligne attendue n'était simplement jamais
+arrivée. Corrigé en retirant le `z` de trop et en ajoutant, dans le test qui
+vérifie le glyphe de remplacement, une vérification explicite que chaque ligne
+attendue a bien été vue — pas seulement qu'aucune ligne inattendue ne l'a été.
+
 ---
 
 ## 4. Existing plans
