@@ -12385,6 +12385,98 @@ dise qu'ils ne comptent pas la même chose.
 
 ---
 
+### 3.71 `containers` — une jauge pour repérer un pic sans lire
+
+Les colonnes `CPU` et `Mem` donnent un nombre juste, qu'il faut lire ligne par
+ligne. Une barre qui se remplit répond à « est-ce que quelque chose chauffe » en
+un coup d'œil, sans lire aucun chiffre. Les deux répondent à des questions
+différentes, et c'est ce qui justifie qu'elles coexistent plutôt que l'une
+remplace l'autre.
+
+#### Une couleur par seuil, jamais de dégradé
+
+**Le dégradé le long de la barre est impossible**, et pas par choix : une portion
+verte suivie d'une orange dans la même cellule demande des séquences ANSI à
+l'intérieur de ce que `Cell` retourne. `runewidth` les compte comme de la
+largeur, la cellule se tronque au milieu d'une séquence, et la séquence non
+refermée bave sur toutes les lignes suivantes — Rule 122, et la raison d'être de
+`datatable`.
+
+Ce qui se fait : `Cell` rend la barre en texte brut, `Style` lui donne **une**
+couleur choisie par la valeur. Le découpage est celui que la règle impose.
+
+**Et le vert saute.** Rule 122 nomme l'état nominal et majoritaire — *un
+conteneur qui tourne* est son exemple — et lui assigne la couleur de texte
+ordinaire, **pas du vert**. La plupart des conteneurs veillent près de zéro : une
+barre verte sur chaque ligne en permanence est exactement le bruit que la règle
+écarte. Son exception déclarée (la colonne CI) vaut « quand l'absence de couleur
+est déjà prise », ce qui n'est pas le cas ici — un conteneur arrêté rend `-`,
+déjà distinguable d'une barre vide.
+
+Donc : couleur de texte ordinaire jusqu'à un seuil, puis orange, puis rouge. La
+longueur porte la valeur, la couleur ne sert qu'à ce qui mérite d'être repéré
+sans lire. Les seuils et leurs styles vont dans `theme`, sur le modèle de
+`SeverityTextStyle` (`internal/ui/theme/styles.go:341`) : la vue nomme un sens,
+le thème répond une couleur (Rule 125).
+
+#### Le vrai problème est l'ordre de chute, pas la largeur
+
+Les colonnes doivent être `Optional` — « pas primordiales », c'est la demande.
+Mais `drop` retire **la plus à droite des `Optional`**, et seulement à défaut la
+plus à droite de toutes (`internal/ui/datatable/widths.go:213`). La raison écrite
+là est que l'ordre des colonnes *est déjà* un ordre d'importance.
+
+Or les jauges veulent être **à côté** des nombres qu'elles illustrent, donc au
+milieu du tableau — après `CPU` (`model.go:178`) et `Mem` (`model.go:188`), avant
+`Net RX` (`model.go:198`). À cette place elles seraient les **dernières** des
+`Optional` à tomber : `Net RX`, `Net TX`, `Block RX` et `Block TX`
+(`model.go:213`) disparaîtraient d'abord. C'est l'inverse de ce que l'entrée
+demande.
+
+Trois issues, aucune évidente :
+
+1. **Les mettre tout à droite**, après `Block TX`. Elles tombent en premier,
+   conformément à leur statut — mais elles sont alors loin des nombres qu'elles
+   illustrent, et une barre faite pour attraper l'œil au bout d'une ligne large
+   l'attrape mal.
+2. **Les laisser au milieu et accepter** qu'elles survivent aux compteurs d'I/O.
+   Défendable si on juge qu'un pic de charge prime sur un volume réseau, mais
+   c'est alors le contraire de « pas primordiales ».
+3. **Apprendre à `datatable` un ordre de chute distinct de l'ordre d'affichage**
+   — un rang, ou un `DropFirst`. C'est la seule réponse qui exprime vraiment ce
+   qui est demandé, et c'est aussi une extension du composant pour un cas unique,
+   ce que §3.23 conseille de peser plutôt que de faire par symétrie.
+
+#### Trois contraintes à ne pas découvrir en codant
+
+- **Le CPU dépasse 100 %.** `docker stats` compte sur tous les cœurs : deux
+  cœurs saturés donnent 200 % (`CPUPercent`, `internal/docker/containers.go:22`).
+  Une jauge 0→100 est pleine dès un cœur, et seul le nombre lève l'ambiguïté —
+  première raison de garder la colonne chiffrée à côté. Reste à décider si la
+  barre sature à 100 ou si elle se met à l'échelle du nombre de cœurs.
+- **La couleur disparaît sous le curseur.** `Style` n'est pas consulté pour la
+  ligne sélectionnée, rendue entière par `styles.Selected` (Rule 122). La
+  longueur survit — c'est du texte brut — donc l'information n'est pas perdue,
+  mais la jauge ne peut pas être seule à la porter. Deuxième raison de garder le
+  nombre.
+- **Le caractère de remplissage est à épingler.** `█` et `▓` sont de largeur
+  Unicode *ambiguë* et rendent en double largeur sur certains terminaux — la
+  raison exacte pour laquelle Rule 125 réserve deux cellules à un glyphe Nerd
+  Font. Une barre qui double de largeur casse Rule 116. À choisir en mesurant,
+  pas en supposant.
+
+#### Deux détails d'implémentation déjà repérés
+
+- La colonne `Mem` affiche `MemUsage` — « 150MiB/8GiB » — et trie sur
+  `MemPercent` (`containers.go:28`). La jauge mémoire lirait donc le pourcentage,
+  qui n'est **affiché nulle part** aujourd'hui : la barre en serait le seul
+  porteur visible, ce qui renforce la contrainte du curseur ci-dessus.
+- Ni `theme` ni `components` ne rendent de jauge. Le helper est à créer, et il a
+  deux clients dès le premier jour — d'où sa place dans `theme` plutôt que dans
+  la vue.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
