@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "54288e1ee470",
+  "strategy": "manual-commit",
+  "branch": "feat/dashboard-network-totals-errors",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/54/288e1ee470/0/metadata.json",
+      "transcript": "/54/288e1ee470/0/full.jsonl",
+      "compact_transcript": "/54/288e1ee470/0/transcript.jsonl",
+      "content_hash": "/54/288e1ee470/0/content_hash.txt",
+      "prompt": "/54/288e1ee470/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 158,
+    "cache_creation_tokens": 235805,
+    "cache_read_tokens": 15238600,
+    "output_tokens": 52194,
+    "api_call_count": 79
+  }
+}
