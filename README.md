@@ -2,6 +2,8 @@
 
 A terminal-based DevSecOps workstation built with Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea). DevDesk centralizes the tools a developer needs daily — GitLab or GitHub, Docker, security scanning, and system monitoring — in a single keyboard-driven TUI.
 
+📖 **Full documentation: [anthnel.github.io/devdesk](https://anthnel.github.io/devdesk/)** — tutorial, how-to guides, reference, and design explanations. This README stays a quick overview; the site is the source to search or link into.
+
 ## Features
 
 | View                    | Description                                                                               |
@@ -342,6 +344,27 @@ devdesk/
 
 For the "why" behind each area — not just the "what" — see
 `docs/architecture/*.md`, one file per area, referenced from `.claude/CLAUDE.md`.
+A version of these adapted for readers outside the project is published in
+the [Explanation](https://anthnel.github.io/devdesk/explanation/) section of
+the documentation site; the repository copies are the ones kept in sync with
+each PR.
+
+## Documentation
+
+The full documentation lives at
+**[anthnel.github.io/devdesk](https://anthnel.github.io/devdesk/)**, built
+from `docs-site/` with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
+and published on every push to `main` that touches `docs-site/`, `README.md`,
+or `CHANGELOG.md`:
+
+| Section | Answers |
+| ------- | ------- |
+| [Tutorial](https://anthnel.github.io/devdesk/tutorial/first-session/) | "Show me, step by step" |
+| [How-to guides](https://anthnel.github.io/devdesk/how-to/install/) | "How do I do *this specific thing*?" |
+| [Reference](https://anthnel.github.io/devdesk/reference/commands/) | "What's the exact name/value/key?" |
+| [Explanation](https://anthnel.github.io/devdesk/explanation/) | "Why does it work this way?" |
+
+To preview changes locally: `mise run docs-serve`.
 
 ## License
 
