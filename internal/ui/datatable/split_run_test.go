@@ -40,8 +40,9 @@ func splitTable(t *testing.T) Model[row] {
 
 // A split cell carries both colours in the same row: Style's on the fill,
 // TailStyle's on the track, neither one alone. Row 1 ("cache", Size 1) rather
-// than row 0: the cursor starts on row 0, and a selected row drops both
-// colours on purpose (see TestNeitherSplitColourReachesTheSelectedRow).
+// than row 0: the cursor starts on row 0, which composites both colours onto
+// the selection background instead of the unselected one tested here (see
+// TestTheDefaultSelectionKeepsBothSplitColours).
 func TestASplitCellCarriesBothColours(t *testing.T) {
 	withTrueColor(t)
 	m := splitTable(t)
@@ -91,17 +92,13 @@ func TestASplitCellLeavesNoGapAtTheBoundary(t *testing.T) {
 	}
 }
 
-// The split never reaches the selected row, whichever selection style is in
-// play: Cut/TailStyle's two-run mechanism costs its own reset between the
-// runs, which neither treatment can afford (see the Cut/TailStyle doc
-// comment in datatable.go).
-//
-// The two treatments differ on the *single*-run fallback, though. A state
-// coloured selection (SelectedStyles) still drops it — the row is handed to
-// styles.Selected whole. The plain "normal" selection keeps it: the whole
-// cell collapses to Style's fill colour, composited with the shared
-// background rather than the two-tone split.
-func TestNeitherSplitColourReachesTheSelectedRow(t *testing.T) {
+// A state-coloured selection (SelectedStyles — error, busy, a CVE severity)
+// still drops the split entirely: the row is handed to styles.Selected
+// whole, and neither run can afford a reset that would close that solid
+// background mid-row. This is the one case where Cut/TailStyle stay
+// unconsulted — see TestTheDefaultSelectionKeepsBothSplitColours below for
+// the plain "normal" selection, which does not have this restriction.
+func TestAStateColouredSelectionDropsTheSplit(t *testing.T) {
 	withTrueColor(t)
 	m := errorStyledTable(t, splitConfig)
 
@@ -117,9 +114,14 @@ func TestNeitherSplitColourReachesTheSelectedRow(t *testing.T) {
 	}
 }
 
-// The plain "normal" selection collapses a split cell to its Style colour
-// alone — never TailStyle's — composited with the new selection background.
-func TestTheDefaultSelectionCollapsesASplitCellToItsFillColour(t *testing.T) {
+// The plain "normal" selection keeps the two-tone split: both runs repaint
+// the shared ColorSeverityLow background themselves (runStyle's selected
+// branch), the same per-cell repaint that already makes a single-run
+// selected cell safe — so a reset between the two runs only ever uncovers
+// that same background, immediately repainted by the run after it. This is
+// what lets a load gauge keep its fill/track distinction under the cursor
+// instead of collapsing to a single colour.
+func TestTheDefaultSelectionKeepsBothSplitColours(t *testing.T) {
 	withTrueColor(t)
 	m := splitTable(t) // no SelectedStyles — the plain, default path
 
@@ -127,8 +129,8 @@ func TestTheDefaultSelectionCollapsesASplitCellToItsFillColour(t *testing.T) {
 	if !strings.Contains(selected, foreground(theme.ColorOK)) {
 		t.Errorf("the selected row lost the split cell's fill colour: %q", selected)
 	}
-	if strings.Contains(selected, foreground(theme.ColorSeverityLow)) {
-		t.Error("the track colour reached the selected row — Cut/TailStyle must stay unconsulted there")
+	if !strings.Contains(selected, foreground(theme.ColorSeverityLow)) {
+		t.Errorf("the selected row lost the split cell's track colour: %q", selected)
 	}
 	if !strings.Contains(selected, background(theme.ColorSeverityLow)) {
 		t.Errorf("the selected row does not carry the new selection background: %q", selected)

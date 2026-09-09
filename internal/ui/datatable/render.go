@@ -128,8 +128,8 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 			text = m.spinnerFrame
 		}
 		fitted := fit(text, cols[i].Width, c.TruncateHead)
-		if !selected && !busy && c.TailStyle != nil {
-			line.WriteString(m.splitCellRun(c, item, fitted))
+		if !busy && c.TailStyle != nil && (!selected || m.preserveColumnColors) {
+			line.WriteString(m.splitCellRun(c, item, fitted, selected))
 			continue
 		}
 		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fitted))
@@ -260,7 +260,16 @@ func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) l
 // rune index is safe: every glyph a caller uses here — braille, ASCII, the
 // truncation marker — is single-width, which callers are expected to keep
 // true rather than this function verifying it.
-func (m *Model[T]) splitCellRun(c Column[T], item T, fitted string) string {
+//
+// selected mirrors cellStyle's own selected branch: on the plain "normal"
+// selection (m.preserveColumnColors), both runs repaint ColorSeverityLow and
+// bold themselves instead of each keeping their unselected background — the
+// same per-cell repaint that makes a single-run selected cell safe applies
+// unchanged to two runs, since a reset between them only ever uncovers that
+// same shared background, immediately repainted by the run that follows.
+// This is what lets a load gauge (Cut/TailStyle) keep its fill/track split
+// under the cursor instead of collapsing to Style's fill colour alone.
+func (m *Model[T]) splitCellRun(c Column[T], item T, fitted string, selected bool) string {
 	runes := []rune(fitted)
 	cut := c.Cut(item)
 	switch {
@@ -271,20 +280,30 @@ func (m *Model[T]) splitCellRun(c Column[T], item T, fitted string) string {
 	}
 	head := " " + string(runes[:cut])
 	tail := string(runes[cut:]) + " "
-	return m.runStyle(c.Style, item).Render(head) + m.runStyle(c.TailStyle, item).Render(tail)
+	return m.runStyle(c.Style, item, selected).Render(head) + m.runStyle(c.TailStyle, item, selected).Render(tail)
 }
 
 // runStyle applies the same foreground/background defaulting cellStyle gives
 // a single-run cell, minus the Padding — splitCellRun already pads with
 // literal characters — so a two-run cell is indistinguishable from a one-run
 // one everywhere but the run boundary.
-func (m *Model[T]) runStyle(styleFn func(T) lipgloss.Style, item T) lipgloss.Style {
+//
+// selected forces the shared selection background and bold weight
+// unconditionally, exactly as cellStyle's selected branch does for a
+// single-run cell — unlike the unselected path below, this overrides
+// whatever background the column's own Style already set (GaugeTrackStyle
+// sets one explicitly), because the selected row's background is the
+// highlight itself, not a fallback for an unset one.
+func (m *Model[T]) runStyle(styleFn func(T) lipgloss.Style, item T, selected bool) lipgloss.Style {
 	var style lipgloss.Style
 	if styleFn != nil {
 		style = styleFn(item)
 	}
 	if _, unset := style.GetForeground().(lipgloss.NoColor); unset {
 		style = style.Foreground(theme.ColorText)
+	}
+	if selected {
+		return style.Background(theme.ColorSeverityLow).Bold(true)
 	}
 	if _, unset := style.GetBackground().(lipgloss.NoColor); unset {
 		style = style.Background(theme.ColorBackground)

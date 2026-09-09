@@ -152,12 +152,13 @@ type Column[T any] struct {
 	// bare integer, is cheaper to reason about than a slice of spans that only
 	// ever holds two elements.
 	//
-	// Neither is consulted for the selected row, on either of Style's two
-	// treatments there: a two-run cell would still need its own reset between
-	// the runs, which a state-coloured row cannot afford, and the plain
-	// "normal" selection would have to colour the gauge's track its own
-	// background too — not worth a second mechanism for the one caller this
-	// has.
+	// Dropped only for a row a view has coloured whole — error, busy, a CVE
+	// severity — for the same reason Style is: a two-run cell still needs its
+	// own reset between the runs, which that solid background cannot afford.
+	// The plain "normal" selection consults both: each run repaints
+	// ColorSeverityLow and bold itself, the same per-cell repaint that makes a
+	// single-run selected cell safe, so a load gauge keeps its fill/track
+	// split under the cursor instead of collapsing to Style's colour alone.
 	Cut       func(T) int
 	TailStyle func(T) lipgloss.Style
 	// Less sorts by this column. Nil means the column cannot be sorted by, and

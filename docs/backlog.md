@@ -12734,11 +12734,18 @@ surclassement busy) n'a repris la main sur la ligne. `cellStyle` le lit pour
 choisir entre l'ancien traitement (cellule incolore, tout au wrapper) et le
 nouveau (couleur de colonne + fond partagé, par cellule).
 
-`Cut`/`TailStyle` (les jauges de charge, §3.71) restent non consultés sur
-**toute** ligne sélectionnée, dans les deux cas : le découpage en deux
-teintes coûte son propre reset entre les deux, que ni l'un ni l'autre
-traitement ne peut se permettre. La sélection « normale » retombe sur la
-seule couleur de `Style` (le remplissage), jamais sur `TailStyle` (le rail).
+`Cut`/`TailStyle` (les jauges de charge, §3.71) restent non consultés sur une
+ligne colorée par une vue (`error`/`busy`/severity) — le découpage en deux
+teintes coûterait son propre reset au milieu d'un fond que cette ligne ne
+peut pas se permettre de rouvrir. **Correction du 2026-09-09** (capture
+d'écran fournie par l'utilisateur, jauge "1 core"/"Limit" entièrement
+colorée sur `gauge-mem` sélectionné) : la sélection « normale » consulte
+maintenant `Cut`/`TailStyle` elle aussi, exactement comme `Style` — chaque
+run repeint `ColorSeverityLow` et le gras lui-même
+(`runStyle(..., selected)`), donc un reset entre les deux runs ne découvre
+jamais que ce même fond, aussitôt repeint par le run suivant. Une jauge
+garde donc sa distinction remplissage/rail sous le curseur au lieu de
+s'aplatir sur la seule couleur de `Style`.
 
 #### Deux réserves à énoncer plutôt qu'à découvrir
 
@@ -12751,10 +12758,12 @@ seule couleur de `Style` (le remplissage), jamais sur `TailStyle` (le rail).
   pas confirmée ; à retirer proprement si elle l'est.
 - **`ColorSeverityLow` sert déjà de couleur de rail aux jauges de charge**
   (`theme.GaugeTrackStyle()`, §3.71) — c'est la même teinte, choisie ici pour
-  la même raison (la plus calme de la palette). Pas de collision directe : le
-  rail n'apparaît jamais sur une ligne sélectionnée (`Cut`/`TailStyle`
-  ci-dessus), donc la coïncidence ne se voit jamais côte à côte sur la même
-  ligne — mais elle mérite d'être connue si la palette change un jour.
+  la même raison (la plus calme de la palette). Depuis la correction du
+  2026-09-09, le rail *apparaît* sur une ligne sélectionnée : son avant-plan
+  et le fond de sélection sont alors la même couleur, donc le rail rend
+  visuellement comme du fond uni — un caractère invisible plutôt qu'un
+  caractère absent, ce qui reproduit son apparence normale (un rail discret)
+  sans code séparé pour le cas sélectionné.
 
 ---
 

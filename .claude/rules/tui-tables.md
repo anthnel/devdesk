@@ -125,9 +125,10 @@ keeps the one-run path.
 }
 ```
 
-Neither is consulted on the selected row, for the same reason `Style` is not
-(below) — a color that ends before the row does still closes the highlight
-mid-row.
+Dropped only on a row a view has coloured whole (below) — error, busy, a CVE
+severity — for the same reason `Style` is: a color that ends before the row
+does would still close that solid highlight mid-row. On the plain "normal"
+selection both runs *are* consulted, the same as `Style` is there.
 
 #### Selected row
 
@@ -144,10 +145,11 @@ in," and no column color is worth losing it.
 for one outer wrap. That sidesteps the defect above instead of reproducing
 it: a cell's own reset only ever uncovers the *same* background the next
 cell immediately repaints, so nothing but that background is ever exposed
-between two cells. `Cut`/`TailStyle`'s two-run split still costs a reset
-between its own runs that neither treatment can afford, so it stays
-unconsulted on every selected row regardless — the "normal" selection falls
-back to `Style`'s single fill colour there, never the two-tone split.
+between two cells. `Cut`/`TailStyle` follow the same rule: both runs
+repaint `ColorSeverityLow` and bold themselves (`runStyle`'s `selected`
+branch), so a reset between the two runs never uncovers anything but that
+shared background either — a load gauge keeps its fill/track split under
+the cursor instead of collapsing to `Style`'s single fill colour.
 
 #### Background
 
