@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0](https://github.com/anthnel/devdesk/compare/v1.0.0...v1.1.0) (2026-09-09)
+
+
+### Features
+
+* dashboard Network box shows a cumulative total and RX/TX errors ([#191](https://github.com/anthnel/devdesk/issues/191)) ([3591952](https://github.com/anthnel/devdesk/commit/3591952a901de9bb4473f7398c2a402be3221648))
+* viewer — Y copies content, O opens in the configured IDE ([#184](https://github.com/anthnel/devdesk/issues/184)) ([14b1007](https://github.com/anthnel/devdesk/commit/14b10078306d04828f89c74c69742ca25d251533))
+
+
+### Bug Fixes
+
+* docs-build wrote to docs-site/docs-site/site, not docs-site/site ([#181](https://github.com/anthnel/devdesk/issues/181)) ([cb3f134](https://github.com/anthnel/devdesk/commit/cb3f134e40d4f6072e4cd9ddf7e8fefc048e540b))
+* **forge/explorer:** hide immediate-deletion checkbox on GitHub ([#177](https://github.com/anthnel/devdesk/issues/177)) ([4853ddd](https://github.com/anthnel/devdesk/commit/4853dddc4ce4b3062feab7cd2c0523cf956fdf40))
+* Health box no longer tells the same state in two colors ([#192](https://github.com/anthnel/devdesk/issues/192)) ([60d51ff](https://github.com/anthnel/devdesk/commit/60d51ff37832ff44d7804b7c49a144ad54bc0456))
+* the about body opens on a blank line ([#186](https://github.com/anthnel/devdesk/issues/186)) ([bf528d6](https://github.com/anthnel/devdesk/commit/bf528d6da832e5e629d39da1cf191f51e4140d94))
+
 ## 1.0.0 (2026-09-06)
 
 
