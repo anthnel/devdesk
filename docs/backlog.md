@@ -12759,11 +12759,62 @@ s'aplatir sur la seule couleur de `Style`.
 - **`ColorSeverityLow` sert déjà de couleur de rail aux jauges de charge**
   (`theme.GaugeTrackStyle()`, §3.71) — c'est la même teinte, choisie ici pour
   la même raison (la plus calme de la palette). Depuis la correction du
-  2026-09-09, le rail *apparaît* sur une ligne sélectionnée : son avant-plan
-  et le fond de sélection sont alors la même couleur, donc le rail rend
-  visuellement comme du fond uni — un caractère invisible plutôt qu'un
-  caractère absent, ce qui reproduit son apparence normale (un rail discret)
-  sans code séparé pour le cas sélectionné.
+  2026-09-09, le rail *apparaît* sur une ligne sélectionnée. Ce point est
+  repris et clos par §3.73 ci-dessous : `ColorSeverityLow` et le fond de
+  sélection sont devenus deux clés distinctes plutôt qu'un même alias, donc
+  le rail y est visible plutôt qu'invisible — voir §3.73 pour le detail et
+  pour ce que ça change à la couleur elle-même.
+
+---
+
+### 3.73 `table_line_selected` — nouvelle clé, et `severity_low` recoloré sur le ton des « 0 »
+
+Demande directe, faisant suite à §3.72 : sortir le fond de la sélection
+« normale » de sa dépendance à `ColorSeverityLow` pour lui donner sa **propre**
+clé de thème, puis changer la couleur de `severity_low` elle-même pour
+reprendre le ton déjà utilisé par les compteurs à `0` de l'écran `:sec`
+(`inventory_table.go`, `countColumn` — `theme.DimStyle`, qui aliase
+`ColorDim`).
+
+**Nouvelle clé : `ColorTableLineSelected` / `table_line_selected`.**
+`DefaultTableStyles()`, et les deux branches `selected` de `render.go`
+(`cellStyle`, `runStyle`) qui peignent le fond de la sélection « normale »
+cellule par cellule (§3.72), lisent maintenant cette clé plutôt que
+`ColorSeverityLow` directement. Sa valeur par défaut est `#313244` —
+exactement l'ancienne valeur par défaut de `severity_low` — pour que ce
+changement seul ne change rien à l'écran. `m.preserveColumnColors`
+(`datatable.go`) compare désormais le fond résolu à `ColorTableLineSelected`
+plutôt qu'à `ColorSeverityLow` pour détecter la sélection « normale ».
+
+**`severity_low` prend le ton de `ColorDim`.** Sa valeur par défaut passe de
+`#313244` à `#585b70` — celle de `color_dim`. `SeverityTextStyle("LOW")` et
+`TableStylesForSeverity("LOW")` en héritent automatiquement puisqu'ils lisent
+`ColorSeverityLow` en direct : le texte d'une sévérité LOW, et le fond de la
+ligne sélectionnée d'une trouvaille LOW, prennent tous deux ce gris plutôt que
+l'ancien mauve-nuit à peine plus clair que le fond de l'application. Le
+fallback de `ColorSeverityLow` dans `ApplyTheme` passe pareillement de
+`ColorCmdLineBg` à `ColorDim`, pour qu'un thème qui ne fixe pas
+`severity_low` obtienne la nouvelle intention plutôt que l'ancienne
+coïncidence.
+
+**Conséquence sur les jauges de charge (§3.71).** `theme.GaugeTrackStyle()`
+continue d'aliaser `ColorSeverityLow` pour le rail — rien n'y change dans le
+code — mais la couleur elle-même devient littéralement celle de `ColorDim`,
+ce que le commentaire de `gauge.go` affirmait *ne pas* être vrai
+(« a severity colour says [low] and a grey does not ») ; le commentaire est
+corrigé en conséquence plutôt que le code, l'affirmation étant devenue fausse
+par construction. La distinction reste réelle par le **nom** de la clé (un
+thème peut toujours séparer `severity_low` de `color_dim`), simplement plus
+par sa valeur par défaut.
+
+**Sur une ligne sélectionnée, le rail redevient visible.** §3.72 puis la
+correction du 2026-09-09 (gauge-mem) faisaient coïncider, par construction,
+l'avant-plan du rail (`ColorSeverityLow`) et le fond de la sélection — ce qui
+rendait le rail invisible sous le curseur, un accident de deux clés qui
+pointaient alors la même valeur. Les deux clés étant maintenant distinctes et
+de valeurs différentes (`#585b70` contre `#313244`), le rail redevient un
+gris visible sur le fond de sélection, cohérent avec son apparence sur une
+ligne non sélectionnée plutôt qu'un cas particulier invisible.
 
 ---
 

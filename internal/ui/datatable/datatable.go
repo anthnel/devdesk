@@ -156,7 +156,7 @@ type Column[T any] struct {
 	// severity — for the same reason Style is: a two-run cell still needs its
 	// own reset between the runs, which that solid background cannot afford.
 	// The plain "normal" selection consults both: each run repaints
-	// ColorSeverityLow and bold itself, the same per-cell repaint that makes a
+	// ColorTableLineSelected and bold itself, the same per-cell repaint that makes a
 	// single-run selected cell safe, so a load gauge keeps its fill/track
 	// split under the cursor instead of collapsing to Style's colour alone.
 	Cut       func(T) int
@@ -231,7 +231,7 @@ type Model[T any] struct {
 	// styles have to be kept on this side to be readable at render time.
 	styles table.Styles
 	// preserveColumnColors is true when styles.Selected is the plain "normal"
-	// look (ColorSeverityLow) rather than a view's own error/busy/severity
+	// look (ColorTableLineSelected) rather than a view's own error/busy/severity
 	// override. Computed once in applyStyles, read per cell in cellStyle: it
 	// is what tells the two selected-row treatments apart without render.go
 	// having to know what a severity or a busy row is.
@@ -752,9 +752,9 @@ func (m *Model[T]) applyStyles() {
 		}
 	}
 	// The background is the signal: only the plain "normal" look carries
-	// ColorSeverityLow, so this is true exactly when no view-level state or
+	// ColorTableLineSelected, so this is true exactly when no view-level state or
 	// busy override took over the row — see cellStyle for what it changes.
-	m.preserveColumnColors = styles.Selected.GetBackground() == theme.ColorSeverityLow
+	m.preserveColumnColors = styles.Selected.GetBackground() == theme.ColorTableLineSelected
 	// Pin the selected row to the full content width. Column widths are counted
 	// in cells, and a Nerd Font icon does not always render as wide as it
 	// counts, so the highlight otherwise stops short of the right border by

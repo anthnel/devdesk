@@ -112,11 +112,14 @@ func LoadTextStyle(pct float64) lipgloss.Style {
 
 // GaugeTrackStyle is the colour a gauge's *empty* cells take — fixed,
 // whatever the level, including a gauge that is entirely empty: the cell is
-// still `░`, still coloured, never blank. It aliases `ColorSeverityLow`, the
-// mutest tone the severity palette already carries, rather than `DimStyle`:
-// `DimStyle` is this application's word for *absent* (a `-`, a zero, a
-// placeholder), and an empty gauge cell is not absent — it is measured and
-// low, which a severity colour says and a grey does not.
+// still `░`, still coloured, never blank. It aliases ColorSeverityLow rather
+// than DimStyle directly: DimStyle is this application's word for *absent*
+// (a `-`, a zero, a placeholder), and an empty gauge cell is not absent — it
+// is measured and low. ColorSeverityLow's own default now happens to be the
+// same tone as ColorDim (a LOW finding reads as unremarkable as a "0" count,
+// see colors.go) — the two coincide in colour without coinciding in name, so
+// a theme separating "low severity" from "nothing found" moves the track
+// with the former rather than the latter.
 func GaugeTrackStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorSeverityLow)
 }

@@ -132,7 +132,7 @@ func TestTheDefaultSelectionKeepsBothSplitColours(t *testing.T) {
 	if !strings.Contains(selected, foreground(theme.ColorSeverityLow)) {
 		t.Errorf("the selected row lost the split cell's track colour: %q", selected)
 	}
-	if !strings.Contains(selected, background(theme.ColorSeverityLow)) {
+	if !strings.Contains(selected, background(theme.ColorTableLineSelected)) {
 		t.Errorf("the selected row does not carry the new selection background: %q", selected)
 	}
 }

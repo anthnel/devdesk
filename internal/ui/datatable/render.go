@@ -187,7 +187,7 @@ func truncateHead(text string, width int) string {
 //
 // **The plain "normal" selection is the opposite case** (§3.72 in the
 // backlog, m.preserveColumnColors): each cell keeps its own colour and
-// additionally repaints ColorSeverityLow and bold **itself**, rather than
+// additionally repaints ColorTableLineSelected and bold **itself**, rather than
 // once on an outer wrap. That is what makes it safe rather than a return of
 // the defect above — every cell's own reset only ever uncovers the *same*
 // background the next cell immediately repaints, so nothing but that
@@ -228,7 +228,7 @@ func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) l
 		if _, unset := style.GetForeground().(lipgloss.NoColor); unset {
 			style = style.Foreground(theme.ColorText)
 		}
-		return style.Background(theme.ColorSeverityLow).Bold(true)
+		return style.Background(theme.ColorTableLineSelected).Bold(true)
 	}
 	if busy {
 		style := theme.DimStyle
@@ -262,7 +262,7 @@ func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) l
 // true rather than this function verifying it.
 //
 // selected mirrors cellStyle's own selected branch: on the plain "normal"
-// selection (m.preserveColumnColors), both runs repaint ColorSeverityLow and
+// selection (m.preserveColumnColors), both runs repaint ColorTableLineSelected and
 // bold themselves instead of each keeping their unselected background — the
 // same per-cell repaint that makes a single-run selected cell safe applies
 // unchanged to two runs, since a reset between them only ever uncovers that
@@ -303,7 +303,7 @@ func (m *Model[T]) runStyle(styleFn func(T) lipgloss.Style, item T, selected boo
 		style = style.Foreground(theme.ColorText)
 	}
 	if selected {
-		return style.Background(theme.ColorSeverityLow).Bold(true)
+		return style.Background(theme.ColorTableLineSelected).Bold(true)
 	}
 	if _, unset := style.GetBackground().(lipgloss.NoColor); unset {
 		style = style.Background(theme.ColorBackground)

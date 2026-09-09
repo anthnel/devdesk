@@ -48,6 +48,9 @@ type Theme struct {
 	TableHeaderFg   string `json:"table_header_fg,omitempty"`
 	TableSelectedFg string `json:"table_selected_fg,omitempty"`
 	TableSelectedBg string `json:"table_selected_bg,omitempty"`
+	// TableLineSelected is the background a datatable's plain "normal"
+	// selected row paints per cell (§3.72) — see ColorTableLineSelected.
+	TableLineSelected string `json:"table_line_selected,omitempty"`
 
 	CmdLineFg         string `json:"cmd_line_fg,omitempty"`
 	CmdLineBg         string `json:"cmd_line_bg,omitempty"`
@@ -81,33 +84,38 @@ type Theme struct {
 // DefaultTheme returns the default theme (Catppuccin Mocha)
 func DefaultTheme() *Theme {
 	return &Theme{
-		Name:               "default",
-		ColorOK:            "#a6e3a1",
-		ColorError:         "#f38ba8",
-		ColorWarn:          "#fab387",
-		ColorPrimary:       "#cba6f7",
-		ColorSecondary:     "#b4befe",
-		ColorBorder:        "#6c7086",
-		ColorText:          "#cdd6f4",
-		ColorDim:           "#585b70",
-		ColorHighlight:     "#f9e2af",
-		ColorWhite:         "#cdd6f4",
-		ColorBlack:         "#1e1e2e",
-		ColorBackground:    "#1e1e2e",
-		TitleFg:            "#cba6f7",
-		AppTitleFg:         "#cba6f7",
-		SubTitleFg:         "#b4befe",
-		ButtonFg:           "#1e1e2e",
-		ButtonBg:           "#cba6f7",
-		ButtonInactiveFg:   "#cdd6f4",
-		ButtonInactiveBg:   "#585b70",
-		TabActiveFg:        "#1e1e2e",
-		TabActiveBg:        "#b4befe",
-		TabInactiveFg:      "#585b70",
-		TabInactiveBg:      "#313244",
-		TableHeaderFg:      "#b4befe",
-		TableSelectedFg:    "#1e1e2e",
-		TableSelectedBg:    "#b4befe",
+		Name:             "default",
+		ColorOK:          "#a6e3a1",
+		ColorError:       "#f38ba8",
+		ColorWarn:        "#fab387",
+		ColorPrimary:     "#cba6f7",
+		ColorSecondary:   "#b4befe",
+		ColorBorder:      "#6c7086",
+		ColorText:        "#cdd6f4",
+		ColorDim:         "#585b70",
+		ColorHighlight:   "#f9e2af",
+		ColorWhite:       "#cdd6f4",
+		ColorBlack:       "#1e1e2e",
+		ColorBackground:  "#1e1e2e",
+		TitleFg:          "#cba6f7",
+		AppTitleFg:       "#cba6f7",
+		SubTitleFg:       "#b4befe",
+		ButtonFg:         "#1e1e2e",
+		ButtonBg:         "#cba6f7",
+		ButtonInactiveFg: "#cdd6f4",
+		ButtonInactiveBg: "#585b70",
+		TabActiveFg:      "#1e1e2e",
+		TabActiveBg:      "#b4befe",
+		TabInactiveFg:    "#585b70",
+		TabInactiveBg:    "#313244",
+		TableHeaderFg:    "#b4befe",
+		TableSelectedFg:  "#1e1e2e",
+		TableSelectedBg:  "#b4befe",
+		// Same value the "normal" selection background used to get by
+		// aliasing SeverityLow directly, before SeverityLow itself moved to
+		// ColorDim's tone below — kept here so the selection's look does not
+		// change with it.
+		TableLineSelected:  "#313244",
 		CmdLineFg:          "#f9e2af",
 		CmdLineBg:          "#313244",
 		CmdLineInactiveFg:  "#585b70",
@@ -118,10 +126,13 @@ func DefaultTheme() *Theme {
 		SeverityHighFg:     "#1e1e2e",
 		SeverityMedium:     "#fab387",
 		SeverityMediumFg:   "#1e1e2e",
-		SeverityLow:        "#313244",
-		SeverityLowFg:      "#cdd6f4",
-		SeverityInfo:       "#45475a",
-		SeverityInfoFg:     "#cdd6f4",
+		// Same tone as ColorDim — the :sec inventory's colour for a "0" count
+		// (inventory_table.go, countColumn). A LOW finding reads as barely
+		// more remarkable than nothing found.
+		SeverityLow:    "#585b70",
+		SeverityLowFg:  "#cdd6f4",
+		SeverityInfo:   "#45475a",
+		SeverityInfoFg: "#cdd6f4",
 	}
 }
 
@@ -245,6 +256,14 @@ func ApplyTheme(t *Theme) {
 	ColorCmdLineFg = applyColor(t.CmdLineFg, ColorHighlight)
 	ColorCmdLineBg = applyColor(t.CmdLineBg, ColorCmdLineBg)
 
+	// Falls back to ColorCmdLineBg, not to ColorSeverityLow: assigned after
+	// ColorCmdLineBg above rather than beside the other Table* colors, since
+	// a fallback read before ColorCmdLineBg's own assignment this pass would
+	// see last theme's value instead of this one's — the same ordering
+	// ColorChartBg below depends on. Any theme file predating this key omits
+	// it, so this fallback is what most installs actually render with.
+	ColorTableLineSelected = applyColor(t.TableLineSelected, ColorCmdLineBg)
+
 	// A chart's background is that of the command line: it's the surface
 	// "one shade lighter" that every theme already defines, so a chart
 	// stands out from the rest of its box without any theme having to
@@ -291,7 +310,12 @@ func ApplyTheme(t *Theme) {
 	ColorSeverityHighFg = applyColor(t.SeverityHighFg, ColorBlack)
 	ColorSeverityMedium = applyColor(t.SeverityMedium, ColorWarn)
 	ColorSeverityMediumFg = applyColor(t.SeverityMediumFg, ColorBlack)
-	ColorSeverityLow = applyColor(t.SeverityLow, ColorCmdLineBg)
+	// Falls back to ColorDim rather than ColorCmdLineBg: a theme predating
+	// this recolouring that still sets severity_low explicitly keeps its own
+	// choice, but one that leaves it unset gets the new intent — "low
+	// severity" reading as unremarkable as a "0" count — rather than the old
+	// near-background tone by coincidence.
+	ColorSeverityLow = applyColor(t.SeverityLow, ColorDim)
 	ColorSeverityLowFg = applyColor(t.SeverityLowFg, ColorText)
 	ColorSeverityInfo = applyColor(t.SeverityInfo, ColorSeverityInfo)
 	ColorSeverityInfoFg = applyColor(t.SeverityInfoFg, ColorText)

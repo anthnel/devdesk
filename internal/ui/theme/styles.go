@@ -249,12 +249,13 @@ func StatusStyle(status string) lipgloss.Style {
 // DefaultTableStyles returns the default styles for all tables in the application
 //
 // **Experimental** (§3.72 in the backlog): the "normal" selection no longer
-// paints one flat background over the whole row. It takes ColorSeverityLow —
-// the calmest color already in the palette — and leaves the foreground unset,
-// so `datatable` fills it per cell with each column's own color instead of
-// erasing it (render.go, cellStyle). `TableStylesForState("error"/"busy")`
-// and `TableStylesForSeverity` are untouched: their solid backgrounds still
-// mean "this whole row is in that state," which per-cell colors would fight.
+// paints one flat background over the whole row. It takes
+// ColorTableLineSelected — a dedicated key, tunable without touching the
+// severity palette — and leaves the foreground unset, so `datatable` fills it
+// per cell with each column's own color instead of erasing it (render.go,
+// cellStyle). `TableStylesForState("error"/"busy")` and
+// `TableStylesForSeverity` are untouched: their solid backgrounds still mean
+// "this whole row is in that state," which per-cell colors would fight.
 func DefaultTableStyles() table.Styles {
 	s := table.DefaultStyles()
 
@@ -264,7 +265,7 @@ func DefaultTableStyles() table.Styles {
 		Bold(true)
 
 	s.Selected = s.Selected.
-		Background(ColorSeverityLow).
+		Background(ColorTableLineSelected).
 		Bold(true)
 
 	return s

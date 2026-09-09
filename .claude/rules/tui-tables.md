@@ -141,15 +141,18 @@ in," and no column color is worth losing it.
 
 **The plain "normal" selection is the exception (§3.72, experimental).**
 `Style` *is* consulted there — `cellStyle` composites it with
-`ColorSeverityLow` and bold **on every cell itself**, rather than dropping it
-for one outer wrap. That sidesteps the defect above instead of reproducing
-it: a cell's own reset only ever uncovers the *same* background the next
-cell immediately repaints, so nothing but that background is ever exposed
-between two cells. `Cut`/`TailStyle` follow the same rule: both runs
-repaint `ColorSeverityLow` and bold themselves (`runStyle`'s `selected`
-branch), so a reset between the two runs never uncovers anything but that
-shared background either — a load gauge keeps its fill/track split under
-the cursor instead of collapsing to `Style`'s single fill colour.
+`ColorTableLineSelected` and bold **on every cell itself**, rather than
+dropping it for one outer wrap. That sidesteps the defect above instead of
+reproducing it: a cell's own reset only ever uncovers the *same* background
+the next cell immediately repaints, so nothing but that background is ever
+exposed between two cells. `Cut`/`TailStyle` follow the same rule: both runs
+repaint `ColorTableLineSelected` and bold themselves (`runStyle`'s
+`selected` branch), so a reset between the two runs never uncovers anything
+but that shared background either — a load gauge keeps its fill/track split
+under the cursor instead of collapsing to `Style`'s single fill colour. The
+track becomes a visible rail rather than an invisible one: its own colour
+(`ColorSeverityLow`) and the selection background (`ColorTableLineSelected`)
+are two distinct keys, not one aliased to the other.
 
 #### Background
 
@@ -193,7 +196,10 @@ filled or empty exclusively by which color it carries.
   fixed, whatever the fill's own level is. Without it, an idle row's `░` and
   a critical row's `░` would carry whatever color `Style` had picked for
   that row's *fill*, which would read as the level bleeding into cells that
-  were never filled.
+  were never filled. `ColorSeverityLow` defaults to the same tone as
+  `ColorDim` (the counter zeroes above): the rail reads as unremarkable for
+  the same reason a `0` does, which is the argument this bullet already
+  makes generalised to a bar instead of a digit.
 
 This is close to the CI column's own criterion (an idle gauge, entirely
 track-colored, *is* what "no load" looks like) but reaches further: the CI
