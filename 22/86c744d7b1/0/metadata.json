@@ -1,0 +1,60 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "2286c744d7b1",
+  "session_id": "aab5641d-c0be-4e53-854b-0ed18650a413",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-09T05:49:39.4708407Z",
+  "branch": "experiment/datatable-selection-theme",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "c016d2d8b7f6",
+  "checkpoint_transcript_start": 323,
+  "transcript_lines_at_start": 323,
+  "compact_transcript_start": 47,
+  "token_usage": {
+    "input_tokens": 110,
+    "cache_creation_tokens": 87564,
+    "cache_read_tokens": 10550488,
+    "output_tokens": 29725,
+    "api_call_count": 55
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-login-2026-09-09T05:32:23.7593041Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "login"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "33b091b58eb5",
+      "timestamp": "2026-09-09T05:32:23.7593041Z",
+      "native": {
+        "command": "/login"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/login",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

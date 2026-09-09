@@ -1,0 +1,5 @@
+regarde la capture "Capture d'écran 2026-09-09 073516.png" il y a un bug sur les lignes sélectionnées dans la vue ct. Les jauges sur une ligne sélectionnée on tous les caractères "░" colorés
+
+---
+
+je suis satisfait du résultat, il faudrait une nouvelle clé dans la structure theme pour renseigner cette couleur (table_line_selected), mets la même valeur que le low cve actuel. Ensuite on va changer de couleur pour le low cve actuel on va utiliser la même couleur que les 0 dans l'écran sec.
