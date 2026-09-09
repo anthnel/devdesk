@@ -96,3 +96,5 @@ Opened from another view (a file in Workspaces, a log in Containers);
 | `g` | Go to a line (prompts for a number) |
 | `ctrl+r` / `F` | Reload once / follow (tail) |
 | `V` | Open in the system pager (container logs only) |
+| `Y` | Copy the document's content to the clipboard |
+| `O` | Open the file in the configured IDE (files only) |

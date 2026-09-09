@@ -99,8 +99,11 @@ Measuring column widths against actual content is not free, so it's not done on 
 
 Two direct consequences of that split:
 
-- **The selected row is not colored per-cell.** The entire selected row is handed to one dedicated "selected" style as a whole, because a color applied to only part of a row would end with a reset code that also cancels the selection highlight for the remainder of the line.
+- **A row colored to show a state is not colored per-cell.** A row in an error, busy, or severity state (e.g., a CRITICAL finding) is handed to one dedicated style as a whole, because a color applied to only part of such a row would end with a reset code that also cancels that state's background for the remainder of the line — the row is answering "what state is this in," and no individual column's color is worth losing that.
 - **Every cell on an unselected row needs an explicit background color**, even cells with no other styling — since colors don't cascade down from a container to its children in the underlying styling library, and one cell containing color without an explicit background would otherwise strip the background from all its neighbors.
+
+!!! note "Plain selection keeps each column's own color (experimental)"
+    A row selected in its ordinary state — not error, not busy, not a severity row — is the one exception: each cell repaints *itself* with the selection background and bold, rather than the whole row being handed to a single flat style. Because the reset between two cells only ever uncovers the *next* cell's own repaint of that same background, nothing but the selection color is ever exposed between them — so a column's color (say, a load gauge's green fill against its dimmed track) survives under the cursor instead of collapsing to one plain highlight. This is still marked experimental in the codebase; a status-driven row color always wins over it.
 
 !!! tip "Restraint in color use"
     A color that appears on every row communicates nothing. Zero counts, empty placeholders, and "never scanned" targets are all rendered dimmed; a normal, majority-case state (e.g., a container that's simply `running`) uses the plain default text color rather than green. Color is reserved for what's actually worth noticing without reading closely.
@@ -112,6 +115,14 @@ Tables can mark an individual row as having an action in progress on it — a sp
 Which cell a spinner takes over is a per-table decision — usually the cell holding the piece of state the action in question is about to change (e.g., a registry login button, or a container's status column) — chosen because it's specifically the cell the user doesn't need to read while the action is in flight, rather than adding an entirely new column just to hold a spinner that's blank on all but one row at a time.
 
 A "row is selected" state and a "row is busy" state can coincide, and the rule is that busy wins visually: an object mid-transition (e.g., a container that's `exited` and about to be restarted) is precisely the state that's about to change, so the busy indicator overrides the row's normal status-based coloring rather than the two competing.
+
+### Load gauges: a column where color is the only signal
+
+The Containers view draws a small bar beside each container's CPU and memory percentage — a load gauge. Every cell of it renders the *same* glyph, filled or empty alike, so unlike every other colored column in the app, color here isn't a spotlight added on top of text that already says something; with one glyph repeated across the whole bar, color is the only thing that says whether a given cell counts as "filled." The fill takes the usual green/orange/red severity ramp as load rises; the empty track stays a fixed, muted color regardless of the fill level, so an idle container's bar doesn't visually "borrow" the color of whichever level its filled portion happens to be at.
+
+Giving one cell two colors — a fill run and a track run — without breaking the "measure first, color after" rule above is done with two extra, narrowly-scoped column properties: one reporting where the fill ends (in already-measured, still-plain text), and one supplying the track's own style. This is the same ordering as ordinary per-cell coloring, just applied to two runs of a cell instead of one, and it's used nowhere else in the app.
+
+Because the gauge's value lives entirely in color, it's also the one place the exception above matters most: on a selected row rendered by the experimental plain-selection path, a gauge keeps its fill/track split under the cursor rather than collapsing to a single flat color — otherwise selecting a container would visually erase the one thing its load gauge exists to show.
 
 ### Why this consolidation mattered
 
