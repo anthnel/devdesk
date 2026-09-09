@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 	"github.com/muesli/termenv"
@@ -121,15 +122,33 @@ func TestANarrowColumnTruncatesTheTextAndNotTheEscape(t *testing.T) {
 
 // ── The selected row ─────────────────────────────────────────────────────────
 
-// Per-cell colours are dropped on the selected row, by decision: the row is
-// handed to styles.Selected whole, and a colour inside it closes with a reset
-// that takes the selection background with it for the rest of the line. The
-// highlight has to reach the right border.
-func TestTheSelectedRowIgnoresTheColumnColours(t *testing.T) {
+// The plain "normal" selection (§3.72) is the opposite of the state-coloured
+// case below: it keeps each column's own colour rather than dropping it,
+// which is the whole point of the experiment — see cellStyle's doc comment
+// for why that is safe here and not in the state-coloured case.
+func TestTheDefaultSelectionKeepsTheColumnColours(t *testing.T) {
 	withTrueColor(t)
 
-	plain := loaded(t)
-	coloured := colouredTable(t)
+	coloured := colouredTable(t) // no SelectedStyles — the plain, default path
+
+	selected := rowLines(&coloured)[0] // "api", running, under the cursor
+	if !strings.Contains(selected, foreground(theme.ColorOK)) {
+		t.Errorf("the selected row lost the State column's colour: %q", selected)
+	}
+	if !strings.Contains(selected, background(theme.ColorTableLineSelected)) {
+		t.Errorf("the selected row does not carry the new selection background: %q", selected)
+	}
+}
+
+// A view that has coloured the row whole — error, busy, a CVE severity, via
+// SelectedStyles — still drops per-cell colours: the row is handed to
+// styles.Selected, and a colour inside it would close with a reset that takes
+// that solid background with it for the rest of the line.
+func TestAStateColouredSelectionIgnoresTheColumnColours(t *testing.T) {
+	withTrueColor(t)
+
+	plain := errorStyledTable(t, testConfig)        // no column Style
+	coloured := errorStyledTable(t, colouredConfig) // the State column is coloured
 
 	if got, want := rowLines(&coloured)[0], rowLines(&plain)[0]; got != want {
 		t.Errorf("the selected row renders as\n  %q\nwant it identical to the uncoloured table\n  %q", got, want)
@@ -137,15 +156,28 @@ func TestTheSelectedRowIgnoresTheColumnColours(t *testing.T) {
 }
 
 // The consequence, stated as its own property: whatever the columns ask for,
-// the selected row closes its styling once, at the end.
-func TestTheSelectedRowKeepsItsHighlightToTheEnd(t *testing.T) {
+// a state-coloured selection still closes its styling once, at the end.
+func TestAStateColouredSelectionKeepsItsHighlightToTheEnd(t *testing.T) {
 	withTrueColor(t)
-	m := colouredTable(t)
+	m := errorStyledTable(t, colouredConfig)
 
 	selected := strings.TrimSuffix(rowLines(&m)[0], "\x1b[0m")
 	if body, _, early := strings.Cut(selected, "\x1b[0m"); early {
 		t.Errorf("the selected row resets its styling after %q, losing the highlight for the rest of the line", visible(body))
 	}
+}
+
+// errorStyledTable forces the row under the cursor into the "error" selection
+// state via SelectedStyles, the way a view derives it for an exited container
+// or a CRITICAL finding — never by colouring a column.
+func errorStyledTable(t *testing.T, baseConfig func() Config[row]) Model[row] {
+	t.Helper()
+	cfg := baseConfig()
+	cfg.SelectedStyles = func(row) table.Styles { return theme.TableStylesForState("error") }
+	m := New(cfg)
+	m.Resize(120, 10)
+	m.SetItems(fixtures())
+	return m
 }
 
 // ── The rest of the line ─────────────────────────────────────────────────────

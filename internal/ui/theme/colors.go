@@ -45,6 +45,14 @@ var (
 	ColorTableSelectedFg lipgloss.Color
 	ColorTableSelectedBg lipgloss.Color
 
+	// ColorTableLineSelected is the background a datatable's plain "normal"
+	// selected row paints per cell (§3.72) — DefaultTableStyles' s.Selected,
+	// and render.go's cellStyle/runStyle selected branches (preserveColumnColors).
+	// It used to alias ColorSeverityLow directly; a dedicated key lets a theme
+	// tune the selection independently of the severity palette, which is what
+	// SeverityLow now is — see its own doc below.
+	ColorTableLineSelected lipgloss.Color
+
 	ColorCmdLineFg         lipgloss.Color
 	ColorCmdLineBg         lipgloss.Color
 	ColorCmdLineInactiveFg lipgloss.Color
@@ -136,6 +144,13 @@ var (
 	ColorIconImage       lipgloss.Color
 
 	// Severity colors (background + foreground pairs)
+	//
+	// ColorSeverityLow's default now equals ColorDim's — the tone the :sec
+	// inventory already uses for a "0" count (inventory_table.go, countColumn):
+	// a LOW finding is, by the same reasoning that grades a count column,
+	// barely worth a glance next to CRITICAL/HIGH/MEDIUM. A theme may still
+	// separate the two; the default treats "low severity" and "nothing found"
+	// as the same shade of unremarkable.
 	ColorSeverityCritical   lipgloss.Color
 	ColorSeverityCriticalFg lipgloss.Color
 	ColorSeverityHigh       lipgloss.Color

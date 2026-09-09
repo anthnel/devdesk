@@ -12708,6 +12708,130 @@ attendue a bien été vue — pas seulement qu'aucune ligne inattendue ne l'a é
 
 ---
 
+### 3.72 Sélection « normale » — fond low-CVE, gras, couleurs de colonnes conservées — **expérimental**
+
+Demande directe : essayer un autre thème pour la ligne sélectionnée d'un
+`datatable` — `ColorSeverityLow` en fond, gras, et garder les couleurs de
+colonnes comme sur une ligne non sélectionnée. Ce que Rule 122 documentait
+jusqu'ici comme une contrainte technique (« `Style` n'est jamais consulté sur
+la ligne sélectionnée ») ne l'était qu'à moitié : c'est le fait de renvoyer
+**une seule** couleur pour toute la ligne (`styles.Selected.Render(joined)`)
+qui casse — un reset ANSI niché ferme aussi le fond de l'enveloppant. La
+correction est de peindre le fond et le gras **sur chaque cellule lue
+elle-même**, exactement comme `render.go` le fait déjà pour la ligne non
+sélectionnée (Rule 115) — un reset entre deux cellules ne découvre alors
+jamais que le même fond, aussitôt repeint par la suivante.
+
+**Portée limitée à la sélection « normale ».** Les variantes qu'une vue
+choisit elle-même — `TableStylesForState("error"/"busy")`,
+`TableStylesForSeverity` — gardent leur fond plein inchangé : une ligne
+`exited` en rouge ou une CVE CRITICAL colorée disent « toute cette ligne est
+dans cet état », ce que des couleurs par cellule contrediraient. Le
+mécanisme : `datatable.Model` porte un nouveau `preserveColumnColors bool`,
+recalculé dans `applyStyles()` en comparant le fond résolu à
+`ColorSeverityLow` — vrai seulement quand rien (ni `SelectedStyles`, ni le
+surclassement busy) n'a repris la main sur la ligne. `cellStyle` le lit pour
+choisir entre l'ancien traitement (cellule incolore, tout au wrapper) et le
+nouveau (couleur de colonne + fond partagé, par cellule).
+
+`Cut`/`TailStyle` (les jauges de charge, §3.71) restent non consultés sur une
+ligne colorée par une vue (`error`/`busy`/severity) — le découpage en deux
+teintes coûterait son propre reset au milieu d'un fond que cette ligne ne
+peut pas se permettre de rouvrir. **Correction du 2026-09-09** (capture
+d'écran fournie par l'utilisateur, jauge "1 core"/"Limit" entièrement
+colorée sur `gauge-mem` sélectionné) : la sélection « normale » consulte
+maintenant `Cut`/`TailStyle` elle aussi, exactement comme `Style` — chaque
+run repeint `ColorSeverityLow` et le gras lui-même
+(`runStyle(..., selected)`), donc un reset entre les deux runs ne découvre
+jamais que ce même fond, aussitôt repeint par le run suivant. Une jauge
+garde donc sa distinction remplissage/rail sous le curseur au lieu de
+s'aplatir sur la seule couleur de `Style`.
+
+#### Deux réserves à énoncer plutôt qu'à découvrir
+
+- **`ColorTableSelectedFg`/`ColorTableSelectedBg` n'ont plus aucun lecteur.**
+  Seul `DefaultTableStyles()` les consommait ; les variantes error/busy/
+  severity utilisent leurs propres couleurs. Elles restent déclarées
+  (`colors.go`, `manager.go`) et lisibles depuis un fichier de thème
+  (`TableSelectedFg`/`Bg`) — un thème qui les définit n'aura simplement plus
+  d'effet sur la sélection normale. Non retiré tant que l'expérience n'est
+  pas confirmée ; à retirer proprement si elle l'est.
+- **`ColorSeverityLow` sert déjà de couleur de rail aux jauges de charge**
+  (`theme.GaugeTrackStyle()`, §3.71) — c'est la même teinte, choisie ici pour
+  la même raison (la plus calme de la palette). Depuis la correction du
+  2026-09-09, le rail *apparaît* sur une ligne sélectionnée. Ce point est
+  repris et clos par §3.73 ci-dessous : `ColorSeverityLow` et le fond de
+  sélection sont devenus deux clés distinctes plutôt qu'un même alias, donc
+  le rail y est visible plutôt qu'invisible — voir §3.73 pour le detail et
+  pour ce que ça change à la couleur elle-même.
+
+---
+
+### 3.73 `table_line_selected` — nouvelle clé, et `severity_low` recoloré sur le ton des « 0 »
+
+Demande directe, faisant suite à §3.72 : sortir le fond de la sélection
+« normale » de sa dépendance à `ColorSeverityLow` pour lui donner sa **propre**
+clé de thème, puis changer la couleur de `severity_low` elle-même pour
+reprendre le ton déjà utilisé par les compteurs à `0` de l'écran `:sec`
+(`inventory_table.go`, `countColumn` — `theme.DimStyle`, qui aliase
+`ColorDim`).
+
+**Nouvelle clé : `ColorTableLineSelected` / `table_line_selected`.**
+`DefaultTableStyles()`, et les deux branches `selected` de `render.go`
+(`cellStyle`, `runStyle`) qui peignent le fond de la sélection « normale »
+cellule par cellule (§3.72), lisent maintenant cette clé plutôt que
+`ColorSeverityLow` directement. Sa valeur par défaut est `#313244` —
+exactement l'ancienne valeur par défaut de `severity_low` — pour que ce
+changement seul ne change rien à l'écran. `m.preserveColumnColors`
+(`datatable.go`) compare désormais le fond résolu à `ColorTableLineSelected`
+plutôt qu'à `ColorSeverityLow` pour détecter la sélection « normale ».
+
+**`severity_low` prend le ton de `ColorDim`.** Sa valeur par défaut passe de
+`#313244` à `#585b70` — celle de `color_dim`. `SeverityTextStyle("LOW")` et
+`TableStylesForSeverity("LOW")` en héritent automatiquement puisqu'ils lisent
+`ColorSeverityLow` en direct : le texte d'une sévérité LOW, et le fond de la
+ligne sélectionnée d'une trouvaille LOW, prennent tous deux ce gris plutôt que
+l'ancien mauve-nuit à peine plus clair que le fond de l'application. Le
+fallback de `ColorSeverityLow` dans `ApplyTheme` passe pareillement de
+`ColorCmdLineBg` à `ColorDim`, pour qu'un thème qui ne fixe pas
+`severity_low` obtienne la nouvelle intention plutôt que l'ancienne
+coïncidence.
+
+**Conséquence sur les jauges de charge (§3.71).** `theme.GaugeTrackStyle()`
+continue d'aliaser `ColorSeverityLow` pour le rail — rien n'y change dans le
+code — mais la couleur elle-même devient littéralement celle de `ColorDim`,
+ce que le commentaire de `gauge.go` affirmait *ne pas* être vrai
+(« a severity colour says [low] and a grey does not ») ; le commentaire est
+corrigé en conséquence plutôt que le code, l'affirmation étant devenue fausse
+par construction. La distinction reste réelle par le **nom** de la clé (un
+thème peut toujours séparer `severity_low` de `color_dim`), simplement plus
+par sa valeur par défaut.
+
+**Sur une ligne sélectionnée, le rail redevient visible.** §3.72 puis la
+correction du 2026-09-09 (gauge-mem) faisaient coïncider, par construction,
+l'avant-plan du rail (`ColorSeverityLow`) et le fond de la sélection — ce qui
+rendait le rail invisible sous le curseur, un accident de deux clés qui
+pointaient alors la même valeur. Les deux clés étant maintenant distinctes et
+de valeurs différentes (`#585b70` contre `#313244`), le rail redevient un
+gris visible sur le fond de sélection, cohérent avec son apparence sur une
+ligne non sélectionnée plutôt qu'un cas particulier invisible.
+
+**Les douze thèmes fournis (`themes/`) reçoivent le même traitement.**
+`DefaultTheme()` n'est que le thème intégré au binaire ; les fichiers de
+`themes/` (copiés par l'utilisateur dans `~/.devdesk/themes/`, README
+§"Themes") sont indépendants et n'auraient sinon jamais gagné
+`table_line_selected` ni le recolorage. Pour chacun : `table_line_selected`
+prend l'ancienne valeur de `severity_low` de **ce même fichier** (jamais celle
+du thème par défaut), pour que la sélection ne bouge pas ; `severity_low`
+prend ensuite la valeur de `color_dim` de ce même fichier. Un thème comme
+`nord` ou `solarized-light`, dont la palette n'a rien à voir avec Catppuccin,
+garde donc sa propre teinte de gris plutôt que d'hériter de `#585b70`.
+Deux fichiers (`one-dark.json`, `tokyo-night.json`) utilisaient une
+indentation à 4 espaces plutôt que 2 ; elle est préservée par fichier plutôt
+qu'uniformisée, pour ne pas gonfler la diff avec un reformatage sans rapport.
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

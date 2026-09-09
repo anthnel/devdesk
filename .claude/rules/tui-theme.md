@@ -56,10 +56,29 @@
 | Element | Foreground | Background |
 |---------|-----------|------------|
 | Table header | `ColorSecondary` | — |
-| Selected row (normal) | `ColorBlack` | `ColorSecondary` |
+| Selected row (normal) | **each column's own** | `ColorTableLineSelected`, bold |
 | Selected row (error) | `ColorBlack` | `ColorError` |
 | Active tab | `ColorBlack` | `ColorSecondary` |
 | Inactive tab | `ColorDim` | `ColorCommandLineBg` |
+
+**Selected row (normal) is experimental** (§3.72 in the backlog). It used to
+be one flat `ColorBlack` on `ColorSecondary`, dropping every column's own
+colour — see Rule 122's "Selected row" section for why that used to be
+mandatory and why it no longer is for this one variant: every cell now
+repaints `ColorTableLineSelected` and bold **itself**, which is what makes
+keeping the per-cell foreground safe instead of a return of the defect.
+`error`, `busy` (`TableStylesForState`) and severity
+(`TableStylesForSeverity`) are untouched — a solid background there still
+means "this whole row is in that state," which per-cell colour would fight.
+
+`ColorTableLineSelected` (`table_line_selected` in a theme file) is its own
+key rather than an alias of `ColorSeverityLow`, on purpose: `ColorSeverityLow`
+now points at the same tone as `ColorDim` — the colour the `:sec` inventory
+already uses for a "0" count (Rule 122's "Color discipline") — so a theme
+tuning "how muted is a LOW finding" no longer also retunes the selection
+highlight by coincidence. Both keys default to the same hex the "normal"
+selection has always used, so nothing changes on screen from this split by
+itself.
 
 Mandatory centralized functions:
 - `theme.DefaultTableStyles()` — base style

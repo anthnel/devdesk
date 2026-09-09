@@ -31,9 +31,12 @@ import (
 // The other half of the reason is the selected row. bubbles hands the whole
 // joined row to styles.Selected, and a colour inside it closes with a reset
 // that takes the selection background with it for the rest of the line — the
-// highlight ends mid-row. So per-cell colours are dropped on the selected row
-// (see cellStyle), which is the one place the row keeps rendering exactly as it
-// did before.
+// highlight ends mid-row. A row a view has coloured whole (error, busy, a CVE
+// severity) still drops per-cell colours for exactly that reason (see
+// cellStyle). The plain "normal" selection instead gives every cell the
+// *same* background itself, which sidesteps the defect rather than reproduces
+// it — a reset between two cells never uncovers anything but that shared
+// background again.
 
 // truncationMarker ends a cell too narrow for its content.
 const truncationMarker = "…"
@@ -125,8 +128,8 @@ func (m *Model[T]) rowLine(cols []table.Column, item T, selected bool) string {
 			text = m.spinnerFrame
 		}
 		fitted := fit(text, cols[i].Width, c.TruncateHead)
-		if !selected && !busy && c.TailStyle != nil {
-			line.WriteString(m.splitCellRun(c, item, fitted))
+		if !busy && c.TailStyle != nil && (!selected || m.preserveColumnColors) {
+			line.WriteString(m.splitCellRun(c, item, fitted, selected))
 			continue
 		}
 		line.WriteString(m.cellStyle(c, item, selected, busy, i).Render(fitted))
@@ -175,11 +178,23 @@ func truncateHead(text string, width int) string {
 
 // cellStyle is the style one cell is rendered with.
 //
-// On the selected row the column's own colours are dropped and the row is
-// handed to styles.Selected whole, exactly as bubbles did: a colour inside it
-// closes with a reset that takes the selection background with it for the rest
-// of the line. The highlight answers "where am I", and no per-cell colour is
-// worth losing it to.
+// A row a view has coloured whole — error, busy, a CVE severity, via
+// SelectedStyles or the busy override — drops every column's own colour and
+// is handed to styles.Selected instead: a colour inside it would close with a
+// reset that takes that solid background with it for the rest of the line.
+// The highlight there answers "what state is this row in", and no per-cell
+// colour is worth losing it to.
+//
+// **The plain "normal" selection is the opposite case** (§3.72 in the
+// backlog, m.preserveColumnColors): each cell keeps its own colour and
+// additionally repaints ColorTableLineSelected and bold **itself**, rather than
+// once on an outer wrap. That is what makes it safe rather than a return of
+// the defect above — every cell's own reset only ever uncovers the *same*
+// background the next cell immediately repaints, so nothing but that
+// background is ever exposed between two cells. styles.Selected still wraps
+// the joined line afterward (rowLine), painting the same background again;
+// by then it is redundant colour, not load-bearing, and it is what still
+// pads the row out to the full content width.
 //
 // Off the selected row every cell carries an explicit foreground **and**
 // background, whether or not the column asked for either. Both halves are
@@ -195,12 +210,6 @@ func truncateHead(text string, width int) string {
 //     had written `Foreground(theme.ColorText)` into a Style of their own to get
 //     it back, which is the shape a missing default takes.
 //
-// **It cannot be put on `styles.Cell`, and that is what decides where it
-// goes.** Cells are rendered and then the whole row is passed to
-// `styles.Selected`: a cell color there opens a sequence whose reset closes
-// the highlight in the middle of the row. That is Rule 122's defect, and the
-// only way around it is to decide the color per cell, here, where we know
-// whether the row is selected.
 // The busy row, for its part, does not consult `Style` either: what it says
 // is that an operation is in progress, and a color by severity or by state
 // on top of that would say the opposite. The spinner's glyph keeps
@@ -208,8 +217,18 @@ func truncateHead(text string, width int) string {
 // the process of ceasing to be true.
 func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) lipgloss.Style {
 	if selected {
-		// Neither background nor text here: they would hide those of styles.Selected.
-		return m.styles.Cell
+		if !m.preserveColumnColors {
+			// Neither background nor text here: they would hide those of styles.Selected.
+			return m.styles.Cell
+		}
+		style := m.styles.Cell
+		if c.Style != nil {
+			style = c.Style(item).Padding(0, 1)
+		}
+		if _, unset := style.GetForeground().(lipgloss.NoColor); unset {
+			style = style.Foreground(theme.ColorText)
+		}
+		return style.Background(theme.ColorTableLineSelected).Bold(true)
 	}
 	if busy {
 		style := theme.DimStyle
@@ -241,7 +260,16 @@ func (m *Model[T]) cellStyle(c Column[T], item T, selected, busy bool, at int) l
 // rune index is safe: every glyph a caller uses here — braille, ASCII, the
 // truncation marker — is single-width, which callers are expected to keep
 // true rather than this function verifying it.
-func (m *Model[T]) splitCellRun(c Column[T], item T, fitted string) string {
+//
+// selected mirrors cellStyle's own selected branch: on the plain "normal"
+// selection (m.preserveColumnColors), both runs repaint ColorTableLineSelected and
+// bold themselves instead of each keeping their unselected background — the
+// same per-cell repaint that makes a single-run selected cell safe applies
+// unchanged to two runs, since a reset between them only ever uncovers that
+// same shared background, immediately repainted by the run that follows.
+// This is what lets a load gauge (Cut/TailStyle) keep its fill/track split
+// under the cursor instead of collapsing to Style's fill colour alone.
+func (m *Model[T]) splitCellRun(c Column[T], item T, fitted string, selected bool) string {
 	runes := []rune(fitted)
 	cut := c.Cut(item)
 	switch {
@@ -252,20 +280,30 @@ func (m *Model[T]) splitCellRun(c Column[T], item T, fitted string) string {
 	}
 	head := " " + string(runes[:cut])
 	tail := string(runes[cut:]) + " "
-	return m.runStyle(c.Style, item).Render(head) + m.runStyle(c.TailStyle, item).Render(tail)
+	return m.runStyle(c.Style, item, selected).Render(head) + m.runStyle(c.TailStyle, item, selected).Render(tail)
 }
 
 // runStyle applies the same foreground/background defaulting cellStyle gives
 // a single-run cell, minus the Padding — splitCellRun already pads with
 // literal characters — so a two-run cell is indistinguishable from a one-run
 // one everywhere but the run boundary.
-func (m *Model[T]) runStyle(styleFn func(T) lipgloss.Style, item T) lipgloss.Style {
+//
+// selected forces the shared selection background and bold weight
+// unconditionally, exactly as cellStyle's selected branch does for a
+// single-run cell — unlike the unselected path below, this overrides
+// whatever background the column's own Style already set (GaugeTrackStyle
+// sets one explicitly), because the selected row's background is the
+// highlight itself, not a fallback for an unset one.
+func (m *Model[T]) runStyle(styleFn func(T) lipgloss.Style, item T, selected bool) lipgloss.Style {
 	var style lipgloss.Style
 	if styleFn != nil {
 		style = styleFn(item)
 	}
 	if _, unset := style.GetForeground().(lipgloss.NoColor); unset {
 		style = style.Foreground(theme.ColorText)
+	}
+	if selected {
+		return style.Background(theme.ColorTableLineSelected).Bold(true)
 	}
 	if _, unset := style.GetBackground().(lipgloss.NoColor); unset {
 		style = style.Background(theme.ColorBackground)
