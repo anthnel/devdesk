@@ -12816,6 +12816,20 @@ de valeurs différentes (`#585b70` contre `#313244`), le rail redevient un
 gris visible sur le fond de sélection, cohérent avec son apparence sur une
 ligne non sélectionnée plutôt qu'un cas particulier invisible.
 
+**Les douze thèmes fournis (`themes/`) reçoivent le même traitement.**
+`DefaultTheme()` n'est que le thème intégré au binaire ; les fichiers de
+`themes/` (copiés par l'utilisateur dans `~/.devdesk/themes/`, README
+§"Themes") sont indépendants et n'auraient sinon jamais gagné
+`table_line_selected` ni le recolorage. Pour chacun : `table_line_selected`
+prend l'ancienne valeur de `severity_low` de **ce même fichier** (jamais celle
+du thème par défaut), pour que la sélection ne bouge pas ; `severity_low`
+prend ensuite la valeur de `color_dim` de ce même fichier. Un thème comme
+`nord` ou `solarized-light`, dont la palette n'a rien à voir avec Catppuccin,
+garde donc sa propre teinte de gris plutôt que d'hériter de `#585b70`.
+Deux fichiers (`one-dark.json`, `tokyo-night.json`) utilisaient une
+indentation à 4 espaces plutôt que 2 ; elle est préservée par fichier plutôt
+qu'uniformisée, pour ne pas gonfler la diff avec un reformatage sans rapport.
+
 ---
 
 ## 4. Existing plans

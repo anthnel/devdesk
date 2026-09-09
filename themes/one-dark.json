@@ -26,6 +26,7 @@
     "table_header_fg": "#61afef",
     "table_selected_fg": "#282c34",
     "table_selected_bg": "#61afef",
+    "table_line_selected": "#2c313c",
     "cmd_line_fg": "#d19a66",
     "cmd_line_bg": "#2c313c",
     "cmd_line_inactive_fg": "#5c6370",
@@ -36,7 +37,7 @@
     "severity_high_fg": "#282c34",
     "severity_medium": "#e5c07b",
     "severity_medium_fg": "#282c34",
-    "severity_low": "#2c313c",
+    "severity_low": "#5c6370",
     "severity_low_fg": "#abb2bf",
     "severity_info": "#3e4451",
     "severity_info_fg": "#abb2bf"
