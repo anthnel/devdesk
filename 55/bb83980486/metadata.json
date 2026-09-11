@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "55bb83980486",
+  "strategy": "manual-commit",
+  "branch": "fix/trivy-cache-lock-serialize",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/55/bb83980486/0/metadata.json",
+      "transcript": "/55/bb83980486/0/full.jsonl",
+      "compact_transcript": "/55/bb83980486/0/transcript.jsonl",
+      "content_hash": "/55/bb83980486/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 60,
+    "cache_creation_tokens": 236571,
+    "cache_read_tokens": 5701071,
+    "output_tokens": 20955,
+    "api_call_count": 30
+  }
+}

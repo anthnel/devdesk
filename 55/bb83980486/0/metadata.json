@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.10.0",
+  "checkpoint_id": "55bb83980486",
+  "session_id": "3a45d6fd-077d-4082-b375-147fded2eace",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-11T05:52:20.384194977Z",
+  "branch": "fix/trivy-cache-lock-serialize",
+  "checkpoints_count": 2,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "d2cdafbd97de",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 60,
+    "cache_creation_tokens": 236571,
+    "cache_read_tokens": 5701071,
+    "output_tokens": 20955,
+    "api_call_count": 30
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 73,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 73
+      }
+    }
+  ]
+}
