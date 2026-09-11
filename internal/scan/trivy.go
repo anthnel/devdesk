@@ -87,12 +87,30 @@ func RunTrivy(ctx context.Context, target string, targetType TargetType, license
 	return runTrivy(ctx, tc, progressFn)
 }
 
+// trivySem serializes every Trivy process this application starts.
+//
+// Trivy's local cache — the vulnerability database and the fs cache, both
+// BoltDB — allows only one writer at a time. Scanner.Scan starts several
+// Trivy stages concurrently for a single target (vuln, secret, misconfig),
+// and a batch scan runs several targets concurrently on top of that: two
+// Trivy processes racing for the cache lock do not queue behind each other,
+// the loser fails outright with "unable to acquire cache or database lock".
+// A size-1 semaphore around every invocation turns that race into a queue.
+var trivySem = make(chan struct{}, 1)
+
 // runTrivy executes a built invocation and parses what it wrote to stdout.
 //
 // A non-zero exit is not on its own a failure: Trivy exits 1 when it finds
 // vulnerabilities, and the report on stdout is exactly what the caller asked
 // for. Only an exit that produced no report is reported as an error.
 func runTrivy(ctx context.Context, tc toolCmd, progressFn func(string)) ([]Finding, error) {
+	select {
+	case trivySem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-trivySem }()
+
 	stdout, err := runner.Run(ctx, tc, progressFn)
 	if err != nil {
 		var exit *exitError

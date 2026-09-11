@@ -50,6 +50,20 @@ Two consequences worth keeping:
   `AddToGitleaksIgnore` would fabricate one and report success for a line
   nothing will ever match.
 
+**Every Trivy process this application starts is serialized, through a
+package-level semaphore in `runTrivy` (`trivy.go`).** `Scanner.Scan` runs its
+vuln, misconfig and both secret stages concurrently for one target, and a
+batch scan runs several targets concurrently on top of that (`batchScanCmd`,
+`internal/ui/oci_resources/commands.go`) — so a single scan of one image can
+already start three Trivy processes at once, and a batch multiplies that by
+its worker count. Trivy's local cache — the vulnerability database and the fs
+cache, both BoltDB — allows only one writer; two of those processes racing for
+it do not queue behind each other, the loser fails outright with `unable to
+acquire cache or database lock ... timeout`. The semaphore turns the race into
+a queue instead, and the wait respects the scan's own context, so `K` in
+`:jobs` still cancels a run that has not even reached its process yet. Gitleaks
+and plumber do not share this cache and are not serialized by it.
+
 **A gitleaks exit code says nothing on its own; the report is what separates a
 result from a failure** (§3.50, D56). Measured on v8.30.1: a clean repository
 exits **0** and writes `[]`, secrets found exit 1 **with** the report, and any

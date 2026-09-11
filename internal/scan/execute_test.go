@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // scriptedRunner stands in for the scanners. The reply is chosen per invocation
@@ -247,6 +249,70 @@ func TestTheMisconfigScanAsksForTheMisconfigScanner(t *testing.T) {
 	}
 	if cmds := r.commands(); len(cmds) != 1 || !strings.Contains(cmds[0], "--scanners misconfig") {
 		t.Errorf("ran %v, want the misconfig scanner", cmds)
+	}
+}
+
+// Scanner.Scan starts several Trivy stages at once for one target (vuln,
+// secret, misconfig), and a batch scan runs several targets at once on top of
+// that. Trivy's local cache accepts only one writer, so two of these
+// processes actually running at the same instant is exactly the race that
+// produced "unable to acquire cache or database lock" in the field.
+func TestConcurrentTrivyStagesAreSerialized(t *testing.T) {
+	var inFlight, overlapped int32
+	r := &scriptedRunner{reply: func(toolCmd) ([]byte, error) {
+		if atomic.AddInt32(&inFlight, 1) > 1 {
+			atomic.StoreInt32(&overlapped, 1)
+		}
+		time.Sleep(10 * time.Millisecond)
+		atomic.AddInt32(&inFlight, -1)
+		return []byte(`{"Results":[]}`), nil
+	}}
+	useRunner(t, r)
+
+	var wg sync.WaitGroup
+	for range 5 {
+		wg.Go(func() {
+			_, _ = RunTrivy(context.Background(), "/repos", TargetDirectory, false,
+				ToolSpec{Source: ToolSourceBinary}, "", false, false, nil)
+		})
+	}
+	wg.Wait()
+
+	if atomic.LoadInt32(&overlapped) != 0 {
+		t.Error("two Trivy invocations ran at the same time — the cache-lock race is back")
+	}
+	if r.count() != 5 {
+		t.Errorf("count = %d, want 5", r.count())
+	}
+}
+
+// A run queued behind the Trivy semaphore must not wait past its own
+// cancellation — K in :jobs cancels the scan's context, and that has to reach
+// a stage that has not even started its process yet.
+func TestAQueuedTrivyRunCanStillBeCancelled(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	r := &scriptedRunner{reply: func(toolCmd) ([]byte, error) {
+		close(started)
+		<-release
+		return []byte(`{"Results":[]}`), nil
+	}}
+	useRunner(t, r)
+
+	go func() {
+		_, _ = RunTrivy(context.Background(), "/repos", TargetDirectory, false,
+			ToolSpec{Source: ToolSourceBinary}, "", false, false, nil)
+	}()
+	<-started // the first run now holds the semaphore
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := RunTrivy(ctx, "/repos", TargetDirectory, false,
+		ToolSpec{Source: ToolSourceBinary}, "", false, false, nil)
+	close(release)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled — a queued run must not wait past its own cancellation", err)
 	}
 }
 
