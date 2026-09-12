@@ -4,6 +4,8 @@ import (
 	"context"
 	"strconv"
 	"strings"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // Image represents a Docker image with its metadata
@@ -37,15 +39,14 @@ func (img Image) ScanTarget() string {
 
 // ListImages returns a list of local Docker images
 func ListImages() ([]Image, error) {
-	if err := requireDocker(); err != nil {
+	if err := requireEngine(); err != nil {
 		return nil, err
 	}
 
 	// {{.Size}} from docker image ls gives disk usage (not content size)
-	output, err := dockerOutput("image", "ls", "--format",
-		"{{.ID}}\t{{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}")
+	output, err := dockerOutput("image", "ls", "--format", templates().ImageLS)
 	if err != nil {
-		return nil, wrapErr("docker image ls", err)
+		return nil, wrapErr(cmdLabel("image ls"), err)
 	}
 
 	var images []Image
@@ -90,7 +91,7 @@ func enrichImagesWithContentSize(images []Image) {
 		ids = append(ids, img.ID)
 	}
 
-	args := append([]string{"image", "inspect", "--format", "{{.ID}}\t{{.Size}}"}, ids...)
+	args := append([]string{"image", "inspect", "--format", templates().ImageInspect}, ids...)
 	output, err := dockerOutput(args...)
 	if err != nil {
 		return
@@ -124,9 +125,26 @@ type dfInfo struct {
 	Containers int
 }
 
-// enrichImagesWithDiskUsage populates UniqueSize and Containers from docker system df -v.
-// Parses the raw text output because --format with -v does not expose per-image fields.
+// enrichImagesWithDiskUsage populates UniqueSize and Containers from
+// `<engine> system df -v`.
+//
+// It parses the raw text output because --format with -v does not expose
+// per-image fields — which is why this is the one parsed output with no
+// template, and the one that does not carry over to another engine. The table
+// is fixed-width, read at offsets taken from its header line, so an engine that
+// prints a different header would have its rows sliced at the wrong columns and
+// report numbers that are wrong rather than absent.
+//
+// Only docker is known to print it (engine.Shape.ParsesSystemDFVerbose). Under
+// podman both columns stay zero, which the table renders as a dim "-": an
+// absence reads as an absence, a wrong number does not.
+//
+// TODO(§3.67): measure `podman system df -v` and, if its table is compatible,
+// let ParsesSystemDFVerbose say so.
 func enrichImagesWithDiskUsage(images []Image) {
+	if !engine.Current().ParsesSystemDFVerbose() {
+		return
+	}
 	output, err := dockerOutput("system", "df", "-v")
 	if err != nil {
 		return
@@ -216,12 +234,12 @@ func RemoveImage(id string, force bool) error {
 	if force {
 		args = []string{"rmi", "-f", id}
 	}
-	return mutate("docker rmi", args...)
+	return mutate(cmdLabel("rmi"), args...)
 }
 
 // PruneImages removes all dangling (unused) images and returns the output
 func PruneImages() (string, error) {
-	return prune("docker image prune", "image", "prune", "-f")
+	return prune(cmdLabel("image prune"), "image", "prune", "-f")
 }
 
 // PullImage pulls a Docker image from a registry.
@@ -235,21 +253,21 @@ func PullImage(imageName string) error {
 // the only one long enough for `K` to be offered on it, and cutting it leaves
 // nothing behind — Docker resumes a pull by layer (jobs.KindPull.Cancellable).
 func PullImageContext(ctx context.Context, imageName string) error {
-	if err := requireDocker(); err != nil {
+	if err := requireEngine(); err != nil {
 		return err
 	}
-	return mutateContext(ctx, "docker pull", "pull", imageName)
+	return mutateContext(ctx, cmdLabel("pull"), "pull", imageName)
 }
 
 // GetImageExposedPorts returns the container port specs declared by EXPOSE in an image.
 // Each entry uses the "port/protocol" format, e.g. "80/tcp" or "53/udp".
 func GetImageExposedPorts(imageName string) ([]string, error) {
-	if err := requireDocker(); err != nil {
+	if err := requireEngine(); err != nil {
 		return nil, err
 	}
-	output, err := dockerOutput("image", "inspect", "--format", "{{json .Config.ExposedPorts}}", imageName)
+	output, err := dockerOutput("image", "inspect", "--format", templates().ImageExposedPorts, imageName)
 	if err != nil {
-		return nil, wrapErr("docker image inspect", err)
+		return nil, wrapErr(cmdLabel("image inspect"), err)
 	}
 	return parseExposedPorts(string(output)), nil
 }

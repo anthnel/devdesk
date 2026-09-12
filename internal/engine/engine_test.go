@@ -209,7 +209,7 @@ func TestEveryEngineDeclaresItsOwnHelperPrefixAndAuthFile(t *testing.T) {
 			t.Errorf("%s: HelperPrefix = %q, want it to start with the engine name",
 				name, shape.HelperPrefix)
 		}
-		if len(shape.AuthPaths) == 0 {
+		if len(shape.AuthPaths()) == 0 {
 			t.Errorf("%s: declares no auth path", name)
 		}
 	}
@@ -229,24 +229,54 @@ func TestOnlyDockerParsesTheVerboseDiskReport(t *testing.T) {
 
 // AuthPath names the file a login would write when none exists yet — the first
 // declared one — and the one that is actually there when one is.
+//
+// Podman is the engine with two, so it is the one this can be stated on.
 func TestAuthPathPrefersTheFileThatExists(t *testing.T) {
-	shape := Shape{AuthPaths: []string{"/nowhere/auth.json", "/nowhere/else/config.json"}}
-	if got := shape.AuthPath(); got != "/nowhere/auth.json" {
-		t.Errorf("AuthPath() = %q with nothing on disk, want the first declared path", got)
+	home := t.TempDir()
+	runtimeDir := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+
+	shape := ShapeFor(Podman)
+	paths := shape.AuthPaths()
+	if len(paths) != 2 {
+		t.Fatalf("podman declares %d auth paths (%v), want the runtime one and the config one", len(paths), paths)
 	}
 
-	dir := t.TempDir()
-	second := filepath.Join(dir, "config.json")
-	if err := os.WriteFile(second, []byte("{}"), 0o600); err != nil {
+	// Nothing on disk: the answer is where a login would write.
+	if got := shape.AuthPath(); got != paths[0] {
+		t.Errorf("AuthPath() = %q with nothing on disk, want the first declared path %q", got, paths[0])
+	}
+
+	// The second exists and the first does not: the existing one wins, which is
+	// what makes a podman that never had $XDG_RUNTIME_DIR set still readable.
+	if err := os.MkdirAll(filepath.Dir(paths[1]), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	shape = Shape{AuthPaths: []string{filepath.Join(dir, "missing.json"), second}}
-	if got := shape.AuthPath(); got != second {
-		t.Errorf("AuthPath() = %q, want the file that exists (%q)", got, second)
+	if err := os.WriteFile(paths[1], []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := shape.AuthPath(); got != paths[1] {
+		t.Errorf("AuthPath() = %q, want the file that exists (%q)", got, paths[1])
+	}
+}
+
+// The paths are resolved when they are asked for, not when the shape is built.
+// A shape is built at package initialisation, so a $HOME read there would be
+// frozen before anything else in the process runs.
+func TestTheAuthPathFollowsTheEnvironment(t *testing.T) {
+	shape := ShapeFor(Docker)
+
+	first := t.TempDir()
+	t.Setenv("HOME", first)
+	if got := shape.AuthPath(); !strings.HasPrefix(got, first) {
+		t.Fatalf("AuthPath() = %q, want it under %q", got, first)
 	}
 
-	if got := (Shape{}).AuthPath(); got != "" {
-		t.Errorf("AuthPath() = %q with no declared path, want \"\"", got)
+	second := t.TempDir()
+	t.Setenv("HOME", second)
+	if got := shape.AuthPath(); !strings.HasPrefix(got, second) {
+		t.Errorf("AuthPath() = %q after HOME moved, want it under %q — the path was cached", got, second)
 	}
 }
 

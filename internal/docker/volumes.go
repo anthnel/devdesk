@@ -12,12 +12,12 @@ type Volume struct {
 
 // ListVolumes returns a list of Docker volumes
 func ListVolumes() ([]Volume, error) {
-	if err := requireDocker(); err != nil {
+	if err := requireEngine(); err != nil {
 		return nil, err
 	}
-	output, err := dockerOutput("volume", "ls", "--format", "{{.Name}}\t{{.Driver}}\t{{.Mountpoint}}")
+	output, err := dockerOutput("volume", "ls", "--format", templates().VolumeLS)
 	if err != nil {
-		return nil, wrapErr("docker volume ls", err)
+		return nil, wrapErr(cmdLabel("volume ls"), err)
 	}
 
 	var volumes []Volume
@@ -42,15 +42,15 @@ func CreateVolume(name, driver string) error {
 		args = append(args, "--driver", driver)
 	}
 	args = append(args, name)
-	return mutate("docker volume create", args...)
+	return mutate(cmdLabel("volume create"), args...)
 }
 
 // RemoveVolume removes a Docker volume by name
 func RemoveVolume(name string) error {
-	return mutate("docker volume rm", "volume", "rm", name)
+	return mutate(cmdLabel("volume rm"), "volume", "rm", name)
 }
 
 // PruneVolumes removes all unused Docker volumes
 func PruneVolumes() (string, error) {
-	return prune("docker volume prune", "volume", "prune", "-f")
+	return prune(cmdLabel("volume prune"), "volume", "prune", "-f")
 }

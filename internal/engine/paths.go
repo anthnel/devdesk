@@ -10,6 +10,33 @@ import (
 // expose it at this path, on every platform the scanners run a container from.
 const dockerHostSocket = "/var/run/docker.sock"
 
+// AuthPaths are the registry credential files this engine may use, most
+// preferred first. The first that exists is read; the first of the list is
+// written when none does.
+//
+// The JSON shape is the same on both engines (`auths`, `credHelpers`,
+// `credsStore`) — only the location moves.
+func (s Shape) AuthPaths() []string {
+	if s.Name == Podman {
+		return podmanAuthPaths()
+	}
+	return dockerAuthPaths()
+}
+
+// HostSocket is the engine socket a containerised scanner can mount to inspect
+// images the host holds. Empty when there is none to mount, which is rootless
+// podman unless `podman system service` is running — an empty answer is a fact
+// to report, not a default to paper over.
+func (s Shape) HostSocket() string {
+	if s.Name == Podman {
+		return podmanHostSocket()
+	}
+	if exists(dockerHostSocket) {
+		return dockerHostSocket
+	}
+	return ""
+}
+
 // dockerAuthPaths is where `docker login` keeps registry credentials.
 //
 // A single location: docker has always written ~/.docker/config.json, and
@@ -73,13 +100,14 @@ func exists(path string) bool {
 // exists, else the first declared one — which is where a login would write.
 // Empty when the home directory could not be resolved.
 func (s Shape) AuthPath() string {
-	for _, path := range s.AuthPaths {
+	paths := s.AuthPaths()
+	for _, path := range paths {
 		if exists(path) {
 			return path
 		}
 	}
-	if len(s.AuthPaths) == 0 {
+	if len(paths) == 0 {
 		return ""
 	}
-	return s.AuthPaths[0]
+	return paths[0]
 }

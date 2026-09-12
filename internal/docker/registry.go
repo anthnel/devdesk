@@ -3,9 +3,11 @@ package docker
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // dockerHubKeys lists all keys Docker uses for Docker Hub in ~/.docker/config.json.
@@ -18,7 +20,8 @@ var dockerHubKeys = []string{
 	"https://registry-1.docker.io",
 }
 
-// registryCandidates returns all URL variants to look up in ~/.docker/config.json.
+// registryCandidates returns all URL variants to look up in the engine's auth
+// file.
 func registryCandidates(registryURL string) []string {
 	base := strings.TrimSuffix(registryURL, "/")
 
@@ -41,18 +44,26 @@ func registryCandidates(registryURL string) []string {
 	return candidates
 }
 
-// dockerConfigPath returns the path to ~/.docker/config.json.
-func dockerConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+// authPath returns the engine's registry credential file — ~/.docker/config.json
+// under docker, ${XDG_RUNTIME_DIR}/containers/auth.json or
+// ~/.config/containers/auth.json under podman.
+//
+// The JSON is the same shape on both sides (`auths`, `credHelpers`,
+// `credsStore`); only the location moves, which is why every reader and writer
+// below is unchanged apart from where it points. It is read *and written*
+// directly rather than through the CLI because `logout` leaves alias keys
+// behind — that is what made the path a friction rather than a detail (§3.67).
+func authPath() (string, error) {
+	path := engine.Current().AuthPath()
+	if path == "" {
+		return "", errors.New("cannot locate the container engine's credential file")
 	}
-	return filepath.Join(home, ".docker", "config.json"), nil
+	return path, nil
 }
 
-// readDockerConfig reads and unmarshals ~/.docker/config.json into v.
-func readDockerConfig(v any) error {
-	path, err := dockerConfigPath()
+// readAuthFile reads and unmarshals the engine's credential file into v.
+func readAuthFile(v any) error {
+	path, err := authPath()
 	if err != nil {
 		return err
 	}
@@ -66,7 +77,7 @@ func readDockerConfig(v any) error {
 // RegistryLogin authenticates with a Docker/OCI registry using `docker login`.
 // The password is passed via stdin to avoid exposing it in the process list.
 func RegistryLogin(registryURL, username, password string) error {
-	if err := requireDocker(); err != nil {
+	if err := requireEngine(); err != nil {
 		return err
 	}
 	output, err := runner.Run(dockerCmd{
@@ -75,7 +86,7 @@ func RegistryLogin(registryURL, username, password string) error {
 		Combined: true,
 	})
 	if err != nil {
-		return errWithOutput("docker login", output)
+		return errWithOutput(cmdLabel("login"), output)
 	}
 	return nil
 }
@@ -86,7 +97,7 @@ func IsRegistryLoggedIn(registryURL string) bool {
 	var cfg struct {
 		Auths map[string]json.RawMessage `json:"auths"`
 	}
-	if err := readDockerConfig(&cfg); err != nil {
+	if err := readAuthFile(&cfg); err != nil {
 		return false
 	}
 	for _, c := range registryCandidates(registryURL) {
@@ -97,32 +108,32 @@ func IsRegistryLoggedIn(registryURL string) bool {
 	return false
 }
 
-// RegistryLogout removes stored credentials for a Docker/OCI registry.
-// It runs `docker logout` (cleans system credential stores) then directly
-// removes all matching keys from ~/.docker/config.json to handle cases where
-// docker logout leaves behind alias entries (e.g. docker.io vs https://index.docker.io/v1/).
+// RegistryLogout removes stored credentials for an OCI registry.
+// It runs `<engine> logout` (cleans system credential stores) then directly
+// removes all matching keys from the engine's auth file to handle cases where
+// logout leaves behind alias entries (e.g. docker.io vs https://index.docker.io/v1/).
 func RegistryLogout(registryURL string) error {
-	if err := requireDocker(); err != nil {
+	if err := requireEngine(); err != nil {
 		return err
 	}
-	if err := mutate("docker logout", "logout", registryURL); err != nil {
+	if err := mutate(cmdLabel("logout"), "logout", registryURL); err != nil {
 		return err
 	}
 	// Also remove all matching alias keys directly from config.json.
-	_ = removeFromDockerConfig(registryURL)
+	_ = removeFromAuthFile(registryURL)
 	return nil
 }
 
-// removeFromDockerConfig removes all URL variants of registryURL from the auths
-// section of ~/.docker/config.json. Errors are non-fatal (best effort).
-func removeFromDockerConfig(registryURL string) error {
-	configPath, err := dockerConfigPath()
+// removeFromAuthFile removes all URL variants of registryURL from the auths
+// section of the engine's credential file. Errors are non-fatal (best effort).
+func removeFromAuthFile(registryURL string) error {
+	configPath, err := authPath()
 	if err != nil {
 		return err
 	}
 
 	var raw map[string]json.RawMessage
-	if err := readDockerConfig(&raw); err != nil {
+	if err := readAuthFile(&raw); err != nil {
 		return err
 	}
 	authsRaw, ok := raw["auths"]
@@ -157,8 +168,8 @@ func removeFromDockerConfig(registryURL string) error {
 	return os.WriteFile(configPath, out, 0600)
 }
 
-// GetStoredCreds retrieves Docker credentials for registryURL from
-// ~/.docker/config.json. It tries the per-registry credential helper
+// GetStoredCreds retrieves registry credentials for registryURL from the
+// engine's auth file. It tries the per-registry credential helper
 // (credHelpers), then the global credsStore, and finally falls back to the
 // inline base64-encoded auth field. Returns ok=false when no credentials are
 // found.
@@ -170,7 +181,7 @@ func GetStoredCreds(registryURL string) (username, password string, ok bool) {
 		CredsStore  string            `json:"credsStore"`
 		CredHelpers map[string]string `json:"credHelpers"`
 	}
-	if err := readDockerConfig(&cfg); err != nil {
+	if err := readAuthFile(&cfg); err != nil {
 		return "", "", false
 	}
 

@@ -45,25 +45,22 @@ type Shape struct {
 	// shared, the naming is not.
 	HelperPrefix string
 
-	// AuthPaths are the registry credential files, most preferred first, with
-	// $HOME and $XDG_RUNTIME_DIR already resolved. The first that exists is
-	// read; the first of the list is written when none does.
-	//
-	// The JSON shape is the same on both sides (`auths`, `credHelpers`,
-	// `credsStore`) — only the location moves.
-	AuthPaths []string
-
-	// HostSocket is the engine socket a containerised scanner can mount to
-	// inspect images held by the host. Empty when the engine has none that can
-	// be relied on, which is rootless podman unless `podman system service`
-	// is running — so an empty value here is a fact to report, not a default
-	// to paper over.
-	HostSocket string
-
 	// Templates are the --format strings for every output this application
 	// parses.
 	Templates Templates
 }
+
+// A Shape carries no resolved filesystem path, and that is deliberate: the
+// credential file and the socket are looked up through AuthPaths(), AuthPath()
+// and HostSocket() at the moment they are needed.
+//
+// Storing them on the struct was tried and reverted. The shape is built once,
+// at package initialisation, so a $HOME or $XDG_RUNTIME_DIR read there is
+// frozen before anything else runs — and the socket is worse, since whether it
+// exists is the entire question and it can appear (`podman system service`) or
+// vanish while the application is up. A cached answer to "where is the file"
+// is a cached answer to "does it exist", which is not a thing a shape can know
+// once and for all.
 
 // Templates holds one Go template per parsed output.
 //
@@ -240,8 +237,6 @@ func shapeFor(name, binary string) Shape {
 			Name:         Podman,
 			Binary:       binary,
 			HelperPrefix: "podman-credential-",
-			AuthPaths:    podmanAuthPaths(),
-			HostSocket:   podmanHostSocket(),
 			Templates:    podmanTemplates,
 		}
 	}
@@ -249,8 +244,6 @@ func shapeFor(name, binary string) Shape {
 		Name:         Docker,
 		Binary:       binary,
 		HelperPrefix: "docker-credential-",
-		AuthPaths:    dockerAuthPaths(),
-		HostSocket:   dockerHostSocket,
 		Templates:    dockerTemplates,
 	}
 }
