@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "b4165868e6bd",
+  "strategy": "manual-commit",
+  "branch": "feat/podman-engine",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/CODEMAPS/data.md",
+    "docs/CODEMAPS/dependencies.md",
+    "docs/architecture/configuration.md",
+    "docs/architecture/network.md",
+    "docs/backlog.md",
+    "project-context.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b4/165868e6bd/0/metadata.json",
+      "transcript": "/b4/165868e6bd/0/full.jsonl",
+      "compact_transcript": "/b4/165868e6bd/0/transcript.jsonl",
+      "content_hash": "/b4/165868e6bd/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 10738,
+    "cache_read_tokens": 3550608,
+    "output_tokens": 7556,
+    "api_call_count": 9
+  }
+}
