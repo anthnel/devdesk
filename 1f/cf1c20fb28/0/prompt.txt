@@ -1,0 +1,95 @@
+merge experiment/datatable-selection-theme
+
+---
+
+merge docs/readme-site-sync ensuite merge la pr pour déclencher la release
+
+---
+
+<task-notification>
+<task-id>bz3fq5qj4</task-id>
+<summary>Monitor event: "PR 179 CI checks (release-please)"</summary>
+<event>Lint and build: pass</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bz3fq5qj4</task-id>
+<summary>Monitor event: "PR 179 CI checks (release-please)"</summary>
+<event>Lint and build: pass
+Test: pass
+ALL_CHECKS_DONE</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bz3fq5qj4</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>C:\Users\anthoni\AppData\Local\Temp\claude\C--Users-anthoni-projects-entire-anthnel-devdesk\aca93613-d055-4961-9312-f3d580f9e88f\tasks\bz3fq5qj4.output</output-file>
+<status>completed</status>
+<summary>Monitor "PR 179 CI checks (release-please)" stream ended</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bkoe6f6uy</task-id>
+<summary>Monitor event: "Release workflow run 34318485111 (tag + goreleaser)"</summary>
+<event>in_progress  | Prepare the release PR: completed success
+in_progress  | Build and attach the binaries: in_progress</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bkoe6f6uy</task-id>
+<summary>Monitor event: "Release workflow run 34318485111 (tag + goreleaser)"</summary>
+<event>completed failure | Prepare the release PR: completed success
+completed failure | Build and attach the binaries: completed failure</event>
+</task-notification>
+
+---
+
+je l'ai fait
+
+---
+
+<task-notification>
+<task-id>bc2on9myv</task-id>
+<summary>Monitor event: "Re-run of release workflow 34318485111 (goreleaser asset publish)"</summary>
+<event>in_progress  | Build and attach the binaries: in_progress
+in_progress  | Prepare the release PR: completed success</event>
+</task-notification>
+
+---
+
+est-ce que le site de doc va référencer la nouvelle release car pour l'instant il référence toujours la 1.0.0
+
+---
+
+<task-notification>
+<task-id>bc2on9myv</task-id>
+<summary>Monitor event: "Re-run of release workflow 34318485111 (goreleaser asset publish)"</summary>
+<event>completed failure | Build and attach the binaries: completed failure
+completed failure | Prepare the release PR: completed success</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b77klzrbt</task-id>
+<summary>Monitor event: "Re-run of goreleaser job after deleting the empty v1.1.0 release"</summary>
+<event>in_progress  | Build and attach the binaries: in_progress
+in_progress  | Prepare the release PR: completed success</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b77klzrbt</task-id>
+<summary>Monitor event: "Re-run of goreleaser job after deleting the empty v1.1.0 release"</summary>
+<event>completed failure | Build and attach the binaries: completed failure
+completed failure | Prepare the release PR: completed success</event>
+</task-notification>

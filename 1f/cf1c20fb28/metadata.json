@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "1fcf1c20fb28",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 7,
+  "files_touched": [
+    ".goreleaser.yaml",
+    ".worktrees/chore/release-1.1.1/.release-please-manifest.json",
+    ".worktrees/chore/release-1.1.1/CHANGELOG.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/1f/cf1c20fb28/0/metadata.json",
+      "transcript": "/1f/cf1c20fb28/0/full.jsonl",
+      "compact_transcript": "/1f/cf1c20fb28/0/transcript.jsonl",
+      "content_hash": "/1f/cf1c20fb28/0/content_hash.txt",
+      "prompt": "/1f/cf1c20fb28/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 94,
+    "cache_creation_tokens": 46346,
+    "cache_read_tokens": 13473904,
+    "output_tokens": 28814,
+    "api_call_count": 47
+  }
+}
