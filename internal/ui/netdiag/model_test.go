@@ -3,12 +3,15 @@ package netdiag
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -42,6 +45,26 @@ func TestTheResolverDefaultsToTheSystemOne(t *testing.T) {
 	}
 	if !strings.Contains(m.dnsServerInput.Placeholder, "system") {
 		t.Errorf("placeholder %q does not say what empty means", m.dnsServerInput.Placeholder)
+	}
+}
+
+// TestNewWithTargetPrefillsTheForm covers status's H (§3.66): the form is
+// filled from an already-known target rather than left for the user to type,
+// and it stays a form — NewWithTarget does not itself start the run.
+func TestNewWithTargetPrefillsTheForm(t *testing.T) {
+	m := NewWithTarget(testConfig(), netcheck.Target{Host: "example.com", Port: 8443, Resolver: "1.1.1.1"})
+
+	if got := m.targetInput.Value(); got != "example.com" {
+		t.Errorf("target = %q, want %q", got, "example.com")
+	}
+	if got := m.portInput.Value(); got != "8443" {
+		t.Errorf("port = %q, want %q", got, "8443")
+	}
+	if got := m.dnsServerInput.Value(); got != "1.1.1.1" {
+		t.Errorf("resolver = %q, want %q", got, "1.1.1.1")
+	}
+	if m.state != StateInput {
+		t.Errorf("state = %v, want StateInput — NewWithTarget must not itself start the run", m.state)
 	}
 }
 
@@ -393,6 +416,53 @@ func TestEscReturnsToTheFormAndClearsTheFilters(t *testing.T) {
 	}
 }
 
+// TestEscReturnsToTheOriginWhenOneIsSet mirrors security's own OriginView
+// test: a run opened prefilled from elsewhere (status's H, §3.66) returns
+// there on esc instead of resetting to netdiag's own form.
+func TestEscReturnsToTheOriginWhenOneIsSet(t *testing.T) {
+	m := resultsModel(t)
+	m.OriginView = command.ViewStatus
+
+	_, cmd := step(t, m, testutil.Key("esc"))
+
+	msg, ok := testutil.MsgOf[BackToOriginMsg](cmd)
+	if !ok {
+		t.Fatalf("esc emitted %T, want a return to the origin", testutil.Msg(cmd))
+	}
+	if msg.Origin != command.ViewStatus {
+		t.Errorf("Origin = %q, want %q", msg.Origin, command.ViewStatus)
+	}
+}
+
+// TestNewDiagnosticAlwaysResetsToTheFormEvenWithAnOrigin is the bug an actual
+// user hit: after H opened netdiag on a target, esc alone could only leave
+// for the origin — there was no way back to a blank form to type a wholly
+// new target, and re-entering netdiag directly (e.g. `:net`) reused the same
+// frozen results, since the router keeps the existing view rather than
+// rebuilding it. N always resets to the form regardless of OriginView.
+func TestNewDiagnosticAlwaysResetsToTheFormEvenWithAnOrigin(t *testing.T) {
+	m := resultsModel(t)
+	m.OriginView = command.ViewStatus
+
+	m = feed(t, m, testutil.Key(keymap.New))
+	if m.state != StateInput {
+		t.Fatalf("state = %v, want StateInput", m.state)
+	}
+	if m.OriginView != "" {
+		t.Errorf("OriginView = %q, want cleared — a fresh target has nothing to do with it", m.OriginView)
+	}
+}
+
+// TestNewDiagnosticWorksWithNoOriginToo — the ordinary case (opened from the
+// command line), unchanged: N does the same thing esc already does there.
+func TestNewDiagnosticWorksWithNoOriginToo(t *testing.T) {
+	m := resultsModel(t)
+	m = feed(t, m, testutil.Key(keymap.New))
+	if m.state != StateInput {
+		t.Errorf("state = %v, want StateInput", m.state)
+	}
+}
+
 func TestCtrlRRunsAgain(t *testing.T) {
 	m := resultsModel(t)
 	gen := m.runGen
@@ -418,6 +488,56 @@ func TestTheDetailPaneCarriesTheExplanation(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("the detail pane has no %q section", want)
 		}
+	}
+}
+
+// TestTheDetailPaneDrawsAWaterfallForAPhasedCheck covers §3.66's follow-up:
+// a check that breaks its Duration into Phases gets a proportional bar per
+// phase, not just the Facts prose.
+func TestTheDetailPaneDrawsAWaterfallForAPhasedCheck(t *testing.T) {
+	http := netcheck.Check{
+		ID: netcheck.CheckHTTP, Stage: netcheck.StageHTTP, Verdict: netcheck.OK,
+		Title: "HTTP", Summary: "Service answered with HTTP 200 over https",
+		Duration: 35 * time.Millisecond,
+		Phases: []netcheck.Phase{
+			{Name: "DNS", Duration: 2 * time.Millisecond},
+			{Name: "Connect", Duration: 5 * time.Millisecond},
+			{Name: "TLS", Duration: 11 * time.Millisecond},
+			{Name: "Wait", Duration: 12 * time.Millisecond},
+			{Name: "Content", Duration: 5 * time.Millisecond},
+		},
+	}
+	m := deliver(t, runningModel(t, "example.com"), http)
+	m.checksTable.SetCursor(0)
+	m = feed(t, m, testutil.Key("enter"))
+
+	out := m.View()
+	if !strings.Contains(out, "Timing") {
+		t.Fatal("the detail pane has no Timing section for a phased check")
+	}
+	for _, name := range []string{"DNS", "Connect", "TLS", "Wait", "Content"} {
+		if !strings.Contains(out, name) {
+			t.Errorf("the waterfall does not name the %q phase", name)
+		}
+	}
+	// DNS is 2/35 ≈ 6%, Content is 5/35 ≈ 14%: distinct enough that a
+	// constant-percentage bug (every phase reading the same share) would
+	// still pass a looser check.
+	if !strings.Contains(out, "6%") || !strings.Contains(out, "14%") {
+		t.Errorf("percentages are missing or wrong; got:\n%s", out)
+	}
+}
+
+// TestNoPhaseIsShownForAnUnphasedCheck — most checks time one thing and say
+// so in a Fact; a Timing section with a single 100% bar would say the same
+// thing worse.
+func TestNoPhaseIsShownForAnUnphasedCheck(t *testing.T) {
+	m := resultsModel(t)
+	m.checksTable.SetCursor(1) // the TCP check — timed, but never phased
+	m = feed(t, m, testutil.Key("enter"))
+
+	if strings.Contains(m.View(), "Timing") {
+		t.Error("an unphased check shows a Timing section it has nothing to fill")
 	}
 }
 

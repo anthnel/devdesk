@@ -246,6 +246,58 @@ func TestABrokenHandshakeFailsAndTheCertificateChecksBlameIt(t *testing.T) {
 
 // --- resolution --------------------------------------------------------------
 
+// TestAMisbehavingResolverIsToldApartFromAnUnknownName covers the case a
+// user actually hit: a custom resolver (often a router's DNS proxy) that
+// answers but with something the client can't use, rather than a plain
+// NXDOMAIN. The remedy differs — try another resolver, not check the
+// spelling — which is why Reason exists to carry the distinction.
+func TestAMisbehavingResolverIsToldApartFromAnUnknownName(t *testing.T) {
+	t.Run("server misbehaving (SERVFAIL) sets the reason and Temporary: yes", func(t *testing.T) {
+		checks := runWith(t, fakeEnv{
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return nil, &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: true}
+			},
+		}, target())
+		c := checkNamed(t, checks, CheckResolve)
+		if c.Verdict != Fail {
+			t.Fatalf("verdict = %v, want Fail", c.Verdict)
+		}
+		if c.Reason != ReasonServerMisbehaving {
+			t.Errorf("Reason = %q, want %q", c.Reason, ReasonServerMisbehaving)
+		}
+		if got := factValue(c, "Temporary"); !strings.HasPrefix(got, "Yes") {
+			t.Errorf("Temporary fact = %q, want it to say Yes for a SERVFAIL", got)
+		}
+	})
+
+	t.Run("server misbehaving (not SERVFAIL) sets Temporary: no", func(t *testing.T) {
+		checks := runWith(t, fakeEnv{
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return nil, &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: false}
+			},
+		}, target())
+		c := checkNamed(t, checks, CheckResolve)
+		if got := factValue(c, "Temporary"); !strings.HasPrefix(got, "No") {
+			t.Errorf("Temporary fact = %q, want it to say No for a non-SERVFAIL rcode", got)
+		}
+	})
+
+	t.Run("an ordinary lookup failure sets no reason and no Temporary fact", func(t *testing.T) {
+		checks := runWith(t, fakeEnv{
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return nil, errors.New("no such host")
+			},
+		}, target())
+		c := checkNamed(t, checks, CheckResolve)
+		if c.Reason != "" {
+			t.Errorf("Reason = %q, want empty — this is not the server-misbehaving case", c.Reason)
+		}
+		if got := factValue(c, "Temporary"); got != "" {
+			t.Errorf("Temporary fact = %q, want none outside the server-misbehaving case", got)
+		}
+	})
+}
+
 func TestResolutionAndReverseAreMutuallyExclusive(t *testing.T) {
 	t.Run("a name resolves forward", func(t *testing.T) {
 		checks := runWith(t, fakeEnv{}, target())
@@ -385,6 +437,194 @@ func TestAnEmptyFactIsNotRecorded(t *testing.T) {
 	c.fact("Status", "200")
 	if len(c.Facts) != 1 {
 		t.Fatalf("facts = %v, want the empty one dropped", c.Facts)
+	}
+}
+
+// --- timing --------------------------------------------------------------
+
+// advancingClock lets Now() move between two calls, unlike fakeEnv's static
+// clock — needed to assert a stage's Duration is the elapsed time it observed
+// rather than always zero.
+type advancingClock struct {
+	fakeEnv
+	next  int
+	times []time.Time
+}
+
+func (c *advancingClock) Now() time.Time {
+	t := c.times[c.next]
+	if c.next < len(c.times)-1 {
+		c.next++
+	}
+	return t
+}
+
+func TestConnectTimeIsRecordedAsADuration(t *testing.T) {
+	env := fakeEnv{dial: func(context.Context, string) (time.Duration, error) {
+		return 8 * time.Millisecond, nil
+	}}
+	var prior Results
+	c := checkNamed(t, runConnect(context.Background(), target(), env, DefaultSettings(), &prior), CheckTCP)
+	if c.Duration != 8*time.Millisecond {
+		t.Errorf("Duration = %v, want 8ms", c.Duration)
+	}
+	if got := factValue(c, "Connect time"); got != "8 ms" {
+		t.Errorf("Connect time fact = %q, want %q", got, "8 ms")
+	}
+}
+
+func TestTLSHandshakeIsTimed(t *testing.T) {
+	state, roots := buildChain(t, chainOpts{})
+	clock := &advancingClock{
+		fakeEnv: fakeEnv{roots: roots, handshake: handshakeReturning(state)},
+		times:   []time.Time{testNow, testNow.Add(42 * time.Millisecond)},
+	}
+	var prior Results
+	hs := checkNamed(t, runTLS(context.Background(), target(), clock, DefaultSettings(), &prior), CheckTLSHandshake)
+	if hs.Duration != 42*time.Millisecond {
+		t.Errorf("Duration = %v, want 42ms", hs.Duration)
+	}
+	if got := factValue(hs, "Handshake time"); got != "42 ms" {
+		t.Errorf("Handshake time fact = %q, want %q", got, "42 ms")
+	}
+	if !strings.Contains(hs.Summary, "42 ms") {
+		t.Errorf("Summary = %q, want it to state the handshake time", hs.Summary)
+	}
+}
+
+// TestAFailedHandshakeIsNotForcedToCarryATiming documents that the failure
+// path is left alone: the check has already failed, and a duration is not
+// worth forcing onto every error branch just to be complete.
+func TestAFailedHandshakeIsNotForcedToCarryATiming(t *testing.T) {
+	env := fakeEnv{handshake: func(context.Context, string, string) (*tls.ConnectionState, error) {
+		return nil, errors.New("connection reset")
+	}}
+	var prior Results
+	hs := checkNamed(t, runTLS(context.Background(), target(), env, DefaultSettings(), &prior), CheckTLSHandshake)
+	if hs.Duration != 0 {
+		t.Errorf("Duration = %v, want 0 on a failed handshake", hs.Duration)
+	}
+}
+
+func TestHTTPStageReportsATimingBreakdown(t *testing.T) {
+	t.Run("https carries DNS, connect, TLS, TTFB and total", func(t *testing.T) {
+		env := fakeEnv{head: func(context.Context, string) (HTTPResult, error) {
+			return HTTPResult{
+				Status:          200,
+				DNSDuration:     2 * time.Millisecond,
+				ConnectDuration: 5 * time.Millisecond,
+				TLSDuration:     11 * time.Millisecond,
+				TTFB:            30 * time.Millisecond,
+				Total:           35 * time.Millisecond,
+			}, nil
+		}}
+		prior := ResultsOf(Check{ID: CheckTLSHandshake, Verdict: OK})
+		c := checkNamed(t, runHTTP(context.Background(), target(), env, DefaultSettings(), &prior), CheckHTTP)
+
+		if c.Duration != 35*time.Millisecond {
+			t.Errorf("Duration = %v, want 35ms (Total)", c.Duration)
+		}
+		for key, want := range map[string]string{
+			"DNS": "2 ms", "Connect": "5 ms", "TLS": "11 ms",
+			"TTFB": "30 ms", "Total time": "35 ms",
+		} {
+			if got := factValue(c, key); got != want {
+				t.Errorf("fact %q = %q, want %q", key, got, want)
+			}
+		}
+	})
+
+	t.Run("plain http has no DNS or TLS phase to report", func(t *testing.T) {
+		env := fakeEnv{head: func(context.Context, string) (HTTPResult, error) {
+			return HTTPResult{Status: 200, ConnectDuration: 5 * time.Millisecond, TTFB: 9 * time.Millisecond, Total: 9 * time.Millisecond}, nil
+		}}
+		var prior Results // no TLS handshake recorded -> scheme is http
+		c := checkNamed(t, runHTTP(context.Background(), target(), env, DefaultSettings(), &prior), CheckHTTP)
+
+		if factValue(c, "DNS") != "" {
+			t.Errorf("facts = %v, want no DNS fact on a literal target with no lookup", c.Facts)
+		}
+		if factValue(c, "TLS") != "" {
+			t.Errorf("facts = %v, want no TLS fact over plain http", c.Facts)
+		}
+	})
+}
+
+func sumPhases(phases []Phase) time.Duration {
+	var total time.Duration
+	for _, p := range phases {
+		total += p.Duration
+	}
+	return total
+}
+
+func phaseDuration(phases []Phase, name string) (time.Duration, bool) {
+	for _, p := range phases {
+		if p.Name == name {
+			return p.Duration, true
+		}
+	}
+	return 0, false
+}
+
+func TestHTTPPhasesFormAWaterfallThatSumsToTotal(t *testing.T) {
+	res := HTTPResult{
+		DNSDuration:     2 * time.Millisecond,
+		ConnectDuration: 5 * time.Millisecond,
+		TLSDuration:     11 * time.Millisecond,
+		TTFB:            30 * time.Millisecond, // 2+5+11=18ms accounted for, 12ms left to Wait
+		Total:           35 * time.Millisecond, // 5ms left to Content after TTFB
+	}
+	phases := httpPhases(res, true)
+
+	if got := sumPhases(phases); got != res.Total {
+		t.Fatalf("phases sum to %v, want exactly Total (%v)", got, res.Total)
+	}
+	wait, ok := phaseDuration(phases, "Wait")
+	if !ok || wait != 12*time.Millisecond {
+		t.Errorf("Wait = %v, ok=%v, want 12ms", wait, ok)
+	}
+	content, ok := phaseDuration(phases, "Content")
+	if !ok || content != 5*time.Millisecond {
+		t.Errorf("Content = %v, ok=%v, want 5ms", content, ok)
+	}
+}
+
+func TestHTTPPhasesOmitDNSAndTLSWhenTheyDidNotHappen(t *testing.T) {
+	res := HTTPResult{ConnectDuration: 5 * time.Millisecond, TTFB: 9 * time.Millisecond, Total: 9 * time.Millisecond}
+	phases := httpPhases(res, false)
+
+	if _, ok := phaseDuration(phases, "DNS"); ok {
+		t.Error("a DNS phase is present with DNSDuration == 0")
+	}
+	if _, ok := phaseDuration(phases, "TLS"); ok {
+		t.Error("a TLS phase is present over plain http")
+	}
+	if got := sumPhases(phases); got != res.Total {
+		t.Errorf("phases sum to %v, want Total (%v)", got, res.Total)
+	}
+}
+
+// TestHTTPPhasesClampNegativeSpansFromClockJitter documents why Wait and
+// Content are clamped rather than left to go negative: httptrace's callbacks
+// and the wrapping time.Now()/time.Since() calls are not the same
+// measurement, so a request fast enough can observe TTFB fractionally before
+// DNS+Connect+TLS finish adding up, or Total fractionally before TTFB.
+func TestHTTPPhasesClampNegativeSpansFromClockJitter(t *testing.T) {
+	res := HTTPResult{
+		DNSDuration:     2 * time.Millisecond,
+		ConnectDuration: 5 * time.Millisecond,
+		TLSDuration:     11 * time.Millisecond,
+		TTFB:            10 * time.Millisecond, // less than DNS+Connect+TLS (18ms)
+		Total:           9 * time.Millisecond,  // less than TTFB
+	}
+	phases := httpPhases(res, true)
+
+	if got, _ := phaseDuration(phases, "Wait"); got < 0 {
+		t.Errorf("Wait = %v, want clamped to 0", got)
+	}
+	if got, _ := phaseDuration(phases, "Content"); got < 0 {
+		t.Errorf("Content = %v, want clamped to 0", got)
 	}
 }
 

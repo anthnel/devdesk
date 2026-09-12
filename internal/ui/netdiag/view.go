@@ -3,6 +3,7 @@ package netdiag
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -171,7 +172,39 @@ func (m *Model) renderDetailsContent(width int) string {
 		lines = append(lines, theme.EmptyLineBg(width))
 	}
 
+	if len(c.Phases) > 0 {
+		lines = append(lines, theme.PadWithBg(theme.SubTitleStyle.Render(theme.IconConfig+" Timing"), width))
+		lines = append(lines, theme.EmptyLineBg(width))
+		lines = append(lines, phaseLines(c.Phases, c.Duration, width)...)
+		lines = append(lines, theme.EmptyLineBg(width))
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+// phaseLabelWidth fits the longest phase name ("Connect"/"Content", 7
+// characters) plus one cell of breathing room before the bar starts.
+const phaseLabelWidth = 8
+
+// phaseLines renders one waterfall row per phase: a label, a bar proportional
+// to the phase's share of total, and that share as a percentage. total is
+// the check's own Duration — the phases already sum to it (see httpPhases),
+// so the same value anchors both the bars and the numbers beside them.
+func phaseLines(phases []netcheck.Phase, total time.Duration, width int) []string {
+	lines := make([]string, 0, len(phases))
+	for _, p := range phases {
+		var pct float64
+		if total > 0 {
+			pct = float64(p.Duration) / float64(total) * 100
+		}
+		fill := theme.GaugeFillWidth(pct, theme.TimingBarWidth)
+		bar := theme.TimingFillStyle().Render(theme.Gauge(fill)) +
+			theme.GaugeTrackStyle().Render(theme.Gauge(theme.TimingBarWidth-fill))
+		label := theme.KeyStyle.Render(fmt.Sprintf("  %-*s", phaseLabelWidth, p.Name))
+		pctText := theme.Bg(fmt.Sprintf(" %3.0f%%", pct))
+		lines = append(lines, theme.PadWithBg(label+bar+pctText, width))
+	}
+	return lines
 }
 
 // section renders a titled block of prose, wrapped to the pane.

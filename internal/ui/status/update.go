@@ -13,6 +13,7 @@ import (
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	"github.com/anthnel/devdesk/internal/ui/status/components"
 )
 
@@ -191,6 +192,20 @@ func (m *Model) getCurrentTable() *datatable.Model[status.ComponentStatus] {
 	return &m.monitorTable
 }
 
+// handleOpenDiagnostics asks the router to open netdiag on the selected
+// monitor's target (§3.66, keymap.Diagnose). It works from either tab —
+// getCurrentTable already picks monitors vs. certificates — and, like
+// handleMonitorOperations, does nothing when nothing is selected: this view
+// has no Disabled-shortcut machinery to grey the key out ahead of time.
+func (m Model) handleOpenDiagnostics() (tea.Model, tea.Cmd) {
+	selected, ok := m.getCurrentTable().Selected()
+	if !ok {
+		return m, nil
+	}
+	target, autoRun := diagnosticsTarget(selected)
+	return m, func() tea.Msg { return netdiag.OpenRequestMsg{Target: target, AutoRun: autoRun} }
+}
+
 // getSelectedComponentIndex returns the index in m.config.Status.Components of
 // the row under the cursor.
 //
@@ -250,6 +265,8 @@ func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case keymap.New, keymap.Edit, keymap.Delete:
 		return m.handleMonitorOperations(msg)
+	case keymap.Diagnose:
+		return m.handleOpenDiagnostics()
 	case ".":
 		return m.cycleSort()
 	}

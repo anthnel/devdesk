@@ -2,6 +2,7 @@ package netcheck
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -33,6 +34,10 @@ func forwardLookup(ctx context.Context, t Target, env Env) Check {
 	if err != nil {
 		c.Summary = fmt.Sprintf("%s does not resolve", t.Host)
 		c.fact("Error", err.Error())
+		if dnsErr, ok := serverMisbehaved(err); ok {
+			c.Reason = ReasonServerMisbehaving
+			c.fact("Temporary", temporaryLabel(dnsErr.IsTemporary))
+		}
 		return c
 	}
 	if len(ips) == 0 {
@@ -95,6 +100,31 @@ func resolverLabel(resolver string) string {
 		return "System resolver"
 	}
 	return resolver
+}
+
+// serverMisbehaved reports whether err is Go's net.DNSError for a resolver
+// that answered with something the client could not use — the exact wording
+// ("server misbehaving") is unexported in net, so this matches the DNSError
+// field it sets rather than the formatted string, the same way stage_tls.go
+// matches tls.RecordHeaderError instead of grepping an error message.
+func serverMisbehaved(err error) (*net.DNSError, bool) {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) && dnsErr.Err == "server misbehaving" {
+		return dnsErr, true
+	}
+	return nil, false
+}
+
+// temporaryLabel names the one bit "server misbehaving" leaves out of its own
+// text: whether the response's code was SERVFAIL (IsTemporary — a transient
+// problem, worth a retry) or anything else Go's client will not accept
+// (FORMERR, REFUSED, an unsupported EDNS version...), which does not go away
+// on its own.
+func temporaryLabel(temporary bool) string {
+	if temporary {
+		return "Yes — a SERVFAIL response, usually transient"
+	}
+	return "No — the server actively rejected or could not parse the query"
 }
 
 // addressClass names the family an address belongs to.

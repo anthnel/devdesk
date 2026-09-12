@@ -75,6 +75,7 @@ const (
 	Exclude  = "X" // Exclude — add to .gitleaksignore
 	Requests = "R" // Open merge requests · PRs
 	Issues   = "I" // Open issues
+	Diagnose = "H" // Open network diagnostics on this target
 	// Copy is `Y` — yank. The letter was free even though a modal uses it
 	// for "Yes": a modal claims every key before the view sees it, so the
 	// two are never reachable at the same time.
@@ -117,6 +118,7 @@ var actions = map[string]string{
 	Exclude:  "Exclude — add to .gitleaksignore",
 	Requests: "Open merge requests · PRs",
 	Issues:   "Open issues",
+	Diagnose: "Open network diagnostics on this target",
 	Copy:     "Copy the obvious thing to the clipboard",
 }
 
@@ -165,11 +167,13 @@ func IsModalKey(key string) bool {
 // rather than left to be inferred: the next addition must know where to
 // pick from without redoing the survey, and an action that settles
 // somewhere other than here is a duplicate that goes unnoticed.
-// H came back here with §3.47: it used to trace the route, and the trace
-// was removed because it answered for the Docker VM rather than for the
-// machine (D57). A letter an action has just freed up is re-declared
-// free, otherwise it stays reserved for a use that no longer exists.
-var free = []string{"H", "J", "Q", "Z"}
+// H came back here with §3.47 (it used to trace the route, removed because
+// it answered for the Docker VM rather than for the machine, D57) and left
+// again with Diagnose (§3.66): a good semantic fit for "look closer at this
+// target's network path." A letter an action has just freed up is
+// re-declared free, otherwise it stays reserved for a use that no longer
+// exists.
+var free = []string{"J", "Q", "Z"}
 
 // Free returns the still-available uppercase letters, sorted.
 func Free() []string {

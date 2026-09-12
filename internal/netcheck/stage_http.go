@@ -44,6 +44,17 @@ func runHTTP(ctx context.Context, t Target, env Env, _ Settings, prior *Results)
 
 	c.fact("Status", strconv.Itoa(res.Status))
 	c.fact("Server", res.Server)
+	c.Duration = res.Total
+	if res.DNSDuration > 0 {
+		c.fact("DNS", roundedMillis(res.DNSDuration))
+	}
+	c.fact("Connect", roundedMillis(res.ConnectDuration))
+	if scheme == "https" {
+		c.fact("TLS", roundedMillis(res.TLSDuration))
+	}
+	c.fact("TTFB", roundedMillis(res.TTFB))
+	c.fact("Total time", roundedMillis(res.Total))
+	c.Phases = httpPhases(res, scheme == "https")
 
 	switch {
 	case res.Status >= 500:
@@ -59,4 +70,38 @@ func runHTTP(ctx context.Context, t Target, env Env, _ Settings, prior *Results)
 		c.Summary = fmt.Sprintf("Service answered with HTTP %d over %s", res.Status, scheme)
 	}
 	return []Check{c}
+}
+
+// httpPhases turns an HTTPResult's timings into a waterfall.
+//
+// DNS, connect and TLS are already non-overlapping spans, but TTFB is not: it
+// is measured from the very start of the request (env.go's httpTiming), so it
+// already *contains* DNS+connect+TLS plus however long the server took to
+// start answering. Charting DNS/connect/TLS/TTFB side by side as if they were
+// independent shares of Total would double-count everything TTFB already
+// covers — the phases below subtract that overlap instead, so they sum to
+// Total exactly and a percentage means what it says.
+func httpPhases(res HTTPResult, https bool) []Phase {
+	wait := res.TTFB - res.DNSDuration - res.ConnectDuration - res.TLSDuration
+	if wait < 0 {
+		wait = 0 // clock jitter between httptrace callbacks, not a real negative span
+	}
+	content := res.Total - res.TTFB
+	if content < 0 {
+		content = 0
+	}
+
+	var phases []Phase
+	if res.DNSDuration > 0 {
+		phases = append(phases, Phase{Name: "DNS", Duration: res.DNSDuration})
+	}
+	phases = append(phases, Phase{Name: "Connect", Duration: res.ConnectDuration})
+	if https {
+		phases = append(phases, Phase{Name: "TLS", Duration: res.TLSDuration})
+	}
+	phases = append(phases,
+		Phase{Name: "Wait", Duration: wait},
+		Phase{Name: "Content", Duration: content},
+	)
+	return phases
 }

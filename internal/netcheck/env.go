@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"runtime"
 	"time"
 
@@ -95,6 +96,18 @@ type HTTPResult struct {
 	// TLS reports whether the request was made over TLS, so the check can say
 	// which scheme it actually spoke rather than which one was intended.
 	TLS bool
+	// DNSDuration, ConnectDuration and TLSDuration are zero when that phase
+	// did not happen for this request — DNSDuration when the host is a
+	// literal IP, TLSDuration on a plain http:// target.
+	DNSDuration     time.Duration
+	ConnectDuration time.Duration
+	TLSDuration     time.Duration
+	// TTFB is time to first response byte, measured from the start of the
+	// request.
+	TTFB time.Duration
+	// Total is the full round trip, measured the same way DialTCP's elapsed
+	// time is: wrapping the call rather than summing the phases.
+	Total time.Duration
 }
 
 // RouteHop is how a packet to one address leaves this machine.
@@ -292,19 +305,80 @@ func (e systemEnv) Head(ctx context.Context, url string) (HTTPResult, error) {
 		},
 	}
 
+	var timing httpTiming
+	ctx = httptrace.WithClientTrace(ctx, timing.clientTrace())
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return HTTPResult{}, err
 	}
+	start := time.Now()
 	resp, err := client.Do(req)
+	total := time.Since(start)
 	if err != nil {
 		return HTTPResult{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	return HTTPResult{
-		Status: resp.StatusCode,
-		Server: resp.Header.Get("Server"),
-		TLS:    resp.TLS != nil,
+		Status:          resp.StatusCode,
+		Server:          resp.Header.Get("Server"),
+		TLS:             resp.TLS != nil,
+		DNSDuration:     timing.dnsDuration(),
+		ConnectDuration: timing.connectDuration(),
+		TLSDuration:     timing.tlsDuration(),
+		TTFB:            timing.ttfb(start),
+		Total:           total,
 	}, nil
+}
+
+// httpTiming records the timestamps an httptrace.ClientTrace observes over
+// the course of one request. Its callbacks run sequentially on the goroutine
+// performing the round trip — systemEnv.Head issues one request at a time, so
+// there is nothing here for two callbacks to race on.
+type httpTiming struct {
+	dnsStart, dnsDone         time.Time
+	connectStart, connectDone time.Time
+	tlsStart, tlsDone         time.Time
+	gotFirstResponseByte      time.Time
+}
+
+func (t *httpTiming) clientTrace() *httptrace.ClientTrace {
+	return &httptrace.ClientTrace{
+		DNSStart:             func(httptrace.DNSStartInfo) { t.dnsStart = time.Now() },
+		DNSDone:              func(httptrace.DNSDoneInfo) { t.dnsDone = time.Now() },
+		ConnectStart:         func(string, string) { t.connectStart = time.Now() },
+		ConnectDone:          func(string, string, error) { t.connectDone = time.Now() },
+		TLSHandshakeStart:    func() { t.tlsStart = time.Now() },
+		TLSHandshakeDone:     func(tls.ConnectionState, error) { t.tlsDone = time.Now() },
+		GotFirstResponseByte: func() { t.gotFirstResponseByte = time.Now() },
+	}
+}
+
+func (t httpTiming) dnsDuration() time.Duration {
+	if t.dnsStart.IsZero() || t.dnsDone.IsZero() {
+		return 0
+	}
+	return t.dnsDone.Sub(t.dnsStart)
+}
+
+func (t httpTiming) connectDuration() time.Duration {
+	if t.connectStart.IsZero() || t.connectDone.IsZero() {
+		return 0
+	}
+	return t.connectDone.Sub(t.connectStart)
+}
+
+func (t httpTiming) tlsDuration() time.Duration {
+	if t.tlsStart.IsZero() || t.tlsDone.IsZero() {
+		return 0
+	}
+	return t.tlsDone.Sub(t.tlsStart)
+}
+
+func (t httpTiming) ttfb(start time.Time) time.Duration {
+	if t.gotFirstResponseByte.IsZero() {
+		return 0
+	}
+	return t.gotFirstResponseByte.Sub(start)
 }

@@ -26,5 +26,6 @@ func runConnect(ctx context.Context, t Target, env Env, _ Settings, _ *Results) 
 
 	c.Summary = fmt.Sprintf("Port %d accepted the connection in %s", t.Port, roundedMillis(elapsed))
 	c.fact("Connect time", roundedMillis(elapsed))
+	c.Duration = elapsed
 	return []Check{c}
 }

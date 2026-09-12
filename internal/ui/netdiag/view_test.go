@@ -8,7 +8,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/netcheck"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -176,6 +178,31 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		if !strings.Contains(results, want) {
 			t.Errorf("the results state does not advertise %q: %s", want, results)
 		}
+	}
+}
+
+// TestNewDiagnosticIsAdvertisedOnlyWhenItAddsInformation — with no origin,
+// esc already reads "New diagnostic" and does exactly that; advertising N
+// too would say the same thing twice (Rule 138). With an origin, esc means
+// "go back" instead, so N is the only key that starts a fresh target, and is
+// worth telling the user about.
+func TestNewDiagnosticIsAdvertisedOnlyWhenItAddsInformation(t *testing.T) {
+	keysOf := func(sc shortcut.Shortcuts) string {
+		var b strings.Builder
+		for _, s := range sc {
+			b.WriteString(s.Key + " ")
+		}
+		return b.String()
+	}
+
+	m := resultsModel(t)
+	if got := keysOf(m.GetShortcuts()); strings.Contains(got, keymap.New) {
+		t.Errorf("N is advertised with no origin, where esc already means the same thing: %s", got)
+	}
+
+	m.OriginView = command.ViewStatus
+	if got := keysOf(m.GetShortcuts()); !strings.Contains(got, keymap.New) {
+		t.Errorf("N is not advertised once an origin is set, where esc no longer resets to the form: %s", got)
 	}
 }
 

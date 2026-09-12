@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // Init implements tea.Model
@@ -209,7 +210,7 @@ func (m *Model) handleKeyInput(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		// enter runs from anywhere in the form: with three fields and one
 		// button there is nothing else it could mean, and making the user walk
 		// to the button first is a step that buys nothing.
-		return m.startRun()
+		return m.StartRun()
 	case "esc":
 		return m, nil
 	}
@@ -256,15 +257,32 @@ func (m *Model) handleKeyResults(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	case "enter":
 		return m.openDetails()
 	case "esc":
-		return m.resetToForm()
+		// No origin view means netdiag was opened directly (the command
+		// line), so esc stays inside it and resets to the form, as it
+		// always has. An origin means it was opened prefilled from
+		// elsewhere (status's H, §3.66), and esc returns there instead.
+		if m.OriginView == "" {
+			return m.resetToForm()
+		}
+		origin := m.OriginView
+		return m, func() tea.Msg { return BackToOriginMsg{Origin: origin} }
 	case "ctrl+r":
-		return m.startRun()
+		return m.StartRun()
 	case "/":
 		return m, m.filterBar.ActivateSearch()
 	case "p":
 		m.filterBar.SetTokenActive(problemsToken, !m.filterBar.IsTokenActive(problemsToken))
 		m.rebuildChecksTable()
 		return m, nil
+	case keymap.New:
+		// Always resets to the form, regardless of OriginView — the one way
+		// to run a wholly new diagnostic without first leaving to wherever
+		// this run was opened from. Found missing the day §3.66 shipped H:
+		// esc alone left no way back to the form once an origin was set, and
+		// re-entering netdiag through the command line landed on the same
+		// frozen results with the same problem, since the cached view (and
+		// its OriginView) is reused rather than rebuilt.
+		return m.resetToForm()
 	}
 	return m, m.checksTable.Update(msg)
 }
@@ -312,5 +330,10 @@ func (m *Model) resetToForm() (*Model, tea.Cmd) {
 	m.filterBar.ClearSearch()
 	m.filterBar.SetTokenActive(problemsToken, false)
 	m.rebuildChecksTable()
+	// Starting over severs the tie to wherever this run was opened from: the
+	// next run is not "the monitor status sent here" anymore, so esc on its
+	// results should not try to leave for a view this new target has nothing
+	// to do with.
+	m.OriginView = ""
 	return m, nil
 }

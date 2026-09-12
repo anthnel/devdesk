@@ -11981,34 +11981,164 @@ d'en-têtes, et `Check.Facts` est la forme qui existe déjà pour l'exposer.
 
 ---
 
-### 3.66 « C'est lent » — où, exactement
+### 3.66 « C'est lent » — où, exactement — **étapes 1 et 2 faites**
 
 `net/http/httptrace` sépare DNS / connexion / handshake TLS / TTFB / total pour
 une requête, avec la bibliothèque standard seule.
 
-#### Le chiffre existe déjà, et il est jeté — vérifié le 2026-09-07
+#### Ce qui était vrai, et vérifié le 2026-09-07
 
-`Check` **n'a pas de champ de durée** (`internal/netcheck/netcheck.go:119`). Le
-seul temps affiché aujourd'hui est de la prose dans `Summary` — « Port 443
-accepted the connection in 12 ms » — alors que `Env.DialTCP` retourne une vraie
-`time.Duration` (`env.go:130`) que l'étage formate puis oublie. Un nombre que le
-pipeline tient déjà ne peut donc être ni tracé, ni comparé entre deux exécutions,
-ni trié.
+`Check` n'avait pas de champ de durée (`internal/netcheck/netcheck.go:119`). Le
+seul temps affiché était de la prose dans `Summary` — « Port 443 accepted the
+connection in 12 ms » — alors que `Env.DialTCP` retournait une vraie
+`time.Duration` (`env.go:130`) que l'étage formatait puis jetait. Un nombre que
+le pipeline tenait déjà ne pouvait donc être ni tracé, ni comparé entre deux
+exécutions, ni trié. L'étage HTTP, lui, ne mesurait rien du tout — pas même en
+prose.
 
-Le correctif qui débloque tout est petit, et c'est **le même que celui dont
-§3.65 a besoin** : `Check` porte une durée, et `Summary` continue de la dire en
-prose pour qui lit. Deux consommateurs pour un seul changement.
+#### Fait
 
-`ntcharts` est déjà une dépendance directe (§3.19), donc l'historique ne coûte
-aucune dépendance.
+`Check` porte maintenant `Duration time.Duration` (`netcheck.go`), à côté de
+`Summary` et `Facts` — zéro veut dire non chronométré, exactement la même
+convention que `Because`/`Reason`. Trois étages l'alimentent :
 
-#### Non tranché
+- **TCP** (`stage_connect.go`) : le chiffre que `DialTCP` rendait déjà et que
+  seule la prose gardait alimente maintenant aussi `c.Duration` — rien de
+  neuf mesuré, juste un consommateur de plus pour la même valeur.
+- **TLS** (`stage_tls.go`) : le handshake n'était pas chronométré du tout ;
+  `runTLS` encadre `env.Handshake` d'un `env.Now()` avant/après (la même
+  horloge injectée que l'expiration utilise déjà, pour rester testable), et
+  le résultat va dans `Duration`, un `Fact` « Handshake time » et la phrase
+  du `Summary`.
+- **HTTP** (`stage_http.go`, `env.go`) : `HTTPResult` gagne
+  `DNSDuration`/`ConnectDuration`/`TLSDuration`/`TTFB`/`Total`, remplis par un
+  `httptrace.ClientTrace` posé sur le contexte de la requête dans
+  `systemEnv.Head`. Les facts DNS et TLS n'apparaissent que quand la phase a
+  vraiment eu lieu (une IP littérale n'a pas de DNS, un `http://` n'a pas de
+  TLS) ; Connect/TTFB/Total sont de la requête, toujours présents.
+  `Check.Duration` prend `Total`.
 
-Garder un historique, ou pas. Une latence réduite à sa dernière mesure répond à
-« est-ce lent maintenant » ; une série répond à « est-ce que ça se dégrade »,
-qui est la question utile et la seule qui demande de persister quelque chose.
-Les moniteurs de `status` tournent déjà sur une horloge, donc les échantillons
-existent — rien ne les garde.
+`internal/ui/netdiag/view.go` boucle déjà sur `c.Facts` et les facts ci-dessus
+apparaissent d'eux-mêmes dans le panneau Details. Le MCP
+(`internal/mcp/netcheck_tools.go`) fait de même pour `Facts` ; `Duration`
+lui-même n'est pas exposé au MCP — rien n'en a besoin pour l'instant, les
+facts portent déjà la forme lisible.
+
+#### Une waterfall, une barre par phase — demandée après coup
+
+Les chiffres seuls répondaient à « combien », pas à « où ça part » d'un coup
+d'œil. `netcheck.Check` gagne `Phases []Phase` — des tranches nommées et
+**non chevauchantes** qui somment exactement à `Duration` — et `httpPhases`
+(`stage_http.go`) les construit pour l'étage HTTP, seul à en avoir plus d'une
+à montrer :
+
+- **TTFB n'est pas une phase, c'est un cumul.** Il se mesure depuis le tout
+  début de la requête (`httpTiming.ttfb`, §3.66 étape 2), donc il contient
+  déjà DNS + Connect + TLS + l'attente serveur. Le traiter comme une
+  cinquième tranche indépendante aurait compté ce chevauchement deux fois, et
+  les pourcentages n'auraient plus sommé à 100. `httpPhases` retranche donc
+  `DNS+Connect+TLS` de `TTFB` pour obtenir **Wait** (l'attente serveur pure),
+  et `Total - TTFB` pour **Content** (le transfert du corps) — deux tranches
+  dérivées, jamais mesurées directement, mais qui rendent la somme exacte.
+- **Le chevauchement d'horloges est amorti, pas nié.** `env.Now()` (TLS) et
+  les callbacks `httptrace` (HTTP) ne sont pas la même mesure ; `Wait` et
+  `Content` sont donc bornés à 0 plutôt que laissés négatifs sur une requête
+  assez rapide pour que l'ordre des horloges se brouille.
+- **Rien qui n'a rien à montrer n'affiche une barre à 100 %.** `Phases` reste
+  `nil` pour TCP et TLS (une seule mesure chacun, déjà dite en `Fact`) — une
+  barre à une seule tranche pleine ne dirait rien qu'un nombre ne dit déjà
+  mieux.
+
+Le rendu (`internal/ui/netdiag/view.go`, `phaseLines`) réutilise le mécanisme
+des jauges de charge (§3.71) plutôt que d'en inventer un : `theme.Gauge` pour
+le glyphe, `theme.GaugeFillWidth` pour l'arrondi, `theme.GaugeTrackStyle` pour
+le rail. Seule la couleur du remplissage change —
+`theme.TimingFillStyle` (nouveau, `ColorSecondary`) plutôt que
+`LoadTextStyle` (rouge/orange/vert) : une phase qui prend le plus de temps
+n'est pas un problème à repérer comme une charge qui sature, juste un fait à
+lire. `theme.TimingBarWidth` (24) est plus large que `GaugeWidth` (10) — cinq
+tranches à distinguer sur une ligne demandent plus de résolution qu'un seul
+pourcentage.
+
+#### Un vrai bug trouvé en testant : `server misbehaving` sur un résolveur personnalisé
+
+Un utilisateur a pointé un moniteur sur `192.168.1.2` (une box) et reçu
+« google.com does not resolve », vide de contexte. Le fact « Error » (déjà
+présent) portait le vrai message Go :
+`lookup google.com on 192.168.1.2:53: server misbehaving`. Confirmé : ça
+résout sans problème avec le résolveur système sur la même cible.
+
+Ce n'est pas un bug DevDesk — `resolverFor` (`env.go`) ajoute déjà `:53` par
+défaut et dialogue bien avec la bonne adresse, le port était déjà correct.
+`server misbehaving` est le nom que Go donne à un résolveur qui répond, mais
+avec un code retour ni NOERROR ni NXDOMAIN (`checkHeader`,
+`net/dnsclient_unix.go` — lu dans les sources Go pour ce constat) — ni un
+timeout, ni un NXDOMAIN.
+
+**La cause précise reste ouverte, deux hypothèses écartées par le test.**
+`dig @192.168.1.2 google.com` et `dig @192.168.1.2 AAAA google.com`
+répondent tous deux NOERROR avec des réponses valides — donc ni « EDNS0 en
+général », ni « la box gère mal l'AAAA » (l'explication la plus courante pour
+ce symptôme) ne tiennent ici : `LookupIPAddr` interroge A et AAAA, et les
+deux marchent isolément via `dig`. La suite demanderait une capture réseau
+pour comparer la requête que Go envoie et celle que `dig` envoie — non
+tentée, hors de portée sans le poste de l'utilisateur.
+
+**Corrigé, pour ce qui reste actionnable sans cette capture** :
+`stage_resolve.go` détecte le cas via
+`errors.As(err, &dnsErr) && dnsErr.Err == "server misbehaving"` — sur le
+champ structuré de `*net.DNSError`, pas sur le texte formaté, même
+discipline que `stage_tls.go` matchant `tls.RecordHeaderError` plutôt que de
+lire un message d'erreur. Un nouveau `Reason` (`ReasonServerMisbehaving`) et
+une ligne de `guidance` dédiée (`explain.go`) remplacent le conseil générique
+« vérifie l'orthographe » par le bon diagnostic : essayer le résolveur
+système, ou interroger celui-ci directement (`dig @serveur nom`). Un fact
+« Temporary » distingue en plus, à partir du seul bit que Go garde
+(`DNSError.IsTemporary`), un `SERVFAIL` (probablement transitoire) de tout
+autre code — FORMERR, REFUSED, une version EDNS non supportée — qui ne se
+résoudra pas tout seul ; c'est la seule information supplémentaire
+récupérable sans capture réseau.
+
+#### Un second bug trouvé en même temps : pas de retour au formulaire une fois `OriginView` posé
+
+Le même utilisateur, en cherchant à relancer un diagnostic après avoir ouvert
+`netdiag` via `H` : `esc` ne ramène plus au formulaire une fois `OriginView`
+posé (il retourne à `status`), et rouvrir `netdiag` directement (`:net`) ne
+recrée pas la vue — le routeur réutilise l'instance déjà en cache, figée sur
+les mêmes résultats, avec le même `OriginView`. Aucun moyen de taper une
+nouvelle cible sans repasser par `status`.
+
+**Corrigé** : `N` (`keymap.New`, `handleKeyResults`) réinitialise toujours le
+formulaire, quel que soit `OriginView`, et l'efface au passage — une cible
+retapée n'a plus de lien avec la vue qui a ouvert celle d'avant. `N` n'est
+annoncé dans les raccourcis que quand il apporte une information : sans
+origine, `esc` fait déjà « New diagnostic », l'annoncer deux fois serait du
+bruit (Rule 138) ; avec origine, `esc` veut dire « revenir en arrière », donc
+`N` est la seule touche qui reste pour repartir de zéro.
+
+#### Non tranché — et volontairement laissé de côté
+
+**Garder un historique, ou pas.** Une latence réduite à sa dernière mesure
+répond à « est-ce lent maintenant » — ce que le travail ci-dessus fait ; une
+série répond à « est-ce que ça se dégrade », qui demande de persister quelque
+chose, et rien dans `netdiag` ne garde un run au-delà du suivant. `ntcharts`
+est déjà une dépendance directe (§3.19) si la réponse devient oui.
+
+#### Un raccourci trouvé en discutant l'entrée : `status` → `netdiag`
+
+Pas dans l'énoncé d'origine, mais la même conversation a fait remarquer que
+`status` mesure déjà une latence par moniteur (`ComponentStatus.ResponseTime`)
+sans jamais dire *où* le temps part — exactement la question que `netdiag`
+existe pour répondre, sur une cible à la fois plutôt qu'en continu. `H`
+(`keymap.Diagnose`, libéré par §3.47 puis repris ici) ouvre `netdiag` sur la
+cible du moniteur sélectionné, dans les deux onglets de `status` :
+
+- **Auto-run quand le port est certain** — http/https/ssl connaissent déjà
+  leur port ; icmp/dns n'en ont pas et atterrissent sur le formulaire
+  pré-rempli plutôt que sur un port deviné en silence.
+- **`esc` revient à `status`** — `netdiag.Model` gagne un `OriginView`
+  (même mécanisme que `security`/`uiviewer`), vide pour l'ouverture normale
+  par la ligne de commande, où `esc` se comporte exactement comme avant.
 
 ---
 

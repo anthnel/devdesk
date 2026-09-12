@@ -18,6 +18,7 @@ package netcheck
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Verdict is what a check concluded.
@@ -115,6 +116,16 @@ type Fact struct {
 	Value string
 }
 
+// Phase is one named, non-overlapping span within a check's Duration — a
+// waterfall row. Phases are sequential and sum to Duration; a check with
+// nothing to break down (most of them: one dial, one handshake) leaves this
+// nil rather than a single phase covering the whole thing, which would say
+// nothing a bar chart couldn't already say better as a number.
+type Phase struct {
+	Name     string
+	Duration time.Duration
+}
+
 // Check is one answered question.
 type Check struct {
 	ID      CheckID
@@ -126,6 +137,14 @@ type Check struct {
 	// explanation layer, which is keyed on ID.
 	Summary string
 	Facts   []Fact
+	// Duration is how long the observation behind this check took, when
+	// timed. Zero means untimed — a check that answers instantly (DNS
+	// resolution) or one nothing has instrumented yet.
+	Duration time.Duration
+	// Phases breaks Duration down into a waterfall, when there is more than
+	// one span worth showing separately (today: the HTTP check's DNS,
+	// connect, TLS, server wait and content transfer). Nil elsewhere.
+	Phases []Phase
 	// Because is set only when Verdict is NotApplicable *and* the cause was an
 	// upstream failure. Empty on a NotApplicable that simply has no meaning
 	// here, which is what separates "blocked" from "irrelevant".
@@ -147,6 +166,17 @@ type Check struct {
 type Reason string
 
 const (
+	// DNS resolution
+	//
+	// "Server misbehaving" is Go's net.DNSError wording for a resolver that
+	// answered but with something the client could not use — not a timeout,
+	// not NXDOMAIN. It is worth telling apart because the remedy is neither
+	// "check the spelling" nor "check the network": it is almost always the
+	// resolver itself, commonly a router's built-in DNS proxy choking on the
+	// EDNS0 queries Go's resolver sends (which this pipeline must use to
+	// reach a resolver the user names — see resolverFor in env.go).
+	ReasonServerMisbehaving Reason = "server-misbehaving"
+
 	// Certificate chain
 	ReasonSelfSigned      Reason = "self-signed"
 	ReasonNoIntermediates Reason = "no-intermediates"
