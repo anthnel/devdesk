@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "9c459f878ea8",
+  "strategy": "manual-commit",
+  "branch": "feat/podman-engine",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/app/app.go",
+    "internal/app/configuration.go",
+    "internal/shared/state.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/configuration/model.go",
+    "internal/ui/configuration/update.go",
+    "internal/ui/containers/sources.go",
+    "internal/ui/containers/update.go",
+    "internal/ui/containers/view.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/dashboard/view_test.go",
+    "internal/ui/oci_resources/view.go",
+    "internal/ui/terminal/terminal.go",
+    "internal/ui/theme/icons.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9c/459f878ea8/0/metadata.json",
+      "transcript": "/9c/459f878ea8/0/full.jsonl",
+      "compact_transcript": "/9c/459f878ea8/0/transcript.jsonl",
+      "content_hash": "/9c/459f878ea8/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 41540,
+    "cache_read_tokens": 15460481,
+    "output_tokens": 22854,
+    "api_call_count": 42
+  }
+}
