@@ -36,7 +36,10 @@ func plain(s string) string {
 func TestViewRendersEveryBox(t *testing.T) {
 	out := plain(loadedOnly(t).View())
 
-	for _, title := range []string{"Code", "Health", "Host", "Docker (VM)"} {
+	// "Docker" and not "Docker (VM)": the box is named after the engine in use
+	// (§3.67), and "(VM)" described Docker Desktop's virtual machine — already
+	// wrong on a native Linux daemon, and meaningless under podman.
+	for _, title := range []string{"Code", "Health", "Host", "Docker"} {
 		if !strings.Contains(out, title) {
 			t.Errorf("View() is missing the %q box:\n%s", title, out)
 		}
@@ -295,7 +298,7 @@ func TestTheHealthBoxCountsMonitorsAndCertificates(t *testing.T) {
 	}
 }
 
-// The Docker (VM) box answers "how many are there", the Storage box "how
+// The engine box answers "how many are there", the Storage box "how
 // much space". Both figures used to be in both boxes, in two different
 // forms.
 func TestTheDockerBoxCountsWithoutSizing(t *testing.T) {
@@ -637,7 +640,7 @@ func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
 func TestAFullyEquippedMachineSaysSoInOneLine(t *testing.T) {
 	m, _ := loadedModel(t)
 	var all []shared.ToolInfo
-	for _, name := range knownTools {
+	for _, name := range knownTools() {
 		all = append(all, shared.ToolInfo{Name: name, Available: true})
 	}
 	m = feed(t, m, ToolsDetectedMsg{Tools: all})
@@ -850,7 +853,7 @@ func TestTheDetectedToolsAreExactlyTheKnownOnes(t *testing.T) {
 	for _, tool := range msg.Tools {
 		got = append(got, tool.Name)
 	}
-	if !slices.Equal(got, knownTools) {
-		t.Errorf("detectTools names %v, knownTools declares %v", got, knownTools)
+	if !slices.Equal(got, knownTools()) {
+		t.Errorf("detectTools names %v, knownTools declares %v", got, knownTools())
 	}
 }

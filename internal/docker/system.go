@@ -43,8 +43,7 @@ func FetchOCIStats() OCIStats {
 		return stats
 	}
 
-	output, err := dockerOutput("system", "df", "--format",
-		"{{.Type}}\t{{.TotalCount}}\t{{.Size}}\t{{.Reclaimable}}")
+	output, err := dockerOutput("system", "df", "--format", templates().SystemDF)
 	if err != nil {
 		return stats
 	}

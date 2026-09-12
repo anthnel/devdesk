@@ -203,6 +203,17 @@ func (m Model) commitFocused() (Model, tea.Cmd, bool) {
 		return m, nil, false
 	}
 
+	// Leaving the container engine with a different value re-resolves it, once.
+	// No confirmation, unlike the secret backend: nothing is lost by switching,
+	// the lists are simply refetched from the other engine.
+	if f.Label == containerEngineLabel {
+		if *f.str(m.config) == m.engineOnFocus {
+			return m, nil, true
+		}
+		m.engineOnFocus = *f.str(m.config)
+		return m, m.persist(saved{engineChanged: true}), true
+	}
+
 	if !f.takesText() {
 		return m, nil, true
 	}
@@ -251,6 +262,12 @@ func (m Model) cycleField(step int) (tea.Model, tea.Cmd) {
 	if f.Label == secretBackendLabel {
 		return m, nil
 	}
+	// The engine is settled on blur, same reasoning: cycling auto → docker →
+	// podman would otherwise re-resolve three times, including on the way back
+	// to where it started.
+	if f.Label == containerEngineLabel {
+		return m, nil
+	}
 	// The forge is settled on blur too, and for a related reason: cycling
 	// through it would otherwise close the session once per keypress, including
 	// on the way back to where it started.
@@ -297,6 +314,9 @@ type saved struct {
 	// different platform. One flag for both, because the consequence is one:
 	// the session is stale and the user has to sign in again.
 	forgeChanged bool
+	// engineChanged says the container engine has to be re-resolved before any
+	// rebuilt view asks it for a list.
+	engineChanged bool
 }
 
 // persist applies the cross-field constraints, saves, and tells the router.
@@ -312,7 +332,12 @@ func (m Model) persist(what saved) tea.Cmd {
 
 	cfg := m.config
 	return func() tea.Msg {
-		return ConfigSavedMsg{Config: cfg, ThemeChanged: what.theme, ForgeChanged: what.forgeChanged}
+		return ConfigSavedMsg{
+			Config:        cfg,
+			ThemeChanged:  what.theme,
+			ForgeChanged:  what.forgeChanged,
+			EngineChanged: what.engineChanged,
+		}
 	}
 }
 
@@ -363,6 +388,9 @@ func (m *Model) bindInput() {
 	if f.Label == forgeLabel {
 		m.forgeOnFocus = m.config.Forge.Type
 	}
+	if f.Label == containerEngineLabel {
+		m.engineOnFocus = m.config.App.ContainerEngine
+	}
 
 	if !f.takesText() {
 		m.input.Blur()
@@ -376,12 +404,13 @@ func (m *Model) bindInput() {
 }
 
 // Labels the view has to recognise. Comparing on the label keeps the field
-// table declarative; these two are the only settings that need special
+// table declarative; these four are the only settings that need special
 // handling, and naming them here is what makes that visible.
 const (
-	themeLabel         = "Theme"
-	secretBackendLabel = "Secret backend"
-	forgeLabel         = "Forge"
+	themeLabel           = "Theme"
+	secretBackendLabel   = "Secret backend"
+	forgeLabel           = "Forge"
+	containerEngineLabel = "Container engine"
 )
 
 // resizeInput fits the input between the value column and the right border.

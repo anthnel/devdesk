@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/engine"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	uiterminal "github.com/anthnel/devdesk/internal/ui/terminal"
@@ -364,7 +365,7 @@ func (m Model) pruneContainers() (tea.Model, tea.Cmd) {
 // detectShell returns "/bin/bash" if bash is available in the container, else "/bin/sh".
 // The check is synchronous (~20-50ms) since the container is already running.
 func detectShell(containerID string) string {
-	err := exec.Command("docker", "exec", containerID, "which", "bash").Run()
+	err := exec.Command(engine.Current().Binary, "exec", containerID, "which", "bash").Run() //nolint:gosec // the binary is a declared engine name or a configured path
 	if err == nil {
 		return "/bin/bash"
 	}
@@ -387,7 +388,7 @@ func (m Model) shellSelectedContainer() (tea.Model, tea.Cmd) {
 	}
 
 	shell := detectShell(c.ID)
-	shellCmd := exec.Command("docker", "exec", "-it", c.ID, shell)
+	shellCmd := exec.Command(engine.Current().Binary, "exec", "-it", c.ID, shell) //nolint:gosec // same
 	return m, tea.ExecProcess(shellCmd, func(err error) tea.Msg {
 		return PagerExitMsg{Err: err}
 	})
@@ -402,7 +403,7 @@ func (m Model) shellSelectedContainerInNewWindow() (tea.Model, tea.Cmd) {
 	}
 
 	shell := detectShell(c.ID)
-	innerArgs := []string{"docker", "exec", "-it", c.ID, shell}
+	innerArgs := []string{engine.Current().Binary, "exec", "-it", c.ID, shell}
 
 	bin, args, ok := uiterminal.ForCmd(innerArgs)
 	if !ok {

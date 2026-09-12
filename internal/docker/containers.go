@@ -36,7 +36,7 @@ type Container struct {
 
 // ListContainers returns a list of containers. If all is true, includes stopped containers.
 func ListContainers(all bool) ([]Container, error) {
-	if err := requireDocker(); err != nil {
+	if err := requireEngine(); err != nil {
 		return nil, err
 	}
 
@@ -44,11 +44,11 @@ func ListContainers(all bool) ([]Container, error) {
 	if all {
 		args = append(args, "--all")
 	}
-	args = append(args, "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.CreatedAt}}\t{{.Ports}}")
+	args = append(args, "--format", templates().PS)
 
 	output, err := dockerOutput(args...)
 	if err != nil {
-		return nil, wrapErr("docker ps", err)
+		return nil, wrapErr(cmdLabel("ps"), err)
 	}
 
 	var containers []Container
@@ -80,14 +80,13 @@ func ListContainers(all bool) ([]Container, error) {
 
 // GetContainerMetrics returns CPU/Memory/Net metrics for running containers
 func GetContainerMetrics() (map[string]Container, error) {
-	if err := requireDocker(); err != nil {
+	if err := requireEngine(); err != nil {
 		return nil, err
 	}
 
-	output, err := dockerOutput("stats", "--no-stream", "--format",
-		"{{.ID}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}")
+	output, err := dockerOutput("stats", "--no-stream", "--format", templates().Stats)
 	if err != nil {
-		return nil, wrapErr("docker stats", err)
+		return nil, wrapErr(cmdLabel("stats"), err)
 	}
 
 	metrics := make(map[string]Container)
@@ -184,25 +183,25 @@ func (c Capacity) OK() bool { return c.Cores > 0 && c.MemTotal > 0 }
 // of the process — silently, since a wrong denominator still produces a
 // plausible percentage.
 func FetchCapacity() (Capacity, error) {
-	if err := requireDocker(); err != nil {
+	if err := requireEngine(); err != nil {
 		return Capacity{}, err
 	}
-	output, err := dockerOutput("info", "--format", "{{.NCPU}}\t{{.MemTotal}}")
+	output, err := dockerOutput("info", "--format", templates().Info)
 	if err != nil {
-		return Capacity{}, wrapErr("docker info", err)
+		return Capacity{}, wrapErr(cmdLabel("info"), err)
 	}
 
 	fields := strings.SplitN(strings.TrimSpace(string(output)), "\t", 2)
 	if len(fields) < 2 {
-		return Capacity{}, fmt.Errorf("docker info: unreadable capacity %q", output)
+		return Capacity{}, fmt.Errorf("%s: unreadable capacity %q", cmdLabel("info"), output)
 	}
 	cores, err := strconv.Atoi(strings.TrimSpace(fields[0]))
 	if err != nil {
-		return Capacity{}, fmt.Errorf("docker info: unreadable NCPU %q: %w", fields[0], err)
+		return Capacity{}, fmt.Errorf("%s: unreadable NCPU %q: %w", cmdLabel("info"), fields[0], err)
 	}
 	total, err := strconv.ParseInt(strings.TrimSpace(fields[1]), 10, 64)
 	if err != nil {
-		return Capacity{}, fmt.Errorf("docker info: unreadable MemTotal %q: %w", fields[1], err)
+		return Capacity{}, fmt.Errorf("%s: unreadable MemTotal %q: %w", cmdLabel("info"), fields[1], err)
 	}
 	return Capacity{Cores: cores, MemTotal: total}, nil
 }
@@ -255,22 +254,22 @@ func aggregate(metrics map[string]Container, capacity Capacity) Aggregate {
 
 // StopContainer stops a container by ID
 func StopContainer(id string) error {
-	return mutate("docker stop", "stop", id)
+	return mutate(cmdLabel("stop"), "stop", id)
 }
 
 // RestartContainer restarts a container by ID
 func RestartContainer(id string) error {
-	return mutate("docker restart", "restart", id)
+	return mutate(cmdLabel("restart"), "restart", id)
 }
 
 // PauseContainer pauses a running container by ID
 func PauseContainer(id string) error {
-	return mutate("docker pause", "pause", id)
+	return mutate(cmdLabel("pause"), "pause", id)
 }
 
 // UnpauseContainer resumes a paused container by ID
 func UnpauseContainer(id string) error {
-	return mutate("docker unpause", "unpause", id)
+	return mutate(cmdLabel("unpause"), "unpause", id)
 }
 
 // RemoveContainer removes a container by ID. If force is true, uses -f flag.
@@ -279,12 +278,12 @@ func RemoveContainer(id string, force bool) error {
 	if force {
 		args = []string{"rm", "-f", id}
 	}
-	return mutate("docker rm", args...)
+	return mutate(cmdLabel("rm"), args...)
 }
 
 // PruneContainers removes all stopped containers
 func PruneContainers() (string, error) {
-	return prune("docker container prune", "container", "prune", "-f")
+	return prune(cmdLabel("container prune"), "container", "prune", "-f")
 }
 
 // GetContainerLogs returns the last N lines of logs for a container.
@@ -298,7 +297,7 @@ func GetContainerLogs(id string, tail int, timestamps bool) (string, error) {
 
 	output, err := dockerCombined(args...)
 	if err != nil {
-		return "", errWithOutput("docker logs", output)
+		return "", errWithOutput(cmdLabel("logs"), output)
 	}
 	return string(output), nil
 }
@@ -310,11 +309,11 @@ func GetContainerLogs(id string, tail int, timestamps bool) (string, error) {
 // a subprocess.
 func InspectContainer(id string) ([]byte, error) {
 	if !IsContainerID(id) {
-		return nil, fmt.Errorf("docker inspect failed: %q is not a container ID", id)
+		return nil, fmt.Errorf("%s failed: %q is not a container ID", cmdLabel("inspect"), id)
 	}
 	output, err := dockerCombined("inspect", id)
 	if err != nil {
-		return nil, errWithOutput("docker inspect", output)
+		return nil, errWithOutput(cmdLabel("inspect"), output)
 	}
 	return output, nil
 }
@@ -336,7 +335,7 @@ func FetchContainerStats() ContainerStats {
 		return stats
 	}
 
-	output, err := dockerOutput("ps", "-a", "--format", "{{.State}}")
+	output, err := dockerOutput("ps", "-a", "--format", templates().PSState)
 	if err != nil {
 		return stats
 	}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os/exec"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // errExit stands in for the failure of a docker invocation.
@@ -59,12 +61,28 @@ func (s *stubRunner) lastArgs() []string {
 
 // stub installs a stubRunner for the duration of the test. Tests using it must
 // not call t.Parallel: the runner is package-level state.
+//
+// It restores the resolved engine too. A test that pins podman would otherwise
+// leak it into every test that ran after it, and the symptom — a label reading
+// "podman stop" in a test about something else — would point nowhere near the
+// test that caused it.
 func stub(t *testing.T, s *stubRunner) *stubRunner {
 	t.Helper()
 	previous := runner
+	previousEngine := engine.Current()
 	runner = s
-	t.Cleanup(func() { runner = previous })
+	t.Cleanup(func() {
+		runner = previous
+		engine.SetCurrent(previousEngine)
+	})
 	return s
+}
+
+// useEngine pins the engine for the duration of the test. Always paired with
+// stub, which is what restores it.
+func useEngine(t *testing.T, name string) {
+	t.Helper()
+	engine.SetCurrent(engine.ShapeFor(name))
 }
 
 // stubOutput is the common case: one subcommand returning one canned payload.
@@ -76,14 +94,14 @@ func stubOutput(t *testing.T, subcommand, output string) *stubRunner {
 func TestRequireDockerReportsMissingBinary(t *testing.T) {
 	stub(t, &stubRunner{missing: true})
 
-	err := requireDocker()
+	err := requireEngine()
 
 	if err == nil {
-		t.Fatal("requireDocker() returned nil when docker is absent")
+		t.Fatal("requireEngine() returned nil when docker is absent")
 	}
 	// The message reaches the footer under Rule 128, so it must name the cause.
 	if got := err.Error(); got != "docker not found: executable file not found in $PATH" {
-		t.Errorf("requireDocker() = %q, want it to name the missing binary", got)
+		t.Errorf("requireEngine() = %q, want it to name the missing binary", got)
 	}
 }
 

@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-09-07
+**Last Updated:** 2026-09-12
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -12142,7 +12142,7 @@ cible du moniteur sélectionné, dans les deux onglets de `status` :
 
 ---
 
-### 3.67 Choisir le moteur de conteneurisation — `docker` ou `podman`
+### 3.67 Choisir le moteur de conteneurisation — `docker` ou `podman` — **fait, sauf la mesure**
 
 Un seam existe déjà, trois lignes portent le nom du binaire, et quatre zones le
 contournent. Les sous-commandes se recouvrent ; ce qui ne se recouvre pas est le
@@ -12239,6 +12239,75 @@ pas pour le supprimer.
 dépendance légère » (`exec.go:33`), et podman expose une API compatible Docker.
 Mais ce serait réécrire les dix parsings pour résoudre un problème de nom de
 binaire, et remplacer une dépendance légère par une lourde des deux côtés.
+
+#### Ce qui a été fait — 2026-09-12
+
+`internal/engine` porte une `Shape` par moteur : le binaire, le préfixe des
+helpers d'identifiants, le fichier d'auth, le socket, et les gabarits. C'est un
+paquet à part et pas un champ de `internal/docker`, parce que `internal/scan` a
+besoin de la même réponse et n'importe pas `internal/docker` — l'arrangement de
+`internal/forge` lu un cran plus bas.
+
+Les quatre frictions, dans l'ordre où elles sont listées plus haut :
+
+1. **Le fichier d'auth** passe par `Shape.AuthPath()` : `~/.docker/config.json`
+   sous docker, `${XDG_RUNTIME_DIR}/containers/auth.json` puis
+   `~/.config/containers/auth.json` sous podman. Le JSON est le même des deux
+   côtés, donc tous les lecteurs et la réécriture en 0600 sont inchangés.
+2. **Le socket** vient de la shape et passe par `ToolSpec.HostSocket`. Le côté
+   conteneur reste `/var/run/docker.sock` — c'est là que trivy regarde — seul le
+   côté hôte bouge. Un socket absent ne produit **aucun** montage : `S` sur une
+   image est grisé avec sa raison (« podman socket not found — run `podman
+   system service` … »), ce qui est la Rule 130 appliquée à ce qu'on sait avant
+   la frappe. Le scan de **répertoire** reste disponible, il ne monte rien.
+3. **`internal/scan`** : les six sites lisent `engine.Current()`, et
+   `ToolSourceDocker` est devenu `ToolSourceContainer`. Vérifié avant de le
+   faire : cette valeur n'est **pas** sérialisée, et la config dit déjà la même
+   chose sans nommer de moteur (`ToolSourceImage = "image"`). Pas de migration.
+4. **Le shell, le pager et le dashboard** lisent la shape.
+
+**Le réglage** est `app.container_engine`, un champ cyclé dans le groupe
+*External commands*, réglé au blur comme la forge — cycler
+auto → docker → podman le résoudrait sinon trois fois, y compris au retour à la
+valeur de départ. `ConfigSavedMsg.EngineChanged` prévient le routeur : rebâtir
+les vues ne suffit pas, elles le seraient contre le moteur encore résolu. Une
+préférence qui ne résout pas est journalisée et la shape précédente gardée —
+**jamais** un repli sur l'autre moteur.
+
+#### Ce qui reste ouvert, et c'est le cœur de l'entrée
+
+**Les onze sorties parsées ne sont toujours pas mesurées.** Il n'y a pas de
+podman sur la machine où ceci a été écrit (vérifié : `podman: command not
+found`). Les deux jeux de gabarits sont donc **identiques**, et
+`TestTheTwoTemplateSetsAreStillUnmeasured` échoue le jour où ils cessent de
+l'être — pour que la divergence soit enregistrée volontairement plutôt que
+découverte par une ligne fausse. L'indirection ne prétend pas résoudre le
+problème : elle fait que la correction sera d'une ligne dans
+`shapes["podman"].Templates` au lieu d'un refactor. La liste exacte à passer
+contre un vrai podman est dans le doc du paquet et dans le plan.
+
+**`system df -v` est désactivé sous podman** (`Shape.ParsesSystemDFVerbose`).
+C'est la douzième sortie, et la seule sans gabarit : un tableau à colonnes
+fixes découpé aux offsets pris sur sa ligne d'en-tête. `UniqueSize` et
+`Containers` restent à zéro, ce que la table rend en `-` : une absence se lit
+comme une absence, une valeur découpée dans la mauvaise colonne non.
+
+**Le paquet s'appelle toujours `internal/docker`.** Le renommer toucherait 40
+fichiers pour un gain de vocabulaire et brouillerait la revue du vrai
+changement. À reprendre si le besoin se confirme.
+
+**Une `Shape` ne porte aucun chemin résolu.** Les stocker a été essayé et
+annulé : la shape est construite à l'initialisation du paquet, donc un `$HOME`
+lu là est figé avant que quoi que ce soit d'autre tourne — attrapé par les tests
+d'`oci_resources`, qui déplacent `HOME` dans leur `TestMain`. Le socket est pire
+encore, puisque son existence *est* toute la question et que `podman system
+service` peut démarrer ou s'arrêter pendant que l'application tourne.
+
+**Le pager de logs ne met pas le binaire entre guillemets.**
+`TestThePagerCommandCarriesNoQuote` l'interdit — `exec.Command` échappe le
+guillemet et `cmd.exe` ne le comprend pas. Le coût, énoncé plutôt que
+découvert : un chemin de moteur contenant une espace casse `V`, et seulement
+là.
 
 ---
 

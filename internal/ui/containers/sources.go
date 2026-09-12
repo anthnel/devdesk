@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/viewer"
 )
 
@@ -108,13 +109,24 @@ func (s logsSource) FollowInterval() time.Duration { return followInterval }
 // is written to disk, and no path needs quoting.
 //
 // The container ID is interpolated into a shell string, which is only safe
-// because it comes from `docker ps`. Do not extend this to a value the user
-// types.
+// because it comes from the engine's own `ps`. Do not extend this to a value
+// the user types.
+//
+// The engine binary is interpolated too, and deliberately **not** quoted:
+// TestThePagerCommandCarriesNoQuote forbids a quote anywhere in this command,
+// because exec.Command escapes it and cmd.exe does not understand that — a
+// debugging session's worth of reason, and not one to undo for this.
+//
+// The stated cost: an app.container_engine set to a path containing a space
+// breaks `V` here, and only here — every other invocation goes through
+// exec.Command, which needs no quoting at all. A name (docker, podman) and any
+// ordinary path are unaffected.
 func (s logsSource) PagerCmd() *exec.Cmd {
+	bin := engine.Current().Binary
 	if runtime.GOOS == "windows" {
 		return exec.Command("cmd", "/c",
-			fmt.Sprintf("docker logs --tail %d %s 2>&1 | more", logsTail, s.ID))
+			fmt.Sprintf("%s logs --tail %d %s 2>&1 | more", bin, logsTail, s.ID))
 	}
 	return exec.Command("sh", "-c",
-		fmt.Sprintf("docker logs --tail %d %s 2>&1 | ${PAGER:-less} -R", logsTail, s.ID))
+		fmt.Sprintf("%s logs --tail %d %s 2>&1 | ${PAGER:-less} -R", bin, logsTail, s.ID))
 }

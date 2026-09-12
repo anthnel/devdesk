@@ -2,6 +2,8 @@ package ociresources
 
 import (
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/engine"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
 
@@ -20,6 +22,7 @@ const (
 	reasonNotAGroup    = "This entry is a registry, not a group"
 	reasonAtTopLevel   = "Already at the registry list"
 	reasonNoTags       = "No scan results for this tag yet"
+	reasonNoScanner    = "Trivy is not available — check scan settings"
 )
 
 // imageActions reports whether N, S and D apply to the selected image.
@@ -34,6 +37,47 @@ func (m Model) imageActions() shortcut.Availability {
 		return shortcut.Unavailable(reasonNoImage)
 	case m.scanningImage(img.Name()):
 		return shortcut.Unavailable(reasonImageScanned)
+	}
+	return shortcut.Availability{}
+}
+
+// imageScan reports whether S applies to the selected image.
+//
+// It is imageActions plus one condition that belongs to S alone: scanning an
+// *image* from a container means inspecting one the host engine holds, which
+// needs that engine's socket mounted into Trivy. Rootless podman has none
+// unless `podman system service` is running (§3.67), and that is knowable
+// before the keypress — so it is greyed with its reason rather than attempted
+// and failed (Rule 130).
+//
+// N and D do not consult it: launching and deleting go through the engine's
+// CLI, not through a container, and greying them for a missing socket would
+// refuse actions that work.
+//
+// Not knowing is not knowing it is a no: while deps is nil nothing has looked
+// yet, and greying S out for three frames to un-grey it afterwards reads as a
+// fault. Same reasoning as workspaces' scannerState.
+func (m Model) imageScan() shortcut.Availability {
+	if act := m.imageActions(); !act.Enabled() {
+		return act
+	}
+	if m.deps == nil {
+		return shortcut.Availability{}
+	}
+	if !m.deps.TrivyAvailable {
+		return shortcut.Unavailable(reasonNoScanner)
+	}
+	if m.deps.TrivySource != scan.ToolSourceContainer {
+		// A Trivy binary reads the image through the engine itself and needs
+		// no socket of its own.
+		return shortcut.Availability{}
+	}
+	// The server address goes through OptionsFromConfig rather than being read
+	// off the config: it is ignored unless the client-server checkbox is on,
+	// and a second reading of that rule is a second chance to get it wrong.
+	server := scan.OptionsFromConfig(m.config).TrivyServer
+	if reason := m.deps.ImageScanBlocked(engine.Current().Name, server); reason != "" {
+		return shortcut.Unavailable(reason)
 	}
 	return shortcut.Availability{}
 }

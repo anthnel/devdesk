@@ -1,13 +1,56 @@
-# Docker/OCI, network diagnostics, sockets and interfaces
+# Container engine, OCI registries, network diagnostics, sockets and interfaces
 
 > DevDesk architecture notes. Referenced from `.claude/CLAUDE.md`;
 > read this file when working on the code it describes.
 
-## Docker / OCI Integration
+## The container engine — `internal/engine` and `internal/docker`
 
-- `internal/docker/client.go` — wraps Docker CLI (exec-based): list, metrics, stop, restart, pause, remove, prune
-- `internal/docker/netdiag.go` — **gone**. §3.33 took the five probes that did not need a container, §3.43 the ports table, §3.44 the topology (and with it `docker/topology.go` and the last `--privileged`), §3.47 the route trace and the file itself. `RunDiagnosticContainer` in `networks.go` is the one container runner left, and it attaches to a Docker network rather than to the host
-- `internal/oci/oci.go` — OCI registry HTTP client: list tags/templates, download + extract tar.gz
+**`internal/engine`** names the engine in use — docker or podman — and carries
+everything that is not the same between the two: the binary, the credential
+helper prefix, the auth file, the host socket, and the `--format` templates. It
+is its own package rather than a field of `internal/docker` because
+`internal/scan` needs the same answer and does not import `internal/docker` —
+`internal/forge`'s arrangement read one level down (§3.67).
+
+`engine.Resolve(preference)` turns `app.container_engine` into a `Shape`:
+`auto` takes docker if it is on PATH and podman otherwise; a pinned engine that
+is absent is an **error**, never the other one, because the two do not hold the
+same containers. Anything else is taken as a path to a binary. The router
+resolves once at startup and once per context switch, into `engine.SetCurrent`.
+
+A `Shape` carries **no resolved filesystem path**: `AuthPaths()`, `AuthPath()`
+and `HostSocket()` are methods. The shape is built at package initialisation, so
+a `$HOME` read there would be frozen before anything else runs — and whether the
+socket exists is the whole question, since `podman system service` can start or
+stop while the application is up.
+
+**`internal/docker`** drives that engine. Every invocation goes through one
+seam — `dockerRunner`, implemented by `cliRunner` (`exec.go`) — which is what
+made podman cheap: the binary name lived in exactly one place. The package is
+split by resource: `containers.go`, `images.go`, `networks.go`, `volumes.go`,
+`registry.go`, `system.go`, `launch.go`, plus `exec.go` (the seam), `parse.go`,
+`container_ports.go`, `identifier.go` and `names.go`. It is **not** called
+`internal/container`: renaming it would touch 40 files for a vocabulary gain.
+
+Two things about the engine are worth knowing before changing this code:
+
+- **The `--format` templates are per engine and identical today.** Podman
+  implements `--format`, but equality of the *fields* is guaranteed nowhere, and
+  a divergence raises no error — it produces wrong rows. No measurement has been
+  taken against a real podman; `TestTheTwoTemplateSetsAreStillUnmeasured` fails
+  the day the two sets stop matching, so a divergence is recorded deliberately.
+- **`system df -v` is scraped, not templated**, and is therefore disabled under
+  podman (`Shape.ParsesSystemDFVerbose`). It is a fixed-width table read at
+  offsets taken from its header line, and there is no `--format` that exposes
+  per-image unique size.
+
+- `internal/docker/netdiag.go` — **gone**. §3.33 took the five probes that did not need a container, §3.43 the ports table, §3.44 the topology (and with it `docker/topology.go` and the last `--privileged`), §3.47 the route trace and the file itself. §3.61 removed the OCI connectivity test, and with it the last container this application runs for a diagnostic: `networks.go` now holds only `ListNetworks`, `CreateNetwork`, `RemoveNetwork`, `PruneNetworks` and `InspectNetwork`.
+
+## OCI registries — `internal/oci`
+
+`internal/oci/oci.go` — an OCI **registry** HTTP client: list tags/templates,
+download and extract a tar.gz. It speaks the distribution spec over `net/http`
+and never shells out, so it is engine-agnostic and podman changed nothing in it.
 
 ## Network Diagnostics View
 

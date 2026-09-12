@@ -164,6 +164,10 @@ func New(cfg *config.Config) *App {
 	}
 	app := newWithSize(cfg, width, height)
 	app.useSecrets(credentials.Select(app.currentContext, cfg.App.SecretBackend))
+	// Resolved here rather than in newWithSize for the same reason as the
+	// secret store: it runs exec.LookPath, and a constructor that reaches for
+	// the machine is one tests cannot run twice the same way.
+	app.resolveContainerEngine()
 	return app
 }
 

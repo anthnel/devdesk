@@ -38,7 +38,7 @@ func (m Model) handleImagesKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keymap.Prune:
 		return m.pruneImages()
 	case keymap.Scan:
-		if act := m.imageActions(); !act.Enabled() {
+		if act := m.imageScan(); !act.Enabled() {
 			return m, m.footer.Warn(act.Reason)
 		}
 		return m.scanSelectedImage()

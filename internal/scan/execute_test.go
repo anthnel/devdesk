@@ -379,7 +379,7 @@ func TestAnUnreadableConfigIsRefusedBeforeAnythingStarts(t *testing.T) {
 	r := answering(t, "[]", nil)
 
 	missing := filepath.Join(t.TempDir(), "gitleaks.toml")
-	if _, err := RunGitleaks(context.Background(), "/repos", ToolSpec{Source: ToolSourceDocker}, false, missing, nil); err == nil {
+	if _, err := RunGitleaks(context.Background(), "/repos", ToolSpec{Source: ToolSourceContainer}, false, missing, nil); err == nil {
 		t.Fatal("a config that is not there was accepted")
 	}
 	if cmds := r.commands(); len(cmds) != 0 {

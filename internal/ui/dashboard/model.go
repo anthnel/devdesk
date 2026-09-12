@@ -15,6 +15,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/metrics"
@@ -24,6 +25,7 @@ import (
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // Messages
@@ -580,8 +582,12 @@ func (m Model) detectTools() tea.Cmd {
 	return func() tea.Msg {
 		var tools []shared.ToolInfo
 
-		// Docker
-		tools = append(tools, detectBinaryTool(toolDocker, "docker", "version", "--format", "{{.Client.Version}}"))
+		// The container engine, whichever one is configured. The name, the
+		// binary and the version template all come from the shape (§3.67).
+		eng := engine.Current()
+		tools = append(tools, detectBinaryTool(
+			theme.ContainerEngineLabel(eng.Name), eng.Binary,
+			"version", "--format", eng.Templates.Version))
 
 		// Security tools via scan.CheckDependencies. The whole ScanConfig goes
 		// through: the configured tool paths and the per-tool source preference

@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/registrymgr"
+	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -41,7 +42,19 @@ type Model struct {
 	listed bool
 	// pendingRequests holds what an agent asked for before that answer came.
 	pendingRequests []tea.Msg
-	scanCache       map[string]cache.ImageScanEntry
+	// deps is where the scanners resolve from on this machine, or nil while
+	// nobody has looked yet. A pointer because "not yet known" and "Trivy is
+	// not installed" are different answers, and a zero DependencyStatus says
+	// the second — same reasoning as the workspaces view, which holds one for
+	// the same purpose.
+	//
+	// It is read by imageScan() alone, to decide whether S can reach a host
+	// image at all: that needs the engine's socket mounted into Trivy, and
+	// rootless podman may not have one (§3.67). Filled by a Cmd, since
+	// scan.CheckDependencies runs exec.LookPath, a --version per tool and an
+	// `images -q` — none of which may happen in New or View (Rule 110).
+	deps      *scan.DependencyStatus
+	scanCache map[string]cache.ImageScanEntry
 	// jobs is the router snapshot of everything running anywhere, and jobFrame
 	// the spinner frame that goes with it — bare, because it lands in a table
 	// cell (Rule 122). It replaced a scanningImages map and the `scanning`

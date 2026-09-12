@@ -5,10 +5,11 @@ import (
 	"os/exec"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
-// ToolSpec says how one scanner is invoked: from a binary or from a Docker
-// image, and which one.
+// ToolSpec says how one scanner is invoked: from a binary or from an image run
+// by the configured container engine, and which one.
 //
 // It replaces the `source ToolSource, image string` pair that every command
 // builder used to take. That pair had nowhere to carry the configured binary
@@ -20,14 +21,27 @@ type ToolSpec struct {
 	// Binary is what to exec when Source is ToolSourceBinary: the configured
 	// path when there is one, else the plain name resolved on PATH.
 	Binary string
-	// Image is the Docker image when Source is ToolSourceDocker.
+	// Image is the OCI image when Source is ToolSourceContainer.
 	Image string
+	// HostSocket is the engine socket to bind-mount so a containerised Trivy
+	// can inspect an image the host holds. Empty means there is none to mount,
+	// which is rootless podman without `podman system service`; the builder
+	// then makes no mount rather than inventing a path (§3.67).
+	//
+	// Only the Trivy image path reads it. A directory scan mounts the
+	// directory and nothing else.
+	HostSocket string
 }
 
 // TrivySpec, GitleaksSpec and PlumberSpec are how a resolved DependencyStatus
 // is handed to the command builders.
 func (d DependencyStatus) TrivySpec() ToolSpec {
-	return ToolSpec{Source: d.TrivySource, Binary: d.TrivyBinary, Image: d.TrivyImage}
+	return ToolSpec{
+		Source:     d.TrivySource,
+		Binary:     d.TrivyBinary,
+		Image:      d.TrivyImage,
+		HostSocket: d.ImageScanSocket,
+	}
 }
 
 func (d DependencyStatus) GitleaksSpec() ToolSpec {
@@ -49,11 +63,11 @@ type toolResolution struct {
 // resolveTool decides where one scanner runs from.
 //
 // The three preferences differ in exactly one way that matters: `binary` does
-// **not** fall back to Docker. That silent fallback is what kept D27 invisible
+// **not** fall back to a container. That silent fallback is what kept D27 invisible
 // — a configured path that was never read still produced working scans, run by
 // something other than what was asked for. Asking for a binary and not having
 // one is now an unavailable tool, which the dashboard reports.
-func resolveTool(pref, configuredPath, name, image string, dockerAvailable bool, versionArgs ...string) toolResolution {
+func resolveTool(pref, configuredPath, name, image string, engineAvailable bool, versionArgs ...string) toolResolution {
 	useBinary := func() (toolResolution, bool) {
 		path, ok := locateBinary(configuredPath, name)
 		if !ok {
@@ -68,13 +82,13 @@ func resolveTool(pref, configuredPath, name, image string, dockerAvailable bool,
 	}
 
 	useImage := func() (toolResolution, bool) {
-		if !dockerAvailable || !checkDockerImage(image) {
+		if !engineAvailable || !imageIsLocal(image) {
 			return toolResolution{Source: ToolSourceNone}, false
 		}
 		return toolResolution{
 			Available: true,
-			Source:    ToolSourceDocker,
-			Version:   dockerToolVersion(image, versionArgs...),
+			Source:    ToolSourceContainer,
+			Version:   containerToolVersion(image, versionArgs...),
 		}, true
 	}
 
@@ -123,11 +137,15 @@ func toolVersion(path string, args ...string) string {
 	return string(out)
 }
 
-func dockerToolVersion(image string, args ...string) string {
+// containerToolVersion asks the image what it is, through the configured
+// engine. The engine's name is part of the answer — it is what the dashboard
+// shows to say where the tool is coming from.
+func containerToolVersion(image string, args ...string) string {
+	name := engine.Current().Name
 	runArgs := append([]string{"run", "--rm", image}, args...)
-	out, err := exec.Command("docker", runArgs...).Output()
+	out, err := exec.Command(engine.Current().Binary, runArgs...).Output() //nolint:gosec // the binary is a declared engine name or a configured path
 	if err != nil {
-		return "docker"
+		return name
 	}
-	return "docker:" + string(out)
+	return name + ":" + string(out)
 }

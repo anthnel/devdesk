@@ -34,8 +34,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
   GitHub (github.com/google/go-github/v68) — `internal/forge` abstracts both;
   a context targets exactly one, never two.
 - **Security Tools**: Trivy, Gitleaks
-- **Containerization**: Docker only. Podman was never added — there is no
-  Podman code anywhere in the tree to remove.
+- **Containerization**: Docker **or** Podman, chosen per context via
+  `app.container_engine` (`auto` by default — docker if it is on PATH, else
+  podman). `internal/engine` declares one `Shape` per engine and
+  `internal/docker` drives whichever is resolved (§3.67). One caveat worth
+  carrying: the `--format` templates have never been measured against a real
+  podman, so both shapes declare the same ones today.
 
 ---
 

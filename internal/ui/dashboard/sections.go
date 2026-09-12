@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/metrics"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
@@ -41,7 +42,7 @@ func overviewSections(forgeType string) []section {
 		{title: theme.ForgeIcon(forgeType) + " Code", render: renderCodeSection},
 		{title: theme.IconSecurity + " Health", render: renderHealthSection},
 		{title: theme.IconServer + " " + hostLabel(), render: renderHostSection},
-		{title: theme.IconDocker + " Docker (VM)", render: renderDockerSection},
+		{title: engineSectionTitle(), render: renderDockerSection},
 	}
 }
 
@@ -711,7 +712,7 @@ func missingTools(tools []shared.ToolInfo) []string {
 	}
 
 	var missing []string
-	for _, name := range knownTools {
+	for _, name := range knownTools() {
 		if !available[name] {
 			missing = append(missing, name)
 		}
@@ -954,14 +955,28 @@ func errorCountValue(totals metrics.Counters, n uint64) string {
 // because the two lists have already diverged once (§3.47): two literals
 // for a single name can only drift apart; a constant cannot.
 const (
-	toolDocker   = "Docker"
 	toolTrivy    = "Trivy"
 	toolGitleaks = "Gitleaks"
 	toolPlumber  = "Plumber"
 	toolGit      = "Git"
 )
 
-var knownTools = []string{toolDocker, toolTrivy, toolGitleaks, toolPlumber, toolGit}
+// knownTools is a function rather than a var because its first entry is the
+// engine in use, which a context switch can change (§3.67). The rest is fixed.
+func knownTools() []string {
+	return []string{
+		theme.ContainerEngineLabel(engine.Current().Name),
+		toolTrivy, toolGitleaks, toolPlumber, toolGit,
+	}
+}
+
+// engineSectionTitle names the box that reports what the engine is holding.
+// "(VM)" is gone with the name: it described Docker Desktop's virtual machine,
+// and it was already wrong on a native Linux daemon.
+func engineSectionTitle() string {
+	name := engine.Current().Name
+	return theme.ContainerEngineIcon(name) + " " + theme.ContainerEngineLabel(name)
+}
 
 // renderStorageSection answers one question — **where does the space go**
 // — in two trees: the volume the workspaces live on, and what Docker holds
@@ -973,7 +988,7 @@ var knownTools = []string{toolDocker, toolTrivy, toolGitleaks, toolPlumber, tool
 //
 // The Docker sizes come from `system df`, of which the view used to only
 // read the reclaimable figure — the other three columns were parsed and
-// thrown away. The Docker (VM) box keeps the counts, this one takes the
+// thrown away. The engine box keeps the counts, this one takes the
 // bytes: it used to be in both, in two forms.
 func renderStorageSection(m Model, _ int, _ tier) []string {
 	volume := []string{

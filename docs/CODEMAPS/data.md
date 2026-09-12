@@ -136,10 +136,10 @@ type OCIStats struct {
 }
 
 type ToolInfo struct {
-  Name      string  // "trivy", "gitleaks", "docker", "podman"
-  Available bool    // Found in PATH or Docker
+  Name      string  // "Trivy", "Gitleaks", "Plumber", "Git", and the engine in use ("Docker" | "Podman")
+  Available bool    // Found on PATH, or held as an image by the engine
   Version   string  // e.g., "0.52.1"
-  Source    string  // "binary" | "docker" | ""
+  Source    string  // "binary" | "container" | ""  — see scan.ToolSource
 }
 
 type ServiceGlobalStatus string

@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/engine"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -172,7 +173,7 @@ func (m Model) View() string {
 // The load says so in the footer, with a spinner, and the table stays on
 // screen: a body that swapped itself for a spinner lost its header and its
 // columns for the length of every ctrl+r, then got them back — a jump in the
-// layout on every refresh. An empty table — Docker has none, or the state
+// layout on every refresh. An empty table — the engine has none, or the state
 // tokens hide them all — stays a table too (Rule 139): its header and no rows,
 // with the count in GetHeaderInfo's "Containers" field.
 func (m Model) renderNormalView() string {
@@ -181,9 +182,15 @@ func (m Model) renderNormalView() string {
 
 // GetHelpContent returns help content for the containers view (Rule 114)
 func (m Model) GetHelpContent() help.Content {
+	// The engine's name is interpolated rather than written out: this view
+	// drives whichever one app.container_engine resolved to, and help naming
+	// the other is help about a machine the user is not looking at (§3.67).
+	eng := engine.Current().Name
+	engTitle := theme.ContainerEngineLabel(eng)
+
 	return help.Content{
-		Title:       "Docker Containers",
-		Description: "This view lists and manages Docker containers. It displays real-time metrics (CPU, Memory, Network RX/TX) and supports filtering, sorting, lifecycle actions, and interactive shell access.",
+		Title:       engTitle + " Containers",
+		Description: "This view lists and manages " + engTitle + " containers. It displays real-time metrics (CPU, Memory, Network RX/TX) and supports filtering, sorting, lifecycle actions, and interactive shell access.",
 		KeyBindings: []help.KeyBinding{
 			{Key: keymap.Kill, Description: "Ask whether to stop or restart the selected container"},
 			{Key: "Space", Description: "Toggle pause: pause a running container, or resume a paused one"},
@@ -191,7 +198,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: keymap.Delete, Description: "Delete the selected container (with confirmation)"},
 			{Key: keymap.Terminal, Description: "Open an interactive shell (bash if available, sh otherwise) in the selected container. In place or in a new window, per app.terminal_new_window (running only)"},
 			{Key: keymap.Logs, Description: "Open the container's logs in the viewer (Esc returns here)"},
-			{Key: "enter", Description: "Open 'docker inspect' in the viewer, as a navigable JSON tree (Esc returns here)"},
+			{Key: "enter", Description: "Open '" + eng + " inspect' in the viewer, as a navigable JSON tree (Esc returns here)"},
 			{Key: "r", Description: "Filter: running containers"},
 			{Key: "p", Description: "Filter: paused containers"},
 			{Key: "s", Description: "Filter: stopped containers (exited, dead)"},
@@ -210,11 +217,11 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Columns",
 				Body: "Status (first, untitled): the container state — " + theme.IconCaretRight + " running, " + theme.IconSmallPause + " paused, " + theme.IconSmallSquare + " exited, " + theme.IconCaretUp + " created/restarting, " + theme.IconBan + " dead. A spinner replaces it while an action is running on that container.\n" +
 					"Name: Container name.\n" +
-					"Image: Docker image.\n" +
-					"CPU: CPU usage percentage, as 'docker stats' counts it — relative to one core, so a container busy on two cores reads 200%.\n" +
+					"Image: the container's image.\n" +
+					"CPU: CPU usage percentage, as '" + eng + " stats' counts it — relative to one core, so a container busy on two cores reads 200%.\n" +
 					"1 core: the CPU percentage as a bar, full at one core. It saturates above that, which is why the number stays beside it. The filled part is green below 75%, orange from there, red from 90%; the empty part stays a fixed muted color at every level.\n" +
 					"Mem: Memory usage as compact label (e.g. '150M/8G').\n" +
-					"Limit: how full that label is — the share of the limit docker reports for the container, which is the daemon's total when the container declares none. Same coloring as 1 core.\n" +
+					"Limit: how full that label is — the share of the limit " + eng + " reports for the container, which is the daemon's total when the container declares none. Same coloring as 1 core.\n" +
 					"Net RX: Cumulative network bytes received since container start (e.g. '1.2kB', '3.4MB').\n" +
 					"Net TX: Cumulative network bytes transmitted since container start.\n" +
 					"Block RX: Cumulative block device bytes read since container start.\n" +
@@ -222,18 +229,18 @@ func (m Model) GetHelpContent() help.Content {
 					"Ports: One entry per publication — the host port, and an icon saying who can reach it: " +
 					theme.IconNetwork + " every interface, " + theme.IconHome + " this machine only, " +
 					theme.IconServer + " one named address, " + theme.IconLock + " declared by the image but published by nobody. " +
-					"A protocol is named only when it is not tcp. The two lines docker prints for a dual-stack publication are one entry here, and the container-side port is left out — press enter for the full mapping.\n" +
+					"A protocol is named only when it is not tcp. The two lines " + eng + " prints for a dual-stack publication are one entry here, and the container-side port is left out — press enter for the full mapping.\n" +
 					"Created: Relative timestamp when the container was created.\n" +
 					"On a narrow terminal the two gauges are the first columns to go, before the I/O counters: they draw a number that stays on screen without them. They also lose their color on the selected row, like every colored column.",
 			},
 			{
 				Title: "Running Actions",
-				Body: "Stop, restart, pause/resume and delete run in the background. While one is running the container's status column shows a spinner, the row is dimmed, and the footer names what is happening — 'docker stop' waits ten seconds for the container to exit on its own.\n" +
+				Body: "Stop, restart, pause/resume and delete run in the background. While one is running the container's status column shows a spinner, the row is dimmed, and the footer names what is happening — '" + eng + " stop' waits ten seconds for the container to exit on its own.\n" +
 					"A second action on the same container is refused until the first one finishes; the cursor is free to move in the meantime, and the spinner stays with the container rather than following it.",
 			},
 			{
 				Title: "Metrics Refresh",
-				Body:  "All metrics (CPU, Memory, Net RX/TX) are fetched every 2 seconds using 'docker stats --no-stream'. Only running containers display metrics; stopped or paused containers show '-' in metric columns.",
+				Body:  "All metrics (CPU, Memory, Net RX/TX) are fetched every 2 seconds using '" + eng + " stats --no-stream'. Only running containers display metrics; stopped or paused containers show '-' in metric columns.",
 			},
 			{
 				Title: "Filter",
@@ -253,12 +260,12 @@ func (m Model) GetHelpContent() help.Content {
 					"by verbosity, '/' searches, 'w' wraps long lines, 't' toggles timestamps, ctrl+r reloads, " +
 					"ctrl+f follows live output and 'e' opens the system pager. A line with no level of its own " +
 					"belongs to the entry above it, so filtering never breaks a stack trace apart.\n\n" +
-					"'i' opens 'docker inspect' as a navigable JSON tree: → expands a node, ← collapses it, and 'f' " +
+					"'i' opens '" + eng + " inspect' as a navigable JSON tree: → expands a node, ← collapses it, and 'f' " +
 					"shows the raw JSON instead. Neither suspends the TUI.",
 			},
 			{
 				Title: "Prerequisites",
-				Body:  "The Docker CLI must be installed and accessible in your PATH. The current user must have permission to run docker commands.",
+				Body:  "The " + engTitle + " CLI must be installed and accessible in your PATH. The current user must have permission to run " + eng + " commands.",
 			},
 		},
 	}

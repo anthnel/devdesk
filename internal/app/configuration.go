@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -15,8 +16,8 @@ import (
 // take effect.
 //
 // Most settings are read from a.config when a view is built, so rebuilding the
-// views is all it takes — the same machinery a context switch already uses. Two
-// are not:
+// views is all it takes — the same machinery a context switch already uses. A
+// few are not:
 //
 //   - the theme is global process state, applied through theme.ApplyTheme;
 //   - the secret backend decides which credentials.Storage the context holds,
@@ -32,6 +33,9 @@ func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, te
 	}
 	if msg.BackendChanged {
 		a.resolveSecretBackend()
+	}
+	if msg.EngineChanged {
+		a.resolveContainerEngine()
 	}
 	if msg.ForgeChanged {
 		a.closeForgeSession()
@@ -83,6 +87,32 @@ func (a *App) resolveSecretBackend() {
 	a.clearAuthenticated()
 
 	log.Printf("Secret backend for context %s resolved to %s", a.currentContext, selection.Backend)
+}
+
+// resolveContainerEngine picks up the new app.container_engine for this
+// context.
+//
+// Every view that lists containers, images, networks or volumes is rebuilt by
+// the caller right after this, so nothing carries the previous engine's
+// listings forward — which matters here more than it does for a theme: two
+// engines do not hold the same containers, and a stale row would name something
+// that does not exist.
+//
+// A preference that does not resolve is **not** fatal and does not fall back to
+// the other engine. The previous shape is kept and the views report the absence
+// the way they always have when the binary is missing (requireEngine) — an
+// error at the moment of use, naming the engine that was asked for, rather than
+// a silent substitution that answers about the wrong machine (§3.67).
+func (a *App) resolveContainerEngine() {
+	preference := a.config.App.ContainerEngine
+	shape, err := engine.Resolve(preference)
+	if err != nil {
+		log.Printf("ERROR [app] resolve container engine %q: %v", preference, err)
+		return
+	}
+	engine.SetCurrent(shape)
+	log.Printf("Container engine for context %s resolved to %s (%s)",
+		a.currentContext, shape.Name, shape.Binary)
 }
 
 // closeForgeSession drops the client-side session after the forge's URL or its

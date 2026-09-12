@@ -40,7 +40,7 @@ type ToolInfo struct {
 	Name      string
 	Available bool
 	Version   string
-	Source    string // "binary", "docker", or ""
+	Source    string // "binary", "container", or "" — see scan.ToolSource
 }
 
 // ServiceGlobalStatus represents the overall health of monitored services

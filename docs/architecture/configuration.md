@@ -59,6 +59,24 @@ ran — has since been removed along with the feature itself; `NetworkConfig`
 now holds only the netdiag dials (`CheckTimeout`, `PingCount`,
 `CertExpiryWarnDays`, `PortsRefreshInterval`).
 
+**`app.container_engine`** names the engine every container, image, network and
+volume comes from: `auto` (the default — docker if it is on PATH, else podman),
+`docker`, `podman`, or an explicit path to a binary. It sits in `app` beside
+`ide_command` and `terminal_command` — the section that already holds the
+external tools this application drives — and deliberately **not** in `network:`,
+which carries only netcheck's dials despite its old name (§3.67).
+
+`auto` is written on load rather than left empty, for the same reason
+`secret_backend` is: `engine.Resolve` reads `""` as auto either way, but the
+configuration view cycles a closed set and a value outside it has nowhere to
+start from. The names are stated in `internal/config` and in `internal/engine`,
+held in step by `TestEveryConfiguredEngineHasAShape` — the same arrangement as
+`forge.type`, one paragraph up. The field settles **on blur**, like the forge:
+cycling auto → docker → podman would otherwise re-resolve three times.
+`ConfigSavedMsg.EngineChanged` is what tells the router, because rebuilding the
+views is not enough on its own — they would be rebuilt against the engine that
+is still resolved.
+
 **No secret goes in this file.** `GitLabConfig` has no `Token` and
 `RegistryConfig` has no `Password`; both live in the host secret store (see
 Credentials Management). Do not add a secret-bearing field back — the schema is
