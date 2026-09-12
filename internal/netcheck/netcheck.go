@@ -18,6 +18,7 @@ package netcheck
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Verdict is what a check concluded.
@@ -126,6 +127,10 @@ type Check struct {
 	// explanation layer, which is keyed on ID.
 	Summary string
 	Facts   []Fact
+	// Duration is how long the observation behind this check took, when
+	// timed. Zero means untimed — a check that answers instantly (DNS
+	// resolution) or one nothing has instrumented yet.
+	Duration time.Duration
 	// Because is set only when Verdict is NotApplicable *and* the cause was an
 	// upstream failure. Empty on a NotApplicable that simply has no meaning
 	// here, which is what separates "blocked" from "irrelevant".

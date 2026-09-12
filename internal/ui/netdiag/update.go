@@ -209,7 +209,7 @@ func (m *Model) handleKeyInput(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		// enter runs from anywhere in the form: with three fields and one
 		// button there is nothing else it could mean, and making the user walk
 		// to the button first is a step that buys nothing.
-		return m.startRun()
+		return m.StartRun()
 	case "esc":
 		return m, nil
 	}
@@ -256,9 +256,17 @@ func (m *Model) handleKeyResults(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	case "enter":
 		return m.openDetails()
 	case "esc":
-		return m.resetToForm()
+		// No origin view means netdiag was opened directly (the command
+		// line), so esc stays inside it and resets to the form, as it
+		// always has. An origin means it was opened prefilled from
+		// elsewhere (status's H, §3.66), and esc returns there instead.
+		if m.OriginView == "" {
+			return m.resetToForm()
+		}
+		origin := m.OriginView
+		return m, func() tea.Msg { return BackToOriginMsg{Origin: origin} }
 	case "ctrl+r":
-		return m.startRun()
+		return m.StartRun()
 	case "/":
 		return m, m.filterBar.ActivateSearch()
 	case "p":

@@ -19,6 +19,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/configuration"
 	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
+	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -508,6 +509,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleViewerOpenRequest(msg)
 
 	case uiviewer.BackToOriginMsg:
+		return a, a.switchView(msg.Origin)
+
+	// ── Network diagnostics, opened prefilled from elsewhere ─────────────
+	// status's H (§3.66) is the first producer; wired the same way as the
+	// viewer and the security view above.
+	case netdiag.OpenRequestMsg:
+		return a.handleNetdiagOpenRequest(msg)
+
+	case netdiag.BackToOriginMsg:
 		return a, a.switchView(msg.Origin)
 
 	default:

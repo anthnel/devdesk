@@ -11981,34 +11981,72 @@ d'en-têtes, et `Check.Facts` est la forme qui existe déjà pour l'exposer.
 
 ---
 
-### 3.66 « C'est lent » — où, exactement
+### 3.66 « C'est lent » — où, exactement — **étapes 1 et 2 faites**
 
 `net/http/httptrace` sépare DNS / connexion / handshake TLS / TTFB / total pour
 une requête, avec la bibliothèque standard seule.
 
-#### Le chiffre existe déjà, et il est jeté — vérifié le 2026-09-07
+#### Ce qui était vrai, et vérifié le 2026-09-07
 
-`Check` **n'a pas de champ de durée** (`internal/netcheck/netcheck.go:119`). Le
-seul temps affiché aujourd'hui est de la prose dans `Summary` — « Port 443
-accepted the connection in 12 ms » — alors que `Env.DialTCP` retourne une vraie
-`time.Duration` (`env.go:130`) que l'étage formate puis oublie. Un nombre que le
-pipeline tient déjà ne peut donc être ni tracé, ni comparé entre deux exécutions,
-ni trié.
+`Check` n'avait pas de champ de durée (`internal/netcheck/netcheck.go:119`). Le
+seul temps affiché était de la prose dans `Summary` — « Port 443 accepted the
+connection in 12 ms » — alors que `Env.DialTCP` retournait une vraie
+`time.Duration` (`env.go:130`) que l'étage formatait puis jetait. Un nombre que
+le pipeline tenait déjà ne pouvait donc être ni tracé, ni comparé entre deux
+exécutions, ni trié. L'étage HTTP, lui, ne mesurait rien du tout — pas même en
+prose.
 
-Le correctif qui débloque tout est petit, et c'est **le même que celui dont
-§3.65 a besoin** : `Check` porte une durée, et `Summary` continue de la dire en
-prose pour qui lit. Deux consommateurs pour un seul changement.
+#### Fait
 
-`ntcharts` est déjà une dépendance directe (§3.19), donc l'historique ne coûte
-aucune dépendance.
+`Check` porte maintenant `Duration time.Duration` (`netcheck.go`), à côté de
+`Summary` et `Facts` — zéro veut dire non chronométré, exactement la même
+convention que `Because`/`Reason`. Trois étages l'alimentent :
 
-#### Non tranché
+- **TCP** (`stage_connect.go`) : le chiffre que `DialTCP` rendait déjà et que
+  seule la prose gardait alimente maintenant aussi `c.Duration` — rien de
+  neuf mesuré, juste un consommateur de plus pour la même valeur.
+- **TLS** (`stage_tls.go`) : le handshake n'était pas chronométré du tout ;
+  `runTLS` encadre `env.Handshake` d'un `env.Now()` avant/après (la même
+  horloge injectée que l'expiration utilise déjà, pour rester testable), et
+  le résultat va dans `Duration`, un `Fact` « Handshake time » et la phrase
+  du `Summary`.
+- **HTTP** (`stage_http.go`, `env.go`) : `HTTPResult` gagne
+  `DNSDuration`/`ConnectDuration`/`TLSDuration`/`TTFB`/`Total`, remplis par un
+  `httptrace.ClientTrace` posé sur le contexte de la requête dans
+  `systemEnv.Head`. Les facts DNS et TLS n'apparaissent que quand la phase a
+  vraiment eu lieu (une IP littérale n'a pas de DNS, un `http://` n'a pas de
+  TLS) ; Connect/TTFB/Total sont de la requête, toujours présents.
+  `Check.Duration` prend `Total`.
 
-Garder un historique, ou pas. Une latence réduite à sa dernière mesure répond à
-« est-ce lent maintenant » ; une série répond à « est-ce que ça se dégrade »,
-qui est la question utile et la seule qui demande de persister quelque chose.
-Les moniteurs de `status` tournent déjà sur une horloge, donc les échantillons
-existent — rien ne les garde.
+Rien côté vue : `internal/ui/netdiag/view.go` boucle déjà sur `c.Facts` et les
+nouveaux facts apparaissent d'eux-mêmes dans le panneau Details. Le MCP
+(`internal/mcp/netcheck_tools.go`) fait de même pour `Facts` ; `Duration`
+lui-même n'est pas exposé au MCP — rien n'en a besoin pour l'instant, les
+facts portent déjà la forme lisible.
+
+#### Non tranché — et volontairement laissé de côté
+
+**Garder un historique, ou pas.** Une latence réduite à sa dernière mesure
+répond à « est-ce lent maintenant » — ce que le travail ci-dessus fait ; une
+série répond à « est-ce que ça se dégrade », qui demande de persister quelque
+chose, et rien dans `netdiag` ne garde un run au-delà du suivant. `ntcharts`
+est déjà une dépendance directe (§3.19) si la réponse devient oui.
+
+#### Un raccourci trouvé en discutant l'entrée : `status` → `netdiag`
+
+Pas dans l'énoncé d'origine, mais la même conversation a fait remarquer que
+`status` mesure déjà une latence par moniteur (`ComponentStatus.ResponseTime`)
+sans jamais dire *où* le temps part — exactement la question que `netdiag`
+existe pour répondre, sur une cible à la fois plutôt qu'en continu. `H`
+(`keymap.Diagnose`, libéré par §3.47 puis repris ici) ouvre `netdiag` sur la
+cible du moniteur sélectionné, dans les deux onglets de `status` :
+
+- **Auto-run quand le port est certain** — http/https/ssl connaissent déjà
+  leur port ; icmp/dns n'en ont pas et atterrissent sur le formulaire
+  pré-rempli plutôt que sur un port deviné en silence.
+- **`esc` revient à `status`** — `netdiag.Model` gagne un `OriginView`
+  (même mécanisme que `security`/`uiviewer`), vide pour l'ouverture normale
+  par la ligne de commande, où `esc` se comporte exactement comme avant.
 
 ---
 

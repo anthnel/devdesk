@@ -21,7 +21,9 @@ import (
 // certificate with it. The check this replaces greped the leaf's text and never
 // looked at the chain at all.
 func runTLS(ctx context.Context, t Target, env Env, set Settings, _ *Results) []Check {
+	start := env.Now()
 	state, err := env.Handshake(ctx, t.Addr(), t.Host)
+	elapsed := env.Now().Sub(start)
 	if err != nil {
 		return handshakeFailed(t, err)
 	}
@@ -34,10 +36,12 @@ func runTLS(ctx context.Context, t Target, env Env, set Settings, _ *Results) []
 	now := env.Now()
 
 	hs := newCheck(CheckTLSHandshake, StageTLS, OK,
-		fmt.Sprintf("Handshake completed, %d certificate(s) presented", len(state.PeerCertificates)))
+		fmt.Sprintf("Handshake completed, %d certificate(s) presented in %s", len(state.PeerCertificates), roundedMillis(elapsed)))
 	hs.fact("Negotiated version", tlsVersionName(state.Version))
 	hs.fact("Subject", leaf.Subject.CommonName)
 	hs.fact("Issuer", leaf.Issuer.CommonName)
+	hs.fact("Handshake time", roundedMillis(elapsed))
+	hs.Duration = elapsed
 
 	expiry := expiryCheck(leaf, now, set.ExpiryWarnWindow)
 

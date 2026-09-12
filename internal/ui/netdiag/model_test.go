@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -42,6 +43,26 @@ func TestTheResolverDefaultsToTheSystemOne(t *testing.T) {
 	}
 	if !strings.Contains(m.dnsServerInput.Placeholder, "system") {
 		t.Errorf("placeholder %q does not say what empty means", m.dnsServerInput.Placeholder)
+	}
+}
+
+// TestNewWithTargetPrefillsTheForm covers status's H (§3.66): the form is
+// filled from an already-known target rather than left for the user to type,
+// and it stays a form — NewWithTarget does not itself start the run.
+func TestNewWithTargetPrefillsTheForm(t *testing.T) {
+	m := NewWithTarget(testConfig(), netcheck.Target{Host: "example.com", Port: 8443, Resolver: "1.1.1.1"})
+
+	if got := m.targetInput.Value(); got != "example.com" {
+		t.Errorf("target = %q, want %q", got, "example.com")
+	}
+	if got := m.portInput.Value(); got != "8443" {
+		t.Errorf("port = %q, want %q", got, "8443")
+	}
+	if got := m.dnsServerInput.Value(); got != "1.1.1.1" {
+		t.Errorf("resolver = %q, want %q", got, "1.1.1.1")
+	}
+	if m.state != StateInput {
+		t.Errorf("state = %v, want StateInput — NewWithTarget must not itself start the run", m.state)
 	}
 }
 
@@ -390,6 +411,24 @@ func TestEscReturnsToTheFormAndClearsTheFilters(t *testing.T) {
 	}
 	if len(m.results.All()) != 0 {
 		t.Error("the previous run's checks survived the return to the form")
+	}
+}
+
+// TestEscReturnsToTheOriginWhenOneIsSet mirrors security's own OriginView
+// test: a run opened prefilled from elsewhere (status's H, §3.66) returns
+// there on esc instead of resetting to netdiag's own form.
+func TestEscReturnsToTheOriginWhenOneIsSet(t *testing.T) {
+	m := resultsModel(t)
+	m.OriginView = command.ViewStatus
+
+	_, cmd := step(t, m, testutil.Key("esc"))
+
+	msg, ok := testutil.MsgOf[BackToOriginMsg](cmd)
+	if !ok {
+		t.Fatalf("esc emitted %T, want a return to the origin", testutil.Msg(cmd))
+	}
+	if msg.Origin != command.ViewStatus {
+		t.Errorf("Origin = %q, want %q", msg.Origin, command.ViewStatus)
 	}
 }
 

@@ -96,11 +96,15 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 		if m.filterBar.IsTokenActive(problemsToken) {
 			label = "Show every check"
 		}
+		escLabel := "New diagnostic"
+		if m.OriginView != "" {
+			escLabel = "Go back"
+		}
 		sc = append(sc,
 			shortcut.Shortcut{Key: "p", Description: label},
 			shortcut.Shortcut{Key: "/", Description: "Search"},
 			shortcut.Shortcut{Key: "ctrl+r", Description: "Run again"},
-			shortcut.Shortcut{Key: "esc", Description: "New diagnostic"},
+			shortcut.Shortcut{Key: "esc", Description: escLabel},
 			shortcut.Shortcut{Key: "?", Description: "Help"},
 		)
 		return append(tabShortcuts, sc...)

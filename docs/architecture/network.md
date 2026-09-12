@@ -27,6 +27,25 @@
   tab, and §3.44 is why three of its four sections are gone rather than
   translated.
 
+**Timing (§3.66).** `netcheck.Check` carries a `Duration time.Duration`
+alongside `Summary`/`Facts` — zero means untimed. `stage_connect.go` and
+`stage_tls.go` fill it from the dial and the handshake respectively;
+`stage_http.go` fills it from an `httptrace.ClientTrace` attached in
+`env.go`'s `Head`, which also gives `HTTPResult` a DNS/connect/TLS/TTFB
+breakdown surfaced as `Facts` on the `HTTP` row. Nothing keeps a history
+across runs — that stays an open question.
+
+**Opened prefilled, from elsewhere (§3.66).** `netdiag.NewWithTarget` builds a
+view with the form filled in but not yet run; `netdiag.OpenRequestMsg` is
+what a producer elsewhere sends to ask the router for one (mirroring
+`uiviewer.OpenRequestMsg`), and `netdiag.BackToOriginMsg` is how `esc` gets
+back out, via `Model.OriginView` — empty when netdiag was opened directly
+from the command line, in which case `esc` behaves exactly as it always has.
+`status`'s `H` (`keymap.Diagnose`, `internal/ui/status/diagnostics.go`) is
+the first and only producer: it resolves the selected monitor's target and
+auto-runs the pipeline when the port is certain (http/https/ssl), or lands on
+the prefilled form when it is a guess (icmp/dns).
+
 **What is configurable, and what is not.** `internal/netcheck` held its timeouts
 as constants with a comment saying they would become settings when somebody
 asked; `network:` is what they became.

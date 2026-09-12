@@ -134,6 +134,37 @@ func TestHeadDoesNotFollowRedirects(t *testing.T) {
 	}
 }
 
+// TestHeadTimesEachPhaseOfAnHTTPSRequest verifies the httptrace wiring end to
+// end: DNSDuration is zero (the target is a loopback literal, so there is no
+// lookup), while ConnectDuration, TLSDuration, TTFB and Total are all
+// observed and internally consistent (each phase fits inside the total).
+func TestHeadTimesEachPhaseOfAnHTTPSRequest(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	res, err := SystemEnv(DefaultSettings()).Head(context.Background(), srv.URL)
+	if err != nil {
+		t.Fatalf("head: %v", err)
+	}
+	if res.DNSDuration != 0 {
+		t.Errorf("DNSDuration = %v, want 0 against a loopback literal", res.DNSDuration)
+	}
+	if res.ConnectDuration <= 0 {
+		t.Error("ConnectDuration = 0, want the dial to have been timed")
+	}
+	if res.TLSDuration <= 0 {
+		t.Error("TLSDuration = 0, want the handshake to have been timed")
+	}
+	if res.TTFB <= 0 {
+		t.Error("TTFB = 0, want time to first byte to have been timed")
+	}
+	if res.Total < res.TTFB {
+		t.Errorf("Total = %v < TTFB = %v, want the total to cover the whole request", res.Total, res.TTFB)
+	}
+}
+
 func TestHeadReportsAContextThatExpired(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(200 * time.Millisecond)

@@ -8,8 +8,11 @@ import (
 	"github.com/anthnel/devdesk/internal/netcheck"
 )
 
-// startRun validates the form and starts the pipeline at its first stage.
-func (m *Model) startRun() (*Model, tea.Cmd) {
+// StartRun validates the form and starts the pipeline at its first stage. It
+// is exported so a producer that opens the view prefilled — status's H
+// (§3.66) — can trigger the run itself, from the router, rather than netdiag
+// auto-running on construction.
+func (m *Model) StartRun() (*Model, tea.Cmd) {
 	tg, err := m.buildTarget()
 	if err != nil {
 		return m, m.footer.Error(capitalize(err.Error()))

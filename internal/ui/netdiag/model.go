@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -105,6 +106,11 @@ type Model struct {
 
 	// footer is the one line of transient state below the tab bar (Rule 128).
 	footer components.FooterMessage
+
+	// OriginView is where esc returns to from StateResults, when set. Empty
+	// means netdiag was opened directly (the command line), and esc there
+	// stays inside the view — resetting to the form, as it always has.
+	OriginView command.ViewType
 }
 
 // New creates a new netdiag view
@@ -152,6 +158,21 @@ func New(cfg *config.Config) *Model {
 			SortColumn: -1,
 		}),
 	}
+}
+
+// NewWithTarget builds a view prefilled from an already-known target, for a
+// producer elsewhere in the application (status's H, §3.66) rather than a
+// user typing into the form. It stays a pure constructor — no tea.Cmd side
+// effects — so the caller decides whether to also start the run, the same
+// way uiviewer.NewWithSource hands back a model without loading anything.
+func NewWithTarget(cfg *config.Config, t netcheck.Target) *Model {
+	m := New(cfg)
+	m.targetInput.SetValue(t.Host)
+	if t.Port > 0 {
+		m.portInput.SetValue(strconv.Itoa(t.Port))
+	}
+	m.dnsServerInput.SetValue(t.Resolver)
+	return m
 }
 
 // buildTarget assembles what the form describes.

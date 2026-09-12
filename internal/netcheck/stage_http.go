@@ -44,6 +44,16 @@ func runHTTP(ctx context.Context, t Target, env Env, _ Settings, prior *Results)
 
 	c.fact("Status", strconv.Itoa(res.Status))
 	c.fact("Server", res.Server)
+	c.Duration = res.Total
+	if res.DNSDuration > 0 {
+		c.fact("DNS", roundedMillis(res.DNSDuration))
+	}
+	c.fact("Connect", roundedMillis(res.ConnectDuration))
+	if scheme == "https" {
+		c.fact("TLS", roundedMillis(res.TLSDuration))
+	}
+	c.fact("TTFB", roundedMillis(res.TTFB))
+	c.fact("Total time", roundedMillis(res.Total))
 
 	switch {
 	case res.Status >= 500:

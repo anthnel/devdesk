@@ -388,6 +388,116 @@ func TestAnEmptyFactIsNotRecorded(t *testing.T) {
 	}
 }
 
+// --- timing --------------------------------------------------------------
+
+// advancingClock lets Now() move between two calls, unlike fakeEnv's static
+// clock — needed to assert a stage's Duration is the elapsed time it observed
+// rather than always zero.
+type advancingClock struct {
+	fakeEnv
+	next  int
+	times []time.Time
+}
+
+func (c *advancingClock) Now() time.Time {
+	t := c.times[c.next]
+	if c.next < len(c.times)-1 {
+		c.next++
+	}
+	return t
+}
+
+func TestConnectTimeIsRecordedAsADuration(t *testing.T) {
+	env := fakeEnv{dial: func(context.Context, string) (time.Duration, error) {
+		return 8 * time.Millisecond, nil
+	}}
+	var prior Results
+	c := checkNamed(t, runConnect(context.Background(), target(), env, DefaultSettings(), &prior), CheckTCP)
+	if c.Duration != 8*time.Millisecond {
+		t.Errorf("Duration = %v, want 8ms", c.Duration)
+	}
+	if got := factValue(c, "Connect time"); got != "8 ms" {
+		t.Errorf("Connect time fact = %q, want %q", got, "8 ms")
+	}
+}
+
+func TestTLSHandshakeIsTimed(t *testing.T) {
+	state, roots := buildChain(t, chainOpts{})
+	clock := &advancingClock{
+		fakeEnv: fakeEnv{roots: roots, handshake: handshakeReturning(state)},
+		times:   []time.Time{testNow, testNow.Add(42 * time.Millisecond)},
+	}
+	var prior Results
+	hs := checkNamed(t, runTLS(context.Background(), target(), clock, DefaultSettings(), &prior), CheckTLSHandshake)
+	if hs.Duration != 42*time.Millisecond {
+		t.Errorf("Duration = %v, want 42ms", hs.Duration)
+	}
+	if got := factValue(hs, "Handshake time"); got != "42 ms" {
+		t.Errorf("Handshake time fact = %q, want %q", got, "42 ms")
+	}
+	if !strings.Contains(hs.Summary, "42 ms") {
+		t.Errorf("Summary = %q, want it to state the handshake time", hs.Summary)
+	}
+}
+
+// TestAFailedHandshakeIsNotForcedToCarryATiming documents that the failure
+// path is left alone: the check has already failed, and a duration is not
+// worth forcing onto every error branch just to be complete.
+func TestAFailedHandshakeIsNotForcedToCarryATiming(t *testing.T) {
+	env := fakeEnv{handshake: func(context.Context, string, string) (*tls.ConnectionState, error) {
+		return nil, errors.New("connection reset")
+	}}
+	var prior Results
+	hs := checkNamed(t, runTLS(context.Background(), target(), env, DefaultSettings(), &prior), CheckTLSHandshake)
+	if hs.Duration != 0 {
+		t.Errorf("Duration = %v, want 0 on a failed handshake", hs.Duration)
+	}
+}
+
+func TestHTTPStageReportsATimingBreakdown(t *testing.T) {
+	t.Run("https carries DNS, connect, TLS, TTFB and total", func(t *testing.T) {
+		env := fakeEnv{head: func(context.Context, string) (HTTPResult, error) {
+			return HTTPResult{
+				Status:          200,
+				DNSDuration:     2 * time.Millisecond,
+				ConnectDuration: 5 * time.Millisecond,
+				TLSDuration:     11 * time.Millisecond,
+				TTFB:            30 * time.Millisecond,
+				Total:           35 * time.Millisecond,
+			}, nil
+		}}
+		prior := ResultsOf(Check{ID: CheckTLSHandshake, Verdict: OK})
+		c := checkNamed(t, runHTTP(context.Background(), target(), env, DefaultSettings(), &prior), CheckHTTP)
+
+		if c.Duration != 35*time.Millisecond {
+			t.Errorf("Duration = %v, want 35ms (Total)", c.Duration)
+		}
+		for key, want := range map[string]string{
+			"DNS": "2 ms", "Connect": "5 ms", "TLS": "11 ms",
+			"TTFB": "30 ms", "Total time": "35 ms",
+		} {
+			if got := factValue(c, key); got != want {
+				t.Errorf("fact %q = %q, want %q", key, got, want)
+			}
+		}
+	})
+
+	t.Run("plain http has no DNS or TLS phase to report", func(t *testing.T) {
+		env := fakeEnv{head: func(context.Context, string) (HTTPResult, error) {
+			return HTTPResult{Status: 200, ConnectDuration: 5 * time.Millisecond, TTFB: 9 * time.Millisecond, Total: 9 * time.Millisecond}, nil
+		}}
+		var prior Results // no TLS handshake recorded -> scheme is http
+		c := checkNamed(t, runHTTP(context.Background(), target(), env, DefaultSettings(), &prior), CheckHTTP)
+
+		if factValue(c, "DNS") != "" {
+			t.Errorf("facts = %v, want no DNS fact on a literal target with no lookup", c.Facts)
+		}
+		if factValue(c, "TLS") != "" {
+			t.Errorf("facts = %v, want no TLS fact over plain http", c.Facts)
+		}
+	})
+}
+
 func hasFact(c Check, key, value string) bool {
 	for _, f := range c.Facts {
 		if f.Key == key && f.Value == value {
