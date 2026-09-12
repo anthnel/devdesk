@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // Building a Trivy invocation is pure: the same inputs produce the command that
@@ -14,10 +16,25 @@ import (
 // container, so the argument passed to the tool is never the host path.
 const containerScanPath = "/scan"
 
-// dockerSocketMount lets a containerised Trivy inspect images held by the host
-// daemon. It is a broad grant, so it is only made when there is no Trivy server
-// to do the work instead.
-const dockerSocketMount = "/var/run/docker.sock:/var/run/docker.sock:ro"
+// socketMount is how a containerised Trivy reaches images the host engine
+// holds: the engine's own socket, bind-mounted read-only at the path Trivy
+// looks for it. It is a broad grant, so it is only made when there is no Trivy
+// server to do the work instead.
+//
+// The container side stays /var/run/docker.sock whatever the engine, because
+// that is where Trivy looks; only the host side moves. An empty socket produces
+// no mount at all — under rootless podman there is nothing to mount unless
+// `podman system service` is running, and inventing a path that is not there
+// would turn a refusal the UI can explain into a container that fails on
+// startup (§3.67).
+const trivySocketPath = "/var/run/docker.sock"
+
+func socketMount(hostSocket string) (string, bool) {
+	if hostSocket == "" {
+		return "", false
+	}
+	return hostSocket + ":" + trivySocketPath + ":ro", true
+}
 
 // serverAddr normalises the configured Trivy server address, refusing one Trivy
 // cannot use.
@@ -164,22 +181,24 @@ func trivyMisconfigArgs(target string, targetType TargetType, tool ToolSpec,
 // directly, or docker run with the target mounted and the tool arguments
 // appended after the image.
 func wrapTrivy(args []string, target string, targetType TargetType, tool ToolSpec, server string) toolCmd {
-	if tool.Source != ToolSourceDocker {
+	if tool.Source != ToolSourceContainer {
 		return toolCmd{Name: trivyBinary(tool), Args: append(args, target)}
 	}
 
-	dockerArgs := []string{"run", "--rm"}
+	engineArgs := []string{"run", "--rm"}
 	if targetType == TargetDirectory {
-		dockerArgs = append(dockerArgs, "-v", target+":"+containerScanPath+":ro")
+		engineArgs = append(engineArgs, "-v", target+":"+containerScanPath+":ro")
 		args = append(args, containerScanPath)
 	} else {
 		if server == "" {
-			dockerArgs = append(dockerArgs, "-v", dockerSocketMount)
+			if mount, ok := socketMount(tool.HostSocket); ok {
+				engineArgs = append(engineArgs, "-v", mount)
+			}
 		}
 		args = append(args, target)
 	}
-	dockerArgs = append(dockerArgs, trivyImage(tool.Image))
-	return toolCmd{Name: "docker", Args: append(dockerArgs, args...)}
+	engineArgs = append(engineArgs, trivyImage(tool.Image))
+	return toolCmd{Name: engine.Current().Binary, Args: append(engineArgs, args...)}
 }
 
 // trivyBinary is what to exec for a binary-source scan: the resolved path when

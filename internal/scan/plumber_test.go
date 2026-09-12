@@ -144,7 +144,7 @@ func TestTheLocationSplitSurvivesADriveLetter(t *testing.T) {
 
 func TestTheDockerInvocationMountsWhatPlumberNeedsToSee(t *testing.T) {
 	opts := PlumberOptions{Provider: providerGitHub, ConfigPath: "/home/me/plumber.yaml"}
-	cmd := GetPlumberCommand("/repos/devdesk", ToolSpec{Source: ToolSourceDocker}, opts)
+	cmd := GetPlumberCommand("/repos/devdesk", ToolSpec{Source: ToolSourceContainer}, opts)
 
 	for _, want := range []string{
 		"-v /repos/devdesk:" + containerScanPath + ":ro",
@@ -176,14 +176,14 @@ func TestTheDockerInvocationMountsWhatPlumberNeedsToSee(t *testing.T) {
 func TestTheTokenIsNeverInTheInvocation(t *testing.T) {
 	opts := PlumberOptions{Provider: providerGitHub, Token: "ghp_secretsecretsecret"}
 
-	for _, source := range []ToolSource{ToolSourceBinary, ToolSourceDocker} {
+	for _, source := range []ToolSource{ToolSourceBinary, ToolSourceContainer} {
 		if cmd := GetPlumberCommand("/repos", ToolSpec{Source: source}, opts); strings.Contains(cmd, "ghp_secret") {
 			t.Errorf("%s: the token is in the shown command:\n%s", source, cmd)
 		}
 	}
 
 	// It does reach a container, through the environment.
-	cmd := plumberArgs("/repos", ToolSpec{Source: ToolSourceDocker}, opts, "/dev/stdout")
+	cmd := plumberArgs("/repos", ToolSpec{Source: ToolSourceContainer}, opts, "/dev/stdout")
 	if !strings.Contains(strings.Join(cmd.Args, " "), "GH_TOKEN=ghp_secretsecretsecret") {
 		t.Error("the token did not reach the container at all")
 	}
@@ -240,7 +240,7 @@ func TestNoOutboundFlagIsEverBuilt(t *testing.T) {
 		Provider: providerGitLab, Branch: "main",
 		ConfigPath: "/etc/plumber.yaml", GitLabURL: "https://gitlab.example",
 	}
-	for _, source := range []ToolSource{ToolSourceBinary, ToolSourceDocker} {
+	for _, source := range []ToolSource{ToolSourceBinary, ToolSourceContainer} {
 		cmd := GetPlumberCommand("/repos", ToolSpec{Source: source}, opts)
 		for _, forbidden := range []string{"--score-push", "--score-endpoint", "--badge", "--mr-comment", "--platform"} {
 			if strings.Contains(cmd, forbidden) {
@@ -370,7 +370,7 @@ func TestOnlyARuntimeErrorFailsTheRun(t *testing.T) {
 			answering(t, tc.stdout, tc.err)
 
 			_, err := RunPlumber(context.Background(), "/repos",
-				ToolSpec{Source: ToolSourceDocker}, PlumberOptions{Provider: providerGitHub}, nil)
+				ToolSpec{Source: ToolSourceContainer}, PlumberOptions{Provider: providerGitHub}, nil)
 
 			if gotErr := err != nil; gotErr != tc.wantErr {
 				t.Errorf("error = %v, want an error: %v", err, tc.wantErr)
@@ -385,7 +385,7 @@ func TestAnUnreadablePlumberConfigIsRefusedBeforeAnythingStarts(t *testing.T) {
 	r := answering(t, "{}", nil)
 
 	missing := filepath.Join(t.TempDir(), "plumber.yaml")
-	_, err := RunPlumber(context.Background(), "/repos", ToolSpec{Source: ToolSourceDocker},
+	_, err := RunPlumber(context.Background(), "/repos", ToolSpec{Source: ToolSourceContainer},
 		PlumberOptions{Provider: providerGitHub, ConfigPath: missing}, nil)
 
 	if err == nil {
@@ -434,7 +434,7 @@ func TestTheBinaryRunsInTheRepositoryRatherThanWhereverDevDeskWasLaunched(t *tes
 // The container gets the same thing through -w, so it sets no Dir: docker runs
 // on this machine and its own working directory is irrelevant.
 func TestTheContainerCarriesItsWorkingDirectoryInTheArguments(t *testing.T) {
-	cmd := plumberArgs("/repos/devdesk", ToolSpec{Source: ToolSourceDocker}, PlumberOptions{}, "/dev/stdout")
+	cmd := plumberArgs("/repos/devdesk", ToolSpec{Source: ToolSourceContainer}, PlumberOptions{}, "/dev/stdout")
 
 	if cmd.Dir != "" {
 		t.Errorf("Dir = %q on the docker path, want none", cmd.Dir)

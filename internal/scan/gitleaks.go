@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // GitleaksFinding represents a single finding from Gitleaks
@@ -50,7 +52,7 @@ const gitleaksConfigMount = "/gitleaks.toml"
 // rather than to stdout, so the report path is redirected at the process's own
 // stdout — which is a different pseudo-file inside a container.
 func gitleaksArgs(target string, tool ToolSpec, history bool, configPath string) toolCmd {
-	docker := tool.Source == ToolSourceDocker
+	docker := tool.Source == ToolSourceContainer
 
 	// In Docker mode the flag has to name the mount rather than the host path.
 	// The file is not in the container otherwise, and gitleaks then dies before
@@ -90,7 +92,7 @@ func gitleaksArgs(target string, tool ToolSpec, history bool, configPath string)
 			"--report-format", "json",
 			"--report-path", "/dev/fd/1",
 		)
-		return toolCmd{Name: "docker", Args: appendOptions(args)}
+		return toolCmd{Name: engine.Current().Binary, Args: appendOptions(args)}
 	}
 
 	args := []string{

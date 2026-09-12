@@ -77,7 +77,7 @@ func TestTrivyScansForSecrets(t *testing.T) {
 // In Docker mode the target is mounted read-only and the container sees it at a
 // fixed path, so the argument passed to trivy is /scan, not the host path.
 func TestDockerModeMountsTheDirectoryReadOnly(t *testing.T) {
-	cmd := GetTrivyCommand("/repos/devdesk", TargetDirectory, false, ToolSpec{Source: ToolSourceDocker}, "", false, false)
+	cmd := GetTrivyCommand("/repos/devdesk", TargetDirectory, false, ToolSpec{Source: ToolSourceContainer}, "", false, false)
 
 	if !strings.Contains(cmd, "-v /repos/devdesk:/scan:ro") {
 		t.Errorf("the target is not mounted read-only:\n%s", cmd)
@@ -90,23 +90,53 @@ func TestDockerModeMountsTheDirectoryReadOnly(t *testing.T) {
 	}
 }
 
-// Scanning an image from a container needs the host's Docker socket — unless a
+// Scanning an image from a container needs the host engine's socket — unless a
 // Trivy server is doing the work, in which case handing the socket over would
 // be a needless grant.
-func TestTheDockerSocketIsMountedOnlyWhenItIsNeeded(t *testing.T) {
-	local := GetTrivyCommand("api:v1", TargetImage, false, ToolSpec{Source: ToolSourceDocker}, "", false, false)
-	if !strings.Contains(local, "/var/run/docker.sock") {
+//
+// The socket comes from the spec rather than from a constant (§3.67): the
+// container side stays /var/run/docker.sock, because that is where Trivy looks,
+// but the host side is whatever the engine exposes.
+func TestTheEngineSocketIsMountedOnlyWhenItIsNeeded(t *testing.T) {
+	withSocket := ToolSpec{Source: ToolSourceContainer, HostSocket: "/var/run/docker.sock"}
+
+	local := GetTrivyCommand("api:v1", TargetImage, false, withSocket, "", false, false)
+	if !strings.Contains(local, "/var/run/docker.sock:/var/run/docker.sock:ro") {
 		t.Errorf("an image scan without a server has no socket to inspect the image with:\n%s", local)
 	}
 
-	served := GetTrivyCommand("api:v1", TargetImage, false, ToolSpec{Source: ToolSourceDocker}, "https://trivy:4954", false, false)
-	if strings.Contains(served, "/var/run/docker.sock") {
+	served := GetTrivyCommand("api:v1", TargetImage, false, withSocket, "https://trivy:4954", false, false)
+	if strings.Contains(served, "docker.sock") {
 		t.Errorf("the socket was mounted although a server does the work:\n%s", served)
 	}
 }
 
+// A podman socket is somewhere else, and the container side does not follow it:
+// Trivy looks at /var/run/docker.sock whatever ran it.
+func TestAnEngineSocketElsewhereIsMountedWhereTrivyLooks(t *testing.T) {
+	spec := ToolSpec{Source: ToolSourceContainer, HostSocket: "/run/user/1000/podman/podman.sock"}
+
+	cmd := GetTrivyCommand("api:v1", TargetImage, false, spec, "", false, false)
+
+	if !strings.Contains(cmd, "/run/user/1000/podman/podman.sock:/var/run/docker.sock:ro") {
+		t.Errorf("the podman socket was not mounted where Trivy looks for one:\n%s", cmd)
+	}
+}
+
+// Rootless podman has no socket unless `podman system service` is running. No
+// path is invented for it: an absent socket produces no mount, so the refusal
+// stays something DependencyStatus.ImageScanBlocked can explain before the
+// keypress (Rule 130) rather than a container that fails on startup.
+func TestNoSocketIsMountedWhenTheEngineHasNone(t *testing.T) {
+	cmd := GetTrivyCommand("api:v1", TargetImage, false, ToolSpec{Source: ToolSourceContainer}, "", false, false)
+
+	if strings.Contains(cmd, ".sock") {
+		t.Errorf("a socket was mounted although the engine exposes none:\n%s", cmd)
+	}
+}
+
 func TestAConfiguredImageOverridesTheDefault(t *testing.T) {
-	cmd := GetTrivyCommand("/repos", TargetDirectory, false, ToolSpec{Source: ToolSourceDocker, Image: "mirror.local/trivy:0.50"}, "", false, false)
+	cmd := GetTrivyCommand("/repos", TargetDirectory, false, ToolSpec{Source: ToolSourceContainer, Image: "mirror.local/trivy:0.50"}, "", false, false)
 
 	if !strings.Contains(cmd, "mirror.local/trivy:0.50") {
 		t.Errorf("the configured image was not used:\n%s", cmd)
@@ -209,7 +239,7 @@ func TestGitleaksReportsToStdout(t *testing.T) {
 		t.Errorf("the binary command does not capture the report:\n%s", binary)
 	}
 
-	docker := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceDocker}, false, "")
+	docker := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceContainer}, false, "")
 	if !strings.Contains(docker, "--report-path /dev/fd/1") {
 		t.Errorf("the docker command does not capture the report:\n%s", docker)
 	}
@@ -223,7 +253,7 @@ func TestTheIgnoreFileIsAlwaysPassed(t *testing.T) {
 		t.Errorf("the ignore path was not passed:\n%s", binary)
 	}
 
-	docker := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceDocker}, false, "")
+	docker := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceContainer}, false, "")
 	if !strings.Contains(docker, "--gitleaks-ignore-path /scan") {
 		t.Errorf("the ignore path was not pointed at the mount:\n%s", docker)
 	}
@@ -244,7 +274,7 @@ func TestHistoryIsOptedIntoByDroppingNoGit(t *testing.T) {
 }
 
 func TestACustomGitleaksConfigIsPassedThrough(t *testing.T) {
-	for _, source := range []ToolSource{ToolSourceBinary, ToolSourceDocker} {
+	for _, source := range []ToolSource{ToolSourceBinary, ToolSourceContainer} {
 		without := GetGitleaksCommand("/repos", ToolSpec{Source: source}, false, "")
 		if strings.Contains(without, "--config") {
 			t.Errorf("%s: a config flag appeared with none configured:\n%s", source, without)
@@ -263,7 +293,7 @@ func TestACustomGitleaksConfigIsPassedThrough(t *testing.T) {
 // on neither. In Docker mode the host path went straight into the container,
 // where the file is not, and gitleaks died before reading a byte.
 func TestGitleaksDockerModeMountsTheConfigAndPointsAtTheMount(t *testing.T) {
-	cmd := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceDocker}, false, "/home/me/rules.toml")
+	cmd := GetGitleaksCommand("/repos", ToolSpec{Source: ToolSourceContainer}, false, "/home/me/rules.toml")
 
 	if !strings.Contains(cmd, "-v /home/me/rules.toml:"+gitleaksConfigMount+":ro") {
 		t.Errorf("the rules file is not mounted:\n%s", cmd)
@@ -292,7 +322,7 @@ func TestTheConfigMountCannotCollideWithTheScannedTarget(t *testing.T) {
 }
 
 func TestGitleaksDockerModeMountsTheTargetReadOnly(t *testing.T) {
-	cmd := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceDocker}, false, "")
+	cmd := GetGitleaksCommand("/repos/devdesk", ToolSpec{Source: ToolSourceContainer}, false, "")
 
 	if !strings.Contains(cmd, "-v /repos/devdesk:/scan:ro") {
 		t.Errorf("the target is not mounted read-only:\n%s", cmd)

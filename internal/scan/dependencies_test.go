@@ -64,7 +64,7 @@ func TestAToolOnThePathIsUsedDirectly(t *testing.T) {
 		t.Errorf("versions = %q / %q, want what the tools reported", deps.TrivyVersion, deps.GitleaksVersion)
 	}
 	// Nothing else is on this PATH.
-	if deps.DockerAvailable {
+	if deps.EngineAvailable {
 		t.Error("docker was reported as available although it is not installed")
 	}
 }
@@ -76,13 +76,13 @@ func TestWithNoBinaryTheDockerImageIsTheFallback(t *testing.T) {
 
 	deps := CheckDependencies(config.ScanConfig{})
 
-	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceDocker {
+	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceContainer {
 		t.Errorf("trivy: available=%v source=%q, want the image", deps.TrivyAvailable, deps.TrivySource)
 	}
-	if !deps.GitleaksAvailable || deps.GitleaksSource != ToolSourceDocker {
+	if !deps.GitleaksAvailable || deps.GitleaksSource != ToolSourceContainer {
 		t.Errorf("gitleaks: available=%v source=%q, want the image", deps.GitleaksAvailable, deps.GitleaksSource)
 	}
-	if !deps.DockerAvailable {
+	if !deps.EngineAvailable {
 		t.Error("docker is on the PATH but was not reported as available")
 	}
 	if !strings.HasPrefix(deps.TrivyVersion, "docker:") {
@@ -97,7 +97,7 @@ func TestAnImageThatWasNeverPulledIsNotAvailable(t *testing.T) {
 
 	deps := CheckDependencies(config.ScanConfig{})
 
-	if !deps.DockerAvailable {
+	if !deps.EngineAvailable {
 		t.Error("docker is on the PATH but was not reported as available")
 	}
 	if deps.TrivyAvailable || deps.GitleaksAvailable {
@@ -118,7 +118,7 @@ func TestADaemonThatCannotBeReachedLeavesTheToolsUnavailable(t *testing.T) {
 
 	deps := CheckDependencies(config.ScanConfig{})
 
-	if !deps.DockerAvailable {
+	if !deps.EngineAvailable {
 		t.Error("the docker binary is installed and should be reported as such")
 	}
 	if deps.TrivyAvailable || deps.GitleaksAvailable {
@@ -134,7 +134,7 @@ func TestAnImageThatWillNotReportItsVersionIsStillUsable(t *testing.T) {
 
 	deps := CheckDependencies(config.ScanConfig{})
 
-	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceDocker {
+	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceContainer {
 		t.Errorf("trivy: available=%v source=%q, want the image", deps.TrivyAvailable, deps.TrivySource)
 	}
 	if deps.TrivyVersion != "docker" || deps.GitleaksVersion != "docker" {
@@ -148,7 +148,7 @@ func TestWithNothingInstalledNothingIsAvailable(t *testing.T) {
 
 	deps := CheckDependencies(config.ScanConfig{})
 
-	if deps.TrivyAvailable || deps.GitleaksAvailable || deps.DockerAvailable {
+	if deps.TrivyAvailable || deps.GitleaksAvailable || deps.EngineAvailable {
 		t.Errorf("something was reported available on an empty PATH: %+v", deps)
 	}
 	// The images are still named, because the dashboard shows which one a scan

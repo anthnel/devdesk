@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // plumber reads a repository's CI configuration — GitHub workflows, .gitlab-ci
@@ -78,7 +80,7 @@ type PlumberOptions struct {
 // score banner both go there otherwise. The tool's own logs go to stderr, which
 // is where progressFn reads them.
 func plumberArgs(target string, tool ToolSpec, opts PlumberOptions, outPath string) toolCmd {
-	docker := tool.Source == ToolSourceDocker
+	docker := tool.Source == ToolSourceContainer
 
 	configFlag := opts.ConfigPath
 	if docker && opts.ConfigPath != "" {
@@ -108,7 +110,7 @@ func plumberArgs(target string, tool ToolSpec, opts PlumberOptions, outPath stri
 		args = append(args, plumberSafeDirectory...)
 		args = append(args, plumberTokenEnv(opts)...)
 		args = append(args, "-w", containerScanPath, plumberImage(tool.Image))
-		return toolCmd{Name: "docker", Args: append(args, options...)}
+		return toolCmd{Name: engine.Current().Binary, Args: append(args, options...)}
 	}
 
 	// Dir, not an argument: `analyze` works on the current directory and takes
@@ -193,7 +195,7 @@ func RunPlumber(ctx context.Context, target string, tool ToolSpec, opts PlumberO
 	defer cleanup()
 
 	cmd := plumberArgs(target, tool, opts, outPath)
-	if tool.Source != ToolSourceDocker && opts.Token != "" {
+	if tool.Source != ToolSourceContainer && opts.Token != "" {
 		cmd.Env = plumberBinaryEnv(opts)
 	}
 
@@ -225,7 +227,7 @@ func RunPlumber(ctx context.Context, target string, tool ToolSpec, opts PlumberO
 // See plumberArgs: a container writes it to stdout, a native binary to a file,
 // because a Windows plumber writes nothing at all to /dev/stdout (measured).
 func plumberOutput(tool ToolSpec) (path string, read func([]byte) ([]byte, error), cleanup func(), err error) {
-	if tool.Source == ToolSourceDocker {
+	if tool.Source == ToolSourceContainer {
 		return "/dev/stdout", func(stdout []byte) ([]byte, error) {
 			if len(stdout) == 0 {
 				return nil, errors.New("empty stdout")

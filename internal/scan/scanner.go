@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/engine"
 	"sync"
 	"time"
 
@@ -286,7 +287,12 @@ type ToolSource string
 const (
 	ToolSourceNone   ToolSource = "none"
 	ToolSourceBinary ToolSource = "binary"
-	ToolSourceDocker ToolSource = "docker"
+	// ToolSourceContainer runs the tool from an image, through whichever engine
+	// is configured. It used to be ToolSourceDocker = "docker", which baked the
+	// engine's name into a type the UI reads (§3.67). The rename is internal
+	// only: this value is never serialised, and the configuration already spells
+	// the same choice engine-neutrally (config.ToolSourceImage = "image").
+	ToolSourceContainer ToolSource = "container"
 )
 
 // DependencyStatus holds the availability status of external tools
@@ -295,21 +301,47 @@ type DependencyStatus struct {
 	TrivySource       ToolSource
 	TrivyVersion      string
 	TrivyBinary       string // Executable to run when TrivySource is binary
-	TrivyImage        string // Docker image used for Trivy
+	TrivyImage        string // OCI image used for Trivy
 	GitleaksAvailable bool
 	GitleaksSource    ToolSource
 	GitleaksVersion   string
 	GitleaksBinary    string // Executable to run when GitleaksSource is binary
-	GitleaksImage     string // Docker image used for Gitleaks
+	GitleaksImage     string // OCI image used for Gitleaks
 	PlumberAvailable  bool
 	PlumberSource     ToolSource
 	PlumberVersion    string
 	PlumberBinary     string // Executable to run when PlumberSource is binary
-	PlumberImage      string // Docker image used for plumber
-	DockerAvailable   bool
+	PlumberImage      string // OCI image used for plumber
+
+	// EngineAvailable reports whether the configured container engine answered.
+	// Without it no image-sourced tool can run, whichever engine it is.
+	EngineAvailable bool
+
+	// ImageScanSocket is why an image scan in a container may be impossible
+	// even when the engine is present: trivy inspects a host-held image through
+	// the engine's socket, and rootless podman has none unless `podman system
+	// service` is running. Empty means the mount cannot be made — see
+	// ImageScanBlocked.
+	ImageScanSocket string
 }
 
-// Default Docker images
+// ImageScanBlocked reports why an image cannot be scanned in a container, or ""
+// when it can.
+//
+// It answers before the keypress, which is what Rule 130 needs: the action is
+// greyed out with this reason rather than attempted and failed. A directory
+// scan mounts only the directory, so it stays available either way — the socket
+// is the image path's problem alone.
+func (d DependencyStatus) ImageScanBlocked(engineName string, server string) string {
+	if d.ImageScanSocket != "" || server != "" {
+		// A Trivy server does the inspection itself; no socket is needed.
+		return ""
+	}
+	return engineName + " socket not found — run `" + engineName +
+		" system service` or set a Trivy server"
+}
+
+// Default images for the container-sourced tools
 const (
 	DefaultTrivyImage    = "aquasec/trivy"
 	DefaultGitleaksImage = "zricethezav/gitleaks"
@@ -347,17 +379,18 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 		PlumberImage:   plumberImage,
 	}
 
-	if path, err := exec.LookPath("docker"); err == nil && path != "" {
-		status.DockerAvailable = true
+	if path, err := exec.LookPath(engine.Current().Binary); err == nil && path != "" {
+		status.EngineAvailable = true
+		status.ImageScanSocket = engine.Current().HostSocket()
 	}
 
-	trivy := resolveTool(c.TrivySource, c.TrivyPath, "trivy", trivyImage, status.DockerAvailable, "--version")
+	trivy := resolveTool(c.TrivySource, c.TrivyPath, "trivy", trivyImage, status.EngineAvailable, "--version")
 	status.TrivyAvailable = trivy.Available
 	status.TrivySource = trivy.Source
 	status.TrivyBinary = trivy.Binary
 	status.TrivyVersion = trivy.Version
 
-	gitleaks := resolveTool(c.GitleaksSource, c.GitleaksPath, "gitleaks", gitleaksImage, status.DockerAvailable, "version")
+	gitleaks := resolveTool(c.GitleaksSource, c.GitleaksPath, "gitleaks", gitleaksImage, status.EngineAvailable, "version")
 	status.GitleaksAvailable = gitleaks.Available
 	status.GitleaksSource = gitleaks.Source
 	status.GitleaksBinary = gitleaks.Binary
@@ -368,7 +401,7 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 	// toolVersion reads stdout only, so the two cannot be confused; measured
 	// rather than assumed, because reporting the available version as the
 	// installed one is the kind of thing nobody notices for months.
-	plumber := resolveTool(c.PlumberSource, c.PlumberPath, "plumber", plumberImage, status.DockerAvailable, "version")
+	plumber := resolveTool(c.PlumberSource, c.PlumberPath, "plumber", plumberImage, status.EngineAvailable, "version")
 	status.PlumberAvailable = plumber.Available
 	status.PlumberSource = plumber.Source
 	status.PlumberBinary = plumber.Binary
@@ -377,9 +410,9 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 	return status
 }
 
-// checkDockerImage verifies if a Docker image exists locally
-func checkDockerImage(image string) bool {
-	cmd := exec.Command("docker", "images", "-q", image)
+// imageIsLocal verifies that the engine already holds an image.
+func imageIsLocal(image string) bool {
+	cmd := exec.Command(engine.Current().Binary, "images", "-q", image) //nolint:gosec // the binary is a declared engine name or a configured path
 	output, err := cmd.Output()
 	if err != nil {
 		return false

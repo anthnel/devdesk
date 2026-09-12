@@ -99,7 +99,7 @@ func TestTheImageSourceIgnoresABinaryOnThePath(t *testing.T) {
 
 	deps := CheckDependencies(config.ScanConfig{TrivySource: config.ToolSourceImage})
 
-	if deps.TrivySource != ToolSourceDocker {
+	if deps.TrivySource != ToolSourceContainer {
 		t.Errorf("TrivySource = %q with source=image and trivy on PATH, want docker", deps.TrivySource)
 	}
 	if !deps.TrivyAvailable {
@@ -179,7 +179,7 @@ func TestPlumberIsResolvedLikeTheOtherTwo(t *testing.T) {
 
 		deps := CheckDependencies(config.ScanConfig{PlumberSource: config.ToolSourceImage})
 
-		if deps.PlumberSource != ToolSourceDocker || !deps.PlumberAvailable {
+		if deps.PlumberSource != ToolSourceContainer || !deps.PlumberAvailable {
 			t.Errorf("PlumberSource = %q available = %v, want docker and available",
 				deps.PlumberSource, deps.PlumberAvailable)
 		}

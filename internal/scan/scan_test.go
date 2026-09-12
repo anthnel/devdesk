@@ -76,7 +76,7 @@ func everyTool() DependencyStatus {
 		GitleaksAvailable: true,
 		GitleaksSource:    ToolSourceBinary,
 		GitleaksImage:     DefaultGitleaksImage,
-		DockerAvailable:   true,
+		EngineAvailable:   true,
 	}
 }
 

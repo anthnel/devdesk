@@ -21,6 +21,7 @@ func (m Model) Init() tea.Cmd {
 		loadScanCache(),
 		loadRegistryGroupCache(),
 		loadBrowserSelectionCmd(),
+		checkDepsCmd(m.config.Scan),
 		fetchNetworks(),
 		fetchVolumes(),
 	)
@@ -35,6 +36,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
+
+	case DepsCheckedMsg:
+		deps := msg.Deps
+		m.deps = &deps
+		return m, nil
 
 	// An agent asks the way a key does (§3.61) — see mcp.go.
 	case ImageScanRequestedMsg:

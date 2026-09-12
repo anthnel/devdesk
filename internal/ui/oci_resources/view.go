@@ -325,7 +325,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		base = append(base,
 			shortcut.Shortcut{Key: "enter", Description: "Scan details", Disabled: !m.imageOpen().Enabled()},
 			shortcut.Shortcut{Key: keymap.New, Description: "Launch", Disabled: !act.Enabled()},
-			shortcut.Shortcut{Key: keymap.Scan, Description: "Scan", Disabled: !act.Enabled()},
+			shortcut.Shortcut{Key: keymap.Scan, Description: "Scan", Disabled: !m.imageScan().Enabled()},
 			shortcut.Shortcut{Key: keymap.Delete, Description: "Delete", Disabled: !act.Enabled()},
 			shortcut.Shortcut{Key: keymap.Browser, Description: "Browse registries"},
 			shortcut.Shortcut{Key: keymap.ScanAll, Description: "Scan all"},
