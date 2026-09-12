@@ -105,8 +105,15 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 			shortcut.Shortcut{Key: "/", Description: "Search"},
 			shortcut.Shortcut{Key: "ctrl+r", Description: "Run again"},
 			shortcut.Shortcut{Key: "esc", Description: escLabel},
-			shortcut.Shortcut{Key: "?", Description: "Help"},
 		)
+		if m.OriginView != "" {
+			// Otherwise esc already reads "New diagnostic" and does exactly
+			// this — advertising both here would just say the same thing
+			// twice (Rule 138). With an origin, esc means "go back" instead,
+			// so this is the only key left that starts a fresh target.
+			sc = append(sc, shortcut.Shortcut{Key: keymap.New, Description: "New diagnostic"})
+		}
+		sc = append(sc, shortcut.Shortcut{Key: "?", Description: "Help"})
 		return append(tabShortcuts, sc...)
 	case StateDetails:
 		return shortcut.Shortcuts{
@@ -247,7 +254,8 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "p", Description: "Show problems only / show every check (Diagnostics tab)"},
 			{Key: "/", Description: "Search checks by name or observation (Diagnostics tab)"},
 			{Key: "ctrl+r", Description: "Run the checks again"},
-			{Key: "esc (results)", Description: "Back to the target form"},
+			{Key: "esc (results)", Description: "Back to the target form, or back to wherever this run was opened from (e.g. status's H) when it was opened prefilled"},
+			{Key: keymap.New + " (results)", Description: "Start a new diagnostic — always resets to the form, even when esc there means \"go back\""},
 			{Key: "esc (details)", Description: "Back to the checks"},
 			{Key: "pgup / pgdown", Description: "Scroll half page up / down"},
 			// Ports tab

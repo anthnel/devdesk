@@ -12071,21 +12071,50 @@ résout sans problème avec le résolveur système sur la même cible.
 Ce n'est pas un bug DevDesk — `resolverFor` (`env.go`) ajoute déjà `:53` par
 défaut et dialogue bien avec la bonne adresse, le port était déjà correct.
 `server misbehaving` est le nom que Go donne à un résolveur qui répond, mais
-avec quelque chose que le client ne peut pas exploiter — ni un timeout, ni un
-NXDOMAIN. La cause la plus courante : le résolveur pur de Go (`PreferGo`,
-obligatoire ici pour viser un serveur choisi par l'utilisateur, `env.go`)
-envoie des requêtes EDNS0 que beaucoup de proxys DNS de routeurs grand public
-gèrent mal, alors que le résolveur système passe souvent par un autre chemin
-qui s'en sort.
+avec un code retour ni NOERROR ni NXDOMAIN (`checkHeader`,
+`net/dnsclient_unix.go` — lu dans les sources Go pour ce constat) — ni un
+timeout, ni un NXDOMAIN.
 
-**Corrigé** : `stage_resolve.go` détecte ce cas via
+**La cause précise reste ouverte, deux hypothèses écartées par le test.**
+`dig @192.168.1.2 google.com` et `dig @192.168.1.2 AAAA google.com`
+répondent tous deux NOERROR avec des réponses valides — donc ni « EDNS0 en
+général », ni « la box gère mal l'AAAA » (l'explication la plus courante pour
+ce symptôme) ne tiennent ici : `LookupIPAddr` interroge A et AAAA, et les
+deux marchent isolément via `dig`. La suite demanderait une capture réseau
+pour comparer la requête que Go envoie et celle que `dig` envoie — non
+tentée, hors de portée sans le poste de l'utilisateur.
+
+**Corrigé, pour ce qui reste actionnable sans cette capture** :
+`stage_resolve.go` détecte le cas via
 `errors.As(err, &dnsErr) && dnsErr.Err == "server misbehaving"` — sur le
 champ structuré de `*net.DNSError`, pas sur le texte formaté, même
 discipline que `stage_tls.go` matchant `tls.RecordHeaderError` plutôt que de
 lire un message d'erreur. Un nouveau `Reason` (`ReasonServerMisbehaving`) et
 une ligne de `guidance` dédiée (`explain.go`) remplacent le conseil générique
 « vérifie l'orthographe » par le bon diagnostic : essayer le résolveur
-système, ou interroger celui-ci directement (`dig @serveur nom`).
+système, ou interroger celui-ci directement (`dig @serveur nom`). Un fact
+« Temporary » distingue en plus, à partir du seul bit que Go garde
+(`DNSError.IsTemporary`), un `SERVFAIL` (probablement transitoire) de tout
+autre code — FORMERR, REFUSED, une version EDNS non supportée — qui ne se
+résoudra pas tout seul ; c'est la seule information supplémentaire
+récupérable sans capture réseau.
+
+#### Un second bug trouvé en même temps : pas de retour au formulaire une fois `OriginView` posé
+
+Le même utilisateur, en cherchant à relancer un diagnostic après avoir ouvert
+`netdiag` via `H` : `esc` ne ramène plus au formulaire une fois `OriginView`
+posé (il retourne à `status`), et rouvrir `netdiag` directement (`:net`) ne
+recrée pas la vue — le routeur réutilise l'instance déjà en cache, figée sur
+les mêmes résultats, avec le même `OriginView`. Aucun moyen de taper une
+nouvelle cible sans repasser par `status`.
+
+**Corrigé** : `N` (`keymap.New`, `handleKeyResults`) réinitialise toujours le
+formulaire, quel que soit `OriginView`, et l'efface au passage — une cible
+retapée n'a plus de lien avec la vue qui a ouvert celle d'avant. `N` n'est
+annoncé dans les raccourcis que quand il apporte une information : sans
+origine, `esc` fait déjà « New diagnostic », l'annoncer deux fois serait du
+bruit (Rule 138) ; avec origine, `esc` veut dire « revenir en arrière », donc
+`N` est la seule touche qui reste pour repartir de zéro.
 
 #### Non tranché — et volontairement laissé de côté
 

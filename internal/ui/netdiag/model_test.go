@@ -11,6 +11,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -430,6 +431,35 @@ func TestEscReturnsToTheOriginWhenOneIsSet(t *testing.T) {
 	}
 	if msg.Origin != command.ViewStatus {
 		t.Errorf("Origin = %q, want %q", msg.Origin, command.ViewStatus)
+	}
+}
+
+// TestNewDiagnosticAlwaysResetsToTheFormEvenWithAnOrigin is the bug an actual
+// user hit: after H opened netdiag on a target, esc alone could only leave
+// for the origin — there was no way back to a blank form to type a wholly
+// new target, and re-entering netdiag directly (e.g. `:net`) reused the same
+// frozen results, since the router keeps the existing view rather than
+// rebuilding it. N always resets to the form regardless of OriginView.
+func TestNewDiagnosticAlwaysResetsToTheFormEvenWithAnOrigin(t *testing.T) {
+	m := resultsModel(t)
+	m.OriginView = command.ViewStatus
+
+	m = feed(t, m, testutil.Key(keymap.New))
+	if m.state != StateInput {
+		t.Fatalf("state = %v, want StateInput", m.state)
+	}
+	if m.OriginView != "" {
+		t.Errorf("OriginView = %q, want cleared — a fresh target has nothing to do with it", m.OriginView)
+	}
+}
+
+// TestNewDiagnosticWorksWithNoOriginToo — the ordinary case (opened from the
+// command line), unchanged: N does the same thing esc already does there.
+func TestNewDiagnosticWorksWithNoOriginToo(t *testing.T) {
+	m := resultsModel(t)
+	m = feed(t, m, testutil.Key(keymap.New))
+	if m.state != StateInput {
+		t.Errorf("state = %v, want StateInput", m.state)
 	}
 }
 
