@@ -74,7 +74,7 @@ scan:
 
 | Dependency | Optional | Used By | Note |
 |------------|----------|---------|------|
-| `docker` / `podman` | Yes | Containers, OCI, security scanning, network diag | Can use path or Docker daemon |
+| `docker` / `podman` | Yes | Containers, OCI, security scanning | Which one is `app.container_engine`; `auto` prefers docker. A path to a binary is also accepted |
 | `git` | No | GitLab clone/pull, workspace discovery | System binary |
 | `ssh` (OpenSSH) | Conditional | GitLab SSH clone | Only if `clone_method: ssh` |
 | Credential helper | Recommended | Git credentials storage | `git-credential-manager`, `osxkeychain`, `pass` |
