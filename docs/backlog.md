@@ -12018,11 +12018,47 @@ convention que `Because`/`Reason`. Trois étages l'alimentent :
   TLS) ; Connect/TTFB/Total sont de la requête, toujours présents.
   `Check.Duration` prend `Total`.
 
-Rien côté vue : `internal/ui/netdiag/view.go` boucle déjà sur `c.Facts` et les
-nouveaux facts apparaissent d'eux-mêmes dans le panneau Details. Le MCP
+`internal/ui/netdiag/view.go` boucle déjà sur `c.Facts` et les facts ci-dessus
+apparaissent d'eux-mêmes dans le panneau Details. Le MCP
 (`internal/mcp/netcheck_tools.go`) fait de même pour `Facts` ; `Duration`
 lui-même n'est pas exposé au MCP — rien n'en a besoin pour l'instant, les
 facts portent déjà la forme lisible.
+
+#### Une waterfall, une barre par phase — demandée après coup
+
+Les chiffres seuls répondaient à « combien », pas à « où ça part » d'un coup
+d'œil. `netcheck.Check` gagne `Phases []Phase` — des tranches nommées et
+**non chevauchantes** qui somment exactement à `Duration` — et `httpPhases`
+(`stage_http.go`) les construit pour l'étage HTTP, seul à en avoir plus d'une
+à montrer :
+
+- **TTFB n'est pas une phase, c'est un cumul.** Il se mesure depuis le tout
+  début de la requête (`httpTiming.ttfb`, §3.66 étape 2), donc il contient
+  déjà DNS + Connect + TLS + l'attente serveur. Le traiter comme une
+  cinquième tranche indépendante aurait compté ce chevauchement deux fois, et
+  les pourcentages n'auraient plus sommé à 100. `httpPhases` retranche donc
+  `DNS+Connect+TLS` de `TTFB` pour obtenir **Wait** (l'attente serveur pure),
+  et `Total - TTFB` pour **Content** (le transfert du corps) — deux tranches
+  dérivées, jamais mesurées directement, mais qui rendent la somme exacte.
+- **Le chevauchement d'horloges est amorti, pas nié.** `env.Now()` (TLS) et
+  les callbacks `httptrace` (HTTP) ne sont pas la même mesure ; `Wait` et
+  `Content` sont donc bornés à 0 plutôt que laissés négatifs sur une requête
+  assez rapide pour que l'ordre des horloges se brouille.
+- **Rien qui n'a rien à montrer n'affiche une barre à 100 %.** `Phases` reste
+  `nil` pour TCP et TLS (une seule mesure chacun, déjà dite en `Fact`) — une
+  barre à une seule tranche pleine ne dirait rien qu'un nombre ne dit déjà
+  mieux.
+
+Le rendu (`internal/ui/netdiag/view.go`, `phaseLines`) réutilise le mécanisme
+des jauges de charge (§3.71) plutôt que d'en inventer un : `theme.Gauge` pour
+le glyphe, `theme.GaugeFillWidth` pour l'arrondi, `theme.GaugeTrackStyle` pour
+le rail. Seule la couleur du remplissage change —
+`theme.TimingFillStyle` (nouveau, `ColorSecondary`) plutôt que
+`LoadTextStyle` (rouge/orange/vert) : une phase qui prend le plus de temps
+n'est pas un problème à repérer comme une charge qui sature, juste un fait à
+lire. `theme.TimingBarWidth` (24) est plus large que `GaugeWidth` (10) — cinq
+tranches à distinguer sur une ligne demandent plus de résolution qu'un seul
+pourcentage.
 
 #### Non tranché — et volontairement laissé de côté
 

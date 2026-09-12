@@ -110,6 +110,22 @@ func LoadTextStyle(pct float64) lipgloss.Style {
 	}
 }
 
+// TimingBarWidth is the width of a waterfall bar (§3.66), in cells — wider
+// than GaugeWidth: a waterfall has several phases to tell apart on one line,
+// where a gauge answers a single percentage, and the extra resolution is what
+// keeps a phase as small as a handful of percent visible at all.
+const TimingBarWidth = 24
+
+// TimingFillStyle is the colour a waterfall bar's filled cells take (§3.66) —
+// reusing Gauge/GaugeFillWidth for the glyph and the rounding, but not
+// LoadTextStyle for the colour: a phase taking most of a request's time is
+// not a problem to spot, just a fact to read, so it gets one neutral colour
+// rather than a severity gradient. ColorSecondary is what headers and active
+// tabs already use for structural information, which is the same role here.
+func TimingFillStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorSecondary)
+}
+
 // GaugeTrackStyle is the colour a gauge's *empty* cells take — fixed,
 // whatever the level, including a gauge that is entirely empty: the cell is
 // still `░`, still coloured, never blank. It aliases ColorSeverityLow rather

@@ -35,6 +35,17 @@ alongside `Summary`/`Facts` — zero means untimed. `stage_connect.go` and
 breakdown surfaced as `Facts` on the `HTTP` row. Nothing keeps a history
 across runs — that stays an open question.
 
+That breakdown also drives a waterfall: `Check.Phases` is a set of named,
+non-overlapping spans that sum exactly to `Duration` (nil on checks with
+nothing to break down — TCP, TLS). `stage_http.go`'s `httpPhases` derives
+**Wait** and **Content** rather than charting TTFB directly, because TTFB is
+measured from the start of the request and already contains DNS+connect+TLS —
+charting it as a fifth independent share would double-count that overlap.
+`internal/ui/netdiag/view.go`'s `phaseLines` renders one proportional bar per
+phase, reusing the load-gauge machinery (`theme.Gauge`, `GaugeFillWidth`,
+`GaugeTrackStyle`) with a new neutral fill colour, `theme.TimingFillStyle` —
+a phase taking most of the time is a fact to read, not a severity to spot.
+
 **Opened prefilled, from elsewhere (§3.66).** `netdiag.NewWithTarget` builds a
 view with the form filled in but not yet run; `netdiag.OpenRequestMsg` is
 what a producer elsewhere sends to ask the router for one (mirroring

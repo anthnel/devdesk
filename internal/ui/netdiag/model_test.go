@@ -3,6 +3,7 @@ package netdiag
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -457,6 +458,56 @@ func TestTheDetailPaneCarriesTheExplanation(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("the detail pane has no %q section", want)
 		}
+	}
+}
+
+// TestTheDetailPaneDrawsAWaterfallForAPhasedCheck covers §3.66's follow-up:
+// a check that breaks its Duration into Phases gets a proportional bar per
+// phase, not just the Facts prose.
+func TestTheDetailPaneDrawsAWaterfallForAPhasedCheck(t *testing.T) {
+	http := netcheck.Check{
+		ID: netcheck.CheckHTTP, Stage: netcheck.StageHTTP, Verdict: netcheck.OK,
+		Title: "HTTP", Summary: "Service answered with HTTP 200 over https",
+		Duration: 35 * time.Millisecond,
+		Phases: []netcheck.Phase{
+			{Name: "DNS", Duration: 2 * time.Millisecond},
+			{Name: "Connect", Duration: 5 * time.Millisecond},
+			{Name: "TLS", Duration: 11 * time.Millisecond},
+			{Name: "Wait", Duration: 12 * time.Millisecond},
+			{Name: "Content", Duration: 5 * time.Millisecond},
+		},
+	}
+	m := deliver(t, runningModel(t, "example.com"), http)
+	m.checksTable.SetCursor(0)
+	m = feed(t, m, testutil.Key("enter"))
+
+	out := m.View()
+	if !strings.Contains(out, "Timing") {
+		t.Fatal("the detail pane has no Timing section for a phased check")
+	}
+	for _, name := range []string{"DNS", "Connect", "TLS", "Wait", "Content"} {
+		if !strings.Contains(out, name) {
+			t.Errorf("the waterfall does not name the %q phase", name)
+		}
+	}
+	// DNS is 2/35 ≈ 6%, Content is 5/35 ≈ 14%: distinct enough that a
+	// constant-percentage bug (every phase reading the same share) would
+	// still pass a looser check.
+	if !strings.Contains(out, "6%") || !strings.Contains(out, "14%") {
+		t.Errorf("percentages are missing or wrong; got:\n%s", out)
+	}
+}
+
+// TestNoPhaseIsShownForAnUnphasedCheck — most checks time one thing and say
+// so in a Fact; a Timing section with a single 100% bar would say the same
+// thing worse.
+func TestNoPhaseIsShownForAnUnphasedCheck(t *testing.T) {
+	m := resultsModel(t)
+	m.checksTable.SetCursor(1) // the TCP check — timed, but never phased
+	m = feed(t, m, testutil.Key("enter"))
+
+	if strings.Contains(m.View(), "Timing") {
+		t.Error("an unphased check shows a Timing section it has nothing to fill")
 	}
 }
 

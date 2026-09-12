@@ -498,6 +498,84 @@ func TestHTTPStageReportsATimingBreakdown(t *testing.T) {
 	})
 }
 
+func sumPhases(phases []Phase) time.Duration {
+	var total time.Duration
+	for _, p := range phases {
+		total += p.Duration
+	}
+	return total
+}
+
+func phaseDuration(phases []Phase, name string) (time.Duration, bool) {
+	for _, p := range phases {
+		if p.Name == name {
+			return p.Duration, true
+		}
+	}
+	return 0, false
+}
+
+func TestHTTPPhasesFormAWaterfallThatSumsToTotal(t *testing.T) {
+	res := HTTPResult{
+		DNSDuration:     2 * time.Millisecond,
+		ConnectDuration: 5 * time.Millisecond,
+		TLSDuration:     11 * time.Millisecond,
+		TTFB:            30 * time.Millisecond, // 2+5+11=18ms accounted for, 12ms left to Wait
+		Total:           35 * time.Millisecond, // 5ms left to Content after TTFB
+	}
+	phases := httpPhases(res, true)
+
+	if got := sumPhases(phases); got != res.Total {
+		t.Fatalf("phases sum to %v, want exactly Total (%v)", got, res.Total)
+	}
+	wait, ok := phaseDuration(phases, "Wait")
+	if !ok || wait != 12*time.Millisecond {
+		t.Errorf("Wait = %v, ok=%v, want 12ms", wait, ok)
+	}
+	content, ok := phaseDuration(phases, "Content")
+	if !ok || content != 5*time.Millisecond {
+		t.Errorf("Content = %v, ok=%v, want 5ms", content, ok)
+	}
+}
+
+func TestHTTPPhasesOmitDNSAndTLSWhenTheyDidNotHappen(t *testing.T) {
+	res := HTTPResult{ConnectDuration: 5 * time.Millisecond, TTFB: 9 * time.Millisecond, Total: 9 * time.Millisecond}
+	phases := httpPhases(res, false)
+
+	if _, ok := phaseDuration(phases, "DNS"); ok {
+		t.Error("a DNS phase is present with DNSDuration == 0")
+	}
+	if _, ok := phaseDuration(phases, "TLS"); ok {
+		t.Error("a TLS phase is present over plain http")
+	}
+	if got := sumPhases(phases); got != res.Total {
+		t.Errorf("phases sum to %v, want Total (%v)", got, res.Total)
+	}
+}
+
+// TestHTTPPhasesClampNegativeSpansFromClockJitter documents why Wait and
+// Content are clamped rather than left to go negative: httptrace's callbacks
+// and the wrapping time.Now()/time.Since() calls are not the same
+// measurement, so a request fast enough can observe TTFB fractionally before
+// DNS+Connect+TLS finish adding up, or Total fractionally before TTFB.
+func TestHTTPPhasesClampNegativeSpansFromClockJitter(t *testing.T) {
+	res := HTTPResult{
+		DNSDuration:     2 * time.Millisecond,
+		ConnectDuration: 5 * time.Millisecond,
+		TLSDuration:     11 * time.Millisecond,
+		TTFB:            10 * time.Millisecond, // less than DNS+Connect+TLS (18ms)
+		Total:           9 * time.Millisecond,  // less than TTFB
+	}
+	phases := httpPhases(res, true)
+
+	if got, _ := phaseDuration(phases, "Wait"); got < 0 {
+		t.Errorf("Wait = %v, want clamped to 0", got)
+	}
+	if got, _ := phaseDuration(phases, "Content"); got < 0 {
+		t.Errorf("Content = %v, want clamped to 0", got)
+	}
+}
+
 func hasFact(c Check, key, value string) bool {
 	for _, f := range c.Facts {
 		if f.Key == key && f.Value == value {
