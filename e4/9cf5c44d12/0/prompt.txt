@@ -11,3 +11,7 @@ qu'est-ce qu'il reste dans le backlog
 ---
 
 et est-ce qu'ajouter cette info dans le détail d'un monitor (vue status) à du sens aussi
+
+---
+
+ok on part sur 1 et 2 + raccourci de status vers netdiag
