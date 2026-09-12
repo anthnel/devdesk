@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/anthnel/devdesk/compare/v1.2.0...v1.3.0) (2026-09-12)
+
+
+### Features
+
+* support Podman as an alternative container engine ([ca6fecc](https://github.com/anthnel/devdesk/commit/ca6fecc0f6ba6bed6e99bc548d220453a81023af))
+* view a monitor's SSL certificate chain in the document viewer ([85fb52a](https://github.com/anthnel/devdesk/commit/85fb52ab22e5a187416814380bd5781611927eeb))
+
 ## [1.2.0](https://github.com/anthnel/devdesk/compare/v1.1.1...v1.2.0) (2026-09-11)
 
 
