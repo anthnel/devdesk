@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "2cd36e0540b9",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "scratchpad/update_themes.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2c/d36e0540b9/0/metadata.json",
+      "transcript": "/2c/d36e0540b9/0/full.jsonl",
+      "compact_transcript": "/2c/d36e0540b9/0/transcript.jsonl",
+      "content_hash": "/2c/d36e0540b9/0/content_hash.txt",
+      "prompt": "/2c/d36e0540b9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 592,
+    "cache_read_tokens": 258218,
+    "output_tokens": 212,
+    "api_call_count": 1
+  }
+}
