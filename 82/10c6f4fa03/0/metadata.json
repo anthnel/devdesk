@@ -1,0 +1,140 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "8210c6f4fa03",
+  "session_id": "7330790e-c8a3-43d5-b81e-0833b42d7dd5",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-12T17:31:39.8256458Z",
+  "branch": "feat/ssl-cert-viewer",
+  "checkpoints_count": 3,
+  "save_step_count": 3,
+  "files_touched": [
+    "internal/status/certificate_text.go",
+    "internal/status/certificate_text_test.go",
+    "internal/status/ssl_checker.go",
+    "internal/status/tls_dial.go",
+    "internal/ui/status/sources.go",
+    "internal/ui/status/sources_test.go",
+    "internal/ui/status/update.go",
+    "internal/ui/status/view.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "479e6b4116ba",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 174,
+    "cache_creation_tokens": 425083,
+    "cache_read_tokens": 16128383,
+    "output_tokens": 39511,
+    "api_call_count": 87
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-12T17:31:39.7513959Z",
+    "agent_lines": 316,
+    "agent_removed": 28,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 316,
+    "total_lines_changed": 344,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 307,
+      "user_lines_removed": 303,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 1615,
+      "user_lines_removed": 146,
+      "agent_lines_added": 559,
+      "agent_lines_removed": 1736,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-layout.md": 7,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        ".release-please-manifest.json": 1,
+        "CHANGELOG.md": 147,
+        "docs/architecture/network.md": 30,
+        "docs/architecture/scanning.md": 14,
+        "docs/backlog.md": 149,
+        "internal/app/app.go": 10,
+        "internal/app/netdiag.go": 30,
+        "internal/app/netdiag_test.go": 75,
+        "internal/netcheck/env.go": 77,
+        "internal/netcheck/env_test.go": 31,
+        "internal/netcheck/explain.go": 6,
+        "internal/netcheck/explain_test.go": 4,
+        "internal/netcheck/netcheck.go": 30,
+        "internal/netcheck/stage_connect.go": 1,
+        "internal/netcheck/stage_http.go": 45,
+        "internal/netcheck/stage_resolve.go": 30,
+        "internal/netcheck/stage_tls.go": 5,
+        "internal/netcheck/stages_test.go": 240,
+        "internal/scan/execute_test.go": 66,
+        "internal/scan/trivy.go": 18,
+        "internal/ui/keymap/keymap.go": 9,
+        "internal/ui/netdiag/header.go": 15,
+        "internal/ui/netdiag/messages.go": 26,
+        "internal/ui/netdiag/model.go": 21,
+        "internal/ui/netdiag/model_test.go": 120,
+        "internal/ui/netdiag/run.go": 5,
+        "internal/ui/netdiag/update.go": 26,
+        "internal/ui/netdiag/view.go": 33,
+        "internal/ui/netdiag/view_test.go": 27,
+        "internal/ui/status/diagnostics.go": 77,
+        "internal/ui/status/diagnostics_test.go": 117,
+        "internal/ui/theme/gauge.go": 16
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-layout.md": 6,
+        ".release-please-manifest.json": 1,
+        "docs/backlog.md": 19,
+        "internal/netcheck/env.go": 3,
+        "internal/netcheck/stage_tls.go": 1,
+        "internal/ui/keymap/keymap.go": 5,
+        "internal/ui/netdiag/header.go": 3,
+        "internal/ui/netdiag/run.go": 2,
+        "internal/ui/netdiag/update.go": 3
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 316,
+      "agent_lines_removed": 28
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 316,
+      "agent_lines_removed": 28
+    }
+  ]
+}

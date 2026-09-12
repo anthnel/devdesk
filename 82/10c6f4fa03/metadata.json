@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "8210c6f4fa03",
+  "strategy": "manual-commit",
+  "branch": "feat/ssl-cert-viewer",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "internal/status/certificate_text.go",
+    "internal/status/certificate_text_test.go",
+    "internal/status/ssl_checker.go",
+    "internal/status/tls_dial.go",
+    "internal/ui/status/sources.go",
+    "internal/ui/status/sources_test.go",
+    "internal/ui/status/update.go",
+    "internal/ui/status/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/82/10c6f4fa03/0/metadata.json",
+      "transcript": "/82/10c6f4fa03/0/full.jsonl",
+      "compact_transcript": "/82/10c6f4fa03/0/transcript.jsonl",
+      "content_hash": "/82/10c6f4fa03/0/content_hash.txt",
+      "prompt": "/82/10c6f4fa03/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 174,
+    "cache_creation_tokens": 425083,
+    "cache_read_tokens": 16128383,
+    "output_tokens": 39511,
+    "api_call_count": 87
+  }
+}
