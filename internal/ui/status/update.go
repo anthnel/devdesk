@@ -15,6 +15,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	"github.com/anthnel/devdesk/internal/ui/status/components"
+	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 )
 
 // Init starts the application
@@ -206,6 +207,28 @@ func (m Model) handleOpenDiagnostics() (tea.Model, tea.Cmd) {
 	return m, func() tea.Msg { return netdiag.OpenRequestMsg{Target: target, AutoRun: autoRun} }
 }
 
+// handleOpenCertificate opens the selected certificate's chain in the
+// document viewer (`enter`, Certificates tab only — the monitors tab has
+// nothing of the sort to open, and datatable itself binds no meaning to
+// `enter`, so there is nothing to preserve on that tab).
+func (m Model) handleOpenCertificate() (tea.Model, tea.Cmd) {
+	if m.activeTab != TabCertificates {
+		return m, nil
+	}
+	selected, ok := m.sslTable.Selected()
+	if !ok {
+		return m, nil
+	}
+
+	timeout := time.Duration(0)
+	if idx := m.getSelectedComponentIndex(); idx >= 0 {
+		timeout = time.Duration(m.config.Status.Components[idx].Timeout) * time.Second
+	}
+
+	source := certSource{Target: selected.Target, Component: selected.Name, Timeout: timeout}
+	return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
+}
+
 // getSelectedComponentIndex returns the index in m.config.Status.Components of
 // the row under the cursor.
 //
@@ -267,6 +290,8 @@ func (m Model) handleInputKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleMonitorOperations(msg)
 	case keymap.Diagnose:
 		return m.handleOpenDiagnostics()
+	case "enter":
+		return m.handleOpenCertificate()
 	case ".":
 		return m.cycleSort()
 	}

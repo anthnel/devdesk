@@ -2,10 +2,7 @@ package status
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
-	"strings"
 	"time"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -38,22 +35,9 @@ func (s *SSLChecker) Check(ctx context.Context, component config.ComponentConfig
 		return result
 	}
 
-	// Parse target - add :443 if no port specified
-	host := component.Target
-	if !strings.Contains(host, ":") {
-		host = host + ":443"
-	}
-
-	// Create TLS dialer with timeout
-	dialer := &net.Dialer{
-		Timeout: s.timeout,
-	}
-
 	// Measure connection time
 	start := time.Now()
-	conn, err := tls.DialWithDialer(dialer, "tcp", host, &tls.Config{
-		InsecureSkipVerify: false, // Validate certificates
-	})
+	certs, err := FetchCertificateChain(component.Target, s.timeout)
 	result.ResponseTime = time.Since(start)
 
 	if err != nil {
@@ -61,10 +45,6 @@ func (s *SSLChecker) Check(ctx context.Context, component config.ComponentConfig
 		result.Error = err.Error()
 		return result
 	}
-	defer func() { _ = conn.Close() }()
-
-	// Get certificate chain
-	certs := conn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
 		result.Status = StatusError
 		result.Error = "no certificates found"

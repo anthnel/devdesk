@@ -34,18 +34,23 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	}
 
 	// main status view
-	return []shortcut.Shortcut{
+	shortcuts := []shortcut.Shortcut{
 		{Key: keymap.New, Description: "New monitor"},
 		{Key: keymap.Edit, Description: "Edit monitor"},
 		{Key: keymap.Delete, Description: "Delete monitor"},
 		{Key: keymap.Diagnose, Description: "Open diagnostics"},
-		{Key: "ctrl+r", Description: "Refresh"},
-		{Key: "tab", Description: "Switch tab"},
-		{Key: ".", Description: "Sort"},
-		{Key: "/", Description: "Search"},
-		{Key: "ctrl+p", Description: "Command mode"},
-		{Key: "?", Description: "Help"},
 	}
+	if m.activeTab == TabCertificates {
+		shortcuts = append(shortcuts, shortcut.Shortcut{Key: "enter", Description: "Open certificate"})
+	}
+	return append(shortcuts,
+		shortcut.Shortcut{Key: "ctrl+r", Description: "Refresh"},
+		shortcut.Shortcut{Key: "tab", Description: "Switch tab"},
+		shortcut.Shortcut{Key: ".", Description: "Sort"},
+		shortcut.Shortcut{Key: "/", Description: "Search"},
+		shortcut.Shortcut{Key: "ctrl+p", Description: "Command mode"},
+		shortcut.Shortcut{Key: "?", Description: "Help"},
+	)
 }
 
 func (m Model) GetTitle() string {
@@ -194,6 +199,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: keymap.Edit, Description: "Edit the selected monitor"},
 			{Key: keymap.Delete, Description: "Delete the selected monitor (with confirmation)"},
 			{Key: keymap.Diagnose, Description: "Open network diagnostics on the selected monitor's target"},
+			{Key: "enter", Description: "Open the selected certificate's chain in the document viewer (Certificates tab)"},
 			{Key: "ctrl+r", Description: "Force an immediate refresh"},
 			{Key: "tab/shift+tab", Description: "Switch between Service Monitors and SSL Certificates tabs"},
 			{Key: "↑/k", Description: "Move selection up"},
