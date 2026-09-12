@@ -123,6 +123,12 @@ var explanations = []guidance{
 			"cannot see the zone at all.",
 		do: "Check the spelling first, then try the same name against another resolver — if it " +
 			"resolves there, the problem is which resolver you are pointed at, not the name."},
+	{check: CheckResolve, verdict: Fail, reason: ReasonServerMisbehaving,
+		means: "This resolver answered, but not with something usable — not a timeout, not a " +
+			"missing name. It is commonly a router's built-in DNS proxy failing against the " +
+			"queries this pipeline has to send to reach a resolver you name.",
+		do: "Leave the resolver field empty to use the system resolver instead, or check this " +
+			"one directly (`dig @<server> <host>`) to see what it actually sent back."},
 
 	{check: CheckReverseDNS, verdict: OK,
 		means: "The address publishes a name, which is what mail servers and some access " +

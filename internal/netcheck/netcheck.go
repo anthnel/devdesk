@@ -166,6 +166,17 @@ type Check struct {
 type Reason string
 
 const (
+	// DNS resolution
+	//
+	// "Server misbehaving" is Go's net.DNSError wording for a resolver that
+	// answered but with something the client could not use — not a timeout,
+	// not NXDOMAIN. It is worth telling apart because the remedy is neither
+	// "check the spelling" nor "check the network": it is almost always the
+	// resolver itself, commonly a router's built-in DNS proxy choking on the
+	// EDNS0 queries Go's resolver sends (which this pipeline must use to
+	// reach a resolver the user names — see resolverFor in env.go).
+	ReasonServerMisbehaving Reason = "server-misbehaving"
+
 	// Certificate chain
 	ReasonSelfSigned      Reason = "self-signed"
 	ReasonNoIntermediates Reason = "no-intermediates"

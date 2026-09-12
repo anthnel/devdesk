@@ -69,6 +69,10 @@ func batteries(t *testing.T) []scenario {
 			resolve: func(context.Context, string, string) ([]net.IP, error) {
 				return nil, errors.New("no such host")
 			}}, target()},
+		{"the resolver answers with something unusable", fakeEnv{
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return nil, &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: true}
+			}}, target()},
 		{"a literal address with a reverse record", fakeEnv{
 			roots: ipRoots, handshake: handshakeReturning(onIP),
 			reverse: func(context.Context, string, string) ([]string, error) {

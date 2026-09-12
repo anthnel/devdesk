@@ -12060,6 +12060,33 @@ lire. `theme.TimingBarWidth` (24) est plus large que `GaugeWidth` (10) — cinq
 tranches à distinguer sur une ligne demandent plus de résolution qu'un seul
 pourcentage.
 
+#### Un vrai bug trouvé en testant : `server misbehaving` sur un résolveur personnalisé
+
+Un utilisateur a pointé un moniteur sur `192.168.1.2` (une box) et reçu
+« google.com does not resolve », vide de contexte. Le fact « Error » (déjà
+présent) portait le vrai message Go :
+`lookup google.com on 192.168.1.2:53: server misbehaving`. Confirmé : ça
+résout sans problème avec le résolveur système sur la même cible.
+
+Ce n'est pas un bug DevDesk — `resolverFor` (`env.go`) ajoute déjà `:53` par
+défaut et dialogue bien avec la bonne adresse, le port était déjà correct.
+`server misbehaving` est le nom que Go donne à un résolveur qui répond, mais
+avec quelque chose que le client ne peut pas exploiter — ni un timeout, ni un
+NXDOMAIN. La cause la plus courante : le résolveur pur de Go (`PreferGo`,
+obligatoire ici pour viser un serveur choisi par l'utilisateur, `env.go`)
+envoie des requêtes EDNS0 que beaucoup de proxys DNS de routeurs grand public
+gèrent mal, alors que le résolveur système passe souvent par un autre chemin
+qui s'en sort.
+
+**Corrigé** : `stage_resolve.go` détecte ce cas via
+`errors.As(err, &dnsErr) && dnsErr.Err == "server misbehaving"` — sur le
+champ structuré de `*net.DNSError`, pas sur le texte formaté, même
+discipline que `stage_tls.go` matchant `tls.RecordHeaderError` plutôt que de
+lire un message d'erreur. Un nouveau `Reason` (`ReasonServerMisbehaving`) et
+une ligne de `guidance` dédiée (`explain.go`) remplacent le conseil générique
+« vérifie l'orthographe » par le bon diagnostic : essayer le résolveur
+système, ou interroger celui-ci directement (`dig @serveur nom`).
+
 #### Non tranché — et volontairement laissé de côté
 
 **Garder un historique, ou pas.** Une latence réduite à sa dernière mesure

@@ -246,6 +246,39 @@ func TestABrokenHandshakeFailsAndTheCertificateChecksBlameIt(t *testing.T) {
 
 // --- resolution --------------------------------------------------------------
 
+// TestAMisbehavingResolverIsToldApartFromAnUnknownName covers the case a
+// user actually hit: a custom resolver (often a router's DNS proxy) that
+// answers but with something the client can't use, rather than a plain
+// NXDOMAIN. The remedy differs — try another resolver, not check the
+// spelling — which is why Reason exists to carry the distinction.
+func TestAMisbehavingResolverIsToldApartFromAnUnknownName(t *testing.T) {
+	t.Run("server misbehaving sets the reason", func(t *testing.T) {
+		checks := runWith(t, fakeEnv{
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return nil, &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: true}
+			},
+		}, target())
+		c := checkNamed(t, checks, CheckResolve)
+		if c.Verdict != Fail {
+			t.Fatalf("verdict = %v, want Fail", c.Verdict)
+		}
+		if c.Reason != ReasonServerMisbehaving {
+			t.Errorf("Reason = %q, want %q", c.Reason, ReasonServerMisbehaving)
+		}
+	})
+
+	t.Run("an ordinary lookup failure sets no reason", func(t *testing.T) {
+		checks := runWith(t, fakeEnv{
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return nil, errors.New("no such host")
+			},
+		}, target())
+		if got := checkNamed(t, checks, CheckResolve).Reason; got != "" {
+			t.Errorf("Reason = %q, want empty — this is not the server-misbehaving case", got)
+		}
+	})
+}
+
 func TestResolutionAndReverseAreMutuallyExclusive(t *testing.T) {
 	t.Run("a name resolves forward", func(t *testing.T) {
 		checks := runWith(t, fakeEnv{}, target())
