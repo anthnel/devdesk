@@ -1,0 +1,14 @@
+Ca fonctionne, j'ai fait un diagnostic avec ces paramètres :  Target 󰅂 google.com                                                                                                                                                                                                                                                      │
+│   Port 󰅂 443                                                                                                                                                                                                                                                               │
+│   DNS Server 󰅂 192.168.1.2                                                                                                                                                                                                                                                 │
+│                                                                                                                                                                                                                                                                            │
+│     Run Diagnostics                 et il me met : DNS resolution        󰅙 FAIL     google.com does not resolve , je pense que c'est parce que ce n'est pas sur le port standard dns
+
+---
+
+Resolver 󰅂 192.168.1.2                                                                                                                                                                                                                                                    │
+│  Error 󰅂 lookup google.com on 192.168.1.2:53: server misbehaving
+
+---
+
+oui ça fonctionne quand c'est vide
