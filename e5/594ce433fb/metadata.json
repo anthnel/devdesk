@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "e5594ce433fb",
+  "strategy": "manual-commit",
+  "branch": "feat/podman-engine",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/docker/containers.go",
+    "internal/docker/exec.go",
+    "internal/docker/exec_test.go",
+    "internal/docker/images.go",
+    "internal/docker/launch.go",
+    "internal/docker/networks.go",
+    "internal/docker/registry.go",
+    "internal/docker/system.go",
+    "internal/docker/volumes.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e5/594ce433fb/0/metadata.json",
+      "transcript": "/e5/594ce433fb/0/full.jsonl",
+      "compact_transcript": "/e5/594ce433fb/0/transcript.jsonl",
+      "content_hash": "/e5/594ce433fb/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 95785,
+    "cache_read_tokens": 11782032,
+    "output_tokens": 23570,
+    "api_call_count": 42
+  }
+}
