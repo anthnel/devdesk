@@ -163,6 +163,16 @@ type AppConfig struct {
 	// for the host secret manager only, or "git-credential" for git's helper.
 	// See credentials.Select for what each one resolves to.
 	SecretBackend string `yaml:"secret_backend"`
+
+	// ContainerEngine names the engine DevDesk drives: "auto" (default, docker
+	// if it is on PATH and podman otherwise), "docker", "podman", or an
+	// explicit path to a binary. See engine.Resolve.
+	//
+	// It sits in `app` beside ide_command and terminal_command — this section
+	// already holds the external tools the application drives — and
+	// deliberately not in `network`, which carries only netcheck's dials
+	// despite once being called `docker` (§3.67).
+	ContainerEngine string `yaml:"container_engine"`
 }
 
 // ForgeConfig is the code-hosting platform this context targets — exactly one,
@@ -424,6 +434,11 @@ func applyDefaults(cfg *Config) error {
 	if cfg.App.SecretBackend == "" {
 		cfg.App.SecretBackend = "auto"
 	}
+	// Same reason: engine.Resolve reads "" as auto, but the configuration view
+	// cycles a closed set and a value outside it has nowhere to start from.
+	if cfg.App.ContainerEngine == "" {
+		cfg.App.ContainerEngine = EngineAuto
+	}
 	if cfg.Status.RefreshInterval == 0 {
 		cfg.Status.RefreshInterval = 10
 	}
@@ -523,12 +538,13 @@ func Default() *Config {
 	homeDir, _ := os.UserHomeDir()
 	return &Config{
 		App: AppConfig{
-			Theme:         "default",
-			LogFile:       filepath.Join(homeDir, ".devdesk", "devdesk.log"),
-			DefaultView:   "dashboard",
-			WorkspacesDir: filepath.Join(homeDir, "workspaces"),
-			IDECommand:    "code",
-			SecretBackend: "auto",
+			Theme:           "default",
+			LogFile:         filepath.Join(homeDir, ".devdesk", "devdesk.log"),
+			DefaultView:     "dashboard",
+			WorkspacesDir:   filepath.Join(homeDir, "workspaces"),
+			IDECommand:      "code",
+			SecretBackend:   "auto",
+			ContainerEngine: EngineAuto,
 		},
 		Status: StatusConfig{
 			RefreshInterval: 10,
