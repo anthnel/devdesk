@@ -1,0 +1,70 @@
+Ca fonctionne, j'ai fait un diagnostic avec ces paramètres :  Target 󰅂 google.com                                                                                                                                                                                                                                                      │
+│   Port 󰅂 443                                                                                                                                                                                                                                                               │
+│   DNS Server 󰅂 192.168.1.2                                                                                                                                                                                                                                                 │
+│                                                                                                                                                                                                                                                                            │
+│     Run Diagnostics                 et il me met : DNS resolution        󰅙 FAIL     google.com does not resolve , je pense que c'est parce que ce n'est pas sur le port standard dns
+
+---
+
+Resolver 󰅂 192.168.1.2                                                                                                                                                                                                                                                    │
+│  Error 󰅂 lookup google.com on 192.168.1.2:53: server misbehaving
+
+---
+
+oui ça fonctionne quand c'est vide
+
+---
+
+avec dig ça fonctionne : ❯ dig @192.168.1.2 google.com
+
+; <<>> DiG 9.20.26 <<>> @192.168.1.2 google.com
+; (1 server found)
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 20002
+;; flags: qr rd ra; QUERY: 1, ANSWER: 6, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 1232
+;; QUESTION SECTION:
+;google.com.                    IN      A
+
+;; ANSWER SECTION:
+google.com.             32      IN      A       142.251.168.139
+google.com.             32      IN      A       142.251.168.138
+google.com.             32      IN      A       142.251.168.100
+google.com.             32      IN      A       142.251.168.113
+google.com.             32      IN      A       142.251.168.102
+google.com.             32      IN      A       142.251.168.101
+
+;; Query time: 23 msec
+;; SERVER: 192.168.1.2#53(192.168.1.2) (UDP)
+;; WHEN: Sat Sep 12 15:36:48 CEST 2026
+;; MSG SIZE  rcvd: 135, au passage j'ai vu un autre bug, je vais sur status je fais H, ça fait le diagnostic, si je tape ctrl+p net, j'arrive sur le résultat des diagnostics et je ne sais pas faire de nouveau test
+
+---
+
+❯ dig @192.168.1.2 AAAA google.com
+
+; <<>> DiG 9.20.26 <<>> @192.168.1.2 AAAA google.com
+; (1 server found)
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 13061
+;; flags: qr rd ra; QUERY: 1, ANSWER: 4, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 1232
+;; QUESTION SECTION:
+;google.com.                    IN      AAAA
+
+;; ANSWER SECTION:
+google.com.             163     IN      AAAA    2a00:1450:400c:c1d::71
+google.com.             163     IN      AAAA    2a00:1450:400c:c1d::65
+google.com.             163     IN      AAAA    2a00:1450:400c:c1d::66
+google.com.             163     IN      AAAA    2a00:1450:400c:c1d::8b
+
+;; Query time: 19 msec
+;; SERVER: 192.168.1.2#53(192.168.1.2) (UDP)
+;; WHEN: Sat Sep 12 15:46:08 CEST 2026
+;; MSG SIZE  rcvd: 151

@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "9e2e6999cb9c",
+  "strategy": "manual-commit",
+  "branch": "feat/netcheck-latency-diag-shortcut",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/netdiag/view_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9e/2e6999cb9c/0/metadata.json",
+      "transcript": "/9e/2e6999cb9c/0/full.jsonl",
+      "compact_transcript": "/9e/2e6999cb9c/0/transcript.jsonl",
+      "content_hash": "/9e/2e6999cb9c/0/content_hash.txt",
+      "prompt": "/9e/2e6999cb9c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 609,
+    "cache_read_tokens": 580728,
+    "output_tokens": 460,
+    "api_call_count": 1
+  }
+}

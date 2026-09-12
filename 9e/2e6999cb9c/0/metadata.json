@@ -1,0 +1,173 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "9e2e6999cb9c",
+  "session_id": "30e4cc03-ba88-49ef-8897-797be95f230b",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-12T13:50:30.0962993Z",
+  "branch": "feat/netcheck-latency-diag-shortcut",
+  "checkpoints_count": 3,
+  "save_step_count": 8,
+  "files_touched": [
+    "internal/ui/netdiag/header.go",
+    "internal/ui/netdiag/model_test.go",
+    "internal/ui/netdiag/update.go",
+    "internal/ui/netdiag/view_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "692bab8cfe87",
+  "checkpoint_transcript_start": 2275,
+  "transcript_lines_at_start": 2275,
+  "compact_transcript_start": 363,
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 609,
+    "cache_read_tokens": 580728,
+    "output_tokens": 460,
+    "api_call_count": 1
+  },
+  "session_metrics": {
+    "turn_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-12T13:50:29.8851051Z",
+    "agent_lines": 82,
+    "agent_removed": 2,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 82,
+    "total_lines_changed": 84,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 307,
+      "user_lines_removed": 303,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 307,
+      "user_lines_removed": 303,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 107,
+      "user_lines_removed": 103,
+      "agent_lines_added": 200,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 107,
+      "user_lines_removed": 103,
+      "agent_lines_added": 200,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 107,
+      "user_lines_removed": 103,
+      "agent_lines_added": 200,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 107,
+      "user_lines_removed": 103,
+      "agent_lines_added": 200,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 82,
+      "agent_lines_removed": 2
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 82,
+      "agent_lines_removed": 2
+    }
+  ]
+}
