@@ -1,0 +1,13 @@
+qu'est-ce qu'il reste dans le backlog
+
+---
+
+3.72 et 3.73 sont finis normalement. on va regarder le 3.66
+
+---
+
+1 et 2, dans quel vue tu ajouterais les infos
+
+---
+
+et est-ce qu'ajouter cette info dans le détail d'un monitor (vue status) à du sens aussi
