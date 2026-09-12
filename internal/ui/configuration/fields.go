@@ -254,6 +254,12 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 				// none to open (§3.26).
 				toggle("Terminal in a new window", func(c *config.Config) *bool { return &c.App.TerminalNewWindow },
 					"T opens a separate window instead of suspending the TUI"),
+				// The engine every container, image, network and volume comes
+				// from. A path to a binary is honoured too and is deliberately
+				// not cycled — there is nothing to cycle through, which is the
+				// compromise scan.trivy_path already makes (§3.67).
+				cycle(containerEngineLabel, func(c *config.Config) *string { return &c.App.ContainerEngine },
+					config.ContainerEngines(), "auto prefers docker, then podman; a path also works"),
 			),
 			group("Secrets", theme.IconLock,
 				cycle("Secret backend", func(c *config.Config) *string { return &c.App.SecretBackend },

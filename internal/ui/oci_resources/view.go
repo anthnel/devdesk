@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/engine"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -150,7 +151,7 @@ func (m Model) renderRegistryBreadcrumb(width int) string {
 // renderTabBar renders the tab bar below the viewport (Rule 123)
 func (m Model) renderTabBar(width int) string {
 	tabs := []theme.TabItem{
-		{Label: theme.IconDocker + " Images"},
+		{Label: theme.ContainerEngineIcon(engine.Current().Name) + " Images"},
 		{Label: theme.IconNetwork + " Networks"},
 		{Label: theme.IconVolume + " Volumes"},
 		{Label: theme.IconServer + " Registries"},
@@ -160,7 +161,7 @@ func (m Model) renderTabBar(width int) string {
 
 // GetTitle returns the view title
 func (m Model) GetTitle() string {
-	base := theme.IconDocker + " OCI Resources"
+	base := theme.ContainerEngineIcon(engine.Current().Name) + " OCI Resources"
 	if m.registryBrowser != nil {
 		title := base + " " + theme.IconChevronRight + " Registry Browser"
 		if m.registryBrowser.state == browserStateTags && m.registryBrowser.repoInput.Value() != "" {
@@ -453,9 +454,13 @@ func (m Model) renderVolumesView() string {
 
 // GetHelpContent returns help content for the OCI resources view (Rule 114)
 func (m Model) GetHelpContent() help.Content {
+	// Interpolated rather than written out: this view lists what the engine
+	// app.container_engine resolved to is holding (§3.67).
+	engTitle := theme.ContainerEngineLabel(engine.Current().Name)
+
 	return help.Content{
 		Title:       "OCI Resources",
-		Description: "This view manages local Docker/OCI resources: Images (with CVE scanning), Networks, Volumes, and Registries. Use Tab/Shift+Tab to switch between tabs.",
+		Description: "This view manages the local OCI resources " + engTitle + " holds: Images (with CVE scanning), Networks, Volumes, and Registries. Use Tab/Shift+Tab to switch between tabs.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "tab / shift+tab", Description: "Switch between Images, Networks, Volumes, and Registries tabs"},
 			{Key: "enter (Images)", Description: "View scan details for the selected image (loads from cache; falls back to scan if not yet scanned)"},
@@ -474,7 +479,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: ".", Description: "Cycle sort column (Images tab only)"},
 			{Key: "b (Images)", Description: "Open the multi-registry browser — search tags across all configured registries"},
 			{Key: "r (Browser tags)", Description: "Cycle the active registry filter (shows tags from one registry at a time)"},
-			{Key: "p (Browser)", Description: "Pull the selected image tag to the local Docker store"},
+			{Key: "p (Browser)", Description: "Pull the selected image tag to the local " + engTitle + " store"},
 			{Key: "S (Browser)", Description: "Scan the selected image tag directly via Trivy (no pull required)"},
 			{Key: "enter (Browser tags)", Description: "View CVE details for the selected tag (only when scan results are cached)"},
 			{Key: "esc (Browser)", Description: "Go back to the previous screen in the registry browser"},
@@ -490,23 +495,23 @@ func (m Model) GetHelpContent() help.Content {
 		Sections: []help.Section{
 			{
 				Title: "Images Tab",
-				Body: "Shows all local Docker images with disk usage, content size, and CVE scan results.\n" +
+				Body: "Shows all local " + engTitle + " images with disk usage, content size, and CVE scan results.\n" +
 					"Press Enter to view the last scan details (loads from cache; falls back to scan if not yet scanned).\n" +
 					"Press Ctrl+E to launch a container from the selected image (opens a form with pre-filled port mappings from EXPOSE metadata).\n" +
 					"Press Ctrl+S to open the Security view for a configured scan.",
 			},
 			{
 				Title: "Networks Tab",
-				Body: "Lists Docker networks (ID, Name, Driver, Scope). Press Enter to inspect the selected network and see connected containers. " +
+				Body: "Lists " + engTitle + " networks (ID, Name, Driver, Scope). Press Enter to inspect the selected network and see connected containers. " +
 					"Press N to create a new network, D to remove the selected one, P to prune all unused networks.",
 			},
 			{
 				Title: "Volumes Tab",
-				Body:  "Lists Docker volumes (Name, Driver, Mountpoint). Press N to create a new volume, D to remove the selected one, P to prune all unused volumes.",
+				Body:  "Lists " + engTitle + " volumes (Name, Driver, Mountpoint). Press N to create a new volume, D to remove the selected one, P to prune all unused volumes.",
 			},
 			{
 				Title: "Registries Tab",
-				Body:  "Lists configured Docker/OCI registries. Press N to add a new registry, E to edit, U to log in or out, D to remove. Aliases shorten long registry URLs in the Images tab display.",
+				Body:  "Lists configured OCI registries. Press N to add a new registry, E to edit, U to log in or out, D to remove. Aliases shorten long registry URLs in the Images tab display.",
 			},
 			{
 				Title: "Registry Browser",

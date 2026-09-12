@@ -62,7 +62,7 @@ func ForDir(path string) (string, []string, bool) {
 }
 
 // ForCmd returns (binary, args, ok) to open a new terminal window running innerArgs
-// as the foreground command (e.g. []string{"docker", "exec", "-it", id, "/bin/bash"}).
+// as the foreground command (e.g. []string{engine, "exec", "-it", id, "/bin/bash"}).
 // Returns ("", nil, false) when no supported terminal is detected.
 func ForCmd(innerArgs []string) (string, []string, bool) {
 	// Windows Terminal

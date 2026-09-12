@@ -20,15 +20,18 @@ import (
 type ConfigSavedMsg struct {
 	Config       *config.Config
 	ThemeChanged bool
-	// BackendChanged and ForgeChanged are the two settings the router must act
-	// on rather than just rebuild views against: one needs a fresh
-	// credentials.Selection, the other invalidates a live forge session.
+	// BackendChanged, ForgeChanged and EngineChanged are the settings the
+	// router must act on rather than just rebuild views against: the first
+	// needs a fresh credentials.Selection, the second invalidates a live forge
+	// session, the third has to re-resolve the container engine before any
+	// rebuilt view asks it anything.
 	//
 	// ForgeChanged is one flag for two settings — the URL and the platform —
 	// because the consequence is one: the session was opened against something
 	// the config no longer describes.
 	BackendChanged bool
 	ForgeChanged   bool
+	EngineChanged  bool
 }
 
 // Model is the configuration view: every scalar setting in the current context,
@@ -74,6 +77,11 @@ type Model struct {
 	// field table is rebuilt on every save, so an index would point elsewhere
 	// afterwards.
 	shown map[string]bool
+
+	// engineOnFocus is what app.container_engine held when the field took
+	// focus. Cycling auto → docker → podman must re-resolve once, on the way
+	// out, not once per keypress — the forge field's reasoning exactly.
+	engineOnFocus string
 
 	// backendOnFocus is what app.secret_backend held when the field took focus.
 	// Changing it is confirmed on the way out rather than on every ←/→, and this
@@ -189,7 +197,8 @@ func (m Model) revealed(f field) bool { return m.shown[f.Label] }
 // which are deliberately settled on the way out rather than on every ←→, so
 // that cycling past a value does not close the session or ask three times.
 func (m Model) settlesOnBlur(f field) bool {
-	return f.takesText() || f.Label == forgeLabel || f.Label == secretBackendLabel
+	return f.takesText() || f.Label == forgeLabel || f.Label == secretBackendLabel ||
+		f.Label == containerEngineLabel
 }
 
 // isDisabled reports whether a scan option is unavailable because a Trivy

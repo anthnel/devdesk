@@ -1,6 +1,10 @@
 package theme
 
-import "github.com/anthnel/devdesk/internal/config"
+import (
+	"strings"
+
+	"github.com/anthnel/devdesk/internal/config"
+)
 
 var (
 	IconPause                 = "\U000F03E4" // 󰏤 nf-md-pause
@@ -26,6 +30,7 @@ var (
 	IconFile                  = "\U000F0214" // 󰈔 nf-md-file
 	IconCodeFile              = "\U000F102B" // 󱀫 nf-md-file_code_outline
 	IconDocker                = "\ue7b0"     //  nf-dev-docker
+	IconPodman                = "\U000F095E" // 󰥞 nf-md-podman
 	IconContainer             = "\uf4b7"     //  nf-oct-container
 	IconTools                 = "\ue20f"     //  nf-fae-tools
 	IconServer                = "\U000F048B" // 󰒋 nf-md-server
@@ -120,4 +125,29 @@ func ForgeIcon(forgeType string) string {
 	default:
 		return IconGitBranch
 	}
+}
+
+// ContainerEngineIcon is the glyph that names the container engine in use.
+//
+// Same arrangement as ForgeIcon and for the same reason: it keys on config's
+// own constants rather than on a literal, so there is one spelling of "podman"
+// in the application and a new engine cannot be half-added. An unknown engine
+// gets docker's glyph rather than nothing — a missing icon shifts every title
+// it prefixes by one cell, and docker is what anything docker-compatible looks
+// like anyway.
+func ContainerEngineIcon(engineName string) string {
+	if engineName == config.EnginePodman {
+		return IconPodman
+	}
+	return IconDocker
+}
+
+// ContainerEngineLabel is the engine's name as a title shows it: "Docker",
+// "Podman". The engine's own spelling is lowercase — it is a binary name —
+// and a box title is not.
+func ContainerEngineLabel(engineName string) string {
+	if engineName == "" {
+		return ""
+	}
+	return strings.ToUpper(engineName[:1]) + engineName[1:]
 }
