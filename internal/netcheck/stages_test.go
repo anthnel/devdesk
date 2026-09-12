@@ -252,7 +252,7 @@ func TestABrokenHandshakeFailsAndTheCertificateChecksBlameIt(t *testing.T) {
 // NXDOMAIN. The remedy differs — try another resolver, not check the
 // spelling — which is why Reason exists to carry the distinction.
 func TestAMisbehavingResolverIsToldApartFromAnUnknownName(t *testing.T) {
-	t.Run("server misbehaving sets the reason", func(t *testing.T) {
+	t.Run("server misbehaving (SERVFAIL) sets the reason and Temporary: yes", func(t *testing.T) {
 		checks := runWith(t, fakeEnv{
 			resolve: func(context.Context, string, string) ([]net.IP, error) {
 				return nil, &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: true}
@@ -265,16 +265,35 @@ func TestAMisbehavingResolverIsToldApartFromAnUnknownName(t *testing.T) {
 		if c.Reason != ReasonServerMisbehaving {
 			t.Errorf("Reason = %q, want %q", c.Reason, ReasonServerMisbehaving)
 		}
+		if got := factValue(c, "Temporary"); !strings.HasPrefix(got, "Yes") {
+			t.Errorf("Temporary fact = %q, want it to say Yes for a SERVFAIL", got)
+		}
 	})
 
-	t.Run("an ordinary lookup failure sets no reason", func(t *testing.T) {
+	t.Run("server misbehaving (not SERVFAIL) sets Temporary: no", func(t *testing.T) {
+		checks := runWith(t, fakeEnv{
+			resolve: func(context.Context, string, string) ([]net.IP, error) {
+				return nil, &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: false}
+			},
+		}, target())
+		c := checkNamed(t, checks, CheckResolve)
+		if got := factValue(c, "Temporary"); !strings.HasPrefix(got, "No") {
+			t.Errorf("Temporary fact = %q, want it to say No for a non-SERVFAIL rcode", got)
+		}
+	})
+
+	t.Run("an ordinary lookup failure sets no reason and no Temporary fact", func(t *testing.T) {
 		checks := runWith(t, fakeEnv{
 			resolve: func(context.Context, string, string) ([]net.IP, error) {
 				return nil, errors.New("no such host")
 			},
 		}, target())
-		if got := checkNamed(t, checks, CheckResolve).Reason; got != "" {
-			t.Errorf("Reason = %q, want empty — this is not the server-misbehaving case", got)
+		c := checkNamed(t, checks, CheckResolve)
+		if c.Reason != "" {
+			t.Errorf("Reason = %q, want empty — this is not the server-misbehaving case", c.Reason)
+		}
+		if got := factValue(c, "Temporary"); got != "" {
+			t.Errorf("Temporary fact = %q, want none outside the server-misbehaving case", got)
 		}
 	})
 }
