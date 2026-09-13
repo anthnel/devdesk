@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "3382bd92266b",
+  "strategy": "manual-commit",
+  "branch": "feat/setup-wizard",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/forge/vocabulary.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/33/82bd92266b/0/metadata.json",
+      "transcript": "/33/82bd92266b/0/full.jsonl",
+      "compact_transcript": "/33/82bd92266b/0/transcript.jsonl",
+      "content_hash": "/33/82bd92266b/0/content_hash.txt",
+      "prompt": "/33/82bd92266b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 25052,
+    "cache_read_tokens": 9841136,
+    "output_tokens": 13854,
+    "api_call_count": 21
+  }
+}
