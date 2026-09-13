@@ -12298,17 +12298,54 @@ toujours acceptée et où elle produit le nom local familier ; podman reçoit
 donc une image tirée depuis le browser ne se distingue pas d'une image tirée
 autrement.
 
-#### Ce qui reste ouvert, et c'est le cœur de l'entrée
+#### Ce qui a été mesuré — 2026-09-13
 
-**Les onze sorties parsées ne sont toujours pas mesurées.** Il n'y a pas de
-podman sur la machine où ceci a été écrit (vérifié : `podman: command not
-found`). Les deux jeux de gabarits sont donc **identiques**, et
-`TestTheTwoTemplateSetsAreStillUnmeasured` échoue le jour où ils cessent de
-l'être — pour que la divergence soit enregistrée volontairement plutôt que
-découverte par une ligne fausse. L'indirection ne prétend pas résoudre le
-problème : elle fait que la correction sera d'une ligne dans
-`shapes["podman"].Templates` au lieu d'un refactor. La liste exacte à passer
-contre un vrai podman est dans le doc du paquet et dans le plan.
+Un vrai podman, cette fois : `podman system service` exposant le socket
+compatible Docker à `$XDG_RUNTIME_DIR/podman/podman.sock`, `app.container_engine`
+basculé sur `podman` depuis la vue configuration, puis un conteneur, une image,
+un réseau et un volume créés pour avoir quelque chose à lister. Les douze
+gabarits comparés un par un contre cette instance — pas onze : le fichier en
+comptait douze avec `PSState`, qui n'avait jamais été nommé séparément dans
+cette entrée.
+
+**Neuf coïncident** : `PS`, `PSState`, `Stats`, `ImageLS`, `ImageInspect`,
+`ImageExposedPorts`, `VolumeLS`, `Version`, et — contrairement à ce que cette
+entrée soupçonnait le plus — `{{.CreatedAt}}` sur `ps` et `{{.Ports}}` s'en
+sortent intacts.
+
+**Trois divergent, et pas en ligne fausse silencieuse — en échec net**, ce que
+cette entrée n'avait pas anticipé : podman refuse le gabarit entier plutôt que
+de laisser un champ vide.
+
+1. **`Info`** — `{{.NCPU}}\t{{.MemTotal}}` n'existe pas sous podman : les deux
+   champs sont nichés sous `.Host`. `podman info` sortait donc en code 125 à
+   *chaque* rafraîchissement, et c'est ce qui rendait la capacité hôte du
+   panneau Podman du dashboard en `n/a` permanent (`ERROR [docker] aggregate
+   capacity: podman info failed: exit status 125`, dans les logs de la mesure).
+   Corrigé en `{{.Host.CPUs}}\t{{.Host.MemTotal}}`.
+2. **`NetworkLS`** — deux champs en tort à la fois : `{{.Scope}}` n'existe pas
+   (podman n'a pas de notion de scope réseau, docker l'a du swarm), et
+   `{{.CreatedAt}}` non plus — le champ s'appelle `{{.Created}}`. Corrigé en
+   laissant la colonne Scope vide plutôt qu'en inventant `"local"` — le même
+   choix que `HostSocket` fait déjà pour une absence — et en renommant
+   `CreatedAt` en `Created`.
+3. **`SystemDF`** — `{{.TotalCount}}` (le nom que porte `--format json`) n'est
+   pas le nom que porte le même compte dans le gabarit texte : c'est
+   `{{.Total}}`. Corrigé.
+
+La liste exacte des trois gabarits touchés, avec pourquoi, est maintenant dans
+le commentaire de `podmanTemplates` (`internal/engine/engine.go`) plutôt que
+répétée ici — c'est le fichier que la prochaine divergence trouvée éditera.
+
+`TestTheTwoTemplateSetsAreStillUnmeasured` a rempli son rôle et a été
+supprimé : les deux jeux de gabarits ne sont plus identiques, ce qui est
+précisément la condition qui devait déclencher sa suppression, écrite dans son
+propre commentaire.
+
+**`system df -v` sous podman n'a pas été mesuré davantage** — voir plus bas,
+inchangé par cette mesure.
+
+#### Ce qui reste ouvert
 
 **`system df -v` est désactivé sous podman** (`Shape.ParsesSystemDFVerbose`).
 C'est la douzième sortie, et la seule sans gabarit : un tableau à colonnes
