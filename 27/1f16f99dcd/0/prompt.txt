@@ -1,0 +1,209 @@
+/plan je voudrais travailler sur une nouvelle fonctionnalité : setup. L'idée est de pouvoir assister un utilisateur pour configurer un context. Il lance dk setup et une serie de question le dirige pour constituer son fichier de configuration. La première question serait le nom du contexte. S'il existe déjà il faut le prévenir qu'il sera supprimé (oui/non). Ensuite lui proposer les différentes options importante, forge, moteur de conteneurisation, etc. Il faut identifier les questions à poser.
+
+---
+
+<task-notification>
+<task-id>ab4d6099183eb8853</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/3c5e4f1e-53e3-4235-9c3b-db10a1a30c94/tasks/ab4d6099183eb8853.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore main.go CLI entry and forge/network config fields" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Here is the research summary for planning the `dk setup` wizard.
+
+## 1. `main.go` — subcommand parsing
+
+File: `/c/Users/anthoni/projects/entire/anthnel/devdesk/main.go` (99 lines total, read in full).
+
+There is **no subcommand dispatch at all** today — no `os.Args` parsing anywhere in `main.go`, and a repo-wide grep for `os.Args` outside test files/worktrees returned nothing. The comment at `main.go:22-31` is explicit about this:
+
+```go
+// main runs the TUI. There is no subcommand any more.
+//
+// `dk mcp` served the MCP server on stdio (§3.38) and is gone with it (§3.61):
+// the server now lives in this process, over HTTP, started by the router.
+```
+
+`main.go:32-34`:
+```go
+func main() {
+	runTUI()
+}
+```
+
+So there used to be a `switch os.Args[1]` pattern (for `dk mcp`) but it was deliberately removed — the last subcommand was folded into the TUI itself. `runTUI()` (`main.go:36-99`) does: force TrueColor env fixup, `config.Load()`, `config.EnsureConfigDir()`, `tea.LogToFile`, theme load, `app.New(cfg)`, then `tea.NewProgram(...).Run()`.
+
+**Natural place to add `dk setup`:** in `main()`, before `runTUI()` is called unconditionally — reintroducing exactly the kind of `if len(os.Args) &gt; 1 { switch os.Args[1] { case "setup": ... } }` that was removed for `mcp`, e.g.:
+```go
+func main() {
+	if len(os.Args) &gt; 1 &amp;&amp; os.Args[1] == "setup" {
+		runSetupWizard()
+		return
+	}
+	runTUI()
+}
+```
+Note the comment at line 22 says "There is no subcommand any more" — reintroducing one is a real architectural reversal worth flagging/updating in that comment, not just bolting on a case.
+
+## 2. `internal/forge` — backends and Vocabulary
+
+Doc: `/c/Users/anthoni/projects/entire/anthnel/devdesk/docs/architecture/forge.md` (read in full).
+
+Two backends, chosen by `config.ForgeGitLab` / `config.ForgeGitHub` (declared in `internal/config/forge.go:9-14`), switched at runtime by `session.Backend`:
+
+`/c/Users/anthoni/projects/entire/anthnel/devdesk/internal/forge/session/session.go:52-58`
+```go
+func Backend(forgeType, url, token string) (forge.Forge, error) {
+	switch forgeType {
+	case config.ForgeGitHub:
+		return githubforge.New(url, token)
+	default:
+		return gitlabforge.New(url, token)
+	}
+}
+```
+An unknown type falls through to GitLab (default backend).
+
+Config needed per backend lives in `config.ForgeConfig` (see §3 below) — `Type`, `URL`, `DefaultParentGroup`, `DefaultVisibility`, `CloneMethod`, `Pull.{ParallelJobs,IncludeArchived}`. The token is deliberately **not** in this struct — it's stored via `internal/credentials` keyed on URL (forge.md:46-50, `internal/config/config.go:181-183`).
+
+`forge.Vocabulary` — `/c/Users/anthoni/projects/entire/anthnel/devdesk/internal/forge/vocabulary.go:29-69`:
+```go
+type Vocabulary struct {
+	Name string
+	Namespace, Namespaces string
+	Repository, Repositories string
+	ChangeRequest, ChangeRequests string
+	ChangeRequestShort string
+	TokenLabel string
+	TokenPlaceholder string
+	TokenHelp string
+	ExampleURL string
+}
+```
+Resolved via `forge.VocabularyFor(forgeType string) Vocabulary` (`vocabulary.go:118-125`), from the **configured** type, not a live session — exactly the case a setup wizard needs (words before any session/auth exists). GitLab values: `Name:"GitLab"`, `Namespace:"Group"`, `Repository:"Project"`, `TokenLabel:"Personal Access Token"`, `TokenPlaceholder:"glpat-…"`, `ExampleURL:"https://gitlab.com"` (`vocabulary.go:76-89`). GitHub values: `Name:"GitHub"`, `Namespace:"Organization"`, `Repository:"Repository"`, `TokenPlaceholder:"ghp_… or github_pat_…"`, `ExampleURL:"https://github.com"` (`vocabulary.go:91-104`). Useful for driving wizard prompts/labels without hardcoding forge-specific strings.
+
+## 3. `internal/config` — Forge/Network/App/Config structs
+
+All in `/c/Users/anthoni/projects/entire/anthnel/devdesk/internal/config/config.go`.
+
+```go
+// config.go:14-29
+type Config struct {
+	App      AppConfig
+	Status   StatusConfig
+	Forge    ForgeConfig
+	Registry RegistryConfig
+	Scan     ScanConfig
+	Network  NetworkConfig
+	MCP      MCPConfig
+	GitLab   GitLabConfig // deprecated, migrated into Forge
+}
+```
+
+```go
+// config.go:184-198
+type ForgeConfig struct {
+	Type               string // "gitlab" or "github"; empty = gitlab
+	URL                string
+	DefaultParentGroup string
+	DefaultVisibility  string
+	CloneMethod        string
+	Pull               ForgePullConfig
+}
+type ForgePullConfig struct {
+	ParallelJobs    int
+	IncludeArchived bool
+}
+```
+
+```go
+// config.go:135-176
+type AppConfig struct {
+	Theme, LogFile, DefaultView, WorkspacesDir, IDECommand, TerminalCommand string
+	TerminalNewWindow bool
+	ShowHiddenFiles   bool
+	SecretBackend     string // "auto" | "keyring" | "git-credential"
+	ContainerEngine   string // "auto" | "docker" | "podman" | explicit path
+}
+```
+
+```go
+// config.go:100-121
+type NetworkConfig struct {
+	CheckTimeout, PingCount, CertExpiryWarnDays, PortsRefreshInterval int
+}
+```
+
+**Note:** there is **no separate `Docker` struct** — I grepped for it; container/registry settings live under `RegistryConfig` (`config.go:280`) and `AppConfig.ContainerEngine`; "Docker" only appears in comments. Correct your assumption accordingly — nothing named `config.Docker`.
+
+`Default()` (`config.go:537-591`) shows the zero-config baseline (`Forge.Type: ForgeGitLab`, `Forge.DefaultVisibility:"private"`, `Forge.CloneMethod:"https"`, `App.SecretBackend:"auto"`, `App.ContainerEngine: EngineAuto`, etc.) — a good template for what the wizard should default fields to.
+
+## 4. `internal/credentials` — `Storage` and `Select`
+
+`/c/Users/anthoni/projects/entire/anthnel/devdesk/internal/credentials/storage.go:20-24`
+```go
+type Storage interface {
+	Save(url, token string) error
+	Load(url string) (token string, err error)
+	Delete(url string) error
+}
+```
+
+`/c/Users/anthoni/projects/entire/anthnel/devdesk/internal/credentials/select.go:76-98`
+```go
+func Select(contextName, preference string) Selection
+```
+Order: host keyring, then git's credential helper (if not `store`), then in-memory fallback. `preference` comes from `app.secret_backend` (`PreferenceAuto`, `PreferenceKeyring`, `PreferenceGitCredential` at `select.go:31-34`). Returns a `Selection{Storage, Backend, Detail}` (`select.go:43-50`); `Selection.Persists()` (`select.go:53-55`) tells you if it survives past this run.
+
+For the wizard: call `credentials.Select(contextName, cfg.App.SecretBackend)` to get a `Selection`, then `selection.Storage.Save(cfg.Forge.URL, token)`. `Selection.Detail` is a ready-made user-facing sentence describing where the token went — worth surfacing at the end of the wizard. There's also `session.Auth.Authenticate(ctx, forgeType, url, token)` (`internal/forge/session/session.go:62`) which opens a session **and** saves the token via an `Auth` built from `credentials.NewAuth(storage)` — likely the higher-level call the wizard should make (validates the token against the real backend before persisting) rather than calling `Storage.Save` directly.
+
+## 5. `internal/config/engine.go` — full file
+
+`/c/Users/anthoni/projects/entire/anthnel/devdesk/internal/config/engine.go` (25 lines, read in full):
+```go
+const (
+	EngineAuto   = "auto"
+	EngineDocker = "docker"
+	EnginePodman = "podman"
+)
+
+func ContainerEngines() []string { return []string{EngineAuto, EngineDocker, EnginePodman} }
+```
+Comment notes `ContainerEngines()` is not the full accepted set — an explicit binary path is also honored via `internal/engine.Resolve`, just not cycled in the UI. Use `ContainerEngines()` to populate a wizard prompt/select list.
+
+## 6. Context file path / YAML writing — correction to your assumption
+
+There is **no `~/.devdesk/contexts/&lt;name&gt;.yaml`** path. Contexts live flat under `~/.devdesk/`:
+
+`/c/Users/anthoni/projects/entire/anthnel/devdesk/internal/config/config.go:857-876`
+```go
+// GetContextPath returns the file path for a context
+// "default" -&gt; ~/.devdesk/config.yaml
+// "dev" -&gt; ~/.devdesk/config-dev.yaml
+func GetContextPath(contextName string) (string, error)
+```
+
+Writing is done by:
+```go
+// config.go:810-833
+func SaveContext(cfg *Config, contextName string) error
+```
+It validates the name, ensures `~/.devdesk` exists, `yaml.Marshal(cfg)`, writes with mode `0600`. This is exactly the function the setup wizard should call to persist the finished `*Config`.
+
+Also relevant: `config.CreateContext(contextName string) error` (`config.go:900-923`) builds `Default()`, clears `Status.Components` and `Forge.URL`, and calls `SaveContext` — a good template for "scaffold a new context" before the wizard fills in specifics, though the wizard will likely want to build a fuller `Config` itself and call `SaveContext` directly rather than `CreateContext` (which errors if the context already exists — see §7).
+
+## 7. Existing "list contexts" / "does it exist" helpers — reusable directly
+
+Both already exist and are exactly what's needed for the overwrite-confirmation step:
+
+```go
+// config.go:692  (list contexts by globbing config*.yaml)
+func ListContexts() ([]string, error)
+
+// config.go:836  (name-collision check)
+func ContextExists(contextName string) (bool, error)
+```
+
+`ContextExists` validates the name via `ValidateContextName` (`config.go:880-896`, pattern `^[a-z0-9-]+$` or `"default"`) then `os.Stat`s the path from `GetContextPath`. The wizard should call `config.ContextExists(name)` right after the user types a context name, and branch to a "context '&lt;name&gt;' already exists — overwrite?" confirm step before calling `SaveContext` (which will happily clobber an existing file — it does not itself guard against overwrite; `CreateContext` does via the `exists` check at `config.go:906-912`, but errors out instead of prompting, so the wizard needs its own confirm+overwrite logic built on `ContextExists` + `SaveContext`, not `CreateContext`).</result>
+<usage><subagent_tokens>61116</subagent_tokens><tool_uses>17</tool_uses><duration_ms>70454</duration_ms></usage>
+</task-notification>
