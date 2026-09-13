@@ -12274,6 +12274,30 @@ les vues ne suffit pas, elles le seraient contre le moteur encore résolu. Une
 préférence qui ne résout pas est journalisée et la shape précédente gardée —
 **jamais** un repli sur l'autre moteur.
 
+#### Un second défaut mesuré, hors gabarits — 2026-09-13
+
+Le registry browser (`B` depuis l'onglet Images) construit lui-même la
+référence à `pull`, et `multiImageName` traitait Docker Hub comme le seul
+registre sans hôte dans la référence — `nginx:tag` plutôt que
+`docker.io/nginx:tag` — pour rester proche de ce que `docker pull nginx`
+laisse comme nom local. Mesuré via un vrai parcours dans le browser (recherche
+`library/nginx`, filtre sur un tag, `G` pour tirer) : sous ce même podman,
+`podman pull library/nginx:1-alpine3.23-slim` refuse net — `short-name ...
+did not resolve to an alias and no unqualified-search registries are defined
+in "/etc/containers/registries.conf"` — configuration par défaut de podman sur
+Debian/Ubuntu et Fedora, pas une particularité de cette machine. Docker
+résout silencieusement l'absence d'hôte vers le Hub ; podman ne le fait que si
+`unqualified-search-registries` est renseigné, ce qui n'est pas la config par
+défaut.
+
+Corrigé dans `multiImageName` (`internal/ui/oci_resources/browser_tags.go`) en
+lisant `engine.Current().Name` : la forme sans hôte reste pour docker, qui l'a
+toujours acceptée et où elle produit le nom local familier ; podman reçoit
+`docker.io/` explicite — ce qui, accessoirement, est aussi la forme que
+`podman images` affiche déjà pour tout ce qui vient du Hub (§3.67 encore),
+donc une image tirée depuis le browser ne se distingue pas d'une image tirée
+autrement.
+
 #### Ce qui reste ouvert, et c'est le cœur de l'entrée
 
 **Les onze sorties parsées ne sont toujours pas mesurées.** Il n'y a pas de
