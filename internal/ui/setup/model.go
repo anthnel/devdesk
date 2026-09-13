@@ -77,6 +77,32 @@ const (
 	themeCheckUnreachable
 )
 
+// secretBackendCheckState tracks whether the currently selected secret
+// backend actually resolves to somewhere durable — re-checked every time the
+// answer changes, not just once, since the whole point is to catch this
+// before a token is typed rather than after (see commands.go's
+// checkSecretBackendCmd).
+type secretBackendCheckState int
+
+const (
+	secretBackendNotChecked secretBackendCheckState = iota
+	secretBackendChecking
+	secretBackendReachable
+	secretBackendUnreachable
+)
+
+// engineCheckState tracks whether the currently selected container engine is
+// not just installed but actually running.
+type engineCheckState int
+
+const (
+	engineNotChecked engineCheckState = iota
+	engineChecking
+	engineReachable
+	engineUnreachable
+	engineMissing
+)
+
 // Model is the wizard: one question at a time (Rule 112's "form in the
 // viewport" read literally per-step, rather than all fields on one screen —
 // a deliberate choice for this screen alone, so every choice comes with the
@@ -91,8 +117,13 @@ type Model struct {
 
 	contextNameInput textinput.Model
 
-	secretBackendIdx   int
+	secretBackendIdx         int
+	secretBackendCheck       secretBackendCheckState
+	secretBackendCheckDetail string
+
 	containerEngineIdx int
+	engineCheck        engineCheckState
+	engineCheckDetail  string
 
 	fontCheckIdx int
 
@@ -120,6 +151,7 @@ type Model struct {
 
 	savedPath             string
 	currentContextWarning string
+	tokenSaveWarning      string
 }
 
 // New builds the wizard with every field at its default value.
@@ -205,6 +237,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RemoteThemesFetchedMsg:
 		return m.handleRemoteThemesFetched(msg)
 
+	case SecretBackendCheckedMsg:
+		return m.handleSecretBackendChecked(msg)
+
+	case ContainerEngineCheckedMsg:
+		return m.handleContainerEngineChecked(msg)
+
 	case TokenValidatedMsg:
 		return m.handleTokenValidated(msg)
 
@@ -240,11 +278,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		return m.stepBack()
 	case "left":
-		m.cycle(-1)
-		return m, nil
+		return m, m.cycle(-1)
 	case "right":
-		m.cycle(1)
-		return m, nil
+		return m, m.cycle(1)
 	case "enter":
 		return m.advance()
 	}
@@ -276,6 +312,9 @@ func (m Model) advance() (tea.Model, tea.Cmd) {
 
 	m.step++
 	m.updateFocus()
+	if m.step == stepContainerEngine {
+		return m, m.recheckContainerEngineCmd()
+	}
 	if m.step == stepTheme && m.themeCheckState == themeCheckNotStarted {
 		m.themeCheckState = themeCheckInFlight
 		m.pending = "Checking for more themes..."
@@ -305,14 +344,21 @@ func (m *Model) updateFocus() {
 // cycle changes the current question's value, when it has a closed set of
 // answers (Rule 132). On a text-input question it does nothing — left/right
 // have no role there, matching CreationForm's name/description fields.
-func (m *Model) cycle(delta int) {
+//
+// It returns a Cmd because two of these questions (secret backend, container
+// engine) re-run a live reachability check every time the answer changes —
+// the whole point is to catch a problem as early as possible, not just once
+// on first arrival at the step.
+func (m *Model) cycle(delta int) tea.Cmd {
 	switch m.step {
 	case stepFontCheck:
 		m.fontCheckIdx = wrap(m.fontCheckIdx+delta, len(fontCheckOptions))
 	case stepSecretBackend:
 		m.secretBackendIdx = wrap(m.secretBackendIdx+delta, len(secretBackendOptions))
+		return m.recheckSecretBackendCmd()
 	case stepContainerEngine:
 		m.containerEngineIdx = wrap(m.containerEngineIdx+delta, len(config.ContainerEngines()))
+		return m.recheckContainerEngineCmd()
 	case stepTheme:
 		m.themeIdx = wrap(m.themeIdx+delta, len(m.themeOptions))
 	case stepForgeType:
@@ -328,6 +374,26 @@ func (m *Model) cycle(delta int) {
 	case stepForgeCloneMethod:
 		m.cloneMethodIdx = wrap(m.cloneMethodIdx+delta, len(cloneMethodOptions))
 	}
+	return nil
+}
+
+// recheckSecretBackendCmd re-tests whichever secret backend is currently
+// selected. Called on first arrival at the step and every time the answer
+// changes.
+func (m *Model) recheckSecretBackendCmd() tea.Cmd {
+	m.secretBackendCheck = secretBackendChecking
+	name := strings.TrimSpace(m.contextNameInput.Value())
+	pref := secretBackendOptions[m.secretBackendIdx]
+	return tea.Batch(m.spinner.Tick, checkSecretBackendCmd(name, pref))
+}
+
+// recheckContainerEngineCmd re-tests whichever container engine is currently
+// selected. Called on first arrival at the step and every time the answer
+// changes.
+func (m *Model) recheckContainerEngineCmd() tea.Cmd {
+	m.engineCheck = engineChecking
+	pref := config.ContainerEngines()[m.containerEngineIdx]
+	return tea.Batch(m.spinner.Tick, checkContainerEngineCmd(pref))
 }
 
 // onForgeTypeChanged keeps the URL placeholder and the visibility value
@@ -395,7 +461,7 @@ func (m Model) submitContextName() (tea.Model, tea.Cmd) {
 	}
 	m.contextNameInput.SetValue(name)
 	m.pending = "Checking context name..."
-	return m, checkContextExistsCmd(name)
+	return m, tea.Batch(m.spinner.Tick, checkContextExistsCmd(name))
 }
 
 func (m Model) handleContextExists(msg ContextExistsMsg) (tea.Model, tea.Cmd) {
@@ -421,7 +487,7 @@ func (m Model) handleContextExists(msg ContextExistsMsg) (tea.Model, tea.Cmd) {
 func (m Model) advanceToNextStep() (tea.Model, tea.Cmd) {
 	m.step = stepSecretBackend
 	m.updateFocus()
-	return m, nil
+	return m, m.recheckSecretBackendCmd()
 }
 
 func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
@@ -493,6 +559,35 @@ func (m Model) finishWizard() (tea.Model, tea.Cmd) {
 	)
 }
 
+func (m Model) handleSecretBackendChecked(msg SecretBackendCheckedMsg) (tea.Model, tea.Cmd) {
+	if msg.Persists {
+		m.secretBackendCheck = secretBackendReachable
+	} else {
+		m.secretBackendCheck = secretBackendUnreachable
+	}
+	m.secretBackendCheckDetail = msg.Detail
+	return m, nil
+}
+
+func (m Model) handleContainerEngineChecked(msg ContainerEngineCheckedMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case msg.Missing:
+		m.engineCheck = engineMissing
+		if pref := config.ContainerEngines()[m.containerEngineIdx]; pref == config.EngineAuto {
+			m.engineCheckDetail = "Neither Docker nor Podman was found on PATH."
+		} else {
+			m.engineCheckDetail = "No " + pref + " binary found on PATH."
+		}
+	case msg.Err != nil:
+		m.engineCheck = engineUnreachable
+		m.engineCheckDetail = msg.Name + " is installed, but its daemon did not respond: " + msg.Err.Error()
+	default:
+		m.engineCheck = engineReachable
+		m.engineCheckDetail = msg.Name + " is running."
+	}
+	return m, nil
+}
+
 func (m Model) handleTokenValidated(msg TokenValidatedMsg) (tea.Model, tea.Cmd) {
 	m.pending = ""
 	if msg.Err != nil {
@@ -501,6 +596,10 @@ func (m Model) handleTokenValidated(msg TokenValidatedMsg) (tea.Model, tea.Cmd) 
 		m.updateFocus()
 		return m, m.footer.Error("Token validation failed: " + msg.Err.Error())
 	}
+	if msg.SaveWarning != "" {
+		log.Printf("WARN [setup] token not durably saved: %s", msg.SaveWarning)
+	}
+	m.tokenSaveWarning = msg.SaveWarning
 	return m.startSave()
 }
 

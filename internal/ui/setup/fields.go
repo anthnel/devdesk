@@ -82,21 +82,10 @@ func (m Model) currentQuestion() (title, body, control string) {
 			renderQuestionText("Name", m.contextNameInput.View())
 
 	case stepSecretBackend:
-		return "Where to store secrets",
-			"DevDesk needs somewhere to keep your forge token. \"auto\" tries your OS " +
-				"keyring first, then git's credential helper, and falls back to " +
-				"memory-only — nothing survives past this session — if neither is " +
-				"available. Pick \"keyring\" or \"git-credential\" to require one " +
-				"specifically instead of silently falling back.",
-			renderQuestionCycle("Secret backend", secretBackendOptions[m.secretBackendIdx])
+		return m.secretBackendQuestion()
 
 	case stepContainerEngine:
-		return "Container engine",
-			"DevDesk drives a container engine for image scanning and container " +
-				"management. \"auto\" prefers Docker when it's on PATH and falls back " +
-				"to Podman. Pick one explicitly if you have both installed and want " +
-				"DevDesk to always use the same one.",
-			renderQuestionCycle("Container engine", config.ContainerEngines()[m.containerEngineIdx])
+		return m.containerEngineQuestion()
 
 	case stepTheme:
 		return m.themeQuestion()
@@ -172,6 +161,52 @@ func (m Model) fontCheckQuestion() (title, body, control string) {
 	return "Terminal font check", body, control
 }
 
+// secretBackendQuestion appends a live reachability check below the cycle
+// control — the same question credentials.Select answers, checked before a
+// token is typed rather than only discovered later, logged out, in the auth
+// view (the bug this exists to catch: a backend that "succeeds" by silently
+// falling back to memory, which the token step alone can't detect after the
+// fact any better than this step can before it).
+func (m Model) secretBackendQuestion() (title, body, control string) {
+	body = "DevDesk needs somewhere to keep your forge token. \"auto\" tries your OS " +
+		"keyring first, then git's credential helper, and falls back to " +
+		"memory-only — nothing survives past this session — if neither is " +
+		"available. Pick \"keyring\" or \"git-credential\" to require one " +
+		"specifically instead of silently falling back."
+
+	control = renderQuestionCycle("Secret backend", secretBackendOptions[m.secretBackendIdx])
+	switch m.secretBackendCheck {
+	case secretBackendChecking:
+		control += "\n\n" + dimStyle.Render(m.spinner.View()+" Checking whether this is reachable...")
+	case secretBackendReachable:
+		control += "\n\n" + dimStyle.Render(m.secretBackendCheckDetail)
+	case secretBackendUnreachable:
+		control += "\n\n" + warnStyle.Render(m.secretBackendCheckDetail)
+	}
+	return "Where to store secrets", body, control
+}
+
+// containerEngineQuestion appends a live check of whether the selected
+// engine's daemon actually answers — not just whether the binary is on
+// PATH, which is all the rest of the app checks today.
+func (m Model) containerEngineQuestion() (title, body, control string) {
+	body = "DevDesk drives a container engine for image scanning and container " +
+		"management. \"auto\" prefers Docker when it's on PATH and falls back " +
+		"to Podman. Pick one explicitly if you have both installed and want " +
+		"DevDesk to always use the same one."
+
+	control = renderQuestionCycle("Container engine", config.ContainerEngines()[m.containerEngineIdx])
+	switch m.engineCheck {
+	case engineChecking:
+		control += "\n\n" + dimStyle.Render(m.spinner.View()+" Checking whether it's running...")
+	case engineReachable:
+		control += "\n\n" + dimStyle.Render(m.engineCheckDetail)
+	case engineUnreachable, engineMissing:
+		control += "\n\n" + warnStyle.Render(m.engineCheckDetail)
+	}
+	return "Container engine", body, control
+}
+
 // themeQuestion reflects the one-shot background fetch's state: in flight,
 // unreachable (with a pointer to the manual-copy docs), or done.
 func (m Model) themeQuestion() (title, body, control string) {
@@ -214,6 +249,10 @@ func (m Model) renderDone() string {
 	b.WriteString("\n")
 	if m.currentContextWarning != "" {
 		b.WriteString(errorStyle.Render(m.currentContextWarning))
+		b.WriteString("\n")
+	}
+	if m.tokenSaveWarning != "" {
+		b.WriteString(warnStyle.Render(m.tokenSaveWarning))
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")

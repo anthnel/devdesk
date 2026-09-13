@@ -388,3 +388,137 @@ func TestCheckContextExistsCmdReportsFalseForAFreshName(t *testing.T) {
 		t.Error("Exists = true for a context that was never created")
 	}
 }
+
+// This is the reported bug, reproduced directly: a secret backend that does
+// not actually persist must never let the wizard finish as if it did.
+func TestSecretBackendUnreachableIsShownOnItsOwnStepAndOnDone(t *testing.T) {
+	m := New()
+	m = past(t, m, "staging")
+	if m.secretBackendCheck != secretBackendChecking {
+		t.Fatalf("secretBackendCheck = %v, want secretBackendChecking right after arriving", m.secretBackendCheck)
+	}
+
+	const detail = "Nothing is saved — Secret Service is configured but not reachable. You will have to authenticate again next launch."
+	m = feed(t, m, SecretBackendCheckedMsg{Persists: false, Detail: detail})
+
+	if m.secretBackendCheck != secretBackendUnreachable {
+		t.Fatalf("secretBackendCheck = %v, want secretBackendUnreachable", m.secretBackendCheck)
+	}
+	_, _, control := m.currentQuestionAt(stepSecretBackend)
+	if !strings.Contains(control, detail) {
+		t.Error("the unreachable detail is not shown on the secret backend question")
+	}
+
+	// The same unreachable backend, discovered again (or for the first time)
+	// when the token is actually saved, must not be swallowed by a "token
+	// validated" success.
+	m.step = stepForgeToken
+	m = feed(t, m, TokenValidatedMsg{SaveWarning: detail})
+
+	if m.tokenSaveWarning != detail {
+		t.Errorf("tokenSaveWarning = %q, want the unreachable detail", m.tokenSaveWarning)
+	}
+	if m.pending != "Saving context..." {
+		t.Error("an unpersisted token must still let the context itself save — it is a warning, not a failure")
+	}
+
+	m.stage = stageDone
+	if !strings.Contains(m.renderDone(), detail) {
+		t.Error("the Done screen does not mention the token was never actually saved")
+	}
+}
+
+func TestSecretBackendReachableShowsItsDetailToo(t *testing.T) {
+	m := New()
+	m = past(t, m, "staging")
+
+	m = feed(t, m, SecretBackendCheckedMsg{Persists: true, Detail: "Secrets are stored in the Secret Service."})
+
+	if m.secretBackendCheck != secretBackendReachable {
+		t.Errorf("secretBackendCheck = %v, want secretBackendReachable", m.secretBackendCheck)
+	}
+}
+
+func TestContainerEngineChecked(t *testing.T) {
+	tests := []struct {
+		name       string
+		msg        ContainerEngineCheckedMsg
+		wantState  engineCheckState
+		wantDetail string
+	}{
+		{
+			name:       "missing binary",
+			msg:        ContainerEngineCheckedMsg{Missing: true},
+			wantState:  engineMissing,
+			wantDetail: "Neither Docker nor Podman was found on PATH.",
+		},
+		{
+			name:       "daemon unreachable",
+			msg:        ContainerEngineCheckedMsg{Name: "docker", Err: errors.New("cannot connect to the Docker daemon")},
+			wantState:  engineUnreachable,
+			wantDetail: "docker is installed, but its daemon did not respond: cannot connect to the Docker daemon",
+		},
+		{
+			name:       "running",
+			msg:        ContainerEngineCheckedMsg{Name: "podman"},
+			wantState:  engineReachable,
+			wantDetail: "podman is running.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := New()
+			m = past(t, m, "staging")
+			m.step = stepContainerEngine
+
+			m = feed(t, m, tt.msg)
+
+			if m.engineCheck != tt.wantState {
+				t.Errorf("engineCheck = %v, want %v", m.engineCheck, tt.wantState)
+			}
+			if m.engineCheckDetail != tt.wantDetail {
+				t.Errorf("engineCheckDetail = %q, want %q", m.engineCheckDetail, tt.wantDetail)
+			}
+		})
+	}
+}
+
+func TestArrivingAtContainerEngineTriggersACheck(t *testing.T) {
+	m := New()
+	m = past(t, m, "staging")
+	m = feed(t, m, SecretBackendCheckedMsg{Persists: true, Detail: "ok"})
+
+	m = feed(t, m, testutil.Key("enter")) // secret backend -> container engine
+
+	if m.step != stepContainerEngine {
+		t.Fatalf("step = %d, want stepContainerEngine", m.step)
+	}
+	if m.engineCheck != engineChecking {
+		t.Errorf("engineCheck = %v, want engineChecking right after arriving", m.engineCheck)
+	}
+}
+
+// checkSecretBackendCmd and checkContainerEngineCmd wrap already-tested
+// lower-level packages (internal/credentials, internal/engine,
+// internal/docker); these two just confirm the wiring produces a
+// well-formed message without depending on what this environment actually
+// has installed.
+func TestCheckSecretBackendCmdReturnsAWellFormedMessage(t *testing.T) {
+	msg, ok := testutil.MsgOf[SecretBackendCheckedMsg](checkSecretBackendCmd("wizard-wiring-test", "auto"))
+	if !ok {
+		t.Fatal("checkSecretBackendCmd returned no SecretBackendCheckedMsg")
+	}
+	if msg.Detail == "" {
+		t.Error("Detail is empty; credentials.Select always populates it")
+	}
+}
+
+func TestCheckContainerEngineCmdReturnsAWellFormedMessage(t *testing.T) {
+	msg, ok := testutil.MsgOf[ContainerEngineCheckedMsg](checkContainerEngineCmd("auto"))
+	if !ok {
+		t.Fatal("checkContainerEngineCmd returned no ContainerEngineCheckedMsg")
+	}
+	if !msg.Missing && msg.Name == "" {
+		t.Error("a non-missing result must name the engine it checked")
+	}
+}
