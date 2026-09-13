@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "ba60362cdc09",
+  "strategy": "manual-commit",
+  "branch": "feat/setup-wizard",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "mise.toml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ba/60362cdc09/0/metadata.json",
+      "transcript": "/ba/60362cdc09/0/full.jsonl",
+      "compact_transcript": "/ba/60362cdc09/0/transcript.jsonl",
+      "content_hash": "/ba/60362cdc09/0/content_hash.txt",
+      "prompt": "/ba/60362cdc09/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 812,
+    "cache_read_tokens": 657829,
+    "output_tokens": 457,
+    "api_call_count": 2
+  }
+}
