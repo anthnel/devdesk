@@ -103,7 +103,7 @@ func newRegistryForm(index int, item config.RegistryItem, existing []config.Regi
 
 	aliasInput := textinput.New()
 	aliasInput.CharLimit = 32
-	aliasInput.Placeholder = "gl"
+	aliasInput.Placeholder = "harbor  (optional, falls back to the host)"
 	theme.StyleTextInput(&aliasInput)
 	aliasInput.SetValue(item.Alias)
 
