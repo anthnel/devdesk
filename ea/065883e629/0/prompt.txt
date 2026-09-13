@@ -1,0 +1,13 @@
+est-ce qu'il y a une tache mise pour tester le wizard
+
+---
+
+oui ajoute
+
+---
+
+dans le wizard il y a des problème de background, je laisserais le background vide pour s'intégrer avec le theme du terminal
+
+---
+
+au lieu d'avoir un seul formulaire a remplir j'aurais préféré poser une question à la fois, en donnant du contexte et des explications sur les différents choix pour vraiment assister l'utilisateur. Pour les thèmes, je proposerais de les importer si une connexion réseau est disponible, sinon je référencerais la doc qui explique comment importer manuellement un theme

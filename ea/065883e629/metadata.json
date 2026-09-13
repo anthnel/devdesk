@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "ea065883e629",
+  "strategy": "manual-commit",
+  "branch": "feat/setup-wizard",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "internal/ui/vocabtest/vocabtest_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ea/065883e629/0/metadata.json",
+      "transcript": "/ea/065883e629/0/full.jsonl",
+      "compact_transcript": "/ea/065883e629/0/transcript.jsonl",
+      "content_hash": "/ea/065883e629/0/content_hash.txt",
+      "prompt": "/ea/065883e629/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 80,
+    "cache_creation_tokens": 83613,
+    "cache_read_tokens": 16547756,
+    "output_tokens": 61373,
+    "api_call_count": 40
+  }
+}
