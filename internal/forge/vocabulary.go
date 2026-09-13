@@ -84,8 +84,17 @@ var (
 		ChangeRequestShort: "MR",
 		TokenLabel:         "Personal Access Token",
 		TokenPlaceholder:   "glpat-…",
-		TokenHelp:          "Create a token in GitLab > Settings > Access Tokens. Required scopes: api, read_user.",
-		ExampleURL:         "https://gitlab.com",
+		// `api` alone covers everything DevDesk does: it grants both full
+		// read/write API access (project and group create/delete, merge
+		// request and issue listing, pipelines, the current-user check) and
+		// Git-over-HTTP repository access (clone, push), per GitLab's own
+		// docs (docs.gitlab.com/security/tokens/access_token_scopes). Adding
+		// read_repository/write_repository alongside it would be redundant,
+		// not additive — those two are narrower *alternatives* to api for a
+		// token that should never touch group/project management, which is
+		// not this app's case.
+		TokenHelp:  "Create a token in GitLab > Settings > Access Tokens. Required scope: api.",
+		ExampleURL: "https://gitlab.com",
 	}
 
 	githubVocabulary = Vocabulary{
@@ -99,8 +108,14 @@ var (
 		ChangeRequestShort: "PR",
 		TokenLabel:         "Personal Access Token",
 		TokenPlaceholder:   "ghp_… or github_pat_…",
-		TokenHelp:          "Create a token in GitHub > Settings > Developer settings > Personal access tokens. Required scopes: repo, read:org.",
-		ExampleURL:         "https://github.com",
+		// `repo` covers repository read/write (including the Git Data API
+		// this app uses for the initial commit) and `read:org` covers
+		// listing organizations and membership. `delete_repo` is GitHub's
+		// own separate gate on repository deletion — `repo` does not
+		// include it — and this app does delete repositories, so leaving it
+		// out would fail silently until that one action is tried.
+		TokenHelp:  "Create a token in GitHub > Settings > Developer settings > Personal access tokens. Required scopes: repo, read:org, delete_repo.",
+		ExampleURL: "https://github.com",
 	}
 )
 

@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/engine"
 )
 
 // filterStops returns the values `r` cycles through: every group that produced
@@ -204,8 +206,24 @@ func isDockerHub(registryURL string) bool {
 }
 
 // multiImageName constructs the full image reference for pull/scan.
+//
+// A Hub reference carries no host under docker: `docker pull nginx` leaves
+// `nginx` as the local repository name, and qualifying it would only make the
+// Images tab show `docker.io/library/nginx` next to a `nginx` pulled by hand.
+// Podman disagrees, and not cosmetically — measured against a real podman
+// with no `unqualified-search-registries` configured (§3.67), which is the
+// package default on Debian/Ubuntu and Fedora alike: `podman pull
+// library/nginx:tag` refuses outright ("short-name ... did not resolve to an
+// alias and no unqualified-search registries are defined"), where docker
+// would have silently assumed Hub. So the bare form is kept for docker, where
+// it has always worked, and only podman gets the explicit host — which is
+// also the form its own `images` list already uses (§3.67), so nothing about
+// this makes a podman-pulled image look different from one already there.
 func multiImageName(registryURL, repo, tag string) string {
 	if isDockerHub(registryURL) {
+		if engine.Current().Name == engine.Podman {
+			return "docker.io/" + repo + ":" + tag
+		}
 		return repo + ":" + tag
 	}
 	return registryHost(registryURL) + "/" + repo + ":" + tag

@@ -190,6 +190,21 @@ func TestEveryParsedOutputHasATemplatePerEngine(t *testing.T) {
 	}
 }
 
+// Measured against a real podman (§3.67, "La première mesure"): `podman
+// info` nests CPU count and total memory under `.Host` and has no top-level
+// NCPU/MemTotal at all, so docker's Info template doesn't just misparse
+// against it — it fails the template outright.
+func TestPodmanInfoTemplateUsesTheHostNestedFields(t *testing.T) {
+	got := ShapeFor(Podman).Templates.Info
+	if want := "{{.Host.CPUs}}\t{{.Host.MemTotal}}"; got != want {
+		t.Errorf("podman Info template = %q, want %q", got, want)
+	}
+	if got == ShapeFor(Docker).Templates.Info {
+		t.Error("podman's Info template must not equal docker's — that was exactly " +
+			"the bug: a genuinely running podman reported as unreachable")
+	}
+}
+
 func TestEveryEngineDeclaresItsOwnHelperPrefixAndAuthFile(t *testing.T) {
 	for _, name := range Names() {
 		shape := ShapeFor(name)

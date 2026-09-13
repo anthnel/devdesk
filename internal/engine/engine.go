@@ -159,6 +159,9 @@ var dockerTemplates = Templates{
 // no rows.
 //
 //   - Info: podman nests CPU count and memory under .Host, not at the root.
+//     This is also the field `dk setup`'s container-engine question caught,
+//     via `docker.FetchCapacity` erroring outright on a genuinely running
+//     podman instead of reporting it unreachable for some other reason.
 //   - NetworkLS: podman networks carry no scope (docker's Scope column is a
 //     swarm concept), and podman's field is called Created, not CreatedAt.
 //     The Scope segment is left empty rather than guessed at "local" — the
