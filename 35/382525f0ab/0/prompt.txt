@@ -1,0 +1,5 @@
+podman est maintenant accessible dans la sandbox, test devdesk avec podman comme moteur de conteneur
+
+---
+
+créé le worktree et commit
