@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/engine"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -303,6 +304,32 @@ func TestThePullReferenceCarriesTheRegistryExceptOnTheHub(t *testing.T) {
 		{"registry-1.docker.io", "library/nginx", "1.25", "library/nginx:1.25"},
 		{"registry.example.com", "api", "v1", "registry.example.com/api:v1"},
 		{"registry.example.com/", "api", "v1", "registry.example.com/api:v1"},
+	}
+	for _, tc := range cases {
+		if got := multiImageName(tc.registry, tc.repo, tc.tag); got != tc.want {
+			t.Errorf("multiImageName(%q, %q, %q) = %q, want %q", tc.registry, tc.repo, tc.tag, got, tc.want)
+		}
+	}
+}
+
+// Measured against a real podman (§3.67): a bare `library/nginx:tag` pull
+// refuses outright when `unqualified-search-registries` is not set in
+// registries.conf — the package default on Debian/Ubuntu and Fedora — where
+// docker would have silently assumed Hub. So podman gets the explicit host
+// devdesk would otherwise reserve for a non-Hub registry; docker keeps the
+// bare form, which is the one Names already displays for a manually-pulled
+// image.
+func TestThePullReferenceIsQualifiedForPodmanOnTheHub(t *testing.T) {
+	previous := engine.Current()
+	t.Cleanup(func() { engine.SetCurrent(previous) })
+	engine.SetCurrent(engine.ShapeFor(engine.Podman))
+
+	cases := []struct {
+		registry, repo, tag, want string
+	}{
+		{"docker.io", "library/nginx", "1.25", "docker.io/library/nginx:1.25"},
+		{"registry-1.docker.io", "library/nginx", "1.25", "docker.io/library/nginx:1.25"},
+		{"registry.example.com", "api", "v1", "registry.example.com/api:v1"},
 	}
 	for _, tc := range cases {
 		if got := multiImageName(tc.registry, tc.repo, tc.tag); got != tc.want {
