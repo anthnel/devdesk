@@ -3,7 +3,7 @@
   "checkpoint_id": "6b2049a4e61c",
   "strategy": "manual-commit",
   "branch": "fix/podman-templates",
-  "checkpoints_count": 1,
+  "checkpoints_count": 4,
   "files_touched": [
     "docs/backlog.md",
     "internal/engine/engine.go",
@@ -16,13 +16,27 @@
       "compact_transcript": "/6b/2049a4e61c/0/transcript.jsonl",
       "content_hash": "/6b/2049a4e61c/0/content_hash.txt",
       "prompt": "/6b/2049a4e61c/0/prompt.txt"
+    },
+    {
+      "metadata": "/6b/2049a4e61c/1/metadata.json",
+      "transcript": "/6b/2049a4e61c/1/full.jsonl",
+      "compact_transcript": "/6b/2049a4e61c/1/transcript.jsonl",
+      "content_hash": "/6b/2049a4e61c/1/content_hash.txt",
+      "prompt": "/6b/2049a4e61c/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 172,
-    "cache_creation_tokens": 225670,
-    "cache_read_tokens": 14385919,
-    "output_tokens": 43596,
-    "api_call_count": 86
+    "input_tokens": 258,
+    "cache_creation_tokens": 1096727,
+    "cache_read_tokens": 31507904,
+    "output_tokens": 63892,
+    "api_call_count": 129,
+    "subagent_tokens": {
+      "input_tokens": 104,
+      "cache_creation_tokens": 237623,
+      "cache_read_tokens": 2711653,
+      "output_tokens": 43560,
+      "api_call_count": 52
+    }
   }
 }
