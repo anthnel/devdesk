@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/app"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/ui/setup"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -19,17 +20,28 @@ func getCurrentContextName() string {
 	return ctx
 }
 
-// main runs the TUI. There is no subcommand any more.
+// main runs the TUI, with one exception: `dk setup`.
 //
 // `dk mcp` served the MCP server on stdio (§3.38) and is gone with it (§3.61):
 // the server now lives in this process, over HTTP, started by the router. What
-// that deletes is the flag set, the argument dispatch, and the ordering
+// that deleted was the flag set, the argument dispatch, and the ordering
 // constraint that used to sit here — everything below writes to stdout, and in
 // stdio stdout *was* the protocol channel, so a single warning printed before
 // the server started made the client report a JSON parse error naming nothing.
-// Over HTTP the two do not share a channel, so the constraint is gone rather
+// Over HTTP the two do not share a channel, so that constraint is gone rather
 // than relaxed.
+//
+// `setup` is not a reversal of "no subcommand any more": it is one literal
+// case, not a flag-parsing framework, and it runs before any context is
+// loaded — the one thing the TUI itself cannot do for a user who has none yet.
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "setup" {
+		if err := setup.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, "setup failed:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	runTUI()
 }
 
