@@ -71,11 +71,17 @@ type Shape struct {
 // it produces wrong rows, which is the defect class this repository keeps
 // cataloguing (D24, D25, D57).
 //
-// Both shapes therefore declare the same templates today, and that is the
-// honest state: no measurement has been taken against a real podman. What this
-// indirection buys is that a divergence found later is one line here rather
-// than a refactor. Do not collapse it back into constants without that
-// measurement (§3.67).
+// Most of these are still an unmeasured copy of dockerTemplates, and that is
+// the honest state for them. Info is the one exception, measured against a
+// real podman (§3.67, "La première mesure"): `podman info` has no top-level
+// NCPU/MemTotal at all —
+// unlike a wrong-but-present field, this is not silently wrong rows, it is
+// `docker.FetchCapacity` erroring outright, which is how DevDesk's own setup
+// wizard caught it (asking "is podman actually reachable" fails Podman
+// itself). What this indirection buys for the rest is that a divergence
+// found later is one line here rather than a refactor. Do not collapse it
+// back into constants without doing that same measurement for each field
+// (§3.67).
 //
 // The twelfth parsed output has no template and is not here: `system df -v` is
 // a fixed-width table scraped by column offsets (internal/docker/images.go),
@@ -147,7 +153,20 @@ var dockerTemplates = Templates{
 	Version:           "{{.Client.Version}}",
 }
 
-var podmanTemplates = dockerTemplates
+// podmanTemplates is dockerTemplates with the one field measured against a
+// real podman corrected (§3.67, "La première mesure"). `podman info` nests
+// CPU count and total memory under `.Host` — `{{.NCPU}}`/`{{.MemTotal}}` are
+// docker-only fields that don't exist on podman's report at all, so
+// `podman info --format {{.NCPU}}\t{{.MemTotal}}` doesn't produce a wrong
+// number, it errors outright ("can't evaluate field NCPU"). That surfaced as
+// `dk setup`'s container-engine question reporting a genuinely running
+// podman as unreachable. The rest of this set is still the unmeasured copy
+// the comment on Templates describes.
+var podmanTemplates = func() Templates {
+	t := dockerTemplates
+	t.Info = "{{.Host.CPUs}}\t{{.Host.MemTotal}}"
+	return t
+}()
 
 // current is the resolved engine. It starts as docker so that every caller has
 // a usable answer before the router has read a configuration — which is what

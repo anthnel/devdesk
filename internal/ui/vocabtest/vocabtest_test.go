@@ -67,6 +67,16 @@ var allowed = map[string]string{
 	// fait déjà l'entrée fileicon : ce que la garde cherche est un *mot* qui
 	// devrait suivre la forge active.
 	"internal/ui/about/model.go": "the address of this project's own repository",
+
+	// The setup wizard's one-shot theme fetch reaches into this project's own
+	// GitHub repository — an address, exactly like the About screen's, that
+	// does not depend on which forge the new context will target. The theme
+	// names it lists ("github-dark", "github-light") are bundled theme file
+	// names, not forge vocabulary either: a GitLab-configured context can
+	// still pick the "github-dark" theme, the same way it can hold a
+	// `.gitlab-ci.yml` file (fileicon's exception, above).
+	"internal/ui/setup/commands.go": "this project's own repository URL, and bundled theme file names",
+	"internal/ui/setup/fields.go":   "a pointer to this project's own repository for browsing extra themes",
 }
 
 // importPath recognises a Go import, which is a string literal like any other

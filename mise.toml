@@ -52,6 +52,10 @@ run = './bin/dk$(go env GOEXE)'
 description = "Run directly with go run (faster for development)"
 run = "go run ."
 
+[tasks.setup]
+description = "Run the `dk setup` context wizard directly with go run"
+run = "go run . setup"
+
 [tasks.test]
 description = "Run all tests"
 run = "go test -v ./..."
