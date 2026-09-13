@@ -1,0 +1,9 @@
+est-ce qu'il y a une tache mise pour tester le wizard
+
+---
+
+oui ajoute
+
+---
+
+dans le wizard il y a des problème de background, je laisserais le background vide pour s'intégrer avec le theme du terminal
