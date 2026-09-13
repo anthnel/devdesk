@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -72,6 +73,50 @@ func TestEscOnTheFirstStepQuits(t *testing.T) {
 	_, cmd := m.Update(testutil.Key("esc"))
 	if _, ok := cmd().(tea.QuitMsg); !ok {
 		t.Errorf("Esc on the font check step did not quit")
+	}
+}
+
+func TestFontCheckDefaultsToLooksCorrectAndCyclesBothDirections(t *testing.T) {
+	m := New()
+	if got, want := fontCheckOptions[m.fontCheckIdx], "Looks correct"; got != want {
+		t.Fatalf("default fontCheck option = %q, want %q", got, want)
+	}
+
+	m = feed(t, m, testutil.Key("right"))
+	if got, want := fontCheckOptions[m.fontCheckIdx], fontCheckOptions[1]; got != want {
+		t.Errorf("after right, fontCheck option = %q, want %q", got, want)
+	}
+
+	m = feed(t, m, testutil.Key("right"))
+	if got, want := fontCheckOptions[m.fontCheckIdx], "Looks correct"; got != want {
+		t.Errorf("after wrapping around, fontCheck option = %q, want %q", got, want)
+	}
+}
+
+func TestFontCheckShowsRemediationOnlyWhenMarkedBroken(t *testing.T) {
+	m := New()
+	_, body, _ := m.currentQuestion()
+	if strings.Contains(body, "nerdfonts.com") {
+		t.Fatal("remediation text is shown before the user reports anything broken")
+	}
+
+	m = feed(t, m, testutil.Key("right")) // "Looks correct" -> "Broken"
+	_, body, _ = m.currentQuestion()
+	if !strings.Contains(body, "nerdfonts.com") {
+		t.Error("remediation text is missing once the user reports the icons as broken")
+	}
+}
+
+func TestFontCheckEnterDoesNotBlockOnEitherAnswer(t *testing.T) {
+	for _, idx := range []int{0, 1} {
+		m := New()
+		m.fontCheckIdx = idx
+
+		m = feed(t, m, testutil.Key("enter"))
+
+		if m.step != stepContextName {
+			t.Errorf("fontCheckIdx=%d: step = %d after enter, want stepContextName — the check must never block", idx, m.step)
+		}
 	}
 }
 
