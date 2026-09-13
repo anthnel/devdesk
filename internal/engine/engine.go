@@ -65,17 +65,19 @@ type Shape struct {
 // Templates holds one Go template per parsed output.
 //
 // They are a field of the shape rather than constants at the call sites for a
-// reason that has not been measured away: podman implements --format, but
-// equality of the *fields* is guaranteed nowhere, and {{.Ports}} and
-// {{.CreatedAt}} are the likeliest to diverge. A divergence raises no error —
-// it produces wrong rows, which is the defect class this repository keeps
-// cataloguing (D24, D25, D57).
+// reason a real podman went on to confirm: podman implements --format, but
+// equality of the *fields* is guaranteed nowhere. A divergence does not
+// always raise an error and produce a wrong row (the defect class this
+// repository keeps cataloguing, D24, D25, D57) — three of the twelve outputs
+// (Info, NetworkLS, SystemDF) name a field podman's template engine does not
+// have at all, which fails the command outright instead. `podman info`
+// exiting 125 on every poll is what host capacity looked like before this was
+// measured.
 //
-// Both shapes therefore declare the same templates today, and that is the
-// honest state: no measurement has been taken against a real podman. What this
-// indirection buys is that a divergence found later is one line here rather
-// than a refactor. Do not collapse it back into constants without that
-// measurement (§3.67).
+// The other nine match dockerTemplates exactly against that same podman, so
+// they stay unified rather than being forked speculatively. What this
+// indirection buys is that a future divergence is one line here rather than a
+// refactor. Do not collapse it back into constants (§3.67).
 //
 // The twelfth parsed output has no template and is not here: `system df -v` is
 // a fixed-width table scraped by column offsets (internal/docker/images.go),
@@ -147,7 +149,32 @@ var dockerTemplates = Templates{
 	Version:           "{{.Client.Version}}",
 }
 
-var podmanTemplates = dockerTemplates
+// podmanTemplates diverges from dockerTemplates on the three outputs measured
+// against a real `podman system service` (§3.67): Info, NetworkLS and
+// SystemDF each name a docker-only struct field, and podman's template
+// engine — unlike its JSON output, which does carry the docker-shaped field
+// under a different name or nested — fails the whole command rather than
+// leaving the field blank. `podman info` exits 125 outright, which is what
+// broke host capacity reporting for every podman user; the other two return
+// no rows.
+//
+//   - Info: podman nests CPU count and memory under .Host, not at the root.
+//   - NetworkLS: podman networks carry no scope (docker's Scope column is a
+//     swarm concept), and podman's field is called Created, not CreatedAt.
+//     The Scope segment is left empty rather than guessed at "local" — the
+//     same call HostSocket makes about reporting an absence as a fact.
+//   - SystemDF: podman's template-formatted row exposes Total, not the
+//     TotalCount its own `--format json` uses for the same count.
+//
+// The other nine outputs were checked against the same podman and matched
+// dockerTemplates exactly, so they are not copied here.
+var podmanTemplates = func() Templates {
+	t := dockerTemplates
+	t.Info = "{{.Host.CPUs}}\t{{.Host.MemTotal}}"
+	t.NetworkLS = "{{.ID}}\t{{.Name}}\t{{.Driver}}\t\t{{.Created}}"
+	t.SystemDF = "{{.Type}}\t{{.Total}}\t{{.Size}}\t{{.Reclaimable}}"
+	return t
+}()
 
 // current is the resolved engine. It starts as docker so that every caller has
 // a usable answer before the router has read a configuration — which is what

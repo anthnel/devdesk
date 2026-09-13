@@ -190,18 +190,6 @@ func TestEveryParsedOutputHasATemplatePerEngine(t *testing.T) {
 	}
 }
 
-// The two template sets are identical today and that is the honest state: no
-// measurement has been taken against a real podman (§3.67). This test does not
-// assert they must stay identical — it fails loudly the day they stop, so the
-// divergence is recorded deliberately rather than noticed by a wrong row.
-func TestTheTwoTemplateSetsAreStillUnmeasured(t *testing.T) {
-	if !reflect.DeepEqual(ShapeFor(Docker).Templates, ShapeFor(Podman).Templates) {
-		t.Log("the podman templates now differ from docker's — update §3.67 " +
-			"to record what was measured, then delete this test")
-		t.Fail()
-	}
-}
-
 func TestEveryEngineDeclaresItsOwnHelperPrefixAndAuthFile(t *testing.T) {
 	for _, name := range Names() {
 		shape := ShapeFor(name)
