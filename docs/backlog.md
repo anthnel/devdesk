@@ -12309,6 +12309,37 @@ guillemet et `cmd.exe` ne le comprend pas. Le coût, énoncé plutôt que
 découvert : un chemin de moteur contenant une espace casse `V`, et seulement
 là.
 
+#### La première mesure — 2026-09-13
+
+Un podman réel a fini par exister sur une machine qui exécute ce code, et
+c'est le nouvel assistant `dk setup` (`internal/ui/setup`, question « Container
+engine ») qui l'a exercé le premier : il résout le moteur choisi et appelle
+`docker.FetchCapacity()` pour dire s'il tourne vraiment, pas seulement s'il
+est sur le PATH. Contre un podman qui faisait tourner un conteneur (`podman
+ps` le montrait), la question répondait « unreachable ».
+
+**`Info` divergeait, et pas de la façon annoncée plus haut.** La crainte
+énoncée portait sur des champs présents mais mal nommés (`{{.Ports}}`,
+`{{.CreatedAt}}`) produisant une ligne fausse sans erreur. Ce n'est pas ce
+qui s'est passé : `podman info` n'a **aucun** `NCPU`/`MemTotal` au premier
+niveau — les deux vivent sous `.Host` (`.Host.CPUs`, `.Host.MemTotal`).
+`{{.NCPU}}\t{{.MemTotal}}` contre un vrai podman ne produit donc pas une
+ligne fausse : `podman info` refuse purement et simplement le gabarit
+(`can't evaluate field NCPU in type system.infoReport`), ce que
+`docker.FetchCapacity` remonte comme une erreur. C'est ce qui rendait le
+moteur « unreachable » — le démon répondait, le gabarit ne s'appliquait
+pas.
+
+`shapes["podman"].Templates.Info` devient `{{.Host.CPUs}}\t{{.Host.MemTotal}}`
+(`internal/engine/engine.go`, `podmanTemplates`). Les dix autres gabarits
+restent la copie non mesurée — rien n'indique qu'ils divergent, rien ne
+prouve qu'ils ne divergent pas non plus. `TestTheTwoTemplateSetsAreStillUnmeasured`
+avait pour unique rôle de signaler la première divergence volontairement
+plutôt que par une ligne fausse découverte plus tard ; son rôle est rempli,
+elle est supprimée plutôt que mise à jour pour ignorer `Info` — l'indirection
+elle-même (un jeu de gabarits par moteur) reste, c'est elle qui a rendu la
+correction locale à une ligne.
+
 ---
 
 ### 3.68 Où est vraiment le mot de passe — le magasin d'identifiants se dit

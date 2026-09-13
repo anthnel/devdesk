@@ -190,15 +190,18 @@ func TestEveryParsedOutputHasATemplatePerEngine(t *testing.T) {
 	}
 }
 
-// The two template sets are identical today and that is the honest state: no
-// measurement has been taken against a real podman (§3.67). This test does not
-// assert they must stay identical — it fails loudly the day they stop, so the
-// divergence is recorded deliberately rather than noticed by a wrong row.
-func TestTheTwoTemplateSetsAreStillUnmeasured(t *testing.T) {
-	if !reflect.DeepEqual(ShapeFor(Docker).Templates, ShapeFor(Podman).Templates) {
-		t.Log("the podman templates now differ from docker's — update §3.67 " +
-			"to record what was measured, then delete this test")
-		t.Fail()
+// Measured against a real podman (§3.67, "La première mesure"): `podman
+// info` nests CPU count and total memory under `.Host` and has no top-level
+// NCPU/MemTotal at all, so docker's Info template doesn't just misparse
+// against it — it fails the template outright.
+func TestPodmanInfoTemplateUsesTheHostNestedFields(t *testing.T) {
+	got := ShapeFor(Podman).Templates.Info
+	if want := "{{.Host.CPUs}}\t{{.Host.MemTotal}}"; got != want {
+		t.Errorf("podman Info template = %q, want %q", got, want)
+	}
+	if got == ShapeFor(Docker).Templates.Info {
+		t.Error("podman's Info template must not equal docker's — that was exactly " +
+			"the bug: a genuinely running podman reported as unreachable")
 	}
 }
 
