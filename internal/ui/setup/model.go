@@ -1,8 +1,8 @@
 // Package setup implements `dk setup`: a small standalone Bubble Tea program
-// that walks a user through creating (or overwriting) a DevDesk context. It
-// is not part of the app router — it runs before any context is loaded, so
-// it builds a *config.Config from scratch and writes it with
-// config.SaveContext, the same call the configuration view uses.
+// that walks a user through creating (or overwriting) a DevDesk context, one
+// question at a time. It is not part of the app router — it runs before any
+// context is loaded, so it builds a *config.Config from scratch and writes
+// it with config.SaveContext, the same call the configuration view uses.
 package setup
 
 import (
@@ -19,19 +19,20 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// Field indices, top to bottom, matching the order rendered in View.
+// Step indices, in the order the wizard asks them.
 const (
-	fieldContextName = iota
-	fieldSecretBackend
-	fieldContainerEngine
-	fieldTheme
-	fieldForgeType
-	fieldForgeURL
-	fieldForgeNamespace
-	fieldForgeVisibility
-	fieldForgeCloneMethod
-	fieldForgeToken
-	fieldSubmit
+	stepFontCheck = iota
+	stepContextName
+	stepSecretBackend
+	stepContainerEngine
+	stepTheme
+	stepForgeType
+	stepForgeURL
+	stepForgeNamespace
+	stepForgeVisibility
+	stepForgeCloneMethod
+	stepForgeToken
+	stepCount
 )
 
 // secretBackendOptions mirrors config.AppConfig.SecretBackend's closed set.
@@ -40,7 +41,11 @@ var secretBackendOptions = []string{"auto", "keyring", "git-credential"}
 // cloneMethodOptions mirrors config.ForgeConfig.CloneMethod's closed set.
 var cloneMethodOptions = []string{"https", "ssh"}
 
-// stage tracks what the wizard is doing once every field has a value.
+// fontCheckOptions is not a config value — nothing persists it — it only
+// decides whether the remediation text is shown under the icon sample.
+var fontCheckOptions = []string{"Looks correct", "Broken (boxes or question marks)"}
+
+// stage tracks what the wizard is doing, on top of which question is active.
 type stage int
 
 const (
@@ -61,12 +66,25 @@ const (
 	modalSetCurrent
 )
 
-// Model is the wizard: one form, top to bottom (Rule 112), that ends by
-// writing a context via config.SaveContext.
+// themeCheckState tracks the one-shot, best-effort attempt to fetch the
+// bundled themes from the repository when the wizard reaches that question.
+type themeCheckState int
+
+const (
+	themeCheckNotStarted themeCheckState = iota
+	themeCheckInFlight
+	themeCheckDone
+	themeCheckUnreachable
+)
+
+// Model is the wizard: one question at a time (Rule 112's "form in the
+// viewport" read literally per-step, rather than all fields on one screen —
+// a deliberate choice for this screen alone, so every choice comes with the
+// context to make it instead of a bare label).
 type Model struct {
 	width, height int
 
-	focusedField int
+	step         int
 	stage        stage
 	modalPurpose modalPurpose
 	confirmModal *components.ConfirmModal
@@ -76,8 +94,12 @@ type Model struct {
 	secretBackendIdx   int
 	containerEngineIdx int
 
-	themeOptions []string
-	themeIdx     int
+	fontCheckIdx int
+
+	themeOptions         []string
+	themeIdx             int
+	themeCheckState      themeCheckState
+	themeFetchAddedCount int
 
 	forgeTypeIdx int
 	// forgeURLTouched stops the URL field from being overwritten once the user
@@ -137,7 +159,6 @@ func New() Model {
 	s.Style = spinnerStyle
 
 	m := Model{
-		focusedField:        fieldContextName,
 		contextNameInput:    nameInput,
 		themeOptions:        themes,
 		forgeURLInput:       urlInput,
@@ -181,6 +202,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ContextExistsMsg:
 		return m.handleContextExists(msg)
 
+	case RemoteThemesFetchedMsg:
+		return m.handleRemoteThemesFetched(msg)
+
 	case TokenValidatedMsg:
 		return m.handleTokenValidated(msg)
 
@@ -214,13 +238,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return m, tea.Quit
 	case "esc":
-		return m, tea.Quit
-	case "up":
-		m.moveFocus(-1)
-		return m, nil
-	case "down":
-		m.moveFocus(1)
-		return m, nil
+		return m.stepBack()
 	case "left":
 		m.cycle(-1)
 		return m, nil
@@ -228,22 +246,42 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cycle(1)
 		return m, nil
 	case "enter":
-		if m.focusedField == fieldSubmit {
-			return m.submit()
-		}
-		m.moveFocus(1)
-		return m, nil
+		return m.advance()
 	}
 
 	return m.updateFocusedInput(msg)
 }
 
-// moveFocus walks the field list, wrapping at both ends — the same shape
-// CreationForm uses, and consistent with Rule 111 having no "past the edge"
-// state to fall into.
-func (m *Model) moveFocus(delta int) {
-	m.focusedField = wrap(m.focusedField+delta, fieldSubmit+1)
+// stepBack goes to the previous question, or quits from the first one —
+// there is nothing before it to go back to (Rule 111: Esc cancels or returns
+// to the parent level).
+func (m Model) stepBack() (tea.Model, tea.Cmd) {
+	if m.step == stepFontCheck {
+		return m, tea.Quit
+	}
+	m.step--
 	m.updateFocus()
+	return m, nil
+}
+
+// advance answers the current question. Most steps just move to the next
+// one; the first and last carry the async work that answering them starts.
+func (m Model) advance() (tea.Model, tea.Cmd) {
+	switch m.step {
+	case stepContextName:
+		return m.submitContextName()
+	case stepForgeToken:
+		return m.finishWizard()
+	}
+
+	m.step++
+	m.updateFocus()
+	if m.step == stepTheme && m.themeCheckState == themeCheckNotStarted {
+		m.themeCheckState = themeCheckInFlight
+		m.pending = "Checking for more themes..."
+		return m, fetchRemoteThemesCmd()
+	}
+	return m, nil
 }
 
 func (m *Model) updateFocus() {
@@ -252,40 +290,42 @@ func (m *Model) updateFocus() {
 	m.forgeNamespaceInput.Blur()
 	m.forgeTokenInput.Blur()
 
-	switch m.focusedField {
-	case fieldContextName:
+	switch m.step {
+	case stepContextName:
 		m.contextNameInput.Focus()
-	case fieldForgeURL:
+	case stepForgeURL:
 		m.forgeURLInput.Focus()
-	case fieldForgeNamespace:
+	case stepForgeNamespace:
 		m.forgeNamespaceInput.Focus()
-	case fieldForgeToken:
+	case stepForgeToken:
 		m.forgeTokenInput.Focus()
 	}
 }
 
-// cycle changes a closed-set field's value (Rule 132). On any other field —
-// including a text field, where left/right have no role here (matching
-// CreationForm's name/description fields) — it does nothing.
+// cycle changes the current question's value, when it has a closed set of
+// answers (Rule 132). On a text-input question it does nothing — left/right
+// have no role there, matching CreationForm's name/description fields.
 func (m *Model) cycle(delta int) {
-	switch m.focusedField {
-	case fieldSecretBackend:
+	switch m.step {
+	case stepFontCheck:
+		m.fontCheckIdx = wrap(m.fontCheckIdx+delta, len(fontCheckOptions))
+	case stepSecretBackend:
 		m.secretBackendIdx = wrap(m.secretBackendIdx+delta, len(secretBackendOptions))
-	case fieldContainerEngine:
+	case stepContainerEngine:
 		m.containerEngineIdx = wrap(m.containerEngineIdx+delta, len(config.ContainerEngines()))
-	case fieldTheme:
+	case stepTheme:
 		m.themeIdx = wrap(m.themeIdx+delta, len(m.themeOptions))
-	case fieldForgeType:
+	case stepForgeType:
 		m.forgeTypeIdx = wrap(m.forgeTypeIdx+delta, len(config.ForgeTypes()))
 		m.onForgeTypeChanged()
-	case fieldForgeVisibility:
+	case stepForgeVisibility:
 		opts := m.visibilityOptions()
 		idx := indexOf(opts, m.visibilityValue)
 		if idx < 0 {
 			idx = 0
 		}
 		m.visibilityValue = opts[wrap(idx+delta, len(opts))]
-	case fieldForgeCloneMethod:
+	case stepForgeCloneMethod:
 		m.cloneMethodIdx = wrap(m.cloneMethodIdx+delta, len(cloneMethodOptions))
 	}
 }
@@ -316,15 +356,15 @@ func (m Model) visibilityOptions() []string {
 
 func (m Model) updateFocusedInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	switch m.focusedField {
-	case fieldContextName:
+	switch m.step {
+	case stepContextName:
 		m.contextNameInput, cmd = m.contextNameInput.Update(msg)
-	case fieldForgeURL:
+	case stepForgeURL:
 		m.forgeURLTouched = true
 		m.forgeURLInput, cmd = m.forgeURLInput.Update(msg)
-	case fieldForgeNamespace:
+	case stepForgeNamespace:
 		m.forgeNamespaceInput, cmd = m.forgeNamespaceInput.Update(msg)
-	case fieldForgeToken:
+	case stepForgeToken:
 		m.forgeTokenInput, cmd = m.forgeTokenInput.Update(msg)
 	}
 	return m, cmd
@@ -346,9 +386,9 @@ func indexOf(opts []string, v string) int {
 	return -1
 }
 
-// submit validates the context name and starts the async chain: existence
-// check, then (if a token was entered) validation, then the write itself.
-func (m Model) submit() (tea.Model, tea.Cmd) {
+// submitContextName validates the name and starts the async chain's first
+// link: does a context by this name already exist?
+func (m Model) submitContextName() (tea.Model, tea.Cmd) {
 	name := strings.TrimSpace(m.contextNameInput.Value())
 	if err := config.ValidateContextName(name); err != nil {
 		return m, m.footer.Error(err.Error())
@@ -372,7 +412,16 @@ func (m Model) handleContextExists(msg ContextExistsMsg) (tea.Model, tea.Cmd) {
 		m.modalPurpose = modalOverwrite
 		return m, nil
 	}
-	return m.proceedAfterNameConfirmed()
+	return m.advanceToNextStep()
+}
+
+// advanceToNextStep is what answering the context name question resolves
+// to, once the name is free (or its overwrite is confirmed): move on to the
+// next question, triggering the theme fetch if that happens to be it.
+func (m Model) advanceToNextStep() (tea.Model, tea.Cmd) {
+	m.step = stepSecretBackend
+	m.updateFocus()
+	return m, nil
 }
 
 func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
@@ -383,7 +432,7 @@ func (m Model) handleConfirmYes() (tea.Model, tea.Cmd) {
 
 	switch purpose {
 	case modalOverwrite:
-		return m.proceedAfterNameConfirmed()
+		return m.advanceToNextStep()
 	case modalSetCurrent:
 		m.pending = "Setting current context..."
 		return m, setCurrentContextCmd(strings.TrimSpace(m.contextNameInput.Value()))
@@ -399,9 +448,9 @@ func (m Model) handleConfirmNo() (tea.Model, tea.Cmd) {
 
 	switch purpose {
 	case modalOverwrite:
-		// Back to the name field to pick a different one, rather than
+		// Back to the name question to pick a different one, rather than
 		// aborting the whole wizard over one collision.
-		m.focusedField = fieldContextName
+		m.step = stepContextName
 		m.updateFocus()
 		return m, nil
 	case modalSetCurrent:
@@ -411,9 +460,25 @@ func (m Model) handleConfirmNo() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// proceedAfterNameConfirmed runs once the context name is settled: validate
-// the forge token if one was entered, otherwise go straight to saving.
-func (m Model) proceedAfterNameConfirmed() (tea.Model, tea.Cmd) {
+func (m Model) handleRemoteThemesFetched(msg RemoteThemesFetchedMsg) (tea.Model, tea.Cmd) {
+	m.pending = ""
+	if msg.Unreachable {
+		m.themeCheckState = themeCheckUnreachable
+		return m, nil
+	}
+	m.themeCheckState = themeCheckDone
+	m.themeFetchAddedCount = len(msg.Added)
+	if len(msg.Added) > 0 {
+		if themes, err := theme.ListThemes(); err == nil {
+			m.themeOptions = themes
+		}
+	}
+	return m, nil
+}
+
+// finishWizard runs once every question is answered: validate the forge
+// token if one was entered, otherwise go straight to saving.
+func (m Model) finishWizard() (tea.Model, tea.Cmd) {
 	token := strings.TrimSpace(m.forgeTokenInput.Value())
 	if token == "" {
 		return m.startSave()
@@ -432,7 +497,7 @@ func (m Model) handleTokenValidated(msg TokenValidatedMsg) (tea.Model, tea.Cmd) 
 	m.pending = ""
 	if msg.Err != nil {
 		log.Printf("ERROR [setup] validate token: %v", msg.Err)
-		m.focusedField = fieldForgeToken
+		m.step = stepForgeToken
 		m.updateFocus()
 		return m, m.footer.Error("Token validation failed: " + msg.Err.Error())
 	}

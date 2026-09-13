@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -35,8 +37,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// feed applies messages to the model in order, matching feedForm's shape in
-// internal/ui/components' own tests.
+// feed applies messages to the model in order.
 func feed(t *testing.T, m Model, msgs ...tea.Msg) Model {
 	t.Helper()
 	for _, msg := range msgs {
@@ -46,29 +47,77 @@ func feed(t *testing.T, m Model, msgs ...tea.Msg) Model {
 	return m
 }
 
-func TestSubmitWithAnEmptyNameShowsAFooterError(t *testing.T) {
+// past advances the model past the font check and, optionally, sets a
+// context name and answers it — the two steps almost every other test needs
+// out of the way before it can exercise the step it actually cares about.
+func past(t *testing.T, m Model, name string) Model {
+	t.Helper()
+	m = feed(t, m, testutil.Key("enter")) // font check -> context name
+	if name != "" {
+		m.contextNameInput.SetValue(name)
+	}
+	m = feed(t, m, ContextExistsMsg{Exists: false}) // as if submit+check already ran
+	return m
+}
+
+func TestWizardStartsOnTheFontCheck(t *testing.T) {
 	m := New()
-
-	m = feed(t, m, testutil.Keys("down", "down", "down", "down", "down", "down", "down", "down", "down", "down")...)
-	if m.focusedField != fieldSubmit {
-		t.Fatalf("focusedField = %d, want fieldSubmit (%d)", m.focusedField, fieldSubmit)
-	}
-
-	m = feed(t, m, testutil.Key("enter"))
-
-	if !m.footer.IsSet() {
-		t.Error("submitting an empty context name did not set a footer error")
-	}
-	if m.footer.Level() != components.LevelError {
-		t.Errorf("footer level = %v, want LevelError", m.footer.Level())
-	}
-	if m.stage != stageForm {
-		t.Errorf("stage = %v, want stageForm — an invalid name must not start the async chain", m.stage)
+	if m.step != stepFontCheck {
+		t.Errorf("step = %d, want stepFontCheck (%d)", m.step, stepFontCheck)
 	}
 }
 
-func TestContextExistsOffersOverwriteAndNoReturnsToTheNameField(t *testing.T) {
+func TestEscOnTheFirstStepQuits(t *testing.T) {
 	m := New()
+	_, cmd := m.Update(testutil.Key("esc"))
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Errorf("Esc on the font check step did not quit")
+	}
+}
+
+func TestEnterWalksThroughTheFontCheckAndNameSteps(t *testing.T) {
+	m := New()
+	m = feed(t, m, testutil.Key("enter"))
+	if m.step != stepContextName {
+		t.Fatalf("step = %d, want stepContextName (%d)", m.step, stepContextName)
+	}
+
+	m = past(t, m, "staging")
+	if m.step != stepSecretBackend {
+		t.Errorf("step = %d, want stepSecretBackend (%d) once the name is free", m.step, stepSecretBackend)
+	}
+}
+
+func TestEscGoesBackOneStepAtATime(t *testing.T) {
+	m := New()
+	m = past(t, m, "staging")
+	if m.step != stepSecretBackend {
+		t.Fatalf("setup: step = %d, want stepSecretBackend", m.step)
+	}
+
+	m = feed(t, m, testutil.Key("esc"))
+	if m.step != stepContextName {
+		t.Errorf("step = %d, want stepContextName after one esc", m.step)
+	}
+}
+
+func TestSubmitWithAnEmptyNameShowsAFooterErrorAndDoesNotAdvance(t *testing.T) {
+	m := New()
+	m = feed(t, m, testutil.Key("enter")) // font check -> context name
+
+	m = feed(t, m, testutil.Key("enter")) // submit the (empty) name
+
+	if !m.footer.IsSet() || m.footer.Level() != components.LevelError {
+		t.Error("submitting an empty context name did not set a footer error")
+	}
+	if m.step != stepContextName {
+		t.Errorf("step = %d, want stepContextName — an invalid name must not advance", m.step)
+	}
+}
+
+func TestContextExistsOffersOverwriteAndNoReturnsToTheNameStep(t *testing.T) {
+	m := New()
+	m = feed(t, m, testutil.Key("enter"))
 	m.contextNameInput.SetValue("staging")
 
 	m = feed(t, m, ContextExistsMsg{Exists: true})
@@ -85,26 +134,30 @@ func TestContextExistsOffersOverwriteAndNoReturnsToTheNameField(t *testing.T) {
 	if m.stage != stageForm {
 		t.Errorf("stage = %v, want stageForm after declining the overwrite", m.stage)
 	}
-	if m.focusedField != fieldContextName {
-		t.Errorf("focusedField = %d, want fieldContextName so the user can pick another name", m.focusedField)
+	if m.step != stepContextName {
+		t.Errorf("step = %d, want stepContextName so the user can pick another name", m.step)
 	}
 }
 
-func TestContextExistsYesProceedsToSaveWhenNoTokenWasEntered(t *testing.T) {
+func TestContextExistsYesAdvancesToTheNextStep(t *testing.T) {
 	m := New()
+	m = feed(t, m, testutil.Key("enter"))
 	m.contextNameInput.SetValue("staging")
 
 	m = feed(t, m, ContextExistsMsg{Exists: true})
 	m = feed(t, m, components.ConfirmModalYesMsg{})
 
-	if m.pending != "Saving context..." {
-		t.Errorf("pending = %q, want the saving message (no token means validation is skipped)", m.pending)
+	if m.step != stepSecretBackend {
+		t.Errorf("step = %d, want stepSecretBackend after confirming the overwrite", m.step)
 	}
 }
 
 func TestSecretBackendCyclesAndWrapsBothDirections(t *testing.T) {
 	m := New()
-	m.focusedField = fieldSecretBackend
+	m = past(t, m, "staging")
+	if m.step != stepSecretBackend {
+		t.Fatalf("setup: step = %d, want stepSecretBackend", m.step)
+	}
 
 	m = feed(t, m, testutil.Key("right"))
 	if got, want := secretBackendOptions[m.secretBackendIdx], "keyring"; got != want {
@@ -124,13 +177,14 @@ func TestSecretBackendCyclesAndWrapsBothDirections(t *testing.T) {
 
 func TestSwitchingToGitHubCoercesAnInternalVisibilityToPrivate(t *testing.T) {
 	m := New()
-	m.focusedField = fieldForgeVisibility
+	m = past(t, m, "staging")
+	m.step = stepForgeVisibility
 	m = feed(t, m, testutil.Key("right")) // private -> internal
 	if m.visibilityValue != "internal" {
 		t.Fatalf("visibilityValue = %q, want internal", m.visibilityValue)
 	}
 
-	m.focusedField = fieldForgeType
+	m.step = stepForgeType
 	m = feed(t, m, testutil.Key("right")) // gitlab -> github
 
 	if m.visibilityValue != "private" {
@@ -143,23 +197,20 @@ func TestForgeURLIsPrefilledButNotOverwrittenOnceTouched(t *testing.T) {
 	if m.forgeURLInput.Value() == "" {
 		t.Fatal("forgeURLInput is empty on a new model; expected the GitLab example URL")
 	}
-
 	m.forgeURLInput.SetValue("")
 
-	// Navigate for real (down five times from the name field) so the input's
-	// own Focus() is set — Update() ignores keystrokes on a blurred field.
-	m = feed(t, m, testutil.Keys("down", "down", "down", "down", "down")...)
-	if m.focusedField != fieldForgeURL {
-		t.Fatalf("focusedField = %d, want fieldForgeURL (%d)", m.focusedField, fieldForgeURL)
-	}
+	m = past(t, m, "staging")
+	m.step = stepForgeURL
+	m.updateFocus()
+
 	m = feed(t, m, testutil.Type("https://git.internal")...)
 	if !m.forgeURLTouched {
 		t.Fatal("forgeURLTouched was not set after typing into the field")
 	}
 
-	m = feed(t, m, testutil.Key("up"))
-	if m.focusedField != fieldForgeType {
-		t.Fatalf("focusedField = %d, want fieldForgeType (%d)", m.focusedField, fieldForgeType)
+	m = feed(t, m, testutil.Key("esc")) // forgeURL -> forgeType
+	if m.step != stepForgeType {
+		t.Fatalf("step = %d, want stepForgeType", m.step)
 	}
 	m = feed(t, m, testutil.Key("right")) // gitlab -> github
 
@@ -168,8 +219,9 @@ func TestForgeURLIsPrefilledButNotOverwrittenOnceTouched(t *testing.T) {
 	}
 }
 
-func TestTokenValidationFailureKeepsFocusOnTheTokenFieldWithAFooterError(t *testing.T) {
+func TestTokenValidationFailureReturnsToTheTokenStepWithAFooterError(t *testing.T) {
 	m := New()
+	m.step = stepForgeToken
 	m.pending = "Validating token..."
 
 	m = feed(t, m, TokenValidatedMsg{Err: errors.New("401 unauthorized")})
@@ -177,12 +229,82 @@ func TestTokenValidationFailureKeepsFocusOnTheTokenFieldWithAFooterError(t *test
 	if m.pending != "" {
 		t.Errorf("pending = %q, want empty once validation returns", m.pending)
 	}
-	if m.focusedField != fieldForgeToken {
-		t.Errorf("focusedField = %d, want fieldForgeToken so the user can retype it", m.focusedField)
+	if m.step != stepForgeToken {
+		t.Errorf("step = %d, want stepForgeToken so the user can retype it", m.step)
 	}
 	if !m.footer.IsSet() || m.footer.Level() != components.LevelError {
 		t.Error("a failed token validation must leave a footer error set")
 	}
+}
+
+func TestEnterOnTheLastStepWithNoTokenGoesStraightToSaving(t *testing.T) {
+	m := New()
+	m.step = stepForgeToken
+
+	m = feed(t, m, testutil.Key("enter"))
+
+	if m.pending != "Saving context..." {
+		t.Errorf("pending = %q, want the saving message (no token means validation is skipped)", m.pending)
+	}
+}
+
+func TestThemeFetchAddsNewThemesAndTheyBecomeCyclable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"name":"test","color_ok":"#000000","color_error":"#000000","color_warn":"#000000","color_primary":"#000000","color_secondary":"#000000","color_border":"#000000","color_text":"#000000","color_dim":"#000000","color_highlight":"#000000","color_white":"#000000","color_black":"#000000","color_background":"#000000"}`))
+	}))
+	defer srv.Close()
+
+	restore := remoteThemeBaseURL
+	remoteThemeBaseURL = srv.URL + "/"
+	t.Cleanup(func() { remoteThemeBaseURL = restore })
+
+	before := New()
+	beforeCount := len(before.themeOptions)
+
+	msg, ok := testutil.MsgOf[RemoteThemesFetchedMsg](fetchRemoteThemesCmd())
+	if !ok {
+		t.Fatal("fetchRemoteThemesCmd returned no RemoteThemesFetchedMsg")
+	}
+	if msg.Unreachable {
+		t.Fatal("Unreachable = true against a working test server")
+	}
+	if len(msg.Added) != len(knownRemoteThemes) {
+		t.Fatalf("Added = %d themes, want %d", len(msg.Added), len(knownRemoteThemes))
+	}
+
+	m := feed(t, before, msg)
+	if m.themeCheckState != themeCheckDone {
+		t.Errorf("themeCheckState = %v, want themeCheckDone", m.themeCheckState)
+	}
+	if len(m.themeOptions) != beforeCount+len(knownRemoteThemes) {
+		t.Errorf("themeOptions grew by %d, want %d", len(m.themeOptions)-beforeCount, len(knownRemoteThemes))
+	}
+}
+
+func TestThemeFetchUnreachableFallsBackToTheDocsPointer(t *testing.T) {
+	restore := remoteThemeBaseURL
+	// A closed local port refuses the connection immediately — no need to
+	// wait out remoteThemeFetchTimeout for this to fail.
+	remoteThemeBaseURL = "http://127.0.0.1:1/"
+	t.Cleanup(func() { remoteThemeBaseURL = restore })
+
+	m := New()
+	m = feed(t, m, RemoteThemesFetchedMsg{Unreachable: true})
+
+	if m.themeCheckState != themeCheckUnreachable {
+		t.Errorf("themeCheckState = %v, want themeCheckUnreachable", m.themeCheckState)
+	}
+	_, body, _ := m.currentQuestionAt(stepTheme)
+	if body == "" {
+		t.Fatal("theme question body is empty")
+	}
+}
+
+// currentQuestionAt is a small test helper: currentQuestion always reads
+// m.step, so this pins it long enough to read another step's content.
+func (m Model) currentQuestionAt(step int) (string, string, string) {
+	m.step = step
+	return m.currentQuestion()
 }
 
 func TestSaveContextCmdWritesTheFileAndSetCurrentContextCmdPointsAtIt(t *testing.T) {
