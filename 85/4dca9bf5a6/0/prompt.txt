@@ -187,3 +187,9 @@ To avoid duplicating detection logic:
 - **Engine**: no existing "yes/no reachable" function to call as-is. The closest reusable primitive is `docker.FetchCapacity()` (`internal/docker/containers.go:185`), which does a real daemon round-trip (`&lt;engine&gt; info`) and returns an error when unreachable — but it reads the global `engine.Current()`, so the wizard would need to call `engine.SetCurrent(shape)` for the candidate `Shape` returned by `engine.Resolve(preference)` before invoking it, then treat any error as "installed but daemon unreachable" (distinct from `engine.Resolve`'s own error, which means "binary not found"). There is no existing engine-agnostic, parameterized `Ping(shape engine.Shape) error` — this would need to be added (either in `internal/engine` or `internal/docker`) if the fix is meant to avoid the global-state coupling.</result>
 <usage><subagent_tokens>121477</subagent_tokens><tool_uses>34</tool_uses><duration_ms>183653</duration_ms></usage>
 </task-notification>
+
+---
+
+anthoni@zeffo:/mnt/c/Users/anthoni/projects/entire/anthnel/devdesk/.worktrees/feat/setup-wizard$ podman ps
+CONTAINER ID  IMAGE                           COMMAND               CREATED      STATUS      PORTS       NAMES
+00bf175c089b  docker.io/library/nginx:latest  nginx -g daemon o...  7 hours ago  Up 7 hours  80/tcp      distracted_goldberg, pourtant le test sur podman dans le wizard retourne une erreur
