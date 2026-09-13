@@ -87,7 +87,7 @@ type Model struct {
 	step         int
 	stage        stage
 	modalPurpose modalPurpose
-	confirmModal *components.ConfirmModal
+	confirmModal *confirmPrompt
 
 	contextNameInput textinput.Model
 
@@ -406,7 +406,7 @@ func (m Model) handleContextExists(msg ContextExistsMsg) (tea.Model, tea.Cmd) {
 	}
 	if msg.Exists {
 		name := strings.TrimSpace(m.contextNameInput.Value())
-		m.confirmModal = components.NewConfirmModal("Context exists",
+		m.confirmModal = newConfirmPrompt("Context exists",
 			"Context '"+name+"' already exists and will be overwritten. Continue?")
 		m.stage = stageConfirmOverwrite
 		m.modalPurpose = modalOverwrite
@@ -520,7 +520,7 @@ func (m Model) handleContextSaved(msg ContextSavedMsg) (tea.Model, tea.Cmd) {
 	if path, err := config.GetContextPath(name); err == nil {
 		m.savedPath = path
 	}
-	m.confirmModal = components.NewConfirmModal("Context saved",
+	m.confirmModal = newConfirmPrompt("Context saved",
 		"Set '"+name+"' as the active context?")
 	m.stage = stageConfirmSetCurrent
 	m.modalPurpose = modalSetCurrent

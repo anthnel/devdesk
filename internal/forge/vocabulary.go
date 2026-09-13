@@ -84,7 +84,7 @@ var (
 		ChangeRequestShort: "MR",
 		TokenLabel:         "Personal Access Token",
 		TokenPlaceholder:   "glpat-…",
-		TokenHelp:          "Create a token in GitLab > Settings > Access Tokens. Required scopes: api, read_user.",
+		TokenHelp:          "Create a token in GitLab > Settings > Access Tokens. Required scopes: api, write_repository, read_repository.",
 		ExampleURL:         "https://gitlab.com",
 	}
 
