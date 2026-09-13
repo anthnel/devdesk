@@ -106,26 +106,26 @@ func New() Model {
 	nameInput.Placeholder = "e.g. work, staging"
 	nameInput.CharLimit = 64
 	nameInput.Width = 40
-	theme.StyleTextInput(&nameInput)
+	styleTextInput(&nameInput)
 	nameInput.Focus()
 
 	urlInput := textinput.New()
 	urlInput.CharLimit = 200
 	urlInput.Width = 50
-	theme.StyleTextInput(&urlInput)
+	styleTextInput(&urlInput)
 
 	nsInput := textinput.New()
 	nsInput.Placeholder = "optional"
 	nsInput.CharLimit = 100
 	nsInput.Width = 40
-	theme.StyleTextInput(&nsInput)
+	styleTextInput(&nsInput)
 
 	tokenInput := textinput.New()
 	tokenInput.Placeholder = "optional — can be set later via the auth view"
 	tokenInput.CharLimit = 200
 	tokenInput.Width = 50
 	tokenInput.EchoMode = textinput.EchoPassword
-	theme.StyleTextInput(&tokenInput)
+	styleTextInput(&tokenInput)
 
 	themes, err := theme.ListThemes()
 	if err != nil || len(themes) == 0 {
@@ -134,7 +134,7 @@ func New() Model {
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = theme.SpinnerStyle()
+	s.Style = spinnerStyle
 
 	m := Model{
 		focusedField:        fieldContextName,
@@ -170,7 +170,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
-		m.footer.SetSpinnerFrame(m.spinner.View())
 		return m, cmd
 
 	case components.ConfirmModalYesMsg:

@@ -7,18 +7,19 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
-	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // View renders the wizard: the form, or whichever overlay is active on top
 // of it (Rule 112 — a confirmation is a centered modal, never the viewport).
+//
+// Unlike every themed view, nothing here paints a background: the wizard
+// runs standalone, before any theme is loaded, and is meant to sit on
+// whatever terminal background the user already has (see styles.go).
 func (m Model) View() string {
 	switch m.stage {
 	case stageConfirmOverwrite, stageConfirmSetCurrent:
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
-			m.confirmModal.View(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground))
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.confirmModal.View())
 	case stageDone:
 		return m.renderDone()
 	default:
@@ -29,9 +30,8 @@ func (m Model) View() string {
 func (m Model) renderForm() string {
 	var b strings.Builder
 
-	b.WriteString(theme.TitleStyle.Render("DevDesk setup — new context"))
-	b.WriteString("\n")
-	b.WriteString(theme.EmptyLineBg(m.width) + "\n")
+	b.WriteString(titleStyle.Render("DevDesk setup — new context"))
+	b.WriteString("\n\n")
 
 	v := forge.VocabularyFor(config.ForgeTypes()[m.forgeTypeIdx])
 
@@ -52,12 +52,12 @@ func (m Model) renderForm() string {
 		b.WriteString("\n\n")
 	}
 
-	b.WriteString("  " + theme.RenderButton("Create context", m.focusedField == fieldSubmit, "primary"))
+	b.WriteString("  " + renderSubmitButton(m.focusedField == fieldSubmit))
 	b.WriteString("\n\n")
 
-	b.WriteString(m.footer.View(m.width, m.status()))
+	b.WriteString(m.renderFooterLine())
 	b.WriteString("\n")
-	b.WriteString(theme.HelpStyle.Render("  [↑↓] navigate  [←→] change  [enter] confirm  [esc] quit"))
+	b.WriteString(helpStyle.Render("  [↑↓] navigate  [←→] change  [enter] confirm  [esc] quit"))
 
 	return b.String()
 }
@@ -65,28 +65,33 @@ func (m Model) renderForm() string {
 func (m Model) renderDone() string {
 	var b strings.Builder
 
-	b.WriteString(theme.TitleStyle.Render("Context ready"))
+	b.WriteString(titleStyle.Render("Context ready"))
 	b.WriteString("\n\n")
-	b.WriteString(theme.Bg("Wrote " + m.savedPath))
+	b.WriteString("Wrote " + m.savedPath)
 	b.WriteString("\n")
 	if m.currentContextWarning != "" {
-		b.WriteString(lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError).
-			Render(m.currentContextWarning))
+		b.WriteString(errorStyle.Render(m.currentContextWarning))
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")
-	b.WriteString(theme.Bg(`Run "dk" to start.`))
+	b.WriteString(`Run "dk" to start.`)
 	b.WriteString("\n\n")
-	b.WriteString(theme.HelpStyle.Render("  [enter] exit"))
+	b.WriteString(helpStyle.Render("  [enter] exit"))
 
 	return b.String()
 }
 
-func (m Model) status() components.Status {
-	if m.pending != "" {
-		return components.Status{Text: m.pending, Spinner: true}
+// renderFooterLine reads components.FooterMessage's state directly instead of
+// calling its View — that method paints a full-width, background-filled,
+// centered line (Rule 128), which is exactly what this screen opts out of.
+func (m Model) renderFooterLine() string {
+	if m.footer.IsSet() {
+		return footerLevelStyle(m.footer.Level()).Render(m.footer.Text())
 	}
-	return components.Status{}
+	if m.pending != "" {
+		return m.spinner.View() + " " + dimStyle.Render(m.pending)
+	}
+	return ""
 }
 
 // renderTextField renders a single-line label over a textinput's view,
@@ -94,20 +99,31 @@ func (m Model) status() components.Status {
 func renderTextField(label, valueView string, focused bool) string {
 	var labelStr string
 	if focused {
-		labelStr = theme.KeyStyle.Render(theme.IconCircleSmall + " " + label + " " + theme.IconChevronRight)
+		labelStr = focusStyle.Render(theme.IconCircleSmall + " " + label + " " + theme.IconChevronRight)
 	} else {
-		labelStr = theme.Bg("  " + label + " " + theme.IconChevronRight)
+		labelStr = "  " + label + " " + theme.IconChevronRight
 	}
-	return labelStr + "\n" + theme.Bg("  ") + valueView
+	return labelStr + "\n  " + valueView
 }
 
 // renderCycleField renders a closed-set field with the ←→ cycle pattern
 // (Rule 132), the same layout CreationForm's resource-type field uses.
 func renderCycleField(label, value string, focused bool) string {
 	selectLabel := label + " " + theme.IconSelect + " "
-	valueView := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText).Render(value)
+	renderedValue := valueStyle.Render(value)
 	if focused {
-		return theme.KeyStyle.Render(theme.IconCircleSmall+" "+selectLabel+theme.IconChevronRight+" ") + valueView
+		return focusStyle.Render(theme.IconCircleSmall+" "+selectLabel+theme.IconChevronRight+" ") + renderedValue
 	}
-	return theme.Bg("  "+selectLabel+theme.IconChevronRight+" ") + valueView
+	return "  " + selectLabel + theme.IconChevronRight + " " + renderedValue
+}
+
+// renderSubmitButton renders the submit action as bracketed text rather than
+// through theme.RenderButton, which paints a solid background box — the one
+// thing this screen does not want.
+func renderSubmitButton(focused bool) string {
+	label := "[ Create context ]"
+	if focused {
+		return focusStyle.Render(label)
+	}
+	return dimStyle.Render(label)
 }
