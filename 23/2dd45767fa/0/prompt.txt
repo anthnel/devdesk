@@ -1,0 +1,195 @@
+est-ce qu'il y a une tache mise pour tester le wizard
+
+---
+
+oui ajoute
+
+---
+
+dans le wizard il y a des problème de background, je laisserais le background vide pour s'intégrer avec le theme du terminal
+
+---
+
+au lieu d'avoir un seul formulaire a remplir j'aurais préféré poser une question à la fois, en donnant du contexte et des explications sur les différents choix pour vraiment assister l'utilisateur. Pour les thèmes, je proposerais de les importer si une connexion réseau est disponible, sinon je référencerais la doc qui explique comment importer manuellement un theme
+
+---
+
+as-tu ajouter le test sur les nerdfont
+
+---
+
+dans le wizard, quand il propose de mettre la token d'authentification à la forge, il faut indiquer les scopes nécessaires (api, write_repository, read_repository). Le dernier écran de confirmation qui demande si le nouveau context doit être le contexte courant à un mauvais background, le background devrait être vide pour utiliser celui du terminal
+
+---
+
+vérifie les scopes nécessaires pour gitlab et github
+
+---
+
+<task-notification>
+<task-id>a0c67d5673a45aa02</task-id>
+<tool-use-id>toolu_01KiffP1djmEpZv1kqY17oru</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/3c5e4f1e-53e3-4235-9c3b-db10a1a30c94/tasks/a0c67d5673a45aa02.output</output-file>
+<status>completed</status>
+<summary>Agent "Audit GitLab/GitHub API calls made by forge backends" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I now have the complete, exhaustive inventory. Here it is.
+
+## GitLab operations (`gitlab.com/gitlab-org/api/client-go`, package `internal/forge/gitlab`)
+
+| Forge operation | Client call | File:line |
+|---|---|---|
+| Current user / connection test | `client.Users.CurrentUser` | `internal/forge/gitlab/gitlab.go:89` |
+| CI config resolution (`MergedCIConfig`) | `client.Validate.ProjectLint` | `internal/forge/gitlab/gitlab.go:207` |
+| List root namespaces (top-level groups) | `client.Groups.ListGroups` | `internal/forge/gitlab/browse.go:52` |
+| List a group's subgroups (`Children`) | `client.Groups.ListSubGroups` | `internal/forge/gitlab/browse.go:90` |
+| List a group's projects (`Children`) | `client.Groups.ListGroupProjects` | `internal/forge/gitlab/browse.go:101` |
+| Decorate: caller's role in a group | `client.GroupMembers.GetInheritedGroupMember` | `internal/forge/gitlab/browse.go:167` |
+| Decorate: caller's role in a project | `client.ProjectMembers.GetInheritedProjectMember` | `internal/forge/gitlab/browse.go:176` |
+| Decorate: last pipeline status (CI badge) | `client.Pipelines.ListProjectPipelines` | `internal/forge/gitlab/browse.go:186` |
+| Create group (`CreateNamespace`) | `client.Groups.CreateGroup` | `internal/forge/gitlab/write.go:31` |
+| Create project (`CreateRepository`) | `client.Projects.CreateProject` | `internal/forge/gitlab/write.go:55` |
+| Initial commit (`InitialCommit`) | `client.Commits.CreateCommit` | `internal/forge/gitlab/write.go:80` |
+| Delete group, step 1 — schedule (`DeleteNamespace`) | `client.Groups.DeleteGroup` | `internal/forge/gitlab/write.go:92` |
+| Delete group, step 2 — permanent removal | `client.Groups.DeleteGroup` (with `PermanentlyRemove`) | `internal/forge/gitlab/write.go:107` |
+| Delete project, step 1 — schedule (`DeleteRepository`) | `client.Projects.DeleteProject` | `internal/forge/gitlab/write.go:118` |
+| Delete project, step 2 — permanent removal | `client.Projects.DeleteProject` (with `PermanentlyRemove`) | `internal/forge/gitlab/write.go:133` |
+| Dashboard: count assigned MRs | `client.MergeRequests.ListMergeRequests` (`AssigneeID`) | `internal/forge/gitlab/write.go:162` |
+| Dashboard: count MRs to review | `client.MergeRequests.ListMergeRequests` (`ReviewerID`) | `internal/forge/gitlab/write.go:170` |
+| Dashboard: count assigned issues | `client.Issues.ListIssues` (`AssigneeID`) | `internal/forge/gitlab/write.go:178` |
+| Dashboard: count repositories (membership) | `client.Projects.ListProjects` (`Membership: true`) | `internal/forge/gitlab/write.go:186` |
+| Dashboard: count groups | `client.Groups.ListGroups` | `internal/forge/gitlab/write.go:193` |
+| Clone | No API call — `CloneURL` (`gitlab.go:107`) builds `https://&lt;host&gt;/&lt;path&gt;.git` or `git@&lt;host&gt;:&lt;path&gt;.git` purely from configured host + path, no network/token involved. Actual clone runs through `git` over HTTPS/SSH, outside this package. | `internal/forge/gitlab/gitlab.go:105-113` |
+| Merge request web dashboard link (not an API call, browser URL) | `ChangeRequestsURL` → `&lt;baseURL&gt;/dashboard/merge_requests` | `internal/forge/gitlab/gitlab.go:116-118` |
+| Assigned issues web dashboard link (not an API call, browser URL) | `AssignedIssuesURL` → `&lt;baseURL&gt;/dashboard/issues?...` | `internal/forge/gitlab/gitlab.go:126-133` |
+
+Note: there is no direct "read merge/pull request status of a single repo" call for the explorer — GitLab's per-repo CI status decoration comes from `Pipelines.ListProjectPipelines`, and MR *counts* (not per-repo lists) come from `DashboardStats`. There is no `MergeRequests.CreateMergeRequest`, no `MergeRequests.GetMergeRequest` — the app never creates or reads an individual MR through the API.
+
+## GitHub operations (`github.com/google/go-github/v68`, package `internal/forge/github`)
+
+| Forge operation | Client call | File:line |
+|---|---|---|
+| Current user / connection test | `client.Users.Get(ctx, "")` | `internal/forge/github/github.go:105` |
+| List root namespaces: organizations | `client.Organizations.List` | `internal/forge/github/browse.go:56` |
+| List root namespaces: personal account | No API call — built from the already-fetched `CurrentUser` result | `internal/forge/github/browse.go:85-98` |
+| List an org's repositories (`Children`) | `client.Repositories.ListByOrg` | `internal/forge/github/browse.go:145` |
+| List the signed-in user's own repositories (`Children` when namespace is the personal one) | `client.Repositories.ListByAuthenticatedUser` | `internal/forge/github/browse.go:138` |
+| Decorate: caller's role/membership in an org | `client.Organizations.GetOrgMembership` | `internal/forge/github/browse.go:266` |
+| Decorate: last Actions workflow run (CI badge) | `client.Actions.ListRepositoryWorkflowRuns` | `internal/forge/github/browse.go:291` |
+| Create repository (`CreateRepository`) | `client.Repositories.Create` | `internal/forge/github/write.go:51` |
+| Initial commit — upload blob per file | `client.Git.CreateBlob` | `internal/forge/github/write.go:97` |
+| Initial commit — build tree | `client.Git.CreateTree` | `internal/forge/github/write.go:115` |
+| Initial commit — create commit (no parent) | `client.Git.CreateCommit` | `internal/forge/github/write.go:120` |
+| Initial commit — create the `refs/heads/main` ref | `client.Git.CreateRef` | `internal/forge/github/write.go:128` |
+| Delete repository (`DeleteRepository`) | `client.Repositories.Delete` | `internal/forge/github/write.go:160` |
+| Dashboard: count assigned PRs (search) | `client.Search.Issues("is:open is:pr assignee:...")` | `internal/forge/github/write.go:180` |
+| Dashboard: count PRs where review requested (search) | `client.Search.Issues("is:open is:pr review-requested:...")` | `internal/forge/github/write.go:185` |
+| Dashboard: count assigned issues (search) | `client.Search.Issues("is:open is:issue assignee:...")` | `internal/forge/github/write.go:190` |
+| Dashboard: count repositories (walked, not search) | `client.Repositories.ListByAuthenticatedUser` | `internal/forge/github/write.go:199` |
+| Dashboard: count organizations (walked, not search) | `client.Organizations.List` | `internal/forge/github/write.go:206` |
+| Create namespace (organization) | **Refused, no API call** — `errNoOrgAPI`: "GitHub organizations are created and deleted from the web, not through the API" | `internal/forge/github/write.go:20,31-33` |
+| Delete namespace (organization) | **Refused, no API call** — same `errNoOrgAPI` | `internal/forge/github/write.go:36-38` |
+| Permanent delete of a repository | **Refused, no API call** — `errNoPermanentDelete`: "GitHub deletes immediately; there is no grace period to bypass" | `internal/forge/github/write.go:22-28,152-155` |
+| Merged CI config | **Refused, no API call** — GitHub has no server-side resolved-workflow endpoint | `internal/forge/github/github.go:165-167` |
+| Clone | No API call — `CloneURL` (`github.go:125-132`) builds the clone URL purely from configured web host + path. Actual clone runs through `git` over HTTPS/SSH outside this package. | `internal/forge/github/github.go:124-132` |
+| Pull request web dashboard link (not an API call, browser URL) | `ChangeRequestsURL` → `&lt;webBase&gt;/pulls` | `internal/forge/github/github.go:135` |
+| Assigned issues web dashboard link (not an API call, browser URL) | `AssignedIssuesURL` → `&lt;webBase&gt;/issues?q=is:open+is:issue+assignee:...` | `internal/forge/github/github.go:141-144` |
+
+Note: there is no `PullRequests.Create`, no `PullRequests.Get`/`List` for a specific repo, and no `Organizations.Create`/`Delete` call anywhere in this package (the latter two don't exist in the go-github API at all, per the package doc at `internal/forge/github/github.go:8-13`).
+
+## Session / connection test (`internal/forge/session/session.go`)
+
+Both backends' "connection test" is a single call to `Forge.CurrentUser(ctx)`, invoked from `AuthenticateOnly` at `internal/forge/session/session.go:87`. That resolves to:
+- GitLab: `client.Users.CurrentUser` (`internal/forge/gitlab/gitlab.go:89`)
+- GitHub: `client.Users.Get(ctx, "")` (`internal/forge/github/github.go:105`)
+
+## Forge interface (`internal/forge/forge.go`)
+
+Methods declared (lines 67-144): `Shape`, `CurrentUser`, `RootNamespaces`, `Children`, `CreateNamespace`, `CreateRepository`, `InitialCommit`, `DeleteNamespace`, `DeleteRepository`, `DashboardStats`, `CloneURL` (no network), `MergedCIConfig`, `ChangeRequestsURL` (no network, static URL), `AssignedIssuesURL` (no network, static URL). Every one of these is covered by the tables above — there is no interface method left unaccounted for, and (per the package doc) no client-go/go-github call made anywhere in either backend that doesn't back one of these methods.</result>
+<usage><subagent_tokens>96166</subagent_tokens><tool_uses>13</tool_uses><duration_ms>44430</duration_ms></usage>
+</task-notification>
+
+---
+
+dans le wizard de setup j'ai choisi keyring, j'ai entré le pat gitlab et quand je lance devdesk je suis déconnecté. Dans la vue git-auth il y a l'erreur : Nothing is saved — Secret Service is configured but not reachable. You will have to authenticate again next launch. Il faudrait que le wizard fasse les tests et affichent ces infos car je pensais que tout s'était bien passé. Idem si je choisi podman, il faut que podman soit up, idem pour docker, donc le wizard doit détecter au plus tot ce qui ne va pas
+
+---
+
+<task-notification>
+<task-id>ad0bdb6ba97594f1c</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/3c5e4f1e-53e3-4235-9c3b-db10a1a30c94/tasks/ad0bdb6ba97594f1c.output</output-file>
+<status>completed</status>
+<summary>Agent "Research keyring and container engine health checks" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Investigation complete. Here is the factual report.
+
+## 1. `internal/credentials` — `KeyringAvailable`, `KeyringName`, `Selection`
+
+**`KeyringAvailable()`** — `internal/credentials/keyring.go:93-96`:
+```go
+func KeyringAvailable() bool {
+	_, err := keyring.Get(keyringService, keyringProbeAccount)
+	return err == nil || errors.Is(err, keyring.ErrNotFound)
+}
+```
+It performs a real, synchronous round trip through `github.com/zalando/go-keyring` (`v0.2.8`, confirmed in `go.mod:21`) — on Linux this is a genuine Secret Service D-Bus call reading a never-written probe account (`keyringProbeAccount`, line 21). A miss (`ErrNotFound`) proves the backend answered; any other error (no D-Bus session, no provider) means unreachable. **It has no timeout/context** — unlike `gitHelperUsable()` in the same package (`select.go:145-166`), which bounds its `git config` subprocess with `gitConfigTimeout = 2*time.Second` (line 38) via `exec.CommandContext`. `KeyringAvailable()` could in principle block if the D-Bus call itself hangs; today it's only ever invoked from inside a `tea.Cmd` (`Select` → `validateTokenCmd`), so it doesn't freeze the Bubble Tea `Update()` loop, but it isn't itself bounded.
+
+**`KeyringName()`** — `keyring.go:101-110`: pure `runtime.GOOS` switch, no reachability involved, just naming (`"Windows Credential Manager"` / `"macOS Keychain"` / `"Secret Service"`).
+
+**`Selection`** — `internal/credentials/select.go:43-55`:
+```go
+type Selection struct {
+	Storage Storage
+	Backend Backend
+	Detail  string   // always populated, human-readable
+}
+func (s Selection) Persists() bool { return s.Backend != BackendMemory }
+```
+**`Select(contextName, preference string) Selection`** — `select.go:76-98`. Confirmed: when `preference == PreferenceKeyring` and `KeyringAvailable()` is false, it returns `memorySelection(KeyringName() + " is configured but not reachable")` (line 82) — i.e., `Selection{Backend: BackendMemory, Detail: "Nothing is saved — Secret Service is configured but not reachable. You will have to authenticate again next launch."}` (via `SessionOnly`, line 120-126). `Persists()` on that Selection returns `false`. **This is exactly the signal the wizard needs and currently ignores.**
+
+## 2. `internal/engine` and `internal/docker` — daemon reachability
+
+**`engine.Resolve(preference string) (Shape, error)`** — `internal/engine/engine.go:193-219`. It **only** does `exec.LookPath(name)` (binary-on-PATH check). No daemon/socket probe exists anywhere in `internal/engine` — confirmed by reading the whole package (`engine.go`, `paths.go`, `config_test.go`). There is no `Ping`, `IsReachable`, or equivalent in this package.
+
+**`internal/docker`** — no dedicated "is the engine reachable" function either, but three existing calls already perform real daemon round-trips and expose an `Available bool`:
+- `requireEngine()` — `internal/docker/exec.go:98-103` — only checks `runner.LookPath()` (binary presence), **not** the daemon.
+- `docker.FetchCapacity() (Capacity, error)` — `internal/docker/containers.go:185-207` — calls `requireEngine()` then runs `&lt;engine&gt; info --format {{.NCPU}}\t{{.MemTotal}}`. This *does* require the daemon to answer (unlike `docker version`, see below) and is documented as costing ~240ms (comment, lines 179-184). This is the cheapest existing primitive that would fail on an unreachable daemon.
+- `docker.FetchOCIStats() OCIStats` — `internal/docker/system.go:39-93` — runs `&lt;engine&gt; system df`; sets `stats.Available = true` only on success (line 51). Requires the daemon.
+- `docker.FetchAggregateMetrics() Aggregate` — `internal/docker/containers.go:219-238` — combines `GetContainerMetrics()` (`docker stats`) and `FetchCapacity()` (`docker info`); `Available` is true only if both succeed (`aggregate()`, line 242-253).
+
+None of these is named or shaped as a plain "yes/no is this engine usable right now" check — they're all data-fetchers whose success is repurposed as an availability flag, and all of them read the package-global `engine.Current()` rather than taking a `Shape` parameter, so a wizard wanting to test a *candidate* engine (before committing it) would have to `engine.SetCurrent(shape)` first or shell out directly itself.
+
+**Important gap found**: the dashboard's tool-detection (`internal/ui/dashboard/model.go:757-775`, `detectBinaryTool`) runs `docker version --format {{.Client.Version}}` (`Templates.Version`, `internal/engine/engine.go:147`) — this queries the **client only** and succeeds even when the daemon is completely unreachable. So today's dashboard "tools" row will report Docker as available/versioned even with no daemon running.
+
+## 3. How the app currently shows "Docker/Podman not running"
+
+There is **no dedicated "Docker is not running" message** anywhere in the codebase. Detection is indirect, via the `Available` flags above, each with a different, generic fallback:
+
+- **Containers view** (`internal/ui/containers/update.go:487-491`, `handleContainersList`): any error from `docker.ListContainers` (which itself calls `requireEngine()`, `internal/docker/containers.go:37-41`, `39`) — whether "binary not found" or a real "cannot connect to the Docker daemon" — is logged (`log.Printf("ERROR [containers] list: %v", msg.Err)`) and shown to the user only as the generic **`"Failed to load containers — check logs"`** (line 491). The specific reason is never surfaced in the UI, only in the log.
+- **Dashboard** (`internal/ui/dashboard/sections.go`): when `m.dockerStats == nil || !m.dockerStats.Available` (lines 839, 852, 1042, 1057) or `!m.dockerAgg.Available` (line 872), the affected figures render as `unavailableValue()` = `"n/a"` or `unknownValue()` = `"-"` (both `theme.DimStyle`, `sections.go:1088-1089`) — a dimmed placeholder, not an explicit message.
+- **Netdiag Ports tab** (`internal/ui/netdiag/ports_model.go:88-106`, `statusLine`/`staleLabel`): shows `"The socket table could not be read"` at `components.LevelError` when the socket read (not docker-specific) is stale — the comment at line 90 references "unreachable Docker" but this path is about OS sockets in general, not a docker-daemon-specific check.
+- **`internal/ui/components/footer_message.go:88`**: the phrase "Docker unreachable" appears only in a design-rationale comment for the `Status.Level` field — it is not itself a message string emitted anywhere.
+
+So: nothing in the app today distinguishes "engine binary missing" from "engine binary present but daemon unreachable" in what the user sees; both collapse into the same generic failure text or dimmed placeholder.
+
+## 4. Configuration view — live validation on `secret_backend` / `container_engine` change
+
+**None exists for reachability**, confirmed by reading `internal/ui/configuration/update.go` in full:
+- Changing **`secret_backend`** (`update.go:199-204`): on blur, if the value changed, it shows a generic confirm modal — *"Change secret backend — Stored secrets are not migrated. The `&lt;forge&gt;` token and registry passwords will have to be entered again. Continue?"* — with no check of `KeyringAvailable()`/`Selection.Persists()` at all. Confirming (`handleBackendConfirmed`, `update.go:359-371`) just saves and emits `ConfigSavedMsg{BackendChanged: true}`; the router re-resolves via `credentials.Select` afterward (`internal/app/configuration.go:80`), but by then the user has already left the field with no warning if the new choice silently falls back to memory.
+- Changing **`container_engine`** (`update.go:209-215`): on blur, if changed, it silently calls `m.persist(saved{engineChanged: true})` — **no confirmation, no check at all** — comment at lines 206-208 explicitly states *"No confirmation, unlike the secret backend: nothing is lost by switching."* This is the same gap the user described: picking `docker`/`podman` here goes straight through with zero reachability feedback.
+
+## 5. Reusable signatures for the wizard fix
+
+To avoid duplicating detection logic:
+
+- **Secrets**: `credentials.Select(contextName, preference string) credentials.Selection` (`select.go:76`) already returns everything needed. The wizard's `validateTokenCmd` (`internal/ui/setup/commands.go:42-48`) already calls `credentials.Select` and discards the result after extracting `sel.Storage` — it should instead propagate `sel.Persists()` (bool) and `sel.Detail` (string) back through `TokenValidatedMsg` (currently `commands.go:38-40`, only `Err error`) so `handleTokenValidated` (`internal/ui/setup/model.go:496-505`) can warn when `!sel.Persists()`, exactly mirroring the auth view's own wording.
+- **Engine**: no existing "yes/no reachable" function to call as-is. The closest reusable primitive is `docker.FetchCapacity()` (`internal/docker/containers.go:185`), which does a real daemon round-trip (`&lt;engine&gt; info`) and returns an error when unreachable — but it reads the global `engine.Current()`, so the wizard would need to call `engine.SetCurrent(shape)` for the candidate `Shape` returned by `engine.Resolve(preference)` before invoking it, then treat any error as "installed but daemon unreachable" (distinct from `engine.Resolve`'s own error, which means "binary not found"). There is no existing engine-agnostic, parameterized `Ping(shape engine.Shape) error` — this would need to be added (either in `internal/engine` or `internal/docker`) if the fix is meant to avoid the global-state coupling.</result>
+<usage><subagent_tokens>121477</subagent_tokens><tool_uses>34</tool_uses><duration_ms>183653</duration_ms></usage>
+</task-notification>
+
+---
+
+anthoni@zeffo:/mnt/c/Users/anthoni/projects/entire/anthnel/devdesk/.worktrees/feat/setup-wizard$ podman ps
+CONTAINER ID  IMAGE                           COMMAND               CREATED      STATUS      PORTS       NAMES
+00bf175c089b  docker.io/library/nginx:latest  nginx -g daemon o...  7 hours ago  Up 7 hours  80/tcp      distracted_goldberg, pourtant le test sur podman dans le wizard retourne une erreur
