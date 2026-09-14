@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "00cd0f1b8588",
+  "strategy": "manual-commit",
+  "branch": "docs/fix-review-findings",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs-site/docs/explanation/network.md",
+    "docs-site/docs/how-to/run-the-setup-wizard.md",
+    "docs-site/docs/tutorial/first-session.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/00/cd0f1b8588/0/metadata.json",
+      "transcript": "/00/cd0f1b8588/0/full.jsonl",
+      "compact_transcript": "/00/cd0f1b8588/0/transcript.jsonl",
+      "content_hash": "/00/cd0f1b8588/0/content_hash.txt",
+      "prompt": "/00/cd0f1b8588/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 15241,
+    "cache_read_tokens": 2889795,
+    "output_tokens": 6254,
+    "api_call_count": 15
+  }
+}

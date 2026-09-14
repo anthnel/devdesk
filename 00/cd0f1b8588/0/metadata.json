@@ -1,0 +1,188 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "00cd0f1b8588",
+  "session_id": "14b57c2b-15bb-49b2-85b6-f24ab4c72654",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-14T16:50:55.0257202Z",
+  "branch": "docs/fix-review-findings",
+  "checkpoints_count": 3,
+  "save_step_count": 4,
+  "files_touched": [
+    "docs-site/docs/explanation/network.md",
+    "docs-site/docs/how-to/run-the-setup-wizard.md",
+    "docs-site/docs/tutorial/first-session.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "ea061008267d",
+  "checkpoint_transcript_start": 371,
+  "transcript_lines_at_start": 371,
+  "compact_transcript_start": 70,
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 15241,
+    "cache_read_tokens": 2889795,
+    "output_tokens": 6254,
+    "api_call_count": 15
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_014WRebDJ8qbCBvaUcRUp4c4",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "entire"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "ea061008267d",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 422,
+        "end": 423,
+        "entry_ids": [
+          "8b3d09f3-efc4-422f-90e0-248e594dc168"
+        ],
+        "tool_use_id": "toolu_014WRebDJ8qbCBvaUcRUp4c4"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_014WRebDJ8qbCBvaUcRUp4c4"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: entire",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-14T16:50:54.9542824Z",
+    "agent_lines": 69,
+    "agent_removed": 0,
+    "human_added": 2,
+    "human_modified": 12,
+    "human_removed": 0,
+    "total_committed": 83,
+    "total_lines_changed": 83,
+    "agent_percentage": 83.13253012048193,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 307,
+      "user_lines_removed": 303,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 1090,
+      "user_lines_removed": 104,
+      "agent_lines_added": 345,
+      "agent_lines_removed": 1192,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs/architecture/workspaces.md": 48,
+        "internal/ui/keymap/keymap.go": 4,
+        "internal/ui/workspaces/fuzzyfind.go": 202,
+        "internal/ui/workspaces/fuzzyfind_test.go": 161,
+        "internal/ui/workspaces/fuzzymatch.go": 52,
+        "internal/ui/workspaces/fuzzymatch_test.go": 64,
+        "internal/ui/workspaces/fuzzywalk.go": 114,
+        "internal/ui/workspaces/fuzzywalk_test.go": 104,
+        "internal/ui/workspaces/jump_test.go": 88,
+        "internal/ui/workspaces/model.go": 8,
+        "internal/ui/workspaces/update.go": 108,
+        "internal/ui/workspaces/view.go": 30
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "internal/ui/workspaces/update.go": 1
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 1090,
+      "user_lines_removed": 104,
+      "agent_lines_added": 201,
+      "agent_lines_removed": 1183,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs/architecture/workspaces.md": 48,
+        "internal/ui/keymap/keymap.go": 4,
+        "internal/ui/workspaces/fuzzyfind.go": 202,
+        "internal/ui/workspaces/fuzzyfind_test.go": 161,
+        "internal/ui/workspaces/fuzzymatch.go": 52,
+        "internal/ui/workspaces/fuzzymatch_test.go": 64,
+        "internal/ui/workspaces/fuzzywalk.go": 114,
+        "internal/ui/workspaces/fuzzywalk_test.go": 104,
+        "internal/ui/workspaces/jump_test.go": 88,
+        "internal/ui/workspaces/model.go": 8,
+        "internal/ui/workspaces/update.go": 108,
+        "internal/ui/workspaces/view.go": 30
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "internal/ui/workspaces/update.go": 1
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 1090,
+      "user_lines_removed": 104,
+      "agent_lines_added": 201,
+      "agent_lines_removed": 1183,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs/architecture/workspaces.md": 48,
+        "internal/ui/keymap/keymap.go": 4,
+        "internal/ui/workspaces/fuzzyfind.go": 202,
+        "internal/ui/workspaces/fuzzyfind_test.go": 161,
+        "internal/ui/workspaces/fuzzymatch.go": 52,
+        "internal/ui/workspaces/fuzzymatch_test.go": 64,
+        "internal/ui/workspaces/fuzzywalk.go": 114,
+        "internal/ui/workspaces/fuzzywalk_test.go": 104,
+        "internal/ui/workspaces/jump_test.go": 88,
+        "internal/ui/workspaces/model.go": 8,
+        "internal/ui/workspaces/update.go": 108,
+        "internal/ui/workspaces/view.go": 30
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "internal/ui/workspaces/update.go": 1
+      }
+    }
+  ]
+}
