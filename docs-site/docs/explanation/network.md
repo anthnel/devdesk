@@ -19,13 +19,15 @@ installed is reported as an error rather than silently falling back to the
 other one, because the two don't hold the same containers.
 
 Everything DevDesk does through the engine — listing containers, pulling
-images, inspecting networks, scanning — goes through one `--format`
-invocation shape shared by both; only the binary name, the credential helper
-prefix, and the registry auth file location differ per engine. One exception:
-the detailed per-image disk usage breakdown (`system df -v`) is Docker-only —
-it's read by scraping a fixed-width table at column offsets, and Podman's
-output doesn't line up with them, so that specific view is disabled rather
-than shown wrong.
+images, inspecting networks, scanning — goes through the same `--format`
+invocations for both, mostly with identical template strings; the binary
+name, the credential helper prefix, and the registry auth file location
+differ per engine, and a handful of templates (`info`, `network ls`) carry a
+Podman-specific string where its field names or output shape differ from
+Docker's. One case goes further: the detailed per-image disk usage breakdown
+(`system df -v`) is Docker-only — it's read by scraping a fixed-width table
+at column offsets, and Podman's output doesn't line up with them, so that
+specific view is disabled rather than shown wrong.
 
 Most views don't need to know which engine is active, but one place does: the
 OCI resources registry browser (`B` from the Images tab) builds the reference
