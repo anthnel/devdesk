@@ -30,8 +30,16 @@ func (m Model) InEditMode() bool {
 	return m.mode != ModeNormal || m.table.InEditMode()
 }
 
-// FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
+// FilterBarVisible returns true when a bar occupying the filter bar's slot is
+// on screen (implements app.FilterBarView) — the router turns the viewport's
+// bottom corners into T-junctions in response, so the bar below joins into
+// one closed rectangle instead of two stacked boxes. The fuzzy-find query
+// bar shares this slot exactly the way the viewer's own "g" (go to line)
+// does, so it answers this the same way the "/" filter does.
 func (m Model) FilterBarVisible() bool {
+	if m.mode == ModeFuzzyFinding {
+		return m.fuzzyFinder != nil
+	}
 	return m.table.FilterBar().IsVisible() && m.mode == ModeNormal && len(m.table.Items()) > 0 && m.error == ""
 }
 

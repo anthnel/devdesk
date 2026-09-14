@@ -25,6 +25,27 @@ func TestGOpensTheFuzzyFindPrompt(t *testing.T) {
 	}
 }
 
+// FilterBarVisible is what tells the router to turn the viewport's bottom
+// corners into T-junctions so the bar below joins into one closed rectangle
+// (Rule 136) — without it, the query bar renders as a second, disconnected
+// box under an otherwise fully closed viewport.
+func TestFuzzyFindReportsFilterBarVisibleForTheClosedBorder(t *testing.T) {
+	m := newTestModel(t)
+	if m.FilterBarVisible() {
+		t.Error("FilterBarVisible = true before g was pressed")
+	}
+
+	m, _ = step(t, m, testutil.Key("g"))
+	if !m.FilterBarVisible() {
+		t.Error("FilterBarVisible = false while the fuzzy-find bar is on screen, border will not close")
+	}
+
+	m = feed(t, m, FuzzyFindCancelMsg{})
+	if m.FilterBarVisible() {
+		t.Error("FilterBarVisible = true after the prompt was cancelled")
+	}
+}
+
 // The query sits in the same footer bar frame the "/" filter and the
 // viewer's own "g" (go to line) already use, not a line inside the
 // viewport — RenderFooter, not View, is what draws it.
