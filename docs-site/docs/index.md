@@ -26,7 +26,7 @@ This site follows the [Diátaxis](https://diataxis.fr/) documentation framework:
 
 - Go 1.25.5+ (to build from source)
 - A terminal with [Nerd Font](https://www.nerdfonts.com/) support — icons are used throughout the UI
-- Optional, feature degrades gracefully if absent: [Trivy](https://trivy.dev/), [Gitleaks](https://github.com/gitleaks/gitleaks), Docker
+- Optional, feature degrades gracefully if absent: [Trivy](https://trivy.dev/), [Gitleaks](https://github.com/gitleaks/gitleaks), Docker or Podman
 
 ## Source
 

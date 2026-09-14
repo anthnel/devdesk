@@ -16,6 +16,7 @@ default — an absent key is not an error, `config.Default()` fills it in.
 | `terminal_new_window` | bool | `false` | `T` opens a separate terminal window instead of suspending the TUI in place. Off by default: no window can open under WSL, and none exists to open over SSH |
 | `show_hidden_files` | bool | `false` | Whether Workspaces lists dot-prefixed entries — governs both the listing and what `S`/`F`/`A` act on |
 | `secret_backend` | string | `auto` | `auto` \| `keyring` \| `git-credential` — pins the credential storage backend |
+| `container_engine` | string | `auto` | `auto` \| `docker` \| `podman`, or an explicit path to a binary. `auto` picks Docker if it's on PATH, Podman otherwise. A pinned engine that isn't installed is an error, not a silent fall back to the other one — see [Container engine](../explanation/network.md#container-engine-docker-or-podman) |
 
 ## `forge:`
 

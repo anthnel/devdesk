@@ -7,8 +7,13 @@ settings or credentials to mix.
 
 ## Create a new context
 
-Open the command palette (`ctrl+p`) and go to the **Configuration** view
-(`:config`), or:
+The fastest way is `dk setup` from a terminal, before launching the TUI —
+see [Run the setup wizard](run-the-setup-wizard.md). It asks one question at
+a time (context name, secret backend, container engine, theme, forge) and
+writes the same file this page describes editing by hand.
+
+From inside the TUI, open the command palette (`ctrl+p`) and go to the
+**Configuration** view (`:config`), or:
 
 ```
 :ctx my-context

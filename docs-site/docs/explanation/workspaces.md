@@ -17,6 +17,30 @@ A few implementation notes worth knowing if you're extending the icon table:
 
 A git repository is given the *same* visual role wherever DevDesk shows one — in `ws`, in the security inventory, and in the forge explorer. One object, one color, across three otherwise-unrelated views.
 
+## Fuzzy find (`g`)
+
+`g` opens a prompt: type at least 3 characters and a ranked list of
+directories anywhere under the workspaces root appears — not just the ones
+in the current listing — and `Enter` on one jumps straight there, however
+deep. It's a shortcut past manual drill-down for a tree with more than a
+couple of levels.
+
+The candidate list is a fresh walk of the whole tree every time the prompt
+opens, run in the background so typing stays responsive; the view itself
+keeps no tree in memory between prompts. The walk stops at each repository
+boundary — a repository is a valid jump target, but its own `node_modules`
+or `vendor` never is, the same rule scan and sync already use. Ranking is a
+plain subsequence match (typed characters must appear in order, not
+consecutively) scored higher for consecutive runs and for a match landing
+right after a `/` — so `wsdd` beats a same-length coincidental match buried
+mid-path when both contain the letters.
+
+The query field sits in the same footer bar slot as the `/` filter and the
+document viewer's `g` (go-to-line) — the same framed rectangle, never two
+different implementations of it. It's a lowercase, view-local binding, like
+the viewer's own `g`: the jump takes an argument (the query), which is not a
+role any uppercase action or the arrow keys can cover.
+
 ## Syncing workspaces
 
 The sync action (`F`) fetches a repository and fast-forwards it if it's safe to do so. It's the mirror image of cloning: the explorer creates repositories that don't exist yet, while workspaces reconciles ones that already do.
