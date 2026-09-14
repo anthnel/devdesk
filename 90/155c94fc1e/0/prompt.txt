@@ -1,0 +1,5 @@
+/plan prépare le plan d'implémentation pour le support de podman
+
+---
+
+supprime feat/container-gauges, feat/dashboard-network-totals-errors, fix/drop-network-history, fix/health-box-color-consistency.
