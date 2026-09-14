@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "bc94d8b64f2f",
+  "strategy": "manual-commit",
+  "branch": "feat/ws-fuzzy-find",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/workspaces.md",
+    "internal/ui/workspaces/update.go",
+    "internal/ui/workspaces/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/bc/94d8b64f2f/0/metadata.json",
+      "transcript": "/bc/94d8b64f2f/0/full.jsonl",
+      "compact_transcript": "/bc/94d8b64f2f/0/transcript.jsonl",
+      "content_hash": "/bc/94d8b64f2f/0/content_hash.txt",
+      "prompt": "/bc/94d8b64f2f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 98,
+    "cache_creation_tokens": 54233,
+    "cache_read_tokens": 18540115,
+    "output_tokens": 26885,
+    "api_call_count": 49
+  }
+}
