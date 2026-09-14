@@ -1,0 +1,208 @@
+/review Review profile: general
+
+Task: Review this change for correctness, regressions, API design, missing tests, maintainability, and user-facing behavior changes. Return only real, actionable defects with concrete evidence and an exact code pointer. No praise, summaries, speculation, style preferences, or nice-to-have refactors.
+
+Output format:
+- Start with one verdict line: approve / approve with nits / request changes, plus a short reason.
+- Then list actionable findings only. Each finding MUST be a separate top-level Markdown bullet starting with [high], [medium], or [low].
+- Include an exact file:line pointer in each finding when possible, plus the bug, impact, and fix in one concise paragraph.
+- Do not combine multiple defects in one bullet or paragraph. Do not emit severity-heading paragraphs like "**[HIGH] ...**" without a leading bullet.
+- If there are no actionable findings, output only the verdict line.
+- Keep the report compact: quote only the minimal relevant snippet (a few lines) per finding. Never paste whole files, full diffs, or large logs, and skip decorative formatting like tables or ASCII art — it wastes effort and is not rendered.
+
+This is a documentation-only change to docs-site/ (mkdocs-material, Diátaxis structure: tutorial/how-to/reference/explanation). Review it for: accuracy against the current code/behavior it describes (podman container-engine support, the workspaces fuzzy-find 'g' key, and the 'dk setup' CLI wizard), broken internal links or markdown anchors, consistency with the site's existing tone and per-section conventions, and clarity for a first-time reader. This is not application code, so skip code-quality-style findings that don't apply to prose/markdown.
+
+Scope: review the commits unique to this branch vs main, plus any uncommitted changes in the working tree. Ignore code outside this scope.
+
+Checkpoint context from commits in scope:
+- 0f160f7e5fe8: prompt: commit
+
+Use `entire checkpoint explain <id>` for full checkpoint context, or `entire checkpoint explain <id> --raw-transcript` for raw transcripts.
+
+---
+
+<task-notification>
+<task-id>a4c96f4ae888666bf</task-id>
+<tool-use-id>toolu_017MTu4Fp9UuF1VVkvGxfSq1</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk--entire-worktrees-review-docs-podman-fuzzyfind-setup-b49ece41/e6485dce-a509-4061-8eaf-cd1d600c3c12/tasks/a4c96f4ae888666bf.output</output-file>
+<status>completed</status>
+<summary>Agent "Verify workspaces fuzzy-find docs claims" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All confirmed by tests. No caching found for fuzzy walk results — only an unrelated `scanCache` for security scans. I now have everything needed to give the final verdict.
+
+## Verification report
+
+**Source files:** `internal/ui/workspaces/fuzzyfind.go`, `fuzzymatch.go`, `fuzzywalk.go` (+ their `_test.go` files), plus `entry.go`, `update.go`, `keymap/keymap.go`.
+
+**1. "type at least 3 characters ... anywhere under the workspaces root ... not just the ones in the current listing"**
+VERIFIED. `const minFuzzyQueryLen = 3` (fuzzyfind.go:21); `rematch()` refuses to score until `len(query) &gt;= minFuzzyQueryLen` (fuzzyfind.go:137); `StatusText()` prints "Type at least 3 characters to search" (fuzzyfind.go:168-169). The walk root is `m.getExpandedWorkspacesDir()` (fuzzywalk.go:40), not the currently drilled-into directory, so it is genuinely whole-tree, not just the current listing.
+
+**2. "Enter on one jumps straight there, however deep"**
+VERIFIED. `case "enter":` sends `FuzzyFindConfirmMsg{Path: row.Candidate.Abs}` (fuzzyfind.go:111-116), handled by `m.jumpToPath(msg.Path)` (update.go:213), whose doc comment says it "synthesizes the drill-down state `navigateIn` would have built had the user manually entered every directory down to target's parent" (update.go:465-467) — i.e., works at arbitrary depth.
+
+**3. "fresh walk ... every time the prompt opens, run in the background ... view itself keeps no tree in memory between prompts"**
+VERIFIED. `startFuzzyFind()` creates a brand-new `NewFuzzyFinder()` (empty candidates) and kicks off `m.walkWorkspaceDirsCmd()` as a `tea.Cmd` — i.e., off the synchronous Update/View path (update.go:455-463). On both `FuzzyFindCancelMsg` and `FuzzyFindConfirmMsg`, `m.fuzzyFinder = nil` (update.go:207, 212), discarding the loaded candidate slice entirely — nothing is retained for the next open. Confirmed no separate cache field exists (only an unrelated security `scanCache`).
+
+**4. "walk stops at each repository boundary ... its own node_modules or vendor never is, the same rule scan and sync already use"**
+VERIFIED. `walkAllDirs` stops recursing once `holdsRepo(entries)` is true (fuzzywalk.go:84-88), and its doc comment explicitly states it "shares isHidden/leadsToDir/mayFollow/holdsRepo with detectSubRepos" (fuzzywalk.go:62-65) — the exact functions `entry.go`'s `walkSubRepos`/`detectSubRepos` use, whose own comment says almost verbatim: "It stops at every repository it finds, so a repository's own node_modules or vendor tree is never entered" (entry.go:120-122). `detectSubRepos`'s output (`entry.SubRepoPaths`) is what both scan (`actions.go:56-61`) and sync (`sync.go:57`) act on — confirming it's the same rule "scan and sync already use," not a re-implementation.
+
+**5. "plain subsequence match ... scored higher for consecutive runs and for a match landing right after a /"**
+VERIFIED. `matchFuzzy` walks `q` against `c` requiring in-order (not necessarily adjacent) characters (fuzzymatch.go:24-46); `score += 3` when `consecutive` is true (line 34) and `score += 5` when `ci == 0 || c[ci-1] == '/'` (lines 36-38). Backed by `TestMatchFuzzyScoresConsecutiveRunsHigher` and `TestMatchFuzzyScoresSegmentBoundaryHigher` in fuzzymatch_test.go.
+
+**6. "query field sits in the same footer bar slot as the / filter and the document viewer's g ... the same framed rectangle"**
+VERIFIED. `FuzzyFinder.RenderBar()` calls `sharedcomponents.BarFrame(width, inner)` (fuzzyfind.go:195). The same `components.BarFrame` is called by `FilterBar.View()` (components/filter_bar.go:219) and by the viewer's go-to-line prompt (viewer/goto.go:110) — one shared implementation, three callers.
+
+**7. "lowercase, view-local binding ... the jump takes an argument (the query)"**
+VERIFIED. `keymap.go`'s `localToggles` table lists `{"workspaces", "ui/workspaces/", []string{"g"}}` (keymap.go:216) with the comment directly above it: "`g` opens the fuzzy-find prompt across the whole workspaces tree. Same justification as the viewer's g: the jump takes an argument (the typed query), which is not a role home/end/G could ever cover" (keymap.go:213-215) — this is essentially the doc sentence lifted verbatim from the code comment.
+
+**Overall: all 7 claims VERIFIED against the implementation**, several nearly verbatim quotes of existing code comments (claims 4 and 7 in particular read like paraphrases of `entry.go` and `keymap.go` comments respectively). No contradictions or unclear points found.</result>
+<usage><subagent_tokens>96820</subagent_tokens><tool_uses>18</tool_uses><duration_ms>96887</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>aa6e1b23fb2f99f0c</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk--entire-worktrees-review-docs-podman-fuzzyfind-setup-b49ece41/e6485dce-a509-4061-8eaf-cd1d600c3c12/tasks/aa6e1b23fb2f99f0c.output</output-file>
+<status>completed</status>
+<summary>Agent "Verify dk setup wizard docs claims" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Verification report — `dk setup` documentation
+
+**Source files:** `main.go`, `internal/ui/setup/{model.go,wizard.go,commands.go,answers.go,fields.go}`, `internal/config/config.go`
+
+### Claim 1 — "runs standalone, no context loaded first, works before `~/.devdesk/` exists"
+**VERIFIED.** `main.go:38-44` dispatches on `os.Args[1] == "setup"` and calls `setup.Run()` *before* `config.Load()` / `config.EnsureConfigDir()`, which only happen in `runTUI()` (`main.go:55-65`). The setup package doc comment (`model.go:1-6`) states the same.
+
+### Claim 2 — Six ordered steps as described
+**VERIFIED**, with one nuance. Step constants (`model.go:23-36`) are declared in exactly this order: `stepFontCheck, stepContextName, stepSecretBackend, stepContainerEngine, stepTheme, stepForgeType, stepForgeURL, stepForgeNamespace, stepForgeVisibility, stepForgeCloneMethod, stepForgeToken`. The doc's "Forge" (item 6) bundles the last 6 internal steps into one topic — content-accurate, but the wizard's own footer literally counts `stepCount = 11` (`fields.go:43`, `"Step %d of %d"`), so a user doing forge config sees e.g. "Step 9 of 11", not "step 6 of 6". Worth a docs tweak but not a factual error.
+- Font-check copy matches "before anything else risks looking broken" in spirit (`fields.go:137-142` comment: "a broken font is caught before the user spends the rest of setup looking at boxes and question marks").
+- Secret backend "checks live whether reachable": `commands.go:73-78` (`checkSecretBackendCmd` → `credentials.Select`).
+- Container engine "checks live... daemon actually answers, not just PATH": `commands.go:91-106` + comment explicitly makes this distinction; `checkContainerEngineCmd` calls `engine.Resolve` then `docker.FetchCapacity()`.
+- Theme "fetched from the DevDesk repository": `answers.go:119-131`, `remoteThemeBaseURL = "https://raw.githubusercontent.com/anthnel/devdesk/main/themes/"`.
+- Forge token "validated live against the real API before it's saved": `commands.go:49-62`, `session.NewAuth(...).Authenticate(...)`.
+
+### Claim 2b — Context name charset "lowercase letters, digits, hyphens, or `default`"
+**VERIFIED exactly.** `internal/config/config.go:878-896`: `ValidateContextName` special-cases `"default"`, else regex `^[a-z0-9-]+$`.
+
+### Claim 3 — "Every field except context name can be left blank... wizard still creates the context either way"
+**VERIFIED for text fields, imprecise for cycle fields.** `fields.go:100-105` (URL: "Leave it blank to skip forge configuration"), `:108-113` (namespace: "Leave it blank if you don't have one"), `:127-132` (token: "Leave it blank... DevDesk will still create the context"). `advance()` (`model.go:305-324`) applies no validation except on `stepContextName`. However, secret backend / container engine / theme / forge type / visibility / clone method are closed-set cycle fields (Rule 132) that always carry a selected default — they have no "blank" state to leave; the doc's wording glosses over this distinction but doesn't misstate behavior (nothing blocks proceeding with the default).
+
+### Claim 4 — `←`/`→` cycle, `Enter` confirms/advances, `Esc` back-or-quit-from-first
+**VERIFIED exactly.** `model.go:275-289` (`handleKeyMsg`): `"esc"→stepBack`, `"left"→cycle(-1)`, `"right"→cycle(1)`, `"enter"→advance`. `stepBack` (`model.go:294-301`): `if m.step == stepFontCheck { return m, tea.Quit }`, confirming Esc quits only from the first step.
+
+### Claim 5 — Calls `config.SaveContext`, "identical to configuring by hand"
+**VERIFIED.** `commands.go:113-117`: `saveContextCmd` returns `ContextSavedMsg{Err: config.SaveContext(cfg, name)}` — exact function name.
+
+### Claim 6 — Asks before overwriting an existing context
+**VERIFIED.** `model.go:467-482` (`handleContextExists`): if `msg.Exists`, shows a `confirmPrompt` "Context exists... will be overwritten. Continue?" before proceeding.
+
+### Claim 7 — "Reports the path it wrote and any warning... then `dk` starts the full TUI against the context you just created"
+**Reporting half: VERIFIED.** `fields.go:243-264` (`renderDone`): `"Wrote " + m.savedPath`, then `currentContextWarning` and `tokenSaveWarning` if set.
+
+**"Then `dk` starts the full TUI": CONTRADICTED.** There is no chaining into the TUI anywhere:
+- `main.go:38-44`: after `setup.Run()` returns (success or not), the branch `return`s — `runTUI()` is never reached.
+- `wizard.go:5-11`: `Run()` only runs the wizard's own `tea.Program` and returns its error; no `app.New`/`tea.NewProgram` for the main app anywhere in `internal/ui/setup` (confirmed via grep — zero hits).
+- The done screen itself tells the user to do this manually: `fields.go:259` — `` b.WriteString(`Run "dk" to start.`) `` — and `fields.go:261` — `` helpStyle.Render("  [enter] exit") ``. `model.go:268-273` confirms `enter`/`esc`/`q` on `stageDone` all just `tea.Quit`.
+
+So `dk setup` exits the process after writing the context; the user must invoke `dk` again separately. The doc's final sentence should read something like "then exits — run `dk` to start the TUI against the context you just created."
+
+### commands.md claim — `os.Args[1]` literal match, runs before context load
+**VERIFIED.** `main.go:38`: `if len(os.Args) &gt; 1 &amp;&amp; os.Args[1] == "setup"`, and the comment at `main.go:34-36` states essentially the same rationale as the docs line.
+
+---
+
+**Summary:** Every claim checks out against the code except the closing sentence of the how-to doc — "then `dk` starts the full TUI against the context you just created" is factually wrong; the process exits and the user must run `dk` again. That's the one fix needed before merging. The "six ordered steps" framing is a defensible simplification of an internal 11-step counter, and "every field... can be left blank" slightly overgeneralizes from text fields to cycle fields, but neither rises to a contradiction.</result>
+<usage><subagent_tokens>105695</subagent_tokens><tool_uses>18</tool_uses><duration_ms>121307</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>aa6e1b23fb2f99f0c</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk--entire-worktrees-review-docs-podman-fuzzyfind-setup-b49ece41/e6485dce-a509-4061-8eaf-cd1d600c3c12/tasks/aa6e1b23fb2f99f0c.output</output-file>
+<status>completed</status>
+<summary>Agent "Verify dk setup wizard docs claims" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I've sent the concise claim-by-claim report with file:line evidence to the requesting agent. Summary of the outcome:
+
+- All claims **VERIFIED** except one.
+- Claim 7's second half — "then `dk` starts the full TUI against the context you just created" — is **CONTRADICTED**: `main.go:38-44` returns after `setup.Run()` without calling `runTUI()`, and the wizard's own done screen (`fields.go:259,261`) tells the user to `Run "dk" to start.` and exits on Enter. The process does not chain into the TUI.
+- Minor imprecision (not a contradiction) on claim 3: cycle-type fields (secret backend, container engine, theme, forge type/visibility/clone method) have no "blank" state to leave — only text fields (URL, namespace, token) can literally be left blank.
+
+The one required fix before merge is the how-to doc's closing sentence about `dk` auto-starting the TUI.</result>
+<usage><subagent_tokens>110632</subagent_tokens><tool_uses>20</tool_uses><duration_ms>160941</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a4c96f4ae888666bf</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk--entire-worktrees-review-docs-podman-fuzzyfind-setup-b49ece41/e6485dce-a509-4061-8eaf-cd1d600c3c12/tasks/a4c96f4ae888666bf.output</output-file>
+<status>completed</status>
+<summary>Agent "Verify workspaces fuzzy-find docs claims" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Report sent to the requesting agent. Summary: all 7 claims in the docs PR's "Fuzzy find (`g`)" section are VERIFIED against the actual implementation — no contradictions found.</result>
+<usage><subagent_tokens>102095</subagent_tokens><tool_uses>20</tool_uses><duration_ms>171197</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>ad756c4b9740eaf77</task-id>
+<tool-use-id>toolu_01Ei3oxqBHGBrHDsYg9zgGra</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk--entire-worktrees-review-docs-podman-fuzzyfind-setup-b49ece41/e6485dce-a509-4061-8eaf-cd1d600c3c12/tasks/ad756c4b9740eaf77.output</output-file>
+<status>completed</status>
+<summary>Agent "Get final report from fuzzy-find verification agent" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Everything checks out completely. Here is my final report.
+
+## Verification report: fuzzy-find documentation (commit 2a32fe4) against implementation (commit d1229f5)
+
+I checked every factual claim added in `docs-site/docs/explanation/workspaces.md`, `docs-site/docs/reference/keybindings.md`, `docs-site/docs/reference/commands.md`, and `docs-site/docs/tutorial/first-session.md` for the workspaces fuzzy-find feature against the actual Go source in `internal/ui/workspaces/`. All claims are accurate.
+
+**Claim-by-claim verification:**
+
+- **"type at least 3 characters"** — confirmed: `minFuzzyQueryLen = 3` in `internal/ui/workspaces/fuzzyfind.go:21`, gated in `rematch()` (line 137) and `StatusText()`/`matchHint()`.
+- **"a fresh walk of the whole tree every time the prompt opens, run in the background"** — confirmed: `walkWorkspaceDirsCmd()` (`fuzzywalk.go:39`) is a `tea.Cmd` closure invoked from `startFuzzyFind()` (`update.go:455`), result delivered via `FuzzyPathsLoadedMsg` and applied only in `Update()` (`update.go:199-203`), consistent with Rule 110 (no model mutation inside a Cmd).
+- **"the view itself keeps no tree in memory between prompts"** — consistent: candidates live on the `*FuzzyFinder` struct, which is discarded (`m.fuzzyFinder = nil`) on cancel/confirm (`update.go:207`, `212`).
+- **"stops at each repository boundary... a repository is a valid jump target, but its own node_modules/vendor never is"** — confirmed in `fuzzywalk.go:84-88` (`walkAllDirs`): once `holdsRepo(entries)` is true, the directory is appended but its children are not walked. It explicitly reuses `isHidden`/`leadsToDir`/`mayFollow`/`holdsRepo` from the existing nested-repo scan, exactly as documented.
+- **"plain subsequence match... scored higher for consecutive runs and for a match landing right after a /"** — confirmed in `fuzzymatch.go:matchFuzzy`: +3 for consecutive matches, +5 when `ci==0 || c[ci-1]=='/'`, and a final penalty for span length (tighter match ranks higher).
+- **"the query field sits in the same footer bar slot as the / filter and the document viewer's g"** — confirmed: `RenderBar()` (`fuzzyfind.go:184-196`) explicitly comments this and calls the shared `sharedcomponents.BarFrame(width, inner)`.
+- **"a lowercase, view-local binding"** — confirmed: `internal/ui/keymap/keymap.go:216` registers `{"workspaces", "ui/workspaces/", []string{"g"}}` in the local-toggles table, and `update.go:286` (`case "g": return m.startFuzzyFind()`) fires only in normal mode, not competing with the uppercase action vocabulary.
+- **"Enter... synthesizing the same navigationStack/currentPath a manual drill-down would have built one step at a time (jumpToPath)"** — confirmed: `jumpToPath()` (`update.go:473`) is documented in its own comment as synthesizing what `navigateIn`'s `append(m.navigationStack, m.currentPath)` would have built, and `FuzzyFindConfirmMsg` routes to it (`update.go:213`).
+
+**Conclusion:** No discrepancies found. The documentation added in commit `2a32fe4` for the workspaces fuzzy-find (`g`) feature is fully accurate against the implementation in `internal/ui/workspaces/fuzzyfind.go`, `fuzzywalk.go`, `fuzzymatch.go`, `update.go`, `model.go`, and the `internal/ui/keymap` registration — down to specific implementation details (the 3-character threshold, the shared `BarFrame` slot, the repository-boundary walk stop, and the scoring formula).
+
+Files inspected (all under `/c/Users/anthoni/projects/entire/anthnel/devdesk/.entire/worktrees/review-docs-podman-fuzzyfind-setup-b49ece41/`):
+- `docs-site/docs/explanation/workspaces.md`, `docs-site/docs/reference/keybindings.md`, `docs-site/docs/reference/commands.md`, `docs-site/docs/tutorial/first-session.md`
+- `internal/ui/workspaces/fuzzyfind.go`, `fuzzywalk.go`, `fuzzymatch.go`, `update.go`, `model.go`, `view.go`
+- `internal/ui/keymap/keymap.go`
+
+I did not verify the podman/container-engine or `dk setup` wizard documentation sections in this pass — the task as stated was scoped to the fuzzy-find claims. Let me know if you'd like those checked too.</result>
+<usage><subagent_tokens>86777</subagent_tokens><tool_uses>12</tool_uses><duration_ms>42545</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a9c821b6d431e831d</task-id>
+<tool-use-id>toolu_01UBHA4ao1piBwXs4rfuBUUL</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk--entire-worktrees-review-docs-podman-fuzzyfind-setup-b49ece41/e6485dce-a509-4061-8eaf-cd1d600c3c12/tasks/a9c821b6d431e831d.output</output-file>
+<status>completed</status>
+<summary>Agent "(resumed)" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Given exhaustive manual verification (independently corroborated by the setup-wizard sub-agent) already covers both docs pages, I'll finalize the review now.
+
+**verdict: request changes** — two clear factual/behavioral inaccuracies about what `dk setup` does when it finishes, plus one overstated technical claim about engine template parity.
+
+- [high] docs-site/docs/how-to/run-the-setup-wizard.md:44-46 — Claims "then `dk` starts the full TUI against the context you just created," but the wizard does not chain into the TUI. `main.go:38-44` returns from `main()` after `setup.Run()` succeeds (never calling `runTUI()`), and `internal/ui/setup/model.go:268-273` makes `enter`/`esc`/`q` at `stageDone` just `tea.Quit`; the done screen itself prints `Run "dk" to start.` (`internal/ui/setup/fields.go:259`). A first-time reader following this doc will expect the TUI to launch automatically and be confused when the process exits to the shell instead. Fix: state that the wizard exits and the user must run `dk` themselves.
+
+- [high] docs-site/docs/tutorial/first-session.md:26-29 — Same inaccuracy: "one question at a time, and starts the TUI against it when it's done." Same code evidence as above (`main.go:38-44`, `internal/ui/setup/model.go:268-273`, `internal/ui/setup/fields.go:259,261`). This is the tutorial's first-touch onboarding text, so the false expectation lands on the least experienced readers. Fix: replace with "then run `dk` to start" or equivalent.
+
+- [medium] docs-site/docs/explanation/network.md:21-24 — Claims "goes through one `--format` invocation shape shared by both; only the binary name, the credential helper prefix, and the registry auth file location differ per engine," then names only one exception (`system df -v` scraping). This understates the divergence: `internal/engine/engine.go:152-180` shows `podmanTemplates` overrides three of twelve `--format` templates relative to `dockerTemplates` — `Info` (`{{.Host.CPUs}}\t{{.Host.MemTotal}}` vs `{{.NCPU}}\t{{.MemTotal}}`), `NetworkLS`, and `SystemDF` — because podman's field names differ and an unmatched field fails the command outright (e.g. `podman info` exits 125 under the docker template, per the comment at line 157-158). A reader relying on this doc to reason about engine parity would wrongly assume only the `system df -v` breakdown is engine-specific. Fix: mention that Info and NetworkLS templates are also engine-specific (not just the fixed-width `system df -v` table).</result>
+<usage><subagent_tokens>141040</subagent_tokens><tool_uses>5</tool_uses><duration_ms>55778</duration_ms></usage>
+</task-notification>
