@@ -44,9 +44,11 @@ would cost more than it buys.
 Lowercase letters never modify anything; they're local and can repeat
 across views. Examples: `r`/`p`/`s`/`t`/`z` in Containers are cumulative
 state filters; `c`/`h`/`m`/`l` in Security are cumulative severity filters;
-`t`/`u`/`l`/`e`/`n`/`z` in Network Diagnostics filter protocol/state. Each
-view declares its own set — see `internal/ui/keymap` for the full,
-per-view list.
+`t`/`u`/`l`/`e`/`n`/`z` in Network Diagnostics filter protocol/state; `g` in
+Workspaces opens fuzzy-find navigation (jump to any directory under the
+workspaces root by typing part of its path), the same letter the document
+viewer uses for its own, unrelated "go to line" prompt. Each view declares
+its own set — see `internal/ui/keymap` for the full, per-view list.
 
 ## Global
 

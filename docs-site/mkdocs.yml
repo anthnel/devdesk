@@ -57,6 +57,7 @@ nav:
       - Your first session: tutorial/first-session.md
   - How-to guides:
       - Install DevDesk: how-to/install.md
+      - Run the setup wizard: how-to/run-the-setup-wizard.md
       - Configure a context: how-to/configure-a-context.md
       - Switch forge backend (GitLab/GitHub): how-to/switch-forge-backend.md
       - Run a security scan: how-to/run-a-security-scan.md
