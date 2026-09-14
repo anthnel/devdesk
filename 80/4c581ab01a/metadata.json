@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "804c581ab01a",
+  "strategy": "manual-commit",
+  "branch": "feat/ws-fuzzy-find",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/workspaces.md",
+    "internal/ui/keymap/keymap.go",
+    "internal/ui/workspaces/model.go",
+    "internal/ui/workspaces/update.go",
+    "internal/ui/workspaces/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/80/4c581ab01a/0/metadata.json",
+      "transcript": "/80/4c581ab01a/0/full.jsonl",
+      "compact_transcript": "/80/4c581ab01a/0/transcript.jsonl",
+      "content_hash": "/80/4c581ab01a/0/content_hash.txt",
+      "prompt": "/80/4c581ab01a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 144,
+    "cache_creation_tokens": 306550,
+    "cache_read_tokens": 19717538,
+    "output_tokens": 72190,
+    "api_call_count": 72,
+    "subagent_tokens": {
+      "input_tokens": 80,
+      "cache_creation_tokens": 186621,
+      "cache_read_tokens": 2240577,
+      "output_tokens": 24106,
+      "api_call_count": 40
+    }
+  }
+}

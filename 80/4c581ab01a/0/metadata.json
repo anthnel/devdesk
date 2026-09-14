@@ -1,0 +1,132 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "804c581ab01a",
+  "session_id": "20da2b8f-25b3-496b-ae62-5170ef21ca12",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-14T16:20:52.6873132Z",
+  "branch": "feat/ws-fuzzy-find",
+  "checkpoints_count": 2,
+  "save_step_count": 2,
+  "files_touched": [
+    "docs/architecture/workspaces.md",
+    "internal/ui/keymap/keymap.go",
+    "internal/ui/workspaces/model.go",
+    "internal/ui/workspaces/update.go",
+    "internal/ui/workspaces/view.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "29f9687046fb",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 144,
+    "cache_creation_tokens": 306550,
+    "cache_read_tokens": 19717538,
+    "output_tokens": 72190,
+    "api_call_count": 72,
+    "subagent_tokens": {
+      "input_tokens": 80,
+      "cache_creation_tokens": 186621,
+      "cache_read_tokens": 2240577,
+      "output_tokens": 24106,
+      "api_call_count": 40
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-09-14T16:04:23.8172142Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "54e264a36a34",
+      "timestamp": "2026-09-14T16:04:23.8172142Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-14T16:20:52.5101178Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 893,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 893,
+    "total_lines_changed": 893,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 307,
+      "user_lines_removed": 303,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 307,
+      "user_lines_removed": 303,
+      "agent_lines_added": 49,
+      "agent_lines_removed": 88,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 107,
+      "user_lines_removed": 103,
+      "agent_lines_added": 200,
+      "agent_lines_removed": 200,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14
+      }
+    }
+  ]
+}

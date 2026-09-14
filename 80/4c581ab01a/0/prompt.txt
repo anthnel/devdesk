@@ -1,0 +1,163 @@
+/plan recherche fuzzy find dans la vue WS. Dans la vue ws, si j'appuie sur G je passe en mode recherche fuzzy find, je tape des caractères et au dela de trois j'obtiens une liste de path qui contient ces caractères, je peux me déplacer dans la liste et appuyer sur enter. Quand j'appuie sur enter sur une ligne sélectionnée, je rebascule en mode arbre mais directement sur le noeud sélectionné
+
+---
+
+<task-notification>
+<task-id>a43c9906ea2402bf3</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/3f825b10-0375-42ff-b712-4f352e9ea621/tasks/a43c9906ea2402bf3.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore workspaces view internals" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I now have a comprehensive picture of the architecture. Here is the full report.
+
+## 1. Model structure — `internal/ui/workspaces/model.go`
+
+`Model` (lines 30-114) is **not** a general expand/collapse tree model. It is a **drill-down, single-level-at-a-time file browser**, closer to a classic file explorer than a tree view:
+
+- `currentPath string` (line 39) — empty means workspaces root; otherwise the directory currently being listed.
+- `listingPath string` (line 45) — the directory the *rows currently in the table* were actually read from. It can briefly differ from `currentPath` while a load is in flight; several handlers (`navigateIn`, `EntriesLoadedMsg` handling) guard on this to avoid races between two in-flight loads.
+- `navigationStack []string` (line 46) and `cursorStack []int` (line 47) — breadcrumb/parent stack and per-level cursor positions, popped on `←`/`esc`.
+- `pendingCursor int` (line 48) — cursor to restore after the async `loadEntries` lands (`-1` = none).
+- `activeTabIndex int` (line 51) — which breadcrumb tab is highlighted.
+- `mode ViewMode` (line 54) — the mode/state machine, values: `ModeNormal`, `ModeAdding`, `ModeConfirmingDelete`, `ModeRenaming`, `ModeSelecting`, `ModeConfirmingScanAll` (lines 20-27). This is exactly the `creating/editing/confirming`-style state machine referenced in project docs, just workspaces-specific naming.
+- `input *WorkspaceInput`, `confirmModal *sharedcomponents.ConfirmModal`, `scanAllModal *sharedcomponents.OptionConfirmModal`, `pendingEntry *Entry` — the modal/form components tied to modes.
+- `table datatable.Model[workspaceRow]` (line 35) — see §7 below.
+- `scanCache`, `jobs`/`jobFrame`, `secrets`, `footer`, `deps`, `selectionMessage` — scan/job/secret/footer bookkeeping, not tree-relevant.
+
+**Critical architectural fact: there is no in-memory representation of the whole workspace tree.** `loadEntries()` (`entries.go`... actually `table.go:60-126`) reads exactly one directory (`os.ReadDir`) per navigation step and replaces the table's rows. Nothing in the model holds "the tree" — expansion is simulated by navigating in and out, discarding the previous level's rows (except for cursor position, kept in `cursorStack`). There is no "expanded paths" set anywhere.
+
+The closest thing to a recursive tree walk is `detectSubRepos`/`walkSubRepos` in `entry.go:112-195`, but that only discovers **git repository locations** nested under a directory (for S/F/A targeting), not a full listing of every file/dir path, and it does not build any row/UI representation — it returns `[]string` repo paths only.
+
+## 2. Tree representation / rows
+
+There is no "tree flattened into indented rows" — the table is always just the current directory's children, no indentation, no depth column. Row type: `workspaceRow` (`columns.go:35-48`):
+
+```go
+type workspaceRow struct {
+    Entry Entry
+    GitStatus string
+    Sensitive secretsCell
+    CI ciCell
+    Critical, High, Medium, Low string
+    Scanned string
+}
+```
+
+`Entry` (`model.go:117-138`) is one filesystem entry: `Name`, `Path`, `ModTime`, `IsDir`, plus git metadata (`IsGitRepo`, `GitBranch`, etc.) and `SubRepoPaths`/`SubRepoSkipped` for aggregation when the entry is a non-git directory.
+
+**There is no existing function that "expands the tree to a specific path and selects it."** Navigation only ever moves one level at a time via `navigateIn()`/`navigateUp()` (`update.go:319-366`), each triggering a fresh `loadEntries()` Cmd. To land on an arbitrary nested path, a new feature would need to synthesize the intermediate `navigationStack`/`cursorStack` state and either (a) issue a chain of loads level-by-level, or (b) directly build `currentPath` = the parent of the target, `navigationStack` = all its ancestors, then load and set `pendingCursor` to the matching row once `EntriesLoadedMsg` lands. Nothing like this exists today — it would be new code.
+
+`rowsFor(entries []Entry)` (`table.go`/`columns.go:167-197`) decorates entries into rows (adds scan/spinner state); `setEntries` (`table.go:23-26`) calls `m.table.SetItems` + `Remeasure()`; `refreshRows` (`table.go:36-38`) rebuilds rows without remeasuring (used for spinner ticks).
+
+## 3. update.go — key handling
+
+Full file read: `internal/ui/workspaces/update.go`.
+
+- `Init()` (17-26) kicks off `loadEntries()`, `loadScanCacheCmd()`, and (in `ModeNormal`) `checkDepsCmd`.
+- `InEditMode()` (29-31): `m.mode != ModeNormal || m.table.InEditMode()` — used by the router to block `ctrl+p` etc. while a form/filter has focus.
+- `FilterBarVisible()` (34-36) implements `app.FilterBarView`.
+- Top-level `Update()` (39-192): a big `switch msg.(type)`, with `tea.KeyMsg` delegated immediately to `handleKeyMsg` (line 48-49). All other messages are handled and fall through to `m.footer.Handle(msg)` (184) then, **only in `ModeNormal`**, `m.table.Update(msg)` (187-189).
+- `handleKeyMsg` (194-280) is the dispatcher, in strict priority order (mirrors Rule 130's "mode replaces the whole vocabulary"):
+  1. `m.table.InEditMode()` (filter bar `/` search) → delegate to `m.table.Update(msg)` and return (197-199).
+  2. `ModeAdding` → delegate to `m.input.Update` (202-206).
+  3. `ModeConfirmingDelete` → delegate to `m.confirmModal.Update` (209-213).
+  4. `ModeConfirmingScanAll` → delegate to `m.scanAllModal.Update` (216-220).
+  5. `ModeRenaming` → delegate to `m.input.Update` (223-227).
+  6. `ModeSelecting` → `handleSelectionKeyMsg` (230-232, defined 369-392).
+  7. Otherwise, **normal mode** switch on `msg.String()` (239-277):
+     ```go
+     a := m.actions()
+     switch msg.String() {
+     case "/": return m, m.table.Update(msg)
+     case "enter": return m.guard(a.Enter, m.openScanDetails)
+     case "ctrl+r": return m, m.loadEntries()
+     case keymap.New: return m.startAdd()
+     case keymap.Rename: return m.guard(a.Rename, m.startRename)
+     case keymap.Delete: return m.guard(a.Delete, m.startDelete)
+     case keymap.Terminal: return m.openTerminal()
+     case keymap.IDE: return m.openIDE()
+     case keymap.Web: return m.guard(a.Web, m.openInBrowser)
+     case keymap.Scan: return m.guard(a.Scan, m.startSecurityScan)
+     case keymap.Fetch: return m.guard(a.Sync, m.startSync)
+     case keymap.ScanAll: return m.guard(a.All, m.confirmScanAll)
+     case keymap.Copy: return m.guard(a.Copy, m.copyPath)
+     case "left": return m.navigateUp()
+     case "right": return m.navigateIn()
+     case "esc": return m.navigateUp()
+     case "up", "down", "pgup", "pgdown", "home", "end": return m, m.table.Update(msg)
+     }
+     return m, nil
+     ```
+     **Any key not explicitly listed (e.g. "G") currently does nothing** — it falls through to `return m, nil` at line 279. So a new mode-switch key needs its own `case`.
+
+- `m.actions()` (`availability.go:73-147`) computes an `actionSet` of `shortcut.Availability` per action, consulted both by `GetShortcuts()` (for greying out, Rule 130) and by `guard()` (for refusing with a footer warning) — "one computation, two readers."
+
+Mode-switch helpers: `startAdd()` (405-409, sets `mode = ModeAdding`, builds `*WorkspaceInput`), `startDelete()` (412-438), `startRename()` (441-450) — all follow the same shape: set `m.mode`, build the component, return `(m, nil)`. A fuzzy-find mode would likely follow this exact shape (a new `ModeFuzzyFind` and a new component field).
+
+**Keymap check (item 3's "is G free")**: `internal/ui/keymap/keymap.go` declares the global uppercase action vocabulary (`New="N"`, `Edit="E"`, ... `Get="G"` at line 73: `// Pull (get) the image or tag`). Per `.claude/rules/tui-layout.md` Rule 111, an uppercase letter's meaning is global across the whole app — `G` is already "Pull (get)", used elsewhere (oci_resources/registry views), not currently used in workspaces itself, but **not free** by the declared vocabulary. The only declared-free uppercase letters are `J`, `Q`, `Z` (`keymap.go:176`, `Free()`). So binding "G" to a new "fuzzy-find" action in workspaces would collide with the app-wide meaning of `G` ("Pull/get") per Rule 111, even though nothing in the workspaces package currently binds it. Lowercase `g` is also not free by default — Rule 111 states vim aliases `h j k l g G` were removed entirely and are not local-toggle material either, though the rule notes `g` was reinstated *only* in the document viewer as a "go to line" local toggle (`localToggles` in `keymap.go:208`), a case explicitly justified as "not a bending of the rule" because it takes an argument. Workspaces is not in that `localToggles` list. Both uppercase `G` (reserved for Get) and unregistered lowercase `g` are exceptions/collisions that would need to be resolved against Rule 111 before implementation (not proposing a fix, just flagging it per your ask).
+
+Also worth noting: `internal/ui/keymap/keymap_test.go`/`announced_test.go` has `TestEveryAnnouncedActionIsBoundInItsPackage`, `TestNoAnnouncementSpellsAnActionOutInFull`, `TestEveryAnnouncedToggleIsBoundInItsPackage`, and presumably (referenced in project-context.md) `TestNoBareLetterIsNavigation` / `TestNoViewBindsAnUndeclaredUppercaseKey` / `TestOnlyThreeCtrlCombinationsSurvive` — these are static source-scanning tests that will fail the build if an uppercase key is bound without being in the `keymap` vocabulary, or if a `{Key: "G", ...}` shortcut/help announcement doesn't match a `case keymap.X:` binding.
+
+## 4. view.go — View() structure
+
+`internal/ui/workspaces/view.go`, `View()` (29-80): a straight-line sequence of mode checks, each returning a full-screen `lipgloss.Place`-centered overlay for its mode, in the same priority order as `handleKeyMsg`:
+
+```go
+func (m Model) View() string {
+    if m.mode == ModeAdding &amp;&amp; m.input != nil { return lipgloss.Place(...) }        // centered overlay
+    if m.mode == ModeConfirmingDelete &amp;&amp; m.confirmModal != nil { return lipgloss.Place(...) }
+    if m.mode == ModeConfirmingScanAll &amp;&amp; m.scanAllModal != nil { return lipgloss.Place(...) }
+    if m.mode == ModeRenaming &amp;&amp; m.input != nil { return lipgloss.Place(...) }
+    if m.error != "" { return contentStyle.Render(...) }
+    return m.renderTable()   // renderTable() -&gt; m.table.View()
+}
+```
+
+Note this actually contradicts Rule 112 as literally documented (`docs/architecture` doesn't say this, but `.claude/rules/tui-layout.md` Rule 112 says **creation/edit forms must be in the main viewport, not a modal** — yet `ModeAdding`/`ModeRenaming` here use `lipgloss.Place(... Center, Center ...)`, i.e. a centered overlay, same as the confirm modals). This is a pre-existing pattern in workspaces that appears to diverge from Rule 112's stated ideal — worth flagging since your new G-mode UI should decide deliberately whether to mimic this existing centered-overlay pattern or the more sanctioned full-viewport form pattern.
+
+`GetFooterHeight()`/`RenderFooter()` (87-121) implement Rule 124's footer layout: filter bar (when visible) + breadcrumb tab bar + blank line + info line, based on `m.table.FilterBar().ExtraHeight()`. A fuzzy-find search UI, if it reuses the filter-bar-at-bottom pattern (Rule 136), would need analogous plumbing here; if it's instead a full "search mode" replacing the whole table view (more like `ModeAdding`), it would instead add a branch to `View()` similar to the other modes and adjust `GetFooterHeight()`/`RenderFooter()` accordingly for that mode.
+
+`renderTabBar()` (134-148) renders the drill-down breadcrumb from `navigationStack` + `currentPath` — this is what "positioned at the selected node" ultimately needs to reflect once a fuzzy-search jump lands (the breadcrumb must show the new ancestor chain).
+
+## 5. GetShortcuts() / help — `view.go:413-576`
+
+`GetShortcuts()` (413-480) is mode-aware exactly per Rule 130: an early-return block per mode (`ModeAdding`, `ModeRenaming`, `ModeConfirmingDelete`, `ModeSelecting`), then the normal-mode list built from `m.actions()` with `Disabled: !a.X.Enabled()` on each row-dependent action. A new fuzzy-find mode would need its own early-return block here (e.g., "↑↓ Move", "enter Select", "esc Cancel").
+
+`GetHelpContent()` (506-576) implements `help.Content`/`help.KeyBinding`/`help.Section` — confirms the view implements `help.Provider`. It documents the drill-down model explicitly: *"The browser uses a drill-down model. Press → on a directory to see its contents. Press ← to go back."* (541-543) — this is the authoritative doc-comment confirming there is no tree/expand model today.
+
+`GetTitle()`, `GetIcon()`, `GetHeaderInfo()` (482-503) round out the header interface.
+
+## 6. Existing filter/search — `/` FilterBar
+
+Workspaces **does** already have a `/`-triggered filter, via `internal/ui/datatable`'s embedded `components.FilterBar` (`internal/ui/components/filter_bar.go`), **not** a workspaces-specific implementation:
+
+- `datatable.Model[T]` owns a `bar components.FilterBar` (`datatable.go:221`), created in `datatable.New` (`datatable.go:282-284`).
+- `datatable.Model.Update` (`datatable.go:538-589`) delegates to `m.bar.Update(msg)` when `m.bar.InEditMode()`, and handles `"/"` (line 555-562, calls `m.bar.ActivateSearch()`, refusing if `!m.Searchable()`) and `"."` (CycleSort) itself; navigation keys (`up/down/pgup/pgdown/home/end`) move the underlying `bubbles/table`.
+- `FilterBar` (components/filter_bar.go) is a **substring** matcher over whatever columns declare a `Search` func (in workspaces: `Name` and `Remote`, see `columns.go:96,101` — `Search: func(r workspaceRow) string { return r.Entry.Name }`). It is a single-line textinput bar rendered at the bottom (`View()`, lines 189-220), 2 extra footer lines when visible (`ExtraHeight()`).
+- Crucially: **this filters only the rows currently loaded — i.e. the current directory's immediate children** — not a recursive fuzzy search of the whole workspace tree. It's a different feature than what you're planning (single-level substring filter vs. multi-level fuzzy path search), though its bar-at-the-bottom UI/state machine (`searching` bool, `textinput.Model`, `ActivateSearch`/`esc`/`enter` handling) is a reasonable template to study for the "type characters, live-update a result list, Enter to confirm" interaction shape.
+- `Model.entries()` (`table.go:41-47`) reconstructs `[]Entry` straight from `m.table.Items()` — i.e., from whatever the filter bar currently shows — used by `selectedEntry()` (`table.go:55-58`) to resolve cursor→row safely under a filter (this guards against the historical bug D24 mentioned at `table.go:51-54`, where an action indexed the unfiltered list with a filtered cursor).
+
+There is no existing "/" or other search that walks the whole tree recursively and returns cross-directory path results — the closest analog for "walk everything" is `detectSubRepos`/`walkSubRepos` (`entry.go`), but as noted, that only discovers git-repo roots, not general paths, and returns no UI-ready rows.
+
+## 7. datatable usage — Rule 106/116/122/125
+
+Confirmed: `internal/ui/workspaces` uses the generic `internal/ui/datatable` package.
+
+- `Model.table datatable.Model[workspaceRow]` (`model.go:35`), constructed in `New()` (`model.go:144-156`) via `datatable.New(datatable.Config[workspaceRow]{Columns: workspaceColumns(cfg.Scan.EnableCIScore), SortColumn: -1})`.
+- Columns declared in `columns.go` (`workspaceColumns`, lines 79-126): icon column with no title (leftmost, `MinWidth: datatable.IconColumnWidth`, `Cell: func(r) string { return entryIcon(r.Entry) }`, `Style:` colored via `theme.IconStyle(entryIconRole(r.Entry))`) — this is exactly the Rule 125 file/dir/repo icon column pattern the user mentioned, backed by `internal/ui/fileicon` and documented in `docs/architecture/workspaces.md`. Then `Name` (searchable, `SizingContent`), `Remote` (searchable, truncate-head, flex), `Git Status`, `Secrets`, four severity count columns (`C H M L` via the shared `count()` helper), `CI` (optional, inserted conditionally when `withCI`), `Scanned`, `Modified`.
+- Rows are plain-text cells with separate `Style func(r) lipgloss.Style` callbacks (never `style.Render()` baked into cell text) — consistent with Rule 122 ("NEVER use style.Render() inside table.Row{}").
+- `updateTableSize()` (`table.go:15-17`) calls `m.table.Resize(...)`, and `setEntries`/`refreshRows` (`table.go:23-38`) call `SetItems`/`Remeasure` — the Rule 116 width-solving arithmetic lives inside `datatable` (`widths.go`), not duplicated in workspaces.
+
+---
+
+### Summary of what a fuzzy-find "G-mode" would have to reconcile with existing architecture (facts only, no proposal)
+
+1. **No tree state exists to "expand."** Navigation is one-level-at-a-time via `os.ReadDir` in `loadEntries()`; there's no cached/loaded representation of the whole workspace tree, no expanded-paths set, and no existing "navigate to arbitrary nested path and select it" function — that would be new machinery layered on top of `currentPath`/`navigationStack`/`cursorStack`/`pendingCursor`.
+2. **A full-tree fuzzy search needs its own recursive filesystem walk** (something like `walkSubRepos` in shape, but collecting all paths, not just repo roots) — nothing today builds that list.
+3. **`G` is already claimed** by the app-wide uppercase vocabulary (`keymap.Get`, "Pull (get) the image or tag") per Rule 111; declared-free uppercase letters are only `J`, `Q`, `Z`. Lowercase `g` is also not declared as a workspaces local toggle in `keymap.localToggles`.
+4. **The mode-switch shape to follow** is the existing `ViewMode` enum + `mode`/component-pointer field pattern (`ModeAdding`/`WorkspaceInput` is the closest precedent for "a component that owns its own key handling while a mode flag is set"), dispatched with top priority in `handleKeyMsg`, mirrored in `View()`, `GetShortcuts()`, and `GetFooterHeight()`/`RenderFooter()`.
+5. **Existing `/` FilterBar is a *different* feature** (single-directory substring filter, not a cross-tree fuzzy finder) but is the closest UI/interaction precedent in this package for "type into a bar, get a live-updating list."
+6. **Rule 112 tension**: workspaces' own `ModeAdding`/`ModeRenaming` already render as centered overlays rather than full-viewport forms, which is worth being aware of as precedent (or as a deviation) when deciding how the new search UI should be laid out.</result>
+<usage><subagent_tokens>116395</subagent_tokens><tool_uses>29</tool_uses><duration_ms>178649</duration_ms></usage>
+</task-notification>
