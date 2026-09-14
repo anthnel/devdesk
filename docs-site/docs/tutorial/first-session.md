@@ -24,6 +24,13 @@ and wires up the project's tasks.
 ./bin/dk
 ```
 
+First time here? `./bin/dk setup` runs a standalone wizard that walks you
+through creating a context — name, secret backend, container engine, theme,
+forge — one question at a time, and starts the TUI against it when it's
+done. This tutorial continues with the defaults `dk` creates on its own, but
+either path gets you to the same place; see
+[Run the setup wizard](../how-to/run-the-setup-wizard.md) for what it asks.
+
 The **Dashboard** view opens first. It is a summary — forge stats, Docker
 usage, tool availability — and every number on it is a shortcut into the view
 that produced it.

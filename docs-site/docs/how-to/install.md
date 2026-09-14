@@ -8,9 +8,10 @@
   instead of icons.
 - Optional, and only if you want the feature: [Trivy](https://trivy.dev/)
   (CVE/misconfiguration scanning), [Gitleaks](https://github.com/gitleaks/gitleaks)
-  (secret detection), Docker (container management, image scanning). DevDesk
-  degrades gracefully when any of these is absent — the views that need them
-  say so rather than failing.
+  (secret detection), Docker **or** Podman (container management, image
+  scanning — see [Container engine](../explanation/network.md#container-engine-docker-or-podman)
+  for how DevDesk picks between them). DevDesk degrades gracefully when any
+  of these is absent — the views that need them say so rather than failing.
 
 ## Build from source
 
@@ -43,6 +44,13 @@ mise run install    # → dk, on your PATH if $GOPATH/bin is
 then, inside the app, `:about` (or `:version`) — it reports the exact
 version, commit and build date that were stamped into the binary at build
 time.
+
+## Create your first context
+
+`dk setup` walks you through creating a context — see
+[Run the setup wizard](run-the-setup-wizard.md). Running `dk` with no
+context yet also works; it starts with the defaults from
+[Configure a context](configure-a-context.md).
 
 !!! tip "Windows"
     Tasks that use POSIX shell syntax declare `shell = "bash -c"` in

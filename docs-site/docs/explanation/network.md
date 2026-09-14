@@ -6,6 +6,34 @@ never inside a privileged container. This page explains why that constraint
 exists, what it cost to satisfy, and how the diagnostics pipeline is built
 around it.
 
+## Container engine: Docker or Podman
+
+DevDesk drives a single container engine at a time — Docker or Podman — for
+image scanning, container management, and OCI resource browsing.
+`app.container_engine` (see [configuration reference](../reference/configuration.md))
+picks it: `auto` (the default) takes Docker if it's on `PATH` and falls back
+to Podman, `docker`/`podman` pin one explicitly, and anything else is read as
+a path to a binary. Picking one explicitly is worth doing if both are
+installed and you want DevDesk to never guess — a *pinned* engine that isn't
+installed is reported as an error rather than silently falling back to the
+other one, because the two don't hold the same containers.
+
+Everything DevDesk does through the engine — listing containers, pulling
+images, inspecting networks, scanning — goes through one `--format`
+invocation shape shared by both; only the binary name, the credential helper
+prefix, and the registry auth file location differ per engine. One exception:
+the detailed per-image disk usage breakdown (`system df -v`) is Docker-only —
+it's read by scraping a fixed-width table at column offsets, and Podman's
+output doesn't line up with them, so that specific view is disabled rather
+than shown wrong.
+
+Most views don't need to know which engine is active, but one place does: the
+OCI resources registry browser (`B` from the Images tab) builds the reference
+it hands to `pull` (`G`) itself, and under Podman that reference needs an
+explicit `docker.io/` prefix — Podman, unlike Docker, doesn't assume Docker
+Hub for a bare image name unless `unqualified-search-registries` is
+configured, which it isn't on a default Debian/Ubuntu or Fedora install.
+
 ## Why nothing runs in a privileged container anymore
 
 Earlier versions of these views ran diagnostic commands (`ss`, `ip addr`,

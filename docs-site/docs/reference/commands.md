@@ -37,3 +37,16 @@ One spelling per command — there is no forge-prefixed alternative
 opens the command line, from anywhere. A bare `:` does the same, but only
 when nothing is focused — inside a text field it's an ordinary character,
 which values like `https://trivy-server:4954` need.
+
+## CLI subcommands
+
+The `dk` binary itself takes one subcommand:
+
+| Subcommand | Runs |
+|---|---|
+| `dk` (no argument) | The full TUI |
+| `dk setup` | A standalone context-creation wizard — see [Run the setup wizard](../how-to/run-the-setup-wizard.md) |
+
+There is no flag-parsing framework behind this — `setup` is a single literal
+match on `os.Args[1]`, and it's the one thing that has to run *before* any
+context is loaded, since it's what creates the first one.
