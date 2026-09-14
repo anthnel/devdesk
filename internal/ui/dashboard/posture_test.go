@@ -453,75 +453,35 @@ func TestAnExpiredCertificateIsNotCountedAsAReadFailure(t *testing.T) {
 	}
 }
 
-// Each state carries its own glyph, including at zero: without that,
-// `expired` and `error` carried the same alert and became one line read as
-// two.
-func TestEachCertificateStateCarriesItsOwnGlyph(t *testing.T) {
-	m := healthModel(t, []status.ComponentStatus{certWithDays("google.com", 58)})
-	_, certs := healthColumns(m)
+// ── Monitor and certificate counts ───────────────────────────────────────────
 
-	for _, c := range []struct{ label, want string }{
-		{"valid", theme.IconOK},
-		{"to renew", theme.IconHourglass},
-		{"expired", theme.IconError},
-		{"error", theme.IconWarning},
-	} {
-		line := nodeUnder(certs, "Certs", c.label)
-		if !strings.Contains(line, c.want) {
-			t.Errorf("the %q node reads %q, want it to carry its own icon", c.label, line)
+// alertCount carries no icon: a run of these nodes (up/down/error,
+// valid/to renew/expired/error) each used to end on its own glyph, but the
+// glyph's width doesn't grow with the count, so a single- and a
+// double-digit line pushed their icon by a different number of cells and
+// the column of icons read as a staircase. Dropping it is what the label
+// already names — `down`, `to renew` — so nothing is lost by the count
+// standing alone.
+func TestAlertCountCarriesNoIcon(t *testing.T) {
+	for _, glyph := range []string{theme.IconOK, theme.IconError, theme.IconWarning, theme.IconHourglass} {
+		if got := stripANSI(alertCount(0, theme.StatusDownStyle)); strings.Contains(got, glyph) {
+			t.Errorf("alertCount(0) = %q, want no icon", got)
+		}
+		if got := stripANSI(alertCount(3, theme.StatusDownStyle)); strings.Contains(got, glyph) {
+			t.Errorf("alertCount(3) = %q, want no icon", got)
 		}
 	}
 }
 
-// ── Monitor and certificate icons ────────────────────────────────────────────
-
-// The icon names the line's state, not its count: a check mark on "down"
-// said "everything is fine" right where one is looking for how many are
-// down. The vocabulary is :status's own — a cross for DOWN, an alert for
-// ERROR.
-func TestTheDownAndErrorNodesKeepTheirOwnIconAtZero(t *testing.T) {
-	m := healthModel(t, []status.ComponentStatus{
-		{Name: "web", Type: status.TypeHTTPS, Status: status.StatusOK},
-	})
-	monitors, _ := healthColumns(m)
-
-	cases := []struct{ label, want string }{
-		{"down", theme.IconError},
-		{"error", theme.IconWarning},
+// Zero is dim — a red "0" would teach the reader the color instead of
+// alerting them — and a failing count takes the caller's own style, not a
+// fixed red: a certificate `to renew` stays warning-orange.
+func TestAlertCountIsDimAtZeroAndStyledOtherwise(t *testing.T) {
+	if got, want := alertCount(0, theme.StatusWarningStyle), theme.DimStyle.Render("0"); got != want {
+		t.Errorf("alertCount(0) = %q, want %q", got, want)
 	}
-	for _, c := range cases {
-		line := nodeUnder(monitors, "Monitors", c.label)
-		if strings.Contains(line, theme.IconOK) {
-			t.Errorf("the %q node reads %q — a check mark says the opposite of what the row counts", c.label, line)
-		}
-		if !strings.Contains(line, c.want) {
-			t.Errorf("the %q node reads %q, want it to carry its own icon", c.label, line)
-		}
-	}
-}
-
-// And the glyph does not change when the count goes to one: only the color
-// does, which stripANSI erases — hence the comparison across both states.
-func TestAFailingNodeKeepsTheGlyphItHadAtZero(t *testing.T) {
-	quiet := stripANSI(alertCount(0, theme.IconError, theme.StatusDownStyle))
-	failing := stripANSI(alertCount(3, theme.IconError, theme.StatusDownStyle))
-
-	if !strings.HasSuffix(quiet, theme.IconError) || !strings.HasSuffix(failing, theme.IconError) {
-		t.Errorf("the glyph changed with the count: %q then %q", quiet, failing)
-	}
-	if !strings.HasPrefix(failing, "3") {
-		t.Errorf("alertCount(3) = %q, want the count first and the icon on its right", failing)
-	}
-}
-
-// The count and the icon must carry the same color — the bug this pins was a
-// certificate "to renew" reading a red count next to its own orange
-// hourglass, one state told in two colors on the same line.
-func TestAlertCountAndItsIconShareOneColor(t *testing.T) {
-	got := alertCount(1, theme.IconHourglass, theme.StatusWarningStyle)
-	want := theme.StatusWarningStyle.Render("1") + theme.Bg("  ") + theme.StatusWarningStyle.Render(theme.IconHourglass)
-	if got != want {
-		t.Errorf("alertCount = %q, want %q — number and icon must share one style", got, want)
+	if got, want := alertCount(3, theme.StatusWarningStyle), theme.StatusWarningStyle.Render("3"); got != want {
+		t.Errorf("alertCount(3) = %q, want %q", got, want)
 	}
 }
 

@@ -363,9 +363,9 @@ func statusBranches(components []status.ComponentStatus, loading bool) []string 
 	default:
 		ok, down, errCount := countStatuses(components)
 		return nodes(
-			countValue(ok)+theme.Bg("  ")+theme.StatusOKStyle.Render(theme.IconOK),
-			alertCount(down, theme.IconError, theme.StatusDownStyle),
-			alertCount(errCount, theme.IconWarning, theme.StatusErrorStyle),
+			countValue(ok),
+			alertCount(down, theme.StatusDownStyle),
+			alertCount(errCount, theme.StatusErrorStyle),
 		)
 	}
 }
@@ -403,7 +403,7 @@ func certBranches(certs []status.ComponentStatus, loading bool, expiry string) [
 	default:
 		valid, toRenew, expired, errored := status.CertCounts(certs)
 		return nodes(
-			countValue(valid)+theme.Bg("  ")+certGlyph(status.CertValid),
+			countValue(valid),
 			certAlert(toRenew, status.CertToRenew),
 			certAlert(expired, status.CertExpired),
 			certAlert(errored, status.CertError),
@@ -411,16 +411,18 @@ func certBranches(certs []status.ComponentStatus, loading bool, expiry string) [
 	}
 }
 
-// certGlyph and certAlert read one state's glyph and colour from the theme
-// rather than naming them here: `:status` renders the same column, and two
-// lookup tables would eventually diverge on the one that matters — the one
-// that tells `expired` apart from `error`.
+// certGlyph reads one state's glyph and colour from the theme rather than
+// naming them here: `:status` renders the same column, and two lookup
+// tables would eventually diverge on the one that matters — the one that
+// tells `expired` apart from `error`. It backs certSummary, the single-line
+// form these counts also take at the `standard` tier; the tree nodes below
+// (certAlert) carry no icon — see alertCount.
 func certGlyph(state status.CertState) string {
 	return theme.CertStateStyle(string(state)).Render(theme.CertStateIcon(string(state)))
 }
 
 func certAlert(n int, state status.CertState) string {
-	return alertCount(n, theme.CertStateIcon(string(state)), theme.CertStateStyle(string(state)))
+	return alertCount(n, theme.CertStateStyle(string(state)))
 }
 
 // nothingConfigured says a tree watches nothing, and keeps the height it
@@ -433,26 +435,25 @@ func nothingConfigured(height int) []string {
 	return out
 }
 
-// alertCount renders one non-nominal state's tally. The glyph is the
-// state's own — a cross for DOWN, an alert for ERROR, an hourglass for a
-// coming renewal, :status's vocabulary — including at zero: a check mark on
-// the "down" line said "everything is fine" right where one is looking for
-// how many are down, and it's the line's state an icon names, not its
-// count.
+// alertCount renders one non-nominal state's tally, count only — no icon.
+// A run of these nodes used to each end on their own glyph (a cross for
+// DOWN, an alert for ERROR, an hourglass for a coming renewal), but the
+// glyph's width doesn't grow with the count: a single- and a double-digit
+// line push their icon by a different number of cells, so a stack of
+// up/down/error or valid/to renew/expired/error read as a staircase rather
+// than a column. Dropping the icon removes what there was to misalign; the
+// line's own label (`down`, `to renew`, …) already names the state, which
+// is what the glyph used to repeat.
 //
-// It's the color that carries the count: dimmed at zero, because a red
-// cross on "0 down" teaches the reader the color instead of alerting them.
-// The icon stays to the right of the number, as everywhere else.
-//
-// The number and the icon share **the same** style — the caller's, not a
-// fixed red: a certificate `to renew` is a warning (orange), not a finding
-// (severityCount's red), and a number colored one way next to an icon
-// colored another says the same fact twice in two different colors.
-func alertCount(n int, glyph string, style lipgloss.Style) string {
+// It's the color that carries the count: dimmed at zero, because a red "0"
+// teaches the reader the color instead of alerting them — the caller's
+// style, not a fixed red, so a certificate `to renew` stays warning-orange
+// rather than borrowing severityCount's red.
+func alertCount(n int, style lipgloss.Style) string {
 	if n == 0 {
-		return countValue(0) + theme.Bg("  ") + theme.DimStyle.Render(glyph)
+		return countValue(0)
 	}
-	return style.Render(fmt.Sprintf("%d", n)) + theme.Bg("  ") + style.Render(glyph)
+	return style.Render(fmt.Sprintf("%d", n))
 }
 
 // postureBranches renders one family's tally, one figure per node.
