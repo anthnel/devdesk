@@ -1,0 +1,100 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "0f160f7e5fe8",
+  "session_id": "14b57c2b-15bb-49b2-85b6-f24ab4c72654",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-14T16:40:17.3829814Z",
+  "branch": "docs/podman-fuzzyfind-setup",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "docs-site/docs/explanation/network.md",
+    "docs-site/docs/explanation/workspaces.md",
+    "docs-site/docs/how-to/configure-a-context.md",
+    "docs-site/docs/how-to/install.md",
+    "docs-site/docs/how-to/run-the-setup-wizard.md",
+    "docs-site/docs/index.md",
+    "docs-site/docs/reference/commands.md",
+    "docs-site/docs/reference/configuration.md",
+    "docs-site/docs/reference/keybindings.md",
+    "docs-site/docs/tutorial/first-session.md",
+    "docs-site/mkdocs.yml"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "8dc18e6ad43e",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 100,
+    "cache_creation_tokens": 144362,
+    "cache_read_tokens": 7451068,
+    "output_tokens": 19525,
+    "api_call_count": 50
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-14T16:40:17.323344Z",
+    "agent_lines": 144,
+    "agent_removed": 9,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 144,
+    "total_lines_changed": 153,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 307,
+      "user_lines_removed": 303,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 1090,
+      "user_lines_removed": 104,
+      "agent_lines_added": 345,
+      "agent_lines_removed": 1192,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs/architecture/workspaces.md": 48,
+        "internal/ui/keymap/keymap.go": 4,
+        "internal/ui/workspaces/fuzzyfind.go": 202,
+        "internal/ui/workspaces/fuzzyfind_test.go": 161,
+        "internal/ui/workspaces/fuzzymatch.go": 52,
+        "internal/ui/workspaces/fuzzymatch_test.go": 64,
+        "internal/ui/workspaces/fuzzywalk.go": 114,
+        "internal/ui/workspaces/fuzzywalk_test.go": 104,
+        "internal/ui/workspaces/jump_test.go": 88,
+        "internal/ui/workspaces/model.go": 8,
+        "internal/ui/workspaces/update.go": 108,
+        "internal/ui/workspaces/view.go": 30
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "internal/ui/workspaces/update.go": 1
+      }
+    }
+  ]
+}

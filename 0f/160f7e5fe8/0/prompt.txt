@@ -1,0 +1,1 @@
+mets à jour la documentation du site en reprenant les derniers changements : podman, fuzzy find, setup
