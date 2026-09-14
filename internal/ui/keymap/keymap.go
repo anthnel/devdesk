@@ -210,6 +210,10 @@ var localToggles = []Surface{
 	{"netdiag/checks", "ui/netdiag/", []string{"p"}},
 	{"oci/browser", "ui/oci_resources/browser_", []string{"r"}},
 	{"security/findings", "ui/security/", []string{"c", "h", "m", "l"}},
+	// g opens the fuzzy-find prompt across the whole workspaces tree. Same
+	// justification as the viewer's g: the jump takes an argument (the typed
+	// query), which is not a role home/end/G could ever cover.
+	{"workspaces", "ui/workspaces/", []string{"g"}},
 }
 
 // LocalToggles returns the declared surfaces.

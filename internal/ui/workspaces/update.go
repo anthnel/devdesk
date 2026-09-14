@@ -44,6 +44,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updateTableSize()
+		if m.fuzzyFinder != nil {
+			m.fuzzyFinder.Resize(m.width, max(m.height-1, 1))
+		}
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
@@ -66,6 +69,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.pendingCursor >= 0 {
 			m.table.SetCursor(m.pendingCursor)
 			m.pendingCursor = -1
+		}
+		if m.pendingSelectPath != "" {
+			if idx, ok := m.indexOfPath(m.pendingSelectPath); ok {
+				m.table.SetCursor(idx)
+			}
+			m.pendingSelectPath = ""
 		}
 		// Anything an agent asked for before this view had read the directory
 		// waited for exactly this (§3.61) — see deferUntilLoaded.
@@ -179,6 +188,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case WorkspaceSyncCompleteMsg:
 		return m.handleWorkspaceSyncComplete(msg)
 
+	case FuzzyPathsLoadedMsg:
+		if m.fuzzyFinder != nil {
+			m.fuzzyFinder.SetCandidates(msg.Candidates, msg.Skipped)
+		}
+		return m, nil
+
+	case FuzzyFindCancelMsg:
+		m.mode = ModeNormal
+		m.fuzzyFinder = nil
+		return m, nil
+
+	case FuzzyFindConfirmMsg:
+		m.mode = ModeNormal
+		m.fuzzyFinder = nil
+		return m.jumpToPath(msg.Path)
+
 	}
 
 	m.footer.Handle(msg)
@@ -231,6 +256,13 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSelectionKeyMsg(msg)
 	}
 
+	// Mode fuzzy-finding - delegate to the prompt
+	if m.mode == ModeFuzzyFinding && m.fuzzyFinder != nil {
+		var cmd tea.Cmd
+		m.fuzzyFinder, cmd = m.fuzzyFinder.Update(msg)
+		return m, cmd
+	}
+
 	// Normal mode. The actions the header greys out are refused here, from the
 	// same actionSet — one calculation, two readers, so a greyed key that still
 	// acts is not expressible.
@@ -243,6 +275,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.guard(a.Enter, m.openScanDetails)
 	case "ctrl+r":
 		return m, m.loadEntries()
+	case "g":
+		return m.startFuzzyFind()
 	case keymap.New:
 		return m.startAdd()
 	case keymap.Rename:
@@ -406,6 +440,68 @@ func (m Model) startAdd() (tea.Model, tea.Cmd) {
 	m.mode = ModeAdding
 	m.input = NewWorkspaceInput()
 	return m, nil
+}
+
+// startFuzzyFind opens the "g" prompt and kicks off the whole-tree walk
+// behind it. The walk runs in the returned Cmd, never here (Rule 110).
+func (m Model) startFuzzyFind() (tea.Model, tea.Cmd) {
+	m.mode = ModeFuzzyFinding
+	m.fuzzyFinder = NewFuzzyFinder()
+	m.fuzzyFinder.Resize(m.width, max(m.height-1, 1))
+	return m, m.walkWorkspaceDirsCmd()
+}
+
+// jumpToPath synthesizes the drill-down state navigateIn would have built
+// had the user manually entered every directory down to target's parent,
+// then requests that parent's listing with target queued for selection once
+// it lands (see the EntriesLoadedMsg handler above).
+//
+// The result is what navigateIn's append(m.navigationStack, m.currentPath)
+// builds one step at a time: currentPath becomes target's immediate parent,
+// and navigationStack holds every ancestor above that, shallowest first.
+func (m Model) jumpToPath(target string) (tea.Model, tea.Cmd) {
+	root := m.getExpandedWorkspacesDir()
+	parent := filepath.Dir(target)
+
+	if parent == root {
+		m.currentPath = ""
+		m.navigationStack = nil
+	} else {
+		var ancestors []string // deepest first: parent, parent's parent, ...
+		for p := parent; p != root; p = filepath.Dir(p) {
+			ancestors = append(ancestors, p)
+			if filepath.Dir(p) == p {
+				// Reached the filesystem root without crossing the
+				// workspaces root — target is not under it. Nothing sane to
+				// jump to; leave the current listing alone.
+				return m, nil
+			}
+		}
+		m.currentPath = ancestors[0]
+		m.navigationStack = make([]string, 0, len(ancestors)-1)
+		for i := len(ancestors) - 1; i > 0; i-- {
+			m.navigationStack = append(m.navigationStack, ancestors[i])
+		}
+	}
+
+	// No real cursor history exists for levels the user never actually
+	// browsed through — each restores to the top of its listing.
+	m.cursorStack = make([]int, len(m.navigationStack))
+	m.pendingCursor = -1
+	m.pendingSelectPath = target
+	m.activeTabIndex = m.tabCount() - 1
+	return m, m.loadEntries()
+}
+
+// indexOfPath finds the row for an absolute path among the entries the
+// table currently holds, for pendingSelectPath's by-path cursor restoration.
+func (m Model) indexOfPath(path string) (int, bool) {
+	for i, e := range m.entries() {
+		if e.Path == path {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // startDelete switches to confirm mode for deleting an entry

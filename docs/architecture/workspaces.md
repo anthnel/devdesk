@@ -262,3 +262,40 @@ emitted its starting message *before* waiting on the worker pool, so every
 repository in a batch reported itself running the instant the batch was
 dispatched: twelve spinners for four workers. The message now waits for its turn
 in the pool, which is what moves the item from queued to running.
+
+## Fuzzy find (`g`)
+
+`g` opens a prompt (`FuzzyFinder`, `fuzzyfind.go`): type at least 3
+characters and a ranked list of directories anywhere under the workspaces
+root appears, `Enter` on one drills there. The view has no tree in memory —
+`currentPath`/`navigationStack`/`cursorStack` describe one listing at a
+time (drill-down, above) — so a jump is not a lookup into existing state on
+either side of it:
+
+- **Finding candidates** (`fuzzywalk.go`) is a fresh whole-tree walk every
+  time the prompt opens, run as a `Cmd` and reported back as
+  `FuzzyPathsLoadedMsg`. `walkAllDirs` shares `isHidden`, `leadsToDir`,
+  `mayFollow` and `holdsRepo` with `walkSubRepos` above — the same cycle
+  guard, the same junction handling — and stops at the same boundary: it
+  finds a repository and records it, but does not walk *into* one. A
+  repository is a valid target to jump to; its own `node_modules` or
+  `vendor` is not a candidate, for the same reason it is never a scan
+  target on its own.
+- **Ranking** (`fuzzymatch.go`) is a plain subsequence match with no
+  dependency behind it — none existed anywhere in this codebase before this
+  — scored higher for a consecutive run of matched characters and for a
+  match landing right after a `/`.
+- **Landing** (`jumpToPath`, `update.go`) does not walk anything: it
+  computes, in one shot, the `currentPath`/`navigationStack` that manually
+  drilling down to the target's parent would have built one `navigateIn`
+  step at a time, then requests that listing with the target queued for
+  selection by absolute path (`pendingSelectPath`) once it loads — a listing
+  is read in whatever order the filesystem gives it, so the row is found by
+  path rather than assumed to land at a particular index.
+
+`g` is a lowercase, view-local binding (`keymap.localToggles`), the same
+mechanism the document viewer's own `g` — "go to line" — already uses, and
+for the same reason: the jump takes an argument, which is not a role
+`home`/`end`/an uppercase action could cover. Uppercase `G` already means
+"pull" elsewhere in the application (`oci_resources`) and stays that; this
+is a different letter's case, not a second meaning for the same one.

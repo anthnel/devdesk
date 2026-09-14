@@ -24,6 +24,7 @@ const (
 	ModeRenaming
 	ModeSelecting         // Selecting a directory for another view (e.g., security)
 	ModeConfirmingScanAll // A asked to scan everything; the modal carries the purge option
+	ModeFuzzyFinding      // g asked to jump to a directory anywhere under the workspaces root
 )
 
 // Model represents the Workspaces view's model
@@ -46,6 +47,11 @@ type Model struct {
 	navigationStack []string // Stack of parent paths for breadcrumb tabs
 	cursorStack     []int    // Cursor positions per level for restoration on navigate-up
 	pendingCursor   int      // Cursor to restore after async loadEntries (-1 = none)
+	// pendingSelectPath is jumpToPath's counterpart to pendingCursor: a
+	// fuzzy-find jump knows the target's absolute path but not its index in
+	// the not-yet-loaded listing, so EntriesLoadedMsg resolves it by path
+	// instead of by position once the load lands.
+	pendingSelectPath string
 
 	// Tab navigation
 	activeTabIndex int
@@ -62,6 +68,8 @@ type Model struct {
 	// entry rather than its row index: the index meant nothing once the list it
 	// indexed stopped being the list on screen (D24).
 	pendingEntry *Entry
+	// fuzzyFinder is the "g" prompt while ModeFuzzyFinding is active.
+	fuzzyFinder *FuzzyFinder
 
 	// Scan cache: keyed by absolute repo path
 	scanCache map[string]cache.WorkspaceScanEntry

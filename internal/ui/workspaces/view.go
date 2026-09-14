@@ -67,6 +67,12 @@ func (m Model) View() string {
 		)
 	}
 
+	// Mode fuzzy-finding - full viewport, a ranked list needs real space
+	// (Rule 112), unlike the centered overlays above.
+	if m.mode == ModeFuzzyFinding && m.fuzzyFinder != nil {
+		return m.fuzzyFinder.View()
+	}
+
 	// Content style with left padding (for non-table states only)
 	contentStyle := lipgloss.NewStyle().Background(theme.ColorBackground).PaddingLeft(1)
 
@@ -89,6 +95,8 @@ func (m Model) GetFooterHeight() int {
 	switch m.mode {
 	case ModeSelecting:
 		return 3 // tab bar + empty line + info line (mirrors RenderFooter in ModeSelecting)
+	case ModeFuzzyFinding:
+		return 2 // empty line + info line, same footer the results view sits above
 	case ModeNormal:
 		if len(m.table.Items()) > 0 && m.error == "" {
 			// filter bar (when visible) + breadcrumb tab bar + empty line + info line
@@ -103,6 +111,10 @@ func (m Model) RenderFooter(width int) string {
 	if m.mode == ModeSelecting {
 		infoLine := m.footer.View(width, sharedcomponents.Status{Text: m.selectionMessage})
 		return m.renderTabBar() + "\n" + theme.EmptyLineBg(width) + "\n" + infoLine
+	}
+	if m.mode == ModeFuzzyFinding && m.fuzzyFinder != nil {
+		infoLine := m.footer.View(width, sharedcomponents.Status{Text: m.fuzzyFinder.StatusText()})
+		return theme.EmptyLineBg(width) + "\n" + infoLine
 	}
 	if m.mode == ModeNormal && len(m.table.Items()) > 0 && m.error == "" {
 		var parts []string
@@ -444,6 +456,14 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 	}
 
+	// Fuzzy-finding mode
+	if m.mode == ModeFuzzyFinding {
+		return []shortcut.Shortcut{
+			{Key: "enter", Description: "Jump to directory"},
+			{Key: "esc", Description: "Cancel"},
+		}
+	}
+
 	// Normal mode — every action of this mode is listed, in one order, and the
 	// ones that do not apply to the current row are greyed out (Rule 130).
 	//
@@ -474,6 +494,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: keymap.Delete, Description: "Delete", Disabled: !a.Delete.Enabled()},
 		{Key: "ctrl+r", Description: "Refresh"},
 		{Key: "/", Description: "Search"},
+		{Key: "g", Description: "Fuzzy find"},
 		{Key: "ctrl+p", Description: "Command"},
 		{Key: "?", Description: "Help"},
 	}
@@ -525,6 +546,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: keymap.ScanAll, Description: "Scan every git repo in the current view. The confirmation carries a checkbox to purge the cached results first — unchecked, only what has never been scanned is scanned"},
 			{Key: "ctrl+r", Description: "Refresh the list"},
 			{Key: "/", Description: "Filter the list by name or git remote"},
+			{Key: "g", Description: "Fuzzy find a directory anywhere under the workspaces root"},
 			{Key: "ctrl+p", Description: "Open command mode"},
 			{Key: "?", Description: "Show this help"},
 		},
@@ -540,6 +562,10 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Navigation",
 				Body:  "The browser uses a drill-down model. Press → on a directory to see its contents. Press ← to go back. Tabs at the bottom show your current path.",
+			},
+			{
+				Title: "Fuzzy find",
+				Body:  "Press g to jump straight to a directory anywhere under the workspaces root, without drilling down level by level. Type at least 3 characters to search; move through the ranked results with ↑↓ and press Enter to land in that directory's parent listing with it selected, or Esc to cancel. The search covers directories only — not files — and does not descend into a git repository's own contents, mirroring how S, F and A discover nested repositories.",
 			},
 			{
 				Title: "Git Status",
