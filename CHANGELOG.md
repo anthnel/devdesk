@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.3.0](https://github.com/anthnel/devdesk/compare/v1.2.0...v1.3.0) (2026-09-14)
+
+
+### Features
+
+* add `dk setup` wizard to guide new context creation ([#205](https://github.com/anthnel/devdesk/issues/205)) ([18bce2f](https://github.com/anthnel/devdesk/commit/18bce2f6f681289ec1d85ee23b73afdcc6e4152e))
+* support Podman as an alternative container engine ([ca6fecc](https://github.com/anthnel/devdesk/commit/ca6fecc0f6ba6bed6e99bc548d220453a81023af))
+* view a monitor's SSL certificate chain in the document viewer ([85fb52a](https://github.com/anthnel/devdesk/commit/85fb52ab22e5a187416814380bd5781611927eeb))
+* **workspaces:** add fuzzy-find navigation (g) ([#207](https://github.com/anthnel/devdesk/issues/207)) ([d1229f5](https://github.com/anthnel/devdesk/commit/d1229f58b4ba56d31c43d2361dafb46e7a6114a0))
+
+
+### Bug Fixes
+
+* correct podman --format templates for Info, NetworkLS, SystemDF ([#202](https://github.com/anthnel/devdesk/issues/202)) ([88afb2f](https://github.com/anthnel/devdesk/commit/88afb2f0f09958d338623dfd24e62f488d2e9069))
+* drop icons from the Health box's stacked count nodes ([#206](https://github.com/anthnel/devdesk/issues/206)) ([8ca1b61](https://github.com/anthnel/devdesk/commit/8ca1b614290d764f4d133d9dc61e137bb1e78a45))
+* qualify Docker Hub pull references with docker.io under podman ([#203](https://github.com/anthnel/devdesk/issues/203)) ([6b5f1a9](https://github.com/anthnel/devdesk/commit/6b5f1a97de091bd3797a94aa808f7f253331453b))
+* replace truncated "gl" placeholder in the registry alias field ([#204](https://github.com/anthnel/devdesk/issues/204)) ([3debe52](https://github.com/anthnel/devdesk/commit/3debe52b950f6cef551b733ee293ac96d21df264))
+
 ## [1.2.0](https://github.com/anthnel/devdesk/compare/v1.1.1...v1.2.0) (2026-09-11)
 
 
