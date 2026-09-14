@@ -42,5 +42,5 @@ and how contexts are switched. If a context with that name already exists,
 it asks before overwriting.
 
 When it finishes, it reports the path it wrote and any warning (a token that
-couldn't be saved, for instance) — then `dk` starts the full TUI against the
-context you just created.
+couldn't be saved, for instance), then exits — it does not launch the TUI
+itself. Run `dk` to start it against the context you just created.
