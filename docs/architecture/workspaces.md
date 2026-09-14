@@ -293,6 +293,17 @@ either side of it:
   is read in whatever order the filesystem gives it, so the row is found by
   path rather than assumed to land at a particular index.
 
+**The query lives in the footer's bar slot, not the viewport.** `FuzzyFinder`
+splits the same way the document viewer's `g` does: `View()` is the ranked
+results table — the whole viewport, since a list needs real space — and
+`RenderBar` draws the query through `components.BarFrame`, the identical
+frame the "/" filter and the viewer's `renderGotoBar` already use, so the
+rectangle that closes the viewport is the same one whichever of the three is
+in it. `GetFooterHeight()` answers 4 while the mode is active (the bar's own
+2 lines plus the usual empty-line-and-info-line), and the router notices the
+change after the `g` keypress and re-lays-out on its own
+(`app.forwardToActiveView`) — nothing here has to ask for it.
+
 `g` is a lowercase, view-local binding (`keymap.localToggles`), the same
 mechanism the document viewer's own `g` — "go to line" — already uses, and
 for the same reason: the jump takes an argument, which is not a role

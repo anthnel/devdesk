@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -46,7 +47,6 @@ type FuzzyFinder struct {
 	candidates []fuzzyCandidate
 	skipped    int
 	results    datatable.Model[fuzzyRow]
-	width      int
 }
 
 // NewFuzzyFinder creates the prompt, focused, with an empty result set — the
@@ -94,13 +94,12 @@ func (f *FuzzyFinder) SetCandidates(candidates []fuzzyCandidate, skipped int) {
 	f.rematch()
 }
 
-// Resize adapts the prompt to the viewport, mirroring updateTableSize: the
-// query line and the blank line separating it from the results are outside
-// the inner table's own budget.
+// Resize adapts the prompt to the viewport, mirroring updateTableSize
+// exactly — the query lives in the footer's bar slot now (RenderBar), so
+// the results table is the whole viewport, the same as the normal browse
+// table.
 func (f *FuzzyFinder) Resize(width, height int) {
-	f.width = width
-	f.query.Width = max(width-4, 10)
-	f.results.Resize(width, max(height-2, 1))
+	f.results.Resize(width, max(height-1, 1))
 }
 
 // Update handles input while the prompt is active.
@@ -163,26 +162,41 @@ func (f *FuzzyFinder) rematch() {
 
 // StatusText is the footer's one line while the prompt is open.
 func (f *FuzzyFinder) StatusText() string {
-	query := strings.TrimSpace(f.query.Value())
 	switch {
 	case f.loading:
 		return "Scanning workspace directories..."
-	case len(query) < minFuzzyQueryLen:
+	case len(strings.TrimSpace(f.query.Value())) < minFuzzyQueryLen:
 		return "Type at least 3 characters to search"
-	case len(f.results.Items()) == 0:
-		return "No matches"
 	default:
-		return fmt.Sprintf("%d match(es)", len(f.results.Items()))
+		return ""
 	}
 }
 
-// View renders the prompt full-viewport: the query line, a blank line, then
-// the ranked results table. A ranked list needs real vertical space, which
-// is why this does not follow ModeAdding/ModeRenaming's centered-overlay
-// pattern in this same package — full-viewport is what Rule 112 itself
-// asks for.
+// matchHint is the bar's inline count, the same role goto's "1-N" plays.
+func (f *FuzzyFinder) matchHint() string {
+	query := strings.TrimSpace(f.query.Value())
+	if f.loading || len(query) < minFuzzyQueryLen {
+		return ""
+	}
+	return fmt.Sprintf("%d match(es)", len(f.results.Items()))
+}
+
+// RenderBar draws the query in the filter bar's own frame — the same slot
+// and the same components.BarFrame the "/" filter and the viewer's own "g"
+// (go to line) already use, so the rectangle that closes the viewport is
+// the same one whichever occupies it.
+func (f *FuzzyFinder) RenderBar(width int) string {
+	inner := theme.Bg(" ") + theme.KeyStyle.Render("Find") +
+		theme.Bg(" ") + theme.DimStyle.Render(theme.IconChevronRight) + theme.Bg(" ") +
+		f.query.View()
+	if hint := f.matchHint(); hint != "" {
+		inner += theme.Bg("  ") + theme.DimStyle.Render(hint)
+	}
+	return sharedcomponents.BarFrame(width, inner)
+}
+
+// View renders the ranked results — the whole viewport, now that the query
+// lives in the footer's bar slot (RenderBar).
 func (f *FuzzyFinder) View() string {
-	label := theme.KeyStyle.Render(theme.IconCircleSmall + " Find " + theme.IconChevronRight + " ")
-	queryLine := theme.BgLine(label+f.query.View(), f.width)
-	return queryLine + "\n" + theme.EmptyLineBg(f.width) + "\n" + f.results.View()
+	return f.results.View()
 }

@@ -1,11 +1,12 @@
 package workspaces
 
 import (
+	"strings"
+	"testing"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/ui/testutil"
-
-	"testing"
 )
 
 func TestGOpensTheFuzzyFindPrompt(t *testing.T) {
@@ -18,6 +19,33 @@ func TestGOpensTheFuzzyFindPrompt(t *testing.T) {
 	}
 	if m.fuzzyFinder == nil {
 		t.Fatal("g did not create a FuzzyFinder")
+	}
+	if got := m.GetFooterHeight(); got != 4 {
+		t.Errorf("GetFooterHeight = %d, want 4 (bar + empty line + info line)", got)
+	}
+}
+
+// The query sits in the same footer bar frame the "/" filter and the
+// viewer's own "g" (go to line) already use, not a line inside the
+// viewport — RenderFooter, not View, is what draws it.
+func TestFuzzyFindQuerySitsInTheFilterBarSlot(t *testing.T) {
+	m := newTestModel(t)
+	m, _ = step(t, m, testutil.Key("g"))
+	m = feed(t, m, FuzzyPathsLoadedMsg{Candidates: []fuzzyCandidate{{Abs: "/tmp/workspaces/devdesk", Rel: "devdesk"}}})
+	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("dev")})
+
+	footer := m.RenderFooter(80)
+	if !strings.Contains(footer, "Find") {
+		t.Errorf("RenderFooter = %q, want the bar's \"Find\" label", footer)
+	}
+	if !strings.Contains(footer, "dev") {
+		t.Errorf("RenderFooter = %q, want the typed query", footer)
+	}
+	if !strings.Contains(footer, "1 match(es)") {
+		t.Errorf("RenderFooter = %q, want the match count", footer)
+	}
+	if strings.Contains(m.View(), "Find") {
+		t.Errorf("View() = %q, the query bar belongs in the footer, not the viewport", m.View())
 	}
 }
 
@@ -36,8 +64,8 @@ func TestFuzzyFindJumpsToTheSelectedDirectory(t *testing.T) {
 
 	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a/b")})
 
-	if got := m.fuzzyFinder.StatusText(); got != "1 match(es)" {
-		t.Fatalf("StatusText = %q, want a single match reported", got)
+	if got := m.fuzzyFinder.matchHint(); got != "1 match(es)" {
+		t.Fatalf("matchHint = %q, want a single match reported", got)
 	}
 
 	_, cmd := step(t, m, testutil.Key("enter"))

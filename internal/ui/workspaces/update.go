@@ -45,7 +45,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.updateTableSize()
 		if m.fuzzyFinder != nil {
-			m.fuzzyFinder.Resize(m.width, max(m.height-1, 1))
+			m.fuzzyFinder.Resize(m.width, m.height)
 		}
 
 	case tea.KeyMsg:
@@ -447,7 +447,10 @@ func (m Model) startAdd() (tea.Model, tea.Cmd) {
 func (m Model) startFuzzyFind() (tea.Model, tea.Cmd) {
 	m.mode = ModeFuzzyFinding
 	m.fuzzyFinder = NewFuzzyFinder()
-	m.fuzzyFinder.Resize(m.width, max(m.height-1, 1))
+	// Best-effort immediate sizing; the router notices the footer height just
+	// changed and re-lays-out right after this returns, which is what actually
+	// settles it (internal/app.forwardToActiveView, Rule 124).
+	m.fuzzyFinder.Resize(m.width, m.height)
 	return m, m.walkWorkspaceDirsCmd()
 }
 

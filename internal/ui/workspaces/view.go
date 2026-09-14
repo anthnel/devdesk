@@ -67,8 +67,10 @@ func (m Model) View() string {
 		)
 	}
 
-	// Mode fuzzy-finding - full viewport, a ranked list needs real space
-	// (Rule 112), unlike the centered overlays above.
+	// Mode fuzzy-finding - the ranked results are the whole viewport (a list
+	// needs real space, per Rule 112), while the query itself lives in the
+	// footer's bar slot — RenderFooter, same frame the "/" filter and the
+	// viewer's own "g" (go to line) use.
 	if m.mode == ModeFuzzyFinding && m.fuzzyFinder != nil {
 		return m.fuzzyFinder.View()
 	}
@@ -96,7 +98,9 @@ func (m Model) GetFooterHeight() int {
 	case ModeSelecting:
 		return 3 // tab bar + empty line + info line (mirrors RenderFooter in ModeSelecting)
 	case ModeFuzzyFinding:
-		return 2 // empty line + info line, same footer the results view sits above
+		// the query bar (same 2-line frame the "/" filter and the viewer's
+		// go-to-line prompt use) + empty line + info line
+		return 4
 	case ModeNormal:
 		if len(m.table.Items()) > 0 && m.error == "" {
 			// filter bar (when visible) + breadcrumb tab bar + empty line + info line
@@ -114,7 +118,7 @@ func (m Model) RenderFooter(width int) string {
 	}
 	if m.mode == ModeFuzzyFinding && m.fuzzyFinder != nil {
 		infoLine := m.footer.View(width, sharedcomponents.Status{Text: m.fuzzyFinder.StatusText()})
-		return theme.EmptyLineBg(width) + "\n" + infoLine
+		return m.fuzzyFinder.RenderBar(width) + "\n" + theme.EmptyLineBg(width) + "\n" + infoLine
 	}
 	if m.mode == ModeNormal && len(m.table.Items()) > 0 && m.error == "" {
 		var parts []string
