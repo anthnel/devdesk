@@ -3,7 +3,7 @@
   "checkpoint_id": "00cd0f1b8588",
   "strategy": "manual-commit",
   "branch": "docs/fix-review-findings",
-  "checkpoints_count": 3,
+  "checkpoints_count": 4,
   "files_touched": [
     "docs-site/docs/explanation/network.md",
     "docs-site/docs/how-to/run-the-setup-wizard.md",
@@ -16,13 +16,20 @@
       "compact_transcript": "/00/cd0f1b8588/0/transcript.jsonl",
       "content_hash": "/00/cd0f1b8588/0/content_hash.txt",
       "prompt": "/00/cd0f1b8588/0/prompt.txt"
+    },
+    {
+      "metadata": "/00/cd0f1b8588/1/metadata.json",
+      "transcript": "/00/cd0f1b8588/1/full.jsonl",
+      "compact_transcript": "/00/cd0f1b8588/1/transcript.jsonl",
+      "content_hash": "/00/cd0f1b8588/1/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 30,
-    "cache_creation_tokens": 15241,
-    "cache_read_tokens": 2889795,
-    "output_tokens": 6254,
-    "api_call_count": 15
+    "input_tokens": 176,
+    "cache_creation_tokens": 400347,
+    "cache_read_tokens": 14800774,
+    "output_tokens": 35202,
+    "api_call_count": 88
   }
 }
