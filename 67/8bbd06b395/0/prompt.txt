@@ -1,0 +1,5 @@
+est-ce que le champ de recherche ne pourrait pas être au même endroit que le filtre
+
+---
+
+regarde capture1 et capture2 en fuzzy search la bordure en bas n'est pas complètement fermée par contre c'est bien le cas en mode filtre
