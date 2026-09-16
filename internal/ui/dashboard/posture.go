@@ -155,18 +155,6 @@ func (m Model) unscannedRepositories() (int, bool) {
 	return uncovered(m.workspaceCount, m.posture.Repositories.Targets), true
 }
 
-// unscannedTotal folds both, for the tiers too narrow to show them apart. A
-// single missing half is enough to make the total unmeasured: the sum of a
-// number and an unknown is an unknown.
-func (m Model) unscannedTotal() (int, bool) {
-	images, okImages := m.unscannedImages()
-	repositories, okRepositories := m.unscannedRepositories()
-	if !okImages || !okRepositories {
-		return 0, false
-	}
-	return images + repositories, true
-}
-
 // uncovered is the inventory minus what has been scanned, floored at zero:
 // the cache keeps the entry of an image deleted since, so the difference can
 // go below zero — and "there are fewer than zero left to scan" isn't a
