@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "280d2b1c561e",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 22,
+  "files_touched": [
+    ".worktrees/tmp-podman-templates-fix/docs/backlog.md",
+    ".worktrees/tmp-podman-templates-fix/internal/engine/engine.go",
+    ".worktrees/tmp-podman-templates-fix/internal/engine/engine_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/28/0d2b1c561e/0/metadata.json",
+      "transcript": "/28/0d2b1c561e/0/full.jsonl",
+      "compact_transcript": "/28/0d2b1c561e/0/transcript.jsonl",
+      "content_hash": "/28/0d2b1c561e/0/content_hash.txt",
+      "prompt": "/28/0d2b1c561e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 272,
+    "cache_creation_tokens": 430741,
+    "cache_read_tokens": 25755891,
+    "output_tokens": 49561,
+    "api_call_count": 136
+  }
+}
