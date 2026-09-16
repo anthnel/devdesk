@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "022a0d842d14",
+  "strategy": "manual-commit",
+  "branch": "feat/visibility-limited-by-parent",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/architecture/forge.md",
+    "docs/backlog.md",
+    "internal/ui/forge/explorer/create.go",
+    "internal/ui/forge/explorer/view.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/02/2a0d842d14/0/metadata.json",
+      "transcript": "/02/2a0d842d14/0/full.jsonl",
+      "compact_transcript": "/02/2a0d842d14/0/transcript.jsonl",
+      "content_hash": "/02/2a0d842d14/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 140,
+    "cache_creation_tokens": 147315,
+    "cache_read_tokens": 17180940,
+    "output_tokens": 44088,
+    "api_call_count": 70
+  }
+}
