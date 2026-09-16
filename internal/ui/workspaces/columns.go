@@ -12,6 +12,7 @@ import (
 const (
 	colNameMin        = 16
 	colGitFixed       = 28
+	colLastTagFixed   = 10
 	colSensitiveFixed = 7
 	colCFixed         = 4
 	colHFixed         = 4
@@ -106,6 +107,11 @@ func workspaceColumns(withCI bool) []datatable.Column[workspaceRow] {
 			Style: gitStatusStyle,
 		},
 		{
+			Title: "Last Tag", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colLastTagFixed,
+			Cell:  func(r workspaceRow) string { return r.Entry.GitLastTag },
+			Style: lastTagStyle,
+		},
+		{
 			Title: "Secrets", Sizing: datatable.SizingFixed, MinWidth: colSensitiveFixed,
 			Cell:  func(r workspaceRow) string { return r.Sensitive.Text },
 			Style: func(r workspaceRow) lipgloss.Style { return theme.SecretsStyle(r.Sensitive.State) },
@@ -160,6 +166,17 @@ func gitStatusStyle(r workspaceRow) lipgloss.Style {
 		return theme.StatusWarningStyle
 	}
 	// No opinion here: the table sets the theme's text color.
+	return lipgloss.NewStyle()
+}
+
+// lastTagStyle dims the cell for the common case — a repository with no tag
+// reachable from HEAD — the same way count() dims a zero count, rather than
+// leaving an untagged repository looking identical to a tagged one in
+// ordinary text color.
+func lastTagStyle(r workspaceRow) lipgloss.Style {
+	if r.Entry.GitLastTag == "" {
+		return theme.DimStyle
+	}
 	return lipgloss.NewStyle()
 }
 

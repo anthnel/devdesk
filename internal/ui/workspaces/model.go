@@ -143,6 +143,7 @@ type Entry struct {
 	GitUntracked   int
 	GitUnpushed    int
 	GitUnpulled    int
+	GitLastTag     string // nearest tag reachable from HEAD, or "" if none
 }
 
 // New creates a new instance of the workspaces model.

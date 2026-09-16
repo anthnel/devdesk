@@ -37,6 +37,12 @@ type RepoStatus struct {
 	// moves: a repository forty commits behind reads 0 until something fetches.
 	// Sync is what makes it true, because it fetches first and always.
 	Behind int
+
+	// LastTag is the nearest tag reachable from HEAD, lightweight or
+	// annotated. Empty means what it says for a repository — no tag reachable
+	// from here — and not an error: most repositories are never tagged at
+	// all, so this is the ordinary case rather than the exception.
+	LastTag string
 }
 
 // ReadStatus reads a working copy. It runs no network operation, so what it
@@ -75,6 +81,8 @@ func ReadStatus(repoPath string) (RepoStatus, error) {
 		status.Behind, status.Ahead = behind, ahead
 	}
 
+	status.LastTag = lastTagOf(repoPath)
+
 	return status, nil
 }
 
@@ -91,6 +99,17 @@ func branchOf(repoPath string) string {
 		return strings.TrimSpace(out)
 	}
 	return ""
+}
+
+// lastTagOf names the nearest tag reachable from HEAD, or "" when the
+// repository has none — that is the common case, not a failure, so the error
+// `git describe` returns for it is discarded rather than propagated.
+func lastTagOf(repoPath string) string {
+	out, err := run(repoPath, "", "describe", "--tags", "--abbrev=0")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
 }
 
 // countPorcelain splits `git status --porcelain` into what is tracked and
