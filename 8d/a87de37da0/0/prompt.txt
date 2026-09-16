@@ -1,0 +1,5 @@
+dans la vue git-explorer, si je ne suis pas connecté à gitlab, il me met le message dans la datatable, alors que la règle dit que le datatable doit rester vide et avoir le message d'erreur dans le footer
+
+---
+
+/login
