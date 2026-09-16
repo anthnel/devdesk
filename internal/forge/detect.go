@@ -27,6 +27,10 @@ var shapes = map[string]Shape{
 		PermanentDelete:   true,
 		// The lint endpoint returns the resolved configuration.
 		MergedCIConfig: true,
+		// A subgroup or a project cannot be more open than the group it goes
+		// into — GitLab's own creation forms narrow the same way, and the API
+		// refuses the combination rather than clamping it.
+		RestrictsVisibilityByParent: true,
 	},
 	config.ForgeGitHub: {
 		Name: config.ForgeGitHub,
@@ -41,6 +45,9 @@ var shapes = map[string]Shape{
 		// A workflow's `uses:` is resolved by the runner at execution time;
 		// there is no endpoint that hands back an expanded workflow.
 		MergedCIConfig: false,
+		// An organisation is not itself public/private the way a GitLab group
+		// is, so there is nothing above a repository to narrow by.
+		RestrictsVisibilityByParent: false,
 	},
 }
 

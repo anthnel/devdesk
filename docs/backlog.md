@@ -26,6 +26,9 @@ scan, que ni `ws` ni `:sec` ne pouvaient montrer — est signalé et fermé le
 2026-08-30. [§1.3](#13-open) est vide pour la première fois depuis D12, et tout
 ce qui suit est en [§1.1](#11-fixed). **D70** — l'explorer remplaçant sa table par un
 paragraphe faute de session, contre la règle 139 — est signalé et fermé le
+2026-09-16. **D71** — le formulaire de
+création de l'explorer offrait `public`/`internal` sous un groupe privé, une
+combinaison que GitLab refuse à la création — est signalé et fermé le
 2026-09-16.
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
@@ -90,6 +93,76 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D71 — le formulaire de création (groupe ou projet) offrait `internal` et
+`public` sous un groupe privé, alors que GitLab refuse la combinaison à la
+création. Corrigé.** Signalé et fermé le 2026-09-16.
+
+Le rapport : « dans git-explorer quand je veux ajouter un groupe ou un projet,
+la visibilité possible du projet devrait être calculée en fonction du parent,
+si le parent est privé, le projet dans ce groupe ne peut être que privé
+(gitlab only) ». Le formulaire ne lisait jamais le parent : `CreationForm`
+construisait sa liste de visibilités elle-même —
+
+```go
+// avant — creation_form.go
+visibilities := []string{"private", "internal", "public"}
+```
+
+— sans jamais consulter ce sous ce groupe le projet allait naître, ni ce que
+le forge courant autorise seulement. `N` sous un groupe privé offrait donc les
+trois valeurs, et la création n'échouait qu'au moment du round trip vers
+l'API — l'explorer n'a jamais validé une visibilité côté client.
+
+**`forge.Shape` porte maintenant la règle**, au même endroit que
+`MaxNamespaceDepth`/`CanNestUnder` porte déjà la profondeur de nesting —
+même geste, même raison : une contrainte du *forge*, pas de la vue.
+`Visibilities` est ordonnée du plus privé au plus ouvert (`DefaultVisibility`
+en dépendait déjà), donc « pas plus ouvert que le parent » est exactement un
+préfixe de cette liste :
+
+```go
+func (s Shape) VisibilitiesUnder(parentVisibility string) []string {
+    if !s.RestrictsVisibilityByParent || parentVisibility == "" {
+        return s.Visibilities
+    }
+    idx := slices.Index(s.Visibilities, parentVisibility)
+    if idx < 0 {
+        return s.Visibilities
+    }
+    return s.Visibilities[:idx+1]
+}
+```
+
+Un `parentVisibility` vide (la racine) ou un forge qui ne restreint pas
+(`RestrictsVisibilityByParent` à `false`, GitHub) rendent la liste complète,
+inchangée par rapport à avant D71. Une valeur de parent inconnue rend aussi la
+liste complète plutôt que de tout refuser en silence — l'appel de création
+atteint le serveur et se fait refuser avec sa propre raison, ce qui reste une
+meilleure réponse qu'un menu réduit à une seule entrée sans explication.
+
+**GitHub n'a rien à restreindre par** — une organisation n'est pas
+public/private/internal comme l'est un groupe GitLab, donc il n'y a rien
+au-dessus d'un repository à comparer. `RestrictsVisibilityByParent` reste à
+sa valeur zéro (`false`) pour ce shape, documentée explicitement plutôt que
+laissée implicite — le même choix que `PermanentDelete: false` juste
+au-dessus dans `detect.go`.
+
+**`CreationForm` reçoit la liste déjà réduite**, elle ne la calcule jamais :
+le composant n'a aucune notion de parent ni de forge (même séparation que
+`resourceTypeLabels` trace déjà pour le vocabulaire). L'explorer stocke la
+visibilité du parent à l'ouverture de `N` (`creationParentVisibility`, vide à
+la racine), aux côtés de son nom et de son ID, et la relit une fois les
+templates arrivés :
+
+```go
+shape := m.shape()   // résolu depuis la config, comme vocab()
+visibilities := shape.VisibilitiesUnder(m.creationParentVisibility)
+```
+
+**Un champ réduit à un seul choix le dit** (`SetVisibilityNote`) : sans note,
+`←→` qui ne bouge plus sous un groupe privé se lit comme une commande bloquée
+plutôt que comme un champ qui n'a simplement rien d'autre à offrir.
 
 **D70 — l'explorer remplaçait sa table par un paragraphe quand il n'y avait pas
 de session. Corrigé.** Signalé et fermé le 2026-09-16.

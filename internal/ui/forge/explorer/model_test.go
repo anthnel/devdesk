@@ -475,6 +475,40 @@ func TestTemplatesLoadedOpensTheForm(t *testing.T) {
 	}
 }
 
+// D71: a project or subgroup cannot be more open than the group it goes into,
+// so the form offers only what "alpha" (private) allows and says why.
+func TestVisibilityIsLimitedByAPrivateParent(t *testing.T) {
+	m := feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
+
+	// Onto the Visibility field: Type -> Name -> Desc -> Visibility.
+	m = feed(t, m, testutil.Keys("down", "down", "down")...)
+	view := m.creationForm.View()
+	if !strings.Contains(view, "limited by the parent group's visibility (private)") {
+		t.Errorf("the form under a private group does not say so:\n%s", view)
+	}
+
+	m = feed(t, m, testutil.Key("right"))
+	if view := m.creationForm.View(); !strings.Contains(view, "private") || strings.Contains(view, "internal") {
+		t.Errorf("→ moved past the only choice a private parent allows:\n%s", view)
+	}
+}
+
+// At the root there is no parent to narrow by, so every value the forge
+// offers is still reachable — unchanged from before D71.
+func TestVisibilityIsUnrestrictedAtTheRoot(t *testing.T) {
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
+
+	m = feed(t, m, testutil.Keys("down", "down", "down")...)
+	if view := m.creationForm.View(); strings.Contains(view, "limited by the parent") {
+		t.Errorf("a root-level create claims a parent limit it does not have:\n%s", view)
+	}
+
+	m = feed(t, m, testutil.Key("right"))
+	if view := m.creationForm.View(); !strings.Contains(view, "internal") {
+		t.Errorf("→ did not reach `internal` at the root:\n%s", view)
+	}
+}
+
 // A registry that is unreachable must not block creation: the form opens
 // anyway, and says why the template list is empty as soon as the list is on
 // screen — not only once the field takes focus, which is what D10 fixed.

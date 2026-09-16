@@ -35,15 +35,18 @@ func (m Model) handleCreateResource() (tea.Model, tea.Cmd) {
 	// currentGroupNode is nil at root level.
 	parentName := ""
 	parentID := ""
+	parentVisibility := ""
 
 	if m.currentGroupNode != nil {
 		parentName = m.currentGroupNode.FullPath
 		parentID = m.currentGroupNode.ID
+		parentVisibility = m.currentGroupNode.Visibility
 	}
 
 	// Stash parent info for after template loading
 	m.creationParentName = parentName
 	m.creationParentID = parentID
+	m.creationParentVisibility = parentVisibility
 	m.mode = ModeLoadingTemplates
 
 	return m, m.loadTemplates()
@@ -105,16 +108,30 @@ func (m Model) handleTemplatesLoaded(msg TemplatesLoadedMsg) (tea.Model, tea.Cmd
 		names[i] = t.Name
 	}
 
+	shape := m.shape()
+	visibilities := shape.VisibilitiesUnder(m.creationParentVisibility)
+
 	m.creationForm = components.NewCreationForm(
 		0, // defaultResourceType = namespace (user can switch with ←→)
 		m.creationParentName,
 		m.creationParentID,
 		m.config.Forge.DefaultVisibility,
+		visibilities,
 		names,
 		m.vocab(),
 	)
 	if msg.Error != nil {
 		m.creationForm.SetTemplateWarning(fmt.Sprintf("Registry error: %v", msg.Error))
+	}
+	// Narrower than the forge's own list means the parent did the narrowing
+	// (VisibilitiesUnder is the identity otherwise), so say so — a single
+	// remaining choice with no explanation reads as a control that is stuck
+	// rather than one with nothing else to offer.
+	if len(visibilities) < len(shape.Visibilities) {
+		m.creationForm.SetVisibilityNote(fmt.Sprintf(
+			"limited by the parent %s's visibility (%s)",
+			strings.ToLower(m.vocab().Namespace), m.creationParentVisibility,
+		))
 	}
 	return m, nil
 }
