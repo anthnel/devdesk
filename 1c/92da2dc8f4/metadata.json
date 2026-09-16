@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "1c92da2dc8f4",
+  "strategy": "manual-commit",
+  "branch": "fix/dashboard-health-compact-clutter",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/1c/92da2dc8f4/0/metadata.json",
+      "transcript": "/1c/92da2dc8f4/0/full.jsonl",
+      "compact_transcript": "/1c/92da2dc8f4/0/transcript.jsonl",
+      "content_hash": "/1c/92da2dc8f4/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 78,
+    "cache_creation_tokens": 160983,
+    "cache_read_tokens": 5972700,
+    "output_tokens": 15757,
+    "api_call_count": 39
+  }
+}

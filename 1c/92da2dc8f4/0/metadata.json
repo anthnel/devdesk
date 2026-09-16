@@ -1,0 +1,85 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "1c92da2dc8f4",
+  "session_id": "ca392ee9-7c84-4f68-a79c-b81b0d5b9bc2",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-16T15:59:36.5699448Z",
+  "branch": "fix/dashboard-health-compact-clutter",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "9cb0aab384e3",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 78,
+    "cache_creation_tokens": 160983,
+    "cache_read_tokens": 5972700,
+    "output_tokens": 15757,
+    "api_call_count": 39
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 309,
+      "user_lines_removed": 304,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        ".gitignore": 2,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".gitignore": 1,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 494,
+      "user_lines_removed": 135,
+      "agent_lines_added": 234,
+      "agent_lines_removed": 588,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        ".release-please-manifest.json": 1,
+        "CHANGELOG.md": 18,
+        "docs/architecture/forge.md": 31,
+        "docs/backlog.md": 73,
+        "internal/forge/detect.go": 7,
+        "internal/forge/forge_test.go": 57,
+        "internal/forge/shape.go": 32,
+        "internal/ui/components/creation_form.go": 38,
+        "internal/ui/components/creation_form_test.go": 49,
+        "internal/ui/forge/explorer/create.go": 17,
+        "internal/ui/forge/explorer/model.go": 8,
+        "internal/ui/forge/explorer/model_test.go": 34,
+        "internal/ui/forge/explorer/view.go": 11,
+        "internal/ui/jobsview/state.go": 11
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".release-please-manifest.json": 1,
+        "internal/forge/forge_test.go": 7,
+        "internal/ui/components/creation_form.go": 11,
+        "internal/ui/components/creation_form_test.go": 4,
+        "internal/ui/forge/explorer/model.go": 3,
+        "internal/ui/jobsview/state.go": 6
+      }
+    }
+  ]
+}
