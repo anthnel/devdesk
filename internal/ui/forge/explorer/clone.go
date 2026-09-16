@@ -24,7 +24,13 @@ import (
 
 // handleCloneStart enters the selection mode.
 func (m Model) handleCloneStart() (tea.Model, tea.Cmd) {
-	if !m.shared.IsAuthenticated || len(m.nodes) == 0 {
+	// Rule 130: C is greyed without a session, and a greyed key that is pressed
+	// anyway says why rather than doing nothing. An empty level is not a
+	// refusal worth a line — there is simply nothing to tick.
+	if a := m.connected(); !a.Enabled() {
+		return m, m.footer.Warn(a.Reason)
+	}
+	if len(m.nodes) == 0 {
 		return m, nil
 	}
 	m.mode = ModeSelecting

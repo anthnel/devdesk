@@ -14,14 +14,16 @@ import (
 
 // handleDeleteStart handles ctrl+d key - start delete operation
 func (m Model) handleDeleteStart() (tea.Model, tea.Cmd) {
+	// Rule 130: the key is greyed for every one of these — no session, no row,
+	// a row the forge has not confirmed, a row already busy — and pressing it
+	// anyway says which one it is rather than doing nothing. The check comes
+	// before the lookup so a missing row is named too.
+	if act := m.actionable(); !act.Enabled() {
+		return m, m.footer.Warn(act.Reason)
+	}
 	node, ok := m.selectedNode()
 	if !ok {
 		return m, nil
-	}
-	// Rule 130: the key is greyed for both of these, and pressing it anyway
-	// says which one it is rather than doing nothing.
-	if act := m.actionable(); !act.Enabled() {
-		return m, m.footer.Warn(act.Reason)
 	}
 
 	m.deleteTargetNode = node

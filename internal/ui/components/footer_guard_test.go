@@ -86,7 +86,10 @@ var viewsWithATableBody = []string{
 	"containers/view.go",
 	"oci_resources/view.go",
 	"oci_resources/browser_view.go",
-	"gitlab/explorer/view.go",
+	// forge/, not gitlab/: the package moved with §3.6 and this entry did not,
+	// so the explorer went unguarded until the signed-out body was moved to the
+	// footer and the stale suffix turned up.
+	"forge/explorer/view.go",
 	"status/view.go",
 	"viewer/view.go",
 	"netdiag/topology_model.go",

@@ -2,6 +2,7 @@ package explorer
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -20,20 +22,27 @@ import (
 
 // ── View branches ────────────────────────────────────────────────────────────
 
-// Without a client the view has nothing to browse, and says which command
-// fixes that rather than showing an empty table.
+// Without a client the view has nothing to browse, and says which command fixes
+// that — in the footer. The body stays the table (Rule 139): signed out is a
+// state of the tree screen, not a paragraph in place of it.
 func TestViewWithoutAClientPointsAtTheAuthView(t *testing.T) {
 	m := feed(t, New(testConfig(), &shared.State{}), tea.WindowSizeMsg{Width: 160, Height: 30})
 
-	view := m.View()
+	footer := m.RenderFooter(160)
 
-	if !strings.Contains(view, "not authenticated") {
-		t.Errorf("the view does not say it is unauthenticated:\n%s", view)
+	if !strings.Contains(footer, "not authenticated") {
+		t.Errorf("the footer does not say it is unauthenticated:\n%s", footer)
 	}
 	// The command comes from internal/command, so this follows the rename
 	// rather than outliving it — which is what §3.6 step 5 moved it there for.
-	if !strings.Contains(view, string(command.ViewGitAuth)) {
-		t.Error("the view does not name the command that authenticates")
+	if !strings.Contains(footer, string(command.ViewGitAuth)) {
+		t.Error("the footer does not name the command that authenticates")
+	}
+	if view, table := m.View(), m.renderTable(); view != table {
+		t.Errorf("the signed-out body is %q, want the plain table view", view)
+	}
+	if strings.Contains(m.View(), "not authenticated") {
+		t.Error("the body carries the signed-out message; it belongs in the footer alone")
 	}
 }
 
@@ -62,11 +71,62 @@ func TestTheLoadIsReportedInTheFooterUntilTheFirstLoadLands(t *testing.T) {
 	}
 }
 
+// A failed load is a state, so it is a footer line with the error level and no
+// timer — and the table stays on screen behind it (Rules 128, 139).
 func TestViewShowsTheLoadError(t *testing.T) {
 	m := feed(t, newTestModel(t), LoadErrorMsg{Error: errors.New("403 forbidden")})
 
-	if view := m.View(); !strings.Contains(view, "403 forbidden") {
-		t.Errorf("the view does not show the load error:\n%s", view)
+	if footer := m.RenderFooter(160); !strings.Contains(footer, "403 forbidden") {
+		t.Errorf("the footer does not show the load error:\n%s", footer)
+	}
+	if view, table := m.View(), m.renderTable(); view != table {
+		t.Errorf("the body after a failed load is %q, want the plain table view", view)
+	}
+	if got := m.status().Level; got != components.LevelError {
+		t.Errorf("the load error renders at level %v, want LevelError", got)
+	}
+}
+
+// Rule 130's mode/state line: signed out keeps every key of the tree screen and
+// greys them, rather than replacing the column with ctrl+p alone. The set of
+// keys does not change between the two states of the same screen.
+func TestSignedOutGreysTheVocabulary(t *testing.T) {
+	out := feed(t, New(testConfig(), &shared.State{}), tea.WindowSizeMsg{Width: 160, Height: 30}).GetShortcuts()
+
+	for _, key := range []string{keymap.New, keymap.Delete, keymap.Clone, keymap.Web, ".", "/", "ctrl+r"} {
+		if !testutil.HasShortcut(out, key) {
+			t.Errorf("%q is dropped while signed out; Rule 130 greys it", key)
+			continue
+		}
+		if !testutil.ShortcutDisabled(out, key) {
+			t.Errorf("%q still acts while signed out", key)
+		}
+	}
+	// ctrl+p is what gets you out of here, so it is the one thing that stays lit.
+	if !testutil.ShortcutEnabled(out, "ctrl+p") {
+		t.Error("ctrl+p is greyed while signed out; it is the way to the auth view")
+	}
+
+	in := testutil.ShortcutKeys(drilledModel(t).GetShortcuts())
+	if got := testutil.ShortcutKeys(out); !slices.Equal(got, in) {
+		t.Errorf("the key column moves between signed out and signed in:\n out = %v\n in  = %v", got, in)
+	}
+}
+
+// A greyed key that is pressed anyway says why (Rule 130): the refusal is never
+// silent, and it names the command that fixes it.
+func TestSignedOutRefusalsNameTheAuthCommand(t *testing.T) {
+	for _, key := range []string{keymap.New, keymap.Delete, keymap.Clone, keymap.Web, "ctrl+r"} {
+		t.Run(key, func(t *testing.T) {
+			m := feed(t,
+				New(testConfig(), &shared.State{}),
+				tea.WindowSizeMsg{Width: 160, Height: 30},
+				testutil.Key(key),
+			)
+			if footer := m.RenderFooter(160); !strings.Contains(footer, string(command.ViewGitAuth)) {
+				t.Errorf("pressing %q while signed out says nothing useful:\n%s", key, footer)
+			}
+		})
 	}
 }
 
@@ -259,11 +319,15 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		notWant []string
 	}{
 		{
+			// Signed out is a state of the tree screen now that the table is on
+			// screen either way, so the vocabulary stays and greys out (Rule
+			// 130). TestSignedOutGreysTheVocabulary checks that it is greyed.
 			name: "unauthenticated",
 			open: func(t *testing.T) Model {
 				return feed(t, New(testConfig(), &shared.State{}), tea.WindowSizeMsg{Width: 160, Height: 30})
 			},
-			notWant: []string{keymap.New, keymap.Delete, "p"},
+			want:    []string{keymap.New, keymap.Delete, keymap.Clone, keymap.Web, ".", "/", "ctrl+r"},
+			notWant: []string{"p"},
 		},
 		{
 			name: "browsing",
@@ -547,11 +611,12 @@ func TestAGitHubContextSpeaksGitHub(t *testing.T) {
 		t.Errorf("GetTitle() = %q still names GitLab", m.GetTitle())
 	}
 
-	// Signed out is the screen that needs the words before any session exists.
-	// No colour profile is forced, so lipgloss emits no escapes under go test.
-	out := m.View()
+	// Signed out is the state that needs the words before any session exists,
+	// and it is a footer line (Rule 139). No colour profile is forced, so
+	// lipgloss emits no escapes under go test.
+	out := m.RenderFooter(160)
 	if !strings.Contains(out, "GitHub not authenticated") {
-		t.Errorf("the signed-out screen does not name GitHub:\n%s", out)
+		t.Errorf("the signed-out footer does not name GitHub:\n%s", out)
 	}
 
 	help := m.GetHelpContent()

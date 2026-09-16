@@ -48,22 +48,15 @@ func (m Model) View() string {
 		}
 	}
 
-	// Content style with left padding
-	contentStyle := lipgloss.NewStyle().Background(theme.ColorBackground).PaddingLeft(1)
-
-	// Normal view
-	if !m.shared.IsAuthenticated {
-		return contentStyle.Render(renderNotAuthenticated(m.vocab()))
-	}
-
-	if m.error != "" {
-		return contentStyle.Render(renderError(m.error))
-	}
-
-	// The load says so in the footer, with a spinner, and the tree stays on
-	// screen (Rule 139): whether it is loading, genuinely empty, or filtered
-	// down to nothing, the body is the table alone — the row count is a header
-	// field instead.
+	// Rule 139: the body is the table, whatever the tree holds. Loading, empty,
+	// filtered down to nothing, a failed load, or no session at all — all five
+	// are one line in the footer (status, below) and a header field, and the
+	// body stays a header with no rows.
+	//
+	// Signed out and a load error used to replace it with a paragraph. That
+	// cost the header and the columns for as long as the condition held, and
+	// put a red sentence where the eye looks for data rather than where it
+	// looks for state.
 	return m.renderTable()
 }
 
@@ -142,16 +135,25 @@ func (m Model) renderInfoLine(width int) string {
 	return m.footer.View(width, m.status())
 }
 
-// status is what the view derives on every frame. None of the three has a
-// timer: a clone run outlives the three seconds a message gets, and the load
-// and the selection last exactly as long as they last.
+// status is what the view derives on every frame. None of the five has a timer:
+// a clone run outlives the three seconds a message gets, and the load, the
+// selection, the missing session and the failed load last exactly as long as
+// they last.
 func (m Model) status() components.Status {
 	switch {
+	// Signed out and a failed load are states, not events: they are true for as
+	// long as they are true, so they carry the error level and no timer (Rule
+	// 128). A three-second message would leave an empty table explaining
+	// nothing for the rest of the session.
+	case !m.shared.IsAuthenticated:
+		return components.Status{Text: notAuthenticatedLine(m.vocab()), Level: components.LevelError}
 	case m.mode == ModeCloning && m.clone != nil:
 		return components.Status{Text: m.cloneStatusLine()}
 	case m.mode == ModeSelecting:
 		return components.Status{Text: m.selectionStatusLine()}
-	case m.shared.IsAuthenticated && m.loadingTree():
+	case m.error != "":
+		return components.Status{Text: m.error, Level: components.LevelError}
+	case m.loadingTree():
 		return components.Status{Text: "Loading " + m.vocab().Name + " " + strings.ToLower(m.vocab().Namespaces) + "...", Spinner: true}
 	}
 	return components.Status{}
@@ -370,19 +372,17 @@ func pipelineStatusStyle(node *TreeNode) lipgloss.Style {
 
 // Helper rendering functions
 
-// renderNotAuthenticated names the forge and the command that signs into it.
+// notAuthenticatedLine names the forge and the command that signs into it.
+//
+// One line, because it goes in the footer (Rule 139) and the footer budgets
+// exactly one. It carries no icon: the level already colours it, and the two
+// other error states of this view do not carry one either.
 //
 // The command comes from internal/command rather than from a literal: it is
 // routing identity, the same for both forges, and writing it out here is how a
 // message survives a rename by going quietly wrong.
-func renderNotAuthenticated(v forge.Vocabulary) string {
-	style := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError)
-	return style.Render(theme.IconWarning + " " + v.Name + " not authenticated\n\nPlease authenticate first with :" + string(command.ViewGitAuth))
-}
-
-func renderError(err string) string {
-	style := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorError)
-	return style.Render(fmt.Sprintf("%s Error: %s", theme.IconError, err))
+func notAuthenticatedLine(v forge.Vocabulary) string {
+	return v.Name + " not authenticated — sign in with :" + string(command.ViewGitAuth)
 }
 
 // timeAgo formats a time pointer as a compact relative string (Rule 127).
@@ -429,18 +429,18 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		}
 	}
 
-	// Signed out is a different screen — there is no tree, so there is nothing
-	// to grey. That is a mode, not a state (Rule 130).
-	if !m.shared.IsAuthenticated {
-		return []shortcut.Shortcut{
-			{Key: "ctrl+p", Description: "Command mode"},
-		}
-	}
-
 	// Normal mode. A load in flight greys the lot rather than emptying it: the
 	// tree is the same screen either side of a refresh, and a column that
 	// vanishes and comes back on every ctrl+r is the flicker Rule 130 is about.
-	loading := m.loading
+	//
+	// Signed out greys it too, and that is a change: it used to replace the list
+	// with `ctrl+p` alone, on the grounds that there was no tree and so nothing
+	// to grey. Rule 139 put the table on screen either way, so the tree is now
+	// the same screen signed in or out — a state, not a mode, and Rule 130 asks
+	// for grey. `ctrl+r` goes with them: there is nothing to refresh without a
+	// session.
+	out := !m.shared.IsAuthenticated
+	loading := out || m.loading
 	browse := m.browsable()
 	act := m.actionable()
 
@@ -452,7 +452,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: keymap.Web, Description: "Browser", Disabled: loading || !browse.Enabled()},
 		{Key: ".", Description: "Sort", Disabled: loading},
 		{Key: "/", Description: "Search", Disabled: loading},
-		{Key: "ctrl+r", Description: "Refresh"},
+		{Key: "ctrl+r", Description: "Refresh", Disabled: out},
 		{Key: "ctrl+p", Description: "Command"},
 		{Key: "?", Description: "Help"},
 	}
@@ -471,6 +471,22 @@ const reasonNotCreatedYet = "This entry is still being created"
 // the level is being fetched.
 const reasonStillLoading = "Still loading — wait for the list"
 
+// reasonNotAuthenticated is why nothing applies without a session. It names the
+// command that fixes it, the same way the footer's own signed-out line does —
+// a refusal that only says no leaves the user looking for the door.
+var reasonNotAuthenticated = "Not authenticated — sign in with :" + string(command.ViewGitAuth)
+
+// connected reports whether there is a session to address at all. Every
+// availability below starts here: without one, selectedNode() returns nothing
+// and the reasons that follow would answer "this entry is still being created"
+// about a row that does not exist.
+func (m Model) connected() shortcut.Availability {
+	if !m.shared.IsAuthenticated {
+		return shortcut.Unavailable(reasonNotAuthenticated)
+	}
+	return shortcut.Availability{}
+}
+
 // actionable reports whether the selected row is one the forge can be asked
 // about: a real node, and not one already held by work in flight.
 //
@@ -479,6 +495,9 @@ const reasonStillLoading = "Still loading — wait for the list"
 // none. Greying is Rule 130's answer, and the reason is named so the footer can
 // say it when the key is pressed anyway.
 func (m Model) actionable() shortcut.Availability {
+	if a := m.connected(); !a.Enabled() {
+		return a
+	}
 	node, ok := m.selectedNode()
 	if !ok {
 		return shortcut.Unavailable(reasonNotCreatedYet)
@@ -498,6 +517,9 @@ func (m Model) actionable() shortcut.Availability {
 // refuses on an empty level — but the handler already checked for it and
 // returned in silence, which is what Rule 130 now forbids.
 func (m Model) browsable() shortcut.Availability {
+	if a := m.connected(); !a.Enabled() {
+		return a
+	}
 	if node, ok := m.selectedNode(); !ok || node.WebURL == "" {
 		return shortcut.Unavailable(reasonNoWebURL)
 	}

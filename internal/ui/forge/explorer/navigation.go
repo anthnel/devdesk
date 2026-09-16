@@ -84,6 +84,10 @@ func (m Model) currentItems() []*TreeNode {
 
 // handleRefresh handles r key
 func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
+	// Nothing to re-read without a session, and ctrl+r is greyed for it.
+	if a := m.connected(); !a.Enabled() {
+		return m, m.footer.Warn(a.Reason)
+	}
 	m.loading = true
 	// The placeholders survive the wipe: a create in flight is not something
 	// the refresh can re-read, so dropping it here would take its row away
