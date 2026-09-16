@@ -17,6 +17,12 @@ import (
 // handleCreateResource handles 'ctrl+n' key - start unified group/project creation.
 // Stashes parent info and loads templates from OCI registry before showing form.
 func (m Model) handleCreateResource() (tea.Model, tea.Cmd) {
+	// Same reasoning as below, one step earlier: without a session there is no
+	// forge to create against, and the key is greyed for it.
+	if a := m.connected(); !a.Enabled() {
+		return m, m.footer.Warn(a.Reason)
+	}
+
 	// GetShortcuts greys N while the level is loading, and Rule 130 forbids
 	// greying a key that acts anyway. It matters more than the tidiness: the
 	// parent's ID is read below, and a level still loading has none to give —

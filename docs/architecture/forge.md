@@ -128,8 +128,8 @@ forge it is talking to — but nothing a user reads is.
 
 **Resolved from the config, not from the session.** `forge.VocabularyFor(
 cfg.Forge.Type)`, not a method on `Forge` and not a field on `shared.State`:
-the explorer's "not authenticated" screen and the auth view's own title both
-need the words *before* any session exists, so a value hanging off a live
+the explorer's "not authenticated" footer line and the auth view's own title
+both need the words *before* any session exists, so a value hanging off a live
 backend would be missing exactly where it is needed most. Each view has a small
 `vocab()` helper; the config is what every one of them already holds.
 
@@ -168,8 +168,8 @@ GitHub's words do not align), and the token prefix as a *check* — it is a hint
 `TokenPlaceholder`, and DevDesk validates nothing, so saying "must" about it is
 how a user comes to believe a working token is broken.
 
-Sites it took over: the explorer's title, its loading line, its empty and
-signed-out screens, its Type column and its help; the auth view's title, help,
+Sites it took over: the explorer's title, its loading line, its signed-out
+footer line, its Type column and its help; the auth view's title, help,
 URL label and both "not configured" messages; the dashboard's Code box, its
 tree root and its help; the configuration view's forge tab — its title, its
 icon, its URL example and two field labels; and `CreationForm`'s two resource

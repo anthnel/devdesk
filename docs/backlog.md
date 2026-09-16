@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-09-12
+**Last Updated:** 2026-09-16
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -24,7 +24,9 @@ ordinaire de changer de vue pendant un scan, donc ce qui rend D68 atteignable.
 **D69** — le dashboard comptant les CRITICAL de dépôts supprimés depuis leur
 scan, que ni `ws` ni `:sec` ne pouvaient montrer — est signalé et fermé le
 2026-08-30. [§1.3](#13-open) est vide pour la première fois depuis D12, et tout
-ce qui suit est en [§1.1](#11-fixed).
+ce qui suit est en [§1.1](#11-fixed). **D70** — l'explorer remplaçant sa table par un
+paragraphe faute de session, contre la règle 139 — est signalé et fermé le
+2026-09-16.
 
 Trois défauts d'une même famille ont été fermés les 2026-08-23 et 2026-08-24, et
 ils se lisent ensemble. Il n'y a plus un seul `--network host` dans
@@ -88,6 +90,53 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D70 — l'explorer remplaçait sa table par un paragraphe quand il n'y avait pas
+de session. Corrigé.** Signalé et fermé le 2026-09-16.
+
+Le rapport : « si je ne suis pas connecté à gitlab, il me met le message dans la
+datatable, alors que la règle dit que le datatable doit rester vide et avoir le
+message d'erreur dans le footer ». C'est la règle 139, mot pour mot, et deux
+branches de `View()` l'enfreignaient depuis toujours — l'écran signé dehors et
+l'écran d'erreur de chargement :
+
+```go
+// avant
+if !m.shared.IsAuthenticated {
+    return contentStyle.Render(renderNotAuthenticated(m.vocab()))
+}
+if m.error != "" {
+    return contentStyle.Render(renderError(m.error))
+}
+```
+
+Les deux sont devenues des `components.Status` de niveau `LevelError` : le
+niveau porte la couleur, et le fait que ce soit un **état** et non un événement
+porte l'absence de minuterie (règle 128). Un message à trois secondes aurait
+laissé une table vide n'expliquant rien pour le reste de la session — c'est
+exactement la distinction que le champ `Status.Level` existe pour rendre
+possible.
+
+**Ce que ça change au-delà du rendu**, et c'est la partie qui ne se voyait pas
+depuis le rapport : signée dehors, la vue n'est plus *un autre écran*. Elle
+l'était tant que le corps était un paragraphe, et `GetShortcuts()` le disait —
+la liste entière était remplacée par `ctrl+p` seul, avec pour justification
+écrite « there is no tree, so there is nothing to grey ». La table étant
+désormais à l'écran des deux côtés, c'est un **état** au sens de la règle 130 :
+le vocabulaire reste et grise, `ctrl+r` compris (il n'y a rien à relire sans
+session), et `ctrl+p` est la seule entrée qui reste allumée puisque c'est la
+porte de sortie. Les quatre refus correspondants nomment la commande qui répare
+(`connected()`, une `shortcut.Availability` de plus), au lieu de ne rien faire —
+`C` retournait `m, nil` en silence.
+
+**Et le garde qui aurait dû attraper tout ça était aveugle.**
+`TestNoTableViewRendersALoadingBody` liste les vues à corps de table par suffixe
+de chemin, et l'entrée de l'explorer disait encore `gitlab/explorer/view.go`
+alors que le paquet a déménagé en `forge/explorer/` avec §3.6. Un garde par
+chaîne de caractères ne dit pas qu'il ne garde rien ; il passe. Corrigé en même
+temps. Il ne cherche que `theme.SpinnerMessage`, donc il n'aurait de toute façon
+pas vu ces deux branches-là — ce que couvre maintenant un test de la vue : le
+corps signé dehors est comparé à `m.renderTable()`, à l'identique.
 
 **D69 — le dashboard comptait les CRITICAL de cibles supprimées, que ni `ws` ni
 `:sec` ne pouvaient montrer. Corrigé.** Signalé et fermé le 2026-08-30.
