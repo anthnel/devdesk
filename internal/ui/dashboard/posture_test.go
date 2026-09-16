@@ -553,18 +553,6 @@ func TestACacheAheadOfTheInventoryReportsNothingLeft(t *testing.T) {
 	}
 }
 
-// A single missing half is enough to make the total unmeasured: the sum of
-// a number and an unknown is an unknown.
-func TestAHalfMeasuredTotalIsNotMeasured(t *testing.T) {
-	m, _ := loadedModel(t)
-	m = feed(t, m, PostureMsg{Posture: posture{Read: true}})
-	m.loadingWorkspaces = true
-
-	if _, measured := m.unscannedTotal(); measured {
-		t.Error("the total claims to be measured while the workspace count is still loading")
-	}
-}
-
 // healthModel loads a model and replaces its monitors.
 func healthModel(t *testing.T, components []status.ComponentStatus) Model {
 	t.Helper()

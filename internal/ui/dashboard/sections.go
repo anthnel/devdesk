@@ -277,17 +277,27 @@ func renderHealthSection(m Model, width int, t tier) []string {
 		monitors = statusSummary(m.filterComponents(false))
 		certs = certSummary(m.filterComponents(true))
 	}
-	expiry := nearestExpiry(m.filterComponents(true), m.loadingServices, true)
+	// named is false here for the same reason healthColumns' comment on
+	// nearestExpiry gives for the wide tier's half box: the domain is a
+	// second fact riding along the countdown, and gluing it onto the line
+	// made Expiry the only row that didn't read as "one label, one value"
+	// like its five siblings. :status already owns the named list.
+	expiry := nearestExpiry(m.filterComponents(true), m.loadingServices, false)
 
 	// Six lines, not seven: the blank line that used to separate monitoring
 	// from security paid for the certificate expiry. A seventh line here
 	// would overflow the whole overview.
+	//
+	// Critical stays the CRITICAL count alone, for the same reason: the
+	// coverage gap it used to carry alongside ("148  - unscanned") is a
+	// different signal — not a finding, a hole in what was even looked at —
+	// and belongs to the wide tier's own `unscanned` branch, not squeezed
+	// onto this line.
 	total := m.posture.Total()
 	scanned, critical, oldest := unknownValue(), unknownValue(), unknownValue()
 	if m.posture.Read {
 		scanned = countValue(total.Targets) + theme.Bg(" targets")
-		critical = severityCount(total.Critical) + theme.Bg("  ") +
-			unscannedValue(m.unscannedTotal()) + theme.DimStyle.Render(" unscanned")
+		critical = severityCount(total.Critical)
 		oldest = scanAge(total)
 	}
 
