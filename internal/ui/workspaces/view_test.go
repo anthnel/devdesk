@@ -176,12 +176,12 @@ func TestScanColumnsShowCachedSeverities(t *testing.T) {
 	row := m.table.Table().Rows()[0]
 
 	// Critical, High, Medium, Low.
-	for i, want := range map[int]string{5: "1", 6: "2", 7: "3", 8: "4"} {
+	for i, want := range map[int]string{6: "1", 7: "2", 8: "3", 9: "4"} {
 		if !strings.Contains(row[i], want) {
 			t.Errorf("column %d = %q, want the cached count %q", i, row[i], want)
 		}
 	}
-	if strings.TrimSpace(row[9]) == "" {
+	if strings.TrimSpace(row[10]) == "" {
 		t.Error("the Scanned column is empty for a repo with cached results")
 	}
 }
@@ -190,7 +190,7 @@ func TestScanColumnsAreBlankBeforeAnyScan(t *testing.T) {
 	m := loadedModel(t)
 	row := m.table.Table().Rows()[1] // clean-repo, never scanned
 
-	for i := 5; i <= 8; i++ {
+	for i := 6; i <= 9; i++ {
 		if got := strings.TrimSpace(row[i]); strings.ContainsAny(got, "0123456789") {
 			t.Errorf("column %d = %q for an unscanned repo, want no counts", i, got)
 		}
@@ -201,11 +201,11 @@ func TestScanColumnsAreBlankBeforeAnyScan(t *testing.T) {
 // working rather than stalled.
 func TestScanningRepoShowsProgress(t *testing.T) {
 	m := loadedModel(t)
-	before := m.table.Table().Rows()[0][9]
+	before := m.table.Table().Rows()[0][10]
 
 	m = running(t, m, jobs.KindScan, "/tmp/workspaces/devdesk")
 
-	if got := m.table.Table().Rows()[0][9]; got == before {
+	if got := m.table.Table().Rows()[0][10]; got == before {
 		t.Errorf("the Scanned cell is unchanged (%q) while a scan is running", got)
 	}
 }
@@ -259,7 +259,7 @@ func TestModTimeIsRelative(t *testing.T) {
 		{Name: "recent", Path: "/tmp/workspaces/recent", IsDir: true, ModTime: time.Now().Add(-2 * time.Hour)},
 	}})
 
-	if got := m.table.Table().Rows()[0][10]; !strings.Contains(got, "hr") {
+	if got := m.table.Table().Rows()[0][11]; !strings.Contains(got, "hr") {
 		t.Errorf("the modified cell = %q, want a relative label (Rule 127)", got)
 	}
 }
