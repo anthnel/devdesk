@@ -48,6 +48,17 @@ type Shape struct {
 	// implemented as something adjacent (the InitialCommit precedent — refuse
 	// what the platform cannot express).
 	MergedCIConfig bool
+
+	// RestrictsVisibilityByParent says a namespace or repository created under
+	// a parent cannot be more open than that parent. GitLab enforces this
+	// server-side for both a subgroup and a project — offering "public" under
+	// a private group is a create call the API refuses — so VisibilitiesUnder
+	// narrows the form before the round trip rather than after it.
+	//
+	// GitHub has nothing to narrow by: an organisation is not itself
+	// public/private/internal the way a GitLab group is, so there is no parent
+	// value to compare a new repository's visibility against.
+	RestrictsVisibilityByParent bool
 }
 
 // CanNestUnder reports whether a namespace may be created under a parent that
@@ -82,4 +93,25 @@ func (s Shape) DefaultVisibility() string {
 		return ""
 	}
 	return s.Visibilities[0]
+}
+
+// VisibilitiesUnder is what a namespace or repository created beneath a parent
+// whose own visibility is parentVisibility may take, most private first.
+//
+// An empty parentVisibility — nothing above this level, i.e. the root —
+// imposes no restriction: the full Visibilities list is offered, same as
+// today. A forge that does not restrict by parent (RestrictsVisibilityByParent
+// false) answers the same regardless of parentVisibility, and so does one
+// given a value it does not recognise — a create call the server refuses on
+// its own terms is a better failure than a menu narrowed to nothing on a
+// guess.
+func (s Shape) VisibilitiesUnder(parentVisibility string) []string {
+	if !s.RestrictsVisibilityByParent || parentVisibility == "" {
+		return s.Visibilities
+	}
+	idx := slices.Index(s.Visibilities, parentVisibility)
+	if idx < 0 {
+		return s.Visibilities
+	}
+	return s.Visibilities[:idx+1]
 }

@@ -19,12 +19,17 @@ const (
 	fieldTemplate   = 4
 )
 
+// allVisibilities is what every test in this file passes unless it is
+// specifically exercising the narrowing itself — the caller's job
+// (forge.Shape.VisibilitiesUnder), not this component's.
+var allVisibilities = []string{"private", "internal", "public"}
+
 func newGroupForm() *CreationForm {
-	return NewCreationForm(0, "", "", "private", nil, forge.VocabularyFor(""))
+	return NewCreationForm(0, "", "", "private", allVisibilities, nil, forge.VocabularyFor(""))
 }
 
 func newProjectForm(templates ...string) *CreationForm {
-	return NewCreationForm(1, "parent/group", "42", "private", templates, forge.VocabularyFor(""))
+	return NewCreationForm(1, "parent/group", "42", "private", allVisibilities, templates, forge.VocabularyFor(""))
 }
 
 // feedForm applies messages in order.
@@ -76,11 +81,51 @@ func TestNewCreationFormResolvesDefaultVisibility(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.given, func(t *testing.T) {
-			f := NewCreationForm(0, "", "", tt.given, nil, forge.VocabularyFor(""))
+			f := NewCreationForm(0, "", "", tt.given, allVisibilities, nil, forge.VocabularyFor(""))
 			if f.visibility != tt.want {
 				t.Errorf("visibility = %d for %q, want %d", f.visibility, tt.given, tt.want)
 			}
 		})
+	}
+}
+
+// The component has no notion of a parent — narrowing is entirely the
+// caller's, via which slice it hands NewCreationForm (forge.Shape.
+// VisibilitiesUnder). What the component owes in return: cycling through
+// exactly the list it was given, never a wider one it invented itself.
+func TestVisibilityCyclesOnlyThroughWhatItWasGiven(t *testing.T) {
+	f := NewCreationForm(0, "", "", "private", []string{"private"}, nil, forge.VocabularyFor(""))
+	f.focusedField = fieldVisibility
+
+	f = feedForm(f, testutil.Key("right"))
+
+	if got := f.visibilities[f.visibility]; got != "private" {
+		t.Errorf("visibility = %q after → on a single-entry list, want it to stay on %q", got, "private")
+	}
+}
+
+// A default the narrowed list no longer offers falls back to the first entry
+// — narrowing always keeps the most private end (§3.6's DefaultVisibility
+// reasoning), so index 0 is the safe side to land on.
+func TestADefaultOutsideTheNarrowedListFallsBackToTheFirstEntry(t *testing.T) {
+	f := NewCreationForm(0, "", "", "public", []string{"private", "internal"}, nil, forge.VocabularyFor(""))
+	if f.visibility != 0 {
+		t.Errorf("visibility = %d for a default the list no longer offers, want 0", f.visibility)
+	}
+}
+
+// SetVisibilityNote is silent until the caller sets it — the common case, a
+// root-level create, is not narrowed by anything and should render nothing
+// extra next to the field.
+func TestVisibilityNoteIsSilentUntilSet(t *testing.T) {
+	f := newGroupForm()
+	if strings.Contains(f.View(), "limited") {
+		t.Error("an unnarrowed form mentions a limit that does not exist")
+	}
+
+	f.SetVisibilityNote("limited by the parent group's visibility (private)")
+	if !strings.Contains(f.View(), "limited by the parent group's visibility (private)") {
+		t.Error("SetVisibilityNote's text does not reach the view")
 	}
 }
 
@@ -328,7 +373,7 @@ func TestCreationFormNoneTemplateSubmitsEmpty(t *testing.T) {
 }
 
 func TestCreationFormGroupNeverSubmitsATemplate(t *testing.T) {
-	f := NewCreationForm(0, "", "7", "private", []string{"go"}, forge.VocabularyFor(""))
+	f := NewCreationForm(0, "", "7", "private", allVisibilities, []string{"go"}, forge.VocabularyFor(""))
 	f.focusedField = fieldName
 	f.updateFocus()
 	f = feedForm(f, testutil.Type("grp")...)

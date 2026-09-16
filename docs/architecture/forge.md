@@ -285,6 +285,37 @@ still earns one. The delete keeps its row and takes the same spinner: a row that
 vanished before the answer came would be claiming something that has not
 happened yet.
 
+### The Visibility field is narrowed by the parent (D71, GitLab only)
+
+GitLab refuses a subgroup or a project created more open than the group it
+goes into — offering `public` under a private group is a create call the API
+answers with an error, not a value it silently clamps. Before D71 the form
+offered all three of `Shape.Visibilities` regardless, so the refusal was
+something the user only learned after submitting.
+
+`Shape.VisibilitiesUnder(parentVisibility)` is the prefix of `Visibilities`
+up to and including the parent's own value — the list is most-private-first
+(the same ordering `DefaultVisibility` already relies on), so a prefix is
+exactly "no more open than this". The explorer stashes the parent's
+visibility alongside its name and ID when `N` is pressed
+(`creationParentVisibility`, empty at the root) and reads it back once the
+templates land, next to `m.shape()` — resolved from the config the same way
+`vocab()` is, so the closed set does not depend on a live backend having
+answered yet. `CreationForm` itself takes the narrowed slice as a plain
+parameter: it has no notion of a parent or of which forge it is talking to,
+the same separation `resourceTypeLabels` already draws for the vocabulary.
+
+**Gated by `Shape.RestrictsVisibilityByParent`, true for GitLab only.** An
+organisation on GitHub is not itself public/private/internal the way a
+GitLab group is, so there is nothing above a repository to narrow against —
+`VisibilitiesUnder` answers the full list regardless of `parentVisibility`
+there, the same as it does at the GitLab root (`parentVisibility == ""`,
+nothing above this level either).
+
+A narrowed field also gets a note next to it (`SetVisibilityNote`) — without
+one, a single remaining choice under a private group reads as a `←→` that
+stopped working rather than one with nothing else to offer.
+
 ## The explorer clone
 
 `C` in the explorer opens a **selection mode** over the same tree, and `enter`

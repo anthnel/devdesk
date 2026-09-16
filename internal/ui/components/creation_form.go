@@ -40,11 +40,15 @@ type CreationForm struct {
 	// parentID is the forge's opaque identifier for the parent namespace, empty
 	// at the root. It was an int64 — GitLab's numeric id — which is exactly what
 	// §3.6 made opaque: the form carries it and never reads it.
-	parentID        string
-	nameInput       textinput.Model
-	descInput       WrappedInput
-	visibility      int      // 0=private, 1=internal, 2=public
-	visibilities    []string // visibility options
+	parentID     string
+	nameInput    textinput.Model
+	descInput    WrappedInput
+	visibility   int      // index into visibilities
+	visibilities []string // visibility options, already narrowed by the caller
+	// to whatever the parent (and the forge) allow — see
+	// forge.Shape.VisibilitiesUnder. Never empty in practice: every known
+	// forge declares at least one.
+	visibilityNote  string   // why the choices above are narrower than the forge's own list, if they are
 	templates       []string // for projects: available templates
 	templateIdx     int      // selected template index
 	templateScroll  int      // scroll offset for template dropdown
@@ -86,7 +90,14 @@ func formTypeFromResourceType(rt int) FormType {
 // NewCreationForm creates the unified group/project creation form.
 // defaultResourceType: 0=Group, 1=Project.
 // focusedField starts at 0 (Type) so the user can immediately cycle the resource type.
-func NewCreationForm(defaultResourceType int, parentName string, parentID string, defaultVisibility string, templates []string, v forge.Vocabulary) *CreationForm {
+//
+// visibilities is the closed set the Visibility field cycles through — the
+// caller's to narrow (forge.Shape.VisibilitiesUnder), not this component's:
+// it has no notion of a parent or of which forge it is talking to. If
+// defaultVisibility is not among them, the field opens on the first entry —
+// visibilities is ordered most-private-first, so that is always the safe
+// side to land on.
+func NewCreationForm(defaultResourceType int, parentName string, parentID string, defaultVisibility string, visibilities []string, templates []string, v forge.Vocabulary) *CreationForm {
 	nameInput := textinput.New()
 	nameInput.Placeholder = "name"
 	nameInput.CharLimit = 100
@@ -95,10 +106,9 @@ func NewCreationForm(defaultResourceType int, parentName string, parentID string
 
 	descInput := NewWrappedInput(descWrapWidth, descriptionCharLimit, "description (optional)")
 
-	visibilities := []string{"private", "internal", "public"}
 	visIdx := 0
-	for i, v := range visibilities {
-		if v == defaultVisibility {
+	for i, visibility := range visibilities {
+		if visibility == defaultVisibility {
 			visIdx = i
 			break
 		}
@@ -126,6 +136,14 @@ func NewCreationForm(defaultResourceType int, parentName string, parentID string
 // SetTemplateWarning sets a warning message displayed near the template field
 func (f *CreationForm) SetTemplateWarning(msg string) {
 	f.templateWarning = msg
+}
+
+// SetVisibilityNote sets a dim explanation displayed next to the Visibility
+// field — why the choices are narrower than the forge's own list, when the
+// caller has narrowed them (Shape.VisibilitiesUnder). Empty renders nothing:
+// the common case, a root-level create, is not narrowed by anything.
+func (f *CreationForm) SetVisibilityNote(msg string) {
+	f.visibilityNote = msg
 }
 
 // Update handles messages
@@ -403,13 +421,22 @@ func (f *CreationForm) renderDescriptionField() string {
 
 // renderVisibilityField renders the visibility selector in the same single-line format as
 // the "Target Type" field in the security view (Rule 115).
+//
+// The note, when set, explains why ←→ does not reach the forge's full list —
+// without it, a single-entry field (a project under a private group) reads as
+// a control that is stuck rather than one that has nothing else to offer.
 func (f *CreationForm) renderVisibilityField() string {
 	label := "Visibility " + theme.IconSelect + " "
 	value := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorText).Render(f.visibilities[f.visibility])
+	line := theme.Bg("  " + label + theme.IconChevronRight + " ")
 	if f.focusedField == 3 {
-		return theme.KeyStyle.Render(theme.IconCircleSmall+" "+label+theme.IconChevronRight+" ") + value
+		line = theme.KeyStyle.Render(theme.IconCircleSmall + " " + label + theme.IconChevronRight + " ")
 	}
-	return theme.Bg("  "+label+theme.IconChevronRight+" ") + value
+	line += value
+	if f.visibilityNote != "" {
+		line += theme.Bg("  ") + theme.DimStyle.Render(f.visibilityNote)
+	}
+	return line
 }
 
 // renderTemplateList renders a vertical scrollable dropdown list for template selection

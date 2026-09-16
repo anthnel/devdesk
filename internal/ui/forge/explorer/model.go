@@ -68,9 +68,14 @@ type Model struct {
 
 	// Creation mode state
 	creationForm       *components.CreationForm
-	creationParentName string              // Parent stashed during template loading
-	creationParentID   string              // Parent ID stashed during template loading
-	templateEntries    []oci.TemplateEntry // Loaded template entries for repo+tag resolution
+	creationParentName string // Parent stashed during template loading
+	creationParentID   string // Parent ID stashed during template loading
+	// creationParentVisibility is the parent's own visibility, stashed
+	// alongside its name and ID: empty at the root, where nothing narrows the
+	// Visibility field, and read back once the templates land to build the
+	// form's choices (forge.Shape.VisibilitiesUnder).
+	creationParentVisibility string
+	templateEntries          []oci.TemplateEntry // Loaded template entries for repo+tag resolution
 
 	// Tab navigation
 	activeTabIndex int // Focused tab index (last tab = current level)

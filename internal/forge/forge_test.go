@@ -3,6 +3,7 @@ package forge
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -10,16 +11,19 @@ import (
 // the tests below argue about the real difference rather than an invented one.
 var (
 	gitlabShape = Shape{
-		Name:              "gitlab",
-		MaxNamespaceDepth: 0, // unbounded
-		Visibilities:      []string{"private", "internal", "public"},
-		PermanentDelete:   true,
+		Name:                        "gitlab",
+		MaxNamespaceDepth:           0, // unbounded
+		Visibilities:                []string{"private", "internal", "public"},
+		PermanentDelete:             true,
+		RestrictsVisibilityByParent: true,
 	}
 	githubShape = Shape{
 		Name:              "github",
 		MaxNamespaceDepth: 1, // an organisation never holds an organisation
 		Visibilities:      []string{"private", "public"},
 		PermanentDelete:   false,
+		// An organisation is not itself public/private the way a GitLab group
+		// is, so RestrictsVisibilityByParent stays at its zero value, false.
 	}
 )
 
@@ -55,15 +59,61 @@ func TestTheDefaultVisibilityIsTheMostPrivate(t *testing.T) {
 	}
 }
 
-// TestInternalIsAGitLabVisibilityOnly is the shape the creation form has
-// hardcoded three values for. On GitHub.com the third one is refused by the
-// server, which is exactly what a declared set stops the form offering.
+// TestInternalIsAGitLabVisibilityOnly is the shape the creation form reads its
+// choices from. On GitHub.com `internal` is refused by the server, which is
+// exactly what a declared set stops the form offering.
 func TestInternalIsAGitLabVisibilityOnly(t *testing.T) {
 	if !gitlabShape.AllowsVisibility("internal") {
 		t.Error("gitlab refuses `internal`, want it allowed")
 	}
 	if githubShape.AllowsVisibility("internal") {
 		t.Error("github allows `internal`, want it refused")
+	}
+}
+
+// TestAProjectCannotBeMoreOpenThanItsGroup is D71: GitLab refuses a subgroup or
+// a project created more open than the group it goes into, so the form is
+// narrowed to match before the round trip rather than after it fails.
+func TestAProjectCannotBeMoreOpenThanItsGroup(t *testing.T) {
+	tests := []struct {
+		parentVisibility string
+		want             []string
+	}{
+		{"private", []string{"private"}},
+		{"internal", []string{"private", "internal"}},
+		{"public", []string{"private", "internal", "public"}},
+		// The root has no parent to narrow by.
+		{"", []string{"private", "internal", "public"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.parentVisibility, func(t *testing.T) {
+			got := gitlabShape.VisibilitiesUnder(tt.parentVisibility)
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("VisibilitiesUnder(%q) = %v, want %v", tt.parentVisibility, got, tt.want)
+			}
+		})
+	}
+}
+
+// An unrecognised parent value narrows to nothing usable if trusted blindly.
+// Falling back to the full list means the create call reaches the server and
+// is refused there — a real answer rather than a menu that silently offers
+// one option for a reason nobody can see.
+func TestVisibilitiesUnderFallsBackOnAnUnrecognisedParentValue(t *testing.T) {
+	got := gitlabShape.VisibilitiesUnder("classified")
+	if !slices.Equal(got, gitlabShape.Visibilities) {
+		t.Errorf("VisibilitiesUnder(%q) = %v, want the full list", "classified", got)
+	}
+}
+
+// TestGitHubIgnoresTheParentVisibility is the other half of D71: an
+// organisation has no visibility of its own for a repository to be narrowed
+// against, so GitHub answers the same whatever parentVisibility is passed.
+func TestGitHubIgnoresTheParentVisibility(t *testing.T) {
+	for _, parent := range []string{"", "private", "public", "anything"} {
+		if got := githubShape.VisibilitiesUnder(parent); !slices.Equal(got, githubShape.Visibilities) {
+			t.Errorf("VisibilitiesUnder(%q) = %v, want the full list unnarrowed", parent, got)
+		}
 	}
 }
 

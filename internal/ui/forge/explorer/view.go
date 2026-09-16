@@ -226,6 +226,17 @@ func (m Model) vocab() forge.Vocabulary {
 	return forge.VocabularyFor(m.config.Forge.Type)
 }
 
+// shape is what the forge can express, resolved the same way vocab is: from
+// the config rather than the live session, so a form that only needs to know
+// the closed set of visibilities does not depend on a backend having been
+// constructed.
+func (m Model) shape() forge.Shape {
+	if m.config == nil {
+		return forge.ShapeFor("")
+	}
+	return forge.ShapeFor(m.config.Forge.Type)
+}
+
 // forgeIcon is the glyph naming the active forge.
 func (m Model) forgeIcon() string {
 	if m.config == nil {
