@@ -3,3 +3,11 @@ dans la vue git-explorer, si je ne suis pas connecté à gitlab, il me met le me
 ---
 
 /login
+
+---
+
+oui, mets ça dans un worktree et commit
+
+---
+
+tu n'as pas accès à entire depuis la sandbox
