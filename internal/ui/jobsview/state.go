@@ -55,18 +55,21 @@ func itemStateGlyph(r itemRow) string {
 
 // runStateStyle colours a run.
 //
-// Rule 122's discipline decides the four answers. `done` is the majority of a
-// settled list, so it takes the ordinary text colour — a green on most rows
-// would be a colour on the whole table and a signal on none of it. `failed` is
-// what deserves to be found without reading. `cancelled` is a warning rather
-// than an error: nothing broke, the user stopped it. `queued` is dim, the way
-// a zero and a placeholder are: nothing has happened yet.
+// `done` gets the same green as every other success glyph in the application
+// (Rule 121, theme.StatusOKStyle) — the status view colours "OK" the same
+// way, and a jobs list is exactly the kind of screen where a reader scans for
+// the one row that is not green. `failed` is what deserves to be found
+// without reading. `cancelled` is a warning rather than an error: nothing
+// broke, the user stopped it. `queued` is dim, the way a zero and a
+// placeholder are: nothing has happened yet.
 //
 // `running` is left plain on purpose. The spinner in the glyph column already
 // says it, it says it by moving, and a second answer in colour would be one
 // more thing to keep in step.
 func runStateStyle(state jobs.RunState) lipgloss.Style {
 	switch state {
+	case jobs.RunDone:
+		return theme.StatusOKStyle
 	case jobs.RunFailed:
 		return theme.StatusErrorStyle
 	case jobs.RunCancelled:
@@ -83,6 +86,8 @@ func runStateStyle(state jobs.RunState) lipgloss.Style {
 // Detail column beside it.
 func itemStateStyle(state jobs.ItemState) lipgloss.Style {
 	switch state {
+	case jobs.ItemDone:
+		return theme.StatusOKStyle
 	case jobs.ItemFailed:
 		return theme.StatusErrorStyle
 	case jobs.ItemSkipped:
