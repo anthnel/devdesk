@@ -94,8 +94,13 @@ func renderCodeSection(m Model, width int, t tier) []string {
 	}
 
 	if t != tierWide {
+		// User and Host stack on their own rows, the same pair the wide
+		// tier already carries as its "user"/"host" branches — the bare
+		// session line above them used to be the box's only unlabeled
+		// fact, and the forge it authenticates against had nowhere to go.
 		return []string{
-			sessionLine,
+			row("User", sessionLine),
+			row("Host", theme.Bg(forgeHost(m.config.Forge.URL))),
 			row(v.ChangeRequestShort+"s", mrs+theme.Bg(" assigned  ")+review+theme.Bg(" to review")),
 			row("Issues", issues+theme.Bg(" assigned")),
 			theme.Bg(""),
