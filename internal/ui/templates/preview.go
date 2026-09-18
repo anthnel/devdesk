@@ -52,7 +52,7 @@ func listing(entry template.Entry, files []template.File) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s — %s, %s\n", entry.Name, sharedcomponents.Plural(len(sorted), "file", "files"), humanSize(total))
+	fmt.Fprintf(&b, "%s — %s, %s\n", entry.Name, sharedcomponents.Plural(len(sorted), "file", "files"), template.FormatSize(total))
 	fmt.Fprintf(&b, "%s\n\n", sourceSummary(entry.Source)+refSuffix(entry.Source))
 
 	if len(sorted) == 0 {
@@ -64,7 +64,7 @@ func listing(entry template.Entry, files []template.File) string {
 		if f.Executable {
 			mode = "x"
 		}
-		fmt.Fprintf(&b, "%s  %9s  %s\n", mode, humanSize(len(f.Content)), f.Path)
+		fmt.Fprintf(&b, "%s  %9s  %s\n", mode, template.FormatSize(len(f.Content)), f.Path)
 	}
 	return b.String()
 }
@@ -74,15 +74,4 @@ func refSuffix(s template.Source) string {
 		return ""
 	}
 	return " @ " + s.Ref
-}
-
-func humanSize(n int) string {
-	switch {
-	case n >= 1<<20:
-		return fmt.Sprintf("%.1f MiB", float64(n)/(1<<20))
-	case n >= 1<<10:
-		return fmt.Sprintf("%.1f KiB", float64(n)/(1<<10))
-	default:
-		return fmt.Sprintf("%d B", n)
-	}
 }

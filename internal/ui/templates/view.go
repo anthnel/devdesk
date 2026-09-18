@@ -93,17 +93,8 @@ func (m Model) RenderFooter(width int) string {
 	if m.FilterBarVisible() {
 		parts = append(parts, m.table.FilterBar().View())
 	}
-	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, m.status()))
+	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, sharedcomponents.Status{}))
 	return strings.Join(parts, "\n")
-}
-
-// status is the derived line, with no timer (Rule 128). Listing the registry is
-// a state, not an event, so it is derived on every frame.
-func (m Model) status() sharedcomponents.Status {
-	if m.discovering {
-		return sharedcomponents.Status{Text: "Loading registry templates...", Spinner: true}
-	}
-	return sharedcomponents.Status{}
 }
 
 // View renders the form, the modal, or the table — and the table whatever it
@@ -133,7 +124,7 @@ func (m Model) GetHelpContent() help.Content {
 			"so the catalog cannot drift from the original.",
 		KeyBindings: []help.KeyBinding{
 			{Key: keymap.New, Description: "Add a template to the catalog"},
-			{Key: keymap.Edit, Description: "Edit the selected template. On one the registry listed, this keeps it in the catalog so it can be given tags"},
+			{Key: keymap.Edit, Description: "Edit the selected template"},
 			{Key: keymap.Delete, Description: "Remove the selected template from the catalog. The template's own content is never touched"},
 			{Key: keymap.Pager, Description: "Preview the files the template would put in a new repository"},
 			{Key: ".", Description: "Cycle the sort column. Each press toggles asc/desc, then moves to the next column"},
@@ -154,15 +145,14 @@ func (m Model) GetHelpContent() help.Content {
 				Body:  "Free-form labels — java, spring-boot, ci-component — separated by commas. They are lowercased and de-duplicated, and searched by the filter as stored.",
 			},
 			{
-				Title: "Declared and registry templates",
-				Body: "Declared templates are the ones in this catalog, kept in ~/.devdesk/templates.yaml and shared by every context. " +
-					"When the context's registry has a templates repository, what it lists appears too, marked 'registry'. " +
-					"Those are read-only until you edit one, which adds it to the catalog so it can carry tags and a description.",
+				Title: "The catalog",
+				Body: "Templates are kept in ~/.devdesk/templates.yaml and shared by every context. " +
+					"When a repository is created, the Template field of the form offers this list, or none for an empty repository.",
 			},
 			{
 				Title: "Credentials",
 				Body: "A source is fetched anonymously unless it is on the same host as the context's forge (git) or registry (oci), in which case the stored token or password is used. " +
-					"A token authenticates one host, so it is never offered to another.",
+					"A token authenticates one host, so it is never offered to another: a private repository on any other host needs an SSH URL.",
 			},
 		},
 	}

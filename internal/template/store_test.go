@@ -58,20 +58,6 @@ func TestPutReplacesTheSameSlug(t *testing.T) {
 	}
 }
 
-func TestPutNeverWritesTheDiscoveredFlag(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "templates.yaml")
-	s, _ := Open(path)
-	e := sample("api", "API")
-	e.Discovered = true
-	if err := s.Put(e); err != nil {
-		t.Fatal(err)
-	}
-	got, _ := s.Get("api")
-	if got.Discovered {
-		t.Error("an adopted entry is still marked discovered")
-	}
-}
-
 func TestAnInvalidEntryIsRefusedAndNothingIsWritten(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "templates.yaml")
 	s, _ := Open(path)

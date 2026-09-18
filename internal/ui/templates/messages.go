@@ -10,12 +10,6 @@ type CatalogLoadedMsg struct {
 	Err   error
 }
 
-// DiscoveredMsg carries the templates the configured registry listed.
-type DiscoveredMsg struct {
-	Entries []template.Entry
-	Err     error
-}
-
 // SavedMsg reports a Put. Entry is what was written, normalized.
 type SavedMsg struct {
 	Entry template.Entry

@@ -32,17 +32,11 @@ func (m Model) availability() availability {
 		a.Delete = shortcut.Unavailable(reasonUnreadable)
 	}
 
-	entry, ok := m.selectedEntry()
-	if !ok {
+	if _, ok := m.selectedEntry(); !ok {
 		a.Edit = firstRefusal(a.Edit, reasonNoTemplate)
 		a.Delete = firstRefusal(a.Delete, reasonNoTemplate)
 		a.Preview = shortcut.Unavailable(reasonNoTemplate)
 		return a
-	}
-	if entry.Discovered {
-		// Not deletable: it is the registry's, and nothing DevDesk does would
-		// remove it. Editing it is what adopts it.
-		a.Delete = firstRefusal(a.Delete, reasonListed)
 	}
 	return a
 }

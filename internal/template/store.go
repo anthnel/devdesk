@@ -98,7 +98,6 @@ func (s *Store) Get(slug string) (Entry, error) {
 // Tags are normalized on the way in.
 func (s *Store) Put(e Entry) error {
 	e.Tags = NormalizeTags(e.Tags)
-	e.Discovered = false
 	if err := e.Validate(); err != nil {
 		return err
 	}

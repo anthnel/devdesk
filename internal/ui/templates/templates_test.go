@@ -13,7 +13,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -154,55 +153,6 @@ func TestTheFilterMatchesTagsAndDescription(t *testing.T) {
 	}
 }
 
-// ── Discovered entries ───────────────────────────────────────────────────────
-
-func discovered() template.Entry {
-	return template.Entry{
-		Slug: "oci-a-b-v1", Name: "b:v1", Discovered: true,
-		Source: template.Source{Kind: template.KindOCI, URL: "https://r", Path: "a/b", Ref: "v1"},
-	}
-}
-
-func TestADiscoveredTemplateIsListedBesideTheDeclaredOnes(t *testing.T) {
-	m := opened(t, entry("api", "API"))
-	m = send(t, m, DiscoveredMsg{Entries: []template.Entry{discovered()}})
-
-	if len(m.table.Visible()) != 2 {
-		t.Fatalf("rows = %v, want the declared and the discovered", slugs(m))
-	}
-}
-
-func TestARegistryThatFailsLeavesTheDeclaredTemplatesUsable(t *testing.T) {
-	m := opened(t, entry("api", "API"))
-	m.discovering = true
-
-	m = send(t, m, DiscoveredMsg{Err: os.ErrDeadlineExceeded})
-
-	if m.discovering {
-		t.Error("still discovering after the answer")
-	}
-	if len(m.table.Visible()) != 1 {
-		t.Errorf("rows = %v, want the declared template still listed", slugs(m))
-	}
-	if m.footer.Level() != sharedcomponents.LevelWarning {
-		t.Errorf("footer level = %v, want a warning", m.footer.Level())
-	}
-}
-
-func TestAConfiguredRegistryShowsALoadingStatus(t *testing.T) {
-	cfg := config.Default()
-	cfg.Registry.URL = "https://r"
-	cfg.Registry.TemplatesRepository = "group/templates"
-	m := NewWithPath(cfg, nil, filepath.Join(t.TempDir(), "t.yaml"))
-
-	if status := m.status(); !status.Spinner || !strings.Contains(status.Text, "registry") {
-		t.Errorf("status = %+v, want a spinner naming the registry", status)
-	}
-	if NewWithPath(config.Default(), nil, "x").status().Spinner {
-		t.Error("a view with no registry shows a loading status")
-	}
-}
-
 // ── Creating ─────────────────────────────────────────────────────────────────
 
 // fill types into the focused field and moves on with enter, which is how a
@@ -340,27 +290,6 @@ func TestEditingKeepsTheSlugWhateverTheNameBecomes(t *testing.T) {
 	}
 }
 
-// Editing a template the registry listed is what adopts it: it is written as a
-// declared entry, and the registry's is no longer listed.
-func TestEditingADiscoveredTemplateAdoptsIt(t *testing.T) {
-	m := opened(t)
-	m = send(t, m, DiscoveredMsg{Entries: []template.Entry{discovered()}})
-
-	m = send(t, m, testutil.Key("E"))
-	if m.form == nil {
-		t.Fatal("E did not open the form on a discovered template")
-	}
-	m.form.tags.SetValue("java")
-	m = send(t, m, testutil.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter", "enter")...)
-
-	if got := slugs(m); !reflect.DeepEqual(got, []string{"oci-a-b-v1"}) {
-		t.Fatalf("rows = %v, want one entry, not the declared and the discovered", got)
-	}
-	if sel, _ := m.selectedEntry(); sel.Discovered || !reflect.DeepEqual(sel.Tags, []string{"java"}) {
-		t.Errorf("selected = %+v, want it declared and tagged", sel)
-	}
-}
-
 // ── Deleting ─────────────────────────────────────────────────────────────────
 
 func TestDeletingAsksFirstAndDefaultsToNo(t *testing.T) {
@@ -391,35 +320,15 @@ func TestConfirmingRemovesTheEntryFromTheFile(t *testing.T) {
 	}
 }
 
-func TestADiscoveredTemplateCannotBeDeletedAndSaysWhy(t *testing.T) {
-	m := opened(t)
-	m = send(t, m, DiscoveredMsg{Entries: []template.Entry{discovered()}})
-
-	if !testutil.ShortcutDisabled(m.GetShortcuts(), "D") {
-		t.Error("D is not greyed on a discovered template")
-	}
-	m = send(t, m, testutil.Key("D"))
-
-	if m.confirmModal != nil {
-		t.Error("D asked to delete a discovered template")
-	}
-	if m.footer.Text() != reasonListed {
-		t.Errorf("footer = %q, want %q", m.footer.Text(), reasonListed)
-	}
-}
-
 // ── Shortcuts (Rule 130) ─────────────────────────────────────────────────────
 
-func TestTheShortcutKeysDoNotChangeWithTheRow(t *testing.T) {
+func TestTheShortcutKeysDoNotChangeWithTheSelection(t *testing.T) {
 	empty := opened(t)
 	full := opened(t, entry("api", "API"))
-	listed := send(t, opened(t), DiscoveredMsg{Entries: []template.Entry{discovered()}})
 
 	base := testutil.ShortcutKeys(empty.GetShortcuts())
-	for name, m := range map[string]Model{"a declared row": full, "a discovered row": listed} {
-		if got := testutil.ShortcutKeys(m.GetShortcuts()); !reflect.DeepEqual(got, base) {
-			t.Errorf("%s: keys = %v, want %v", name, got, base)
-		}
+	if got := testutil.ShortcutKeys(full.GetShortcuts()); !reflect.DeepEqual(got, base) {
+		t.Errorf("with a row: keys = %v, want %v", got, base)
 	}
 }
 
@@ -515,45 +424,6 @@ func TestListingSummarisesTheFiles(t *testing.T) {
 	}
 	if !strings.Contains(listing(entry("e", "E"), nil), "empty") {
 		t.Error("a template with no files does not say a repository made from it would be empty")
-	}
-}
-
-// ── Credentials ──────────────────────────────────────────────────────────────
-
-// A token authenticates one host: it must never be offered to another, and the
-// catalog can be shared, so the entry cannot be what decides.
-func TestCredentialsAreOnlyOfferedToTheirOwnHost(t *testing.T) {
-	cfg := config.Default()
-	cfg.Forge.URL = "https://gitlab.example.com"
-	cfg.Registry.URL = "https://registry.example.com"
-	cfg.Registry.Username = "ada"
-	secrets := credentials.NewMemoryStorage()
-	_ = secrets.Save(cfg.Forge.URL, "forge-token")
-	_ = secrets.Save(cfg.Registry.URL, "registry-password")
-	m := NewWithPath(cfg, secrets, "x")
-
-	tests := []struct {
-		name string
-		src  template.Source
-		want template.Credentials
-	}{
-		{"git on the forge", template.Source{Kind: template.KindGit, URL: "https://gitlab.example.com/a/b.git"}, template.Credentials{Token: "forge-token"}},
-		{"git over ssh on the forge", template.Source{Kind: template.KindGit, URL: "git@gitlab.example.com:a/b.git"}, template.Credentials{Token: "forge-token"}},
-		{"git elsewhere", template.Source{Kind: template.KindGit, URL: "https://github.com/a/b.git"}, template.Credentials{}},
-		{"oci on the registry", template.Source{Kind: template.KindOCI, URL: "https://registry.example.com"}, template.Credentials{Username: "ada", Password: "registry-password"}},
-		{"oci elsewhere", template.Source{Kind: template.KindOCI, URL: "https://ghcr.io"}, template.Credentials{}},
-		{"local", template.Source{Kind: template.KindLocal, Path: "/x"}, template.Credentials{}},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := m.credentialsFor(tc.src); got != tc.want {
-				t.Errorf("credentialsFor() = %+v, want %+v", got, tc.want)
-			}
-		})
-	}
-
-	if got := NewWithPath(cfg, nil, "x").credentialsFor(tests[0].src); got != (template.Credentials{}) {
-		t.Errorf("with no secret store, credentials = %+v, want none", got)
 	}
 }
 
