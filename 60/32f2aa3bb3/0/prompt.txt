@@ -1,0 +1,9 @@
+Je voudrais qu'on discute d'une nouvelle fonctionnalité, quand je crée un nouveau repository git (gitlab|github) je voudrais pouvoir référencer un template pour alimenter le contenu initial du repo. Il y a donc le besoin de pouvoir stocker les repo templates et puis les récupérer à la création d'un nouveau. Est-ce qu'une vue pourrait être utile pour gérer ces templates ?  ça permettrait de les lister, d'ajouter des tags (java, spring-boot, gitlab component, etc.), de référencer un repo distant, un repo local, un oci registry. J'aimerais ton avis sur la question
+
+---
+
+/login
+
+---
+
+ça me convient, j'ajouterais que quand on crée un repo, je trouverais utile de pouvoir parcourir de datatable template pour sélectionner celui que l'on désire mais il est toujours possible de n'en préciser aucun pour créer un dépôt vide
