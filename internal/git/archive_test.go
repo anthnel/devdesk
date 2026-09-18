@@ -29,6 +29,12 @@ func fixtureRepo(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
+	// `* -text` turns line-ending conversion off for this repository. Without
+	// it a host with core.autocrlf=true (Windows) commits and archives
+	// "committed\r\n", and the content assertions fail on the machine only.
+	// The fixture lives in a fresh temp directory, so the repository's own
+	// .gitattributes cannot reach it and it has to carry its own.
+	write(".gitattributes", "* -text\n", 0o644)
 	write("README.md", "committed\n", 0o644)
 	write("app/main.go", "package main\n", 0o644)
 	write(".gitignore", "secret.env\n", 0o644)
