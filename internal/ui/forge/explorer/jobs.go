@@ -102,10 +102,11 @@ func (m ProjectCreatedMsg) Transition() jobs.Transition {
 		t.State = jobs.ItemFailed
 		t.Detail = "create failed — check logs"
 	case m.TemplateError != nil:
-		// The project exists; only the template did not apply. That is neither
-		// a success worth nothing said nor a failure — the row is there, and
-		// what did not happen is worth keeping on the run.
-		t.Detail = "template failed"
+		// The project exists, empty, but what was asked for was a repository
+		// with a template in it: the run says it did not get there rather than
+		// reading as a success. The row still settles (handleProjectCreated).
+		t.State = jobs.ItemFailed
+		t.Detail = "created empty — the template's commit failed"
 	}
 	return t
 }

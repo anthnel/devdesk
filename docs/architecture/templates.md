@@ -134,6 +134,12 @@ The `Template` field of the explorer's creation form (projects only) shows
   run detail reads `template unavailable — nothing was created`. Only the initial
   commit can still fail once the repository exists, and that keeps the old
   outcome: the repository stays, empty, and the footer says it was created empty.
+  The run item is **failed** (`created empty — the template's commit failed`), not
+  done: what was asked for was a repository with a template in it.
+- **A create is bounded, not cancellable.** `jobs.Kind.Cancellable` says no for
+  `create` (a request already sent cannot be un-sent), so the guard against a
+  stalled forge is a timeout: one minute for the repository, ten for the initial
+  commit (GitHub makes one request per file).
 - The catalog is read when the template is applied, not when the form opens, so
   a template deleted while the form was open is reported as no longer in the
   catalog rather than applied from a stale copy.
