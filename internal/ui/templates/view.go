@@ -73,6 +73,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: keymap.New, Description: "Create template", Disabled: !a.New.Enabled()},
 		{Key: keymap.Edit, Description: "Edit template", Disabled: !a.Edit.Enabled()},
 		{Key: keymap.Delete, Description: "Delete template", Disabled: !a.Delete.Enabled()},
+		{Key: keymap.Scan, Description: "Scan template", Disabled: !a.Scan.Enabled()},
 		{Key: keymap.Pager, Description: "Preview files", Disabled: !a.Preview.Enabled()},
 		{Key: ".", Description: "Sort"},
 		{Key: "/", Description: "Filter"},
@@ -106,17 +107,17 @@ func (m Model) RenderFooter(width int) string {
 	if m.FilterBarVisible() {
 		parts = append(parts, m.table.FilterBar().View())
 	}
-	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, sharedcomponents.Status{Text: m.selectionText()}))
+	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, m.status()))
 	return strings.Join(parts, "\n")
 }
 
-// selectionText is what the footer says while the view is lent — a state, so it
-// is derived rather than set (Rule 128).
-func (m Model) selectionText() string {
+// status is the derived line, with no timer (Rule 128): the prompt while the
+// view is lent, the live work otherwise. Both are states, not events.
+func (m Model) status() sharedcomponents.Status {
 	if m.selecting {
-		return m.selectionMessage
+		return sharedcomponents.Status{Text: m.selectionMessage}
 	}
-	return ""
+	return m.jobsStatus()
 }
 
 // View renders the form, the modal, or the table — and the table whatever it
@@ -181,6 +182,13 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "The catalog",
 				Body: "Templates are kept in ~/.devdesk/templates.yaml and shared by every context. " +
 					"When a repository is created, the Template field of the form offers this list, or none for an empty repository.",
+			},
+			{
+				Title: "Scanning",
+				Body: "'" + keymap.Scan + "' fetches the template, writes it to ~/.devdesk/cache/template-scan/<name> and scans that directory with the configured scanners, the way a repository is scanned. " +
+					"The result is kept by path, so it appears in :sec, which is where the report opens; the footer here gives the counts. " +
+					"A scan replaces the previous copy, so what is scanned is what the template holds now. The CI score is not computed: a template has no pipeline to grade.\n" +
+					"The key is greyed when neither Trivy nor Gitleaks is available, and while a scan of that template is already running.",
 			},
 			{
 				Title: "Credentials",

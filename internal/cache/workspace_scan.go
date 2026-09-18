@@ -189,6 +189,45 @@ func SaveWorkspaceScanResult(repoPath string, result *scan.Result) error {
 	return os.WriteFile(filePath, data, 0600)
 }
 
+// StoreWorkspaceScan records one finished scan of a directory: the counts in the
+// cache of the context the scan was launched in, and the full result beside it.
+//
+// The counts are scoped by context and the result is not — it is addressed by
+// path, and a scan of /repos/devdesk is the same scan whichever context asked
+// (see internal/cache/scan_context_test.go). Two callers write exactly this: the
+// workspaces view for a repository, and the templates view for a template's
+// materialized copy.
+//
+// A failure to save either half is logged and returned, but the entry is
+// returned regardless: the scan happened, and its counts are what the caller
+// reports.
+func StoreWorkspaceScan(contextName, repoPath string, result *scan.Result) (WorkspaceScanEntry, error) {
+	entry := WorkspaceScanEntry{
+		RepoPath: repoPath,
+		Critical: result.Counts.Critical,
+		High:     result.Counts.High,
+		Medium:   result.Counts.Medium,
+		Low:      result.Counts.Low,
+		// The verdict comes from the scan and from nowhere else: a loop looking
+		// for "a finding whose Source is gitleaks" missed the secrets Trivy
+		// found, and could not tell that no stage had looked at all.
+		Sensitive: result.SecretVerdict(),
+		CIScore:   result.CIVerdict(),
+		ScannedAt: result.EndTime,
+	}
+
+	var errs []error
+	if wc, err := NewWorkspaceScanCache(contextName); err != nil {
+		errs = append(errs, fmt.Errorf("open cache: %w", err))
+	} else if err := wc.Set(repoPath, entry); err != nil {
+		errs = append(errs, fmt.Errorf("cache set: %w", err))
+	}
+	if err := SaveWorkspaceScanResult(repoPath, result); err != nil {
+		errs = append(errs, fmt.Errorf("save full result: %w", err))
+	}
+	return entry, errors.Join(errs...)
+}
+
 // DeleteWorkspaceScanResult removes the full scan result file from disk.
 // Used by purgeScanCacheCmd before re-scanning to avoid stale results.
 func DeleteWorkspaceScanResult(repoPath string) error {

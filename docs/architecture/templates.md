@@ -84,6 +84,7 @@ always the table (Rule 139); the count is in the header.
 | `N` | new entry — form in the viewport (Rule 112), source kind is a `←→` cycle field (Rule 132) |
 | `E` | edit |
 | `D` | delete after a confirmation that defaults to No |
+| `S` | scan the template for vulnerabilities and secrets (below) |
 | `V` | preview: asks the router to open the viewer on a listing of the files the template would put in a repository (`previewSource`), so a fetch failure is reported by the viewer's own load path |
 | `.` `/` | sort, filter (name, description, tags, source) |
 
@@ -125,10 +126,42 @@ The `Template` field of the explorer's creation form (projects only) shows
   a template deleted while the form was open is reported as no longer in the
   catalog rather than applied from a stale copy.
 
+## Scanning a template
+
+A secret in a template ends up in every repository made from it, so `S` scans
+what the template would put in a repository — before it does.
+
+The template is fetched, written to **`~/.devdesk/cache/template-scan/<slug>`**
+(`template.Materialize`, which replaces whatever a previous scan left there), and
+that directory is scanned as a plain directory by the configured scanners. It is
+reused as a directory scan on purpose: the result is cached by path
+(`cache.StoreWorkspaceScan`, now shared with the workspaces view), so it appears
+in the **`:sec` inventory** and opens in the same results view, with nothing new
+to build. The footer here says how it ended — the counts, or `no findings`, or a
+warning when a stage failed and found nothing (which is not the same claim). The
+workspaces list is not involved: the copy is not in it, and nothing pretends it is.
+
+- **Fixed directory, not a temp one**, because the scan is cached by path: a
+  fresh directory per scan would leave a dead `:sec` entry behind for each.
+- **`Materialize` computes and empties only its own directory.** It takes a slug,
+  validates it, and derives the path — a caller cannot point the removal
+  elsewhere — and refuses a file whose path would land outside it.
+- **No CI score.** A template has no pipeline to grade, and plumber would look
+  for a remote it does not have.
+- **It is registry work** (`jobs.KindScan`, origin `:templates`), so `:jobs`
+  lists it, `K` stops it, and the router stamps the context the counts are stored
+  under (D68). `ScanStartingMsg` and `ScanCompleteMsg` implement `jobs.Reporter`
+  and are routed through `routeWork`; a test pins that, because implementing the
+  interface proves nothing if the router never calls it.
+- **`S` is greyed** when neither Trivy nor Gitleaks is available, and while a
+  scan of that template is running (whoever started it). Until the scanner check
+  comes back it stays lit — greying it for a few frames would read as a glitch
+  (Rule 130). The picker has no `S`.
+
 ## Not done yet
 
-- `F` (sync) and the cache it would own: every preview and every creation
+- `F` (sync) and the cache it would own: every preview, creation and scan
   refetches.
-- `S` (scan) on a template's fetched content.
 - A private git repository on a host that is not the forge's is fetched
   anonymously, so it fails with git's own reason: use an SSH URL.
+- No spinner on the row itself: the footer status carries the live scan.

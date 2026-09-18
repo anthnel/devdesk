@@ -460,6 +460,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// it sets is cleared here or not at all.
 		return a.routeWork(command.ViewWorkspaces, msg)
 
+	// A template's scan is a directory scan like the workspaces one, reported
+	// the same way; it reaches the templates view even after the user has gone
+	// elsewhere, and the registry hears about it either way.
+	case templates.ScanStartingMsg:
+		return a.routeWork(command.ViewTemplates, msg)
+
+	case templates.ScanCompleteMsg:
+		return a.routeWork(command.ViewTemplates, msg)
+
 	case ociresources.ImageScanStartingMsg:
 		return a.routeWork(command.ViewOCIResources, msg)
 
