@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -226,13 +227,27 @@ func (m Model) createGroup(msg components.CreationFormSubmitMsg, target string) 
 	}
 
 	return func() tea.Msg {
-		ns, err := backend.CreateNamespace(context.Background(), spec)
+		ctx, cancel := context.WithTimeout(context.Background(), forgeCallTimeout)
+		defer cancel()
+		ns, err := backend.CreateNamespace(ctx, spec)
 		if err != nil {
 			return GroupCreatedMsg{Target: target, Error: err}
 		}
 		return GroupCreatedMsg{Namespace: ns, Target: target}
 	}
 }
+
+// What a forge call may take before the run gives up on it. A create is not
+// cancellable by the user (jobs.Kind.Cancellable — a request already sent cannot
+// be un-sent), so the bound is what keeps a stalled connection from holding the
+// row, and the target, busy for the life of the session.
+//
+// The initial commit gets far longer than the rest: GitHub takes one request per
+// file, and a template may hold template.MaxFiles of them.
+const (
+	forgeCallTimeout     = time.Minute
+	initialCommitTimeout = 10 * time.Minute
+)
 
 // slugify turns a display name into the path segment a forge wants.
 func slugify(name string) string {
@@ -272,13 +287,17 @@ func (m Model) createProject(msg components.CreationFormSubmitMsg, target string
 			return ProjectCreatedMsg{Target: target, Error: err, TemplateUnavailable: true}
 		}
 
-		repo, err := backend.CreateRepository(ctx, spec)
+		createCtx, cancelCreate := context.WithTimeout(ctx, forgeCallTimeout)
+		defer cancelCreate()
+		repo, err := backend.CreateRepository(createCtx, spec)
 		if err != nil {
 			return ProjectCreatedMsg{Target: target, Error: err}
 		}
 
 		if len(files) > 0 {
-			if err := backend.InitialCommit(ctx, repo.ID, files); err != nil {
+			commitCtx, cancelCommit := context.WithTimeout(ctx, initialCommitTimeout)
+			defer cancelCommit()
+			if err := backend.InitialCommit(commitCtx, repo.ID, files); err != nil {
 				return ProjectCreatedMsg{Repository: repo, Target: target, TemplateError: err}
 			}
 		}

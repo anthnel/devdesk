@@ -13,14 +13,20 @@ import (
 // It is `git archive`, so what comes back is what was committed: no .git,
 // nothing ignored, and no uncommitted edit — a template must not depend on the
 // state of someone's working tree. subdir, when set, becomes the archive root.
-func ArchiveLocal(ctx context.Context, repoPath, ref, subdir string) ([]byte, error) {
+// maxBytes (0 for no limit) stops a repository larger than that from being
+// buffered whole; the error is ErrOutputTooLarge.
+func ArchiveLocal(ctx context.Context, repoPath, ref, subdir string, maxBytes int64) ([]byte, error) {
 	if strings.HasPrefix(ref, "-") {
 		return nil, fmt.Errorf("refusing ref %q: it would be read as a git option", ref)
 	}
 	if _, err := runContext(ctx, repoPath, "", "rev-parse", "--git-dir"); err != nil {
 		return nil, fmt.Errorf("%s is not a git repository", repoPath)
 	}
-	out, err := runContext(ctx, repoPath, "", "archive", "--format=tar", treeish(ref, subdir))
+	tree := treeish(ref, subdir)
+	if err := refuseSubmodules(ctx, repoPath, tree); err != nil {
+		return nil, err
+	}
+	out, err := runContextMax(ctx, repoPath, "", maxBytes, "archive", "--format=tar", tree)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +40,7 @@ func ArchiveLocal(ctx context.Context, repoPath, ref, subdir string) ([]byte, er
 // `fetch --depth 1 <ref>` rather than `clone --branch`: the latter refuses a
 // commit SHA, and a template pinned to a SHA is the reproducible kind. token
 // is offered over HTTPS exactly as Clone offers it.
-func ArchiveRemote(ctx context.Context, repoURL, ref, subdir, token string) ([]byte, error) {
+func ArchiveRemote(ctx context.Context, repoURL, ref, subdir, token string, maxBytes int64) ([]byte, error) {
 	// Both would be read by git as options, not as a URL or a ref.
 	if strings.HasPrefix(repoURL, "-") || strings.HasPrefix(ref, "-") {
 		return nil, fmt.Errorf("refusing %q: it would be read as a git option", repoURL+" "+ref)
@@ -54,7 +60,11 @@ func ArchiveRemote(ctx context.Context, repoURL, ref, subdir, token string) ([]b
 	if _, err := runContext(ctx, dir, token, "fetch", "--quiet", "--depth", "1", repoURL, ref); err != nil {
 		return nil, err
 	}
-	out, err := runContext(ctx, dir, "", "archive", "--format=tar", treeish("FETCH_HEAD", subdir))
+	tree := treeish("FETCH_HEAD", subdir)
+	if err := refuseSubmodules(ctx, dir, tree); err != nil {
+		return nil, err
+	}
+	out, err := runContextMax(ctx, dir, "", maxBytes, "archive", "--format=tar", tree)
 	if err != nil {
 		return nil, err
 	}
@@ -72,4 +82,21 @@ func treeish(ref, subdir string) string {
 		return ref
 	}
 	return ref + ":" + subdir
+}
+
+// refuseSubmodules fails when tree holds a submodule. `git archive` writes one
+// as an empty directory, so the template would arrive missing what it says it
+// contains, and nothing would say so.
+func refuseSubmodules(ctx context.Context, dir, tree string) error {
+	out, err := runContext(ctx, dir, "", "ls-tree", "-r", tree)
+	if err != nil {
+		return err
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "160000 ") {
+			_, path, _ := strings.Cut(line, "\t")
+			return fmt.Errorf("%s is a git submodule, which a template cannot carry", path)
+		}
+	}
+	return nil
 }

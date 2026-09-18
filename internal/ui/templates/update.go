@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"fmt"
 	"log"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -99,7 +100,21 @@ func (m Model) handleCatalogLoaded(msg CatalogLoadedMsg) (tea.Model, tea.Cmd) {
 	m.storeErr = nil
 	m.declared = msg.Store.List()
 	m.rebuild()
+	if problems := msg.Store.Problems(); len(problems) > 0 {
+		for _, err := range problems {
+			log.Printf("ERROR [templates] catalog entry skipped: %v", err)
+		}
+		return m, m.footer.Warn(fmt.Sprintf("%d catalog %s skipped — check logs", len(problems), plural(len(problems))))
+	}
 	return m, nil
+}
+
+// plural is "entry" or "entries" for n.
+func plural(n int) string {
+	if n == 1 {
+		return "entry"
+	}
+	return "entries"
 }
 
 func (m Model) handleSaved(msg SavedMsg) (tea.Model, tea.Cmd) {

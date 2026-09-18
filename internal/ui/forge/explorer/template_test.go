@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/template"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -267,5 +268,14 @@ func TestAnUnavailableTemplateIsReportedAsNothingCreated(t *testing.T) {
 	tr := ProjectCreatedMsg{Target: "svc", Error: io.EOF, TemplateUnavailable: true}.Transition()
 	if !strings.Contains(tr.Detail, "nothing was created") {
 		t.Errorf("run detail = %q", tr.Detail)
+	}
+}
+
+// A repository that exists but is empty is not a success of a create that asked
+// for a template: the run says so, and the detail says why.
+func TestACreateWhoseTemplateCommitFailedIsAFailedItem(t *testing.T) {
+	tr := ProjectCreatedMsg{Target: "svc", TemplateError: io.EOF}.Transition()
+	if tr.State != jobs.ItemFailed || !strings.Contains(tr.Detail, "created empty") {
+		t.Errorf("transition = %+v, want failed, naming the empty repository", tr)
 	}
 }

@@ -6,6 +6,8 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -171,4 +173,51 @@ func TestALimitIsRefusedNamingWhatIsTooBig(t *testing.T) {
 	if err := checkLimits([]File{{Path: "ok", Content: make([]byte, MaxBytes)}}); err != nil {
 		t.Errorf("checkLimits(exactly %d bytes) = %v, want it accepted", MaxBytes, err)
 	}
+}
+
+// A link is refused, and the message says what to do rather than only what was
+// found.
+func TestReadArchiveExplainsALink(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	_ = tw.WriteHeader(&tar.Header{Name: "docs", Linkname: "../x", Typeflag: tar.TypeSymlink})
+	_ = tw.Close()
+
+	_, err := readArchive(buf.Bytes())
+	if err == nil || !strings.Contains(err.Error(), "docs") || !strings.Contains(err.Error(), "replace it with a regular file") {
+		t.Fatalf("readArchive() error = %v, want the entry and what to do", err)
+	}
+}
+
+// The limits hold while the archive is being read, not after it is in memory.
+func TestReadArchiveStopsPastTheLimits(t *testing.T) {
+	big := archiveOf(t, 1, MaxBytes+1)
+	if _, err := readArchive(big); !errors.Is(err, errTooLarge) {
+		t.Errorf("readArchive(too many bytes) error = %v, want errTooLarge", err)
+	}
+	many := archiveOf(t, MaxFiles+1, 1)
+	if _, err := readArchive(many); !errors.Is(err, errTooLarge) {
+		t.Errorf("readArchive(too many files) error = %v, want errTooLarge", err)
+	}
+	ok := archiveOf(t, MaxFiles, 1)
+	if _, err := readArchive(ok); err != nil {
+		t.Errorf("readArchive(at the limits) error = %v", err)
+	}
+}
+
+func archiveOf(t *testing.T, files, size int) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	body := bytes.Repeat([]byte("x"), size)
+	for i := 0; i < files; i++ {
+		if err := tw.WriteHeader(&tar.Header{Name: fmt.Sprintf("f%d", i), Mode: 0o644, Size: int64(size), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = tw.Close()
+	return buf.Bytes()
 }
