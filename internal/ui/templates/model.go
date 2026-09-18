@@ -14,6 +14,8 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -56,6 +58,14 @@ type Model struct {
 	selecting        bool
 	selectionMessage string
 
+	// deps is where the scanners resolve from, nil until the check has come back.
+	// jobs is the router's last snapshot of the registry: what is running,
+	// whichever view started it.
+	deps *scan.DependencyStatus
+	jobs []jobs.Run
+	// scanner runs the scanners over a directory; a test replaces it.
+	scanner scanFunc
+
 	footer sharedcomponents.FooterMessage
 
 	width, height int
@@ -84,6 +94,7 @@ func NewWithPath(cfg *config.Config, secrets credentials.Storage, path string) M
 		config:  cfg,
 		secrets: secrets,
 		path:    path,
+		scanner: runScanners,
 		table: datatable.New(datatable.Config[row]{
 			Columns:    columns(),
 			SortColumn: columnName,

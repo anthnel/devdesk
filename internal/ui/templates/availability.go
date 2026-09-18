@@ -1,6 +1,9 @@
 package templates
 
-import "github.com/anthnel/devdesk/internal/ui/shortcut"
+import (
+	"github.com/anthnel/devdesk/internal/template"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
+)
 
 // The reasons a key is refused, as named constants: the header reads them to
 // grey, the handler reads them to refuse, and a test checks the two agree
@@ -19,10 +22,15 @@ type availability struct {
 	Edit    shortcut.Availability
 	Delete  shortcut.Availability
 	Preview shortcut.Availability
+	Scan    shortcut.Availability
 }
 
 func (m Model) availability() availability {
 	var a availability
+
+	// The scanners are a global unavailability: without either, S is greyed
+	// whatever the row is.
+	a.Scan = m.scannerState()
 
 	// An unreadable catalog refuses every write: saving over a file DevDesk
 	// could not parse would replace whatever the user had in it.
@@ -36,7 +44,13 @@ func (m Model) availability() availability {
 		a.Edit = firstRefusal(a.Edit, reasonNoTemplate)
 		a.Delete = firstRefusal(a.Delete, reasonNoTemplate)
 		a.Preview = shortcut.Unavailable(reasonNoTemplate)
+		a.Scan = firstRefusal(a.Scan, reasonNoTemplate)
 		return a
+	}
+	if entry, ok := m.selectedEntry(); ok {
+		if dir, err := template.ScanDir(entry.Slug); err == nil && m.scanning(dir) {
+			a.Scan = firstRefusal(a.Scan, reasonScanRunning)
+		}
 	}
 	return a
 }

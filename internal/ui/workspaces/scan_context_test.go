@@ -6,6 +6,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -44,17 +45,18 @@ func workspaceCache(t *testing.T, contextName string) *cache.WorkspaceScanCache 
 func TestAScanLandsInTheContextItWasLaunchedIn(t *testing.T) {
 	const repoPath = "/srv/stamped-repo"
 	switchedTo(t, "launched-in")
-	entry := cache.WorkspaceScanEntry{
-		RepoPath:  repoPath,
-		Critical:  4,
-		ScannedAt: time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC),
+	result := &scan.Result{
+		Counts:  scan.SeverityCounts{Critical: 4},
+		EndTime: time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC),
 	}
 
 	// The switch happens between the launch and the write, which is the whole
 	// of the defect: the scan was dispatched under "launched-in" and finishes
 	// while the user is looking at "switched-to".
 	switchedTo(t, "switched-to")
-	storeWorkspaceScan("launched-in", repoPath, entry)
+	if _, err := cache.StoreWorkspaceScan("launched-in", repoPath, result); err != nil {
+		t.Fatalf("StoreWorkspaceScan() error = %v", err)
+	}
 
 	if got := workspaceCache(t, "launched-in").Get(repoPath); got == nil || got.Critical != 4 {
 		t.Errorf("the launching context holds %+v, want the scan it asked for", got)

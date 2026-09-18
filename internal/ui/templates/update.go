@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -12,8 +13,14 @@ import (
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 )
 
-// Init opens the catalog.
-func (m Model) Init() tea.Cmd { return loadCatalogCmd(m.path) }
+// Init opens the catalog and, outside a picker, resolves the scanners: the
+// picker never scans, so it does not pay for the check.
+func (m Model) Init() tea.Cmd {
+	if m.selecting {
+		return loadCatalogCmd(m.path)
+	}
+	return tea.Batch(loadCatalogCmd(m.path), checkDepsCmd(m.config.Scan))
+}
 
 // Update handles messages.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -29,6 +36,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case DeletedMsg:
 		return m.handleDeleted(msg)
+
+	case DepsCheckedMsg:
+		m.deps = &msg.Deps
+		return m, nil
+
+	case jobs.ChangedMsg:
+		return m.handleJobsChanged(msg)
+
+	case ScanCompleteMsg:
+		return m.handleScanComplete(msg)
 
 	case FormSubmitMsg:
 		return m.handleFormSubmit(msg)
@@ -160,6 +177,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.startEdit()
 	case keymap.Delete:
 		return m.startDelete()
+	case keymap.Scan:
+		return m.startScan()
 	case keymap.Pager:
 		return m.startPreview()
 	case ".":

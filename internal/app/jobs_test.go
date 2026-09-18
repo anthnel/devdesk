@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/jobsview"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
+	"github.com/anthnel/devdesk/internal/ui/templates"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
@@ -738,5 +739,40 @@ func TestCancellingSettledWorkChangesNothing(t *testing.T) {
 	}
 	if after.Cancelled() {
 		t.Error("a run that had already finished was marked cancelled")
+	}
+}
+
+// A template's scan reports like the workspaces one, and the same defect is
+// what this pins: implementing jobs.Reporter proves nothing if routeWork is
+// never called, and the row would stay queued for the life of the session.
+func TestATemplateScanIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
+	tpl := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewTemplates] = tpl
+	testutil.FastTimers(t, &jobSpinnerInterval)
+
+	const dir = "/cache/template-scan/spring-api"
+	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindScan, command.ViewTemplates, "", "Spring API", dir)})
+
+	a.Update(templates.ScanStartingMsg{Path: dir})
+	if got := a.jobs.Snapshot()[0].Items[0].State; got != jobs.ItemRunning {
+		t.Errorf("after the starting message the item is %q, want running", got)
+	}
+
+	a.Update(templates.ScanCompleteMsg{Path: dir, Name: "Spring API"})
+	run := a.jobs.Snapshot()[0]
+	if got := run.State(); got != jobs.RunDone {
+		t.Errorf("state = %q, want %q", got, jobs.RunDone)
+	}
+	if got := a.jobs.Running(); got != 0 {
+		t.Errorf("Running = %d, want 0", got)
+	}
+
+	// And the view saw both, which is what puts the result in its footer.
+	if _, ok := receivedOf[templates.ScanStartingMsg](tpl); !ok {
+		t.Error("the starting message never reached the templates view")
+	}
+	if _, ok := receivedOf[templates.ScanCompleteMsg](tpl); !ok {
+		t.Error("the completion never reached the templates view")
 	}
 }

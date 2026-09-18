@@ -197,28 +197,11 @@ func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, contextName string, 
 				log.Printf("ERROR [workspaces] scan errors for %s: %s", repoPath, combined)
 			}
 
-			// The verdict comes from the scan and from nowhere else: the loop
-			// looking for "a finding whose Source is gitleaks" that used to
-			// be here missed the secrets found by Trivy, and could not tell
-			// that no stage had looked at all.
-			sensitive := result.SecretVerdict()
-
-			entry := cache.WorkspaceScanEntry{
-				RepoPath:  repoPath,
-				Critical:  result.Counts.Critical,
-				High:      result.Counts.High,
-				Medium:    result.Counts.Medium,
-				Low:       result.Counts.Low,
-				Sensitive: sensitive,
-				CIScore:   result.CIVerdict(),
-				ScannedAt: result.EndTime,
+			entry, err := cache.StoreWorkspaceScan(contextName, repoPath, result)
+			if err != nil {
+				log.Printf("ERROR [workspaces] store scan %s: %v", repoPath, err)
 			}
-
-			storeWorkspaceScan(contextName, repoPath, entry)
-
-			if sErr := cache.SaveWorkspaceScanResult(repoPath, result); sErr != nil {
-				log.Printf("ERROR [workspaces] save full result %s: %v", repoPath, sErr)
-			}
+			sensitive := entry.Sensitive
 
 			return WorkspaceScanCompleteMsg{
 				RepoPath:  repoPath,
@@ -232,24 +215,6 @@ func scanOneRepoCmd(repoPath string, opts scan.ScanOptions, contextName string, 
 			}
 		},
 	)
-}
-
-// storeWorkspaceScan writes one finished scan into the counts cache of the
-// context the run was launched in.
-//
-// The full result beside it is not scoped at all — it is addressed by path, and
-// a scan of /repos/devdesk is the same scan whichever context asked for it. The
-// counts are scoped because two contexts legitimately point at different
-// workspace roots (see internal/cache/scan_context_test.go).
-func storeWorkspaceScan(contextName, repoPath string, entry cache.WorkspaceScanEntry) {
-	wc, err := cache.NewWorkspaceScanCache(contextName)
-	if err != nil {
-		log.Printf("ERROR [workspaces] open cache: %v", err)
-		return
-	}
-	if err := wc.Set(repoPath, entry); err != nil {
-		log.Printf("ERROR [workspaces] cache set %s: %v", repoPath, err)
-	}
 }
 
 // batchScanCmd scans all provided repo paths in parallel using a worker pool
