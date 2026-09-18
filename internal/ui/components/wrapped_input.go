@@ -65,6 +65,11 @@ func (w *WrappedInput) Blur() {
 	w.input.Blur()
 }
 
+// SetValue replaces the text, for a form that opens on an existing value.
+func (w *WrappedInput) SetValue(value string) {
+	w.input.SetValue(value)
+}
+
 // Value returns the current text value.
 func (w WrappedInput) Value() string {
 	return w.input.Value()

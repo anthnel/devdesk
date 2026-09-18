@@ -468,7 +468,7 @@ touching, and update it in the same commit as the code.
 | [`registries.md`](../docs/architecture/registries.md) | the registry/group model and the discovered-members cache |
 | [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci`, the netdiag view, `internal/ports`, `internal/netiface` |
 | [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
-| [`templates.md`](../docs/architecture/templates.md) | `internal/template` — the repository-template catalog, its three sources, and how files are fetched |
+| [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage` and `internal/ui/datatable` |
 
 ### Status Monitoring System

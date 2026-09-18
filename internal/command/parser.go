@@ -32,6 +32,11 @@ const (
 	// goes through `:` (Rule 111).
 	ViewJobs ViewType = "jobs"
 
+	// ViewTemplates is the catalog of repository templates: what a new
+	// repository can be filled from, and where each one lives. A view for the
+	// reason ViewJobs is — changing view goes through `:` (Rule 111).
+	ViewTemplates ViewType = "templates"
+
 	// ViewAbout says which build is running and where it keeps its files. It is
 	// a view rather than an uppercase key for the reason ViewJobs is: the
 	// uppercase vocabulary acts on a resource *within* a screen, and this one
@@ -104,6 +109,8 @@ var viewNames = map[string]ViewType{
 	"cfg":           ViewConfiguration,
 	"jobs":          ViewJobs,
 	"j":             ViewJobs,
+	"templates":     ViewTemplates,
+	"tpl":           ViewTemplates,
 	"about":         ViewAbout,
 	// No one-letter alias: `a` is worth more than this view, which is opened
 	// once to read a version and not returned to.
