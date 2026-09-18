@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -95,8 +96,10 @@ func (f *Forge) InitialCommit(ctx context.Context, repositoryID string, files []
 		}
 
 		blob, _, err := f.client.Git.CreateBlob(ctx, owner, repo, &gh.Blob{
-			Content:  gh.Ptr(file.Content),
-			Encoding: gh.Ptr("utf-8"),
+			// base64 whatever the content: it is the only encoding that
+			// carries a binary through the JSON body unchanged.
+			Content:  gh.Ptr(base64.StdEncoding.EncodeToString(file.Content)),
+			Encoding: gh.Ptr("base64"),
 		})
 		if err != nil {
 			return fmt.Errorf("uploading %s: %w", file.Path, err)
@@ -104,7 +107,7 @@ func (f *Forge) InitialCommit(ctx context.Context, repositoryID string, files []
 
 		entries = append(entries, &gh.TreeEntry{
 			Path: gh.Ptr(file.Path),
-			Mode: gh.Ptr("100644"),
+			Mode: gh.Ptr(fileMode(file)),
 			Type: gh.Ptr("blob"),
 			SHA:  blob.SHA,
 		})
@@ -133,6 +136,14 @@ func (f *Forge) InitialCommit(ctx context.Context, repositoryID string, files []
 		return fmt.Errorf("creating %s: %w", defaultBranch, err)
 	}
 	return nil
+}
+
+// fileMode is the git tree mode of a file: 100755 when it must be executable.
+func fileMode(file forge.FileChange) string {
+	if file.Executable {
+		return "100755"
+	}
+	return "100644"
 }
 
 const (

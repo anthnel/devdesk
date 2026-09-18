@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -67,7 +68,12 @@ func (f *Forge) InitialCommit(ctx context.Context, repositoryID string, files []
 		actions[i] = &gitlabclient.CommitActionOptions{
 			Action:   gitlabclient.Ptr(gitlabclient.FileActionValue(file.Action)),
 			FilePath: gitlabclient.Ptr(file.Path),
-			Content:  gitlabclient.Ptr(file.Content),
+			// base64 whatever the content, so a binary is not mangled by JSON.
+			Content:  gitlabclient.Ptr(base64.StdEncoding.EncodeToString(file.Content)),
+			Encoding: gitlabclient.Ptr("base64"),
+		}
+		if file.Executable {
+			actions[i].ExecuteFilemode = gitlabclient.Ptr(true)
 		}
 	}
 

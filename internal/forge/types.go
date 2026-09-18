@@ -125,10 +125,16 @@ type NewRepository struct {
 }
 
 // FileChange is one file in an initial commit.
+//
+// Content is bytes, not a string: a template may carry a binary (a Gradle
+// wrapper jar, an image), and a string round-tripped through UTF-8 would corrupt it.
 type FileChange struct {
 	Action  FileAction
 	Path    string
-	Content string
+	Content []byte
+	// Executable sets the execute bit (mvnw, gradlew). Without it a wrapper
+	// script arrives in the new repository unable to run.
+	Executable bool
 }
 
 // FileAction is what an initial commit does to a file.

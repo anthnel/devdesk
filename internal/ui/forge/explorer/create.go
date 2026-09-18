@@ -353,7 +353,7 @@ func applyTemplate(backend forge.Forge, repositoryID string, registryURL, userna
 		files = append(files, forge.FileChange{
 			Action:  forge.FileCreate,
 			Path:    filePath,
-			Content: content,
+			Content: []byte(content),
 		})
 	}
 

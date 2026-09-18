@@ -1,7 +1,9 @@
 package gitlab
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"net/http"
 	"strings"
 	"testing"
@@ -157,7 +159,7 @@ func TestAnInitialCommitTargetsMain(t *testing.T) {
 	})
 
 	err := fake.forge(t).InitialCommit(context.Background(), "11", []forge.FileChange{
-		{Action: forge.FileCreate, Path: "README.md", Content: "hello"},
+		{Action: forge.FileCreate, Path: "README.md", Content: []byte("hello")},
 	})
 	if err != nil {
 		t.Fatalf("InitialCommit() error = %v", err)
@@ -346,5 +348,46 @@ func TestADecorationIsSkippedWhenTheUserCannotBeResolved(t *testing.T) {
 	}
 	if n := fake.countPaths("/members/"); n != 0 {
 		t.Errorf("%d member requests were made with no user to ask about, want 0", n)
+	}
+}
+
+// TestAnInitialCommitCarriesBinariesAndTheExecuteBit — content is base64 so a
+// binary survives the JSON body, and the execute flag is sent only when set.
+func TestAnInitialCommitCarriesBinariesAndTheExecuteBit(t *testing.T) {
+	fake := newFakeGitLab(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"id":"abc"}`))
+	})
+
+	binary := []byte{0x00, 0xff, 0xfe, 0x80, 'P', 'K'}
+	err := fake.forge(t).InitialCommit(context.Background(), "11", []forge.FileChange{
+		{Action: forge.FileCreate, Path: "wrapper.jar", Content: binary},
+		{Action: forge.FileCreate, Path: "mvnw", Content: []byte("#!/bin/sh"), Executable: true},
+	})
+	if err != nil {
+		t.Fatalf("InitialCommit() error = %v", err)
+	}
+
+	var body struct {
+		Actions []struct {
+			FilePath        string `json:"file_path"`
+			Content         string `json:"content"`
+			Encoding        string `json:"encoding"`
+			ExecuteFilemode *bool  `json:"execute_filemode"`
+		} `json:"actions"`
+	}
+	fake.calls()[0].decode(t, &body)
+	if len(body.Actions) != 2 {
+		t.Fatalf("actions = %+v, want two", body.Actions)
+	}
+	jar, script := body.Actions[0], body.Actions[1]
+	got, err := base64.StdEncoding.DecodeString(jar.Content)
+	if jar.Encoding != "base64" || err != nil || !bytes.Equal(got, binary) {
+		t.Errorf("jar = %+v (decoded %v, err %v), want the binary back as base64", jar, got, err)
+	}
+	if jar.ExecuteFilemode != nil {
+		t.Errorf("a plain file sent execute_filemode = %v", *jar.ExecuteFilemode)
+	}
+	if script.ExecuteFilemode == nil || !*script.ExecuteFilemode {
+		t.Errorf("mvnw did not ask for the execute bit: %+v", script)
 	}
 }

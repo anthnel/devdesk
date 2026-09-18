@@ -1,7 +1,9 @@
 package github
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"net/http"
 	"strings"
 	"testing"
@@ -130,8 +132,8 @@ func TestAnInitialCommitIsOneCommit(t *testing.T) {
 	})
 
 	err := fake.forge(t).InitialCommit(context.Background(), "acme/api", []forge.FileChange{
-		{Action: forge.FileCreate, Path: "README.md", Content: "hello"},
-		{Action: forge.FileCreate, Path: "Makefile", Content: "all:"},
+		{Action: forge.FileCreate, Path: "README.md", Content: []byte("hello")},
+		{Action: forge.FileCreate, Path: "Makefile", Content: []byte("all:")},
 	})
 	if err != nil {
 		t.Fatalf("InitialCommit() error = %v", err)
@@ -199,7 +201,7 @@ func TestAnIdentifierWithoutTwoHalvesIsRefused(t *testing.T) {
 		t.Error("DeleteRepository() accepted an identifier with no owner")
 	}
 	if err := f.InitialCommit(context.Background(), "api", []forge.FileChange{
-		{Action: forge.FileCreate, Path: "a", Content: "b"},
+		{Action: forge.FileCreate, Path: "a", Content: []byte("b")},
 	}); err == nil {
 		t.Error("InitialCommit() accepted an identifier with no owner")
 	}
@@ -264,5 +266,58 @@ func TestTheShapeIsGitHubs(t *testing.T) {
 	}
 	if !shape.CanNestUnder(0) {
 		t.Error("CanNestUnder(0) = false — every forge takes a root namespace")
+	}
+}
+
+// TestAnInitialCommitCarriesBinariesAndTheExecuteBit — a template may hold a
+// jar and a wrapper script: the blob must round-trip the bytes and the tree
+// entry must be 100755 for the script only.
+func TestAnInitialCommitCarriesBinariesAndTheExecuteBit(t *testing.T) {
+	fake := newFakeGitHub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/git/blobs"):
+			_, _ = w.Write([]byte(`{"sha":"blob-sha"}`))
+		case strings.HasSuffix(r.URL.Path, "/git/trees"):
+			_, _ = w.Write([]byte(`{"sha":"tree-sha"}`))
+		case strings.HasSuffix(r.URL.Path, "/git/commits"):
+			_, _ = w.Write([]byte(`{"sha":"commit-sha"}`))
+		default:
+			_, _ = w.Write([]byte(`{"ref":"refs/heads/main"}`))
+		}
+	})
+
+	binary := []byte{0x00, 0xff, 0xfe, 0x80, 'P', 'K'}
+	err := fake.forge(t).InitialCommit(context.Background(), "acme/api", []forge.FileChange{
+		{Action: forge.FileCreate, Path: "wrapper.jar", Content: binary},
+		{Action: forge.FileCreate, Path: "mvnw", Content: []byte("#!/bin/sh"), Executable: true},
+	})
+	if err != nil {
+		t.Fatalf("InitialCommit() error = %v", err)
+	}
+
+	calls := fake.calls()
+	var blob struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	calls[0].decode(t, &blob)
+	got, err := base64.StdEncoding.DecodeString(blob.Content)
+	if blob.Encoding != "base64" || err != nil || !bytes.Equal(got, binary) {
+		t.Errorf("blob = %+v (decoded %v, err %v), want the binary back as base64", blob, got, err)
+	}
+
+	var tree struct {
+		Tree []struct {
+			Path string `json:"path"`
+			Mode string `json:"mode"`
+		} `json:"tree"`
+	}
+	calls[2].decode(t, &tree)
+	modes := map[string]string{}
+	for _, e := range tree.Tree {
+		modes[e.Path] = e.Mode
+	}
+	if modes["wrapper.jar"] != "100644" || modes["mvnw"] != "100755" {
+		t.Errorf("modes = %v, want jar 100644 and mvnw 100755", modes)
 	}
 }
