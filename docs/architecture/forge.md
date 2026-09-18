@@ -65,6 +65,15 @@ per file, one tree, a commit with **no parent**, then the ref. No parent is what
 makes it *initial*; on a repository that already has one the ref creation fails,
 which is the honest outcome — this is not a way to overwrite history.
 
+**Content is bytes, and always base64 on the wire.** `FileChange.Content` is a
+`[]byte` with an `Executable` flag, on both backends: a template may carry a
+binary (a Gradle wrapper jar) that a UTF-8 string would corrupt, and a wrapper
+script (`mvnw`) that must keep its execute bit. GitHub sends the blob as
+`base64` and the tree entry as `100755`; GitLab sends `encoding: base64` and
+`execute_filemode`. GitLab documents that flag as considered for `update`
+only, so on a `create` it may be ignored by some versions — unverified against
+a live instance, to be checked before relying on it.
+
 Three smaller decisions worth knowing:
 
 - **The user's own account is the first root namespace, and leaving it out was
