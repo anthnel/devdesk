@@ -321,3 +321,58 @@ func keysOf(m map[string]string) []string {
 	}
 	return out
 }
+
+// TestReadTarKeepsBytesAndTheExecuteBit — a template file is bytes, and a
+// script that loses +x arrives in the new repository unable to run.
+func TestReadTarKeepsBytesAndTheExecuteBit(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	binary := "\x00\xff\xfe\x80PK"
+	for _, f := range []struct {
+		name string
+		mode int64
+		body string
+	}{{"wrapper.jar", 0o644, binary}, {"mvnw", 0o755, "#!/bin/sh\n"}} {
+		if err := tw.WriteHeader(&tar.Header{Name: f.name, Mode: f.mode, Size: int64(len(f.body)), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write([]byte(f.body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := ReadTar(&buf)
+	if err != nil {
+		t.Fatalf("ReadTar() error = %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("got %d files, want 2: %+v", len(files), files)
+	}
+	if files[0].Path != "wrapper.jar" || string(files[0].Content) != binary || files[0].Executable {
+		t.Errorf("jar = %+v, want the bytes back and no execute bit", files[0])
+	}
+	if files[1].Path != "mvnw" || !files[1].Executable {
+		t.Errorf("mvnw = %+v, want the execute bit", files[1])
+	}
+}
+
+// TestReadTarRefusesASymlink — reading it as an empty file would hand back a
+// template that silently lacks what it says it holds.
+func TestReadTarRefusesASymlink(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	if err := tw.WriteHeader(&tar.Header{Name: "link", Linkname: "target", Typeflag: tar.TypeSymlink}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := ReadTar(&buf)
+	if err == nil || !strings.Contains(err.Error(), "link") {
+		t.Fatalf("ReadTar() error = %v, want a refusal naming the entry", err)
+	}
+}

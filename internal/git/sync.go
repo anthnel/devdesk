@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -164,7 +165,12 @@ func isDirty(repoPath string) (bool, error) {
 // then waits on a browser. That was §3.16's observed failure, and nothing about
 // it was specific to cloning.
 func run(repoPath, token string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	return runContext(context.Background(), repoPath, token, args...)
+}
+
+// runContext is run with a context, so a long fetch can be abandoned.
+func runContext(ctx context.Context, repoPath, token string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = repoPath
 	cmd.Env = nonInteractiveEnv(token)
 
@@ -174,6 +180,9 @@ func run(repoPath, token string, args ...string) (string, error) {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
 		if reason := lastLine(stderr.String()); reason != "" {
 			return "", fmt.Errorf("%s", reason)
 		}

@@ -24,6 +24,16 @@ type Template struct {
 	Name  string
 	Tag   string
 	Files map[string]string // filename -> content
+	// Entries is the same content as Files, with what a map of strings cannot
+	// hold: raw bytes and the execute bit.
+	Entries []ArchiveFile
+}
+
+// ArchiveFile is one regular file read from an archive.
+type ArchiveFile struct {
+	Path       string // relative to the archive root, forward slashes
+	Content    []byte
+	Executable bool
 }
 
 // TemplateEntry represents a template available in the registry
@@ -190,20 +200,21 @@ func (c *Client) DownloadTemplate(repository, tag string) (*Template, error) {
 
 	// Download first layer (assumed to be tar.gz of template files)
 	layerDigest := manifest.Layers[0].Digest
-	files, err := c.downloadAndExtractLayer(repository, layerDigest)
+	entries, err := c.downloadAndExtractLayer(repository, layerDigest)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Template{
-		Name:  repository,
-		Tag:   tag,
-		Files: files,
+		Name:    repository,
+		Tag:     tag,
+		Files:   filesByPath(entries),
+		Entries: entries,
 	}, nil
 }
 
 // downloadAndExtractLayer downloads a layer and extracts its contents
-func (c *Client) downloadAndExtractLayer(repository, digest string) (map[string]string, error) {
+func (c *Client) downloadAndExtractLayer(repository, digest string) ([]ArchiveFile, error) {
 	url := fmt.Sprintf("%s/v2/%s/blobs/%s", c.registryURL, repository, digest)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -225,19 +236,46 @@ func (c *Client) downloadAndExtractLayer(repository, digest string) (map[string]
 		return nil, fmt.Errorf("failed to download layer: %s", resp.Status)
 	}
 
-	return extractTarGz(resp.Body)
+	return ReadTarGz(resp.Body)
 }
 
-// extractTarGz extracts a tar.gz archive and returns file contents
+// extractTarGz extracts a tar.gz archive and returns file contents by path.
 func extractTarGz(r io.Reader) (map[string]string, error) {
+	entries, err := ReadTarGz(r)
+	if err != nil {
+		return nil, err
+	}
+	return filesByPath(entries), nil
+}
+
+// filesByPath indexes archive files by path, content as text.
+func filesByPath(entries []ArchiveFile) map[string]string {
+	files := make(map[string]string, len(entries))
+	for _, e := range entries {
+		files[e.Path] = string(e.Content)
+	}
+	return files
+}
+
+// ReadTarGz reads a gzipped tar archive into its regular files.
+func ReadTarGz(r io.Reader) ([]ArchiveFile, error) {
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = gzr.Close() }()
+	return ReadTar(gzr)
+}
 
-	tr := tar.NewReader(gzr)
-	files := make(map[string]string)
+// ReadTar reads a tar archive into its regular files.
+//
+// Directories and pax headers are skipped. Anything else that is not a regular
+// file — a symlink, a hard link, a device — is refused rather than read: the
+// old behavior turned a symlink into an empty file, which is a template
+// silently missing what it says it contains.
+func ReadTar(r io.Reader) ([]ArchiveFile, error) {
+	tr := tar.NewReader(r)
+	var files []ArchiveFile
 
 	for {
 		header, err := tr.Next()
@@ -248,12 +286,14 @@ func extractTarGz(r io.Reader) (map[string]string, error) {
 			return nil, err
 		}
 
-		// Skip directories
-		if header.Typeflag == tar.TypeDir {
+		switch header.Typeflag {
+		case tar.TypeDir, tar.TypeXGlobalHeader:
 			continue
+		case tar.TypeReg:
+		default:
+			return nil, fmt.Errorf("archive entry %q is not a regular file (type %q)", header.Name, header.Typeflag)
 		}
 
-		// Read file content
 		content, err := io.ReadAll(tr)
 		if err != nil {
 			return nil, err
@@ -264,7 +304,11 @@ func extractTarGz(r io.Reader) (map[string]string, error) {
 			return nil, err
 		}
 
-		files[path] = string(content)
+		files = append(files, ArchiveFile{
+			Path:       path,
+			Content:    content,
+			Executable: header.Mode&0o111 != 0,
+		})
 	}
 
 	return files, nil
