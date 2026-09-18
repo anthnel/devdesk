@@ -36,7 +36,7 @@ default — an absent key is not an error, `config.Default()` fills it in.
 |---|---|---|---|
 | `url` | string | | Default OCI registry |
 | `username` | string | | |
-| `templates_repository` | string | | |
+| `templates_repository` | string | | Unused. Repository templates are declared in `~/.devdesk/templates.yaml` and managed with `:templates`; the key is kept so older files still load |
 | `cache_dir` | string | | Discovered-members cache |
 | `registries` | list | | Additional named registries (`slug`, `provider`, `url`, `username`, `alias`) |
 

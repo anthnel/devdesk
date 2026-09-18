@@ -43,7 +43,7 @@ gitlab:
 registry:
   url: "registry.example.com"      # Default OCI registry
   username: "user"
-  templates_repository: "templates" # Default template repo
+  templates_repository: "templates" # Unused: templates live in ~/.devdesk/templates.yaml
   cache_dir: "~/.devdesk/cache"
   registries:                       # Additional registries
     - url: "gcr.io"

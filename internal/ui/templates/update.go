@@ -149,6 +149,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.table.InEditMode() {
 		return m, m.table.Update(msg)
 	}
+	if m.selecting {
+		return m.handleSelectingKey(msg)
+	}
 
 	switch msg.String() {
 	case keymap.New:
@@ -166,6 +169,37 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.table.FilterBar().ActivateSearch()
 	}
 	return m, m.table.Update(msg)
+}
+
+// handleSelectingKey is the key set of a view lent to pick a template: choose,
+// look inside, filter, sort, leave. The actions that change the catalog are not
+// bound at all.
+func (m Model) handleSelectingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		return m.chooseSelected()
+	case "esc":
+		return m, func() tea.Msg { return SelectionCancelledMsg{} }
+	case keymap.Pager:
+		return m.startPreview()
+	case ".":
+		m.table.CycleSort()
+		return m, nil
+	case "/":
+		return m, m.table.FilterBar().ActivateSearch()
+	}
+	return m, m.table.Update(msg)
+}
+
+// chooseSelected answers the view that borrowed this one with the row under the
+// cursor.
+func (m Model) chooseSelected() (tea.Model, tea.Cmd) {
+	entry, ok := m.selectedEntry()
+	if !ok {
+		cmd := m.footer.Warn(reasonNoTemplate)
+		return m, cmd
+	}
+	return m, func() tea.Msg { return TemplateSelectedMsg{Slug: entry.Slug, Name: entry.Name} }
 }
 
 // isTaken reports whether a slug names an entry in the catalog.

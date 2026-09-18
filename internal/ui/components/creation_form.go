@@ -48,11 +48,12 @@ type CreationForm struct {
 	// to whatever the parent (and the forge) allow — see
 	// forge.Shape.VisibilitiesUnder. Never empty in practice: every known
 	// forge declares at least one.
-	visibilityNote  string   // why the choices above are narrower than the forge's own list, if they are
-	templates       []string // for projects: available templates
-	templateIdx     int      // selected template index
-	templateScroll  int      // scroll offset for template dropdown
-	templateWarning string   // warning message if template loading failed
+	visibilityNote string // why the choices above are narrower than the forge's own list, if they are
+	// template is the catalog slug of the template chosen for a project, and
+	// templateName what it is called. Both are empty for none, which is what a
+	// repository gets unless one is picked: an empty repository.
+	template     string
+	templateName string
 	// focusedField: 0=resourceType, 1=name, 2=desc, 3=visibility, 4=template (project only), 4or5=submit
 	focusedField int
 	width        int
@@ -66,18 +67,20 @@ type CreationFormSubmitMsg struct {
 	Name        string
 	Description string
 	Visibility  string
-	Template    string // for projects
+	Template    string // for projects: the catalog slug, empty for none
 	ParentID    string
 }
 
 // CreationFormCancelMsg is sent when form is cancelled
 type CreationFormCancelMsg struct{}
 
+// CreationFormPickTemplateMsg asks the view to let the user choose a template.
+// The form cannot: the catalog is another screen, and which one lends itself is
+// the router's to decide. The answer comes back through SetTemplate.
+type CreationFormPickTemplateMsg struct{}
+
 // Description character limit (GitLab limit is 250)
 const descriptionCharLimit = 250
-
-// maxVisibleTemplates is the maximum number of templates visible in the dropdown
-const maxVisibleTemplates = 7
 
 // formTypeFromResourceType converts a resource type index to FormType.
 func formTypeFromResourceType(rt int) FormType {
@@ -97,7 +100,7 @@ func formTypeFromResourceType(rt int) FormType {
 // defaultVisibility is not among them, the field opens on the first entry —
 // visibilities is ordered most-private-first, so that is always the safe
 // side to land on.
-func NewCreationForm(defaultResourceType int, parentName string, parentID string, defaultVisibility string, visibilities []string, templates []string, v forge.Vocabulary) *CreationForm {
+func NewCreationForm(defaultResourceType int, parentName string, parentID string, defaultVisibility string, visibilities []string, v forge.Vocabulary) *CreationForm {
 	nameInput := textinput.New()
 	nameInput.Placeholder = "name"
 	nameInput.CharLimit = 100
@@ -114,9 +117,6 @@ func NewCreationForm(defaultResourceType int, parentName string, parentID string
 		}
 	}
 
-	// Add "none" template option at the beginning
-	allTemplates := append([]string{"none"}, templates...)
-
 	return &CreationForm{
 		resourceType:   defaultResourceType,
 		resourceLabels: resourceTypeLabels(v),
@@ -127,15 +127,14 @@ func NewCreationForm(defaultResourceType int, parentName string, parentID string
 		descInput:      descInput,
 		visibility:     visIdx,
 		visibilities:   visibilities,
-		templates:      allTemplates,
-		templateIdx:    0,
 		focusedField:   0, // start on Type
 	}
 }
 
-// SetTemplateWarning sets a warning message displayed near the template field
-func (f *CreationForm) SetTemplateWarning(msg string) {
-	f.templateWarning = msg
+// SetTemplate records the template the user chose. An empty slug is none.
+func (f *CreationForm) SetTemplate(slug, name string) {
+	f.template = slug
+	f.templateName = name
 }
 
 // SetVisibilityNote sets a dim explanation displayed next to the Visibility
@@ -172,7 +171,7 @@ func (f *CreationForm) Update(msg tea.Msg) (*CreationForm, tea.Cmd) {
 
 // maxField returns the index of the submit button (last field).
 func (f *CreationForm) maxField() int {
-	if f.resourceType == 1 && len(f.templates) > 0 {
+	if f.resourceType == 1 {
 		return 5
 	}
 	return 4
@@ -186,19 +185,11 @@ func (f *CreationForm) handleKeyMsg(msg tea.KeyMsg) (*CreationForm, tea.Cmd) {
 		return f, func() tea.Msg { return CreationFormCancelMsg{} }
 
 	case "down":
-		if f.isOnTemplateField() && f.templateIdx < len(f.templates)-1 {
-			f.templateDown()
-			return f, nil
-		}
 		f.focusedField = (f.focusedField + 1) % (max + 1)
 		f.updateFocus()
 		return f, nil
 
 	case "up":
-		if f.isOnTemplateField() && f.templateIdx > 0 {
-			f.templateUp()
-			return f, nil
-		}
 		f.focusedField = (f.focusedField - 1 + max + 1) % (max + 1)
 		f.updateFocus()
 		return f, nil
@@ -207,10 +198,23 @@ func (f *CreationForm) handleKeyMsg(msg tea.KeyMsg) (*CreationForm, tea.Cmd) {
 		if f.focusedField == max { // Submit button
 			return f.submit()
 		}
+		// On the template field enter opens the catalog rather than moving on:
+		// the choice is made elsewhere, and the field only shows the result.
+		if f.isOnTemplateField() {
+			return f, func() tea.Msg { return CreationFormPickTemplateMsg{} }
+		}
 		// On other fields, move to next
 		f.focusedField = (f.focusedField + 1) % (max + 1)
 		f.updateFocus()
 		return f, nil
+
+	case "backspace", "delete":
+		// Back to none. On any other field these edit the text, so the reset is
+		// only taken here.
+		if f.isOnTemplateField() {
+			f.SetTemplate("", "")
+			return f, nil
+		}
 
 	case "left", "right":
 		// Field 0: cycle resource type (Group ↔ Project)
@@ -248,37 +252,9 @@ func (f *CreationForm) handleKeyMsg(msg tea.KeyMsg) (*CreationForm, tea.Cmd) {
 	return f, cmd
 }
 
-// isOnTemplateField returns true if the template dropdown has focus
+// isOnTemplateField returns true if the template field has focus
 func (f *CreationForm) isOnTemplateField() bool {
-	return f.focusedField == 4 && f.resourceType == 1 && len(f.templates) > 0
-}
-
-// templateDown moves template selection down by one
-func (f *CreationForm) templateDown() {
-	if f.templateIdx < len(f.templates)-1 {
-		f.templateIdx++
-		f.adjustTemplateScroll()
-	}
-}
-
-// templateUp moves template selection up by one
-func (f *CreationForm) templateUp() {
-	if f.templateIdx > 0 {
-		f.templateIdx--
-		f.adjustTemplateScroll()
-	}
-}
-
-// adjustTemplateScroll ensures the selected template is visible in the dropdown
-func (f *CreationForm) adjustTemplateScroll() {
-	// Scroll down if selected is below visible area
-	if f.templateIdx >= f.templateScroll+maxVisibleTemplates {
-		f.templateScroll = f.templateIdx - maxVisibleTemplates + 1
-	}
-	// Scroll up if selected is above visible area
-	if f.templateIdx < f.templateScroll {
-		f.templateScroll = f.templateIdx
-	}
+	return f.focusedField == 4 && f.resourceType == 1
 }
 
 func (f *CreationForm) updateFocus() {
@@ -317,8 +293,8 @@ func (f *CreationForm) submit() (*CreationForm, tea.Cmd) {
 	}
 
 	template := ""
-	if f.formType == FormTypeProject && len(f.templates) > 0 && f.templateIdx > 0 {
-		template = f.templates[f.templateIdx]
+	if f.formType == FormTypeProject {
+		template = f.template
 	}
 
 	return f, func() tea.Msg {
@@ -360,9 +336,9 @@ func (f *CreationForm) View() string {
 	b.WriteString(f.renderVisibilityField())
 	b.WriteString("\n\n")
 
-	// Template dropdown (for projects only)
-	if f.resourceType == 1 && len(f.templates) > 0 {
-		b.WriteString(f.renderTemplateList())
+	// Template (for projects only)
+	if f.resourceType == 1 {
+		b.WriteString(f.renderTemplateField())
 		b.WriteString("\n\n")
 	}
 
@@ -439,82 +415,18 @@ func (f *CreationForm) renderVisibilityField() string {
 	return line
 }
 
-// renderTemplateList renders a vertical scrollable dropdown list for template selection
-func (f *CreationForm) renderTemplateList() string {
-	focused := f.focusedField == 4
-
-	var labelStr string
-	if focused {
-		labelStr = theme.KeyStyle.Render(theme.IconCircleSmall + " Template " + theme.IconSelect + " " + theme.IconChevronRight + " ")
+// renderTemplateField renders the chosen template, or "none". It is a single
+// line (Rule 113): the choice is made on another screen, so there is nothing to
+// list here — the field shows what was picked and enter goes to pick.
+func (f *CreationForm) renderTemplateField() string {
+	label := "Template " + theme.IconSelect + " "
+	if f.focusedField == 4 {
+		label = theme.KeyStyle.Render(theme.IconCircleSmall + " " + label + theme.IconChevronRight + " ")
 	} else {
-		labelStr = theme.Bg("  Template " + theme.IconSelect + " " + theme.IconChevronRight + " ")
+		label = theme.Bg("  " + label + theme.IconChevronRight + " ")
 	}
-
-	// Show selected template name next to label when not focused. The warning
-	// still goes out: it explains why the list is empty, and a user who never
-	// lands on this field would otherwise never learn the registry failed.
-	if !focused {
-		selected := f.templates[f.templateIdx]
-		return labelStr + theme.PrimaryColorStyle.Render(selected) + f.renderTemplateWarning()
+	if f.template == "" {
+		return label + theme.DimStyle.Render("none")
 	}
-
-	// Focused: render vertical dropdown list
-	var b strings.Builder
-	b.WriteString(labelStr)
-	b.WriteString("\n")
-
-	visibleCount := maxVisibleTemplates
-	if len(f.templates) < visibleCount {
-		visibleCount = len(f.templates)
-	}
-
-	// Scroll indicator: items above
-	if f.templateScroll > 0 {
-		b.WriteString(theme.DimStyle.Render(fmt.Sprintf("    ↑ %d more", f.templateScroll)))
-		b.WriteString("\n")
-	}
-
-	// Render visible items
-	end := f.templateScroll + visibleCount
-	if end > len(f.templates) {
-		end = len(f.templates)
-	}
-
-	for i := f.templateScroll; i < end; i++ {
-		tmpl := f.templates[i]
-		if i == f.templateIdx {
-			b.WriteString(theme.PrimaryColorStyle.Bold(true).Render("  " + theme.IconCircleSmall + " " + tmpl))
-		} else {
-			b.WriteString(theme.DimStyle.Render("    " + tmpl))
-		}
-		if i < end-1 {
-			b.WriteString("\n")
-		}
-	}
-
-	// Scroll indicator: items below
-	remaining := len(f.templates) - end
-	if remaining > 0 {
-		b.WriteString("\n")
-		b.WriteString(theme.DimStyle.Render(fmt.Sprintf("    ↓ %d more", remaining)))
-	}
-
-	b.WriteString(f.renderTemplateWarning())
-
-	return b.String()
-}
-
-// renderTemplateWarning renders the registry failure on its own line, or an
-// empty string when the templates loaded. It is appended in both the focused
-// and unfocused branches of renderTemplateList: the warning explains why the
-// list is empty, so hiding it until the field takes focus tells the user
-// nothing at the moment they need it.
-func (f *CreationForm) renderTemplateWarning() string {
-	if f.templateWarning == "" {
-		return ""
-	}
-	return "\n" + lipgloss.NewStyle().
-		Background(theme.ColorBackground).
-		Foreground(theme.ColorError).
-		Render("    "+theme.IconWarning+" "+f.templateWarning)
+	return label + theme.PrimaryColorStyle.Render(f.templateName)
 }

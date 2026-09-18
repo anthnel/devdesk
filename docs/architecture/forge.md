@@ -307,8 +307,8 @@ up to and including the parent's own value — the list is most-private-first
 (the same ordering `DefaultVisibility` already relies on), so a prefix is
 exactly "no more open than this". The explorer stashes the parent's
 visibility alongside its name and ID when `N` is pressed
-(`creationParentVisibility`, empty at the root) and reads it back once the
-templates land, next to `m.shape()` — resolved from the config the same way
+(`creationParentVisibility`, empty at the root) and reads it back when the form
+opens, next to `m.shape()` — resolved from the config the same way
 `vocab()` is, so the closed set does not depend on a live backend having
 answered yet. `CreationForm` itself takes the narrowed slice as a plain
 parameter: it has no notion of a parent or of which forge it is talking to,

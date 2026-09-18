@@ -66,8 +66,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.creationForm = nil
 		return m, nil
 
-	case TemplatesLoadedMsg:
-		return m.handleTemplatesLoaded(msg)
+	case components.CreationFormPickTemplateMsg:
+		return m, func() tea.Msg { return TemplateSelectionRequestMsg{} }
+
+	case TemplateChosenMsg:
+		return m.handleTemplateChosen(msg)
+
+	case TemplateChoiceCancelledMsg:
+		return m, nil
 
 	case GroupCreatedMsg:
 		return m.handleGroupCreated(msg)
@@ -114,9 +120,6 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleCloningKey(msg)
 	case ModeSelecting:
 		return m.handleSelectingKey(msg)
-	case ModeLoadingTemplates:
-		// Ignore input while loading templates
-		return m, nil
 	case ModeCreatingProject:
 		if m.creationForm != nil {
 			var cmd tea.Cmd

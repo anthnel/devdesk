@@ -278,8 +278,11 @@ type RegistryItem struct {
 //
 // As with GitLabConfig, the password is not here (§3.9).
 type RegistryConfig struct {
-	URL                 string         `yaml:"url,omitempty"`
-	Username            string         `yaml:"username,omitempty"`
+	URL      string `yaml:"url,omitempty"`
+	Username string `yaml:"username,omitempty"`
+	// TemplatesRepository is read by nothing. Repository templates are declared
+	// in ~/.devdesk/templates.yaml and managed in :templates; the key stays so
+	// that a file written before that still loads.
 	TemplatesRepository string         `yaml:"templates_repository"`
 	CacheDir            string         `yaml:"cache_dir"`
 	Registries          []RegistryItem `yaml:"registries,omitempty"`

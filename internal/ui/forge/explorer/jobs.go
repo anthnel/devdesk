@@ -94,6 +94,10 @@ func (m GroupCreatedMsg) Transition() jobs.Transition {
 func (m ProjectCreatedMsg) Transition() jobs.Transition {
 	t := jobs.Transition{Kind: jobs.KindCreate, Target: m.Target, State: jobs.ItemDone}
 	switch {
+	case m.Error != nil && m.TemplateUnavailable:
+		// Nothing was created: the template was fetched first, and could not be.
+		t.State = jobs.ItemFailed
+		t.Detail = "template unavailable — nothing was created"
 	case m.Error != nil:
 		t.State = jobs.ItemFailed
 		t.Detail = "create failed — check logs"

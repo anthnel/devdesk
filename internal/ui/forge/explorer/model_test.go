@@ -11,7 +11,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/jobs"
-	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -447,8 +446,8 @@ func TestCreateParentsOnTheBrowsedGroup(t *testing.T) {
 	if m.creationParentID != "" || m.creationParentName != "" {
 		t.Errorf("at the root, parent = (%q, %q), want none", m.creationParentID, m.creationParentName)
 	}
-	if m.mode != ModeLoadingTemplates {
-		t.Errorf("mode = %v after ctrl+n, want ModeLoadingTemplates", m.mode)
+	if m.mode != ModeCreatingProject || m.creationForm == nil {
+		t.Errorf("mode = %v, form = %v after ctrl+n, want the form open at once", m.mode, m.creationForm)
 	}
 
 	m = feed(t, drilledModel(t), testutil.Key("down"), testutil.Key(keymap.New))
@@ -457,28 +456,10 @@ func TestCreateParentsOnTheBrowsedGroup(t *testing.T) {
 	}
 }
 
-func TestTemplatesLoadedOpensTheForm(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
-
-	m = feed(t, m, TemplatesLoadedMsg{Templates: []oci.TemplateEntry{
-		{Name: "go-service", Repository: "templates/go", Tag: "v1"},
-	}})
-
-	if m.mode != ModeCreatingProject {
-		t.Errorf("mode = %v once the templates arrived, want ModeCreatingProject", m.mode)
-	}
-	if m.creationForm == nil {
-		t.Fatal("no creation form after the templates arrived")
-	}
-	if len(m.templateEntries) != 1 {
-		t.Errorf("templateEntries = %v, want the one that arrived", m.templateEntries)
-	}
-}
-
 // D71: a project or subgroup cannot be more open than the group it goes into,
 // so the form offers only what "alpha" (private) allows and says why.
 func TestVisibilityIsLimitedByAPrivateParent(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
+	m := feed(t, drilledModel(t), testutil.Key(keymap.New))
 
 	// Onto the Visibility field: Type -> Name -> Desc -> Visibility.
 	m = feed(t, m, testutil.Keys("down", "down", "down")...)
@@ -496,7 +477,7 @@ func TestVisibilityIsLimitedByAPrivateParent(t *testing.T) {
 // At the root there is no parent to narrow by, so every value the forge
 // offers is still reachable — unchanged from before D71.
 func TestVisibilityIsUnrestrictedAtTheRoot(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 
 	m = feed(t, m, testutil.Keys("down", "down", "down")...)
 	if view := m.creationForm.View(); strings.Contains(view, "limited by the parent") {
@@ -509,34 +490,62 @@ func TestVisibilityIsUnrestrictedAtTheRoot(t *testing.T) {
 	}
 }
 
-// A registry that is unreachable must not block creation: the form opens
-// anyway, and says why the template list is empty as soon as the list is on
-// screen — not only once the field takes focus, which is what D10 fixed.
-func TestTemplateFailureStillOpensTheForm(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
+// ── Choosing a template ──────────────────────────────────────────────────────
 
-	m = feed(t, m, TemplatesLoadedMsg{Error: errors.New("registry unreachable")})
+// projectFormOnTemplate opens the creation form on a project and puts the focus
+// on the Template field: Type -> Name -> Desc -> Visibility -> Template.
+func projectFormOnTemplate(t *testing.T) Model {
+	t.Helper()
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New), testutil.Key("right"))
+	return feed(t, m, testutil.Keys("down", "down", "down", "down")...)
+}
+
+// enter on the Template field asks the app to lend the catalog. The explorer
+// does not open it itself: which view lends itself is the router's business.
+func TestEnterOnTheTemplateFieldAsksTheAppForTheCatalog(t *testing.T) {
+	m := projectFormOnTemplate(t)
+
+	// The form asks its view, and the view asks the app.
+	_, cmd := step(t, m, testutil.Key("enter"))
+	pick, ok := testutil.MsgOf[components.CreationFormPickTemplateMsg](cmd)
+	if !ok {
+		t.Fatalf("enter on the Template field produced %T, want CreationFormPickTemplateMsg", testutil.Msg(cmd))
+	}
+
+	_, cmd = step(t, m, pick)
+	if _, ok := testutil.MsgOf[TemplateSelectionRequestMsg](cmd); !ok {
+		t.Fatalf("the view answered the form with %T, want TemplateSelectionRequestMsg", testutil.Msg(cmd))
+	}
+}
+
+func TestTheChosenTemplateReachesTheFormAndSurvivesTheRoundTrip(t *testing.T) {
+	m := projectFormOnTemplate(t)
+	m = feed(t, m, testutil.Key("right")) // stay on the field; nothing typed yet
+
+	m = feed(t, m, TemplateChosenMsg{Slug: "spring-api", Name: "Spring API"})
 
 	if m.creationForm == nil {
-		t.Fatal("a registry error suppressed the creation form")
+		t.Fatal("the form was dropped while the catalog was on screen")
 	}
-	if len(m.templateEntries) != 0 {
-		t.Errorf("templateEntries = %v after a registry error, want none", m.templateEntries)
+	if view := m.creationForm.View(); !strings.Contains(view, "Spring API") {
+		t.Errorf("the form does not show the chosen template:\n%s", view)
 	}
+}
 
-	m = feed(t, m, testutil.Key("right")) // Group -> Project
-	if view := m.creationForm.View(); !strings.Contains(view, "Registry error") {
-		t.Errorf("the unfocused Template field does not mention the registry failure:\n%s", view)
-	}
+// Backing out of the picker changes nothing: the form keeps what it had.
+func TestCancellingTheChoiceKeepsTheTemplate(t *testing.T) {
+	m := projectFormOnTemplate(t)
+	m = feed(t, m, TemplateChosenMsg{Slug: "go", Name: "Go"})
 
-	m = feed(t, m, testutil.Keys("down", "down", "down", "down")...) // onto Template
-	if view := m.creationForm.View(); !strings.Contains(view, "Registry error") {
-		t.Errorf("the focused Template field does not mention the registry failure:\n%s", view)
+	m = feed(t, m, TemplateChoiceCancelledMsg{})
+
+	if view := m.creationForm.View(); !strings.Contains(view, "Go") {
+		t.Errorf("cancelling the picker cleared the template:\n%s", view)
 	}
 }
 
 func TestCancellingCreationReturnsToNormal(t *testing.T) {
-	m := feed(t, loadedModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
+	m := feed(t, loadedModel(t), testutil.Key(keymap.New))
 
 	m = feed(t, m, components.CreationFormCancelMsg{})
 
@@ -702,7 +711,7 @@ func TestCreatingIsRefusedWhileTheLevelLoads(t *testing.T) {
 
 	m, cmd := step(t, m, testutil.Key(keymap.New))
 
-	if m.mode == ModeLoadingTemplates || m.creationForm != nil {
+	if m.creationForm != nil {
 		t.Error("N opened the creation form while the level was still loading")
 	}
 	if cmd == nil || m.footer.Text() != reasonStillLoading {
@@ -1358,23 +1367,6 @@ func TestARunningRowCarriesTheRoutersFrame(t *testing.T) {
 
 // ── Modes ────────────────────────────────────────────────────────────────────
 
-// A long-running mode must not act on stray keystrokes.
-func TestBlockingModesIgnoreInput(t *testing.T) {
-	for _, mode := range []ViewMode{ModeLoadingTemplates} {
-		m := drilledModel(t)
-		m.mode = mode
-
-		next := feed(t, m, testutil.Key(keymap.Delete), testutil.Key(keymap.Clone), testutil.Key("."))
-
-		if next.mode != mode {
-			t.Errorf("mode %v changed to %v under keystrokes", mode, next.mode)
-		}
-		if next.deleteConfirmModal != nil || !next.selection.isEmpty() {
-			t.Errorf("mode %v acted on a keystroke", mode)
-		}
-	}
-}
-
 // InEditMode tells the app router to stop capturing ":" for command mode
 // (ctrl+p still gets through — the router handles it before asking).
 func TestInEditModeCoversEveryModalState(t *testing.T) {
@@ -1387,7 +1379,7 @@ func TestInEditModeCoversEveryModalState(t *testing.T) {
 		t.Error("InEditMode() is false while the search box has focus")
 	}
 
-	for _, mode := range []ViewMode{ModeSelecting, ModeCloning, ModeLoadingTemplates, ModeCreatingProject, ModeConfirmingDelete} {
+	for _, mode := range []ViewMode{ModeSelecting, ModeCloning, ModeCreatingProject, ModeConfirmingDelete} {
 		m := loadedModel(t)
 		m.mode = mode
 		if !m.InEditMode() {

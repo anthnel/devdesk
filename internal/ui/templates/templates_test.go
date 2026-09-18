@@ -427,6 +427,108 @@ func TestListingSummarisesTheFiles(t *testing.T) {
 	}
 }
 
+// ── Selection mode ───────────────────────────────────────────────────────────
+
+func pickerOn(t *testing.T, entries ...template.Entry) Model {
+	t.Helper()
+	path := catalogWith(t, entries...)
+	m := NewForSelection(config.Default(), nil, "Choose the template")
+	m.path = path
+	m = send(t, m, testutil.Resize(140, 24))
+	return drive(t, m, testutil.Msgs(loadCatalogCmd(path))[0])
+}
+
+func TestEnterChoosesTheSelectedTemplate(t *testing.T) {
+	m := pickerOn(t, entry("spring-api", "Spring API"), entry("go-lib", "Go Library"))
+	m = send(t, m, testutil.Key("down")) // Go Library, then Spring API by name
+
+	_, cmd := m.Update(testutil.Key("enter"))
+
+	chosen, ok := testutil.MsgOf[TemplateSelectedMsg](cmd)
+	if !ok {
+		t.Fatalf("enter produced %T, want TemplateSelectedMsg", testutil.Msg(cmd))
+	}
+	if chosen.Slug != "spring-api" || chosen.Name != "Spring API" {
+		t.Errorf("chosen = %+v, want the second row, spring-api", chosen)
+	}
+}
+
+func TestEscLeavesThePickerWithoutChoosing(t *testing.T) {
+	m := pickerOn(t, entry("api", "API"))
+
+	_, cmd := m.Update(testutil.Key("esc"))
+
+	if _, ok := testutil.MsgOf[SelectionCancelledMsg](cmd); !ok {
+		t.Errorf("esc produced %T, want SelectionCancelledMsg", testutil.Msg(cmd))
+	}
+}
+
+// An empty catalog has nothing to choose, and says so rather than doing nothing.
+func TestEnterOnAnEmptyCatalogSaysThereIsNothingToChoose(t *testing.T) {
+	m := pickerOn(t)
+
+	m = send(t, m, testutil.Key("enter"))
+
+	if m.footer.Text() != reasonNoTemplate {
+		t.Errorf("footer = %q, want %q", m.footer.Text(), reasonNoTemplate)
+	}
+}
+
+// The picker changes nothing: N, E and D are not bound, and not advertised — a
+// mode replaces the list, it does not grey it (Rule 130).
+func TestThePickerCannotChangeTheCatalog(t *testing.T) {
+	path := catalogWith(t, entry("api", "API"))
+	m := NewForSelection(config.Default(), nil, "Choose")
+	m.path = path
+	m = send(t, m, testutil.Resize(140, 24))
+	m = drive(t, m, testutil.Msgs(loadCatalogCmd(path))[0])
+
+	for _, key := range []string{"N", "E", "D"} {
+		m = send(t, m, testutil.Key(key))
+		if m.form != nil || m.confirmModal != nil {
+			t.Fatalf("%s opened something in the picker", key)
+		}
+		if testutil.HasShortcut(m.GetShortcuts(), key) {
+			t.Errorf("%s is advertised in the picker", key)
+		}
+	}
+	for _, key := range []string{"enter", "esc", "V", "/"} {
+		if !testutil.HasShortcut(m.GetShortcuts(), key) {
+			t.Errorf("%s is missing from the picker's shortcuts", key)
+		}
+	}
+	if len(m.store.List()) != 1 {
+		t.Error("the catalog changed")
+	}
+}
+
+func TestThePickerTitleAndFooterSayWhatItIsFor(t *testing.T) {
+	m := pickerOn(t, entry("api", "API"))
+
+	if !strings.Contains(m.GetTitle(), "Choose a template") {
+		t.Errorf("title = %q", m.GetTitle())
+	}
+	if footer := m.RenderFooter(120); !strings.Contains(footer, "Choose the template") {
+		t.Errorf("footer does not carry the prompt:\n%s", footer)
+	}
+}
+
+// The filter is what makes a long catalog choosable, and esc must close it
+// before it leaves the picker.
+func TestEscInTheFilterClosesTheFilterNotThePicker(t *testing.T) {
+	m := pickerOn(t, entry("api", "API"))
+	m = send(t, m, testutil.Key("/"))
+	if !m.InEditMode() {
+		t.Fatal("/ did not open the filter")
+	}
+
+	_, cmd := m.Update(testutil.Key("esc"))
+
+	if _, left := testutil.MsgOf[SelectionCancelledMsg](cmd); left {
+		t.Error("esc in the filter left the picker")
+	}
+}
+
 func TestSlugify(t *testing.T) {
 	tests := map[string]string{
 		"Spring Boot API":  "spring-boot-api",

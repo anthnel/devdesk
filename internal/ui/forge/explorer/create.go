@@ -10,12 +10,11 @@ import (
 
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/jobs"
-	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
 
 // handleCreateResource handles 'ctrl+n' key - start unified group/project creation.
-// Stashes parent info and loads templates from OCI registry before showing form.
+// Stashes the parent info and opens the form.
 func (m Model) handleCreateResource() (tea.Model, tea.Cmd) {
 	// Same reasoning as below, one step earlier: without a session there is no
 	// forge to create against, and the key is greyed for it.
@@ -33,80 +32,26 @@ func (m Model) handleCreateResource() (tea.Model, tea.Cmd) {
 
 	// Use the currently browsed group as parent, not the selected item.
 	// currentGroupNode is nil at root level.
-	parentName := ""
-	parentID := ""
-	parentVisibility := ""
+	m.creationParentName = ""
+	m.creationParentID = ""
+	m.creationParentVisibility = ""
 
 	if m.currentGroupNode != nil {
-		parentName = m.currentGroupNode.FullPath
-		parentID = m.currentGroupNode.ID
-		parentVisibility = m.currentGroupNode.Visibility
+		m.creationParentName = m.currentGroupNode.FullPath
+		m.creationParentID = m.currentGroupNode.ID
+		m.creationParentVisibility = m.currentGroupNode.Visibility
 	}
 
-	// Stash parent info for after template loading
-	m.creationParentName = parentName
-	m.creationParentID = parentID
-	m.creationParentVisibility = parentVisibility
-	m.mode = ModeLoadingTemplates
-
-	return m, m.loadTemplates()
+	return m.openCreationForm(), nil
 }
 
-// registryPassword reads the template registry's password from the secret
-// store, keyed by the registry URL.
+// openCreationForm builds the form from the stashed parent.
 //
-// It used to be config.Registry.Password — plaintext YAML, read on every
-// template listing. The field is gone; a value left there by an older version
-// was moved into the store at startup (§3.9).
-//
-// An empty result is not an error: an anonymous registry is the common case,
-// and oci.NewClient treats empty credentials as "do not authenticate".
-func (m Model) registryPassword() string {
-	if m.shared == nil || m.shared.Secrets.Storage == nil || m.config.Registry.URL == "" {
-		return ""
-	}
-	password, err := m.shared.Secrets.Storage.Load(m.config.Registry.URL)
-	if err != nil {
-		return ""
-	}
-	return password
-}
-
-// loadTemplates loads available templates from the OCI registry catalog.
-// Degrades gracefully: returns empty list if registry is not configured or on error.
-func (m Model) loadTemplates() tea.Cmd {
-	registryURL := m.config.Registry.URL
-	basePath := m.config.Registry.TemplatesRepository
-	username := m.config.Registry.Username
-	password := m.registryPassword()
-
-	return func() tea.Msg {
-		// If registry not configured, return empty (graceful degradation)
-		if registryURL == "" || basePath == "" {
-			return TemplatesLoadedMsg{}
-		}
-
-		client := oci.NewClient(registryURL, username, password)
-		entries, err := client.ListTemplates(basePath)
-		if err != nil {
-			log.Printf("ERROR: failed to load templates from OCI registry: %v", err)
-			return TemplatesLoadedMsg{Error: err}
-		}
-
-		return TemplatesLoadedMsg{Templates: entries}
-	}
-}
-
-// handleTemplatesLoaded handles TemplatesLoadedMsg - creates the project form with loaded templates
-func (m Model) handleTemplatesLoaded(msg TemplatesLoadedMsg) (tea.Model, tea.Cmd) {
+// It opens at once: the templates used to be listed from a registry first, which
+// put a loading screen in front of every creation. The catalog is a local file
+// read only when a template is chosen or applied, so there is nothing to wait for.
+func (m Model) openCreationForm() Model {
 	m.mode = ModeCreatingProject
-	m.templateEntries = msg.Templates
-
-	// Extract display names for the form
-	names := make([]string, len(msg.Templates))
-	for i, t := range msg.Templates {
-		names[i] = t.Name
-	}
 
 	shape := m.shape()
 	visibilities := shape.VisibilitiesUnder(m.creationParentVisibility)
@@ -117,12 +62,8 @@ func (m Model) handleTemplatesLoaded(msg TemplatesLoadedMsg) (tea.Model, tea.Cmd
 		m.creationParentID,
 		m.config.Forge.DefaultVisibility,
 		visibilities,
-		names,
 		m.vocab(),
 	)
-	if msg.Error != nil {
-		m.creationForm.SetTemplateWarning(fmt.Sprintf("Registry error: %v", msg.Error))
-	}
 	// Narrower than the forge's own list means the parent did the narrowing
 	// (VisibilitiesUnder is the identity otherwise), so say so — a single
 	// remaining choice with no explanation reads as a control that is stuck
@@ -132,6 +73,16 @@ func (m Model) handleTemplatesLoaded(msg TemplatesLoadedMsg) (tea.Model, tea.Cmd
 			"limited by the parent %s's visibility (%s)",
 			strings.ToLower(m.vocab().Namespace), m.creationParentVisibility,
 		))
+	}
+	return m
+}
+
+// handleTemplateChosen puts the picked template in the form that asked for it.
+// A form that is no longer open — cancelled while the catalog was on screen is
+// not possible, but a context switch drops the view — has nothing to receive it.
+func (m Model) handleTemplateChosen(msg TemplateChosenMsg) (tea.Model, tea.Cmd) {
+	if m.creationForm != nil {
+		m.creationForm.SetTemplate(msg.Slug, msg.Name)
 	}
 	return m, nil
 }
@@ -288,12 +239,19 @@ func slugify(name string) string {
 	return strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 }
 
-// createProject creates a new repository and optionally applies a template.
+// createProject creates a new repository and, when a template was chosen, fills
+// it with the template's files.
 //
-// The template apply is inside the same command, and therefore inside the same
-// run item: it is several more requests — a download and an initial commit — and
-// splitting them would put a row back to idle while the slower half was still
-// going.
+// The template is fetched **before** the repository is created. A bad ref, a
+// network failure, a refused login or a template over the size limits are the
+// ordinary ways this fails, and each of them used to leave an empty repository
+// behind and a message about the template. Fetching first means those failures
+// create nothing. What can still fail after the repository exists is the
+// initial commit itself, and that keeps the old outcome: the repository stays,
+// empty, and the footer says the template did not apply.
+//
+// It is all inside the same command, and therefore inside the same run item:
+// splitting it would put a row back to idle while the slower half was going.
 func (m Model) createProject(msg components.CreationFormSubmitMsg, target string) tea.Cmd {
 	backend := m.shared.Forge
 	spec := forge.NewRepository{
@@ -303,65 +261,29 @@ func (m Model) createProject(msg components.CreationFormSubmitMsg, target string
 		Visibility:  msg.Visibility,
 		NamespaceID: msg.ParentID,
 	}
-	registryURL := m.config.Registry.URL
-	username := m.config.Registry.Username
-	password := m.registryPassword()
-
-	// Resolve template entry from display name
-	var templateRepo, templateTag string
-	if msg.Template != "" {
-		for _, entry := range m.templateEntries {
-			if entry.Name == msg.Template {
-				templateRepo = entry.Repository
-				templateTag = entry.Tag
-				break
-			}
-		}
-	}
+	fetcher := m.templateFetcher(msg.Template)
 
 	return func() tea.Msg {
-		repo, err := backend.CreateRepository(context.Background(), spec)
+		ctx := context.Background()
+
+		files, err := fetcher(ctx)
+		if err != nil {
+			log.Printf("ERROR [explorer] fetch template: %v", err)
+			return ProjectCreatedMsg{Target: target, Error: err, TemplateUnavailable: true}
+		}
+
+		repo, err := backend.CreateRepository(ctx, spec)
 		if err != nil {
 			return ProjectCreatedMsg{Target: target, Error: err}
 		}
 
-		// Apply template if one was selected and resolved
-		if templateRepo != "" {
-			templateErr := applyTemplate(backend, repo.ID, registryURL, username, password, templateRepo, templateTag)
-			if templateErr != nil {
-				return ProjectCreatedMsg{Repository: repo, Target: target, TemplateError: templateErr}
+		if len(files) > 0 {
+			if err := backend.InitialCommit(ctx, repo.ID, files); err != nil {
+				return ProjectCreatedMsg{Repository: repo, Target: target, TemplateError: err}
 			}
 		}
-
 		return ProjectCreatedMsg{Repository: repo, Target: target}
 	}
-}
-
-// applyTemplate downloads an OCI template and commits its files to the project.
-// This is a standalone function (not a method) because it runs inside a goroutine.
-func applyTemplate(backend forge.Forge, repositoryID string, registryURL, username, password, repository, tag string) error {
-	ociClient := oci.NewClient(registryURL, username, password)
-
-	tmpl, err := ociClient.DownloadTemplate(repository, tag)
-	if err != nil {
-		return fmt.Errorf("download template: %w", err)
-	}
-
-	// Convert template files to commit actions
-	files := make([]forge.FileChange, 0, len(tmpl.Files))
-	for filePath, content := range tmpl.Files {
-		files = append(files, forge.FileChange{
-			Action:  forge.FileCreate,
-			Path:    filePath,
-			Content: []byte(content),
-		})
-	}
-
-	if len(files) == 0 {
-		return nil
-	}
-
-	return backend.InitialCommit(context.Background(), repositoryID, files)
 }
 
 // handleGroupCreated resolves the placeholder row in place.
@@ -392,6 +314,9 @@ func (m Model) handleProjectCreated(msg ProjectCreatedMsg) (tea.Model, tea.Cmd) 
 	if msg.Error != nil {
 		log.Printf("ERROR [explorer] create repository: %v", msg.Error)
 		m.settleCreating(msg.Target, nil)
+		if msg.TemplateUnavailable {
+			return m, m.footer.Error("Could not fetch the template — " + msg.Target + " was not created. Check logs")
+		}
 		return m, m.footer.Error("Failed to create " + msg.Target + " — check logs")
 	}
 
@@ -403,7 +328,7 @@ func (m Model) handleProjectCreated(msg ProjectCreatedMsg) (tea.Model, tea.Cmd) 
 
 	if msg.TemplateError != nil {
 		log.Printf("ERROR [explorer] apply template: %v", msg.TemplateError)
-		return m, m.footer.Warn(fmt.Sprintf("%s created, but the template did not apply — check logs", node.Name))
+		return m, m.footer.Warn(fmt.Sprintf("%s created empty: the template's commit failed — check logs", node.Name))
 	}
 	return m, nil
 }

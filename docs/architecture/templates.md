@@ -100,11 +100,35 @@ not be parsed would replace whatever the user had in it; the footer says so and
 greyed — that is not knowing, and greying it for one read would look like a
 glitch (Rule 130).
 
+## Creating a repository from a template
+
+The `Template` field of the explorer's creation form (projects only) shows
+`none` — an empty repository — until one is chosen.
+
+- **`enter` on the field opens the catalog**, lent by the router in selection
+  mode (`templates.NewForSelection`), the second borrow the explorer makes (see
+  `scanning.md`). The form is kept as it is meanwhile; `enter` in the picker
+  answers `TemplateSelectedMsg{Slug, Name}`, `esc` answers
+  `SelectionCancelledMsg`, and the router turns them into the explorer's own
+  `TemplateChosenMsg` / `TemplateChoiceCancelledMsg`. `backspace` on the field
+  puts it back to none.
+- **The picker is the whole catalog**, filterable and sortable, with `V` to look
+  inside. N, E and D are not bound there — a mode replaces the list (Rule 130).
+  The form keeps the slug and shows the name; the slug is what is submitted.
+- **The template is fetched before the repository is created.** A bad ref, a
+  network failure, a refused login, a template that is gone from the catalog or
+  one over the limits all fail with *nothing created*: the footer says so and the
+  run detail reads `template unavailable — nothing was created`. Only the initial
+  commit can still fail once the repository exists, and that keeps the old
+  outcome: the repository stays, empty, and the footer says it was created empty.
+- The catalog is read when the template is applied, not when the form opens, so
+  a template deleted while the form was open is reported as no longer in the
+  catalog rather than applied from a stale copy.
+
 ## Not done yet
 
-- The picker in the creation form, and wiring `applyTemplate` to `Fetch`; until
-  then the explorer keeps its own OCI-only path.
-- `F` (sync) and the cache it would own: every preview refetches.
+- `F` (sync) and the cache it would own: every preview and every creation
+  refetches.
 - `S` (scan) on a template's fetched content.
 - A private git repository on a host that is not the forge's is fetched
-  anonymously, so it fails with git's own reason.
+  anonymously, so it fails with git's own reason: use an SSH URL.

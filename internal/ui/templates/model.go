@@ -50,6 +50,12 @@ type Model struct {
 	// pendingDelete is the slug the modal is asking about.
 	pendingDelete string
 
+	// selecting marks a view lent to another to pick one template: it answers
+	// with TemplateSelectedMsg or SelectionCancelledMsg and edits nothing.
+	// selectionMessage is what the footer says meanwhile.
+	selecting        bool
+	selectionMessage string
+
 	footer sharedcomponents.FooterMessage
 
 	width, height int
@@ -83,6 +89,20 @@ func NewWithPath(cfg *config.Config, secrets credentials.Storage, path string) M
 			SortColumn: columnName,
 		}),
 	}
+}
+
+// NewForSelection builds the view in selection mode, to be lent to another view
+// that needs a template chosen — the repository-creation form.
+//
+// It is the whole catalog, filterable and sortable, with a preview: the choice
+// is between things a reader has to be able to tell apart, which a one-line
+// dropdown cannot show. It changes nothing: N, E and D are absent, not greyed
+// (Rule 130 — a mode replaces the list).
+func NewForSelection(cfg *config.Config, secrets credentials.Storage, message string) Model {
+	m := New(cfg, secrets)
+	m.selecting = true
+	m.selectionMessage = message
+	return m
 }
 
 // columns describes the table.
