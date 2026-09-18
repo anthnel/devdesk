@@ -21,8 +21,75 @@ type Credentials struct {
 	Password string // OCI registry
 }
 
-// Fetch returns the files of the template at src.
+// The most a template may hold. A template is read whole into memory and sent
+// to the forge in a single initial commit, so what it can be is bounded by the
+// API, not by taste:
+//
+//   - GitLab takes every file in one request, so the size of the body decides
+//     (base64 makes it a third larger than the files).
+//   - GitHub takes one request per file, one after the other, so the count
+//     decides: at a few hundred milliseconds each, 500 files is minutes.
+//
+// A realistic template — a service with its wrappers and its CI — is a few dozen
+// files. Past 500 it is almost always a repository that committed its
+// dependencies or its build output, which is not a template.
+//
+// The numbers are estimates, not measurements. The one to check against a real
+// instance is GitLab's maximum request body: if it is under about 43 MiB (32 MiB
+// once base64-encoded), MaxBytes has to come down.
+const (
+	MaxFiles = 500
+	MaxBytes = 32 << 20
+)
+
+// Fetch returns the files of the template at src, or an error saying why it
+// cannot be used — including that it is larger than a template may be.
 func Fetch(ctx context.Context, src Source, creds Credentials) ([]File, error) {
+	files, err := fetch(ctx, src, creds)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkLimits(files); err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+// checkLimits refuses a template past MaxFiles or MaxBytes, naming the biggest
+// file so the reader knows where to look. It runs before anything is created on
+// the forge: a refusal after the repository exists would leave an empty one.
+func checkLimits(files []File) error {
+	if len(files) > MaxFiles {
+		return fmt.Errorf("the template has %d files, more than the %d a template may have", len(files), MaxFiles)
+	}
+
+	total, biggest := 0, File{}
+	for _, f := range files {
+		total += len(f.Content)
+		if len(f.Content) > len(biggest.Content) {
+			biggest = f
+		}
+	}
+	if total > MaxBytes {
+		return fmt.Errorf("the template is %s, more than the %s a template may be — the largest file is %s (%s)",
+			FormatSize(total), FormatSize(MaxBytes), biggest.Path, FormatSize(len(biggest.Content)))
+	}
+	return nil
+}
+
+// FormatSize writes a byte count the way the application says it: 1.5 MiB.
+func FormatSize(n int) string {
+	switch {
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MiB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.1f KiB", float64(n)/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
+}
+
+func fetch(ctx context.Context, src Source, creds Credentials) ([]File, error) {
 	if err := src.Validate(); err != nil {
 		return nil, err
 	}

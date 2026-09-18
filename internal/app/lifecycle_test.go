@@ -17,6 +17,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/forge/auth"
 	"github.com/anthnel/devdesk/internal/ui/forge/explorer"
 	"github.com/anthnel/devdesk/internal/ui/security"
+	"github.com/anthnel/devdesk/internal/ui/templates"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
@@ -452,6 +453,7 @@ func TestThePickedDirectoryGoesBackToTheExplorer(t *testing.T) {
 	a.views[command.ViewGitExplorer] = origin
 	a.views[command.ViewWorkspaces] = &fakeView{}
 	a.selectionReturnView = command.ViewGitExplorer
+	a.selectionLent = command.ViewWorkspaces
 	a.currentView = command.ViewWorkspaces
 
 	a.Update(workspaces.DirectorySelectedMsg{Path: "/repos/devdesk"})
@@ -478,6 +480,7 @@ func TestCancellingTheBorrowReturnsToTheExplorer(t *testing.T) {
 	a.views[command.ViewGitExplorer] = origin
 	a.views[command.ViewWorkspaces] = &fakeView{}
 	a.selectionReturnView = command.ViewGitExplorer
+	a.selectionLent = command.ViewWorkspaces
 	a.currentView = command.ViewWorkspaces
 
 	a.Update(workspaces.SelectionCancelledMsg{})
@@ -487,5 +490,73 @@ func TestCancellingTheBorrowReturnsToTheExplorer(t *testing.T) {
 	}
 	if _, ok := receivedOf[explorer.CloneSelectionCancelledMsg](origin); !ok {
 		t.Error("the explorer was not told the selection was cancelled")
+	}
+}
+
+// ── The explorer borrows the templates view ──────────────────────────────────
+
+// The second borrow: the catalog is lent to pick the template of a repository
+// being created, and what is dropped on the way out is the templates view, not
+// the workspaces one.
+func TestTheExplorerBorrowsTheTemplatesViewForATemplate(t *testing.T) {
+	a := router(t, &fakeView{})
+	a.currentView = command.ViewGitExplorer
+	a.views[command.ViewGitExplorer] = &fakeView{}
+
+	a.Update(explorer.TemplateSelectionRequestMsg{})
+
+	if a.currentView != command.ViewTemplates {
+		t.Fatalf("current view = %s, want the templates view", a.currentView)
+	}
+	if a.selectionReturnView != command.ViewGitExplorer {
+		t.Errorf("return view = %s, want the explorer that asked", a.selectionReturnView)
+	}
+	lent, ok := a.views[command.ViewTemplates].(interface{ GetTitle() string })
+	if !ok || !strings.Contains(lent.GetTitle(), "Choose") {
+		t.Errorf("the lent view is %T, want the templates view in selection mode", a.views[command.ViewTemplates])
+	}
+}
+
+func TestThePickedTemplateGoesBackToTheExplorer(t *testing.T) {
+	origin := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewGitExplorer] = origin
+	a.currentView = command.ViewGitExplorer
+	a.Update(explorer.TemplateSelectionRequestMsg{})
+
+	a.Update(templates.TemplateSelectedMsg{Slug: "spring-api", Name: "Spring API"})
+
+	if a.currentView != command.ViewGitExplorer {
+		t.Errorf("current view = %s, want the explorer back", a.currentView)
+	}
+	got, ok := receivedOf[explorer.TemplateChosenMsg](origin)
+	if !ok || got.Slug != "spring-api" || got.Name != "Spring API" {
+		t.Errorf("the explorer received %+v (delivered %v), want spring-api", got, ok)
+	}
+	// Dropped, so :templates opens as the catalog and not as a picker.
+	if _, kept := a.views[command.ViewTemplates]; kept {
+		t.Error("the templates view survived and will reopen in selection mode")
+	}
+	// And the workspaces view, which the router used to assume was the one lent,
+	// was not touched.
+	if a.selectionLent != "" {
+		t.Errorf("selectionLent = %q after leaving, want it cleared", a.selectionLent)
+	}
+}
+
+func TestCancellingTheTemplateChoiceReturnsToTheExplorer(t *testing.T) {
+	origin := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewGitExplorer] = origin
+	a.currentView = command.ViewGitExplorer
+	a.Update(explorer.TemplateSelectionRequestMsg{})
+
+	a.Update(templates.SelectionCancelledMsg{})
+
+	if a.currentView != command.ViewGitExplorer {
+		t.Errorf("current view = %s, want the explorer back", a.currentView)
+	}
+	if _, ok := receivedOf[explorer.TemplateChoiceCancelledMsg](origin); !ok {
+		t.Error("the explorer was not told the choice was cancelled")
 	}
 }

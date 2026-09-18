@@ -22,6 +22,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
+	"github.com/anthnel/devdesk/internal/ui/templates"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
@@ -87,6 +88,11 @@ type App struct {
 
 	// Selection mode (cross-view browsing)
 	selectionReturnView command.ViewType // View to return to after selection
+	// selectionLent is the view built in selection mode for that borrower. It is
+	// what leaveSelectionMode drops so the view is rebuilt normally, and it is
+	// not always the same one: workspaces for a directory, templates for a
+	// template.
+	selectionLent command.ViewType
 
 	// Long-running work. The registry is the one bookkeeping of what is
 	// running (internal/jobs); the router owns it, and owns the single spinner
@@ -504,6 +510,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case workspaces.SelectionCancelledMsg:
 		return a.handleSelectionCancelled()
+
+	case explorer.TemplateSelectionRequestMsg:
+		return a.handleExplorerTemplateRequest()
+
+	case templates.TemplateSelectedMsg:
+		return a.handleTemplateSelected(msg)
+
+	case templates.SelectionCancelledMsg:
+		return a.handleTemplateSelectionCancelled()
 
 	// ── The document viewer ──────────────────────────────────────────────
 	// One message, three producers: a file in workspaces, an inspect and a log

@@ -10,12 +10,6 @@ type CatalogLoadedMsg struct {
 	Err   error
 }
 
-// DiscoveredMsg carries the templates the configured registry listed.
-type DiscoveredMsg struct {
-	Entries []template.Entry
-	Err     error
-}
-
 // SavedMsg reports a Put. Entry is what was written, normalized.
 type SavedMsg struct {
 	Entry template.Entry
@@ -35,3 +29,14 @@ type FormSubmitMsg struct {
 
 // FormCancelMsg is sent when the entry form is left with esc.
 type FormCancelMsg struct{}
+
+// TemplateSelectedMsg is the answer to a view that borrowed this one to pick a
+// template. Slug is the catalog identifier — what the caller keeps — and Name is
+// what it is called, for showing.
+type TemplateSelectedMsg struct {
+	Slug string
+	Name string
+}
+
+// SelectionCancelledMsg is sent when the picker is left with esc.
+type SelectionCancelledMsg struct{}

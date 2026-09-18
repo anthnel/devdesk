@@ -150,3 +150,25 @@ func TestFetchStopsOnACancelledContext(t *testing.T) {
 		t.Fatal("Fetch() ignored a cancelled context")
 	}
 }
+
+func TestALimitIsRefusedNamingWhatIsTooBig(t *testing.T) {
+	many := make([]File, MaxFiles+1)
+	if err := checkLimits(many); err == nil || !strings.Contains(err.Error(), "501 files") {
+		t.Errorf("checkLimits(%d files) = %v, want the count named", len(many), err)
+	}
+	if err := checkLimits(many[:MaxFiles]); err != nil {
+		t.Errorf("checkLimits(exactly %d files) = %v, want it accepted", MaxFiles, err)
+	}
+
+	big := []File{
+		{Path: "small.txt", Content: make([]byte, 10)},
+		{Path: "dist/bundle.js", Content: make([]byte, MaxBytes)},
+	}
+	err := checkLimits(big)
+	if err == nil || !strings.Contains(err.Error(), "dist/bundle.js") {
+		t.Errorf("checkLimits(over the size) = %v, want the largest file named", err)
+	}
+	if err := checkLimits([]File{{Path: "ok", Content: make([]byte, MaxBytes)}}); err != nil {
+		t.Errorf("checkLimits(exactly %d bytes) = %v, want it accepted", MaxBytes, err)
+	}
+}

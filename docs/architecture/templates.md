@@ -21,9 +21,11 @@ template cannot drift from its original.
 | `oci` | registry URL | repository | tag |
 
 The catalog is **global**: `~/.devdesk/templates.yaml`, not one per context.
-Entries read from a registry catalog (`FromOCI`) depend on the active context;
-they are `Discovered`, never written to the file, and `Merge` hides one once a
-declared entry has the same source — adopting it must not list it twice.
+Every entry is declared. There used to be a second source, entries listed from a
+registry's `/v2/_catalog` and merged in; it was removed because nobody used it,
+and an OCI template is declared by hand like any other. `registry.templates_repository`
+is therefore read by nothing and stays in the schema only so existing files
+still load.
 
 ## Fetching
 
@@ -38,15 +40,25 @@ declared entry has the same source — adopting it must not list it twice.
   temp directory removed before returning. `clone --branch` would refuse a SHA,
   and a template pinned to a SHA is the reproducible kind. Nothing is cached yet:
   `F` (sync) in the view is what will own a cache.
-- **oci** reuses `oci.Client.DownloadTemplate`, now returning `Entries`
-  (bytes + execute bit) beside the old string map.
+- **oci** reuses `oci.Client.DownloadTemplate`, which returns `Entries`
+  (bytes + execute bit).
 - A symlink in a template is **refused**, naming it. It used to be read as an
   empty file — a template silently missing what it says it holds.
 
-**Credentials are the caller's decision.** `Credentials{Token, Username,
-Password}` is resolved for the source's own host; this package never chooses
-which host a secret goes to, as `git.Clone` does not. A zero `Credentials` is
-the safe default.
+**Credentials are resolved per host** by `CredentialsFor(cfg, secrets, src)`: the
+forge's token goes only to a git source on the forge's host, the registry's
+password only to an OCI source on the registry's, and anything else is fetched
+anonymously — a token authenticates one host, and the catalog can be shared, so
+the entry cannot be what decides. A private repository on any other host is not
+reachable over HTTPS: use an SSH URL. Both the view and the explorer call it, so
+the rule has one place to live.
+
+**A template has limits: 500 files and 32 MiB** (`MaxFiles`, `MaxBytes`),
+checked inside `Fetch` and so before anything is created on the forge. GitLab
+takes every file in one request, so the body size decides; GitHub takes one
+request per file, one after the other, so the count does. The numbers are
+estimates: the one to verify against a real GitLab instance is its maximum
+request body, which has to admit 32 MiB once base64-encoded (about 43 MiB).
 
 ## The catalog file is not trusted
 
@@ -64,16 +76,14 @@ the write succeeded, so a failure leaves both agreeing.
 
 ## The `:templates` view — `internal/ui/templates`
 
-A `datatable` (icon, Name, Tags, Source, Ref, Origin) over the catalog merged
-with what the context's registry lists. `Origin` is the first column dropped for
-lack of room. The body is always the table (Rule 139); the count is in the
-header and the registry listing is a footer status with a spinner (Rule 128).
+A `datatable` (icon, Name, Tags, Source, Ref) over the catalog. The body is
+always the table (Rule 139); the count is in the header.
 
 | Key | Does |
 |---|---|
 | `N` | new entry — form in the viewport (Rule 112), source kind is a `←→` cycle field (Rule 132) |
-| `E` | edit. On a **discovered** row this *adopts* it: saving writes a declared entry with the same source and `Merge` stops listing the registry's |
-| `D` | delete after a confirmation that defaults to No. Greyed on a discovered row, with the reason |
+| `E` | edit |
+| `D` | delete after a confirmation that defaults to No |
 | `V` | preview: asks the router to open the viewer on a listing of the files the template would put in a repository (`previewSource`), so a fetch failure is reported by the viewer's own load path |
 | `.` `/` | sort, filter (name, description, tags, source) |
 
@@ -90,17 +100,35 @@ not be parsed would replace whatever the user had in it; the footer says so and
 greyed — that is not knowing, and greying it for one read would look like a
 glitch (Rule 130).
 
-**Credentials are resolved per host, in `Update`** (`Model.credentialsFor`): the
-forge's token goes only to a git source on the forge's host, the registry's
-password only to an OCI source on the registry's. Anything else is fetched
-anonymously — a token authenticates one host, and the catalog can be shared, so
-the entry cannot be what decides.
+## Creating a repository from a template
+
+The `Template` field of the explorer's creation form (projects only) shows
+`none` — an empty repository — until one is chosen.
+
+- **`enter` on the field opens the catalog**, lent by the router in selection
+  mode (`templates.NewForSelection`), the second borrow the explorer makes (see
+  `scanning.md`). The form is kept as it is meanwhile; `enter` in the picker
+  answers `TemplateSelectedMsg{Slug, Name}`, `esc` answers
+  `SelectionCancelledMsg`, and the router turns them into the explorer's own
+  `TemplateChosenMsg` / `TemplateChoiceCancelledMsg`. `backspace` on the field
+  puts it back to none.
+- **The picker is the whole catalog**, filterable and sortable, with `V` to look
+  inside. N, E and D are not bound there — a mode replaces the list (Rule 130).
+  The form keeps the slug and shows the name; the slug is what is submitted.
+- **The template is fetched before the repository is created.** A bad ref, a
+  network failure, a refused login, a template that is gone from the catalog or
+  one over the limits all fail with *nothing created*: the footer says so and the
+  run detail reads `template unavailable — nothing was created`. Only the initial
+  commit can still fail once the repository exists, and that keeps the old
+  outcome: the repository stays, empty, and the footer says it was created empty.
+- The catalog is read when the template is applied, not when the form opens, so
+  a template deleted while the form was open is reported as no longer in the
+  catalog rather than applied from a stale copy.
 
 ## Not done yet
 
-- The picker in the creation form, and wiring `applyTemplate` to `Fetch`; until
-  then the explorer keeps its own OCI-only path.
-- `F` (sync) and the cache it would own: every preview refetches.
+- `F` (sync) and the cache it would own: every preview and every creation
+  refetches.
 - `S` (scan) on a template's fetched content.
 - A private git repository on a host that is not the forge's is fetched
-  anonymously, so it fails with git's own reason.
+  anonymously, so it fails with git's own reason: use an SSH URL.

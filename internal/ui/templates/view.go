@@ -16,6 +16,9 @@ import (
 // GetTitle names the view, and the form when one is open.
 func (m Model) GetTitle() string {
 	base := theme.IconRepository + " Templates"
+	if m.selecting {
+		return base + " " + theme.IconChevronRight + " Choose a template"
+	}
 	if m.form != nil {
 		return base + " " + theme.IconChevronRight + " " + m.form.GetTitle()
 	}
@@ -56,6 +59,16 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 	}
 
 	a := m.availability()
+	if m.selecting {
+		return []shortcut.Shortcut{
+			{Key: "enter", Description: "Choose template", Disabled: !a.Preview.Enabled()},
+			{Key: keymap.Pager, Description: "Preview files", Disabled: !a.Preview.Enabled()},
+			{Key: ".", Description: "Sort"},
+			{Key: "/", Description: "Filter"},
+			{Key: "esc", Description: "Cancel"},
+			{Key: "?", Description: "Help"},
+		}
+	}
 	return []shortcut.Shortcut{
 		{Key: keymap.New, Description: "Create template", Disabled: !a.New.Enabled()},
 		{Key: keymap.Edit, Description: "Edit template", Disabled: !a.Edit.Enabled()},
@@ -93,17 +106,17 @@ func (m Model) RenderFooter(width int) string {
 	if m.FilterBarVisible() {
 		parts = append(parts, m.table.FilterBar().View())
 	}
-	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, m.status()))
+	parts = append(parts, theme.EmptyLineBg(width), m.footer.View(width, sharedcomponents.Status{Text: m.selectionText()}))
 	return strings.Join(parts, "\n")
 }
 
-// status is the derived line, with no timer (Rule 128). Listing the registry is
-// a state, not an event, so it is derived on every frame.
-func (m Model) status() sharedcomponents.Status {
-	if m.discovering {
-		return sharedcomponents.Status{Text: "Loading registry templates...", Spinner: true}
+// selectionText is what the footer says while the view is lent — a state, so it
+// is derived rather than set (Rule 128).
+func (m Model) selectionText() string {
+	if m.selecting {
+		return m.selectionMessage
 	}
-	return sharedcomponents.Status{}
+	return ""
 }
 
 // View renders the form, the modal, or the table — and the table whatever it
@@ -126,21 +139,32 @@ func (m Model) View() string {
 
 // GetHelpContent returns the help for `?` (Rule 114).
 func (m Model) GetHelpContent() help.Content {
+	bindings := []help.KeyBinding{
+		{Key: keymap.New, Description: "Add a template to the catalog"},
+		{Key: keymap.Edit, Description: "Edit the selected template"},
+		{Key: keymap.Delete, Description: "Remove the selected template from the catalog. The template's own content is never touched"},
+		{Key: keymap.Pager, Description: "Preview the files the template would put in a new repository"},
+		{Key: ".", Description: "Cycle the sort column. Each press toggles asc/desc, then moves to the next column"},
+		{Key: "/", Description: "Filter by name, description, tags or source"},
+		{Key: "ctrl+p", Description: "Open command mode"},
+		{Key: "?", Description: "Show this help"},
+	}
+	if m.selecting {
+		bindings = []help.KeyBinding{
+			{Key: "enter", Description: "Use the selected template for the new repository"},
+			{Key: keymap.Pager, Description: "Preview the files the template would put in the repository"},
+			{Key: ".", Description: "Cycle the sort column"},
+			{Key: "/", Description: "Filter by name, description, tags or source"},
+			{Key: "esc", Description: "Go back to the form without choosing: the template stays as it was"},
+			{Key: "?", Description: "Show this help"},
+		}
+	}
 	return help.Content{
 		Title: "Templates",
 		Description: "The catalog of repository templates. A template is a reference to content that lives somewhere else — " +
 			"a git repository, a directory on this machine, or an artifact in an OCI registry — and it is fetched from there when it is needed, " +
 			"so the catalog cannot drift from the original.",
-		KeyBindings: []help.KeyBinding{
-			{Key: keymap.New, Description: "Add a template to the catalog"},
-			{Key: keymap.Edit, Description: "Edit the selected template. On one the registry listed, this keeps it in the catalog so it can be given tags"},
-			{Key: keymap.Delete, Description: "Remove the selected template from the catalog. The template's own content is never touched"},
-			{Key: keymap.Pager, Description: "Preview the files the template would put in a new repository"},
-			{Key: ".", Description: "Cycle the sort column. Each press toggles asc/desc, then moves to the next column"},
-			{Key: "/", Description: "Filter by name, description, tags or source"},
-			{Key: "ctrl+p", Description: "Open command mode"},
-			{Key: "?", Description: "Show this help"},
-		},
+		KeyBindings: bindings,
 		Sections: []help.Section{
 			{
 				Title: "Sources",
@@ -154,15 +178,14 @@ func (m Model) GetHelpContent() help.Content {
 				Body:  "Free-form labels — java, spring-boot, ci-component — separated by commas. They are lowercased and de-duplicated, and searched by the filter as stored.",
 			},
 			{
-				Title: "Declared and registry templates",
-				Body: "Declared templates are the ones in this catalog, kept in ~/.devdesk/templates.yaml and shared by every context. " +
-					"When the context's registry has a templates repository, what it lists appears too, marked 'registry'. " +
-					"Those are read-only until you edit one, which adds it to the catalog so it can carry tags and a description.",
+				Title: "The catalog",
+				Body: "Templates are kept in ~/.devdesk/templates.yaml and shared by every context. " +
+					"When a repository is created, the Template field of the form offers this list, or none for an empty repository.",
 			},
 			{
 				Title: "Credentials",
 				Body: "A source is fetched anonymously unless it is on the same host as the context's forge (git) or registry (oci), in which case the stored token or password is used. " +
-					"A token authenticates one host, so it is never offered to another.",
+					"A token authenticates one host, so it is never offered to another: a private repository on any other host needs an SSH URL.",
 			},
 		},
 	}

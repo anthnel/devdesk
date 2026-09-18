@@ -2,7 +2,6 @@ package explorer
 
 import (
 	"github.com/anthnel/devdesk/internal/forge"
-	"github.com/anthnel/devdesk/internal/oci"
 )
 
 // DeleteCompleteMsg is sent when a delete operation completes.
@@ -36,17 +35,33 @@ type GroupCreatedMsg struct {
 // ProjectCreatedMsg is sent when a project is created. See GroupCreatedMsg
 // for why Target is carried.
 type ProjectCreatedMsg struct {
-	Repository    forge.Repository
-	Target        string
-	Error         error
-	TemplateError error // Non-nil if template application failed (project still exists)
+	Repository forge.Repository
+	Target     string
+	Error      error
+	// TemplateError is non-nil when the template's initial commit failed: the
+	// repository exists, and is empty.
+	TemplateError error
+	// TemplateUnavailable marks Error as the template's, raised *before* any
+	// repository was created — it could not be fetched, or is over the size
+	// limits. Nothing exists on the forge, and the footer says so.
+	TemplateUnavailable bool
 }
 
-// TemplatesLoadedMsg is sent when the OCI templates are loaded
-type TemplatesLoadedMsg struct {
-	Templates []oci.TemplateEntry
-	Error     error
+// TemplateSelectionRequestMsg asks the app to lend the templates view so the
+// user can choose one for the repository being created. It is the second time
+// this view borrows another (see CloneSelectionRequestMsg), and the form it was
+// asked from is kept as it is meanwhile.
+type TemplateSelectionRequestMsg struct{}
+
+// TemplateChosenMsg is the app's answer: the template picked.
+type TemplateChosenMsg struct {
+	Slug string
+	Name string
 }
+
+// TemplateChoiceCancelledMsg is sent by the app when the user backed out of the
+// picker. The form keeps whatever template it had.
+type TemplateChoiceCancelledMsg struct{}
 
 // ChildrenLoadedMsg is sent when a node's children are loaded
 type ChildrenLoadedMsg struct {

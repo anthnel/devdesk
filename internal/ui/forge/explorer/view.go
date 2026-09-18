@@ -30,13 +30,6 @@ func (m Model) View() string {
 
 	// Priority 3: Modals (centered overlays)
 	switch m.mode {
-	case ModeLoadingTemplates:
-		return lipgloss.Place(
-			m.width, m.height,
-			lipgloss.Center, lipgloss.Center,
-			m.renderLoadingTemplates(),
-			lipgloss.WithWhitespaceBackground(theme.ColorBackground),
-		)
 	case ModeConfirmingDelete:
 		if m.deleteConfirmModal != nil {
 			return lipgloss.Place(
@@ -62,28 +55,6 @@ func (m Model) View() string {
 
 // loadingTree reports whether the group tree is still being fetched.
 func (m Model) loadingTree() bool { return m.loading || !m.firstLoadDone }
-
-// renderLoadingTemplates renders the template loading indicator
-func (m Model) renderLoadingTemplates() string {
-	var b strings.Builder
-
-	b.WriteString(theme.TitleStyle.Render("Loading templates..."))
-	b.WriteString("\n\n")
-
-	spinnerStyle := lipgloss.NewStyle().Background(theme.ColorBackground).Foreground(theme.ColorPrimary)
-	b.WriteString(spinnerStyle.Render(theme.IconHourglass + " Fetching templates from registry..."))
-	b.WriteString("\n\n")
-	b.WriteString(theme.HelpStyle.Render("Please wait..."))
-
-	return lipgloss.NewStyle().
-		Background(theme.ColorBackground).
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(theme.ColorPrimary).
-		BorderBackground(theme.ColorBackground).
-		Padding(1, 2).
-		Width(50).
-		Render(b.String())
-}
 
 // renderTable renders the table content
 func (m Model) renderTable() string {
@@ -409,8 +380,6 @@ func timeAgo(t *time.Time) string {
 func (m Model) GetShortcuts() shortcut.Shortcuts {
 	// Mode-specific shortcuts
 	switch m.mode {
-	case ModeLoadingTemplates:
-		return []shortcut.Shortcut{}
 	case ModeSelecting:
 		// ←→ keeps drilling here, and that is the point: deselecting inside a
 		// ticked group means going into it (decision 10).
@@ -427,7 +396,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		return []shortcut.Shortcut{
 			{Key: "↑↓", Description: "Navigate fields"},
 			{Key: "←→", Description: "Select option"},
-			{Key: "enter", Description: "Submit"},
+			{Key: "enter", Description: "Confirm"},
 			{Key: "esc", Description: "Cancel"},
 		}
 	case ModeConfirmingDelete:
@@ -640,7 +609,7 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Creating Groups and Projects",
 				Body: "Press N to open the creation form. Use ←→ on the Type field to switch between Group and Project. " +
-					"The form uses the current group as parent. Project templates are loaded automatically from the OCI registry if configured.\n" +
+					"The form uses the current group as parent. On a project, Enter on the Template field opens the template catalog to choose from (Backspace puts it back to none, which creates an empty repository). Templates are managed with :templates.\n" +
 					"Submitting puts the row on screen straight away, with a spinner in place of its icon while the forge works. " +
 					"The row is inert until it settles — it has no identifier yet, so the actions that need one are greyed. " +
 					"When the forge answers, the row becomes the real entry and the cursor is left on it; if the creation fails, the row goes away and the footer says so.",

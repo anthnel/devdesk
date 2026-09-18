@@ -311,7 +311,7 @@ func TestCreateGroupReportsAFailure(t *testing.T) {
 }
 
 // With no template selected the project is created and nothing else happens —
-// the OCI registry is not touched.
+// no commit, no catalog read.
 func TestCreateProjectWithoutATemplate(t *testing.T) {
 	f := newFakeGitLab(t, map[string]string{"/api/v4/projects": `{"id":9,"path_with_namespace":"infra/svc"}`})
 	m := serverModel(t, f)
@@ -336,41 +336,6 @@ func TestCreateProjectReportsAFailure(t *testing.T) {
 
 	if msg.Error == nil {
 		t.Error("createProject() reported no error against a failing API")
-	}
-}
-
-// ── Templates ────────────────────────────────────────────────────────────────
-
-// An unconfigured registry is the common case, and must not be treated as a
-// failure: the form opens with no templates and no warning.
-func TestLoadTemplatesWithoutARegistryIsSilent(t *testing.T) {
-	m := New(testConfig(), &shared.State{})
-
-	msg, ok := testutil.MsgOf[TemplatesLoadedMsg](m.loadTemplates())
-
-	if !ok {
-		t.Fatal("loadTemplates() produced no TemplatesLoadedMsg")
-	}
-	if msg.Error != nil || len(msg.Templates) != 0 {
-		t.Errorf("an unconfigured registry produced error=%v templates=%v", msg.Error, msg.Templates)
-	}
-}
-
-func TestLoadTemplatesReportsARegistryFailure(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-	}))
-	defer server.Close()
-
-	cfg := testConfig()
-	cfg.Registry.URL = server.URL
-	cfg.Registry.TemplatesRepository = "templates"
-	m := New(cfg, &shared.State{})
-
-	msg, _ := testutil.MsgOf[TemplatesLoadedMsg](m.loadTemplates())
-
-	if msg.Error == nil {
-		t.Error("a failing registry produced no error")
 	}
 }
 

@@ -1,6 +1,11 @@
 # Repository templates — catalog view and picker
 
-Status: plan, not started. Branch `feat/repo-templates`.
+Status: steps 1–4 done (#216, #217, #219 and the picker). Where this plan and
+`docs/architecture/templates.md` disagree, the doc wins — in particular, registry
+discovery (`FromOCI`/`Merge`, the `Discovered` flag, adopt-on-edit) was built and
+then removed because nobody used it, so the picker lists declared templates only
+and the template is fetched *before* the repository is created. Step 5 (scan)
+and the sync cache are still open.
 
 ## Goal
 

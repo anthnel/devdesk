@@ -3,25 +3,17 @@ package templates
 import (
 	"log"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 )
 
-// Init opens the catalog and, when a registry is configured, lists what it
-// holds. The two are independent: a registry that is down leaves the declared
-// templates usable.
-func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{loadCatalogCmd(m.path)}
-	if discover := m.discoverCmd(); discover != nil {
-		cmds = append(cmds, discover, m.spinner.Tick)
-	}
-	return tea.Batch(cmds...)
-}
+// Init opens the catalog.
+func (m Model) Init() tea.Cmd { return loadCatalogCmd(m.path) }
 
 // Update handles messages.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -31,9 +23,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case CatalogLoadedMsg:
 		return m.handleCatalogLoaded(msg)
-
-	case DiscoveredMsg:
-		return m.handleDiscovered(msg)
 
 	case SavedMsg:
 		return m.handleSaved(msg)
@@ -55,9 +44,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.confirmModal = nil
 		m.pendingDelete = ""
 		return m, nil
-
-	case spinner.TickMsg:
-		return m.handleSpinnerTick(msg)
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
@@ -97,31 +83,6 @@ func (m Model) handleCatalogLoaded(msg CatalogLoadedMsg) (tea.Model, tea.Cmd) {
 	m.declared = msg.Store.List()
 	m.rebuild()
 	return m, nil
-}
-
-func (m Model) handleDiscovered(msg DiscoveredMsg) (tea.Model, tea.Cmd) {
-	m.discovering = false
-	if msg.Err != nil {
-		// Logged by the Cmd; the declared templates are still here, so this is
-		// a warning about what is missing rather than an error screen.
-		return m, m.footer.Warn("Could not list the registry's templates — check logs")
-	}
-	m.discovered = msg.Entries
-	m.rebuild()
-	return m, nil
-}
-
-// handleSpinnerTick turns the frame while the registry is being listed, and
-// stops the chain when it is not: a tick left running for a view with nothing
-// to wait for is a timer that never stops.
-func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
-	if !m.discovering {
-		return m, nil
-	}
-	var cmd tea.Cmd
-	m.spinner, cmd = m.spinner.Update(msg)
-	m.footer.SetSpinnerFrame(m.spinner.View())
-	return m, cmd
 }
 
 func (m Model) handleSaved(msg SavedMsg) (tea.Model, tea.Cmd) {
@@ -188,6 +149,9 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.table.InEditMode() {
 		return m, m.table.Update(msg)
 	}
+	if m.selecting {
+		return m.handleSelectingKey(msg)
+	}
 
 	switch msg.String() {
 	case keymap.New:
@@ -207,9 +171,38 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, m.table.Update(msg)
 }
 
-// isTaken reports whether a slug names a declared entry — a discovered one has
-// a slug of its own that a declared one cannot collide with (Merge keys on the
-// source, not the slug), so only the catalog counts.
+// handleSelectingKey is the key set of a view lent to pick a template: choose,
+// look inside, filter, sort, leave. The actions that change the catalog are not
+// bound at all.
+func (m Model) handleSelectingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		return m.chooseSelected()
+	case "esc":
+		return m, func() tea.Msg { return SelectionCancelledMsg{} }
+	case keymap.Pager:
+		return m.startPreview()
+	case ".":
+		m.table.CycleSort()
+		return m, nil
+	case "/":
+		return m, m.table.FilterBar().ActivateSearch()
+	}
+	return m, m.table.Update(msg)
+}
+
+// chooseSelected answers the view that borrowed this one with the row under the
+// cursor.
+func (m Model) chooseSelected() (tea.Model, tea.Cmd) {
+	entry, ok := m.selectedEntry()
+	if !ok {
+		cmd := m.footer.Warn(reasonNoTemplate)
+		return m, cmd
+	}
+	return m, func() tea.Msg { return TemplateSelectedMsg{Slug: entry.Slug, Name: entry.Name} }
+}
+
+// isTaken reports whether a slug names an entry in the catalog.
 func (m Model) isTaken(slug string) bool {
 	_, err := m.store.Get(slug)
 	return err == nil
@@ -224,9 +217,7 @@ func (m Model) startCreate() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// startEdit opens the form on the selected entry. On a discovered one it is what
-// adopts it: saving writes a declared entry with the same source, and Merge
-// stops listing the registry's.
+// startEdit opens the form on the selected entry.
 func (m Model) startEdit() (tea.Model, tea.Cmd) {
 	if refusal := m.refusal(m.availability().Edit); refusal != "" {
 		return m, m.footer.Warn(refusal)
@@ -277,6 +268,6 @@ func (m Model) startPreview() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(reason)
 	}
 	entry, _ := m.selectedEntry()
-	source := previewSource{entry: entry, creds: m.credentialsFor(entry.Source)}
+	source := previewSource{entry: entry, creds: template.CredentialsFor(m.config, m.secrets, entry.Source)}
 	return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
 }

@@ -10,7 +10,6 @@ package templates
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -21,7 +20,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// row is one line of the table: a declared entry, or one the registry listed.
+// row is one line of the table.
 type row struct {
 	Entry template.Entry
 }
@@ -40,9 +39,7 @@ type Model struct {
 	store    *template.Store
 	storeErr error
 
-	declared    []template.Entry
-	discovered  []template.Entry
-	discovering bool
+	declared []template.Entry
 
 	table datatable.Model[row]
 
@@ -53,8 +50,13 @@ type Model struct {
 	// pendingDelete is the slug the modal is asking about.
 	pendingDelete string
 
-	spinner spinner.Model
-	footer  sharedcomponents.FooterMessage
+	// selecting marks a view lent to another to pick one template: it answers
+	// with TemplateSelectedMsg or SelectionCancelledMsg and edits nothing.
+	// selectionMessage is what the footer says meanwhile.
+	selecting        bool
+	selectionMessage string
+
+	footer sharedcomponents.FooterMessage
 
 	width, height int
 }
@@ -67,7 +69,6 @@ const (
 	columnTags
 	columnSource
 	columnRef
-	columnOrigin
 )
 
 // New builds the view. secrets resolves the credentials a registry or a forge
@@ -79,24 +80,28 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 
 // NewWithPath is New with the catalog file named.
 func NewWithPath(cfg *config.Config, secrets credentials.Storage, path string) Model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = theme.SpinnerStyle()
-
-	m := Model{
+	return Model{
 		config:  cfg,
 		secrets: secrets,
 		path:    path,
-		spinner: s,
-		// Set here rather than in Init, whose receiver is a copy: a registry
-		// that is configured is one that will be asked.
-		discovering: cfg.Registry.URL != "" && cfg.Registry.TemplatesRepository != "",
 		table: datatable.New(datatable.Config[row]{
 			Columns:    columns(),
 			SortColumn: columnName,
 		}),
 	}
-	m.footer.SetSpinnerFrame(s.View())
+}
+
+// NewForSelection builds the view in selection mode, to be lent to another view
+// that needs a template chosen — the repository-creation form.
+//
+// It is the whole catalog, filterable and sortable, with a preview: the choice
+// is between things a reader has to be able to tell apart, which a one-line
+// dropdown cannot show. It changes nothing: N, E and D are absent, not greyed
+// (Rule 130 — a mode replaces the list).
+func NewForSelection(cfg *config.Config, secrets credentials.Storage, message string) Model {
+	m := New(cfg, secrets)
+	m.selecting = true
+	m.selectionMessage = message
 	return m
 }
 
@@ -142,14 +147,6 @@ func columns() []datatable.Column[row] {
 			Style: func(r row) lipgloss.Style { return dimIfEmpty(r.Entry.Source.Ref == "") },
 			Less:  func(a, b row) bool { return a.Entry.Source.Ref < b.Entry.Source.Ref },
 		},
-		{
-			// Dropped first: a declared template is the ordinary case, and the
-			// registry ones are told apart by not being editable in place.
-			Title: "Origin", Sizing: datatable.SizingFixed, MinWidth: 9, Optional: true, DropFirst: true,
-			Cell:  func(r row) string { return originText(r.Entry) },
-			Style: func(r row) lipgloss.Style { return dimIfEmpty(r.Entry.Discovered) },
-			Less:  func(a, b row) bool { return originText(a.Entry) < originText(b.Entry) },
-		},
 	}
 }
 
@@ -192,13 +189,6 @@ func sourceSummary(s template.Source) string {
 	}
 }
 
-func originText(e template.Entry) string {
-	if e.Discovered {
-		return "registry"
-	}
-	return "declared"
-}
-
 // dashIfEmpty is the placeholder for a cell with nothing in it: a dash rather
 // than a blank, so the column still reads as a column (Rule 122).
 func dashIfEmpty(s string) string {
@@ -217,11 +207,10 @@ func dimIfEmpty(empty bool) lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
-// rebuild recomputes the rows from what is declared and what was discovered.
+// rebuild recomputes the rows from the catalog.
 func (m *Model) rebuild() {
-	entries := template.Merge(m.declared, m.discovered)
-	rows := make([]row, len(entries))
-	for i, e := range entries {
+	rows := make([]row, len(m.declared))
+	for i, e := range m.declared {
 		rows[i] = row{Entry: e}
 	}
 	m.table.SetItems(rows)

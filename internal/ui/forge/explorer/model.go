@@ -6,7 +6,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
-	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -25,7 +24,6 @@ const (
 	// been found, each row carrying its own state. It replaced the modal that
 	// said "Pulling..." for however many minutes the subtree took (decision 9).
 	ModeCloning
-	ModeLoadingTemplates
 	ModeCreatingProject
 	ModeConfirmingDelete
 )
@@ -68,14 +66,16 @@ type Model struct {
 
 	// Creation mode state
 	creationForm       *components.CreationForm
-	creationParentName string // Parent stashed during template loading
-	creationParentID   string // Parent ID stashed during template loading
+	creationParentName string // Parent stashed when the form opens
+	creationParentID   string // Parent ID stashed when the form opens
 	// creationParentVisibility is the parent's own visibility, stashed
 	// alongside its name and ID: empty at the root, where nothing narrows the
-	// Visibility field, and read back once the templates land to build the
-	// form's choices (forge.Shape.VisibilitiesUnder).
+	// Visibility field, and read back to build the form's choices
+	// (forge.Shape.VisibilitiesUnder).
 	creationParentVisibility string
-	templateEntries          []oci.TemplateEntry // Loaded template entries for repo+tag resolution
+	// templatesPath is the template catalog file. Empty means the default,
+	// ~/.devdesk/templates.yaml; a test names its own.
+	templatesPath string
 
 	// Tab navigation
 	activeTabIndex int // Focused tab index (last tab = current level)

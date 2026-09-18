@@ -21,11 +21,8 @@ type Client struct {
 
 // Template represents an OCI template with its files
 type Template struct {
-	Name  string
-	Tag   string
-	Files map[string]string // filename -> content
-	// Entries is the same content as Files, with what a map of strings cannot
-	// hold: raw bytes and the execute bit.
+	Name    string
+	Tag     string
 	Entries []ArchiveFile
 }
 
@@ -34,13 +31,6 @@ type ArchiveFile struct {
 	Path       string // relative to the archive root, forward slashes
 	Content    []byte
 	Executable bool
-}
-
-// TemplateEntry represents a template available in the registry
-type TemplateEntry struct {
-	Repository string // full repository path (e.g., "group/project/templates/java-library")
-	Tag        string // version tag (e.g., "v1")
-	Name       string // display name (e.g., "java-library:v1")
 }
 
 // NewClient creates a new OCI client
@@ -85,77 +75,6 @@ func (c *Client) ListTags(repository string) ([]string, error) {
 	}
 
 	return result.Tags, nil
-}
-
-// listCatalog lists all repositories in the registry via /v2/_catalog
-func (c *Client) listCatalog() ([]string, error) {
-	url := fmt.Sprintf("%s/v2/_catalog?n=1000", c.registryURL)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.username != "" && c.password != "" {
-		req.SetBasicAuth(c.username, c.password)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to list catalog: %s (GET %s)", resp.Status, url)
-	}
-
-	var result struct {
-		Repositories []string `json:"repositories"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-
-	return result.Repositories, nil
-}
-
-// ListTemplates lists all available templates under a base repository path.
-// It queries the registry catalog, filters repositories matching the basePath prefix,
-// then lists tags for each matching repository.
-func (c *Client) ListTemplates(basePath string) ([]TemplateEntry, error) {
-	repos, err := c.listCatalog()
-	if err != nil {
-		return nil, fmt.Errorf("list catalog: %w", err)
-	}
-
-	prefix := basePath + "/"
-	var entries []TemplateEntry
-
-	for _, repo := range repos {
-		if !strings.HasPrefix(repo, prefix) {
-			continue
-		}
-
-		shortName := strings.TrimPrefix(repo, prefix)
-
-		tags, err := c.ListTags(repo)
-		if err != nil {
-			// Skip repos we can't list tags for
-			continue
-		}
-
-		for _, tag := range tags {
-			entries = append(entries, TemplateEntry{
-				Repository: repo,
-				Tag:        tag,
-				Name:       shortName + ":" + tag,
-			})
-		}
-	}
-
-	return entries, nil
 }
 
 // DownloadTemplate downloads and extracts a template from the registry
@@ -208,7 +127,6 @@ func (c *Client) DownloadTemplate(repository, tag string) (*Template, error) {
 	return &Template{
 		Name:    repository,
 		Tag:     tag,
-		Files:   filesByPath(entries),
 		Entries: entries,
 	}, nil
 }
@@ -237,24 +155,6 @@ func (c *Client) downloadAndExtractLayer(repository, digest string) ([]ArchiveFi
 	}
 
 	return ReadTarGz(resp.Body)
-}
-
-// extractTarGz extracts a tar.gz archive and returns file contents by path.
-func extractTarGz(r io.Reader) (map[string]string, error) {
-	entries, err := ReadTarGz(r)
-	if err != nil {
-		return nil, err
-	}
-	return filesByPath(entries), nil
-}
-
-// filesByPath indexes archive files by path, content as text.
-func filesByPath(entries []ArchiveFile) map[string]string {
-	files := make(map[string]string, len(entries))
-	for _, e := range entries {
-		files[e.Path] = string(e.Content)
-	}
-	return files
 }
 
 // ReadTarGz reads a gzipped tar archive into its regular files.

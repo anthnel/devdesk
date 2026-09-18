@@ -266,12 +266,15 @@ with the form, because nothing else read it:
 
 `NewWithPreloadedResult` is the only constructor left besides `New`.
 
-**Only the workspaces view is ever lent now.** The form borrowed it for a
-directory and the images view for an image; the explorer borrows it for a clone
-destination, and that is all. So `ociresources.NewForSelection`,
-`ImageSelectedMsg`, `SelectionCancelledMsg`, `ResetSelectionMsg` and the OCI
-view's `selectionMode` are gone, and `app/selection.go` is no longer
-parameterised over who is borrowing.
+**The explorer is the only borrower now, and it borrows two views.** The form
+borrowed the workspaces view for a directory and the images view for an image;
+the explorer borrows workspaces for a clone destination and, since the template
+catalog, the templates view for a template (`templates.NewForSelection`, see
+`templates.md`). So `ociresources.NewForSelection`, `ImageSelectedMsg`,
+`SelectionCancelledMsg`, `ResetSelectionMsg` and the OCI view's `selectionMode`
+are gone. `app/selection.go` remembers which view it lent (`selectionLent`) so
+leaving drops that one, and each borrow has its own request and its own two
+answers.
 
 **A missing stored result rescans in the list it came from.** `enter` on a
 scanned row asks the router for the result file; when it is gone,

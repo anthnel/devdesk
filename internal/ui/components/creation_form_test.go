@@ -25,11 +25,11 @@ const (
 var allVisibilities = []string{"private", "internal", "public"}
 
 func newGroupForm() *CreationForm {
-	return NewCreationForm(0, "", "", "private", allVisibilities, nil, forge.VocabularyFor(""))
+	return NewCreationForm(0, "", "", "private", allVisibilities, forge.VocabularyFor(""))
 }
 
-func newProjectForm(templates ...string) *CreationForm {
-	return NewCreationForm(1, "parent/group", "42", "private", allVisibilities, templates, forge.VocabularyFor(""))
+func newProjectForm() *CreationForm {
+	return NewCreationForm(1, "parent/group", "42", "private", allVisibilities, forge.VocabularyFor(""))
 }
 
 // feedForm applies messages in order.
@@ -51,19 +51,15 @@ func TestNewCreationFormDefaults(t *testing.T) {
 	}
 }
 
-// The template list always gets a synthetic "none" entry at index 0, which is
-// what makes templateIdx == 0 mean "no template" in submit().
-func TestNewCreationFormPrependsNoneTemplate(t *testing.T) {
-	f := newProjectForm("go", "python")
+// A repository is empty unless a template is chosen: the field opens on none.
+func TestNewCreationFormHasNoTemplate(t *testing.T) {
+	f := newProjectForm()
 
-	if len(f.templates) != 3 {
-		t.Fatalf("templates has %d entries, want 3 (none + 2)", len(f.templates))
+	if f.template != "" || f.templateName != "" {
+		t.Errorf("template = %q (%q) on a new form, want none", f.template, f.templateName)
 	}
-	if f.templates[0] != "none" {
-		t.Errorf("templates[0] = %q, want %q", f.templates[0], "none")
-	}
-	if f.templateIdx != 0 {
-		t.Errorf("templateIdx = %d, want 0", f.templateIdx)
+	if !strings.Contains(f.View(), "none") {
+		t.Error("the form does not say the template is none")
 	}
 }
 
@@ -81,7 +77,7 @@ func TestNewCreationFormResolvesDefaultVisibility(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.given, func(t *testing.T) {
-			f := NewCreationForm(0, "", "", tt.given, allVisibilities, nil, forge.VocabularyFor(""))
+			f := NewCreationForm(0, "", "", tt.given, allVisibilities, forge.VocabularyFor(""))
 			if f.visibility != tt.want {
 				t.Errorf("visibility = %d for %q, want %d", f.visibility, tt.given, tt.want)
 			}
@@ -94,7 +90,7 @@ func TestNewCreationFormResolvesDefaultVisibility(t *testing.T) {
 // VisibilitiesUnder). What the component owes in return: cycling through
 // exactly the list it was given, never a wider one it invented itself.
 func TestVisibilityCyclesOnlyThroughWhatItWasGiven(t *testing.T) {
-	f := NewCreationForm(0, "", "", "private", []string{"private"}, nil, forge.VocabularyFor(""))
+	f := NewCreationForm(0, "", "", "private", []string{"private"}, forge.VocabularyFor(""))
 	f.focusedField = fieldVisibility
 
 	f = feedForm(f, testutil.Key("right"))
@@ -108,7 +104,7 @@ func TestVisibilityCyclesOnlyThroughWhatItWasGiven(t *testing.T) {
 // — narrowing always keeps the most private end (§3.6's DefaultVisibility
 // reasoning), so index 0 is the safe side to land on.
 func TestADefaultOutsideTheNarrowedListFallsBackToTheFirstEntry(t *testing.T) {
-	f := NewCreationForm(0, "", "", "public", []string{"private", "internal"}, nil, forge.VocabularyFor(""))
+	f := NewCreationForm(0, "", "", "public", []string{"private", "internal"}, forge.VocabularyFor(""))
 	if f.visibility != 0 {
 		t.Errorf("visibility = %d for a default the list no longer offers, want 0", f.visibility)
 	}
@@ -135,11 +131,8 @@ func TestMaxFieldDependsOnResourceType(t *testing.T) {
 	if got := newGroupForm().maxField(); got != 4 {
 		t.Errorf("group maxField() = %d, want 4", got)
 	}
-	if got := newProjectForm("go").maxField(); got != 5 {
-		t.Errorf("project maxField() = %d, want 5", got)
-	}
 	if got := newProjectForm().maxField(); got != 5 {
-		t.Errorf("project with only the none template: maxField() = %d, want 5", got)
+		t.Errorf("project maxField() = %d, want 5", got)
 	}
 }
 
@@ -224,7 +217,7 @@ func TestCreationFormCyclesResourceType(t *testing.T) {
 // Cycling the type changes which fields exist, but the focus sits on the Type
 // field itself and maxField() never drops below it, so focus cannot be stranded.
 func TestCreationFormCyclingResourceTypeKeepsFocusOnType(t *testing.T) {
-	f := newProjectForm("go") // maxField() == 5, template field present
+	f := newProjectForm() // maxField() == 5, template field present
 
 	for _, key := range []string{"right", "left", "left"} {
 		f, _ = f.Update(testutil.Key(key))
@@ -323,12 +316,12 @@ func TestCreationFormSubmitRejectsWhitespaceOnlyName(t *testing.T) {
 }
 
 func TestCreationFormSubmitPayload(t *testing.T) {
-	f := newProjectForm("go", "python")
+	f := newProjectForm()
 	f.focusedField = fieldName
 	f.updateFocus()
 	f = feedForm(f, testutil.Type("  my-project  ")...)
 	f.visibility = 2 // public
-	f.templateIdx = 2
+	f.SetTemplate("python-api", "Python API")
 
 	f.focusedField = f.maxField()
 	_, cmd := f.Update(testutil.Key("enter"))
@@ -346,38 +339,37 @@ func TestCreationFormSubmitPayload(t *testing.T) {
 	if msg.Visibility != "public" {
 		t.Errorf("Visibility = %q, want public", msg.Visibility)
 	}
-	if msg.Template != "python" {
-		t.Errorf("Template = %q, want python", msg.Template)
+	if msg.Template != "python-api" {
+		t.Errorf("Template = %q, want the slug python-api, not the name", msg.Template)
 	}
 	if msg.ParentID != "42" {
 		t.Errorf("ParentID = %q, want 42", msg.ParentID)
 	}
 }
 
-// templateIdx 0 is the synthetic "none" entry and must submit as an empty
-// template, not the literal string "none".
-func TestCreationFormNoneTemplateSubmitsEmpty(t *testing.T) {
-	f := newProjectForm("go")
+// Left alone, the field submits an empty template — an empty repository — and
+// never the literal string "none".
+func TestCreationFormNoTemplateSubmitsEmpty(t *testing.T) {
+	f := newProjectForm()
 	f.focusedField = fieldName
 	f.updateFocus()
 	f = feedForm(f, testutil.Type("proj")...)
-	f.templateIdx = 0
 
 	f.focusedField = f.maxField()
 	_, cmd := f.Update(testutil.Key("enter"))
 
 	msg, _ := testutil.MsgOf[CreationFormSubmitMsg](cmd)
 	if msg.Template != "" {
-		t.Errorf("Template = %q for the none entry, want empty", msg.Template)
+		t.Errorf("Template = %q with nothing chosen, want empty", msg.Template)
 	}
 }
 
 func TestCreationFormGroupNeverSubmitsATemplate(t *testing.T) {
-	f := NewCreationForm(0, "", "7", "private", allVisibilities, []string{"go"}, forge.VocabularyFor(""))
+	f := NewCreationForm(0, "", "7", "private", allVisibilities, forge.VocabularyFor(""))
 	f.focusedField = fieldName
 	f.updateFocus()
 	f = feedForm(f, testutil.Type("grp")...)
-	f.templateIdx = 1
+	f.SetTemplate("go", "Go")
 
 	f.focusedField = f.maxField()
 	_, cmd := f.Update(testutil.Key("enter"))
@@ -388,60 +380,63 @@ func TestCreationFormGroupNeverSubmitsATemplate(t *testing.T) {
 	}
 }
 
-func TestCreationFormTemplateNavigation(t *testing.T) {
-	f := newProjectForm("a", "b", "c")
+// enter on the template field asks the view to open the catalog — it does not
+// move on, and it does not submit.
+func TestEnterOnTheTemplateFieldAsksToPick(t *testing.T) {
+	f := newProjectForm()
 	f.focusedField = fieldTemplate
 
-	f, _ = f.Update(testutil.Key("down"))
-	if f.templateIdx != 1 {
-		t.Errorf("templateIdx = %d after down, want 1", f.templateIdx)
+	f, cmd := f.Update(testutil.Key("enter"))
+
+	if _, ok := testutil.MsgOf[CreationFormPickTemplateMsg](cmd); !ok {
+		t.Fatalf("enter produced %T, want CreationFormPickTemplateMsg", testutil.Msg(cmd))
 	}
 	if f.focusedField != fieldTemplate {
-		t.Error("down moved focus off the template field instead of changing the selection")
-	}
-
-	f, _ = f.Update(testutil.Key("up"))
-	if f.templateIdx != 0 {
-		t.Errorf("templateIdx = %d after up, want 0", f.templateIdx)
+		t.Errorf("focus moved to %d, want it to stay on the template field", f.focusedField)
 	}
 }
 
-// At the ends of the template list the arrow keys fall through to normal field
-// navigation, which is how the user escapes the dropdown.
-func TestCreationFormTemplateNavigationFallsThroughAtEnds(t *testing.T) {
-	f := newProjectForm("a")
+func TestTheChosenTemplateIsShownAndBackspaceClearsIt(t *testing.T) {
+	f := newProjectForm()
+	f.SetTemplate("spring-api", "Spring API")
+
+	if !strings.Contains(f.View(), "Spring API") {
+		t.Error("the chosen template's name is not on screen")
+	}
+
 	f.focusedField = fieldTemplate
-	f.templateIdx = len(f.templates) - 1
-
-	f, _ = f.Update(testutil.Key("down"))
-
-	if f.focusedField == fieldTemplate {
-		t.Error("down at the end of the template list did not move focus onward")
+	f, _ = f.Update(testutil.Key("backspace"))
+	if f.template != "" || f.templateName != "" {
+		t.Errorf("backspace left %q (%q), want none", f.template, f.templateName)
 	}
 }
 
-func TestAdjustTemplateScrollKeepsSelectionVisible(t *testing.T) {
-	names := make([]string, 20)
-	for i := range names {
-		names[i] = string(rune('a' + i))
-	}
-	f := newProjectForm(names...)
-	f.focusedField = fieldTemplate
+// backspace edits text everywhere else: it must not reset the template from
+// the name field.
+func TestBackspaceElsewhereKeepsTheTemplate(t *testing.T) {
+	f := newProjectForm()
+	f.SetTemplate("go", "Go")
+	f.focusedField = fieldName
+	f.updateFocus()
 
-	for i := 0; i < 12; i++ {
-		f, _ = f.Update(testutil.Key("down"))
-	}
+	f, _ = f.Update(testutil.Key("backspace"))
 
-	if f.templateIdx < f.templateScroll || f.templateIdx >= f.templateScroll+maxVisibleTemplates {
-		t.Errorf("selection %d is outside the visible window [%d, %d)",
-			f.templateIdx, f.templateScroll, f.templateScroll+maxVisibleTemplates)
+	if f.template != "go" {
+		t.Errorf("backspace on the name field cleared the template (%q)", f.template)
 	}
+}
 
-	for i := 0; i < 12; i++ {
-		f, _ = f.Update(testutil.Key("up"))
+// A group has no template, so there is nothing for enter to open.
+func TestAGroupFormHasNoTemplateField(t *testing.T) {
+	f := newGroupForm()
+	if strings.Contains(f.View(), "Template") {
+		t.Error("a group form shows a template field")
 	}
-	if f.templateScroll != 0 {
-		t.Errorf("templateScroll = %d after scrolling back to the top, want 0", f.templateScroll)
+	f.focusedField = fieldTemplate // the submit button's place on a group
+	if _, cmd := f.Update(testutil.Key("enter")); testutil.Msg(cmd) != nil {
+		if _, ok := testutil.MsgOf[CreationFormPickTemplateMsg](cmd); ok {
+			t.Error("enter on a group form asked for a template")
+		}
 	}
 }
 
@@ -490,14 +485,5 @@ func TestCreationFormGetTitle(t *testing.T) {
 func TestCreationFormAlwaysInEditMode(t *testing.T) {
 	if !newGroupForm().InEditMode() {
 		t.Error("InEditMode() = false; an open form must block command mode")
-	}
-}
-
-func TestSetTemplateWarning(t *testing.T) {
-	f := newProjectForm("go")
-	f.SetTemplateWarning("Templates unavailable")
-
-	if f.templateWarning != "Templates unavailable" {
-		t.Errorf("templateWarning = %q, want %q", f.templateWarning, "Templates unavailable")
 	}
 }

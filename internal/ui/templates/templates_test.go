@@ -13,7 +13,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/template"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -154,55 +153,6 @@ func TestTheFilterMatchesTagsAndDescription(t *testing.T) {
 	}
 }
 
-// ── Discovered entries ───────────────────────────────────────────────────────
-
-func discovered() template.Entry {
-	return template.Entry{
-		Slug: "oci-a-b-v1", Name: "b:v1", Discovered: true,
-		Source: template.Source{Kind: template.KindOCI, URL: "https://r", Path: "a/b", Ref: "v1"},
-	}
-}
-
-func TestADiscoveredTemplateIsListedBesideTheDeclaredOnes(t *testing.T) {
-	m := opened(t, entry("api", "API"))
-	m = send(t, m, DiscoveredMsg{Entries: []template.Entry{discovered()}})
-
-	if len(m.table.Visible()) != 2 {
-		t.Fatalf("rows = %v, want the declared and the discovered", slugs(m))
-	}
-}
-
-func TestARegistryThatFailsLeavesTheDeclaredTemplatesUsable(t *testing.T) {
-	m := opened(t, entry("api", "API"))
-	m.discovering = true
-
-	m = send(t, m, DiscoveredMsg{Err: os.ErrDeadlineExceeded})
-
-	if m.discovering {
-		t.Error("still discovering after the answer")
-	}
-	if len(m.table.Visible()) != 1 {
-		t.Errorf("rows = %v, want the declared template still listed", slugs(m))
-	}
-	if m.footer.Level() != sharedcomponents.LevelWarning {
-		t.Errorf("footer level = %v, want a warning", m.footer.Level())
-	}
-}
-
-func TestAConfiguredRegistryShowsALoadingStatus(t *testing.T) {
-	cfg := config.Default()
-	cfg.Registry.URL = "https://r"
-	cfg.Registry.TemplatesRepository = "group/templates"
-	m := NewWithPath(cfg, nil, filepath.Join(t.TempDir(), "t.yaml"))
-
-	if status := m.status(); !status.Spinner || !strings.Contains(status.Text, "registry") {
-		t.Errorf("status = %+v, want a spinner naming the registry", status)
-	}
-	if NewWithPath(config.Default(), nil, "x").status().Spinner {
-		t.Error("a view with no registry shows a loading status")
-	}
-}
-
 // ── Creating ─────────────────────────────────────────────────────────────────
 
 // fill types into the focused field and moves on with enter, which is how a
@@ -340,27 +290,6 @@ func TestEditingKeepsTheSlugWhateverTheNameBecomes(t *testing.T) {
 	}
 }
 
-// Editing a template the registry listed is what adopts it: it is written as a
-// declared entry, and the registry's is no longer listed.
-func TestEditingADiscoveredTemplateAdoptsIt(t *testing.T) {
-	m := opened(t)
-	m = send(t, m, DiscoveredMsg{Entries: []template.Entry{discovered()}})
-
-	m = send(t, m, testutil.Key("E"))
-	if m.form == nil {
-		t.Fatal("E did not open the form on a discovered template")
-	}
-	m.form.tags.SetValue("java")
-	m = send(t, m, testutil.Keys("enter", "enter", "enter", "enter", "enter", "enter", "enter", "enter")...)
-
-	if got := slugs(m); !reflect.DeepEqual(got, []string{"oci-a-b-v1"}) {
-		t.Fatalf("rows = %v, want one entry, not the declared and the discovered", got)
-	}
-	if sel, _ := m.selectedEntry(); sel.Discovered || !reflect.DeepEqual(sel.Tags, []string{"java"}) {
-		t.Errorf("selected = %+v, want it declared and tagged", sel)
-	}
-}
-
 // ── Deleting ─────────────────────────────────────────────────────────────────
 
 func TestDeletingAsksFirstAndDefaultsToNo(t *testing.T) {
@@ -391,35 +320,15 @@ func TestConfirmingRemovesTheEntryFromTheFile(t *testing.T) {
 	}
 }
 
-func TestADiscoveredTemplateCannotBeDeletedAndSaysWhy(t *testing.T) {
-	m := opened(t)
-	m = send(t, m, DiscoveredMsg{Entries: []template.Entry{discovered()}})
-
-	if !testutil.ShortcutDisabled(m.GetShortcuts(), "D") {
-		t.Error("D is not greyed on a discovered template")
-	}
-	m = send(t, m, testutil.Key("D"))
-
-	if m.confirmModal != nil {
-		t.Error("D asked to delete a discovered template")
-	}
-	if m.footer.Text() != reasonListed {
-		t.Errorf("footer = %q, want %q", m.footer.Text(), reasonListed)
-	}
-}
-
 // ── Shortcuts (Rule 130) ─────────────────────────────────────────────────────
 
-func TestTheShortcutKeysDoNotChangeWithTheRow(t *testing.T) {
+func TestTheShortcutKeysDoNotChangeWithTheSelection(t *testing.T) {
 	empty := opened(t)
 	full := opened(t, entry("api", "API"))
-	listed := send(t, opened(t), DiscoveredMsg{Entries: []template.Entry{discovered()}})
 
 	base := testutil.ShortcutKeys(empty.GetShortcuts())
-	for name, m := range map[string]Model{"a declared row": full, "a discovered row": listed} {
-		if got := testutil.ShortcutKeys(m.GetShortcuts()); !reflect.DeepEqual(got, base) {
-			t.Errorf("%s: keys = %v, want %v", name, got, base)
-		}
+	if got := testutil.ShortcutKeys(full.GetShortcuts()); !reflect.DeepEqual(got, base) {
+		t.Errorf("with a row: keys = %v, want %v", got, base)
 	}
 }
 
@@ -518,42 +427,105 @@ func TestListingSummarisesTheFiles(t *testing.T) {
 	}
 }
 
-// ── Credentials ──────────────────────────────────────────────────────────────
+// ── Selection mode ───────────────────────────────────────────────────────────
 
-// A token authenticates one host: it must never be offered to another, and the
-// catalog can be shared, so the entry cannot be what decides.
-func TestCredentialsAreOnlyOfferedToTheirOwnHost(t *testing.T) {
-	cfg := config.Default()
-	cfg.Forge.URL = "https://gitlab.example.com"
-	cfg.Registry.URL = "https://registry.example.com"
-	cfg.Registry.Username = "ada"
-	secrets := credentials.NewMemoryStorage()
-	_ = secrets.Save(cfg.Forge.URL, "forge-token")
-	_ = secrets.Save(cfg.Registry.URL, "registry-password")
-	m := NewWithPath(cfg, secrets, "x")
+func pickerOn(t *testing.T, entries ...template.Entry) Model {
+	t.Helper()
+	path := catalogWith(t, entries...)
+	m := NewForSelection(config.Default(), nil, "Choose the template")
+	m.path = path
+	m = send(t, m, testutil.Resize(140, 24))
+	return drive(t, m, testutil.Msgs(loadCatalogCmd(path))[0])
+}
 
-	tests := []struct {
-		name string
-		src  template.Source
-		want template.Credentials
-	}{
-		{"git on the forge", template.Source{Kind: template.KindGit, URL: "https://gitlab.example.com/a/b.git"}, template.Credentials{Token: "forge-token"}},
-		{"git over ssh on the forge", template.Source{Kind: template.KindGit, URL: "git@gitlab.example.com:a/b.git"}, template.Credentials{Token: "forge-token"}},
-		{"git elsewhere", template.Source{Kind: template.KindGit, URL: "https://github.com/a/b.git"}, template.Credentials{}},
-		{"oci on the registry", template.Source{Kind: template.KindOCI, URL: "https://registry.example.com"}, template.Credentials{Username: "ada", Password: "registry-password"}},
-		{"oci elsewhere", template.Source{Kind: template.KindOCI, URL: "https://ghcr.io"}, template.Credentials{}},
-		{"local", template.Source{Kind: template.KindLocal, Path: "/x"}, template.Credentials{}},
+func TestEnterChoosesTheSelectedTemplate(t *testing.T) {
+	m := pickerOn(t, entry("spring-api", "Spring API"), entry("go-lib", "Go Library"))
+	m = send(t, m, testutil.Key("down")) // Go Library, then Spring API by name
+
+	_, cmd := m.Update(testutil.Key("enter"))
+
+	chosen, ok := testutil.MsgOf[TemplateSelectedMsg](cmd)
+	if !ok {
+		t.Fatalf("enter produced %T, want TemplateSelectedMsg", testutil.Msg(cmd))
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := m.credentialsFor(tc.src); got != tc.want {
-				t.Errorf("credentialsFor() = %+v, want %+v", got, tc.want)
-			}
-		})
+	if chosen.Slug != "spring-api" || chosen.Name != "Spring API" {
+		t.Errorf("chosen = %+v, want the second row, spring-api", chosen)
+	}
+}
+
+func TestEscLeavesThePickerWithoutChoosing(t *testing.T) {
+	m := pickerOn(t, entry("api", "API"))
+
+	_, cmd := m.Update(testutil.Key("esc"))
+
+	if _, ok := testutil.MsgOf[SelectionCancelledMsg](cmd); !ok {
+		t.Errorf("esc produced %T, want SelectionCancelledMsg", testutil.Msg(cmd))
+	}
+}
+
+// An empty catalog has nothing to choose, and says so rather than doing nothing.
+func TestEnterOnAnEmptyCatalogSaysThereIsNothingToChoose(t *testing.T) {
+	m := pickerOn(t)
+
+	m = send(t, m, testutil.Key("enter"))
+
+	if m.footer.Text() != reasonNoTemplate {
+		t.Errorf("footer = %q, want %q", m.footer.Text(), reasonNoTemplate)
+	}
+}
+
+// The picker changes nothing: N, E and D are not bound, and not advertised — a
+// mode replaces the list, it does not grey it (Rule 130).
+func TestThePickerCannotChangeTheCatalog(t *testing.T) {
+	path := catalogWith(t, entry("api", "API"))
+	m := NewForSelection(config.Default(), nil, "Choose")
+	m.path = path
+	m = send(t, m, testutil.Resize(140, 24))
+	m = drive(t, m, testutil.Msgs(loadCatalogCmd(path))[0])
+
+	for _, key := range []string{"N", "E", "D"} {
+		m = send(t, m, testutil.Key(key))
+		if m.form != nil || m.confirmModal != nil {
+			t.Fatalf("%s opened something in the picker", key)
+		}
+		if testutil.HasShortcut(m.GetShortcuts(), key) {
+			t.Errorf("%s is advertised in the picker", key)
+		}
+	}
+	for _, key := range []string{"enter", "esc", "V", "/"} {
+		if !testutil.HasShortcut(m.GetShortcuts(), key) {
+			t.Errorf("%s is missing from the picker's shortcuts", key)
+		}
+	}
+	if len(m.store.List()) != 1 {
+		t.Error("the catalog changed")
+	}
+}
+
+func TestThePickerTitleAndFooterSayWhatItIsFor(t *testing.T) {
+	m := pickerOn(t, entry("api", "API"))
+
+	if !strings.Contains(m.GetTitle(), "Choose a template") {
+		t.Errorf("title = %q", m.GetTitle())
+	}
+	if footer := m.RenderFooter(120); !strings.Contains(footer, "Choose the template") {
+		t.Errorf("footer does not carry the prompt:\n%s", footer)
+	}
+}
+
+// The filter is what makes a long catalog choosable, and esc must close it
+// before it leaves the picker.
+func TestEscInTheFilterClosesTheFilterNotThePicker(t *testing.T) {
+	m := pickerOn(t, entry("api", "API"))
+	m = send(t, m, testutil.Key("/"))
+	if !m.InEditMode() {
+		t.Fatal("/ did not open the filter")
 	}
 
-	if got := NewWithPath(cfg, nil, "x").credentialsFor(tests[0].src); got != (template.Credentials{}) {
-		t.Errorf("with no secret store, credentials = %+v, want none", got)
+	_, cmd := m.Update(testutil.Key("esc"))
+
+	if _, left := testutil.MsgOf[SelectionCancelledMsg](cmd); left {
+		t.Error("esc in the filter left the picker")
 	}
 }
 

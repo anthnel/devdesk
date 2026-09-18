@@ -49,10 +49,6 @@ type Entry struct {
 	Description string   `yaml:"description,omitempty"`
 	Tags        []string `yaml:"tags,omitempty"`
 	Source      Source   `yaml:"source"`
-
-	// Discovered marks an entry read from a registry catalog rather than
-	// declared. It is never written to the catalog file.
-	Discovered bool `yaml:"-"`
 }
 
 // File is one file of a template.

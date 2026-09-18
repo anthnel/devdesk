@@ -5,11 +5,26 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+// extractTarGz reads an archive into a map of contents by path: the shape these
+// tests assert on, over the reader the package exposes.
+func extractTarGz(r io.Reader) (map[string]string, error) {
+	entries, err := ReadTarGz(r)
+	if err != nil {
+		return nil, err
+	}
+	files := make(map[string]string, len(entries))
+	for _, e := range entries {
+		files[e.Path] = string(e.Content)
+	}
+	return files, nil
+}
 
 // tarEntry describes one member of a fixture archive.
 type tarEntry struct {

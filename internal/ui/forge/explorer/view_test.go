@@ -150,9 +150,6 @@ func TestViewShowsTheModalForEachMode(t *testing.T) {
 		open func(*testing.T) Model
 		want string
 	}{
-		{"loading templates", func(t *testing.T) Model {
-			return feed(t, drilledModel(t), testutil.Key(keymap.New))
-		}, "Loading templates"},
 		{"delete confirmation", func(t *testing.T) Model {
 			return feed(t, drilledModel(t), testutil.Key(keymap.Delete))
 		}, "Delete Group"},
@@ -170,7 +167,7 @@ func TestViewShowsTheModalForEachMode(t *testing.T) {
 // Rule 112: the creation form takes the whole viewport rather than opening as a
 // modal.
 func TestViewShowsTheCreationFormFullWidth(t *testing.T) {
-	m := feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
+	m := feed(t, drilledModel(t), testutil.Key(keymap.New))
 
 	view := m.View()
 
@@ -218,7 +215,7 @@ func TestFooterHeightMatchesWhatIsRendered(t *testing.T) {
 			return feed(t, drilledModel(t), testutil.Key(keymap.Delete))
 		}},
 		{"creating", func(t *testing.T) Model {
-			return feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
+			return feed(t, drilledModel(t), testutil.Key(keymap.New))
 		}},
 	}
 
@@ -289,7 +286,7 @@ func TestTitleFollowsTheCreationForm(t *testing.T) {
 		t.Errorf("GetTitle() = %q", got)
 	}
 
-	creating := feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
+	creating := feed(t, drilledModel(t), testutil.Key(keymap.New))
 	if got := creating.GetTitle(); !strings.Contains(got, theme.IconChevronRight) {
 		t.Errorf("GetTitle() = %q while creating, want the form appended", got)
 	}
@@ -359,7 +356,7 @@ func TestShortcutsFollowTheState(t *testing.T) {
 		{
 			name: "creating",
 			open: func(t *testing.T) Model {
-				return feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{})
+				return feed(t, drilledModel(t), testutil.Key(keymap.New))
 			},
 			want:    []string{"enter", "esc"},
 			notWant: []string{keymap.New},
@@ -429,7 +426,7 @@ func TestShortcutDescriptionsAreImperative(t *testing.T) {
 		feed(t, drilledModel(t), testutil.Key(keymap.Clone)),
 		cloningModel(t),
 		feed(t, cloningModel(t), CloneRunFinishedMsg{}),
-		feed(t, drilledModel(t), testutil.Key(keymap.New), TemplatesLoadedMsg{}),
+		feed(t, drilledModel(t), testutil.Key(keymap.New)),
 	}
 
 	for _, m := range models {

@@ -48,8 +48,8 @@ Two things about the engine are worth knowing before changing this code:
 
 ## OCI registries — `internal/oci`
 
-`internal/oci/oci.go` — an OCI **registry** HTTP client: list tags/templates,
-download and extract a tar.gz. It speaks the distribution spec over `net/http`
+`internal/oci/oci.go` — an OCI **registry** HTTP client: list tags,
+download and extract a tar.gz (a repository template is one — `templates.md`). It speaks the distribution spec over `net/http`
 and never shells out, so it is engine-agnostic and podman changed nothing in it.
 
 ## Network Diagnostics View
