@@ -17,6 +17,7 @@ import (
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/status"
+	"github.com/anthnel/devdesk/internal/ui/templates"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
@@ -187,6 +188,8 @@ func (a *App) createView(view command.ViewType) {
 		a.views[view] = configuration.New(a.config, a.mcpFacts())
 	case command.ViewJobs:
 		a.views[view] = jobsview.New(a.config, a.currentContext)
+	case command.ViewTemplates:
+		a.views[view] = templates.New(a.config, a.sharedState.Secrets.Storage)
 	case command.ViewAbout:
 		a.views[view] = about.New(a.config)
 	case command.ViewViewer:
