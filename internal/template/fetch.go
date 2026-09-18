@@ -3,6 +3,7 @@ package template
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/anthnel/devdesk/internal/git"
@@ -96,16 +97,16 @@ func fetch(ctx context.Context, src Source, creds Credentials) ([]File, error) {
 
 	switch src.Kind {
 	case KindGit:
-		raw, err := git.ArchiveRemote(ctx, src.URL, src.Ref, src.Path, creds.Token)
+		raw, err := git.ArchiveRemote(ctx, src.URL, src.Ref, src.Path, creds.Token, archiveCap)
 		if err != nil {
-			return nil, fmt.Errorf("fetching %s: %w", src.URL, err)
+			return nil, tooLargeOr(fmt.Errorf("fetching %s: %w", src.URL, err), err)
 		}
 		return readArchive(raw)
 
 	case KindLocal:
-		raw, err := git.ArchiveLocal(ctx, src.Path, src.Ref, "")
+		raw, err := git.ArchiveLocal(ctx, src.Path, src.Ref, "", archiveCap)
 		if err != nil {
-			return nil, err
+			return nil, tooLargeOr(err, err)
 		}
 		return readArchive(raw)
 
@@ -114,12 +115,43 @@ func fetch(ctx context.Context, src Source, creds Credentials) ([]File, error) {
 	}
 }
 
+// archiveCap bounds a tar stream from git: the content a template may hold plus
+// a header and padding per file, so a template at the limits still fits.
+const archiveCap = MaxBytes + MaxFiles*2048
+
 func readArchive(raw []byte) ([]File, error) {
-	files, err := oci.ReadTar(bytes.NewReader(raw))
+	files, err := oci.ReadTarLimited(bytes.NewReader(raw), archiveLimits)
 	if err != nil {
-		return nil, err
+		return nil, explainArchiveError(err)
 	}
 	return fromArchive(files), nil
+}
+
+var archiveLimits = oci.Limits{Files: MaxFiles, Bytes: MaxBytes}
+
+// errTooLarge is what a template past the limits reports, however early it was
+// noticed — checkLimits has the exact figures for the ones that got that far.
+var errTooLarge = fmt.Errorf("the template is larger than a template may be (%d files, %s)", MaxFiles, FormatSize(MaxBytes))
+
+// tooLargeOr says the template is too large when err is a limit being hit, and
+// gives wrapped otherwise.
+func tooLargeOr(wrapped, err error) error {
+	if errors.Is(err, git.ErrOutputTooLarge) || errors.Is(err, oci.ErrArchiveTooLarge) {
+		return errTooLarge
+	}
+	return wrapped
+}
+
+// explainArchiveError turns a reader's refusal into something a person can act
+// on: what was wrong, and what to do about it.
+func explainArchiveError(err error) error {
+	if errors.Is(err, oci.ErrArchiveTooLarge) {
+		return errTooLarge
+	}
+	if errors.Is(err, oci.ErrNotRegularFile) {
+		return fmt.Errorf("%w — a template cannot carry links or special files; replace it with a regular file", err)
+	}
+	return err
 }
 
 func fetchOCI(ctx context.Context, src Source, creds Credentials) ([]File, error) {
@@ -127,9 +159,10 @@ func fetchOCI(ctx context.Context, src Source, creds Credentials) ([]File, error
 		return nil, err
 	}
 	client := oci.NewClient(src.URL, creds.Username, creds.Password)
+	client.Limits = archiveLimits
 	tmpl, err := client.DownloadTemplate(src.Path, src.Ref)
 	if err != nil {
-		return nil, fmt.Errorf("downloading %s:%s: %w", src.Path, src.Ref, err)
+		return nil, explainArchiveError(fmt.Errorf("downloading %s:%s: %w", src.Path, src.Ref, err))
 	}
 	return fromArchive(tmpl.Entries), nil
 }

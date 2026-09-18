@@ -25,6 +25,8 @@ func TestCredentialsAreOnlyOfferedToTheirOwnHost(t *testing.T) {
 	}{
 		{"git on the forge", Source{Kind: KindGit, URL: "https://gitlab.example.com/a/b.git"}, Credentials{Token: "forge-token"}},
 		{"git over ssh on the forge", Source{Kind: KindGit, URL: "git@gitlab.example.com:a/b.git"}, Credentials{Token: "forge-token"}},
+		{"git over plain http on the forge", Source{Kind: KindGit, URL: "http://gitlab.example.com/a/b.git"}, Credentials{}},
+		{"oci over plain http on the registry", Source{Kind: KindOCI, URL: "http://registry.example.com"}, Credentials{}},
 		{"git elsewhere", Source{Kind: KindGit, URL: "https://github.com/a/b.git"}, Credentials{}},
 		{"oci on the registry", Source{Kind: KindOCI, URL: "https://registry.example.com"}, Credentials{Username: "ada", Password: "registry-password"}},
 		{"oci elsewhere", Source{Kind: KindOCI, URL: "https://ghcr.io"}, Credentials{}},

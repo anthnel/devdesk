@@ -543,3 +543,25 @@ func TestSlugify(t *testing.T) {
 		}
 	}
 }
+
+// One bad line in a hand-edited catalog leaves the rest usable, and says so.
+func TestASkippedCatalogEntryIsReportedAndTheRestListed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "templates.yaml")
+	raw := "templates:\n" +
+		"- slug: evil\n  name: Evil\n  source:\n    kind: git\n    url: \"ext::sh -c id\"\n" +
+		"- slug: fine\n  name: Fine\n  source:\n    kind: local\n    path: /x\n"
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m := openedAt(t, path)
+
+	if m.storeErr != nil {
+		t.Fatalf("storeErr = %v, want the catalog usable", m.storeErr)
+	}
+	if len(m.declared) != 1 || m.declared[0].Slug != "fine" {
+		t.Errorf("declared = %+v, want only the valid entry", m.declared)
+	}
+	if m.footer.Level() != sharedcomponents.LevelWarning || !strings.Contains(m.footer.Text(), "1 catalog entry skipped") {
+		t.Errorf("footer = %q (level %v), want a warning naming the skipped entry", m.footer.Text(), m.footer.Level())
+	}
+}

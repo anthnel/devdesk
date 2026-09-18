@@ -4,10 +4,12 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -69,7 +71,7 @@ func names(t *testing.T, raw []byte) map[string]string {
 func TestArchiveLocalIsWhatWasCommitted(t *testing.T) {
 	dir := fixtureRepo(t)
 
-	raw, err := ArchiveLocal(context.Background(), dir, "", "")
+	raw, err := ArchiveLocal(context.Background(), dir, "", "", 0)
 	if err != nil {
 		t.Fatalf("ArchiveLocal() error = %v", err)
 	}
@@ -91,7 +93,7 @@ func TestArchiveLocalIsWhatWasCommitted(t *testing.T) {
 func TestArchiveLocalRootsAtASubdirectory(t *testing.T) {
 	dir := fixtureRepo(t)
 
-	raw, err := ArchiveLocal(context.Background(), dir, "", "app")
+	raw, err := ArchiveLocal(context.Background(), dir, "", "app", 0)
 	if err != nil {
 		t.Fatalf("ArchiveLocal() error = %v", err)
 	}
@@ -110,7 +112,7 @@ func TestArchiveLocalHonoursARef(t *testing.T) {
 	gitIn(t, dir, "add", "later.txt")
 	gitIn(t, dir, "commit", "--quiet", "-m", "later")
 
-	raw, err := ArchiveLocal(context.Background(), dir, "v1", "")
+	raw, err := ArchiveLocal(context.Background(), dir, "v1", "", 0)
 	if err != nil {
 		t.Fatalf("ArchiveLocal() error = %v", err)
 	}
@@ -123,16 +125,16 @@ func TestArchiveLocalRefusesADirectoryThatIsNotARepository(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
-	if _, err := ArchiveLocal(context.Background(), t.TempDir(), "", ""); err == nil {
+	if _, err := ArchiveLocal(context.Background(), t.TempDir(), "", "", 0); err == nil {
 		t.Fatal("ArchiveLocal() accepted a plain directory")
 	}
 }
 
 func TestArchiveRefusesAnOptionInPlaceOfARef(t *testing.T) {
-	if _, err := ArchiveLocal(context.Background(), t.TempDir(), "--output=x", ""); err == nil {
+	if _, err := ArchiveLocal(context.Background(), t.TempDir(), "--output=x", "", 0); err == nil {
 		t.Error("ArchiveLocal() accepted a ref that git would read as an option")
 	}
-	if _, err := ArchiveRemote(context.Background(), "--upload-pack=id", "", "", ""); err == nil {
+	if _, err := ArchiveRemote(context.Background(), "--upload-pack=id", "", "", "", 0); err == nil {
 		t.Error("ArchiveRemote() accepted a URL that git would read as an option")
 	}
 }
@@ -147,7 +149,7 @@ func TestArchiveRemoteFetchesABranchAndASHA(t *testing.T) {
 
 	for name, ref := range map[string]string{"default": "", "branch": "main", "sha": sha} {
 		t.Run(name, func(t *testing.T) {
-			raw, err := ArchiveRemote(context.Background(), dir, ref, "", "")
+			raw, err := ArchiveRemote(context.Background(), dir, ref, "", "", 0)
 			if err != nil {
 				t.Fatalf("ArchiveRemote(%q) error = %v", ref, err)
 			}
@@ -155,5 +157,27 @@ func TestArchiveRemoteFetchesABranchAndASHA(t *testing.T) {
 				t.Errorf("README.md is not the committed content")
 			}
 		})
+	}
+}
+
+func TestArchiveLocalStopsAtTheByteLimit(t *testing.T) {
+	dir := fixtureRepo(t)
+
+	_, err := ArchiveLocal(context.Background(), dir, "", "", 512)
+	if !errors.Is(err, ErrOutputTooLarge) {
+		t.Fatalf("ArchiveLocal() error = %v, want ErrOutputTooLarge", err)
+	}
+}
+
+func TestArchiveLocalRefusesASubmodule(t *testing.T) {
+	dir := fixtureRepo(t)
+	// A gitlink is what a submodule is in the tree; no second repository needed.
+	gitIn(t, dir, "update-index", "--add", "--cacheinfo",
+		"160000,1234567890123456789012345678901234567890,vendor/lib")
+	gitIn(t, dir, "commit", "--quiet", "-m", "add a submodule")
+
+	_, err := ArchiveLocal(context.Background(), dir, "", "", 0)
+	if err == nil || !strings.Contains(err.Error(), "vendor/lib") {
+		t.Fatalf("ArchiveLocal() error = %v, want a refusal naming the submodule", err)
 	}
 }

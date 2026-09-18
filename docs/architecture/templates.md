@@ -42,19 +42,28 @@ still load.
   `F` (sync) in the view is what will own a cache.
 - **oci** reuses `oci.Client.DownloadTemplate`, which returns `Entries`
   (bytes + execute bit).
-- A symlink in a template is **refused**, naming it. It used to be read as an
-  empty file — a template silently missing what it says it holds.
+- A symlink in a template is **refused**, naming it and saying to replace it
+  with a regular file. It used to be read as an empty file — a template silently
+  missing what it says it holds. A **submodule** is refused the same way
+  (`git ls-tree` finds the gitlink): `git archive` writes it as an empty
+  directory, which would be the same silent gap.
 
 **Credentials are resolved per host** by `CredentialsFor(cfg, secrets, src)`: the
 forge's token goes only to a git source on the forge's host, the registry's
 password only to an OCI source on the registry's, and anything else is fetched
 anonymously — a token authenticates one host, and the catalog can be shared, so
-the entry cannot be what decides. A private repository on any other host is not
+the entry cannot be what decides. Nothing is sent over `http://` either, even to
+the forge's own host. A private repository on any other host is not
 reachable over HTTPS: use an SSH URL. Both the view and the explorer call it, so
 the rule has one place to live.
 
 **A template has limits: 500 files and 32 MiB** (`MaxFiles`, `MaxBytes`),
-checked inside `Fetch` and so before anything is created on the forge. GitLab
+checked inside `Fetch` and so before anything is created on the forge. They are
+enforced **while reading**, not after: `git archive`'s output is capped
+(`git.ErrOutputTooLarge`) and the tar/gzip readers stop at the limits
+(`oci.Limits`, `oci.ErrArchiveTooLarge`), so a huge repository or a gzip bomb
+is never held in memory whole. `checkLimits` still names the biggest file for
+what got that far. GitLab
 takes every file in one request, so the body size decides; GitHub takes one
 request per file, one after the other, so the count does. The numbers are
 estimates: the one to verify against a real GitLab instance is its maximum
@@ -63,7 +72,10 @@ request body, which has to admit 32 MiB once base64-encoded (about 43 MiB).
 ## The catalog file is not trusted
 
 It can be shared or hand-edited, so `Entry.Validate` runs on `Put` **and on
-load** (a bad entry fails `Open`, naming the file):
+load**. A bad entry, or a slug declared twice, does not fail `Open`: it is set
+aside (`Store.Problems()`, reported as a footer warning), the rest of the
+catalog stays usable, and the entry stays in the file so saving another one
+does not delete a hand-edited line:
 
 - git URLs must be `https`, `http`, `ssh`, `git` or scp-form. `ext::` runs a
   command and `file://` reads this machine; a checkout on this machine is the

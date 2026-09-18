@@ -2,9 +2,11 @@ package template
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -91,15 +93,53 @@ func TestDelete(t *testing.T) {
 }
 
 // A hand-edited or shared catalog is not trusted: an entry that would not pass
-// Put is refused on load, naming the file.
-func TestOpenRefusesADangerousEntry(t *testing.T) {
+// Put is set aside on load — never fetchable — without taking the others down.
+func TestOpenSetsADangerousEntryAside(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "templates.yaml")
-	raw := "templates:\n- slug: evil\n  name: Evil\n  source:\n    kind: git\n    url: \"ext::sh -c id\"\n"
+	raw := "templates:\n" +
+		"- slug: evil\n  name: Evil\n  source:\n    kind: git\n    url: \"ext::sh -c id\"\n" +
+		"- slug: fine\n  name: Fine\n  source:\n    kind: local\n    path: /x\n"
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Open(path); err == nil {
-		t.Fatal("Open() loaded an entry with an ext:: URL")
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open() error = %v, want the valid entry usable", err)
+	}
+	if _, err := s.Get("evil"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Get(evil) error = %v, want ErrNotFound", err)
+	}
+	if _, err := s.Get("fine"); err != nil {
+		t.Errorf("Get(fine) error = %v", err)
+	}
+	if len(s.Problems()) != 1 {
+		t.Fatalf("Problems() = %v, want one", s.Problems())
+	}
+
+	// Saving another entry must not delete the one that was set aside.
+	if err := s.Put(Entry{Slug: "other", Name: "Other", Source: Source{Kind: KindLocal, Path: "/y"}}); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := os.ReadFile(path)
+	if !strings.Contains(string(saved), "ext::sh -c id") {
+		t.Errorf("the rejected entry was dropped from the file:\n%s", saved)
+	}
+}
+
+func TestOpenSetsADuplicateSlugAside(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "templates.yaml")
+	entry := "- slug: dup\n  name: %s\n  source:\n    kind: local\n    path: /x\n"
+	raw := "templates:\n" + fmt.Sprintf(entry, "First") + fmt.Sprintf(entry, "Second")
+	_ = os.WriteFile(path, []byte(raw), 0o600)
+
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get("dup")
+	if got.Name != "First" || len(s.Problems()) != 1 {
+		t.Errorf("Get(dup) = %q, problems = %v; want the first kept and one problem", got.Name, s.Problems())
 	}
 }
 

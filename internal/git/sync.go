@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -170,25 +171,56 @@ func run(repoPath, token string, args ...string) (string, error) {
 
 // runContext is run with a context, so a long fetch can be abandoned.
 func runContext(ctx context.Context, repoPath, token string, args ...string) (string, error) {
+	return runContextMax(ctx, repoPath, token, 0, args...)
+}
+
+// ErrOutputTooLarge is returned when a command wrote more than it was allowed.
+var ErrOutputTooLarge = errors.New("output is larger than allowed")
+
+// capWriter collects output up to max bytes (no limit when max is 0) and fails
+// the write past it, which makes the child's stdout copy fail and stops the
+// process instead of buffering whatever it wants to say.
+type capWriter struct {
+	buf      strings.Builder
+	max      int64
+	exceeded bool
+}
+
+func (w *capWriter) Write(p []byte) (int, error) {
+	if w.max > 0 && int64(w.buf.Len()+len(p)) > w.max {
+		w.exceeded = true
+		return 0, ErrOutputTooLarge
+	}
+	return w.buf.Write(p)
+}
+
+// runContextMax is runContext with a ceiling on what stdout may hold.
+func runContextMax(ctx context.Context, repoPath, token string, max int64, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = repoPath
 	cmd.Env = nonInteractiveEnv(token)
 
-	var stdout, stderr strings.Builder
+	stdout := &capWriter{max: max}
+	var stderr strings.Builder
 	cmd.Stdin = nil
-	cmd.Stdout = &stdout
+	cmd.Stdout = stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
+		// The process may die of the broken pipe before Run reports the write
+		// error, so the flag is the reliable signal.
+		if stdout.exceeded {
+			return "", ErrOutputTooLarge
+		}
 		if reason := lastLine(stderr.String()); reason != "" {
 			return "", fmt.Errorf("%s", reason)
 		}
 		return "", err
 	}
-	return stdout.String(), nil
+	return stdout.buf.String(), nil
 }
 
 func plural(n int, word string) string {

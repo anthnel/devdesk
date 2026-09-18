@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,9 @@ type Client struct {
 	username    string
 	password    string
 	httpClient  *http.Client
+
+	// Limits bounds a template download; the zero value is unbounded.
+	Limits Limits
 }
 
 // Template represents an OCI template with its files
@@ -109,7 +113,7 @@ func (c *Client) DownloadTemplate(repository, tag string) (*Template, error) {
 		} `json:"layers"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&manifest); err != nil {
 		return nil, err
 	}
 
@@ -154,17 +158,37 @@ func (c *Client) downloadAndExtractLayer(repository, digest string) ([]ArchiveFi
 		return nil, fmt.Errorf("failed to download layer: %s", resp.Status)
 	}
 
-	return ReadTarGz(resp.Body)
+	return ReadTarGzLimited(resp.Body, c.Limits)
 }
+
+// Limits bounds what reading an archive may hold in memory. A zero field is no
+// limit on that axis.
+type Limits struct {
+	Files int   // regular files
+	Bytes int64 // their content, once decompressed
+}
+
+// ErrNotRegularFile is returned for an archive entry that is a link, a device
+// or anything else that is not a regular file.
+var ErrNotRegularFile = errors.New("archive entry is not a regular file")
+
+// ErrArchiveTooLarge is returned when an archive exceeds its Limits.
+var ErrArchiveTooLarge = errors.New("archive is larger than allowed")
 
 // ReadTarGz reads a gzipped tar archive into its regular files.
 func ReadTarGz(r io.Reader) ([]ArchiveFile, error) {
+	return ReadTarGzLimited(r, Limits{})
+}
+
+// ReadTarGzLimited is ReadTarGz that stops, with ErrArchiveTooLarge, as soon as
+// the archive passes lim — before the rest of it is decompressed.
+func ReadTarGzLimited(r io.Reader, lim Limits) ([]ArchiveFile, error) {
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = gzr.Close() }()
-	return ReadTar(gzr)
+	return ReadTarLimited(gzr, lim)
 }
 
 // ReadTar reads a tar archive into its regular files.
@@ -174,8 +198,15 @@ func ReadTarGz(r io.Reader) ([]ArchiveFile, error) {
 // old behavior turned a symlink into an empty file, which is a template
 // silently missing what it says it contains.
 func ReadTar(r io.Reader) ([]ArchiveFile, error) {
+	return ReadTarLimited(r, Limits{})
+}
+
+// ReadTarLimited is ReadTar that refuses, with ErrArchiveTooLarge, an archive
+// past lim without reading the rest of it into memory.
+func ReadTarLimited(r io.Reader, lim Limits) ([]ArchiveFile, error) {
 	tr := tar.NewReader(r)
 	var files []ArchiveFile
+	var total int64
 
 	for {
 		header, err := tr.Next()
@@ -191,12 +222,25 @@ func ReadTar(r io.Reader) ([]ArchiveFile, error) {
 			continue
 		case tar.TypeReg:
 		default:
-			return nil, fmt.Errorf("archive entry %q is not a regular file (type %q)", header.Name, header.Typeflag)
+			return nil, fmt.Errorf("%w: %q (type %q)", ErrNotRegularFile, header.Name, header.Typeflag)
 		}
 
-		content, err := io.ReadAll(tr)
+		if lim.Files > 0 && len(files) >= lim.Files {
+			return nil, ErrArchiveTooLarge
+		}
+		var src io.Reader = tr
+		if lim.Bytes > 0 {
+			// One byte past what is left is enough to tell "exactly at the
+			// limit" from "over it".
+			src = io.LimitReader(tr, lim.Bytes-total+1)
+		}
+		content, err := io.ReadAll(src)
 		if err != nil {
 			return nil, err
+		}
+		total += int64(len(content))
+		if lim.Bytes > 0 && total > lim.Bytes {
+			return nil, ErrArchiveTooLarge
 		}
 
 		path, err := sanitizeArchivePath(header.Name)

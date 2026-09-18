@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -389,5 +390,31 @@ func TestReadTarRefusesASymlink(t *testing.T) {
 	_, err := ReadTar(&buf)
 	if err == nil || !strings.Contains(err.Error(), "link") {
 		t.Fatalf("ReadTar() error = %v, want a refusal naming the entry", err)
+	}
+}
+
+func TestReadTarLimitedStopsPastItsLimits(t *testing.T) {
+	build := func(files, size int) *bytes.Buffer {
+		var buf bytes.Buffer
+		tw := tar.NewWriter(&buf)
+		for i := 0; i < files; i++ {
+			_ = tw.WriteHeader(&tar.Header{Name: fmt.Sprintf("f%d", i), Mode: 0o644, Size: int64(size), Typeflag: tar.TypeReg})
+			_, _ = tw.Write(bytes.Repeat([]byte("x"), size))
+		}
+		_ = tw.Close()
+		return &buf
+	}
+
+	if _, err := ReadTarLimited(build(3, 10), Limits{Files: 2}); !errors.Is(err, ErrArchiveTooLarge) {
+		t.Errorf("3 files against a limit of 2: error = %v", err)
+	}
+	if _, err := ReadTarLimited(build(2, 10), Limits{Bytes: 19}); !errors.Is(err, ErrArchiveTooLarge) {
+		t.Errorf("20 bytes against a limit of 19: error = %v", err)
+	}
+	if files, err := ReadTarLimited(build(2, 10), Limits{Files: 2, Bytes: 20}); err != nil || len(files) != 2 {
+		t.Errorf("exactly at the limits: %d files, error = %v", len(files), err)
+	}
+	if _, err := ReadTarLimited(build(3, 10), Limits{}); err != nil {
+		t.Errorf("no limits: error = %v", err)
 	}
 }

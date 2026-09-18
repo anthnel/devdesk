@@ -36,6 +36,16 @@ type Store struct {
 	mu      sync.RWMutex
 	path    string
 	entries []Entry
+
+	// rejected are the entries of the file that cannot be used, kept as they
+	// were so that saving another entry does not silently delete a hand-edited
+	// one, each with the reason it was left out.
+	rejected []rejectedEntry
+}
+
+type rejectedEntry struct {
+	entry Entry
+	err   error
 }
 
 // catalogFile is the on-disk shape. A wrapping key leaves room to add settings
@@ -45,7 +55,9 @@ type catalogFile struct {
 }
 
 // Open loads the catalog at path. A file that does not exist is an empty
-// catalog, not an error: nobody has declared a template yet.
+// catalog, not an error: nobody has declared a template yet. An entry that
+// fails validation is set aside (see Problems) rather than failing the whole
+// catalog: one bad line in a hand-edited file must not take the others down.
 func Open(path string) (*Store, error) {
 	s := &Store{path: path}
 
@@ -61,13 +73,33 @@ func Open(path string) (*Store, error) {
 	if err := yaml.Unmarshal(raw, &file); err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
+	seen := make(map[string]bool, len(file.Templates))
 	for _, e := range file.Templates {
-		if err := e.Validate(); err != nil {
-			return nil, fmt.Errorf("%s: %w", path, err)
+		err := e.Validate()
+		if err == nil && seen[e.Slug] {
+			err = fmt.Errorf("template %q is declared twice", e.Slug)
 		}
+		if err != nil {
+			s.rejected = append(s.rejected, rejectedEntry{e, fmt.Errorf("%s: %w", path, err)})
+			continue
+		}
+		seen[e.Slug] = true
+		s.entries = append(s.entries, e)
 	}
-	s.entries = file.Templates
 	return s, nil
+}
+
+// Problems says why entries of the file were left out of the catalog: one that
+// does not validate (a dangerous URL, a bad slug) or a slug declared twice. The
+// rest of the catalog stays usable, and the rejected entries stay in the file.
+func (s *Store) Problems() []error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]error, len(s.rejected))
+	for i, r := range s.rejected {
+		out[i] = r.err
+	}
+	return out
 }
 
 // List returns the declared entries, sorted by name. The slice is a copy.
@@ -115,7 +147,19 @@ func (s *Store) Put(e Entry) error {
 	if !replaced {
 		next = append(next, e)
 	}
-	return s.commit(next)
+	return s.commit(next, s.withoutRejected(e.Slug))
+}
+
+// withoutRejected is the rejected entries but those of slug, which a new entry
+// replaces.
+func (s *Store) withoutRejected(slug string) []rejectedEntry {
+	var out []rejectedEntry
+	for _, r := range s.rejected {
+		if r.entry.Slug != slug {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // Delete removes the entry with the given slug and saves.
@@ -132,7 +176,7 @@ func (s *Store) Delete(slug string) error {
 	if len(next) == len(s.entries) {
 		return ErrNotFound
 	}
-	return s.commit(next)
+	return s.commit(next, s.rejected)
 }
 
 // commit writes next and, only if that worked, makes it the current list — so
@@ -140,8 +184,12 @@ func (s *Store) Delete(slug string) error {
 //
 // The write goes to a sibling file and is renamed over the catalog, so a crash
 // mid-write cannot leave a half-written catalog behind.
-func (s *Store) commit(next []Entry) error {
-	raw, err := yaml.Marshal(catalogFile{Templates: next})
+func (s *Store) commit(next []Entry, rejected []rejectedEntry) error {
+	all := append([]Entry(nil), next...)
+	for _, r := range rejected {
+		all = append(all, r.entry)
+	}
+	raw, err := yaml.Marshal(catalogFile{Templates: all})
 	if err != nil {
 		return err
 	}
@@ -165,5 +213,6 @@ func (s *Store) commit(next []Entry) error {
 		return err
 	}
 	s.entries = next
+	s.rejected = rejected
 	return nil
 }
