@@ -1,0 +1,82 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "e048a029db6b",
+  "session_id": "e8a087e9-35e4-485a-84f5-5ea9df22f0fa",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-19T12:12:56.0748618Z",
+  "branch": "feat/template-cache-age",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "d3844c981f55",
+  "checkpoint_transcript_start": 241,
+  "transcript_lines_at_start": 241,
+  "compact_transcript_start": 39,
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 22208,
+    "cache_read_tokens": 2180049,
+    "output_tokens": 16117,
+    "api_call_count": 13
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-login-2026-09-19T11:54:43.7180158Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "login"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "96da33254bce",
+      "timestamp": "2026-09-19T11:54:43.7180158Z",
+      "native": {
+        "command": "/login"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/login",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 309,
+      "user_lines_removed": 304,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        ".gitignore": 2,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".gitignore": 1,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
