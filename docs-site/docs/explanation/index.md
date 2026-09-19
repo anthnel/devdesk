@@ -15,6 +15,7 @@ instead if you already know the shape and need a specific name or value.
 | [Forge (GitLab / GitHub)](forge.md) | Why a context targets exactly one forge, and how `internal/forge` keeps the rest of the app from caring which one |
 | [Configuration & Contexts](configuration.md) | The context model, how settings and credentials are kept apart, and how old config shapes migrate forward |
 | [Workspaces](workspaces.md) | How local repositories are discovered, scanned, and kept in sync with the forge |
+| [Repository Templates](templates.md) | The template catalog, how a template's files are fetched, cached and scanned, and why creating from one either fully works or creates nothing |
 | [Viewer](viewer.md) | The one document viewer every "open this file/log" action in the app shares, and how it adapts per file kind |
 | [Security Scanning](scanning.md) | How Trivy, Gitleaks and the scan cache fit together, and why scans are background jobs rather than blocking waits |
 | [Registries](registries.md) | The registry/group model behind OCI image discovery |

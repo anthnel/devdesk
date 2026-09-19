@@ -17,6 +17,10 @@ A few implementation notes worth knowing if you're extending the icon table:
 
 A git repository is given the *same* visual role wherever DevDesk shows one — in `ws`, in the security inventory, and in the forge explorer. One object, one color, across three otherwise-unrelated views.
 
+## Last Tag
+
+The **Last Tag** column shows the nearest tag reachable from `HEAD`, lightweight or annotated, next to the Git Status column. A repository with no tag shows a dimmed placeholder, so an untagged repository doesn't look like a tagged one. Like other optional columns, it is the first to be dropped when the terminal is too narrow.
+
 ## Fuzzy find (`g`)
 
 `g` opens a prompt: type at least 3 characters and a ranked list of

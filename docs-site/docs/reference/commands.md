@@ -11,6 +11,7 @@ line, then type any of these:
 | `git-explorer` | `ge` | Forge explorer view |
 | `workspaces` | `ws`, `w` | Workspaces |
 | `security` | `sec` | Security scanner |
+| `templates` | `tpl` | Repository template catalog |
 | `containers` | `cont`, `ct` | Containers |
 | `oci-resources` | `oci` | OCI Resources |
 | `netdiag` | `net` | Network Diagnostics |

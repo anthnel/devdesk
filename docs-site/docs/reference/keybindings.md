@@ -25,7 +25,7 @@ resource action, and there are no vim-style `hjkl` aliases.
 | `N` | Create | `E` | Edit |
 | `D` | Delete | `M` | Rename (*mv*) |
 | `S` | Scan | `A` | Scan all |
-| `F` | Refresh (*fetch*) | `C` | Clone selector |
+| `F` | Sync / refresh (*fetch*) | `C` | Clone selector |
 | `T` | Terminal | `O` | Open in IDE |
 | `W` | Open in browser | `L` | Logs |
 | `V` | Pager | `K` | Stop / kill |

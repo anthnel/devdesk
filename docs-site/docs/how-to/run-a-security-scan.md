@@ -23,6 +23,10 @@ A scan runs as a background job — check `:jobs` to see it in flight, or just k
 
 The same two keys work from **OCI Resources** (`:oci`): `S` to (re)scan the selected image, `A` for the same all/unscanned choice via its confirmation.
 
+## Scan a template
+
+From **Templates** (`:tpl`), `S` scans what a template would put in a new repository — worth doing before it is copied into every project made from it. See [Repository templates](../explanation/templates.md#scanning-a-template).
+
 ## Read the results
 
 Open **Security** (`:sec`) once a scan finishes. Findings are grouped by severity (CRITICAL, HIGH, MEDIUM, LOW) with cumulative filters — press `c`, `h`, `m`, `l` to toggle a severity on or off; several can be active at once (`c`+`h` means "CRITICAL or HIGH"). Trivy findings include remediation details (fixed version, advisory link) where the scanner provides them; Gitleaks findings show the file and line the secret was found at.
