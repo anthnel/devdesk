@@ -62,3 +62,7 @@ merge feat-template-cache-age
 ---
 
 ensuite merge fix/template-sync-job-stuck
+
+---
+
+Merge docs/site-templates
