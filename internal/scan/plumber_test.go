@@ -447,7 +447,7 @@ func TestTheContainerCarriesItsWorkingDirectoryInTheArguments(t *testing.T) {
 // Trivy and Gitleaks take their target in argv, so nothing changed for them —
 // and must not, or a scan would start running somewhere it never did.
 func TestTheOtherTwoScannersStillRunWhereTheyDid(t *testing.T) {
-	if cmd := gitleaksArgs("/repos", ToolSpec{Source: ToolSourceBinary}, false, ""); cmd.Dir != "" {
+	if cmd := gitleaksArgs("/repos", ToolSpec{Source: ToolSourceBinary}, false, "", ""); cmd.Dir != "" {
 		t.Errorf("gitleaks gained a working directory: %q", cmd.Dir)
 	}
 	cmd, err := trivyArgs("/repos", TargetDirectory, false, ToolSpec{Source: ToolSourceBinary}, "", false, false)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/engine"
@@ -51,7 +52,13 @@ const gitleaksConfigMount = "/gitleaks.toml"
 // gitleaksArgs builds the invocation. Gitleaks writes its report to a path
 // rather than to stdout, so the report path is redirected at the process's own
 // stdout — which is a different pseudo-file inside a container.
-func gitleaksArgs(target string, tool ToolSpec, history bool, configPath string) toolCmd {
+//
+// reportPathOverride replaces that redirect for the native (non-Docker) case
+// only, when the caller cannot rely on it — see gitleaksReportFileTarget. Passing
+// "" keeps the default, which is what GetGitleaksCommand always does: the
+// command it shows is illustrative, not a promise that no substitute file was
+// used for this exact run.
+func gitleaksArgs(target string, tool ToolSpec, history bool, configPath string, reportPathOverride string) toolCmd {
 	docker := tool.Source == ToolSourceContainer
 
 	// In Docker mode the flag has to name the mount rather than the host path.
@@ -95,14 +102,54 @@ func gitleaksArgs(target string, tool ToolSpec, history bool, configPath string)
 		return toolCmd{Name: engine.Current().Binary, Args: appendOptions(args)}
 	}
 
+	reportPath := "/dev/stdout"
+	if reportPathOverride != "" {
+		reportPath = reportPathOverride
+	}
 	args := []string{
 		"detect",
 		"--source", target,
 		"--gitleaks-ignore-path", target,
 		"--report-format", "json",
-		"--report-path", "/dev/stdout",
+		"--report-path", reportPath,
 	}
 	return toolCmd{Name: gitleaksBinary(tool), Args: appendOptions(args)}
+}
+
+// gitleaksReportFile is where gitleaks' JSON report ends up: Path is empty when
+// it goes through the process's own stdout (Run already captures that), or
+// names a temp file the caller must read back and remove.
+type gitleaksReportFile struct {
+	path    string
+	cleanup func()
+}
+
+// gitleaksReportFileTarget decides where gitleaks writes its report.
+//
+// The native (non-Docker) trick above redirects the report to the process's
+// own stdout through a POSIX pseudo-file — a real device on Linux and macOS,
+// and one Windows does not have: gitleaks then refuses to start ("Report path
+// is not writable: /dev/stdout ... Le chemin d'accès spécifié est
+// introuvable"), which used to be reported as a scan failure with no
+// findings. Docker's /dev/fd/1 needs no substitute on any host, because it
+// names a path inside the (Linux) container, not the host's filesystem.
+//
+// On native Windows only, a real temporary file stands in: gitleaks writes to
+// it directly, and RunGitleaks reads it back once the process exits.
+func gitleaksReportFileTarget(docker bool) (gitleaksReportFile, error) {
+	if docker || runtime.GOOS != "windows" {
+		return gitleaksReportFile{cleanup: func() {}}, nil
+	}
+	f, err := os.CreateTemp("", "devdesk-gitleaks-*.json")
+	if err != nil {
+		return gitleaksReportFile{}, fmt.Errorf("creating a report file: %w", err)
+	}
+	path := f.Name()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(path)
+		return gitleaksReportFile{}, fmt.Errorf("creating a report file: %w", err)
+	}
+	return gitleaksReportFile{path: path, cleanup: func() { _ = os.Remove(path) }}, nil
 }
 
 // checkGitleaksConfig refuses a rules file that cannot be read, before
@@ -146,22 +193,43 @@ func RunGitleaks(ctx context.Context, target string, tool ToolSpec, history bool
 		return nil, err
 	}
 
-	stdout, err := runner.Run(ctx, gitleaksArgs(target, tool, history, configPath), progressFn)
+	report, err := gitleaksReportFileTarget(tool.Source == ToolSourceContainer)
+	if err != nil {
+		return nil, fmt.Errorf("gitleaks: %w", err)
+	}
+	defer report.cleanup()
+
+	stdout, err := runner.Run(ctx, gitleaksArgs(target, tool, history, configPath, report.path), progressFn)
+
+	// With the temp-file substitute, the report never reaches stdout: it has
+	// to be read back from where gitleaks actually wrote it. stdout is
+	// consulted first — never empty on the posix/docker path, and what tests
+	// script their canned report through — so this only takes effect for a
+	// real, native Windows run.
+	data := stdout
+	if len(data) == 0 && report.path != "" {
+		fileData, readErr := os.ReadFile(report.path) //nolint:gosec // path is ours, created just above
+		if readErr != nil {
+			return nil, fmt.Errorf("reading gitleaks report: %w", readErr)
+		}
+		data = fileData
+	}
+
 	if err != nil {
 		// A report alongside exit 1 is gitleaks saying it found something.
 		// Anything else — another exit code, a process that never ran, or an
 		// exit 1 with no report at all — is a failure, and carries gitleaks'
 		// own stderr with it.
 		var exit *exitError
-		if len(stdout) == 0 || !errors.As(err, &exit) || exit.Code != gitleaksSecretsFound {
+		if len(data) == 0 || !errors.As(err, &exit) || exit.Code != gitleaksSecretsFound {
 			return nil, fmt.Errorf("gitleaks failed: %w", err)
 		}
 	}
 
-	if len(stdout) == 0 {
+	if len(data) == 0 {
 		return []Finding{}, nil
 	}
-	return parseGitleaksOutput(stdout)
+	return parseGitleaksOutput(data)
 }
 
 // parseGitleaksOutput parses Gitleaks JSON output into findings
@@ -192,9 +260,12 @@ func parseGitleaksOutput(data []byte) ([]Finding, error) {
 
 // GetGitleaksCommand returns the command that would be executed, for display
 // and logging. It is built by the same builder as the executed command, so the
-// two cannot drift apart.
+// two cannot drift apart — except for the report path on native Windows,
+// where RunGitleaks substitutes a fresh temp file per run (gitleaksReportFileTarget):
+// showing one here would be meaningless since it is discarded unread, and
+// creating it would leak a file for every logged command.
 func GetGitleaksCommand(target string, tool ToolSpec, history bool, configPath string) string {
-	return gitleaksArgs(target, tool, history, configPath).String()
+	return gitleaksArgs(target, tool, history, configPath, "").String()
 }
 
 // AddToGitleaksIgnore adds a finding to the .gitleaksignore file in the target directory
