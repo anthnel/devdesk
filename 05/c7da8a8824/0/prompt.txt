@@ -32,3 +32,7 @@ je ne vois pas les colonnes Secrets  C     H     M     L     CI    Scanned dans 
 ---
 
 les templates pourraient contenir un fichier ci, dans ce cas, est-ce que plumber va les analyser
+
+---
+
+dans le meme worktree retravaille le formulaire de template pour espacer les champs, regarde ce qui est fait dans les formulaires monitor, ici les champs sont collés les uns au autres
