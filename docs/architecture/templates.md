@@ -88,7 +88,7 @@ the write succeeded, so a failure leaves both agreeing.
 
 ## The `:templates` view — `internal/ui/templates`
 
-A `datatable` (icon, Name, Tags, Source, Ref) over the catalog. The body is
+A `datatable` (icon, Name, Tags, Source, Ref, Synced) over the catalog. The body is
 always the table (Rule 139); the count is in the header.
 
 | Key | Does |
@@ -180,8 +180,9 @@ workspaces list is not involved: the copy is not in it, and nothing pretends it 
 ## The cache and `F`
 
 `template.Cache` keeps what a source last returned, in
-**`~/.devdesk/cache/templates/<slug>.json`**: the source it answers for, when it
-was read, and the files (bytes base64 in the JSON, the execute bit kept). A
+**`~/.devdesk/cache/templates/<slug>.json`**: a first line with the source it
+answers for and when it was read, then the files on the next (bytes base64 in
+the JSON, the execute bit kept). A
 preview, a scan and a repository creation read through `Cache.Fetch`, which
 serves the copy and reads the source only when there is none. The view and the
 explorer share the one file, so a sync in one is seen by the other.
@@ -201,9 +202,22 @@ explorer share the one file, so a sync in one is seen by the other.
   content over `MaxFiles`/`MaxBytes`. The cache is an optimisation and no state
   of it may keep a template from being used.
 - **Deleting the entry deletes its copy** (`Cache.Forget`, best effort).
+- **The header is its own line so the age is cheap.** `Cache.FetchedAt` reads
+  that line and stops; the view asks it of every template each time the catalog
+  is listed, and a copy can weigh `MaxBytes`. Decoding the files to learn a date
+  would make opening the view cost what the largest template weighs.
 - A cache with no directory (no home) stores nothing and always fetches; tests
   give the view and the explorer one of their own (`NewCacheAt`) so none writes
   to the real `~/.devdesk`.
+
+**The `Synced` column** is the copy's age in `theme.TimeAgo`'s words (Rule 127),
+`Optional` so it is the first to go when the width is short. A template with no
+copy of its *current* source — never read, or its source edited since — shows a
+dim dash, not "now": nothing was fetched, so nothing is that fresh. It sorts
+oldest first, the never-read as the oldest. The age travels in the row
+(`row.SyncedAt`), loaded by `loadSyncedCmd` off the `Update` goroutine (Rule
+110) and refreshed when the catalog opens, is saved or deleted from, and after a
+sync or a scan.
 
 `F` is registry work (`jobs.KindSync`, origin `:templates`, target the slug), so
 `:jobs` shows it and the footer status carries it. It is greyed with no row and
@@ -213,8 +227,9 @@ materialised tree for the scanners, not a cache of the fetch.
 
 ## Not done yet
 
-- The view does not show how old the cached copy is (`Cache.FetchedAt` has the
-  answer; no column reads it).
+- A preview can make a copy without the age column noticing: it is refreshed
+  when the catalog opens or changes and after a sync or a scan, and a preview is
+  none of those. It shows on the next of them.
 - A private git repository on a host that is not the forge's is fetched
   anonymously, so it fails with git's own reason: use an SSH URL.
 - No spinner on the row itself: the footer status carries the live scan.

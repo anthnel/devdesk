@@ -196,7 +196,7 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Syncing",
 				Body: "A template's files are read once and kept in ~/.devdesk/cache/templates/<name>.json; a preview, a scan and a new repository all start from that copy. " +
 					"It is not refreshed on its own, so a branch that moved on, or a local repository that gained a commit, is served as it was until '" + keymap.Fetch + "' reads the source again. " +
-					"A template pinned to a commit needs no sync. A failed sync keeps the previous copy, and a copy made for a source that has since been edited is not used.\n" +
+					"The Synced column says how old the copy is. A template pinned to a commit needs no sync. A failed sync keeps the previous copy, and a copy made for a source that has since been edited is not used.\n" +
 					"The key is greyed while a sync of that template is already running.",
 			},
 			{

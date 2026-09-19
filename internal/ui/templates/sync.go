@@ -111,5 +111,5 @@ func (m Model) handleSyncComplete(msg SyncCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		return m, m.footer.Error("Sync of " + msg.Name + " failed — check logs")
 	}
-	return m, m.footer.Info("Synced " + msg.Name + " — " + sharedcomponents.Plural(msg.Files, "file", "files"))
+	return m, tea.Batch(m.refreshSynced(), m.footer.Info("Synced "+msg.Name+" — "+sharedcomponents.Plural(msg.Files, "file", "files")))
 }

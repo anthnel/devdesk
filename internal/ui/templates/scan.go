@@ -232,6 +232,8 @@ func (m Model) handleJobsChanged(msg jobs.ChangedMsg) (tea.Model, tea.Cmd) {
 // the report is in `:sec`, where this directory is listed like any other scanned
 // target.
 func (m Model) handleScanComplete(msg ScanCompleteMsg) (tea.Model, tea.Cmd) {
+	// A scan reads the template through the cache, which may have made the copy.
+	refresh := m.refreshSynced()
 	var cmd tea.Cmd
 	switch {
 	case msg.Err != nil:
@@ -241,7 +243,7 @@ func (m Model) handleScanComplete(msg ScanCompleteMsg) (tea.Model, tea.Cmd) {
 	default:
 		cmd = m.footer.Info(scanSummary(msg))
 	}
-	return m, cmd
+	return m, tea.Batch(refresh, cmd)
 }
 
 // scanSummary is the one line a finished scan leaves.

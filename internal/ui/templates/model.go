@@ -9,6 +9,7 @@ package templates
 
 import (
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -25,6 +26,10 @@ import (
 // row is one line of the table.
 type row struct {
 	Entry template.Entry
+	// SyncedAt is when the cached copy of the entry's current source was read;
+	// zero when there is none. It is carried in the row, loaded off the Update
+	// goroutine, because a cell is drawn on every frame and must not read a file.
+	SyncedAt time.Time
 }
 
 // Model is the templates view.
@@ -67,6 +72,9 @@ type Model struct {
 	scanner scanFunc
 	// cache is what a preview, a scan and a sync read and write.
 	cache template.Cache
+	// syncedAt is the last answer of the cache to "when was each copy read",
+	// by slug. It is refreshed when something that changes it lands.
+	syncedAt map[string]time.Time
 
 	footer sharedcomponents.FooterMessage
 
@@ -81,6 +89,7 @@ const (
 	columnTags
 	columnSource
 	columnRef
+	columnSynced
 )
 
 // New builds the view. secrets resolves the credentials a registry or a forge
@@ -161,6 +170,15 @@ func columns() []datatable.Column[row] {
 			Style: func(r row) lipgloss.Style { return dimIfEmpty(r.Entry.Source.Ref == "") },
 			Less:  func(a, b row) bool { return a.Entry.Source.Ref < b.Entry.Source.Ref },
 		},
+		{
+			// Rule 127 words the age. A template never read has none, which is
+			// a dash and not "now": nothing was fetched, so nothing is that fresh.
+			Title: "Synced", Sizing: datatable.SizingContent, MinWidth: 10, MaxWidth: 12, Optional: true,
+			Cell:  func(r row) string { return dashIfEmpty(theme.TimeAgo(r.SyncedAt)) },
+			Style: func(r row) lipgloss.Style { return dimIfEmpty(r.SyncedAt.IsZero()) },
+			// Oldest first, and a template never read as the oldest of all.
+			Less: func(a, b row) bool { return a.SyncedAt.Before(b.SyncedAt) },
+		},
 	}
 }
 
@@ -225,7 +243,7 @@ func dimIfEmpty(empty bool) lipgloss.Style {
 func (m *Model) rebuild() {
 	rows := make([]row, len(m.declared))
 	for i, e := range m.declared {
-		rows[i] = row{Entry: e}
+		rows[i] = row{Entry: e, SyncedAt: m.syncedAt[e.Slug]}
 	}
 	m.table.SetItems(rows)
 }

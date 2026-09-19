@@ -98,6 +98,7 @@ func opened(t *testing.T, entries ...template.Entry) Model {
 func openedAt(t *testing.T, path string) Model {
 	t.Helper()
 	m := NewWithPath(config.Default(), nil, path)
+	m.cache = template.NewCacheAt(t.TempDir())
 	m = send(t, m, testutil.Resize(140, 24))
 	return drive(t, m, testutil.Msgs(loadCatalogCmd(path))[0])
 }
@@ -434,6 +435,7 @@ func pickerOn(t *testing.T, entries ...template.Entry) Model {
 	path := catalogWith(t, entries...)
 	m := NewForSelection(config.Default(), nil, "Choose the template")
 	m.path = path
+	m.cache = template.NewCacheAt(t.TempDir())
 	m = send(t, m, testutil.Resize(140, 24))
 	return drive(t, m, testutil.Msgs(loadCatalogCmd(path))[0])
 }

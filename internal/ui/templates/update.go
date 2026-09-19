@@ -38,6 +38,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DeletedMsg:
 		return m.handleDeleted(msg)
 
+	case SyncedLoadedMsg:
+		m.syncedAt = msg.At
+		m.rebuild()
+		return m, nil
+
 	case DepsCheckedMsg:
 		m.deps = &msg.Deps
 		return m, nil
@@ -107,10 +112,15 @@ func (m Model) handleCatalogLoaded(msg CatalogLoadedMsg) (tea.Model, tea.Cmd) {
 		for _, err := range problems {
 			log.Printf("ERROR [templates] catalog entry skipped: %v", err)
 		}
-		return m, m.footer.Warn(fmt.Sprintf("%d catalog %s skipped — check logs", len(problems), plural(len(problems))))
+		return m, tea.Batch(m.refreshSynced(), m.footer.Warn(fmt.Sprintf("%d catalog %s skipped — check logs", len(problems), plural(len(problems)))))
 	}
-	return m, nil
+	return m, m.refreshSynced()
 }
+
+// refreshSynced re-reads the age of every copy. It follows whatever changes it:
+// the catalog (a source edited no longer matches its copy, an entry removed has
+// none) and a sync or a scan (which is what makes a copy).
+func (m Model) refreshSynced() tea.Cmd { return loadSyncedCmd(m.cache, m.declared) }
 
 // plural is "entry" or "entries" for n.
 func plural(n int) string {
@@ -129,7 +139,7 @@ func (m Model) handleSaved(msg SavedMsg) (tea.Model, tea.Cmd) {
 	m.declared = m.store.List()
 	m.rebuild()
 	m.selectSlug(msg.Entry.Slug)
-	return m, m.footer.Info("Saved " + msg.Entry.Name)
+	return m, tea.Batch(m.refreshSynced(), m.footer.Info("Saved "+msg.Entry.Name))
 }
 
 func (m Model) handleDeleted(msg DeletedMsg) (tea.Model, tea.Cmd) {
@@ -139,7 +149,7 @@ func (m Model) handleDeleted(msg DeletedMsg) (tea.Model, tea.Cmd) {
 	}
 	m.declared = m.store.List()
 	m.rebuild()
-	return m, m.footer.Info("Deleted " + msg.Slug)
+	return m, tea.Batch(m.refreshSynced(), m.footer.Info("Deleted "+msg.Slug))
 }
 
 // selectSlug puts the cursor on an entry, so a template just saved is the one
