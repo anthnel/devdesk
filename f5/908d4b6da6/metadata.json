@@ -1,0 +1,34 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "f5908d4b6da6",
+  "strategy": "manual-commit",
+  "branch": "docs/site-templates",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs-site/docs/explanation/index.md",
+    "docs-site/docs/explanation/templates.md",
+    "docs-site/docs/explanation/workspaces.md",
+    "docs-site/docs/how-to/create-a-repo-from-a-template.md",
+    "docs-site/docs/how-to/run-a-security-scan.md",
+    "docs-site/docs/reference/commands.md",
+    "docs-site/docs/reference/keybindings.md",
+    "docs-site/docs/reference/project-structure.md",
+    "docs-site/mkdocs.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f5/908d4b6da6/0/metadata.json",
+      "transcript": "/f5/908d4b6da6/0/full.jsonl",
+      "compact_transcript": "/f5/908d4b6da6/0/transcript.jsonl",
+      "content_hash": "/f5/908d4b6da6/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 136720,
+    "cache_read_tokens": 1187419,
+    "output_tokens": 6251,
+    "api_call_count": 10
+  }
+}
