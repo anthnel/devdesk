@@ -491,6 +491,22 @@ kind. The difference is which view is asking: a launch site cannot hold an
 identifier — it would have to before the registry allocated one — but `:jobs`
 reads it off the row it is rendering.
 
+### A progress message needs a case in the router
+
+A message reports to the registry by implementing `jobs.Reporter`, and the
+registry hears it only when `routeWork` runs — which is called from a `case`
+naming the message in `App.Update`. **Implementing the interface is not enough.**
+A message with no case is still delivered to its view, which is what hides the
+omission: the footer says the work finished while the registry keeps the run in
+progress, and `:jobs` and the footer's status line show it running for the life
+of the session. The scan and then the sync of the templates view each shipped
+that way.
+
+`TestEveryJobReporterIsRoutedToTheRegistry` scans `internal/ui` for
+`_ jobs.Reporter = X{}` declarations and fails naming any message the router has
+no case for. Declare the compile-time proof next to the message, as the views
+do, and the test finds it.
+
 ### The broadcast, and the one spinner chain
 
 Views never hold a pointer to the registry. The router hands them a snapshot in
