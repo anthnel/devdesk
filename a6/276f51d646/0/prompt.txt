@@ -11,3 +11,16 @@ il est créé
 ---
 
 https://gitlab.com/anthnell/devsecops/devex/project-templates.git
+
+---
+
+debug 2026/09/19 13:33:19 Running: C:\Users\anthoni\AppData\Local\mise\shims\trivy.exe fs --format json --scanners secret C:\Users\anthoni\.devdesk\cache\template-scan\go-http-api
+debug 2026/09/19 13:33:19 Running: C:\Users\anthoni\AppData\Local\mise\shims\trivy.exe fs --format json --scanners license C:\Users\anthoni\.devdesk\cache\template-scan\go-http-api
+debug 2026/09/19 13:33:19 Running: C:\Users\anthoni\AppData\Local\mise\shims\trivy.exe fs --format json --scanners vuln C:\Users\anthoni\.devdesk\cache\template-scan\go-http-api
+debug 2026/09/19 13:33:19 Running: C:\Users\anthoni\AppData\Local\mise\installs\gitleaks\8.30.1\gitleaks.exe detect --source C:\Users\anthoni\.devdesk\cache\template-scan\go-http-api --gitleaks-ignore-path C:\Users\anthoni\.devdesk\cache\template-scan\go-http-api --report-format json --report-path /dev/stdout
+debug 2026/09/19 13:33:19 ERROR [scan/gitleaks] stage failed: gitleaks failed: exit status 1: ○
+│╲
+│ ○
+○ ░
+░    gitleaks
+1:33PM FTL Report path is not writable: /dev/stdout error="open /dev/stdout: Le chemin d’accès spécifié est introuvable."
