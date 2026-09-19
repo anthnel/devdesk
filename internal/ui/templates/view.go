@@ -74,6 +74,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: keymap.Edit, Description: "Edit template", Disabled: !a.Edit.Enabled()},
 		{Key: keymap.Delete, Description: "Delete template", Disabled: !a.Delete.Enabled()},
 		{Key: keymap.Scan, Description: "Scan template", Disabled: !a.Scan.Enabled()},
+		{Key: keymap.Fetch, Description: "Sync template", Disabled: !a.Sync.Enabled()},
 		{Key: keymap.Pager, Description: "Preview files", Disabled: !a.Preview.Enabled()},
 		{Key: ".", Description: "Sort"},
 		{Key: "/", Description: "Filter"},
@@ -144,6 +145,7 @@ func (m Model) GetHelpContent() help.Content {
 		{Key: keymap.New, Description: "Add a template to the catalog"},
 		{Key: keymap.Edit, Description: "Edit the selected template"},
 		{Key: keymap.Delete, Description: "Remove the selected template from the catalog. The template's own content is never touched"},
+		{Key: keymap.Fetch, Description: "Sync the selected template: read its source again and replace the cached copy"},
 		{Key: keymap.Pager, Description: "Preview the files the template would put in a new repository"},
 		{Key: ".", Description: "Cycle the sort column. Each press toggles asc/desc, then moves to the next column"},
 		{Key: "/", Description: "Filter by name, description, tags or source"},
@@ -189,6 +191,13 @@ func (m Model) GetHelpContent() help.Content {
 					"The result is kept by path, so it appears in :sec, which is where the report opens; the footer here gives the counts. " +
 					"A scan replaces the previous copy, so what is scanned is what the template holds now. The CI score is not computed: a template has no pipeline to grade.\n" +
 					"The key is greyed when neither Trivy nor Gitleaks is available, and while a scan of that template is already running.",
+			},
+			{
+				Title: "Syncing",
+				Body: "A template's files are read once and kept in ~/.devdesk/cache/templates/<name>.json; a preview, a scan and a new repository all start from that copy. " +
+					"It is not refreshed on its own, so a branch that moved on, or a local repository that gained a commit, is served as it was until '" + keymap.Fetch + "' reads the source again. " +
+					"A template pinned to a commit needs no sync. A failed sync keeps the previous copy, and a copy made for a source that has since been edited is not used.\n" +
+					"The key is greyed while a sync of that template is already running.",
 			},
 			{
 				Title: "Credentials",

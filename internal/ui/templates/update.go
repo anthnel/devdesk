@@ -48,6 +48,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScanCompleteMsg:
 		return m.handleScanComplete(msg)
 
+	case SyncCompleteMsg:
+		return m.handleSyncComplete(msg)
+
 	case FormSubmitMsg:
 		return m.handleFormSubmit(msg)
 
@@ -164,7 +167,7 @@ func (m Model) handleConfirmDelete() (tea.Model, tea.Cmd) {
 	if m.store == nil || slug == "" {
 		return m, nil
 	}
-	return m, deleteCmd(m.store, slug)
+	return m, deleteCmd(m.store, m.cache, slug)
 }
 
 // handleKeyMsg routes a key. A mode takes it first (the modal, then the form),
@@ -194,6 +197,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.startDelete()
 	case keymap.Scan:
 		return m.startScan()
+	case keymap.Fetch:
+		return m.startSync()
 	case keymap.Pager:
 		return m.startPreview()
 	case ".":
@@ -302,6 +307,6 @@ func (m Model) startPreview() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(reason)
 	}
 	entry, _ := m.selectedEntry()
-	source := previewSource{entry: entry, creds: template.CredentialsFor(m.config, m.secrets, entry.Source)}
+	source := previewSource{entry: entry, creds: template.CredentialsFor(m.config, m.secrets, entry.Source), cache: m.cache}
 	return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
 }

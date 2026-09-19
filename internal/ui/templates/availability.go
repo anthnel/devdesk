@@ -23,6 +23,7 @@ type availability struct {
 	Delete  shortcut.Availability
 	Preview shortcut.Availability
 	Scan    shortcut.Availability
+	Sync    shortcut.Availability
 }
 
 func (m Model) availability() availability {
@@ -45,8 +46,10 @@ func (m Model) availability() availability {
 		a.Delete = firstRefusal(a.Delete, reasonNoTemplate)
 		a.Preview = shortcut.Unavailable(reasonNoTemplate)
 		a.Scan = firstRefusal(a.Scan, reasonNoTemplate)
+		a.Sync = shortcut.Unavailable(reasonNoTemplate)
 		return a
 	}
+	a.Sync = m.syncState()
 	if entry, ok := m.selectedEntry(); ok {
 		if dir, err := template.ScanDir(entry.Slug); err == nil && m.scanning(dir) {
 			a.Scan = firstRefusal(a.Scan, reasonScanRunning)

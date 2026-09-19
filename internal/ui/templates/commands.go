@@ -1,6 +1,8 @@
 package templates
 
 import (
+	"log"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/template"
@@ -25,9 +27,17 @@ func saveCmd(store *template.Store, entry template.Entry) tea.Cmd {
 	}
 }
 
-// deleteCmd removes one entry.
-func deleteCmd(store *template.Store, slug string) tea.Cmd {
+// deleteCmd removes one entry, and the copy of its files that was cached.
+func deleteCmd(store *template.Store, cache template.Cache, slug string) tea.Cmd {
 	return func() tea.Msg {
-		return DeletedMsg{Slug: slug, Err: store.Delete(slug)}
+		err := store.Delete(slug)
+		if err == nil {
+			// Best effort: the entry is gone, and a copy left behind is only
+			// disk that a later template of the same name would overwrite.
+			if ferr := cache.Forget(slug); ferr != nil {
+				log.Printf("ERROR [templates] forget cache %s: %v", slug, ferr)
+			}
+		}
+		return DeletedMsg{Slug: slug, Err: err}
 	}
 }

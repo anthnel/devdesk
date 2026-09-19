@@ -1,11 +1,17 @@
 # Repository templates — catalog view and picker
 
-Status: steps 1–4 done (#216, #217, #219 and the picker). Where this plan and
+Status: all five steps done (#216, #217, #219, #220 the picker, #221 the scan),
+plus the fetch cache behind `F` (below). Where this plan and
 `docs/architecture/templates.md` disagree, the doc wins — in particular, registry
 discovery (`FromOCI`/`Merge`, the `Discovered` flag, adopt-on-edit) was built and
 then removed because nobody used it, so the picker lists declared templates only
-and the template is fetched *before* the repository is created. Step 5 (scan)
-and the sync cache are still open.
+and the template is fetched *before* the repository is created. What remains is
+listed under "Out of scope" and "Open questions".
+
+The fetch cache landed as one JSON file per slug in
+`~/.devdesk/cache/templates/`, not as the shallow clone into a directory that
+step 1 sketched: it has to hold `oci` and `local` content too, and one record
+carrying its source and read time is what lets an edited entry miss.
 
 ## Goal
 
@@ -104,7 +110,7 @@ Tests on both backends for a binary file and an executable bit.
 | Ref | Content | dim when defaulted |
 
 Actions (existing vocabulary, no new letter):
-`N` Create · `E` Edit · `D` Delete · `F` Sync (refetch into cache) ·
+`N` Create · `E` Edit · `D` Delete · `F` Sync (refetch into the cache) ·
 `V` Pager (file tree of the fetched content) · `S` Scan (Trivy + Gitleaks on the
 fetched content — a secret in a template ends up in every repository made from it).
 `E` on a discovered entry *adopts* it (becomes a declared entry with tags);

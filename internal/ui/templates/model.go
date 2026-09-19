@@ -65,6 +65,8 @@ type Model struct {
 	jobs []jobs.Run
 	// scanner runs the scanners over a directory; a test replaces it.
 	scanner scanFunc
+	// cache is what a preview, a scan and a sync read and write.
+	cache template.Cache
 
 	footer sharedcomponents.FooterMessage
 
@@ -95,6 +97,7 @@ func NewWithPath(cfg *config.Config, secrets credentials.Storage, path string) M
 		secrets: secrets,
 		path:    path,
 		scanner: runScanners,
+		cache:   template.NewCache(),
 		table: datatable.New(datatable.Config[row]{
 			Columns:    columns(),
 			SortColumn: columnName,
