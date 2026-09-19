@@ -1,0 +1,102 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "8119c9861a5c",
+  "session_id": "e8a087e9-35e4-485a-84f5-5ea9df22f0fa",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-19T12:05:06.9301476Z",
+  "branch": "feat/template-sync-cache",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "174e5c1e8eb2",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 68,
+    "cache_creation_tokens": 133583,
+    "cache_read_tokens": 4109490,
+    "output_tokens": 27667,
+    "api_call_count": 35
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-login-2026-09-19T11:54:43.7180158Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "login"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "96da33254bce",
+      "timestamp": "2026-09-19T11:54:43.7180158Z",
+      "native": {
+        "command": "/login"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/login",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 309,
+      "user_lines_removed": 304,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        ".gitignore": 2,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".gitignore": 1,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 401,
+      "user_lines_removed": 322,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        ".gitignore": 2,
+        "LICENCE": 200,
+        "internal/scan/gitleaks.go": 79,
+        "internal/scan/plumber_test.go": 1,
+        "internal/scan/tool_source_test.go": 1,
+        "internal/ui/templates/form.go": 11
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".gitignore": 1,
+        "LICENCE": 200,
+        "internal/scan/gitleaks.go": 8,
+        "internal/scan/plumber_test.go": 1,
+        "internal/scan/tool_source_test.go": 1,
+        "internal/ui/templates/form.go": 8
+      }
+    }
+  ]
+}
