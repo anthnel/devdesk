@@ -20,6 +20,7 @@ devdesk/
 │   ├── scan/          # Trivy + Gitleaks integration
 │   ├── shared/        # Cross-view shared state
 │   ├── status/        # Status checker factory (HTTP/ICMP/DNS/SSL)
+│   ├── template/      # Repository template catalog, fetchers and cache
 │   └── ui/
 │       ├── components/      # Reusable modals (confirm, report, selector, filter bar)
 │       ├── containers/      # Docker containers view
@@ -32,6 +33,7 @@ devdesk/
 │       ├── security/         # Security scanner view
 │       ├── shortcut/         # Keybinding display
 │       ├── status/           # System status view
+│       ├── templates/        # Repository template catalog view (:templates)
 │       ├── terminal/         # Embedded terminal
 │       ├── theme/            # Colors, styles, icons, theme manager
 │       └── workspaces/       # Local workspace manager
