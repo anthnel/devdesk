@@ -87,7 +87,7 @@ func TestTheConfiguredBinaryReachesTheCommand(t *testing.T) {
 func TestTheConfiguredGitleaksBinaryReachesTheCommand(t *testing.T) {
 	spec := ToolSpec{Source: ToolSourceBinary, Binary: "/opt/gitleaks"}
 
-	if cmd := gitleaksArgs("/repo", spec, false, ""); cmd.Name != "/opt/gitleaks" {
+	if cmd := gitleaksArgs("/repo", spec, false, "", ""); cmd.Name != "/opt/gitleaks" {
 		t.Errorf("command runs %q, want the configured binary", cmd.Name)
 	}
 }
