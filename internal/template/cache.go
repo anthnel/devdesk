@@ -1,6 +1,8 @@
 package template
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,8 +16,10 @@ import (
 // Cache keeps what a template's source last returned, so a preview, a scan and
 // a repository creation do not each go back to the network.
 //
-// One file per slug, holding the source it answered for and the moment it was
-// read. A template edited to point elsewhere therefore misses instead of
+// One file per slug: a first line holding the source it answered for and the
+// moment it was read, then the files. The header is a line of its own so that
+// FetchedAt — asked of every template every time the catalog is listed — reads
+// a few dozen bytes instead of decoding a copy that may weigh MaxBytes. A template edited to point elsewhere therefore misses instead of
 // answering with the old content, and a file that cannot be read back is a miss
 // too: the cache is an optimisation, and no state of it may keep a template from
 // being used.
@@ -51,11 +55,18 @@ func NewCache() Cache {
 // NewCacheAt is a cache under dir, for tests.
 func NewCacheAt(dir string) Cache { return Cache{dir: dir} }
 
-// record is what is written: the source it answers for, and the files.
-type record struct {
+// header is the first line of a cached file: what the copy answers for, and when
+// it was made. json.Marshal never writes a raw newline, so the line ends where
+// the header does.
+type header struct {
 	Source    Source    `json:"source"`
 	FetchedAt time.Time `json:"fetched_at"`
-	Files     []File    `json:"files"`
+}
+
+// record is a header and the files it describes.
+type record struct {
+	header
+	Files []File
 }
 
 // Fetch returns the cached files when they were read from this exact source,
@@ -75,7 +86,7 @@ func (c Cache) Sync(ctx context.Context, slug string, src Source, creds Credenti
 	if err != nil {
 		return nil, err
 	}
-	if err := c.store(slug, record{Source: src, FetchedAt: time.Now(), Files: files}); err != nil {
+	if err := c.store(slug, record{header: header{Source: src, FetchedAt: time.Now()}, Files: files}); err != nil {
 		// The files were read and are returned; only the next call pays again.
 		log.Printf("ERROR [template] cache %s: %v", slug, err)
 	}
@@ -85,8 +96,26 @@ func (c Cache) Sync(ctx context.Context, slug string, src Source, creds Credenti
 // FetchedAt is when the cached copy of a template's source was read, or false
 // when there is none for that source.
 func (c Cache) FetchedAt(slug string, src Source) (time.Time, bool) {
-	rec, ok := c.load(slug, src)
-	return rec.FetchedAt, ok
+	f, err := c.open(slug)
+	if err != nil {
+		return time.Time{}, false
+	}
+	defer func() { _ = f.Close() }()
+
+	h, ok := readHeader(bufio.NewReader(f), slug, src)
+	return h.FetchedAt, ok
+}
+
+// FetchedAtAll is FetchedAt for a whole catalog: the read time of every entry
+// that has a copy made from its current source, keyed by slug.
+func (c Cache) FetchedAtAll(entries []Entry) map[string]time.Time {
+	out := make(map[string]time.Time, len(entries))
+	for _, e := range entries {
+		if at, ok := c.FetchedAt(e.Slug, e.Source); ok {
+			out[e.Slug] = at
+		}
+	}
+	return out
 }
 
 // Forget drops a template's cached copy. A template that was never cached is
@@ -114,27 +143,75 @@ func (c Cache) path(slug string) (string, error) {
 	return filepath.Join(c.dir, slug+".json"), nil
 }
 
-// load reads a record back and answers only for the source it was made for.
-// Anything else — no file, unreadable JSON, another source, content over the
-// limits a fetch enforces — is a miss.
-func (c Cache) load(slug string, src Source) (record, bool) {
+// open is the cached file of a slug. An error means there is none to read,
+// which every caller treats as a miss.
+func (c Cache) open(slug string) (*os.File, error) {
 	path, err := c.path(slug)
-	if err != nil || path == "" {
-		return record{}, false
+	if err != nil {
+		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	if path == "" {
+		return nil, os.ErrNotExist
+	}
+	return os.Open(path)
+}
+
+// readHeader reads the first line and answers only for the source it was made
+// for: another source, or a line that is not a header, is a miss.
+func readHeader(r *bufio.Reader, slug string, src Source) (header, bool) {
+	line, err := r.ReadBytes('\n')
+	if err != nil {
+		return header{}, false
+	}
+	var h header
+	if err := json.Unmarshal(line, &h); err != nil {
+		log.Printf("ERROR [template] cache %s unreadable, refetching: %v", slug, err)
+		return header{}, false
+	}
+	return h, h.Source == src
+}
+
+// load reads a record back. Anything but a copy made from this source — no
+// file, an unreadable one, another source, content over the limits a fetch
+// enforces — is a miss.
+func (c Cache) load(slug string, src Source) (record, bool) {
+	f, err := c.open(slug)
 	if err != nil {
 		return record{}, false
 	}
-	var rec record
-	if err := json.Unmarshal(data, &rec); err != nil {
+	defer func() { _ = f.Close() }()
+
+	r := bufio.NewReader(f)
+	h, ok := readHeader(r, slug, src)
+	if !ok {
+		return record{}, false
+	}
+	var files []File
+	if err := json.NewDecoder(r).Decode(&files); err != nil {
 		log.Printf("ERROR [template] cache %s unreadable, refetching: %v", slug, err)
 		return record{}, false
 	}
-	if rec.Source != src || checkLimits(rec.Files) != nil {
+	if checkLimits(files) != nil {
 		return record{}, false
 	}
-	return rec, true
+	return record{header: h, Files: files}, true
+}
+
+// encode is the file's content: the header, a newline, the files.
+func (rec record) encode() ([]byte, error) {
+	head, err := json.Marshal(rec.header)
+	if err != nil {
+		return nil, err
+	}
+	files := rec.Files
+	if files == nil {
+		files = []File{}
+	}
+	body, err := json.Marshal(files)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.Join([][]byte{head, body}, []byte("\n")), nil
 }
 
 // store writes a record through a temporary file and a rename, so a crash or a
@@ -144,7 +221,7 @@ func (c Cache) store(slug string, rec record) error {
 	if err != nil || path == "" {
 		return err
 	}
-	data, err := json.Marshal(rec)
+	data, err := rec.encode()
 	if err != nil {
 		return err
 	}

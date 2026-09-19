@@ -6,8 +6,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/template"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -183,5 +185,64 @@ func TestDeletingATemplateForgetsItsCopy(t *testing.T) {
 	}
 	if _, ok := cache.FetchedAt(e.Slug, e.Source); ok {
 		t.Error("the cached copy survived the delete")
+	}
+}
+
+// ── The age of the copy ──────────────────────────────────────────────────────
+
+func syncedCell(t *testing.T, m Model) string {
+	t.Helper()
+	r, ok := m.table.Selected()
+	if !ok {
+		t.Fatal("no row selected")
+	}
+	return columns()[columnSynced].Cell(r)
+}
+
+func TestATemplateNeverReadHasNoAge(t *testing.T) {
+	m := synced(t, entry("api", "API"))
+	if got := syncedCell(t, m); got != "-" {
+		t.Errorf("Synced = %q, want a dash: nothing was fetched, so nothing is fresh", got)
+	}
+}
+
+// The age is a row's own, loaded by a Cmd: the cell never reads a file.
+func TestASyncShowsTheAgeOfTheCopy(t *testing.T) {
+	e := localTemplate(t, "fixture", map[string]string{"one.txt": "1\n"})
+	m := synced(t, e)
+	if _, err := m.cache.Sync(t.Context(), e.Slug, e.Source, template.Credentials{}); err != nil {
+		t.Fatal(err)
+	}
+
+	m = send(t, m, SyncCompleteMsg{Slug: e.Slug, Name: e.Name, Files: 2})
+
+	if got := syncedCell(t, m); got != "now" {
+		t.Errorf("Synced = %q, want %q", got, "now")
+	}
+}
+
+// A copy is read back when the catalog opens: it was made in an earlier session.
+func TestTheAgeIsKnownWhenTheCatalogOpens(t *testing.T) {
+	e := localTemplate(t, "fixture", map[string]string{"one.txt": "1\n"})
+	cache := template.NewCacheAt(t.TempDir())
+	if _, err := cache.Sync(t.Context(), e.Slug, e.Source, template.Credentials{}); err != nil {
+		t.Fatal(err)
+	}
+	path := catalogWith(t, e)
+	m := NewWithPath(config.Default(), nil, path)
+	m.cache = cache
+	m = send(t, m, testutil.Resize(140, 24))
+	m = drive(t, m, testutil.Msgs(loadCatalogCmd(path))[0])
+
+	if got := syncedCell(t, m); got != "now" {
+		t.Errorf("Synced = %q, want %q", got, "now")
+	}
+}
+
+func TestANeverReadTemplateSortsAsTheOldest(t *testing.T) {
+	col := columns()[columnSynced]
+	never, read := row{}, row{SyncedAt: time.Now()}
+	if !col.Less(never, read) || col.Less(read, never) {
+		t.Error("a template never read does not sort before one that was")
 	}
 }

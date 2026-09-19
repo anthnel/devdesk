@@ -41,3 +41,10 @@ func deleteCmd(store *template.Store, cache template.Cache, slug string) tea.Cmd
 		return DeletedMsg{Slug: slug, Err: err}
 	}
 }
+
+// loadSyncedCmd asks the cache when each entry's copy was read. It reads the
+// first line of each file, off the Update goroutine (Rule 110).
+func loadSyncedCmd(cache template.Cache, entries []template.Entry) tea.Cmd {
+	entries = append([]template.Entry(nil), entries...)
+	return func() tea.Msg { return SyncedLoadedMsg{At: cache.FetchedAtAll(entries)} }
+}

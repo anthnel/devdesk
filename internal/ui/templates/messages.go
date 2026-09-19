@@ -1,6 +1,10 @@
 package templates
 
-import "github.com/anthnel/devdesk/internal/template"
+import (
+	"time"
+
+	"github.com/anthnel/devdesk/internal/template"
+)
 
 // Messages are named [Component][Action]Msg (Rule 109).
 
@@ -40,3 +44,9 @@ type TemplateSelectedMsg struct {
 
 // SelectionCancelledMsg is sent when the picker is left with esc.
 type SelectionCancelledMsg struct{}
+
+// SyncedLoadedMsg carries when each template's cached copy was read, by slug. A
+// template with no copy of its current source is absent.
+type SyncedLoadedMsg struct {
+	At map[string]time.Time
+}

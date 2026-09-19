@@ -1,6 +1,7 @@
 package template
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -181,5 +182,65 @@ func TestAnEmptyCacheAlwaysFetches(t *testing.T) {
 	}
 	if got := readme(t, files); got != "one" {
 		t.Errorf("read = %q", got)
+	}
+}
+
+// TestFetchedAtReadsOnlyTheHeader is the point of the header line: the age of a
+// copy is asked of every template on every listing, and must not depend on the
+// size of the files behind it.
+func TestFetchedAtReadsOnlyTheHeader(t *testing.T) {
+	repo := committedRepo(t, "one")
+	src := Source{Kind: KindLocal, Path: repo}
+	dir := t.TempDir()
+	c := NewCacheAt(dir)
+	ctx := context.Background()
+
+	if _, err := c.Sync(ctx, "demo", src, Credentials{}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "demo.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head := data[:bytes.IndexByte(data, '\n')+1]
+	if err := os.WriteFile(path, append(head, []byte("{not the files")...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := c.FetchedAt("demo", src); !ok {
+		t.Error("FetchedAt() needed the body of the file")
+	}
+	// The files cannot be read back, so a read is a miss and pays the source.
+	files, err := c.Fetch(ctx, "demo", src, Credentials{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := readme(t, files); got != "one" {
+		t.Errorf("read = %q", got)
+	}
+}
+
+func TestFetchedAtAllAnswersOnlyForCopiesOfTheCurrentSource(t *testing.T) {
+	a := committedRepo(t, "a")
+	b := committedRepo(t, "b")
+	c := NewCacheAt(t.TempDir())
+	ctx := context.Background()
+	srcA := Source{Kind: KindLocal, Path: a}
+	srcB := Source{Kind: KindLocal, Path: b}
+
+	for slug, src := range map[string]Source{"has-copy": srcA, "was-edited": srcA} {
+		if _, err := c.Sync(ctx, slug, src, Credentials{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := c.FetchedAtAll([]Entry{
+		{Slug: "has-copy", Source: srcA},
+		{Slug: "was-edited", Source: srcB}, // edited to point elsewhere since
+		{Slug: "never-read", Source: srcB},
+	})
+
+	if _, ok := got["has-copy"]; !ok || len(got) != 1 {
+		t.Errorf("FetchedAtAll() = %v, want only has-copy", got)
 	}
 }
