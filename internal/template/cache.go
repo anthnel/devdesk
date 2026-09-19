@@ -100,7 +100,7 @@ func (c Cache) FetchedAt(slug string, src Source) (time.Time, bool) {
 	if err != nil {
 		return time.Time{}, false
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	h, ok := readHeader(bufio.NewReader(f), slug, src)
 	return h.FetchedAt, ok
@@ -179,7 +179,7 @@ func (c Cache) load(slug string, src Source) (record, bool) {
 	if err != nil {
 		return record{}, false
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	r := bufio.NewReader(f)
 	h, ok := readHeader(r, slug, src)
