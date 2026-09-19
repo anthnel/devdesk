@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "601e00fff1e8",
+  "strategy": "manual-commit",
+  "branch": "fix/template-sync-job-stuck",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/60/1e00fff1e8/0/metadata.json",
+      "transcript": "/60/1e00fff1e8/0/full.jsonl",
+      "compact_transcript": "/60/1e00fff1e8/0/transcript.jsonl",
+      "content_hash": "/60/1e00fff1e8/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 16017,
+    "cache_read_tokens": 2649844,
+    "output_tokens": 7285,
+    "api_call_count": 14
+  }
+}
