@@ -63,5 +63,4 @@ A create can't be cancelled (a request already sent can't be unsent), so it is b
 
 ## Known gaps
 
-- The view doesn't yet show how old a cached copy is.
 - A private git repository on a host other than the forge's is fetched anonymously and fails with git's own message.
