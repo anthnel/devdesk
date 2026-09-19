@@ -285,7 +285,10 @@ func (f *entryForm) GetTitle() string {
 }
 
 // View renders the form: one blank line of top padding (Rule 131), then the
-// fields with the focus marker (Rule 120).
+// fields with the focus marker (Rule 120), each followed by a blank line
+// (Rule 113) — the separator every other form in the app uses between
+// fields, single-line ones included (RegistryForm, ResourceCreateForm,
+// ComponentForm, CreationForm), and the one this form was missing.
 func (f *entryForm) View() string {
 	var b strings.Builder
 	b.WriteString(theme.EmptyLineBg(f.width) + "\n")
@@ -298,25 +301,25 @@ func (f *entryForm) View() string {
 	for _, field := range f.fields() {
 		switch field {
 		case fieldName:
-			b.WriteString(f.line(field, "Name", f.name.View()) + "\n")
+			b.WriteString(f.line(field, "Name", f.name.View()) + "\n\n")
 		case fieldDescription:
 			b.WriteString(f.descriptionBlock() + "\n\n")
 		case fieldTags:
-			b.WriteString(f.line(field, "Tags", f.tags.View()) + "\n")
+			b.WriteString(f.line(field, "Tags", f.tags.View()) + "\n\n")
 		case fieldKind:
-			b.WriteString(f.kindLine() + "\n")
+			b.WriteString(f.kindLine() + "\n\n")
 		case fieldURL:
-			b.WriteString(f.line(field, labels.url, f.url.View()) + "\n")
+			b.WriteString(f.line(field, labels.url, f.url.View()) + "\n\n")
 		case fieldPath:
-			b.WriteString(f.line(field, labels.path, f.path.View()) + "\n")
+			b.WriteString(f.line(field, labels.path, f.path.View()) + "\n\n")
 		case fieldRef:
-			b.WriteString(f.line(field, labels.ref, f.ref.View()) + "\n")
+			b.WriteString(f.line(field, labels.ref, f.ref.View()) + "\n\n")
 		case fieldSubmit:
 			label := "Create"
 			if f.editing {
 				label = "Save"
 			}
-			b.WriteString("\n  " + theme.RenderButton(label, true, "primary") + "\n")
+			b.WriteString("  " + theme.RenderButton(label, true, "primary"))
 		}
 	}
 	return b.String()
