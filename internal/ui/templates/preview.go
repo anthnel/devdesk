@@ -22,6 +22,7 @@ const previewTimeout = 2 * time.Minute
 type previewSource struct {
 	entry template.Entry
 	creds template.Credentials
+	cache template.Cache
 }
 
 func (s previewSource) Name() string { return s.entry.Name + " — files" }
@@ -33,7 +34,7 @@ func (s previewSource) Load() ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), previewTimeout)
 	defer cancel()
 
-	files, err := template.Fetch(ctx, s.entry.Source, s.creds)
+	files, err := s.cache.Fetch(ctx, s.entry.Slug, s.entry.Source, s.creds)
 	if err != nil {
 		return nil, err
 	}

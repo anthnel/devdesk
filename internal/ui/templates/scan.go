@@ -99,6 +99,7 @@ var (
 type scanJob struct {
 	entry template.Entry
 	creds template.Credentials
+	cache template.Cache
 	opts  scan.ScanOptions
 	run   scanFunc
 }
@@ -136,7 +137,7 @@ func scanTemplateCmd(job scanJob, contextName string) tea.Cmd {
 }
 
 func (j scanJob) scanOnce(ctx context.Context, contextName string) (*scan.Result, error) {
-	files, err := template.Fetch(ctx, j.entry.Source, j.creds)
+	files, err := j.cache.Fetch(ctx, j.entry.Slug, j.entry.Source, j.creds)
 	if err != nil {
 		return nil, fmt.Errorf("fetching the template: %w", err)
 	}
@@ -177,13 +178,16 @@ func (m Model) scannerState() shortcut.Availability {
 
 // scanning reports whether a scan of this directory is live, wherever it was
 // started — the registry is one bookkeeping.
-func (m Model) scanning(dir string) bool {
+func (m Model) scanning(dir string) bool { return m.working(jobs.KindScan, dir) }
+
+// working reports whether a job of this kind is live on this target.
+func (m Model) working(kind jobs.Kind, target string) bool {
 	for _, run := range jobs.Unfinished(m.jobs) {
-		if run.Kind != jobs.KindScan {
+		if run.Kind != kind {
 			continue
 		}
 		for _, item := range run.Items {
-			if item.Target == dir && !item.State.Terminal() {
+			if item.Target == target && !item.State.Terminal() {
 				return true
 			}
 		}
@@ -208,6 +212,7 @@ func (m Model) startScan() (tea.Model, tea.Cmd) {
 	job := scanJob{
 		entry: entry,
 		creds: template.CredentialsFor(m.config, m.secrets, entry.Source),
+		cache: m.cache,
 		opts:  m.scanOptions(),
 		run:   m.scanner,
 	}

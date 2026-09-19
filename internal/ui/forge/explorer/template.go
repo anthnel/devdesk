@@ -28,6 +28,7 @@ func (m Model) templateFetcher(slug string) func(context.Context) ([]forge.FileC
 	path := m.templatesPath
 	cfg := m.config
 	secrets := m.shared.Secrets.Storage
+	cache := m.templateCache
 
 	return func(ctx context.Context) ([]forge.FileChange, error) {
 		if path == "" {
@@ -51,7 +52,7 @@ func (m Model) templateFetcher(slug string) func(context.Context) ([]forge.FileC
 
 		ctx, cancel := context.WithTimeout(ctx, templateFetchTimeout)
 		defer cancel()
-		files, err := template.Fetch(ctx, entry.Source, template.CredentialsFor(cfg, secrets, entry.Source))
+		files, err := cache.Fetch(ctx, entry.Slug, entry.Source, template.CredentialsFor(cfg, secrets, entry.Source))
 		if err != nil {
 			return nil, fmt.Errorf("template %q: %w", slug, err)
 		}

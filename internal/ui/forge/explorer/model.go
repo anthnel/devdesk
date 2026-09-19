@@ -7,6 +7,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
+	"github.com/anthnel/devdesk/internal/template"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -76,6 +77,9 @@ type Model struct {
 	// templatesPath is the template catalog file. Empty means the default,
 	// ~/.devdesk/templates.yaml; a test names its own.
 	templatesPath string
+	// templateCache is where a template's files are read from and kept, shared
+	// with the templates view. The zero value keeps nothing and always fetches.
+	templateCache template.Cache
 
 	// Tab navigation
 	activeTabIndex int // Focused tab index (last tab = current level)
@@ -106,12 +110,13 @@ func New(cfg *config.Config, sharedState *shared.State) Model {
 	s.Style = theme.SpinnerStyle()
 
 	return Model{
-		config:    cfg,
-		shared:    sharedState,
-		nodes:     []*TreeNode{},
-		loading:   false,
-		mode:      ModeNormal,
-		selection: newCloneSelection(),
+		config:        cfg,
+		shared:        sharedState,
+		templateCache: template.NewCache(),
+		nodes:         []*TreeNode{},
+		loading:       false,
+		mode:          ModeNormal,
+		selection:     newCloneSelection(),
 		table: datatable.New(datatable.Config[explorerRow]{
 			Columns: explorerColumns(),
 			// The forge's own order: loadChildren stacks the namespaces, then

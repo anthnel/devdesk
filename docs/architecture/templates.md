@@ -38,8 +38,8 @@ still load.
   git's own answer to "what is part of a release".
 - **git remote** is `init` + `fetch --depth 1 <ref>` + `archive FETCH_HEAD`, in a
   temp directory removed before returning. `clone --branch` would refuse a SHA,
-  and a template pinned to a SHA is the reproducible kind. Nothing is cached yet:
-  `F` (sync) in the view is what will own a cache.
+  and a template pinned to a SHA is the reproducible kind. What comes back is cached
+  (below).
 - **oci** reuses `oci.Client.DownloadTemplate`, which returns `Entries`
   (bytes + execute bit).
 - A symlink in a template is **refused**, naming it and saying to replace it
@@ -97,6 +97,7 @@ always the table (Rule 139); the count is in the header.
 | `E` | edit |
 | `D` | delete after a confirmation that defaults to No |
 | `S` | scan the template for vulnerabilities and secrets (below) |
+| `F` | sync: read the source again and replace the cached copy (below) |
 | `V` | preview: asks the router to open the viewer on a listing of the files the template would put in a repository (`previewSource`), so a fetch failure is reported by the viewer's own load path |
 | `.` `/` | sort, filter (name, description, tags, source) |
 
@@ -176,10 +177,44 @@ workspaces list is not involved: the copy is not in it, and nothing pretends it 
   comes back it stays lit — greying it for a few frames would read as a glitch
   (Rule 130). The picker has no `S`.
 
+## The cache and `F`
+
+`template.Cache` keeps what a source last returned, in
+**`~/.devdesk/cache/templates/<slug>.json`**: the source it answers for, when it
+was read, and the files (bytes base64 in the JSON, the execute bit kept). A
+preview, a scan and a repository creation read through `Cache.Fetch`, which
+serves the copy and reads the source only when there is none. The view and the
+explorer share the one file, so a sync in one is seen by the other.
+
+- **It never notices the source moving.** A branch, or a local repository that
+  gained a commit, is served as first read until `F` calls `Cache.Sync`. A
+  template pinned to a SHA never needs it. There is no expiry on purpose: a
+  silent refetch would make "what will this repository contain" depend on when
+  it was last asked.
+- **A copy answers only for the source it was made from.** The record carries
+  the `Source`; a template edited to point elsewhere misses and is read again
+  rather than served from the old address.
+- **A failed sync keeps the previous copy.** Sync writes only after a successful
+  read, through a temporary file and a rename, so an outage never costs a
+  template that worked yesterday and a crash never leaves half a record.
+- **A record that cannot be read back is a miss**, not an error — bad JSON, or
+  content over `MaxFiles`/`MaxBytes`. The cache is an optimisation and no state
+  of it may keep a template from being used.
+- **Deleting the entry deletes its copy** (`Cache.Forget`, best effort).
+- A cache with no directory (no home) stores nothing and always fetches; tests
+  give the view and the explorer one of their own (`NewCacheAt`) so none writes
+  to the real `~/.devdesk`.
+
+`F` is registry work (`jobs.KindSync`, origin `:templates`, target the slug), so
+`:jobs` shows it and the footer status carries it. It is greyed with no row and
+while a sync of that template is already running, and absent from the picker.
+It is separate from the scan's directory (`cache/template-scan`), which is a
+materialised tree for the scanners, not a cache of the fetch.
+
 ## Not done yet
 
-- `F` (sync) and the cache it would own: every preview, creation and scan
-  refetches.
+- The view does not show how old the cached copy is (`Cache.FetchedAt` has the
+  answer; no column reads it).
 - A private git repository on a host that is not the forge's is fetched
   anonymously, so it fails with git's own reason: use an SSH URL.
 - No spinner on the row itself: the footer status carries the live scan.

@@ -117,6 +117,7 @@ func modelFor(t *testing.T, g *recordingGitLab, catalogPath string) Model {
 	}
 	m := New(testConfig(), &shared.State{Forge: backend, IsAuthenticated: true})
 	m.templatesPath = catalogPath
+	m.templateCache = template.NewCacheAt(t.TempDir())
 	return m
 }
 
