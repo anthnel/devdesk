@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "a6276f51d646",
+  "strategy": "manual-commit",
+  "branch": "fix/gitleaks-windows-report-path",
+  "checkpoints_count": 4,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/a6/276f51d646/0/metadata.json",
+      "transcript": "/a6/276f51d646/0/full.jsonl",
+      "compact_transcript": "/a6/276f51d646/0/transcript.jsonl",
+      "content_hash": "/a6/276f51d646/0/content_hash.txt",
+      "prompt": "/a6/276f51d646/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 154,
+    "cache_creation_tokens": 223191,
+    "cache_read_tokens": 12821247,
+    "output_tokens": 42268,
+    "api_call_count": 77
+  }
+}

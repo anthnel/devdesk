@@ -1,0 +1,13 @@
+explique moi comment je peux gérer les templates des repos. Je pensais a un seul repo git avec une arborescence par langage, framework et référencer en local , donc je fais un git clone et je référence sur le disque
+
+---
+
+j'ai créé un repo accessible sur disque C:\Users\anthoni\workspaces\anthnell\devsecops\devex\project-templates, initialise des templates pour java spring boot et golang
+
+---
+
+il est créé
+
+---
+
+https://gitlab.com/anthnell/devsecops/devex/project-templates.git
