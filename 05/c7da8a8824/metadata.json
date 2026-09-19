@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "05c7da8a8824",
+  "strategy": "manual-commit",
+  "branch": "ui/template-form-field-spacing",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "internal/ui/templates/form.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/05/c7da8a8824/0/metadata.json",
+      "transcript": "/05/c7da8a8824/0/full.jsonl",
+      "compact_transcript": "/05/c7da8a8824/0/transcript.jsonl",
+      "content_hash": "/05/c7da8a8824/0/content_hash.txt",
+      "prompt": "/05/c7da8a8824/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 68,
+    "cache_creation_tokens": 101821,
+    "cache_read_tokens": 9570143,
+    "output_tokens": 19297,
+    "api_call_count": 34
+  }
+}
