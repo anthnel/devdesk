@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -774,5 +775,55 @@ func TestATemplateScanIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
 	}
 	if _, ok := receivedOf[templates.ScanCompleteMsg](tpl); !ok {
 		t.Error("the completion never reached the templates view")
+	}
+}
+
+// A template's sync is reported like its scan, and it had the same defect: the
+// messages implemented jobs.Reporter but the router had no case for them, so
+// routeWork never ran and the run stayed in progress after the sync finished.
+func TestATemplateSyncIsRegisteredAndAdvancedByItsOwnMessages(t *testing.T) {
+	tpl := &fakeView{}
+	a := router(t, &fakeView{})
+	a.views[command.ViewTemplates] = tpl
+	testutil.FastTimers(t, &jobSpinnerInterval)
+
+	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", "Spring API", "spring-api")})
+
+	a.Update(templates.SyncStartingMsg{Slug: "spring-api"})
+	if got := a.jobs.Snapshot()[0].Items[0].State; got != jobs.ItemRunning {
+		t.Errorf("after the starting message the item is %q, want running", got)
+	}
+
+	a.Update(templates.SyncCompleteMsg{Slug: "spring-api", Name: "Spring API", Files: 3})
+	if got := a.jobs.Snapshot()[0].State(); got != jobs.RunDone {
+		t.Errorf("state = %q, want %q", got, jobs.RunDone)
+	}
+	if got := a.jobs.Running(); got != 0 {
+		t.Errorf("Running = %d, want 0", got)
+	}
+
+	if _, ok := receivedOf[templates.SyncStartingMsg](tpl); !ok {
+		t.Error("the starting message never reached the templates view")
+	}
+	if _, ok := receivedOf[templates.SyncCompleteMsg](tpl); !ok {
+		t.Error("the completion never reached the templates view")
+	}
+}
+
+// A sync that fails settles too: a failed run is finished, not in progress.
+func TestAFailedTemplateSyncSettlesTheRun(t *testing.T) {
+	a := router(t, &fakeView{})
+	a.views[command.ViewTemplates] = &fakeView{}
+	testutil.FastTimers(t, &jobSpinnerInterval)
+
+	a.Update(jobs.StartMsg{Run: jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", "Spring API", "spring-api")})
+	a.Update(templates.SyncStartingMsg{Slug: "spring-api"})
+	a.Update(templates.SyncCompleteMsg{Slug: "spring-api", Name: "Spring API", Err: errors.New("unreachable")})
+
+	if got := a.jobs.Snapshot()[0].State(); got != jobs.RunFailed {
+		t.Errorf("state = %q, want %q", got, jobs.RunFailed)
+	}
+	if got := a.jobs.Running(); got != 0 {
+		t.Errorf("Running = %d, want 0", got)
 	}
 }

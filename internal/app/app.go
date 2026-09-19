@@ -469,6 +469,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case templates.ScanCompleteMsg:
 		return a.routeWork(command.ViewTemplates, msg)
 
+	// A template's sync reports the same way. A message that implements
+	// jobs.Reporter but has no case here is delivered to the view and never
+	// reaches the registry, which leaves the run in progress for the life of
+	// the session.
+	case templates.SyncStartingMsg:
+		return a.routeWork(command.ViewTemplates, msg)
+
+	case templates.SyncCompleteMsg:
+		return a.routeWork(command.ViewTemplates, msg)
+
 	case ociresources.ImageScanStartingMsg:
 		return a.routeWork(command.ViewOCIResources, msg)
 
