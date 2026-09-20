@@ -1,0 +1,344 @@
+package netdiag
+
+import (
+	"fmt"
+	"strconv"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/anthnel/devdesk/internal/forward"
+	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/theme"
+)
+
+// The Forward tab: the open port redirections, and the form that opens one
+// (§3.1).
+//
+// It holds no listener. The registry is the router's — a view is dropped whole
+// by reinitializeViews on a config save and on a context switch, and a bound
+// port going with it would be leaked in silence. This model asks
+// (forward.Open / forward.Close / forward.Refresh) and is told
+// (forward.ChangedMsg).
+
+// forwardRefreshInterval is how often the tab asks for a fresh snapshot.
+//
+// It is a constant rather than a setting because the two things it shows move
+// on their own — the connection counters — and neither is worth a context key
+// (§3.1 keeps the forwards out of the configuration entirely). Two seconds is
+// what the Ports tab defaults to, and the same reading is what makes them feel
+// like one screen.
+const forwardRefreshInterval = 2 * time.Second
+
+// forwardTickMsg drives the snapshot chain.
+type forwardTickMsg struct{}
+
+func forwardTickCmd() tea.Cmd {
+	return tea.Tick(forwardRefreshInterval, func(time.Time) tea.Msg { return forwardTickMsg{} })
+}
+
+// ForwardModel is the tab's state.
+type ForwardModel struct {
+	width  int
+	height int
+
+	table datatable.Model[forward.Forward]
+
+	// form is non-nil while N's form has the screen (Rule 112).
+	form *ForwardForm
+	// confirmModal guards K. Stopping a forward drops the connections it is
+	// carrying, which is not something to do on a mistyped key.
+	confirmModal *components.ConfirmModal
+
+	// ticking says a snapshot chain is alive. The chain runs only while there
+	// is something to refresh and is restarted when a forward appears — the
+	// shape of the router's job spinner (D5). Without it the tab would ask the
+	// router for a broadcast every two seconds for the whole session, on a
+	// table that is empty and cannot change on its own.
+	ticking bool
+
+	// footer is this tab's own message line, like every other tab's: a shared
+	// one would let a message set here outlive the switch away.
+	footer components.FooterMessage
+}
+
+// forwardColumns describes the table.
+//
+// Local and Target are what a forward *is* and never drop. Everything else is
+// Optional, in the order it is worth losing: Total before Age before the
+// error, since a count of everything ever carried is the least urgent of them
+// (Rule 116 — a column gives way whole, never one cell at a time).
+func forwardColumns() []datatable.Column[forward.Forward] {
+	target := func(f forward.Forward) string { return f.Target }
+	source := func(f forward.Forward) string {
+		if f.Label == "" {
+			return "-"
+		}
+		return f.Label
+	}
+
+	return []datatable.Column[forward.Forward]{
+		{
+			Title: "Local", Sizing: datatable.SizingFixed, MinWidth: 7,
+			Cell:   func(f forward.Forward) string { return strconv.Itoa(f.LocalPort) },
+			Search: func(f forward.Forward) string { return strconv.Itoa(f.LocalPort) },
+		},
+		{
+			Title: "Target", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 1,
+			Cell: target, Search: target,
+		},
+		{
+			Title: "Source", Sizing: datatable.SizingContent, MinWidth: 10, Optional: true,
+			Cell: source, Search: source,
+			// A forward whose target was typed has no source, and a "-" is an
+			// absence rather than a value (Rule 122).
+			Style: func(f forward.Forward) lipgloss.Style {
+				if f.Label == "" {
+					return theme.DimStyle
+				}
+				return lipgloss.NewStyle()
+			},
+		},
+		{
+			Title: "Live", Sizing: datatable.SizingFixed, MinWidth: 6,
+			Cell:  func(f forward.Forward) string { return strconv.Itoa(f.Active) },
+			Style: dimWhenZero(func(f forward.Forward) int { return f.Active }),
+		},
+		{
+			Title: "Total", Sizing: datatable.SizingFixed, MinWidth: 7, Optional: true, DropFirst: true,
+			Cell:  func(f forward.Forward) string { return strconv.FormatInt(f.Total, 10) },
+			Style: dimWhenZero(func(f forward.Forward) int { return int(f.Total) }),
+		},
+		{
+			Title: "Age", Sizing: datatable.SizingFixed, MinWidth: 9, Optional: true,
+			Cell: func(f forward.Forward) string { return theme.TimeAgo(f.Opened) },
+		},
+		{
+			Title: "Last error", Sizing: datatable.SizingContent, MinWidth: 12, Optional: true,
+			Cell: func(f forward.Forward) string {
+				if f.LastErr == "" {
+					return "-"
+				}
+				return f.LastErr
+			},
+			// The healthy case is the majority one and gets no colour; the
+			// absence of an error reads as an absence (Rule 122).
+			Style: func(f forward.Forward) lipgloss.Style {
+				if f.LastErr == "" {
+					return theme.DimStyle
+				}
+				return theme.StatusErrorStyle
+			},
+		},
+	}
+}
+
+// dimWhenZero greys a counter that has nothing to say (Rule 122).
+func dimWhenZero(count func(forward.Forward) int) func(forward.Forward) lipgloss.Style {
+	return func(f forward.Forward) lipgloss.Style {
+		if count(f) == 0 {
+			return theme.DimStyle
+		}
+		return lipgloss.NewStyle()
+	}
+}
+
+// newForwardModel creates the tab.
+func newForwardModel() *ForwardModel {
+	return &ForwardModel{
+		table: datatable.New(datatable.Config[forward.Forward]{
+			Columns: forwardColumns(),
+			// The registry already hands them over oldest first, which is the
+			// order they were opened in — the one order a row does not move in
+			// when another forward is added.
+			SortColumn: -1,
+		}),
+	}
+}
+
+// InEditMode returns true when the form, the search box or the confirmation
+// holds the keyboard.
+func (fm *ForwardModel) InEditMode() bool {
+	return fm.form != nil || fm.table.InEditMode() || fm.confirmModal != nil
+}
+
+// resize lays the table out. fm.height is the viewport content height the app
+// sent (Rule 124); the filter bar lives in the footer, outside it (Rule 116).
+func (fm *ForwardModel) resize(width, height int) {
+	fm.width = width
+	fm.height = height
+	if width == 0 {
+		return
+	}
+	if fm.form != nil {
+		fm.form.SetWidth(width)
+	}
+	fm.table.Resize(width, max(height, 3))
+}
+
+func (fm *ForwardModel) update(msg tea.Msg) (*ForwardModel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case forward.ChangedMsg:
+		return fm.handleChanged(msg)
+	case forwardTickMsg:
+		return fm.handleTick()
+	case ForwardFormSubmitMsg:
+		return fm.handleFormSubmit(msg)
+	case ForwardFormCancelMsg:
+		fm.form = nil
+		return fm, nil
+	case components.ConfirmModalYesMsg:
+		fm.confirmModal = nil
+		return fm.closeSelected()
+	case components.ConfirmModalNoMsg:
+		fm.confirmModal = nil
+		return fm, nil
+	case tea.KeyMsg:
+		return fm.handleKey(msg)
+	}
+	return fm, nil
+}
+
+// handleChanged takes the router's snapshot and restarts the chain if one is
+// needed. The cursor and the scroll survive SetItems, which is what lets this
+// run every two seconds.
+func (fm *ForwardModel) handleChanged(msg forward.ChangedMsg) (*ForwardModel, tea.Cmd) {
+	fm.table.SetItems(msg.Forwards)
+	return fm, fm.ensureTick()
+}
+
+// ensureTick starts the chain when there is something to watch and none is
+// alive. It is the one place a chain starts, so no path can leave two running.
+func (fm *ForwardModel) ensureTick() tea.Cmd {
+	if fm.ticking || len(fm.table.Items()) == 0 {
+		return nil
+	}
+	fm.ticking = true
+	return forwardTickCmd()
+}
+
+// handleTick asks the router for a snapshot and renews itself, or lets the
+// chain die once the last forward is gone.
+func (fm *ForwardModel) handleTick() (*ForwardModel, tea.Cmd) {
+	if len(fm.table.Items()) == 0 {
+		fm.ticking = false
+		return fm, nil
+	}
+	return fm, tea.Batch(forward.Refresh, forwardTickCmd())
+}
+
+// handleFormSubmit closes the form and asks the router to open the forward.
+// Every refusal is the registry's to give, and arrives at the footer.
+func (fm *ForwardModel) handleFormSubmit(msg ForwardFormSubmitMsg) (*ForwardModel, tea.Cmd) {
+	fm.form = nil
+	return fm, forward.Open(msg.LocalPort, msg.Target, "")
+}
+
+func (fm *ForwardModel) handleKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
+	if fm.confirmModal != nil {
+		var cmd tea.Cmd
+		fm.confirmModal, cmd = fm.confirmModal.Update(msg)
+		return fm, cmd
+	}
+	if fm.form != nil {
+		return fm.handleFormKey(msg)
+	}
+	if fm.table.InEditMode() {
+		cmd := fm.table.Update(msg)
+		fm.table.GotoTop() // a narrowing query starts from the first match
+		return fm, cmd
+	}
+	return fm.handleKeyNormal(msg)
+}
+
+// handleFormKey lets the form have the keyboard, and answers the one refusal
+// the form itself decides rather than letting the keypress vanish (Rule 130).
+func (fm *ForwardModel) handleFormKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
+	if msg.String() == "enter" && !fm.form.PortIsANumber() {
+		return fm, fm.footer.Warn(reasonPortNotANumber)
+	}
+	var cmd tea.Cmd
+	fm.form, cmd = fm.form.Update(msg)
+	return fm, cmd
+}
+
+func (fm *ForwardModel) handleKeyNormal(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
+	switch msg.String() {
+	case "up", "down", "pgup", "pgdown", "home", "end", "/":
+		return fm, fm.table.Update(msg)
+	case keymap.New:
+		fm.form = NewForwardForm(fm.width)
+		return fm, nil
+	case keymap.Kill:
+		return fm.confirmClose()
+	}
+	return fm, nil
+}
+
+// Why an action does not apply, written once so the header, the footer and the
+// tests cannot drift apart on the wording (Rule 129 — English US).
+const (
+	reasonNoForwardRow   = "No forward selected"
+	reasonPortNotANumber = "The local port has to be a number"
+)
+
+// closable reports whether K has a forward to stop (Rule 130).
+func (fm *ForwardModel) closable() shortcut.Availability {
+	if _, ok := fm.table.Selected(); !ok {
+		return shortcut.Unavailable(reasonNoForwardRow)
+	}
+	return shortcut.Availability{}
+}
+
+// confirmClose asks before dropping the connections the forward is carrying.
+func (fm *ForwardModel) confirmClose() (*ForwardModel, tea.Cmd) {
+	if c := fm.closable(); !c.Enabled() {
+		return fm, fm.footer.Warn(c.Reason)
+	}
+	entry, _ := fm.table.Selected()
+	body := fmt.Sprintf("Stop forwarding %s to %s?", entry.Addr(), entry.Target)
+	if entry.Active > 0 {
+		body += fmt.Sprintf("\n\n%d connection(s) in progress will be dropped.", entry.Active)
+	}
+	fm.confirmModal = components.NewConfirmModal("Stop Forward", body)
+	return fm, nil
+}
+
+// closeSelected asks the router to stop the forward, once confirmed.
+func (fm *ForwardModel) closeSelected() (*ForwardModel, tea.Cmd) {
+	entry, ok := fm.table.Selected()
+	if !ok {
+		return fm, nil
+	}
+	return fm, forward.Close(entry.ID)
+}
+
+// view renders the form when it is open (Rule 112), and otherwise the table —
+// always the table, empty or not (Rule 139).
+func (fm *ForwardModel) view() string {
+	if fm.form != nil {
+		return fm.form.View()
+	}
+	return fm.table.View()
+}
+
+// status is what the footer says when no message is pending: a state, derived
+// every frame, never set with a timer (Rule 128).
+func (fm *ForwardModel) status() components.Status {
+	if fm.form != nil {
+		return components.Status{Text: "Forwards listen on 127.0.0.1 only, on a port at or above 1024"}
+	}
+	if len(fm.table.Items()) == 0 {
+		return components.Status{Text: "No forward open — N opens one"}
+	}
+	return components.Status{}
+}
+
+// summaryLine counts what is open, for the header (Rule 139).
+func (fm *ForwardModel) summaryLine() string {
+	return fmt.Sprintf("%d", len(fm.table.Items()))
+}

@@ -31,6 +31,18 @@ func (m *Model) View() string {
 		return m.portsModel.view()
 	case tabInterfaces:
 		return m.interfacesModel.view()
+	case tabForward:
+		// The stop confirmation is centred over the tab, like every other
+		// modal (Rule 112).
+		if modal := m.forwardModel.confirmModal; modal != nil {
+			return lipgloss.Place(
+				m.width, m.height,
+				lipgloss.Center, lipgloss.Center,
+				modal.View(),
+				lipgloss.WithWhitespaceBackground(theme.ColorBackground),
+			)
+		}
+		return m.forwardModel.view()
 	}
 	switch m.state {
 	case StateInput:

@@ -50,6 +50,31 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 		}...)
 	}
 
+	if m.activeTab == tabForward {
+		if m.forwardModel.form != nil {
+			// A form is a mode, so the whole list is replaced rather than
+			// greyed (Rule 130): greying N and K here would show the union of
+			// two vocabularies.
+			return shortcut.Shortcuts{
+				{Key: "enter", Description: "Open the forward"},
+				{Key: "esc", Description: "Cancel"},
+			}
+		}
+		if m.forwardModel.table.FilterBar().InEditMode() {
+			return shortcut.Shortcuts{
+				{Key: "enter/esc", Description: "Confirm / Cancel search"},
+			}
+		}
+		return append(tabShortcuts, shortcut.Shortcuts{
+			{Key: keymap.New, Description: "New forward"},
+			// Nothing to stop on an empty table (Rule 130).
+			{Key: keymap.Kill, Description: "Stop forward", Disabled: !m.forwardModel.closable().Enabled()},
+			{Key: "/", Description: "Search"},
+			{Key: ".", Description: "Sort"},
+			{Key: "?", Description: "Help"},
+		}...)
+	}
+
 	if m.activeTab == tabPorts {
 		if m.portsModel.table.FilterBar().InEditMode() {
 			return shortcut.Shortcuts{
@@ -146,6 +171,13 @@ func (m *Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 			Style: theme.HeaderValueStyle,
 		})
 	}
+	if m.activeTab == tabForward {
+		return append(info, shortcut.HeaderInfo{
+			Key:   "Forwards",
+			Value: m.forwardModel.summaryLine(),
+			Style: theme.HeaderValueStyle,
+		})
+	}
 	if m.activeTab != tabDiagnostics || m.state == StateInput {
 		return info
 	}
@@ -184,6 +216,9 @@ func (m *Model) GetFooterHeight() int {
 	if m.activeTab == tabInterfaces {
 		return 3 + m.interfacesModel.table.FilterBar().ExtraHeight()
 	}
+	if m.activeTab == tabForward {
+		return 3 + m.forwardModel.table.FilterBar().ExtraHeight()
+	}
 	return 3
 }
 
@@ -199,12 +234,15 @@ func (m *Model) RenderFooter(width int) string {
 		parts = append(parts, m.filterBar.View())
 	case m.activeTab == tabInterfaces && m.interfacesModel.table.FilterBar().IsVisible():
 		parts = append(parts, m.interfacesModel.table.FilterBar().View())
+	case m.activeTab == tabForward && m.forwardModel.table.FilterBar().IsVisible():
+		parts = append(parts, m.forwardModel.table.FilterBar().View())
 	}
 
 	tabs := theme.RenderTabs([]theme.TabItem{
 		{Label: "Diagnostics"},
 		{Label: "Ports"},
 		{Label: "Interfaces"},
+		{Label: "Forward"},
 	}, m.activeTab)
 	tabBar := theme.PadWithBg(theme.Bg(" ")+tabs, width)
 
@@ -223,6 +261,8 @@ func (m *Model) activeFooter() (*components.FooterMessage, components.Status) {
 		return &m.portsModel.footer, m.portsModel.statusLine()
 	case tabInterfaces:
 		return &m.interfacesModel.footer, m.interfacesModel.statusLine()
+	case tabForward:
+		return &m.forwardModel.footer, m.forwardModel.status()
 	}
 	return &m.footer, m.statusLine()
 }
@@ -242,10 +282,10 @@ func (m *Model) statusLine() components.Status {
 func (m *Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title:       "Network",
-		Description: "Three-tab view: check whether a host is reachable and its certificate chain sound (Diagnostics), monitor live ports (Ports), or inspect network topology (Topology).",
+		Description: "Four-tab view: check whether a host is reachable and its certificate chain sound (Diagnostics), monitor live ports (Ports), inspect this machine's network interfaces (Interfaces), or redirect a local port to a host:port (Forward).",
 		KeyBindings: []help.KeyBinding{
 			// Tab navigation
-			{Key: "tab / shift+tab", Description: "Cycle between Diagnostics, Ports, and Topology tabs"},
+			{Key: "tab / shift+tab", Description: "Cycle between the Diagnostics, Ports, Interfaces and Forward tabs"},
 			// Diagnostics
 			{Key: "↑ / ↓", Description: "Navigate between fields (Diagnostics tab)"},
 			{Key: "enter (form)", Description: "Run the checks against the target"},
@@ -272,6 +312,11 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "/", Description: "Search interfaces by name, MAC or address (Interfaces tab)"},
 			{Key: ".", Description: "Cycle the sort column (Interfaces tab)"},
 			{Key: "ctrl+r", Description: "Re-read the interfaces (Interfaces tab)"},
+			// Forward tab
+			{Key: keymap.New, Description: "Open a new forward (Forward tab)"},
+			{Key: keymap.Kill, Description: "Stop the selected forward, after confirmation (Forward tab)"},
+			{Key: "/", Description: "Search forwards by port, target or source (Forward tab)"},
+			{Key: ".", Description: "Cycle the sort column (Forward tab)"},
 		},
 		Sections: []help.Section{
 			{
@@ -312,6 +357,24 @@ func (m *Model) GetHelpContent() help.Content {
 					"silently killed elsewhere.\n\n" +
 					"n toggles reverse DNS on the addresses. Host names only — port numbers stay " +
 					"numeric, because a service name would be DevDesk's guess and not the system's.",
+			},
+			{
+				Title: "Forward Tab — How it works",
+				Body: "Redirects a local TCP port to a host:port, inside this process — no privilege, " +
+					"no container, nothing written to a system file. Use it to reach a port nothing " +
+					"published: a container's EXPOSEd port, or a service on another machine.\n\n" +
+					"The listener binds 127.0.0.1 only, so the redirection is available to this " +
+					"machine and not to the network — a service kept off the LAN stays off it. The " +
+					"local port has to be 1024 or above: anything below needs privileges DevDesk " +
+					"does not ask for, and there is no unprivileged way around that on Linux or " +
+					"macOS.\n\n" +
+					"The target is dialled once before the port is bound, so an address that answers " +
+					"nothing is refused immediately instead of failing later at the first client. A " +
+					"container's own address is reachable from the host on native Linux; under " +
+					"Docker Desktop it lives in the virtual machine and does not route out of it.\n\n" +
+					"Forwards last for the session. They survive a context switch — a local port " +
+					"pointed at a host:port belongs to no context — and they are gone when DevDesk " +
+					"exits, because a listener cannot outlive the process holding it.",
 			},
 			{
 				Title: "Interfaces Tab — How it works",

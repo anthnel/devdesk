@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/credentials"
+	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/configuration"
@@ -204,6 +205,9 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 	// New() replaces this one with the real backend via useSecrets.
 	sharedState := &shared.State{
 		Secrets: credentials.SessionOnly("no secret store has been resolved yet"),
+		// Created here and never replaced: the forwards outlive every view
+		// rebuild, and a context switch with them (§3.1).
+		Forwards: forward.New(),
 	}
 
 	app := &App{
@@ -409,6 +413,21 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// to the view that started it rather than to the one on screen. None of
 	// them changes the current view: a scan can run for minutes, and dragging
 	// the user back to watch it was the whole of D67.
+	// ── Port forwards (§3.1) ─────────────────────────────────────────────
+	// The registry is the router's; a view asks and is told. Opening does
+	// I/O, so it is answered with a Cmd rather than handled here.
+	case forward.OpenMsg:
+		return a.handleForwardOpen(msg)
+
+	case forward.OpenedMsg:
+		return a.handleForwardOpened(msg)
+
+	case forward.CloseMsg:
+		return a.handleForwardClose(msg)
+
+	case forward.RefreshMsg:
+		return a.handleForwardRefresh()
+
 	case jobs.StartMsg:
 		return a.handleStartJobs(msg)
 
