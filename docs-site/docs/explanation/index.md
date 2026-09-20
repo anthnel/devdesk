@@ -19,6 +19,6 @@ instead if you already know the shape and need a specific name or value.
 | [Viewer](viewer.md) | The one document viewer every "open this file/log" action in the app shares, and how it adapts per file kind |
 | [Security Scanning](scanning.md) | How Trivy, Gitleaks and the scan cache fit together, and why scans are background jobs rather than blocking waits |
 | [Registries](registries.md) | The registry/group model behind OCI image discovery |
-| [Network](network.md) | `internal/docker`, `internal/oci`, and the network diagnostics + live port monitor |
+| [Network](network.md) | `internal/docker`, `internal/oci`, the network diagnostics, live port monitor and local port forwarding |
 | [MCP Server](mcp.md) | Why DevDesk serves its data over MCP instead of calling a model itself |
 | [UI Components](ui-components.md) | The shared building blocks — tables, forms, footer messages — that keep every view consistent |

@@ -9,7 +9,7 @@ A terminal-based DevSecOps workstation built with Go and [Bubble Tea](https://gi
 | **Workspaces** | Local repositories with branch, status, last scan at a glance |
 | **Security** | Trivy (CVE, secrets, licenses, misconfig) and Gitleaks scans |
 | **Containers & OCI** | Manage running containers, browse and scan images |
-| **Network Diagnostics** | DNS, ICMP, traceroute, TCP/HTTP/TLS checks, live port monitor |
+| **Network Diagnostics** | DNS, ICMP, traceroute, TCP/HTTP/TLS checks, live port monitor, unprivileged local port forwarding |
 
 ## Where to start
 

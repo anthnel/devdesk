@@ -39,12 +39,26 @@ CI pipeline, security/results/CI tab only) and `ctrl+y` (copy the `docker
 run` command) — narrow enough that reserving a global uppercase for either
 would cost more than it buys.
 
+## Network Diagnostics — Forward tab
+
+| Key | Action |
+|---|---|
+| `N` | Open a new forward — a TCP redirection, or a named HTTP route |
+| `space` | Pause the selected forward, or resume a paused or unbound one |
+| `K` | Delete the selected forward, after a confirmation |
+| `←` / `→` | Change the `Type` field (`TCP` / `HTTP`) in the form |
+| `/` | Search by port or target |
+| `.` | Cycle the sort column |
+
+`space` is Pause/Resume — a control, not a new capital — and `K` greys out
+when there is nothing selected to delete.
+
 ## Lowercase — local filters and toggles, view by view
 
 Lowercase letters never modify anything; they're local and can repeat
 across views. Examples: `r`/`p`/`s`/`t`/`z` in Containers are cumulative
 state filters; `c`/`h`/`m`/`l` in Security are cumulative severity filters;
-`t`/`u`/`l`/`e`/`n`/`z` in Network Diagnostics filter protocol/state; `g` in
+`t`/`u`/`l`/`e`/`n`/`z` in Network Diagnostics filter protocol/state (Ports tab); `g` in
 Workspaces opens fuzzy-find navigation (jump to any directory under the
 workspaces root by typing part of its path), the same letter the document
 viewer uses for its own, unrelated "go to line" prompt. Each view declares

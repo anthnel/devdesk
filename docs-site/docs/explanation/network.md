@@ -1,7 +1,7 @@
 # Network
 
 DevDesk's network diagnostics — reachability checks, the local socket table,
-and the network interface list — all run *inside the DevDesk process itself*,
+the network interface list, and local port forwarding — all run *inside the DevDesk process itself*,
 never inside a privileged container. This page explains why that constraint
 exists, what it cost to satisfy, and how the diagnostics pipeline is built
 around it.
@@ -237,6 +237,102 @@ Firewall profiles versus `pf`), and a full routing table is arguably the
 wrong shape for the underlying question anyway — the route stage described
 above answers a *specific* routing question ("which interface will this
 traffic use?") far more directly than a static table would.
+
+## The Forward tab — `internal/forward`
+
+The Forward tab redirects a local port to a `host:port`, or gives a service a
+name — **inside the DevDesk process and with no privilege**. A forward is a
+`net.Listen` on `127.0.0.1` plus two `io.Copy`; nothing is installed and no
+elevation is asked for. `N` opens one, `space` pauses or resumes it, `K` deletes
+it after a confirmation.
+
+**The router owns the forwards, not the tab.** A configuration save or a
+context switch drops every view, so a listener held by the tab would stay
+bound with nothing left to close it. The tab asks the router to open, close or
+refresh, and is told about every change. A forward belongs to no context, so
+forwards **survive a context switch**.
+
+### Four decisions about a TCP forward
+
+- **Loopback only.** A forward binds `127.0.0.1`; `0.0.0.0` would put on the
+  LAN a service its owner kept off it.
+- **Below 1024 is refused up front**, before the target is even probed. There
+  is no unprivileged way around it on Unix, and `permission denied` reads like
+  something a retry would fix.
+- **The target is dialled once before the port opens.** Otherwise the bind
+  succeeds, the row reads healthy, and the failure only surfaces at the first
+  client. Refusals carry a fixed wording of DevDesk's own, never the operating
+  system's.
+- **A container's own address is not a target on Docker Desktop.** That
+  address exists inside the Linux VM and routes nowhere outside it (the same
+  mechanism as the Ports tab's problem above); it works on native Linux. The
+  probe turns it into a named refusal rather than a healthy-looking dead row.
+
+### Forwards survive a restart
+
+The listener can't outlive the process, but the *intent* can: every forward is
+written to `~/.devdesk/forwards.yaml` and reopened at the next launch. It's a
+file of its own rather than a key of `config.yaml` because the config is per
+context and reloaded on every switch, while a forward belongs to none.
+
+A forward is in one of three states:
+
+| State | Meaning | Saved as |
+|---|---|---|
+| Live | listener bound | an entry |
+| Paused | you stopped it; the port is released, the row is kept | an entry with `paused: true` |
+| Unbound | wanted but not bound — the port was taken or the target silent at the last attempt; the row says which | an entry, retried at launch |
+
+- **A typo at creation deletes nothing; a failure at launch keeps the entry.**
+  The form refuses a bad port or an unreachable target and writes nothing. At
+  launch, though, a service that isn't up yet or a port another process holds
+  *today* must not make DevDesk forget the route — the row reads *unbound* and
+  `space` tries again.
+- **Rows keep their creation order**, so a row doesn't move when paused and
+  resumed.
+- **The write is atomic** (temporary file, then rename). An **unreadable** file is
+  refused rather than treated as empty, and the next save moves it aside to
+  `forwards.yaml.unreadable` instead of overwriting it.
+- **Two DevDesk instances share the file.** The last write wins and there is no
+  lock: the second instance's reopening finds the first one's ports taken and
+  reads *unbound* rather than failing.
+
+### Named routes — `http://api.localhost:8080`
+
+A forward given a **name** becomes an HTTP route instead of a TCP
+redirection. One small HTTP server on `127.0.0.1:<network.proxy_port>` (8080
+by default, see the [configuration reference](../reference/configuration.md))
+serves every route, and the request's `Host` header picks the target:
+`http://api.localhost:8080` and `http://app.localhost:8080` differ by name,
+not by port. There is no DNS entry to add and no privilege to gain —
+`*.localhost` is reserved for the loopback (RFC 6761) and the platforms
+measured resolve it unaided.
+
+In the form, `Type` is a `←`/`→` cycle field (`TCP` / `HTTP`), and only the
+fields that apply to the chosen type are shown.
+
+- **The proxy starts with the first served route and stops with the last.**
+- **A name must be a valid host name ending in `.localhost`**, stored in lower
+  case and unique across every route — a paused route keeps its name, or
+  resuming it would find it gone.
+- **Unknown host → 404 listing what *is* served; silent target → 502 naming it.**
+  `Host` is matched ignoring its port, a trailing dot and case.
+- **The original `Host` reaches the backend** rather than being replaced by the
+  target's, because applications behind a named route often key on it.
+  WebSocket upgrades pass, which is what hot reload rides on.
+- **A route has no port of its own**: its row shows the proxy's port — the number
+  that goes in the URL — and a TCP forward asking for that port is refused.
+- **The port follows the configuration.** `network.proxy_port` is per context
+  while forwards belong to none, so a context switch or a saved configuration
+  that changes it moves the proxy. If the new port can't be bound, every live
+  route reads *unbound* with the reason, and nothing leaves the file.
+
+**Limits.** HTTP only — `https://app.localhost` would need a certificate the
+browser trusts, which is one more elevation. The port stays in the URL (port 80
+is privileged). A name outside `.localhost` doesn't resolve, and a client with
+its own resolver isn't covered. The proxy adds no CORS header: it makes nothing
+reachable that wasn't already on the loopback. The proxy binds IPv4 only, and
+browsers on Windows and macOS haven't been measured yet.
 
 ## What's deliberately still out of scope
 

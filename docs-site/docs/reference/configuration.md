@@ -77,7 +77,9 @@ independently, and Gitleaks runs whenever `enable_secret` is on.
 | `ping_count` | int | | ICMP echo requests per reachability probe |
 | `cert_expiry_warn_days` | int | `30` | How close to expiry a TLS check warns |
 | `ports_refresh_interval` | int (seconds) | `2` | Ports tab refresh rate |
+| `proxy_port` | int | `8080` | The one port every named Forward route is served on (`http://api.localhost:8080`). Loopback only, 1024–65535 — a value outside that range is logged and replaced by the default |
 
+Forwards themselves are not in `config.yaml`: they live in `~/.devdesk/forwards.yaml`, shared by every context (see [Network](../explanation/network.md#the-forward-tab-internalforward)).
 ## `mcp:`
 
 | Key | Type | Default | Meaning |

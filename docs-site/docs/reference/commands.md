@@ -14,7 +14,7 @@ line, then type any of these:
 | `templates` | `tpl` | Repository template catalog |
 | `containers` | `cont`, `ct` | Containers |
 | `oci-resources` | `oci` | OCI Resources |
-| `netdiag` | `net` | Network Diagnostics |
+| `netdiag` | `net` | Network Diagnostics (Diagnostics, Ports, Interfaces and Forward tabs) |
 | `configuration` | `config`, `cfg` | Configuration |
 | `jobs` | `j` | Jobs |
 | `about` | `version` | Build info |
