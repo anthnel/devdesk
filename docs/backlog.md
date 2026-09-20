@@ -3567,10 +3567,105 @@ rather than only where the change is being reported on.
 
 Carried over from `todo.md`, except §3.7.
 
-### 3.1 Network diagnostics
+### 3.1 Network diagnostics — **redirecteur fait, sans le pré-remplissage conteneur**
 
-- **Port-forwarding manager** — an interactive dashboard to manage port
-  redirections to the host machine.
+Reporté de `todo.md` en une ligne : « *Port-forwarding manager — an interactive
+dashboard to manage port redirections to the host machine* ». Ce qui a été
+livré est un **redirecteur TCP non privilégié**, en quatrième onglet de `:net`.
+
+#### Deux choses écartées, et pourquoi
+
+**Les alias de noms via `/etc/hosts` sont abandonnés.** Ils demandent une
+élévation sur les trois plateformes — `sudo` ou `pkexec` sous Linux,
+`osascript` sous macOS, et UAC sous Windows **même pour un compte
+administrateur** (le jeton filtré n'écrit pas dans `System32\drivers\etc`) —
+trois mécanismes sans rien de commun. Sous Windows il faudrait en plus que `dk`
+se réinvoque lui-même élevé, ce qui est une surface d'élévation de privilèges à
+sécuriser : un fichier temporaire dans un répertoire inscriptible par un tiers
+offre une écriture root arbitraire. Et ce serait le contraire de §3.43/§3.44, qui
+ont retiré le dernier conteneur privilégié de l'application.
+
+**Le redirecteur, lui, ne demande aucun droit.** C'est un `net.Listen` et deux
+`io.Copy` dans le process. Mesuré sous Linux non-root : `bind` refusé sur 80 et
+443, accepté sur 8080. Windows n'a pas de plage réservée, mais la limite de 1024
+est appliquée partout pour qu'une redirection montée sur une machine marche sur
+une autre.
+
+#### Ce qui est fait
+
+`internal/forward` (un listener, un proxy, un registre), câblé au routeur, et un
+onglet **Forward** dans `internal/ui/netdiag` : `N` ouvre un formulaire (port
+local, cible `host:port`), `K` arrête après confirmation, `/` cherche.
+
+- **Le listener écoute `127.0.0.1` uniquement.** `0.0.0.0` exposerait au LAN un
+  service que le conteneur gardait pour lui — exactement ce que §3.64 cherche à
+  repérer ; le faire ici par défaut serait l'application qui le commet.
+- **Un port sous 1024 est refusé avant l'appel système**, avec la raison dite.
+  La limite est structurelle sous Unix ; `bind: permission denied` se lirait
+  comme quelque chose qu'un nouvel essai réparerait.
+- **La cible est sondée une fois avant que le port ne s'ouvre.** Sans cela le
+  `bind` réussit, la ligne se lit saine, et l'échec n'arrive qu'au premier
+  client. C'est aussi ce qui a attrapé le cas ci-dessous.
+- **Le registre appartient au routeur** (`shared.State.Forwards`), pas à la vue :
+  `reinitializeViews` jette toutes les vues à chaque sauvegarde de config et à
+  chaque changement de contexte, et un port lié qui partirait avec elles serait
+  perdu sans rien pour le dire. `TestForwardsSurviveAViewRebuild` l'écrit. Les
+  redirections **survivent au changement de contexte**, contrairement au serveur
+  MCP qui redémarre parce qu'il répond *pour* un contexte : un port local pointé
+  sur un `host:port` n'appartient à aucun.
+- **Session seulement.** Rien dans le YAML, aucune migration : un listener ne
+  survit pas au process qui le détient, donc une liste persistée promettrait ce
+  qu'elle ne peut pas tenir.
+- **Le registre a un mutex, contrairement à `internal/jobs`.** `jobs` n'est muté
+  que depuis `Update` ; ici les goroutines d'accept écrivent réellement dans les
+  compteurs que `Update` lit. Le verrou n'est jamais tenu pendant une E/S.
+
+#### Mesuré, et ce que ça a tranché — 2026-09-20
+
+**Sous Docker Desktop, l'IP d'un conteneur n'est pas joignable depuis l'hôte.**
+Sur la machine Windows de développement, un conteneur `nginx` sans port publié
+(`172.17.0.3:80`) donne `dial tcp 172.17.0.3:80: i/o timeout` : l'adresse existe
+dans la VM Linux et ne route nulle part en dehors. C'est le mécanisme de D55 —
+l'onglet Ports qui listait les sockets de la VM en croyant parler de l'hôte —
+vu depuis l'autre côté. La sonde a fait son travail : le port ne s'est pas
+ouvert, et le message nomme la cause plutôt que d'afficher une ligne verte qui ne
+délivre rien.
+
+**Le pré-remplissage depuis un conteneur en cours d'exécution n'est donc pas
+construit.** Il aurait composé `IP:port` à partir de `docker inspect`, ce qui ne
+marche que sous Docker natif Linux — la plateforme où on en a le moins besoin.
+Le cas « joindre un port non publié sans redémarrer » reste **ouvert** :
+
+- **Voie retenue : rien de plus.** La cible saisie à la main marche, et un
+  conteneur se relance avec `-p 127.0.0.1:P:80`.
+- **Piste, non engagée : un relais dans le réseau du conteneur** — un petit
+  conteneur `socat`, non privilégié, qui publie un port vers le conteneur cible,
+  puis un forward vers ce port publié. C'est la seule voie qui marche sous
+  Docker Desktop, mais elle réintroduit un conteneur auxiliaire et une image à
+  tirer, ce que §3.43 à §3.47 ont retiré : une entrée à part, avec sa propre
+  décision.
+- **Non mesuré : `podman inspect` contre `docker inspect`** sur
+  `.NetworkSettings.Networks.*.IPAddress`. La question ne se pose plus sans le
+  pré-remplissage, mais c'est la classe de divergence que §3.67 a trouvée trois
+  fois — à mesurer avant tout retour du pré-remplissage.
+
+#### Trouvé en chemin
+
+- **Les réponses du modal de confirmation partaient toutes vers l'onglet Ports.**
+  Avec un second onglet qui demande avant d'agir, un « oui » dans Forward aurait
+  confirmé un kill dans Ports. `routeConfirm` les remet à l'onglet qui a ouvert
+  le modal.
+- **`viewsWithATableBody` nommait `netdiag/topology_model.go`, supprimé par
+  §3.44.** La garde compare par suffixe, donc une entrée qui ne correspond à rien
+  ne fait pas échouer : elle ne garde rien. netdiag n'était plus protégé contre la
+  Rule 139 depuis. Deuxième occurrence après `forge/explorer/view.go` (§3.6) ;
+  `TestEveryGuardedFileExists` ferme la classe, vérifié contre l'entrée périmée.
+- **L'aide décrivait encore trois onglets et appelait le troisième « Topology »**,
+  que la barre d'onglets nomme « Interfaces » depuis §3.44.
+- **Un `textinput` de largeur 0 n'affiche que le premier caractère de son
+  placeholder** — le formulaire lisait `8` et `h` au lieu de `8080` et
+  `host:port`. Pas un défaut de bubbles mais une largeur jamais posée ; le test a
+  été vérifié contre le code non corrigé.
 
 ### 3.2 Interactive security remediation
 

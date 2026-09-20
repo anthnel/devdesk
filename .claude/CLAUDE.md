@@ -21,7 +21,7 @@ DevDesk is a terminal-based TUI (Text User Interface) application built with Go 
 - Security scanning (Trivy CVE/secret/license/misconfig + Gitleaks secrets)
 - Container management with real-time metrics, on Docker or Podman (`app.container_engine`)
 - OCI resource management (image scanning, container launching, network inspection)
-- Network diagnostics (DNS, route, ICMP, TCP, TLS, HTTP) + real-time port monitoring + this machine's interfaces
+- Network diagnostics (DNS, route, ICMP, TCP, TLS, HTTP) + real-time port monitoring + this machine's interfaces + local port forwarding (unprivileged, loopback only)
 - Multi-context configuration management via YAML
 - Local workspaces management with git metadata
 

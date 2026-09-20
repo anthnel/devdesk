@@ -54,7 +54,7 @@ and never shells out, so it is engine-agnostic and podman changed nothing in it.
 
 ## Network Diagnostics View
 
-`internal/ui/netdiag/` — three tabs:
+`internal/ui/netdiag/` — four tabs:
 - **Diagnostics tab** (`model.go`): target, port and resolver, then
   `internal/netcheck`'s pipeline — resolve, route, reach, connect, TLS, HTTP —
   chained one stage per message so the footer can name the question being asked.
@@ -69,6 +69,9 @@ and never shells out, so it is engine-agnostic and podman changed nothing in it.
   It runs **no container**; see `internal/netiface` below. It was the Topology
   tab, and §3.44 is why three of its four sections are gone rather than
   translated.
+- **Forward tab** (`forward_model.go`, `forward_form.go`): the open port
+  redirections, `N` to open one and `K` to stop it. It holds **no listener** —
+  see `internal/forward` below.
 
 **Timing (§3.66).** `netcheck.Check` carries a `Duration time.Duration`
 alongside `Summary`/`Facts` — zero means untimed. `stage_connect.go` and
@@ -282,6 +285,51 @@ three-link migration chain (`docker.network_tool_image` →
 `network.tool_image` → `network.connectivity_image`) — has been removed. The
 network-inspect overlay itself (`:oci` → Networks → `enter`) stays; only the
 `c` key it used to offer, and everything behind it, is gone.
+
+## The port forwarder — `internal/forward`
+
+A local TCP port redirected to a `host:port`, **in this process** and with no
+privilege: a `net.Listen` and two `io.Copy`. `Registry.Open(port, target,
+label)`, `Close(id)`, `CloseAll()` and `List()` are the whole interface; the
+messages a view exchanges with the router live in the same package so a view
+never imports `internal/app`.
+
+**The router owns the registry** (`shared.State.Forwards`, built once in
+`newWithSize`). `reinitializeViews` drops every view on a config save and on a
+context switch, so a listener held by the Forward tab would stay bound with
+nothing left to close it. The tab asks (`forward.Open` / `Close` / `Refresh`) and
+is told (`forward.ChangedMsg`, broadcast to every held view, on screen or not).
+Forwards **survive a context switch** — one belongs to no context — and are gone
+on exit, because a listener cannot outlive its process.
+
+Four decisions, each with a test:
+
+- **Loopback only.** A forward binds `127.0.0.1`. `0.0.0.0` would put on the LAN a
+  service its owner kept off it. The test asserts the listener's own address: a
+  second bind cannot prove it, since `0.0.0.0` and `127.0.0.1` collide on a port
+  in both directions.
+- **Below 1024 is refused before the syscall**, and before the target is probed.
+  There is no unprivileged way around it on Unix, and `permission denied` reads
+  like something a retry would fix.
+- **The target is dialled once before the port opens.** Otherwise the bind
+  succeeds, the row reads healthy, and the failure only surfaces at the first
+  client. Refusals are sentinels (`ErrPrivilegedPort`, `ErrPortInUse`,
+  `ErrTargetUnreachable`), and `app.forwardRefusal` maps each to a sentence —
+  the wording never comes from the operating system.
+- **The registry has a mutex; `jobs.Registry` deliberately does not.** `jobs` is
+  only written from `Update`. Here the accept and connection goroutines write the
+  counters `Update` reads. The lock is never held across I/O, and a test closes a
+  forward while a connection is live.
+
+**A container's own address is not a target on Docker Desktop.** Measured on
+Windows: `172.17.0.3:80` for an unpublished `nginx` gives `i/o timeout`. The
+address is real inside the Linux VM and routes nowhere outside it — the same
+mechanism as D55 for the Ports tab. It works on native Linux. The probe is what
+turns that into a named refusal instead of a healthy-looking dead row, and it is
+why the container pre-fill was not built (§3.1).
+
+`forward.Open` takes a `label` (a container name) that is decoration only:
+nothing resolves it back.
 
 ## The interfaces — `internal/netiface`
 
