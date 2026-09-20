@@ -1,0 +1,17 @@
+concernant 3.74 est-ce qu'on peut réutiliser le tableau port-forward
+
+---
+
+est-ce que les ports forward sont persistants ?
+
+---
+
+ce serait intéressant de persister ces types de forward, car quand on développe une application on va les utiliser sur une durée plus ou moins longue. Ce serait vraiment embêtant de devoir les recréer à chaque fois. Est-ce qu'il est nécessaire d'aligner internal/forward sur ce comportement
+
+---
+
+2. les cibles de conteneurs ne sont plus utilisées on a vérifié sur la machine et il n'est pas possible de joindre le port du conteneur. Ok pour les autres points
+
+---
+
+docs/backlog-localhost-names est en cours de merge. Dans le formulaire, comment gérer les deux types de forward

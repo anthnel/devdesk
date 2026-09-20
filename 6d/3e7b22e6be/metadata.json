@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "6d3e7b22e6be",
+  "strategy": "manual-commit",
+  "branch": "fix/named-routes-review",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/6d/3e7b22e6be/0/metadata.json",
+      "transcript": "/6d/3e7b22e6be/0/full.jsonl",
+      "compact_transcript": "/6d/3e7b22e6be/0/transcript.jsonl",
+      "content_hash": "/6d/3e7b22e6be/0/content_hash.txt",
+      "prompt": "/6d/3e7b22e6be/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 112,
+    "cache_creation_tokens": 552117,
+    "cache_read_tokens": 17824778,
+    "output_tokens": 88666,
+    "api_call_count": 55
+  }
+}
