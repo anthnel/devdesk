@@ -1,0 +1,10 @@
+continue
+
+---
+
+continue
+
+---
+
+le formulaire n'affiche pas les valeurs entières dans les champs vides et il faut un espacement entre les lignes : Local port  󰅂 8                                                                                                                                                                                                                                                           │
+│  Target      󰅂 h
