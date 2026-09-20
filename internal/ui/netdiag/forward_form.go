@@ -58,14 +58,29 @@ func NewForwardForm(width int) *ForwardForm {
 	f := &ForwardForm{
 		portInput:   newInput("8080", 5),
 		targetInput: newInput("host:port", 255),
-		width:       width,
 	}
+	f.SetWidth(width)
 	f.updateFocus()
 	return f
 }
 
+// forwardPortWidth fits the widest legal port; the target takes the rest.
+const forwardPortWidth = 5
+
+// forwardLabelCells is what the label, indicator and chevron take before the
+// value starts: indicator (2) + padded label + " " + chevron + " ".
+const forwardLabelCells = 2 + forwardLabelWidth + 1 + 1 + 1
+
 // SetWidth keeps the form sized with the viewport (Rule 108).
-func (f *ForwardForm) SetWidth(width int) { f.width = width }
+//
+// The inputs need an explicit Width, and a zero one is not "unbounded": a
+// textinput with Width 0 renders only the first rune of its placeholder, so an
+// unsized field read "8" and "h" instead of "8080" and "host:port".
+func (f *ForwardForm) SetWidth(width int) {
+	f.width = width
+	f.portInput.Width = forwardPortWidth
+	f.targetInput.Width = max(width-forwardLabelCells-2, 20)
+}
 
 // updateFocus gives the keyboard to the focused field and takes it from the
 // others, which is what makes exactly one cursor visible.
@@ -140,14 +155,15 @@ func (f *ForwardForm) View() string {
 	lines := []string{
 		theme.EmptyLineBg(f.width),
 		f.renderField("Local port", f.portInput.View(), forwardFieldPort),
+		theme.EmptyLineBg(f.width),
 		f.renderField("Target", f.targetInput.View(), forwardFieldTarget),
 	}
 	return strings.Join(lines, "\n")
 }
 
 // renderField draws one single-line field: indicator, padded label, chevron,
-// value (Rule 120). Single-line fields are separated by one newline, which
-// strings.Join supplies (Rule 113).
+// value (Rule 120). A blank line goes between fields, as the diagnostics form
+// has: two bare rows read as one block.
 func (f *ForwardForm) renderField(label, value string, field int) string {
 	padded := label + strings.Repeat(" ", max(forwardLabelWidth-len([]rune(label)), 0))
 	if f.focused == field {

@@ -1,10 +1,12 @@
 package netdiag
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/ui/components"
@@ -314,5 +316,35 @@ func TestTheFooterKeepsItsBudget(t *testing.T) {
 	m := onForwardTab(t)
 	if got := m.GetFooterHeight(); got != 3 {
 		t.Errorf("GetFooterHeight = %d with no filter bar, want 3", got)
+	}
+}
+
+// A textinput with Width 0 shows one rune of its placeholder, so an unsized
+// form read "8" and "h". The width has to be set, and it has to reach the
+// inputs whichever way the form was built or resized.
+func TestTheFormShowsWholePlaceholders(t *testing.T) {
+	f := NewForwardForm(100)
+	view := f.View()
+	for _, want := range []string{"8080", "host:port"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("the form renders %q, want the whole placeholder %q", view, want)
+		}
+	}
+
+	f.SetWidth(60)
+	if f.targetInput.Width <= 1 || f.portInput.Width < 5 {
+		t.Errorf("after a resize the inputs are %d and %d wide, want room for a port and a target",
+			f.portInput.Width, f.targetInput.Width)
+	}
+}
+
+func TestTheFieldsAreSeparatedByABlankLine(t *testing.T) {
+	lines := strings.Split(NewForwardForm(100).View(), "\n")
+	// blank, port, blank, target
+	if len(lines) != 4 {
+		t.Fatalf("the form is %d lines, want 4 (top padding, port, spacer, target)", len(lines))
+	}
+	if strings.TrimSpace(ansi.Strip(lines[2])) != "" {
+		t.Errorf("line 3 is %q, want a blank line between the fields", lines[2])
 	}
 }
