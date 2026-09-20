@@ -13444,6 +13444,100 @@ rechargement à chaud.
 Non engagé : ce n'est qu'une piste, consignée pour que la décision de ne pas
 écrire un serveur DNS ne soit pas reprise de zéro.
 
+**Décisions prises depuis** (voir §3.75 pour la persistance) :
+
+- **Où le mettre** : un champ `Name` optionnel dans le formulaire de l'onglet
+  Forward, pas un cinquième onglet. Le type se déduit du nom : vide, c'est un
+  forward TCP brut ; renseigné, c'est une route HTTP.
+- **Un proxy par port** pour la première version, ce que le registre fait déjà.
+  Le proxy partagé reste possible après coup.
+
+### 3.75 Persister les forwards — **non engagé**
+
+Un forward ne vit aujourd'hui qu'en mémoire, dans le registre du routeur : il
+survit à un changement de contexte (il n'appartient à aucun contexte) et
+disparaît à la fermeture de DevDesk, parce qu'un listener ne survit pas à son
+processus. Pour un forward ouvert le temps d'un test, c'est juste. Pour un
+service utilisé pendant tout un développement — une base, une API, et demain
+un nom `*.localhost` (§3.74) — devoir le recréer à chaque lancement est ce que
+l'outil devrait épargner.
+
+#### Portée : tous les forwards
+
+La persistance est une propriété du **registre**, pas du proxy HTTP. Ne
+persister que les forwards nommés mettrait deux comportements dans une même
+table, alors qu'un forward TCP brut vers une base de développement se perd
+exactement de la même façon. §3.74 en dépend : un nom persisté suppose que ce
+mécanisme existe.
+
+#### Le modèle de données n'a pas à changer
+
+Depuis la suppression de `Label` et de la colonne Source (#231), un forward se
+réduit à `LocalPort` et `Target`, saisis à la main. Il n'existe plus de
+référence de conteneur à résoudre : la cible d'un conteneur n'est pas joignable
+depuis l'hôte sur cette machine (vérifié), donc `Target` reste une adresse et
+rien n'est à résoudre à la réouverture. Une entrée persistée est
+`{local_port, target}`, plus `name` quand §3.74 le demande, plus l'état
+désactivé.
+
+#### Où et quand écrire
+
+- **Un fichier à part**, `~/.devdesk/forwards.yaml`, et pas `config.yaml` : la
+  config est rechargée à chaque changement de contexte et un forward n'appartient
+  à aucun contexte.
+- **Écrit depuis `Update()`**, à l'ouverture, à la fermeture, à l'activation et à
+  la désactivation, dans un `Cmd` (règle 110). Le `Cmd` reçoit une copie de la
+  liste : il ne lit jamais le registre.
+- **Réouvert au démarrage du routeur**, là où il crée déjà le registre.
+
+#### Trois comportements à fixer
+
+1. **Un échec à la réouverture** (port pris, cible arrêtée) **ne supprime pas
+   l'entrée**. Une cible qui n'est pas encore démarrée ne doit pas effacer la
+   route. La ligne reste dans la table avec `Last error` renseigné. Le registre
+   n'a aujourd'hui que des forwards actifs : il lui faut un état « enregistré
+   mais non lié ».
+2. **La réouverture est annoncée** : un message d'info dans le footer
+   (« Restored 3 forwards »), et un `Warn` s'il y a des échecs. Lier des ports
+   sans que rien ne l'ait demandé dans la session est le but, pas une surprise à
+   laisser silencieuse.
+3. **Désactiver sans supprimer** : un forward peut être mis en pause, le
+   listener fermé et la route conservée dans le fichier. Sans cela, le seul moyen
+   de libérer un port est d'oublier la route.
+
+#### Le nom, dans le formulaire (§3.74)
+
+Le formulaire a deux champs (`Local port`, `Target`) ; le nom en ajoute un
+troisième, **en dernier**, parce que l'usage courant reste le TCP brut.
+
+- **Le type se déduit du nom**, il n'y a pas de champ « type » : un champ à
+  cycler (règle 132) ouvrirait deux états invalides, HTTP sans nom et TCP avec
+  un nom.
+- **Pas de complétion automatique du suffixe.** Le nom saisi est le nom
+  enregistré ; compléter `api` en `api.localhost` cacherait ce qui est écrit
+  dans le fichier.
+- **Validation bloquante** : si `Name` est renseigné et ne se termine pas par
+  `.localhost`, le formulaire refuse et le dit (`Warn` dans le footer, règle
+  128). Sont aussi refusés un nom déjà utilisé et les caractères hors d'un
+  nom d'hôte valide.
+- **L'aide est explicite sur ce point.** `GetHelpContent` (règle 114) dit que le
+  nom doit se terminer par `.localhost`, que le champ vide crée un forward TCP
+  brut, et que le port de la colonne `Local` est celui à mettre dans l'URL
+  (`http://api.localhost:PORT`). Ce n'est pas rappelé dans le viewport (règle
+  134).
+- **Un port par forward.** Un listener est soit un TCP brut, soit un proxy HTTP ;
+  avec un port par forward, un même port ne mélange jamais les deux.
+
+La table gagne une colonne `Name`, `Optional`, en `DimStyle` quand elle est
+vide (règle 122). La colonne `Local` reste utile aux deux types.
+
+**À mesurer avant de s'engager** : l'écriture concurrente. `~/.devdesk/` est
+partagé entre deux instances (ou deux worktrees) ; deux DevDesk qui écrivent
+`forwards.yaml` s'écrasent sans avertissement, et la seconde réouverture
+échouerait sur des ports déjà pris. Il faut décider si le fichier est écrit
+atomiquement (fichier temporaire puis renommage) et si une instance qui trouve
+ses ports pris doit se contenter de l'état « non lié » de la décision 1.
+
 ---
 
 ## 4. Existing plans
