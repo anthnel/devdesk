@@ -13453,7 +13453,9 @@ Non engagé : ce n'est qu'une piste, consignée pour que la décision de ne pas
   `app.localhost:8080`. C'est le but du besoin — joindre un service par son nom,
   pas par un port qui change d'une route à l'autre. Une route est `{name,
   target}` et n'a pas de port propre ; le listener est lié à la première route
-  et fermé avec la dernière. Un `Host` inconnu, ou `localhost` seul, reçoit une
+  et fermé avec la dernière. **Le port est un réglage de la config**
+  (`network.proxy_port`, 8080 par défaut), pas un champ que chaque route répète.
+  Un `Host` inconnu, ou `localhost` seul, reçoit une
   page 404 qui liste les routes ; une cible qui ne répond pas, un 502 lisible.
   Le TCP brut garde un port par forward.
 
@@ -13530,17 +13532,26 @@ troisième, **en dernier**, parce que l'usage courant reste le TCP brut.
   brut, et que le port de la colonne `Local` est celui à mettre dans l'URL
   (`http://api.localhost:PORT`). Ce n'est pas rappelé dans le viewport (règle
   134).
-- **`Local port` a deux sens selon `Name`.** Vide, c'est le port du forward TCP,
-  obligatoire. Renseigné, c'est le port du proxy partagé : prérempli quand un
-  proxy tourne déjà, et un autre port est refusé en nommant celui du proxy en
-  cours ; obligatoire pour la première route, sans valeur par défaut choisie à
-  la place de l'utilisateur. Un port ne mélange jamais TCP brut et proxy.
+- **`Local port` ne sert qu'au TCP brut.** Le port du proxy vient de
+  `network.proxy_port`, donc `Local port` n'a qu'un seul sens. `Name` renseigné
+  avec `Local port` renseigné est **refusé**, et le message nomme le réglage
+  (« The port of a named route is network.proxy_port »). `Name` vide avec
+  `Local port` vide est refusé aussi. Un port ne mélange jamais TCP brut et
+  proxy : un `Local port` égal à `network.proxy_port` est refusé.
+- **Où vit le réglage.** `network:` est déjà la section des réglages que le
+  routeur lit pour la vue réseau ; la config est par contexte, alors qu'un
+  forward n'appartient à aucun contexte. Le proxy suit le précédent du serveur MCP
+  : un changement de contexte qui change le port relie le listener, et les routes
+  (dans `forwards.yaml`) sont resservies sur le nouveau port. Un port par défaut
+  est acceptable ici parce que le réglage se voit dans la vue de configuration et
+  qu'un port pris échoue bruyamment (état « non lié », décision 1).
 
 La table gagne une colonne `Name`, `Optional`, en `DimStyle` quand elle est
-vide (règle 122). Les routes du proxy partagent la valeur de `Local`, qui est le
-port de l'URL ; `Live` et `Total` restent comptés par route, et `K` ne supprime
-qu'une route. `forwards.yaml` porte le port du proxy une seule fois, et un proxy
-dont le port est pris rend toutes ses routes « non liées » (décision 1).
+vide (règle 122). Les routes du proxy affichent
+`network.proxy_port` dans `Local`, qui est le port de l'URL ; `Live` et `Total`
+restent comptés par route, et `K` ne supprime qu'une route. `forwards.yaml` ne
+porte plus le port du proxy, seulement les routes, et un proxy dont le port est
+pris rend toutes ses routes « non liées » (décision 1).
 
 **À mesurer avant de s'engager** : l'écriture concurrente. `~/.devdesk/` est
 partagé entre deux instances (ou deux worktrees) ; deux DevDesk qui écrivent
