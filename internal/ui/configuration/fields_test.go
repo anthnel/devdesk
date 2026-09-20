@@ -350,6 +350,7 @@ func TestTheNetworkTabEditsEveryNetdiagDial(t *testing.T) {
 		"Ping count":            &cfg.Network.PingCount,
 		"Ports refresh (s)":     &cfg.Network.PortsRefreshInterval,
 		"Expiry warning (days)": &cfg.Network.CertExpiryWarnDays,
+		"Proxy port":            &cfg.Network.ProxyPort,
 	}
 
 	for label, ref := range want {

@@ -20,6 +20,7 @@ func TestTheNetworkSettingsDefault(t *testing.T) {
 		{"ping_count", cfg.Network.PingCount, DefaultPingCount},
 		{"cert_expiry_warn_days", cfg.Network.CertExpiryWarnDays, DefaultCertExpiryWarnDays},
 		{"ports_refresh_interval", cfg.Network.PortsRefreshInterval, DefaultPortsRefreshInterval},
+		{"proxy_port", cfg.Network.ProxyPort, DefaultProxyPort},
 	}
 	for _, tt := range tests {
 		if tt.got != tt.want {
@@ -40,6 +41,30 @@ func TestAStatedNetworkSettingIsKept(t *testing.T) {
 	}
 	if cfg.Network.PortsRefreshInterval != 5 {
 		t.Errorf("ports_refresh_interval = %d, want 5", cfg.Network.PortsRefreshInterval)
+	}
+}
+
+func TestTheProxyPortIsKeptWhenBindable(t *testing.T) {
+	if got := writeAndLoad(t, "network:\n  proxy_port: 9000\n").Network.ProxyPort; got != 9000 {
+		t.Errorf("proxy_port = %d, want the stated 9000", got)
+	}
+}
+
+// A port the proxy cannot bind would make every named route unbindable, so an
+// out-of-range value is replaced rather than carried into the listener.
+func TestAProxyPortOutsideTheBoundsFallsBackToTheDefault(t *testing.T) {
+	for name, port := range map[string]string{
+		"privileged": "80",
+		"reserved":   "1023",
+		"too high":   "70000",
+		"negative":   "-1",
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := writeAndLoad(t, "network:\n  proxy_port: "+port+"\n").Network.ProxyPort
+			if got != DefaultProxyPort {
+				t.Errorf("proxy_port %s loaded as %d, want the default %d", port, got, DefaultProxyPort)
+			}
+		})
 	}
 }
 

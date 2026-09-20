@@ -353,6 +353,65 @@ A forward has a `State`:
 the first one's ports taken and reads unbound rather than failing. There is no
 file lock — the atomic write keeps the file whole, not merged.
 
+### Named routes (§3.74)
+
+A forward with a **name** is an HTTP route instead of a TCP redirection. One
+`http.Server` on `127.0.0.1:network.proxy_port` serves every route, and the
+request's `Host` header picks the target: `http://api.localhost:8080` and
+`http://app.localhost:8080` differ by name, not by port. No DNS entry, no
+privilege — `*.localhost` is reserved for the loopback (RFC 6761), and the
+platforms measured resolve it unaided.
+
+| Piece | Where | Does |
+|---|---|---|
+| `proxy.go` | `internal/forward` | `OpenRoute`, `SetProxyPort`, the proxy's lifecycle, `serveHTTP` |
+| `Entry.Name` | `store.go` | a route is an entry with a name and no `local_port`; the type is *deduced from the name*, so no state has a route without one |
+| `network.proxy_port` | `internal/config` | the port, 8080 by default, per context (see below) |
+| the form's `Type` field | `forward_form.go` | `TCP` / `HTTP`, a cycle field (Rule 132); only the fields that apply are shown |
+
+- **The proxy binds with the first served route and closes with the last.** Its
+  lifecycle is serialised by `proxyMu`; lock order is `proxyMu` then `mu`, and the
+  request handler takes `mu` only, so serving never waits on a bind.
+- **`Host` is matched without its port, trailing dot or case.** An unknown host,
+  or bare `localhost`, gets a 404 that lists what *is* served. A target that does
+  not answer gets a 502 naming it, and the route's `LastErr` records why.
+- **The inbound `Host` is forwarded to the backend**, not replaced by the
+  target's: an application behind a named route often keys on it. `WebSocket`
+  upgrades pass (`httputil.ReverseProxy` handles them), which is what hot reload
+  rides on.
+- **A name must be a valid host name ending in `.localhost`**, unique whatever
+  the state of the route that owns it — a paused route keeps its name, or
+  resuming it would find it gone. Stored in lower case. No suffix completion in
+  the form: what is typed is what is stored, and a name that does not end in
+  `.localhost` is refused there before it reaches the registry.
+- **A route has no port of its own.** `List` fills `LocalPort` with the proxy's,
+  which is the number that goes in the URL. A TCP forward asking for that port is
+  refused (`ErrProxyPortTaken`), and the proxy's own bind failing is
+  `ErrProxyPortInUse` — not `ErrPortInUse`, whose sentence says to pick another
+  port in a field a route does not have.
+- **The proxy's `Server` and its listener are closed separately.** `Server.Close`
+  reaches the listener only once `Serve` has registered it, on a goroutine; the
+  registry closes the listener itself so that the port is free when the stop
+  returns and a pause-then-resume can rebind at once.
+- **The port follows the configuration.** It is per context, and a forward
+  belongs to none, so a switch that changes it moves the proxy: `syncProxyPortCmd`
+  runs on a context switch and on a saved configuration. It records the wanted
+  port in `App.wantedProxyPort` in `Update` and the `Cmd` applies the value as it
+  is *when it runs* — two moves in flight leave the proxy on the latest port
+  whatever order they finish in. If the new port cannot be bound, every live
+  route becomes unbound with the reason and nothing leaves the file.
+- **Restore probes the targets, then binds the proxy once**, and only if a route
+  passed: a file whose routes are all silent binds nothing.
+
+**Limits, stated rather than discovered.** HTTP only — `https://app.localhost`
+needs a certificate the browser trusts, which is one more elevation. The port
+stays in the URL (80 is privileged). A name outside `.localhost` does not
+resolve. A client with its own resolver is not covered. The proxy adds no CORS
+header: it makes nothing reachable that was not already on the loopback.
+
+**Not yet measured:** browsers on Windows and macOS, and the `::1`-then-IPv4
+fallback (the proxy binds IPv4 only). See §3.74.
+
 Four decisions, each with a test:
 
 - **Loopback only.** A forward binds `127.0.0.1`. `0.0.0.0` would put on the LAN a

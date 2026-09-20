@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -118,6 +119,15 @@ type NetworkConfig struct {
 	// PortsRefreshInterval is how often the Ports tab re-reads the socket
 	// table, in seconds.
 	PortsRefreshInterval int `yaml:"ports_refresh_interval"`
+
+	// ProxyPort is the one port every named forward route is served on (§3.74):
+	// http://api.localhost:8080 and http://app.localhost:8080 differ by name
+	// and not by port. It is a setting rather than a field of each route so
+	// that a route is only {name, target}.
+	//
+	// Loopback only, and at or above 1024 — the same limits as a TCP forward,
+	// for the same reason: there is no unprivileged way under it on Unix.
+	ProxyPort int `yaml:"proxy_port"`
 }
 
 // Network defaults. They are the values internal/netcheck and the netdiag view
@@ -129,6 +139,15 @@ const (
 	DefaultPingCount            = 3
 	DefaultCertExpiryWarnDays   = 30
 	DefaultPortsRefreshInterval = 2
+
+	// DefaultProxyPort is the conventional development port. A port already
+	// taken fails loudly (the routes read unbound with the reason), and the
+	// setting is visible in the configuration view.
+	DefaultProxyPort = 8080
+
+	// The bounds of a proxy port: the first unprivileged one, and the last.
+	MinProxyPort = 1024
+	MaxProxyPort = 65535
 )
 
 // AppConfig holds the app's global settings
@@ -514,6 +533,7 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Network.PortsRefreshInterval == 0 {
 		cfg.Network.PortsRefreshInterval = DefaultPortsRefreshInterval
 	}
+	cfg.Network.ProxyPort = normalizeProxyPort(cfg.Network.ProxyPort)
 
 	// Backward compat: configs created before the scan-option booleans were introduced
 	// will have all of them at Go's zero value (false). Treat "all disabled" as
@@ -589,8 +609,25 @@ func Default() *Config {
 			PingCount:            DefaultPingCount,
 			CertExpiryWarnDays:   DefaultCertExpiryWarnDays,
 			PortsRefreshInterval: DefaultPortsRefreshInterval,
+			ProxyPort:            DefaultProxyPort,
 		},
 	}
+}
+
+// normalizeProxyPort returns the port to serve on: the default for a file that
+// does not say, and the default — loudly — for one that states a port the
+// proxy cannot bind. Unlike the other network dials, a wrong value here is not
+// merely a slow probe: it would make every named route unbindable.
+func normalizeProxyPort(port int) int {
+	switch {
+	case port == 0:
+		return DefaultProxyPort
+	case port < MinProxyPort || port > MaxProxyPort:
+		log.Printf("WARN [config] network.proxy_port %d is outside %d-%d, using %d",
+			port, MinProxyPort, MaxProxyPort, DefaultProxyPort)
+		return DefaultProxyPort
+	}
+	return port
 }
 
 // ConfigDir returns the configuration directory

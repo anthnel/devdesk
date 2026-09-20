@@ -12,7 +12,9 @@ Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/con
 - `Registry` - OCI registry configuration (see Registry model below)
 - `Scan` - Security scanning (Trivy, Gitleaks)
 - `Network` - what the netdiag view runs on: the tool image, and the dials
-  `internal/netcheck` used to hardcode
+  `internal/netcheck` used to hardcode; and `proxy_port` (8080), the one port
+  every named forward route is served on (§3.74, see `network.md`) — at or above
+  1024, and replaced by the default with a log line when it is not
 - `MCP` - the read-only MCP server (§3.38): `enabled`, off by default, and
   `expose`, an allow-list of tool names
 

@@ -27,8 +27,13 @@ var ErrUnreadable = errors.New("the forwards file cannot be read")
 // forward that was live and one that could not be bound at the last launch are
 // the same entry — both are retried at the next.
 type Entry struct {
-	LocalPort int    `yaml:"local_port"`
-	Target    string `yaml:"target"`
+	// LocalPort is a TCP forward's port. A named route has none — it is served
+	// on network.proxy_port — so it is left out of the file.
+	LocalPort int `yaml:"local_port,omitempty"`
+	// Name makes the entry a route (§3.74): the type is deduced from it rather
+	// than stored, so there is no state where a route has no name.
+	Name   string `yaml:"name,omitempty"`
+	Target string `yaml:"target"`
 	// Paused is the one thing the user decided about an entry beyond having it:
 	// the route is kept and its port is left alone.
 	Paused bool `yaml:"paused,omitempty"`

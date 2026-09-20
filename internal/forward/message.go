@@ -16,8 +16,12 @@ import tea "github.com/charmbracelet/bubbletea"
 // OpenMsg asks the router to open a forward. It is a request, not a result:
 // opening probes the target and binds a port, which is I/O, so the router
 // answers it with a Cmd rather than doing it in Update (Rule 110).
+//
+// A non-empty Name asks for a named route (§3.74) instead of a TCP forward; the
+// request carries no separate type, because the type is the name.
 type OpenMsg struct {
 	LocalPort int
+	Name      string
 	Target    string
 }
 
@@ -80,6 +84,20 @@ type ClosedMsg struct {
 // goroutines that keep the forwards running.
 type ChangedMsg struct {
 	Forwards []Forward
+}
+
+// ProxyPortSetMsg reports what became of moving the proxy to the configured
+// port. Err is a bind that failed; the routes are then unbound and say why.
+type ProxyPortSetMsg struct {
+	Port int
+	Err  error
+}
+
+// OpenRoute asks for a named route on the shared proxy.
+func OpenRoute(name, target string) tea.Cmd {
+	return func() tea.Msg {
+		return OpenMsg{Name: name, Target: target}
+	}
 }
 
 // Open asks for a forward. A view returns this rather than calling the

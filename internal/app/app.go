@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync/atomic"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -122,6 +123,13 @@ type App struct {
 	// is nil until New sets it, so a router built by a test never writes to the
 	// developer's own ~/.devdesk.
 	forwardStore *forward.Store
+
+	// wantedProxyPort is the port named routes should be served on, written
+	// from Update and read by the Cmd that moves the proxy. Two moves can be in
+	// flight — a config saved twice quickly — and each one applies the value as
+	// it is when it runs, so whichever finishes last leaves the proxy on the
+	// latest port and not on a stale one.
+	wantedProxyPort atomic.Int64
 	// pendingInvocations holds the reply channel of every action call waiting
 	// for the identifier of the run it asked for. Mutated from Update alone,
 	// like everything else here.
@@ -215,6 +223,9 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 		// rebuild, and a context switch with them (§3.1).
 		Forwards: forward.New(),
 	}
+	// Telling the registry which port is not I/O — nothing is serving yet, so
+	// nothing is bound — and a route opened before the first Cmd needs to know.
+	_ = sharedState.Forwards.SetProxyPort(cfg.Network.ProxyPort)
 
 	app := &App{
 		config:           cfg,
@@ -229,6 +240,7 @@ func newWithSize(cfg *config.Config, width, height int) *App {
 		width:            width,
 		height:           height,
 	}
+	app.wantedProxyPort.Store(int64(cfg.Network.ProxyPort))
 
 	// Other views are created on demand (lazy loading).
 	app.createView(command.ViewDashboard)
@@ -433,6 +445,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case forward.ToggleMsg:
 		return a.handleForwardToggle(msg)
+
+	case forward.ProxyPortSetMsg:
+		return a.handleProxyPortSet(msg)
 
 	case forward.ToggledMsg:
 		return a.handleForwardToggled(msg)

@@ -31,7 +31,13 @@ import (
 func (a *App) handleForwardOpen(msg forward.OpenMsg) (tea.Model, tea.Cmd) {
 	registry := a.sharedState.Forwards
 	return a, func() tea.Msg {
-		f, err := registry.Open(msg.LocalPort, msg.Target)
+		var f forward.Forward
+		var err error
+		if msg.Name != "" {
+			f, err = registry.OpenRoute(msg.Name, msg.Target)
+		} else {
+			f, err = registry.Open(msg.LocalPort, msg.Target)
+		}
 		return forward.OpenedMsg{Forward: f, Err: err}
 	}
 }
@@ -46,12 +52,16 @@ func (a *App) handleForwardOpened(msg forward.OpenedMsg) (tea.Model, tea.Cmd) {
 		log.Printf("ERROR [app/forward] open: %v", msg.Err)
 		return a, components.PostFooter(components.LevelError, forwardRefusal(msg.Err))
 	}
-	log.Printf("Forward %s: %s to %s", msg.Forward.ID, msg.Forward.Addr(), msg.Forward.Target)
+	from := msg.Forward.Addr()
+	if msg.Forward.Name != "" {
+		from = msg.Forward.URL()
+	}
+	log.Printf("Forward %s: %s to %s", msg.Forward.ID, from, msg.Forward.Target)
 	return a, tea.Batch(
 		a.broadcastForwards(),
 		a.saveForwardsCmd(),
 		components.PostFooter(components.LevelInfo,
-			fmt.Sprintf("Forwarding %s to %s", msg.Forward.Addr(), msg.Forward.Target)),
+			fmt.Sprintf("Forwarding %s to %s", from, msg.Forward.Target)),
 	)
 }
 
@@ -95,6 +105,35 @@ func (a *App) handleForwardToggled(msg forward.ToggledMsg) (tea.Model, tea.Cmd) 
 		cmds = append(cmds, components.PostFooter(components.LevelWarning, forwardRefusal(msg.Err)))
 	}
 	return a, tea.Batch(append(cmds, a.saveForwardsCmd())...)
+}
+
+// syncProxyPortCmd moves the named-route proxy to network.proxy_port when a
+// context switch or a saved configuration changed it.
+//
+// The port is recorded here, in Update, and the Cmd applies the value as it is
+// when it runs (see App.wantedProxyPort). Moving the proxy binds a port, so it
+// is a Cmd; when nothing changed it is a no-op the registry answers at once.
+func (a *App) syncProxyPortCmd() tea.Cmd {
+	a.wantedProxyPort.Store(int64(a.config.Network.ProxyPort))
+	registry := a.sharedState.Forwards
+	if registry == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		port := int(a.wantedProxyPort.Load())
+		return forward.ProxyPortSetMsg{Port: port, Err: registry.SetProxyPort(port)}
+	}
+}
+
+// handleProxyPortSet refreshes the tables — the routes' Local column is the
+// proxy's port — and says so when the proxy could not follow.
+func (a *App) handleProxyPortSet(msg forward.ProxyPortSetMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		log.Printf("WARN [app/forward] proxy port %d: %v", msg.Port, msg.Err)
+		return a, tea.Batch(a.broadcastForwards(),
+			components.PostFooter(components.LevelWarning, forwardRefusal(msg.Err)))
+	}
+	return a, a.broadcastForwards()
 }
 
 // useForwardStore points the router at ~/.devdesk/forwards.yaml.
@@ -225,6 +264,16 @@ func forwardRefusal(err error) string {
 		return "Ports below 1024 need privileges — pick 1024 or above"
 	case errors.Is(err, forward.ErrPortInUse):
 		return "That local port is already taken — pick another"
+	case errors.Is(err, forward.ErrBadRouteName):
+		return "A route name must be a host name ending in .localhost, such as api.localhost"
+	case errors.Is(err, forward.ErrRouteNameTaken):
+		return "A route with that name already exists — pick another"
+	case errors.Is(err, forward.ErrProxyPortInUse):
+		return "The proxy port is already taken — change network.proxy_port in the configuration"
+	case errors.Is(err, forward.ErrProxyPortTaken):
+		return "That port is the named-route proxy's (network.proxy_port) — pick another"
+	case errors.Is(err, forward.ErrNoProxyPort):
+		return "No proxy port is configured — set network.proxy_port"
 	case errors.Is(err, forward.ErrTargetUnreachable):
 		// The container case is named because it is the one that looks like a
 		// DevDesk fault: the address is real, and on Docker Desktop it routes
