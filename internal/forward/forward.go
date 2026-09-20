@@ -21,9 +21,10 @@
 //     so is more useful than relaying "bind: permission denied", which reads
 //     like something a retry might fix.
 //
-// Nothing here knows about containers or about Docker. A caller that wants to
-// forward to a container resolves its address first and hands over a host:port
-// like any other.
+// Nothing here knows about containers or about Docker: a target is a host:port.
+// A forward carries no record of where its target came from, because nothing
+// ever supplied one — the container pre-fill that would have (§3.1) was not
+// built, and a field nothing fills is a column that only ever reads "-".
 package forward
 
 import (
@@ -83,13 +84,10 @@ type Forward struct {
 	ID        string
 	LocalPort int
 	Target    string
-	// Label is where the forward came from — a container name, or empty when
-	// the target was typed. It is decoration; nothing resolves it back.
-	Label   string
-	Opened  time.Time
-	Active  int
-	Total   int64
-	LastErr string
+	Opened    time.Time
+	Active    int
+	Total     int64
+	LastErr   string
 }
 
 // Addr is the address a client connects to.
@@ -127,7 +125,7 @@ func New() *Registry {
 // The probe comes first on purpose. Without it the bind succeeds, the forward
 // shows up healthy, and the failure only surfaces when someone points a client
 // at it — by which time the message arrives far from the action that caused it.
-func (r *Registry) Open(localPort int, target, label string) (Forward, error) {
+func (r *Registry) Open(localPort int, target string) (Forward, error) {
 	if localPort < firstUnprivilegedPort {
 		return Forward{}, fmt.Errorf("%w: %d", ErrPrivilegedPort, localPort)
 	}
@@ -153,7 +151,6 @@ func (r *Registry) Open(localPort int, target, label string) (Forward, error) {
 			ID:        strconv.Itoa(r.nextID),
 			LocalPort: localPort,
 			Target:    target,
-			Label:     label,
 			Opened:    time.Now(),
 		},
 		ln: ln,

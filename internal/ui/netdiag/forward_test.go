@@ -25,7 +25,7 @@ func onForwardTab(t *testing.T) *Model {
 // sampleForwards is what the router's broadcast carries.
 func sampleForwards() []forward.Forward {
 	return []forward.Forward{
-		{ID: "1", LocalPort: 8080, Target: "10.0.0.5:80", Label: "nginx", Opened: time.Now(), Active: 2, Total: 9},
+		{ID: "1", LocalPort: 8080, Target: "10.0.0.5:80", Opened: time.Now(), Active: 2, Total: 9},
 		{ID: "2", LocalPort: 9090, Target: "db.internal:5432", Opened: time.Now()},
 	}
 }

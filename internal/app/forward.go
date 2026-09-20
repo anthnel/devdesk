@@ -30,7 +30,7 @@ import (
 func (a *App) handleForwardOpen(msg forward.OpenMsg) (tea.Model, tea.Cmd) {
 	registry := a.sharedState.Forwards
 	return a, func() tea.Msg {
-		f, err := registry.Open(msg.LocalPort, msg.Target, msg.Label)
+		f, err := registry.Open(msg.LocalPort, msg.Target)
 		return forward.OpenedMsg{Forward: f, Err: err}
 	}
 }

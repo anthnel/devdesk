@@ -315,7 +315,7 @@ func (m *Model) GetHelpContent() help.Content {
 			// Forward tab
 			{Key: keymap.New, Description: "Open a new forward (Forward tab)"},
 			{Key: keymap.Kill, Description: "Stop the selected forward, after confirmation (Forward tab)"},
-			{Key: "/", Description: "Search forwards by port, target or source (Forward tab)"},
+			{Key: "/", Description: "Search forwards by port or target (Forward tab)"},
 			{Key: ".", Description: "Cycle the sort column (Forward tab)"},
 		},
 		Sections: []help.Section{

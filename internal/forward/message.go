@@ -19,9 +19,6 @@ import tea "github.com/charmbracelet/bubbletea"
 type OpenMsg struct {
 	LocalPort int
 	Target    string
-	// Label is what the target was picked from — a container name — and is
-	// empty when it was typed.
-	Label string
 }
 
 // CloseMsg asks the router to stop a forward.
@@ -60,9 +57,9 @@ type ChangedMsg struct {
 
 // Open asks for a forward. A view returns this rather than calling the
 // registry, which it cannot reach.
-func Open(localPort int, target, label string) tea.Cmd {
+func Open(localPort int, target string) tea.Cmd {
 	return func() tea.Msg {
-		return OpenMsg{LocalPort: localPort, Target: target, Label: label}
+		return OpenMsg{LocalPort: localPort, Target: target}
 	}
 }
 

@@ -74,12 +74,6 @@ type ForwardModel struct {
 // (Rule 116 — a column gives way whole, never one cell at a time).
 func forwardColumns() []datatable.Column[forward.Forward] {
 	target := func(f forward.Forward) string { return f.Target }
-	source := func(f forward.Forward) string {
-		if f.Label == "" {
-			return "-"
-		}
-		return f.Label
-	}
 
 	return []datatable.Column[forward.Forward]{
 		{
@@ -90,18 +84,6 @@ func forwardColumns() []datatable.Column[forward.Forward] {
 		{
 			Title: "Target", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 1,
 			Cell: target, Search: target,
-		},
-		{
-			Title: "Source", Sizing: datatable.SizingContent, MinWidth: 10, Optional: true,
-			Cell: source, Search: source,
-			// A forward whose target was typed has no source, and a "-" is an
-			// absence rather than a value (Rule 122).
-			Style: func(f forward.Forward) lipgloss.Style {
-				if f.Label == "" {
-					return theme.DimStyle
-				}
-				return lipgloss.NewStyle()
-			},
 		},
 		{
 			Title: "Live", Sizing: datatable.SizingFixed, MinWidth: 6,
@@ -235,7 +217,7 @@ func (fm *ForwardModel) handleTick() (*ForwardModel, tea.Cmd) {
 // Every refusal is the registry's to give, and arrives at the footer.
 func (fm *ForwardModel) handleFormSubmit(msg ForwardFormSubmitMsg) (*ForwardModel, tea.Cmd) {
 	fm.form = nil
-	return fm, forward.Open(msg.LocalPort, msg.Target, "")
+	return fm, forward.Open(msg.LocalPort, msg.Target)
 }
 
 func (fm *ForwardModel) handleKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
