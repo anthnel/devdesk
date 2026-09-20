@@ -13449,8 +13449,13 @@ Non engagé : ce n'est qu'une piste, consignée pour que la décision de ne pas
 - **Où le mettre** : un champ `Name` optionnel dans le formulaire de l'onglet
   Forward, pas un cinquième onglet. Le type se déduit du nom : vide, c'est un
   forward TCP brut ; renseigné, c'est une route HTTP.
-- **Un proxy par port** pour la première version, ce que le registre fait déjà.
-  Le proxy partagé reste possible après coup.
+- **Un seul proxy, un seul port pour tous les noms** : `api.localhost:8080` et
+  `app.localhost:8080`. C'est le but du besoin — joindre un service par son nom,
+  pas par un port qui change d'une route à l'autre. Une route est `{name,
+  target}` et n'a pas de port propre ; le listener est lié à la première route
+  et fermé avec la dernière. Un `Host` inconnu, ou `localhost` seul, reçoit une
+  page 404 qui liste les routes ; une cible qui ne répond pas, un 502 lisible.
+  Le TCP brut garde un port par forward.
 
 ### 3.75 Persister les forwards — **non engagé**
 
@@ -13525,11 +13530,17 @@ troisième, **en dernier**, parce que l'usage courant reste le TCP brut.
   brut, et que le port de la colonne `Local` est celui à mettre dans l'URL
   (`http://api.localhost:PORT`). Ce n'est pas rappelé dans le viewport (règle
   134).
-- **Un port par forward.** Un listener est soit un TCP brut, soit un proxy HTTP ;
-  avec un port par forward, un même port ne mélange jamais les deux.
+- **`Local port` a deux sens selon `Name`.** Vide, c'est le port du forward TCP,
+  obligatoire. Renseigné, c'est le port du proxy partagé : prérempli quand un
+  proxy tourne déjà, et un autre port est refusé en nommant celui du proxy en
+  cours ; obligatoire pour la première route, sans valeur par défaut choisie à
+  la place de l'utilisateur. Un port ne mélange jamais TCP brut et proxy.
 
 La table gagne une colonne `Name`, `Optional`, en `DimStyle` quand elle est
-vide (règle 122). La colonne `Local` reste utile aux deux types.
+vide (règle 122). Les routes du proxy partagent la valeur de `Local`, qui est le
+port de l'URL ; `Live` et `Total` restent comptés par route, et `K` ne supprime
+qu'une route. `forwards.yaml` porte le port du proxy une seule fois, et un proxy
+dont le port est pris rend toutes ses routes « non liées » (décision 1).
 
 **À mesurer avant de s'engager** : l'écriture concurrente. `~/.devdesk/` est
 partagé entre deux instances (ou deux worktrees) ; deux DevDesk qui écrivent
