@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -14,7 +15,15 @@ import (
 
 // Init implements tea.Model
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, m.portsModel.initPorts(), m.interfacesModel.initInterfaces())
+	return tea.Batch(
+		textinput.Blink,
+		m.portsModel.initPorts(),
+		m.interfacesModel.initInterfaces(),
+		// The forwards live on the router, which broadcasts when they change.
+		// A view built after the last change was not there for it, so it asks
+		// once on the way in — the role sendJobsTo plays for the job registry.
+		forward.Refresh,
+	)
 }
 
 // InEditMode implements FormView — true when a text input is active, so the
@@ -28,6 +37,8 @@ func (m *Model) InEditMode() bool {
 		// replaced had no input at all. Returning false here would let a ":"
 		// typed into the query open the command line instead (Rule 111).
 		return m.interfacesModel.InEditMode()
+	case tabForward:
+		return m.forwardModel.InEditMode()
 	}
 	if m.filterBar.InEditMode() {
 		return true
@@ -40,8 +51,11 @@ func (m *Model) InEditMode() bool {
 
 // FilterBarVisible implements app.FilterBarView.
 func (m *Model) FilterBarVisible() bool {
-	if m.activeTab == tabPorts {
+	switch m.activeTab {
+	case tabPorts:
 		return m.portsModel.table.FilterBar().IsVisible()
+	case tabForward:
+		return m.forwardModel.table.FilterBar().IsVisible()
 	}
 	return m.activeTab == tabDiagnostics && m.filterBar.IsVisible()
 }
@@ -58,6 +72,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resizeDetailsViewport()
 		m.portsModel.resize(msg.Width, msg.Height)
 		m.interfacesModel.resize(msg.Width, msg.Height)
+		m.forwardModel.resize(msg.Width, msg.Height)
 		return m, nil
 
 	case spinner.TickMsg:
@@ -66,12 +81,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case stageDoneMsg:
 		return m.handleStageDone(msg)
 
-	// Ports sub-model messages. The confirm-modal answers are here because the
-	// kill asks before it acts (§3.26), and the modal is the ports tab's.
-	case portsTickMsg, portsDataMsg, portsKillResultMsg,
-		components.ConfirmModalYesMsg, components.ConfirmModalNoMsg:
+	// Ports sub-model messages.
+	case portsTickMsg, portsDataMsg, portsKillResultMsg:
 		var cmd tea.Cmd
 		m.portsModel, cmd = m.portsModel.update(msg)
+		return m, cmd
+
+	// Two tabs now ask before they act — Ports before a kill (§3.26), Forward
+	// before dropping the connections a redirection is carrying — so the answer
+	// goes to the tab that asked rather than to Ports unconditionally, which
+	// would have confirmed a kill from the Forward tab's modal.
+	case components.ConfirmModalYesMsg, components.ConfirmModalNoMsg:
+		return m.routeConfirm(msg)
+
+	// Forward sub-model messages. ChangedMsg is the router's broadcast, and it
+	// reaches this view wherever it stands, on screen or not.
+	case forward.ChangedMsg, forwardTickMsg, ForwardFormSubmitMsg, ForwardFormCancelMsg:
+		var cmd tea.Cmd
+		m.forwardModel, cmd = m.forwardModel.update(msg)
 		return m, cmd
 
 	// Topology sub-model messages
@@ -85,11 +112,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Each tab holds its own footer, so an expiry has to be offered to all
-	// three: the timer fires wherever the user has since navigated.
+	// four: the timer fires wherever the user has since navigated.
 	m.footer.Handle(msg)
 	m.portsModel.footer.Handle(msg)
 	m.interfacesModel.footer.Handle(msg)
+	m.forwardModel.footer.Handle(msg)
 	return m, nil
+}
+
+// routeConfirm hands a confirmation answer to the tab that put the modal up.
+func (m *Model) routeConfirm(msg tea.Msg) (*Model, tea.Cmd) {
+	var cmd tea.Cmd
+	if m.activeTab == tabForward {
+		m.forwardModel, cmd = m.forwardModel.update(msg)
+		return m, cmd
+	}
+	m.portsModel, cmd = m.portsModel.update(msg)
+	return m, cmd
 }
 
 func (m *Model) handleSpinnerTick(msg spinner.TickMsg) (*Model, tea.Cmd) {
@@ -152,10 +191,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	// Tab / Shift+Tab cycles between the three tabs (Rule 135)
 	switch msg.String() {
 	case "tab":
-		m.activeTab = (m.activeTab + 1) % 3
+		m.activeTab = (m.activeTab + 1) % tabCount
 		return m, nil
 	case "shift+tab":
-		m.activeTab = (m.activeTab + 2) % 3
+		m.activeTab = (m.activeTab + tabCount - 1) % tabCount
 		return m, nil
 	}
 
@@ -168,6 +207,11 @@ func (m *Model) handleKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	if m.activeTab == tabInterfaces {
 		var cmd tea.Cmd
 		m.interfacesModel, cmd = m.interfacesModel.update(msg)
+		return m, cmd
+	}
+	if m.activeTab == tabForward {
+		var cmd tea.Cmd
+		m.forwardModel, cmd = m.forwardModel.update(msg)
 		return m, cmd
 	}
 

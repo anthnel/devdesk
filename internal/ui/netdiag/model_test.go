@@ -76,19 +76,36 @@ func TestInitLoadsBothSubTabs(t *testing.T) {
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-func TestTabCyclesThroughTheThreeTabs(t *testing.T) {
+func TestTabCyclesThroughEveryTab(t *testing.T) {
 	m := newTestModel(t)
-	for _, want := range []int{tabPorts, tabInterfaces, tabDiagnostics} {
+	for _, want := range []int{tabPorts, tabInterfaces, tabForward, tabDiagnostics} {
 		m = feed(t, m, testutil.Key("tab"))
 		if m.activeTab != want {
 			t.Fatalf("activeTab = %d, want %d", m.activeTab, want)
 		}
 	}
-	for _, want := range []int{tabInterfaces, tabPorts, tabDiagnostics} {
+	for _, want := range []int{tabForward, tabInterfaces, tabPorts, tabDiagnostics} {
 		m = feed(t, m, testutil.Key("shift+tab"))
 		if m.activeTab != want {
 			t.Fatalf("activeTab = %d, want %d", m.activeTab, want)
 		}
+	}
+}
+
+// The cycle is stated over tabCount rather than over a list written out twice,
+// so a fifth tab cannot be added to the bar and forgotten in the arithmetic.
+func TestEveryTabIsReachableByTabAlone(t *testing.T) {
+	m := newTestModel(t)
+	seen := map[int]bool{m.activeTab: true}
+	for i := 0; i < tabCount; i++ {
+		m = feed(t, m, testutil.Key("tab"))
+		seen[m.activeTab] = true
+	}
+	if len(seen) != tabCount {
+		t.Errorf("tab reached %d of the %d tabs", len(seen), tabCount)
+	}
+	if m.activeTab != tabDiagnostics {
+		t.Errorf("a full cycle ended on tab %d, want to be back at %d", m.activeTab, tabDiagnostics)
 	}
 }
 

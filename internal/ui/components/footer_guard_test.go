@@ -92,7 +92,42 @@ var viewsWithATableBody = []string{
 	"forge/explorer/view.go",
 	"status/view.go",
 	"viewer/view.go",
-	"netdiag/topology_model.go",
+	// netdiag has four bodies, one per tab plus the dispatcher. The single
+	// entry that used to stand for this package named topology_model.go, which
+	// §3.44 deleted — so the package went unguarded, exactly the way the
+	// explorer did above. TestEveryGuardedFileExists is what stops a third.
+	"netdiag/view.go",
+	"netdiag/ports_model.go",
+	"netdiag/interfaces_model.go",
+	"netdiag/forward_model.go",
+}
+
+// TestEveryGuardedFileExists rejects a suffix in viewsWithATableBody that
+// matches nothing.
+//
+// The guard above works by suffix, so an entry naming a file that has been
+// renamed or deleted does not fail — it silently guards nothing, and the view
+// it was written for is unprotected from then on. That has already happened
+// twice: forge/explorer/view.go after §3.6 renamed the package, and
+// netdiag/topology_model.go after §3.44 deleted the file. Both were found by
+// accident, a long way after the fact.
+func TestEveryGuardedFileExists(t *testing.T) {
+	matched := make(map[string]bool, len(viewsWithATableBody))
+	forEachUIFile(t, func(path string, _ *ast.File, _ *token.FileSet) {
+		slash := filepath.ToSlash(path)
+		for _, suffix := range viewsWithATableBody {
+			if strings.HasSuffix(slash, suffix) {
+				matched[suffix] = true
+			}
+		}
+	})
+	for _, suffix := range viewsWithATableBody {
+		if !matched[suffix] {
+			t.Errorf("viewsWithATableBody names %q, which matches no file under internal/ui.\n"+
+				"It guards nothing: either the file was renamed or deleted, and the entry has to "+
+				"follow it or go.", suffix)
+		}
+	}
 }
 
 // declaredSpinnerExceptions are the functions inside a guarded file that draw a

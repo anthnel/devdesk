@@ -27,11 +27,17 @@ const (
 	StateDetails                  // One check explained
 )
 
-// Tab indices
+// Tab indices. tabCount is what Tab cycles through, and it is a constant
+// rather than a literal because the two places that cycle would otherwise have
+// to be found and changed together — which is exactly the kind of pair that
+// gets changed once.
 const (
 	tabDiagnostics = 0
 	tabPorts       = 1
 	tabInterfaces  = 2
+	tabForward     = 3
+
+	tabCount = 4
 )
 
 // Form field indices.
@@ -74,10 +80,11 @@ type Model struct {
 	width  int
 	height int
 
-	// Active tab (tabDiagnostics, tabPorts, or tabInterfaces)
+	// Active tab (tabDiagnostics, tabPorts, tabInterfaces or tabForward)
 	activeTab       int
 	portsModel      *PortsModel
 	interfacesModel *InterfacesModel
+	forwardModel    *ForwardModel
 
 	state ViewState
 
@@ -144,6 +151,7 @@ func New(cfg *config.Config) *Model {
 		activeTab:       tabDiagnostics,
 		portsModel:      newPortsModel(time.Duration(cfg.Network.PortsRefreshInterval) * time.Second),
 		interfacesModel: newInterfacesModel(),
+		forwardModel:    newForwardModel(),
 		targetInput:     targetIn,
 		portInput:       portIn,
 		dnsServerInput:  dnsIn,
