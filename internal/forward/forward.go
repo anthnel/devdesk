@@ -175,7 +175,13 @@ type Registry struct {
 	// mu only, so serving never waits on a bind.
 	proxyMu  sync.Mutex
 	proxySrv *http.Server
-	proxyLn  net.Listener
+
+	// afterResumeStart, when set, runs in toggleRoute right after the proxy was
+	// started and before the route is marked live. It exists so a test can hold
+	// a resume in the one window where a pause could otherwise close the proxy;
+	// nothing in production sets it.
+	afterResumeStart func()
+	proxyLn          net.Listener
 }
 
 // New returns an empty registry.
@@ -372,6 +378,7 @@ func (r *Registry) Restore(entries []Entry) Restored {
 		err error
 	}
 	outcomes := make([]outcome, len(entries))
+	names, nameErrs := restoredRouteNames(entries)
 
 	var wg sync.WaitGroup
 	for i, saved := range entries {
@@ -382,6 +389,10 @@ func (r *Registry) Restore(entries []Entry) Restored {
 		go func() {
 			defer wg.Done()
 			if saved.Name != "" {
+				if nameErrs[i] != nil {
+					outcomes[i].err = nameErrs[i]
+					return
+				}
 				outcomes[i].err = probeTarget(saved.Target)
 				return
 			}
@@ -404,7 +415,12 @@ func (r *Registry) Restore(entries []Entry) Restored {
 	r.mu.Lock()
 	for i, saved := range entries {
 		e := r.add(saved.LocalPort, saved.Target, outcomes[i].ln)
+		// A name that could not be normalized is kept as written, so that the
+		// file is not silently rewritten and the user can still fix it.
 		e.forward.Name = saved.Name
+		if names[i] != "" {
+			e.forward.Name = names[i]
+		}
 		err := outcomes[i].err
 		if err == nil && saved.Name != "" {
 			err = proxyErr

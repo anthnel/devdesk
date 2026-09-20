@@ -106,6 +106,37 @@ func normalizeHost(host string) string {
 	return strings.ToLower(strings.TrimSuffix(host, "."))
 }
 
+// restoredRouteNames holds a file's route names to the rule OpenRoute applies to
+// a typed one: valid, lower case, and unique. The file can be edited by hand,
+// and a name that was never normalized would read live and never match a
+// request, while two entries for one name would be served at random.
+//
+// For each entry it returns the normalized name ("" when it has none or it is
+// invalid) and why it is refused, if it is. A refused entry is not dropped by
+// the caller: it is kept, unbound, with the reason.
+func restoredRouteNames(entries []Entry) (names []string, errs []error) {
+	names = make([]string, len(entries))
+	errs = make([]error, len(entries))
+	seen := map[string]bool{}
+	for i, saved := range entries {
+		if saved.Name == "" {
+			continue
+		}
+		name, err := normalizeRouteName(saved.Name)
+		switch {
+		case err != nil:
+			errs[i] = err
+		case seen[name]:
+			names[i] = name
+			errs[i] = fmt.Errorf("%w: %s", ErrRouteNameTaken, name)
+		default:
+			names[i] = name
+			seen[name] = true
+		}
+	}
+	return names, errs
+}
+
 // SetProxyPort says which port the proxy serves on. The router calls it at
 // startup and whenever a context switch changes network.proxy_port.
 //
@@ -116,24 +147,33 @@ func normalizeHost(host string) string {
 //
 // It binds, so the router calls it from a Cmd.
 func (r *Registry) SetProxyPort(port int) error {
+	changed, err := r.movePort(port)
+	if !changed || err != nil {
+		return err
+	}
+	return r.retryUnboundRoutes()
+}
+
+// movePort records the new port and, if the proxy was serving, closes it and
+// binds it again on the new one. It reports whether the port changed at all.
+func (r *Registry) movePort(port int) (changed bool, err error) {
 	r.proxyMu.Lock()
 	defer r.proxyMu.Unlock()
 
 	r.mu.Lock()
 	if r.proxyPort == port {
 		r.mu.Unlock()
-		return nil
+		return false, nil
 	}
 	r.proxyPort = port
 	wasServing := r.proxySrv != nil
 	r.mu.Unlock()
 
 	if !wasServing {
-		return nil
+		return true, nil
 	}
 	r.stopProxyLocked()
-	err := r.startProxyLocked()
-	if err != nil {
+	if err := r.startProxyLocked(); err != nil {
 		r.mu.Lock()
 		for _, e := range r.entries {
 			if e.forward.Name != "" && e.forward.State == StateLive {
@@ -142,8 +182,36 @@ func (r *Registry) SetProxyPort(port int) error {
 			}
 		}
 		r.mu.Unlock()
+		return true, err
 	}
-	return err
+	return true, nil
+}
+
+// retryUnboundRoutes gives the routes a bind failure left unbound another try
+// now that the port is a different one. Without it, correcting a taken
+// network.proxy_port would report success and leave every route unbound, with
+// an error naming the port the user had just replaced.
+//
+// It returns the proxy bind's failure if the new port is refused too, and
+// nothing for a target that still does not answer: that row says so itself.
+// No lock is held: toggleRoute takes its own.
+func (r *Registry) retryUnboundRoutes() error {
+	r.mu.Lock()
+	var ids []string
+	for _, e := range r.sorted() {
+		if e.forward.Name != "" && e.forward.State == StateUnbound {
+			ids = append(ids, e.forward.ID)
+		}
+	}
+	r.mu.Unlock()
+
+	var refused error
+	for _, id := range ids {
+		if _, err := r.toggleRoute(id); errors.Is(err, ErrProxyPortInUse) && refused == nil {
+			refused = err
+		}
+	}
+	return refused
 }
 
 // ProxyPort is the port the proxy serves on, zero before SetProxyPort.
@@ -265,10 +333,19 @@ func (r *Registry) toggleRoute(id string) (Forward, error) {
 	r.mu.Unlock()
 
 	err := probeTarget(target)
+
+	// proxyMu is held from starting the proxy to marking the route live. Released
+	// in between, a pause of the last live route could find "nothing served",
+	// close the proxy, and leave this route reading live with no listener.
+	// Pausing takes proxyMu after changing the state, so it either sees this
+	// route live or runs first and lets the start below rebind.
+	r.proxyMu.Lock()
+	defer r.proxyMu.Unlock()
 	if err == nil {
-		r.proxyMu.Lock()
 		err = r.startProxyLocked()
-		r.proxyMu.Unlock()
+		if r.afterResumeStart != nil {
+			r.afterResumeStart()
+		}
 	}
 
 	r.mu.Lock()
@@ -276,16 +353,18 @@ func (r *Registry) toggleRoute(id string) (Forward, error) {
 	if _, still := r.entries[id]; !still {
 		r.mu.Unlock()
 		// Closed while dialling. The proxy just started may serve nothing.
-		r.proxyMu.Lock()
 		r.stopProxyIfIdleLocked()
-		r.proxyMu.Unlock()
 		return Forward{}, fmt.Errorf("%w: %s", ErrNoSuchForward, id)
+	}
+	if err == nil {
+		err = r.nameConflictLocked(e)
 	}
 	if err != nil {
 		e.forward.State = StateUnbound
 		e.forward.LastErr = err.Error()
 		snapshot := r.view(e)
 		r.mu.Unlock()
+		r.stopProxyIfIdleLocked()
 		return snapshot, err
 	}
 	e.forward.State = StateLive
@@ -294,6 +373,18 @@ func (r *Registry) toggleRoute(id string) (Forward, error) {
 	snapshot := r.view(e)
 	r.mu.Unlock()
 	return snapshot, nil
+}
+
+// nameConflictLocked refuses to serve a route whose name another live route
+// already answers to. A file can hold two paused entries for one name, and
+// resuming both would serve one of them at random. The caller holds mu.
+func (r *Registry) nameConflictLocked(e *entry) error {
+	for _, other := range r.entries {
+		if other != e && other.forward.Name == e.forward.Name && other.forward.State == StateLive {
+			return fmt.Errorf("%w: %s", ErrRouteNameTaken, e.forward.Name)
+		}
+	}
+	return nil
 }
 
 // startProxyLocked binds the proxy if it is not bound. The caller holds
@@ -406,8 +497,13 @@ func (r *Registry) serveHTTP(w http.ResponseWriter, req *http.Request) {
 			pr.SetXForwarded()
 		},
 		Transport: routeTransport,
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
+		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
 			failed = true
+			if req.Context().Err() != nil {
+				// The client went away — a cancelled navigation, a closed tab.
+				// That is not the route failing, and there is nobody to answer.
+				return
+			}
 			r.note(id, func(f *Forward) { f.LastErr = err.Error() })
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.Header().Set("X-Content-Type-Options", "nosniff")

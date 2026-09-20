@@ -402,6 +402,30 @@ platforms measured resolve it unaided.
   route becomes unbound with the reason and nothing leaves the file.
 - **Restore probes the targets, then binds the proxy once**, and only if a route
   passed: a file whose routes are all silent binds nothing.
+- **Restore holds the file to the rules of `OpenRoute`.** A name is normalized
+  (lower case) and validated, and a second entry for a name is refused — the
+  file can be edited by hand, and a name that was never normalized would read
+  live and never match a request. A refused entry is kept, unbound, with the
+  reason, and is not rewritten. Resuming a paused route also refuses a name a
+  live route already answers to.
+- **A new proxy port retries the routes a bind failure left unbound.** Without
+  it, correcting a taken `network.proxy_port` would report success and leave
+  every route unbound with an error naming the port just replaced.
+- **A resume marks the route live under `proxyMu`**, the lock a pause takes to
+  decide the proxy is idle. Released in between, a pause of the last live route
+  could close the proxy under a route that then read live with no listener. A
+  test holds a resume in that window through an unexported hook and fails when
+  the lock is released early.
+- **A client that goes away is not the route failing.** A cancelled request does
+  not set `LastErr`.
+
+**A known race, left as it is.** `bindTCP` checks the proxy's port under `mu`,
+while the proxy binds under `proxyMu`, and neither holds a lock across the other.
+A TCP forward asked for the proxy's port at the very moment the first route binds
+it can therefore lose the race and be refused with a generic port-in-use
+sentence instead of the one that names `network.proxy_port`. Nothing is lost and
+the window is a single `net.Listen`; closing it would mean holding `proxyMu`
+across every TCP bind, which is worse than the message.
 
 **Limits, stated rather than discovered.** HTTP only — `https://app.localhost`
 needs a certificate the browser trusts, which is one more elevation. The port
