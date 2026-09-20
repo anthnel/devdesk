@@ -56,6 +56,8 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 			// greyed (Rule 130): greying N and K here would show the union of
 			// two vocabularies.
 			return shortcut.Shortcuts{
+				// ←→ only cycles the type, so it greys elsewhere (Rule 130).
+				{Key: "←→", Description: "Change type", Disabled: !m.forwardModel.form.TypeFocused()},
 				{Key: "enter", Description: "Open the forward"},
 				{Key: "esc", Description: "Cancel"},
 			}
@@ -283,7 +285,7 @@ func (m *Model) statusLine() components.Status {
 func (m *Model) GetHelpContent() help.Content {
 	return help.Content{
 		Title:       "Network",
-		Description: "Four-tab view: check whether a host is reachable and its certificate chain sound (Diagnostics), monitor live ports (Ports), inspect this machine's network interfaces (Interfaces), or redirect a local port to a host:port (Forward).",
+		Description: "Four-tab view: check whether a host is reachable and its certificate chain sound (Diagnostics), monitor live ports (Ports), inspect this machine's network interfaces (Interfaces), or redirect a local port to a host:port, or give a service a name (Forward).",
 		KeyBindings: []help.KeyBinding{
 			// Tab navigation
 			{Key: "tab / shift+tab", Description: "Cycle between the Diagnostics, Ports, Interfaces and Forward tabs"},
@@ -314,7 +316,7 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: ".", Description: "Cycle the sort column (Interfaces tab)"},
 			{Key: "ctrl+r", Description: "Re-read the interfaces (Interfaces tab)"},
 			// Forward tab
-			{Key: keymap.New, Description: "Open a new forward (Forward tab)"},
+			{Key: keymap.New, Description: "Open a new forward — TCP, or a named HTTP route (Forward tab)"},
 			{Key: "space", Description: "Pause the selected forward, or resume a paused or unbound one (Forward tab)"},
 			{Key: keymap.Kill, Description: "Delete the selected forward, after confirmation (Forward tab)"},
 			{Key: "/", Description: "Search forwards by port or target (Forward tab)"},
@@ -362,14 +364,26 @@ func (m *Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Forward Tab — How it works",
-				Body: "Redirects a local TCP port to a host:port, inside this process — no privilege, " +
+				Body: "Redirects traffic to a host:port, inside this process — no privilege, " +
 					"no container, nothing written to a system file. Use it to reach a port nothing " +
 					"published: a container's EXPOSEd port, or a service on another machine.\n\n" +
-					"The listener binds 127.0.0.1 only, so the redirection is available to this " +
-					"machine and not to the network — a service kept off the LAN stays off it. The " +
-					"local port has to be 1024 or above: anything below needs privileges DevDesk " +
-					"does not ask for, and there is no unprivileged way around that on Linux or " +
-					"macOS.\n\n" +
+					"N opens a form with a Type field, changed with ← →. TCP redirects a local port " +
+					"to a host:port. HTTP gives the target a name instead of a port: fill in Name " +
+					"and Target, and http://<name>:<proxy port> reaches it.\n\n" +
+					"A name must end in .localhost, such as api.localhost — nothing else is " +
+					"accepted. That suffix is reserved for this machine, so it needs no DNS entry and " +
+					"no privilege; any other name would not resolve. Every named route is served on " +
+					"the same port, network.proxy_port (8080 by default, in the network tab of the " +
+					"configuration), and the request's Host header picks the target — so " +
+					"http://api.localhost:8080 and http://app.localhost:8080 are two services on one " +
+					"port. The port stays in the URL because 80 is privileged. It is HTTP only: " +
+					"https would need a certificate your browser trusts. A name that is not known " +
+					"gets a page listing the ones that are.\n\n" +
+					"Everything listens on 127.0.0.1 only, so it is available to this machine and " +
+					"not to the network — a service kept off the LAN stays off it. A TCP forward's " +
+					"local port has to be 1024 or above, and cannot be the proxy's: anything below " +
+					"needs privileges DevDesk does not ask for, and there is no unprivileged way " +
+					"around that on Linux or macOS.\n\n" +
 					"The target is dialled once before the port is bound, so an address that answers " +
 					"nothing is refused immediately instead of failing later at the first client. A " +
 					"container's own address is reachable from the host on native Linux; under " +

@@ -359,6 +359,10 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 				integer("Expiry warning (days)", func(c *config.Config) *int { return &c.Network.CertExpiryWarnDays }, 1, 365,
 					"A certificate closer than this warns"),
 			),
+			group("Forward", theme.IconNetwork,
+				integer("Proxy port", func(c *config.Config) *int { return &c.Network.ProxyPort }, config.MinProxyPort, config.MaxProxyPort,
+					"Port shared by every named route, e.g. http://api.localhost:8080"),
+			),
 		)},
 
 		// A tab of its own for two scalars. Every other tab is named after the

@@ -82,6 +82,25 @@ func forwardColumns() []datatable.Column[forward.Forward] {
 			Search: func(f forward.Forward) string { return strconv.Itoa(f.LocalPort) },
 		},
 		{
+			// Optional, but the last of them to go: it is what a route is
+			// called, and losing it would leave a row that says only a port
+			// every route shares. Empty for a raw TCP forward, which has none.
+			Title: "Name", Sizing: datatable.SizingContent, MinWidth: 12, Optional: true,
+			Cell: func(f forward.Forward) string {
+				if f.Name == "" {
+					return "-"
+				}
+				return f.Name
+			},
+			Search: func(f forward.Forward) string { return f.Name },
+			Style: func(f forward.Forward) lipgloss.Style {
+				if f.Name == "" {
+					return theme.DimStyle
+				}
+				return lipgloss.NewStyle()
+			},
+		},
+		{
 			Title: "Target", Sizing: datatable.SizingContent, MinWidth: 20, Flex: 1,
 			Cell: target, Search: target,
 		},
@@ -240,10 +259,14 @@ func (fm *ForwardModel) handleTick() (*ForwardModel, tea.Cmd) {
 	return fm, tea.Batch(forward.Refresh, forwardTickCmd())
 }
 
-// handleFormSubmit closes the form and asks the router to open the forward.
-// Every refusal is the registry's to give, and arrives at the footer.
+// handleFormSubmit closes the form and asks the router to open the forward, or
+// the route when the form carried a name. Every refusal is the registry's to
+// give, and arrives at the footer.
 func (fm *ForwardModel) handleFormSubmit(msg ForwardFormSubmitMsg) (*ForwardModel, tea.Cmd) {
 	fm.form = nil
+	if msg.Name != "" {
+		return fm, forward.OpenRoute(msg.Name, msg.Target)
+	}
 	return fm, forward.Open(msg.LocalPort, msg.Target)
 }
 
@@ -264,11 +287,13 @@ func (fm *ForwardModel) handleKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
 	return fm.handleKeyNormal(msg)
 }
 
-// handleFormKey lets the form have the keyboard, and answers the one refusal
-// the form itself decides rather than letting the keypress vanish (Rule 130).
+// handleFormKey lets the form have the keyboard, and answers the refusals the
+// form itself decides rather than letting the keypress vanish (Rule 130).
 func (fm *ForwardModel) handleFormKey(msg tea.KeyMsg) (*ForwardModel, tea.Cmd) {
-	if msg.String() == "enter" && !fm.form.PortIsANumber() {
-		return fm, fm.footer.Warn(reasonPortNotANumber)
+	if msg.String() == "enter" {
+		if reason := fm.form.Problem(); reason != "" {
+			return fm, fm.footer.Warn(reason)
+		}
 	}
 	var cmd tea.Cmd
 	fm.form, cmd = fm.form.Update(msg)
@@ -293,8 +318,7 @@ func (fm *ForwardModel) handleKeyNormal(msg tea.KeyMsg) (*ForwardModel, tea.Cmd)
 // Why an action does not apply, written once so the header, the footer and the
 // tests cannot drift apart on the wording (Rule 129 — English US).
 const (
-	reasonNoForwardRow   = "No forward selected"
-	reasonPortNotANumber = "The local port has to be a number"
+	reasonNoForwardRow = "No forward selected"
 )
 
 // closable reports whether K has a forward to stop (Rule 130).
@@ -340,7 +364,11 @@ func (fm *ForwardModel) confirmClose() (*ForwardModel, tea.Cmd) {
 		return fm, fm.footer.Warn(c.Reason)
 	}
 	entry, _ := fm.table.Selected()
-	body := fmt.Sprintf("Stop forwarding %s to %s?", entry.Addr(), entry.Target)
+	from := entry.Addr()
+	if entry.Name != "" {
+		from = entry.URL()
+	}
+	body := fmt.Sprintf("Stop forwarding %s to %s?", from, entry.Target)
 	body += "\n\nIt is removed from the saved forwards and will not come back at the next launch."
 	if entry.Active > 0 {
 		body += fmt.Sprintf("\n\n%d connection(s) in progress will be dropped.", entry.Active)
@@ -371,6 +399,9 @@ func (fm *ForwardModel) view() string {
 // every frame, never set with a timer (Rule 128).
 func (fm *ForwardModel) status() components.Status {
 	if fm.form != nil {
+		if fm.form.Named() {
+			return components.Status{Text: "A named route is served on network.proxy_port, on 127.0.0.1 only"}
+		}
 		return components.Status{Text: "Forwards listen on 127.0.0.1 only, on a port at or above 1024"}
 	}
 	if len(fm.table.Items()) == 0 {

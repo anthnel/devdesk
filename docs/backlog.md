@@ -13366,7 +13366,7 @@ Deux fichiers (`one-dark.json`, `tokyo-night.json`) utilisaient une
 indentation à 4 espaces plutôt que 2 ; elle est préservée par fichier plutôt
 qu'uniformisée, pour ne pas gonfler la diff avec un reformatage sans rapport.
 
-### 3.74 Des noms `*.localhost` sans droits — un reverse proxy par `Host`
+### 3.74 Des noms `*.localhost` sans droits — un reverse proxy par `Host` — **done**, sauf une mesure
 
 Le besoin : pendant le développement, atteindre un service local par un nom
 (`api.localhost`, `app.localhost`) plutôt que par `127.0.0.1:PORT`. Le réflexe est
@@ -13441,14 +13441,23 @@ rechargement à chaud.
 3. **La mesure qui manque**, avant de s'engager : un navigateur sous Windows et
    macOS.
 
-Non engagé : ce n'est qu'une piste, consignée pour que la décision de ne pas
-écrire un serveur DNS ne soit pas reprise de zéro.
+Consigné d'abord comme une piste, pour que la décision de ne pas écrire un
+serveur DNS ne soit pas reprise de zéro ; construit ensuite (voir plus bas et
+`docs/architecture/network.md`, « Named routes »).
+
+**Ce qui reste ouvert : la mesure du navigateur.** Elle n'a pas été faite avant
+d'écrire le code, alors que ce plan la donnait comme préalable. Ouvrir
+`http://foo.localhost:PORT` dans Chrome, Edge et Firefox sous Windows et dans
+Safari sous macOS, contre une route réelle, et vérifier que le repli de `::1`
+vers `127.0.0.1` est immédiat (le proxy ne lie que l'IPv4). Si Windows échoue,
+la fonctionnalité est à rouvrir plutôt qu'à corriger.
 
 **Décisions prises depuis** (voir §3.75 pour la persistance) :
 
-- **Où le mettre** : un champ `Name` optionnel dans le formulaire de l'onglet
-  Forward, pas un cinquième onglet. Le type se déduit du nom : vide, c'est un
-  forward TCP brut ; renseigné, c'est une route HTTP.
+- **Où le mettre** : dans le formulaire de l'onglet Forward, pas un cinquième
+  onglet. Le formulaire a un champ `Type` (`TCP` / `HTTP`, voir §3.75) ; le
+  fichier, lui, déduit le type du nom : vide, c'est un forward TCP brut ;
+  renseigné, c'est une route HTTP.
 - **Un seul proxy, un seul port pour tous les noms** : `api.localhost:8080` et
   `app.localhost:8080`. C'est le but du besoin — joindre un service par son nom,
   pas par un port qui change d'une route à l'autre. Une route est `{name,
@@ -13459,7 +13468,7 @@ Non engagé : ce n'est qu'une piste, consignée pour que la décision de ne pas
   page 404 qui liste les routes ; une cible qui ne répond pas, un 502 lisible.
   Le TCP brut garde un port par forward.
 
-### 3.75 Persister les forwards — **non engagé**
+### 3.75 Persister les forwards — **done**
 
 Un forward ne vit aujourd'hui qu'en mémoire, dans le registre du routeur : il
 survit à un changement de contexte (il n'appartient à aucun contexte) et

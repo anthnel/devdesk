@@ -340,12 +340,14 @@ func TestTheFormShowsWholePlaceholders(t *testing.T) {
 
 func TestTheFieldsAreSeparatedByABlankLine(t *testing.T) {
 	lines := strings.Split(NewForwardForm(100).View(), "\n")
-	// blank, port, blank, target
-	if len(lines) != 4 {
-		t.Fatalf("the form is %d lines, want 4 (top padding, port, spacer, target)", len(lines))
+	// blank, type, blank, port, blank, target
+	if len(lines) != 6 {
+		t.Fatalf("the form is %d lines, want 6 (top padding, then three fields with a spacer between)", len(lines))
 	}
-	if strings.TrimSpace(ansi.Strip(lines[2])) != "" {
-		t.Errorf("line 3 is %q, want a blank line between the fields", lines[2])
+	for _, i := range []int{0, 2, 4} {
+		if strings.TrimSpace(ansi.Strip(lines[i])) != "" {
+			t.Errorf("line %d is %q, want a blank line between the fields", i+1, lines[i])
+		}
 	}
 }
 
@@ -479,5 +481,267 @@ func TestTheDeleteConfirmationSaysTheForwardWillNotComeBack(t *testing.T) {
 	}
 	if !strings.Contains(ansi.Strip(m.forwardModel.confirmModal.View()), "next launch") {
 		t.Errorf("the confirmation does not mention the next launch:\n%s", ansi.Strip(m.forwardModel.confirmModal.View()))
+	}
+}
+
+// ── The Type field and named routes (§3.74) ──────────────────────────────────
+
+// typed feeds keys to the open form one at a time, the way a user would.
+func typed(t *testing.T, m *Model, keys ...string) *Model {
+	t.Helper()
+	for _, k := range keys {
+		m = feed(t, m, testutil.Key(k))
+	}
+	return m
+}
+
+func openForm(t *testing.T) *Model {
+	t.Helper()
+	return feed(t, onForwardTab(t), testutil.Key(keymap.New))
+}
+
+func TestTheFormOpensOnTCPFocusedOnThePort(t *testing.T) {
+	f := openForm(t).forwardModel.form
+	if f.Named() {
+		t.Error("the form opens on HTTP; TCP is the common case")
+	}
+	if f.focused != forwardFieldPort {
+		t.Errorf("focus starts on field %d, want the port (%d): the type must not stand between N and the port", f.focused, forwardFieldPort)
+	}
+}
+
+func TestTheTypeFieldShowsTheFieldsThatApplyToIt(t *testing.T) {
+	m := openForm(t)
+	view := ansi.Strip(m.forwardModel.form.View())
+	for _, want := range []string{"Type", "TCP", "Local port", "Target"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("the TCP form does not show %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "Name") {
+		t.Errorf("the TCP form shows a Name field:\n%s", view)
+	}
+
+	m = typed(t, m, "up", "right") // to the type, then HTTP
+	view = ansi.Strip(m.forwardModel.form.View())
+	for _, want := range []string{"HTTP", "Name", "Target"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("the HTTP form does not show %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "Local port") {
+		t.Errorf("the HTTP form shows a Local port field, which a route does not have:\n%s", view)
+	}
+}
+
+func TestTheArrowsCycleTheTypeBothWaysAndOnlyOnTheType(t *testing.T) {
+	m := openForm(t)
+	f := m.forwardModel.form
+
+	// On the port, ← → move the cursor and leave the type alone.
+	typed(t, m, "left", "right")
+	if f.Named() {
+		t.Error("← → on the port changed the type")
+	}
+
+	typed(t, m, "up")
+	if !f.TypeFocused() {
+		t.Fatal("↑ from the port did not reach the type")
+	}
+	typed(t, m, "right")
+	if !f.Named() {
+		t.Error("→ on the type did not switch to HTTP")
+	}
+	typed(t, m, "left")
+	if f.Named() {
+		t.Error("← on the type did not go back to TCP")
+	}
+	typed(t, m, "left") // cycles: TCP has nothing before it
+	if !f.Named() {
+		t.Error("← on the first value did not wrap around")
+	}
+}
+
+func TestTheArrowKeyEntryIsGreyedExceptOnTheType(t *testing.T) {
+	m := openForm(t)
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), "←→") {
+		t.Error("←→ is lit on the port, where it only moves a cursor")
+	}
+	m = typed(t, m, "up")
+	if !testutil.ShortcutEnabled(m.GetShortcuts(), "←→") {
+		t.Error("←→ is greyed on the type, where it cycles the value")
+	}
+}
+
+func TestUpAndDownSkipTheFieldsTheTypeHides(t *testing.T) {
+	m := openForm(t)
+	typed(t, m, "up", "right", "down") // HTTP, then down from the type
+	if got := m.forwardModel.form.focused; got != forwardFieldName {
+		t.Errorf("↓ from the type on HTTP reached field %d, want the name (%d)", got, forwardFieldName)
+	}
+	typed(t, m, "down")
+	if got := m.forwardModel.form.focused; got != forwardFieldTarget {
+		t.Errorf("↓ from the name reached field %d, want the target (%d), not the hidden port", got, forwardFieldTarget)
+	}
+	typed(t, m, "up", "up")
+	if !m.forwardModel.form.TypeFocused() {
+		t.Error("↑ ↑ from the target did not come back to the type")
+	}
+}
+
+func TestAHiddenFieldKeepsItsValueUntilTheFormCloses(t *testing.T) {
+	m := openForm(t)
+	f := m.forwardModel.form
+	f.nameInput.SetValue("api.localhost")
+	f.portInput.SetValue("9000")
+
+	typed(t, m, "up", "right", "left", "right") // HTTP, TCP, HTTP again
+	if f.nameInput.Value() != "api.localhost" || f.portInput.Value() != "9000" {
+		t.Errorf("switching type lost a value: name %q, port %q", f.nameInput.Value(), f.portInput.Value())
+	}
+}
+
+func TestTheFormAsksForARouteWhenItIsOnHTTP(t *testing.T) {
+	m := openForm(t)
+	f := m.forwardModel.form
+	typed(t, m, "up", "right")
+	f.nameInput.SetValue("api.localhost")
+	f.targetInput.SetValue("127.0.0.1:3000")
+	// A port typed while on TCP must not travel with a route.
+	f.portInput.SetValue("9000")
+
+	_, cmd := step(t, m, testutil.Key("enter"))
+	var submitted *ForwardFormSubmitMsg
+	for _, msg := range testutil.Msgs(cmd) {
+		if s, ok := msg.(ForwardFormSubmitMsg); ok {
+			submitted = &s
+		}
+	}
+	if submitted == nil {
+		t.Fatal("enter produced no submit")
+	}
+	if submitted.Name != "api.localhost" || submitted.Target != "127.0.0.1:3000" || submitted.LocalPort != 0 {
+		t.Errorf("submit = %+v, want the name and target and no port", *submitted)
+	}
+
+	_, cmd = step(t, m, *submitted)
+	var asked *forward.OpenMsg
+	for _, msg := range testutil.Msgs(cmd) {
+		if open, ok := msg.(forward.OpenMsg); ok {
+			asked = &open
+		}
+	}
+	if asked == nil || asked.Name != "api.localhost" || asked.LocalPort != 0 {
+		t.Errorf("the router was asked %+v, want a route named api.localhost", asked)
+	}
+}
+
+func TestATCPSubmitCarriesNoName(t *testing.T) {
+	m := openForm(t)
+	f := m.forwardModel.form
+	f.nameInput.SetValue("api.localhost") // typed, then set aside by staying on TCP
+	f.portInput.SetValue("8080")
+	f.targetInput.SetValue("10.0.0.5:80")
+
+	_, cmd := step(t, m, testutil.Key("enter"))
+	for _, msg := range testutil.Msgs(cmd) {
+		if s, ok := msg.(ForwardFormSubmitMsg); ok && (s.Name != "" || s.LocalPort != 8080) {
+			t.Errorf("submit = %+v, want port 8080 and no name", s)
+		}
+	}
+}
+
+// The user asked for a blocking validation, not a completion: what is typed is
+// what is stored, and a name that does not end in .localhost does not leave the
+// form.
+func TestANameThatDoesNotEndInLocalhostBlocksTheForm(t *testing.T) {
+	// The refusal is a footer message, and draining its Cmd would wait out its
+	// three-second timer once per name.
+	testutil.FastTimers(t, &components.FooterMsgDuration)
+	for _, name := range []string{"", "api", "localhost", ".localhost", "api.local", "api.example.com", "api.localhost.evil.com"} {
+		t.Run(name, func(t *testing.T) {
+			m := openForm(t)
+			f := m.forwardModel.form
+			typed(t, m, "up", "right")
+			f.nameInput.SetValue(name)
+			f.targetInput.SetValue("127.0.0.1:3000")
+
+			_, cmd := step(t, m, testutil.Key("enter"))
+			if cmd == nil {
+				t.Fatal("the keypress was swallowed — nothing reached the footer")
+			}
+			if m.forwardModel.form == nil {
+				t.Error("a refused form was closed anyway")
+			}
+			for _, msg := range testutil.Msgs(cmd) {
+				if _, ok := msg.(ForwardFormSubmitMsg); ok {
+					t.Fatalf("the name %q was sent to the router", name)
+				}
+			}
+			if got := f.Problem(); got != reasonNameNeedsSuffix {
+				t.Errorf("Problem() = %q, want %q", got, reasonNameNeedsSuffix)
+			}
+		})
+	}
+}
+
+func TestTheNameIsNotCompletedForTheUser(t *testing.T) {
+	m := openForm(t)
+	f := m.forwardModel.form
+	typed(t, m, "up", "right")
+	f.nameInput.SetValue("api")
+	f.targetInput.SetValue("127.0.0.1:3000")
+	step(t, m, testutil.Key("enter"))
+	if got := f.nameInput.Value(); got != "api" {
+		t.Errorf("the form rewrote the name to %q; what is typed is what is stored", got)
+	}
+}
+
+func TestANameInUpperCaseIsAccepted(t *testing.T) {
+	m := openForm(t)
+	f := m.forwardModel.form
+	typed(t, m, "up", "right")
+	f.nameInput.SetValue("API.Localhost")
+	if got := f.Problem(); got != "" {
+		t.Errorf("Problem() = %q for a name the registry lower-cases", got)
+	}
+}
+
+func TestTheFormsFooterHintFollowsTheType(t *testing.T) {
+	m := openForm(t)
+	if got := m.forwardModel.status().Text; !strings.Contains(got, "1024") {
+		t.Errorf("the TCP hint is %q, want the port rule", got)
+	}
+	m = typed(t, m, "up", "right")
+	if got := m.forwardModel.status().Text; !strings.Contains(got, "network.proxy_port") {
+		t.Errorf("the HTTP hint is %q, want it to name network.proxy_port", got)
+	}
+}
+
+func TestTheTableShowsTheNameOfARouteAndADashForAForward(t *testing.T) {
+	m := onForwardTab(t)
+	m = feed(t, m, forward.ChangedMsg{Forwards: []forward.Forward{
+		{ID: "1", LocalPort: 8080, Target: "127.0.0.1:3000", Name: "api.localhost", Opened: time.Now()},
+		{ID: "2", LocalPort: 5432, Target: "db:5432", Opened: time.Now()},
+	}})
+	out := ansi.Strip(m.View())
+	for _, want := range []string{"Name", "api.localhost", "8080"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the table does not show %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestTheDeleteConfirmationNamesTheURLOfARoute(t *testing.T) {
+	m := onForwardTab(t)
+	m = feed(t, m, forward.ChangedMsg{Forwards: []forward.Forward{
+		{ID: "1", LocalPort: 8080, Target: "127.0.0.1:3000", Name: "api.localhost", Opened: time.Now()},
+	}})
+	m = feed(t, m, testutil.Key(keymap.Kill))
+	if m.forwardModel.confirmModal == nil {
+		t.Fatal("K put up no confirmation")
+	}
+	if got := ansi.Strip(m.forwardModel.confirmModal.View()); !strings.Contains(got, "http://api.localhost:8080") {
+		t.Errorf("the confirmation does not name the route's URL:\n%s", got)
 	}
 }

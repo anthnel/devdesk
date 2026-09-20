@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"sort"
 	"strconv"
 	"sync"
@@ -113,14 +114,26 @@ func (s State) String() string {
 type Forward struct {
 	// ID identifies the forward across snapshots. It is a counter rather than
 	// the local port, which is reused as soon as a forward is closed.
-	ID        string
+	ID string
+	// LocalPort is the port a client connects to. For a named route it is the
+	// proxy's, which is what goes in the URL.
 	LocalPort int
-	Target    string
-	State     State
-	Opened    time.Time
-	Active    int
-	Total     int64
-	LastErr   string
+	// Name is a route's host name (§3.74); empty for a raw TCP forward.
+	Name    string
+	Target  string
+	State   State
+	Opened  time.Time
+	Active  int
+	Total   int64
+	LastErr string
+}
+
+// URL is what a client opens for a named route, and empty for a TCP forward.
+func (f Forward) URL() string {
+	if f.Name == "" {
+		return ""
+	}
+	return "http://" + net.JoinHostPort(f.Name, strconv.Itoa(f.LocalPort))
 }
 
 // Addr is the address a client connects to.
@@ -152,6 +165,17 @@ type Registry struct {
 	mu      sync.Mutex
 	entries map[string]*entry
 	nextID  int
+
+	// proxyPort is the port named routes are served on, set by SetProxyPort.
+	// Guarded by mu.
+	proxyPort int
+
+	// proxyMu serialises the proxy's lifecycle — start, stop, rebind. Lock
+	// order is proxyMu then mu, never the reverse, and the request handler takes
+	// mu only, so serving never waits on a bind.
+	proxyMu  sync.Mutex
+	proxySrv *http.Server
+	proxyLn  net.Listener
 }
 
 // New returns an empty registry.
@@ -165,7 +189,7 @@ func New() *Registry {
 // shows up healthy, and the failure only surfaces when someone points a client
 // at it — by which time the message arrives far from the action that caused it.
 func (r *Registry) Open(localPort int, target string) (Forward, error) {
-	ln, err := bind(localPort, target)
+	ln, err := r.bindTCP(localPort, target)
 	if err != nil {
 		return Forward{}, err
 	}
@@ -177,6 +201,15 @@ func (r *Registry) Open(localPort int, target string) (Forward, error) {
 
 	go r.serve(e, ln)
 	return snapshot, nil
+}
+
+// bindTCP is bind for a TCP forward: the same steps, and a refusal of the port
+// the proxy serves on, which a raw forward must not take.
+func (r *Registry) bindTCP(localPort int, target string) (net.Listener, error) {
+	if r.ProxyPort() == localPort && localPort != 0 {
+		return nil, fmt.Errorf("%w: %d is network.proxy_port", ErrProxyPortTaken, localPort)
+	}
+	return bind(localPort, target)
 }
 
 // bind runs the checks and the two I/O steps a live forward needs: the port is
@@ -235,6 +268,10 @@ func (r *Registry) Close(id string) error {
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrNoSuchForward, id)
 	}
+	if e.forward.Name != "" {
+		r.releaseProxyIfIdle()
+		return nil
+	}
 	if e.ln == nil {
 		return nil
 	}
@@ -258,6 +295,9 @@ func (r *Registry) CloseAll() {
 			_ = e.ln.Close()
 		}
 	}
+	r.proxyMu.Lock()
+	r.stopProxyLocked()
+	r.proxyMu.Unlock()
 }
 
 // List returns the forwards, oldest first. The order is the order they were
@@ -270,7 +310,7 @@ func (r *Registry) List() []Forward {
 
 	out := make([]Forward, 0, len(r.entries))
 	for _, e := range r.sorted() {
-		out = append(out, e.forward)
+		out = append(out, r.view(e))
 	}
 	return out
 }
@@ -294,11 +334,15 @@ func (r *Registry) Entries() []Entry {
 
 	out := make([]Entry, 0, len(r.entries))
 	for _, e := range r.sorted() {
-		out = append(out, Entry{
-			LocalPort: e.forward.LocalPort,
-			Target:    e.forward.Target,
-			Paused:    e.forward.State == StatePaused,
-		})
+		saved := Entry{
+			Name:   e.forward.Name,
+			Target: e.forward.Target,
+			Paused: e.forward.State == StatePaused,
+		}
+		if e.forward.Name == "" {
+			saved.LocalPort = e.forward.LocalPort
+		}
+		out = append(out, saved)
 	}
 	return out
 }
@@ -337,10 +381,18 @@ func (r *Registry) Restore(entries []Entry) Restored {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			outcomes[i].ln, outcomes[i].err = bind(saved.LocalPort, saved.Target)
+			if saved.Name != "" {
+				outcomes[i].err = probeTarget(saved.Target)
+				return
+			}
+			outcomes[i].ln, outcomes[i].err = r.bindTCP(saved.LocalPort, saved.Target)
 		}()
 	}
 	wg.Wait()
+
+	// The proxy is bound once, for every route whose target answered — after the
+	// probes, so that a file whose routes are all silent binds nothing.
+	proxyErr := r.startProxyForRestore(entries, func(i int) bool { return outcomes[i].err == nil })
 
 	var summary Restored
 	type bound struct {
@@ -352,16 +404,23 @@ func (r *Registry) Restore(entries []Entry) Restored {
 	r.mu.Lock()
 	for i, saved := range entries {
 		e := r.add(saved.LocalPort, saved.Target, outcomes[i].ln)
+		e.forward.Name = saved.Name
+		err := outcomes[i].err
+		if err == nil && saved.Name != "" {
+			err = proxyErr
+		}
 		switch {
 		case saved.Paused:
 			e.forward.State = StatePaused
 			summary.Paused++
-		case outcomes[i].err != nil:
+		case err != nil:
 			e.forward.State = StateUnbound
-			e.forward.LastErr = outcomes[i].err.Error()
+			e.forward.LastErr = err.Error()
 			summary.Unbound++
 		default:
-			live = append(live, bound{e, outcomes[i].ln})
+			if saved.Name == "" {
+				live = append(live, bound{e, outcomes[i].ln})
+			}
 			summary.Live++
 		}
 	}
@@ -371,6 +430,25 @@ func (r *Registry) Restore(entries []Entry) Restored {
 		go r.serve(b.e, b.ln)
 	}
 	return summary
+}
+
+// startProxyForRestore binds the proxy if any route among entries passed its
+// probe, and returns why it could not. It is the one place Restore touches the
+// proxy, kept out of Restore's loop because it takes proxyMu.
+func (r *Registry) startProxyForRestore(entries []Entry, probed func(int) bool) error {
+	wanted := false
+	for i, saved := range entries {
+		if saved.Name != "" && !saved.Paused && probed(i) {
+			wanted = true
+			break
+		}
+	}
+	if !wanted {
+		return nil
+	}
+	r.proxyMu.Lock()
+	defer r.proxyMu.Unlock()
+	return r.startProxyLocked()
 }
 
 // Toggle pauses a live forward, and resumes a paused or unbound one.
@@ -387,6 +465,10 @@ func (r *Registry) Toggle(id string) (Forward, error) {
 	if !ok {
 		r.mu.Unlock()
 		return Forward{}, fmt.Errorf("%w: %s", ErrNoSuchForward, id)
+	}
+	if e.forward.Name != "" {
+		r.mu.Unlock()
+		return r.toggleRoute(id)
 	}
 	if e.switching {
 		r.mu.Unlock()
@@ -410,7 +492,7 @@ func (r *Registry) Toggle(id string) (Forward, error) {
 	port, target := e.forward.LocalPort, e.forward.Target
 	r.mu.Unlock()
 
-	ln, err := bind(port, target)
+	ln, err := r.bindTCP(port, target)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
