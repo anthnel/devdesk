@@ -13444,6 +13444,133 @@ rechargement à chaud.
 Non engagé : ce n'est qu'une piste, consignée pour que la décision de ne pas
 écrire un serveur DNS ne soit pas reprise de zéro.
 
+**Décisions prises depuis** (voir §3.75 pour la persistance) :
+
+- **Où le mettre** : un champ `Name` optionnel dans le formulaire de l'onglet
+  Forward, pas un cinquième onglet. Le type se déduit du nom : vide, c'est un
+  forward TCP brut ; renseigné, c'est une route HTTP.
+- **Un seul proxy, un seul port pour tous les noms** : `api.localhost:8080` et
+  `app.localhost:8080`. C'est le but du besoin — joindre un service par son nom,
+  pas par un port qui change d'une route à l'autre. Une route est `{name,
+  target}` et n'a pas de port propre ; le listener est lié à la première route
+  et fermé avec la dernière. **Le port est un réglage de la config**
+  (`network.proxy_port`, 8080 par défaut), pas un champ que chaque route répète.
+  Un `Host` inconnu, ou `localhost` seul, reçoit une
+  page 404 qui liste les routes ; une cible qui ne répond pas, un 502 lisible.
+  Le TCP brut garde un port par forward.
+
+### 3.75 Persister les forwards — **non engagé**
+
+Un forward ne vit aujourd'hui qu'en mémoire, dans le registre du routeur : il
+survit à un changement de contexte (il n'appartient à aucun contexte) et
+disparaît à la fermeture de DevDesk, parce qu'un listener ne survit pas à son
+processus. Pour un forward ouvert le temps d'un test, c'est juste. Pour un
+service utilisé pendant tout un développement — une base, une API, et demain
+un nom `*.localhost` (§3.74) — devoir le recréer à chaque lancement est ce que
+l'outil devrait épargner.
+
+#### Portée : tous les forwards
+
+La persistance est une propriété du **registre**, pas du proxy HTTP. Ne
+persister que les forwards nommés mettrait deux comportements dans une même
+table, alors qu'un forward TCP brut vers une base de développement se perd
+exactement de la même façon. §3.74 en dépend : un nom persisté suppose que ce
+mécanisme existe.
+
+#### Le modèle de données n'a pas à changer
+
+Depuis la suppression de `Label` et de la colonne Source (#231), un forward se
+réduit à `LocalPort` et `Target`, saisis à la main. Il n'existe plus de
+référence de conteneur à résoudre : la cible d'un conteneur n'est pas joignable
+depuis l'hôte sur cette machine (vérifié), donc `Target` reste une adresse et
+rien n'est à résoudre à la réouverture. Une entrée persistée est
+`{local_port, target}`, plus `name` quand §3.74 le demande, plus l'état
+désactivé.
+
+#### Où et quand écrire
+
+- **Un fichier à part**, `~/.devdesk/forwards.yaml`, et pas `config.yaml` : la
+  config est rechargée à chaque changement de contexte et un forward n'appartient
+  à aucun contexte.
+- **Écrit depuis `Update()`**, à l'ouverture, à la fermeture, à l'activation et à
+  la désactivation, dans un `Cmd` (règle 110). Le `Cmd` reçoit une copie de la
+  liste : il ne lit jamais le registre.
+- **Réouvert au démarrage du routeur**, là où il crée déjà le registre.
+
+#### Trois comportements à fixer
+
+1. **Un échec à la réouverture** (port pris, cible arrêtée) **ne supprime pas
+   l'entrée**. Une cible qui n'est pas encore démarrée ne doit pas effacer la
+   route. La ligne reste dans la table avec `Last error` renseigné. Le registre
+   n'a aujourd'hui que des forwards actifs : il lui faut un état « enregistré
+   mais non lié ».
+2. **La réouverture est annoncée** : un message d'info dans le footer
+   (« Restored 3 forwards »), et un `Warn` s'il y a des échecs. Lier des ports
+   sans que rien ne l'ait demandé dans la session est le but, pas une surprise à
+   laisser silencieuse.
+3. **Désactiver sans supprimer** : un forward peut être mis en pause, le
+   listener fermé et la route conservée dans le fichier. Sans cela, le seul moyen
+   de libérer un port est d'oublier la route.
+
+#### Le formulaire : un champ `Type`, puis les champs qui s'appliquent (§3.74)
+
+Le formulaire avait deux champs (`Local port`, `Target`). Il en gagne un, `Type`,
+**en premier**, et n'affiche ensuite que ce qui s'applique au type choisi.
+
+- **`Type` est un champ à cycler `←→`** (règle 132) à deux valeurs, `TCP` et
+  `HTTP`, `TCP` par défaut : c'est l'usage courant. Il avait été écarté tant que
+  `Local port` et `Name` pouvaient se combiner, parce qu'il ouvrait deux états
+  invalides (HTTP sans nom, TCP avec un nom). Depuis que le port du proxy vient
+  de `network.proxy_port`, les deux champs sont mutuellement exclusifs, et le
+  type les rend impossibles au lieu de les refuser.
+- **Les champs affichés dépendent du type** :
+  - `TCP` : `Local port`, `Target`.
+  - `HTTP` : `Name`, `Target`.
+
+  Il n'y a donc plus de refus « `Name` et `Local port` renseignés » ni « les deux
+  vides ». `↑↓` saute les champs absents, et le focus se replace sur un champ
+  affiché quand le type change.
+- **Le champ masqué garde sa valeur** tant que le formulaire est ouvert : un nom
+  déjà saisi n'est pas perdu si l'on repasse en `TCP`, puis en `HTTP`. Seul le
+  type courant est soumis.
+- **Pas de complétion automatique du suffixe.** Le nom saisi est le nom
+  enregistré ; compléter `api` en `api.localhost` cacherait ce qui est écrit
+  dans le fichier.
+- **Validation bloquante** : en `HTTP`, si `Name` est vide ou ne se termine pas
+  par `.localhost`, le formulaire refuse et le dit (`Warn` dans le footer, règle
+  128). Sont aussi refusés un nom déjà utilisé et les caractères hors d'un
+  nom d'hôte valide. En `TCP`, un `Local port` égal à `network.proxy_port` est
+  refusé : un port ne mélange jamais TCP brut et proxy, et le message nomme le
+  réglage.
+- **L'aide est explicite.** `GetHelpContent` (règle 114) décrit chaque type : le
+  nom d'un forward `HTTP` doit se terminer par `.localhost`, son port est
+  `network.proxy_port` et c'est celui à mettre dans l'URL
+  (`http://api.localhost:PORT`) ; un forward `TCP` ouvre un port local vers une
+  adresse quelconque. Rien de cela n'est rappelé dans le viewport (règle 134).
+- **Pas de colonne `Type` dans la table** : `Name` vide ou renseigné suffit à
+  distinguer les deux, et la table est déjà large.
+- **Où vit le réglage.** `network:` est déjà la section des réglages que le
+  routeur lit pour la vue réseau ; la config est par contexte, alors qu'un
+  forward n'appartient à aucun contexte. Le proxy suit le précédent du serveur MCP
+  : un changement de contexte qui change le port relie le listener, et les routes
+  (dans `forwards.yaml`) sont resservies sur le nouveau port. Un port par défaut
+  est acceptable ici parce que le réglage se voit dans la vue de configuration et
+  qu'un port pris échoue bruyamment (état « non lié », décision 1).
+
+La table gagne une colonne `Name`, `Optional`, en `DimStyle` quand elle est
+vide (règle 122). Les routes du proxy affichent
+`network.proxy_port` dans `Local`, qui est le port de l'URL ; `Live` et `Total`
+restent comptés par route, et `K` ne supprime qu'une route. `forwards.yaml` ne
+porte plus le port du proxy, seulement les routes, et un proxy dont le port est
+pris rend toutes ses routes « non liées » (décision 1).
+
+**À mesurer avant de s'engager** : l'écriture concurrente. `~/.devdesk/` est
+partagé entre deux instances (ou deux worktrees) ; deux DevDesk qui écrivent
+`forwards.yaml` s'écrasent sans avertissement, et la seconde réouverture
+échouerait sur des ports déjà pris. Il faut décider si le fichier est écrit
+atomiquement (fichier temporaire puis renommage) et si une instance qui trouve
+ses ports pris doit se contenter de l'état « non lié » de la décision 1.
+
 ---
 
 ## 4. Existing plans
