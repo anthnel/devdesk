@@ -6505,7 +6505,7 @@ qui resterait à faire, sont en
 
 ---
 
-### 3.23 `workspaces` et la notion d'occupé — **étape 1 faite**
+### 3.23 `workspaces` et la notion d'occupé — **faite : exception documentée**
 
 Sorti de §3.22 : les six autres tables passent par `datatable`, `workspaces`
 garde le sien. Ce n'est pas un oubli — c'est la vue **d'où vient le design**,
@@ -6590,14 +6590,17 @@ risque de régression est réel et le gain visible est nul.
 
 1. ~~**La suppression d'abord**, seule, parce que c'est le seul défaut
    observable — et elle ne demande aucune décision.~~ **Faite.**
-2. **Reste ouvert** : décider si `datatable` doit apprendre l'exclusion
+2. ~~**Reste ouvert** : décider si `datatable` doit apprendre l'exclusion
    mutuelle et la colonne variable, ou si `workspaces` reste l'exception
-   documentée. La deuxième réponse est légitime : une exception qui s'explique
-   en trois lignes coûte moins qu'une abstraction qui porte un cas unique — et
-   l'étape 1 vient de la rendre plus légitime encore, puisque le seul défaut
-   observable qui plaidait pour la migration n'existe plus. Il ne reste que de
-   la symétrie, et la symétrie ne se paie pas en risque de régression sur du
-   code qui marche.
+   documentée.~~ **Tranchée : `workspaces` reste l'exception.** Une exception
+   qui s'explique en trois lignes coûte moins qu'une abstraction qui porte un
+   cas unique — et l'étape 1 a retiré le seul défaut observable qui plaidait
+   pour la migration. Il ne restait que de la symétrie, et la symétrie ne se
+   paie pas en risque de régression sur du code qui marche. Déjà appliquée
+   ailleurs : §2 (« Une exception subsiste, documentée plutôt que subie »),
+   §3.22 (`workspaces` laissé en dehors) et `docs/architecture/ui-components.md`.
+   À rouvrir seulement si une quatrième action longue s'ajoute à la vue et
+   exige un quatrième map : c'est ce qui rendrait l'abstraction rentable.
 
 ---
 
@@ -12262,9 +12265,21 @@ cible du moniteur sélectionné, dans les deux onglets de `status` :
   (même mécanisme que `security`/`uiviewer`), vide pour l'ouverture normale
   par la ligne de commande, où `esc` se comporte exactement comme avant.
 
+#### Ce qui reste ouvert
+
+- **L'historique des latences** — voir « Non tranché » plus haut. Rien à faire
+  tant que personne ne demande « est-ce que ça se dégrade » ; ce serait alors
+  `ntcharts` (§3.19) et une persistance à inventer.
+- **La cause de `server misbehaving`** sur la box `192.168.1.2` reste
+  inconnue : il faut une capture réseau comparant la requête de Go à celle de
+  `dig`, depuis le poste de l'utilisateur. Le diagnostic affiché est correct,
+  seule l'explication manque.
+- **`Duration` n'est pas exposé au MCP** ; les `Facts` portent déjà la forme
+  lisible. À ouvrir le jour où un client MCP veut trier ou comparer.
+
 ---
 
-### 3.67 Choisir le moteur de conteneurisation — `docker` ou `podman` — **fait, sauf la mesure**
+### 3.67 Choisir le moteur de conteneurisation — `docker` ou `podman` — **fait**
 
 Un seam existe déjà, trois lignes portent le nom du binaire, et quatre zones le
 contournent. Les sous-commandes se recouvrent ; ce qui ne se recouvre pas est le
@@ -12468,6 +12483,10 @@ propre commentaire.
 inchangé par cette mesure.
 
 #### Ce qui reste ouvert
+
+La mesure des gabarits, qui donnait son sous-titre à cette entrée, a été faite
+(voir plus haut) : l'entrée est fermée. Ce qui suit est de la dette assumée, pas
+du travail en attente.
 
 **`system df -v` est désactivé sous podman** (`Shape.ParsesSystemDFVerbose`).
 C'est la douzième sortie, et la seule sans gabarit : un tableau à colonnes
