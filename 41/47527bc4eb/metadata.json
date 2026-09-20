@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "4147527bc4eb",
+  "strategy": "manual-commit",
+  "branch": "docs/backlog-3-75-forward-persistence",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/41/47527bc4eb/0/metadata.json",
+      "transcript": "/41/47527bc4eb/0/full.jsonl",
+      "compact_transcript": "/41/47527bc4eb/0/transcript.jsonl",
+      "content_hash": "/41/47527bc4eb/0/content_hash.txt",
+      "prompt": "/41/47527bc4eb/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 52595,
+    "cache_read_tokens": 748210,
+    "output_tokens": 5876,
+    "api_call_count": 5
+  }
+}
