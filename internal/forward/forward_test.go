@@ -55,7 +55,7 @@ func TestAForwardCarriesBytesBothWays(t *testing.T) {
 	r := New()
 	t.Cleanup(r.CloseAll)
 
-	f, err := r.Open(freePort(t), target, "")
+	f, err := r.Open(freePort(t), target)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestAPrivilegedPortIsRefusedBeforeTheTargetIsProbed(t *testing.T) {
 	t.Cleanup(r.CloseAll)
 
 	// Nothing is listening on this target, so a probe would fail too.
-	_, err := r.Open(80, "127.0.0.1:1", "")
+	_, err := r.Open(80, "127.0.0.1:1")
 	if !errors.Is(err, ErrPrivilegedPort) {
 		t.Fatalf("Open(80) = %v, want ErrPrivilegedPort", err)
 	}
@@ -112,7 +112,7 @@ func TestAPortAlreadyInUseIsRefused(t *testing.T) {
 	r := New()
 	t.Cleanup(r.CloseAll)
 
-	if _, err := r.Open(port, target, ""); !errors.Is(err, ErrPortInUse) {
+	if _, err := r.Open(port, target); !errors.Is(err, ErrPortInUse) {
 		t.Fatalf("Open on a held port = %v, want ErrPortInUse", err)
 	}
 	if got := len(r.List()); got != 0 {
@@ -128,7 +128,7 @@ func TestAnUnreachableTargetOpensNoListener(t *testing.T) {
 	t.Cleanup(r.CloseAll)
 
 	// Port 1 on loopback: reserved, and nothing listens there.
-	_, err := r.Open(port, "127.0.0.1:1", "")
+	_, err := r.Open(port, "127.0.0.1:1")
 	if !errors.Is(err, ErrTargetUnreachable) {
 		t.Fatalf("Open with a dead target = %v, want ErrTargetUnreachable", err)
 	}
@@ -149,7 +149,7 @@ func TestClosingAForwardReleasesItsPort(t *testing.T) {
 	t.Cleanup(r.CloseAll)
 
 	port := freePort(t)
-	f, err := r.Open(port, target, "")
+	f, err := r.Open(port, target)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestAForwardCanBeClosedWhileAConnectionIsOpen(t *testing.T) {
 	r := New()
 	t.Cleanup(r.CloseAll)
 
-	f, err := r.Open(freePort(t), target, "")
+	f, err := r.Open(freePort(t), target)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestAForwardCountsTheConnectionsItCarried(t *testing.T) {
 	r := New()
 	t.Cleanup(r.CloseAll)
 
-	f, err := r.Open(freePort(t), target, "")
+	f, err := r.Open(freePort(t), target)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestListIsOrderedOldestFirst(t *testing.T) {
 
 	var ids []string
 	for i := 0; i < 3; i++ {
-		f, err := r.Open(freePort(t), target, "")
+		f, err := r.Open(freePort(t), target)
 		if err != nil {
 			t.Fatalf("Open %d: %v", i, err)
 		}
@@ -287,7 +287,7 @@ func TestATargetThatIsNotAHostPortIsRefused(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := r.Open(9999, tc.target, "")
+			_, err := r.Open(9999, tc.target)
 			if err == nil {
 				t.Fatalf("Open(%q) succeeded, want a refusal", tc.target)
 			}
@@ -315,7 +315,7 @@ func TestAForwardNeverBindsAnythingButLoopback(t *testing.T) {
 	r := New()
 	t.Cleanup(r.CloseAll)
 
-	f, err := r.Open(freePort(t), target, "")
+	f, err := r.Open(freePort(t), target)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

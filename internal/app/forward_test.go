@@ -105,7 +105,7 @@ func TestACloseRequestStopsTheForward(t *testing.T) {
 	a := newWithSize(testConfig(), 120, 40)
 	t.Cleanup(a.sharedState.Forwards.CloseAll)
 
-	f, err := a.sharedState.Forwards.Open(freePort(t), target, "")
+	f, err := a.sharedState.Forwards.Open(freePort(t), target)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestForwardsSurviveAViewRebuild(t *testing.T) {
 	a := newWithSize(testConfig(), 120, 40)
 	t.Cleanup(a.sharedState.Forwards.CloseAll)
 
-	f, err := a.sharedState.Forwards.Open(freePort(t), target, "")
+	f, err := a.sharedState.Forwards.Open(freePort(t), target)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestARefreshHandsEveryViewTheSnapshot(t *testing.T) {
 	a := newWithSize(testConfig(), 120, 40)
 	t.Cleanup(a.sharedState.Forwards.CloseAll)
 
-	f, err := a.sharedState.Forwards.Open(freePort(t), target, "cadvisor")
+	f, err := a.sharedState.Forwards.Open(freePort(t), target)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -222,8 +222,8 @@ func TestARefreshHandsEveryViewTheSnapshot(t *testing.T) {
 	if len(spy.got) != 1 {
 		t.Fatalf("the view was handed %d forwards, want 1", len(spy.got))
 	}
-	if spy.got[0].ID != f.ID || spy.got[0].Label != "cadvisor" {
-		t.Errorf("the view was handed %+v, want the forward %q labelled cadvisor", spy.got[0], f.ID)
+	if spy.got[0].ID != f.ID || spy.got[0].Target != target {
+		t.Errorf("the view was handed %+v, want the forward %q to %s", spy.got[0], f.ID, target)
 	}
 }
 

@@ -328,8 +328,10 @@ mechanism as D55 for the Ports tab. It works on native Linux. The probe is what
 turns that into a named refusal instead of a healthy-looking dead row, and it is
 why the container pre-fill was not built (§3.1).
 
-`forward.Open` takes a `label` (a container name) that is decoration only:
-nothing resolves it back.
+A forward records its local port and its target, and nothing about where the
+target came from. It briefly carried a `Label` for a container name, with a
+`Source` column to show it; both were removed because the pre-fill that would
+have filled them was not built, so the column only ever read `-`.
 
 ## The interfaces — `internal/netiface`
 

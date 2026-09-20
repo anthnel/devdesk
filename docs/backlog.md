@@ -3644,6 +3644,11 @@ Le cas « joindre un port non publié sans redémarrer » reste **ouvert** :
   Docker Desktop, mais elle réintroduit un conteneur auxiliaire et une image à
   tirer, ce que §3.43 à §3.47 ont retiré : une entrée à part, avec sa propre
   décision.
+- **La colonne `Source` est retirée** (2026-09-20) : le champ `Label` de
+  `forward.Forward`, l'argument de `Open` et la colonne existaient pour le
+  nom du conteneur, donc pour ce pré-remplissage. Personne ne les alimentait, et
+  la colonne affichait `-` sur chaque ligne en réservant 10 cellules à `Target`.
+  Elle reviendra avec le pré-remplissage s'il revient.
 - **Non mesuré : `podman inspect` contre `docker inspect`** sur
   `.NetworkSettings.Networks.*.IPAddress`. La question ne se pose plus sans le
   pré-remplissage, mais c'est la classe de divergence que §3.67 a trouvée trois
