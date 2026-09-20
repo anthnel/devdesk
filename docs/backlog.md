@@ -3585,6 +3585,10 @@ sécuriser : un fichier temporaire dans un répertoire inscriptible par un tiers
 offre une écriture root arbitraire. Et ce serait le contraire de §3.43/§3.44, qui
 ont retiré le dernier conteneur privilégié de l'application.
 
+Le besoin derrière — donner un nom à une adresse locale pendant le
+développement — a une réponse sans élévation : voir
+[§3.74](#374-des-noms-localhost-sans-droits--un-reverse-proxy-par-host).
+
 **Le redirecteur, lui, ne demande aucun droit.** C'est un `net.Listen` et deux
 `io.Copy` dans le process. Mesuré sous Linux non-root : `bind` refusé sur 80 et
 443, accepté sur 8080. Windows n'a pas de plage réservée, mais la limite de 1024
@@ -13356,6 +13360,84 @@ garde donc sa propre teinte de gris plutôt que d'hériter de `#585b70`.
 Deux fichiers (`one-dark.json`, `tokyo-night.json`) utilisaient une
 indentation à 4 espaces plutôt que 2 ; elle est préservée par fichier plutôt
 qu'uniformisée, pour ne pas gonfler la diff avec un reformatage sans rapport.
+
+### 3.74 Des noms `*.localhost` sans droits — un reverse proxy par `Host`
+
+Le besoin : pendant le développement, atteindre un service local par un nom
+(`api.localhost`, `app.localhost`) plutôt que par `127.0.0.1:PORT`. Le réflexe est
+d'écrire dans `hosts`, ce que §3.1 a écarté : il faut une élévation sur les trois
+plateformes.
+
+#### Un serveur DNS dans DevDesk ne supprime pas les droits, il les déplace
+
+Le serveur lui-même est facile : de l'UDP en Go sur un port haut, sans aucun
+droit (le port 53 est réservé sous Unix). Ce qui ne l'est pas, c'est que **le
+système ne l'interroge pas tant qu'on ne le lui a pas dit** — et le lui dire
+demande les mêmes droits que `hosts` :
+
+| Plateforme | Ce qu'il faut configurer | Droit |
+|---|---|---|
+| Windows | une règle NRPT, ou le DNS de l'adaptateur | UAC |
+| macOS | un fichier dans `/etc/resolver/` | root |
+| Linux | `systemd-resolved` ou `resolv.conf` | root |
+
+On y gagne une élévation ponctuelle au lieu d'une par nom, au prix de trois
+mécanismes à écrire et du même revirement sur §3.43/§3.44. **Écarté.**
+
+#### Ce qui marche sans rien configurer : le suffixe `.localhost`
+
+Le RFC 6761 réserve `*.localhost` à la boucle locale. Mesuré :
+
+- **Windows, 2026-09-20, machine de développement** : `Resolve-DnsName
+  foo.localhost`, `ping foo.localhost` et `curl.exe http://foo.localhost:9000`
+  fonctionnent tous les trois, sans rien avoir configuré. C'est la plateforme qui
+  décide de la question, puisque c'est elle dont le résolveur est le moins
+  fiable sur ce point.
+- **Linux, sandbox de développement** : `foo.localhost` résout vers `127.0.0.1`
+  et `::1` avec le résolveur de Go.
+- **Non mesuré** : macOS, et un navigateur sous Windows (`foo.localhost:9000`
+  dans Chrome, Edge, Firefox). Chrome et Firefox résolvent `*.localhost` eux-mêmes
+  d'après ce que je sais de leur comportement, ce qui n'est pas une mesure.
+
+#### La piste : un reverse proxy qui route selon l'en-tête `Host`
+
+Un listener sur `127.0.0.1:PORT` qui lit le `Host` de la requête et l'envoie vers
+la cible associée : `api.localhost:8080` vers un service, `app.localhost:8080`
+vers un autre. Aucun DNS, aucun droit, et c'est de la même famille que
+`internal/forward` — le listener loopback, la limite de 1024 et la sonde de la
+cible s'appliquent tels quels.
+
+C'est `net/http/httputil.ReverseProxy` de la bibliothèque standard : le
+`Upgrade` WebSocket y est géré, ce qui compte pour un serveur de développement à
+rechargement à chaud.
+
+**Limites, à dire plutôt qu'à découvrir**
+
+- **Le port apparaît dans l'URL** (`:8080`), parce que 80 est privilégié. Pas de
+  contournement non privilégié sous Unix.
+- **HTTP seulement.** `https://app.localhost` demande un certificat que le
+  navigateur accepte, donc une autorité locale à installer dans le magasin du
+  système, ce qui est une élévation de plus. Le TCP brut reste le travail du
+  redirecteur actuel.
+- **Un nom hors `.localhost`** (`monapp.test`, `api.dev.local`) ne marche pas :
+  seul ce suffixe est réservé à la boucle locale.
+- **Les clients qui ne connaissent pas `.localhost`**. Ceux de l'ensemble mesuré
+  marchent ; un outil qui passe par un résolveur maison n'est pas couvert.
+
+#### Décisions à prendre avant de construire
+
+1. **Où le mettre** : un champ « nom » optionnel dans le formulaire de l'onglet
+   Forward (un forward avec un nom devient une route du proxy), ou un cinquième
+   onglet. Le premier réutilise le formulaire, la table et `K` ; le second est
+   plus lisible mais double une table qui a presque les mêmes colonnes.
+2. **Un proxy par port, ou un seul.** Un seul port pour tous les noms est ce que
+   l'URL rend agréable (`api.localhost:8080`, `app.localhost:8080`) ; un port par
+   forward est ce que le registre fait déjà.
+3. **La mesure qui manque**, avant de s'engager : un navigateur sous Windows et
+   macOS.
+
+Non engagé : ce n'est qu'une piste, consignée pour que la décision de ne pas
+écrire un serveur DNS ne soit pas reprise de zéro.
 
 ---
 
