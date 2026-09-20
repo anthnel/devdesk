@@ -13512,32 +13512,43 @@ désactivé.
    listener fermé et la route conservée dans le fichier. Sans cela, le seul moyen
    de libérer un port est d'oublier la route.
 
-#### Le nom, dans le formulaire (§3.74)
+#### Le formulaire : un champ `Type`, puis les champs qui s'appliquent (§3.74)
 
-Le formulaire a deux champs (`Local port`, `Target`) ; le nom en ajoute un
-troisième, **en dernier**, parce que l'usage courant reste le TCP brut.
+Le formulaire avait deux champs (`Local port`, `Target`). Il en gagne un, `Type`,
+**en premier**, et n'affiche ensuite que ce qui s'applique au type choisi.
 
-- **Le type se déduit du nom**, il n'y a pas de champ « type » : un champ à
-  cycler (règle 132) ouvrirait deux états invalides, HTTP sans nom et TCP avec
-  un nom.
+- **`Type` est un champ à cycler `←→`** (règle 132) à deux valeurs, `TCP` et
+  `HTTP`, `TCP` par défaut : c'est l'usage courant. Il avait été écarté tant que
+  `Local port` et `Name` pouvaient se combiner, parce qu'il ouvrait deux états
+  invalides (HTTP sans nom, TCP avec un nom). Depuis que le port du proxy vient
+  de `network.proxy_port`, les deux champs sont mutuellement exclusifs, et le
+  type les rend impossibles au lieu de les refuser.
+- **Les champs affichés dépendent du type** :
+  - `TCP` : `Local port`, `Target`.
+  - `HTTP` : `Name`, `Target`.
+
+  Il n'y a donc plus de refus « `Name` et `Local port` renseignés » ni « les deux
+  vides ». `↑↓` saute les champs absents, et le focus se replace sur un champ
+  affiché quand le type change.
+- **Le champ masqué garde sa valeur** tant que le formulaire est ouvert : un nom
+  déjà saisi n'est pas perdu si l'on repasse en `TCP`, puis en `HTTP`. Seul le
+  type courant est soumis.
 - **Pas de complétion automatique du suffixe.** Le nom saisi est le nom
   enregistré ; compléter `api` en `api.localhost` cacherait ce qui est écrit
   dans le fichier.
-- **Validation bloquante** : si `Name` est renseigné et ne se termine pas par
-  `.localhost`, le formulaire refuse et le dit (`Warn` dans le footer, règle
+- **Validation bloquante** : en `HTTP`, si `Name` est vide ou ne se termine pas
+  par `.localhost`, le formulaire refuse et le dit (`Warn` dans le footer, règle
   128). Sont aussi refusés un nom déjà utilisé et les caractères hors d'un
-  nom d'hôte valide.
-- **L'aide est explicite sur ce point.** `GetHelpContent` (règle 114) dit que le
-  nom doit se terminer par `.localhost`, que le champ vide crée un forward TCP
-  brut, et que le port de la colonne `Local` est celui à mettre dans l'URL
-  (`http://api.localhost:PORT`). Ce n'est pas rappelé dans le viewport (règle
-  134).
-- **`Local port` ne sert qu'au TCP brut.** Le port du proxy vient de
-  `network.proxy_port`, donc `Local port` n'a qu'un seul sens. `Name` renseigné
-  avec `Local port` renseigné est **refusé**, et le message nomme le réglage
-  (« The port of a named route is network.proxy_port »). `Name` vide avec
-  `Local port` vide est refusé aussi. Un port ne mélange jamais TCP brut et
-  proxy : un `Local port` égal à `network.proxy_port` est refusé.
+  nom d'hôte valide. En `TCP`, un `Local port` égal à `network.proxy_port` est
+  refusé : un port ne mélange jamais TCP brut et proxy, et le message nomme le
+  réglage.
+- **L'aide est explicite.** `GetHelpContent` (règle 114) décrit chaque type : le
+  nom d'un forward `HTTP` doit se terminer par `.localhost`, son port est
+  `network.proxy_port` et c'est celui à mettre dans l'URL
+  (`http://api.localhost:PORT`) ; un forward `TCP` ouvre un port local vers une
+  adresse quelconque. Rien de cela n'est rappelé dans le viewport (règle 134).
+- **Pas de colonne `Type` dans la table** : `Name` vide ou renseigné suffit à
+  distinguer les deux, et la table est déjà large.
 - **Où vit le réglage.** `network:` est déjà la section des réglages que le
   routeur lit pour la vue réseau ; la config est par contexte, alors qu'un
   forward n'appartient à aucun contexte. Le proxy suit le précédent du serveur MCP
