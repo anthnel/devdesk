@@ -67,8 +67,9 @@ func (m *Model) GetShortcuts() shortcut.Shortcuts {
 		}
 		return append(tabShortcuts, shortcut.Shortcuts{
 			{Key: keymap.New, Description: "New forward"},
-			// Nothing to stop on an empty table (Rule 130).
-			{Key: keymap.Kill, Description: "Stop forward", Disabled: !m.forwardModel.closable().Enabled()},
+			// Nothing to pause, resume or delete on an empty table (Rule 130).
+			{Key: "space", Description: m.forwardModel.toggleLabel(), Disabled: !m.forwardModel.switchable().Enabled()},
+			{Key: keymap.Kill, Description: "Delete forward", Disabled: !m.forwardModel.closable().Enabled()},
 			{Key: "/", Description: "Search"},
 			{Key: ".", Description: "Sort"},
 			{Key: "?", Description: "Help"},
@@ -314,7 +315,8 @@ func (m *Model) GetHelpContent() help.Content {
 			{Key: "ctrl+r", Description: "Re-read the interfaces (Interfaces tab)"},
 			// Forward tab
 			{Key: keymap.New, Description: "Open a new forward (Forward tab)"},
-			{Key: keymap.Kill, Description: "Stop the selected forward, after confirmation (Forward tab)"},
+			{Key: "space", Description: "Pause the selected forward, or resume a paused or unbound one (Forward tab)"},
+			{Key: keymap.Kill, Description: "Delete the selected forward, after confirmation (Forward tab)"},
 			{Key: "/", Description: "Search forwards by port or target (Forward tab)"},
 			{Key: ".", Description: "Cycle the sort column (Forward tab)"},
 		},
@@ -372,9 +374,15 @@ func (m *Model) GetHelpContent() help.Content {
 					"nothing is refused immediately instead of failing later at the first client. A " +
 					"container's own address is reachable from the host on native Linux; under " +
 					"Docker Desktop it lives in the virtual machine and does not route out of it.\n\n" +
-					"Forwards last for the session. They survive a context switch — a local port " +
-					"pointed at a host:port belongs to no context — and they are gone when DevDesk " +
-					"exits, because a listener cannot outlive the process holding it.",
+					"Forwards are saved in ~/.devdesk/forwards.yaml and reopened when DevDesk " +
+					"starts. They survive a context switch — a local port pointed at a host:port " +
+					"belongs to no context — but the listener itself cannot outlive the process, so " +
+					"what comes back is the list, bound again.\n\n" +
+					"A forward that cannot be bound at launch — its port is taken, or its target is " +
+					"not up yet — is not deleted. Its row reads unbound, the last error says why, and " +
+					"space tries again. Space also pauses a live forward: the port is released and the " +
+					"row stays, paused, until you resume it. K deletes a forward for good, and asks " +
+					"first.",
 			},
 			{
 				Title: "Interfaces Tab — How it works",

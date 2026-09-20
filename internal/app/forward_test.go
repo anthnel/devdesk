@@ -243,3 +243,19 @@ func TestABroadcastReachesAViewThatIsNotOnScreen(t *testing.T) {
 		t.Error("a view that was not on screen never received the snapshot")
 	}
 }
+
+// mustCmd keeps the command an Update returned and drops the model, for a test
+// that wants to run the command and does not care about the router it came from.
+func mustCmd(_ tea.Model, cmd tea.Cmd) tea.Cmd { return cmd }
+
+// squat holds addr so a bind on it is refused.
+func squat(t *testing.T, addr string) net.Listener {
+	t.Helper()
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatalf("taking %s: %v", addr, err)
+	}
+	return ln
+}
+
+func itoa(n int) string { return fmt.Sprintf("%d", n) }

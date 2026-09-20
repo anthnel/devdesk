@@ -86,9 +86,23 @@ func forwardColumns() []datatable.Column[forward.Forward] {
 			Cell: target, Search: target,
 		},
 		{
+			// Six cells is exactly "paused", the widest thing this column says.
 			Title: "Live", Sizing: datatable.SizingFixed, MinWidth: 6,
-			Cell:  func(f forward.Forward) string { return strconv.Itoa(f.Active) },
-			Style: dimWhenZero(func(f forward.Forward) int { return f.Active }),
+			Cell: func(f forward.Forward) string {
+				switch f.State {
+				case forward.StatePaused:
+					return f.State.String()
+				case forward.StateUnbound:
+					return "-"
+				}
+				return strconv.Itoa(f.Active)
+			},
+			Style: func(f forward.Forward) lipgloss.Style {
+				if f.State != forward.StateLive || f.Active == 0 {
+					return theme.DimStyle
+				}
+				return lipgloss.NewStyle()
+			},
 		},
 		{
 			Title: "Total", Sizing: datatable.SizingFixed, MinWidth: 7, Optional: true, DropFirst: true,
@@ -96,8 +110,21 @@ func forwardColumns() []datatable.Column[forward.Forward] {
 			Style: dimWhenZero(func(f forward.Forward) int { return int(f.Total) }),
 		},
 		{
+			// Age counts from the last bind, so a listener that is not bound has
+			// none to report.
 			Title: "Age", Sizing: datatable.SizingFixed, MinWidth: 9, Optional: true,
-			Cell: func(f forward.Forward) string { return theme.TimeAgo(f.Opened) },
+			Cell: func(f forward.Forward) string {
+				if f.State != forward.StateLive {
+					return "-"
+				}
+				return theme.TimeAgo(f.Opened)
+			},
+			Style: func(f forward.Forward) lipgloss.Style {
+				if f.State != forward.StateLive {
+					return theme.DimStyle
+				}
+				return lipgloss.NewStyle()
+			},
 		},
 		{
 			Title: "Last error", Sizing: datatable.SizingContent, MinWidth: 12, Optional: true,
@@ -257,6 +284,8 @@ func (fm *ForwardModel) handleKeyNormal(msg tea.KeyMsg) (*ForwardModel, tea.Cmd)
 		return fm, nil
 	case keymap.Kill:
 		return fm.confirmClose()
+	case " ":
+		return fm.toggleSelected()
 	}
 	return fm, nil
 }
@@ -270,10 +299,39 @@ const (
 
 // closable reports whether K has a forward to stop (Rule 130).
 func (fm *ForwardModel) closable() shortcut.Availability {
+	return fm.rowSelected()
+}
+
+// switchable reports whether space has a forward to pause or resume. It is the
+// same question as closable's, asked once so the two cannot disagree.
+func (fm *ForwardModel) switchable() shortcut.Availability {
+	return fm.rowSelected()
+}
+
+func (fm *ForwardModel) rowSelected() shortcut.Availability {
 	if _, ok := fm.table.Selected(); !ok {
 		return shortcut.Unavailable(reasonNoForwardRow)
 	}
 	return shortcut.Availability{}
+}
+
+// toggleLabel is what space does to the selected row, for the header: pausing a
+// live forward, resuming any other. With nothing selected it keeps the pair's
+// name, as a greyed entry keeps the label of its action (Rule 130).
+func (fm *ForwardModel) toggleLabel() string {
+	if entry, ok := fm.table.Selected(); ok && entry.State != forward.StateLive {
+		return "Resume forward"
+	}
+	return "Pause forward"
+}
+
+// toggleSelected asks the router to pause or resume the selected forward.
+func (fm *ForwardModel) toggleSelected() (*ForwardModel, tea.Cmd) {
+	if a := fm.switchable(); !a.Enabled() {
+		return fm, fm.footer.Warn(a.Reason)
+	}
+	entry, _ := fm.table.Selected()
+	return fm, forward.Toggle(entry.ID)
 }
 
 // confirmClose asks before dropping the connections the forward is carrying.
@@ -283,10 +341,11 @@ func (fm *ForwardModel) confirmClose() (*ForwardModel, tea.Cmd) {
 	}
 	entry, _ := fm.table.Selected()
 	body := fmt.Sprintf("Stop forwarding %s to %s?", entry.Addr(), entry.Target)
+	body += "\n\nIt is removed from the saved forwards and will not come back at the next launch."
 	if entry.Active > 0 {
 		body += fmt.Sprintf("\n\n%d connection(s) in progress will be dropped.", entry.Active)
 	}
-	fm.confirmModal = components.NewConfirmModal("Stop Forward", body)
+	fm.confirmModal = components.NewConfirmModal("Delete Forward", body)
 	return fm, nil
 }
 
@@ -320,7 +379,19 @@ func (fm *ForwardModel) status() components.Status {
 	return components.Status{}
 }
 
-// summaryLine counts what is open, for the header (Rule 139).
+// summaryLine counts what is open, for the header (Rule 139). When some are not
+// bound it says how many are, because the total alone would read as all of them
+// listening.
 func (fm *ForwardModel) summaryLine() string {
-	return fmt.Sprintf("%d", len(fm.table.Items()))
+	items := fm.table.Items()
+	live := 0
+	for _, f := range items {
+		if f.State == forward.StateLive {
+			live++
+		}
+	}
+	if live == len(items) {
+		return fmt.Sprintf("%d", len(items))
+	}
+	return fmt.Sprintf("%d live of %d", live, len(items))
 }
