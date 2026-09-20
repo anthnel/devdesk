@@ -3,6 +3,7 @@ package shared
 import (
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/status"
 )
 
@@ -93,6 +94,17 @@ type State struct {
 	// fetched, and filling one needs the full API walk that §3.16 removed
 	// precisely because it froze the view for minutes. The right cache for a
 	// tree is the tree, and the explorer already holds it.
+
+	// Forwards are the open port redirections (§3.1). It lives here, created
+	// once with the router and never replaced, because a listener is not a
+	// view's to hold: reinitializeViews drops every view on a config save and
+	// on a context switch, and the port would stay bound with nothing left
+	// pointing at it.
+	//
+	// It deliberately survives a context switch, unlike the MCP server, which
+	// restarts because it answers *for* a context. A forward is a local port
+	// pointed at a host:port; it belongs to no context.
+	Forwards *forward.Registry
 
 	// Dashboard data
 	ServiceStatus     ServiceGlobalStatus
