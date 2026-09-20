@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.4.0](https://github.com/anthnel/devdesk/compare/v1.3.0...v1.4.0) (2026-09-19)
+
+
+### Features
+
+* **forge:** carry bytes and the execute bit in an initial commit ([#216](https://github.com/anthnel/devdesk/issues/216)) ([ae1017e](https://github.com/anthnel/devdesk/commit/ae1017ef4135a4ddd4a7ebef2671c279e77b791a))
+* **jobsview:** color a done run/item green like status's IconOK ([#213](https://github.com/anthnel/devdesk/issues/213)) ([f552258](https://github.com/anthnel/devdesk/commit/f55225889fa58124d37ed2d837e5309009380638))
+* **template:** add the repository template catalog and its fetchers ([#217](https://github.com/anthnel/devdesk/issues/217)) ([fe48c5b](https://github.com/anthnel/devdesk/commit/fe48c5be7b535908f91f53a2c9050903c4293239))
+* **templates:** add the :templates view over the catalog ([#219](https://github.com/anthnel/devdesk/issues/219)) ([5823b4d](https://github.com/anthnel/devdesk/commit/5823b4d77b5aa3fbfc1db37d17a7c62c93e8730d))
+* **templates:** cache what a template's source returns and sync it with F ([#225](https://github.com/anthnel/devdesk/issues/225)) ([3daadb4](https://github.com/anthnel/devdesk/commit/3daadb410b6442737bcb1c73fd3d8f1549f06fde))
+* **templates:** choose a template when creating a repository ([#220](https://github.com/anthnel/devdesk/issues/220)) ([05db616](https://github.com/anthnel/devdesk/commit/05db61691df9bc3c461f4b5ac24dc514a0c6f676))
+* **templates:** scan a template before it is copied into every repository ([#221](https://github.com/anthnel/devdesk/issues/221)) ([75c7740](https://github.com/anthnel/devdesk/commit/75c7740b5f53243b868c2dab40ce7394ab5d2be9))
+* **templates:** show how old a template's cached copy is ([#226](https://github.com/anthnel/devdesk/issues/226)) ([0c7fa72](https://github.com/anthnel/devdesk/commit/0c7fa720338e5e89e805d79a5ac51295fba9964e))
+* **ws:** add Last Tag column beside Git Status ([#214](https://github.com/anthnel/devdesk/issues/214)) ([f42e8b1](https://github.com/anthnel/devdesk/commit/f42e8b1f2d7d7d7966d48a7f9a16e49b5a76879a))
+
+
+### Bug Fixes
+
+* **app:** route a template sync's messages to the jobs registry ([#227](https://github.com/anthnel/devdesk/issues/227)) ([2472922](https://github.com/anthnel/devdesk/commit/2472922d3fa67f3d082113239ba25721a1f2eda0))
+* explorer footer, not body, reports a missing session (D70) ([#210](https://github.com/anthnel/devdesk/issues/210)) ([e8567ea](https://github.com/anthnel/devdesk/commit/e8567ea623cb4fe797337d803064ca042d99ebbe))
+* limit new project/group visibility to the parent's (D71, GitLab only) ([#212](https://github.com/anthnel/devdesk/issues/212)) ([ee09b41](https://github.com/anthnel/devdesk/commit/ee09b41a4d7bf574aaec58ee9566cfaad7da7fa9))
+* **scan:** give gitleaks a real report file on native Windows ([#223](https://github.com/anthnel/devdesk/issues/223)) ([46a99f6](https://github.com/anthnel/devdesk/commit/46a99f60a27f75654b70de7ab29209c8827a7a2c))
+* **template:** bound fetching while reading, tolerate bad catalog entries, keep secrets off http ([#222](https://github.com/anthnel/devdesk/issues/222)) ([7a818f2](https://github.com/anthnel/devdesk/commit/7a818f26fa4bb0c86bf2c1442ce2dc248b3eb73f))
+* **ui:** space out fields in the template creation/edit form ([#224](https://github.com/anthnel/devdesk/issues/224)) ([19c2923](https://github.com/anthnel/devdesk/commit/19c2923516b3f4578e8259a8e2c05a248b907704))
+
 ## [1.3.0](https://github.com/anthnel/devdesk/compare/v1.2.0...v1.3.0) (2026-09-14)
 
 
