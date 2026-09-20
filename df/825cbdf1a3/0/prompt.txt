@@ -1,0 +1,17 @@
+que ce ne soit pas le même port c'est embêtant, si j'ai un reverse proxy, je voudrais que le service cible soit joignable en fonction du nom de domaine et pas le port
+
+---
+
+ce serait plus propre de mettre le port dans la config
+
+---
+
+avec ces nouveaux éléments est-ce qu'un champ type de forward à du sens
+
+---
+
+oui, mets à jour le formulaire dans §3.75
+
+---
+
+fais le plan d'implémentation dans .claude/plans
