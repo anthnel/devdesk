@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
@@ -48,6 +49,7 @@ func (a *App) handleForwardOpened(msg forward.OpenedMsg) (tea.Model, tea.Cmd) {
 	log.Printf("Forward %s: %s to %s", msg.Forward.ID, msg.Forward.Addr(), msg.Forward.Target)
 	return a, tea.Batch(
 		a.broadcastForwards(),
+		a.saveForwardsCmd(),
 		components.PostFooter(components.LevelInfo,
 			fmt.Sprintf("Forwarding %s to %s", msg.Forward.Addr(), msg.Forward.Target)),
 	)
@@ -61,7 +63,130 @@ func (a *App) handleForwardClose(msg forward.CloseMsg) (tea.Model, tea.Cmd) {
 		log.Printf("ERROR [app/forward] close %s: %v", msg.ID, err)
 		return a, components.PostFooter(components.LevelError, "Failed to stop the forward — check logs")
 	}
-	return a, a.broadcastForwards()
+	return a, tea.Batch(a.broadcastForwards(), a.saveForwardsCmd())
+}
+
+// handleForwardToggle pauses or resumes a forward. Resuming dials the target and
+// binds the port, so it runs in a Cmd, like an open.
+func (a *App) handleForwardToggle(msg forward.ToggleMsg) (tea.Model, tea.Cmd) {
+	registry := a.sharedState.Forwards
+	return a, func() tea.Msg {
+		f, err := registry.Toggle(msg.ID)
+		return forward.ToggledMsg{Forward: f, Err: err}
+	}
+}
+
+// handleForwardToggled reports a resume that could not bind — the row already
+// shows it unbound with the reason, the footer says what to do about it — and
+// keeps the file in step with what the user just decided.
+func (a *App) handleForwardToggled(msg forward.ToggledMsg) (tea.Model, tea.Cmd) {
+	cmds := []tea.Cmd{a.broadcastForwards()}
+
+	switch {
+	case errors.Is(msg.Err, forward.ErrToggleBusy):
+		// Nothing changed and nothing needs saving.
+		cmds = append(cmds, components.PostFooter(components.LevelWarning, "That forward is already being switched"))
+		return a, tea.Batch(cmds...)
+	case errors.Is(msg.Err, forward.ErrNoSuchForward):
+		// Closed while it was being resumed: the Close already saved.
+		return a, tea.Batch(cmds...)
+	case msg.Err != nil:
+		log.Printf("WARN [app/forward] resume %s: %v", msg.Forward.ID, msg.Err)
+		cmds = append(cmds, components.PostFooter(components.LevelWarning, forwardRefusal(msg.Err)))
+	}
+	return a, tea.Batch(append(cmds, a.saveForwardsCmd())...)
+}
+
+// useForwardStore points the router at ~/.devdesk/forwards.yaml.
+//
+// It is called by New and not by newWithSize, for the reason useSecrets is: the
+// constructor tests build must not reach for the machine, and a router that
+// wrote the developer's real forwards file from a test would be the worst way
+// to find that out.
+func (a *App) useForwardStore() {
+	dir, err := config.ConfigDir()
+	if err != nil {
+		log.Printf("ERROR [app/forward] no configuration directory, forwards will not be saved: %v", err)
+		return
+	}
+	a.forwardStore = forward.NewStore(forward.StorePath(dir))
+}
+
+// restoreForwardsCmd reopens the saved forwards. It reads a file and binds
+// ports, so it is a Cmd; it is a no-op without a store.
+func (a *App) restoreForwardsCmd() tea.Cmd {
+	store, registry := a.forwardStore, a.sharedState.Forwards
+	if store == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		entries, err := store.Load()
+		if err != nil {
+			return forward.RestoredMsg{Err: err}
+		}
+		return forward.RestoredMsg{Summary: registry.Restore(entries)}
+	}
+}
+
+// handleForwardRestored says what came back. An unreadable file is an error
+// and is left exactly as it was; the first change afterwards moves it aside.
+func (a *App) handleForwardRestored(msg forward.RestoredMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		log.Printf("ERROR [app/forward] restore: %v", msg.Err)
+		return a, components.PostFooter(components.LevelError,
+			"The saved forwards could not be read — check logs")
+	}
+	sum := msg.Summary
+	log.Printf("Forwards restored: %d live, %d paused, %d unbound", sum.Live, sum.Paused, sum.Unbound)
+
+	cmds := []tea.Cmd{a.broadcastForwards()}
+	switch {
+	case sum.Unbound > 0:
+		cmds = append(cmds, components.PostFooter(components.LevelWarning, fmt.Sprintf(
+			"%d of %d forwards could not be bound — see the Forward tab", sum.Unbound, sum.Total())))
+	case sum.Live > 0:
+		cmds = append(cmds, components.PostFooter(components.LevelInfo,
+			fmt.Sprintf("Restored %d %s", sum.Live, plural(sum.Live, "forward", "forwards"))))
+	}
+	return a, tea.Batch(cmds...)
+}
+
+// saveForwardsCmd writes the forwards file.
+//
+// The list is copied here, in Update, and the Cmd works on the copy: a Cmd that
+// read the registry itself would be racing the goroutines that keep it running
+// (Rule 110). It returns nothing when the write works — that is what every
+// change expects — and a SavedMsg when it does not, because losing a write in
+// silence is the one thing a persisted list must not do.
+func (a *App) saveForwardsCmd() tea.Cmd {
+	store := a.forwardStore
+	if store == nil {
+		return nil
+	}
+	entries := a.sharedState.Forwards.Entries()
+	return func() tea.Msg {
+		if err := store.Save(entries); err != nil {
+			return forward.SavedMsg{Err: err}
+		}
+		return nil
+	}
+}
+
+// handleForwardSaved reports a failed write.
+func (a *App) handleForwardSaved(msg forward.SavedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err == nil {
+		return a, nil
+	}
+	log.Printf("ERROR [app/forward] save: %v", msg.Err)
+	return a, components.PostFooter(components.LevelError, "Failed to save the forwards — check logs")
+}
+
+// plural picks the noun for a count.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // handleForwardRefresh answers a view's tick with the current snapshot.

@@ -69,9 +69,9 @@ and never shells out, so it is engine-agnostic and podman changed nothing in it.
   It runs **no container**; see `internal/netiface` below. It was the Topology
   tab, and §3.44 is why three of its four sections are gone rather than
   translated.
-- **Forward tab** (`forward_model.go`, `forward_form.go`): the open port
-  redirections, `N` to open one and `K` to stop it. It holds **no listener** —
-  see `internal/forward` below.
+- **Forward tab** (`forward_model.go`, `forward_form.go`): the port
+  redirections, `N` to open one, `space` to pause or resume it and `K` to delete
+  it. It holds **no listener** — see `internal/forward` below.
 
 **Timing (§3.66).** `netcheck.Check` carries a `Duration time.Duration`
 alongside `Summary`/`Facts` — zero means untimed. `stage_connect.go` and
@@ -289,9 +289,9 @@ network-inspect overlay itself (`:oci` → Networks → `enter`) stays; only the
 ## The port forwarder — `internal/forward`
 
 A local TCP port redirected to a `host:port`, **in this process** and with no
-privilege: a `net.Listen` and two `io.Copy`. `Registry.Open(port, target,
-label)`, `Close(id)`, `CloseAll()` and `List()` are the whole interface; the
-messages a view exchanges with the router live in the same package so a view
+privilege: a `net.Listen` and two `io.Copy`. `Registry.Open(port, target)`,
+`Toggle(id)`, `Close(id)`, `CloseAll()`, `List()`, `Restore(entries)` and
+`Entries()` are the whole interface; the messages a view exchanges with the router live in the same package so a view
 never imports `internal/app`.
 
 **The router owns the registry** (`shared.State.Forwards`, built once in
@@ -299,8 +299,59 @@ never imports `internal/app`.
 context switch, so a listener held by the Forward tab would stay bound with
 nothing left to close it. The tab asks (`forward.Open` / `Close` / `Refresh`) and
 is told (`forward.ChangedMsg`, broadcast to every held view, on screen or not).
-Forwards **survive a context switch** — one belongs to no context — and are gone
-on exit, because a listener cannot outlive its process.
+Forwards **survive a context switch** — one belongs to no context.
+
+### Persistence (§3.75)
+
+The **listener** cannot outlive the process, but the **intent** can: every
+forward is written to `~/.devdesk/forwards.yaml` and reopened at the next launch.
+It is a file of its own rather than a key of `config.yaml`, because the config
+is per context and is reloaded on every switch, and a forward belongs to no
+context.
+
+| Piece | Where | Does |
+|---|---|---|
+| `Store` (`store.go`) | `internal/forward` | `Load` / `Save` the `[]Entry` (`local_port`, `target`, `paused`), `version: 1` |
+| `Registry.Entries()` | `internal/forward` | describes what is *wanted*, in creation order, live or not |
+| `Registry.Restore()` | `internal/forward` | reopens the entries at startup, binds in parallel |
+| `restoreForwardsCmd` / `saveForwardsCmd` | `internal/app/forward.go` | the router's two Cmds; the list is copied in `Update` (Rule 110) |
+
+A forward has a `State`:
+
+| State | Meaning | In the file |
+|---|---|---|
+| `StateLive` | listener bound | an entry |
+| `StatePaused` | the user stopped it; port released, row kept | `paused: true` |
+| `StateUnbound` | wanted, not bound — port taken or target silent at the last attempt; `LastErr` says which | an entry (retried at launch) |
+
+- **A refusal at creation deletes nothing; a failure at launch keeps the entry.**
+  `Open` still refuses a typo, opens no row and writes nothing — the form's
+  business. `Restore` answers a service that is not up yet, or a port some other
+  process holds today, and forgetting the route for that would make the file
+  lose things by being started at the wrong moment. The row reads unbound and
+  `space` tries again.
+- **`space` is Pause/Resume** (Rule 111's *Control* key), not a new capital. A
+  resume is a bind like any other: probe, then listen. A failure is returned and
+  recorded, so the row and the footer say the same thing.
+- **`K` deletes**: the row and its entry, after a confirmation that says it will
+  not come back.
+- **Order is the creation order** (`entry.seq`), not the last bind and not the ID
+  as text — `"10"` sorts before `"2"`, and a restored file creates its rows in
+  the same instant. A row does not move when it is paused and resumed.
+- **`serve` is handed its listener.** A pause clears `entry.ln`; an accept loop
+  that read the field would be the goroutine dereferencing it.
+- **The write is atomic** (temporary file, `Sync`, `Rename`) and serialised by a
+  mutex: two `Cmd`s can be in flight, and the older list must not land last.
+- **An unreadable file is refused, not treated as empty.** `Load` returns
+  `ErrUnreadable` naming the file and touches nothing; the first save afterwards
+  moves it to `forwards.yaml.unreadable` instead of overwriting it.
+- **A test never writes the developer's home.** `newWithSize` sets no store;
+  `New` calls `useForwardStore`, the way it calls `useSecrets`.
+
+**Two instances share the file.** `~/.devdesk/` is shared, so two DevDesks write
+`forwards.yaml` and the last write wins; the second one's reopening then finds
+the first one's ports taken and reads unbound rather than failing. There is no
+file lock — the atomic write keeps the file whole, not merged.
 
 Four decisions, each with a test:
 

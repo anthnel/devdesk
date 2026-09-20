@@ -348,3 +348,136 @@ func TestTheFieldsAreSeparatedByABlankLine(t *testing.T) {
 		t.Errorf("line 3 is %q, want a blank line between the fields", lines[2])
 	}
 }
+
+// ── Pause and resume (§3.75) ─────────────────────────────────────────────────
+
+// mixedForwards holds one row in each state.
+func mixedForwards() []forward.Forward {
+	return []forward.Forward{
+		{ID: "1", LocalPort: 8080, Target: "10.0.0.5:80", Opened: time.Now(), Active: 2, Total: 9},
+		{ID: "2", LocalPort: 9090, Target: "db.internal:5432", State: forward.StatePaused},
+		{ID: "3", LocalPort: 7070, Target: "cache:6379", State: forward.StateUnbound, LastErr: "the local port is already in use"},
+	}
+}
+
+func togglesRequested(cmd tea.Cmd) []forward.ToggleMsg {
+	var out []forward.ToggleMsg
+	for _, msg := range testutil.Msgs(cmd) {
+		if tm, ok := msg.(forward.ToggleMsg); ok {
+			out = append(out, tm)
+		}
+	}
+	return out
+}
+
+func TestSpaceAsksTheRouterToToggleTheSelectedForward(t *testing.T) {
+	m := onForwardTab(t)
+	m = feed(t, m, forward.ChangedMsg{Forwards: mixedForwards()})
+
+	_, cmd := step(t, m, testutil.Key("space"))
+	got := togglesRequested(cmd)
+	if len(got) != 1 || got[0].ID != "1" {
+		t.Errorf("space asked for %+v, want one toggle of the selected forward %q", got, "1")
+	}
+}
+
+func TestSpaceOnAnEmptyTableSaysWhyRatherThanDoingNothing(t *testing.T) {
+	m := onForwardTab(t)
+
+	_, cmd := step(t, m, testutil.Key("space"))
+	if cmd == nil {
+		t.Fatal("space was swallowed on an empty table")
+	}
+	if len(togglesRequested(cmd)) != 0 {
+		t.Error("space asked the router to toggle a forward that does not exist")
+	}
+	if got := m.forwardModel.switchable().Reason; got != reasonNoForwardRow {
+		t.Errorf("switchable().Reason = %q, want %q", got, reasonNoForwardRow)
+	}
+}
+
+func TestSpaceIsGreyedWithNothingToSwitch(t *testing.T) {
+	if !testutil.ShortcutDisabled(onForwardTab(t).GetShortcuts(), "space") {
+		t.Error("space is not greyed on an empty table")
+	}
+	filled := feed(t, onForwardTab(t), forward.ChangedMsg{Forwards: sampleForwards()})
+	if !testutil.ShortcutEnabled(filled.GetShortcuts(), "space") {
+		t.Error("space is greyed although a forward is selected")
+	}
+}
+
+// The entry keeps its slot and changes its label with the row: pausing a live
+// forward and resuming a stopped one are the same key doing the opposite.
+func TestSpaceSaysWhichWayItWillSwitch(t *testing.T) {
+	m := onForwardTab(t)
+	m = feed(t, m, forward.ChangedMsg{Forwards: mixedForwards()})
+
+	label := func() string {
+		for _, s := range m.GetShortcuts() {
+			if s.Key == "space" {
+				return s.Description
+			}
+		}
+		t.Fatal("no space entry in the shortcuts")
+		return ""
+	}
+
+	if got := label(); got != "Pause forward" {
+		t.Errorf("on a live row space reads %q, want %q", got, "Pause forward")
+	}
+	m = feed(t, m, testutil.Key("down"))
+	if got := label(); got != "Resume forward" {
+		t.Errorf("on a paused row space reads %q, want %q", got, "Resume forward")
+	}
+	m = feed(t, m, testutil.Key("down"))
+	if got := label(); got != "Resume forward" {
+		t.Errorf("on an unbound row space reads %q, want %q", got, "Resume forward")
+	}
+}
+
+func TestTheTabOffersTheSameKeysWhateverTheRowsState(t *testing.T) {
+	live := testutil.ShortcutKeys(feed(t, onForwardTab(t), forward.ChangedMsg{Forwards: sampleForwards()}).GetShortcuts())
+	mixed := testutil.ShortcutKeys(feed(t, onForwardTab(t), forward.ChangedMsg{Forwards: mixedForwards()}).GetShortcuts())
+	if len(live) != len(mixed) {
+		t.Fatalf("the key set changed with the rows' states: %v then %v", live, mixed)
+	}
+	for i := range live {
+		if live[i] != mixed[i] {
+			t.Errorf("key %d is %q with live rows and %q with mixed ones", i, live[i], mixed[i])
+		}
+	}
+}
+
+func TestTheTableSaysWhatIsNotListening(t *testing.T) {
+	m := onForwardTab(t)
+	m = feed(t, m, forward.ChangedMsg{Forwards: mixedForwards()})
+	out := ansi.Strip(m.View())
+
+	for _, want := range []string{"paused", "the local port is already in use"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the table does not show %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestTheHeaderSaysHowManyAreListening(t *testing.T) {
+	m := onForwardTab(t)
+	m = feed(t, m, forward.ChangedMsg{Forwards: mixedForwards()})
+	if got, want := m.forwardModel.summaryLine(), "1 live of 3"; got != want {
+		t.Errorf("summaryLine = %q, want %q", got, want)
+	}
+}
+
+// Deleting is no longer only stopping: it takes the row out of the file too,
+// and the confirmation has to say so.
+func TestTheDeleteConfirmationSaysTheForwardWillNotComeBack(t *testing.T) {
+	m := onForwardTab(t)
+	m = feed(t, m, forward.ChangedMsg{Forwards: sampleForwards()})
+	m = feed(t, m, testutil.Key(keymap.Kill))
+	if m.forwardModel.confirmModal == nil {
+		t.Fatal("K put up no confirmation")
+	}
+	if !strings.Contains(ansi.Strip(m.forwardModel.confirmModal.View()), "next launch") {
+		t.Errorf("the confirmation does not mention the next launch:\n%s", ansi.Strip(m.forwardModel.confirmModal.View()))
+	}
+}

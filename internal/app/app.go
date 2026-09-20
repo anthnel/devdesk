@@ -117,6 +117,11 @@ type App struct {
 	// mcpEpoch numbers the starts, so a report from one the session has moved
 	// past is recognised and its listener closed rather than stored.
 	mcpEpoch uint64
+
+	// forwardStore is where the forwards are kept between launches (§3.75). It
+	// is nil until New sets it, so a router built by a test never writes to the
+	// developer's own ~/.devdesk.
+	forwardStore *forward.Store
 	// pendingInvocations holds the reply channel of every action call waiting
 	// for the identifier of the run it asked for. Mutated from Update alone,
 	// like everything else here.
@@ -175,6 +180,7 @@ func New(cfg *config.Config) *App {
 	// secret store: it runs exec.LookPath, and a constructor that reaches for
 	// the machine is one tests cannot run twice the same way.
 	app.resolveContainerEngine()
+	app.useForwardStore()
 	return app
 }
 
@@ -263,7 +269,7 @@ func (a *App) AttachProgram(p *tea.Program) {
 // Init initializes the application
 func (a *App) Init() tea.Cmd {
 	// Note: resize() is already called in newWithSize() to initialize the dimensions
-	cmds := []tea.Cmd{a.tryAutoLogin(), a.startMCPCmd()}
+	cmds := []tea.Cmd{a.tryAutoLogin(), a.startMCPCmd(), a.restoreForwardsCmd()}
 
 	if view, ok := a.views[a.currentView]; ok {
 		cmds = append(cmds, view.Init())
@@ -424,6 +430,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case forward.CloseMsg:
 		return a.handleForwardClose(msg)
+
+	case forward.ToggleMsg:
+		return a.handleForwardToggle(msg)
+
+	case forward.ToggledMsg:
+		return a.handleForwardToggled(msg)
+
+	case forward.RestoredMsg:
+		return a.handleForwardRestored(msg)
+
+	case forward.SavedMsg:
+		return a.handleForwardSaved(msg)
 
 	case forward.RefreshMsg:
 		return a.handleForwardRefresh()

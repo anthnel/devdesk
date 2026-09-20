@@ -4,7 +4,9 @@ import (
 	"errors"
 	"io"
 	"net"
+	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -334,4 +336,275 @@ func TestAForwardNeverBindsAnythingButLoopback(t *testing.T) {
 	if !addr.IP.IsLoopback() {
 		t.Errorf("the forward is bound to %s, want a loopback address", addr.IP)
 	}
+}
+
+func stateOf(t *testing.T, r *Registry, id string) Forward {
+	t.Helper()
+	for _, f := range r.List() {
+		if f.ID == id {
+			return f
+		}
+	}
+	t.Fatalf("no forward %q in %+v", id, r.List())
+	return Forward{}
+}
+
+func TestRestoreReopensWhatWasSaved(t *testing.T) {
+	target := echoServer(t)
+	port := freePort(t)
+	r := New()
+	t.Cleanup(r.CloseAll)
+
+	sum := r.Restore([]Entry{{LocalPort: port, Target: target}})
+	if sum != (Restored{Live: 1}) {
+		t.Fatalf("Restore = %+v, want one live", sum)
+	}
+
+	list := r.List()
+	if len(list) != 1 || list[0].State != StateLive {
+		t.Fatalf("List = %+v, want one live forward", list)
+	}
+	conn, err := net.DialTimeout("tcp", list[0].Addr(), time.Second)
+	if err != nil {
+		t.Fatalf("the restored forward does not listen: %v", err)
+	}
+	_ = conn.Close()
+}
+
+func TestARestoreThatFailsKeepsTheEntry(t *testing.T) {
+	target := echoServer(t)
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = held.Close() })
+	takenPort := held.Addr().(*net.TCPAddr).Port
+
+	r := New()
+	t.Cleanup(r.CloseAll)
+	sum := r.Restore([]Entry{{LocalPort: takenPort, Target: target}})
+	if sum != (Restored{Unbound: 1}) {
+		t.Fatalf("Restore = %+v, want one unbound", sum)
+	}
+
+	f := r.List()[0]
+	if f.State != StateUnbound {
+		t.Errorf("State = %v, want unbound", f.State)
+	}
+	if f.LastErr == "" {
+		t.Error("an unbound forward carries no reason")
+	}
+	// The whole point: an entry that failed to bind today is still wanted
+	// tomorrow, so it is still what gets saved.
+	want := []Entry{{LocalPort: takenPort, Target: target}}
+	if got := r.Entries(); !reflect.DeepEqual(got, want) {
+		t.Errorf("Entries = %+v, want %+v", got, want)
+	}
+}
+
+func TestARestoredTargetThatIsNotUpYetIsUnboundNotDropped(t *testing.T) {
+	r := New()
+	t.Cleanup(r.CloseAll)
+	silent := "127.0.0.1:" + strconv.Itoa(freePort(t))
+
+	sum := r.Restore([]Entry{{LocalPort: freePort(t), Target: silent}})
+	if sum.Unbound != 1 || len(r.Entries()) != 1 {
+		t.Errorf("Restore = %+v, %d entries; want the entry kept, unbound", sum, len(r.Entries()))
+	}
+	if err := r.List()[0].LastErr; !strings.Contains(err, "did not answer") {
+		t.Errorf("LastErr = %q, want the target's silence named", err)
+	}
+}
+
+func TestAPausedEntryIsRestoredWithoutBinding(t *testing.T) {
+	target := echoServer(t)
+	port := freePort(t)
+	r := New()
+	t.Cleanup(r.CloseAll)
+
+	sum := r.Restore([]Entry{{LocalPort: port, Target: target, Paused: true}})
+	if sum != (Restored{Paused: 1}) {
+		t.Fatalf("Restore = %+v, want one paused", sum)
+	}
+	// Bindable proves nothing listened.
+	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	if err != nil {
+		t.Fatalf("a paused forward holds its port: %v", err)
+	}
+	_ = ln.Close()
+
+	if got := r.Entries(); len(got) != 1 || !got[0].Paused {
+		t.Errorf("Entries = %+v, want the paused flag kept", got)
+	}
+}
+
+func TestRestoreKeepsTheOrderOfTheFile(t *testing.T) {
+	target := echoServer(t)
+	var entries []Entry
+	for range 12 {
+		entries = append(entries, Entry{LocalPort: freePort(t), Target: target, Paused: true})
+	}
+	r := New()
+	t.Cleanup(r.CloseAll)
+	r.Restore(entries)
+
+	// Twelve entries created in the same instant, with IDs that sort wrongly
+	// as text ("10" before "2"): the order has to be the creation order.
+	if got := r.Entries(); !reflect.DeepEqual(got, entries) {
+		t.Errorf("Entries reordered the file:\n got %+v\nwant %+v", got, entries)
+	}
+}
+
+func TestPausingAForwardReleasesItsPortAndKeepsTheRow(t *testing.T) {
+	target := echoServer(t)
+	r := New()
+	t.Cleanup(r.CloseAll)
+	port := freePort(t)
+	f, err := r.Open(port, target)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	got, err := r.Toggle(f.ID)
+	if err != nil {
+		t.Fatalf("Toggle: %v", err)
+	}
+	if got.State != StatePaused {
+		t.Fatalf("State = %v, want paused", got.State)
+	}
+	ln, err := net.Listen("tcp", f.Addr())
+	if err != nil {
+		t.Fatalf("a paused forward still holds %s: %v", f.Addr(), err)
+	}
+	_ = ln.Close()
+
+	if entries := r.Entries(); len(entries) != 1 || !entries[0].Paused {
+		t.Errorf("Entries = %+v, want the one entry, paused", entries)
+	}
+}
+
+func TestResumingAPausedForwardBindsTheSamePort(t *testing.T) {
+	target := echoServer(t)
+	r := New()
+	t.Cleanup(r.CloseAll)
+	f, err := r.Open(freePort(t), target)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := r.Toggle(f.ID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	got, err := r.Toggle(f.ID)
+	if err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if got.State != StateLive || got.LocalPort != f.LocalPort {
+		t.Fatalf("resume gave %+v, want live on %d", got, f.LocalPort)
+	}
+	conn, err := net.DialTimeout("tcp", f.Addr(), time.Second)
+	if err != nil {
+		t.Fatalf("the resumed forward does not listen: %v", err)
+	}
+	_ = conn.Close()
+}
+
+func TestResumingIntoATakenPortLeavesTheRowUnboundWithTheReason(t *testing.T) {
+	target := echoServer(t)
+	r := New()
+	t.Cleanup(r.CloseAll)
+	f, err := r.Open(freePort(t), target)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := r.Toggle(f.ID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	squatter, err := net.Listen("tcp", f.Addr())
+	if err != nil {
+		t.Fatalf("taking the port: %v", err)
+	}
+
+	got, err := r.Toggle(f.ID)
+	if !errors.Is(err, ErrPortInUse) {
+		t.Fatalf("resume = %v, want ErrPortInUse", err)
+	}
+	if got.State != StateUnbound || got.LastErr == "" {
+		t.Errorf("row = %+v, want unbound with a reason", got)
+	}
+
+	// The port frees up; the same key tries again and this time it works.
+	_ = squatter.Close()
+	if got, err = r.Toggle(f.ID); err != nil || got.State != StateLive {
+		t.Errorf("second resume = %+v, %v; want live", got, err)
+	}
+	if got.LastErr != "" {
+		t.Errorf("a live forward kept its old error: %q", got.LastErr)
+	}
+}
+
+func TestClosingAPausedForwardRemovesItsEntry(t *testing.T) {
+	target := echoServer(t)
+	r := New()
+	t.Cleanup(r.CloseAll)
+	f, err := r.Open(freePort(t), target)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := r.Toggle(f.ID); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+
+	if err := r.Close(f.ID); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if got := r.Entries(); len(got) != 0 {
+		t.Errorf("Entries = %+v, want none after a delete", got)
+	}
+}
+
+func TestTogglingAnUnknownForwardSaysSo(t *testing.T) {
+	if _, err := New().Toggle("nope"); !errors.Is(err, ErrNoSuchForward) {
+		t.Errorf("Toggle = %v, want ErrNoSuchForward", err)
+	}
+}
+
+func TestAPausedForwardKeepsItsPlaceInTheList(t *testing.T) {
+	target := echoServer(t)
+	r := New()
+	t.Cleanup(r.CloseAll)
+	first, _ := r.Open(freePort(t), target)
+	second, _ := r.Open(freePort(t), target)
+
+	// Pausing then resuming the first must not move it below the second, which
+	// it would if the order followed the last bind.
+	_, _ = r.Toggle(first.ID)
+	_, _ = r.Toggle(first.ID)
+
+	list := r.List()
+	if len(list) != 2 || list[0].ID != first.ID || list[1].ID != second.ID {
+		t.Errorf("order = %v, want [%s %s]", []string{list[0].ID, list[1].ID}, first.ID, second.ID)
+	}
+}
+
+func TestAForwardPausedWhileAConnectionIsOpenDoesNotPanic(t *testing.T) {
+	target := echoServer(t)
+	r := New()
+	t.Cleanup(r.CloseAll)
+	f, err := r.Open(freePort(t), target)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	conn, err := net.DialTimeout("tcp", f.Addr(), time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	// The accept loop must not read the listener field a pause clears.
+	if _, err := r.Toggle(f.ID); err != nil {
+		t.Fatalf("Toggle: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	stateOf(t, r, f.ID)
 }

@@ -73,7 +73,39 @@ var (
 	ErrTargetUnreachable = errors.New("the target did not answer")
 	// ErrNoSuchForward is a Close for an id the registry does not hold.
 	ErrNoSuchForward = errors.New("no such forward")
+	// ErrToggleBusy is a second Toggle for a forward whose first is still
+	// dialling. Two of them would race for the same port.
+	ErrToggleBusy = errors.New("that forward is already being switched")
 )
+
+// State says whether a forward's listener is bound. The registry holds what is
+// wanted, and the wanted is not always what is running.
+type State int
+
+const (
+	// StateLive is a bound listener. It is the zero value, so a Forward built
+	// by Open needs to say nothing.
+	StateLive State = iota
+	// StatePaused is a forward the user stopped without deleting: the listener
+	// is closed, the port is free, the entry stays in the file.
+	StatePaused
+	// StateUnbound is a forward that is wanted and could not be bound — the
+	// port was taken or the target silent at the last attempt. LastErr says
+	// which. It is retried at the next launch, and by a Toggle.
+	StateUnbound
+)
+
+// String is the word a table shows.
+func (s State) String() string {
+	switch s {
+	case StatePaused:
+		return "paused"
+	case StateUnbound:
+		return "unbound"
+	default:
+		return "live"
+	}
+}
 
 // Forward is one live redirection, as a table reads it. It is a value: List
 // hands out copies, so a view can hold one across frames without racing the
@@ -84,6 +116,7 @@ type Forward struct {
 	ID        string
 	LocalPort int
 	Target    string
+	State     State
 	Opened    time.Time
 	Active    int
 	Total     int64
@@ -99,7 +132,13 @@ func (f Forward) Addr() string {
 // goroutines write to.
 type entry struct {
 	forward Forward
-	ln      net.Listener
+	// ln is nil unless the forward is live.
+	ln net.Listener
+	// seq is the order the entries were created in, and the order List keeps.
+	// It is a number rather than the ID's text, which sorts "10" before "2".
+	seq int
+	// switching is set while a Toggle is dialling, outside the lock.
+	switching bool
 }
 
 // Registry holds the open forwards.
@@ -126,25 +165,47 @@ func New() *Registry {
 // shows up healthy, and the failure only surfaces when someone points a client
 // at it — by which time the message arrives far from the action that caused it.
 func (r *Registry) Open(localPort int, target string) (Forward, error) {
+	ln, err := bind(localPort, target)
+	if err != nil {
+		return Forward{}, err
+	}
+
+	r.mu.Lock()
+	e := r.add(localPort, target, ln)
+	snapshot := e.forward
+	r.mu.Unlock()
+
+	go r.serve(e, ln)
+	return snapshot, nil
+}
+
+// bind runs the checks and the two I/O steps a live forward needs: the port is
+// validated, the target probed, the port bound. It holds no lock and touches no
+// registry state, so it can run in parallel.
+func bind(localPort int, target string) (net.Listener, error) {
 	if localPort < firstUnprivilegedPort {
-		return Forward{}, fmt.Errorf("%w: %d", ErrPrivilegedPort, localPort)
+		return nil, fmt.Errorf("%w: %d", ErrPrivilegedPort, localPort)
 	}
 	if err := validTarget(target); err != nil {
-		return Forward{}, err
+		return nil, err
 	}
 
 	probe, err := net.DialTimeout("tcp", target, ProbeTimeout)
 	if err != nil {
-		return Forward{}, fmt.Errorf("%w: %s: %v", ErrTargetUnreachable, target, err)
+		return nil, fmt.Errorf("%w: %s: %v", ErrTargetUnreachable, target, err)
 	}
 	_ = probe.Close()
 
 	ln, err := net.Listen("tcp", net.JoinHostPort(loopbackHost, strconv.Itoa(localPort)))
 	if err != nil {
-		return Forward{}, fmt.Errorf("%w: %d: %v", ErrPortInUse, localPort, err)
+		return nil, fmt.Errorf("%w: %d: %v", ErrPortInUse, localPort, err)
 	}
+	return ln, nil
+}
 
-	r.mu.Lock()
+// add registers an entry. The caller holds the lock; ln is nil for one that is
+// not bound.
+func (r *Registry) add(localPort int, target string, ln net.Listener) *entry {
 	r.nextID++
 	e := &entry{
 		forward: Forward{
@@ -153,14 +214,11 @@ func (r *Registry) Open(localPort int, target string) (Forward, error) {
 			Target:    target,
 			Opened:    time.Now(),
 		},
-		ln: ln,
+		ln:  ln,
+		seq: r.nextID,
 	}
 	r.entries[e.forward.ID] = e
-	snapshot := e.forward
-	r.mu.Unlock()
-
-	go r.serve(e)
-	return snapshot, nil
+	return e
 }
 
 // Close stops a forward and drops it. Connections it is carrying end with it:
@@ -176,6 +234,9 @@ func (r *Registry) Close(id string) error {
 
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrNoSuchForward, id)
+	}
+	if e.ln == nil {
+		return nil
 	}
 	return e.ln.Close()
 }
@@ -193,34 +254,194 @@ func (r *Registry) CloseAll() {
 	r.mu.Unlock()
 
 	for _, e := range live {
-		_ = e.ln.Close()
+		if e.ln != nil {
+			_ = e.ln.Close()
+		}
 	}
 }
 
-// List returns the open forwards, oldest first. The order is by open time
-// rather than by port so that a row does not move when another forward is
-// added below it.
+// List returns the forwards, oldest first. The order is the order they were
+// created in, not the port and not the time they were last bound, so a row does
+// not move when another forward is added below it or when one is paused and
+// resumed.
 func (r *Registry) List() []Forward {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	out := make([]Forward, 0, len(r.entries))
-	for _, e := range r.entries {
+	for _, e := range r.sorted() {
 		out = append(out, e.forward)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Opened.Equal(out[j].Opened) {
-			return out[i].ID < out[j].ID
-		}
-		return out[i].Opened.Before(out[j].Opened)
-	})
 	return out
 }
 
-// serve accepts until the listener is closed.
-func (r *Registry) serve(e *entry) {
+// sorted returns the entries in creation order. The caller holds the lock.
+func (r *Registry) sorted() []*entry {
+	out := make([]*entry, 0, len(r.entries))
+	for _, e := range r.entries {
+		out = append(out, e)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].seq < out[j].seq })
+	return out
+}
+
+// Entries is what a Store should keep: the wanted forwards, in creation order,
+// live or not. An unbound one is saved as a plain entry, which is what makes it
+// retried at the next launch rather than forgotten.
+func (r *Registry) Entries() []Entry {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	out := make([]Entry, 0, len(r.entries))
+	for _, e := range r.sorted() {
+		out = append(out, Entry{
+			LocalPort: e.forward.LocalPort,
+			Target:    e.forward.Target,
+			Paused:    e.forward.State == StatePaused,
+		})
+	}
+	return out
+}
+
+// Restored says what became of the entries Restore was given.
+type Restored struct {
+	Live, Paused, Unbound int
+}
+
+// Total is how many entries there were.
+func (r Restored) Total() int { return r.Live + r.Paused + r.Unbound }
+
+// Restore reopens saved entries, and is meant to run once, at startup.
+//
+// Unlike Open, a failure here keeps the entry. A refusal at creation answers a
+// typo and belongs to the form; a refusal at launch answers a service that is
+// not up yet, or a port some other process holds today, and deleting the route
+// for that would make the file forget things by being started at the wrong
+// moment. The row is unbound, says why, and is retried by Toggle.
+//
+// The binds run in parallel: each one probes its target with a timeout, and a
+// list with several silent targets would otherwise take that many timeouts
+// before any row appeared.
+func (r *Registry) Restore(entries []Entry) Restored {
+	type outcome struct {
+		ln  net.Listener
+		err error
+	}
+	outcomes := make([]outcome, len(entries))
+
+	var wg sync.WaitGroup
+	for i, saved := range entries {
+		if saved.Paused {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			outcomes[i].ln, outcomes[i].err = bind(saved.LocalPort, saved.Target)
+		}()
+	}
+	wg.Wait()
+
+	var summary Restored
+	type bound struct {
+		e  *entry
+		ln net.Listener
+	}
+	var live []bound
+
+	r.mu.Lock()
+	for i, saved := range entries {
+		e := r.add(saved.LocalPort, saved.Target, outcomes[i].ln)
+		switch {
+		case saved.Paused:
+			e.forward.State = StatePaused
+			summary.Paused++
+		case outcomes[i].err != nil:
+			e.forward.State = StateUnbound
+			e.forward.LastErr = outcomes[i].err.Error()
+			summary.Unbound++
+		default:
+			live = append(live, bound{e, outcomes[i].ln})
+			summary.Live++
+		}
+	}
+	r.mu.Unlock()
+
+	for _, b := range live {
+		go r.serve(b.e, b.ln)
+	}
+	return summary
+}
+
+// Toggle pauses a live forward, and resumes a paused or unbound one.
+//
+// Resuming is a bind like any other: the target is probed and the port taken,
+// and either can fail. The failure is returned *and* recorded — the forward
+// becomes unbound with LastErr — so the row and the footer say the same thing.
+// Pausing cannot fail.
+//
+// It does I/O when resuming, so the router calls it from a Cmd.
+func (r *Registry) Toggle(id string) (Forward, error) {
+	r.mu.Lock()
+	e, ok := r.entries[id]
+	if !ok {
+		r.mu.Unlock()
+		return Forward{}, fmt.Errorf("%w: %s", ErrNoSuchForward, id)
+	}
+	if e.switching {
+		r.mu.Unlock()
+		return e.forward, ErrToggleBusy
+	}
+
+	if e.forward.State == StateLive {
+		ln := e.ln
+		e.ln = nil
+		e.forward.State = StatePaused
+		e.forward.LastErr = ""
+		snapshot := e.forward
+		r.mu.Unlock()
+		if ln != nil {
+			_ = ln.Close()
+		}
+		return snapshot, nil
+	}
+
+	e.switching = true
+	port, target := e.forward.LocalPort, e.forward.Target
+	r.mu.Unlock()
+
+	ln, err := bind(port, target)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	e.switching = false
+	if _, still := r.entries[id]; !still {
+		// Closed while dialling: the user has already said they no longer want
+		// it, and the listener just bound would be one nothing can stop.
+		if ln != nil {
+			_ = ln.Close()
+		}
+		return Forward{}, fmt.Errorf("%w: %s", ErrNoSuchForward, id)
+	}
+	if err != nil {
+		e.forward.State = StateUnbound
+		e.forward.LastErr = err.Error()
+		return e.forward, err
+	}
+	e.ln = ln
+	e.forward.State = StateLive
+	e.forward.LastErr = ""
+	e.forward.Opened = time.Now()
+	go r.serve(e, ln)
+	return e.forward, nil
+}
+
+// serve accepts until the listener is closed. It is handed the listener rather
+// than reading e.ln: a pause sets that field to nil, and this loop is exactly
+// the goroutine that would still be reading it.
+func (r *Registry) serve(e *entry, ln net.Listener) {
 	for {
-		local, err := e.ln.Accept()
+		local, err := ln.Accept()
 		if err != nil {
 			// net.ErrClosed is Close doing its job, the same way
 			// http.ErrServerClosed is for the MCP server. Anything else

@@ -26,6 +26,12 @@ type CloseMsg struct {
 	ID string
 }
 
+// ToggleMsg asks the router to pause a live forward, or to resume a paused or
+// unbound one. Resuming dials the target and binds the port, so it is I/O.
+type ToggleMsg struct {
+	ID string
+}
+
 // RefreshMsg asks the router for a fresh snapshot.
 //
 // It exists because a forward's counters move without any router event: bytes
@@ -40,6 +46,27 @@ type RefreshMsg struct{}
 type OpenedMsg struct {
 	Forward Forward
 	Err     error
+}
+
+// ToggledMsg reports what became of a ToggleMsg. Err is set when a resume could
+// not bind; the forward is then unbound and the snapshot says so, which is why
+// the router still broadcasts.
+type ToggledMsg struct {
+	Forward Forward
+	Err     error
+}
+
+// RestoredMsg reports the reopening of the saved forwards at startup. Err is a
+// file that could not be read; nothing was reopened and nothing was touched.
+type RestoredMsg struct {
+	Summary Restored
+	Err     error
+}
+
+// SavedMsg reports a write of the forwards file that failed. A write that
+// succeeds says nothing: it is the expected outcome of every change.
+type SavedMsg struct {
+	Err error
 }
 
 // ClosedMsg reports what became of a CloseMsg.
@@ -66,6 +93,11 @@ func Open(localPort int, target string) tea.Cmd {
 // Close asks for a forward to stop.
 func Close(id string) tea.Cmd {
 	return func() tea.Msg { return CloseMsg{ID: id} }
+}
+
+// Toggle asks for a forward to be paused or resumed.
+func Toggle(id string) tea.Cmd {
+	return func() tea.Msg { return ToggleMsg{ID: id} }
 }
 
 // Refresh asks for a fresh snapshot.
