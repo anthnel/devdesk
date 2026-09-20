@@ -500,13 +500,20 @@ func openForm(t *testing.T) *Model {
 	return feed(t, onForwardTab(t), testutil.Key(keymap.New))
 }
 
-func TestTheFormOpensOnTCPFocusedOnThePort(t *testing.T) {
+func TestTheFormOpensOnTCPFocusedOnTheType(t *testing.T) {
 	f := openForm(t).forwardModel.form
 	if f.Named() {
-		t.Error("the form opens on HTTP; TCP is the common case")
+		t.Error("the form opens on HTTP; TCP is the default")
 	}
-	if f.focused != forwardFieldPort {
-		t.Errorf("focus starts on field %d, want the port (%d): the type must not stand between N and the port", f.focused, forwardFieldPort)
+	if !f.TypeFocused() {
+		t.Errorf("focus starts on field %d, want the type (%d): it is the first field", f.focused, forwardFieldType)
+	}
+}
+
+func TestTheTypeCanBeChangedTheMomentTheFormOpens(t *testing.T) {
+	m := typed(t, openForm(t), "right")
+	if !m.forwardModel.form.Named() {
+		t.Error("→ on a freshly opened form did not switch to HTTP")
 	}
 }
 
@@ -522,7 +529,7 @@ func TestTheTypeFieldShowsTheFieldsThatApplyToIt(t *testing.T) {
 		t.Errorf("the TCP form shows a Name field:\n%s", view)
 	}
 
-	m = typed(t, m, "up", "right") // to the type, then HTTP
+	m = typed(t, m, "right") // the type is already focused: HTTP
 	view = ansi.Strip(m.forwardModel.form.View())
 	for _, want := range []string{"HTTP", "Name", "Target"} {
 		if !strings.Contains(view, want) {
@@ -539,6 +546,7 @@ func TestTheArrowsCycleTheTypeBothWaysAndOnlyOnTheType(t *testing.T) {
 	f := m.forwardModel.form
 
 	// On the port, ← → move the cursor and leave the type alone.
+	typed(t, m, "down")
 	typed(t, m, "left", "right")
 	if f.Named() {
 		t.Error("← → on the port changed the type")
@@ -564,18 +572,18 @@ func TestTheArrowsCycleTheTypeBothWaysAndOnlyOnTheType(t *testing.T) {
 
 func TestTheArrowKeyEntryIsGreyedExceptOnTheType(t *testing.T) {
 	m := openForm(t)
-	if !testutil.ShortcutDisabled(m.GetShortcuts(), "←→") {
-		t.Error("←→ is lit on the port, where it only moves a cursor")
-	}
-	m = typed(t, m, "up")
 	if !testutil.ShortcutEnabled(m.GetShortcuts(), "←→") {
 		t.Error("←→ is greyed on the type, where it cycles the value")
+	}
+	m = typed(t, m, "down")
+	if !testutil.ShortcutDisabled(m.GetShortcuts(), "←→") {
+		t.Error("←→ is lit on the port, where it only moves a cursor")
 	}
 }
 
 func TestUpAndDownSkipTheFieldsTheTypeHides(t *testing.T) {
 	m := openForm(t)
-	typed(t, m, "up", "right", "down") // HTTP, then down from the type
+	typed(t, m, "right", "down") // HTTP, then down from the type
 	if got := m.forwardModel.form.focused; got != forwardFieldName {
 		t.Errorf("↓ from the type on HTTP reached field %d, want the name (%d)", got, forwardFieldName)
 	}
@@ -587,6 +595,10 @@ func TestUpAndDownSkipTheFieldsTheTypeHides(t *testing.T) {
 	if !m.forwardModel.form.TypeFocused() {
 		t.Error("↑ ↑ from the target did not come back to the type")
 	}
+	typed(t, m, "up") // stops at the first field
+	if !m.forwardModel.form.TypeFocused() {
+		t.Error("↑ on the first field moved the focus")
+	}
 }
 
 func TestAHiddenFieldKeepsItsValueUntilTheFormCloses(t *testing.T) {
@@ -595,7 +607,7 @@ func TestAHiddenFieldKeepsItsValueUntilTheFormCloses(t *testing.T) {
 	f.nameInput.SetValue("api.localhost")
 	f.portInput.SetValue("9000")
 
-	typed(t, m, "up", "right", "left", "right") // HTTP, TCP, HTTP again
+	typed(t, m, "right", "left", "right") // HTTP, TCP, HTTP again
 	if f.nameInput.Value() != "api.localhost" || f.portInput.Value() != "9000" {
 		t.Errorf("switching type lost a value: name %q, port %q", f.nameInput.Value(), f.portInput.Value())
 	}
@@ -604,7 +616,7 @@ func TestAHiddenFieldKeepsItsValueUntilTheFormCloses(t *testing.T) {
 func TestTheFormAsksForARouteWhenItIsOnHTTP(t *testing.T) {
 	m := openForm(t)
 	f := m.forwardModel.form
-	typed(t, m, "up", "right")
+	typed(t, m, "right")
 	f.nameInput.SetValue("api.localhost")
 	f.targetInput.SetValue("127.0.0.1:3000")
 	// A port typed while on TCP must not travel with a route.
@@ -662,7 +674,7 @@ func TestANameThatDoesNotEndInLocalhostBlocksTheForm(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			m := openForm(t)
 			f := m.forwardModel.form
-			typed(t, m, "up", "right")
+			typed(t, m, "right")
 			f.nameInput.SetValue(name)
 			f.targetInput.SetValue("127.0.0.1:3000")
 
@@ -688,7 +700,7 @@ func TestANameThatDoesNotEndInLocalhostBlocksTheForm(t *testing.T) {
 func TestTheNameIsNotCompletedForTheUser(t *testing.T) {
 	m := openForm(t)
 	f := m.forwardModel.form
-	typed(t, m, "up", "right")
+	typed(t, m, "right")
 	f.nameInput.SetValue("api")
 	f.targetInput.SetValue("127.0.0.1:3000")
 	step(t, m, testutil.Key("enter"))
@@ -700,7 +712,7 @@ func TestTheNameIsNotCompletedForTheUser(t *testing.T) {
 func TestANameInUpperCaseIsAccepted(t *testing.T) {
 	m := openForm(t)
 	f := m.forwardModel.form
-	typed(t, m, "up", "right")
+	typed(t, m, "right")
 	f.nameInput.SetValue("API.Localhost")
 	if got := f.Problem(); got != "" {
 		t.Errorf("Problem() = %q for a name the registry lower-cases", got)
@@ -712,7 +724,7 @@ func TestTheFormsFooterHintFollowsTheType(t *testing.T) {
 	if got := m.forwardModel.status().Text; !strings.Contains(got, "1024") {
 		t.Errorf("the TCP hint is %q, want the port rule", got)
 	}
-	m = typed(t, m, "up", "right")
+	m = typed(t, m, "right")
 	if got := m.forwardModel.status().Text; !strings.Contains(got, "network.proxy_port") {
 		t.Errorf("the HTTP hint is %q, want it to name network.proxy_port", got)
 	}

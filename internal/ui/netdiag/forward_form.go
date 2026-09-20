@@ -84,11 +84,10 @@ type ForwardForm struct {
 	width       int
 }
 
-// NewForwardForm builds the form, on TCP.
-//
-// The focus starts on Local port and not on Type, although Type is the first
-// field: the common case is a raw TCP forward, and opening the form on the type
-// would put a keypress between N and the port that the form never had.
+// NewForwardForm builds the form, on TCP and focused on the type: it is the
+// first field, and a form that opened below its own first field would make ↑
+// the way to reach it. The cost is one ↓ to the port in the common TCP case,
+// which was judged the lesser surprise.
 func NewForwardForm(width int) *ForwardForm {
 	newInput := func(placeholder string, limit int) textinput.Model {
 		ti := textinput.New()
@@ -102,7 +101,7 @@ func NewForwardForm(width int) *ForwardForm {
 		portInput:   newInput("8080", 5),
 		nameInput:   newInput("api"+forwardNameSuffix, 253),
 		targetInput: newInput("host:port", 255),
-		focused:     forwardFieldPort,
+		focused:     forwardFieldType,
 	}
 	f.SetWidth(width)
 	f.updateFocus()

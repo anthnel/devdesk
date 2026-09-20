@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -516,5 +517,191 @@ func TestTheProxyListensOnLoopbackOnly(t *testing.T) {
 	r.proxyMu.Unlock()
 	if got := addr.IP.String(); got != "127.0.0.1" {
 		t.Errorf("the proxy listens on %s, want 127.0.0.1", got)
+	}
+}
+
+// ── Review findings ──────────────────────────────────────────────────────────
+
+// OpenRoute lower-cases and validates a name; Restore has to hold the file to
+// the same rule, or a hand-edited entry reads live and never matches a request.
+func TestRestoreHoldsTheFileToTheRulesOfOpenRoute(t *testing.T) {
+	r, port := routedRegistry(t)
+	target := backend(t, "b")
+
+	sum := r.Restore([]Entry{
+		{Name: "API.Localhost", Target: target},    // valid once lower-cased
+		{Name: "api.localhost", Target: target},    // the same name again
+		{Name: "not-a-route-name", Target: target}, // no .localhost
+	})
+	if sum != (Restored{Live: 1, Unbound: 2}) {
+		t.Fatalf("Restore = %+v, want 1 live and 2 unbound", sum)
+	}
+
+	if code, body := get(t, port, "api.localhost", "/"); code != http.StatusOK || !strings.HasPrefix(body, "b ") {
+		t.Errorf("the normalized route answers %d %q, want 200", code, body)
+	}
+
+	list := r.List()
+	if list[0].Name != "api.localhost" || list[0].State != StateLive {
+		t.Errorf("first route = %+v, want api.localhost live", list[0])
+	}
+	if list[1].State != StateUnbound || !strings.Contains(list[1].LastErr, "already exists") {
+		t.Errorf("duplicate = %+v, want unbound saying the name exists", list[1])
+	}
+	if list[2].State != StateUnbound || !strings.Contains(list[2].LastErr, ".localhost") {
+		t.Errorf("bad name = %+v, want unbound saying it must end in .localhost", list[2])
+	}
+	// Nothing is deleted because the file was wrong: the user can still fix it.
+	if got := len(r.Entries()); got != 3 {
+		t.Errorf("Entries holds %d, want all 3 kept", got)
+	}
+}
+
+// A route left unbound because the proxy could not bind is not a lost cause
+// once the port setting changes.
+func TestChangingTheProxyPortRetriesTheRoutesThatCouldNotBind(t *testing.T) {
+	held, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = held.Close() })
+
+	r := New()
+	t.Cleanup(r.CloseAll)
+	if err := r.SetProxyPort(held.Addr().(*net.TCPAddr).Port); err != nil {
+		t.Fatal(err)
+	}
+	if sum := r.Restore([]Entry{{Name: "api.localhost", Target: backend(t, "b")}}); sum != (Restored{Unbound: 1}) {
+		t.Fatalf("Restore = %+v, want the route unbound: the proxy port is taken", sum)
+	}
+
+	free := freePort(t)
+	if err := r.SetProxyPort(free); err != nil {
+		t.Fatalf("SetProxyPort: %v", err)
+	}
+
+	got := r.List()[0]
+	if got.State != StateLive || got.LastErr != "" || got.LocalPort != free {
+		t.Errorf("route = %+v, want live on %d with no stale error", got, free)
+	}
+	if code, _ := get(t, free, "api.localhost", "/"); code != http.StatusOK {
+		t.Errorf("the route answers %d on the new port, want 200", code)
+	}
+}
+
+func TestChangingToAnotherTakenPortStillSaysSo(t *testing.T) {
+	first, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = first.Close() })
+	second, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = second.Close() })
+
+	r := New()
+	t.Cleanup(r.CloseAll)
+	_ = r.SetProxyPort(first.Addr().(*net.TCPAddr).Port)
+	r.Restore([]Entry{{Name: "api.localhost", Target: backend(t, "b")}})
+
+	err = r.SetProxyPort(second.Addr().(*net.TCPAddr).Port)
+	if !errors.Is(err, ErrProxyPortInUse) {
+		t.Errorf("SetProxyPort = %v, want ErrProxyPortInUse: the new port is taken too", err)
+	}
+	if got := r.List()[0]; got.State != StateUnbound {
+		t.Errorf("route = %+v, want it still unbound", got)
+	}
+}
+
+// Resuming a route starts the proxy if it is down, and marks the route live a
+// moment later. Pausing the last live route closes the proxy. If a pause could
+// run in between, the resumed route would read live with nothing listening. The
+// resume is held in that window, and the pause has to wait for it.
+func TestAPauseCannotCloseTheProxyUnderAResumeInFlight(t *testing.T) {
+	r, port := routedRegistry(t)
+	a, err := r.OpenRoute("a.localhost", backend(t, "a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := r.OpenRoute("b.localhost", backend(t, "b"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Toggle(b.ID); err != nil { // b paused, a live: the proxy is up
+		t.Fatal(err)
+	}
+
+	inWindow, release := make(chan struct{}), make(chan struct{})
+	r.afterResumeStart = func() {
+		close(inWindow)
+		<-release
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); _, _ = r.Toggle(b.ID) }() // the resume, parked in the window
+	<-inWindow
+	go func() { defer wg.Done(); _, _ = r.Toggle(a.ID) }() // pause of the last route that reads live
+
+	// Give the pause every chance to run to completion. If it can, it has
+	// closed the proxy by the time the resume is let go.
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	wg.Wait()
+
+	if got := stateOf(t, r, b.ID); got.State != StateLive {
+		t.Fatalf("b = %+v, want it live", got)
+	}
+	if code, body := getOrZero(port, "b.localhost"); code != http.StatusOK {
+		t.Errorf("b reads live but answers %d (%s) — the proxy was closed under it", code, body)
+	}
+}
+
+// getOrZero is get without the fatal: a refused connection is the failure being
+// looked for, and it is reported with the round it happened in.
+func getOrZero(port int, host string) (int, string) {
+	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:"+strconv.Itoa(port), nil)
+	if err != nil {
+		return 0, ""
+	}
+	req.Host = host
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
+	if err != nil {
+		return 0, err.Error()
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(body)
+}
+
+// A browser cancelling a navigation is not the route failing.
+func TestAClientThatGivesUpDoesNotMarkTheRouteAsFailing(t *testing.T) {
+	r, port := routedRegistry(t)
+	release := make(chan struct{})
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		<-release
+	}))
+	t.Cleanup(func() { close(release); slow.Close() })
+	f, err := r.OpenRoute("slow.localhost", strings.TrimPrefix(slow.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:"+strconv.Itoa(port), nil)
+	req.Host = "slow.localhost"
+	client := &http.Client{Timeout: 100 * time.Millisecond}
+	if _, err := client.Do(req); err == nil {
+		t.Fatal("the slow backend answered before the client gave up")
+	}
+
+	// The proxy notices the abandoned request shortly after the client leaves.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && stateOf(t, r, f.ID).Active != 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := stateOf(t, r, f.ID).LastErr; got != "" {
+		t.Errorf("LastErr = %q after the client gave up; a healthy route is marked failing", got)
 	}
 }
