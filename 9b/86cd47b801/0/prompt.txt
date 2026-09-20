@@ -1,0 +1,22 @@
+continue
+
+---
+
+continue
+
+---
+
+le formulaire n'affiche pas les valeurs entières dans les champs vides et il faut un espacement entre les lignes : Local port  󰅂 8                                                                                                                                                                                                                                                           │
+│  Target      󰅂 h
+
+---
+
+je pourrais faire un test avec quel port
+
+---
+
+test fait : ERROR [app/forward] open: the target did not answer: 172.17.0.3:80: dial tcp 172.17.0.3:80: i/o timeout
+
+---
+
+ok pour A, mets à jour le backlog

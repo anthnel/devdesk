@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "9b86cd47b801",
+  "strategy": "manual-commit",
+  "branch": "feat/port-forward",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9b/86cd47b801/0/metadata.json",
+      "transcript": "/9b/86cd47b801/0/full.jsonl",
+      "compact_transcript": "/9b/86cd47b801/0/transcript.jsonl",
+      "content_hash": "/9b/86cd47b801/0/content_hash.txt",
+      "prompt": "/9b/86cd47b801/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 6944,
+    "cache_read_tokens": 2998268,
+    "output_tokens": 8265,
+    "api_call_count": 7
+  }
+}
