@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -83,8 +84,11 @@ func TestMonitorsStatusReportsAnUnreadableCertificateAsAnAbsence(t *testing.T) {
 }
 
 func TestMonitorsStatusProbesOnlyTheTypeAsked(t *testing.T) {
-	hits := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits++ }))
+	// The two monitors below are checked concurrently (CheckAll), so both
+	// goroutines can call this handler at once: the counter needs its own
+	// synchronization, not just the test's.
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits.Add(1) }))
 	defer srv.Close()
 
 	env := monitorsEnv(
@@ -95,8 +99,8 @@ func TestMonitorsStatusProbesOnlyTheTypeAsked(t *testing.T) {
 
 	var out monitorsStatusOut
 	callTool(t, connect(t, env), "monitors_status", map[string]any{"type": "ssl"}, &out)
-	if len(out.Monitors) != 0 || hits != 0 {
-		t.Errorf("type ssl probed %d monitors and made %d requests, want none", len(out.Monitors), hits)
+	if len(out.Monitors) != 0 || hits.Load() != 0 {
+		t.Errorf("type ssl probed %d monitors and made %d requests, want none", len(out.Monitors), hits.Load())
 	}
 
 	callTool(t, connect(t, env), "monitors_status", map[string]any{"type": "HTTP"}, &out)
