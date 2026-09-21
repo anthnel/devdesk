@@ -108,9 +108,23 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 // security form borrowed it to pick a scan target — and it could not simply be
 // dropped, because it holds scan results worth keeping; it took a
 // ResetSelectionMsg instead. That whole path went with the form (phase 3).
+//
+// The security view is dropped too, when it is showing a scan another list opened
+// (workspaces or images set its OriginView). That scan is the list's detail, not
+// the security view's own state: naming the view is asking for its inventory, and
+// keeping the detail answered with the same scan again — with esc leading back to
+// the list and nothing leading to the inventory but ctrl+r.
+//
+// A security view the user reached inside itself has no origin and is kept, like
+// every other view's state across a switch.
 func (a *App) resetSelectionModeFor(view command.ViewType) {
-	if view == command.ViewWorkspaces {
+	switch view {
+	case command.ViewWorkspaces:
 		delete(a.views, view)
+	case command.ViewSecurity:
+		if held, ok := a.views[view].(security.Model); ok && held.OriginView != "" {
+			delete(a.views, view)
+		}
 	}
 }
 
