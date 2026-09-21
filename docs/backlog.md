@@ -3691,12 +3691,130 @@ Le cas « joindre un port non publié sans redémarrer » reste **ouvert** :
   `host:port`. Pas un défaut de bubbles mais une largeur jamais posée ; le test a
   été vérifié contre le code non corrigé.
 
-### 3.2 Interactive security remediation
+### 3.2 Remédiation de sécurité — **SAST local fait, auto-patch cadré, non commencé**
 
-- **Auto-patch assistance** — after a Trivy scan, offer to generate a patch or an
-  updated `Dockerfile` that bumps the base image version to clear critical CVEs.
-- **Local SAST** — wire security linters (Gitleaks for secrets, IaC linters)
-  directly into the Workspace view.
+Reporté de `todo.md` en deux puces : « *Auto-patch assistance* » (après un scan
+Trivy, proposer un `Dockerfile` dont l'image de base est montée pour effacer
+les CVE critiques) et « *Local SAST* » (Gitleaks et linters IaC dans la vue
+Workspace).
+
+#### SAST local — fait
+
+Gitleaks et Trivy (secrets, misconfig) tournent déjà sur les workspaces et la
+vue `:sec` fusionne leurs findings (`internal/scan/scanner.go`, étapes licence
+et gitleaks ; §3.50). Plus rien à faire sous ce titre.
+
+#### Auto-patch — ce qui existe
+
+`parseTrivyOutput` (`internal/scan/trivy.go`) garde `FixedIn` et un
+`FixCommand` par CVE, affichés par la vue détails
+(`internal/ui/security/details.go`) et exposés en MCP (`fixed_in`,
+`internal/mcp/scan_tools.go`). `FixCommand` n'est qu'un texte
+(`"Update pkg to X"`), pas une commande exécutable.
+
+#### Ce qui manque, du plus simple au plus dur
+
+1. **OS ou dépendance applicative.** Trivy donne `Result.Class` (`os-pkgs` /
+   `lang-pkgs`), jamais recopié dans `Finding`. C'est lui qui dit si la
+   correction est un bump d'image de base ou un bump de dépendance — un
+   nouveau `FROM` ne change rien à une CVE de `go.mod`. Les résultats déjà
+   en cache n'auront pas le champ : classe inconnue, pas classe OS.
+2. **L'image de base.** Trivy ne connaît pas le `FROM`, et ses `Metadata`
+   (OS, EOSL, ImageConfig) ne sont pas parsées. Une image de la vue OCI n'a
+   aucun lien vers son Dockerfile (au mieux `created_by` dans l'historique,
+   ou le label optionnel `org.opencontainers.image.base.name`). **Un patch
+   fiable n'existe donc que depuis un workspace qui contient le Dockerfile.**
+3. **Le tag cible.** Même variante seulement (`3.20` → `3.21`, un
+   `bookworm-slim` reste `-slim`), multi-stage, `ARG` dans `FROM`, digests
+   épinglés `@sha256`. Lister les tags passe par le registry.
+4. **La preuve.** Un bump proposé est **re-scanné, jamais cru** (déjà posé en
+   §3.15). Chaque candidat coûte un pull et un scan complet : nombre borné,
+   résultats en cache. Seul le tableau avant/après (CRIT/HIGH) justifie une
+   proposition.
+
+#### Découpage
+
+| Phase | Contenu | Coût |
+|---|---|---|
+| **A** | `Class` dans `Finding` ; compte des corrigibles (image de base / dépendances) ; `FixCommand` regroupées par paquet et par écosystème (`go get pkg@v`, `npm i pkg@v`, …) | faible, sans réseau |
+| **B** | Workspace avec Dockerfile : parser les `FROM`, lister les tags candidats, les re-scanner, tableau avant/après | moyen : registry + N scans |
+| **C** | Diff du Dockerfile montré, écriture **à la demande de l'utilisateur et après confirmation** (ci-dessous) | faible une fois B en place |
+
+Côté OCI (image seule), rien au-delà de la phase A : il n'y a pas de fichier
+source à modifier.
+
+#### Pas de LLM embarqué — le jugement passe par MCP
+
+Tout ce que A, B et C demandent est **déterministe** : la classe vient du
+rapport, la version corrigée aussi, les commandes sont une table par
+écosystème, le `FROM` se parse, les tags se listent et se trient, et savoir
+si un bump corrige est une **mesure** (le re-scan), pas un avis. Un modèle à
+l'une de ces étapes n'ajouterait que de la non-reproductibilité — et à
+l'étape de preuve, sa réponse ne peut pas en tenir lieu.
+
+Ce qu'un LLM apporterait réellement est ce qui ne se mesure pas : les montées
+majeures (`debian:11` → `12`, `alpine` → distroless, une dépendance `v1` →
+`v2`) dont le scan ne dit pas si l'application marche encore ; la réécriture
+d'un Dockerfile quand la distribution change et que les noms de paquets
+suivent ; la priorisation (« chargée au build seulement ») ; les CVE sans
+version corrigée, où il ne reste que des contournements.
+
+**DevDesk n'embarque pas de modèle pour ça** — pas de clé d'API, pas de choix
+de modèle, pas de coût, pas de données de scan envoyées à un tiers depuis
+l'application. Le serveur MCP expose déjà les findings, `fixed_in` compris ;
+un client externe (Claude Code, Claude Desktop…) raisonne sur les cas
+ambigus. Le partage :
+
+- **DevDesk** fait ce qui se mesure (A, B, C) et l'expose en MCP : candidats,
+  deltas de re-scan, et à terme un outil de re-scan d'un candidat — ce qui
+  donne à un agent le moyen de **vérifier** ses propres suggestions au lieu de
+  les affirmer ;
+- **le client LLM**, s'il y en a un, porte le jugement.
+
+L'écriture du Dockerfile **n'est pas exposée en MCP** : c'est un geste de
+l'utilisateur dans le TUI (ci-dessous), et un agent a de toute façon ses
+propres outils pour éditer un fichier.
+
+#### Écrire le Dockerfile — l'utilisateur demande, l'utilisateur confirme
+
+DevDesk **montre** d'abord : le diff des lignes `FROM` et le tableau
+avant/après qui le justifie. Il n'écrit rien de lui-même. L'écriture est une
+action que l'utilisateur **demande** (une touche sur cet écran), suivie d'un
+modal de confirmation dont le choix par défaut est « No » (Rule 104). Sur
+« Yes », DevDesk écrit ; sur « No » ou `esc`, rien ne bouge.
+
+Pourquoi c'est acceptable : un Dockerfile vit presque toujours dans un dépôt
+git, donc l'écriture se relit (`git diff`) et s'annule (`git checkout`).
+DevDesk n'y ajoute ni commit, ni branche, ni push — le dépôt reste celui de
+l'utilisateur.
+
+Ce que l'écriture doit garantir :
+
+- **Ne toucher que les lignes `FROM` concernées.** Le reste du fichier est
+  recopié octet pour octet — commentaires, fins de ligne (CRLF compris),
+  absence de newline final.
+- **Refuser si le fichier a changé depuis le diff affiché** (empreinte prise
+  au calcul, revérifiée à l'écriture) : l'utilisateur a confirmé *ce* diff,
+  pas un autre. Message au footer, diff à recalculer.
+- **Écriture atomique** (fichier temporaire dans le même répertoire, puis
+  renommage) en conservant les permissions.
+- **Le modal dit l'état git du fichier**, parce que « rien n'est perdu » n'est
+  vrai que dans le cas courant :
+  - suivi et propre → rien de plus à dire ;
+  - suivi avec des modifications non commitées → l'avertir : un `git checkout`
+    pour annuler emporterait aussi ses propres modifications ;
+  - non suivi, ou hors d'un dépôt → l'avertir : aucun filet, l'écriture est
+    définitive.
+
+  Aucun de ces cas ne bloque : c'est l'utilisateur qui décide, en sachant.
+
+#### Questions ouvertes
+
+- **La touche.** Lettres majuscules libres : `J Q Z` (`internal/ui/keymap`) ;
+  ou une sous-action de l'écran de détails, sur le modèle des exceptions
+  déclarées.
+- **L'écran de B/C** : onglet des résultats de scan d'un workspace, ou vue
+  dédiée ouverte depuis la ligne du Dockerfile dans `ws`.
 
 ### 3.3 OCI build and cache analyser
 
