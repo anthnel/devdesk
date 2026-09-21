@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "aa218faafee7",
+  "strategy": "manual-commit",
+  "branch": "feat/picker-shift-tab",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "internal/app/command_line.go",
+    "internal/app/command_line_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/aa/218faafee7/0/metadata.json",
+      "transcript": "/aa/218faafee7/0/full.jsonl",
+      "compact_transcript": "/aa/218faafee7/0/transcript.jsonl",
+      "content_hash": "/aa/218faafee7/0/content_hash.txt",
+      "prompt": "/aa/218faafee7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 7644,
+    "cache_read_tokens": 1136719,
+    "output_tokens": 3030,
+    "api_call_count": 9
+  }
+}
