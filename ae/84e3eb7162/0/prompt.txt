@@ -1,0 +1,19 @@
+guide moi pour ajouter le serveur mcp dans claude
+
+---
+
+❯ claude mcp add --transport http devdesk http://127.0.0.1:7777 --header "Authorization: Bearer <token>>"
+ERROR: unknown flag: --transport
+
+---
+
+❯ claude-host mcp add --transport http devdesk http://127.0.0.1:7777 --header "Authorization: Bearer <tokken>"
+MCP server devdesk already exists in local config
+
+---
+
+comment le token est généré
+
+---
+
+ce serait intéressant d'ajouter comment configurer le serveur mcp dans les outils ia, comme claude code, codex ou d'autres, que proposes tu

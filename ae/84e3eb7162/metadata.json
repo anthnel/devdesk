@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "ae84e3eb7162",
+  "strategy": "manual-commit",
+  "branch": "docs/connect-ai-client",
+  "checkpoints_count": 5,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/ae/84e3eb7162/0/metadata.json",
+      "transcript": "/ae/84e3eb7162/0/full.jsonl",
+      "compact_transcript": "/ae/84e3eb7162/0/transcript.jsonl",
+      "content_hash": "/ae/84e3eb7162/0/content_hash.txt",
+      "prompt": "/ae/84e3eb7162/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 36,
+    "cache_creation_tokens": 95378,
+    "cache_read_tokens": 1764884,
+    "output_tokens": 13711,
+    "api_call_count": 18
+  }
+}
