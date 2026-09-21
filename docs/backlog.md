@@ -13649,6 +13649,38 @@ de `monitors_status` répond déjà) ; les métriques hôte (`internal/metrics`)
 peu utiles à un agent ; et le tableau de bord, qui n'agrège que des données déjà
 servies.
 
+### 3.77 Copier la commande de connexion MCP depuis l'onglet `mcp` — **à faire**
+
+La page `docs-site/docs/how-to/connect-an-ai-client.md` documente, client par
+client, comment brancher un agent sur le serveur (§3.61). Elle laisse un
+défaut que la documentation ne peut pas corriger : l'utilisateur doit lire le
+jeton dans `:config`, l'adresse dans `State`, puis les recopier à la main dans
+une commande. C'est là que sont nées les erreurs vues en pratique — un jeton
+recopié avec ses chevrons, une faute de frappe dans le jeton, un `127.0.0.1`
+utilisé depuis un sandbox — et elles ne se voient qu'à la connexion, jamais à
+l'ajout : un client enregistré avec un mauvais jeton est enregistré quand même.
+
+**Proposition.** Sur l'onglet `mcp` de la configuration, une touche copie dans
+le presse-papiers la commande `claude mcp add --transport http devdesk
+<adresse réellement liée> --header "Authorization: Bearer <jeton>"`, déjà
+remplie. L'adresse est celle que le serveur a *effectivement* liée
+(`MCPServerStartedMsg`), pas `mcp.listen` tel qu'écrit : un port `0` ou vide
+ne se recopie pas.
+
+**Ce qu'il faut trancher avant de la construire**
+
+| # | Question | Pente naturelle |
+|---|---|---|
+| 1 | Quelle lettre ? | Une des libres du vocabulaire (`J`, `Q`, `Z`) — ou `Y` (Copy), qui existe déjà pour un chemin et dont le sens s'étend sans se déformer. À déclarer dans `internal/ui/keymap` ; `TestNoViewBindsAnUndeclaredUppercaseKey` la refusera sinon |
+| 2 | Quel client ? | Claude Code seul au départ : c'est la seule commande qui tient en une ligne. Les autres clients veulent un fichier, pas un presse-papiers ; un menu de formats serait une seconde fonctionnalité |
+| 3 | Le jeton dans le presse-papiers | Le jeton ne quitte aujourd'hui l'écran que masqué, et seulement révélé par `space`. Le presse-papiers est lisible par tout processus de la session : c'est un acte à annoncer dans le footer (Rule 128, `Info`), pas à faire en silence |
+| 4 | Le jeton et les journaux | Aucune ligne de `log.Printf` ne doit porter la commande ni le jeton. Un test qui cherche le jeton dans la sortie de journal, comme `TestTheMatchedStringOfASecretNeverLeaves` le fait pour une réponse |
+| 5 | Sandbox | La commande copiée vaut pour l'hôte. Depuis un sandbox l'adresse est `host.docker.internal` ; la touche ne peut pas le deviner, et la page de documentation le dit |
+| 6 | Grisée ou absente | Grisée (Rule 130) quand le serveur ne tourne pas, avec la raison de la ligne `State` : `Unavailable("MCP server is not running")` |
+
+À mettre à jour dans le même commit : `GetShortcuts()`, `GetHelpContent()`
+(Rule 114) et la page how-to.
+
 ---
 
 ## 4. Existing plans

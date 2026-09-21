@@ -1,6 +1,6 @@
 # MCP Server
 
-DevDesk can expose what it knows to AI coding agents over the [Model Context Protocol](https://modelcontextprotocol.io/), served directly from the running TUI process rather than as a separate tool. This page explains why it's shaped the way it is: HTTP rather than stdio, read-mostly rather than fully interactive, and scoped to exactly the session that's currently running.
+DevDesk can expose what it knows to AI coding agents over the [Model Context Protocol](https://modelcontextprotocol.io/), served directly from the running TUI process rather than as a separate tool. This page explains why it's shaped the way it is: HTTP rather than stdio, read-mostly rather than fully interactive, and scoped to exactly the session that's currently running. To turn it on and connect a client, see [Enable the MCP server](../how-to/enable-the-mcp-server.md) and [Connect an AI client](../how-to/connect-an-ai-client.md).
 
 ## Serving from the TUI, over HTTP
 
