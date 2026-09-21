@@ -3808,13 +3808,26 @@ Ce que l'écriture doit garantir :
 
   Aucun de ces cas ne bloque : c'est l'utilisateur qui décide, en sachant.
 
-#### Questions ouvertes
+#### Tranché — 2026-09-21
 
-- **La touche.** Lettres majuscules libres : `J Q Z` (`internal/ui/keymap`) ;
-  ou une sous-action de l'écran de détails, sur le modèle des exceptions
-  déclarées.
-- **L'écran de B/C** : onglet des résultats de scan d'un workspace, ou vue
-  dédiée ouverte depuis la ligne du Dockerfile dans `ws`.
+Plan : `.claude/plans/2026-09-21-security-remediation.md` (un plan, trois PR).
+
+- **L'écran de B/C** est un onglet **Remediation** des résultats de scan d'un
+  workspace dans `:sec`, qui sait déjà lancer, suivre et mettre en cache un
+  scan.
+- **Même ligne par défaut** : même majeure, même suffixe de variante. Une
+  montée majeure est exactement ce que le scan ne prouve pas. Le réglage
+  `scan.base_image_track` (`same-line` \| `next-major`, par contexte comme tout
+  `scan:`) permet d'élargir.
+- **Tous les stages**, pas seulement le final : une CVE d'un stage de build
+  peut finir dans l'image livrée (toolchain, bibliothèques liées
+  statiquement).
+- **La touche d'écriture est `ctrl+o`**, exception déclarée comme `ctrl+y`
+  (voir le plan) :
+  - `^O` est « Write Out » dans nano ;
+  - le mode raw désactive `VDISCARD` ;
+  - `ctrl+w` ferme l'onglet dans les navigateurs et les terminaux web ;
+  - `ctrl+s` est le contrôle de flux.
 
 ### 3.3 OCI build and cache analyser
 
