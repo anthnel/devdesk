@@ -81,11 +81,17 @@ func RenderTitledRule(title string, width int) string {
 		Bold(true)
 
 	rendered := titleStyle.Render(title)
-	// " " + title + " " then the fill up to width.
+	// " " + title + " ", centered: the rule fills both sides, the left one
+	// getting the smaller half when the leftover is odd.
+	// The rule is inset by one cell on each side so it lines up with the
+	// command line and the boxes below it.
 	used := 1 + lipgloss.Width(rendered) + 1
-	fill := max(width-used, 0)
-	return Bg(" ") + rendered + Bg(" ") +
-		borderStyle.Render(strings.Repeat(lipgloss.NormalBorder().Top, fill))
+	fill := max(width-2-used, 0)
+	left := fill / 2
+	rule := func(n int) string {
+		return borderStyle.Render(strings.Repeat(lipgloss.NormalBorder().Top, n))
+	}
+	return Bg(" ") + rule(left) + Bg(" ") + rendered + Bg(" ") + rule(fill-left) + Bg(" ")
 }
 
 // minBoxWidth is the narrowest box that can still show two borders and a

@@ -584,11 +584,12 @@ func RefreshStyles() {
 	CommandLineStyle = lipgloss.NewStyle().
 		Background(ColorCmdLineBg).
 		Foreground(ColorCmdLineFg).
-		Padding(0, 0, 0, 1)
+		Padding(0)
 
 	CommandLineInactiveStyle = lipgloss.NewStyle().
 		Background(ColorBackground).
-		Foreground(ColorCmdLineInactiveFg)
+		Foreground(ColorCmdLineInactiveFg).
+		Padding(0)
 
 	ShortcutKeyStyle = lipgloss.NewStyle().
 		Background(ColorBackground).
