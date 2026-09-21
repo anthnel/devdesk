@@ -1,7 +1,6 @@
 package remediation
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/dockerfile"
@@ -44,12 +43,24 @@ type Rule struct {
 // and the tests all read them, and a wording that drifts between the three is a
 // wording that cannot be tested.
 const (
-	ReasonNoFixForRule    = "No built-in fix for this rule — use the MCP server and an agent"
-	ReasonNotADockerfile  = "The catalog only fixes Dockerfiles"
-	ReasonNoStage         = "This Dockerfile declares no build stage"
-	ReasonAlreadyFixed    = "The final stage already sets a user"
-	ReasonUnreadableSpan  = "The reported lines are not in this file"
-	defaultNonRootUserArg = "1000:1000"
+	ReasonNoFixForRule   = "No built-in fix for this rule — use the MCP server and an agent"
+	ReasonNotADockerfile = "The catalog only fixes Dockerfiles"
+	ReasonNoStage        = "This Dockerfile declares no build stage"
+	ReasonAlreadyFixed   = "The final stage already sets a user"
+	ReasonUnreadableSpan = "The reported lines are not in this file"
+	// ReasonUnknownBaseFamily is the one that matters: the account has to be
+	// created before it can be used, and the command that creates it differs
+	// between distributions. See fixRootUser.
+	ReasonUnknownBaseFamily = "Cannot tell which distribution the final stage builds on, so the adduser flags cannot be chosen"
+)
+
+// The account the fix creates. The uid goes through an ARG so it can be
+// overridden at build time without editing the file again, which is what
+// `docker init` generates and what makes the value a default rather than a
+// decision taken on the user's behalf.
+const (
+	nonRootUser = "appuser"
+	nonRootUID  = "10001"
 )
 
 // catalog is keyed by ruleKey, and it is short on purpose. Adding an entry means
@@ -110,16 +121,26 @@ func ruleKey(id string) string {
 	return prefix + digits
 }
 
-// fixRootUser satisfies "specify at least 1 USER command" by adding one to the
-// final stage.
+// fixRootUser satisfies "specify at least 1 USER command" by creating an
+// unprivileged account in the final stage and switching to it.
 //
-// **The user is a numeric id, not a name.** `USER nonroot` is only valid if the
-// image happens to declare that account, which the Dockerfile does not say and
-// this package cannot find out without pulling the image. A uid works in every
-// image, because the kernel does not need /etc/passwd to switch to one.
+// **It creates the account rather than naming a uid.** A bare `USER 10001`
+// switches to a uid that has no passwd entry: no name, no home, no shell. Much
+// of what runs in a container asks the system who it is — anything calling
+// getpwuid, a shell wanting $HOME, tools that write to a home directory — and
+// all of it degrades in ways that surface later, at run time, far from this
+// edit. `adduser` first, `USER appuser` after, is what `docker init` generates
+// and what this now emits.
 //
-// The instruction goes before the final stage's first CMD or ENTRYPOINT, which
-// is where it has to be to apply to the process that runs — after it, it would
+// **The flags are Debian's, so the base image has to be one.** The long options
+// below belong to the Debian/Ubuntu `adduser`; busybox's, on Alpine, takes
+// different ones (`-D`, `-H`, `-s /sbin/nologin`) and a distroless image has no
+// shell to run either in. Guessing wrong produces a Dockerfile that fails at
+// build, which is worse than offering nothing — so a base this cannot identify
+// is declined, and the agent path (phase A) takes it.
+//
+// The block goes before the final stage's first CMD or ENTRYPOINT, which is
+// where it has to be to apply to the process that runs — after it, it would
 // change nothing. With neither, it goes at the end of the file.
 //
 // What it does not do is chown anything. A process that loses root may no longer
@@ -136,22 +157,104 @@ func fixRootUser(content []byte, f scan.Finding) ([]patch.Edit, string) {
 		return nil, ReasonNoStage
 	}
 
+	final := stages[len(stages)-1]
+	if !isDebianFamily(final.Image) {
+		return nil, ReasonUnknownBaseFamily
+	}
+
 	lines := contentLines(content)
-	finalFrom := stages[len(stages)-1].Line // 1-based
-	if finalFrom > len(lines) {
+	if final.Line > len(lines) {
 		return nil, ReasonUnreadableSpan
 	}
 
-	at, already := insertionPoint(lines, finalFrom, len(content))
+	at, already := insertionPoint(lines, final.Line, len(content))
 	if already {
 		return nil, ReasonAlreadyFixed
 	}
 
-	text := fmt.Sprintf("USER %s\n", defaultNonRootUserArg)
+	text := addUserBlock(lineEnding(content))
 	if at == len(content) && !endsWithNewline(content) {
-		text = "\n" + text
+		text = lineEnding(content) + text
 	}
 	return []patch.Edit{{Span: patch.Span{Start: at, End: at}, New: text}}, ""
+}
+
+// addUserBlock is the Debian/Ubuntu incantation, spelled out rather than
+// condensed: every flag is there to make the account unusable for anything but
+// running the process — no password, no home, no login shell.
+func addUserBlock(eol string) string {
+	lines := []string{
+		"ARG UID=" + nonRootUID,
+		"RUN adduser \\",
+		`    --disabled-password \`,
+		`    --gecos "" \`,
+		`    --home "/nonexistent" \`,
+		`    --shell "/usr/sbin/nologin" \`,
+		"    --no-create-home \\",
+		`    --uid "${UID}" \`,
+		"    " + nonRootUser,
+		"USER " + nonRootUser,
+	}
+	return strings.Join(lines, eol) + eol
+}
+
+// debianFamilyBases are the official images that build on Debian or Ubuntu
+// unless their tag says otherwise.
+//
+// The list is short and conservative on purpose: an image missing from it is
+// declined, which costs a fix, while an image wrongly in it emits a RUN that
+// fails at build. A private base (`registry.example.com/base:1`) says nothing
+// about its distribution and is therefore never accepted.
+var debianFamilyBases = map[string]bool{
+	"debian": true, "ubuntu": true,
+	"golang": true, "node": true, "python": true, "ruby": true,
+	"rust": true, "php": true, "perl": true, "openjdk": true,
+	"maven": true, "gradle": true, "eclipse-temurin": true,
+}
+
+// isDebianFamily says whether ref's adduser takes Debian's flags.
+//
+// An "alpine" anywhere in the reference disqualifies it whatever the repository
+// says — `golang:1.23-alpine` is busybox — and so does a digest with no tag,
+// where nothing names the variant.
+func isDebianFamily(ref string) bool {
+	if ref == "" {
+		return false
+	}
+	lower := strings.ToLower(ref)
+	if strings.Contains(lower, "alpine") || strings.Contains(lower, "busybox") ||
+		strings.Contains(lower, "distroless") || strings.Contains(lower, "scratch") {
+		return false
+	}
+
+	repo := lower
+	if i := strings.LastIndexAny(repo, ":@"); i >= 0 {
+		repo = repo[:i]
+	}
+	// Only an official image, which is a bare name with no registry or user in
+	// front of it. Anything namespaced is somebody's own build.
+	if strings.Contains(repo, "/") {
+		return false
+	}
+	return debianFamilyBases[repo]
+}
+
+// lineEnding returns what this file separates its lines with, so an inserted
+// block does not mix LF into a CRLF file.
+func lineEnding(content []byte) string {
+	if i := indexByte(content, '\n'); i > 0 && content[i-1] == '\r' {
+		return "\r\n"
+	}
+	return "\n"
+}
+
+func indexByte(b []byte, c byte) int {
+	for i := range b {
+		if b[i] == c {
+			return i
+		}
+	}
+	return -1
 }
 
 // insertionPoint finds where a USER instruction has to go in the stage that
