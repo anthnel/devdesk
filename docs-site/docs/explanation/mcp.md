@@ -54,6 +54,7 @@ Tools are declared in a single table (`internal/mcp/tools.go`), each entry holdi
 | `jobs_list` | work started this session, and what each run is currently doing |
 | `jobs_get` | one run's targets, with failure reasons |
 | `workspace_scan_start` / `workspace_sync_start` | headless scan/sync of a workspace, returns a job id |
+| `template_sync_start` | re-read one template's source into its cached copy, returns a job id |
 | `image_scan_start` / `image_pull_start` | headless image scan / pull |
 | `jobs_cancel` | cancel a **run** — never a container directly |
 

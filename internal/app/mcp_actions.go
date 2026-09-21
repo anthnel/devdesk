@@ -6,6 +6,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	mcpserver "github.com/anthnel/devdesk/internal/mcp"
 	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
+	"github.com/anthnel/devdesk/internal/ui/templates"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 
@@ -59,6 +60,13 @@ func mcpActionTable() map[string]func(targets []string, invocation string) (comm
 		"workspace_sync_start": func(targets []string, inv string) (command.ViewType, tea.Msg) {
 			return command.ViewWorkspaces, workspaces.SyncRequestedMsg{Paths: targets, Invocation: inv}
 		},
+		"template_sync_start": func(targets []string, inv string) (command.ViewType, tea.Msg) {
+			slug := ""
+			if len(targets) > 0 {
+				slug = targets[0]
+			}
+			return command.ViewTemplates, templates.SyncRequestedMsg{Slug: slug, Invocation: inv}
+		},
 		"image_scan_start": func(targets []string, inv string) (command.ViewType, tea.Msg) {
 			return command.ViewOCIResources, ociresources.ImageScanRequestedMsg{Images: targets, Invocation: inv}
 		},
@@ -80,6 +88,7 @@ func mcpActionKeys() map[string]string {
 	return map[string]string{
 		"workspace_scan_start": "S",
 		"workspace_sync_start": "F",
+		"template_sync_start":  "F",
 		"image_scan_start":     "S",
 		"image_pull_start":     "G",
 	}

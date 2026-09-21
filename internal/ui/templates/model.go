@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/config"
@@ -75,6 +76,10 @@ type Model struct {
 	// syncedAt is the last answer of the cache to "when was each copy read",
 	// by slug. It is refreshed when something that changes it lands.
 	syncedAt map[string]time.Time
+
+	// pendingRequests holds what an agent asked for before the catalog had been
+	// read; see mcp.go.
+	pendingRequests []tea.Msg
 
 	footer sharedcomponents.FooterMessage
 

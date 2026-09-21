@@ -1,6 +1,6 @@
 # MCP: exposing the features added since §3.61
 
-Status: batches 1, 2 and 3 implemented on `feat/mcp-forward-templates-status`; 4 open. Baseline: 17 tools in `internal/mcp/tools.go`.
+Status: batches 1 to 4 decided and implemented on `feat/mcp-forward-templates-status`. Baseline: 17 tools in `internal/mcp/tools.go`.
 
 ## Constraints that decide everything
 
@@ -67,16 +67,26 @@ comments untouched. `go test ./internal/mcp` passes.
   `time.Duration(cfg.Status.Timeout)`, which is seconds read as nanoseconds. Not
   touched here; see the note in the commit.
 
-## Batch 4 — actions, each to be specified before built
+## Batch 4 — actions (decided 2026-09-21)
 
-Neither goes ahead without a decision recorded in `docs/backlog.md`.
+- `template_sync_start`: **built**, one slug. The credential worry was smaller
+  than written: `CredentialsFor` reads the secret store inside the process and
+  hands the token to the fetch, only for the forge's own host and never over
+  http; decision 6 forbids a tool exposing a secret, not triggering an action
+  that uses one. The reply is a job id.
+- `forward_open` / `forward_close`: **not built** (option A). The free target is
+  a bridge to any host the machine can reach. Way back if wanted: restrict
+  targets to loopback and to what `containers_list` reports, and limit
+  `forward_close` to forwards opened over MCP. Recorded in `mcp.md`.
+
+The original analysis follows.
 
 - `template_sync_start` — headless `F` on `:templates`. Goes through the jobs
   registry like `workspace_sync_start`. Blocker: `template.CredentialsFor` reads
   the secret store, and decision 6 says no tool reads it. Acceptable only if the
   read stays inside the process and no value reaches an answer; otherwise
   refuse.
-- `forward_open` / `forward_close` — headless `N` / `D` on the Forward tab. The
+- `forward_open` / `forward_close` — headless `N` / `K` on the Forward tab. The
   inverse exists, which the action-tier rule requires. The open question is the
   free target: an agent could bind a port toward any host. Options: restrict to
   targets already on loopback or in the context's config, or leave unbuilt like

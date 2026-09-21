@@ -112,6 +112,11 @@ func tools() []toolDef {
 			register:    registerWorkspaceSyncStart,
 		},
 		{
+			Name:        "template_sync_start",
+			Description: "Read one template's source again and replace its cached copy, so that a preview, a scan or a repository created from it sees what the source holds now. It takes the slug of one template from templates_list and returns a job id at once; jobs_get follows it. Nothing in the catalog is changed and nothing is deleted, and a source on any host other than the forge's is fetched without the forge's credentials.",
+			register:    registerTemplateSyncStart,
+		},
+		{
 			Name:        "image_scan_start",
 			Description: "Scan container images for vulnerabilities, secrets, licences and misconfiguration, with this context's scan settings. It returns a job id at once; scan_result reads the findings once it has finished. It never purges what is already cached.",
 			register:    registerImageScanStart,
