@@ -193,3 +193,22 @@ func equal(a, b []string) bool {
 	}
 	return true
 }
+
+// The details name what has to move: a base image package and an application
+// dependency are cleared by different things, and a result cached before the
+// class was recorded says nothing rather than guessing.
+func TestDetailsNameThePackageKind(t *testing.T) {
+	tests := []struct {
+		class string
+		want  string
+	}{
+		{scan.ClassOSPackages, "Base image package"},
+		{scan.ClassLangPackages, "Application dependency"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		if got := packageKind(tt.class); got != tt.want {
+			t.Errorf("packageKind(%q) = %q, want %q", tt.class, got, tt.want)
+		}
+	}
+}

@@ -74,7 +74,10 @@ Nouveau package, sans I/O :
     La comparaison est semver quand les deux versions se parsent ; sinon, les
     versions distinctes sont listées et aucune n'est choisie ;
   - les identifiants des CVE et la pire sévérité.
-- `Command(fix) (string, bool)` : une table par écosystème.
+- `scan.FixCommand(ecosystem, pkg, version) (string, bool)` : une table par
+  écosystème. Elle vit dans `internal/scan` et non dans `remediation`, parce que
+  le parseur en dérive `FixCommand` et que `remediation` importe `scan` (l'inverse
+  ferait un cycle). `remediation.Group` s'en sert pour sa `Fix.Command`.
 
   | Écosystème | Commande |
   |---|---|
@@ -87,14 +90,15 @@ Nouveau package, sans I/O :
   | autre | pas de commande : la version cible seule |
 
   `false` signifie « pas de commande connue », jamais une commande inventée.
-- **`FixCommand` est dérivé de `Command`**, qui remplace le texte
-  `"Update pkg to X"`. Le champ reste pour le cache et pour MCP.
+- **`Finding.FixCommand` est dérivé de `scan.FixCommand`** ; pour un
+  écosystème hors table, le parseur garde le texte `"Update pkg to X"` d'avant
+  plutôt que de ne rien afficher. Le champ reste pour le cache et pour MCP.
 
 ### A3. Affichage
 
 - **Résultats (`internal/ui/security`) :** un champ `GetHeaderInfo`
-  « Fixable », au format `12 · 8 base / 4 deps`, avec la classe inconnue
-  comptée à part si elle existe.
+  « Fixable », au format `12 (8 base, 4 deps)`, avec la classe inconnue
+  comptée à part (`unclassified`) si elle existe.
   - Rule 139 : rien dans le corps.
   - Rule 122 : `DimStyle` pour les zéros.
 - **Détails :** la classe (« Base image package » / « Application

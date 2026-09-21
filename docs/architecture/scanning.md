@@ -304,8 +304,35 @@ that *is* scoped sits in the same table.
 | State | Info |
 |---|---|
 | Inventory | `Context`, `Targets` |
-| Results / Details | `Context`, `Findings` |
+| Results / Details | `Context`, `Findings`, `Fixable` |
 | Form / Scanning | `Context` |
+
+### What can be fixed — `Class`, `Ecosystem`, `internal/remediation` (§3.2)
+
+A vulnerability carries Trivy's `Result.Class` (`os-pkgs` or `lang-pkgs`) and
+`Result.Type` (`alpine`, `debian`, `gomod`, `npm`, …) as `Finding.Class` and
+`Finding.Ecosystem`. The class is what decides the fix: a base image bump
+clears an `os-pkgs` CVE and does nothing for a `lang-pkgs` one, whose fix is
+the dependency itself. Both are `omitempty`, so a result cached before they
+were recorded reads as **unclassified** — counted apart, never as either class,
+and gone at the next scan. Nothing migrates the cache.
+
+`scan.FixCommand(ecosystem, pkg, version)` is a table, and answers `false`
+rather than inventing a command for an ecosystem outside it; the parser then
+keeps the older plain sentence (`Update pkg to X`). Trivy lists one fixed
+version per maintained branch (`"5.7.2, 6.3.1, 7.5.2"`), so the command uses
+`scan.PickFixed`: the lowest one on the installed major line, the smallest
+change that clears the CVE. Versions that cannot be ordered — a Debian epoch,
+a name — give no target rather than a guess; `scan.CompareVersions` is a lenient
+numeric ordering, not semver.
+
+`internal/remediation` is pure — no I/O — and has two entry points:
+`Summarize` (the header's `Fixable`: a count split into base image,
+dependencies and unclassified) and `Group` (one `Fix` per ecosystem, package
+and installed version, carrying the highest version any of its CVEs needs, so
+one bump clears them all). Whether a proposed bump *actually* clears the CVEs
+is not decided there: that is measured by re-scanning, and it is what the next
+phases of §3.2 add.
 
 ## The security inventory
 

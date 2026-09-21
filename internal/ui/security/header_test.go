@@ -5,6 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -148,7 +151,8 @@ func TestTitleNamesTheTargetOnceScanned(t *testing.T) {
 	}
 }
 
-// The header carries the context and one count, and nothing else.
+// The header carries the context and one count — and, on the results, how much
+// of it is fixable — and nothing else.
 //
 // buildInfoLines renders exactly headerMinHeight lines and drops the rest in
 // silence, so an unbounded info list is not a cosmetic problem. The states are
@@ -163,8 +167,8 @@ func TestTheHeaderCarriesTheContextAndOneCount(t *testing.T) {
 		{"the inventory", func(t *testing.T) Model {
 			return inventoryModel(t, inventoryFixtures()...)
 		}, []string{"Context", "Targets"}},
-		{"the results", scannedModel, []string{"Context", "Findings"}},
-		{"the details", detailsModel, []string{"Context", "Findings"}},
+		{"the results", scannedModel, []string{"Context", "Findings", "Fixable"}},
+		{"the details", detailsModel, []string{"Context", "Findings", "Fixable"}},
 	}
 
 	for _, tt := range tests {
@@ -268,4 +272,47 @@ func TestHelpExplainsTheTabs(t *testing.T) {
 			t.Errorf("the help does not explain the %s tab", want)
 		}
 	}
+}
+
+// Fixable splits what has a fixed version by what has to move to clear it, and
+// says so when a cached result cannot tell.
+func TestTheHeaderSaysHowMuchIsFixableAndOfWhatKind(t *testing.T) {
+	result := &scan.Result{
+		Target: "nexus/api:1.4", TargetType: scan.TargetImage,
+		Findings: []scan.Finding{
+			{ID: "CVE-1", Source: scan.SourceTrivy, Severity: scan.SeverityHigh, PkgName: "openssl", Class: scan.ClassOSPackages, FixedIn: "3.1.4"},
+			{ID: "CVE-2", Source: scan.SourceTrivy, Severity: scan.SeverityHigh, PkgName: "musl", Class: scan.ClassOSPackages, FixedIn: "1.2.4"},
+			{ID: "CVE-3", Source: scan.SourceTrivy, Severity: scan.SeverityHigh, PkgName: "lodash", Class: scan.ClassLangPackages, FixedIn: "4.17.21"},
+			{ID: "CVE-4", Source: scan.SourceTrivy, Severity: scan.SeverityHigh, PkgName: "old", FixedIn: "1.0.1"},
+			{ID: "CVE-5", Source: scan.SourceTrivy, Severity: scan.SeverityHigh, PkgName: "unfixed"},
+		},
+	}
+	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), tea.WindowSizeMsg{Width: 160, Height: 30})
+
+	got := headerValue(t, m, "Fixable")
+	if want := "4 (2 base, 1 deps, 1 unclassified)"; got != want {
+		t.Errorf("Fixable = %q, want %q", got, want)
+	}
+}
+
+func TestTheHeaderShowsZeroFixableWhenNothingHasAFix(t *testing.T) {
+	result := &scan.Result{
+		Target: "/tmp/repo", TargetType: scan.TargetDirectory,
+		Findings: []scan.Finding{{ID: "CVE-1", Source: scan.SourceTrivy, Severity: scan.SeverityHigh, PkgName: "x"}},
+	}
+	m := feed(t, NewWithPreloadedResult(testConfig(), nil, result), tea.WindowSizeMsg{Width: 160, Height: 30})
+	if got := headerValue(t, m, "Fixable"); got != "0" {
+		t.Errorf("Fixable = %q, want 0", got)
+	}
+}
+
+func headerValue(t *testing.T, m Model, key string) string {
+	t.Helper()
+	for _, i := range m.GetHeaderInfo("work") {
+		if i.Key == key {
+			return i.Value
+		}
+	}
+	t.Fatalf("no %q field in the header", key)
+	return ""
 }

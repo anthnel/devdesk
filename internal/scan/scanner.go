@@ -111,6 +111,14 @@ type Finding struct {
 	Resolution  string        `json:"resolution,omitempty"`  // Recommended fix steps
 	References  []string      `json:"references,omitempty"`  // Links to advisories or documentation
 	FixCommand  string        `json:"fix_command,omitempty"` // Suggested command to run
+	// Class and Ecosystem say what kind of package a vulnerability sits in:
+	// Trivy's Result.Class (os-pkgs or lang-pkgs) and Result.Type (alpine,
+	// debian, gomod, npm...). The class decides the fix — a base image bump
+	// clears an os-pkgs CVE and does nothing for a lang-pkgs one. Both are
+	// empty on results cached before they were recorded, which reads as
+	// "unknown" and is never counted as either class.
+	Class     string `json:"class,omitempty"`
+	Ecosystem string `json:"ecosystem,omitempty"`
 	// Job and ScriptLine are where a CI finding sits inside the pipeline
 	// (§3.42). plumber grades the configuration GitLab derives from the
 	// repository — includes and components resolved server-side — so a finding

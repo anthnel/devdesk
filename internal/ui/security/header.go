@@ -2,9 +2,11 @@ package security
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -111,8 +113,8 @@ func (m Model) GetIcon() string {
 	return ""
 }
 
-// GetHeaderInfo returns the key-value info for the header: the context, and one
-// count.
+// GetHeaderInfo returns the key-value info for the header: the context, one
+// count, and in the results how much of it is fixable.
 //
 // It used to carry seven fields in the results state, which is exactly the
 // number buildInfoLines renders — an eighth would have been dropped in silence.
@@ -126,6 +128,9 @@ func (m Model) GetIcon() string {
 //   - Secrets and Licenses duplicated the tab bar, which renders the same two
 //     numbers a line below.
 //
+// Fixable came back on its own merits: it is the one figure that says what can
+// be done, which none of the removed ones did.
+//
 // The context is what replaced them, and it is the one thing that was missing:
 // the scan caches are scoped to a context, so the same inventory rows mean
 // different things in two of them and look identical.
@@ -136,7 +141,37 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	if key, value, ok := m.headerCount(); ok {
 		info = append(info, shortcut.HeaderInfo{Key: key, Value: value, Style: theme.HeaderValueStyle})
 	}
+	if value, style, ok := m.headerFixable(); ok {
+		info = append(info, shortcut.HeaderInfo{Key: "Fixable", Value: value, Style: style})
+	}
 	return info
+}
+
+// headerFixable is how many of the vulnerabilities have a fixed version, split
+// by what has to move: "12 (8 base, 4 deps)". It is the one number that says
+// what can be done about the findings, which the count above does not. Like the
+// count, it is absent where the state is a list of nothing, and it is present
+// on both sides of the results/details step so the header does not change
+// under the reader (Rule 130).
+func (m Model) headerFixable() (string, lipgloss.Style, bool) {
+	if (m.state != StateResults && m.state != StateDetails) || m.result == nil {
+		return "", lipgloss.Style{}, false
+	}
+	s := remediation.Summarize(m.result.Findings)
+	if s.Fixable() == 0 {
+		return "0", theme.DimStyle, true
+	}
+	var parts []string
+	if s.BaseImage > 0 {
+		parts = append(parts, strconv.Itoa(s.BaseImage)+" base")
+	}
+	if s.Dependencies > 0 {
+		parts = append(parts, strconv.Itoa(s.Dependencies)+" deps")
+	}
+	if s.Unclassified > 0 {
+		parts = append(parts, strconv.Itoa(s.Unclassified)+" unclassified")
+	}
+	return strconv.Itoa(s.Fixable()) + " (" + strings.Join(parts, ", ") + ")", theme.HeaderValueStyle, true
 }
 
 // headerCount is the one number the header shows, named for whatever the state
@@ -197,7 +232,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Results",
-				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Severity is filtered with c, h, m and l — they are cumulative, so c and h together ask for CRITICAL or HIGH, which a threshold could not express. The active ones are shown in the bar under the table, beside the search field. '.' cycles the sort column and '/' searches. Press Enter to view finding details. For secrets, X adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have.\nEsc returns to the inventory, or to the list the results were opened from.",
+				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Severity is filtered with c, h, m and l — they are cumulative, so c and h together ask for CRITICAL or HIGH, which a threshold could not express. The active ones are shown in the bar under the table, beside the search field. '.' cycles the sort column and '/' searches. The Fixable figure in the header counts the vulnerabilities that have a fixed version, split into base image packages (cleared by upgrading the image's packages or moving to a newer base image) and application dependencies (cleared only by bumping the dependency itself); a result scanned before this was recorded shows its findings as unclassified until the next scan. Press Enter to view finding details, which name the package kind and the command that moves it. For secrets, X adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have.\nEsc returns to the inventory, or to the list the results were opened from.",
 			},
 			{
 				Title: "Command Logging",

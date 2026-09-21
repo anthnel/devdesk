@@ -3691,7 +3691,7 @@ Le cas « joindre un port non publié sans redémarrer » reste **ouvert** :
   `host:port`. Pas un défaut de bubbles mais une largeur jamais posée ; le test a
   été vérifié contre le code non corrigé.
 
-### 3.2 Remédiation de sécurité — **SAST local fait, auto-patch cadré, non commencé**
+### 3.2 Remédiation de sécurité — **SAST local fait, auto-patch : phase A faite, B et C à faire**
 
 Reporté de `todo.md` en deux puces : « *Auto-patch assistance* » (après un scan
 Trivy, proposer un `Dockerfile` dont l'image de base est montée pour effacer
@@ -3742,6 +3742,18 @@ et gitleaks ; §3.50). Plus rien à faire sous ce titre.
 
 Côté OCI (image seule), rien au-delà de la phase A : il n'y a pas de fichier
 source à modifier.
+
+#### Phase A — faite
+
+`Finding.Class` et `Finding.Ecosystem` (recopiés de Trivy), `scan.FixCommand`
+(table par écosystème) et `scan.PickFixed` (la version corrigée de la branche
+installée), `internal/remediation` (`Summarize`, `Group`), un champ `Fixable`
+dans l'en-tête des résultats et la classe dans les détails. `class` et
+`ecosystem` sont aussi dans le `finding` du MCP : c'est de quoi un client
+externe raisonne sur ce qui se corrige et comment. Un résultat mis en cache
+avant ce changement n'a pas la classe : il est compté à part
+(`unclassified`), jamais comme image de base, et cela disparaît au scan
+suivant — rien ne migre le cache.
 
 #### Pas de LLM embarqué — le jugement passe par MCP
 

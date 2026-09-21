@@ -108,6 +108,9 @@ func (m Model) buildDetailsContent() string {
 
 	if f.PkgName != "" {
 		b.WriteString(theme.SubTitleStyle.Render("Package: ") + textStyle.Render(f.PkgName) + "\n")
+		if kind := packageKind(f.Class); kind != "" {
+			b.WriteString(theme.SubTitleStyle.Render("Kind: ") + textStyle.Render(kind) + "\n")
+		}
 		if f.Version != "" {
 			b.WriteString(theme.SubTitleStyle.Render("Version: ") + textStyle.Render(f.Version) + "\n")
 		}
@@ -168,3 +171,16 @@ func (m Model) getSeverityStyle(sev scan.SeverityLevel) lipgloss.Style {
 }
 
 // HeaderView interface implementation
+
+// packageKind says what has to move to clear a vulnerability, from the class
+// Trivy reported. Empty for a result cached before the class was recorded: it
+// is unknown, and is not shown rather than guessed.
+func packageKind(class string) string {
+	switch class {
+	case scan.ClassOSPackages:
+		return "Base image package"
+	case scan.ClassLangPackages:
+		return "Application dependency"
+	}
+	return ""
+}
