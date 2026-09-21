@@ -227,6 +227,9 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 				Source:      "trivy-misconfig",
 				File:        result.Target,
 				Line:        misconf.CauseMetadata.StartLine,
+				EndLine:     misconf.CauseMetadata.EndLine,
+				Message:     misconf.Message,
+				Status:      misconf.Status,
 				Resolution:  misconf.Resolution,
 				References:  miscRefs,
 			})

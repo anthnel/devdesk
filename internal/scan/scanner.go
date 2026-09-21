@@ -120,6 +120,23 @@ type Finding struct {
 	// "unknown" and is never counted as either class.
 	Class     string `json:"class,omitempty"`
 	Ecosystem string `json:"ecosystem,omitempty"`
+	// EndLine, Message and Status belong to a misconfiguration (§3.78). Trivy
+	// has always reported them and they were dropped when the Finding was
+	// built, which left a caller knowing where a faulty block starts and not
+	// where it ends — enough to read, not enough to replace.
+	//
+	// EndLine is the last line of that block, Line being its first. Message is
+	// this instance's own wording ("Specify at least 1 USER command") where
+	// Description carries the rule's generic text, and Status is what Trivy
+	// concluded for the rule on this target.
+	//
+	// All three are empty on a result cached before they were recorded, which
+	// reads as "unknown" — an EndLine of zero is never a line number — and they
+	// reappear at the next scan. Same convention as Class and Ecosystem above,
+	// and no cache migration for the same reason.
+	EndLine int    `json:"end_line,omitempty"`
+	Message string `json:"message,omitempty"`
+	Status  string `json:"status,omitempty"`
 	// Job and ScriptLine are where a CI finding sits inside the pipeline
 	// (§3.42). plumber grades the configuration GitLab derives from the
 	// repository — includes and components resolved server-side — so a finding

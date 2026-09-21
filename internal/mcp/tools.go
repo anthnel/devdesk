@@ -133,7 +133,7 @@ func tools() []toolDef {
 		},
 		{
 			Name:        "scan_result",
-			Description: "Read the findings of one stored scan, filtered by severity and category and returned one page at a time. The matched string of a secret finding is never included.",
+			Description: "Read the findings of one stored scan, filtered by severity and category and returned one page at a time. The matched string of a secret finding is never included. A misconfiguration carries the span of the block it faults (line and end_line), the rule's own resolution text and its AVD id, and target_kind says whether the files are on disk at root or inside an image and therefore not editable. Nothing here writes: to check a fix, edit the file yourself, then workspace_scan_start, jobs_get, and read this again — a rule that is gone is gone.",
 			register:    registerScanResult,
 		},
 	}

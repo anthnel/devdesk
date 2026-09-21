@@ -123,7 +123,7 @@ execution sees a closure that registers under another name, twice, or not at all
 | `templates_list` | the template catalog (`~/.devdesk/templates.yaml`, global) and the age of each cached copy. Disk only. A source URL leaves without its userinfo, and the catalog's rejected entries are counted, not quoted |
 | `monitors_status` | the context's monitors, probed now: status, response time, error, and for an `ssl` monitor the days left, expiry, issuer and cert state. The targets come from configuration, never from a call; `type` narrows the set before anything is probed. Bounded by a 30 s deadline, since the SSL probe takes no context |
 | `scan_inventory` | every target this context has scanned, reconciled against what still exists |
-| `scan_result` | one scan's findings, filtered by severity and category, paginated. A vulnerability carries its `class` (`os-pkgs` / `lang-pkgs`) and `ecosystem`, which say what has to move to fix it |
+| `scan_result` | one scan's findings, filtered by severity and category, paginated. A vulnerability carries its `class` (`os-pkgs` / `lang-pkgs`) and `ecosystem`, which say what has to move to fix it; a misconfiguration carries its span, its own wording and its status (below) |
 | `net_check` | the `internal/netcheck` pipeline: eleven checks, each with a verdict and what to do |
 | `jobs_list` | the work this session has started, and what each run is doing right now |
 | `jobs_get` | one run target by target, with the reason any of them failed |
@@ -169,6 +169,53 @@ implementation on each side.
 `Snapshot` clears the cancel functions on the copies it hands out, so what
 leaves cannot stop a job behind the router's back — the same asymmetry a view
 gets (D1 of §3.58), and the reason nothing has to be filtered on top.
+
+### A misconfiguration is handed over whole, so an agent can fix it (§3.78)
+
+DevDesk corrects a base image itself (§3.2). It does not correct a
+misconfiguration, and for most rules it never will: Trivy's `Resolution` is a
+sentence in English, not a patch. What it does instead is hand a calling agent
+everything the fix needs and stay the thing that measures.
+
+| Field | What it answers |
+|---|---|
+| `line`, `end_line` | the **span** of the faulted block. `line` alone says where the problem starts, which is enough to read it and not enough to replace it |
+| `message` | this instance's own wording ("Specify at least 1 USER command"), where `description` is the rule's generic text |
+| `status` | what the scanner concluded for the rule on this target |
+| `id` | the AVD id — the rule's stable identity, and what a re-scan is checked against |
+| `resolution`, `references` | the prose fix and the advisory |
+
+**`end_line` at zero means unknown, never line zero** — an old cached result, or
+a rule that reports a point rather than a span. Same convention as `class` and
+`ecosystem`, and the reason there is no cache migration: the field reappears at
+the next scan.
+
+**`target_kind` and `root` say whether the files exist at all.** A
+misconfiguration found in an *image* points inside that image's filesystem:
+there is nothing on disk to open, and the path reads exactly like a repository's
+if nothing distinguishes them. So the answer names the kind, and only a
+repository carries the `root` its file paths are relative to.
+
+The kind comes from **which cache answered** (`storedResult`), never from
+inspecting the name. A repository path that looks like an image reference
+exists — `…/team/api:v2` — and an inspection would call it an image and send the
+caller writing nowhere. `TestTheTargetKindComesFromTheCacheNotTheName` is what
+holds that.
+
+**The server still writes nothing.** The loop an agent closes is its own:
+
+```
+scan_result            → the rule, its span, the file
+   ↓ the agent edits the file itself
+workspace_scan_start   → a job id
+jobs_get               → it finished
+scan_result            → the AVD id is gone, or it is not
+```
+
+That last read is the whole point, and it is the same rule §3.2 follows for
+base images: **measured, never inferred.** A patch an agent produced is judged
+by a re-scan, not by the confidence of whoever produced it — which is also why
+nothing here needs to know how it was produced.
 
 ## What the user sees
 

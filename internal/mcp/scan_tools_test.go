@@ -461,3 +461,98 @@ func callToolExpectingError(t *testing.T, cs *sdk.ClientSession, name string, ar
 	}
 	return string(data)
 }
+
+// §3.78 — the span, the instance's wording and the rule's status cross the
+// pipe. Without them an agent can read a misconfiguration and not act on it.
+func TestScanResultCarriesAMisconfigurationsSpan(t *testing.T) {
+	fakeCacheHome(t)
+	stubImages(t, "app:1.0")
+	storeImageResult(t, "app:1.0", &scan.Result{
+		Target:         "app:1.0",
+		MisconfigCount: 1,
+		Findings: []scan.Finding{{
+			ID: "DS002", Title: "Image user should not be root", Severity: "HIGH",
+			Source: scan.SourceTrivyMisconfig, File: "Dockerfile",
+			Line: 3, EndLine: 7,
+			Message: "Specify at least 1 USER command", Status: "FAIL",
+			Resolution: "Add USER command",
+		}},
+	})
+
+	var out scanResultOut
+	cs := connect(t, testEnv(nil))
+	callTool(t, cs, "scan_result", map[string]any{"target": "app:1.0"}, &out)
+
+	if len(out.Findings) != 1 {
+		t.Fatalf("got %d findings, want 1", len(out.Findings))
+	}
+	f := out.Findings[0]
+	if f.Line != 3 || f.EndLine != 7 {
+		t.Errorf("span = %d..%d, want 3..7", f.Line, f.EndLine)
+	}
+	if f.Message != "Specify at least 1 USER command" {
+		t.Errorf("Message = %q", f.Message)
+	}
+	if f.Status != "FAIL" {
+		t.Errorf("Status = %q, want FAIL", f.Status)
+	}
+}
+
+// An image's files are inside the image, so a path from one of its findings
+// cannot be opened, let alone written. That is not something to infer from the
+// shape of the target: the answer says which kind it is, and only a repository
+// gets the root its paths are relative to.
+func TestScanResultSaysWhetherItsFilesAreOnDisk(t *testing.T) {
+	fakeCacheHome(t)
+	repo := existingDir(t)
+	stubImages(t, "app:1.0")
+	storeImageResult(t, "app:1.0", &scan.Result{Target: "app:1.0"})
+	if err := cache.SaveWorkspaceScanResult(repo, &scan.Result{Target: repo}); err != nil {
+		t.Fatalf("store workspace result: %v", err)
+	}
+
+	cs := connect(t, testEnv(nil))
+
+	var image scanResultOut
+	callTool(t, cs, "scan_result", map[string]any{"target": "app:1.0"}, &image)
+	if image.TargetKind != kindImage {
+		t.Errorf("target_kind = %q, want %q", image.TargetKind, kindImage)
+	}
+	if image.Root != "" {
+		t.Errorf("an image target carries a root (%q); its files are not on disk", image.Root)
+	}
+
+	var workspace scanResultOut
+	callTool(t, cs, "scan_result", map[string]any{"target": repo}, &workspace)
+	if workspace.TargetKind != kindRepository {
+		t.Errorf("target_kind = %q, want %q", workspace.TargetKind, kindRepository)
+	}
+	if workspace.Root != repo {
+		t.Errorf("root = %q, want %q — the paths of its findings are relative to it", workspace.Root, repo)
+	}
+}
+
+// The kind comes from which cache answered, never from reading the name. A
+// repository whose path looks like an image reference is the case that decides
+// it: an inspection would call this an image and send a caller writing nowhere.
+func TestTheTargetKindComesFromTheCacheNotTheName(t *testing.T) {
+	fakeCacheHome(t)
+	repo := filepath.Join(t.TempDir(), "team", "api:v2")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatalf("create repo dir: %v", err)
+	}
+	if err := cache.SaveWorkspaceScanResult(repo, &scan.Result{Target: repo}); err != nil {
+		t.Fatalf("store workspace result: %v", err)
+	}
+
+	var out scanResultOut
+	cs := connect(t, testEnv(nil))
+	callTool(t, cs, "scan_result", map[string]any{"target": repo}, &out)
+
+	if out.TargetKind != kindRepository {
+		t.Errorf("target_kind = %q for a repository path holding a colon, want %q", out.TargetKind, kindRepository)
+	}
+	if out.Root != repo {
+		t.Errorf("root = %q, want %q", out.Root, repo)
+	}
+}

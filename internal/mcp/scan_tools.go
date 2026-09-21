@@ -76,7 +76,7 @@ func inventory(contextName string) []scanTarget {
 			if cache.ImageGone(name, images, imagesKnown) {
 				continue
 			}
-			targets = append(targets, target("image", name, entry.Critical, entry.High,
+			targets = append(targets, target(kindImage, name, entry.Critical, entry.High,
 				entry.Medium, entry.Low, entry.Sensitive, entry.ScannedAt, now))
 		}
 	}
@@ -88,7 +88,7 @@ func inventory(contextName string) []scanTarget {
 			if cache.RepositoryGone(path) {
 				continue
 			}
-			targets = append(targets, target("repository", path, entry.Critical, entry.High,
+			targets = append(targets, target(kindRepository, path, entry.Critical, entry.High,
 				entry.Medium, entry.Low, entry.Sensitive, entry.ScannedAt, now))
 		}
 	}
@@ -141,6 +141,9 @@ type finding struct {
 	Source      string   `json:"source" jsonschema:"which scanner reported it"`
 	File        string   `json:"file,omitempty"`
 	Line        int      `json:"line,omitempty"`
+	EndLine     int      `json:"end_line,omitempty" jsonschema:"last line of the faulty block, line being its first; absent means the span is unknown and must not be read as line zero"`
+	Message     string   `json:"message,omitempty" jsonschema:"this instance's own wording, where description carries the rule's generic text"`
+	Status      string   `json:"status,omitempty" jsonschema:"what the scanner concluded for this rule on this target"`
 	Fingerprint string   `json:"fingerprint,omitempty" jsonschema:"identifies the finding for .gitleaksignore; it is not the matched string, which is never exposed"`
 	PkgName     string   `json:"pkg_name,omitempty"`
 	Version     string   `json:"version,omitempty"`
@@ -160,19 +163,27 @@ type scanResultIn struct {
 }
 
 type scanResultOut struct {
-	Context        string    `json:"context" jsonschema:"the DevDesk context that served this answer"`
-	Target         string    `json:"target"`
-	ScannedAt      time.Time `json:"scanned_at"`
-	Critical       int       `json:"critical"`
-	High           int       `json:"high"`
-	Medium         int       `json:"medium"`
-	Low            int       `json:"low"`
-	Unknown        int       `json:"unknown"`
-	SecretCount    int       `json:"secret_count"`
-	SecretsScanned bool      `json:"secrets_scanned" jsonschema:"false means no secret stage ran, so secret_count says nothing about this target"`
-	LicenseCount   int       `json:"license_count"`
-	MisconfigCount int       `json:"misconfig_count"`
-	Errors         []string  `json:"errors,omitempty" jsonschema:"stages that failed; findings may be missing rather than absent"`
+	Context   string    `json:"context" jsonschema:"the DevDesk context that served this answer"`
+	Target    string    `json:"target"`
+	ScannedAt time.Time `json:"scanned_at"`
+	// TargetKind and Root say whether a finding's file can be opened at all
+	// (§3.78). A misconfiguration found in an image points inside that image's
+	// filesystem, which is not on disk and cannot be edited; the same rule in a
+	// repository points at a file under Root. Without both, a caller acting on
+	// a file path has no way to tell the two apart, and the first case reads
+	// exactly like the second.
+	TargetKind     string   `json:"target_kind" jsonschema:"image or repository; a finding's file is a path inside the image for an image target and cannot be opened on disk, while for a repository it is relative to root"`
+	Root           string   `json:"root,omitempty" jsonschema:"absolute path a repository target's file paths are relative to; absent for an image target"`
+	Critical       int      `json:"critical"`
+	High           int      `json:"high"`
+	Medium         int      `json:"medium"`
+	Low            int      `json:"low"`
+	Unknown        int      `json:"unknown"`
+	SecretCount    int      `json:"secret_count"`
+	SecretsScanned bool     `json:"secrets_scanned" jsonschema:"false means no secret stage ran, so secret_count says nothing about this target"`
+	LicenseCount   int      `json:"license_count"`
+	MisconfigCount int      `json:"misconfig_count"`
+	Errors         []string `json:"errors,omitempty" jsonschema:"stages that failed; findings may be missing rather than absent"`
 
 	Matched  int       `json:"matched" jsonschema:"how many findings the filters kept, before paging"`
 	Total    int       `json:"total" jsonschema:"how many findings the scan holds in all"`
@@ -190,34 +201,51 @@ func registerScanResult(s *sdk.Server, env *Env) {
 			return nil, scanResultOut{}, fmt.Errorf("target is required — scan_inventory lists the names this context has results for")
 		}
 
-		result, err := storedResult(name)
+		result, kind, err := storedResult(name)
 		if err != nil {
 			return nil, scanResultOut{}, fmt.Errorf("no stored scan for %q in context %q — scan_inventory lists what there is, and a target it does not list has either never been scanned or no longer exists", name, env.Context)
 		}
 
-		return nil, project(env.Context, result, in), nil
+		return nil, project(env.Context, result, kind, in), nil
 	})
 }
 
+// The two kinds of scan target, shared by the inventory and by scan_result so
+// the two answers cannot drift on the wording.
+const (
+	kindImage      = "image"
+	kindRepository = "repository"
+)
+
 // storedResult finds a target's stored findings without being told what kind of
-// target it is.
+// target it is, and says which kind answered.
 //
 // The caller has a name out of scan_inventory and nothing else, so asking it to
 // carry the kind as well would be asking it to remember something it can look
 // up. An image reference and an absolute path do not collide in practice.
-func storedResult(target string) (*scan.Result, error) {
+//
+// The kind comes from **which cache answered**, never from the shape of the
+// name: a repository path that reads like an image reference exists, and
+// deciding by inspection would send a caller writing into a path that is not
+// there. The lookup already knows; it just used to discard the answer.
+func storedResult(target string) (*scan.Result, string, error) {
 	if result, err := cache.ReadImageScanResult(target); err == nil {
-		return result, nil
+		return result, kindImage, nil
 	}
-	return cache.ReadWorkspaceScanResult(target)
+	result, err := cache.ReadWorkspaceScanResult(target)
+	if err != nil {
+		return nil, "", err
+	}
+	return result, kindRepository, nil
 }
 
 // project turns a stored result into what leaves the process: the summary, the
 // findings the filters kept, and one page of them.
-func project(contextName string, result *scan.Result, in scanResultIn) scanResultOut {
+func project(contextName string, result *scan.Result, kind string, in scanResultIn) scanResultOut {
 	out := scanResultOut{
 		Context:        contextName,
 		Target:         result.Target,
+		TargetKind:     kind,
 		ScannedAt:      result.EndTime,
 		Critical:       result.Counts.Critical,
 		High:           result.Counts.High,
@@ -231,6 +259,12 @@ func project(contextName string, result *scan.Result, in scanResultIn) scanResul
 		Errors:         result.Errors,
 		Total:          len(result.Findings),
 		Findings:       []finding{},
+	}
+	// Root is the repository itself: a workspace scan is run on that directory,
+	// so a finding's file is relative to it. An image has no such anchor, which
+	// is the whole point of the distinction.
+	if kind == kindRepository {
+		out.Root = result.Target
 	}
 
 	severities := normalisedSet(in.Severity, strings.ToUpper)
@@ -298,6 +332,9 @@ func expose(f scan.Finding) finding {
 		Source:      f.Source,
 		File:        f.File,
 		Line:        f.Line,
+		EndLine:     f.EndLine,
+		Message:     f.Message,
+		Status:      f.Status,
 		Fingerprint: f.Fingerprint,
 		PkgName:     f.PkgName,
 		Version:     f.Version,

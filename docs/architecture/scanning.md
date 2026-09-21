@@ -334,6 +334,33 @@ one bump clears them all). Whether a proposed bump *actually* clears the CVEs
 is not decided there: that is measured by re-scanning, and it is what the next
 phases of §3.2 add.
 
+### What a misconfiguration carries — `EndLine`, `Message`, `Status` (§3.78)
+
+A misconfiguration is the one finding whose **exact extent** is known. Trivy
+reports `CauseMetadata.StartLine` *and* `EndLine`, a per-instance `Message`, a
+`Status`, a `Resolution` and the rule's AVD id. All of it was decoded into
+`TrivyMisconfiguration` and only `StartLine` survived into the `Finding` — a
+caller could read where the problem began and not where it ended, which is
+enough to display and not enough to replace.
+
+| `Finding` field | Source |
+|---|---|
+| `Line` / `EndLine` | `CauseMetadata.StartLine` / `EndLine` — the faulted block |
+| `Message` | the instance's wording; `Description` stays the rule's generic text |
+| `Status` | what Trivy concluded for the rule on this target |
+| `ID` | `AVDID` — the stable identity a re-scan is checked against |
+
+The three new ones are `omitempty` and empty on a result cached before they were
+recorded, which reads as **unknown** — an `EndLine` of zero is never a line
+number. Same convention as `Class` and `Ecosystem` above, and nothing migrates
+the cache for the same reason.
+
+**DevDesk does not turn this into a patch, and for most rules it never will**:
+`Resolution` is a sentence, not a replacement. What it does is hand the whole
+thing to a calling agent through `scan_result` and stay the thing that measures
+the result — see `mcp.md`. A finite catalog of fixes for the recurring Dockerfile
+rules is phase B of §3.78 and does not exist yet.
+
 ### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
 
 The sixth tab of the results (`TabRemediation`, `internal/ui/security/remediation.go`)

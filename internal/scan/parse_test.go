@@ -326,3 +326,63 @@ func TestTheFixCommandFollowsTheInstalledMajorLine(t *testing.T) {
 		t.Errorf("FixedIn = %q, want Trivy's list untouched", got)
 	}
 }
+
+// §3.78 — a misconfiguration is the one finding whose exact extent is known:
+// Trivy reports the block it faults, not just where it starts. The parser used
+// to keep StartLine and drop the rest, which left a caller able to read the
+// problem and unable to replace it.
+func TestAMisconfigurationCarriesItsSpanMessageAndStatus(t *testing.T) {
+	findings, err := parseTrivyOutput([]byte(`{
+	  "Results": [
+	    {"Target":"Dockerfile","Class":"config","Type":"dockerfile","Misconfigurations":[
+	      {"AVDID":"DS002","ID":"DS002","Title":"Image user should not be root",
+	       "Description":"Running containers with root user can lead to escalation.",
+	       "Message":"Specify at least 1 USER command",
+	       "Resolution":"Add USER command","Severity":"HIGH","Status":"FAIL",
+	       "PrimaryURL":"https://avd.aquasec.com/misconfig/ds002",
+	       "CauseMetadata":{"StartLine":3,"EndLine":7}}]}
+	  ]
+	}`))
+	if err != nil {
+		t.Fatalf("parsing failed: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("got %d findings, want 1", len(findings))
+	}
+	f := findings[0]
+	if f.Line != 3 || f.EndLine != 7 {
+		t.Errorf("span = %d..%d, want 3..7", f.Line, f.EndLine)
+	}
+	// Message is this instance's wording, Description the rule's generic text.
+	// Collapsing the two would lose whichever one it kept.
+	if f.Message != "Specify at least 1 USER command" {
+		t.Errorf("Message = %q", f.Message)
+	}
+	if f.Description == f.Message {
+		t.Error("Message and Description are the same string; the instance's wording was lost")
+	}
+	if f.Status != "FAIL" {
+		t.Errorf("Status = %q, want FAIL", f.Status)
+	}
+}
+
+// An old cached result, and a rule that reports a point rather than a span,
+// both arrive with EndLine at zero. Zero reads as "unknown" — never as line
+// zero, which does not exist — the same convention Class and Ecosystem follow.
+func TestAMisconfigurationWithNoSpanReportsZeroNotALine(t *testing.T) {
+	findings, err := parseTrivyOutput([]byte(`{
+	  "Results": [
+	    {"Target":"Dockerfile","Class":"config","Type":"dockerfile","Misconfigurations":[
+	      {"AVDID":"DS026","Severity":"LOW","CauseMetadata":{"StartLine":0,"EndLine":0}}]}
+	  ]
+	}`))
+	if err != nil {
+		t.Fatalf("parsing failed: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("got %d findings, want 1", len(findings))
+	}
+	if f := findings[0]; f.Line != 0 || f.EndLine != 0 {
+		t.Errorf("span = %d..%d, want 0..0 meaning unknown", f.Line, f.EndLine)
+	}
+}
