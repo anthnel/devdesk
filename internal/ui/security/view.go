@@ -61,6 +61,9 @@ func (m Model) renderResultsView() string {
 	// every open, to state a letter the inventory's own CI column carries per
 	// target. A tab that shows fewer findings than its four neighbours, for a
 	// value already on the previous screen, is not a trade worth making.
+	if m.activeTab == TabRemediation {
+		return m.remediation.table.View()
+	}
 	return m.findingsTable.View()
 }
 
@@ -127,7 +130,9 @@ func (m Model) activeFilterBar() *sharedcomponents.FilterBar {
 	switch {
 	case m.state == StateInventory:
 		bar = m.inventory.FilterBar()
-	case m.showsResultTabs():
+	case m.showsResultTabs() && m.activeTab != TabRemediation:
+		// The Remediation tab has a table of its own and no filter: the bar
+		// belongs to the findings table behind it.
 		bar = m.findingsTable.FilterBar()
 	}
 	if bar == nil || !bar.IsVisible() {
@@ -166,6 +171,11 @@ func (m Model) status() sharedcomponents.Status {
 	if m.state == StateInventory && m.inventoryLoading {
 		return sharedcomponents.Status{Text: "Loading scan inventory...", Spinner: true}
 	}
+	// Ahead of the failed stages below: on this tab what is happening now is
+	// what the footer is for, and a stage that failed still shows on the others.
+	if status, ok := m.remediationStatus(); ok {
+		return status
+	}
 	if m.state != StateResults || m.result == nil || len(m.result.Errors) == 0 {
 		return sharedcomponents.Status{}
 	}
@@ -203,5 +213,6 @@ func (m Model) renderTabs() string {
 		// column of counts would break the only thing the tab bar keeps
 		// aligned, and the grade already has a line of its own below.
 		{Label: fmt.Sprintf("CI (%d)", ci)},
+		{Label: m.remediationTabLabel()},
 	}, m.activeTab)
 }

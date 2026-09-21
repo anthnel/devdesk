@@ -86,7 +86,11 @@ type Model struct {
 	// rather than its row index, so a list that changes underneath cannot make
 	// the details describe a different one.
 	selectedFinding *scan.Finding
-	activeTab       int // 0=CVE, 1=Secrets, 2=Licenses, 3=Misconfig
+	activeTab       int // 0=CVE, 1=Secrets, 2=Licenses, 3=Misconfig, 4=CI, 5=Remediation
+
+	// remediation is the Remediation tab: base images and the tags they could
+	// move to. It is read for the result on screen and reset with it.
+	remediation remediationState
 
 	// OriginView is the view to return to when Esc is pressed in StateResults.
 	// Set by the app router when opening this view from workspaces or
@@ -140,6 +144,7 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		inventoryLoading: true,
 		spinner:          s,
 		findingsTable:    t,
+		remediation:      newRemediationState(),
 	}
 }
 

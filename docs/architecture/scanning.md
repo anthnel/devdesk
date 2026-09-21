@@ -334,6 +334,65 @@ one bump clears them all). Whether a proposed bump *actually* clears the CVEs
 is not decided there: that is measured by re-scanning, and it is what the next
 phases of §3.2 add.
 
+### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
+
+The sixth tab of the results (`TabRemediation`, `internal/ui/security/remediation.go`)
+is not a category of finding: it has no entry in `tabCategory` and its body is a
+table of its own, so the findings table, its filter bar and its keys sit behind
+it, unused. The keys that filter or open findings are refused on it with a
+reason (`reasonFindingsOnly`) rather than reaching that table — a search opened
+there would take the keyboard for a table nobody can see. `esc`, `tab` and
+`ctrl+r` are not the tab's and work as everywhere. The set of shortcuts is the
+same on every tab; `S` (Scan) is greyed off this one and the findings keys are
+greyed on it (Rule 130).
+
+**Opening the tab reads, `S` measures.** Opening it — once per result — reads
+the Dockerfiles under the repository (`dockerfile.Find`, by name, bounded in
+depth and count) and lists each base image's tags; that is cheap. Nothing is
+scanned until `S`, which scans every image with no result, or one older than 24
+hours, once each however many stages name it. A result stands for a day because
+the vulnerability database moves daily and an older count is about another one.
+
+Three packages, each with one job:
+
+- `internal/dockerfile` — `Parse` reads the `FROM`s with the **byte range that
+  spells each image**, so a later edit replaces those bytes and nothing else. An
+  image that comes from a single `ARG` default is located at that default; one
+  assembled from several pieces (`node:${V}-alpine`) resolves but is not
+  editable. `FROM scratch` and a reference to an earlier stage are not images.
+  Every stage is read: a CVE in a build stage can reach the image that ships.
+- `internal/remediation` — `ParseRef` and `Candidates`, the tag policy: a
+  candidate keeps the current tag's **variant** (alpine stays alpine) and its
+  **precision** (`3.18` is offered `3.21`, not `3.21.1`, which would pin what it
+  left floating), is strictly newer, and — under `scan.base_image_track`
+  `same-line`, the default — stays on the same major. `next-major` also takes the
+  smallest higher major that exists. When there is no candidate it says why. `Discover`
+  walks it, asking the registry once per repository.
+- `internal/oci` — `ListRegistryTags`, the one tag lister: Bearer flow, and it
+  **follows `Link: rel="next"`** across pages. Docker Hub answers a whole list in
+  one response when no page size is asked (9 125 tags for `library/node`), but a
+  registry that caps a response would otherwise hide the newest tags.
+
+A candidate is scanned with `Scanner.ScanRemoteImage`: `trivy image --image-src
+remote`, the vulnerability stage only, never pulled into the engine, no engine
+socket mounted in container mode. Its result goes to `remediation-scans.json`,
+**a cache of its own**: the inventory drops an image the engine no longer holds
+(`cache.ImageGone`), which a remote-scanned candidate never is, so its entry in
+the shared image cache would be invisible to the inventory yet counted by
+whatever reads the file without that filter. The file is written atomically
+under a lock, since scans of several candidates finish together.
+
+The scans are not in the jobs registry (`:jobs`): the tab keeps its own set of
+images in flight and its own spinner, like the inventory's load. Trivy runs one
+process at a time (`scan.trivySem`), so the scans queue there rather than in
+parallel, and `max_concurrent_scans` does not apply to them.
+
+The comparison is in **CRITICAL + HIGH**, against the image as written; only a
+candidate scanned on the same day as the current image has a delta, because a
+count from another database says nothing about a bump. A candidate is evidence,
+not a verdict: the scan says the CVEs are gone, not that the application still
+runs on the new base.
+
 ## The security inventory
 
 `:sec` opens on **everything the current context has scanned**, read from

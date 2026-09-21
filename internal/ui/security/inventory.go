@@ -130,7 +130,7 @@ func (m Model) spinnerTickIfIdle() tea.Cmd {
 // keeping it here would be a second chain beside the router's — which is the
 // failure D5 removed, not one to reintroduce a view at a time.
 func (m Model) spinnerAlive() bool {
-	return m.inventoryLoading
+	return m.inventoryLoading || m.remediationBusy()
 }
 
 // reloadInventory re-reads the caches and says so in the footer.
@@ -269,6 +269,7 @@ func (m Model) handleInventoryResultLoaded(msg InventoryResultLoadedMsg) (tea.Mo
 	m.targetLabel = m.labelFor(msg.Name)
 	m.state = StateResults
 	m.activeTab = TabCVE
+	m.resetRemediation()
 	m.updateFindingsTable()
 	return m, nil
 }

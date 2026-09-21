@@ -99,6 +99,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// before handing the message on, and the snapshot rebuilt the rows.
 		return m, nil
 
+	case RemediationDiscoveredMsg:
+		return m.handleRemediationDiscovered(msg)
+
+	case RemediationScanFinishedMsg:
+		return m.handleRemediationScanFinished(msg)
+
 	case jobs.ChangedMsg:
 		return m.handleJobsChanged(msg)
 

@@ -20,7 +20,7 @@ registries and is pullable itself, which is why they share a list.
 
 **An entry is an address, not a URL** (§3.18, D39). The pair `(url, repo_prefix)`
 is what a registry is reached by, and both directions derive from it — the browse
-asks `<url>/v2/<prefix>/<repo>/tags/list`, the pull reference is
+asks `<url>/v2/<prefix>/<repo>/tags/list` (through `oci.ListRegistryTags`, the one tag lister, which follows `Link` pagination), the pull reference is
 `<url>/<prefix>/<repo>:<tag>` — so they cannot mean two different repositories.
 That disagreement is exactly what D39 was: `NexusDetector` synthesised a member
 as `host/repository/<name>`, which browses (200) and cannot pull (404), because

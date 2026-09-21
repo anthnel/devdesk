@@ -3691,7 +3691,7 @@ Le cas « joindre un port non publié sans redémarrer » reste **ouvert** :
   `host:port`. Pas un défaut de bubbles mais une largeur jamais posée ; le test a
   été vérifié contre le code non corrigé.
 
-### 3.2 Remédiation de sécurité — **SAST local fait, auto-patch : phase A faite, B et C à faire**
+### 3.2 Remédiation de sécurité — **SAST local fait, auto-patch : phases A et B faites, C à faire**
 
 Reporté de `todo.md` en deux puces : « *Auto-patch assistance* » (après un scan
 Trivy, proposer un `Dockerfile` dont l'image de base est montée pour effacer
@@ -3792,6 +3792,31 @@ Ce que ces scans ont aussi confirmé pour la phase A, sur données réelles :
   `alpine 3.18.12`). Non lu aujourd'hui ; un `EOSL: true` dit qu'aucun bump de
   paquet ne suffit et qu'il faut changer de base — à exploiter en B si le
   tableau avant/après doit l'expliquer.
+
+#### Phase B — faite
+
+L'onglet **Remediation** des résultats d'un workspace : les Dockerfiles du
+dépôt, chaque image de base (tous les stages) et les tags qu'elle pourrait
+prendre, mesurés à la demande (`S`) par un scan distant. Découpage :
+`internal/dockerfile` (parseur avec la plage d'octets de chaque image),
+`internal/remediation` (`Discover`, la politique de tags), `internal/oci`
+(`ListRegistryTags`, un seul listeur qui suit la pagination),
+`Scanner.ScanRemoteImage`, un cache à part, et `scan.base_image_track` dans la
+vue de configuration. Détail dans `docs/architecture/scanning.md`.
+
+**Écarts avec le plan, assumés :**
+
+- **Les scans des candidats ne passent pas par le registre de jobs** : l'onglet
+  tient son propre ensemble d'images en cours et son spinner, comme le chargement
+  de l'inventaire. Ils n'apparaissent donc pas dans `:jobs` et ne s'y arrêtent
+  pas avec `K`. Trivy est de toute façon sérialisé (`trivySem`) : ces scans font
+  la queue, et `max_concurrent_scans` ne s'y applique pas.
+- **`Client.ListTags` du client de templates n'a pas été rallié** au listeur
+  commun : il lit le registry configuré pour les templates, en Basic seulement,
+  et rallier les deux aurait changé le comportement des templates.
+- **`Parse` ne renvoie pas d'erreur** : un Dockerfile illisible donne moins de
+  stages, pas un échec.
+- **Le mode `--server` de Trivy reste non mesuré** avec `--image-src remote`.
 
 #### Pas de LLM embarqué — le jugement passe par MCP
 

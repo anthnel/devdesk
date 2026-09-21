@@ -106,7 +106,10 @@ const (
 	TabLicense   = 2
 	TabMisconfig = 3
 	TabCIScore   = 4
-	tabCount     = 5
+	// TabRemediation is not a category of finding: it has no entry in
+	// tabCategory and its body is its own table (remediation.go).
+	TabRemediation = 5
+	tabCount       = 6
 )
 
 // updateFindingsTable populates the findings table based on active tab and filters.
@@ -205,6 +208,15 @@ func (m *Model) countFindingsByTab() (cve, secrets, licenses, misconfigs, ci int
 		}
 	}
 	return cve, secrets, licenses, misconfigs, ci
+}
+
+// enterRemediationTab reads the Dockerfiles when the tab just switched to is the
+// Remediation one, and does nothing on any other.
+func (m *Model) enterRemediationTab() tea.Cmd {
+	if m.activeTab != TabRemediation {
+		return nil
+	}
+	return m.enterRemediation()
 }
 
 // switchTab switches to the given tab index and refreshes the table
@@ -339,6 +351,11 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.findingsTable.InEditMode() {
 		return m, m.findingsTable.Update(msg)
 	}
+	if m.activeTab == TabRemediation {
+		if next, cmd, handled := m.handleRemediationKey(msg); handled {
+			return next, cmd
+		}
+	}
 	switch msg.String() {
 	case "esc":
 		// No origin view means this view was opened directly, so esc stays
@@ -365,10 +382,12 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.goHome()
 	case "tab":
 		m.switchTab((m.activeTab + 1) % tabCount)
-		return m, nil
+		cmd := m.enterRemediationTab()
+		return m, cmd
 	case "shift+tab":
 		m.switchTab((m.activeTab + tabCount - 1) % tabCount)
-		return m, nil
+		cmd := m.enterRemediationTab()
+		return m, cmd
 	// 1-4 jumped straight to a tab. They were the application's only numeric
 	// bindings, and an exception in a single view is precisely what §3.26
 	// dismantles — tab reaches all four.
@@ -378,6 +397,9 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleIgnoreSecret()
 	case openPipelineKey:
 		return m.openResolvedPipeline()
+	case keymap.Scan:
+		// Off the Remediation tab this refuses, with the reason (Rule 130).
+		return m.scanCandidates()
 	}
 	// `.` is the sort again, and the search and the severity tokens are the
 	// table's (Rule 136).
@@ -399,4 +421,5 @@ func (m Model) toggleSeverity(key string) (tea.Model, tea.Cmd) {
 // carries per target — was not worth the jump on every tab switch.
 func (m *Model) resizeFindings() {
 	m.findingsTable.Resize(m.width, max(m.height, 5))
+	m.remediation.table.Resize(m.width, max(m.height, 5))
 }
