@@ -48,7 +48,10 @@ func TestSplitTag(t *testing.T) {
 		{"bookworm-slim", "", "bookworm-slim"},
 		{"latest", "", "latest"},
 		{"22.04", "22.04", ""},
-		{"3.9rc1", "3.9", "rc1"},
+		{"3.9rc1", "", "3.9rc1"},
+		{"72d32a1d", "", "72d32a1d"},
+		{"20-alpine3.19", "20", "alpine3.19"},
+		{"1.22_bookworm", "1.22", "bookworm"},
 	}
 	for _, tc := range tests {
 		if v, variant := SplitTag(tc.tag); v != tc.version || variant != tc.variant {
@@ -129,6 +132,7 @@ func TestNoCandidateSaysWhy(t *testing.T) {
 		// "20" -> "22" crosses the major, which same-line refuses.
 		{"a rolling major tag", "20", []string{"18", "20", "22"}},
 		{"nothing listed", "3.18", nil},
+		{"a commit hash", "72d32a1d", []string{"72d32a1d", "73aa00ff"}},
 	}
 	for _, tc := range tests {
 		got, reason := Candidates(tc.current, tc.tags, TrackSameLine, 3)
@@ -160,5 +164,14 @@ func TestTheTrackNamesMatchTheConfig(t *testing.T) {
 	if string(TrackSameLine) != config.BaseImageTrackSameLine || string(TrackNextMajor) != config.BaseImageTrackNextMajor {
 		t.Errorf("track constants %q / %q differ from the config's %q / %q",
 			TrackSameLine, TrackNextMajor, config.BaseImageTrackSameLine, config.BaseImageTrackNextMajor)
+	}
+}
+
+// The reason for a hash tag is that it has no version, not that its "line" has
+// nothing newer — the wording the table showed for a commit-hash tag.
+func TestAHashTagSaysItHasNoVersion(t *testing.T) {
+	_, reason := Candidates("72d32a1d", []string{"72d32a1d", "73aa00ff"}, TrackSameLine, 3)
+	if reason != "the tag carries no version to move from" {
+		t.Errorf("reason = %q", reason)
 	}
 }

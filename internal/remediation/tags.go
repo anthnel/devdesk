@@ -83,9 +83,16 @@ var tagVersion = regexp.MustCompile(`^v?(\d+(?:\.\d+)*)(.*)$`)
 // SplitTag cuts a tag into its version and its variant: "3.20.1-alpine3.19" is
 // version "3.20.1" and variant "alpine3.19", "20-slim" is "20" and "slim". A tag
 // with no leading number — "latest", "bookworm" — has no version.
+//
+// A number the rest of the tag is glued to is not a version either: "72d32a1d" is
+// a commit hash, and reading it as version 72 with variant "d32a1d" made the
+// table say there was no newer tag on its line, which is not what is wrong with
+// it. The variant has to be set off by "-" or "_", the way every real one is
+// (alpine, slim, bookworm-slim); "3.9rc1" is a pre-release and has no version to
+// move from either.
 func SplitTag(tag string) (version, variant string) {
 	m := tagVersion.FindStringSubmatch(tag)
-	if m == nil {
+	if m == nil || (m[2] != "" && m[2][0] != '-' && m[2][0] != '_') {
 		return "", tag
 	}
 	return m[1], strings.TrimLeft(m[2], "-_")
