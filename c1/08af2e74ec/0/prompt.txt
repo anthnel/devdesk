@@ -1,0 +1,9 @@
+Les deux worktrees combinées (feat/misconfig-mcp-fields, docs/misconfig-remediation-plan) ont été mergé. Pour info voici la manière idiomatique d'ajouter un user non root à une image docker : ARG UID=10001
+2 RUN adduser \
+3 --disabled-password \
+4 --gecos "" \
+5 --home "/nonexistent" \
+6 --shell "/usr/sbin/nologin" \
+7 --no-create-home \
+8 --uid "${UID}" \
+9 appuser
