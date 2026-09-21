@@ -1,0 +1,139 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "fb6eafc84bfe",
+  "session_id": "78e3e539-3b8f-4225-8c1b-92c59fb1b395",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-21T17:12:23.7720289Z",
+  "branch": "docs/backlog-3.2-remediation",
+  "checkpoints_count": 1,
+  "save_step_count": 3,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-opus-5",
+  "turn_id": "6ac831376bbb",
+  "checkpoint_transcript_start": 458,
+  "transcript_lines_at_start": 458,
+  "compact_transcript_start": 82,
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 26075,
+    "cache_read_tokens": 2346948,
+    "output_tokens": 25833,
+    "api_call_count": 9
+  },
+  "session_metrics": {
+    "turn_count": 9
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 307,
+      "user_lines_removed": 303,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 521,
+      "user_lines_removed": 159,
+      "agent_lines_added": 256,
+      "agent_lines_removed": 614,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-tables.md": 1,
+        ".claude/rules/tui-theme.md": 1,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs-site/docs/explanation/mcp.md": 1,
+        "docs-site/docs/how-to/connect-an-ai-client.md": 191,
+        "docs-site/docs/how-to/enable-the-mcp-server.md": 3,
+        "docs-site/docs/reference/configuration.md": 2,
+        "docs-site/mkdocs.yml": 1,
+        "docs/architecture/app-shell.md": 2,
+        "docs/backlog.md": 32,
+        "internal/app/app.go": 7,
+        "internal/app/app_header.go": 51,
+        "internal/app/command_line.go": 41,
+        "internal/app/command_line_test.go": 66,
+        "internal/app/header_test.go": 14,
+        "internal/app/keys.go": 1
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-tables.md": 1,
+        ".claude/rules/tui-theme.md": 1,
+        "docs-site/docs/explanation/mcp.md": 1,
+        "docs-site/docs/how-to/enable-the-mcp-server.md": 1,
+        "docs-site/docs/reference/configuration.md": 1,
+        "internal/app/app.go": 1,
+        "internal/app/app_header.go": 1,
+        "internal/app/command_line.go": 8,
+        "internal/app/command_line_test.go": 33,
+        "internal/app/header_test.go": 8
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 521,
+      "user_lines_removed": 159,
+      "agent_lines_added": 256,
+      "agent_lines_removed": 614,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-tables.md": 1,
+        ".claude/rules/tui-theme.md": 1,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs-site/docs/explanation/mcp.md": 1,
+        "docs-site/docs/how-to/connect-an-ai-client.md": 191,
+        "docs-site/docs/how-to/enable-the-mcp-server.md": 3,
+        "docs-site/docs/reference/configuration.md": 2,
+        "docs-site/mkdocs.yml": 1,
+        "docs/architecture/app-shell.md": 2,
+        "docs/backlog.md": 32,
+        "internal/app/app.go": 7,
+        "internal/app/app_header.go": 51,
+        "internal/app/command_line.go": 41,
+        "internal/app/command_line_test.go": 66,
+        "internal/app/header_test.go": 14,
+        "internal/app/keys.go": 1
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/rules/tui-tables.md": 1,
+        ".claude/rules/tui-theme.md": 1,
+        "docs-site/docs/explanation/mcp.md": 1,
+        "docs-site/docs/how-to/enable-the-mcp-server.md": 1,
+        "docs-site/docs/reference/configuration.md": 1,
+        "internal/app/app.go": 1,
+        "internal/app/app_header.go": 1,
+        "internal/app/command_line.go": 8,
+        "internal/app/command_line_test.go": 33,
+        "internal/app/header_test.go": 8
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

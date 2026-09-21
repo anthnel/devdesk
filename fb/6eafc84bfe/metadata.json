@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "fb6eafc84bfe",
+  "strategy": "manual-commit",
+  "branch": "docs/backlog-3.2-remediation",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/fb/6eafc84bfe/0/metadata.json",
+      "transcript": "/fb/6eafc84bfe/0/full.jsonl",
+      "compact_transcript": "/fb/6eafc84bfe/0/transcript.jsonl",
+      "content_hash": "/fb/6eafc84bfe/0/content_hash.txt",
+      "prompt": "/fb/6eafc84bfe/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 26075,
+    "cache_read_tokens": 2346948,
+    "output_tokens": 25833,
+    "api_call_count": 9
+  }
+}
