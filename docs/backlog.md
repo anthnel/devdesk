@@ -3755,6 +3755,44 @@ avant ce changement n'a pas la classe : il est compté à part
 (`unclassified`), jamais comme image de base, et cela disparaît au scan
 suivant — rien ne migre le cache.
 
+#### Mesuré avant la phase B — 2026-09-21
+
+Trois questions que le plan posait avant de coder B, mesurées dans le sandbox
+Linux (Trivy 0.74.0 via `aquasec/trivy`, Docker Hub réel).
+
+- **`trivy image --image-src remote` marche sans socket Docker et sans l'image
+  en local** : `alpine:3.18` et `node:16-alpine` scannés en conteneur, aucun
+  montage de `docker.sock`, `docker images` vide avant et après, 9 s pour le
+  premier. Le mode binaire prend les mêmes drapeaux. **Non mesuré : le mode
+  `--server`** (pas de serveur Trivy sous la main) — à vérifier avant de
+  promettre le scan distant à ceux qui l'utilisent.
+- **Docker Hub renvoie tous les tags d'un coup quand on ne demande pas `n`** :
+  `library/node` donne 9 125 tags en une réponse, sans en-tête `Link`. Avec
+  `?n=100`, il pagine (`Link: <…?last=0.12.1&n=100>; rel="next"`). Un autre
+  registry (GHCR, GitLab) peut plafonner sans que Hub le fasse : le listeur
+  unique de B1 **suit `Link`** dans tous les cas, et ne suppose pas qu'un
+  `tags/list` sans `n` est complet.
+- **L'inventaire `:sec` n'afficherait pas les candidats, mais le cache d'images
+  partagé reste le mauvais endroit.** `loadInventoryCmd` écarte toute image que
+  `cache.ImageGone` ne retrouve pas en local, or un candidat scanné à distance
+  n'y est jamais. Il n'apparaîtrait donc pas — mais ses entrées resteraient dans
+  le fichier, comptées par ce qui lit le cache sans ce filtre. Le cache séparé
+  de B est maintenu, pour cette raison et non pour celle qu'énonçait le plan.
+
+Ce que ces scans ont aussi confirmé pour la phase A, sur données réelles :
+
+- `Class`/`Type` valent `os-pkgs`/`alpine` pour les paquets système et
+  `lang-pkgs`/`node-pkg` pour les modules Node d'une image (`gomod`, `npm`…
+  pour un dépôt).
+- **`FixedVersion` liste bien une version par branche, et pas dans l'ordre** :
+  `"5.0.7, 1.1.16, 2.1.2"` pour `brace-expansion` installé en `1.1.11`. Sur 43
+  vulnérabilités de modules Node, 28 sont dans ce cas. `scan.PickFixed` n'en
+  dépend pas (il compare) et donne `1.1.16`.
+- `Metadata.OS` porte `Family`, `Name` et **`EOSL`** (`true` pour
+  `alpine 3.18.12`). Non lu aujourd'hui ; un `EOSL: true` dit qu'aucun bump de
+  paquet ne suffit et qu'il faut changer de base — à exploiter en B si le
+  tableau avant/après doit l'expliquer.
+
 #### Pas de LLM embarqué — le jugement passe par MCP
 
 Tout ce que A, B et C demandent est **déterministe** : la classe vient du

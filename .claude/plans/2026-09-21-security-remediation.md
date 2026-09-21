@@ -25,7 +25,7 @@ positions y sont posées et ce plan les tient pour acquises :
 | Déclenchement des re-scans | à la demande (`S` sur l'onglet), jamais à l'ouverture |
 | Candidats | 3 au plus par image, plus l'image actuelle comme référence « avant » |
 | Mode de scan des candidats | `trivy image --image-src remote` : aucun `docker pull`, le stockage d'images local reste intact |
-| Cache des résultats de B | **à part** du cache d'images de `:sec` (sinon les candidats apparaîtraient dans l'inventaire comme des images de l'utilisateur) |
+| Cache des résultats de B | **à part** du cache d'images de `:sec`. Mesuré (§3.2) : l'inventaire écarterait les candidats (`cache.ImageGone`, jamais tirés en local) mais leurs entrées resteraient dans le fichier, lisibles par ce qui n'applique pas ce filtre |
 | Outils MCP (candidats, re-scan) | hors de ce plan — PR ultérieure |
 
 ### Pourquoi `ctrl+o`
@@ -121,9 +121,13 @@ Nouveau package, sans I/O :
 
 ## Phase B — images de base candidates, prouvées par re-scan (PR 2)
 
-### B0. Vérifications avant de coder
+### B0. Vérifications avant de coder — **faites le 2026-09-21**
 
-À mesurer, pas à supposer. Chaque résultat est consigné dans le §3.2.
+Résultats dans le backlog, §3.2 « Mesuré avant la phase B ». En résumé : le
+scan distant marche en conteneur sans socket (le mode `--server` reste à
+mesurer) ; Docker Hub renvoie tous les tags sans `n` mais pagine avec, donc le
+listeur suit `Link` ; l'inventaire écarte les candidats mais le cache séparé
+reste justifié.
 
 1. **`--image-src remote`** fonctionne dans les trois modes de Trivy : binaire,
    conteneur (`wrapTrivy`, sans socket Docker monté) et serveur (`--server`).
