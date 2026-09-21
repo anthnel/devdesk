@@ -13928,7 +13928,7 @@ ne se recopie pas.
 
 ---
 
-### 3.78 Remédier une misconfiguration — un catalogue pour les cas courants, le MCP pour le reste — **phase A faite**
+### 3.78 Remédier une misconfiguration — un catalogue pour les cas courants, le MCP pour le reste — **done**
 
 §3.2 a construit une remédiation pour **une** classe de findings : les CVE de
 paquets système, corrigées en déplaçant l'image de base. La question est de
@@ -14012,9 +14012,10 @@ mécanisme au-delà des findings.
 
 **Étage 1 — le catalogue maison, pour l'utilisateur sans agent.** Indexé par
 AVD ID : le span vient de `CauseMetadata`, le texte de remplacement est écrit
-une fois par règle, pour les règles Dockerfile qui reviennent le plus —
-utilisateur root, base en `:latest`, absence de `HEALTHCHECK`, `apt-get
-upgrade`. Pas de nouvel outil, pas de correspondance à maintenir, et **la
+une fois par règle. Les quatre candidates envisagées ici — utilisateur root,
+base en `:latest`, absence de `HEALTHCHECK`, `apt-get upgrade` — se sont
+réduites à **une** à la construction, et les motifs de rejet sont plus
+intéressants que la liste : voir « ce qui a été construit » plus bas. Pas de nouvel outil, pas de correspondance à maintenir, et **la
 vérification a la forme de §3.2** : on re-scanne le fichier patché et on
 regarde si l'AVD ID a disparu — bien moins cher qu'un scan d'image, puisque
 c'est un scan de fichier. Il vit dans `internal/remediation`, qui est pur et
@@ -14034,10 +14035,11 @@ corriger, relancer, et constater la disparition de l'AVD ID. C'est le même
 « mesuré, jamais inféré », sauf que la mesure reste chez DevDesk et que le
 patch est chez l'appelant.
 
-Ce qui manque est petit, et c'est le vrai travail de cet étage. Trois champs
-sont perdus au parsing (`internal/scan/trivy.go:217-232`) :
+Ce qui manquait était petit, et c'était le vrai travail de cet étage — fait en
+phase A. Trois champs étaient perdus à la construction du `Finding`
+(`internal/scan/trivy.go`), alors que le décodage les lisait déjà :
 
-| Manquant | Pourquoi il compte |
+| Champ | Pourquoi il compte |
 |---|---|
 | `CauseMetadata.EndLine` | `Finding.Line` ne garde que `StartLine`. L'agent voit où le bloc fautif commence, pas où il finit, et doit deviner l'étendue à remplacer |
 | `misconf.Message` | L'instance concrète (« Specify at least 1 USER command »), souvent plus actionnable que `Description`, qui est le texte générique de la règle |
@@ -14047,8 +14049,9 @@ Plus une distinction que le protocole ne nomme pas : **`scan_result` ne dit pas
 si la cible est une image ou un dépôt.** Une misconfiguration trouvée dans une
 image pointe un fichier du rootfs, que l'agent ne peut pas éditer ; dans un
 scan de dépôt elle pointe un fichier sur disque. Sans ce champ, un agent
-consciencieux ira écrire à un chemin qui n'existe pas. `scan_inventory` connaît
-la différence et ne l'expose pas.
+consciencieux irait écrire à un chemin qui n'existe pas. `target_kind` et
+`root` le disent depuis la phase A, et leur valeur vient de **quel cache a
+répondu** plutôt que d'une lecture du nom.
 
 **Le serveur continue de ne rien écrire.** `scan_tools.go:66` — « This server
 writes nothing at all » — reste vrai et doit le rester : DevDesk mesure,
@@ -14073,21 +14076,78 @@ auraient aucun sens — il faut une colonne d'état, pas un delta.
 **L'onglet CI (plumber) a exactement la même forme** — un constat, pas un
 patch — et la même question se posera pour lui.
 
-#### Ce qu'il faut trancher avant de construire
+#### Ce qui a été construit
 
-| # | Question | Pente naturelle |
+Les deux étages sont livrés, dans l'ordre inverse de leur numérotation — l'étage
+2 d'abord, parce qu'il ne demandait aucune décision d'interface et débloquait
+tout de suite le cas général.
+
+| Commit | |
+|---|---|
+| phase A | `EndLine`, `Message`, `Status` sur `scan.Finding`, projetés par `scan_result` ; `target_kind` et `root`, pour que l'agent sache si le fichier est sur disque |
+| B0 | `Rewrite`, `Diff`, `WriteIfUnchanged` quittent `internal/dockerfile` pour `internal/patch` — aucune n'a jamais lu un Dockerfile |
+| B1 | `internal/remediation/misconfig.go` : `Rule`, `Fix`, `RuleKey`, et **une** règle |
+| B2 | `ctrl+o` sur l'onglet Misconfigurations, grisage Rule 130, confirmation montrant le diff |
+| B3 | le re-scan de vérification, comme job `verify fix` |
+
+**Cinq choses apprises en construisant, qu'aucune analyse n'avait vues :**
+
+1. **Les trois champs n'étaient pas à lire, mais à porter.**
+   `TrivyMisconfiguration` décodait déjà `Message`, `Status` et
+   `CauseMetadata.EndLine` ; c'est la construction du `Finding` qui les jetait.
+2. **La nature de la cible était déjà connue et jetée aussi.** `storedResult`
+   savait quel cache avait répondu et ne rendait pas la réponse. Le cas qui
+   tranche contre une heuristique sur le nom : un chemin de dépôt contenant un
+   `:` (`…/team/api:v2`), qu'une inspection classerait comme image.
+3. **`USER 1000:1000` était un mauvais correctif, et d'une manière invisible
+   ici** — un uid sans entrée `passwd` : pas de nom, pas de `$HOME`, pas de
+   shell. Tout ce qui demande au système qui il est se dégrade *à l'exécution*.
+   Le re-scan aurait validé : la règle passe, le conteneur va plus mal. Le
+   correctif crée maintenant le compte (`adduser`, puis `USER appuser`), ce qui
+   coûte une précondition — ces options longues sont celles de Debian, donc une
+   base dont la distribution n'est pas identifiable est **déclinée**. Alpine est
+   une lacune assumée : les flags busybox n'étaient pas vérifiables d'ici.
+4. **`patch.Diff` était faux pour toute insertion**, et §3.2 ne pouvait pas le
+   voir : il appariait les deux côtés ligne par index et s'arrêtait au plus
+   court, ce qui n'est correct que si une édition remplace autant de lignes
+   qu'elle en retire. Insérer dix lignes en montrait deux, dans l'écran même où
+   l'utilisateur donne son accord. Corrigé en appariant par le span de chaque
+   édition.
+5. **Le catalogue n'a qu'une règle, et c'est un résultat, pas un reste à
+   faire.** Les candidates ont chacune été rejetées pour un motif écrit dans le
+   source : `HEALTHCHECK` n'a pas de commande universelle ; `:latest` est déjà
+   le travail de l'onglet Remediation, qui résout de vrais tags ; `ADD`→`COPY`
+   et les règles `apt-get` ont des AVD ids **qui n'ont pas pu être vérifiés**
+   contre un vrai run Trivy depuis le sandbox. Un catalogue indexé sur un id
+   faux ne matche rien, en silence.
+
+#### Ce qui reste, et ce n'est pas bloquant
+
+- **Vérifier les AVD ids depuis l'hôte**, où Trivy est installé, puis ajouter
+  les règles dont l'édition est exactement juste. Le catalogue est fait pour
+  grossir une entrée à la fois.
+- **Les flags busybox**, pour qu'Alpine cesse d'être décliné.
+- **Plusieurs règles sur un même fichier** : une correction par validation
+  aujourd'hui. `patch.Rewrite` sait déjà refuser deux éditions qui se recouvrent
+  (`ErrConflict`), donc le lot est une fonctionnalité à ajouter, pas un défaut à
+  éviter.
+- **L'onglet CI (plumber)** a la même forme — un constat, pas un patch — et la
+  même question se posera pour lui.
+
+#### Ce qu'il a fallu trancher
+
+| # | Question | Ce qui a été fait |
 |---|---|---|
-| 1 | Par quoi commencer | Par l'**étage 2** : trois champs et un champ de nature de cible, aucune décision d'interface, et ça débloque tout de suite le cas général. L'étage 1 vient après, sur des règles choisies en ayant vu ce qui revient |
-| 2 | Un onglet de plus, ou `ctrl+o` sur l'onglet Misconfigurations ? | Sur l'onglet existant : la sélection y désigne déjà la règle à corriger, et un septième onglet pour une poignée de règles serait cher. `ctrl+o` est déjà déclaré en exception (`keymap.DeclaredExceptions()`) et son sens — écrire le fichier — s'étend sans se déformer |
-| 3 | Grisage | Rule 130 : `ctrl+o` grisé quand la règle sélectionnée n'est pas au catalogue, avec la raison — `reasonNoFixForRule` — lue par l'en-tête et par le handler. C'est aussi ce qui rend la frontière des deux étages **visible** plutôt que devinée |
-| 4 | Le re-scan de vérification | Optionnel, et **après** l'écriture, pas avant : c'est ce qui distingue « écrit » de « corrigé ». Un travail au sens de `internal/jobs` (§3.58) |
-| 5 | Plusieurs règles sur un même fichier | `Rewrite` sait déjà refuser deux éditions qui se recouvrent (`ErrConflict`). Une correction par validation au départ ; le lot est une seconde fonctionnalité |
-| 6 | Comment nommer la nature de la cible | Un champ sur `scan_result`, pas une heuristique sur la forme du `target` — un chemin qui ressemble à une référence d'image existe |
-| 7 | Semgrep plus tard | Si le catalogue de l'étage 1 devient trop gros à maintenir, la sortie `--dryrun --json` de Semgrep se verse dans `Edit` sans adaptateur. Le coût n'est pas là : il est dans le quatrième outil et dans les deux catalogues qui ne coïncident pas (ci-dessus). Et l'étage 2 rend ce besoin peu probable |
+| 1 | Un onglet de plus, ou `ctrl+o` sur l'onglet Misconfigurations ? | L'onglet existant. `ctrl+o` reste **une touche, un verbe** — écrire le fichier — et l'objet est celui de l'onglet ; seul le libellé change (« Write Dockerfile » / « Apply built-in fix »), sinon la colonne proposerait d'écrire un Dockerfile sur un onglet qui liste aussi des manifestes Kubernetes |
+| 2 | Grisage | Quatre raisons, chacune calculée une fois : mauvais onglet, cible image, règle hors catalogue, et — depuis le `Cmd` — une règle qui décline *cette* instance. La touche grise bien plus souvent ici que sur Remediation, et c'est l'intention : c'est ce qui rend la frontière des deux étages **visible** plutôt que devinée |
+| 3 | Le re-scan de vérification | **Pas optionnel**, contrairement à ce que cette ligne disait : le catalogue n'a pas à se croire sur parole, donc l'écriture le lance. Acceptable parce que c'est un job (§3.58) — visible dans `:jobs` sous `verify fix`, arrêtable par `K`. Un scan de la même cible lancé d'ailleurs y répond aussi |
+| 4 | Plusieurs règles sur un même fichier | Une correction par validation, comme prévu — voir « ce qui reste » |
+| 5 | Comment nommer la nature de la cible | Un champ, et sa valeur vient de **quel cache a répondu** — pas même d'une inspection du nom, que `storedResult` rendait inutile |
+| 6 | Semgrep plus tard | Pas repris, et l'étage 2 rend ce besoin peu probable. Si le catalogue devenait trop gros, sa sortie `--dryrun --json` se verse dans `patch.Edit` sans adaptateur — le coût est ailleurs : un quatrième outil, et deux catalogues qui ne coïncident pas |
 
-Le plan d'implémentation est
-[`.claude/plans/2026-09-21-misconfig-remediation.md`](../.claude/plans/2026-09-21-misconfig-remediation.md) :
-l'étage 2 y est la **phase A**, l'étage 1 la phase B.
+Le plan d'implémentation a été supprimé de `.claude/plans/` avec la livraison,
+suivant la règle de [§4](#4-existing-plans) : cette entrée est le compte rendu
+durable, pas le plan.
 
 Sources vérifiées le 2026-09-21 :
 [Semgrep — rule-defined fix](https://semgrep.dev/docs/writing-rules/rule-defined-fix),

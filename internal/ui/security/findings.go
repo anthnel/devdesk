@@ -401,6 +401,13 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Off the Remediation tab this refuses, with the reason (Rule 130).
 		return m.scanCandidates()
 	case writeRemediationKey:
+		// One key, one verb — write the file — applied to whichever tab's
+		// object. The Remediation tab writes a base image, the
+		// Misconfigurations tab a built-in fix; anywhere else the refusal says
+		// which tab it belongs to (Rule 130).
+		if m.activeTab == TabMisconfig {
+			return m.prepareMisconfigFix()
+		}
 		return m.prepareRemediationWrite()
 	}
 	// `.` is the sort again, and the search and the severity tokens are the

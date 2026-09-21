@@ -97,7 +97,18 @@ func normalize(content []byte, edits []Edit) ([]Edit, error) {
 // they touch: the file name, and for each changed line its number, the line
 // before and the line after. It is what the user reads before agreeing to a
 // write, so it is computed from the same Rewrite that would perform it.
+// It pairs the lines of each edit through that edit's own span, not by index
+// across the whole file. Pairing by index only works while every edit replaces
+// as many lines as it removes, which was true of §3.2's base image bumps and is
+// false of any insertion: one added line shifts the rest, so every following
+// line reads as changed and the tail past the shorter side is dropped
+// altogether. A confirmation that shows two of the ten lines about to be written
+// is worse than no preview, because it is read as the whole change.
 func Diff(name string, content []byte, edits []Edit) (string, error) {
+	normalized, err := normalize(content, edits)
+	if err != nil {
+		return "", err
+	}
 	rewritten, err := Rewrite(content, edits)
 	if err != nil {
 		return "", err
@@ -106,13 +117,63 @@ func Diff(name string, content []byte, edits []Edit) (string, error) {
 
 	var b strings.Builder
 	b.WriteString("--- " + name + "\n+++ " + name + "\n")
-	for i := 0; i < len(before) && i < len(after); i++ {
-		if before[i] == after[i] {
+	shift := 0
+	for _, e := range normalized {
+		first := countNewlines(content[:e.Span.Start])
+		last := countNewlines(content[:e.Span.End])
+		delta := strings.Count(e.New, "\n") - strings.Count(e.Old, "\n")
+
+		old := slice(before, first, last)
+		new := slice(after, first+shift, last+shift+delta)
+		shift += delta
+
+		// An edit that starts or ends mid-line shares that line with text it
+		// does not touch, so the two sides hold identical lines at the edges.
+		// Trimming them is what keeps a pure insertion from also reporting the
+		// line it was inserted before as removed and re-added.
+		at := first + 1
+		for len(old) > 0 && len(new) > 0 && old[0] == new[0] {
+			old, new, at = old[1:], new[1:], at+1
+		}
+		for len(old) > 0 && len(new) > 0 && old[len(old)-1] == new[len(new)-1] {
+			old, new = old[:len(old)-1], new[:len(new)-1]
+		}
+		if len(old) == 0 && len(new) == 0 {
 			continue
 		}
-		fmt.Fprintf(&b, "@@ line %d @@\n-%s\n+%s\n", i+1, before[i], after[i])
+		fmt.Fprintf(&b, "@@ line %d @@\n", at)
+		for _, l := range old {
+			b.WriteString("-" + l + "\n")
+		}
+		for _, l := range new {
+			b.WriteString("+" + l + "\n")
+		}
 	}
 	return b.String(), nil
+}
+
+// slice returns lines[from:to] inclusive, clamped to what the slice holds.
+func slice(lines []string, from, to int) []string {
+	if from < 0 {
+		from = 0
+	}
+	if to >= len(lines) {
+		to = len(lines) - 1
+	}
+	if from > to {
+		return nil
+	}
+	return lines[from : to+1]
+}
+
+func countNewlines(b []byte) int {
+	n := 0
+	for _, c := range b {
+		if c == '\n' {
+			n++
+		}
+	}
+	return n
 }
 
 func splitDiffLines(b []byte) []string {

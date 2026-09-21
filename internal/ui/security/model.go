@@ -92,6 +92,20 @@ type Model struct {
 	// move to. It is read for the result on screen and reset with it.
 	remediation remediationState
 
+	// misconfigPending is the file a confirmed misconfiguration fix would
+	// write, held between the confirmation and the write (§3.78). It carries
+	// the bytes the diff was computed from, so what gets written is what was
+	// agreed to and not a second reading of the file.
+	misconfigPending *preparedWrite
+	// misconfigRule is the AVD id that pending write is about, kept so the
+	// verification re-scan knows what to look for.
+	misconfigRule string
+
+	// misconfigVerifying is the fix waiting on the re-scan that decides whether
+	// it worked (§3.78, phase B3). A written file is not a fixed one: the rule
+	// is judged by a measurement, never by the catalog's own confidence.
+	misconfigVerifying *misconfigVerify
+
 	// OriginView is the view to return to when Esc is pressed in StateResults.
 	// Set by the app router when opening this view from workspaces or
 	// oci_resources. Empty when the results were opened from the inventory,
@@ -204,6 +218,16 @@ func NewWithPreloadedResult(cfg *config.Config, secrets credentials.Storage, res
 	// the table was empty until the terminal happened to report its size.
 	m.updateFindingsTable()
 	return m
+}
+
+// setResult puts a freshly measured result on screen, keeping the tab and the
+// filters the user is looking through. It is what a verification re-scan hands
+// back, so the table stops listing a rule the edit has already dealt with.
+func (m *Model) setResult(result *scan.Result) {
+	m.result = result
+	m.targetPath = result.Target
+	m.targetLabel = labelForResult(m.config, result)
+	m.updateFindingsTable()
 }
 
 // Init initializes the model
