@@ -114,3 +114,7 @@ ensuite merge docs/site-forward
 ---
 
 merge fix/status-timeout-unit
+
+---
+
+merge feat/mcp-forward-templates-status
