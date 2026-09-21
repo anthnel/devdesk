@@ -3818,6 +3818,17 @@ vue de configuration. Détail dans `docs/architecture/scanning.md`.
   stages, pas un échec.
 - **Le mode `--server` de Trivy reste non mesuré** avec `--image-src remote`.
 
+**Essayé sur Docker Hub, 2026-09-21** (`Discover` sur un Dockerfile de
+démonstration, avec le vrai listeur) : `golang:1.21` propose `1.27, 1.26, 1.25`
+et `alpine:3.18` propose `3.24, 3.23, 3.22` en `same-line` ; `debian:bookworm-slim`
+n'en propose pas (le tag n'a pas de version) ; `node:18-alpine` n'en propose pas
+en `same-line` (c'est le tag flottant de sa majeure) et propose `node:19-alpine`
+en `next-major`. **Limite connue :** « la plus petite majeure supérieure » n'est
+qu'un ordre numérique. Pour Node, c'est une version impaire, sans support long, et
+rien dans les tags ne le dit. Le scan mesure les CVE, pas la durée de support :
+c'est ce que `Metadata.OS.EOSL` (non lu aujourd'hui) pourrait signaler, et ce
+qu'un client externe juge mieux qu'une règle de nommage.
+
 #### Pas de LLM embarqué — le jugement passe par MCP
 
 Tout ce que A, B et C demandent est **déterministe** : la classe vient du
