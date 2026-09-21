@@ -94,6 +94,21 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D72 — un moniteur écrit à la main sans `timeout` apparaissait `DOWN` à chaque
+rafraîchissement, alors que le service répondait. Corrigé.** Signalé et fermé le
+2026-09-21, en préparant `monitors_status` pour le serveur MCP.
+
+`checkComponents` (`internal/ui/status/commands.go`) construisait le checker avec
+`time.Duration(cfg.Status.Timeout)`. `status.timeout` est en secondes : l'entier
+nu devient 5 nanosecondes, et c'est la valeur de repli de tout moniteur dont le
+`timeout` propre vaut 0. Reproduit contre un `httptest` qui répond aussitôt :
+`Client.Timeout exceeded while awaiting headers`. Le formulaire d'ajout écrit
+toujours un timeout (10 par défaut), donc seuls les moniteurs édités dans le YAML
+étaient touchés — ce qui explique que personne ne l'ait vu. Le commentaire de
+`certDialTimeout` (`sources.go`) décrivait le défaut sans le corriger. Le
+correctif multiplie par `time.Second`, et
+`TestAMonitorWithNoTimeoutOfItsOwnUsesTheConfiguredSeconds` reproduit le cas.
+
 **D71 — le formulaire de création (groupe ou projet) offrait `internal` et
 `public` sous un groupe privé, alors que GitLab refuse la combinaison à la
 création. Corrigé.** Signalé et fermé le 2026-09-16.

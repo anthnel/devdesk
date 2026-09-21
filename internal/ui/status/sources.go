@@ -12,9 +12,7 @@ var errNoCertificates = errors.New("no certificates found")
 
 // certDialTimeout is the fallback used when the monitor declares none of its
 // own (config.ComponentConfig.Timeout == 0) — the same case SSLChecker itself
-// falls back on, but resolved here rather than through cfg.Status.Timeout: that
-// field is cast straight to a time.Duration elsewhere without a *time.Second
-// multiplication, which would make this dial time out in nanoseconds.
+// falls back on.
 const certDialTimeout = 10 * time.Second
 
 // certSource dials the monitored target again and formats the certificate
