@@ -88,7 +88,8 @@ Forwards themselves are not in `config.yaml`: they live in `~/.devdesk/forwards.
 | `listen` | string | `127.0.0.1:7777` | Bind address — loopback by design |
 | `expose` | list of strings | `[]` (all) | Allow-list of tool names |
 
-See [Enable the MCP server](../how-to/enable-the-mcp-server.md) and
+See [Enable the MCP server](../how-to/enable-the-mcp-server.md),
+[Connect an AI client](../how-to/connect-an-ai-client.md) and
 [MCP Server](../explanation/mcp.md).
 
 ## `status:`

@@ -63,6 +63,7 @@ nav:
       - Run a security scan: how-to/run-a-security-scan.md
       - Create a repository from a template: how-to/create-a-repo-from-a-template.md
       - Enable the MCP server: how-to/enable-the-mcp-server.md
+      - Connect an AI client: how-to/connect-an-ai-client.md
   - Reference:
       - Commands: reference/commands.md
       - Keybindings: reference/keybindings.md

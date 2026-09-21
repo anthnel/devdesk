@@ -35,7 +35,9 @@ This matters most on a context whose scan results or forge data you don't want a
 
 ## Point an MCP client at it
 
-With DevDesk running and `mcp.enabled: true`, add it as a Streamable HTTP MCP server in your client (Claude Code, Claude Desktop, or any MCP-compatible tool), pointing at `http://<mcp.listen>` — `http://127.0.0.1:7777` for the default.
+With DevDesk running and `mcp.enabled: true`, add it as a Streamable HTTP MCP server in your client, pointing at `http://<mcp.listen>` — `http://127.0.0.1:7777` for the default — with the bearer token DevDesk generated for the context. The token is required: a request without it is refused.
+
+[Connect an AI client](connect-an-ai-client.md) has the exact form for Claude Code, Codex, Gemini CLI, Cursor, VS Code and Claude Desktop, and says where to read the token.
 
 ## Why it's loopback by default
 
