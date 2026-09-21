@@ -228,35 +228,85 @@ func TestTypingNarrowsTheSuggestions(t *testing.T) {
 	}
 }
 
-func TestTabCyclesThroughTheSuggestionsAndWraps(t *testing.T) {
+func TestTabOpensThePickerOnTheCurrentViewKeepingTheText(t *testing.T) {
 	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "s")
-	total := len(a.completionSuggestions)
-	if total < 2 {
-		t.Skipf("only %d suggestion(s) for \"s\"; nothing to cycle", total)
-	}
-
-	for i := 1; i < total; i++ {
-		feedKey(t, a, testutil.Key("tab"))
-		if a.completionIndex != i {
-			t.Fatalf("after %d tabs the index is %d, want %d", i, a.completionIndex, i)
-		}
-	}
+	a.currentView = command.ViewSecurity
+	typeCommand(t, a, "zz")
 
 	feedKey(t, a, testutil.Key("tab"))
-	if a.completionIndex != 0 {
-		t.Errorf("index = %d after cycling past the last suggestion, want it back at 0", a.completionIndex)
+
+	if !a.viewPicker {
+		t.Fatal("tab did not open the view picker")
+	}
+	if got := a.viewPickerViews[a.viewPickerIdx]; got != string(command.ViewSecurity) {
+		t.Errorf("selection = %s, want the current view", got)
+	}
+	if a.commandInput.Value() != "zz" {
+		t.Errorf("typed text = %q, want it kept", a.commandInput.Value())
 	}
 }
 
-func TestTabDoesNothingWithoutSuggestions(t *testing.T) {
+func TestPickerIsCircular(t *testing.T) {
 	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "zzz")
+	feedKey(t, a, testutil.Key("tab"))
+	n := len(a.viewPickerViews)
+	a.viewPickerIdx = 0
 
+	feedKey(t, a, testutil.Key("left"))
+	if a.viewPickerIdx != n-1 {
+		t.Errorf("left from first = %d, want %d", a.viewPickerIdx, n-1)
+	}
+	feedKey(t, a, testutil.Key("right"))
+	if a.viewPickerIdx != 0 {
+		t.Errorf("right from last = %d, want 0", a.viewPickerIdx)
+	}
+}
+
+func TestPickerListHasNoActionsOrRouterViews(t *testing.T) {
+	a := commanding(t, &fakeView{})
+	feedKey(t, a, testutil.Key("tab"))
+	for _, name := range a.viewPickerViews {
+		if name == "quit" || name == "context" || name == string(command.ViewViewer) {
+			t.Errorf("picker lists %q", name)
+		}
+	}
+}
+
+func TestPickerEnterOpensTheSelectedView(t *testing.T) {
+	a := commanding(t, &fakeView{})
+	feedKey(t, a, testutil.Key("tab"))
+	for i, name := range a.viewPickerViews {
+		if name == string(command.ViewAbout) {
+			a.viewPickerIdx = i
+		}
+	}
+
+	feedKey(t, a, testutil.Key("enter"))
+
+	if a.currentView != command.ViewAbout || a.commandMode || a.viewPicker {
+		t.Errorf("view=%s commandMode=%v picker=%v, want about, both closed", a.currentView, a.commandMode, a.viewPicker)
+	}
+}
+
+func TestPickerEscReturnsToTheCommandLine(t *testing.T) {
+	a := commanding(t, &fakeView{})
+	typeCommand(t, a, "ab")
 	feedKey(t, a, testutil.Key("tab"))
 
-	if a.completionIndex != 0 {
-		t.Errorf("index = %d with nothing to cycle, want 0", a.completionIndex)
+	feedKey(t, a, testutil.Key("esc"))
+
+	if a.viewPicker || !a.commandMode || a.commandInput.Value() != "ab" {
+		t.Errorf("picker=%v commandMode=%v text=%q", a.viewPicker, a.commandMode, a.commandInput.Value())
+	}
+}
+
+func TestPickerWindowKeepsTheSelectionVisible(t *testing.T) {
+	names := []string{"aaaaaaaa", "bbbbbbbb", "cccccccc", "dddddddd", "eeeeeeee"}
+	for sel := range names {
+		start, end := pickerWindow(names, sel, 25)
+		if sel < start || sel >= end {
+			t.Errorf("sel %d outside window [%d,%d)", sel, start, end)
+		}
 	}
 }
 
@@ -277,23 +327,6 @@ func TestEnterRunsTheHighlightedSuggestion(t *testing.T) {
 
 	if a.currentView != chosen.View {
 		t.Errorf("current view = %s, want the highlighted %s", a.currentView, chosen.View)
-	}
-}
-
-// Editing after tabbing must restart the cycle: the index would otherwise point
-// into a list that no longer contains the same commands.
-func TestEditingTheLineResetsTheCycle(t *testing.T) {
-	a := commanding(t, &fakeView{})
-	typeCommand(t, a, "s")
-	feedKey(t, a, testutil.Key("tab"))
-	if a.completionIndex == 0 {
-		t.Skip("tab did not move the index")
-	}
-
-	typeCommand(t, a, "e")
-
-	if a.completionIndex != 0 {
-		t.Errorf("index = %d after typing another character, want 0", a.completionIndex)
 	}
 }
 

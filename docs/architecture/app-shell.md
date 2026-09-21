@@ -58,6 +58,8 @@ Press `ctrl+p` to enter command mode, then type:
 - `context list` - Show available contexts
 - `quit` - Exit application
 
+In command mode, `tab` swaps the command line for a circular breadcrumb of every view by full name (`command.ViewNames()`): ←/→ (or `tab`) move, `enter` opens, `esc` returns to the command line with its text kept. State is `App.viewPicker*`; rendering is `renderViewPicker` in `app_header.go`.
+
 Command parsing and tab-completion live in `internal/command/`. `ParseCommand()` returns a structured `Command{Type, View, Args}` supporting `CommandView`, `CommandContext`, `CommandQuit`, `CommandUnknown`.
 
 **The forge views are `git-auth` and `git-explorer`, named after the role.**

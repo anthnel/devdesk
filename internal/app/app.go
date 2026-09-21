@@ -73,10 +73,16 @@ type App struct {
 	commandMode  bool
 	commandInput textinput.Model
 
+	// View picker: Tab in the command line swaps it for a circular breadcrumb
+	// of every view. The typed text is kept underneath.
+	viewPicker      bool
+	viewPickerViews []string
+	viewPickerIdx   int
+
 	// Command completion state
 	completionEngine      *command.CompletionEngine
 	completionSuggestions []command.Suggestion
-	completionIndex       int    // Position Tab cycling
+	completionIndex       int    // Highlighted suggestion (always the first one)
 	completionInput       string // Change detection
 
 	// Context list overlay

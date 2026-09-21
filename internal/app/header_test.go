@@ -212,12 +212,11 @@ func TestTheCompletionPreviewShowsOnlyTheRemainder(t *testing.T) {
 }
 
 // The counter says how many suggestions there are and which one enter would
-// run, which is what makes repeated tab navigable.
+// run.
 func TestTheCompletionCounterNamesThePosition(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	typeCommand(t, a, "s")
-	total := len(a.completionSuggestions)
-	if total == 0 {
+	if len(a.completionSuggestions) == 0 {
 		t.Skip("no suggestion for \"s\"")
 	}
 
@@ -225,11 +224,6 @@ func TestTheCompletionCounterNamesThePosition(t *testing.T) {
 
 	if !strings.Contains(rendered, "[1/") {
 		t.Errorf("the command line does not show the position:\n%s", rendered)
-	}
-
-	feedKey(t, a, testutil.Key("tab"))
-	if total > 1 && !strings.Contains(a.renderCommandLineWithCompletion(), "[2/") {
-		t.Error("the position did not advance with tab")
 	}
 }
 
