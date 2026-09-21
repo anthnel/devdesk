@@ -14,9 +14,9 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
-	"github.com/anthnel/devdesk/internal/dockerfile"
 	"github.com/anthnel/devdesk/internal/git"
 	"github.com/anthnel/devdesk/internal/oci"
+	"github.com/anthnel/devdesk/internal/patch"
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/scan"
 )
@@ -151,7 +151,7 @@ func prepareRemediationWriteCmd(target string, changes []remediationChange) tea.
 			if err != nil {
 				return RemediationWritePreparedMsg{Target: target, Err: err}
 			}
-			updated, err := dockerfile.Rewrite(original, edits(byFile[rel]))
+			updated, err := patch.Rewrite(original, edits(byFile[rel]))
 			if err != nil {
 				return RemediationWritePreparedMsg{Target: target, Err: fmt.Errorf("%s: %w", rel, err)}
 			}
@@ -173,7 +173,7 @@ func writeRemediationCmd(target string, files []preparedWrite) tea.Cmd {
 	return func() tea.Msg {
 		var written []string
 		for _, f := range files {
-			if err := dockerfile.WriteIfUnchanged(f.Path, f.Original, f.Updated); err != nil {
+			if err := patch.WriteIfUnchanged(f.Path, f.Original, f.Updated); err != nil {
 				return RemediationWrittenMsg{Target: target, Written: written, Failed: f.File, Err: err}
 			}
 			written = append(written, f.File)

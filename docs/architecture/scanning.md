@@ -380,8 +380,14 @@ scanned until `S`, which scans every image with no result, or one older than 24
 hours, once each however many stages name it. A result stands for a day because
 the vulnerability database moves daily and an older count is about another one.
 
-Three packages, each with one job:
+Four packages, each with one job:
 
+- `internal/patch` — `Rewrite` applies `Edit{Span, Old, New}` to bytes, `Diff`
+  is what the user is shown, `WriteIfUnchanged` puts it on disk only if the file
+  still holds what the edit was computed from. **It knows nothing about what it
+  is editing**: it lived in `internal/dockerfile` and never read a Dockerfile,
+  which is why §3.78 moved it out rather than writing a second copy for
+  misconfigurations.
 - `internal/dockerfile` — `Parse` reads the `FROM`s with the **byte range that
   spells each image**, so a later edit replaces those bytes and nothing else. An
   image that comes from a single `ARG` default is located at that default; one
@@ -428,7 +434,7 @@ proposed with its evidence — at most one per stage, and one that cannot be
 edited in place (a reference assembled from several build args) is refused with
 the parser's reason. Two stages that read one `ARG` are one place in the file:
 choosing different bases for both is refused when the second is chosen, and
-`dockerfile.Rewrite` refuses it again as `ErrConflict`. `enter` opens the diff in
+`patch.Rewrite` refuses it again as `ErrConflict`. `enter` opens the diff in
 the viewer. `ctrl+o` writes.
 
 `ctrl+o` never acts on the key alone. It computes the write first — every file
@@ -448,7 +454,7 @@ and change, and says what git will and will not be able to undo, because
 None of these blocks the write: the user decides, knowing. DevDesk makes no
 commit, branch or push.
 
-The write is `dockerfile.Rewrite` — the bytes at the ranges `dockerfile.Parse`
+The write is `patch.Rewrite` — the bytes at the ranges `dockerfile.Parse`
 located and nothing else, so comments, CRLF and a missing final newline
 survive — through `WriteIfUnchanged`: the file must still hold **exactly** what
 the diff was computed from (whole-content comparison, stronger than a hash), or
