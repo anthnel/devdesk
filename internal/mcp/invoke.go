@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/jobs"
 )
 
@@ -31,6 +32,14 @@ type Dispatcher interface {
 	// on the copies it hands out — so a caller cannot stop a job behind the
 	// router's back, here any more than in a view.
 	Jobs(ctx context.Context) ([]jobs.Run, error)
+
+	// Forwards returns the port forwards the session holds, as values.
+	//
+	// The registry belongs to the router (shared.State.Forwards) and carries its
+	// own lock, so a direct read would even be safe. It goes through Update all
+	// the same: "nothing here touches the router's state" is a rule that has no
+	// exception to remember, and the round trip costs one message.
+	Forwards(ctx context.Context) ([]forward.Forward, error)
 
 	// Start asks the session to do what a key would do, and returns the
 	// identifier of the run it registered.

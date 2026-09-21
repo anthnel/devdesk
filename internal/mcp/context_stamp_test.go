@@ -27,6 +27,8 @@ func TestEveryContextDependentAnswerSaysWhichContextServedIt(t *testing.T) {
 		"containersListOut": "the daemon's containers are the machine's, not a context's",
 		"imagesListOut":     "the local images are the machine's",
 		"portsListOut":      "the socket table is the machine's",
+		"forwardsListOut":   "the forwards are the session's and the forwards file is global; a switch leaves them open",
+		"templatesListOut":  "the catalog is ~/.devdesk/templates.yaml, shared by every context",
 		"netCheckOut":       "a probe answers about the network, from wherever it is run",
 		"contextListOut":    "it lists the contexts, and names the served one in its own field",
 		"contextGetOut":     "it *is* the context, and names it in its own field",

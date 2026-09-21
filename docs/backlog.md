@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-09-16
+**Last Updated:** 2026-09-21
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -13594,6 +13594,60 @@ partagé entre deux instances (ou deux worktrees) ; deux DevDesk qui écrivent
 échouerait sur des ports déjà pris. Il faut décider si le fichier est écrit
 atomiquement (fichier temporaire puis renommage) et si une instance qui trouve
 ses ports pris doit se contenter de l'état « non lié » de la décision 1.
+
+### 3.76 Le serveur MCP rattrape les fonctionnalités récentes — **done**
+
+§3.61 a fixé la liste des outils au moment où elle a été écrite. Depuis, le
+forwarder (§3.1, §3.74, §3.75), le catalogue de templates, Podman (§3.67) et les
+moniteurs de certificats sont arrivés, et le serveur n'en disait rien. Cette
+entrée passe en revue ce qui aurait dû l'être, et tranche. Le plan de travail
+est `.claude/plans/2026-09-21-mcp-new-features.md`.
+
+#### Ce qui est exposé (21 outils : 17 avant, +3 lectures, +1 action)
+
+| Outil | Réponse | Où il lit |
+|---|---|---|
+| `forwards_list` | les forwards de la session : port ou nom `*.localhost`, cible, état, connexions, dernière erreur | le registre du routeur, **par le dispatcher** comme `jobs_list` — la règle « rien dans `internal/mcp` ne touche l'état du routeur » n'a pas d'exception à retenir, même quand le registre porte son propre verrou |
+| `templates_list` | le catalogue et l'âge de chaque copie en cache | le disque, `~/.devdesk/templates.yaml` et le cache |
+| `monitors_status` | les moniteurs du contexte, sondés maintenant ; pour un `ssl`, jours restants, expiration, émetteur, état | les checkers de `internal/status` |
+| `template_sync_start` | `F` sur `:templates`, un slug, renvoie un id de job | la vue templates, comme `workspace_sync_start` |
+
+#### Décisions
+
+| # | | |
+|---|---|---|
+| 1 | Estampille du contexte | **`forwards_list` et `templates_list` n'en portent pas** : le fichier des forwards est global, un changement de contexte les laisse ouverts, et le catalogue l'est aussi (`template/store.go`). Ce sont des exceptions déclarées dans `machineWide`, avec leur raison. `monitors_status` en porte une : ses moniteurs sont ceux du contexte |
+| 2 | URL d'une source de template | sort **sans user ni mot de passe** (`withoutUserinfo`). Le test cherche le secret dans la réponse sérialisée, pas un nom de champ. Les entrées rejetées du catalogue sont comptées, pas citées : leurs raisons recopient l'entrée |
+| 3 | `monitors_status` et le réseau | **deuxième outil qui touche le réseau**, un cran plus serré que `net_check` : les cibles viennent de la configuration, jamais d'un appel, donc un agent ne peut pas pointer la sonde vers un hôte que l'opérateur n'a pas listé. `type` réduit l'ensemble *avant* de sonder. Borné à 30 s, parce que la sonde SSL ne prend pas de contexte et qu'un client qui abandonne ne pourrait pas l'arrêter ; une liste partielle lue comme complète serait pire qu'une erreur |
+| 4 | `status.EffectiveType` | extrait de `CheckOne` pour que le filtre lise un moniteur « legacy » (URL seule) comme le checker. Le comportement de `CheckOne` ne change pas |
+| 5 | `template_sync_start` et le magasin de secrets | **construit**. Le blocage écrit dans le plan était trop large : `CredentialsFor` lit le jeton dans le process et le remet au fetch, seulement pour l'hôte du forge et jamais en `http://`. La décision 6 de §3.61 interdit qu'un outil *expose* un secret, pas qu'il déclenche une action qui en utilise un. La réponse est un id de job, sans champ où un identifiant pourrait passer |
+| 6 | `template_sync_start` : un slug, pas une liste | `F` agit sur la ligne sélectionnée. Le slug est celui que l'agent vient de lire dans `templates_list` ; une ligne que le registre liste sans qu'elle soit au catalogue n'est pas adressable, et est refusée plutôt que devinée |
+| 7 | Une demande arrivée avant la lecture du catalogue | **attend** et est rejouée en message, comme dans `workspaces` : la servir contre le modèle vide refuserait « No template … in the catalog », une affirmation sur un fichier que la vue n'a pas lu. Un catalogue illisible refuse ce qui attendait, sinon l'agent pendrait jusqu'à son timeout |
+| 8 | `forward_open` / `forward_close` | **non construits.** `N` crée et `K` tue, deux exclusions de la règle du vocabulaire, et il y a une raison de plus : `validTarget` accepte n'importe quel `host:port`, donc un agent ouvrirait un relais loopback vers tout ce que la machine atteint — un pont vers un réseau interne que personne ne regarde. Le listener reste loopback et sans privilège ; c'est la cible que l'agent choisirait |
+| 9 | Podman | aucun outil nouveau. Les descriptions de `containers_list` et `images_list` et trois `jsonschema` disaient « Docker » alors que `app.container_engine` peut être Podman : elles nomment le moteur |
+
+#### Le chemin du retour, pour `forward_open`
+
+Restreindre les cibles à la boucle locale et aux adresses que `containers_list`
+publie couvre le cas d'usage réel — atteindre un service local ou un conteneur —
+sans le pont. `forward_close` ne devrait alors fermer que ce que l'agent a
+ouvert, ce qui demande de marquer l'origine dans le registre : sans cela il
+fermerait un forward que l'utilisateur est en train d'utiliser. `forward.Open`
+renvoie une `tea.Cmd`, donc l'outil passerait par `pendingInvocations`, comme les
+autres actions. Rien de tout cela n'est fait ; c'est écrit ici pour que la
+décision 8 se lise comme un choix et non comme un oubli.
+
+#### Trouvé en chemin
+
+`checkComponents` lisait `status.timeout` comme des nanosecondes : un moniteur
+écrit à la main sans `timeout` apparaissait `DOWN` à chaque rafraîchissement.
+Corrigé à part (D72, #239), parce que c'est un défaut de l'onglet Status et non
+de l'exposition MCP.
+
+**Reste ouvert** : `certificates_list` comme outil séparé (le filtre `type: ssl`
+de `monitors_status` répond déjà) ; les métriques hôte (`internal/metrics`),
+peu utiles à un agent ; et le tableau de bord, qui n'agrège que des données déjà
+servies.
 
 ---
 

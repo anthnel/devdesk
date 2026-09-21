@@ -97,6 +97,11 @@ It returns **maps, not caches**. A read-only cache whose `Set` does nothing is a
 trap laid for the next caller; with no cache there is no `Set`, and the write is
 unexpressible rather than forbidden by review — Rule 122's shape, one layer up.
 
+**Every tool here is Docker- or Podman-neutral in its wording.** `containers_list`
+and `images_list` answer for whichever engine `app.container_engine` names; a
+description that said "Docker" would tell an agent on a Podman machine that the
+tool did not apply to it.
+
 **The tools are a declared table**, `internal/mcp/tools.go`, in the spirit of
 `internal/ui/keymap` and `command.AllViewNames()`. Each entry carries a
 `register` closure rather than a handler, because `sdk.AddTool` is generic over
@@ -114,6 +119,9 @@ execution sees a closure that registers under another name, twice, or not at all
 | `containers_list` | what the daemon holds, with the ports parsed |
 | `ports_list` | the TCP and UDP sockets open on this machine, and the process holding each |
 | `images_list` | the local images, and whether each has ever been scanned |
+| `forwards_list` | the port forwards the session holds. Through the dispatcher, like the jobs: the registry is the router's, and it is not a context's either — the forwards file is global and a switch leaves them open, so the answer carries no context |
+| `templates_list` | the template catalog (`~/.devdesk/templates.yaml`, global) and the age of each cached copy. Disk only. A source URL leaves without its userinfo, and the catalog's rejected entries are counted, not quoted |
+| `monitors_status` | the context's monitors, probed now: status, response time, error, and for an `ssl` monitor the days left, expiry, issuer and cert state. The targets come from configuration, never from a call; `type` narrows the set before anything is probed. Bounded by a 30 s deadline, since the SSL probe takes no context |
 | `scan_inventory` | every target this context has scanned, reconciled against what still exists |
 | `scan_result` | one scan's findings, filtered by severity and category, paginated |
 | `net_check` | the `internal/netcheck` pipeline: eleven checks, each with a verdict and what to do |
@@ -121,6 +129,7 @@ execution sees a closure that registers under another name, twice, or not at all
 | `jobs_get` | one run target by target, with the reason any of them failed |
 | `workspace_scan_start` | `S`/`A` on `ws`, headless — returns a job id |
 | `workspace_sync_start` | `F` on `ws`, headless |
+| `template_sync_start` | `F` on `:templates`, headless, one slug. Refuses with the view's own sentence; the credentials `template.CredentialsFor` resolves travel into the fetch and never into the reply |
 | `image_scan_start` | `S`/`A` on the Images tab, headless |
 | `image_pull_start` | `G`, headless |
 | `jobs_cancel` | `K` on a **run**, never on a container |
@@ -270,6 +279,15 @@ screen. `mcpActionKeys` names the key beside each tool and
 no key behind it fails rather than accumulates;
 `TestNoDestructiveActionIsRouted` holds the excluded list.
 
+**`forward_open` and `forward_close` are missing, and that is a decision.** `N`
+(open) and `K` (close) on the Forward tab fall under the vocabulary rule's
+exclusions — `N` creates, `K` kills — and there is a second reason: `validTarget` accepts any
+`host:port`, so an agent could open a loopback relay to whatever the machine can
+reach — a bridge to an internal network that nobody is watching. The listener is
+loopback-only and unprivileged either way; the target is what an agent would
+choose. Restricting targets to loopback and to the addresses `containers_list`
+reports would cover the real use, and is the way back if it is ever wanted.
+
 **`clone_start` is missing, and it is not an oversight.** `C` opens a selection
 the user builds by walking the forge tree, then a second screen for the
 destination; `handleCloneDestinationSelected` resolves it through `rootNodes()`
@@ -369,7 +387,7 @@ argument left with it. It never resolves an address: `net_check` is the one tool
 that touches the network, and a listing that quietly asked reverse DNS for every
 peer it found would be a second.
 
-**`net_check` is the one tool that touches the network, and it runs no
+**`net_check` and `monitors_status` are the two tools that touch the network, and neither runs a
 container** — the pipeline is pure Go, and the route trace, DevDesk's one probe
 that shells out, is not part of it. Its dials come from `network:` rather than
 from a tool argument: a caller that could override them could make the server

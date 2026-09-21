@@ -51,6 +51,9 @@ func TestNothingInAContextAnswerCanCarryASecret(t *testing.T) {
 	// shape rather than one answer, which is what catches a field added later.
 	walk(t, reflect.TypeOf(finding{}), "finding", map[reflect.Type]bool{})
 	walk(t, reflect.TypeOf(workspaceRepo{}), "workspaceRepo", map[reflect.Type]bool{})
+	walk(t, reflect.TypeOf(templatesListOut{}), "templatesListOut", map[reflect.Type]bool{})
+	walk(t, reflect.TypeOf(forwardsListOut{}), "forwardsListOut", map[reflect.Type]bool{})
+	walk(t, reflect.TypeOf(monitorsStatusOut{}), "monitorsStatusOut", map[reflect.Type]bool{})
 }
 
 // carriesText says whether a field could hold a credential at all. Strings can;

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/jobs"
 	mcpserver "github.com/anthnel/devdesk/internal/mcp"
 )
@@ -110,5 +111,34 @@ func TestTheServerIsAlwaysBuiltWithALinkToTheSession(t *testing.T) {
 	}
 	if a.mcpDispatch != (mcpDispatcher{program: nil}) {
 		t.Error("AttachProgram did not build the dispatcher")
+	}
+}
+
+// The forwards are read from Update like the jobs, and the reply is buffered to
+// one for the same reason: a client that hung up must not stop the TUI.
+func TestAForwardsRequestIsAnsweredFromUpdate(t *testing.T) {
+	a := router(t, &bareView{})
+	a.sharedState.Forwards = forward.New()
+
+	reply := make(chan mcpForwardsReply, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		a.handleMCPForwardsRequest(mcpForwardsRequestMsg{reply: reply})
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Update blocked writing a forwards reply")
+	}
+
+	if got := <-reply; got.err != nil || len(got.forwards) != 0 {
+		t.Errorf("reply = %+v, want an empty list and no error", got)
+	}
+}
+
+func TestADispatcherWithNoProgramRefusesForwardsToo(t *testing.T) {
+	if _, err := (mcpDispatcher{}).Forwards(context.Background()); !errors.Is(err, mcpserver.ErrNoSession) {
+		t.Errorf("err = %v, want ErrNoSession", err)
 	}
 }

@@ -56,6 +56,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SyncCompleteMsg:
 		return m.handleSyncComplete(msg)
 
+	case SyncRequestedMsg:
+		return m.handleSyncRequested(msg)
+
 	case FormSubmitMsg:
 		return m.handleFormSubmit(msg)
 
@@ -102,19 +105,23 @@ func (m Model) handleCatalogLoaded(msg CatalogLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		log.Printf("ERROR [templates] opening the catalog: %v", msg.Err)
 		m.storeErr = msg.Err
-		return m, m.footer.Error("Could not read the template catalog — check logs")
+		return m, tea.Batch(
+			m.footer.Error("Could not read the template catalog — check logs"),
+			m.refusePendingRequests(reasonUnreadable),
+		)
 	}
 	m.store = msg.Store
 	m.storeErr = nil
 	m.declared = msg.Store.List()
 	m.rebuild()
+	replay := m.drainPendingRequests()
 	if problems := msg.Store.Problems(); len(problems) > 0 {
 		for _, err := range problems {
 			log.Printf("ERROR [templates] catalog entry skipped: %v", err)
 		}
-		return m, tea.Batch(m.refreshSynced(), m.footer.Warn(fmt.Sprintf("%d catalog %s skipped — check logs", len(problems), plural(len(problems)))))
+		return m, tea.Batch(m.refreshSynced(), replay, m.footer.Warn(fmt.Sprintf("%d catalog %s skipped — check logs", len(problems), plural(len(problems)))))
 	}
-	return m, m.refreshSynced()
+	return m, tea.Batch(m.refreshSynced(), replay)
 }
 
 // refreshSynced re-reads the age of every copy. It follows whatever changes it:

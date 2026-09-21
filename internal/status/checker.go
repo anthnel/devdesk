@@ -47,19 +47,13 @@ func (c *Checker) CheckOne(ctx context.Context, component config.ComponentConfig
 	// Determine which checker type to use
 	var checker CheckerInterface
 
-	compType := component.Type
-	// Legacy support: if URL is set but not Type, infer the type
-	if compType == "" && component.URL != "" {
-		if len(component.URL) > 8 && component.URL[:8] == "https://" {
-			compType = "https"
-		} else if len(component.URL) > 7 && component.URL[:7] == "http://" {
-			compType = "http"
-		}
-		// Use Target = URL for legacy
+	compType := EffectiveType(component)
+	// Legacy support: a component with only a URL takes it as its target, and
+	// the inferred type, so the checkers can use both.
+	if component.Type == "" && component.URL != "" {
 		if component.Target == "" {
 			component.Target = component.URL
 		}
-		// Update the type so the checkers can use it
 		component.Type = compType
 	}
 
@@ -110,4 +104,23 @@ func (c *Checker) CheckOne(ctx context.Context, component config.ComponentConfig
 	}
 
 	return checker.Check(ctx, component)
+}
+
+// EffectiveType is the type a component is checked as: its own, or for a legacy
+// entry that carries only a URL, http or https by the URL's scheme. Empty when
+// nothing can be inferred, which CheckOne reports as an unknown type.
+//
+// It is exported so a caller can select components by type before probing them,
+// rather than probing everything and filtering the results.
+func EffectiveType(component config.ComponentConfig) string {
+	if component.Type != "" || component.URL == "" {
+		return component.Type
+	}
+	switch {
+	case len(component.URL) > 8 && component.URL[:8] == "https://":
+		return "https"
+	case len(component.URL) > 7 && component.URL[:7] == "http://":
+		return "http"
+	}
+	return ""
 }

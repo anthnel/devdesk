@@ -97,13 +97,19 @@ func (m Model) startSync() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(reason)
 	}
 	entry, _ := m.selectedEntry()
+	return m, m.syncStart(entry)
+}
+
+// syncStart is the run a sync of entry registers, for `F` and for an agent
+// alike: the same run, the same items, the same Cmd.
+func (m Model) syncStart(entry template.Entry) tea.Cmd {
 	job := syncJob{
 		entry: entry,
 		creds: template.CredentialsFor(m.config, m.secrets, entry.Source),
 		cache: m.cache,
 	}
 	run := jobs.NewRun(jobs.KindSync, command.ViewTemplates, "", entry.Name, entry.Slug)
-	return m, jobs.Start(run, syncTemplateCmd(job))
+	return jobs.Start(run, syncTemplateCmd(job))
 }
 
 // handleSyncComplete says how the sync ended.

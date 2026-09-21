@@ -42,6 +42,10 @@ type workspaceSyncIn struct {
 	Paths []string `json:"paths,omitempty" jsonschema:"absolute repository paths as workspaces_list reports them; empty syncs every repository this context lists"`
 }
 
+type templateSyncIn struct {
+	Slug string `json:"slug" jsonschema:"the slug of one template, as templates_list reports it"`
+}
+
 type imageScanIn struct {
 	Images []string `json:"images,omitempty" jsonschema:"image references as images_list reports them; empty scans every image that has never been scanned"`
 }
@@ -74,6 +78,15 @@ func registerWorkspaceSyncStart(s *sdk.Server, env *Env) {
 		Description: toolDescription("workspace_sync_start"),
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in workspaceSyncIn) (*sdk.CallToolResult, actionOut, error) {
 		return startAction(ctx, env, Action{Tool: "workspace_sync_start", Targets: in.Paths})
+	})
+}
+
+func registerTemplateSyncStart(s *sdk.Server, env *Env) {
+	sdk.AddTool(s, &sdk.Tool{
+		Name:        "template_sync_start",
+		Description: toolDescription("template_sync_start"),
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in templateSyncIn) (*sdk.CallToolResult, actionOut, error) {
+		return startAction(ctx, env, Action{Tool: "template_sync_start", Targets: []string{in.Slug}})
 	})
 }
 

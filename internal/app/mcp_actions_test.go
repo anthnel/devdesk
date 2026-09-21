@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	mcpserver "github.com/anthnel/devdesk/internal/mcp"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/templates"
 	"github.com/anthnel/devdesk/internal/ui/workspaces"
 )
 
@@ -284,5 +285,24 @@ func TestActionsRefuseWithoutASession(t *testing.T) {
 	}
 	if err := d.Cancel(context.Background(), 1); err == nil {
 		t.Error("Cancel answered without a session")
+	}
+}
+
+// A template sync is routed to the templates view, with the slug and the
+// invocation the router will match the run to.
+func TestATemplateSyncIsRoutedToTheTemplatesView(t *testing.T) {
+	view, msg, ok := mcpAction(mcpserver.Action{Tool: "template_sync_start", Targets: []string{"spring-api"}}, "9")
+	if !ok || view != command.ViewTemplates {
+		t.Fatalf("routed to %q (%v), want the templates view", view, ok)
+	}
+	req, isReq := msg.(templates.SyncRequestedMsg)
+	if !isReq || req.Slug != "spring-api" || req.Invocation != "9" {
+		t.Errorf("request = %#v", msg)
+	}
+
+	// No target is an empty slug, which the view refuses with its own sentence.
+	_, msg, _ = mcpAction(mcpserver.Action{Tool: "template_sync_start"}, "10")
+	if req, _ := msg.(templates.SyncRequestedMsg); req.Slug != "" {
+		t.Errorf("slug = %q for no target, want empty", req.Slug)
 	}
 }
