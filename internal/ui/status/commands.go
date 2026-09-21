@@ -20,8 +20,10 @@ func tickCmd() tea.Cmd {
 // checkComponents launches the check of all components (async)
 func checkComponents(cfg *config.Config) tea.Cmd {
 	return func() tea.Msg {
-		// Create the checker
-		checker := status.NewChecker(time.Duration(cfg.Status.Timeout))
+		// Create the checker. status.timeout is in seconds: the bare integer
+		// would be read as nanoseconds and time out every monitor that has no
+		// timeout of its own.
+		checker := status.NewChecker(time.Duration(cfg.Status.Timeout) * time.Second)
 
 		// Launch the checks
 		ctx := context.Background()
