@@ -80,7 +80,7 @@ const (
 //     keyed by an id that is wrong matches nothing, silently, which is worse
 //     than not offering the fix at all.
 var catalog = map[string]Rule{
-	ruleKey("AVD-DS-0002"): {
+	RuleKey("AVD-DS-0002"): {
 		AVDID: "AVD-DS-0002",
 		Title: "Add a USER instruction to the final stage",
 		Fix:   fixRootUser,
@@ -95,17 +95,17 @@ func FixFor(f scan.Finding) (Rule, bool) {
 	if scan.Categorize(f) != scan.CategoryMisconfiguration {
 		return Rule{}, false
 	}
-	r, ok := catalog[ruleKey(f.ID)]
+	r, ok := catalog[RuleKey(f.ID)]
 	return r, ok
 }
 
-// ruleKey reduces the spellings of one rule id to a single key.
+// RuleKey reduces the spellings of one rule id to a single key.
 //
 // Trivy writes "AVD-DS-0002" in AVDID and "DS002" in ID, and which of the two
 // reaches a Finding has changed before. Matching on either spelling costs one
 // function; matching on one of them costs a catalog that silently stops firing
 // the day the other is used.
-func ruleKey(id string) string {
+func RuleKey(id string) string {
 	id = strings.ToUpper(strings.TrimSpace(id))
 	id = strings.TrimPrefix(id, "AVD-")
 	id = strings.ReplaceAll(id, "-", "")

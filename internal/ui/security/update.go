@@ -49,6 +49,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.findingToIgnore = nil
 		m.remediation.pending = nil
 		m.misconfigPending = nil
+		m.misconfigRule = ""
 		return m, nil
 
 	case sharedcomponents.OptionConfirmModalYesMsg:
@@ -104,6 +105,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleInventoryResultLoaded(msg)
 
 	case InventoryScanFinishedMsg:
+		// A scan of the target a fix is waiting on answers that fix, whoever
+		// started it — the verification does not need to be the run that reports.
+		if v := m.misconfigVerifying; v != nil && v.Target == msg.Name && msg.Err == nil {
+			next, cmd := m.handleInventoryScanFinished(msg)
+			return next, tea.Batch(cmd, verifyMisconfigCmd(*v))
+		}
 		return m.handleInventoryScanFinished(msg)
 
 	case InventoryScanStartingMsg:
@@ -128,6 +135,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case MisconfigFixWrittenMsg:
 		return m.handleMisconfigFixWritten(msg)
+
+	case MisconfigVerifiedMsg:
+		return m.handleMisconfigVerified(msg)
 
 	case jobs.ChangedMsg:
 		return m.handleJobsChanged(msg)

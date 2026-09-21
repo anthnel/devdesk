@@ -280,3 +280,105 @@ func TestAPreparedFixForAnotherTargetIsIgnored(t *testing.T) {
 		t.Error("a confirmation opened for another target")
 	}
 }
+
+// ── Verifying (phase B3) ─────────────────────────────────────────────────────
+
+// A written file is not a fixed one. The write leaves a verification pending,
+// so nothing claims the rule is cleared before something has measured it.
+func TestAWriteLeavesAVerificationPending(t *testing.T) {
+	m, dir := misconfigModel(t, fixableDockerfile, "AVD-DS-0002")
+	m = writeFix(t, m, dir)
+
+	if m.misconfigVerifying == nil {
+		t.Fatal("no verification is pending after the write")
+	}
+	if got := m.misconfigVerifying.Rule; got != "AVD-DS-0002" {
+		t.Errorf("verifying %q, want the rule that was fixed", got)
+	}
+	if got := m.misconfigVerifying.File; got != "Dockerfile" {
+		t.Errorf("verifying %q", got)
+	}
+	// And the footer says what is happening rather than claiming success.
+	if got := m.RenderFooter(160); !strings.Contains(got, "re-scanning") {
+		t.Errorf("the footer does not say a re-scan is running:\n%s", got)
+	}
+}
+
+// The verdict is binary and it is read from the scan, not from the catalog's
+// own confidence.
+func TestTheVerdictIsReadFromTheRescan(t *testing.T) {
+	still := &scan.Result{Target: "/repo", Findings: []scan.Finding{{
+		ID: "AVD-DS-0002", Source: scan.SourceTrivyMisconfig, File: "Dockerfile",
+	}}}
+	gone := &scan.Result{Target: "/repo"}
+
+	if !holdsRule(still, "AVD-DS-0002", "Dockerfile") {
+		t.Error("a result that still reports the rule was read as cleared")
+	}
+	if holdsRule(gone, "AVD-DS-0002", "Dockerfile") {
+		t.Error("a result without the rule was read as still reporting it")
+	}
+	// Another file's instance of the same rule is not this one.
+	if holdsRule(still, "AVD-DS-0002", "svc/Dockerfile") {
+		t.Error("a rule in another file answered for this one")
+	}
+}
+
+// The two spellings again: a comparison that missed one would report every fix
+// as successful, which is the failure mode that matters here.
+func TestTheVerdictMatchesEitherSpellingOfTheRule(t *testing.T) {
+	result := &scan.Result{Findings: []scan.Finding{{
+		ID: "DS002", Source: scan.SourceTrivyMisconfig, File: "Dockerfile",
+	}}}
+	if !holdsRule(result, "AVD-DS-0002", "Dockerfile") {
+		t.Error("DS002 in the result did not answer for AVD-DS-0002")
+	}
+}
+
+// A rule that survived its own fix is a warning, not a success and not a
+// failure: the file was written and the rule still fires, which is exactly what
+// the re-scan exists to find out.
+func TestARuleThatSurvivesItsFixIsReported(t *testing.T) {
+	m, dir := misconfigModel(t, fixableDockerfile, "AVD-DS-0002")
+	m = writeFix(t, m, dir)
+	m = feed(t, m, MisconfigVerifiedMsg{
+		Target: dir, Rule: "AVD-DS-0002", File: "Dockerfile", Cleared: false,
+	})
+
+	if m.misconfigVerifying != nil {
+		t.Error("the verification is still pending after its verdict")
+	}
+	if got := m.RenderFooter(160); !strings.Contains(got, "still reported") {
+		t.Errorf("the footer does not report the survival:\n%s", got)
+	}
+}
+
+// A cleared rule takes the findings table with it: a footer saying the rule is
+// gone above a table still listing it would contradict itself.
+func TestAClearedRuleLeavesTheTable(t *testing.T) {
+	m, dir := misconfigModel(t, fixableDockerfile, "AVD-DS-0002")
+	m = writeFix(t, m, dir)
+	m = feed(t, m, MisconfigVerifiedMsg{
+		Target: dir, Rule: "AVD-DS-0002", File: "Dockerfile", Cleared: true,
+		Result: &scan.Result{Target: dir, TargetType: scan.TargetDirectory},
+	})
+
+	if got := m.RenderFooter(160); !strings.Contains(got, "cleared") {
+		t.Errorf("the footer does not report the clearance:\n%s", got)
+	}
+	if n := len(m.findingsTable.Items()); n != 0 {
+		t.Errorf("the table still holds %d finding(s) after the rule was cleared", n)
+	}
+}
+
+// A verdict about a result no longer on screen is dropped rather than applied
+// to whatever replaced it.
+func TestAVerdictForAnotherTargetIsIgnored(t *testing.T) {
+	m, dir := misconfigModel(t, fixableDockerfile, "AVD-DS-0002")
+	m = writeFix(t, m, dir)
+	m = feed(t, m, MisconfigVerifiedMsg{Target: "/somewhere/else", Cleared: true})
+
+	if m.misconfigVerifying == nil {
+		t.Error("a verdict for another target cancelled this target's verification")
+	}
+}

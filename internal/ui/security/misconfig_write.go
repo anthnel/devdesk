@@ -8,7 +8,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/patch"
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/scan"
@@ -45,8 +48,13 @@ const (
 type MisconfigFixPreparedMsg struct {
 	Target string
 	File   preparedWrite
-	Rule   string
-	Err    error
+	// Rule is the AVD id, which the verification re-scan is checked against.
+	// Body is what the confirmation shows — the fix's title and the diff — and
+	// the two are separate fields because one is read by a human and the other
+	// compared against a later scan.
+	Rule string
+	Body string
+	Err  error
 }
 
 // MisconfigFixWrittenMsg reports the write.
@@ -136,7 +144,7 @@ func prepareMisconfigFixCmd(target string, f scan.Finding) tea.Cmd {
 			log.Printf("ERROR [security/misconfig] git state of %s: %v", f.File, err)
 			file.StateErr = true
 		}
-		return MisconfigFixPreparedMsg{Target: target, File: file, Rule: rule.Title + "\n\n" + diff}
+		return MisconfigFixPreparedMsg{Target: target, File: file, Rule: f.ID, Body: rule.Title + "\n\n" + diff}
 	}
 }
 
@@ -162,8 +170,9 @@ func (m Model) handleMisconfigFixPrepared(msg MisconfigFixPreparedMsg) (tea.Mode
 		return m, m.footer.Error("Could not prepare the fix — the file may have changed, check logs")
 	}
 	m.misconfigPending = &msg.File
+	m.misconfigRule = msg.Rule
 	// Rule 104: the safe answer is the default — ConfirmModal opens on No.
-	m.confirmModal = sharedcomponents.NewConfirmModal("Fix misconfiguration", misconfigConfirmationText(msg.File, msg.Rule))
+	m.confirmModal = sharedcomponents.NewConfirmModal("Fix misconfiguration", misconfigConfirmationText(msg.File, msg.Body))
 	return m, nil
 }
 
@@ -180,18 +189,20 @@ func misconfigConfirmationText(f preparedWrite, body string) string {
 // handleMisconfigFixConfirmed runs the write the modal was about.
 func (m Model) handleMisconfigFixConfirmed() (tea.Model, tea.Cmd) {
 	file := m.misconfigPending
+	rule := m.misconfigRule
 	m.misconfigPending = nil
+	m.misconfigRule = ""
 	m.confirmModal = nil
 	if file == nil {
 		return m, nil
 	}
-	return m, writeMisconfigFixCmd(m.targetPath, *file)
+	return m, writeMisconfigFixCmd(m.targetPath, rule, *file)
 }
 
-func writeMisconfigFixCmd(target string, f preparedWrite) tea.Cmd {
+func writeMisconfigFixCmd(target, rule string, f preparedWrite) tea.Cmd {
 	return func() tea.Msg {
 		err := patch.WriteIfUnchanged(f.Path, f.Original, f.Updated)
-		return MisconfigFixWrittenMsg{Target: target, File: f.File, Err: err}
+		return MisconfigFixWrittenMsg{Target: target, File: f.File, Rule: rule, Err: err}
 	}
 }
 
@@ -203,10 +214,14 @@ func (m Model) handleMisconfigFixWritten(msg MisconfigFixWrittenMsg) (tea.Model,
 		cmd := m.reportFailedFix(msg)
 		return m, cmd
 	}
-	// The finding on screen is still the one the scan reported: the file changed,
-	// the result did not. Saying so is the honest message, and it is what sends
-	// the user to the re-scan that decides (phase B3).
-	return m, m.footer.Info(fmt.Sprintf("Fixed %s — re-scan to confirm the rule is gone", msg.File))
+	// The file changed; the result did not. A re-scan is what turns "written"
+	// into "fixed", so it starts here rather than being left to the user — as a
+	// job, visible in `:jobs` and stoppable with K.
+	v := misconfigVerify{Target: msg.Target, Rule: msg.Rule, File: msg.File}
+	m.misconfigVerifying = &v
+	scan := m.startMisconfigVerification(v)
+	footer := m.footer.Info(fmt.Sprintf("Fixed %s — re-scanning to confirm %s is gone", msg.File, msg.Rule))
+	return m, tea.Batch(scan, footer)
 }
 
 // reportFailedFix sets the footer on the model it is called on, which is why it
@@ -217,4 +232,117 @@ func (m *Model) reportFailedFix(msg MisconfigFixWrittenMsg) tea.Cmd {
 	}
 	log.Printf("ERROR [security/misconfig] write %s: %v", msg.File, msg.Err)
 	return m.footer.Error(fmt.Sprintf("Failed to write %s — check logs", msg.File))
+}
+
+// ── Verifying (§3.78, phase B3) ──────────────────────────────────────────────
+//
+// A written file is not a fixed one. The rule that was faulted is still in the
+// result on screen, because that result was measured before the edit — and the
+// whole discipline §3.2 set for base images is that a fix is judged by a
+// re-scan, never by the confidence of whatever produced it. So the write starts
+// one, and the verdict it reports is binary: the rule is gone, or it is not.
+//
+// The scan is an ordinary job (§3.58), which is what makes starting it on the
+// user's behalf acceptable: it shows up in `:jobs` with a label saying why, and
+// `K` stops it. Nothing is hidden and nothing is unstoppable.
+
+// misconfigVerify is the fix waiting on a re-scan to say whether it worked.
+type misconfigVerify struct {
+	Target string
+	Rule   string
+	File   string
+}
+
+// MisconfigVerifiedMsg is the verdict: whether the rule the fix was about is
+// still reported for that file.
+type MisconfigVerifiedMsg struct {
+	Target  string
+	Rule    string
+	File    string
+	Cleared bool
+	// Result is the scan the verdict was read from, so the tab can stop showing
+	// findings the edit has already dealt with.
+	Result *scan.Result
+	Err    error
+}
+
+// startMisconfigVerification re-scans the target the fix was written into.
+//
+// It runs even when the catalog is sure of itself, because being sure is not
+// the same as having measured — and the cases where a rule survives its own fix
+// are exactly the ones nobody predicted.
+func (m Model) startMisconfigVerification(v misconfigVerify) tea.Cmd {
+	if m.scanningTarget(v.Target) {
+		// Something is already measuring this target; its result will answer.
+		return nil
+	}
+	job := inventoryScanJob{Kind: kindRepo, Name: v.Target}
+	opts := m.scanOptions()
+	return jobs.StartInContext(
+		jobs.NewRun(jobs.KindScan, command.ViewSecurity, "", "verify fix", v.Target),
+		func(contextName string) tea.Cmd {
+			return rescanCmd([]inventoryScanJob{job}, opts, contextName)
+		},
+	)
+}
+
+// verifyMisconfigCmd reads the result the re-scan stored and answers whether the
+// rule is still there. It runs off Update (Rule 110).
+func verifyMisconfigCmd(v misconfigVerify) tea.Cmd {
+	return func() tea.Msg {
+		result, err := cache.ReadWorkspaceScanResult(v.Target)
+		if err != nil {
+			return MisconfigVerifiedMsg{Target: v.Target, Rule: v.Rule, File: v.File, Err: err}
+		}
+		return MisconfigVerifiedMsg{
+			Target: v.Target, Rule: v.Rule, File: v.File,
+			Cleared: !holdsRule(result, v.Rule, v.File), Result: result,
+		}
+	}
+}
+
+// holdsRule says whether a result still reports this rule for this file.
+//
+// It matches through remediation.RuleKey rather than on the string, for the
+// reason the catalog does: Trivy spells one rule two ways, and a comparison
+// that missed the other spelling would report every fix as successful.
+func holdsRule(result *scan.Result, rule, file string) bool {
+	if result == nil {
+		return false
+	}
+	want := remediation.RuleKey(rule)
+	for _, f := range result.Findings {
+		if scan.Categorize(f) != scan.CategoryMisconfiguration {
+			continue
+		}
+		if f.File == file && remediation.RuleKey(f.ID) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// handleMisconfigVerified reports the verdict, and swaps in the result it was
+// read from.
+//
+// The swap is what keeps the screen from contradicting the footer: without it a
+// line saying the rule is gone would sit above a table still listing it.
+func (m Model) handleMisconfigVerified(msg MisconfigVerifiedMsg) (tea.Model, tea.Cmd) {
+	if msg.Target != m.targetPath {
+		return m, nil
+	}
+	m.misconfigVerifying = nil
+	if msg.Err != nil {
+		log.Printf("ERROR [security/misconfig] verify %s: %v", msg.Rule, msg.Err)
+		return m, m.footer.Error("Could not read the verification scan — check logs")
+	}
+	if msg.Result != nil {
+		m.setResult(msg.Result)
+	}
+	if !msg.Cleared {
+		// Not a failure: the file was written, and the rule still fires. Saying
+		// so is the only honest answer, and it is why the scan exists.
+		return m, m.footer.Warn(fmt.Sprintf("%s still reported in %s after the fix", msg.Rule, msg.File))
+	}
+	return m, m.footer.Info(fmt.Sprintf("%s cleared in %s — confirmed by a re-scan", msg.Rule, msg.File))
 }
