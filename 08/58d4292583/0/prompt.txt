@@ -1,0 +1,11 @@
+oui controle pour viewer et netdiag
+
+---
+
+dans la vue sec il me mets "gitleaks failed — check logs"
+
+---
+
+oui fais le : Appliquer la même règle que pour security : :net reconstruit la vue quand elle a une origine. Il y a une précaution à prendre : ne pas la jeter si un diagnostic est en cours. La vue porte un compteur de génération et son état Running, et la jeter perdrait ce run sans avertissement. Le correctif serait alors : jeter la vue seulement si elle a une origine et n'est pas en cours d'exécution.
+
+Ça reste une modification de comportement que tu n'as pas demandée. Dis-moi si tu la veux, dans la branche fix/sec-command-lands-on-inventory ou dans une autre.
