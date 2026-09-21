@@ -1,0 +1,41 @@
+est-ce qu'il y a des points à trancher avec d'écrire le plan d'implémentation
+
+---
+
+1 un seul plan; 2 ok avec ta proposition; 3 même ligne uniquement, ça pourrait être un paramètre de configuration global ? ; 4 tous les stages car les cve au build peuvent avoir un impact sur l'image finale ; 5 exception déclarée, ça peut être une combinaison qui fait sens ctrl+ . ok avec tes recommandations
+
+---
+
+Tu as commit
+
+---
+
+Démarre l'implémentation dans ce worktree
+
+---
+
+Oui
+
+---
+
+Continue avec la phase B
+
+---
+
+Continue c
+
+---
+
+tu as écris dans un worktree
+
+---
+
+dans ws, j'ai scanné un projet gitlab, je suis ensuite allé dans le détail du scan, quand je tape sec, je rentre dans le détail du même scan sans pouvoir en sortir
+
+---
+
+File        Stage  Image                                                                                                                                                  CRIT    HIGH    vs now    Scanned       Note                                                 │
+│    Dockerfile  build  golang:1.25-alpine                                                                                                                                     0       2                 7 min ago                                                          │
+│ 󰄱                        golang:1.27-alpine                                                                                                                                   0       0       -2        7 min ago                                                          │
+│ 󰄱                        golang:1.26-alpine                                                                                                                                   0       0       -2        7 min ago                                                          │
+│    Dockerfile  #2     tvp-zot.incus:5000/agent-base:72d32a1d                                                                                                                 6       123               7 min ago     no newer tag of the same variant exists on this line
