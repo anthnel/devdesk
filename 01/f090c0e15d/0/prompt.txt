@@ -1,0 +1,51 @@
+vérifie la ci il y a des erreurs ensuite merge feat/dashboard-title-spacing
+
+---
+
+merge
+
+---
+
+merge feat/command-view-picker
+
+---
+
+merge fix/dashboard-end-glyph
+
+---
+
+merge docs/connect-ai-client
+
+---
+
+merge chore/retire-table-selected-fg-bg
+
+---
+
+ensuite merge feat/picker-shift-tab
+
+---
+
+merge fix/sec-command-lands-on-inventory, puis docs/backlog-3.2-remediation
+
+---
+
+3. feat/mcp-forward-templates-status en dernier, et pas à moi
+
+Elle ne touche pas le correctif, mais elle entre en conflit avec la branche de remédiation sur trois fichiers : docs/backlog.md, docs/architecture/mcp.md et internal/mcp/scan_tools.go. Mon essai de fusion a aussi signalé un conflit « add/add » sur internal/mcp/monitor_tools_test.go. Cela suggère qu'elle recoupe ce qui est déjà sur main (la PR #240 porte un nom voisin), donc à rebaser plutôt qu'à fusionner telle quelle.
+
+- docs/backlog.md : la règle de CLAUDE.md s'applique, garde les deux côtés, ce sont des entrées indépendantes.
+- scan_tools.go et mcp.md : j'y ai seulement ajouté les champs class et ecosystem. Ce sera à résoudre par celui qui fusionne en second.
+
+---
+
+je vais avoir plusieurs worktree à merger, est-ce que tu peux les combiner dans une seule PR car il forme un tout
+
+---
+
+git push origin docs/misconfig-remediation-plan
+git push origin feat/misconfig-mcp-fields
+
+Elles sont toutes deux cut de 315fe8bb mais ne se recouvrent pas — la première ne touche que docs/backlog.md et le plan, la seconde ni l'un ni l'autre. Pas de conflit de backlog à prévoir.
+
+La ligne d'état de §3.78 (« phase A faite ») reste à écrire une fois les deux fusionnées — je ne l'ai pas mise dans la phase A pour ne pas créer la dépendance croisée.
