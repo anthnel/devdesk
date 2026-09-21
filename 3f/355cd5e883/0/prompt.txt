@@ -1,0 +1,13 @@
+en hd certaine icone du dashboard ne sont pas complètement colorée, vérifie si tu vois quelque chose qui cloche
+
+---
+
+les icones 󰗠 et 󰅙
+
+---
+
+tu as travaillé directement sur main
+
+---
+
+ça continue de bien s'afficher sur mon écran 4k, je devrais tester en hd
