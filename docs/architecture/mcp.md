@@ -97,6 +97,11 @@ It returns **maps, not caches**. A read-only cache whose `Set` does nothing is a
 trap laid for the next caller; with no cache there is no `Set`, and the write is
 unexpressible rather than forbidden by review — Rule 122's shape, one layer up.
 
+**Every tool here is Docker- or Podman-neutral in its wording.** `containers_list`
+and `images_list` answer for whichever engine `app.container_engine` names; a
+description that said "Docker" would tell an agent on a Podman machine that the
+tool did not apply to it.
+
 **The tools are a declared table**, `internal/mcp/tools.go`, in the spirit of
 `internal/ui/keymap` and `command.AllViewNames()`. Each entry carries a
 `register` closure rather than a handler, because `sdk.AddTool` is generic over
@@ -114,6 +119,8 @@ execution sees a closure that registers under another name, twice, or not at all
 | `containers_list` | what the daemon holds, with the ports parsed |
 | `ports_list` | the TCP and UDP sockets open on this machine, and the process holding each |
 | `images_list` | the local images, and whether each has ever been scanned |
+| `forwards_list` | the port forwards the session holds. Through the dispatcher, like the jobs: the registry is the router's, and it is not a context's either — the forwards file is global and a switch leaves them open, so the answer carries no context |
+| `templates_list` | the template catalog (`~/.devdesk/templates.yaml`, global) and the age of each cached copy. Disk only. A source URL leaves without its userinfo, and the catalog's rejected entries are counted, not quoted |
 | `scan_inventory` | every target this context has scanned, reconciled against what still exists |
 | `scan_result` | one scan's findings, filtered by severity and category, paginated |
 | `net_check` | the `internal/netcheck` pipeline: eleven checks, each with a verdict and what to do |

@@ -53,12 +53,12 @@ func tools() []toolDef {
 		},
 		{
 			Name:        "containers_list",
-			Description: "List the Docker containers on this machine, with their state and their published ports already parsed — the scope of each publication says whether it is reachable from the network or from this machine only. It carries no CPU or memory figures, which need a second call that blocks.",
+			Description: "List the containers on this machine, on whichever engine the context uses (Docker or Podman), with their state and their published ports already parsed — the scope of each publication says whether it is reachable from the network or from this machine only. It carries no CPU or memory figures, which need a second call that blocks.",
 			register:    registerContainersList,
 		},
 		{
 			Name:        "images_list",
-			Description: "List the Docker images on this machine, with their size, how many containers use each, and whether DevDesk has ever scanned it. The findings themselves come from scan_result.",
+			Description: "List the images on this machine, on whichever engine the context uses (Docker or Podman), with their size, how many containers use each, and whether DevDesk has ever scanned it. The findings themselves come from scan_result.",
 			register:    registerImagesList,
 		},
 		{
@@ -70,6 +70,16 @@ func tools() []toolDef {
 			Name:        "net_check",
 			Description: "Run DevDesk's connectivity pipeline against a host and port: name resolution, ICMP reachability, the TCP connect, the certificate — handshake, chain, hostname, expiry, version — and an HTTP response. Each check answers with a verdict, what was observed, why it matters and what to do about it. This is the one tool here that touches the network, and it can be pointed at any host.",
 			register:    registerNetCheck,
+		},
+		{
+			Name:        "forwards_list",
+			Description: "List the local port forwards this DevDesk session holds — each one's local port or *.localhost name, the target it leads to, whether it is live, paused or unbound and why, and how many connections it has carried. Forwards belong to the session, not to a context, and are reopened at the next launch. It only reads: nothing is opened, paused or closed.",
+			register:    registerForwardsList,
+		},
+		{
+			Name:        "templates_list",
+			Description: "List the repository templates in this machine's catalog — slug, name, tags, where the content lives and how old its cached copy is. The catalog is shared by every context. It carries no credential and no file content, and a source URL is returned without any user or password embedded in it.",
+			register:    registerTemplatesList,
 		},
 		{
 			Name:        "scan_inventory",

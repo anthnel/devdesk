@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/jobs"
 	mcpserver "github.com/anthnel/devdesk/internal/mcp"
 )
@@ -83,6 +84,43 @@ func (d mcpDispatcher) Jobs(ctx context.Context) ([]jobs.Run, error) {
 func (a *App) handleMCPJobsRequest(msg mcpJobsRequestMsg) (tea.Model, tea.Cmd) {
 	// Buffered to one by the sender, so this never blocks — see the note above.
 	msg.reply <- mcpJobsReply{runs: a.jobs.Snapshot()}
+	return a, nil
+}
+
+// mcpForwardsRequestMsg asks Update for the port forwards the session holds.
+type mcpForwardsRequestMsg struct {
+	reply chan mcpForwardsReply
+}
+
+// mcpForwardsReply is what Update sends back.
+type mcpForwardsReply struct {
+	forwards []forward.Forward
+	err      error
+}
+
+// Forwards implements mcpserver.Dispatcher, on the same terms as Jobs: it waits
+// for Update or for the client to give up, and the buffer makes abandoning safe.
+func (d mcpDispatcher) Forwards(ctx context.Context) ([]forward.Forward, error) {
+	if d.program == nil {
+		return nil, mcpserver.ErrNoSession
+	}
+
+	reply := make(chan mcpForwardsReply, 1)
+	d.program.Send(mcpForwardsRequestMsg{reply: reply})
+
+	select {
+	case r := <-reply:
+		return r.forwards, r.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// handleMCPForwardsRequest answers from Update. List hands out copies, so what
+// leaves cannot reach a listener.
+func (a *App) handleMCPForwardsRequest(msg mcpForwardsRequestMsg) (tea.Model, tea.Cmd) {
+	// Buffered to one by the sender, so this never blocks.
+	msg.reply <- mcpForwardsReply{forwards: a.sharedState.Forwards.List()}
 	return a, nil
 }
 

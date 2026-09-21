@@ -392,6 +392,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case mcpJobsRequestMsg:
 		return a.handleMCPJobsRequest(msg)
 
+	case mcpForwardsRequestMsg:
+		return a.handleMCPForwardsRequest(msg)
+
 	case mcpStartRequestMsg:
 		return a.handleMCPStartRequest(msg)
 

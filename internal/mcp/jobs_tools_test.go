@@ -9,6 +9,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/jobs"
 )
 
@@ -18,6 +19,9 @@ import (
 type fakeSession struct {
 	runs []jobs.Run
 	err  error
+
+	forwards    []forward.Forward
+	forwardsErr error
 
 	// started records what an action tool asked for, and startedID is what it
 	// gets back.
@@ -30,6 +34,10 @@ type fakeSession struct {
 }
 
 func (f *fakeSession) Jobs(context.Context) ([]jobs.Run, error) { return f.runs, f.err }
+
+func (f *fakeSession) Forwards(context.Context) ([]forward.Forward, error) {
+	return f.forwards, f.forwardsErr
+}
 
 func (f *fakeSession) Start(_ context.Context, act Action) (jobs.JobID, error) {
 	f.started = append(f.started, act)

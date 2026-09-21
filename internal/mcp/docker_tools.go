@@ -32,7 +32,7 @@ import (
 type portBinding struct {
 	Scope         string `json:"scope" jsonschema:"all for every interface, loopback for this machine only, address for one named address, exposed for a port the image declares and nothing published"`
 	HostAddress   string `json:"host_address,omitempty" jsonschema:"only when the scope is address; the other scopes are constants the word already names"`
-	HostPort      string `json:"host_port,omitempty" jsonschema:"empty when nothing is published; may be a range exactly as docker printed it"`
+	HostPort      string `json:"host_port,omitempty" jsonschema:"empty when nothing is published; may be a range exactly as the container engine printed it"`
 	ContainerPort string `json:"container_port"`
 	Protocol      string `json:"protocol"`
 }
@@ -42,7 +42,7 @@ type containerOut struct {
 	Name    string        `json:"name"`
 	Image   string        `json:"image"`
 	State   string        `json:"state" jsonschema:"running, exited, paused, created, restarting or dead"`
-	Status  string        `json:"status" jsonschema:"what docker prints, such as Up 2 hours or Exited (0) 5 minutes ago"`
+	Status  string        `json:"status" jsonschema:"what the container engine prints, such as Up 2 hours or Exited (0) 5 minutes ago"`
 	Created string        `json:"created"`
 	Ports   []portBinding `json:"ports"`
 }

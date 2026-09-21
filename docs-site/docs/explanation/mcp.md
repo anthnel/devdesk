@@ -42,9 +42,11 @@ Tools are declared in a single table (`internal/mcp/tools.go`), each entry holdi
 | `context_get` | the served context's configuration (no field can ever carry a credential) |
 | `workspaces_list` | local repositories under `workspaces_dir`, their git state and scan state |
 | `registries_list` | configured OCI registries and their last-discovered members |
-| `containers_list` | what the Docker daemon holds, with ports parsed |
+| `containers_list` | what the container engine (Docker or Podman) holds, with ports parsed |
 | `ports_list` | open TCP/UDP sockets on this machine and the process holding each |
 | `images_list` | local images and whether each has ever been scanned |
+| `forwards_list` | the port forwards this session holds: local port or `*.localhost` name, target, state |
+| `templates_list` | the repository template catalog, with the age of each cached copy (no credential, no file content) |
 | `scan_inventory` | every scan target this context has scanned |
 | `scan_result` | one scan's findings, filtered by severity/category, paginated |
 | `net_check` | the built-in network diagnostics pipeline |

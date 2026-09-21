@@ -30,7 +30,7 @@ const (
 
 type scanTarget struct {
 	Kind       string    `json:"kind" jsonschema:"image or repository"`
-	Name       string    `json:"name" jsonschema:"the Docker reference of an image or the absolute path of a repository; this is what scan_result takes as its target"`
+	Name       string    `json:"name" jsonschema:"the reference of an image or the absolute path of a repository; this is what scan_result takes as its target"`
 	Critical   int       `json:"critical"`
 	High       int       `json:"high"`
 	Medium     int       `json:"medium"`
