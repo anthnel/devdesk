@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "52fac6acf588",
+  "strategy": "manual-commit",
+  "branch": "feat/mcp-forward-templates-status",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs-site/docs/explanation/mcp.md",
+    "docs/architecture/mcp.md",
+    "internal/app/app.go",
+    "internal/app/invoke.go",
+    "internal/app/invoke_test.go",
+    "internal/mcp/context_stamp_test.go",
+    "internal/mcp/context_tools_test.go",
+    "internal/mcp/docker_tools.go",
+    "internal/mcp/forward_tools.go",
+    "internal/mcp/forward_tools_test.go",
+    "internal/mcp/invoke.go",
+    "internal/mcp/jobs_tools_test.go",
+    "internal/mcp/scan_tools.go",
+    "internal/mcp/template_tools.go",
+    "internal/mcp/template_tools_test.go",
+    "internal/mcp/tools.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/52/fac6acf588/0/metadata.json",
+      "transcript": "/52/fac6acf588/0/full.jsonl",
+      "compact_transcript": "/52/fac6acf588/0/transcript.jsonl",
+      "content_hash": "/52/fac6acf588/0/content_hash.txt",
+      "prompt": "/52/fac6acf588/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 167441,
+    "cache_read_tokens": 2923970,
+    "output_tokens": 22968,
+    "api_call_count": 23
+  }
+}
