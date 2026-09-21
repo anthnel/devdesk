@@ -18,6 +18,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/scan"
 )
@@ -375,143 +376,10 @@ func registryAPIURL(registryURL string) string {
 	return base
 }
 
-// doRegistryGETBytes performs a GET on rawURL, handling bearer token auth on 401.
-func doRegistryGETBytes(rawURL, username, password string) ([]byte, error) {
-	req, err := http.NewRequest("GET", rawURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
-	}
-	if username != "" && password != "" {
-		req.SetBasicAuth(username, password)
-	}
-	resp, err := ociHTTPClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("GET %s: %w", rawURL, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		wwwAuth := resp.Header.Get("Www-Authenticate")
-		if !strings.HasPrefix(wwwAuth, "Bearer ") {
-			return nil, fmt.Errorf("unexpected auth challenge: %s", wwwAuth)
-		}
-		token, tErr := exchangeBearerToken(wwwAuth[7:], username, password)
-		if tErr != nil {
-			return nil, tErr
-		}
-		req2, err := http.NewRequest("GET", rawURL, nil)
-		if err != nil {
-			return nil, fmt.Errorf("build retry request: %w", err)
-		}
-		req2.Header.Set("Authorization", "Bearer "+token)
-		resp2, err := ociHTTPClient.Do(req2)
-		if err != nil {
-			return nil, fmt.Errorf("GET (retry) %s: %w", rawURL, err)
-		}
-		defer func() { _ = resp2.Body.Close() }()
-		if resp2.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("registry returned %d", resp2.StatusCode)
-		}
-		return io.ReadAll(resp2.Body)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("registry returned %d", resp.StatusCode)
-	}
-	return io.ReadAll(resp.Body)
-}
-
-// exchangeBearerToken fetches a bearer token from the registry's token endpoint.
-func exchangeBearerToken(challenge, username, password string) (string, error) {
-	params := parseBearerChallenge(challenge)
-	realm, ok := params["realm"]
-	if !ok {
-		return "", fmt.Errorf("bearer challenge missing realm")
-	}
-	u, err := url.Parse(realm)
-	if err != nil {
-		return "", fmt.Errorf("parse realm %q: %w", realm, err)
-	}
-	q := u.Query()
-	if s, ok := params["service"]; ok {
-		q.Set("service", s)
-	}
-	if s, ok := params["scope"]; ok {
-		q.Set("scope", s)
-	}
-	u.RawQuery = q.Encode()
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return "", fmt.Errorf("build token request: %w", err)
-	}
-	if username != "" && password != "" {
-		req.SetBasicAuth(username, password)
-	}
-	resp, err := ociHTTPClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("fetch token: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token endpoint returned %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read token response: %w", err)
-	}
-	var result struct {
-		Token       string `json:"token"`
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return "", fmt.Errorf("decode token response: %w", err)
-	}
-	if result.Token != "" {
-		return result.Token, nil
-	}
-	if result.AccessToken != "" {
-		return result.AccessToken, nil
-	}
-	return "", fmt.Errorf("token response contained no token field")
-}
-
-// parseBearerChallenge parses the value portion of a Www-Authenticate: Bearer header.
-// Example: `realm="https://auth.docker.io/token",service="registry.docker.io"`
-func parseBearerChallenge(s string) map[string]string {
-	params := make(map[string]string)
-	for _, part := range strings.Split(s, ",") {
-		part = strings.TrimSpace(part)
-		idx := strings.IndexByte(part, '=')
-		if idx < 0 {
-			continue
-		}
-		key := strings.TrimSpace(part[:idx])
-		val := strings.Trim(strings.TrimSpace(part[idx+1:]), `"`)
-		params[key] = val
-	}
-	return params
-}
-
-// fetchRegistryTags fetches the tag list for a repository from the registry API.
-func fetchRegistryTags(apiURL, repo, username, password string) ([]string, error) {
-	endpoint := fmt.Sprintf("%s/v2/%s/tags/list", strings.TrimSuffix(apiURL, "/"), repo)
-	body, err := doRegistryGETBytes(endpoint, username, password)
-	if err != nil {
-		return nil, err
-	}
-	var result struct {
-		Tags []string `json:"tags"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("decode tags response: %w", err)
-	}
-	return result.Tags, nil
-}
-
 // searchRegistryTagsCmd fetches tags from one registry and returns a MultiRegistryTagsLoadedMsg.
 func searchRegistryTagsCmd(entryKey, registryURL, alias, apiURL, repo, username, password string) tea.Cmd {
 	return func() tea.Msg {
-		tags, err := fetchRegistryTags(apiURL, repo, username, password)
+		tags, err := oci.ListRegistryTags(apiURL, repo, username, password)
 		return MultiRegistryTagsLoadedMsg{
 			EntryKey: entryKey, RegistryURL: registryURL, Alias: alias, Repo: repo, Tags: tags, Err: err,
 		}
