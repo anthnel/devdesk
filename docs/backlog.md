@@ -14157,6 +14157,301 @@ Sources vérifiées le 2026-09-21 :
 
 ---
 
+### 3.79 La remédiation d'image de base ne sait rien faire d'un tag qui flotte (dhi.io, `:latest`) — **à faire**
+
+§3.2 corrige une CVE d'image de base en proposant un tag **strictement plus
+récent** du même repository. La question posée en session : est-ce que ça
+fonctionne pour une image comme celles de [Docker Hardened
+Images](https://www.docker.com/products/hardened-images/) (`dhi.io`), qui
+gardent le **même tag** tout en étant reconstruites et republiées en continu ?
+Vérifié dans le code, pas supposé : non.
+
+**Trois endroits, trois raisons différentes.**
+
+| Endroit | Ce qui se passe |
+|---|---|
+| `Candidates()` (`internal/remediation/tags.go:115`) | Ne compare que des versions strictement supérieures, même variante (`SplitTag`, ligne 93). Un tag flottant (`latest`, `latest-dev`, ou tout tag `dhi.io` sans numéro de version parsable) fait échouer `SplitTag` — retour `"the tag carries no version to move from"` |
+| Le digest | `Ref.Digest` est parsé (`tags.go:43`) mais **jamais lu** pour choisir ou proposer un candidat. Une référence épinglée par digest est refusée telle quelle — `"the reference has no tag — it is pinned by digest or floats on latest"` (`tags.go:117`) |
+| Le cache de scan | `cache.SetRemediationResult(ref, entry)` (`internal/ui/security/remediation_commands.go:129`) indexe par la référence **telle qu'écrite**. Sur un tag flottant, la référence ne change jamais — le compte de CVE affiché peut dater d'une image que le registre a déjà remplacée, et rien ne l'invalide |
+
+Le résultat visible pour l'utilisateur : `ctrl+s` sur une base `dhi.io` (ou
+toute base en `:latest`) répond « aucun candidat » — vide, pas faux, mais
+silencieux sur la vraie raison, qui est que le mécanisme entier suppose une
+version dans le tag.
+
+**Ce que font Dependabot et Renovate pour ce cas exact** — vérifié le
+2026-09-21 : les deux résolvent le tag flottant en son digest courant et
+réécrivent la référence en `image:tag@sha256:…`. Ce n'est plus un choix
+*parmi plusieurs candidats* — il n'y en a qu'un, le contenu actuel du tag — et
+la mise à jour suivante attend que le digest change à nouveau. C'est une
+opération différente de celle que §3.2 fait aujourd'hui : épingler, pas
+choisir une version.
+
+**Deux décisions restent ouvertes, volontairement pas prises ici :**
+
+1. Comment détecter qu'un tag flotte. `SplitTag` renvoyant `""` (pas de
+   version) est un signal mais pas une preuve — un tag versionné peut aussi
+   être republié (rare, mais `latest-3.20` existe). Une liste de registres
+   connus pour flotter (`dhi.io`, et tout `:latest`/`:main`/`:edge`) serait
+   plus sûre mais demande une liste à tenir à jour.
+2. Ce que DevDesk écrit une fois la détection faite. Deux réponses de forme
+   très différente : (a) un simple re-scan qui ignore le cache — purement
+   informatif, rien à réécrire, l'image est déjà « à jour » par construction
+   — ou (b) réécrire le Dockerfile en `image:tag@sha256:…`, ce qui **fige**
+   un tag qui était délibérément flottant. (b) change le contrat de l'image de
+   base (elle cesse de suivre les correctifs amont sans intervention) et
+   ressemble moins à une remédiation §3.2 qu'à une fonctionnalité voisine —
+   l'épinglage par digest, que Dependabot et Renovate traitent d'ailleurs
+   comme une politique séparée de la mise à jour de version.
+
+Ni l'un ni l'autre n'est tranché ici : le catalogue actuel est correct sur ce
+qu'il couvre (tags versionnés, même ligne ou major suivant), et ce cas est un
+second mécanisme, pas un correctif du premier.
+
+Sources vérifiées le 2026-09-21 :
+[Docker Hardened Images](https://www.docker.com/products/hardened-images/),
+[Dependabot — Docker ecosystem, digest pinning](https://docs.github.com/en/code-security/dependabot/ecosystems-supported/supported-ecosystems-and-repositories#docker),
+[Renovate — Docker datasource, digest pinning](https://docs.renovatebot.com/modules/datasource/docker/).
+
+---
+
+### 3.80 Manifestes Kubernetes — analyser et corriger, sans jamais toucher un cluster — **à explorer**
+
+Kubernetes entre dans le périmètre de DevDesk du côté **fichier**, pas du côté
+exécution : lire des manifestes, YAML ou Helm, dans un dépôt ou un
+workspace, et faire pour eux ce que §3.2 et §3.78 font déjà pour les
+Dockerfiles — détecter, et corriger ce qui se corrige de façon sûre. Pas de
+connexion à un cluster, pas de `kubectl`, pas de pod qui tourne : DevDesk
+reste un outil qui lit et écrit des fichiers.
+
+Lu pour cette entrée : *Docker and Kubernetes Security* (2025), chapitre 6
+(« Securing Containers in Kubernetes ») et §3.6.4 (Kubescape), un Docker
+Captain comme auteur.
+
+**Premier fait vérifié, pas supposé : DevDesk détecte déjà des
+misconfigurations Kubernetes, aujourd'hui, sans rien changer.**
+
+```
+$ trivy fs --scanners misconfig ./repo-avec-un-deployment.yaml
+Type: kubernetes, ID: KSV-0001  "Can elevate its own privileges"
+Type: kubernetes, ID: KSV-0012  "Runs as root user"
+Type: kubernetes, ID: KSV-0013  Image tag ":latest" used
+…
+```
+
+`trivyMisconfigArgs` (`internal/scan/trivy_args.go:169`) lance déjà `trivy fs
+--scanners misconfig` sur tout workspace scanné — la même commande qui trouve
+les problèmes de Dockerfile trouve, sans le savoir, les manifestes Kubernetes
+qu'un dépôt contient. Vérifié en local (Trivy 0.71.2) sur un `Deployment` avec
+`privileged: true` : six `KSV-*` remontent, avec span, sévérité et
+`Resolution`, exactement le même format que les `DS*`/`AVD-DS-*` déjà utilisés
+par le catalogue §3.78.
+
+**Ce qui manque n'est donc pas la détection — c'est de savoir de quel dialecte
+IaC vient un finding.** `TrivyResult.Type` (`internal/scan/trivy.go:20`, valeur
+`"kubernetes"`, `"dockerfile"`, `"terraform"`, `"cloudformation"`, `"helm"`…)
+est décodé et **jeté** : `scan.Finding` n'a aucun champ qui le porte. C'est
+exactement la forme du trou que la phase A de §3.78 a refermé pour
+`EndLine`/`Message`/`Status` — un champ que Trivy rend déjà et que la
+construction du `Finding` ne garde pas. Sans lui, impossible de grouper les
+findings par manifeste, de leur donner un libellé distinct dans l'onglet
+Misconfigurations, ou d'indexer un catalogue de correctifs par dialecte.
+
+Le texte de la décision B2 de §3.78 l'anticipait déjà sans le construire :
+*« … sinon la colonne proposerait d'écrire un Dockerfile sur un onglet qui
+liste aussi des manifestes Kubernetes »* (§3.78, table des décisions, ligne
+1) — l'onglet existant a été conçu en sachant que ce jour viendrait.
+
+**Le piège que §3.78 a déjà noté, et qu'il faut prendre au sérieux ici** :
+*« YAML, Kubernetes et Terraform sont la classe la plus nombreuse et celle où
+`Rewrite` par span ne suffit plus : la correction y est souvent ajouter une
+clé dans un mapping, ce qui demande un parseur préservant indentation et
+commentaires. »* Concrètement :
+
+| Correctif | `patch.Rewrite` par span suffit ? |
+|---|---|
+| `image: nginx:latest` → `image: nginx:1.27` | **Oui** — remplacement de valeur, la clé existe déjà |
+| `privileged: true` → `privileged: false` | **Oui** — même chose |
+| Ajouter `securityContext.allowPrivilegeEscalation: false` **absent** | **Non** — insérer une clé dans un mapping YAML en préservant l'indentation, les commentaires et les ancres n'est pas un remplacement de span, c'est une édition d'arbre |
+| Ajouter un `NetworkPolicy` deny-all manquant | **Non** — un document YAML entier à créer |
+
+Le projet dépend déjà de `gopkg.in/yaml.v3` (voir `.claude/CLAUDE.md`, section
+Dépendances), dont le type `yaml.Node` édite un arbre en préservant les
+commentaires — le candidat naturel pour la moitié des correctifs que le span
+ne couvre pas, si l'étage 1 va jusque-là.
+
+**Paysage des outils, sur le même format que §3.78** (vérifié le
+2026-09-21) :
+
+| Outil | Détecte | Corrige | Ce que ça vaut ici |
+|---|---|---|---|
+| **Trivy** (déjà intégré) | oui — manifestes et Helm, règles `KSV-*` | non | Rien à ajouter côté outillage : la détection existe, seul le typage du finding manque |
+| **kube-linter** | oui — règles idiomatiques distinctes de Trivy (sondes de vie/prêt manquantes, requêtes de ressources absentes…) | non | Un deuxième catalogue de détection, avec un recouvrement partiel et non documenté avec Trivy — le même piège que Semgrep vs AVD noté en §3.78 |
+| **Kyverno** (`kyverno apply`, règles `mutate`) | oui, hors cluster | oui — mais **réécrit la ressource entière**, pas un patch : commentaires et mise en forme perdus, ce que `patch.Rewrite` garantit justement de ne pas faire | Même réserve qu'en §3.78 |
+| **Kubescape** (CNCF) | oui — manifestes (`kubescape scan --submit=false`) et cluster live, référentiels NSA-CISA/CIS/MITRE ATT&CK | non, en usage manifeste seul | Un troisième catalogue de détection ; la référence aux benchmarks (CIS, NSA-CISA) est un angle que Trivy et kube-linter n'ont pas, utile pour un rapport de conformité plutôt qu'un correctif |
+
+Aucun outil neuf n'apporte de correction automatique sûre pour le cas général
+— **exactement la même conclusion qu'en §3.78** pour les misconfigurations
+Docker : le déterministe couvre un sous-ensemble fini (remplacement de
+valeur), le reste est soit un patch YAML-aware à construire, soit le travail
+d'un agent appelant via le MCP.
+
+**Ce que ça donne comme découpage, par analogie directe avec §3.78 :**
+
+- **Étage 2 (MCP), presque gratuit.** `scan_result` projette déjà les
+  findings Trivy ; ajouter le type de dialecte IaC (le trou ci-dessus) et
+  l'agent appelant peut déjà lire, corriger et faire re-mesurer un manifeste
+  Kubernetes exactement comme il le fait pour un Dockerfile.
+- **Étage 1 (catalogue maison), à dimensionner.** Un sous-ensemble
+  « remplacement de valeur » (image `:latest`, `privileged: true`,
+  capacités par défaut) tient dans `patch.Rewrite` sans rien construire de
+  neuf. Un sous-ensemble « insertion de clé » (contextes de sécurité absents,
+  network policies manquantes) demande un éditeur YAML par arbre — une pièce
+  qui n'existe pas encore dans `internal/patch`.
+
+**Hors périmètre, explicitement** : se connecter à un cluster (`kubectl`,
+Kubescape en mode live, RBAC en vigueur, `etcd`), auditer un cluster qui
+tourne, ou toute vérification qui suppose un `kubeconfig`. Ce que le livre
+appelle « Kubernetes cluster security » (chapitre 7 : API server, kubelet,
+RBAC, `etcd`) reste hors de ce que DevDesk fait — un outil qui lit des
+fichiers, pas un client de cluster.
+
+**Secrets** — noté en passant, à vérifier plutôt qu'à supposer : un `Secret`
+Kubernetes en YAML n'est que de l'encodage base64, pas du chiffrement, et un
+tel fichier commité est un secret en clair pour Gitleaks. Comme tout fichier
+texte d'un workspace scanné, il devrait déjà être couvert par le scan de
+secrets existant — à confirmer par un test plutôt qu'à écrire ici comme un
+fait.
+
+**Ouvert, pas tranché :**
+
+| # | Question |
+|---|---|
+| 1 | Où DevDesk cherche des manifestes Kubernetes dans un workspace — tout `*.yaml`/`*.yml` (risque de faux positifs sur un YAML qui n'est pas un manifeste), ou une heuristique sur le contenu (`apiVersion`/`kind`, ce que Trivy fait déjà en interne) |
+| 2 | Les charts Helm sont dans le périmètre du livre (Trivy les scanne aussi) — DevDesk les lit-il tels quels, ou seulement leur rendu (`helm template`), ce qui réintroduirait une dépendance externe |
+| 3 | L'onglet : une nouvelle colonne « dialecte » sur l'onglet Misconfigurations existant (ce que la décision B2 de §3.78 anticipait), ou un onglet séparé si le volume de findings Kubernetes s'avère dominer |
+| 4 | kube-linter et Kubescape apportent-ils des règles que Trivy n'a pas, au point de justifier un troisième outil — à mesurer sur des manifestes réels avant de trancher, pas à deviner depuis la doc |
+
+Sources vérifiées le 2026-09-21 :
+*Docker and Kubernetes Security* (chapitre 6, §3.6.4),
+[Kubescape](https://github.com/kubescape/kubescape),
+[Kyverno — kyverno apply](https://kyverno.io/docs/kyverno-cli/reference/kyverno_apply/),
+[Trivy — Kubernetes misconfiguration scanning](https://trivy.dev/latest/docs/target/kubernetes/).
+
+---
+
+### 3.81 Fuite de secrets par le contexte de build — aucun outil du pipeline ne la voit — **à explorer**
+
+Trouvé en lisant le chapitre 4 (« Secure Docker Image Building Practices »),
+et vérifié en local plutôt que supposé : un `COPY . .` sans `.dockerignore`
+envoie tout le répertoire au démon de build, y compris un `.env`, un
+`credentials.json`, un `.git` complet. Un test sur un Dockerfile minimal
+(`FROM alpine:3.20` + `COPY . /app`, un `.env` à côté) montre que **ni**
+`trivy fs --scanners misconfig` **ni** `trivy fs --scanners secret` ne
+signalent quoi que ce soit — pas d'avertissement sur l'absence de
+`.dockerignore`, pas de détection du fichier qui serait copié. C'est un
+contrôle statique que rien dans le pipeline actuel ne fait.
+
+**Pourquoi le scan de secrets existant ne suffit pas à couvrir ce cas.**
+`trivyMisconfigArgs`/`trivySecretArgs` (`internal/scan/trivy_args.go:169`,
+`:140`) scannent le **répertoire source**, avant tout build — ils ne voient
+jamais ce qu'un `COPY` copierait réellement dans l'image. Le seul scan qui
+verrait le fichier une fois dans l'image est `trivy image --scanners secret`
+(`trivy_args.go:155`), qui suppose une image déjà construite — hors de portée
+d'une analyse de Dockerfile statique. Et même là, une valeur générique comme
+`SECRET=abc123` ne matche aucun pattern de secret connu (clé AWS, clé privée,
+etc.) — testé, aucune alerte.
+
+**Ce qui serait à vérifier avant de scoper plus loin :**
+
+1. Une règle statique est-elle raisonnable : présence d'un `COPY . .` (ou
+   équivalent large) **et** absence de `.dockerignore`, ou `.dockerignore`
+   qui n'exclut pas `.git`/`.env`/patterns usuels de secrets. Un faux positif
+   plausible : un projet qui n'a simplement rien à cacher dans son contexte.
+2. Est-ce une détection seule (avertissement dans l'onglet Misconfigurations,
+   sans AVD id puisque Trivy ne la fournit pas) ou un correctif proposé
+   (générer un `.dockerignore` par défaut) — la seconde option écrit un
+   **nouveau fichier**, pas une édition de span sur un fichier existant, donc
+   une forme différente de ce que `patch.Rewrite` fait aujourd'hui.
+3. Est-ce que cela vaut la peine par rapport au scan de secrets déjà présent
+   sur le dépôt — si un `.env` est déjà commité, Gitleaks/Trivy secret le
+   trouvent indépendamment du Dockerfile ; le risque propre à cette entrée
+   est le fichier **non commité mais présent localement** (ignoré par git,
+   pas par `docker build`).
+
+Sources vérifiées le 2026-09-21 :
+*Docker and Kubernetes Security* (§4.3, sur `.dockerignore` et le contexte de
+build), test local (Trivy 0.71.2, `trivy fs --scanners misconfig,secret`).
+
+---
+
+### 3.82 Vérifier la signature et le SBOM d'une image de base avant de la recommander — **à explorer**
+
+Trouvé au chapitre 4 (§4.5, §4.8) : la chaîne d'approvisionnement d'une image
+de base peut être compromise sans qu'aucune CVE ne le révèle — un registre
+compromis republie une image sous le même tag, avec un contenu altéré. La
+défense recommandée est la vérification de signature (Cosign, Notation) et la
+présence d'un SBOM signé, pas un scan de vulnérabilités, qui ne voit que ce
+qui est déjà catalogué.
+
+**Ce n'est pas une extension du catalogue de misconfigurations** — c'est une
+question différente de celles que §3.2 et §3.78 posent (« cette CVE est-elle
+corrigée », « cette règle passe-t-elle ») : « ce contenu est-il bien celui que
+le mainteneur a publié ». §3.2 choisit déjà un candidat de base image
+(`internal/remediation/tags.go`) sans jamais consulter cette question — un
+candidat plus récent pourrait tout aussi bien être non signé, ou signé par
+une identité inattendue.
+
+**Pas creusé plus loin ici, volontairement** — la portée est plus grande
+qu'une règle de catalogue : elle suppose un appel réseau vers le registre
+(`cosign verify`, ou lire une attestation OCI), une politique de confiance
+(quelles clés/identités sont acceptées), et une décision sur ce que DevDesk
+fait d'une image non signée (avertir seulement, ou refuser de la proposer
+comme candidat). Trois questions qui ne se répondent pas depuis la lecture
+d'un livre.
+
+Sources vérifiées le 2026-09-21 :
+*Docker and Kubernetes Security* (§4.5, §4.8),
+[Sigstore Cosign](https://docs.sigstore.dev/cosign/overview/),
+[Notation (Notary v2)](https://notaryproject.dev/docs/).
+
+---
+
+### 3.83 Préférer les images minimales (Wolfi, distroless) dès la création d'un dépôt — **à explorer**
+
+Trouvé au chapitre 4 (§4.4, §4.4.1, §4.4.2) : au-delà de corriger une image de
+base existante (§3.2), le livre recommande de partir d'une base minimale —
+Wolfi ou distroless plutôt qu'Alpine ou Debian slim — pour réduire la surface
+dès le départ. Une remédiation ne peut proposer que « une version plus récente
+de la même image » ; elle ne change jamais de famille de base.
+
+**Le point d'accroche existe déjà, vérifié plutôt que supposé.** Un template
+du catalogue (`internal/template`) est une référence vers un dépôt externe —
+`Entry.Source` (`internal/template/template.go:36`) — pas un contenu que
+DevDesk écrit ; impossible d'y imposer une base au moment de la création.
+Mais `internal/ui/templates/scan.go` matérialise déjà un template dans
+`~/.devdesk/cache/template-scan/<slug>` et le scanne « comme n'importe quel
+autre » avant qu'un dépôt en soit créé — donc le Dockerfile d'un template
+**passe déjà** par le même scan de misconfiguration qu'un dépôt normal. Le
+point d'accroche est informatif, pas correctif : un avertissement sur la
+famille de base au moment du scan de template, pas une réécriture.
+
+**Pas creusé plus loin ici** :
+
+1. Trivy n'a pas de règle « base non minimale » — cela resterait à détecter
+   autrement (taille de l'image de base, ou une liste de familles connues
+   pour être lourdes) ; à vérifier avant de supposer que c'est simple.
+2. La distinction entre « corriger un dépôt existant » (§3.2, changer de
+   version) et « influencer un choix à la création » (ici, changer de
+   famille) touche deux mécanismes différents — celui-ci n'a pas d'équivalent
+   du `Track` de §3.2, et il n'est pas évident qu'il en faille un.
+
+Sources vérifiées le 2026-09-21 :
+*Docker and Kubernetes Security* (§4.4, §4.4.1, §4.4.2),
+[Chainguard Wolfi](https://github.com/wolfi-dev).
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
