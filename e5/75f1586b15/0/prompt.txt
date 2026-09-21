@@ -1,0 +1,5 @@
+fais B3
+
+---
+
+dans la meme branche mets à jour le backlog pour l'état de la phase 3.78

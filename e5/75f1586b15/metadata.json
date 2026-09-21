@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "e575f1586b15",
+  "strategy": "manual-commit",
+  "branch": "feat/misconfig-catalog",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e5/75f1586b15/0/metadata.json",
+      "transcript": "/e5/75f1586b15/0/full.jsonl",
+      "compact_transcript": "/e5/75f1586b15/0/transcript.jsonl",
+      "content_hash": "/e5/75f1586b15/0/content_hash.txt",
+      "prompt": "/e5/75f1586b15/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 12988,
+    "cache_read_tokens": 5074555,
+    "output_tokens": 8983,
+    "api_call_count": 11
+  }
+}
