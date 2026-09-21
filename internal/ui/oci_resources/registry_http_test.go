@@ -361,12 +361,6 @@ func TestAnExplicitPasswordIsNotOverriddenByStoredCredentials(t *testing.T) {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-// baseOf rebuilds the URL a handler is answering on, so a challenge can name a
-// realm on the same test server.
-func baseOf(r *http.Request) string {
-	return "http://" + r.Host
-}
-
 // redirectHTTP points the package's HTTP client at target, whatever host a
 // request names. fetchDockerHubTagsMeta builds a hub.docker.com URL itself, so
 // this is the only way to stand in for it.
