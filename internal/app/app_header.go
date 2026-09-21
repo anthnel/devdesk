@@ -63,10 +63,11 @@ func (a *App) renderHeader() string {
 			if a.commandMode {
 				cmdLine = pad + theme.CommandLineStyle.Width(a.width-2).Render(a.renderCommandLineWithCompletion()) + pad
 			} else {
-				cmdLine = pad + theme.CommandLineInactiveStyle.Width(a.width-2).Render(":") + pad
+				cmdLine = pad + theme.CommandLineInactiveStyle.Width(a.width-2).Render("❯") + pad
 			}
 
-			return header + "\n" + theme.EmptyLineBg(a.width) + "\n" + cmdLine
+			// A blank line under the command line keeps it from touching the title rule.
+			return header + "\n" + theme.EmptyLineBg(a.width) + "\n" + cmdLine + "\n" + theme.EmptyLineBg(a.width)
 		}
 	}
 
@@ -313,8 +314,8 @@ func (a *App) renderCommandLineWithCompletion() string {
 
 	contentWidth := lipgloss.Width(inputView) + lipgloss.Width(preview)
 	hintWidth := lipgloss.Width(hint)
-	// width - 2 (outer padding) - 2 (CommandLineStyle inner Padding(0,1,0,1))
-	spacerWidth := (a.width - 4) - contentWidth - hintWidth
+	// width - 2 (outer padding) - 1 (slack, so the hint never touches the edge)
+	spacerWidth := (a.width - 3) - contentWidth - hintWidth
 	spacer := ""
 	if spacerWidth > 0 {
 		spacer = cmdBgStyle.Render(strings.Repeat(" ", spacerWidth))

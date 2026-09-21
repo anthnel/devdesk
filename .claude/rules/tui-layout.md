@@ -249,6 +249,7 @@ Strict vertical structure (top to bottom):
 1. **Header** (fixed): 7 lines
 2. **Blank line**: 1 line
 3. **Command line**: 1 line
+3b. **Blank line**: 1 line (under the command line)
 4. **Viewport** (dynamic): `NormalBorder` border, takes the remaining space
 5. **Footer** (fixed):
    - **Without tabs**: blank line (1 line) + info line (1 line) = **2 lines**
@@ -266,7 +267,7 @@ Footer rules:
 footerHeight := 2
 // With tabs: tab row + blank line + info line
 if showTabs { footerHeight = 3 }
-viewportHeight := windowHeight - 7 - 1 - 1 - footerHeight
+viewportHeight := windowHeight - 7 - 1 - 1 - 1 - footerHeight
 ```
 
 Footer rendering:

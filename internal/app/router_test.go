@@ -250,7 +250,7 @@ func TestResizeGivesTheViewportWhatIsLeft(t *testing.T) {
 
 	a.resize(120, 50)
 
-	headerHeight := 9 // 7 header rows + empty line + command line
+	headerHeight := 10 // 7 header rows + empty line + command line + empty line
 	want := 50 - headerHeight - 2 - 1
 	if a.viewport.Height != want {
 		t.Errorf("viewport height = %d, want %d", a.viewport.Height, want)

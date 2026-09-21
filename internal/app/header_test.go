@@ -176,12 +176,12 @@ func TestTheClosedCommandLineShowsThePrompt(t *testing.T) {
 
 	rendered := a.renderHeader()
 
-	if !strings.Contains(rendered, ":") {
+	if !strings.Contains(rendered, "❯") {
 		t.Error("the inactive command line does not show its prompt")
 	}
-	if lipgloss.Height(rendered) != headerMinHeight+2 {
-		t.Errorf("the header block is %d rows, want %d (header + blank + command line)",
-			lipgloss.Height(rendered), headerMinHeight+2)
+	if lipgloss.Height(rendered) != headerMinHeight+3 {
+		t.Errorf("the header block is %d rows, want %d (header + blank + command line + blank)",
+			lipgloss.Height(rendered), headerMinHeight+3)
 	}
 }
 
