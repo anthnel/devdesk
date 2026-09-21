@@ -49,6 +49,7 @@ Tools are declared in a single table (`internal/mcp/tools.go`), each entry holdi
 | `templates_list` | the repository template catalog, with the age of each cached copy (no credential, no file content) |
 | `scan_inventory` | every scan target this context has scanned |
 | `scan_result` | one scan's findings, filtered by severity/category, paginated |
+| `monitors_status` | the context's monitors probed now: status, response time, and certificate details for `ssl` monitors |
 | `net_check` | the built-in network diagnostics pipeline |
 | `jobs_list` | work started this session, and what each run is currently doing |
 | `jobs_get` | one run's targets, with failure reasons |

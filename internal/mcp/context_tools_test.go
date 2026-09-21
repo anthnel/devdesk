@@ -53,6 +53,7 @@ func TestNothingInAContextAnswerCanCarryASecret(t *testing.T) {
 	walk(t, reflect.TypeOf(workspaceRepo{}), "workspaceRepo", map[reflect.Type]bool{})
 	walk(t, reflect.TypeOf(templatesListOut{}), "templatesListOut", map[reflect.Type]bool{})
 	walk(t, reflect.TypeOf(forwardsListOut{}), "forwardsListOut", map[reflect.Type]bool{})
+	walk(t, reflect.TypeOf(monitorsStatusOut{}), "monitorsStatusOut", map[reflect.Type]bool{})
 }
 
 // carriesText says whether a field could hold a credential at all. Strings can;

@@ -1,6 +1,6 @@
 # MCP: exposing the features added since §3.61
 
-Status: batches 1 and 2 implemented on `feat/mcp-forward-templates-status`; 3 and 4 open. Baseline: 17 tools in `internal/mcp/tools.go`.
+Status: batches 1, 2 and 3 implemented on `feat/mcp-forward-templates-status`; 4 open. Baseline: 17 tools in `internal/mcp/tools.go`.
 
 ## Constraints that decide everything
 
@@ -50,7 +50,7 @@ comments untouched. `go test ./internal/mcp` passes.
   check `Source` and strip userinfo, or refuse the field.
 - No context stamp: the catalog is global (`template/store.go`), declared in `machineWide`. The rejected entries are returned as a count only, since their reasons quote the entry.
 
-## Batch 3 — `monitors_status`
+## Batch 3 — `monitors_status` (done)
 
 - Source: `status.Checker.CheckAll` over the context's `components`.
 - Second tool that touches the network. Targets come from `config`, never from
@@ -60,8 +60,12 @@ comments untouched. `go test ./internal/mcp` passes.
 - Answer: per monitor, type, verdict, latency, and for SSL the `CertState`.
   `certificates_list` is not a separate tool unless a real need appears; a
   `type` filter on this one covers it.
-- Open point: timeout. Reuse the monitor's own; cap the total so a slow list
-  cannot hang the call.
+- Timeout: each monitor's own, plus a 30 s cap on the call (`monitorsDeadline`),
+  because the SSL probe takes no context.
+- Context stamped: monitors come from the context's configuration.
+- Found on the way: `ui/status/commands.go` builds the checker with
+  `time.Duration(cfg.Status.Timeout)`, which is seconds read as nanoseconds. Not
+  touched here; see the note in the commit.
 
 ## Batch 4 — actions, each to be specified before built
 

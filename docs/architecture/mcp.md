@@ -121,6 +121,7 @@ execution sees a closure that registers under another name, twice, or not at all
 | `images_list` | the local images, and whether each has ever been scanned |
 | `forwards_list` | the port forwards the session holds. Through the dispatcher, like the jobs: the registry is the router's, and it is not a context's either — the forwards file is global and a switch leaves them open, so the answer carries no context |
 | `templates_list` | the template catalog (`~/.devdesk/templates.yaml`, global) and the age of each cached copy. Disk only. A source URL leaves without its userinfo, and the catalog's rejected entries are counted, not quoted |
+| `monitors_status` | the context's monitors, probed now: status, response time, error, and for an `ssl` monitor the days left, expiry, issuer and cert state. The targets come from configuration, never from a call; `type` narrows the set before anything is probed. Bounded by a 30 s deadline, since the SSL probe takes no context |
 | `scan_inventory` | every target this context has scanned, reconciled against what still exists |
 | `scan_result` | one scan's findings, filtered by severity and category, paginated |
 | `net_check` | the `internal/netcheck` pipeline: eleven checks, each with a verdict and what to do |
@@ -376,7 +377,7 @@ argument left with it. It never resolves an address: `net_check` is the one tool
 that touches the network, and a listing that quietly asked reverse DNS for every
 peer it found would be a second.
 
-**`net_check` is the one tool that touches the network, and it runs no
+**`net_check` and `monitors_status` are the two tools that touch the network, and neither runs a
 container** — the pipeline is pure Go, and the route trace, DevDesk's one probe
 that shells out, is not part of it. Its dials come from `network:` rather than
 from a tool argument: a caller that could override them could make the server

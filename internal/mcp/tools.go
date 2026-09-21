@@ -82,6 +82,11 @@ func tools() []toolDef {
 			register:    registerTemplatesList,
 		},
 		{
+			Name:        "monitors_status",
+			Description: "Check the monitors this context declares — HTTP and HTTPS endpoints, ICMP reachability, DNS resolution and SSL certificates — and report each one's status, response time and error; for a certificate, the days left, the expiry, the issuer and whether it is valid, to renew, expired or unreadable. The targets come from the context's configuration and never from an argument. This is the second tool here that touches the network, and it probes every monitor of the context, or only those of one type when asked.",
+			register:    registerMonitorsStatus,
+		},
+		{
 			Name:        "scan_inventory",
 			Description: "List every image and repository this DevDesk context has scanned, with its severity counts, its secret verdict and how long ago the scan ran. Targets whose image or directory no longer exists are left out.",
 			register:    registerScanInventory,
