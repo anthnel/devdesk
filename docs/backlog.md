@@ -14340,6 +14340,118 @@ Sources vérifiées le 2026-09-21 :
 
 ---
 
+### 3.81 Fuite de secrets par le contexte de build — aucun outil du pipeline ne la voit — **à explorer**
+
+Trouvé en lisant le chapitre 4 (« Secure Docker Image Building Practices »),
+et vérifié en local plutôt que supposé : un `COPY . .` sans `.dockerignore`
+envoie tout le répertoire au démon de build, y compris un `.env`, un
+`credentials.json`, un `.git` complet. Un test sur un Dockerfile minimal
+(`FROM alpine:3.20` + `COPY . /app`, un `.env` à côté) montre que **ni**
+`trivy fs --scanners misconfig` **ni** `trivy fs --scanners secret` ne
+signalent quoi que ce soit — pas d'avertissement sur l'absence de
+`.dockerignore`, pas de détection du fichier qui serait copié. C'est un
+contrôle statique que rien dans le pipeline actuel ne fait.
+
+**Pourquoi le scan de secrets existant ne suffit pas à couvrir ce cas.**
+`trivyMisconfigArgs`/`trivySecretArgs` (`internal/scan/trivy_args.go:169`,
+`:140`) scannent le **répertoire source**, avant tout build — ils ne voient
+jamais ce qu'un `COPY` copierait réellement dans l'image. Le seul scan qui
+verrait le fichier une fois dans l'image est `trivy image --scanners secret`
+(`trivy_args.go:155`), qui suppose une image déjà construite — hors de portée
+d'une analyse de Dockerfile statique. Et même là, une valeur générique comme
+`SECRET=abc123` ne matche aucun pattern de secret connu (clé AWS, clé privée,
+etc.) — testé, aucune alerte.
+
+**Ce qui serait à vérifier avant de scoper plus loin :**
+
+1. Une règle statique est-elle raisonnable : présence d'un `COPY . .` (ou
+   équivalent large) **et** absence de `.dockerignore`, ou `.dockerignore`
+   qui n'exclut pas `.git`/`.env`/patterns usuels de secrets. Un faux positif
+   plausible : un projet qui n'a simplement rien à cacher dans son contexte.
+2. Est-ce une détection seule (avertissement dans l'onglet Misconfigurations,
+   sans AVD id puisque Trivy ne la fournit pas) ou un correctif proposé
+   (générer un `.dockerignore` par défaut) — la seconde option écrit un
+   **nouveau fichier**, pas une édition de span sur un fichier existant, donc
+   une forme différente de ce que `patch.Rewrite` fait aujourd'hui.
+3. Est-ce que cela vaut la peine par rapport au scan de secrets déjà présent
+   sur le dépôt — si un `.env` est déjà commité, Gitleaks/Trivy secret le
+   trouvent indépendamment du Dockerfile ; le risque propre à cette entrée
+   est le fichier **non commité mais présent localement** (ignoré par git,
+   pas par `docker build`).
+
+Sources vérifiées le 2026-09-21 :
+*Docker and Kubernetes Security* (§4.3, sur `.dockerignore` et le contexte de
+build), test local (Trivy 0.71.2, `trivy fs --scanners misconfig,secret`).
+
+---
+
+### 3.82 Vérifier la signature et le SBOM d'une image de base avant de la recommander — **à explorer**
+
+Trouvé au chapitre 4 (§4.5, §4.8) : la chaîne d'approvisionnement d'une image
+de base peut être compromise sans qu'aucune CVE ne le révèle — un registre
+compromis republie une image sous le même tag, avec un contenu altéré. La
+défense recommandée est la vérification de signature (Cosign, Notation) et la
+présence d'un SBOM signé, pas un scan de vulnérabilités, qui ne voit que ce
+qui est déjà catalogué.
+
+**Ce n'est pas une extension du catalogue de misconfigurations** — c'est une
+question différente de celles que §3.2 et §3.78 posent (« cette CVE est-elle
+corrigée », « cette règle passe-t-elle ») : « ce contenu est-il bien celui que
+le mainteneur a publié ». §3.2 choisit déjà un candidat de base image
+(`internal/remediation/tags.go`) sans jamais consulter cette question — un
+candidat plus récent pourrait tout aussi bien être non signé, ou signé par
+une identité inattendue.
+
+**Pas creusé plus loin ici, volontairement** — la portée est plus grande
+qu'une règle de catalogue : elle suppose un appel réseau vers le registre
+(`cosign verify`, ou lire une attestation OCI), une politique de confiance
+(quelles clés/identités sont acceptées), et une décision sur ce que DevDesk
+fait d'une image non signée (avertir seulement, ou refuser de la proposer
+comme candidat). Trois questions qui ne se répondent pas depuis la lecture
+d'un livre.
+
+Sources vérifiées le 2026-09-21 :
+*Docker and Kubernetes Security* (§4.5, §4.8),
+[Sigstore Cosign](https://docs.sigstore.dev/cosign/overview/),
+[Notation (Notary v2)](https://notaryproject.dev/docs/).
+
+---
+
+### 3.83 Préférer les images minimales (Wolfi, distroless) dès la création d'un dépôt — **à explorer**
+
+Trouvé au chapitre 4 (§4.4, §4.4.1, §4.4.2) : au-delà de corriger une image de
+base existante (§3.2), le livre recommande de partir d'une base minimale —
+Wolfi ou distroless plutôt qu'Alpine ou Debian slim — pour réduire la surface
+dès le départ. Une remédiation ne peut proposer que « une version plus récente
+de la même image » ; elle ne change jamais de famille de base.
+
+**Le point d'accroche existe déjà, vérifié plutôt que supposé.** Un template
+du catalogue (`internal/template`) est une référence vers un dépôt externe —
+`Entry.Source` (`internal/template/template.go:36`) — pas un contenu que
+DevDesk écrit ; impossible d'y imposer une base au moment de la création.
+Mais `internal/ui/templates/scan.go` matérialise déjà un template dans
+`~/.devdesk/cache/template-scan/<slug>` et le scanne « comme n'importe quel
+autre » avant qu'un dépôt en soit créé — donc le Dockerfile d'un template
+**passe déjà** par le même scan de misconfiguration qu'un dépôt normal. Le
+point d'accroche est informatif, pas correctif : un avertissement sur la
+famille de base au moment du scan de template, pas une réécriture.
+
+**Pas creusé plus loin ici** :
+
+1. Trivy n'a pas de règle « base non minimale » — cela resterait à détecter
+   autrement (taille de l'image de base, ou une liste de familles connues
+   pour être lourdes) ; à vérifier avant de supposer que c'est simple.
+2. La distinction entre « corriger un dépôt existant » (§3.2, changer de
+   version) et « influencer un choix à la création » (ici, changer de
+   famille) touche deux mécanismes différents — celui-ci n'a pas d'équivalent
+   du `Track` de §3.2, et il n'est pas évident qu'il en faille un.
+
+Sources vérifiées le 2026-09-21 :
+*Docker and Kubernetes Security* (§4.4, §4.4.1, §4.4.2),
+[Chainguard Wolfi](https://github.com/wolfi-dev).
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
