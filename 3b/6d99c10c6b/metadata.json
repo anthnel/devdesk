@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "3b6d99c10c6b",
+  "strategy": "manual-commit",
+  "branch": "docs/backlog-3.2-remediation",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/3b/6d99c10c6b/0/metadata.json",
+      "transcript": "/3b/6d99c10c6b/0/full.jsonl",
+      "compact_transcript": "/3b/6d99c10c6b/0/transcript.jsonl",
+      "content_hash": "/3b/6d99c10c6b/0/content_hash.txt",
+      "prompt": "/3b/6d99c10c6b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 40,
+    "cache_creation_tokens": 32344,
+    "cache_read_tokens": 5850469,
+    "output_tokens": 13712,
+    "api_call_count": 20
+  }
+}
