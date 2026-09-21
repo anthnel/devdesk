@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.5.0](https://github.com/anthnel/devdesk/compare/v1.4.0...v1.5.0) (2026-09-21)
+
+
+### Features
+
+* **app:** shift+tab moves left in the command-line view picker ([#246](https://github.com/anthnel/devdesk/issues/246)) ([4421c5a](https://github.com/anthnel/devdesk/commit/4421c5ae245f4dca60dfb433cc1bccb22e0c02e3))
+* **app:** Tab in the command line opens a circular view picker ([#242](https://github.com/anthnel/devdesk/issues/242)) ([33dc534](https://github.com/anthnel/devdesk/commit/33dc534cba8261d83f7e8be5fa989456920a3a90))
+* **forward:** named *.localhost routes on one shared proxy ([#236](https://github.com/anthnel/devdesk/issues/236)) ([62a5c30](https://github.com/anthnel/devdesk/commit/62a5c3016caeb99df02c73e7e8555485f58c7054))
+* **forward:** persist forwards and reopen them at launch ([#235](https://github.com/anthnel/devdesk/issues/235)) ([79eabec](https://github.com/anthnel/devdesk/commit/79eabecf36c608282c7e6bce3372920a4b8de193))
+* **mcp:** expose a misconfiguration's fix data — §3.78 phase A ([#249](https://github.com/anthnel/devdesk/issues/249)) ([6c12e0c](https://github.com/anthnel/devdesk/commit/6c12e0c77d1c116799bf0bf973717f282ed5aed7))
+* **remediation:** a finite catalog of misconfiguration fixes, starting with the root user ([#250](https://github.com/anthnel/devdesk/issues/250)) ([775bc23](https://github.com/anthnel/devdesk/commit/775bc23b54677abc95987ca4294bbce8140f1e89))
+* **security:** apply a built-in misconfiguration fix from the Misconfigurations tab ([#251](https://github.com/anthnel/devdesk/issues/251)) ([f35b105](https://github.com/anthnel/devdesk/commit/f35b105d62e8ed96c166ff68e69a16be3c4ce4f0))
+* **security:** base image remediation — Remediation tab, tag candidates, Dockerfile rewrite ([#248](https://github.com/anthnel/devdesk/issues/248)) ([315fe8b](https://github.com/anthnel/devdesk/commit/315fe8bb5bdba79bc98a73ccde5059d3fdb5579f))
+* **ui:** align the title rule and command line, add a blank line under it ([#241](https://github.com/anthnel/devdesk/issues/241)) ([58b00e8](https://github.com/anthnel/devdesk/commit/58b00e86da1adf0876ee908bdbbc37bbcf4800c2))
+
+
+### Bug Fixes
+
+* **app:** naming the security view lands on its inventory, not on a list's scan ([#247](https://github.com/anthnel/devdesk/issues/247)) ([10cb3b1](https://github.com/anthnel/devdesk/commit/10cb3b1dc6ac02dba72f4f6c0ff85cf3f0871b42))
+* **dashboard:** keep line-ending status icons fully coloured ([#243](https://github.com/anthnel/devdesk/issues/243)) ([72e8368](https://github.com/anthnel/devdesk/commit/72e8368c9a0c46660750fcee779a8d5a7717b81d))
+* **forward:** review findings on named routes, and focus the form on Type ([#237](https://github.com/anthnel/devdesk/issues/237)) ([4ff3aba](https://github.com/anthnel/devdesk/commit/4ff3aba818c50c20baa1865d7e7d68ddff3e70af))
+* **status:** read status.timeout as seconds, not nanoseconds ([#239](https://github.com/anthnel/devdesk/issues/239)) ([e064575](https://github.com/anthnel/devdesk/commit/e0645754579de1ba722d5aedfc031f73b51b88e4))
+
+
+### Refactoring
+
+* **forward:** drop the Source column and the label behind it ([#231](https://github.com/anthnel/devdesk/issues/231)) ([8c6fda7](https://github.com/anthnel/devdesk/commit/8c6fda7f534d0d62336c1d55a318f9f839b12c93))
+
 ## [1.4.0](https://github.com/anthnel/devdesk/compare/v1.3.0...v1.4.0) (2026-09-19)
 
 
