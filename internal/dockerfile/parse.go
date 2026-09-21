@@ -15,10 +15,14 @@ package dockerfile
 import (
 	"regexp"
 	"strings"
+
+	"github.com/anthnel/devdesk/internal/patch"
 )
 
-// Span is a range of bytes of the Dockerfile, End exclusive.
-type Span struct{ Start, End int }
+// Span is patch.Span: a range of bytes, End exclusive. It is spelled here as
+// well so a reader of this file does not have to go looking, and because every
+// span this parser produces exists to be handed to patch.Rewrite.
+type Span = patch.Span
 
 // Kind says what a FROM instruction names.
 type Kind int
@@ -198,7 +202,7 @@ func tokenize(pieces []piece) []token {
 				start = j
 			case space && start >= 0:
 				tokens = append(tokens, token{
-					span: Span{p.off + start, p.off + j},
+					span: Span{Start: p.off + start, End: p.off + j},
 					text: p.text[start:j],
 				})
 				start = -1
@@ -225,7 +229,7 @@ func readArgs(tokens []token, args map[string]argValue) {
 				start++
 				end--
 			}
-			a = argValue{value: value, hasDefault: true, span: Span{start, end}}
+			a = argValue{value: value, hasDefault: true, span: Span{Start: start, End: end}}
 		}
 		args[name] = a
 	}

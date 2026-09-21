@@ -9,8 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/anthnel/devdesk/internal/dockerfile"
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/patch"
 	"github.com/anthnel/devdesk/internal/remediation"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -61,7 +61,7 @@ type remediationChange struct {
 	File  string // relative to the repository, forward slashes
 	Line  int
 	Stage string
-	Edit  dockerfile.Edit
+	Edit  patch.Edit
 	// DropsDigest: the reference was pinned by digest, which the new tag does
 	// not carry.
 	DropsDigest bool
@@ -90,7 +90,7 @@ func (m Model) remediationChanges() []remediationChange {
 		}
 		changes = append(changes, remediationChange{
 			File: e.File, Line: e.Stage.Line, Stage: e.StageLabel,
-			Edit:        dockerfile.Edit{Span: e.Stage.Span, Old: e.Stage.Image, New: ref},
+			Edit:        patch.Edit{Span: e.Stage.Span, Old: e.Stage.Image, New: ref},
 			DropsDigest: remediation.ParseRef(e.Stage.Image).Digest != "",
 		})
 	}
@@ -109,8 +109,8 @@ func groupByFile(changes []remediationChange) (order []string, byFile map[string
 	return order, byFile
 }
 
-func edits(changes []remediationChange) []dockerfile.Edit {
-	out := make([]dockerfile.Edit, 0, len(changes))
+func edits(changes []remediationChange) []patch.Edit {
+	out := make([]patch.Edit, 0, len(changes))
 	for _, c := range changes {
 		out = append(out, c.Edit)
 	}
@@ -222,7 +222,7 @@ func (s remediationDiffSource) Load() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		diff, err := dockerfile.Diff(file, content, edits(byFile[file]))
+		diff, err := patch.Diff(file, content, edits(byFile[file]))
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", file, err)
 		}
@@ -335,7 +335,7 @@ func (m Model) handleRemediationWritten(msg RemediationWrittenMsg) (tea.Model, t
 // reportFailedWrite sets the footer on the model it is called on, which is why
 // it takes a pointer: on a copy the message would be set and then thrown away.
 func (m *Model) reportFailedWrite(msg RemediationWrittenMsg) tea.Cmd {
-	if errors.Is(msg.Err, dockerfile.ErrChanged) {
+	if errors.Is(msg.Err, patch.ErrChanged) {
 		// Nothing of this file was written: the user confirmed a diff, and the
 		// file is no longer the one it was computed from.
 		return m.footer.Error(fmt.Sprintf("%s changed since the preview — review it again (%d written)", msg.Failed, len(msg.Written)))

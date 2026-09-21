@@ -1,4 +1,17 @@
-package dockerfile
+// Package patch edits a text file by byte range: it replaces what an edit
+// covers and nothing else, so comments, line endings — CRLF included — and the
+// absence of a final newline survive exactly.
+//
+// It knows nothing about what it is editing. It was written for the Dockerfiles
+// of the base image remediation (§3.2), lived in internal/dockerfile, and never
+// read a Dockerfile: it takes bytes and spans, which is why §3.78 moved it out
+// rather than writing a second copy for misconfigurations.
+//
+// The three pieces are deliberately separate. Rewrite computes the new content,
+// Diff is what a user is shown before agreeing to it, and WriteIfUnchanged puts
+// it on disk only if the file still holds what the edit was computed from — so
+// what gets written is always what was agreed to.
+package patch
 
 import (
 	"bytes"
@@ -7,6 +20,9 @@ import (
 	"sort"
 	"strings"
 )
+
+// Span is a range of bytes, End exclusive.
+type Span struct{ Start, End int }
 
 // Edit replaces the bytes Span covers, and says what it expects to find there.
 type Edit struct {
