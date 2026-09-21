@@ -13928,7 +13928,7 @@ ne se recopie pas.
 
 ---
 
-### 3.78 Remédier une misconfiguration — un catalogue pour les cas courants, le MCP pour le reste — **à faire**
+### 3.78 Remédier une misconfiguration — un catalogue pour les cas courants, le MCP pour le reste — **phase A faite**
 
 §3.2 a construit une remédiation pour **une** classe de findings : les CVE de
 paquets système, corrigées en déplaçant l'image de base. La question est de
