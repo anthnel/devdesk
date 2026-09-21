@@ -212,12 +212,11 @@ func TestTheCompletionPreviewShowsOnlyTheRemainder(t *testing.T) {
 }
 
 // The counter says how many suggestions there are and which one enter would
-// run, which is what makes repeated tab navigable.
+// run.
 func TestTheCompletionCounterNamesThePosition(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	typeCommand(t, a, "s")
-	total := len(a.completionSuggestions)
-	if total == 0 {
+	if len(a.completionSuggestions) == 0 {
 		t.Skip("no suggestion for \"s\"")
 	}
 
@@ -225,11 +224,6 @@ func TestTheCompletionCounterNamesThePosition(t *testing.T) {
 
 	if !strings.Contains(rendered, "[1/") {
 		t.Errorf("the command line does not show the position:\n%s", rendered)
-	}
-
-	feedKey(t, a, testutil.Key("tab"))
-	if total > 1 && !strings.Contains(a.renderCommandLineWithCompletion(), "[2/") {
-		t.Error("the position did not advance with tab")
 	}
 }
 
@@ -239,5 +233,17 @@ func TestTheCommandLineIsPlainWithoutSuggestions(t *testing.T) {
 
 	if got, want := a.renderCommandLineWithCompletion(), a.commandInput.View(); got != want {
 		t.Errorf("with nothing to suggest the line renders %q, want the bare input %q", got, want)
+	}
+}
+
+// The breadcrumb must be what the command-line row shows while the picker is
+// open — not just the header shortcuts.
+func TestThePickerReplacesTheCommandLineRow(t *testing.T) {
+	a := commanding(t, &fakeView{})
+	a.width = 120
+	feedKey(t, a, testutil.Key("tab"))
+
+	if !strings.Contains(a.renderHeader(), "about") {
+		t.Error("the header does not render the view breadcrumb")
 	}
 }

@@ -54,13 +54,18 @@ func (a *App) renderHeader() string {
 	if view, ok := a.views[a.currentView]; ok {
 		if headerView, implementsHeaderView := view.(HeaderView); implementsHeaderView {
 			shortcuts := headerView.GetShortcuts()
+			if a.commandMode && a.viewPicker {
+				shortcuts = viewPickerShortcuts()
+			}
 			info := headerView.GetHeaderInfo(a.currentContext)
 
 			header := renderHeaderContent(info, shortcuts, a.width)
 
 			pad := theme.Bg(" ")
 			var cmdLine string
-			if a.commandMode {
+			if a.commandMode && a.viewPicker {
+				cmdLine = a.renderViewPicker(a.width)
+			} else if a.commandMode {
 				cmdLine = pad + theme.CommandLineStyle.Width(a.width-2).Render(a.renderCommandLineWithCompletion()) + pad
 			} else {
 				cmdLine = pad + theme.CommandLineInactiveStyle.Width(a.width-2).Render("❯") + pad
@@ -322,4 +327,49 @@ func (a *App) renderCommandLineWithCompletion() string {
 	}
 
 	return inputView + preview + spacer + hint
+}
+
+// renderViewPicker renders the view breadcrumb that replaces the command line.
+// The row is windowed around the selection when it is wider than the terminal,
+// so the active tab is always visible.
+func (a *App) renderViewPicker(width int) string {
+	inner := width - 2
+	start, end := pickerWindow(a.viewPickerViews, a.viewPickerIdx, inner)
+	items := make([]theme.TabItem, 0, end-start)
+	for _, name := range a.viewPickerViews[start:end] {
+		items = append(items, theme.TabItem{Label: name})
+	}
+	row := theme.RenderTabs(items, a.viewPickerIdx-start)
+	return theme.PadWithBg(theme.Bg(" ")+row, width)
+}
+
+// pickerWindow returns the [start,end) slice of names that fits in width cells
+// (each tab costs its label + 2 padding + 1 separator) and contains sel.
+func pickerWindow(names []string, sel, width int) (int, int) {
+	cost := func(i int) int { return len(names[i]) + 3 }
+	start, end, used := sel, sel+1, cost(sel)
+	for grew := true; grew; {
+		grew = false
+		if end < len(names) && used+cost(end) <= width {
+			used += cost(end)
+			end++
+			grew = true
+		}
+		if start > 0 && used+cost(start-1) <= width {
+			start--
+			used += cost(start)
+			grew = true
+		}
+	}
+	return start, end
+}
+
+// viewPickerShortcuts is the header's vocabulary while the breadcrumb owns the
+// keyboard.
+func viewPickerShortcuts() shortcut.Shortcuts {
+	return shortcut.Shortcuts{
+		{Key: "←→", Description: "Select view"},
+		{Key: "enter", Description: "Open view"},
+		{Key: "esc", Description: "Back to command line"},
+	}
 }

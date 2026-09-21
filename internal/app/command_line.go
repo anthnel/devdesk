@@ -24,13 +24,17 @@ import (
 
 // handleCommandMode handles command mode
 func (a *App) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if a.viewPicker {
+		return a.handleViewPicker(msg)
+	}
+
 	switch msg.Type {
 	case tea.KeyEsc:
 		return a, a.closeCommandLine()
 
 	case tea.KeyTab:
-		// Cycle through the suggestions
-		return a.handleCompletionCycle()
+		a.openViewPicker()
+		return a, nil
 
 	case tea.KeyEnter:
 		return a.runCommand()
@@ -49,6 +53,7 @@ func (a *App) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // the row back to the inactive prompt.
 func (a *App) closeCommandLine() tea.Cmd {
 	a.commandMode = false
+	a.viewPicker = false
 	a.commandInput.Blur()
 	a.resetCompletion()
 	return a.requestResize()
@@ -71,6 +76,7 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 
 	case command.CommandView:
 		a.commandMode = false
+		a.viewPicker = false
 		a.commandInput.Blur()
 		a.resetCompletion()
 		a.resetSelectionModeFor(cmd.View)
@@ -226,14 +232,41 @@ func (a *App) updateCompletions() {
 	a.completionSuggestions = a.completionEngine.GetSuggestions(input)
 }
 
-// handleCompletionCycle cycles through the suggestions (repeated Tab)
-func (a *App) handleCompletionCycle() (tea.Model, tea.Cmd) {
-	if len(a.completionSuggestions) == 0 {
-		return a, nil
+// openViewPicker swaps the command line for the view breadcrumb, with the
+// current view selected. The typed text is left untouched.
+func (a *App) openViewPicker() {
+	a.viewPickerViews = command.ViewNames()
+	a.viewPickerIdx = 0
+	for i, name := range a.viewPickerViews {
+		if name == string(a.currentView) {
+			a.viewPickerIdx = i
+			break
+		}
 	}
+	a.viewPicker = true
+}
 
-	// Increment with wrap-around
-	a.completionIndex = (a.completionIndex + 1) % len(a.completionSuggestions)
+// handleViewPicker drives the breadcrumb: ←/→ (and tab) move the selection,
+// which wraps at both ends; enter opens the view; esc returns to the command
+// line.
+func (a *App) handleViewPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	n := len(a.viewPickerViews)
+	switch msg.Type {
+	case tea.KeyEsc:
+		a.viewPicker = false
+	case tea.KeyLeft:
+		a.viewPickerIdx = (a.viewPickerIdx - 1 + n) % n
+	case tea.KeyRight, tea.KeyTab:
+		a.viewPickerIdx = (a.viewPickerIdx + 1) % n
+	case tea.KeyEnter:
+		view := command.ViewType(a.viewPickerViews[a.viewPickerIdx])
+		a.commandMode = false
+		a.viewPicker = false
+		a.commandInput.Blur()
+		a.resetCompletion()
+		a.resetSelectionModeFor(view)
+		return a, a.switchView(view)
+	}
 	return a, nil
 }
 
