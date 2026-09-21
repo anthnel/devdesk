@@ -1,0 +1,17 @@
+pour la ligne de commande, quand elle est inactive affiche "❯" au lien de ":" en couleur dim et en fonte normale
+
+---
+
+quand la ligne de commande à la focus le caractère ❯ se décale d'un caractère vers la droite, ce ne devrait pas être le cas
+
+---
+
+decale le d'un caractère vers la gauche
+
+---
+
+le titre dashboard et la ligne de cadre supérieure ne devrait pas être plus grande que la ligne de commande (quand elle est active) et les autres cadres de la page, tout doit être aligné à gauche et à droite
+
+---
+
+commit
