@@ -1,0 +1,13 @@
+est-ce qu'il est possible d'offrir des remédiations pour autre chose que les dockerfile, par exemple les misconfigurations
+
+---
+
+oui écris dans le backlog cette partie, est-ce qu'un llm est nécessaire ou est-ce que des outils comme kubelint, kyverno ou autre pourrait proposer de corriger les erreurs
+
+---
+
+donc si le serveur mcp retourne toutes les infos, l'agent appelant peut les corriger ?
+
+---
+
+oui on est d'accord, il est possible de proposer des remédiations avec un catalogue maison pour les cas courant, qui seront la majorité des cas. Pour les cas plus compliqués le serveur mcp doit fournir toutes les informations nécessaires à l'agent appelant.
