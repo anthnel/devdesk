@@ -63,11 +63,18 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 	if notFindings {
 		enter = shortcut.Shortcut{Key: "enter", Description: "Show diff", Disabled: !m.canPreviewRemediation().Enabled()}
 	}
+	// ctrl+o is one key with one verb — write the file — and the object it
+	// writes is the tab's. The label changes with it so the column never
+	// offers "Write Dockerfile" on a tab holding a Kubernetes manifest.
+	writeShortcut := shortcut.Shortcut{Key: writeRemediationKey, Description: "Write Dockerfile", Disabled: !m.canWriteRemediation().Enabled()}
+	if m.activeTab == TabMisconfig {
+		writeShortcut = shortcut.Shortcut{Key: writeRemediationKey, Description: "Apply built-in fix", Disabled: !m.canFixMisconfig().Enabled()}
+	}
 	return []shortcut.Shortcut{
 		{Key: "tab", Description: "Switch tab"},
 		enter,
 		{Key: "space", Description: "Choose candidate", Disabled: !m.canSelectCandidate().Enabled()},
-		{Key: writeRemediationKey, Description: "Write Dockerfile", Disabled: !m.canWriteRemediation().Enabled()},
+		writeShortcut,
 		{Key: keymap.Scan, Description: "Scan candidates", Disabled: !m.canScanCandidates().Enabled()},
 		{Key: "c", Description: "Toggle CRITICAL", Disabled: notFindings},
 		{Key: "h", Description: "Toggle HIGH", Disabled: notFindings},
@@ -219,6 +226,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "space", Description: "Choose the candidate under the cursor for its stage — only a scanned one (Remediation tab)"},
 			{Key: "enter", Description: "Show what the chosen bases would change, as a diff (Remediation tab)"},
 			{Key: writeRemediationKey, Description: "Write the chosen bases into the Dockerfiles, after a confirmation that defaults to No (Remediation tab)"},
+			{Key: writeRemediationKey, Description: "Apply the built-in fix for the selected rule, after a confirmation showing the diff and defaulting to No. Only a few rules have one; the rest are handed to an agent through the MCP server (Misconfigurations tab)"},
 			{Key: keymap.Scan, Description: "Measure the base images and their candidates by scanning them from their registries (Remediation tab)"},
 			{Key: keymap.Exclude, Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab, Gitleaks findings only)"},
 			{Key: keymap.Web, Description: "Open first reference URL in the default browser (detail view)"},

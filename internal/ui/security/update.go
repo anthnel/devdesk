@@ -23,6 +23,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.remediation.pending != nil {
 			return m.handleRemediationConfirmed()
 		}
+		// So does the misconfiguration fix, which is the same act on another
+		// tab and therefore another question.
+		if m.misconfigPending != nil {
+			return m.handleMisconfigFixConfirmed()
+		}
 		// User confirmed to ignore the secret
 		if m.findingToIgnore != nil {
 			finding := *m.findingToIgnore
@@ -43,6 +48,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.confirmModal = nil
 		m.findingToIgnore = nil
 		m.remediation.pending = nil
+		m.misconfigPending = nil
 		return m, nil
 
 	case sharedcomponents.OptionConfirmModalYesMsg:
@@ -116,6 +122,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case RemediationWrittenMsg:
 		return m.handleRemediationWritten(msg)
+
+	case MisconfigFixPreparedMsg:
+		return m.handleMisconfigFixPrepared(msg)
+
+	case MisconfigFixWrittenMsg:
+		return m.handleMisconfigFixWritten(msg)
 
 	case jobs.ChangedMsg:
 		return m.handleJobsChanged(msg)

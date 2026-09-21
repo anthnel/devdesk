@@ -361,6 +361,39 @@ thing to a calling agent through `scan_result` and stay the thing that measures
 the result — see `mcp.md`. A finite catalog of fixes for the recurring Dockerfile
 rules is phase B of §3.78 and does not exist yet.
 
+### Fixing a misconfiguration in place — the catalog (§3.78, phase B)
+
+`internal/remediation/misconfig.go` holds a **deliberately finite** catalog of
+rules this application fixes on its own. `FixFor(finding)` returns a `Rule`, and
+`Rule.Fix(content, finding)` returns either `patch.Edit`s or **a reason for
+declining**. Declining is a first-class answer: an absence sends the user to the
+agent path, which works, where a doubtful edit sends them to a diff they have to
+second-guess.
+
+Ids are matched through `ruleKey`, which reduces `AVD-DS-0002` and `DS002` to
+one key. Trivy uses both spellings in different fields, and matching only one
+would leave the catalog silently inert the day the other reached a `Finding`.
+
+The one rule today is the root user. It inserts the `adduser` block before the
+final stage's first `CMD`/`ENTRYPOINT` — after it, the `USER` would change
+nothing — and switches to the account it just created. A bare `USER 10001` is
+*not* what it emits: that uid has no passwd entry, so anything asking the system
+who it is degrades at run time, far from the edit. The flags are Debian's, so a
+base whose distribution cannot be identified is declined; Alpine is a known gap,
+not an oversight.
+
+**`ctrl+o` is one key with one verb — write the file — and the object is the
+tab's.** On the Remediation tab it writes a base image, on the Misconfigurations
+tab a built-in fix; the label in the shortcut column changes with it, and
+everywhere else the refusal names the tab it belongs to (Rule 130). The
+confirmation shows **the diff itself** rather than a summary: a block insertion
+has no one-line form that conveys what will land in the file.
+
+After the write, the footer says the file was fixed and sends the user to a
+re-scan. It does not say the rule is cleared — the finding on screen is still
+the one the scan reported, and claiming otherwise would be inferring what only a
+re-scan measures.
+
 ### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
 
 The sixth tab of the results (`TabRemediation`, `internal/ui/security/remediation.go`)

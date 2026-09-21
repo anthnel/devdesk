@@ -164,3 +164,62 @@ func TestDiffPropagatesARefusal(t *testing.T) {
 		t.Error("a bad edit produced a diff")
 	}
 }
+
+// An insertion shows every line it inserts, and reports nothing as removed.
+//
+// Diff used to pair the two sides by index and stop at the shorter one, which
+// is correct only while an edit replaces as many lines as it removes. Inserting
+// four lines made it report the line they were inserted before as replaced, and
+// drop everything past the end of the shorter side — so a confirmation showed
+// two of the four lines about to be written, read as the whole change.
+func TestDiffOfAnInsertionShowsEveryInsertedLine(t *testing.T) {
+	src := "FROM debian:12\nRUN true\nCMD [\"/app\"]\n"
+	at := strings.Index(src, "CMD")
+	insert := patch4Lines
+	got, err := Diff("Dockerfile", []byte(src), []Edit{{Span: Span{Start: at, End: at}, New: insert}})
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	for _, want := range []string{"+one", "+two", "+three", "+four"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the diff lacks %q:\n%s", want, got)
+		}
+	}
+	// Nothing was removed, so nothing is reported as removed.
+	if strings.Contains(body(got), "\n-") {
+		t.Errorf("an insertion reported a removal:\n%s", got)
+	}
+	// And the line it was inserted before is not repeated on both sides.
+	if strings.Count(got, "CMD") != 0 {
+		t.Errorf("the untouched line appears in the diff:\n%s", got)
+	}
+}
+
+const patch4Lines = "one\ntwo\nthree\nfour\n"
+
+// body drops the two header lines, whose "---" and "+++" would otherwise match
+// a search for a removed or added line.
+func body(diff string) string {
+	_, rest, _ := strings.Cut(diff, "+++ ")
+	_, rest, _ = strings.Cut(rest, "\n")
+	return "\n" + rest
+}
+
+// A deletion is the mirror case, and was broken the same way.
+func TestDiffOfADeletionShowsEveryRemovedLine(t *testing.T) {
+	src := "FROM debian:12\nRUN a\nRUN b\nCMD [\"/app\"]\n"
+	start := strings.Index(src, "RUN a")
+	end := strings.Index(src, "CMD")
+	got, err := Diff("Dockerfile", []byte(src), []Edit{{Span: Span{Start: start, End: end}, Old: src[start:end], New: ""}})
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	for _, want := range []string{"-RUN a", "-RUN b"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the diff lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(body(got), "\n+") {
+		t.Errorf("a deletion reported an addition:\n%s", got)
+	}
+}

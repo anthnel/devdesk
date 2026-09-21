@@ -92,6 +92,12 @@ type Model struct {
 	// move to. It is read for the result on screen and reset with it.
 	remediation remediationState
 
+	// misconfigPending is the file a confirmed misconfiguration fix would
+	// write, held between the confirmation and the write (§3.78). It carries
+	// the bytes the diff was computed from, so what gets written is what was
+	// agreed to and not a second reading of the file.
+	misconfigPending *preparedWrite
+
 	// OriginView is the view to return to when Esc is pressed in StateResults.
 	// Set by the app router when opening this view from workspaces or
 	// oci_resources. Empty when the results were opened from the inventory,
