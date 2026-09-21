@@ -262,6 +262,22 @@ func TestPickerIsCircular(t *testing.T) {
 	}
 }
 
+func TestShiftTabMovesLeftInThePicker(t *testing.T) {
+	a := commanding(t, &fakeView{})
+	feedKey(t, a, testutil.Key("tab"))
+	n := len(a.viewPickerViews)
+	a.viewPickerIdx = 1
+
+	feedKey(t, a, testutil.Key("shift+tab"))
+	if a.viewPickerIdx != 0 {
+		t.Errorf("shift+tab from 1 = %d, want 0", a.viewPickerIdx)
+	}
+	feedKey(t, a, testutil.Key("shift+tab"))
+	if a.viewPickerIdx != n-1 {
+		t.Errorf("shift+tab from first = %d, want %d", a.viewPickerIdx, n-1)
+	}
+}
+
 func TestPickerListHasNoActionsOrRouterViews(t *testing.T) {
 	a := commanding(t, &fakeView{})
 	feedKey(t, a, testutil.Key("tab"))

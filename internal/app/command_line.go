@@ -246,15 +246,15 @@ func (a *App) openViewPicker() {
 	a.viewPicker = true
 }
 
-// handleViewPicker drives the breadcrumb: ←/→ (and tab) move the selection,
-// which wraps at both ends; enter opens the view; esc returns to the command
+// handleViewPicker drives the breadcrumb: ←/→ move the selection, tab goes
+// right and shift+tab left, and it wraps at both ends; enter opens the view; esc returns to the command
 // line.
 func (a *App) handleViewPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	n := len(a.viewPickerViews)
 	switch msg.Type {
 	case tea.KeyEsc:
 		a.viewPicker = false
-	case tea.KeyLeft:
+	case tea.KeyLeft, tea.KeyShiftTab:
 		a.viewPickerIdx = (a.viewPickerIdx - 1 + n) % n
 	case tea.KeyRight, tea.KeyTab:
 		a.viewPickerIdx = (a.viewPickerIdx + 1) % n
