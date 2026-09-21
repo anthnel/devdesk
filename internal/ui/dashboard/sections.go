@@ -75,10 +75,10 @@ func renderCodeSection(m Model, width int, t tier) []string {
 	// The icon follows the value: the value column then starts at the same
 	// place on every line, which an icon up front would shift by one cell
 	// only on the lines that carry one.
-	sessionLine := theme.DimStyle.Render("not connected") + theme.Bg("  ") + theme.DimStyle.Render(theme.IconError)
+	sessionLine := theme.DimStyle.Render("not connected") + theme.Bg("  ") + endGlyph(theme.DimStyle, theme.IconError)
 	if m.shared.IsAuthenticated {
 		sessionLine = theme.PrimaryColorStyle.Bold(true).Render(m.shared.CurrentUser.Username) +
-			theme.Bg("  ") + theme.StatusOKStyle.Render(theme.IconOK)
+			theme.Bg("  ") + endGlyph(theme.StatusOKStyle, theme.IconOK)
 	}
 
 	mrs, review, issues := unknownValue(), unknownValue(), unknownValue()
@@ -433,7 +433,7 @@ func certBranches(certs []status.ComponentStatus, loading bool, expiry string) [
 // form these counts also take at the `standard` tier; the tree nodes below
 // (certAlert) carry no icon — see alertCount.
 func certGlyph(state status.CertState) string {
-	return theme.CertStateStyle(string(state)).Render(theme.CertStateIcon(string(state)))
+	return endGlyph(theme.CertStateStyle(string(state)), theme.CertStateIcon(string(state)))
 }
 
 func certAlert(n int, state status.CertState) string {
@@ -705,7 +705,7 @@ func toolsBlock(m Model) []string {
 
 	missing := missingTools(m.tools)
 	if len(missing) == 0 {
-		return []string{row("Tools", theme.Bg("all available  ")+theme.StatusOKStyle.Render(theme.IconOK))}
+		return []string{row("Tools", theme.Bg("all available  ")+endGlyph(theme.StatusOKStyle, theme.IconOK))}
 	}
 
 	// The names keep their declared case where the other nodes are
@@ -714,7 +714,7 @@ func toolsBlock(m Model) []string {
 	lines := []string{theme.Bg("Missing tools")}
 	for i, name := range missing {
 		lines = append(lines, narrowBranch(i == len(missing)-1, name,
-			theme.StatusDownStyle.Render(theme.IconError)))
+			endGlyph(theme.StatusDownStyle, theme.IconError)))
 	}
 	return lines
 }
@@ -1172,7 +1172,7 @@ func statusSummary(components []status.ComponentStatus) string {
 		return theme.DimStyle.Render("none configured")
 	}
 	ok, down, errCount := countStatuses(components)
-	out := theme.Bg(fmt.Sprintf("%d ", ok)) + theme.StatusOKStyle.Render(theme.IconOK)
+	out := theme.Bg(fmt.Sprintf("%d ", ok)) + endGlyph(theme.StatusOKStyle, theme.IconOK)
 	out += tally(down, theme.IconError, theme.StatusDownStyle)
 	out += tally(errCount, theme.IconWarning, theme.StatusErrorStyle)
 	return out
@@ -1205,6 +1205,15 @@ func certSummary(certs []status.ComponentStatus) string {
 	return out
 }
 
+// endGlyph renders an icon that closes a line. Nerd Font "md" glyphs are
+// drawn two cells wide by many fonts while lipgloss counts one, and the
+// overflow lands in the next cell, which is repainted with the plain
+// background — the icon then looks half coloured. A trailing space inside
+// the same styled run keeps that cell in the icon's own colours.
+func endGlyph(style lipgloss.Style, glyph string) string {
+	return style.Render(glyph + " ")
+}
+
 // tally appends one non-nominal state to a summary line, and nothing at all
 // when it is empty. The summary fits on one line shared with its label: a
 // "0" per state would fill it with what didn't happen, whereas the tree —
@@ -1213,7 +1222,7 @@ func tally(n int, glyph string, style lipgloss.Style) string {
 	if n == 0 {
 		return ""
 	}
-	return theme.Bg(fmt.Sprintf("  %d ", n)) + style.Render(glyph)
+	return theme.Bg(fmt.Sprintf(" %d ", n)) + endGlyph(style, glyph)
 }
 
 // truncatePath keeps a path's tail, which is the half that identifies it.
