@@ -3,6 +3,8 @@ package remediation
 import (
 	"reflect"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 func TestParseRef(t *testing.T) {
@@ -144,5 +146,19 @@ func TestParseTrackFallsBackToSameLine(t *testing.T) {
 		if got := ParseTrack(in); got != want {
 			t.Errorf("ParseTrack(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// config states the track names and cannot import this package, so a test is
+// the only thing that keeps the two in step.
+func TestTheTrackNamesMatchTheConfig(t *testing.T) {
+	for _, name := range config.BaseImageTracks() {
+		if got := ParseTrack(name); string(got) != name {
+			t.Errorf("config offers %q, ParseTrack reads it as %q", name, got)
+		}
+	}
+	if string(TrackSameLine) != config.BaseImageTrackSameLine || string(TrackNextMajor) != config.BaseImageTrackNextMajor {
+		t.Errorf("track constants %q / %q differ from the config's %q / %q",
+			TrackSameLine, TrackNextMajor, config.BaseImageTrackSameLine, config.BaseImageTrackNextMajor)
 	}
 }
