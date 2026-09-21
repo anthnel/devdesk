@@ -63,7 +63,9 @@ func (a *App) renderHeader() string {
 
 			pad := theme.Bg(" ")
 			var cmdLine string
-			if a.commandMode {
+			if a.commandMode && a.viewPicker {
+				cmdLine = a.renderViewPicker(a.width)
+			} else if a.commandMode {
 				cmdLine = pad + theme.CommandLineStyle.Width(a.width-2).Render(a.renderCommandLineWithCompletion()) + pad
 			} else {
 				cmdLine = pad + theme.CommandLineInactiveStyle.Width(a.width-2).Render("❯") + pad

@@ -235,3 +235,15 @@ func TestTheCommandLineIsPlainWithoutSuggestions(t *testing.T) {
 		t.Errorf("with nothing to suggest the line renders %q, want the bare input %q", got, want)
 	}
 }
+
+// The breadcrumb must be what the command-line row shows while the picker is
+// open — not just the header shortcuts.
+func TestThePickerReplacesTheCommandLineRow(t *testing.T) {
+	a := commanding(t, &fakeView{})
+	a.width = 120
+	feedKey(t, a, testutil.Key("tab"))
+
+	if !strings.Contains(a.renderHeader(), "about") {
+		t.Error("the header does not render the view breadcrumb")
+	}
+}
