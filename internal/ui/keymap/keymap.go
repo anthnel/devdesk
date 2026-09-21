@@ -244,7 +244,7 @@ type Exception struct {
 	Why     string
 }
 
-// exceptions are the two accepted deviations. They are written here
+// exceptions are the accepted deviations. They are written here
 // because §3.26 requires it: an undeclared exception is indistinguishable
 // from drift, and the next survey would "fix" it.
 var exceptions = []Exception{
@@ -263,6 +263,17 @@ var exceptions = []Exception{
 		Surface: "oci/launch-form",
 		Why: "Copier la commande docker run. Même raison, et ctrl+y ne heurte " +
 			"aucun caractère de contrôle utilisé ailleurs.",
+	},
+	{
+		Key:     "ctrl+o",
+		Surface: "security/results/remediation-tab",
+		Why: "Write the chosen base images into the Dockerfiles. The action " +
+			"exists on one tab, so a global capital would cost more than it " +
+			"returns. ^O is Write Out in nano; bubbletea puts the terminal in " +
+			"raw mode, which switches off the only other job ^O has in a tty " +
+			"(discard output). The obvious alternatives are taken: ctrl+w closes " +
+			"a browser or web-terminal tab, ctrl+s is flow control, and ctrl+d is " +
+			"end-of-file.",
 	},
 }
 

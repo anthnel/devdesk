@@ -57,9 +57,17 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 	// findings does not reach it, so those keys are greyed there and S — which
 	// means nothing on the four tabs of findings — is the one that lights up.
 	notFindings := m.activeTab == TabRemediation
+	// Enter opens the selected finding, or on the Remediation tab the diff of the
+	// chosen bases: one key, the same place in the column, a different verb.
+	enter := shortcut.Shortcut{Key: "enter", Description: "Details", Disabled: !m.canOpenFinding().Enabled()}
+	if notFindings {
+		enter = shortcut.Shortcut{Key: "enter", Description: "Show diff", Disabled: !m.canPreviewRemediation().Enabled()}
+	}
 	return []shortcut.Shortcut{
 		{Key: "tab", Description: "Switch tab"},
-		{Key: "enter", Description: "Details", Disabled: !m.canOpenFinding().Enabled()},
+		enter,
+		{Key: "space", Description: "Choose candidate", Disabled: !m.canSelectCandidate().Enabled()},
+		{Key: writeRemediationKey, Description: "Write Dockerfile", Disabled: !m.canWriteRemediation().Enabled()},
 		{Key: keymap.Scan, Description: "Scan candidates", Disabled: !m.canScanCandidates().Enabled()},
 		{Key: "c", Description: "Toggle CRITICAL", Disabled: notFindings},
 		{Key: "h", Description: "Toggle HIGH", Disabled: notFindings},
@@ -208,6 +216,9 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "/", Description: "Search — the inventory by target name, the findings by ID, title, package or file"},
 			{Key: ".", Description: "Cycle the sort column — the findings table opens on the order the scanner reported, and the cycle leads back to it"},
 			{Key: "enter", Description: "Open the details of the selected finding (results)"},
+			{Key: "space", Description: "Choose the candidate under the cursor for its stage — only a scanned one (Remediation tab)"},
+			{Key: "enter", Description: "Show what the chosen bases would change, as a diff (Remediation tab)"},
+			{Key: writeRemediationKey, Description: "Write the chosen bases into the Dockerfiles, after a confirmation that defaults to No (Remediation tab)"},
 			{Key: keymap.Scan, Description: "Measure the base images and their candidates by scanning them from their registries (Remediation tab)"},
 			{Key: keymap.Exclude, Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab, Gitleaks findings only)"},
 			{Key: keymap.Web, Description: "Open first reference URL in the default browser (detail view)"},
@@ -242,7 +253,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Remediation",
-				Body:  "For a repository, this tab reads the Dockerfiles under it and lists each base image — every stage, since a vulnerability in a build stage can reach the image that ships — with the newer tags it could move to. Candidates keep the image's variant (alpine stays alpine, slim stays slim) and its precision (3.18 is offered 3.21, not 3.21.1); by default they stay on the same major version, and the scan tab of the configuration view (Base image bumps) lets them take the next one.\nNothing is measured until you press S: each image is scanned straight from its registry, without being pulled, and the counts are kept for 24 hours. The vs now column is the change in CRITICAL plus HIGH against the image as written; negative is better. A candidate is a proposal with its evidence — the scan says the CVEs are gone, not that the application still runs on the new base.\nAn image scan has no Dockerfile, so the tab is empty for one.",
+				Body:  "For a repository, this tab reads the Dockerfiles under it and lists each base image — every stage, since a vulnerability in a build stage can reach the image that ships — with the newer tags it could move to. Candidates keep the image's variant (alpine stays alpine, slim stays slim) and its precision (3.18 is offered 3.21, not 3.21.1); by default they stay on the same major version, and the scan tab of the configuration view (Base image bumps) lets them take the next one.\nNothing is measured until you press S: each image is scanned straight from its registry, without being pulled, and the counts are kept for 24 hours. The vs now column is the change in CRITICAL plus HIGH against the image as written; negative is better. A candidate is a proposal with its evidence — the scan says the CVEs are gone, not that the application still runs on the new base.\nAn image scan has no Dockerfile, so the tab is empty for one.\nChoosing: space picks the candidate under the cursor for its stage — only one that has been scanned, since a bump is proposed with its evidence — and Enter shows what the choices would change. Ctrl+O writes them, and only when you ask: it lists each file and line, and says what git will be able to undo (a clean tracked file can be reverted with git checkout; one with uncommitted changes cannot without losing them; an untracked file or one outside a repository cannot at all). The answer defaults to No. Only the image reference changes — comments, line endings and the rest of the file are untouched — and DevDesk makes no commit, branch or push. A file that changed since the diff was computed is refused, not overwritten. A reference pinned by digest loses its pin, which the modal says. A stage that reads its image from an ARG changes that ARG's default, and a --build-arg on the command line can still override it.",
 			},
 			{
 				Title: "Command Logging",

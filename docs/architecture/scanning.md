@@ -393,6 +393,50 @@ count from another database says nothing about a bump. A candidate is evidence,
 not a verdict: the scan says the CVEs are gone, not that the application still
 runs on the new base.
 
+### Writing the chosen bases — `space`, `enter`, `ctrl+o` (§3.2, phase C)
+
+DevDesk proposes; it does not decide. `space` chooses the candidate under the
+cursor for its stage — **only one that has been scanned**, since a bump is
+proposed with its evidence — at most one per stage, and one that cannot be
+edited in place (a reference assembled from several build args) is refused with
+the parser's reason. Two stages that read one `ARG` are one place in the file:
+choosing different bases for both is refused when the second is chosen, and
+`dockerfile.Rewrite` refuses it again as `ErrConflict`. `enter` opens the diff in
+the viewer. `ctrl+o` writes.
+
+`ctrl+o` never acts on the key alone. It computes the write first — every file
+as it would become, and `git.StateOf` for each — and only then opens a
+confirmation, whose default answer is No. The confirmation names each file, line
+and change, and says what git will and will not be able to undo, because
+"nothing is lost" is true of the ordinary case only:
+
+| State of the file | What the confirmation says |
+|---|---|
+| tracked, clean | review with `git diff`, undo with `git checkout` |
+| tracked, uncommitted changes | `git checkout` would discard them along with this edit |
+| untracked or ignored | not tracked by git — the write cannot be undone with git |
+| outside a repository | same |
+| git could not be read | the write may not be undoable |
+
+None of these blocks the write: the user decides, knowing. DevDesk makes no
+commit, branch or push.
+
+The write is `dockerfile.Rewrite` — the bytes at the ranges `dockerfile.Parse`
+located and nothing else, so comments, CRLF and a missing final newline
+survive — through `WriteIfUnchanged`: the file must still hold **exactly** what
+the diff was computed from (whole-content comparison, stronger than a hash), or
+the write is refused with a footer error and nothing of that file is touched. It
+goes through a temporary file and a rename in the same directory, keeps the
+permission bits and follows a symbolic link to its target. Several files are
+written one after the other, stopping at the first failure; each is whole or
+absent, and the message says how many were written before it. A reference pinned
+by digest loses the pin, which the confirmation says. A stage that reads its
+image from an `ARG` has that ARG's default changed — a `--build-arg` on the
+command line can still override it, which a file cannot show.
+
+The write is **not exposed over MCP**: it is a gesture of the user in the TUI,
+and an agent has its own tools for editing a file.
+
 ## The security inventory
 
 `:sec` opens on **everything the current context has scanned**, read from

@@ -1,5 +1,9 @@
 # §3.2 — Remédiation de sécurité : corrigibles, images de base candidates, écriture du Dockerfile
 
+**Statut (2026-09-21) : les phases A, B et C sont implémentées.** Les écarts
+avec ce texte sont consignés dans `docs/backlog.md` §3.2 (« Écarts avec le plan »,
+« Phase C »). Restent hors plan : les outils MCP de candidats et de re-scan.
+
 ## Contexte
 
 §3.2 du backlog cadre l'auto-patch (le SAST local est déjà fait). Trois

@@ -18,6 +18,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle confirm modal messages first (before passing to modal)
 	switch msg := msg.(type) {
 	case sharedcomponents.ConfirmModalYesMsg:
+		// The write of the chosen base images takes the answer when it is the
+		// question that was asked.
+		if m.remediation.pending != nil {
+			return m.handleRemediationConfirmed()
+		}
 		// User confirmed to ignore the secret
 		if m.findingToIgnore != nil {
 			finding := *m.findingToIgnore
@@ -34,9 +39,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case sharedcomponents.ConfirmModalNoMsg:
-		// User cancelled
+		// User cancelled: nothing is written, and nothing is remembered of it.
 		m.confirmModal = nil
 		m.findingToIgnore = nil
+		m.remediation.pending = nil
 		return m, nil
 
 	case sharedcomponents.OptionConfirmModalYesMsg:
@@ -104,6 +110,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case RemediationScanFinishedMsg:
 		return m.handleRemediationScanFinished(msg)
+
+	case RemediationWritePreparedMsg:
+		return m.handleRemediationWritePrepared(msg)
+
+	case RemediationWrittenMsg:
+		return m.handleRemediationWritten(msg)
 
 	case jobs.ChangedMsg:
 		return m.handleJobsChanged(msg)

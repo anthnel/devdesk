@@ -2,7 +2,10 @@ package security
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +14,8 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/dockerfile"
+	"github.com/anthnel/devdesk/internal/git"
 	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/scan"
@@ -129,4 +134,50 @@ func scanRemediationCmds(target string, refs []string, opts scan.ScanOptions, ti
 		})
 	}
 	return cmds
+}
+
+// readFile reads a Dockerfile, for the sources and Cmds that run off Update.
+func readFile(path string) ([]byte, error) { return os.ReadFile(path) }
+
+// prepareRemediationWriteCmd computes each file as it would become, and asks git
+// about each. changes is copied in (Rule 110).
+func prepareRemediationWriteCmd(target string, changes []remediationChange) tea.Cmd {
+	return func() tea.Msg {
+		order, byFile := groupByFile(changes)
+		files := make([]preparedWrite, 0, len(order))
+		for _, rel := range order {
+			path := filepath.Join(target, filepath.FromSlash(rel))
+			original, err := os.ReadFile(path)
+			if err != nil {
+				return RemediationWritePreparedMsg{Target: target, Err: err}
+			}
+			updated, err := dockerfile.Rewrite(original, edits(byFile[rel]))
+			if err != nil {
+				return RemediationWritePreparedMsg{Target: target, Err: fmt.Errorf("%s: %w", rel, err)}
+			}
+			file := preparedWrite{File: rel, Path: path, Original: original, Updated: updated, Changes: byFile[rel]}
+			if file.State, err = git.StateOf(path); err != nil {
+				log.Printf("ERROR [security/remediation] git state of %s: %v", rel, err)
+				file.StateErr = true
+			}
+			files = append(files, file)
+		}
+		return RemediationWritePreparedMsg{Target: target, Files: files}
+	}
+}
+
+// writeRemediationCmd replaces each file, stopping at the first that cannot be.
+// A file is replaced whole or not at all; the ones written before a failure stay
+// written, and the message says which.
+func writeRemediationCmd(target string, files []preparedWrite) tea.Cmd {
+	return func() tea.Msg {
+		var written []string
+		for _, f := range files {
+			if err := dockerfile.WriteIfUnchanged(f.Path, f.Original, f.Updated); err != nil {
+				return RemediationWrittenMsg{Target: target, Written: written, Failed: f.File, Err: err}
+			}
+			written = append(written, f.File)
+		}
+		return RemediationWrittenMsg{Target: target, Written: written}
+	}
 }

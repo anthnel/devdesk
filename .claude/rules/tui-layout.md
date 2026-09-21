@@ -95,12 +95,17 @@ once.
   - `c` `h` `m` `l` (security): severities, **cumulative** — `c`+`h` asks for
     "CRITICAL **or** HIGH", which a single threshold cannot express.
 
-- **Two exceptions, declared** in `keymap.DeclaredExceptions()`: `o` (open the
-  pipeline the forge resolves, security/results/ci-tab) and `ctrl+y` (copy
-  the `docker run` command). Burning a global uppercase letter for an action
-  present in a single sub-screen would cost more than it gains. They are
-  written up as exceptions so the next survey does not mistake them for
-  drift.
+- **Three exceptions, declared** in `keymap.DeclaredExceptions()`: `o` (open
+  the pipeline the forge resolves, security/results/ci-tab), `ctrl+y` (copy
+  the `docker run` command) and `ctrl+o` (write the chosen base images into
+  the Dockerfiles, security/results/remediation-tab). Burning a global
+  uppercase letter for an action present in a single sub-screen would cost
+  more than it gains. They are written up as exceptions so the next survey
+  does not mistake them for drift. `ctrl+o` is nano's Write Out, and the
+  neighbours were taken: `ctrl+w` closes a browser or web-terminal tab,
+  `ctrl+s` is flow control, `ctrl+d` is end-of-file. It is the one `ctrl`
+  binding whose action changes a file, so it never acts on the key alone:
+  it opens a confirmation that defaults to No.
 
 - **A modal is a fourth space**, set apart by *mode* rather than by case: it
   claims every key before the view sees it, so its `y`/`n` never collides

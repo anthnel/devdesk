@@ -40,8 +40,7 @@ func TestShortcutsFollowTheState(t *testing.T) {
 			name:     "the CVE tab",
 			open:     func(t *testing.T) Model { return scannedModel(t) },
 			enabled:  []string{"tab", "enter", ".", "/", "c", "h", "m", "l", "ctrl+r"},
-			disabled: []string{keymap.Exclude},
-			absent:   []string{"space"},
+			disabled: []string{keymap.Exclude, "space", writeRemediationKey, keymap.Scan},
 		},
 		{
 			// '.' is the sort, so it applies to every tab — it was advertised
@@ -52,8 +51,8 @@ func TestShortcutsFollowTheState(t *testing.T) {
 				m.switchTab(TabSecrets)
 				return m
 			},
-			enabled: []string{keymap.Exclude, "."},
-			absent:  []string{"space"},
+			enabled:  []string{keymap.Exclude, "."},
+			disabled: []string{"space", writeRemediationKey},
 		},
 		{
 			// While the search has the keyboard, every other key is a

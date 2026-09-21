@@ -57,7 +57,7 @@ func scannedAt(critical, high int) cache.RemediationEntry {
 // ── Rows ─────────────────────────────────────────────────────────────────────
 
 func TestEachBaseImageIsFollowedByItsCandidates(t *testing.T) {
-	rows := remediationRows(baseEntries(), nil, nil)
+	rows := remediationRows(baseEntries(), nil, nil, nil)
 	var images []string
 	for _, r := range rows {
 		images = append(images, strings.TrimSpace(r.Image))
@@ -72,7 +72,7 @@ func TestEachBaseImageIsFollowedByItsCandidates(t *testing.T) {
 }
 
 func TestACandidateIsIndentedAndItsFileAndStageAreLeftBlank(t *testing.T) {
-	rows := remediationRows(baseEntries(), nil, nil)
+	rows := remediationRows(baseEntries(), nil, nil, nil)
 	if !strings.HasPrefix(rows[1].Image, "  ") || rows[1].File != "" || rows[1].Stage != "" {
 		t.Errorf("candidate row = %+v", rows[1])
 	}
@@ -83,7 +83,7 @@ func TestACandidateIsIndentedAndItsFileAndStageAreLeftBlank(t *testing.T) {
 
 // An image with no candidates says why, in its own row.
 func TestAnImageWithNoCandidateCarriesItsReason(t *testing.T) {
-	rows := remediationRows(baseEntries(), nil, nil)
+	rows := remediationRows(baseEntries(), nil, nil, nil)
 	if rows[3].Note != "the tag carries no version to move from" {
 		t.Errorf("Note = %q", rows[3].Note)
 	}
@@ -98,7 +98,7 @@ func TestTheDeltaIsTheChangeInCriticalPlusHigh(t *testing.T) {
 		"golang:1.23": scannedAt(0, 3),
 		"golang:1.22": scannedAt(3, 9),
 	}
-	rows := remediationRows(baseEntries(), results, nil)
+	rows := remediationRows(baseEntries(), results, nil, nil)
 
 	if _, ok := rows[0].delta(); ok {
 		t.Error("the current image has a delta against itself")
@@ -115,20 +115,20 @@ func TestTheDeltaIsTheChangeInCriticalPlusHigh(t *testing.T) {
 // count says nothing about a bump.
 func TestThereIsNoDeltaUntilBothSidesAreScanned(t *testing.T) {
 	onlyCandidate := map[string]cache.RemediationEntry{"golang:1.23": scannedAt(0, 3)}
-	rows := remediationRows(baseEntries(), onlyCandidate, nil)
+	rows := remediationRows(baseEntries(), onlyCandidate, nil, nil)
 	if _, ok := rows[1].delta(); ok {
 		t.Error("a candidate has a delta against an image nobody scanned")
 	}
 
 	onlyCurrent := map[string]cache.RemediationEntry{"golang:1.21": scannedAt(2, 8)}
-	rows = remediationRows(baseEntries(), onlyCurrent, nil)
+	rows = remediationRows(baseEntries(), onlyCurrent, nil, nil)
 	if _, ok := rows[1].delta(); ok {
 		t.Error("an unscanned candidate has a delta")
 	}
 }
 
 func TestAnImageBeingScannedIsMarked(t *testing.T) {
-	rows := remediationRows(baseEntries(), nil, map[string]bool{"golang:1.23": true})
+	rows := remediationRows(baseEntries(), nil, map[string]bool{"golang:1.23": true}, nil)
 	if !rows[1].Scanning || rows[0].Scanning || rows[2].Scanning {
 		t.Errorf("Scanning flags = %v %v %v", rows[0].Scanning, rows[1].Scanning, rows[2].Scanning)
 	}
@@ -454,7 +454,7 @@ func TestTheFindingsKeysAreGreyedOnTheRemediationTab(t *testing.T) {
 // reason, and never reach it: a search opened here would take the keyboard for a
 // table nobody can see.
 func TestAFindingsKeyIsRefusedOnTheRemediationTab(t *testing.T) {
-	for _, key := range []string{"/", "c", ".", "enter"} {
+	for _, key := range []string{"/", "c", "."} {
 		m := onRemediation(t, baseEntries(), nil)
 		m = feed(t, m, testutil.Key(key))
 		if m.footer.Text() != reasonFindingsOnly || m.footer.Level() != sharedcomponents.LevelWarning {

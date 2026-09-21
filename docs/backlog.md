@@ -3691,7 +3691,7 @@ Le cas « joindre un port non publié sans redémarrer » reste **ouvert** :
   `host:port`. Pas un défaut de bubbles mais une largeur jamais posée ; le test a
   été vérifié contre le code non corrigé.
 
-### 3.2 Remédiation de sécurité — **SAST local fait, auto-patch : phases A et B faites, C à faire**
+### 3.2 Remédiation de sécurité — **SAST local fait, auto-patch : phases A, B et C faites**
 
 Reporté de `todo.md` en deux puces : « *Auto-patch assistance* » (après un scan
 Trivy, proposer un `Dockerfile` dont l'image de base est montée pour effacer
@@ -3828,6 +3828,34 @@ qu'un ordre numérique. Pour Node, c'est une version impaire, sans support long,
 rien dans les tags ne le dit. Le scan mesure les CVE, pas la durée de support :
 c'est ce que `Metadata.OS.EOSL` (non lu aujourd'hui) pourrait signaler, et ce
 qu'un client externe juge mieux qu'une règle de nommage.
+
+#### Phase C — faite
+
+`space` choisit un candidat scanné pour son stage, `enter` montre le diff dans le
+viewer, `ctrl+o` écrit — après une confirmation dont la réponse par défaut est
+« No » et qui dit, fichier par fichier, ce que git saura défaire ou non (propre,
+modifications non commitées, non suivi, hors dépôt). L'écriture passe par
+`dockerfile.Rewrite` (les octets repérés par le parseur, rien d'autre) et
+`WriteIfUnchanged` (le fichier doit contenir exactement ce dont le diff a été
+calculé ; sinon refus, fichier intact ; fichier temporaire puis renommage,
+permissions conservées, lien symbolique suivi). Aucun commit, branche ni push.
+`ctrl+o` est une troisième exception déclarée (`keymap.DeclaredExceptions()`,
+Rule 111). Détail dans `docs/architecture/scanning.md`.
+
+**Un bug attrapé par les tests en chemin :** un message de footer posé dans une
+méthode à receveur valeur était posé sur une copie du modèle, puis jeté — l'erreur
+« le fichier a changé depuis l'aperçu » ne s'affichait pas. `reportFailedWrite`
+prend maintenant un pointeur.
+
+**Restent ouverts :**
+
+- **Les outils MCP** (candidats, re-scan d'un candidat) : hors de ce plan, comme
+  décidé.
+- **Le mode `--server` de Trivy** avec `--image-src remote`, non mesuré.
+- **`EOSL`** (`Metadata.OS`), non lu : il dirait qu'aucun bump de paquet ne suffit.
+- **Un `Dockerfile` écrit par erreur n'a pas de « annuler »** dans DevDesk : c'est
+  git (`git checkout`) ou rien, d'où l'avertissement de la confirmation pour un
+  fichier non suivi.
 
 #### Pas de LLM embarqué — le jugement passe par MCP
 

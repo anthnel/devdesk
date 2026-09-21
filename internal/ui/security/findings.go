@@ -400,6 +400,8 @@ func (m Model) handleResultsState(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keymap.Scan:
 		// Off the Remediation tab this refuses, with the reason (Rule 130).
 		return m.scanCandidates()
+	case writeRemediationKey:
+		return m.prepareRemediationWrite()
 	}
 	// `.` is the sort again, and the search and the severity tokens are the
 	// table's (Rule 136).

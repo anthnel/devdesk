@@ -40,6 +40,11 @@ const (
 	reasonFindingsOnly      = "That key works on findings — open another tab"
 	reasonNoBaseImage       = "No base image to scan"
 	reasonAllMeasured       = "Every image is already scanned — results are kept for 24 hours"
+	reasonNoImageRow        = "No image selected"
+	reasonPickACandidate    = "Space selects a candidate — move to a tag under the image"
+	reasonScanFirst         = "Scan this candidate first (S) — a bump is proposed with its result, not without"
+	reasonNothingChosen     = "Select a scanned candidate with space first"
+	reasonNotEditable       = "This reference cannot be edited in place"
 )
 
 type remediationPhase int
@@ -64,6 +69,13 @@ type remediationState struct {
 	failed    bool
 	results   map[string]cache.RemediationEntry
 	scanning  map[string]bool
+	// selected is the candidate chosen for each stage, by index into entries: at
+	// most one per stage, and only a candidate that has been scanned.
+	selected map[int]string
+	// pending is what the confirmation on screen would write. It is held from
+	// the moment the modal opens to the answer, so the write is exactly what was
+	// shown — never recomputed from a table that may have moved.
+	pending []preparedWrite
 }
 
 func newRemediationState() remediationState {
@@ -74,12 +86,20 @@ func newRemediationState() remediationState {
 		}),
 		results:  map[string]cache.RemediationEntry{},
 		scanning: map[string]bool{},
+		selected: map[int]string{},
 	}
 }
 
 // remediationRow is a line of the table: a base image as written, or one of the
 // tags it could move to.
 type remediationRow struct {
+	// Entry indexes remediationState.entries; Ref is the reference without the
+	// display indent, the one a selection and a write use.
+	Entry int
+	Ref   string
+	// Selected: this candidate is the one chosen for its stage.
+	Selected bool
+
 	File  string
 	Stage string
 	// Image is the reference. A candidate is indented under the image it would
@@ -100,6 +120,17 @@ type remediationRow struct {
 	HasBaseline bool
 }
 
+// icon is the glyph column: the image itself, or a candidate's checkbox.
+func (r remediationRow) icon() string {
+	switch {
+	case r.Current:
+		return theme.IconDocker
+	case r.Selected:
+		return theme.IconChecked
+	}
+	return theme.IconCheckbox
+}
+
 // worst is the number the comparison is made on. MEDIUM and LOW are listed but
 // do not decide a bump.
 func (r remediationRow) worst() int { return r.Counts.Critical + r.Counts.High }
@@ -116,16 +147,20 @@ func (r remediationRow) delta() (int, bool) {
 
 // remediationRows lays entries out as the table shows them: each base image,
 // then its candidates.
-func remediationRows(entries []remediation.Entry, results map[string]cache.RemediationEntry, scanning map[string]bool) []remediationRow {
+func remediationRows(entries []remediation.Entry, results map[string]cache.RemediationEntry,
+	scanning map[string]bool, selected map[int]string) []remediationRow {
 	var rows []remediationRow
-	for _, e := range entries {
+	for i, e := range entries {
 		current := remediationRowFor(e.File, e.StageLabel, imageLabel(e), true, e.Image, results, scanning)
+		current.Entry = i
 		if len(e.Candidates) == 0 {
 			current.Note = e.Reason
 		}
 		rows = append(rows, current)
 		for _, ref := range e.Candidates {
 			row := remediationRowFor("", "", "  "+ref, false, ref, results, scanning)
+			row.Entry = i
+			row.Selected = selected[i] == ref
 			if current.Scanned {
 				row.Baseline, row.HasBaseline = current.worst(), true
 			}
@@ -147,7 +182,7 @@ func imageLabel(e remediation.Entry) string {
 
 func remediationRowFor(file, stage, label string, current bool, ref string,
 	results map[string]cache.RemediationEntry, scanning map[string]bool) remediationRow {
-	row := remediationRow{File: file, Stage: stage, Image: label, Current: current}
+	row := remediationRow{File: file, Stage: stage, Image: label, Current: current, Ref: ref}
 	if ref == "" {
 		return row
 	}
@@ -181,6 +216,14 @@ func remediationColumns() []datatable.Column[remediationRow] {
 		}
 	}
 	return []datatable.Column[remediationRow]{
+		{
+			// The glyph has its own column (Rule 125): the image's kind on a
+			// current row, and on a candidate the checkbox that says whether it
+			// is the one chosen for the patch.
+			Title: "", Sizing: datatable.SizingFixed, MinWidth: datatable.IconColumnWidth,
+			Cell:  func(r remediationRow) string { return r.icon() },
+			Style: func(remediationRow) lipgloss.Style { return theme.IconStyle(theme.IconRoleImage) },
+		},
 		{
 			Title: "File", Sizing: datatable.SizingContent, MinWidth: 10, MaxWidth: 30, Optional: true, TruncateHead: true,
 			Cell: func(r remediationRow) string { return r.File },
@@ -316,7 +359,8 @@ func (m Model) handleRemediationScanFinished(msg RemediationScanFinishedMsg) (te
 // refreshRemediation rebuilds the rows, keeping the cursor where it was.
 func (m *Model) refreshRemediation() {
 	cursor := m.remediation.table.Cursor()
-	m.remediation.table.SetItems(remediationRows(m.remediation.entries, m.remediation.results, m.remediation.scanning))
+	m.remediation.table.SetItems(remediationRows(
+		m.remediation.entries, m.remediation.results, m.remediation.scanning, m.remediation.selected))
 	m.remediation.table.Remeasure()
 	m.remediation.table.SetCursor(cursor)
 }
@@ -422,7 +466,16 @@ func (m Model) handleRemediationKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	case keymap.Scan:
 		next, cmd := m.scanCandidates()
 		return next, cmd, true
-	case "c", "h", "m", "l", "/", ".", "enter", keymap.Exclude, openPipelineKey:
+	case " ":
+		next, cmd := m.toggleCandidate()
+		return next, cmd, true
+	case "enter":
+		next, cmd := m.showRemediationDiff()
+		return next, cmd, true
+	case writeRemediationKey:
+		next, cmd := m.prepareRemediationWrite()
+		return next, cmd, true
+	case "c", "h", "m", "l", "/", ".", keymap.Exclude, openPipelineKey:
 		return m, m.footer.Warn(reasonFindingsOnly), true
 	case "up", "down", "pgup", "pgdown", "home", "end":
 		return m, m.remediation.table.Update(msg), true
