@@ -139,7 +139,7 @@ reset that carries away that solid background for the rest of the row: the
 highlight would stop halfway through. That row answers "what state is this
 in," and no column color is worth losing it.
 
-**The plain "normal" selection is the exception (§3.72, experimental).**
+**The plain "normal" selection is the exception (§3.72).**
 `Style` *is* consulted there — `cellStyle` composites it with
 `ColorTableLineSelected` and bold **on every cell itself**, rather than
 dropping it for one outer wrap. That sidesteps the defect above instead of

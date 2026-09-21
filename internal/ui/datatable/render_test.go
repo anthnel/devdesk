@@ -124,7 +124,7 @@ func TestANarrowColumnTruncatesTheTextAndNotTheEscape(t *testing.T) {
 
 // The plain "normal" selection (§3.72) is the opposite of the state-coloured
 // case below: it keeps each column's own colour rather than dropping it,
-// which is the whole point of the experiment — see cellStyle's doc comment
+// which is the whole point of this selection — see cellStyle's doc comment
 // for why that is safe here and not in the state-coloured case.
 func TestTheDefaultSelectionKeepsTheColumnColours(t *testing.T) {
 	withTrueColor(t)

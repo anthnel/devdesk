@@ -24,8 +24,6 @@
     "tab_inactive_fg": "#565f89",
     "tab_inactive_bg": "#15161e",
     "table_header_fg": "#7aa2f7",
-    "table_selected_fg": "#1a1b26",
-    "table_selected_bg": "#7aa2f7",
     "table_line_selected": "#15161e",
     "cmd_line_fg": "#7dcfff",
     "cmd_line_bg": "#15161e",
