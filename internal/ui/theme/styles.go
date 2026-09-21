@@ -248,7 +248,7 @@ func StatusStyle(status string) lipgloss.Style {
 
 // DefaultTableStyles returns the default styles for all tables in the application
 //
-// **Experimental** (§3.72 in the backlog): the "normal" selection no longer
+// §3.72 in the backlog: the "normal" selection no longer
 // paints one flat background over the whole row. It takes
 // ColorTableLineSelected — a dedicated key, tunable without touching the
 // severity palette — and leaves the foreground unset, so `datatable` fills it

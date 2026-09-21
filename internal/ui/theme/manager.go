@@ -45,9 +45,7 @@ type Theme struct {
 	TabInactiveFg string `json:"tab_inactive_fg,omitempty"`
 	TabInactiveBg string `json:"tab_inactive_bg,omitempty"`
 
-	TableHeaderFg   string `json:"table_header_fg,omitempty"`
-	TableSelectedFg string `json:"table_selected_fg,omitempty"`
-	TableSelectedBg string `json:"table_selected_bg,omitempty"`
+	TableHeaderFg string `json:"table_header_fg,omitempty"`
 	// TableLineSelected is the background a datatable's plain "normal"
 	// selected row paints per cell (§3.72) — see ColorTableLineSelected.
 	TableLineSelected string `json:"table_line_selected,omitempty"`
@@ -109,8 +107,6 @@ func DefaultTheme() *Theme {
 		TabInactiveFg:    "#585b70",
 		TabInactiveBg:    "#313244",
 		TableHeaderFg:    "#b4befe",
-		TableSelectedFg:  "#1e1e2e",
-		TableSelectedBg:  "#b4befe",
 		// Same value the "normal" selection background used to get by
 		// aliasing SeverityLow directly, before SeverityLow itself moved to
 		// ColorDim's tone below — kept here so the selection's look does not
@@ -250,8 +246,6 @@ func ApplyTheme(t *Theme) {
 	ColorTabInactiveBg = applyColor(t.TabInactiveBg, ColorCmdLineBg)
 
 	ColorTableHeaderFg = applyColor(t.TableHeaderFg, ColorSecondary)
-	ColorTableSelectedFg = applyColor(t.TableSelectedFg, ColorBlack)
-	ColorTableSelectedBg = applyColor(t.TableSelectedBg, ColorSecondary)
 
 	ColorCmdLineFg = applyColor(t.CmdLineFg, ColorHighlight)
 	ColorCmdLineBg = applyColor(t.CmdLineBg, ColorCmdLineBg)

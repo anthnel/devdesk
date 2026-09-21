@@ -41,9 +41,7 @@ var (
 	ColorTabInactiveFg lipgloss.Color
 	ColorTabInactiveBg lipgloss.Color
 
-	ColorTableHeaderFg   lipgloss.Color
-	ColorTableSelectedFg lipgloss.Color
-	ColorTableSelectedBg lipgloss.Color
+	ColorTableHeaderFg lipgloss.Color
 
 	// ColorTableLineSelected is the background a datatable's plain "normal"
 	// selected row paints per cell (§3.72) — DefaultTableStyles' s.Selected,

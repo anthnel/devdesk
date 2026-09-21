@@ -61,7 +61,7 @@
 | Active tab | `ColorBlack` | `ColorSecondary` |
 | Inactive tab | `ColorDim` | `ColorCommandLineBg` |
 
-**Selected row (normal) is experimental** (§3.72 in the backlog). It used to
+**Selected row (normal)** (§3.72 in the backlog; confirmed 2026-09-21). It used to
 be one flat `ColorBlack` on `ColorSecondary`, dropping every column's own
 colour — see Rule 122's "Selected row" section for why that used to be
 mandatory and why it no longer is for this one variant: every cell now

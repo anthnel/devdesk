@@ -13259,7 +13259,7 @@ attendue a bien été vue — pas seulement qu'aucune ligne inattendue ne l'a é
 
 ---
 
-### 3.72 Sélection « normale » — fond low-CVE, gras, couleurs de colonnes conservées — **expérimental**
+### 3.72 Sélection « normale » — fond low-CVE, gras, couleurs de colonnes conservées — **confirmé le 2026-09-21**
 
 Demande directe : essayer un autre thème pour la ligne sélectionnée d'un
 `datatable` — `ColorSeverityLow` en fond, gras, et garder les couleurs de
@@ -13300,13 +13300,13 @@ s'aplatir sur la seule couleur de `Style`.
 
 #### Deux réserves à énoncer plutôt qu'à découvrir
 
-- **`ColorTableSelectedFg`/`ColorTableSelectedBg` n'ont plus aucun lecteur.**
+- **`ColorTableSelectedFg`/`ColorTableSelectedBg` n'avaient plus aucun lecteur.**
   Seul `DefaultTableStyles()` les consommait ; les variantes error/busy/
-  severity utilisent leurs propres couleurs. Elles restent déclarées
-  (`colors.go`, `manager.go`) et lisibles depuis un fichier de thème
-  (`TableSelectedFg`/`Bg`) — un thème qui les définit n'aura simplement plus
-  d'effet sur la sélection normale. Non retiré tant que l'expérience n'est
-  pas confirmée ; à retirer proprement si elle l'est.
+  severity utilisent leurs propres couleurs. **Retirées le 2026-09-21**, une
+  fois l'expérience confirmée : les deux variables, les champs `Theme`
+  (`table_selected_fg`/`bg`) et les douze fichiers de `themes/`. Un fichier de
+  thème utilisateur qui les porte encore reste lisible — le décodeur ignore les
+  clés inconnues — et elles n'ont simplement aucun effet.
 - **`ColorSeverityLow` sert déjà de couleur de rail aux jauges de charge**
   (`theme.GaugeTrackStyle()`, §3.71) — c'est la même teinte, choisie ici pour
   la même raison (la plus calme de la palette). Depuis la correction du
