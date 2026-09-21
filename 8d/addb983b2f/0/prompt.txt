@@ -1,0 +1,9 @@
+analysons la 3.2 mitigation automatique
+
+---
+
+passe en français
+
+---
+
+je veux creuser un peu, est-ce qu'il est nécessaire de parler à un llm pour ces besoins
