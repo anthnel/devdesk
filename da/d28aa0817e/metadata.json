@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "dad28aa0817e",
+  "strategy": "manual-commit",
+  "branch": "feat/mcp-forward-templates-status",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs-site/docs/explanation/mcp.md",
+    "docs/architecture/mcp.md",
+    "internal/mcp/tools.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/da/d28aa0817e/0/metadata.json",
+      "transcript": "/da/d28aa0817e/0/full.jsonl",
+      "compact_transcript": "/da/d28aa0817e/0/transcript.jsonl",
+      "content_hash": "/da/d28aa0817e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 49861,
+    "cache_read_tokens": 4997684,
+    "output_tokens": 20457,
+    "api_call_count": 22
+  }
+}
