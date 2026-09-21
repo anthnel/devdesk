@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "b0e898e45a55",
+  "strategy": "manual-commit",
+  "branch": "chore/retire-table-selected-fg-bg",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/datatable/render_test.go",
+    "internal/ui/theme/colors.go",
+    "internal/ui/theme/manager.go",
+    "internal/ui/theme/styles.go",
+    "themes/catppuccin-frappe.json",
+    "themes/catppuccin-latte.json",
+    "themes/catppuccin-macchiato.json",
+    "themes/catppuccin-mocha.json",
+    "themes/dark-plus.json",
+    "themes/github-dark.json",
+    "themes/github-light.json",
+    "themes/nord.json",
+    "themes/one-dark.json",
+    "themes/solarized-dark.json",
+    "themes/solarized-light.json",
+    "themes/tokyo-night.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b0/e898e45a55/0/metadata.json",
+      "transcript": "/b0/e898e45a55/0/full.jsonl",
+      "compact_transcript": "/b0/e898e45a55/0/transcript.jsonl",
+      "content_hash": "/b0/e898e45a55/0/content_hash.txt",
+      "prompt": "/b0/e898e45a55/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 96900,
+    "cache_read_tokens": 1634702,
+    "output_tokens": 7047,
+    "api_call_count": 16
+  }
+}
