@@ -1,0 +1,17 @@
+est-ce qu'il y a des points à trancher avec d'écrire le plan d'implémentation
+
+---
+
+1 un seul plan; 2 ok avec ta proposition; 3 même ligne uniquement, ça pourrait être un paramètre de configuration global ? ; 4 tous les stages car les cve au build peuvent avoir un impact sur l'image finale ; 5 exception déclarée, ça peut être une combinaison qui fait sens ctrl+ . ok avec tes recommandations
+
+---
+
+Tu as commit
+
+---
+
+Démarre l'implémentation dans ce worktree
+
+---
+
+Oui
