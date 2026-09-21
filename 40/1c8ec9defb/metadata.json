@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "401c8ec9defb",
+  "strategy": "manual-commit",
+  "branch": "fix/sec-command-lands-on-inventory",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/40/1c8ec9defb/0/metadata.json",
+      "transcript": "/40/1c8ec9defb/0/full.jsonl",
+      "compact_transcript": "/40/1c8ec9defb/0/transcript.jsonl",
+      "content_hash": "/40/1c8ec9defb/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 22900,
+    "cache_read_tokens": 8232660,
+    "output_tokens": 12076,
+    "api_call_count": 16
+  }
+}
