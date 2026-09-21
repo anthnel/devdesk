@@ -109,20 +109,29 @@ func (a *App) runCommand() (tea.Model, tea.Cmd) {
 // dropped, because it holds scan results worth keeping; it took a
 // ResetSelectionMsg instead. That whole path went with the form (phase 3).
 //
-// The security view is dropped too, when it is showing a scan another list opened
-// (workspaces or images set its OriginView). That scan is the list's detail, not
-// the security view's own state: naming the view is asking for its inventory, and
-// keeping the detail answered with the same scan again — with esc leading back to
-// the list and nothing leading to the inventory but ctrl+r.
+// The security and network views are dropped too, when they are showing what
+// another view sent them: workspaces and images set the security view's
+// OriginView, and status's H sets netdiag's. What such a view shows is that
+// view's detail, not its own state. Naming the view asks for the view — its
+// inventory, or a blank form — and keeping the detail answered with the same
+// thing again, with esc leading back to where it came from.
 //
-// A security view the user reached inside itself has no origin and is kept, like
-// every other view's state across a switch.
+// A view reached by name has no origin and is kept, like every other view's
+// state across a switch.
 func (a *App) resetSelectionModeFor(view command.ViewType) {
 	switch view {
 	case command.ViewWorkspaces:
 		delete(a.views, view)
 	case command.ViewSecurity:
 		if held, ok := a.views[view].(security.Model); ok && held.OriginView != "" {
+			delete(a.views, view)
+		}
+	case command.ViewNetdiag:
+		// The same rule, with one precaution the security view does not need: a
+		// diagnostic sent from status may still be walking its stages, and
+		// dropping the view would discard that run without a word. A run in
+		// flight keeps its view; esc on it still returns to status.
+		if held, ok := a.views[view].(*netdiag.Model); ok && held.OriginView != "" && !held.Running() {
 			delete(a.views, view)
 		}
 	}

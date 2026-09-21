@@ -7,8 +7,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/netcheck"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/netdiag"
 	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -469,5 +471,86 @@ func TestASecurityViewOpenedFromItsOwnInventoryKeepsItsState(t *testing.T) {
 	view := a.views[command.ViewSecurity].(security.Model)
 	if !strings.Contains(view.GetTitle(), "/repos/devdesk") {
 		t.Errorf("title = %q: the view was rebuilt and lost the scan it was showing", view.GetTitle())
+	}
+}
+
+// ── Network diagnostics, entered by name ─────────────────────────────────────
+
+// enterNetdiagByCommand types :net and runs it, from the dashboard.
+func enterNetdiagByCommand(t *testing.T, a *App) {
+	t.Helper()
+	a.views[command.ViewDashboard] = &fakeView{}
+	a.currentView = command.ViewDashboard
+	a.enterCommandMode()
+	typeCommand(t, a, "net")
+	feedKey(t, a, testutil.Key("enter"))
+}
+
+// openNetdiagFromStatus is what H on a monitor does: netdiag is built prefilled
+// with the monitor's target, and remembers status as the place to return to.
+func openNetdiagFromStatus(t *testing.T, a *App, autoRun bool) *netdiag.Model {
+	t.Helper()
+	a.views[command.ViewStatus] = &fakeView{}
+	a.currentView = command.ViewStatus
+	a.Update(netdiag.OpenRequestMsg{Target: netcheck.Target{Host: "example.com", Port: 443}, AutoRun: autoRun})
+	held, ok := a.views[command.ViewNetdiag].(*netdiag.Model)
+	if !ok || held.OriginView != command.ViewStatus {
+		t.Fatalf("setup: netdiag %T with origin %v", a.views[command.ViewNetdiag], ok)
+	}
+	return held
+}
+
+// Same shape as the security view: a diagnostic another view sent here is that
+// view's detail. Naming netdiag asks for netdiag — a blank form — and re-entering
+// it used to land on the same frozen prefill, whose origin then made esc leave
+// for a monitor the new target had nothing to do with.
+func TestNamingNetdiagAfterAnotherViewSentADiagnosticStartsAFreshForm(t *testing.T) {
+	a := router(t, &fakeView{})
+	held := openNetdiagFromStatus(t, a, false)
+
+	enterNetdiagByCommand(t, a)
+
+	fresh, ok := a.views[command.ViewNetdiag].(*netdiag.Model)
+	if !ok {
+		t.Fatalf("the installed view is %T", a.views[command.ViewNetdiag])
+	}
+	if fresh == held {
+		t.Error("the prefilled view was kept")
+	}
+	if fresh.OriginView != "" {
+		t.Errorf("OriginView = %q, want none: this is not a diagnostic status sent", fresh.OriginView)
+	}
+	if a.currentView != command.ViewNetdiag {
+		t.Errorf("current view = %s, want netdiag", a.currentView)
+	}
+}
+
+// The run is the reason for the precaution: dropping the view would discard a
+// diagnostic that is still walking its stages, with nothing said.
+func TestNamingNetdiagDoesNotDropARunInFlight(t *testing.T) {
+	a := router(t, &fakeView{})
+	held := openNetdiagFromStatus(t, a, true)
+	if !held.Running() {
+		t.Fatal("setup: the diagnostic is not running")
+	}
+
+	enterNetdiagByCommand(t, a)
+
+	if a.views[command.ViewNetdiag].(*netdiag.Model) != held {
+		t.Error("a diagnostic in flight was thrown away")
+	}
+}
+
+// Opened from the command line, netdiag has no origin and keeps its state across
+// a switch, like any other view.
+func TestNetdiagOpenedByNameKeepsItsState(t *testing.T) {
+	a := router(t, &fakeView{})
+	enterNetdiagByCommand(t, a)
+	first := a.views[command.ViewNetdiag].(*netdiag.Model)
+
+	enterNetdiagByCommand(t, a)
+
+	if a.views[command.ViewNetdiag].(*netdiag.Model) != first {
+		t.Error("a view with no origin was rebuilt")
 	}
 }
