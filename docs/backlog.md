@@ -13928,6 +13928,175 @@ ne se recopie pas.
 
 ---
 
+### 3.78 Remédier une misconfiguration — un catalogue pour les cas courants, le MCP pour le reste — **à faire**
+
+§3.2 a construit une remédiation pour **une** classe de findings : les CVE de
+paquets système, corrigées en déplaçant l'image de base. La question est de
+savoir ce qu'il faut pour en couvrir une deuxième, et les misconfigurations
+sont la candidate évidente — c'est l'onglet qui, aujourd'hui, ne propose rien
+d'autre que de lire.
+
+**Les données sont déjà là, et elles sont meilleures que pour les CVE.** Trivy
+rend pour chaque misconfiguration (`internal/scan/trivy.go:63`) :
+
+| Champ | Ce qu'il donne |
+|---|---|
+| `CauseMetadata.StartLine` | **l'emplacement exact**, déjà parsé dans `Finding.Line` |
+| `CauseMetadata.EndLine` | la fin du bloc fautif — **rendue par Trivy, jetée au parsing** (voir l'étage 2) |
+| `Resolution` | la correction, **en prose** |
+| `AVDID` / `ID` | l'identité stable de la règle |
+| `PrimaryURL` | l'avis |
+
+La `Resolution` est déjà affichée, en lecture seule, dans le panneau de détail
+(`internal/ui/security/details.go:136`).
+
+**La machinerie d'écriture est déjà générique.** Trois pièces font tout le
+travail du `ctrl+o` actuel et **aucune ne connaît les Dockerfiles**, malgré le
+paquet où elles vivent :
+
+| Pièce | Ce qu'elle fait |
+|---|---|
+| `dockerfile.Rewrite` | applique des `Edit{Span, Old, New}` sur des octets ; refuse un span dont le contenu a bougé ; préserve CRLF, commentaires et absence de newline finale |
+| `dockerfile.Diff` | le diff montré avant la confirmation |
+| `dockerfile.WriteIfUnchanged` | fichier temporaire + rename ; refuse si le fichier a changé depuis la lecture |
+
+Les déplacer dans un paquet neutre (`internal/patch`) est un renommage, pas une
+réécriture — c'est la première étape, et elle ne coûte rien.
+
+#### Ce qui manque n'est pas l'écriture, c'est le calcul du remplacement
+
+`Resolution` est une phrase anglaise — « Add HEALTHCHECK instruction », « Set
+the user to a non-root user ». Ce n'est pas un `New` qu'on peut passer à
+`Rewrite`. Pour l'image de base le problème était **fermé** (une référence, un
+jeu de tags, une politique) ; ici il ne l'est pas, et c'est là que se joue tout
+le dimensionnement.
+
+#### Faut-il un LLM ? Non — et c'est vérifié, pas supposé
+
+L'état de l'art des correctifs IaC déterministes, relevé le 2026-09-21 :
+
+| Outil | Corrige ? | Ce que ça vaut ici |
+|---|---|---|
+| **Semgrep** | **oui** — clé `fix:` dans la règle, `--autofix`, `--dryrun` pour ne pas écrire | Le seul qui rende **un span et son remplacement** : la sortie JSON porte `start.offset` / `end.offset` et `extra.fix`, ce qui se verse **tel quel** dans `Edit{Span, Old, New}`. Couvre Dockerfile, Terraform, YAML |
+| **Kyverno** (`kyverno apply`, règles `mutate`) | oui, hors cluster | Rend la **ressource réécrite entière**, pas un patch : commentaires et mise en forme sont perdus, ce que `Rewrite` garantit justement de ne pas faire. Et manifestes Kubernetes uniquement |
+| **KICS** (Checkmarx) | oui — mais *AI-guided remediation* | C'est exactement la voie LLM, et hébergée |
+| **Checkov** | non en CLI open source | Les correctifs sont dans la plateforme |
+| **kube-linter**, **hadolint**, **tflint** | non | Diagnostic seul |
+
+Conclusion : **un LLM n'est nécessaire que pour le cas ouvert** — transformer
+une `Resolution` arbitraire en patch. Pour un catalogue borné, le déterministe
+suffit et existe.
+
+Ce qui ne veut pas dire que le cas ouvert est interdit, mais qu'il se place
+ailleurs : la règle du projet n'est pas « pas de LLM », elle est « mesuré,
+jamais inféré ». Un patch proposé par un LLM **et jugé par un re-scan** la
+respecte ; un patch proposé et pas re-mesuré ne la respecte pas, quelle que
+soit son origine. C'est ce que §3.2 a fait en re-scannant les candidats plutôt
+qu'en pariant sur eux, et c'est exactement ce que l'étage 2 permet — le LLM y
+est celui de l'agent appelant, pas un que DevDesk embarquerait.
+
+**Le piège de Semgrep, et il est structurel** : les règles Trivy (AVD) et les
+règles Semgrep sont **deux catalogues différents**, et la correspondance entre
+eux n'existe pas. Brancher Semgrep, ce n'est donc pas « corriger ce que Trivy a
+trouvé », c'est **ajouter un quatrième outil** — avec son `tool_source.go`, son
+mode conteneur, son cache, sa catégorie — dont les findings ne coïncideront pas
+avec ceux de l'onglet Misconfigurations. Deux comptes qui se contredisent à
+l'écran coûtent plus que ce que l'autofix rapporte.
+
+#### Deux étages, et ils ne se concurrencent pas
+
+La décision est prise : **le TUI corrige les cas courants avec un catalogue
+écrit ici, et le serveur MCP donne à l'agent appelant de quoi traiter le
+reste.** Les deux ne visent pas le même utilisateur et ne partagent aucun
+mécanisme au-delà des findings.
+
+**Étage 1 — le catalogue maison, pour l'utilisateur sans agent.** Indexé par
+AVD ID : le span vient de `CauseMetadata`, le texte de remplacement est écrit
+une fois par règle, pour les règles Dockerfile qui reviennent le plus —
+utilisateur root, base en `:latest`, absence de `HEALTHCHECK`, `apt-get
+upgrade`. Pas de nouvel outil, pas de correspondance à maintenir, et **la
+vérification a la forme de §3.2** : on re-scanne le fichier patché et on
+regarde si l'AVD ID a disparu — bien moins cher qu'un scan d'image, puisque
+c'est un scan de fichier. Il vit dans `internal/remediation`, qui est pur et
+sans I/O, avec un test par règle sur un fichier d'exemple.
+
+Ce catalogue est **délibérément fini**. Il ne cherche pas à couvrir Trivy : il
+couvre ce qui se répète. Une règle qui n'y est pas n'est pas un manque à
+combler — c'est le cas de l'étage 2.
+
+**Étage 2 — le MCP rend tout, l'agent corrige.** `scan_result`
+(`internal/mcp/scan_tools.go:135`) projette déjà `ID` (l'AVD ID), `Category`,
+`File`, `Line`, `Resolution`, `Severity` et `References`, et `scan_inventory`
+donne le chemin absolu de la racine : l'agent sait donc déjà ouvrir le fichier.
+La boucle de vérification est branchée elle aussi —
+`workspace_scan_start` → `jobs_get` → `scan_result` — donc l'agent peut
+corriger, relancer, et constater la disparition de l'AVD ID. C'est le même
+« mesuré, jamais inféré », sauf que la mesure reste chez DevDesk et que le
+patch est chez l'appelant.
+
+Ce qui manque est petit, et c'est le vrai travail de cet étage. Trois champs
+sont perdus au parsing (`internal/scan/trivy.go:217-232`) :
+
+| Manquant | Pourquoi il compte |
+|---|---|
+| `CauseMetadata.EndLine` | `Finding.Line` ne garde que `StartLine`. L'agent voit où le bloc fautif commence, pas où il finit, et doit deviner l'étendue à remplacer |
+| `misconf.Message` | L'instance concrète (« Specify at least 1 USER command »), souvent plus actionnable que `Description`, qui est le texte générique de la règle |
+| `misconf.Status` | Dit si la règle est échouée ou seulement signalée |
+
+Plus une distinction que le protocole ne nomme pas : **`scan_result` ne dit pas
+si la cible est une image ou un dépôt.** Une misconfiguration trouvée dans une
+image pointe un fichier du rootfs, que l'agent ne peut pas éditer ; dans un
+scan de dépôt elle pointe un fichier sur disque. Sans ce champ, un agent
+consciencieux ira écrire à un chemin qui n'existe pas. `scan_inventory` connaît
+la différence et ne l'expose pas.
+
+**Le serveur continue de ne rien écrire.** `scan_tools.go:66` — « This server
+writes nothing at all » — reste vrai et doit le rester : DevDesk mesure,
+l'agent écrit, DevDesk re-mesure. Un outil MCP qui appliquerait le patch
+déplacerait la responsabilité du fichier dans un process que l'utilisateur ne
+regarde pas.
+
+**Ce qui reste hors des deux étages.** YAML, Kubernetes et Terraform sont la
+classe la plus nombreuse et celle où `Rewrite` par span ne suffit plus : la
+correction y est souvent *ajouter une clé dans un mapping*, ce qui demande un
+parseur préservant indentation et commentaires. L'étage 1 ne les vise pas ;
+l'étage 2 les couvre sans rien construire, puisque l'agent édite du texte.
+
+#### La différence qu'il ne faut pas rater
+
+La remédiation d'image de base est **une mesure** : on re-scanne le candidat et
+on sait combien de CVE il enlève. Une remédiation de misconfiguration est **une
+assertion binaire** : la règle passe ou ne passe pas. Les deux tiennent dans le
+même tableau, mais les colonnes « avant / après » de l'onglet actuel n'y
+auraient aucun sens — il faut une colonne d'état, pas un delta.
+
+**L'onglet CI (plumber) a exactement la même forme** — un constat, pas un
+patch — et la même question se posera pour lui.
+
+#### Ce qu'il faut trancher avant de construire
+
+| # | Question | Pente naturelle |
+|---|---|---|
+| 1 | Par quoi commencer | Par l'**étage 2** : trois champs et un champ de nature de cible, aucune décision d'interface, et ça débloque tout de suite le cas général. L'étage 1 vient après, sur des règles choisies en ayant vu ce qui revient |
+| 2 | Un onglet de plus, ou `ctrl+o` sur l'onglet Misconfigurations ? | Sur l'onglet existant : la sélection y désigne déjà la règle à corriger, et un septième onglet pour une poignée de règles serait cher. `ctrl+o` est déjà déclaré en exception (`keymap.DeclaredExceptions()`) et son sens — écrire le fichier — s'étend sans se déformer |
+| 3 | Grisage | Rule 130 : `ctrl+o` grisé quand la règle sélectionnée n'est pas au catalogue, avec la raison — `reasonNoFixForRule` — lue par l'en-tête et par le handler. C'est aussi ce qui rend la frontière des deux étages **visible** plutôt que devinée |
+| 4 | Le re-scan de vérification | Optionnel, et **après** l'écriture, pas avant : c'est ce qui distingue « écrit » de « corrigé ». Un travail au sens de `internal/jobs` (§3.58) |
+| 5 | Plusieurs règles sur un même fichier | `Rewrite` sait déjà refuser deux éditions qui se recouvrent (`ErrConflict`). Une correction par validation au départ ; le lot est une seconde fonctionnalité |
+| 6 | Comment nommer la nature de la cible | Un champ sur `scan_result`, pas une heuristique sur la forme du `target` — un chemin qui ressemble à une référence d'image existe |
+| 7 | Semgrep plus tard | Si le catalogue de l'étage 1 devient trop gros à maintenir, la sortie `--dryrun --json` de Semgrep se verse dans `Edit` sans adaptateur. Le coût n'est pas là : il est dans le quatrième outil et dans les deux catalogues qui ne coïncident pas (ci-dessus). Et l'étage 2 rend ce besoin peu probable |
+
+Le plan d'implémentation est
+[`.claude/plans/2026-09-21-misconfig-remediation.md`](../.claude/plans/2026-09-21-misconfig-remediation.md) :
+l'étage 2 y est la **phase A**, l'étage 1 la phase B.
+
+Sources vérifiées le 2026-09-21 :
+[Semgrep — rule-defined fix](https://semgrep.dev/docs/writing-rules/rule-defined-fix),
+[Semgrep — JSON and SARIF fields](https://docs.semgrep.dev/semgrep-appsec-platform/json-and-sarif),
+[Kyverno — kyverno apply](https://kyverno.io/docs/kyverno-cli/reference/kyverno_apply/),
+[Checkmarx — AI-guided remediation for KICS](https://checkmarx.com/blog/introducing-ai-guided-remediation-for-iac-security-kics/).
+
+---
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:
