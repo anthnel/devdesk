@@ -304,8 +304,138 @@ that *is* scoped sits in the same table.
 | State | Info |
 |---|---|
 | Inventory | `Context`, `Targets` |
-| Results / Details | `Context`, `Findings` |
+| Results / Details | `Context`, `Findings`, `Fixable` |
 | Form / Scanning | `Context` |
+
+### What can be fixed — `Class`, `Ecosystem`, `internal/remediation` (§3.2)
+
+A vulnerability carries Trivy's `Result.Class` (`os-pkgs` or `lang-pkgs`) and
+`Result.Type` (`alpine`, `debian`, `gomod`, `npm`, …) as `Finding.Class` and
+`Finding.Ecosystem`. The class is what decides the fix: a base image bump
+clears an `os-pkgs` CVE and does nothing for a `lang-pkgs` one, whose fix is
+the dependency itself. Both are `omitempty`, so a result cached before they
+were recorded reads as **unclassified** — counted apart, never as either class,
+and gone at the next scan. Nothing migrates the cache.
+
+`scan.FixCommand(ecosystem, pkg, version)` is a table, and answers `false`
+rather than inventing a command for an ecosystem outside it; the parser then
+keeps the older plain sentence (`Update pkg to X`). Trivy lists one fixed
+version per maintained branch (`"5.7.2, 6.3.1, 7.5.2"`), so the command uses
+`scan.PickFixed`: the lowest one on the installed major line, the smallest
+change that clears the CVE. Versions that cannot be ordered — a Debian epoch,
+a name — give no target rather than a guess; `scan.CompareVersions` is a lenient
+numeric ordering, not semver.
+
+`internal/remediation` is pure — no I/O — and has two entry points:
+`Summarize` (the header's `Fixable`: a count split into base image,
+dependencies and unclassified) and `Group` (one `Fix` per ecosystem, package
+and installed version, carrying the highest version any of its CVEs needs, so
+one bump clears them all). Whether a proposed bump *actually* clears the CVEs
+is not decided there: that is measured by re-scanning, and it is what the next
+phases of §3.2 add.
+
+### The Remediation tab — base images, and the tags they could move to (§3.2, phase B)
+
+The sixth tab of the results (`TabRemediation`, `internal/ui/security/remediation.go`)
+is not a category of finding: it has no entry in `tabCategory` and its body is a
+table of its own, so the findings table, its filter bar and its keys sit behind
+it, unused. The keys that filter or open findings are refused on it with a
+reason (`reasonFindingsOnly`) rather than reaching that table — a search opened
+there would take the keyboard for a table nobody can see. `esc`, `tab` and
+`ctrl+r` are not the tab's and work as everywhere. The set of shortcuts is the
+same on every tab; `S` (Scan) is greyed off this one and the findings keys are
+greyed on it (Rule 130).
+
+**Opening the tab reads, `S` measures.** Opening it — once per result — reads
+the Dockerfiles under the repository (`dockerfile.Find`, by name, bounded in
+depth and count) and lists each base image's tags; that is cheap. Nothing is
+scanned until `S`, which scans every image with no result, or one older than 24
+hours, once each however many stages name it. A result stands for a day because
+the vulnerability database moves daily and an older count is about another one.
+
+Three packages, each with one job:
+
+- `internal/dockerfile` — `Parse` reads the `FROM`s with the **byte range that
+  spells each image**, so a later edit replaces those bytes and nothing else. An
+  image that comes from a single `ARG` default is located at that default; one
+  assembled from several pieces (`node:${V}-alpine`) resolves but is not
+  editable. `FROM scratch` and a reference to an earlier stage are not images.
+  Every stage is read: a CVE in a build stage can reach the image that ships.
+- `internal/remediation` — `ParseRef` and `Candidates`, the tag policy: a
+  candidate keeps the current tag's **variant** (alpine stays alpine) and its
+  **precision** (`3.18` is offered `3.21`, not `3.21.1`, which would pin what it
+  left floating), is strictly newer, and — under `scan.base_image_track`
+  `same-line`, the default — stays on the same major. `next-major` also takes the
+  smallest higher major that exists. When there is no candidate it says why. `Discover`
+  walks it, asking the registry once per repository.
+- `internal/oci` — `ListRegistryTags`, the one tag lister: Bearer flow, and it
+  **follows `Link: rel="next"`** across pages. Docker Hub answers a whole list in
+  one response when no page size is asked (9 125 tags for `library/node`), but a
+  registry that caps a response would otherwise hide the newest tags.
+
+A candidate is scanned with `Scanner.ScanRemoteImage`: `trivy image --image-src
+remote`, the vulnerability stage only, never pulled into the engine, no engine
+socket mounted in container mode. Its result goes to `remediation-scans.json`,
+**a cache of its own**: the inventory drops an image the engine no longer holds
+(`cache.ImageGone`), which a remote-scanned candidate never is, so its entry in
+the shared image cache would be invisible to the inventory yet counted by
+whatever reads the file without that filter. The file is written atomically
+under a lock, since scans of several candidates finish together.
+
+The scans are not in the jobs registry (`:jobs`): the tab keeps its own set of
+images in flight and its own spinner, like the inventory's load. Trivy runs one
+process at a time (`scan.trivySem`), so the scans queue there rather than in
+parallel, and `max_concurrent_scans` does not apply to them.
+
+The comparison is in **CRITICAL + HIGH**, against the image as written; only a
+candidate scanned on the same day as the current image has a delta, because a
+count from another database says nothing about a bump. A candidate is evidence,
+not a verdict: the scan says the CVEs are gone, not that the application still
+runs on the new base.
+
+### Writing the chosen bases — `space`, `enter`, `ctrl+o` (§3.2, phase C)
+
+DevDesk proposes; it does not decide. `space` chooses the candidate under the
+cursor for its stage — **only one that has been scanned**, since a bump is
+proposed with its evidence — at most one per stage, and one that cannot be
+edited in place (a reference assembled from several build args) is refused with
+the parser's reason. Two stages that read one `ARG` are one place in the file:
+choosing different bases for both is refused when the second is chosen, and
+`dockerfile.Rewrite` refuses it again as `ErrConflict`. `enter` opens the diff in
+the viewer. `ctrl+o` writes.
+
+`ctrl+o` never acts on the key alone. It computes the write first — every file
+as it would become, and `git.StateOf` for each — and only then opens a
+confirmation, whose default answer is No. The confirmation names each file, line
+and change, and says what git will and will not be able to undo, because
+"nothing is lost" is true of the ordinary case only:
+
+| State of the file | What the confirmation says |
+|---|---|
+| tracked, clean | review with `git diff`, undo with `git checkout` |
+| tracked, uncommitted changes | `git checkout` would discard them along with this edit |
+| untracked or ignored | not tracked by git — the write cannot be undone with git |
+| outside a repository | same |
+| git could not be read | the write may not be undoable |
+
+None of these blocks the write: the user decides, knowing. DevDesk makes no
+commit, branch or push.
+
+The write is `dockerfile.Rewrite` — the bytes at the ranges `dockerfile.Parse`
+located and nothing else, so comments, CRLF and a missing final newline
+survive — through `WriteIfUnchanged`: the file must still hold **exactly** what
+the diff was computed from (whole-content comparison, stronger than a hash), or
+the write is refused with a footer error and nothing of that file is touched. It
+goes through a temporary file and a rename in the same directory, keeps the
+permission bits and follows a symbolic link to its target. Several files are
+written one after the other, stopping at the first failure; each is whole or
+absent, and the message says how many were written before it. A reference pinned
+by digest loses the pin, which the confirmation says. A stage that reads its
+image from an `ARG` has that ARG's default changed — a `--build-arg` on the
+command line can still override it, which a file cannot show.
+
+The write is **not exposed over MCP**: it is a gesture of the user in the TUI,
+and an agent has its own tools for editing a file.
 
 ## The security inventory
 

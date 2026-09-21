@@ -271,3 +271,58 @@ func TestUnparseableGitleaksOutputIsReported(t *testing.T) {
 		t.Error("non-JSON output parsed without error")
 	}
 }
+
+// The class and ecosystem of a package decide what fixes it, so the parser
+// records them on vulnerabilities — and only there.
+func TestTrivyVulnerabilitiesCarryTheirClassAndEcosystem(t *testing.T) {
+	findings, err := parseTrivyOutput([]byte(`{
+	  "Results": [
+	    {"Target":"alpine 3.18","Class":"os-pkgs","Type":"alpine","Vulnerabilities":[
+	      {"VulnerabilityID":"CVE-1","Severity":"HIGH","PkgName":"openssl","InstalledVersion":"3.1.0-r0","FixedVersion":"3.1.4-r0"}]},
+	    {"Target":"app/go.mod","Class":"lang-pkgs","Type":"gomod","Vulnerabilities":[
+	      {"VulnerabilityID":"CVE-2","Severity":"HIGH","PkgName":"golang.org/x/net","InstalledVersion":"0.10.0","FixedVersion":"0.17.0"}]},
+	    {"Target":"Dockerfile","Class":"config","Type":"dockerfile","Misconfigurations":[
+	      {"AVDID":"DS002","Severity":"HIGH"}]}
+	  ]
+	}`))
+	if err != nil {
+		t.Fatalf("parsing failed: %v", err)
+	}
+	if len(findings) != 3 {
+		t.Fatalf("got %d findings, want 3", len(findings))
+	}
+	if f := findings[0]; f.Class != ClassOSPackages || f.Ecosystem != "alpine" {
+		t.Errorf("os finding: class %q ecosystem %q", f.Class, f.Ecosystem)
+	}
+	if f := findings[0]; f.FixCommand != "apk upgrade openssl" {
+		t.Errorf("os finding FixCommand = %q", f.FixCommand)
+	}
+	if f := findings[1]; f.Class != ClassLangPackages || f.Ecosystem != "gomod" {
+		t.Errorf("lang finding: class %q ecosystem %q", f.Class, f.Ecosystem)
+	}
+	if f := findings[1]; f.FixCommand != "go get golang.org/x/net@v0.17.0" {
+		t.Errorf("lang finding FixCommand = %q", f.FixCommand)
+	}
+	if f := findings[2]; f.Class != "" || f.Ecosystem != "" {
+		t.Errorf("a misconfiguration must not carry a package class, got %q / %q", f.Class, f.Ecosystem)
+	}
+}
+
+// Trivy lists one fixed version per maintained branch. The command moves to the
+// one on the installed major line — the smallest change that clears the CVE.
+func TestTheFixCommandFollowsTheInstalledMajorLine(t *testing.T) {
+	findings, err := parseTrivyOutput([]byte(`{
+	  "Results": [{"Target":"package-lock.json","Class":"lang-pkgs","Type":"npm","Vulnerabilities":[
+	    {"VulnerabilityID":"CVE-1","Severity":"HIGH","PkgName":"semver","InstalledVersion":"6.3.0","FixedVersion":"5.7.2, 6.3.1, 7.5.2"}]}]
+	}`))
+	if err != nil {
+		t.Fatalf("parsing failed: %v", err)
+	}
+	if got, want := findings[0].FixCommand, "npm install semver@6.3.1"; got != want {
+		t.Errorf("FixCommand = %q, want %q", got, want)
+	}
+	// The finding still carries Trivy's whole list.
+	if got := findings[0].FixedIn; got != "5.7.2, 6.3.1, 7.5.2" {
+		t.Errorf("FixedIn = %q, want Trivy's list untouched", got)
+	}
+}

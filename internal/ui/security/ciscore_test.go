@@ -105,11 +105,12 @@ func TestAPlumberFindingLandsInTheCITab(t *testing.T) {
 }
 
 // tab reaches the fifth one: the numeric jumps are gone, so cycling is the only
-// way in.
+// way in. (It stopped being the last tab when Remediation was added after it,
+// so the count is the CI tab's own position, not tabCount.)
 func TestTabReachesTheCITab(t *testing.T) {
 	m := ciModel(t, ciResult(func(r *scan.Result) { r.CIScanned = true }))
 
-	for range tabCount - 1 {
+	for range TabCIScore {
 		m = feed(t, m, testutil.Key("tab"))
 	}
 	if m.activeTab != TabCIScore {

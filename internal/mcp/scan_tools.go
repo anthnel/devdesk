@@ -145,6 +145,8 @@ type finding struct {
 	PkgName     string   `json:"pkg_name,omitempty"`
 	Version     string   `json:"version,omitempty"`
 	FixedIn     string   `json:"fixed_in,omitempty"`
+	Class       string   `json:"class,omitempty" jsonschema:"os-pkgs (fixed by the image's packages or a newer base image) or lang-pkgs (fixed only by bumping the dependency); empty on a result scanned before it was recorded"`
+	Ecosystem   string   `json:"ecosystem,omitempty" jsonschema:"the package ecosystem, such as alpine, debian, gomod or npm"`
 	Resolution  string   `json:"resolution,omitempty"`
 	References  []string `json:"references,omitempty"`
 }
@@ -300,6 +302,8 @@ func expose(f scan.Finding) finding {
 		PkgName:     f.PkgName,
 		Version:     f.Version,
 		FixedIn:     f.FixedIn,
+		Class:       f.Class,
+		Ecosystem:   f.Ecosystem,
 		Resolution:  f.Resolution,
 		References:  f.References,
 	}

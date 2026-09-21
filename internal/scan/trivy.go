@@ -121,6 +121,23 @@ func runTrivy(ctx context.Context, tc toolCmd, progressFn func(string)) ([]Findi
 	return parseTrivyOutput(stdout)
 }
 
+// trivyFixCommand is the command that clears a vulnerability, or, for an
+// ecosystem with no known command, the plain instruction the finding always
+// carried. Empty when Trivy knows of no fixed version.
+func trivyFixCommand(ecosystem string, vuln TrivyVulnerability) string {
+	target := PickFixed(vuln.InstalledVersion, vuln.FixedVersion)
+	if target == "" {
+		if vuln.FixedVersion == "" {
+			return ""
+		}
+		target = vuln.FixedVersion
+	}
+	if cmd, ok := FixCommand(ecosystem, vuln.PkgName, target); ok {
+		return cmd
+	}
+	return fmt.Sprintf("Update %s to %s", vuln.PkgName, target)
+}
+
 // parseTrivyOutput parses Trivy JSON output into findings
 func parseTrivyOutput(data []byte) ([]Finding, error) {
 	var report TrivyReport
@@ -145,10 +162,7 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 			}
 
 			// Build a fix command suggestion when a fixed version is known
-			fixCmd := ""
-			if vuln.FixedVersion != "" {
-				fixCmd = fmt.Sprintf("Update %s to %s", vuln.PkgName, vuln.FixedVersion)
-			}
+			fixCmd := trivyFixCommand(result.Type, vuln)
 
 			findings = append(findings, Finding{
 				ID:          vuln.VulnerabilityID,
@@ -160,6 +174,8 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 				PkgName:     vuln.PkgName,
 				Version:     vuln.InstalledVersion,
 				FixedIn:     vuln.FixedVersion,
+				Class:       result.Class,
+				Ecosystem:   result.Type,
 				References:  refs,
 				FixCommand:  fixCmd,
 			})

@@ -351,6 +351,10 @@ type ScanConfig struct {
 	GitleaksHistory bool   `yaml:"gitleaks_history"`
 	GitleaksConfig  string `yaml:"gitleaks_config"`
 
+	// BaseImageTrack is how far remediation may move a Dockerfile's base image:
+	// "same-line" (the default) or "next-major". See base_image_track.go.
+	BaseImageTrack string `yaml:"base_image_track"`
+
 	// EnableCIScore runs plumber over the repository's CI configuration.
 	//
 	// The "all disabled means never configured" migration reads it and never
@@ -460,6 +464,12 @@ func applyDefaults(cfg *Config) error {
 	// cycles a closed set and a value outside it has nowhere to start from.
 	if cfg.App.ContainerEngine == "" {
 		cfg.App.ContainerEngine = EngineAuto
+	}
+	// Written rather than left empty for the reason above: the configuration
+	// view cycles a closed set. A value outside it is left alone — remediation
+	// reads it as same-line — so a typo in the file is not silently rewritten.
+	if cfg.Scan.BaseImageTrack == "" {
+		cfg.Scan.BaseImageTrack = BaseImageTrackSameLine
 	}
 	if cfg.Status.RefreshInterval == 0 {
 		cfg.Status.RefreshInterval = 10
@@ -600,6 +610,7 @@ func Default() *Config {
 			MaxConcurrentScans: 3,
 			EnableVuln:         true,
 			EnableSecret:       true,
+			BaseImageTrack:     BaseImageTrackSameLine,
 		},
 		MCP: MCPConfig{
 			Listen: DefaultMCPListen,

@@ -80,6 +80,22 @@ func serverAddr(server string) (string, error) {
 // trivyArgs builds a vulnerability or license scan.
 func trivyArgs(target string, targetType TargetType, licenseMode bool, tool ToolSpec,
 	server string, ignoreUnfixed, ignoreEOL bool) (toolCmd, error) {
+	return buildTrivyArgs(target, targetType, licenseMode, tool, server, ignoreUnfixed, ignoreEOL, false)
+}
+
+// trivyRemoteImageArgs builds the vulnerability scan of an image read straight
+// from its registry (`--image-src remote`) instead of from the local engine.
+//
+// That is what lets a candidate base image be scanned without pulling it: no
+// image lands in the engine's storage, and the container-mode invocation needs
+// no engine socket. Measured on Trivy 0.74.0, in container mode with no socket
+// mounted (§3.2).
+func trivyRemoteImageArgs(image string, tool ToolSpec, server string, ignoreUnfixed, ignoreEOL bool) (toolCmd, error) {
+	return buildTrivyArgs(image, TargetImage, false, tool, server, ignoreUnfixed, ignoreEOL, true)
+}
+
+func buildTrivyArgs(target string, targetType TargetType, licenseMode bool, tool ToolSpec,
+	server string, ignoreUnfixed, ignoreEOL, remoteImage bool) (toolCmd, error) {
 	server, err := serverAddr(server)
 	if err != nil {
 		return toolCmd{}, err
@@ -101,6 +117,9 @@ func trivyArgs(target string, targetType TargetType, licenseMode bool, tool Tool
 		// image scan and throwing its output away. Secrets are the secret
 		// stage's job, and asking for them twice would report each one twice.
 		args = []string{"image", "--format", "json", "--scanners", "vuln"}
+		if remoteImage {
+			args = append(args, "--image-src", "remote")
+		}
 	default:
 		return toolCmd{}, fmt.Errorf("unsupported target type: %s", targetType)
 	}
@@ -115,7 +134,7 @@ func trivyArgs(target string, targetType TargetType, licenseMode bool, tool Tool
 		args = append(args, "--ignore-status", "end_of_life")
 	}
 
-	return wrapTrivy(args, target, targetType, tool, server), nil
+	return wrapTrivy(args, target, targetType, tool, server, remoteImage), nil
 }
 
 // trivySecretArgs builds a secret scan. Like misconfiguration, it reads content
@@ -144,7 +163,7 @@ func trivySecretArgs(target string, targetType TargetType, tool ToolSpec, server
 
 	// No --ignore-status: end_of_life describes a package's support window and
 	// says nothing about a secret sitting in a file.
-	return wrapTrivy(args, target, targetType, tool, server), nil
+	return wrapTrivy(args, target, targetType, tool, server, false), nil
 }
 
 // trivyMisconfigArgs builds a misconfiguration scan. It reads configuration
@@ -174,13 +193,16 @@ func trivyMisconfigArgs(target string, targetType TargetType, tool ToolSpec,
 		args = append(args, "--ignore-status", "end_of_life")
 	}
 
-	return wrapTrivy(args, target, targetType, tool, server), nil
+	return wrapTrivy(args, target, targetType, tool, server, false), nil
 }
 
 // wrapTrivy turns tool arguments into the invocation to run: either trivy
 // directly, or docker run with the target mounted and the tool arguments
 // appended after the image.
-func wrapTrivy(args []string, target string, targetType TargetType, tool ToolSpec, server string) toolCmd {
+//
+// noSocket says the scan reads its image from the registry, so the engine
+// socket is not mounted: nothing would use it.
+func wrapTrivy(args []string, target string, targetType TargetType, tool ToolSpec, server string, noSocket bool) toolCmd {
 	if tool.Source != ToolSourceContainer {
 		return toolCmd{Name: trivyBinary(tool), Args: append(args, target)}
 	}
@@ -190,7 +212,7 @@ func wrapTrivy(args []string, target string, targetType TargetType, tool ToolSpe
 		engineArgs = append(engineArgs, "-v", target+":"+containerScanPath+":ro")
 		args = append(args, containerScanPath)
 	} else {
-		if server == "" {
+		if server == "" && !noSocket {
 			if mount, ok := socketMount(tool.HostSocket); ok {
 				engineArgs = append(engineArgs, "-v", mount)
 			}

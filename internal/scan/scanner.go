@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os/exec"
@@ -111,6 +112,14 @@ type Finding struct {
 	Resolution  string        `json:"resolution,omitempty"`  // Recommended fix steps
 	References  []string      `json:"references,omitempty"`  // Links to advisories or documentation
 	FixCommand  string        `json:"fix_command,omitempty"` // Suggested command to run
+	// Class and Ecosystem say what kind of package a vulnerability sits in:
+	// Trivy's Result.Class (os-pkgs or lang-pkgs) and Result.Type (alpine,
+	// debian, gomod, npm...). The class decides the fix — a base image bump
+	// clears an os-pkgs CVE and does nothing for a lang-pkgs one. Both are
+	// empty on results cached before they were recorded, which reads as
+	// "unknown" and is never counted as either class.
+	Class     string `json:"class,omitempty"`
+	Ecosystem string `json:"ecosystem,omitempty"`
 	// Job and ScriptLine are where a CI finding sits inside the pipeline
 	// (§3.42). plumber grades the configuration GitLab derives from the
 	// repository — includes and components resolved server-side — so a finding
@@ -475,6 +484,44 @@ func (s *Scanner) missingToolErrors(targetType TargetType) []string {
 			gitleaksImage(s.deps.GitleaksImage)))
 	}
 	return errs
+}
+
+// ErrTrivyUnavailable is returned by ScanRemoteImage when Trivy cannot be run.
+var ErrTrivyUnavailable = errors.New("trivy is not available")
+
+// ScanRemoteImage scans an image read from its registry, without pulling it
+// into the local engine: the vulnerability stage only, with the options this
+// scanner was built with (server, ignore-unfixed, ignore-EOL).
+//
+// It exists to measure a base image bump. A candidate is not something the user
+// owns, so it must not land in the engine's storage, and only the CVE counts of
+// it matter — secrets and misconfigurations describe the user's own layers, not
+// the base's.
+func (s *Scanner) ScanRemoteImage(ctx context.Context, image string) (*Result, error) {
+	if !s.deps.TrivyAvailable {
+		return nil, ErrTrivyUnavailable
+	}
+	result := &Result{
+		Target:     image,
+		TargetType: TargetImage,
+		StartTime:  time.Now(),
+		Findings:   []Finding{},
+		Errors:     []string{},
+	}
+	tc, err := trivyRemoteImageArgs(image, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Running: %s", tc.String())
+	findings, err := runTrivy(ctx, tc, nil)
+	if err != nil {
+		return nil, err
+	}
+	result.Findings = findings
+	result.EndTime = time.Now()
+	result.Duration = result.EndTime.Sub(result.StartTime)
+	result.CountFindings()
+	return result, nil
 }
 
 // Scan performs a security scan on the target, running all enabled stages in parallel.

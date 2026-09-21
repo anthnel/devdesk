@@ -123,7 +123,7 @@ execution sees a closure that registers under another name, twice, or not at all
 | `templates_list` | the template catalog (`~/.devdesk/templates.yaml`, global) and the age of each cached copy. Disk only. A source URL leaves without its userinfo, and the catalog's rejected entries are counted, not quoted |
 | `monitors_status` | the context's monitors, probed now: status, response time, error, and for an `ssl` monitor the days left, expiry, issuer and cert state. The targets come from configuration, never from a call; `type` narrows the set before anything is probed. Bounded by a 30 s deadline, since the SSL probe takes no context |
 | `scan_inventory` | every target this context has scanned, reconciled against what still exists |
-| `scan_result` | one scan's findings, filtered by severity and category, paginated |
+| `scan_result` | one scan's findings, filtered by severity and category, paginated. A vulnerability carries its `class` (`os-pkgs` / `lang-pkgs`) and `ecosystem`, which say what has to move to fix it |
 | `net_check` | the `internal/netcheck` pipeline: eleven checks, each with a verdict and what to do |
 | `jobs_list` | the work this session has started, and what each run is doing right now |
 | `jobs_get` | one run target by target, with the reason any of them failed |

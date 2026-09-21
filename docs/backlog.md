@@ -3691,12 +3691,257 @@ Le cas « joindre un port non publié sans redémarrer » reste **ouvert** :
   `host:port`. Pas un défaut de bubbles mais une largeur jamais posée ; le test a
   été vérifié contre le code non corrigé.
 
-### 3.2 Interactive security remediation
+### 3.2 Remédiation de sécurité — **SAST local fait, auto-patch : phases A, B et C faites**
 
-- **Auto-patch assistance** — after a Trivy scan, offer to generate a patch or an
-  updated `Dockerfile` that bumps the base image version to clear critical CVEs.
-- **Local SAST** — wire security linters (Gitleaks for secrets, IaC linters)
-  directly into the Workspace view.
+Reporté de `todo.md` en deux puces : « *Auto-patch assistance* » (après un scan
+Trivy, proposer un `Dockerfile` dont l'image de base est montée pour effacer
+les CVE critiques) et « *Local SAST* » (Gitleaks et linters IaC dans la vue
+Workspace).
+
+#### SAST local — fait
+
+Gitleaks et Trivy (secrets, misconfig) tournent déjà sur les workspaces et la
+vue `:sec` fusionne leurs findings (`internal/scan/scanner.go`, étapes licence
+et gitleaks ; §3.50). Plus rien à faire sous ce titre.
+
+#### Auto-patch — ce qui existe
+
+`parseTrivyOutput` (`internal/scan/trivy.go`) garde `FixedIn` et un
+`FixCommand` par CVE, affichés par la vue détails
+(`internal/ui/security/details.go`) et exposés en MCP (`fixed_in`,
+`internal/mcp/scan_tools.go`). `FixCommand` n'est qu'un texte
+(`"Update pkg to X"`), pas une commande exécutable.
+
+#### Ce qui manque, du plus simple au plus dur
+
+1. **OS ou dépendance applicative.** Trivy donne `Result.Class` (`os-pkgs` /
+   `lang-pkgs`), jamais recopié dans `Finding`. C'est lui qui dit si la
+   correction est un bump d'image de base ou un bump de dépendance — un
+   nouveau `FROM` ne change rien à une CVE de `go.mod`. Les résultats déjà
+   en cache n'auront pas le champ : classe inconnue, pas classe OS.
+2. **L'image de base.** Trivy ne connaît pas le `FROM`, et ses `Metadata`
+   (OS, EOSL, ImageConfig) ne sont pas parsées. Une image de la vue OCI n'a
+   aucun lien vers son Dockerfile (au mieux `created_by` dans l'historique,
+   ou le label optionnel `org.opencontainers.image.base.name`). **Un patch
+   fiable n'existe donc que depuis un workspace qui contient le Dockerfile.**
+3. **Le tag cible.** Même variante seulement (`3.20` → `3.21`, un
+   `bookworm-slim` reste `-slim`), multi-stage, `ARG` dans `FROM`, digests
+   épinglés `@sha256`. Lister les tags passe par le registry.
+4. **La preuve.** Un bump proposé est **re-scanné, jamais cru** (déjà posé en
+   §3.15). Chaque candidat coûte un pull et un scan complet : nombre borné,
+   résultats en cache. Seul le tableau avant/après (CRIT/HIGH) justifie une
+   proposition.
+
+#### Découpage
+
+| Phase | Contenu | Coût |
+|---|---|---|
+| **A** | `Class` dans `Finding` ; compte des corrigibles (image de base / dépendances) ; `FixCommand` regroupées par paquet et par écosystème (`go get pkg@v`, `npm i pkg@v`, …) | faible, sans réseau |
+| **B** | Workspace avec Dockerfile : parser les `FROM`, lister les tags candidats, les re-scanner, tableau avant/après | moyen : registry + N scans |
+| **C** | Diff du Dockerfile montré, écriture **à la demande de l'utilisateur et après confirmation** (ci-dessous) | faible une fois B en place |
+
+Côté OCI (image seule), rien au-delà de la phase A : il n'y a pas de fichier
+source à modifier.
+
+#### Phase A — faite
+
+`Finding.Class` et `Finding.Ecosystem` (recopiés de Trivy), `scan.FixCommand`
+(table par écosystème) et `scan.PickFixed` (la version corrigée de la branche
+installée), `internal/remediation` (`Summarize`, `Group`), un champ `Fixable`
+dans l'en-tête des résultats et la classe dans les détails. `class` et
+`ecosystem` sont aussi dans le `finding` du MCP : c'est de quoi un client
+externe raisonne sur ce qui se corrige et comment. Un résultat mis en cache
+avant ce changement n'a pas la classe : il est compté à part
+(`unclassified`), jamais comme image de base, et cela disparaît au scan
+suivant — rien ne migre le cache.
+
+#### Mesuré avant la phase B — 2026-09-21
+
+Trois questions que le plan posait avant de coder B, mesurées dans le sandbox
+Linux (Trivy 0.74.0 via `aquasec/trivy`, Docker Hub réel).
+
+- **`trivy image --image-src remote` marche sans socket Docker et sans l'image
+  en local** : `alpine:3.18` et `node:16-alpine` scannés en conteneur, aucun
+  montage de `docker.sock`, `docker images` vide avant et après, 9 s pour le
+  premier. Le mode binaire prend les mêmes drapeaux. **Non mesuré : le mode
+  `--server`** (pas de serveur Trivy sous la main) — à vérifier avant de
+  promettre le scan distant à ceux qui l'utilisent.
+- **Docker Hub renvoie tous les tags d'un coup quand on ne demande pas `n`** :
+  `library/node` donne 9 125 tags en une réponse, sans en-tête `Link`. Avec
+  `?n=100`, il pagine (`Link: <…?last=0.12.1&n=100>; rel="next"`). Un autre
+  registry (GHCR, GitLab) peut plafonner sans que Hub le fasse : le listeur
+  unique de B1 **suit `Link`** dans tous les cas, et ne suppose pas qu'un
+  `tags/list` sans `n` est complet.
+- **L'inventaire `:sec` n'afficherait pas les candidats, mais le cache d'images
+  partagé reste le mauvais endroit.** `loadInventoryCmd` écarte toute image que
+  `cache.ImageGone` ne retrouve pas en local, or un candidat scanné à distance
+  n'y est jamais. Il n'apparaîtrait donc pas — mais ses entrées resteraient dans
+  le fichier, comptées par ce qui lit le cache sans ce filtre. Le cache séparé
+  de B est maintenu, pour cette raison et non pour celle qu'énonçait le plan.
+
+Ce que ces scans ont aussi confirmé pour la phase A, sur données réelles :
+
+- `Class`/`Type` valent `os-pkgs`/`alpine` pour les paquets système et
+  `lang-pkgs`/`node-pkg` pour les modules Node d'une image (`gomod`, `npm`…
+  pour un dépôt).
+- **`FixedVersion` liste bien une version par branche, et pas dans l'ordre** :
+  `"5.0.7, 1.1.16, 2.1.2"` pour `brace-expansion` installé en `1.1.11`. Sur 43
+  vulnérabilités de modules Node, 28 sont dans ce cas. `scan.PickFixed` n'en
+  dépend pas (il compare) et donne `1.1.16`.
+- `Metadata.OS` porte `Family`, `Name` et **`EOSL`** (`true` pour
+  `alpine 3.18.12`). Non lu aujourd'hui ; un `EOSL: true` dit qu'aucun bump de
+  paquet ne suffit et qu'il faut changer de base — à exploiter en B si le
+  tableau avant/après doit l'expliquer.
+
+#### Phase B — faite
+
+L'onglet **Remediation** des résultats d'un workspace : les Dockerfiles du
+dépôt, chaque image de base (tous les stages) et les tags qu'elle pourrait
+prendre, mesurés à la demande (`S`) par un scan distant. Découpage :
+`internal/dockerfile` (parseur avec la plage d'octets de chaque image),
+`internal/remediation` (`Discover`, la politique de tags), `internal/oci`
+(`ListRegistryTags`, un seul listeur qui suit la pagination),
+`Scanner.ScanRemoteImage`, un cache à part, et `scan.base_image_track` dans la
+vue de configuration. Détail dans `docs/architecture/scanning.md`.
+
+**Écarts avec le plan, assumés :**
+
+- **Les scans des candidats ne passent pas par le registre de jobs** : l'onglet
+  tient son propre ensemble d'images en cours et son spinner, comme le chargement
+  de l'inventaire. Ils n'apparaissent donc pas dans `:jobs` et ne s'y arrêtent
+  pas avec `K`. Trivy est de toute façon sérialisé (`trivySem`) : ces scans font
+  la queue, et `max_concurrent_scans` ne s'y applique pas.
+- **`Client.ListTags` du client de templates n'a pas été rallié** au listeur
+  commun : il lit le registry configuré pour les templates, en Basic seulement,
+  et rallier les deux aurait changé le comportement des templates.
+- **`Parse` ne renvoie pas d'erreur** : un Dockerfile illisible donne moins de
+  stages, pas un échec.
+- **Le mode `--server` de Trivy reste non mesuré** avec `--image-src remote`.
+
+**Essayé sur Docker Hub, 2026-09-21** (`Discover` sur un Dockerfile de
+démonstration, avec le vrai listeur) : `golang:1.21` propose `1.27, 1.26, 1.25`
+et `alpine:3.18` propose `3.24, 3.23, 3.22` en `same-line` ; `debian:bookworm-slim`
+n'en propose pas (le tag n'a pas de version) ; `node:18-alpine` n'en propose pas
+en `same-line` (c'est le tag flottant de sa majeure) et propose `node:19-alpine`
+en `next-major`. **Limite connue :** « la plus petite majeure supérieure » n'est
+qu'un ordre numérique. Pour Node, c'est une version impaire, sans support long, et
+rien dans les tags ne le dit. Le scan mesure les CVE, pas la durée de support :
+c'est ce que `Metadata.OS.EOSL` (non lu aujourd'hui) pourrait signaler, et ce
+qu'un client externe juge mieux qu'une règle de nommage.
+
+#### Phase C — faite
+
+`space` choisit un candidat scanné pour son stage, `enter` montre le diff dans le
+viewer, `ctrl+o` écrit — après une confirmation dont la réponse par défaut est
+« No » et qui dit, fichier par fichier, ce que git saura défaire ou non (propre,
+modifications non commitées, non suivi, hors dépôt). L'écriture passe par
+`dockerfile.Rewrite` (les octets repérés par le parseur, rien d'autre) et
+`WriteIfUnchanged` (le fichier doit contenir exactement ce dont le diff a été
+calculé ; sinon refus, fichier intact ; fichier temporaire puis renommage,
+permissions conservées, lien symbolique suivi). Aucun commit, branche ni push.
+`ctrl+o` est une troisième exception déclarée (`keymap.DeclaredExceptions()`,
+Rule 111). Détail dans `docs/architecture/scanning.md`.
+
+**Un bug attrapé par les tests en chemin :** un message de footer posé dans une
+méthode à receveur valeur était posé sur une copie du modèle, puis jeté — l'erreur
+« le fichier a changé depuis l'aperçu » ne s'affichait pas. `reportFailedWrite`
+prend maintenant un pointeur.
+
+**Restent ouverts :**
+
+- **Les outils MCP** (candidats, re-scan d'un candidat) : hors de ce plan, comme
+  décidé.
+- **Le mode `--server` de Trivy** avec `--image-src remote`, non mesuré.
+- **`EOSL`** (`Metadata.OS`), non lu : il dirait qu'aucun bump de paquet ne suffit.
+- **Un `Dockerfile` écrit par erreur n'a pas de « annuler »** dans DevDesk : c'est
+  git (`git checkout`) ou rien, d'où l'avertissement de la confirmation pour un
+  fichier non suivi.
+
+#### Pas de LLM embarqué — le jugement passe par MCP
+
+Tout ce que A, B et C demandent est **déterministe** : la classe vient du
+rapport, la version corrigée aussi, les commandes sont une table par
+écosystème, le `FROM` se parse, les tags se listent et se trient, et savoir
+si un bump corrige est une **mesure** (le re-scan), pas un avis. Un modèle à
+l'une de ces étapes n'ajouterait que de la non-reproductibilité — et à
+l'étape de preuve, sa réponse ne peut pas en tenir lieu.
+
+Ce qu'un LLM apporterait réellement est ce qui ne se mesure pas : les montées
+majeures (`debian:11` → `12`, `alpine` → distroless, une dépendance `v1` →
+`v2`) dont le scan ne dit pas si l'application marche encore ; la réécriture
+d'un Dockerfile quand la distribution change et que les noms de paquets
+suivent ; la priorisation (« chargée au build seulement ») ; les CVE sans
+version corrigée, où il ne reste que des contournements.
+
+**DevDesk n'embarque pas de modèle pour ça** — pas de clé d'API, pas de choix
+de modèle, pas de coût, pas de données de scan envoyées à un tiers depuis
+l'application. Le serveur MCP expose déjà les findings, `fixed_in` compris ;
+un client externe (Claude Code, Claude Desktop…) raisonne sur les cas
+ambigus. Le partage :
+
+- **DevDesk** fait ce qui se mesure (A, B, C) et l'expose en MCP : candidats,
+  deltas de re-scan, et à terme un outil de re-scan d'un candidat — ce qui
+  donne à un agent le moyen de **vérifier** ses propres suggestions au lieu de
+  les affirmer ;
+- **le client LLM**, s'il y en a un, porte le jugement.
+
+L'écriture du Dockerfile **n'est pas exposée en MCP** : c'est un geste de
+l'utilisateur dans le TUI (ci-dessous), et un agent a de toute façon ses
+propres outils pour éditer un fichier.
+
+#### Écrire le Dockerfile — l'utilisateur demande, l'utilisateur confirme
+
+DevDesk **montre** d'abord : le diff des lignes `FROM` et le tableau
+avant/après qui le justifie. Il n'écrit rien de lui-même. L'écriture est une
+action que l'utilisateur **demande** (une touche sur cet écran), suivie d'un
+modal de confirmation dont le choix par défaut est « No » (Rule 104). Sur
+« Yes », DevDesk écrit ; sur « No » ou `esc`, rien ne bouge.
+
+Pourquoi c'est acceptable : un Dockerfile vit presque toujours dans un dépôt
+git, donc l'écriture se relit (`git diff`) et s'annule (`git checkout`).
+DevDesk n'y ajoute ni commit, ni branche, ni push — le dépôt reste celui de
+l'utilisateur.
+
+Ce que l'écriture doit garantir :
+
+- **Ne toucher que les lignes `FROM` concernées.** Le reste du fichier est
+  recopié octet pour octet — commentaires, fins de ligne (CRLF compris),
+  absence de newline final.
+- **Refuser si le fichier a changé depuis le diff affiché** (empreinte prise
+  au calcul, revérifiée à l'écriture) : l'utilisateur a confirmé *ce* diff,
+  pas un autre. Message au footer, diff à recalculer.
+- **Écriture atomique** (fichier temporaire dans le même répertoire, puis
+  renommage) en conservant les permissions.
+- **Le modal dit l'état git du fichier**, parce que « rien n'est perdu » n'est
+  vrai que dans le cas courant :
+  - suivi et propre → rien de plus à dire ;
+  - suivi avec des modifications non commitées → l'avertir : un `git checkout`
+    pour annuler emporterait aussi ses propres modifications ;
+  - non suivi, ou hors d'un dépôt → l'avertir : aucun filet, l'écriture est
+    définitive.
+
+  Aucun de ces cas ne bloque : c'est l'utilisateur qui décide, en sachant.
+
+#### Tranché — 2026-09-21
+
+Plan : `.claude/plans/2026-09-21-security-remediation.md` (un plan, trois PR).
+
+- **L'écran de B/C** est un onglet **Remediation** des résultats de scan d'un
+  workspace dans `:sec`, qui sait déjà lancer, suivre et mettre en cache un
+  scan.
+- **Même ligne par défaut** : même majeure, même suffixe de variante. Une
+  montée majeure est exactement ce que le scan ne prouve pas. Le réglage
+  `scan.base_image_track` (`same-line` \| `next-major`, par contexte comme tout
+  `scan:`) permet d'élargir.
+- **Tous les stages**, pas seulement le final : une CVE d'un stage de build
+  peut finir dans l'image livrée (toolchain, bibliothèques liées
+  statiquement).
+- **La touche d'écriture est `ctrl+o`**, exception déclarée comme `ctrl+y`
+  (voir le plan) :
+  - `^O` est « Write Out » dans nano ;
+  - le mode raw désactive `VDISCARD` ;
+  - `ctrl+w` ferme l'onglet dans les navigateurs et les terminaux web ;
+  - `ctrl+s` est le contrôle de flux.
 
 ### 3.3 OCI build and cache analyser
 

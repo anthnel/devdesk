@@ -2,9 +2,11 @@ package security
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -51,15 +53,28 @@ func (m Model) resultsShortcuts() shortcut.Shortcuts {
 	// X is greyed rather than dropped (Rule 130): a tab is not a different
 	// screen, and the entry used to appear and disappear as the cursor crossed
 	// a Trivy secret in a list holding both tools' findings.
+	// The Remediation tab has a table of its own: what filters and sorts the
+	// findings does not reach it, so those keys are greyed there and S — which
+	// means nothing on the four tabs of findings — is the one that lights up.
+	notFindings := m.activeTab == TabRemediation
+	// Enter opens the selected finding, or on the Remediation tab the diff of the
+	// chosen bases: one key, the same place in the column, a different verb.
+	enter := shortcut.Shortcut{Key: "enter", Description: "Details", Disabled: !m.canOpenFinding().Enabled()}
+	if notFindings {
+		enter = shortcut.Shortcut{Key: "enter", Description: "Show diff", Disabled: !m.canPreviewRemediation().Enabled()}
+	}
 	return []shortcut.Shortcut{
 		{Key: "tab", Description: "Switch tab"},
-		{Key: "enter", Description: "Details", Disabled: !m.canOpenFinding().Enabled()},
-		{Key: "c", Description: "Toggle CRITICAL"},
-		{Key: "h", Description: "Toggle HIGH"},
-		{Key: "m", Description: "Toggle MEDIUM"},
-		{Key: "l", Description: "Toggle LOW"},
-		{Key: "/", Description: "Search"},
-		{Key: ".", Description: "Sort"},
+		enter,
+		{Key: "space", Description: "Choose candidate", Disabled: !m.canSelectCandidate().Enabled()},
+		{Key: writeRemediationKey, Description: "Write Dockerfile", Disabled: !m.canWriteRemediation().Enabled()},
+		{Key: keymap.Scan, Description: "Scan candidates", Disabled: !m.canScanCandidates().Enabled()},
+		{Key: "c", Description: "Toggle CRITICAL", Disabled: notFindings},
+		{Key: "h", Description: "Toggle HIGH", Disabled: notFindings},
+		{Key: "m", Description: "Toggle MEDIUM", Disabled: notFindings},
+		{Key: "l", Description: "Toggle LOW", Disabled: notFindings},
+		{Key: "/", Description: "Search", Disabled: notFindings},
+		{Key: ".", Description: "Sort", Disabled: notFindings},
 		{Key: keymap.Exclude, Description: "Exclude", Disabled: !m.canExclude().Enabled()},
 		{Key: openPipelineKey, Description: "Open resolved pipeline", Disabled: !m.canOpenPipeline().Enabled()},
 		{Key: "ctrl+r", Description: "New scan"},
@@ -111,8 +126,8 @@ func (m Model) GetIcon() string {
 	return ""
 }
 
-// GetHeaderInfo returns the key-value info for the header: the context, and one
-// count.
+// GetHeaderInfo returns the key-value info for the header: the context, one
+// count, and in the results how much of it is fixable.
 //
 // It used to carry seven fields in the results state, which is exactly the
 // number buildInfoLines renders — an eighth would have been dropped in silence.
@@ -126,6 +141,9 @@ func (m Model) GetIcon() string {
 //   - Secrets and Licenses duplicated the tab bar, which renders the same two
 //     numbers a line below.
 //
+// Fixable came back on its own merits: it is the one figure that says what can
+// be done, which none of the removed ones did.
+//
 // The context is what replaced them, and it is the one thing that was missing:
 // the scan caches are scoped to a context, so the same inventory rows mean
 // different things in two of them and look identical.
@@ -136,7 +154,37 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	if key, value, ok := m.headerCount(); ok {
 		info = append(info, shortcut.HeaderInfo{Key: key, Value: value, Style: theme.HeaderValueStyle})
 	}
+	if value, style, ok := m.headerFixable(); ok {
+		info = append(info, shortcut.HeaderInfo{Key: "Fixable", Value: value, Style: style})
+	}
 	return info
+}
+
+// headerFixable is how many of the vulnerabilities have a fixed version, split
+// by what has to move: "12 (8 base, 4 deps)". It is the one number that says
+// what can be done about the findings, which the count above does not. Like the
+// count, it is absent where the state is a list of nothing, and it is present
+// on both sides of the results/details step so the header does not change
+// under the reader (Rule 130).
+func (m Model) headerFixable() (string, lipgloss.Style, bool) {
+	if (m.state != StateResults && m.state != StateDetails) || m.result == nil {
+		return "", lipgloss.Style{}, false
+	}
+	s := remediation.Summarize(m.result.Findings)
+	if s.Fixable() == 0 {
+		return "0", theme.DimStyle, true
+	}
+	var parts []string
+	if s.BaseImage > 0 {
+		parts = append(parts, strconv.Itoa(s.BaseImage)+" base")
+	}
+	if s.Dependencies > 0 {
+		parts = append(parts, strconv.Itoa(s.Dependencies)+" deps")
+	}
+	if s.Unclassified > 0 {
+		parts = append(parts, strconv.Itoa(s.Unclassified)+" unclassified")
+	}
+	return strconv.Itoa(s.Fixable()) + " (" + strings.Join(parts, ", ") + ")", theme.HeaderValueStyle, true
 }
 
 // headerCount is the one number the header shows, named for whatever the state
@@ -168,10 +216,14 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "/", Description: "Search — the inventory by target name, the findings by ID, title, package or file"},
 			{Key: ".", Description: "Cycle the sort column — the findings table opens on the order the scanner reported, and the cycle leads back to it"},
 			{Key: "enter", Description: "Open the details of the selected finding (results)"},
+			{Key: "space", Description: "Choose the candidate under the cursor for its stage — only a scanned one (Remediation tab)"},
+			{Key: "enter", Description: "Show what the chosen bases would change, as a diff (Remediation tab)"},
+			{Key: writeRemediationKey, Description: "Write the chosen bases into the Dockerfiles, after a confirmation that defaults to No (Remediation tab)"},
+			{Key: keymap.Scan, Description: "Measure the base images and their candidates by scanning them from their registries (Remediation tab)"},
 			{Key: keymap.Exclude, Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab, Gitleaks findings only)"},
 			{Key: keymap.Web, Description: "Open first reference URL in the default browser (detail view)"},
 			{Key: openPipelineKey, Description: "Open the pipeline the forge resolves for this repository — every include and component expanded (CI tab)"},
-			{Key: "tab / shift+tab", Description: "Switch tabs in results (CVE, Secrets, Licenses, Misconfig)"},
+			{Key: "tab / shift+tab", Description: "Switch tabs in results (CVE, Secrets, Licenses, Misconfig, CI, Remediation)"},
 			{Key: "c / h / m / l", Description: "Filter by severity — cumulative, so c and h together show CRITICAL and HIGH"},
 			{Key: "ctrl+r", Description: "Back to the inventory (results)"},
 			{Key: "esc", Description: "Back"},
@@ -197,7 +249,11 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Results",
-				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Severity is filtered with c, h, m and l — they are cumulative, so c and h together ask for CRITICAL or HIGH, which a threshold could not express. The active ones are shown in the bar under the table, beside the search field. '.' cycles the sort column and '/' searches. Press Enter to view finding details. For secrets, X adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have.\nEsc returns to the inventory, or to the list the results were opened from.",
+				Body:  "Results are displayed by tab (CVE, Secrets, Licenses, Misconfig). Every finding belongs to exactly one tab, and the count on each label is the same number the scan recorded. Severity is filtered with c, h, m and l — they are cumulative, so c and h together ask for CRITICAL or HIGH, which a threshold could not express. The active ones are shown in the bar under the table, beside the search field. '.' cycles the sort column and '/' searches. The Fixable figure in the header counts the vulnerabilities that have a fixed version, split into base image packages (cleared by upgrading the image's packages or moving to a newer base image) and application dependencies (cleared only by bumping the dependency itself); a result scanned before this was recorded shows its findings as unclassified until the next scan. Press Enter to view finding details, which name the package kind and the command that moves it. For secrets, X adds a finding to .gitleaksignore; it is offered for Gitleaks findings only, since that file is matched on a Gitleaks fingerprint a Trivy secret does not have.\nEsc returns to the inventory, or to the list the results were opened from.",
+			},
+			{
+				Title: "Remediation",
+				Body:  "For a repository, this tab reads the Dockerfiles under it and lists each base image — every stage, since a vulnerability in a build stage can reach the image that ships — with the newer tags it could move to. Candidates keep the image's variant (alpine stays alpine, slim stays slim) and its precision (3.18 is offered 3.21, not 3.21.1); by default they stay on the same major version, and the scan tab of the configuration view (Base image bumps) lets them take the next one.\nNothing is measured until you press S: each image is scanned straight from its registry, without being pulled, and the counts are kept for 24 hours. The vs now column is the change in CRITICAL plus HIGH against the image as written; negative is better. A candidate is a proposal with its evidence — the scan says the CVEs are gone, not that the application still runs on the new base.\nAn image scan has no Dockerfile, so the tab is empty for one.\nChoosing: space picks the candidate under the cursor for its stage — only one that has been scanned, since a bump is proposed with its evidence — and Enter shows what the choices would change. Ctrl+O writes them, and only when you ask: it lists each file and line, and says what git will be able to undo (a clean tracked file can be reverted with git checkout; one with uncommitted changes cannot without losing them; an untracked file or one outside a repository cannot at all). The answer defaults to No. Only the image reference changes — comments, line endings and the rest of the file are untouched — and DevDesk makes no commit, branch or push. A file that changed since the diff was computed is refused, not overwritten. A reference pinned by digest loses its pin, which the modal says. A stage that reads its image from an ARG changes that ARG's default, and a --build-arg on the command line can still override it.",
 			},
 			{
 				Title: "Command Logging",
