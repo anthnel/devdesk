@@ -26,6 +26,11 @@ func (m *Model) Init() tea.Cmd {
 	)
 }
 
+// Running reports whether a diagnostic is walking its stages now, which is what
+// the router asks before it would rebuild the view: dropping it mid-run would
+// discard the run without a word.
+func (m *Model) Running() bool { return m.state == StateRunning }
+
 // InEditMode implements FormView — true when a text input is active, so the
 // router hands the key to the field rather than opening the command line.
 func (m *Model) InEditMode() bool {

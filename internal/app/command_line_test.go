@@ -1,12 +1,17 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/command"
+	"github.com/anthnel/devdesk/internal/netcheck"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	"github.com/anthnel/devdesk/internal/ui/netdiag"
+	"github.com/anthnel/devdesk/internal/ui/security"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -376,5 +381,176 @@ func TestTheCommandLineOwnsTheKeyboardWhileOpen(t *testing.T) {
 
 	if view.sawKey("d") || view.sawKey("ctrl+d") {
 		t.Errorf("the view received %v from behind the command line", view.keysSeen())
+	}
+}
+
+// ── The security view, entered by name ───────────────────────────────────────
+
+// enterSecurityByCommand types :sec and runs it.
+func enterSecurityByCommand(t *testing.T, a *App) {
+	t.Helper()
+	a.enterCommandMode()
+	typeCommand(t, a, "sec")
+	feedKey(t, a, testutil.Key("enter"))
+}
+
+// openScanDetailsFromWorkspaces is what enter on a scanned repository does: the
+// security view is built on that scan's result, with the list to return to.
+func openScanDetailsFromWorkspaces(t *testing.T, a *App) {
+	t.Helper()
+	a.Update(WorkspaceScanResultLoadedMsg{RepoPath: "/repos/devdesk", Result: &scan.Result{Target: "/repos/devdesk"}})
+	if a.currentView != command.ViewSecurity {
+		t.Fatalf("setup: current view = %s, want the security view", a.currentView)
+	}
+}
+
+// A scan opened from a list is that list's detail. Naming the security view is
+// asking for the security view: its inventory. Until this was fixed :sec showed
+// the same scan again and the only ways out were esc — back to the list — or
+// ctrl+r, so the inventory could not be reached by name at all.
+func TestNamingTheSecurityViewLandsOnItsInventoryNotOnAListsScan(t *testing.T) {
+	a := router(t, &fakeView{})
+	openScanDetailsFromWorkspaces(t, a)
+
+	// Leave for the list, then name the security view.
+	a.views[command.ViewWorkspaces] = &fakeView{}
+	a.currentView = command.ViewWorkspaces
+	enterSecurityByCommand(t, a)
+
+	view, ok := a.views[command.ViewSecurity].(security.Model)
+	if !ok {
+		t.Fatalf("the installed view is %T", a.views[command.ViewSecurity])
+	}
+	if a.currentView != command.ViewSecurity {
+		t.Fatalf("current view = %s, want the security view", a.currentView)
+	}
+	if view.OriginView != "" {
+		t.Errorf("OriginView = %q: the view is still the list's detail, and esc would send the user back to it", view.OriginView)
+	}
+	if title := view.GetTitle(); !strings.Contains(title, "Inventory") {
+		t.Errorf("title = %q, want the inventory", title)
+	}
+}
+
+// The same when the user is already on that scan: typing the name is the way to
+// the inventory.
+func TestNamingTheSecurityViewFromAListsScanLeavesForTheInventory(t *testing.T) {
+	a := router(t, &fakeView{})
+	openScanDetailsFromWorkspaces(t, a)
+
+	enterSecurityByCommand(t, a)
+
+	view := a.views[command.ViewSecurity].(security.Model)
+	if view.OriginView != "" || !strings.Contains(view.GetTitle(), "Inventory") {
+		t.Errorf("OriginView %q, title %q: still on the list's scan", view.OriginView, view.GetTitle())
+	}
+}
+
+// esc from a list's scan still returns to that list: only naming the view
+// changed.
+func TestEscStillReturnsFromAListsScanToTheList(t *testing.T) {
+	a := router(t, &fakeView{})
+	openScanDetailsFromWorkspaces(t, a)
+
+	if origin := a.views[command.ViewSecurity].(security.Model).OriginView; origin != command.ViewWorkspaces {
+		t.Errorf("OriginView = %q, want the workspaces list", origin)
+	}
+}
+
+// A security view the user reached inside itself — an inventory row opened — has
+// no list to belong to, and keeps what it shows when they step away and back.
+func TestASecurityViewOpenedFromItsOwnInventoryKeepsItsState(t *testing.T) {
+	a := router(t, &fakeView{})
+	// Results with no origin: what opening an inventory row builds.
+	a.views[command.ViewSecurity] = security.NewWithPreloadedResult(a.config, nil, &scan.Result{Target: "/repos/devdesk"})
+	a.views[command.ViewWorkspaces] = &fakeView{}
+	a.currentView = command.ViewWorkspaces
+
+	enterSecurityByCommand(t, a)
+
+	view := a.views[command.ViewSecurity].(security.Model)
+	if !strings.Contains(view.GetTitle(), "/repos/devdesk") {
+		t.Errorf("title = %q: the view was rebuilt and lost the scan it was showing", view.GetTitle())
+	}
+}
+
+// ── Network diagnostics, entered by name ─────────────────────────────────────
+
+// enterNetdiagByCommand types :net and runs it, from the dashboard.
+func enterNetdiagByCommand(t *testing.T, a *App) {
+	t.Helper()
+	a.views[command.ViewDashboard] = &fakeView{}
+	a.currentView = command.ViewDashboard
+	a.enterCommandMode()
+	typeCommand(t, a, "net")
+	feedKey(t, a, testutil.Key("enter"))
+}
+
+// openNetdiagFromStatus is what H on a monitor does: netdiag is built prefilled
+// with the monitor's target, and remembers status as the place to return to.
+func openNetdiagFromStatus(t *testing.T, a *App, autoRun bool) *netdiag.Model {
+	t.Helper()
+	a.views[command.ViewStatus] = &fakeView{}
+	a.currentView = command.ViewStatus
+	a.Update(netdiag.OpenRequestMsg{Target: netcheck.Target{Host: "example.com", Port: 443}, AutoRun: autoRun})
+	held, ok := a.views[command.ViewNetdiag].(*netdiag.Model)
+	if !ok || held.OriginView != command.ViewStatus {
+		t.Fatalf("setup: netdiag %T with origin %v", a.views[command.ViewNetdiag], ok)
+	}
+	return held
+}
+
+// Same shape as the security view: a diagnostic another view sent here is that
+// view's detail. Naming netdiag asks for netdiag — a blank form — and re-entering
+// it used to land on the same frozen prefill, whose origin then made esc leave
+// for a monitor the new target had nothing to do with.
+func TestNamingNetdiagAfterAnotherViewSentADiagnosticStartsAFreshForm(t *testing.T) {
+	a := router(t, &fakeView{})
+	held := openNetdiagFromStatus(t, a, false)
+
+	enterNetdiagByCommand(t, a)
+
+	fresh, ok := a.views[command.ViewNetdiag].(*netdiag.Model)
+	if !ok {
+		t.Fatalf("the installed view is %T", a.views[command.ViewNetdiag])
+	}
+	if fresh == held {
+		t.Error("the prefilled view was kept")
+	}
+	if fresh.OriginView != "" {
+		t.Errorf("OriginView = %q, want none: this is not a diagnostic status sent", fresh.OriginView)
+	}
+	if a.currentView != command.ViewNetdiag {
+		t.Errorf("current view = %s, want netdiag", a.currentView)
+	}
+}
+
+// The run is the reason for the precaution: dropping the view would discard a
+// diagnostic that is still walking its stages, with nothing said.
+func TestNamingNetdiagDoesNotDropARunInFlight(t *testing.T) {
+	a := router(t, &fakeView{})
+	held := openNetdiagFromStatus(t, a, true)
+	if !held.Running() {
+		t.Fatal("setup: the diagnostic is not running")
+	}
+
+	enterNetdiagByCommand(t, a)
+
+	if a.views[command.ViewNetdiag].(*netdiag.Model) != held {
+		t.Error("a diagnostic in flight was thrown away")
+	}
+}
+
+// Opened from the command line, netdiag has no origin and keeps its state across
+// a switch, like any other view.
+func TestNetdiagOpenedByNameKeepsItsState(t *testing.T) {
+	a := router(t, &fakeView{})
+	enterNetdiagByCommand(t, a)
+	first := a.views[command.ViewNetdiag].(*netdiag.Model)
+
+	enterNetdiagByCommand(t, a)
+
+	if a.views[command.ViewNetdiag].(*netdiag.Model) != first {
+		t.Error("a view with no origin was rebuilt")
 	}
 }
