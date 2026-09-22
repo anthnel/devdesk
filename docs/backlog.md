@@ -14343,7 +14343,7 @@ Sources vérifiées le 2026-09-21 :
 
 ---
 
-### 3.81 Fuite de secrets par le contexte de build — aucun outil du pipeline ne la voit — **à explorer**
+### 3.81 Exposition du contexte de build — `COPY . .` embarque `.git` et les fichiers locaux — **à faire**
 
 Trouvé en lisant le chapitre 4 (« Secure Docker Image Building Practices »),
 et vérifié en local plutôt que supposé : un `COPY . .` sans `.dockerignore`
@@ -14355,6 +14355,12 @@ signalent quoi que ce soit — pas d'avertissement sur l'absence de
 `.dockerignore`, pas de détection du fichier qui serait copié. C'est un
 contrôle statique que rien dans le pipeline actuel ne fait.
 
+Reconfirmé le 2026-09-22 sur un Dockerfile réel (`node:18-slim`, `COPY . .`,
+pas de `.dockerignore`, un `.git/` à côté) : `trivy config` remonte **une**
+seule règle, DS-0026 (HEALTHCHECK manquant). hadolint 2.14.0 sur le même
+fichier en remonte deux autres (DL3008, DL3009), aucune sur le contexte. Les
+deux outils ignorent le sujet de cette entrée.
+
 **Pourquoi le scan de secrets existant ne suffit pas à couvrir ce cas.**
 `trivyMisconfigArgs`/`trivySecretArgs` (`internal/scan/trivy_args.go:169`,
 `:140`) scannent le **répertoire source**, avant tout build — ils ne voient
@@ -14365,26 +14371,107 @@ d'une analyse de Dockerfile statique. Et même là, une valeur générique comme
 `SECRET=abc123` ne matche aucun pattern de secret connu (clé AWS, clé privée,
 etc.) — testé, aucune alerte.
 
-**Ce qui serait à vérifier avant de scoper plus loin :**
+#### Le recadrage qui débloque les trois questions (2026-09-22)
 
-1. Une règle statique est-elle raisonnable : présence d'un `COPY . .` (ou
-   équivalent large) **et** absence de `.dockerignore`, ou `.dockerignore`
-   qui n'exclut pas `.git`/`.env`/patterns usuels de secrets. Un faux positif
-   plausible : un projet qui n'a simplement rien à cacher dans son contexte.
-2. Est-ce une détection seule (avertissement dans l'onglet Misconfigurations,
-   sans AVD id puisque Trivy ne la fournit pas) ou un correctif proposé
-   (générer un `.dockerignore` par défaut) — la seconde option écrit un
-   **nouveau fichier**, pas une édition de span sur un fichier existant, donc
-   une forme différente de ce que `patch.Rewrite` fait aujourd'hui.
-3. Est-ce que cela vaut la peine par rapport au scan de secrets déjà présent
-   sur le dépôt — si un `.env` est déjà commité, Gitleaks/Trivy secret le
-   trouvent indépendamment du Dockerfile ; le risque propre à cette entrée
-   est le fichier **non commité mais présent localement** (ignoré par git,
-   pas par `docker build`).
+Cette entrée s'intitulait « fuite de **secrets** par le contexte de build »,
+et c'est ce cadrage qui la rendait insoluble. Il la faisait paraître
+redondante avec Gitleaks, et il rendait déterminante l'objection de la
+question 1 — *« un faux positif plausible : un projet qui n'a simplement rien
+à cacher dans son contexte »*.
+
+Le cas phare n'est pas un secret : c'est **`.git/`**.
+
+- Aucun scanner de secrets ne le signalera jamais. Un répertoire `.git` ne
+  *matche* aucun pattern ; ce n'est pas un secret, c'est un **vecteur**.
+- Son danger est précisément ce qu'un scan de l'arbre de travail ne peut pas
+  voir : un secret commité puis « retiré » reste dans l'historique, et reste
+  intégralement récupérable depuis la couche d'image.
+- Et un projet « qui n'a rien à cacher » embarque quand même tout son
+  historique.
+
+Reformulée ainsi, l'affirmation devient **vérifiable** — « ce `COPY . .`
+inclura `.git` parce que `.dockerignore` ne l'exclut pas » se lit sur le
+Dockerfile plus un listage de répertoire — au lieu d'être spéculative. C'est
+exactement le critère de tri de §3.84 : ne rien deviner de l'intention de
+l'auteur, ne réclamer aucune valeur que le fichier ne donne pas. L'objection
+du faux positif tombe avec le cadrage qui la produisait.
+
+#### Les trois décisions
+
+**1. La portée : `.git` plus les fichiers sensibles réellement présents.**
+
+Le déclencheur est une copie large — `COPY . X`, `COPY ./ X`, `ADD . X`, dont
+la source est le contexte entier — **et** un chemin qui existe vraiment sur
+le disque, **et** un `.dockerignore` absent ou qui ne l'exclut pas. Les trois
+conditions se vérifient ; aucune ne se suppose.
+
+| Trouvé dans le contexte, non exclu | Verdict |
+|---|---|
+| `.git/` | signalé — historique complet récupérable depuis les couches |
+| `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa`, `credentials.json`, `.npmrc` | signalé — et c'est le seul cas que ni git ni Gitleaks ne voient quand le fichier n'est pas commité |
+| `node_modules/`, répertoires de build | **hors périmètre** — c'est du poids, pas une exposition ; un scan de sécurité n'a pas à en parler |
+
+La variante « tout `COPY . .` sans `.dockerignore` », écartée : elle se
+déclencherait sur un contexte vide et parlerait d'un *risque* au lieu d'un
+fait, laissant l'utilisateur vérifier lui-même ce que le finding aurait dû
+lui dire.
+
+**2. Le contexte de build : on décline hors de la racine.**
+
+Le Dockerfile ne dit jamais où est la racine du contexte — `docker build -f
+sub/Dockerfile .` la place ailleurs, et rien dans le fichier ne le trahit. La
+règle ne s'applique donc qu'aux Dockerfiles **à la racine du workspace
+scanné**, où « contexte = racine » est l'hypothèse sûre. Ailleurs, aucun
+finding n'est émis et la raison est explicite.
+
+C'est le même réflexe que `fixRootUser`, qui décline une base dont il ne peut
+pas identifier la distribution plutôt que d'émettre un `adduser` qui casserait
+le build : ici, supposer le mauvais répertoire produirait un finding faux dans
+les deux sens à la fois — rater le `.git` de la racine, et inventer celui d'un
+sous-dossier. Le coût assumé : les dépôts qui rangent leur Dockerfile dans
+`docker/` ne sont pas couverts.
+
+**3. Le correctif : l'ajout de `.git` à un `.dockerignore` existant, et rien
+de plus.**
+
+| Cas | Ce que DevDesk fait |
+|---|---|
+| `.dockerignore` existe, sans `.git` | append d'une ligne `.git` — un ajout de span sur un fichier existant, exactement la forme de `fixAppendCleanup`, et `.git` dans une image n'est jamais voulu |
+| `.dockerignore` absent | détection seule |
+
+Générer un `.dockerignore` complet est écarté pour deux raisons distinctes,
+et la seconde est la vraie. D'abord la mécanique : `patch.WriteIfUnchanged`
+(`internal/patch/write.go:25`) fait `EvalSymlinks` puis `ReadFile` sur le
+chemin, donc **échoue sur un fichier qui n'existe pas** — créer demanderait
+une primitive neuve, avec une précondition inverse (« ce fichier ne doit pas
+exister ») et une confirmation d'un autre genre. Ensuite, et surtout : le
+contenu d'un `.dockerignore` généré est une **politique que DevDesk
+inventerait**, pas une édition dérivée de ce que le fichier dit. Toutes les
+entrées du catalogue §3.84 tiennent parce qu'elles ne devinent rien ; celle-là
+devinerait ce qui a sa place dans une image. Elle est plus proche d'un
+template (§3.83) que d'un correctif.
+
+#### Ce que le code impose, vérifié le 2026-09-22
+
+| Contrainte | Conséquence pour l'implémentation |
+|---|---|
+| `Categorize` (`internal/scan/category.go:47`) commute sur `Source` seul, et son défaut est `CategoryVulnerability` | il faut une constante `Source` dédiée, sinon le finding atterrit dans l'onglet CVE — le commentaire du fichier l'annonce déjà : *« a source missing from this list is a programming defect »* |
+| `remediation.FixFor` exige `CategoryMisconfiguration` et indexe par `RuleKey(f.ID)` | un id dans un namespace propre à DevDesk, jamais un AVD id inventé qui entrerait en collision avec le catalogue Trivy |
+| `dockerfile.Parse` (`internal/dockerfile/parse.go:95`) ne lit que `FROM` et `ARG` | il faut y ajouter `COPY`/`ADD` — mais `gather`/`tokenize` gèrent déjà les continuations, le `# escape=` et les spans absolus, donc c'est une extension et non une pièce neuve |
+| `SourcePlumber` existe déjà | précédent d'une source non-Trivy avec son propre espace d'ids qui traverse tout le pipeline jusqu'à son onglet |
+
+Reste à écrire, et non tranché ici parce que c'est de l'implémentation et non
+de la conception : jusqu'où aller dans la sémantique de `.dockerignore`
+(syntaxe propre à Docker, `**`, négations `!`). La règle de sûreté est
+connue — répondre « exclu » seulement quand c'est certain, et se taire
+sinon — puisque l'inverse produirait le faux positif que tout le reste de
+cette entrée s'attache à éviter.
 
 Sources vérifiées le 2026-09-21 :
 *Docker and Kubernetes Security* (§4.3, sur `.dockerignore` et le contexte de
 build), test local (Trivy 0.71.2, `trivy fs --scanners misconfig,secret`).
+Décisions prises le 2026-09-22, après reconfirmation sur Trivy 0.71.2 et
+hadolint 2.14.0.
 
 ---
 
