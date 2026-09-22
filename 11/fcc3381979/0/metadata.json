@@ -1,0 +1,143 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "11fcc3381979",
+  "session_id": "26a18927-5256-455b-a96f-75d147591671",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-22T19:14:20.8441278Z",
+  "branch": "feat/k8s-manifests",
+  "checkpoints_count": 2,
+  "save_step_count": 2,
+  "files_touched": [
+    "docs-site/docs/explanation/scanning.md",
+    "docs-site/docs/reference/configuration.md",
+    "docs/architecture/scanning.md",
+    "internal/scan/category.go",
+    "internal/scan/options.go",
+    "internal/scan/run.go",
+    "internal/scan/scanner.go",
+    "internal/ui/about/view.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/dashboard/view_test.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/model_test.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "62cf583b76be",
+  "checkpoint_transcript_start": 623,
+  "transcript_lines_at_start": 623,
+  "compact_transcript_start": 87,
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 51949,
+    "cache_read_tokens": 7907181,
+    "output_tokens": 40445,
+    "api_call_count": 22
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-plan-2026-09-22T18:45:25.894576Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "plan"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "a62905fba38a",
+      "timestamp": "2026-09-22T18:45:25.894576Z",
+      "native": {
+        "command": "/plan"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/plan",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-22T19:14:20.6729324Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 1076,
+    "human_modified": 44,
+    "human_removed": 0,
+    "total_committed": 1076,
+    "total_lines_changed": 1155,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 410,
+      "user_lines_removed": 319,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "docs/backlog.md": 103
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200,
+        "docs/backlog.md": 16
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 410,
+      "user_lines_removed": 319,
+      "agent_lines_added": 16,
+      "agent_lines_removed": 103,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "docs/backlog.md": 103
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200,
+        "docs/backlog.md": 16
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 210,
+      "user_lines_removed": 119,
+      "agent_lines_added": 216,
+      "agent_lines_removed": 303,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "docs/backlog.md": 103
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "docs/backlog.md": 16
+      }
+    }
+  ]
+}

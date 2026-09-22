@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "11fcc3381979",
+  "strategy": "manual-commit",
+  "branch": "feat/k8s-manifests",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs-site/docs/explanation/scanning.md",
+    "docs-site/docs/reference/configuration.md",
+    "docs/architecture/scanning.md",
+    "internal/scan/category.go",
+    "internal/scan/options.go",
+    "internal/scan/run.go",
+    "internal/scan/scanner.go",
+    "internal/ui/about/view.go",
+    "internal/ui/configuration/fields.go",
+    "internal/ui/dashboard/model.go",
+    "internal/ui/dashboard/sections.go",
+    "internal/ui/dashboard/view_test.go",
+    "internal/ui/security/findings.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/model_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/11/fcc3381979/0/metadata.json",
+      "transcript": "/11/fcc3381979/0/full.jsonl",
+      "compact_transcript": "/11/fcc3381979/0/transcript.jsonl",
+      "content_hash": "/11/fcc3381979/0/content_hash.txt",
+      "prompt": "/11/fcc3381979/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 51949,
+    "cache_read_tokens": 7907181,
+    "output_tokens": 40445,
+    "api_call_count": 22
+  }
+}
