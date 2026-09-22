@@ -51,6 +51,7 @@ default — an absent key is not an error, `config.Default()` fills it in.
 | `trivy_server` | string | | Server URL — read only when `use_trivy_server` is true |
 | `gitleaks_source` / `_path` / `_image` | | `auto` | Same shape as Trivy's |
 | `plumber_source` / `_path` / `_image` | | `auto` | CI-score scanner |
+| `kubeconform_source` / `_path` / `_image` | | `auto` | Kubernetes schema validator (`ghcr.io/yannh/kubeconform`) |
 | `cache_dir` | string | | Scan report cache |
 | `max_cached_reports` | int | | |
 | `timeout` | int (seconds) | | Per-scan timeout |
@@ -64,6 +65,8 @@ default — an absent key is not an error, `config.Default()` fills it in.
 | `gitleaks_history` | bool | `false` | Scan full git history, not just the working tree |
 | `gitleaks_config` | string | | Custom Gitleaks config path |
 | `enable_ci_score` | bool | `false` | Run plumber over CI configuration |
+| `enable_k8s_schema` | bool | `false` | Validate Kubernetes manifests against the API schema (kubeconform) |
+| `kubernetes_version` | string | `1.36.0` | Release to validate against: `x.y.z` or `master` |
 
 There is no per-tool `enabled:` switch — Trivy's four checks
 (`enable_vuln`/`enable_secret`/`enable_misconfig`/`enable_license`) toggle

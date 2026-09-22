@@ -6,7 +6,8 @@
 ## Security Scanning
 
 **Where a scanner runs from is configured, not guessed.** `scan.trivy_source`,
-`scan.gitleaks_source` and `scan.plumber_source` take `auto | binary | image`:
+`scan.gitleaks_source`, `scan.plumber_source` and `scan.kubeconform_source`
+take `auto | binary | image`:
 
 | Value | Resolution |
 |---|---|
@@ -198,6 +199,61 @@ writes to a temp file. A containerised plumber also needs `safe.directory`
 through the environment, or git refuses the mount as dubious ownership (the image
 runs as uid 65532) and plumber answers *not in a git repository*; `--provider`
 alone does not lift it.
+
+### Kubernetes manifests — kubeconform (§3.80)
+
+Trivy's misconfiguration stage already lints Kubernetes manifests and Helm
+charts for security (`KSV-*`), and the finding says so through `IaCType`.
+What it does not answer is whether the API server would **accept** the
+manifest at all — a wrong type, a missing required field, an unknown field,
+an `apiVersion` the cluster's release no longer serves. That is kubeconform's
+job, behind `scan.enable_k8s_schema`, resolved like every other tool
+(`kubeconform_source|_path|_image`, image `ghcr.io/yannh/kubeconform`).
+kube-linter was weighed and left out: it overlaps Trivy on security and reports
+no line, so it could feed neither the table's jump-to-line nor a fix.
+
+- **Which files.** `k8s.Discover` (`internal/k8s`) lists them **by content**
+  — a document with an `apiVersion` and a `kind` — and kubeconform is handed
+  those files by name, never the directory: on a directory it reports
+  "missing 'kind' key" on every CI file and Helm values file. Hidden
+  directories, `node_modules` and `vendor` are skipped. A repository with no
+  manifest runs nothing — kubeconform with no file argument reads stdin and
+  would wait there.
+- **Charts and Kustomize roots are set apart.** A template is not YAML until
+  helm renders it, and a Kustomize patch is a fragment that fails the schema
+  on its own. Their files are never validated raw; the directories are
+  reported in `Result.K8sUnrendered` and logged, which is what keeps "nothing
+  found there" apart from "nobody looked there".
+- **The finding's line comes from the file, not the tool.** kubeconform
+  reports a JSON pointer; `k8s.Locate` finds the document by kind and
+  `metadata.name`, then walks the pointer through `yaml.v3` nodes. An unknown
+  field is reported at its parent with the key in the message, so the key is
+  located first. A pointer that does not resolve gives line 0, never the
+  nearest line that exists.
+- **A missing schema is two different things.** No `-ignore-missing-schemas`:
+  kubeconform then answers "could not find schema for X", and the group
+  decides. A group Kubernetes serves itself (a closed list in
+  `kubeconform_parse.go`) means the `apiVersion` was removed from the target
+  release — `K8S-API-REMOVED`, on the `apiVersion` line. Any other group is a
+  custom resource whose schema lives in a CRD kubeconform does not read: it is
+  skipped and counted in the log. The list is closed rather than a
+  `.k8s.io` suffix rule because the Gateway API and the snapshot controller
+  are CRDs in `*.k8s.io` groups.
+- **Exit 1 means two things too.** kubeconform exits 1 when it found problems
+  and when it could not run; the JSON report on stdout is what separates them.
+- **The target release** is `scan.kubernetes_version` (x.y.z or `master`,
+  checked in the configuration view with kubeconform's own pattern),
+  `config.DefaultKubernetesVersion` when unset — one minor behind the newest
+  for which schemas exist.
+- **Schemas are cached** in `~/.devdesk/cache/kubeconform`, mounted at
+  `/cache` in a container; the repository is mounted read-only at `/scan`,
+  as for the other tools.
+
+Every kubeconform finding is `Source: kubeconform`, `IaCType: kubernetes`,
+severity HIGH — the API server would refuse the resource — and lands on the
+Misconfigurations tab, where the Source column reads `schema`. The ids
+(`K8S-SCHEMA`, `K8S-API-REMOVED`, `K8S-PARSE`) are DevDesk's: kubeconform has
+none, and a re-scan needs a stable one to say a finding went away.
 
 **`scan.Categorize` is the only thing that decides a finding's family.** There
 were two rules: `Result.CountFindings` switched on `Source` alone, the security

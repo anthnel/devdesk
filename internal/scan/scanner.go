@@ -80,6 +80,14 @@ type ScanOptions struct {
 	PlumberImage  string
 	PlumberConfig string
 
+	// EnableK8sSchema validates Kubernetes manifests with kubeconform (§3.80),
+	// against KubernetesVersion. The three tool fields mirror the others.
+	EnableK8sSchema   bool
+	KubernetesVersion string
+	KubeconformSource string
+	KubeconformPath   string
+	KubeconformImage  string
+
 	// Forge is the platform this context targets, and it is what decides
 	// whether a repository is graded at all: a GitHub context grades its GitHub
 	// repositories and nothing else (§3.42). The scan resolves that per target
@@ -220,6 +228,12 @@ type Result struct {
 	// CIMissing is a repository with no pipeline at all, which is not a bad
 	// score — it is the absence of the thing being scored.
 	CIMissing bool `json:"ci_missing,omitempty"`
+
+	// K8sUnrendered are the Helm charts and Kustomize overlays the schema
+	// stage could not validate because nothing rendered them (§3.80). Not an
+	// error — the scan did all it could — and not "clean" either: it is what
+	// keeps "nothing was found there" apart from "nobody looked there".
+	K8sUnrendered []string `json:"k8s_unrendered,omitempty"`
 }
 
 // CIVerdict is what this scan can say about the pipeline's grade, for the cache
@@ -350,6 +364,12 @@ type DependencyStatus struct {
 	PlumberBinary     string // Executable to run when PlumberSource is binary
 	PlumberImage      string // OCI image used for plumber
 
+	KubeconformAvailable bool
+	KubeconformSource    ToolSource
+	KubeconformVersion   string
+	KubeconformBinary    string // Executable to run when KubeconformSource is binary
+	KubeconformImage     string // OCI image used for kubeconform
+
 	// EngineAvailable reports whether the configured container engine answered.
 	// Without it no image-sourced tool can run, whichever engine it is.
 	EngineAvailable bool
@@ -406,6 +426,7 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 	if plumberImage == "" {
 		plumberImage = DefaultPlumberImage
 	}
+	kubeconformImage := kubeconformImage(c.KubeconformImage)
 
 	status := DependencyStatus{
 		TrivySource:    ToolSourceNone,
@@ -414,6 +435,9 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 		GitleaksImage:  gitleaksImage,
 		PlumberSource:  ToolSourceNone,
 		PlumberImage:   plumberImage,
+
+		KubeconformSource: ToolSourceNone,
+		KubeconformImage:  kubeconformImage,
 	}
 
 	if path, err := exec.LookPath(engine.Current().Binary); err == nil && path != "" {
@@ -443,6 +467,12 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 	status.PlumberSource = plumber.Source
 	status.PlumberBinary = plumber.Binary
 	status.PlumberVersion = plumber.Version
+
+	kubeconform := resolveTool(c.KubeconformSource, c.KubeconformPath, "kubeconform", kubeconformImage, status.EngineAvailable, "-v")
+	status.KubeconformAvailable = kubeconform.Available
+	status.KubeconformSource = kubeconform.Source
+	status.KubeconformBinary = kubeconform.Binary
+	status.KubeconformVersion = kubeconform.Version
 
 	return status
 }
@@ -486,6 +516,10 @@ func (o ScanOptions) toolConfig() config.ScanConfig {
 		PlumberSource:  o.PlumberSource,
 		PlumberPath:    o.PlumberPath,
 		PlumberImage:   o.PlumberImage,
+
+		KubeconformSource: o.KubeconformSource,
+		KubeconformPath:   o.KubeconformPath,
+		KubeconformImage:  o.KubeconformImage,
 	}
 }
 
@@ -507,6 +541,7 @@ func (s *Scanner) missingToolErrors(targetType TargetType) []string {
 	wantsTrivy := s.options.EnableVuln || s.options.EnableMisconfig ||
 		s.options.EnableSecret || (s.options.EnableLicense && targetType == TargetDirectory)
 	wantsGitleaks := s.options.EnableSecret && targetType == TargetDirectory
+	wantsKubeconform := s.options.EnableK8sSchema && targetType == TargetDirectory
 
 	var errs []string
 	if wantsTrivy && !s.deps.TrivyAvailable {
@@ -520,6 +555,11 @@ func (s *Scanner) missingToolErrors(targetType TargetType) []string {
 		errs = append(errs, fmt.Sprintf(
 			"gitleaks: not available — git history was not scanned for secrets. Install gitleaks or pull %s",
 			gitleaksImage(s.deps.GitleaksImage)))
+	}
+	if wantsKubeconform && !s.deps.KubeconformAvailable {
+		errs = append(errs, fmt.Sprintf(
+			"kubeconform: not available — Kubernetes manifests were not validated against the API schema. Install kubeconform or pull %s",
+			kubeconformImage(s.deps.KubeconformImage)))
 	}
 	return errs
 }
@@ -668,6 +708,15 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			result.CIMissing = report.CIMissing
 			result.Findings = append(result.Findings, report.Findings...)
 			notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageDone})
+			return nil
+		})
+	}
+
+	// Kubernetes schema validation (kubeconform, directories only). An image
+	// holds no manifests anyone applies.
+	if s.options.EnableK8sSchema && s.deps.KubeconformAvailable && targetType == TargetDirectory {
+		eg.Go(func() error {
+			s.runKubeconformStage(egCtx, target, result, &mu, notify)
 			return nil
 		})
 	}

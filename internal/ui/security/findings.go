@@ -185,6 +185,10 @@ func sourceDisplay(f scan.Finding) string {
 			return f.IaCType
 		}
 		return "misconfig"
+	case scan.SourceKubeconform:
+		// Schema validation, which is what separates it from Trivy's
+		// kubernetes findings on the same manifest.
+		return "schema"
 	case scan.SourceGitleaks:
 		return "gitleaks"
 	case scan.SourceTrivySecret:

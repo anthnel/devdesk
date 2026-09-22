@@ -11,8 +11,8 @@ screens.
 ## Locating the tools
 
 Each tool's location is a declared setting, not an autodetected fact.
-`scan.trivy_source`, `scan.gitleaks_source` and `scan.plumber_source` each
-take one of:
+`scan.trivy_source`, `scan.gitleaks_source`, `scan.plumber_source` and
+`scan.kubeconform_source` each take one of:
 
 | Value | Resolution |
 |---|---|
@@ -120,6 +120,22 @@ A directory aggregates its nested repositories differently for counts versus
 grades: severity counts sum across nested repositories, but a CI letter
 doesn't compose the same way — a directory shows the worst grade among its
 repositories rather than an average or a sum.
+
+## Kubernetes manifests
+
+Two questions are asked of a repository's Kubernetes manifests, by two tools.
+Trivy's misconfiguration scan asks whether they are **safe** — root user,
+privileged container, missing limits — and reads Helm charts too. kubeconform,
+behind `scan.enable_k8s_schema`, asks whether the API server would **accept**
+them: a wrong type, a missing required field, an unknown field, an
+`apiVersion` that `scan.kubernetes_version` no longer serves. Both land on the
+Misconfigurations tab; the Source column says which dialect (`kubernetes`,
+`helm`, `dockerfile`…) or `schema` for kubeconform.
+
+Only files that are manifests are validated — a YAML document with an
+`apiVersion` and a `kind` — so a CI file or a Helm values file is never
+reported as an invalid resource. Custom resources are skipped: their schema is
+in a CRD kubeconform does not read. Nothing ever connects to a cluster.
 
 ## One rule decides a finding's family
 

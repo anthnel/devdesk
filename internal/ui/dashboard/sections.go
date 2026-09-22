@@ -971,10 +971,11 @@ func errorCountValue(totals metrics.Counters, n uint64) string {
 // because the two lists have already diverged once (§3.47): two literals
 // for a single name can only drift apart; a constant cannot.
 const (
-	toolTrivy    = "Trivy"
-	toolGitleaks = "Gitleaks"
-	toolPlumber  = "Plumber"
-	toolGit      = "Git"
+	toolTrivy       = "Trivy"
+	toolGitleaks    = "Gitleaks"
+	toolPlumber     = "Plumber"
+	toolKubeconform = "Kubeconform"
+	toolGit         = "Git"
 )
 
 // knownTools is a function rather than a var because its first entry is the
@@ -982,7 +983,7 @@ const (
 func knownTools() []string {
 	return []string{
 		theme.ContainerEngineLabel(engine.Current().Name),
-		toolTrivy, toolGitleaks, toolPlumber, toolGit,
+		toolTrivy, toolGitleaks, toolPlumber, toolKubeconform, toolGit,
 	}
 }
 
