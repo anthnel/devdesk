@@ -1,6 +1,7 @@
 package remediation
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/anthnel/devdesk/internal/dockerfile"
@@ -52,6 +53,28 @@ const (
 	// created before it can be used, and the command that creates it differs
 	// between distributions. See fixRootUser.
 	ReasonUnknownBaseFamily = "Cannot tell which distribution the final stage builds on, so the adduser flags cannot be chosen"
+	// ReasonNoAptGetInstall fires when the reported lines no longer contain an
+	// apt-get install — the file changed since the finding was reported. The
+	// package-manager siblings below are the same reason for their own command.
+	ReasonNoAptGetInstall   = "The reported lines do not contain an apt-get install"
+	ReasonNoApkAdd          = "The reported lines do not contain an apk add"
+	ReasonNoYumInstall      = "The reported lines do not contain a yum install"
+	ReasonNoDnfInstall      = "The reported lines do not contain a dnf install"
+	ReasonNoMicrodnfInstall = "The reported lines do not contain a microdnf install"
+	ReasonNoZypperInstall   = "The reported lines do not contain a zypper install"
+	// ReasonNotAnAddInstruction and ReasonAddExtractsOrFetches guard
+	// fixAddInsteadOfCopy: the first refuses a stale line reference, the second
+	// refuses an ADD that COPY genuinely cannot replace.
+	ReasonNotAnAddInstruction  = "The reported line is not an ADD instruction"
+	ReasonAddExtractsOrFetches = "This ADD extracts an archive or fetches a URL, which COPY cannot do"
+	// ReasonNotACopyInstruction and ReasonCopyHasTooFewArgs guard
+	// fixCopyMissingTrailingSlash the same way.
+	ReasonNotACopyInstruction = "The reported line is not a COPY instruction"
+	ReasonCopyHasTooFewArgs   = "This COPY has two or fewer arguments, so the destination is unambiguous without a trailing slash"
+	// ReasonNotAMaintainerInstruction and ReasonMaintainerContinues guard
+	// fixMaintainerDeprecated.
+	ReasonNotAMaintainerInstruction = "The reported line is not a MAINTAINER instruction"
+	ReasonMaintainerContinues       = "The MAINTAINER instruction continues onto another line"
 )
 
 // The account the fix creates. The uid goes through an ARG so it can be
@@ -67,23 +90,90 @@ const (
 // having seen the rule recur and having an edit that is exactly right for it;
 // anything less belongs to the agent path.
 //
-// Only one rule is in it today, and that is not an oversight. The other
-// candidates were each rejected for a stated reason:
+// It stays short on purpose. Every entry is a textual edit whose correctness
+// does not depend on guessing what the image is for — a flag insertion, an
+// append, or a keyword swap that Trivy's own check already proved is safe by
+// the shape of what it flagged. The candidates not in it were each rejected
+// for a stated reason:
 //
-//   - a missing HEALTHCHECK has no universal command — what to probe depends on
-//     what the image runs, which the Dockerfile does not say;
-//   - a `:latest` base image is already the Remediation tab's job (§3.2), which
-//     resolves real tags from the registry rather than inventing one, and a
-//     second path to the same edit could only disagree with the first;
-//   - ADD-instead-of-COPY and the apt-get rules are plausible entries whose AVD
-//     ids could not be confirmed against a real Trivy run from here. A catalog
-//     keyed by an id that is wrong matches nothing, silently, which is worse
-//     than not offering the fix at all.
+//   - a missing HEALTHCHECK (AVD-DS-0026) has no universal command — what to
+//     probe depends on what the image runs, which the Dockerfile does not say;
+//   - a `:latest` base image (AVD-DS-0001) is already the Remediation tab's job
+//     (§3.2), which resolves real tags from the registry rather than inventing
+//     one, and a second path to the same edit could only disagree with the
+//     first;
+//   - `apt-get dist-upgrade` (AVD-DS-0024) is deprecated in Trivy's own check
+//     set, so a Dockerfile stops being flagged for it on its own;
+//   - a self-referencing `COPY --from` (0006), a duplicate FROM alias (0012), an
+//     EXPOSE port out of range (0008) or set to 22 (0004), `RUN cd` instead of
+//     WORKDIR (0013), both wget and curl in use (0014), and a package-manager
+//     `update` with no matching `install` in the same RUN (0017) are all real
+//     defects or real decisions, and none of them names what the fix should be —
+//     only the Dockerfile's author knows the other stage, the intended port, the
+//     tool to keep, or the packages to install;
+//   - duplicate ENTRYPOINT/CMD/HEALTHCHECK (0007, 0016, 0023), an unabsolute
+//     WORKDIR (0009) and `sudo` in a RUN (0010) are each safe in principle —
+//     only the last instruction of its kind takes effect, WORKDIR can be
+//     resolved against the stage's own chain, and `sudo` is a no-op before any
+//     USER switch — but none of that is tracked by this package yet: it reads
+//     FROM, ARG and (for these fixes) the raw line range Trivy reports, not a
+//     stage's running instruction history. Candidates for a later pass once
+//     that tracking exists, not for this one.
 var catalog = map[string]Rule{
 	RuleKey("AVD-DS-0002"): {
 		AVDID: "AVD-DS-0002",
 		Title: "Add a USER instruction to the final stage",
 		Fix:   fixRootUser,
+	},
+	RuleKey("AVD-DS-0005"): {
+		AVDID: "AVD-DS-0005",
+		Title: "Replace ADD with COPY",
+		Fix:   fixAddInsteadOfCopy,
+	},
+	RuleKey("AVD-DS-0011"): {
+		AVDID: "AVD-DS-0011",
+		Title: "Add a trailing slash to the COPY destination",
+		Fix:   fixCopyMissingTrailingSlash,
+	},
+	RuleKey("AVD-DS-0015"): {
+		AVDID: "AVD-DS-0015",
+		Title: "Add yum clean all after yum install",
+		Fix:   fixYumClean,
+	},
+	RuleKey("AVD-DS-0019"): {
+		AVDID: "AVD-DS-0019",
+		Title: "Add dnf clean all after dnf install",
+		Fix:   fixDnfClean,
+	},
+	RuleKey("AVD-DS-0020"): {
+		AVDID: "AVD-DS-0020",
+		Title: "Add zypper clean after zypper install",
+		Fix:   fixZypperClean,
+	},
+	RuleKey("AVD-DS-0021"): {
+		AVDID: "AVD-DS-0021",
+		Title: "Add -y to apt-get install",
+		Fix:   fixAptGetAssumeYes,
+	},
+	RuleKey("AVD-DS-0022"): {
+		AVDID: "AVD-DS-0022",
+		Title: "Replace MAINTAINER with LABEL",
+		Fix:   fixMaintainerDeprecated,
+	},
+	RuleKey("AVD-DS-0025"): {
+		AVDID: "AVD-DS-0025",
+		Title: "Add --no-cache to apk add",
+		Fix:   fixApkNoCache,
+	},
+	RuleKey("AVD-DS-0027"): {
+		AVDID: "AVD-DS-0027",
+		Title: "Add microdnf clean all after microdnf install",
+		Fix:   fixMicrodnfClean,
+	},
+	RuleKey("AVD-DS-0029"): {
+		AVDID: "AVD-DS-0029",
+		Title: "Add --no-install-recommends to apt-get install",
+		Fix:   fixAptGetNoRecommends,
 	},
 }
 
@@ -198,6 +288,302 @@ func addUserBlock(eol string) string {
 	return strings.Join(lines, eol) + eol
 }
 
+// recommendsFlag is what fixAptGetNoRecommends adds. Its position relative to
+// "install" does not matter to apt-get, so the fix always puts it in the same
+// place — right after "install" — rather than trying to match wherever a
+// human might have put the rest of the command's own flags.
+const recommendsFlag = "--no-install-recommends"
+
+// aptGetInstall matches an apt-get install invocation. It does not try to
+// mirror the full breadth of Trivy's own check (flags between "apt-get" and
+// "install" are rare enough to skip), because a match here only has to find
+// what to fix, not decide what Trivy would flag — that decision was already
+// made when the finding was reported.
+var aptGetInstall = regexp.MustCompile(`apt-get\s+install\b`)
+
+// apkAdd matches an apk add invocation, on the same terms as aptGetInstall.
+var apkAdd = regexp.MustCompile(`apk\s+add\b`)
+
+// assumeYesFlag recognizes apt-get's confirmation flag in any of the forms
+// apt-get itself accepts: a short flag cluster containing 'y' (`-y`, `-qy`,
+// `-yq`), or the long spellings. A literal `strings.Contains(s, "-y")` — good
+// enough for the long, unique --no-install-recommends — would miss `-qy`.
+var assumeYesFlag = regexp.MustCompile(`(^|\s)-[A-Za-z]*y[A-Za-z]*(\s|$)|--yes\b|--assume-yes\b`)
+
+// fixCommandFlag is fixAptGetNoRecommends, fixAptGetAssumeYes and
+// fixApkNoCache's shared shape: find every invocation of the command the
+// finding's line range covers, and add insertText right after it unless
+// hasFlag already reports the flag present in that invocation's own
+// statement.
+//
+// It only looks at the reported span, not the whole file: an invocation
+// elsewhere in the Dockerfile is a different finding, and fixing it here
+// would be an edit the diff never explained. Within the span, each invocation
+// is checked on its own — a RUN chaining two of them with `&&` where only one
+// already has the flag is not "already fixed" just because the flag appears
+// somewhere in the line.
+func fixCommandFlag(content []byte, f scan.Finding, command *regexp.Regexp, hasFlag func(string) bool, insertText, noMatchReason string) ([]patch.Edit, string) {
+	if !dockerfile.IsDockerfileName(baseName(f.File)) {
+		return nil, ReasonNotADockerfile
+	}
+	span, ok := lineSpan(content, f.Line, f.EndLine)
+	if !ok {
+		return nil, ReasonUnreadableSpan
+	}
+	text := string(content[span.Start:span.End])
+
+	matches := command.FindAllStringIndex(text, -1)
+	if matches == nil {
+		return nil, noMatchReason
+	}
+
+	var edits []patch.Edit
+	for _, m := range matches {
+		stmtEnd := statementEnd(text, m[1])
+		if hasFlag(text[m[1]:stmtEnd]) {
+			continue
+		}
+		at := span.Start + m[1]
+		edits = append(edits, patch.Edit{Span: patch.Span{Start: at, End: at}, New: insertText})
+	}
+	if len(edits) == 0 {
+		return nil, ReasonAlreadyFixed
+	}
+	return edits, ""
+}
+
+// fixAptGetNoRecommends satisfies "'apt-get' missing '--no-install-recommends'"
+// (AVD-DS-0029).
+func fixAptGetNoRecommends(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	return fixCommandFlag(content, f, aptGetInstall,
+		func(s string) bool { return strings.Contains(s, recommendsFlag) },
+		" "+recommendsFlag, ReasonNoAptGetInstall)
+}
+
+// fixAptGetAssumeYes satisfies "'apt-get' missing '-y'" (AVD-DS-0021).
+func fixAptGetAssumeYes(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	return fixCommandFlag(content, f, aptGetInstall, assumeYesFlag.MatchString, " -y", ReasonNoAptGetInstall)
+}
+
+// fixApkNoCache satisfies "'apk add' is missing '--no-cache'" (AVD-DS-0025).
+func fixApkNoCache(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	return fixCommandFlag(content, f, apkAdd,
+		func(s string) bool { return strings.Contains(s, "--no-cache") },
+		" --no-cache", ReasonNoApkAdd)
+}
+
+// yumInstall, dnfInstall, microdnfInstall and zypperInstall match the install
+// invocation fixAppendCleanup looks for, one per package manager.
+var (
+	yumInstall      = regexp.MustCompile(`yum\s+install\b`)
+	dnfInstall      = regexp.MustCompile(`dnf\s+install\b`)
+	microdnfInstall = regexp.MustCompile(`microdnf\s+install\b`)
+	zypperInstall   = regexp.MustCompile(`zypper\s+install\b`)
+)
+
+// fixAppendCleanup is fixYumClean, fixDnfClean, fixMicrodnfClean and
+// fixZypperClean's shared shape: Trivy's own check for each of these only
+// counts a cleanup command as satisfying it when it is the last thing the RUN
+// does, so the fix appends cleanCmd at the very end of the reported span
+// rather than placing it next to the install call — anywhere else, a
+// re-scan would still flag it.
+//
+// It is idempotent against the one case worth checking without a full shell
+// parse: the span, once trailing whitespace and a stray continuation
+// backslash are trimmed, already ending in cleanCmd.
+func fixAppendCleanup(content []byte, f scan.Finding, install *regexp.Regexp, cleanCmd, noMatchReason string) ([]patch.Edit, string) {
+	if !dockerfile.IsDockerfileName(baseName(f.File)) {
+		return nil, ReasonNotADockerfile
+	}
+	span, ok := lineSpan(content, f.Line, f.EndLine)
+	if !ok {
+		return nil, ReasonUnreadableSpan
+	}
+	text := string(content[span.Start:span.End])
+	if !install.MatchString(text) {
+		return nil, noMatchReason
+	}
+
+	trimmed := strings.TrimRight(text, " \t\r\n")
+	trimmed = strings.TrimRight(strings.TrimSuffix(trimmed, "\\"), " \t")
+	if strings.HasSuffix(trimmed, cleanCmd) {
+		return nil, ReasonAlreadyFixed
+	}
+	at := span.Start + len(trimmed)
+	return []patch.Edit{{Span: patch.Span{Start: at, End: at}, New: " && " + cleanCmd}}, ""
+}
+
+// fixYumClean satisfies "'yum clean all' missing" (AVD-DS-0015).
+func fixYumClean(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	return fixAppendCleanup(content, f, yumInstall, "yum clean all", ReasonNoYumInstall)
+}
+
+// fixDnfClean satisfies "'dnf clean all' missing" (AVD-DS-0019).
+func fixDnfClean(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	return fixAppendCleanup(content, f, dnfInstall, "dnf clean all", ReasonNoDnfInstall)
+}
+
+// fixMicrodnfClean satisfies "'microdnf clean all' missing" (AVD-DS-0027).
+func fixMicrodnfClean(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	return fixAppendCleanup(content, f, microdnfInstall, "microdnf clean all", ReasonNoMicrodnfInstall)
+}
+
+// fixZypperClean satisfies "'zypper clean' missing" (AVD-DS-0020). zypper's
+// own cleanup subcommand takes no second word, unlike the three above.
+func fixZypperClean(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	return fixAppendCleanup(content, f, zypperInstall, "zypper clean", ReasonNoZypperInstall)
+}
+
+// addUnsafe are the substrings that make an ADD instruction do something COPY
+// cannot: extract a local tar archive, or fetch from a URL. Trivy's own check
+// already excludes every ADD carrying one of these from AVD-DS-0005, so a
+// finding reaching this fix is one it has already proven is a plain copy —
+// this re-checks the live file rather than trusting a finding computed from a
+// version of it that may have since changed.
+var addUnsafe = []string{".tar", "http://", "https://", "git@"}
+
+// fixAddInsteadOfCopy satisfies "ADD instead of COPY" (AVD-DS-0005) by
+// swapping the instruction's own keyword. Every argument is left untouched:
+// COPY and ADD take the same syntax for a plain file copy, which is the only
+// case this fix ever sees.
+func fixAddInsteadOfCopy(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	if !dockerfile.IsDockerfileName(baseName(f.File)) {
+		return nil, ReasonNotADockerfile
+	}
+	lines := contentLines(content)
+	if f.Line < 1 || f.Line > len(lines) {
+		return nil, ReasonUnreadableSpan
+	}
+	first := lines[f.Line-1]
+	if instruction(first.text) != "ADD" {
+		return nil, ReasonNotAnAddInstruction
+	}
+	span, ok := lineSpan(content, f.Line, f.EndLine)
+	if !ok {
+		return nil, ReasonUnreadableSpan
+	}
+	text := string(content[span.Start:span.End])
+	for _, unsafe := range addUnsafe {
+		if strings.Contains(text, unsafe) {
+			return nil, ReasonAddExtractsOrFetches
+		}
+	}
+
+	kw, ok := keywordSpan(first)
+	if !ok {
+		return nil, ReasonUnreadableSpan
+	}
+	old := first.text[kw.Start-first.off : kw.End-first.off]
+	return []patch.Edit{{Span: kw, Old: old, New: "COPY"}}, ""
+}
+
+// fixCopyMissingTrailingSlash satisfies "COPY with more than two arguments
+// not ending with slash" (AVD-DS-0011) by appending "/" to the destination —
+// the last argument, since COPY only accepts a directory as its destination
+// once it has more than one source.
+func fixCopyMissingTrailingSlash(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	if !dockerfile.IsDockerfileName(baseName(f.File)) {
+		return nil, ReasonNotADockerfile
+	}
+	lines := contentLines(content)
+	if f.Line < 1 || f.Line > len(lines) {
+		return nil, ReasonUnreadableSpan
+	}
+	if instruction(lines[f.Line-1].text) != "COPY" {
+		return nil, ReasonNotACopyInstruction
+	}
+	span, ok := lineSpan(content, f.Line, f.EndLine)
+	if !ok {
+		return nil, ReasonUnreadableSpan
+	}
+	text := string(content[span.Start:span.End])
+
+	fields := strings.Fields(stripContinuations(text))
+	var nonFlag []string
+	for _, a := range fields[1:] { // fields[0] is the COPY keyword itself
+		if !strings.HasPrefix(a, "--") {
+			nonFlag = append(nonFlag, a)
+		}
+	}
+	if len(nonFlag) <= 2 {
+		return nil, ReasonCopyHasTooFewArgs
+	}
+	if strings.HasSuffix(nonFlag[len(nonFlag)-1], "/") {
+		return nil, ReasonAlreadyFixed
+	}
+
+	trimmed := strings.TrimRight(text, " \t\r\n")
+	at := span.Start + len(trimmed)
+	return []patch.Edit{{Span: patch.Span{Start: at, End: at}, New: "/"}}, ""
+}
+
+// fixMaintainerDeprecated satisfies "Deprecated MAINTAINER used"
+// (AVD-DS-0022) by rewriting the whole instruction as the LABEL Docker itself
+// has documented as the replacement since 1.13.0.
+func fixMaintainerDeprecated(content []byte, f scan.Finding) ([]patch.Edit, string) {
+	if !dockerfile.IsDockerfileName(baseName(f.File)) {
+		return nil, ReasonNotADockerfile
+	}
+	lines := contentLines(content)
+	if f.Line < 1 || f.Line > len(lines) {
+		return nil, ReasonUnreadableSpan
+	}
+	l := lines[f.Line-1]
+	if instruction(l.text) != "MAINTAINER" {
+		return nil, ReasonNotAMaintainerInstruction
+	}
+	if strings.HasSuffix(strings.TrimRight(l.text, " \t"), "\\") {
+		return nil, ReasonMaintainerContinues
+	}
+
+	sep := strings.IndexAny(l.text, " \t")
+	if sep < 0 {
+		return nil, ReasonUnreadableSpan
+	}
+	value := strings.TrimSpace(l.text[sep+1:])
+	value = strings.Trim(value, `"'`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+
+	old := l.text
+	return []patch.Edit{{
+		Span: patch.Span{Start: l.off, End: l.off + len(l.text)},
+		Old:  old,
+		New:  `LABEL maintainer="` + value + `"`,
+	}}, ""
+}
+
+// statementEnd finds where the shell statement starting at from ends: the next
+// `&&` or `;`, or the end of text when neither separates it from what follows.
+// A RUN chaining several commands is one Dockerfile instruction but several
+// statements, and the flag has to be checked against the one that matched, not
+// against whatever a later statement in the same RUN happens to contain.
+func statementEnd(text string, from int) int {
+	end := len(text)
+	for _, sep := range []string{"&&", ";"} {
+		if i := strings.Index(text[from:], sep); i >= 0 && from+i < end {
+			end = from + i
+		}
+	}
+	return end
+}
+
+// lineSpan returns the byte range covering lines startLine..endLine (1-based,
+// inclusive) of content. endLine before startLine — including zero, which is
+// what a finding cached before EndLine was recorded carries — is treated as a
+// single-line span rather than declined outright: most apt-get installs are
+// one physical line, and a finding that predates EndLine still names one.
+func lineSpan(content []byte, startLine, endLine int) (patch.Span, bool) {
+	if endLine < startLine {
+		endLine = startLine
+	}
+	lines := contentLines(content)
+	if startLine < 1 || startLine > len(lines) || endLine > len(lines) {
+		return patch.Span{}, false
+	}
+	last := lines[endLine-1]
+	return patch.Span{Start: lines[startLine-1].off, End: last.off + len(last.text)}, true
+}
+
 // debianFamilyBases are the official images that build on Debian or Ubuntu
 // unless their tag says otherwise.
 //
@@ -289,6 +675,35 @@ func instruction(text string) string {
 	word, _, _ := strings.Cut(t, " ")
 	word, _, _ = strings.Cut(word, "\t")
 	return strings.ToUpper(word)
+}
+
+// keywordSpan returns the byte span of a line's leading token — its
+// instruction keyword, exactly as written, case included. Unlike
+// instruction(), which uppercases for comparison, a caller replacing the
+// keyword needs the real span to build a patch.Edit whose Old matches what
+// Rewrite will find there.
+func keywordSpan(l contentLine) (patch.Span, bool) {
+	start := 0
+	for start < len(l.text) && (l.text[start] == ' ' || l.text[start] == '\t') {
+		start++
+	}
+	end := start
+	for end < len(l.text) && l.text[end] != ' ' && l.text[end] != '\t' {
+		end++
+	}
+	if start == end {
+		return patch.Span{}, false
+	}
+	return patch.Span{Start: l.off + start, End: l.off + end}, true
+}
+
+// stripContinuations turns a backslash immediately followed by a newline —
+// Dockerfile's line-continuation marker — into a space, so a multi-line
+// instruction tokenizes as the one shell command it is instead of leaving the
+// backslash as a stray token of its own.
+func stripContinuations(text string) string {
+	text = strings.ReplaceAll(text, "\\\r\n", " ")
+	return strings.ReplaceAll(text, "\\\n", " ")
 }
 
 type contentLine struct {
