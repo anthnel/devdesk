@@ -1,0 +1,101 @@
+vérifie la ci il y a des erreurs ensuite merge feat/dashboard-title-spacing
+
+---
+
+merge
+
+---
+
+merge feat/command-view-picker
+
+---
+
+merge fix/dashboard-end-glyph
+
+---
+
+merge docs/connect-ai-client
+
+---
+
+merge chore/retire-table-selected-fg-bg
+
+---
+
+ensuite merge feat/picker-shift-tab
+
+---
+
+merge fix/sec-command-lands-on-inventory, puis docs/backlog-3.2-remediation
+
+---
+
+3. feat/mcp-forward-templates-status en dernier, et pas à moi
+
+Elle ne touche pas le correctif, mais elle entre en conflit avec la branche de remédiation sur trois fichiers : docs/backlog.md, docs/architecture/mcp.md et internal/mcp/scan_tools.go. Mon essai de fusion a aussi signalé un conflit « add/add » sur internal/mcp/monitor_tools_test.go. Cela suggère qu'elle recoupe ce qui est déjà sur main (la PR #240 porte un nom voisin), donc à rebaser plutôt qu'à fusionner telle quelle.
+
+- docs/backlog.md : la règle de CLAUDE.md s'applique, garde les deux côtés, ce sont des entrées indépendantes.
+- scan_tools.go et mcp.md : j'y ai seulement ajouté les champs class et ecosystem. Ce sera à résoudre par celui qui fusionne en second.
+
+---
+
+je vais avoir plusieurs worktree à merger, est-ce que tu peux les combiner dans une seule PR car il forme un tout
+
+---
+
+git push origin docs/misconfig-remediation-plan
+git push origin feat/misconfig-mcp-fields
+
+Elles sont toutes deux cut de 315fe8bb mais ne se recouvrent pas — la première ne touche que docs/backlog.md et le plan, la seconde ni l'un ni l'autre. Pas de conflit de backlog à prévoir.
+
+La ligne d'état de §3.78 (« phase A faite ») reste à écrire une fois les deux fusionnées — je ne l'ai pas mise dans la phase A pour ne pas créer la dépendance croisée.
+
+---
+
+merge Trois commits sur feat/misconfig-catalog, cut de 6c12e0c7 :
+
+┌──────────┬─────────────────────┐
+│          │                     │
+├──────────┼─────────────────────┤
+│ 5cd642c6 │ B0 — internal/patch │
+├──────────┼─────────────────────┤
+│ fde4da11 │ B1 — le catalogue   │
+├──────────┼─────────────────────┤
+│ 97015e46 │ la correction       │
+└──────────┴─────────────────────┘
+
+mise run check : lint 0 issue, suite complète verte.
+
+---
+
+À pousser : git push origin feat/misconfig-catalog. La branche est cut de 6c12e0c7 alors que main est à 775bc23b — si le merge refuse, la recette de cherry-pick du CLAUDE.md s'applique.
+
+---
+
+on ne va plus rien coder mais on va alimenter le backlog. Il faut une entrée pour gérer ce cas. Deplus lit ce livre "C:\Users\anthoni\projects\gitlab\devsecops\llm-wiki\books-vault\raw\books\_text\Docker and Kubernetes Security.md", il a été rédigé par un docker captain. Il y a de nombreux conseils pour securiser les images docker et les charges kubernetes. Kubernetes est aussi dans le périmètre de devdesk. Pas pour faire tourner des pods mais bien pour analyser les manifestes et sécuriser tout ce qui peut l'être, corriger les misconfiguration, etc. De nouveaux outils pourront être utilisés, comme kuberlint ou kyverno.
+
+---
+
+est-ce que la remediation de dockerfile fonctionne aussi pour les images dhi.io qui garde le même tag mais sont constamment mise à jour
+
+  Searched for 1 pattern, ran 3 shell commands
+
+Non, pas pour ce cas. La remédiation ne sait pas traiter une image dhi.io qui garde le même tag tout en étant mise à jour.
+
+- Candidats : Candidates() (internal/remediation/tags.go:115) ne propose que des tags strictement plus récents que le tag actuel (comparaison de version, même variante). Sur un tag flottant, il n'y a aucun tag plus récent à proposer. Le résultat est vide, avec la raison « no newer tag of the same variant exists on this line ».
+- Digest : le digest est parsé dans Ref.Digest, mais il n'est jamais utilisé pour choisir ou proposer un candidat. Une référence épinglée par digest ou sur latest est refusée avec « the reference has no tag — it is pinned by digest or floats on latest ».
+- Le scan de l'image actuelle : le scan de la ligne courante fonctionne (ScanRemoteImage), mais il est mis en cache par référence (cache.SetRemediationResult(ref, …)). Un tag flottant peut donc afficher des comptes de CVE périmés, alors que l'image du registre a changé depuis le dernier scan.
+
+Ce qui manquerait pour ce cas : soit rescanner le tag actuel en ignorant le cache, soit résoudre le tag en digest et réécrire le Dockerfile avec image:tag@sha256:…. Le second choix est celui de Dependabot et Renovate. Je peux détailler la conception si tu veux.
+
+✻ Baked for 26s · done 7:49 PM
+
+❯ on ne va plus rien coder mais on va alimenter le backlog. Il faut une entrée pour gérer ce cas. Deplus lit ce livre "C:\Users\anthoni\projects\gitlab\devsecops\llm-wiki\books-vault\raw\books\_text\Docker and Kubernetes Security.md", il a été rédigé par un docker captain. Il y a de nombreux conseils pour securiser les images docker et les charges kubernetes. Kubernetes est aussi dans le périmètre de devdesk. Pas pour faire tourner des pods mais bien pour analyser les manifestes et sécuriser tout ce qui peut l'être, corriger les misconfiguration, etc. De nouveaux outils pourront être utilisés, comme kuberlint ou kyverno.
+
+---
+
+as tu trouver dans le livre d'autres choses à appliquer pour sécuriser les images docker et les manifestes kubernetes
+
+---
+
+ajoute les points au backlog avec les références pour creuser plus tard
