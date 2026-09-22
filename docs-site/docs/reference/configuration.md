@@ -52,6 +52,8 @@ default — an absent key is not an error, `config.Default()` fills it in.
 | `gitleaks_source` / `_path` / `_image` | | `auto` | Same shape as Trivy's |
 | `plumber_source` / `_path` / `_image` | | `auto` | CI-score scanner |
 | `kubeconform_source` / `_path` / `_image` | | `auto` | Kubernetes schema validator (`ghcr.io/yannh/kubeconform`) |
+| `helm_source` / `_path` / `_image` | | `auto` | Optional: lints and renders Helm charts before validation (`alpine/helm`) |
+| `kustomize_source` / `_path` / `_image` | | `auto` | Optional: builds Kustomize overlays before validation |
 | `cache_dir` | string | | Scan report cache |
 | `max_cached_reports` | int | | |
 | `timeout` | int (seconds) | | Per-scan timeout |

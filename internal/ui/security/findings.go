@@ -189,6 +189,11 @@ func sourceDisplay(f scan.Finding) string {
 		// Schema validation, which is what separates it from Trivy's
 		// kubernetes findings on the same manifest.
 		return "schema"
+	case scan.SourceHelm:
+		// Not "helm": that is already the dialect of Trivy's chart findings.
+		return "helm lint"
+	case scan.SourceKustomize:
+		return "kustomize"
 	case scan.SourceGitleaks:
 		return "gitleaks"
 	case scan.SourceTrivySecret:

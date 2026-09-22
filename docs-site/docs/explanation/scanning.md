@@ -134,7 +134,11 @@ Misconfigurations tab; the Source column says which dialect (`kubernetes`,
 
 Only files that are manifests are validated — a YAML document with an
 `apiVersion` and a `kind` — so a CI file or a Helm values file is never
-reported as an invalid resource. Custom resources are skipped: their schema is
+reported as an invalid resource. Helm charts and Kustomize overlays are
+validated once rendered, when `helm` or `kustomize` is available: the chart is
+linted and rendered, the overlay built, and each finding points at the
+template or the kustomization it came from. Without them, those directories
+are left unvalidated and the log says so. Custom resources are skipped: their schema is
 in a CRD kubeconform does not read. Nothing ever connects to a cluster.
 
 ## One rule decides a finding's family

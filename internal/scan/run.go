@@ -38,6 +38,13 @@ type toolCmd struct {
 	// failure about a repository nobody had asked it to look at. Trivy and
 	// Gitleaks take their target in argv and set nothing here.
 	Dir string
+
+	// Stdin is fed to the tool when it is not nil. It exists for kubeconform
+	// validating what helm or kustomize rendered (§3.80): the rendered YAML
+	// exists only in memory, and writing it to a temporary file would need a
+	// second mount for a containerised kubeconform. A container reading it
+	// must be run with -i.
+	Stdin []byte
 }
 
 // String renders the invocation as a shell command line, for logs and for the
@@ -94,6 +101,9 @@ func (cliRunner) Run(ctx context.Context, tc toolCmd, progressFn func(string)) (
 	cmd := exec.CommandContext(ctx, tc.Name, tc.Args...) //nolint:gosec // name is one of trivy/gitleaks/plumber/docker
 	cmd.Env = tc.Env                                     // nil inherits this process's environment, which is the default
 	cmd.Dir = tc.Dir                                     // empty runs in DevDesk's own working directory
+	if tc.Stdin != nil {
+		cmd.Stdin = bytes.NewReader(tc.Stdin)
+	}
 
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout

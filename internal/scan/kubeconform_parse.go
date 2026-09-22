@@ -97,7 +97,10 @@ type kubeconformFieldProblem struct {
 // resources nobody could validate. read returns a manifest's content by the
 // name kubeconform reported, to find the line a pointer designates; a file it
 // cannot read keeps its findings, at line 0.
-func parseKubeconformOutput(out []byte, version string, read func(string) ([]byte, error)) ([]Finding, int, error) {
+//
+// origin, when not nil, names the file a resource came from — for rendered
+// input, where kubeconform can only say "stdin".
+func parseKubeconformOutput(out []byte, version string, read func(string) ([]byte, error), origin func(kind, name string) string) ([]Finding, int, error) {
 	var report kubeconformOutput
 	if err := json.Unmarshal(out, &report); err != nil {
 		return nil, 0, fmt.Errorf("parsing kubeconform output: %w", err)
@@ -119,6 +122,9 @@ func parseKubeconformOutput(out []byte, version string, read func(string) ([]byt
 	var findings []Finding
 	skipped := 0
 	for _, r := range report.Resources {
+		if origin != nil {
+			r.Filename = origin(r.Kind, r.Name)
+		}
 		switch r.Status {
 		case kubeconformInvalid:
 			findings = append(findings, schemaFindings(r, content(r.Filename))...)

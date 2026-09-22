@@ -40,6 +40,11 @@ type KubeconformOptions struct {
 	// CacheDir is where downloaded schemas are kept between runs. Empty means
 	// every run downloads them again — slower, not wrong.
 	CacheDir string
+	// Helm and Kustomize render charts and overlays before validation. Either
+	// may be unresolved (Source none), which leaves what it would have
+	// rendered unvalidated and says so in the report.
+	Helm      ToolSpec
+	Kustomize ToolSpec
 }
 
 // KubeconformReport is what one run found, beyond its findings.
@@ -67,18 +72,7 @@ type KubeconformReport struct {
 // relative ones the findings carry.
 func kubeconformArgs(target string, files []string, tool ToolSpec, opts KubeconformOptions) toolCmd {
 	docker := tool.Source == ToolSourceContainer
-
-	flags := []string{"-output", "json", "-strict"}
-	if opts.KubernetesVersion != "" {
-		flags = append(flags, "-kubernetes-version", opts.KubernetesVersion)
-	}
-	if opts.CacheDir != "" {
-		cache := opts.CacheDir
-		if docker {
-			cache = kubeconformCacheMount
-		}
-		flags = append(flags, "-cache", cache)
-	}
+	flags := kubeconformFlags(tool, opts)
 
 	if !docker {
 		args := append(flags, nativePaths(files)...)
@@ -95,21 +89,33 @@ func kubeconformArgs(target string, files []string, tool ToolSpec, opts Kubeconf
 	return toolCmd{Name: engine.Current().Binary, Args: append(args, files...)}
 }
 
-// RunKubeconform finds the repository's manifests and validates them.
+// kubeconformFlags are the options every validation run shares, raw files or
+// rendered input.
+func kubeconformFlags(tool ToolSpec, opts KubeconformOptions) []string {
+	flags := []string{"-output", "json", "-strict"}
+	if opts.KubernetesVersion != "" {
+		flags = append(flags, "-kubernetes-version", opts.KubernetesVersion)
+	}
+	if opts.CacheDir != "" {
+		cache := opts.CacheDir
+		if tool.Source == ToolSourceContainer {
+			cache = kubeconformCacheMount
+		}
+		flags = append(flags, "-cache", cache)
+	}
+	return flags
+}
+
+// RunKubeconform finds the repository's manifests and validates them: the
+// plain ones as files, the charts and overlays once rendered.
 //
-// A repository with no plain manifest runs nothing at all: there is nothing to
-// validate, and an empty argument list would make kubeconform wait on stdin.
+// The plain manifests are skipped when there are none rather than handed over
+// as an empty list: kubeconform with no file argument reads stdin, and would
+// wait there.
 func RunKubeconform(ctx context.Context, target string, tool ToolSpec, opts KubeconformOptions, progressFn func(string)) (*KubeconformReport, error) {
 	layout, err := k8s.Discover(target)
 	if err != nil {
 		return nil, fmt.Errorf("listing manifests: %w", err)
-	}
-	report := &KubeconformReport{
-		Validated:  len(layout.Manifests),
-		Unrendered: append(append([]string{}, layout.Charts...), layout.Kustomizations...),
-	}
-	if len(layout.Manifests) == 0 {
-		return report, nil
 	}
 	if opts.CacheDir != "" {
 		if err := os.MkdirAll(opts.CacheDir, 0o755); err != nil {
@@ -117,21 +123,39 @@ func RunKubeconform(ctx context.Context, target string, tool ToolSpec, opts Kube
 			opts.CacheDir = ""
 		}
 	}
+	v := &k8sValidation{target: target, kubeconform: tool, opts: opts,
+		report: &KubeconformReport{Validated: len(layout.Manifests)}}
 
-	cmd := kubeconformArgs(target, layout.Manifests, tool, opts)
+	if len(layout.Manifests) > 0 {
+		if err := v.validateFiles(ctx, layout.Manifests, progressFn); err != nil {
+			return nil, err
+		}
+	}
+	if err := v.renderCharts(ctx, layout.Charts); err != nil {
+		return nil, err
+	}
+	if err := v.renderKustomizations(ctx, layout.Kustomizations); err != nil {
+		return nil, err
+	}
+	return v.report, nil
+}
+
+// validateFiles validates plain manifests, where each finding can be given the
+// line its pointer designates.
+func (v *k8sValidation) validateFiles(ctx context.Context, files []string, progressFn func(string)) error {
+	cmd := kubeconformArgs(v.target, files, v.kubeconform, v.opts)
 	log.Printf("Running: %s", cmd)
 	out, err := runner.Run(ctx, cmd, progressFn)
 	if err := kubeconformFailure(out, err); err != nil {
-		return nil, err
+		return err
 	}
-
-	findings, skipped, err := parseKubeconformOutput(out, opts.KubernetesVersion, fileReader(target))
+	findings, skipped, err := parseKubeconformOutput(out, v.opts.KubernetesVersion, fileReader(v.target), nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	report.Findings = findings
-	report.SkippedCustom = skipped
-	return report, nil
+	v.report.Findings = append(v.report.Findings, findings...)
+	v.report.SkippedCustom += skipped
+	return nil
 }
 
 // kubeconformFailure tells a run that found problems from one that failed.
@@ -223,9 +247,17 @@ func (d DependencyStatus) KubeconformSpec() ToolSpec {
 	return ToolSpec{Source: d.KubeconformSource, Binary: d.KubeconformBinary, Image: d.KubeconformImage}
 }
 
-// kubeconformOptions is what this scanner validates against.
+// kubeconformOptions is what this scanner validates against, and the
+// renderers it has — an unavailable one is handed over unresolved.
 func (s *Scanner) kubeconformOptions() KubeconformOptions {
-	return KubeconformOptions{KubernetesVersion: s.options.KubernetesVersion, CacheDir: KubeconformCacheDir()}
+	opts := KubeconformOptions{KubernetesVersion: s.options.KubernetesVersion, CacheDir: KubeconformCacheDir()}
+	if s.deps.HelmAvailable {
+		opts.Helm = s.deps.HelmSpec()
+	}
+	if s.deps.KustomizeAvailable {
+		opts.Kustomize = s.deps.KustomizeSpec()
+	}
+	return opts
 }
 
 // runKubeconformStage is the schema stage of Scan, shaped like the others:

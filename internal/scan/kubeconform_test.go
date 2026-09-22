@@ -104,7 +104,7 @@ func TestTheKubeconformReportBecomesFindings(t *testing.T) {
 		return nil, os.ErrNotExist
 	}
 
-	findings, skipped, err := parseKubeconformOutput(kubeconformFixture(t), "1.36.0", read)
+	findings, skipped, err := parseKubeconformOutput(kubeconformFixture(t), "1.36.0", read, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

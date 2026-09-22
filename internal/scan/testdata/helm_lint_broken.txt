@@ -1,0 +1,7 @@
+==> Linting charts/broken
+[INFO] Chart.yaml: icon is recommended
+[INFO] values.yaml: file does not exist
+[WARNING] templates/cm.yaml: object name does not conform to Kubernetes naming requirements: "": metadata.name: Invalid value: "": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+[WARNING] /scan/charts/broken: chart directory is missing these dependencies: redis
+
+1 chart(s) linted, 0 chart(s) failed

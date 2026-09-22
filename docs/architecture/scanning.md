@@ -221,9 +221,31 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   would wait there.
 - **Charts and Kustomize roots are set apart.** A template is not YAML until
   helm renders it, and a Kustomize patch is a fragment that fails the schema
-  on its own. Their files are never validated raw; the directories are
-  reported in `Result.K8sUnrendered` and logged, which is what keeps "nothing
-  found there" apart from "nobody looked there".
+  on its own. Their files are never validated raw. Only the **outermost**
+  chart is rendered (a subchart is rendered by its parent, with its values)
+  and only the Kustomize **leaves** — a base is validated through the overlays
+  that use it.
+- **helm and kustomize are optional renderers**, resolved like every tool
+  (`helm_source|_path|_image`, image `alpine/helm`;
+  `kustomize_source|_path|_image`, image
+  `registry.k8s.io/kustomize/kustomize:v5.8.1`) but never reported missing.
+  With helm, each chart gets `helm lint` (WARNING → LOW, ERROR → HIGH,
+  `Source: helm`, shown as `helm lint`) then `helm template`; with kustomize,
+  each overlay gets `kustomize build`. The rendered YAML goes to kubeconform
+  **on stdin** (`toolCmd.Stdin`, `-i` in a container, no repository mount),
+  and each finding is pointed back at a file: the template named by helm's
+  `# Source:` comment — under the chart's *name*, re-rooted on its directory
+  — or the overlay's kustomization. No line: a rendered line is no line of
+  either. Without the renderer, the directory is listed in
+  `Result.K8sUnrendered` and logged, which is what keeps "nothing found
+  there" apart from "nobody looked there".
+- **A chart or overlay that does not render is a finding, not a failed
+  scan** (`K8S-RENDER`, HIGH, on `Chart.yaml` or the kustomization). Measured
+  on helm 4.3.0: a missing dependency is only a WARNING for `helm lint`, and
+  it is `helm template` that fails — so the render failure is reported unless
+  lint already raised an ERROR. `helm lint` also names that chart by its
+  **absolute** path (`/scan/charts/x` in a container), which `helmLintPath`
+  brings back to the repository.
 - **The finding's line comes from the file, not the tool.** kubeconform
   reports a JSON pointer; `k8s.Locate` finds the document by kind and
   `metadata.name`, then walks the pointer through `yaml.v3` nodes. An unknown

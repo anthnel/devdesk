@@ -145,7 +145,16 @@ func IsManifest(content []byte) bool {
 	}
 }
 
-// kustomizationIn returns the Kustomize file of dir, or "".
+// KustomizationFile returns the name of dir's Kustomize file, or "" when dir
+// is not a Kustomize root.
+func KustomizationFile(dir string) string {
+	if p := kustomizationIn(dir); p != "" {
+		return filepath.Base(p)
+	}
+	return ""
+}
+
+// kustomizationIn returns the path of dir's Kustomize file, or "".
 func kustomizationIn(dir string) string {
 	for _, name := range kustomizationFiles {
 		p := filepath.Join(dir, name)

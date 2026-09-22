@@ -561,6 +561,8 @@ func TestTheSourceColumnNamesTheTool(t *testing.T) {
 		scan.SourceTrivyLicense:   "license",
 		scan.SourceTrivyMisconfig: "misconfig",
 		scan.SourceKubeconform:    "schema",
+		scan.SourceHelm:           "helm lint",
+		scan.SourceKustomize:      "kustomize",
 	}
 
 	for source, want := range tests {

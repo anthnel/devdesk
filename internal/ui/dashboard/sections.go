@@ -975,6 +975,8 @@ const (
 	toolGitleaks    = "Gitleaks"
 	toolPlumber     = "Plumber"
 	toolKubeconform = "Kubeconform"
+	toolHelm        = "Helm"
+	toolKustomize   = "Kustomize"
 	toolGit         = "Git"
 )
 
@@ -983,7 +985,7 @@ const (
 func knownTools() []string {
 	return []string{
 		theme.ContainerEngineLabel(engine.Current().Name),
-		toolTrivy, toolGitleaks, toolPlumber, toolKubeconform, toolGit,
+		toolTrivy, toolGitleaks, toolPlumber, toolKubeconform, toolHelm, toolKustomize, toolGit,
 	}
 }
 

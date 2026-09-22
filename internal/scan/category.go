@@ -27,6 +27,8 @@ const (
 	SourceGitleaks       = "gitleaks"        // secrets detected by Gitleaks
 	SourcePlumber        = "plumber"         // pipeline security score (§3.42)
 	SourceKubeconform    = "kubeconform"     // Kubernetes schema validation (§3.80)
+	SourceHelm           = "helm"            // helm lint, and a chart that does not render
+	SourceKustomize      = "kustomize"       // a Kustomize overlay that does not build
 )
 
 // Category is the family a finding belongs to: a tab in the results view,
@@ -51,7 +53,7 @@ func Categorize(f Finding) Category {
 		return CategorySecret
 	case SourceTrivyLicense:
 		return CategoryLicense
-	case SourceTrivyMisconfig, SourceKubeconform:
+	case SourceTrivyMisconfig, SourceKubeconform, SourceHelm, SourceKustomize:
 		// A manifest the API server would refuse is a misconfiguration of the
 		// same file Trivy lints, and the tab that lists one lists the other.
 		return CategoryMisconfiguration

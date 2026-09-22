@@ -174,7 +174,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "What is not here",
-				Body:  "The versions of Trivy, gitleaks, plumber, kubeconform and Docker are on the dashboard, not here. They describe the machine rather than this build, they change without DevDesk being rebuilt, and they have to be gone and fetched — which is the line this screen draws.",
+				Body:  "The versions of Trivy, gitleaks, plumber, kubeconform, helm, kustomize and Docker are on the dashboard, not here. They describe the machine rather than this build, they change without DevDesk being rebuilt, and they have to be gone and fetched — which is the line this screen draws.",
 			},
 		},
 	}

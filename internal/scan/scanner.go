@@ -87,6 +87,14 @@ type ScanOptions struct {
 	KubeconformSource string
 	KubeconformPath   string
 	KubeconformImage  string
+	// Helm and Kustomize render charts and overlays for that stage. Both are
+	// optional: without them those directories are reported as not rendered.
+	HelmSource      string
+	HelmPath        string
+	HelmImage       string
+	KustomizeSource string
+	KustomizePath   string
+	KustomizeImage  string
 
 	// Forge is the platform this context targets, and it is what decides
 	// whether a repository is graded at all: a GitHub context grades its GitHub
@@ -369,6 +377,16 @@ type DependencyStatus struct {
 	KubeconformVersion   string
 	KubeconformBinary    string // Executable to run when KubeconformSource is binary
 	KubeconformImage     string // OCI image used for kubeconform
+	HelmAvailable        bool
+	HelmSource           ToolSource
+	HelmVersion          string
+	HelmBinary           string // Executable to run when HelmSource is binary
+	HelmImage            string // OCI image used for helm
+	KustomizeAvailable   bool
+	KustomizeSource      ToolSource
+	KustomizeVersion     string
+	KustomizeBinary      string // Executable to run when KustomizeSource is binary
+	KustomizeImage       string // OCI image used for kustomize
 
 	// EngineAvailable reports whether the configured container engine answered.
 	// Without it no image-sourced tool can run, whichever engine it is.
@@ -427,6 +445,8 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 		plumberImage = DefaultPlumberImage
 	}
 	kubeconformImage := kubeconformImage(c.KubeconformImage)
+	helmImage := orDefault(c.HelmImage, DefaultHelmImage)
+	kustomizeImage := orDefault(c.KustomizeImage, DefaultKustomizeImage)
 
 	status := DependencyStatus{
 		TrivySource:    ToolSourceNone,
@@ -438,6 +458,10 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 
 		KubeconformSource: ToolSourceNone,
 		KubeconformImage:  kubeconformImage,
+		HelmSource:        ToolSourceNone,
+		HelmImage:         helmImage,
+		KustomizeSource:   ToolSourceNone,
+		KustomizeImage:    kustomizeImage,
 	}
 
 	if path, err := exec.LookPath(engine.Current().Binary); err == nil && path != "" {
@@ -473,6 +497,18 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 	status.KubeconformSource = kubeconform.Source
 	status.KubeconformBinary = kubeconform.Binary
 	status.KubeconformVersion = kubeconform.Version
+
+	helm := resolveTool(c.HelmSource, c.HelmPath, "helm", helmImage, status.EngineAvailable, "version", "--short")
+	status.HelmAvailable = helm.Available
+	status.HelmSource = helm.Source
+	status.HelmBinary = helm.Binary
+	status.HelmVersion = helm.Version
+
+	kustomize := resolveTool(c.KustomizeSource, c.KustomizePath, "kustomize", kustomizeImage, status.EngineAvailable, "version")
+	status.KustomizeAvailable = kustomize.Available
+	status.KustomizeSource = kustomize.Source
+	status.KustomizeBinary = kustomize.Binary
+	status.KustomizeVersion = kustomize.Version
 
 	return status
 }
@@ -520,6 +556,12 @@ func (o ScanOptions) toolConfig() config.ScanConfig {
 		KubeconformSource: o.KubeconformSource,
 		KubeconformPath:   o.KubeconformPath,
 		KubeconformImage:  o.KubeconformImage,
+		HelmSource:        o.HelmSource,
+		HelmPath:          o.HelmPath,
+		HelmImage:         o.HelmImage,
+		KustomizeSource:   o.KustomizeSource,
+		KustomizePath:     o.KustomizePath,
+		KustomizeImage:    o.KustomizeImage,
 	}
 }
 
