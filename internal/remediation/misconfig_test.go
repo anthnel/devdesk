@@ -12,6 +12,15 @@ func misconf(id, file string) scan.Finding {
 	return scan.Finding{ID: id, Source: scan.SourceTrivyMisconfig, File: file}
 }
 
+// misconfLines is misconf with the line range a real Trivy report carries for
+// a misconfiguration — required by any rule whose fix has to find the
+// offending instruction rather than the Dockerfile's structure alone.
+func misconfLines(id, file string, line, endLine int) scan.Finding {
+	f := misconf(id, file)
+	f.Line, f.EndLine = line, endLine
+	return f
+}
+
 // apply is what the view will do: look the rule up, compute the edits, and
 // rewrite. A test that asserted on the edits alone could pass while producing a
 // file nobody would accept.
@@ -38,6 +47,11 @@ func TestARuleIsFoundWhicheverWayItsIDIsSpelled(t *testing.T) {
 	for _, id := range []string{"AVD-DS-0002", "DS002", "ds002", "DS0002", "avd-ds-0002"} {
 		if _, ok := FixFor(misconf(id, "Dockerfile")); !ok {
 			t.Errorf("%q did not find the root-user rule", id)
+		}
+	}
+	for _, id := range []string{"AVD-DS-0029", "DS029", "ds029", "DS0029", "avd-ds-0029"} {
+		if _, ok := FixFor(misconf(id, "Dockerfile")); !ok {
+			t.Errorf("%q did not find the apt-get rule", id)
 		}
 	}
 }
@@ -225,5 +239,297 @@ func TestAUserInTheBuildStageIsNotTheFinalStagesUser(t *testing.T) {
 	}
 	if !strings.Contains(got, "USER appuser\nENTRYPOINT") {
 		t.Errorf("the final stage did not get the block:\n%s", got)
+	}
+}
+
+// AVD-DS-0029: 'apt-get' missing '--no-install-recommends'.
+
+func TestTheFlagIsAddedRightAfterInstall(t *testing.T) {
+	src := "FROM debian:12\nRUN apt-get install -y curl\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0029", "Dockerfile", 2, 2))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, "apt-get install --no-install-recommends -y curl") {
+		t.Errorf("the flag was not added where expected:\n%s", got)
+	}
+}
+
+// The flag satisfies apt-get wherever it sits relative to the rest of the
+// command's own flags, so a file that already has it — in any of the
+// positions Trivy itself accepts — must not be rewritten a second time.
+func TestAptGetAlreadyFixedIsDeclined(t *testing.T) {
+	for _, src := range []string{
+		"FROM debian:12\nRUN apt-get install --no-install-recommends -y curl\n",
+		"FROM debian:12\nRUN apt-get install -y --no-install-recommends curl\n",
+		"FROM debian:12\nRUN apt-get install -y curl --no-install-recommends\n",
+	} {
+		_, reason := apply(t, src, misconfLines("AVD-DS-0029", "Dockerfile", 2, 2))
+		if reason != ReasonAlreadyFixed {
+			t.Errorf("reason = %q, want %q for:\n%s", reason, ReasonAlreadyFixed, src)
+		}
+	}
+}
+
+// A RUN Trivy reports as one multi-line instruction (backslash continuations)
+// is read from its first line to its last, not just the line the flag lands
+// on.
+func TestAMultiLineRunGetsTheFlag(t *testing.T) {
+	src := "FROM debian:12\n" +
+		"RUN apt-get update && apt-get install -y \\\n" +
+		"    curl \\\n" +
+		"    git \\\n" +
+		"    && rm -rf /var/lib/apt/lists/*\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0029", "Dockerfile", 2, 5))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, "apt-get install --no-install-recommends -y \\\n") {
+		t.Errorf("the flag was not added to the multi-line install:\n%s", got)
+	}
+}
+
+// A RUN chaining two apt-get installs with `&&` is fixed per invocation: the
+// one that already has the flag is not what makes the other one "fixed".
+func TestEachChainedInstallIsCheckedOnItsOwn(t *testing.T) {
+	src := "FROM debian:12\nRUN apt-get install -y curl && apt-get install --no-install-recommends -y git\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0029", "Dockerfile", 2, 2))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, "apt-get install --no-install-recommends -y curl") {
+		t.Errorf("the first, unfixed install did not get the flag:\n%s", got)
+	}
+	if strings.Count(got, recommendsFlag) != 2 {
+		t.Errorf("the already-fixed install was rewritten:\n%s", got)
+	}
+}
+
+// The reported lines no longer holding an apt-get install is what a stale
+// finding — the file changed since the scan — looks like, and it is declined
+// rather than guessed at.
+func TestNoAptGetInstallInTheReportedLinesIsDeclined(t *testing.T) {
+	src := "FROM debian:12\nRUN echo hi\n"
+	_, reason := apply(t, src, misconfLines("AVD-DS-0029", "Dockerfile", 2, 2))
+	if reason != ReasonNoAptGetInstall {
+		t.Errorf("reason = %q, want %q", reason, ReasonNoAptGetInstall)
+	}
+}
+
+// A finding cached before EndLine was recorded (§ EndLine's own doc comment)
+// still names a Line, and a single apt-get install is one physical line: the
+// fix must not decline just because EndLine reads zero.
+func TestAZeroEndLineFallsBackToTheSingleLine(t *testing.T) {
+	src := "FROM debian:12\nRUN apt-get install -y curl\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0029", "Dockerfile", 2, 0))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, "apt-get install --no-install-recommends -y curl") {
+		t.Errorf("the flag was not added:\n%s", got)
+	}
+}
+
+func TestAptGetFixDeclinesOnANonDockerfile(t *testing.T) {
+	src := "user: root\n"
+	_, reason := apply(t, src, misconfLines("AVD-DS-0029", "k8s/deploy.yaml", 1, 1))
+	if reason != ReasonNotADockerfile {
+		t.Errorf("reason = %q, want %q", reason, ReasonNotADockerfile)
+	}
+}
+
+// AVD-DS-0021: 'apt-get' missing '-y'.
+
+func TestYIsAddedRightAfterInstall(t *testing.T) {
+	src := "FROM debian:12\nRUN apt-get install curl\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0021", "Dockerfile", 2, 2))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, "apt-get install -y curl") {
+		t.Errorf("the flag was not added:\n%s", got)
+	}
+}
+
+// apt-get accepts '-y' bundled into any short flag cluster, so an
+// already-fixed check that only looked for the literal substring "-y" would
+// miss '-qy' and add a redundant second flag.
+func TestYFlagIsRecognizedInAnyForm(t *testing.T) {
+	for _, src := range []string{
+		"FROM debian:12\nRUN apt-get install -y curl\n",
+		"FROM debian:12\nRUN apt-get install -qy curl\n",
+		"FROM debian:12\nRUN apt-get install -yq curl\n",
+		"FROM debian:12\nRUN apt-get install --yes curl\n",
+		"FROM debian:12\nRUN apt-get install --assume-yes curl\n",
+	} {
+		_, reason := apply(t, src, misconfLines("AVD-DS-0021", "Dockerfile", 2, 2))
+		if reason != ReasonAlreadyFixed {
+			t.Errorf("reason = %q, want %q for:\n%s", reason, ReasonAlreadyFixed, src)
+		}
+	}
+}
+
+// AVD-DS-0025: 'apk add' is missing '--no-cache'.
+
+func TestNoCacheIsAddedRightAfterApkAdd(t *testing.T) {
+	src := "FROM alpine:3\nRUN apk add curl\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0025", "Dockerfile", 2, 2))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, "apk add --no-cache curl") {
+		t.Errorf("the flag was not added:\n%s", got)
+	}
+}
+
+func TestApkAlreadyFixedIsDeclined(t *testing.T) {
+	src := "FROM alpine:3\nRUN apk add --no-cache curl\n"
+	_, reason := apply(t, src, misconfLines("AVD-DS-0025", "Dockerfile", 2, 2))
+	if reason != ReasonAlreadyFixed {
+		t.Errorf("reason = %q, want %q", reason, ReasonAlreadyFixed)
+	}
+}
+
+// AVD-DS-0015/0019/0020/0027: <package-manager> clean missing.
+
+func TestPackageManagerCleanIsAppendedAtTheEnd(t *testing.T) {
+	tests := []struct {
+		id, src, want string
+	}{
+		{"AVD-DS-0015", "FROM centos:7\nRUN yum install -y curl\n", "yum install -y curl && yum clean all"},
+		{"AVD-DS-0019", "FROM fedora:40\nRUN dnf install -y curl\n", "dnf install -y curl && dnf clean all"},
+		{"AVD-DS-0027", "FROM registry.access.redhat.com/ubi9-micro\nRUN microdnf install curl\n", "microdnf install curl && microdnf clean all"},
+		{"AVD-DS-0020", "FROM opensuse/leap\nRUN zypper install curl\n", "zypper install curl && zypper clean"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.id, func(t *testing.T) {
+			got, reason := apply(t, tt.src, misconfLines(tt.id, "Dockerfile", 2, 2))
+			if reason != "" {
+				t.Fatalf("declined: %s", reason)
+			}
+			if !strings.Contains(got, tt.want) {
+				t.Errorf("the cleanup was not appended:\n%s", got)
+			}
+		})
+	}
+}
+
+// The rule only counts a cleanup as satisfying it when it is the very last
+// thing the RUN does — placed anywhere else, a re-scan would still flag it —
+// so a RUN that already ends that way is left alone rather than doubled up.
+func TestPackageManagerCleanAlreadyLastIsDeclined(t *testing.T) {
+	src := "FROM centos:7\nRUN yum install -y curl && yum clean all\n"
+	_, reason := apply(t, src, misconfLines("AVD-DS-0015", "Dockerfile", 2, 2))
+	if reason != ReasonAlreadyFixed {
+		t.Errorf("reason = %q, want %q", reason, ReasonAlreadyFixed)
+	}
+}
+
+func TestPackageManagerCleanDeclinesWithNoMatchingInstall(t *testing.T) {
+	src := "FROM centos:7\nRUN echo hi\n"
+	_, reason := apply(t, src, misconfLines("AVD-DS-0015", "Dockerfile", 2, 2))
+	if reason != ReasonNoYumInstall {
+		t.Errorf("reason = %q, want %q", reason, ReasonNoYumInstall)
+	}
+}
+
+// AVD-DS-0005: ADD instead of COPY.
+
+func TestAddBecomesCopy(t *testing.T) {
+	src := "FROM debian:12\nADD app.jar /app/app.jar\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0005", "Dockerfile", 2, 2))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, "COPY app.jar /app/app.jar") {
+		t.Errorf("ADD was not rewritten to COPY:\n%s", got)
+	}
+}
+
+// Trivy's own check already excludes a tar archive, a remote URL or a git
+// source from AVD-DS-0005 — those are exactly the cases where ADD does
+// something COPY cannot — so a finding reaching this fix should never
+// exhibit one. The re-check exists for when the file changed since the scan.
+func TestAddIsDeclinedWhenItExtractsOrFetches(t *testing.T) {
+	for _, src := range []string{
+		"FROM debian:12\nADD app.tar.gz /app/\n",
+		"FROM debian:12\nADD https://example.com/app /app\n",
+		"FROM debian:12\nADD git@example.com:org/repo.git /src\n",
+	} {
+		_, reason := apply(t, src, misconfLines("AVD-DS-0005", "Dockerfile", 2, 2))
+		if reason != ReasonAddExtractsOrFetches {
+			t.Errorf("reason = %q, want %q for:\n%s", reason, ReasonAddExtractsOrFetches, src)
+		}
+	}
+}
+
+func TestAddFixDeclinesWhenTheLineIsNotAnAdd(t *testing.T) {
+	src := "FROM debian:12\nCOPY app /app\n"
+	_, reason := apply(t, src, misconfLines("AVD-DS-0005", "Dockerfile", 2, 2))
+	if reason != ReasonNotAnAddInstruction {
+		t.Errorf("reason = %q, want %q", reason, ReasonNotAnAddInstruction)
+	}
+}
+
+// AVD-DS-0011: COPY with more than two arguments not ending with slash.
+
+func TestCopyGetsATrailingSlash(t *testing.T) {
+	src := "FROM debian:12\nCOPY a b dest\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0011", "Dockerfile", 2, 2))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, "COPY a b dest/\n") {
+		t.Errorf("the slash was not added:\n%s", got)
+	}
+}
+
+func TestCopyWithTwoArgsIsDeclined(t *testing.T) {
+	src := "FROM debian:12\nCOPY a dest\n"
+	_, reason := apply(t, src, misconfLines("AVD-DS-0011", "Dockerfile", 2, 2))
+	if reason != ReasonCopyHasTooFewArgs {
+		t.Errorf("reason = %q, want %q", reason, ReasonCopyHasTooFewArgs)
+	}
+}
+
+func TestCopyAlreadyEndingInSlashIsDeclined(t *testing.T) {
+	src := "FROM debian:12\nCOPY a b dest/\n"
+	_, reason := apply(t, src, misconfLines("AVD-DS-0011", "Dockerfile", 2, 2))
+	if reason != ReasonAlreadyFixed {
+		t.Errorf("reason = %q, want %q", reason, ReasonAlreadyFixed)
+	}
+}
+
+// A --from/--chown flag is not one of the arguments the ">2" count is about,
+// and must not be mistaken for the destination either.
+func TestCopyFlagsAreNotCountedAsArguments(t *testing.T) {
+	src := "FROM debian:12 AS build\nFROM debian:12\nCOPY --from=build a b dest\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0011", "Dockerfile", 3, 3))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, "COPY --from=build a b dest/\n") {
+		t.Errorf("the slash was not added after the real destination:\n%s", got)
+	}
+}
+
+// AVD-DS-0022: Deprecated MAINTAINER used.
+
+func TestMaintainerBecomesALabel(t *testing.T) {
+	src := "FROM debian:12\nMAINTAINER Jane Doe <jane@example.com>\n"
+	got, reason := apply(t, src, misconfLines("AVD-DS-0022", "Dockerfile", 2, 2))
+	if reason != "" {
+		t.Fatalf("declined: %s", reason)
+	}
+	if !strings.Contains(got, `LABEL maintainer="Jane Doe <jane@example.com>"`) {
+		t.Errorf("MAINTAINER was not rewritten to LABEL:\n%s", got)
+	}
+}
+
+func TestMaintainerFixDeclinesWhenTheLineIsNotAMaintainer(t *testing.T) {
+	src := "FROM debian:12\nLABEL maintainer=\"Jane\"\n"
+	_, reason := apply(t, src, misconfLines("AVD-DS-0022", "Dockerfile", 2, 2))
+	if reason != ReasonNotAMaintainerInstruction {
+		t.Errorf("reason = %q, want %q", reason, ReasonNotAMaintainerInstruction)
 	}
 }

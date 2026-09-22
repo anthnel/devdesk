@@ -14113,19 +14113,22 @@ tout de suite le cas général.
    qu'elle en retire. Insérer dix lignes en montrait deux, dans l'écran même où
    l'utilisateur donne son accord. Corrigé en appariant par le span de chaque
    édition.
-5. **Le catalogue n'a qu'une règle, et c'est un résultat, pas un reste à
-   faire.** Les candidates ont chacune été rejetées pour un motif écrit dans le
-   source : `HEALTHCHECK` n'a pas de commande universelle ; `:latest` est déjà
-   le travail de l'onglet Remediation, qui résout de vrais tags ; `ADD`→`COPY`
-   et les règles `apt-get` ont des AVD ids **qui n'ont pas pu être vérifiés**
-   contre un vrai run Trivy depuis le sandbox. Un catalogue indexé sur un id
-   faux ne matche rien, en silence.
+5. **Le catalogue n'avait qu'une règle à la livraison, et c'était un résultat,
+   pas un reste à faire.** Les candidates avaient chacune été rejetées pour un
+   motif écrit dans le source : `HEALTHCHECK` n'a pas de commande universelle ;
+   `:latest` est déjà le travail de l'onglet Remediation, qui résout de vrais
+   tags ; `ADD`→`COPY` et les règles `apt-get` avaient des AVD ids **qui
+   n'avaient pas pu être vérifiés** contre un vrai run Trivy depuis le sandbox.
+   Un catalogue indexé sur un id faux ne matche rien, en silence. **Les ids ont
+   été vérifiés depuis, et huit règles de plus sont entrées dans le
+   catalogue — voir §3.84.**
 
 #### Ce qui reste, et ce n'est pas bloquant
 
-- **Vérifier les AVD ids depuis l'hôte**, où Trivy est installé, puis ajouter
-  les règles dont l'édition est exactement juste. Le catalogue est fait pour
-  grossir une entrée à la fois.
+- ~~Vérifier les AVD ids depuis l'hôte, où Trivy est installé, puis ajouter les
+  règles dont l'édition est exactement juste.~~ Fait — voir §3.84, qui a
+  vérifié les 26 règles Dockerfile depuis les sources rego plutôt que depuis un
+  run Trivy hôte. Le catalogue reste fait pour grossir une entrée à la fois.
 - **Les flags busybox**, pour qu'Alpine cesse d'être décliné.
 - **Plusieurs règles sur un même fichier** : une correction par validation
   aujourd'hui. `patch.Rewrite` sait déjà refuser deux éditions qui se recouvrent
@@ -14449,6 +14452,119 @@ famille de base au moment du scan de template, pas une réécriture.
 Sources vérifiées le 2026-09-21 :
 *Docker and Kubernetes Security* (§4.4, §4.4.1, §4.4.2),
 [Chainguard Wolfi](https://github.com/wolfi-dev).
+
+---
+
+### 3.84 Le catalogue de misconfigurations grossit — survol des 26 règles Dockerfile de Trivy — **done**
+
+§3.78 avait livré le catalogue avec **une** règle (utilisateur root), les
+autres candidates rejetées faute d'avoir pu vérifier leur AVD id depuis le
+sandbox — Trivy n'y est pas installé. La question posée ici : de toutes les
+règles *Dockerfile general* que Trivy connaît, combien peuvent recevoir une
+édition aussi mécanique et sûre que celle-là ?
+
+**La vérification s'est faite depuis les sources, pas depuis un run.** Sans
+Trivy sur l'hôte, la source de vérité est `aquasecurity/trivy-checks` sur
+GitHub : `avd_docs/dockerfile/general/DS-XXXX/docs.md` pour la description
+lisible, `checks/docker/*.rego` pour la logique exacte — ce que le check
+regarde, dans quel ordre, ce qui le satisfait. C'est en réalité **plus fiable**
+qu'un run local : le rego est la définition, un run n'en est qu'une
+observation. Les 26 règles *general* existantes (`DS-0001` à `DS-0029` ; `0003`,
+`0018` et `0028` n'existent pas — jamais attribués ou retirés en amont, à ne
+pas chercher lors d'un futur ajout) ont chacune été lues à la source.
+
+#### Le critère de tri
+
+Le même que celui que §3.78 avait appliqué à la seule règle root : une édition
+n'entre dans le catalogue que si elle ne demande de deviner **ni l'intention de
+l'auteur, ni une valeur que le Dockerfile ne donne pas**. Une règle qui échoue
+ce test n'est pas un manque à combler — c'est le cas que l'étage 2 (le serveur
+MCP, §3.78) couvre déjà.
+
+| ID | Ce que Trivy signale | Verdict |
+|---|---|---|
+| DS-0001 | `:latest` (ou tag absent) sur un FROM | Écartée — déjà le travail de l'onglet Remediation (§3.2), qui résout de vrais tags depuis le registre ; une deuxième voie vers le même correctif ne pourrait que le contredire |
+| DS-0002 | Image tourne en `root` | ✅ Implémentée (§3.78) |
+| DS-0004 | Port 22 exposé | Écartée — peut être volontaire (image de debug, bastion SSH) ; rien dans le Dockerfile ne dit si c'est un oubli |
+| DS-0005 | `ADD` au lieu de `COPY` | ✅ Implémentée — le rego de Trivy exclut déjà tar/URL/git@/checksum de ce qu'il signale, donc toute finding qui l'atteint est déjà prouvée être une simple copie locale |
+| DS-0006 | `COPY --from` se référence lui-même | Écartée — bug réel, impossible de deviner le bon alias de stage |
+| DS-0007 | Plusieurs `ENTRYPOINT` (seul le dernier compte) | 🟡 Faisable — supprimer tout sauf le dernier par stage est neutre sur le build, mais `internal/dockerfile` ne trace pas encore ENTRYPOINT par stage |
+| DS-0008 | Port EXPOSE hors 0-65535 | Écartée — coquille probable, impossible de deviner la valeur voulue |
+| DS-0009 | WORKDIR non absolu | 🟡 Faisable — résoluble en chaînant les WORKDIR précédents du stage, mais rien ne les trace |
+| DS-0010 | `sudo` dans un RUN | 🟡 Faisable sous précondition — sûr seulement si aucun `USER` non-root ne précède dans le stage (sinon retirer `sudo` change l'utilisateur effectif), même genre de précondition que `fixRootUser` applique déjà à la famille de base ; le tracking d'USER par position manque |
+| DS-0011 | `COPY` à 3+ arguments sans `/` final | ✅ Implémentée |
+| DS-0012 | Même alias dans deux FROM différents | Écartée — bug réel, impossible de deviner lequel renommer |
+| DS-0013 | `RUN cd X && …` au lieu de WORKDIR | Écartée — restructurer le RUN risque de casser l'enchaînement des commandes qui suivent |
+| DS-0014 | `wget` et `curl` utilisés tous les deux | Écartée — retirer l'un des deux est une décision fonctionnelle, pas mécanique |
+| DS-0015 | `yum clean all` manquant | ✅ Implémentée |
+| DS-0016 | Plusieurs `CMD` (seul le dernier compte) | 🟡 Faisable — même famille que DS-0007/0023 |
+| DS-0017 | `update` sans `install` dans le même RUN | Écartée — ne peut deviner quels paquets installer |
+| DS-0019 | `dnf clean all` manquant | ✅ Implémentée |
+| DS-0020 | `zypper clean` manquant | ✅ Implémentée |
+| DS-0021 | `apt-get` sans `-y` | ✅ Implémentée |
+| DS-0022 | `MAINTAINER` déprécié | ✅ Implémentée — réécrite en `LABEL maintainer="…"`, le remplacement documenté par Docker depuis 1.13.0 |
+| DS-0023 | Plusieurs `HEALTHCHECK` (seul le dernier compte) | 🟡 Faisable — même famille que DS-0007/0016 |
+| DS-0024 | `apt-get dist-upgrade` utilisé | Écartée — **dépréciée par Trivy lui-même** (`deprecated: true` dans le rego), ne sera bientôt plus signalée du tout |
+| DS-0025 | `apk add` sans `--no-cache` | ✅ Implémentée |
+| DS-0026 | `HEALTHCHECK` absent | Écartée — pas de commande de probe universelle ; décision reconfirmée le 2026-09-22 (un stub générique tromperait plus qu'il n'aiderait) |
+| DS-0027 | `microdnf clean all` manquant | ✅ Implémentée |
+| DS-0029 | `apt-get` sans `--no-install-recommends` | ✅ Implémentée (§3.78 en avait vérifié l'existence sans l'ajouter) |
+
+**11 règles sur 26 sont maintenant dans le catalogue** (DS-0002, 0005, 0011,
+0015, 0019, 0020, 0021, 0022, 0025, 0027, 0029) ; 4 sont faisables moyennant une
+extension du parser (0007, 0009, 0010, 0016, 0023 — cinq en réalité, comptées
+comme une famille) ; les 11 restantes sont écartées pour un motif propre à
+chacune, jamais « pas encore fait ».
+
+#### Ce qui a été construit
+
+Les huit nouvelles règles se répartissent en trois familles, chacune avec un
+helper partagé plutôt qu'une fonction par règle :
+
+| Famille | Helper | Règles | Ce qu'il fait |
+|---|---|---|---|
+| Insertion d'un flag après la commande | `fixCommandFlag` | DS-0021 (`-y`), DS-0025 (`--no-cache`), et DS-0029 déjà présente | trouve chaque invocation dans la plage de lignes du finding, ajoute le flag juste après le mot-clé sauf si une fonction `hasFlag` le détecte déjà présent dans **ce** statement (coupé aux `&&`/`;` suivants) |
+| Ajout d'un nettoyage en fin de RUN | `fixAppendCleanup` | DS-0015 (`yum clean all`), DS-0019 (`dnf clean all`), DS-0020 (`zypper clean`), DS-0027 (`microdnf clean all`) | le check de Trivy ne compte le nettoyage que s'il est la **dernière** chose que fait le RUN ; le fix l'ajoute donc en toute fin de la plage plutôt qu'à côté de l'install, sinon un re-scan le signalerait encore |
+| Réécriture ponctuelle | — | DS-0005 (mot-clé `ADD`→`COPY`), DS-0011 (`/` final), DS-0022 (`MAINTAINER`→`LABEL`) | chacune relit la ligne rapportée, vérifie qu'elle porte toujours la bonne instruction (sinon `ReasonNotAn…Instruction` : le fichier a changé depuis le scan), et fait l'édition minimale |
+
+Trois décisions de sûreté valent d'être notées :
+
+- **DS-0005 revérifie sur le fichier courant** les critères que Trivy utilise
+  lui-même pour exclure un `ADD` de ce check (`.tar`, `http://`, `https://`,
+  `git@`) — pas parce que la finding pourrait mentir, mais parce qu'elle a pu
+  être calculée sur une version du fichier qui a changé depuis.
+- **DS-0011 ignore les flags** (`--from=`, `--chown=`) en comptant les
+  arguments d'un `COPY`, pour ne jamais les prendre pour la destination.
+- **La détection « déjà corrigé » de DS-0021 est une regex, pas un
+  `Contains`** littéral comme pour DS-0029 : `-y` peut apparaître combiné dans
+  un cluster de flags courts (`-qy`, `-yq`), qu'un simple `Contains(s, "-y")`
+  manquerait, ajoutant un flag redondant sans casser le build mais en salissant
+  le diff.
+
+24 tests couvrent les huit règles, un par cas limite identifié dans le tableau
+ci-dessus (fichier changé, flag déjà présent sous toutes ses formes, arguments
+insuffisants, instruction déjà corrigée).
+
+#### Ce qui reste, et ce n'est pas bloquant
+
+- **DS-0007/0016/0023 (doublons ENTRYPOINT/CMD/HEALTHCHECK)** demandent que
+  `internal/dockerfile` trace ces trois instructions par stage, comme il trace
+  déjà `Stage.Line` pour FROM. L'édition elle-même est déjà connue : supprimer
+  tout sauf la dernière occurrence d'un stage, puisque Docker n'applique que
+  celle-là — le build produit un résultat identique avant et après.
+- **DS-0009 (WORKDIR non absolu)** demande de chaîner les WORKDIR d'un stage
+  pour résoudre un chemin relatif en absolu ; rien ne le fait encore.
+- **DS-0010 (`sudo`)** demande de savoir si un `USER` non-root précède la ligne
+  dans le même stage — la précondition qui rend le retrait de `sudo` sûr. Même
+  genre de traçage que `fixRootUser` fait déjà pour la famille de la base, mais
+  pour `USER` plutôt que pour `FROM`.
+
+Aucune des trois n'est un blocage : ce sont des candidates pour une extension
+du parser, pas des défauts du catalogue actuel.
+
+Sources vérifiées le 2026-09-22 :
+[trivy-checks — avd_docs/dockerfile/general](https://github.com/aquasecurity/trivy-checks/tree/main/avd_docs/dockerfile/general),
+[trivy-checks — checks/docker](https://github.com/aquasecurity/trivy-checks/tree/main/checks/docker).
 
 ---
 
