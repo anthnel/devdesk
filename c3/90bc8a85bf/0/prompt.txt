@@ -1,0 +1,184 @@
+/plan support du lint et validation des manifestes kubernetes, kustomize et helm, évalue l'utilisation de kyverno et kubelinter
+
+---
+
+<task-notification>
+<task-id>a205c61590afc04ce</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-c-Users-anthoni-projects-entire-anthnel-devdesk/26a18927-5256-455b-a96f-75d147591671/tasks/a205c61590afc04ce.output</output-file>
+<status>completed</status>
+<summary>Agent "Map scanner tool integration" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Here is the end-to-end map. Two gaps you'd copy by accident if you use plumber as the template are called out in 2c and 5.
+
+## 1. `scan.Finding` and the Trivy decode structs
+
+**`Finding`** (`internal/scan/scanner.go:99-159`) has these fields: `ID, Title, Description, Severity, Source, File, Line, Match, Fingerprint, PkgName, Version, FixedIn, Resolution, References, FixCommand, Class, Ecosystem, EndLine, Message, Status, Job, ScriptLine`. There is no field for the IaC dialect.
+
+**Decode structs** (`internal/scan/trivy.go`):
+- `TrivyResult` (17-25) has `Target, Class, Type`, plus Vulnerabilities, Secrets, Licenses and Misconfigurations.
+- `TrivyMisconfiguration` (63-78) has `Type, ID, AVDID, Title, Desc, Message, Severity, Resolution, PrimaryURL, Status, CauseMetadata{StartLine, EndLine}`.
+
+**`TrivyResult.Type` is dropped for misconfigurations.** It only reaches a Finding as `Ecosystem` on vulnerabilities (`trivy.go:178`). The misconfig loop (216-236) copies neither `result.Type` nor `misconf.Type`. It sets `ID: firstNonEmpty(AVDID, ID)` and `Source: "trivy-misconfig"`. `docs/backlog.md:14253-14261` (§3.80) records this exact gap.
+
+## 2. How a tool is declared, detected and run
+
+**Config.** `config.ScanConfig` is at `internal/config/config.go:327-372`:
+- Per tool: `TrivySource/TrivyPath/TrivyImage`, `Gitleaks*`, `Plumber*` (auto | binary | image, constants at 317-323).
+- Also: `UseTrivyServer/TrivyServer`, `Enable{Vuln,Secret,Misconfig,License}`, `EnableCIScore` (366), `PlumberConfig` (371).
+- Empty source defaults to auto at 524-532. `Default()` is at 603-606.
+- The "all toggles off" migration (558-562) must also check any new toggle, the way it checks `EnableCIScore`.
+- Path expansion is at 830-834.
+
+**`ScanOptions`** (`scanner.go:57-96`) is built only by `OptionsFromConfig` (`internal/scan/options.go:19-51`).
+
+**Detection:**
+- `DependencyStatus` (`scanner.go:325-352`) holds `&lt;Tool&gt;Available/Source/Version/Binary/Image` plus `EngineAvailable` and `ImageScanSocket`.
+- Default images are at 371-375.
+- `CheckDependencies` (385-437) calls `resolveTool(pref, path, name, image, engineAvailable, versionArgs...)` (`internal/scan/tool_source.go:70-109`). With `binary` it does not fall back to a container.
+- `ToolSpec{Source, Binary, Image, HostSocket}` (`tool_source.go:19-34`) comes from `TrivySpec/GitleaksSpec/PlumberSpec` (38-53).
+
+**Running:**
+- `toolCmd{Name, Args, Env, Dir}` is at `internal/scan/run.go:21-41`. `String()` is used for logging and display.
+- The `commandRunner` interface (82-88) is implemented by `cliRunner` (93-139). The swappable variable is `var runner` (173).
+- A non-zero exit becomes `*exitError`, which carries the exit code.
+- Container mode is `&lt;engine&gt; run --rm -v target:/scan:ro &lt;image&gt; ...`, with `containerScanPath="/scan"` (`trivy_args.go:17`). Examples: `wrapTrivy` (205-224) and `plumberArgs` (`plumber.go:82-119`).
+
+**Orchestration.** `Scanner.Scan` (`scanner.go:545-736`) runs one errgroup goroutine per stage. Each stage:
+- is gated on `options.EnableX &amp;&amp; deps.XAvailable`;
+- sends `ProgressUpdate{Stage, Label, Status}`;
+- on failure calls `recordStageError` (237);
+- otherwise appends findings under the mutex.
+
+`missingToolErrors` (485-504) reports a missing tool. Plumber is not in it.
+
+**Every file plumber touches:**
+- **scan:**
+  - `plumber.go` (args, exit codes, `RunPlumber`, `GetPlumberCommand`)
+  - `plumber_parse.go`
+  - `plumber_target.go` (`ciOptions`, per-target gating)
+  - `category.go:28,40,55`
+  - `scanner.go:74-81, 188-211, 221-227, 263, 307, 336-340, 374, 394-434, 617-652`
+  - `tool_source.go:51-53`
+  - `options.go:29-33`
+  - `run.go:34-40` (the `Dir` field)
+- **config:** `config.go:336-338, 358-371, 530, 552-559, 605, 834`
+- **cache:** `internal/cache/workspace_scan.go:35-44, 215`
+- **security UI:**
+  - `findings.go:108, 145, 191-210` (tab and count)
+  - `view.go:205-217` (tab label)
+  - `header.go:248` (help text)
+  - `inventory_table.go:276` (CI column)
+  - `inventory.go:288`
+  - `inventory_commands.go:45-48, 128, 146-160, 282, 315`
+  - `model.go:154, 169`
+  - `details.go:127`
+  - `pipeline_source.go` and `pipeline_annotate.go` (tool-specific)
+- **other UI:**
+  - workspaces: `model.go:158`, `view.go:370-382, 588`
+  - `internal/ui/theme/ciscore.go`
+  - dashboard: `model.go:595-613`, `sections.go:976-985`
+  - `internal/ui/configuration/fields.go:299-300, 333-341`
+  - `internal/ui/templates/scan.go:165` (turns CI off for templates)
+  - `internal/ui/about/view.go:177`
+- **MCP:** nothing (see 5).
+- **Docs:** `docs/architecture/scanning.md:91-200`, `configuration.md`, `templates.md`, `docs-site/docs/{explanation/scanning,reference/configuration}.md`, `CHANGELOG.md`.
+
+**2c. Gap 1: your configured plumber source/path/image is not used by real scans.** `NewScanner` (`scanner.go:461-468`) builds the `config.ScanConfig` it passes to `CheckDependencies` from Trivy and Gitleaks fields only. So a real scan resolves plumber with source auto, the PATH binary and the default image. Only the dashboard, which passes the full `cfg.Scan`, honours the plumber settings. Separately, `PlumberPath` is not `~`-expanded (`config.go:830-832`). A new tool must be added to both places.
+
+## 3. Categories and the results tabs
+
+**Categories.** The source constants are at `category.go:22-29`. The `Category` enum (36-41) is Vulnerability, Secret, License, Misconfiguration, CIScore. `Categorize` (47-60) switches on `Source` only; an unknown source counts as a vulnerability. `Result.CountFindings` (`scanner.go:249-269`) feeds `MisconfigCount` and `CIIssueCount`. `TotalFindings` is at 305.
+
+**Tabs** (`internal/ui/security/findings.go`):
+- Constants at 103-113: `TabCVE=0, TabSecrets, TabLicense, TabMisconfig=3, TabCIScore=4, TabRemediation=5, tabCount=6`.
+- `tabCategory` map at 140-146; `filterFindingsByTab` at 149-165.
+- `countFindingsByTab` (191-211) returns a fixed tuple of five counts.
+- `switchTab` is at 223-230; tab/shift+tab cycling at 384/388.
+- Labels are at `view.go:204-218`.
+- The header's ctrl+o label changes on `TabMisconfig` (`header.go:69-72`).
+
+**Columns.** The Misconfigurations tab uses the shared `findingColumns()` (`findings.go:39-68`), which is the same for every findings tab: Severity, ID, Title (search also matches PkgName and File), and Source (optional). `sourceDisplay` (172-187) maps `trivy-misconfig` to "misconfig". There is no File or Type column. The detail pane is `details.go:71-160`.
+
+## 4. Remediation catalog and patch
+
+**`internal/remediation/misconfig.go`:**
+- `Rule{AVDID, Title, Fix func(content []byte, f scan.Finding) ([]patch.Edit, string)}` is at 27-41. `Fix` returns either edits or a decline reason.
+- Reason constants are at 46-78.
+- The `catalog` map (122-178) contains only Dockerfile rules (AVD-DS-0002, 0005, 0011, 0015, 0019, 0020, 0021, 0022, 0025, 0027, 0029).
+- `FixFor` (184-190) applies only to `CategoryMisconfiguration`.
+- `RuleKey` (198-212) normalises IDs: "AVD-DS-0002" and "DS002" both become "DS2". "KSV-0012" would become "KSV12".
+- Every fixer rejects non-Dockerfiles through `dockerfile.IsDockerfileName(baseName(f.File))`, returning `ReasonNotADockerfile`.
+
+**`internal/patch`:** `Span`/`Edit{Span, Old, New}` and `Rewrite`/`Diff` are in `rewrite.go:25-107`. It is byte-range only, not YAML-aware. `WriteIfUnchanged` is in `write.go:25`.
+
+**UI hook.** `misconfig_write.go:80-140` gates on `TabMisconfig` and a directory target, then calls `FixFor`, `rule.Fix`, `patch.Rewrite` and `Diff`.
+
+## 5. MCP `scan_result`
+
+In `internal/mcp/scan_tools.go`:
+- The `finding` projection (135-155) has `id, title, description, severity, category, source, file, line, end_line, message, status, fingerprint, pkg_name, version, fixed_in, class, ecosystem, resolution, references`. `Match` is left out on purpose; `Job`, `ScriptLine` and `FixCommand` are also not exposed.
+- `expose()` (325-347) copies fields one by one, so a new Finding field (for example an IaC type) must be added there explicitly.
+- `scanResultOut` (165-192) carries the severity counts, `secret_count`, `secrets_scanned`, `license_count`, `misconfig_count`, `errors`, `target_kind`, `root` and paging.
+
+**5b. Gap 2: MCP has no CI category.** `categoryName` (357-368) has no case for `CategoryCIScore`, so plumber findings are reported as "vulnerability". `scanResultOut` also has no CI count or score. A new category has to be added here and in the jsonschema text at 140/160.
+
+The MCP descriptions table is at `internal/mcp/tools.go:90-135`. The scan toggles are also shown in `context_tools.go:127-134`, which does not include CI.
+
+## 6. Caches and verdicts
+
+**Entries:**
+- `WorkspaceScanEntry` (`internal/cache/workspace_scan.go:19-46`): Critical, High, Medium, Low, `Sensitive *bool`, `CIScore *string`, ScannedAt.
+- `ImageScanEntry` (`internal/cache/image_scan.go:17-33`): the same without CIScore.
+- Neither stores `MisconfigCount` or `LicenseCount`.
+
+**Full results.** The whole `scan.Result` JSON is written to `~/.devdesk/cache/workspace-results/&lt;sha256&gt;.json` (`SaveWorkspaceScanResult`, 180-190). So any new `Finding` or `Result` field is persisted automatically; only the summary entries need new fields.
+
+**Writers:**
+- `StoreWorkspaceScan` (204-229), called from `workspaces/commands.go:200` and `templates/scan.go:152`
+- `storeRescan` (`security/inventory_commands.go:292-320`)
+- `oci_resources/commands.go:148`
+
+**Verdict pattern.** `Result.SecretVerdict()` (`scanner.go:296`) and `CIVerdict()` (221-227) return nil when nothing looked, backed by the `SecretsScanned`/`CIScanned` flags. Use a pointer field with omitempty so older cache files decode as "unknown". The value also has to travel through `InventoryScanFinishedMsg` (`inventory_commands.go:37-51`) and into the MCP `scanTarget` (`scan_tools.go:31-41`).
+
+## 7. Existing Kubernetes/Helm/Kustomize mentions in Go
+
+There are almost none:
+- `internal/ui/security/header.go:68`, a comment about not offering "Write Dockerfile" on a Kubernetes manifest.
+- `header.go:248`, help text: "Dockerfiles, Terraform, K8s manifests (Trivy)".
+- `internal/remediation/misconfig_test.go` mentions it in a test.
+
+There is nothing for helm, kustomize, `Chart.yaml`, `kustomization.yaml`, kube-linter or Kyverno. The design discussion is backlog §3.80 (`docs/backlog.md:14221-14343`). It says Trivy already emits KSV-* rules, the missing piece is Type, and whether kube-linter, Kyverno or Kubescape add enough is an open question (row 4). §3.78 also discusses Kyverno and kube-linter (around 13981-13984).
+
+## 8. `docs/architecture/scanning.md` (814 lines)
+
+Headings: `## Security Scanning` (6), then `###` sections on what can be fixed (310), what a misconfiguration carries (337), the misconfig fix catalog (364), the Remediation tab (413) and writing the chosen bases (478). After that come `## The security inventory` (522), `## Scan Cache` (657), `## Who knows a scan is running` (736) and `## A scan can be stopped` (780).
+
+There is no explicit "how to add a tool" section. The nearest guidance:
+- Lines 8-31: `*_source` resolution, `CheckDependencies`, `XSpec()`, and "do not add a positional binary parameter; put it on the spec".
+- Lines 91-200: the plumber write-up (per-target gating, exit codes, withheld verdict, how the column and tabs behave, `Dir`, token in the environment, config mount).
+- Line 172: stage failures go to the log, not the screen.
+- Line 202: `Categorize` is the only classifier.
+- Line 213: `SecretVerdict` is the only verdict.
+
+## 9. Configuration view
+
+`internal/ui/configuration/fields.go:293-348`, "scan" page:
+- A "Scanners" group of toggles (294-301).
+- One group per tool: `cycle("&lt;Tool&gt; source", …, [auto, binary, image])`, `text("&lt;Tool&gt; binary")`, `text("&lt;Tool&gt; image", "Empty uses "+scan.Default&lt;Tool&gt;Image)`, and an optional `text("&lt;Tool&gt; config")`. Trivy is 302-316, Gitleaks 321-332, Plumber 333-342.
+- Trivy server mode forces misconfig and license off (`configuration/update.go:347-353`).
+
+The dashboard's tool list is in `dashboard/model.go:595-613` and `sections.go:976-985`. The comment there says the two lists must stay in sync.
+
+## 10. Test conventions
+
+- **Fake runner:** `scriptedRunner` plus `useRunner`, `answering` and `commandForStage` (`internal/scan/execute_test.go:20-90`). `byStage` and `stageOf` (`scan_test.go:27-67`) pick the stage by matching the command string, so a new tool needs its own case there.
+- **Fixture deps:** `everyTool()` and `everyStage()` (`scan_test.go:71-91`) are passed to `newScannerWithDeps(opts, deps)`. Tests swapping the runner must not run in parallel.
+- **Parsing:** Trivy JSON is inline in `parse_test.go` (e.g. `TestAMisconfigurationCarriesItsSpanMessageAndStatus`, 334). Plumber uses files in `internal/scan/testdata/plumber_complete.json` and `plumber_withheld.json`, loaded at `plumber_test.go:21`.
+- **Other:** argument building is tested as pure functions (`command_test.go`, `plumber_test.go`), detection in `tool_source_test.go:158-184`, verdicts in `verdict_test.go`. Test names are sentences (`TestTheXDoesY`).</result>
+<usage><subagent_tokens>133373</subagent_tokens><tool_uses>41</tool_uses><duration_ms>135865</duration_ms></usage>
+</task-notification>
+
+---
+
+je souhaite ne pas multiplier les outils, est-ce que kubelinter est nécessaire si on utilise kubeconform, l'objectif est de pouvoir sortir les problèmes dans le tableau de résultat des scans et si possible proposer des remédiations

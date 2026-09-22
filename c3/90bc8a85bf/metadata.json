@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "c390bc8a85bf",
+  "strategy": "manual-commit",
+  "branch": "feat/k8s-manifests",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/architecture/scanning.md",
+    "internal/remediation/misconfig.go",
+    "internal/ui/security/header.go",
+    "internal/ui/security/misconfig_write.go",
+    "internal/ui/security/misconfig_write_test.go",
+    "internal/ui/security/model.go",
+    "internal/ui/security/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c3/90bc8a85bf/0/metadata.json",
+      "transcript": "/c3/90bc8a85bf/0/full.jsonl",
+      "compact_transcript": "/c3/90bc8a85bf/0/transcript.jsonl",
+      "content_hash": "/c3/90bc8a85bf/0/content_hash.txt",
+      "prompt": "/c3/90bc8a85bf/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 60843,
+    "cache_read_tokens": 9271734,
+    "output_tokens": 31864,
+    "api_call_count": 22
+  }
+}
