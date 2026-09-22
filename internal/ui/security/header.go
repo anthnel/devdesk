@@ -226,7 +226,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "space", Description: "Choose the candidate under the cursor for its stage — only a scanned one (Remediation tab)"},
 			{Key: "enter", Description: "Show what the chosen bases would change, as a diff (Remediation tab)"},
 			{Key: writeRemediationKey, Description: "Write the chosen bases into the Dockerfiles, after a confirmation that defaults to No (Remediation tab)"},
-			{Key: writeRemediationKey, Description: "Apply the built-in fix for the selected rule, after a confirmation showing the diff and defaulting to No. Only a few rules have one; the rest are handed to an agent through the MCP server (Misconfigurations tab)"},
+			{Key: writeRemediationKey, Description: "Apply the built-in fix for the selected rule, after a confirmation showing the diff and defaulting to No. Only a few rules have one — some Dockerfile rules, privileged and allowPrivilegeEscalation on a plain Kubernetes manifest, and an apiVersion whose replacement is a rename; the rest are handed to an agent through the MCP server (Misconfigurations tab)"},
 			{Key: keymap.Scan, Description: "Measure the base images and their candidates by scanning them from their registries (Remediation tab)"},
 			{Key: keymap.Exclude, Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab, Gitleaks findings only)"},
 			{Key: keymap.Web, Description: "Open first reference URL in the default browser (detail view)"},

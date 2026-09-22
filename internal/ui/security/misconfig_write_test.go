@@ -312,14 +312,14 @@ func TestTheVerdictIsReadFromTheRescan(t *testing.T) {
 	}}}
 	gone := &scan.Result{Target: "/repo"}
 
-	if !holdsRule(still, "AVD-DS-0002", "Dockerfile") {
+	if !holdsRule(still, "AVD-DS-0002", "Dockerfile", "") {
 		t.Error("a result that still reports the rule was read as cleared")
 	}
-	if holdsRule(gone, "AVD-DS-0002", "Dockerfile") {
+	if holdsRule(gone, "AVD-DS-0002", "Dockerfile", "") {
 		t.Error("a result without the rule was read as still reporting it")
 	}
 	// Another file's instance of the same rule is not this one.
-	if holdsRule(still, "AVD-DS-0002", "svc/Dockerfile") {
+	if holdsRule(still, "AVD-DS-0002", "svc/Dockerfile", "") {
 		t.Error("a rule in another file answered for this one")
 	}
 }
@@ -330,7 +330,7 @@ func TestTheVerdictMatchesEitherSpellingOfTheRule(t *testing.T) {
 	result := &scan.Result{Findings: []scan.Finding{{
 		ID: "DS002", Source: scan.SourceTrivyMisconfig, File: "Dockerfile",
 	}}}
-	if !holdsRule(result, "AVD-DS-0002", "Dockerfile") {
+	if !holdsRule(result, "AVD-DS-0002", "Dockerfile", "") {
 		t.Error("DS002 in the result did not answer for AVD-DS-0002")
 	}
 }
@@ -380,5 +380,25 @@ func TestAVerdictForAnotherTargetIsIgnored(t *testing.T) {
 
 	if m.misconfigVerifying == nil {
 		t.Error("a verdict for another target cancelled this target's verification")
+	}
+}
+
+// A Deployment with two containers is flagged for KSV-0001 twice in one file,
+// and a fix edits one of them. Judged on the rule and the file alone, the
+// other container would read as the fix having failed (§3.80).
+func TestTheVerdictIsAboutTheOccurrenceThatWasFixed(t *testing.T) {
+	sidecar := scan.Finding{
+		ID: "KSV-0001", Source: scan.SourceTrivyMisconfig, File: "deploy.yaml",
+		Message: "Container 'sidecar' of Deployment 'web' should set 'securityContext.allowPrivilegeEscalation' to false",
+	}
+	api := sidecar
+	api.Message = strings.Replace(api.Message, "sidecar", "api", 1)
+	after := &scan.Result{Findings: []scan.Finding{sidecar}}
+
+	if holdsRule(after, "KSV-0001", "deploy.yaml", instanceOf(api)) {
+		t.Error("the untouched sidecar answered for the api container that was fixed")
+	}
+	if !holdsRule(after, "KSV-0001", "deploy.yaml", instanceOf(sidecar)) {
+		t.Error("the occurrence still reported was read as cleared")
 	}
 }

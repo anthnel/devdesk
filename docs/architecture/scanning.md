@@ -482,6 +482,45 @@ the tag. It is binary — the AVD id is reported for that file, or it is not —
 the comparison goes through `remediation.RuleKey`, since a match that missed
 Trivy's other spelling would report every fix as successful.
 
+**The verdict is about the occurrence that was fixed** (§3.80). A Deployment
+with two containers is reported for `KSV-0001` twice in one file, and a fix
+edits one of them; judged on the rule and the file alone, the untouched one
+would read as the fix having failed. `holdsRule` also compares `instanceOf` —
+the finding's `Title` and `Message`, which Trivy (`Container 'api' of …`) and
+kubeconform (`Deployment/web: …`) make specific — and never the line, which the
+fix itself moves.
+
+#### Kubernetes manifests in the catalog (§3.80)
+
+Three rules, in `internal/remediation/k8s.go`, and they only ever touch a
+finding whose `IaCType` is `kubernetes` — a Helm template or a Kustomize
+overlay is declined, since the file the finding names is not the YAML that was
+evaluated.
+
+| Rule | Edit |
+|---|---|
+| `KSV-0017` privileged | `privileged: true` → `false` |
+| `KSV-0001` allowPrivilegeEscalation | `true` → `false`; when absent, a line inserted in the container's `securityContext`, or a `securityContext` block inserted in the container |
+| `K8S-API-REMOVED` | the `apiVersion` renamed, **only** for the kinds the deprecation guide marks "No notable changes" (CronJob, RBAC, storage, Lease, IngressClass, PriorityClass, RuntimeClass, APIService, CSIStorageCapacity) |
+
+The edits are still byte ranges: `internal/k8s` turns yaml.v3's node positions
+(line, and a column counted in **characters**) into offsets, so comments,
+anchors and the file's line endings survive, and nothing is re-serialised. An
+insertion goes above a key that begins its own line, at that key's indentation
+— never above the key on a `- name:` line, which would land outside the
+container. The container is found by the name in Trivy's message, inside the
+document and the lines the finding reported; a file that no longer matches is
+declined as stale.
+
+Two declines are the API server's own validation rather than caution:
+`allowPrivilegeEscalation: false` is refused on a privileged container or one
+adding `CAP_SYS_ADMIN`, so the fix would pass Trivy's rule and produce a
+manifest nobody can apply. Left out entirely, for §3.78's `USER 1000` reason:
+`runAsNonRoot`, `readOnlyRootFilesystem` and dropping `ALL` capabilities pass
+their rule and can stop the container from starting. Resource limits have no
+universal value, and a seccomp profile can sit at the pod or the container
+level.
+
 Starting it on the user's behalf is acceptable because it is an ordinary job
 (§3.58): it appears in `:jobs` labelled `verify fix`, and `K` stops it. A scan of
 that target started from anywhere else answers the pending verification too —

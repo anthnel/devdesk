@@ -50,6 +50,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.remediation.pending = nil
 		m.misconfigPending = nil
 		m.misconfigRule = ""
+		m.misconfigInstance = ""
 		return m, nil
 
 	case sharedcomponents.OptionConfirmModalYesMsg:

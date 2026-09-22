@@ -54,15 +54,19 @@ type MisconfigFixPreparedMsg struct {
 	// compared against a later scan.
 	Rule string
 	Body string
-	Err  error
+	// Instance says which occurrence of the rule, for the same reason — see
+	// instanceOf.
+	Instance string
+	Err      error
 }
 
 // MisconfigFixWrittenMsg reports the write.
 type MisconfigFixWrittenMsg struct {
-	Target string
-	File   string
-	Rule   string
-	Err    error
+	Target   string
+	File     string
+	Rule     string
+	Instance string
+	Err      error
 }
 
 // ── Availability ─────────────────────────────────────────────────────────────
@@ -144,7 +148,7 @@ func prepareMisconfigFixCmd(target string, f scan.Finding) tea.Cmd {
 			log.Printf("ERROR [security/misconfig] git state of %s: %v", f.File, err)
 			file.StateErr = true
 		}
-		return MisconfigFixPreparedMsg{Target: target, File: file, Rule: f.ID, Body: rule.Title + "\n\n" + diff}
+		return MisconfigFixPreparedMsg{Target: target, File: file, Rule: f.ID, Instance: instanceOf(f), Body: rule.Title + "\n\n" + diff}
 	}
 }
 
@@ -171,6 +175,7 @@ func (m Model) handleMisconfigFixPrepared(msg MisconfigFixPreparedMsg) (tea.Mode
 	}
 	m.misconfigPending = &msg.File
 	m.misconfigRule = msg.Rule
+	m.misconfigInstance = msg.Instance
 	// Rule 104: the safe answer is the default — ConfirmModal opens on No.
 	m.confirmModal = sharedcomponents.NewConfirmModal("Fix misconfiguration", misconfigConfirmationText(msg.File, msg.Body))
 	return m, nil
@@ -189,20 +194,21 @@ func misconfigConfirmationText(f preparedWrite, body string) string {
 // handleMisconfigFixConfirmed runs the write the modal was about.
 func (m Model) handleMisconfigFixConfirmed() (tea.Model, tea.Cmd) {
 	file := m.misconfigPending
-	rule := m.misconfigRule
+	rule, instance := m.misconfigRule, m.misconfigInstance
 	m.misconfigPending = nil
 	m.misconfigRule = ""
+	m.misconfigInstance = ""
 	m.confirmModal = nil
 	if file == nil {
 		return m, nil
 	}
-	return m, writeMisconfigFixCmd(m.targetPath, rule, *file)
+	return m, writeMisconfigFixCmd(m.targetPath, rule, instance, *file)
 }
 
-func writeMisconfigFixCmd(target, rule string, f preparedWrite) tea.Cmd {
+func writeMisconfigFixCmd(target, rule, instance string, f preparedWrite) tea.Cmd {
 	return func() tea.Msg {
 		err := patch.WriteIfUnchanged(f.Path, f.Original, f.Updated)
-		return MisconfigFixWrittenMsg{Target: target, File: f.File, Rule: rule, Err: err}
+		return MisconfigFixWrittenMsg{Target: target, File: f.File, Rule: rule, Instance: instance, Err: err}
 	}
 }
 
@@ -217,7 +223,7 @@ func (m Model) handleMisconfigFixWritten(msg MisconfigFixWrittenMsg) (tea.Model,
 	// The file changed; the result did not. A re-scan is what turns "written"
 	// into "fixed", so it starts here rather than being left to the user — as a
 	// job, visible in `:jobs` and stoppable with K.
-	v := misconfigVerify{Target: msg.Target, Rule: msg.Rule, File: msg.File}
+	v := misconfigVerify{Target: msg.Target, Rule: msg.Rule, File: msg.File, Instance: msg.Instance}
 	m.misconfigVerifying = &v
 	scan := m.startMisconfigVerification(v)
 	footer := m.footer.Info(fmt.Sprintf("Fixed %s — re-scanning to confirm %s is gone", msg.File, msg.Rule))
@@ -248,9 +254,10 @@ func (m *Model) reportFailedFix(msg MisconfigFixWrittenMsg) tea.Cmd {
 
 // misconfigVerify is the fix waiting on a re-scan to say whether it worked.
 type misconfigVerify struct {
-	Target string
-	Rule   string
-	File   string
+	Target   string
+	Rule     string
+	File     string
+	Instance string
 }
 
 // MisconfigVerifiedMsg is the verdict: whether the rule the fix was about is
@@ -296,17 +303,23 @@ func verifyMisconfigCmd(v misconfigVerify) tea.Cmd {
 		}
 		return MisconfigVerifiedMsg{
 			Target: v.Target, Rule: v.Rule, File: v.File,
-			Cleared: !holdsRule(result, v.Rule, v.File), Result: result,
+			Cleared: !holdsRule(result, v.Rule, v.File, v.Instance), Result: result,
 		}
 	}
 }
 
-// holdsRule says whether a result still reports this rule for this file.
+// holdsRule says whether a result still reports this rule for this file —
+// and, when instance is set, this occurrence of it.
 //
 // It matches through remediation.RuleKey rather than on the string, for the
 // reason the catalog does: Trivy spells one rule two ways, and a comparison
 // that missed the other spelling would report every fix as successful.
-func holdsRule(result *scan.Result, rule, file string) bool {
+//
+// The occurrence matters for a manifest (§3.80): a Deployment with two
+// containers is flagged for KSV-0001 twice in one file, and the fix edits one
+// of them. Judged on the rule and the file alone, the untouched container
+// would read as the fix having failed.
+func holdsRule(result *scan.Result, rule, file, instance string) bool {
 	if result == nil {
 		return false
 	}
@@ -315,11 +328,19 @@ func holdsRule(result *scan.Result, rule, file string) bool {
 		if scan.Categorize(f) != scan.CategoryMisconfiguration {
 			continue
 		}
-		if f.File == file && remediation.RuleKey(f.ID) == want {
+		if f.File == file && remediation.RuleKey(f.ID) == want && (instance == "" || instanceOf(f) == instance) {
 			return true
 		}
 	}
 	return false
+}
+
+// instanceOf identifies one occurrence of a rule in a file, without its line,
+// which the fix itself moves. Trivy words the occurrence in Message ("Container
+// 'api' of Deployment 'web' should set…"), kubeconform in Title
+// ("Deployment/web: …"); the pair covers both.
+func instanceOf(f scan.Finding) string {
+	return f.Title + "\n" + f.Message
 }
 
 // handleMisconfigVerified reports the verdict, and swaps in the result it was

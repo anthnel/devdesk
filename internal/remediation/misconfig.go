@@ -175,6 +175,23 @@ var catalog = map[string]Rule{
 		Title: "Add --no-install-recommends to apt-get install",
 		Fix:   fixAptGetNoRecommends,
 	},
+	// Kubernetes manifests (§3.80) — see k8s.go for what is in and what is
+	// left out, and why.
+	RuleKey("KSV-0001"): {
+		AVDID: "KSV-0001",
+		Title: "Set allowPrivilegeEscalation: false on the container",
+		Fix:   fixPrivilegeEscalation,
+	},
+	RuleKey("KSV-0017"): {
+		AVDID: "KSV-0017",
+		Title: "Set privileged: false on the container",
+		Fix:   fixPrivileged,
+	},
+	RuleKey(scan.K8sAPIRemovedID): {
+		AVDID: scan.K8sAPIRemovedID,
+		Title: "Move the resource to the apiVersion that replaced it",
+		Fix:   fixRemovedAPI,
+	},
 }
 
 // FixFor returns the catalog's rule for a finding, if it has one.
