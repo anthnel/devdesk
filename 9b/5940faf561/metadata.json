@@ -3,7 +3,7 @@
   "checkpoint_id": "9b5940faf561",
   "strategy": "manual-commit",
   "branch": "docs/backlog-build-context",
-  "checkpoints_count": 5,
+  "checkpoints_count": 8,
   "files_touched": [
     "docs/backlog.md"
   ],
@@ -21,13 +21,20 @@
       "compact_transcript": "/9b/5940faf561/1/transcript.jsonl",
       "content_hash": "/9b/5940faf561/1/content_hash.txt",
       "prompt": "/9b/5940faf561/1/prompt.txt"
+    },
+    {
+      "metadata": "/9b/5940faf561/2/metadata.json",
+      "transcript": "/9b/5940faf561/2/full.jsonl",
+      "compact_transcript": "/9b/5940faf561/2/transcript.jsonl",
+      "content_hash": "/9b/5940faf561/2/content_hash.txt",
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 30,
-    "cache_creation_tokens": 9951,
-    "cache_read_tokens": 5857298,
-    "output_tokens": 5310,
-    "api_call_count": 15
+    "input_tokens": 86,
+    "cache_creation_tokens": 390787,
+    "cache_read_tokens": 10166258,
+    "output_tokens": 38436,
+    "api_call_count": 43
   }
 }
