@@ -185,3 +185,18 @@ func TestNewScannerDetectsWhatIsInstalled(t *testing.T) {
 		t.Error("the options were not carried onto the scanner")
 	}
 }
+
+// Every tool's source setting has to reach detection through NewScanner. The
+// constructor used to forward Trivy's and Gitleaks' only, so a scan resolved
+// plumber with its defaults whatever the context said — only the dashboard,
+// which passes the whole config, honoured plumber_source.
+func TestNewScannerHonoursEveryToolsSource(t *testing.T) {
+	installTools(t, "present", "plumber", "docker")
+
+	s := NewScanner(ScanOptions{PlumberSource: "image", PlumberImage: "mirror.example/plumber:1"})
+
+	if s.deps.PlumberSource != ToolSourceContainer || s.deps.PlumberImage != "mirror.example/plumber:1" {
+		t.Errorf("plumber resolved as %q with image %q, want the configured image source",
+			s.deps.PlumberSource, s.deps.PlumberImage)
+	}
+}

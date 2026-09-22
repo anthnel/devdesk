@@ -456,16 +456,26 @@ type Scanner struct {
 // NewScanner creates a new scanner with the given options, detecting which
 // tools are available on this machine.
 func NewScanner(opts ScanOptions) *Scanner {
-	// Spelled out rather than passed as a config: ScanOptions is what a scan was
-	// asked to do, and these six fields are the part of it detection needs.
-	return newScannerWithDeps(opts, CheckDependencies(config.ScanConfig{
-		TrivySource:    opts.TrivySource,
-		TrivyPath:      opts.TrivyPath,
-		TrivyImage:     opts.TrivyImage,
-		GitleaksSource: opts.GitleaksSource,
-		GitleaksPath:   opts.GitleaksPath,
-		GitleaksImage:  opts.GitleaksImage,
-	}))
+	return newScannerWithDeps(opts, CheckDependencies(opts.toolConfig()))
+}
+
+// toolConfig is the part of the options detection needs: where each tool runs
+// from. Spelled out rather than carried as a config, because ScanOptions is
+// what a scan was asked to do — but every tool is listed, since a tool left out
+// here is resolved with its defaults and its configured source is silently
+// ignored by every real scan. That is what happened to plumber until §3.80.
+func (o ScanOptions) toolConfig() config.ScanConfig {
+	return config.ScanConfig{
+		TrivySource:    o.TrivySource,
+		TrivyPath:      o.TrivyPath,
+		TrivyImage:     o.TrivyImage,
+		GitleaksSource: o.GitleaksSource,
+		GitleaksPath:   o.GitleaksPath,
+		GitleaksImage:  o.GitleaksImage,
+		PlumberSource:  o.PlumberSource,
+		PlumberPath:    o.PlumberPath,
+		PlumberImage:   o.PlumberImage,
+	}
 }
 
 // newScannerWithDeps builds a scanner against a known set of tools. Detection

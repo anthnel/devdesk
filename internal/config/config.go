@@ -830,6 +830,7 @@ func (c *Config) ExpandPaths(homeDir string) {
 	c.Scan.CacheDir = expand(c.Scan.CacheDir)
 	c.Scan.TrivyPath = expand(c.Scan.TrivyPath)
 	c.Scan.GitleaksPath = expand(c.Scan.GitleaksPath)
+	c.Scan.PlumberPath = expand(c.Scan.PlumberPath)
 	c.Scan.GitleaksConfig = absolute(expand(c.Scan.GitleaksConfig))
 	c.Scan.PlumberConfig = absolute(expand(c.Scan.PlumberConfig))
 }
