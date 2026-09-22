@@ -156,6 +156,17 @@ type Finding struct {
 	// reaches it without being added there deliberately.
 	Job        string `json:"job,omitempty"`
 	ScriptLine string `json:"script_line,omitempty"`
+	// IaCType is the dialect a misconfiguration was found in: Trivy's
+	// Result.Type — "dockerfile", "kubernetes", "helm", "terraform",
+	// "cloudformation"… — and "kubernetes" for a schema finding (§3.80). It is
+	// what tells a Deployment's KSV rule from a Dockerfile's DS rule without
+	// reading the file name, and what the fix catalog checks before touching a
+	// file: a finding in a Helm template points at a template, not at YAML it
+	// can edit.
+	//
+	// Empty on anything that is not a misconfiguration, and on a result cached
+	// before it was recorded — "unknown", like Class and Ecosystem.
+	IaCType string `json:"iac_type,omitempty"`
 }
 
 // SeverityCounts holds counts by severity level

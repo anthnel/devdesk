@@ -569,6 +569,24 @@ func TestTheSourceColumnNamesTheTool(t *testing.T) {
 	}
 }
 
+// On the Misconfigurations tab the tool is always Trivy, so the column says the
+// dialect instead — which is what tells a manifest's finding from a
+// Dockerfile's (§3.80). An older cached result has none and keeps the old word.
+func TestAMisconfigurationShowsItsDialect(t *testing.T) {
+	tests := map[string]string{
+		"kubernetes": "kubernetes",
+		"helm":       "helm",
+		"":           "misconfig",
+	}
+
+	for dialect, want := range tests {
+		f := scan.Finding{Source: scan.SourceTrivyMisconfig, IaCType: dialect}
+		if got := sourceDisplay(f); got != want {
+			t.Errorf("sourceDisplay(IaCType %q) = %q, want %q", dialect, got, want)
+		}
+	}
+}
+
 // .gitleaksignore is matched on a Gitleaks fingerprint, which a Trivy secret
 // does not have. Offering 'i' there would fabricate one, write it, and report
 // success for a line Gitleaks will never match.

@@ -349,8 +349,15 @@ enough to display and not enough to replace.
 | `Message` | the instance's wording; `Description` stays the rule's generic text |
 | `Status` | what Trivy concluded for the rule on this target |
 | `ID` | `AVDID` — the stable identity a re-scan is checked against |
+| `IaCType` | the **result's** `Type` — `dockerfile`, `kubernetes`, `helm`, `terraform`… (§3.80). Not the misconfiguration's own `Type`, which is a label ("Kubernetes Security Check") |
 
-The three new ones are `omitempty` and empty on a result cached before they were
+`IaCType` is what tells a Deployment's `KSV-*` rule from a Dockerfile's `DS*`
+rule without guessing from the file name. The Misconfigurations tab shows it in
+the Source column — every finding there is Trivy's, so the tool's name said
+nothing — and `scan_result` projects it as `iac_type`. `helm` means the file is
+a template: its lines are not the YAML the rule was evaluated on.
+
+The new ones are `omitempty` and empty on a result cached before they were
 recorded, which reads as **unknown** — an `EndLine` of zero is never a line
 number. Same convention as `Class` and `Ecosystem` above, and nothing migrates
 the cache for the same reason.
