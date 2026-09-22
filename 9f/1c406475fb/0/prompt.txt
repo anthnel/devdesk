@@ -1,13 +1,23 @@
-parcourt la liste des misconfiguration trivy pour les dockerfile et analyse s'il est possible de proposer une remédiation
+quels sont les défauts restants
 
 ---
 
-oui, lance le lot vert
+dans le projet
+  workspaces\anthnell\devsecops\test
+  , les misconfig ne me propose pas de corriger automatiquement
 
 ---
 
-documente la liste des règles, celles implémentées, celles faisables moyennant des adaptations et celles écartées
+HIGH                            Image user should not be 'root' , l'id est vide
 
 ---
 
-est-ce qu'ajouter hadolint aurait du sens
+oui corrige dans le worktree et laisse moi tester avant de faire une pr
+
+---
+
+l'id est toujours vide
+
+---
+
+ça fonctionne, est-ce qu'on peut étendre les corrections à d'autres règles, par exemple DS-0029 et DS-0026
