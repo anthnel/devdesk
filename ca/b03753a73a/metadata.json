@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "cab03753a73a",
+  "strategy": "manual-commit",
+  "branch": "fix-misconfig-avdid-fallback",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "internal/scan/trivy.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ca/b03753a73a/0/metadata.json",
+      "transcript": "/ca/b03753a73a/0/full.jsonl",
+      "compact_transcript": "/ca/b03753a73a/0/transcript.jsonl",
+      "content_hash": "/ca/b03753a73a/0/content_hash.txt",
+      "prompt": "/ca/b03753a73a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 206,
+    "cache_creation_tokens": 378162,
+    "cache_read_tokens": 26502182,
+    "output_tokens": 107760,
+    "api_call_count": 103
+  }
+}
