@@ -220,7 +220,7 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 				miscRefs = append(miscRefs, misconf.PrimaryURL)
 			}
 			findings = append(findings, Finding{
-				ID:          misconf.AVDID,
+				ID:          firstNonEmpty(misconf.AVDID, misconf.ID),
 				Title:       misconf.Title,
 				Description: misconf.Desc,
 				Severity:    parseSeverity(misconf.Severity),
@@ -253,6 +253,20 @@ func parseSeverity(s string) SeverityLevel {
 	default:
 		return SeverityUnknown
 	}
+}
+
+// firstNonEmpty returns the first non-empty value, or "" if all are empty.
+//
+// Some Trivy misconfiguration reports populate only the short ID ("DS002")
+// and leave AVDID blank, so falling back to it is what keeps the remediation
+// catalog's lookup (which matches on Finding.ID) working across those reports.
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // maskSecret partially masks secret values for display
