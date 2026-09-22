@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "9f1c406475fb",
+  "strategy": "manual-commit",
+  "branch": "fix-misconfig-avdid-fallback",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/remediation/misconfig.go",
+    "internal/remediation/misconfig_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9f/1c406475fb/0/metadata.json",
+      "transcript": "/9f/1c406475fb/0/full.jsonl",
+      "compact_transcript": "/9f/1c406475fb/0/transcript.jsonl",
+      "content_hash": "/9f/1c406475fb/0/content_hash.txt",
+      "prompt": "/9f/1c406475fb/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 872,
+    "cache_read_tokens": 769644,
+    "output_tokens": 1011,
+    "api_call_count": 2
+  }
+}

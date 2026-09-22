@@ -1,0 +1,13 @@
+parcourt la liste des misconfiguration trivy pour les dockerfile et analyse s'il est possible de proposer une remédiation
+
+---
+
+oui, lance le lot vert
+
+---
+
+documente la liste des règles, celles implémentées, celles faisables moyennant des adaptations et celles écartées
+
+---
+
+est-ce qu'ajouter hadolint aurait du sens
