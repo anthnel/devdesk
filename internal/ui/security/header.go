@@ -164,7 +164,22 @@ func (m Model) GetHeaderInfo(context string) []shortcut.HeaderInfo {
 	if value, style, ok := m.headerFixable(); ok {
 		info = append(info, shortcut.HeaderInfo{Key: "Fixable", Value: value, Style: style})
 	}
+	if value, ok := m.headerUnrendered(); ok {
+		info = append(info, shortcut.HeaderInfo{Key: "Not rendered", Value: value, Style: theme.HeaderValueStyle})
+	}
 	return info
+}
+
+// headerUnrendered is how many Helm charts and Kustomize overlays the schema
+// stage could not look at, for want of helm or kustomize (§3.80). Without it a
+// repository of charts would read as schema-clean when nothing was checked.
+// Absent when there are none — it is not a count of findings, and a "0" on
+// every result would be noise about a stage most repositories do not need.
+func (m Model) headerUnrendered() (string, bool) {
+	if (m.state != StateResults && m.state != StateDetails) || m.result == nil || len(m.result.K8sUnrendered) == 0 {
+		return "", false
+	}
+	return strconv.Itoa(len(m.result.K8sUnrendered)) + " (install helm / kustomize)", true
 }
 
 // headerFixable is how many of the vulnerabilities have a fixed version, split
@@ -226,7 +241,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "space", Description: "Choose the candidate under the cursor for its stage — only a scanned one (Remediation tab)"},
 			{Key: "enter", Description: "Show what the chosen bases would change, as a diff (Remediation tab)"},
 			{Key: writeRemediationKey, Description: "Write the chosen bases into the Dockerfiles, after a confirmation that defaults to No (Remediation tab)"},
-			{Key: writeRemediationKey, Description: "Apply the built-in fix for the selected rule, after a confirmation showing the diff and defaulting to No. Only a few rules have one; the rest are handed to an agent through the MCP server (Misconfigurations tab)"},
+			{Key: writeRemediationKey, Description: "Apply the built-in fix for the selected rule, after a confirmation showing the diff and defaulting to No. Only a few rules have one — some Dockerfile rules, privileged and allowPrivilegeEscalation on a plain Kubernetes manifest, and an apiVersion whose replacement is a rename; the rest are handed to an agent through the MCP server (Misconfigurations tab)"},
 			{Key: keymap.Scan, Description: "Measure the base images and their candidates by scanning them from their registries (Remediation tab)"},
 			{Key: keymap.Exclude, Description: "Exclude a secret — add it to .gitleaksignore (Secrets tab, Gitleaks findings only)"},
 			{Key: keymap.Web, Description: "Open first reference URL in the default browser (detail view)"},
@@ -245,7 +260,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Scan Types",
-				Body:  "Vulnerability Scan: detects CVEs in dependencies and packages (Trivy).\nSecret Scan: runs both scanners, and the Secrets tab shows their findings together. Gitleaks reads a repository's working tree and git history; Trivy reads the target's content, which is what gives an image a secret scan at all — Gitleaks cannot scan one. The Source column says which tool found each finding.\nMisconfig Scan: detects IaC misconfigurations in Dockerfiles, Terraform, K8s manifests (Trivy).\nLicense Scan: analyzes dependency licenses (Trivy).\nCI Score: grades a repository's pipeline configuration (plumber), for this context's forge only — a repository hosted elsewhere is not graded rather than graded without credentials. The grade is on the CI tab, above the issues; a run that could not collect everything says so instead of showing a letter.",
+				Body:  "Vulnerability Scan: detects CVEs in dependencies and packages (Trivy).\nSecret Scan: runs both scanners, and the Secrets tab shows their findings together. Gitleaks reads a repository's working tree and git history; Trivy reads the target's content, which is what gives an image a secret scan at all — Gitleaks cannot scan one. The Source column says which tool found each finding.\nMisconfig Scan: detects IaC misconfigurations in Dockerfiles, Terraform, Kubernetes manifests and Helm charts (Trivy). On the Misconfigurations tab, the Source column shows the dialect each finding comes from.\nK8s schema: validates a repository's Kubernetes manifests against the API schema of the configured Kubernetes version (kubeconform) — a wrong type, an unknown field, an apiVersion that release no longer serves. Its findings are on the Misconfigurations tab, with 'schema' as their source. Helm charts and Kustomize overlays are never validated raw — a template is not YAML until it is rendered. When helm is available, each chart is linted ('helm lint') and rendered, then validated; when kustomize is available, each overlay is built, then validated. A finding from a rendered resource points at its template or its kustomization, with no line. Without either tool, the results header counts them as Not rendered.\nLicense Scan: analyzes dependency licenses (Trivy).\nCI Score: grades a repository's pipeline configuration (plumber), for this context's forge only — a repository hosted elsewhere is not graded rather than graded without credentials. The grade is on the CI tab, above the issues; a run that could not collect everything says so instead of showing a letter.",
 			},
 			{
 				Title: "Targets",

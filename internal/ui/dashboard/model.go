@@ -611,6 +611,24 @@ func (m Model) detectTools() tea.Cmd {
 			Version:   cleanVersion(deps.PlumberVersion),
 			Source:    string(deps.PlumberSource),
 		})
+		tools = append(tools, shared.ToolInfo{
+			Name:      toolKubeconform,
+			Available: deps.KubeconformAvailable,
+			Version:   cleanVersion(deps.KubeconformVersion),
+			Source:    string(deps.KubeconformSource),
+		})
+		tools = append(tools, shared.ToolInfo{
+			Name:      toolHelm,
+			Available: deps.HelmAvailable,
+			Version:   cleanVersion(deps.HelmVersion),
+			Source:    string(deps.HelmSource),
+		})
+		tools = append(tools, shared.ToolInfo{
+			Name:      toolKustomize,
+			Available: deps.KustomizeAvailable,
+			Version:   cleanVersion(deps.KustomizeVersion),
+			Source:    string(deps.KustomizeSource),
+		})
 
 		// Git
 		tools = append(tools, detectBinaryTool(toolGit, "git", "--version"))

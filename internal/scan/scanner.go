@@ -80,6 +80,22 @@ type ScanOptions struct {
 	PlumberImage  string
 	PlumberConfig string
 
+	// EnableK8sSchema validates Kubernetes manifests with kubeconform (§3.80),
+	// against KubernetesVersion. The three tool fields mirror the others.
+	EnableK8sSchema   bool
+	KubernetesVersion string
+	KubeconformSource string
+	KubeconformPath   string
+	KubeconformImage  string
+	// Helm and Kustomize render charts and overlays for that stage. Both are
+	// optional: without them those directories are reported as not rendered.
+	HelmSource      string
+	HelmPath        string
+	HelmImage       string
+	KustomizeSource string
+	KustomizePath   string
+	KustomizeImage  string
+
 	// Forge is the platform this context targets, and it is what decides
 	// whether a repository is graded at all: a GitHub context grades its GitHub
 	// repositories and nothing else (§3.42). The scan resolves that per target
@@ -156,6 +172,17 @@ type Finding struct {
 	// reaches it without being added there deliberately.
 	Job        string `json:"job,omitempty"`
 	ScriptLine string `json:"script_line,omitempty"`
+	// IaCType is the dialect a misconfiguration was found in: Trivy's
+	// Result.Type — "dockerfile", "kubernetes", "helm", "terraform",
+	// "cloudformation"… — and "kubernetes" for a schema finding (§3.80). It is
+	// what tells a Deployment's KSV rule from a Dockerfile's DS rule without
+	// reading the file name, and what the fix catalog checks before touching a
+	// file: a finding in a Helm template points at a template, not at YAML it
+	// can edit.
+	//
+	// Empty on anything that is not a misconfiguration, and on a result cached
+	// before it was recorded — "unknown", like Class and Ecosystem.
+	IaCType string `json:"iac_type,omitempty"`
 }
 
 // SeverityCounts holds counts by severity level
@@ -209,6 +236,12 @@ type Result struct {
 	// CIMissing is a repository with no pipeline at all, which is not a bad
 	// score — it is the absence of the thing being scored.
 	CIMissing bool `json:"ci_missing,omitempty"`
+
+	// K8sUnrendered are the Helm charts and Kustomize overlays the schema
+	// stage could not validate because nothing rendered them (§3.80). Not an
+	// error — the scan did all it could — and not "clean" either: it is what
+	// keeps "nothing was found there" apart from "nobody looked there".
+	K8sUnrendered []string `json:"k8s_unrendered,omitempty"`
 }
 
 // CIVerdict is what this scan can say about the pipeline's grade, for the cache
@@ -339,6 +372,22 @@ type DependencyStatus struct {
 	PlumberBinary     string // Executable to run when PlumberSource is binary
 	PlumberImage      string // OCI image used for plumber
 
+	KubeconformAvailable bool
+	KubeconformSource    ToolSource
+	KubeconformVersion   string
+	KubeconformBinary    string // Executable to run when KubeconformSource is binary
+	KubeconformImage     string // OCI image used for kubeconform
+	HelmAvailable        bool
+	HelmSource           ToolSource
+	HelmVersion          string
+	HelmBinary           string // Executable to run when HelmSource is binary
+	HelmImage            string // OCI image used for helm
+	KustomizeAvailable   bool
+	KustomizeSource      ToolSource
+	KustomizeVersion     string
+	KustomizeBinary      string // Executable to run when KustomizeSource is binary
+	KustomizeImage       string // OCI image used for kustomize
+
 	// EngineAvailable reports whether the configured container engine answered.
 	// Without it no image-sourced tool can run, whichever engine it is.
 	EngineAvailable bool
@@ -395,6 +444,9 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 	if plumberImage == "" {
 		plumberImage = DefaultPlumberImage
 	}
+	kubeconformImage := kubeconformImage(c.KubeconformImage)
+	helmImage := orDefault(c.HelmImage, DefaultHelmImage)
+	kustomizeImage := orDefault(c.KustomizeImage, DefaultKustomizeImage)
 
 	status := DependencyStatus{
 		TrivySource:    ToolSourceNone,
@@ -403,6 +455,13 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 		GitleaksImage:  gitleaksImage,
 		PlumberSource:  ToolSourceNone,
 		PlumberImage:   plumberImage,
+
+		KubeconformSource: ToolSourceNone,
+		KubeconformImage:  kubeconformImage,
+		HelmSource:        ToolSourceNone,
+		HelmImage:         helmImage,
+		KustomizeSource:   ToolSourceNone,
+		KustomizeImage:    kustomizeImage,
 	}
 
 	if path, err := exec.LookPath(engine.Current().Binary); err == nil && path != "" {
@@ -433,6 +492,24 @@ func CheckDependencies(c config.ScanConfig) DependencyStatus {
 	status.PlumberBinary = plumber.Binary
 	status.PlumberVersion = plumber.Version
 
+	kubeconform := resolveTool(c.KubeconformSource, c.KubeconformPath, "kubeconform", kubeconformImage, status.EngineAvailable, "-v")
+	status.KubeconformAvailable = kubeconform.Available
+	status.KubeconformSource = kubeconform.Source
+	status.KubeconformBinary = kubeconform.Binary
+	status.KubeconformVersion = kubeconform.Version
+
+	helm := resolveTool(c.HelmSource, c.HelmPath, "helm", helmImage, status.EngineAvailable, "version", "--short")
+	status.HelmAvailable = helm.Available
+	status.HelmSource = helm.Source
+	status.HelmBinary = helm.Binary
+	status.HelmVersion = helm.Version
+
+	kustomize := resolveTool(c.KustomizeSource, c.KustomizePath, "kustomize", kustomizeImage, status.EngineAvailable, "version")
+	status.KustomizeAvailable = kustomize.Available
+	status.KustomizeSource = kustomize.Source
+	status.KustomizeBinary = kustomize.Binary
+	status.KustomizeVersion = kustomize.Version
+
 	return status
 }
 
@@ -456,16 +533,36 @@ type Scanner struct {
 // NewScanner creates a new scanner with the given options, detecting which
 // tools are available on this machine.
 func NewScanner(opts ScanOptions) *Scanner {
-	// Spelled out rather than passed as a config: ScanOptions is what a scan was
-	// asked to do, and these six fields are the part of it detection needs.
-	return newScannerWithDeps(opts, CheckDependencies(config.ScanConfig{
-		TrivySource:    opts.TrivySource,
-		TrivyPath:      opts.TrivyPath,
-		TrivyImage:     opts.TrivyImage,
-		GitleaksSource: opts.GitleaksSource,
-		GitleaksPath:   opts.GitleaksPath,
-		GitleaksImage:  opts.GitleaksImage,
-	}))
+	return newScannerWithDeps(opts, CheckDependencies(opts.toolConfig()))
+}
+
+// toolConfig is the part of the options detection needs: where each tool runs
+// from. Spelled out rather than carried as a config, because ScanOptions is
+// what a scan was asked to do — but every tool is listed, since a tool left out
+// here is resolved with its defaults and its configured source is silently
+// ignored by every real scan. That is what happened to plumber until §3.80.
+func (o ScanOptions) toolConfig() config.ScanConfig {
+	return config.ScanConfig{
+		TrivySource:    o.TrivySource,
+		TrivyPath:      o.TrivyPath,
+		TrivyImage:     o.TrivyImage,
+		GitleaksSource: o.GitleaksSource,
+		GitleaksPath:   o.GitleaksPath,
+		GitleaksImage:  o.GitleaksImage,
+		PlumberSource:  o.PlumberSource,
+		PlumberPath:    o.PlumberPath,
+		PlumberImage:   o.PlumberImage,
+
+		KubeconformSource: o.KubeconformSource,
+		KubeconformPath:   o.KubeconformPath,
+		KubeconformImage:  o.KubeconformImage,
+		HelmSource:        o.HelmSource,
+		HelmPath:          o.HelmPath,
+		HelmImage:         o.HelmImage,
+		KustomizeSource:   o.KustomizeSource,
+		KustomizePath:     o.KustomizePath,
+		KustomizeImage:    o.KustomizeImage,
+	}
 }
 
 // newScannerWithDeps builds a scanner against a known set of tools. Detection
@@ -486,6 +583,7 @@ func (s *Scanner) missingToolErrors(targetType TargetType) []string {
 	wantsTrivy := s.options.EnableVuln || s.options.EnableMisconfig ||
 		s.options.EnableSecret || (s.options.EnableLicense && targetType == TargetDirectory)
 	wantsGitleaks := s.options.EnableSecret && targetType == TargetDirectory
+	wantsKubeconform := s.options.EnableK8sSchema && targetType == TargetDirectory
 
 	var errs []string
 	if wantsTrivy && !s.deps.TrivyAvailable {
@@ -499,6 +597,11 @@ func (s *Scanner) missingToolErrors(targetType TargetType) []string {
 		errs = append(errs, fmt.Sprintf(
 			"gitleaks: not available — git history was not scanned for secrets. Install gitleaks or pull %s",
 			gitleaksImage(s.deps.GitleaksImage)))
+	}
+	if wantsKubeconform && !s.deps.KubeconformAvailable {
+		errs = append(errs, fmt.Sprintf(
+			"kubeconform: not available — Kubernetes manifests were not validated against the API schema. Install kubeconform or pull %s",
+			kubeconformImage(s.deps.KubeconformImage)))
 	}
 	return errs
 }
@@ -647,6 +750,15 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			result.CIMissing = report.CIMissing
 			result.Findings = append(result.Findings, report.Findings...)
 			notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageDone})
+			return nil
+		})
+	}
+
+	// Kubernetes schema validation (kubeconform, directories only). An image
+	// holds no manifests anyone applies.
+	if s.options.EnableK8sSchema && s.deps.KubeconformAvailable && targetType == TargetDirectory {
+		eg.Go(func() error {
+			s.runKubeconformStage(egCtx, target, result, &mu, notify)
 			return nil
 		})
 	}

@@ -459,3 +459,14 @@ func TestAConfigWithoutAPlumberSectionDefaultsToAuto(t *testing.T) {
 		t.Errorf("PlumberSource = %q, want %q", loaded.Scan.PlumberSource, ToolSourceAuto)
 	}
 }
+
+// Every tool's binary path is expanded, not only the two that came first.
+func TestExpandPaths_EveryToolPath(t *testing.T) {
+	cfg := &Config{Scan: ScanConfig{PlumberPath: "~/bin/plumber"}}
+
+	cfg.ExpandPaths("/home/user")
+
+	if got := slash(cfg.Scan.PlumberPath); got != "/home/user/bin/plumber" {
+		t.Errorf("plumber_path = %q, want it expanded", got)
+	}
+}

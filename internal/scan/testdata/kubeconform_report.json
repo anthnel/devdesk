@@ -1,0 +1,48 @@
+{
+  "resources": [
+    {
+      "filename": "deploy/app.yaml",
+      "kind": "Deployment",
+      "name": "api",
+      "version": "apps/v1",
+      "status": "statusInvalid",
+      "msg": "problem validating schema. Check JSON formatting: jsonschema validation failed",
+      "validationErrors": [
+        {"path": "/spec/template/spec/containers/0", "msg": "additional properties 'imagePullPolicyy' not allowed"},
+        {"path": "/spec/replicas", "msg": "got string, want integer"}
+      ]
+    },
+    {
+      "filename": "deploy/app.yaml",
+      "kind": "CronJob",
+      "name": "nightly",
+      "version": "batch/v1beta1",
+      "status": "statusError",
+      "msg": "could not find schema for CronJob"
+    },
+    {
+      "filename": "deploy/crds.yaml",
+      "kind": "Certificate",
+      "name": "tls",
+      "version": "cert-manager.io/v1",
+      "status": "statusError",
+      "msg": "could not find schema for Certificate"
+    },
+    {
+      "filename": "deploy/crds.yaml",
+      "kind": "HTTPRoute",
+      "name": "web",
+      "version": "gateway.networking.k8s.io/v1",
+      "status": "statusError",
+      "msg": "could not find schema for HTTPRoute"
+    },
+    {
+      "filename": "deploy/broken.yaml",
+      "kind": "",
+      "name": "",
+      "version": "",
+      "status": "statusError",
+      "msg": "error while parsing: missing 'kind' key"
+    }
+  ]
+}

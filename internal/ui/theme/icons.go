@@ -32,6 +32,7 @@ var (
 	IconDocker                = "\ue7b0"     //  nf-dev-docker
 	IconPodman                = "\U000F095E" // 󰥞 nf-md-podman
 	IconContainer             = "\uf4b7"     //  nf-oct-container
+	IconKubernetes            = "\U000f10fe" // 󱃾 nf-md-kubernetes
 	IconTools                 = "\ue20f"     //  nf-fae-tools
 	IconServer                = "\U000F048B" // 󰒋 nf-md-server
 	IconArrowDown             = "\U000F0045" // 󰁅 nf-md-arrow_down

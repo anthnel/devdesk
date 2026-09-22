@@ -169,12 +169,31 @@ func (m *Model) filterFindingsByTab() []scan.Finding {
 // Which tool found it, not which category it is — the tab already says the
 // category, and telling gitleaks from trivy-secret in the Secrets tab is the
 // point of showing both there.
+//
+// A Trivy misconfiguration shows its dialect instead (§3.80): "misconfig"
+// only repeated the tab's name, while "kubernetes", "helm" or "dockerfile"
+// is what tells a Deployment's rule from a Dockerfile's on a tab that lists
+// both — and it is searchable, so `/helm` narrows to the charts. A column of
+// its own was the alternative, but every other tab would have carried it
+// empty. A result cached before the dialect was recorded keeps "misconfig".
 func sourceDisplay(f scan.Finding) string {
 	switch f.Source {
 	case scan.SourceTrivyLicense:
 		return "license"
 	case scan.SourceTrivyMisconfig:
+		if f.IaCType != "" {
+			return f.IaCType
+		}
 		return "misconfig"
+	case scan.SourceKubeconform:
+		// Schema validation, which is what separates it from Trivy's
+		// kubernetes findings on the same manifest.
+		return "schema"
+	case scan.SourceHelm:
+		// Not "helm": that is already the dialect of Trivy's chart findings.
+		return "helm lint"
+	case scan.SourceKustomize:
+		return "kustomize"
 	case scan.SourceGitleaks:
 		return "gitleaks"
 	case scan.SourceTrivySecret:

@@ -560,11 +560,32 @@ func TestTheSourceColumnNamesTheTool(t *testing.T) {
 		scan.SourceTrivy:          "vuln",
 		scan.SourceTrivyLicense:   "license",
 		scan.SourceTrivyMisconfig: "misconfig",
+		scan.SourceKubeconform:    "schema",
+		scan.SourceHelm:           "helm lint",
+		scan.SourceKustomize:      "kustomize",
 	}
 
 	for source, want := range tests {
 		if got := sourceDisplay(scan.Finding{Source: source}); got != want {
 			t.Errorf("sourceDisplay(%q) = %q, want %q", source, got, want)
+		}
+	}
+}
+
+// On the Misconfigurations tab the tool is always Trivy, so the column says the
+// dialect instead — which is what tells a manifest's finding from a
+// Dockerfile's (§3.80). An older cached result has none and keeps the old word.
+func TestAMisconfigurationShowsItsDialect(t *testing.T) {
+	tests := map[string]string{
+		"kubernetes": "kubernetes",
+		"helm":       "helm",
+		"":           "misconfig",
+	}
+
+	for dialect, want := range tests {
+		f := scan.Finding{Source: scan.SourceTrivyMisconfig, IaCType: dialect}
+		if got := sourceDisplay(f); got != want {
+			t.Errorf("sourceDisplay(IaCType %q) = %q, want %q", dialect, got, want)
 		}
 	}
 }
@@ -641,5 +662,20 @@ func TestTheDetailsPaneScrolls(t *testing.T) {
 				t.Errorf("scrolling left the details for %v", m.state)
 			}
 		})
+	}
+}
+
+// Charts and overlays nobody rendered are said in the header, or a repository
+// of charts would read as schema-clean when nothing was checked (§3.80).
+func TestTheHeaderSaysWhatWasNotRendered(t *testing.T) {
+	m := Model{state: StateResults, result: &scan.Result{K8sUnrendered: []string{"charts/api", "k8s/overlays/prod"}}}
+
+	value, ok := m.headerUnrendered()
+	if !ok || !strings.HasPrefix(value, "2 ") {
+		t.Errorf("headerUnrendered = %q, %v; want the two directories counted", value, ok)
+	}
+	m.result.K8sUnrendered = nil
+	if _, ok := m.headerUnrendered(); ok {
+		t.Error("a result with nothing unrendered still shows the field")
 	}
 }

@@ -96,6 +96,9 @@ func (m Model) buildDetailsContent() string {
 	}
 
 	b.WriteString(theme.SubTitleStyle.Render("Source: ") + textStyle.Render(f.Source) + "\n")
+	if f.IaCType != "" {
+		b.WriteString(theme.SubTitleStyle.Render("Type: ") + textStyle.Render(f.IaCType) + "\n")
+	}
 
 	// File path with wrapping (can be long)
 	if f.File != "" {

@@ -150,6 +150,7 @@ type finding struct {
 	FixedIn     string   `json:"fixed_in,omitempty"`
 	Class       string   `json:"class,omitempty" jsonschema:"os-pkgs (fixed by the image's packages or a newer base image) or lang-pkgs (fixed only by bumping the dependency); empty on a result scanned before it was recorded"`
 	Ecosystem   string   `json:"ecosystem,omitempty" jsonschema:"the package ecosystem, such as alpine, debian, gomod or npm"`
+	IaCType     string   `json:"iac_type,omitempty" jsonschema:"the dialect a misconfiguration was found in, such as dockerfile, kubernetes, helm or terraform; helm means the file is a template, not the YAML it renders"`
 	Resolution  string   `json:"resolution,omitempty"`
 	References  []string `json:"references,omitempty"`
 }
@@ -184,6 +185,7 @@ type scanResultOut struct {
 	LicenseCount   int      `json:"license_count"`
 	MisconfigCount int      `json:"misconfig_count"`
 	Errors         []string `json:"errors,omitempty" jsonschema:"stages that failed; findings may be missing rather than absent"`
+	K8sUnrendered  []string `json:"k8s_unrendered,omitempty" jsonschema:"Helm charts and Kustomize overlays the schema stage could not validate because helm or kustomize was not available; nothing was checked there, which is not the same as nothing found"`
 
 	Matched  int       `json:"matched" jsonschema:"how many findings the filters kept, before paging"`
 	Total    int       `json:"total" jsonschema:"how many findings the scan holds in all"`
@@ -257,6 +259,7 @@ func project(contextName string, result *scan.Result, kind string, in scanResult
 		LicenseCount:   result.LicenseCount,
 		MisconfigCount: result.MisconfigCount,
 		Errors:         result.Errors,
+		K8sUnrendered:  result.K8sUnrendered,
 		Total:          len(result.Findings),
 		Findings:       []finding{},
 	}
@@ -341,6 +344,7 @@ func expose(f scan.Finding) finding {
 		FixedIn:     f.FixedIn,
 		Class:       f.Class,
 		Ecosystem:   f.Ecosystem,
+		IaCType:     f.IaCType,
 		Resolution:  f.Resolution,
 		References:  f.References,
 	}

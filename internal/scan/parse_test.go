@@ -366,6 +366,34 @@ func TestAMisconfigurationCarriesItsSpanMessageAndStatus(t *testing.T) {
 	}
 }
 
+// §3.80 — the dialect a misconfiguration comes from is Trivy's Result.Type,
+// and it was decoded then dropped. A KSV rule and a DS rule are otherwise told
+// apart only by guessing from the file name.
+func TestAMisconfigurationCarriesItsDialect(t *testing.T) {
+	findings, err := parseTrivyOutput([]byte(`{
+	  "Results": [
+	    {"Target":"deploy/app.yaml","Class":"config","Type":"kubernetes","Misconfigurations":[
+	      {"AVDID":"KSV-0017","Type":"Kubernetes Security Check","Severity":"HIGH",
+	       "CauseMetadata":{"StartLine":20,"EndLine":24}}]},
+	    {"Target":"chart/templates/deploy.yaml","Class":"config","Type":"helm","Misconfigurations":[
+	      {"AVDID":"KSV-0017","Type":"Helm Security Check","Severity":"HIGH"}]}
+	  ]
+	}`))
+	if err != nil {
+		t.Fatalf("parsing failed: %v", err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("got %d findings, want 2", len(findings))
+	}
+	// The result's type, not the misconfiguration's label.
+	if got := findings[0].IaCType; got != "kubernetes" {
+		t.Errorf("IaCType = %q, want kubernetes", got)
+	}
+	if got := findings[1].IaCType; got != "helm" {
+		t.Errorf("IaCType = %q, want helm", got)
+	}
+}
+
 // An old cached result, and a rule that reports a point rather than a span,
 // both arrive with EndLine at zero. Zero reads as "unknown" — never as line
 // zero, which does not exist — the same convention Class and Ecosystem follow.

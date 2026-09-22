@@ -473,7 +473,7 @@ func TestScanResultCarriesAMisconfigurationsSpan(t *testing.T) {
 		Findings: []scan.Finding{{
 			ID: "DS002", Title: "Image user should not be root", Severity: "HIGH",
 			Source: scan.SourceTrivyMisconfig, File: "Dockerfile",
-			Line: 3, EndLine: 7,
+			Line: 3, EndLine: 7, IaCType: "dockerfile",
 			Message: "Specify at least 1 USER command", Status: "FAIL",
 			Resolution: "Add USER command",
 		}},
@@ -495,6 +495,9 @@ func TestScanResultCarriesAMisconfigurationsSpan(t *testing.T) {
 	}
 	if f.Status != "FAIL" {
 		t.Errorf("Status = %q, want FAIL", f.Status)
+	}
+	if f.IaCType != "dockerfile" {
+		t.Errorf("IaCType = %q, want dockerfile", f.IaCType)
 	}
 }
 

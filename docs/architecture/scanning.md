@@ -6,7 +6,8 @@
 ## Security Scanning
 
 **Where a scanner runs from is configured, not guessed.** `scan.trivy_source`,
-`scan.gitleaks_source` and `scan.plumber_source` take `auto | binary | image`:
+`scan.gitleaks_source`, `scan.plumber_source` and `scan.kubeconform_source`
+take `auto | binary | image`:
 
 | Value | Resolution |
 |---|---|
@@ -199,6 +200,83 @@ through the environment, or git refuses the mount as dubious ownership (the imag
 runs as uid 65532) and plumber answers *not in a git repository*; `--provider`
 alone does not lift it.
 
+### Kubernetes manifests — kubeconform (§3.80)
+
+Trivy's misconfiguration stage already lints Kubernetes manifests and Helm
+charts for security (`KSV-*`), and the finding says so through `IaCType`.
+What it does not answer is whether the API server would **accept** the
+manifest at all — a wrong type, a missing required field, an unknown field,
+an `apiVersion` the cluster's release no longer serves. That is kubeconform's
+job, behind `scan.enable_k8s_schema`, resolved like every other tool
+(`kubeconform_source|_path|_image`, image `ghcr.io/yannh/kubeconform`).
+kube-linter was weighed and left out: it overlaps Trivy on security and reports
+no line, so it could feed neither the table's jump-to-line nor a fix.
+
+- **Which files.** `k8s.Discover` (`internal/k8s`) lists them **by content**
+  — a document with an `apiVersion` and a `kind` — and kubeconform is handed
+  those files by name, never the directory: on a directory it reports
+  "missing 'kind' key" on every CI file and Helm values file. Hidden
+  directories, `node_modules` and `vendor` are skipped. A repository with no
+  manifest runs nothing — kubeconform with no file argument reads stdin and
+  would wait there.
+- **Charts and Kustomize roots are set apart.** A template is not YAML until
+  helm renders it, and a Kustomize patch is a fragment that fails the schema
+  on its own. Their files are never validated raw. Only the **outermost**
+  chart is rendered (a subchart is rendered by its parent, with its values)
+  and only the Kustomize **leaves** — a base is validated through the overlays
+  that use it.
+- **helm and kustomize are optional renderers**, resolved like every tool
+  (`helm_source|_path|_image`, image `alpine/helm`;
+  `kustomize_source|_path|_image`, image
+  `registry.k8s.io/kustomize/kustomize:v5.8.1`) but never reported missing.
+  With helm, each chart gets `helm lint` (WARNING → LOW, ERROR → HIGH,
+  `Source: helm`, shown as `helm lint`) then `helm template`; with kustomize,
+  each overlay gets `kustomize build`. The rendered YAML goes to kubeconform
+  **on stdin** (`toolCmd.Stdin`, `-i` in a container, no repository mount),
+  and each finding is pointed back at a file: the template named by helm's
+  `# Source:` comment — under the chart's *name*, re-rooted on its directory
+  — or the overlay's kustomization. No line: a rendered line is no line of
+  either. Without the renderer, the directory is listed in
+  `Result.K8sUnrendered` and logged, which is what keeps "nothing found
+  there" apart from "nobody looked there".
+- **A chart or overlay that does not render is a finding, not a failed
+  scan** (`K8S-RENDER`, HIGH, on `Chart.yaml` or the kustomization). Measured
+  on helm 4.3.0: a missing dependency is only a WARNING for `helm lint`, and
+  it is `helm template` that fails — so the render failure is reported unless
+  lint already raised an ERROR. `helm lint` also names that chart by its
+  **absolute** path (`/scan/charts/x` in a container), which `helmLintPath`
+  brings back to the repository.
+- **The finding's line comes from the file, not the tool.** kubeconform
+  reports a JSON pointer; `k8s.Locate` finds the document by kind and
+  `metadata.name`, then walks the pointer through `yaml.v3` nodes. An unknown
+  field is reported at its parent with the key in the message, so the key is
+  located first. A pointer that does not resolve gives line 0, never the
+  nearest line that exists.
+- **A missing schema is two different things.** No `-ignore-missing-schemas`:
+  kubeconform then answers "could not find schema for X", and the group
+  decides. A group Kubernetes serves itself (a closed list in
+  `kubeconform_parse.go`) means the `apiVersion` was removed from the target
+  release — `K8S-API-REMOVED`, on the `apiVersion` line. Any other group is a
+  custom resource whose schema lives in a CRD kubeconform does not read: it is
+  skipped and counted in the log. The list is closed rather than a
+  `.k8s.io` suffix rule because the Gateway API and the snapshot controller
+  are CRDs in `*.k8s.io` groups.
+- **Exit 1 means two things too.** kubeconform exits 1 when it found problems
+  and when it could not run; the JSON report on stdout is what separates them.
+- **The target release** is `scan.kubernetes_version` (x.y.z or `master`,
+  checked in the configuration view with kubeconform's own pattern),
+  `config.DefaultKubernetesVersion` when unset — one minor behind the newest
+  for which schemas exist.
+- **Schemas are cached** in `~/.devdesk/cache/kubeconform`, mounted at
+  `/cache` in a container; the repository is mounted read-only at `/scan`,
+  as for the other tools.
+
+Every kubeconform finding is `Source: kubeconform`, `IaCType: kubernetes`,
+severity HIGH — the API server would refuse the resource — and lands on the
+Misconfigurations tab, where the Source column reads `schema`. The ids
+(`K8S-SCHEMA`, `K8S-API-REMOVED`, `K8S-PARSE`) are DevDesk's: kubeconform has
+none, and a re-scan needs a stable one to say a finding went away.
+
 **`scan.Categorize` is the only thing that decides a finding's family.** There
 were two rules: `Result.CountFindings` switched on `Source` alone, the security
 view's tabs on `Source` plus `PkgName` plus `Match`. Three inputs separated them
@@ -349,8 +427,15 @@ enough to display and not enough to replace.
 | `Message` | the instance's wording; `Description` stays the rule's generic text |
 | `Status` | what Trivy concluded for the rule on this target |
 | `ID` | `AVDID` — the stable identity a re-scan is checked against |
+| `IaCType` | the **result's** `Type` — `dockerfile`, `kubernetes`, `helm`, `terraform`… (§3.80). Not the misconfiguration's own `Type`, which is a label ("Kubernetes Security Check") |
 
-The three new ones are `omitempty` and empty on a result cached before they were
+`IaCType` is what tells a Deployment's `KSV-*` rule from a Dockerfile's `DS*`
+rule without guessing from the file name. The Misconfigurations tab shows it in
+the Source column — every finding there is Trivy's, so the tool's name said
+nothing — and `scan_result` projects it as `iac_type`. `helm` means the file is
+a template: its lines are not the YAML the rule was evaluated on.
+
+The new ones are `omitempty` and empty on a result cached before they were
 recorded, which reads as **unknown** — an `EndLine` of zero is never a line
 number. Same convention as `Class` and `Ecosystem` above, and nothing migrates
 the cache for the same reason.
@@ -396,6 +481,45 @@ base image bump is judged by re-scanning the candidate rather than by trusting
 the tag. It is binary — the AVD id is reported for that file, or it is not — and
 the comparison goes through `remediation.RuleKey`, since a match that missed
 Trivy's other spelling would report every fix as successful.
+
+**The verdict is about the occurrence that was fixed** (§3.80). A Deployment
+with two containers is reported for `KSV-0001` twice in one file, and a fix
+edits one of them; judged on the rule and the file alone, the untouched one
+would read as the fix having failed. `holdsRule` also compares `instanceOf` —
+the finding's `Title` and `Message`, which Trivy (`Container 'api' of …`) and
+kubeconform (`Deployment/web: …`) make specific — and never the line, which the
+fix itself moves.
+
+#### Kubernetes manifests in the catalog (§3.80)
+
+Three rules, in `internal/remediation/k8s.go`, and they only ever touch a
+finding whose `IaCType` is `kubernetes` — a Helm template or a Kustomize
+overlay is declined, since the file the finding names is not the YAML that was
+evaluated.
+
+| Rule | Edit |
+|---|---|
+| `KSV-0017` privileged | `privileged: true` → `false` |
+| `KSV-0001` allowPrivilegeEscalation | `true` → `false`; when absent, a line inserted in the container's `securityContext`, or a `securityContext` block inserted in the container |
+| `K8S-API-REMOVED` | the `apiVersion` renamed, **only** for the kinds the deprecation guide marks "No notable changes" (CronJob, RBAC, storage, Lease, IngressClass, PriorityClass, RuntimeClass, APIService, CSIStorageCapacity) |
+
+The edits are still byte ranges: `internal/k8s` turns yaml.v3's node positions
+(line, and a column counted in **characters**) into offsets, so comments,
+anchors and the file's line endings survive, and nothing is re-serialised. An
+insertion goes above a key that begins its own line, at that key's indentation
+— never above the key on a `- name:` line, which would land outside the
+container. The container is found by the name in Trivy's message, inside the
+document and the lines the finding reported; a file that no longer matches is
+declined as stale.
+
+Two declines are the API server's own validation rather than caution:
+`allowPrivilegeEscalation: false` is refused on a privileged container or one
+adding `CAP_SYS_ADMIN`, so the fix would pass Trivy's rule and produce a
+manifest nobody can apply. Left out entirely, for §3.78's `USER 1000` reason:
+`runAsNonRoot`, `readOnlyRootFilesystem` and dropping `ALL` capabilities pass
+their rule and can stop the container from starting. Resource limits have no
+universal value, and a seccomp profile can sit at the pod or the container
+level.
 
 Starting it on the user's behalf is acceptable because it is an ordinary job
 (§3.58): it appears in `:jobs` labelled `verify fix`, and `K` stops it. A scan of

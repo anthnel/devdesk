@@ -36,6 +36,8 @@ func stageOf(tc toolCmd) string {
 		return "trivy-secret"
 	case strings.HasPrefix(s, "gitleaks"):
 		return "secret"
+	case strings.Contains(s, "-output json -strict"):
+		return "k8s-schema"
 	default:
 		return "vuln"
 	}

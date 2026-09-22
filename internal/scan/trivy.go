@@ -230,8 +230,12 @@ func parseTrivyOutput(data []byte) ([]Finding, error) {
 				EndLine:     misconf.CauseMetadata.EndLine,
 				Message:     misconf.Message,
 				Status:      misconf.Status,
-				Resolution:  misconf.Resolution,
-				References:  miscRefs,
+				// The result's type, not the misconfiguration's own: that one
+				// is a label ("Kubernetes Security Check"), this one the
+				// dialect ("kubernetes").
+				IaCType:    strings.ToLower(result.Type),
+				Resolution: misconf.Resolution,
+				References: miscRefs,
 			})
 		}
 	}
