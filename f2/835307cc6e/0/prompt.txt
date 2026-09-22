@@ -1,0 +1,5 @@
+commit
+
+---
+
+dans le breadcrumb des vues sur la ligne commande shitf+tab doit permettre de se déplacer vers la gauche
