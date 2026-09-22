@@ -14218,7 +14218,7 @@ Sources vérifiées le 2026-09-21 :
 
 ---
 
-### 3.80 Manifestes Kubernetes — analyser et corriger, sans jamais toucher un cluster — **à explorer**
+### 3.80 Manifestes Kubernetes — analyser et corriger, sans jamais toucher un cluster — **done**
 
 Kubernetes entre dans le périmètre de DevDesk du côté **fichier**, pas du côté
 exécution : lire des manifestes, YAML ou Helm, dans un dépôt ou un
@@ -14334,6 +14334,73 @@ fait.
 | 2 | Les charts Helm sont dans le périmètre du livre (Trivy les scanne aussi) — DevDesk les lit-il tels quels, ou seulement leur rendu (`helm template`), ce qui réintroduirait une dépendance externe |
 | 3 | L'onglet : une nouvelle colonne « dialecte » sur l'onglet Misconfigurations existant (ce que la décision B2 de §3.78 anticipait), ou un onglet séparé si le volume de findings Kubernetes s'avère dominer |
 | 4 | kube-linter et Kubescape apportent-ils des règles que Trivy n'a pas, au point de justifier un troisième outil — à mesurer sur des manifestes réels avant de trancher, pas à deviner depuis la doc |
+
+#### Ce qui a été construit (2026-09-22)
+
+Les quatre questions ouvertes ont été tranchées, et une cinquième s'est
+ajoutée : quels outils, sachant que la consigne était **de ne pas multiplier
+les outils et de les traiter tous de la même manière**.
+
+| # | Question | Décision |
+|---|---|---|
+| — | Quels outils | **Trivy + kubeconform**, un seul outil de plus. kube-linter écarté : il recouvre Trivy sur la sécurité et ne rend **aucun numéro de ligne** (`Diagnostic{Message}` porte un `TODO: add line number` dans ses sources, v0.8.3) — il ne pourrait alimenter ni le saut à la ligne ni un correctif. Kyverno reporté : il n'embarque aucune politique et ne rend ni Helm ni Kustomize (voir §3.85). kubeconform comble le seul vrai manque, la **validité au regard du schéma de l'API** — ce que ni Trivy ni kube-linter ne font |
+| — | Bibliothèque ou outil externe | Outil externe, `auto \| binary \| image` comme les trois autres, par cohérence explicitement demandée. helm et kustomize aussi, mais **optionnels** : jamais signalés manquants |
+| 1 | Où chercher les manifestes | Par le **contenu** (`apiVersion` + `kind`), pas par le nom — `k8s.Discover`. kubeconform reçoit les fichiers un par un : sur un répertoire il signale « missing 'kind' key » sur chaque fichier de CI |
+| 2 | Helm tel quel ou rendu | **Rendu** quand helm est là (`helm lint` puis `helm template`), jamais validé brut ; idem Kustomize avec `kustomize build`, seulement sur les overlays feuilles. Sans l'outil, le répertoire est compté « Not rendered » dans l'en-tête des résultats et dans `scan_result` |
+| 3 | Colonne ou onglet | L'onglet Misconfigurations existant ; la colonne Source affiche le **dialecte** (`kubernetes`, `helm`, `dockerfile`…) ou l'outil (`schema`, `helm lint`, `kustomize`). Une colonne propre aurait été vide sur tous les autres onglets |
+| 4 | kube-linter / Kubescape apportent-ils assez | Non, pas à ce stade — voir la première ligne. Ce que seul kube-linter aurait vu (sondes liveness/readiness, contrôles croisés Service ↔ Deployment) reste un manque assumé, consigné en §3.85 |
+
+| Commit | |
+|---|---|
+| 0 | `NewScanner` ne transmettait pas les réglages plumber à la détection : tout scan réel résolvait plumber avec ses défauts. Corrigé avant de copier le gabarit |
+| A | `Finding.IaCType` (le `Result.Type` de Trivy), projeté par `scan_result` en `iac_type` |
+| B | l'étage `k8s-schema` (kubeconform), `internal/k8s` (découverte, pointeur JSON → ligne) |
+| C | rendu helm / kustomize, relu sur stdin par kubeconform |
+| D | le catalogue : `KSV-0017`, `KSV-0001`, `K8S-API-REMOVED` ; la vérification juge l'occurrence corrigée |
+
+**Six choses apprises en construisant, toutes mesurées dans le sandbox** avec
+les vrais conteneurs `ghcr.io/yannh/kubeconform`, `alpine/helm` (helm 4.3.0),
+`aquasec/trivy` et le binaire kustomize 5.8.1 :
+
+1. **Un schéma absent veut dire deux choses.** Sans
+   `-ignore-missing-schemas`, kubeconform répond « could not find schema for
+   X » : sur un groupe natif c'est une `apiVersion` **retirée** de la version
+   ciblée (`K8S-API-REMOVED`), sur tout autre groupe c'est une ressource
+   personnalisée dont le schéma est dans une CRD. La liste des groupes natifs
+   est **fermée**, pas une règle de suffixe `.k8s.io` : la Gateway API
+   (`gateway.networking.k8s.io`) est une CRD, et un `HTTPRoute` aurait été
+   signalé comme API retirée.
+2. **`helm lint` ne voit qu'un WARNING là où `helm template` échoue** — une
+   dépendance non vendorisée. Un chart qui ne se rend pas est donc un finding
+   (`K8S-RENDER`), pas un scan en échec ; et ce même avertissement nomme le
+   chart par son chemin **absolu** (`/scan/charts/x` en conteneur).
+3. **Le code de sortie 1 de kubeconform veut dire deux choses aussi** —
+   trouvé quelque chose, ou pas pu tourner. Le rapport JSON sur stdout les
+   départage.
+4. **L'API server refuse `allowPrivilegeEscalation: false` sur un conteneur
+   privilégié** ou qui ajoute `CAP_SYS_ADMIN`. Le correctif aurait satisfait
+   Trivy et produit un manifeste inapplicable — même famille que le
+   `USER 1000` de §3.78. Il décline, et renvoie vers `KSV-0017`.
+5. **Un fichier porte souvent deux occurrences d'une même règle** (deux
+   conteneurs). La vérification par re-scan jugeait sur (règle, fichier) et
+   aurait déclaré l'échec d'un correctif réussi ; elle compare maintenant
+   l'occurrence (titre + message).
+6. **yaml.v3 compte les colonnes en caractères**, pas en octets : un
+   caractère non ASCII avant une valeur décalait toute édition calculée par
+   octets.
+
+**Le renommage d'`apiVersion` ne couvre que ce que le guide de dépréciation
+marque « No notable changes »** (CronJob, RBAC, storage, Lease, IngressClass,
+PriorityClass, RuntimeClass, APIService, CSIStorageCapacity), vérifié contre
+`kubernetes/website`. PodDisruptionBudget et HorizontalPodAutoscaler — qu'une
+lecture rapide aurait classés « simples » — ont des changements notables et
+sont déclinés.
+
+**Hors catalogue, et pourquoi** : `runAsNonRoot`, `readOnlyRootFilesystem` et
+`capabilities.drop: [ALL]` passent leur règle et peuvent empêcher le conteneur
+de démarrer ; les limites de ressources n'ont pas de valeur universelle ; un
+profil seccomp se pose au pod ou au conteneur, et le finding ne dit pas lequel.
+Tout cela reste l'étage 2 (l'agent via le MCP).
 
 Sources vérifiées le 2026-09-21 :
 *Docker and Kubernetes Security* (chapitre 6, §3.6.4),
@@ -14654,6 +14721,31 @@ Sources vérifiées le 2026-09-22 :
 [trivy-checks — checks/docker](https://github.com/aquasecurity/trivy-checks/tree/main/checks/docker).
 
 ---
+
+### 3.85 Kyverno — politiques apportées par l'utilisateur, et ce que kube-linter aurait vu — **à explorer**
+
+§3.80 a écarté Kyverno et kube-linter pour ne pas multiplier les outils. Deux
+besoins restent, et ils ne se ressemblent pas.
+
+**Kyverno comme *policy-as-code* de l'utilisateur.** `kyverno apply` (1.19.1,
+vérifié dans `cmd/cli/kubectl-kyverno/commands/apply/command.go`) n'embarque
+**aucune** politique : il lui faut un chemin, une URL ou un dépôt git. Sa
+valeur n'est donc pas un catalogue de plus, c'est de faire respecter **les
+règles d'une organisation** — ce que ni Trivy ni kubeconform ne savent faire.
+La forme naturelle serait un réglage `scan.kyverno_policies` (un répertoire),
+l'étage ne tournant que s'il est renseigné ; `--policy-report --output-format
+json` donne un rapport lisible. Kyverno ne rendant ni Helm ni Kustomize, il
+lirait ce que l'étage `k8s-schema` rend déjà — le rendu serait à partager
+plutôt qu'à refaire. Ses règles `mutate` réécrivent la ressource entière : la
+réserve de §3.78 tient, elles ne serviraient pas de correctif.
+
+**Ce que seul kube-linter aurait vu.** Les sondes liveness/readiness absentes,
+et les contrôles **croisés** entre objets — un Service dont le sélecteur ne
+correspond à aucun Deployment, un ServiceAccount référencé qui n'existe pas.
+Ni Trivy ni kubeconform ne raisonnent sur plusieurs objets à la fois. Si le
+besoin se confirme, la question sera de nouveau celle de §3.80 : un outil de
+plus, sans numéro de ligne, ou une poignée de contrôles écrits ici sur ce que
+`k8s.Discover` et le rendu produisent déjà.
 
 ## 4. Existing plans
 

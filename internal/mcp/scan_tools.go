@@ -185,6 +185,7 @@ type scanResultOut struct {
 	LicenseCount   int      `json:"license_count"`
 	MisconfigCount int      `json:"misconfig_count"`
 	Errors         []string `json:"errors,omitempty" jsonschema:"stages that failed; findings may be missing rather than absent"`
+	K8sUnrendered  []string `json:"k8s_unrendered,omitempty" jsonschema:"Helm charts and Kustomize overlays the schema stage could not validate because helm or kustomize was not available; nothing was checked there, which is not the same as nothing found"`
 
 	Matched  int       `json:"matched" jsonschema:"how many findings the filters kept, before paging"`
 	Total    int       `json:"total" jsonschema:"how many findings the scan holds in all"`
@@ -258,6 +259,7 @@ func project(contextName string, result *scan.Result, kind string, in scanResult
 		LicenseCount:   result.LicenseCount,
 		MisconfigCount: result.MisconfigCount,
 		Errors:         result.Errors,
+		K8sUnrendered:  result.K8sUnrendered,
 		Total:          len(result.Findings),
 		Findings:       []finding{},
 	}

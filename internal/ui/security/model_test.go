@@ -664,3 +664,18 @@ func TestTheDetailsPaneScrolls(t *testing.T) {
 		})
 	}
 }
+
+// Charts and overlays nobody rendered are said in the header, or a repository
+// of charts would read as schema-clean when nothing was checked (§3.80).
+func TestTheHeaderSaysWhatWasNotRendered(t *testing.T) {
+	m := Model{state: StateResults, result: &scan.Result{K8sUnrendered: []string{"charts/api", "k8s/overlays/prod"}}}
+
+	value, ok := m.headerUnrendered()
+	if !ok || !strings.HasPrefix(value, "2 ") {
+		t.Errorf("headerUnrendered = %q, %v; want the two directories counted", value, ok)
+	}
+	m.result.K8sUnrendered = nil
+	if _, ok := m.headerUnrendered(); ok {
+		t.Error("a result with nothing unrendered still shows the field")
+	}
+}
