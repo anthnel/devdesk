@@ -1,0 +1,5 @@
+le scanning kubernetes fonctionne bien, mais je n'ai aucun indicateur comme pour les cve, les secrets ou le CI dans WS ou sec, que proposes-tu comme indicateur
+
+---
+
+/login
