@@ -54,7 +54,7 @@ func TestTheSecretsColumnTellsTheThreeVerdictsApart(t *testing.T) {
 func TestTheSecretsCellIsPlainAndItsColourComesFromStyle(t *testing.T) {
 	row := imageRow{Scanned: true, Entry: cache.ImageScanEntry{Sensitive: secretsFound()}}
 
-	secrets := imageColumns()[columnIndexOfSecrets(t)]
+	secrets := imageColumns(false)[columnIndexOfSecrets(t)]
 
 	if cell := secrets.Cell(row); cell != theme.IconWorkspaceUntrusted {
 		t.Errorf("Cell = %q, want the bare icon", cell)
@@ -71,7 +71,7 @@ func TestTheSecretsCellIsPlainAndItsColourComesFromStyle(t *testing.T) {
 // going through a table: the position is what shifts when one is inserted.
 func columnIndexOfSecrets(t *testing.T) int {
 	t.Helper()
-	for i, col := range imageColumns() {
+	for i, col := range imageColumns(false) {
 		if col.Title == "Secrets" {
 			return i
 		}

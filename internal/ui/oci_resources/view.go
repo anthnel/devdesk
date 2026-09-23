@@ -496,6 +496,7 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Images Tab",
 				Body: "Shows all local " + engTitle + " images with disk usage, content size, and CVE scan results.\n" +
+					"With the Misconfiguration category on, a CFG column counts what Trivy found in the Dockerfile instructions baked into the layers, coloured by the worst severity among them; a dash means no misconfiguration stage read the image, which is not a zero.\n" +
 					"Press Enter to view the last scan details (loads from cache; falls back to scan if not yet scanned).\n" +
 					"Press Ctrl+E to launch a container from the selected image (opens a form with pre-filled port mappings from EXPOSE metadata).\n" +
 					"Press Ctrl+S to open the Security view for a configured scan.",

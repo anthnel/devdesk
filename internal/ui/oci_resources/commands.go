@@ -138,6 +138,7 @@ func scanOneImageCmd(job imageScanJob, opts scan.ScanOptions, sem chan struct{})
 				// what gives an image scan a secrets stage, and therefore a
 				// verdict to record.
 				Sensitive: result.SecretVerdict(),
+				Misconfig: result.MisconfigVerdict(),
 				ScannedAt: result.EndTime,
 			}
 			scanCache, cErr := cache.NewImageScanCache()

@@ -263,6 +263,31 @@ repository in a batch reported itself running the instant the batch was
 dispatched: twelve spinners for four workers. The message now waits for its turn
 in the pool, which is what moves the item from queued to running.
 
+## The `CFG` column, and what a directory does with it
+
+Five cells, after `C H M L` and before `CI`, present only when
+`scan.categories.misconfig.enabled` is on. The rendering, the four states and
+why it is a count rather than a glyph are in
+[`scanning.md`](scanning.md#the-misconfiguration-column-cfg); what belongs here
+is the one behaviour specific to this view.
+
+**A directory sums what is under it, unlike the `CI` column.** Counts add up
+across nested repositories; letters do not, which is why a directory's `CI` cell
+is empty. `formatScanColumns` folds the sub-repositories' summaries in the same
+pass that sums `C H M L`, taking the worst severity through
+`scan.WorseSeverity`.
+
+Two things make the directory's count **partial**, and both render the same `?`:
+a sub-repository whose cache entry has no summary (nobody read it for
+misconfigurations), and one nobody has scanned at all — the second is the same
+condition that already pushes a `SecretsUnknown` into `foldSecrets`. The
+directory cannot be more certain than what is unknown about its children.
+
+`misconfigCell` carries `Text`, `State` and `Worst` separately, on
+`secretsCell`'s model: the text has cases the state does not — a file and a
+directory holding no repository print nothing at all, while a repository waiting
+for a scan prints a dash — and all of them colour dim.
+
 ## Fuzzy find (`g`)
 
 `g` opens a prompt (`FuzzyFinder`, `fuzzyfind.go`): type at least 3

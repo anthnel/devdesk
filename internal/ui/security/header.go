@@ -256,7 +256,7 @@ func (m Model) GetHelpContent() help.Content {
 		Sections: []help.Section{
 			{
 				Title: "Inventory",
-				Body:  "The table lists every image and repository scanned in the current context, sorted by CRITICAL findings. Counts come from the scan caches; the Scanned column shows how long ago each result was produced.\nScans launched from the OCI resources and workspaces views write to the same caches and appear here.\nA rescan reads its options from the configuration view (:cfg), scan tab — there is nothing to set here.\nRescanning all (A) purges the cached results first, when its checkbox is ticked, so a target shows '-' until its scan returns.",
+				Body:  "The table lists every image and repository scanned in the current context, sorted by CRITICAL findings. Counts come from the scan caches; the Scanned column shows how long ago each result was produced.\nScans launched from the OCI resources and workspaces views write to the same caches and appear here.\nA rescan reads its options from the configuration view (:cfg), scan tab — there is nothing to set here.\nRescanning all (A) purges the cached results first, when its checkbox is ticked, so a target shows '-' until its scan returns.\nWith the Misconfiguration category on, a CFG column counts what the misconfiguration stages found, coloured by the worst severity among them. A dash there is a target no such stage read — not a zero — and a '?' after the count says the count is partial: a Helm chart or Kustomize overlay nothing could render. '0?' is the one to stop on, since nothing was found because nothing was read.",
 			},
 			{
 				Title: "Scan Types",

@@ -12,7 +12,7 @@ import (
 // ciCellOf renders the CI column for one row, the way the table would.
 func ciCellOf(t *testing.T, target scanTarget) string {
 	t.Helper()
-	for _, col := range inventoryColumns(true) {
+	for _, col := range inventoryColumns(true, false) {
 		if col.Title == "CI" {
 			return col.Cell(target)
 		}
@@ -23,7 +23,7 @@ func ciCellOf(t *testing.T, target scanTarget) string {
 
 func ciTitles(withCI bool) []string {
 	titles := make([]string, 0)
-	for _, col := range inventoryColumns(withCI) {
+	for _, col := range inventoryColumns(withCI, false) {
 		titles = append(titles, col.Title)
 	}
 	return titles

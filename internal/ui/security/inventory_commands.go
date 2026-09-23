@@ -45,7 +45,10 @@ type InventoryScanFinishedMsg struct {
 	// CIScore is the pipeline grade, carried for Sensitive's reason exactly: a
 	// rescanned row would otherwise keep the letter of its previous scan until
 	// the next ctrl+r, beside counters that are brand new.
-	CIScore   *string
+	CIScore *string
+	// Misconfig is the misconfiguration verdict, carried for CIScore's reason:
+	// a rescanned row would otherwise keep the count of its previous scan.
+	Misconfig *scan.MisconfigSummary
 	ScannedAt time.Time
 	Err       error
 }
@@ -106,6 +109,7 @@ func loadInventoryCmd(forgeURL string) tea.Cmd {
 						Medium: entry.Medium, Low: entry.Low,
 					},
 					Sensitive: entry.Sensitive,
+					Misconfig: entry.Misconfig,
 					ScannedAt: entry.ScannedAt,
 				})
 			}
@@ -127,6 +131,7 @@ func loadInventoryCmd(forgeURL string) tea.Cmd {
 					Sensitive:   entry.Sensitive,
 					CIScore:     entry.CIScore,
 					CIGradeable: gradeable(path, forgeURL),
+					Misconfig:   entry.Misconfig,
 					ScannedAt:   entry.ScannedAt,
 				})
 			}
@@ -280,6 +285,7 @@ func rescanOneBodyCmd(ctx context.Context, cancel context.CancelFunc, job invent
 		return InventoryScanFinishedMsg{
 			Name: job.Name, Counts: result.Counts,
 			Sensitive: result.SecretVerdict(), CIScore: result.CIVerdict(),
+			Misconfig: result.MisconfigVerdict(),
 			ScannedAt: result.EndTime,
 		}
 	}
@@ -298,6 +304,7 @@ func storeRescan(job inventoryScanJob, result *scan.Result, contextName string) 
 				Critical: result.Counts.Critical, High: result.Counts.High,
 				Medium: result.Counts.Medium, Low: result.Counts.Low,
 				Sensitive: result.SecretVerdict(),
+				Misconfig: result.MisconfigVerdict(),
 				ScannedAt: result.EndTime,
 			})
 		}
@@ -313,6 +320,7 @@ func storeRescan(job inventoryScanJob, result *scan.Result, contextName string) 
 			Medium: result.Counts.Medium, Low: result.Counts.Low,
 			Sensitive: result.SecretVerdict(),
 			CIScore:   result.CIVerdict(),
+			Misconfig: result.MisconfigVerdict(),
 			ScannedAt: result.EndTime,
 		})
 	}

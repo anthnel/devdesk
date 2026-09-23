@@ -173,19 +173,22 @@ type scanResultOut struct {
 	// repository points at a file under Root. Without both, a caller acting on
 	// a file path has no way to tell the two apart, and the first case reads
 	// exactly like the second.
-	TargetKind     string   `json:"target_kind" jsonschema:"image or repository; a finding's file is a path inside the image for an image target and cannot be opened on disk, while for a repository it is relative to root"`
-	Root           string   `json:"root,omitempty" jsonschema:"absolute path a repository target's file paths are relative to; absent for an image target"`
-	Critical       int      `json:"critical"`
-	High           int      `json:"high"`
-	Medium         int      `json:"medium"`
-	Low            int      `json:"low"`
-	Unknown        int      `json:"unknown"`
-	SecretCount    int      `json:"secret_count"`
-	SecretsScanned bool     `json:"secrets_scanned" jsonschema:"false means no secret stage ran, so secret_count says nothing about this target"`
-	LicenseCount   int      `json:"license_count"`
-	MisconfigCount int      `json:"misconfig_count"`
-	Errors         []string `json:"errors,omitempty" jsonschema:"stages that failed; findings may be missing rather than absent"`
-	K8sUnrendered  []string `json:"k8s_unrendered,omitempty" jsonschema:"Helm charts and Kustomize overlays the schema stage could not validate because helm or kustomize was not available; nothing was checked there, which is not the same as nothing found"`
+	TargetKind     string `json:"target_kind" jsonschema:"image or repository; a finding's file is a path inside the image for an image target and cannot be opened on disk, while for a repository it is relative to root"`
+	Root           string `json:"root,omitempty" jsonschema:"absolute path a repository target's file paths are relative to; absent for an image target"`
+	Critical       int    `json:"critical"`
+	High           int    `json:"high"`
+	Medium         int    `json:"medium"`
+	Low            int    `json:"low"`
+	Unknown        int    `json:"unknown"`
+	SecretCount    int    `json:"secret_count"`
+	SecretsScanned bool   `json:"secrets_scanned" jsonschema:"false means no secret stage ran, so secret_count says nothing about this target"`
+	LicenseCount   int    `json:"license_count"`
+	MisconfigCount int    `json:"misconfig_count"`
+	// MisconfigScanned is SecretsScanned's counterpart: false means no
+	// misconfiguration stage ran, so misconfig_count says nothing.
+	MisconfigScanned bool     `json:"misconfig_scanned" jsonschema:"false means no misconfiguration stage ran, so misconfig_count says nothing about this target"`
+	Errors           []string `json:"errors,omitempty" jsonschema:"stages that failed; findings may be missing rather than absent"`
+	K8sUnrendered    []string `json:"k8s_unrendered,omitempty" jsonschema:"Helm charts and Kustomize overlays the schema stage could not validate because helm or kustomize was not available; nothing was checked there, which is not the same as nothing found"`
 
 	Matched  int       `json:"matched" jsonschema:"how many findings the filters kept, before paging"`
 	Total    int       `json:"total" jsonschema:"how many findings the scan holds in all"`
@@ -245,23 +248,24 @@ func storedResult(target string) (*scan.Result, string, error) {
 // findings the filters kept, and one page of them.
 func project(contextName string, result *scan.Result, kind string, in scanResultIn) scanResultOut {
 	out := scanResultOut{
-		Context:        contextName,
-		Target:         result.Target,
-		TargetKind:     kind,
-		ScannedAt:      result.EndTime,
-		Critical:       result.Counts.Critical,
-		High:           result.Counts.High,
-		Medium:         result.Counts.Medium,
-		Low:            result.Counts.Low,
-		Unknown:        result.Counts.Unknown,
-		SecretCount:    result.SecretCount,
-		SecretsScanned: result.SecretsScanned,
-		LicenseCount:   result.LicenseCount,
-		MisconfigCount: result.MisconfigCount,
-		Errors:         result.Errors,
-		K8sUnrendered:  result.K8sUnrendered,
-		Total:          len(result.Findings),
-		Findings:       []finding{},
+		Context:          contextName,
+		Target:           result.Target,
+		TargetKind:       kind,
+		ScannedAt:        result.EndTime,
+		Critical:         result.Counts.Critical,
+		High:             result.Counts.High,
+		Medium:           result.Counts.Medium,
+		Low:              result.Counts.Low,
+		Unknown:          result.Counts.Unknown,
+		SecretCount:      result.SecretCount,
+		SecretsScanned:   result.SecretsScanned,
+		LicenseCount:     result.LicenseCount,
+		MisconfigCount:   result.MisconfigCount,
+		MisconfigScanned: result.MisconfigScanned,
+		Errors:           result.Errors,
+		K8sUnrendered:    result.K8sUnrendered,
+		Total:            len(result.Findings),
+		Findings:         []finding{},
 	}
 	// Root is the repository itself: a workspace scan is run on that directory,
 	// so a finding's file is relative to it. An image has no such anchor, which

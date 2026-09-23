@@ -28,8 +28,14 @@ type ImageScanEntry struct {
 	// An image had no secrets field at all until now, so **every entry already
 	// on disk decodes to nil** — which is the truth: it was written by an
 	// image scan that had no secrets stage whatsoever.
-	Sensitive *bool     `json:"sensitive,omitempty"`
-	ScannedAt time.Time `json:"scanned_at"`
+	Sensitive *bool `json:"sensitive,omitempty"`
+	// Misconfig is the misconfiguration verdict, on Sensitive's model and for
+	// its reason: nil when no stage looked. An image has misconfigurations to
+	// find — `trivy image --scanners misconfig` reads the Dockerfile
+	// instructions baked into its layers — so this is not a repository-only
+	// field, unlike the pipeline grade.
+	Misconfig *scan.MisconfigSummary `json:"misconfig,omitempty"`
+	ScannedAt time.Time              `json:"scanned_at"`
 }
 
 // imageScanCacheVersion marks a file whose entries are one flat map again.

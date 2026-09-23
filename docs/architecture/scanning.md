@@ -336,6 +336,66 @@ pointer. An image entry has no key at all and decodes `nil` — the truth about 
 `:sec` inventory. Do not decide the colour from the rendered icon string, which
 is what `ws` did.
 
+### The misconfiguration column (`CFG`)
+
+**`Result.MisconfigVerdict()` is the third verdict of this shape**, after
+`SecretVerdict()` and `CIVerdict()`, and it answers the same three-state
+question: `nil` when no stage read the target, a `MisconfigSummary` otherwise.
+`Result.MisconfigScanned` carries the fact, written by a stage that *succeeds* —
+either of the two, Trivy's rules or kubeconform's schema validation, since both
+serve the one Misconfiguration category.
+
+Until §3.87 `MisconfigCount` existed and **nothing in the UI read it**: only
+`internal/mcp/scan_tools.go` exposed it. A repository with forty misconfigurations
+— Kubernetes manifests, a Dockerfile, Terraform — showed `0 0 0 0` in `ws` and in
+`:sec`, because `Counts` holds vulnerabilities and nothing else.
+
+| | |
+|---|---|
+| Shape | **a count**, not the verdict glyph secrets get. One secret is already an alarm, so a glyph says all there is to say; almost any repository with a Dockerfile carries misconfigurations, and a glyph would read the same on one and on two hundred |
+| Colour | `SeverityTextStyle` of `MisconfigSummary.Worst`, the highest severity among them. **One column rather than four**: splitting it the way CVEs are split would spend sixteen cells in the narrowest table of the application on a question nobody asks of a misconfiguration backlog, which is read whole |
+| `-` | no stage read this target — the category is off, Trivy is missing, the run failed. Dim, like a `0` |
+| `0` | a stage looked and found nothing |
+| `N?` | the count is **partial**. `MisconfigSummary.Unrendered` is `len(K8sUnrendered)` — a Helm chart or Kustomize overlay nothing rendered — and on a `ws` directory row, a sub-repository nobody scanned counts the same way |
+
+`?` is the glyph the `CI` column already uses, for the same meaning: this did not
+conclude. **`0?` is the case the whole marker exists for**: a bare `0` on a
+repository of charts reports it clean when nothing in it was ever read, which is
+D20 one category over. Before this, `K8sUnrendered` was visible only in the
+*results* header (`headerUnrendered`) — invisible from the list, which is where
+one decides what to open.
+
+**Placement: after the four severity counters, before `CI`.** In `:sec` that is
+not a preference — `inventoryColumnCritical` is an index, and slotting a column
+in front of `CRIT` would make the column the table opens sorted by depend on a
+setting. `ws` and `oci/images` follow the same order so the six columns read
+alike in all three.
+
+`theme.MisconfigState` / `MisconfigCell` / `MisconfigStyle` are the one
+rendering, and `theme` takes plain values — `MisconfigVerdict(has, scanned bool,
+count int)` — because it does not import `internal/scan`, which is also why
+`SeverityTextStyle` takes a string. `MisconfigSummary`'s three accessors
+(`Total`, `WorstSeverity`, `UnrenderedCount`) are nil-safe so a caller never
+unwraps the pointer itself.
+
+Both caches hold it as `Misconfig *scan.MisconfigSummary`, and neither has ever
+written the key, so every existing file decodes to `nil` — the truth about it.
+An image gets the column too: `trivy image --scanners misconfig` reads the
+Dockerfile instructions baked into the layers, unlike the CI grade, which an
+image has no pipeline for.
+
+**A `ws` directory sums, unlike the `CI` column.** Counts add up across nested
+repositories; letters do not — the worst of three grades is the grade of nothing.
+The fold orders severities through `scan.WorseSeverity`, exported for exactly
+that caller so the directory and the scanner cannot disagree on which of two
+severities is worse.
+
+The column follows `scan.categories.misconfig.enabled` and is built once, in each
+view's `New`; the router drops the views on a save, so the setting and the column
+stay in step. It does **not** declare `Optional`, for `CI`'s reason: its states
+already include an absence, and a column that vanished on a narrow terminal would
+add a second one that looks like it.
+
 **Security view** (`internal/ui/security/model.go`) has three states:
 `StateInventory` (the landing page), `StateResults` and `StateDetails` (with
 remediation info).
