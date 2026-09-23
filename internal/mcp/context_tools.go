@@ -126,12 +126,12 @@ func describeContext(env *Env) contextGetOut {
 			IncludeArchived:    cfg.Forge.Pull.IncludeArchived,
 		},
 		Scan: scanOptionsOut{
-			Vulnerabilities: cfg.Scan.EnableVuln,
-			SecretScanning:  cfg.Scan.EnableSecret,
-			Licenses:        cfg.Scan.EnableLicense,
-			Misconfig:       cfg.Scan.EnableMisconfig,
-			IgnoreUnfixed:   cfg.Scan.IgnoreUnfixed,
-			GitleaksHistory: cfg.Scan.GitleaksHistory,
+			Vulnerabilities: cfg.Scan.Categories.Vuln.Enabled,
+			SecretScanning:  cfg.Scan.Categories.Secret.Enabled,
+			Licenses:        cfg.Scan.Categories.License.Enabled,
+			Misconfig:       cfg.Scan.Categories.Misconfig.Enabled,
+			IgnoreUnfixed:   cfg.Scan.Tools.Trivy.IgnoreUnfixed,
+			GitleaksHistory: cfg.Scan.Tools.Gitleaks.History,
 		},
 		Monitors: []monitorOut{},
 	}

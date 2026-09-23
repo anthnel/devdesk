@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/config"
 )
 
 // Scan runs its stages concurrently against one runner, so a test says what
@@ -70,25 +72,56 @@ func stagesRun(r *scriptedRunner) []string {
 	return seen
 }
 
-func everyTool() DependencyStatus {
-	return DependencyStatus{
-		TrivyAvailable:    true,
-		TrivySource:       ToolSourceBinary,
-		TrivyImage:        DefaultTrivyImage,
-		GitleaksAvailable: true,
-		GitleaksSource:    ToolSourceBinary,
-		GitleaksImage:     DefaultGitleaksImage,
-		EngineAvailable:   true,
+// binaries is a report in which these tools run from a binary on PATH, and
+// every other tool is missing.
+func binaries(ids ...ToolID) Report {
+	r := Report{Tools: map[ToolID]ToolStatus{}, EngineAvailable: true}
+	for _, id := range ids {
+		tool, _ := ToolByID(id)
+		r.Tools[id] = ToolStatus{Available: true, Source: ToolSourceBinary, Image: tool.DefaultImage}
 	}
+	return r
+}
+
+// without is the report with one tool gone. The map is copied: a report is a
+// value, and a test that removes a tool must not remove it from another's.
+func (r Report) without(id ToolID) Report {
+	tools := make(map[ToolID]ToolStatus, len(r.Tools))
+	for k, v := range r.Tools {
+		tools[k] = v
+	}
+	delete(tools, id)
+	r.Tools = tools
+	return r
+}
+
+func everyTool() Report { return binaries(ToolTrivy, ToolGitleaks) }
+
+// categories turns these categories on, each with its default tools, and
+// every other one off.
+func categories(ids ...CategoryID) config.ScanCategories {
+	c := config.DefaultScanCategories()
+	c.Vuln.Enabled, c.Secret.Enabled = false, false
+	for _, id := range ids {
+		c.Category(string(id)).Enabled = true
+	}
+	return c
+}
+
+// scanFor asks for these categories and nothing else.
+func scanFor(ids ...CategoryID) ScanOptions { return ScanOptions{Categories: categories(ids...)} }
+
+// k8sSchema is Misconfiguration with kubeconform and its renderers ticked and
+// Trivy not: the schema stage alone.
+func k8sSchema() ScanOptions {
+	c := categories()
+	c.Misconfig = config.CategoryConfig{Enabled: true,
+		Tools: []string{config.ToolKubeconform, config.ToolHelm, config.ToolKustomize}}
+	return ScanOptions{Categories: c}
 }
 
 func everyStage() ScanOptions {
-	return ScanOptions{
-		EnableVuln:      true,
-		EnableSecret:    true,
-		EnableLicense:   true,
-		EnableMisconfig: true,
-	}
+	return scanFor(CategoryIDVuln, CategoryIDSecret, CategoryIDLicense, CategoryIDMisconfig)
 }
 
 // recorder collects progress from the scan goroutines.
@@ -198,8 +231,7 @@ func TestEveryEnabledStageContributesItsFindings(t *testing.T) {
 // contact with the result panel, where "no secrets found" and "nothing looked
 // for secrets" are the same screen.
 func TestAStageWithoutItsToolIsReportedRatherThanSkippedSilently(t *testing.T) {
-	deps := everyTool()
-	deps.GitleaksAvailable = false
+	deps := everyTool().without(ToolGitleaks)
 
 	r := byStage(t, map[string]stageReply{
 		"vuln":         {stdout: `{"Results":[]}`},
@@ -207,7 +239,7 @@ func TestAStageWithoutItsToolIsReportedRatherThanSkippedSilently(t *testing.T) {
 	})
 
 	result, err := newScannerWithDeps(
-		ScanOptions{EnableVuln: true, EnableSecret: true}, deps).
+		scanFor(CategoryIDVuln, CategoryIDSecret), deps).
 		Scan(context.Background(), "/repos", TargetDirectory)
 
 	if err != nil {
@@ -231,13 +263,12 @@ func TestAStageWithoutItsToolIsReportedRatherThanSkippedSilently(t *testing.T) {
 // no findings and no errors — indistinguishable from a clean scan, and the OCI
 // images view cached it as one.
 func TestAScanThatCouldRunNoScannerIsNotACleanScan(t *testing.T) {
-	deps := everyTool()
-	deps.TrivyAvailable = false
+	deps := everyTool().without(ToolTrivy)
 
 	r := byStage(t, map[string]stageReply{})
 
 	result, err := newScannerWithDeps(
-		ScanOptions{EnableVuln: true}, deps).
+		scanFor(CategoryIDVuln), deps).
 		Scan(context.Background(), "api:v1", TargetImage)
 
 	if err != nil {
@@ -264,8 +295,7 @@ func TestAScanThatCouldRunNoScannerIsNotACleanScan(t *testing.T) {
 // image for a reason that has nothing to do with what is installed — reporting
 // it would train the user to ignore the warnings panel.
 func TestAStageThatDoesNotApplyToTheTargetIsNotAMissingTool(t *testing.T) {
-	deps := everyTool()
-	deps.GitleaksAvailable = false
+	deps := everyTool().without(ToolGitleaks)
 
 	byStage(t, map[string]stageReply{
 		"vuln":         {stdout: `{"Results":[]}`},
@@ -273,7 +303,7 @@ func TestAStageThatDoesNotApplyToTheTargetIsNotAMissingTool(t *testing.T) {
 	})
 
 	result, err := newScannerWithDeps(
-		ScanOptions{EnableVuln: true, EnableSecret: true}, deps).
+		scanFor(CategoryIDVuln, CategoryIDSecret), deps).
 		Scan(context.Background(), "api:v1", TargetImage)
 
 	if err != nil {
@@ -288,7 +318,7 @@ func TestAStageThatDoesNotApplyToTheTargetIsNotAMissingTool(t *testing.T) {
 func TestNothingEnabledReportsNoMissingTool(t *testing.T) {
 	byStage(t, map[string]stageReply{})
 
-	result, err := newScannerWithDeps(ScanOptions{}, DependencyStatus{}).
+	result, err := newScannerWithDeps(ScanOptions{}, Report{}).
 		Scan(context.Background(), "/repos", TargetDirectory)
 
 	if err != nil {
@@ -327,7 +357,7 @@ func TestAnImageIsScannedForSecretsByTrivyOnly(t *testing.T) {
 func TestTheVulnerabilityStageDoesNotAlsoScanForSecrets(t *testing.T) {
 	r := byStage(t, map[string]stageReply{"vuln": {stdout: `{"Results":[]}`}})
 
-	if _, err := newScannerWithDeps(ScanOptions{EnableVuln: true}, everyTool()).
+	if _, err := newScannerWithDeps(scanFor(CategoryIDVuln), everyTool()).
 		Scan(context.Background(), "api:v1", TargetImage); err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -371,7 +401,7 @@ func TestOneStageFailingLeavesTheOthersIntact(t *testing.T) {
 	})
 
 	result, err := newScannerWithDeps(
-		ScanOptions{EnableVuln: true, EnableSecret: true}, everyTool()).
+		scanFor(CategoryIDVuln, CategoryIDSecret), everyTool()).
 		Scan(context.Background(), "/repos", TargetDirectory)
 
 	if err != nil {
@@ -423,7 +453,8 @@ func TestAStageIsAnnouncedBeforeItRunsAndAgainWhenItIsOver(t *testing.T) {
 	r.progress = []string{"downloading db"}
 
 	rec := &recorder{}
-	opts := ScanOptions{EnableVuln: true, OnProgress: rec.fn()}
+	opts := scanFor(CategoryIDVuln)
+	opts.OnProgress = rec.fn()
 
 	if _, err := newScannerWithDeps(opts, everyTool()).
 		Scan(context.Background(), "/repos", TargetDirectory); err != nil {
@@ -497,7 +528,8 @@ func TestAFailedStageIsAnnouncedAsFailed(t *testing.T) {
 	byStage(t, map[string]stageReply{"vuln": {err: &exitError{Code: 2, Stderr: "FATAL bad flag"}}})
 
 	rec := &recorder{}
-	opts := ScanOptions{EnableVuln: true, OnProgress: rec.fn()}
+	opts := scanFor(CategoryIDVuln)
+	opts.OnProgress = rec.fn()
 
 	if _, err := newScannerWithDeps(opts, everyTool()).
 		Scan(context.Background(), "/repos", TargetDirectory); err != nil {
@@ -515,7 +547,7 @@ func TestAFailedStageIsAnnouncedAsFailed(t *testing.T) {
 func TestAScanWithoutAProgressCallbackIsFine(t *testing.T) {
 	byStage(t, map[string]stageReply{"vuln": {stdout: `{"Results":[]}`}})
 
-	if _, err := newScannerWithDeps(ScanOptions{EnableVuln: true}, everyTool()).
+	if _, err := newScannerWithDeps(scanFor(CategoryIDVuln), everyTool()).
 		Scan(context.Background(), "/repos", TargetDirectory); err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
@@ -540,15 +572,12 @@ func TestScanOptionsReachTheInvocation(t *testing.T) {
 		t.Fatalf("writing the rules file: %v", err)
 	}
 
-	opts := ScanOptions{
-		EnableVuln:      true,
-		EnableSecret:    true,
-		TrivyServer:     "https://trivy:4954",
-		IgnoreUnfixed:   true,
-		IgnoreEOL:       true,
-		GitleaksHistory: true,
-		GitleaksConfig:  rules,
-	}
+	opts := scanFor(CategoryIDVuln, CategoryIDSecret)
+	opts.TrivyServer = "https://trivy:4954"
+	opts.Tools.Trivy.IgnoreUnfixed = true
+	opts.Tools.Trivy.IgnoreEOL = true
+	opts.Tools.Gitleaks.History = true
+	opts.Tools.Gitleaks.Config = rules
 
 	if _, err := newScannerWithDeps(opts, everyTool()).
 		Scan(context.Background(), "/repos", TargetDirectory); err != nil {

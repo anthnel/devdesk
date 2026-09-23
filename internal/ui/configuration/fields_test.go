@@ -37,8 +37,10 @@ func TestEveryFieldCarriesTheAccessorItsKindNeeds(t *testing.T) {
 				t.Errorf("%q has bounds [%d, %d], which admits nothing", f.Label, f.min, f.max)
 			}
 		case kindToggle:
-			if f.flag == nil {
-				t.Errorf("%q is a toggle with no bool accessor", f.Label)
+			// A pointer, or a get/set pair for a tool ticked in a category —
+			// exactly one of the two, and a pair is whole.
+			if (f.flag == nil) == (f.get == nil) || (f.get == nil) != (f.set == nil) {
+				t.Errorf("%q is a toggle with no bool accessor, or two", f.Label)
 			}
 		case kindCycle:
 			if f.str == nil {
@@ -79,6 +81,11 @@ func TestNoTwoFieldsAddressTheSameSetting(t *testing.T) {
 func samePointer(c *config.Config, a, b field) bool {
 	switch a.Kind {
 	case kindToggle:
+		// A get/set pair has no pointer to compare; the only two are pinned
+		// by TestTheTwoMisconfigurationCheckboxesStayIndependent.
+		if a.flag == nil || b.flag == nil {
+			return false
+		}
 		return a.flag(c) == b.flag(c)
 	case kindInteger:
 		return a.num(c) == b.num(c)
@@ -169,8 +176,8 @@ func TestTheTrivyServerFieldRefusesAnAddressTrivyCannotParse(t *testing.T) {
 	if err := f.Apply(cfg, ":"); err == nil {
 		t.Error("Apply(\":\") was accepted; Trivy fails the whole scan on that")
 	}
-	if cfg.Scan.TrivyServer != "" {
-		t.Errorf("TrivyServer = %q after a refused value", cfg.Scan.TrivyServer)
+	if cfg.Scan.Tools.Trivy.Server.URL != "" {
+		t.Errorf("TrivyServer = %q after a refused value", cfg.Scan.Tools.Trivy.Server.URL)
 	}
 	if err := f.Apply(cfg, "https://trivy:4954"); err != nil {
 		t.Errorf("a valid address was refused: %v", err)
@@ -181,14 +188,14 @@ func TestTheTrivyServerFieldRefusesAnAddressTrivyCannotParse(t *testing.T) {
 // is now the checkbox's job, not the address's.
 func TestClearingTheTrivyServerIsAllowed(t *testing.T) {
 	cfg := config.Default()
-	cfg.Scan.TrivyServer = "https://trivy:4954"
+	cfg.Scan.Tools.Trivy.Server.URL = "https://trivy:4954"
 	f := fieldNamed(t, "Trivy server")
 
 	if err := f.Apply(cfg, "   "); err != nil {
 		t.Fatalf("clearing was refused: %v", err)
 	}
-	if cfg.Scan.TrivyServer != "" {
-		t.Errorf("TrivyServer = %q, want it cleared", cfg.Scan.TrivyServer)
+	if cfg.Scan.Tools.Trivy.Server.URL != "" {
+		t.Errorf("TrivyServer = %q, want it cleared", cfg.Scan.Tools.Trivy.Server.URL)
 	}
 }
 
@@ -488,5 +495,40 @@ func TestTheMCPStateRowTellsTheThreeCasesApart(t *testing.T) {
 				t.Errorf("mcpState = %q, want it to mention %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// Misconfiguration and K8s schema are two checkboxes over one category
+// (§3.86), and each must still behave as the independent switch it was: every
+// combination is reachable, and neither brings back a tool the other left.
+func TestTheTwoMisconfigurationCheckboxesStayIndependent(t *testing.T) {
+	trivy := toolToggle(misconfigLabel, misconfigCategory, misconfigTrivy, "")
+	k8s := toolToggle("K8s schema", misconfigCategory, misconfigK8s, "")
+	cfg := config.Default()
+
+	steps := []struct {
+		flip      field
+		trivy, k8 bool
+	}{
+		{trivy, true, false},
+		{k8s, true, true},
+		{trivy, false, true},
+		{k8s, false, false},
+		{trivy, true, false}, // kubeconform, ticked before, does not come back
+		{trivy, false, false},
+		{k8s, false, true},
+	}
+	for i, step := range steps {
+		step.flip.Toggle(cfg)
+		if got := trivy.Bool(cfg); got != step.trivy {
+			t.Errorf("step %d: Misconfiguration = %v, want %v (%+v)", i, got, step.trivy, cfg.Scan.Categories.Misconfig)
+		}
+		if got := k8s.Bool(cfg); got != step.k8 {
+			t.Errorf("step %d: K8s schema = %v, want %v (%+v)", i, got, step.k8, cfg.Scan.Categories.Misconfig)
+		}
+	}
+	misconfig := cfg.Scan.Categories.Misconfig
+	if !misconfig.Has(config.ToolHelm) || !misconfig.Has(config.ToolKustomize) {
+		t.Errorf("K8s schema did not tick the renderers: %+v", misconfig)
 	}
 }

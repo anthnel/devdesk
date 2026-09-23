@@ -11,8 +11,8 @@ screens.
 ## Locating the tools
 
 Each tool's location is a declared setting, not an autodetected fact.
-`scan.trivy_source`, `scan.gitleaks_source`, `scan.plumber_source` and
-`scan.kubeconform_source` each take one of:
+`scan.tools.<tool>.source` — for `trivy`, `gitleaks`, `plumber`,
+`kubeconform`, `helm` and `kustomize` alike — takes one of:
 
 | Value | Resolution |
 |---|---|
@@ -20,9 +20,8 @@ Each tool's location is a declared setting, not an autodetected fact.
 | `binary` | the configured path, or the name on `PATH` — **fails outright** if not found, rather than silently falling back to Docker |
 | `image` | always the configured Docker image, even if a binary is installed |
 
-`scan.CheckDependencies` resolves all three tools into a `DependencyStatus`;
-helpers like `deps.TrivySpec()` each produce a `ToolSpec` (source + binary
-path + image) that command builders consume directly, rather than threading
+`scan.Detect` resolves every tool into a `Report`, and `Report.Spec(tool)`
+produces a `ToolSpec` (source + binary path + image) that command builders consume directly, rather than threading
 a raw `(source, image)` pair through several layers and hoping a configured
 path gets read somewhere along the way.
 
@@ -45,7 +44,7 @@ Gitleaks reads a repository's working tree and git history; Trivy reads a
 target's content directly. Only Trivy's path applies to a container image —
 Gitleaks has no way to scan one — so an image scan used to have no
 secret-detection stage at all. Both tools are gated behind a single
-`scan.enable_secret` setting and feed one Secrets tab, with a `Source` column
+`scan.categories.secret` setting and feed one Secrets tab, with a `Source` column
 identifying which tool produced each finding.
 
 Two details fall out of running both:
@@ -70,7 +69,7 @@ all as clean, with a green icon to match.
 
 ### Mounting a custom rules file
 
-When `scan.gitleaks_config` is set, it's expanded to an absolute path at
+When `scan.tools.gitleaks.config` is set, it's expanded to an absolute path at
 config-load time — a relative path would mean different things depending on
 whether the tool runs as a native binary (DevDesk's working directory) or
 inside a container (the container's working directory), and since the file
@@ -78,7 +77,7 @@ gets bind-mounted in, those two readings would resolve to different files.
 The path is validated as readable before the scan starts, because
 `docker run -v` on a host path that doesn't exist silently **creates a
 directory** there instead of failing — which would otherwise surface as a
-much stranger error later. `scan.plumber_config` follows the same rules for
+much stranger error later. `scan.tools.plumber.config` follows the same rules for
 the same reasons.
 
 ## CI scoring via plumber
@@ -109,7 +108,7 @@ together:
 ### The CI column
 
 Both the workspace list and the security inventory carry a `CI` column,
-gated behind `scan.enable_ci_score` — off by default, since otherwise it
+gated behind `scan.categories.ci` — off by default, since otherwise it
 would render as an empty column on every row for the life of the view. Two
 absences are deliberately distinguished:
 
@@ -126,9 +125,9 @@ repositories rather than an average or a sum.
 Two questions are asked of a repository's Kubernetes manifests, by two tools.
 Trivy's misconfiguration scan asks whether they are **safe** — root user,
 privileged container, missing limits — and reads Helm charts too. kubeconform,
-behind `scan.enable_k8s_schema`, asks whether the API server would **accept**
+ticked under `scan.categories.misconfig`, asks whether the API server would **accept**
 them: a wrong type, a missing required field, an unknown field, an
-`apiVersion` that `scan.kubernetes_version` no longer serves. Both land on the
+`apiVersion` that `scan.tools.kubeconform.kubernetes_version` no longer serves. Both land on the
 Misconfigurations tab; the Source column says which dialect (`kubernetes`,
 `helm`, `dockerfile`…) or `schema` for kubeconform.
 
@@ -260,7 +259,7 @@ the scan may have moved on.
 
 !!! note
     A cached result may have been produced under a different context's scan
-    settings (`enable_vuln`, `ignore_unfixed`, and similar are per-context).
+    settings (`categories`, `tools.trivy.ignore_unfixed`, and similar are per-context).
     That's an accepted tradeoff — the entry's age is visible in the UI, and a
     manual rescan is always one keystroke away.
 

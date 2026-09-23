@@ -16,7 +16,7 @@ func TestLeavingTheViewWritesTheFocusedField(t *testing.T) {
 	if !ok {
 		t.Fatal("Leave() refused an acceptable value")
 	}
-	if got := left.(Model).config.Scan.PlumberConfig; got != "/etc/.plumber.yaml" {
+	if got := left.(Model).config.Scan.Tools.Plumber.Config; got != "/etc/.plumber.yaml" {
 		t.Errorf("PlumberConfig = %q, want the typed value written on the way out", got)
 	}
 }
@@ -74,8 +74,8 @@ func TestEscapeWritesTheFocusedFieldWithoutMoving(t *testing.T) {
 
 	m = feed(t, m, testutil.Key("esc"))
 
-	if m.config.Scan.PlumberConfig != "/etc/.plumber.yaml" {
-		t.Errorf("PlumberConfig = %q, want the typed value written by esc", m.config.Scan.PlumberConfig)
+	if m.config.Scan.Tools.Plumber.Config != "/etc/.plumber.yaml" {
+		t.Errorf("plumber config = %q, want the typed value written by esc", m.config.Scan.Tools.Plumber.Config)
 	}
 	if m.focusedField != was {
 		t.Errorf("focus moved to %d; esc saves without moving", m.focusedField)

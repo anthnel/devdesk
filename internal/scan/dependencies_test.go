@@ -52,16 +52,16 @@ func installTools(t *testing.T, output string, names ...string) {
 func TestAToolOnThePathIsUsedDirectly(t *testing.T) {
 	installTools(t, "Version: 0.50.1", "trivy", "gitleaks")
 
-	deps := CheckDependencies(config.ScanConfig{})
+	deps := Detect(config.ScanTools{})
 
-	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceBinary {
-		t.Errorf("trivy: available=%v source=%q, want an installed binary", deps.TrivyAvailable, deps.TrivySource)
+	if !deps.Available(ToolTrivy) || deps.Status(ToolTrivy).Source != ToolSourceBinary {
+		t.Errorf("trivy: available=%v source=%q, want an installed binary", deps.Available(ToolTrivy), deps.Status(ToolTrivy).Source)
 	}
-	if !deps.GitleaksAvailable || deps.GitleaksSource != ToolSourceBinary {
-		t.Errorf("gitleaks: available=%v source=%q, want an installed binary", deps.GitleaksAvailable, deps.GitleaksSource)
+	if !deps.Available(ToolGitleaks) || deps.Status(ToolGitleaks).Source != ToolSourceBinary {
+		t.Errorf("gitleaks: available=%v source=%q, want an installed binary", deps.Available(ToolGitleaks), deps.Status(ToolGitleaks).Source)
 	}
-	if !strings.Contains(deps.TrivyVersion, "0.50.1") || !strings.Contains(deps.GitleaksVersion, "0.50.1") {
-		t.Errorf("versions = %q / %q, want what the tools reported", deps.TrivyVersion, deps.GitleaksVersion)
+	if !strings.Contains(deps.Status(ToolTrivy).Version, "0.50.1") || !strings.Contains(deps.Status(ToolGitleaks).Version, "0.50.1") {
+		t.Errorf("versions = %q / %q, want what the tools reported", deps.Status(ToolTrivy).Version, deps.Status(ToolGitleaks).Version)
 	}
 	// Nothing else is on this PATH.
 	if deps.EngineAvailable {
@@ -74,19 +74,19 @@ func TestAToolOnThePathIsUsedDirectly(t *testing.T) {
 func TestWithNoBinaryTheDockerImageIsTheFallback(t *testing.T) {
 	installTools(t, "sha256:2b1cbf1a4f0e", "docker")
 
-	deps := CheckDependencies(config.ScanConfig{})
+	deps := Detect(config.ScanTools{})
 
-	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceContainer {
-		t.Errorf("trivy: available=%v source=%q, want the image", deps.TrivyAvailable, deps.TrivySource)
+	if !deps.Available(ToolTrivy) || deps.Status(ToolTrivy).Source != ToolSourceContainer {
+		t.Errorf("trivy: available=%v source=%q, want the image", deps.Available(ToolTrivy), deps.Status(ToolTrivy).Source)
 	}
-	if !deps.GitleaksAvailable || deps.GitleaksSource != ToolSourceContainer {
-		t.Errorf("gitleaks: available=%v source=%q, want the image", deps.GitleaksAvailable, deps.GitleaksSource)
+	if !deps.Available(ToolGitleaks) || deps.Status(ToolGitleaks).Source != ToolSourceContainer {
+		t.Errorf("gitleaks: available=%v source=%q, want the image", deps.Available(ToolGitleaks), deps.Status(ToolGitleaks).Source)
 	}
 	if !deps.EngineAvailable {
 		t.Error("docker is on the PATH but was not reported as available")
 	}
-	if !strings.HasPrefix(deps.TrivyVersion, "docker:") {
-		t.Errorf("TrivyVersion = %q, want it marked as coming from the image", deps.TrivyVersion)
+	if !strings.HasPrefix(deps.Status(ToolTrivy).Version, "docker:") {
+		t.Errorf("TrivyVersion = %q, want it marked as coming from the image", deps.Status(ToolTrivy).Version)
 	}
 }
 
@@ -95,16 +95,16 @@ func TestWithNoBinaryTheDockerImageIsTheFallback(t *testing.T) {
 func TestAnImageThatWasNeverPulledIsNotAvailable(t *testing.T) {
 	installTools(t, "", "docker")
 
-	deps := CheckDependencies(config.ScanConfig{})
+	deps := Detect(config.ScanTools{})
 
 	if !deps.EngineAvailable {
 		t.Error("docker is on the PATH but was not reported as available")
 	}
-	if deps.TrivyAvailable || deps.GitleaksAvailable {
+	if deps.Available(ToolTrivy) || deps.Available(ToolGitleaks) {
 		t.Errorf("a tool was reported available with neither a binary nor an image: %+v", deps)
 	}
-	if deps.TrivySource != ToolSourceNone || deps.GitleaksSource != ToolSourceNone {
-		t.Errorf("sources = %q / %q, want none", deps.TrivySource, deps.GitleaksSource)
+	if deps.Status(ToolTrivy).Source != ToolSourceNone || deps.Status(ToolGitleaks).Source != ToolSourceNone {
+		t.Errorf("sources = %q / %q, want none", deps.Status(ToolTrivy).Source, deps.Status(ToolGitleaks).Source)
 	}
 }
 
@@ -116,12 +116,12 @@ func TestADaemonThatCannotBeReachedLeavesTheToolsUnavailable(t *testing.T) {
 	installTools(t, "sha256:2b1cbf1a4f0e", "docker")
 	t.Setenv(helperFailOn, "images")
 
-	deps := CheckDependencies(config.ScanConfig{})
+	deps := Detect(config.ScanTools{})
 
 	if !deps.EngineAvailable {
 		t.Error("the docker binary is installed and should be reported as such")
 	}
-	if deps.TrivyAvailable || deps.GitleaksAvailable {
+	if deps.Available(ToolTrivy) || deps.Available(ToolGitleaks) {
 		t.Errorf("a tool was reported available although the daemon did not answer: %+v", deps)
 	}
 }
@@ -132,42 +132,42 @@ func TestAnImageThatWillNotReportItsVersionIsStillUsable(t *testing.T) {
 	installTools(t, "sha256:2b1cbf1a4f0e", "docker")
 	t.Setenv(helperFailOn, "run")
 
-	deps := CheckDependencies(config.ScanConfig{})
+	deps := Detect(config.ScanTools{})
 
-	if !deps.TrivyAvailable || deps.TrivySource != ToolSourceContainer {
-		t.Errorf("trivy: available=%v source=%q, want the image", deps.TrivyAvailable, deps.TrivySource)
+	if !deps.Available(ToolTrivy) || deps.Status(ToolTrivy).Source != ToolSourceContainer {
+		t.Errorf("trivy: available=%v source=%q, want the image", deps.Available(ToolTrivy), deps.Status(ToolTrivy).Source)
 	}
-	if deps.TrivyVersion != "docker" || deps.GitleaksVersion != "docker" {
+	if deps.Status(ToolTrivy).Version != "docker" || deps.Status(ToolGitleaks).Version != "docker" {
 		t.Errorf("versions = %q / %q, want them to fall back to naming the source",
-			deps.TrivyVersion, deps.GitleaksVersion)
+			deps.Status(ToolTrivy).Version, deps.Status(ToolGitleaks).Version)
 	}
 }
 
 func TestWithNothingInstalledNothingIsAvailable(t *testing.T) {
 	installTools(t, "")
 
-	deps := CheckDependencies(config.ScanConfig{})
+	deps := Detect(config.ScanTools{})
 
-	if deps.TrivyAvailable || deps.GitleaksAvailable || deps.EngineAvailable {
+	if deps.Available(ToolTrivy) || deps.Available(ToolGitleaks) || deps.EngineAvailable {
 		t.Errorf("something was reported available on an empty PATH: %+v", deps)
 	}
 	// The images are still named, because the dashboard shows which one a scan
 	// would use once Docker is there.
-	if deps.TrivyImage != DefaultTrivyImage || deps.GitleaksImage != DefaultGitleaksImage {
-		t.Errorf("images = %q / %q, want the defaults filled in", deps.TrivyImage, deps.GitleaksImage)
+	if deps.Status(ToolTrivy).Image != DefaultTrivyImage || deps.Status(ToolGitleaks).Image != DefaultGitleaksImage {
+		t.Errorf("images = %q / %q, want the defaults filled in", deps.Status(ToolTrivy).Image, deps.Status(ToolGitleaks).Image)
 	}
 }
 
 func TestConfiguredImagesReplaceTheDefaults(t *testing.T) {
 	installTools(t, "")
 
-	deps := CheckDependencies(config.ScanConfig{
-		TrivyImage:    "mirror.local/trivy:0.50",
-		GitleaksImage: "mirror.local/gitleaks:8.18",
-	})
+	var tools config.ScanTools
+	tools.Trivy.Image = "mirror.local/trivy:0.50"
+	tools.Gitleaks.Image = "mirror.local/gitleaks:8.18"
+	deps := Detect(tools)
 
-	if deps.TrivyImage != "mirror.local/trivy:0.50" || deps.GitleaksImage != "mirror.local/gitleaks:8.18" {
-		t.Errorf("images = %q / %q, want the configured ones", deps.TrivyImage, deps.GitleaksImage)
+	if deps.Status(ToolTrivy).Image != "mirror.local/trivy:0.50" || deps.Status(ToolGitleaks).Image != "mirror.local/gitleaks:8.18" {
+		t.Errorf("images = %q / %q, want the configured ones", deps.Status(ToolTrivy).Image, deps.Status(ToolGitleaks).Image)
 	}
 }
 
@@ -176,12 +176,12 @@ func TestConfiguredImagesReplaceTheDefaults(t *testing.T) {
 func TestNewScannerDetectsWhatIsInstalled(t *testing.T) {
 	installTools(t, "Version: 0.50.1", "trivy", "gitleaks")
 
-	s := NewScanner(ScanOptions{EnableVuln: true})
+	s := NewScanner(scanFor(CategoryIDVuln))
 
-	if !s.deps.TrivyAvailable || s.deps.TrivySource != ToolSourceBinary {
+	if !s.deps.Available(ToolTrivy) || s.deps.Status(ToolTrivy).Source != ToolSourceBinary {
 		t.Errorf("the constructor did not pick up the installed trivy: %+v", s.deps)
 	}
-	if !s.options.EnableVuln {
+	if !s.options.Categories.Vuln.Enabled {
 		t.Error("the options were not carried onto the scanner")
 	}
 }
@@ -189,14 +189,28 @@ func TestNewScannerDetectsWhatIsInstalled(t *testing.T) {
 // Every tool's source setting has to reach detection through NewScanner. The
 // constructor used to forward Trivy's and Gitleaks' only, so a scan resolved
 // plumber with its defaults whatever the context said — only the dashboard,
-// which passes the whole config, honoured plumber_source.
+// which passes the whole config, honoured plumber_source. It walks the tool
+// table, so a tool added to it is covered without being named here.
 func TestNewScannerHonoursEveryToolsSource(t *testing.T) {
-	installTools(t, "present", "plumber", "docker")
+	var names []string
+	for _, tool := range Tools() {
+		names = append(names, tool.Binary)
+	}
+	installTools(t, "present", append(names, "docker")...)
 
-	s := NewScanner(ScanOptions{PlumberSource: "image", PlumberImage: "mirror.example/plumber:1"})
+	cfg := config.Default()
+	for _, tool := range Tools() {
+		set := cfg.Scan.Tools.Tool(string(tool.ID))
+		set.Source = config.ToolSourceImage
+		set.Image = "mirror.example/" + tool.Binary + ":1"
+	}
+	s := NewScanner(OptionsFromConfig(cfg))
 
-	if s.deps.PlumberSource != ToolSourceContainer || s.deps.PlumberImage != "mirror.example/plumber:1" {
-		t.Errorf("plumber resolved as %q with image %q, want the configured image source",
-			s.deps.PlumberSource, s.deps.PlumberImage)
+	for _, tool := range Tools() {
+		spec := s.deps.Spec(tool.ID)
+		if want := "mirror.example/" + tool.Binary + ":1"; spec.Source != ToolSourceContainer || spec.Image != want {
+			t.Errorf("%s resolved as %q with image %q, want the configured image source %q",
+				tool.Name, spec.Source, spec.Image, want)
+		}
 	}
 }

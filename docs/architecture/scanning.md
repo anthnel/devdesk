@@ -5,20 +5,29 @@
 
 ## Security Scanning
 
-**Where a scanner runs from is configured, not guessed.** `scan.trivy_source`,
-`scan.gitleaks_source`, `scan.plumber_source` and `scan.kubeconform_source`
-take `auto | binary | image`:
+**Categories and tools are declared once (§3.86).** `internal/scan/toolbox.go`
+holds two tables: the tools (`Tool` — name, binary, default image, version
+arguments) and the categories (`ToolCategory` — which tools serve each one, on
+which targets, and which tool another only renders for). `scan.categories.<id>`
+turns a category on and ticks its tools; `scan.Uses` answers "does this tool
+run for this category", `scan.Required` "which tools does this context need",
+and every stage gate, `missingToolErrors` and `Report.Missing` read those — no
+copy of the category → tool link is written anywhere else. `config` declares the
+identifiers and the default ticks because it cannot import `scan`;
+`TestTheTablesAndTheConfigurationAgree` keeps the two in step.
+
+**Where a scanner runs from is configured, not guessed.** Each
+`scan.tools.<tool>.source` takes `auto | binary | image`:
 
 | Value | Resolution |
 |---|---|
 | `auto` (default) | the binary when there is one, the Docker image otherwise |
-| `binary` | `trivy_path` when set, else the name on `PATH` — **fails rather than falling back to Docker** |
-| `image` | `trivy_image`, even when a binary is installed |
+| `binary` | `tools.<tool>.binary` when set, else the name on `PATH` — **fails rather than falling back to Docker** |
+| `image` | `tools.<tool>.image`, even when a binary is installed |
 
-`scan.CheckDependencies(cfg.Scan)` resolves the three tools and fills
-`DependencyStatus`; `deps.TrivySpec()` / `GitleaksSpec()` / `PlumberSpec()`
-hand a `ToolSpec`
-(source + binary + image) to the command builders. `ToolSpec` replaced the
+`scan.Detect(cfg.Scan.Tools)` resolves every tool of the table into a `Report`
+(`map[ToolID]ToolStatus`, plus the engine and its socket); `Report.Spec(id)`
+hands a `ToolSpec` (source + binary + image) to the command builders. `ToolSpec` replaced the
 `(source ToolSource, image string)` pair those builders used to take — the pair
 had nowhere to carry a configured path, which is why `trivy_path` sat unread
 for so long (D27). Do not add a positional `binary` parameter back; put it on
@@ -37,8 +46,8 @@ what was asked for.
 **Secret scanning uses both tools, and they are not redundant.** Gitleaks reads
 a repository's working tree and git history; Trivy reads the target's content.
 Only Trivy's half applies to an image — Gitleaks cannot scan one — which is why
-an image scan had no secret stage at all before. Both are gated on
-`scan.enable_secret` and feed the one Secrets tab; the Source column names the
+an image scan had no secret stage at all before. Both are ticked
+under `scan.categories.secret` and feed the one Secrets tab; the Source column names the
 tool.
 
 Two consequences worth keeping:
@@ -79,14 +88,14 @@ fatal it was.
 **A configured rules file is mounted, and the flag names the mount.**
 `gitleaksConfigMount = "/gitleaks.toml"` sits at the container root because that
 is the one place nothing else can be — the target is at `containerScanPath`, so
-no file of the repository lands beside it. `scan.gitleaks_config` is also made
+no file of the repository lands beside it. `scan.tools.gitleaks.config` is also made
 **absolute at load** (`config.ExpandPaths`): a relative path means DevDesk's
 working directory in binary mode and the container's in Docker mode, and with
 the file mounted those two readings would name different files.
 `checkGitleaksConfig` refuses an unreadable one before anything starts — not as
 a second guard against a bad configuration, but because `docker run -v` on a
 host path that does not exist **creates a directory** there rather than failing
-(measured on Docker Desktop 29.7.2). `scan.plumber_config` (§3.42) is the same
+(measured on Docker Desktop 29.7.2). `scan.tools.plumber.config` (§3.42) is the same
 setting for another tool and copies all four points.
 
 **The CI score — plumber, and only this context's forge** (§3.42). `plumber`
@@ -123,7 +132,7 @@ letter alone — and the results view a fifth tab, `CI (n)`, carrying the issue
 count like its four neighbours. Four rules, and three of them are about the
 absences:
 
-- **The column exists only when `scan.enable_ci_score` is on.** Off by default,
+- **The column exists only when `scan.categories.ci` is on.** Off by default,
   it would otherwise be four cells of nothing on every row for the life of the
   view. It does **not** declare `Optional`: its states already include two
   absences that differ, and a column that vanished on a narrow terminal would add
@@ -207,8 +216,9 @@ charts for security (`KSV-*`), and the finding says so through `IaCType`.
 What it does not answer is whether the API server would **accept** the
 manifest at all — a wrong type, a missing required field, an unknown field,
 an `apiVersion` the cluster's release no longer serves. That is kubeconform's
-job, behind `scan.enable_k8s_schema`, resolved like every other tool
-(`kubeconform_source|_path|_image`, image `ghcr.io/yannh/kubeconform`).
+job: a tool of the Misconfiguration category, ticked in
+`scan.categories.misconfig`, resolved like every other tool
+(`scan.tools.kubeconform`, image `ghcr.io/yannh/kubeconform`).
 kube-linter was weighed and left out: it overlaps Trivy on security and reports
 no line, so it could feed neither the table's jump-to-line nor a fix.
 
@@ -225,10 +235,13 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   chart is rendered (a subchart is rendered by its parent, with its values)
   and only the Kustomize **leaves** — a base is validated through the overlays
   that use it.
-- **helm and kustomize are optional renderers**, resolved like every tool
-  (`helm_source|_path|_image`, image `alpine/helm`;
-  `kustomize_source|_path|_image`, image
-  `registry.k8s.io/kustomize/kustomize:v5.8.1`) but never reported missing.
+- **helm and kustomize are renderers**, resolved like every tool
+  (`scan.tools.helm`, image `alpine/helm`; `scan.tools.kustomize`, image
+  `registry.k8s.io/kustomize/kustomize:v5.8.1`) and used only when ticked
+  beside kubeconform (§3.86 revised §3.80's "never reported missing": ticked,
+  they are required, and the dashboard says so). A scan does not list one
+  among its errors — its charts or overlays land in `K8sUnrendered`, which is
+  more precise than one line per scan.
   With helm, each chart gets `helm lint` (WARNING → LOW, ERROR → HIGH,
   `Source: helm`, shown as `helm lint`) then `helm template`; with kustomize,
   each overlay gets `kustomize build`. The rendered YAML goes to kubeconform
@@ -263,7 +276,7 @@ no line, so it could feed neither the table's jump-to-line nor a fix.
   are CRDs in `*.k8s.io` groups.
 - **Exit 1 means two things too.** kubeconform exits 1 when it found problems
   and when it could not run; the JSON report on stdout is what separates them.
-- **The target release** is `scan.kubernetes_version` (x.y.z or `master`,
+- **The target release** is `scan.tools.kubeconform.kubernetes_version` (x.y.z or `master`,
   checked in the configuration view with kubeconform's own pattern),
   `config.DefaultKubernetesVersion` when unset — one minor behind the newest
   for which schemas exist.
@@ -847,7 +860,7 @@ folded again on every open, so what it holds would depend on when it was last
 read.
 
 **A shared entry may have been produced under another context's scan options.**
-`enable_vuln`, `ignore_unfixed` and the rest are per context, so counts written
+`categories`, `tools.trivy.ignore_unfixed` and the rest are per context, so counts written
 elsewhere can differ from what this context would produce. That is the accepted
 cost: the `Scanned` column carries the age, and `S` rescans. The secret verdict
 is unaffected — `Sensitive` is `nil` when no stage looked, which is what a scan

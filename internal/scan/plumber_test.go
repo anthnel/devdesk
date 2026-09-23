@@ -253,10 +253,9 @@ func TestNoOutboundFlagIsEverBuilt(t *testing.T) {
 // ── Which repositories are graded ────────────────────────────────────────────
 
 func ciConfig(forgeType, forgeURL string) ScanOptions {
-	return ScanOptions{
-		EnableCIScore: true,
-		Forge:         config.ForgeConfig{Type: forgeType, URL: forgeURL},
-	}
+	opts := scanFor(CategoryIDCI)
+	opts.Forge = config.ForgeConfig{Type: forgeType, URL: forgeURL}
+	return opts
 }
 
 // A context targets one forge, so it grades that forge's repositories and no
@@ -327,7 +326,7 @@ func TestTheProviderComesFromTheContextRatherThanTheRemote(t *testing.T) {
 // repositories it applies to.
 func TestTheStageIsOffWhenTheSettingIs(t *testing.T) {
 	s := newScannerWithDeps(ScanOptions{Forge: config.ForgeConfig{Type: config.ForgeGitHub, URL: "https://github.com"}},
-		DependencyStatus{PlumberAvailable: true})
+		binaries(ToolPlumber))
 
 	if _, ok := s.ciOptions(t.TempDir(), TargetDirectory); ok {
 		t.Error("the CI stage ran with enable_ci_score off")
@@ -338,7 +337,7 @@ func TestTheStageIsOffWhenTheSettingIs(t *testing.T) {
 // an image result, and no container is started for one.
 func TestAnImageIsNeverGraded(t *testing.T) {
 	opts := ciConfig(config.ForgeGitHub, "https://github.com")
-	s := newScannerWithDeps(opts, DependencyStatus{PlumberAvailable: true})
+	s := newScannerWithDeps(opts, binaries(ToolPlumber))
 
 	if _, ok := s.ciOptions("nginx:1.25", TargetImage); ok {
 		t.Error("an image was sent to plumber")

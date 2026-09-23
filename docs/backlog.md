@@ -14344,7 +14344,7 @@ les outils et de les traiter tous de la même manière**.
 | # | Question | Décision |
 |---|---|---|
 | — | Quels outils | **Trivy + kubeconform**, un seul outil de plus. kube-linter écarté : il recouvre Trivy sur la sécurité et ne rend **aucun numéro de ligne** (`Diagnostic{Message}` porte un `TODO: add line number` dans ses sources, v0.8.3) — il ne pourrait alimenter ni le saut à la ligne ni un correctif. Kyverno reporté : il n'embarque aucune politique et ne rend ni Helm ni Kustomize (voir §3.85). kubeconform comble le seul vrai manque, la **validité au regard du schéma de l'API** — ce que ni Trivy ni kube-linter ne font |
-| — | Bibliothèque ou outil externe | Outil externe, `auto \| binary \| image` comme les trois autres, par cohérence explicitement demandée. helm et kustomize aussi, mais **optionnels** : jamais signalés manquants |
+| — | Bibliothèque ou outil externe | Outil externe, `auto \| binary \| image` comme les trois autres, par cohérence explicitement demandée. helm et kustomize aussi, mais **optionnels** : jamais signalés manquants — **révisé par §3.86** : cochés sous Misconfiguration, ils sont requis ; décochés, ils ne servent pas même installés |
 | 1 | Où chercher les manifestes | Par le **contenu** (`apiVersion` + `kind`), pas par le nom — `k8s.Discover`. kubeconform reçoit les fichiers un par un : sur un répertoire il signale « missing 'kind' key » sur chaque fichier de CI |
 | 2 | Helm tel quel ou rendu | **Rendu** quand helm est là (`helm lint` puis `helm template`), jamais validé brut ; idem Kustomize avec `kustomize build`, seulement sur les overlays feuilles. Sans l'outil, le répertoire est compté « Not rendered » dans l'en-tête des résultats et dans `scan_result` |
 | 3 | Colonne ou onglet | L'onglet Misconfigurations existant ; la colonne Source affiche le **dialecte** (`kubernetes`, `helm`, `dockerfile`…) ou l'outil (`schema`, `helm lint`, `kustomize`). Une colonne propre aurait été vide sur tous les autres onglets |
@@ -14746,6 +14746,57 @@ Ni Trivy ni kubeconform ne raisonnent sur plusieurs objets à la fois. Si le
 besoin se confirme, la question sera de nouveau celle de §3.80 : un outil de
 plus, sans numéro de ligne, ou une poignée de contrôles écrits ici sur ce que
 `k8s.Discover` et le rendu produisent déjà.
+
+### 3.86 Scanners — catégories, outils, onglet Tools — **en cours**
+
+Plan : [`2026-09-22-scanner-tools.md`](../.claude/plans/2026-09-22-scanner-tools.md),
+quatre PR. L'utilisateur choisissait des **catégories** (six cases), jamais des
+**outils** : le lien catégorie → outil était écrit en dur à chaque endroit qui
+en avait besoin, et chaque copie répondait à une question un peu différente.
+Plumber absent n'était jamais signalé par un scan ; helm et kustomize étaient
+signalés manquants par le dashboard alors qu'aucun réglage ne les demandait.
+
+#### PR 1 — le modèle — **done**
+
+- **Deux tables, une seule vérité** (`internal/scan/toolbox.go`) : les outils
+  (`Tool`) et les catégories (`ToolCategory` → `CategoryTool{Tool, Role,
+  DependsOn, Targets, Server, Default}`). `Uses(cat, tool)` — catégorie
+  activée, outil coché, dépendance cochée — est lue par chaque garde d'étage,
+  par `missingToolErrors` et par `Report.Missing` ; `Required` en dérive.
+  kubeconform est un outil de Misconfiguration (ses findings y étaient déjà
+  rangés par `Categorize`), helm et kustomize en dépendent.
+- **`Detect(tools) Report`** remplace `CheckDependencies` et les 30 champs de
+  `DependencyStatus` : une boucle sur la table, `Report.Status/Spec/Available`,
+  `Missing`, `CanScan(target)`. Un outil absent de la table n'existe nulle part —
+  c'est ce qui a manqué à plumber dans `toolConfig()` jusqu'à §3.80.
+- **Schéma `scan.categories` + `scan.tools`**, migré par `migrateScanSection`
+  (voir `docs/architecture/configuration.md`). `config` déclare les
+  identifiants et les cases cochées par défaut, faute de pouvoir importer
+  `scan` ; `TestTheTablesAndTheConfigurationAgree` tient les deux ensemble.
+- **Plumber est signalé** comme les autres quand CI est activé. Les renderers
+  ne le sont pas dans `Result.Errors` : sans eux l'étage tourne quand même et
+  nomme chaque chart non rendu (`K8sUnrendered`), plus précis qu'une ligne par
+  scan.
+- **Interface inchangée en apparence.** L'onglet `scan` garde ses six cases ;
+  « Misconfiguration » et « K8s schema » sont deux groupes d'outils de la même
+  catégorie (`toolToggle`, `setToolGroup`) qui se comportent comme les deux
+  interrupteurs indépendants qu'ils étaient. Le serveur Trivy ne décoche plus
+  que **la part de Trivy** dans Misconfiguration : la validation de schéma
+  reste (constat 5 du plan, réglé en passant puisque c'était gratuit).
+- `TestEveryConfiguredOptionReachesTheScanner` descend désormais jusqu'aux
+  réglages de chaque outil ; `TestNewScannerHonoursEveryToolsSource` parcourt
+  la table — un outil ajouté y est couvert sans être nommé.
+
+**Écart au plan** : `Report` ne porte pas `Required` par outil — ce qui est
+requis dépend des cases, pas de la machine, donc `Missing(categories)` et
+`CanScan(categories, target)` prennent les catégories. Ainsi une case cochée
+change le verdict sans nouvelle détection, ce que la PR 2 exige.
+
+#### Reste
+
+PR 2 (détection partagée dans `shared.State`, ligne unique au dashboard, `S`/`A`
+sur `CanScan`), PR 3 (onglet `scan` à cases imbriquées, défilement, onglet
+`tools`), PR 4 (`config` et `args` par outil).
 
 ## 4. Existing plans
 

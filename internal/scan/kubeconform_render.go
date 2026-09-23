@@ -66,15 +66,6 @@ func renderer(target string, tool ToolSpec, defaultImage, binary string, args ..
 	return toolCmd{Name: engine.Current().Binary, Args: append(run, args...)}
 }
 
-// HelmSpec and KustomizeSpec hand the two renderers to their builders.
-func (d DependencyStatus) HelmSpec() ToolSpec {
-	return ToolSpec{Source: d.HelmSource, Binary: d.HelmBinary, Image: d.HelmImage}
-}
-
-func (d DependencyStatus) KustomizeSpec() ToolSpec {
-	return ToolSpec{Source: d.KustomizeSource, Binary: d.KustomizeBinary, Image: d.KustomizeImage}
-}
-
 func orDefault(v, def string) string {
 	if v == "" {
 		return def

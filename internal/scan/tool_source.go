@@ -33,25 +33,6 @@ type ToolSpec struct {
 	HostSocket string
 }
 
-// TrivySpec, GitleaksSpec and PlumberSpec are how a resolved DependencyStatus
-// is handed to the command builders.
-func (d DependencyStatus) TrivySpec() ToolSpec {
-	return ToolSpec{
-		Source:     d.TrivySource,
-		Binary:     d.TrivyBinary,
-		Image:      d.TrivyImage,
-		HostSocket: d.ImageScanSocket,
-	}
-}
-
-func (d DependencyStatus) GitleaksSpec() ToolSpec {
-	return ToolSpec{Source: d.GitleaksSource, Binary: d.GitleaksBinary, Image: d.GitleaksImage}
-}
-
-func (d DependencyStatus) PlumberSpec() ToolSpec {
-	return ToolSpec{Source: d.PlumberSource, Binary: d.PlumberBinary, Image: d.PlumberImage}
-}
-
 // toolResolution is what detection worked out for one scanner.
 type toolResolution struct {
 	Available bool

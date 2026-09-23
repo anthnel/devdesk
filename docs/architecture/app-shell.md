@@ -258,7 +258,7 @@ arrow key in a form would be noise.
 
 Two rules the entry earned:
 
-- **Not knowing is not knowing that not.** `scan.CheckDependencies` shells out,
+- **Not knowing is not knowing that not.** `scan.Detect` shells out,
   so it runs in a `Cmd` (`DepsCheckedMsg`) and `S`/`A` stay lit until it lands.
   Greying for three frames and un-greying reads as a fault — D20 at the scale of
   a key.

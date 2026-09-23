@@ -130,10 +130,12 @@ registry:
   username: myuser
 
 scan:
-  trivy_source: auto        # auto | binary | image
-  enable_vuln: true
-  enable_secret: true
-  gitleaks_source: auto
+  categories:
+    vuln:   { enabled: true, tools: [trivy] }
+    secret: { enabled: true, tools: [trivy, gitleaks] }
+  tools:
+    trivy:    { source: auto }  # auto | binary | image
+    gitleaks: { source: auto }
 
 mcp:
   enabled: false             # exposes DevDesk's data over MCP, off by default

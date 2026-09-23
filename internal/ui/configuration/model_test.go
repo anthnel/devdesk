@@ -159,13 +159,28 @@ func TestARefusedValueKeepsTheCursorOnItsField(t *testing.T) {
 // A real constraint, carried over from the security form this view replaces.
 func TestTheCheckboxAloneForcesOffTheOptionsItCannotServe(t *testing.T) {
 	m := focusOn(t, newModel(t), "Use Trivy server")
-	m.config.Scan.EnableMisconfig = true
-	m.config.Scan.EnableLicense = true
+	setToolGroup(&m.config.Scan.Categories.Misconfig, misconfigTrivy, true)
+	m.config.Scan.Categories.License.Enabled = true
 
 	m = feed(t, m, testutil.Key(" "))
 
-	if m.config.Scan.EnableMisconfig || m.config.Scan.EnableLicense {
-		t.Errorf("server mode left incompatible options on: %+v", m.config.Scan)
+	if trivyMisconfig(m) || m.config.Scan.Categories.License.Enabled {
+		t.Errorf("server mode left incompatible options on: %+v", m.config.Scan.Categories)
+	}
+}
+
+// Only Trivy's part of Misconfiguration is refused by a server: kubeconform
+// has no server to be refused by, and its schema validation stays on.
+func TestAServerLeavesTheSchemaValidationAlone(t *testing.T) {
+	m := focusOn(t, newModel(t), "Use Trivy server")
+	setToolGroup(&m.config.Scan.Categories.Misconfig, misconfigTrivy, true)
+	setToolGroup(&m.config.Scan.Categories.Misconfig, misconfigK8s, true)
+
+	m = feed(t, m, testutil.Key(" "))
+
+	misconfig := m.config.Scan.Categories.Misconfig
+	if trivyMisconfig(m) || !misconfig.Enabled || !misconfig.Has(config.ToolKubeconform) {
+		t.Errorf("misconfig = %+v, want Trivy unticked and kubeconform kept", misconfig)
 	}
 }
 
@@ -173,25 +188,31 @@ func TestTheCheckboxAloneForcesOffTheOptionsItCannotServe(t *testing.T) {
 // checkbox does.
 func TestAnAddressWithoutTheCheckboxLeavesServerModeOff(t *testing.T) {
 	m := focusOn(t, newModel(t), "Trivy server")
-	m.config.Scan.EnableMisconfig = true
-	m.config.Scan.EnableLicense = true
+	setToolGroup(&m.config.Scan.Categories.Misconfig, misconfigTrivy, true)
+	m.config.Scan.Categories.License.Enabled = true
 	m.input.SetValue("https://trivy:4954")
 
 	m = feed(t, m, testutil.Key("down"))
 
-	if !m.config.Scan.EnableMisconfig || !m.config.Scan.EnableLicense {
-		t.Errorf("an address alone locked options that only the checkbox should: %+v", m.config.Scan)
+	if !trivyMisconfig(m) || !m.config.Scan.Categories.License.Enabled {
+		t.Errorf("an address alone locked options that only the checkbox should: %+v", m.config.Scan.Categories)
 	}
+}
+
+// trivyMisconfig reports whether Trivy's misconfiguration scan is on.
+func trivyMisconfig(m Model) bool {
+	c := m.config.Scan.Categories.Misconfig
+	return c.Enabled && c.Has(config.ToolTrivy)
 }
 
 func TestADisabledOptionCannotBeToggledAndSaysWhy(t *testing.T) {
 	m := newModel(t)
-	m.config.Scan.UseTrivyServer = true
+	m.config.Scan.Tools.Trivy.Server.Enabled = true
 	m = focusOn(t, m, "Misconfiguration")
 
 	m = feed(t, m, testutil.Key(" "))
 
-	if m.config.Scan.EnableMisconfig {
+	if trivyMisconfig(m) {
 		t.Error("a disabled option was toggled on")
 	}
 	if !strings.Contains(strings.ToLower(m.footer.Text()), "client-server") {
@@ -412,7 +433,7 @@ func TestEachTabRendersItsGroupHeadingsOnceInOrder(t *testing.T) {
 // options two cells right of the rest of their group.
 func TestEveryCheckboxStartsOnTheSameColumn(t *testing.T) {
 	m := newModel(t)
-	m.config.Scan.UseTrivyServer = true // locks Misconfiguration and Licenses
+	m.config.Scan.Tools.Trivy.Server.Enabled = true // locks Misconfiguration and Licenses
 
 	for tab := range m.sections {
 		m.activeTab = tab

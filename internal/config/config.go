@@ -323,74 +323,29 @@ const (
 	ToolSourceImage = "image"
 )
 
-// ScanConfig holds the configuration for security scans
+// ScanConfig holds the configuration for security scans.
+//
+// What a scan looks for and what runs it are two questions (§3.86): a category
+// is on or off, and each category ticks the tools that serve it. Every tool's
+// own settings live under Tools, one block per tool.
 type ScanConfig struct {
-	TrivySource        string `yaml:"trivy_source"`         // auto | binary | image
-	TrivyPath          string `yaml:"trivy_path"`           // Custom path to trivy (optional)
-	TrivyImage         string `yaml:"trivy_image"`          // Docker image for trivy (default: aquasec/trivy)
-	UseTrivyServer     bool   `yaml:"use_trivy_server"`     // Enables client-server mode; trivy_server is ignored if false
-	TrivyServer        string `yaml:"trivy_server"`         // Trivy server URL (client-server mode)
-	GitleaksSource     string `yaml:"gitleaks_source"`      // auto | binary | image
-	GitleaksPath       string `yaml:"gitleaks_path"`        // Custom path to gitleaks (optional)
-	GitleaksImage      string `yaml:"gitleaks_image"`       // Docker image for gitleaks (default: zricethezav/gitleaks)
-	PlumberSource      string `yaml:"plumber_source"`       // auto | binary | image
-	PlumberPath        string `yaml:"plumber_path"`         // Custom path to plumber (optional)
-	PlumberImage       string `yaml:"plumber_image"`        // Docker image for plumber (default: getplumber/plumber)
-	KubeconformSource  string `yaml:"kubeconform_source"`   // auto | binary | image
-	KubeconformPath    string `yaml:"kubeconform_path"`     // Custom path to kubeconform (optional)
-	KubeconformImage   string `yaml:"kubeconform_image"`    // Docker image for kubeconform (default: ghcr.io/yannh/kubeconform)
-	HelmSource         string `yaml:"helm_source"`          // auto | binary | image
-	HelmPath           string `yaml:"helm_path"`            // Custom path to helm (optional)
-	HelmImage          string `yaml:"helm_image"`           // Docker image for helm (default: alpine/helm)
-	KustomizeSource    string `yaml:"kustomize_source"`     // auto | binary | image
-	KustomizePath      string `yaml:"kustomize_path"`       // Custom path to kustomize (optional)
-	KustomizeImage     string `yaml:"kustomize_image"`      // Docker image for kustomize (default: registry.k8s.io/kustomize/kustomize:v5.8.1)
-	CacheDir           string `yaml:"cache_dir"`            // Report cache
-	MaxCachedReports   int    `yaml:"max_cached_reports"`   // Max number of reports kept
-	Timeout            int    `yaml:"timeout"`              // Timeout in seconds
-	MaxConcurrentScans int    `yaml:"max_concurrent_scans"` // Max number of parallel scans
-
-	// Scan options (persisted from the security view)
-	EnableVuln      bool   `yaml:"enable_vuln"`
-	EnableSecret    bool   `yaml:"enable_secret"`
-	EnableMisconfig bool   `yaml:"enable_misconfig"`
-	EnableLicense   bool   `yaml:"enable_license"`
-	IgnoreUnfixed   bool   `yaml:"ignore_unfixed"`
-	IgnoreEOL       bool   `yaml:"ignore_eol"`
-	GitleaksHistory bool   `yaml:"gitleaks_history"`
-	GitleaksConfig  string `yaml:"gitleaks_config"`
+	Categories ScanCategories `yaml:"categories"`
+	Tools      ScanTools      `yaml:"tools"`
 
 	// BaseImageTrack is how far remediation may move a Dockerfile's base image:
 	// "same-line" (the default) or "next-major". See base_image_track.go.
 	BaseImageTrack string `yaml:"base_image_track"`
 
-	// EnableCIScore runs plumber over the repository's CI configuration.
-	//
-	// The "all disabled means never configured" migration reads it and never
-	// writes it. Reading it, because "the four off and CI on" is a deliberate
-	// configuration that must not have vuln and secret forced back on; never
-	// writing it, because this key is newer than the four and an absent
-	// enable_ci_score means the user has not asked for it, not that the file
-	// predates the question.
-	EnableCIScore bool `yaml:"enable_ci_score"`
-	// PlumberConfig is the rules file for every repository of the context, in
-	// place of the .plumber.yaml plumber looks for in each one. Made absolute at
-	// load for §3.50's reason: a relative path means DevDesk's working directory
-	// in binary mode and the container's in Docker mode.
-	PlumberConfig string `yaml:"plumber_config"`
+	CacheDir           string `yaml:"cache_dir"`            // Report cache
+	MaxCachedReports   int    `yaml:"max_cached_reports"`   // Max number of reports kept
+	Timeout            int    `yaml:"timeout"`              // Timeout in seconds
+	MaxConcurrentScans int    `yaml:"max_concurrent_scans"` // Max number of parallel scans
 
-	// EnableK8sSchema validates the repository's Kubernetes manifests against
-	// the API's schema with kubeconform (§3.80): a wrong type, a missing
-	// required field, an unknown field, an apiVersion the target release no
-	// longer serves. Trivy's misconfiguration scan already lints the same
-	// manifests for security; this is whether the API server would accept them
-	// at all. Read by the "all disabled" migration and never written by it,
-	// for EnableCIScore's reason.
-	EnableK8sSchema bool `yaml:"enable_k8s_schema"`
-	// KubernetesVersion is the release manifests are validated against, as
-	// kubeconform takes it: a full x.y.z, or "master". It is what decides
-	// whether an apiVersion counts as removed. Empty is DefaultKubernetesVersion.
-	KubernetesVersion string `yaml:"kubernetes_version"`
+	// Legacy is the flat keys Categories and Tools replaced. Read at load,
+	// migrated by migrateScanSection, and empty from then on.
+	//
+	// Deprecated: use Categories and Tools.
+	Legacy legacyScanKeys `yaml:",inline"`
 }
 
 // DefaultKubernetesVersion is the release manifests are validated against when
@@ -464,6 +419,10 @@ func applyDefaults(cfg *Config) error {
 	// is not strict here, so an un-migrated block is dropped in silence, and the
 	// silence would point a context at no host at all.
 	migrateGitLabSection(cfg)
+	// Before the defaults for the same reason: a default source written first
+	// would read as a value the file already carried, and the legacy one would
+	// be dropped.
+	migrateScanSection(&cfg.Scan)
 
 	// "dark" was a third name for the built-in theme: LoadTheme accepts "",
 	// "dark" and "default" alike, but ListThemes only ever offers "default", so
@@ -551,26 +510,13 @@ func applyDefaults(cfg *Config) error {
 
 	// Auto is the historical resolution, so a config that predates the setting
 	// keeps behaving exactly as it did.
-	if cfg.Scan.TrivySource == "" {
-		cfg.Scan.TrivySource = ToolSourceAuto
+	for _, id := range ToolIDs() {
+		if tool := cfg.Scan.Tools.Tool(id); tool.Source == "" {
+			tool.Source = ToolSourceAuto
+		}
 	}
-	if cfg.Scan.GitleaksSource == "" {
-		cfg.Scan.GitleaksSource = ToolSourceAuto
-	}
-	if cfg.Scan.PlumberSource == "" {
-		cfg.Scan.PlumberSource = ToolSourceAuto
-	}
-	if cfg.Scan.KubeconformSource == "" {
-		cfg.Scan.KubeconformSource = ToolSourceAuto
-	}
-	if cfg.Scan.HelmSource == "" {
-		cfg.Scan.HelmSource = ToolSourceAuto
-	}
-	if cfg.Scan.KustomizeSource == "" {
-		cfg.Scan.KustomizeSource = ToolSourceAuto
-	}
-	if cfg.Scan.KubernetesVersion == "" {
-		cfg.Scan.KubernetesVersion = DefaultKubernetesVersion
+	if cfg.Scan.Tools.Kubeconform.KubernetesVersion == "" {
+		cfg.Scan.Tools.Kubeconform.KubernetesVersion = DefaultKubernetesVersion
 	}
 
 	if cfg.Network.CheckTimeout == 0 {
@@ -587,21 +533,13 @@ func applyDefaults(cfg *Config) error {
 	}
 	cfg.Network.ProxyPort = normalizeProxyPort(cfg.Network.ProxyPort)
 
-	// Backward compat: configs created before the scan-option booleans were introduced
-	// will have all of them at Go's zero value (false). Treat "all disabled" as
-	// "never configured" and apply sensible defaults so scans work out of the box.
-	//
-	// EnableCIScore is read here but never written below, and the asymmetry is
-	// the point. It is newer than the four, so a file that predates them has it
-	// false too and the migration still fires; but "the four off and CI on" is a
-	// deliberate configuration — the user asked for CI alone — and forcing vuln
-	// and secret back on would overwrite it on every load. Leaving it out of the
-	// condition is what a test caught. EnableK8sSchema follows it, for the
-	// same reason.
-	if !cfg.Scan.EnableVuln && !cfg.Scan.EnableSecret && !cfg.Scan.EnableMisconfig &&
-		!cfg.Scan.EnableLicense && !cfg.Scan.EnableCIScore && !cfg.Scan.EnableK8sSchema {
-		cfg.Scan.EnableVuln = true
-		cfg.Scan.EnableSecret = true
+	// A file with no `categories:` at all — new, or written before any scan
+	// option existed — scans for what a new context does. A block that is
+	// present is an answer, even with everything off, and is left alone: the
+	// "all off means never configured" reading of the old switches lives in the
+	// migration, which is the only place that still sees them.
+	if cfg.Scan.Categories.isZero() {
+		cfg.Scan.Categories = DefaultScanCategories()
 	}
 
 	// Last, so that the registry migrated from the legacy single-registry keys
@@ -641,22 +579,19 @@ func Default() *Config {
 			CacheDir: filepath.Join(homeDir, ".devdesk", "cache", "templates"),
 		},
 		Scan: ScanConfig{
-			TrivySource:        ToolSourceAuto,
-			TrivyPath:          "", // Auto-detect in PATH
-			GitleaksSource:     ToolSourceAuto,
-			GitleaksPath:       "", // Auto-detect in PATH
-			PlumberSource:      ToolSourceAuto,
-			PlumberPath:        "", // Auto-detect in PATH
-			KubeconformSource:  ToolSourceAuto,
-			HelmSource:         ToolSourceAuto,
-			KustomizeSource:    ToolSourceAuto,
-			KubernetesVersion:  DefaultKubernetesVersion,
+			Categories: DefaultScanCategories(),
+			Tools: ScanTools{
+				Trivy:       TrivyConfig{ToolConfig: ToolConfig{Source: ToolSourceAuto}},
+				Gitleaks:    GitleaksConfig{ToolConfig: ToolConfig{Source: ToolSourceAuto}},
+				Plumber:     ToolConfig{Source: ToolSourceAuto},
+				Kubeconform: KubeconformConfig{ToolConfig: ToolConfig{Source: ToolSourceAuto}, KubernetesVersion: DefaultKubernetesVersion},
+				Helm:        ToolConfig{Source: ToolSourceAuto},
+				Kustomize:   ToolConfig{Source: ToolSourceAuto},
+			},
 			CacheDir:           filepath.Join(homeDir, ".devdesk", "cache", "scans"),
 			MaxCachedReports:   50,
 			Timeout:            300, // 5 minutes
 			MaxConcurrentScans: 3,
-			EnableVuln:         true,
-			EnableSecret:       true,
 			BaseImageTrack:     BaseImageTrackSameLine,
 		},
 		MCP: MCPConfig{
@@ -875,14 +810,11 @@ func (c *Config) ExpandPaths(homeDir string) {
 	c.App.WorkspacesDir = expand(c.App.WorkspacesDir)
 	c.Registry.CacheDir = expand(c.Registry.CacheDir)
 	c.Scan.CacheDir = expand(c.Scan.CacheDir)
-	c.Scan.TrivyPath = expand(c.Scan.TrivyPath)
-	c.Scan.GitleaksPath = expand(c.Scan.GitleaksPath)
-	c.Scan.PlumberPath = expand(c.Scan.PlumberPath)
-	c.Scan.KubeconformPath = expand(c.Scan.KubeconformPath)
-	c.Scan.HelmPath = expand(c.Scan.HelmPath)
-	c.Scan.KustomizePath = expand(c.Scan.KustomizePath)
-	c.Scan.GitleaksConfig = absolute(expand(c.Scan.GitleaksConfig))
-	c.Scan.PlumberConfig = absolute(expand(c.Scan.PlumberConfig))
+	for _, id := range ToolIDs() {
+		tool := c.Scan.Tools.Tool(id)
+		tool.Binary = expand(tool.Binary)
+		tool.Config = absolute(expand(tool.Config))
+	}
 }
 
 // absolute pins a configured file path to one meaning.

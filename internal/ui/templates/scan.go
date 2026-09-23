@@ -43,12 +43,12 @@ func runScanners(ctx context.Context, dir string, opts scan.ScanOptions) (*scan.
 
 // DepsCheckedMsg carries where the scanners resolve from on this machine.
 type DepsCheckedMsg struct {
-	Deps scan.DependencyStatus
+	Deps scan.Report
 }
 
 // checkDepsCmd resolves the scanners once, off the Update goroutine.
 func checkDepsCmd(cfg config.ScanConfig) tea.Cmd {
-	return func() tea.Msg { return DepsCheckedMsg{Deps: scan.CheckDependencies(cfg)} }
+	return func() tea.Msg { return DepsCheckedMsg{Deps: scan.Detect(cfg.Tools)} }
 }
 
 // ScanStartingMsg says the scan left the queue and holds a worker. The cancel
@@ -162,7 +162,7 @@ func (j scanJob) scanOnce(ctx context.Context, contextName string) (*scan.Result
 // plumber would go looking for a remote it does not have.
 func (m Model) scanOptions() scan.ScanOptions {
 	opts := scan.OptionsFromConfig(m.config)
-	opts.EnableCIScore = false
+	opts.Categories.CI.Enabled = false
 	return opts
 }
 
@@ -170,7 +170,7 @@ func (m Model) scanOptions() scan.ScanOptions {
 // is not knowing that not: until the check comes back the key stays lit, since
 // greying it for a few frames only to un-grey it reads as a fault (Rule 130).
 func (m Model) scannerState() shortcut.Availability {
-	if m.deps == nil || m.deps.TrivyAvailable || m.deps.GitleaksAvailable {
+	if m.deps == nil || m.deps.Available(scan.ToolTrivy) || m.deps.Available(scan.ToolGitleaks) {
 		return shortcut.Availability{}
 	}
 	return shortcut.Unavailable(reasonNoScanner)

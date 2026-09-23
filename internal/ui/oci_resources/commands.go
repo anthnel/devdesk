@@ -27,18 +27,18 @@ const refreshInterval = 10 * time.Second
 
 // checkDepsCmd resolves the scanners once, off the Update goroutine. Same shape
 // and same reason as the workspaces view's and the dashboard's:
-// scan.CheckDependencies runs exec.LookPath, a --version per tool and an
+// scan.Detect runs exec.LookPath, a --version per tool and an
 // `images -q`, none of which belongs in New or View (Rule 110).
 func checkDepsCmd(cfg config.ScanConfig) tea.Cmd {
 	return func() tea.Msg {
-		return DepsCheckedMsg{Deps: scan.CheckDependencies(cfg)}
+		return DepsCheckedMsg{Deps: scan.Detect(cfg.Tools)}
 	}
 }
 
 // DepsCheckedMsg carries where the scanners resolve from on this machine, and
 // whether a containerised image scan has a socket to reach the engine with.
 type DepsCheckedMsg struct {
-	Deps scan.DependencyStatus
+	Deps scan.Report
 }
 
 // tickCmd returns a tick command for periodic refresh

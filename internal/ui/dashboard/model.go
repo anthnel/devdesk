@@ -589,46 +589,19 @@ func (m Model) detectTools() tea.Cmd {
 			theme.ContainerEngineLabel(eng.Name), eng.Binary,
 			"version", "--format", eng.Templates.Version))
 
-		// Security tools via scan.CheckDependencies. The whole ScanConfig goes
-		// through: the configured tool paths and the per-tool source preference
-		// decide availability as much as the images do (D27).
-		deps := scan.CheckDependencies(cfg.Scan)
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolTrivy,
-			Available: deps.TrivyAvailable,
-			Version:   cleanVersion(deps.TrivyVersion),
-			Source:    string(deps.TrivySource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolGitleaks,
-			Available: deps.GitleaksAvailable,
-			Version:   cleanVersion(deps.GitleaksVersion),
-			Source:    string(deps.GitleaksSource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolPlumber,
-			Available: deps.PlumberAvailable,
-			Version:   cleanVersion(deps.PlumberVersion),
-			Source:    string(deps.PlumberSource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolKubeconform,
-			Available: deps.KubeconformAvailable,
-			Version:   cleanVersion(deps.KubeconformVersion),
-			Source:    string(deps.KubeconformSource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolHelm,
-			Available: deps.HelmAvailable,
-			Version:   cleanVersion(deps.HelmVersion),
-			Source:    string(deps.HelmSource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolKustomize,
-			Available: deps.KustomizeAvailable,
-			Version:   cleanVersion(deps.KustomizeVersion),
-			Source:    string(deps.KustomizeSource),
-		})
+		// Security tools via scan.Detect, one row per tool of its table. The
+		// tool settings go through whole: the configured paths and the per-tool
+		// source preference decide availability as much as the images do (D27).
+		report := scan.Detect(cfg.Scan.Tools)
+		for _, tool := range scan.Tools() {
+			st := report.Status(tool.ID)
+			tools = append(tools, shared.ToolInfo{
+				Name:      tool.Name,
+				Available: st.Available,
+				Version:   cleanVersion(st.Version),
+				Source:    string(st.Source),
+			})
+		}
 
 		// Git
 		tools = append(tools, detectBinaryTool(toolGit, "git", "--version"))

@@ -68,7 +68,10 @@ func scanned(t *testing.T, e template.Entry, fn scanFunc) Model {
 }
 
 func withScanners(m Model, trivy, gitleaks bool) Model {
-	m.deps = &scan.DependencyStatus{TrivyAvailable: trivy, GitleaksAvailable: gitleaks}
+	m.deps = &scan.Report{Tools: map[scan.ToolID]scan.ToolStatus{
+		scan.ToolTrivy:    {Available: trivy},
+		scan.ToolGitleaks: {Available: gitleaks},
+	}}
 	return m
 }
 
@@ -207,9 +210,9 @@ func TestAScannerThatFailsFailsTheScan(t *testing.T) {
 func TestTheCIScoreIsOffForATemplate(t *testing.T) {
 	inTempHome(t)
 	m := scanned(t, entry("api", "API"), nil)
-	m.config.Scan.EnableCIScore = true
+	m.config.Scan.Categories.CI.Enabled = true
 
-	if m.scanOptions().EnableCIScore {
+	if m.scanOptions().Categories.CI.Enabled {
 		t.Error("a template scan asks for a CI score")
 	}
 }

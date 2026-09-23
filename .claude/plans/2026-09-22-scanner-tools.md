@@ -1,7 +1,22 @@
 # Scanners — catégories, outils, onglet Tools, statut au dashboard
 
-**Statut (2026-09-22) : plan, rien d'implémenté.** Base : `main` à `80ab2fc0`
-(#257, §3.80 livré — kubeconform, helm, kustomize).
+**Statut (2026-09-23) : PR 1 implémentée** (branche `feat/scan-tools-config`,
+voir §3.86 du backlog pour ce qui a été fait et les écarts). PR 2 à 4 à faire.
+Base : `main` à `80ab2fc0` (#257, §3.80 livré — kubeconform, helm, kustomize).
+
+Écarts de la PR 1 au texte ci-dessous, à reprendre dans les suivantes :
+
+- `Category` et `CategoryID` existaient déjà dans `scan` (la famille d'un
+  finding) : la table s'appelle `ToolCategory`, ses identifiants
+  `CategoryIDVuln`…
+- `Report` ne porte pas `Required` : `Missing(categories)` et
+  `CanScan(categories, target)` prennent les catégories en argument.
+- `Detect` prend `config.ScanTools`, pas tout `ScanConfig`.
+- Les identifiants et les défauts vivent aussi dans `config`
+  (`ToolIDs`, `CategoryIDs`, `DefaultScanCategories`), faute d'import possible ;
+  un test garde l'accord. Pas d'accesseur dans `Tool` : `ScanTools.Tool(id)`.
+- `ToolConfig.Config` existe déjà (gitleaks, plumber) ; `Args` et
+  `ReservedArgs` attendent la PR 4.
 
 ## Contexte
 

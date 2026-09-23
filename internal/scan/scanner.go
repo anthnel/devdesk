@@ -55,46 +55,16 @@ type ProgressUpdate struct {
 
 // ScanOptions configures which scanners to run
 type ScanOptions struct {
-	EnableVuln      bool   // Vulnerability scanning (Trivy)
-	EnableSecret    bool   // Secret scanning (Gitleaks)
-	EnableLicense   bool   // License scanning (Trivy)
-	EnableMisconfig bool   // Misconfiguration scanning (Trivy)
-	TrivySource     string // Where Trivy runs from: auto | binary | image
-	TrivyPath       string // Custom Trivy executable (optional)
-	TrivyImage      string // Custom Docker image for Trivy (optional)
-	GitleaksSource  string // Where Gitleaks runs from: auto | binary | image
-	GitleaksPath    string // Custom Gitleaks executable (optional)
-	GitleaksImage   string // Custom Docker image for Gitleaks (optional)
-	TrivyServer     string // Trivy server URL for client-server mode (optional)
-	IgnoreUnfixed   bool   // Trivy: only show vulnerabilities with fixes
-	IgnoreEOL       bool   // Trivy: ignore end-of-life package vulnerabilities (--ignore-status end_of_life)
-	GitleaksHistory bool   // Gitleaks: scan git history (omit --no-git)
-	GitleaksConfig  string // Gitleaks: custom config file path
-
-	// EnableCIScore runs plumber over the repository's CI configuration.
-	EnableCIScore bool
-	// PlumberSource, PlumberPath, PlumberImage, PlumberConfig mirror the other
-	// two tools.
-	PlumberSource string
-	PlumberPath   string
-	PlumberImage  string
-	PlumberConfig string
-
-	// EnableK8sSchema validates Kubernetes manifests with kubeconform (§3.80),
-	// against KubernetesVersion. The three tool fields mirror the others.
-	EnableK8sSchema   bool
-	KubernetesVersion string
-	KubeconformSource string
-	KubeconformPath   string
-	KubeconformImage  string
-	// Helm and Kustomize render charts and overlays for that stage. Both are
-	// optional: without them those directories are reported as not rendered.
-	HelmSource      string
-	HelmPath        string
-	HelmImage       string
-	KustomizeSource string
-	KustomizePath   string
-	KustomizeImage  string
+	// Categories is what the scan looks for and, per category, which tools
+	// run it (§3.86). Uses reads it.
+	Categories config.ScanCategories
+	// Tools is every tool's settings: where it runs from, and its own options.
+	Tools config.ScanTools
+	// TrivyServer is the address a scan sends Trivy to, and empty unless the
+	// client-server mode is on: the address is kept in the config while the
+	// mode is off, and a scan must not see it then. OptionsFromConfig resolves
+	// it once, so no stage re-reads the switch.
+	TrivyServer string
 
 	// Forge is the platform this context targets, and it is what decides
 	// whether a repository is graded at all: a GitHub context grades its GitHub
@@ -354,164 +324,12 @@ const (
 	ToolSourceContainer ToolSource = "container"
 )
 
-// DependencyStatus holds the availability status of external tools
-type DependencyStatus struct {
-	TrivyAvailable    bool
-	TrivySource       ToolSource
-	TrivyVersion      string
-	TrivyBinary       string // Executable to run when TrivySource is binary
-	TrivyImage        string // OCI image used for Trivy
-	GitleaksAvailable bool
-	GitleaksSource    ToolSource
-	GitleaksVersion   string
-	GitleaksBinary    string // Executable to run when GitleaksSource is binary
-	GitleaksImage     string // OCI image used for Gitleaks
-	PlumberAvailable  bool
-	PlumberSource     ToolSource
-	PlumberVersion    string
-	PlumberBinary     string // Executable to run when PlumberSource is binary
-	PlumberImage      string // OCI image used for plumber
-
-	KubeconformAvailable bool
-	KubeconformSource    ToolSource
-	KubeconformVersion   string
-	KubeconformBinary    string // Executable to run when KubeconformSource is binary
-	KubeconformImage     string // OCI image used for kubeconform
-	HelmAvailable        bool
-	HelmSource           ToolSource
-	HelmVersion          string
-	HelmBinary           string // Executable to run when HelmSource is binary
-	HelmImage            string // OCI image used for helm
-	KustomizeAvailable   bool
-	KustomizeSource      ToolSource
-	KustomizeVersion     string
-	KustomizeBinary      string // Executable to run when KustomizeSource is binary
-	KustomizeImage       string // OCI image used for kustomize
-
-	// EngineAvailable reports whether the configured container engine answered.
-	// Without it no image-sourced tool can run, whichever engine it is.
-	EngineAvailable bool
-
-	// ImageScanSocket is why an image scan in a container may be impossible
-	// even when the engine is present: trivy inspects a host-held image through
-	// the engine's socket, and rootless podman has none unless `podman system
-	// service` is running. Empty means the mount cannot be made — see
-	// ImageScanBlocked.
-	ImageScanSocket string
-}
-
-// ImageScanBlocked reports why an image cannot be scanned in a container, or ""
-// when it can.
-//
-// It answers before the keypress, which is what Rule 130 needs: the action is
-// greyed out with this reason rather than attempted and failed. A directory
-// scan mounts only the directory, so it stays available either way — the socket
-// is the image path's problem alone.
-func (d DependencyStatus) ImageScanBlocked(engineName string, server string) string {
-	if d.ImageScanSocket != "" || server != "" {
-		// A Trivy server does the inspection itself; no socket is needed.
-		return ""
-	}
-	return engineName + " socket not found — run `" + engineName +
-		" system service` or set a Trivy server"
-}
-
 // Default images for the container-sourced tools
 const (
 	DefaultTrivyImage    = "aquasec/trivy"
 	DefaultGitleaksImage = "zricethezav/gitleaks"
 	DefaultPlumberImage  = "getplumber/plumber"
 )
-
-// CheckDependencies works out where each scanner runs from, for one context's
-// scan configuration.
-//
-// It replaces CheckDependenciesWithImages, which took only the two image names.
-// That signature is why `trivy_path` and `gitleaks_path` were never read: there
-// was nowhere to pass them (D27). Taking the whole ScanConfig also lets the
-// per-tool source preference be honoured, which binary-first resolution made
-// impossible to express.
-func CheckDependencies(c config.ScanConfig) DependencyStatus {
-	trivyImage := c.TrivyImage
-	if trivyImage == "" {
-		trivyImage = DefaultTrivyImage
-	}
-	gitleaksImage := c.GitleaksImage
-	if gitleaksImage == "" {
-		gitleaksImage = DefaultGitleaksImage
-	}
-	plumberImage := c.PlumberImage
-	if plumberImage == "" {
-		plumberImage = DefaultPlumberImage
-	}
-	kubeconformImage := kubeconformImage(c.KubeconformImage)
-	helmImage := orDefault(c.HelmImage, DefaultHelmImage)
-	kustomizeImage := orDefault(c.KustomizeImage, DefaultKustomizeImage)
-
-	status := DependencyStatus{
-		TrivySource:    ToolSourceNone,
-		TrivyImage:     trivyImage,
-		GitleaksSource: ToolSourceNone,
-		GitleaksImage:  gitleaksImage,
-		PlumberSource:  ToolSourceNone,
-		PlumberImage:   plumberImage,
-
-		KubeconformSource: ToolSourceNone,
-		KubeconformImage:  kubeconformImage,
-		HelmSource:        ToolSourceNone,
-		HelmImage:         helmImage,
-		KustomizeSource:   ToolSourceNone,
-		KustomizeImage:    kustomizeImage,
-	}
-
-	if path, err := exec.LookPath(engine.Current().Binary); err == nil && path != "" {
-		status.EngineAvailable = true
-		status.ImageScanSocket = engine.Current().HostSocket()
-	}
-
-	trivy := resolveTool(c.TrivySource, c.TrivyPath, "trivy", trivyImage, status.EngineAvailable, "--version")
-	status.TrivyAvailable = trivy.Available
-	status.TrivySource = trivy.Source
-	status.TrivyBinary = trivy.Binary
-	status.TrivyVersion = trivy.Version
-
-	gitleaks := resolveTool(c.GitleaksSource, c.GitleaksPath, "gitleaks", gitleaksImage, status.EngineAvailable, "version")
-	status.GitleaksAvailable = gitleaks.Available
-	status.GitleaksSource = gitleaks.Source
-	status.GitleaksBinary = gitleaks.Binary
-	status.GitleaksVersion = gitleaks.Version
-
-	// `plumber version` writes the installed version to stdout and an upgrade
-	// notice — "plumber v0.4.44 is available (you have 0.4.40)" — to stderr.
-	// toolVersion reads stdout only, so the two cannot be confused; measured
-	// rather than assumed, because reporting the available version as the
-	// installed one is the kind of thing nobody notices for months.
-	plumber := resolveTool(c.PlumberSource, c.PlumberPath, "plumber", plumberImage, status.EngineAvailable, "version")
-	status.PlumberAvailable = plumber.Available
-	status.PlumberSource = plumber.Source
-	status.PlumberBinary = plumber.Binary
-	status.PlumberVersion = plumber.Version
-
-	kubeconform := resolveTool(c.KubeconformSource, c.KubeconformPath, "kubeconform", kubeconformImage, status.EngineAvailable, "-v")
-	status.KubeconformAvailable = kubeconform.Available
-	status.KubeconformSource = kubeconform.Source
-	status.KubeconformBinary = kubeconform.Binary
-	status.KubeconformVersion = kubeconform.Version
-
-	helm := resolveTool(c.HelmSource, c.HelmPath, "helm", helmImage, status.EngineAvailable, "version", "--short")
-	status.HelmAvailable = helm.Available
-	status.HelmSource = helm.Source
-	status.HelmBinary = helm.Binary
-	status.HelmVersion = helm.Version
-
-	kustomize := resolveTool(c.KustomizeSource, c.KustomizePath, "kustomize", kustomizeImage, status.EngineAvailable, "version")
-	status.KustomizeAvailable = kustomize.Available
-	status.KustomizeSource = kustomize.Source
-	status.KustomizeBinary = kustomize.Binary
-	status.KustomizeVersion = kustomize.Version
-
-	return status
-}
 
 // imageIsLocal verifies that the engine already holds an image.
 func imageIsLocal(image string) bool {
@@ -527,83 +345,81 @@ func imageIsLocal(image string) bool {
 // Scanner performs security scans using multiple tools
 type Scanner struct {
 	options ScanOptions
-	deps    DependencyStatus
+	deps    Report
 }
 
 // NewScanner creates a new scanner with the given options, detecting which
 // tools are available on this machine.
 func NewScanner(opts ScanOptions) *Scanner {
-	return newScannerWithDeps(opts, CheckDependencies(opts.toolConfig()))
-}
-
-// toolConfig is the part of the options detection needs: where each tool runs
-// from. Spelled out rather than carried as a config, because ScanOptions is
-// what a scan was asked to do — but every tool is listed, since a tool left out
-// here is resolved with its defaults and its configured source is silently
-// ignored by every real scan. That is what happened to plumber until §3.80.
-func (o ScanOptions) toolConfig() config.ScanConfig {
-	return config.ScanConfig{
-		TrivySource:    o.TrivySource,
-		TrivyPath:      o.TrivyPath,
-		TrivyImage:     o.TrivyImage,
-		GitleaksSource: o.GitleaksSource,
-		GitleaksPath:   o.GitleaksPath,
-		GitleaksImage:  o.GitleaksImage,
-		PlumberSource:  o.PlumberSource,
-		PlumberPath:    o.PlumberPath,
-		PlumberImage:   o.PlumberImage,
-
-		KubeconformSource: o.KubeconformSource,
-		KubeconformPath:   o.KubeconformPath,
-		KubeconformImage:  o.KubeconformImage,
-		HelmSource:        o.HelmSource,
-		HelmPath:          o.HelmPath,
-		HelmImage:         o.HelmImage,
-		KustomizeSource:   o.KustomizeSource,
-		KustomizePath:     o.KustomizePath,
-		KustomizeImage:    o.KustomizeImage,
-	}
+	return newScannerWithDeps(opts, Detect(opts.Tools))
 }
 
 // newScannerWithDeps builds a scanner against a known set of tools. Detection
 // probes the machine it runs on, so tests state the availability they mean
 // instead of inheriting the developer's installation.
-func newScannerWithDeps(opts ScanOptions, deps DependencyStatus) *Scanner {
+func newScannerWithDeps(opts ScanOptions, deps Report) *Scanner {
 	return &Scanner{options: opts, deps: deps}
 }
 
-// missingToolErrors reports the stages the caller asked for that cannot run
-// because their tool is neither installed nor available as an image.
-//
-// A stage that does not apply to the target type is not missing anything:
-// gitleaks scans a working tree, so a secret scan of an image is skipped for a
-// reason that has nothing to do with what the machine has installed. Only the
-// stages that would otherwise have run are reported.
-func (s *Scanner) missingToolErrors(targetType TargetType) []string {
-	wantsTrivy := s.options.EnableVuln || s.options.EnableMisconfig ||
-		s.options.EnableSecret || (s.options.EnableLicense && targetType == TargetDirectory)
-	wantsGitleaks := s.options.EnableSecret && targetType == TargetDirectory
-	wantsKubeconform := s.options.EnableK8sSchema && targetType == TargetDirectory
+// runs reports whether one category's tool runs on this target: the settings
+// ask for it, it applies to the target, and it is there.
+func (s *Scanner) runs(cat CategoryID, tool ToolID, targetType TargetType) bool {
+	return s.wants(cat, tool, targetType) && s.deps.Available(tool)
+}
 
+// wants is runs without the availability: what the settings ask of this target.
+func (s *Scanner) wants(cat CategoryID, tool ToolID, targetType TargetType) bool {
+	if !Uses(s.options.Categories, cat, tool) {
+		return false
+	}
+	for _, c := range categoryTable {
+		if c.ID != cat {
+			continue
+		}
+		for _, ct := range c.Tools {
+			if ct.Tool == tool {
+				return ct.Applies(targetType)
+			}
+		}
+	}
+	return false
+}
+
+// missingToolErrors reports the tools the caller asked for that cannot run
+// because they are neither installed nor available as an image — one error per
+// tool, read off the tables, so every tool is reported the same way (plumber
+// was not, until §3.86).
+//
+// A tool that does not apply to the target type is not missing anything:
+// gitleaks scans a working tree, so a secret scan of an image skips it for a
+// reason that has nothing to do with what the machine has installed.
+//
+// A renderer (helm, kustomize) is not reported here: without it the stage still
+// runs, and names each chart or overlay it could not validate
+// (Result.K8sUnrendered) — which says more than one line per scan would.
+func (s *Scanner) missingToolErrors(targetType TargetType) []string {
 	var errs []string
-	if wantsTrivy && !s.deps.TrivyAvailable {
-		errs = append(errs, fmt.Sprintf(
-			"trivy: not available — nothing was scanned. Install trivy or pull %s", trivyImage(s.deps.TrivyImage)))
-	}
-	if wantsGitleaks && !s.deps.GitleaksAvailable {
-		// Not "no secret scan was run": Trivy runs one too now, so naming what
-		// Gitleaks alone contributes is what keeps this accurate when only one
-		// of the two is missing.
-		errs = append(errs, fmt.Sprintf(
-			"gitleaks: not available — git history was not scanned for secrets. Install gitleaks or pull %s",
-			gitleaksImage(s.deps.GitleaksImage)))
-	}
-	if wantsKubeconform && !s.deps.KubeconformAvailable {
-		errs = append(errs, fmt.Sprintf(
-			"kubeconform: not available — Kubernetes manifests were not validated against the API schema. Install kubeconform or pull %s",
-			kubeconformImage(s.deps.KubeconformImage)))
+	for _, tool := range toolTable {
+		if s.deps.Available(tool.ID) || !s.wantsAnywhere(tool.ID, targetType) {
+			continue
+		}
+		errs = append(errs, fmt.Sprintf("%s: not available — %s. Install %s or pull %s",
+			tool.Binary, tool.Lost, tool.Binary, s.deps.Status(tool.ID).Image))
 	}
 	return errs
+}
+
+// wantsAnywhere reports whether some category asks this target for the tool,
+// leaving out the renderers, whose absence the stage reports itself.
+func (s *Scanner) wantsAnywhere(tool ToolID, targetType TargetType) bool {
+	for _, cat := range categoryTable {
+		for _, ct := range cat.Tools {
+			if ct.Tool == tool && ct.DependsOn == "" && s.wants(cat.ID, tool, targetType) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ErrTrivyUnavailable is returned by ScanRemoteImage when Trivy cannot be run.
@@ -618,7 +434,7 @@ var ErrTrivyUnavailable = errors.New("trivy is not available")
 // it matter — secrets and misconfigurations describe the user's own layers, not
 // the base's.
 func (s *Scanner) ScanRemoteImage(ctx context.Context, image string) (*Result, error) {
-	if !s.deps.TrivyAvailable {
+	if !s.deps.Available(ToolTrivy) {
 		return nil, ErrTrivyUnavailable
 	}
 	result := &Result{
@@ -628,7 +444,7 @@ func (s *Scanner) ScanRemoteImage(ctx context.Context, image string) (*Result, e
 		Findings:   []Finding{},
 		Errors:     []string{},
 	}
-	tc, err := trivyRemoteImageArgs(image, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
+	tc, err := trivyRemoteImageArgs(image, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
 	if err != nil {
 		return nil, err
 	}
@@ -672,15 +488,15 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	// Vuln scan (Trivy)
-	if s.options.EnableVuln && s.deps.TrivyAvailable {
+	if s.runs(CategoryIDVuln, ToolTrivy, targetType) {
 		eg.Go(func() error {
 			notify(ProgressUpdate{Stage: "vuln", Label: "Vulnerabilities", Status: StageRunning})
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "vuln", Label: "Vulnerabilities", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, false, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
+			cmd := GetTrivyCommand(target, targetType, false, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunTrivy(egCtx, target, targetType, false, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL, progressFn)
+			findings, err := RunTrivy(egCtx, target, targetType, false, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -695,15 +511,15 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	}
 
 	// License scan (Trivy, directory only)
-	if s.options.EnableLicense && s.deps.TrivyAvailable && targetType == TargetDirectory {
+	if s.runs(CategoryIDLicense, ToolTrivy, targetType) {
 		eg.Go(func() error {
 			notify(ProgressUpdate{Stage: "license", Label: "Licenses", Status: StageRunning})
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "license", Label: "Licenses", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, true, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL)
+			cmd := GetTrivyCommand(target, targetType, true, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunTrivy(egCtx, target, targetType, true, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreUnfixed, s.options.IgnoreEOL, progressFn)
+			findings, err := RunTrivy(egCtx, target, targetType, true, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -729,8 +545,8 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageRunning, Detail: detail})
 			}
-			log.Printf("Running: %s", GetPlumberCommand(target, s.deps.PlumberSpec(), opts))
-			report, err := RunPlumber(egCtx, target, s.deps.PlumberSpec(), opts, progressFn)
+			log.Printf("Running: %s", GetPlumberCommand(target, s.deps.Spec(ToolPlumber), opts))
+			report, err := RunPlumber(egCtx, target, s.deps.Spec(ToolPlumber), opts, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -755,8 +571,9 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	}
 
 	// Kubernetes schema validation (kubeconform, directories only). An image
-	// holds no manifests anyone applies.
-	if s.options.EnableK8sSchema && s.deps.KubeconformAvailable && targetType == TargetDirectory {
+	// holds no manifests anyone applies. It belongs to Misconfiguration, beside
+	// Trivy's security rules (§3.86).
+	if s.runs(CategoryIDMisconfig, ToolKubeconform, targetType) {
 		eg.Go(func() error {
 			s.runKubeconformStage(egCtx, target, result, &mu, notify)
 			return nil
@@ -764,13 +581,13 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	}
 
 	// Misconfig scan (Trivy)
-	if s.options.EnableMisconfig && s.deps.TrivyAvailable {
+	if s.runs(CategoryIDMisconfig, ToolTrivy, targetType) {
 		eg.Go(func() error {
 			notify(ProgressUpdate{Stage: "misconfig", Label: "Misconfigurations", Status: StageRunning})
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "misconfig", Label: "Misconfigurations", Status: StageRunning, Detail: detail})
 			}
-			findings, err := RunTrivyMisconfig(egCtx, target, targetType, s.deps.TrivySpec(), s.options.TrivyServer, s.options.IgnoreEOL, progressFn)
+			findings, err := RunTrivyMisconfig(egCtx, target, targetType, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -785,15 +602,15 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	}
 
 	// Secret scan (Gitleaks, directory only)
-	if s.options.EnableSecret && s.deps.GitleaksAvailable && targetType == TargetDirectory {
+	if s.runs(CategoryIDSecret, ToolGitleaks, targetType) {
 		eg.Go(func() error {
 			notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageRunning})
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetGitleaksCommand(target, s.deps.GitleaksSpec(), s.options.GitleaksHistory, s.options.GitleaksConfig)
+			cmd := GetGitleaksCommand(target, s.deps.Spec(ToolGitleaks), s.options.Tools.Gitleaks.History, s.options.Tools.Gitleaks.Config)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunGitleaks(egCtx, target, s.deps.GitleaksSpec(), s.options.GitleaksHistory, s.options.GitleaksConfig, progressFn)
+			findings, err := RunGitleaks(egCtx, target, s.deps.Spec(ToolGitleaks), s.options.Tools.Gitleaks.History, s.options.Tools.Gitleaks.Config, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -811,18 +628,16 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	}
 
 	// Secret scan (Trivy). Both target types, unlike Gitleaks: this is what
-	// gives an image scan a secret stage at all. The two are complementary
-	// rather than redundant — Gitleaks reads git history, Trivy reads image
-	// layers — so both run when the option is on and both tools are there.
-	if s.options.EnableSecret && s.deps.TrivyAvailable {
+	// gives an image scan a secret stage at all (see the category table).
+	if s.runs(CategoryIDSecret, ToolTrivy, targetType) {
 		eg.Go(func() error {
 			notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageRunning})
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivySecretCommand(target, targetType, s.deps.TrivySpec(), s.options.TrivyServer)
+			cmd := GetTrivySecretCommand(target, targetType, s.deps.Spec(ToolTrivy), s.options.TrivyServer)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunTrivySecret(egCtx, target, targetType, s.deps.TrivySpec(), s.options.TrivyServer, progressFn)
+			findings, err := RunTrivySecret(egCtx, target, targetType, s.deps.Spec(ToolTrivy), s.options.TrivyServer, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {

@@ -348,8 +348,10 @@ func (m *Model) applyServerModeConstraints() {
 	if !m.serverMode() {
 		return
 	}
-	m.config.Scan.EnableMisconfig = false
-	m.config.Scan.EnableLicense = false
+	// Trivy's part of Misconfiguration only: kubeconform has no server to
+	// be refused by.
+	setToolGroup(misconfigCategory(m.config), misconfigTrivy, false)
+	m.config.Scan.Categories.License.Enabled = false
 }
 
 type saveFailedMsg struct{ err error }

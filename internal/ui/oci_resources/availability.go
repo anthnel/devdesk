@@ -64,10 +64,10 @@ func (m Model) imageScan() shortcut.Availability {
 	if m.deps == nil {
 		return shortcut.Availability{}
 	}
-	if !m.deps.TrivyAvailable {
+	if !m.deps.Available(scan.ToolTrivy) {
 		return shortcut.Unavailable(reasonNoScanner)
 	}
-	if m.deps.TrivySource != scan.ToolSourceContainer {
+	if m.deps.Status(scan.ToolTrivy).Source != scan.ToolSourceContainer {
 		// A Trivy binary reads the image through the engine itself and needs
 		// no socket of its own.
 		return shortcut.Availability{}

@@ -10,7 +10,8 @@ Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/con
 - `Status` - Monitoring settings (refresh interval, components)
 - `Forge` - the platform this context targets: `type`, URL and clone settings
 - `Registry` - OCI registry configuration (see Registry model below)
-- `Scan` - Security scanning (Trivy, Gitleaks)
+- `Scan` - Security scanning: `categories` (what a scan looks for, and which
+  tools run each one) and `tools` (one block per scanner — see `scanning.md`)
 - `Network` - what the netdiag view runs on: the tool image, and the dials
   `internal/netcheck` used to hardcode; and `proxy_port` (8080), the one port
   every named forward route is served on (§3.74, see `network.md`) — at or above
@@ -60,6 +61,28 @@ after the section they write. That key — the image the OCI connectivity test
 ran — has since been removed along with the feature itself; `NetworkConfig`
 now holds only the netdiag dials (`CheckTimeout`, `PingCount`,
 `CertExpiryWarnDays`, `PortsRefreshInterval`).
+
+**`scan:` was flat, and it is now `categories:` + `tools:` (§3.86).** Six
+tools had grown three to five keys each, side by side with six `enable_*`
+switches that named categories and tools interchangeably. `migrateScanSection`
+(`scan_migrate.go`) runs right after `migrateGitLabSection`, before the
+defaults, on the same model: field by field, only where the new value is empty,
+the old keys held in `ScanConfig.Legacy` (inline, every tag `omitempty`) and
+cleared so they leave the file on the next save. Two points of its own:
+
+- **The categories are carried whole or not at all.** A `categories:` block that
+  is present is an answer, even all off; mixing it with the old switches would
+  make one category's state depend on which file wrote it. The historical "all
+  switches off means never configured" reading survives **only** inside the
+  migration — the one place that still sees the switches. A file with no
+  `categories:` at all gets `DefaultScanCategories()`; an empty tool list counts
+  as absent, because a zero `Config` saves `tools: []`.
+- **One change of meaning, on purpose.** `enable_k8s_schema` ticks kubeconform
+  *and* helm and kustomize, which used to serve whenever installed and are now
+  required: what is ticked is what the dashboard reports missing.
+
+A category's `tools` list is a slice, so a `Config` copied by value shares it:
+`CategoryConfig.With` always builds a new one rather than editing in place.
 
 **`app.container_engine`** names the engine every container, image, network and
 volume comes from: `auto` (the default — docker if it is on PATH, else podman),

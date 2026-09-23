@@ -19,7 +19,7 @@ import (
 // launching a container that fails on startup (Rule 130).
 
 // modelWithImage returns a view showing one image, with deps set as given.
-func modelWithImage(t *testing.T, deps *scan.DependencyStatus) Model {
+func modelWithImage(t *testing.T, deps *scan.Report) Model {
 	t.Helper()
 	m := New(config.Default())
 	m.images = []docker.Image{{ID: "sha256:abc", Repository: "nginx", Tag: "latest"}}
@@ -34,11 +34,10 @@ func TestSIsRefusedWhenThePodmanSocketIsAbsent(t *testing.T) {
 	t.Cleanup(func() { engine.SetCurrent(previous) })
 	engine.SetCurrent(engine.ShapeFor(engine.Podman))
 
-	m := modelWithImage(t, &scan.DependencyStatus{
-		TrivyAvailable:  true,
-		TrivySource:     scan.ToolSourceContainer,
+	m := modelWithImage(t, &scan.Report{
+		Tools:           map[scan.ToolID]scan.ToolStatus{scan.ToolTrivy: {Available: true, Source: scan.ToolSourceContainer}},
 		EngineAvailable: true,
-		ImageScanSocket: "", // no `podman system service` running
+		ImageScanSocket: "",
 	})
 
 	act := m.imageScan()
@@ -64,9 +63,8 @@ func TestAMissingSocketDoesNotRefuseLaunchOrDelete(t *testing.T) {
 	t.Cleanup(func() { engine.SetCurrent(previous) })
 	engine.SetCurrent(engine.ShapeFor(engine.Podman))
 
-	m := modelWithImage(t, &scan.DependencyStatus{
-		TrivyAvailable:  true,
-		TrivySource:     scan.ToolSourceContainer,
+	m := modelWithImage(t, &scan.Report{
+		Tools:           map[scan.ToolID]scan.ToolStatus{scan.ToolTrivy: {Available: true, Source: scan.ToolSourceContainer}},
 		EngineAvailable: true,
 	})
 
@@ -76,9 +74,8 @@ func TestAMissingSocketDoesNotRefuseLaunchOrDelete(t *testing.T) {
 }
 
 func TestSIsOfferedWhenTheSocketIsThere(t *testing.T) {
-	m := modelWithImage(t, &scan.DependencyStatus{
-		TrivyAvailable:  true,
-		TrivySource:     scan.ToolSourceContainer,
+	m := modelWithImage(t, &scan.Report{
+		Tools:           map[scan.ToolID]scan.ToolStatus{scan.ToolTrivy: {Available: true, Source: scan.ToolSourceContainer}},
 		EngineAvailable: true,
 		ImageScanSocket: "/var/run/docker.sock",
 	})
@@ -91,10 +88,8 @@ func TestSIsOfferedWhenTheSocketIsThere(t *testing.T) {
 // A Trivy binary reads the image through the engine itself, so no socket of its
 // own is mounted and the question does not arise.
 func TestATrivyBinaryNeedsNoSocket(t *testing.T) {
-	m := modelWithImage(t, &scan.DependencyStatus{
-		TrivyAvailable: true,
-		TrivySource:    scan.ToolSourceBinary,
-		TrivyBinary:    "/usr/bin/trivy",
+	m := modelWithImage(t, &scan.Report{
+		Tools: map[scan.ToolID]scan.ToolStatus{scan.ToolTrivy: {Available: true, Source: scan.ToolSourceBinary, Binary: "/usr/bin/trivy"}},
 	})
 
 	if act := m.imageScan(); !act.Enabled() {
@@ -116,12 +111,13 @@ func TestSStaysOfferedUntilTheCheckComesBack(t *testing.T) {
 // Rule 130: the set of keys does not change from one state to another within
 // the same screen — only whether they are greyed.
 func TestTheImageShortcutsDoNotChangeWithTheSocket(t *testing.T) {
-	withSocket := modelWithImage(t, &scan.DependencyStatus{
-		TrivyAvailable: true, TrivySource: scan.ToolSourceContainer,
-		EngineAvailable: true, ImageScanSocket: "/var/run/docker.sock",
+	withSocket := modelWithImage(t, &scan.Report{
+		Tools:           map[scan.ToolID]scan.ToolStatus{scan.ToolTrivy: {Available: true, Source: scan.ToolSourceContainer}},
+		EngineAvailable: true,
+		ImageScanSocket: "/var/run/docker.sock",
 	})
-	without := modelWithImage(t, &scan.DependencyStatus{
-		TrivyAvailable: true, TrivySource: scan.ToolSourceContainer,
+	without := modelWithImage(t, &scan.Report{
+		Tools:           map[scan.ToolID]scan.ToolStatus{scan.ToolTrivy: {Available: true, Source: scan.ToolSourceContainer}},
 		EngineAvailable: true,
 	})
 

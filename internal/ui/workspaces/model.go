@@ -111,14 +111,14 @@ type Model struct {
 
 	// deps is where the scanners resolve from on this machine, or nil while
 	// nobody has looked yet. A pointer because "not yet known" and "neither
-	// scanner is installed" are different answers, and a zero DependencyStatus
+	// scanner is installed" are different answers, and a zero Report
 	// says the second — the *bool of Result.SecretVerdict, one screen over.
 	//
 	// It is read by actions() to decide whether S and A apply at all, and it is
-	// filled by a Cmd: scan.CheckDependencies runs exec.LookPath, a --version
+	// filled by a Cmd: scan.Detect runs exec.LookPath, a --version
 	// and a docker images -q, none of which may happen in New or View
 	// (Rule 110).
-	deps *scan.DependencyStatus
+	deps *scan.Report
 }
 
 // Entry represents a file system entry with enriched metadata
@@ -155,7 +155,7 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		config:  cfg,
 		secrets: secrets,
 		table: datatable.New(datatable.Config[workspaceRow]{
-			Columns:    workspaceColumns(cfg.Scan.EnableCIScore),
+			Columns:    workspaceColumns(cfg.Scan.Categories.CI.Enabled),
 			SortColumn: -1, // the order the directory listing gave
 		}),
 		mode:          ModeNormal,

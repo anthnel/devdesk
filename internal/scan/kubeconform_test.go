@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/anthnel/devdesk/internal/config"
 )
 
 // appManifest is the file the fixture report is about; its line numbers are
@@ -178,10 +176,9 @@ func TestTheSchemaStageValidatesTheRepositorysManifests(t *testing.T) {
 	r := byStage(t, map[string]stageReply{
 		"k8s-schema": {stdout: string(kubeconformFixture(t)), err: &exitError{Code: 1}},
 	})
-	deps := everyTool()
-	deps.KubeconformAvailable, deps.KubeconformSource = true, ToolSourceBinary
+	deps := binaries(ToolTrivy, ToolGitleaks, ToolKubeconform)
 
-	result, _ := newScannerWithDeps(ScanOptions{EnableK8sSchema: true, KubernetesVersion: "1.36.0"}, deps).
+	result, _ := newScannerWithDeps(k8sSchemaFor("1.36.0"), deps).
 		Scan(t.Context(), repo, TargetDirectory)
 
 	cmd := r.commandForStage("k8s-schema")
@@ -205,10 +202,9 @@ func TestTheSchemaStageRunsNothingWithoutManifests(t *testing.T) {
 	isolateHome(t)
 	repo := writeRepo(t, map[string]string{"README.md": "# hi\n"})
 	r := byStage(t, map[string]stageReply{})
-	deps := everyTool()
-	deps.KubeconformAvailable, deps.KubeconformSource = true, ToolSourceBinary
+	deps := binaries(ToolTrivy, ToolGitleaks, ToolKubeconform)
 
-	result, _ := newScannerWithDeps(ScanOptions{EnableK8sSchema: true}, deps).Scan(t.Context(), repo, TargetDirectory)
+	result, _ := newScannerWithDeps(k8sSchema(), deps).Scan(t.Context(), repo, TargetDirectory)
 
 	if r.count() != 0 {
 		t.Errorf("ran %v on a repository with no manifest", r.commands())
@@ -219,31 +215,16 @@ func TestTheSchemaStageRunsNothingWithoutManifests(t *testing.T) {
 }
 
 // Asked for and not installed is said, like the other tools — and only for a
-// directory, since an image has no manifests to validate.
+// directory, since an image has no manifests to validate. The renderers ticked
+// beside it are not: their absence is said chart by chart (K8sUnrendered).
 func TestAMissingKubeconformIsReported(t *testing.T) {
-	s := newScannerWithDeps(ScanOptions{EnableK8sSchema: true}, everyTool())
+	s := newScannerWithDeps(k8sSchema(), everyTool())
 
 	if errs := s.missingToolErrors(TargetDirectory); len(errs) != 1 || !strings.Contains(errs[0], "kubeconform") {
 		t.Errorf("directory: errors = %v, want kubeconform reported missing", errs)
 	}
 	if errs := s.missingToolErrors(TargetImage); len(errs) != 0 {
 		t.Errorf("image: errors = %v, want none", errs)
-	}
-}
-
-// kubeconform is resolved like every other tool, and its settings reach
-// detection through NewScanner (the gap plumber had, §3.80 phase 0).
-func TestKubeconformIsResolvedLikeTheOthers(t *testing.T) {
-	installTools(t, "present", "kubeconform", "docker")
-
-	s := NewScanner(OptionsFromConfig(&config.Config{Scan: config.ScanConfig{
-		KubeconformSource: config.ToolSourceImage,
-		KubeconformImage:  "mirror.example/kubeconform:0.8.0",
-	}}))
-
-	if s.deps.KubeconformSource != ToolSourceContainer || s.deps.KubeconformImage != "mirror.example/kubeconform:0.8.0" {
-		t.Errorf("kubeconform resolved as %q with image %q, want the configured image",
-			s.deps.KubeconformSource, s.deps.KubeconformImage)
 	}
 }
 

@@ -74,16 +74,14 @@ func TestAStageThatLookedAndFoundNothingSaysSo(t *testing.T) {
 // "clean", for a target nobody had looked at.
 func TestNothingLookedMeansNoVerdict(t *testing.T) {
 	noSecretStage := everyStage()
-	noSecretStage.EnableSecret = false
+	noSecretStage.Categories.Secret.Enabled = false
 
-	noSecretTool := everyTool()
-	noSecretTool.GitleaksAvailable = false
-	noSecretTool.TrivyAvailable = false
+	noSecretTool := everyTool().without(ToolGitleaks).without(ToolTrivy)
 
 	tests := []struct {
 		name    string
 		opts    ScanOptions
-		deps    DependencyStatus
+		deps    Report
 		replies map[string]stageReply
 	}{
 		{
@@ -140,8 +138,7 @@ func TestNothingLookedMeansNoVerdict(t *testing.T) {
 // One of the two secrets stages is enough: Gitleaks reads the git history,
 // Trivy the content, and either one counts as a look at the target.
 func TestOneSecretStageIsEnoughToDecide(t *testing.T) {
-	deps := everyTool()
-	deps.GitleaksAvailable = false
+	deps := everyTool().without(ToolGitleaks)
 
 	byStage(t, map[string]stageReply{
 		"vuln":         {stdout: `{"Results":[]}`},

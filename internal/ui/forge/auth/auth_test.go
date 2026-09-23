@@ -493,7 +493,7 @@ func TestAuthenticateWritesNoConfiguration(t *testing.T) {
 	if m.config.Forge.URL != "https://gitlab.example.com" {
 		t.Errorf("URL = %q; authenticate() must not rewrite the setting it read", m.config.Forge.URL)
 	}
-	if m.config.Scan.GitleaksConfig != "" || m.config.App.Theme != cfg.App.Theme {
+	if m.config.Scan.Tools.Gitleaks.Config != "" || m.config.App.Theme != cfg.App.Theme {
 		t.Error("authenticate() wrote to the config outside Update() (Rule 110)")
 	}
 }

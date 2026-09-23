@@ -31,7 +31,7 @@ import (
 // setting is on.
 func (s *Scanner) ciOptions(target string, targetType TargetType) (PlumberOptions, bool) {
 	// An image has no pipeline, so there is nothing to grade.
-	if !s.options.EnableCIScore || targetType != TargetDirectory || !s.deps.PlumberAvailable {
+	if !s.runs(CategoryIDCI, ToolPlumber, targetType) {
 		return PlumberOptions{}, false
 	}
 	status, err := git.ReadStatus(target)
@@ -52,7 +52,7 @@ func ciOptionsFor(o ScanOptions, remoteURL, branch string, loadToken func() stri
 	opts := PlumberOptions{
 		Provider:   plumberProvider(o.Forge.Type),
 		Branch:     branch,
-		ConfigPath: o.PlumberConfig,
+		ConfigPath: o.Tools.Plumber.Config,
 	}
 	if loadToken != nil {
 		opts.Token = loadToken()

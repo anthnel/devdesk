@@ -154,7 +154,7 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		config:    cfg,
 		secrets:   secrets,
 		state:     StateInventory,
-		inventory: newInventoryTable(cfg.Scan.EnableCIScore),
+		inventory: newInventoryTable(cfg.Scan.Categories.CI.Enabled),
 		// True from construction, because Init loads unconditionally: a view
 		// that starts saying "not loading" would render the empty message for
 		// the frame before the first Cmd runs.
@@ -169,7 +169,7 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 // able to grade it — and the empty string when the column is off, which is what
 // spares the loader a git call per row.
 func ciForgeURL(cfg *config.Config) string {
-	if cfg == nil || !cfg.Scan.EnableCIScore {
+	if cfg == nil || !cfg.Scan.Categories.CI.Enabled {
 		return ""
 	}
 	return cfg.Forge.URL

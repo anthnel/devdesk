@@ -16,7 +16,7 @@ import (
 // at all, and it cannot be worked out in New or View because resolving a
 // scanner shells out (Rule 110).
 type DepsCheckedMsg struct {
-	Deps scan.DependencyStatus
+	Deps scan.Report
 }
 
 // EntriesLoadedMsg is sent when entries are loaded.

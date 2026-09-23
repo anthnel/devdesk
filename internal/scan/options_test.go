@@ -15,9 +15,9 @@ import (
 // scanning from the form and silently did not when scanning from either list.
 //
 // So this does not assert that IgnoreEOL is carried. It asserts that *every*
-// field the two structs have in common is carried, by walking them: a tenth
-// option added to ScanConfig and ScanOptions without plumbing it through fails
-// here rather than shipping.
+// setting the two structs have in common is carried, by walking them down to
+// each tool's own fields: an option added to ScanConfig and ScanOptions without
+// plumbing it through fails here rather than shipping.
 func TestEveryConfiguredOptionReachesTheScanner(t *testing.T) {
 	shared := sharedFields()
 	if len(shared) == 0 {
@@ -27,20 +27,15 @@ func TestEveryConfiguredOptionReachesTheScanner(t *testing.T) {
 	cfg := config.ScanConfig{}
 	cfgValue := reflect.ValueOf(&cfg).Elem()
 	for _, name := range shared {
-		cfgValue.FieldByName(name).Set(distinctValue(name, cfgValue.FieldByName(name).Type()))
+		fill(cfgValue.FieldByName(name), name)
 	}
-	// UseTrivyServer is not shared with ScanOptions — it only gates whether
-	// TrivyServer reaches OptionsFromConfig at all — so it is not covered by
-	// the walk above and has to be opened by hand for TrivyServer's value to
-	// carry through.
-	cfg.UseTrivyServer = true
 
 	got := reflect.ValueOf(OptionsFromConfig(&config.Config{Scan: cfg}))
 
 	for _, name := range shared {
-		want := distinctValue(name, cfgValue.FieldByName(name).Type()).Interface()
-		if actual := got.FieldByName(name).Interface(); actual != want {
-			t.Errorf("OptionsFromConfig did not carry %s: got %v, want %v", name, actual, want)
+		want := cfgValue.FieldByName(name).Interface()
+		if actual := got.FieldByName(name).Interface(); !reflect.DeepEqual(actual, want) {
+			t.Errorf("OptionsFromConfig did not carry %s:\n got %+v\nwant %+v", name, actual, want)
 		}
 	}
 }
@@ -51,28 +46,29 @@ func TestEveryConfiguredOptionReachesTheScanner(t *testing.T) {
 func TestOptionsFromConfigCarriesNothingItWasNotGiven(t *testing.T) {
 	opts := OptionsFromConfig(&config.Config{})
 
-	if opts.EnableVuln || opts.EnableSecret || opts.EnableMisconfig || opts.EnableLicense {
-		t.Errorf("an empty config produced enabled scanners: %+v", opts)
+	if !reflect.ValueOf(opts.Categories).IsZero() {
+		t.Errorf("an empty config produced categories: %+v", opts.Categories)
 	}
-	if opts.TrivyImage != "" || opts.GitleaksImage != "" || opts.TrivyServer != "" {
-		t.Errorf("an empty config produced tool settings: %+v", opts)
+	if !reflect.ValueOf(opts.Tools).IsZero() || opts.TrivyServer != "" {
+		t.Errorf("an empty config produced tool settings: %+v", opts.Tools)
 	}
 	if opts.OnProgress != nil {
 		t.Error("OptionsFromConfig set OnProgress; the caller owns it")
 	}
 }
 
-// TestTrivyServerIsGatedByItsCheckbox pins the point of UseTrivyServer: an
+// TestTrivyServerIsGatedByItsCheckbox pins the point of the server switch: an
 // address left in the config from a previous session must not put a scan into
 // client-server mode on its own — only the checkbox does.
 func TestTrivyServerIsGatedByItsCheckbox(t *testing.T) {
-	cfg := &config.Config{Scan: config.ScanConfig{TrivyServer: "https://trivy:4954"}}
+	cfg := &config.Config{}
+	cfg.Scan.Tools.Trivy.Server.URL = "https://trivy:4954"
 
 	if got := OptionsFromConfig(cfg).TrivyServer; got != "" {
 		t.Errorf("TrivyServer = %q with the checkbox off, want empty", got)
 	}
 
-	cfg.Scan.UseTrivyServer = true
+	cfg.Scan.Tools.Trivy.Server.Enabled = true
 	if got := OptionsFromConfig(cfg).TrivyServer; got != "https://trivy:4954" {
 		t.Errorf("TrivyServer = %q with the checkbox on, want the configured address", got)
 	}
@@ -100,16 +96,25 @@ func sharedFields() []string {
 	return shared
 }
 
-// distinctValue builds a value that cannot be confused with a zero value or
-// with another field's, so a builder that carries the wrong field is caught as
-// surely as one that carries none.
-func distinctValue(name string, t reflect.Type) reflect.Value {
-	switch t.Kind() {
+// fill sets every leaf of v to a value that cannot be confused with a zero
+// value or with another leaf's, so a builder that carries the wrong setting is
+// caught as surely as one that carries none. It descends into structs and
+// lists, which is where every tool's settings now live.
+func fill(v reflect.Value, path string) {
+	switch v.Kind() {
 	case reflect.Bool:
-		return reflect.ValueOf(true)
+		v.SetBool(true)
 	case reflect.String:
-		return reflect.ValueOf("carried-" + name)
+		v.SetString("carried-" + path)
+	case reflect.Struct:
+		for i := range v.NumField() {
+			fill(v.Field(i), path+"."+v.Type().Field(i).Name)
+		}
+	case reflect.Slice:
+		s := reflect.MakeSlice(v.Type(), 1, 1)
+		fill(s.Index(0), path+"[0]")
+		v.Set(s)
 	default:
-		panic("no distinct value for " + t.Kind().String() + " (" + name + ")")
+		panic("no distinct value for " + v.Kind().String() + " (" + path + ")")
 	}
 }

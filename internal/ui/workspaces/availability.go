@@ -3,6 +3,7 @@ package workspaces
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
@@ -168,7 +169,7 @@ func (m Model) scannerState() actionState {
 	if m.deps == nil {
 		return available
 	}
-	if m.deps.TrivyAvailable || m.deps.GitleaksAvailable {
+	if m.deps.Available(scan.ToolTrivy) || m.deps.Available(scan.ToolGitleaks) {
 		return available
 	}
 	return unavailable(reasonNoScanner)

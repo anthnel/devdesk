@@ -30,13 +30,13 @@ func TestTheScanKeysAreOfferedBeforeTheCheckComesBack(t *testing.T) {
 func TestTheScanKeysFollowWhatIsInstalled(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
-		deps     scan.DependencyStatus
+		deps     scan.Report
 		disabled bool
 	}{
-		{"neither scanner", scan.DependencyStatus{}, true},
-		{"Trivy alone", scan.DependencyStatus{TrivyAvailable: true}, false},
-		{"Gitleaks alone", scan.DependencyStatus{GitleaksAvailable: true}, false},
-		{"both", scan.DependencyStatus{TrivyAvailable: true, GitleaksAvailable: true}, false},
+		{"neither scanner", scan.Report{}, true},
+		{"Trivy alone", detected(scan.ToolTrivy), false},
+		{"Gitleaks alone", detected(scan.ToolGitleaks), false},
+		{"both", detected(scan.ToolTrivy, scan.ToolGitleaks), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := feed(t, loadedModel(t), DepsCheckedMsg{Deps: tc.deps})
@@ -54,7 +54,7 @@ func TestTheScanKeysFollowWhatIsInstalled(t *testing.T) {
 // One scanner is enough, but none means the scan would run and find nothing —
 // which is what happened before: S was offered and produced an empty report.
 func TestScanningWithoutAScannerIsRefusedAndSaysSo(t *testing.T) {
-	m := feed(t, loadedModel(t), DepsCheckedMsg{Deps: scan.DependencyStatus{}})
+	m := feed(t, loadedModel(t), DepsCheckedMsg{Deps: scan.Report{}})
 	m.table.SetCursor(0) // devdesk, a git repo
 
 	// refused() checks both halves: the footer says why, and no run was
@@ -65,7 +65,7 @@ func TestScanningWithoutAScannerIsRefusedAndSaysSo(t *testing.T) {
 // A carries the same guard, and its confirmation must not even open: asking a
 // question whose answer will be declined wastes the user's time (§3.23).
 func TestScanAllWithoutAScannerNeverOpensItsModal(t *testing.T) {
-	m := feed(t, loadedModel(t), DepsCheckedMsg{Deps: scan.DependencyStatus{}})
+	m := feed(t, loadedModel(t), DepsCheckedMsg{Deps: scan.Report{}})
 
 	next := refused(t, m, keymap.ScanAll, reasonNoScanner)
 
@@ -84,9 +84,9 @@ func TestNoGreyedKeyEverActs(t *testing.T) {
 	greyed := 0
 
 	for cursor := -1; cursor < len(entryFixtures()); cursor++ {
-		m := feed(t, scannedModel(t), DepsCheckedMsg{Deps: scan.DependencyStatus{}})
+		m := feed(t, scannedModel(t), DepsCheckedMsg{Deps: scan.Report{}})
 		if cursor < 0 {
-			m = feed(t, newTestModel(t), DepsCheckedMsg{Deps: scan.DependencyStatus{}})
+			m = feed(t, newTestModel(t), DepsCheckedMsg{Deps: scan.Report{}})
 		} else {
 			m.table.SetCursor(cursor)
 		}
@@ -117,4 +117,13 @@ func TestNoGreyedKeyEverActs(t *testing.T) {
 	if greyed < len(keys) {
 		t.Errorf("only %d greyed keys were exercised across every fixture row, want at least %d", greyed, len(keys))
 	}
+}
+
+// detected is a detection report in which these tools can run.
+func detected(ids ...scan.ToolID) scan.Report {
+	r := scan.Report{Tools: map[scan.ToolID]scan.ToolStatus{}}
+	for _, id := range ids {
+		r.Tools[id] = scan.ToolStatus{Available: true, Source: scan.ToolSourceBinary}
+	}
+	return r
 }

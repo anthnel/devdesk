@@ -52,22 +52,26 @@ registry:
       auth_enabled: true
 
 scan:
-  trivy_image: "aquasec/trivy:0.52.1"
-  use_trivy_server: false          # The checkbox that actually turns on server mode
-  trivy_server: ""                 # Address used only when use_trivy_server is true
-  gitleaks_image: "zricethezav/gitleaks:v13.3.0"
+  categories:                      # What a scan looks for, and which tools run it
+    vuln:      { enabled: true,  tools: [trivy] }
+    secret:    { enabled: true,  tools: [trivy, gitleaks] }
+    misconfig: { enabled: true,  tools: [trivy] }
+    license:   { enabled: false, tools: [trivy] }
+    ci:        { enabled: false, tools: [plumber] }
+  tools:
+    trivy:
+      image: "aquasec/trivy:0.52.1"
+      server: { enabled: false, url: "" }  # url is read only while enabled
+      ignore_unfixed: false
+      ignore_eol: false
+    gitleaks:
+      image: "zricethezav/gitleaks:v13.3.0"
+      config: ""                   # Custom Gitleaks config path
+      history: false
   cache_dir: "~/.devdesk/cache"
   max_cached_reports: 50
   timeout: 300                     # seconds
   max_concurrent_scans: 3
-  enable_vuln: true
-  enable_secret: true
-  enable_misconfig: true
-  enable_license: false
-  ignore_unfixed: false
-  ignore_eol: false
-  gitleaks_history: false
-  gitleaks_config: ""              # Custom Gitleaks config path
 
 docker:
   network_tool_image: "alpine:latest"  # For network diagnostics
