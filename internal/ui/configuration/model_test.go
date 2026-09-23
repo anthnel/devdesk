@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -48,11 +49,17 @@ func feed(t *testing.T, m Model, msgs ...tea.Msg) Model {
 }
 
 // focusOn puts the cursor on a named field in the section that holds it.
+// focusOn focuses the first field with this label. "Group › Label" names one
+// in a group, for the labels the tools tab repeats ("Source", "Config").
 func focusOn(t *testing.T, m Model, label string) Model {
 	t.Helper()
+	group := ""
+	if g, l, ok := strings.Cut(label, " › "); ok {
+		group, label = g, l
+	}
 	for tab, s := range m.sections {
 		for i, f := range s.Fields {
-			if f.Label == label {
+			if f.Label == label && (group == "" || f.Group == group) {
 				m.activeTab = tab
 				m.focusedField = i
 				m.bindInput()
@@ -155,48 +162,165 @@ func TestARefusedValueKeepsTheCursorOnItsField(t *testing.T) {
 	}
 }
 
-// A Trivy server address disables the two options its protocol cannot serve.
-// A real constraint, carried over from the security form this view replaces.
-func TestTheCheckboxAloneForcesOffTheOptionsItCannotServe(t *testing.T) {
-	m := focusOn(t, newModel(t), "Use Trivy server")
-	m.config.Scan.EnableMisconfig = true
-	m.config.Scan.EnableLicense = true
+// A Trivy server greys what its protocol cannot do — Trivy's part of
+// Misconfiguration, and Licenses, which has no other tool — and changes no
+// tick: switching the server off gives back exactly what was there (§3.86).
+func TestAServerLocksWhatItCannotDoWithoutUnticking(t *testing.T) {
+	m := focusOn(t, newModel(t), useTrivyServerLabel)
+	m.config.Scan.Categories.Misconfig.Enabled = true
+	m.config.Scan.Categories.License.Enabled = true
 
 	m = feed(t, m, testutil.Key(" "))
 
-	if m.config.Scan.EnableMisconfig || m.config.Scan.EnableLicense {
-		t.Errorf("server mode left incompatible options on: %+v", m.config.Scan)
+	if !m.config.Scan.Tools.Trivy.Server.Enabled {
+		t.Fatal("the checkbox did not turn server mode on")
+	}
+	cats := m.config.Scan.Categories
+	if !cats.Misconfig.Enabled || !cats.Misconfig.Has(config.ToolTrivy) || !cats.License.Enabled {
+		t.Errorf("server mode changed the ticks: %+v", cats)
+	}
+	if got := m.lockReason(fieldIn(t, m, "Licenses", 0)); got != reasonTrivyServer {
+		t.Errorf("Licenses lock = %q, want %q", got, reasonTrivyServer)
+	}
+	if got := m.lockReason(scanRowOf(t, m, "Misconfiguration", "Trivy")); got != reasonTrivyServer {
+		t.Errorf("Misconfiguration › Trivy lock = %q, want %q", got, reasonTrivyServer)
+	}
+	// kubeconform has no server to be refused by.
+	m.config.Scan.Categories.Misconfig = m.config.Scan.Categories.Misconfig.With(config.ToolKubeconform, true)
+	if got := m.lockReason(scanRowOf(t, m, "Misconfiguration", "Kubeconform")); got != "" {
+		t.Errorf("kubeconform is locked by a Trivy server: %q", got)
 	}
 }
 
 // Filling in the address alone must not turn client-server mode on — only the
 // checkbox does.
 func TestAnAddressWithoutTheCheckboxLeavesServerModeOff(t *testing.T) {
-	m := focusOn(t, newModel(t), "Trivy server")
-	m.config.Scan.EnableMisconfig = true
-	m.config.Scan.EnableLicense = true
+	m := focusOn(t, newModel(t), trivyServerLabel)
 	m.input.SetValue("https://trivy:4954")
 
 	m = feed(t, m, testutil.Key("down"))
 
-	if !m.config.Scan.EnableMisconfig || !m.config.Scan.EnableLicense {
-		t.Errorf("an address alone locked options that only the checkbox should: %+v", m.config.Scan)
+	if m.config.Scan.Tools.Trivy.Server.Enabled {
+		t.Error("an address alone turned server mode on")
+	}
+	if got := m.lockReason(fieldIn(t, m, "Licenses", 0)); got != "" {
+		t.Errorf("an address alone locked Licenses: %q", got)
 	}
 }
 
-func TestADisabledOptionCannotBeToggledAndSaysWhy(t *testing.T) {
+func TestALockedCheckboxCannotBeToggledAndSaysWhy(t *testing.T) {
 	m := newModel(t)
-	m.config.Scan.UseTrivyServer = true
-	m = focusOn(t, m, "Misconfiguration")
+	m.config.Scan.Tools.Trivy.Server.Enabled = true
+	m = focusOn(t, m, "Licenses")
 
 	m = feed(t, m, testutil.Key(" "))
 
-	if m.config.Scan.EnableMisconfig {
-		t.Error("a disabled option was toggled on")
+	if m.config.Scan.Categories.License.Enabled {
+		t.Error("a locked checkbox was toggled on")
 	}
-	if !strings.Contains(strings.ToLower(m.footer.Text()), "client-server") {
+	if m.footer.Text() != reasonTrivyServer {
 		t.Errorf("footer = %q, want it to say why", m.footer.Text())
 	}
+}
+
+// Refusing the last tool is said, not silent (Rule 130).
+func TestUntickingTheLastToolSaysWhy(t *testing.T) {
+	m := newModel(t)
+	m.config.Scan.Categories.Secret = m.config.Scan.Categories.Secret.With(config.ToolGitleaks, false)
+	m = focusOnField(t, m, scanRowOf(t, m, "Secrets", "Trivy"))
+
+	m = feed(t, m, testutil.Key(" "))
+
+	if !m.config.Scan.Categories.Secret.Has(config.ToolTrivy) {
+		t.Error("the last tool of an enabled category was unticked")
+	}
+	if m.footer.Text() != reasonLastTool {
+		t.Errorf("footer = %q, want %q", m.footer.Text(), reasonLastTool)
+	}
+}
+
+// The footer says what a box does in the state it is in, and changes as space
+// is pressed: the user reads the effect of the gesture as it is made.
+func TestSpaceChangesWhatTheFooterSays(t *testing.T) {
+	m := focusOnField(t, newModel(t), scanRowOf(t, newModel(t), "Secrets", "Gitleaks"))
+	before := m.hint(m.current())
+
+	m = feed(t, m, testutil.Key(" "))
+
+	after := m.hint(m.current())
+	if before == after || !strings.Contains(before, "gitleaks is required") || !strings.Contains(after, "not required") {
+		t.Errorf("hint before %q, after %q — want each state explained", before, after)
+	}
+}
+
+// Every checkbox of the scan and tools tabs explains both of its states.
+func TestEveryCheckboxExplainsBothStates(t *testing.T) {
+	m := newModel(t)
+	for _, s := range m.sections {
+		if s.Title != "scan" && s.Title != toolsTab {
+			continue
+		}
+		for _, f := range s.Fields {
+			if f.Kind != kindToggle {
+				continue
+			}
+			if f.hintOn == "" || f.hintOff == "" {
+				t.Errorf("%s tab: %q (group %q) leaves a state unexplained: on=%q off=%q",
+					s.Title, f.Label, f.Group, f.hintOn, f.hintOff)
+			}
+		}
+	}
+}
+
+// scanRowOf finds a tool's row under a category, in this model.
+func scanRowOf(t *testing.T, m Model, category, tool string) field {
+	t.Helper()
+	under := ""
+	for _, s := range m.sections {
+		for _, f := range s.Fields {
+			if f.Group != "Categories" {
+				continue
+			}
+			if f.Depth == 0 {
+				under = f.Label
+			} else if under == category && f.Label == tool {
+				return f
+			}
+		}
+	}
+	t.Fatalf("no %q row under %q", tool, category)
+	return field{}
+}
+
+// fieldIn finds a field by label at a depth.
+func fieldIn(t *testing.T, m Model, label string, depth int) field {
+	t.Helper()
+	for _, s := range m.sections {
+		for _, f := range s.Fields {
+			if f.Label == label && f.Depth == depth {
+				return f
+			}
+		}
+	}
+	t.Fatalf("no field %q at depth %d", label, depth)
+	return field{}
+}
+
+// focusOnField focuses the row a lookup found. Labels repeat — two "Trivy"
+// rows under two categories — and their notes are what tell them apart.
+func focusOnField(t *testing.T, m Model, want field) Model {
+	t.Helper()
+	for tab, s := range m.sections {
+		for i, f := range s.Fields {
+			if f.Group == want.Group && f.Label == want.Label && f.Depth == want.Depth && f.Note == want.Note {
+				m.activeTab, m.focusedField = tab, i
+				m.bindInput()
+				return m
+			}
+		}
+	}
+	t.Fatalf("no field %q in %q", want.Label, want.Group)
+	return m
 }
 
 // ── the secret backend ──────────────────────────────────────────────────────
@@ -412,7 +536,7 @@ func TestEachTabRendersItsGroupHeadingsOnceInOrder(t *testing.T) {
 // options two cells right of the rest of their group.
 func TestEveryCheckboxStartsOnTheSameColumn(t *testing.T) {
 	m := newModel(t)
-	m.config.Scan.UseTrivyServer = true // locks Misconfiguration and Licenses
+	m.config.Scan.Tools.Trivy.Server.Enabled = true // locks Licenses and Misconfiguration › Trivy
 
 	for tab := range m.sections {
 		m.activeTab = tab
@@ -423,11 +547,12 @@ func TestEveryCheckboxStartsOnTheSameColumn(t *testing.T) {
 			if f.Kind != kindToggle {
 				continue
 			}
-			if m.isDisabled(f) {
+			if m.lockReason(f) == reasonTrivyServer {
 				locked++
 			}
 			row := ansi.Strip(m.renderField(f, false))
-			indent := len(row) - len(strings.TrimLeft(row, " "))
+			// A nested box starts its depth's indent further right, on purpose.
+			indent := len(row) - len(strings.TrimLeft(row, " ")) - len(depthIndent(f.Depth))
 			indents[indent] = append(indents[indent], f.Label)
 		}
 
@@ -435,49 +560,35 @@ func TestEveryCheckboxStartsOnTheSameColumn(t *testing.T) {
 			t.Errorf("tab %q: checkboxes start on %d different columns: %v",
 				m.sections[tab].Title, len(indents), indents)
 		}
-		if m.sections[tab].Title == "scan" && locked != len(serverModeFields) {
-			t.Errorf("scan tab: %d locked checkboxes, want %d — the case this pins is not exercised",
-				locked, len(serverModeFields))
+		if m.sections[tab].Title == "scan" && locked != 2 {
+			t.Errorf("scan tab: %d checkboxes locked by the server, want 2 — the case this pins is not exercised", locked)
 		}
 	}
 }
 
-// The scan tab is the one the user asked to be split by tool.
-func TestTheScanTabSeparatesTrivyFromGitleaks(t *testing.T) {
+// The tools tab is split by tool: one group each, and every row of a group is
+// that tool's.
+func TestTheToolsTabHasOneGroupPerTool(t *testing.T) {
 	m := newModel(t)
-	groups := map[string][]string{}
+	groups := map[string]string{}
 	for _, s := range m.sections {
-		if s.Title != "scan" {
+		if s.Title != toolsTab {
 			continue
 		}
 		for _, f := range s.Fields {
-			groups[f.Group] = append(groups[f.Group], f.Label)
+			if f.Tool != "" {
+				if prev, ok := groups[f.Group]; ok && prev != f.Tool {
+					t.Errorf("group %q holds rows of %s and %s", f.Group, prev, f.Tool)
+				}
+				groups[f.Group] = f.Tool
+			}
 		}
 	}
-
-	for _, want := range []string{"Trivy", "Gitleaks"} {
-		if len(groups[want]) == 0 {
-			t.Errorf("the scan tab has no %q group; it has %v", want, keysOfGroups(groups))
+	for _, tool := range scan.Tools() {
+		if groups[tool.Name] != string(tool.ID) {
+			t.Errorf("no %q group for %s; groups = %v", tool.Name, tool.ID, groups)
 		}
 	}
-	for _, label := range groups["Trivy"] {
-		if strings.Contains(strings.ToLower(label), "gitleaks") {
-			t.Errorf("%q is in the Trivy group", label)
-		}
-	}
-	for _, label := range groups["Gitleaks"] {
-		if strings.Contains(strings.ToLower(label), "trivy") {
-			t.Errorf("%q is in the Gitleaks group", label)
-		}
-	}
-}
-
-func keysOfGroups(m map[string][]string) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
 }
 
 // A theme that cannot be listed still leaves the built-in one, so the cycle has

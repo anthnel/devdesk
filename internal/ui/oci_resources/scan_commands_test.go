@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -31,7 +32,7 @@ func installFakeTrivy(t *testing.T, report string) {
 }
 
 func vulnScan() scan.ScanOptions {
-	return scan.ScanOptions{EnableVuln: true}
+	return scan.ScanOptions{Categories: config.ScanCategories{Vuln: config.CategoryConfig{Enabled: true, Tools: []string{config.ToolTrivy}}}}
 }
 
 // The whole point of the cache is that a second visit costs nothing, so the

@@ -55,10 +55,43 @@ type field struct {
 	Group     string
 	GroupIcon string
 
-	str  func(*config.Config) *string // text, cycle
-	num  func(*config.Config) *int    // integer
-	flag func(*config.Config) *bool   // toggle
-	fact string                       // kindStatic only — read once, never written
+	str func(*config.Config) *string // text, cycle
+	num func(*config.Config) *int    // integer
+	// list replaces str for a text field whose setting is a list — a tool's
+	// extra arguments — edited as one line (scan.SplitArgs / JoinArgs).
+	list func(*config.Config) *[]string
+	flag func(*config.Config) *bool // toggle
+	// get and set replace flag for a toggle that is not a single setting: a
+	// tool ticked in a category (toolRow).
+	get func(*config.Config) bool
+	set func(*config.Config, bool)
+
+	// Depth nests a checkbox under the one above it — a tool under its
+	// category, a renderer under kubeconform. The focus order stays one flat
+	// list; only the indent says what belongs to what.
+	Depth int
+	// Note is dimmed text right of a checkbox: what the row stands for, when
+	// the label alone does not say it.
+	Note string
+	// Tool is the scanner a group of settings belongs to (the tools tab). Its
+	// group heading carries the tool's state, read from the detection.
+	Tool string
+	// platform names a platform tool whose detected state the row shows,
+	// read-only: "engine" or "git".
+	platform string
+
+	// hintOn and hintOff replace hint on a checkbox: what the box does in
+	// the state it is in, so the footer says the effect of space as it is
+	// pressed.
+	hintOn, hintOff string
+	// locked is why a checkbox cannot move right now — a Trivy server, a
+	// category that is off — or "" when it can. The footer says it in place
+	// of the hint, which answers the question a box that does not react
+	// raises.
+	locked func(*config.Config) string
+	// guard is why a checkbox refuses the value it would take, or "".
+	guard func(*config.Config, bool) string
+	fact  string // kindStatic only — read once, never written
 
 	min, max int                // integer bounds, inclusive
 	validate func(string) error // text only, beyond emptiness
@@ -69,6 +102,9 @@ type field struct {
 type section struct {
 	Title  string
 	Fields []field
+	// Columns is how many columns the tab's groups are laid out on when the
+	// width allows; 0 and 1 are one.
+	Columns int
 }
 
 // group tags a run of fields with the heading they sit under. Fields stay one
@@ -138,19 +174,32 @@ func (f field) Value(c *config.Config) string {
 	case kindInteger:
 		return strconv.Itoa(*f.num(c))
 	case kindToggle:
-		return strconv.FormatBool(*f.flag(c))
+		return strconv.FormatBool(f.Bool(c))
 	case kindStatic, kindSecret:
 		return f.fact
 	default:
+		if f.list != nil {
+			return scan.JoinArgs(*f.list(c))
+		}
 		return *f.str(c)
 	}
 }
 
 // Bool reads a toggle.
-func (f field) Bool(c *config.Config) bool { return *f.flag(c) }
+func (f field) Bool(c *config.Config) bool {
+	if f.get != nil {
+		return f.get(c)
+	}
+	return *f.flag(c)
+}
 
 // Toggle flips a toggle and reports the new value.
 func (f field) Toggle(c *config.Config) bool {
+	if f.set != nil {
+		on := !f.get(c)
+		f.set(c, on)
+		return on
+	}
 	p := f.flag(c)
 	*p = !*p
 	return *p
@@ -198,6 +247,9 @@ func (f field) Apply(c *config.Config, raw string) error {
 		if err := f.validate(v); err != nil {
 			return err
 		}
+	}
+	if f.list != nil {
+		return f.applyList(c, v)
 	}
 	*f.str(c) = v
 	return nil
@@ -290,86 +342,13 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 			),
 		)},
 
+		// What a scan looks for, and which tools run each category (§3.86).
+		// Where each tool runs from is the tools tab's business.
 		{Title: "scan", Fields: slices.Concat(
-			group("Scanners", theme.IconSecurity,
-				toggle("Vulnerabilities", func(c *config.Config) *bool { return &c.Scan.EnableVuln }, "Trivy"),
-				toggle("Secrets", func(c *config.Config) *bool { return &c.Scan.EnableSecret }, "Gitleaks"),
-				toggle("Misconfiguration", func(c *config.Config) *bool { return &c.Scan.EnableMisconfig }, "Trivy"),
-				toggle("Licenses", func(c *config.Config) *bool { return &c.Scan.EnableLicense }, "Trivy"),
-				toggle("CI", func(c *config.Config) *bool { return &c.Scan.EnableCIScore },
-					"plumber — this context's forge only"),
-				toggle("K8s schema", func(c *config.Config) *bool { return &c.Scan.EnableK8sSchema },
-					"kubeconform — repositories only"),
-			),
-			group("Trivy", theme.IconTarget,
-				cycle("Trivy source", func(c *config.Config) *string { return &c.Scan.TrivySource },
-					[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage},
-					"binary fails rather than falling back to Docker"),
-				text("Trivy binary", func(c *config.Config) *string { return &c.Scan.TrivyPath },
-					"Empty resolves trivy on PATH"),
-				text("Trivy image", func(c *config.Config) *string { return &c.Scan.TrivyImage },
-					"Empty uses "+scan.DefaultTrivyImage),
-				toggle("Use Trivy server", func(c *config.Config) *bool { return &c.Scan.UseTrivyServer },
-					"Client-server mode; disables misconfig and license"),
-				validated("Trivy server", func(c *config.Config) *string { return &c.Scan.TrivyServer },
-					"Address used only while the checkbox above is on",
-					func(v string) error { return scan.ValidateTrivyServer(v) }),
-				toggle("Ignore unfixed", func(c *config.Config) *bool { return &c.Scan.IgnoreUnfixed }, ""),
-				toggle("Ignore end-of-life", func(c *config.Config) *bool { return &c.Scan.IgnoreEOL }, ""),
-			),
+			group("Categories", theme.IconSecurity, categoryFields()...),
 			group("Remediation", theme.IconDocker,
 				cycle("Base image bumps", func(c *config.Config) *string { return &c.Scan.BaseImageTrack },
 					config.BaseImageTracks(), "same-line keeps the major version; next-major may take the next one"),
-			),
-			group("Gitleaks", theme.IconToml,
-				cycle("Gitleaks source", func(c *config.Config) *string { return &c.Scan.GitleaksSource },
-					[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage}, ""),
-				text("Gitleaks binary", func(c *config.Config) *string { return &c.Scan.GitleaksPath },
-					"Empty resolves gitleaks on PATH"),
-				text("Gitleaks image", func(c *config.Config) *string { return &c.Scan.GitleaksImage },
-					"Empty uses "+scan.DefaultGitleaksImage),
-				text("Gitleaks config", func(c *config.Config) *string { return &c.Scan.GitleaksConfig },
-					"Path to a .gitleaks.toml"),
-				toggle("Scan git history", func(c *config.Config) *bool { return &c.Scan.GitleaksHistory }, "Slower"),
-			),
-			group("Plumber", theme.IconGitBranch,
-				cycle("Plumber source", func(c *config.Config) *string { return &c.Scan.PlumberSource },
-					[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage}, ""),
-				text("Plumber binary", func(c *config.Config) *string { return &c.Scan.PlumberPath },
-					"Empty resolves plumber on PATH"),
-				text("Plumber image", func(c *config.Config) *string { return &c.Scan.PlumberImage },
-					"Empty uses "+scan.DefaultPlumberImage),
-				text("Plumber config", func(c *config.Config) *string { return &c.Scan.PlumberConfig },
-					"Path to a .plumber.yaml"),
-			),
-			group("Kubeconform", theme.IconKubernetes,
-				cycle("Kubeconform source", func(c *config.Config) *string { return &c.Scan.KubeconformSource },
-					[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage}, ""),
-				text("Kubeconform binary", func(c *config.Config) *string { return &c.Scan.KubeconformPath },
-					"Empty resolves kubeconform on PATH"),
-				text("Kubeconform image", func(c *config.Config) *string { return &c.Scan.KubeconformImage },
-					"Empty uses "+scan.DefaultKubeconformImage),
-				validated("Kubernetes version", func(c *config.Config) *string { return &c.Scan.KubernetesVersion },
-					"x.y.z or master — decides which apiVersions count as removed",
-					scan.ValidateKubernetesVersion),
-			),
-			group("Helm", theme.IconKubernetes,
-				cycle("Helm source", func(c *config.Config) *string { return &c.Scan.HelmSource },
-					[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage},
-					"Optional — renders and lints charts before validation"),
-				text("Helm binary", func(c *config.Config) *string { return &c.Scan.HelmPath },
-					"Empty resolves helm on PATH"),
-				text("Helm image", func(c *config.Config) *string { return &c.Scan.HelmImage },
-					"Empty uses "+scan.DefaultHelmImage),
-			),
-			group("Kustomize", theme.IconKubernetes,
-				cycle("Kustomize source", func(c *config.Config) *string { return &c.Scan.KustomizeSource },
-					[]string{config.ToolSourceAuto, config.ToolSourceBinary, config.ToolSourceImage},
-					"Optional — builds overlays before validation"),
-				text("Kustomize binary", func(c *config.Config) *string { return &c.Scan.KustomizePath },
-					"Empty resolves kustomize on PATH"),
-				text("Kustomize image", func(c *config.Config) *string { return &c.Scan.KustomizeImage },
-					"Empty uses "+scan.DefaultKustomizeImage),
 			),
 			group("Limits", theme.IconHourglass,
 				integer("Timeout (s)", func(c *config.Config) *int { return &c.Scan.Timeout }, 10, 3600, ""),
@@ -377,6 +356,8 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 				integer("Max cached reports", func(c *config.Config) *int { return &c.Scan.MaxCachedReports }, 1, 1000, ""),
 			),
 		)},
+
+		{Title: "tools", Columns: 2, Fields: toolFields()},
 
 		{Title: "network", Fields: slices.Concat(
 			group("Checks", theme.IconHourglass,
@@ -433,12 +414,4 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 			toggle("Auto refresh", func(c *config.Config) *bool { return &c.Status.AutoRefresh }, ""),
 		)},
 	}
-}
-
-// serverModeFields are the scan options the Trivy client-server protocol does
-// not support. Setting a server address forces them off — a real constraint,
-// not a defect, carried over from the security form it replaces.
-var serverModeFields = map[string]bool{
-	"Misconfiguration": true,
-	"Licenses":         true,
 }

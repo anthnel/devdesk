@@ -67,7 +67,7 @@ type Model struct {
 	// deps is where the scanners resolve from, nil until the check has come back.
 	// jobs is the router's last snapshot of the registry: what is running,
 	// whichever view started it.
-	deps *scan.DependencyStatus
+	deps *scan.Report
 	jobs []jobs.Run
 	// scanner runs the scanners over a directory; a test replaces it.
 	scanner scanFunc

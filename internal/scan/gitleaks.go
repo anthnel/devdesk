@@ -91,9 +91,8 @@ func gitleaksArgs(target string, tool ToolSpec, history bool, configPath string,
 		if configPath != "" {
 			args = append(args, "-v", configPath+":"+gitleaksConfigMount+":ro")
 		}
+		args = append(append(args, image, "detect"), tool.Args...)
 		args = append(args,
-			image,
-			"detect",
 			"--source", containerScanPath,
 			"--gitleaks-ignore-path", containerScanPath,
 			"--report-format", "json",
@@ -106,13 +105,13 @@ func gitleaksArgs(target string, tool ToolSpec, history bool, configPath string,
 	if reportPathOverride != "" {
 		reportPath = reportPathOverride
 	}
-	args := []string{
+	args := afterSubcommand([]string{
 		"detect",
 		"--source", target,
 		"--gitleaks-ignore-path", target,
 		"--report-format", "json",
 		"--report-path", reportPath,
-	}
+	}, tool.Args)
 	return toolCmd{Name: gitleaksBinary(tool), Args: appendOptions(args)}
 }
 
@@ -163,14 +162,7 @@ func gitleaksReportFileTarget(docker bool) (gitleaksReportFile, error) {
 // `nope.toml/` and its parent). A typo in gitleaks_config would leave
 // directories on the user's disk, once per scan.
 func checkGitleaksConfig(path string) error {
-	if path == "" {
-		return nil
-	}
-	f, err := os.Open(path) //nolint:gosec // the path is the user's own setting
-	if err != nil {
-		return fmt.Errorf("gitleaks config: %w", err)
-	}
-	return f.Close()
+	return checkRulesFile("gitleaks", path)
 }
 
 // RunGitleaks executes Gitleaks and returns findings.

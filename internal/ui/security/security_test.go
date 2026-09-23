@@ -49,10 +49,10 @@ func TestMain(m *testing.M) {
 
 func testConfig() *config.Config {
 	cfg := config.Default()
-	cfg.Scan.EnableVuln = true
-	cfg.Scan.EnableSecret = true
-	cfg.Scan.TrivyImage = "aquasec/trivy:latest"
-	cfg.Scan.GitleaksImage = "zricethezav/gitleaks:latest"
+	cfg.Scan.Categories.Vuln.Enabled = true
+	cfg.Scan.Categories.Secret.Enabled = true
+	cfg.Scan.Tools.Trivy.Image = "aquasec/trivy:latest"
+	cfg.Scan.Tools.Gitleaks.Image = "zricethezav/gitleaks:latest"
 	return cfg
 }
 

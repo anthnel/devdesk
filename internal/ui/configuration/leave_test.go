@@ -9,14 +9,14 @@ import (
 // The defect itself: a value typed and then abandoned by leaving the view was
 // never written, and the cached view went on showing it (§1.3 D62).
 func TestLeavingTheViewWritesTheFocusedField(t *testing.T) {
-	m := focusOn(t, newModel(t), "Plumber config")
+	m := focusOn(t, newModel(t), "Plumber › Config")
 	m.input.SetValue("/etc/.plumber.yaml")
 
 	left, _, ok := m.Leave()
 	if !ok {
 		t.Fatal("Leave() refused an acceptable value")
 	}
-	if got := left.(Model).config.Scan.PlumberConfig; got != "/etc/.plumber.yaml" {
+	if got := left.(Model).config.Scan.Tools.Plumber.Config; got != "/etc/.plumber.yaml" {
 		t.Errorf("PlumberConfig = %q, want the typed value written on the way out", got)
 	}
 }
@@ -68,14 +68,14 @@ func TestARefusedValueRefusesToBeLeft(t *testing.T) {
 // esc fell through to the input, which ignores it — so the one gesture tried to
 // settle a field was the one that settled nothing.
 func TestEscapeWritesTheFocusedFieldWithoutMoving(t *testing.T) {
-	m := focusOn(t, newModel(t), "Plumber config")
+	m := focusOn(t, newModel(t), "Plumber › Config")
 	was := m.focusedField
 	m.input.SetValue("/etc/.plumber.yaml")
 
 	m = feed(t, m, testutil.Key("esc"))
 
-	if m.config.Scan.PlumberConfig != "/etc/.plumber.yaml" {
-		t.Errorf("PlumberConfig = %q, want the typed value written by esc", m.config.Scan.PlumberConfig)
+	if m.config.Scan.Tools.Plumber.Config != "/etc/.plumber.yaml" {
+		t.Errorf("plumber config = %q, want the typed value written by esc", m.config.Scan.Tools.Plumber.Config)
 	}
 	if m.focusedField != was {
 		t.Errorf("focus moved to %d; esc saves without moving", m.focusedField)
@@ -106,7 +106,7 @@ func TestEscapeIsOfferedOnlyWhereItSettlesSomething(t *testing.T) {
 		label string
 		want  bool
 	}{
-		{"Plumber config", true},
+		{"Plumber › Config", true},
 		{"Parallel jobs", true},
 		{"Forge", true},
 		{"Secret backend", true},

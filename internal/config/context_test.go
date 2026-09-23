@@ -370,15 +370,16 @@ func TestExpandPaths_AbsoluteUnchanged(t *testing.T) {
 // scanner's container, and the file is mounted now — so the two readings would
 // disagree about which file the scan used. It is pinned at load (D56).
 func TestARelativeGitleaksConfigIsPinnedAtLoad(t *testing.T) {
-	cfg := &Config{Scan: ScanConfig{GitleaksConfig: "rules/gitleaks.toml"}}
+	cfg := &Config{}
+	cfg.Scan.Tools.Gitleaks.Config = "rules/gitleaks.toml"
 
 	cfg.ExpandPaths("/home/user")
 
-	if !filepath.IsAbs(cfg.Scan.GitleaksConfig) {
-		t.Errorf("a relative rules file was left relative: %q", cfg.Scan.GitleaksConfig)
+	if !filepath.IsAbs(cfg.Scan.Tools.Gitleaks.Config) {
+		t.Errorf("a relative rules file was left relative: %q", cfg.Scan.Tools.Gitleaks.Config)
 	}
-	if !strings.HasSuffix(slash(cfg.Scan.GitleaksConfig), "/rules/gitleaks.toml") {
-		t.Errorf("the path was resolved to something else entirely: %q", cfg.Scan.GitleaksConfig)
+	if !strings.HasSuffix(slash(cfg.Scan.Tools.Gitleaks.Config), "/rules/gitleaks.toml") {
+		t.Errorf("the path was resolved to something else entirely: %q", cfg.Scan.Tools.Gitleaks.Config)
 	}
 }
 
@@ -389,8 +390,8 @@ func TestAnEmptyGitleaksConfigStaysEmpty(t *testing.T) {
 
 	cfg.ExpandPaths("/home/user")
 
-	if cfg.Scan.GitleaksConfig != "" {
-		t.Errorf("an unset rules file became %q", cfg.Scan.GitleaksConfig)
+	if cfg.Scan.Tools.Gitleaks.Config != "" {
+		t.Errorf("an unset rules file became %q", cfg.Scan.Tools.Gitleaks.Config)
 	}
 }
 
@@ -398,30 +399,29 @@ func TestAnEmptyGitleaksConfigStaysEmpty(t *testing.T) {
 // so it needs the same pinning: a relative path means DevDesk's working
 // directory in binary mode and the container's in Docker mode.
 func TestARelativePlumberConfigIsPinnedAtLoad(t *testing.T) {
-	cfg := &Config{Scan: ScanConfig{PlumberConfig: "rules/plumber.yaml"}}
+	cfg := &Config{}
+	cfg.Scan.Tools.Plumber.Config = "rules/plumber.yaml"
 
 	cfg.ExpandPaths("/home/user")
 
-	if !filepath.IsAbs(cfg.Scan.PlumberConfig) {
-		t.Errorf("a relative rules file was left relative: %q", cfg.Scan.PlumberConfig)
+	if !filepath.IsAbs(cfg.Scan.Tools.Plumber.Config) {
+		t.Errorf("a relative rules file was left relative: %q", cfg.Scan.Tools.Plumber.Config)
 	}
-	if !strings.HasSuffix(slash(cfg.Scan.PlumberConfig), "/rules/plumber.yaml") {
-		t.Errorf("the path was resolved to something else entirely: %q", cfg.Scan.PlumberConfig)
+	if !strings.HasSuffix(slash(cfg.Scan.Tools.Plumber.Config), "/rules/plumber.yaml") {
+		t.Errorf("the path was resolved to something else entirely: %q", cfg.Scan.Tools.Plumber.Config)
 	}
 }
 
-// enable_ci_score is off by default, and it must stay out of the "all four
-// disabled means never configured" test: that test exists for files written
-// before those four booleans, and this key is newer than all of them. Folding
-// it in would make a config that asks for CI alone silently gain vuln and
-// secret.
+// The CI category is off by default, and a context that asks for CI alone must
+// keep exactly that: a `categories:` block that is present is an answer, and
+// only a file without one gets vuln and secret.
 func TestAskingForCIAloneDoesNotTurnTheOtherScannersOn(t *testing.T) {
 	setupTmpHome(t)
 
 	cfg := Default()
-	cfg.Scan.EnableVuln = false
-	cfg.Scan.EnableSecret = false
-	cfg.Scan.EnableCIScore = true
+	cfg.Scan.Categories.Vuln.Enabled = false
+	cfg.Scan.Categories.Secret.Enabled = false
+	cfg.Scan.Categories.CI.Enabled = true
 	if err := Save(cfg); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -430,12 +430,12 @@ func TestAskingForCIAloneDoesNotTurnTheOtherScannersOn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadContext: %v", err)
 	}
-	if !loaded.Scan.EnableCIScore {
-		t.Error("enable_ci_score did not survive the round trip")
+	if !loaded.Scan.Categories.CI.Enabled {
+		t.Error("the CI category did not survive the round trip")
 	}
-	if loaded.Scan.EnableVuln || loaded.Scan.EnableSecret {
+	if loaded.Scan.Categories.Vuln.Enabled || loaded.Scan.Categories.Secret.Enabled {
 		t.Errorf("vuln=%v secret=%v, want both left off — asking for CI alone is a choice",
-			loaded.Scan.EnableVuln, loaded.Scan.EnableSecret)
+			loaded.Scan.Categories.Vuln.Enabled, loaded.Scan.Categories.Secret.Enabled)
 	}
 
 }
@@ -446,7 +446,7 @@ func TestAConfigWithoutAPlumberSectionDefaultsToAuto(t *testing.T) {
 	setupTmpHome(t)
 
 	cfg := Default()
-	cfg.Scan.PlumberSource = ""
+	cfg.Scan.Tools.Plumber.Source = ""
 	if err := Save(cfg); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -455,18 +455,19 @@ func TestAConfigWithoutAPlumberSectionDefaultsToAuto(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadContext: %v", err)
 	}
-	if loaded.Scan.PlumberSource != ToolSourceAuto {
-		t.Errorf("PlumberSource = %q, want %q", loaded.Scan.PlumberSource, ToolSourceAuto)
+	if loaded.Scan.Tools.Plumber.Source != ToolSourceAuto {
+		t.Errorf("plumber source = %q, want %q", loaded.Scan.Tools.Plumber.Source, ToolSourceAuto)
 	}
 }
 
 // Every tool's binary path is expanded, not only the two that came first.
 func TestExpandPaths_EveryToolPath(t *testing.T) {
-	cfg := &Config{Scan: ScanConfig{PlumberPath: "~/bin/plumber"}}
+	cfg := &Config{}
+	cfg.Scan.Tools.Plumber.Binary = "~/bin/plumber"
 
 	cfg.ExpandPaths("/home/user")
 
-	if got := slash(cfg.Scan.PlumberPath); got != "/home/user/bin/plumber" {
+	if got := slash(cfg.Scan.Tools.Plumber.Binary); got != "/home/user/bin/plumber" {
 		t.Errorf("plumber_path = %q, want it expanded", got)
 	}
 }

@@ -15,7 +15,7 @@ import (
 // remotes belong to.
 func ciConfig() *config.Config {
 	cfg := testConfig()
-	cfg.Scan.EnableCIScore = true
+	cfg.Scan.Categories.CI.Enabled = true
 	cfg.Forge.Type = config.ForgeGitHub
 	cfg.Forge.URL = "https://github.com"
 	return cfg

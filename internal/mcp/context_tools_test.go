@@ -70,7 +70,7 @@ func TestContextGetReportsTheServedContextsConfiguration(t *testing.T) {
 	env.Config.App.WorkspacesDir = "/home/u/work"
 	env.Config.Forge.Type = "github"
 	env.Config.Forge.URL = "https://github.com"
-	env.Config.Scan.EnableSecret = true
+	env.Config.Scan.Categories.Secret.Enabled = true
 	env.Config.Status.Components = []config.ComponentConfig{{
 		Name: "api", Type: "https", Target: "https://api.example.com",
 	}}

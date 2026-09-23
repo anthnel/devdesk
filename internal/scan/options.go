@@ -22,41 +22,13 @@ func OptionsFromConfig(cfg *config.Config) ScanOptions {
 	// switching it back on does not lose what was typed — but a scan must not
 	// see it until the checkbox says client-server mode is wanted.
 	trivyServer := ""
-	if c.UseTrivyServer {
-		trivyServer = c.TrivyServer
+	if c.Tools.Trivy.Server.Enabled {
+		trivyServer = c.Tools.Trivy.Server.URL
 	}
 	return ScanOptions{
-		EnableCIScore:     c.EnableCIScore,
-		PlumberSource:     c.PlumberSource,
-		PlumberPath:       c.PlumberPath,
-		PlumberImage:      c.PlumberImage,
-		PlumberConfig:     c.PlumberConfig,
-		EnableK8sSchema:   c.EnableK8sSchema,
-		KubernetesVersion: c.KubernetesVersion,
-		KubeconformSource: c.KubeconformSource,
-		KubeconformPath:   c.KubeconformPath,
-		KubeconformImage:  c.KubeconformImage,
-		HelmSource:        c.HelmSource,
-		HelmPath:          c.HelmPath,
-		HelmImage:         c.HelmImage,
-		KustomizeSource:   c.KustomizeSource,
-		KustomizePath:     c.KustomizePath,
-		KustomizeImage:    c.KustomizeImage,
-		Forge:             cfg.Forge,
-		EnableVuln:        c.EnableVuln,
-		EnableSecret:      c.EnableSecret,
-		EnableLicense:     c.EnableLicense,
-		EnableMisconfig:   c.EnableMisconfig,
-		TrivySource:       c.TrivySource,
-		TrivyPath:         c.TrivyPath,
-		TrivyImage:        c.TrivyImage,
-		GitleaksSource:    c.GitleaksSource,
-		GitleaksPath:      c.GitleaksPath,
-		GitleaksImage:     c.GitleaksImage,
-		TrivyServer:       trivyServer,
-		IgnoreUnfixed:     c.IgnoreUnfixed,
-		IgnoreEOL:         c.IgnoreEOL,
-		GitleaksHistory:   c.GitleaksHistory,
-		GitleaksConfig:    c.GitleaksConfig,
+		Categories:  c.Categories,
+		Tools:       c.Tools,
+		TrivyServer: trivyServer,
+		Forge:       cfg.Forge,
 	}
 }

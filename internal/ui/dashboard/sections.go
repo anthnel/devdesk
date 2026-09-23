@@ -682,58 +682,23 @@ func renderHostSection(m Model, width int, t tier) []string {
 	return append(lines, toolsBlock(m)...)
 }
 
-// toolsBlock says whether this machine can do the work, and names what it
-// cannot.
+// toolsBlock says whether this machine has what this context needs: one line,
+// whatever the answer (§3.86).
 //
-// A counter — "4 of 5 available" — raises the question it doesn't answer:
-// which one is missing, and hence what to install. The full list, on the
-// other hand, costs five lines to say "yes" five times on a properly
-// equipped machine. Hence the two forms: one line when everything is there,
-// one node per missing tool otherwise. It's the only dashboard block whose
-// height follows its data, and it can afford to — an installed tool doesn't
-// get uninstalled between two refreshes, whereas a count changes every
-// round.
-//
-// The missing ones are read against knownTools and not against what was
-// detected: a tool absent from detection is simply absent, and a
-// denominator that shrinks along with it would render "everything is
-// there" for a machine that lost a probe.
+// It used to list each missing tool, against a fixed list of every tool DevDesk
+// knows — so Plumber was "missing" on a machine that never asked for a CI
+// score, and helm and kustomize on one that never validated a chart. What is
+// needed is now what the scan settings tick (scan.Required), and the detail —
+// which tool, from where, which version — belongs to the configuration's tools
+// settings rather than to a block whose height followed its data.
 func toolsBlock(m Model) []string {
-	if m.loadingTools {
+	if m.shared == nil || m.shared.Tools == nil {
 		return []string{row("Tools", unknownValue())}
 	}
-
-	missing := missingTools(m.tools)
-	if len(missing) == 0 {
-		return []string{row("Tools", theme.Bg("all available  ")+endGlyph(theme.StatusOKStyle, theme.IconOK))}
+	if m.shared.Tools.AllAvailable(m.config.Scan.Categories) {
+		return []string{theme.Bg("All tools are available  ") + endGlyph(theme.StatusOKStyle, theme.IconOK)}
 	}
-
-	// The names keep their declared case where the other nodes are
-	// lowercase: `running` and `images` are words, `Gitleaks` is what needs
-	// to be typed to install it.
-	lines := []string{theme.Bg("Missing tools")}
-	for i, name := range missing {
-		lines = append(lines, narrowBranch(i == len(missing)-1, name,
-			endGlyph(theme.StatusDownStyle, theme.IconError)))
-	}
-	return lines
-}
-
-// missingTools returns the known tools this machine does not have, in the order
-// knownTools declares them.
-func missingTools(tools []shared.ToolInfo) []string {
-	available := make(map[string]bool, len(tools))
-	for _, t := range tools {
-		available[t.Name] = t.Available
-	}
-
-	var missing []string
-	for _, name := range knownTools() {
-		if !available[name] {
-			missing = append(missing, name)
-		}
-	}
-	return missing
+	return []string{theme.Bg("Some tools are missing  ") + endGlyph(theme.StatusDownStyle, theme.IconError)}
 }
 
 // coreSuffix names how many cores the percentage is spread over.
@@ -960,33 +925,6 @@ func errorCountValue(totals metrics.Counters, n uint64) string {
 		return theme.StatusWarningStyle.Render(fmt.Sprintf("%d", n))
 	}
 	return theme.DimStyle.Render("0")
-}
-
-// knownTools names the tools DevDesk detects, in the order detectTools builds
-// them. It's **this list** that decides what's missing, never the detected
-// one: a tool detection no longer returns is simply absent, and counting it
-// out of the denominator would make it disappear instead of flagging it.
-//
-// It must stay in sync with detectTools (model.go). The names are constants
-// because the two lists have already diverged once (§3.47): two literals
-// for a single name can only drift apart; a constant cannot.
-const (
-	toolTrivy       = "Trivy"
-	toolGitleaks    = "Gitleaks"
-	toolPlumber     = "Plumber"
-	toolKubeconform = "Kubeconform"
-	toolHelm        = "Helm"
-	toolKustomize   = "Kustomize"
-	toolGit         = "Git"
-)
-
-// knownTools is a function rather than a var because its first entry is the
-// engine in use, which a context switch can change (§3.67). The rest is fixed.
-func knownTools() []string {
-	return []string{
-		theme.ContainerEngineLabel(engine.Current().Name),
-		toolTrivy, toolGitleaks, toolPlumber, toolKubeconform, toolHelm, toolKustomize, toolGit,
-	}
 }
 
 // engineSectionTitle names the box that reports what the engine is holding.

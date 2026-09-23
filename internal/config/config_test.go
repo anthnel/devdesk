@@ -242,11 +242,11 @@ func TestLoadAppliesDefaults(t *testing.T) {
 		t.Errorf("Expected default parallel jobs 4, got %d", loadedCfg.Forge.Pull.ParallelJobs)
 	}
 	// Backward compat: a config with no scan option booleans (all false) must get vuln+secret enabled
-	if !loadedCfg.Scan.EnableVuln {
-		t.Error("Expected EnableVuln=true for legacy config with no scan options set")
+	if !loadedCfg.Scan.Categories.Vuln.Enabled {
+		t.Error("Expected vulnerabilities on for legacy config with no scan options set")
 	}
-	if !loadedCfg.Scan.EnableSecret {
-		t.Error("Expected EnableSecret=true for legacy config with no scan options set")
+	if !loadedCfg.Scan.Categories.Secret.Enabled {
+		t.Error("Expected secrets on for legacy config with no scan options set")
 	}
 }
 
@@ -298,7 +298,7 @@ func TestAConfigCarryingRetiredKeysStillLoads(t *testing.T) {
 			name: "SBOM generation, removed in §3.14",
 			yaml: "scan:\n  enable_vuln: true\n  generate_sbom: true\n  sbom_output_dir: /out\n  timeout: 700\n",
 			check: func(t *testing.T, cfg *Config) {
-				if !cfg.Scan.EnableVuln || cfg.Scan.Timeout != 700 {
+				if !cfg.Scan.Categories.Vuln.Enabled || cfg.Scan.Timeout != 700 {
 					t.Errorf("the surrounding scan settings were not read: %+v", cfg.Scan)
 				}
 			},

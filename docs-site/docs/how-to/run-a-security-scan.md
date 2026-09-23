@@ -41,17 +41,19 @@ Deleted repositories and images drop out of the Security view and the dashboard'
 
 ```yaml
 scan:
-  enable_vuln: true        # Trivy: CVEs
-  enable_secret: true      # Trivy: secrets
-  enable_misconfig: true   # Trivy: IaC misconfiguration
-  enable_license: false    # Trivy: license issues
-  ignore_unfixed: false    # drop CVEs with no available fix
-  gitleaks_history: false  # scan full git history, not just the working tree
+  categories:
+    vuln:      { enabled: true,  tools: [trivy] }            # CVEs
+    secret:    { enabled: true,  tools: [trivy, gitleaks] }  # secrets
+    misconfig: { enabled: true,  tools: [trivy] }            # IaC misconfiguration
+    license:   { enabled: false, tools: [trivy] }            # license issues
+  tools:
+    trivy:    { ignore_unfixed: false }  # drop CVEs with no available fix
+    gitleaks: { history: false }         # scan full git history, not just the working tree
 ```
 
-These same toggles persist from the **Security** view itself — no need to
-hand-edit YAML for a one-off change. There is no per-tool `enabled:` switch;
-`enable_vuln`/`enable_secret`/`enable_misconfig`/`enable_license` are Trivy's
-four checks, individually. See the [configuration
-reference](../reference/configuration.md) for the full `scan:` schema,
-including Trivy server mode (`use_trivy_server`, `trivy_server`).
+These same settings are editable in the configuration view (`:config`, the
+`scan` tab) — no need to hand-edit YAML for a one-off change. A category runs
+the tools ticked in it; a ticked tool that cannot run is reported by the scan
+that needed it. See the [configuration reference](../reference/configuration.md)
+for the full `scan:` schema, including Trivy server mode
+(`tools.trivy.server`).

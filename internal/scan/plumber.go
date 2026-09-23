@@ -87,7 +87,7 @@ func plumberArgs(target string, tool ToolSpec, opts PlumberOptions, outPath stri
 		configFlag = plumberConfigMount
 	}
 
-	options := []string{"analyze", "--score", "--print=false", "--output", outPath}
+	options := afterSubcommand([]string{"analyze", "--score", "--print=false", "--output", outPath}, tool.Args)
 	if opts.Provider != "" {
 		options = append(options, "--provider", opts.Provider)
 	}
@@ -261,14 +261,7 @@ func plumberBinaryEnv(opts PlumberOptions) []string {
 // because `docker run -v` on a host path that does not exist does not fail, it
 // creates a directory at that path and mounts it.
 func checkPlumberConfig(path string) error {
-	if path == "" {
-		return nil
-	}
-	f, err := os.Open(path) //nolint:gosec // the path is the user's own setting
-	if err != nil {
-		return fmt.Errorf("plumber config: %w", err)
-	}
-	return f.Close()
+	return checkRulesFile("plumber", path)
 }
 
 // GetPlumberCommand returns the command that would be executed, for display and

@@ -129,12 +129,15 @@ func renderRunner(t *testing.T, helmTemplate stageReply) *scriptedRunner {
 	return r
 }
 
-func renderingDeps() DependencyStatus {
-	deps := everyTool()
-	deps.KubeconformAvailable, deps.KubeconformSource = true, ToolSourceBinary
-	deps.HelmAvailable, deps.HelmSource = true, ToolSourceBinary
-	deps.KustomizeAvailable, deps.KustomizeSource = true, ToolSourceBinary
-	return deps
+func renderingDeps() Report {
+	return binaries(ToolTrivy, ToolGitleaks, ToolKubeconform, ToolHelm, ToolKustomize)
+}
+
+// k8sSchemaFor is k8sSchema validated against one release.
+func k8sSchemaFor(version string) ScanOptions {
+	opts := k8sSchema()
+	opts.Tools.Kubeconform.KubernetesVersion = version
+	return opts
 }
 
 // With helm and kustomize, the chart and the overlay are validated once
@@ -146,7 +149,7 @@ func TestChartsAndOverlaysAreValidatedOnceRendered(t *testing.T) {
 	repo := renderRepo(t)
 	renderRunner(t, stageReply{})
 
-	result, _ := newScannerWithDeps(ScanOptions{EnableK8sSchema: true, KubernetesVersion: "1.36.0"}, renderingDeps()).
+	result, _ := newScannerWithDeps(k8sSchemaFor("1.36.0"), renderingDeps()).
 		Scan(t.Context(), repo, TargetDirectory)
 
 	if len(result.K8sUnrendered) != 0 {
@@ -183,7 +186,7 @@ func TestAChartThatDoesNotRenderIsAFinding(t *testing.T) {
 	renderRunner(t, stageReply{err: &exitError{Code: 1,
 		Stderr: "Error: found in Chart.yaml, but missing in charts/ directory: redis\nmore"}})
 
-	result, _ := newScannerWithDeps(ScanOptions{EnableK8sSchema: true}, renderingDeps()).
+	result, _ := newScannerWithDeps(k8sSchema(), renderingDeps()).
 		Scan(t.Context(), repo, TargetDirectory)
 
 	var render *Finding
@@ -214,10 +217,9 @@ func TestWithoutRenderersChartsAndOverlaysAreNotRendered(t *testing.T) {
 		return nil, nil
 	}}
 	useRunner(t, r)
-	deps := everyTool()
-	deps.KubeconformAvailable, deps.KubeconformSource = true, ToolSourceBinary
+	deps := binaries(ToolTrivy, ToolGitleaks, ToolKubeconform)
 
-	result, _ := newScannerWithDeps(ScanOptions{EnableK8sSchema: true}, deps).Scan(t.Context(), repo, TargetDirectory)
+	result, _ := newScannerWithDeps(k8sSchema(), deps).Scan(t.Context(), repo, TargetDirectory)
 
 	if want := []string{"charts/api", "k8s/overlays/prod"}; !reflect.DeepEqual(result.K8sUnrendered, want) {
 		t.Errorf("K8sUnrendered = %v, want %v", result.K8sUnrendered, want)

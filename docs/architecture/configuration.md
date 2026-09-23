@@ -10,7 +10,8 @@ Config loaded from `~/.devdesk/config.yaml` with schema defined in `internal/con
 - `Status` - Monitoring settings (refresh interval, components)
 - `Forge` - the platform this context targets: `type`, URL and clone settings
 - `Registry` - OCI registry configuration (see Registry model below)
-- `Scan` - Security scanning (Trivy, Gitleaks)
+- `Scan` - Security scanning: `categories` (what a scan looks for, and which
+  tools run each one) and `tools` (one block per scanner — see `scanning.md`)
 - `Network` - what the netdiag view runs on: the tool image, and the dials
   `internal/netcheck` used to hardcode; and `proxy_port` (8080), the one port
   every named forward route is served on (§3.74, see `network.md`) — at or above
@@ -61,6 +62,28 @@ ran — has since been removed along with the feature itself; `NetworkConfig`
 now holds only the netdiag dials (`CheckTimeout`, `PingCount`,
 `CertExpiryWarnDays`, `PortsRefreshInterval`).
 
+**`scan:` was flat, and it is now `categories:` + `tools:` (§3.86).** Six
+tools had grown three to five keys each, side by side with six `enable_*`
+switches that named categories and tools interchangeably. `migrateScanSection`
+(`scan_migrate.go`) runs right after `migrateGitLabSection`, before the
+defaults, on the same model: field by field, only where the new value is empty,
+the old keys held in `ScanConfig.Legacy` (inline, every tag `omitempty`) and
+cleared so they leave the file on the next save. Two points of its own:
+
+- **The categories are carried whole or not at all.** A `categories:` block that
+  is present is an answer, even all off; mixing it with the old switches would
+  make one category's state depend on which file wrote it. The historical "all
+  switches off means never configured" reading survives **only** inside the
+  migration — the one place that still sees the switches. A file with no
+  `categories:` at all gets `DefaultScanCategories()`; an empty tool list counts
+  as absent, because a zero `Config` saves `tools: []`.
+- **One change of meaning, on purpose.** `enable_k8s_schema` ticks kubeconform
+  *and* helm and kustomize, which used to serve whenever installed and are now
+  required: what is ticked is what the dashboard reports missing.
+
+A category's `tools` list is a slice, so a `Config` copied by value shares it:
+`CategoryConfig.With` always builds a new one rather than editing in place.
+
 **`app.container_engine`** names the engine every container, image, network and
 volume comes from: `auto` (the default — docker if it is on PATH, else podman),
 `docker`, `podman`, or an explicit path to a binary. It sits in `app` beside
@@ -88,8 +111,8 @@ Config is injected into views at creation. Use `config.Save()` to persist change
 
 ## Configuration view — `internal/ui/configuration`
 
-Edits every **scalar** setting a context carries, in six tabs (`app`, the
-forge's own name, `scan`, `network`, `mcp`, `status`). The second is titled after the
+Edits every **scalar** setting a context carries, in seven tabs (`app`, the
+forge's own name, `scan`, `tools`, `network`, `mcp`, `status`). The second is titled after the
 platform the context targets — `gitlab` or `github` — rather than after the
 section key: `forge:` is what the file says, and no user calls it that. Lists stay where they are consulted: monitors keep
 their CRUD in `status`, registries keep `RegistryForm` in `oci-resources`.
@@ -107,11 +130,51 @@ cannot disagree about which setting they mean.
 `TestNoTwoFieldsAddressTheSameSetting` are what keep the table honest.
 
 Fields inside a tab are grouped under a heading with a Nerd Font icon
-(`SubTitleStyle`, the same treatment the security form used): `scan` separates
-**Scanners**, **Trivy**, **Gitleaks**, **Plumber** and **Limits**. `group()` stamps the
+(`SubTitleStyle`, the same treatment the security form used). `group()` stamps the
 heading onto a contiguous run rather than each field carrying its own, so a run
 cannot be split by a typo and render its heading twice —
 `TestEachTabRendersItsGroupHeadingsOnceInOrder` pins that.
+
+**`scan` and `tools` are generated from `internal/scan`'s tables (§3.86),**
+in `scan_fields.go`: a category or a tool added there appears here with no line
+written for it.
+
+- **`scan`** is what a scan looks for: one checkbox per category, and under it
+  one per tool when there is a choice (`Depth` 1, and 2 for a renderer under
+  kubeconform). A category with one tool has no sub-row; its tool is its dimmed
+  `Note`. A tool row is a `get`/`set` pair over the category's list rather
+  than a pointer — the one exception to the pointer rule, since membership has
+  no address. A tool's `Args` is the other: a text field backed by a list
+  (`field.list`), edited as one line (`scan.SplitArgs`/`JoinArgs`, quotes keep
+  a value with spaces together) and refused by name when it carries a flag
+  DevDesk sets itself.
+- **A checkbox can be `locked`**, with a reason the footer says in place of the
+  hint: a part of Trivy a server cannot do, a category that is off, a renderer
+  whose kubeconform is not ticked. A locked box keeps its tick
+  (`theme.RenderCheckboxLocked`), and the cursor stops on it. **A server no
+  longer unticks anything**: the scanner skips what it cannot do
+  (`Scanner.wants`), so switching the server off gives back what was there.
+- **A `guard` refuses a value**: unticking the last tool of a category that is
+  on (`reasonLastTool`) — the category's own box is the switch for "none".
+- **A checkbox explains both of its states** (`hintOn`/`hintOff`, read by
+  `Model.hint`): the footer says what the box does as it is, and changes as
+  `space` is pressed. `TestEveryCheckboxExplainsBothStates` covers both tabs.
+- **`tools`** is one group per tool, plus the platform tools (engine, git) as
+  read-only rows. Each heading carries the tool's state — required and there,
+  required and missing, or `not used` — from the router's detection
+  (`shared.ScanToolsMsg`) and `scan.Required` over the categories being edited,
+  so a box ticked on `scan` changes a heading at once. `ctrl+r` there asks the
+  router to detect again; greyed on the other tabs (Rule 130).
+- **Two columns** when the tab declares them and the width allows
+  (`columnMinWidth` each), the groups split in order where the heights come
+  closest: `↓` reads down the left column and on to the right, since the focus
+  order is still the flat list. Each row is built by hand and fitted to its
+  column (Rule 115).
+
+**Every tab scrolls.** `View` lays the whole tab out (`layout`), and
+`keepFocusVisible` moves `scroll` after each key and resize so the focused
+field and its heading are on screen. The scan tab alone ran past seventy lines,
+and its bottom was simply cut off.
 
 **The header names the context, and the title does not.** A configuration
 belongs to one, and editing `workspaces_dir` in the wrong context is otherwise

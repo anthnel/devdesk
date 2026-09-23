@@ -1,6 +1,7 @@
 package ociresources
 
 import (
+	"github.com/anthnel/devdesk/internal/shared"
 	"maps"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -21,7 +22,6 @@ func (m Model) Init() tea.Cmd {
 		loadScanCache(),
 		loadRegistryGroupCache(),
 		loadBrowserSelectionCmd(),
-		checkDepsCmd(m.config.Scan),
 		fetchNetworks(),
 		fetchVolumes(),
 	)
@@ -37,9 +37,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 
-	case DepsCheckedMsg:
-		deps := msg.Deps
-		m.deps = &deps
+	// The router's detection (§3.86): it decides whether S is offered, and
+	// what a scan runs on.
+	case shared.ScanToolsMsg:
+		m.deps = msg.Report
 		return m, nil
 
 	// An agent asks the way a key does (§3.61) — see mcp.go.

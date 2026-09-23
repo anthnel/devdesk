@@ -92,7 +92,9 @@ func kubeconformArgs(target string, files []string, tool ToolSpec, opts Kubeconf
 // kubeconformFlags are the options every validation run shares, raw files or
 // rendered input.
 func kubeconformFlags(tool ToolSpec, opts KubeconformOptions) []string {
-	flags := []string{"-output", "json", "-strict"}
+	// The user's flags first: there is no subcommand, and Go's flag package
+	// stops at the first positional argument.
+	flags := append(append([]string{}, tool.Args...), "-output", "json", "-strict")
 	if opts.KubernetesVersion != "" {
 		flags = append(flags, "-kubernetes-version", opts.KubernetesVersion)
 	}
@@ -241,21 +243,17 @@ func ValidateKubernetesVersion(v string) error {
 	return fmt.Errorf("%q is not a version: use a full x.y.z such as %s, or master", v, config.DefaultKubernetesVersion)
 }
 
-// KubeconformSpec is how a resolved DependencyStatus hands kubeconform to the
-// command builder.
-func (d DependencyStatus) KubeconformSpec() ToolSpec {
-	return ToolSpec{Source: d.KubeconformSource, Binary: d.KubeconformBinary, Image: d.KubeconformImage}
-}
-
 // kubeconformOptions is what this scanner validates against, and the
 // renderers it has — an unavailable one is handed over unresolved.
 func (s *Scanner) kubeconformOptions() KubeconformOptions {
-	opts := KubeconformOptions{KubernetesVersion: s.options.KubernetesVersion, CacheDir: KubeconformCacheDir()}
-	if s.deps.HelmAvailable {
-		opts.Helm = s.deps.HelmSpec()
+	opts := KubeconformOptions{KubernetesVersion: s.options.Tools.Kubeconform.KubernetesVersion, CacheDir: KubeconformCacheDir()}
+	// A renderer serves only when it is ticked: installed and unticked, it is
+	// not used (§3.86), and its charts or overlays are reported as not rendered.
+	if s.runs(CategoryIDMisconfig, ToolHelm, TargetDirectory) {
+		opts.Helm = s.spec(ToolHelm)
 	}
-	if s.deps.KustomizeAvailable {
-		opts.Kustomize = s.deps.KustomizeSpec()
+	if s.runs(CategoryIDMisconfig, ToolKustomize, TargetDirectory) {
+		opts.Kustomize = s.spec(ToolKustomize)
 	}
 	return opts
 }
@@ -268,7 +266,7 @@ func (s *Scanner) runKubeconformStage(ctx context.Context, target string, result
 	progressFn := func(detail string) {
 		notify(ProgressUpdate{Stage: stage, Label: label, Status: StageRunning, Detail: detail})
 	}
-	report, err := RunKubeconform(ctx, target, s.deps.KubeconformSpec(), s.kubeconformOptions(), progressFn)
+	report, err := RunKubeconform(ctx, target, s.spec(ToolKubeconform), s.kubeconformOptions(), progressFn)
 
 	mu.Lock()
 	defer mu.Unlock()

@@ -227,6 +227,8 @@ func (a *App) createView(view command.ViewType) {
 		// one like any other view — which is what the contract test does.
 		a.views[view] = uiviewer.New(a.config)
 	}
+	// Built after the detection landed, it was not there to receive it.
+	a.sendScanToolsTo(view)
 }
 
 // newAuthView builds the GitLab auth view against this context's credentials.

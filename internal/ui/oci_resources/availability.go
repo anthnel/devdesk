@@ -22,7 +22,7 @@ const (
 	reasonNotAGroup    = "This entry is a registry, not a group"
 	reasonAtTopLevel   = "Already at the registry list"
 	reasonNoTags       = "No scan results for this tag yet"
-	reasonNoScanner    = "Trivy is not available — check scan settings"
+	reasonNoScanner    = "Nothing can scan an image — install Trivy, or check scan settings"
 )
 
 // imageActions reports whether N, S and D apply to the selected image.
@@ -64,10 +64,10 @@ func (m Model) imageScan() shortcut.Availability {
 	if m.deps == nil {
 		return shortcut.Availability{}
 	}
-	if !m.deps.TrivyAvailable {
+	if !m.deps.CanScan(m.config.Scan.Categories, scan.TargetImage) {
 		return shortcut.Unavailable(reasonNoScanner)
 	}
-	if m.deps.TrivySource != scan.ToolSourceContainer {
+	if m.deps.Status(scan.ToolTrivy).Source != scan.ToolSourceContainer {
 		// A Trivy binary reads the image through the engine itself and needs
 		// no socket of its own.
 		return shortcut.Availability{}
@@ -131,4 +131,13 @@ func (m Model) registryDrillOut() shortcut.Availability {
 		return shortcut.Unavailable(reasonAtTopLevel)
 	}
 	return shortcut.Availability{}
+}
+
+// scanOptions is the one place this view assembles scan options: the context's
+// settings, on the router's detection so a scan does not probe the machine
+// again (§3.86).
+func (m Model) scanOptions() scan.ScanOptions {
+	opts := scan.OptionsFromConfig(m.config)
+	opts.Detected = m.deps
+	return opts
 }

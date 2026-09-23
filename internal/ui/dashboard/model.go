@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,17 +14,14 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
-	"github.com/anthnel/devdesk/internal/engine"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/metrics"
-	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // Messages
@@ -57,11 +53,6 @@ type OCIStatsMsg struct {
 // data someone forgot to display.
 type WorkspaceStatsMsg struct {
 	Count int
-}
-
-// ToolsDetectedMsg contains detected tool information
-type ToolsDetectedMsg struct {
-	Tools []shared.ToolInfo
 }
 
 // RefreshTickMsg triggers a periodic refresh
@@ -142,7 +133,6 @@ type Model struct {
 	forgeStats        *forge.DashboardStats
 	dockerStats       *shared.DockerStats
 	ociStats          *shared.OCIStats
-	tools             []shared.ToolInfo
 	workspaceCount    int
 
 	// Host and Docker samples. `samples` is the history the charts read in
@@ -171,7 +161,6 @@ type Model struct {
 	loadingDocker     bool
 	loadingOCI        bool
 	loadingWorkspaces bool
-	loadingTools      bool
 
 	// measuringSize is not a loading flag: it **excludes** a second walk as
 	// long as the first one hasn't answered. It's the only dashboard call
@@ -206,7 +195,6 @@ func New(cfg *config.Config, state *shared.State) Model {
 		loadingDocker:     true,
 		loadingOCI:        true,
 		loadingWorkspaces: true,
-		loadingTools:      true,
 		// Init() starts the walk: the flag is therefore raised right at
 		// construction, otherwise the first slow tick would start a second
 		// one.
@@ -223,7 +211,6 @@ func (m Model) Init() tea.Cmd {
 		m.fetchDockerStats(),
 		m.fetchOCIStats(),
 		m.fetchWorkspaceStats(),
-		m.detectTools(),
 		m.scheduleRefresh(),
 		m.sampleHost(),
 		m.scheduleHostTick(),
@@ -270,9 +257,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case WorkspaceStatsMsg:
 		return m.handleWorkspaceStats(msg)
-
-	case ToolsDetectedMsg:
-		return m.handleToolsDetected(msg)
 
 	case RefreshTickMsg:
 		return m.alsoMeasuringSize(m.refreshAll())
@@ -356,7 +340,6 @@ func (m Model) handleReload() (tea.Model, tea.Cmd) {
 	m.loadingDocker = true
 	m.loadingOCI = true
 	m.loadingWorkspaces = true
-	m.loadingTools = true
 	return m.alsoMeasuringSize(m.refreshNow())
 }
 
@@ -479,14 +462,6 @@ func (m Model) handleWorkspaceStats(msg WorkspaceStatsMsg) (tea.Model, tea.Cmd) 
 	return m, nil
 }
 
-// handleToolsDetected processes tool detection results
-func (m Model) handleToolsDetected(msg ToolsDetectedMsg) (tea.Model, tea.Cmd) {
-	m.loadingTools = false
-	m.tools = msg.Tools
-	m.shared.Tools = msg.Tools
-	return m, nil
-}
-
 // Commands
 
 func (m Model) checkServices() tea.Cmd {
@@ -575,66 +550,6 @@ func expandHome(dir string) string {
 		return filepath.Join(home, dir[2:])
 	}
 	return dir
-}
-
-func (m Model) detectTools() tea.Cmd {
-	cfg := m.config
-	return func() tea.Msg {
-		var tools []shared.ToolInfo
-
-		// The container engine, whichever one is configured. The name, the
-		// binary and the version template all come from the shape (§3.67).
-		eng := engine.Current()
-		tools = append(tools, detectBinaryTool(
-			theme.ContainerEngineLabel(eng.Name), eng.Binary,
-			"version", "--format", eng.Templates.Version))
-
-		// Security tools via scan.CheckDependencies. The whole ScanConfig goes
-		// through: the configured tool paths and the per-tool source preference
-		// decide availability as much as the images do (D27).
-		deps := scan.CheckDependencies(cfg.Scan)
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolTrivy,
-			Available: deps.TrivyAvailable,
-			Version:   cleanVersion(deps.TrivyVersion),
-			Source:    string(deps.TrivySource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolGitleaks,
-			Available: deps.GitleaksAvailable,
-			Version:   cleanVersion(deps.GitleaksVersion),
-			Source:    string(deps.GitleaksSource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolPlumber,
-			Available: deps.PlumberAvailable,
-			Version:   cleanVersion(deps.PlumberVersion),
-			Source:    string(deps.PlumberSource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolKubeconform,
-			Available: deps.KubeconformAvailable,
-			Version:   cleanVersion(deps.KubeconformVersion),
-			Source:    string(deps.KubeconformSource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolHelm,
-			Available: deps.HelmAvailable,
-			Version:   cleanVersion(deps.HelmVersion),
-			Source:    string(deps.HelmSource),
-		})
-		tools = append(tools, shared.ToolInfo{
-			Name:      toolKustomize,
-			Available: deps.KustomizeAvailable,
-			Version:   cleanVersion(deps.KustomizeVersion),
-			Source:    string(deps.KustomizeSource),
-		})
-
-		// Git
-		tools = append(tools, detectBinaryTool(toolGit, "git", "--version"))
-
-		return ToolsDetectedMsg{Tools: tools}
-	}
 }
 
 // sampleHost reads the host. The previous counters are *copied* into the
@@ -740,8 +655,15 @@ func (m Model) refreshNow() tea.Cmd {
 		m.refreshAll(),
 		m.sampleHost(),
 		m.fetchDockerMetrics(),
-		m.detectTools(),
+		requestToolsDetection(),
 	)
+}
+
+// requestToolsDetection asks the router for a new detection of the scanners.
+// It detects once for every view (§3.86); ctrl+r asks here because a tool
+// installed while DevDesk runs is not seen otherwise.
+func requestToolsDetection() tea.Cmd {
+	return func() tea.Msg { return shared.ScanToolsDetectRequestMsg{} }
 }
 
 // computeGlobalStatus determines overall service health
@@ -769,43 +691,6 @@ func computeGlobalStatus(components []status.ComponentStatus) shared.ServiceGlob
 // InEditMode returns false - dashboard has no edit modes
 func (m Model) InEditMode() bool {
 	return false
-}
-
-// detectBinaryTool checks if a binary is available and gets its version
-func detectBinaryTool(name, binary string, versionArgs ...string) shared.ToolInfo {
-	tool := shared.ToolInfo{Name: name}
-
-	if _, err := exec.LookPath(binary); err != nil {
-		return tool
-	}
-
-	tool.Available = true
-	tool.Source = "binary"
-
-	if len(versionArgs) > 0 {
-		cmd := exec.Command(binary, versionArgs...)
-		if out, err := cmd.Output(); err == nil {
-			tool.Version = cleanVersion(string(out))
-		}
-	}
-
-	return tool
-}
-
-// cleanVersion removes whitespace and "docker:" prefix from version strings
-func cleanVersion(v string) string {
-	v = strings.TrimSpace(v)
-	v = strings.TrimPrefix(v, "docker:")
-	v = strings.TrimSpace(v)
-	// Take first line only
-	if idx := strings.IndexByte(v, '\n'); idx >= 0 {
-		v = v[:idx]
-	}
-	// Clean "git version X.Y.Z" -> "X.Y.Z"
-	v = strings.TrimPrefix(v, "git version ")
-	// Clean "Version: X.Y.Z" -> "X.Y.Z" (Trivy)
-	v = strings.TrimPrefix(v, "Version: ")
-	return v
 }
 
 // openURL opens a URL in the default browser

@@ -95,7 +95,7 @@ func TestScanRemoteImageRunsNoOtherStage(t *testing.T) {
 }
 
 func TestScanRemoteImageWithoutTrivy(t *testing.T) {
-	_, err := newScannerWithDeps(ScanOptions{}, DependencyStatus{}).ScanRemoteImage(context.Background(), "alpine:3.21")
+	_, err := newScannerWithDeps(ScanOptions{}, Report{}).ScanRemoteImage(context.Background(), "alpine:3.21")
 	if !errors.Is(err, ErrTrivyUnavailable) {
 		t.Errorf("err = %v, want ErrTrivyUnavailable", err)
 	}

@@ -44,16 +44,16 @@ func TestAConfiguredBinaryPathIsWhatGetsRun(t *testing.T) {
 	installTools(t, "Version: 0.50.1") // an empty PATH: no trivy anywhere on it
 	custom := installToolAt(t, t.TempDir(), "trivy")
 
-	deps := CheckDependencies(config.ScanConfig{TrivyPath: custom})
+	deps := Detect(config.ScanTools{Trivy: config.TrivyConfig{ToolConfig: config.ToolConfig{Binary: custom}}})
 
-	if !deps.TrivyAvailable {
+	if !deps.Available(ToolTrivy) {
 		t.Fatalf("trivy at %s was not found; a configured path is the one thing that must be looked at", custom)
 	}
-	if deps.TrivySource != ToolSourceBinary {
-		t.Errorf("TrivySource = %q, want a binary", deps.TrivySource)
+	if deps.Status(ToolTrivy).Source != ToolSourceBinary {
+		t.Errorf("TrivySource = %q, want a binary", deps.Status(ToolTrivy).Source)
 	}
-	if deps.TrivyBinary != custom {
-		t.Errorf("TrivyBinary = %q, want the configured path %q", deps.TrivyBinary, custom)
+	if deps.Status(ToolTrivy).Binary != custom {
+		t.Errorf("TrivyBinary = %q, want the configured path %q", deps.Status(ToolTrivy).Binary, custom)
 	}
 }
 
@@ -61,11 +61,11 @@ func TestAConfiguredGitleaksPathIsWhatGetsRun(t *testing.T) {
 	installTools(t, "v8.18.0")
 	custom := installToolAt(t, t.TempDir(), "gitleaks")
 
-	deps := CheckDependencies(config.ScanConfig{GitleaksPath: custom})
+	deps := Detect(config.ScanTools{Gitleaks: config.GitleaksConfig{ToolConfig: config.ToolConfig{Binary: custom}}})
 
-	if !deps.GitleaksAvailable || deps.GitleaksBinary != custom {
+	if !deps.Available(ToolGitleaks) || deps.Status(ToolGitleaks).Binary != custom {
 		t.Errorf("gitleaks: available=%v binary=%q, want the configured path %q",
-			deps.GitleaksAvailable, deps.GitleaksBinary, custom)
+			deps.Available(ToolGitleaks), deps.Status(ToolGitleaks).Binary, custom)
 	}
 }
 
@@ -97,12 +97,12 @@ func TestTheConfiguredGitleaksBinaryReachesTheCommand(t *testing.T) {
 func TestTheImageSourceIgnoresABinaryOnThePath(t *testing.T) {
 	installTools(t, "present", "trivy", "docker")
 
-	deps := CheckDependencies(config.ScanConfig{TrivySource: config.ToolSourceImage})
+	deps := Detect(config.ScanTools{Trivy: config.TrivyConfig{ToolConfig: config.ToolConfig{Source: config.ToolSourceImage}}})
 
-	if deps.TrivySource != ToolSourceContainer {
-		t.Errorf("TrivySource = %q with source=image and trivy on PATH, want docker", deps.TrivySource)
+	if deps.Status(ToolTrivy).Source != ToolSourceContainer {
+		t.Errorf("TrivySource = %q with source=image and trivy on PATH, want docker", deps.Status(ToolTrivy).Source)
 	}
-	if !deps.TrivyAvailable {
+	if !deps.Available(ToolTrivy) {
 		t.Error("TrivyAvailable = false, but docker and the image are both there")
 	}
 }
@@ -112,11 +112,11 @@ func TestTheImageSourceIgnoresABinaryOnThePath(t *testing.T) {
 func TestTheBinarySourceDoesNotFallBackToDocker(t *testing.T) {
 	installTools(t, "present", "docker") // docker and its image, but no trivy
 
-	deps := CheckDependencies(config.ScanConfig{TrivySource: config.ToolSourceBinary})
+	deps := Detect(config.ScanTools{Trivy: config.TrivyConfig{ToolConfig: config.ToolConfig{Source: config.ToolSourceBinary}}})
 
-	if deps.TrivyAvailable {
+	if deps.Available(ToolTrivy) {
 		t.Errorf("trivy reported available (source %q) with source=binary and no binary anywhere",
-			deps.TrivySource)
+			deps.Status(ToolTrivy).Source)
 	}
 }
 
@@ -126,9 +126,9 @@ func TestAutoKeepsTheOldBinaryFirstResolution(t *testing.T) {
 	installTools(t, "Version: 0.50.1", "trivy", "gitleaks", "docker")
 
 	for _, source := range []string{"", config.ToolSourceAuto} {
-		deps := CheckDependencies(config.ScanConfig{TrivySource: source})
-		if deps.TrivySource != ToolSourceBinary {
-			t.Errorf("source %q: TrivySource = %q, want the binary to win as before", source, deps.TrivySource)
+		deps := Detect(config.ScanTools{Trivy: config.TrivyConfig{ToolConfig: config.ToolConfig{Source: source}}})
+		if deps.Status(ToolTrivy).Source != ToolSourceBinary {
+			t.Errorf("source %q: TrivySource = %q, want the binary to win as before", source, deps.Status(ToolTrivy).Source)
 		}
 	}
 }
@@ -137,11 +137,11 @@ func TestAutoKeepsTheOldBinaryFirstResolution(t *testing.T) {
 func TestNothingInstalledIsReportedAsUnavailable(t *testing.T) {
 	installTools(t, "")
 
-	deps := CheckDependencies(config.ScanConfig{})
+	deps := Detect(config.ScanTools{})
 
-	if deps.TrivyAvailable || deps.GitleaksAvailable {
+	if deps.Available(ToolTrivy) || deps.Available(ToolGitleaks) {
 		t.Errorf("trivy=%v gitleaks=%v on an empty PATH, want both unavailable",
-			deps.TrivyAvailable, deps.GitleaksAvailable)
+			deps.Available(ToolTrivy), deps.Available(ToolGitleaks))
 	}
 }
 
@@ -155,33 +155,33 @@ func TestPlumberIsResolvedLikeTheOtherTwo(t *testing.T) {
 		installTools(t, "plumber version 0.4.40")
 		custom := installToolAt(t, t.TempDir(), "plumber")
 
-		deps := CheckDependencies(config.ScanConfig{PlumberPath: custom})
+		deps := Detect(config.ScanTools{Plumber: config.ToolConfig{Binary: custom}})
 
-		if !deps.PlumberAvailable || deps.PlumberBinary != custom {
+		if !deps.Available(ToolPlumber) || deps.Status(ToolPlumber).Binary != custom {
 			t.Errorf("plumber: available=%v binary=%q, want the configured path %q",
-				deps.PlumberAvailable, deps.PlumberBinary, custom)
+				deps.Available(ToolPlumber), deps.Status(ToolPlumber).Binary, custom)
 		}
 	})
 
 	t.Run("binary does not fall back to docker", func(t *testing.T) {
 		installTools(t, "present", "docker") // docker and its image, but no plumber
 
-		deps := CheckDependencies(config.ScanConfig{PlumberSource: config.ToolSourceBinary})
+		deps := Detect(config.ScanTools{Plumber: config.ToolConfig{Source: config.ToolSourceBinary}})
 
-		if deps.PlumberAvailable {
+		if deps.Available(ToolPlumber) {
 			t.Errorf("plumber reported available (source %q) with source=binary and no binary",
-				deps.PlumberSource)
+				deps.Status(ToolPlumber).Source)
 		}
 	})
 
 	t.Run("image beats a binary on the path", func(t *testing.T) {
 		installTools(t, "present", "plumber", "docker")
 
-		deps := CheckDependencies(config.ScanConfig{PlumberSource: config.ToolSourceImage})
+		deps := Detect(config.ScanTools{Plumber: config.ToolConfig{Source: config.ToolSourceImage}})
 
-		if deps.PlumberSource != ToolSourceContainer || !deps.PlumberAvailable {
+		if deps.Status(ToolPlumber).Source != ToolSourceContainer || !deps.Available(ToolPlumber) {
 			t.Errorf("PlumberSource = %q available = %v, want docker and available",
-				deps.PlumberSource, deps.PlumberAvailable)
+				deps.Status(ToolPlumber).Source, deps.Available(ToolPlumber))
 		}
 	})
 }
@@ -190,17 +190,18 @@ func TestPlumberIsResolvedLikeTheOtherTwo(t *testing.T) {
 // carrying all three pieces — the pair (source, image) is what left trivy_path
 // unread for so long (D27).
 func TestThePlumberSpecCarriesWhatItWasResolvedWith(t *testing.T) {
-	deps := DependencyStatus{
-		PlumberSource: ToolSourceBinary,
-		PlumberBinary: "/opt/plumber",
-		PlumberImage:  "mirror.example/plumber:0.4.40",
-	}
+	deps := Report{Tools: map[ToolID]ToolStatus{ToolPlumber: {
+		Available: true,
+		Source:    ToolSourceBinary,
+		Binary:    "/opt/plumber",
+		Image:     "mirror.example/plumber:0.4.40",
+	}}}
 
-	spec := deps.PlumberSpec()
+	spec := deps.Spec(ToolPlumber)
 
 	if spec.Source != ToolSourceBinary || spec.Binary != "/opt/plumber" ||
 		spec.Image != "mirror.example/plumber:0.4.40" {
-		t.Errorf("PlumberSpec() = %+v, want every field carried through", spec)
+		t.Errorf("Spec(plumber) = %+v, want every field carried through", spec)
 	}
 }
 
@@ -209,7 +210,7 @@ func TestThePlumberSpecCarriesWhatItWasResolvedWith(t *testing.T) {
 func TestAnUnsetPlumberImageResolvesToTheDefault(t *testing.T) {
 	installTools(t, "")
 
-	if got := CheckDependencies(config.ScanConfig{}).PlumberImage; got != DefaultPlumberImage {
-		t.Errorf("PlumberImage = %q, want %q", got, DefaultPlumberImage)
+	if got := Detect(config.ScanTools{}).Status(ToolPlumber).Image; got != DefaultPlumberImage {
+		t.Errorf("plumber image = %q, want %q", got, DefaultPlumberImage)
 	}
 }

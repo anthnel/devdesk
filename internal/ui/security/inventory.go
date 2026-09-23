@@ -377,6 +377,7 @@ func (m Model) renderEmptyInventory() string {
 func (m Model) scanOptions() scan.ScanOptions {
 	opts := scan.OptionsFromConfig(m.config)
 	opts.LoadForgeToken = forgeTokenLoader(m.secrets, m.config.Forge.URL)
+	opts.Detected = m.deps
 	return opts
 }
 

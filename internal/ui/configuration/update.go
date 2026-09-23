@@ -7,6 +7,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/shared"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
 
@@ -23,6 +24,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.resizeInput()
+		m.keepFocusVisible()
+		return m, nil
+
+	// The router's detection (§3.86), for the tools tab's headings.
+	case shared.ScanToolsMsg:
+		m.tools = msg.Report
 		return m, nil
 
 	case saveFailedMsg:
@@ -35,7 +42,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.confirmModal, cmd = m.confirmModal.Update(msg)
 			return m, cmd
 		}
-		return m.handleKey(msg)
+		next, cmd := m.handleKey(msg)
+		if updated, ok := next.(Model); ok {
+			updated.keepFocusVisible()
+			next = updated
+		}
+		return next, cmd
 	}
 
 	m.footer.Handle(msg)
@@ -63,6 +75,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.toggleField()
 	case "esc":
 		return m.commitField()
+	case "ctrl+r":
+		return m.requestDetection()
 	}
 
 	// Anything else belongs to the input when a text field has focus. Nothing
@@ -297,9 +311,15 @@ func (m Model) toggleField() (tea.Model, tea.Cmd) {
 	if f.Kind != kindToggle {
 		return m, nil
 	}
-	if m.isDisabled(f) {
-		// A warning: nothing failed, the setting simply has no meaning here.
-		return m, m.footer.Warn("Not supported in Trivy client-server mode")
+	// A warning either way: nothing failed, the box simply cannot move now,
+	// and saying why is the point (Rule 130).
+	if reason := m.lockReason(f); reason != "" {
+		return m, m.footer.Warn(reason)
+	}
+	if f.guard != nil {
+		if reason := f.guard(m.config, !f.Bool(m.config)); reason != "" {
+			return m, m.footer.Warn(reason)
+		}
 	}
 	f.Toggle(m.config)
 	return m, m.persist(saved{})
@@ -321,8 +341,6 @@ type saved struct {
 
 // persist applies the cross-field constraints, saves, and tells the router.
 func (m Model) persist(what saved) tea.Cmd {
-	m.applyServerModeConstraints()
-
 	if err := config.Save(m.config); err != nil {
 		log.Printf("ERROR [configuration] save context %s: %v", m.context, err)
 		// Reported through the message rather than set here: Update() owns the
@@ -339,17 +357,6 @@ func (m Model) persist(what saved) tea.Cmd {
 			EngineChanged: what.engineChanged,
 		}
 	}
-}
-
-// applyServerModeConstraints forces off the three scan options the Trivy
-// client-server protocol does not support. A genuine constraint, carried over
-// from the security form this view replaces.
-func (m *Model) applyServerModeConstraints() {
-	if !m.serverMode() {
-		return
-	}
-	m.config.Scan.EnableMisconfig = false
-	m.config.Scan.EnableLicense = false
 }
 
 type saveFailedMsg struct{ err error }
@@ -413,8 +420,27 @@ const (
 	containerEngineLabel = "Container engine"
 )
 
-// resizeInput fits the input between the value column and the right border.
+// resizeInput fits the input between the value column and the right edge of
+// its column — half the width on a two-column tab.
 func (m *Model) resizeInput() {
 	const focusIndicator, borders = 2, 4
-	m.input.Width = max(m.width-m.chevronColumn()-4-focusIndicator-borders, 20)
+	m.input.Width = max(m.columnWidth()-m.chevronColumn()-4-focusIndicator-borders, 20)
 }
+
+// requestDetection asks the router to detect the tools again — ctrl+r, and only
+// on the tab that shows them (Rule 111: refresh, and nothing else). The
+// detection is the router's; this view never runs one.
+func (m Model) requestDetection() (tea.Model, tea.Cmd) {
+	if !m.onToolsTab() {
+		return m, nil
+	}
+	return m, func() tea.Msg { return shared.ScanToolsDetectRequestMsg{} }
+}
+
+// onToolsTab reports whether the tab on screen is the tools tab.
+func (m Model) onToolsTab() bool {
+	return m.activeTab >= 0 && m.activeTab < len(m.sections) && m.sections[m.activeTab].Title == toolsTab
+}
+
+// toolsTab is the tab whose headings read the detection.
+const toolsTab = "tools"

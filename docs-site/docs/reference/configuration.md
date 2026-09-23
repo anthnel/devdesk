@@ -42,37 +42,96 @@ default — an absent key is not an error, `config.Default()` fills it in.
 
 ## `scan:`
 
+What a scan looks for and what runs it are two questions: `categories:` turns
+each kind of check on or off and ticks the tools that serve it, and `tools:`
+holds each tool's own settings.
+
+```yaml
+scan:
+  categories:
+    vuln:      { enabled: true,  tools: [trivy] }
+    secret:    { enabled: true,  tools: [trivy, gitleaks] }
+    misconfig: { enabled: false, tools: [trivy] }
+    license:   { enabled: false, tools: [trivy] }
+    ci:        { enabled: false, tools: [plumber] }
+  tools:
+    trivy:
+      source: auto            # auto | binary | image
+      binary: ""
+      image: ""
+      config: ""              # trivy.yaml
+      args: []                # e.g. [--skip-dirs, vendor]
+      server: { enabled: false, url: "" }
+      ignore_unfixed: false
+      ignore_eol: false
+    gitleaks:    { source: auto, binary: "", image: "", config: "", history: false }
+    plumber:     { source: auto, binary: "", image: "", config: "" }
+    kubeconform: { source: auto, binary: "", image: "", kubernetes_version: 1.36.0 }
+    helm:        { source: auto, binary: "", image: "" }
+    kustomize:   { source: auto, binary: "", image: "" }
+```
+
+### `scan.categories.<category>`
+
+| Key | Type | Meaning |
+|---|---|---|
+| `enabled` | bool | Whether the scan looks for this at all |
+| `tools` | list | The tools that run it. A category that is off keeps its list |
+
+| Category | Tools it accepts | Default |
+|---|---|---|
+| `vuln` | `trivy` | on, `[trivy]` |
+| `secret` | `trivy` (files, image layers), `gitleaks` (git history, repositories only) | on, `[trivy, gitleaks]` |
+| `misconfig` | `trivy` (security rules), `kubeconform` (API schema, repositories only), `helm` and `kustomize` (render charts and overlays for kubeconform) | off, `[trivy]` |
+| `license` | `trivy` (repositories only) | off, `[trivy]` |
+| `ci` | `plumber` (this context's forge only) | off, `[plumber]` |
+
+A tool is **required** when it is ticked in a category that is on — and, for
+`helm` and `kustomize`, when `kubeconform` is ticked beside them. A required tool
+that cannot run is reported by every scan that needed it; a tool nobody ticked
+is never required, installed or not.
+
+### `scan.tools.<tool>`
+
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `trivy_source` | string | `auto` | `auto` \| `binary` \| `image` |
-| `trivy_path` | string | | Custom binary path (with `trivy_source: binary`) |
-| `trivy_image` | string | `aquasec/trivy` | Custom image (with `trivy_source: image`) |
-| `use_trivy_server` | bool | `false` | Client/server mode |
-| `trivy_server` | string | | Server URL — read only when `use_trivy_server` is true |
-| `gitleaks_source` / `_path` / `_image` | | `auto` | Same shape as Trivy's |
-| `plumber_source` / `_path` / `_image` | | `auto` | CI-score scanner |
-| `kubeconform_source` / `_path` / `_image` | | `auto` | Kubernetes schema validator (`ghcr.io/yannh/kubeconform`) |
-| `helm_source` / `_path` / `_image` | | `auto` | Optional: lints and renders Helm charts before validation (`alpine/helm`) |
-| `kustomize_source` / `_path` / `_image` | | `auto` | Optional: builds Kustomize overlays before validation |
-| `cache_dir` | string | | Scan report cache |
-| `max_cached_reports` | int | | |
-| `timeout` | int (seconds) | | Per-scan timeout |
-| `max_concurrent_scans` | int | | |
-| `enable_vuln` | bool | `true` | Trivy: CVEs |
-| `enable_secret` | bool | `true` | Trivy: secrets |
-| `enable_misconfig` | bool | `true` | Trivy: IaC misconfiguration |
-| `enable_license` | bool | `false` | Trivy: license issues |
-| `ignore_unfixed` | bool | `false` | Drop CVEs with no available fix |
-| `ignore_eol` | bool | `false` | Drop findings for end-of-life packages |
-| `gitleaks_history` | bool | `false` | Scan full git history, not just the working tree |
-| `gitleaks_config` | string | | Custom Gitleaks config path |
-| `enable_ci_score` | bool | `false` | Run plumber over CI configuration |
-| `enable_k8s_schema` | bool | `false` | Validate Kubernetes manifests against the API schema (kubeconform) |
-| `kubernetes_version` | string | `1.36.0` | Release to validate against: `x.y.z` or `master` |
+| `source` | string | `auto` | `auto` \| `binary` \| `image`. `binary` fails rather than falling back to an image |
+| `binary` | string | | Custom executable; empty resolves the name on `PATH` |
+| `image` | string | the tool's | Custom image |
+| `config` | string | | `trivy`, `gitleaks` and `plumber`: a rules file (`trivy.yaml`, `.gitleaks.toml`, `.plumber.yaml`), made absolute at load and mounted when the tool runs from an image |
+| `args` | list | | Extra arguments, placed after the subcommand and before DevDesk's own flags and the target. The flags DevDesk sets itself — output format and path, scanners, server, config — are refused. For `helm` they apply to `lint` and `template` alike, so only the flags the two share make sense (`--values`, `--set`) |
 
-There is no per-tool `enabled:` switch — Trivy's four checks
-(`enable_vuln`/`enable_secret`/`enable_misconfig`/`enable_license`) toggle
-independently, and Gitleaks runs whenever `enable_secret` is on.
+| Tool-specific key | Type | Default | Meaning |
+|---|---|---|---|
+| `trivy.server.enabled` | bool | `false` | Client/server mode |
+| `trivy.server.url` | string | | Server URL — read only when `enabled` is true |
+| `trivy.ignore_unfixed` | bool | `false` | Drop CVEs with no available fix |
+| `trivy.ignore_eol` | bool | `false` | Drop findings for end-of-life packages |
+| `gitleaks.history` | bool | `false` | Scan full git history, not just the working tree |
+| `kubeconform.kubernetes_version` | string | `1.36.0` | Release to validate against: `x.y.z` or `master` |
+
+Default images: `aquasec/trivy`, `zricethezav/gitleaks`, `getplumber/plumber`,
+`ghcr.io/yannh/kubeconform`, `alpine/helm`,
+`registry.k8s.io/kustomize/kustomize:v5.8.1`.
+
+### Other keys
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `base_image_track` | string | `same-line` | How far remediation may move a base image: `same-line` \| `next-major` |
+| `cache_dir` | string | | Scan report cache |
+| `max_cached_reports` | int | `50` | |
+| `timeout` | int (seconds) | `300` | Per-scan timeout |
+| `max_concurrent_scans` | int | `3` | |
+
+### Older files
+
+A file written before `categories:` and `tools:` — flat keys such as
+`trivy_source`, `gitleaks_config` or `enable_vuln` — still loads: each key is
+carried to its new place and leaves the file on the next save. The one change of
+meaning: `enable_k8s_schema` ticks `kubeconform`, `helm` and `kustomize` under
+`misconfig`, so the two renderers become required where they used to be used
+only when installed. Untick them to go back.
 
 ## `network:`
 

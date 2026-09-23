@@ -498,6 +498,25 @@ func RenderCheckboxDisabled(label string) string {
 	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorDim).Render("  " + text)
 }
 
+// RenderCheckboxLocked renders a checkbox that cannot move right now but whose
+// state still means something — a tool ticked in a category that is off, a
+// part of Trivy a server cannot do. Unlike RenderCheckboxDisabled it keeps the
+// tick, so the layout and the answer do not change when the lock lifts, and it
+// carries the focus indicator: the cursor stops on it so the footer can say
+// why it does not react.
+func RenderCheckboxLocked(checked bool, label string, focused bool) string {
+	box := IconCheckbox
+	if checked {
+		box = IconChecked
+	}
+	indicator := "  "
+	if focused {
+		indicator = IconCircleSmall + " "
+	}
+	return lipgloss.NewStyle().Background(ColorBackground).Foreground(ColorDim).
+		Render(indicator + box + " " + label + " " + IconLock)
+}
+
 // RenderRadioButton no longer exists. Its only two callers were the token
 // destination choice in the authentication view, and that choice disappeared
 // with the move to the host secret manager (§3.9). For a closed set of

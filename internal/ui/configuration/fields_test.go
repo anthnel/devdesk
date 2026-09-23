@@ -26,7 +26,7 @@ func TestEveryFieldCarriesTheAccessorItsKindNeeds(t *testing.T) {
 	for _, f := range allFields(t) {
 		switch f.Kind {
 		case kindText:
-			if f.str == nil {
+			if (f.str == nil) == (f.list == nil) {
 				t.Errorf("%q is a text field with no string accessor", f.Label)
 			}
 		case kindInteger:
@@ -37,8 +37,10 @@ func TestEveryFieldCarriesTheAccessorItsKindNeeds(t *testing.T) {
 				t.Errorf("%q has bounds [%d, %d], which admits nothing", f.Label, f.min, f.max)
 			}
 		case kindToggle:
-			if f.flag == nil {
-				t.Errorf("%q is a toggle with no bool accessor", f.Label)
+			// A pointer, or a get/set pair for a tool ticked in a category —
+			// exactly one of the two, and a pair is whole.
+			if (f.flag == nil) == (f.get == nil) || (f.get == nil) != (f.set == nil) {
+				t.Errorf("%q is a toggle with no bool accessor, or two", f.Label)
 			}
 		case kindCycle:
 			if f.str == nil {
@@ -48,7 +50,7 @@ func TestEveryFieldCarriesTheAccessorItsKindNeeds(t *testing.T) {
 				t.Errorf("%q cycles through %d options; a closed set needs at least two", f.Label, len(f.Options))
 			}
 		case kindStatic:
-			if f.fact == "" {
+			if f.fact == "" && f.platform == "" {
 				t.Errorf("%q is a static row with nothing to show", f.Label)
 			}
 			if f.str != nil || f.num != nil || f.flag != nil {
@@ -79,10 +81,18 @@ func TestNoTwoFieldsAddressTheSameSetting(t *testing.T) {
 func samePointer(c *config.Config, a, b field) bool {
 	switch a.Kind {
 	case kindToggle:
+		// A get/set pair has no pointer to compare; the only two are pinned
+		// by TestTheTwoMisconfigurationCheckboxesStayIndependent.
+		if a.flag == nil || b.flag == nil {
+			return false
+		}
 		return a.flag(c) == b.flag(c)
 	case kindInteger:
 		return a.num(c) == b.num(c)
 	default:
+		if a.list != nil || b.list != nil {
+			return a.list != nil && b.list != nil && a.list(c) == b.list(c)
+		}
 		return a.str(c) == b.str(c)
 	}
 }
@@ -127,9 +137,9 @@ func TestTheSpeciallyHandledLabelsExist(t *testing.T) {
 			t.Errorf("no field is labelled %q, so its special handling is dead", want)
 		}
 	}
-	for want := range serverModeFields {
+	for _, want := range []string{useTrivyServerLabel, trivyServerLabel} {
 		if !labels[want] {
-			t.Errorf("serverModeFields names %q, which is not a field", want)
+			t.Errorf("no field is labelled %q, which the view and its tests look for", want)
 		}
 	}
 }
@@ -164,13 +174,13 @@ func TestAnIntegerFieldRefusesRatherThanCoerces(t *testing.T) {
 // what stops a stray ":" reaching Trivy and failing the whole scan.
 func TestTheTrivyServerFieldRefusesAnAddressTrivyCannotParse(t *testing.T) {
 	cfg := config.Default()
-	f := fieldNamed(t, "Trivy server")
+	f := fieldNamed(t, trivyServerLabel)
 
 	if err := f.Apply(cfg, ":"); err == nil {
 		t.Error("Apply(\":\") was accepted; Trivy fails the whole scan on that")
 	}
-	if cfg.Scan.TrivyServer != "" {
-		t.Errorf("TrivyServer = %q after a refused value", cfg.Scan.TrivyServer)
+	if cfg.Scan.Tools.Trivy.Server.URL != "" {
+		t.Errorf("TrivyServer = %q after a refused value", cfg.Scan.Tools.Trivy.Server.URL)
 	}
 	if err := f.Apply(cfg, "https://trivy:4954"); err != nil {
 		t.Errorf("a valid address was refused: %v", err)
@@ -181,14 +191,14 @@ func TestTheTrivyServerFieldRefusesAnAddressTrivyCannotParse(t *testing.T) {
 // is now the checkbox's job, not the address's.
 func TestClearingTheTrivyServerIsAllowed(t *testing.T) {
 	cfg := config.Default()
-	cfg.Scan.TrivyServer = "https://trivy:4954"
-	f := fieldNamed(t, "Trivy server")
+	cfg.Scan.Tools.Trivy.Server.URL = "https://trivy:4954"
+	f := fieldNamed(t, trivyServerLabel)
 
 	if err := f.Apply(cfg, "   "); err != nil {
 		t.Fatalf("clearing was refused: %v", err)
 	}
-	if cfg.Scan.TrivyServer != "" {
-		t.Errorf("TrivyServer = %q, want it cleared", cfg.Scan.TrivyServer)
+	if cfg.Scan.Tools.Trivy.Server.URL != "" {
+		t.Errorf("TrivyServer = %q, want it cleared", cfg.Scan.Tools.Trivy.Server.URL)
 	}
 }
 
@@ -322,7 +332,7 @@ func TestTheConfigFileRowIsReadOnly(t *testing.T) {
 func TestEveryTabIsNamedAfterTheSectionItWrites(t *testing.T) {
 	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{})
 
-	want := []string{"app", "gitlab", "scan", "network", "mcp", "status"}
+	want := []string{"app", "gitlab", "scan", "tools", "network", "mcp", "status"}
 	got := make([]string, 0, len(all))
 	for _, s := range all {
 		got = append(got, s.Title)
@@ -489,4 +499,78 @@ func TestTheMCPStateRowTellsTheThreeCasesApart(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A tool's checkbox ticks it in its category, and nothing else.
+func TestATickedToolIsAMemberOfItsCategory(t *testing.T) {
+	cfg := config.Default()
+	gitleaks := scanRow(t, "Secrets", "Gitleaks")
+
+	if !gitleaks.Bool(cfg) {
+		t.Fatal("gitleaks is not ticked under Secrets by default")
+	}
+	gitleaks.Toggle(cfg)
+	if cfg.Scan.Categories.Secret.Has(config.ToolGitleaks) || !cfg.Scan.Categories.Secret.Enabled {
+		t.Errorf("secret = %+v, want gitleaks unticked and the category left on", cfg.Scan.Categories.Secret)
+	}
+}
+
+// Unticking the last tool of a category that is on is refused: the category's
+// own box is the switch for "none".
+func TestTheLastToolOfACategoryIsKept(t *testing.T) {
+	cfg := config.Default()
+	gitleaks, trivy := scanRow(t, "Secrets", "Gitleaks"), scanRow(t, "Secrets", "Trivy")
+
+	if reason := gitleaks.guard(cfg, false); reason != "" {
+		t.Errorf("unticking one of two tools was refused: %q", reason)
+	}
+	gitleaks.Toggle(cfg)
+	if reason := trivy.guard(cfg, false); reason != reasonLastTool {
+		t.Errorf("unticking the last tool: reason = %q, want %q", reason, reasonLastTool)
+	}
+	// Off, the category may lose every tool: nothing runs anyway.
+	cfg.Scan.Categories.Secret.Enabled = false
+	if reason := trivy.guard(cfg, false); reason != "" {
+		t.Errorf("a category that is off refused an untick: %q", reason)
+	}
+}
+
+// helm alone would render for nothing: with kubeconform unticked it cannot
+// serve, so its box says so rather than ticking in vain.
+func TestARendererWaitsForKubeconform(t *testing.T) {
+	cfg := config.Default()
+	cfg.Scan.Categories.Misconfig.Enabled = true
+	helm := scanRow(t, "Misconfiguration", "Helm")
+
+	if got := helm.locked(cfg); got != "Tick Kubeconform first" {
+		t.Errorf("helm without kubeconform: lock = %q", got)
+	}
+	cfg.Scan.Categories.Misconfig = cfg.Scan.Categories.Misconfig.With(config.ToolKubeconform, true)
+	if got := helm.locked(cfg); got != "" {
+		t.Errorf("helm with kubeconform: lock = %q, want none", got)
+	}
+	cfg.Scan.Categories.Misconfig.Enabled = false
+	if got := helm.locked(cfg); got != "Turn Misconfiguration on first" {
+		t.Errorf("helm in a category that is off: lock = %q", got)
+	}
+}
+
+// scanRow finds a tool's row under a category in the scan tab.
+func scanRow(t *testing.T, category, tool string) field {
+	t.Helper()
+	under := ""
+	for _, f := range allFields(t) {
+		if f.Group != "Categories" {
+			continue
+		}
+		if f.Depth == 0 {
+			under = f.Label
+			continue
+		}
+		if under == category && f.Label == tool {
+			return f
+		}
+	}
+	t.Fatalf("no %q row under %q", tool, category)
+	return field{}
 }

@@ -55,6 +55,9 @@ var helmSourceLine = regexp.MustCompile(`^# Source: (\S+)`)
 // in the repository for a binary, with the repository mounted read-only at
 // /scan and as the working directory for an image.
 func renderer(target string, tool ToolSpec, defaultImage, binary string, args ...string) toolCmd {
+	// helm gets them on lint and on template alike: only the flags the two
+	// share (--values, --set…) make sense there.
+	args = afterSubcommand(args, tool.Args)
 	if tool.Source != ToolSourceContainer {
 		name := tool.Binary
 		if name == "" {
@@ -64,15 +67,6 @@ func renderer(target string, tool ToolSpec, defaultImage, binary string, args ..
 	}
 	run := []string{"run", "--rm", "-v", target + ":" + containerScanPath + ":ro", "-w", containerScanPath, orDefault(tool.Image, defaultImage)}
 	return toolCmd{Name: engine.Current().Binary, Args: append(run, args...)}
-}
-
-// HelmSpec and KustomizeSpec hand the two renderers to their builders.
-func (d DependencyStatus) HelmSpec() ToolSpec {
-	return ToolSpec{Source: d.HelmSource, Binary: d.HelmBinary, Image: d.HelmImage}
-}
-
-func (d DependencyStatus) KustomizeSpec() ToolSpec {
-	return ToolSpec{Source: d.KustomizeSource, Binary: d.KustomizeBinary, Image: d.KustomizeImage}
 }
 
 func orDefault(v, def string) string {
