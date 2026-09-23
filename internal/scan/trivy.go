@@ -80,6 +80,9 @@ type TrivyMisconfiguration struct {
 // RunTrivy executes Trivy and returns findings.
 // progressFn is an optional callback called with each stderr line (DB download progress etc.).
 func RunTrivy(ctx context.Context, target string, targetType TargetType, licenseMode bool, tool ToolSpec, server string, ignoreUnfixed bool, ignoreEOL bool, progressFn func(string)) ([]Finding, error) {
+	if err := checkRulesFile("trivy", tool.Config); err != nil {
+		return nil, err
+	}
 	tc, err := trivyArgs(target, targetType, licenseMode, tool, server, ignoreUnfixed, ignoreEOL)
 	if err != nil {
 		return nil, err
@@ -304,6 +307,9 @@ func GetTrivySecretCommand(target string, targetType TargetType, tool ToolSpec, 
 // RunTrivySecret executes Trivy with --scanners secret and returns findings.
 // progressFn is an optional callback called with each stderr line.
 func RunTrivySecret(ctx context.Context, target string, targetType TargetType, tool ToolSpec, server string, progressFn func(string)) ([]Finding, error) {
+	if err := checkRulesFile("trivy", tool.Config); err != nil {
+		return nil, err
+	}
 	tc, err := trivySecretArgs(target, targetType, tool, server)
 	if err != nil {
 		return nil, err
@@ -323,6 +329,9 @@ func GetTrivyMisconfigCommand(target string, targetType TargetType, tool ToolSpe
 // RunTrivyMisconfig executes Trivy with --scanners misconfig and returns findings.
 // progressFn is an optional callback called with each stderr line.
 func RunTrivyMisconfig(ctx context.Context, target string, targetType TargetType, tool ToolSpec, server string, ignoreEOL bool, progressFn func(string)) ([]Finding, error) {
+	if err := checkRulesFile("trivy", tool.Config); err != nil {
+		return nil, err
+	}
 	tc, err := trivyMisconfigArgs(target, targetType, tool, server, ignoreEOL)
 	if err != nil {
 		return nil, err

@@ -26,7 +26,7 @@ func TestEveryFieldCarriesTheAccessorItsKindNeeds(t *testing.T) {
 	for _, f := range allFields(t) {
 		switch f.Kind {
 		case kindText:
-			if f.str == nil {
+			if (f.str == nil) == (f.list == nil) {
 				t.Errorf("%q is a text field with no string accessor", f.Label)
 			}
 		case kindInteger:
@@ -90,6 +90,9 @@ func samePointer(c *config.Config, a, b field) bool {
 	case kindInteger:
 		return a.num(c) == b.num(c)
 	default:
+		if a.list != nil || b.list != nil {
+			return a.list != nil && b.list != nil && a.list(c) == b.list(c)
+		}
 		return a.str(c) == b.str(c)
 	}
 }

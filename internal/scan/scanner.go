@@ -369,6 +369,18 @@ func newScannerWithDeps(opts ScanOptions, deps Report) *Scanner {
 	return &Scanner{options: opts, deps: deps}
 }
 
+// spec is how one tool is handed to its builder: where detection found it,
+// plus what the context adds — its extra arguments, and Trivy's rules file.
+func (s *Scanner) spec(id ToolID) ToolSpec {
+	spec := s.deps.Spec(id)
+	set := s.options.Tools.Tool(string(id))
+	spec.Args = set.Args
+	if id == ToolTrivy {
+		spec.Config = set.Config
+	}
+	return spec
+}
+
 // runs reports whether one category's tool runs on this target: the settings
 // ask for it, it applies to the target, and it is there.
 func (s *Scanner) runs(cat CategoryID, tool ToolID, targetType TargetType) bool {
@@ -451,6 +463,9 @@ func (s *Scanner) ScanRemoteImage(ctx context.Context, image string) (*Result, e
 	if !s.deps.Available(ToolTrivy) {
 		return nil, ErrTrivyUnavailable
 	}
+	if err := checkRulesFile("trivy", s.spec(ToolTrivy).Config); err != nil {
+		return nil, err
+	}
 	result := &Result{
 		Target:     image,
 		TargetType: TargetImage,
@@ -458,7 +473,7 @@ func (s *Scanner) ScanRemoteImage(ctx context.Context, image string) (*Result, e
 		Findings:   []Finding{},
 		Errors:     []string{},
 	}
-	tc, err := trivyRemoteImageArgs(image, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
+	tc, err := trivyRemoteImageArgs(image, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
 	if err != nil {
 		return nil, err
 	}
@@ -508,9 +523,9 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "vuln", Label: "Vulnerabilities", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, false, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
+			cmd := GetTrivyCommand(target, targetType, false, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunTrivy(egCtx, target, targetType, false, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL, progressFn)
+			findings, err := RunTrivy(egCtx, target, targetType, false, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -531,9 +546,9 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "license", Label: "Licenses", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivyCommand(target, targetType, true, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
+			cmd := GetTrivyCommand(target, targetType, true, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunTrivy(egCtx, target, targetType, true, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL, progressFn)
+			findings, err := RunTrivy(egCtx, target, targetType, true, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreUnfixed, s.options.Tools.Trivy.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -559,8 +574,8 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "ci", Label: "CI score", Status: StageRunning, Detail: detail})
 			}
-			log.Printf("Running: %s", GetPlumberCommand(target, s.deps.Spec(ToolPlumber), opts))
-			report, err := RunPlumber(egCtx, target, s.deps.Spec(ToolPlumber), opts, progressFn)
+			log.Printf("Running: %s", GetPlumberCommand(target, s.spec(ToolPlumber), opts))
+			report, err := RunPlumber(egCtx, target, s.spec(ToolPlumber), opts, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -601,7 +616,7 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "misconfig", Label: "Misconfigurations", Status: StageRunning, Detail: detail})
 			}
-			findings, err := RunTrivyMisconfig(egCtx, target, targetType, s.deps.Spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreEOL, progressFn)
+			findings, err := RunTrivyMisconfig(egCtx, target, targetType, s.spec(ToolTrivy), s.options.TrivyServer, s.options.Tools.Trivy.IgnoreEOL, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -622,9 +637,9 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "secret", Label: "Secrets (Gitleaks)", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetGitleaksCommand(target, s.deps.Spec(ToolGitleaks), s.options.Tools.Gitleaks.History, s.options.Tools.Gitleaks.Config)
+			cmd := GetGitleaksCommand(target, s.spec(ToolGitleaks), s.options.Tools.Gitleaks.History, s.options.Tools.Gitleaks.Config)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunGitleaks(egCtx, target, s.deps.Spec(ToolGitleaks), s.options.Tools.Gitleaks.History, s.options.Tools.Gitleaks.Config, progressFn)
+			findings, err := RunGitleaks(egCtx, target, s.spec(ToolGitleaks), s.options.Tools.Gitleaks.History, s.options.Tools.Gitleaks.Config, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -649,9 +664,9 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 			progressFn := func(detail string) {
 				notify(ProgressUpdate{Stage: "trivy-secret", Label: "Secrets (Trivy)", Status: StageRunning, Detail: detail})
 			}
-			cmd := GetTrivySecretCommand(target, targetType, s.deps.Spec(ToolTrivy), s.options.TrivyServer)
+			cmd := GetTrivySecretCommand(target, targetType, s.spec(ToolTrivy), s.options.TrivyServer)
 			log.Printf("Running: %s", cmd)
-			findings, err := RunTrivySecret(egCtx, target, targetType, s.deps.Spec(ToolTrivy), s.options.TrivyServer, progressFn)
+			findings, err := RunTrivySecret(egCtx, target, targetType, s.spec(ToolTrivy), s.options.TrivyServer, progressFn)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {

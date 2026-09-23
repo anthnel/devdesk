@@ -59,6 +59,8 @@ scan:
       source: auto            # auto | binary | image
       binary: ""
       image: ""
+      config: ""              # trivy.yaml
+      args: []                # e.g. [--skip-dirs, vendor]
       server: { enabled: false, url: "" }
       ignore_unfixed: false
       ignore_eol: false
@@ -96,7 +98,8 @@ is never required, installed or not.
 | `source` | string | `auto` | `auto` \| `binary` \| `image`. `binary` fails rather than falling back to an image |
 | `binary` | string | | Custom executable; empty resolves the name on `PATH` |
 | `image` | string | the tool's | Custom image |
-| `config` | string | | `gitleaks` and `plumber` only: a rules file, made absolute at load |
+| `config` | string | | `trivy`, `gitleaks` and `plumber`: a rules file (`trivy.yaml`, `.gitleaks.toml`, `.plumber.yaml`), made absolute at load and mounted when the tool runs from an image |
+| `args` | list | | Extra arguments, placed after the subcommand and before DevDesk's own flags and the target. The flags DevDesk sets itself — output format and path, scanners, server, config — are refused. For `helm` they apply to `lint` and `template` alike, so only the flags the two share make sense (`--values`, `--set`) |
 
 | Tool-specific key | Type | Default | Meaning |
 |---|---|---|---|

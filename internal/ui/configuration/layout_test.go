@@ -145,3 +145,26 @@ func TestCtrlRAsksForADetectionOnTheToolsTab(t *testing.T) {
 		t.Error("ctrl+r outside the tools tab did something")
 	}
 }
+
+// A tool's extra arguments are typed as one line and stored as a list; a flag
+// DevDesk sets itself is refused by name, and the old value stays (Rule 128).
+func TestArgsAreStoredAsAListAndReservedFlagsRefused(t *testing.T) {
+	m := focusOn(t, newModel(t), "Trivy › Args")
+	m.input.SetValue(`--skip-dirs vendor --label "a b"`)
+	m = feed(t, m, testutil.Key("esc"))
+
+	want := []string{"--skip-dirs", "vendor", "--label", "a b"}
+	if got := m.config.Scan.Tools.Trivy.Args; strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("args = %q, want %q", got, want)
+	}
+
+	m.input.SetValue("--format table")
+	m = feed(t, m, testutil.Key("esc"))
+
+	if got := m.config.Scan.Tools.Trivy.Args; strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("a refused value replaced the old one: %q", got)
+	}
+	if !strings.Contains(m.footer.Text(), "--format") {
+		t.Errorf("footer = %q, want it to name the refused flag", m.footer.Text())
+	}
+}

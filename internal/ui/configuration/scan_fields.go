@@ -1,6 +1,8 @@
 package configuration
 
 import (
+	"fmt"
+
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -246,6 +248,7 @@ func toolSettings(tool scan.Tool) []field {
 		fields = append(fields, text("Config", func(c *config.Config) *string { return &set(c).Config },
 			"Path to a rules file, made absolute when saved"))
 	}
+	fields = append(fields, argsField(tool, func(c *config.Config) *[]string { return &set(c).Args }))
 	fields = append(fields, ownSettings[tool.ID]()...)
 	for i := range fields {
 		fields[i].Tool = id
@@ -293,3 +296,29 @@ const (
 	useTrivyServerLabel = "Use Trivy server"
 	trivyServerLabel    = "Server"
 )
+
+// argsField is a tool's extra arguments, edited as one line and stored as a
+// list. A flag DevDesk sets itself is refused as it is typed, by name, and the
+// field keeps its old value (Rule 128).
+func argsField(tool scan.Tool, ref func(*config.Config) *[]string) field {
+	hint := "Extra arguments, after the subcommand — quotes keep a value with spaces together"
+	if tool.ID == scan.ToolHelm {
+		hint = "Extra arguments for lint and template alike — --values, --set"
+	}
+	return field{Label: "Args", Kind: kindText, list: ref, hint: hint}
+}
+
+// applyList parses a line of arguments and writes it, or refuses it.
+func (f field) applyList(c *config.Config, line string) error {
+	args, err := scan.SplitArgs(line)
+	if err != nil {
+		return fmt.Errorf("%s: %w", f.Label, err)
+	}
+	if tool, ok := scan.ToolByID(scan.ToolID(f.Tool)); ok {
+		if err := tool.CheckArgs(args); err != nil {
+			return err
+		}
+	}
+	*f.list(c) = args
+	return nil
+}

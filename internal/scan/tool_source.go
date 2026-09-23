@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 
@@ -31,6 +32,42 @@ type ToolSpec struct {
 	// Only the Trivy image path reads it. A directory scan mounts the
 	// directory and nothing else.
 	HostSocket string
+	// Config is Trivy's own rules file (trivy.yaml), absolute. Gitleaks and
+	// plumber take theirs through their options, as they did before.
+	Config string
+	// Args are the user's extra arguments, placed after the subcommand and
+	// before DevDesk's own flags and the target: kubeconform parses with Go's
+	// flag package, which stops at the first positional argument, so a flag
+	// placed after the target would be read as a file.
+	Args []string
+}
+
+// afterSubcommand inserts the user's arguments after the subcommand args[0]
+// and before everything DevDesk adds. The slice is always a new one, so a
+// builder's literal is never written through.
+func afterSubcommand(args, user []string) []string {
+	if len(user) == 0 || len(args) == 0 {
+		return args
+	}
+	out := make([]string, 0, len(args)+len(user))
+	out = append(out, args[0])
+	out = append(out, user...)
+	return append(out, args[1:]...)
+}
+
+// checkRulesFile refuses a rules file that cannot be read, before anything is
+// started — §3.50's guard, for §3.50's reason. `docker run -v` on a host path
+// that does not exist does not fail: it creates a directory at that path and
+// mounts it, once per scan.
+func checkRulesFile(tool, path string) error {
+	if path == "" {
+		return nil
+	}
+	f, err := os.Open(path) //nolint:gosec // the path is the user's own setting
+	if err != nil {
+		return fmt.Errorf("%s config: %w", tool, err)
+	}
+	return f.Close()
 }
 
 // toolResolution is what detection worked out for one scanner.

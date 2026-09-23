@@ -1,9 +1,9 @@
 # Scanners — catégories, outils, onglet Tools, statut au dashboard
 
-**Statut (2026-09-23) : PR 1 à 3 implémentées** (branche
-`feat/scan-tools-config`, voir §3.86 du backlog pour ce qui a été fait et les
-écarts). PR 4 à faire : `Tool.HasConfig` repasse à vrai pour Trivy quand
-`--config` est câblé.
+**Statut (2026-09-23) : les quatre PR sont implémentées** (branche
+`feat/scan-tools-config`, voir §3.86 du backlog, marquée done, pour ce qui a
+été fait et les écarts). À retirer de `.claude/plans/` une fois la branche
+fusionnée.
 Base : `main` à `80ab2fc0` (#257, §3.80 livré — kubeconform, helm, kustomize).
 
 Écarts de la PR 1 au texte ci-dessous, à reprendre dans les suivantes :

@@ -26,8 +26,23 @@ identifiers and the default ticks because it cannot import `scan`;
 | `image` | `tools.<tool>.image`, even when a binary is installed |
 
 `scan.Detect(cfg.Scan.Tools)` resolves every tool of the table into a `Report`
-(`map[ToolID]ToolStatus`, plus the engine and its socket); `Report.Spec(id)`
-hands a `ToolSpec` (source + binary + image) to the command builders. `ToolSpec` replaced the
+(`map[ToolID]ToolStatus`, plus the engine and its socket); `Scanner.spec(id)`
+hands a `ToolSpec` to the command builders — where detection found the tool
+(source, binary, image), plus what the context adds: `Args`, and for Trivy its
+rules file `Config`.
+
+**A tool's extra arguments go after its subcommand**, before DevDesk's own
+flags and the target (`afterSubcommand`) — kubeconform, which has none, gets
+them first: Go's `flag` package stops at the first positional argument, so a
+flag after the files would be read as a file. The flags DevDesk sets itself are
+`Tool.ReservedArgs`, refused by name in the configuration view (`CheckArgs`).
+**Trivy's `trivy.yaml`** is passed as `--config` right after the subcommand and,
+from an image, mounted at `/trivy.yaml` like gitleaks' and plumber's files; the
+`--format json` DevDesk adds later wins over a `format:` in the file, since
+Trivy lets the command line override it. `checkRulesFile` refuses an
+unreadable one before anything starts (§3.50: `docker run -v` would create a
+directory in its place). The command shown is built by the same builder, so
+it carries the arguments too (D19). `ToolSpec` replaced the
 `(source ToolSource, image string)` pair those builders used to take — the pair
 had nowhere to carry a configured path, which is why `trivy_path` sat unread
 for so long (D27). Do not add a positional `binary` parameter back; put it on

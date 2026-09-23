@@ -14747,7 +14747,7 @@ besoin se confirme, la question sera de nouveau celle de §3.80 : un outil de
 plus, sans numéro de ligne, ou une poignée de contrôles écrits ici sur ce que
 `k8s.Discover` et le rendu produisent déjà.
 
-### 3.86 Scanners — catégories, outils, onglet Tools — **en cours**
+### 3.86 Scanners — catégories, outils, onglet Tools — **done**
 
 Plan : [`2026-09-22-scanner-tools.md`](../.claude/plans/2026-09-22-scanner-tools.md),
 quatre PR. L'utilisateur choisissait des **catégories** (six cases), jamais des
@@ -14843,9 +14843,27 @@ ne redétectent pas.
 Écart : la config de Trivy (`trivy.yaml`) n'apparaît pas encore — rien ne la
 passe à Trivy avant la PR 4 ; `Tool.HasConfig` est faux pour Trivy jusque-là.
 
-#### Reste
+#### PR 4 — `config` et `args` — **done**
 
-PR 4 (`config` pour Trivy, `args` par outil).
+- `ToolSpec` gagne `Config` et `Args`, ajoutés par `Scanner.spec` à ce que la
+  détection a trouvé. Les `args` vont après la sous-commande et avant les
+  arguments de DevDesk et la cible (`afterSubcommand`) ; kubeconform, sans
+  sous-commande, les reçoit en tête — le paquet `flag` s'arrête au premier
+  argument positionnel. helm les reçoit sur `lint` et `template`.
+- **`trivy.yaml`** : `--config` après la sous-commande, monté à `/trivy.yaml`
+  en mode image, refusé avant lancement s'il est illisible (`checkRulesFile`,
+  partagé désormais avec gitleaks et plumber). Le `--format json` de DevDesk,
+  placé après, gagne sur un `format:` du fichier.
+- **Onglet `tools`** : `Config` pour Trivy, Gitleaks et Plumber ; `Args` pour
+  tous, édité en une ligne (`scan.SplitArgs`, guillemets respectés, sans
+  dépendance) et stocké en liste YAML. Un drapeau de `Tool.ReservedArgs` est
+  refusé à la saisie, par son nom (Rule 128 `Error`), le champ garde l'ancienne
+  valeur.
+- La commande affichée est construite par le même constructeur : elle porte
+  les `args` et la config (D19).
+
+Hors plan, toujours ouvert : ouvrir la configuration directement sur l'onglet
+Tools depuis le dashboard (`:config tools`).
 
 ## 4. Existing plans
 

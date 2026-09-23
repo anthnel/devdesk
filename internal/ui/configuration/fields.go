@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -54,9 +55,12 @@ type field struct {
 	Group     string
 	GroupIcon string
 
-	str  func(*config.Config) *string // text, cycle
-	num  func(*config.Config) *int    // integer
-	flag func(*config.Config) *bool   // toggle
+	str func(*config.Config) *string // text, cycle
+	num func(*config.Config) *int    // integer
+	// list replaces str for a text field whose setting is a list — a tool's
+	// extra arguments — edited as one line (scan.SplitArgs / JoinArgs).
+	list func(*config.Config) *[]string
+	flag func(*config.Config) *bool // toggle
 	// get and set replace flag for a toggle that is not a single setting: a
 	// tool ticked in a category (toolRow).
 	get func(*config.Config) bool
@@ -174,6 +178,9 @@ func (f field) Value(c *config.Config) string {
 	case kindStatic, kindSecret:
 		return f.fact
 	default:
+		if f.list != nil {
+			return scan.JoinArgs(*f.list(c))
+		}
 		return *f.str(c)
 	}
 }
@@ -240,6 +247,9 @@ func (f field) Apply(c *config.Config, raw string) error {
 		if err := f.validate(v); err != nil {
 			return err
 		}
+	}
+	if f.list != nil {
+		return f.applyList(c, v)
 	}
 	*f.str(c) = v
 	return nil

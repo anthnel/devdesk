@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"fmt"
 	"os/exec"
 	"slices"
 	"strings"
@@ -43,19 +44,39 @@ type Tool struct {
 	// VersionArgs make the tool print its version on stdout.
 	VersionArgs []string
 	// HasConfig is a tool DevDesk hands a rules file to (tools.<id>.config).
-	// Trivy reads one too, trivy.yaml, but nothing passes it yet.
 	HasConfig bool
 	// Lost is what a scan did not do because the tool is missing, for the error
 	// that says so.
 	Lost string
+	// ReservedArgs are the flags DevDesk sets itself: the output format and
+	// destination it parses, the scanners and server it picks, the rules file
+	// it mounts. One of them in tools.<id>.args would break the parsing or
+	// contradict a setting, so the configuration view refuses it, by name.
+	ReservedArgs []string
+}
+
+// CheckArgs refuses extra arguments that name a flag DevDesk sets itself,
+// naming the first one — `--format` and `--format=json` alike.
+func (t Tool) CheckArgs(args []string) error {
+	for _, arg := range args {
+		name, _, _ := strings.Cut(arg, "=")
+		if slices.Contains(t.ReservedArgs, name) {
+			return fmt.Errorf("%s is set by DevDesk and cannot be passed to %s", name, t.Binary)
+		}
+	}
+	return nil
 }
 
 var toolTable = []Tool{
 	{ID: ToolTrivy, Name: "Trivy", Binary: "trivy", DefaultImage: DefaultTrivyImage,
-		VersionArgs: []string{"--version"},
-		Lost:        "nothing was scanned"},
+		VersionArgs: []string{"--version"}, HasConfig: true,
+		Lost: "nothing was scanned",
+		ReservedArgs: []string{"--format", "-f", "--output", "-o", "--scanners", "--server",
+			"--config", "-c", "--image-src", "--template", "-t"}},
 	{ID: ToolGitleaks, Name: "Gitleaks", Binary: "gitleaks", DefaultImage: DefaultGitleaksImage,
 		VersionArgs: []string{"version"}, HasConfig: true,
+		ReservedArgs: []string{"--report-format", "-f", "--report-path", "-r", "--source", "-s",
+			"--config", "-c", "--gitleaks-ignore-path", "-i", "--no-git"},
 		// Not "no secret scan was run": Trivy runs one too, so naming what
 		// Gitleaks alone contributes is what keeps this accurate when only one
 		// of the two is missing.
@@ -67,16 +88,21 @@ var toolTable = []Tool{
 	// installed one is the kind of thing nobody notices for months.
 	{ID: ToolPlumber, Name: "Plumber", Binary: "plumber", DefaultImage: DefaultPlumberImage,
 		VersionArgs: []string{"version"}, HasConfig: true,
-		Lost: "the CI configuration was not graded"},
+		Lost: "the CI configuration was not graded",
+		ReservedArgs: []string{"--output", "-o", "--print", "--score", "--provider", "--branch",
+			"--gitlab-url", "--config", "-c"}},
 	{ID: ToolKubeconform, Name: "Kubeconform", Binary: "kubeconform", DefaultImage: DefaultKubeconformImage,
-		VersionArgs: []string{"-v"},
-		Lost:        "Kubernetes manifests were not validated against the API schema"},
+		VersionArgs:  []string{"-v"},
+		Lost:         "Kubernetes manifests were not validated against the API schema",
+		ReservedArgs: []string{"-output", "-cache", "-kubernetes-version"}},
 	{ID: ToolHelm, Name: "Helm", Binary: "helm", DefaultImage: DefaultHelmImage,
-		VersionArgs: []string{"version", "--short"},
-		Lost:        "Helm charts were not rendered"},
+		VersionArgs:  []string{"version", "--short"},
+		Lost:         "Helm charts were not rendered",
+		ReservedArgs: []string{"--output-dir"}},
 	{ID: ToolKustomize, Name: "Kustomize", Binary: "kustomize", DefaultImage: DefaultKustomizeImage,
-		VersionArgs: []string{"version"},
-		Lost:        "Kustomize overlays were not built"},
+		VersionArgs:  []string{"version"},
+		Lost:         "Kustomize overlays were not built",
+		ReservedArgs: []string{"--output", "-o"}},
 }
 
 // Tools lists every scanner, in the table's order.

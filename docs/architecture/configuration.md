@@ -144,7 +144,10 @@ written for it.
   kubeconform). A category with one tool has no sub-row; its tool is its dimmed
   `Note`. A tool row is a `get`/`set` pair over the category's list rather
   than a pointer — the one exception to the pointer rule, since membership has
-  no address.
+  no address. A tool's `Args` is the other: a text field backed by a list
+  (`field.list`), edited as one line (`scan.SplitArgs`/`JoinArgs`, quotes keep
+  a value with spaces together) and refused by name when it carries a flag
+  DevDesk sets itself.
 - **A checkbox can be `locked`**, with a reason the footer says in place of the
   hint: a part of Trivy a server cannot do, a category that is off, a renderer
   whose kubeconform is not ticked. A locked box keeps its tick

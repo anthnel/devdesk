@@ -55,6 +55,9 @@ var helmSourceLine = regexp.MustCompile(`^# Source: (\S+)`)
 // in the repository for a binary, with the repository mounted read-only at
 // /scan and as the working directory for an image.
 func renderer(target string, tool ToolSpec, defaultImage, binary string, args ...string) toolCmd {
+	// helm gets them on lint and on template alike: only the flags the two
+	// share (--values, --set…) make sense there.
+	args = afterSubcommand(args, tool.Args)
 	if tool.Source != ToolSourceContainer {
 		name := tool.Binary
 		if name == "" {

@@ -29,6 +29,11 @@ const containerScanPath = "/scan"
 // startup (§3.67).
 const trivySocketPath = "/var/run/docker.sock"
 
+// trivyConfigMount is where a configured trivy.yaml is mounted in the
+// container: the root, beside nothing — the target is at containerScanPath —
+// for gitleaksConfigMount's reason.
+const trivyConfigMount = "/trivy.yaml"
+
 func socketMount(hostSocket string) (string, bool) {
 	if hostSocket == "" {
 		return "", false
@@ -202,12 +207,30 @@ func trivyMisconfigArgs(target string, targetType TargetType, tool ToolSpec,
 //
 // noSocket says the scan reads its image from the registry, so the engine
 // socket is not mounted: nothing would use it.
+//
+// The user's arguments and --config go right after the subcommand. A
+// trivy.yaml that sets format: would otherwise break the parsing, and Trivy
+// lets the command line win over its file — so DevDesk's --format json, which
+// comes later, stands.
 func wrapTrivy(args []string, target string, targetType TargetType, tool ToolSpec, server string, noSocket bool) toolCmd {
+	user := tool.Args
+	if tool.Config != "" {
+		path := tool.Config
+		if tool.Source == ToolSourceContainer {
+			path = trivyConfigMount
+		}
+		user = append([]string{"--config", path}, user...)
+	}
+	args = afterSubcommand(args, user)
+
 	if tool.Source != ToolSourceContainer {
 		return toolCmd{Name: trivyBinary(tool), Args: append(args, target)}
 	}
 
 	engineArgs := []string{"run", "--rm"}
+	if tool.Config != "" {
+		engineArgs = append(engineArgs, "-v", tool.Config+":"+trivyConfigMount+":ro")
+	}
 	if targetType == TargetDirectory {
 		engineArgs = append(engineArgs, "-v", target+":"+containerScanPath+":ro")
 		args = append(args, containerScanPath)

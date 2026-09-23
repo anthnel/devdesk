@@ -48,6 +48,10 @@ type ToolConfig struct {
 	Binary string `yaml:"binary"`           // custom executable; empty resolves the name on PATH
 	Image  string `yaml:"image"`            // OCI image; empty is the tool's default
 	Config string `yaml:"config,omitempty"` // rules file, for the tools that read one
+	// Args are extra arguments, placed after the tool's subcommand and before
+	// DevDesk's own and the target. The flags DevDesk sets itself are refused
+	// in the configuration view (scan.Tool.ReservedArgs).
+	Args []string `yaml:"args,omitempty"`
 }
 
 // TrivyConfig adds what only Trivy has: the client-server mode and its two

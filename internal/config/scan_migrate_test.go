@@ -73,12 +73,12 @@ func TestEveryLegacyScanKeyIsCarriedOver(t *testing.T) {
 			t.Errorf("%s = %+v, want %+v", name, got, want)
 		}
 	}
-	check("trivy", tools.Trivy.ToolConfig, ToolConfig{"image", "/opt/trivy", "mirror/trivy", ""})
-	check("gitleaks", tools.Gitleaks.ToolConfig, ToolConfig{"binary", "/opt/gitleaks", "mirror/gitleaks", "/etc/gitleaks.toml"})
-	check("plumber", tools.Plumber, ToolConfig{"image", "/opt/plumber", "mirror/plumber", "/etc/plumber.yaml"})
-	check("kubeconform", tools.Kubeconform.ToolConfig, ToolConfig{"binary", "/opt/kubeconform", "mirror/kubeconform", ""})
-	check("helm", tools.Helm, ToolConfig{"image", "/opt/helm", "mirror/helm", ""})
-	check("kustomize", tools.Kustomize, ToolConfig{"binary", "/opt/kustomize", "mirror/kustomize", ""})
+	check("trivy", tools.Trivy.ToolConfig, ToolConfig{Source: "image", Binary: "/opt/trivy", Image: "mirror/trivy", Config: ""})
+	check("gitleaks", tools.Gitleaks.ToolConfig, ToolConfig{Source: "binary", Binary: "/opt/gitleaks", Image: "mirror/gitleaks", Config: "/etc/gitleaks.toml"})
+	check("plumber", tools.Plumber, ToolConfig{Source: "image", Binary: "/opt/plumber", Image: "mirror/plumber", Config: "/etc/plumber.yaml"})
+	check("kubeconform", tools.Kubeconform.ToolConfig, ToolConfig{Source: "binary", Binary: "/opt/kubeconform", Image: "mirror/kubeconform", Config: ""})
+	check("helm", tools.Helm, ToolConfig{Source: "image", Binary: "/opt/helm", Image: "mirror/helm", Config: ""})
+	check("kustomize", tools.Kustomize, ToolConfig{Source: "binary", Binary: "/opt/kustomize", Image: "mirror/kustomize", Config: ""})
 
 	if tools.Trivy.Server != (TrivyServerConfig{Enabled: true, URL: "https://trivy:4954"}) {
 		t.Errorf("trivy server = %+v", tools.Trivy.Server)
