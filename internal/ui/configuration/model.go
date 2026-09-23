@@ -8,6 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -91,6 +92,14 @@ type Model struct {
 
 	// footer is the one line of transient state below the tab bar (Rule 128).
 	footer sharedcomponents.FooterMessage
+
+	// tools is the router's detection of the scanners (§3.86), nil until it
+	// lands. The tools tab reads it; it never runs one itself.
+	tools *scan.Report
+
+	// scroll is the first line of the tab on screen. A tab taller than the
+	// viewport scrolls so the focused field stays visible.
+	scroll int
 
 	width  int
 	height int
@@ -201,15 +210,36 @@ func (m Model) settlesOnBlur(f field) bool {
 		f.Label == containerEngineLabel
 }
 
-// isDisabled reports whether a scan option is unavailable because a Trivy
-// server is configured. The protocol does not support these three, so they are
-// forced off rather than silently ignored.
+// isDisabled reports whether a checkbox cannot move right now: a Trivy server
+// that cannot do what it stands for, a category that is off, a tool whose
+// dependency is not ticked.
 func (m Model) isDisabled(f field) bool {
-	return m.serverMode() && serverModeFields[f.Label]
+	return m.lockReason(f) != ""
 }
 
-func (m Model) serverMode() bool {
-	return m.config.Scan.Tools.Trivy.Server.Enabled
+// lockReason is why a checkbox cannot move, or "".
+func (m Model) lockReason(f field) string {
+	if f.locked == nil || m.config == nil {
+		return ""
+	}
+	return f.locked(m.config)
+}
+
+// hint is what the footer says about a field while it has the focus. A
+// checkbox says what it does in the state it is in — and why it cannot move,
+// when it cannot — so the effect of space is read as it is pressed (§3.86).
+// It is a state, not an event: it goes through Status, with no timer.
+func (m Model) hint(f field) string {
+	if reason := m.lockReason(f); reason != "" {
+		return reason
+	}
+	if f.Kind == kindToggle && (f.hintOn != "" || f.hintOff != "") {
+		if f.Bool(m.config) {
+			return f.hintOn
+		}
+		return f.hintOff
+	}
+	return f.hint
 }
 
 // vocab is the wording of the forge this context targets, resolved from the

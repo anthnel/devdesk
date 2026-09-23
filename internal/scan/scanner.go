@@ -386,6 +386,12 @@ func (s *Scanner) wants(cat CategoryID, tool ToolID, targetType TargetType) bool
 		}
 		for _, ct := range c.Tools {
 			if ct.Tool == tool {
+				// What a Trivy server cannot do is not done, rather than
+				// forced off in the configuration: the tick survives the
+				// server being switched off again (§3.86).
+				if tool == ToolTrivy && !ct.Server && s.options.TrivyServer != "" {
+					return false
+				}
 				return ct.Applies(targetType)
 			}
 		}

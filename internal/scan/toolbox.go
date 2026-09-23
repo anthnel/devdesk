@@ -42,7 +42,8 @@ type Tool struct {
 	DefaultImage string
 	// VersionArgs make the tool print its version on stdout.
 	VersionArgs []string
-	// HasConfig is a tool that reads a rules file of its own.
+	// HasConfig is a tool DevDesk hands a rules file to (tools.<id>.config).
+	// Trivy reads one too, trivy.yaml, but nothing passes it yet.
 	HasConfig bool
 	// Lost is what a scan did not do because the tool is missing, for the error
 	// that says so.
@@ -51,8 +52,8 @@ type Tool struct {
 
 var toolTable = []Tool{
 	{ID: ToolTrivy, Name: "Trivy", Binary: "trivy", DefaultImage: DefaultTrivyImage,
-		VersionArgs: []string{"--version"}, HasConfig: true,
-		Lost: "nothing was scanned"},
+		VersionArgs: []string{"--version"},
+		Lost:        "nothing was scanned"},
 	{ID: ToolGitleaks, Name: "Gitleaks", Binary: "gitleaks", DefaultImage: DefaultGitleaksImage,
 		VersionArgs: []string{"version"}, HasConfig: true,
 		// Not "no secret scan was run": Trivy runs one too, so naming what

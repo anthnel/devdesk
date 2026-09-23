@@ -9,7 +9,7 @@ import (
 // The defect itself: a value typed and then abandoned by leaving the view was
 // never written, and the cached view went on showing it (§1.3 D62).
 func TestLeavingTheViewWritesTheFocusedField(t *testing.T) {
-	m := focusOn(t, newModel(t), "Plumber config")
+	m := focusOn(t, newModel(t), "Plumber › Config")
 	m.input.SetValue("/etc/.plumber.yaml")
 
 	left, _, ok := m.Leave()
@@ -68,7 +68,7 @@ func TestARefusedValueRefusesToBeLeft(t *testing.T) {
 // esc fell through to the input, which ignores it — so the one gesture tried to
 // settle a field was the one that settled nothing.
 func TestEscapeWritesTheFocusedFieldWithoutMoving(t *testing.T) {
-	m := focusOn(t, newModel(t), "Plumber config")
+	m := focusOn(t, newModel(t), "Plumber › Config")
 	was := m.focusedField
 	m.input.SetValue("/etc/.plumber.yaml")
 
@@ -106,7 +106,7 @@ func TestEscapeIsOfferedOnlyWhereItSettlesSomething(t *testing.T) {
 		label string
 		want  bool
 	}{
-		{"Plumber config", true},
+		{"Plumber › Config", true},
 		{"Parallel jobs", true},
 		{"Forge", true},
 		{"Secret backend", true},

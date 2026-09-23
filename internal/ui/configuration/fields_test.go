@@ -50,7 +50,7 @@ func TestEveryFieldCarriesTheAccessorItsKindNeeds(t *testing.T) {
 				t.Errorf("%q cycles through %d options; a closed set needs at least two", f.Label, len(f.Options))
 			}
 		case kindStatic:
-			if f.fact == "" {
+			if f.fact == "" && f.platform == "" {
 				t.Errorf("%q is a static row with nothing to show", f.Label)
 			}
 			if f.str != nil || f.num != nil || f.flag != nil {
@@ -134,9 +134,9 @@ func TestTheSpeciallyHandledLabelsExist(t *testing.T) {
 			t.Errorf("no field is labelled %q, so its special handling is dead", want)
 		}
 	}
-	for want := range serverModeFields {
+	for _, want := range []string{useTrivyServerLabel, trivyServerLabel} {
 		if !labels[want] {
-			t.Errorf("serverModeFields names %q, which is not a field", want)
+			t.Errorf("no field is labelled %q, which the view and its tests look for", want)
 		}
 	}
 }
@@ -171,7 +171,7 @@ func TestAnIntegerFieldRefusesRatherThanCoerces(t *testing.T) {
 // what stops a stray ":" reaching Trivy and failing the whole scan.
 func TestTheTrivyServerFieldRefusesAnAddressTrivyCannotParse(t *testing.T) {
 	cfg := config.Default()
-	f := fieldNamed(t, "Trivy server")
+	f := fieldNamed(t, trivyServerLabel)
 
 	if err := f.Apply(cfg, ":"); err == nil {
 		t.Error("Apply(\":\") was accepted; Trivy fails the whole scan on that")
@@ -189,7 +189,7 @@ func TestTheTrivyServerFieldRefusesAnAddressTrivyCannotParse(t *testing.T) {
 func TestClearingTheTrivyServerIsAllowed(t *testing.T) {
 	cfg := config.Default()
 	cfg.Scan.Tools.Trivy.Server.URL = "https://trivy:4954"
-	f := fieldNamed(t, "Trivy server")
+	f := fieldNamed(t, trivyServerLabel)
 
 	if err := f.Apply(cfg, "   "); err != nil {
 		t.Fatalf("clearing was refused: %v", err)
@@ -329,7 +329,7 @@ func TestTheConfigFileRowIsReadOnly(t *testing.T) {
 func TestEveryTabIsNamedAfterTheSectionItWrites(t *testing.T) {
 	all := sections([]string{"default"}, command.ViewNames(), "/tmp/config.yaml", "work", config.ForgeGitLab, forge.VocabularyFor(config.ForgeGitLab), MCPFacts{})
 
-	want := []string{"app", "gitlab", "scan", "network", "mcp", "status"}
+	want := []string{"app", "gitlab", "scan", "tools", "network", "mcp", "status"}
 	got := make([]string, 0, len(all))
 	for _, s := range all {
 		got = append(got, s.Title)
@@ -498,37 +498,76 @@ func TestTheMCPStateRowTellsTheThreeCasesApart(t *testing.T) {
 	}
 }
 
-// Misconfiguration and K8s schema are two checkboxes over one category
-// (§3.86), and each must still behave as the independent switch it was: every
-// combination is reachable, and neither brings back a tool the other left.
-func TestTheTwoMisconfigurationCheckboxesStayIndependent(t *testing.T) {
-	trivy := toolToggle(misconfigLabel, misconfigCategory, misconfigTrivy, "")
-	k8s := toolToggle("K8s schema", misconfigCategory, misconfigK8s, "")
+// A tool's checkbox ticks it in its category, and nothing else.
+func TestATickedToolIsAMemberOfItsCategory(t *testing.T) {
 	cfg := config.Default()
+	gitleaks := scanRow(t, "Secrets", "Gitleaks")
 
-	steps := []struct {
-		flip      field
-		trivy, k8 bool
-	}{
-		{trivy, true, false},
-		{k8s, true, true},
-		{trivy, false, true},
-		{k8s, false, false},
-		{trivy, true, false}, // kubeconform, ticked before, does not come back
-		{trivy, false, false},
-		{k8s, false, true},
+	if !gitleaks.Bool(cfg) {
+		t.Fatal("gitleaks is not ticked under Secrets by default")
 	}
-	for i, step := range steps {
-		step.flip.Toggle(cfg)
-		if got := trivy.Bool(cfg); got != step.trivy {
-			t.Errorf("step %d: Misconfiguration = %v, want %v (%+v)", i, got, step.trivy, cfg.Scan.Categories.Misconfig)
+	gitleaks.Toggle(cfg)
+	if cfg.Scan.Categories.Secret.Has(config.ToolGitleaks) || !cfg.Scan.Categories.Secret.Enabled {
+		t.Errorf("secret = %+v, want gitleaks unticked and the category left on", cfg.Scan.Categories.Secret)
+	}
+}
+
+// Unticking the last tool of a category that is on is refused: the category's
+// own box is the switch for "none".
+func TestTheLastToolOfACategoryIsKept(t *testing.T) {
+	cfg := config.Default()
+	gitleaks, trivy := scanRow(t, "Secrets", "Gitleaks"), scanRow(t, "Secrets", "Trivy")
+
+	if reason := gitleaks.guard(cfg, false); reason != "" {
+		t.Errorf("unticking one of two tools was refused: %q", reason)
+	}
+	gitleaks.Toggle(cfg)
+	if reason := trivy.guard(cfg, false); reason != reasonLastTool {
+		t.Errorf("unticking the last tool: reason = %q, want %q", reason, reasonLastTool)
+	}
+	// Off, the category may lose every tool: nothing runs anyway.
+	cfg.Scan.Categories.Secret.Enabled = false
+	if reason := trivy.guard(cfg, false); reason != "" {
+		t.Errorf("a category that is off refused an untick: %q", reason)
+	}
+}
+
+// helm alone would render for nothing: with kubeconform unticked it cannot
+// serve, so its box says so rather than ticking in vain.
+func TestARendererWaitsForKubeconform(t *testing.T) {
+	cfg := config.Default()
+	cfg.Scan.Categories.Misconfig.Enabled = true
+	helm := scanRow(t, "Misconfiguration", "Helm")
+
+	if got := helm.locked(cfg); got != "Tick Kubeconform first" {
+		t.Errorf("helm without kubeconform: lock = %q", got)
+	}
+	cfg.Scan.Categories.Misconfig = cfg.Scan.Categories.Misconfig.With(config.ToolKubeconform, true)
+	if got := helm.locked(cfg); got != "" {
+		t.Errorf("helm with kubeconform: lock = %q, want none", got)
+	}
+	cfg.Scan.Categories.Misconfig.Enabled = false
+	if got := helm.locked(cfg); got != "Turn Misconfiguration on first" {
+		t.Errorf("helm in a category that is off: lock = %q", got)
+	}
+}
+
+// scanRow finds a tool's row under a category in the scan tab.
+func scanRow(t *testing.T, category, tool string) field {
+	t.Helper()
+	under := ""
+	for _, f := range allFields(t) {
+		if f.Group != "Categories" {
+			continue
 		}
-		if got := k8s.Bool(cfg); got != step.k8 {
-			t.Errorf("step %d: K8s schema = %v, want %v (%+v)", i, got, step.k8, cfg.Scan.Categories.Misconfig)
+		if f.Depth == 0 {
+			under = f.Label
+			continue
+		}
+		if under == category && f.Label == tool {
+			return f
 		}
 	}
-	misconfig := cfg.Scan.Categories.Misconfig
-	if !misconfig.Has(config.ToolHelm) || !misconfig.Has(config.ToolKustomize) {
-		t.Errorf("K8s schema did not tick the renderers: %+v", misconfig)
-	}
+	t.Fatalf("no %q row under %q", tool, category)
+	return field{}
 }

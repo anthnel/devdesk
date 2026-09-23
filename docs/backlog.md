@@ -14818,10 +14818,34 @@ comparer côté vue ; le routeur garde les réglages de la dernière détection 
 compare (`scan.SameDetection` — source, binaire, image). Un filtre ou une case
 ne redétectent pas.
 
+#### PR 3 — l'interface de configuration — **done**
+
+- **Onglet `scan`** généré depuis les tables (`scan_fields.go`) : une case par
+  catégorie, ses outils dessous quand il y a un choix (helm et kustomize un
+  niveau plus bas, sous kubeconform), le rôle en gris à droite. Remplace les
+  deux cases « Misconfiguration » / « K8s schema » de la PR 1 et leur
+  `setToolGroup`.
+- **Cases verrouillées**, avec leur raison au footer : part de Trivy qu'un
+  serveur ne sait pas faire, catégorie éteinte, renderer sans kubeconform. Le
+  serveur ne décoche plus rien : le scanner saute ce qu'il ne peut pas faire
+  (`Scanner.wants`), et couper le serveur rend ce qui était coché.
+  `applyServerModeConstraints` et `serverModeFields` disparaissent.
+- **Décocher le dernier outil** d'une catégorie active est refusé, avec un
+  `Warn`.
+- **Chaque case dit ce qu'elle fait dans son état** (`hintOn`/`hintOff`), et
+  le texte change au `space`.
+- **Onglet `tools`** : moteur et git en lecture seule, puis un groupe par outil
+  (source, binaire, image, config pour gitleaks et plumber, réglages propres),
+  l'état dans le titre du groupe, sur deux colonnes à partir de
+  `2 × 56 + 3` colonnes. `ctrl+r` y redemande une détection.
+- **Défilement** sur tous les onglets.
+
+Écart : la config de Trivy (`trivy.yaml`) n'apparaît pas encore — rien ne la
+passe à Trivy avant la PR 4 ; `Tool.HasConfig` est faux pour Trivy jusque-là.
+
 #### Reste
 
-PR 3 (onglet `scan` à cases imbriquées, défilement, onglet
-`tools`), PR 4 (`config` et `args` par outil).
+PR 4 (`config` pour Trivy, `args` par outil).
 
 ## 4. Existing plans
 

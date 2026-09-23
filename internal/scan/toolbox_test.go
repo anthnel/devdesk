@@ -234,3 +234,18 @@ func TestSameDetection(t *testing.T) {
 		t.Error("a new binary does not count as a change of location")
 	}
 }
+
+// A Trivy server cannot check misconfigurations or licenses: those parts do not
+// run, and are not reported missing, while the tick stays in the configuration.
+func TestAServerSkipsWhatItCannotDo(t *testing.T) {
+	opts := scanFor(CategoryIDVuln, CategoryIDMisconfig, CategoryIDLicense)
+	opts.TrivyServer = "https://trivy:4954"
+	s := newScannerWithDeps(opts, everyTool())
+
+	if !s.runs(CategoryIDVuln, ToolTrivy, TargetDirectory) {
+		t.Error("the server does not run vulnerabilities")
+	}
+	if s.runs(CategoryIDMisconfig, ToolTrivy, TargetDirectory) || s.runs(CategoryIDLicense, ToolTrivy, TargetDirectory) {
+		t.Error("a part a server cannot do still runs")
+	}
+}
