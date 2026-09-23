@@ -106,7 +106,9 @@ type App struct {
 	// running (internal/jobs); the router owns it, and owns the single spinner
 	// chain that animates it (D5). Views read a snapshot carried in
 	// JobsChangedMsg — see jobs.go.
-	jobs        *jobs.Registry
+	jobs *jobs.Registry
+	// The one detection of the scanners — see scan_tools.go.
+	toolsState
 	jobFrameIdx int
 	jobTickSeq  int
 	jobTicking  bool
@@ -287,7 +289,7 @@ func (a *App) AttachProgram(p *tea.Program) {
 // Init initializes the application
 func (a *App) Init() tea.Cmd {
 	// Note: resize() is already called in newWithSize() to initialize the dimensions
-	cmds := []tea.Cmd{a.tryAutoLogin(), a.startMCPCmd(), a.restoreForwardsCmd()}
+	cmds := []tea.Cmd{a.tryAutoLogin(), a.startMCPCmd(), a.restoreForwardsCmd(), a.detectScanTools()}
 
 	if view, ok := a.views[a.currentView]; ok {
 		cmds = append(cmds, view.Init())
@@ -435,6 +437,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// the router (D5) — see jobs.go.
 	case jobTickMsg:
 		return a.handleJobTick(msg)
+
+	// ── The scanners' detection (§3.86) — see scan_tools.go ─────────────
+	case scanToolsDetectedMsg:
+		return a.handleScanToolsDetected(msg)
+
+	case shared.ScanToolsDetectRequestMsg:
+		return a, a.detectScanTools()
 
 	// Every message below reports on work already under way, and each is routed
 	// to the view that started it rather than to the one on screen. None of

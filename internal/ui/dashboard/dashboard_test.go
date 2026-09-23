@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +15,7 @@ import (
 	gitlabforge "github.com/anthnel/devdesk/internal/forge/gitlab"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/metrics"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -67,8 +67,9 @@ func loadedModel(t *testing.T) (Model, *shared.State) {
 		WorkspaceSizeMsg{Size: metrics.TreeSize{Path: "~/workspaces", Bytes: 12 << 30, OK: true}},
 		HostSampleMsg{Sample: metrics.HostSample{CPUPercent: 9.2, MemPercent: 92, MemUsed: 31 << 30, MemTotal: 33 << 30, OK: true}},
 		DockerMetricsMsg{Aggregate: docker.Aggregate{Available: true, Running: 2, CPUPercent: 3.5, MemPercent: 12}},
-		ToolsDetectedMsg{Tools: toolFixtures()},
 	)
+	// The router writes the detection, not a message to this view.
+	state.Tools = toolFixtures()
 	return m, state
 }
 
@@ -86,11 +87,15 @@ func componentFixtures() []status.ComponentStatus {
 
 func intPtr(n int) *int { return &n }
 
-func toolFixtures() []shared.ToolInfo {
-	return []shared.ToolInfo{
-		{Name: "Docker", Available: true, Version: "27.1.1", Source: "binary"},
-		{Name: "Trivy", Available: true, Version: "0.55.0", Source: "docker"},
-		{Name: "Gitleaks", Available: false},
+// toolFixtures is a machine with the engine, git and Trivy, and nothing else:
+// with the default categories, Gitleaks is missing.
+func toolFixtures() *scan.Report {
+	return &scan.Report{
+		Tools: map[scan.ToolID]scan.ToolStatus{
+			scan.ToolTrivy: {Available: true, Source: scan.ToolSourceContainer, Version: "0.55.0"},
+		},
+		EngineAvailable: true,
+		GitAvailable:    true,
 	}
 }
 
@@ -123,7 +128,6 @@ func TestNewStartsEverySectionLoading(t *testing.T) {
 		"docker":     m.loadingDocker,
 		"oci":        m.loadingOCI,
 		"workspaces": m.loadingWorkspaces,
-		"tools":      m.loadingTools,
 	}
 	for name, isLoading := range loading {
 		if !isLoading {
@@ -177,9 +181,6 @@ func TestResultsArePublishedToSharedState(t *testing.T) {
 	if state.WorkspaceCount != 6 {
 		t.Errorf("shared WorkspaceCount = %d, want 6", state.WorkspaceCount)
 	}
-	if len(state.Tools) != 3 {
-		t.Errorf("shared Tools holds %d entries, want 3", len(state.Tools))
-	}
 	if len(state.ServiceComponents) != 5 {
 		t.Errorf("shared ServiceComponents holds %d entries, want 5", len(state.ServiceComponents))
 	}
@@ -188,7 +189,7 @@ func TestResultsArePublishedToSharedState(t *testing.T) {
 	}
 
 	// And the model itself stopped loading.
-	if m.loadingServices || m.loadingForge || m.loadingDocker || m.loadingOCI || m.loadingWorkspaces || m.loadingTools {
+	if m.loadingServices || m.loadingForge || m.loadingDocker || m.loadingOCI || m.loadingWorkspaces {
 		t.Error("a section is still loading after its result arrived")
 	}
 }
@@ -348,64 +349,6 @@ func TestWindowSizeIsStored(t *testing.T) {
 	}
 }
 
-// ── Version cleaning ─────────────────────────────────────────────────────────
-
-func TestCleanVersion(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"trims whitespace", "  27.1.1\n", "27.1.1"},
-		{"drops the docker prefix", "docker: 0.55.0", "0.55.0"},
-		{"keeps the first line only", "0.55.0\nextra noise", "0.55.0"},
-		{"drops the git preamble", "git version 2.46.0", "2.46.0"},
-		{"drops the Trivy preamble", "Version: 0.55.0", "0.55.0"},
-		{"empty stays empty", "   ", ""},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := cleanVersion(tc.in); got != tc.want {
-				t.Errorf("cleanVersion(%q) = %q, want %q", tc.in, got, tc.want)
-			}
-		})
-	}
-}
-
-// A binary that is not on PATH must come back unavailable rather than
-// half-populated: the tools card keys off Available alone.
-func TestDetectBinaryToolReportsAMissingBinary(t *testing.T) {
-	tool := detectBinaryTool("Nope", "devdesk-definitely-not-a-real-binary")
-
-	if tool.Available {
-		t.Error("a missing binary was reported as available")
-	}
-	if tool.Source != "" || tool.Version != "" {
-		t.Errorf("a missing binary carried source=%q version=%q, want both empty", tool.Source, tool.Version)
-	}
-	if tool.Name != "Nope" {
-		t.Errorf("Name = %q, want it preserved", tool.Name)
-	}
-}
-
-// Passing no version arguments exercises the lookup without spawning anything.
-func TestDetectBinaryToolReportsAPresentBinary(t *testing.T) {
-	binary := "sh"
-	if runtime.GOOS == "windows" {
-		binary = "cmd"
-	}
-
-	tool := detectBinaryTool("Shell", binary)
-
-	if !tool.Available {
-		t.Skipf("%q is not on PATH in this environment", binary)
-	}
-	if tool.Source != "binary" {
-		t.Errorf("Source = %q for a binary found on PATH, want \"binary\"", tool.Source)
-	}
-}
-
 // ── Layout ───────────────────────────────────────────────────────────────────
 
 // tierCases covers one terminal size per tier.
@@ -456,15 +399,6 @@ func TestEverySectionKeepsItsHeightWhateverItsState(t *testing.T) {
 	unavailable := withNoDocker(t) // Docker absent, GitLab signed out
 
 	states := map[string]Model{"unknown": unknown, "loaded": loaded, "unavailable": unavailable}
-
-	// The tools block is the exception, and it's deliberate: its height
-	// follows the machine's inventory (see toolsBlock), not a result's
-	// arrival. The three states therefore share the same inventory, which
-	// leaves the test to catch everything else — i.e. everything that moves
-	// from one refresh to another.
-	for name, m := range states {
-		states[name] = feed(t, m, ToolsDetectedMsg{Tools: toolFixtures()})
-	}
 
 	for _, s := range append(overviewSections(config.ForgeGitLab), resourceSections()...) {
 		want := -1
@@ -735,7 +669,6 @@ func withNoDocker(t *testing.T) Model {
 		DockerStatsMsg{Stats: shared.DockerStats{Available: false}},
 		OCIStatsMsg{Stats: shared.OCIStats{Available: false}},
 		WorkspaceStatsMsg{Count: 0},
-		ToolsDetectedMsg{Tools: nil},
 	)
 }
 

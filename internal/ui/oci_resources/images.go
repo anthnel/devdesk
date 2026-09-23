@@ -7,7 +7,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/jobs"
-	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
 
@@ -67,7 +66,7 @@ func (m Model) scanSelectedImage() (tea.Model, tea.Cmd) {
 	}
 	return m, jobs.Start(
 		m.scanRun([]string{name}),
-		batchScanCmd([]imageScanJob{{Name: name, Target: img.ScanTarget()}}, scan.OptionsFromConfig(m.config)),
+		batchScanCmd([]imageScanJob{{Name: name, Target: img.ScanTarget()}}, m.scanOptions()),
 	)
 }
 
@@ -118,7 +117,7 @@ func (m Model) scanAllUnscanned() (tea.Model, tea.Cmd) {
 	}
 	return m, jobs.Start(
 		m.scanRun(jobNames(queue)),
-		batchScanCmd(queue, scan.OptionsFromConfig(m.config)),
+		batchScanCmd(queue, m.scanOptions()),
 	)
 }
 
@@ -144,7 +143,7 @@ func (m Model) requestScanAll() (tea.Model, tea.Cmd) {
 	}
 	return m, tea.Batch(
 		deleteScanCacheCmd(cacheKeys),
-		jobs.Start(m.scanRun(cacheKeys), batchScanCmd(queue, scan.OptionsFromConfig(m.config))),
+		jobs.Start(m.scanRun(cacheKeys), batchScanCmd(queue, m.scanOptions())),
 	)
 }
 
@@ -188,7 +187,7 @@ func (m Model) handleScanRequest(msg ScanRequestMsg) (tea.Model, tea.Cmd) {
 	job := imageScanJob{Name: msg.ImageName, Target: msg.ImageName}
 	return m, jobs.Start(
 		m.scanRun([]string{msg.ImageName}),
-		batchScanCmd([]imageScanJob{job}, scan.OptionsFromConfig(m.config)),
+		batchScanCmd([]imageScanJob{job}, m.scanOptions()),
 	)
 }
 

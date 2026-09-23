@@ -172,3 +172,65 @@ func TestAnUntickedRendererIsNotUsed(t *testing.T) {
 		t.Error("kustomize, ticked and installed, was not handed to the stage")
 	}
 }
+
+func TestCleanVersion(t *testing.T) {
+	tests := []struct{ name, in, want string }{
+		{"trims whitespace", "  27.1.1\n", "27.1.1"},
+		{"drops the docker prefix", "docker: 0.55.0", "0.55.0"},
+		{"keeps the first line only", "0.55.0\nextra noise", "0.55.0"},
+		{"drops the git preamble", "git version 2.46.0", "2.46.0"},
+		{"drops the Trivy preamble", "Version: 0.55.0", "0.55.0"},
+		{"empty stays empty", "   ", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := CleanVersion(tc.in); got != tc.want {
+				t.Errorf("CleanVersion(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// The platform tools are detected with the scanners: git and the engine are
+// required whatever is ticked, and the dashboard's one line counts them.
+func TestDetectFindsThePlatformTools(t *testing.T) {
+	installTools(t, "present", "git")
+
+	r := Detect(config.ScanTools{})
+
+	if !r.GitAvailable || r.GitVersion == "" {
+		t.Errorf("git: available=%v version=%q, want it found", r.GitAvailable, r.GitVersion)
+	}
+	if r.EngineAvailable {
+		t.Error("the engine was found on a PATH that does not hold it")
+	}
+	if r.AllAvailable(categories()) {
+		t.Error("AllAvailable with no engine")
+	}
+}
+
+// A scan given the router's detection does not probe the machine again.
+func TestNewScannerUsesTheDetectionItIsGiven(t *testing.T) {
+	installTools(t, "") // an empty PATH: a fresh detection would find nothing
+	given := binaries(ToolTrivy)
+	opts := scanFor(CategoryIDVuln)
+	opts.Detected = &given
+
+	if s := NewScanner(opts); !s.deps.Available(ToolTrivy) {
+		t.Error("the scanner detected again instead of using the detection it was given")
+	}
+}
+
+func TestSameDetection(t *testing.T) {
+	a := config.Default().Scan.Tools
+	b := a
+	b.Trivy.IgnoreUnfixed = true
+	b.Gitleaks.History = true
+	if !SameDetection(a, b) {
+		t.Error("filters count as a change of location")
+	}
+	b.Kustomize.Binary = "/opt/kustomize"
+	if SameDetection(a, b) {
+		t.Error("a new binary does not count as a change of location")
+	}
+}

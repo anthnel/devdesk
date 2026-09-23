@@ -14792,10 +14792,35 @@ requis dépend des cases, pas de la machine, donc `Missing(categories)` et
 `CanScan(categories, target)` prennent les catégories. Ainsi une case cochée
 change le verdict sans nouvelle détection, ce que la PR 2 exige.
 
+#### PR 2 — détection partagée, dashboard, disponibilité — **done**
+
+- **Une seule détection**, tenue par le routeur (`internal/app/scan_tools.go`)
+  dans `shared.State.Tools *scan.Report` et diffusée à chaque vue
+  (`shared.ScanToolsMsg`, sur le modèle de `broadcastJobs` ; `createView` la
+  remet à une vue construite après). Relancée au démarrage, au changement de
+  contexte (après `forgetScanTools`), quand une config sauvegardée déplace un
+  outil ou change de moteur, et sur `ctrl+r` au dashboard. Plus par le tick
+  périodique. Numérotée : une réponse périmée est jetée.
+- `DepsCheckedMsg` et les quatre `checkDepsCmd` disparaissent ; `ws`, `oci`,
+  `templates` et `:sec` passent la détection au scan (`ScanOptions.Detected`),
+  qui ne sonde plus la machine.
+- **Dashboard** : une ligne, hauteur fixe — « All tools are available » /
+  « Some tools are missing » (`Report.AllAvailable`). `knownTools`,
+  `missingTools`, `detectTools`, `detectBinaryTool` supprimés ; le moteur et git
+  sont sondés par `scan.Detect` (`EngineVersion`, `GitAvailable`,
+  `GitVersion`), `cleanVersion` devient `scan.CleanVersion` pour l'onglet Tools.
+- **`S`/`A` grisés sur `Report.CanScan`** (ws, oci, templates) : un outil coché
+  dans une catégorie active, applicable à la cible, et présent.
+
+**Écart au plan** : pas de `ScanToolsChangedMsg`. La vue de configuration
+édite le `*config.Config` du routeur lui-même, il n'y a donc pas d'« avant » à
+comparer côté vue ; le routeur garde les réglages de la dernière détection et
+compare (`scan.SameDetection` — source, binaire, image). Un filtre ou une case
+ne redétectent pas.
+
 #### Reste
 
-PR 2 (détection partagée dans `shared.State`, ligne unique au dashboard, `S`/`A`
-sur `CanScan`), PR 3 (onglet `scan` à cases imbriquées, défilement, onglet
+PR 3 (onglet `scan` à cases imbriquées, défilement, onglet
 `tools`), PR 4 (`config` et `args` par outil).
 
 ## 4. Existing plans

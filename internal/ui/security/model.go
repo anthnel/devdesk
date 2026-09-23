@@ -41,6 +41,9 @@ type Model struct {
 	state  ViewState
 	result *scan.Result
 
+	// deps is the router's detection of the scanners, nil until it lands.
+	deps *scan.Report
+
 	// Inventory state
 	inventory datatable.Model[scanTarget]
 	// spinner animates the rows being rescanned; it is stamped onto them by

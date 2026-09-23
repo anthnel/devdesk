@@ -1,7 +1,8 @@
 # Scanners — catégories, outils, onglet Tools, statut au dashboard
 
-**Statut (2026-09-23) : PR 1 implémentée** (branche `feat/scan-tools-config`,
-voir §3.86 du backlog pour ce qui a été fait et les écarts). PR 2 à 4 à faire.
+**Statut (2026-09-23) : PR 1 et PR 2 implémentées** (branche
+`feat/scan-tools-config`, voir §3.86 du backlog pour ce qui a été fait et les
+écarts). PR 3 et 4 à faire.
 Base : `main` à `80ab2fc0` (#257, §3.80 livré — kubeconform, helm, kustomize).
 
 Écarts de la PR 1 au texte ci-dessous, à reprendre dans les suivantes :
@@ -17,6 +18,17 @@ Base : `main` à `80ab2fc0` (#257, §3.80 livré — kubeconform, helm, kustomiz
   un test garde l'accord. Pas d'accesseur dans `Tool` : `ScanTools.Tool(id)`.
 - `ToolConfig.Config` existe déjà (gitleaks, plumber) ; `Args` et
   `ReservedArgs` attendent la PR 4.
+
+Écarts de la PR 2 :
+
+- Pas de `ScanToolsChangedMsg` : le routeur compare lui-même les réglages de
+  la dernière détection (`scan.SameDetection`).
+- Les vues reçoivent `shared.ScanToolsMsg` plutôt que de lire `shared.State`
+  (seuls le dashboard et l'explorateur tiennent `shared.State`). Le dashboard,
+  lui, lit `shared.State.Tools`.
+- Le moteur et git sont dans `Report` (`EngineVersion`, `GitAvailable`,
+  `GitVersion`) : l'onglet Tools de la PR 3 les y trouvera, avec
+  `scan.CleanVersion`.
 
 ## Contexte
 

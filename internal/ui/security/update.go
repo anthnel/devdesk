@@ -2,6 +2,7 @@ package security
 
 import (
 	"fmt"
+	"github.com/anthnel/devdesk/internal/shared"
 	"log"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -59,6 +60,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case sharedcomponents.OptionConfirmModalNoMsg:
 		m.scanAllModal = nil
+		return m, nil
+
+	// The router's detection (§3.86): a rescan runs on it rather than probing
+	// the machine again.
+	case shared.ScanToolsMsg:
+		m.deps = msg.Report
 		return m, nil
 
 	case tea.WindowSizeMsg:

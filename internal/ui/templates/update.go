@@ -2,6 +2,7 @@ package templates
 
 import (
 	"fmt"
+	"github.com/anthnel/devdesk/internal/shared"
 	"log"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,7 +21,7 @@ func (m Model) Init() tea.Cmd {
 	if m.selecting {
 		return loadCatalogCmd(m.path)
 	}
-	return tea.Batch(loadCatalogCmd(m.path), checkDepsCmd(m.config.Scan))
+	return loadCatalogCmd(m.path)
 }
 
 // Update handles messages.
@@ -43,8 +44,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuild()
 		return m, nil
 
-	case DepsCheckedMsg:
-		m.deps = &msg.Deps
+	// The router's detection (§3.86): it decides whether S is offered, and
+	// what a scan runs on.
+	case shared.ScanToolsMsg:
+		m.deps = msg.Report
 		return m, nil
 
 	case jobs.ChangedMsg:

@@ -18,17 +18,6 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 )
 
-// checkDepsCmd resolves the scanners once, off the Update goroutine.
-//
-// scan.Detect runs exec.LookPath, a --version per tool and a
-// docker images -q; none of that belongs in New or View (Rule 110). The
-// dashboard's detectTools is the same shape for the same reason.
-func checkDepsCmd(cfg config.ScanConfig) tea.Cmd {
-	return func() tea.Msg {
-		return DepsCheckedMsg{Deps: scan.Detect(cfg.Tools)}
-	}
-}
-
 // syncSpec is what a batch of syncs needs from the model, copied out before the
 // first command runs (Rule 110).
 type syncSpec struct {
@@ -250,5 +239,6 @@ func copyPathCmd(path string) tea.Cmd {
 func (m Model) scanOptions() scan.ScanOptions {
 	opts := scan.OptionsFromConfig(m.config)
 	opts.LoadForgeToken = tokenLoader(m.secrets, m.config.Forge.URL)
+	opts.Detected = m.deps
 	return opts
 }

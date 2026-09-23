@@ -4,6 +4,7 @@ import (
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/forward"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/status"
 )
 
@@ -34,14 +35,6 @@ type OCIStats struct {
 	// families. It comes from the same call as the rest and used to be
 	// discarded.
 	Reclaimable string
-}
-
-// ToolInfo describes an available DevSecOps tool
-type ToolInfo struct {
-	Name      string
-	Available bool
-	Version   string
-	Source    string // "binary", "container", or "" — see scan.ToolSource
 }
 
 // ServiceGlobalStatus represents the overall health of monitored services
@@ -116,5 +109,25 @@ type State struct {
 	DockerStats    *DockerStats
 	OCIStats       *OCIStats
 	WorkspaceCount int
-	Tools          []ToolInfo
+
+	// Tools is the one detection of where each scanner runs from (§3.86),
+	// made by the router and read by every view. Nil until it answers — and
+	// not knowing is not knowing that not: a view keeps S offered meanwhile.
+	//
+	// It used to be written by the dashboard and read by nobody, while four
+	// views each ran a detection of their own: a `--version` per tool per
+	// view, and four answers free to disagree.
+	Tools *scan.Report
 }
+
+// ScanToolsMsg hands a view the router's current detection. The router sends
+// it to every view it holds whenever a detection lands, and to a view it
+// builds, so a view never has to ask. Report is nil when there is none yet.
+type ScanToolsMsg struct {
+	Report *scan.Report
+}
+
+// ScanToolsDetectRequestMsg asks the router for a new detection: ctrl+r on a
+// view that shows what is installed, since a tool installed while DevDesk runs
+// is not seen otherwise.
+type ScanToolsDetectRequestMsg struct{}

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -39,7 +40,7 @@ func TestTheScanKeysFollowWhatIsInstalled(t *testing.T) {
 		{"both", detected(scan.ToolTrivy, scan.ToolGitleaks), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := feed(t, loadedModel(t), DepsCheckedMsg{Deps: tc.deps})
+			m := feed(t, loadedModel(t), shared.ScanToolsMsg{Report: &tc.deps})
 			m.table.SetCursor(0) // devdesk, a git repo
 
 			for _, key := range []string{keymap.Scan, keymap.ScanAll} {
@@ -54,7 +55,7 @@ func TestTheScanKeysFollowWhatIsInstalled(t *testing.T) {
 // One scanner is enough, but none means the scan would run and find nothing —
 // which is what happened before: S was offered and produced an empty report.
 func TestScanningWithoutAScannerIsRefusedAndSaysSo(t *testing.T) {
-	m := feed(t, loadedModel(t), DepsCheckedMsg{Deps: scan.Report{}})
+	m := feed(t, loadedModel(t), shared.ScanToolsMsg{Report: &scan.Report{}})
 	m.table.SetCursor(0) // devdesk, a git repo
 
 	// refused() checks both halves: the footer says why, and no run was
@@ -65,7 +66,7 @@ func TestScanningWithoutAScannerIsRefusedAndSaysSo(t *testing.T) {
 // A carries the same guard, and its confirmation must not even open: asking a
 // question whose answer will be declined wastes the user's time (§3.23).
 func TestScanAllWithoutAScannerNeverOpensItsModal(t *testing.T) {
-	m := feed(t, loadedModel(t), DepsCheckedMsg{Deps: scan.Report{}})
+	m := feed(t, loadedModel(t), shared.ScanToolsMsg{Report: &scan.Report{}})
 
 	next := refused(t, m, keymap.ScanAll, reasonNoScanner)
 
@@ -84,9 +85,9 @@ func TestNoGreyedKeyEverActs(t *testing.T) {
 	greyed := 0
 
 	for cursor := -1; cursor < len(entryFixtures()); cursor++ {
-		m := feed(t, scannedModel(t), DepsCheckedMsg{Deps: scan.Report{}})
+		m := feed(t, scannedModel(t), shared.ScanToolsMsg{Report: &scan.Report{}})
 		if cursor < 0 {
-			m = feed(t, newTestModel(t), DepsCheckedMsg{Deps: scan.Report{}})
+			m = feed(t, newTestModel(t), shared.ScanToolsMsg{Report: &scan.Report{}})
 		} else {
 			m.table.SetCursor(cursor)
 		}

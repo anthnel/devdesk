@@ -259,7 +259,9 @@ arrow key in a form would be noise.
 Two rules the entry earned:
 
 - **Not knowing is not knowing that not.** `scan.Detect` shells out,
-  so it runs in a `Cmd` (`DepsCheckedMsg`) and `S`/`A` stay lit until it lands.
+  so it runs in the router's `Cmd` (`shared.ScanToolsMsg`) and `S`/`A` stay lit
+  until it lands. Once it has, they are greyed on `Report.CanScan` — some tool
+  ticked in an enabled category, applicable to the target, and there.
   Greying for three frames and un-greying reads as a fault — D20 at the scale of
   a key.
 - **A key that applies whatever the row is stays out of the set.** `N` creates a
@@ -333,8 +335,41 @@ it.
   means nobody could read it, and the dashboard prints `-` rather than the `0`
   that read as "you have none" (D52)
 - `ServiceStatus`, `ServiceComponents` — Status monitoring results
-- `WorkspaceCount`, `Tools []ToolInfo` — Tool availability (Trivy, Gitleaks, Docker)
+- `WorkspaceCount` — the dashboard's workspace counter
+- `Tools *scan.Report` — the one detection of the scanners and the platform
+  tools (§3.86), below
 
+### The scanners are detected once, by the router
+
+`internal/app/scan_tools.go`. `ws`, `oci`, `templates` and the dashboard used
+to run a detection each — a LookPath and a `--version` per tool, a `docker
+images` per tool in image mode, and four answers free to disagree. The router
+now runs `scan.Detect` in a `Cmd` against a **copy** of `config.Scan.Tools`
+(Rule 110), keeps the answer in `shared.State.Tools`, and hands it to every
+view it holds as `shared.ScanToolsMsg` — `broadcastJobs`'s pattern, and
+`createView` sends it to a view built afterwards.
+
+| Trigger | Where |
+|---|---|
+| start | `Init` |
+| context switch | `handleContextSwitchComplete` — `forgetScanTools` first, so the new views say "not known yet" rather than show the old context's answer |
+| a saved tool source, binary or image, or the engine | `handleConfigSaved` → `redetectIfToolsMoved`, comparing against the settings the last detection ran on (`scan.SameDetection`) — the configuration view edits the router's own `*config.Config`, so there is no "before" to compare to otherwise |
+| `ctrl+r` on the dashboard | `shared.ScanToolsDetectRequestMsg` |
+
+**Not on a timer.** A tool is installed far less often than the dashboard
+ticks; `ctrl+r` is the way to see one installed while DevDesk runs.
+
+**Every request is numbered** (`toolsGen`), and an answer that is not the latest
+is dropped: a slow detection started before a source change would otherwise
+land after the next one and put the old state back.
+
+**A category change does not re-detect.** What is *required* is worked out from
+the configuration at read time (`scan.Required`, `Report.Missing(categories)`,
+`Report.CanScan(categories, target)`); the report only says what is there.
+
+A scan runs on the same answer: each view sets `ScanOptions.Detected` where it
+assembles its options, so `NewScanner` does not probe the machine again. A tool
+that vanished in between fails at its stage, with the stage's own message.
 
 ## Cross-View Communication
 

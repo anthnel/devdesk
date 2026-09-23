@@ -51,7 +51,7 @@ func (a *App) handleConfigSaved(msg configuration.ConfigSavedMsg) (tea.Model, te
 	}
 	a.createView(a.currentView)
 
-	return a, tea.Batch(a.requestResize(), a.syncProxyPortCmd())
+	return a, tea.Batch(a.requestResize(), a.syncProxyPortCmd(), a.redetectIfToolsMoved(msg.EngineChanged))
 }
 
 // applyThemeNow switches the palette in place.

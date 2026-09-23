@@ -345,7 +345,7 @@ func (m Model) GetHelpContent() help.Content {
 		Description: "The dashboard groups everything it knows into four titled boxes: Code, Health, Host and Docker. The layout follows the terminal's size — one column when it is narrow, a grid when it is not, and a third column on a large terminal, where it shows the Resources tab inline. A value that has not been measured yet reads '-', a source that is absent reads 'n/a', and a measured zero reads '0'.",
 		KeyBindings: []help.KeyBinding{
 			{Key: "tab", Description: "Switch between the Overview and Resources tabs"},
-			{Key: "ctrl+r", Description: "Refresh all dashboard data"},
+			{Key: "ctrl+r", Description: "Refresh all dashboard data, and detect the tools again"},
 			{Key: keymap.Requests, Description: "Open assigned merge requests in browser (requires authentication)"},
 			{Key: keymap.Issues, Description: "Open assigned issues in browser (requires authentication)"},
 			{Key: "ctrl+p", Description: "Open command mode to navigate to other views"},
@@ -366,7 +366,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Host and Docker",
-				Body:  "Two measurement points, and they are not on one axis: the Host box reads the machine dk runs on, while the Docker box reads inside the Docker Desktop VM, whose footprint is a subset of the host's. Both are true and they do not add up, which is why the box titles name where the number was measured.\n\nThe Host box ends on the tooling: one line when every tool is there, one node per missing tool otherwise — the name is what you need to install it. The Docker box counts what the daemon holds under a Resources root: images, volumes and networks. The sizes are not there, they are in Storage.",
+				Body:  "Two measurement points, and they are not on one axis: the Host box reads the machine dk runs on, while the Docker box reads inside the Docker Desktop VM, whose footprint is a subset of the host's. Both are true and they do not add up, which is why the box titles name where the number was measured.\n\nThe Host box ends on the tooling, in one line: whether every tool this context needs is there. Needed means the container engine, git, and each scanner ticked in a scan category that is on (:config, scan tab) — a tool nobody ticked is never missing. The tools are detected at start, on a context switch, when a tool's source, binary or image is saved, and on ctrl+r: one installed while dk runs is seen after ctrl+r. The Docker box counts what the daemon holds under a Resources root: images, volumes and networks. The sizes are not there, they are in Storage.",
 			},
 			{
 				Title: "Resources",

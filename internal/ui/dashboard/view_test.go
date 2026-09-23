@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/metrics"
+	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/status"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -606,51 +606,67 @@ func TestTabSwitchesBetweenOverviewAndResources(t *testing.T) {
 	}
 }
 
-// The Host box no longer counts the tools, it names the ones missing: "4
-// of 5 available" raised the question it didn't answer — which one to
-// install.
-func TestTheHostBoxNamesTheToolsItIsMissing(t *testing.T) {
-	m, _ := loadedModel(t)
+// The tools line says whether this context has what it needs — one line,
+// whatever the answer (§3.86). What is needed is what the scan settings tick,
+// not a fixed list of every tool DevDesk knows.
+func TestTheToolsLineReadsWhatTheSettingsRequire(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*config.Config, *scan.Report)
+		want  string
+	}{
+		{"gitleaks ticked and absent", func(*config.Config, *scan.Report) {}, "Some tools are missing"},
+		{"gitleaks unticked", func(c *config.Config, _ *scan.Report) {
+			c.Scan.Categories.Secret = c.Scan.Categories.Secret.With(config.ToolGitleaks, false)
+		}, "All tools are available"},
+		// Plumber absent with CI off is not missing — it used to be.
+		{"CI on without plumber", func(c *config.Config, r *scan.Report) {
+			c.Scan.Categories.Secret.Enabled = false
+			c.Scan.Categories.CI.Enabled = true
+		}, "Some tools are missing"},
+		{"CI off without plumber", func(c *config.Config, _ *scan.Report) {
+			c.Scan.Categories.Secret.Enabled = false
+		}, "All tools are available"},
+		// helm absent and unticked is not missing; ticked, it is.
+		{"helm ticked and absent", func(c *config.Config, r *scan.Report) {
+			c.Scan.Categories.Secret.Enabled = false
+			c.Scan.Categories.Misconfig = config.CategoryConfig{Enabled: true,
+				Tools: []string{config.ToolKubeconform, config.ToolHelm}}
+			r.Tools[scan.ToolKubeconform] = scan.ToolStatus{Available: true}
+		}, "Some tools are missing"},
+		{"the engine is absent", func(c *config.Config, r *scan.Report) {
+			c.Scan.Categories.Secret.Enabled = false
+			r.EngineAvailable = false
+		}, "Some tools are missing"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, state := loadedModel(t)
+			tt.setup(m.config, state.Tools)
 
-	// toolFixtures only declares three tools, one of them Gitleaks
-	// unavailable: the three that detection didn't return are missing just
-	// the same, and knownTools is what says so.
-	if got := missingTools(m.tools); !slices.Equal(got, []string{"Gitleaks", "Plumber", "Kubeconform", "Helm", "Kustomize", "Git"}) {
-		t.Errorf("missingTools() = %v, want the undetected ones counted too", got)
-	}
-
-	lines := renderHostSection(m, 60, tierStandard)
-	if !containsLine(lines, "Missing tools") {
-		t.Errorf("the Host box does not head its missing tools: %q", lines)
-	}
-	for _, want := range []string{"Gitleaks", "Plumber"} {
-		if !containsLine(lines, want+" ") {
-			t.Errorf("the Host box does not name %q among its missing tools: %q", want, lines)
-		}
-	}
-	// The tools that are present have nothing to say: naming them would
-	// drown out the others.
-	if containsLine(lines, "Trivy") {
-		t.Errorf("the Host box names an available tool: %q", lines)
+			block := toolsBlock(m)
+			if len(block) != 1 {
+				t.Errorf("the tools block takes %d lines: %q", len(block), block)
+			}
+			if !containsLine(block, tt.want) {
+				t.Errorf("tools block = %q, want %q", block, tt.want)
+			}
+		})
 	}
 }
 
-// And the counterpart: a fully equipped machine fits on one line,
-// otherwise the box spends five lines saying "yes" five times.
-func TestAFullyEquippedMachineSaysSoInOneLine(t *testing.T) {
-	m, _ := loadedModel(t)
-	var all []shared.ToolInfo
-	for _, name := range knownTools() {
-		all = append(all, shared.ToolInfo{Name: name, Available: true})
+// Before the router's detection lands, the line says it does not know.
+func TestTheToolsLineWaitsForTheDetection(t *testing.T) {
+	m, _ := newTestModel(t)
+	if block := toolsBlock(m); len(block) != 1 || !containsLine(block, "Tools") {
+		t.Errorf("tools block before any detection = %q, want the loading row", block)
 	}
-	m = feed(t, m, ToolsDetectedMsg{Tools: all})
+}
 
-	block := toolsBlock(m)
-	if len(block) != 1 {
-		t.Errorf("a fully equipped machine takes %d lines: %q", len(block), block)
-	}
-	if !containsLine(block, "all available") {
-		t.Errorf("the Host box does not say the tools are all there: %q", block)
+// ctrl+r asks the router for a new detection rather than running one here.
+func TestCtrlRAsksTheRouterToDetectTheTools(t *testing.T) {
+	if _, ok := requestToolsDetection()().(shared.ScanToolsDetectRequestMsg); !ok {
+		t.Error("the reload does not ask the router for a detection")
 	}
 }
 
@@ -830,30 +846,4 @@ func loadedOnly(t *testing.T) Model {
 	t.Helper()
 	m, _ := loadedModel(t)
 	return m
-}
-
-// knownTools is the denominator: a tool not listed there is never checked,
-// and a name it carries that detectTools never returns is declared missing
-// permanently. That's exactly what happened — §3.47 renamed the network
-// probe "Connectivity" in detectTools and left "Net Diag" here — and the
-// comment "must stay in sync" prevented nothing. The test runs the
-// detection: only a run sees both lists together.
-//
-// It asserts nothing about *availability*, which depends on the machine;
-// the names do not.
-func TestTheDetectedToolsAreExactlyTheKnownOnes(t *testing.T) {
-	m, _ := loadedModel(t)
-
-	msg, ok := m.detectTools()().(ToolsDetectedMsg)
-	if !ok {
-		t.Fatalf("detectTools returned %T, want ToolsDetectedMsg", m.detectTools()())
-	}
-
-	var got []string
-	for _, tool := range msg.Tools {
-		got = append(got, tool.Name)
-	}
-	if !slices.Equal(got, knownTools()) {
-		t.Errorf("detectTools names %v, knownTools declares %v", got, knownTools())
-	}
 }

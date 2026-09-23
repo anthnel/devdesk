@@ -180,6 +180,10 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 		a.currentView = command.ViewGitAuth
 	}
 
+	// The new context's tools may run from elsewhere: its views start from
+	// "not known yet" rather than from the previous context's answer.
+	a.forgetScanTools()
+
 	// Reinitialize views with new config; auth state is already populated above
 	initCmd := a.reinitializeViews()
 
@@ -187,7 +191,8 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 	// did not stop: a run is stamped with the context it was started in and
 	// kept for the session (D8), so a switch changes which runs are relevant,
 	// never whether they exist. Telling the new views is the whole of it.
-	return a, tea.Batch(a.requestResize(), initCmd, a.jobsChanged(), a.restartMCPCmd(), a.syncProxyPortCmd())
+	return a, tea.Batch(a.requestResize(), initCmd, a.jobsChanged(), a.restartMCPCmd(), a.syncProxyPortCmd(),
+		a.detectScanTools())
 }
 
 // handleContextList opens the picker with the cursor on the context in use, so

@@ -9,7 +9,6 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/command"
-	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/template"
@@ -39,16 +38,6 @@ type scanFunc func(ctx context.Context, dir string, opts scan.ScanOptions) (*sca
 
 func runScanners(ctx context.Context, dir string, opts scan.ScanOptions) (*scan.Result, error) {
 	return scan.NewScanner(opts).Scan(ctx, dir, scan.TargetDirectory)
-}
-
-// DepsCheckedMsg carries where the scanners resolve from on this machine.
-type DepsCheckedMsg struct {
-	Deps scan.Report
-}
-
-// checkDepsCmd resolves the scanners once, off the Update goroutine.
-func checkDepsCmd(cfg config.ScanConfig) tea.Cmd {
-	return func() tea.Msg { return DepsCheckedMsg{Deps: scan.Detect(cfg.Tools)} }
 }
 
 // ScanStartingMsg says the scan left the queue and holds a worker. The cancel
@@ -163,6 +152,7 @@ func (j scanJob) scanOnce(ctx context.Context, contextName string) (*scan.Result
 func (m Model) scanOptions() scan.ScanOptions {
 	opts := scan.OptionsFromConfig(m.config)
 	opts.Categories.CI.Enabled = false
+	opts.Detected = m.deps
 	return opts
 }
 
@@ -170,7 +160,7 @@ func (m Model) scanOptions() scan.ScanOptions {
 // is not knowing that not: until the check comes back the key stays lit, since
 // greying it for a few frames only to un-grey it reads as a fault (Rule 130).
 func (m Model) scannerState() shortcut.Availability {
-	if m.deps == nil || m.deps.Available(scan.ToolTrivy) || m.deps.Available(scan.ToolGitleaks) {
+	if m.deps == nil || m.deps.CanScan(m.scanOptions().Categories, scan.TargetDirectory) {
 		return shortcut.Availability{}
 	}
 	return shortcut.Unavailable(reasonNoScanner)

@@ -3,6 +3,7 @@ package scan
 import (
 	"os/exec"
 	"slices"
+	"strings"
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/engine"
@@ -233,6 +234,13 @@ type Report struct {
 	// service` is running. Empty means the mount cannot be made — see
 	// ImageScanBlocked.
 	ImageScanSocket string
+
+	// The platform tools: not scanners, and required whatever is ticked —
+	// the engine runs every container view, git every repository one (§3.86).
+	// EngineVersion and GitVersion are the tools' own answers, uncleaned.
+	EngineVersion string
+	GitAvailable  bool
+	GitVersion    string
 }
 
 // Status returns one tool's detection. A tool the report does not hold is
@@ -274,6 +282,12 @@ func (r Report) Missing(c config.ScanCategories) []ToolID {
 	return out
 }
 
+// AllAvailable reports whether nothing this context needs is missing: every
+// required scanner, and the two platform tools. It is the dashboard's one line.
+func (r Report) AllAvailable(c config.ScanCategories) bool {
+	return len(r.Missing(c)) == 0 && r.EngineAvailable && r.GitAvailable
+}
+
 // CanScan reports whether a scan of this kind of target would run anything: at
 // least one tool that some enabled category uses, that applies to the target,
 // and that is available.
@@ -313,9 +327,15 @@ func (r Report) ImageScanBlocked(engineName string, server string) string {
 // §3.80. It loops over the table, so a tool is either in it or nowhere.
 func Detect(tools config.ScanTools) Report {
 	r := Report{Tools: make(map[ToolID]ToolStatus, len(toolTable))}
-	if path, err := exec.LookPath(engine.Current().Binary); err == nil && path != "" {
+	eng := engine.Current()
+	if path, err := exec.LookPath(eng.Binary); err == nil && path != "" {
 		r.EngineAvailable = true
-		r.ImageScanSocket = engine.Current().HostSocket()
+		r.ImageScanSocket = eng.HostSocket()
+		r.EngineVersion = toolVersion(path, "version", "--format", eng.Templates.Version)
+	}
+	if path, ok := locateBinary("", "git"); ok {
+		r.GitAvailable = true
+		r.GitVersion = toolVersion(path, "--version")
 	}
 	for _, tool := range toolTable {
 		set := tools.Tool(string(tool.ID))
@@ -330,4 +350,35 @@ func Detect(tools config.ScanTools) Report {
 		}
 	}
 	return r
+}
+
+// SameDetection reports whether two sets of tool settings would detect the
+// same thing: the same source, binary and image for every tool. The router
+// re-detects on a saved configuration only when they differ — a filter such as
+// ignore_unfixed changes what a scan reports, never where a tool runs from.
+func SameDetection(a, b config.ScanTools) bool {
+	for _, tool := range toolTable {
+		x, y := a.Tool(string(tool.ID)), b.Tool(string(tool.ID))
+		if x.Source != y.Source || x.Binary != y.Binary || x.Image != y.Image {
+			return false
+		}
+	}
+	return true
+}
+
+// CleanVersion reduces a tool's own version answer to the number: the first
+// line, without the engine prefix containerToolVersion adds or the preamble
+// some tools print ("git version", Trivy's "Version:").
+func CleanVersion(v string) string {
+	v = strings.TrimSpace(v)
+	if name := engine.Current().Name + ":"; strings.HasPrefix(v, name) {
+		v = strings.TrimSpace(strings.TrimPrefix(v, name))
+	}
+	v = strings.TrimSpace(strings.TrimPrefix(v, "docker:"))
+	if idx := strings.IndexByte(v, '\n'); idx >= 0 {
+		v = v[:idx]
+	}
+	v = strings.TrimPrefix(v, "git version ")
+	v = strings.TrimPrefix(v, "Version: ")
+	return v
 }

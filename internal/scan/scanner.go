@@ -65,6 +65,11 @@ type ScanOptions struct {
 	// mode is off, and a scan must not see it then. OptionsFromConfig resolves
 	// it once, so no stage re-reads the switch.
 	TrivyServer string
+	// Detected is a detection already made — the router's, shared by every
+	// view — so a scan does not probe the machine again. Nil detects, which is
+	// what a caller with no report yet gets. A tool that disappeared between
+	// that detection and the scan fails at its stage, with the stage's message.
+	Detected *Report
 
 	// Forge is the platform this context targets, and it is what decides
 	// whether a repository is graded at all: a GitHub context grades its GitHub
@@ -348,9 +353,12 @@ type Scanner struct {
 	deps    Report
 }
 
-// NewScanner creates a new scanner with the given options, detecting which
-// tools are available on this machine.
+// NewScanner creates a new scanner with the given options, on the detection
+// they carry, or on a fresh one when they carry none.
 func NewScanner(opts ScanOptions) *Scanner {
+	if opts.Detected != nil {
+		return newScannerWithDeps(opts, *opts.Detected)
+	}
 	return newScannerWithDeps(opts, Detect(opts.Tools))
 }
 

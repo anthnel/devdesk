@@ -4,7 +4,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/jobs"
-	"github.com/anthnel/devdesk/internal/scan"
 )
 
 // What an agent asks this view to do (§3.61). See workspaces/mcp.go for why the
@@ -73,7 +72,7 @@ func (m Model) handleImageScanRequested(msg ImageScanRequestedMsg) (tea.Model, t
 
 	return m, jobs.WithInvocation(msg.Invocation, jobs.Start(
 		m.scanRun(jobNames(queue)),
-		batchScanCmd(queue, scan.OptionsFromConfig(m.config)),
+		batchScanCmd(queue, m.scanOptions()),
 	))
 }
 

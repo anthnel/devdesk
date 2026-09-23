@@ -2,6 +2,7 @@ package workspaces
 
 import (
 	"fmt"
+	"github.com/anthnel/devdesk/internal/shared"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,14 +16,7 @@ import (
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.loadEntries(), loadScanCacheCmd()}
-	// A view lent for a selection offers neither S nor A, so resolving the
-	// scanners for it would be three subprocesses spawned to answer a question
-	// nobody asks.
-	if m.mode == ModeNormal {
-		cmds = append(cmds, checkDepsCmd(m.config.Scan))
-	}
-	return tea.Batch(cmds...)
+	return tea.Batch(m.loadEntries(), loadScanCacheCmd())
 }
 
 // InEditMode returns true if the view is in an edit mode (input, confirm, selection, or filter search)
@@ -59,9 +53,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
 
-	case DepsCheckedMsg:
-		deps := msg.Deps
-		m.deps = &deps
+	// The router's detection (§3.86): it is what decides whether S and A are
+	// offered, and what a scan runs on.
+	case shared.ScanToolsMsg:
+		m.deps = msg.Report
 
 	case EntriesLoadedMsg:
 		// A listing of somewhere the user has already left: two loads were in

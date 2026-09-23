@@ -169,7 +169,7 @@ func (m Model) scannerState() actionState {
 	if m.deps == nil {
 		return available
 	}
-	if m.deps.Available(scan.ToolTrivy) || m.deps.Available(scan.ToolGitleaks) {
+	if m.deps.CanScan(m.config.Scan.Categories, scan.TargetDirectory) {
 		return available
 	}
 	return unavailable(reasonNoScanner)
