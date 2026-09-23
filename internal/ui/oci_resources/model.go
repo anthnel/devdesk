@@ -393,7 +393,7 @@ func New(cfg *config.Config) Model {
 	s.Style = theme.SpinnerStyle()
 
 	it := datatable.New(datatable.Config[imageRow]{
-		Columns:    imageColumns(),
+		Columns:    imageColumns(cfg.Scan.Categories.Misconfig.Enabled),
 		SortColumn: imageColumnName,
 		// A pulling placeholder row carries no Image yet, so its ID is empty —
 		// falling back to the name keeps two concurrent pulls from colliding

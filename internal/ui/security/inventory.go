@@ -286,6 +286,7 @@ func (m Model) handleInventoryScanFinished(msg InventoryScanFinishedMsg) (tea.Mo
 				t.Counts = msg.Counts
 				t.Sensitive = msg.Sensitive
 				t.CIScore = msg.CIScore
+				t.Misconfig = msg.Misconfig
 				t.ScannedAt = msg.ScannedAt
 			}
 		}

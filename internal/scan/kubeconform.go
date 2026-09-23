@@ -283,5 +283,11 @@ func (s *Scanner) runKubeconformStage(ctx context.Context, target string, result
 	}
 	result.K8sUnrendered = report.Unrendered
 	result.Findings = append(result.Findings, report.Findings...)
+	// Schema validation is the second half of the Misconfiguration category, so
+	// a run of it makes the verdict known on its own: a repository scanned with
+	// Trivy's rules switched off but kubeconform on has been looked at, and a
+	// "-" there would say otherwise. What the stage could not render is carried
+	// in K8sUnrendered and comes back out as the column's "?".
+	result.MisconfigScanned = true
 	notify(ProgressUpdate{Stage: stage, Label: label, Status: StageDone})
 }

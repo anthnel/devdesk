@@ -51,10 +51,42 @@ const (
 // cells for a sortable column's arrow, which is expensive for a glyph.
 const secretsColumnWidth = 7
 
+// misconfigColumnWidth is five cells: "CFG" costs three and a sortable header
+// asks for width(Title)+2, while the value costs four at worst — three digits
+// and the "?" that says the count is partial.
+const misconfigColumnWidth = 5
+
 // secrets is the row's verdict — unknown as long as the image has not been
 // scanned, and also unknown for a scan that had no secrets stage.
 func (r imageRow) secrets() theme.SecretsState {
 	return theme.SecretsVerdict(r.Entry.Sensitive, r.Scanned)
+}
+
+// misconfig is the row's misconfiguration verdict, computed the way the
+// workspaces list and the security inventory compute theirs.
+//
+// An image has misconfigurations to find: `trivy image --scanners misconfig`
+// reads the Dockerfile instructions baked into the layers, which is why this
+// column is not repository-only the way the CI grade is.
+func (r imageRow) misconfig() theme.MisconfigState {
+	return theme.MisconfigVerdict(r.Entry.Misconfig != nil, r.Scanned, r.Entry.Misconfig.Total())
+}
+
+// misconfigColumn is the misconfiguration count. It exists only when
+// scan.categories.misconfig is on — off, it would be a dash on every row — and
+// it sits after the four CVE counters, before Scanned, which is where the
+// workspaces list and the security inventory put theirs.
+func misconfigColumn() datatable.Column[imageRow] {
+	return datatable.Column[imageRow]{
+		Title: "CFG", Sizing: datatable.SizingFixed, MinWidth: misconfigColumnWidth,
+		Cell: func(r imageRow) string {
+			return theme.MisconfigCell(r.misconfig(), r.Entry.Misconfig.Total(), r.Entry.Misconfig.UnrenderedCount() > 0)
+		},
+		Style: func(r imageRow) lipgloss.Style {
+			return theme.MisconfigStyle(r.misconfig(), r.Entry.Misconfig.WorstSeverity())
+		},
+		Less: func(a, b imageRow) bool { return a.Entry.Misconfig.Total() < b.Entry.Misconfig.Total() },
+	}
 }
 
 // cveColumn builds one of the four severity count columns.
@@ -108,8 +140,8 @@ func scannedCell(r imageRow) string {
 // imageColumns describes the Images tab. ID is the only column that neither
 // sorts nor searches — twelve hex characters are not something anyone orders or
 // looks for.
-func imageColumns() []datatable.Column[imageRow] {
-	return []datatable.Column[imageRow]{
+func imageColumns(withMisconfig bool) []datatable.Column[imageRow] {
+	cols := []datatable.Column[imageRow]{
 		{
 			Title: "ID", Sizing: datatable.SizingFixed, MinWidth: 14,
 			Cell: func(r imageRow) string {
@@ -157,13 +189,16 @@ func imageColumns() []datatable.Column[imageRow] {
 		cveColumn("H", "HIGH", func(e cache.ImageScanEntry) int { return e.High }),
 		cveColumn("M", "MEDIUM", func(e cache.ImageScanEntry) int { return e.Medium }),
 		cveColumn("L", "LOW", func(e cache.ImageScanEntry) int { return e.Low }),
-		{
-			Title: "Scanned", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 14,
-			Cell:  scannedCell,
-			Style: scannedStyle,
-			Less:  func(a, b imageRow) bool { return a.Entry.ScannedAt.Before(b.Entry.ScannedAt) },
-		},
 	}
+	if withMisconfig {
+		cols = append(cols, misconfigColumn())
+	}
+	return append(cols, datatable.Column[imageRow]{
+		Title: "Scanned", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 14,
+		Cell:  scannedCell,
+		Style: scannedStyle,
+		Less:  func(a, b imageRow) bool { return a.Entry.ScannedAt.Before(b.Entry.ScannedAt) },
+	})
 }
 
 // imageRows decorates the image list with the scan state the table shows,

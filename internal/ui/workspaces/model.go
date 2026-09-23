@@ -155,7 +155,7 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		config:  cfg,
 		secrets: secrets,
 		table: datatable.New(datatable.Config[workspaceRow]{
-			Columns:    workspaceColumns(cfg.Scan.Categories.CI.Enabled),
+			Columns:    workspaceColumns(cfg.Scan.Categories.CI.Enabled, cfg.Scan.Categories.Misconfig.Enabled),
 			SortColumn: -1, // the order the directory listing gave
 		}),
 		mode:          ModeNormal,

@@ -11,6 +11,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/fileicon"
 	"github.com/anthnel/devdesk/internal/ui/help"
@@ -258,21 +259,26 @@ func entryIconRole(entry Entry) theme.IconRole {
 // formatScanColumns returns the SENSITIVE, C, H, M, L, SCANNED column values for an entry.
 // For git repos: looks up the scan cache directly.
 // For directories: aggregates sub-repo scan entries.
-func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsCell, c, h, med, l, scanned string) {
+func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsCell, misc misconfigCell, c, h, med, l, scanned string) {
 	dash := "-"
 	empty := ""
 	none := secretsCell{}
 	unscanned := secretsCell{Text: dash}
+	// A row with no verdict at all: the same three cases the Secrets column
+	// spells with `none` and `unscanned`, one column over.
+	noMisc := misconfigCell{}
+	unscannedMisc := misconfigCell{Text: dash}
 
 	if entry.IsGitRepo {
 		if m.scanning(entry.Path) {
-			return none, dash, dash, dash, dash, frame + " scanning"
+			return none, unscannedMisc, dash, dash, dash, dash, frame + " scanning"
 		}
 		scanEntry, ok := m.scanCache[entry.Path]
 		if !ok {
-			return unscanned, dash, dash, dash, dash, dash
+			return unscanned, unscannedMisc, dash, dash, dash, dash, dash
 		}
 		return secretsFor(theme.SecretsVerdict(scanEntry.Sensitive, true)),
+			misconfigFor(scanEntry.Misconfig, true),
 			fmt.Sprintf("%d", scanEntry.Critical),
 			fmt.Sprintf("%d", scanEntry.High),
 			fmt.Sprintf("%d", scanEntry.Medium),
@@ -282,12 +288,12 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 
 	// Files are not scannable — return empty columns
 	if !entry.IsDir {
-		return none, empty, empty, empty, empty, empty
+		return none, noMisc, empty, empty, empty, empty, empty
 	}
 
 	// Directory: aggregate sub-repos
 	if len(entry.SubRepoPaths) == 0 {
-		return secretsFor(theme.SecretsUnknown), empty, empty, empty, empty, empty
+		return secretsFor(theme.SecretsUnknown), noMisc, empty, empty, empty, empty, empty
 	}
 
 	// Count how many sub-repos are currently scanning
@@ -306,7 +312,7 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 	}
 
 	if scanningCount == 0 && len(scannedEntries) == 0 {
-		return unscanned, empty, empty, empty, empty, dash
+		return unscanned, unscannedMisc, empty, empty, empty, empty, dash
 	}
 	// A directory with a scan running under it spins, and stops counting.
 	//
@@ -321,17 +327,35 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 	// Now N/M means one thing — settled coverage — and the batch reports in the
 	// footer, where a batch belongs (D9).
 	if scanningCount > 0 {
-		return none, dash, dash, dash, dash, frame + " scanning"
+		return none, unscannedMisc, dash, dash, dash, dash, frame + " scanning"
 	}
 
 	totalC, totalH, totalM, totalL := 0, 0, 0, 0
 	verdicts := make([]theme.SecretsState, 0, len(scannedEntries))
+	// Misconfigurations add up the way the severity counters do, so a directory
+	// carries a real total rather than the nothing the CI grade shows there —
+	// the worst of three letters is not a grade, the sum of three counts is a
+	// count. `miscKnown` is whether any of them was read at all; without it a
+	// directory whose repositories were all scanned with the category off would
+	// print a 0 that nobody measured.
+	totalMisc, miscKnown, miscPartial := 0, false, false
+	worst := scan.SeverityUnknown
 	for _, e := range scannedEntries {
 		totalC += e.Critical
 		totalH += e.High
 		totalM += e.Medium
 		totalL += e.Low
 		verdicts = append(verdicts, theme.SecretsVerdict(e.Sensitive, true))
+		if e.Misconfig == nil {
+			// One repository nobody read makes the directory's total partial,
+			// for the same reason an unrendered chart does.
+			miscPartial = true
+			continue
+		}
+		miscKnown = true
+		totalMisc += e.Misconfig.Count
+		miscPartial = miscPartial || e.Misconfig.Unrendered > 0
+		worst = scan.WorseSeverity(worst, e.Misconfig.Worst)
 	}
 
 	scannedCount := len(scannedEntries)
@@ -343,9 +367,16 @@ func (m *Model) formatScanColumns(entry Entry, frame string) (sensitive secretsC
 	// of their own.
 	if scannedCount < totalCount {
 		verdicts = append(verdicts, theme.SecretsUnknown)
+		miscPartial = true
 	}
 
+	miscState := theme.MisconfigVerdict(miscKnown, true, totalMisc)
 	return secretsFor(foldSecrets(verdicts)),
+		misconfigCell{
+			Text:  theme.MisconfigCell(miscState, totalMisc, miscPartial),
+			State: miscState,
+			Worst: string(worst),
+		},
 		fmt.Sprintf("%d", totalC),
 		fmt.Sprintf("%d", totalH),
 		fmt.Sprintf("%d", totalM),
@@ -399,6 +430,18 @@ type secretsCell struct {
 // (Rule 122): the color goes through Style.
 func secretsFor(state theme.SecretsState) secretsCell {
 	return secretsCell{Text: theme.SecretsIcon(state), State: state}
+}
+
+// misconfigFor is the cell of a target that has a summary — nil included, which
+// is the state "nobody looked". Plain text (Rule 122): the colour goes through
+// Style.
+func misconfigFor(sum *scan.MisconfigSummary, scanned bool) misconfigCell {
+	state := theme.MisconfigVerdict(sum != nil, scanned, sum.Total())
+	return misconfigCell{
+		Text:  theme.MisconfigCell(state, sum.Total(), sum.UnrenderedCount() > 0),
+		State: state,
+		Worst: sum.WorstSeverity(),
+	}
 }
 
 // foldSecrets is the verdict a directory row carries for the repositories under
@@ -588,8 +631,12 @@ func (m Model) GetHelpContent() help.Content {
 				Body:  "With scan.enable_ci_score on, a CI column shows the grade plumber gave the repository's pipeline configuration: A to E. It is graded only when its remote is this context's forge — a repository hosted elsewhere shows an empty cell rather than a dash, because a dash means \"not scanned yet\" and this one never will be from here. A dash is a repository nobody has scanned; a question mark is a run that could not collect everything, and the CI tab of the results says which. A directory shows nothing: counts add up across nested repositories, letters do not.",
 			},
 			{
+				Title: "Misconfigurations",
+				Body:  "With the Misconfiguration category on (:config, scan tab), a CFG column shows how many misconfigurations the scan found — Trivy's rules over Dockerfiles, Terraform, Kubernetes manifests and the rest, plus kubeconform's schema validation. One column rather than four: it is coloured by the worst severity among them, because a misconfiguration backlog is read whole rather than severity by severity. A dash is a target no misconfiguration stage read, which is not the same as a zero, and a question mark after the count says the count is partial — a Helm chart or Kustomize overlay nothing could render (install helm and kustomize to close that), or, on a directory, a repository under it that nobody has scanned. A \"0?\" is the one worth stopping on: nothing was found because nothing was read.",
+			},
+			{
 				Title: "Security Scan",
-				Body:  "Press S on a git repo to scan it. On a non-git directory, S scans all nested git repos in parallel. Press A to scan every repo in the current view — its confirmation carries a checkbox to purge the cached results first, and without it only the never-scanned repos are scanned. Scans run in parallel using up to half the available CPU cores. Results are saved to disk; the table shows CVE counts (C/H/M/L), a Secrets indicator, and the scan timestamp.",
+				Body:  "Press S on a git repo to scan it. On a non-git directory, S scans all nested git repos in parallel. Press A to scan every repo in the current view — its confirmation carries a checkbox to purge the cached results first, and without it only the never-scanned repos are scanned. Scans run in parallel using up to half the available CPU cores. Results are saved to disk; the table shows CVE counts (C/H/M/L), a Secrets indicator, a CFG count of misconfigurations, and the scan timestamp.",
 			},
 			{
 				Title: "View Scan Details",

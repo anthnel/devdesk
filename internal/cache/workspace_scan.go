@@ -41,8 +41,17 @@ type WorkspaceScanEntry struct {
 	// The field has never been written, so an existing cache file decodes to
 	// nil, which is the truth about it. ImageScanEntry gains nothing: an image
 	// has no pipeline.
-	CIScore   *string   `json:"ci_score,omitempty"`
-	ScannedAt time.Time `json:"scanned_at"`
+	CIScore *string `json:"ci_score,omitempty"`
+	// Misconfig is the misconfiguration verdict, written by
+	// scan.Result.MisconfigVerdict(), and it is a pointer for the reason the two
+	// fields above are: nil means no stage read this target for
+	// misconfigurations — the category is off, Trivy is missing, the run
+	// failed — which is not the same as having found none.
+	//
+	// The field has never been written, so an existing cache file decodes to
+	// nil, which is the truth about it.
+	Misconfig *scan.MisconfigSummary `json:"misconfig,omitempty"`
+	ScannedAt time.Time              `json:"scanned_at"`
 }
 
 // WorkspaceScanCache manages workspace scan results cache.
@@ -213,6 +222,7 @@ func StoreWorkspaceScan(contextName, repoPath string, result *scan.Result) (Work
 		// found, and could not tell that no stage had looked at all.
 		Sensitive: result.SecretVerdict(),
 		CIScore:   result.CIVerdict(),
+		Misconfig: result.MisconfigVerdict(),
 		ScannedAt: result.EndTime,
 	}
 

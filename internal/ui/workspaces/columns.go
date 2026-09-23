@@ -26,6 +26,9 @@ const (
 	// columns are called C H M L. A fifth counting column beside them inherits
 	// their convention rather than opening a second one.
 	colCIFixed = 4
+	// colMisconfigFixed is five cells: "CFG" costs three, and the value costs
+	// four at worst — three digits and the "?" that says the count is partial.
+	colMisconfigFixed = 5
 )
 
 // workspaceRow is one line of the table: the entry, plus the six scan cells.
@@ -41,6 +44,7 @@ type workspaceRow struct {
 	GitStatus string
 	Sensitive secretsCell
 	CI        ciCell
+	Misconfig misconfigCell
 	Critical  string
 	High      string
 	Medium    string
@@ -77,7 +81,38 @@ type ciCell struct {
 	Score *string
 }
 
-func workspaceColumns(withCI bool) []datatable.Column[workspaceRow] {
+// misconfigColumn is the misconfiguration count. Like ciColumn it exists only
+// when its category is on — off, it would be a dash on every row for the life
+// of the view — and like it, it does not declare Optional: a column that
+// disappeared on a narrow terminal would be a second absence looking like the
+// "-" that means "nobody looked".
+//
+// It sits after the four severity counters, which count vulnerabilities only,
+// and before the grade: that is the order the security inventory uses, and one
+// reading order for the same six columns across two views is worth more than
+// either placement on its own.
+func misconfigColumn() datatable.Column[workspaceRow] {
+	return datatable.Column[workspaceRow]{
+		Title: "CFG", Sizing: datatable.SizingFixed, MinWidth: colMisconfigFixed,
+		Cell: func(r workspaceRow) string { return r.Misconfig.Text },
+		Style: func(r workspaceRow) lipgloss.Style {
+			return theme.MisconfigStyle(r.Misconfig.State, r.Misconfig.Worst)
+		},
+	}
+}
+
+// misconfigCell is the column's two halves, on secretsCell's model: what it
+// prints, and what colours it. The two are not derived from one another — the
+// text has cases the state does not, a file and a directory holding no
+// repository print nothing at all while a repository nobody scanned prints a
+// dash, and all of them colour the same way.
+type misconfigCell struct {
+	Text  string
+	State theme.MisconfigState
+	Worst string
+}
+
+func workspaceColumns(withCI, withMisconfig bool) []datatable.Column[workspaceRow] {
 	text := func(title string, width int, cell func(workspaceRow) string) datatable.Column[workspaceRow] {
 		return datatable.Column[workspaceRow]{Title: title, Sizing: datatable.SizingFixed, Optional: true, MinWidth: width, Cell: cell}
 	}
@@ -123,10 +158,20 @@ func workspaceColumns(withCI bool) []datatable.Column[workspaceRow] {
 		text("Scanned", colScannedFixed, func(r workspaceRow) string { return r.Scanned }),
 		text("Modified", colModFixed, func(r workspaceRow) string { return timeAgo(r.Entry.ModTime) }),
 	}
+	// Beside the four severity counters, which is where a reader looks for what
+	// a scan concluded — not at the end, past Scanned and Modified. Both go in
+	// before the last two columns, misconfigurations first, so the order matches
+	// the security inventory's.
+	var verdicts []datatable.Column[workspaceRow]
+	if withMisconfig {
+		verdicts = append(verdicts, misconfigColumn())
+	}
 	if withCI {
-		// Beside the four severity counters, which is where a reader looks for
-		// what a scan concluded — not at the end, past Scanned and Modified.
-		cols = append(cols[:len(cols)-2], append([]datatable.Column[workspaceRow]{ciColumn()}, cols[len(cols)-2:]...)...)
+		verdicts = append(verdicts, ciColumn())
+	}
+	if len(verdicts) > 0 {
+		tail := append(verdicts, cols[len(cols)-2:]...)
+		cols = append(cols[:len(cols)-2], tail...)
 	}
 	return cols
 }
@@ -186,7 +231,7 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 
 	rows := make([]workspaceRow, 0, len(entries))
 	for _, entry := range entries {
-		sensitive, c, h, med, l, scanned := m.formatScanColumns(entry, frame)
+		sensitive, misc, c, h, med, l, scanned := m.formatScanColumns(entry, frame)
 		gitStatus := formatGitStatus(entry)
 		// A row can only be held by one of the two — busy() is what keeps them
 		// apart — so the order below decides nothing. The delete spends this
@@ -203,6 +248,7 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 			GitStatus: gitStatus,
 			Sensitive: sensitive,
 			CI:        m.ciCellFor(entry),
+			Misconfig: misc,
 			Critical:  c,
 			High:      h,
 			Medium:    med,

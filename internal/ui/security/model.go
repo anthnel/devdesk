@@ -157,7 +157,7 @@ func New(cfg *config.Config, secrets credentials.Storage) Model {
 		config:    cfg,
 		secrets:   secrets,
 		state:     StateInventory,
-		inventory: newInventoryTable(cfg.Scan.Categories.CI.Enabled),
+		inventory: newInventoryTable(cfg.Scan.Categories.CI.Enabled, cfg.Scan.Categories.Misconfig.Enabled),
 		// True from construction, because Init loads unconditionally: a view
 		// that starts saying "not loading" would render the empty message for
 		// the frame before the first Cmd runs.

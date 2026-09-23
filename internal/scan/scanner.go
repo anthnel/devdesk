@@ -184,12 +184,29 @@ type Result struct {
 	// counter stuck at zero would say "this target is clean" about a scan
 	// that never looked at it. It is the same principle as missingToolErrors
 	// below (§1.3 D20), carried through to what the views display.
-	SecretsScanned bool      `json:"secrets_scanned"`
-	LicenseCount   int       `json:"license_count"`   // Total license issues found
-	MisconfigCount int       `json:"misconfig_count"` // Total misconfigurations found
-	CIIssueCount   int       `json:"ci_issue_count"`  // Total CI-configuration issues found
-	Findings       []Finding `json:"findings"`
-	Errors         []string  `json:"errors,omitempty"`
+	SecretsScanned bool `json:"secrets_scanned"`
+	LicenseCount   int  `json:"license_count"`   // Total license issues found
+	MisconfigCount int  `json:"misconfig_count"` // Total misconfigurations found
+	// MisconfigScanned tells "no misconfiguration was found" apart from "no one
+	// looked", exactly as SecretsScanned does two fields up. The category has
+	// two stages — Trivy's security rules and kubeconform's schema validation —
+	// and either can be cut by the option, by a missing tool, or fail; in all of
+	// those a counter stuck at zero would call a target clean that nothing ever
+	// read.
+	MisconfigScanned bool `json:"misconfig_scanned"`
+	// MisconfigWorst is the highest severity among the misconfigurations, and it
+	// is what colours the column.
+	//
+	// One column rather than four: the C/H/M/L counters beside it count
+	// vulnerabilities only, and splitting misconfigurations the same way would
+	// spend sixteen cells in the narrowest table of the application answering a
+	// question nobody asks of them — a misconfiguration backlog is read whole,
+	// not severity by severity, and what one wants from the list is whether
+	// there is a CRITICAL in it. Empty when there are none.
+	MisconfigWorst SeverityLevel `json:"misconfig_worst,omitempty"`
+	CIIssueCount   int           `json:"ci_issue_count"` // Total CI-configuration issues found
+	Findings       []Finding     `json:"findings"`
+	Errors         []string      `json:"errors,omitempty"`
 
 	// CIScanned tells "this pipeline was graded" apart from "no one looked",
 	// exactly as SecretsScanned does one field up: the stage can fail to run
@@ -234,6 +251,97 @@ func (r *Result) CIVerdict() *string {
 	return &score
 }
 
+// MisconfigSummary is what a scan concluded about misconfigurations: how many
+// there are, how bad the worst one is, and how much of the target no stage
+// could read at all.
+//
+// Unrendered is len(K8sUnrendered), carried here because the caches keep this
+// summary and not the whole result. A Helm chart nobody rendered is not a clean
+// chart: a row printing "0" for a repository of charts would be exactly the
+// confusion SecretsScanned exists to prevent, one category over.
+type MisconfigSummary struct {
+	Count      int           `json:"count"`
+	Worst      SeverityLevel `json:"worst,omitempty"`
+	Unrendered int           `json:"unrendered,omitempty"`
+}
+
+// Total, WorstSeverity and UnrenderedCount read a summary that may be nil,
+// which is the state "nobody looked". They exist so a caller can hand the three
+// numbers to internal/ui/theme without unwrapping the pointer first: that
+// package takes plain values on purpose — it does not import this one, which is
+// also why SeverityTextStyle takes a string.
+func (m *MisconfigSummary) Total() int {
+	if m == nil {
+		return 0
+	}
+	return m.Count
+}
+
+// WorstSeverity is the highest severity present, as the string theme wants.
+func (m *MisconfigSummary) WorstSeverity() string {
+	if m == nil {
+		return ""
+	}
+	return string(m.Worst)
+}
+
+// UnrenderedCount is how many charts or overlays nothing rendered.
+func (m *MisconfigSummary) UnrenderedCount() int {
+	if m == nil {
+		return 0
+	}
+	return m.Unrendered
+}
+
+// MisconfigVerdict is what this scan can say about misconfigurations, for the
+// caches and the column: nil when no stage looked, a summary otherwise.
+//
+// Third of its kind after SecretVerdict and CIVerdict, and the only calculation
+// — the workspaces list, the security inventory and the images list all read
+// this one rather than counting findings again for themselves.
+func (r *Result) MisconfigVerdict() *MisconfigSummary {
+	if !r.MisconfigScanned {
+		return nil
+	}
+	return &MisconfigSummary{
+		Count:      r.MisconfigCount,
+		Worst:      r.MisconfigWorst,
+		Unrendered: len(r.K8sUnrendered),
+	}
+}
+
+// severityRank orders the severities so two of them can be compared.
+//
+// Unknown ranks above nothing and below LOW: a rule whose severity the tool did
+// not state must not outrank one that did, and must not be mistaken for the
+// empty value that means "there are none".
+func severityRank(s SeverityLevel) int {
+	switch s {
+	case SeverityCritical:
+		return 5
+	case SeverityHigh:
+		return 4
+	case SeverityMedium:
+		return 3
+	case SeverityLow:
+		return 2
+	case SeverityUnknown:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// WorseSeverity returns whichever of the two is higher. Exported because the
+// workspaces list folds the summaries of the repositories under a directory,
+// and that fold must order severities the same way this package does.
+func WorseSeverity(a, b SeverityLevel) SeverityLevel {
+	if severityRank(b) > severityRank(a) {
+		return b
+	}
+	return a
+}
+
 // recordStageError puts a stage's failure where it can be found.
 //
 // The result carries it for the caches and the callers; the **log** carries the
@@ -259,6 +367,7 @@ func (r *Result) CountFindings() {
 	r.SecretCount = 0
 	r.LicenseCount = 0
 	r.MisconfigCount = 0
+	r.MisconfigWorst = ""
 	r.CIIssueCount = 0
 	for _, f := range r.Findings {
 		switch Categorize(f) {
@@ -268,6 +377,7 @@ func (r *Result) CountFindings() {
 			r.LicenseCount++
 		case CategoryMisconfiguration:
 			r.MisconfigCount++
+			r.MisconfigWorst = WorseSeverity(r.MisconfigWorst, f.Severity)
 		case CategoryCIScore:
 			r.CIIssueCount++
 		case CategoryVulnerability:
@@ -624,6 +734,10 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 				notify(ProgressUpdate{Stage: "misconfig", Label: "Misconfigurations", Status: StageError})
 			} else {
 				result.Findings = append(result.Findings, findings...)
+				// A stage that succeeds is what makes the verdict known, as in
+				// the two secret stages below: one that fails says nothing, and
+				// certainly not "clean".
+				result.MisconfigScanned = true
 				notify(ProgressUpdate{Stage: "misconfig", Label: "Misconfigurations", Status: StageDone})
 			}
 			return nil

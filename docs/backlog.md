@@ -14865,6 +14865,79 @@ passe à Trivy avant la PR 4 ; `Tool.HasConfig` est faux pour Trivy jusque-là.
 Hors plan, toujours ouvert : ouvrir la configuration directement sur l'onglet
 Tools depuis le dashboard (`:config tools`).
 
+### 3.87 Les misconfigurations n'avaient aucun indicateur — la colonne `CFG` — **done**
+
+Le scan Kubernetes de §3.80 marchait, et **rien à l'écran ne le disait**.
+`Result.MisconfigCount` était calculé depuis toujours et n'était lu que par
+`internal/mcp/scan_tools.go` : aucune vue ne l'affichait. Un dépôt avec quarante
+misconfigurations — manifestes Kubernetes, Dockerfile, Terraform — affichait
+`0 0 0 0` dans `ws` comme dans `:sec`, parce que `Counts` ne compte que les
+vulnérabilités et que `Categorize` range les misconfigurations ailleurs. Le
+problème était donc plus large que Kubernetes, et la réponse aussi : **une seule
+colonne pour toute la catégorie Misconfiguration**, pas une colonne K8s.
+
+#### Un compte, pas un verdict
+
+Les trois indicateurs existants donnaient le vocabulaire, et aucun ne convenait
+tel quel :
+
+| Existant | Forme | Pourquoi pas ici |
+|---|---|---|
+| `Secrets` | un glyphe à trois états | un secret est déjà une alerte ; une misconfiguration ne l'est pas — presque tout dépôt portant un Dockerfile en a — et le glyphe dirait la même chose sur 1 et sur 200 |
+| `C H M L` | quatre comptes colorés | y fondre les misconfigurations ferait dire à « 3 CRITICAL » soit une CVE, soit `hostNetwork: true` : exactement la séparation que `Categorize` existe pour tenir, et deux comptes qui se contredisent à l'écran (le tableau contre l'onglet) est le piège nommé en §3.79 |
+| `CI` | une lettre | il n'existe aucune fonction de notation ici, et en inventer une serait deviner |
+
+Reste **un compte, coloré par la pire sévérité présente**. Quatre colonnes de
+sévérité coûteraient seize cellules dans le tableau le plus serré de
+l'application pour une question qu'on ne pose pas à un backlog de
+misconfigurations : on le lit en entier, et ce qu'on veut savoir de la liste,
+c'est s'il y a un CRITICAL dedans.
+
+#### Le `?`, et pourquoi `0?` est le cas qui compte
+
+`MisconfigSummary.Unrendered` est `len(K8sUnrendered)` : les charts Helm et les
+overlays Kustomize que rien n'a rendus. Un `?` suffixe le compte quand il est
+**partiel** — même glyphe que la colonne `CI`, même sens : ça n'a pas conclu.
+
+`0?` est le cas pour lequel le marqueur existe. Un `0` nu sur un dépôt de charts
+le déclare propre alors que rien n'y a été lu : c'est D20 une catégorie plus
+loin. Avant ça, `K8sUnrendered` n'apparaissait que dans le header de l'écran
+**résultats** (`headerUnrendered`) — invisible depuis la liste, c'est-à-dire
+depuis l'endroit où l'on décide quoi ouvrir.
+
+Sur une ligne de répertoire de `ws`, un sous-dépôt que personne n'a scanné rend
+le total partiel de la même façon : le parent ne peut pas être plus certain que
+ce qu'on ignore de ses enfants — c'est la condition qui pousse déjà un
+`SecretsUnknown` dans `foldSecrets`.
+
+#### Ce qui a été ajouté
+
+| | |
+|---|---|
+| `scan` | `Result.MisconfigScanned` (écrit par une étape qui **réussit**, l'une ou l'autre : règles Trivy ou schéma kubeconform), `MisconfigWorst`, `MisconfigSummary` + ses trois accesseurs nil-safe, `MisconfigVerdict()` — troisième verdict de cette forme après `SecretVerdict` et `CIVerdict`, et le seul calcul. `WorseSeverity` exportée pour le pliage des répertoires |
+| `theme` | `MisconfigState`, `MisconfigVerdict`, `MisconfigCell`, `MisconfigStyle` — une seule iconographie pour les trois vues. Valeurs nues en entrée : `theme` n'importe pas `internal/scan`, ce qui est déjà pourquoi `SeverityTextStyle` prend une chaîne |
+| caches | `Misconfig *scan.MisconfigSummary` sur les deux entrées. Aucune n'a jamais écrit la clé : tout fichier existant décode à `nil`, ce qui est la vérité sur lui |
+| vues | `ws`, `:sec` et `oci/images`. L'image y a droit : `trivy image --scanners misconfig` lit les instructions Dockerfile cuites dans les couches — contrairement à la note CI, qu'une image n'a pas |
+
+**Placement : après les quatre compteurs de sévérité, avant `CI`.** Dans `:sec`
+ce n'est pas une préférence — `inventoryColumnCritical` est un **indice**, et
+glisser une colonne devant `CRIT` ferait dépendre d'un réglage la colonne sur
+laquelle le tableau s'ouvre trié. `ws` et `oci/images` suivent le même ordre
+pour que les six colonnes se lisent pareil dans les trois.
+
+Pas d'`Optional`, pour la raison de `CI` : ses états comportent déjà une absence,
+et une colonne qui disparaîtrait sur un terminal étroit en ajouterait une
+deuxième qui lui ressemble.
+
+#### Ce qui reste ouvert
+
+- Un `0?` ne dit pas **quoi** n'a pas été rendu ; il faut ouvrir les résultats
+  pour lire `Not rendered`. Une infobulle n'existe pas dans ce TUI, et le footer
+  appartient à l'action en cours — laissé tel quel.
+- La colonne ne trie pas dans `ws`, où rien ne trie (l'ordre est celui du
+  répertoire) ; elle trie dans `:sec` et `oci/images`, où `countColumnWidth`
+  couvre déjà le `width(Title)+2` réclamé par la flèche.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

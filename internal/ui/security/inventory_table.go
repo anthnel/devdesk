@@ -54,7 +54,12 @@ type scanTarget struct {
 	// pipeline — so its zero value is already the truth.
 	CIScore     *string
 	CIGradeable bool
-	ScannedAt   time.Time
+	// Misconfig is the misconfiguration verdict as the cache holds it, stored
+	// rather than the finished state for Sensitive's reason: the verdict is one
+	// calculation, in theme, and a row carrying it would be a second place able
+	// to disagree with the workspaces list.
+	Misconfig *scan.MisconfigSummary
+	ScannedAt time.Time
 	// Scanned is false between a ctrl+a purge and the scan that replaces it.
 	// The target is still known — it is the counts that are not.
 	Scanned  bool
@@ -135,6 +140,14 @@ func (t scanTarget) secrets() theme.SecretsState {
 // its counters print "-" and so does this column.
 func (t scanTarget) ci() theme.CIScoreState {
 	return theme.CIScoreVerdict(t.CIScore, t.Scanned, t.CIGradeable)
+}
+
+// misconfig is the row's misconfiguration verdict, computed the way the
+// workspaces list and the images list compute theirs — same function, same
+// three states. A purged row has looked at nothing: its counters print "-" and
+// so does this column.
+func (t scanTarget) misconfig() theme.MisconfigState {
+	return theme.MisconfigVerdict(t.Misconfig != nil, t.Scanned, t.Misconfig.Total())
 }
 
 // labelFor names a target the way the table does, for the messages that have
@@ -279,8 +292,37 @@ func ciColumn() datatable.Column[scanTarget] {
 	}
 }
 
+// misconfigColumn is the misconfiguration count, and it exists only when
+// scan.categories.misconfig is on — off, it would be a dash on every row for
+// the life of the view.
+//
+// It sits after the four severity counters rather than beside Secrets, where
+// the category's verdict arguably belongs: inventoryColumnCritical is an index,
+// and slotting a column in front of CRIT would make the column the table opens
+// sorted by depend on a setting. Here it joins CI, which is the other column
+// answering "what did the scan conclude" rather than "how many CVEs".
+//
+// It does not declare Optional, for the reason CI does not: its states already
+// include an absence, and a column that vanished on a narrow terminal would add
+// a second one that looks like it.
+func misconfigColumn() datatable.Column[scanTarget] {
+	return datatable.Column[scanTarget]{
+		Title: "CFG", Sizing: datatable.SizingFixed, MinWidth: countColumnWidth,
+		Cell: func(t scanTarget) string {
+			return theme.MisconfigCell(t.misconfig(), t.Misconfig.Total(), t.Misconfig.UnrenderedCount() > 0)
+		},
+		Style: func(t scanTarget) lipgloss.Style {
+			return theme.MisconfigStyle(t.misconfig(), t.Misconfig.WorstSeverity())
+		},
+		// Sortable, unlike CI and Secrets: this is a count, its neighbours sort,
+		// and countColumnWidth already covers the width("CFG")+2 a sort arrow
+		// asks for.
+		Less: func(a, b scanTarget) bool { return a.Misconfig.Total() < b.Misconfig.Total() },
+	}
+}
+
 // inventoryColumns describes the inventory table.
-func inventoryColumns(withCI bool) []datatable.Column[scanTarget] {
+func inventoryColumns(withCI, withMisconfig bool) []datatable.Column[scanTarget] {
 	cols := []datatable.Column[scanTarget]{
 		{
 			// No title: the column carries a glyph, and a header over it would
@@ -319,6 +361,9 @@ func inventoryColumns(withCI bool) []datatable.Column[scanTarget] {
 		countColumn("MED", "MEDIUM", func(c scan.SeverityCounts) int { return c.Medium }),
 		countColumn("LOW", "LOW", func(c scan.SeverityCounts) int { return c.Low }),
 	}
+	if withMisconfig {
+		cols = append(cols, misconfigColumn())
+	}
 	if withCI {
 		// Beside the four severity counters, before Scanned — where a reader
 		// looks for what a scan concluded, and the placement the workspaces
@@ -335,9 +380,9 @@ func inventoryColumns(withCI bool) []datatable.Column[scanTarget] {
 }
 
 // newInventoryTable builds the inventory table.
-func newInventoryTable(withCI bool) datatable.Model[scanTarget] {
+func newInventoryTable(withCI, withMisconfig bool) datatable.Model[scanTarget] {
 	return datatable.New(datatable.Config[scanTarget]{
-		Columns:    inventoryColumns(withCI),
+		Columns:    inventoryColumns(withCI, withMisconfig),
 		SortColumn: inventoryColumnCritical,
 		SortDesc:   true,
 	})
