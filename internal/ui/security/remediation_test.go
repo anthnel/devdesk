@@ -337,6 +337,29 @@ func TestAFreshResultIsNotScannedAgainButAStaleOneIs(t *testing.T) {
 	}
 }
 
+// A floating tag's result is about what the tag pointed to then, which the
+// registry may have replaced: S measures it again, however fresh (§3.79).
+func TestAFloatingImageIsScannedAgainWhateverItsAge(t *testing.T) {
+	entries := []remediation.Entry{
+		{File: "Dockerfile", StageLabel: "#1", Image: "dhi.io/node:dev", Floating: true, Reason: remediation.ReasonFloating},
+		{File: "Dockerfile", StageLabel: "#2", Image: "alpine:3.20"},
+	}
+	m := onRemediation(t, entries, map[string]cache.RemediationEntry{
+		"dhi.io/node:dev": scannedAt(0, 1),
+		"alpine:3.20":     scannedAt(0, 1),
+	})
+	if got, want := m.refsToScan(time.Now()), []string{"dhi.io/node:dev"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("refs = %v, want %v (the floating one only)", got, want)
+	}
+	if a := m.canScanCandidates(); !a.Enabled() {
+		t.Errorf("S is refused with %q while a floating image can be measured again", a.Reason)
+	}
+	rows := remediationRows(entries, m.remediation.results, nil, nil)
+	if rows[0].Note != remediation.ReasonFloating || !rows[0].Scanned {
+		t.Errorf("floating row = %+v, want its earlier count shown with the reason", rows[0])
+	}
+}
+
 func TestScanIsRefusedWhenEverythingIsMeasured(t *testing.T) {
 	m := onRemediation(t, baseEntries()[:1], map[string]cache.RemediationEntry{
 		"golang:1.21": scannedAt(1, 1), "golang:1.23": scannedAt(1, 1), "golang:1.22": scannedAt(1, 1),

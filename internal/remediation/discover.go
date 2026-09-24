@@ -26,6 +26,10 @@ type Entry struct {
 	Image      string
 	Candidates []string
 	Reason     string
+	// Floating is an image whose tag names content that changes in place
+	// (Ref.Floats): it has no candidates, and a result measured earlier is
+	// never taken as current (§3.79).
+	Floating bool
 }
 
 // TagLister returns the tags a repository holds. Discover takes it as a
@@ -61,7 +65,9 @@ func Discover(root string, list TagLister, track Track, max int) (entries []Entr
 			if stage.Unresolved != "" {
 				entry.Reason = stage.Unresolved
 			} else {
-				entry.Candidates, entry.Reason = candidatesFor(ParseRef(stage.Image), list, tagsByRepo, track, max)
+				ref := ParseRef(stage.Image)
+				entry.Floating = ref.Floats()
+				entry.Candidates, entry.Reason = candidatesFor(ref, list, tagsByRepo, track, max)
 			}
 			entries = append(entries, entry)
 		}
@@ -86,7 +92,12 @@ type tagResult struct {
 func candidatesFor(ref Ref, list TagLister, seen map[string]tagResult, track Track, max int) ([]string, string) {
 	// A tag with no version to move from is refused before any request: the
 	// answer does not depend on what the registry holds.
-	if version, _ := SplitTag(ref.Tag); ref.Tag == "" || version == "" {
+	switch version, _ := SplitTag(ref.Tag); {
+	case ref.Floats():
+		return nil, ReasonFloating
+	case ref.Tag == "" && ref.Digest != "":
+		return nil, ReasonPinnedByDigest
+	case version == "":
 		_, reason := Candidates(ref.Tag, nil, track, max)
 		return nil, reason
 	}

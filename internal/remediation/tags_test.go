@@ -175,3 +175,24 @@ func TestAHashTagSaysItHasNoVersion(t *testing.T) {
 		t.Errorf("reason = %q", reason)
 	}
 }
+
+// A floating reference names content that changes under the same name (§3.79):
+// no digest, and no version in the tag.
+func TestWhatFloats(t *testing.T) {
+	for ref, want := range map[string]bool{
+		"alpine":                        true, // the implicit latest
+		"alpine:latest":                 true,
+		"dhi.io/node:dev":               true,
+		"debian:bookworm-slim":          true,
+		"ghcr.io/org/app:main":          true,
+		"alpine:3.20":                   false,
+		"node:20-slim":                  false,
+		"alpine@sha256:abc":             false, // pinned
+		"alpine:latest@sha256:abc":      false,
+		"localhost:5000/team/app:3.1.0": false,
+	} {
+		if got := ParseRef(ref).Floats(); got != want {
+			t.Errorf("ParseRef(%q).Floats() = %v, want %v", ref, got, want)
+		}
+	}
+}

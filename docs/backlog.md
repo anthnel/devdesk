@@ -14189,7 +14189,7 @@ Sources vérifiées le 2026-09-21 :
 
 ---
 
-### 3.79 La remédiation d'image de base ne sait rien faire d'un tag qui flotte (dhi.io, `:latest`) — **à faire**
+### 3.79 La remédiation d'image de base ne sait rien faire d'un tag qui flotte (dhi.io, `:latest`) — **done**
 
 §3.2 corrige une CVE d'image de base en proposant un tag **strictement plus
 récent** du même repository. La question posée en session : est-ce que ça
@@ -14245,6 +14245,34 @@ Sources vérifiées le 2026-09-21 :
 [Dependabot — Docker ecosystem, digest pinning](https://docs.github.com/en/code-security/dependabot/ecosystems-supported/supported-ecosystems-and-repositories#docker),
 [Renovate — Docker datasource, digest pinning](https://docs.renovatebot.com/modules/datasource/docker/).
 
+
+#### Livré — 2026-09-24 : l'option (a), re-scanner sans croire le cache
+
+Les deux décisions ouvertes, tranchées :
+
+1. **Détection** : le signal simple, sans liste de registres. `Ref.Floats()` est
+   vrai quand la référence n'a **pas de digest** et que son tag ne porte **pas de
+   version** (`SplitTag` n'en trouve pas) — `latest`, une référence sans tag,
+   `main`, un nom de code (`bookworm-slim`), un tag `dhi.io` sans numéro. Une
+   liste à tenir à jour aurait été la seule source de vérité fausse du lot.
+2. **Ce qui est fait** : (a). L'image reste listée, sans candidat, avec la raison
+   `floating tag — S re-scans what it points to now` ; `S` la re-scanne **à
+   chaque fois**, quel que soit l'âge du résultat en cache (`refsToScan` ignore
+   `remediationFreshFor` pour elle). Rien n'est écrit dans le Dockerfile —
+   l'épinglage par digest (b) reste une fonctionnalité voisine, non faite.
+
+Au passage, la raison commune « pinned by digest or floats on latest » est
+scindée : une référence épinglée par digest sans tag dit maintenant
+`pinned by digest, with no tag to move from` (`ReasonPinnedByDigest`) — c'est
+l'inverse d'un tag qui flotte, et une seule phrase pour les deux ne disait
+lequel des deux c'était.
+
+**Ce qui reste ouvert.** Un tag **versionné** republié en place
+(`alpine:3.20` qui passe au patch suivant, `dhi.io/python:3.13` reconstruit)
+n'est pas vu comme flottant : il garde ses candidats et la fenêtre de 24 h. Le
+savoir demanderait le digest actuel du tag côté registre, comparé à celui que le
+scan a mesuré — une requête de manifeste par image, et un champ de plus dans
+`remediation-scans.json`. Pas fait ici.
 ---
 
 ### 3.80 Manifestes Kubernetes — analyser et corriger, sans jamais toucher un cluster — **done**

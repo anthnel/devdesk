@@ -122,6 +122,34 @@ func TestDiscoverDoesNotAskAboutATagItCannotMove(t *testing.T) {
 	}
 }
 
+// A floating tag says it floats, and a digest-only reference says it is pinned:
+// the two used to share one reason that named both (§3.79).
+func TestAFloatingTagSaysSoAndADigestSaysItIsPinned(t *testing.T) {
+	root := repoWith(t, map[string]string{
+		"Dockerfile": "FROM dhi.io/python:3-dev\nFROM ubuntu\nFROM alpine@sha256:abc\nFROM golang:1.23\n",
+	})
+	reg := newRegistry(map[string][]string{"library/golang": {"1.23", "1.24"}})
+	entries, _, err := Discover(root, reg.list, TrackSameLine, 3)
+	if err != nil || len(entries) != 4 {
+		t.Fatalf("Discover: %v, %d entries", err, len(entries))
+	}
+	want := []struct {
+		floating bool
+		reason   string
+	}{
+		{false, ""}, // 3-dev carries a version: it is a versioned line, not a floating tag
+		{true, ReasonFloating},
+		{false, ReasonPinnedByDigest},
+		{false, ""},
+	}
+	for i, w := range want {
+		e := entries[i]
+		if e.Floating != w.floating || (w.reason != "" && e.Reason != w.reason) {
+			t.Errorf("%s: floating %v, reason %q; want %v, %q", e.Image, e.Floating, e.Reason, w.floating, w.reason)
+		}
+	}
+}
+
 func TestAnUnresolvableReferenceIsListedWithItsReason(t *testing.T) {
 	root := repoWith(t, map[string]string{"Dockerfile": "FROM ${BASE}\n"})
 	entries, _, err := Discover(root, newRegistry(nil).list, TrackSameLine, 3)

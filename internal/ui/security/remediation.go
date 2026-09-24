@@ -39,7 +39,7 @@ const (
 	reasonNotRemediationTab = "Candidate scans belong to the Remediation tab"
 	reasonFindingsOnly      = "That key works on findings — open another tab"
 	reasonNoBaseImage       = "No base image to scan"
-	reasonAllMeasured       = "Every image is already scanned — results are kept for 24 hours"
+	reasonAllMeasured       = "Every image is already scanned — results are kept for 24 hours, except on a floating tag"
 	reasonNoImageRow        = "No image selected"
 	reasonPickACandidate    = "Space selects a candidate — move to a tag under the image"
 	reasonScanFirst         = "Scan this candidate first (S) — a bump is proposed with its result, not without"
@@ -375,23 +375,28 @@ func (m Model) remediationBusy() bool {
 
 // refsToScan are the images with no result, or one older than remediationFreshFor
 // — each once, however many stages name it — and not already being scanned.
+//
+// An image on a floating tag is scanned whatever its result's age (§3.79): the
+// cache is keyed by the reference as written, which does not change when the
+// registry replaces what it points to, so a result an hour old may be about an
+// image that is no longer there.
 func (m Model) refsToScan(now time.Time) []string {
 	seen := map[string]bool{}
 	var refs []string
-	add := func(ref string) {
+	add := func(ref string, floating bool) {
 		if ref == "" || seen[ref] || m.remediation.scanning[ref] {
 			return
 		}
 		seen[ref] = true
-		if entry, ok := m.remediation.results[ref]; ok && now.Sub(entry.ScannedAt) < remediationFreshFor {
+		if entry, ok := m.remediation.results[ref]; ok && !floating && now.Sub(entry.ScannedAt) < remediationFreshFor {
 			return
 		}
 		refs = append(refs, ref)
 	}
 	for _, e := range m.remediation.entries {
-		add(e.Image)
+		add(e.Image, e.Floating)
 		for _, c := range e.Candidates {
-			add(c)
+			add(c, false)
 		}
 	}
 	return refs
