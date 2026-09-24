@@ -57,16 +57,22 @@ type MisconfigFixPreparedMsg struct {
 	// Instance says which occurrence of the rule, for the same reason — see
 	// instanceOf.
 	Instance string
-	Err      error
+	// FindingFile is the file the finding points at, which the verification
+	// looks in. It is File.File for every rule but the build context's, whose
+	// fix edits the .dockerignore beside the Dockerfile it reports (§3.81).
+	FindingFile string
+	Err         error
 }
 
-// MisconfigFixWrittenMsg reports the write.
+// MisconfigFixWrittenMsg reports the write. File is the file written,
+// FindingFile the one the rule was reported in.
 type MisconfigFixWrittenMsg struct {
-	Target   string
-	File     string
-	Rule     string
-	Instance string
-	Err      error
+	Target      string
+	File        string
+	FindingFile string
+	Rule        string
+	Instance    string
+	Err         error
 }
 
 // ── Availability ─────────────────────────────────────────────────────────────
@@ -126,7 +132,11 @@ func prepareMisconfigFixCmd(target string, f scan.Finding) tea.Cmd {
 		if !ok {
 			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: errDeclined{remediation.ReasonNoFixForRule}}
 		}
-		path := filepath.Join(target, filepath.FromSlash(f.File))
+		rel, reason := rule.FileFor(target, f)
+		if reason != "" {
+			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: errDeclined{reason}}
+		}
+		path := filepath.Join(target, filepath.FromSlash(rel))
 		original, err := readFile(path)
 		if err != nil {
 			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: err}
@@ -137,18 +147,21 @@ func prepareMisconfigFixCmd(target string, f scan.Finding) tea.Cmd {
 		}
 		updated, err := patch.Rewrite(original, edits)
 		if err != nil {
-			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: fmt.Errorf("%s: %w", f.File, err)}
+			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: fmt.Errorf("%s: %w", rel, err)}
 		}
-		diff, err := patch.Diff(f.File, original, edits)
+		diff, err := patch.Diff(rel, original, edits)
 		if err != nil {
-			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: fmt.Errorf("%s: %w", f.File, err)}
+			return MisconfigFixPreparedMsg{Target: target, Rule: f.ID, Err: fmt.Errorf("%s: %w", rel, err)}
 		}
-		file := preparedWrite{File: f.File, Path: path, Original: original, Updated: updated}
+		file := preparedWrite{File: rel, Path: path, Original: original, Updated: updated}
 		if file.State, err = git.StateOf(path); err != nil {
-			log.Printf("ERROR [security/misconfig] git state of %s: %v", f.File, err)
+			log.Printf("ERROR [security/misconfig] git state of %s: %v", rel, err)
 			file.StateErr = true
 		}
-		return MisconfigFixPreparedMsg{Target: target, File: file, Rule: f.ID, Instance: instanceOf(f), Body: rule.Title + "\n\n" + diff}
+		return MisconfigFixPreparedMsg{
+			Target: target, File: file, FindingFile: f.File,
+			Rule: f.ID, Instance: instanceOf(f), Body: rule.Title + "\n\n" + diff,
+		}
 	}
 }
 
@@ -174,8 +187,7 @@ func (m Model) handleMisconfigFixPrepared(msg MisconfigFixPreparedMsg) (tea.Mode
 		return m, m.footer.Error("Could not prepare the fix — the file may have changed, check logs")
 	}
 	m.misconfigPending = &msg.File
-	m.misconfigRule = msg.Rule
-	m.misconfigInstance = msg.Instance
+	m.misconfigFinding = misconfigFindingRef{Rule: msg.Rule, Instance: msg.Instance, File: msg.FindingFile}
 	// Rule 104: the safe answer is the default — ConfirmModal opens on No.
 	m.confirmModal = sharedcomponents.NewConfirmModal("Fix misconfiguration", misconfigConfirmationText(msg.File, msg.Body))
 	return m, nil
@@ -193,23 +205,36 @@ func misconfigConfirmationText(f preparedWrite, body string) string {
 
 // handleMisconfigFixConfirmed runs the write the modal was about.
 func (m Model) handleMisconfigFixConfirmed() (tea.Model, tea.Cmd) {
-	file := m.misconfigPending
-	rule, instance := m.misconfigRule, m.misconfigInstance
+	file, ref := m.misconfigPending, m.misconfigFinding
 	m.misconfigPending = nil
-	m.misconfigRule = ""
-	m.misconfigInstance = ""
+	m.misconfigFinding = misconfigFindingRef{}
 	m.confirmModal = nil
 	if file == nil {
 		return m, nil
 	}
-	return m, writeMisconfigFixCmd(m.targetPath, rule, instance, *file)
+	return m, writeMisconfigFixCmd(m.targetPath, ref, *file)
 }
 
-func writeMisconfigFixCmd(target, rule, instance string, f preparedWrite) tea.Cmd {
+func writeMisconfigFixCmd(target string, ref misconfigFindingRef, f preparedWrite) tea.Cmd {
 	return func() tea.Msg {
 		err := patch.WriteIfUnchanged(f.Path, f.Original, f.Updated)
-		return MisconfigFixWrittenMsg{Target: target, File: f.File, Rule: rule, Instance: instance, Err: err}
+		return MisconfigFixWrittenMsg{
+			Target: target, File: f.File, FindingFile: ref.File,
+			Rule: ref.Rule, Instance: ref.Instance, Err: err,
+		}
 	}
+}
+
+// misconfigFindingRef is the finding a pending fix is about, kept between the
+// confirmation and the write so the verification knows what to look for.
+type misconfigFindingRef struct {
+	// Rule is the AVD id.
+	Rule string
+	// Instance is which occurrence of it, so a file holding the same rule
+	// twice is not judged by the one the fix did not touch.
+	Instance string
+	// File is where the finding points, which is not always the file written.
+	File string
 }
 
 func (m Model) handleMisconfigFixWritten(msg MisconfigFixWrittenMsg) (tea.Model, tea.Cmd) {
@@ -223,7 +248,7 @@ func (m Model) handleMisconfigFixWritten(msg MisconfigFixWrittenMsg) (tea.Model,
 	// The file changed; the result did not. A re-scan is what turns "written"
 	// into "fixed", so it starts here rather than being left to the user — as a
 	// job, visible in `:jobs` and stoppable with K.
-	v := misconfigVerify{Target: msg.Target, Rule: msg.Rule, File: msg.File, Instance: msg.Instance}
+	v := misconfigVerify{Target: msg.Target, Rule: msg.Rule, File: msg.FindingFile, Instance: msg.Instance}
 	m.misconfigVerifying = &v
 	scan := m.startMisconfigVerification(v)
 	footer := m.footer.Info(fmt.Sprintf("Fixed %s — re-scanning to confirm %s is gone", msg.File, msg.Rule))
@@ -254,8 +279,9 @@ func (m *Model) reportFailedFix(msg MisconfigFixWrittenMsg) tea.Cmd {
 
 // misconfigVerify is the fix waiting on a re-scan to say whether it worked.
 type misconfigVerify struct {
-	Target   string
-	Rule     string
+	Target string
+	Rule   string
+	// File is the file the finding points at, where the rule is looked for.
 	File     string
 	Instance string
 }

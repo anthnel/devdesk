@@ -194,6 +194,10 @@ func sourceDisplay(f scan.Finding) string {
 		return "helm lint"
 	case scan.SourceKustomize:
 		return "kustomize"
+	case scan.SourceBuildContext:
+		// DevDesk's own check (§3.81): what a COPY of the whole context takes
+		// into the image, which no scanner reports.
+		return "context"
 	case scan.SourceGitleaks:
 		return "gitleaks"
 	case scan.SourceTrivySecret:

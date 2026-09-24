@@ -305,6 +305,69 @@ Misconfigurations tab, where the Source column reads `schema`. The ids
 (`K8S-SCHEMA`, `K8S-API-REMOVED`, `K8S-PARSE`) are DevDesk's: kubeconform has
 none, and a re-scan needs a stable one to say a finding went away.
 
+### The build context — DevDesk's own check (§3.81)
+
+`internal/scan/buildcontext.go`. A `COPY . .` takes whatever no `.dockerignore`
+leaves out into a layer of the image, and nothing else in the pipeline sees it:
+`trivy config` and hadolint have no rule for it (verified on Trivy 0.71.2 and
+hadolint 2.14.0), and the secret stages read the working tree, where `.git`
+matches no pattern. It is not a secret but the vector — the history, with every
+secret ever committed and "removed", is readable from the layer.
+
+It is a stage of its own (`build-context`), and the first that runs **no
+tool**: `Scanner.checksBuildContext` gates it on the Misconfiguration category
+being on and the target being a directory, nothing else. It is therefore not in
+`categoryTable` — there is no tool to tick, detect or report missing. It does
+**not** set `MisconfigScanned`: it reads a few paths, not the Dockerfile's
+rules, and a target it found nothing in has not been checked for
+misconfigurations by it.
+
+Every finding rests on three facts the check establishes, never supposes:
+
+| Fact | Where |
+|---|---|
+| a `COPY`/`ADD` takes the whole context (`.`, `./`), with no `--from` and no `--exclude`, in the final stage or a stage it is built `FROM` | `dockerfile.Copy.TakesWholeContext`, `shippedStages`. A builder stage's layers are not the image's; `COPY --from` of a whole stage is left alone, since what it carries depends on that stage's paths. `COPY *` is left alone too — whether `*` takes dot files depends on the builder |
+| the path exists | `.git` must be a **directory** — a worktree's `.git` is a file naming the real one, and copying it exposes a path, not a history. Sensitive files are walked like `dockerfile.Find` walks (depth 4, `node_modules`/`vendor`/… skipped) |
+| no ignore file that may apply excludes it | `dockerfile.IgnoreFiles` returns the Dockerfile's own `<name>.dockerignore` (BuildKit reads it first) and the context's `.dockerignore` (every builder), whichever exist; a path is sent only if **none** excludes it, since which one applies depends on the builder |
+
+`dockerfile.ParseIgnore` implements Docker's syntax (moby/patternmatcher): `#`
+in the first column, `!`, a leading `/` dropped, `*`/`?` within a segment, `**`
+across them, last match wins, a directory taking its contents. Every answer
+comes with **whether it is certain**, and only a certain "not excluded" is
+reported: a pattern `path.Match` rejects or a `**` inside a segment makes the
+whole file uncertain, and `ExcludesTree` answers uncertain when a negation
+*after* the last pattern excluding `.git` could reach below it
+(`!.git/config`). Uncertain is silence — the inverse would be the false
+positive the check exists not to produce.
+
+**Only a Dockerfile at the root is checked.** Nothing in a Dockerfile says
+where its build context is — `docker build -f sub/Dockerfile .` puts it
+elsewhere — and at the root "the context is this directory" is the one safe
+assumption. `logUncheckedDockerfiles` logs each deeper Dockerfile that copies
+its whole context, with that reason. Same reflex as `fixRootUser` declining a
+base it cannot identify.
+
+| Id | Finding | Fix |
+|---|---|---|
+| `DEVDESK-CTX-001` | `.git` copied into the image | `ctrl+o` appends `.git` to the one ignore file that applies (`remediation.fixIgnoreGit`); declines with none — DevDesk does not **create** a `.dockerignore`, whose content would be a policy it invented — and with two, since which one the builds read is not in the files |
+| `DEVDESK-CTX-002` | sensitive files copied, the first five named | none — which of them the image needs is not something the files say |
+
+Both are `Source: build-context` (Source column `context`), `IaCType:
+dockerfile`, severity HIGH, and point at the `COPY` line. The ids are DevDesk's,
+in a namespace no Trivy id can collide with.
+
+**The fix edits another file than the finding's.** `remediation.Rule.Target`
+names the file to edit (nil = `f.File`), and it may read the disk, so it is
+called in the Cmd that computes the fix, never by `canFixMisconfig` — the
+declines it produces reach the footer as warnings. The UI carries the finding's
+file apart from the written one (`MisconfigFixPreparedMsg.FindingFile`,
+`misconfigFindingRef`): the verification re-scan looks for the rule in the
+Dockerfile, where it was reported, not in the `.dockerignore` it wrote.
+
+`dockerfile.IsDockerfileName` no longer takes `Dockerfile.dockerignore` for a
+Dockerfile, which it did by its `Dockerfile.` prefix — `dockerfile.Find` and the
+Remediation tab listed it until now.
+
 **`scan.Categorize` is the only thing that decides a finding's family.** There
 were two rules: `Result.CountFindings` switched on `Source` alone, the security
 view's tabs on `Source` plus `PkgName` plus `Match`. Three inputs separated them

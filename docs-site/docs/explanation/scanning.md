@@ -140,6 +140,33 @@ template or the kustomization it came from. Without them, those directories
 are left unvalidated and the log says so. Custom resources are skipped: their schema is
 in a CRD kubeconform does not read. Nothing ever connects to a cluster.
 
+## The build context
+
+A `COPY . .` sends the whole directory to the builder, and what no
+`.dockerignore` leaves out ends up in a layer of the image. Neither Trivy nor
+hadolint reports it, and the secret scanners cannot: `.git` matches no secret
+pattern, yet a secret committed then deleted is still in its history. So
+DevDesk checks it itself, whenever the Misconfiguration category is on — no
+tool to install.
+
+A finding needs three facts, all checked: a `COPY` or `ADD` of the whole
+context in a stage the final image is built from; a `.git` directory, or a
+file such as `.env`, `*.pem`, `*.key`, `id_rsa`, `credentials.json` or
+`.npmrc`, actually on disk; and no ignore file that may apply excluding it —
+the context's `.dockerignore`, or the `<Dockerfile>.dockerignore` BuildKit
+reads first. What cannot be established for certain is silence: a pattern
+DevDesk cannot evaluate, or a `!` that may bring part of `.git` back.
+
+Only a Dockerfile at the root of the scanned directory is checked. Nothing in a
+Dockerfile says where its build context is, and at the root "the context is
+this directory" is the one safe assumption; a Dockerfile further down is
+logged as not checked.
+
+`ctrl+o` fixes the `.git` finding by appending `.git` to the existing
+`.dockerignore`, after the usual confirmation. It does not create one: what
+belongs in an image is a policy, not something the Dockerfile says. The
+sensitive-files finding has no built-in fix.
+
 ## One rule decides a finding's family
 
 `scan.Categorize` is the single function that assigns a finding to a

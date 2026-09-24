@@ -563,6 +563,7 @@ func TestTheSourceColumnNamesTheTool(t *testing.T) {
 		scan.SourceKubeconform:    "schema",
 		scan.SourceHelm:           "helm lint",
 		scan.SourceKustomize:      "kustomize",
+		scan.SourceBuildContext:   "context",
 	}
 
 	for source, want := range tests {

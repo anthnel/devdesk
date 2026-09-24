@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-09-21
+**Last Updated:** 2026-09-24
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -14410,7 +14410,7 @@ Sources vérifiées le 2026-09-21 :
 
 ---
 
-### 3.81 Exposition du contexte de build — `COPY . .` embarque `.git` et les fichiers locaux — **à faire**
+### 3.81 Exposition du contexte de build — `COPY . .` embarque `.git` et les fichiers locaux — **done**
 
 Trouvé en lisant le chapitre 4 (« Secure Docker Image Building Practices »),
 et vérifié en local plutôt que supposé : un `COPY . .` sans `.dockerignore`
@@ -14533,6 +14533,44 @@ de la conception : jusqu'où aller dans la sémantique de `.dockerignore`
 connue — répondre « exclu » seulement quand c'est certain, et se taire
 sinon — puisque l'inverse produirait le faux positif que tout le reste de
 cette entrée s'attache à éviter.
+
+#### Livré — 2026-09-24
+
+Les trois décisions sont appliquées telles quelles. Ce que l'implémentation a
+dû trancher en plus, et comment :
+
+- **Une étape sans outil.** `internal/scan/buildcontext.go`, étape
+  `build-context`, lancée dès que la catégorie Misconfiguration est active sur
+  un répertoire. Elle n'entre pas dans `categoryTable` : il n'y a rien à cocher,
+  détecter ni déclarer manquant. Elle ne pose pas `MisconfigScanned` — lire
+  quelques chemins n'est pas avoir vérifié les règles du Dockerfile.
+- **Deux ids, un seul corrigeable.** `DEVDESK-CTX-001` (`.git`) et
+  `DEVDESK-CTX-002` (fichiers sensibles, les cinq premiers nommés),
+  `Source: build-context`, HIGH, ancrés sur la ligne du `COPY`. Le second n'a
+  pas de correctif : lesquels de ces fichiers l'image utilise, les fichiers ne
+  le disent pas.
+- **Quelles étapes comptent.** L'étape finale et celles dont elle hérite par
+  `FROM <étape>` ; une étape de build qui copie tout puis passe un binaire
+  n'expose rien. `COPY --from`, `COPY --exclude` et `COPY *` sont ignorés — le
+  dernier parce que `*` prend ou non les fichiers cachés selon le builder.
+- **`.git` doit être un répertoire.** Dans un worktree c'est un fichier qui
+  pointe ailleurs : le copier expose un chemin, pas un historique.
+- **Deux fichiers d'ignore possibles.** BuildKit lit d'abord
+  `<Dockerfile>.dockerignore`, le builder historique seulement `.dockerignore`.
+  Un chemin n'est déclaré copié que si **aucun** des deux ne l'exclut ; le
+  correctif refuse quand les deux existent, faute de savoir lequel les builds
+  lisent.
+- **La sémantique de `.dockerignore`** — la question laissée ouverte — est celle
+  de moby/patternmatcher, avec une certitude attachée à chaque réponse : un
+  motif illisible, un `**` au milieu d'un segment, ou un `!` placé après la
+  dernière exclusion de `.git` et qui pourrait l'atteindre rendent la réponse
+  incertaine, et l'incertain se tait.
+- **Le correctif écrit ailleurs que le finding.** `remediation.Rule.Target`
+  désigne le fichier édité ; l'UI garde à part le fichier du finding, pour que
+  la re-vérification cherche la règle dans le Dockerfile et non dans le
+  `.dockerignore` écrit.
+- **Au passage :** `IsDockerfileName` prenait `Dockerfile.dockerignore` pour un
+  Dockerfile (préfixe `Dockerfile.`) ; corrigé.
 
 Sources vérifiées le 2026-09-21 :
 *Docker and Kubernetes Security* (§4.3, sur `.dockerignore` et le contexte de

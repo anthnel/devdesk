@@ -50,8 +50,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.findingToIgnore = nil
 		m.remediation.pending = nil
 		m.misconfigPending = nil
-		m.misconfigRule = ""
-		m.misconfigInstance = ""
+		m.misconfigFinding = misconfigFindingRef{}
 		return m, nil
 
 	case sharedcomponents.OptionConfirmModalYesMsg:

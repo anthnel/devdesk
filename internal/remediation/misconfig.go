@@ -38,6 +38,24 @@ type Rule struct {
 	// It never guesses. An instance it cannot read exactly is one it declines,
 	// and the reason is shown to the user as-is (Rule 129: English).
 	Fix func(content []byte, f scan.Finding) ([]patch.Edit, string)
+	// Target is the file the fix edits, when it is not the one the finding
+	// points at: a slash path relative to root, the scanned directory, or a
+	// reason when there is no file to edit. Nil edits f.File.
+	//
+	// It exists for the build context (§3.81), whose finding points at the
+	// Dockerfile line that copies everything while the fix belongs in the
+	// .dockerignore beside it. It may read the disk, so it is called where the
+	// fix is computed, never where the shortcut column is.
+	Target func(root string, f scan.Finding) (rel, reason string)
+}
+
+// FileFor returns the file this rule's fix edits for f, relative to root, or
+// the reason there is none.
+func (r Rule) FileFor(root string, f scan.Finding) (rel, reason string) {
+	if r.Target == nil {
+		return f.File, ""
+	}
+	return r.Target(root, f)
 }
 
 // The reasons a fix declines. They are constants because the view, the footer
@@ -75,6 +93,13 @@ const (
 	// fixMaintainerDeprecated.
 	ReasonNotAMaintainerInstruction = "The reported line is not a MAINTAINER instruction"
 	ReasonMaintainerContinues       = "The MAINTAINER instruction continues onto another line"
+	// ReasonNoDockerignore, ReasonTwoIgnoreFiles and ReasonGitAlreadyIgnored
+	// guard fixIgnoreGit (§3.81). DevDesk adds to an ignore file; it does not
+	// write one, since what belongs in an image is a policy it would be
+	// inventing.
+	ReasonNoDockerignore    = "There is no .dockerignore to add .git to — DevDesk does not create one"
+	ReasonTwoIgnoreFiles    = "Two ignore files may apply, depending on the builder — add .git to the one yours reads"
+	ReasonGitAlreadyIgnored = "The .dockerignore already excludes .git"
 )
 
 // The account the fix creates. The uid goes through an ARG so it can be
@@ -186,6 +211,14 @@ var catalog = map[string]Rule{
 		AVDID: "KSV-0017",
 		Title: "Set privileged: false on the container",
 		Fix:   fixPrivileged,
+	},
+	// The build context (§3.81): the one fix of a finding DevDesk emits itself,
+	// and the one whose edit lands in another file than the finding's.
+	RuleKey(scan.BuildContextGitID): {
+		AVDID:  scan.BuildContextGitID,
+		Title:  "Add .git to .dockerignore",
+		Fix:    fixIgnoreGit,
+		Target: ignoreFileToEdit,
 	},
 	RuleKey(scan.K8sAPIRemovedID): {
 		AVDID: scan.K8sAPIRemovedID,
