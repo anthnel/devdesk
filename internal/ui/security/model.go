@@ -100,12 +100,9 @@ type Model struct {
 	// the bytes the diff was computed from, so what gets written is what was
 	// agreed to and not a second reading of the file.
 	misconfigPending *preparedWrite
-	// misconfigRule is the AVD id that pending write is about, kept so the
+	// misconfigFinding is the finding that pending write is about, kept so the
 	// verification re-scan knows what to look for.
-	misconfigRule string
-	// misconfigInstance is which occurrence of that rule, so a file holding
-	// the same rule twice is not judged by the one the fix did not touch.
-	misconfigInstance string
+	misconfigFinding misconfigFindingRef
 
 	// misconfigVerifying is the fix waiting on the re-scan that decides whether
 	// it worked (§3.78, phase B3). A written file is not a fixed one: the rule

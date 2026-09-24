@@ -47,7 +47,7 @@ const (
 // ProgressUpdate carries structured progress notifications from the scanner to the UI.
 // It is emitted by OnProgress at the start, during, and on completion of each stage.
 type ProgressUpdate struct {
-	Stage  string      // unique identifier: "vuln", "secret", "trivy-secret", "license", "misconfig"
+	Stage  string      // unique identifier: "vuln", "secret", "trivy-secret", "license", "misconfig", "build-context"...
 	Label  string      // human-readable label
 	Status StageStatus // current status of the stage
 	Detail string      // optional detail (e.g., DB download progress from Trivy stderr)
@@ -740,6 +740,16 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 				result.MisconfigScanned = true
 				notify(ProgressUpdate{Stage: "misconfig", Label: "Misconfigurations", Status: StageDone})
 			}
+			return nil
+		})
+	}
+
+	// Build context (DevDesk itself, directories only): what a COPY of the
+	// whole context takes into the image (§3.81). No tool to detect, so it
+	// runs whenever the category is on.
+	if s.checksBuildContext(targetType) {
+		eg.Go(func() error {
+			runBuildContextStage(target, result, &mu, notify)
 			return nil
 		})
 	}

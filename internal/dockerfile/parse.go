@@ -1,5 +1,6 @@
 // Package dockerfile reads the base images a Dockerfile builds on, and where in
-// the file each one is written.
+// the file each one is written — and, for the build-context check (§3.81), what
+// each stage copies in from the context.
 //
 // It exists for the security remediation (§3.2): a scan says which packages are
 // vulnerable, and the Dockerfile is where the base image that carries them is
@@ -13,6 +14,8 @@
 package dockerfile
 
 import (
+	"encoding/json"
+	"path"
 	"regexp"
 	"strings"
 
@@ -59,6 +62,54 @@ type Stage struct {
 	Span         Span
 	Editable     bool
 	NoEditReason string
+	// Copies are the stage's COPY and ADD instructions, in file order.
+	Copies []Copy
+}
+
+// Copy is one COPY or ADD instruction (§3.81).
+//
+// It is read for one question — does this instruction take the whole build
+// context — so it keeps what answers it and nothing else: where the sources come
+// from, what they are, and whether a flag narrows them.
+type Copy struct {
+	// Line and EndLine are the 1-based lines the instruction spans, the escape
+	// character's continuations included.
+	Line    int
+	EndLine int
+	// Keyword is COPY or ADD, uppercased.
+	Keyword string
+	// From is the --from flag's value: another stage or an image, not the
+	// build context. Empty when the sources come from the context.
+	From string
+	// Excludes is set when an --exclude flag is present: the copy leaves out
+	// paths the file names, so what it takes is no longer the whole of what it
+	// points at.
+	Excludes bool
+	// Sources are every argument but the destination, as written. Nil when the
+	// instruction could not be read — a malformed JSON form, a heredoc, a
+	// single argument — which a caller must read as "unknown", never as "copies
+	// nothing".
+	Sources []string
+}
+
+// TakesWholeContext reports whether the instruction copies the entire build
+// context: its sources come from the context, one of them is the context's
+// root, and no flag narrows it.
+//
+// Only the root itself counts — `.`, `./` and their cleaned equivalents. A glob
+// such as `*` very probably takes everything too, but whether it matches dot
+// files depends on the builder, and a check that fires on a guess about a
+// builder is exactly the kind §3.81 rules out.
+func (c Copy) TakesWholeContext() bool {
+	if c.From != "" || c.Excludes {
+		return false
+	}
+	for _, src := range c.Sources {
+		if path.Clean(strings.TrimSpace(src)) == "." {
+			return true
+		}
+	}
+	return false
 }
 
 // File is a parsed Dockerfile.
@@ -91,7 +142,8 @@ type token struct {
 
 var directive = regexp.MustCompile(`^#\s*([A-Za-z]+)\s*=\s*(\S+)\s*$`)
 
-// Parse reads the FROM instructions of a Dockerfile.
+// Parse reads the FROM instructions of a Dockerfile, and the COPY and ADD
+// instructions of each stage.
 func Parse(content []byte) File {
 	lines := splitLines(content)
 	esc := escapeChar(lines)
@@ -127,9 +179,52 @@ func Parse(content []byte) File {
 				names[strings.ToLower(stage.Name)] = true
 			}
 			inStage = true
+		case "COPY", "ADD":
+			if !inStage {
+				continue // an instruction before any FROM is not part of a build
+			}
+			cp := readCopy(tokens)
+			cp.Line, cp.EndLine = first+1, next
+			last := &file.Stages[len(file.Stages)-1]
+			last.Copies = append(last.Copies, cp)
 		}
 	}
 	return file
+}
+
+// readCopy reads a COPY or ADD: its flags, then its sources and destination in
+// either the shell form or the JSON one.
+func readCopy(tokens []token) Copy {
+	cp := Copy{Keyword: strings.ToUpper(tokens[0].text)}
+	i := 1
+	for i < len(tokens) && strings.HasPrefix(tokens[i].text, "--") {
+		k, v, _ := strings.Cut(tokens[i].text, "=")
+		switch strings.ToLower(k) {
+		case "--from":
+			cp.From = v
+		case "--exclude":
+			cp.Excludes = true
+		}
+		i++
+	}
+	args := make([]string, 0, len(tokens)-i)
+	for _, t := range tokens[i:] {
+		args = append(args, t.text)
+	}
+	if len(args) > 0 && strings.HasPrefix(args[0], "[") {
+		// The JSON form. Joining on one space loses nothing that matters here:
+		// the only source this is read for is ".", which holds no space.
+		var parts []string
+		if err := json.Unmarshal([]byte(strings.Join(args, " ")), &parts); err != nil {
+			return cp
+		}
+		args = parts
+	}
+	if len(args) < 2 || strings.HasPrefix(args[0], "<<") {
+		return cp // a heredoc copies what the file spells, not the context
+	}
+	cp.Sources = args[:len(args)-1]
+	return cp
 }
 
 // splitLines cuts content into physical lines, keeping each one's byte offset.

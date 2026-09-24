@@ -29,8 +29,14 @@ var skippedDirs = map[string]bool{
 // Dockerfile or Containerfile, with a suffix (Dockerfile.dev) or a prefix
 // (api.Dockerfile). It is by name and never by content, as the viewer's kind
 // detection is.
+//
+// `Dockerfile.dockerignore` is not one, although it starts like one: it is the
+// ignore file BuildKit reads for that Dockerfile (§3.81).
 func IsDockerfileName(name string) bool {
 	lower := strings.ToLower(name)
+	if strings.HasSuffix(lower, ignoreSuffix) {
+		return false
+	}
 	for _, base := range []string{"dockerfile", "containerfile"} {
 		if lower == base || strings.HasPrefix(lower, base+".") || strings.HasSuffix(lower, "."+base) {
 			return true
