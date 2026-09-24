@@ -142,6 +142,18 @@ gauges now need 180 columns instead of 160.
 `podman` side of `RepoDigests` has not been measured against a real `podman
 system service` — the field exists there under the same name.
 
+**From a container to its image — `J`** (§3.89). The containers view sends
+`ociresources.FocusImageRequestMsg` with the image reference exactly as the
+engine printed it; the router switches to the OCI view and hands it the
+request, which waits for the first listing if the view was just built
+(`deferUntilListed`, the same queue agents use). Matching is the OCI view's
+(`imageMatches`, `focus.go`): an implicit `latest`, docker's `nginx` against
+podman's `docker.io/library/nginx`, a registry port that is not a tag, a
+`repo@sha256:` digest against `RepoDigests`, and a bare ID — what `ps` shows
+once the tag has moved to a newer image. A search hiding the target is
+dropped; an image that is no longer listed is a footer `Warn`. There is no
+`esc` back: `:ct` returns, as from any other view.
+
 ## Network Diagnostics View
 
 `internal/ui/netdiag/` — four tabs:

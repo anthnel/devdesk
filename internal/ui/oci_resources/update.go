@@ -50,6 +50,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ImagePullRequestedMsg:
 		return m.handleImagePullRequested(msg)
 
+	// Another view asks for an image to be shown (keymap.Jump) — see focus.go.
+	case FocusImageRequestMsg:
+		return m.handleFocusImage(msg)
+
 	case ImageScanStartingMsg:
 		return m.handleImageScanStarting(msg)
 

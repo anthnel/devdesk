@@ -2,6 +2,7 @@ package containers
 
 import (
 	"errors"
+	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	"strings"
 	"testing"
 	"time"
@@ -1490,4 +1491,22 @@ func renderedRowFor(t *testing.T, m Model, name string) string {
 	}
 	t.Fatalf("no rendered row for %q", name)
 	return ""
+}
+
+func TestJumpAsksForTheSelectedContainersImage(t *testing.T) {
+	m := loadedModel(t)
+	want := m.getSelectedContainer().Image
+
+	_, cmd := step(t, m, testutil.Key(keymap.Jump))
+
+	if cmd == nil {
+		t.Fatal("J issued no command")
+	}
+	msg, ok := cmd().(ociresources.FocusImageRequestMsg)
+	if !ok {
+		t.Fatalf("J produced %T, want an ociresources.FocusImageRequestMsg", cmd())
+	}
+	if msg.Image != want {
+		t.Errorf("Image = %q, want the selected container's %q", msg.Image, want)
+	}
 }

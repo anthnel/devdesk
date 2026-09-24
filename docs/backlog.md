@@ -15124,6 +15124,25 @@ c'est la demande, et l'image supprimée peut être tirée à nouveau depuis le r
   refusée (image encore taguée ailleurs, image enfant) laisse l'ancienne et le
   dit en `Warn`.
 
+### 3.89 Du conteneur à son image — `J` — **done**
+
+Demande en session (2026-09-24) : depuis `ct`, aller directement dans la vue
+OCI sur l'image du conteneur sélectionné, sur la touche `g`.
+
+**`J`, pas `g`** — décidé avec l'utilisateur. Une minuscule est un filtre ou un
+toggle, jamais une action (règle 111, vérifiée par
+`TestEveryLowercaseBindingIsDeclared`), et `G` veut déjà dire « Pull » partout.
+`J` était libre : il devient `keymap.Jump`, « ouvrir la ressource liée à la
+ligne dans la vue qui la possède » — un sens réutilisable ailleurs, pas une
+touche propre à `ct`. Les lettres libres passent à `Q Z`.
+
+- Le router bascule vers la vue OCI puis lui transmet la demande ; construite à
+  l'instant, elle l'attend jusqu'à sa première liste (`deferUntilListed`).
+- La correspondance tolère les graphies des moteurs : `latest` implicite,
+  `nginx` / `docker.io/library/nginx`, port de registre, digest, ID nu.
+- Une recherche qui masque la cible est effacée ; une image absente donne un
+  `Warn` dans le footer.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

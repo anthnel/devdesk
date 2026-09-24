@@ -628,6 +628,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case netdiag.BackToOriginMsg:
 		return a, a.switchView(msg.Origin)
 
+	// ── The OCI view, opened on an image from elsewhere ──────────────────
+	// containers' J is the producer.
+	case ociresources.FocusImageRequestMsg:
+		return a.handleOCIFocusImage(msg)
+
 	default:
 		return a, a.forwardToActiveView(msg)
 	}
