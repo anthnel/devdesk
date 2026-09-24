@@ -1,0 +1,5 @@
+il serait intéressant d'afficher quand de nouvelle version sont disponible pour une image , afficher une colonne avec une icone flèche vers le bas quand une mise à jour est là, si c'est un tag flottant il faut aller voir les digest, si ce n'est pas un tag flottant regarder si un nouveau fix est disponible
+
+---
+
+vue oci , la colonne affiche "󰁅 new…"
