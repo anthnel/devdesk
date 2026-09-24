@@ -52,8 +52,8 @@ func TestAContainerOnAnOutdatedImageShowsTheArrow(t *testing.T) {
 	if web.Kind != imageupdate.NewBuild || !strings.Contains(web.Label(), "new build") {
 		t.Errorf("web = %+v, want a new build", web)
 	}
-	if app := m.updates.status(docker.Container{ID: "c2", Image: "myapp:dev"}); app.Available() {
-		t.Errorf("a built image shows an update: %+v", app)
+	if app := m.updates.status(docker.Container{ID: "c2", Image: "myapp:dev"}); app.Kind != imageupdate.LocalBuild {
+		t.Errorf("a built image = %+v, want local build", app)
 	}
 
 	// The two-second refresh brings the same containers: nothing is asked.

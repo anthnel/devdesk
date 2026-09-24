@@ -218,7 +218,7 @@ func (m Model) GetHelpContent() help.Content {
 				Body: "Status (first, untitled): the container state — " + theme.IconCaretRight + " running, " + theme.IconSmallPause + " paused, " + theme.IconSmallSquare + " exited, " + theme.IconCaretUp + " created/restarting, " + theme.IconBan + " dead. A spinner replaces it while an action is running on that container.\n" +
 					"Name: Container name.\n" +
 					"Image: the container's image.\n" +
-					"Update: an arrow when the image the container runs is behind its registry — a later patch tag, or new content behind the same tag (\"new build\"). It compares the image the container was created from, so pulling the new one does not clear it: recreating the container does. Blank means nothing newer is known.\n" +
+					"Update: an arrow when the image the container runs is behind its registry — a later patch tag, or new content behind the same tag (\"new build\"). It compares the image the container was created from, so pulling the new one does not clear it: recreating the container does. Otherwise: a check mark (up to date), checking, ? (the registry did not answer), local build (an image built or loaded here).\n" +
 					"CPU: CPU usage percentage, as '" + eng + " stats' counts it — relative to one core, so a container busy on two cores reads 200%.\n" +
 					"1 core: the CPU percentage as a bar, full at one core. It saturates above that, which is why the number stays beside it. The filled part is green below 75%, orange from there, red from 90%; the empty part stays a fixed muted color at every level.\n" +
 					"Mem: Memory usage as compact label (e.g. '150M/8G').\n" +

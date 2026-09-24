@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imageupdate"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/ui/updatecol"
 )
 
@@ -52,7 +53,35 @@ func TestTheArrowFollowsTheLocalDigest(t *testing.T) {
 	pulled := old
 	pulled.RepoDigests = []string{"alpine@sha256:new"}
 	m = feed(t, m, ImagesListMsg{Images: []docker.Image{pulled}})
-	if got := updateCell(t, m, "alpine:latest"); got != "" {
-		t.Errorf("cell after the pull = %q, want nothing", got)
+	if got := updateCell(t, m, "alpine:latest"); got != theme.IconOK {
+		t.Errorf("cell after the pull = %q, want the up-to-date check mark", got)
+	}
+}
+
+// Each state that is not an update says which it is: a blank used to stand for
+// up to date, not comparable and failed alike.
+func TestTheCellSaysWhyThereIsNoUpdate(t *testing.T) {
+	now := time.Now()
+	m := feed(t, newTestModel(t),
+		ImagesListMsg{Images: []docker.Image{
+			{ID: "a", Repository: "alpine", Tag: "latest", RepoDigests: []string{"alpine@sha256:a"}},
+			{ID: "b", Repository: "myapp", Tag: "dev"},
+			{ID: "c", Repository: "private.example/app", Tag: "1", RepoDigests: []string{"private.example/app@sha256:c"}},
+			{ID: "d", Repository: "node", Tag: "20", RepoDigests: []string{"node@sha256:d"}},
+		}},
+		ImageUpdatesCheckedMsg{Facts: map[string]imageupdate.Facts{
+			"alpine:latest":         {CheckedAt: now, Digest: "sha256:a"},
+			"private.example/app:1": {CheckedAt: now, Failed: true},
+		}},
+	)
+	for name, want := range map[string]string{
+		"alpine:latest":         theme.IconOK,
+		"myapp:dev":             "local build",
+		"private.example/app:1": "?",
+		"node:20":               "checking",
+	} {
+		if got := updateCell(t, m, name); got != want {
+			t.Errorf("%s: cell = %q, want %q", name, got, want)
+		}
 	}
 }

@@ -233,7 +233,7 @@ func (m *Model) imageRows() []imageRow {
 			Failed:       m.failedScans[raw],
 			Pulling:      pulling[raw],
 			SpinnerFrame: frame,
-			Update:       m.updates.Status(raw, img.RepoDigests),
+			Update:       m.imageUpdate(img),
 		})
 	}
 	// An image pulled for the first time has no local row to spin yet — this
@@ -251,6 +251,19 @@ func (m *Model) imageRows() []imageRow {
 		})
 	}
 	return rows
+}
+
+// imageUpdate is the Update cell of an image (§3.88). An untagged image names
+// nothing to ask about; one without a registry digest was built or loaded here,
+// and is never sent to a registry (pulledImageRefs).
+func (m *Model) imageUpdate(img docker.Image) imageupdate.Status {
+	switch {
+	case img.Tag == "" || img.Tag == "<none>":
+		return imageupdate.Status{}
+	case len(img.RepoDigests) == 0:
+		return imageupdate.Status{Kind: imageupdate.LocalBuild}
+	}
+	return m.updates.Status(img.Name(), img.RepoDigests, imageupdate.LocalBuild)
 }
 
 // formatBytes formats bytes into human-readable string

@@ -528,6 +528,7 @@ func TestABaseImageShowsWhetherItsRegistryHasANewerOne(t *testing.T) {
 	entries := []remediation.Entry{
 		{File: "Dockerfile", StageLabel: "#1", Image: "alpine:3.20@sha256:old", Candidates: []string{"alpine:3.21"}},
 		{File: "Dockerfile", StageLabel: "#2", Image: "node:20.11.1"},
+		{File: "Dockerfile", StageLabel: "#3", Image: "docker.io/docker/sandbox-templates:shell", Floating: true},
 	}
 	m := onRemediation(t, entries, nil)
 	now := time.Now()
@@ -535,8 +536,9 @@ func TestABaseImageShowsWhetherItsRegistryHasANewerOne(t *testing.T) {
 		Target: m.result.Target,
 		Local:  map[string][]string{"alpine:3.20@sha256:old": {"sha256:old"}},
 		Facts: map[string]imageupdate.Facts{
-			"alpine:3.20@sha256:old": {CheckedAt: now, Digest: "sha256:new"},
-			"node:20.11.1":           {CheckedAt: now, Digest: "sha256:n", NewerPatch: "20.11.4"},
+			"alpine:3.20@sha256:old":                   {CheckedAt: now, Digest: "sha256:new"},
+			"node:20.11.1":                             {CheckedAt: now, Digest: "sha256:n", NewerPatch: "20.11.4"},
+			"docker.io/docker/sandbox-templates:shell": {CheckedAt: now, Digest: "sha256:s"},
 		},
 	})
 	rows := m.remediation.table.Items()
@@ -548,6 +550,11 @@ func TestABaseImageShowsWhetherItsRegistryHasANewerOne(t *testing.T) {
 	}
 	if rows[2].Update.Kind != imageupdate.NewPatch || rows[2].Update.Tag != "20.11.4" {
 		t.Errorf("patch base = %+v", rows[2].Update)
+	}
+	// Unpinned and not held by the engine: nothing to compare the digest with,
+	// and the cell says so rather than staying blank.
+	if rows[3].Update.Kind != imageupdate.NotLocal {
+		t.Errorf("floating base not held locally = %+v, want not local", rows[3].Update)
 	}
 }
 

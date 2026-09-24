@@ -17,12 +17,12 @@ import (
 const Title = "Update"
 
 // minWidth is what the column never shrinks under: the arrow and "new build",
-// the one label known in advance. The column follows its content, and a
+// the widest label known in advance ("local build" is as wide). The column follows its content, and a
 // content column gives up width before any column is dropped — floored at the
 // title alone, the label was cut to "new…", which says nothing. A patch tag
 // longer than this may still be cut, from its end: the version stays readable.
 func minWidth() int {
-	return max(lipgloss.Width(theme.UpdateCell(true, imageupdate.Status{Kind: imageupdate.NewBuild}.Label())), len(Title))
+	return max(lipgloss.Width(theme.UpdateCell(true, false, imageupdate.Status{Kind: imageupdate.NewBuild}.Label())), len(Title))
 }
 
 // Column is the column for rows whose status get returns. optional lets it
@@ -33,12 +33,18 @@ func Column[T any](optional bool, get func(T) imageupdate.Status) datatable.Colu
 		Title: Title, Sizing: datatable.SizingContent, MinWidth: minWidth(), MaxWidth: 20, Optional: optional,
 		Cell: func(r T) string {
 			s := get(r)
-			return theme.UpdateCell(s.Available(), s.Label())
+			return theme.UpdateCell(s.Available(), s.Kind == imageupdate.UpToDate, s.Label())
 		},
 		Style: func(r T) lipgloss.Style { return theme.UpdateStyle(get(r).Available()) },
 		// No comparator: `datatable` reserves two cells for a sortable column's
 		// arrow, and the containers table is the widest there is. A filter on
-		// the label does what a sort would.
-		Search: func(r T) string { return get(r).Label() },
+		// the label does what a sort would — an update's label only: "local
+		// build" would otherwise answer a search for "ca" on every built image.
+		Search: func(r T) string {
+			if s := get(r); s.Available() {
+				return s.Label()
+			}
+			return ""
+		},
 	}
 }

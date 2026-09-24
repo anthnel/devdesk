@@ -32,17 +32,32 @@ func TestEvaluate(t *testing.T) {
 		local []string
 		want  Status
 	}{
-		"not checked":         {Facts{}, []string{"alpine@sha256:a"}, Status{}},
-		"failed":              {Facts{CheckedAt: now, Failed: true, Digest: "sha256:b"}, []string{"alpine@sha256:a"}, Status{}},
-		"same digest":         {Facts{CheckedAt: now, Digest: "sha256:a"}, []string{"docker.io/library/alpine@sha256:a"}, Status{}},
+		"not checked":         {Facts{}, []string{"alpine@sha256:a"}, Status{Kind: Pending}},
+		"failed":              {Facts{CheckedAt: now, Failed: true, Digest: "sha256:b"}, []string{"alpine@sha256:a"}, Status{Kind: Failed}},
+		"same digest":         {Facts{CheckedAt: now, Digest: "sha256:a"}, []string{"docker.io/library/alpine@sha256:a"}, Status{Kind: UpToDate}},
 		"new build":           {Facts{CheckedAt: now, Digest: "sha256:b"}, []string{"alpine@sha256:a"}, Status{Kind: NewBuild}},
 		"pinned in a file":    {Facts{CheckedAt: now, Digest: "sha256:b"}, []string{"sha256:a"}, Status{Kind: NewBuild}},
-		"no local digest":     {Facts{CheckedAt: now, Digest: "sha256:b"}, nil, Status{}},
+		"no local digest":     {Facts{CheckedAt: now, Digest: "sha256:b"}, nil, Status{Kind: NotLocal}},
+		"digest only":         {Facts{CheckedAt: now}, []string{"sha256:a"}, Status{Kind: Pinned}},
 		"patch wins":          {Facts{CheckedAt: now, Digest: "sha256:b", NewerPatch: "1.2.4"}, []string{"x@sha256:a"}, Status{Kind: NewPatch, Tag: "1.2.4"}},
 		"patch without local": {Facts{CheckedAt: now, NewerPatch: "1.2.4"}, nil, Status{Kind: NewPatch, Tag: "1.2.4"}},
 	} {
-		if got := Evaluate(tt.facts, tt.local); got != tt.want {
+		if got := Evaluate(tt.facts, tt.local, NotLocal); got != tt.want {
 			t.Errorf("%s: Evaluate = %+v, want %+v", name, got, tt.want)
+		}
+	}
+}
+
+// Every state the column can show says something, except None: a blank cell
+// used to stand for up to date, not comparable and failed alike.
+func TestEveryStateButNoneHasALabel(t *testing.T) {
+	for k := Pending; k <= NewBuild; k++ {
+		s := Status{Kind: k, Tag: "1.2.4"}
+		if s.Label() == "" && k != UpToDate {
+			t.Errorf("kind %d has no label", k)
+		}
+		if s.Available() != (k == NewPatch || k == NewBuild) {
+			t.Errorf("kind %d: Available = %v", k, s.Available())
 		}
 	}
 }
@@ -146,7 +161,7 @@ func TestTrackerAsksOnceUntilStale(t *testing.T) {
 	if due := tr.Due([]string{"a"}, now.Add(freshFor+time.Minute)); len(due) != 1 {
 		t.Errorf("Due on a stale answer = %v, want it asked again", due)
 	}
-	if s := tr.Status("a", []string{"x@sha256:old"}); s.Kind != NewBuild {
+	if s := tr.Status("a", []string{"x@sha256:old"}, NotLocal); s.Kind != NewBuild {
 		t.Errorf("Status = %+v", s)
 	}
 }

@@ -53,6 +53,12 @@ image it was *created* from: pulling the new image clears the arrow in the
 Images tab, but the container keeps it until it is recreated — because until
 then it still runs the old one.
 
+When there is no arrow, the cell says why, in grey: a check mark when the
+image is up to date, `checking` while the registry has not answered, `?` when
+it did not answer, `local build` for an image built here, `not local` for a
+Dockerfile base your engine does not hold (there is nothing to compare with),
+`pinned` for a reference fixed by digest.
+
 Registries are asked in the background when a list loads, with a `HEAD`
 request that Docker Hub does not count against its pull limit, and each answer
 is kept for six hours.

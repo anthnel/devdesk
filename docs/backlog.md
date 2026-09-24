@@ -15055,6 +15055,16 @@ correctif est sorti.
 - `RepoDigests` sous podman n'a pas été mesuré contre un vrai `podman system
   service` ; le champ y existe sous le même nom.
 
+#### Une case vide ne disait pas pourquoi — les états explicites
+
+Retour sur l'onglet Remediation d'un vrai dépôt : `docker-agent:1.142.0` et
+`sandbox-templates:shell` sans flèche, et rien pour dire si c'était « à jour »,
+« impossible à comparer » (image absente du moteur, rien d'épinglé) ou « le
+registre n'a pas répondu ». Chaque état a maintenant son texte, en gris : une
+coche (à jour), `checking`, `?`, `local build`, `not local`, `pinned`. Le vide
+ne reste que pour ce à quoi la question ne s'applique pas. Le filtre de la
+colonne ne cherche que dans le libellé d'une mise à jour.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

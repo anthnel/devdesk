@@ -30,7 +30,10 @@ type containerUpdates struct {
 }
 
 func (u *containerUpdates) status(c docker.Container) imageupdate.Status {
-	return u.tracker.Status(c.Image, u.digests[c.ID])
+	if strings.HasPrefix(c.Image, "sha256:") {
+		return imageupdate.Status{} // created from an image ID: names no registry
+	}
+	return u.tracker.Status(c.Image, u.digests[c.ID], imageupdate.LocalBuild)
 }
 
 // The seams tests replace: no engine and no registry is reached from a test.

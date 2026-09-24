@@ -374,7 +374,7 @@ func (m Model) handleBaseImageUpdatesChecked(msg BaseImageUpdatesCheckedMsg) (te
 
 // baseImageUpdate is the Update cell of a base image.
 func (m Model) baseImageUpdate(ref string) imageupdate.Status {
-	return m.remediation.updates.Status(ref, m.remediation.localDigests[ref])
+	return m.remediation.updates.Status(ref, m.remediation.localDigests[ref], imageupdate.NotLocal)
 }
 
 func (m Model) handleRemediationScanFinished(msg RemediationScanFinishedMsg) (tea.Model, tea.Cmd) {

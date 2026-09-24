@@ -42,7 +42,8 @@ func (t *Tracker) Store(facts map[string]Facts) {
 	}
 }
 
-// Status is the verdict for a reference, against the local image's digests.
-func (t Tracker) Status(ref string, local []string) Status {
-	return Evaluate(t.facts[ref], local)
+// Status is the verdict for a reference, against the local image's digests;
+// noLocal is what having none means to the caller (see Evaluate).
+func (t Tracker) Status(ref string, local []string, noLocal Kind) Status {
+	return Evaluate(t.facts[ref], local, noLocal)
 }

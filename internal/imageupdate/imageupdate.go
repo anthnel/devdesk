@@ -35,12 +35,32 @@ const (
 // Facts is what a registry said about one reference.
 type Facts = cache.ImageUpdateEntry
 
-// Kind is what kind of update is available.
+// Kind is what the column says about an image. Two of them are updates; the
+// others say why there is none, because a blank read the same whether the
+// image was up to date, could not be compared, or the registry did not answer
+// (§3.88).
 type Kind int
 
 const (
-	// None: no update is known — up to date, not checked yet, or not checkable.
+	// None: the question does not apply — an untagged image, an unresolved
+	// reference.
 	None Kind = iota
+	// Pending: the registry has not answered yet.
+	Pending
+	// Failed: the registry did not answer — unreachable, unknown repository,
+	// denied.
+	Failed
+	// LocalBuild: the image has no registry digest; it was built or loaded
+	// here, and nothing says which registry content it is.
+	LocalBuild
+	// NotLocal: a Dockerfile base the engine does not hold and that pins no
+	// digest — there is nothing to compare the registry's digest with.
+	NotLocal
+	// Pinned: a reference pinned by digest with no tag; nothing can move.
+	Pinned
+	// UpToDate: the local digest is the one the tag points to, and no newer
+	// patch exists.
+	UpToDate
 	// NewPatch: a newer patch tag exists on the same line.
 	NewPatch
 	// NewBuild: the tag now points to other content than the local image.
@@ -55,12 +75,22 @@ type Status struct {
 }
 
 // Available reports whether there is an update to show.
-func (s Status) Available() bool { return s.Kind != None }
+func (s Status) Available() bool { return s.Kind == NewPatch || s.Kind == NewBuild }
 
-// Label is the text shown beside the arrow: the tag to move to, or that the
-// same tag was rebuilt.
+// Label is the text of the cell, without the glyphs a view adds (the arrow of
+// an update, the check mark of UpToDate).
 func (s Status) Label() string {
 	switch s.Kind {
+	case Pending:
+		return "checking"
+	case Failed:
+		return "?"
+	case LocalBuild:
+		return "local build"
+	case NotLocal:
+		return "not local"
+	case Pinned:
+		return "pinned"
 	case NewPatch:
 		return s.Tag
 	case NewBuild:
@@ -72,22 +102,26 @@ func (s Status) Label() string {
 // Evaluate compares what the registry said with the digests of the local image
 // (RepoDigests, "repo@sha256:…" or a bare "sha256:…").
 //
-// A newer patch wins over a new build: it is the more specific answer. With no
-// local digest — an image built or loaded rather than pulled, or a Dockerfile
-// base not present locally — a new build cannot be told from the same one, and
-// nothing is said.
-func Evaluate(f Facts, local []string) Status {
+// noLocal is what an empty local list means to the caller: LocalBuild for an
+// image or a container (no digest means it was built here), NotLocal for a
+// Dockerfile base (the engine does not hold it). A newer patch wins over
+// everything but a failure: it needs no local digest to be true.
+func Evaluate(f Facts, local []string, noLocal Kind) Status {
 	switch {
-	case f.Failed || f.CheckedAt.IsZero():
-		return Status{}
+	case f.Failed:
+		return Status{Kind: Failed}
+	case f.CheckedAt.IsZero():
+		return Status{Kind: Pending}
 	case f.NewerPatch != "":
 		return Status{Kind: NewPatch, Tag: f.NewerPatch}
-	case f.Digest == "" || len(local) == 0:
-		return Status{}
+	case len(local) == 0:
+		return Status{Kind: noLocal}
+	case f.Digest == "":
+		return Status{Kind: Pinned}
 	}
 	for _, d := range local {
 		if digestOf(d) == f.Digest {
-			return Status{}
+			return Status{Kind: UpToDate}
 		}
 	}
 	return Status{Kind: NewBuild}
