@@ -11,6 +11,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/dockerfile"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -57,7 +58,7 @@ func scannedAt(critical, high int) cache.RemediationEntry {
 // ── Rows ─────────────────────────────────────────────────────────────────────
 
 func TestEachBaseImageIsFollowedByItsCandidates(t *testing.T) {
-	rows := remediationRows(baseEntries(), nil, nil, nil)
+	rows := remediationRows(baseEntries(), nil, nil, nil, nil)
 	var images []string
 	for _, r := range rows {
 		images = append(images, strings.TrimSpace(r.Image))
@@ -72,7 +73,7 @@ func TestEachBaseImageIsFollowedByItsCandidates(t *testing.T) {
 }
 
 func TestACandidateIsIndentedAndItsFileAndStageAreLeftBlank(t *testing.T) {
-	rows := remediationRows(baseEntries(), nil, nil, nil)
+	rows := remediationRows(baseEntries(), nil, nil, nil, nil)
 	if !strings.HasPrefix(rows[1].Image, "  ") || rows[1].File != "" || rows[1].Stage != "" {
 		t.Errorf("candidate row = %+v", rows[1])
 	}
@@ -83,7 +84,7 @@ func TestACandidateIsIndentedAndItsFileAndStageAreLeftBlank(t *testing.T) {
 
 // An image with no candidates says why, in its own row.
 func TestAnImageWithNoCandidateCarriesItsReason(t *testing.T) {
-	rows := remediationRows(baseEntries(), nil, nil, nil)
+	rows := remediationRows(baseEntries(), nil, nil, nil, nil)
 	if rows[3].Note != "the tag carries no version to move from" {
 		t.Errorf("Note = %q", rows[3].Note)
 	}
@@ -98,7 +99,7 @@ func TestTheDeltaIsTheChangeInCriticalPlusHigh(t *testing.T) {
 		"golang:1.23": scannedAt(0, 3),
 		"golang:1.22": scannedAt(3, 9),
 	}
-	rows := remediationRows(baseEntries(), results, nil, nil)
+	rows := remediationRows(baseEntries(), results, nil, nil, nil)
 
 	if _, ok := rows[0].delta(); ok {
 		t.Error("the current image has a delta against itself")
@@ -115,20 +116,20 @@ func TestTheDeltaIsTheChangeInCriticalPlusHigh(t *testing.T) {
 // count says nothing about a bump.
 func TestThereIsNoDeltaUntilBothSidesAreScanned(t *testing.T) {
 	onlyCandidate := map[string]cache.RemediationEntry{"golang:1.23": scannedAt(0, 3)}
-	rows := remediationRows(baseEntries(), onlyCandidate, nil, nil)
+	rows := remediationRows(baseEntries(), onlyCandidate, nil, nil, nil)
 	if _, ok := rows[1].delta(); ok {
 		t.Error("a candidate has a delta against an image nobody scanned")
 	}
 
 	onlyCurrent := map[string]cache.RemediationEntry{"golang:1.21": scannedAt(2, 8)}
-	rows = remediationRows(baseEntries(), onlyCurrent, nil, nil)
+	rows = remediationRows(baseEntries(), onlyCurrent, nil, nil, nil)
 	if _, ok := rows[1].delta(); ok {
 		t.Error("an unscanned candidate has a delta")
 	}
 }
 
 func TestAnImageBeingScannedIsMarked(t *testing.T) {
-	rows := remediationRows(baseEntries(), nil, map[string]bool{"golang:1.23": true}, nil)
+	rows := remediationRows(baseEntries(), nil, map[string]bool{"golang:1.23": true}, nil, nil)
 	if !rows[1].Scanning || rows[0].Scanning || rows[2].Scanning {
 		t.Errorf("Scanning flags = %v %v %v", rows[0].Scanning, rows[1].Scanning, rows[2].Scanning)
 	}
@@ -337,6 +338,29 @@ func TestAFreshResultIsNotScannedAgainButAStaleOneIs(t *testing.T) {
 	}
 }
 
+// A floating tag's result is about what the tag pointed to then, which the
+// registry may have replaced: S measures it again, however fresh (§3.79).
+func TestAFloatingImageIsScannedAgainWhateverItsAge(t *testing.T) {
+	entries := []remediation.Entry{
+		{File: "Dockerfile", StageLabel: "#1", Image: "dhi.io/node:dev", Floating: true, Reason: remediation.ReasonFloating},
+		{File: "Dockerfile", StageLabel: "#2", Image: "alpine:3.20"},
+	}
+	m := onRemediation(t, entries, map[string]cache.RemediationEntry{
+		"dhi.io/node:dev": scannedAt(0, 1),
+		"alpine:3.20":     scannedAt(0, 1),
+	})
+	if got, want := m.refsToScan(time.Now()), []string{"dhi.io/node:dev"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("refs = %v, want %v (the floating one only)", got, want)
+	}
+	if a := m.canScanCandidates(); !a.Enabled() {
+		t.Errorf("S is refused with %q while a floating image can be measured again", a.Reason)
+	}
+	rows := remediationRows(entries, m.remediation.results, nil, nil, nil)
+	if rows[0].Note != remediation.ReasonFloating || !rows[0].Scanned {
+		t.Errorf("floating row = %+v, want its earlier count shown with the reason", rows[0])
+	}
+}
+
 func TestScanIsRefusedWhenEverythingIsMeasured(t *testing.T) {
 	m := onRemediation(t, baseEntries()[:1], map[string]cache.RemediationEntry{
 		"golang:1.21": scannedAt(1, 1), "golang:1.23": scannedAt(1, 1), "golang:1.22": scannedAt(1, 1),
@@ -494,5 +518,54 @@ func TestLeavingKeysStillWorkOnTheRemediationTab(t *testing.T) {
 	m := onRemediation(t, baseEntries(), nil)
 	if m = feed(t, m, testutil.Key("ctrl+r")); m.state != StateInventory {
 		t.Errorf("ctrl+r left the view in state %d, want the inventory", m.state)
+	}
+}
+
+// A base image carries the Update arrow on its own row, compared with the
+// digest the Dockerfile pins or, unpinned, with the image the engine holds
+// (§3.88). A candidate row never does: it already is the newer image.
+func TestABaseImageShowsWhetherItsRegistryHasANewerOne(t *testing.T) {
+	entries := []remediation.Entry{
+		{File: "Dockerfile", StageLabel: "#1", Image: "alpine:3.20@sha256:old", Candidates: []string{"alpine:3.21"}},
+		{File: "Dockerfile", StageLabel: "#2", Image: "node:20.11.1"},
+		{File: "Dockerfile", StageLabel: "#3", Image: "docker.io/docker/sandbox-templates:shell", Floating: true},
+	}
+	m := onRemediation(t, entries, nil)
+	now := time.Now()
+	m = feed(t, m, BaseImageUpdatesCheckedMsg{
+		Target: m.result.Target,
+		Local:  map[string][]string{"alpine:3.20@sha256:old": {"sha256:old"}},
+		Facts: map[string]imageupdate.Facts{
+			"alpine:3.20@sha256:old":                   {CheckedAt: now, Digest: "sha256:new"},
+			"node:20.11.1":                             {CheckedAt: now, Digest: "sha256:n", NewerPatch: "20.11.4"},
+			"docker.io/docker/sandbox-templates:shell": {CheckedAt: now, Digest: "sha256:s"},
+		},
+	})
+	rows := m.remediation.table.Items()
+	if rows[0].Update.Kind != imageupdate.NewBuild {
+		t.Errorf("pinned base = %+v, want a new build of its tag", rows[0].Update)
+	}
+	if rows[1].Update.Available() {
+		t.Errorf("candidate row = %+v, want nothing", rows[1].Update)
+	}
+	if rows[2].Update.Kind != imageupdate.NewPatch || rows[2].Update.Tag != "20.11.4" {
+		t.Errorf("patch base = %+v", rows[2].Update)
+	}
+	// Unpinned and not held by the engine: nothing to compare the digest with,
+	// and the cell says so rather than staying blank.
+	if rows[3].Update.Kind != imageupdate.NotLocal {
+		t.Errorf("floating base not held locally = %+v, want not local", rows[3].Update)
+	}
+}
+
+// An answer about another result is dropped.
+func TestAnUpdateAnswerForAnotherResultIsDropped(t *testing.T) {
+	m := onRemediation(t, baseEntries(), nil)
+	m = feed(t, m, BaseImageUpdatesCheckedMsg{
+		Target: "/elsewhere",
+		Facts:  map[string]imageupdate.Facts{"golang:1.21": {CheckedAt: time.Now(), NewerPatch: "1.21.9"}},
+	})
+	if m.remediation.table.Items()[0].Update.Available() {
+		t.Error("an answer about another repository reached this table")
 	}
 }

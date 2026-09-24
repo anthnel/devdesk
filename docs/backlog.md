@@ -14189,7 +14189,7 @@ Sources vérifiées le 2026-09-21 :
 
 ---
 
-### 3.79 La remédiation d'image de base ne sait rien faire d'un tag qui flotte (dhi.io, `:latest`) — **à faire**
+### 3.79 La remédiation d'image de base ne sait rien faire d'un tag qui flotte (dhi.io, `:latest`) — **done**
 
 §3.2 corrige une CVE d'image de base en proposant un tag **strictement plus
 récent** du même repository. La question posée en session : est-ce que ça
@@ -14245,6 +14245,38 @@ Sources vérifiées le 2026-09-21 :
 [Dependabot — Docker ecosystem, digest pinning](https://docs.github.com/en/code-security/dependabot/ecosystems-supported/supported-ecosystems-and-repositories#docker),
 [Renovate — Docker datasource, digest pinning](https://docs.renovatebot.com/modules/datasource/docker/).
 
+
+#### Livré — 2026-09-24 : l'option (a), re-scanner sans croire le cache
+
+Les deux décisions ouvertes, tranchées :
+
+1. **Détection** : le signal simple, sans liste de registres. `Ref.Floats()` est
+   vrai quand la référence n'a **pas de digest** et que son tag ne porte **pas de
+   version** (`SplitTag` n'en trouve pas) — `latest`, une référence sans tag,
+   `main`, un nom de code (`bookworm-slim`), un tag `dhi.io` sans numéro. Une
+   liste à tenir à jour aurait été la seule source de vérité fausse du lot.
+2. **Ce qui est fait** : (a). L'image reste listée, sans candidat, avec la raison
+   `floating tag — S re-scans what it points to now` ; `S` la re-scanne **à
+   chaque fois**, quel que soit l'âge du résultat en cache (`refsToScan` ignore
+   `remediationFreshFor` pour elle). Rien n'est écrit dans le Dockerfile —
+   l'épinglage par digest (b) reste une fonctionnalité voisine, non faite.
+
+Au passage, la raison commune « pinned by digest or floats on latest » est
+scindée : une référence épinglée par digest sans tag dit maintenant
+`pinned by digest, with no tag to move from` (`ReasonPinnedByDigest`) — c'est
+l'inverse d'un tag qui flotte, et une seule phrase pour les deux ne disait
+lequel des deux c'était.
+
+**Ce qui reste ouvert.** Un tag **versionné** republié en place
+(`alpine:3.20` qui passe au patch suivant, `dhi.io/python:3.13` reconstruit)
+n'est pas vu comme flottant : il garde ses candidats et la fenêtre de 24 h. Le
+savoir demanderait le digest actuel du tag côté registre, comparé à celui que le
+scan a mesuré — une requête de manifeste par image, et un champ de plus dans
+`remediation-scans.json`. Pas fait ici.
+
+§3.88 affiche maintenant, pour ces tags aussi, qu'un nouveau digest existe
+(colonne Update, `new build`) ; le re-scan de l'onglet Remediation, lui, garde
+encore sa fenêtre de 24 h pour un tag versionné.
 ---
 
 ### 3.80 Manifestes Kubernetes — analyser et corriger, sans jamais toucher un cluster — **done**
@@ -15004,6 +15036,93 @@ deuxième qui lui ressemble.
 - La colonne ne trie pas dans `ws`, où rien ne trie (l'ordre est celui du
   répertoire) ; elle trie dans `:sec` et `oci/images`, où `countColumnWidth`
   couvre déjà le `width(Title)+2` réclamé par la flèche.
+
+---
+
+### 3.88 Une image a-t-elle une version plus récente ? — la colonne `Update` — **done**
+
+Demande en session (2026-09-24) : afficher, pour une image, qu'une mise à jour
+existe, par une flèche vers le bas dans une colonne ; sur un tag flottant en
+comparant les digests, sur un tag versionné en regardant si un nouveau
+correctif est sorti.
+
+**Trois décisions, prises avec l'utilisateur :**
+
+1. **Ce qui compte comme mise à jour** : un patch **ou** un digest. Un tag à
+   trois composants ou plus (`20.11.1`) est comparé aux tags qui ne diffèrent
+   que par le dernier, même variante (`20.11.4`) ; et **tout** tag est comparé
+   par digest à l'image locale — ce qui couvre les tags flottants (§3.79),
+   `alpine:3.20` qui passe au patch suivant et les tags DHI numérotés
+   reconstruits en place. Un patch plus récent l'emporte sur un nouveau build.
+2. **Où** : les trois tables qui montrent une image — l'onglet Images de
+   `oci`, la liste des containers, l'onglet Remediation d'un résultat.
+3. **Quand** : automatiquement, en arrière-plan au chargement de la liste, avec
+   un cache disque (`image-updates.json`) de 6 h, 30 min pour un échec.
+
+#### Ce qui a été ajouté
+
+- `internal/imageupdate` : `Check` (registre + cache, quatre requêtes en
+  parallèle au plus), `Evaluate` (comparaison avec les digests locaux, faite à
+  l'affichage : un pull efface la flèche sans redemander au registre),
+  `NewerPatch`, et `Tracker`, l'état qu'une vue garde entre deux vérifications.
+- `oci.ManifestDigest` : un `HEAD` sur le manifeste qui accepte un index OCI et
+  une manifest list Docker — le digest d'un tag multi-plateforme est celui de
+  l'index, celui que `docker pull` enregistre. Docker Hub ne compte pas un
+  `HEAD` dans sa limite de pulls. `RegistryAPIBase` a quitté l'onglet
+  Remediation pour `oci`.
+- `docker.Image.RepoDigests`, lu par le même `image inspect` que la taille ;
+  `ContainerImageDigests` et `ImageRepoDigests`.
+- `internal/ui/updatecol` : la colonne, une seule définition pour trois tables,
+  et `theme.ColorUpdateAvailable` (le bleu structurel : une mise à jour est une
+  nouvelle, pas un constat de sécurité).
+
+#### Ce qui se compare avec quoi
+
+| Vue | Digest local | Remarque |
+|---|---|---|
+| Images | les `RepoDigests` de l'image | seule une image **tirée** est vérifiée — une image construite ici n'a pas de digest, et son nom enverrait la question à un registre qui ne la connaît pas |
+| Containers | ceux de l'image **dont le container a été créé** | un pull ne l'efface pas : il faut recréer le container, ce que la flèche est là pour dire |
+| Remediation | le digest épinglé dans le Dockerfile, sinon l'image que le moteur tient sous ce nom | une base absente du moteur n'a que le côté patch |
+
+#### Coûts constatés
+
+- La table des containers est la plus large : avec `Update`, les deux jauges
+  (qui partent en premier, §3.71) demandent 180 colonnes au lieu de 160. La
+  colonne n'a pas de tri, pour ne pas payer deux cellules de plus pour la
+  flèche de tri.
+- `RepoDigests` sous podman n'a pas été mesuré contre un vrai `podman system
+  service` ; le champ y existe sous le même nom.
+
+#### Une case vide ne disait pas pourquoi — les états explicites
+
+Retour sur l'onglet Remediation d'un vrai dépôt : `docker-agent:1.142.0` et
+`sandbox-templates:shell` sans flèche, et rien pour dire si c'était « à jour »,
+« impossible à comparer » (image absente du moteur, rien d'épinglé) ou « le
+registre n'a pas répondu ». Chaque état a maintenant son texte, en gris : une
+coche (à jour), `checking`, `?`, `local build`, `not local`, `pinned`. Le vide
+ne reste que pour ce à quoi la question ne s'applique pas. Le filtre de la
+colonne ne cherche que dans le libellé d'une mise à jour.
+
+#### Appliquer la mise à jour — `G` dans l'onglet Images
+
+Demande en session : déclencher la mise à jour depuis `oci`, l'ancienne image
+supprimée automatiquement, à condition qu'aucun conteneur ne l'utilise ; sinon
+le footer le dit.
+
+`G` (Pull, déjà la lettre du vocabulaire pour « récupérer une image ») tire ce
+que la colonne indique — le tag de patch, ou le même tag pour un nouveau build
+— puis supprime l'image remplacée, par ID, sans forcer. Pas de confirmation :
+c'est la demande, et l'image supprimée peut être tirée à nouveau depuis le registre.
+
+- **Grisé avec sa raison** (Rule 130) : à jour, registre muet, build local,
+  image sans tag, ou utilisée par N conteneurs — ce dernier d'après le compte
+  du moteur, que seul docker fournit.
+- **Revérifié juste avant le pull** (`ps -a --filter ancestor=`) : un conteneur
+  créé entre-temps, ou n'importe lequel sous podman, arrête tout avant le pull,
+  et le footer nomme les conteneurs.
+- Un pull qui ramène l'image déjà présente ne supprime rien ; une suppression
+  refusée (image encore taguée ailleurs, image enfant) laisse l'ancienne et le
+  dit en `Warn`.
 
 ## 4. Existing plans
 

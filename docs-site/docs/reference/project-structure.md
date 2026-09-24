@@ -14,6 +14,7 @@ devdesk/
 │   ├── credentials/   # Credential storage (keyring, git-credential, memory)
 │   ├── docker/        # Docker CLI wrapper, netdiag runners, port monitor (ss)
 │   ├── forge/         # GitLab/GitHub abstraction — session, namespaces, repositories
+│   ├── imageupdate/   # Whether a registry holds a newer image (patch tag or new digest)
 │   ├── jobs/          # Background job registry backing the :jobs view
 │   ├── mcp/           # MCP server, served over HTTP by the running TUI
 │   ├── oci/           # OCI registry client
@@ -36,6 +37,7 @@ devdesk/
 │       ├── templates/        # Repository template catalog view (:templates)
 │       ├── terminal/         # Embedded terminal
 │       ├── theme/            # Colors, styles, icons, theme manager
+│       ├── updatecol/        # The Update column shared by images, containers and remediation
 │       └── workspaces/       # Local workspace manager
 └── .claude/
     ├── CLAUDE.md     # AI implementation guidance

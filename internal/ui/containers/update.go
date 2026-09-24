@@ -68,6 +68,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ContainerMetricsMsg:
 		return m.handleContainerMetrics(msg)
 
+	case ContainerUpdatesCheckedMsg:
+		return m.handleContainerUpdatesChecked(msg)
+
 	case ContainerActionMsg:
 		return m.handleContainerAction(msg)
 
@@ -492,7 +495,7 @@ func (m Model) handleContainersList(msg ContainersListMsg) (tea.Model, tea.Cmd) 
 	}
 	m.footer.Clear()
 	m.containerTable.SetItems(msg.Containers)
-	return m, nil
+	return m, m.updates.updatesCmd(msg.Containers, time.Now())
 }
 
 // handleContainerMetrics merges metrics into existing containers.

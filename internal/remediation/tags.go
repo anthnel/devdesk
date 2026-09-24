@@ -74,6 +74,32 @@ func ParseRef(s string) Ref {
 	return r
 }
 
+// Floats reports whether the reference names content that changes under the
+// same name: no digest pins it, and its tag carries no version — latest, the
+// implicit latest of an untagged reference, main, a codename, or a vendor's
+// rebuilt-in-place tag such as dhi.io's (§3.79).
+//
+// It is a reading of the tag, not a proof: a versioned tag can be republished
+// too, and a codename can be frozen. What it decides is only that there is no
+// newer version to pick, and that a count measured earlier may be about content
+// the tag no longer points to.
+func (r Ref) Floats() bool {
+	if r.Digest != "" {
+		return false
+	}
+	version, _ := SplitTag(r.Tag)
+	return version == ""
+}
+
+// ReasonFloating is what an image with a floating tag says instead of listing
+// candidates: there is no version to move to, and a scan measures what the tag
+// points to now.
+const ReasonFloating = "floating tag — S re-scans what it points to now"
+
+// ReasonPinnedByDigest is what a reference pinned by digest with no tag says:
+// its content never changes, and there is no tag to move from.
+const ReasonPinnedByDigest = "pinned by digest, with no tag to move from"
+
 // WithTag is the reference for another tag of the same repository. The digest
 // is dropped: it pinned the old tag's content and would name it still.
 func (r Ref) WithTag(tag string) string { return r.Name + ":" + tag }
@@ -114,7 +140,7 @@ func versionParts(v string) []string { return strings.Split(v, ".") }
 // says a candidate is *safe* — that is what the re-scan measures.
 func Candidates(current string, tags []string, track Track, max int) (out []string, reason string) {
 	if current == "" {
-		return nil, "the reference has no tag — it is pinned by digest or floats on latest"
+		return nil, "the reference has no tag to move from"
 	}
 	curVersion, curVariant := SplitTag(current)
 	if curVersion == "" {

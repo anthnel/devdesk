@@ -14,6 +14,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -34,6 +35,9 @@ import (
 // failures on purpose.
 func TestMain(m *testing.M) {
 	log.SetOutput(io.Discard)
+	// No engine and no registry is reached from a test (§3.88).
+	containerImageDigests = func([]string) map[string][]string { return nil }
+	checkImageUpdates = func([]string) map[string]imageupdate.Facts { return nil }
 	code := m.Run()
 	log.SetOutput(os.Stderr)
 	os.Exit(code)
@@ -226,7 +230,7 @@ func tableRows(m Model) []table.Row { return m.containerTable.Table().Rows() }
 // so "descending" means what a second press of `.` produces.
 func orderUnder(column int, desc bool) []string {
 	dt := datatable.New(datatable.Config[docker.Container]{
-		Columns:    containerColumns(),
+		Columns:    containerColumns(nil),
 		SortColumn: column,
 	})
 	if desc {

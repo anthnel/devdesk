@@ -750,6 +750,36 @@ count from another database says nothing about a bump. A candidate is evidence,
 not a verdict: the scan says the CVEs are gone, not that the application still
 runs on the new base.
 
+The **Update** column puts an arrow on a base image whose registry holds a newer
+patch tag or new content behind the same tag (§3.88, `internal/imageupdate` —
+see `network.md`). It compares with the digest the Dockerfile pins, or with the
+image the engine holds under that name.
+
+#### A floating tag (§3.79)
+
+`Ref.Floats` is true for a reference with no digest whose tag carries no
+version (`SplitTag` finds none): `latest`, an untagged reference (the implicit
+latest), `main`, a codename such as `bookworm-slim`, a vendor tag rebuilt in
+place (`dhi.io/node:dev`). `Entry.Floating` carries it to the tab, and the
+reason is `remediation.ReasonFloating` — it no longer shares one sentence with a
+digest-only reference, which has its own (`ReasonPinnedByDigest`) since pinned
+content is the opposite of floating content.
+
+What changes is the cache, not the table: `remediation-scans.json` is keyed by
+the reference as written, and a floating reference never changes when the
+registry replaces what it points to. So `refsToScan` ignores
+`remediationFreshFor` for a floating image — `S` scans it again every time — and
+the count shown until then is the last one, with its age in the Scanned column.
+Nothing is written for it: rewriting it to `image:tag@sha256:…` would stop it
+following upstream fixes, which is a pinning policy, not a remediation
+(Dependabot and Renovate keep the two apart).
+
+The detection is a reading of the tag, not a proof. A **versioned** tag rebuilt
+in place — `alpine:3.20` moving to the next patch, a `dhi.io/python:3.13`
+republished — is not floating here: it gets candidates as before and keeps the
+24-hour window. Knowing it changed would take the registry's digest for the tag,
+compared with the one the scan measured; that is not done.
+
 ### Writing the chosen bases — `space`, `enter`, `ctrl+o` (§3.2, phase C)
 
 DevDesk proposes; it does not decide. `space` chooses the candidate under the

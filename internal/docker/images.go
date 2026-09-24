@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -17,6 +18,10 @@ type Image struct {
 	UniqueSize int64 // Disk usage (unique layers) in bytes
 	Containers int
 	CreatedAt  string
+	// RepoDigests are the registry digests the engine recorded for the image
+	// ("repo@sha256:…"). Empty for an image built or loaded rather than pulled:
+	// nothing then says which registry content it is (§3.88).
+	RepoDigests []string
 }
 
 // Name returns "repository:tag", omitting the tag suffix when tag is "<none>".
@@ -78,7 +83,8 @@ func ListImages() ([]Image, error) {
 	return images, nil
 }
 
-// enrichImagesWithContentSize populates Size (content size) from docker image inspect.
+// enrichImagesWithContentSize populates Size (content size) and RepoDigests from
+// docker image inspect.
 // docker image inspect .Size gives the real content size (compressed layers in content store),
 // while docker image ls .Size gives disk usage (unpacked layers on disk).
 func enrichImagesWithContentSize(images []Image) {
@@ -97,10 +103,26 @@ func enrichImagesWithContentSize(images []Image) {
 		return
 	}
 
-	// Build lookup by short ID (strip "sha256:" prefix, keep first 12 chars)
-	lookup := make(map[string]int64)
+	lookup := parseImageInspect(output)
+	for i := range images {
+		if info, ok := lookup[images[i].ID]; ok {
+			images[i].Size = info.size
+			images[i].RepoDigests = info.repoDigests
+		}
+	}
+}
+
+type inspected struct {
+	size        int64
+	repoDigests []string
+}
+
+// parseImageInspect reads ImageInspect's lines, keyed by short ID (no "sha256:"
+// prefix, first 12 characters).
+func parseImageInspect(output []byte) map[string]inspected {
+	lookup := make(map[string]inspected)
 	for _, line := range splitLines(output) {
-		parts := strings.SplitN(line, "\t", 2)
+		parts := strings.SplitN(line, "\t", 3)
 		if len(parts) < 2 {
 			continue
 		}
@@ -108,15 +130,97 @@ func enrichImagesWithContentSize(images []Image) {
 		if len(shortID) > 12 {
 			shortID = shortID[:12]
 		}
-		size, _ := strconv.ParseInt(parts[1], 10, 64)
-		lookup[shortID] = size
+		var info inspected
+		info.size, _ = strconv.ParseInt(parts[1], 10, 64)
+		if len(parts) == 3 {
+			info.repoDigests = parseRepoDigests(parts[2])
+		}
+		lookup[shortID] = info
 	}
+	return lookup
+}
 
-	for i := range images {
-		if size, ok := lookup[images[i].ID]; ok {
-			images[i].Size = size
+// parseRepoDigests reads `{{json .RepoDigests}}`. Anything unreadable is no
+// digest, which is what an image nobody pulled has anyway.
+func parseRepoDigests(s string) []string {
+	var digests []string
+	if err := json.Unmarshal([]byte(strings.TrimSpace(s)), &digests); err != nil {
+		return nil
+	}
+	return digests
+}
+
+// ContainerImageDigests returns, for each container, the registry digests of
+// the image it runs — the image it was created from, which a later pull of the
+// same tag does not change. Keyed by the container ID as given; a container
+// that is gone, or an image with no digest, is absent.
+func ContainerImageDigests(containerIDs []string) map[string][]string {
+	out := map[string][]string{}
+	if len(containerIDs) == 0 || requireEngine() != nil {
+		return out
+	}
+	args := append([]string{"container", "inspect", "--format", "{{.Image}}"}, containerIDs...)
+	output, err := dockerOutput(args...)
+	if err != nil {
+		// One container removed between the list and this call fails the whole
+		// inspect; the next refresh asks again.
+		return out
+	}
+	imageOf := map[string]string{}
+	var imageIDs []string
+	for i, line := range splitLines(output) {
+		if i >= len(containerIDs) {
+			break
+		}
+		id := strings.TrimSpace(line)
+		if id == "" {
+			continue
+		}
+		if _, seen := imageOf[id]; !seen {
+			imageIDs = append(imageIDs, id)
+		}
+		imageOf[containerIDs[i]] = id
+	}
+	if len(imageIDs) == 0 {
+		return out
+	}
+	args = append([]string{"image", "inspect", "--format", templates().ImageInspect}, imageIDs...)
+	if output, err = dockerOutput(args...); err != nil {
+		return out
+	}
+	byImage := parseImageInspect(output)
+	for container, image := range imageOf {
+		short := strings.TrimPrefix(image, "sha256:")
+		if len(short) > 12 {
+			short = short[:12]
+		}
+		if info, ok := byImage[short]; ok && len(info.repoDigests) > 0 {
+			out[container] = info.repoDigests
 		}
 	}
+	return out
+}
+
+// ImageRepoDigests returns the registry digests of each image the engine holds,
+// keyed by the reference asked. An image the engine does not have is absent from
+// the map. One call per image: `image inspect` fails the whole call when one of
+// several references is missing, and a Dockerfile's base often is.
+func ImageRepoDigests(refs []string) map[string][]string {
+	out := map[string][]string{}
+	if requireEngine() != nil {
+		return out
+	}
+	for _, ref := range refs {
+		if _, done := out[ref]; done || ref == "" {
+			continue
+		}
+		output, err := dockerOutput("image", "inspect", "--format", templates().ImageRepoDigests, ref)
+		if err != nil {
+			continue // not local: nothing to compare with
+		}
+		out[ref] = parseRepoDigests(string(output))
+	}
+	return out
 }
 
 // dfInfo holds the per-image figures scraped from `docker system df -v`.
@@ -235,6 +339,43 @@ func RemoveImage(id string, force bool) error {
 		args = []string{"rmi", "-f", id}
 	}
 	return mutate(cmdLabel("rmi"), args...)
+}
+
+// ContainersUsingImage names every container, running or not, created from the
+// image or from an image built on it. An image one of them uses cannot be
+// removed without breaking it, and `rmi` would refuse anyway (§3.88).
+func ContainersUsingImage(imageID string) ([]string, error) {
+	if err := requireEngine(); err != nil {
+		return nil, err
+	}
+	output, err := dockerOutput("ps", "-a", "--filter", "ancestor="+imageID, "--format", "{{.Names}}")
+	if err != nil {
+		return nil, wrapErr(cmdLabel("ps"), err)
+	}
+	return splitLines(output), nil
+}
+
+// ImageID returns the full ID of the image a reference names locally.
+func ImageID(ref string) (string, error) {
+	if err := requireEngine(); err != nil {
+		return "", err
+	}
+	output, err := dockerOutput("image", "inspect", "--format", "{{.Id}}", ref)
+	if err != nil {
+		return "", wrapErr(cmdLabel("image inspect"), err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// SameImageID reports whether two image IDs name the same image, whatever the
+// form each is in: full with its "sha256:" prefix, or the 12-character short
+// form `image ls` prints.
+func SameImageID(a, b string) bool {
+	a, b = strings.TrimPrefix(a, "sha256:"), strings.TrimPrefix(b, "sha256:")
+	if a == "" || b == "" {
+		return false
+	}
+	return strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
 }
 
 // PruneImages removes all dangling (unused) images and returns the output

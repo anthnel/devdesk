@@ -93,8 +93,11 @@ type Templates struct {
 	Info string
 	// ImageLS lists images: id, repository, tag, size, created.
 	ImageLS string
-	// ImageInspect reads the sizes of several images in one call.
+	// ImageInspect reads the size and the registry digests of several images
+	// in one call.
 	ImageInspect string
+	// ImageRepoDigests reads one image's registry digests as JSON.
+	ImageRepoDigests string
 	// ImageExposedPorts reads an image's EXPOSE declarations as JSON.
 	ImageExposedPorts string
 	// NetworkLS lists networks: id, name, driver, scope, created.
@@ -141,7 +144,8 @@ var dockerTemplates = Templates{
 	Stats:             "{{.ID}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}",
 	Info:              "{{.NCPU}}\t{{.MemTotal}}",
 	ImageLS:           "{{.ID}}\t{{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}",
-	ImageInspect:      "{{.ID}}\t{{.Size}}",
+	ImageInspect:      "{{.ID}}\t{{.Size}}\t{{json .RepoDigests}}",
+	ImageRepoDigests:  "{{json .RepoDigests}}",
 	ImageExposedPorts: "{{json .Config.ExposedPorts}}",
 	NetworkLS:         "{{.ID}}\t{{.Name}}\t{{.Driver}}\t{{.Scope}}\t{{.CreatedAt}}",
 	VolumeLS:          "{{.Name}}\t{{.Driver}}\t{{.Mountpoint}}",

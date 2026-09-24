@@ -141,7 +141,7 @@ func TestOnlyRunningContainersShowMetrics(t *testing.T) {
 	// The metrics start after the status, name and image columns: CPU, its
 	// gauge, Mem, its gauge, then the four I/O counters.
 	const (
-		columnCPU      = columnImage + 1
+		columnCPU      = columnImage + 2
 		columnCPUGauge = columnCPU + 1
 		columnMem      = columnCPU + 2
 		columnMemGauge = columnCPU + 3
@@ -180,8 +180,8 @@ func TestOnlyAStoppedContainerRendersAPlaceholderGauge(t *testing.T) {
 	}})
 
 	const (
-		columnCPUGauge = columnImage + 2
-		columnMemGauge = columnImage + 4
+		columnCPUGauge = columnImage + 3
+		columnMemGauge = columnImage + 5
 	)
 	want := map[string][2]string{
 		"idle":    {theme.Gauge(theme.GaugeWidth), theme.Gauge(theme.GaugeWidth)},
@@ -208,12 +208,16 @@ func TestOnlyAStoppedContainerRendersAPlaceholderGauge(t *testing.T) {
 	}
 }
 
+// gaugeWidth is a terminal wide enough to keep both gauges: they are the first
+// columns to go (§3.71), and since the Update column (§3.88) they need 180.
+var gaugeWidth = tea.WindowSizeMsg{Width: 180, Height: 30}
+
 // Each level's colour shows up somewhere in the rendered table — green for an
 // idle container, orange and red once a level crosses its threshold — and a
 // stopped container's placeholder is dim rather than any load colour.
 func TestTheGaugesColorReflectsTheLoadLevel(t *testing.T) {
 	withTrueColor(t)
-	m := rawModel(t)
+	m := feed(t, rawModel(t), gaugeWidth)
 	m = feed(t, m, ContainersListMsg{Containers: []docker.Container{
 		// Sorts alphabetically first, so it absorbs the cursor: Style is not
 		// consulted on the selected row (Rule 122), and only one of five rows
@@ -264,7 +268,7 @@ func TestTheGaugeTrackKeepsItsOwnColourRegardlessOfLoad(t *testing.T) {
 		t.Fatal("the track style renders no escape sequence; the colour profile is not forced")
 	}
 
-	m := loadedModel(t) // cursor on api; web (12.5% CPU) is not selected
+	m := feed(t, loadedModel(t), gaugeWidth) // cursor on api; web (12.5% CPU) is not selected
 	view := m.containerTable.View()
 
 	if !strings.Contains(view, track) {
@@ -282,7 +286,7 @@ func TestTheGaugeTrackKeepsItsOwnColourRegardlessOfLoad(t *testing.T) {
 // A gauge is the first thing to go when the table runs out of room, whatever
 // its position — it illustrates a number that stays behind (§3.71).
 func TestTheGaugesAreTheFirstColumnsDropped(t *testing.T) {
-	columns := containerColumns()
+	columns := containerColumns(nil)
 
 	for i, col := range columns {
 		gauge := col.Title == "1 core" || col.Title == "Limit"
@@ -449,10 +453,10 @@ func TestCycleSortWalksDirectionThenColumn(t *testing.T) {
 	}
 
 	// Each sortable column is visited ascending then descending, so a full
-	// cycle returns to the start. Four columns do not sort: the status glyph,
-	// Ports, and the two gauges — a bar sorts by the number it draws, and that
+	// cycle returns to the start. Five columns do not sort: the status glyph,
+	// Update, Ports, and the two gauges — a bar sorts by the number it draws, and that
 	// number's own column already offers it.
-	sortable := len(containerColumns()) - 4
+	sortable := len(containerColumns(nil)) - 5
 	for range sortable*2 - 2 {
 		m = feed(t, m, testutil.Key("."))
 	}
@@ -471,12 +475,12 @@ func TestEachColumnOrdersByItsOwnValue(t *testing.T) {
 		{"name ascending", columnName, false, []string{"api", "cache", "web", "zombie"}},
 		{"name descending", columnName, true, []string{"zombie", "web", "cache", "api"}},
 		{"image ascending", columnImage, false, []string{"zombie", "api", "web", "cache"}},
-		{"cpu descending", columnImage + 1, true, []string{"api", "web", "cache", "zombie"}},
-		{"mem descending", columnImage + 3, true, []string{"web", "cache", "zombie", "api"}},
-		{"net rx descending", columnImage + 5, true, []string{"web", "cache", "zombie", "api"}},
-		{"net tx descending", columnImage + 6, true, []string{"web", "cache", "zombie", "api"}},
-		{"block rx descending", columnImage + 7, true, []string{"web", "cache", "zombie", "api"}},
-		{"block tx descending", columnImage + 8, true, []string{"web", "cache", "zombie", "api"}},
+		{"cpu descending", columnImage + 2, true, []string{"api", "web", "cache", "zombie"}},
+		{"mem descending", columnImage + 4, true, []string{"web", "cache", "zombie", "api"}},
+		{"net rx descending", columnImage + 6, true, []string{"web", "cache", "zombie", "api"}},
+		{"net tx descending", columnImage + 7, true, []string{"web", "cache", "zombie", "api"}},
+		{"block rx descending", columnImage + 8, true, []string{"web", "cache", "zombie", "api"}},
+		{"block tx descending", columnImage + 9, true, []string{"web", "cache", "zombie", "api"}},
 		// CreatedAt is compared as a string, so an unparseable value sorts
 		// after every ISO timestamp rather than being treated as unknown.
 		{"created ascending", columnCreated, false, []string{"cache", "api", "web", "zombie"}},
@@ -543,7 +547,7 @@ func TestSortIndicatorFollowsTheActiveColumn(t *testing.T) {
 // reordered: the six metric columns sit between Image and these two, so an
 // offset stays plausible while pointing at the wrong column.
 func TestTheNamedColumnsAreWhereTheirNamesSay(t *testing.T) {
-	cols := containerColumns()
+	cols := containerColumns(nil)
 	for _, tc := range []struct {
 		index int
 		title string

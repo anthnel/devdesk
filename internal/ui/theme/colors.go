@@ -112,6 +112,14 @@ var (
 	ColorFooterWarn  lipgloss.Color
 	ColorFooterError lipgloss.Color
 
+	// ColorUpdateAvailable is the arrow that says a newer image exists (§3.88).
+	//
+	// An alias assigned in ApplyTheme: no theme file gains a key. It is the
+	// structural blue the headers use rather than a severity colour — an update
+	// is news, not a finding, and a table already coloured by CVE counts must
+	// not read one as another.
+	ColorUpdateAvailable lipgloss.Color
+
 	// ColorShortcutDisabled is the key of a header shortcut that exists in this
 	// mode but does not apply right now (Rule 130).
 	//

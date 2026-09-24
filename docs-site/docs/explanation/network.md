@@ -36,6 +36,38 @@ explicit `docker.io/` prefix — Podman, unlike Docker, doesn't assume Docker
 Hub for a bare image name unless `unqualified-search-registries` is
 configured, which it isn't on a default Debian/Ubuntu or Fedora install.
 
+## Is there a newer image?
+
+The Images tab, the containers list and a scan's Remediation tab each have an
+**Update** column. An arrow there means the image's registry holds something
+newer, and the label says what: a later patch tag on the same line
+(`node:20.11.1` → `20.11.4`), or `new build` — the same tag now points to
+other content, which is the only kind of update a tag like `latest` or
+`bookworm-slim` ever gets.
+
+The answer comes from comparing digests: the one the registry gives for the
+tag today, and the one the engine recorded when the image was pulled. That has
+two consequences worth knowing. An image built or loaded locally has no such
+digest, so it never shows an arrow. And a container is compared through the
+image it was *created* from: pulling the new image clears the arrow in the
+Images tab, but the container keeps it until it is recreated — because until
+then it still runs the old one.
+
+When there is no arrow, the cell says why, in grey: a check mark when the
+image is up to date, `checking` while the registry has not answered, `?` when
+it did not answer, `local build` for an image built here, `not local` for a
+Dockerfile base your engine does not hold (there is nothing to compare with),
+`pinned` for a reference fixed by digest.
+
+In the Images tab, `G` applies the update: it pulls the newer image and
+removes the one it replaces. It refuses — and the footer names them — while any
+container, running or stopped, was created from that image: remove or recreate
+those first.
+
+Registries are asked in the background when a list loads, with a `HEAD`
+request that Docker Hub does not count against its pull limit, and each answer
+is kept for six hours.
+
 ## Why nothing runs in a privileged container anymore
 
 Earlier versions of these views ran diagnostic commands (`ss`, `ip addr`,

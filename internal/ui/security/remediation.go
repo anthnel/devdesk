@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/cache"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -16,6 +17,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/ui/updatecol"
 )
 
 // The Remediation tab (§3.2, phase B): for each base image a repository's
@@ -39,7 +41,7 @@ const (
 	reasonNotRemediationTab = "Candidate scans belong to the Remediation tab"
 	reasonFindingsOnly      = "That key works on findings — open another tab"
 	reasonNoBaseImage       = "No base image to scan"
-	reasonAllMeasured       = "Every image is already scanned — results are kept for 24 hours"
+	reasonAllMeasured       = "Every image is already scanned — results are kept for 24 hours, except on a floating tag"
 	reasonNoImageRow        = "No image selected"
 	reasonPickACandidate    = "Space selects a candidate — move to a tag under the image"
 	reasonScanFirst         = "Scan this candidate first (S) — a bump is proposed with its result, not without"
@@ -76,6 +78,11 @@ type remediationState struct {
 	// the moment the modal opens to the answer, so the write is exactly what was
 	// shown — never recomputed from a table that may have moved.
 	pending []preparedWrite
+	// updates is what the registries said about each base image, and
+	// localDigests the digests it is compared with — the reference's own pin,
+	// or the image the engine holds under that name (§3.88).
+	updates      imageupdate.Tracker
+	localDigests map[string][]string
 }
 
 func newRemediationState() remediationState {
@@ -118,6 +125,9 @@ type remediationRow struct {
 	// is known: a delta needs both sides.
 	Baseline    int
 	HasBaseline bool
+	// Update is whether a newer image exists for the base as written (§3.88).
+	// Only a current row has one: a candidate is already the newer image.
+	Update imageupdate.Status
 }
 
 // icon is the glyph column: the image itself, or a candidate's checkbox.
@@ -148,11 +158,14 @@ func (r remediationRow) delta() (int, bool) {
 // remediationRows lays entries out as the table shows them: each base image,
 // then its candidates.
 func remediationRows(entries []remediation.Entry, results map[string]cache.RemediationEntry,
-	scanning map[string]bool, selected map[int]string) []remediationRow {
+	scanning map[string]bool, selected map[int]string, update func(ref string) imageupdate.Status) []remediationRow {
 	var rows []remediationRow
 	for i, e := range entries {
 		current := remediationRowFor(e.File, e.StageLabel, imageLabel(e), true, e.Image, results, scanning)
 		current.Entry = i
+		if update != nil && e.Image != "" {
+			current.Update = update(e.Image)
+		}
 		if len(e.Candidates) == 0 {
 			current.Note = e.Reason
 		}
@@ -242,6 +255,7 @@ func remediationColumns() []datatable.Column[remediationRow] {
 				return theme.DimStyle
 			},
 		},
+		updatecol.Column(true, func(r remediationRow) imageupdate.Status { return r.Update }),
 		count("CRIT", "CRITICAL", func(c scan.SeverityCounts) int { return c.Critical }),
 		count("HIGH", "HIGH", func(c scan.SeverityCounts) int { return c.High }),
 		{
@@ -336,7 +350,31 @@ func (m Model) handleRemediationDiscovered(msg RemediationDiscoveredMsg) (tea.Mo
 	m.remediation.truncated = msg.Truncated
 	m.remediation.results = msg.Results
 	m.refreshRemediation()
+	var refs []string
+	for _, e := range msg.Entries {
+		refs = append(refs, e.Image)
+	}
+	return m, checkBaseImageUpdatesCmd(m.remediation.target, m.remediation.updates.Due(refs, time.Now()))
+}
+
+func (m Model) handleBaseImageUpdatesChecked(msg BaseImageUpdatesCheckedMsg) (tea.Model, tea.Cmd) {
+	if msg.Target != m.remediation.target {
+		return m, nil
+	}
+	if m.remediation.localDigests == nil {
+		m.remediation.localDigests = map[string][]string{}
+	}
+	for ref, d := range msg.Local {
+		m.remediation.localDigests[ref] = d
+	}
+	m.remediation.updates.Store(msg.Facts)
+	m.refreshRemediation()
 	return m, nil
+}
+
+// baseImageUpdate is the Update cell of a base image.
+func (m Model) baseImageUpdate(ref string) imageupdate.Status {
+	return m.remediation.updates.Status(ref, m.remediation.localDigests[ref], imageupdate.NotLocal)
 }
 
 func (m Model) handleRemediationScanFinished(msg RemediationScanFinishedMsg) (tea.Model, tea.Cmd) {
@@ -360,7 +398,7 @@ func (m Model) handleRemediationScanFinished(msg RemediationScanFinishedMsg) (te
 func (m *Model) refreshRemediation() {
 	cursor := m.remediation.table.Cursor()
 	m.remediation.table.SetItems(remediationRows(
-		m.remediation.entries, m.remediation.results, m.remediation.scanning, m.remediation.selected))
+		m.remediation.entries, m.remediation.results, m.remediation.scanning, m.remediation.selected, m.baseImageUpdate))
 	m.remediation.table.Remeasure()
 	m.remediation.table.SetCursor(cursor)
 }
@@ -375,23 +413,28 @@ func (m Model) remediationBusy() bool {
 
 // refsToScan are the images with no result, or one older than remediationFreshFor
 // — each once, however many stages name it — and not already being scanned.
+//
+// An image on a floating tag is scanned whatever its result's age (§3.79): the
+// cache is keyed by the reference as written, which does not change when the
+// registry replaces what it points to, so a result an hour old may be about an
+// image that is no longer there.
 func (m Model) refsToScan(now time.Time) []string {
 	seen := map[string]bool{}
 	var refs []string
-	add := func(ref string) {
+	add := func(ref string, floating bool) {
 		if ref == "" || seen[ref] || m.remediation.scanning[ref] {
 			return
 		}
 		seen[ref] = true
-		if entry, ok := m.remediation.results[ref]; ok && now.Sub(entry.ScannedAt) < remediationFreshFor {
+		if entry, ok := m.remediation.results[ref]; ok && !floating && now.Sub(entry.ScannedAt) < remediationFreshFor {
 			return
 		}
 		refs = append(refs, ref)
 	}
 	for _, e := range m.remediation.entries {
-		add(e.Image)
+		add(e.Image, e.Floating)
 		for _, c := range e.Candidates {
-			add(c)
+			add(c, false)
 		}
 	}
 	return refs

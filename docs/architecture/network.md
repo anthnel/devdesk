@@ -52,6 +52,96 @@ Two things about the engine are worth knowing before changing this code:
 download and extract a tar.gz (a repository template is one — `templates.md`). It speaks the distribution spec over `net/http`
 and never shells out, so it is engine-agnostic and podman changed nothing in it.
 
+## Image updates — `internal/imageupdate` (§3.88)
+
+Three tables carry an **Update** column (`internal/ui/updatecol`): oci's Images
+tab, the containers list, and the Remediation tab of a scan result. It shows an
+arrow when the image's registry holds something newer, and says what:
+
+| Kind | When | Label |
+|---|---|---|
+| `NewPatch` | the tag has ≥ 3 version components and a tag differing only by the last, same variant, is higher (`20.11.1-alpine` → `20.11.4-alpine`) | the tag |
+| `NewBuild` | the digest the tag points to now is none of the local image's digests | `new build` |
+
+A newer patch wins over a new build. Every other state says why there is no
+arrow, in grey — a blank used to stand for all of them, which in the
+Remediation tab (bases rarely pinned, often not held locally) meant a column
+that was silent without saying why:
+
+| Kind | Cell | When |
+|---|---|---|
+| `UpToDate` | the check mark | the local digest is the tag's |
+| `Pending` | `checking` | no answer yet |
+| `Failed` | `?` | the registry did not answer (logged) |
+| `LocalBuild` | `local build` | images, containers: no registry digest |
+| `NotLocal` | `not local` | Remediation: unpinned, and not held by the engine |
+| `Pinned` | `pinned` | a digest with no tag: nothing can move |
+| `None` | blank | the question does not apply (untagged image, unresolved `FROM`) |
+
+`Evaluate` takes what "no local digest" means to its caller (`LocalBuild` or
+`NotLocal`). The column's filter only matches an update's label, or `/ca`
+would find every `local build`. A tag with fewer components (`3.20`,
+`20`) has no patches of its own — it floats over them, so a new patch moves the
+tag and the digest says it. That is also the only answer a floating tag
+(§3.79) ever gets.
+
+**The registry's side is cached, the comparison is not.** `imageupdate.Check`
+keeps, per reference, the tag's digest and the newer patch tag in
+`~/.devdesk/cache/image-updates.json` — 6 hours for an answer, 30 minutes for a
+failure (unknown repository, no credentials) so it is not asked on every
+refresh. `Evaluate` compares with the local digests each time a row is built,
+so a pull clears the arrow without asking the registry again.
+
+**Two requests at most per reference.** The digest is a `HEAD` on the manifest
+(`oci.ManifestDigest`) accepting an OCI index and a Docker manifest list — a
+multi-platform tag's digest is the index's, the one `docker pull` records in
+`RepoDigests`. Docker Hub does not count a `HEAD` against its pull rate limit.
+The tag list (`oci.ListRegistryTags`) is only read for a tag with a patch
+component. At most four references are asked at once; credentials are the
+engine's (`docker.GetStoredCreds`), as for the Remediation tab.
+
+**What each view compares with:**
+
+- *Images* — the image's own `RepoDigests`, now read by the same `image
+  inspect` that reads its size (`templates().ImageInspect`). Only a tagged image
+  **with** a digest is asked about: one built or loaded here has none, and its
+  name would send the question to a registry that never heard of it.
+- *Containers* — the digests of the image the container was **created from**
+  (`docker.ContainerImageDigests`: `container inspect` for the image ID, then
+  `image inspect`). After a pull the container still runs the old image, so the
+  arrow stays until it is recreated — which is what it is there to say. The
+  digests are read again only when the set of containers changes, not on every
+  two-second refresh.
+- *Remediation* — the digest the Dockerfile pins, or else the image the engine
+  holds under that name (`docker.ImageRepoDigests`). A base the engine does not
+  hold only gets the patch side.
+
+`imageupdate.Tracker` is what each view keeps between checks: the facts it has
+and the references a check is out for, so a reload asks only what is new or
+stale. Every view reaches the network through a package variable its tests
+replace.
+
+**Updating — `G` on the Images tab.** It pulls what the column points at (the
+newer patch tag, or the same tag again for a new build) and removes the image
+it replaces, by ID and never forced. It refuses while any container, running
+or stopped, was created from that image (`docker.ContainersUsingImage`, `ps -a
+--filter ancestor=`): removing it would break the container, and keeping it
+would leave the update half done. The check is made twice — from the engine's
+container count to grey `G` (Rule 130; docker only, podman reports none), and
+against the engine just before the pull, since a container can appear in
+between. A pull that brings the image already held removes nothing
+(`docker.SameImageID`). It runs as a pull job, so the row spins and `K` stops
+it; every refusal and failure is a footer line naming why (the containers in
+use, a failed pull, an old image that could not be removed).
+
+**On a narrow terminal**, the containers table drops the two gauges before
+Update (they are `DropFirst`, §3.71), then the I/O counters, then Update. Both
+gauges now need 180 columns instead of 160.
+
+**Not done**: a digest for a tag the engine holds under another name, and the
+`podman` side of `RepoDigests` has not been measured against a real `podman
+system service` — the field exists there under the same name.
+
 ## Network Diagnostics View
 
 `internal/ui/netdiag/` — four tabs:

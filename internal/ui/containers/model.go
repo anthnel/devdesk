@@ -11,9 +11,11 @@ import (
 
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/ui/updatecol"
 )
 
 // The logs pane used to live here — a viewState, a viewport, soft wrap, ANSI
@@ -26,7 +28,11 @@ import (
 
 // Model represents the containers view state
 type Model struct {
-	config         *config.Config
+	config *config.Config
+	// updates is what is known about each container's image and its registry
+	// (§3.88). A pointer because the table's Update column reads it through a
+	// closure built once in New; it is written from Update only (Rule 110).
+	updates        *containerUpdates
 	containerTable datatable.Model[docker.Container]
 	spinner        spinner.Model
 	loading        bool
@@ -61,6 +67,13 @@ type RefreshTickMsg time.Time
 type ContainersListMsg struct {
 	Containers []docker.Container
 	Err        error
+}
+
+// ContainerUpdatesCheckedMsg carries, for the listed containers, the digests of
+// the images they run and what the registries said about those images (§3.88).
+type ContainerUpdatesCheckedMsg struct {
+	Digests map[string][]string
+	Facts   map[string]imageupdate.Facts
 }
 
 // ContainerMetricsMsg contains fetched metrics
@@ -113,8 +126,8 @@ const (
 // offsets are right up until the order changes and then wrong in silence.
 // TestTheNamedColumnsAreWhereTheirNamesSay is what keeps these honest.
 const (
-	columnPorts   = columnImage + 9
-	columnCreated = columnImage + 10
+	columnPorts   = columnImage + 10
+	columnCreated = columnImage + 11
 )
 
 // The state glyph column carries no title — the icons say what they are — and
@@ -136,7 +149,13 @@ const (
 // That column is also where a running action shows its spinner. The two are one
 // glyph deliberately: a row answers "what is this" and "what is happening to
 // it" in the same place, and `datatable` owns the precedence — busy wins.
-func containerColumns() []datatable.Column[docker.Container] {
+//
+// status says whether a newer image exists for a container (§3.88); nil says
+// nothing, for the tests that only look at the layout.
+func containerColumns(status func(docker.Container) imageupdate.Status) []datatable.Column[docker.Container] {
+	if status == nil {
+		status = func(docker.Container) imageupdate.Status { return imageupdate.Status{} }
+	}
 	// Metrics only mean anything while the container runs: docker reports the
 	// last values it saw for the rest, which is why they read "-" rather than a
 	// number that stopped being true when the container did.
@@ -174,6 +193,9 @@ func containerColumns() []datatable.Column[docker.Container] {
 			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Image) < strings.ToLower(b.Image) },
 			Search: func(c docker.Container) string { return c.Image + " " + c.State },
 		},
+		// Optional: on a narrow terminal, what a container is doing now matters
+		// more than whether its image has aged.
+		updatecol.Column(true, status),
 		{
 			Title: "CPU", Sizing: datatable.SizingFixed, MinWidth: 8,
 			Cell: func(c docker.Container) string {
@@ -415,11 +437,13 @@ func New(cfg *config.Config) Model {
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
 
+	updates := &containerUpdates{}
 	return Model{
 		config:  cfg,
 		spinner: s,
+		updates: updates,
 		containerTable: datatable.New(datatable.Config[docker.Container]{
-			Columns: containerColumns(),
+			Columns: containerColumns(updates.status),
 			// Explicit rather than left at the zero value, which would open the
 			// list Z→A and disagree with the status view (D9).
 			SortColumn:     columnName,

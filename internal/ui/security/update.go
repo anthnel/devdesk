@@ -128,6 +128,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RemediationDiscoveredMsg:
 		return m.handleRemediationDiscovered(msg)
 
+	case BaseImageUpdatesCheckedMsg:
+		return m.handleBaseImageUpdatesChecked(msg)
+
 	case RemediationScanFinishedMsg:
 		return m.handleRemediationScanFinished(msg)
 

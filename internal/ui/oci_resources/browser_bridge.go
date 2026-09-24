@@ -101,6 +101,9 @@ func (m Model) handleRegistryPullRequested(msg RegistryPullRequestedMsg) (tea.Mo
 // asking for one closes it, and a completion that returned early on a nil
 // browser would skip the refresh that makes the pulled image appear.
 func (m Model) handleRegistryPullComplete(msg RegistryPullCompleteMsg) (tea.Model, tea.Cmd) {
+	if msg.Replaces != "" {
+		return m.handleImageUpdated(msg)
+	}
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] pull %s: %v", msg.ImageName, msg.Err)
 		return m, m.footer.Error("Pull failed — check logs")
