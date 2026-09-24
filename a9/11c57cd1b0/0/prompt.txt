@@ -1,0 +1,26 @@
+analyse, ne code rien . 
+
+<pasted_content id="448d">
+Je voudrais revoir la configuration des scanners.
+L'utilisateur devrait pouvoir spécifier les catégories de findings qu'il désire scanner et les outils qu'il veut utiliser.
+Il faut donc analyser comment présenter ces choix de manière intuitive.
+
+De plus en fonction de ses choix il faut vérifier si tous les tools nécessaires sont bien installés (trivy, helm, kustomize, gitleaks, etc.)
+
+Dans le dashboard, boite host, si certains outils manquent, il faudrait afficher "Some tools are missing 󰅙 ". Si tous les outils sont présents : "All tools are available 󰗠 ".
+
+Comme actuellement pour chaque tools, il faut pouvoir préciser source, binaire, image, éventuellement un fichier de config et éventuellement des options.
+
+Dans la config les outils peuvent être répartis sur deux colonnes, actuellement la config déborde vers le bas.
+
+Je voudrais un nouveau tab dans la config "Tools". Qui dit si un outils est nécessaire (en fonction du choix de l'utilisateur), s'il est disponible ou absent, et sa source.
+Si certains outils sont manquants, l'utilisateur le verra dans le dashboard et il aura le détail dans ce nouveau onglet.
+</pasted_content id="448d">
+
+---
+
+avant d'écrire le plan rafraichit main car la pr est mergée, tu verras les nouvelles modification pour le scanning des manifestes kubernetes. Sinon je suis d'accord avec tes propositions
+
+---
+
+pourquoi n'as tu pas intégré une détection des outils partagée entre les vues
