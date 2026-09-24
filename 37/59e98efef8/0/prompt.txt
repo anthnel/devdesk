@@ -1,0 +1,25 @@
+il serait intéressant d'afficher quand de nouvelle version sont disponible pour une image , afficher une colonne avec une icone flèche vers le bas quand une mise à jour est là, si c'est un tag flottant il faut aller voir les digest, si ce n'est pas un tag flottant regarder si un nouveau fix est disponible
+
+---
+
+vue oci , la colonne affiche "󰁅 new…"
+
+---
+
+je ne vois pas la colonne update dans la vue sec
+
+---
+
+comment fonctionne la colonne update dans remediation : 
+
+<pasted_content id="6375">
+┌─ 󰒃 Security Scanner (~\workspaces\anthnell\devsecops\devex\coder-sandbox) ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│     File        Stage         Image                                                                                                                                   Update       CRIT    HIGH    vs now    Scanned       Note                                            │
+│    Dockerfile  coding-agent  docker.io/docker/docker-agent:1.142.0                                                                                                                1       35                now                                                           │
+│ 󰄱                               docker.io/docker/docker-agent:1.143.0                                                                                                              1       35      =         now                                                           │
+│    Dockerfile  #2            docker.io/docker/sandbox-templates:shell                                                                                                             0       12                now           floating tag — S re-scans what it points to now │
+</pasted_content id="6375">
+
+---
+
+oui fais-le
