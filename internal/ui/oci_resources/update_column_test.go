@@ -1,0 +1,58 @@
+package ociresources
+
+import (
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imageupdate"
+	"github.com/anthnel/devdesk/internal/ui/updatecol"
+)
+
+// Only a tagged image that was pulled is asked about: a built one has no
+// registry digest, and its name would reach a registry that never heard of it.
+func TestOnlyPulledTaggedImagesAreChecked(t *testing.T) {
+	images := []docker.Image{
+		{Repository: "alpine", Tag: "latest", RepoDigests: []string{"alpine@sha256:a"}},
+		{Repository: "myapp", Tag: "dev"},
+		{Repository: "node", Tag: "<none>", RepoDigests: []string{"node@sha256:n"}},
+	}
+	if got, want := pulledImageRefs(images), []string{"alpine:latest"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("refs = %v, want %v", got, want)
+	}
+}
+
+func updateCell(t *testing.T, m Model, name string) string {
+	t.Helper()
+	for _, r := range m.imageTable.Items() {
+		if r.RawName == name {
+			return updatecol.Column(false, func(r imageRow) imageupdate.Status { return r.Update }).Cell(r)
+		}
+	}
+	t.Fatalf("no row %s", name)
+	return ""
+}
+
+// The arrow is decided against the local digest when shown, so a pull that
+// brings the new digest clears it without asking the registry again.
+func TestTheArrowFollowsTheLocalDigest(t *testing.T) {
+	old := docker.Image{ID: "aaa", Repository: "alpine", Tag: "latest", RepoDigests: []string{"alpine@sha256:old"}}
+	m := feed(t, newTestModel(t),
+		ImagesListMsg{Images: []docker.Image{old}},
+		ImageUpdatesCheckedMsg{Facts: map[string]imageupdate.Facts{
+			"alpine:latest": {CheckedAt: time.Now(), Digest: "sha256:new"},
+		}},
+	)
+	if got := updateCell(t, m, "alpine:latest"); !strings.Contains(got, "new build") {
+		t.Errorf("cell = %q, want the arrow and new build", got)
+	}
+
+	pulled := old
+	pulled.RepoDigests = []string{"alpine@sha256:new"}
+	m = feed(t, m, ImagesListMsg{Images: []docker.Image{pulled}})
+	if got := updateCell(t, m, "alpine:latest"); got != "" {
+		t.Errorf("cell after the pull = %q, want nothing", got)
+	}
+}

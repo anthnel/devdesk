@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/git"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/patch"
 	"github.com/anthnel/devdesk/internal/remediation"
@@ -43,7 +43,48 @@ type RemediationScanFinishedMsg struct {
 	Err    error
 }
 
+// BaseImageUpdatesCheckedMsg carries what the registries said about the base
+// images, and the local digests each is compared with (§3.88).
+type BaseImageUpdatesCheckedMsg struct {
+	Target string
+	Local  map[string][]string
+	Facts  map[string]imageupdate.Facts
+}
+
 // ── Commands (Rule 110: they read and write disk and the network, never the model) ──
+
+// The seams tests replace: no engine and no registry is reached from a test.
+var (
+	localImageDigests = docker.ImageRepoDigests
+	checkImageUpdates = func(refs []string) map[string]imageupdate.Facts {
+		return imageupdate.Check(imageupdate.Default(), refs, time.Now())
+	}
+)
+
+// checkBaseImageUpdatesCmd asks the registries about base images. A base is
+// compared with its own digest when the Dockerfile pins one, and otherwise with
+// the image the engine holds under that name — the one a build would use
+// without --pull. One the engine does not hold has only the patch side.
+func checkBaseImageUpdatesCmd(target string, refs []string) tea.Cmd {
+	if len(refs) == 0 {
+		return nil
+	}
+	return func() tea.Msg {
+		local := map[string][]string{}
+		var unpinned []string
+		for _, ref := range refs {
+			if d := remediation.ParseRef(ref).Digest; d != "" {
+				local[ref] = []string{d}
+			} else {
+				unpinned = append(unpinned, ref)
+			}
+		}
+		for ref, d := range localImageDigests(unpinned) {
+			local[ref] = d
+		}
+		return BaseImageUpdatesCheckedMsg{Target: target, Local: local, Facts: checkImageUpdates(refs)}
+	}
+}
 
 // discoverRemediationCmd reads the Dockerfiles under a repository and lists the
 // tags each base image could move to.
@@ -75,20 +116,7 @@ func registryTagLister(ref remediation.Ref) ([]string, error) {
 		host = "docker.io"
 	}
 	user, pass, _ := docker.GetStoredCreds(host)
-	return oci.ListRegistryTags(registryAPIBase(ref.Registry), ref.Repository, user, pass)
-}
-
-// registryAPIBase is the v2 API root of a registry named in a Dockerfile: Docker
-// Hub has its own host, a local registry is reached over plain HTTP, and
-// everything else over HTTPS.
-func registryAPIBase(registry string) string {
-	switch {
-	case registry == "":
-		return "https://registry-1.docker.io"
-	case strings.HasPrefix(registry, "localhost") || strings.HasPrefix(registry, "127.0.0.1"):
-		return "http://" + registry
-	}
-	return "https://" + registry
+	return oci.ListRegistryTags(oci.RegistryAPIBase(ref.Registry), ref.Repository, user, pass)
 }
 
 // scanRemediationCmds scans each image from its registry, one Cmd per image.

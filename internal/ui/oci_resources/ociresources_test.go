@@ -12,6 +12,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/docker"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -39,6 +40,8 @@ func TestMain(m *testing.M) {
 	}
 
 	log.SetOutput(io.Discard)
+	// No registry is reached from a test (§3.88).
+	checkImageUpdates = func([]string) map[string]imageupdate.Facts { return nil }
 
 	home, err := os.MkdirTemp("", "devdesk-oci-test")
 	if err != nil {

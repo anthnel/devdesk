@@ -321,6 +321,10 @@ func ApplyTheme(t *Theme) {
 	ColorFooterWarn = ColorSeverityMedium
 	ColorFooterError = ColorSeverityCritical
 
+	// The image update arrow (§3.88), in the structural colour: news, not a
+	// finding.
+	ColorUpdateAvailable = ColorSecondary
+
 	// Icon colours (iconcolors.go). Assigned here like every other alias, and
 	// through applyColor so a theme file can name its own.
 	//

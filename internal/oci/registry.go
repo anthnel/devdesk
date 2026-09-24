@@ -67,23 +67,9 @@ func ListRegistryTags(apiURL, repo, username, password string) ([]string, error)
 // registryGET performs a GET, answering a Bearer challenge once. It returns the
 // body, the Link header, and the token to send on the following requests.
 func registryGET(rawURL, username, password, token string) (body []byte, link, usedToken string, err error) {
-	resp, err := doGET(rawURL, username, password, token)
+	resp, token, err := registryDo(http.MethodGet, rawURL, "", username, password, token)
 	if err != nil {
 		return nil, "", token, err
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		challenge := resp.Header.Get("Www-Authenticate")
-		_ = resp.Body.Close()
-		if !strings.HasPrefix(challenge, "Bearer ") {
-			return nil, "", token, fmt.Errorf("unexpected auth challenge: %s", challenge)
-		}
-		token, err = exchangeBearerToken(challenge[7:], username, password)
-		if err != nil {
-			return nil, "", "", err
-		}
-		if resp, err = doGET(rawURL, "", "", token); err != nil {
-			return nil, "", token, fmt.Errorf("GET (retry) %s: %w", rawURL, err)
-		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
@@ -93,12 +79,40 @@ func registryGET(rawURL, username, password, token string) (body []byte, link, u
 	return body, resp.Header.Get("Link"), token, err
 }
 
-// doGET sends one request: a bearer token when there is one, Basic auth when
-// there are credentials and no token.
-func doGET(rawURL, username, password, token string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", rawURL, nil)
+// registryDo sends one request, answering a Bearer challenge once. The caller
+// closes the response body and reads the status.
+func registryDo(method, rawURL, accept, username, password, token string) (*http.Response, string, error) {
+	resp, err := doRequest(method, rawURL, accept, username, password, token)
+	if err != nil {
+		return nil, token, err
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		return resp, token, nil
+	}
+	challenge := resp.Header.Get("Www-Authenticate")
+	_ = resp.Body.Close()
+	if !strings.HasPrefix(challenge, "Bearer ") {
+		return nil, token, fmt.Errorf("unexpected auth challenge: %s", challenge)
+	}
+	token, err = exchangeBearerToken(challenge[7:], username, password)
+	if err != nil {
+		return nil, "", err
+	}
+	if resp, err = doRequest(method, rawURL, accept, "", "", token); err != nil {
+		return nil, token, fmt.Errorf("%s (retry) %s: %w", method, rawURL, err)
+	}
+	return resp, token, nil
+}
+
+// doRequest sends one request: a bearer token when there is one, Basic auth
+// when there are credentials and no token.
+func doRequest(method, rawURL, accept, username, password, token string) (*http.Response, error) {
+	req, err := http.NewRequest(method, rawURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
+	}
+	if accept != "" {
+		req.Header.Set("Accept", accept)
 	}
 	switch {
 	case token != "":
@@ -108,9 +122,55 @@ func doGET(rawURL, username, password, token string) (*http.Response, error) {
 	}
 	resp, err := registryHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("GET %s: %w", rawURL, err)
+		return nil, fmt.Errorf("%s %s: %w", method, rawURL, err)
 	}
 	return resp, nil
+}
+
+// manifestAccept lists every manifest kind a tag can point to. A multi-platform
+// tag is an index (or a Docker manifest list), and its digest is the one `docker
+// pull` records in RepoDigests; asking for a single-platform manifest only
+// would make the registry convert or refuse, and the digests would not match.
+var manifestAccept = strings.Join([]string{
+	"application/vnd.oci.image.index.v1+json",
+	"application/vnd.docker.distribution.manifest.list.v2+json",
+	"application/vnd.oci.image.manifest.v1+json",
+	"application/vnd.docker.distribution.manifest.v2+json",
+}, ", ")
+
+// ManifestDigest returns the digest a tag currently points to, from the
+// registry's Docker-Content-Digest header.
+//
+// It is a HEAD request: Docker Hub does not count a HEAD against the pull rate
+// limit, and nothing but the header is needed.
+func ManifestDigest(apiURL, repo, tag, username, password string) (string, error) {
+	rawURL := fmt.Sprintf("%s/v2/%s/manifests/%s", strings.TrimSuffix(apiURL, "/"), repo, url.PathEscape(tag))
+	resp, _, err := registryDo(http.MethodHead, rawURL, manifestAccept, username, password, "")
+	if err != nil {
+		return "", err
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("registry returned %d for %s:%s", resp.StatusCode, repo, tag)
+	}
+	digest := resp.Header.Get("Docker-Content-Digest")
+	if digest == "" {
+		return "", fmt.Errorf("registry gave no digest for %s:%s", repo, tag)
+	}
+	return digest, nil
+}
+
+// RegistryAPIBase is the v2 API root of a registry named in an image reference:
+// Docker Hub has its own host, a local registry is reached over plain HTTP, and
+// everything else over HTTPS. An empty registry is Docker Hub.
+func RegistryAPIBase(registry string) string {
+	switch {
+	case registry == "":
+		return "https://registry-1.docker.io"
+	case strings.HasPrefix(registry, "localhost") || strings.HasPrefix(registry, "127.0.0.1"):
+		return "http://" + registry
+	}
+	return "https://" + registry
 }
 
 // resolveNext is the URL a Link header's rel="next" points to, resolved against

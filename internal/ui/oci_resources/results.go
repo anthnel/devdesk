@@ -2,10 +2,12 @@ package ociresources
 
 import (
 	"log"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
 )
 
 // handleConfirmYes executes the pending action
@@ -82,9 +84,31 @@ func (m Model) handleImagesList(msg ImagesListMsg) (tea.Model, tea.Cmd) {
 	m.images = msg.Images
 	m.listed = true
 	m.updateImageTable()
+	check := checkImageUpdatesCmd(m.updates.Due(pulledImageRefs(m.images), time.Now()))
 	if cmd := m.drainPendingRequests(); cmd != nil {
-		return m, cmd
+		return m, tea.Batch(cmd, check)
 	}
+	return m, check
+}
+
+// pulledImageRefs are the images worth asking a registry about: tagged, and
+// pulled — an image with no registry digest was built or loaded here, and its
+// name would send the question to a registry that has never heard of it.
+func pulledImageRefs(images []docker.Image) []string {
+	var refs []string
+	for _, img := range images {
+		if img.Tag == "" || img.Tag == "<none>" || len(img.RepoDigests) == 0 {
+			continue
+		}
+		refs = append(refs, img.Name())
+	}
+	return refs
+}
+
+// handleImageUpdatesChecked records the registries' answers.
+func (m Model) handleImageUpdatesChecked(msg ImageUpdatesCheckedMsg) (tea.Model, tea.Cmd) {
+	m.updates.Store(msg.Facts)
+	m.updateImageTable()
 	return m, nil
 }
 

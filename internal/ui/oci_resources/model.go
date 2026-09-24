@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/scan"
@@ -62,9 +63,12 @@ type Model struct {
 	//
 	// spinnerFrameIdx below stays: it animates *loading*, and a load is not a
 	// job. See jobs.go.
-	jobs            []jobs.Run
-	jobFrame        string
-	failedScans     map[string]bool
+	jobs        []jobs.Run
+	jobFrame    string
+	failedScans map[string]bool
+	// updates is what the registries said about each image, for the Update
+	// column (§3.88).
+	updates         imageupdate.Tracker
 	spinnerFrameIdx int
 	imageTable      datatable.Model[imageRow]
 	spinner         spinner.Model
@@ -149,6 +153,12 @@ type RefreshTickMsg time.Time
 type ImagesListMsg struct {
 	Images []docker.Image
 	Err    error
+}
+
+// ImageUpdatesCheckedMsg carries what the registries said about the listed
+// images (§3.88).
+type ImageUpdatesCheckedMsg struct {
+	Facts map[string]imageupdate.Facts
 }
 
 // ImageActionMsg signals result of an image action (remove).

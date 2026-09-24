@@ -249,3 +249,38 @@ func TestFirstWord(t *testing.T) {
 		})
 	}
 }
+
+// The inspect line carries the registry digests as JSON; an image built locally
+// has none, and says `[]`.
+func TestParseImageInspectReadsTheRepoDigests(t *testing.T) {
+	out := []byte("sha256:abc123456789ffff\t1000\t[\"alpine@sha256:aa\",\"docker.io/library/alpine@sha256:aa\"]\n" +
+		"def123456789\t2000\t[]\n" +
+		"0123456789ab\t3000\n")
+	got := parseImageInspect(out)
+	if a := got["abc123456789"]; a.size != 1000 || !slices.Equal(a.repoDigests, []string{"alpine@sha256:aa", "docker.io/library/alpine@sha256:aa"}) {
+		t.Errorf("pulled image = %+v", a)
+	}
+	if d := got["def123456789"]; d.size != 2000 || len(d.repoDigests) != 0 {
+		t.Errorf("built image = %+v", d)
+	}
+	if o := got["0123456789ab"]; o.size != 3000 || o.repoDigests != nil {
+		t.Errorf("line without digests = %+v", o)
+	}
+}
+
+// A container's digests are those of the image it runs, read through its image
+// ID: a pull of the same tag since then does not change them.
+func TestContainerImageDigestsFollowTheImageTheContainerRuns(t *testing.T) {
+	stub(t, &stubRunner{output: map[string][]byte{
+		"container": []byte("sha256:aaaaaaaaaaaa1111\nsha256:bbbbbbbbbbbb2222\n"),
+		"image": []byte("sha256:aaaaaaaaaaaa1111\t10\t[\"alpine@sha256:old\"]\n" +
+			"sha256:bbbbbbbbbbbb2222\t20\t[]\n"),
+	}})
+	got := ContainerImageDigests([]string{"c1", "c2"})
+	if !slices.Equal(got["c1"], []string{"alpine@sha256:old"}) {
+		t.Errorf("c1 = %v", got["c1"])
+	}
+	if _, ok := got["c2"]; ok {
+		t.Errorf("a built image has digests: %v", got["c2"])
+	}
+}

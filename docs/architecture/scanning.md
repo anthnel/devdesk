@@ -687,6 +687,11 @@ count from another database says nothing about a bump. A candidate is evidence,
 not a verdict: the scan says the CVEs are gone, not that the application still
 runs on the new base.
 
+The **Update** column puts an arrow on a base image whose registry holds a newer
+patch tag or new content behind the same tag (§3.88, `internal/imageupdate` —
+see `network.md`). It compares with the digest the Dockerfile pins, or with the
+image the engine holds under that name.
+
 #### A floating tag (§3.79)
 
 `Ref.Floats` is true for a reference with no digest whose tag carries no

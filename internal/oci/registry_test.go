@@ -344,3 +344,56 @@ func TestResolveNext(t *testing.T) {
 		}
 	}
 }
+
+// ── A tag's digest (§3.88) ───────────────────────────────────────────────────
+
+// The digest is read with a HEAD that accepts an index: a multi-platform tag's
+// digest is the index's, the one `docker pull` records.
+func TestManifestDigestIsReadFromAHeadThatAcceptsAnIndex(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/token" {
+			_, _ = w.Write([]byte(`{"token":"t"}`))
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer t" {
+			w.Header().Set("Www-Authenticate", `Bearer realm="`+baseOf(r)+`/token",service="s"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.Method != http.MethodHead || r.URL.Path != "/v2/library/alpine/manifests/latest" {
+			t.Errorf("request = %s %s", r.Method, r.URL.Path)
+		}
+		if !strings.Contains(r.Header.Get("Accept"), "application/vnd.oci.image.index.v1+json") {
+			t.Errorf("Accept = %q, want the OCI index among them", r.Header.Get("Accept"))
+		}
+		w.Header().Set("Docker-Content-Digest", "sha256:abc")
+	}))
+	defer srv.Close()
+
+	got, err := ManifestDigest(srv.URL, "library/alpine", "latest", "", "")
+	if err != nil || got != "sha256:abc" {
+		t.Errorf("ManifestDigest = %q, %v", got, err)
+	}
+}
+
+func TestAnUnknownTagHasNoDigest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	if _, err := ManifestDigest(srv.URL, "library/alpine", "nope", "", ""); err == nil {
+		t.Error("a 404 was read as a digest")
+	}
+}
+
+func TestRegistryAPIBase(t *testing.T) {
+	for registry, want := range map[string]string{
+		"":               "https://registry-1.docker.io",
+		"ghcr.io":        "https://ghcr.io",
+		"localhost:5000": "http://localhost:5000",
+	} {
+		if got := RegistryAPIBase(registry); got != want {
+			t.Errorf("RegistryAPIBase(%q) = %q, want %q", registry, got, want)
+		}
+	}
+}

@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
@@ -31,6 +32,9 @@ import (
 
 func TestMain(m *testing.M) {
 	log.SetOutput(io.Discard)
+	// No engine and no registry is reached from a test (§3.88).
+	localImageDigests = func([]string) map[string][]string { return nil }
+	checkImageUpdates = func([]string) map[string]imageupdate.Facts { return nil }
 
 	home, err := os.MkdirTemp("", "devdesk-security-test")
 	if err != nil {

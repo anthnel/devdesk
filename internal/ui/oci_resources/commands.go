@@ -18,6 +18,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/scan"
@@ -38,6 +39,20 @@ func fetchImages() tea.Cmd {
 		images, err := docker.ListImages()
 		return ImagesListMsg{Images: images, Err: err}
 	}
+}
+
+// checkImageUpdates asks the registries about image references. A variable so
+// tests answer without a network.
+var checkImageUpdates = func(refs []string) map[string]imageupdate.Facts {
+	return imageupdate.Check(imageupdate.Default(), refs, time.Now())
+}
+
+// checkImageUpdatesCmd checks the given references, off Update (Rule 110).
+func checkImageUpdatesCmd(refs []string) tea.Cmd {
+	if len(refs) == 0 {
+		return nil
+	}
+	return func() tea.Msg { return ImageUpdatesCheckedMsg{Facts: checkImageUpdates(refs)} }
 }
 
 // loadScanCache loads the image scan cache from disk

@@ -14273,6 +14273,10 @@ n'est pas vu comme flottant : il garde ses candidats et la fenêtre de 24 h. Le
 savoir demanderait le digest actuel du tag côté registre, comparé à celui que le
 scan a mesuré — une requête de manifeste par image, et un champ de plus dans
 `remediation-scans.json`. Pas fait ici.
+
+§3.88 affiche maintenant, pour ces tags aussi, qu'un nouveau digest existe
+(colonne Update, `new build`) ; le re-scan de l'onglet Remediation, lui, garde
+encore sa fenêtre de 24 h pour un tag versionné.
 ---
 
 ### 3.80 Manifestes Kubernetes — analyser et corriger, sans jamais toucher un cluster — **done**
@@ -14994,6 +14998,62 @@ deuxième qui lui ressemble.
 - La colonne ne trie pas dans `ws`, où rien ne trie (l'ordre est celui du
   répertoire) ; elle trie dans `:sec` et `oci/images`, où `countColumnWidth`
   couvre déjà le `width(Title)+2` réclamé par la flèche.
+
+---
+
+### 3.88 Une image a-t-elle une version plus récente ? — la colonne `Update` — **done**
+
+Demande en session (2026-09-24) : afficher, pour une image, qu'une mise à jour
+existe, par une flèche vers le bas dans une colonne ; sur un tag flottant en
+comparant les digests, sur un tag versionné en regardant si un nouveau
+correctif est sorti.
+
+**Trois décisions, prises avec l'utilisateur :**
+
+1. **Ce qui compte comme mise à jour** : un patch **ou** un digest. Un tag à
+   trois composants ou plus (`20.11.1`) est comparé aux tags qui ne diffèrent
+   que par le dernier, même variante (`20.11.4`) ; et **tout** tag est comparé
+   par digest à l'image locale — ce qui couvre les tags flottants (§3.79),
+   `alpine:3.20` qui passe au patch suivant et les tags DHI numérotés
+   reconstruits en place. Un patch plus récent l'emporte sur un nouveau build.
+2. **Où** : les trois tables qui montrent une image — l'onglet Images de
+   `oci`, la liste des containers, l'onglet Remediation d'un résultat.
+3. **Quand** : automatiquement, en arrière-plan au chargement de la liste, avec
+   un cache disque (`image-updates.json`) de 6 h, 30 min pour un échec.
+
+#### Ce qui a été ajouté
+
+- `internal/imageupdate` : `Check` (registre + cache, quatre requêtes en
+  parallèle au plus), `Evaluate` (comparaison avec les digests locaux, faite à
+  l'affichage : un pull efface la flèche sans redemander au registre),
+  `NewerPatch`, et `Tracker`, l'état qu'une vue garde entre deux vérifications.
+- `oci.ManifestDigest` : un `HEAD` sur le manifeste qui accepte un index OCI et
+  une manifest list Docker — le digest d'un tag multi-plateforme est celui de
+  l'index, celui que `docker pull` enregistre. Docker Hub ne compte pas un
+  `HEAD` dans sa limite de pulls. `RegistryAPIBase` a quitté l'onglet
+  Remediation pour `oci`.
+- `docker.Image.RepoDigests`, lu par le même `image inspect` que la taille ;
+  `ContainerImageDigests` et `ImageRepoDigests`.
+- `internal/ui/updatecol` : la colonne, une seule définition pour trois tables,
+  et `theme.ColorUpdateAvailable` (le bleu structurel : une mise à jour est une
+  nouvelle, pas un constat de sécurité).
+
+#### Ce qui se compare avec quoi
+
+| Vue | Digest local | Remarque |
+|---|---|---|
+| Images | les `RepoDigests` de l'image | seule une image **tirée** est vérifiée — une image construite ici n'a pas de digest, et son nom enverrait la question à un registre qui ne la connaît pas |
+| Containers | ceux de l'image **dont le container a été créé** | un pull ne l'efface pas : il faut recréer le container, ce que la flèche est là pour dire |
+| Remediation | le digest épinglé dans le Dockerfile, sinon l'image que le moteur tient sous ce nom | une base absente du moteur n'a que le côté patch |
+
+#### Coûts constatés
+
+- La table des containers est la plus large : avec `Update`, les deux jauges
+  (qui partent en premier, §3.71) demandent 180 colonnes au lieu de 160. La
+  colonne n'a pas de tri, pour ne pas payer deux cellules de plus pour la
+  flèche de tri.
+- `RepoDigests` sous podman n'a pas été mesuré contre un vrai `podman system
+  service` ; le champ y existe sous le même nom.
 
 ## 4. Existing plans
 

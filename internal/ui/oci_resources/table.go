@@ -10,9 +10,11 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/registryalias"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	"github.com/anthnel/devdesk/internal/ui/updatecol"
 )
 
 // imageRow is one line of the Images tab: the image, plus everything the row
@@ -37,6 +39,8 @@ type imageRow struct {
 	// synthesized — Image stays zero-valued until fetchImages() replaces it).
 	Pulling      bool
 	SpinnerFrame string
+	// Update is whether a newer image exists in its registry (§3.88).
+	Update imageupdate.Status
 }
 
 // The columns something else refers to. imageColumnID is where a running action
@@ -170,6 +174,7 @@ func imageColumns(withMisconfig bool) []datatable.Column[imageRow] {
 			// column says one name and the query wants the other.
 			Search: func(r imageRow) string { return r.DisplayName + " " + r.RawName },
 		},
+		updatecol.Column(false, func(r imageRow) imageupdate.Status { return r.Update }),
 		{
 			Title: "Disk Usage", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12,
 			Cell: func(r imageRow) string { return formatBytes(r.Image.UniqueSize) },
@@ -228,6 +233,7 @@ func (m *Model) imageRows() []imageRow {
 			Failed:       m.failedScans[raw],
 			Pulling:      pulling[raw],
 			SpinnerFrame: frame,
+			Update:       m.updates.Status(raw, img.RepoDigests),
 		})
 	}
 	// An image pulled for the first time has no local row to spin yet — this
