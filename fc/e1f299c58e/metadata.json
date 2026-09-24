@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "fce1f299c58e",
+  "strategy": "manual-commit",
+  "branch": "feat/build-context-exposure",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/fc/e1f299c58e/0/metadata.json",
+      "transcript": "/fc/e1f299c58e/0/full.jsonl",
+      "compact_transcript": "/fc/e1f299c58e/0/transcript.jsonl",
+      "content_hash": "/fc/e1f299c58e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 96,
+    "cache_creation_tokens": 270903,
+    "cache_read_tokens": 10017330,
+    "output_tokens": 63543,
+    "api_call_count": 48
+  }
+}
