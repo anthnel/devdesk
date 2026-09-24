@@ -12,6 +12,7 @@ import (
 
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -467,6 +468,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: "space", Description: "Toggle", Disabled: field.Kind != kindToggle},
 		{Key: "esc", Description: "Save this field", Disabled: !m.settlesOnBlur(field)},
 		{Key: "ctrl+r", Description: "Detect tools again", Disabled: !m.onToolsTab()},
+		{Key: keymap.Copy, Description: "Copy MCP connect command", Disabled: !m.copyAvailability().Enabled()},
 		{Key: "?", Description: "Open help"},
 	}
 }
@@ -486,6 +488,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "space", Description: "Toggle a checkbox, or reveal the MCP token"},
 			{Key: "esc", Description: "Save the focused field without moving off it"},
 			{Key: "ctrl+r", Description: "Detect the tools again (tools tab)"},
+			{Key: keymap.Copy, Description: "Copy the Claude Code connect command, token included (mcp tab)"},
 			{Key: "ctrl+p", Description: "Open the command line"},
 		},
 		Sections: []help.Section{
@@ -529,7 +532,12 @@ func (m Model) GetHelpContent() help.Content {
 					"The address is a loopback one and should stay that way: an agent in a\n" +
 					"container reaches it at host.docker.internal, and the LAN never can.\n" +
 					"Switching context restarts the server, which drops any open session —\n" +
-					"that is deliberate, so no agent quietly starts reading another context.",
+					"that is deliberate, so no agent quietly starts reading another context.\n" +
+					"\n" +
+					"Y on the mcp tab copies the Claude Code command, address and token\n" +
+					"filled in. It is written for the host: from a container, replace the\n" +
+					"address with host.docker.internal. The clipboard is readable by any\n" +
+					"process in your session, so paste it and move on.",
 			},
 			{
 				Title: "Secret backend",

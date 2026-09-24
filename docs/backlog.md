@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-09-21
+**Last Updated:** 2026-09-24
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -13894,7 +13894,7 @@ de `monitors_status` répond déjà) ; les métriques hôte (`internal/metrics`)
 peu utiles à un agent ; et le tableau de bord, qui n'agrège que des données déjà
 servies.
 
-### 3.77 Copier la commande de connexion MCP depuis l'onglet `mcp` — **à faire**
+### 3.77 Copier la commande de connexion MCP depuis l'onglet `mcp` — **done**
 
 La page `docs-site/docs/how-to/connect-an-ai-client.md` documente, client par
 client, comment brancher un agent sur le serveur (§3.61). Elle laisse un
@@ -13925,6 +13925,35 @@ ne se recopie pas.
 
 À mettre à jour dans le même commit : `GetShortcuts()`, `GetHelpContent()`
 (Rule 114) et la page how-to.
+
+#### Tranché et livré — 2026-09-24
+
+Les six questions ont suivi leur pente naturelle, avec une précision sur la 6.
+
+1. **`Y`.** Son sens s'étend sans se déformer — « copier la chose évidente » —
+   et une lettre libre (`J`, `Q`, `Z`) aurait été une deuxième touche de copie.
+   `keymap.Copy` le dit désormais, et la table de la Rule 111 aussi.
+2. **Claude Code seul.** `connectCommand` (`configuration/mcp_copy.go`)
+   construit `claude mcp add --transport http devdesk http://<addr> --header
+   "Authorization: Bearer <jeton>"`. L'adresse est `MCPFacts.Addr`, donc celle
+   de `MCPServerStartedMsg` ; `TestTheConnectCommandUsesTheBoundAddress` la
+   vérifie contre un `mcp.listen` à port `0`. Le jeton est en base64url, donc
+   les guillemets doubles suffisent sous sh, PowerShell et cmd.
+3. **Annoncé.** Le footer dit `Info` « Claude Code connect command copied — it
+   contains the token ». Un échec du presse-papiers est une `Error`.
+4. **Rien dans les journaux.** `MCPCommandCopiedMsg` ne porte que l'erreur, et
+   la ligne de log n'écrit que celle-ci. `TestTheTokenNeverReachesTheLog`
+   capture la sortie de `log` sur le succès et sur l'échec.
+5. **Sandbox.** La touche ne devine pas : la page how-to, l'aide et
+   `docs/architecture/mcp.md` disent de remplacer l'adresse par
+   `host.docker.internal`.
+6. **Grisée, pour trois raisons et non une.** `copyAvailability()` est l'unique
+   calcul, lu par l'en-tête et par le handler : hors de l'onglet `mcp`
+   (`reasonNotOnMCPTab`), serveur arrêté ou en échec (`reasonMCPNotRunning`),
+   et **sur le champ `Listen`** — c'est un champ texte, `Y` y est un caractère
+   et le reste (`TestYIsTypedIntoAFocusedTextField`). Une touche d'action
+   annoncée à l'endroit même où elle tape serait le défaut de D63 à l'envers.
+   La colonne garde la même forme que le serveur tourne ou non.
 
 ---
 

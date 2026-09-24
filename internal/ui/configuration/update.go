@@ -9,6 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/shared"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
 // Update handles messages.
@@ -31,6 +32,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case shared.ScanToolsMsg:
 		m.tools = msg.Report
 		return m, nil
+
+	case MCPCommandCopiedMsg:
+		return m.handleMCPCommandCopied(msg)
 
 	case saveFailedMsg:
 		log.Printf("ERROR [configuration] save: %v", msg.err)
@@ -77,6 +81,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.commitField()
 	case "ctrl+r":
 		return m.requestDetection()
+	case keymap.Copy:
+		// A letter, so a focused text field keeps it: it falls through to the
+		// input below rather than copying anything.
+		if !m.current().takesText() {
+			return m.copyConnectCommand()
+		}
 	}
 
 	// Anything else belongs to the input when a text field has focus. Nothing

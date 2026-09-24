@@ -72,7 +72,7 @@ once.
   | `T` Terminal | `O` IDE | `W` Browser | `L` Logs |
   | `V` Pager | `K` Stop / kill | `P` Prune | `B` Registry browser |
   | `G` Pull (*get*) | `U` Login / logout | `X` Exclude | `R` MR · PR |
-  | `I` Issues | `Y` Copy path | `H` Open diagnostics | |
+  | `I` Issues | `Y` Copy (path, content, MCP command) | `H` Open diagnostics | |
 
 - **Lowercase letters** — a filter or a display toggle, never an action. It
   changes nothing, so its meaning is **local**, and two views can use the same
