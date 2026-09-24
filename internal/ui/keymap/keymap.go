@@ -79,7 +79,7 @@ const (
 	// Copy is `Y` — yank. The letter was free even though a modal uses it
 	// for "Yes": a modal claims every key before the view sees it, so the
 	// two are never reachable at the same time.
-	Copy = "Y" // Copy the obvious thing to the clipboard — a path, or a document's content
+	Copy = "Y" // Copy the obvious thing to the clipboard — a path, a document's content, the MCP connect command
 )
 
 // CommandMode opens the command line, from anywhere — including from a

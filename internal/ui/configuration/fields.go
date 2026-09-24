@@ -394,7 +394,7 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 		// as broken. §3.61 deleted the subcommand, and with it the row's reason
 		// — over HTTP there is no command, the address *is* the answer, and it
 		// is the editable field right below.
-		{Title: "mcp", Fields: group("Server", theme.IconServer,
+		{Title: mcpTab, Fields: group("Server", theme.IconServer,
 			toggle("Enabled", func(c *config.Config) *bool { return &c.MCP.Enabled },
 				"Serves this context to an MCP client over HTTP, while dk runs"),
 			text("Listen", func(c *config.Config) *string { return &c.MCP.Listen },
@@ -405,7 +405,7 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 			static("State", mcpState(mcp),
 				"Restart or switch context to apply a change to the two settings above"),
 			secret("Token", mcp.Token,
-				"space reveals it — paste it into your agent's MCP config as a bearer token"),
+				"space reveals it — Y copies the whole Claude Code connect command"),
 		)},
 
 		{Title: "status", Fields: group("Monitoring", theme.IconRefresh,

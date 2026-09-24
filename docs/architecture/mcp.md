@@ -256,6 +256,19 @@ than one dot per character: the length of a token is not something to publish
 either. The row is focusable where `kindStatic` is not, because revealing is an
 act, and `space` is the only key that toggles anything in a form (Rule 135).
 
+**`Y` copies the whole Claude Code connect command** (§3.77) —
+`claude mcp add --transport http devdesk http://<addr> --header "Authorization:
+Bearer <token>"`, built in `configuration/mcp_copy.go` from the address the
+listener *bound* (`MCPServerStartedMsg.Addr`), never `mcp.listen` as typed: a
+port `0` would be copied as a port nobody listens on. Claude Code only, because
+it is the one client whose setup is one line; the others want a file. It is
+greyed off the `mcp` tab, on the `Listen` field (where `Y` is a character), and
+while nothing is serving — one `copyAvailability()` for the header and the
+refusal. The success line says the clipboard now holds the token, because every
+process in the session can read it; no log line carries the command, which
+`TestTheTokenNeverReachesTheLog` pins. The command is written for the host: from
+a container the address is `host.docker.internal`, which the key cannot guess.
+
 The view is built lazily and holds these facts, so the router drops the cached
 one when the server reports — the precedent is `useSecrets` rebuilding the auth
 view once the store is resolved.

@@ -30,6 +30,12 @@ export DEVDESK_MCP_TOKEN='<token>'
 
 ## Claude Code
 
+The quickest way: open `:config`, go to the `mcp` tab and press `Y`. DevDesk copies the command below to your clipboard with the address the server actually listens on and the token already filled in — nothing to retype. The footer confirms it, and reminds you the clipboard now holds the token: paste it, then copy something else.
+
+The copied command targets the host. From a container or a sandbox, replace the address with `host.docker.internal` (see [below](#from-a-container-or-a-sandbox)). `Y` is greyed while the server is not running; the `State` row says why.
+
+To type it yourself instead:
+
 ```bash
 claude mcp add --transport http devdesk http://127.0.0.1:7777 \
   --header "Authorization: Bearer $DEVDESK_MCP_TOKEN"
@@ -181,7 +187,7 @@ On native Linux Docker, `host.docker.internal` does not reach the host's loopbac
 
 | Symptom | Likely cause |
 |---|---|
-| `401 unauthorized` | Wrong or missing token. Copy it again from the `mcp` tab, with no `<` `>` around it and no trailing space |
+| `401 unauthorized` | Wrong or missing token. Press `Y` on the `mcp` tab to copy a command with the right one, or copy it again with no `<` `>` around it and no trailing space |
 | Connection refused or timed out | DevDesk is not running, `mcp.enabled` is `false` for the current context, or another `dk` already holds the port. The `State` row on the `mcp` tab says which |
 | Connected, then dropped | You switched context in DevDesk. The server restarts for the new context and closes open sessions on purpose — reconnect (`/mcp` in Claude Code) |
 | `already exists` when adding | A previous attempt saved it. Remove the server, then add it again |
