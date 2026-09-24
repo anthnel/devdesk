@@ -57,13 +57,15 @@ once.
 - **Resource Actions** — an **uppercase** letter, always, and its meaning is
   the same everywhere. The full vocabulary is declared in `internal/ui/keymap`,
   and `TestNoViewBindsAnUndeclaredUppercaseKey` scans the sources to verify
-  that no view strays from it. The free letters are listed there (`J Q Z`):
+  that no view strays from it. The free letters are listed there (`Q Z`):
   a new action uses one from there rather than inventing a key. `H` came back
   there with §3.47 (it used to trace the route, removed because it answered
   for the Docker VM rather than for the machine, D57) and left again with
   `Diagnose` (§3.66): a good semantic fit for "look closer at this target's
-  network path." A letter an action frees up is re-declared free, otherwise
-  it stays reserved for a use that no longer exists.
+  network path." `J` left with `Jump` (§3.89): open the selected row's related
+  resource in the view that owns it — a container's image, in the OCI view. A
+  letter an action frees up is re-declared free, otherwise it stays reserved
+  for a use that no longer exists.
 
   | | | | |
   |---|---|---|---|
@@ -72,7 +74,7 @@ once.
   | `T` Terminal | `O` IDE | `W` Browser | `L` Logs |
   | `V` Pager | `K` Stop / kill | `P` Prune | `B` Registry browser |
   | `G` Pull (*get*) | `U` Login / logout | `X` Exclude | `R` MR · PR |
-  | `I` Issues | `Y` Copy (path, content, MCP command) | `H` Open diagnostics | |
+  | `I` Issues | `Y` Copy (path, content, MCP command) | `H` Open diagnostics | `J` Jump to related |
 
 - **Lowercase letters** — a filter or a display toggle, never an action. It
   changes nothing, so its meaning is **local**, and two views can use the same

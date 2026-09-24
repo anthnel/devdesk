@@ -49,7 +49,7 @@ import (
 	"strings"
 )
 
-// The 23 actions. About forty actions used to exist for 26 letters: the
+// The 24 actions. About forty actions used to exist for 26 letters: the
 // rule only holds after merging synonyms (Kill = stop and kill,
 // Delete = delete and remove, Terminal = terminal and shell) and because
 // display toggles are excluded from the count.
@@ -76,6 +76,9 @@ const (
 	Requests = "R" // Open merge requests · PRs
 	Issues   = "I" // Open issues
 	Diagnose = "H" // Open network diagnostics on this target
+	// Jump took J from the free letters: it opens the selected row's related
+	// resource in the view that owns it — the image a container runs, today.
+	Jump = "J" // Jump to the related resource in its own view
 	// Copy is `Y` — yank. The letter was free even though a modal uses it
 	// for "Yes": a modal claims every key before the view sees it, so the
 	// two are never reachable at the same time.
@@ -119,6 +122,7 @@ var actions = map[string]string{
 	Requests: "Open merge requests · PRs",
 	Issues:   "Open issues",
 	Diagnose: "Open network diagnostics on this target",
+	Jump:     "Jump to the related resource in its own view",
 	Copy:     "Copy the obvious thing to the clipboard",
 }
 
@@ -172,8 +176,8 @@ func IsModalKey(key string) bool {
 // again with Diagnose (§3.66): a good semantic fit for "look closer at this
 // target's network path." A letter an action has just freed up is
 // re-declared free, otherwise it stays reserved for a use that no longer
-// exists.
-var free = []string{"J", "Q", "Z"}
+// exists. J left with Jump (a container's image, opened in the OCI view).
+var free = []string{"Q", "Z"}
 
 // Free returns the still-available uppercase letters, sorted.
 func Free() []string {

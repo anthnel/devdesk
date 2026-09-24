@@ -177,7 +177,7 @@ them off the screen anyway. And the granularity is the **package**, not the
 view's state: a key bound in one tab and announced in another passes. What these
 catch is the key bound *nowhere*, which is what both instances were.
 
-**Free letters are declared too** (`J Q Z`). A new action takes one of them;
+**Free letters are declared too** (`Q Z` — `J` went to `Jump`, §3.89). A new action takes one of them;
 it does not invent a key, and `TestFreeLettersAreActuallyFree` stops the list
 going stale.
 

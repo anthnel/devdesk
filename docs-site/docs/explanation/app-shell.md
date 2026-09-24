@@ -61,7 +61,7 @@ Actions live on `Shift` (i.e. uppercase letters) because the alternatives are al
 
 No bare letter is used for navigation — the familiar `h j k l g G` vim aliases are absent everywhere, including from the shared table component and from Bubble Tea's own default viewport keymap (which was previously scrolling on letters behind the application's back). The one exception is `g` in the document viewer, which isn't really navigation — it opens a prompt to jump to an arbitrary line number, something `home`/`end` can't express.
 
-Every announced shortcut and every key a handler actually binds are checked against each other, so a shortcut that shows `esc/⌫ Back` in the header but is silently ignored by the handler — or a working key nobody advertised — gets caught mechanically rather than by review. A handful of letters (`J`, `Q`, `Z`) are kept deliberately free for future actions rather than assigned speculatively.
+Every announced shortcut and every key a handler actually binds are checked against each other, so a shortcut that shows `esc/⌫ Back` in the header but is silently ignored by the handler — or a working key nobody advertised — gets caught mechanically rather than by review. A handful of letters (`Q`, `Z`) are kept deliberately free for future actions rather than assigned speculatively.
 
 `T`/`t` and `S`/`s` collapse a single key plus a setting (`app.terminal_new_window`) rather than two separate bindings — whether a shortcut opens a new terminal window is an environment capability (there's no window to open under WSL or over SSH), not a per-press choice, so it's modeled as configuration instead of a dead key on two setups out of three.
 

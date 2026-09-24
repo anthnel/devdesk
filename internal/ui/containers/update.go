@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/engine"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
+	ociresources "github.com/anthnel/devdesk/internal/ui/oci_resources"
 	uiterminal "github.com/anthnel/devdesk/internal/ui/terminal"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	uiviewer "github.com/anthnel/devdesk/internal/ui/viewer"
@@ -184,6 +185,9 @@ func (m Model) handleNormalKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case keymap.Logs:
 		return m.logsSelectedContainer()
+
+	case keymap.Jump:
+		return m.jumpToSelectedImage()
 
 	// Inspect moved off `i`, which the dashboard needed for issues. `enter` was
 	// unbound here and is already the inspect gesture in OCI/Networks.
@@ -433,6 +437,18 @@ func (m Model) logsSelectedContainer() (tea.Model, tea.Cmd) {
 	}
 	source := logsSource{ID: c.ID, Container: c.Name}
 	return m, func() tea.Msg { return uiviewer.OpenRequestMsg{Source: source} }
+}
+
+// jumpToSelectedImage asks the router for the OCI view, on the image the
+// selected container runs. The reference is passed as the engine printed it;
+// matching it to a row is the OCI view's business (ociresources.imageMatches).
+func (m Model) jumpToSelectedImage() (tea.Model, tea.Cmd) {
+	c := m.getSelectedContainer()
+	if c == nil {
+		return m, nil
+	}
+	image := c.Image
+	return m, func() tea.Msg { return ociresources.FocusImageRequestMsg{Image: image} }
 }
 
 // inspectSelectedContainer opens `docker inspect` in the document viewer.
