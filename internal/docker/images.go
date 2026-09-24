@@ -341,6 +341,43 @@ func RemoveImage(id string, force bool) error {
 	return mutate(cmdLabel("rmi"), args...)
 }
 
+// ContainersUsingImage names every container, running or not, created from the
+// image or from an image built on it. An image one of them uses cannot be
+// removed without breaking it, and `rmi` would refuse anyway (§3.88).
+func ContainersUsingImage(imageID string) ([]string, error) {
+	if err := requireEngine(); err != nil {
+		return nil, err
+	}
+	output, err := dockerOutput("ps", "-a", "--filter", "ancestor="+imageID, "--format", "{{.Names}}")
+	if err != nil {
+		return nil, wrapErr(cmdLabel("ps"), err)
+	}
+	return splitLines(output), nil
+}
+
+// ImageID returns the full ID of the image a reference names locally.
+func ImageID(ref string) (string, error) {
+	if err := requireEngine(); err != nil {
+		return "", err
+	}
+	output, err := dockerOutput("image", "inspect", "--format", "{{.Id}}", ref)
+	if err != nil {
+		return "", wrapErr(cmdLabel("image inspect"), err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// SameImageID reports whether two image IDs name the same image, whatever the
+// form each is in: full with its "sha256:" prefix, or the 12-character short
+// form `image ls` prints.
+func SameImageID(a, b string) bool {
+	a, b = strings.TrimPrefix(a, "sha256:"), strings.TrimPrefix(b, "sha256:")
+	if a == "" || b == "" {
+		return false
+	}
+	return strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
+}
+
 // PruneImages removes all dangling (unused) images and returns the output
 func PruneImages() (string, error) {
 	return prune(cmdLabel("image prune"), "image", "prune", "-f")

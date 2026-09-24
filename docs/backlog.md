@@ -15065,6 +15065,27 @@ coche (à jour), `checking`, `?`, `local build`, `not local`, `pinned`. Le vide
 ne reste que pour ce à quoi la question ne s'applique pas. Le filtre de la
 colonne ne cherche que dans le libellé d'une mise à jour.
 
+#### Appliquer la mise à jour — `G` dans l'onglet Images
+
+Demande en session : déclencher la mise à jour depuis `oci`, l'ancienne image
+supprimée automatiquement, à condition qu'aucun conteneur ne l'utilise ; sinon
+le footer le dit.
+
+`G` (Pull, déjà la lettre du vocabulaire pour « récupérer une image ») tire ce
+que la colonne indique — le tag de patch, ou le même tag pour un nouveau build
+— puis supprime l'image remplacée, par ID, sans forcer. Pas de confirmation :
+c'est la demande, et l'image supprimée peut être tirée à nouveau depuis le registre.
+
+- **Grisé avec sa raison** (Rule 130) : à jour, registre muet, build local,
+  image sans tag, ou utilisée par N conteneurs — ce dernier d'après le compte
+  du moteur, que seul docker fournit.
+- **Revérifié juste avant le pull** (`ps -a --filter ancestor=`) : un conteneur
+  créé entre-temps, ou n'importe lequel sous podman, arrête tout avant le pull,
+  et le footer nomme les conteneurs.
+- Un pull qui ramène l'image déjà présente ne supprime rien ; une suppression
+  refusée (image encore taguée ailleurs, image enfant) laisse l'ancienne et le
+  dit en `Warn`.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

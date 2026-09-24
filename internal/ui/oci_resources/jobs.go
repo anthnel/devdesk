@@ -153,7 +153,11 @@ func (m RegistryPullStartingMsg) Transition() jobs.Transition {
 
 func (m RegistryPullCompleteMsg) Transition() jobs.Transition {
 	t := jobs.Transition{Kind: jobs.KindPull, Target: m.ImageName, State: jobs.ItemDone}
-	if m.Err != nil {
+	switch {
+	case len(m.InUse) > 0:
+		t.State = jobs.ItemFailed
+		t.Detail = "not updated — the image is in use"
+	case m.Err != nil:
 		t.State = jobs.ItemFailed
 		t.Detail = "pull failed — check logs"
 	}

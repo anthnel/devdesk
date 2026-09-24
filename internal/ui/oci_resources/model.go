@@ -300,6 +300,15 @@ type MultiRegistryTagsMetaMsg struct {
 type RegistryPullCompleteMsg struct {
 	ImageName string
 	Err       error
+
+	// The fields below belong to an update (G, §3.88) and are zero for a plain
+	// pull. Replaces is the image the pull replaces; InUse the containers that
+	// kept it from starting; Unchanged a pull that brought the same image;
+	// RemoveErr why the replaced image could not be removed.
+	Replaces  string
+	InUse     []string
+	Unchanged bool
+	RemoveErr error
 }
 
 // RegistryPullRequestedMsg asks the parent model to launch a pull as a job.

@@ -59,6 +59,11 @@ it did not answer, `local build` for an image built here, `not local` for a
 Dockerfile base your engine does not hold (there is nothing to compare with),
 `pinned` for a reference fixed by digest.
 
+In the Images tab, `G` applies the update: it pulls the newer image and
+removes the one it replaces. It refuses — and the footer names them — while any
+container, running or stopped, was created from that image: remove or recreate
+those first.
+
 Registries are asked in the background when a list loads, with a `HEAD`
 request that Docker Hub does not count against its pull limit, and each answer
 is kept for six hours.

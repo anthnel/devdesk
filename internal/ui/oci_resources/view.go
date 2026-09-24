@@ -328,6 +328,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			shortcut.Shortcut{Key: keymap.New, Description: "Launch", Disabled: !act.Enabled()},
 			shortcut.Shortcut{Key: keymap.Scan, Description: "Scan", Disabled: !m.imageScan().Enabled()},
 			shortcut.Shortcut{Key: keymap.Delete, Description: "Delete", Disabled: !act.Enabled()},
+			shortcut.Shortcut{Key: keymap.Get, Description: "Update image", Disabled: !m.imageUpdateAction().Enabled()},
 			shortcut.Shortcut{Key: keymap.Browser, Description: "Browse registries"},
 			shortcut.Shortcut{Key: keymap.ScanAll, Description: "Scan all"},
 			shortcut.Shortcut{Key: keymap.Prune, Description: "Prune"},
@@ -466,6 +467,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: "enter (Images)", Description: "View scan details for the selected image (loads from cache; falls back to scan if not yet scanned)"},
 			{Key: "N (Images)", Description: "Launch a container from the selected image"},
 			{Key: "S (Images)", Description: "Launch a scan for the selected image"},
+			{Key: "G (Images)", Description: "Update the selected image to what its Update column shows — the newer patch tag, or the same tag's new build — then remove the image it replaces. Refused while any container, running or stopped, was created from it; the footer names them"},
 			{Key: "A (Images)", Description: "Scan every image. The confirmation carries a checkbox to purge the cached results first — unchecked, only what has never been scanned is scanned"},
 			{Key: "A (Images)", Description: "Scan all unscanned images using config defaults"},
 			{Key: keymap.Delete, Description: "Delete the selected resource (with confirmation)"},
@@ -496,7 +498,7 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Images Tab",
 				Body: "Shows all local " + engTitle + " images with disk usage, content size, and CVE scan results.\n" +
-					"Update: an arrow when the image's registry has something newer — a later patch tag on the same line (node:20.11.1 → 20.11.4), or new content behind the same tag (\"new build\": latest, a codename, or a tag rebuilt in place). Only pulled images are asked; the registries are asked in the background when the list loads, and each answer is kept 6 hours. Pull the image (G) and the arrow goes away at once. Otherwise the cell says why there is none: a check mark (up to date), checking (the registry has not answered yet), ? (it did not answer — see the logs), local build (built or loaded here, never sent to a registry).\n" +
+					"Update: an arrow when the image's registry has something newer — a later patch tag on the same line (node:20.11.1 → 20.11.4), or new content behind the same tag (\"new build\": latest, a codename, or a tag rebuilt in place). Only pulled images are asked; the registries are asked in the background when the list loads, and each answer is kept 6 hours. G updates it: it pulls the newer image and removes the one it replaces, and refuses while any container — running or stopped — uses that image, naming them in the footer. A pull done any other way clears the arrow too. Otherwise the cell says why there is none: a check mark (up to date), checking (the registry has not answered yet), ? (it did not answer — see the logs), local build (built or loaded here, never sent to a registry).\n" +
 					"With the Misconfiguration category on, a CFG column counts what Trivy found in the Dockerfile instructions baked into the layers, coloured by the worst severity among them; a dash means no misconfiguration stage read the image, which is not a zero.\n" +
 					"Press Enter to view the last scan details (loads from cache; falls back to scan if not yet scanned).\n" +
 					"Press Ctrl+E to launch a container from the selected image (opens a form with pre-filled port mappings from EXPOSE metadata).\n" +

@@ -12,8 +12,8 @@ import (
 
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
-	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imageupdate"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"

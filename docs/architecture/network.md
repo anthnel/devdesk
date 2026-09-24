@@ -121,6 +121,19 @@ and the references a check is out for, so a reload asks only what is new or
 stale. Every view reaches the network through a package variable its tests
 replace.
 
+**Updating — `G` on the Images tab.** It pulls what the column points at (the
+newer patch tag, or the same tag again for a new build) and removes the image
+it replaces, by ID and never forced. It refuses while any container, running
+or stopped, was created from that image (`docker.ContainersUsingImage`, `ps -a
+--filter ancestor=`): removing it would break the container, and keeping it
+would leave the update half done. The check is made twice — from the engine's
+container count to grey `G` (Rule 130; docker only, podman reports none), and
+against the engine just before the pull, since a container can appear in
+between. A pull that brings the image already held removes nothing
+(`docker.SameImageID`). It runs as a pull job, so the row spins and `K` stops
+it; every refusal and failure is a footer line naming why (the containers in
+use, a failed pull, an old image that could not be removed).
+
 **On a narrow terminal**, the containers table drops the two gauges before
 Update (they are `DropFirst`, §3.71), then the I/O counters, then Update. Both
 gauges now need 180 columns instead of 160.

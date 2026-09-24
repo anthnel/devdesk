@@ -284,3 +284,31 @@ func TestContainerImageDigestsFollowTheImageTheContainerRuns(t *testing.T) {
 		t.Errorf("a built image has digests: %v", got["c2"])
 	}
 }
+
+func TestSameImageID(t *testing.T) {
+	for _, tt := range []struct {
+		a, b string
+		want bool
+	}{
+		{"sha256:abc123456789ffff", "abc123456789", true},
+		{"abc123456789", "abc123456789", true},
+		{"sha256:abc123456789ffff", "def123456789", false},
+		{"", "abc", false},
+	} {
+		if got := SameImageID(tt.a, tt.b); got != tt.want {
+			t.Errorf("SameImageID(%q, %q) = %v", tt.a, tt.b, got)
+		}
+	}
+}
+
+func TestContainersUsingImageFiltersByAncestor(t *testing.T) {
+	r := &stubRunner{output: map[string][]byte{"ps": []byte("web\nworker\n")}}
+	stub(t, r)
+	got, err := ContainersUsingImage("abc123")
+	if err != nil || !slices.Equal(got, []string{"web", "worker"}) {
+		t.Fatalf("ContainersUsingImage = %v, %v", got, err)
+	}
+	if args := r.calls[len(r.calls)-1].Args; !slices.Contains(args, "ancestor=abc123") || !slices.Contains(args, "-a") {
+		t.Errorf("args = %v, want every container filtered by ancestor", args)
+	}
+}
