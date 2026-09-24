@@ -16,12 +16,21 @@ import (
 // Title is the column's header.
 const Title = "Update"
 
+// minWidth is what the column never shrinks under: the arrow and "new build",
+// the one label known in advance. The column follows its content, and a
+// content column gives up width before any column is dropped — floored at the
+// title alone, the label was cut to "new…", which says nothing. A patch tag
+// longer than this may still be cut, from its end: the version stays readable.
+func minWidth() int {
+	return max(lipgloss.Width(theme.UpdateCell(true, imageupdate.Status{Kind: imageupdate.NewBuild}.Label())), len(Title))
+}
+
 // Column is the column for rows whose status get returns. optional lets it
 // give way first when the terminal is narrow, for a table where other columns
 // matter more.
 func Column[T any](optional bool, get func(T) imageupdate.Status) datatable.Column[T] {
 	return datatable.Column[T]{
-		Title: Title, Sizing: datatable.SizingContent, MinWidth: len(Title), MaxWidth: 20, Optional: optional,
+		Title: Title, Sizing: datatable.SizingContent, MinWidth: minWidth(), MaxWidth: 20, Optional: optional,
 		Cell: func(r T) string {
 			s := get(r)
 			return theme.UpdateCell(s.Available(), s.Label())
