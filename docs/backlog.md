@@ -14909,11 +14909,12 @@ Ce qui en découle :
    l'ancien format dans les referrers OCI : sans le flag, cosign ne la trouve
    pas (10). Mesuré sans effet sur distroless (`.sig`), sur l'image cosign
    (bundle) et sur alpine (non signée).
-2 ter. **En mode clé, mauvaise clé = non signée (10).** Sous une règle, les
-   deux bloquent : la décision est juste, seul le libellé change — « no
-   signature from the expected key », pas « unsigned ». Pas de relance
-   permissive possible en mode clé : une signature d'une autre clé est
-   invisible, ce qui ne change rien à la décision.
+2 ter. **En mode clé, mauvaise clé = non signée (10)** sur l'ancien format —
+   et 1 sur le format bundle, mesuré plus bas (« Mesures de l'étape 0 »), d'où
+   la décision qui y est prise : en mode clé, tout code autre que 0 et 11 est
+   `Unsigned`. Le libellé est « no verifiable signature from the expected key »,
+   pas « unsigned ». Pas de relance permissive en mode clé : une signature
+   d'une autre clé est invisible.
 3. **Rekor n'est pas nécessaire** : `rekor.sigstore.dev` était bloqué et la
    vérification a réussi (« verified offline », via le bundle). Il faut le
    registre, **le stockage de blobs vers lequel il redirige** (Cloudflare R2
@@ -15035,6 +15036,18 @@ conteneur, Docker 29.7.2 (magasin d'images containerd) et Podman.
   referrers (« no signatures associated » sur DHI, alors qu'elle est signée).
   Le mode clé ne sépare donc pas « mauvaise clé » d'« échec » par les codes de
   sortie — décision ci-dessous.
+
+**Décision (avec l'utilisateur) : en mode clé, tout code autre que 0 et 11 est
+« aucune signature vérifiable de la clé attendue »**, classé `Unsigned`, donc
+**bloquant sous B comme sous C**. *Fail-closed*, et le message est vrai dans les
+deux cas : la signature n'a pas pu être vérifiée par cette clé. Le prix, assumé
+comme un **écart au tableau des verdicts limité au mode clé** : sous B, une
+panne réseau bloque un pull DHI au lieu d'avertir. Écarté : lire stderr pour ce
+seul cas (`accepted signatures do not match threshold`) — ce serait revenir sur
+« jamais le texte des messages », et fragile d'une version de cosign à l'autre.
+Sans cette décision, un passage de DHI au format bundle avec une clé qui ne
+concorde plus donnerait 1, donc « échec », donc un simple avertissement sous B :
+le pull passerait.
 
 **Identifiants de registre privé** — registre avec `htpasswd` : sans
 identifiants, 1 (`UNAUTHORIZED`) ; avec un `DOCKER_CONFIG` temporaire ne

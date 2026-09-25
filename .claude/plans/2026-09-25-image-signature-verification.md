@@ -30,9 +30,14 @@ règle.
   | Unsigned | bloque | bloque | avertit |
   | Failed | bloque | avertit | avertit |
 
-- Classification : 0 / 10 / 11 lus directement ; **tout autre code** (1, 12…)
-  relance une vérification permissive (0 ⇒ IdentityMismatch, 10 ⇒ Unsigned,
-  autre ⇒ Failed). Jamais le texte de stderr. `--experimental-oci11` toujours.
+- Classification keyless : 0 / 10 / 11 lus directement ; **tout autre code**
+  (1, 12…) relance une vérification permissive (0 ⇒ IdentityMismatch,
+  10 ⇒ Unsigned, autre ⇒ Failed). Jamais le texte de stderr.
+  `--experimental-oci11` toujours.
+- Classification en mode clé : 0 ⇒ Verified, 11 ⇒ tag absent, **tout le reste ⇒
+  Unsigned** (« no verifiable signature from the expected key »), donc bloquant
+  sous B comme sous C — *fail-closed*, écart au tableau limité au mode clé : une
+  panne réseau bloque un pull DHI au lieu d'avertir.
 - Pull : tag → digest → vérification → `pull repo@digest` → `tag`. Un seul point
   de passage.
 - `scan.image_verification: on | off` par contexte, `on` par défaut ; `off`
@@ -110,8 +115,8 @@ modèle de `plumber.go` (`toolCmd`, `cliRunner`, binaire ou image) :
 
 - `cosignVerifyArgs(ref@digest, rule, permissive bool)`, toujours avec
   `--experimental-oci11` ; `classifyCosign(exit int)`, table-driven sur la
-  mesure. En mode clé, pas de relance permissive, et le libellé d'un 10 est
-  « no signature from the expected key ».
+  mesure. En mode clé, pas de relance permissive : tout code autre que 0 et 11
+  est `Unsigned`, libellé « no verifiable signature from the expected key ».
 - `download attestation` pour les indices ; certificat lu avec `crypto/x509`
   (SAN + extension émetteur Fulcio `1.3.6.1.4.1.57264.1.8`, repli `.1.1`) ; pour
   l'ancien format, `optional.Subject`/`Issuer` de la sortie JSON.
@@ -148,6 +153,9 @@ vue configuration (PR 2).
 - `classifyCosign` + la relance permissive, avec un faux runner : chaque ligne
   du tableau de mesure de §3.82, dont le 12 permissif (blob bloqué) ⇒ `Failed`,
   jamais `IdentityMismatch`.
+- Mode clé : 10 (ancien format) **et** 1 (bundle, mauvaise clé ; registre
+  injoignable) ⇒ `Unsigned` ; `Decide(Unsigned, B)` ⇒ bloque — un test nommé
+  pour le cas « DHI passe au format bundle et la clé ne concorde plus ».
 - Continuité : un indice falsifié (annoncé mais non validé) ne produit **jamais**
   `Verified`.
 - `TestEveryConfiguredOptionReachesTheScanner` reste vert ;
