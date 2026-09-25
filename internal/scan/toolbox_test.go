@@ -181,6 +181,7 @@ func TestCleanVersion(t *testing.T) {
 		{"drops the git preamble", "git version 2.46.0", "2.46.0"},
 		{"drops the Trivy preamble", "Version: 0.55.0", "0.55.0"},
 		{"empty stays empty", "   ", ""},
+		{"finds cosign's version under its banner", "  ______   ______\n /      | /  __  \\\nGitVersion:    v3.1.3\nGitCommit:     11926fa\n", "v3.1.3"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

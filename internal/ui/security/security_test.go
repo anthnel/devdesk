@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
@@ -35,6 +36,8 @@ func TestMain(m *testing.M) {
 	// No engine and no registry is reached from a test (§3.88).
 	localImageDigests = func([]string) map[string][]string { return nil }
 	checkImageUpdates = func([]string) map[string]imageupdate.Facts { return nil }
+	// Nor cosign, through the Remediation tab's signature checks (§3.82).
+	newPullDeps = func(*config.Config, *scan.Report) imagepull.Deps { return imagepull.Deps{} }
 
 	home, err := os.MkdirTemp("", "devdesk-security-test")
 	if err != nil {

@@ -260,6 +260,9 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 				Style: lipgloss.NewStyle().Foreground(theme.ColorHighlight).Background(theme.ColorBackground),
 			})
 		}
+		if sig, ok := m.signatureHeader(); ok {
+			infos = append(infos, sig)
+		}
 		return infos
 	}
 }
@@ -523,6 +526,7 @@ func (m Model) GetHelpContent() help.Content {
 				Title: "Images Tab",
 				Body: "Shows all local " + engTitle + " images with disk usage, content size, and CVE scan results.\n" +
 					"Update: an arrow when the image's registry has something newer — a later patch tag on the same line (node:20.11.1 → 20.11.4), or new content behind the same tag (the arrow alone — a new build: latest, a codename, or a tag rebuilt in place). Only pulled images are asked; the registries are asked in the background when the list loads, and each answer is kept 6 hours. G updates it: it pulls the newer image and removes the one it replaces, and refuses while any container — running or stopped — uses that image, naming them in the footer. A pull done any other way clears the arrow too. Otherwise the cell says why there is none, with an icon: a check mark (up to date), an hourglass (the registry has not answered yet), a question mark in a circle (it did not answer — see the logs), a hammer (built or loaded here, never sent to a registry).\n" +
+					"Sig: the signature of the content you have — the digest the image was pulled under — checked against your rules (~/.devdesk/trust.yaml) and the built-in ones, in the background when the list loads. A check mark is a proven signature; a dash, no rule covers the image (nothing is asked then); a hammer, built or loaded here, with no published signature to check; an hourglass, a check still running. A red cross is an unexpected identity, or no signature where a rule asks for one; an orange sign, a check that could not run. The column only informs: G is verified when it runs, whatever the cell says.\n" +
 					"With the Misconfiguration category on, a CFG column counts what Trivy found in the Dockerfile instructions baked into the layers, coloured by the worst severity among them; a dash means no misconfiguration stage read the image, which is not a zero.\n" +
 					"Press Enter to view the last scan details (loads from cache; falls back to scan if not yet scanned).\n" +
 					"Press Ctrl+E to launch a container from the selected image (opens a form with pre-filled port mappings from EXPOSE metadata).\n" +
@@ -553,8 +557,18 @@ func (m Model) GetHelpContent() help.Content {
 					"Press Esc to go back to the search form.",
 			},
 			{
+				Title: "Image Signatures",
+				Body: "Every pull DevDesk makes — G, the registry browser, an agent over MCP — checks the image's signature first, with cosign (Tools tab). " +
+					"The tag is resolved to a digest, that digest is verified, and that same digest is pulled then tagged, so the tag cannot move in between. " +
+					"Rules come from ~/.devdesk/trust.yaml (yours, checked first), then a built-in list (distroless, Chainguard, Docker Hardened Images); with no rule, a new image must be signed by whoever signed the one you have. " +
+					"A signature by an unexpected identity is always refused. An unsigned image is refused under a rule and only warned about otherwise; a check that could not run is refused under your own rules only. The footer names the rule behind a refusal. " +
+					"Launching a container never pulls: an image arrives through a verified pull or not at all. " +
+					"A pull typed in another terminal is not checked — DevDesk is not an admission controller. " +
+					"Turn the check off per context by unticking Verify image signatures (scan tab of the configuration view); the header then says Signatures: off.",
+			},
+			{
 				Title: "Launch Form",
-				Body:  "When launching a container, ports are pre-filled from the image's EXPOSE metadata. Fill in environment variables and volume mounts as comma-separated lists. The container runs detached (-d) by default.",
+				Body:  "When launching a container, ports are pre-filled from the image's EXPOSE metadata. Fill in environment variables and volume mounts as comma-separated lists. The container runs detached (-d) by default. An image that is not present locally is not pulled.",
 			},
 		},
 	}

@@ -30,6 +30,7 @@ const (
 	ToolKubeconform ToolID = config.ToolKubeconform
 	ToolHelm        ToolID = config.ToolHelm
 	ToolKustomize   ToolID = config.ToolKustomize
+	ToolCosign      ToolID = config.ToolCosign
 )
 
 // Tool is what DevDesk knows about one scanner, whatever it is configured with.
@@ -103,6 +104,15 @@ var toolTable = []Tool{
 		VersionArgs:  []string{"version"},
 		Lost:         "Kustomize overlays were not built",
 		ReservedArgs: []string{"--output", "-o"}},
+	// In no category (§3.82): it runs before a pull as well as during a scan.
+	// Required therefore never lists it, and a missing cosign is a verdict —
+	// Failed — rather than a scan refused.
+	{ID: ToolCosign, Name: "Cosign", Binary: "cosign", DefaultImage: DefaultCosignImage,
+		VersionArgs: []string{"version"},
+		Lost:        "image signatures were not verified",
+		ReservedArgs: []string{"--key", "--certificate-identity", "--certificate-identity-regexp",
+			"--certificate-oidc-issuer", "--certificate-oidc-issuer-regexp", "--insecure-ignore-tlog",
+			"--experimental-oci11", "--output", "-o"}},
 }
 
 // Tools lists every scanner, in the table's order.
@@ -402,6 +412,13 @@ func CleanVersion(v string) string {
 		v = strings.TrimSpace(strings.TrimPrefix(v, name))
 	}
 	v = strings.TrimSpace(strings.TrimPrefix(v, "docker:"))
+	// cosign prints an ASCII-art banner before anything else; its version is
+	// the GitVersion line, wherever that falls.
+	for _, line := range strings.Split(v, "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "GitVersion:"); ok {
+			return strings.TrimSpace(rest)
+		}
+	}
 	if idx := strings.IndexByte(v, '\n'); idx >= 0 {
 		v = v[:idx]
 	}

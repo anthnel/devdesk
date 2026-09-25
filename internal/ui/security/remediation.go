@@ -12,10 +12,12 @@ import (
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/trust"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/sigcol"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/ui/updatecol"
 )
@@ -83,6 +85,10 @@ type remediationState struct {
 	// or the image the engine holds under that name (§3.88).
 	updates      imageupdate.Tracker
 	localDigests map[string][]string
+	// signatures is each image's signature verdict, and verifying the ones
+	// still being asked (§3.82) — keyed by reference as written.
+	signatures map[string]trust.Result
+	verifying  map[string]bool
 }
 
 func newRemediationState() remediationState {
@@ -91,9 +97,11 @@ func newRemediationState() remediationState {
 			Columns:    remediationColumns(),
 			SortColumn: -1, // the order is the grouping: an image, then its candidates
 		}),
-		results:  map[string]cache.RemediationEntry{},
-		scanning: map[string]bool{},
-		selected: map[int]string{},
+		results:    map[string]cache.RemediationEntry{},
+		scanning:   map[string]bool{},
+		selected:   map[int]string{},
+		signatures: map[string]trust.Result{},
+		verifying:  map[string]bool{},
 	}
 }
 
@@ -128,6 +136,8 @@ type remediationRow struct {
 	// Update is whether a newer image exists for the base as written (§3.88).
 	// Only a current row has one: a candidate is already the newer image.
 	Update imageupdate.Status
+	// Signature is what its signature check found (§3.82).
+	Signature sigcol.State
 }
 
 // icon is the glyph column: the image itself, or a candidate's checkbox.
@@ -256,6 +266,7 @@ func remediationColumns() []datatable.Column[remediationRow] {
 			},
 		},
 		updatecol.Column(true, func(r remediationRow) imageupdate.Status { return r.Update }),
+		sigcol.Column(func(r remediationRow) sigcol.State { return r.Signature }),
 		count("CRIT", "CRITICAL", func(c scan.SeverityCounts) int { return c.Critical }),
 		count("HIGH", "HIGH", func(c scan.SeverityCounts) int { return c.High }),
 		{
@@ -349,12 +360,14 @@ func (m Model) handleRemediationDiscovered(msg RemediationDiscoveredMsg) (tea.Mo
 	m.remediation.entries = msg.Entries
 	m.remediation.truncated = msg.Truncated
 	m.remediation.results = msg.Results
-	m.refreshRemediation()
 	var refs []string
 	for _, e := range msg.Entries {
 		refs = append(refs, e.Image)
 	}
-	return m, checkBaseImageUpdatesCmd(m.remediation.target, m.remediation.updates.Due(refs, time.Now()))
+	cmds := append(m.startSignatureChecks(),
+		checkBaseImageUpdatesCmd(m.remediation.target, m.remediation.updates.Due(refs, time.Now())))
+	m.refreshRemediation()
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) handleBaseImageUpdatesChecked(msg BaseImageUpdatesCheckedMsg) (tea.Model, tea.Cmd) {
@@ -397,8 +410,13 @@ func (m Model) handleRemediationScanFinished(msg RemediationScanFinishedMsg) (te
 // refreshRemediation rebuilds the rows, keeping the cursor where it was.
 func (m *Model) refreshRemediation() {
 	cursor := m.remediation.table.Cursor()
-	m.remediation.table.SetItems(remediationRows(
-		m.remediation.entries, m.remediation.results, m.remediation.scanning, m.remediation.selected, m.baseImageUpdate))
+	rows := remediationRows(
+		m.remediation.entries, m.remediation.results, m.remediation.scanning, m.remediation.selected, m.baseImageUpdate)
+	for i := range rows {
+		res, known := m.remediation.signatures[rows[i].Ref]
+		rows[i].Signature = sigcol.State{Result: res, Known: known, Verifying: m.remediation.verifying[rows[i].Ref]}
+	}
+	m.remediation.table.SetItems(rows)
 	m.remediation.table.Remeasure()
 	m.remediation.table.SetCursor(cursor)
 }

@@ -20,11 +20,15 @@ const (
 	ToolKubeconform = "kubeconform"
 	ToolHelm        = "helm"
 	ToolKustomize   = "kustomize"
+	// ToolCosign verifies image signatures (§3.82). It serves no category: it
+	// runs before a pull as much as during a scan, and scan.image_verification
+	// is its one switch.
+	ToolCosign = "cosign"
 )
 
 // ToolIDs lists every scanner, in the order the tables use.
 func ToolIDs() []string {
-	return []string{ToolTrivy, ToolGitleaks, ToolPlumber, ToolKubeconform, ToolHelm, ToolKustomize}
+	return []string{ToolTrivy, ToolGitleaks, ToolPlumber, ToolKubeconform, ToolHelm, ToolKustomize, ToolCosign}
 }
 
 // Category identifiers, as they appear under `scan.categories`.
@@ -96,6 +100,7 @@ type ScanTools struct {
 	Kubeconform KubeconformConfig `yaml:"kubeconform"`
 	Helm        ToolConfig        `yaml:"helm"`
 	Kustomize   ToolConfig        `yaml:"kustomize"`
+	Cosign      ToolConfig        `yaml:"cosign"`
 }
 
 // Tool returns the settings every scanner shares, by identifier — what lets
@@ -115,6 +120,8 @@ func (t *ScanTools) Tool(id string) *ToolConfig {
 		return &t.Helm
 	case ToolKustomize:
 		return &t.Kustomize
+	case ToolCosign:
+		return &t.Cosign
 	}
 	return nil
 }

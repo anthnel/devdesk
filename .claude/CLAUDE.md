@@ -464,9 +464,9 @@ touching, and update it in the same commit as the code.
 | [`forge.md`](../docs/architecture/forge.md) | `internal/forge` and its two backends, `forge.Vocabulary`, and the explorer's clone pipeline |
 | [`workspaces.md`](../docs/architecture/workspaces.md) | the `ws` file icons (`internal/ui/fileicon`) and the sync (`F`) |
 | [`viewer.md`](../docs/architecture/viewer.md) | `internal/viewer` + `internal/ui/viewer` — kinds, displays, colouring, search, follow |
-| [`scanning.md`](../docs/architecture/scanning.md) | Trivy, Gitleaks, plumber, `scan.Categorize`, the `:sec` inventory, the two scan caches |
+| [`scanning.md`](../docs/architecture/scanning.md) | Trivy, Gitleaks, plumber, `scan.Categorize`, the `:sec` inventory, the two scan caches, image signatures (`internal/trust`, the cosign verifier) |
 | [`registries.md`](../docs/architecture/registries.md) | the registry/group model and the discovered-members cache |
-| [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci`, image updates (`internal/imageupdate`, the Update column), the netdiag view, `internal/ports`, `internal/netiface` |
+| [`network.md`](../docs/architecture/network.md) | `internal/docker` and `internal/oci`, image updates (`internal/imageupdate`, the Update column), verified pulls (`internal/imagepull`), the netdiag view, `internal/ports`, `internal/netiface` |
 | [`mcp.md`](../docs/architecture/mcp.md) | the MCP server the TUI serves over HTTP |
 | [`templates.md`](../docs/architecture/templates.md) | `internal/template` + `internal/ui/templates` — the repository-template catalog, its three sources, how files are fetched, and the `:templates` view |
 | [`ui-components.md`](../docs/architecture/ui-components.md) | `components.FooterMessage` and `internal/ui/datatable` |

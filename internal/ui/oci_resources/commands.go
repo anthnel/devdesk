@@ -18,6 +18,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/oci"
 	"github.com/anthnel/devdesk/internal/registrymgr"
@@ -450,7 +451,10 @@ func loadMultiRegistryTagsMetaCmd(entryKey, registryURL, repo string) tea.Cmd {
 // pullOneImageCmd pulls a Docker image to the local store, emitting
 // RegistryPullStartingMsg before and RegistryPullCompleteMsg after — the pair
 // jobs.Start needs to track the run (mirrors scanOneImageCmd).
-func pullOneImageCmd(imageName string) tea.Cmd {
+//
+// The pull is verified first (§3.82): deps says how, and a pull its signature
+// check blocks comes back as an imagepull.BlockedError.
+func pullOneImageCmd(imageName string, deps imagepull.Deps) tea.Cmd {
 	// The context the pull runs under, so `K` can stop it (D7). It travels on
 	// the starting message, which is the same Update that marks the item
 	// running — two steps would leave a window where the row is running and
@@ -464,8 +468,8 @@ func pullOneImageCmd(imageName string) tea.Cmd {
 			// end; the registry drops its copy when the item settles.
 			defer cancel()
 
-			err := docker.PullImageContext(ctx, imageName)
-			return RegistryPullCompleteMsg{ImageName: imageName, Err: err}
+			check, err := imagepull.Pull(ctx, imageName, deps)
+			return RegistryPullCompleteMsg{ImageName: imageName, Err: err, Check: check}
 		},
 	)
 }

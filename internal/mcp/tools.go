@@ -123,7 +123,7 @@ func tools() []toolDef {
 		},
 		{
 			Name:        "image_pull_start",
-			Description: "Pull an image onto this machine. It returns a job id at once and the download runs on, resumable by layer, so jobs_cancel can stop it. It adds an image and removes none.",
+			Description: "Pull an image onto this machine. Its signature is checked first, against the user's rules and DevDesk's built-in ones: a refused pull fails the job, and its detail names the rule. It returns a job id at once and the download runs on, resumable by layer, so jobs_cancel can stop it. It adds an image and removes none.",
 			register:    registerImagePullStart,
 		},
 		{

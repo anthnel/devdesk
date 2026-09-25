@@ -65,6 +65,9 @@ type remediationChange struct {
 	// DropsDigest: the reference was pinned by digest, which the new tag does
 	// not carry.
 	DropsDigest bool
+	// SignatureWarning is what the signature check warned about the new image,
+	// repeated in the confirmation (§3.82).
+	SignatureWarning string
 }
 
 // preparedWrite is one file, as it is and as it would become.
@@ -90,8 +93,9 @@ func (m Model) remediationChanges() []remediationChange {
 		}
 		changes = append(changes, remediationChange{
 			File: e.File, Line: e.Stage.Line, Stage: e.StageLabel,
-			Edit:        patch.Edit{Span: e.Stage.Span, Old: e.Stage.Image, New: ref},
-			DropsDigest: remediation.ParseRef(e.Stage.Image).Digest != "",
+			Edit:             patch.Edit{Span: e.Stage.Span, Old: e.Stage.Image, New: ref},
+			DropsDigest:      remediation.ParseRef(e.Stage.Image).Digest != "",
+			SignatureWarning: m.signatureWarning(ref),
 		})
 	}
 	return changes
@@ -134,6 +138,8 @@ func (m Model) canSelectCandidate() shortcut.Availability {
 		return shortcut.Unavailable(reasonPickACandidate)
 	case !row.Scanned:
 		return shortcut.Unavailable(reasonScanFirst)
+	case !m.signatureBlock(row.Ref).Enabled():
+		return m.signatureBlock(row.Ref)
 	case !m.remediation.entries[row.Entry].Stage.Editable:
 		if reason := m.remediation.entries[row.Entry].Stage.NoEditReason; reason != "" {
 			return shortcut.Unavailable(reason)
@@ -283,6 +289,9 @@ func confirmationText(files []preparedWrite) string {
 			if c.DropsDigest {
 				b.WriteString("  (drops the digest pin)\n")
 			}
+			if c.SignatureWarning != "" {
+				fmt.Fprintf(&b, "  (signature: %s)\n", c.SignatureWarning)
+			}
 		}
 	}
 	b.WriteString("\n")
@@ -312,6 +321,15 @@ func (m Model) handleRemediationConfirmed() (tea.Model, tea.Cmd) {
 	files := m.remediation.pending
 	m.remediation.pending = nil
 	m.confirmModal = nil
+	// A verdict can land while the confirmation is open: what it blocks is not
+	// written, whatever the modal showed (§3.82).
+	for _, f := range files {
+		for _, c := range f.Changes {
+			if a := m.signatureBlock(c.Edit.New); !a.Enabled() {
+				return m, m.footer.Error("Not written — " + c.Edit.New + ": " + a.Reason)
+			}
+		}
+	}
 	return m, writeRemediationCmd(m.remediation.target, files)
 }
 

@@ -107,6 +107,15 @@ is still resolved.
 Credentials Management). Do not add a secret-bearing field back — the schema is
 what makes the guarantee checkable.
 
+**`~/.devdesk/trust.yaml` is not a context file** (§3.82). It holds whom to
+trust for image signatures — a fact about the world — so it is global, read by
+`internal/trust`, and **strict** where `config.Load` is not: `KnownFields(true)`,
+`version: 1`, and any error rejects the whole file (a typo would otherwise
+weaken a rule in silence). It is edited by hand; the configuration view does not
+touch it. Whether to verify at all is per context: `scan.image_verification`,
+`on` or `off`, a string rather than a bool so a file written before the key
+reads as `on` (D12) — and only `off` turns it off, so a typo verifies.
+
 Config is injected into views at creation. Use `config.Save()` to persist changes.
 
 ## Configuration view — `internal/ui/configuration`

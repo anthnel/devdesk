@@ -83,8 +83,10 @@ func (m Model) handleImagesList(msg ImagesListMsg) (tea.Model, tea.Cmd) {
 	m.footer.Clear()
 	m.images = msg.Images
 	m.listed = true
+	now := time.Now()
+	check := tea.Batch(checkImageUpdatesCmd(m.updates.Due(pulledImageRefs(m.images), now)),
+		m.startLocalSignatureChecks(now))
 	m.updateImageTable()
-	check := checkImageUpdatesCmd(m.updates.Due(pulledImageRefs(m.images), time.Now()))
 	if cmd := m.drainPendingRequests(); cmd != nil {
 		return m, tea.Batch(cmd, check)
 	}

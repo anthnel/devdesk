@@ -134,6 +134,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RemediationScanFinishedMsg:
 		return m.handleRemediationScanFinished(msg)
 
+	case RemediationSignaturesMsg:
+		return m.handleRemediationSignatures(msg)
+
 	case RemediationWritePreparedMsg:
 		return m.handleRemediationWritePrepared(msg)
 

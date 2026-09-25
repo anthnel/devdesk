@@ -148,8 +148,9 @@ func TestSortCyclesDirectionThenColumn(t *testing.T) {
 	}
 
 	m = feed(t, m, testutil.Key("."))
-	// +2: Update sits between Name and Disk Usage and does not sort (§3.88).
-	if column, desc := m.imageTable.SortState(); column != imageColumnName+2 || desc {
+	// +3: Update and Sig sit between Name and Disk Usage and do not sort
+	// (§3.88, §3.82).
+	if column, desc := m.imageTable.SortState(); column != imageColumnName+3 || desc {
 		t.Errorf("after two '.', sort = (column %d, desc=%v), want Disk Usage ascending", column, desc)
 	}
 }

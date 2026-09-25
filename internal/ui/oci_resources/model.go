@@ -16,6 +16,7 @@ import (
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/registrymgr"
 	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/trust"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/theme"
@@ -54,8 +55,17 @@ type Model struct {
 	// rootless podman may not have one (§3.67). Filled by a Cmd, since
 	// scan.Detect runs exec.LookPath, a --version per tool and an
 	// `images -q` — none of which may happen in New or View (Rule 110).
-	deps      *scan.Report
-	scanCache map[string]cache.ImageScanEntry
+	deps *scan.Report
+	// trustPolicyErr is ~/.devdesk/trust.yaml failing to load (§3.82): every
+	// pull is refused while it holds, and the header says so.
+	trustPolicyErr error
+	// signatures is each local image's verdict (§3.82), by name; sigAsked what
+	// was asked about it — the digest, and when — and sigVerifying the ones
+	// still out.
+	signatures   map[string]trust.Result
+	sigAsked     map[string]sigAsk
+	sigVerifying map[string]bool
+	scanCache    map[string]cache.ImageScanEntry
 	// jobs is the router snapshot of everything running anywhere, and jobFrame
 	// the spinner frame that goes with it — bare, because it lands in a table
 	// cell (Rule 122). It replaced a scanningImages map and the `scanning`
@@ -301,6 +311,10 @@ type MultiRegistryTagsMetaMsg struct {
 type RegistryPullCompleteMsg struct {
 	ImageName string
 	Err       error
+	// Check is what the signature check found (§3.82): a Warn to show after a
+	// pull that went ahead. A pull it blocked carries an imagepull.BlockedError
+	// in Err.
+	Check trust.Result
 
 	// The fields below belong to an update (G, §3.88) and are zero for a plain
 	// pull. Replaces is the image the pull replaces; InUse the containers that
@@ -475,6 +489,9 @@ func New(cfg *config.Config) Model {
 		activeTab:           tabImages,
 		scanCache:           make(map[string]cache.ImageScanEntry),
 		failedScans:         make(map[string]bool),
+		signatures:          make(map[string]trust.Result),
+		sigAsked:            make(map[string]sigAsk),
+		sigVerifying:        make(map[string]bool),
 		spinner:             s,
 		imageTable:          it,
 		networkTable:        nt,

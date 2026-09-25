@@ -210,6 +210,27 @@ Accepted cost, stated rather than discovered: most containers idle near zero,
 so most rows carry a short green sliver in a track-colored field, both present
 at once (`Cut`/`TailStyle`, above).
 
+**The fourth declared exception: the Sig column's proven signature (§3.82).**
+`internal/ui/sigcol` renders a Verified image's `IconOK` in green, while the
+Update column (`theme.UpdateStyle`) renders its "up to date" `IconOK` dim. The
+same glyph, two colors — and the reason is **not** the CI column's: in both
+columns the glyphs already tell every state apart, so the shade is not what
+separates the check mark from the `-`. The criterion is what the state *is*:
+
+| | Update — "up to date" | Sig — Verified |
+|---|---|---|
+| How common | the majority, the resting state | rare: only images a rule covers, and only once proven |
+| What it says | nothing happened, nothing to do | a guarantee was established for this digest |
+| Its counterpart | a blue "update available" — the action | a red cross — the refusal |
+
+Up to date is the nominal state this rule keeps out of color, exactly like a
+`running` container. Verified is the positive half of a security verdict whose
+negative half is red: dimming it would leave the column able to say only that
+something is wrong, never that something was proven. That is the test for a
+fifth exception, and not "it is good news": **a rare, established guarantee
+whose absence or failure is itself colored**. A state that is merely the
+common, fine case stays dim.
+
 Checklist:
 - [ ] No `style.Render(...)` inside what `Cell` returns
 - [ ] Status icons as plain text: `theme.IconError + " error"`

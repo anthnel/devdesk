@@ -8,9 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/trust"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
@@ -176,5 +180,44 @@ func TestAFailedPullOrRemovalIsReported(t *testing.T) {
 	kept := feed(t, m, runUpdate(t, m))
 	if got := kept.footer.Text(); !strings.Contains(got, "old image was kept") {
 		t.Errorf("removal failure footer = %q", got)
+	}
+}
+
+// identitiesAsked records which image continuity read identities from.
+type identitiesAsked struct{ of *[]string }
+
+func (identitiesAsked) Verify(context.Context, string, trust.Rule) (trust.Verdict, error) {
+	return trust.Verified, nil
+}
+
+func (v identitiesAsked) Identities(_ context.Context, ref string) ([]trust.Identity, error) {
+	*v.of = append(*v.of, ref)
+	return nil, nil
+}
+
+// A newer patch is compared with the image it replaces (§3.82): the target's
+// tag is not on disk yet, so its own name would leave nothing to continue.
+func TestAnUpdateContinuesTheImageItReplaces(t *testing.T) {
+	e := &engineStub{newID: "sha256:dddddddddddd"}
+	stubEngine(t, e)
+	var asked []string
+	prev := newPullDeps
+	newPullDeps = func(*config.Config, *scan.Report) imagepull.Deps {
+		return imagepull.Deps{
+			Enabled:  true,
+			Policy:   func() (trust.Policy, error) { return trust.Policy{}, nil },
+			Verifier: identitiesAsked{of: &asked},
+			Digest:   func(string) (string, error) { return "sha256:new", nil },
+			Current:  func(string) string { return "" },
+			Tag:      func(string, string) error { return nil },
+		}
+	}
+	t.Cleanup(func() { newPullDeps = prev })
+
+	node := docker.Image{ID: "eeeeeeeeeeee", Repository: "node", Tag: "20.11.1", RepoDigests: []string{"node@sha256:n"}}
+	m := onImage(t, node, imageupdate.Facts{CheckedAt: time.Now(), Digest: "sha256:n", NewerPatch: "20.11.4"})
+	runUpdate(t, m)
+	if want := []string{"docker.io/library/node@sha256:n"}; !slices.Equal(asked, want) {
+		t.Errorf("continuity read %q, want the replaced image %q", asked, want)
 	}
 }

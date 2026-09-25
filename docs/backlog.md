@@ -14695,7 +14695,7 @@ hadolint 2.14.0.
 
 ---
 
-### 3.82 Vérifier la signature et le SBOM d'une image de base avant de la recommander — **à explorer**
+### 3.82 Vérifier la signature d'une image avant de la recommander ou de la tirer — **done**
 
 Trouvé au chapitre 4 (§4.5, §4.8) : la chaîne d'approvisionnement d'une image
 de base peut être compromise sans qu'aucune CVE ne le révèle — un registre
@@ -14724,6 +14724,481 @@ Sources vérifiées le 2026-09-21 :
 *Docker and Kubernetes Security* (§4.5, §4.8),
 [Sigstore Cosign](https://docs.sigstore.dev/cosign/overview/),
 [Notation (Notary v2)](https://notaryproject.dev/docs/).
+
+#### Décisions (2026-09-25, avec l'utilisateur)
+
+Les trois questions ci-dessus sont tranchées ; la portée s'est élargie en
+chemin : le verdict ne sert plus seulement à recommander un candidat, il
+**empêche aussi de tirer** une image compromise.
+
+**Une signature seule ne prouve rien.** En keyless, n'importe qui signe
+n'importe quelle image avec sa propre identité — y compris l'auteur d'un tag
+republié. Toute politique épingle donc une **identité** ; détecter qu'une
+signature *existe* (tag `sha256-<digest>.sig`, referrer OCI) est bon marché et
+ne dit rien tant que le certificat n'est pas vérifié.
+
+**1. La politique vient de trois sources, par priorité C > B > A.**
+
+- **A — continuité, sans configuration.** Le candidat doit être signé par la
+  même identité que l'image actuellement utilisée. C'est du *trust on first
+  use* : muet si l'image actuelle n'est pas signée, et il hérite de son
+  signataire si elle était déjà compromise.
+- **B — une liste fermée d'éditeurs connus, dans le code** (Chainguard,
+  distroless, … chacun vérifié avant d'entrer). À vérifier avant de compter
+  dessus : Docker Official Images publient des attestations BuildKit, pas
+  forcément une signature Cosign exploitable.
+- **C — des règles de l'utilisateur**, dans un fichier **global**
+  `~/.devdesk/trust.yaml`. Global parce qu'une identité de confiance est un
+  fait sur le monde, pas un réglage de contexte — et `config.yaml` ne
+  convient pas : c'est le contexte `default`, pas un fichier global
+  (`internal/config/config.go:759`). Chargé au démarrage, pas au changement
+  de contexte, édité à la main en v1 (la vue configuration édite le contexte
+  courant).
+
+**2. Le format de `trust.yaml`.**
+
+```yaml
+version: 1
+rules:
+  - match: registry.corp.example/base/*
+    key: ~/.devdesk/keys/corp-cosign.pub     # ou awskms://…, gcpkms://…
+    tlog: false
+  - match: cgr.dev/chainguard/*
+    keyless:
+      issuer: https://token.actions.githubusercontent.com
+      subject: https://github.com/chainguard-images/images/.github/workflows/release.yaml@refs/heads/main
+  - match: registry.corp.example/legacy/*
+    expect: none                             # aucune signature attendue : ne pas avertir
+```
+
+- Une règle = une portée + **exactement un** mode (`key`, `keyless` avec
+  `subject` ou `subject_regexp`, `expect: none`).
+- `match` porte sur le dépôt **normalisé**, sans tag ni digest (`python` →
+  `docker.io/library/python`).
+- **La première règle qui correspond gagne** ; une règle masquée par une
+  précédente est signalée.
+- **Strict, contrairement à `config.Load`** : `KnownFields(true)`, `version: 1`
+  obligatoire, et un fichier invalide est rejeté **en entier** (erreur au
+  footer au démarrage, log nommant la ligne). Une coquille comme `isuer:`
+  retirerait l'épinglage en silence ; une règle affaiblie sans le dire est
+  pire que pas de règle.
+- Hors portée : un déploiement Sigstore privé (autre racine Fulcio/Rekor) —
+  un bloc `trust_root:` le jour où quelqu'un en a besoin.
+
+**3. Cosign seul en v1, le mode désigne l'outil.** Pas de champ `tool:` — il
+pourrait contredire le bloc : `key`/`keyless` sont des notions Cosign, et
+Notation raisonne en magasin x509 et `trustedIdentities`. Un bloc `notation:`
+est réservé et refusé en v1 (« not supported yet »). L'abstraction qui compte
+est le **verdict**, défini côté consommateur (`internal/remediation`) :
+
+```go
+type Verdict int // Verified, IdentityMismatch, Unsigned, NoPolicy, Failed
+
+type Verifier interface {
+    Verify(ctx context.Context, digest string, rule Rule) (Verdict, error)
+}
+```
+
+Une seule implémentation en v1, justifiée parce que la seconde est nommée.
+`cosign` se lance via `ToolConfig` (`source: auto | binary | image`, image
+`ghcr.io/sigstore/cosign`), comme Trivy et Gitleaks.
+
+**4. Ce que fait chaque verdict — selon qui a déclaré la règle.** Une règle
+explicite affirme « les images de cette portée sont signées par X » ; sous
+elle, « non signée » et « impossible de vérifier » sont des écarts, plus des
+absences.
+
+| Verdict | C (utilisateur) | B (DevDesk) | A (continuité seule) |
+|---|---|---|---|
+| Vérifiée | ok | ok | ok |
+| Identité inattendue | **bloque** | **bloque** | **bloque** |
+| Non signée | **bloque** | **bloque** | avertit |
+| Échec de vérification | **bloque** | avertit | avertit |
+| Pas de politique / `expect: none` | — | — | — |
+
+- **Non signée bloque sous une règle** parce que c'est l'option par défaut de
+  l'attaquant : un tag republié a un nouveau digest, que les anciennes
+  signatures ne couvrent pas, et il ne peut pas obtenir le token OIDC de
+  l'éditeur. Ne bloquer que l'identité inattendue, c'est ne rien bloquer.
+- **Échec bloque sous C** : en *fail-open*, faire échouer la vérification
+  (filtrer `*.sigstore.dev`, désinstaller `cosign`) suffirait à la contourner,
+  et la protection disparaîtrait sans bruit.
+- **Échec n'avertit que sous B** : B est déclaré par DevDesk, pas par
+  l'utilisateur ; derrière un proxy qui filtre Sigstore, il ne pourrait plus
+  tirer aucune image Chainguard sans avoir rien configuré. Qui veut la
+  sévérité maximale écrit la règle en C, qui l'emporte sur B.
+- **Sans règle, jamais de blocage sur échec** : personne n'a rien demandé.
+- **Condition** : distinguer de façon fiable *non signée* (le registre a
+  répondu, rien) d'*échec* (on n'a pas pu demander). `cosign verify`
+  renvoie `1` ou `12` pour l'un comme pour l'autre — mesuré, voir « Mesure »
+  ci-dessous, et levé sans lire stderr.
+- Le message de refus **nomme la règle** (fichier, ligne) : c'est ce qu'il
+  faut changer si l'éditeur a légitimement changé d'identité.
+- **Pas de touche pour forcer.** Les deux issues propres : corriger la règle,
+  ou éditer le Dockerfile à la main. Un « forcer » deviendrait un réflexe.
+
+**5. Dans l'onglet Remediation (§3.2).** Le candidat reste **affiché** quel
+que soit son verdict — qu'un tag ait été republié par quelqu'un d'autre est
+précisément l'information. « Bloque » veut dire que `space` refuse de le
+choisir, avec la raison au footer — la même mécanique que
+`TestOnlyAScannedCandidateCanBeChosen`, pas une nouvelle. « Avertit » : choix
+possible, rappelé dans la confirmation de `ctrl+o`. Affichage : icône OK,
+avertissement orange, erreur rouge, `-` grisé pour pas de politique, `?`
+pour un échec non bloquant. Une image qu'on ne peut pas tirer ne peut pas
+être recommandée : c'est le même verdict.
+
+**6. Le pull.** Un pull dont le verdict bloque est refusé.
+
+- **Vérifier un digest, tirer ce digest.** Vérifier `python:3.12.7` puis
+  `docker pull python:3.12.7` laisse le tag bouger entre les deux — l'attaque
+  même. Séquence : `oci.ManifestDigest` (digest de l'index, celui que Cosign
+  signe) → vérification → `docker pull repo@sha256:…` →
+  `docker tag repo@sha256:… repo:tag`. La colonne Update (§3.88) suit, elle
+  compare les `RepoDigests`.
+- **Un seul point de passage**, sous les vues : `docker.PullImageContext` a
+  deux appelants (`internal/ui/oci_resources/commands.go:467`, le navigateur
+  de registre ; `image_update.go:96`, `G`). Le contrôle vit dans un
+  `PullVerified` d'un package de domaine, pas dans chaque vue.
+- **Le pull MCP** doit passer par là — un agent ne contourne pas la
+  vérification. Il semble emprunter le même message que la vue ; à vérifier.
+- **`docker run`** (`internal/docker/launch.go:26`) tire en silence une image
+  absente : `--pull=never`, ou une vérification avant, sinon lancer un
+  conteneur est un pull non vérifié.
+- Le scan Trivy d'une image distante n'exécute rien : pas bloqué.
+- **Ce que DevDesk ne couvre pas** : un `docker pull` tapé ailleurs. Ce n'est
+  pas un contrôleur d'admission, et l'aide (`?`) le dit, pour ne pas donner
+  une fausse impression de sécurité.
+
+**7. Signer n'est pas le rôle de DevDesk** — voir §3.90.
+
+#### Mesure de `cosign verify` (2026-09-25)
+
+cosign v3.1.3, lancé en conteneur (`ghcr.io/sigstore/cosign/cosign`), depuis le
+sandbox. Chainguard et DHI mesurés dans un second temps, une fois `cgr.dev`,
+Rekor et le stockage de blobs de Chainguard ouverts.
+
+| Cas | Image | Sortie | Message |
+|---|---|---|---|
+| Signée, bonne identité | distroless, cosign | **0** | — |
+| Non signée | `docker.io/library/alpine:3.20` | **10** | `no signatures found` |
+| Tag inexistant | `ghcr.io/sigstore/cosign/cosign:v0.0.0-nope` | **11** | `image tag not found` |
+| Mauvaise identité, ancien format `.sig` | distroless | **12** | `no matching signatures: … got subjects [...]` |
+| Mauvaise identité, **format bundle** (referrers, défaut de cosign v3) | image cosign | **1** | `no matching attestations: … expected SAN …` |
+| Registre filtré, hôte inexistant | `cgr.dev`, `.invalid` | **1** | le 403 du proxy |
+| Hors ligne | `--network none` | **1** | `failed to download 13.root.json` (TUF) |
+| **Stockage des blobs bloqué**, même en **permissif** | Chainguard (redirection vers `*.r2.cloudflarestorage.com`) | **12** | `no matching signatures: GET https://…r2.cloudflarestorage.com/…` |
+| Mode clé, bonne clé, `--experimental-oci11` | `dhi.io/static` | **0** | — |
+| Mode clé, bonne clé, **sans** `--experimental-oci11` | `dhi.io/static` | 10 | `no signatures found` |
+| Mode clé, **mauvaise clé** | `dhi.io/static` | **10** | `no signatures found` |
+| Mode clé sur une image signée en keyless | distroless | 12 | `both public key and certificate were provided but did not match` |
+
+Ce qui en découle :
+
+1. **Seuls 0, 10 et 11 sont fiables.** 1 est ambigu sur le format bundle
+   (identité inattendue *ou* échec), et **12 aussi** : un blob de signature
+   qu'on n'a pas pu lire le produit, même en permissif — un échec réseau
+   déguisé en mauvaise identité.
+2. **Lever l'ambiguïté sans lire stderr** : sur tout code strict autre que
+   0/10/11, une seconde vérification **permissive**
+   (`--certificate-identity-regexp=.* --certificate-oidc-issuer-regexp=.*`) —
+   0 ⇒ identité inattendue (une signature valide existe, pas de la bonne
+   identité), 10 ⇒ non signée, autre ⇒ échec. Un 12 permissif ne peut pas
+   vouloir dire « mauvaise identité », puisque toutes sont acceptées : c'est un
+   échec. Rien ne dépend du texte des messages.
+2 bis. **`--experimental-oci11` toujours.** DHI range une signature de
+   l'ancien format dans les referrers OCI : sans le flag, cosign ne la trouve
+   pas (10). Mesuré sans effet sur distroless (`.sig`), sur l'image cosign
+   (bundle) et sur alpine (non signée).
+2 ter. **En mode clé, mauvaise clé = non signée (10)** sur l'ancien format —
+   et 1 sur le format bundle, mesuré plus bas (« Mesures de l'étape 0 »), d'où
+   la décision qui y est prise : en mode clé, tout code autre que 0 et 11 est
+   `Unsigned`. Le libellé est « no verifiable signature from the expected key »,
+   pas « unsigned ». Pas de relance permissive en mode clé : une signature
+   d'une autre clé est invisible.
+3. **Rekor n'est pas nécessaire** : `rekor.sigstore.dev` était bloqué et la
+   vérification a réussi (« verified offline », via le bundle). Il faut le
+   registre, **le stockage de blobs vers lequel il redirige** (Cloudflare R2
+   pour Chainguard), et `tuf-repo-cdn.sigstore.dev`. Un proxy qui laisse passer
+   le registre mais pas ses blobs donne un 12 — d'où le point 1.
+4. **~3 s par vérification** en conteneur, cache TUF monté en volume
+   (`TUF_ROOT`). Acceptable pour un pull, et en arrière-plan pour les candidats.
+5. **La continuité (A) doit connaître l'identité de l'image actuelle**, et
+   cosign ne l'affiche pas pour le format bundle (seul l'ancien format la donne,
+   `optional.Subject`/`Issuer` de la sortie JSON). **La lire soi-même dans le
+   bundle serait une faille** : une vérification permissive réussit dès qu'*une*
+   signature est valide — un attaquant joint la sienne, valide, plus un bundle
+   dont le certificat falsifié annonce l'identité attendue ; on lirait le faux.
+   Donc : `cosign download attestation` donne les identités **annoncées**
+   (mesuré : le SAN se lit dans le certificat du bundle), qui ne sont que des
+   indices ; chaque indice est **vérifié strictement** sur l'image actuelle, et
+   seule une identité que cosign a validée sert à vérifier le candidat.
+6. **B démarre avec trois entrées, toutes mesurées** :
+
+   | Portée | Mode | Identité |
+   |---|---|---|
+   | `gcr.io/distroless/*` | keyless | émetteur `https://accounts.google.com`, `keyless@distroless.iam.gserviceaccount.com` |
+   | `cgr.dev/chainguard/*` | keyless | émetteur `https://token.actions.githubusercontent.com`, `https://github.com/chainguard-images/images/.github/workflows/release.yaml@refs/heads/main` — la même sur `static`, `python`, `node`, `wolfi-base` |
+   | `dhi.io/*` | clé | la clé publique de `https://registry.scout.docker.com/keyring/dhi/latest.pub`, **embarquée** dans le binaire |
+
+   **La clé DHI est embarquée** (`//go:embed`), jamais téléchargée — décidé
+   avec l'utilisateur. La télécharger ferait reposer la confiance sur une
+   requête réseau : un proxy qui intercepte TLS, un DNS détourné ou un compte
+   compromis servirait sa propre clé avec son image, contenu et preuve venant de
+   la même source non vérifiée. Embarquée, elle est figée au build, passe par une
+   PR et ne change jamais en silence.
+
+   - **Plusieurs clés par entrée** : une rotation de Docker rendrait les
+     nouvelles images « non signées » pour DevDesk (mauvaise clé = 10), donc
+     **bloquées** sous B. Une entrée B porte une *liste* de clés, pour garder
+     l'ancienne et la nouvelle pendant une transition — si Docker annonce ses
+     rotations, ce qui reste à vérifier. En attendant une version de DevDesk,
+     une règle C sur `dhi.io/*` l'emporte, et le refus nomme la règle B.
+   - Écarté : traiter B plus doucement en mode clé (non signée qui avertit) —
+     c'est précisément le cas d'un tag republié sans signature.
+   - **La clé mesurée n'est pas encore une clé de confiance** : elle a été
+     téléchargée à travers le proxy du sandbox, qui intercepte TLS. La mesure
+     prouve qu'elle vérifie les images reçues, pas qu'elle est celle de Docker.
+     Elle doit être recoupée avant d'être commitée (plan, étape 0).
+
+#### Décisions, suite (2026-09-25)
+
+1. **Le SBOM est hors de §3.82.** Une image signée sans SBOM n'est pas
+   compromise : il ne bloque jamais, donc il n'a rien à faire dans un verdict de
+   confiance. Ce qu'il apporte — un inventaire meilleur que celui de Trivy sur
+   les binaires statiques et distroless — est une question de scan : §3.91.
+2. **L'image en usage qui viole sa règle est un finding**, sur le modèle de
+   l'étape `build-context` (§3.81) : une étape sans outil de scan de la
+   catégorie Misconfiguration, `Source: signature`, ancrée sur la ligne `FROM`.
+   `DEVDESK-SIG-001` identité inattendue (CRITICAL), `DEVDESK-SIG-002` non
+   signée sous une règle (HIGH). Un échec ne produit pas de finding : un finding
+   affirme un fait. Pas de nouvelle catégorie. Le correctif est la liste des
+   candidats.
+3. **B : aucune entrée sans mesure** — un vrai `cosign verify` réussi, l'identité
+   mesurée écrite dans le code à côté de l'entrée. B vide est acceptable.
+4. **Quand** : candidats en arrière-plan quand ils sont calculés (l'action reste
+   offerte tant que la réponse n'est pas là, Rule 130) ; pull en synchrone *dans*
+   le job de pull, `K` annule les deux ; image en usage pendant le scan. **Pas de
+   colonne dans la vue OCI en v1** — ajoutée finalement, voir l'écart 7.
+5. **Cache des verdicts** : clé = digest + empreinte de la règle ; vérifiée et
+   identité inattendue 24 h, non signée 6 h, **échec jamais**. Un
+   `signature-verdicts.json` sur le modèle d'`image-updates.json`.
+6. **`cosign` se configure par contexte**, `scan.tools.cosign`, dans l'onglet
+   Tools (§3.86) — la politique est globale, la façon de lancer l'outil est
+   locale. Il entre dans la table des outils, **dans aucune catégorie** : il sert
+   aussi hors d'un scan (le pull), et un second interrupteur par la case d'une
+   catégorie contredirait le suivant. Introuvable sous une règle C : échec,
+   donc blocage, avec « cosign not found — install it or set scan.tools.cosign ».
+7. **MCP** : un pull refusé rend la raison à l'agent, le finding `DEVDESK-SIG-*`
+   est dans les résultats de scan qu'il lit déjà. Pas d'outil `verify_image`.
+8. **`scan.image_verification: on | off`**, par contexte, **`on` par défaut**.
+   - Par contexte et non dans `trust.yaml` : *qui* croire est un fait sur le
+     monde, *vérifier ou non* dépend de l'environnement (un contexte isolé du
+     réseau). C'est aussi ce qui le rend éditable dans la vue configuration.
+   - Une chaîne, pas un booléen : `false` est la valeur zéro, tout fichier écrit
+     avant la clé se lirait « ne pas vérifier » (D12). Défaut posé dans
+     `applyDefaults`, comme `base_image_track`.
+   - `on` par défaut est sans risque : sans règle C, un échec ne fait
+     qu'avertir.
+   - `off` coupe tout (verdicts, pull, finding) et l'emporte sur une règle C —
+     visible : « Signatures: off » en en-tête de l'onglet Remediation, un log au
+     démarrage si des règles C sont ainsi neutralisées.
+   - Le nom couvre la provenance (SLSA) le jour où elle est vérifiée : même
+     interrupteur, pas de seconde clé.
+9. **Les identifiants de registre** d'une image privée ne passent pas par argv
+   (`--registry-password` se lit dans la liste des processus) : un
+   `DOCKER_CONFIG` temporaire, 0600, qui ne contient que l'hôte concerné,
+   monté pour un cosign en conteneur, supprimé après.
+
+#### Mesures de l'étape 0 faites dans le sandbox (2026-09-25)
+
+Registre local `registry:2` (HTTP, `--allow-http-registry`), cosign v3.1.3 en
+conteneur, Docker 29.7.2 (magasin d'images containerd) et Podman.
+
+**Mode clé sans Rekor** — signé avec `--use-signing-config=false
+--tlog-upload=false` (cosign v3 refuse `--tlog-upload=false` seul), ce qui
+écrit un bundle :
+
+| Vérification | Sortie | Message |
+|---|---|---|
+| bonne clé, sans `--insecure-ignore-tlog` | 1 | `not enough verified log entries from transparency log: 0 < 1` |
+| bonne clé, `--insecure-ignore-tlog` | **0** | — |
+| mauvaise clé, `--insecure-ignore-tlog` | **1** | `accepted signatures do not match threshold, Found: 0` |
+| mauvaise clé, sans le flag | 1 | le même message que la bonne clé sans le flag |
+| keyless permissif | 1 | — |
+| registre injoignable | 1 | `connection refused` |
+
+- `tlog: false` **doit** ajouter `--insecure-ignore-tlog`, et `tlog: true`
+  (le défaut) refuse bien une signature sans entrée de transparence.
+- **En mode clé, mauvaise clé = 10 sur l'ancien format (DHI), 1 sur le format
+  bundle** — et 1, c'est aussi le registre injoignable. La relance permissive ne
+  sert à rien en mode clé : elle est keyless et échoue sur une signature par
+  clé. `cosign download signature` n'aide pas non plus : il ne lit pas les
+  referrers (« no signatures associated » sur DHI, alors qu'elle est signée).
+  Le mode clé ne sépare donc pas « mauvaise clé » d'« échec » par les codes de
+  sortie — décision ci-dessous.
+
+**Décision (avec l'utilisateur) : en mode clé, tout code autre que 0 et 11 est
+« aucune signature vérifiable de la clé attendue »**, classé `Unsigned`, donc
+**bloquant sous B comme sous C**. *Fail-closed*, et le message est vrai dans les
+deux cas : la signature n'a pas pu être vérifiée par cette clé. Le prix, assumé
+comme un **écart au tableau des verdicts limité au mode clé** : sous B, une
+panne réseau bloque un pull DHI au lieu d'avertir. Écarté : lire stderr pour ce
+seul cas (`accepted signatures do not match threshold`) — ce serait revenir sur
+« jamais le texte des messages », et fragile d'une version de cosign à l'autre.
+Sans cette décision, un passage de DHI au format bundle avec une clé qui ne
+concorde plus donnerait 1, donc « échec », donc un simple avertissement sous B :
+le pull passerait.
+
+**Identifiants de registre privé** — registre avec `htpasswd` : sans
+identifiants, 1 (`UNAUTHORIZED`) ; avec un `DOCKER_CONFIG` temporaire ne
+contenant que cet hôte (`{"auths":{"<hôte>":{"auth":"<base64>"}}}`, 0600) monté
+en lecture seule, **0**. Le fichier doit être lisible par l'utilisateur du
+conteneur : cosign tourne avec `-u <uid>`, le propriétaire du fichier.
+
+**Concurrence** — 3 × 8 vérifications simultanées sur un `TUF_ROOT` **vide**,
+puis 6 sur un cache chaud : **aucun échec** sur 30. Pas de sémaphore.
+
+**Pull par digest puis tag** — `pull repo@<digest de l'index>` puis `tag` :
+exit 0 sur Docker et sur Podman ; le tag pointe sur l'image, `RepoDigests`
+contient le digest. Deux différences :
+
+- Docker (magasin containerd) range **aussi** `repo@sha256:…` dans `RepoTags`.
+  `docker images` n'affiche qu'une ligne ; une vue qui lirait `RepoTags` depuis
+  `image inspect` en verrait deux.
+- Podman garde deux `RepoDigests` (manifeste de la plateforme et index).
+  `imageupdate.Evaluate` compare à l'un d'eux : sans effet.
+
+**`run --pull=never`** — image absente : 125 sur les deux moteurs
+(`No such image` / `image not known`) ; image présente : lancée normalement.
+
+#### Recoupement de la clé DHI, depuis l'hôte (2026-09-25)
+
+La clé mesurée dans le sandbox n'avait été lue qu'à travers son proxy
+interceptant TLS (voir plus haut). Depuis l'hôte, sans ce proxy — certificat
+serveur en ordre (`registry.scout.docker.com`, Google Trust Services, valide
+au 2026-09-25) — puis recoupée contre une seconde source indépendante :
+
+| Source | URL | Empreinte (`openssl pkey -pubin -outform der \| sha256sum`) |
+|---|---|---|
+| Registre Scout, depuis l'hôte | `registry.scout.docker.com/keyring/dhi/latest.pub` | `118ba556dd52f4aec67018efd316c285c783cd3e54cc0f4527605715c643887c` |
+| Dépôt `keyring` de Docker, GitHub | `github.com/docker-hardened-images/keyring`, `publickey/dhi-2.pub` | même empreinte — commit signé, marqué vérifié par GitHub |
+| `dhi.io` (domaine tiers) | `dhi.io/keyring/2.pub` | même empreinte |
+
+**Les trois concordent** : la clé est celle du dépôt `docker-hardened-images/
+keyring` (README : « active »), pas seulement celle lue dans le sandbox. Elle
+peut être commitée.
+
+- **Docker annonce ses rotations** : le README du dépôt `keyring` tient un
+  tableau de statut par clé (`active` / `inactive`) avec une URL par
+  génération (`dhi.io/keyring/<n>.pub`), et la réponse de
+  `registry.scout.docker.com` porte un en-tête `x-keyid` (`2`, ici). `dhi-1.pub`
+  existe, marquée `inactive`, empreinte différente
+  (`1b431f0d467ecc9e3d97e5b446980599a99c3a386e42ea628b172db1051c737b`) : **une
+  rotation a déjà eu lieu** avant cette mesure. Il faut surveiller ce tableau
+  — pas seulement `latest.pub` — pour ajouter la suivante sans casser les pulls
+  pendant une transition.
+- **Seules les clés `active` sont embarquées — `dhi-2` seule aujourd'hui**
+  (décidé avec l'utilisateur, en corrigeant une première version qui embarquait
+  aussi `dhi-1`). Trois raisons :
+  - `inactive` n'a **ni raison ni date** dans le README : retrait ordinaire ou
+    révocation après compromission, on ne sait pas. Accepter une clé que Docker
+    n'utilise plus, sans savoir pourquoi, c'est lui faire confiance à l'aveugle.
+  - **Elle ne sert à rien sur ce qui a été mesuré** : `dhi.io/static:20250419`,
+    la plus ancienne image testée, rend **10** avec `dhi-1` et **0** avec
+    `dhi-2` ; `dhi-2.pub` est dans le dépôt depuis au moins le 2025-04-17. Les
+    images testées portent une signature `dhi-2`.
+  - L'empreinte de `dhi-1` a été recalculée depuis GitHub, dans le sandbox
+    (`1b431f0d…1c737b`) : elle concorde, la clé est bien identifiée — c'est son
+    statut qui l'écarte, pas un doute sur elle.
+
+  Le mécanisme « plusieurs clés par entrée » reste : il sert quand **deux clés
+  sont `active` en même temps**, pendant une transition ; l'ancienne sort de la
+  liste quand elle passe `inactive`. Une vieille image signée seulement par
+  `dhi-1` est bloquée ; le refus nomme la règle B, et une règle C l'accepte
+  délibérément.
+- La clé lue dans le sandbox, à travers le proxy, a la **même** empreinte
+  `118ba556…3887c` : le proxy ne l'avait pas altérée.
+- `docs.docker.com/dhi/core-concepts/signatures/` ne documente ni la clé ni sa
+  rotation ; seul le dépôt `keyring` fait foi.
+
+Adopter une nouvelle clé d'éditeur à l'exécution, sur approbation : §3.92.
+
+#### Ce qui a été construit, et où cela diffère des décisions (2026-09-25)
+
+Construit en une branche et une PR, en quatre étapes — le domaine, le pull, l'onglet
+Remediation, le finding. Le plan (`.claude/plans/`) est retiré avec la
+livraison : ce qui suit est ce qu'il gardait qui ne se lit pas dans le code.
+
+| Où | Quoi |
+|---|---|
+| `internal/trust` | la politique (`trust.yaml`, stricte), la correspondance, B (distroless, Chainguard, DHI avec `keys/dhi-2.pub` embarquée), `Decide`, `Evaluate`/`Continuity`, **`Check`** — la séquence unique —, le cache des verdicts |
+| `internal/scan/cosign.go` | le `Verifier` : codes 0/10/11 lus tels quels, relance permissive en keyless, mode clé *fail-closed*, `--experimental-oci11` sur `verify` seulement, identifiants par `COSIGN_REGISTRY_*`, image épinglée par digest |
+| `internal/scan/signature.go` | `SignatureDeps` — le câblage unique — et l'étape `signature` (`DEVDESK-SIG-001/002`) |
+| `internal/imagepull` | `Pull` (digest vérifié → pull du digest → tag) et `Check` ; seul chemin vers le pull du moteur, gardé par `TestNoPullBypassesTheSignatureCheck` |
+| `internal/ui/oci_resources` | les deux pulls, la colonne `Sig` de l'onglet Images, l'en-tête `Signatures`, l'aide |
+| `internal/ui/sigcol` | la colonne `Sig`, partagée par les deux vues |
+| `internal/ui/security` | la colonne `Sig`, le refus au `space`, le relâchement, la confirmation |
+| `internal/config`, vue configuration | `scan.image_verification`, `scan.tools.cosign`, l'onglet Tools |
+
+Écarts, chacun pris en route et noté ici :
+
+1. **Les packages.** `Check` vit dans `trust` et le câblage dans `scan`, pas
+   dans `internal/remediation` ni dans `trust.PullVerified` : `remediation` et
+   `cache` importent `scan`, qui implémente le `Verifier` — tout autre
+   emplacement faisait un cycle. Pour la même raison `trust.Repository` réécrit
+   la lecture de `remediation.ParseRef`, un test gardant les deux d'accord, et le
+   cache des verdicts est dans `trust`.
+2. **Identifiants par l'environnement**, pas par un `DOCKER_CONFIG`
+   temporaire : mesuré, cosign lit `COSIGN_REGISTRY_USERNAME`/`_PASSWORD`, et un
+   fichier 0600 monté n'est pas lisible par l'utilisateur du conteneur.
+3. **Pas de cache TUF monté** : une racine fraîche à chaque run, ≈3 s, sans
+   échec sur 30 runs concurrents.
+4. **Un `trust.yaml` illisible refuse les pulls** (validé avec l'utilisateur) :
+   un fichier illisible n'est pas une politique vide.
+5. **Un digest que le registre ne donne pas** : Failed, décidé par la règle qui
+   se serait appliquée (validé avec l'utilisateur).
+6. **L'en-tête `Signatures`** (`off`, `trust.yaml invalid`) est aussi dans
+   l'onglet Images de la vue OCI, là où se font les pulls.
+7. **La colonne `Sig` est aussi dans la vue OCI** (demandé par l'utilisateur),
+   alors que la décision 4 l'excluait de la v1 : onglet Images, le verdict du
+   digest sur disque contre les règles seules. D'où `internal/ui/sigcol`, un
+   paquet partagé comme `updatecol` — deux consommateurs. Pas dans la vue des
+   conteneurs.
+8. **Un verdict qui arrive sous la confirmation ouverte** empêche l'écriture de
+   l'image qu'il bloque, en plus du relâchement d'un choix déjà fait.
+9. **`cosign version`** imprime une bannière : `CleanVersion` lit la ligne
+   `GitVersion:`.
+10. **`run --pull=never`** couvre `LaunchContainer`, `BuildLaunchCmd` et
+    `VerifyEntrypoint`. Les images d'outils de DevDesk (Trivy, cosign, netdiag)
+    restent tirées par leur `run`, non vérifiées — exception déclarée.
+11. **Une case à cocher, pas un champ cyclique** (décidé avec l'utilisateur) :
+    « vérifier ou non » est un booléen, et la règle 132 réserve le cycle aux
+    ensembles de valeurs nommées. Le fichier garde la chaîne `on`/`off` (D12) ;
+    la case lit `VerifiesImages`, donc une valeur mal tapée s'affiche cochée, et
+    le premier `space` la réécrit.
+12. **Trois corrections après revue de la branche** :
+    - **Un « non signé » déduit n'est ni mis en cache ni un constat.** Le mode
+      clé est *fail-closed* : tout code autre que 0, 10, 11 donne `Unsigned`,
+      et une panne réseau sort ainsi. Mis en cache 6 h, ce verdict bloquait un
+      pull DHI (règle intégrée) six heures après le retour du réseau — ce que
+      « échec jamais » (décision 5) interdit — et produisait un faux
+      DEVDESK-SIG-002. Le vérificateur l'accompagne désormais de
+      `trust.ErrUnproven` : il bloque toujours, mais n'est pas stocké, la
+      colonne Sig le redemande comme un échec, et le scan en fait une erreur
+      d'étape. Le code 10 (aucune signature) reste un `Unsigned` prouvé.
+    - **La continuité essaie chaque identité prouvée**, pas seulement la
+      première : une image signée par l'éditeur et un distributeur continue si
+      le candidat porte l'une des deux. Si aucune ne vérifie, un échec
+      l'emporte sur une identité inattendue (avertir plutôt que bloquer quand
+      on ne sait pas).
+    - **`G` vers un tag plus récent continue l'image qu'il remplace**
+      (`Deps.Replacing`) : le tag cible n'est pas encore sur disque, donc la
+      continuité calculée sur son nom ne comparait avec rien.
+
+Vérifié à chaque étape contre le vrai cosign et le vrai moteur, dans le
+sandbox, par des tests jetables non commités (résultats dans les messages de
+commit de la branche). `test-race` n'a pas pu tourner dans le sandbox (cgo sans
+en-têtes C) : à lancer depuis l'hôte avant le merge.
 
 ---
 
@@ -15209,6 +15684,115 @@ touche propre à `ct`. Les lettres libres passent à `Q Z`.
   `nginx` / `docker.io/library/nginx`, port de registre, digest, ID nu.
 - Une recherche qui masque la cible est effacée ; une image absente donne un
   `Warn` dans le footer.
+
+### 3.90 Une CI qui pousse une image sans la signer — **à explorer**
+
+Née de la discussion de §3.82 (2026-09-25). §3.82 *vérifie* la signature d'une
+image de base avant de la recommander ; la question voisine était de savoir si
+DevDesk devait aussi *signer*. **Non, décidé avec l'utilisateur**, pour trois
+raisons :
+
+1. **DevDesk ne build ni ne pousse aucune image** — vérifié : aucun chemin de
+   push dans `internal/docker`, `internal/oci` ni les actions MCP. Signer vient
+   juste après un push ; il n'y a pas d'endroit où l'action aurait sa place.
+2. **Une signature faite depuis un poste atteste la mauvaise chose.** En
+   keyless, l'identité serait celle du développeur, alors qu'une politique
+   sérieuse — celle de §3.82 comprise — épingle une identité de CI
+   (`…/release.yaml@refs/heads/main`). Avec une clé, c'est une clé privée sur
+   un laptop, contre la règle qu'aucun secret ne vit dans un fichier de
+   DevDesk.
+3. **Le rôle de DevDesk est de vérifier et de montrer**, pas de produire.
+
+**Ce qui reste, et qui agit sur la cause :** signaler un pipeline qui **pousse
+une image sans la signer** ni lui attacher d'attestation. C'est là que la
+signature doit vivre, et DevDesk lit déjà les pipelines : la catégorie CI
+(plumber, §3.42) note les workflows GitHub et `.gitlab-ci.yml` du dépôt.
+
+**Pas creusé plus loin ici** :
+
+1. **Qui porte le contrôle.** plumber évalue des politiques Rego et accepte un
+   fichier de règles (`scan.tools.plumber.config`) : une règle de plus là, ou un
+   contrôle écrit ici sur le YAML du pipeline ? À vérifier dans plumber avant de
+   supposer qu'il n'a rien — il a peut-être déjà un contrôle de ce genre.
+2. **Reconnaître un push et une signature.** `docker push`, `docker/build-push-action`,
+   `buildx --push`, kaniko, `ko`… d'un côté ; `cosign sign`,
+   `sigstore/cosign-installer`, `actions/attest-build-provenance`, `notation sign`
+   de l'autre. Une liste fermée donnera des faux négatifs ; il faut décider
+   lesquels sont acceptables.
+3. **Keyless exige un droit du job** : `id-token: write` sur GitHub, un
+   `id_tokens:` sur GitLab. Un `cosign sign` sans lui échoue en CI — le
+   signaler serait le complément naturel.
+4. **Un template qui signe déjà** (`:templates`, keyless + OIDC) serait la
+   remédiation la plus directe, dans l'esprit de §3.83 : partir bien plutôt que
+   corriger.
+
+Lié : §3.82 (vérifier), §3.42 (le score CI), §3.83 (templates).
+
+### 3.91 Le SBOM signé de l'éditeur comme entrée de Trivy — **à explorer**
+
+Sorti de §3.82 le 2026-09-25. Un éditeur qui publie un SBOM signé (attestation
+`spdxjson` ou `cyclonedx`) décrit l'image mieux que Trivy ne la devine sur ce
+qui n'a pas de base de paquets — binaires statiques, distroless. `trivy sbom`
+scanne un SBOM au lieu de l'image. Ce n'est pas une question de confiance
+(§3.82 : un SBOM absent ne bloque jamais) mais de **qualité du scan**.
+
+§3.14 a retiré la *génération* d'un SBOM ; il s'agirait ici d'en *consommer*
+un, vérifié par `cosign verify-attestation --type …` avec la même politique
+que §3.82. **Pas creusé** : quelles images en publient réellement, si le
+résultat diffère assez de `trivy image` pour valoir un second chemin, et que
+faire quand les deux se contredisent.
+
+### 3.92 Adopter une nouvelle clé d'éditeur à l'exécution, sur approbation — **à explorer**
+
+Née de §3.82 (2026-09-25). Les clés de B sont embarquées dans le binaire : une
+rotation chez l'éditeur (DHI en a déjà connu une, `dhi-1` → `dhi-2`) bloque les
+pulls jusqu'à une nouvelle version de DevDesk, ou jusqu'à une règle C écrite à
+la main. La question : DevDesk peut-il adopter la nouvelle clé lui-même, sans
+rouvrir la faille que l'embarquement ferme ?
+
+**Le stockage n'est pas le problème.** Une clé publique n'est pas un secret :
+le risque est d'en **accepter une fausse**, pas qu'elle fuie. Un fichier 0600
+sous `~/.devdesk/` vaut le trousseau système, et qui peut y écrire peut déjà
+modifier `trust.yaml`. Le problème est **l'acquisition** : décider à
+l'exécution qu'une clé téléchargée est légitime.
+
+| Approche | Ce qu'elle vaut |
+|---|---|
+| Télécharger `latest.pub` et l'adopter | Non : contenu et preuve viennent du même réseau — la faille de §3.82 |
+| **Quorum** — `registry.scout.docker.com`, GitHub (`docker-hardened-images/keyring`), `dhi.io` doivent concorder | Mieux : un point compromis ne suffit plus. Mais un proxy qui intercepte TLS avec une CA de confiance tient les trois, un compte Docker compromis au moins deux |
+| Nouvelle clé signée par l'ancienne | La bonne réponse — Docker ne publie pas de telle déclaration (rien dans le dépôt `keyring`) |
+| TUF | Ce que cosign fait pour la racine Sigstore (`13.root.json`, chaque racine signée par la précédente) — Docker ne distribue pas les clés DHI ainsi |
+| **Approbation explicite**, façon `known_hosts` | La décision reste humaine |
+
+**La forme envisagée : quorum + approbation, écrite comme une règle C.** Un
+pull DHI est refusé (clé qui ne concorde plus) ; DevDesk voit que l'en-tête
+`x-keyid` de `registry.scout.docker.com` a changé, récupère la nouvelle clé
+depuis au moins deux sources et vérifie qu'elles concordent, puis propose
+« New DHI signing key `ab12…` — accept? », confirmation dont le choix par défaut
+est **Non**. Accepter ajoute une règle `dhi.io/*` à `trust.yaml` :
+
+- **aucun nouveau lieu de stockage** — la clé devient une déclaration de
+  confiance de l'utilisateur, ce que C veut dire, et C passe avant B ;
+- **jamais automatique** — l'empreinte affichée est ce que l'utilisateur
+  compare au dépôt `keyring` ;
+- **seulement pour une entrée B en mode clé** : un éditeur keyless (distroless,
+  Chainguard) n'a pas de clé à faire tourner ; un changement d'identité y est
+  un changement de workflow, pas une rotation.
+
+**Pas creusé plus loin ici** :
+
+1. **DevDesk écrirait dans `trust.yaml`**, jusqu'ici édité à la main et lu en
+   strict. `yaml.v3` sait modifier le nœud en gardant les commentaires ; à
+   vérifier sur un fichier réel, et décider où la règle s'insère — la première
+   règle qui correspond gagne, donc l'ordre compte.
+2. **Ce que vaut le quorum** face au modèle de menace de §3.82, écrit plutôt
+   que supposé : il ne protège pas contre qui tient le réseau *et* une CA.
+3. **Le signal de rotation** : `x-keyid` est-il stable, documenté, présent sur
+   `dhi.io` aussi ? Mesuré une fois (`2`), rien de plus.
+4. **L'entrée MCP** : un agent ne doit **jamais** pouvoir accepter une clé —
+   c'est une décision de confiance, à réserver à la touche.
+
+Lié : §3.82.
 
 ## 4. Existing plans
 

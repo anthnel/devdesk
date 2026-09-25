@@ -65,6 +65,9 @@ type ScanOptions struct {
 	// mode is off, and a scan must not see it then. OptionsFromConfig resolves
 	// it once, so no stage re-reads the switch.
 	TrivyServer string
+	// ImageVerification is scan.image_verification: whether the base images'
+	// signatures are checked (§3.82). Only "off" turns it off.
+	ImageVerification string
 	// Detected is a detection already made — the router's, shared by every
 	// view — so a scan does not probe the machine again. Nil detects, which is
 	// what a caller with no report yet gets. A tool that disappeared between
@@ -750,6 +753,17 @@ func (s *Scanner) Scan(ctx context.Context, target string, targetType TargetType
 	if s.checksBuildContext(targetType) {
 		eg.Go(func() error {
 			runBuildContextStage(target, result, &mu, notify)
+			return nil
+		})
+	}
+
+	// Base image signatures (DevDesk itself, directories only, §3.82): a base
+	// in use that violates its rule. Also toolless as the scan sees it — a
+	// missing cosign is a verdict, not a stage refused.
+	if s.checksSignatures(targetType) {
+		deps := signatureDeps(s.spec(ToolCosign))
+		eg.Go(func() error {
+			runSignatureStage(ctx, target, deps, result, &mu, notify)
 			return nil
 		})
 	}

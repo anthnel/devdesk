@@ -92,7 +92,7 @@ func (m Model) handleImagePullRequested(msg ImagePullRequestedMsg) (tea.Model, t
 	}
 
 	return m, jobs.WithInvocation(msg.Invocation,
-		jobs.Start(m.pullRun(msg.Image), pullOneImageCmd(msg.Image)))
+		jobs.Start(m.pullRun(msg.Image), pullOneImageCmd(msg.Image, m.pullDeps())))
 }
 
 // deferUntilListed holds a request that arrived before the daemon had answered.

@@ -26,9 +26,10 @@ func OptionsFromConfig(cfg *config.Config) ScanOptions {
 		trivyServer = c.Tools.Trivy.Server.URL
 	}
 	return ScanOptions{
-		Categories:  c.Categories,
-		Tools:       c.Tools,
-		TrivyServer: trivyServer,
-		Forge:       cfg.Forge,
+		Categories:        c.Categories,
+		Tools:             c.Tools,
+		TrivyServer:       trivyServer,
+		ImageVerification: c.ImageVerification,
+		Forge:             cfg.Forge,
 	}
 }

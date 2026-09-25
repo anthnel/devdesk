@@ -157,6 +157,57 @@ once the tag has moved to a newer image. A search hiding the target is
 dropped; an image that is no longer listed is a footer `Warn`. There is no
 `esc` back: `:ct` returns, as from any other view.
 
+## Verified pulls — `internal/imagepull` (§3.82)
+
+**Every pull goes through `imagepull.Pull`** — the registry browser's `G`, an
+update's `G`, an agent's `image_pull_start`. `TestNoPullBypassesTheSignatureCheck`
+(`internal/ui/oci_resources`) walks `internal/` and fails on any other file
+naming `docker.PullImageContext`: a second path would be a pull nobody
+verified. The engine's pull survives in the OCI view only as the seam
+`pullImageContext`, handed to `imagepull.Deps` by `pullDeps` and called nowhere.
+
+The sequence, in `pull.go`:
+
+1. `scan.image_verification: off` pulls the tag, as before §3.82.
+2. `~/.devdesk/trust.yaml` is read on every pull. A file that does not load
+   **refuses** the pull, naming the error: an unreadable policy is not an empty
+   one, and falling back to the built-in rules would drop the user's in silence.
+3. The tag is resolved to a digest (`oci.ManifestDigest`, the index digest
+   cosign signs). A registry that will not give it is a Failed verdict decided
+   by the rule that would have applied — a user rule refuses, anything else
+   pulls the tag and warns.
+4. `trust.Evaluate` on that digest, with the local image of the same repository
+   (`RepoDigests`) for continuity. `Block` is an `imagepull.BlockedError`,
+   whose message is the reason, naming the rule.
+5. `pull repo@digest`, then `docker.TagImage` back to the name asked for.
+   Pulling the tag instead would let it move between the check and the pull —
+   the attack. Measured on Docker and Podman; under Docker's containerd store
+   `repo@sha256:…` also shows in `RepoTags`, `docker images` lists one row.
+
+What the views do with it: a refusal is a footer **Error** naming the rule, and
+the `:jobs` detail an agent reads is the same sentence; a Warn goes ahead and
+says why after the pull. The Images tab header shows `Signatures: off`, or
+`trust.yaml invalid` — read once when the view starts (`checkTrustPolicyCmd`).
+
+**The `Sig` column** of the Images tab (`signatures.go`, the shared
+`internal/ui/sigcol`) is each local image's verdict on the content on disk:
+`imagepull.LocalDigest` picks the `RepoDigests` entry of the image's own
+repository, and `imagepull.Check` asks about that digest against the rules
+alone — continuity would compare the image with itself. An image with no such
+digest was built or loaded here (a hammer, as in Update). Checked in the
+background on `ImagesListMsg`, four at a time; `sigAsked` keeps the digest each
+image was asked about, so an unchanged list asks nothing, a pull that changes
+the digest asks again, a verdict about a former digest is dropped, and a Failed
+one is retried after 30 minutes. An image no rule covers is decided without
+cosign, and one DevDesk pulled comes from the verdict cache. Nothing acts on
+the column.
+
+**`run` never pulls**: `buildLaunchArgs` and `VerifyEntrypoint` pass
+`--pull=never` (a missing image exits 125, both engines). An image reaches the
+machine through a verified pull or not at all. DevDesk's own tool images —
+Trivy, cosign, the netdiag image — are pulled by their `run` and are **not**
+verified: a declared exception.
+
 ## Network Diagnostics View
 
 `internal/ui/netdiag/` — four tabs:

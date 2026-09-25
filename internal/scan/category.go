@@ -30,6 +30,7 @@ const (
 	SourceHelm           = "helm"            // helm lint, and a chart that does not render
 	SourceKustomize      = "kustomize"       // a Kustomize overlay that does not build
 	SourceBuildContext   = "build-context"   // what a COPY of the whole context takes into the image (§3.81)
+	SourceSignature      = "signature"       // a base image whose signature violates its rule (§3.82)
 )
 
 // Category is the family a finding belongs to: a tab in the results view,
@@ -54,7 +55,7 @@ func Categorize(f Finding) Category {
 		return CategorySecret
 	case SourceTrivyLicense:
 		return CategoryLicense
-	case SourceTrivyMisconfig, SourceKubeconform, SourceHelm, SourceKustomize, SourceBuildContext:
+	case SourceTrivyMisconfig, SourceKubeconform, SourceHelm, SourceKustomize, SourceBuildContext, SourceSignature:
 		// A manifest the API server would refuse is a misconfiguration of the
 		// same file Trivy lints, and the tab that lists one lists the other. So
 		// is a Dockerfile whose COPY takes .git into the image.

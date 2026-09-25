@@ -9,6 +9,7 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/registrymgr"
+	"github.com/anthnel/devdesk/internal/trust"
 )
 
 // openMultiRegistryBrowser opens the multi-registry browser (triggered by 'b' on Images tab).
@@ -81,7 +82,7 @@ func (m Model) handleRegistryPullRequested(msg RegistryPullRequestedMsg) (tea.Mo
 	if m.pullingImage(msg.ImageName) {
 		return m, m.footer.Warn("Pull already in progress")
 	}
-	start := jobs.Start(m.pullRun(msg.ImageName), pullOneImageCmd(msg.ImageName))
+	start := jobs.Start(m.pullRun(msg.ImageName), pullOneImageCmd(msg.ImageName, m.pullDeps()))
 
 	// closeMultiRegistryBrowser carries the deselection the next visit reopens
 	// on, so the browser is closed through it rather than by hand.
@@ -104,9 +105,16 @@ func (m Model) handleRegistryPullComplete(msg RegistryPullCompleteMsg) (tea.Mode
 	if msg.Replaces != "" {
 		return m.handleImageUpdated(msg)
 	}
+	if isBlocked(msg.Err) {
+		log.Printf("ERROR [oci_resources] pull %s refused: %v", msg.ImageName, msg.Err)
+		return m, m.footer.Error("Pull of " + msg.ImageName + " refused: " + msg.Err.Error())
+	}
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] pull %s: %v", msg.ImageName, msg.Err)
 		return m, m.footer.Error("Pull failed — check logs")
+	}
+	if msg.Check.Decision == trust.Warn {
+		return m, tea.Batch(fetchImages(), m.footer.Warn("Pulled "+msg.ImageName+" — "+msg.Check.Reason()))
 	}
 	return m, tea.Batch(fetchImages(), m.footer.Info("Image pulled: "+msg.ImageName))
 }
