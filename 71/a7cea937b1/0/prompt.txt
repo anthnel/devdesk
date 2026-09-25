@@ -1,0 +1,83 @@
+j'empêcherai un pull d'une image compromise
+
+---
+
+explique moi plus en détail "bloque aussi sur non signée et sur échec quand une règle explicite existe"
+
+---
+
+oui, consigne toutes les décisions dans §3.82
+
+---
+
+commit
+
+---
+
+continuons d'en discuter l'objectif est d'avoir tout trancher pour faire un plan d'implémentation
+
+---
+
+oui, lance la mesure, je suis ok avec tes recommandations. Il faudrait aussi dans la config un option qui dit verifier ou pas les signatures/provenance
+
+---
+
+tu peux tester cgr.dev et rekor j'ai ouvert l'accès
+
+---
+
+explique moi La clé DHI est embarquée dans le binaire.
+
+---
+
+oui, ajoute-le à l'étape 0 et consigne
+
+---
+
+lance les mesures de l'étape 0 faisables dans le sandbox
+
+---
+
+oui, A, consigne
+
+---
+
+commit
+
+---
+
+<pasted_content id="c2f1">
+Point 7 est fait, depuis l'hôte. Résumé :
+
+Décision "fail-closed" (option A) — déjà validée et committée par vous dans le sandbox (f829519b) avant l'envoi de ce récap. Je suis d'accord avec le raisonnement : ça reste cohérent avec le principe déjà acté ailleurs dans le plan (« jamais le texte des messages »), et le coût (une panne réseau bloque un pull DHI au lieu d'avertir) est correctement circonscrit au mode clé. Rien à changer.
+
+Point 7 — recoupement de la clé DHI, fait maintenant depuis l'hôte :
+- Téléchargée directement (registry.scout.docker.com/keyring/dhi/latest.pub), certificat serveur en ordre (Google Trust Services, valide).
+- Recoupée contre deux sources indépendantes : le dépôt GitHub docker-hardened-images/keyring (commit signé, vérifié par GitHub) et dhi.io.
+- Les trois concordent — empreinte 118ba556…3887c.
+- Bonus : le README du dépôt keyring confirme que Docker annonce ses rotations (tableau active/inactive par clé) — dhi-1.pub est déjà inactive avec une empreinte différente, donc une rotation a déjà eu lieu avant même cette mesure.
+
+Documenté dans §3.82 et le plan, commit 43de1510 sur docs/backlog-3-90-ci-signing. L'étape 0 est maintenant entièrement close.
+
+Point technique en passant : le worktree a un pointeur .git au format POSIX (/c/Users/...) que git natif ne résout pas depuis l'hôte (fatal: not a git repository: (NULL)) — exactement le problème documenté dans le CLAUDE.md. J'ai contourné avec GIT_DIR/GIT_WORK_TREE explicites plutôt que de toucher aux fichiers pointeurs.
+</pasted_content id="c2f1">
+
+---
+
+oui nouvelle entrée
+
+---
+
+on va tout faire dans une seule branche et on ne poussera qu'une pr
+
+---
+
+oui, commence l'étape 1
+
+---
+
+oui, passe à l'étape 2
+
+---
+
+oui je valide, continue

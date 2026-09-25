@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "71a7cea937b1",
+  "strategy": "manual-commit",
+  "branch": "feat/image-signature-verification",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/71/a7cea937b1/0/metadata.json",
+      "transcript": "/71/a7cea937b1/0/full.jsonl",
+      "compact_transcript": "/71/a7cea937b1/0/transcript.jsonl",
+      "content_hash": "/71/a7cea937b1/0/content_hash.txt",
+      "prompt": "/71/a7cea937b1/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 42,
+    "cache_creation_tokens": 46972,
+    "cache_read_tokens": 12445192,
+    "output_tokens": 24358,
+    "api_call_count": 21
+  }
+}
