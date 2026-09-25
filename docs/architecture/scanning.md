@@ -882,6 +882,15 @@ measured on cosign v3.1.3 (§3.82, "Mesure"):
   (measured ~3 s, and 30 concurrent runs on an empty root all passed), which
   avoids a writable host mount the container's user could not write anyway.
 
+**In the Remediation tab** (`remediation_signatures.go`), every image is
+checked in the background once the candidates are known — `imagepull.Check`,
+the pull's own sequence without the pull: the base against the rules alone, a
+candidate also by continuity with the base's tag as the registry resolves it
+now. The `Sig` column shows it; a `Block` greys `space` with the reason, and a
+verdict landing after a choice releases it — or, under an open confirmation,
+stops that image from being written. A `Warn` is repeated in the `ctrl+o`
+confirmation. Four entries at a time (`signatureSlots`).
+
 ## The security inventory
 
 `:sec` opens on **everything the current context has scanned**, read from

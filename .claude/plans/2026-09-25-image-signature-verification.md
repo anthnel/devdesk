@@ -279,6 +279,25 @@ appel à `Verify` ; refus nommant la règle.
 
 ### Étape 3 — l'onglet Remediation
 
+**Faite le 2026-09-25.** Écarts au texte ci-dessous :
+
+- **`imagepull.Check`** vérifie sans tirer, et partage sa séquence avec `Pull`
+  (`check`) : l'onglet, le pull et le finding de l'étape 4 posent la même
+  question de la même façon. Le candidat est comparé au tag de l'image en usage
+  *résolu au registre* (continuité), l'image en usage aux seules règles.
+- **La colonne `Sig` est locale** (`remediation_signatures.go`), pas un paquet
+  partagé comme `updatecol` : un seul consommateur, la vue OCI n'en a pas en v1.
+- **`imageupdate` n'est pas réutilisé pour les digests** : `Check` résout via
+  `Deps.Digest`, le même chemin que le pull.
+- **Un verdict qui arrive sous la confirmation ouverte** empêche l'écriture de
+  l'image qu'il bloque (`handleRemediationConfirmed`) — en plus du relâchement
+  d'un choix déjà fait.
+- Concurrence plafonnée à 4 entrées à la fois (`signatureSlots`), délai de
+  3 min par entrée.
+- **Vérifié contre le vrai cosign** (test jetable) : distroless `nonroot` et
+  `debug` vérifiées sous B ; cosign v3.1.3 vérifiée par continuité avec v3.1.2 ;
+  python sans politique.
+
 - Colonne **`Sig`**, icône seule, après `Update` — un paquet partagé sur le
   modèle d'`updatecol`, pour que la vue OCI puisse la reprendre plus tard. Icône
   OK / avertissement orange / erreur rouge / `-` grisé / `?` (Rule 121, 122 :

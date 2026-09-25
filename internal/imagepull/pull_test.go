@@ -186,3 +186,22 @@ func TestTheLocalDigestIsTheOneOfTheSameRepository(t *testing.T) {
 		t.Errorf("localDigest = %q, want none", got)
 	}
 }
+
+func TestCheckComparesACandidateWithWhatTheTagInUsePointsTo(t *testing.T) {
+	d := deps(nil, &engine{})
+	d.Verifier = continuityVerifier{}
+	d.Digest = func(ref string) (string, error) {
+		if strings.HasSuffix(ref, ":1.1") {
+			return "sha256:old", nil
+		}
+		return "sha256:new", nil
+	}
+	res := Check(context.Background(), "registry.example/app:1.2", "registry.example/app:1.1", d)
+	if res.Verdict != trust.Unsigned || res.Rule.Source != trust.SourceContinuity || res.Decision != trust.Warn {
+		t.Errorf("res = %+v", res)
+	}
+	d.Enabled = false
+	if res := Check(context.Background(), "registry.example/app:1.2", "", d); res.Verdict != trust.NoPolicy || res.Decision != trust.Allow {
+		t.Errorf("off answered %+v", res)
+	}
+}

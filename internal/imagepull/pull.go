@@ -49,31 +49,14 @@ func Pull(ctx context.Context, ref string, d Deps) (trust.Result, error) {
 	if !d.Enabled {
 		return trust.Result{}, d.Pull(ctx, ref)
 	}
-	policy, err := d.Policy()
-	if err != nil {
-		// A policy that cannot be read is not an empty one: the rules it holds
-		// would be dropped in silence, which is the weakening the strict parse
-		// exists to prevent. Refused, naming the file.
-		res := trust.Result{Verdict: trust.Failed, Decision: trust.Block, Err: err,
-			Rule: trust.Rule{Source: trust.SourceUser, Origin: "trust.yaml is invalid: " + err.Error()}}
-		return res, &BlockedError{Result: res}
-	}
-
-	pinned := ref
-	if trust.Digest(ref) == "" {
-		digest, err := d.Digest(ref)
-		if err != nil {
-			return pullUnresolved(ctx, ref, policy, err, d)
-		}
-		pinned = trust.Repository(ref) + "@" + digest
-	}
-
-	res := trust.Evaluate(ctx, policy, d.Verifier, pinned, d.Current(ref))
-	if res.Err != nil {
-		log.Printf("ERROR [imagepull] verify %s: %v", pinned, res.Err)
-	}
+	res, pinned := check(ctx, ref, d.Current(ref), d)
 	if res.Decision == trust.Block {
 		return res, &BlockedError{Result: res}
+	}
+	if pinned == "" {
+		// The digest could not be had: nothing was verified, and the decision
+		// above said that may go ahead — pull the tag as asked.
+		return res, d.Pull(ctx, ref)
 	}
 	if err := d.Pull(ctx, pinned); err != nil {
 		return res, err
@@ -86,23 +69,72 @@ func Pull(ctx context.Context, ref string, d Deps) (trust.Result, error) {
 	return res, d.Tag(pinned, ref)
 }
 
-// pullUnresolved is a tag whose digest the registry did not give. Nothing can
-// be verified — so it is a Failed verdict, decided by the rule that would have
-// applied: a user rule refuses, anything else pulls the tag and warns.
-func pullUnresolved(ctx context.Context, ref string, policy trust.Policy, cause error, d Deps) (trust.Result, error) {
+// Check answers for ref without pulling it — what the Remediation tab shows
+// next to a candidate, and the scan's finding on the image in use. current is
+// the image ref would replace, as a tag or pinned; "" for none. Off answers
+// nothing: a zero Result.
+func Check(ctx context.Context, ref, current string, d Deps) trust.Result {
+	if !d.Enabled {
+		return trust.Result{}
+	}
+	if current != "" && trust.Digest(current) == "" {
+		// Continuity compares with what the tag in use points to now; a
+		// registry that will not say leaves nothing to continue.
+		current = pin(current, d)
+	}
+	res, _ := check(ctx, ref, current, d)
+	return res
+}
+
+// check is the verification Pull and Check share. pinned is the digest the
+// verdict is about, "" when the registry would not give one.
+func check(ctx context.Context, ref, current string, d Deps) (trust.Result, string) {
+	policy, err := d.Policy()
+	if err != nil {
+		// A policy that cannot be read is not an empty one: the rules it holds
+		// would be dropped in silence, which is the weakening the strict parse
+		// exists to prevent. Refused, naming the file.
+		return trust.Result{Verdict: trust.Failed, Decision: trust.Block, Err: err,
+			Rule: trust.Rule{Source: trust.SourceUser, Origin: "trust.yaml is invalid: " + err.Error()}}, ""
+	}
+	pinned := ref
+	if trust.Digest(ref) == "" {
+		digest, err := d.Digest(ref)
+		if err != nil {
+			return unresolved(ref, policy, err), ""
+		}
+		pinned = trust.Repository(ref) + "@" + digest
+	}
+	res := trust.Evaluate(ctx, policy, d.Verifier, pinned, current)
+	if res.Err != nil {
+		log.Printf("ERROR [imagepull] verify %s: %v", pinned, res.Err)
+	}
+	return res, pinned
+}
+
+// unresolved is a tag whose digest the registry did not give. Nothing can be
+// verified — so it is a Failed verdict, decided by the rule that would have
+// applied: a user rule refuses, anything else goes ahead and warns.
+func unresolved(ref string, policy trust.Policy, cause error) trust.Result {
 	log.Printf("ERROR [imagepull] resolve %s: %v", ref, cause)
 	res := trust.Result{Verdict: trust.Failed, Decision: trust.Decide(trust.Failed, trust.SourceContinuity),
 		Err: fmt.Errorf("resolve %s: %w", ref, cause)}
 	if rule, ok := policy.Lookup(ref); ok {
 		if rule.Mode == trust.ModeNone {
-			return trust.Result{Rule: rule}, d.Pull(ctx, ref)
+			return trust.Result{Rule: rule}
 		}
 		res.Rule, res.Decision = rule, trust.Decide(trust.Failed, rule.Source)
 	}
-	if res.Decision == trust.Block {
-		return res, &BlockedError{Result: res}
+	return res
+}
+
+// pin resolves a tag to its registry digest, "" when the registry will not say.
+func pin(ref string, d Deps) string {
+	digest, err := d.Digest(ref)
+	if err != nil {
+		return ""
 	}
-	return res, d.Pull(ctx, ref)
+	return trust.Repository(ref) + "@" + digest
 }
 
 // localDigest picks, among an image's repo digests, the one of ref's own
