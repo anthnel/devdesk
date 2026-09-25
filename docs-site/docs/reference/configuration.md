@@ -119,6 +119,7 @@ Default images: `aquasec/trivy`, `zricethezav/gitleaks`, `getplumber/plumber`,
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `base_image_track` | string | `same-line` | How far remediation may move a base image: `same-line` \| `next-major` |
+| `image_verification` | string | `on` | `on` \| `off` — check image signatures before every pull, in the `Sig` columns and in scans. Only `off` disables it, and it overrides `~/.devdesk/trust.yaml`. See [Image signatures](../explanation/signatures.md) |
 | `cache_dir` | string | | Scan report cache |
 | `max_cached_reports` | int | `50` | |
 | `timeout` | int (seconds) | `300` | Per-scan timeout |
@@ -144,6 +145,15 @@ only when installed. Untick them to go back.
 | `proxy_port` | int | `8080` | The one port every named Forward route is served on (`http://api.localhost:8080`). Loopback only, 1024–65535 — a value outside that range is logged and replaced by the default |
 
 Forwards themselves are not in `config.yaml`: they live in `~/.devdesk/forwards.yaml`, shared by every context (see [Network](../explanation/network.md#the-forward-tab-internalforward)).
+
+## Files beside `config.yaml`
+
+| File | Scope | Holds |
+|---|---|---|
+| `~/.devdesk/trust.yaml` | global | whom to expect image signatures from — [Trust image signatures](../how-to/trust-image-signatures.md) |
+| `~/.devdesk/forwards.yaml` | global | port forwards and named routes |
+| `~/.devdesk/templates.yaml` | global | the repository template catalog |
+
 ## `mcp:`
 
 | Key | Type | Default | Meaning |

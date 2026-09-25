@@ -40,10 +40,10 @@ configured, which it isn't on a default Debian/Ubuntu or Fedora install.
 
 The Images tab, the containers list and a scan's Remediation tab each have an
 **Update** column. An arrow there means the image's registry holds something
-newer, and the label says what: a later patch tag on the same line
-(`node:20.11.1` → `20.11.4`), or `new build` — the same tag now points to
-other content, which is the only kind of update a tag like `latest` or
-`bookworm-slim` ever gets.
+newer. When the update is a later patch tag on the same line
+(`node:20.11.1` → `20.11.4`), the arrow is followed by that tag. An arrow on its
+own means a new build: the same tag now points to other content, which is the
+only kind of update a tag like `latest` or `bookworm-slim` ever gets.
 
 The answer comes from comparing digests: the one the registry gives for the
 tag today, and the one the engine recorded when the image was pulled. That has
@@ -53,13 +53,24 @@ image it was *created* from: pulling the new image clears the arrow in the
 Images tab, but the container keeps it until it is recreated — because until
 then it still runs the old one.
 
-When there is no arrow, the cell says why, in grey: a check mark when the
-image is up to date, `checking` while the registry has not answered, `?` when
-it did not answer, `local build` for an image built here, `not local` for a
-Dockerfile base your engine does not hold (there is nothing to compare with),
-`pinned` for a reference fixed by digest.
+When there is no arrow, a grey glyph says why:
 
-In the Images tab, `G` applies the update: it pulls the newer image and
+| Glyph | Meaning |
+|---|---|
+| check mark | up to date |
+| hourglass | the registry has not answered yet |
+| `?` | the registry did not answer (logged) |
+| hammer | built or loaded here — there is no registry digest to compare |
+| cloud | a Dockerfile base your engine does not hold (Remediation tab) |
+| pin | a reference fixed by digest: nothing can move |
+
+Every state except a newer patch is a single glyph, because the words cost
+eleven cells in the widest table there is. The reason is still spelled out by
+`G`'s greyed shortcut and in the help (`?`), and the filter still matches the
+words.
+
+In the Images tab, `G` applies the update: it pulls the newer image — through
+the [signature check](signatures.md), like every pull — and
 removes the one it replaces. It refuses — and the footer names them — while any
 container, running or stopped, was created from that image: remove or recreate
 those first.

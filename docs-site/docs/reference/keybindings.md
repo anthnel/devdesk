@@ -32,12 +32,29 @@ resource action, and there are no vim-style `hjkl` aliases.
 | `P` | Prune | `B` | Registry browser |
 | `G` | Pull (*get*) | `U` | Login / logout |
 | `X` | Exclude | `R` | MR · PR |
-| `I` | Issues | `Y` | Copy path |
+| `I` | Issues | `Y` | Copy (path, content, MCP connect command) |
+| `H` | Open network diagnostics on this target | `J` | Jump to the related resource — a container's image, in the OCI view |
 
-Two declared exceptions to "uppercase for actions": `o` (open the resolved
-CI pipeline, security/results/CI tab only) and `ctrl+y` (copy the `docker
-run` command) — narrow enough that reserving a global uppercase for either
-would cost more than it buys.
+`Q` and `Z` are the only free letters left.
+
+Three declared exceptions to "uppercase for actions": `o` (open the resolved
+CI pipeline, security/results/CI tab only), `ctrl+y` (copy the `docker run`
+command, OCI launch form) and `ctrl+o` (write a fix to disk, security
+results) — narrow enough that reserving a global uppercase for any of them
+would cost more than it buys. `ctrl+o` is the one binding that changes a
+file, so it always opens a confirmation that defaults to No.
+
+## Security results — Remediation and fixes
+
+| Key | Where | Action |
+|---|---|---|
+| `S` | Remediation tab | Scan the candidate base images |
+| `space` | Remediation tab | Choose the candidate under the cursor for its stage |
+| `enter` | Remediation tab | Open the diff in the viewer |
+| `ctrl+o` | Remediation tab | Write the chosen base images into the Dockerfiles |
+| `ctrl+o` | Misconfigurations tab | Write the built-in fix for the selected finding, then re-scan to verify it |
+
+See [Remediation](../explanation/scanning.md#remediation).
 
 ## Network Diagnostics — Forward tab
 

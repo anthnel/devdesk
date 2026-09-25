@@ -61,6 +61,7 @@ nav:
       - Configure a context: how-to/configure-a-context.md
       - Switch forge backend (GitLab/GitHub): how-to/switch-forge-backend.md
       - Run a security scan: how-to/run-a-security-scan.md
+      - Trust image signatures: how-to/trust-image-signatures.md
       - Create a repository from a template: how-to/create-a-repo-from-a-template.md
       - Enable the MCP server: how-to/enable-the-mcp-server.md
       - Connect an AI client: how-to/connect-an-ai-client.md
@@ -78,6 +79,7 @@ nav:
       - Repository Templates: explanation/templates.md
       - Viewer: explanation/viewer.md
       - Security Scanning: explanation/scanning.md
+      - Image Signatures: explanation/signatures.md
       - Registries: explanation/registries.md
       - Network: explanation/network.md
       - MCP Server: explanation/mcp.md

@@ -48,14 +48,14 @@ Tools are declared in a single table (`internal/mcp/tools.go`), each entry holdi
 | `forwards_list` | the port forwards this session holds: local port or `*.localhost` name, target, state |
 | `templates_list` | the repository template catalog, with the age of each cached copy (no credential, no file content) |
 | `scan_inventory` | every scan target this context has scanned |
-| `scan_result` | one scan's findings, filtered by severity/category, paginated |
+| `scan_result` | one scan's findings, filtered by severity/category, paginated. A vulnerability carries its `class` (`os-pkgs` / `lang-pkgs`) and `ecosystem`; a misconfiguration its span, wording and status (see [below](#handing-a-misconfiguration-to-an-agent)) |
 | `monitors_status` | the context's monitors probed now: status, response time, and certificate details for `ssl` monitors |
 | `net_check` | the built-in network diagnostics pipeline |
 | `jobs_list` | work started this session, and what each run is currently doing |
 | `jobs_get` | one run's targets, with failure reasons |
 | `workspace_scan_start` / `workspace_sync_start` | headless scan/sync of a workspace, returns a job id |
 | `template_sync_start` | re-read one template's source into its cached copy, returns a job id |
-| `image_scan_start` / `image_pull_start` | headless image scan / pull |
+| `image_scan_start` / `image_pull_start` | headless image scan / pull — the pull goes through the same [signature check](signatures.md) as `G` |
 | `jobs_cancel` | cancel a **run** — never a container directly |
 
 `jobs_list` and `jobs_get` are the only tools that never touch disk at all, and that's exactly why the server has to live inside the TUI process rather than run standalone: a completed scan is written to the on-disk cache, but a scan that's *currently running* only exists in the in-memory jobs registry, for the life of the session. A standalone headless process would have no way to answer "is it still going."
@@ -71,6 +71,44 @@ tool handler  ←  reply
 ```
 
 The reply channel is deliberately buffered to exactly one slot. An agent that disconnects while its request is still queued would otherwise leave nobody reading from an unbuffered channel — and sending from inside `Update()` blocking on that would freeze the entire TUI (every keypress, every spinner tick) waiting on a client that's already gone.
+
+## Handing a misconfiguration to an agent
+
+DevDesk fixes a base image itself, and a few Dockerfile rules (see
+[Remediation](scanning.md#remediation)). For almost every other
+misconfiguration, Trivy's resolution is a sentence in English, not a patch. So
+instead of fixing, the server gives a calling agent everything the fix needs,
+and DevDesk remains the one that measures the result:
+
+| Field | What it answers |
+|---|---|
+| `line`, `end_line` | the **span** of the faulty block — `line` alone is enough to read it, not to replace it |
+| `message` | this instance's own wording, where `description` is the rule's generic text |
+| `status` | what the scanner concluded for the rule on this target |
+| `id` | the AVD id — what a re-scan is checked against |
+| `resolution`, `references` | the prose fix and the advisory |
+
+An `end_line` of zero means *unknown*, never line zero: a result cached before
+the field existed, or a rule that reports a point.
+
+`target_kind` and `root` say whether the files exist at all. A
+misconfiguration found in an *image* points inside that image's filesystem,
+where there is nothing on disk to edit. The kind comes from which cache
+answered, never from the shape of the name: a repository path such as
+`…/team/api:v2` looks exactly like an image reference.
+
+The server still writes nothing. The agent closes the loop itself:
+
+```
+scan_result            → the rule, its span, the file
+   ↓ the agent edits the file
+workspace_scan_start   → a job id
+jobs_get               → it finished
+scan_result            → the AVD id is gone, or it is not
+```
+
+The last read is the point: a patch is judged by a re-scan, not by the
+confidence of whoever produced it.
 
 ## What the user sees
 

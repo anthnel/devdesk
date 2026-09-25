@@ -1,6 +1,6 @@
 # Run a security scan
 
-DevDesk runs [Trivy](https://trivy.dev/) (CVEs, secrets, licenses, misconfiguration) and [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets) against local repositories and OCI images. Both are optional — a scan silently skips whichever tool isn't installed.
+DevDesk runs [Trivy](https://trivy.dev/) (CVEs, secrets, licenses, misconfiguration) and [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets) against local repositories and OCI images, plus kubeconform for Kubernetes manifests and plumber for CI grading when their categories are on. A tool is only required when it is ticked in a category that is on; one that cannot run is reported by the scan that needed it.
 
 ## Scan a local repository
 
@@ -30,6 +30,17 @@ From **Templates** (`:tpl`), `S` scans what a template would put in a new reposi
 ## Read the results
 
 Open **Security** (`:sec`) once a scan finishes. Findings are grouped by severity (CRITICAL, HIGH, MEDIUM, LOW) with cumulative filters — press `c`, `h`, `m`, `l` to toggle a severity on or off; several can be active at once (`c`+`h` means "CRITICAL or HIGH"). Trivy findings include remediation details (fixed version, advisory link) where the scanner provides them; Gitleaks findings show the file and line the secret was found at.
+
+With the Misconfiguration category on, the lists gain a `CFG` column: the number of misconfigurations, coloured by the worst one. A `?` after the count means part of the target was not read — a Helm chart nothing rendered, say — so `0?` is not the same as `0`. See [The CFG column](../explanation/scanning.md#the-cfg-column).
+
+## Fix what the scan found
+
+The results of a repository scan offer two fixes that DevDesk writes itself, both behind a confirmation that defaults to No:
+
+- **Remediation tab** — newer tags for each Dockerfile base image. `S` scans the candidates, `space` chooses one per stage, `enter` shows the diff, `ctrl+o` writes it.
+- **Misconfigurations tab** — `ctrl+o` on a finding the built-in catalog covers (a missing `USER`, `ADD` instead of `COPY`, a missing `--no-cache`…) writes the fix, then re-scans to check that the rule is gone.
+
+For anything else, an AI client connected over [MCP](connect-an-ai-client.md) can read the finding, edit the file and re-scan. See [Remediation](../explanation/scanning.md#remediation).
 
 ## Why results might be stale
 
