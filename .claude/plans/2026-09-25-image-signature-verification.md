@@ -47,11 +47,20 @@ règle.
 - Finding `DEVDESK-SIG-001` (CRITICAL) / `-002` (HIGH), étape `signature` de
   Misconfiguration, ancrée sur le `FROM`.
 
-## Découpage — une étape de mesure, quatre PR
+## Découpage — une étape de mesure, quatre étapes, **une seule PR**
 
-Chaque PR est utile seule et ne laisse **aucun réglage inerte** (la leçon de
-§3.14) : `scan.image_verification` n'apparaît dans la vue configuration qu'avec
-la PR qui le lit la première fois (PR 2).
+Décidé avec l'utilisateur (2026-09-25) : tout se fait sur une seule branche —
+les décisions et mesures de §3.82 déjà commitées, puis l'implémentation — et
+part en **une seule PR**. Les quatre étapes ci-dessous restent l'ordre de
+travail : chacune est **un ou plusieurs commits** qui compilent et passent
+`mise run check` seuls, pour qu'un `git bisect` reste possible dans la
+branche. La PR étant squashée, son titre décide seul de l'entrée de
+changelog : `feat(images): verify image signatures before recommending or
+pulling them (§3.82)`.
+
+Aucun commit ne laisse de **réglage inerte** (la leçon de §3.14) :
+`scan.image_verification` n'apparaît dans la vue configuration qu'avec l'étape
+qui le lit la première fois (étape 2).
 
 ### Étape 0 — mesures faites
 
@@ -82,7 +91,7 @@ clé DHI »). Liste d'origine :
    `118ba556…3887c`. Docker annonce ses rotations (`dhi-1.pub` inactive,
    `dhi-2.pub` active, en-tête `x-keyid`) — une a déjà eu lieu.
 
-### PR 1 — le domaine, sans changement visible
+### Étape 1 — le domaine, sans changement visible
 
 **`internal/trust`** (nouveau package, pur sauf le chargement du fichier) :
 
@@ -144,7 +153,7 @@ précisément la faille qu'il détecte. `ReservedArgs` : `--key`,
 
 **Config** : `ScanConfig.ImageVerification string` (`on`/`off`),
 `ImageVerifications()`, défaut `on` dans `applyDefaults` — **pas** encore dans la
-vue configuration (PR 2).
+vue configuration (étape 2).
 
 **Cache** : `internal/cache/signatures.go`, `signature-verdicts.json`, clé
 `digest + sha256(règle normalisée)`, durées 24 h / 6 h, `Failed` jamais écrit.
@@ -166,7 +175,7 @@ vue configuration (PR 2).
 - `TestEveryConfiguredOptionReachesTheScanner` reste vert ;
   `SameDetection` couvre cosign.
 
-### PR 2 — le pull vérifié
+### Étape 2 — le pull vérifié
 
 **`trust.PullVerified(ctx, ref string, deps PullDeps) (Outcome, error)`** —
 `deps` injecte `Digest`, `Verify`, `Pull`, `Tag`, `Enabled` : testable sans
@@ -210,7 +219,7 @@ ailleurs ne l'est pas**.
 entre digest et pull (le faux `Pull` reçoit bien `@digest`) ; `off` ⇒ aucun
 appel à `Verify` ; refus nommant la règle.
 
-### PR 3 — l'onglet Remediation
+### Étape 3 — l'onglet Remediation
 
 - Colonne **`Sig`**, icône seule, après `Update` — un paquet partagé sur le
   modèle d'`updatecol`, pour que la vue OCI puisse la reprendre plus tard. Icône
@@ -230,7 +239,7 @@ appel à `Verify` ; refus nommant la règle.
 - Tests : la colonne, le refus au `space`, le relâchement, l'en-tête `off`,
   l'ensemble des touches inchangé d'un état à l'autre.
 
-### PR 4 — le finding de l'image en usage
+### Étape 4 — le finding de l'image en usage
 
 - `internal/scan/signature.go`, étape `signature`, lancée quand Misconfiguration
   est active, la cible un répertoire, `image_verification` `on` — sur le modèle
@@ -245,17 +254,17 @@ appel à `Verify` ; refus nommant la règle.
 - Tests : fixtures Dockerfile ; un `FROM <étape>` ignoré ; un `FROM scratch`
   ignoré ; un `ARG` résolu comme le fait déjà le parseur.
 
-### Documentation, à chaque PR
+### Documentation, à chaque étape
 
-- `docs/architecture/scanning.md` : cosign, l'étape `signature`, le cache (PR 1,
-  PR 4).
-- `docs/architecture/network.md` : le pull vérifié (PR 2).
+- `docs/architecture/scanning.md` : cosign, l'étape `signature`, le cache
+  (étapes 1 et 4).
+- `docs/architecture/network.md` : le pull vérifié (étape 2).
 - `docs/architecture/configuration.md` : `trust.yaml` (hors contextes, strict) et
-  `scan.image_verification` (PR 1, PR 2).
+  `scan.image_verification` (étapes 1 et 2).
 - `.claude/CLAUDE.md` : `internal/trust` dans la liste d'architecture.
-- §3.82 : marqué done à la PR 4, avec les écarts.
+- §3.82 : marqué done au dernier commit, avec les écarts.
 
-### Vérification, à chaque PR
+### Vérification, à chaque étape
 
 `mise run check` (fmt, vet, lint, test) et `mise run test-race` — les
 vérifications tournent dans des `Cmd`. Puis, depuis l'hôte : pull d'une image
