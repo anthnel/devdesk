@@ -891,6 +891,19 @@ verdict landing after a choice releases it — or, under an open confirmation,
 stops that image from being written. A `Warn` is repeated in the `ctrl+o`
 confirmation. Four entries at a time (`signatureSlots`).
 
+**In a scan** (`internal/scan/signature.go`), the stage `signature` runs with
+the Misconfiguration category on a directory, unless `image_verification` is
+`off` — the build-context stage's model, no tool ticked for it. Every `FROM` of
+every Dockerfile `dockerfile.Find` returns, build stages included, each image
+checked once with `trust.Check` against the rules alone. Only a proven
+violation is a finding, `Source: signature`, anchored on the `FROM`:
+`DEVDESK-SIG-001` (IdentityMismatch, CRITICAL), `DEVDESK-SIG-002` (Unsigned
+under a rule, HIGH). A Failed that blocks — a user rule whose check could not
+run — is the stage's error, once per image. `scan.SignatureDeps` is the one
+production wiring (policy, cached cosign, the registry through the engine's
+credentials); `imagepull.Default` builds on it, and `trust.Check` is the one
+sequence, shared by the pull, the Remediation tab and this stage.
+
 ## The security inventory
 
 `:sec` opens on **everything the current context has scanned**, read from

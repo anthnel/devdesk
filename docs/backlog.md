@@ -14695,7 +14695,7 @@ hadolint 2.14.0.
 
 ---
 
-### 3.82 Vérifier la signature d'une image avant de la recommander ou de la tirer — **décidé le 2026-09-25, à construire**
+### 3.82 Vérifier la signature d'une image avant de la recommander ou de la tirer — **done**
 
 Trouvé au chapitre 4 (§4.5, §4.8) : la chaîne d'approvisionnement d'une image
 de base peut être compromise sans qu'aucune CVE ne le révèle — un registre
@@ -15123,8 +15123,55 @@ peut être commitée.
 
 Adopter une nouvelle clé d'éditeur à l'exécution, sur approbation : §3.92.
 
-Tout est tranché ; le plan d'implémentation est
-`.claude/plans/2026-09-25-image-signature-verification.md`.
+#### Ce qui a été construit, et où cela diffère des décisions (2026-09-25)
+
+Construit en une branche et une PR, en quatre étapes — le domaine, le pull, l'onglet
+Remediation, le finding. Le plan (`.claude/plans/`) est retiré avec la
+livraison : ce qui suit est ce qu'il gardait qui ne se lit pas dans le code.
+
+| Où | Quoi |
+|---|---|
+| `internal/trust` | la politique (`trust.yaml`, stricte), la correspondance, B (distroless, Chainguard, DHI avec `keys/dhi-2.pub` embarquée), `Decide`, `Evaluate`/`Continuity`, **`Check`** — la séquence unique —, le cache des verdicts |
+| `internal/scan/cosign.go` | le `Verifier` : codes 0/10/11 lus tels quels, relance permissive en keyless, mode clé *fail-closed*, `--experimental-oci11` sur `verify` seulement, identifiants par `COSIGN_REGISTRY_*`, image épinglée par digest |
+| `internal/scan/signature.go` | `SignatureDeps` — le câblage unique — et l'étape `signature` (`DEVDESK-SIG-001/002`) |
+| `internal/imagepull` | `Pull` (digest vérifié → pull du digest → tag) et `Check` ; seul chemin vers le pull du moteur, gardé par `TestNoPullBypassesTheSignatureCheck` |
+| `internal/ui/oci_resources` | les deux pulls, l'en-tête `Signatures`, l'aide |
+| `internal/ui/security` | la colonne `Sig`, le refus au `space`, le relâchement, la confirmation |
+| `internal/config`, vue configuration | `scan.image_verification`, `scan.tools.cosign`, l'onglet Tools |
+
+Écarts, chacun pris en route et noté ici :
+
+1. **Les packages.** `Check` vit dans `trust` et le câblage dans `scan`, pas
+   dans `internal/remediation` ni dans `trust.PullVerified` : `remediation` et
+   `cache` importent `scan`, qui implémente le `Verifier` — tout autre
+   emplacement faisait un cycle. Pour la même raison `trust.Repository` réécrit
+   la lecture de `remediation.ParseRef`, un test gardant les deux d'accord, et le
+   cache des verdicts est dans `trust`.
+2. **Identifiants par l'environnement**, pas par un `DOCKER_CONFIG`
+   temporaire : mesuré, cosign lit `COSIGN_REGISTRY_USERNAME`/`_PASSWORD`, et un
+   fichier 0600 monté n'est pas lisible par l'utilisateur du conteneur.
+3. **Pas de cache TUF monté** : une racine fraîche à chaque run, ≈3 s, sans
+   échec sur 30 runs concurrents.
+4. **Un `trust.yaml` illisible refuse les pulls** (validé avec l'utilisateur) :
+   un fichier illisible n'est pas une politique vide.
+5. **Un digest que le registre ne donne pas** : Failed, décidé par la règle qui
+   se serait appliquée (validé avec l'utilisateur).
+6. **L'en-tête `Signatures`** (`off`, `trust.yaml invalid`) est aussi dans
+   l'onglet Images de la vue OCI, là où se font les pulls.
+7. **La colonne `Sig` est locale** à l'onglet Remediation, pas un paquet partagé
+   comme `updatecol` — un seul consommateur.
+8. **Un verdict qui arrive sous la confirmation ouverte** empêche l'écriture de
+   l'image qu'il bloque, en plus du relâchement d'un choix déjà fait.
+9. **`cosign version`** imprime une bannière : `CleanVersion` lit la ligne
+   `GitVersion:`.
+10. **`run --pull=never`** couvre `LaunchContainer`, `BuildLaunchCmd` et
+    `VerifyEntrypoint`. Les images d'outils de DevDesk (Trivy, cosign, netdiag)
+    restent tirées par leur `run`, non vérifiées — exception déclarée.
+
+Vérifié à chaque étape contre le vrai cosign et le vrai moteur, dans le
+sandbox, par des tests jetables non commités (résultats dans les messages de
+commit de la branche). `test-race` n'a pas pu tourner dans le sandbox (cgo sans
+en-têtes C) : à lancer depuis l'hôte avant le merge.
 
 ---
 

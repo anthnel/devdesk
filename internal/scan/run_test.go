@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/anthnel/devdesk/internal/trust"
 )
 
 // The package drives trivy and gitleaks as subprocesses, so the production
@@ -37,6 +39,15 @@ func TestMain(m *testing.M) {
 	// Scan logs the command of every stage it starts, which is useful in the
 	// application and pure noise across a suite that runs hundreds of them.
 	log.SetOutput(io.Discard)
+	// No registry and no cosign from a scan test (§3.82): every base image is
+	// unresolved, which under no rule warns and records nothing. The tests of
+	// the stage install their own.
+	signatureDeps = func(ToolSpec) trust.CheckDeps {
+		return trust.CheckDeps{
+			Policy: func() (trust.Policy, error) { return trust.Policy{}, nil },
+			Digest: func(string) (string, error) { return "", errors.New("no registry in tests") },
+		}
+	}
 	os.Exit(m.Run())
 }
 

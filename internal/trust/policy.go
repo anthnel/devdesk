@@ -56,6 +56,16 @@ func PolicyPath() (string, error) {
 	return filepath.Join(home, ".devdesk", "trust.yaml"), nil
 }
 
+// LoadDefault reads the policy at PolicyPath.
+func LoadDefault() (Policy, error) {
+	path, err := PolicyPath()
+	if err != nil {
+		return Policy{}, err
+	}
+	p, _, err := Load(path)
+	return p, err
+}
+
 // Load reads a policy file. A file that does not exist is an empty policy.
 //
 // It is strict where config.Load is not: an unknown key is an error, and an
