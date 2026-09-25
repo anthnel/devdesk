@@ -15094,10 +15094,30 @@ peut être commitée.
   `registry.scout.docker.com` porte un en-tête `x-keyid` (`2`, ici). `dhi-1.pub`
   existe, marquée `inactive`, empreinte différente
   (`1b431f0d467ecc9e3d97e5b446980599a99c3a386e42ea628b172db1051c737b`) : **une
-  rotation a déjà eu lieu** avant cette mesure. `internal/trust/builtin.go`
-  doit donc porter les deux clés (décision « plusieurs clés par entrée »,
-  ci-dessus), et surveiller ce tableau — pas seulement `latest.pub` — pour
-  ajouter la suivante sans casser les pulls pendant une transition.
+  rotation a déjà eu lieu** avant cette mesure. Il faut surveiller ce tableau
+  — pas seulement `latest.pub` — pour ajouter la suivante sans casser les pulls
+  pendant une transition.
+- **Seules les clés `active` sont embarquées — `dhi-2` seule aujourd'hui**
+  (décidé avec l'utilisateur, en corrigeant une première version qui embarquait
+  aussi `dhi-1`). Trois raisons :
+  - `inactive` n'a **ni raison ni date** dans le README : retrait ordinaire ou
+    révocation après compromission, on ne sait pas. Accepter une clé que Docker
+    n'utilise plus, sans savoir pourquoi, c'est lui faire confiance à l'aveugle.
+  - **Elle ne sert à rien sur ce qui a été mesuré** : `dhi.io/static:20250419`,
+    la plus ancienne image testée, rend **10** avec `dhi-1` et **0** avec
+    `dhi-2` ; `dhi-2.pub` est dans le dépôt depuis au moins le 2025-04-17. Les
+    images testées portent une signature `dhi-2`.
+  - L'empreinte de `dhi-1` a été recalculée depuis GitHub, dans le sandbox
+    (`1b431f0d…1c737b`) : elle concorde, la clé est bien identifiée — c'est son
+    statut qui l'écarte, pas un doute sur elle.
+
+  Le mécanisme « plusieurs clés par entrée » reste : il sert quand **deux clés
+  sont `active` en même temps**, pendant une transition ; l'ancienne sort de la
+  liste quand elle passe `inactive`. Une vieille image signée seulement par
+  `dhi-1` est bloquée ; le refus nomme la règle B, et une règle C l'accepte
+  délibérément.
+- La clé lue dans le sandbox, à travers le proxy, a la **même** empreinte
+  `118ba556…3887c` : le proxy ne l'avait pas altérée.
 - `docs.docker.com/dhi/core-concepts/signatures/` ne documente ni la clé ni sa
   rotation ; seul le dépôt `keyring` fait foi.
 

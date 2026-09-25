@@ -99,9 +99,11 @@ clé DHI »). Liste d'origine :
   commande de la mesure en commentaire. La clé DHI est **embarquée**
   (`//go:embed`), jamais téléchargée — recoupée à l'étape 0.7 (§3.82,
   empreinte `118ba556…3887c`, `dhi-2.pub`, active). L'entrée porte une
-  **liste** de deux clés (`dhi-1.pub` inactive et `dhi-2.pub`), vérifiée si
-  l'une d'elles vérifie — la rotation entre les deux est déjà arrivée une
-  fois, donc mesurée plutôt que supposée.
+  **liste** de clés, vérifiée si l'une d'elles vérifie, mais **seules les clés
+  `active`** du dépôt `keyring` y entrent — `dhi-2` seule aujourd'hui ;
+  `dhi-1`, `inactive` sans raison donnée et inutile sur les images mesurées,
+  est écartée (§3.82). La liste sert quand deux clés sont actives pendant une
+  transition.
 - `verdict.go` — `Verdict`, `Decision{Block, Warn, None}`, et
   `Decide(v Verdict, src Source) Decision` — le tableau ci-dessus, **une** table
   en code, lue par les trois consommateurs.
