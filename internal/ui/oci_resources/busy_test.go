@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/docker"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -133,7 +134,7 @@ func TestALogoutSpinsTheLoggedCell(t *testing.T) {
 	m := registriesTab(t)
 	reg := m.registries[0]
 	m = feed(t, m,
-		RegistryLoginStatusMsg{Status: map[string]bool{reg.URL: true}},
+		RegistryLoginStatusMsg{Status: map[string]docker.LoginState{reg.URL: docker.LoginHelper}},
 		testutil.Key(keymap.Auth))
 
 	if !m.registryTable.IsBusy(reg.URL) {

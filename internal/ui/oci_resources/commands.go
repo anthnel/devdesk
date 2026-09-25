@@ -274,14 +274,15 @@ func registryLoginCmd(registryURL, username, password string) tea.Cmd {
 	}
 }
 
-// checkRegistryLoginStatusCmd checks ~/.docker/config.json for all provided registry URLs.
+// checkRegistryLoginStatusCmd reads the engine's auth file for all provided
+// registry URLs: whether each is logged in, and where its secret is kept.
 func checkRegistryLoginStatusCmd(urls []string) tea.Cmd {
 	return func() tea.Msg {
-		status := make(map[string]bool, len(urls))
+		status := make(map[string]docker.LoginState, len(urls))
 		for _, url := range urls {
-			status[url] = docker.IsRegistryLoggedIn(url)
+			status[url] = docker.RegistryLoginState(url)
 		}
-		return RegistryLoginStatusMsg{Status: status}
+		return RegistryLoginStatusMsg{Status: status, AuthFile: docker.AuthFilePath()}
 	}
 }
 

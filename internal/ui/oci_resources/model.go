@@ -87,7 +87,8 @@ type Model struct {
 	loadingRegs         bool
 	registryForm        *RegistryForm
 	registryBrowser     *RegistryBrowser
-	registryLoginStatus map[string]bool // URL → logged in
+	registryLoginStatus map[string]docker.LoginState // URL → where its credentials are
+	authFile            string                       // the engine's auth file, named when a secret sits in it
 	// groupCache is what the Members column reads: slug → last discovery. It is
 	// loaded from disk once and updated as discoveries come back.
 	groupCache map[string]cache.RegistryGroupEntry
@@ -375,7 +376,8 @@ type RegistryLogoutCompleteMsg struct {
 
 // RegistryLoginStatusMsg carries the login status for all configured registries
 type RegistryLoginStatusMsg struct {
-	Status map[string]bool // URL → logged in
+	Status   map[string]docker.LoginState // URL → where its credentials are
+	AuthFile string                       // the engine's auth file
 }
 
 // Messages — Container launch
@@ -479,7 +481,7 @@ func New(cfg *config.Config) Model {
 		volumeTable:         vt,
 		registryTable:       rt,
 		registries:          cfg.Registry.Registries,
-		registryLoginStatus: make(map[string]bool),
+		registryLoginStatus: make(map[string]docker.LoginState),
 		groupCache:          make(map[string]cache.RegistryGroupEntry),
 		refreshingGroups:    make(map[string]bool),
 		browserDeselected:   make(map[string]bool),

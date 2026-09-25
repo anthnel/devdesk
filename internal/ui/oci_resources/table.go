@@ -409,15 +409,24 @@ func (m *Model) membersCell(reg config.RegistryItem) string {
 	return fmt.Sprintf("%d · %s", len(entry.Members), timeAgo(entry.DiscoveredAt))
 }
 
-// loggedCell reports the docker login status for a registry URL.
+// loggedCell reports the login status for a registry URL, and says it
+// differently when the secret is inline in the engine's auth file (§3.68).
+//
+// Not a column of its own: under Docker Desktop a "store" column would read
+// `desktop` on every row. The warning only appears where there is something
+// to see.
 func (m *Model) loggedCell(mode, url string) string {
 	if !config.UsesCredentials(mode) {
 		return "-"
 	}
-	if m.registryLoginStatus[url] {
+	switch m.registryLoginStatus[url] {
+	case docker.LoginHelper:
 		return theme.IconOK
+	case docker.LoginInline:
+		return theme.IconWarning
+	default:
+		return theme.IconError
 	}
-	return theme.IconError
 }
 
 // drilledGroup returns the group the tab has entered, or nil at the top level.

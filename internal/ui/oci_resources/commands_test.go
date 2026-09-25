@@ -461,11 +461,29 @@ func TestLoginStatusIsAnsweredForEveryRegistryAsked(t *testing.T) {
 	if len(msg.Status) != 2 {
 		t.Fatalf("Status = %v, want an answer for both registries", msg.Status)
 	}
-	if !msg.Status["registry.example.com"] {
-		t.Error("a registry with stored credentials was reported as logged out")
+	if msg.Status["registry.example.com"] != docker.LoginInline {
+		t.Errorf("a registry with a base64 secret in the file = %v, want LoginInline", msg.Status["registry.example.com"])
 	}
-	if msg.Status["other.example.com"] {
+	if msg.Status["other.example.com"].LoggedIn() {
 		t.Error("a registry with no stored credentials was reported as logged in")
+	}
+	if msg.AuthFile == "" {
+		t.Error("the auth file was not named, so the footer could not say where the secret is")
+	}
+}
+
+// Behind a credential store docker leaves an empty entry: logged in, and
+// nothing to warn about.
+func TestLoginStatusBehindACredentialStoreIsNotAWarning(t *testing.T) {
+	writeDockerConfig(t, map[string]any{
+		"auths":      map[string]any{"registry.example.com": map[string]string{}},
+		"credsStore": "desktop",
+	})
+
+	msg := run(t, checkRegistryLoginStatusCmd([]string{"registry.example.com"})).(RegistryLoginStatusMsg)
+
+	if got := msg.Status["registry.example.com"]; got != docker.LoginHelper {
+		t.Errorf("Status = %v, want LoginHelper", got)
 	}
 }
 

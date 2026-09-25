@@ -40,11 +40,6 @@ type Shape struct {
 	// declared shapes, and an explicit path when the configuration names one.
 	Binary string
 
-	// HelperPrefix is what a credential helper's name is prefixed with:
-	// `docker-credential-osxkeychain`, `podman-credential-…`. The protocol is
-	// shared, the naming is not.
-	HelperPrefix string
-
 	// Templates are the --format strings for every output this application
 	// parses.
 	Templates Templates
@@ -268,17 +263,15 @@ func engineOfPath(path string) string {
 func shapeFor(name, binary string) Shape {
 	if name == Podman {
 		return Shape{
-			Name:         Podman,
-			Binary:       binary,
-			HelperPrefix: "podman-credential-",
-			Templates:    podmanTemplates,
+			Name:      Podman,
+			Binary:    binary,
+			Templates: podmanTemplates,
 		}
 	}
 	return Shape{
-		Name:         Docker,
-		Binary:       binary,
-		HelperPrefix: "docker-credential-",
-		Templates:    dockerTemplates,
+		Name:      Docker,
+		Binary:    binary,
+		Templates: dockerTemplates,
 	}
 }
 

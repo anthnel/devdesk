@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-09-24
+**Last Updated:** 2026-09-25
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -93,6 +93,22 @@ so they needed a deliberate call rather than a drive-by fix. All five were then
 decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects).
 
 ### 1.1 Fixed
+
+**D73 — sous podman, aucun helper d'identifiants n'était jamais trouvé. Corrigé.**
+Trouvé et fermé le 2026-09-25, en mesurant §3.68.
+
+§3.67 avait donné à podman son propre préfixe, `podman-credential-`, sur
+l'hypothèse que « le protocole est partagé, le nommage non ». Mesuré contre
+podman 5.7.0 avec `credHelpers: {"localhost:5055": "fake"}` : `podman login`
+appelle `docker-credential-fake` pour `get` puis `store`, et un
+`podman-credential-fake` posé à côté dans le `PATH` n'est jamais appelé. Chaque
+recherche de helper sous podman visait donc un binaire qu'aucune installation
+n'a : `GetStoredCreds` échouait, et la recherche de tags ou la découverte de
+groupe partait sans identifiants. `Shape.HelperPrefix` disparaît — une valeur
+identique sur les deux moteurs est une invitation à la « corriger » de nouveau —
+au profit de `credentialHelperPrefix` (`internal/docker/exec.go`), et
+`TestTheCredentialHelperIsDockersUnderEveryEngine` le vérifie avec le vrai
+runner contre deux scripts dans le `PATH`.
 
 **D72 — un moniteur écrit à la main sans `timeout` apparaissait `DOWN` à chaque
 rafraîchissement, alors que le service répondait. Corrigé.** Signalé et fermé le
@@ -12908,7 +12924,7 @@ correction locale à une ligne.
 
 ---
 
-### 3.68 Où est vraiment le mot de passe — le magasin d'identifiants se dit
+### 3.68 Où est vraiment le mot de passe — le magasin d'identifiants se dit — **done**
 
 DevDesk lit un mot de passe de registry dans un fichier dont il ne contrôle pas
 la protection, et n'en dit rien. L'information qui manque n'est pas à calculer :
@@ -12993,6 +13009,44 @@ deux fois — une pour que `docker pull` marche, une pour DevDesk — et faire t
 à DevDesk un second exemplaire d'un secret que Docker a déjà. §3.8 a tranché
 l'héritage dans l'autre sens : `docker login` est la source, et il est indexé par
 hôte.
+
+#### Mesuré — 2026-09-25
+
+Contre un `registry:2` local protégé par htpasswd, docker 29.7.2 et podman
+5.7.0, un faux helper dans le `PATH` pour voir qui est appelé :
+
+| | docker | podman |
+|---|---|---|
+| aucun helper | `auths[host] = {"auth": "<base64>"}` | pareil |
+| `credsStore` | `auths[host] = {}`, secret dans le helper | **ignoré** : secret inline, et la clé `credsStore` disparaît du fichier réécrit |
+| `credHelpers` | `auths[host] = {}`, secret dans le helper | **aucune** entrée dans `auths` |
+| inline laissé par un login antérieur, puis `credsStore` ajouté | docker ignore le base64 sans l'effacer | — |
+
+L'hypothèse de l'entrée tenait pour docker. Podman en ajoute deux qu'elle ne
+prévoyait pas : sous `credHelpers`, lire l'existence de la clé répondait
+« déconnecté » à un utilisateur connecté ; et podman appelle les helpers de
+docker (D73). Docker Desktop écrit `credsStore: "desktop"` — le cas de la
+deuxième ligne, mesuré ici par le mécanisme et non sur l'hôte Windows.
+
+#### Fait
+
+- `docker.RegistryLoginState` remplace `IsRegistryLoggedIn` et rend
+  `LoginNone` / `LoginHelper` / `LoginInline`. Un secret inline l'emporte, même
+  à côté d'un helper : il est sur le disque, que docker le lise ou non.
+  `identitytoken` compte comme `auth`. Une entrée vide sans aucun helper
+  configuré ne tient aucun secret et répond `LoginNone`. Le seul cas qui
+  interroge un helper est celui où le fichier ne garde aucune trace — podman
+  sous `credHelpers`.
+- La chaîne est élargie : `RegistryLoginStatusMsg.Status` est une
+  `map[string]docker.LoginState` et porte `AuthFile`.
+- `Logged` rend `IconWarning` pour un secret inline, `IconOK` derrière un
+  helper. Le pied de page dit pourquoi tant que la ligne est sélectionnée —
+  « Password stored unencrypted in <fichier> — configure a credential helper » —
+  un `Status` dérivé, pas un message à trois secondes. L'aide de l'onglet
+  l'explique.
+- La mise à jour optimiste après un login pose `LoginHelper` : la relecture du
+  fichier suit dans les frames suivantes, et avertir avant de savoir serait
+  affirmer un secret qui n'est peut-être pas là.
 
 ---
 

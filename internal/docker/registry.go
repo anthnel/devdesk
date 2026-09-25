@@ -61,6 +61,16 @@ func authPath() (string, error) {
 	return path, nil
 }
 
+// AuthFilePath is the credential file the engine reads and writes, or "" when
+// it cannot be located. Named in the UI when a secret sits in it (§3.68).
+func AuthFilePath() string {
+	path, err := authPath()
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
 // readAuthFile reads and unmarshals the engine's credential file into v.
 func readAuthFile(v any) error {
 	path, err := authPath()
@@ -91,21 +101,96 @@ func RegistryLogin(registryURL, username, password string) error {
 	return nil
 }
 
-// IsRegistryLoggedIn reports whether stored credentials exist for registryURL
-// by inspecting ~/.docker/config.json.
-func IsRegistryLoggedIn(registryURL string) bool {
-	var cfg struct {
-		Auths map[string]json.RawMessage `json:"auths"`
-	}
+// LoginState says whether the engine holds credentials for a registry, and
+// where their secret lives (§3.68).
+type LoginState int
+
+const (
+	// LoginNone means no credentials are stored for the registry.
+	LoginNone LoginState = iota
+	// LoginHelper means a credential helper holds the secret — the OS keychain,
+	// Docker Desktop's store, pass, secretservice.
+	LoginHelper
+	// LoginInline means the secret sits in the auth file itself, base64
+	// encoded: readable by anything that can read the file.
+	LoginInline
+)
+
+// LoggedIn reports whether credentials exist, wherever they are kept.
+func (s LoginState) LoggedIn() bool { return s != LoginNone }
+
+// authEntry is one `auths` value. Both fields carry a secret when present:
+// `auth` is base64 "user:password", `identitytoken` an OAuth refresh token.
+type authEntry struct {
+	Auth          string `json:"auth"`
+	IdentityToken string `json:"identitytoken"`
+}
+
+// inline reports whether the entry keeps a secret in the file.
+func (e authEntry) inline() bool { return e.Auth != "" || e.IdentityToken != "" }
+
+// authFile is the part of the engine's auth file the login state reads.
+type authFile struct {
+	Auths       map[string]authEntry `json:"auths"`
+	CredsStore  string               `json:"credsStore"`
+	CredHelpers map[string]string    `json:"credHelpers"`
+}
+
+// RegistryLoginState reports whether credentials are stored for registryURL,
+// and whether their secret is inline in the auth file or held by a helper.
+//
+// What `login` writes, measured on 2026-09-25 (docker 29.7.2, podman 5.7.0):
+//
+//	                 docker                     podman
+//	no helper        auths[host] = {"auth":…}   auths[host] = {"auth":…}
+//	credsStore       auths[host] = {}           ignored — written inline
+//	credHelpers      auths[host] = {}           no auths entry at all
+//
+// Any inline secret wins, even next to a helper: a login made before the
+// helper was configured leaves its base64 behind, and docker then ignores it
+// without removing it — it is still on disk. Only the podman credHelpers case
+// needs the helper itself asked, since the file keeps no trace of the login.
+func RegistryLoginState(registryURL string) LoginState {
+	var cfg authFile
 	if err := readAuthFile(&cfg); err != nil {
-		return false
+		return LoginNone
 	}
+	found := false
 	for _, c := range registryCandidates(registryURL) {
-		if _, ok := cfg.Auths[c]; ok {
-			return true
+		entry, ok := cfg.Auths[c]
+		if !ok {
+			continue
+		}
+		if entry.inline() {
+			return LoginInline
+		}
+		found = true
+	}
+	host := helperHost(registryURL)
+	if found {
+		// An empty entry holds nothing by itself: the secret is in the helper,
+		// and with no helper configured there is no secret anywhere.
+		if cfg.CredHelpers[host] != "" || cfg.CredsStore != "" {
+			return LoginHelper
+		}
+		return LoginNone
+	}
+	if helper := cfg.CredHelpers[host]; helper != "" {
+		if _, _, ok := getCredsFromHelper(helper, host); ok {
+			return LoginHelper
 		}
 	}
-	return false
+	return LoginNone
+}
+
+// helperHost normalises a registry URL to the bare hostname credential
+// helpers are keyed on.
+func helperHost(registryURL string) string {
+	host := strings.TrimSuffix(registryURL, "/")
+	for _, prefix := range []string{"https://", "http://"} {
+		host = strings.TrimPrefix(host, prefix)
+	}
+	return host
 }
 
 // RegistryLogout removes stored credentials for an OCI registry.
@@ -174,22 +259,12 @@ func removeFromAuthFile(registryURL string) error {
 // inline base64-encoded auth field. Returns ok=false when no credentials are
 // found.
 func GetStoredCreds(registryURL string) (username, password string, ok bool) {
-	var cfg struct {
-		Auths map[string]struct {
-			Auth string `json:"auth"`
-		} `json:"auths"`
-		CredsStore  string            `json:"credsStore"`
-		CredHelpers map[string]string `json:"credHelpers"`
-	}
+	var cfg authFile
 	if err := readAuthFile(&cfg); err != nil {
 		return "", "", false
 	}
 
-	// Normalise the URL to a bare hostname for helper lookups.
-	hostname := strings.TrimSuffix(registryURL, "/")
-	for _, prefix := range []string{"https://", "http://"} {
-		hostname = strings.TrimPrefix(hostname, prefix)
-	}
+	hostname := helperHost(registryURL)
 
 	helper := cfg.CredHelpers[hostname]
 	if helper == "" {

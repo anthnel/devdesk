@@ -92,6 +92,21 @@ badly-formed slug instead of correcting it, and drops the group-only fields when
 the kind is not a group.
 
 
+## Where the login lives — the `Logged` column
+
+`docker.RegistryLoginState` reads the engine's auth file and answers three
+ways: no credentials, credentials held by a helper (`credsStore` /
+`credHelpers`), or a secret **inline** in the file — base64, which is not
+encryption. The `Logged` cell is `IconOK`, `IconWarning`, or `IconError`
+accordingly, and the footer names the file while an inline row is selected.
+DevDesk never wrote that secret (`login` goes through the CLI) and cannot move
+it; saying so is all it can do (§3.68).
+
+What `login` writes differs between engines, measured rather than assumed:
+docker leaves an empty `auths` entry behind a helper, podman leaves none under
+`credHelpers` and ignores `credsStore` entirely. Both run
+`docker-credential-<name>` helpers — podman has no prefix of its own (D73).
+
 ## Registry group cache
 
 `internal/cache/registry_groups.go` — `RegistryGroupCache`, keyed by **group
