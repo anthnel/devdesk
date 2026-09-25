@@ -206,6 +206,35 @@ vue configuration (étape 2).
 
 ### Étape 2 — le pull vérifié
 
+**Faite le 2026-09-25.** Écarts au texte ci-dessous :
+
+- **`internal/imagepull`, pas `trust.PullVerified`.** `trust` ne peut importer
+  ni `docker` ni `oci` (ni rien qui importe `scan`) ; la séquence (`pull.go`,
+  testée avec des dépendances injectées) et son câblage de production
+  (`default.go`) vivent dans un package neutre. `BlockedError` au lieu
+  d'`ErrBlocked`.
+- **Décision prise en route : un `trust.yaml` qui ne se charge pas refuse le
+  pull**, en nommant l'erreur. Un fichier illisible n'est pas une politique
+  vide : retomber sur B seul abandonnerait les règles de l'utilisateur en
+  silence — la faiblesse même que la lecture stricte refuse. À valider.
+- **Un digest que le registre ne donne pas** : verdict Failed décidé par la
+  règle qui se serait appliquée — une règle C refuse, sinon le tag est tiré avec
+  un avertissement ; `expect: none`, tiré sans rien dire.
+- **L'en-tête** de l'onglet Images dit `Signatures: off` ou `trust.yaml
+  invalid` — dès l'étape 2, pas seulement dans l'onglet Remediation (étape 3) :
+  c'est ici que les pulls se font. Lu au démarrage de la vue ; chaque pull relit
+  le fichier.
+- **`cosign version`** imprime une bannière ASCII avant la version :
+  `CleanVersion` lit la ligne `GitVersion:`.
+- **La description MCP d'`image_pull_start`** dit que la signature est vérifiée
+  et qu'un refus nomme la règle.
+- **`RepoTags`** : sous le magasin containerd, `repo@sha256:…` y figure, mais la
+  table Images lit `image ls`, une ligne par tag — pas de doublon (vérifié).
+- **Vérifié de bout en bout** dans le sandbox (moteur et cosign réels, test
+  jetable) : distroless vérifié, tiré par digest puis tagué ; busybox sans
+  politique, tiré ; l'image cosign sous une règle C à mauvaise identité, refusée,
+  rien tiré.
+
 **`trust.PullVerified(ctx, ref string, deps PullDeps) (Outcome, error)`** —
 `deps` injecte `Digest`, `Verify`, `Pull`, `Tag`, `Enabled` : testable sans
 moteur. Séquence : `image_verification` off ⇒ pull direct ; sinon digest

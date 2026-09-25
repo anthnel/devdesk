@@ -400,6 +400,16 @@ func PullImageContext(ctx context.Context, imageName string) error {
 	return mutateContext(ctx, cmdLabel("pull"), "pull", imageName)
 }
 
+// TagImage gives the image source the name target. A verified pull fetches a
+// digest — never a tag, which could move between the check and the pull — and
+// then names it the way it was asked for (§3.82).
+func TagImage(source, target string) error {
+	if err := requireEngine(); err != nil {
+		return err
+	}
+	return mutate(cmdLabel("tag"), "tag", source, target)
+}
+
 // GetImageExposedPorts returns the container port specs declared by EXPOSE in an image.
 // Each entry uses the "port/protocol" format, e.g. "80/tcp" or "53/udp".
 func GetImageExposedPorts(imageName string) ([]string, error) {

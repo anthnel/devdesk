@@ -78,8 +78,8 @@ func TestBuildLaunchArgsSkipsEmptyRepeatedValues(t *testing.T) {
 func TestBuildLaunchArgsMinimalOptions(t *testing.T) {
 	got := buildLaunchArgs(ContainerLaunchOptions{Image: "img"})
 
-	if !slices.Equal(got, []string{"run", "img"}) {
-		t.Errorf("buildLaunchArgs() = %v, want [run img]", got)
+	if !slices.Equal(got, []string{"run", "--pull=never", "img"}) {
+		t.Errorf("buildLaunchArgs() = %v, want [run --pull=never img]", got)
 	}
 }
 

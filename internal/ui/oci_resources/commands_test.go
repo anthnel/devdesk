@@ -115,7 +115,7 @@ func TestPruneImagesCarriesTheReclaimReport(t *testing.T) {
 func TestPullReportsTheImageItWasAskedFor(t *testing.T) {
 	installFakeDocker(t, fakeScript{})
 
-	msgs := testutil.Msgs(pullOneImageCmd("registry.example.com/api:v1"))
+	msgs := testutil.Msgs(pullOneImageCmd("registry.example.com/api:v1", unverifiedPull()))
 	if len(msgs) != 2 {
 		t.Fatalf("got %d messages, want a start and a finish", len(msgs))
 	}
@@ -146,7 +146,7 @@ func TestPullCarriesTheFailure(t *testing.T) {
 		"docker pull": {Stderr: "manifest unknown", Exit: 1},
 	})
 
-	msgs := testutil.Msgs(pullOneImageCmd("registry.example.com/api:nope"))
+	msgs := testutil.Msgs(pullOneImageCmd("registry.example.com/api:nope", unverifiedPull()))
 	msg, ok := msgs[len(msgs)-1].(RegistryPullCompleteMsg)
 	if !ok {
 		t.Fatalf("last message = %#v, want RegistryPullCompleteMsg", msgs[len(msgs)-1])

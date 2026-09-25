@@ -260,6 +260,9 @@ func (m Model) GetHeaderInfo(_ string) []shortcut.HeaderInfo {
 				Style: lipgloss.NewStyle().Foreground(theme.ColorHighlight).Background(theme.ColorBackground),
 			})
 		}
+		if sig, ok := m.signatureHeader(); ok {
+			infos = append(infos, sig)
+		}
 		return infos
 	}
 }
@@ -553,8 +556,18 @@ func (m Model) GetHelpContent() help.Content {
 					"Press Esc to go back to the search form.",
 			},
 			{
+				Title: "Image Signatures",
+				Body: "Every pull DevDesk makes — G, the registry browser, an agent over MCP — checks the image's signature first, with cosign (Tools tab). " +
+					"The tag is resolved to a digest, that digest is verified, and that same digest is pulled then tagged, so the tag cannot move in between. " +
+					"Rules come from ~/.devdesk/trust.yaml (yours, checked first), then a built-in list (distroless, Chainguard, Docker Hardened Images); with no rule, a new image must be signed by whoever signed the one you have. " +
+					"A signature by an unexpected identity is always refused. An unsigned image is refused under a rule and only warned about otherwise; a check that could not run is refused under your own rules only. The footer names the rule behind a refusal. " +
+					"Launching a container never pulls: an image arrives through a verified pull or not at all. " +
+					"A pull typed in another terminal is not checked — DevDesk is not an admission controller. " +
+					"Turn the check off per context with Image verification (scan tab); the header then says Signatures: off.",
+			},
+			{
 				Title: "Launch Form",
-				Body:  "When launching a container, ports are pre-filled from the image's EXPOSE metadata. Fill in environment variables and volume mounts as comma-separated lists. The container runs detached (-d) by default.",
+				Body:  "When launching a container, ports are pre-filled from the image's EXPOSE metadata. Fill in environment variables and volume mounts as comma-separated lists. The container runs detached (-d) by default. An image that is not present locally is not pulled.",
 			},
 		},
 	}

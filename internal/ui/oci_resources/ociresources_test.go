@@ -13,7 +13,10 @@ import (
 	"github.com/anthnel/devdesk/internal/cache"
 	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/imageupdate"
+	"github.com/anthnel/devdesk/internal/scan"
+	"github.com/anthnel/devdesk/internal/trust"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
@@ -42,6 +45,10 @@ func TestMain(m *testing.M) {
 	log.SetOutput(io.Discard)
 	// No registry is reached from a test (§3.88).
 	checkImageUpdates = func([]string) map[string]imageupdate.Facts { return nil }
+	// Nor a registry or cosign through a pull's signature check (§3.82): the
+	// tests that exercise it install their own.
+	newPullDeps = func(*config.Config, *scan.Report) imagepull.Deps { return unverifiedPull() }
+	loadTrustPolicy = func() (trust.Policy, []string, error) { return trust.Policy{}, nil, nil }
 
 	home, err := os.MkdirTemp("", "devdesk-oci-test")
 	if err != nil {

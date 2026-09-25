@@ -2,6 +2,7 @@ package ociresources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -9,8 +10,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/docker"
+	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/trust"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 )
 
@@ -87,20 +90,37 @@ func (m Model) updateSelectedImage() (tea.Model, tea.Cmd) {
 	if m.pullingImage(target) {
 		return m, m.footer.Warn("Pull already in progress")
 	}
-	return m, jobs.Start(m.pullRun(target), updateImageCmd(target, img))
+	return m, jobs.Start(m.pullRun(target), updateImageCmd(target, img, m.pullDeps()))
+}
+
+// pullDeps is how this context verifies a pull (§3.82), with the engine's pull
+// behind the seam tests replace.
+func (m Model) pullDeps() imagepull.Deps {
+	d := newPullDeps(m.config, m.deps)
+	d.Pull = pullImageContext
+	return d
+}
+
+// isBlocked reports a pull its signature check refused.
+func isBlocked(err error) bool {
+	var blocked *imagepull.BlockedError
+	return errors.As(err, &blocked)
 }
 
 // The engine calls an update makes, as variables so tests run without one.
 var (
 	containersUsingImage = docker.ContainersUsingImage
 	pullImageContext     = docker.PullImageContext
-	imageIDOf            = docker.ImageID
-	removeImage          = docker.RemoveImage
+	// newPullDeps wires the verification; tests swap it so no registry or
+	// cosign is reached.
+	newPullDeps = imagepull.Default
+	imageIDOf   = docker.ImageID
+	removeImage = docker.RemoveImage
 )
 
 // updateImageCmd pulls target and removes old, reporting through the pull's
 // own pair of messages so the row spins and `K` can stop the pull.
-func updateImageCmd(target string, old docker.Image) tea.Cmd {
+func updateImageCmd(target string, old docker.Image, deps imagepull.Deps) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	return tea.Sequence(
 		func() tea.Msg { return RegistryPullStartingMsg{ImageName: target, Cancel: cancel} },
@@ -116,7 +136,7 @@ func updateImageCmd(target string, old docker.Image) tea.Cmd {
 				done.InUse = users
 				return done
 			}
-			if done.Err = pullImageContext(ctx, target); done.Err != nil {
+			if done.Check, done.Err = imagepull.Pull(ctx, target, deps); done.Err != nil {
 				return done
 			}
 			// The same tag pulled again can bring the same image: removing
@@ -138,6 +158,9 @@ func (m Model) handleImageUpdated(msg RegistryPullCompleteMsg) (tea.Model, tea.C
 	case len(msg.InUse) > 0:
 		return m, m.footer.Warn(fmt.Sprintf("Cannot update %s: used by %s — remove them first",
 			msg.Replaces, containerList(msg.InUse)))
+	case isBlocked(msg.Err):
+		log.Printf("ERROR [oci_resources] update %s to %s refused: %v", msg.Replaces, msg.ImageName, msg.Err)
+		return m, m.footer.Error("Update of " + msg.Replaces + " refused: " + msg.Err.Error())
 	case msg.Err != nil:
 		log.Printf("ERROR [oci_resources] update %s to %s: %v", msg.Replaces, msg.ImageName, msg.Err)
 		return m, m.footer.Error("Update of " + msg.Replaces + " failed — check logs")
@@ -150,6 +173,9 @@ func (m Model) handleImageUpdated(msg RegistryPullCompleteMsg) (tea.Model, tea.C
 	text := "Updated " + msg.ImageName + " — old image removed"
 	if msg.Replaces != msg.ImageName {
 		text = "Updated " + msg.Replaces + " → " + msg.ImageName + " — old image removed"
+	}
+	if msg.Check.Decision == trust.Warn {
+		return m, tea.Batch(fetchImages(), m.footer.Warn(text+" — "+msg.Check.Reason()))
 	}
 	return m, tea.Batch(fetchImages(), m.footer.Info(text))
 }

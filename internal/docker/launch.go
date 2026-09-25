@@ -21,9 +21,15 @@ type ContainerLaunchOptions struct {
 	TTY         bool     // allocate a pseudo-TTY (-t)
 }
 
+// noImplicitPull keeps `run` from fetching an image it does not have. Without
+// it, launching a missing image is a pull no signature check saw (§3.82): an
+// image reaches this machine through imagepull.Pull, or not at all. Measured on
+// Docker and Podman: a missing image exits 125 with the engine's own message.
+const noImplicitPull = "--pull=never"
+
 // buildLaunchArgs constructs the docker run argument list for the given options.
 func buildLaunchArgs(opts ContainerLaunchOptions) []string {
-	args := []string{"run"}
+	args := []string{"run", noImplicitPull}
 	if opts.Remove {
 		args = append(args, "--rm")
 	}
@@ -96,7 +102,7 @@ func VerifyEntrypoint(image, entrypoint string) (bool, error) {
 	if err := requireEngine(); err != nil {
 		return false, err
 	}
-	_, err := dockerCombined("run", "--rm", "--entrypoint", "/bin/sh",
+	_, err := dockerCombined("run", noImplicitPull, "--rm", "--entrypoint", "/bin/sh",
 		image, "-c", "command -v "+entrypoint)
 	return err == nil, nil
 }

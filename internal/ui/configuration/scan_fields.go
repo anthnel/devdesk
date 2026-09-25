@@ -201,6 +201,7 @@ var toolIcons = map[scan.ToolID]string{
 	scan.ToolKubeconform: theme.IconKubernetes,
 	scan.ToolHelm:        theme.IconKubernetes,
 	scan.ToolKustomize:   theme.IconKubernetes,
+	scan.ToolCosign:      theme.IconLock,
 }
 
 // Platform tools, shown first on the tools tab: required whatever is ticked,
@@ -288,6 +289,7 @@ var ownSettings = map[scan.ToolID]func() []field{
 	},
 	scan.ToolHelm:      func() []field { return nil },
 	scan.ToolKustomize: func() []field { return nil },
+	scan.ToolCosign:    func() []field { return nil },
 }
 
 // The two Trivy server rows are named once: tests and the footer find them by

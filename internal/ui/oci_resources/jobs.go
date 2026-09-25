@@ -157,6 +157,11 @@ func (m RegistryPullCompleteMsg) Transition() jobs.Transition {
 	case len(m.InUse) > 0:
 		t.State = jobs.ItemFailed
 		t.Detail = "not updated — the image is in use"
+	case isBlocked(m.Err):
+		// The reason, not "check logs": it names the rule, and it is what an
+		// agent that asked for the pull reads (§3.82).
+		t.State = jobs.ItemFailed
+		t.Detail = "refused — " + m.Err.Error()
 	case m.Err != nil:
 		t.State = jobs.ItemFailed
 		t.Detail = "pull failed — check logs"

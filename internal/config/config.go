@@ -336,6 +336,12 @@ type ScanConfig struct {
 	// "same-line" (the default) or "next-major". See base_image_track.go.
 	BaseImageTrack string `yaml:"base_image_track"`
 
+	// ImageVerification is "on" (the default) or "off": whether image
+	// signatures are verified. Per context, unlike the policy in
+	// ~/.devdesk/trust.yaml — whom to trust is a fact about the world, whether
+	// to check depends on where this context runs. See image_verification.go.
+	ImageVerification string `yaml:"image_verification"`
+
 	CacheDir           string `yaml:"cache_dir"`            // Report cache
 	MaxCachedReports   int    `yaml:"max_cached_reports"`   // Max number of reports kept
 	Timeout            int    `yaml:"timeout"`              // Timeout in seconds
@@ -459,6 +465,9 @@ func applyDefaults(cfg *Config) error {
 	// reads it as same-line — so a typo in the file is not silently rewritten.
 	if cfg.Scan.BaseImageTrack == "" {
 		cfg.Scan.BaseImageTrack = BaseImageTrackSameLine
+	}
+	if cfg.Scan.ImageVerification == "" {
+		cfg.Scan.ImageVerification = ImageVerificationOn
 	}
 	if cfg.Status.RefreshInterval == 0 {
 		cfg.Status.RefreshInterval = 10
