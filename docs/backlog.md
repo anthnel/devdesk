@@ -14695,7 +14695,7 @@ hadolint 2.14.0.
 
 ---
 
-### 3.82 Vérifier la signature et le SBOM d'une image de base avant de la recommander — **à explorer**
+### 3.82 Vérifier la signature et le SBOM d'une image avant de la recommander ou de la tirer — **décidé le 2026-09-25, à construire**
 
 Trouvé au chapitre 4 (§4.5, §4.8) : la chaîne d'approvisionnement d'une image
 de base peut être compromise sans qu'aucune CVE ne le révèle — un registre
@@ -14724,6 +14724,164 @@ Sources vérifiées le 2026-09-21 :
 *Docker and Kubernetes Security* (§4.5, §4.8),
 [Sigstore Cosign](https://docs.sigstore.dev/cosign/overview/),
 [Notation (Notary v2)](https://notaryproject.dev/docs/).
+
+#### Décisions (2026-09-25, avec l'utilisateur)
+
+Les trois questions ci-dessus sont tranchées ; la portée s'est élargie en
+chemin : le verdict ne sert plus seulement à recommander un candidat, il
+**empêche aussi de tirer** une image compromise.
+
+**Une signature seule ne prouve rien.** En keyless, n'importe qui signe
+n'importe quelle image avec sa propre identité — y compris l'auteur d'un tag
+republié. Toute politique épingle donc une **identité** ; détecter qu'une
+signature *existe* (tag `sha256-<digest>.sig`, referrer OCI) est bon marché et
+ne dit rien tant que le certificat n'est pas vérifié.
+
+**1. La politique vient de trois sources, par priorité C > B > A.**
+
+- **A — continuité, sans configuration.** Le candidat doit être signé par la
+  même identité que l'image actuellement utilisée. C'est du *trust on first
+  use* : muet si l'image actuelle n'est pas signée, et il hérite de son
+  signataire si elle était déjà compromise.
+- **B — une liste fermée d'éditeurs connus, dans le code** (Chainguard,
+  distroless, … chacun vérifié avant d'entrer). À vérifier avant de compter
+  dessus : Docker Official Images publient des attestations BuildKit, pas
+  forcément une signature Cosign exploitable.
+- **C — des règles de l'utilisateur**, dans un fichier **global**
+  `~/.devdesk/trust.yaml`. Global parce qu'une identité de confiance est un
+  fait sur le monde, pas un réglage de contexte — et `config.yaml` ne
+  convient pas : c'est le contexte `default`, pas un fichier global
+  (`internal/config/config.go:759`). Chargé au démarrage, pas au changement
+  de contexte, édité à la main en v1 (la vue configuration édite le contexte
+  courant).
+
+**2. Le format de `trust.yaml`.**
+
+```yaml
+version: 1
+rules:
+  - match: registry.corp.example/base/*
+    key: ~/.devdesk/keys/corp-cosign.pub     # ou awskms://…, gcpkms://…
+    tlog: false
+  - match: cgr.dev/chainguard/*
+    keyless:
+      issuer: https://token.actions.githubusercontent.com
+      subject: https://github.com/chainguard-images/images/.github/workflows/release.yaml@refs/heads/main
+  - match: registry.corp.example/legacy/*
+    expect: none                             # aucune signature attendue : ne pas avertir
+```
+
+- Une règle = une portée + **exactement un** mode (`key`, `keyless` avec
+  `subject` ou `subject_regexp`, `expect: none`).
+- `match` porte sur le dépôt **normalisé**, sans tag ni digest (`python` →
+  `docker.io/library/python`).
+- **La première règle qui correspond gagne** ; une règle masquée par une
+  précédente est signalée.
+- **Strict, contrairement à `config.Load`** : `KnownFields(true)`, `version: 1`
+  obligatoire, et un fichier invalide est rejeté **en entier** (erreur au
+  footer au démarrage, log nommant la ligne). Une coquille comme `isuer:`
+  retirerait l'épinglage en silence ; une règle affaiblie sans le dire est
+  pire que pas de règle.
+- Hors portée : un déploiement Sigstore privé (autre racine Fulcio/Rekor) —
+  un bloc `trust_root:` le jour où quelqu'un en a besoin.
+
+**3. Cosign seul en v1, le mode désigne l'outil.** Pas de champ `tool:` — il
+pourrait contredire le bloc : `key`/`keyless` sont des notions Cosign, et
+Notation raisonne en magasin x509 et `trustedIdentities`. Un bloc `notation:`
+est réservé et refusé en v1 (« not supported yet »). L'abstraction qui compte
+est le **verdict**, défini côté consommateur (`internal/remediation`) :
+
+```go
+type Verdict int // Verified, IdentityMismatch, Unsigned, NoPolicy, Failed
+
+type Verifier interface {
+    Verify(ctx context.Context, digest string, rule Rule) (Verdict, error)
+}
+```
+
+Une seule implémentation en v1, justifiée parce que la seconde est nommée.
+`cosign` se lance via `ToolConfig` (`source: auto | binary | image`, image
+`ghcr.io/sigstore/cosign`), comme Trivy et Gitleaks.
+
+**4. Ce que fait chaque verdict — selon qui a déclaré la règle.** Une règle
+explicite affirme « les images de cette portée sont signées par X » ; sous
+elle, « non signée » et « impossible de vérifier » sont des écarts, plus des
+absences.
+
+| Verdict | C (utilisateur) | B (DevDesk) | A (continuité seule) |
+|---|---|---|---|
+| Vérifiée | ok | ok | ok |
+| Identité inattendue | **bloque** | **bloque** | **bloque** |
+| Non signée | **bloque** | **bloque** | avertit |
+| Échec de vérification | **bloque** | avertit | avertit |
+| Pas de politique / `expect: none` | — | — | — |
+
+- **Non signée bloque sous une règle** parce que c'est l'option par défaut de
+  l'attaquant : un tag republié a un nouveau digest, que les anciennes
+  signatures ne couvrent pas, et il ne peut pas obtenir le token OIDC de
+  l'éditeur. Ne bloquer que l'identité inattendue, c'est ne rien bloquer.
+- **Échec bloque sous C** : en *fail-open*, faire échouer la vérification
+  (filtrer `*.sigstore.dev`, désinstaller `cosign`) suffirait à la contourner,
+  et la protection disparaîtrait sans bruit.
+- **Échec n'avertit que sous B** : B est déclaré par DevDesk, pas par
+  l'utilisateur ; derrière un proxy qui filtre Sigstore, il ne pourrait plus
+  tirer aucune image Chainguard sans avoir rien configuré. Qui veut la
+  sévérité maximale écrit la règle en C, qui l'emporte sur B.
+- **Sans règle, jamais de blocage sur échec** : personne n'a rien demandé.
+- **Condition** : distinguer de façon fiable *non signée* (le registre a
+  répondu, rien) d'*échec* (on n'a pas pu demander). `cosign verify`
+  semble renvoyer le même code dans les deux cas — **à mesurer**, comme les
+  codes de plumber (§3.42), pas à lire dans la documentation.
+- Le message de refus **nomme la règle** (fichier, ligne) : c'est ce qu'il
+  faut changer si l'éditeur a légitimement changé d'identité.
+- **Pas de touche pour forcer.** Les deux issues propres : corriger la règle,
+  ou éditer le Dockerfile à la main. Un « forcer » deviendrait un réflexe.
+
+**5. Dans l'onglet Remediation (§3.2).** Le candidat reste **affiché** quel
+que soit son verdict — qu'un tag ait été republié par quelqu'un d'autre est
+précisément l'information. « Bloque » veut dire que `space` refuse de le
+choisir, avec la raison au footer — la même mécanique que
+`TestOnlyAScannedCandidateCanBeChosen`, pas une nouvelle. « Avertit » : choix
+possible, rappelé dans la confirmation de `ctrl+o`. Affichage : icône OK,
+avertissement orange, erreur rouge, `-` grisé pour pas de politique, `?`
+pour un échec non bloquant. Une image qu'on ne peut pas tirer ne peut pas
+être recommandée : c'est le même verdict.
+
+**6. Le pull.** Un pull dont le verdict bloque est refusé.
+
+- **Vérifier un digest, tirer ce digest.** Vérifier `python:3.12.7` puis
+  `docker pull python:3.12.7` laisse le tag bouger entre les deux — l'attaque
+  même. Séquence : `oci.ManifestDigest` (digest de l'index, celui que Cosign
+  signe) → vérification → `docker pull repo@sha256:…` →
+  `docker tag repo@sha256:… repo:tag`. La colonne Update (§3.88) suit, elle
+  compare les `RepoDigests`.
+- **Un seul point de passage**, sous les vues : `docker.PullImageContext` a
+  deux appelants (`internal/ui/oci_resources/commands.go:467`, le navigateur
+  de registre ; `image_update.go:96`, `G`). Le contrôle vit dans un
+  `PullVerified` d'un package de domaine, pas dans chaque vue.
+- **Le pull MCP** doit passer par là — un agent ne contourne pas la
+  vérification. Il semble emprunter le même message que la vue ; à vérifier.
+- **`docker run`** (`internal/docker/launch.go:26`) tire en silence une image
+  absente : `--pull=never`, ou une vérification avant, sinon lancer un
+  conteneur est un pull non vérifié.
+- Le scan Trivy d'une image distante n'exécute rien : pas bloqué.
+- **Ce que DevDesk ne couvre pas** : un `docker pull` tapé ailleurs. Ce n'est
+  pas un contrôleur d'admission, et l'aide (`?`) le dit, pour ne pas donner
+  une fausse impression de sécurité.
+
+**7. Signer n'est pas le rôle de DevDesk** — voir §3.90.
+
+#### Encore ouvert
+
+1. **Le SBOM** du titre n'a pas été discuté : vérifier une attestation SBOM
+   signée (`cosign verify-attestation --type spdxjson|cyclonedx`) — quel verdict
+   si l'image est signée mais sans SBOM ? §3.14 a retiré la *génération* ; il
+   s'agirait ici de *vérifier*, un signal de provenance, pas un livrable.
+2. **L'image actuelle elle-même** : si c'est l'image en usage qui viole sa
+   règle, en faire un finding du scan (HIGH, `Source: signature`) plutôt
+   qu'une mention dans l'onglet Remediation ?
+3. **Le contenu initial de B**, éditeur par éditeur, vérifié.
+4. **Le code de sortie de `cosign verify`** (non signée vs échec), mesuré.
 
 ---
 
@@ -15209,6 +15367,49 @@ touche propre à `ct`. Les lettres libres passent à `Q Z`.
   `nginx` / `docker.io/library/nginx`, port de registre, digest, ID nu.
 - Une recherche qui masque la cible est effacée ; une image absente donne un
   `Warn` dans le footer.
+
+### 3.90 Une CI qui pousse une image sans la signer — **à explorer**
+
+Née de la discussion de §3.82 (2026-09-25). §3.82 *vérifie* la signature d'une
+image de base avant de la recommander ; la question voisine était de savoir si
+DevDesk devait aussi *signer*. **Non, décidé avec l'utilisateur**, pour trois
+raisons :
+
+1. **DevDesk ne build ni ne pousse aucune image** — vérifié : aucun chemin de
+   push dans `internal/docker`, `internal/oci` ni les actions MCP. Signer vient
+   juste après un push ; il n'y a pas d'endroit où l'action aurait sa place.
+2. **Une signature faite depuis un poste atteste la mauvaise chose.** En
+   keyless, l'identité serait celle du développeur, alors qu'une politique
+   sérieuse — celle de §3.82 comprise — épingle une identité de CI
+   (`…/release.yaml@refs/heads/main`). Avec une clé, c'est une clé privée sur
+   un laptop, contre la règle qu'aucun secret ne vit dans un fichier de
+   DevDesk.
+3. **Le rôle de DevDesk est de vérifier et de montrer**, pas de produire.
+
+**Ce qui reste, et qui agit sur la cause :** signaler un pipeline qui **pousse
+une image sans la signer** ni lui attacher d'attestation. C'est là que la
+signature doit vivre, et DevDesk lit déjà les pipelines : la catégorie CI
+(plumber, §3.42) note les workflows GitHub et `.gitlab-ci.yml` du dépôt.
+
+**Pas creusé plus loin ici** :
+
+1. **Qui porte le contrôle.** plumber évalue des politiques Rego et accepte un
+   fichier de règles (`scan.tools.plumber.config`) : une règle de plus là, ou un
+   contrôle écrit ici sur le YAML du pipeline ? À vérifier dans plumber avant de
+   supposer qu'il n'a rien — il a peut-être déjà un contrôle de ce genre.
+2. **Reconnaître un push et une signature.** `docker push`, `docker/build-push-action`,
+   `buildx --push`, kaniko, `ko`… d'un côté ; `cosign sign`,
+   `sigstore/cosign-installer`, `actions/attest-build-provenance`, `notation sign`
+   de l'autre. Une liste fermée donnera des faux négatifs ; il faut décider
+   lesquels sont acceptables.
+3. **Keyless exige un droit du job** : `id-token: write` sur GitHub, un
+   `id_tokens:` sur GitLab. Un `cosign sign` sans lui échoue en CI — le
+   signaler serait le complément naturel.
+4. **Un template qui signe déjà** (`:templates`, keyless + OIDC) serait la
+   remédiation la plus directe, dans l'esprit de §3.83 : partir bien plutôt que
+   corriger.
+
+Lié : §3.82 (vérifier), §3.42 (le score CI), §3.83 (templates).
 
 ## 4. Existing plans
 
