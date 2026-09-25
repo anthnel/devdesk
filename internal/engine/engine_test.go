@@ -205,13 +205,9 @@ func TestPodmanInfoTemplateUsesTheHostNestedFields(t *testing.T) {
 	}
 }
 
-func TestEveryEngineDeclaresItsOwnHelperPrefixAndAuthFile(t *testing.T) {
+func TestEveryEngineDeclaresItsOwnAuthFile(t *testing.T) {
 	for _, name := range Names() {
 		shape := ShapeFor(name)
-		if !strings.HasPrefix(shape.HelperPrefix, name) {
-			t.Errorf("%s: HelperPrefix = %q, want it to start with the engine name",
-				name, shape.HelperPrefix)
-		}
 		if len(shape.AuthPaths()) == 0 {
 			t.Errorf("%s: declares no auth path", name)
 		}

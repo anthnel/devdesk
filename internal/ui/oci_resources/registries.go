@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 )
 
@@ -86,7 +87,7 @@ func (m Model) toggleSelectedRegistryAuth() (tea.Model, tea.Cmd) {
 		return m, m.footer.Warn(act.Reason)
 	}
 	reg := m.getSelectedRegistry()
-	if m.registryLoginStatus[reg.URL] {
+	if m.registryLoginStatus[reg.URL].LoggedIn() {
 		return m.logoutSelectedRegistry()
 	}
 	return m.loginSelectedRegistry()
@@ -185,14 +186,17 @@ func (m Model) handleRegistryLoginComplete(msg RegistryLoginCompleteMsg) (tea.Mo
 	m.registryTable.ClearBusy(msg.RegistryURL)
 	if msg.Err != nil {
 		log.Printf("ERROR [oci_resources] login %s: %v", msg.RegistryURL, msg.Err)
-		m.registryLoginStatus[msg.RegistryURL] = false
+		m.registryLoginStatus[msg.RegistryURL] = docker.LoginNone
 		m.updateRegistryTable()
 		return m, m.footer.Error("Login failed — check logs")
 	}
 	log.Printf("INFO [oci_resources] login successful: %s", msg.RegistryURL)
 	m.footer.Clear()
-	// Optimistic update + re-check from disk to confirm credential helper cases
-	m.registryLoginStatus[msg.RegistryURL] = true
+	// Optimistic update + re-check from disk to confirm credential helper cases.
+	// The optimistic value claims a helper until the re-check says where the
+	// secret really went: the file is read within the next frames, and marking
+	// it inline before knowing would warn about a secret that may not be there.
+	m.registryLoginStatus[msg.RegistryURL] = docker.LoginHelper
 	m.updateRegistryTable()
 	return m, m.registryLoginStatusCmd()
 }
@@ -221,7 +225,7 @@ func (m Model) handleRegistryLogoutComplete(msg RegistryLogoutCompleteMsg) (tea.
 	// Do NOT call registryLoginStatusCmd here: docker logout docker.io may not remove
 	// the https://index.docker.io/v1/ key from config.json, causing the file-check to
 	// override this correct false status back to true.
-	m.registryLoginStatus[msg.RegistryURL] = false
+	m.registryLoginStatus[msg.RegistryURL] = docker.LoginNone
 	m.updateRegistryTable()
 	return m, nil
 }

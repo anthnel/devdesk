@@ -1,6 +1,9 @@
 package docker
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -150,17 +153,32 @@ func ranSubcommand(s *stubRunner, subcommand string) bool {
 	return false
 }
 
-// The credential helper is invoked as `<engine>-credential-<name>`, and the
-// prefix is the engine's own. A podman setup naming "pass" as its helper runs
-// podman-credential-pass, which is a different binary from docker's.
-func TestTheCredentialHelperCarriesTheEnginesPrefix(t *testing.T) {
+// Both engines run docker-credential-<name>: podman reuses docker's helpers
+// rather than naming its own (measured, see credentialHelperPrefix). The real
+// runner is used, against a helper script on PATH — a podman-credential-probe
+// beside it must never be the one called.
+func TestTheCredentialHelperIsDockersUnderEveryEngine(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the helper stand-ins are shell scripts")
+	}
+	dir := t.TempDir()
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("docker-credential-probe", `echo '{"Username":"alice","Secret":"s3cret"}'`)
+	write("podman-credential-probe", `exit 1`)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 	for _, name := range engine.Names() {
 		t.Run(name, func(t *testing.T) {
-			stub(t, &stubRunner{})
+			stub(t, &stubRunner{}) // restores the runner and the engine
+			runner = cliRunner{}
 			useEngine(t, name)
 
-			if got := engine.Current().HelperPrefix; !strings.HasPrefix(got, name) {
-				t.Errorf("HelperPrefix = %q, want it to start with %q", got, name)
+			if _, secret, ok := getCredsFromHelper("probe", "registry.example.com"); !ok || secret != "s3cret" {
+				t.Errorf("getCredsFromHelper() = %q, %v — want docker-credential-probe's answer", secret, ok)
 			}
 		})
 	}

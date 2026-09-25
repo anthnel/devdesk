@@ -67,11 +67,20 @@ func (cliRunner) Build(args ...string) *exec.Cmd {
 	return exec.Command(engine.Current().Binary, args...) //nolint:gosec // the binary is a declared engine name or a path the user configured
 }
 
+// credentialHelperPrefix names a credential helper binary, under both engines.
+//
+// Podman does not have a prefix of its own: measured on 2026-09-25, podman
+// 5.7.0 with `credHelpers: {"host": "fake"}` ran docker-credential-fake for
+// both `get` and `store` while a podman-credential-fake sat next to it on
+// PATH, never called. A podman-specific prefix (§3.67) sent every helper
+// lookup to a binary no podman setup has.
+const credentialHelperPrefix = "docker-credential-"
+
 func (cliRunner) Run(dc dockerCmd) ([]byte, error) {
 	shape := engine.Current()
 	name := shape.Binary
 	if dc.Helper != "" {
-		name = shape.HelperPrefix + dc.Helper
+		name = credentialHelperPrefix + dc.Helper
 	}
 	cmd := exec.Command(name, dc.Args...) //nolint:gosec // helper name comes from the engine's own auth file
 	if dc.Ctx != nil {

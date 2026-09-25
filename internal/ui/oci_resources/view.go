@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/engine"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/help"
@@ -99,7 +100,30 @@ func (m Model) status() sharedcomponents.Status {
 	if text, ok := m.loadingLabel(); ok {
 		return sharedcomponents.Status{Text: text, Spinner: true}
 	}
-	return sharedcomponents.Status{Text: m.actionLine()}
+	if line := m.actionLine(); line != "" {
+		return sharedcomponents.Status{Text: line}
+	}
+	return sharedcomponents.Status{Text: m.inlineSecretLine()}
+}
+
+// inlineSecretLine says why the selected registry's Logged cell is a warning:
+// its password sits in the engine's auth file, base64 encoded, which is not
+// encryption (§3.68). A state rather than a message — it holds for as long as
+// the row is selected, not for three seconds.
+func (m Model) inlineSecretLine() string {
+	if m.activeTab != tabRegistries || m.authFile == "" {
+		return ""
+	}
+	url := ""
+	if reg := m.getSelectedRegistry(); reg != nil {
+		url = reg.URL
+	} else if group := m.drilledGroup(); group != nil {
+		url = group.URL
+	}
+	if m.registryLoginStatus[url] != docker.LoginInline {
+		return ""
+	}
+	return "Password stored unencrypted in " + m.authFile + " — configure a credential helper"
 }
 
 // formStatus is the status while a form or the browser has the viewport. The
@@ -515,7 +539,9 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Registries Tab",
-				Body:  "Lists configured OCI registries. Press N to add a new registry, E to edit, U to log in or out, D to remove. Aliases shorten long registry URLs in the Images tab display.",
+				Body: "Lists configured OCI registries. Press N to add a new registry, E to edit, U to log in or out, D to remove. Aliases shorten long registry URLs in the Images tab display. " +
+					"The Logged column shows a warning instead of a check when the password sits in the engine's auth file (~/.docker/config.json, or podman's auth.json) rather than in a credential helper: " +
+					"it is only base64 encoded there, readable by anything that can read the file. DevDesk did not put it there and cannot move it — configure credsStore or credHelpers, then log in again.",
 			},
 			{
 				Title: "Registry Browser",

@@ -15,6 +15,7 @@ import (
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // ── Construction and loading ─────────────────────────────────────────────────
@@ -701,13 +702,48 @@ func TestLoginStatusReachesTheTable(t *testing.T) {
 		m = feed(t, m, testutil.Key("tab"))
 	}
 
-	m = feed(t, m, RegistryLoginStatusMsg{Status: map[string]bool{"registry.example.com": true}})
+	m = feed(t, m, RegistryLoginStatusMsg{Status: map[string]docker.LoginState{"registry.example.com": docker.LoginHelper}})
 
-	if !m.registryLoginStatus["registry.example.com"] {
+	if !m.registryLoginStatus["registry.example.com"].LoggedIn() {
 		t.Error("the login status was not kept")
 	}
-	if m.registryLoginStatus["docker.io"] {
+	if m.registryLoginStatus["docker.io"].LoggedIn() {
 		t.Error("an unlisted registry was marked logged in")
+	}
+}
+
+// A secret inline in the auth file is still a login — U logs out — but the
+// cell says it differently, and the footer says why while the row is selected
+// (§3.68). Behind a helper, neither appears.
+func TestAnInlineSecretIsAWarningNotACheck(t *testing.T) {
+	m := loadedModel(t)
+	for range 3 {
+		m = feed(t, m, testutil.Key("tab"))
+	}
+	const file = "/home/u/.docker/config.json"
+
+	m = feed(t, m, RegistryLoginStatusMsg{
+		Status:   map[string]docker.LoginState{"registry.example.com": docker.LoginInline},
+		AuthFile: file,
+	})
+	row, _ := m.registryTable.Selected()
+	if row.logged != theme.IconWarning {
+		t.Errorf("Logged cell = %q, want the warning icon", row.logged)
+	}
+	if got := m.status().Text; !strings.Contains(got, "unencrypted") || !strings.Contains(got, file) {
+		t.Errorf("footer = %q, want it to name the file holding the secret", got)
+	}
+
+	m = feed(t, m, RegistryLoginStatusMsg{
+		Status:   map[string]docker.LoginState{"registry.example.com": docker.LoginHelper},
+		AuthFile: file,
+	})
+	row, _ = m.registryTable.Selected()
+	if row.logged != theme.IconOK {
+		t.Errorf("Logged cell = %q, want the check behind a helper", row.logged)
+	}
+	if got := m.status().Text; got != "" {
+		t.Errorf("footer = %q, want nothing to say behind a helper", got)
 	}
 }
 
@@ -717,7 +753,7 @@ func TestLoginStatusReachesTheTable(t *testing.T) {
 func TestRegistryLoginUpdatesTheStatus(t *testing.T) {
 	m, cmd := step(t, loadedModel(t), RegistryLoginCompleteMsg{RegistryURL: "registry.example.com"})
 
-	if !m.registryLoginStatus["registry.example.com"] {
+	if !m.registryLoginStatus["registry.example.com"].LoggedIn() {
 		t.Error("a successful login did not mark the registry logged in")
 	}
 	if cmd == nil {
@@ -727,7 +763,7 @@ func TestRegistryLoginUpdatesTheStatus(t *testing.T) {
 	failed := feed(t, m, RegistryLoginCompleteMsg{
 		RegistryURL: "registry.example.com", Err: errors.New("unauthorized"),
 	})
-	if failed.registryLoginStatus["registry.example.com"] {
+	if failed.registryLoginStatus["registry.example.com"].LoggedIn() {
 		t.Error("a failed login left the registry marked logged in")
 	}
 	if !failed.footer.IsSet() {

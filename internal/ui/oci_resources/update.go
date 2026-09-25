@@ -188,6 +188,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case RegistryLoginStatusMsg:
 		maps.Copy(m.registryLoginStatus, msg.Status)
+		m.authFile = msg.AuthFile
 		m.updateRegistryTable()
 		return m, nil
 
