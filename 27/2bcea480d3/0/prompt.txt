@@ -1,0 +1,37 @@
+j'empêcherai un pull d'une image compromise
+
+---
+
+explique moi plus en détail "bloque aussi sur non signée et sur échec quand une règle explicite existe"
+
+---
+
+oui, consigne toutes les décisions dans §3.82
+
+---
+
+commit
+
+---
+
+continuons d'en discuter l'objectif est d'avoir tout trancher pour faire un plan d'implémentation
+
+---
+
+oui, lance la mesure, je suis ok avec tes recommandations. Il faudrait aussi dans la config un option qui dit verifier ou pas les signatures/provenance
+
+---
+
+tu peux tester cgr.dev et rekor j'ai ouvert l'accès
+
+---
+
+explique moi La clé DHI est embarquée dans le binaire.
+
+---
+
+oui, ajoute-le à l'étape 0 et consigne
+
+---
+
+lance les mesures de l'étape 0 faisables dans le sandbox
