@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "5d4e77c1eb4c",
+  "strategy": "manual-commit",
+  "branch": "docs/site-catch-up",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs-site/docs/explanation/index.md",
+    "docs-site/docs/explanation/mcp.md",
+    "docs-site/docs/explanation/network.md",
+    "docs-site/docs/explanation/registries.md",
+    "docs-site/docs/explanation/scanning.md",
+    "docs-site/docs/explanation/signatures.md",
+    "docs-site/docs/how-to/run-a-security-scan.md",
+    "docs-site/docs/how-to/trust-image-signatures.md",
+    "docs-site/docs/reference/configuration.md",
+    "docs-site/docs/reference/keybindings.md",
+    "docs-site/docs/reference/project-structure.md",
+    "docs-site/mkdocs.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/5d/4e77c1eb4c/0/metadata.json",
+      "transcript": "/5d/4e77c1eb4c/0/full.jsonl",
+      "compact_transcript": "/5d/4e77c1eb4c/0/transcript.jsonl",
+      "content_hash": "/5d/4e77c1eb4c/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 74,
+    "cache_creation_tokens": 152514,
+    "cache_read_tokens": 4944595,
+    "output_tokens": 22343,
+    "api_call_count": 37
+  }
+}
