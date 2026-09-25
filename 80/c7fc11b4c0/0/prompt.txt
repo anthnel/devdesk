@@ -1,0 +1,9 @@
+j'empêcherai un pull d'une image compromise
+
+---
+
+explique moi plus en détail "bloque aussi sur non signée et sur échec quand une règle explicite existe"
+
+---
+
+oui, consigne toutes les décisions dans §3.82
