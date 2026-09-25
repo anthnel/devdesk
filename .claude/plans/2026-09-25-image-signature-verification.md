@@ -67,6 +67,12 @@ Depuis l'hôte (le sandbox bloque `cgr.dev`), notées dans §3.82 :
    `RepoDigests` renseigné ?
 6. **`docker run --pull=never`** sur Docker et Podman, image absente : message
    et code de sortie.
+7. **Recouper la clé DHI**, qui n'a été lue qu'à travers le proxy du sandbox
+   (il intercepte TLS). La télécharger depuis l'hôte **et** la retrouver dans une
+   seconde source — la documentation DHI de Docker — puis comparer les
+   empreintes (`openssl pkey -pubin -outform der | sha256sum`). Seule une clé
+   qui concorde est commitée, son empreinte et ses deux sources en commentaire.
+   Vérifier au passage si Docker annonce ses rotations de clé.
 
 ### PR 1 — le domaine, sans changement visible
 
@@ -83,7 +89,9 @@ Depuis l'hôte (le sandbox bloque `cgr.dev`), notées dans §3.82 :
 - `builtin.go` — B, les trois entrées mesurées de §3.82 (distroless et
   Chainguard en keyless, `dhi.io/*` en mode clé), chacune avec la date et la
   commande de la mesure en commentaire. La clé DHI est **embarquée**
-  (`//go:embed`), jamais téléchargée.
+  (`//go:embed`), jamais téléchargée, et recoupée à l'étape 0.7. Une entrée en
+  mode clé porte une **liste** de clés (rotation) : vérifiée si l'une
+  d'elles vérifie.
 - `verdict.go` — `Verdict`, `Decision{Block, Warn, None}`, et
   `Decide(v Verdict, src Source) Decision` — le tableau ci-dessus, **une** table
   en code, lue par les trois consommateurs.
@@ -252,8 +260,9 @@ distroless (vérifiée), d'une image avec une règle C à mauvaise identité
 - **La sortie de cosign change entre versions** : l'image est épinglée par
   digest, et `classifyCosign` ne lit que des codes de sortie ; une montée de
   version refait la mesure de §3.82.
-- **Les faux positifs de B** : un éditeur qui change de workflow bloque tous les
-  utilisateurs jusqu'à une nouvelle version de DevDesk. Contournement documenté :
+- **Les faux positifs de B** : un éditeur qui change de workflow, ou Docker qui
+  change de clé DHI, bloque tous les utilisateurs jusqu'à une nouvelle version de
+  DevDesk. Atténué par la liste de clés par entrée ; contournement documenté :
   une règle C sur la même portée l'emporte.
 - **`--pull=never`** change un comportement existant (le lancement d'une image
   absente) ; le seul appelant de `LaunchContainer` est la vue OCI

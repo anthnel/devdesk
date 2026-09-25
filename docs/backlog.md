@@ -14939,10 +14939,25 @@ Ce qui en découle :
    | `cgr.dev/chainguard/*` | keyless | émetteur `https://token.actions.githubusercontent.com`, `https://github.com/chainguard-images/images/.github/workflows/release.yaml@refs/heads/main` — la même sur `static`, `python`, `node`, `wolfi-base` |
    | `dhi.io/*` | clé | la clé publique de `https://registry.scout.docker.com/keyring/dhi/latest.pub`, **embarquée** dans le binaire |
 
-   La clé DHI est embarquée plutôt que téléchargée : la télécharger ferait
-   reposer la confiance sur une requête réseau non vérifiée — la faille même
-   que la vérification combat. Une rotation de Docker demandera une nouvelle
-   version de DevDesk, ou une règle C sur `dhi.io/*` en attendant.
+   **La clé DHI est embarquée** (`//go:embed`), jamais téléchargée — décidé
+   avec l'utilisateur. La télécharger ferait reposer la confiance sur une
+   requête réseau : un proxy qui intercepte TLS, un DNS détourné ou un compte
+   compromis servirait sa propre clé avec son image, contenu et preuve venant de
+   la même source non vérifiée. Embarquée, elle est figée au build, passe par une
+   PR et ne change jamais en silence.
+
+   - **Plusieurs clés par entrée** : une rotation de Docker rendrait les
+     nouvelles images « non signées » pour DevDesk (mauvaise clé = 10), donc
+     **bloquées** sous B. Une entrée B porte une *liste* de clés, pour garder
+     l'ancienne et la nouvelle pendant une transition — si Docker annonce ses
+     rotations, ce qui reste à vérifier. En attendant une version de DevDesk,
+     une règle C sur `dhi.io/*` l'emporte, et le refus nomme la règle B.
+   - Écarté : traiter B plus doucement en mode clé (non signée qui avertit) —
+     c'est précisément le cas d'un tag republié sans signature.
+   - **La clé mesurée n'est pas encore une clé de confiance** : elle a été
+     téléchargée à travers le proxy du sandbox, qui intercepte TLS. La mesure
+     prouve qu'elle vérifie les images reçues, pas qu'elle est celle de Docker.
+     Elle doit être recoupée avant d'être commitée (plan, étape 0).
 
 #### Décisions, suite (2026-09-25)
 
