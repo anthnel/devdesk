@@ -92,25 +92,30 @@ func TestKeylessExitCodesAreClassifiedAsMeasured(t *testing.T) {
 
 func TestKeyModeFailsClosed(t *testing.T) {
 	for _, c := range []struct {
-		name string
-		code int
-		want trust.Verdict
+		name     string
+		code     int
+		want     trust.Verdict
+		inferred bool
 	}{
-		{"verified", 0, trust.Verified},
-		{"wrong key, legacy format", 10, trust.Unsigned},
-		{"tag not found", 11, trust.Failed},
+		{"verified", 0, trust.Verified, false},
+		{"wrong key, legacy format", 10, trust.Unsigned, false},
+		{"tag not found", 11, trust.Failed, false},
 		// The case the fail-closed decision exists for: DHI moving to the bundle
 		// format with a key that no longer matches exits 1, the same as an
 		// unreachable registry. Read as Failed, it would only warn under a
 		// built-in rule, and the pull would go through.
-		{"DHI moves to the bundle format and the key no longer matches", 1, trust.Unsigned},
-		{"blob store blocked", 12, trust.Unsigned},
+		// Inferred, not proven: it blocks, but is neither cached nor a finding.
+		{"DHI moves to the bundle format and the key no longer matches", 1, trust.Unsigned, true},
+		{"blob store blocked", 12, trust.Unsigned, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r := cosignAnswering(t, c.code, -1)
-			got, _ := binaryCosign.Verify(context.Background(), signedRef, keyRule)
+			got, err := binaryCosign.Verify(context.Background(), signedRef, keyRule)
 			if got != c.want {
 				t.Errorf("exit %d: %v, want %v", c.code, got, c.want)
+			}
+			if c.want == trust.Unsigned && errors.Is(err, trust.ErrUnproven) != c.inferred {
+				t.Errorf("exit %d: err = %v, want inferred %v", c.code, err, c.inferred)
 			}
 			if r.count() != 1 {
 				t.Errorf("asked %d times: key mode has no permissive check", r.count())

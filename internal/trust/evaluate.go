@@ -11,7 +11,9 @@ import (
 type Verifier interface {
 	// Verify asks whether ref — pinned by digest — is signed the way rule says.
 	// The error explains a Failed verdict, for the log; the verdict is the
-	// answer.
+	// answer. An error beside any other verdict wraps ErrUnproven: the verdict
+	// was inferred from a failure the tool cannot tell apart from it, and is
+	// neither stored nor stated as a fact.
 	Verify(ctx context.Context, ref string, rule Rule) (Verdict, error)
 	// Identities returns who the signatures on ref *claim* to be. They are
 	// hints and nothing more: a claim is only believed once Verify has proven
@@ -26,13 +28,24 @@ type Result struct {
 	// Rule is what the verdict was measured against; for continuity, a rule
 	// built from the identity of the image in use.
 	Rule Rule
-	// Err explains a Failed verdict, for the log.
+	// Err explains a Failed verdict, for the log — or an Unsigned one inferred
+	// rather than proven (ErrUnproven).
 	Err error
 }
+
+// Proven reports a verdict the verifier established, not one it inferred from a
+// failure: only a proven verdict is cached or reported as a finding.
+func (r Result) Proven() bool { return r.Err == nil }
 
 // ErrNotPinned is a reference with no digest. A tag is only a name: verifying
 // it and then using it lets the tag move in between, which is the attack.
 var ErrNotPinned = errors.New("reference is not pinned by digest")
+
+// ErrUnproven marks a verdict inferred from a failure: key mode reads every
+// exit code it cannot place as Unsigned, fail-closed (§3.82), and a network
+// failure exits the same way. The decision holds — it still blocks — but the
+// verdict is asked again next time rather than kept, and it is not a finding.
+var ErrUnproven = errors.New("verdict inferred, not proven")
 
 // Evaluate answers for candidate, pinned by digest. current is the image in
 // use — also pinned — for continuity, "" when there is none.
@@ -57,8 +70,8 @@ func Evaluate(ctx context.Context, p Policy, v Verifier, candidate, current stri
 	return Result{Verdict: verdict, Decision: Decide(verdict, SourceContinuity), Rule: rule, Err: err}
 }
 
-// Continuity is A: the candidate must be signed by the identity that signed
-// the image in use.
+// Continuity is A: the candidate must be signed by an identity that signed the
+// image in use.
 //
 // The identity is never read and believed. A permissive check passes as soon
 // as *one* signature is valid, so an attacker could attach their own valid
@@ -66,25 +79,42 @@ func Evaluate(ctx context.Context, p Policy, v Verifier, candidate, current stri
 // identity; reading the certificate would then report Verified. So each
 // claimed identity is first verified strictly on the image in use, and only an
 // identity cosign has proven there is asked of the candidate.
+//
+// Every proven identity is asked, not only the first: an image signed by its
+// publisher and by a distributor continues if the candidate carries either
+// signature. When none verifies, a check that could not run outranks a
+// mismatch — not knowing warns, where a mismatch would block.
 func Continuity(ctx context.Context, v Verifier, candidate, current string) (Verdict, Rule, error) {
 	claims, err := v.Identities(ctx, current)
 	if err != nil {
 		return Failed, Rule{}, fmt.Errorf("identities of %s: %w", current, err)
 	}
+	answered := false
+	var verdict Verdict
+	var rule Rule
+	var verr error
 	for _, id := range claims {
-		rule := Rule{
+		r := Rule{
 			Mode: ModeKeyless, Issuer: id.Issuer, Subject: id.Subject,
 			Source: SourceContinuity, Origin: "continuity with " + current,
 		}
-		proven, err := v.Verify(ctx, current, rule)
+		proven, err := v.Verify(ctx, current, r)
 		if err != nil || proven != Verified {
 			continue
 		}
-		verdict, err := v.Verify(ctx, candidate, rule)
-		return verdict, rule, err
+		got, err := v.Verify(ctx, candidate, r)
+		if got == Verified {
+			return Verified, r, err
+		}
+		if !answered || (got == Failed && verdict != Failed) {
+			answered, verdict, rule, verr = true, got, r, err
+		}
 	}
-	// Nothing on the image in use that could be proven: nothing to continue.
-	return NoPolicy, Rule{}, nil
+	if !answered {
+		// Nothing on the image in use that could be proven: nothing to continue.
+		return NoPolicy, Rule{}, nil
+	}
+	return verdict, rule, verr
 }
 
 // Reason is the sentence a refusal or a warning shows, naming the rule so the

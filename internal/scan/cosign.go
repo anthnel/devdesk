@@ -96,10 +96,15 @@ func (c CosignVerifier) verifyKeyless(ctx context.Context, ref string, rule trus
 
 // verifyKey tries each accepted key. Key mode cannot tell a wrong key from a
 // failure — both exit 1 on the bundle format, and no permissive check exists
-// for a key — so every code but 0 and 11 is Unsigned: fail-closed, and true
-// either way, since no signature could be verified by that key (§3.82). A tool
-// that did not run at all is still Failed: that is not an exit code.
+// for a key — so every code but 0, 10 and 11 is Unsigned: fail-closed, and true
+// either way, since no signature could be verified by that key (§3.82). Such a
+// verdict is inferred, not proven, and says so (trust.ErrUnproven): it still
+// blocks, but it is not cached — a network failure would otherwise block for
+// hours after the network came back — and it is not a scan finding. 10, no
+// signature at all, is the one Unsigned cosign states. A tool that did not run
+// at all is still Failed: that is not an exit code.
 func (c CosignVerifier) verifyKey(ctx context.Context, ref string, rule trust.Rule) (trust.Verdict, error) {
+	var unplaced []int
 	for _, key := range rule.Keys {
 		code, err := c.runWithKey(ctx, ref, key, rule.TLog)
 		switch {
@@ -109,7 +114,12 @@ func (c CosignVerifier) verifyKey(ctx context.Context, ref string, rule trust.Ru
 			return trust.Verified, nil
 		case code == cosignNoTag:
 			return trust.Failed, fmt.Errorf("%s: not found in its registry", ref)
+		case code != cosignNoSignature:
+			unplaced = append(unplaced, code)
 		}
+	}
+	if len(unplaced) > 0 {
+		return trust.Unsigned, fmt.Errorf("%w: cosign verify %s with the expected key exited %v", trust.ErrUnproven, ref, unplaced)
 	}
 	return trust.Unsigned, nil
 }

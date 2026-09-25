@@ -14,7 +14,7 @@ import (
 // How long a verdict is reused. A digest never changes, but a signature can be
 // added to it later, and keys and logs move: Unsigned is asked again sooner.
 // Failed is never stored — a block under a user rule would outlast the network
-// coming back.
+// coming back — and neither is a verdict inferred from a failure (ErrUnproven).
 const (
 	verifiedTTL = 24 * time.Hour
 	unsignedTTL = 6 * time.Hour
@@ -62,7 +62,9 @@ func (c cached) Verify(ctx context.Context, ref string, rule Rule) (Verdict, err
 		}
 	}
 	v, err := c.inner.Verify(ctx, ref, rule)
-	if _, keep := ttl(v); keep {
+	// An error beside a storable verdict means it was inferred (ErrUnproven):
+	// kept, it would block for hours after the network came back.
+	if _, keep := ttl(v); keep && err == nil {
 		// A verdict that could not be stored is still the answer.
 		_ = c.store.Set(key, v, c.now())
 	}

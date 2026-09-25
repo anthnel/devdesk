@@ -110,6 +110,28 @@ func TestOnlyAProvenViolationIsAFinding(t *testing.T) {
 	}
 }
 
+// inferredUnsigned is key mode's fail-closed answer to an exit code it cannot
+// place — maybe a wrong key, maybe the network.
+type inferredUnsigned struct{}
+
+func (inferredUnsigned) Verify(context.Context, string, trust.Rule) (trust.Verdict, error) {
+	return trust.Unsigned, trust.ErrUnproven
+}
+
+func (inferredUnsigned) Identities(context.Context, string) ([]trust.Identity, error) {
+	return nil, nil
+}
+
+// It still blocks a pull, but it is not a fact about the image: the stage's
+// error, once, not a HIGH finding.
+func TestAnInferredUnsignedIsNotAFinding(t *testing.T) {
+	dir := signatureRepo(t, map[string]string{"Dockerfile": "FROM registry.corp.example/run:1\nFROM registry.corp.example/run:1\n"})
+	findings, errs := checkBaseImageSignatures(context.Background(), dir, checkDeps(inferredUnsigned{}, userRule("registry.corp.example/*")))
+	if len(findings) != 0 || len(errs) != 1 || !strings.Contains(errs[0].Error(), "trust.yaml:1") {
+		t.Errorf("findings %v, errors %v", findings, errs)
+	}
+}
+
 func TestEachImageIsCheckedOnce(t *testing.T) {
 	dir := signatureRepo(t, map[string]string{
 		"a/Dockerfile": "FROM golang:1.23\n",

@@ -67,6 +67,19 @@ func Pull(ctx context.Context, ref string, d Deps) (trust.Result, error) {
 	return res, d.Tag(pinned, ref)
 }
 
+// Replacing is d for a pull that replaces the image pinned as current: the
+// update of an image to a newer tag (§3.89's G). Continuity then compares with
+// the image being replaced, rather than with whatever the target's name holds
+// locally — nothing, for a tag never pulled. "" keeps d as it is: an image with
+// no registry digest has no signature to continue.
+func (d Deps) Replacing(current string) Deps {
+	if current == "" {
+		return d
+	}
+	d.Current = func(string) string { return current }
+	return d
+}
+
 // Check answers for ref without pulling it — what the Remediation tab shows
 // next to a candidate. current is the image ref would replace, as a tag or
 // pinned; "" for none. Off answers nothing: a zero Result.

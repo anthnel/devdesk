@@ -29,7 +29,8 @@ import (
 //
 // A finding states a fact, so only a verdict that proves something produces
 // one: a signature by someone else, or none where a rule asks for one. A check
-// that could not run is an error of the stage, never a finding.
+// that could not run, or whose Unsigned was inferred from a failure (key mode,
+// trust.ErrUnproven), is an error of the stage, never a finding.
 
 // The rule ids, in DevDesk's own namespace.
 const (
@@ -141,9 +142,10 @@ func checkBaseImageSignatures(ctx context.Context, target string, deps trust.Che
 			}
 			if f, ok := signatureFinding(rel, st, res); ok {
 				findings = append(findings, f)
-			} else if res.Verdict == trust.Failed && res.Decision == trust.Block && !reported[st.Image] {
-				// A rule asked for a guarantee that could not be checked: said
-				// once per image, as the stage's error, not as a fact.
+			} else if res.Decision == trust.Block && (res.Verdict == trust.Failed || !res.Proven()) && !reported[st.Image] {
+				// A rule asked for a guarantee that could not be checked — or
+				// whose answer was inferred from a failure: said once per
+				// image, as the stage's error, not as a fact.
 				reported[st.Image] = true
 				errs = append(errs, fmt.Errorf("%s: %s", st.Image, res.Reason()))
 			}
@@ -167,7 +169,7 @@ func signatureFinding(file string, st dockerfile.Stage, res trust.Result) (Findi
 		f.Title = "Base image " + st.Image + " is signed by an unexpected identity"
 		f.Description = "The image carries a valid signature, but not by the identity its rule expects. " +
 			"A tag republished with altered content and re-signed by someone else looks exactly like this, and no CVE scan would show it."
-	case res.Verdict == trust.Unsigned && res.Decision == trust.Block:
+	case res.Verdict == trust.Unsigned && res.Decision == trust.Block && res.Proven():
 		f.ID, f.Severity = SignatureUnsignedID, SeverityHigh
 		f.Title = "Base image " + st.Image + " is not signed as its rule requires"
 		f.Description = "A rule says images of this repository are signed, and this digest carries no signature it accepts. " +

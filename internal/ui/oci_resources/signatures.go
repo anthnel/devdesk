@@ -105,7 +105,8 @@ const signatureRetry = 30 * time.Minute
 var localSignatureSlots = make(chan struct{}, 4)
 
 // signatureDue lists the images to ask about: pulled, not asked for this
-// digest yet, or asked and failed long enough ago.
+// digest yet, or asked long enough ago and answered by a failure — or by a
+// verdict inferred from one, which the verdict cache does not keep either.
 func (m Model) signatureDue(now time.Time) map[string]string {
 	due := map[string]string{}
 	for _, img := range m.images {
@@ -114,7 +115,8 @@ func (m Model) signatureDue(now time.Time) map[string]string {
 			continue
 		}
 		asked, ok := m.sigAsked[img.Name()]
-		failed := m.signatures[img.Name()].Verdict == trust.Failed
+		res := m.signatures[img.Name()]
+		failed := res.Verdict == trust.Failed || !res.Proven()
 		if !ok || asked.Pinned != pinned || (failed && now.Sub(asked.At) >= signatureRetry) {
 			due[img.Name()] = pinned
 		}

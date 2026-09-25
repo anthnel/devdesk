@@ -205,3 +205,15 @@ func TestCheckComparesACandidateWithWhatTheTagInUsePointsTo(t *testing.T) {
 		t.Errorf("off answered %+v", res)
 	}
 }
+
+// An update to a newer tag continues the image it replaces: the target's own
+// name holds nothing locally yet.
+func TestReplacingContinuesTheReplacedImage(t *testing.T) {
+	d := deps(&verifier{}, &engine{})
+	if got := d.Replacing("docker.io/library/node@sha256:old").Current("node:20.11.4"); got != "docker.io/library/node@sha256:old" {
+		t.Errorf("current = %q", got)
+	}
+	if got := d.Replacing("").Current("node:20.11.4"); got != "" {
+		t.Errorf("a local build replaced: current = %q, want the target's own", got)
+	}
+}

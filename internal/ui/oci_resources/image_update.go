@@ -121,6 +121,9 @@ var (
 // updateImageCmd pulls target and removes old, reporting through the pull's
 // own pair of messages so the row spins and `K` can stop the pull.
 func updateImageCmd(target string, old docker.Image, deps imagepull.Deps) tea.Cmd {
+	// The signature to continue is the replaced image's, not the target's —
+	// a newer tag is not on disk yet (§3.82).
+	deps = deps.Replacing(imagepull.LocalDigest(old.Name(), old.RepoDigests))
 	ctx, cancel := context.WithCancel(context.Background())
 	return tea.Sequence(
 		func() tea.Msg { return RegistryPullStartingMsg{ImageName: target, Cancel: cancel} },

@@ -15176,6 +15176,24 @@ livraison : ce qui suit est ce qu'il gardait qui ne se lit pas dans le code.
     ensembles de valeurs nommées. Le fichier garde la chaîne `on`/`off` (D12) ;
     la case lit `VerifiesImages`, donc une valeur mal tapée s'affiche cochée, et
     le premier `space` la réécrit.
+12. **Trois corrections après revue de la branche** :
+    - **Un « non signé » déduit n'est ni mis en cache ni un constat.** Le mode
+      clé est *fail-closed* : tout code autre que 0, 10, 11 donne `Unsigned`,
+      et une panne réseau sort ainsi. Mis en cache 6 h, ce verdict bloquait un
+      pull DHI (règle intégrée) six heures après le retour du réseau — ce que
+      « échec jamais » (décision 5) interdit — et produisait un faux
+      DEVDESK-SIG-002. Le vérificateur l'accompagne désormais de
+      `trust.ErrUnproven` : il bloque toujours, mais n'est pas stocké, la
+      colonne Sig le redemande comme un échec, et le scan en fait une erreur
+      d'étape. Le code 10 (aucune signature) reste un `Unsigned` prouvé.
+    - **La continuité essaie chaque identité prouvée**, pas seulement la
+      première : une image signée par l'éditeur et un distributeur continue si
+      le candidat porte l'une des deux. Si aucune ne vérifie, un échec
+      l'emporte sur une identité inattendue (avertir plutôt que bloquer quand
+      on ne sait pas).
+    - **`G` vers un tag plus récent continue l'image qu'il remplace**
+      (`Deps.Replacing`) : le tag cible n'est pas encore sur disque, donc la
+      continuité calculée sur son nom ne comparait avec rien.
 
 Vérifié à chaque étape contre le vrai cosign et le vrai moteur, dans le
 sandbox, par des tests jetables non commités (résultats dans les messages de

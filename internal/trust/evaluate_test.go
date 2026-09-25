@@ -144,3 +144,43 @@ func TestAMismatchUnderContinuityBlocks(t *testing.T) {
 		t.Errorf("result = %+v", r)
 	}
 }
+
+// An image signed by its publisher and by a distributor continues when the
+// candidate carries either signature — not only the first one listed.
+func TestContinuityAsksEveryProvenIdentity(t *testing.T) {
+	f := &fakeVerifier{
+		identities: map[string][]Identity{current: {{Issuer: "i", Subject: "distributor"}, {Issuer: "i", Subject: "publisher"}}},
+		verdicts: map[string]Verdict{
+			current + " distributor":   Verified,
+			current + " publisher":     Verified,
+			candidate + " distributor": IdentityMismatch,
+			candidate + " publisher":   Verified,
+		},
+	}
+	r := Evaluate(context.Background(), Policy{}, f, candidate, current)
+	if r.Verdict != Verified || r.Decision != Allow || r.Rule.Subject != "publisher" {
+		t.Errorf("result = %+v", r)
+	}
+}
+
+// Not knowing warns; a mismatch would block. When no identity verifies, a
+// check that could not run is what is said.
+func TestContinuityPrefersAFailureToAMismatch(t *testing.T) {
+	f := &fakeVerifier{
+		identities: map[string][]Identity{current: {{Issuer: "i", Subject: "a"}, {Issuer: "i", Subject: "b"}}},
+		verdicts: map[string]Verdict{
+			current + " a":   Verified,
+			current + " b":   Verified,
+			candidate + " a": IdentityMismatch,
+			candidate + " b": Failed,
+		},
+	}
+	r := Evaluate(context.Background(), Policy{}, f, candidate, current)
+	if r.Verdict != Failed || r.Decision != Warn {
+		t.Errorf("result = %+v", r)
+	}
+	f.verdicts[candidate+" b"] = IdentityMismatch
+	if r := Evaluate(context.Background(), Policy{}, f, candidate, current); r.Verdict != IdentityMismatch || r.Rule.Subject != "a" {
+		t.Errorf("both mismatch: result = %+v, want the first proven identity's", r)
+	}
+}

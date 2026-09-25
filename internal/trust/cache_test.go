@@ -9,12 +9,13 @@ import (
 
 type countingVerifier struct {
 	verdict Verdict
+	err     error
 	calls   int
 }
 
 func (c *countingVerifier) Verify(context.Context, string, Rule) (Verdict, error) {
 	c.calls++
-	return c.verdict, nil
+	return c.verdict, c.err
 }
 
 func (c *countingVerifier) Identities(context.Context, string) ([]Identity, error) { return nil, nil }
@@ -63,6 +64,18 @@ func TestAFailureIsNeverStored(t *testing.T) {
 	_, _ = v.Verify(ctx, candidate, cacheRule)
 	if inner.calls != 2 {
 		t.Errorf("calls = %d, want every failure asked again", inner.calls)
+	}
+}
+
+// Key mode's fail-closed Unsigned may be a network failure: stored, it would
+// block a built-in DHI pull for six hours after the network came back.
+func TestAnInferredVerdictIsNeverStored(t *testing.T) {
+	inner, v, _ := cachedAt(t, Unsigned)
+	inner.err = ErrUnproven
+	ctx := context.Background()
+	_, _ = v.Verify(ctx, candidate, cacheRule)
+	if got, err := v.Verify(ctx, candidate, cacheRule); got != Unsigned || err == nil || inner.calls != 2 {
+		t.Errorf("verdict %v, err %v after %d calls, want every inferred verdict asked again", got, err, inner.calls)
 	}
 }
 
