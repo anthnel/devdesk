@@ -50,9 +50,9 @@ func Cell(s State) string {
 	return "-"
 }
 
-// Style colours by the decision. Green on Verified is the CI column's exception
-// (Rule 122): most rows have no policy and render a grey dash, so green is what
-// tells a proven signature from an absence.
+// Style colours by the decision. Green on Verified is Rule 122's fourth
+// declared exception: a rare, established guarantee whose failure is red —
+// unlike the Update column's "up to date", the resting state, which stays dim.
 func Style(s State) lipgloss.Style {
 	if !s.Known || s.Verifying {
 		return theme.DimStyle
