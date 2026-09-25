@@ -15121,6 +15121,8 @@ peut être commitée.
 - `docs.docker.com/dhi/core-concepts/signatures/` ne documente ni la clé ni sa
   rotation ; seul le dépôt `keyring` fait foi.
 
+Adopter une nouvelle clé d'éditeur à l'exécution, sur approbation : §3.92.
+
 Tout est tranché ; le plan d'implémentation est
 `.claude/plans/2026-09-25-image-signature-verification.md`.
 
@@ -15665,6 +15667,58 @@ un, vérifié par `cosign verify-attestation --type …` avec la même politique
 que §3.82. **Pas creusé** : quelles images en publient réellement, si le
 résultat diffère assez de `trivy image` pour valoir un second chemin, et que
 faire quand les deux se contredisent.
+
+### 3.92 Adopter une nouvelle clé d'éditeur à l'exécution, sur approbation — **à explorer**
+
+Née de §3.82 (2026-09-25). Les clés de B sont embarquées dans le binaire : une
+rotation chez l'éditeur (DHI en a déjà connu une, `dhi-1` → `dhi-2`) bloque les
+pulls jusqu'à une nouvelle version de DevDesk, ou jusqu'à une règle C écrite à
+la main. La question : DevDesk peut-il adopter la nouvelle clé lui-même, sans
+rouvrir la faille que l'embarquement ferme ?
+
+**Le stockage n'est pas le problème.** Une clé publique n'est pas un secret :
+le risque est d'en **accepter une fausse**, pas qu'elle fuie. Un fichier 0600
+sous `~/.devdesk/` vaut le trousseau système, et qui peut y écrire peut déjà
+modifier `trust.yaml`. Le problème est **l'acquisition** : décider à
+l'exécution qu'une clé téléchargée est légitime.
+
+| Approche | Ce qu'elle vaut |
+|---|---|
+| Télécharger `latest.pub` et l'adopter | Non : contenu et preuve viennent du même réseau — la faille de §3.82 |
+| **Quorum** — `registry.scout.docker.com`, GitHub (`docker-hardened-images/keyring`), `dhi.io` doivent concorder | Mieux : un point compromis ne suffit plus. Mais un proxy qui intercepte TLS avec une CA de confiance tient les trois, un compte Docker compromis au moins deux |
+| Nouvelle clé signée par l'ancienne | La bonne réponse — Docker ne publie pas de telle déclaration (rien dans le dépôt `keyring`) |
+| TUF | Ce que cosign fait pour la racine Sigstore (`13.root.json`, chaque racine signée par la précédente) — Docker ne distribue pas les clés DHI ainsi |
+| **Approbation explicite**, façon `known_hosts` | La décision reste humaine |
+
+**La forme envisagée : quorum + approbation, écrite comme une règle C.** Un
+pull DHI est refusé (clé qui ne concorde plus) ; DevDesk voit que l'en-tête
+`x-keyid` de `registry.scout.docker.com` a changé, récupère la nouvelle clé
+depuis au moins deux sources et vérifie qu'elles concordent, puis propose
+« New DHI signing key `ab12…` — accept? », confirmation dont le choix par défaut
+est **Non**. Accepter ajoute une règle `dhi.io/*` à `trust.yaml` :
+
+- **aucun nouveau lieu de stockage** — la clé devient une déclaration de
+  confiance de l'utilisateur, ce que C veut dire, et C passe avant B ;
+- **jamais automatique** — l'empreinte affichée est ce que l'utilisateur
+  compare au dépôt `keyring` ;
+- **seulement pour une entrée B en mode clé** : un éditeur keyless (distroless,
+  Chainguard) n'a pas de clé à faire tourner ; un changement d'identité y est
+  un changement de workflow, pas une rotation.
+
+**Pas creusé plus loin ici** :
+
+1. **DevDesk écrirait dans `trust.yaml`**, jusqu'ici édité à la main et lu en
+   strict. `yaml.v3` sait modifier le nœud en gardant les commentaires ; à
+   vérifier sur un fichier réel, et décider où la règle s'insère — la première
+   règle qui correspond gagne, donc l'ordre compte.
+2. **Ce que vaut le quorum** face au modèle de menace de §3.82, écrit plutôt
+   que supposé : il ne protège pas contre qui tient le réseau *et* une CA.
+3. **Le signal de rotation** : `x-keyid` est-il stable, documenté, présent sur
+   `dhi.io` aussi ? Mesuré une fois (`2`), rien de plus.
+4. **L'entrée MCP** : un agent ne doit **jamais** pouvoir accepter une clé —
+   c'est une décision de confiance, à réserver à la touche.
+
+Lié : §3.82.
 
 ## 4. Existing plans
 
