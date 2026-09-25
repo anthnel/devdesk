@@ -574,3 +574,31 @@ func scanRow(t *testing.T, category, tool string) field {
 	t.Fatalf("no %q row under %q", tool, category)
 	return field{}
 }
+
+// The setting is a string in the file (D12) and a checkbox on screen.
+func TestImageVerificationIsACheckboxOverAString(t *testing.T) {
+	f := fieldNamed(t, imageVerificationLabel)
+	if f.Kind != kindToggle {
+		t.Fatalf("kind = %v, want a checkbox", f.Kind)
+	}
+	cfg := &config.Config{}
+	// A file written before the key existed verifies.
+	if !f.Bool(cfg) {
+		t.Error("an empty value reads as unticked — it must verify")
+	}
+	if f.Toggle(cfg) || cfg.Scan.ImageVerification != config.ImageVerificationOff {
+		t.Errorf("untick wrote %q", cfg.Scan.ImageVerification)
+	}
+	if !f.Toggle(cfg) || cfg.Scan.ImageVerification != config.ImageVerificationOn {
+		t.Errorf("tick wrote %q", cfg.Scan.ImageVerification)
+	}
+	// A typo verifies, shows ticked, and the first toggle rewrites it.
+	cfg.Scan.ImageVerification = "of"
+	if !f.Bool(cfg) {
+		t.Error("a typo reads as unticked — only off turns the check off")
+	}
+	f.Toggle(cfg)
+	if cfg.Scan.ImageVerification != config.ImageVerificationOff {
+		t.Errorf("toggling a typo wrote %q", cfg.Scan.ImageVerification)
+	}
+}

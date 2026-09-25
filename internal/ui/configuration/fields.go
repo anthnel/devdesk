@@ -138,6 +138,31 @@ func toggle(label string, ref func(*config.Config) *bool, hint string) field {
 	return field{Label: label, Kind: kindToggle, flag: ref, hint: hint}
 }
 
+// imageVerificationField is scan.image_verification as a checkbox (§3.82).
+//
+// A boolean in meaning, so a checkbox (Rule 132 keeps cycling for closed sets
+// of named values) — but a string in the file, so a file written before the
+// key reads as on (D12). The box reads VerifiesImages, which only "off" turns
+// off: a value typed wrong shows ticked, since it does verify, and the first
+// toggle rewrites it as on or off.
+func imageVerificationField() field {
+	f := field{Label: imageVerificationLabel, Kind: kindToggle,
+		get: func(c *config.Config) bool { return c.Scan.VerifiesImages() },
+		set: func(c *config.Config, on bool) {
+			c.Scan.ImageVerification = config.ImageVerificationOff
+			if on {
+				c.Scan.ImageVerification = config.ImageVerificationOn
+			}
+		},
+	}
+	f.hintOn = "Signatures are checked before an image is pulled or recommended — rules in ~/.devdesk/trust.yaml"
+	f.hintOff = "No signature is checked: pulls go through unverified"
+	return f
+}
+
+// imageVerificationLabel is named once: the help texts point at it.
+const imageVerificationLabel = "Verify image signatures"
+
 func cycle(label string, ref func(*config.Config) *string, options []string, hint string) field {
 	return field{Label: label, Kind: kindCycle, str: ref, Options: options, hint: hint}
 }
@@ -350,10 +375,7 @@ func sections(themes, views []string, configPath, contextName, forgeType string,
 				cycle("Base image bumps", func(c *config.Config) *string { return &c.Scan.BaseImageTrack },
 					config.BaseImageTracks(), "same-line keeps the major version; next-major may take the next one"),
 			),
-			group("Signatures", theme.IconLock,
-				cycle("Image verification", func(c *config.Config) *string { return &c.Scan.ImageVerification },
-					config.ImageVerifications(), "Checks an image's signature before pulling it — rules in ~/.devdesk/trust.yaml"),
-			),
+			group("Signatures", theme.IconLock, imageVerificationField()),
 			group("Limits", theme.IconHourglass,
 				integer("Timeout (s)", func(c *config.Config) *int { return &c.Scan.Timeout }, 10, 3600, ""),
 				integer("Max concurrent scans", func(c *config.Config) *int { return &c.Scan.MaxConcurrentScans }, 1, 16, ""),

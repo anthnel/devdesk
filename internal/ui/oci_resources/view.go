@@ -563,7 +563,7 @@ func (m Model) GetHelpContent() help.Content {
 					"A signature by an unexpected identity is always refused. An unsigned image is refused under a rule and only warned about otherwise; a check that could not run is refused under your own rules only. The footer names the rule behind a refusal. " +
 					"Launching a container never pulls: an image arrives through a verified pull or not at all. " +
 					"A pull typed in another terminal is not checked — DevDesk is not an admission controller. " +
-					"Turn the check off per context with Image verification (scan tab); the header then says Signatures: off.",
+					"Turn the check off per context by unticking Verify image signatures (scan tab of the configuration view); the header then says Signatures: off.",
 			},
 			{
 				Title: "Launch Form",

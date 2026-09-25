@@ -15167,6 +15167,11 @@ livraison : ce qui suit est ce qu'il gardait qui ne se lit pas dans le code.
 10. **`run --pull=never`** couvre `LaunchContainer`, `BuildLaunchCmd` et
     `VerifyEntrypoint`. Les images d'outils de DevDesk (Trivy, cosign, netdiag)
     restent tirées par leur `run`, non vérifiées — exception déclarée.
+11. **Une case à cocher, pas un champ cyclique** (décidé avec l'utilisateur) :
+    « vérifier ou non » est un booléen, et la règle 132 réserve le cycle aux
+    ensembles de valeurs nommées. Le fichier garde la chaîne `on`/`off` (D12) ;
+    la case lit `VerifiesImages`, donc une valeur mal tapée s'affiche cochée, et
+    le premier `space` la réécrit.
 
 Vérifié à chaque étape contre le vrai cosign et le vrai moteur, dans le
 sandbox, par des tests jetables non commités (résultats dans les messages de

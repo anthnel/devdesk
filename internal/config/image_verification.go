@@ -11,11 +11,5 @@ const (
 	ImageVerificationOff = "off"
 )
 
-// ImageVerifications is the set scan.image_verification cycles through in the
-// configuration view.
-func ImageVerifications() []string {
-	return []string{ImageVerificationOn, ImageVerificationOff}
-}
-
 // VerifiesImages reports whether signatures are verified.
 func (c ScanConfig) VerifiesImages() bool { return c.ImageVerification != ImageVerificationOff }
