@@ -14695,7 +14695,7 @@ hadolint 2.14.0.
 
 ---
 
-### 3.82 Vérifier la signature et le SBOM d'une image avant de la recommander ou de la tirer — **décidé le 2026-09-25, à construire**
+### 3.82 Vérifier la signature d'une image avant de la recommander ou de la tirer — **décidé le 2026-09-25, à construire**
 
 Trouvé au chapitre 4 (§4.5, §4.8) : la chaîne d'approvisionnement d'une image
 de base peut être compromise sans qu'aucune CVE ne le révèle — un registre
@@ -14830,8 +14830,8 @@ absences.
 - **Sans règle, jamais de blocage sur échec** : personne n'a rien demandé.
 - **Condition** : distinguer de façon fiable *non signée* (le registre a
   répondu, rien) d'*échec* (on n'a pas pu demander). `cosign verify`
-  semble renvoyer le même code dans les deux cas — **à mesurer**, comme les
-  codes de plumber (§3.42), pas à lire dans la documentation.
+  renvoie `1` pour les deux sur le format bundle — mesuré, voir « Mesure »
+  ci-dessous, et levé sans lire stderr.
 - Le message de refus **nomme la règle** (fichier, ligne) : c'est ce qu'il
   faut changer si l'éditeur a légitimement changé d'identité.
 - **Pas de touche pour forcer.** Les deux issues propres : corriger la règle,
@@ -14871,17 +14871,102 @@ pour un échec non bloquant. Une image qu'on ne peut pas tirer ne peut pas
 
 **7. Signer n'est pas le rôle de DevDesk** — voir §3.90.
 
-#### Encore ouvert
+#### Mesure de `cosign verify` (2026-09-25)
 
-1. **Le SBOM** du titre n'a pas été discuté : vérifier une attestation SBOM
-   signée (`cosign verify-attestation --type spdxjson|cyclonedx`) — quel verdict
-   si l'image est signée mais sans SBOM ? §3.14 a retiré la *génération* ; il
-   s'agirait ici de *vérifier*, un signal de provenance, pas un livrable.
-2. **L'image actuelle elle-même** : si c'est l'image en usage qui viole sa
-   règle, en faire un finding du scan (HIGH, `Source: signature`) plutôt
-   qu'une mention dans l'onglet Remediation ?
-3. **Le contenu initial de B**, éditeur par éditeur, vérifié.
-4. **Le code de sortie de `cosign verify`** (non signée vs échec), mesuré.
+cosign v3.1.3, lancé en conteneur (`ghcr.io/sigstore/cosign/cosign`), depuis le
+sandbox — `cgr.dev` y est bloqué, Chainguard n'a donc pas pu être mesuré.
+
+| Cas | Image | Sortie | Message |
+|---|---|---|---|
+| Signée, bonne identité | distroless, cosign | **0** | — |
+| Non signée | `docker.io/library/alpine:3.20` | **10** | `no signatures found` |
+| Tag inexistant | `ghcr.io/sigstore/cosign/cosign:v0.0.0-nope` | **11** | `image tag not found` |
+| Mauvaise identité, ancien format `.sig` | distroless | **12** | `no matching signatures: … got subjects [...]` |
+| Mauvaise identité, **format bundle** (referrers, défaut de cosign v3) | image cosign | **1** | `no matching attestations: … expected SAN …` |
+| Registre filtré, hôte inexistant | `cgr.dev`, `.invalid` | **1** | le 403 du proxy |
+| Hors ligne | `--network none` | **1** | `failed to download 13.root.json` (TUF) |
+
+Ce qui en découle :
+
+1. **0, 10, 11, 12 sont fiables ; 1 est ambigu** sur le format bundle —
+   identité inattendue *ou* échec. Non signée contre échec tient ; identité
+   inattendue contre échec, non.
+2. **Lever l'ambiguïté sans lire stderr** : sur un 1 strict, une seconde
+   vérification **permissive** (`--certificate-identity-regexp=.*
+   --certificate-oidc-issuer-regexp=.*`) — 0 ⇒ identité inattendue (une
+   signature valide existe, pas de la bonne identité), 10 ⇒ non signée, autre ⇒
+   échec. Rien ne dépend du texte des messages.
+3. **Rekor n'est pas nécessaire** : `rekor.sigstore.dev` était bloqué et la
+   vérification a réussi (« verified offline », via le bundle). Il faut le
+   registre et `tuf-repo-cdn.sigstore.dev`.
+4. **~3 s par vérification** en conteneur, cache TUF monté en volume
+   (`TUF_ROOT`). Acceptable pour un pull, et en arrière-plan pour les candidats.
+5. **La continuité (A) doit connaître l'identité de l'image actuelle**, et
+   cosign ne l'affiche pas pour le format bundle (seul l'ancien format la donne,
+   `optional.Subject`/`Issuer` de la sortie JSON). **La lire soi-même dans le
+   bundle serait une faille** : une vérification permissive réussit dès qu'*une*
+   signature est valide — un attaquant joint la sienne, valide, plus un bundle
+   dont le certificat falsifié annonce l'identité attendue ; on lirait le faux.
+   Donc : `cosign download attestation` donne les identités **annoncées**
+   (mesuré : le SAN se lit dans le certificat du bundle), qui ne sont que des
+   indices ; chaque indice est **vérifié strictement** sur l'image actuelle, et
+   seule une identité que cosign a validée sert à vérifier le candidat.
+6. **B démarre avec une entrée mesurée** : distroless (`gcr.io/distroless/*`,
+   émetteur `https://accounts.google.com`, identité
+   `keyless@distroless.iam.gserviceaccount.com`). Chainguard et DHI restent à
+   mesurer depuis un réseau qui les atteint.
+
+#### Décisions, suite (2026-09-25)
+
+1. **Le SBOM est hors de §3.82.** Une image signée sans SBOM n'est pas
+   compromise : il ne bloque jamais, donc il n'a rien à faire dans un verdict de
+   confiance. Ce qu'il apporte — un inventaire meilleur que celui de Trivy sur
+   les binaires statiques et distroless — est une question de scan : §3.91.
+2. **L'image en usage qui viole sa règle est un finding**, sur le modèle de
+   l'étape `build-context` (§3.81) : une étape sans outil de scan de la
+   catégorie Misconfiguration, `Source: signature`, ancrée sur la ligne `FROM`.
+   `DEVDESK-SIG-001` identité inattendue (CRITICAL), `DEVDESK-SIG-002` non
+   signée sous une règle (HIGH). Un échec ne produit pas de finding : un finding
+   affirme un fait. Pas de nouvelle catégorie. Le correctif est la liste des
+   candidats.
+3. **B : aucune entrée sans mesure** — un vrai `cosign verify` réussi, l'identité
+   mesurée écrite dans le code à côté de l'entrée. B vide est acceptable.
+4. **Quand** : candidats en arrière-plan quand ils sont calculés (l'action reste
+   offerte tant que la réponse n'est pas là, Rule 130) ; pull en synchrone *dans*
+   le job de pull, `K` annule les deux ; image en usage pendant le scan. **Pas de
+   colonne dans la vue OCI en v1.**
+5. **Cache des verdicts** : clé = digest + empreinte de la règle ; vérifiée et
+   identité inattendue 24 h, non signée 6 h, **échec jamais**. Un
+   `signature-verdicts.json` sur le modèle d'`image-updates.json`.
+6. **`cosign` se configure par contexte**, `scan.tools.cosign`, dans l'onglet
+   Tools (§3.86) — la politique est globale, la façon de lancer l'outil est
+   locale. Il entre dans la table des outils, **dans aucune catégorie** : il sert
+   aussi hors d'un scan (le pull), et un second interrupteur par la case d'une
+   catégorie contredirait le suivant. Introuvable sous une règle C : échec,
+   donc blocage, avec « cosign not found — install it or set scan.tools.cosign ».
+7. **MCP** : un pull refusé rend la raison à l'agent, le finding `DEVDESK-SIG-*`
+   est dans les résultats de scan qu'il lit déjà. Pas d'outil `verify_image`.
+8. **`scan.image_verification: on | off`**, par contexte, **`on` par défaut**.
+   - Par contexte et non dans `trust.yaml` : *qui* croire est un fait sur le
+     monde, *vérifier ou non* dépend de l'environnement (un contexte isolé du
+     réseau). C'est aussi ce qui le rend éditable dans la vue configuration.
+   - Une chaîne, pas un booléen : `false` est la valeur zéro, tout fichier écrit
+     avant la clé se lirait « ne pas vérifier » (D12). Défaut posé dans
+     `applyDefaults`, comme `base_image_track`.
+   - `on` par défaut est sans risque : sans règle C, un échec ne fait
+     qu'avertir.
+   - `off` coupe tout (verdicts, pull, finding) et l'emporte sur une règle C —
+     visible : « Signatures: off » en en-tête de l'onglet Remediation, un log au
+     démarrage si des règles C sont ainsi neutralisées.
+   - Le nom couvre la provenance (SLSA) le jour où elle est vérifiée : même
+     interrupteur, pas de seconde clé.
+9. **Les identifiants de registre** d'une image privée ne passent pas par argv
+   (`--registry-password` se lit dans la liste des processus) : un
+   `DOCKER_CONFIG` temporaire, 0600, qui ne contient que l'hôte concerné,
+   monté pour un cosign en conteneur, supprimé après.
+
+Tout est tranché ; le plan d'implémentation est
+`.claude/plans/2026-09-25-image-signature-verification.md`.
 
 ---
 
@@ -15410,6 +15495,20 @@ signature doit vivre, et DevDesk lit déjà les pipelines : la catégorie CI
    corriger.
 
 Lié : §3.82 (vérifier), §3.42 (le score CI), §3.83 (templates).
+
+### 3.91 Le SBOM signé de l'éditeur comme entrée de Trivy — **à explorer**
+
+Sorti de §3.82 le 2026-09-25. Un éditeur qui publie un SBOM signé (attestation
+`spdxjson` ou `cyclonedx`) décrit l'image mieux que Trivy ne la devine sur ce
+qui n'a pas de base de paquets — binaires statiques, distroless. `trivy sbom`
+scanne un SBOM au lieu de l'image. Ce n'est pas une question de confiance
+(§3.82 : un SBOM absent ne bloque jamais) mais de **qualité du scan**.
+
+§3.14 a retiré la *génération* d'un SBOM ; il s'agirait ici d'en *consommer*
+un, vérifié par `cosign verify-attestation --type …` avec la même politique
+que §3.82. **Pas creusé** : quelles images en publient réellement, si le
+résultat diffère assez de `trivy image` pour valoir un second chemin, et que
+faire quand les deux se contredisent.
 
 ## 4. Existing plans
 
