@@ -58,10 +58,10 @@ Three tables carry an **Update** column (`internal/ui/updatecol`): oci's Images
 tab, the containers list, and the Remediation tab of a scan result. It shows an
 arrow when the image's registry holds something newer, and says what:
 
-| Kind | When | Label |
+| Kind | When | Cell |
 |---|---|---|
-| `NewPatch` | the tag has ≥ 3 version components and a tag differing only by the last, same variant, is higher (`20.11.1-alpine` → `20.11.4-alpine`) | the tag |
-| `NewBuild` | the digest the tag points to now is none of the local image's digests | `new build` |
+| `NewPatch` | the tag has ≥ 3 version components and a tag differing only by the last, same variant, is higher (`20.11.1-alpine` → `20.11.4-alpine`) | the arrow and the tag |
+| `NewBuild` | the digest the tag points to now is none of the local image's digests | the arrow alone (`IconArrowDown`) |
 
 A newer patch wins over a new build. Every other state says why there is no
 arrow, in grey — a blank used to stand for all of them, which in the
@@ -71,15 +71,18 @@ that was silent without saying why:
 | Kind | Cell | When |
 |---|---|---|
 | `UpToDate` | the check mark | the local digest is the tag's |
-| `Pending` | `checking` | no answer yet |
-| `Failed` | `?` | the registry did not answer (logged) |
-| `LocalBuild` | `local build` | images, containers: no registry digest |
-| `NotLocal` | `not local` | Remediation: unpinned, and not held by the engine |
-| `Pinned` | `pinned` | a digest with no tag: nothing can move |
+| `Pending` | `IconHourglass` | no answer yet |
+| `Failed` | `IconHelpCircle` | the registry did not answer (logged) |
+| `LocalBuild` | `IconHammer` | images, containers: no registry digest |
+| `NotLocal` | `IconCloud` | Remediation: unpinned, and not held by the engine |
+| `Pinned` | `IconPin` | a digest with no tag: nothing can move |
 | `None` | blank | the question does not apply (untagged image, unresolved `FROM`) |
 
-`Evaluate` takes what "no local digest" means to its caller (`LocalBuild` or
-`NotLocal`). The column's filter only matches an update's label, or `/ca`
+Every state but a newer patch is one glyph (`updatecol.Cell`): the words cost
+eleven cells in the widest table there is, and the reason is still spelled out
+by `G`'s greyed shortcut in the footer and by `?`. `Status.Label` keeps the
+word, which is what the filter matches. `Evaluate` takes what "no local digest"
+means to its caller (`LocalBuild` or `NotLocal`). The column's filter only matches an update's label, or `/ca`
 would find every `local build`. A tag with fewer components (`3.20`,
 `20`) has no patches of its own — it floats over them, so a new patch moves the
 tag and the digest says it. That is also the only answer a floating tag

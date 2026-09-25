@@ -77,8 +77,9 @@ type Status struct {
 // Available reports whether there is an update to show.
 func (s Status) Available() bool { return s.Kind == NewPatch || s.Kind == NewBuild }
 
-// Label is the text of the cell, without the glyphs a view adds (the arrow of
-// an update, the check mark of UpToDate).
+// Label is the word for the state — what the column's filter matches and the
+// help names. The cell itself prints a glyph for every state but a newer
+// patch (updatecol.Cell).
 func (s Status) Label() string {
 	switch s.Kind {
 	case Pending:
