@@ -82,9 +82,10 @@ func (d Deps) checkDeps() trust.CheckDeps {
 	return trust.CheckDeps{Policy: d.Policy, Verifier: d.Verifier, Digest: d.Digest}
 }
 
-// localDigest picks, among an image's repo digests, the one of ref's own
-// repository — an image pulled under two names carries both.
-func localDigest(ref string, repoDigests []string) string {
+// LocalDigest picks, among an image's repo digests, the one of ref's own
+// repository — an image pulled under two names carries both — as a reference
+// pinned by digest. "" when none is: the image was built or loaded here.
+func LocalDigest(ref string, repoDigests []string) string {
 	repo := trust.Repository(ref)
 	for _, rd := range repoDigests {
 		name, digest, ok := strings.Cut(rd, "@")

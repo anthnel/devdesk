@@ -54,6 +54,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TrustPolicyCheckedMsg:
 		return m.handleTrustPolicyChecked(msg)
 
+	case ImageSignatureCheckedMsg:
+		return m.handleImageSignatureChecked(msg)
+
 	// Another view asks for an image to be shown (keymap.Jump) — see focus.go.
 	case FocusImageRequestMsg:
 		return m.handleFocusImage(msg)

@@ -7,12 +7,10 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/trust"
-	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -128,65 +126,6 @@ func (m Model) signatureWarning(ref string) string {
 		return res.Reason()
 	}
 	return ""
-}
-
-// ── The Sig column ───────────────────────────────────────────────────────────
-
-// signatureState is what one row's Sig cell shows.
-type signatureState struct {
-	Result    trust.Result
-	Known     bool
-	Verifying bool
-}
-
-func signatureCell(s signatureState) string {
-	switch {
-	case s.Verifying:
-		return theme.IconHourglass
-	case !s.Known:
-		return "-"
-	}
-	switch s.Result.Decision {
-	case trust.Block:
-		return theme.IconError
-	case trust.Warn:
-		if s.Result.Verdict == trust.Failed {
-			return theme.IconHelpCircle
-		}
-		return theme.IconWarning
-	}
-	if s.Result.Verdict == trust.Verified {
-		return theme.IconOK
-	}
-	return "-"
-}
-
-// signatureStyle colours by the decision. Green on Verified is the CI column's
-// exception (Rule 122): most rows have no policy and render a grey dash, so
-// green is what tells a proven signature from an absence.
-func signatureStyle(s signatureState) lipgloss.Style {
-	if !s.Known || s.Verifying {
-		return theme.DimStyle
-	}
-	switch s.Result.Decision {
-	case trust.Block:
-		return theme.StatusErrorStyle
-	case trust.Warn:
-		return theme.StatusWarningStyle
-	}
-	if s.Result.Verdict == trust.Verified {
-		return theme.StatusOKStyle
-	}
-	return theme.DimStyle
-}
-
-// signatureColumn is the Sig column: a glyph, no sort, no search (Rule 125).
-func signatureColumn() datatable.Column[remediationRow] {
-	return datatable.Column[remediationRow]{
-		Title: "Sig", Sizing: datatable.SizingFixed, MinWidth: len("Sig"), Optional: true,
-		Cell:  func(r remediationRow) string { return signatureCell(r.Signature) },
-		Style: func(r remediationRow) lipgloss.Style { return signatureStyle(r.Signature) },
-	}
 }
 
 // signatureHeader is the results header's field when the check is off.

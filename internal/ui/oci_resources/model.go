@@ -59,7 +59,13 @@ type Model struct {
 	// trustPolicyErr is ~/.devdesk/trust.yaml failing to load (§3.82): every
 	// pull is refused while it holds, and the header says so.
 	trustPolicyErr error
-	scanCache      map[string]cache.ImageScanEntry
+	// signatures is each local image's verdict (§3.82), by name; sigAsked what
+	// was asked about it — the digest, and when — and sigVerifying the ones
+	// still out.
+	signatures   map[string]trust.Result
+	sigAsked     map[string]sigAsk
+	sigVerifying map[string]bool
+	scanCache    map[string]cache.ImageScanEntry
 	// jobs is the router snapshot of everything running anywhere, and jobFrame
 	// the spinner frame that goes with it — bare, because it lands in a table
 	// cell (Rule 122). It replaced a scanningImages map and the `scanning`
@@ -483,6 +489,9 @@ func New(cfg *config.Config) Model {
 		activeTab:           tabImages,
 		scanCache:           make(map[string]cache.ImageScanEntry),
 		failedScans:         make(map[string]bool),
+		signatures:          make(map[string]trust.Result),
+		sigAsked:            make(map[string]sigAsk),
+		sigVerifying:        make(map[string]bool),
 		spinner:             s,
 		imageTable:          it,
 		networkTable:        nt,

@@ -17,6 +17,7 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
+	"github.com/anthnel/devdesk/internal/ui/sigcol"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/ui/updatecol"
 )
@@ -136,7 +137,7 @@ type remediationRow struct {
 	// Only a current row has one: a candidate is already the newer image.
 	Update imageupdate.Status
 	// Signature is what its signature check found (§3.82).
-	Signature signatureState
+	Signature sigcol.State
 }
 
 // icon is the glyph column: the image itself, or a candidate's checkbox.
@@ -265,7 +266,7 @@ func remediationColumns() []datatable.Column[remediationRow] {
 			},
 		},
 		updatecol.Column(true, func(r remediationRow) imageupdate.Status { return r.Update }),
-		signatureColumn(),
+		sigcol.Column(func(r remediationRow) sigcol.State { return r.Signature }),
 		count("CRIT", "CRITICAL", func(c scan.SeverityCounts) int { return c.Critical }),
 		count("HIGH", "HIGH", func(c scan.SeverityCounts) int { return c.High }),
 		{
@@ -413,7 +414,7 @@ func (m *Model) refreshRemediation() {
 		m.remediation.entries, m.remediation.results, m.remediation.scanning, m.remediation.selected, m.baseImageUpdate)
 	for i := range rows {
 		res, known := m.remediation.signatures[rows[i].Ref]
-		rows[i].Signature = signatureState{Result: res, Known: known, Verifying: m.remediation.verifying[rows[i].Ref]}
+		rows[i].Signature = sigcol.State{Result: res, Known: known, Verifying: m.remediation.verifying[rows[i].Ref]}
 	}
 	m.remediation.table.SetItems(rows)
 	m.remediation.table.Remeasure()

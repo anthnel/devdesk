@@ -13,6 +13,7 @@ import (
 	"github.com/anthnel/devdesk/internal/imageupdate"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
 	"github.com/anthnel/devdesk/internal/ui/registryalias"
+	"github.com/anthnel/devdesk/internal/ui/sigcol"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 	"github.com/anthnel/devdesk/internal/ui/updatecol"
 )
@@ -41,6 +42,8 @@ type imageRow struct {
 	SpinnerFrame string
 	// Update is whether a newer image exists in its registry (§3.88).
 	Update imageupdate.Status
+	// Signature is what the signature check found on the local digest (§3.82).
+	Signature sigcol.State
 }
 
 // The columns something else refers to. imageColumnID is where a running action
@@ -175,6 +178,7 @@ func imageColumns(withMisconfig bool) []datatable.Column[imageRow] {
 			Search: func(r imageRow) string { return r.DisplayName + " " + r.RawName },
 		},
 		updatecol.Column(false, func(r imageRow) imageupdate.Status { return r.Update }),
+		sigcol.Column(func(r imageRow) sigcol.State { return r.Signature }),
 		{
 			Title: "Disk Usage", Sizing: datatable.SizingFixed, Optional: true, MinWidth: 12,
 			Cell: func(r imageRow) string { return formatBytes(r.Image.UniqueSize) },
@@ -234,6 +238,7 @@ func (m *Model) imageRows() []imageRow {
 			Pulling:      pulling[raw],
 			SpinnerFrame: frame,
 			Update:       m.imageUpdate(img),
+			Signature:    m.imageSignature(img),
 		})
 	}
 	// An image pulled for the first time has no local row to spin yet — this

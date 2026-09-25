@@ -9,12 +9,15 @@ import (
 	"testing"
 
 	"github.com/anthnel/devdesk/internal/config"
+	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/imagepull"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/trust"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/sigcol"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -181,4 +184,104 @@ func TestTheHeaderSaysWhenSignaturesAreNotChecked(t *testing.T) {
 	if v, _ := headerValue(off, "Signatures"); v != "off" {
 		t.Errorf("Signatures = %q, want off", v)
 	}
+}
+
+// ── The Sig column ───────────────────────────────────────────────────────────
+
+func sigCellOf(t *testing.T, m Model, name string) string {
+	t.Helper()
+	for _, r := range m.imageTable.Items() {
+		if r.RawName == name {
+			return sigcol.Cell(r.Signature)
+		}
+	}
+	t.Fatalf("no row for %s", name)
+	return ""
+}
+
+var signedImages = []docker.Image{
+	{ID: "a1", Repository: "gcr.io/distroless/static", Tag: "nonroot", RepoDigests: []string{"gcr.io/distroless/static@sha256:aaa"}},
+	{ID: "b2", Repository: "myapp", Tag: "dev"}, // built here: no registry digest
+}
+
+func TestTheSigColumnChecksTheDigestOnDisk(t *testing.T) {
+	var asked []string
+	prev := newPullDeps
+	newPullDeps = func(*config.Config, *scan.Report) imagepull.Deps {
+		return imagepull.Deps{
+			Enabled:  true,
+			Policy:   func() (trust.Policy, error) { return trust.Policy{}, nil },
+			Verifier: recordingVerifier{asked: &asked, verdict: trust.Verified},
+			Digest:   func(string) (string, error) { t.Error("a local image was resolved at the registry"); return "", nil },
+		}
+	}
+	t.Cleanup(func() { newPullDeps = prev })
+
+	m := newTestModel(t)
+	m, cmd := step(t, m, ImagesListMsg{Images: signedImages})
+	if got := sigCellOf(t, m, "gcr.io/distroless/static:nonroot"); got != theme.IconHourglass {
+		t.Errorf("before the answer: %q, want the hourglass", got)
+	}
+	if got := sigCellOf(t, m, "myapp:dev"); got != theme.IconHammer {
+		t.Errorf("a local build: %q, want the hammer", got)
+	}
+	for _, msg := range testutil.Msgs(cmd) {
+		if sig, ok := msg.(ImageSignatureCheckedMsg); ok {
+			m = feed(t, m, sig)
+		}
+	}
+	if got := sigCellOf(t, m, "gcr.io/distroless/static:nonroot"); got != theme.IconOK {
+		t.Errorf("after: %q, want verified", got)
+	}
+	// The digest on disk, by the built-in distroless rule — not a tag.
+	if len(asked) != 1 || asked[0] != "gcr.io/distroless/static@sha256:aaa" {
+		t.Errorf("asked %q", asked)
+	}
+
+	// The same list again asks nothing: the digest has not changed.
+	_, cmd = step(t, m, ImagesListMsg{Images: signedImages})
+	for _, msg := range testutil.Msgs(cmd) {
+		if _, ok := msg.(ImageSignatureCheckedMsg); ok {
+			t.Error("an unchanged image was checked again")
+		}
+	}
+}
+
+func TestAStaleVerdictIsDropped(t *testing.T) {
+	m := feed(t, newTestModel(t), ImagesListMsg{Images: signedImages})
+	m.sigAsked["gcr.io/distroless/static:nonroot"] = sigAsk{Pinned: "gcr.io/distroless/static@sha256:new"}
+	m = feed(t, m, ImageSignatureCheckedMsg{Name: "gcr.io/distroless/static:nonroot", Pinned: "gcr.io/distroless/static@sha256:aaa",
+		Result: trust.Result{Verdict: trust.IdentityMismatch, Decision: trust.Block}})
+	if _, ok := m.signatures["gcr.io/distroless/static:nonroot"]; ok {
+		t.Error("a verdict about the digest before a pull was kept")
+	}
+}
+
+func TestOffShowsNoSignature(t *testing.T) {
+	cfg := testConfig()
+	cfg.Scan.ImageVerification = config.ImageVerificationOff
+	m := feed(t, New(cfg), tea.WindowSizeMsg{Width: 180, Height: 30})
+	m, cmd := step(t, m, ImagesListMsg{Images: signedImages})
+	for _, msg := range testutil.Msgs(cmd) {
+		if _, ok := msg.(ImageSignatureCheckedMsg); ok {
+			t.Error("off checked an image")
+		}
+	}
+	if got := sigCellOf(t, m, "gcr.io/distroless/static:nonroot"); got != "-" {
+		t.Errorf("cell = %q", got)
+	}
+}
+
+type recordingVerifier struct {
+	asked   *[]string
+	verdict trust.Verdict
+}
+
+func (r recordingVerifier) Verify(_ context.Context, ref string, _ trust.Rule) (trust.Verdict, error) {
+	*r.asked = append(*r.asked, ref)
+	return r.verdict, nil
+}
+
+func (recordingVerifier) Identities(context.Context, string) ([]trust.Identity, error) {
+	return nil, nil
 }

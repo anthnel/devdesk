@@ -179,10 +179,10 @@ func TestADigestTheRegistryWillNotGive(t *testing.T) {
 
 func TestTheLocalDigestIsTheOneOfTheSameRepository(t *testing.T) {
 	digests := []string{"mirror.example/python@sha256:aaa", "python@sha256:bbb"}
-	if got := localDigest("docker.io/library/python:3.12", digests); got != "docker.io/library/python@sha256:bbb" {
+	if got := LocalDigest("docker.io/library/python:3.12", digests); got != "docker.io/library/python@sha256:bbb" {
 		t.Errorf("localDigest = %q", got)
 	}
-	if got := localDigest("ghcr.io/x/y:1", digests); got != "" {
+	if got := LocalDigest("ghcr.io/x/y:1", digests); got != "" {
 		t.Errorf("localDigest = %q, want none", got)
 	}
 }

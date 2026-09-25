@@ -25,7 +25,7 @@ func Default(cfg *config.Config, tools *scan.Report) Deps {
 		Verifier: check.Verifier,
 		Digest:   check.Digest,
 		Current: func(ref string) string {
-			return localDigest(ref, docker.ImageRepoDigests([]string{ref})[ref])
+			return LocalDigest(ref, docker.ImageRepoDigests([]string{ref})[ref])
 		},
 		Pull: docker.PullImageContext,
 		Tag:  docker.TagImage,

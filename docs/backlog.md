@@ -14978,7 +14978,7 @@ Ce qui en découle :
 4. **Quand** : candidats en arrière-plan quand ils sont calculés (l'action reste
    offerte tant que la réponse n'est pas là, Rule 130) ; pull en synchrone *dans*
    le job de pull, `K` annule les deux ; image en usage pendant le scan. **Pas de
-   colonne dans la vue OCI en v1.**
+   colonne dans la vue OCI en v1** — ajoutée finalement, voir l'écart 7.
 5. **Cache des verdicts** : clé = digest + empreinte de la règle ; vérifiée et
    identité inattendue 24 h, non signée 6 h, **échec jamais**. Un
    `signature-verdicts.json` sur le modèle d'`image-updates.json`.
@@ -15135,7 +15135,8 @@ livraison : ce qui suit est ce qu'il gardait qui ne se lit pas dans le code.
 | `internal/scan/cosign.go` | le `Verifier` : codes 0/10/11 lus tels quels, relance permissive en keyless, mode clé *fail-closed*, `--experimental-oci11` sur `verify` seulement, identifiants par `COSIGN_REGISTRY_*`, image épinglée par digest |
 | `internal/scan/signature.go` | `SignatureDeps` — le câblage unique — et l'étape `signature` (`DEVDESK-SIG-001/002`) |
 | `internal/imagepull` | `Pull` (digest vérifié → pull du digest → tag) et `Check` ; seul chemin vers le pull du moteur, gardé par `TestNoPullBypassesTheSignatureCheck` |
-| `internal/ui/oci_resources` | les deux pulls, l'en-tête `Signatures`, l'aide |
+| `internal/ui/oci_resources` | les deux pulls, la colonne `Sig` de l'onglet Images, l'en-tête `Signatures`, l'aide |
+| `internal/ui/sigcol` | la colonne `Sig`, partagée par les deux vues |
 | `internal/ui/security` | la colonne `Sig`, le refus au `space`, le relâchement, la confirmation |
 | `internal/config`, vue configuration | `scan.image_verification`, `scan.tools.cosign`, l'onglet Tools |
 
@@ -15158,8 +15159,11 @@ livraison : ce qui suit est ce qu'il gardait qui ne se lit pas dans le code.
    se serait appliquée (validé avec l'utilisateur).
 6. **L'en-tête `Signatures`** (`off`, `trust.yaml invalid`) est aussi dans
    l'onglet Images de la vue OCI, là où se font les pulls.
-7. **La colonne `Sig` est locale** à l'onglet Remediation, pas un paquet partagé
-   comme `updatecol` — un seul consommateur.
+7. **La colonne `Sig` est aussi dans la vue OCI** (demandé par l'utilisateur),
+   alors que la décision 4 l'excluait de la v1 : onglet Images, le verdict du
+   digest sur disque contre les règles seules. D'où `internal/ui/sigcol`, un
+   paquet partagé comme `updatecol` — deux consommateurs. Pas dans la vue des
+   conteneurs.
 8. **Un verdict qui arrive sous la confirmation ouverte** empêche l'écriture de
    l'image qu'il bloque, en plus du relâchement d'un choix déjà fait.
 9. **`cosign version`** imprime une bannière : `CleanVersion` lit la ligne

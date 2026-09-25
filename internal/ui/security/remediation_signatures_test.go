@@ -9,8 +9,8 @@ import (
 	"github.com/anthnel/devdesk/internal/remediation"
 	"github.com/anthnel/devdesk/internal/trust"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/sigcol"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
-	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 var blockedByRule = trust.Result{
@@ -43,7 +43,7 @@ func TestACandidateItsSignatureBlocksCannotBeChosen(t *testing.T) {
 		t.Errorf("selected %v, footer %q", m.remediation.selected, m.footer.Text())
 	}
 	// Still shown: that the tag was republished by someone else is the point.
-	if row, _ := m.remediation.table.Selected(); signatureCell(row.Signature) == "-" {
+	if row, _ := m.remediation.table.Selected(); sigcol.Cell(row.Signature) == "-" {
 		t.Error("the blocked candidate's Sig cell says nothing")
 	}
 }
@@ -92,25 +92,6 @@ func TestAVerdictLandingUnderTheConfirmationStopsTheWrite(t *testing.T) {
 	}
 	if m.footer.Level() != sharedcomponents.LevelError || !strings.Contains(m.footer.Text(), "Not written") {
 		t.Errorf("footer = %q", m.footer.Text())
-	}
-}
-
-func TestTheSigCellSaysEachVerdictApart(t *testing.T) {
-	for name, c := range map[string]struct {
-		state signatureState
-		want  string
-	}{
-		"verifying": {signatureState{Verifying: true}, theme.IconHourglass},
-		"not asked": {signatureState{}, "-"},
-		"no policy": {signatureState{Known: true}, "-"},
-		"verified":  {signatureState{Known: true, Result: trust.Result{Verdict: trust.Verified}}, theme.IconOK},
-		"blocked":   {signatureState{Known: true, Result: blockedByRule}, theme.IconError},
-		"unsigned":  {signatureState{Known: true, Result: warnedByContinuity}, theme.IconWarning},
-		"failed":    {signatureState{Known: true, Result: trust.Result{Verdict: trust.Failed, Decision: trust.Warn}}, theme.IconHelpCircle},
-	} {
-		if got := signatureCell(c.state); got != c.want {
-			t.Errorf("%s: cell %q, want %q", name, got, c.want)
-		}
 	}
 }
 

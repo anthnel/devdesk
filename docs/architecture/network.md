@@ -189,6 +189,19 @@ the `:jobs` detail an agent reads is the same sentence; a Warn goes ahead and
 says why after the pull. The Images tab header shows `Signatures: off`, or
 `trust.yaml invalid` — read once when the view starts (`checkTrustPolicyCmd`).
 
+**The `Sig` column** of the Images tab (`signatures.go`, the shared
+`internal/ui/sigcol`) is each local image's verdict on the content on disk:
+`imagepull.LocalDigest` picks the `RepoDigests` entry of the image's own
+repository, and `imagepull.Check` asks about that digest against the rules
+alone — continuity would compare the image with itself. An image with no such
+digest was built or loaded here (a hammer, as in Update). Checked in the
+background on `ImagesListMsg`, four at a time; `sigAsked` keeps the digest each
+image was asked about, so an unchanged list asks nothing, a pull that changes
+the digest asks again, a verdict about a former digest is dropped, and a Failed
+one is retried after 30 minutes. An image no rule covers is decided without
+cosign, and one DevDesk pulled comes from the verdict cache. Nothing acts on
+the column.
+
 **`run` never pulls**: `buildLaunchArgs` and `VerifyEntrypoint` pass
 `--pull=never` (a missing image exits 125, both engines). An image reaches the
 machine through a verified pull or not at all. DevDesk's own tool images —
