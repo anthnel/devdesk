@@ -14830,7 +14830,7 @@ absences.
 - **Sans règle, jamais de blocage sur échec** : personne n'a rien demandé.
 - **Condition** : distinguer de façon fiable *non signée* (le registre a
   répondu, rien) d'*échec* (on n'a pas pu demander). `cosign verify`
-  renvoie `1` pour les deux sur le format bundle — mesuré, voir « Mesure »
+  renvoie `1` ou `12` pour l'un comme pour l'autre — mesuré, voir « Mesure »
   ci-dessous, et levé sans lire stderr.
 - Le message de refus **nomme la règle** (fichier, ligne) : c'est ce qu'il
   faut changer si l'éditeur a légitimement changé d'identité.
@@ -14874,7 +14874,8 @@ pour un échec non bloquant. Une image qu'on ne peut pas tirer ne peut pas
 #### Mesure de `cosign verify` (2026-09-25)
 
 cosign v3.1.3, lancé en conteneur (`ghcr.io/sigstore/cosign/cosign`), depuis le
-sandbox — `cgr.dev` y est bloqué, Chainguard n'a donc pas pu être mesuré.
+sandbox. Chainguard et DHI mesurés dans un second temps, une fois `cgr.dev`,
+Rekor et le stockage de blobs de Chainguard ouverts.
 
 | Cas | Image | Sortie | Message |
 |---|---|---|---|
@@ -14885,20 +14886,39 @@ sandbox — `cgr.dev` y est bloqué, Chainguard n'a donc pas pu être mesuré.
 | Mauvaise identité, **format bundle** (referrers, défaut de cosign v3) | image cosign | **1** | `no matching attestations: … expected SAN …` |
 | Registre filtré, hôte inexistant | `cgr.dev`, `.invalid` | **1** | le 403 du proxy |
 | Hors ligne | `--network none` | **1** | `failed to download 13.root.json` (TUF) |
+| **Stockage des blobs bloqué**, même en **permissif** | Chainguard (redirection vers `*.r2.cloudflarestorage.com`) | **12** | `no matching signatures: GET https://…r2.cloudflarestorage.com/…` |
+| Mode clé, bonne clé, `--experimental-oci11` | `dhi.io/static` | **0** | — |
+| Mode clé, bonne clé, **sans** `--experimental-oci11` | `dhi.io/static` | 10 | `no signatures found` |
+| Mode clé, **mauvaise clé** | `dhi.io/static` | **10** | `no signatures found` |
+| Mode clé sur une image signée en keyless | distroless | 12 | `both public key and certificate were provided but did not match` |
 
 Ce qui en découle :
 
-1. **0, 10, 11, 12 sont fiables ; 1 est ambigu** sur le format bundle —
-   identité inattendue *ou* échec. Non signée contre échec tient ; identité
-   inattendue contre échec, non.
-2. **Lever l'ambiguïté sans lire stderr** : sur un 1 strict, une seconde
-   vérification **permissive** (`--certificate-identity-regexp=.*
-   --certificate-oidc-issuer-regexp=.*`) — 0 ⇒ identité inattendue (une
-   signature valide existe, pas de la bonne identité), 10 ⇒ non signée, autre ⇒
+1. **Seuls 0, 10 et 11 sont fiables.** 1 est ambigu sur le format bundle
+   (identité inattendue *ou* échec), et **12 aussi** : un blob de signature
+   qu'on n'a pas pu lire le produit, même en permissif — un échec réseau
+   déguisé en mauvaise identité.
+2. **Lever l'ambiguïté sans lire stderr** : sur tout code strict autre que
+   0/10/11, une seconde vérification **permissive**
+   (`--certificate-identity-regexp=.* --certificate-oidc-issuer-regexp=.*`) —
+   0 ⇒ identité inattendue (une signature valide existe, pas de la bonne
+   identité), 10 ⇒ non signée, autre ⇒ échec. Un 12 permissif ne peut pas
+   vouloir dire « mauvaise identité », puisque toutes sont acceptées : c'est un
    échec. Rien ne dépend du texte des messages.
+2 bis. **`--experimental-oci11` toujours.** DHI range une signature de
+   l'ancien format dans les referrers OCI : sans le flag, cosign ne la trouve
+   pas (10). Mesuré sans effet sur distroless (`.sig`), sur l'image cosign
+   (bundle) et sur alpine (non signée).
+2 ter. **En mode clé, mauvaise clé = non signée (10).** Sous une règle, les
+   deux bloquent : la décision est juste, seul le libellé change — « no
+   signature from the expected key », pas « unsigned ». Pas de relance
+   permissive possible en mode clé : une signature d'une autre clé est
+   invisible, ce qui ne change rien à la décision.
 3. **Rekor n'est pas nécessaire** : `rekor.sigstore.dev` était bloqué et la
    vérification a réussi (« verified offline », via le bundle). Il faut le
-   registre et `tuf-repo-cdn.sigstore.dev`.
+   registre, **le stockage de blobs vers lequel il redirige** (Cloudflare R2
+   pour Chainguard), et `tuf-repo-cdn.sigstore.dev`. Un proxy qui laisse passer
+   le registre mais pas ses blobs donne un 12 — d'où le point 1.
 4. **~3 s par vérification** en conteneur, cache TUF monté en volume
    (`TUF_ROOT`). Acceptable pour un pull, et en arrière-plan pour les candidats.
 5. **La continuité (A) doit connaître l'identité de l'image actuelle**, et
@@ -14911,10 +14931,18 @@ Ce qui en découle :
    (mesuré : le SAN se lit dans le certificat du bundle), qui ne sont que des
    indices ; chaque indice est **vérifié strictement** sur l'image actuelle, et
    seule une identité que cosign a validée sert à vérifier le candidat.
-6. **B démarre avec une entrée mesurée** : distroless (`gcr.io/distroless/*`,
-   émetteur `https://accounts.google.com`, identité
-   `keyless@distroless.iam.gserviceaccount.com`). Chainguard et DHI restent à
-   mesurer depuis un réseau qui les atteint.
+6. **B démarre avec trois entrées, toutes mesurées** :
+
+   | Portée | Mode | Identité |
+   |---|---|---|
+   | `gcr.io/distroless/*` | keyless | émetteur `https://accounts.google.com`, `keyless@distroless.iam.gserviceaccount.com` |
+   | `cgr.dev/chainguard/*` | keyless | émetteur `https://token.actions.githubusercontent.com`, `https://github.com/chainguard-images/images/.github/workflows/release.yaml@refs/heads/main` — la même sur `static`, `python`, `node`, `wolfi-base` |
+   | `dhi.io/*` | clé | la clé publique de `https://registry.scout.docker.com/keyring/dhi/latest.pub`, **embarquée** dans le binaire |
+
+   La clé DHI est embarquée plutôt que téléchargée : la télécharger ferait
+   reposer la confiance sur une requête réseau non vérifiée — la faille même
+   que la vérification combat. Une rotation de Docker demandera une nouvelle
+   version de DevDesk, ou une règle C sur `dhi.io/*` en attendant.
 
 #### Décisions, suite (2026-09-25)
 

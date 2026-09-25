@@ -30,9 +30,9 @@ règle.
   | Unsigned | bloque | bloque | avertit |
   | Failed | bloque | avertit | avertit |
 
-- Classification : 0 / 10 / 11 / 12 lus directement ; un 1 strict relance une
-  vérification permissive (0 ⇒ IdentityMismatch, 10 ⇒ Unsigned, autre ⇒
-  Failed). Jamais le texte de stderr.
+- Classification : 0 / 10 / 11 lus directement ; **tout autre code** (1, 12…)
+  relance une vérification permissive (0 ⇒ IdentityMismatch, 10 ⇒ Unsigned,
+  autre ⇒ Failed). Jamais le texte de stderr. `--experimental-oci11` toujours.
 - Pull : tag → digest → vérification → `pull repo@digest` → `tag`. Un seul point
   de passage.
 - `scan.image_verification: on | off` par contexte, `on` par défaut ; `off`
@@ -52,12 +52,12 @@ la PR qui le lit la première fois (PR 2).
 
 Depuis l'hôte (le sandbox bloque `cgr.dev`), notées dans §3.82 :
 
-1. **Chainguard et DHI** : un `cosign verify` réussi, émetteur et identité
-   relevés. Sinon ils n'entrent pas dans B.
-2. **Mode clé** : `cosign generate-key-pair`, signer une image dans un registre
-   local (`registry:2`), puis vérifier avec la bonne clé, une autre clé, sans
-   signature — les codes de sortie sont-ils les mêmes qu'en keyless ?
-   `--insecure-ignore-tlog` pour `tlog: false`.
+1. ~~**Chainguard et DHI**~~ — **fait le 2026-09-25**, voir §3.82 (Chainguard
+   keyless, DHI en mode clé avec `--experimental-oci11`).
+2. **Mode clé sans Rekor** : la vérification DHI (bonne clé 0, mauvaise clé 10)
+   est faite ; reste une signature *sans* entrée de transparence, dans un
+   registre local (`registry:2`), vérifiée avec `--insecure-ignore-tlog` pour
+   `tlog: false`.
 3. **Identifiants privés** : un `DOCKER_CONFIG` temporaire ne contenant qu'un
    hôte, monté dans le conteneur cosign — cosign l'utilise-t-il bien ?
 4. **Concurrence** : quatre `cosign verify` en parallèle sur le même `TUF_ROOT`
@@ -80,10 +80,10 @@ Depuis l'hôte (le sandbox bloque `cgr.dev`), notées dans §3.82 :
 - `match.go` — normalisation par `remediation.ParseRef` (`python` →
   `docker.io/library/python`), glob sur le dépôt sans tag ni digest, première
   règle gagnante. `Lookup(policy, builtin, ref) (Rule, bool)` applique C puis B.
-- `builtin.go` — B : `gcr.io/distroless/*`, keyless, émetteur
-  `https://accounts.google.com`, identité
-  `keyless@distroless.iam.gserviceaccount.com`, avec la date et la commande de
-  la mesure en commentaire. Chainguard / DHI seulement si l'étape 0 les a mesurés.
+- `builtin.go` — B, les trois entrées mesurées de §3.82 (distroless et
+  Chainguard en keyless, `dhi.io/*` en mode clé), chacune avec la date et la
+  commande de la mesure en commentaire. La clé DHI est **embarquée**
+  (`//go:embed`), jamais téléchargée.
 - `verdict.go` — `Verdict`, `Decision{Block, Warn, None}`, et
   `Decide(v Verdict, src Source) Decision` — le tableau ci-dessus, **une** table
   en code, lue par les trois consommateurs.
@@ -98,8 +98,10 @@ Depuis l'hôte (le sandbox bloque `cgr.dev`), notées dans §3.82 :
 **`internal/scan/cosign.go`** — l'implémentation de `trust.Verifier`, sur le
 modèle de `plumber.go` (`toolCmd`, `cliRunner`, binaire ou image) :
 
-- `cosignVerifyArgs(ref@digest, rule, permissive bool)` ;
-  `classifyCosign(exit int)`, table-driven sur la mesure.
+- `cosignVerifyArgs(ref@digest, rule, permissive bool)`, toujours avec
+  `--experimental-oci11` ; `classifyCosign(exit int)`, table-driven sur la
+  mesure. En mode clé, pas de relance permissive, et le libellé d'un 10 est
+  « no signature from the expected key ».
 - `download attestation` pour les indices ; certificat lu avec `crypto/x509`
   (SAN + extension émetteur Fulcio `1.3.6.1.4.1.57264.1.8`, repli `.1.1`) ; pour
   l'ancien format, `optional.Subject`/`Issuer` de la sortie JSON.
@@ -114,7 +116,7 @@ digest** — le vérificateur est l'ancre de confiance, un tag flottant serait
 précisément la faille qu'il détecte. `ReservedArgs` : `--key`,
 `--certificate-identity`, `--certificate-identity-regexp`,
 `--certificate-oidc-issuer`, `--certificate-oidc-issuer-regexp`,
-`--insecure-ignore-tlog`, `--output`, `-o`.
+`--insecure-ignore-tlog`, `--experimental-oci11`, `--output`, `-o`.
 
 **Config** : `ScanConfig.ImageVerification string` (`on`/`off`),
 `ImageVerifications()`, défaut `on` dans `applyDefaults` — **pas** encore dans la
@@ -129,8 +131,9 @@ vue configuration (PR 2).
   règle masquée ⇒ avertissement ; fichier absent ⇒ vide.
 - `Lookup` : normalisation, première règle gagnante, C l'emporte sur B.
 - `Decide` : le tableau, une ligne de test par case, citant §3.82.
-- `classifyCosign` + la relance permissive, avec un faux runner : les sept cas
-  de la mesure.
+- `classifyCosign` + la relance permissive, avec un faux runner : chaque ligne
+  du tableau de mesure de §3.82, dont le 12 permissif (blob bloqué) ⇒ `Failed`,
+  jamais `IdentityMismatch`.
 - Continuité : un indice falsifié (annoncé mais non validé) ne produit **jamais**
   `Verified`.
 - `TestEveryConfiguredOptionReachesTheScanner` reste vert ;
