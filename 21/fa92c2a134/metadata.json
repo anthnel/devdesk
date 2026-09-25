@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "21fa92c2a134",
+  "strategy": "manual-commit",
+  "branch": "docs/backlog-3-90-ci-signing",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/backlog.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/21/fa92c2a134/0/metadata.json",
+      "transcript": "/21/fa92c2a134/0/full.jsonl",
+      "compact_transcript": "/21/fa92c2a134/0/transcript.jsonl",
+      "content_hash": "/21/fa92c2a134/0/content_hash.txt",
+      "prompt": "/21/fa92c2a134/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 10926,
+    "cache_read_tokens": 2357915,
+    "output_tokens": 6760,
+    "api_call_count": 9
+  }
+}
