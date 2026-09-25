@@ -53,11 +53,12 @@ Chaque PR est utile seule et ne laisse **aucun réglage inerte** (la leçon de
 §3.14) : `scan.image_verification` n'apparaît dans la vue configuration qu'avec
 la PR qui le lit la première fois (PR 2).
 
-### Étape 0 — mesures restantes, avant de coder
+### Étape 0 — mesures faites
 
-**Points 1 à 6 faits le 2026-09-25**, dans le sandbox (Podman y est installé),
-résultats dans §3.82 (« Mesures de l'étape 0 »). Reste le point 7, depuis
-l'hôte. Liste d'origine :
+**Les sept points sont faits.** Points 1 à 6 le 2026-09-25 dans le sandbox
+(Podman y est installé), résultats dans §3.82 (« Mesures de l'étape 0 »).
+Point 7 le 2026-09-25 depuis l'hôte, résultat dans §3.82 (« Recoupement de la
+clé DHI »). Liste d'origine :
 
 1. ~~**Chainguard et DHI**~~ — **fait le 2026-09-25**, voir §3.82 (Chainguard
    keyless, DHI en mode clé avec `--experimental-oci11`).
@@ -74,12 +75,12 @@ l'hôte. Liste d'origine :
    `RepoDigests` renseigné ?
 6. **`docker run --pull=never`** sur Docker et Podman, image absente : message
    et code de sortie.
-7. **Recouper la clé DHI**, qui n'a été lue qu'à travers le proxy du sandbox
-   (il intercepte TLS). La télécharger depuis l'hôte **et** la retrouver dans une
-   seconde source — la documentation DHI de Docker — puis comparer les
-   empreintes (`openssl pkey -pubin -outform der | sha256sum`). Seule une clé
-   qui concorde est commitée, son empreinte et ses deux sources en commentaire.
-   Vérifier au passage si Docker annonce ses rotations de clé.
+7. ~~**Recouper la clé DHI**~~ — **fait le 2026-09-25, depuis l'hôte**, voir
+   §3.82 (« Recoupement de la clé DHI ») : trois sources indépendantes
+   concordent (`registry.scout.docker.com`, le dépôt GitHub
+   `docker-hardened-images/keyring`, `dhi.io`), empreinte
+   `118ba556…3887c`. Docker annonce ses rotations (`dhi-1.pub` inactive,
+   `dhi-2.pub` active, en-tête `x-keyid`) — une a déjà eu lieu.
 
 ### PR 1 — le domaine, sans changement visible
 
@@ -96,9 +97,11 @@ l'hôte. Liste d'origine :
 - `builtin.go` — B, les trois entrées mesurées de §3.82 (distroless et
   Chainguard en keyless, `dhi.io/*` en mode clé), chacune avec la date et la
   commande de la mesure en commentaire. La clé DHI est **embarquée**
-  (`//go:embed`), jamais téléchargée, et recoupée à l'étape 0.7. Une entrée en
-  mode clé porte une **liste** de clés (rotation) : vérifiée si l'une
-  d'elles vérifie.
+  (`//go:embed`), jamais téléchargée — recoupée à l'étape 0.7 (§3.82,
+  empreinte `118ba556…3887c`, `dhi-2.pub`, active). L'entrée porte une
+  **liste** de deux clés (`dhi-1.pub` inactive et `dhi-2.pub`), vérifiée si
+  l'une d'elles vérifie — la rotation entre les deux est déjà arrivée une
+  fois, donc mesurée plutôt que supposée.
 - `verdict.go` — `Verdict`, `Decision{Block, Warn, None}`, et
   `Decide(v Verdict, src Source) Decision` — le tableau ci-dessus, **une** table
   en code, lue par les trois consommateurs.

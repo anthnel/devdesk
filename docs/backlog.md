@@ -15071,6 +15071,36 @@ contient le digest. Deux différences :
 **`run --pull=never`** — image absente : 125 sur les deux moteurs
 (`No such image` / `image not known`) ; image présente : lancée normalement.
 
+#### Recoupement de la clé DHI, depuis l'hôte (2026-09-25)
+
+La clé mesurée dans le sandbox n'avait été lue qu'à travers son proxy
+interceptant TLS (voir plus haut). Depuis l'hôte, sans ce proxy — certificat
+serveur en ordre (`registry.scout.docker.com`, Google Trust Services, valide
+au 2026-09-25) — puis recoupée contre une seconde source indépendante :
+
+| Source | URL | Empreinte (`openssl pkey -pubin -outform der \| sha256sum`) |
+|---|---|---|
+| Registre Scout, depuis l'hôte | `registry.scout.docker.com/keyring/dhi/latest.pub` | `118ba556dd52f4aec67018efd316c285c783cd3e54cc0f4527605715c643887c` |
+| Dépôt `keyring` de Docker, GitHub | `github.com/docker-hardened-images/keyring`, `publickey/dhi-2.pub` | même empreinte — commit signé, marqué vérifié par GitHub |
+| `dhi.io` (domaine tiers) | `dhi.io/keyring/2.pub` | même empreinte |
+
+**Les trois concordent** : la clé est celle du dépôt `docker-hardened-images/
+keyring` (README : « active »), pas seulement celle lue dans le sandbox. Elle
+peut être commitée.
+
+- **Docker annonce ses rotations** : le README du dépôt `keyring` tient un
+  tableau de statut par clé (`active` / `inactive`) avec une URL par
+  génération (`dhi.io/keyring/<n>.pub`), et la réponse de
+  `registry.scout.docker.com` porte un en-tête `x-keyid` (`2`, ici). `dhi-1.pub`
+  existe, marquée `inactive`, empreinte différente
+  (`1b431f0d467ecc9e3d97e5b446980599a99c3a386e42ea628b172db1051c737b`) : **une
+  rotation a déjà eu lieu** avant cette mesure. `internal/trust/builtin.go`
+  doit donc porter les deux clés (décision « plusieurs clés par entrée »,
+  ci-dessus), et surveiller ce tableau — pas seulement `latest.pub` — pour
+  ajouter la suivante sans casser les pulls pendant une transition.
+- `docs.docker.com/dhi/core-concepts/signatures/` ne documente ni la clé ni sa
+  rotation ; seul le dépôt `keyring` fait foi.
+
 Tout est tranché ; le plan d'implémentation est
 `.claude/plans/2026-09-25-image-signature-verification.md`.
 
