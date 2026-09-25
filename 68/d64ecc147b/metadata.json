@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "68d64ecc147b",
+  "strategy": "manual-commit",
+  "branch": "feat/credential-store-posture",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/68/d64ecc147b/0/metadata.json",
+      "transcript": "/68/d64ecc147b/0/full.jsonl",
+      "compact_transcript": "/68/d64ecc147b/0/transcript.jsonl",
+      "content_hash": "/68/d64ecc147b/0/content_hash.txt",
+      "prompt": "/68/d64ecc147b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 128,
+    "cache_creation_tokens": 160983,
+    "cache_read_tokens": 9372988,
+    "output_tokens": 40270,
+    "api_call_count": 64
+  }
+}
