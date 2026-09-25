@@ -15008,6 +15008,56 @@ Ce qui en découle :
    `DOCKER_CONFIG` temporaire, 0600, qui ne contient que l'hôte concerné,
    monté pour un cosign en conteneur, supprimé après.
 
+#### Mesures de l'étape 0 faites dans le sandbox (2026-09-25)
+
+Registre local `registry:2` (HTTP, `--allow-http-registry`), cosign v3.1.3 en
+conteneur, Docker 29.7.2 (magasin d'images containerd) et Podman.
+
+**Mode clé sans Rekor** — signé avec `--use-signing-config=false
+--tlog-upload=false` (cosign v3 refuse `--tlog-upload=false` seul), ce qui
+écrit un bundle :
+
+| Vérification | Sortie | Message |
+|---|---|---|
+| bonne clé, sans `--insecure-ignore-tlog` | 1 | `not enough verified log entries from transparency log: 0 < 1` |
+| bonne clé, `--insecure-ignore-tlog` | **0** | — |
+| mauvaise clé, `--insecure-ignore-tlog` | **1** | `accepted signatures do not match threshold, Found: 0` |
+| mauvaise clé, sans le flag | 1 | le même message que la bonne clé sans le flag |
+| keyless permissif | 1 | — |
+| registre injoignable | 1 | `connection refused` |
+
+- `tlog: false` **doit** ajouter `--insecure-ignore-tlog`, et `tlog: true`
+  (le défaut) refuse bien une signature sans entrée de transparence.
+- **En mode clé, mauvaise clé = 10 sur l'ancien format (DHI), 1 sur le format
+  bundle** — et 1, c'est aussi le registre injoignable. La relance permissive ne
+  sert à rien en mode clé : elle est keyless et échoue sur une signature par
+  clé. `cosign download signature` n'aide pas non plus : il ne lit pas les
+  referrers (« no signatures associated » sur DHI, alors qu'elle est signée).
+  Le mode clé ne sépare donc pas « mauvaise clé » d'« échec » par les codes de
+  sortie — décision ci-dessous.
+
+**Identifiants de registre privé** — registre avec `htpasswd` : sans
+identifiants, 1 (`UNAUTHORIZED`) ; avec un `DOCKER_CONFIG` temporaire ne
+contenant que cet hôte (`{"auths":{"<hôte>":{"auth":"<base64>"}}}`, 0600) monté
+en lecture seule, **0**. Le fichier doit être lisible par l'utilisateur du
+conteneur : cosign tourne avec `-u <uid>`, le propriétaire du fichier.
+
+**Concurrence** — 3 × 8 vérifications simultanées sur un `TUF_ROOT` **vide**,
+puis 6 sur un cache chaud : **aucun échec** sur 30. Pas de sémaphore.
+
+**Pull par digest puis tag** — `pull repo@<digest de l'index>` puis `tag` :
+exit 0 sur Docker et sur Podman ; le tag pointe sur l'image, `RepoDigests`
+contient le digest. Deux différences :
+
+- Docker (magasin containerd) range **aussi** `repo@sha256:…` dans `RepoTags`.
+  `docker images` n'affiche qu'une ligne ; une vue qui lirait `RepoTags` depuis
+  `image inspect` en verrait deux.
+- Podman garde deux `RepoDigests` (manifeste de la plateforme et index).
+  `imageupdate.Evaluate` compare à l'un d'eux : sans effet.
+
+**`run --pull=never`** — image absente : 125 sur les deux moteurs
+(`No such image` / `image not known`) ; image présente : lancée normalement.
+
 Tout est tranché ; le plan d'implémentation est
 `.claude/plans/2026-09-25-image-signature-verification.md`.
 

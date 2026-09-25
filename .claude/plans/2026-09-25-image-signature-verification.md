@@ -50,7 +50,9 @@ la PR qui le lit la première fois (PR 2).
 
 ### Étape 0 — mesures restantes, avant de coder
 
-Depuis l'hôte (le sandbox bloque `cgr.dev`), notées dans §3.82 :
+**Points 1 à 6 faits le 2026-09-25**, dans le sandbox (Podman y est installé),
+résultats dans §3.82 (« Mesures de l'étape 0 »). Reste le point 7, depuis
+l'hôte. Liste d'origine :
 
 1. ~~**Chainguard et DHI**~~ — **fait le 2026-09-25**, voir §3.82 (Chainguard
    keyless, DHI en mode clé avec `--experimental-oci11`).
@@ -115,7 +117,11 @@ modèle de `plumber.go` (`toolCmd`, `cliRunner`, binaire ou image) :
   l'ancien format, `optional.Subject`/`Issuer` de la sortie JSON.
 - `TUF_ROOT` → `~/.devdesk/cache/sigstore`, monté en conteneur.
 - Identifiants : `docker.GetStoredCreds(host)` → `DOCKER_CONFIG` temporaire
-  (0600, un seul hôte), monté puis supprimé. Jamais d'argv.
+  (0600, un seul hôte), monté en lecture seule puis supprimé, cosign lancé
+  avec `-u <uid>` du propriétaire — mesuré. Jamais d'argv.
+- `tlog: false` ⇒ `--insecure-ignore-tlog` ; sinon jamais.
+- Pas de sémaphore autour de TUF : 30 vérifications concurrentes sur un cache
+  vide, aucun échec.
 - Délai : `context` de la vérification ; dépassé ⇒ `Failed`.
 
 **Outil** : `config.ToolCosign`, `ScanTools.Cosign ToolConfig`, une entrée dans
@@ -156,7 +162,10 @@ moteur. Séquence : `image_verification` off ⇒ pull direct ; sinon digest
 `Block` ⇒ erreur typée `ErrBlocked{Verdict, Rule}` dont le message **nomme la
 règle** (fichier:ligne, ou « built-in: distroless ») ; `Warn` ⇒ pull, avertissement
 porté par l'`Outcome` ; sinon pull. Toujours `pull repo@digest` puis
-`docker.TagImage` (nouveau, dans `internal/docker/images.go`).
+`docker.TagImage` (nouveau, dans `internal/docker/images.go`) — mesuré sur
+Docker et Podman. Sous Docker (magasin containerd), `repo@sha256:…` apparaît
+aussi dans `RepoTags` : vérifier que la table Images ne le montre pas comme un
+second tag (`docker images` n'en affiche qu'un).
 
 **Les deux appelants** passent par là :
 - `pullOneImageCmd` (`internal/ui/oci_resources/commands.go:453`) — le
