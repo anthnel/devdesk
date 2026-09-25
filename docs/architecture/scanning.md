@@ -824,6 +824,64 @@ command line can still override it, which a file cannot show.
 The write is **not exposed over MCP**: it is a gesture of the user in the TUI,
 and an agent has its own tools for editing a file.
 
+### Image signatures — `internal/trust` and the cosign verifier (§3.82)
+
+Whether an image's content is the one its publisher released — a question no
+CVE scan answers, since a tag republished with altered content shows nothing
+catalogued. The decisions are §3.82's; this is where they live.
+
+**`internal/trust` holds the policy and the decision, not the tool.** It
+imports nothing of DevDesk's own:
+
+| File | Holds |
+|---|---|
+| `rule.go` | `Rule`, `Source` (C user, B built-in, A continuity), `Mode` (key, keyless, `expect: none`), `Rule.Fingerprint` |
+| `policy.go` | `~/.devdesk/trust.yaml`, **strict**: `KnownFields(true)`, `version: 1`, exactly one mode per rule, `notation:` refused, any error rejects the whole file |
+| `match.go` | `Repository` (normalized, Docker Hub spelled out), `Lookup` — user rules first, then built-in, first match wins; `*` is one segment, a trailing `/**` any depth |
+| `builtin.go` | B: distroless and Chainguard keyless, DHI in key mode with the **embedded** `keys/dhi-2.pub` |
+| `verdict.go` | `Verdict` and `Decide` — §3.82's table, the only copy |
+| `evaluate.go` | `Verifier`, `Evaluate` (pinned references only — a tag can move between check and use), `Continuity` |
+| `cache.go` | `Cached` and `FileStore`, `~/.devdesk/cache/signature-verdicts.json` |
+
+Three things the code does that are easy to undo by accident:
+
+- **`trust` cannot import `internal/remediation` or `internal/cache`**: both
+  import `internal/scan`, which implements `trust.Verifier`. So `Repository`
+  re-reads a reference the way `remediation.ParseRef` does
+  (`TestRepositoryAgreesWithRemediation` holds them in step), and the verdict
+  cache lives in `trust`.
+- **Continuity never believes an identity it read.** `Identities` returns
+  *claims*; each is verified strictly on the image in use before being asked of
+  the candidate. A permissive check passes on *one* valid signature, so a forged
+  certificate next to the attacker's own valid signature would otherwise read as
+  Verified (`TestContinuityNeverBelievesAClaimedIdentity`).
+- **A Failed verdict is never cached**: under a user rule it blocks, and must
+  not outlast the network coming back.
+
+**`internal/scan/cosign.go` is the `Verifier`**, on the model of plumber:
+`toolCmd`, the package `runner`, binary or container. Everything below was
+measured on cosign v3.1.3 (§3.82, "Mesure"):
+
+- **Only exit codes 0, 10, 11 are read as they are.** Keyless: any other code
+  (1, 12…) goes through a permissive check — 0 is a mismatch, 10 unsigned,
+  anything else a failure. 12 is not a mismatch: a signature blob the proxy
+  would not serve gives 12 even when every identity is accepted.
+- **Key mode fails closed**: every code but 0 and 11 is Unsigned. A wrong key
+  exits 1 on the bundle format, the same as an unreachable registry, and there
+  is no permissive check for a key. A tool that did not start, or a cancelled
+  context, is still Failed — that is not an exit code.
+- `--experimental-oci11` on every `verify` (DHI keeps its signature in the OCI
+  referrers) and never on `download attestation`, which refuses it.
+- **Credentials through the environment**, `COSIGN_REGISTRY_USERNAME` /
+  `_PASSWORD`; a container gets `-e NAME` with the name alone.
+- **A key is always a file DevDesk writes**, 0644 — the container's user is not
+  its owner, and 0600 is refused (measured).
+- `DefaultCosignImage` is **pinned by digest**: the verifier is the trust
+  anchor. Bumping it means measuring the exit codes again.
+- No TUF cache is mounted into the container: a fresh root is fetched each run
+  (measured ~3 s, and 30 concurrent runs on an empty root all passed), which
+  avoids a writable host mount the container's user could not write anyway.
+
 ## The security inventory
 
 `:sec` opens on **everything the current context has scanned**, read from

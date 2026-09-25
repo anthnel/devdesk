@@ -93,6 +93,35 @@ clé DHI »). Liste d'origine :
 
 ### Étape 1 — le domaine, sans changement visible
 
+**Faite le 2026-09-25.** Écarts au texte ci-dessous, à reprendre dans les
+étapes suivantes :
+
+- **L'outil et la config passent à l'étape 2.** `config.ToolCosign`,
+  `ScanTools.Cosign`, l'entrée de `toolTable` et `scan.image_verification`
+  n'auraient été lus par rien à l'étape 1 — des réglages inertes, que ce plan
+  interdit. `CosignVerifier` prend un `ToolSpec` ; l'étape 2 le construit
+  depuis `Report.Spec(ToolCosign)`.
+- **Le cache vit dans `trust`** (`cache.go`, `FileStore`), pas dans
+  `internal/cache` : ce package importe `scan`, qui implémente
+  `trust.Verifier` — cycle. Même raison pour `Repository`, réécrit dans `trust`
+  plutôt qu'emprunté à `remediation.ParseRef`, avec un test qui garde les deux
+  d'accord.
+- **Identifiants par `COSIGN_REGISTRY_USERNAME`/`_PASSWORD`**, pas par un
+  `DOCKER_CONFIG` temporaire : mesuré, cosign les lit, et un fichier 0600 monté
+  n'est pas lisible par l'utilisateur du conteneur. Plus simple, rien sur disque.
+- **Pas de `TUF_ROOT` monté** en conteneur : une racine fraîche à chaque run
+  (≈3 s, 30 runs concurrents sur une racine vide sans échec), plutôt qu'un
+  montage hôte en écriture que l'utilisateur du conteneur ne pourrait pas écrire.
+- **`/**` en fin de motif** couvre toute profondeur (`gcr.io/distroless/**`) ;
+  `*` reste un segment, comme `path.Match`.
+- **`download attestation` refuse `--experimental-oci11`** (mesuré) : le flag
+  ne va que sur `verify`.
+- **Vérifié contre le vrai cosign** dans le sandbox (test jetable, non commité) :
+  distroless, Chainguard et DHI `verified` sous B ; alpine `no-policy` ; une règle
+  C à mauvaise identité sur l'image cosign (format bundle) `identity-mismatch`
+  via la relance permissive ; la continuité cosign v3.1.3 → v3.1.2 `verified`,
+  distroless → alpine `unsigned`.
+
 **`internal/trust`** (nouveau package, pur sauf le chargement du fichier) :
 
 - `policy.go` — `Policy`, `Rule{Match, Mode, Source, Line}`, `Load(path)`.
