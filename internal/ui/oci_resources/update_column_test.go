@@ -2,7 +2,6 @@ package ociresources
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -46,8 +45,8 @@ func TestTheArrowFollowsTheLocalDigest(t *testing.T) {
 			"alpine:latest": {CheckedAt: time.Now(), Digest: "sha256:new"},
 		}},
 	)
-	if got := updateCell(t, m, "alpine:latest"); !strings.Contains(got, "new build") {
-		t.Errorf("cell = %q, want the arrow and new build", got)
+	if got := updateCell(t, m, "alpine:latest"); got != theme.IconArrowDown {
+		t.Errorf("cell = %q, want the new-build arrow", got)
 	}
 
 	pulled := old
@@ -76,9 +75,9 @@ func TestTheCellSaysWhyThereIsNoUpdate(t *testing.T) {
 	)
 	for name, want := range map[string]string{
 		"alpine:latest":         theme.IconOK,
-		"myapp:dev":             "local build",
-		"private.example/app:1": "?",
-		"node:20":               "checking",
+		"myapp:dev":             theme.IconHammer,
+		"private.example/app:1": theme.IconHelpCircle,
+		"node:20":               theme.IconHourglass,
 	} {
 		if got := updateCell(t, m, name); got != want {
 			t.Errorf("%s: cell = %q, want %q", name, got, want)

@@ -42,6 +42,10 @@ var (
 	IconRefresh               = "\U000F0450" // 󰑐 nf-md-refresh
 	IconTarget                = "\U000F04FE" // 󰓾 nf-md-target
 	IconHourglass             = "\U000F051F" // 󰔟 nf-md-timer_sand
+	IconHelpCircle            = "\U000F0625" // 󰘥 nf-md-help_circle_outline
+	IconHammer                = "\U000F08EA" // 󰣪 nf-md-hammer
+	IconCloud                 = "\U000F0163" // 󰅣 nf-md-cloud_outline
+	IconPin                   = "\U000F0403" // 󰐃 nf-md-pin
 	IconCircleSmall           = "\ueb8a"     //  nf-cod-circle_small_filled
 	IconCircle                = "\U000F09DE" // 󰧞 nf-md-circle_medium
 	IconSelect                = "\uf516"     //  nf-oct-single_selectc

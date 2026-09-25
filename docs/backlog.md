@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-09-24
+**Last Updated:** 2026-09-25
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -15123,6 +15123,19 @@ c'est la demande, et l'image supprimée peut être tirée à nouveau depuis le r
 - Un pull qui ramène l'image déjà présente ne supprime rien ; une suppression
   refusée (image encore taguée ailleurs, image enfant) laisse l'ancienne et le
   dit en `Warn`.
+
+#### Des icônes plutôt que des mots
+
+Demande en session (2026-09-25) : remplacer le texte de la colonne par une
+icône, sauf pour un patch plus récent, dont la version reste affichée. Chaque
+autre état est un seul glyphe (`updatecol.Cell`) : flèche seule pour un nouveau
+build, sablier (`checking`), point d'interrogation cerclé (`?`), marteau
+(`local build`, choisi contre la maison), nuage (`not local`), punaise
+(`pinned`), la coche inchangée. La colonne tombe à la largeur de son titre —
+« local build » coûtait onze cellules dans la table la plus large. Le mot reste
+`Status.Label`, que le filtre lit ; la raison reste dite par `G` grisé et par
+`?`. `theme.UpdateCell` disparaît : le choix du glyphe dépend du `Kind`, que
+`theme` ne connaît pas.
 
 ### 3.89 Du conteneur à son image — `J` — **done**
 
