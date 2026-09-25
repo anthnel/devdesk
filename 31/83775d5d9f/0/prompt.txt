@@ -1,0 +1,17 @@
+explique moi le point de backlog sur la signature des images docker et gestion sbom, on va en discuter
+
+---
+
+commençons par la politique de confiance
+
+---
+
+A me va mais explique moi plus en détail C (et oui c'est global)
+
+---
+
+1. oui / 2. oui / 3. oui mais est-ce qu'il ne faudrait pas mettre une abstraction pour pouvoir choisir l'outil . Autre question, est-ce que la signature d'image pourrait rentrer dans ce que devdesk fait
+
+---
+
+note-la comme entrée séparée, puis on passe à avertir/refuser
