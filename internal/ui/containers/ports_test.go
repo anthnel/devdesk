@@ -147,3 +147,17 @@ func TestThePortsColumnIsAsWideAsItsContentOnAWideTerminal(t *testing.T) {
 		t.Errorf("Ports is %d cells wide, want %d — its content, not a share of the surplus", got, want)
 	}
 }
+
+// Image had the same Flex share as Ports, and the same symptom: "registry:2"
+// in a column sixty cells wide. Both follow their content; Name takes the rest.
+func TestTheImageColumnIsAsWideAsItsContentOnAWideTerminal(t *testing.T) {
+	web := docker.Container{ID: "1", Name: "local-registry", Image: "registry:2", State: "running"}
+	m := feed(t, New(config.Default()), tea.WindowSizeMsg{Width: 270, Height: 30},
+		ContainersListMsg{Containers: []docker.Container{web}})
+
+	cols := containerColumns(nil)
+	want := max(lipgloss.Width("Image ▲"), lipgloss.Width(web.Image), cols[columnImage].MinWidth)
+	if got := m.containerTable.Table().Columns()[columnImage].Width; got != want {
+		t.Errorf("Image is %d cells wide, want %d — its content, not a share of the surplus", got, want)
+	}
+}

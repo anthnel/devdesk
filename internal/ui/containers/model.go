@@ -187,8 +187,13 @@ func containerColumns(status func(docker.Container) imageupdate.Status) []datata
 			Search: func(c docker.Container) string { return c.Name },
 		},
 		{
+			// No Flex, like Ports: the column is as wide as its longest image
+			// (capped at MaxWidth), and a short "registry:2" no longer sits in
+			// sixty cells of surplus. The floor is what a truncated reference
+			// keeps on a narrow terminal — the tail, since TruncateHead cuts
+			// the registry and keeps the name and tag.
 			Title: "Image", Sizing: datatable.SizingContent,
-			MinWidth: 20, MaxWidth: 44, Flex: 3, TruncateHead: true,
+			MinWidth: 16, MaxWidth: 44, TruncateHead: true,
 			Cell:   func(c docker.Container) string { return c.Image },
 			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Image) < strings.ToLower(b.Image) },
 			Search: func(c docker.Container) string { return c.Image + " " + c.State },

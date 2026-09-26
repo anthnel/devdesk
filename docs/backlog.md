@@ -118,6 +118,11 @@ les valeurs sont réellement longues.
 `TestThePortsColumnIsAsWideAsItsContentOnAWideTerminal` rejoue la capture
 (270 colonnes, un conteneur) et exige 7 cellules.
 
+Image avait le même défaut (`Flex: 3`, 81 cellules pour `registry:2`) et reçoit
+le même traitement : plus de `Flex`, plancher de 20 à 16 — ce qu'une référence
+tronquée par la tête garde encore lisible, nom et tag. Name reste la seule
+colonne à absorber le surplus. `TestTheImageColumnIsAsWideAsItsContentOnAWideTerminal`.
+
 **D73 — sous podman, aucun helper d'identifiants n'était jamais trouvé. Corrigé.**
 Trouvé et fermé le 2026-09-25, en mesurant §3.68.
 
