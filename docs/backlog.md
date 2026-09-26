@@ -109,6 +109,15 @@ changent à chaque tick, arrivent par un autre message dans des colonnes fixes.
 `TestThePortsColumnFollowsAReloadedList` vérifie qu'une liste rechargée obtient
 la même largeur qu'un premier chargement de la même liste.
 
+Ce n'était que la moitié du défaut, et pas celle qui se voyait. Sur un terminal
+large, Ports recevait une part `Flex: 2` du surplus : un seul `󰛳 5000` occupait
+43 cellules, ce qui se lit exactement comme une colonne qui ne suit pas son
+contenu. Ports perd son `Flex` et son plancher passe de 16 à `portsMinWidth`
+(7 : une icône, une espace, `65535`) ; le surplus revient à Name et Image, dont
+les valeurs sont réellement longues.
+`TestThePortsColumnIsAsWideAsItsContentOnAWideTerminal` rejoue la capture
+(270 colonnes, un conteneur) et exige 7 cellules.
+
 **D73 — sous podman, aucun helper d'identifiants n'était jamais trouvé. Corrigé.**
 Trouvé et fermé le 2026-09-25, en mesurant §3.68.
 

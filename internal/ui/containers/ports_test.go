@@ -4,9 +4,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anthnel/devdesk/internal/config"
 	"github.com/anthnel/devdesk/internal/docker"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 	"github.com/anthnel/devdesk/internal/ui/theme"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // cell builds a container out of a raw `docker ps` ports string and renders it,
@@ -127,5 +130,20 @@ func TestThePortsColumnFollowsAReloadedList(t *testing.T) {
 	got := m.containerTable.Table().Columns()[columnPorts].Width
 	if fresh := want.containerTable.Table().Columns()[columnPorts].Width; got != fresh {
 		t.Errorf("Ports is %d cells wide after the reload, want the %d a first load of the same list gets", got, fresh)
+	}
+}
+
+// A wide terminal used to hand Ports a Flex share of its surplus, so a single
+// "󰛳 5000" sat in a column forty cells wide. The column is as wide as its
+// widest cell, and the surplus goes to the columns whose values run long.
+func TestThePortsColumnIsAsWideAsItsContentOnAWideTerminal(t *testing.T) {
+	web := docker.Container{ID: "1", Name: "local-registry", Image: "registry:2", State: "running",
+		Ports: docker.ParseContainerPorts("0.0.0.0:5000->5000/tcp")}
+	m := feed(t, New(config.Default()), tea.WindowSizeMsg{Width: 270, Height: 30},
+		ContainersListMsg{Containers: []docker.Container{web}})
+
+	want := max(len("Ports"), lipgloss.Width(portsCell(web)), portsMinWidth)
+	if got := m.containerTable.Table().Columns()[columnPorts].Width; got != want {
+		t.Errorf("Ports is %d cells wide, want %d — its content, not a share of the surplus", got, want)
 	}
 }

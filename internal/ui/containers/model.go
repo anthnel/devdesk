@@ -239,7 +239,12 @@ func containerColumns(status func(docker.Container) imageupdate.Status) []datata
 			Less: byInt64(func(c docker.Container) int64 { return c.BlockTX }),
 		},
 		{
-			Title: "Ports", Sizing: datatable.SizingContent, MinWidth: 16, Flex: 2,
+			// No Flex, and a floor of one entry: the column is as wide as its
+			// widest cell and no wider. A Flex share gave a lone "󰛳 5000" forty
+			// empty cells on a wide terminal, which read as a column that did
+			// not follow its content — the surplus belongs to Name and Image,
+			// whose values actually run long.
+			Title: "Ports", Sizing: datatable.SizingContent, MinWidth: portsMinWidth,
 			Cell: portsCell,
 			// Search matches what is on screen, icons and all. Keeping the raw
 			// docker string here instead is the tempting version and the wrong
