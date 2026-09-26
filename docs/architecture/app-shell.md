@@ -296,7 +296,10 @@ The app supports multiple configuration contexts (e.g., work, personal, client-A
 - Contexts are stored in `~/.devdesk/contexts/<name>/config.yaml`
 - Current context is tracked in `~/.devdesk/current-context`
 - Each context has isolated GitLab credentials via Git Credential Manager
-- Context switching reinitializes all views with new config
+- Context switching reinitializes all views with new config. While the switch
+  loads (config, secret store, auto-login over the network) `switchingTo` is
+  set: an overlay replaces the whole interface and only `ctrl+c` gets through,
+  so the first views drawn afterwards are the new context's (D76)
 
 
 ## Shared State

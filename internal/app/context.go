@@ -50,6 +50,7 @@ func (a *App) switchContext(contextName string) tea.Cmd {
 	if cmd, ok := a.settleCurrentView(); !ok {
 		return cmd
 	}
+	a.switchingTo = contextName
 
 	return func() tea.Msg {
 		log.Printf("Context switch requested: %s", contextName)
@@ -164,6 +165,7 @@ func (a *App) listContexts() tea.Cmd {
 
 // handleContextSwitchComplete processes successful context switches
 func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Model, tea.Cmd) {
+	a.switchingTo = ""
 	a.config = msg.Config
 	a.currentContext = msg.ContextName
 	a.sharedState.Secrets = msg.Secrets
@@ -226,6 +228,12 @@ func (a *App) handleContextListKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // renderContextListOverlay renders an overlay with the list of contexts
 func (a *App) renderContextListOverlay() string {
 	return renderPickerOverlay("Select Context", a.contextList, a.currentContext, a.contextSelectedIdx)
+}
+
+// renderContextSwitchingOverlay stands in for the interface while a switch
+// loads, so the first views drawn after it are the new context's.
+func (a *App) renderContextSwitchingOverlay() string {
+	return theme.OverlayBoxStyle().Render(theme.Bg("Switching to context " + a.switchingTo + "..."))
 }
 
 // renderPickerOverlay draws the list overlays: a title, one entry per line, the
