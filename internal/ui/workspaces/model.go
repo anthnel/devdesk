@@ -98,6 +98,13 @@ type Model struct {
 	// here until the summary is written.
 	syncUnreadable int
 
+	// syncMovedTags counts the tags the current sync moved to follow a remote
+	// that rewrote them, and syncFirstMovedTag names one as "repo: tag". Like
+	// syncUnreadable, it is not an outcome — a repository that moved a tag can
+	// be up to date, updated or skipped — so it waits here for the summary.
+	syncMovedTags     int
+	syncFirstMovedTag string
+
 	// secrets is the context's secret store, the one the router resolved. A
 	// sync fetches, and a fetch against the configured GitLab needs the token —
 	// with the credential helper shut out, it is the only way in (§3.16).

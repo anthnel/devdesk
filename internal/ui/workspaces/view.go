@@ -620,7 +620,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Sync",
-				Body:  "Press F on a git repo to fetch its remote and fast-forward the current branch. On a non-git directory, F syncs every nested git repo. Sync never merges, rebases, stashes or pushes: a repository with uncommitted changes, with local commits the remote does not have, or on a detached HEAD is fetched and then left exactly as it was, and the footer says which one it was and why. The fetch happens either way, so a repository it declines still ends up showing how far behind it really is.",
+				Body:  "Press F on a git repo to fetch its remote and fast-forward the current branch. On a non-git directory, F syncs every nested git repo. Sync never merges, rebases, stashes or pushes: a repository with uncommitted changes, with local commits the remote does not have, or on a detached HEAD is fetched and then left exactly as it was, and the footer says which one it was and why. The fetch happens either way, so a repository it declines still ends up showing how far behind it really is. Tags follow the remote: a tag the remote rewrote is moved to match it, and the footer names it — a tag made here and never pushed is kept.",
 			},
 			{
 				Title: "Open in Browser",

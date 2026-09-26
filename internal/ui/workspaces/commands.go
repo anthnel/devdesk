@@ -81,6 +81,7 @@ func syncOneRepoCmd(repoPath string, spec syncSpec, sem chan struct{}) tea.Cmd {
 			msg.Outcome = result.Outcome
 			msg.Behind = result.Behind
 			msg.Reason = result.Reason
+			msg.MovedTags = result.MovedTags
 
 			// Re-read the repository whatever happened. A refused sync fetched
 			// all the same, so its counts are current now even though nothing

@@ -200,6 +200,30 @@ func TestTheFooterCountsASyncWhileItRunsAndSumsItUpAfter(t *testing.T) {
 	}
 }
 
+// A tag the remote rewrote is moved silently by git and has no reflog, so the
+// summary is where the user learns it happened — whatever the outcome was.
+func TestTheSummaryNamesATagTheSyncMoved(t *testing.T) {
+	targets := []string{devdeskPath, "/tmp/workspaces/clean-repo"}
+	run := jobs.NewRun(jobs.KindSync, command.ViewWorkspaces, "default", "~/work", targets...)
+	run.Items[0].State = jobs.ItemRunning
+	run.Items[1].State = jobs.ItemRunning
+	m := withJobs(t, loadedModel(t), run)
+
+	run.Items[0].State = jobs.ItemDone
+	m = withJobs(t, m, run)
+	m = feed(t, m, WorkspaceSyncCompleteMsg{RepoPath: devdeskPath, MovedTags: []string{"v1.2", "v1.3"}})
+	run.Items[1].State = jobs.ItemDone
+	m = withJobs(t, m, run)
+	m = feed(t, m, WorkspaceSyncCompleteMsg{RepoPath: "/tmp/workspaces/clean-repo", MovedTags: []string{"v2"}})
+
+	if footer := m.RenderFooter(160); !strings.Contains(footer, "3 tags moved (devdesk: v1.2)") {
+		t.Errorf("the summary does not name the moved tags:\n%s", footer)
+	}
+	if m.syncMovedTags != 0 {
+		t.Errorf("syncMovedTags = %d after the summary, want it reset for the next run", m.syncMovedTags)
+	}
+}
+
 // A failure is a failure, not a skip: the difference is whether the repository
 // is in the state its owner left it in, or whether DevDesk could not find out.
 func TestAFailedSyncIsNamedAndPointsAtTheLog(t *testing.T) {

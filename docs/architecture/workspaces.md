@@ -178,6 +178,14 @@ Rule 111's sort menu.
 | detached HEAD, or no upstream | **skipped**, named |
 | the remote could not be reached | **failed** — the difference from a skip is whether the repository is as its owner left it, or DevDesk could not find out |
 
+**Tags follow the remote, forced** (D74) — the one place sync overwrites
+something local. They are fetched before the branch, with
+`+refs/tags/*:refs/tags/*` and without `--prune`: a plain fetch never moves a
+tag it already has, so a tag re-cut upstream stayed stale in silence, and a
+repository with `tagOpt = --tags` failed its whole fetch on it instead. Pruning
+would delete tags made here and never pushed, so it is not done. A tag has no
+reflog, so every one that moved is logged and counted in the summary.
+
 No merge commit, no rebase, no stash, and **never a push**. A divergence is a
 decision about someone's unpublished work, and a tool that guesses at it
 destroys hours in a keystroke that cannot be undone.
