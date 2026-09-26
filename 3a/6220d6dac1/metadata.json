@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "3a6220d6dac1",
+  "strategy": "manual-commit",
+  "branch": "feat/git-status-starship",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/3a/6220d6dac1/0/metadata.json",
+      "transcript": "/3a/6220d6dac1/0/full.jsonl",
+      "compact_transcript": "/3a/6220d6dac1/0/transcript.jsonl",
+      "content_hash": "/3a/6220d6dac1/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 28572,
+    "cache_read_tokens": 3496522,
+    "output_tokens": 17897,
+    "api_call_count": 22
+  }
+}
