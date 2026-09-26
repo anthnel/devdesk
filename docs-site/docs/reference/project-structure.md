@@ -12,16 +12,21 @@ devdesk/
 │   ├── command/       # Command parser + completion
 │   ├── config/        # YAML config + multi-context
 │   ├── credentials/   # Credential storage (keyring, git-credential, memory)
+│   ├── dockerfile/    # Dockerfile FROM parser, with the byte range of each image
 │   ├── docker/        # Docker CLI wrapper, netdiag runners, port monitor (ss)
 │   ├── forge/         # GitLab/GitHub abstraction — session, namespaces, repositories
+│   ├── imagepull/     # The one pull path: resolve to a digest, verify its signature, pull by digest
 │   ├── imageupdate/   # Whether a registry holds a newer image (patch tag or new digest)
 │   ├── jobs/          # Background job registry backing the :jobs view
 │   ├── mcp/           # MCP server, served over HTTP by the running TUI
 │   ├── oci/           # OCI registry client
-│   ├── scan/          # Trivy + Gitleaks integration
+│   ├── patch/         # Byte-range edits, diffs, and write-if-unchanged
+│   ├── remediation/   # Base-image candidates and the built-in misconfiguration fix catalog
+│   ├── scan/          # Trivy, Gitleaks, plumber, kubeconform and cosign integration
 │   ├── shared/        # Cross-view shared state
 │   ├── status/        # Status checker factory (HTTP/ICMP/DNS/SSL)
 │   ├── template/      # Repository template catalog, fetchers and cache
+│   ├── trust/         # Image signature policy (trust.yaml, built-in rules) and verdicts
 │   └── ui/
 │       ├── components/      # Reusable modals (confirm, report, selector, filter bar)
 │       ├── containers/      # Docker containers view
@@ -32,6 +37,7 @@ devdesk/
 │       ├── netdiag/          # Network diagnostics + real-time port monitor
 │       ├── oci_resources/    # OCI resource manager (images, launch, network inspect)
 │       ├── security/         # Security scanner view
+│       ├── sigcol/           # The Sig column shared by the Images and Remediation tabs
 │       ├── shortcut/         # Keybinding display
 │       ├── status/           # System status view
 │       ├── templates/        # Repository template catalog view (:templates)

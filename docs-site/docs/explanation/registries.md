@@ -82,6 +82,28 @@ nowhere else for a per-member password to live — and why `inherit` on a
 standalone entry with no group is rejected outright. Both are caught at
 config load time rather than surfacing later as a confusing auth failure.
 
+## Where the login lives — the `Logged` column
+
+The engine's auth file can hold a registry login three ways, and the `Logged`
+column tells them apart:
+
+| Cell | The auth file holds |
+|---|---|
+| check mark | credentials kept by a helper (`credsStore` / `credHelpers`) — the keychain, `pass`, the Windows credential manager |
+| warning | the secret **inline** — base64, which is not encryption |
+| cross | no credentials for this registry |
+| `-` | an anonymous entry — nothing to log in with |
+
+While an inline row is selected, the footer names the file. DevDesk never
+wrote that secret — `U` logs in through the engine's CLI, which decides where
+it goes — and it cannot move it. Saying so is all it can do; configuring a
+credential helper is what fixes it.
+
+The two engines write differently, which was measured rather than assumed:
+Docker leaves an empty `auths` entry behind a helper, while Podman leaves none
+under `credHelpers` and ignores `credsStore` entirely. Both run
+`docker-credential-<name>` helpers.
+
 ## Slugs and provider detection
 
 `internal/config/registries.go` normalizes the registry list at load time

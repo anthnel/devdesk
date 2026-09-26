@@ -120,6 +120,32 @@ grades: severity counts sum across nested repositories, but a CI letter
 doesn't compose the same way — a directory shows the worst grade among its
 repositories rather than an average or a sum.
 
+### The CFG column
+
+When `scan.categories.misconfig` is on, the workspace list, the security
+inventory and the OCI view's Images tab gain a `CFG` column, placed after the
+four severity counters and before `CI`. It is the number of misconfigurations,
+coloured by the worst severity among them:
+
+| Cell | Meaning |
+|---|---|
+| `-` | no stage read this target — the category was off, Trivy was missing, or the run failed |
+| `0` | a stage looked and found nothing |
+| `12` | twelve misconfigurations |
+| `12?` | the count is **partial** — a Helm chart or Kustomize overlay nothing rendered, or, on a directory, a repository below it that was never scanned |
+
+It is a count rather than the glyph the secrets column uses. A single secret
+is already an alarm, but almost every repository with a Dockerfile carries some
+misconfigurations, and a glyph would look the same on one as on two hundred.
+It is a single column rather than four because a misconfiguration backlog is
+read as a whole.
+
+`0?` is the case the marker exists for. A bare `0` on a repository made of
+charts would report it clean when nothing in it was ever read. A directory
+adds up its repositories' counts — unlike a CI letter, a count composes — and
+is partial as soon as any of them is. An image gets the column too: Trivy reads
+the Dockerfile instructions baked into its layers.
+
 ## Kubernetes manifests
 
 Two questions are asked of a repository's Kubernetes manifests, by two tools.
@@ -166,6 +192,102 @@ logged as not checked.
 `.dockerignore`, after the usual confirmation. It does not create one: what
 belongs in an image is a policy, not something the Dockerfile says. The
 sensitive-files finding has no built-in fix.
+
+## Remediation
+
+DevDesk proposes fixes; you decide on them. It fixes two things itself — a
+base image, and a short list of misconfigurations — and for everything else it
+hands the finding to an agent over [MCP](mcp.md#handing-a-misconfiguration-to-an-agent).
+Whichever path produced the fix, it is judged by a re-scan, never by the
+confidence of whoever wrote it.
+
+### What a fix would take
+
+Each vulnerability records Trivy's class — `os-pkgs` or `lang-pkgs` — and its
+ecosystem (`alpine`, `debian`, `gomod`, `npm`…). The class decides the fix:
+moving to a newer base image clears an `os-pkgs` CVE and does nothing for a
+`lang-pkgs` one, whose fix is the dependency itself. The results header shows a
+`Fixable` count split along those lines. Where the ecosystem is known, a
+finding's resolution is a command rather than a sentence, targeting the lowest
+fixed version on the installed major line — the smallest change that clears the
+CVE.
+
+### Base images — the Remediation tab
+
+The results of a repository scan have a sixth tab, **Remediation**. Opening
+it reads every `FROM` of every Dockerfile under the repository, build stages
+included, and lists the tags each base image could move to. A candidate keeps
+the current tag's variant (alpine stays alpine) and precision (`3.18` is offered
+`3.21`, not `3.21.1`). It stays on the same major version unless
+`scan.base_image_track` is `next-major`. When there is no candidate, the tab
+says why.
+
+Opening the tab is cheap; `S` measures. It scans each candidate straight from
+the registry — never pulled into the engine — and compares CRITICAL + HIGH
+counts against the image as written. A result counts for 24 hours, because the
+vulnerability database changes daily. Each candidate also gets a
+[signature verdict](signatures.md) in the `Sig` column.
+
+| Key | Action |
+|---|---|
+| `S` | Scan the candidates not scanned in the last 24 hours |
+| `space` | Choose the candidate under the cursor for its stage — only a scanned one, at most one per stage |
+| `enter` | Open the diff in the viewer |
+| `ctrl+o` | Write the chosen bases into the Dockerfiles, after a confirmation |
+
+`ctrl+o` never acts on the key alone. The confirmation, which defaults to No,
+names each file, line and change, and says what git will be able to undo. For a
+tracked, clean file, that is a `git checkout`. A file with uncommitted changes
+would lose them along with the edit, and an untracked one cannot be restored
+at all. None of this blocks the write. DevDesk makes no commit, branch or push.
+
+Only the bytes that spell each image change, so comments, CRLF line endings and
+a missing final newline all survive. The file must still hold exactly what the
+diff was computed from, or the write is refused. An image that comes from an
+`ARG` default has that default edited; one assembled from several pieces
+(`node:${V}-alpine`) cannot be edited in place and says so.
+
+### Built-in misconfiguration fixes
+
+On the Misconfigurations tab, `ctrl+o` writes a built-in fix for the selected
+finding when there is one, and the confirmation shows the diff itself. The
+catalog is short on purpose: each entry is an edit whose correctness does not
+depend on guessing what the image is for.
+
+| Rule | Fix |
+|---|---|
+| `AVD-DS-0002` | Create an unprivileged `appuser` in the final stage and switch to it, before the first `CMD`/`ENTRYPOINT` (Debian-based images only) |
+| `AVD-DS-0005` | Replace `ADD` with `COPY` |
+| `AVD-DS-0011` | Add a trailing slash to a multi-source `COPY` destination |
+| `AVD-DS-0015` / `0019` / `0020` / `0027` | Clean the `yum` / `dnf` / `zypper` / `microdnf` cache after an install |
+| `AVD-DS-0021` | Add `-y` to `apt-get install` |
+| `AVD-DS-0022` | Replace `MAINTAINER` with `LABEL` |
+| `AVD-DS-0025` | Add `--no-cache` to `apk add` |
+| `AVD-DS-0029` | Add `--no-install-recommends` to `apt-get install` |
+| `KSV-0001` | Set `allowPrivilegeEscalation: false` on the container |
+| `KSV-0017` | Set `privileged: false` on the container |
+| removed Kubernetes API | Move the resource to the `apiVersion` that replaced it |
+| `.git` in the build context | Add `.git` to `.dockerignore` |
+
+A rule may still decline for a particular file — for example, a base image
+whose distribution cannot be identified gets no `adduser` block. Declining
+says why and points you to the agent path. A doubtful edit would leave you
+second-guessing a diff.
+
+**A written file is not yet a fixed one.** Writing starts a re-scan of that
+target — an ordinary job, shown in `:jobs` as `verify fix` — and the verdict is
+binary: the rule is still reported for that file, or it is not. If it is gone,
+the footer says so and the new result replaces the one on screen. If the rule
+survived its own fix, you get a warning, not a failure: the file was written,
+and the scan is there to find out whether that was enough.
+
+## Image signatures
+
+With the Misconfiguration category on, a repository scan also checks the
+signature of every base image its Dockerfiles name, against your rules and
+the built-in ones. Only a proven violation becomes a finding: `DEVDESK-SIG-001`
+(signed by someone else, CRITICAL) or `DEVDESK-SIG-002` (unsigned where a
+rule requires a signature, HIGH). See [Image signatures](signatures.md).
 
 ## One rule decides a finding's family
 
