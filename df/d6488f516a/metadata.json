@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "dfd6488f516a",
+  "strategy": "manual-commit",
+  "branch": "fix/sync-rewritten-tags",
+  "checkpoints_count": 2,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/df/d6488f516a/0/metadata.json",
+      "transcript": "/df/d6488f516a/0/full.jsonl",
+      "compact_transcript": "/df/d6488f516a/0/transcript.jsonl",
+      "content_hash": "/df/d6488f516a/0/content_hash.txt",
+      "prompt": "/df/d6488f516a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 62,
+    "cache_creation_tokens": 115991,
+    "cache_read_tokens": 3579983,
+    "output_tokens": 19871,
+    "api_call_count": 31
+  }
+}

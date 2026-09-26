@@ -1,0 +1,5 @@
+dans ws que fais le sync (F)
+
+---
+
+parfois les tags distants sont réécris le pull ne fonctionne donc pas sans force
