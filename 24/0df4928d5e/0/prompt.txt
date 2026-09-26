@@ -1,0 +1,9 @@
+est-ce que l'ajout/suppression de groupe et projet est bien gérée
+
+---
+
+fais un review de la feature
+
+---
+
+corrige
