@@ -1,0 +1,1 @@
+la largeur de la colonne git status ne s'adapte pas au contenu de la colonne
