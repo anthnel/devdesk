@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "b500371c1cf4",
+  "strategy": "manual-commit",
+  "branch": "feat/forge-index",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/b5/00371c1cf4/0/metadata.json",
+      "transcript": "/b5/00371c1cf4/0/full.jsonl",
+      "compact_transcript": "/b5/00371c1cf4/0/transcript.jsonl",
+      "content_hash": "/b5/00371c1cf4/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 192,
+    "cache_creation_tokens": 293870,
+    "cache_read_tokens": 26255398,
+    "output_tokens": 100225,
+    "api_call_count": 95
+  }
+}
