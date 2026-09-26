@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "9cfa92957b1e",
+  "strategy": "manual-commit",
+  "branch": "fix/ct-ports-remeasure",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/containers/ports_test.go",
+    "internal/ui/containers/update.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9c/fa92957b1e/0/metadata.json",
+      "transcript": "/9c/fa92957b1e/0/full.jsonl",
+      "compact_transcript": "/9c/fa92957b1e/0/transcript.jsonl",
+      "content_hash": "/9c/fa92957b1e/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 158982,
+    "cache_read_tokens": 2803942,
+    "output_tokens": 10515,
+    "api_call_count": 23
+  }
+}

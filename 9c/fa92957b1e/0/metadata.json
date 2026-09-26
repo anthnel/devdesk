@@ -1,0 +1,60 @@
+{
+  "cli_version": "0.10.3",
+  "checkpoint_id": "9cfa92957b1e",
+  "session_id": "c87856fe-f8c8-4491-8d58-3d553e926db6",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-26T10:06:25.9312168Z",
+  "branch": "fix/ct-ports-remeasure",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/ui/containers/ports_test.go",
+    "internal/ui/containers/update.go"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "35a3052dd24f",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 158982,
+    "cache_read_tokens": 2803942,
+    "output_tokens": 10515,
+    "api_call_count": 23
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-26T10:06:25.8575585Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 493,
+    "human_modified": 22,
+    "human_removed": 0,
+    "total_committed": 515,
+    "total_lines_changed": 515,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 315,
+      "user_lines_removed": 303,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "LICENCE": 200,
+        "dhi.pub": 4,
+        "err.txt": 4
+      },
+      "user_removed_per_file": {
+        ".claude/plans/platform_compatibility_improvements.md": 89,
+        ".claude/rules/planning.md": 14,
+        "LICENCE": 200
+      }
+    }
+  ]
+}
