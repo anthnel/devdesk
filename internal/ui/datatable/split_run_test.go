@@ -9,8 +9,8 @@ import (
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
-// Cut and TailStyle exist for one caller — the containers load gauges
-// (§3.71) — but the mechanism lives here, so it is tested here rather than
+// Cut and TailStyle exist for two callers — the containers load gauges
+// (§3.71) and the workspaces Git Status cell (§3.94) — but the mechanism lives here, so it is tested here rather than
 // through a view.
 
 // splitConfig reuses the fixed-width "Size" column slot as a bar: r.Size

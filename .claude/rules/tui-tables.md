@@ -106,13 +106,16 @@ color.**
 
 **A cell can have two runs instead of one, and the measure-first order still
 holds.** `Column.Cut(item) int` and `Column.TailStyle(item) lipgloss.Style`
-exist for a single caller — the containers load gauges (§3.71) — so `Style`
-colors the first `Cut(item)` cells of the text and `TailStyle` colors the
-rest. This is not the gradient the top of this rule forbids: `Cut` reads the
+exist for two callers — the containers load gauges (§3.71) and the `ws` Git
+Status cell, whose branch keeps the text color while its markers warn
+(§3.94) — so `Style` colors the first `Cut(item)` cells of the text and
+`TailStyle` colors the rest. Every character either caller puts in such a cell
+is single-width: `Cut` is a rune index, and a double-width glyph would move the
+boundary. This is not the gradient the top of this rule forbids: `Cut` reads the
 *already-fitted* plain text, after truncation and padding, at the exact point
 `Style` already colors from — nothing styled is ever measured, it is the same
-order applied to two runs. Nil on both (every column but the two gauges)
-keeps the one-run path.
+order applied to two runs. Nil on both (every column but the two gauges and
+Git Status) keeps the one-run path.
 
 ```go
 // ✅ CORRECT — two colors, both decided after Cell's text is final

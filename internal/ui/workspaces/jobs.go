@@ -241,6 +241,9 @@ func (m Model) syncSummary(run jobs.Run) string {
 	if failed > 0 {
 		parts = append(parts, strconv.Itoa(failed)+" failed ("+firstFailed+") — check logs")
 	}
+	if m.syncMovedTags > 0 {
+		parts = append(parts, sharedcomponents.Plural(m.syncMovedTags, "tag", "tags")+" moved ("+m.syncFirstMovedTag+")")
+	}
 	if m.syncUnreadable > 0 {
 		parts = append(parts, sharedcomponents.Plural(m.syncUnreadable, "directory", "directories")+" unreadable — check logs")
 	}

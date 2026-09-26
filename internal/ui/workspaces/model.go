@@ -99,6 +99,13 @@ type Model struct {
 	// here until the summary is written.
 	syncUnreadable int
 
+	// syncMovedTags counts the tags the current sync moved to follow a remote
+	// that rewrote them, and syncFirstMovedTag names one as "repo: tag". Like
+	// syncUnreadable, it is not an outcome — a repository that moved a tag can
+	// be up to date, updated or skipped — so it waits here for the summary.
+	syncMovedTags     int
+	syncFirstMovedTag string
+
 	// secrets is the context's secret store, the one the router resolved. A
 	// sync fetches, and a fetch against the configured GitLab needs the token —
 	// with the credential helper shut out, it is the only way in (§3.16).
@@ -144,7 +151,11 @@ type Entry struct {
 	GitUntracked   int
 	GitUnpushed    int
 	GitUnpulled    int
-	GitLastTag     string // nearest tag reachable from HEAD, or "" if none
+	// GitNoUpstream is set when the branch tracks nothing, so the two counts
+	// above are zero because there is nothing to count against. Negative on
+	// purpose: an Entry that was never asked reads as "no opinion".
+	GitNoUpstream bool
+	GitLastTag    string // nearest tag reachable from HEAD, or "" if none
 }
 
 // New creates a new instance of the workspaces model.

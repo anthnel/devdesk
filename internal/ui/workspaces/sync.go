@@ -74,6 +74,7 @@ func (m Model) startSync() (tea.Model, tea.Cmd) {
 	}
 
 	m.syncUnreadable = entry.SubRepoSkipped
+	m.syncMovedTags, m.syncFirstMovedTag = 0, ""
 	return m, jobs.Start(m.syncRun(toSync), batchSyncCmd(toSync, m.syncSpec()))
 }
 
@@ -102,6 +103,7 @@ func (m Model) handleWorkspaceSyncComplete(msg WorkspaceSyncCompleteMsg) (tea.Mo
 	if msg.Error != nil {
 		log.Printf("ERROR [workspaces] sync %s: %v", msg.RepoPath, msg.Error)
 	}
+	m.recordMovedTags(msg.RepoPath, msg.MovedTags)
 
 	// The summary is an event, not a state, so it is a footer message with the
 	// three seconds Rule 128 gives one — unlike the progress line, which is
@@ -113,7 +115,24 @@ func (m Model) handleWorkspaceSyncComplete(msg WorkspaceSyncCompleteMsg) (tea.Mo
 	}
 	summary := m.syncSummary(run)
 	m.syncUnreadable = 0
+	m.syncMovedTags, m.syncFirstMovedTag = 0, ""
 	return m, m.footer.Info(summary)
+}
+
+// recordMovedTags keeps what the summary says about rewritten tags, and logs
+// every one of them: a tag has no reflog, so the log is the only place the
+// move is written down.
+func (m *Model) recordMovedTags(repoPath string, tags []string) {
+	for _, tag := range tags {
+		log.Printf("INFO [workspaces] sync %s: tag %s moved to follow the remote", repoPath, tag)
+	}
+	if len(tags) == 0 {
+		return
+	}
+	if m.syncFirstMovedTag == "" {
+		m.syncFirstMovedTag = pathBaseName(repoPath) + ": " + tags[0]
+	}
+	m.syncMovedTags += len(tags)
 }
 
 // settledSyncRun returns the sync run holding a repository, if that run has
@@ -154,6 +173,7 @@ func (m *Model) applyGitStatus(repoPath string, status Entry) {
 		entries[i].GitUntracked = status.GitUntracked
 		entries[i].GitUnpushed = status.GitUnpushed
 		entries[i].GitUnpulled = status.GitUnpulled
+		entries[i].GitNoUpstream = status.GitNoUpstream
 	}
 	m.setEntries(entries)
 }

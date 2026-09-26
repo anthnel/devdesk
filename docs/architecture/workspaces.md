@@ -85,6 +85,25 @@ escape Rule 122 bans from a cell.
 `.gitlab-ci.yml` is a **declared exception** in `vocabtest`: it is a filename,
 not vocabulary — the file is called that whatever forge a context targets.
 
+## The Git Status cell — starship's markers
+
+`main !3 ?2 ⇡1`, `main ⇕⇡2⇣5`, `feature ⊘` (§3.94): the branch, then
+starship's `git_status` marks — `!` modified, `?` untracked, `⇡`/`⇣` ahead and
+behind, `⇕` diverged — plus `⊘` for a branch with no upstream, which starship
+leaves blank and which then read like "level with its remote".
+
+**Plain single-width characters, not Nerd Font glyphs**, because the cell is
+two colour runs (`Cut`/`TailStyle`, Rule 122) split at a rune index —
+`workspaceRow.branchCut`. The branch keeps the text colour; the markers turn
+orange only when `F` would refuse the repository (uncommitted or untracked
+files, a diverged branch). While a spinner holds the cell, `branchCut` covers
+all of it.
+
+**The column sizes to its content** (`SizingContent`, floor at the title's
+10 cells, no ceiling). A ceiling would truncate the tail — the markers, which
+are the point — so the branch is shortened in the cell instead, past 24 runes
+(`displayBranch`), keeping its start where the prefix and ticket number sit.
+
 ## The workspaces sync
 
 `F` fetches a repository and fast-forwards it (§3.17). It is the other half of
@@ -177,6 +196,14 @@ Rule 111's sort menu.
 | uncommitted changes, untracked included | **skipped**, `uncommitted changes` |
 | detached HEAD, or no upstream | **skipped**, named |
 | the remote could not be reached | **failed** — the difference from a skip is whether the repository is as its owner left it, or DevDesk could not find out |
+
+**Tags follow the remote, forced** (D74) — the one place sync overwrites
+something local. They are fetched before the branch, with
+`+refs/tags/*:refs/tags/*` and without `--prune`: a plain fetch never moves a
+tag it already has, so a tag re-cut upstream stayed stale in silence, and a
+repository with `tagOpt = --tags` failed its whole fetch on it instead. Pruning
+would delete tags made here and never pushed, so it is not done. A tag has no
+reflog, so every one that moved is logged and counted in the summary.
 
 No merge commit, no rebase, no stash, and **never a push**. A divergence is a
 decision about someone's unpublished work, and a tool that guesses at it

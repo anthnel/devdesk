@@ -61,6 +61,7 @@ func detectGitStatus(entry *Entry) {
 	entry.GitUntracked = status.Untracked
 	entry.GitUnpushed = status.Ahead
 	entry.GitUnpulled = status.Behind
+	entry.GitNoUpstream = !status.HasUpstream
 	entry.GitLastTag = status.LastTag
 
 	if status.Remote != "" {
