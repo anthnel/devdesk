@@ -30,6 +30,22 @@ type TreeNode struct {
 	Children []*TreeNode
 	Expanded bool
 	Loading  bool // True when loading children
+	// Fresh says Children came from the forge in this session, decorated,
+	// rather than from the forge index — which has no role and no CI status,
+	// and may be as old as the last walk. A level that is not fresh is read
+	// again when it is shown.
+	Fresh bool
+	// Stale says the refresh of Children still in flight was asked before a
+	// create or a delete the forge has since confirmed here. Its answer may
+	// predate that change — laid over the level, it would drop the created row
+	// or bring the deleted one back — so it is discarded and asked again.
+	Stale bool
+	// Blocking says the load in flight is one the user is waiting on, with
+	// nothing on screen for the level — as opposed to a refresh behind rows
+	// already shown. Recorded when the load starts: by the time its answer
+	// lands the index may have filled Children, and deciding from that would
+	// settle a blocking load as a refresh and leave the view loading forever.
+	Blocking bool
 	Parent   *TreeNode
 	Depth    int // Depth in tree (for rendering)
 

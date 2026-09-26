@@ -12,6 +12,7 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 )
 
 // ViewMode represents the current mode of the view
@@ -69,7 +70,7 @@ type Model struct {
 	// indexed stopped being the list on screen (D24).
 	pendingEntry *Entry
 	// fuzzyFinder is the "g" prompt while ModeFuzzyFinding is active.
-	fuzzyFinder *FuzzyFinder
+	fuzzyFinder *fuzzy.Finder
 
 	// Scan cache: keyed by absolute repo path
 	scanCache map[string]cache.WorkspaceScanEntry

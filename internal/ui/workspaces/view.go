@@ -14,6 +14,7 @@ import (
 	"github.com/anthnel/devdesk/internal/scan"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/fileicon"
+	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -99,9 +100,7 @@ func (m Model) GetFooterHeight() int {
 	case ModeSelecting:
 		return 3 // tab bar + empty line + info line (mirrors RenderFooter in ModeSelecting)
 	case ModeFuzzyFinding:
-		// the query bar (same 2-line frame the "/" filter and the viewer's
-		// go-to-line prompt use) + empty line + info line
-		return 4
+		return fuzzy.FooterHeight
 	case ModeNormal:
 		if len(m.table.Items()) > 0 && m.error == "" {
 			// filter bar (when visible) + breadcrumb tab bar + empty line + info line
@@ -118,8 +117,7 @@ func (m Model) RenderFooter(width int) string {
 		return m.renderTabBar() + "\n" + theme.EmptyLineBg(width) + "\n" + infoLine
 	}
 	if m.mode == ModeFuzzyFinding && m.fuzzyFinder != nil {
-		infoLine := m.footer.View(width, sharedcomponents.Status{Text: m.fuzzyFinder.StatusText()})
-		return m.fuzzyFinder.RenderBar(width) + "\n" + theme.EmptyLineBg(width) + "\n" + infoLine
+		return m.fuzzyFinder.RenderFooter(width, &m.footer)
 	}
 	if m.mode == ModeNormal && len(m.table.Items()) > 0 && m.error == "" {
 		var parts []string

@@ -290,7 +290,8 @@ for a scan prints a dash — and all of them colour dim.
 
 ## Fuzzy find (`g`)
 
-`g` opens a prompt (`FuzzyFinder`, `fuzzyfind.go`): type at least 3
+`g` opens a prompt (`fuzzy.Finder`, `internal/ui/fuzzy` — shared with the
+forge explorer's `g` since §3.93): type at least 3
 characters and a ranked list of directories anywhere under the workspaces
 root appears, `Enter` on one drills there. The view has no tree in memory —
 `currentPath`/`navigationStack`/`cursorStack` describe one listing at a
@@ -306,7 +307,7 @@ either side of it:
   repository is a valid target to jump to; its own `node_modules` or
   `vendor` is not a candidate, for the same reason it is never a scan
   target on its own.
-- **Ranking** (`fuzzymatch.go`) is a plain subsequence match with no
+- **Ranking** (`fuzzy.Match`) is a plain subsequence match with no
   dependency behind it — none existed anywhere in this codebase before this
   — scored higher for a consecutive run of matched characters and for a
   match landing right after a `/`.
@@ -318,7 +319,7 @@ either side of it:
   is read in whatever order the filesystem gives it, so the row is found by
   path rather than assumed to land at a particular index.
 
-**The query lives in the footer's bar slot, not the viewport.** `FuzzyFinder`
+**The query lives in the footer's bar slot, not the viewport.** `fuzzy.Finder`
 splits the same way the document viewer's `g` does: `View()` is the ranked
 results table — the whole viewport, since a list needs real space — and
 `RenderBar` draws the query through `components.BarFrame`, the identical

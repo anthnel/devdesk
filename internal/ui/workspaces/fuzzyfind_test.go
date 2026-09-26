@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/testutil"
 )
 
@@ -40,7 +41,7 @@ func TestFuzzyFindReportsFilterBarVisibleForTheClosedBorder(t *testing.T) {
 		t.Error("FilterBarVisible = false while the fuzzy-find bar is on screen, border will not close")
 	}
 
-	m = feed(t, m, FuzzyFindCancelMsg{})
+	m = feed(t, m, fuzzy.CancelMsg{})
 	if m.FilterBarVisible() {
 		t.Error("FilterBarVisible = true after the prompt was cancelled")
 	}
@@ -52,7 +53,7 @@ func TestFuzzyFindReportsFilterBarVisibleForTheClosedBorder(t *testing.T) {
 func TestFuzzyFindQuerySitsInTheFilterBarSlot(t *testing.T) {
 	m := newTestModel(t)
 	m, _ = step(t, m, testutil.Key("g"))
-	m = feed(t, m, FuzzyPathsLoadedMsg{Candidates: []fuzzyCandidate{{Abs: "/tmp/workspaces/devdesk", Rel: "devdesk"}}})
+	m = feed(t, m, FuzzyPathsLoadedMsg{Candidates: []fuzzy.Candidate{dirCandidate("/tmp/workspaces/devdesk", "devdesk")}})
 	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("dev")})
 
 	footer := m.RenderFooter(80)
@@ -78,24 +79,24 @@ func TestFuzzyFindJumpsToTheSelectedDirectory(t *testing.T) {
 	m := newTestModel(t)
 	m, _ = step(t, m, testutil.Key("g"))
 
-	m = feed(t, m, FuzzyPathsLoadedMsg{Candidates: []fuzzyCandidate{
-		{Abs: "/tmp/workspaces/a/b", Rel: "a/b"},
-		{Abs: "/tmp/workspaces/other", Rel: "other"},
+	m = feed(t, m, FuzzyPathsLoadedMsg{Candidates: []fuzzy.Candidate{
+		dirCandidate("/tmp/workspaces/a/b", "a/b"),
+		dirCandidate("/tmp/workspaces/other", "other"),
 	}})
 
 	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a/b")})
 
-	if got := m.fuzzyFinder.matchHint(); got != "1 match(es)" {
+	if got := m.fuzzyFinder.MatchHint(); got != "1 match(es)" {
 		t.Fatalf("matchHint = %q, want a single match reported", got)
 	}
 
 	_, cmd := step(t, m, testutil.Key("enter"))
-	confirm, ok := testutil.MsgOf[FuzzyFindConfirmMsg](cmd)
+	confirm, ok := testutil.MsgOf[fuzzy.ConfirmMsg](cmd)
 	if !ok {
 		t.Fatal("Enter on the selected result did not confirm a path")
 	}
-	if confirm.Path != "/tmp/workspaces/a/b" {
-		t.Fatalf("confirmed path = %q, want %q", confirm.Path, "/tmp/workspaces/a/b")
+	if confirm.Key != "/tmp/workspaces/a/b" {
+		t.Fatalf("confirmed path = %q, want %q", confirm.Key, "/tmp/workspaces/a/b")
 	}
 
 	m = feed(t, m, confirm)
@@ -135,7 +136,7 @@ func TestFuzzyFindJumpsToTheSelectedDirectory(t *testing.T) {
 func TestFuzzyFindBelowThreeCharactersRunsNoQuery(t *testing.T) {
 	m := newTestModel(t)
 	m, _ = step(t, m, testutil.Key("g"))
-	m = feed(t, m, FuzzyPathsLoadedMsg{Candidates: []fuzzyCandidate{{Abs: "/tmp/workspaces/ab", Rel: "ab"}}})
+	m = feed(t, m, FuzzyPathsLoadedMsg{Candidates: []fuzzy.Candidate{dirCandidate("/tmp/workspaces/ab", "ab")}})
 
 	m, _ = step(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ab")})
 
@@ -149,7 +150,7 @@ func TestEscCancelsFuzzyFind(t *testing.T) {
 	m, _ = step(t, m, testutil.Key("g"))
 
 	_, cmd := step(t, m, testutil.Key("esc"))
-	cancel, ok := testutil.MsgOf[FuzzyFindCancelMsg](cmd)
+	cancel, ok := testutil.MsgOf[fuzzy.CancelMsg](cmd)
 	if !ok {
 		t.Fatal("esc did not cancel the prompt")
 	}

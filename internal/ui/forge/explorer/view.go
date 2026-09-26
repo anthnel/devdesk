@@ -8,6 +8,7 @@ import (
 	"github.com/anthnel/devdesk/internal/command"
 	"github.com/anthnel/devdesk/internal/forge"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/help"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 	"github.com/anthnel/devdesk/internal/ui/shortcut"
@@ -26,6 +27,10 @@ func (m Model) View() string {
 	// progress view and the report both (decision 9).
 	if m.mode == ModeCloning && m.clone != nil {
 		return m.clone.table.View()
+	}
+	// The "g" prompt's ranked results fill the viewport the same way.
+	if m.mode == ModeFuzzyFinding && m.finder != nil {
+		return m.finder.View()
 	}
 
 	// Priority 3: Modals (centered overlays)
@@ -67,6 +72,9 @@ func (m Model) renderTable() string {
 // says nothing about it — so it takes the two-line footer plus its own filter
 // bar.
 func (m Model) GetFooterHeight() int {
+	if m.mode == ModeFuzzyFinding && m.finder != nil {
+		return fuzzy.FooterHeight
+	}
 	if m.mode == ModeCloning && m.clone != nil {
 		return 2 + m.clone.table.FilterBar().ExtraHeight()
 	}
@@ -79,6 +87,9 @@ func (m Model) GetFooterHeight() int {
 
 // RenderFooter returns the footer content rendered below the viewport (Rule 124).
 func (m Model) RenderFooter(width int) string {
+	if m.mode == ModeFuzzyFinding && m.finder != nil {
+		return m.finder.RenderFooter(width, &m.footer)
+	}
 	infoLine := m.renderInfoLine(width)
 
 	if m.mode == ModeCloning && m.clone != nil {
@@ -126,6 +137,11 @@ func (m Model) status() components.Status {
 		return components.Status{Text: m.error, Level: components.LevelError}
 	case m.loadingTree():
 		return components.Status{Text: "Loading " + m.vocab().Name + " " + strings.ToLower(m.vocab().Namespaces) + "...", Spinner: true}
+	// A level on screen from the index while the forge is asked again: the
+	// rows are there, so this is the lowest-priority line, and it says what
+	// is still coming rather than that anything is missing.
+	case m.refreshing > 0:
+		return components.Status{Text: "Updating from " + m.vocab().Name + "...", Spinner: true}
 	}
 	return components.Status{}
 }
@@ -407,6 +423,11 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 			{Key: "y/n", Description: "Confirm"},
 			{Key: "esc", Description: "Cancel"},
 		}
+	case ModeFuzzyFinding:
+		return []shortcut.Shortcut{
+			{Key: "enter", Description: "Jump to entry"},
+			{Key: "esc", Description: "Cancel"},
+		}
 	}
 
 	// Normal mode. A load in flight greys the lot rather than emptying it: the
@@ -430,6 +451,7 @@ func (m Model) GetShortcuts() shortcut.Shortcuts {
 		{Key: keymap.Delete, Description: "Delete", Disabled: loading || !act.Enabled()},
 		{Key: keymap.Clone, Description: "Clone", Disabled: loading},
 		{Key: keymap.Web, Description: "Browser", Disabled: loading || !browse.Enabled()},
+		{Key: "g", Description: "Find", Disabled: out},
 		{Key: ".", Description: "Sort", Disabled: loading},
 		{Key: "/", Description: "Search", Disabled: loading},
 		{Key: "ctrl+r", Description: "Refresh", Disabled: out},
@@ -585,6 +607,7 @@ func (m Model) GetHelpContent() help.Content {
 			{Key: keymap.Web, Description: "Open the selected group or project in the default web browser"},
 			{Key: keymap.New, Description: "Create a new group or project under the current context. Use ←→ to select the type."},
 			{Key: keymap.Delete, Description: "Delete the selected group or project"},
+			{Key: "g", Description: "Find any " + strings.ToLower(v.Namespace) + " or " + strings.ToLower(v.Repository) + " by typing part of its path, and jump there"},
 			{Key: ".", Description: "Cycle sort column (Name → Created → Activity, then back to the forge's own order)"},
 			{Key: "/", Description: "Filter the current level by name or path"},
 			{Key: "Ctrl+R", Description: "Refresh the explorer"},
@@ -595,6 +618,16 @@ func (m Model) GetHelpContent() help.Content {
 			{
 				Title: "Navigation",
 				Body:  "The explorer uses a drill-down model. Press → on a group to see its contents. Press ← to go back. Tabs at the bottom show your current path.",
+			},
+			{
+				Title: "Finding anything (g)",
+				Body: "Press g and type at least three characters of a path: every " + strings.ToLower(v.Namespace) + " and " +
+					strings.ToLower(v.Repository) + " you can see is matched, at any depth, and ranked. Enter jumps there — inside a " +
+					strings.ToLower(v.Namespace) + ", or onto the row of a " + strings.ToLower(v.Repository) + ". Esc closes the prompt.\n" +
+					"The list comes from an index of the whole " + v.Name + " tree, built in the background each time a session opens " +
+					"(it shows in :jobs) and kept on disk, so it is there at once the next time. It is also what lets a level " +
+					"appear immediately when you drill in: the rows come from the index, then the Role and CI columns fill in " +
+					"from " + v.Name + " — the index does not keep them, they change too often. Ctrl+R walks the whole tree again.",
 			},
 			{
 				Title: "Cloning",

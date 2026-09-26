@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/ui/fuzzy"
+	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
 // fuzzyWalkResult is what a whole-tree directory walk found for fuzzy-find,
@@ -17,20 +20,11 @@ type fuzzyWalkResult struct {
 	Skipped int
 }
 
-// fuzzyCandidate is one directory the fuzzy-find prompt can match: Abs is
-// what jumping there needs, Rel (forward-slash separated, relative to the
-// workspaces root) is what the query is matched against and what the
-// results table shows.
-type fuzzyCandidate struct {
-	Abs string
-	Rel string
-}
-
 // FuzzyPathsLoadedMsg carries the result of the whole-tree walk behind the
 // fuzzy-find prompt. The walk itself runs in a Cmd; only Update touches the
 // model with what it found (Rule 110).
 type FuzzyPathsLoadedMsg struct {
-	Candidates []fuzzyCandidate
+	Candidates []fuzzy.Candidate
 	Skipped    int
 }
 
@@ -42,7 +36,7 @@ func (m Model) walkWorkspaceDirsCmd() tea.Cmd {
 
 	return func() tea.Msg {
 		result := collectDirs(root, showHidden)
-		candidates := make([]fuzzyCandidate, 0, len(result.Dirs))
+		candidates := make([]fuzzy.Candidate, 0, len(result.Dirs))
 		for _, dir := range result.Dirs {
 			rel, err := filepath.Rel(root, dir)
 			if err != nil || rel == "." {
@@ -50,10 +44,17 @@ func (m Model) walkWorkspaceDirsCmd() tea.Cmd {
 				// already give.
 				continue
 			}
-			candidates = append(candidates, fuzzyCandidate{Abs: dir, Rel: filepath.ToSlash(rel)})
+			candidates = append(candidates, dirCandidate(dir, filepath.ToSlash(rel)))
 		}
 		return FuzzyPathsLoadedMsg{Candidates: candidates, Skipped: result.Skipped}
 	}
+}
+
+// dirCandidate is one directory the prompt can match: the absolute path is
+// what jumping there needs, the forward-slash path relative to the workspaces
+// root is what the query is matched against and what the results show.
+func dirCandidate(abs, rel string) fuzzy.Candidate {
+	return fuzzy.Candidate{Key: abs, Label: rel, Icon: theme.IconDirectory, Role: theme.IconRoleDirectory}
 }
 
 // collectDirs walks basePath and returns every directory under it, at any

@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/forgeindex"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
@@ -95,6 +96,17 @@ func (m Model) handleDeleteConfirmed(permanentlyRemove bool) (tea.Model, tea.Cmd
 	return m, jobs.Start(deleteRun(path, node.Name), work)
 }
 
+// removeNode drops node from level, by identity first and by ID as a fallback
+// (a refresh may have replaced the pointer since the delete was asked).
+func removeNode(level []*TreeNode, node *TreeNode) []*TreeNode {
+	for i, n := range level {
+		if n == node || (n.ID != "" && n.ID == node.ID) {
+			return append(level[:i], level[i+1:]...)
+		}
+	}
+	return level
+}
+
 // handleDeleteComplete handles DeleteCompleteMsg
 func (m Model) handleDeleteComplete(msg DeleteCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Error != nil {
@@ -103,25 +115,23 @@ func (m Model) handleDeleteComplete(msg DeleteCompleteMsg) (tea.Model, tea.Cmd) 
 	}
 	m.footer.Clear()
 
-	// Remove deleted node from local tree and stay in current group
-	if msg.DeletedNode != nil {
-		if m.currentGroupNode != nil {
-			children := m.currentGroupNode.Children
-			for i, child := range children {
-				if child.ID == msg.DeletedNode.ID {
-					m.currentGroupNode.Children = append(children[:i], children[i+1:]...)
-					break
-				}
-			}
-		} else {
-			for i, n := range m.nodes {
-				if n.ID == msg.DeletedNode.ID {
-					m.nodes = append(m.nodes[:i], m.nodes[i+1:]...)
-					break
-				}
-			}
-		}
+	if msg.DeletedNode == nil {
+		m.updateTableRows()
+		return m, nil
 	}
+
+	// The row leaves the level it belongs to — its parent's, which is the
+	// current one unless the user drilled elsewhere while the forge worked.
+	// Removing it from whatever level was on screen instead would leave it in
+	// the tree, and take the wrong row if an ID ever matched.
+	deleted := msg.DeletedNode
+	if deleted.Parent == nil {
+		m.nodes = removeNode(m.nodes, deleted)
+	} else {
+		deleted.Parent.Children = removeNode(deleted.Parent.Children, deleted)
+	}
+	m.levelChanged(deleted.Parent)
 	m.updateTableRows()
-	return m, nil
+	gone := deleted.FullPath
+	return m, editIndex(func(ix *forgeindex.Index) *forgeindex.Index { return ix.Without(gone) })
 }

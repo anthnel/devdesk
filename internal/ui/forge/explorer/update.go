@@ -9,7 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/jobs"
+	"github.com/anthnel/devdesk/internal/shared"
 	"github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
@@ -28,12 +30,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSpinnerTick(msg)
 
 	case RootGroupsLoadedMsg:
-		m.loading = false
-		m.firstLoadDone = true
-		m.nodes = carryOverCreating(m.nodes, msg.Nodes)
-		m.error = ""
-		m.updateTableRows()
-		m.table.GotoTop()
+		return m.handleRootGroupsLoaded(msg)
+
+	case shared.ForgeIndexChangedMsg:
+		return m.handleForgeIndexChanged()
+
+	case fuzzy.CancelMsg:
+		m.mode = ModeNormal
+		m.finder = nil
+		return m, nil
+
+	case fuzzy.ConfirmMsg:
+		m.mode = ModeNormal
+		m.finder = nil
+		return m.jumpTo(msg.Key)
 
 	case ChildrenLoadedMsg:
 		return m.handleChildrenLoaded(msg)
@@ -132,6 +142,12 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.deleteConfirmModal, cmd = m.deleteConfirmModal.Update(msg)
 			return m, cmd
 		}
+	case ModeFuzzyFinding:
+		if m.finder != nil {
+			var cmd tea.Cmd
+			m.finder, cmd = m.finder.Update(msg)
+			return m, cmd
+		}
 	}
 
 	// Normal mode. Actions resolve the cursor through the table, which resolves
@@ -145,6 +161,8 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDrillUp()
 	case "ctrl+r":
 		return m.handleRefresh()
+	case "g":
+		return m.startFuzzyFind()
 	case keymap.Clone:
 		return m.handleCloneStart()
 	case keymap.New:
@@ -206,7 +224,7 @@ func (m Model) handleCloningKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // a clone keeps turning whether or not this view is on screen — and cannot
 // freeze on frame zero if this chain dies.
 func (m Model) handleSpinnerTick(msg spinner.TickMsg) (tea.Model, tea.Cmd) {
-	if !m.loading {
+	if !m.loading && m.refreshing == 0 {
 		return m, nil
 	}
 	var cmd tea.Cmd

@@ -3,6 +3,7 @@ package shared
 import (
 	"github.com/anthnel/devdesk/internal/credentials"
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/forgeindex"
 	"github.com/anthnel/devdesk/internal/forward"
 	"github.com/anthnel/devdesk/internal/scan"
 	"github.com/anthnel/devdesk/internal/status"
@@ -70,23 +71,21 @@ type State struct {
 	// disagree.
 	CurrentUser forge.User
 
-	// There is no groups/projects cache here, and that is a decision rather
-	// than an omission (D36). `CachedGroups` and `CachedProjects` were declared
-	// and cleared in three places for months without a single production write,
-	// so every explorer open was said to be refetching against a cache that had
-	// never held anything.
+	// ForgeIndex is everything this session can see on the forge, at every
+	// depth (internal/forgeindex). Nil until the first answer — the file the
+	// previous walk left, or the walk itself — and set back to nil when the
+	// session closes. Only the router writes it; the explorer reads it to show
+	// a level before the forge answers, and its "g" prompt matches against it.
 	//
-	// Two things ruled out filling them. The explorer keeps its own tree for as
-	// long as it exists, and `createView` only rebuilds a view it has dropped —
-	// on a config save, a context switch or a logout, which are exactly the
-	// three moments this cache was being emptied. It could therefore only ever
-	// be consulted when it was deliberately empty.
-	//
-	// And the shape is wrong anyway. §3.16 made the explorer a lazily-walked,
-	// paginated tree; a flat slice of every group cannot say which level was
-	// fetched, and filling one needs the full API walk that §3.16 removed
-	// precisely because it froze the view for minutes. The right cache for a
-	// tree is the tree, and the explorer already holds it.
+	// D36 removed a groups/projects cache from here, and the reasons still
+	// hold against *that* cache: nothing wrote it, and a flat slice fetched in
+	// one blocking walk is what §3.16 took out because it froze the explorer.
+	// This one is written at every session start, never blocks — it is a job,
+	// and the previous walk's file stands in meanwhile — and answers per level
+	// (Children), which is the shape a lazily-drilled tree needs. The explorer
+	// still re-reads the level it shows, so what this holds is a head start,
+	// never the last word.
+	ForgeIndex *forgeindex.Index
 
 	// Forwards are the open port redirections (§3.1). It lives here, created
 	// once with the router and never replaced, because a listener is not a
@@ -131,3 +130,25 @@ type ScanToolsMsg struct {
 // view that shows what is installed, since a tool installed while DevDesk runs
 // is not seen otherwise.
 type ScanToolsDetectRequestMsg struct{}
+
+// ForgeIndexChangedMsg tells every view the router holds that ForgeIndex was
+// replaced — a walk landed, the file was read, or an edit was applied. It
+// carries nothing: the index is on the shared state, and a second copy here
+// would be a second answer to the same question.
+type ForgeIndexChangedMsg struct{}
+
+// ForgeIndexEditMsg asks the router to change the index — a view that just
+// created, deleted or re-read something on the forge. The edit is a function
+// of the current index rather than a new index, because the view's copy may be
+// older than the router's by the time the message arrives: a walk can land in
+// between, and applying the edit to it keeps both.
+//
+// The router drops it when there is no index: an edit to nothing is nothing,
+// and the next walk will see what the view saw.
+type ForgeIndexEditMsg struct {
+	Edit func(*forgeindex.Index) *forgeindex.Index
+}
+
+// ForgeIndexRefreshMsg asks the router to walk the forge again — ctrl+r in the
+// explorer. The index in place stays until the new one lands.
+type ForgeIndexRefreshMsg struct{}

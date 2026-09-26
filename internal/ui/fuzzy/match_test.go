@@ -1,8 +1,8 @@
-package workspaces
+package fuzzy
 
 import "testing"
 
-func TestMatchFuzzySubsequence(t *testing.T) {
+func TestMatchSubsequence(t *testing.T) {
 	tests := []struct {
 		candidate string
 		query     string
@@ -17,27 +17,27 @@ func TestMatchFuzzySubsequence(t *testing.T) {
 		{"devdesk", "", false},
 	}
 	for _, tt := range tests {
-		_, got := matchFuzzy(tt.candidate, tt.query)
+		_, got := Match(tt.candidate, tt.query)
 		if got != tt.want {
-			t.Errorf("matchFuzzy(%q, %q) matched = %v, want %v", tt.candidate, tt.query, got, tt.want)
+			t.Errorf("Match(%q, %q) matched = %v, want %v", tt.candidate, tt.query, got, tt.want)
 		}
 	}
 }
 
-func TestMatchFuzzyCaseInsensitive(t *testing.T) {
-	if _, ok := matchFuzzy("DevDesk", "dvd"); !ok {
-		t.Error("matchFuzzy should ignore case")
+func TestMatchCaseInsensitive(t *testing.T) {
+	if _, ok := Match("DevDesk", "dvd"); !ok {
+		t.Error("Match should ignore case")
 	}
 }
 
 // A run of consecutive matched characters is a tighter match than the same
 // letters scattered across the candidate, and should score higher.
-func TestMatchFuzzyScoresConsecutiveRunsHigher(t *testing.T) {
-	consecutive, ok := matchFuzzy("abcxyz", "abc")
+func TestMatchScoresConsecutiveRunsHigher(t *testing.T) {
+	consecutive, ok := Match("abcxyz", "abc")
 	if !ok {
 		t.Fatal("expected a match")
 	}
-	scattered, ok := matchFuzzy("axbxcx", "abc")
+	scattered, ok := Match("axbxcx", "abc")
 	if !ok {
 		t.Fatal("expected a match")
 	}
@@ -49,12 +49,12 @@ func TestMatchFuzzyScoresConsecutiveRunsHigher(t *testing.T) {
 // A match starting right after a path separator reads as "this segment",
 // which is what a directory jump is usually after — it should outscore the
 // same letters matched mid-segment.
-func TestMatchFuzzyScoresSegmentBoundaryHigher(t *testing.T) {
-	boundary, ok := matchFuzzy("x/bar", "bar")
+func TestMatchScoresSegmentBoundaryHigher(t *testing.T) {
+	boundary, ok := Match("x/bar", "bar")
 	if !ok {
 		t.Fatal("expected a match")
 	}
-	midword, ok := matchFuzzy("xxbar", "bar")
+	midword, ok := Match("xxbar", "bar")
 	if !ok {
 		t.Fatal("expected a match")
 	}

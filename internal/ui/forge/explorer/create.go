@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/forgeindex"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
@@ -323,8 +324,9 @@ func (m Model) handleGroupCreated(msg GroupCreatedMsg) (tea.Model, tea.Cmd) {
 
 	node := nodeFromNamespace(msg.Namespace, nil)
 	m.settleCreating(msg.Target, node)
+	m.levelChanged(node.Parent)
 	m.selectRow(node.FullPath)
-	return m, nil
+	return m, indexCreated(node)
 }
 
 // handleProjectCreated resolves the placeholder row in place. See
@@ -343,11 +345,21 @@ func (m Model) handleProjectCreated(msg ProjectCreatedMsg) (tea.Model, tea.Cmd) 
 	// way; only the message differs.
 	node := nodeFromRepository(msg.Repository, nil)
 	m.settleCreating(msg.Target, node)
+	m.levelChanged(node.Parent)
 	m.selectRow(node.FullPath)
 
 	if msg.TemplateError != nil {
 		log.Printf("ERROR [explorer] apply template: %v", msg.TemplateError)
-		return m, m.footer.Warn(fmt.Sprintf("%s created empty: the template's commit failed — check logs", node.Name))
+		return m, tea.Batch(indexCreated(node),
+			m.footer.Warn(fmt.Sprintf("%s created empty: the template's commit failed — check logs", node.Name)))
 	}
-	return m, nil
+	return m, indexCreated(node)
+}
+
+// indexCreated tells the forge index about a node the forge just created, so
+// "g" finds it without waiting for the next walk. replaceCreating has already
+// given it the placeholder's parent.
+func indexCreated(node *TreeNode) tea.Cmd {
+	entry := entryFromNode(node, pathOf(node.Parent))
+	return editIndex(func(ix *forgeindex.Index) *forgeindex.Index { return ix.With(entry) })
 }

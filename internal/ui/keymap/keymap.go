@@ -218,6 +218,9 @@ var localToggles = []Surface{
 	// justification as the viewer's g: the jump takes an argument (the typed
 	// query), which is not a role home/end/G could ever cover.
 	{"workspaces", "ui/workspaces/", []string{"g"}},
+	// The same prompt over the forge index: every namespace and repository
+	// the session can see, at any depth.
+	{"forge/explorer", "ui/forge/explorer/", []string{"g"}},
 }
 
 // LocalToggles returns the declared surfaces.
