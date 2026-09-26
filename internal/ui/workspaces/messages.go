@@ -112,6 +112,8 @@ type WorkspaceSyncCompleteMsg struct {
 	Outcome  git.SyncOutcome
 	Behind   int
 	Reason   string
+	// MovedTags are the tags the remote rewrote and the sync moved to follow.
+	MovedTags []string
 	// Status carries the repository re-read after the sync. Only its git fields
 	// are meaningful: it exists so the Git Status column stops describing the
 	// state before the fetch, which is the whole point of syncing (D35).

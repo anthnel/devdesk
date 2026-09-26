@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -12,8 +13,8 @@ import (
 // Sync brings one repository up to date with its upstream (§3.17).
 //
 // It is the counterpart of Clone: the explorer creates what is missing, this
-// reconciles what exists. Three rules shape it, and each is a refusal rather
-// than a cleverness.
+// reconciles what exists. Four rules shape it, and all but the third are a
+// refusal rather than a cleverness.
 //
 //  1. **It fetches first, always, whatever the working tree looks like.** The
 //     "unpulled" count DevDesk shows comes from `@{u}`, the *local*
@@ -25,16 +26,38 @@ import (
 //     divergence is a decision about someone's unpublished work, and a tool
 //     that guesses at it can destroy hours in a keystroke the user cannot undo.
 //
-//  3. **It never pushes.** Sync is the pull direction. Publishing is a separate
+//  3. **Tags follow the remote, forced.** A tag rewritten upstream either
+//     stays stale here without a word (a plain fetch never updates a tag it
+//     already has) or fails the whole fetch with "would clobber existing tag"
+//     when the repository asks for every tag (`tagOpt = --tags`). Both left the
+//     branch unsynced or wrong, so the tags are fetched first, forced, and
+//     every one that moved is named in MovedTags: a tag has no reflog, and its
+//     old target is otherwise gone without a trace.
+//
+//  4. **It never pushes.** Sync is the pull direction. Publishing is a separate
 //     intent with separate failure modes, and nothing about "reconcile what
 //     exists" implies it.
 //
 // A repository it declines is still better off than before: the fetch happened,
 // so its counts are true and the row finally says how far behind it really is.
 func Sync(repoPath string, opts SyncOptions) (SyncResult, error) {
+	// Tags before branches: once the tags agree with the remote, a
+	// repository configured with `tagOpt = --tags` has nothing left for its
+	// own fetch to refuse.
+	moved, err := syncTags(repoPath, opts.Token)
+	if err != nil {
+		return SyncResult{}, err
+	}
 	if _, err := run(repoPath, opts.Token, "fetch", "--quiet", "--prune"); err != nil {
 		return SyncResult{}, err
 	}
+	result, err := reconcile(repoPath)
+	result.MovedTags = moved
+	return result, err
+}
+
+// reconcile decides, once everything is fetched, whether the branch can move.
+func reconcile(repoPath string) (SyncResult, error) {
 
 	// Order matters below: a repository can be several of these at once, and
 	// the first answer is the one that explains why nothing moved.
@@ -122,10 +145,86 @@ type SyncResult struct {
 	Ahead    int
 	Upstream string
 	Reason   string
+	// MovedTags names the local tags the remote rewrote and the sync moved to
+	// follow it, sorted. It is filled whatever the outcome — a skipped or
+	// up-to-date repository has had its tags fetched all the same.
+	MovedTags []string
 }
 
 func skipped(reason string) SyncResult {
 	return SyncResult{Outcome: SyncSkipped, Reason: reason}
+}
+
+// syncTags force-fetches every tag from the remote the current branch pulls
+// from, and returns the local tags that now point somewhere else.
+//
+// It never prunes: `--prune` with a tag refspec deletes every tag the remote
+// does not have, which is a tag someone made here and never pushed.
+//
+// A repository with no such remote — a local-only one, or a branch tracking
+// "." — has no tags to follow, and that is not an error: the branch fetch
+// after it decides what the repository's remotes allow.
+func syncTags(repoPath, token string) ([]string, error) {
+	remote := tagRemote(repoPath)
+	if remote == "" {
+		return nil, nil
+	}
+	before, err := tagTargets(repoPath)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := run(repoPath, token, "fetch", "--quiet", "--no-tags", remote, "+refs/tags/*:refs/tags/*"); err != nil {
+		return nil, err
+	}
+	after, err := tagTargets(repoPath)
+	if err != nil {
+		return nil, err
+	}
+	var moved []string
+	for name, old := range before {
+		if target, ok := after[name]; ok && target != old {
+			moved = append(moved, name)
+		}
+	}
+	sort.Strings(moved)
+	return moved, nil
+}
+
+// tagRemote is the remote a plain `git fetch` would use: the current branch's
+// own, or `origin`. Empty when that remote does not exist.
+func tagRemote(repoPath string) string {
+	remote := "origin"
+	if branch, err := run(repoPath, "", "symbolic-ref", "--quiet", "--short", "HEAD"); err == nil {
+		if name, err := run(repoPath, "", "config", "--get", "branch."+strings.TrimSpace(branch)+".remote"); err == nil {
+			remote = strings.TrimSpace(name)
+		}
+	}
+	out, err := run(repoPath, "", "remote")
+	if err != nil {
+		return ""
+	}
+	for _, name := range strings.Fields(out) {
+		if name == remote {
+			return remote
+		}
+	}
+	return ""
+}
+
+// tagTargets maps each local tag to the object it names — the tag object for
+// an annotated tag, so re-annotating one on the same commit counts as a move.
+func tagTargets(repoPath string) (map[string]string, error) {
+	out, err := run(repoPath, "", "for-each-ref", "--format=%(refname:strip=2) %(objectname)", "refs/tags")
+	if err != nil {
+		return nil, err
+	}
+	targets := make(map[string]string)
+	for _, line := range strings.Split(out, "\n") {
+		if name, target, ok := strings.Cut(strings.TrimSpace(line), " "); ok {
+			targets[name] = target
+		}
+	}
+	return targets, nil
 }
 
 // divergence counts what separates HEAD from its upstream, in both directions.

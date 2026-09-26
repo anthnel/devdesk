@@ -94,6 +94,38 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D74 — un tag réécrit côté distant faisait échouer la sync (`F`), ou restait
+périmé sans rien dire. Corrigé.** Signalé et fermé le 2026-09-26.
+
+Le rapport : « parfois les tags distants sont réécrits, le pull ne fonctionne
+donc pas sans force ». Mesuré avec git 2.53 sur un tag `v1` déplacé en amont,
+deux comportements selon la configuration du dépôt :
+
+| Fetch | Résultat |
+|---|---|
+| `git fetch --prune` (config par défaut) | exit 0, **le tag local reste sur l'ancien commit** — un fetch ne met jamais à jour un tag qu'il a déjà |
+| idem avec `remote.<r>.tagOpt = --tags` | exit 1, `would clobber existing tag` — `Sync` renvoyait une erreur, la ligne passait en *failed* et le fast-forward de la branche n'était même pas tenté |
+
+`git.Sync` fetch désormais les tags **en premier**, forcés
+(`fetch --no-tags <remote> +refs/tags/*:refs/tags/*`), puis la branche comme
+avant : une fois les tags alignés, le fetch configuré n'a plus rien à refuser.
+Deux choix délibérés :
+
+- **pas de `--prune` sur les tags** — avec ce refspec il supprimerait tout tag
+  que le distant n'a pas, c'est-à-dire un tag créé ici et jamais poussé ;
+- **pas de simple `--force`** — il ne règle que le second cas, laisse le tag
+  périmé dans le premier, et forcerait au passage les refspecs sans `+` de
+  l'utilisateur.
+
+Un tag n'a pas de reflog : son ancienne cible disparaît sans trace. Chaque tag
+déplacé est donc journalisé et compté dans le résumé (`3 tags moved (devdesk:
+v1.2)`), quel que soit le résultat de la sync. `SyncResult.MovedTags` le porte ;
+le remote est celui qu'un `git fetch` nu utiliserait (`branch.<b>.remote`, sinon
+`origin`), et un dépôt sans remote n'en fetch aucun. Tests :
+`TestSyncFollowsATagTheRemoteRewroteWhenEveryTagIsFetched`,
+`…WithTheDefaultConfiguration` (les deux échouent sans le correctif),
+`TestSyncKeepsATagOnlyTheWorkingCopyHas`, `TestTheSummaryNamesATagTheSyncMoved`.
+
 **D73 — sous podman, aucun helper d'identifiants n'était jamais trouvé. Corrigé.**
 Trouvé et fermé le 2026-09-25, en mesurant §3.68.
 

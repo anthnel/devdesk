@@ -263,3 +263,85 @@ func TestSyncRunsGitNonInteractively(t *testing.T) {
 		t.Fatal("Sync() blocked — something in the git environment is still prompting")
 	}
 }
+
+// rewriteUpstreamTag moves tag onto a new upstream commit, the way a release
+// that was re-cut does.
+func rewriteUpstreamTag(t *testing.T, upstream, tag string) {
+	t.Helper()
+	commitFile(t, upstream, "recut.txt", "recut\n")
+	gitIn(t, upstream, "tag", "-f", tag)
+}
+
+// A repository that asks for every tag used to fail its whole fetch on a tag
+// the remote rewrote — "would clobber existing tag" — so the branch never
+// moved and the row read as failed.
+func TestSyncFollowsATagTheRemoteRewroteWhenEveryTagIsFetched(t *testing.T) {
+	upstream, working := clonePair(t)
+	gitIn(t, upstream, "tag", "v1")
+	gitIn(t, working, "fetch", "--tags")
+	gitIn(t, working, "config", "remote.origin.tagOpt", "--tags")
+	rewriteUpstreamTag(t, upstream, "v1")
+
+	result, err := Sync(working, SyncOptions{})
+
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if result.Outcome != SyncUpdated {
+		t.Errorf("Outcome = %v, want SyncUpdated (reason %q)", result.Outcome, result.Reason)
+	}
+	assertTagFollowsUpstream(t, upstream, working, "v1")
+	if len(result.MovedTags) != 1 || result.MovedTags[0] != "v1" {
+		t.Errorf("MovedTags = %v, want [v1]", result.MovedTags)
+	}
+}
+
+// With git's default configuration the fetch succeeded, and that was the worse
+// half: the tag stayed on the old commit and nothing said so.
+func TestSyncFollowsATagTheRemoteRewroteWithTheDefaultConfiguration(t *testing.T) {
+	upstream, working := clonePair(t)
+	gitIn(t, upstream, "tag", "v1")
+	gitIn(t, working, "fetch", "--tags")
+	rewriteUpstreamTag(t, upstream, "v1")
+
+	result, err := Sync(working, SyncOptions{})
+
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	assertTagFollowsUpstream(t, upstream, working, "v1")
+	if len(result.MovedTags) != 1 {
+		t.Errorf("MovedTags = %v, want [v1]", result.MovedTags)
+	}
+}
+
+// Forcing the tags must not mean pruning them: a tag made here and never
+// pushed is someone's work, and the remote not having it says nothing.
+func TestSyncKeepsATagOnlyTheWorkingCopyHas(t *testing.T) {
+	upstream, working := clonePair(t)
+	gitIn(t, working, "tag", "local-only")
+	gitIn(t, upstream, "tag", "v2")
+
+	result, err := Sync(working, SyncOptions{})
+
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if out := gitIn(t, working, "tag", "--list", "local-only"); strings.TrimSpace(out) != "local-only" {
+		t.Error("the sync deleted a tag the remote does not have")
+	}
+	if out := gitIn(t, working, "tag", "--list", "v2"); strings.TrimSpace(out) != "v2" {
+		t.Error("a new upstream tag was not fetched")
+	}
+	if len(result.MovedTags) != 0 {
+		t.Errorf("MovedTags = %v, want none: a new tag did not move", result.MovedTags)
+	}
+}
+
+func assertTagFollowsUpstream(t *testing.T, upstream, working, tag string) {
+	t.Helper()
+	want := strings.TrimSpace(gitIn(t, upstream, "rev-parse", tag))
+	if got := strings.TrimSpace(gitIn(t, working, "rev-parse", tag)); got != want {
+		t.Errorf("local %s = %s, want the upstream's %s", tag, got, want)
+	}
+}
