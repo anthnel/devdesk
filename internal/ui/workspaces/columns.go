@@ -1,6 +1,8 @@
 package workspaces
 
 import (
+	"unicode/utf8"
+
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/anthnel/devdesk/internal/ui/datatable"
@@ -8,7 +10,7 @@ import (
 )
 
 // Column fixed widths for the workspace table.
-// colGitFixed: icon(1) + " "(1) + branch(~20) + up to 3 indicators × (icon+count+space)(4) = 28
+// colGitFixed: branch(~20) + " " + a couple of starship markers (mark+count) = 28
 const (
 	colNameMin        = 16
 	colGitFixed       = 28
@@ -42,6 +44,10 @@ type workspaceRow struct {
 	// rewriting exactly those counts. Showing the stale numbers under a
 	// spinner elsewhere in the row would be showing the state being replaced.
 	GitStatus string
+	// branchCut is how many runes of GitStatus are the branch, which Style
+	// colours; TailStyle colours the markers after it. The whole cell while a
+	// spinner holds it — there is no branch then, only a status.
+	branchCut int
 	Sensitive secretsCell
 	CI        ciCell
 	Misconfig misconfigCell
@@ -138,8 +144,10 @@ func workspaceColumns(withCI, withMisconfig bool) []datatable.Column[workspaceRo
 		},
 		{
 			Title: "Git Status", Sizing: datatable.SizingFixed, MinWidth: colGitFixed,
-			Cell:  func(r workspaceRow) string { return r.GitStatus },
-			Style: gitStatusStyle,
+			Cell:      func(r workspaceRow) string { return r.GitStatus },
+			Style:     gitBranchStyle,
+			Cut:       func(r workspaceRow) int { return r.branchCut },
+			TailStyle: gitMarkersStyle,
 		},
 		{
 			Title: "Last Tag", Sizing: datatable.SizingFixed, Optional: true, MinWidth: colLastTagFixed,
@@ -198,19 +206,27 @@ func count(title, severity string, width int, cell func(workspaceRow) string) da
 	}
 }
 
-// gitStatusStyle warns when the working tree holds work that is not committed.
-//
-// It is the same condition `s` refuses to sync on, so the colour says in
-// advance what the sync would have reported: a repository with uncommitted
-// changes is skipped, untracked files included.
-func gitStatusStyle(r workspaceRow) lipgloss.Style {
-	switch {
-	case r.Entry.GitBranch == "":
+// gitBranchStyle colours the branch half of the Git Status cell, and the
+// whole cell while a spinner holds it. A branch name is not a verdict, so it
+// keeps the table's text colour; only an empty cell is dimmed.
+func gitBranchStyle(r workspaceRow) lipgloss.Style {
+	if r.Entry.GitBranch == "" {
 		return theme.DimStyle
-	case r.Entry.GitModified > 0 || r.Entry.GitUntracked > 0:
-		return theme.StatusWarningStyle
 	}
 	// No opinion here: the table sets the theme's text color.
+	return lipgloss.NewStyle()
+}
+
+// gitMarkersStyle warns when F would refuse the repository — uncommitted
+// work, untracked files included, or a branch that diverged — so the colour
+// says in advance what the sync would report. Anything else is information,
+// not a warning, and keeps the text colour: a repository one commit behind is
+// the reason F exists, not a problem.
+func gitMarkersStyle(r workspaceRow) lipgloss.Style {
+	e := r.Entry
+	if e.GitModified > 0 || e.GitUntracked > 0 || (e.GitUnpushed > 0 && e.GitUnpulled > 0) {
+		return theme.StatusWarningStyle
+	}
 	return lipgloss.NewStyle()
 }
 
@@ -233,6 +249,7 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 	for _, entry := range entries {
 		sensitive, misc, c, h, med, l, scanned := m.formatScanColumns(entry, frame)
 		gitStatus := formatGitStatus(entry)
+		branchCut := utf8.RuneCountInString(entry.GitBranch)
 		// A row can only be held by one of the two — busy() is what keeps them
 		// apart — so the order below decides nothing. The delete spends this
 		// cell for the same reason the sync does, and with less to lose: a
@@ -240,12 +257,15 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 		switch {
 		case m.deleting(entry.Path):
 			gitStatus = frame + " deleting"
+			branchCut = utf8.RuneCountInString(gitStatus)
 		case m.syncing(entry.Path):
 			gitStatus = frame + " syncing"
+			branchCut = utf8.RuneCountInString(gitStatus)
 		}
 		rows = append(rows, workspaceRow{
 			Entry:     entry,
 			GitStatus: gitStatus,
+			branchCut: branchCut,
 			Sensitive: sensitive,
 			CI:        m.ciCellFor(entry),
 			Misconfig: misc,

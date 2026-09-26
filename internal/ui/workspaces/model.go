@@ -144,7 +144,11 @@ type Entry struct {
 	GitUntracked   int
 	GitUnpushed    int
 	GitUnpulled    int
-	GitLastTag     string // nearest tag reachable from HEAD, or "" if none
+	// GitNoUpstream is set when the branch tracks nothing, so the two counts
+	// above are zero because there is nothing to count against. Negative on
+	// purpose: an Entry that was never asked reads as "no opinion".
+	GitNoUpstream bool
+	GitLastTag    string // nearest tag reachable from HEAD, or "" if none
 }
 
 // New creates a new instance of the workspaces model.

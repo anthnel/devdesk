@@ -140,7 +140,7 @@ type Column[T any] struct {
 	// one: Style colours the first Cut(item) cells of the *finished* text —
 	// already measured, truncated and padded to the column's width — and
 	// TailStyle colours the rest. Both nil (the ordinary case, every column but
-	// the containers load gauges) leaves Style covering the whole cell as
+	// the containers load gauges and the workspaces Git Status) leaves Style covering the whole cell as
 	// before.
 	//
 	// This is not the gradient Rule 122 forbids: nothing styled is ever
@@ -148,7 +148,8 @@ type Column[T any] struct {
 	// after truncation, at the same point Style already does its colouring —
 	// so it is the same "measure first, colour after" order applied twice
 	// instead of once, not an exception to it. It stays two runs rather than an
-	// arbitrary list: one caller has needed it since it was added, and Cut, a
+	// arbitrary list: neither caller (the load gauges, the workspaces Git
+	// Status cell) has needed more than two, and Cut, a
 	// bare integer, is cheaper to reason about than a slice of spans that only
 	// ever holds two elements.
 	//
