@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.6.0](https://github.com/anthnel/devdesk/compare/v1.5.0...v1.6.0) (2026-09-26)
+
+
+### Features
+
+* **config:** Y copies the Claude Code MCP connect command (§3.77) ([#260](https://github.com/anthnel/devdesk/issues/260)) ([a43b640](https://github.com/anthnel/devdesk/commit/a43b640b47f883dd500d66e65eddcb1751060cb5))
+* **containers:** J jumps to the container's image in the OCI view (§3.89) ([#263](https://github.com/anthnel/devdesk/issues/263)) ([add6c85](https://github.com/anthnel/devdesk/commit/add6c85b572bc47bd20c44a05b36bf1e9a594e68))
+* **explorer:** index the forge per context (§3.93) ([#269](https://github.com/anthnel/devdesk/issues/269)) ([2587ea1](https://github.com/anthnel/devdesk/commit/2587ea128f08920f1632e014159ed4d8aa88b0ab))
+* **images:** detect and act on image updates (floating base re-scan, Update column, G to update) ([#262](https://github.com/anthnel/devdesk/issues/262)) ([38c816f](https://github.com/anthnel/devdesk/commit/38c816fff1cd903ff43fa223bfeecf3bc1a47cfe))
+* **images:** the Update column shows an icon for every state but a newer patch ([#264](https://github.com/anthnel/devdesk/issues/264)) ([31864a4](https://github.com/anthnel/devdesk/commit/31864a4ad44b13377f1c06886f72ed37e2566ac9))
+* **registries:** say when a registry password sits unencrypted in the auth file (§3.68) ([#265](https://github.com/anthnel/devdesk/issues/265)) ([efc8071](https://github.com/anthnel/devdesk/commit/efc807120ea76bbf3dcfdd374062d023e85a9a6b))
+* **scan:** a CFG column for misconfigurations, in ws, :sec and images ([#259](https://github.com/anthnel/devdesk/issues/259)) ([3a3069a](https://github.com/anthnel/devdesk/commit/3a3069afa2e281865c58b3e404dc39cc6f8baf6e))
+* **scan:** detect and remediate Kubernetes manifest misconfigurations ([#257](https://github.com/anthnel/devdesk/issues/257)) ([80ab2fc](https://github.com/anthnel/devdesk/commit/80ab2fc09de2ec5ec54a434c1326d4812485d880))
+* **scan:** report what a COPY of the whole build context takes into the image (§3.81) ([#261](https://github.com/anthnel/devdesk/issues/261)) ([a311584](https://github.com/anthnel/devdesk/commit/a311584d838788171a20d24a30493bb6ce1b5c85))
+* **scan:** scanner categories, per-tool settings, and a Tools tab ([#258](https://github.com/anthnel/devdesk/issues/258)) ([74228ce](https://github.com/anthnel/devdesk/commit/74228ceefdaaa76d7cfdf3c572d9d66a0ea8b01d))
+* **trust:** verify image signatures before pulling (§3.82) ([#266](https://github.com/anthnel/devdesk/issues/266)) ([d2ea013](https://github.com/anthnel/devdesk/commit/d2ea013db9f48fe440633c802df7cba6e3a0de73))
+* **workspaces:** Git Status cell follows starship's markers (§3.94) ([#271](https://github.com/anthnel/devdesk/issues/271)) ([38da42b](https://github.com/anthnel/devdesk/commit/38da42baa4f4f3e9666d5cfc843510b67971f781))
+
+
+### Bug Fixes
+
+* **app:** reuse a recent forge index instead of walking again (D77) ([#274](https://github.com/anthnel/devdesk/issues/274)) ([efe098b](https://github.com/anthnel/devdesk/commit/efe098bb522535c5b12f4ce981428facbaf5cb39))
+* **app:** switch context before drawing the interface (D76) ([#273](https://github.com/anthnel/devdesk/issues/273)) ([3e32a48](https://github.com/anthnel/devdesk/commit/3e32a48efe9ade2b030e8b3efb6020eee9f77e01))
+* **containers:** size the Ports column to its content, not the surplus (D74) ([#272](https://github.com/anthnel/devdesk/issues/272)) ([e9d2418](https://github.com/anthnel/devdesk/commit/e9d241896037334279994fcfe2b99e91f7b6f46b))
+* **scan:** misconfiguration AVDID fallback, extend the remediation catalog ([#254](https://github.com/anthnel/devdesk/issues/254)) ([eed82c3](https://github.com/anthnel/devdesk/commit/eed82c3e72954e98d7757121237653338e25d2dc))
+* **workspaces:** sync follows tags the remote rewrote (D74) ([#270](https://github.com/anthnel/devdesk/issues/270)) ([8184fcd](https://github.com/anthnel/devdesk/commit/8184fcdfec77deb3c8af34383f6da858450df6a8))
+
 ## [1.5.0](https://github.com/anthnel/devdesk/compare/v1.4.0...v1.5.0) (2026-09-21)
 
 
