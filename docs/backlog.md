@@ -15834,9 +15834,10 @@ parcours précédent sert pendant ce temps), et répond par niveau (`Children`).
 - **Mesuré nulle part sur une vraie forge.** Tout est testé contre des faux ;
   la durée d'un parcours sur une grosse instance GitLab, et son effet sur la
   limite de débit, sont à mesurer avant de parler de coût.
-- **Une création pendant un parcours peut manquer à l'index** jusqu'au suivant,
-  si le parcours avait déjà lu ce niveau : il remplace l'index en arrivant. La
-  navigation n'en souffre pas (le niveau affiché est relu), seul `g` l'ignore.
+- **Les écritures du fichier ne sont pas ordonnées.** Chaque modification
+  lance sa propre sauvegarde ; deux modifications rapprochées peuvent finir
+  écrites dans le désordre, et le disque garder l'avant-dernière. Sans gravité :
+  la session suivante relit le fichier puis le remplace par son propre parcours.
 - **Le clone parcourt toujours la forge lui-même** (`discoverChildren`). Il
   pourrait lire l'index ; pas fait, parce qu'un clone doit voir la forge telle
   qu'elle est maintenant, pas telle qu'au dernier parcours.

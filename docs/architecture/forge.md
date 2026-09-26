@@ -294,6 +294,13 @@ index does not know waits on the forge, as every level used to.
   refresh `Stale` (`rootsStale` at the root), and its answer is thrown away and
   the level asked again. A delete also leaves the row's **own** level
   (`deleted.Parent`), not whichever level is on screen when the forge answers.
+- **Whether a load blocks is recorded when it starts** (`TreeNode.Blocking`), not
+  read off `Children` when it answers. A level the user was waiting on can be put
+  on screen from the index before the forge replies — the walk landed, then `g`
+  or `←` `→` reached it — and `showIndexedLevel` then turns the load in flight
+  into the refresh behind those rows. Deciding from `Children` at answer time
+  took it for a refresh from the start and never cleared the view's loading
+  state, which also kept `N` refused.
 - **A failed refresh keeps the rows** and says so in the footer (`Error` level):
   they are true as of the last walk, and replacing them with an error state would
   throw that away. A level with nothing on screen still fails the old way.
@@ -304,7 +311,9 @@ it, on a repository onto its row. Every ancestor is in the index, so the stack a
 drill-down would have built one `→` at a time — `[nil, g1 … g(d-1)]`, the root
 pushed as `nil` — is built in one go (`jumpTo`), reusing tree nodes where they
 exist; no request is made on the way, and the level landed on is refreshed like
-any other. A path gone since the prompt opened is refused with a `Warn`. Without
+any other. A path gone since the prompt opened is refused with a `Warn`; a
+repository gone from a level that is still there lands in that level, with the
+same `Warn`. Without
 an index yet the prompt opens anyway and waits (`Indexing GitLab...`); the
 router's next broadcast fills it. `g` is greyed without a session.
 

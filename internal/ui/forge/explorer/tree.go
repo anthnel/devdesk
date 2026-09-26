@@ -39,9 +39,15 @@ type TreeNode struct {
 	// create or a delete the forge has since confirmed here. Its answer may
 	// predate that change — laid over the level, it would drop the created row
 	// or bring the deleted one back — so it is discarded and asked again.
-	Stale  bool
-	Parent *TreeNode
-	Depth  int // Depth in tree (for rendering)
+	Stale bool
+	// Blocking says the load in flight is one the user is waiting on, with
+	// nothing on screen for the level — as opposed to a refresh behind rows
+	// already shown. Recorded when the load starts: by the time its answer
+	// lands the index may have filled Children, and deciding from that would
+	// settle a blocking load as a refresh and leave the view loading forever.
+	Blocking bool
+	Parent   *TreeNode
+	Depth    int // Depth in tree (for rendering)
 
 	// Creating marks a node the user has asked for and the forge has not
 	// confirmed: it is on screen so the request is visible where it was made,

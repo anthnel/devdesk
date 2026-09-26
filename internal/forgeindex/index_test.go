@@ -235,3 +235,21 @@ func TestPathStaysInsideTheCacheDirectory(t *testing.T) {
 		t.Errorf("fileName escaped: %q", got)
 	}
 }
+
+// Re-reading a level the forge left as it was is nearly every read, and must
+// not cost the caller a rewrite: the receiver comes back itself.
+func TestAnUnchangedLevelOrAnAbsentPathChangesNothing(t *testing.T) {
+	ix, _ := Build(context.Background(), threeLevels(), "h", "u", time.Now())
+	same, _ := ix.Children("acme/platform")
+	if next := ix.ReplaceLevel("acme/platform", same); next != ix {
+		t.Error("an identical level produced a new index")
+	}
+	if next := ix.Without("acme/nowhere"); next != ix {
+		t.Error("removing an absent path produced a new index")
+	}
+	renamed := append([]Entry(nil), same...)
+	renamed[0].Name = "renamed"
+	if next := ix.ReplaceLevel("acme/platform", renamed); next == ix {
+		t.Error("a changed level was taken for the same one")
+	}
+}

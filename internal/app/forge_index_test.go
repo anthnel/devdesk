@@ -164,3 +164,37 @@ func TestARefreshDoesNotStartASecondWalk(t *testing.T) {
 		t.Error("a second walk was started beside the one in flight")
 	}
 }
+
+// An edit made while a walk is out is replayed on the walk's answer, which was
+// read before it: a delete confirmed meanwhile stays deleted.
+func TestAnEditDuringAWalkSurvivesItsAnswer(t *testing.T) {
+	a := indexRouter(t)
+	a.forgeIndexCancel = func() {}
+	built := forgeindex.New("h", "u", time.Now(), []forgeindex.Entry{
+		{ID: "1", Path: "acme", Name: "acme", Kind: forgeindex.KindNamespace},
+		{ID: "2", Path: "acme/api", Name: "api", Parent: "acme", Kind: forgeindex.KindRepository},
+	}, nil)
+
+	a.Update(shared.ForgeIndexEditMsg{Edit: func(ix *forgeindex.Index) *forgeindex.Index {
+		return ix.Without("acme/api")
+	}})
+	a.Update(forgeIndexBuiltMsg{gen: a.forgeIndexGen, index: built})
+
+	if _, ok := a.sharedState.ForgeIndex.Lookup("acme/api"); ok {
+		t.Error("the walk brought back an entry deleted while it ran")
+	}
+	if len(a.forgeIndexPending) != 0 {
+		t.Error("the replayed edits were kept for the next walk")
+	}
+}
+
+// An edit that returns the index it was given writes nothing and tells no view.
+func TestAnEditThatChangesNothingCostsNothing(t *testing.T) {
+	a := indexRouter(t)
+	a.sharedState.ForgeIndex = forgeindex.New("h", "u", time.Now(), nil, nil)
+
+	_, cmd := a.Update(shared.ForgeIndexEditMsg{Edit: func(ix *forgeindex.Index) *forgeindex.Index { return ix }})
+	if cmd != nil {
+		t.Error("an unchanged index was written and broadcast")
+	}
+}

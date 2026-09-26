@@ -91,7 +91,7 @@ func (m Model) jumpTo(path string) (tea.Model, tea.Cmd) {
 			if !known {
 				return m, m.footer.Warn(reasonNoIndexEntry)
 			}
-			node.Children = children
+			m.showIndexedLevel(node, children)
 		}
 		groups = append(groups, node)
 		parent, level = node, node.Children
@@ -110,14 +110,19 @@ func (m Model) jumpTo(path string) (tea.Model, tea.Cmd) {
 	m.activeTabIndex = m.tabCount() - 1
 	m.updateTableRows()
 	m.table.GotoTop()
-	if target.Kind == forgeindex.KindRepository {
-		m.selectRow(path)
-	}
-
+	var cmds []tea.Cmd
 	if parent != nil && !parent.Fresh {
-		return m, m.refreshLevel(parent)
+		cmds = append(cmds, m.refreshLevel(parent))
 	}
-	return m, nil
+	// The group is there but the repository is not: a fresh read of the level
+	// dropped it since the prompt opened. Landing beside it in silence would
+	// read as a cursor that did not follow.
+	if target.Kind == forgeindex.KindRepository {
+		if m.selectRow(path); m.selectedPath() != path {
+			cmds = append(cmds, m.footer.Warn(reasonNoIndexEntry))
+		}
+	}
+	return m, tea.Batch(cmds...)
 }
 
 // findNode finds a node by path in one level.

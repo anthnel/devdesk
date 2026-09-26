@@ -368,3 +368,49 @@ func TestADeleteLandsInItsOwnLevel(t *testing.T) {
 		t.Errorf("the root level lost a row: %d", len(m.nodes))
 	}
 }
+
+// A level the user was waiting on, reached again from the index before the
+// forge answered, stops blocking the view — and the forge's answer, when it
+// lands, settles as the refresh it has become.
+func TestAJumpDuringABlockingLoadDoesNotLeaveTheViewLoading(t *testing.T) {
+	state := authenticatedState(t)
+	m := feed(t, New(testConfig(), state), tea.WindowSizeMsg{Width: 160, Height: 30},
+		RootGroupsLoadedMsg{Nodes: rootFixtures()}, testutil.Key("right"))
+	if !m.loading {
+		t.Fatal("setup: the first drill-down should wait on the forge")
+	}
+	alpha := m.nodes[0]
+	state.ForgeIndex = indexFixture()
+
+	m = feed(t, m, shared.ForgeIndexChangedMsg{}, fuzzy.ConfirmMsg{Key: "alpha/sub/deep"})
+	if m.loading {
+		t.Error("the view still waits on a level the index put on screen")
+	}
+	m = feed(t, m, ChildrenLoadedMsg{ParentNode: alpha, Children: childFixtures(alpha)})
+
+	// What is left in flight is alpha/sub's own refresh, the level landed on.
+	if m.loading || alpha.Loading || m.refreshing != 1 || !m.currentGroupNode.Loading {
+		t.Errorf("loading=%v alpha.Loading=%v refreshing=%d, want alpha settled and only alpha/sub's refresh left",
+			m.loading, alpha.Loading, m.refreshing)
+	}
+	if !alpha.Fresh {
+		t.Error("the forge's answer was not laid over the level")
+	}
+}
+
+// The group is still there but the repository is not: the jump lands and
+// says so, rather than leaving the cursor elsewhere in silence.
+func TestAJumpToARepositoryGoneFromItsLevelWarns(t *testing.T) {
+	m := feed(t, indexedModel(t), RootGroupsLoadedMsg{Nodes: rootFixtures()}, testutil.Key("right"))
+	alpha := m.nodes[0]
+	m = feed(t, m, ChildrenLoadedMsg{ParentNode: alpha, Children: childFixtures(alpha)[:1]}, testutil.Key("left"))
+
+	m = feed(t, m, fuzzy.ConfirmMsg{Key: "alpha/api"})
+
+	if pathOf(m.currentGroupNode) != "alpha" {
+		t.Fatalf("landed in %q, want alpha", pathOf(m.currentGroupNode))
+	}
+	if !strings.Contains(m.footer.Text(), "no longer listed") {
+		t.Errorf("footer = %q, want the missing row said", m.footer.Text())
+	}
+}

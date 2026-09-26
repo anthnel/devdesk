@@ -233,10 +233,14 @@ func (ix *Index) With(entry Entry) *Index {
 }
 
 // Without returns a copy with path and everything under it removed — a
-// deleted namespace takes its content with it.
+// deleted namespace takes its content with it. A path the index does not hold
+// returns the receiver itself: nothing changed.
 func (ix *Index) Without(path string) *Index {
 	if ix == nil {
 		return nil
+	}
+	if _, ok := ix.byPath[path]; !ok && !ix.unlisted[path] {
+		return ix
 	}
 	gone := map[string]bool{path: true}
 	// Entries are not ordered parent-first across levels, so collect the
@@ -275,6 +279,10 @@ func (ix *Index) Without(path string) *Index {
 // It is how a level the explorer decorated corrects the index, so a repository
 // deleted since the walk stops being offered by the fuzzy finder as soon as
 // anyone has looked at where it was.
+//
+// A level the forge left as it was returns the receiver itself, which is how
+// the caller knows there is nothing to write: that is what nearly every read
+// of a level answers.
 func (ix *Index) ReplaceLevel(parent string, fresh []Entry) *Index {
 	if ix == nil {
 		return nil
@@ -282,6 +290,9 @@ func (ix *Index) ReplaceLevel(parent string, fresh []Entry) *Index {
 	// A level the index has no parent for is not one it can place: the walk
 	// never reached it, and grafting it on would invent the path above it.
 	if _, ok := ix.Lookup(parent); parent != "" && !ok {
+		return ix
+	}
+	if !ix.unlisted[parent] && sameLevel(ix.childrenOf(parent), parent, fresh) {
 		return ix
 	}
 	keep := make(map[string]bool, len(fresh))
@@ -324,4 +335,33 @@ func (ix *Index) childrenOf(parent string) []Entry {
 		out[i] = ix.Entries[j]
 	}
 	return out
+}
+
+// sameLevel reports whether fresh, placed under parent, is exactly have.
+func sameLevel(have []Entry, parent string, fresh []Entry) bool {
+	if len(have) != len(fresh) {
+		return false
+	}
+	for i, e := range fresh {
+		e.Parent = parent
+		if !sameEntry(have[i], e) {
+			return false
+		}
+	}
+	return true
+}
+
+// sameEntry compares two entries by value, dates included.
+func sameEntry(a, b Entry) bool {
+	return a.ID == b.ID && a.Path == b.Path && a.Name == b.Name &&
+		a.Parent == b.Parent && a.Kind == b.Kind && a.Visibility == b.Visibility &&
+		a.WebURL == b.WebURL && a.DeletionScheduled == b.DeletionScheduled &&
+		sameTime(a.CreatedAt, b.CreatedAt) && sameTime(a.LastActivityAt, b.LastActivityAt)
+}
+
+func sameTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
 }

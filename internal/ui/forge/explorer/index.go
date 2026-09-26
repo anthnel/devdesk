@@ -81,6 +81,18 @@ func (m Model) indexedLevel(parent *TreeNode) ([]*TreeNode, bool) {
 	return nodes, true
 }
 
+// showIndexedLevel puts the index's children of node on screen. A blocking
+// load of that level still in flight becomes the refresh behind them: the
+// user is no longer waiting on it, so it stops holding the view in loading.
+func (m *Model) showIndexedLevel(node *TreeNode, children []*TreeNode) {
+	node.Children = children
+	if node.Loading && node.Blocking {
+		node.Blocking = false
+		m.loading = false
+		m.refreshing++
+	}
+}
+
 // mergeLevel lays what the forge answered over what is on screen.
 //
 // A node that stayed keeps its pointer — and with it its children, its
@@ -168,7 +180,7 @@ func (m *Model) levelChanged(parent *TreeNode) {
 		}
 		return
 	}
-	if parent.Loading && parent.Children != nil {
+	if parent.Loading && !parent.Blocking {
 		parent.Stale = true
 	}
 }
@@ -277,5 +289,5 @@ func (m Model) isBackground(msg LoadErrorMsg) bool {
 	if msg.ParentNode == nil {
 		return m.refreshingRoots
 	}
-	return msg.ParentNode.Children != nil
+	return !msg.ParentNode.Blocking
 }

@@ -36,6 +36,11 @@ type forgeIndexState struct {
 	// forgeIndexFresh says the walk of this session has landed, so the file,
 	// if it is slower than the walk, must not overwrite it.
 	forgeIndexFresh bool
+	// forgeIndexPending are the views' edits received while a walk is in
+	// flight. The walk read the forge before them, so its answer is replayed
+	// through them before it is installed — otherwise a create, a delete or a
+	// level just re-read would be undone by an index older than they are.
+	forgeIndexPending []func(*forgeindex.Index) *forgeindex.Index
 }
 
 // forgeIndexLoadedMsg is the file read at session start.
@@ -136,6 +141,7 @@ func (a *App) stopForgeIndex() {
 		a.forgeIndexCancel = nil
 	}
 	a.forgeIndexFresh = false
+	a.forgeIndexPending = nil
 	a.sharedState.ForgeIndex = nil
 }
 
@@ -178,20 +184,41 @@ func (a *App) handleForgeIndexBuilt(msg forgeIndexBuiltMsg) (tea.Model, tea.Cmd)
 	}
 	if msg.gen == a.forgeIndexGen {
 		a.forgeIndexCancel = nil
+		pending := a.forgeIndexPending
+		a.forgeIndexPending = nil
 		if msg.err == nil {
+			ix := msg.index
+			for _, edit := range pending {
+				ix = edit(ix)
+			}
 			a.forgeIndexFresh = true
-			cmds = append(cmds, a.installForgeIndex(msg.index, true))
+			cmds = append(cmds, a.installForgeIndex(ix, true))
 		}
 	}
 	return a, tea.Batch(cmds...)
 }
 
-// handleForgeIndexEdit applies a view's edit to the current index.
+// handleForgeIndexEdit applies a view's edit to the current index, and keeps
+// it for the walk in flight if there is one. An edit that changes nothing
+// returns the same index, and then nothing is written or broadcast: re-reading
+// a level the forge left as it was is the common case, and it must not cost a
+// rewrite of the whole file.
 func (a *App) handleForgeIndexEdit(msg shared.ForgeIndexEditMsg) (tea.Model, tea.Cmd) {
-	if a.sharedState.ForgeIndex == nil || msg.Edit == nil {
+	if msg.Edit == nil {
 		return a, nil
 	}
-	return a, a.installForgeIndex(msg.Edit(a.sharedState.ForgeIndex), true)
+	if a.forgeIndexCancel != nil {
+		a.forgeIndexPending = append(a.forgeIndexPending, msg.Edit)
+	}
+	current := a.sharedState.ForgeIndex
+	if current == nil {
+		return a, nil
+	}
+	next := msg.Edit(current)
+	if next == current {
+		return a, nil
+	}
+	return a, a.installForgeIndex(next, true)
 }
 
 // installForgeIndex makes ix the session's index, tells every view, and writes

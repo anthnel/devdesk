@@ -31,9 +31,10 @@ func (m Model) handleDrillDown() (tea.Model, tea.Cmd) {
 	// level used to.
 	if node.Children == nil {
 		if children, known := m.indexedLevel(node); known {
-			node.Children = children
+			m.showIndexedLevel(node, children)
 		} else {
 			node.Loading = true
+			node.Blocking = true
 			m.loading = true
 			m.updateTableRows()
 			return m, tea.Batch(m.spinner.Tick, m.loadChildren(node))
@@ -113,6 +114,7 @@ func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	m.activeTabIndex = 0
 	m.refreshing = 0
 	m.refreshingRoots = false
+	m.rootsStale = false
 
 	// With an index the roots stay on screen while the forge is asked again;
 	// without one the table empties and waits, as it always did.
@@ -137,7 +139,7 @@ func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 // the cursor on the same row; one the user was waiting on starts at the top.
 func (m Model) handleChildrenLoaded(msg ChildrenLoadedMsg) (tea.Model, tea.Cmd) {
 	parent := msg.ParentNode
-	background := parent.Children != nil
+	background := !parent.Blocking
 	if background {
 		m.settleRefresh(parent)
 		if parent.Stale {
@@ -146,6 +148,7 @@ func (m Model) handleChildrenLoaded(msg ChildrenLoadedMsg) (tea.Model, tea.Cmd) 
 		}
 	} else {
 		parent.Loading = false
+		parent.Blocking = false
 		m.loading = false
 	}
 
@@ -175,6 +178,7 @@ func (m Model) handleLoadError(msg LoadErrorMsg) (tea.Model, tea.Cmd) {
 	m.error = msg.Error.Error()
 	if msg.ParentNode != nil {
 		msg.ParentNode.Loading = false
+		msg.ParentNode.Blocking = false
 	}
 	return m, nil
 }
