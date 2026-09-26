@@ -1,0 +1,16 @@
+si je change de contexte, il lance le jobs de mise en cache pour ge (contexte A), je switch vers contexte B il lance un job, quand je reviens en contexte A il relance un job, est-ce que ce dernier job est nécessaire
+
+---
+
+actuellement ctrl+r écrase l'index ?
+
+---
+
+implémente avec 15 min : 
+
+<pasted_content id="d78a">
+Correctif proposé : ne lancer le walk que si l'index sur disque manque, est périmé ou incomplet :
+- absent, ou écrit pour un autre hôte ou compte (Matches échoue) ;
+- BuiltAt plus vieux qu'un seuil, par exemple 15 min (BuiltAt est déjà enregistré dans l'index) ;
+- Unlisted non vide, c'est-à-dire que le walk précédent n'avait pas pu lister certains groupes.
+</pasted_content id="d78a">
