@@ -1,6 +1,6 @@
 # DevDesk Backlog
 
-**Last Updated:** 2026-09-25
+**Last Updated:** 2026-09-26
 
 Open work for DevDesk: known defects, technical debt, and planned features.
 Replaces the former `todo.md` at the repository root. Items completed there
@@ -13680,7 +13680,7 @@ Deux fichiers (`one-dark.json`, `tokyo-night.json`) utilisaient une
 indentation à 4 espaces plutôt que 2 ; elle est préservée par fichier plutôt
 qu'uniformisée, pour ne pas gonfler la diff avec un reformatage sans rapport.
 
-### 3.74 Des noms `*.localhost` sans droits — un reverse proxy par `Host` — **done**, sauf une mesure
+### 3.74 Des noms `*.localhost` sans droits — un reverse proxy par `Host` — **done**
 
 Le besoin : pendant le développement, atteindre un service local par un nom
 (`api.localhost`, `app.localhost`) plutôt que par `127.0.0.1:PORT`. Le réflexe est
@@ -13759,12 +13759,13 @@ Consigné d'abord comme une piste, pour que la décision de ne pas écrire un
 serveur DNS ne soit pas reprise de zéro ; construit ensuite (voir plus bas et
 `docs/architecture/network.md`, « Named routes »).
 
-**Ce qui reste ouvert : la mesure du navigateur.** Elle n'a pas été faite avant
-d'écrire le code, alors que ce plan la donnait comme préalable. Ouvrir
-`http://foo.localhost:PORT` dans Chrome, Edge et Firefox sous Windows et dans
-Safari sous macOS, contre une route réelle, et vérifier que le repli de `::1`
-vers `127.0.0.1` est immédiat (le proxy ne lie que l'IPv4). Si Windows échoue,
-la fonctionnalité est à rouvrir plutôt qu'à corriger.
+**La mesure du navigateur — close le 2026-09-26.** Elle n'avait pas été faite
+avant d'écrire le code, alors que ce plan la donnait comme préalable. L'entrée
+est clôturée sur décision de l'utilisateur : la fonctionnalité est en usage et
+rien n'a justifié de la rouvrir. Si un navigateur échoue un jour sur
+`http://foo.localhost:PORT` (le proxy ne lie que l'IPv4, donc c'est le repli de
+`::1` vers `127.0.0.1` qu'il faudra regarder), la fonctionnalité est à rouvrir
+plutôt qu'à corriger.
 
 **Décisions prises depuis** (voir §3.75 pour la persistance) :
 
