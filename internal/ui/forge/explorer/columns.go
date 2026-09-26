@@ -13,7 +13,10 @@ import (
 // Column minimum widths. The table used to size every column as a ratio of the
 // available space, which reads as deliberate but is not: at 80 columns Type got
 // 5 and Created got 8, neither wide enough for its own header. Floors plus a
-// flexible Name and Slug say what actually matters when space is short.
+// flexible Name say what actually matters when space is short.
+//
+// colSlugMin is a floor, not a width: Slug follows its content, and a floor of
+// 16 padded "api" to sixteen cells as surely as a Flex share did.
 //
 // colVisibilityMin is the width of the word "Visibility" and nothing more. The
 // cell below it is one glyph, so the header is all the column costs — and there
@@ -21,7 +24,7 @@ import (
 // sorts (see below).
 const (
 	colNameMin       = 20
-	colSlugMin       = 16
+	colSlugMin       = 8
 	colVisibilityMin = 10
 	colRoleMin       = 12
 	colCreatedMin    = 12
@@ -34,6 +37,7 @@ const (
 // which is what stops a reorder from silently moving an assertion.
 const (
 	columnName    = 1
+	columnSlug    = 2
 	columnCreated = 6
 )
 
@@ -80,7 +84,10 @@ func explorerColumns() []datatable.Column[explorerRow] {
 			Search: func(r explorerRow) string { return r.node.Name },
 		},
 		{
-			Title: "Slug", Sizing: datatable.SizingContent, Optional: true, MinWidth: colSlugMin, Flex: 1,
+			// No Flex: the slug is as wide as the longest one listed. A Flex
+			// share left "alpha" in a column dozens of cells wide on a wide
+			// terminal; the surplus belongs to Name.
+			Title: "Slug", Sizing: datatable.SizingContent, Optional: true, MinWidth: colSlugMin,
 			Cell: func(r explorerRow) string { return nodeSlug(r.node.FullPath) },
 			// The whole path, not the slug shown: a query naming a parent group
 			// has always matched, and the slug is a suffix of it anyway.

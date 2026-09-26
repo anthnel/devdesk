@@ -94,6 +94,43 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D75 — dans `ge`, la colonne Slug ne suivait pas son contenu. Corrigé.**
+Signalé et fermé le 2026-09-26, dans la foulée de D74.
+
+Même cause que Ports et Image dans `ct` : un `Flex: 1` donnait à Slug une part du
+surplus (55 cellules pour `alpha` à 240 colonnes), et un plancher de 16 rembourrait
+tout slug court. Slug perd son `Flex`, `colSlugMin` passe de 16 à 8 ; Name reste
+la seule colonne flexible. `TestTheSlugColumnIsAsWideAsItsContentOnAWideTerminal`.
+
+**D74 — dans `ct`, la colonne Ports restait à la largeur du premier chargement.
+Corrigé.** Signalé et fermé le 2026-09-26.
+
+`datatable` ne se mesure seul qu'une fois, sur la première population non vide ;
+chaque mesure suivante est demandée par la vue (`Remeasure`), et `containers` ne
+la demandait jamais. Un port publié après l'ouverture de la vue — un conteneur
+démarré, un `ctrl+r`, le rechargement périodique — restait donc tronqué à la
+largeur mesurée au départ, même quand la place ne manquait pas.
+`handleContainersList` remesure désormais à chaque liste reçue. Les colonnes ne
+dansent pas pour autant : seules Name, Image, Ports et Update suivent leur
+contenu, et elles ne bougent que quand leur texte change ; les métriques, qui
+changent à chaque tick, arrivent par un autre message dans des colonnes fixes.
+`TestThePortsColumnFollowsAReloadedList` vérifie qu'une liste rechargée obtient
+la même largeur qu'un premier chargement de la même liste.
+
+Ce n'était que la moitié du défaut, et pas celle qui se voyait. Sur un terminal
+large, Ports recevait une part `Flex: 2` du surplus : un seul `󰛳 5000` occupait
+43 cellules, ce qui se lit exactement comme une colonne qui ne suit pas son
+contenu. Ports perd son `Flex` et son plancher passe de 16 à `portsMinWidth`
+(7 : une icône, une espace, `65535`) ; le surplus revient à Name et Image, dont
+les valeurs sont réellement longues.
+`TestThePortsColumnIsAsWideAsItsContentOnAWideTerminal` rejoue la capture
+(270 colonnes, un conteneur) et exige 7 cellules.
+
+Image avait le même défaut (`Flex: 3`, 81 cellules pour `registry:2`) et reçoit
+le même traitement : plus de `Flex`, plancher de 20 à 16 — ce qu'une référence
+tronquée par la tête garde encore lisible, nom et tag. Name reste la seule
+colonne à absorber le surplus. `TestTheImageColumnIsAsWideAsItsContentOnAWideTerminal`.
+
 **D74 — un tag réécrit côté distant faisait échouer la sync (`F`), ou restait
 périmé sans rien dire. Corrigé.** Signalé et fermé le 2026-09-26.
 

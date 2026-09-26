@@ -34,6 +34,10 @@ import (
 // keystroke away — `enter` opens `docker inspect` in the viewer (§3.25), which
 // was not true when this column was written.
 
+// portsMinWidth is one entry with the longest port there is: a glyph, a space
+// and "65535". Anything wider comes from the content, not from the floor.
+const portsMinWidth = 7
+
 // portScopeIcon says who can reach a publication. Four scopes, four glyphs, and
 // the glyph carries it rather than a colour.
 //

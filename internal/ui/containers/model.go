@@ -187,8 +187,13 @@ func containerColumns(status func(docker.Container) imageupdate.Status) []datata
 			Search: func(c docker.Container) string { return c.Name },
 		},
 		{
+			// No Flex, like Ports: the column is as wide as its longest image
+			// (capped at MaxWidth), and a short "registry:2" no longer sits in
+			// sixty cells of surplus. The floor is what a truncated reference
+			// keeps on a narrow terminal — the tail, since TruncateHead cuts
+			// the registry and keeps the name and tag.
 			Title: "Image", Sizing: datatable.SizingContent,
-			MinWidth: 20, MaxWidth: 44, Flex: 3, TruncateHead: true,
+			MinWidth: 16, MaxWidth: 44, TruncateHead: true,
 			Cell:   func(c docker.Container) string { return c.Image },
 			Less:   func(a, b docker.Container) bool { return strings.ToLower(a.Image) < strings.ToLower(b.Image) },
 			Search: func(c docker.Container) string { return c.Image + " " + c.State },
@@ -239,7 +244,12 @@ func containerColumns(status func(docker.Container) imageupdate.Status) []datata
 			Less: byInt64(func(c docker.Container) int64 { return c.BlockTX }),
 		},
 		{
-			Title: "Ports", Sizing: datatable.SizingContent, MinWidth: 16, Flex: 2,
+			// No Flex, and a floor of one entry: the column is as wide as its
+			// widest cell and no wider. A Flex share gave a lone "󰛳 5000" forty
+			// empty cells on a wide terminal, which read as a column that did
+			// not follow its content — the surplus belongs to Name and Image,
+			// whose values actually run long.
+			Title: "Ports", Sizing: datatable.SizingContent, MinWidth: portsMinWidth,
 			Cell: portsCell,
 			// Search matches what is on screen, icons and all. Keeping the raw
 			// docker string here instead is the tempting version and the wrong

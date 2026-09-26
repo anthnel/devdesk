@@ -846,3 +846,16 @@ func TestOnlyAFailedPipelineIsRed(t *testing.T) {
 		}
 	}
 }
+
+// Slug used to take a Flex share of the surplus, so "alpha" sat in a column
+// dozens of cells wide on a wide terminal. It follows its content; Name takes
+// the rest.
+func TestTheSlugColumnIsAsWideAsItsContentOnAWideTerminal(t *testing.T) {
+	m := feed(t, New(testConfig(), authenticatedState(t)),
+		tea.WindowSizeMsg{Width: 240, Height: 30}, RootGroupsLoadedMsg{Nodes: rootFixtures()})
+
+	want := max(len("Slug"), len("gamma"), colSlugMin)
+	if got := m.table.Table().Columns()[columnSlug].Width; got != want {
+		t.Errorf("Slug is %d cells wide, want %d — its content, not a share of the surplus", got, want)
+	}
+}

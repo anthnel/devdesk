@@ -511,6 +511,13 @@ func (m Model) handleContainersList(msg ContainersListMsg) (tea.Model, tea.Cmd) 
 	}
 	m.footer.Clear()
 	m.containerTable.SetItems(msg.Containers)
+	// A new list is a new population — a container started, stopped, or
+	// published a port — and the table only measures the first one on its own.
+	// Remeasuring on the periodic reload does not make the columns dance: the
+	// content columns (Name, Image, Ports) only move when their text does, and
+	// the metrics, which change every tick, arrive through a separate message
+	// into fixed-width columns.
+	m.containerTable.Remeasure()
 	return m, m.updates.updatesCmd(msg.Containers, time.Now())
 }
 
