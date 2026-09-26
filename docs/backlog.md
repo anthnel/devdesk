@@ -94,6 +94,14 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D75 — dans `ge`, la colonne Slug ne suivait pas son contenu. Corrigé.**
+Signalé et fermé le 2026-09-26, dans la foulée de D74.
+
+Même cause que Ports et Image dans `ct` : un `Flex: 1` donnait à Slug une part du
+surplus (55 cellules pour `alpha` à 240 colonnes), et un plancher de 16 rembourrait
+tout slug court. Slug perd son `Flex`, `colSlugMin` passe de 16 à 8 ; Name reste
+la seule colonne flexible. `TestTheSlugColumnIsAsWideAsItsContentOnAWideTerminal`.
+
 **D74 — dans `ct`, la colonne Ports restait à la largeur du premier chargement.
 Corrigé.** Signalé et fermé le 2026-09-26.
 
