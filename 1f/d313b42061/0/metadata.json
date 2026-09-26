@@ -1,0 +1,86 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "1fd313b42061",
+  "session_id": "b2c24738-10cc-46e2-87aa-2fbc133fb37f",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-26T10:19:12.9710845Z",
+  "branch": "fix/ct-ports-remeasure",
+  "checkpoints_count": 22,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "6dcea1f18894",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 508,
+    "cache_creation_tokens": 1113997,
+    "cache_read_tokens": 43627670,
+    "output_tokens": 56996,
+    "api_call_count": 255,
+    "subagent_tokens": {
+      "input_tokens": 96,
+      "cache_creation_tokens": 124259,
+      "cache_read_tokens": 641526,
+      "output_tokens": 1507,
+      "api_call_count": 11
+    }
+  },
+  "session_metrics": {
+    "turn_count": 22
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 12,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "dhi.pub": 4,
+        "err.txt": 4
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 1077,
+      "user_lines_removed": 78,
+      "agent_lines_added": 30,
+      "agent_lines_removed": 525,
+      "user_added_per_file": {
+        ".claude/rules/tui-tables.md": 29,
+        "docs/architecture/workspaces.md": 31,
+        "docs/backlog.md": 566,
+        "internal/git/sync.go": 102,
+        "internal/git/sync_test.go": 82,
+        "internal/ui/datatable/datatable.go": 3,
+        "internal/ui/datatable/split_run_test.go": 2,
+        "internal/ui/theme/icons.go": 4,
+        "internal/ui/workspaces/columns.go": 41,
+        "internal/ui/workspaces/commands.go": 1,
+        "internal/ui/workspaces/entry.go": 1,
+        "internal/ui/workspaces/git_status_test.go": 86,
+        "internal/ui/workspaces/jobs.go": 3,
+        "internal/ui/workspaces/messages.go": 2,
+        "internal/ui/workspaces/model.go": 14,
+        "internal/ui/workspaces/sync.go": 20,
+        "internal/ui/workspaces/sync_test.go": 24,
+        "internal/ui/workspaces/view.go": 66
+      },
+      "user_removed_per_file": {
+        ".claude/rules/tui-tables.md": 5,
+        "docs/architecture/workspaces.md": 3,
+        "docs/backlog.md": 21,
+        "internal/git/sync.go": 3,
+        "internal/ui/datatable/datatable.go": 2,
+        "internal/ui/datatable/split_run_test.go": 2,
+        "internal/ui/theme/icons.go": 3,
+        "internal/ui/workspaces/columns.go": 16,
+        "internal/ui/workspaces/model.go": 2,
+        "internal/ui/workspaces/view.go": 21
+      }
+    }
+  ]
+}
