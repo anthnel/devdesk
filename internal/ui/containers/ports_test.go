@@ -110,3 +110,22 @@ func TestThePortsColumnIsSearchableByPortNumber(t *testing.T) {
 		t.Errorf("searching a port number showed %v, want the container publishing it", got)
 	}
 }
+
+// The list is reloaded on every tick, on ctrl+r and after every action, and a
+// Ports value that appeared or grew in one of those reloads used to stay cut to
+// whatever the first list measured: the table measures itself once, and the
+// view never asked again.
+func TestThePortsColumnFollowsAReloadedList(t *testing.T) {
+	web := docker.Container{ID: "1", Name: "web", Image: "nginx", State: "running"}
+	m := feed(t, newTestModel(t), ContainersListMsg{Containers: []docker.Container{web}})
+
+	web.Ports = docker.ParseContainerPorts(
+		"0.0.0.0:8080->80/tcp, 0.0.0.0:8443->443/tcp, 127.0.0.1:5432->5432/tcp, 0.0.0.0:53->53/udp")
+	m = feed(t, m, ContainersListMsg{Containers: []docker.Container{web}})
+
+	want := feed(t, newTestModel(t), ContainersListMsg{Containers: []docker.Container{web}})
+	got := m.containerTable.Table().Columns()[columnPorts].Width
+	if fresh := want.containerTable.Table().Columns()[columnPorts].Width; got != fresh {
+		t.Errorf("Ports is %d cells wide after the reload, want the %d a first load of the same list gets", got, fresh)
+	}
+}

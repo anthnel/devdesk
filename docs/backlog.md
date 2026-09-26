@@ -94,6 +94,21 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D74 — dans `ct`, la colonne Ports restait à la largeur du premier chargement.
+Corrigé.** Signalé et fermé le 2026-09-26.
+
+`datatable` ne se mesure seul qu'une fois, sur la première population non vide ;
+chaque mesure suivante est demandée par la vue (`Remeasure`), et `containers` ne
+la demandait jamais. Un port publié après l'ouverture de la vue — un conteneur
+démarré, un `ctrl+r`, le rechargement périodique — restait donc tronqué à la
+largeur mesurée au départ, même quand la place ne manquait pas.
+`handleContainersList` remesure désormais à chaque liste reçue. Les colonnes ne
+dansent pas pour autant : seules Name, Image, Ports et Update suivent leur
+contenu, et elles ne bougent que quand leur texte change ; les métriques, qui
+changent à chaque tick, arrivent par un autre message dans des colonnes fixes.
+`TestThePortsColumnFollowsAReloadedList` vérifie qu'une liste rechargée obtient
+la même largeur qu'un premier chargement de la même liste.
+
 **D73 — sous podman, aucun helper d'identifiants n'était jamais trouvé. Corrigé.**
 Trouvé et fermé le 2026-09-25, en mesurant §3.68.
 
