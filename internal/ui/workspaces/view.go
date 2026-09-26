@@ -177,31 +177,78 @@ func pathBaseName(path string) string {
 	return filepath.Base(path)
 }
 
-// formatGitStatus formats the git status column for a table row
+// The Git Status markers follow starship's git_status module, the convention a
+// prompt user already reads without a legend. They are plain single-width
+// characters rather than Nerd Font glyphs: the cell is split in two colours at
+// a rune index (branchCut), which only holds when every character is one cell
+// wide, and a count glued to a double-width glyph was the hardest part of the
+// old cell to read.
+const (
+	gitMarkModified   = "!"
+	gitMarkUntracked  = "?"
+	gitMarkAhead      = "⇡"
+	gitMarkBehind     = "⇣"
+	gitMarkDiverged   = "⇕"
+	gitMarkNoUpstream = "⊘"
+)
+
+// gitBranchMaxRunes bounds the branch part of the Git Status cell. The column
+// sizes to its content, so a single `feature/JIRA-1234-rewrite-the-whole-thing`
+// would otherwise widen it for every row — and a cap on the column would cut
+// the markers instead, which are the part worth reading.
+const gitBranchMaxRunes = 24
+
+// displayBranch shortens a branch past gitBranchMaxRunes, keeping its start:
+// that is where the prefix (feature/, fix/) and the ticket number usually are.
+func displayBranch(branch string) string {
+	runes := []rune(branch)
+	if len(runes) <= gitBranchMaxRunes {
+		return branch
+	}
+	return string(runes[:gitBranchMaxRunes-1]) + "…"
+}
+
+// formatGitStatus renders the Git Status cell: the branch, then its markers —
+// `main !3 ?2 ⇡1`, `main ⇕⇡2⇣5`, `feature ⊘`.
+//
+// No branch glyph: the leftmost column already shows the repository one, and a
+// second copy on the same row only pushed the name further right.
 func formatGitStatus(entry Entry) string {
 	if entry.GitBranch == "" {
-		if !entry.IsDir {
-			return ""
-		}
 		return ""
 	}
+	branch := displayBranch(entry.GitBranch)
+	if markers := gitMarkers(entry); markers != "" {
+		return branch + " " + markers
+	}
+	return branch
+}
 
+// gitMarkers is the part of the cell after the branch, in starship's order:
+// the working tree first, then where the branch stands against its upstream.
+func gitMarkers(entry Entry) string {
 	var parts []string
-	parts = append(parts, theme.IconGitBranch+" "+entry.GitBranch)
-
 	if entry.GitModified > 0 {
-		parts = append(parts, fmt.Sprintf("%s%d", theme.IconGitModified, entry.GitModified))
+		parts = append(parts, gitMarkModified+strconv.Itoa(entry.GitModified))
 	}
 	if entry.GitUntracked > 0 {
-		parts = append(parts, fmt.Sprintf("%s%d", theme.IconGitUntracked, entry.GitUntracked))
+		parts = append(parts, gitMarkUntracked+strconv.Itoa(entry.GitUntracked))
 	}
-	if entry.GitUnpushed > 0 {
-		parts = append(parts, fmt.Sprintf("%s%d", theme.IconGitUnpushed, entry.GitUnpushed))
+	switch {
+	case entry.GitNoUpstream:
+		// Before the counts would have read 0 anyway: with no upstream there is
+		// nothing to compare against, which is not the same as being level.
+		parts = append(parts, gitMarkNoUpstream)
+	case entry.GitUnpushed > 0 && entry.GitUnpulled > 0:
+		// The one state F refuses on for the branch's sake rather than the
+		// tree's, so it gets a mark of its own and not just two arrows.
+		parts = append(parts, fmt.Sprintf("%s%s%d%s%d", gitMarkDiverged,
+			gitMarkAhead, entry.GitUnpushed, gitMarkBehind, entry.GitUnpulled))
+	case entry.GitUnpushed > 0:
+		parts = append(parts, gitMarkAhead+strconv.Itoa(entry.GitUnpushed))
+	case entry.GitUnpulled > 0:
+		parts = append(parts, gitMarkBehind+strconv.Itoa(entry.GitUnpulled))
 	}
-	if entry.GitUnpulled > 0 {
-		parts = append(parts, fmt.Sprintf("%s%d", theme.IconGitUnpulled, entry.GitUnpulled))
-	}
-
 	return strings.Join(parts, " ")
 }
 
@@ -614,7 +661,7 @@ func (m Model) GetHelpContent() help.Content {
 			},
 			{
 				Title: "Git Status",
-				Body:  "Directories that are git repositories display their branch name and status indicators: modified files, untracked files, unpushed commits, and unpulled commits. The unpulled count comes from the local remote-tracking ref, so it is only as fresh as the last fetch — press F to bring it up to date.",
+				Body:  "Git repositories show their branch followed by starship-style markers: !N modified files, ?N untracked files, ⇡N commits to push, ⇣N commits to pull, ⇕⇡N⇣M diverged (both at once — F will not fast-forward it), and ⊘ for a branch with no upstream. The markers turn orange when F would refuse the repository: uncommitted changes, or a diverged branch. The ⇣ count comes from the local remote-tracking ref, so it is only as fresh as the last fetch — press F to bring it up to date.",
 			},
 			{
 				Title: "Sync",

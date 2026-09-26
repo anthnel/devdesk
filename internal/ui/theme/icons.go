@@ -63,9 +63,6 @@ var (
 	IconTreeEnd               = "\u2514\u2500 " // the last node of a run
 	IconGitBranch             = "\ue725"        //  nf-dev-git_branch
 	IconGitUntracked          = "\U000F02D6"    // 󰋖 nf-md-help
-	IconGitUnpushed           = "\uf403"        //  nf-oct-arrow_up
-	IconGitUnpulled           = "\ueb40"        //  nf-cod-arrow_down
-	IconGitModified           = "\U000F03EB"    // 󰏫 nf-md-pencil
 	IconToml                  = "\ue6b2"        //  nf-custom-toml
 	IconPending               = "\U000F0150"    // 󰅐 nf-md-clock_outline
 	IconCanceled              = "\U000F0376"    // 󰍶 nf-md-minus_circle

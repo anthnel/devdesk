@@ -15876,6 +15876,49 @@ parcours précédent sert pendant ce temps), et répond par niveau (`Children`).
 - **Le mode sélection du clone n'a pas `g`**, alors que sauter à un groupe
   profond pour le cocher y serait utile.
 
+### 3.94 Git Status dans `ws` — la convention starship — **done**
+
+Demandé le 2026-09-26 : « les icônes git status ne sont pas très claires ».
+L'ancienne cellule était ` main 󰏫3 󰋖2 1 4`, avec quatre défauts :
+
+- le glyphe de branche répétait celui de la colonne d'icônes, sur la même
+  ligne ;
+- les fichiers non suivis portaient `nf-md-help` — un point d'interrogation
+  qu'on lit « aide » ou « inconnu » ;
+- quatre familles Nerd Font (dev, md, oct, cod), donc des flèches ↑ et ↓ de
+  tailles différentes, et des compteurs collés à des glyphes qui font deux
+  cellules sur certains terminaux ;
+- toute la cellule passait en orange, nom de branche compris, et trois états
+  distincts (pas d'upstream, divergé, à jour) se ressemblaient.
+
+La cellule suit maintenant le module `git_status` de starship, que tout
+utilisateur de prompt lit déjà : `main !3 ?2 ⇡1`, `main ⇕⇡2⇣5`, `feature ⊘`.
+
+| Marque | Sens |
+|---|---|
+| `!N` | fichiers modifiés |
+| `?N` | fichiers non suivis |
+| `⇡N` / `⇣N` | commits à pousser / à tirer |
+| `⇕⇡N⇣M` | divergé — `F` refuse |
+| `⊘` | pas d'upstream (ajout : starship n'affiche rien, ce qui se confondait avec « à jour ») |
+
+Des caractères simples plutôt que des glyphes Nerd Font : la cellule est
+coupée en deux couleurs par `Cut`/`TailStyle` (le second appelant après les
+jauges de §3.71), à un index de rune, ce qui ne tient que si tout fait une
+cellule de large — `TestEveryGitMarkerIsOneCellWide`. La branche garde la
+couleur du texte ; seules les marques passent en orange, et seulement quand
+`F` refuserait le dépôt (modifications, non suivis, divergence). Un dépôt en
+retard n'est pas un avertissement : c'est la raison d'être de `F`.
+
+La colonne était `SizingFixed` à 28 cellules : quatre lettres (`main`) en
+occupaient autant qu'une longue branche avec trois marques. Elle passe en
+`SizingContent` (plancher : les 10 cellules du titre), et rend la place à
+`Remote`. Pas de plafond : il couperait la fin de la cellule, c'est-à-dire les
+marques. C'est la branche qui est raccourcie au-delà de 24 runes
+(`feature/JIRA-1234-rewri… !2`), en gardant son début.
+`IconGitModified`, `IconGitUnpushed` et `IconGitUnpulled` disparaissent avec
+leur dernier appelant ; `IconGitUntracked` reste, les conteneurs l'utilisent.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

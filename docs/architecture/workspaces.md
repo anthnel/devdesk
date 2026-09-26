@@ -85,6 +85,25 @@ escape Rule 122 bans from a cell.
 `.gitlab-ci.yml` is a **declared exception** in `vocabtest`: it is a filename,
 not vocabulary — the file is called that whatever forge a context targets.
 
+## The Git Status cell — starship's markers
+
+`main !3 ?2 ⇡1`, `main ⇕⇡2⇣5`, `feature ⊘` (§3.94): the branch, then
+starship's `git_status` marks — `!` modified, `?` untracked, `⇡`/`⇣` ahead and
+behind, `⇕` diverged — plus `⊘` for a branch with no upstream, which starship
+leaves blank and which then read like "level with its remote".
+
+**Plain single-width characters, not Nerd Font glyphs**, because the cell is
+two colour runs (`Cut`/`TailStyle`, Rule 122) split at a rune index —
+`workspaceRow.branchCut`. The branch keeps the text colour; the markers turn
+orange only when `F` would refuse the repository (uncommitted or untracked
+files, a diverged branch). While a spinner holds the cell, `branchCut` covers
+all of it.
+
+**The column sizes to its content** (`SizingContent`, floor at the title's
+10 cells, no ceiling). A ceiling would truncate the tail — the markers, which
+are the point — so the branch is shortened in the cell instead, past 24 runes
+(`displayBranch`), keeping its start where the prefix and ticket number sit.
+
 ## The workspaces sync
 
 `F` fetches a repository and fast-forwards it (§3.17). It is the other half of

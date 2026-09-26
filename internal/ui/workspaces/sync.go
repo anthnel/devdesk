@@ -173,6 +173,7 @@ func (m *Model) applyGitStatus(repoPath string, status Entry) {
 		entries[i].GitUntracked = status.GitUntracked
 		entries[i].GitUnpushed = status.GitUnpushed
 		entries[i].GitUnpulled = status.GitUnpulled
+		entries[i].GitNoUpstream = status.GitNoUpstream
 	}
 	m.setEntries(entries)
 }
