@@ -192,6 +192,22 @@ const (
 	gitMarkNoUpstream = "⊘"
 )
 
+// gitBranchMaxRunes bounds the branch part of the Git Status cell. The column
+// sizes to its content, so a single `feature/JIRA-1234-rewrite-the-whole-thing`
+// would otherwise widen it for every row — and a cap on the column would cut
+// the markers instead, which are the part worth reading.
+const gitBranchMaxRunes = 24
+
+// displayBranch shortens a branch past gitBranchMaxRunes, keeping its start:
+// that is where the prefix (feature/, fix/) and the ticket number usually are.
+func displayBranch(branch string) string {
+	runes := []rune(branch)
+	if len(runes) <= gitBranchMaxRunes {
+		return branch
+	}
+	return string(runes[:gitBranchMaxRunes-1]) + "…"
+}
+
 // formatGitStatus renders the Git Status cell: the branch, then its markers —
 // `main !3 ?2 ⇡1`, `main ⇕⇡2⇣5`, `feature ⊘`.
 //
@@ -201,10 +217,11 @@ func formatGitStatus(entry Entry) string {
 	if entry.GitBranch == "" {
 		return ""
 	}
+	branch := displayBranch(entry.GitBranch)
 	if markers := gitMarkers(entry); markers != "" {
-		return entry.GitBranch + " " + markers
+		return branch + " " + markers
 	}
-	return entry.GitBranch
+	return branch
 }
 
 // gitMarkers is the part of the cell after the branch, in starship's order:

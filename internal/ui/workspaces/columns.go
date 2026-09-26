@@ -10,10 +10,11 @@ import (
 )
 
 // Column fixed widths for the workspace table.
-// colGitFixed: branch(~20) + " " + a couple of starship markers (mark+count) = 28
 const (
-	colNameMin        = 16
-	colGitFixed       = 28
+	colNameMin = 16
+	// colGitMin is the title's width: the cell itself can be as short as a
+	// four-letter branch, and a spinner's "⠋ deleting" is ten as well.
+	colGitMin         = 10
 	colLastTagFixed   = 10
 	colSensitiveFixed = 7
 	colCFixed         = 4
@@ -143,7 +144,11 @@ func workspaceColumns(withCI, withMisconfig bool) []datatable.Column[workspaceRo
 			Search: func(r workspaceRow) string { return r.Entry.GitRemote },
 		},
 		{
-			Title: "Git Status", Sizing: datatable.SizingFixed, MinWidth: colGitFixed,
+			// Content-sized: a table of `main` rows used to spend 28 cells on
+			// four letters. No MaxWidth — a cap would cut the markers, which
+			// are what the column is for; the branch is shortened in the cell
+			// instead (gitBranchMaxRunes), so the markers always survive.
+			Title: "Git Status", Sizing: datatable.SizingContent, MinWidth: colGitMin,
 			Cell:      func(r workspaceRow) string { return r.GitStatus },
 			Style:     gitBranchStyle,
 			Cut:       func(r workspaceRow) int { return r.branchCut },
@@ -249,7 +254,7 @@ func (m *Model) rowsFor(entries []Entry) []workspaceRow {
 	for _, entry := range entries {
 		sensitive, misc, c, h, med, l, scanned := m.formatScanColumns(entry, frame)
 		gitStatus := formatGitStatus(entry)
-		branchCut := utf8.RuneCountInString(entry.GitBranch)
+		branchCut := utf8.RuneCountInString(displayBranch(entry.GitBranch))
 		// A row can only be held by one of the two — busy() is what keeps them
 		// apart — so the order below decides nothing. The delete spends this
 		// cell for the same reason the sync does, and with less to lose: a

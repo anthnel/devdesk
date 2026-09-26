@@ -15877,6 +15877,13 @@ cellule de large — `TestEveryGitMarkerIsOneCellWide`. La branche garde la
 couleur du texte ; seules les marques passent en orange, et seulement quand
 `F` refuserait le dépôt (modifications, non suivis, divergence). Un dépôt en
 retard n'est pas un avertissement : c'est la raison d'être de `F`.
+
+La colonne était `SizingFixed` à 28 cellules : quatre lettres (`main`) en
+occupaient autant qu'une longue branche avec trois marques. Elle passe en
+`SizingContent` (plancher : les 10 cellules du titre), et rend la place à
+`Remote`. Pas de plafond : il couperait la fin de la cellule, c'est-à-dire les
+marques. C'est la branche qui est raccourcie au-delà de 24 runes
+(`feature/JIRA-1234-rewri… !2`), en gardant son début.
 `IconGitModified`, `IconGitUnpushed` et `IconGitUnpulled` disparaissent avec
 leur dernier appelant ; `IconGitUntracked` reste, les conteneurs l'utilisent.
 

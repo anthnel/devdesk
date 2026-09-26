@@ -2,6 +2,7 @@ package workspaces
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
@@ -20,6 +21,8 @@ func TestTheGitStatusCellFollowsStarship(t *testing.T) {
 		{"no upstream", Entry{GitBranch: "feature", GitNoUpstream: true}, "feature ⊘"},
 		{"everything", Entry{GitBranch: "main", GitModified: 1, GitUntracked: 1, GitUnpulled: 2}, "main !1 ?1 ⇣2"},
 		{"not a repository", Entry{}, ""},
+		{"long branch keeps its markers", Entry{GitBranch: "feature/JIRA-1234-rewrite-the-whole-thing", GitModified: 2},
+			"feature/JIRA-1234-rewri… !2"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -63,4 +66,21 @@ func TestTheBranchStaysPlainAndTheMarkersWarnOnlyWhenSyncWouldRefuse(t *testing.
 			t.Errorf("row %s: markers warn = %v, want %v", rows[i].Entry.Path, got, wantWarn)
 		}
 	}
+}
+
+// The column is as wide as its widest cell, not a fixed 28: a table of short
+// branches gives the room back to the Remote column.
+func TestTheGitStatusColumnIsAsWideAsItsContent(t *testing.T) {
+	m := loadedModel(t)
+	for _, col := range m.table.Table().Columns() {
+		if col.Title != "Git Status" {
+			continue
+		}
+		// The widest fixture cell; every marker is one cell (see above).
+		if want := utf8.RuneCountInString("main !2 ?1 ⇡3"); col.Width != want {
+			t.Errorf("Git Status width = %d, want the widest cell's %d", col.Width, want)
+		}
+		return
+	}
+	t.Fatal("no Git Status column")
 }

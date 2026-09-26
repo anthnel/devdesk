@@ -99,6 +99,11 @@ orange only when `F` would refuse the repository (uncommitted or untracked
 files, a diverged branch). While a spinner holds the cell, `branchCut` covers
 all of it.
 
+**The column sizes to its content** (`SizingContent`, floor at the title's
+10 cells, no ceiling). A ceiling would truncate the tail — the markers, which
+are the point — so the branch is shortened in the cell instead, past 24 runes
+(`displayBranch`), keeping its start where the prefix and ticket number sit.
+
 ## The workspaces sync
 
 `F` fetches a repository and fast-forwards it (§3.17). It is the other half of
