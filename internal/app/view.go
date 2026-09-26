@@ -30,6 +30,8 @@ func (a *App) View() string {
 // overlay holding the keyboard is the one on screen.
 func (a *App) activeOverlay() string {
 	switch {
+	case a.switchingTo != "":
+		return a.renderContextSwitchingOverlay()
 	case a.showHelp:
 		return a.renderHelpOverlay()
 	case a.showContextList:

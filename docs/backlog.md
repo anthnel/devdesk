@@ -94,6 +94,25 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D76 — un changement de contexte affichait l'ancienne interface avant de
+basculer. Corrigé.** Signalé et fermé le 2026-09-26.
+
+Le rapport : « quand je change de ctx, il affiche l'interface et seulement
+après il bascule ». À la validation (picker ou `:ctx <nom>`), l'overlay se
+fermait aussitôt, alors que le `Cmd` de bascule — chargement de la config,
+choix du magasin de secrets, **auto-login réseau** sur la forge — tournait
+encore. Pendant ces secondes, les vues de l'ancien contexte restaient à
+l'écran et répondaient au clavier, puis tout était reconstruit d'un coup.
+
+`App.switchingTo` porte le nom du contexte en cours de chargement, posé dans
+`switchContext` (donc dans `Update`, Rule 110) et effacé par
+`ContextSwitchCompleteMsg` comme par `ContextSwitchErrorMsg`. Tant qu'il est
+posé, `activeOverlay` remplace toute l'interface par « Switching to context
+<nom>... » et `handleKeyMsg` n'accepte que `ctrl+c` : une touche envoyée à
+une vue qui va disparaître agirait sur le mauvais contexte. Tests :
+`TestASwitchInFlightHidesThePreviousContext`,
+`TestASwitchInFlightHoldsTheKeyboard`,
+`TestTheSwitchOverlayGoesWhenTheSwitchSettles`.
 **D75 — dans `ge`, la colonne Slug ne suivait pas son contenu. Corrigé.**
 Signalé et fermé le 2026-09-26, dans la foulée de D74.
 
