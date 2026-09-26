@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "cbdc0d864e32",
+  "strategy": "manual-commit",
+  "branch": "feat/forge-index-reuse-fresh",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/cb/dc0d864e32/0/metadata.json",
+      "transcript": "/cb/dc0d864e32/0/full.jsonl",
+      "compact_transcript": "/cb/dc0d864e32/0/transcript.jsonl",
+      "content_hash": "/cb/dc0d864e32/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 584,
+    "cache_creation_tokens": 1182689,
+    "cache_read_tokens": 54437500,
+    "output_tokens": 65369,
+    "api_call_count": 293
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "cbdc0d864e32",
+  "session_id": "b2c24738-10cc-46e2-87aa-2fbc133fb37f",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-26T10:38:59.6166283Z",
+  "branch": "feat/forge-index-reuse-fresh",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5",
+  "turn_id": "b8edf2f982b6",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 584,
+    "cache_creation_tokens": 1182689,
+    "cache_read_tokens": 54437500,
+    "output_tokens": 65369,
+    "api_call_count": 293
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 12,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.local.json": 3,
+        "dhi.pub": 4,
+        "err.txt": 4
+      }
+    }
+  ]
+}
