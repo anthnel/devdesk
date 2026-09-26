@@ -198,3 +198,87 @@ func TestAnEditThatChangesNothingCostsNothing(t *testing.T) {
 		t.Error("an unchanged index was written and broadcast")
 	}
 }
+
+// saveIndex writes an index for the account indexRouter's sessions log in as.
+func saveIndex(t *testing.T, a *App, builtAt time.Time, unlisted []string) {
+	t.Helper()
+	ix := forgeindex.New("https://gitlab.example.com", "7", builtAt,
+		[]forgeindex.Entry{{ID: "9", Path: "old", Name: "old", Kind: forgeindex.KindNamespace}}, unlisted)
+	if err := forgeindex.Save(forgeindex.Path(a.currentContext), ix); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Coming back to a context whose file is recent and complete costs no walk:
+// the file is the index.
+func TestARecentCompleteFileSparesTheWalk(t *testing.T) {
+	a := indexRouter(t)
+	saveIndex(t, a, time.Now().Add(-time.Minute), nil)
+
+	pumpIndex(t, a, ForgeAutoLoginMsg{Forge: indexForge{}, User: forge.User{ID: "7"}})
+
+	if runs := a.jobs.Snapshot(); len(runs) != 0 {
+		t.Errorf("runs = %+v, want no walk", runs)
+	}
+	if _, ok := a.sharedState.ForgeIndex.Lookup("old"); !ok {
+		t.Error("the file was not installed")
+	}
+}
+
+// A file that cannot stand in for a walk is shown meanwhile, then replaced by
+// the walk.
+func TestAnOldOrIncompleteFileIsWalkedAgain(t *testing.T) {
+	for name, file := range map[string]struct {
+		builtAt  time.Time
+		unlisted []string
+	}{
+		"old":        {time.Now().Add(-forgeIndexMaxAge - time.Minute), nil},
+		"incomplete": {time.Now(), []string{"secret-group"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			a := indexRouter(t)
+			saveIndex(t, a, file.builtAt, file.unlisted)
+
+			pumpIndex(t, a, ForgeAutoLoginMsg{Forge: indexForge{}, User: forge.User{ID: "7"}})
+
+			if runs := a.jobs.Snapshot(); len(runs) != 1 || runs[0].Kind != jobs.KindIndex {
+				t.Fatalf("runs = %+v, want one walk", runs)
+			}
+			if _, ok := a.sharedState.ForgeIndex.Lookup("acme/api"); !ok {
+				t.Error("the walk did not replace the file")
+			}
+		})
+	}
+}
+
+// ctrl+r walks whatever the file's age: it is the way to see what changed on
+// the forge by other means than this application.
+func TestARefreshWalksEvenOverARecentFile(t *testing.T) {
+	a := indexRouter(t)
+	saveIndex(t, a, time.Now(), nil)
+	pumpIndex(t, a, ForgeAutoLoginMsg{Forge: indexForge{}, User: forge.User{ID: "7"}})
+
+	pumpIndex(t, a, shared.ForgeIndexRefreshMsg{})
+
+	if runs := a.jobs.Snapshot(); len(runs) != 1 {
+		t.Fatalf("runs = %+v, want the refresh's walk", runs)
+	}
+	if _, ok := a.sharedState.ForgeIndex.Lookup("acme/api"); !ok {
+		t.Error("the refresh's walk was not installed")
+	}
+}
+
+// The file arriving while a ctrl+r walk is already out is shown, but does not
+// start a second walk.
+func TestTheFileDoesNotStartASecondWalk(t *testing.T) {
+	a := indexRouter(t)
+	a.sharedState.Forge = indexForge{}
+	a.forgeIndexCancel = func() {}
+
+	_, cmd := a.Update(forgeIndexLoadedMsg{gen: a.forgeIndexGen})
+	for _, out := range testutil.Msgs(cmd) {
+		if _, walk := out.(jobs.StartMsg); walk {
+			t.Error("the file started a walk beside the one in flight")
+		}
+	}
+}

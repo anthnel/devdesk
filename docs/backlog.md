@@ -94,6 +94,33 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D77 — revenir sur un contexte relançait un walk complet de la forge, alors
+que son index venait d'être écrit. Corrigé.** Signalé et fermé le 2026-09-26.
+
+Le rapport : « je change de contexte A → B → A, il relance un job de mise en
+cache ; est-ce que ce dernier est nécessaire ». Il ne l'était pas :
+`startForgeIndex` lisait le fichier **et** lançait un walk sans condition, à
+chaque ouverture de session — démarrage, login, changement de contexte. Le
+fichier de A, écrit par le walk de quelques minutes plus tôt et tenu à jour
+par chaque création/suppression faite dans l'explorer, était refait à
+l'identique, au prix de toutes les requêtes de listing.
+
+Le walk attend désormais le fichier, et `handleForgeIndexLoaded` ne le lance
+que si `forgeIndexNeedsWalk` le demande :
+
+| Fichier | Walk |
+|---|---|
+| absent, illisible, ou d'un autre hôte/compte | oui |
+| `BuiltAt` de plus de `forgeIndexMaxAge` (15 min) | oui — le fichier est affiché en attendant |
+| `Unlisted` non vide (des groupes n'avaient pas pu être listés) | oui, quel que soit l'âge |
+| récent et complet | **non** |
+
+Un walk déjà lancé (un `ctrl+r` arrivé avant le fichier) en tient lieu : le
+fichier est affiché, aucun second walk n'est lancé. `ctrl+r` dans l'explorer
+marche toujours quel que soit l'âge du fichier — c'est ce qui voit ce qui a
+changé sur la forge par d'autres moyens que DevDesk. Tests :
+`TestARecentCompleteFileSparesTheWalk`, `TestAnOldOrIncompleteFileIsWalkedAgain`,
+`TestARefreshWalksEvenOverARecentFile`, `TestTheFileDoesNotStartASecondWalk`.
 **D75 — dans `ge`, la colonne Slug ne suivait pas son contenu. Corrigé.**
 Signalé et fermé le 2026-09-26, dans la foulée de D74.
 
