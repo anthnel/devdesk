@@ -25,6 +25,14 @@ const commandModeKey = keymap.CommandMode
 
 // handleKeyMsg processes keyboard input
 func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// A switch in flight holds the keyboard: a key sent to the previous
+	// context's views would act on a context that is going away.
+	if a.switchingTo != "" {
+		if msg.String() == "ctrl+c" {
+			return a, tea.Quit
+		}
+		return a, nil
+	}
 	// If an overlay is displayed, handle its navigation
 	if a.showHelp {
 		return a.handleHelpKeyMsg(msg)

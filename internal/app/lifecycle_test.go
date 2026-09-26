@@ -560,3 +560,53 @@ func TestCancellingTheTemplateChoiceReturnsToTheExplorer(t *testing.T) {
 		t.Error("the explorer was not told the choice was cancelled")
 	}
 }
+
+// While a switch loads, the previous context's interface is not drawn: the
+// first views on screen after it are the new context's.
+func TestASwitchInFlightHidesThePreviousContext(t *testing.T) {
+	a := router(t, &fakeView{body: "previous context"})
+
+	_ = a.switchContext("work") // the Cmd is not run: it would touch ~/.devdesk
+
+	screen := a.View()
+	if strings.Contains(screen, "previous context") {
+		t.Error("the previous context's view was drawn while the switch loaded")
+	}
+	if !strings.Contains(screen, "Switching to context work") {
+		t.Error("nothing on screen says a switch is loading")
+	}
+}
+
+// A key pressed during the switch does not reach the view being replaced.
+func TestASwitchInFlightHoldsTheKeyboard(t *testing.T) {
+	view := &bareView{}
+	a := router(t, view)
+	_ = a.switchContext("work")
+
+	feedKey(t, a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'D'}})
+
+	for _, msg := range view.received {
+		if _, isKey := msg.(tea.KeyMsg); isKey {
+			t.Fatal("a key reached the previous context's view during the switch")
+		}
+	}
+}
+
+// The overlay goes when the switch settles, whichever way it settles.
+func TestTheSwitchOverlayGoesWhenTheSwitchSettles(t *testing.T) {
+	for name, settle := range map[string]tea.Msg{
+		"complete": ContextSwitchCompleteMsg{ContextName: "work", Config: testConfig()},
+		"error":    ContextSwitchErrorMsg{Error: errors.New("boom")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			a := router(t, &fakeView{})
+			_ = a.switchContext("work")
+
+			a.Update(settle)
+
+			if strings.Contains(a.View(), "Switching to context") {
+				t.Error("the switch overlay outlived the switch")
+			}
+		})
+	}
+}

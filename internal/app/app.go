@@ -89,6 +89,11 @@ type App struct {
 	showContextList    bool
 	contextList        []string
 	contextSelectedIdx int
+	// switchingTo names the context a switch is loading, or "" when none is.
+	// While it is set the previous context's interface is not drawn: the load
+	// includes a network login, and showing the old views for its duration
+	// read as the new context appearing first and switching afterwards.
+	switchingTo string
 
 	// Help overlay
 	showHelp     bool
@@ -418,6 +423,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ContextSwitchErrorMsg:
 		log.Printf("ERROR: Context operation failed: %v", msg.Error)
+		a.switchingTo = ""
 		return a, nil
 
 	case ContextListMsg:
