@@ -60,8 +60,7 @@ func (a *App) handleAutoLoginResult(msg ForgeAutoLoginMsg) (tea.Model, tea.Cmd) 
 	}
 
 	log.Printf("GitLab auto-login successful for user: %s", msg.User.Username)
-	a.setAuthenticated(msg.Forge, msg.User)
-	return a, nil
+	return a, a.setAuthenticated(msg.Forge, msg.User)
 }
 
 // handleAuthResult intercepts a manual authentication to persist the config and
@@ -73,7 +72,7 @@ func (a *App) handleAuthResult(msg auth.AuthResultMsg) (tea.Model, tea.Cmd) {
 	}
 
 	log.Printf("GitLab authentication successful for user: %s", msg.User.Username)
-	a.setAuthenticated(msg.Forge, msg.User)
+	indexCmd := a.setAuthenticated(msg.Forge, msg.User)
 
 	if msg.ConfigToSave != nil {
 		if err := config.Save(msg.ConfigToSave); err != nil {
@@ -84,15 +83,19 @@ func (a *App) handleAuthResult(msg auth.AuthResultMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Forward the message to the view to update the UI
-	return a, a.forwardToActiveView(msg)
+	return a, tea.Batch(indexCmd, a.forwardToActiveView(msg))
 }
 
 // setAuthenticated records a live GitLab session in the shared state, which is
 // what every GitLab-backed view reads to decide whether it can load anything.
-func (a *App) setAuthenticated(backend forge.Forge, user forge.User) {
+//
+// It returns the work a new session starts: the forge index, read back from
+// disk and walked again (forge_index.go).
+func (a *App) setAuthenticated(backend forge.Forge, user forge.User) tea.Cmd {
 	a.sharedState.Forge = backend
 	a.sharedState.CurrentUser = user
 	a.sharedState.IsAuthenticated = true
+	return a.startForgeIndex()
 }
 
 // clearAuthenticated is setAuthenticated's mirror, and the cached data goes with
@@ -103,6 +106,7 @@ func (a *App) clearAuthenticated() {
 	a.sharedState.CurrentUser = forge.User{}
 	a.sharedState.IsAuthenticated = false
 	a.sharedState.ForgeStats = nil
+	a.stopForgeIndex()
 }
 
 // handleLogoutComplete clears the session the way logging in sets it.

@@ -72,16 +72,7 @@ func (a *App) redetectIfToolsMoved(engineChanged bool) tea.Cmd {
 // broadcastScanTools hands the current detection to every view the router
 // holds, on screen or not — broadcastJobs's reasoning.
 func (a *App) broadcastScanTools() tea.Cmd {
-	msg := shared.ScanToolsMsg{Report: a.sharedState.Tools}
-	cmds := make([]tea.Cmd, 0, len(a.views))
-	for name, view := range a.views {
-		updated, cmd := view.Update(msg)
-		a.views[name] = updated
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-	return tea.Batch(cmds...)
+	return a.broadcast(shared.ScanToolsMsg{Report: a.sharedState.Tools})
 }
 
 // sendScanToolsTo hands the detection to one view: one built after it landed

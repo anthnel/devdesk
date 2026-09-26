@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/anthnel/devdesk/internal/forge"
+	"github.com/anthnel/devdesk/internal/forgeindex"
 	"github.com/anthnel/devdesk/internal/jobs"
 	"github.com/anthnel/devdesk/internal/ui/components"
 )
@@ -123,5 +124,9 @@ func (m Model) handleDeleteComplete(msg DeleteCompleteMsg) (tea.Model, tea.Cmd) 
 		}
 	}
 	m.updateTableRows()
-	return m, nil
+	if msg.DeletedNode == nil {
+		return m, nil
+	}
+	gone := msg.DeletedNode.FullPath
+	return m, editIndex(func(ix *forgeindex.Index) *forgeindex.Index { return ix.Without(gone) })
 }

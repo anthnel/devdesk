@@ -10,6 +10,7 @@ import (
 	"github.com/anthnel/devdesk/internal/template"
 	"github.com/anthnel/devdesk/internal/ui/components"
 	"github.com/anthnel/devdesk/internal/ui/datatable"
+	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/theme"
 )
 
@@ -27,6 +28,9 @@ const (
 	ModeCloning
 	ModeCreatingProject
 	ModeConfirmingDelete
+	// ModeFuzzyFinding is the "g" prompt: a query over every path the forge
+	// index holds, and Enter jumps there (fuzzyfind.go).
+	ModeFuzzyFinding
 )
 
 // Model represents the model of the GitLab Explorer view
@@ -41,10 +45,16 @@ type Model struct {
 	spinner spinner.Model
 
 	// Tree state
-	nodes         []*TreeNode
-	loading       bool
-	firstLoadDone bool // true after the first load attempt completes (success or error)
-	error         string
+	nodes   []*TreeNode
+	loading bool
+	// refreshing counts the levels being re-read from the forge while they
+	// stay on screen from the index; refreshingRoots says the root level is
+	// one of them. Neither greys anything or hides the breadcrumb, which is
+	// the difference from loading: the table is the same screen either side.
+	refreshing      int
+	refreshingRoots bool
+	firstLoadDone   bool // true after the first load attempt completes (success or error)
+	error           string
 
 	// Drill-down navigation
 	currentGroupNode *TreeNode   // nil = root level
@@ -84,6 +94,9 @@ type Model struct {
 	// Tab navigation
 	activeTabIndex int // Focused tab index (last tab = current level)
 
+	// finder is the "g" prompt while ModeFuzzyFinding is active.
+	finder *fuzzy.Finder
+
 	// Delete mode state
 	deleteConfirmModal *components.OptionConfirmModal
 	deleteTargetNode   *TreeNode
@@ -109,7 +122,7 @@ func New(cfg *config.Config, sharedState *shared.State) Model {
 	s.Spinner = spinner.Dot
 	s.Style = theme.SpinnerStyle()
 
-	return Model{
+	m := Model{
 		config:        cfg,
 		shared:        sharedState,
 		templateCache: template.NewCache(),
@@ -128,16 +141,18 @@ func New(cfg *config.Config, sharedState *shared.State) Model {
 		}),
 		spinner: s,
 	}
+	m.seedFromIndex()
+	return m
 }
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
-	// Load the root groups at startup
-	if m.shared.IsAuthenticated {
-		m.loading = true
-		return tea.Batch(m.spinner.Tick, m.loadRootGroups())
+	if !m.shared.IsAuthenticated {
+		return nil
 	}
-	return nil
+	// The roots are always asked of the forge. When the index already had
+	// them, New put them on screen and this is a refresh (seedFromIndex).
+	return tea.Batch(m.spinner.Tick, m.loadRootGroups())
 }
 
 // InEditMode returns true if the view is in an edit mode or filter search.
@@ -151,6 +166,9 @@ func (m Model) InEditMode() bool {
 
 // FilterBarVisible returns true when the filter bar is visible (implements app.FilterBarView).
 func (m Model) FilterBarVisible() bool {
+	if m.mode == ModeFuzzyFinding {
+		return m.finder != nil
+	}
 	if m.mode == ModeCloning && m.clone != nil {
 		return m.clone.table.FilterBar().IsVisible()
 	}
@@ -177,6 +195,9 @@ func (m *Model) resize(width, height int) {
 	// only the table's own header row is subtracted. The Rule 116 arithmetic is
 	// the component's — seven ratios and a remainder used to live here.
 	m.table.Resize(width, max(height-1, 1))
+	if m.finder != nil {
+		m.finder.Resize(width, height)
+	}
 	if m.clone != nil {
 		m.clone.table.Resize(width, max(height-1, 1))
 	}

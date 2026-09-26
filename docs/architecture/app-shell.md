@@ -329,7 +329,10 @@ it.
 `internal/shared/state.go` holds cross-view data injected at view creation:
 - `Secrets`, `SecretNotices` — the context's secret store and what the migration off plaintext reported
 - `Forge`, `IsAuthenticated`, `CurrentUser` — the forge session (§3.6)
-- `CachedGroups`, `CachedProjects` — GitLab data cache
+- `ForgeIndex *forgeindex.Index` — everything the session can see on the
+  forge, at every depth, below. It is *not* the `CachedGroups`/`CachedProjects`
+  D36 removed: those were never written; this one is written at every session
+  start and never blocks anything
 - `GitLabStats`, `DockerStats`, `OCIStats` — Dashboard counters. `GitLabStats`
   is a `*forge.DashboardStats`, whose five counters are each a `*int`: `nil`
   means nobody could read it, and the dashboard prints `-` rather than the `0`
@@ -370,6 +373,34 @@ the configuration at read time (`scan.Required`, `Report.Missing(categories)`,
 A scan runs on the same answer: each view sets `ScanOptions.Detected` where it
 assembles its options, so `NewScanner` does not probe the machine again. A tool
 that vanished in between fails at its stage, with the stage's own message.
+
+### The forge index is built once per session, by the router
+
+`internal/app/forge_index.go`, `internal/forgeindex`. The explorer's `g` needs
+every path the session can see, and a drill-down is faster when the level is
+already known — so the router builds one list for both, the way it detects the
+scanners once for every view.
+
+| When | What |
+|---|---|
+| a session opens — auto-login, manual login, context switch (`setAuthenticated`) | the file the last walk left (`~/.devdesk/cache/forge/<context>.json`) is read at once; a walk starts as a job (`jobs.KindIndex`, cancellable in `:jobs`) |
+| the file lands | installed, unless it was written for another host or account (`Index.Matches`) or the walk already landed |
+| the walk lands | installed, written back to disk; a namespace whose listing failed is kept but marked unknown (`Unlisted`), and the run's detail says how many |
+| a view edits it (`shared.ForgeIndexEditMsg`) | a create, a delete, a level re-read — the edit is a **function** applied to the router's current index, so a walk landing in between is not lost |
+| `ctrl+r` in the explorer (`shared.ForgeIndexRefreshMsg`) | a new walk, unless one is running; the index in place stays meanwhile |
+| the session closes (`clearAuthenticated`) | the walk is cancelled, the index dropped; the file stays for the next session |
+
+**Every change is broadcast** as `shared.ForgeIndexChangedMsg` — no payload, the
+index is on the shared state. **Answers are numbered** (`forgeIndexGen`) like the
+scanners' detection, so a walk from a closed session cannot land in the next one.
+
+**The walk is undecorated.** No role, no CI status: on GitLab those cost two
+requests per repository, and a pipeline status is stale within the minute. The
+explorer decorates the level it shows (`docs/architecture/forge.md`).
+
+**An index is a value.** `With`, `Without` and `ReplaceLevel` return a new one:
+the router hands the same index to a `Cmd` writing it to disk and to the views
+reading it, and an in-place edit would race one against the other.
 
 ## Cross-View Communication
 
@@ -438,6 +469,10 @@ the `busy()` guard sees work started anywhere; and `Run.Context` is stamped at
 launch, so a create that outlives a context switch cannot write into the tree it
 switched to. What decides is whether the work is a network call the user has to
 be told about, not how many targets it has.
+
+`index` is the one kind no view starts: the router registers the forge walk
+itself when a session opens (above). It is cancellable — the walk only reads,
+and stopping it leaves the previous index in place.
 
 Runs live for the session, capped at the last `MaxFinishedRuns` settled ones; a
 run still going is never pruned. Each is stamped with the context it started in,

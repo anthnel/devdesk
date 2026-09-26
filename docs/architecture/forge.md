@@ -263,6 +263,43 @@ node type it replaced is the identity on that list. What is gained is that `.`
 now has "no sort" as a stop, so the forge's own order is reachable again after
 cycling away from it — a sort by type could never express that.
 
+## The forge index, and `g` (§3.93)
+
+The explorer reads the router's index (`shared.State.ForgeIndex`, see
+`app-shell.md`) for two things.
+
+**A level appears before the forge answers.** On opening, the roots come from
+the index (`seedFromIndex`); on `→`, a group's children do (`indexedLevel`). The
+level is then read from the forge anyway, decorated, **behind** what is shown
+(`refreshLevel`): the table keeps its rows, the breadcrumb and the shortcuts,
+and the footer says `Updating from GitLab...` with the spinner. Only a level the
+index does not know waits on the forge, as every level used to.
+
+- **The answer is laid over, not swapped in** (`mergeLevel`). A node that stayed
+  keeps its pointer — its children, its place in the navigation stack if the user
+  is inside it — and takes the forge's fields; one that went is dropped; the
+  cursor stays on the same path. Swapping the slice would have orphaned a path
+  the user had already drilled through.
+- **`TreeNode.Fresh`** says a level came from the forge in this session. A level
+  that is not fresh is read again when shown; one that is, is not.
+- **The index is corrected by what is shown.** Each decorated answer replaces its
+  level in the index (`ReplaceLevel`), creates add to it (`With`), deletes remove
+  a subtree (`Without`) — so `g` stops offering what the user has already seen
+  gone, without waiting for the next walk.
+- **A failed refresh keeps the rows** and says so in the footer (`Error` level):
+  they are true as of the last walk, and replacing them with an error state would
+  throw that away. A level with nothing on screen still fails the old way.
+
+**`g` jumps anywhere.** The workspaces view's prompt (`internal/ui/fuzzy`) over
+every entry of the index, matched by path. `Enter` on a namespace lands inside
+it, on a repository onto its row. Every ancestor is in the index, so the stack a
+drill-down would have built one `→` at a time — `[nil, g1 … g(d-1)]`, the root
+pushed as `nil` — is built in one go (`jumpTo`), reusing tree nodes where they
+exist; no request is made on the way, and the level landed on is refreshed like
+any other. A path gone since the prompt opened is refused with a `Warn`. Without
+an index yet the prompt opens anyway and waits (`Indexing GitLab...`); the
+router's next broadcast fills it. `g` is greyed without a session.
+
 ## Creating and deleting — the row is the progress
 
 `N` and `D` are network calls, and the tree used to answer neither of them while

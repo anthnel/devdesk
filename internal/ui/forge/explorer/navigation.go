@@ -2,6 +2,8 @@ package explorer
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/anthnel/devdesk/internal/shared"
 )
 
 // handleDrillDown handles enter key - navigate into a group
@@ -24,15 +26,24 @@ func (m Model) handleDrillDown() (tea.Model, tea.Cmd) {
 	m.currentGroupNode = node
 	m.activeTabIndex = m.tabCount() - 1
 
-	// Load children if not yet loaded
+	// A level the index knows goes on screen at once, and is read again from
+	// the forge behind it; one it does not know waits for the forge, as every
+	// level used to.
 	if node.Children == nil {
-		node.Loading = true
-		m.loading = true
-		m.updateTableRows()
-		return m, tea.Batch(m.spinner.Tick, m.loadChildren(node))
+		if children, known := m.indexedLevel(node); known {
+			node.Children = children
+		} else {
+			node.Loading = true
+			m.loading = true
+			m.updateTableRows()
+			return m, tea.Batch(m.spinner.Tick, m.loadChildren(node))
+		}
 	}
 	m.updateTableRows()
 	m.table.GotoTop()
+	if !node.Fresh {
+		return m, m.refreshLevel(node)
+	}
 	return m, nil
 }
 
@@ -88,36 +99,73 @@ func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	if a := m.connected(); !a.Enabled() {
 		return m, m.footer.Warn(a.Reason)
 	}
-	m.loading = true
+	// The whole forge is walked again too — the index is what "g" and every
+	// drill-down read, and a refresh that left it as it was would refresh the
+	// one level on screen and nothing a jump could land on.
+	walk := func() tea.Msg { return shared.ForgeIndexRefreshMsg{} }
+
 	// The placeholders survive the wipe: a create in flight is not something
 	// the refresh can re-read, so dropping it here would take its row away
 	// while its request was still out (see carryOverCreating).
-	m.nodes = carryOverCreating(m.nodes, nil)
 	m.currentGroupNode = nil
 	m.navigationStack = nil
 	m.cursorStack = nil
 	m.activeTabIndex = 0
+	m.refreshing = 0
+	m.refreshingRoots = false
+
+	// With an index the roots stay on screen while the forge is asked again;
+	// without one the table empties and waits, as it always did.
+	if roots, known := m.indexedLevel(nil); known {
+		m.nodes = carryOverCreating(m.nodes, roots)
+		m.updateTableRows()
+		m.table.GotoTop()
+		return m, tea.Batch(walk, m.refreshLevel(nil))
+	}
+	m.loading = true
+	m.nodes = carryOverCreating(m.nodes, nil)
 	// The rows the placeholders need, not nil: a create in flight keeps its
 	// line through the refresh, and SetItems(nil) would blank it for the length
 	// of the reload.
 	m.updateTableRows()
-	return m, tea.Batch(m.spinner.Tick, m.loadRootGroups())
+	return m, tea.Batch(walk, m.spinner.Tick, m.loadRootGroups())
 }
 
 // handleChildrenLoaded handles ChildrenLoadedMsg
+//
+// A level that was on screen from the index is laid over in place and keeps
+// the cursor on the same row; one the user was waiting on starts at the top.
 func (m Model) handleChildrenLoaded(msg ChildrenLoadedMsg) (tea.Model, tea.Cmd) {
-	msg.ParentNode.Children = carryOverCreating(msg.ParentNode.Children, msg.Children)
-	msg.ParentNode.Expanded = true
-	msg.ParentNode.Loading = false
-	m.loading = false
+	parent := msg.ParentNode
+	background := parent.Children != nil
+	if background {
+		m.settleRefresh(parent)
+	} else {
+		parent.Loading = false
+		m.loading = false
+	}
+
+	selected := m.selectedPath()
+	parent.Children = mergeLevel(parent.Children, msg.Children)
+	parent.Expanded = true
+	parent.Fresh = true
 
 	m.updateTableRows()
-	m.table.GotoTop()
-	return m, nil
+	if m.currentGroupNode == parent {
+		if background {
+			m.selectRow(selected)
+		} else {
+			m.table.GotoTop()
+		}
+	}
+	return m, replaceIndexedLevel(parent, parent.Children)
 }
 
 // handleLoadError handles LoadErrorMsg
 func (m Model) handleLoadError(msg LoadErrorMsg) (tea.Model, tea.Cmd) {
+	if m.isBackground(msg) {
+		return m.handleBackgroundLoadError(msg)
+	}
 	m.loading = false
 	m.firstLoadDone = true
 	m.error = msg.Error.Error()

@@ -231,6 +231,7 @@ func TestEveryKindAnswersWhetherItCanBeCancelled(t *testing.T) {
 		KindClone:  false,
 		KindCreate: false,
 		KindDelete: false,
+		KindIndex:  true,
 	}
 
 	kinds := Kinds()

@@ -1,17 +1,21 @@
-package workspaces
+// Package fuzzy is the "g" prompt two views share — the workspaces tree and
+// the forge explorer — and the scorer behind it. A view hands it candidates;
+// it ranks them against what the user types and says which one was picked.
+package fuzzy
 
 import "strings"
 
-// matchFuzzy reports whether query is a subsequence of candidate
+// Match reports whether query is a subsequence of candidate
 // (case-insensitive) and, when it is, a score where higher is a better
 // match. It favors consecutive runs of matched characters and a match
 // starting right after a path separator, so "wsd" scores
 // "workspaces/devdesk" higher than a path where the three letters are
 // scattered across unrelated segments.
 //
-// This is new code: no fuzzy-matching library or algorithm exists anywhere
-// else in this repository.
-func matchFuzzy(candidate, query string) (int, bool) {
+// It started in the workspaces view and moved here when the forge explorer
+// gained the same prompt: one scorer, so the two rank the same query the same
+// way.
+func Match(candidate, query string) (int, bool) {
 	if query == "" {
 		return 0, false
 	}

@@ -15795,6 +15795,54 @@ est **Non**. Accepter ajoute une règle `dhi.io/*` à `trust.yaml` :
 
 Lié : §3.82.
 
+### 3.93 Un index de la forge par contexte — `g` dans l'explorer, et une navigation qui n'attend plus — **done**
+
+Demande : un fuzzy find dans l'explorer forge, comme le `g` de `ws`. La
+différence de fond : `ws` parcourt un disque local, presque gratuit ; l'explorer
+charge la forge un niveau à la fois, et chaque niveau coûte, sur GitLab, deux
+requêtes par dépôt pour les colonnes Rôle et CI. Décidé avec l'utilisateur :
+**indexer la forge à l'ouverture du contexte**, en arrière-plan, **gardé sur
+disque et revalidé** — ce qui sert à la fois `g` et la navigation.
+
+**Ce que ce n'est pas : le retour de D36.** D36 a retiré `CachedGroups` /
+`CachedProjects` parce que rien ne les écrivait et qu'une liste plate chargée
+d'un bloc était le parcours complet que §3.16 avait supprimé pour avoir figé
+l'explorer des minutes. L'index est écrit à chaque ouverture de session, ne
+bloque rien (c'est un job `index`, annulable dans `:jobs`, et le fichier du
+parcours précédent sert pendant ce temps), et répond par niveau (`Children`).
+
+**Ce qui est fait**
+
+- `internal/forgeindex` : `Build` (parcours **non décoré**, 4 listages en
+  parallèle au plus, un namespace illisible gardé comme `Unlisted` plutôt que
+  vide), `Load`/`Save` (`~/.devdesk/cache/forge/<contexte>.json`, 0600,
+  écriture atomique, ignoré s'il est d'un autre hôte ou d'un autre compte),
+  et un index **valeur** (`With`, `Without`, `ReplaceLevel` renvoient une copie).
+- Le routeur (`internal/app/forge_index.go`) le lit et le reconstruit à chaque
+  ouverture de session, le diffuse (`shared.ForgeIndexChangedMsg`), applique les
+  retouches des vues (`shared.ForgeIndexEditMsg`, une fonction de l'index
+  courant) et relance un parcours sur `ctrl+r` (`shared.ForgeIndexRefreshMsg`).
+- L'explorer affiche un niveau depuis l'index puis le relit, décoré, **derrière**
+  (`refreshLevel`, `mergeLevel` qui garde les pointeurs et le curseur) ; ce que
+  la forge répond corrige l'index. Un échec de relecture garde les lignes.
+- `g` : le prompt de `ws` sorti en commun (`internal/ui/fuzzy`, `Finder` et
+  `Match`), sur toutes les entrées de l'index ; `Enter` construit d'un coup la
+  pile de navigation qu'une descente aurait construite, sans requête.
+
+**Ce qui reste ouvert**
+
+- **Mesuré nulle part sur une vraie forge.** Tout est testé contre des faux ;
+  la durée d'un parcours sur une grosse instance GitLab, et son effet sur la
+  limite de débit, sont à mesurer avant de parler de coût.
+- **Une création pendant un parcours peut manquer à l'index** jusqu'au suivant,
+  si le parcours avait déjà lu ce niveau : il remplace l'index en arrivant. La
+  navigation n'en souffre pas (le niveau affiché est relu), seul `g` l'ignore.
+- **Le clone parcourt toujours la forge lui-même** (`discoverChildren`). Il
+  pourrait lire l'index ; pas fait, parce qu'un clone doit voir la forge telle
+  qu'elle est maintenant, pas telle qu'au dernier parcours.
+- **Le mode sélection du clone n'a pas `g`**, alors que sauter à un groupe
+  profond pour le cocher y serait utile.
+
 ## 4. Existing plans
 
 Detailed plans live in `.claude/plans/`. One is outstanding:

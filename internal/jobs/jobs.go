@@ -33,13 +33,18 @@ const (
 	KindPull   Kind = "pull"
 	KindCreate Kind = "create"
 	KindDelete Kind = "delete"
+	// KindIndex is the walk that lists everything a forge session can see
+	// (internal/forgeindex). The router starts it when a session opens — no
+	// view does — and it is the one kind with a single target that is not a
+	// path the user picked, but the forge itself.
+	KindIndex Kind = "index"
 )
 
 // Kinds returns every declared kind, in the order a view should offer them.
 // It exists to be walked by a test: a kind without an icon or without a verb
 // is a hole that only shows up on the screen that needed it.
 func Kinds() []Kind {
-	return []Kind{KindScan, KindSync, KindClone, KindPull, KindCreate, KindDelete}
+	return []Kind{KindScan, KindSync, KindClone, KindPull, KindCreate, KindDelete, KindIndex}
 }
 
 // Cancellable reports whether stopping a run of this kind leaves the machine in
@@ -56,12 +61,13 @@ func Kinds() []Kind {
 //	clone   no   a cut git clone leaves half a repository on disk
 //	create  no   a request already sent cannot be un-sent
 //	delete  no   half deleted is worse than deleted
+//	index   yes  the walk only reads; a cut one leaves the previous index
 //
 // A run whose kind answers no still accepts Cancel: the queue stopping is worth
 // having on its own. What the answer gates is whether a view offers the key on
 // a single item (Rule 130 — greyed, with a named reason, never silent).
 func (k Kind) Cancellable() bool {
-	return k == KindScan || k == KindPull
+	return k == KindScan || k == KindPull || k == KindIndex
 }
 
 // Verb is what a kind is called while it runs — present participle, English US
@@ -84,6 +90,8 @@ func (k Kind) Verb() string {
 		return "Creating"
 	case KindDelete:
 		return "Deleting"
+	case KindIndex:
+		return "Indexing"
 	}
 	return "Working"
 }

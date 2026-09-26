@@ -173,8 +173,9 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 	a.clearAuthenticated()
 
 	// Apply auto-login result from the context switch if successful
+	var indexCmd tea.Cmd
 	if msg.Forge != nil {
-		a.setAuthenticated(msg.Forge, msg.GitLabUser)
+		indexCmd = a.setAuthenticated(msg.Forge, msg.GitLabUser)
 	} else {
 		// No credentials available — navigate to auth view for manual login
 		a.currentView = command.ViewGitAuth
@@ -192,7 +193,7 @@ func (a *App) handleContextSwitchComplete(msg ContextSwitchCompleteMsg) (tea.Mod
 	// kept for the session (D8), so a switch changes which runs are relevant,
 	// never whether they exist. Telling the new views is the whole of it.
 	return a, tea.Batch(a.requestResize(), initCmd, a.jobsChanged(), a.restartMCPCmd(), a.syncProxyPortCmd(),
-		a.detectScanTools())
+		a.detectScanTools(), indexCmd)
 }
 
 // handleContextList opens the picker with the cursor on the context in use, so

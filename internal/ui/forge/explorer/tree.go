@@ -30,8 +30,13 @@ type TreeNode struct {
 	Children []*TreeNode
 	Expanded bool
 	Loading  bool // True when loading children
-	Parent   *TreeNode
-	Depth    int // Depth in tree (for rendering)
+	// Fresh says Children came from the forge in this session, decorated,
+	// rather than from the forge index — which has no role and no CI status,
+	// and may be as old as the last walk. A level that is not fresh is read
+	// again when it is shown.
+	Fresh  bool
+	Parent *TreeNode
+	Depth  int // Depth in tree (for rendering)
 
 	// Creating marks a node the user has asked for and the forge has not
 	// confirmed: it is on screen so the request is visible where it was made,

@@ -11,6 +11,7 @@ import (
 
 	"github.com/anthnel/devdesk/internal/jobs"
 	sharedcomponents "github.com/anthnel/devdesk/internal/ui/components"
+	"github.com/anthnel/devdesk/internal/ui/fuzzy"
 	"github.com/anthnel/devdesk/internal/ui/keymap"
 )
 
@@ -197,15 +198,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case FuzzyFindCancelMsg:
+	case fuzzy.CancelMsg:
 		m.mode = ModeNormal
 		m.fuzzyFinder = nil
 		return m, nil
 
-	case FuzzyFindConfirmMsg:
+	case fuzzy.ConfirmMsg:
 		m.mode = ModeNormal
 		m.fuzzyFinder = nil
-		return m.jumpToPath(msg.Path)
+		return m.jumpToPath(msg.Key)
 
 	}
 
@@ -449,7 +450,7 @@ func (m Model) startAdd() (tea.Model, tea.Cmd) {
 // behind it. The walk runs in the returned Cmd, never here (Rule 110).
 func (m Model) startFuzzyFind() (tea.Model, tea.Cmd) {
 	m.mode = ModeFuzzyFinding
-	m.fuzzyFinder = NewFuzzyFinder()
+	m.fuzzyFinder = fuzzy.New("Scanning workspace directories...")
 	// Best-effort immediate sizing; the router notices the footer height just
 	// changed and re-lays-out right after this returns, which is what actually
 	// settles it (internal/app.forwardToActiveView, Rule 124).

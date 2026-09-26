@@ -109,6 +109,7 @@ type App struct {
 	jobs *jobs.Registry
 	// The one detection of the scanners — see scan_tools.go.
 	toolsState
+	forgeIndexState
 	jobFrameIdx int
 	jobTickSeq  int
 	jobTicking  bool
@@ -444,6 +445,22 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case shared.ScanToolsDetectRequestMsg:
 		return a, a.detectScanTools()
+
+	// ── The forge index — see forge_index.go ────────────────────────────
+	case forgeIndexLoadedMsg:
+		return a.handleForgeIndexLoaded(msg)
+
+	case forgeIndexStartedMsg:
+		return a.handleForgeIndexStarted(msg)
+
+	case forgeIndexBuiltMsg:
+		return a.handleForgeIndexBuilt(msg)
+
+	case shared.ForgeIndexEditMsg:
+		return a.handleForgeIndexEdit(msg)
+
+	case shared.ForgeIndexRefreshMsg:
+		return a.handleForgeIndexRefresh()
 
 	// Every message below reports on work already under way, and each is routed
 	// to the view that started it rather than to the one on screen. None of
