@@ -324,6 +324,7 @@ func (m Model) handleGroupCreated(msg GroupCreatedMsg) (tea.Model, tea.Cmd) {
 
 	node := nodeFromNamespace(msg.Namespace, nil)
 	m.settleCreating(msg.Target, node)
+	m.levelChanged(node.Parent)
 	m.selectRow(node.FullPath)
 	return m, indexCreated(node)
 }
@@ -344,6 +345,7 @@ func (m Model) handleProjectCreated(msg ProjectCreatedMsg) (tea.Model, tea.Cmd) 
 	// way; only the message differs.
 	node := nodeFromRepository(msg.Repository, nil)
 	m.settleCreating(msg.Target, node)
+	m.levelChanged(node.Parent)
 	m.selectRow(node.FullPath)
 
 	if msg.TemplateError != nil {

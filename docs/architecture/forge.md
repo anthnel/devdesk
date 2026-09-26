@@ -286,6 +286,14 @@ index does not know waits on the forge, as every level used to.
   level in the index (`ReplaceLevel`), creates add to it (`With`), deletes remove
   a subtree (`Without`) — so `g` stops offering what the user has already seen
   gone, without waiting for the next walk.
+- **An answer older than a create or a delete is discarded.** Creating and
+  deleting are allowed while a level refreshes behind the index — nothing blocks
+  — so a refresh can be read before the forge confirmed the change and land
+  after it. Laid over the level it would drop the created row or bring the
+  deleted one back, and tell the index the same. `levelChanged` marks the
+  refresh `Stale` (`rootsStale` at the root), and its answer is thrown away and
+  the level asked again. A delete also leaves the row's **own** level
+  (`deleted.Parent`), not whichever level is on screen when the forge answers.
 - **A failed refresh keeps the rows** and says so in the footer (`Error` level):
   they are true as of the last walk, and replacing them with an error state would
   throw that away. A level with nothing on screen still fails the old way.

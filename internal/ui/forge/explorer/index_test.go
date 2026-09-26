@@ -291,3 +291,80 @@ func TestADeletedGroupLeavesTheIndexWithItsContent(t *testing.T) {
 		t.Error("a deleted group's repositories are still offered by g")
 	}
 }
+
+// ── A create or a delete during a background refresh ────────────────────────
+
+// The refresh of alpha was asked before the repository was created; its answer
+// does not list it. Laid over the level it would drop the new row, and strip it
+// from the index — so the answer is discarded and the level asked again.
+func TestARefreshReadBeforeACreateDoesNotDropTheNewRow(t *testing.T) {
+	m := feed(t, indexedModel(t), RootGroupsLoadedMsg{Nodes: rootFixtures()}, testutil.Key("right"))
+	alpha := m.nodes[0]
+	stale := childFixtures(alpha) // read before the create
+	alpha.Children = append(alpha.Children, &TreeNode{FullPath: "alpha/new", Name: "new", Type: NodeTypeProject, Creating: true, Parent: alpha})
+	m = feed(t, m, ProjectCreatedMsg{Repository: newProject(99, "alpha/new"), Target: "alpha/new"})
+
+	m, cmd := step(t, m, ChildrenLoadedMsg{ParentNode: alpha, Children: stale})
+
+	if findNode(alpha.Children, "alpha/new") == nil {
+		t.Error("the created row was dropped by an answer read before it existed")
+	}
+	if alpha.Stale || !alpha.Loading || cmd == nil {
+		t.Errorf("Stale=%v Loading=%v — the level was not asked again", alpha.Stale, alpha.Loading)
+	}
+	if alpha.Fresh {
+		t.Error("the level was marked fresh from a discarded answer")
+	}
+}
+
+// The mirror case: an answer read before the delete would bring the row back.
+func TestARefreshReadBeforeADeleteDoesNotResurrectTheRow(t *testing.T) {
+	m := feed(t, indexedModel(t), RootGroupsLoadedMsg{Nodes: rootFixtures()}, testutil.Key("right"))
+	alpha := m.nodes[0]
+	stale := childFixtures(alpha)
+	api := findNode(alpha.Children, "alpha/api")
+	m = feed(t, m, DeleteCompleteMsg{Target: api.FullPath, DeletedNode: api})
+
+	m = feed(t, m, ChildrenLoadedMsg{ParentNode: alpha, Children: stale})
+
+	if findNode(alpha.Children, "alpha/api") != nil {
+		t.Error("the deleted row came back with an answer read before the delete")
+	}
+	if got := rowNames(m.table.Table().Rows()); len(got) != 2 {
+		t.Errorf("rows = %v, want the two left", got)
+	}
+}
+
+// The same at the root level, which has no parent node to carry the flag.
+func TestARootRefreshReadBeforeADeleteIsDiscarded(t *testing.T) {
+	m := indexedModel(t) // the roots are being refreshed
+	beta := m.nodes[1]
+	m = feed(t, m, DeleteCompleteMsg{Target: "beta", DeletedNode: beta})
+
+	m, cmd := step(t, m, RootGroupsLoadedMsg{Nodes: rootFixtures()})
+
+	if findNode(m.nodes, "beta") != nil {
+		t.Error("the deleted root came back")
+	}
+	if !m.refreshingRoots || cmd == nil {
+		t.Error("the roots were not asked again")
+	}
+}
+
+// A delete confirmed after the user drilled elsewhere leaves the level it was
+// in, not the one on screen.
+func TestADeleteLandsInItsOwnLevel(t *testing.T) {
+	m := drilledModel(t)
+	api := findNode(m.currentGroupNode.Children, "alpha/api")
+	alpha := m.currentGroupNode
+	m = feed(t, m, testutil.Key("left")) // back at the root
+
+	m = feed(t, m, DeleteCompleteMsg{Target: api.FullPath, DeletedNode: api})
+
+	if findNode(alpha.Children, "alpha/api") != nil {
+		t.Error("the deleted project is still in its group")
+	}
+	if len(m.nodes) != 3 {
+		t.Errorf("the root level lost a row: %d", len(m.nodes))
+	}
+}

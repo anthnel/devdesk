@@ -158,6 +158,21 @@ func (m *Model) refreshLevel(parent *TreeNode) tea.Cmd {
 	return tea.Batch(m.spinner.Tick, load)
 }
 
+// levelChanged records that the forge confirmed a create or a delete in the
+// level under parent. A refresh of that level already in flight may have been
+// read before the change, so its answer is marked to be discarded (Stale).
+func (m *Model) levelChanged(parent *TreeNode) {
+	if parent == nil {
+		if m.refreshingRoots {
+			m.rootsStale = true
+		}
+		return
+	}
+	if parent.Loading && parent.Children != nil {
+		parent.Stale = true
+	}
+}
+
 // settleRefresh is the bookkeeping side of a level's answer arriving.
 func (m *Model) settleRefresh(parent *TreeNode) {
 	if parent == nil {
@@ -220,6 +235,10 @@ func (m Model) handleRootGroupsLoaded(msg RootGroupsLoadedMsg) (tea.Model, tea.C
 	background := m.refreshingRoots
 	if background {
 		m.settleRefresh(nil)
+		if m.rootsStale {
+			m.rootsStale = false
+			return m, m.refreshLevel(nil)
+		}
 	}
 	selected := m.selectedPath()
 	m.loading = false

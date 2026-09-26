@@ -140,6 +140,10 @@ func (m Model) handleChildrenLoaded(msg ChildrenLoadedMsg) (tea.Model, tea.Cmd) 
 	background := parent.Children != nil
 	if background {
 		m.settleRefresh(parent)
+		if parent.Stale {
+			parent.Stale = false
+			return m, m.refreshLevel(parent)
+		}
 	} else {
 		parent.Loading = false
 		m.loading = false

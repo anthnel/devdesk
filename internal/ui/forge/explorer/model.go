@@ -53,8 +53,10 @@ type Model struct {
 	// the difference from loading: the table is the same screen either side.
 	refreshing      int
 	refreshingRoots bool
-	firstLoadDone   bool // true after the first load attempt completes (success or error)
-	error           string
+	// rootsStale is TreeNode.Stale for the root level.
+	rootsStale    bool
+	firstLoadDone bool // true after the first load attempt completes (success or error)
+	error         string
 
 	// Drill-down navigation
 	currentGroupNode *TreeNode   // nil = root level

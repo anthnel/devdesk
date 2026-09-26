@@ -34,7 +34,12 @@ type TreeNode struct {
 	// rather than from the forge index — which has no role and no CI status,
 	// and may be as old as the last walk. A level that is not fresh is read
 	// again when it is shown.
-	Fresh  bool
+	Fresh bool
+	// Stale says the refresh of Children still in flight was asked before a
+	// create or a delete the forge has since confirmed here. Its answer may
+	// predate that change — laid over the level, it would drop the created row
+	// or bring the deleted one back — so it is discarded and asked again.
+	Stale  bool
 	Parent *TreeNode
 	Depth  int // Depth in tree (for rendering)
 
