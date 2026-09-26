@@ -386,8 +386,8 @@ scanners once for every view.
 
 | When | What |
 |---|---|
-| a session opens — auto-login, manual login, context switch (`setAuthenticated`) | the file the last walk left (`~/.devdesk/cache/forge/<context>.json`) is read at once; a walk starts as a job (`jobs.KindIndex`, cancellable in `:jobs`) |
-| the file lands | installed, unless it was written for another host or account (`Index.Matches`) or the walk already landed |
+| a session opens — auto-login, manual login, context switch (`setAuthenticated`) | the file the last walk left (`~/.devdesk/cache/forge/<context>.json`) is read at once; the walk waits for it |
+| the file lands | installed, unless it was written for another host or account (`Index.Matches`) or a walk already landed. A walk starts as a job (`jobs.KindIndex`, cancellable in `:jobs`) only when the file cannot stand in for one (`forgeIndexNeedsWalk`): missing or not this account's, older than `forgeIndexMaxAge` (15 min), or carrying `Unlisted` namespaces — and not beside a walk already out. Leaving a context and coming back within minutes walks nothing (D77) |
 | the walk lands | installed, written back to disk; a namespace whose listing failed is kept but marked unknown (`Unlisted`), and the run's detail says how many |
 | a view edits it (`shared.ForgeIndexEditMsg`) | a create, a delete, a level re-read — the edit is a **function** applied to the router's current index. While a walk is out it is also kept (`forgeIndexPending`) and replayed on the walk's answer, which was read before it: a create or a delete confirmed during a walk is not undone when the walk lands. An edit that returns the same index (a level re-read unchanged, the common case) writes and broadcasts nothing |
 | `ctrl+r` in the explorer (`shared.ForgeIndexRefreshMsg`) | a new walk, unless one is running; the index in place stays meanwhile |

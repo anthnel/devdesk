@@ -21,10 +21,21 @@ import (
 // for the session, not for a view, and a view can be dropped and rebuilt at
 // any time while the session goes on.
 //
-// Two answers arrive for every session, in either order: the file the previous
-// walk left, read at once, and the walk itself, run as a job. The file is only
-// taken while nothing fresher is installed; the walk always replaces what is
-// there. A generation number retires both when the session changes under them.
+// A session reads the file the previous walk left first, and walks the forge
+// only when that file cannot stand in for a walk: missing, written for another
+// host or account, older than forgeIndexMaxAge, or incomplete. Switching away
+// from a context and back within minutes therefore costs no walk at all. The
+// file is only taken while nothing fresher is installed; a walk always replaces
+// what is there. A generation number retires both when the session changes
+// under them.
+
+// forgeIndexMaxAge is how old the file may be and still spare a session its
+// walk. The file already carries every edit made through the explorer since
+// that walk; what it misses is what changed on the forge by other means, and
+// ctrl+r in the explorer walks again whatever the file's age.
+//
+// A var rather than a const so a test can move the boundary.
+var forgeIndexMaxAge = 15 * time.Minute
 
 // forgeIndexState is the router's bookkeeping of the index, kept apart so App
 // reads as the list of concerns it holds.
@@ -75,14 +86,23 @@ func forgeIndexOwner(user forge.User) string {
 	return user.Username
 }
 
-// startForgeIndex reads the last index from disk and starts a new walk. It is
-// called when a session opens, whichever way it opened.
+// startForgeIndex reads the last index from disk; whether the forge is walked
+// is decided once the file is in (handleForgeIndexLoaded). It is called when a
+// session opens, whichever way it opened.
 func (a *App) startForgeIndex() tea.Cmd {
 	a.stopForgeIndex()
 	if a.sharedState.Forge == nil {
 		return nil
 	}
-	return tea.Batch(a.loadForgeIndex(), a.walkForgeIndex())
+	return a.loadForgeIndex()
+}
+
+// forgeIndexNeedsWalk reports whether ix, read from disk, cannot stand in for
+// a walk. nil covers a missing or unreadable file as well as one written for
+// another host or account (loadForgeIndex drops those). An index with Unlisted
+// namespaces is missing their content, so it is walked again however recent.
+func forgeIndexNeedsWalk(ix *forgeindex.Index, now time.Time) bool {
+	return ix == nil || ix.Skipped() > 0 || now.Sub(ix.BuiltAt) > forgeIndexMaxAge
 }
 
 // handleForgeIndexRefresh walks the forge again, keeping the index in place
@@ -149,10 +169,18 @@ func (a *App) handleForgeIndexLoaded(msg forgeIndexLoadedMsg) (tea.Model, tea.Cm
 	if msg.err != nil {
 		log.Printf("ERROR [app/forge-index] read: %v", msg.err)
 	}
-	if msg.gen != a.forgeIndexGen || msg.index == nil || a.forgeIndexFresh {
+	if msg.gen != a.forgeIndexGen || a.forgeIndexFresh {
 		return a, nil
 	}
-	return a, a.installForgeIndex(msg.index, false)
+	var cmds []tea.Cmd
+	if msg.index != nil {
+		cmds = append(cmds, a.installForgeIndex(msg.index, false))
+	}
+	// A walk already out — ctrl+r before the file came back — is the walk.
+	if a.forgeIndexCancel == nil && forgeIndexNeedsWalk(msg.index, time.Now()) {
+		cmds = append(cmds, a.walkForgeIndex())
+	}
+	return a, tea.Batch(cmds...)
 }
 
 func (a *App) handleForgeIndexStarted(msg forgeIndexStartedMsg) (tea.Model, tea.Cmd) {
