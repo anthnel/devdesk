@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "7a747abcc0b6",
+  "strategy": "manual-commit",
+  "branch": "fix/git-clone-error-reason",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/backlog.md",
+    "internal/git/ops.go",
+    "internal/git/ops_test.go"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7a/747abcc0b6/0/metadata.json",
+      "transcript": "/7a/747abcc0b6/0/full.jsonl",
+      "compact_transcript": "/7a/747abcc0b6/0/transcript.jsonl",
+      "content_hash": "/7a/747abcc0b6/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 162888,
+    "cache_read_tokens": 2616547,
+    "output_tokens": 9769,
+    "api_call_count": 19
+  }
+}
