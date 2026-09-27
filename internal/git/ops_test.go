@@ -201,6 +201,21 @@ func TestLastLineIsGitsReasonNotItsProgress(t *testing.T) {
 		{"carriage returns are progress", "remote: Counting\rremote: Done\rfatal: boom\n", "fatal: boom"},
 		{"trailing blank lines", "fatal: boom\n\n\n", "fatal: boom"},
 		{"nothing at all", "   \n\n", ""},
+		{
+			"a transport failure reports ssh's reason, not git's footer",
+			"Cloning into 'x'...\nHost key verification failed.\r\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n",
+			"Host key verification failed.",
+		},
+		{
+			"a rejected key is named",
+			"git@gitlab.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n",
+			"git@gitlab.com: Permission denied (publickey).",
+		},
+		{
+			"a transport failure with no reason keeps git's own line",
+			"Cloning into 'x'...\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n",
+			"fatal: Could not read from remote repository.",
+		},
 	}
 
 	for _, tt := range tests {

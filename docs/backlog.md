@@ -94,6 +94,25 @@ decided together and fixed in one pass; see [§1.2](#12-the-five-parked-defects)
 
 ### 1.1 Fixed
 
+**D78 — un clone SSH en échec affichait « and the repository exists. » au
+lieu de sa cause. Corrigé.** Signalé et fermé le 2026-09-27.
+
+Le rapport : « sur gitlab, le clone ssh ne fonctionne pas ». La cause réelle
+était `Host key verification failed.` — `gitlab.com` absent de
+`~/.ssh/known_hosts`, et `BatchMode=yes` (voulu : rien ne doit prompter)
+interdit à ssh de demander. Mais la ligne Detail ne le disait pas :
+`git.lastLine` gardait la dernière ligne de stderr, et sur un échec de
+transport git termine toujours par le même pied générique (« Please make sure
+you have the correct access rights / and the repository exists. »).
+
+`lastLine` repère désormais `fatal: Could not read from remote repository.`
+et rend la ligne qui la précède — celle de ssh (`Host key verification
+failed.`, `Permission denied (publickey).`) — ou cette ligne `fatal:`
+elle-même si ssh n'a rien écrit. Vaut pour le clone et pour la sync (`F`),
+qui partagent la fonction. Accepter automatiquement une clé d'hôte inconnue
+(`StrictHostKeyChecking=accept-new`) a été écarté : c'est un choix de
+sécurité, pas un correctif. Test : `TestLastLineIsGitsReasonNotItsProgress`.
+
 **D77 — revenir sur un contexte relançait un walk complet de la forge, alors
 que son index venait d'être écrit. Corrigé.** Signalé et fermé le 2026-09-26.
 
