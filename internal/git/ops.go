@@ -112,16 +112,46 @@ func nonInteractiveEnv(token string) []string {
 	return env
 }
 
-// lastLine returns the final non-empty line of git's stderr, which is where it
-// puts the reason. The lines above it are progress.
+// remoteReadFailure is the line git prints when the transport — ssh, most
+// often — could not reach the repository. It is always followed by the same
+// two-line advice, and preceded by the transport's own reason.
+const remoteReadFailure = "fatal: Could not read from remote repository."
+
+// lastLine returns the line of git's stderr that says why it failed.
+//
+// Usually that is the final non-empty line; the lines above it are progress.
+// The exception is a transport failure, where git ends with a generic footer
+// ("Please make sure you have the correct access rights / and the repository
+// exists.") and the actual reason — "Host key verification failed.",
+// "Permission denied (publickey)." — is the line ssh wrote just before it.
+// Reporting the footer's last line told the user nothing at all.
 func lastLine(output string) string {
-	lines := strings.Split(strings.ReplaceAll(output, "\r", "\n"), "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		if line := strings.TrimSpace(lines[i]); line != "" {
-			return line
+	lines := nonEmptyLines(output)
+	for i, line := range lines {
+		if line != remoteReadFailure {
+			continue
+		}
+		if i > 0 && !strings.HasPrefix(lines[i-1], "Cloning into ") {
+			return lines[i-1]
+		}
+		return line
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return lines[len(lines)-1]
+}
+
+// nonEmptyLines splits git's stderr into trimmed, non-empty lines. A carriage
+// return separates lines too: progress rewrites itself with one.
+func nonEmptyLines(output string) []string {
+	var out []string
+	for _, line := range strings.Split(strings.ReplaceAll(output, "\r", "\n"), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			out = append(out, line)
 		}
 	}
-	return ""
+	return out
 }
 
 // DirExists checks if a directory exists at the given path
